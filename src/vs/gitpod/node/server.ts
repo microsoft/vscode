@@ -2,12 +2,13 @@
  *  Copyright (c) Typefox. All rights reserved.
  *--------------------------------------------------------------------------------------------*/
 
-import * as os from 'os';
+import type { ResolvedPlugins } from '@gitpod/gitpod-protocol';
 import * as cp from 'child_process';
 import * as crypto from 'crypto';
 import * as fs from 'fs';
 import * as http from 'http';
 import * as net from 'net';
+import * as os from 'os';
 import * as path from 'path';
 import * as url from 'url';
 import * as util from 'util';
@@ -27,14 +28,14 @@ import { URI } from 'vs/base/common/uri';
 import { IRawURITransformer, transformIncomingURIs, transformOutgoingURIs, URITransformer } from 'vs/base/common/uriIpc';
 import { generateUuid } from 'vs/base/common/uuid';
 import { mkdirp } from 'vs/base/node/pfs';
-import { ClientConnectionEvent, IPCServer, IServerChannel, StaticRouter } from 'vs/base/parts/ipc/common/ipc';
+import { ClientConnectionEvent, IPCServer, IServerChannel } from 'vs/base/parts/ipc/common/ipc';
 import { PersistentProtocol, ProtocolConstants } from 'vs/base/parts/ipc/common/ipc.net';
 import { NodeSocket, WebSocketNodeSocket } from 'vs/base/parts/ipc/node/ipc.net';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { ConfigurationService } from 'vs/platform/configuration/common/configurationService';
 import { ExtensionHostDebugBroadcastChannel } from 'vs/platform/debug/common/extensionHostDebugIpc';
 import { IDownloadService } from 'vs/platform/download/common/download';
-import { DownloadServiceChannelClient } from 'vs/platform/download/common/downloadIpc';
+import { DownloadService } from 'vs/platform/download/common/downloadService';
 import { IEnvironmentService, INativeEnvironmentService } from 'vs/platform/environment/common/environment';
 import { OPTIONS, parseArgs } from 'vs/platform/environment/node/argv';
 import { NativeEnvironmentService } from 'vs/platform/environment/node/environmentService';
@@ -55,7 +56,8 @@ import product from 'vs/platform/product/common/product';
 import { IProductService } from 'vs/platform/product/common/productService';
 import { ConnectionType, ErrorMessage, HandshakeMessage, IRemoteExtensionHostStartParams, OKMessage, SignRequest } from 'vs/platform/remote/common/remoteAgentConnection';
 import { RemoteAgentConnectionContext } from 'vs/platform/remote/common/remoteAgentEnvironment';
-import { IRequestService } from 'vs/platform/request/common/request';
+import { IRequestService, asText } from 'vs/platform/request/common/request';
+import { RequestChannel } from 'vs/platform/request/common/requestIpc';
 import { RequestService } from 'vs/platform/request/node/requestService';
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
 import { NullTelemetryService } from 'vs/platform/telemetry/common/telemetryUtils';
@@ -65,7 +67,6 @@ import { Logger } from 'vs/workbench/services/extensions/common/extensionPoints'
 import { ExtensionScanner, ExtensionScannerInput, IExtensionReference } from 'vs/workbench/services/extensions/node/extensionPoints';
 import { IGetEnvironmentDataArguments, IRemoteAgentEnvironmentDTO, IScanExtensionsArguments } from 'vs/workbench/services/remote/common/remoteAgentEnvironmentChannel';
 import { REMOTE_FILE_SYSTEM_CHANNEL_NAME } from 'vs/workbench/services/remote/common/remoteAgentFileSystemChannel';
-import { RequestChannel } from 'vs/platform/request/common/requestIpc';
 
 const uriTransformerPath = path.join(__dirname, '../../../gitpodUriTransformer');
 const rawURITransformerFactory: (remoteAuthority: string) => IRawURITransformer = <any>require.__$__nodeRequire(uriTransformerPath);
@@ -194,6 +195,51 @@ function serveError(req: http.IncomingMessage, res: http.ServerResponse, errorCo
 	res.end(errorMessage);
 }
 
+async function installExtensionsFromServer(
+	extensionManagementService: IExtensionManagementService,
+	requestService: IRequestService,
+	fileService: IFileService
+): Promise<void> {
+	if (!process.env.GITPOD_RESOLVED_EXTENSIONS) {
+		return;
+	}
+	let resolvedPlugins: ResolvedPlugins = {};
+	try {
+		resolvedPlugins = JSON.parse(process.env.GITPOD_RESOLVED_EXTENSIONS);
+	} catch (e) {
+		console.error('Faild to parse process.env.GITPOD_RESOLVED_EXTENSIONS:', e);
+	}
+	const pending: Promise<void>[] = [];
+	for (const pluginId in resolvedPlugins) {
+		const resolvedPlugin = resolvedPlugins[pluginId];
+		if (!resolvedPlugin) {
+			continue;
+		}
+		const { fullPluginName, url, kind } = resolvedPlugin;
+		if (kind === 'builtin') {
+			// ignore built-in extension configured for Theia, we default to VS Code built-in extensions
+			continue;
+		}
+		pending.push((async () => {
+			try {
+				const context = await requestService.request({ type: 'GET', url }, CancellationToken.None);
+				if (context.res.statusCode !== 200) {
+					const message = await asText(context);
+					console.error(`Expected 200, got back ${context.res.statusCode} instead.\n\n${message}`);
+					return;
+				}
+				const downloadedLocation = path.join(os.tmpdir(), generateUuid());
+				const target = URI.file(downloadedLocation);
+				await fileService.writeFile(target, context.stream);
+				await extensionManagementService.install(target);
+			} catch (e) {
+				console.error(`Failed to install '${fullPluginName}' extension from '${url}':`, e);
+			}
+		})());
+	}
+	await Promise.all(pending);
+}
+
 async function main(): Promise<void> {
 	const connectionToken = generateUuid();
 
@@ -265,7 +311,7 @@ async function main(): Promise<void> {
 						}
 					}));
 				}
-				const pendingUser = ExtensionScanner.scanExtensions(new ExtensionScannerInput(product.version, product.commit, args.language, devMode, environmentService.extensionsPath, false, false, translations), logger);
+				const pendingUser = extensionsInstalled.then(() => ExtensionScanner.scanExtensions(new ExtensionScannerInput(product.version, product.commit, args.language, devMode, environmentService.extensionsPath, false, false, translations), logger));
 				let pendingDev: Promise<IExtensionDescription[]>[] = [];
 				if (args.extensionDevelopmentPath) {
 					pendingDev = args.extensionDevelopmentPath.map(devPath => ExtensionScanner.scanExtensions(new ExtensionScannerInput(product.version, product.commit, args.language, devMode, URI.revive(devPath).fsPath, false, true, translations), logger));
@@ -460,19 +506,25 @@ async function main(): Promise<void> {
 	services.set(IConfigurationService, new SyncDescriptor(ConfigurationService, [environmentService.settingsResource, fileService]));
 	services.set(IProductService, { _serviceBrand: undefined, ...product });
 	services.set(IRequestService, new SyncDescriptor(RequestService));
-
-	const downloadChannel = channelServer.getChannel('download', new StaticRouter(ctx => ctx.clientId === 'renderer'));
-	services.set(IDownloadService, new DownloadServiceChannelClient(downloadChannel, () => new URITransformer(rawURITransformerFactory('renderer'))));
+	services.set(IDownloadService, new SyncDescriptor(DownloadService));
 
 	services.set(IExtensionGalleryService, new SyncDescriptor(ExtensionGalleryService));
 	services.set(IExtensionManagementService, new SyncDescriptor(ExtensionManagementService));
 
 	services.set(IRequestService, new SyncDescriptor(RequestService));
 
+	let resolveExtensionsInstalled: (value?: unknown) => void;
+	const extensionsInstalled = new Promise(resolve => resolveExtensionsInstalled = resolve);
+
 	const instantiationService = new InstantiationService(services);
 	instantiationService.invokeFunction(accessor => {
 		const extensionManagementService = accessor.get(IExtensionManagementService);
 		channelServer.registerChannel('extensions', new ExtensionManagementChannel(extensionManagementService, requestContext => new URITransformer(rawURITransformerFactory(requestContext))));
+		installExtensionsFromServer(
+			extensionManagementService,
+			accessor.get(IRequestService),
+			accessor.get(IFileService)
+		).then(resolveExtensionsInstalled);
 		(extensionManagementService as ExtensionManagementService).removeDeprecatedExtensions();
 
 		const requestService = accessor.get(IRequestService);
