@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { IAction } from 'vs/base/common/actions';
-import { Disposable, DisposableStore, IDisposable } from 'vs/base/common/lifecycle';
+import { Disposable, DisposableStore, IDisposable, MutableDisposable } from 'vs/base/common/lifecycle';
 import { Emitter, Event } from 'vs/base/common/event';
 import { MenuId, IMenuService, IMenu, SubmenuItemAction } from 'vs/platform/actions/common/actions';
 import { IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
@@ -62,21 +62,20 @@ class MenuActions extends Disposable {
 export abstract class AbstractViewMenuActions extends Disposable {
 
 	private readonly menuActions: MenuActions;
-	private readonly contextMenuActions: MenuActions;
+	private readonly contextMenuActionsDisposable = this._register(new MutableDisposable());
 
 	private _onDidChangeTitle = this._register(new Emitter<void>());
 	readonly onDidChangeTitle: Event<void> = this._onDidChangeTitle.event;
 
 	constructor(
 		menuId: MenuId,
-		contextMenuId: MenuId,
-		@IContextKeyService contextKeyService: IContextKeyService,
-		@IMenuService menuService: IMenuService,
+		private readonly contextMenuId: MenuId,
+		@IContextKeyService private readonly contextKeyService: IContextKeyService,
+		@IMenuService private readonly menuService: IMenuService,
 	) {
 		super();
 		this.menuActions = this._register(new MenuActions(menuId, menuService, contextKeyService));
 		this._register(this.menuActions.onDidChange(() => this._onDidChangeTitle.fire()));
-		this.contextMenuActions = this._register(new MenuActions(contextMenuId, menuService, contextKeyService));
 	}
 
 	getPrimaryActions(): IAction[] {
@@ -88,7 +87,11 @@ export abstract class AbstractViewMenuActions extends Disposable {
 	}
 
 	getContextMenuActions(): IAction[] {
-		return this.contextMenuActions.secondaryActions;
+		const actions: IAction[] = [];
+		const menu = this.menuService.createMenu(this.contextMenuId, this.contextKeyService);
+		this.contextMenuActionsDisposable.value = createAndFillInActionBarActions(menu, { shouldForwardArgs: true }, { primary: [], secondary: actions });
+		menu.dispose();
+		return actions;
 	}
 
 }
