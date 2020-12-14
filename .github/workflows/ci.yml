@@ -514,16 +514,6 @@ jobs:
         id: electron-integration-tests
         run: DISPLAY=:10 ./scripts/test-integration.sh
 
-      - name: Create Issue on Unit Test Failure
-        uses: nashmaniac/create-issue-action@v1.1
-        if: ${{ failure() }}
-        with:
-          title: "CI: Test Failure"
-          token: ${{secrets.GITHUB_TOKEN}}
-          assignees: alexdima #${{github.actor}}
-          labels: unit-test-failure linux
-          body: Running tests failed for commit ${{github.sha}}. Please see https://github.com/microsoft/vscode/actions/runs/${{github.run_id}}
-
   windows:
     name: Windows
     runs-on: windows-latest
