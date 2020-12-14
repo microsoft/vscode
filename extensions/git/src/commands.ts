@@ -5,20 +5,20 @@
 
 import * as os from 'os';
 import * as path from 'path';
-import { commands, Disposable, LineChange, MessageOptions, OutputChannel, Position, ProgressLocation, QuickPickItem, Range, SourceControlResourceState, TextDocumentShowOptions, TextEditor, Uri, ViewColumn, window, workspace, WorkspaceEdit, WorkspaceFolder, TimelineItem, env, Selection, TextDocumentContentProvider } from 'vscode';
+import { commands, Disposable, env, LineChange, MessageOptions, OutputChannel, Position, ProgressLocation, QuickPickItem, Range, Selection, SourceControlResourceState, TextDocumentContentProvider, TextDocumentShowOptions, TextEditor, TimelineItem, Uri, ViewColumn, window, workspace, WorkspaceEdit, WorkspaceFolder } from 'vscode';
 import TelemetryReporter from 'vscode-extension-telemetry';
 import * as nls from 'vscode-nls';
-import { Branch, GitErrorCodes, Ref, RefType, Status, CommitOptions, RemoteSourceProvider } from './api/git';
+import { ApiRepository } from './api/api1';
+import { Branch, CommitOptions, GitErrorCodes, Ref, RefType, RemoteSourceProvider, Status } from './api/git';
 import { ForcePushMode, Git, Stash } from './git';
+import { Log, LogLevel } from './log';
 import { Model } from './model';
+import { pickRemoteSource } from './remoteSource';
 import { Repository, Resource, ResourceGroupType } from './repository';
 import { applyLineChanges, getModifiedRange, intersectDiffWithRange, invertLineChange, toLineRanges } from './staging';
-import { fromGitUri, toGitUri, isGitUri } from './uri';
-import { grep, isDescendant, pathEquals } from './util';
-import { Log, LogLevel } from './log';
 import { GitTimelineItem } from './timelineProvider';
-import { ApiRepository } from './api/api1';
-import { pickRemoteSource } from './remoteSource';
+import { fromGitUri, isGitUri, toGitUri } from './uri';
+import { grep, isDescendant, pathEquals } from './util';
 
 const localize = nls.loadMessageBundle();
 
@@ -366,7 +366,7 @@ export class CommandCenter {
 		await resource.open();
 	}
 
-	async cloneRepository(url?: string, parentPath?: string, options: { recursive?: boolean } = {}): Promise<void> {
+	async cloneRepository(url?: string, parentPath?: string, options: { recursive?: boolean, config?: { [key: string]: string } } = {}): Promise<void> {
 		if (!url || typeof url !== 'string') {
 			url = await pickRemoteSource(this.model, {
 				providerLabel: provider => localize('clonefrom', "Clone from {0}", provider.name),
@@ -422,7 +422,7 @@ export class CommandCenter {
 
 			const repositoryPath = await window.withProgress(
 				opts,
-				(progress, token) => this.git.clone(url!, { parentPath: parentPath!, progress, recursive: options.recursive }, token)
+				(progress, token) => this.git.clone(url!, { parentPath: parentPath!, progress, ...options }, token)
 			);
 
 			const config = workspace.getConfiguration('git');
@@ -499,13 +499,13 @@ export class CommandCenter {
 	}
 
 	@command('git.clone')
-	async clone(url?: string, parentPath?: string): Promise<void> {
-		await this.cloneRepository(url, parentPath);
+	async clone(url?: string, parentPath?: string, config?: { [key: string]: string }): Promise<void> {
+		await this.cloneRepository(url, parentPath, { config });
 	}
 
 	@command('git.cloneRecursive')
-	async cloneRecursive(url?: string, parentPath?: string): Promise<void> {
-		await this.cloneRepository(url, parentPath, { recursive: true });
+	async cloneRecursive(url?: string, parentPath?: string, config?: { [key: string]: string }): Promise<void> {
+		await this.cloneRepository(url, parentPath, { recursive: true, config });
 	}
 
 	@command('git.init')

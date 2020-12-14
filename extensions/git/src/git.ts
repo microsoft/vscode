@@ -3,20 +3,20 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { promises as fs, exists, realpath } from 'fs';
-import * as path from 'path';
-import * as os from 'os';
-import * as cp from 'child_process';
-import * as which from 'which';
-import { EventEmitter } from 'events';
-import * as iconv from 'iconv-lite-umd';
-import * as filetype from 'file-type';
-import { assign, groupBy, IDisposable, toDisposable, dispose, mkdirp, readBytes, detectUnicodeEncoding, Encoding, onceEvent, splitInChunks, Limiter } from './util';
-import { CancellationToken, Progress, Uri } from 'vscode';
-import { detectEncoding } from './encoding';
-import { Ref, RefType, Branch, Remote, GitErrorCodes, LogOptions, Change, Status, CommitOptions, BranchQuery } from './api/git';
 import * as byline from 'byline';
+import * as cp from 'child_process';
+import { EventEmitter } from 'events';
+import * as filetype from 'file-type';
+import { exists, promises as fs, realpath } from 'fs';
+import * as iconv from 'iconv-lite-umd';
+import * as os from 'os';
+import * as path from 'path';
 import { StringDecoder } from 'string_decoder';
+import { CancellationToken, Progress, Uri } from 'vscode';
+import * as which from 'which';
+import { Branch, BranchQuery, Change, CommitOptions, GitErrorCodes, LogOptions, Ref, RefType, Remote, Status } from './api/git';
+import { detectEncoding } from './encoding';
+import { assign, detectUnicodeEncoding, dispose, Encoding, groupBy, IDisposable, Limiter, mkdirp, onceEvent, readBytes, splitInChunks, toDisposable } from './util';
 
 // https://github.com/microsoft/vscode/issues/65693
 const MAX_CLI_LENGTH = 30000;
@@ -358,6 +358,7 @@ export interface ICloneOptions {
 	readonly parentPath: string;
 	readonly progress: Progress<{ increment: number }>;
 	readonly recursive?: boolean;
+	readonly config?: { [key: string]: string };
 }
 
 export class Git {
@@ -391,6 +392,7 @@ export class Git {
 		let folderName = baseFolderName;
 		let folderPath = path.join(options.parentPath, folderName);
 		let count = 1;
+		const gitConfig: { [key: string]: string } = { 'core.longpaths': 'true', ...(options.config || {}) };
 
 		while (count < 20 && await new Promise(c => exists(folderPath, c))) {
 			folderName = `${baseFolderName}-${count++}`;
@@ -432,6 +434,12 @@ export class Git {
 			if (options.recursive) {
 				command.push('--recursive');
 			}
+
+			for (const key in gitConfig) {
+				command.push(`-c`);
+				command.push(`${key}=${gitConfig[key]}`);
+			}
+
 			await this.exec(options.parentPath, command, { cancellationToken, onSpawn });
 		} catch (err) {
 			if (err.stderr) {
