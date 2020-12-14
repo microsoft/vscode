@@ -333,7 +333,9 @@ export interface ITimerService {
 	readonly _serviceBrand: undefined;
 	readonly startupMetrics: Promise<IStartupMetrics>;
 
-	submitPerformanceMarks(source: string, marks: perf.PerformanceMark[]): void;
+	setPerformanceMarks(source: string, marks: perf.PerformanceMark[]): void;
+
+	getPerformanceMarks(): [source: string, marks: readonly perf.PerformanceMark[]][];
 }
 
 export const ITimerService = createDecorator<ITimerService>('timerService');
@@ -343,7 +345,7 @@ class PerfMarks {
 
 	private readonly _entries = new Map<string, perf.PerformanceMark[]>();
 
-	submitMarks(source: string, entries: perf.PerformanceMark[]): void {
+	setMarks(source: string, entries: perf.PerformanceMark[]): void {
 		if (this._entries.has(source)) {
 			throw new Error(`${source} EXISTS already`);
 		}
@@ -359,9 +361,8 @@ class PerfMarks {
 		if (!toEntry) {
 			return 0;
 		}
-		return Math.round(toEntry.startTime - fromEntry.startTime);
+		return toEntry.startTime - fromEntry.startTime;
 	}
-
 
 	private _findEntry(name: string): perf.PerformanceMark | void {
 		for (let entries of this._entries.values()) {
@@ -372,8 +373,11 @@ class PerfMarks {
 			}
 		}
 	}
-}
 
+	getEntries() {
+		return Array.from(this._entries);
+	}
+}
 
 export type Writeable<T> = { -readonly [P in keyof T]: Writeable<T[P]> };
 
@@ -425,14 +429,18 @@ export abstract class AbstractTimerService implements ITimerService {
 		const marks: perf.PerformanceMark[] = performance.getEntriesByType('mark').map(entry => {
 			return {
 				name: entry.name,
-				startTime: timeOrigin + entry.startTime
+				startTime: Math.round(timeOrigin + entry.startTime)
 			};
 		});
-		this.submitPerformanceMarks('renderer', marks);
+		this.setPerformanceMarks('renderer', marks);
 	}
 
-	submitPerformanceMarks(source: string, marks: perf.PerformanceMark[]): void {
-		this._marks.submitMarks(source, marks);
+	setPerformanceMarks(source: string, marks: perf.PerformanceMark[]): void {
+		this._marks.setMarks(source, marks);
+	}
+
+	getPerformanceMarks(): [source: string, marks: readonly perf.PerformanceMark[]][] {
+		return this._marks.getEntries();
 	}
 
 	get startupMetrics(): Promise<IStartupMetrics> {
