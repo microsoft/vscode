@@ -28,19 +28,24 @@ jobs:
         uses: actions/cache@v2
         with:
           path: '**/node_modules'
-          key: ${{ runner.os }}-cacheNodeModules-${{ hashFiles('.yarnrc', 'remote/.yarnrc', '**/yarn.lock', '!**/node_modules/**/yarn.lock', '!**/.*/**/yarn.lock') }}
-          restore-keys: ${{ runner.os }}-cacheNodeModules-
-      - name: Cache /build/ scripts
-        id: cacheBuildScripts
+          key: ${{ runner.os }}-cacheNodeModules3-${{ hashFiles('.yarnrc', 'remote/.yarnrc', '**/yarn.lock', '!**/node_modules/**/yarn.lock', '!**/.*/**/yarn.lock') }}
+          restore-keys: ${{ runner.os }}-cacheNodeModules3-
+      - name: Get yarn cache directory path
+        id: yarnCacheDirPath
+        if: ${{ steps.cacheNodeModules.outputs.cache-hit != 'true' }}
+        run: echo "::set-output name=dir::$(yarn cache dir)"
+      - name: Cache yarn directory
+        if: ${{ steps.cacheNodeModules.outputs.cache-hit != 'true' }}
         uses: actions/cache@v2
         with:
-          path: build/**/*.js
-          key: ${{ runner.os }}-cacheBuildScripts-${{ hashFiles('build/yarn.lock', 'build/tsconfig.json', 'build/tsconfig.build.json', 'build/**/*.ts', '!**/node_modules/**/*.ts') }}
+          path: ${{ steps.yarnCacheDirPath.outputs.dir }}
+          key: ${{ runner.os }}-yarnCacheDir-${{ hashFiles('.yarnrc', 'remote/.yarnrc', '**/yarn.lock', '!**/node_modules/**/yarn.lock', '!**/.*/**/yarn.lock') }}
+          restore-keys: ${{ runner.os }}-yarnCacheDir-
       - name: Execute yarn
-        if: ${{ steps.cacheNodeModules.outputs.cache-hit != 'true' || steps.cacheBuildScripts.outputs.cache-hit != 'true' }}
+        if: ${{ steps.cacheNodeModules.outputs.cache-hit != 'true' }}
         env:
           PLAYWRIGHT_SKIP_BROWSER_DOWNLOAD: 1
-        run: yarn --frozen-lockfile
+        run: yarn --frozen-lockfile --network-timeout 180000
 
       - name: Run Hygiene Checks
         run: yarn gulp hygiene
@@ -48,121 +53,405 @@ jobs:
       - name: Run Valid Layers Checks
         run: yarn valid-layers-check
 
-  # compile:
-  #   name: Compile
-  #   runs-on: ubuntu-latest
-  #   env:
-  #     GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-  #   steps:
-  #     - uses: actions/checkout@v2
+  build-compile-core:
+    name: "Build: Compile Core"
+    runs-on: ubuntu-latest
+    env:
+      GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+    steps:
+      - uses: actions/checkout@v2
 
-  #     - uses: actions/setup-node@v2-beta
-  #       with:
-  #         node-version: 12
+      - uses: actions/setup-node@v2-beta
+        with:
+          node-version: 12
 
-  #     - name: Cache node modules
-  #       id: cacheNodeModules
-  #       uses: actions/cache@v2
-  #       with:
-  #         path: '**/node_modules'
-  #         key: ${{ runner.os }}-cacheNodeModules-${{ hashFiles('.yarnrc', 'remote/.yarnrc', '**/yarn.lock', '!**/node_modules/**/yarn.lock', '!**/.*/**/yarn.lock') }}
-  #         restore-keys: ${{ runner.os }}-cacheNodeModules-
-  #     - name: Cache /build/ scripts
-  #       id: cacheBuildScripts
-  #       uses: actions/cache@v2
-  #       with:
-  #         path: build/**/*.js
-  #         key: ${{ runner.os }}-cacheBuildScripts-${{ hashFiles('build/yarn.lock', 'build/tsconfig.json', 'build/tsconfig.build.json', 'build/**/*.ts', '!**/node_modules/**/*.ts') }}
-  #     - name: Execute yarn
-  #       if: ${{ steps.cacheNodeModules.outputs.cache-hit != 'true' || steps.cacheBuildScripts.outputs.cache-hit != 'true' }}
-  #       env:
-  #         PLAYWRIGHT_SKIP_BROWSER_DOWNLOAD: 1
-  #       run: yarn --frozen-lockfile
+      - name: Cache node modules
+        id: cacheNodeModules
+        uses: actions/cache@v2
+        with:
+          path: '**/node_modules'
+          key: ${{ runner.os }}-cacheNodeModules3-${{ hashFiles('.yarnrc', 'remote/.yarnrc', '**/yarn.lock', '!**/node_modules/**/yarn.lock', '!**/.*/**/yarn.lock') }}
+          restore-keys: ${{ runner.os }}-cacheNodeModules3-
+      - name: Get yarn cache directory path
+        id: yarnCacheDirPath
+        if: ${{ steps.cacheNodeModules.outputs.cache-hit != 'true' }}
+        run: echo "::set-output name=dir::$(yarn cache dir)"
+      - name: Cache yarn directory
+        if: ${{ steps.cacheNodeModules.outputs.cache-hit != 'true' }}
+        uses: actions/cache@v2
+        with:
+          path: ${{ steps.yarnCacheDirPath.outputs.dir }}
+          key: ${{ runner.os }}-yarnCacheDir-${{ hashFiles('.yarnrc', 'remote/.yarnrc', '**/yarn.lock', '!**/node_modules/**/yarn.lock', '!**/.*/**/yarn.lock') }}
+          restore-keys: ${{ runner.os }}-yarnCacheDir-
+      - name: Execute yarn
+        if: ${{ steps.cacheNodeModules.outputs.cache-hit != 'true' }}
+        env:
+          PLAYWRIGHT_SKIP_BROWSER_DOWNLOAD: 1
+        run: yarn --frozen-lockfile --network-timeout 180000
 
-  #     - name: Cache compiled code
-  #       id: cacheCompiledCode
-  #       uses: actions/cache@v2
-  #       with:
-  #         path: |
-  #           .build
-  #           out-build
-  #           out-vscode-min
-  #         key: cacheCompiledCode-${{ env.GITHUB_SHA }}
+      - name: Cache compiled core code
+        id: cacheCompiledCoreCode
+        uses: actions/cache@v2
+        with:
+          path: |
+            out-build
+            out-vscode-min
+          key: cacheCompiledCoreCode-${{ github.sha }}
 
-  #     - name: Compile Core
-  #       run: yarn gulp compile-build
+      - name: Compile Core
+        if: ${{ steps.cacheCompiledCoreCode.outputs.cache-hit != 'true' }}
+        run: yarn gulp compile-build
 
-  #     - name: Compile Extensions
-  #       run: yarn gulp compile-extensions-build
+      - name: Minify VS Code
+        if: ${{ steps.cacheCompiledCoreCode.outputs.cache-hit != 'true' }}
+        run: yarn gulp minify-vscode
 
-  #     - name: Minify VS Code
-  #       run: yarn gulp minify-vscode
+  build-compile-extensions:
+    name: "Build: Compile Extensions"
+    runs-on: ubuntu-latest
+    env:
+      GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+    steps:
+      - uses: actions/checkout@v2
 
-  # linux-build:
-  #   name: Linux Build
-  #   needs: compile
-  #   runs-on: ubuntu-latest
-  #   env:
-  #     GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-  #   steps:
-  #     - uses: actions/checkout@v2
+      - uses: actions/setup-node@v2-beta
+        with:
+          node-version: 12
 
-  #     # TODO: rename azure-pipelines/linux/xvfb.init to github-actions
-  #     - name: Setup Build Environment
-  #       run: |
-  #         sudo apt-get update
-  #         sudo apt-get install -y libxkbfile-dev pkg-config libsecret-1-dev libxss1 dbus xvfb libgtk-3-0 libgbm1
-  #         sudo cp build/azure-pipelines/linux/xvfb.init /etc/init.d/xvfb
-  #         sudo chmod +x /etc/init.d/xvfb
-  #         sudo update-rc.d xvfb defaults
-  #         sudo service xvfb start
+      - name: Cache node modules
+        id: cacheNodeModules
+        uses: actions/cache@v2
+        with:
+          path: '**/node_modules'
+          key: ${{ runner.os }}-cacheNodeModules3-${{ hashFiles('.yarnrc', 'remote/.yarnrc', '**/yarn.lock', '!**/node_modules/**/yarn.lock', '!**/.*/**/yarn.lock') }}
+          restore-keys: ${{ runner.os }}-cacheNodeModules3-
+      - name: Get yarn cache directory path
+        id: yarnCacheDirPath
+        if: ${{ steps.cacheNodeModules.outputs.cache-hit != 'true' }}
+        run: echo "::set-output name=dir::$(yarn cache dir)"
+      - name: Cache yarn directory
+        if: ${{ steps.cacheNodeModules.outputs.cache-hit != 'true' }}
+        uses: actions/cache@v2
+        with:
+          path: ${{ steps.yarnCacheDirPath.outputs.dir }}
+          key: ${{ runner.os }}-yarnCacheDir-${{ hashFiles('.yarnrc', 'remote/.yarnrc', '**/yarn.lock', '!**/node_modules/**/yarn.lock', '!**/.*/**/yarn.lock') }}
+          restore-keys: ${{ runner.os }}-yarnCacheDir-
+      - name: Execute yarn
+        if: ${{ steps.cacheNodeModules.outputs.cache-hit != 'true' }}
+        env:
+          PLAYWRIGHT_SKIP_BROWSER_DOWNLOAD: 1
+        run: yarn --frozen-lockfile --network-timeout 180000
 
-  #     - uses: actions/setup-node@v2-beta
-  #       with:
-  #         node-version: 12
+      - name: Cache compiled extensions code
+        id: cacheCompiledExtensionsCode
+        uses: actions/cache@v2
+        with:
+          path: .build
+          key: cacheCompiledExtensionsCode-${{ github.sha }}
 
-  #     - name: Restore cached node modules
-  #       id: cacheNodeModules
-  #       uses: actions/cache@v2
-  #       with:
-  #         path: '**/node_modules'
-  #         key: ${{ runner.os }}-cacheNodeModules-${{ hashFiles('.yarnrc', 'remote/.yarnrc', '**/yarn.lock', '!**/node_modules/**/yarn.lock', '!**/.*/**/yarn.lock') }}
-  #         restore-keys: ${{ runner.os }}-cacheNodeModules-
+      - name: Compile Extensions
+        if: ${{ steps.cacheCompiledExtensionsCode.outputs.cache-hit != 'true' }}
+        run: yarn gulp compile-extensions-build
 
-  #     - name: Restore cached /build/ scripts
-  #       id: cacheBuildScripts
-  #       uses: actions/cache@v2
-  #       with:
-  #         path: build/**/*.js
-  #         key: ${{ runner.os }}-cacheBuildScripts-${{ hashFiles('build/yarn.lock', 'build/tsconfig.json', 'build/tsconfig.build.json', 'build/**/*.ts', '!**/node_modules/**/*.ts') }}
+  build-linux-unit-tests:
+    name: "Build: Linux Unit Tests"
+    needs: [build-compile-core, build-compile-extensions]
+    runs-on: ubuntu-latest
+    env:
+      GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+    steps:
+      - uses: actions/checkout@v2
 
-  #     - name: Restore cached compiled code
-  #       id: cacheCompiledCode
-  #       uses: actions/cache@v2
-  #       with:
-  #         path: |
-  #           .build
-  #           out-build
-  #           out-vscode-min
-  #         key: cacheCompiledCode-${{ env.GITHUB_SHA }}
+      # TODO: rename azure-pipelines/linux/xvfb.init to github-actions
+      - name: Setup Build Environment
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y libxkbfile-dev pkg-config libsecret-1-dev libxss1 dbus xvfb libgtk-3-0 libgbm1
+          sudo cp build/azure-pipelines/linux/xvfb.init /etc/init.d/xvfb
+          sudo chmod +x /etc/init.d/xvfb
+          sudo update-rc.d xvfb defaults
+          sudo service xvfb start
 
-  #     - name: Build VS Code
-  #       run: yarn gulp vscode-linux-x64-min-ci
+      - uses: actions/setup-node@v2-beta
+        with:
+          node-version: 12
 
-  #     - name: Download Electron
-  #       run: yarn electron x64
+      - name: Restore cached node modules
+        id: cacheNodeModules
+        uses: actions/cache@v2
+        with:
+          path: '**/node_modules'
+          key: ${{ runner.os }}-cacheNodeModules3-${{ hashFiles('.yarnrc', 'remote/.yarnrc', '**/yarn.lock', '!**/node_modules/**/yarn.lock', '!**/.*/**/yarn.lock') }}
+          restore-keys: ${{ runner.os }}-cacheNodeModules3-
 
-  #     - name: Run Unit Tests (Electron)
-  #       run: DISPLAY=:10 ./scripts/test.sh --build
+      - name: Restore compiled core code
+        id: cacheCompiledCoreCode
+        uses: actions/cache@v2
+        with:
+          path: |
+            out-build
+            out-vscode-min
+          key: cacheCompiledCoreCode-${{ github.sha }}
 
-  #     - name: Download Playwright
-  #       run: node ./node_modules/playwright/install.js
+      - name: Restore compiled extensions code
+        id: cacheCompiledExtensionsCode
+        uses: actions/cache@v2
+        with:
+          path: .build
+          key: cacheCompiledExtensionsCode-${{ github.sha }}
 
-  #     - name: Run Unit Tests (Browser)
-  #       run: DISPLAY=:10 yarn test-browser --build --browser chromium
+      - name: Build VS Code
+        run: yarn gulp vscode-linux-x64-min-ci
 
-  #     - name: Run Integration Tests (Electron)
-  #       run: DISPLAY=:10 ./scripts/test-integration.sh --build
+      - name: Download Electron
+        run: yarn electron x64
+
+      - name: Run Unit Tests (Electron)
+        run: DISPLAY=:10 ./scripts/test.sh --build
+
+      - name: Download Playwright
+        run: node ./node_modules/playwright/install.js
+
+      - name: Run Unit Tests (Browser)
+        run: DISPLAY=:10 yarn test-browser --build --browser chromium
+
+  build-linux-integration-tests:
+    name: "Build: Linux Integration Tests"
+    needs: [build-compile-core, build-compile-extensions]
+    runs-on: ubuntu-latest
+    env:
+      GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+    steps:
+      - uses: actions/checkout@v2
+
+      # TODO: rename azure-pipelines/linux/xvfb.init to github-actions
+      - name: Setup Build Environment
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y libxkbfile-dev pkg-config libsecret-1-dev libxss1 dbus xvfb libgtk-3-0 libgbm1
+          sudo cp build/azure-pipelines/linux/xvfb.init /etc/init.d/xvfb
+          sudo chmod +x /etc/init.d/xvfb
+          sudo update-rc.d xvfb defaults
+          sudo service xvfb start
+
+      - uses: actions/setup-node@v2-beta
+        with:
+          node-version: 12
+
+      - name: Restore cached node modules
+        id: cacheNodeModules
+        uses: actions/cache@v2
+        with:
+          path: '**/node_modules'
+          key: ${{ runner.os }}-cacheNodeModules3-${{ hashFiles('.yarnrc', 'remote/.yarnrc', '**/yarn.lock', '!**/node_modules/**/yarn.lock', '!**/.*/**/yarn.lock') }}
+          restore-keys: ${{ runner.os }}-cacheNodeModules3-
+
+      - name: Restore compiled core code
+        id: cacheCompiledCoreCode
+        uses: actions/cache@v2
+        with:
+          path: |
+            out-build
+            out-vscode-min
+          key: cacheCompiledCoreCode-${{ github.sha }}
+
+      - name: Restore compiled extensions code
+        id: cacheCompiledExtensionsCode
+        uses: actions/cache@v2
+        with:
+          path: .build
+          key: cacheCompiledExtensionsCode-${{ github.sha }}
+
+      - name: Build VS Code
+        run: yarn gulp vscode-linux-x64-min-ci
+
+      - name: Download Electron
+        run: yarn electron x64
+
+      - name: Run Integration Tests (Electron)
+        run: DISPLAY=:10 ./scripts/test-integration.sh --build
+
+  build-darwin-node-modules:
+    name: "Build: macOS Node Modules"
+    runs-on: macos-latest
+    env:
+      GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+    steps:
+      - uses: actions/checkout@v2
+
+      - uses: actions/setup-node@v2-beta
+        with:
+          node-version: 12
+
+      - name: Cache node modules
+        id: cacheNodeModules
+        uses: actions/cache@v2
+        with:
+          path: '**/node_modules'
+          key: ${{ runner.os }}-cacheNodeModules3-${{ hashFiles('.yarnrc', 'remote/.yarnrc', '**/yarn.lock', '!**/node_modules/**/yarn.lock', '!**/.*/**/yarn.lock') }}
+          restore-keys: ${{ runner.os }}-cacheNodeModules3-
+      - name: Get yarn cache directory path
+        id: yarnCacheDirPath
+        if: ${{ steps.cacheNodeModules.outputs.cache-hit != 'true' }}
+        run: echo "::set-output name=dir::$(yarn cache dir)"
+      - name: Cache yarn directory
+        if: ${{ steps.cacheNodeModules.outputs.cache-hit != 'true' }}
+        uses: actions/cache@v2
+        with:
+          path: ${{ steps.yarnCacheDirPath.outputs.dir }}
+          key: ${{ runner.os }}-yarnCacheDir-${{ hashFiles('.yarnrc', 'remote/.yarnrc', '**/yarn.lock', '!**/node_modules/**/yarn.lock', '!**/.*/**/yarn.lock') }}
+          restore-keys: ${{ runner.os }}-yarnCacheDir-
+      - name: Execute yarn
+        if: ${{ steps.cacheNodeModules.outputs.cache-hit != 'true' }}
+        env:
+          PLAYWRIGHT_SKIP_BROWSER_DOWNLOAD: 1
+        run: yarn --frozen-lockfile --network-timeout 180000
+
+  build-darwin-unit-tests:
+    name: "Build: macOS Unit Tests"
+    needs: [build-compile-core, build-compile-extensions, build-darwin-node-modules]
+    runs-on: macos-latest
+    env:
+      GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+    steps:
+      - uses: actions/checkout@v2
+
+      - uses: actions/setup-node@v2-beta
+        with:
+          node-version: 12
+
+      - name: Restore cached node modules
+        id: cacheNodeModules
+        uses: actions/cache@v2
+        with:
+          path: '**/node_modules'
+          key: ${{ runner.os }}-cacheNodeModules3-${{ hashFiles('.yarnrc', 'remote/.yarnrc', '**/yarn.lock', '!**/node_modules/**/yarn.lock', '!**/.*/**/yarn.lock') }}
+          restore-keys: ${{ runner.os }}-cacheNodeModules3-
+
+      - name: Restore compiled core code
+        id: cacheCompiledCoreCode
+        uses: actions/cache@v2
+        with:
+          path: |
+            out-build
+            out-vscode-min
+          key: cacheCompiledCoreCode-${{ github.sha }}
+
+      - name: Restore compiled extensions code
+        id: cacheCompiledExtensionsCode
+        uses: actions/cache@v2
+        with:
+          path: .build
+          key: cacheCompiledExtensionsCode-${{ github.sha }}
+
+      - name: Build VS Code
+        run: yarn gulp vscode-darwin-x64-min-ci
+
+      - name: Download Electron
+        run: yarn electron x64
+
+      - name: Run Unit Tests (Electron)
+        run: ./scripts/test.sh --build
+
+      - name: Download Playwright
+        run: node ./node_modules/playwright/install.js
+
+      - name: Run Unit Tests (Browser)
+        run: yarn test-browser --build --browser chromium --browser webkit --browser firefox
+
+  build-darwin-integration-tests:
+    name: "Build: macOS Integration Tests"
+    needs: [build-compile-core, build-compile-extensions, build-darwin-node-modules]
+    runs-on: macos-latest
+    env:
+      GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+    steps:
+      - uses: actions/checkout@v2
+
+      - uses: actions/setup-node@v2-beta
+        with:
+          node-version: 12
+
+      - name: Restore cached node modules
+        id: cacheNodeModules
+        uses: actions/cache@v2
+        with:
+          path: '**/node_modules'
+          key: ${{ runner.os }}-cacheNodeModules3-${{ hashFiles('.yarnrc', 'remote/.yarnrc', '**/yarn.lock', '!**/node_modules/**/yarn.lock', '!**/.*/**/yarn.lock') }}
+          restore-keys: ${{ runner.os }}-cacheNodeModules3-
+
+      - name: Restore compiled core code
+        id: cacheCompiledCoreCode
+        uses: actions/cache@v2
+        with:
+          path: |
+            out-build
+            out-vscode-min
+          key: cacheCompiledCoreCode-${{ github.sha }}
+
+      - name: Restore compiled extensions code
+        id: cacheCompiledExtensionsCode
+        uses: actions/cache@v2
+        with:
+          path: .build
+          key: cacheCompiledExtensionsCode-${{ github.sha }}
+
+      - name: Build VS Code
+        run: yarn gulp vscode-darwin-x64-min-ci
+
+      - name: Download Electron
+        run: yarn electron x64
+
+      - name: Run Integration Tests (Electron)
+        run: ./scripts/test-integration.sh --build
+
+  build-darwin-smoke-tests:
+    name: "Build: macOS Smoke Tests"
+    needs: [build-compile-core, build-compile-extensions, build-darwin-node-modules]
+    runs-on: macos-latest
+    env:
+      GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+    steps:
+      - uses: actions/checkout@v2
+
+      - uses: actions/setup-node@v2-beta
+        with:
+          node-version: 12
+
+      - name: Restore cached node modules
+        id: cacheNodeModules
+        uses: actions/cache@v2
+        with:
+          path: '**/node_modules'
+          key: ${{ runner.os }}-cacheNodeModules3-${{ hashFiles('.yarnrc', 'remote/.yarnrc', '**/yarn.lock', '!**/node_modules/**/yarn.lock', '!**/.*/**/yarn.lock') }}
+          restore-keys: ${{ runner.os }}-cacheNodeModules3-
+
+      - name: Restore compiled core code
+        id: cacheCompiledCoreCode
+        uses: actions/cache@v2
+        with:
+          path: |
+            out-build
+            out-vscode-min
+          key: cacheCompiledCoreCode-${{ github.sha }}
+
+      - name: Restore compiled extensions code
+        id: cacheCompiledExtensionsCode
+        uses: actions/cache@v2
+        with:
+          path: .build
+          key: cacheCompiledExtensionsCode-${{ github.sha }}
+
+      - name: Build VS Code
+        run: yarn gulp vscode-darwin-x64-min-ci
+
+      - name: Run Smoke Tests (Electron)
+        continue-on-error: true
+        run: |
+          set -e
+          APP_ROOT=$(GITHUB_WORKSPACE)/VSCode-darwin-x64
+          APP_NAME="`ls $APP_ROOT | head -n 1`"
+          yarn smoketest --build "$APP_ROOT/$APP_NAME"
 
   linux:
     name: Linux
@@ -191,30 +480,38 @@ jobs:
         uses: actions/cache@v2
         with:
           path: '**/node_modules'
-          key: ${{ runner.os }}-cacheNodeModules-${{ hashFiles('.yarnrc', 'remote/.yarnrc', '**/yarn.lock', '!**/node_modules/**/yarn.lock', '!**/.*/**/yarn.lock') }}
-          restore-keys: ${{ runner.os }}-cacheNodeModules-
-      - name: Cache /build/ scripts
-        id: cacheBuildScripts
+          key: ${{ runner.os }}-cacheNodeModules3-${{ hashFiles('.yarnrc', 'remote/.yarnrc', '**/yarn.lock', '!**/node_modules/**/yarn.lock', '!**/.*/**/yarn.lock') }}
+          restore-keys: ${{ runner.os }}-cacheNodeModules3-
+      - name: Get yarn cache directory path
+        id: yarnCacheDirPath
+        if: ${{ steps.cacheNodeModules.outputs.cache-hit != 'true' }}
+        run: echo "::set-output name=dir::$(yarn cache dir)"
+      - name: Cache yarn directory
+        if: ${{ steps.cacheNodeModules.outputs.cache-hit != 'true' }}
         uses: actions/cache@v2
         with:
-          path: build/**/*.js
-          key: ${{ runner.os }}-cacheBuildScripts-${{ hashFiles('build/yarn.lock', 'build/tsconfig.json', 'build/tsconfig.build.json', 'build/**/*.ts', '!**/node_modules/**/*.ts') }}
+          path: ${{ steps.yarnCacheDirPath.outputs.dir }}
+          key: ${{ runner.os }}-yarnCacheDir-${{ hashFiles('.yarnrc', 'remote/.yarnrc', '**/yarn.lock', '!**/node_modules/**/yarn.lock', '!**/.*/**/yarn.lock') }}
+          restore-keys: ${{ runner.os }}-yarnCacheDir-
       - name: Execute yarn
-        if: ${{ steps.cacheNodeModules.outputs.cache-hit != 'true' || steps.cacheBuildScripts.outputs.cache-hit != 'true' }}
+        if: ${{ steps.cacheNodeModules.outputs.cache-hit != 'true' }}
         env:
           PLAYWRIGHT_SKIP_BROWSER_DOWNLOAD: 1
-        run: yarn --frozen-lockfile
+        run: yarn --frozen-lockfile --network-timeout 180000
 
       - name: Compile and Download
         run: yarn concurrently --max_old_space_size=4095 --names "compile,electron,playwright,builtin-extensions" "node --max_old_space_size=4095 ./node_modules/gulp/bin/gulp.js compile" "yarn electron x64" "node ./node_modules/playwright/install.js" "yarn download-builtin-extensions"
 
       - name: Run Unit Tests (Electron)
+        id: electron-unit-tests
         run: DISPLAY=:10 ./scripts/test.sh
 
       - name: Run Unit Tests (Browser)
+        id: browser-unit-tests
         run: DISPLAY=:10 yarn test-browser --browser chromium
 
       - name: Run Integration Tests (Electron)
+        id: electron-integration-tests
         run: DISPLAY=:10 ./scripts/test-integration.sh
 
   windows:
@@ -239,19 +536,24 @@ jobs:
         uses: actions/cache@v2
         with:
           path: '**/node_modules'
-          key: ${{ runner.os }}-cacheNodeModules-${{ hashFiles('.yarnrc', 'remote/.yarnrc', '**/yarn.lock', '!**/node_modules/**/yarn.lock', '!**/.*/**/yarn.lock') }}
-          restore-keys: ${{ runner.os }}-cacheNodeModules-
-      - name: Cache /build/ scripts
-        id: cacheBuildScripts
+          key: ${{ runner.os }}-cacheNodeModules3-${{ hashFiles('.yarnrc', 'remote/.yarnrc', '**/yarn.lock', '!**/node_modules/**/yarn.lock', '!**/.*/**/yarn.lock') }}
+          restore-keys: ${{ runner.os }}-cacheNodeModules3-
+      - name: Get yarn cache directory path
+        id: yarnCacheDirPath
+        if: ${{ steps.cacheNodeModules.outputs.cache-hit != 'true' }}
+        run: echo "::set-output name=dir::$(yarn cache dir)"
+      - name: Cache yarn directory
+        if: ${{ steps.cacheNodeModules.outputs.cache-hit != 'true' }}
         uses: actions/cache@v2
         with:
-          path: build/**/*.js
-          key: ${{ runner.os }}-cacheBuildScripts-${{ hashFiles('build/yarn.lock', 'build/tsconfig.json', 'build/tsconfig.build.json', 'build/**/*.ts', '!**/node_modules/**/*.ts') }}
+          path: ${{ steps.yarnCacheDirPath.outputs.dir }}
+          key: ${{ runner.os }}-yarnCacheDir-${{ hashFiles('.yarnrc', 'remote/.yarnrc', '**/yarn.lock', '!**/node_modules/**/yarn.lock', '!**/.*/**/yarn.lock') }}
+          restore-keys: ${{ runner.os }}-yarnCacheDir-
       - name: Execute yarn
-        if: ${{ steps.cacheNodeModules.outputs.cache-hit != 'true' || steps.cacheBuildScripts.outputs.cache-hit != 'true' }}
+        if: ${{ steps.cacheNodeModules.outputs.cache-hit != 'true' }}
         env:
           PLAYWRIGHT_SKIP_BROWSER_DOWNLOAD: 1
-        run: yarn --frozen-lockfile
+        run: yarn --frozen-lockfile --network-timeout 180000
 
       - name: Compile and Download
         run: yarn concurrently --max_old_space_size=4095 --names "compile,electron,playwright,builtin-extensions" "node --max_old_space_size=4095 ./node_modules/gulp/bin/gulp.js compile" "yarn electron x64" "node ./node_modules/playwright/install.js" "yarn download-builtin-extensions"
@@ -282,19 +584,24 @@ jobs:
         uses: actions/cache@v2
         with:
           path: '**/node_modules'
-          key: ${{ runner.os }}-cacheNodeModules-${{ hashFiles('.yarnrc', 'remote/.yarnrc', '**/yarn.lock', '!**/node_modules/**/yarn.lock', '!**/.*/**/yarn.lock') }}
-          restore-keys: ${{ runner.os }}-cacheNodeModules-
-      - name: Cache /build/ scripts
-        id: cacheBuildScripts
+          key: ${{ runner.os }}-cacheNodeModules3-${{ hashFiles('.yarnrc', 'remote/.yarnrc', '**/yarn.lock', '!**/node_modules/**/yarn.lock', '!**/.*/**/yarn.lock') }}
+          restore-keys: ${{ runner.os }}-cacheNodeModules3-
+      - name: Get yarn cache directory path
+        id: yarnCacheDirPath
+        if: ${{ steps.cacheNodeModules.outputs.cache-hit != 'true' }}
+        run: echo "::set-output name=dir::$(yarn cache dir)"
+      - name: Cache yarn directory
+        if: ${{ steps.cacheNodeModules.outputs.cache-hit != 'true' }}
         uses: actions/cache@v2
         with:
-          path: build/**/*.js
-          key: ${{ runner.os }}-cacheBuildScripts-${{ hashFiles('build/yarn.lock', 'build/tsconfig.json', 'build/tsconfig.build.json', 'build/**/*.ts', '!**/node_modules/**/*.ts') }}
+          path: ${{ steps.yarnCacheDirPath.outputs.dir }}
+          key: ${{ runner.os }}-yarnCacheDir-${{ hashFiles('.yarnrc', 'remote/.yarnrc', '**/yarn.lock', '!**/node_modules/**/yarn.lock', '!**/.*/**/yarn.lock') }}
+          restore-keys: ${{ runner.os }}-yarnCacheDir-
       - name: Execute yarn
-        if: ${{ steps.cacheNodeModules.outputs.cache-hit != 'true' || steps.cacheBuildScripts.outputs.cache-hit != 'true' }}
+        if: ${{ steps.cacheNodeModules.outputs.cache-hit != 'true' }}
         env:
           PLAYWRIGHT_SKIP_BROWSER_DOWNLOAD: 1
-        run: yarn --frozen-lockfile
+        run: yarn --frozen-lockfile --network-timeout 180000
 
       - name: Compile and Download
         run: yarn concurrently --max_old_space_size=4095 --names "compile,electron,playwright,builtin-extensions" "yarn compile" "yarn electron x64" "node ./node_modules/playwright/install.js" "yarn download-builtin-extensions"
@@ -325,19 +632,13 @@ jobs:
         uses: actions/cache@v2
         with:
           path: '**/node_modules'
-          key: ${{ runner.os }}-cacheNodeModules-${{ hashFiles('.yarnrc', 'remote/.yarnrc', '**/yarn.lock', '!**/node_modules/**/yarn.lock', '!**/.*/**/yarn.lock') }}
-          restore-keys: ${{ runner.os }}-cacheNodeModules-
-      - name: Cache /build/ scripts
-        id: cacheBuildScripts
-        uses: actions/cache@v2
-        with:
-          path: build/**/*.js
-          key: ${{ runner.os }}-cacheBuildScripts-${{ hashFiles('build/yarn.lock', 'build/tsconfig.json', 'build/tsconfig.build.json', 'build/**/*.ts', '!**/node_modules/**/*.ts') }}
+          key: ${{ runner.os }}-cacheNodeModules3-${{ hashFiles('.yarnrc', 'remote/.yarnrc', '**/yarn.lock', '!**/node_modules/**/yarn.lock', '!**/.*/**/yarn.lock') }}
+          restore-keys: ${{ runner.os }}-cacheNodeModules3-
       - name: Execute yarn
-        if: ${{ steps.cacheNodeModules.outputs.cache-hit != 'true' || steps.cacheBuildScripts.outputs.cache-hit != 'true' }}
+        if: ${{ steps.cacheNodeModules.outputs.cache-hit != 'true' }}
         env:
           PLAYWRIGHT_SKIP_BROWSER_DOWNLOAD: 1
-        run: yarn --frozen-lockfile
+        run: yarn --frozen-lockfile --network-timeout 180000
 
       - name: Run Monaco Editor Checks
         run: yarn monaco-compile-check

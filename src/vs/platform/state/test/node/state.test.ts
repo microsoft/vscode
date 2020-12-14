@@ -14,11 +14,13 @@ suite('StateService', () => {
 	const parentDir = getRandomTestPath(os.tmpdir(), 'vsctests', 'stateservice');
 	const storageFile = path.join(parentDir, 'storage.json');
 
-	teardown(async () => {
-		await rimraf(parentDir, RimRafMode.MOVE);
-	});
+	test('Basics', async function () {
 
-	test('Basics', async () => {
+		// Given issues such as https://github.com/microsoft/vscode/issues/112447
+		// we see random test failures when accessing the native file system.
+		this.retries(3);
+		this.timeout(1000 * 20);
+
 		await mkdirp(parentDir);
 		writeFileSync(storageFile, '');
 
@@ -46,5 +48,7 @@ suite('StateService', () => {
 
 		service.setItem('some.null.key', null);
 		assert.equal(service.getItem('some.null.key', 'some.default'), 'some.default');
+
+		await rimraf(parentDir, RimRafMode.MOVE);
 	});
 });

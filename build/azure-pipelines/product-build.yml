@@ -38,6 +38,14 @@ stages:
           VSCODE_ARCH: x64
         steps:
           - template: product-compile.yml
+      - job: Hygiene
+        pool:
+          vmImage: "Ubuntu-18.04"
+        container: vscode-x64
+        variables:
+          VSCODE_ARCH: x64
+        steps:
+          - template: product-hygiene.yml
 
   - stage: Windows
     dependsOn:
@@ -55,7 +63,7 @@ stages:
           - template: win32/product-build-win32.yml
 
       - job: Windows32
-        condition: and(succeeded(), eq(variables['VSCODE_BUILD_WIN32_32BIT'], 'true'))
+        condition: and(succeeded(), eq(variables['VSCODE_BUILD_WIN32_32BIT'], 'true'), ne(variables['VSCODE_PUBLISH'], 'false'))
         timeoutInMinutes: 90
         variables:
           VSCODE_ARCH: ia32
@@ -63,7 +71,7 @@ stages:
           - template: win32/product-build-win32.yml
 
       - job: WindowsARM64
-        condition: and(succeeded(), eq(variables['VSCODE_BUILD_WIN32_ARM64'], 'true'))
+        condition: and(succeeded(), eq(variables['VSCODE_BUILD_WIN32_ARM64'], 'true'), ne(variables['VSCODE_PUBLISH'], 'false'))
         timeoutInMinutes: 90
         variables:
           VSCODE_ARCH: arm64
@@ -89,7 +97,7 @@ stages:
       - job: LinuxSnap
         dependsOn:
           - Linux
-        condition: and(succeeded(), eq(variables['VSCODE_BUILD_LINUX'], 'true'))
+        condition: and(succeeded(), eq(variables['VSCODE_BUILD_LINUX'], 'true'), ne(variables['VSCODE_PUBLISH'], 'false'))
         container: snapcraft
         variables:
           VSCODE_ARCH: x64
@@ -97,7 +105,7 @@ stages:
           - template: linux/snap-build-linux.yml
 
       - job: LinuxArmhf
-        condition: and(succeeded(), eq(variables['VSCODE_BUILD_LINUX_ARMHF'], 'true'))
+        condition: and(succeeded(), eq(variables['VSCODE_BUILD_LINUX_ARMHF'], 'true'), ne(variables['VSCODE_PUBLISH'], 'false'))
         container: vscode-armhf
         variables:
           VSCODE_ARCH: armhf
@@ -108,7 +116,7 @@ stages:
       - job: LinuxSnapArmhf
         dependsOn:
           - LinuxArmhf
-        condition: and(succeeded(), eq(variables['VSCODE_BUILD_LINUX_ARMHF'], 'true'))
+        condition: and(succeeded(), eq(variables['VSCODE_BUILD_LINUX_ARMHF'], 'true'), ne(variables['VSCODE_PUBLISH'], 'false'))
         container: snapcraft
         variables:
           VSCODE_ARCH: armhf
@@ -116,7 +124,7 @@ stages:
           - template: linux/snap-build-linux.yml
 
       - job: LinuxArm64
-        condition: and(succeeded(), eq(variables['VSCODE_BUILD_LINUX_ARM64'], 'true'))
+        condition: and(succeeded(), eq(variables['VSCODE_BUILD_LINUX_ARM64'], 'true'), ne(variables['VSCODE_PUBLISH'], 'false'))
         container: vscode-arm64
         variables:
           VSCODE_ARCH: arm64
@@ -127,7 +135,7 @@ stages:
       - job: LinuxSnapArm64
         dependsOn:
           - LinuxArm64
-        condition: and(succeeded(), eq(variables['VSCODE_BUILD_LINUX_ARM64'], 'true'))
+        condition: and(succeeded(), eq(variables['VSCODE_BUILD_LINUX_ARM64'], 'true'), ne(variables['VSCODE_PUBLISH'], 'false'))
         container: snapcraft
         variables:
           VSCODE_ARCH: arm64
@@ -135,12 +143,12 @@ stages:
           - template: linux/snap-build-linux.yml
 
       - job: LinuxAlpine
-        condition: and(succeeded(), eq(variables['VSCODE_BUILD_LINUX_ALPINE'], 'true'))
+        condition: and(succeeded(), eq(variables['VSCODE_BUILD_LINUX_ALPINE'], 'true'), ne(variables['VSCODE_PUBLISH'], 'false'))
         steps:
           - template: linux/product-build-alpine.yml
 
       - job: LinuxWeb
-        condition: and(succeeded(), eq(variables['VSCODE_BUILD_WEB'], 'true'))
+        condition: and(succeeded(), eq(variables['VSCODE_BUILD_WEB'], 'true'), ne(variables['VSCODE_PUBLISH'], 'false'))
         variables:
           VSCODE_ARCH: x64
         steps:
@@ -169,7 +177,7 @@ stages:
       vmImage: macOS-latest
     jobs:
       - job: macOSARM64
-        condition: and(succeeded(), eq(variables['VSCODE_BUILD_MACOS_ARM64'], 'true'))
+        condition: and(succeeded(), eq(variables['VSCODE_BUILD_MACOS_ARM64'], 'true'), ne(variables['VSCODE_PUBLISH'], 'false'))
         timeoutInMinutes: 90
         variables:
           VSCODE_ARCH: arm64
@@ -182,7 +190,7 @@ stages:
       - Linux
       - macOS
       - macOSARM64
-    condition: and(succeededOrFailed(), eq(variables['VSCODE_COMPILE_ONLY'], 'false'))
+    condition: and(succeededOrFailed(), eq(variables['VSCODE_COMPILE_ONLY'], 'false'), ne(variables['VSCODE_PUBLISH'], 'false'))
     pool:
       vmImage: "Ubuntu-18.04"
     jobs:
@@ -197,7 +205,7 @@ stages:
       - Linux
       - macOS
       - macOSARM64
-    condition: and(succeeded(), eq(variables['VSCODE_COMPILE_ONLY'], 'false'), or(eq(variables['VSCODE_RELEASE'], 'true'), and(or(eq(variables['VSCODE_QUALITY'], 'insider'), eq(variables['VSCODE_QUALITY'], 'exploration')), eq(variables['Build.Reason'], 'Schedule'))))
+    condition: and(succeeded(), eq(variables['VSCODE_COMPILE_ONLY'], 'false'), ne(variables['VSCODE_PUBLISH'], 'false'), or(eq(variables['VSCODE_RELEASE'], 'true'), and(or(eq(variables['VSCODE_QUALITY'], 'insider'), eq(variables['VSCODE_QUALITY'], 'exploration')), eq(variables['Build.Reason'], 'Schedule'))))
     pool:
       vmImage: "Ubuntu-18.04"
     jobs:

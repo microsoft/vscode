@@ -84,7 +84,7 @@ class BrowserMain extends Disposable {
 		const services = await this.initServices();
 
 		await domContentLoaded();
-		mark('willStartWorkbench');
+		mark('code/willStartWorkbench');
 
 		// Create Workbench
 		const workbench = new Workbench(
@@ -145,8 +145,7 @@ class BrowserMain extends Disposable {
 		// Workbench Lifecycle
 		this._register(workbench.onBeforeShutdown(event => {
 			if (storageService.hasPendingUpdate) {
-				logService.warn('Unload veto: pending storage update');
-				event.veto(true); // prevent data loss from pending storage update
+				event.veto(true, 'veto.pendingStorageUpdate'); // prevent data loss from pending storage update
 			}
 		}));
 		this._register(workbench.onWillShutdown(() => storageService.close()));
@@ -243,7 +242,7 @@ class BrowserMain extends Disposable {
 		serviceCollection.set(IUserDataInitializationService, userDataInitializationService);
 
 		if (await userDataInitializationService.requiresInitialization()) {
-			mark('willInitRequiredUserData');
+			mark('code/willInitRequiredUserData');
 
 			// Initialize required resources - settings & global state
 			await userDataInitializationService.initializeRequiredResources();
@@ -252,7 +251,7 @@ class BrowserMain extends Disposable {
 			// Reloading complete configuraiton blocks workbench until remote configuration is loaded.
 			await configurationService.reloadLocalUserConfiguration();
 
-			mark('didInitRequiredUserData');
+			mark('code/didInitRequiredUserData');
 		}
 
 		return { serviceCollection, configurationService, logService, storageService };

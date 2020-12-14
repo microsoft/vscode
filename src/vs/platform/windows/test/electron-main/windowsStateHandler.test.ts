@@ -6,12 +6,10 @@
 import * as assert from 'assert';
 import * as os from 'os';
 import * as path from 'vs/base/common/path';
-
-import { restoreWindowsState, getWindowsStateStoreData } from 'vs/platform/windows/electron-main/windowsStateStorage';
+import { restoreWindowsState, getWindowsStateStoreData, IWindowsState, IWindowState } from 'vs/platform/windows/electron-main/windowsStateHandler';
 import { IWindowState as IWindowUIState, WindowMode } from 'vs/platform/windows/electron-main/windows';
 import { IWorkspaceIdentifier } from 'vs/platform/workspaces/common/workspaces';
 import { URI } from 'vs/base/common/uri';
-import { IWindowsState, IWindowState } from 'vs/platform/windows/electron-main/windowsMainService';
 
 function getUIState(): IWindowUIState {
 	return {
@@ -115,94 +113,6 @@ suite('Windows State Storing', () => {
 			openedWindows: []
 		};
 		assertRestoring(windowState, 'lastPluginDevelopmentHostWindow');
-	});
-
-	test('open 1_31', () => {
-		const v1_31_workspace = `{
-			"openedWindows": [],
-			"lastActiveWindow": {
-				"workspace": {
-					"id": "a41787288b5e9cc1a61ba2dd84cd0d80",
-					"configPath": "/home/user/workspaces/code-and-docs.code-workspace"
-				},
-				"backupPath": "/home/user/.config/Code - Insiders/Backups/a41787288b5e9cc1a61ba2dd84cd0d80",
-				"uiState": {
-					"mode": 0,
-					"x": 0,
-					"y": 27,
-					"width": 2560,
-					"height": 1364
-				}
-			}
-		}`;
-
-		let windowsState = restoreWindowsState(JSON.parse(v1_31_workspace));
-		let expected: IWindowsState = {
-			openedWindows: [],
-			lastActiveWindow: {
-				backupPath: '/home/user/.config/Code - Insiders/Backups/a41787288b5e9cc1a61ba2dd84cd0d80',
-				uiState: { mode: WindowMode.Maximized, x: 0, y: 27, width: 2560, height: 1364 },
-				workspace: { id: 'a41787288b5e9cc1a61ba2dd84cd0d80', configPath: URI.file('/home/user/workspaces/code-and-docs.code-workspace') }
-			}
-		};
-
-		assertEqualWindowsState(expected, windowsState, 'v1_31_workspace');
-
-		const v1_31_folder = `{
-			"openedWindows": [],
-			"lastPluginDevelopmentHostWindow": {
-				"folderUri": {
-					"$mid": 1,
-					"fsPath": "/home/user/workspaces/testing/customdata",
-					"external": "file:///home/user/workspaces/testing/customdata",
-					"path": "/home/user/workspaces/testing/customdata",
-					"scheme": "file"
-				},
-				"uiState": {
-					"mode": 1,
-					"x": 593,
-					"y": 617,
-					"width": 1625,
-					"height": 595
-				}
-			}
-		}`;
-
-		windowsState = restoreWindowsState(JSON.parse(v1_31_folder));
-		expected = {
-			openedWindows: [],
-			lastPluginDevelopmentHostWindow: {
-				uiState: { mode: WindowMode.Normal, x: 593, y: 617, width: 1625, height: 595 },
-				folderUri: URI.parse('file:///home/user/workspaces/testing/customdata')
-			}
-		};
-		assertEqualWindowsState(expected, windowsState, 'v1_31_folder');
-
-		const v1_31_empty_window = ` {
-			"openedWindows": [
-			],
-			"lastActiveWindow": {
-				"backupPath": "C:\\\\Users\\\\Mike\\\\AppData\\\\Roaming\\\\Code\\\\Backups\\\\1549538599815",
-				"uiState": {
-					"mode": 0,
-					"x": -8,
-					"y": -8,
-					"width": 2576,
-					"height": 1344
-				}
-			}
-		}`;
-
-		windowsState = restoreWindowsState(JSON.parse(v1_31_empty_window));
-		expected = {
-			openedWindows: [],
-			lastActiveWindow: {
-				backupPath: 'C:\\Users\\Mike\\AppData\\Roaming\\Code\\Backups\\1549538599815',
-				uiState: { mode: WindowMode.Maximized, x: -8, y: -8, width: 2576, height: 1344 }
-			}
-		};
-		assertEqualWindowsState(expected, windowsState, 'v1_31_empty_window');
-
 	});
 
 	test('open 1_32', () => {

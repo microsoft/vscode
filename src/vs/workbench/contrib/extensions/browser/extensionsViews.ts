@@ -29,7 +29,7 @@ import { ManageExtensionAction, getContextMenuActions, ExtensionAction } from 'v
 import { WorkbenchPagedList, ListResourceNavigator } from 'vs/platform/list/browser/listService';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { INotificationService, Severity } from 'vs/platform/notification/common/notification';
-import { ViewPane, IViewPaneOptions } from 'vs/workbench/browser/parts/views/viewPaneContainer';
+import { ViewPane, IViewPaneOptions } from 'vs/workbench/browser/parts/views/viewPane';
 import { IWorkspaceContextService } from 'vs/platform/workspace/common/workspace';
 import { coalesce, distinct, flatten } from 'vs/base/common/arrays';
 import { IExperimentService, IExperiment, ExperimentActionType } from 'vs/workbench/contrib/experiments/common/experimentService';
