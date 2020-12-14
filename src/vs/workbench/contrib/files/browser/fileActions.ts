@@ -225,8 +225,8 @@ async function deleteFiles(explorerService: IExplorerService, workingCopyFileSer
 	try {
 		const resourceFileEdits = distinctElements.map(e => new ResourceFileEdit(e.resource, undefined, { recursive: true, folder: e.isDirectory, skipTrashBin: !useTrash, maxSize: MAX_UNDO_FILE_SIZE }));
 		const options = {
-			undoLabel: distinctElements.length > 1 ? nls.localize('deleteBulkEdit', "Delete {0} files", distinctElements.length) : nls.localize('deleteFileBulkEdit', "Delete {0}", distinctElements[0].name),
-			progressLabel: distinctElements.length > 1 ? nls.localize('deletingBulkEdit', "Deleting {0} files", distinctElements.length) : nls.localize('deletingFileBulkEdit', "Deleting {0}", distinctElements[0].name),
+			undoLabel: distinctElements.length > 1 ? nls.localize({ key: 'deleteBulkEdit', comment: ['Placeholder will be replaced by the number of files deleted'] }, "Delete {0} files", distinctElements.length) : nls.localize({ key: 'deleteFileBulkEdit', comment: ['Placeholder will be replaced by the name of the file deleted'] }, "Delete {0}", distinctElements[0].name),
+			progressLabel: distinctElements.length > 1 ? nls.localize({ key: 'deletingBulkEdit', comment: ['Placeholder will be replaced by the number of files deleted'] }, "Deleting {0} files", distinctElements.length) : nls.localize({ key: 'deletingFileBulkEdit', comment: ['Placeholder will be replaced by the name of the file deleted'] }, "Deleting {0}", distinctElements[0].name),
 		};
 		await explorerService.applyBulkEdit(resourceFileEdits, options);
 	} catch (error) {
