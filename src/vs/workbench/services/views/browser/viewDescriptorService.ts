@@ -736,6 +736,14 @@ export class ViewDescriptorService extends Disposable implements IViewDescriptor
 								ContextKeyExpr.equals(`${viewContainer.id}.defaultViewContainerLocation`, false)
 							)
 						)
+					}, {
+						id: MenuId.PanelTitleContext,
+						when: ContextKeyExpr.or(
+							ContextKeyExpr.and(
+								ContextKeyExpr.equals('viewContainer', viewContainer.id),
+								ContextKeyExpr.equals(`${viewContainer.id}.defaultViewContainerLocation`, false)
+							)
+						)
 					}],
 				});
 			}

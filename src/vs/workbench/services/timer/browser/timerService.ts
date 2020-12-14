@@ -453,10 +453,21 @@ export abstract class AbstractTimerService implements ITimerService {
 		*/
 		this._telemetryService.publicLog('startupTimeVaried', metrics);
 
-		// report raw timers as telemetry
-		type Durations = { entries: perf.PerformanceMark[]; };
-		type DurationsClassification = { entries: { classification: 'SystemMetaData', purpose: 'PerformanceAndHealth' } };
-		this._telemetryService.publicLog2<Durations, DurationsClassification>('startup.timers.raw', { entries: perf.getMarks() });
+
+		// report raw timers as telemetry. each mark is send a separate telemetry
+		// event and it is "normalized" to a relative timestamp where the first mark
+		// defines the start
+		for (const [source, marks] of this.getPerformanceMarks()) {
+			type Mark = { source: string; name: string; relativeStartTime: number; };
+			type MarkClassification = { [K in keyof Mark]: { classification: 'SystemMetaData', purpose: 'PerformanceAndHealth' } };
+
+			let lastMark: perf.PerformanceMark = marks[0];
+			for (const mark of marks) {
+				let delta = mark.startTime - lastMark.startTime;
+				this._telemetryService.publicLog2<Mark, MarkClassification>('startup.timer.mark', { source, name: mark.name, relativeStartTime: delta });
+				lastMark = mark;
+			}
+		}
 	}
 
 	private async _computeStartupMetrics(): Promise<IStartupMetrics> {

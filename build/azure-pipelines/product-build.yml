@@ -1,4 +1,3 @@
-trigger: none
 pr: none
 
 schedules:
@@ -7,6 +6,10 @@ schedules:
   branches:
     include:
     - electron-11.x.y
+
+variables:
+  ${{ if and(eq(variables['VSCODE_PUBLISH'], ''), or(eq(variables['Build.Reason'], 'IndividualCI'), eq(variables['Build.Reason'], 'BatchedCI'))) }}:
+    VSCODE_PUBLISH: 'false'
 
 resources:
   containers:
