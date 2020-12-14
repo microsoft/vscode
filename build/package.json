@@ -93,6 +93,7 @@
     "vinyl-fs": "^3.0.0",
     "vsce": "1.48.0",
     "vscode-telemetry-extractor": "^1.6.0",
+    "webpack": "^4.43.0",
     "webpack-stream": "^5.2.1",
     "xml2js": "^0.4.17"
   },

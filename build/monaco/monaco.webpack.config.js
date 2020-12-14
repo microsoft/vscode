@@ -30,6 +30,11 @@ module.exports = {
 			'monaco-editor-core': path.resolve(__dirname, '../../out-monaco-editor-core/esm/vs/editor/editor.main.js'),
 		}
 	},
+	resolveLoader: {
+		modules: [
+			path.join(__dirname, '../node_modules')
+		]
+	},
 	stats: {
 		all: false,
 		modules: true,
