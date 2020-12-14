@@ -440,7 +440,7 @@ jobs:
 
       - name: Create Issue on Unit Test Failure
         uses: nashmaniac/create-issue-action@v1.1
-        if: ${{ steps.electron-unit-tests.outputs.status == 'failure' || steps.browser-unit-tests.outputs.status == 'failure' }}
+        if: ${{ failure() && (steps.electron-unit-tests.outputs.status == 'failure' || steps.browser-unit-tests.outputs.status == 'failure') }}
         with:
           title: Unit Test Failed
           token: ${{secrets.GITHUB_TOKEN}}
@@ -450,7 +450,7 @@ jobs:
 
       - name: Create Issue on Integration Test Failure
         uses: nashmaniac/create-issue-action@v1.1
-        if: ${{ steps.electron-integration-tests.outputs.status == 'failure' && steps.electron-unit-tests.outputs.status != 'failure' && steps.browser-unit-tests.outputs.status != 'failure' }}
+        if: ${{ failure() && (steps.electron-integration-tests.outputs.status == 'failure' && steps.electron-unit-tests.outputs.status != 'failure' && steps.browser-unit-tests.outputs.status != 'failure') }}
         with:
           title: Integration Test Failed
           token: ${{secrets.GITHUB_TOKEN}}
