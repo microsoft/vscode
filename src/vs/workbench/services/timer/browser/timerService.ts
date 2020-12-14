@@ -53,7 +53,6 @@ export interface IMemoryInfo {
 		"timers.ellapsedPanelRestore" : { "classification": "SystemMetaData", "purpose": "PerformanceAndHealth", "isMeasurement": true },
 		"timers.ellapsedEditorRestore" : { "classification": "SystemMetaData", "purpose": "PerformanceAndHealth", "isMeasurement": true },
 		"timers.ellapsedWorkbench" : { "classification": "SystemMetaData", "purpose": "PerformanceAndHealth", "isMeasurement": true },
-		"timers.ellapsedTimersToTimersComputed" : { "classification": "SystemMetaData", "purpose": "PerformanceAndHealth", "isMeasurement": true },
 		"timers.ellapsedNlsGeneration" : { "classification": "SystemMetaData", "purpose": "PerformanceAndHealth", "isMeasurement": true },
 		"platform" : { "classification": "SystemMetaData", "purpose": "PerformanceAndHealth" },
 		"release" : { "classification": "SystemMetaData", "purpose": "PerformanceAndHealth" },
@@ -311,10 +310,6 @@ export interface IStartupMetrics {
 		 * * Measured with the `renderer/started` and `didStartWorkbench` performance marks
 		 */
 		readonly ellapsedRenderer: number;
-
-		// the time it took to generate this object.
-		// remove?
-		readonly ellapsedTimersToTimersComputed: number;
 	};
 
 	readonly hasAccessibilitySupport: boolean;
@@ -465,7 +460,6 @@ export abstract class AbstractTimerService implements ITimerService {
 	}
 
 	private async _computeStartupMetrics(): Promise<IStartupMetrics> {
-		const now = Date.now();
 		const initialStartup = this._isInitialStartup();
 		const startMark = initialStartup ? 'main:started' : 'main:loadWindow';
 
@@ -503,8 +497,7 @@ export abstract class AbstractTimerService implements ITimerService {
 				ellapsedPanelRestore: this._marks.getDuration('willRestorePanel', 'didRestorePanel'),
 				ellapsedWorkbench: this._marks.getDuration('willStartWorkbench', 'didStartWorkbench'),
 				ellapsedExtensionsReady: this._marks.getDuration(startMark, 'didLoadExtensions'),
-				ellapsedRenderer: this._marks.getDuration('renderer/started', 'didStartWorkbench'),
-				ellapsedTimersToTimersComputed: Date.now() - now,
+				ellapsedRenderer: this._marks.getDuration('renderer/started', 'didStartWorkbench')
 			},
 
 			// system info
