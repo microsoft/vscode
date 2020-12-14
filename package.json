@@ -124,7 +124,7 @@
     "glob": "^5.0.13",
     "gulp": "^4.0.0",
     "gulp-atom-electron": "^1.22.0",
-    "gulp-azure-storage": "^0.10.0",
+    "gulp-azure-storage": "^0.11.1",
     "gulp-buffer": "0.0.2",
     "gulp-concat": "^2.6.1",
     "gulp-cssnano": "^2.1.3",
