@@ -22,7 +22,7 @@ module.exports = withBrowserDefaults({
 		new CopyPlugin({
 			patterns: [
 				{
-					from: 'node_modules/typescript-web-server/*.d.ts',
+					from: 'node_modules/typescript-web/lib/*.d.ts',
 					to: 'typescript-web/',
 					flatten: true
 				},
@@ -32,7 +32,7 @@ module.exports = withBrowserDefaults({
 		new CopyPlugin({
 			patterns: [
 				{
-					from: 'node_modules/typescript-web-server/tsserver.js',
+					from: 'node_modules/typescript-web/lib/tsserver.js',
 					to: 'typescript-web/tsserver.web.js',
 					transform: (content) => {
 						return Terser.minify(content.toString()).code;

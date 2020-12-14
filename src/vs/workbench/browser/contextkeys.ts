@@ -17,7 +17,7 @@ import { WorkbenchState, IWorkspaceContextService } from 'vs/platform/workspace/
 import { SideBarVisibleContext } from 'vs/workbench/common/viewlet';
 import { IWorkbenchLayoutService, Parts, positionToString } from 'vs/workbench/services/layout/browser/layoutService';
 import { IViewletService } from 'vs/workbench/services/viewlet/browser/viewlet';
-import { PanelPositionContext } from 'vs/workbench/common/panel';
+import { PanelMaximizedContext, PanelPositionContext, PanelVisibleContext } from 'vs/workbench/common/panel';
 import { getRemoteName } from 'vs/platform/remote/common/remoteHosts';
 import { IWorkingCopyService } from 'vs/workbench/services/workingCopy/common/workingCopyService';
 import { isNative } from 'vs/base/common/platform';
@@ -64,6 +64,8 @@ export class WorkbenchContextKeysHandler extends Disposable {
 	private sideBarVisibleContext: IContextKey<boolean>;
 	private editorAreaVisibleContext: IContextKey<boolean>;
 	private panelPositionContext: IContextKey<string>;
+	private panelVisibleContext: IContextKey<boolean>;
+	private panelMaximizedContext: IContextKey<boolean>;
 
 	constructor(
 		@IContextKeyService private readonly contextKeyService: IContextKeyService,
@@ -146,9 +148,13 @@ export class WorkbenchContextKeysHandler extends Disposable {
 		// Sidebar
 		this.sideBarVisibleContext = SideBarVisibleContext.bindTo(this.contextKeyService);
 
-		// Panel Position
+		// Panel
 		this.panelPositionContext = PanelPositionContext.bindTo(this.contextKeyService);
 		this.panelPositionContext.set(positionToString(this.layoutService.getPanelPosition()));
+		this.panelVisibleContext = PanelVisibleContext.bindTo(this.contextKeyService);
+		this.panelVisibleContext.set(this.layoutService.isVisible(Parts.PANEL_PART));
+		this.panelMaximizedContext = PanelMaximizedContext.bindTo(this.contextKeyService);
+		this.panelMaximizedContext.set(this.layoutService.isPanelMaximized());
 
 		this.registerListeners();
 	}
@@ -182,7 +188,11 @@ export class WorkbenchContextKeysHandler extends Disposable {
 		this._register(this.viewletService.onDidViewletClose(() => this.updateSideBarContextKeys()));
 		this._register(this.viewletService.onDidViewletOpen(() => this.updateSideBarContextKeys()));
 
-		this._register(this.layoutService.onPartVisibilityChange(() => this.editorAreaVisibleContext.set(this.layoutService.isVisible(Parts.EDITOR_PART))));
+		this._register(this.layoutService.onPartVisibilityChange(() => {
+			this.editorAreaVisibleContext.set(this.layoutService.isVisible(Parts.EDITOR_PART));
+			this.panelVisibleContext.set(this.layoutService.isVisible(Parts.PANEL_PART));
+			this.panelMaximizedContext.set(this.layoutService.isPanelMaximized());
+		}));
 
 		this._register(this.workingCopyService.onDidChangeDirty(workingCopy => this.dirtyWorkingCopiesContext.set(workingCopy.isDirty() || this.workingCopyService.hasDirty)));
 	}

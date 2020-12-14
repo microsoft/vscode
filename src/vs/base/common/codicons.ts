@@ -5,6 +5,7 @@
 
 import { codiconStartMarker } from 'vs/base/common/codicon';
 import { Emitter, Event } from 'vs/base/common/event';
+import { localize } from 'vs/nls';
 
 export interface IIconRegistry {
 	readonly all: IterableIterator<Codicon>;
@@ -46,11 +47,11 @@ const _registry = new Registry();
 
 export const iconRegistry: IIconRegistry = _registry;
 
-export function registerIcon(id: string, def: Codicon, description?: string) {
+export function registerCodicon(id: string, def: Codicon, description?: string): Codicon {
 	return new Codicon(id, def, description);
 }
 
-export class Codicon {
+export class Codicon implements CSSIcon {
 	constructor(public readonly id: string, public readonly definition: Codicon | IconDefinition, public description?: string) {
 		_registry.add(this);
 	}
@@ -58,9 +59,13 @@ export class Codicon {
 	// classNamesArray is useful for migrating to ES6 classlist
 	public get classNamesArray() { return ['codicon', 'codicon-' + this.id]; }
 	public get cssSelector() { return '.codicon.codicon-' + this.id; }
-
-	public get classNameIdentifier() { return 'codicon-' + this.id; }
 }
+
+export interface CSSIcon {
+	readonly classNames: string;
+}
+
+
 
 interface IconDefinition {
 	character: string;
@@ -492,7 +497,11 @@ export namespace Codicon {
 	export const passFilled = new Codicon('pass-filled', { character: '\\ebb3' });
 	export const circleLargeFilled = new Codicon('circle-large-filled', { character: '\\ebb4' });
 	export const circleLargeOutline = new Codicon('circle-large-outline', { character: '\\ebb5' });
+
+	export const dropDownButton = new Codicon('drop-down-button', Codicon.chevronDown.definition, localize('dropDownButton', 'Icon for drop down buttons.'));
 }
+
+// common icons
 
 
 

@@ -11,7 +11,7 @@ schedules:
 resources:
   containers:
     - container: vscode-x64
-      image: vscodehub.azurecr.io/vscode-linux-build-agent:bionic
+      image: vscodehub.azurecr.io/vscode-linux-build-agent:bionic-x64
       endpoint: VSCodeHub
       options: --user 0:0
     - container: vscode-arm64
@@ -30,6 +30,8 @@ stages:
         pool:
           vmImage: "Ubuntu-18.04"
         container: vscode-x64
+        variables:
+          VSCODE_ARCH: x64
         steps:
           - template: product-compile.yml
 
@@ -62,7 +64,7 @@ stages:
         variables:
           VSCODE_ARCH: arm64
         steps:
-          - template: win32/product-build-win32-arm64.yml
+          - template: win32/product-build-win32.yml
 
   - stage: Linux
     dependsOn:
@@ -99,6 +101,16 @@ stages:
         steps:
           - template: linux/product-build-linux.yml
 
+      - job: LinuxSnapArmhf
+        dependsOn:
+          - LinuxArmhf
+        condition: and(succeeded(), eq(variables['VSCODE_BUILD_LINUX_ARMHF'], 'true'))
+        container: snapcraft
+        variables:
+          VSCODE_ARCH: armhf
+        steps:
+          - template: linux/snap-build-linux.yml
+
       - job: LinuxArm64
         condition: and(succeeded(), eq(variables['VSCODE_BUILD_LINUX_ARM64'], 'true'))
         container: vscode-arm64
@@ -107,6 +119,16 @@ stages:
           NPM_ARCH: arm64
         steps:
           - template: linux/product-build-linux.yml
+
+      - job: LinuxSnapArm64
+        dependsOn:
+          - LinuxArm64
+        condition: and(succeeded(), eq(variables['VSCODE_BUILD_LINUX_ARM64'], 'true'))
+        container: snapcraft
+        variables:
+          VSCODE_ARCH: arm64
+        steps:
+          - template: linux/snap-build-linux.yml
 
       - job: LinuxAlpine
         condition: and(succeeded(), eq(variables['VSCODE_BUILD_LINUX_ALPINE'], 'true'))

@@ -30,7 +30,7 @@ import { IContextKeyService, IContextKey } from 'vs/platform/contextkey/common/c
 import { dispose } from 'vs/base/common/lifecycle';
 import { IViewDescriptorService } from 'vs/workbench/common/views';
 import { IOpenerService } from 'vs/platform/opener/common/opener';
-import { IThemeService } from 'vs/platform/theme/common/themeService';
+import { IThemeService, ThemeIcon } from 'vs/platform/theme/common/themeService';
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
 import { withUndefinedAsNull } from 'vs/base/common/types';
 import { IMenuService, IMenu, MenuId } from 'vs/platform/actions/common/actions';
@@ -180,7 +180,7 @@ export class VariablesView extends ViewPane {
 	}
 
 	getActions(): IAction[] {
-		return [new CollapseAction(() => this.tree, true, 'explorer-action ' + debugCollapseAll.classNames)];
+		return [new CollapseAction(() => this.tree, true, 'explorer-action ' + ThemeIcon.asClassName(debugCollapseAll))];
 	}
 
 	layoutBody(width: number, height: number): void {

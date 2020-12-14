@@ -8,7 +8,7 @@
   {
     "kind": 2,
     "language": "github-issues",
-    "value": "$REPOS=repo:microsoft/vscode \n\t   repo:microsoft/vscode-internalbacklog\n\t   repo:microsoft/vscode-js-debug\n\t   repo:microsoft/vscode-remote-release\n\t   repo:microsoft/vscode-pull-request-github\n\t   repo:microsoft/vscode-settings-sync-server\n\n$MILESTONE=milestone:\"November 2020\"\n\n$MINE=assignee:@me",
+    "value": "$REPOS=repo:microsoft/vscode repo:microsoft/vscode-internalbacklog repo:microsoft/vscode-js-debug repo:microsoft/vscode-remote-release repo:microsoft/vscode-pull-request-github repo:microsoft/vscode-settings-sync-server\n\n$MILESTONE=milestone:\"November 2020\"\n\n$MINE=assignee:@me",
     "editable": false
   },
   {
@@ -20,13 +20,25 @@
   {
     "kind": 1,
     "language": "markdown",
+    "value": "## Open Pull Requests on the Milestone",
+    "editable": true
+  },
+  {
+    "kind": 2,
+    "language": "github-issues",
+    "value": "$REPOS $MILESTONE $MINE is:pr is:open",
+    "editable": true
+  },
+  {
+    "kind": 1,
+    "language": "markdown",
     "value": "## Open Issues on the Milestone",
     "editable": true
   },
   {
     "kind": 2,
     "language": "github-issues",
-    "value": "$REPOS $MILESTONE $MINE is:issue is:open",
+    "value": "$REPOS $MILESTONE $MINE is:issue is:open -label:iteration-plan -label:endgame-plan -label:testplan-item",
     "editable": true
   },
   {
@@ -92,7 +104,7 @@
   {
     "kind": 2,
     "language": "github-issues",
-    "value": "$REPOS $MILESTONE -$MINE is:issue is:closed -assignee:@me label:feature-request label:verification-needed",
+    "value": "$REPOS $MILESTONE -$MINE is:issue is:closed -assignee:@me -label:verified label:feature-request label:verification-needed",
     "editable": true
   },
   {
@@ -110,7 +122,7 @@
   {
     "kind": 2,
     "language": "github-issues",
-    "value": "$REPOS $MILESTONE $MINE is:issue is:open",
+    "value": "$REPOS $MILESTONE $MINE is:issue is:open -label:endgame-plan",
     "editable": true
   },
   {
@@ -165,6 +177,18 @@
     "kind": 2,
     "language": "github-issues",
     "value": "$REPOS $MILESTONE -$MINE is:issue is:closed author:@me sort:updated-asc label:bug -label:verified -label:on-testplan -label:*duplicate -label:invalid -label:*as-designed -label:error-telemetry -label:verification-steps-needed -label:verification-found",
+    "editable": true
+  },
+  {
+    "kind": 1,
+    "language": "markdown",
+    "value": "## Issues filed from outside team",
+    "editable": true
+  },
+  {
+    "kind": 2,
+    "language": "github-issues",
+    "value": "$REPOS $MILESTONE -$MINE is:issue is:closed sort:updated-asc label:bug -label:verified -label:on-testplan -label:*duplicate -label:invalid -label:*as-designed -label:error-telemetry -label:verification-steps-needed -label:verification-found -author:aeschli -author:alexdima -author:alexr00 -author:AmandaSilver -author:bamurtaugh -author:bpasero -author:btholt -author:chrisdias -author:chrmarti -author:Chuxel -author:connor4312 -author:dbaeumer -author:deepak1556 -author:devinvalenciano -author:digitarald -author:eamodio -author:egamma -author:fiveisprime -author:gregvanl -author:isidorn -author:ItalyPaleAle -author:JacksonKearl -author:joaomoreno -author:jrieken -author:kieferrm -author:lszomoru -author:meganrogge -author:misolori -author:mjbvz -author:ornellaalt -author:orta -author:rebornix -author:RMacfarlane -author:roblourens -author:rzhao271 -author:sana-ajani -author:sandy081 -author:sbatten -author:stevencl -author:Tyriar -author:weinand",
     "editable": true
   },
   {

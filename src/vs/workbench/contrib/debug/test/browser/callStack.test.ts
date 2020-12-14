@@ -18,6 +18,7 @@ import { getContext, getContextForContributedActions, getSpecificSourceName } fr
 import { getStackFrameThreadAndSessionToFocus } from 'vs/workbench/contrib/debug/browser/debugService';
 import { generateUuid } from 'vs/base/common/uuid';
 import { debugStackframe, debugStackframeFocused } from 'vs/workbench/contrib/debug/browser/debugIcons';
+import { ThemeIcon } from 'vs/platform/theme/common/themeService';
 
 export function createMockSession(model: DebugModel, name = 'mockSession', options?: IDebugSessionOptions): DebugSession {
 	return new DebugSession(generateUuid(), { resolved: { name, type: 'node', request: 'launch' }, unresolved: undefined }, undefined!, model, options, {
@@ -309,7 +310,7 @@ suite('Debug - CallStack', () => {
 		let decorations = createDecorationsForStackFrame(firstStackFrame, firstStackFrame.range, true);
 		assert.equal(decorations.length, 2);
 		assert.deepEqual(decorations[0].range, new Range(1, 2, 1, 1));
-		assert.equal(decorations[0].options.glyphMarginClassName, debugStackframe.classNames);
+		assert.equal(decorations[0].options.glyphMarginClassName, ThemeIcon.asClassName(debugStackframe));
 		assert.deepEqual(decorations[1].range, new Range(1, Constants.MAX_SAFE_SMALL_INTEGER, 1, 1));
 		assert.equal(decorations[1].options.className, 'debug-top-stack-frame-line');
 		assert.equal(decorations[1].options.isWholeLine, true);
@@ -317,7 +318,7 @@ suite('Debug - CallStack', () => {
 		decorations = createDecorationsForStackFrame(secondStackFrame, firstStackFrame.range, true);
 		assert.equal(decorations.length, 2);
 		assert.deepEqual(decorations[0].range, new Range(1, 2, 1, 1));
-		assert.equal(decorations[0].options.glyphMarginClassName, debugStackframeFocused.classNames);
+		assert.equal(decorations[0].options.glyphMarginClassName, ThemeIcon.asClassName(debugStackframeFocused));
 		assert.deepEqual(decorations[1].range, new Range(1, Constants.MAX_SAFE_SMALL_INTEGER, 1, 1));
 		assert.equal(decorations[1].options.className, 'debug-focused-stack-frame-line');
 		assert.equal(decorations[1].options.isWholeLine, true);
@@ -325,7 +326,7 @@ suite('Debug - CallStack', () => {
 		decorations = createDecorationsForStackFrame(firstStackFrame, new Range(1, 5, 1, 6), true);
 		assert.equal(decorations.length, 3);
 		assert.deepEqual(decorations[0].range, new Range(1, 2, 1, 1));
-		assert.equal(decorations[0].options.glyphMarginClassName, debugStackframe.classNames);
+		assert.equal(decorations[0].options.glyphMarginClassName, ThemeIcon.asClassName(debugStackframe));
 		assert.deepEqual(decorations[1].range, new Range(1, Constants.MAX_SAFE_SMALL_INTEGER, 1, 1));
 		assert.equal(decorations[1].options.className, 'debug-top-stack-frame-line');
 		assert.equal(decorations[1].options.isWholeLine, true);

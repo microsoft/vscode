@@ -23,7 +23,7 @@ import { PaneView, IPaneViewOptions, IPaneOptions, Pane, IPaneStyles } from 'vs/
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { IWorkbenchLayoutService, Position } from 'vs/workbench/services/layout/browser/layoutService';
 import { StandardMouseEvent } from 'vs/base/browser/mouseEvent';
-import { Extensions as ViewContainerExtensions, IView, FocusedViewContext, IViewDescriptor, ViewContainer, IViewDescriptorService, ViewContainerLocation, IViewPaneContainer, IViewsRegistry, IViewContentDescriptor, IAddedViewDescriptorRef, IViewDescriptorRef, IViewContainerModel, defaultViewIcon } from 'vs/workbench/common/views';
+import { Extensions as ViewContainerExtensions, IView, FocusedViewContext, IViewDescriptor, ViewContainer, IViewDescriptorService, ViewContainerLocation, IViewPaneContainer, IViewsRegistry, IViewContentDescriptor, IAddedViewDescriptorRef, IViewDescriptorRef, IViewContainerModel, defaultViewIcon, IViewsService } from 'vs/workbench/common/views';
 import { IStorageService, StorageScope, StorageTarget } from 'vs/platform/storage/common/storage';
 import { IContextKey, IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
 import { assertIsDefined } from 'vs/base/common/types';
@@ -50,6 +50,8 @@ import { ScrollbarVisibility } from 'vs/base/common/scrollable';
 import { URI } from 'vs/base/common/uri';
 import { KeyMod, KeyCode, KeyChord } from 'vs/base/common/keyCodes';
 import { KeybindingWeight } from 'vs/platform/keybinding/common/keybindingsRegistry';
+import { registerIcon } from 'vs/platform/theme/common/iconRegistry';
+import { Codicon } from 'vs/base/common/codicons';
 
 export interface IPaneColors extends IColorMapping {
 	dropBackground?: ColorIdentifier;
@@ -69,6 +71,9 @@ type WelcomeActionClassification = {
 	viewId: { classification: 'SystemMetaData', purpose: 'FeatureInsight' };
 	uri: { classification: 'SystemMetaData', purpose: 'FeatureInsight' };
 };
+
+const viewPaneContainerExpandedIcon = registerIcon('view-pane-container-expanded', Codicon.chevronDown, nls.localize('viewPaneContainerExpandedIcon', 'Icon for an expanded view pane container.'));
+const viewPaneContainerCollapsedIcon = registerIcon('view-pane-container-collapsed', Codicon.chevronRight, nls.localize('viewPaneContainerCollapsedIcon', 'Icon for a collapsed view pane container.'));
 
 const viewsRegistry = Registry.as<IViewsRegistry>(ViewContainerExtensions.ViewsRegistry);
 
@@ -263,7 +268,10 @@ export abstract class ViewPane extends Pane implements IView {
 		if (changed) {
 			this._onDidChangeBodyVisibility.fire(expanded);
 		}
-
+		if (this.twistiesContainer) {
+			this.twistiesContainer.classList.remove(...ThemeIcon.asClassNameArray(this.getTwistyIcon(!expanded)));
+			this.twistiesContainer.classList.add(...ThemeIcon.asClassNameArray(this.getTwistyIcon(expanded)));
+		}
 		return changed;
 	}
 
@@ -288,7 +296,7 @@ export abstract class ViewPane extends Pane implements IView {
 	protected renderHeader(container: HTMLElement): void {
 		this.headerContainer = container;
 
-		this.renderTwisties(container);
+		this.twistiesContainer = append(container, $(ThemeIcon.asCSSSelector(this.getTwistyIcon(this.isExpanded()))));
 
 		this.renderHeaderTitle(container, this.title);
 
@@ -316,8 +324,8 @@ export abstract class ViewPane extends Pane implements IView {
 		this.updateActionsVisibility();
 	}
 
-	protected renderTwisties(container: HTMLElement): void {
-		this.twistiesContainer = append(container, $('.twisties.codicon.codicon-chevron-right'));
+	protected getTwistyIcon(expanded: boolean): ThemeIcon {
+		return expanded ? viewPaneContainerExpandedIcon : viewPaneContainerCollapsedIcon;
 	}
 
 	style(styles: IPaneStyles): void {
@@ -1655,6 +1663,36 @@ export class ViewPaneContainer extends Component implements IViewPaneContainer {
 			this.paneview.dispose();
 		}
 	}
+}
+
+export abstract class ViewPaneContainerAction<T extends IViewPaneContainer> extends Action2 {
+	constructor(readonly desc: Readonly<IAction2Options> & { viewPaneContainerId: string }) {
+		super(desc);
+	}
+
+	run(accessor: ServicesAccessor, ...args: any[]) {
+		const viewPaneContainer = accessor.get(IViewsService).getActiveViewPaneContainerWithId(this.desc.viewPaneContainerId);
+		if (viewPaneContainer) {
+			return this.runInView(accessor, <T>viewPaneContainer, ...args);
+		}
+	}
+
+	abstract runInView(accessor: ServicesAccessor, view: T, ...args: any[]): any;
+}
+
+export abstract class ViewAction<T extends IView> extends Action2 {
+	constructor(readonly desc: Readonly<IAction2Options> & { viewId: string }) {
+		super(desc);
+	}
+
+	run(accessor: ServicesAccessor, ...args: any[]) {
+		const view = accessor.get(IViewsService).getActiveViewWithId(this.desc.viewId);
+		if (view) {
+			return this.runInView(accessor, <T>view, ...args);
+		}
+	}
+
+	abstract runInView(accessor: ServicesAccessor, view: T, ...args: any[]): any;
 }
 
 class MoveViewPosition extends Action2 {

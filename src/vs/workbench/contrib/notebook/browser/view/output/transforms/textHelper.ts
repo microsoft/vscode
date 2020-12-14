@@ -88,9 +88,13 @@ export function truncatedArrayOfString(container: HTMLElement, outputs: string[]
 
 	if (buffer.getLineCount() < LINES_LIMIT) {
 		const lineCount = buffer.getLineCount();
-		const fullRange = new Range(1, 1, lineCount, buffer.getLineLastNonWhitespaceColumn(lineCount));
+		const fullRange = new Range(1, 1, lineCount, Math.max(1, buffer.getLineLastNonWhitespaceColumn(lineCount)));
 
-		container.innerText = buffer.getValueInRange(fullRange, EndOfLinePreference.TextDefined);
+		if (renderANSI) {
+			container.appendChild(handleANSIOutput(buffer.getValueInRange(fullRange, EndOfLinePreference.TextDefined), themeService));
+		} else {
+			container.innerText = buffer.getValueInRange(fullRange, EndOfLinePreference.TextDefined);
+		}
 		return;
 	}
 

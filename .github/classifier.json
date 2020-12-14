@@ -57,7 +57,7 @@
 		"editor-theming": {"assign": []},
 		"editor-wordnav": {"assign": ["alexdima"]},
 		"editor-wrapping": {"assign": ["alexdima"]},
-		"emmet": {"assign": []},
+		"emmet": {"assign": ["rzhao271"]},
 		"error-list": {"assign": ["sandy081"]},
 		"explorer-custom": {"assign": ["sandy081"]},
 		"extension-host": {"assign": []},

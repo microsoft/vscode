@@ -55,7 +55,7 @@ function getLineBreakData(factory: ILineBreaksComputerFactory, tabSize: number, 
 		letterSpacing: 0,
 		isMonospace: true,
 		typicalHalfwidthCharacterWidth: 7,
-		typicalFullwidthCharacterWidth: 14,
+		typicalFullwidthCharacterWidth: 7 * columnsForFullWidthChar,
 		canUseHalfwidthRightwardsArrow: true,
 		spaceWidth: 7,
 		middotWidth: 7,
@@ -122,28 +122,41 @@ suite('Editor ViewModel - MonospaceLineBreaksComputer', () => {
 		assertLineBreaks(factory, 4, 5, 'aa.(.|).aaa');
 	});
 
-	function assertIncrementalLineBreaks(factory: ILineBreaksComputerFactory, text: string, tabSize: number, breakAfter1: number, annotatedText1: string, breakAfter2: number, annotatedText2: string, wrappingIndent = WrappingIndent.None): void {
+	function assertLineBreakDataEqual(a: LineBreakData | null, b: LineBreakData | null): void {
+		if (!a || !b) {
+			assert.deepEqual(a, b);
+			return;
+		}
+		assert.deepEqual(a.breakOffsets, b.breakOffsets);
+		assert.deepEqual(a.wrappedTextIndentLength, b.wrappedTextIndentLength);
+		for (let i = 0; i < a.breakOffsetsVisibleColumn.length; i++) {
+			const diff = a.breakOffsetsVisibleColumn[i] - b.breakOffsetsVisibleColumn[i];
+			assert.ok(diff < 0.001);
+		}
+	}
+
+	function assertIncrementalLineBreaks(factory: ILineBreaksComputerFactory, text: string, tabSize: number, breakAfter1: number, annotatedText1: string, breakAfter2: number, annotatedText2: string, wrappingIndent = WrappingIndent.None, columnsForFullWidthChar: number = 2): void {
 		// sanity check the test
 		assert.equal(text, parseAnnotatedText(annotatedText1).text);
 		assert.equal(text, parseAnnotatedText(annotatedText2).text);
 
 		// check that the direct mapping is ok for 1
-		const directLineBreakData1 = getLineBreakData(factory, tabSize, breakAfter1, 2, wrappingIndent, text, null);
+		const directLineBreakData1 = getLineBreakData(factory, tabSize, breakAfter1, columnsForFullWidthChar, wrappingIndent, text, null);
 		assert.equal(toAnnotatedText(text, directLineBreakData1), annotatedText1);
 
 		// check that the direct mapping is ok for 2
-		const directLineBreakData2 = getLineBreakData(factory, tabSize, breakAfter2, 2, wrappingIndent, text, null);
+		const directLineBreakData2 = getLineBreakData(factory, tabSize, breakAfter2, columnsForFullWidthChar, wrappingIndent, text, null);
 		assert.equal(toAnnotatedText(text, directLineBreakData2), annotatedText2);
 
 		// check that going from 1 to 2 is ok
-		const lineBreakData2from1 = getLineBreakData(factory, tabSize, breakAfter2, 2, wrappingIndent, text, directLineBreakData1);
+		const lineBreakData2from1 = getLineBreakData(factory, tabSize, breakAfter2, columnsForFullWidthChar, wrappingIndent, text, directLineBreakData1);
 		assert.equal(toAnnotatedText(text, lineBreakData2from1), annotatedText2);
-		assert.deepEqual(lineBreakData2from1, directLineBreakData2);
+		assertLineBreakDataEqual(lineBreakData2from1, directLineBreakData2);
 
 		// check that going from 2 to 1 is ok
-		const lineBreakData1from2 = getLineBreakData(factory, tabSize, breakAfter1, 2, wrappingIndent, text, directLineBreakData2);
+		const lineBreakData1from2 = getLineBreakData(factory, tabSize, breakAfter1, columnsForFullWidthChar, wrappingIndent, text, directLineBreakData2);
 		assert.equal(toAnnotatedText(text, lineBreakData1from2), annotatedText1);
-		assert.deepEqual(lineBreakData1from2, directLineBreakData1);
+		assertLineBreakDataEqual(lineBreakData1from2, directLineBreakData1);
 	}
 
 	test('MonospaceLineBreaksComputer incremental 1', () => {
@@ -213,6 +226,19 @@ suite('Editor ViewModel - MonospaceLineBreaksComputer', () => {
 			179, '						<tr dmx-class:table-danger="(alt <= 50)" dmx-class:table-warning="(alt <= 200)" dmx-class:table-primary="(alt <= 400)" dmx-class:table-info="(alt <= 800)" |dmx-class:table-success="(alt >= 400)">',
 			1, '	|	|	|	|	|	|<|t|r| |d|m|x|-|c|l|a|s|s|:|t|a|b|l|e|-|d|a|n|g|e|r|=|"|(|a|l|t| |<|=| |5|0|)|"| |d|m|x|-|c|l|a|s|s|:|t|a|b|l|e|-|w|a|r|n|i|n|g|=|"|(|a|l|t| |<|=| |2|0|0|)|"| |d|m|x|-|c|l|a|s|s|:|t|a|b|l|e|-|p|r|i|m|a|r|y|=|"|(|a|l|t| |<|=| |4|0|0|)|"| |d|m|x|-|c|l|a|s|s|:|t|a|b|l|e|-|i|n|f|o|=|"|(|a|l|t| |<|=| |8|0|0|)|"| |d|m|x|-|c|l|a|s|s|:|t|a|b|l|e|-|s|u|c|c|e|s|s|=|"|(|a|l|t| |>|=| |4|0|0|)|"|>',
 			WrappingIndent.Same
+		);
+	});
+
+	test('issue #110392: Occasional crash when resize with panel on the right', () => {
+		const factory = new MonospaceLineBreaksComputerFactory(EditorOptions.wordWrapBreakBeforeCharacters.defaultValue, EditorOptions.wordWrapBreakAfterCharacters.defaultValue);
+		assertIncrementalLineBreaks(
+			factory,
+			'你好 **hello** **hello** **hello-world** hey there!',
+			4,
+			15, '你好 **hello** |**hello** |**hello-world**| hey there!',
+			1, '你|好| |*|*|h|e|l|l|o|*|*| |*|*|h|e|l|l|o|*|*| |*|*|h|e|l|l|o|-|w|o|r|l|d|*|*| |h|e|y| |t|h|e|r|e|!',
+			WrappingIndent.Same,
+			1.6605405405405405
 		);
 	});
 

@@ -16,6 +16,7 @@ export class BrowserLifecycleService extends AbstractLifecycleService {
 	declare readonly _serviceBrand: undefined;
 
 	private beforeUnloadDisposable: IDisposable | undefined = undefined;
+	private expectedUnload = false;
 
 	constructor(
 		@ILogService readonly logService: ILogService
@@ -32,19 +33,37 @@ export class BrowserLifecycleService extends AbstractLifecycleService {
 	}
 
 	private onBeforeUnload(event: BeforeUnloadEvent): void {
+		if (this.expectedUnload) {
+			this.logService.info('[lifecycle] onBeforeUnload expected, ignoring once');
+
+			this.expectedUnload = false;
+
+			return; // ignore expected unload only once
+		}
+
 		this.logService.info('[lifecycle] onBeforeUnload triggered');
 
 		this.doShutdown(() => {
+
 			// Veto handling
 			event.preventDefault();
 			event.returnValue = localize('lifecycleVeto', "Changes that you made may not be saved. Please check press 'Cancel' and try again.");
 		});
 	}
 
+	withExpectedUnload(callback: Function): void {
+		this.expectedUnload = true;
+		try {
+			callback();
+		} finally {
+			this.expectedUnload = false;
+		}
+	}
+
 	shutdown(): void {
 		this.logService.info('[lifecycle] shutdown triggered');
 
-		// Remove beforeunload listener that would prevent shutdown
+		// Remove `beforeunload` listener that would prevent shutdown
 		this.beforeUnloadDisposable?.dispose();
 
 		// Handle shutdown without veto support

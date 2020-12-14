@@ -377,11 +377,18 @@ async function handleRoot(req, res) {
 		fancyLog(`${ansiColors.magenta('Additional extensions')}: ${staticExtensions.map(e => path.basename(e.extensionLocation.path)).join(', ') || 'None'}`);
 	}
 
+	const secondaryHost = (
+		req.headers['host']
+		? req.headers['host'].replace(':' + PORT, ':' + SECONDARY_PORT)
+		: `${HOST}:${SECONDARY_PORT}`
+	);
 	const webConfigJSON = {
 		folderUri: folderUri,
 		staticExtensions,
-		enableSyncByDefault: args['enable-sync'],
-		webWorkerExtensionHostIframeSrc: `${SCHEME}://${HOST}:${SECONDARY_PORT}/static/out/vs/workbench/services/extensions/worker/httpWebWorkerExtensionHostIframe.html`
+		settingsSyncOptions: {
+			enabled: args['enable-sync']
+		},
+		webWorkerExtensionHostIframeSrc: `${SCHEME}://${secondaryHost}/static/out/vs/workbench/services/extensions/worker/httpWebWorkerExtensionHostIframe.html`
 	};
 	if (args['wrap-iframe']) {
 		webConfigJSON._wrapWebWorkerExtHostInIframe = true;

@@ -54,7 +54,7 @@ class CheckoutRemoteHeadItem extends CheckoutItem {
 		return localize('remote branch at', "Remote branch at {0}", this.shortCommit);
 	}
 
-	async run(repository: Repository): Promise<void> {
+	async run(repository: Repository, opts?: { detached?: boolean }): Promise<void> {
 		if (!this.ref.name) {
 			return;
 		}
@@ -62,9 +62,9 @@ class CheckoutRemoteHeadItem extends CheckoutItem {
 		const branches = await repository.findTrackingBranches(this.ref.name);
 
 		if (branches.length > 0) {
-			await repository.checkout(branches[0].name!);
+			await repository.checkout(branches[0].name!, opts);
 		} else {
-			await repository.checkoutTracking(this.ref.name);
+			await repository.checkoutTracking(this.ref.name, opts);
 		}
 	}
 }
@@ -500,12 +500,12 @@ export class CommandCenter {
 
 	@command('git.clone')
 	async clone(url?: string, parentPath?: string): Promise<void> {
-		this.cloneRepository(url, parentPath);
+		await this.cloneRepository(url, parentPath);
 	}
 
 	@command('git.cloneRecursive')
 	async cloneRecursive(url?: string, parentPath?: string): Promise<void> {
-		this.cloneRepository(url, parentPath, { recursive: true });
+		await this.cloneRepository(url, parentPath, { recursive: true });
 	}
 
 	@command('git.init')
