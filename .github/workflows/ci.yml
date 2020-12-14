@@ -42,8 +42,8 @@ jobs:
       - name: Run Valid Layers Checks
         run: yarn valid-layers-check
 
-  build-compile:
-    name: "Build: Compile"
+  build-compile-core:
+    name: "Build: Compile Core"
     runs-on: ubuntu-latest
     env:
       GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
@@ -67,31 +67,62 @@ jobs:
           PLAYWRIGHT_SKIP_BROWSER_DOWNLOAD: 1
         run: yarn --frozen-lockfile
 
-      - name: Cache compiled code
-        id: cacheCompiledCode
+      - name: Cache compiled core code
+        id: cacheCompiledCoreCode
         uses: actions/cache@v2
         with:
           path: |
-            .build
             out-build
             out-vscode-min
-          key: cacheCompiledCode-${{ github.sha }}
+          key: cacheCompiledCoreCode-${{ github.sha }}
 
       - name: Compile Core
-        if: ${{ steps.cacheCompiledCode.outputs.cache-hit != 'true' }}
+        if: ${{ steps.cacheCompiledCoreCode.outputs.cache-hit != 'true' }}
         run: yarn gulp compile-build
 
-      - name: Compile Extensions
-        if: ${{ steps.cacheCompiledCode.outputs.cache-hit != 'true' }}
-        run: yarn gulp compile-extensions-build
-
       - name: Minify VS Code
-        if: ${{ steps.cacheCompiledCode.outputs.cache-hit != 'true' }}
+        if: ${{ steps.cacheCompiledCoreCode.outputs.cache-hit != 'true' }}
         run: yarn gulp minify-vscode
+
+  build-compile-extensions:
+    name: "Build: Compile Extensions"
+    runs-on: ubuntu-latest
+    env:
+      GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+    steps:
+      - uses: actions/checkout@v2
+
+      - uses: actions/setup-node@v2-beta
+        with:
+          node-version: 12
+
+      - name: Cache node modules
+        id: cacheNodeModules
+        uses: actions/cache@v2
+        with:
+          path: '**/node_modules'
+          key: ${{ runner.os }}-cacheNodeModules-${{ hashFiles('.yarnrc', 'remote/.yarnrc', '**/yarn.lock', '!**/node_modules/**/yarn.lock', '!**/.*/**/yarn.lock') }}
+          restore-keys: ${{ runner.os }}-cacheNodeModules-
+      - name: Execute yarn
+        if: ${{ steps.cacheNodeModules.outputs.cache-hit != 'true' }}
+        env:
+          PLAYWRIGHT_SKIP_BROWSER_DOWNLOAD: 1
+        run: yarn --frozen-lockfile
+
+      - name: Cache compiled extensions code
+        id: cacheCompiledExtensionsCode
+        uses: actions/cache@v2
+        with:
+          path: .build
+          key: cacheCompiledExtensionsCode-${{ github.sha }}
+
+      - name: Compile Extensions
+        if: ${{ steps.cacheCompiledExtensionsCode.outputs.cache-hit != 'true' }}
+        run: yarn gulp compile-extensions-build
 
   build-linux-unit-tests:
     name: "Build: Linux Unit Tests"
-    needs: build-compile
+    needs: [build-compile-core, build-compile-extensions]
     runs-on: ubuntu-latest
     env:
       GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
@@ -120,15 +151,21 @@ jobs:
           key: ${{ runner.os }}-cacheNodeModules-${{ hashFiles('.yarnrc', 'remote/.yarnrc', '**/yarn.lock', '!**/node_modules/**/yarn.lock', '!**/.*/**/yarn.lock') }}
           restore-keys: ${{ runner.os }}-cacheNodeModules-
 
-      - name: Restore cached compiled code
-        id: cacheCompiledCode
+      - name: Restore compiled core code
+        id: cacheCompiledCoreCode
         uses: actions/cache@v2
         with:
           path: |
-            .build
             out-build
             out-vscode-min
-          key: cacheCompiledCode-${{ github.sha }}
+          key: cacheCompiledCoreCode-${{ github.sha }}
+
+      - name: Restore compiled extensions code
+        id: cacheCompiledExtensionsCode
+        uses: actions/cache@v2
+        with:
+          path: .build
+          key: cacheCompiledExtensionsCode-${{ github.sha }}
 
       - name: Build VS Code
         run: yarn gulp vscode-linux-x64-min-ci
@@ -147,7 +184,7 @@ jobs:
 
   build-linux-integration-tests:
     name: "Build: Linux Integration Tests"
-    needs: build-compile
+    needs: [build-compile-core, build-compile-extensions]
     runs-on: ubuntu-latest
     env:
       GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
@@ -176,15 +213,21 @@ jobs:
           key: ${{ runner.os }}-cacheNodeModules-${{ hashFiles('.yarnrc', 'remote/.yarnrc', '**/yarn.lock', '!**/node_modules/**/yarn.lock', '!**/.*/**/yarn.lock') }}
           restore-keys: ${{ runner.os }}-cacheNodeModules-
 
-      - name: Restore cached compiled code
-        id: cacheCompiledCode
+      - name: Restore compiled core code
+        id: cacheCompiledCoreCode
         uses: actions/cache@v2
         with:
           path: |
-            .build
             out-build
             out-vscode-min
-          key: cacheCompiledCode-${{ github.sha }}
+          key: cacheCompiledCoreCode-${{ github.sha }}
+
+      - name: Restore compiled extensions code
+        id: cacheCompiledExtensionsCode
+        uses: actions/cache@v2
+        with:
+          path: .build
+          key: cacheCompiledExtensionsCode-${{ github.sha }}
 
       - name: Build VS Code
         run: yarn gulp vscode-linux-x64-min-ci
@@ -197,7 +240,7 @@ jobs:
 
   build-darwin-unit-tests:
     name: "Build: macOS Unit Tests"
-    needs: build-compile
+    needs: [build-compile-core, build-compile-extensions]
     runs-on: macos-latest
     env:
       GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
@@ -221,15 +264,21 @@ jobs:
           PLAYWRIGHT_SKIP_BROWSER_DOWNLOAD: 1
         run: yarn --frozen-lockfile
 
-      - name: Restore cached compiled code
-        id: cacheCompiledCode
+      - name: Restore compiled core code
+        id: cacheCompiledCoreCode
         uses: actions/cache@v2
         with:
           path: |
-            .build
             out-build
             out-vscode-min
-          key: cacheCompiledCode-${{ github.sha }}
+          key: cacheCompiledCoreCode-${{ github.sha }}
+
+      - name: Restore compiled extensions code
+        id: cacheCompiledExtensionsCode
+        uses: actions/cache@v2
+        with:
+          path: .build
+          key: cacheCompiledExtensionsCode-${{ github.sha }}
 
       - name: Build VS Code
         run: yarn gulp vscode-darwin-x64-min-ci
@@ -248,7 +297,7 @@ jobs:
 
   build-darwin-integration-tests:
     name: "Build: macOS Integration Tests"
-    needs: build-compile
+    needs: [build-compile-core, build-compile-extensions]
     runs-on: macos-latest
     env:
       GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
@@ -272,15 +321,21 @@ jobs:
           PLAYWRIGHT_SKIP_BROWSER_DOWNLOAD: 1
         run: yarn --frozen-lockfile
 
-      - name: Restore cached compiled code
-        id: cacheCompiledCode
+      - name: Restore compiled core code
+        id: cacheCompiledCoreCode
         uses: actions/cache@v2
         with:
           path: |
-            .build
             out-build
             out-vscode-min
-          key: cacheCompiledCode-${{ github.sha }}
+          key: cacheCompiledCoreCode-${{ github.sha }}
+
+      - name: Restore compiled extensions code
+        id: cacheCompiledExtensionsCode
+        uses: actions/cache@v2
+        with:
+          path: .build
+          key: cacheCompiledExtensionsCode-${{ github.sha }}
 
       - name: Build VS Code
         run: yarn gulp vscode-darwin-x64-min-ci
@@ -293,7 +348,7 @@ jobs:
 
   build-darwin-smoke-tests:
     name: "Build: macOS Smoke Tests"
-    needs: build-compile
+    needs: [build-compile-core, build-compile-extensions]
     runs-on: macos-latest
     env:
       GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
@@ -317,15 +372,21 @@ jobs:
           PLAYWRIGHT_SKIP_BROWSER_DOWNLOAD: 1
         run: yarn --frozen-lockfile
 
-      - name: Restore cached compiled code
-        id: cacheCompiledCode
+      - name: Restore compiled core code
+        id: cacheCompiledCoreCode
         uses: actions/cache@v2
         with:
           path: |
-            .build
             out-build
             out-vscode-min
-          key: cacheCompiledCode-${{ github.sha }}
+          key: cacheCompiledCoreCode-${{ github.sha }}
+
+      - name: Restore compiled extensions code
+        id: cacheCompiledExtensionsCode
+        uses: actions/cache@v2
+        with:
+          path: .build
+          key: cacheCompiledExtensionsCode-${{ github.sha }}
 
       - name: Build VS Code
         run: yarn gulp vscode-darwin-x64-min-ci
