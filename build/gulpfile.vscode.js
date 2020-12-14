@@ -36,8 +36,6 @@ const minimist = require('minimist');
 const { compileBuildTask } = require('./gulpfile.compile');
 const { compileExtensionsBuildTask } = require('./gulpfile.extensions');
 
-const productionDependencies = deps.getProductionDependencies(path.dirname(__dirname));
-
 // Build
 const vscodeEntryPoints = _.flatten([
 	buildfile.entrypoint('vs/workbench/workbench.desktop.main'),
@@ -202,6 +200,7 @@ function packageTask(platform, arch, sourceFolderName, destinationFolderName, op
 
 		const jsFilter = util.filter(data => !data.isDirectory() && /\.js$/.test(data.path));
 		const root = path.resolve(path.join(__dirname, '..'));
+		const productionDependencies = deps.getProductionDependencies(root);
 		const dependenciesSrc = _.flatten(productionDependencies.map(d => path.relative(root, d.path)).map(d => [`${d}/**`, `!${d}/**/{test,tests}/**`]));
 
 		const deps = gulp.src(dependenciesSrc, { base: '.', dot: true })
