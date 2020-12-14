@@ -203,7 +203,42 @@ export class ToggleSidebarPositionAction extends Action {
 	}
 }
 
-registry.registerWorkbenchAction(SyncActionDescriptor.from(ToggleSidebarPositionAction), 'View: Toggle Side Bar Position', CATEGORIES.View.value);
+registerAction2(class extends Action2 {
+	constructor() {
+		super({
+			id: ToggleSidebarPositionAction.ID,
+			title: { value: nls.localize('toggleSidebarPosition', "Toggle Side Bar Position"), original: 'Toggle Side Bar Position' },
+			category: CATEGORIES.View,
+			f1: true
+		});
+	}
+	run(accessor: ServicesAccessor) {
+		accessor.get(IInstantiationService).createInstance(ToggleSidebarPositionAction, ToggleSidebarPositionAction.ID, ToggleSidebarPositionAction.LABEL).run();
+	}
+});
+MenuRegistry.appendMenuItems([{
+	id: MenuId.ViewContainerTitleContext,
+	item: {
+		group: '3_workbench_layout_move',
+		command: {
+			id: ToggleSidebarPositionAction.ID,
+			title: nls.localize('move sidebar right', "Move Side Bar Right")
+		},
+		when: ContextKeyExpr.notEquals('config.workbench.sideBar.location', 'right'),
+		order: 1
+	}
+}, {
+	id: MenuId.ViewContainerTitleContext,
+	item: {
+		group: '3_workbench_layout_move',
+		command: {
+			id: ToggleSidebarPositionAction.ID,
+			title: nls.localize('move sidebar left', "Move Side Bar Left")
+		},
+		when: ContextKeyExpr.equals('config.workbench.sideBar.location', 'right'),
+		order: 1
+	}
+}]);
 
 MenuRegistry.appendMenuItem(MenuId.MenubarAppearanceMenu, {
 	group: '3_workbench_layout_move',
@@ -256,27 +291,6 @@ MenuRegistry.appendMenuItem(MenuId.MenubarAppearanceMenu, {
 	order: 5
 });
 
-export class ToggleSidebarVisibilityAction extends Action {
-
-	static readonly ID = 'workbench.action.toggleSidebarVisibility';
-	static readonly LABEL = nls.localize('toggleSidebar', "Toggle Side Bar Visibility");
-
-	constructor(
-		id: string,
-		label: string,
-		@IWorkbenchLayoutService private readonly layoutService: IWorkbenchLayoutService
-	) {
-		super(id, label);
-	}
-
-	async run(): Promise<void> {
-		const hideSidebar = this.layoutService.isVisible(Parts.SIDEBAR_PART);
-		this.layoutService.setSideBarHidden(hideSidebar);
-	}
-}
-
-registry.registerWorkbenchAction(SyncActionDescriptor.from(ToggleSidebarVisibilityAction, { primary: KeyMod.CtrlCmd | KeyCode.KEY_B }), 'View: Toggle Side Bar Visibility', CATEGORIES.View.value);
-
 MenuRegistry.appendMenuItem(MenuId.MenubarViewMenu, {
 	group: '2_appearance',
 	title: nls.localize({ key: 'miAppearance', comment: ['&& denotes a mnemonic'] }, "&&Appearance"),
@@ -284,10 +298,42 @@ MenuRegistry.appendMenuItem(MenuId.MenubarViewMenu, {
 	order: 1
 });
 
+export const TOGGLE_SIDEBAR_VISIBILITY_ACTION_ID = 'workbench.action.toggleSidebarVisibility';
+registerAction2(class extends Action2 {
+	constructor() {
+		super({
+			id: TOGGLE_SIDEBAR_VISIBILITY_ACTION_ID,
+			title: { value: nls.localize('toggleSidebar', "Toggle Side Bar Visibility"), original: 'Toggle Side Bar Visibility' },
+			category: CATEGORIES.View,
+			f1: true,
+			keybinding: {
+				weight: KeybindingWeight.WorkbenchContrib,
+				primary: KeyMod.CtrlCmd | KeyCode.KEY_B
+			}
+		});
+	}
+	run(accessor: ServicesAccessor) {
+		const layoutService = accessor.get(IWorkbenchLayoutService);
+		layoutService.setSideBarHidden(layoutService.isVisible(Parts.SIDEBAR_PART));
+	}
+});
+MenuRegistry.appendMenuItems([{
+	id: MenuId.ViewContainerTitleContext,
+	item: {
+		group: '3_workbench_layout_move',
+		command: {
+			id: TOGGLE_SIDEBAR_VISIBILITY_ACTION_ID,
+			title: nls.localize('compositePart.hideSideBarLabel', "Hide Side Bar"),
+		},
+		when: SideBarVisibleContext,
+		order: 2
+	}
+}]);
+
 MenuRegistry.appendMenuItem(MenuId.MenubarAppearanceMenu, {
 	group: '2_workbench_layout',
 	command: {
-		id: ToggleSidebarVisibilityAction.ID,
+		id: TOGGLE_SIDEBAR_VISIBILITY_ACTION_ID,
 		title: nls.localize({ key: 'miShowSidebar', comment: ['&& denotes a mnemonic'] }, "Show &&Side Bar"),
 		toggled: SideBarVisibleContext
 	},
