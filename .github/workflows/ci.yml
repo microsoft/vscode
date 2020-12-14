@@ -30,6 +30,17 @@ jobs:
           path: '**/node_modules'
           key: ${{ runner.os }}-cacheNodeModules-${{ hashFiles('.yarnrc', 'remote/.yarnrc', '**/yarn.lock', '!**/node_modules/**/yarn.lock', '!**/.*/**/yarn.lock') }}
           restore-keys: ${{ runner.os }}-cacheNodeModules-
+      - name: Get yarn cache directory path
+        id: yarnCacheDirPath
+        if: ${{ steps.cacheNodeModules.outputs.cache-hit != 'true' }}
+        run: echo "::set-output name=dir::$(yarn cache dir)"
+      - name: Cache yarn directory
+        if: ${{ steps.cacheNodeModules.outputs.cache-hit != 'true' }}
+        uses: actions/cache@v2
+        with:
+          path: ${{ steps.yarnCacheDirPath.outputs.dir }}
+          key: ${{ runner.os }}-yarnCacheDir-${{ hashFiles('.yarnrc', 'remote/.yarnrc', '**/yarn.lock', '!**/node_modules/**/yarn.lock', '!**/.*/**/yarn.lock') }}
+          restore-keys: ${{ runner.os }}-yarnCacheDir-
       - name: Execute yarn
         if: ${{ steps.cacheNodeModules.outputs.cache-hit != 'true' }}
         env:
@@ -61,6 +72,17 @@ jobs:
           path: '**/node_modules'
           key: ${{ runner.os }}-cacheNodeModules-${{ hashFiles('.yarnrc', 'remote/.yarnrc', '**/yarn.lock', '!**/node_modules/**/yarn.lock', '!**/.*/**/yarn.lock') }}
           restore-keys: ${{ runner.os }}-cacheNodeModules-
+      - name: Get yarn cache directory path
+        id: yarnCacheDirPath
+        if: ${{ steps.cacheNodeModules.outputs.cache-hit != 'true' }}
+        run: echo "::set-output name=dir::$(yarn cache dir)"
+      - name: Cache yarn directory
+        if: ${{ steps.cacheNodeModules.outputs.cache-hit != 'true' }}
+        uses: actions/cache@v2
+        with:
+          path: ${{ steps.yarnCacheDirPath.outputs.dir }}
+          key: ${{ runner.os }}-yarnCacheDir-${{ hashFiles('.yarnrc', 'remote/.yarnrc', '**/yarn.lock', '!**/node_modules/**/yarn.lock', '!**/.*/**/yarn.lock') }}
+          restore-keys: ${{ runner.os }}-yarnCacheDir-
       - name: Execute yarn
         if: ${{ steps.cacheNodeModules.outputs.cache-hit != 'true' }}
         env:
@@ -103,6 +125,17 @@ jobs:
           path: '**/node_modules'
           key: ${{ runner.os }}-cacheNodeModules-${{ hashFiles('.yarnrc', 'remote/.yarnrc', '**/yarn.lock', '!**/node_modules/**/yarn.lock', '!**/.*/**/yarn.lock') }}
           restore-keys: ${{ runner.os }}-cacheNodeModules-
+      - name: Get yarn cache directory path
+        id: yarnCacheDirPath
+        if: ${{ steps.cacheNodeModules.outputs.cache-hit != 'true' }}
+        run: echo "::set-output name=dir::$(yarn cache dir)"
+      - name: Cache yarn directory
+        if: ${{ steps.cacheNodeModules.outputs.cache-hit != 'true' }}
+        uses: actions/cache@v2
+        with:
+          path: ${{ steps.yarnCacheDirPath.outputs.dir }}
+          key: ${{ runner.os }}-yarnCacheDir-${{ hashFiles('.yarnrc', 'remote/.yarnrc', '**/yarn.lock', '!**/node_modules/**/yarn.lock', '!**/.*/**/yarn.lock') }}
+          restore-keys: ${{ runner.os }}-yarnCacheDir-
       - name: Execute yarn
         if: ${{ steps.cacheNodeModules.outputs.cache-hit != 'true' }}
         env:
@@ -258,6 +291,17 @@ jobs:
           path: '**/node_modules'
           key: ${{ runner.os }}-cacheNodeModules-${{ hashFiles('.yarnrc', 'remote/.yarnrc', '**/yarn.lock', '!**/node_modules/**/yarn.lock', '!**/.*/**/yarn.lock') }}
           restore-keys: ${{ runner.os }}-cacheNodeModules-
+      - name: Get yarn cache directory path
+        id: yarnCacheDirPath
+        if: ${{ steps.cacheNodeModules.outputs.cache-hit != 'true' }}
+        run: echo "::set-output name=dir::$(yarn cache dir)"
+      - name: Cache yarn directory
+        if: ${{ steps.cacheNodeModules.outputs.cache-hit != 'true' }}
+        uses: actions/cache@v2
+        with:
+          path: ${{ steps.yarnCacheDirPath.outputs.dir }}
+          key: ${{ runner.os }}-yarnCacheDir-${{ hashFiles('.yarnrc', 'remote/.yarnrc', '**/yarn.lock', '!**/node_modules/**/yarn.lock', '!**/.*/**/yarn.lock') }}
+          restore-keys: ${{ runner.os }}-yarnCacheDir-
       - name: Execute yarn
         if: ${{ steps.cacheNodeModules.outputs.cache-hit != 'true' }}
         env:
@@ -315,6 +359,17 @@ jobs:
           path: '**/node_modules'
           key: ${{ runner.os }}-cacheNodeModules-${{ hashFiles('.yarnrc', 'remote/.yarnrc', '**/yarn.lock', '!**/node_modules/**/yarn.lock', '!**/.*/**/yarn.lock') }}
           restore-keys: ${{ runner.os }}-cacheNodeModules-
+      - name: Get yarn cache directory path
+        id: yarnCacheDirPath
+        if: ${{ steps.cacheNodeModules.outputs.cache-hit != 'true' }}
+        run: echo "::set-output name=dir::$(yarn cache dir)"
+      - name: Cache yarn directory
+        if: ${{ steps.cacheNodeModules.outputs.cache-hit != 'true' }}
+        uses: actions/cache@v2
+        with:
+          path: ${{ steps.yarnCacheDirPath.outputs.dir }}
+          key: ${{ runner.os }}-yarnCacheDir-${{ hashFiles('.yarnrc', 'remote/.yarnrc', '**/yarn.lock', '!**/node_modules/**/yarn.lock', '!**/.*/**/yarn.lock') }}
+          restore-keys: ${{ runner.os }}-yarnCacheDir-
       - name: Execute yarn
         if: ${{ steps.cacheNodeModules.outputs.cache-hit != 'true' }}
         env:
@@ -366,6 +421,17 @@ jobs:
           path: '**/node_modules'
           key: ${{ runner.os }}-cacheNodeModules-${{ hashFiles('.yarnrc', 'remote/.yarnrc', '**/yarn.lock', '!**/node_modules/**/yarn.lock', '!**/.*/**/yarn.lock') }}
           restore-keys: ${{ runner.os }}-cacheNodeModules-
+      - name: Get yarn cache directory path
+        id: yarnCacheDirPath
+        if: ${{ steps.cacheNodeModules.outputs.cache-hit != 'true' }}
+        run: echo "::set-output name=dir::$(yarn cache dir)"
+      - name: Cache yarn directory
+        if: ${{ steps.cacheNodeModules.outputs.cache-hit != 'true' }}
+        uses: actions/cache@v2
+        with:
+          path: ${{ steps.yarnCacheDirPath.outputs.dir }}
+          key: ${{ runner.os }}-yarnCacheDir-${{ hashFiles('.yarnrc', 'remote/.yarnrc', '**/yarn.lock', '!**/node_modules/**/yarn.lock', '!**/.*/**/yarn.lock') }}
+          restore-keys: ${{ runner.os }}-yarnCacheDir-
       - name: Execute yarn
         if: ${{ steps.cacheNodeModules.outputs.cache-hit != 'true' }}
         env:
@@ -428,6 +494,17 @@ jobs:
           path: '**/node_modules'
           key: ${{ runner.os }}-cacheNodeModules-${{ hashFiles('.yarnrc', 'remote/.yarnrc', '**/yarn.lock', '!**/node_modules/**/yarn.lock', '!**/.*/**/yarn.lock') }}
           restore-keys: ${{ runner.os }}-cacheNodeModules-
+      - name: Get yarn cache directory path
+        id: yarnCacheDirPath
+        if: ${{ steps.cacheNodeModules.outputs.cache-hit != 'true' }}
+        run: echo "::set-output name=dir::$(yarn cache dir)"
+      - name: Cache yarn directory
+        if: ${{ steps.cacheNodeModules.outputs.cache-hit != 'true' }}
+        uses: actions/cache@v2
+        with:
+          path: ${{ steps.yarnCacheDirPath.outputs.dir }}
+          key: ${{ runner.os }}-yarnCacheDir-${{ hashFiles('.yarnrc', 'remote/.yarnrc', '**/yarn.lock', '!**/node_modules/**/yarn.lock', '!**/.*/**/yarn.lock') }}
+          restore-keys: ${{ runner.os }}-yarnCacheDir-
       - name: Execute yarn
         if: ${{ steps.cacheNodeModules.outputs.cache-hit != 'true' }}
         env:
@@ -483,6 +560,17 @@ jobs:
           path: '**/node_modules'
           key: ${{ runner.os }}-cacheNodeModules-${{ hashFiles('.yarnrc', 'remote/.yarnrc', '**/yarn.lock', '!**/node_modules/**/yarn.lock', '!**/.*/**/yarn.lock') }}
           restore-keys: ${{ runner.os }}-cacheNodeModules-
+      - name: Get yarn cache directory path
+        id: yarnCacheDirPath
+        if: ${{ steps.cacheNodeModules.outputs.cache-hit != 'true' }}
+        run: echo "::set-output name=dir::$(yarn cache dir)"
+      - name: Cache yarn directory
+        if: ${{ steps.cacheNodeModules.outputs.cache-hit != 'true' }}
+        uses: actions/cache@v2
+        with:
+          path: ${{ steps.yarnCacheDirPath.outputs.dir }}
+          key: ${{ runner.os }}-yarnCacheDir-${{ hashFiles('.yarnrc', 'remote/.yarnrc', '**/yarn.lock', '!**/node_modules/**/yarn.lock', '!**/.*/**/yarn.lock') }}
+          restore-keys: ${{ runner.os }}-yarnCacheDir-
       - name: Execute yarn
         if: ${{ steps.cacheNodeModules.outputs.cache-hit != 'true' }}
         env:
@@ -520,6 +608,17 @@ jobs:
           path: '**/node_modules'
           key: ${{ runner.os }}-cacheNodeModules-${{ hashFiles('.yarnrc', 'remote/.yarnrc', '**/yarn.lock', '!**/node_modules/**/yarn.lock', '!**/.*/**/yarn.lock') }}
           restore-keys: ${{ runner.os }}-cacheNodeModules-
+      - name: Get yarn cache directory path
+        id: yarnCacheDirPath
+        if: ${{ steps.cacheNodeModules.outputs.cache-hit != 'true' }}
+        run: echo "::set-output name=dir::$(yarn cache dir)"
+      - name: Cache yarn directory
+        if: ${{ steps.cacheNodeModules.outputs.cache-hit != 'true' }}
+        uses: actions/cache@v2
+        with:
+          path: ${{ steps.yarnCacheDirPath.outputs.dir }}
+          key: ${{ runner.os }}-yarnCacheDir-${{ hashFiles('.yarnrc', 'remote/.yarnrc', '**/yarn.lock', '!**/node_modules/**/yarn.lock', '!**/.*/**/yarn.lock') }}
+          restore-keys: ${{ runner.os }}-yarnCacheDir-
       - name: Execute yarn
         if: ${{ steps.cacheNodeModules.outputs.cache-hit != 'true' }}
         env:
