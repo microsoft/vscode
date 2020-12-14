@@ -167,6 +167,14 @@ export interface IStartupMetrics {
 		readonly ellapsedNlsGeneration?: number;
 
 		/**
+		 * The time it took to load the main bundle.
+		 *
+		 * * Happens in the main-process
+		 * * Measured with the `willLoadMainBundle` and `didLoadMainBundle` performance marks.
+		 */
+		readonly ellapsedLoadMainBundle?: number;
+
+		/**
 		 * The time it took to tell electron to open/restore a renderer (browser window).
 		 *
 		 * * Happens in the main-process
@@ -324,9 +332,45 @@ export interface IStartupMetrics {
 export interface ITimerService {
 	readonly _serviceBrand: undefined;
 	readonly startupMetrics: Promise<IStartupMetrics>;
+
+	submitPerformanceMarks(marks: perf.PerformanceMark[]): void;
 }
 
 export const ITimerService = createDecorator<ITimerService>('timerService');
+
+
+class PerfMarks {
+
+	private readonly _entries: perf.PerformanceMark[][] = [];
+
+	submitMarks(entries: perf.PerformanceMark[]): void {
+		this._entries.push(entries);
+	}
+
+	getDuration(from: string, to: string): number {
+		const fromEntry = this._findEntry(from);
+		if (!fromEntry) {
+			return 0;
+		}
+		const toEntry = this._findEntry(to);
+		if (!toEntry) {
+			return 0;
+		}
+		return toEntry.startTime - fromEntry.startTime;
+	}
+
+
+	private _findEntry(name: string): perf.PerformanceMark | void {
+		for (let entries of this._entries) {
+			for (let i = entries.length - 1; i >= 0; i--) {
+				if (entries[i].name === name) {
+					return entries[i];
+				}
+			}
+		}
+	}
+}
+
 
 export type Writeable<T> = { -readonly [P in keyof T]: Writeable<T[P]> };
 
@@ -335,6 +379,7 @@ export abstract class AbstractTimerService implements ITimerService {
 	declare readonly _serviceBrand: undefined;
 
 	private readonly _startupMetrics: Promise<IStartupMetrics>;
+	private readonly _marks = new PerfMarks();
 
 	constructor(
 		@ILifecycleService private readonly _lifecycleService: ILifecycleService,
@@ -350,12 +395,17 @@ export abstract class AbstractTimerService implements ITimerService {
 		this._startupMetrics = Promise.all([
 			this._extensionService.whenInstalledExtensionsRegistered(),
 			_lifecycleService.when(LifecyclePhase.Restored)
-		])
-			.then(() => this._computeStartupMetrics())
-			.then(metrics => {
-				this._reportStartupTimes(metrics);
-				return metrics;
-			});
+		]).then(() => {
+			this.submitPerformanceMarks(perf.getMarks());
+			return this._computeStartupMetrics();
+		}).then(metrics => {
+			this._reportStartupTimes(metrics);
+			return metrics;
+		});
+	}
+
+	submitPerformanceMarks(marks: perf.PerformanceMark[]): void {
+		this._marks.submitMarks(marks);
 	}
 
 	get startupMetrics(): Promise<IStartupMetrics> {
@@ -363,7 +413,6 @@ export abstract class AbstractTimerService implements ITimerService {
 	}
 
 	private _reportStartupTimes(metrics: IStartupMetrics): void {
-
 		// report IStartupMetrics as telemetry
 		/* __GDPR__
 			"startupTimeVaried" : {
@@ -375,13 +424,12 @@ export abstract class AbstractTimerService implements ITimerService {
 		this._telemetryService.publicLog('startupTimeVaried', metrics);
 
 		// report raw timers as telemetry
-		type Durations = { entries: perf.PerformanceEntry[]; };
+		type Durations = { entries: perf.PerformanceMark[]; };
 		type DurationsClassification = { entries: { classification: 'SystemMetaData', purpose: 'PerformanceAndHealth' } };
-		this._telemetryService.publicLog2<Durations, DurationsClassification>('startup.timers.raw', { entries: perf.getEntries() });
+		this._telemetryService.publicLog2<Durations, DurationsClassification>('startup.timers.raw', { entries: perf.getMarks() });
 	}
 
 	private async _computeStartupMetrics(): Promise<IStartupMetrics> {
-
 		const now = Date.now();
 		const initialStartup = this._isInitialStartup();
 		const startMark = initialStartup ? 'main:started' : 'main:loadWindow';
@@ -390,7 +438,7 @@ export abstract class AbstractTimerService implements ITimerService {
 		const activePanel = this._panelService.getActivePanel();
 		const info: Writeable<IStartupMetrics> = {
 			version: 2,
-			ellapsed: perf.getDuration(startMark, 'didStartWorkbench'),
+			ellapsed: this._marks.getDuration(startMark, 'didStartWorkbench'),
 
 			// reflections
 			isLatestVersion: Boolean(await this._updateService.isLatestVersion()),
@@ -403,23 +451,24 @@ export abstract class AbstractTimerService implements ITimerService {
 
 			// timers
 			timers: {
-				ellapsedAppReady: initialStartup ? perf.getDuration('main:started', 'main:appReady') : undefined,
-				ellapsedNlsGeneration: initialStartup ? perf.getDuration('nlsGeneration:start', 'nlsGeneration:end') : undefined,
-				ellapsedWindowLoad: initialStartup ? perf.getDuration('main:appReady', 'main:loadWindow') : undefined,
-				ellapsedWindowLoadToRequire: perf.getDuration('main:loadWindow', 'willLoadWorkbenchMain'),
-				ellapsedRequire: perf.getDuration('willLoadWorkbenchMain', 'didLoadWorkbenchMain'),
-				ellapsedWaitForShellEnv: perf.getDuration('willWaitForShellEnv', 'didWaitForShellEnv'),
-				ellapsedWorkspaceStorageInit: perf.getDuration('willInitWorkspaceStorage', 'didInitWorkspaceStorage'),
-				ellapsedWorkspaceServiceInit: perf.getDuration('willInitWorkspaceService', 'didInitWorkspaceService'),
-				ellapsedRequiredUserDataInit: perf.getDuration('willInitRequiredUserData', 'didInitRequiredUserData'),
-				ellapsedOtherUserDataInit: perf.getDuration('willInitOtherUserData', 'didInitOtherUserData'),
-				ellapsedExtensions: perf.getDuration('willLoadExtensions', 'didLoadExtensions'),
-				ellapsedEditorRestore: perf.getDuration('willRestoreEditors', 'didRestoreEditors'),
-				ellapsedViewletRestore: perf.getDuration('willRestoreViewlet', 'didRestoreViewlet'),
-				ellapsedPanelRestore: perf.getDuration('willRestorePanel', 'didRestorePanel'),
-				ellapsedWorkbench: perf.getDuration('willStartWorkbench', 'didStartWorkbench'),
-				ellapsedExtensionsReady: perf.getDuration(startMark, 'didLoadExtensions'),
-				ellapsedRenderer: perf.getDuration('renderer/started', 'didStartWorkbench'),
+				ellapsedAppReady: initialStartup ? this._marks.getDuration('main:started', 'main:appReady') : undefined,
+				ellapsedNlsGeneration: initialStartup ? this._marks.getDuration('nlsGeneration:start', 'nlsGeneration:end') : undefined,
+				ellapsedLoadMainBundle: initialStartup ? this._marks.getDuration('willLoadMainBundle', 'didLoadMainBundle') : undefined,
+				ellapsedWindowLoad: initialStartup ? this._marks.getDuration('main:appReady', 'main:loadWindow') : undefined,
+				ellapsedWindowLoadToRequire: this._marks.getDuration('main:loadWindow', 'willLoadWorkbenchMain'),
+				ellapsedRequire: this._marks.getDuration('willLoadWorkbenchMain', 'didLoadWorkbenchMain'),
+				ellapsedWaitForShellEnv: this._marks.getDuration('willWaitForShellEnv', 'didWaitForShellEnv'),
+				ellapsedWorkspaceStorageInit: this._marks.getDuration('willInitWorkspaceStorage', 'didInitWorkspaceStorage'),
+				ellapsedWorkspaceServiceInit: this._marks.getDuration('willInitWorkspaceService', 'didInitWorkspaceService'),
+				ellapsedRequiredUserDataInit: this._marks.getDuration('willInitRequiredUserData', 'didInitRequiredUserData'),
+				ellapsedOtherUserDataInit: this._marks.getDuration('willInitOtherUserData', 'didInitOtherUserData'),
+				ellapsedExtensions: this._marks.getDuration('willLoadExtensions', 'didLoadExtensions'),
+				ellapsedEditorRestore: this._marks.getDuration('willRestoreEditors', 'didRestoreEditors'),
+				ellapsedViewletRestore: this._marks.getDuration('willRestoreViewlet', 'didRestoreViewlet'),
+				ellapsedPanelRestore: this._marks.getDuration('willRestorePanel', 'didRestorePanel'),
+				ellapsedWorkbench: this._marks.getDuration('willStartWorkbench', 'didStartWorkbench'),
+				ellapsedExtensionsReady: this._marks.getDuration(startMark, 'didLoadExtensions'),
+				ellapsedRenderer: this._marks.getDuration('renderer/started', 'didStartWorkbench'),
 				ellapsedTimersToTimersComputed: Date.now() - now,
 			},
 

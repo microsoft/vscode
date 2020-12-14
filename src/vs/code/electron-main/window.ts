@@ -805,8 +805,7 @@ export class CodeWindow extends Disposable implements ICodeWindow {
 		windowConfiguration.maximized = this._win.isMaximized();
 
 		// Dump Perf Counters
-		windowConfiguration.perfEntries = perf.exportEntries();
-		windowConfiguration.perfEntries2 = perf.getEntries();
+		windowConfiguration.perfMarks = perf.getMarks();
 
 		// Parts splash
 		windowConfiguration.partsSplashPath = path.join(this.environmentService.userDataPath, 'rapid_render.json');

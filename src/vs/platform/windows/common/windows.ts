@@ -9,7 +9,7 @@ import { IConfigurationService } from 'vs/platform/configuration/common/configur
 import { IWorkspaceIdentifier, ISingleFolderWorkspaceIdentifier } from 'vs/platform/workspaces/common/workspaces';
 import { NativeParsedArgs } from 'vs/platform/environment/common/argv';
 import { LogLevel } from 'vs/platform/log/common/log';
-import { ExportData, PerformanceEntry } from 'vs/base/common/performance';
+import { PerformanceMark } from 'vs/base/common/performance';
 
 export const WindowMinimumSize = {
 	WIDTH: 400,
@@ -249,8 +249,7 @@ export interface INativeWindowConfiguration extends IWindowConfiguration, Native
 	fullscreen?: boolean;
 	maximized?: boolean;
 	accessibilitySupport?: boolean;
-	perfEntries: ExportData;
-	perfEntries2: PerformanceEntry[];
+	perfMarks: PerformanceMark[];
 
 	userEnv: IProcessEnvironment;
 	filesToWait?: IPathsToWaitFor;

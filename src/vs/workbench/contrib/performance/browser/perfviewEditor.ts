@@ -168,7 +168,7 @@ class PerfModelContentProvider implements ITextModelContentProvider {
 		const table: Array<Array<string | number | undefined>> = [];
 		table.push(['start => app.isReady', metrics.timers.ellapsedAppReady, '[main]', `initial startup: ${metrics.initialStartup}`]);
 		table.push(['nls:start => nls:end', metrics.timers.ellapsedNlsGeneration, '[main]', `initial startup: ${metrics.initialStartup}`]);
-		table.push(['require(main.bundle.js)', metrics.initialStartup ? perf.getDuration('willLoadMainBundle', 'didLoadMainBundle') : undefined, '[main]', `initial startup: ${metrics.initialStartup}`]);
+		table.push(['require(main.bundle.js)', metrics.timers.ellapsedLoadMainBundle, '[main]', `initial startup: ${metrics.initialStartup}`]);
 		table.push(['app.isReady => window.loadUrl()', metrics.timers.ellapsedWindowLoad, '[main]', `initial startup: ${metrics.initialStartup}`]);
 		table.push(['window.loadUrl() => begin to require(workbench.desktop.main.js)', metrics.timers.ellapsedWindowLoadToRequire, '[main->renderer]', StartupKindToString(metrics.windowKind)]);
 		table.push(['require(workbench.desktop.main.js)', metrics.timers.ellapsedRequire, '[renderer]', `cached data: ${(metrics.didUseCachedData ? 'YES' : 'NO')}${stats ? `, node_modules took ${stats.nodeRequireTotal}ms` : ''}`]);
@@ -225,7 +225,7 @@ class PerfModelContentProvider implements ITextModelContentProvider {
 		md.value += `Name\tTimestamp\tDelta\tTotal\n`;
 		let lastStartTime = -1;
 		let total = 0;
-		for (const { name, startTime } of perf.getEntries()) {
+		for (const { name, startTime } of perf.getMarks()) {
 			let delta = lastStartTime !== -1 ? startTime - lastStartTime : 0;
 			total += delta;
 			md.value += `${name}\t${startTime}\t${delta}\t${total}\n`;

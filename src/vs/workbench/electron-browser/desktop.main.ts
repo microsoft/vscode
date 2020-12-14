@@ -9,7 +9,7 @@ import { createHash } from 'crypto';
 import { stat } from 'vs/base/node/pfs';
 import { isLinux, isMacintosh, isWindows } from 'vs/base/common/platform';
 import { zoomLevelToZoomFactor } from 'vs/platform/windows/common/windows';
-import { importEntries, mark } from 'vs/base/common/performance';
+import { mark } from 'vs/base/common/performance';
 import { Workbench } from 'vs/workbench/browser/workbench';
 import { NativeWindow } from 'vs/workbench/electron-sandbox/window';
 import { setZoomLevel, setZoomFactor, setFullscreen } from 'vs/base/browser/browser';
@@ -74,9 +74,6 @@ class DesktopMain extends Disposable {
 
 		// Massage configuration file URIs
 		this.reviveUris();
-
-		// Setup perf
-		importEntries(this.configuration.perfEntries);
 
 		// Browser config
 		const zoomLevel = this.configuration.zoomLevel || 0;
