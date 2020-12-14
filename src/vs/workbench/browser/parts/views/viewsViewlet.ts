@@ -3,7 +3,6 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { IAction } from 'vs/base/common/actions';
 import { IExtensionService } from 'vs/workbench/services/extensions/common/extensions';
 import { IContextMenuService } from 'vs/platform/contextview/browser/contextView';
 import { IViewDescriptor, IViewDescriptorService, IAddedViewDescriptorRef } from 'vs/workbench/common/views';
@@ -82,18 +81,6 @@ export abstract class FilterViewPaneContainer extends ViewPaneContainer {
 		this.getViewsForTarget(newFilterValue).forEach(item => this.viewContainerModel.setVisible(item.id, true));
 	}
 
-	getContextMenuActions(): IAction[] {
-		const result: IAction[] = Array.from(this.constantViewDescriptors.values()).map(viewDescriptor => (<IAction>{
-			id: `${viewDescriptor.id}.toggleVisibility`,
-			label: viewDescriptor.name,
-			checked: this.viewContainerModel.isVisible(viewDescriptor.id),
-			enabled: viewDescriptor.canToggleVisibility,
-			run: () => this.toggleViewVisibility(viewDescriptor.id)
-		}));
-
-		return result;
-	}
-
 	private getViewsForTarget(target: string[]): IViewDescriptor[] {
 		const views: IViewDescriptor[] = [];
 		for (let i = 0; i < target.length; i++) {
@@ -141,7 +128,4 @@ export abstract class FilterViewPaneContainer extends ViewPaneContainer {
 
 	abstract getTitle(): string;
 
-	getViewsVisibilityActions(): IAction[] {
-		return [];
-	}
 }

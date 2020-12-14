@@ -263,6 +263,8 @@ export interface IAddedViewDescriptorState {
 
 export interface IViewContainerModel {
 
+	readonly viewContainer: ViewContainer;
+
 	readonly title: string;
 	readonly icon: ThemeIcon | URI | undefined;
 	readonly onDidChangeContainerInfo: Event<{ title?: boolean, icon?: boolean }>;
@@ -512,7 +514,7 @@ export interface IViewsService {
  * View Contexts
  */
 export const FocusedViewContext = new RawContextKey<string>('focusedView', '');
-export function getVisbileViewContextKey(viewId: string): string { return `${viewId}.visible`; }
+export function getVisbileViewContextKey(viewId: string): string { return `view.${viewId}.visible`; }
 
 export const IViewDescriptorService = createDecorator<IViewDescriptorService>('viewDescriptorService');
 
@@ -763,5 +765,6 @@ export interface IViewPaneContainer {
 	getActionViewItem(action: IAction): IActionViewItem | undefined;
 	getActionsContext(): unknown;
 	getView(viewId: string): IView | undefined;
+	toggleViewVisibility(viewId: string): void;
 	saveState(): void;
 }

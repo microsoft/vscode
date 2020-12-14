@@ -6,7 +6,7 @@
 import * as nls from 'vs/nls';
 import * as DOM from 'vs/base/browser/dom';
 import { Registry } from 'vs/platform/registry/common/platform';
-import { Action, IAction, Separator, SubmenuAction } from 'vs/base/common/actions';
+import { Action, IAction, Separator } from 'vs/base/common/actions';
 import { IViewletService } from 'vs/workbench/services/viewlet/browser/viewlet';
 import { IViewlet } from 'vs/workbench/common/viewlet';
 import { CompositeDescriptor, CompositeRegistry } from 'vs/workbench/browser/composite';
@@ -67,24 +67,6 @@ export abstract class Viewlet extends PaneComposite implements IViewlet {
 			enabled: true,
 			run: () => this.layoutService.setSideBarHidden(true)
 		}];
-	}
-
-	getSecondaryActions(): ReadonlyArray<IAction> {
-		const secondaryActions = super.getSecondaryActions();
-		const viewVisibilityActions = this.viewPaneContainer.getViewsVisibilityActions();
-		if (viewVisibilityActions.length <= 1 || viewVisibilityActions.every(({ enabled }) => !enabled)) {
-			return secondaryActions;
-		}
-
-		if (secondaryActions.length === 0) {
-			return viewVisibilityActions;
-		}
-
-		return [
-			new SubmenuAction('workbench.views', nls.localize('views', "Views"), viewVisibilityActions),
-			new Separator(),
-			...secondaryActions
-		];
 	}
 }
 
