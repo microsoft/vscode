@@ -444,7 +444,7 @@ jobs:
         with:
           title: Unit Test Failed
           token: ${{secrets.GITHUB_TOKEN}}
-          assignees: ${{github.actor}}
+          assignees: alexdima #${{github.actor}}
           labels: unit-test-failure
           body: Running unit tests failed for commit ${{github.sha}}. Please see https://github.com/microsoft/vscode/runs/${{GITHUB_RUN_ID}}
 
@@ -454,7 +454,7 @@ jobs:
         with:
           title: Integration Test Failed
           token: ${{secrets.GITHUB_TOKEN}}
-          assignees: ${{github.actor}}
+          assignees: alexdima #${{github.actor}}
           labels: integration-test-failure
           body: Running integration tests failed for commit ${{github.sha}}. Please see https://github.com/microsoft/vscode/runs/${{GITHUB_RUN_ID}}
 
