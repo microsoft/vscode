@@ -45,7 +45,7 @@ jobs:
         if: ${{ steps.cacheNodeModules.outputs.cache-hit != 'true' }}
         env:
           PLAYWRIGHT_SKIP_BROWSER_DOWNLOAD: 1
-        run: yarn --frozen-lockfile
+        run: yarn --frozen-lockfile --network-timeout 180000
 
       - name: Run Hygiene Checks
         run: yarn gulp hygiene
@@ -87,7 +87,7 @@ jobs:
         if: ${{ steps.cacheNodeModules.outputs.cache-hit != 'true' }}
         env:
           PLAYWRIGHT_SKIP_BROWSER_DOWNLOAD: 1
-        run: yarn --frozen-lockfile
+        run: yarn --frozen-lockfile --network-timeout 180000
 
       - name: Cache compiled core code
         id: cacheCompiledCoreCode
@@ -140,7 +140,7 @@ jobs:
         if: ${{ steps.cacheNodeModules.outputs.cache-hit != 'true' }}
         env:
           PLAYWRIGHT_SKIP_BROWSER_DOWNLOAD: 1
-        run: yarn --frozen-lockfile
+        run: yarn --frozen-lockfile --network-timeout 180000
 
       - name: Cache compiled extensions code
         id: cacheCompiledExtensionsCode
@@ -305,7 +305,7 @@ jobs:
         if: ${{ steps.cacheNodeModules.outputs.cache-hit != 'true' }}
         env:
           PLAYWRIGHT_SKIP_BROWSER_DOWNLOAD: 1
-        run: yarn --frozen-lockfile
+        run: yarn --frozen-lockfile --network-timeout 180000
 
   build-darwin-unit-tests:
     name: "Build: macOS Unit Tests"
@@ -497,7 +497,7 @@ jobs:
         if: ${{ steps.cacheNodeModules.outputs.cache-hit != 'true' }}
         env:
           PLAYWRIGHT_SKIP_BROWSER_DOWNLOAD: 1
-        run: yarn --frozen-lockfile
+        run: yarn --frozen-lockfile --network-timeout 180000
 
       - name: Compile and Download
         run: yarn concurrently --max_old_space_size=4095 --names "compile,electron,playwright,builtin-extensions" "node --max_old_space_size=4095 ./node_modules/gulp/bin/gulp.js compile" "yarn electron x64" "node ./node_modules/playwright/install.js" "yarn download-builtin-extensions"
@@ -563,7 +563,7 @@ jobs:
         if: ${{ steps.cacheNodeModules.outputs.cache-hit != 'true' }}
         env:
           PLAYWRIGHT_SKIP_BROWSER_DOWNLOAD: 1
-        run: yarn --frozen-lockfile
+        run: yarn --frozen-lockfile --network-timeout 180000
 
       - name: Compile and Download
         run: yarn concurrently --max_old_space_size=4095 --names "compile,electron,playwright,builtin-extensions" "node --max_old_space_size=4095 ./node_modules/gulp/bin/gulp.js compile" "yarn electron x64" "node ./node_modules/playwright/install.js" "yarn download-builtin-extensions"
@@ -611,7 +611,7 @@ jobs:
         if: ${{ steps.cacheNodeModules.outputs.cache-hit != 'true' }}
         env:
           PLAYWRIGHT_SKIP_BROWSER_DOWNLOAD: 1
-        run: yarn --frozen-lockfile
+        run: yarn --frozen-lockfile --network-timeout 180000
 
       - name: Compile and Download
         run: yarn concurrently --max_old_space_size=4095 --names "compile,electron,playwright,builtin-extensions" "yarn compile" "yarn electron x64" "node ./node_modules/playwright/install.js" "yarn download-builtin-extensions"
@@ -648,7 +648,7 @@ jobs:
         if: ${{ steps.cacheNodeModules.outputs.cache-hit != 'true' }}
         env:
           PLAYWRIGHT_SKIP_BROWSER_DOWNLOAD: 1
-        run: yarn --frozen-lockfile
+        run: yarn --frozen-lockfile --network-timeout 180000
 
       - name: Run Monaco Editor Checks
         run: yarn monaco-compile-check
