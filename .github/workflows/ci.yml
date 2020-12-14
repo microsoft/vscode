@@ -440,23 +440,13 @@ jobs:
 
       - name: Create Issue on Unit Test Failure
         uses: nashmaniac/create-issue-action@v1.1
-        if: ${{ failure() && (steps.electron-unit-tests.outputs.status == 'failure' || steps.browser-unit-tests.outputs.status == 'failure') }}
+        if: ${{ failure() }}
         with:
-          title: Unit Test Failed
+          title: "CI: Test Failure"
           token: ${{secrets.GITHUB_TOKEN}}
           assignees: alexdima #${{github.actor}}
-          labels: unit-test-failure
-          body: Running unit tests failed for commit ${{github.sha}}. Please see https://github.com/microsoft/vscode/runs/${{github.run_id}}
-
-      - name: Create Issue on Integration Test Failure
-        uses: nashmaniac/create-issue-action@v1.1
-        if: ${{ failure() && (steps.electron-integration-tests.outputs.status == 'failure' && steps.electron-unit-tests.outputs.status != 'failure' && steps.browser-unit-tests.outputs.status != 'failure') }}
-        with:
-          title: Integration Test Failed
-          token: ${{secrets.GITHUB_TOKEN}}
-          assignees: alexdima #${{github.actor}}
-          labels: integration-test-failure
-          body: Running integration tests failed for commit ${{github.sha}}. Please see https://github.com/microsoft/vscode/runs/${{github.run_id}}
+          labels: unit-test-failure linux
+          body: Running tests failed for commit ${{github.sha}}. Please see https://github.com/microsoft/vscode/runs/${{github.run_id}}
 
   windows:
     name: Windows
