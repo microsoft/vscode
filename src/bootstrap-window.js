@@ -145,9 +145,9 @@
 			try {
 
 				// Wait for process environment being fully resolved
-				performance.mark('willWaitForShellEnv');
+				performance.mark('code/willWaitForShellEnv');
 				await whenEnvResolved;
-				performance.mark('didWaitForShellEnv');
+				performance.mark('code/didWaitForShellEnv');
 
 				// Callback only after process environment is resolved
 				const callbackResult = resultCallback(result, configuration);

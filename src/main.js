@@ -7,7 +7,7 @@
 'use strict';
 
 const perf = require('./vs/base/common/performance');
-perf.mark('main:started');
+perf.mark('code/didStartMain');
 
 const lp = require('./vs/base/node/languagePacks');
 const path = require('path');
@@ -193,14 +193,14 @@ function startup(cachedDataDir, nlsConfig) {
 	process.env['VSCODE_NODE_CACHED_DATA_DIR'] = cachedDataDir || '';
 
 	// Load main in AMD
-	perf.mark('willLoadMainBundle');
+	perf.mark('code/willLoadMainBundle');
 	require('./bootstrap-amd').load('vs/code/electron-main/main', () => {
-		perf.mark('didLoadMainBundle');
+		perf.mark('code/didLoadMainBundle');
 	});
 }
 
 async function onReady() {
-	perf.mark('main:appReady');
+	perf.mark('code/mainAppReady');
 
 	try {
 		const [cachedDataDir, nlsConfig] = await Promise.all([nodeCachedDataDir.ensureExists(), resolveNlsConfiguration()]);
