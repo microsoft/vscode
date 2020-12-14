@@ -28,14 +28,14 @@ import { IViewletViewOptions } from 'vs/workbench/browser/parts/views/viewsViewl
 import { IExtensionService } from 'vs/workbench/services/extensions/common/extensions';
 import { IWorkspaceContextService } from 'vs/platform/workspace/common/workspace';
 import { Component } from 'vs/workbench/common/component';
-import { registerAction2, Action2, IAction2Options } from 'vs/platform/actions/common/actions';
+import { registerAction2, Action2, IAction2Options, IMenuService, MenuId } from 'vs/platform/actions/common/actions';
 import { CompositeDragAndDropObserver, DragAndDropObserver, toggleDropEffect } from 'vs/workbench/browser/dnd';
 import { Orientation } from 'vs/base/browser/ui/sash/sash';
 import { RunOnceScheduler } from 'vs/base/common/async';
 import { KeyMod, KeyCode, KeyChord } from 'vs/base/common/keyCodes';
 import { KeybindingWeight } from 'vs/platform/keybinding/common/keybindingsRegistry';
 import { ViewPane } from 'vs/workbench/browser/parts/views/viewPane';
-import { ViewContainerMenuActions } from 'vs/workbench/browser/parts/views/viewMenuActions';
+import { CompositeMenuActions } from 'vs/workbench/browser/menuActions';
 
 export interface IPaneColors extends IColorMapping {
 	dropBackground?: ColorIdentifier;
@@ -281,6 +281,19 @@ class ViewPaneDropOverlay extends Themable {
 		super.dispose();
 
 		this._disposed = true;
+	}
+}
+
+class ViewContainerMenuActions extends CompositeMenuActions {
+	constructor(
+		viewContainer: ViewContainer,
+		@IContextKeyService contextKeyService: IContextKeyService,
+		@IMenuService menuService: IMenuService,
+	) {
+		const scopedContextKeyService = contextKeyService.createScoped();
+		scopedContextKeyService.createKey('viewContainer', viewContainer.id);
+		super(MenuId.ViewContainerTitle, MenuId.ViewContainerTitleContext, { shouldForwardArgs: true }, scopedContextKeyService, menuService);
+		this._register(scopedContextKeyService);
 	}
 }
 

@@ -25,9 +25,8 @@ import { Extensions as ViewContainerExtensions, IView, FocusedViewContext, IView
 import { IContextKey, IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
 import { assertIsDefined } from 'vs/base/common/types';
 import { IInstantiationService, ServicesAccessor } from 'vs/platform/instantiation/common/instantiation';
-import { MenuId, MenuItemAction, Action2, IAction2Options, SubmenuItemAction } from 'vs/platform/actions/common/actions';
+import { MenuId, MenuItemAction, Action2, IAction2Options, SubmenuItemAction, IMenuService } from 'vs/platform/actions/common/actions';
 import { MenuEntryActionViewItem, SubmenuEntryActionViewItem } from 'vs/platform/actions/browser/menuEntryActionViewItem';
-import { ViewMenuActions } from 'vs/workbench/browser/parts/views/viewMenuActions';
 import { parseLinkedText } from 'vs/base/common/linkedText';
 import { IOpenerService } from 'vs/platform/opener/common/opener';
 import { Button } from 'vs/base/browser/ui/button/button';
@@ -41,6 +40,7 @@ import { ScrollbarVisibility } from 'vs/base/common/scrollable';
 import { URI } from 'vs/base/common/uri';
 import { registerIcon } from 'vs/platform/theme/common/iconRegistry';
 import { Codicon } from 'vs/base/common/codicons';
+import { CompositeMenuActions } from 'vs/workbench/browser/menuActions';
 
 export interface IViewPaneOptions extends IPaneOptions {
 	id: string;
@@ -138,6 +138,22 @@ class ViewWelcomeController {
 	dispose(): void {
 		this.disposables.dispose();
 	}
+}
+
+class ViewMenuActions extends CompositeMenuActions {
+	constructor(
+		viewId: string,
+		menuId: MenuId,
+		contextMenuId: MenuId,
+		@IContextKeyService contextKeyService: IContextKeyService,
+		@IMenuService menuService: IMenuService,
+	) {
+		const scopedContextKeyService = contextKeyService.createScoped();
+		scopedContextKeyService.createKey('view', viewId);
+		super(menuId, contextMenuId, { shouldForwardArgs: true }, scopedContextKeyService, menuService);
+		this._register(scopedContextKeyService);
+	}
+
 }
 
 export abstract class ViewPane extends Pane implements IView {
