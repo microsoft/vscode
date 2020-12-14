@@ -1,0 +1,12 @@
+{
+  "name": "code-web",
+  "version": "0.1.0",
+  "main": "./code-web.js",
+  "devDependencies": {
+    "ansi-colors": "^3.2.3",
+    "fancy-log": "^1.3.3",
+    "gulp-remote-retry-src": "^0.6.0",
+    "opn": "^6.0.0",
+    "vinyl-fs": "^3.0.0"
+  }
+}

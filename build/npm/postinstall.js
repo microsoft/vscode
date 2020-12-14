@@ -69,6 +69,7 @@ runtime "${runtime}"`;
 }
 
 yarnInstall(`build`); // node modules required for build
+yarnInstall(`resources/web`); // node modules required for yarn web
 yarnInstall('test/automation'); // node modules required for smoketest
 yarnInstall('test/smoke'); // node modules required for smoketest
 yarnInstall('test/integration/browser'); // node modules required for integration
