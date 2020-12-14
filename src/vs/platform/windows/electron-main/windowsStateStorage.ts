@@ -10,22 +10,22 @@ import { IWindowState, IWindowsState } from 'vs/platform/windows/electron-main/w
 export type WindowsStateStorageData = object;
 
 interface ISerializedWindowsState {
-	lastActiveWindow?: ISerializedWindowState;
-	lastPluginDevelopmentHostWindow?: ISerializedWindowState;
-	openedWindows: ISerializedWindowState[];
+	readonly lastActiveWindow?: ISerializedWindowState;
+	readonly lastPluginDevelopmentHostWindow?: ISerializedWindowState;
+	readonly openedWindows: ISerializedWindowState[];
 }
 
 interface ISerializedWindowState {
-	workspaceIdentifier?: { id: string; configURIPath: string };
-	folder?: string;
-	backupPath?: string;
-	remoteAuthority?: string;
-	uiState: IWindowUIState;
+	readonly workspaceIdentifier?: { id: string; configURIPath: string };
+	readonly folder?: string;
+	readonly backupPath?: string;
+	readonly remoteAuthority?: string;
+	readonly uiState: IWindowUIState;
 
 	// deprecated
-	folderUri?: UriComponents;
-	folderPath?: string;
-	workspace?: { id: string; configPath: string };
+	readonly folderUri?: UriComponents;
+	readonly folderPath?: string;
+	readonly workspace?: { id: string; configPath: string };
 }
 
 export function restoreWindowsState(data: WindowsStateStorageData | undefined): IWindowsState {
