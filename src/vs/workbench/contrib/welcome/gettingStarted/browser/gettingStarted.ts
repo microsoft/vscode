@@ -205,21 +205,27 @@ export class GettingStartedPage extends Disposable {
 					$('.codicon.codicon-' + category.codicon, {}), categoryDescriptionElement);
 			});
 
+		const categoriesSlide = assertIsDefined(document.getElementById('gettingStartedSlideCategory'));
+		const tasksSlide = assertIsDefined(document.getElementById('gettingStartedSlideDetails'));
+
 		const rightColumn = assertIsDefined(container.querySelector('#getting-started-detail-right'));
 		rightColumn.appendChild($('img#getting-started-media'));
 
-		const categoriesContainer = assertIsDefined(document.getElementById('getting-started-categories-container'));
+		const categoryScrollContainer = $('#getting-started-categories-scrolling-container');
+		const categoriesContainer = $('#getting-started-categories-container');
 		categoryElements.forEach(element => {
 			categoriesContainer.appendChild(element);
 		});
+
+		categoryScrollContainer.appendChild(categoriesContainer);
+		categoriesSlide.appendChild(categoryScrollContainer);
+		categoriesSlide.appendChild($('.gap'));
 
 		this.updateCategoryProgress();
 
 		assertIsDefined(document.getElementById('product-name')).textContent = this.productService.nameLong;
 		this.registerDispatchListeners(container);
 
-		const categoriesSlide = assertIsDefined(document.getElementById('gettingStartedSlideCategory'));
-		const tasksSlide = assertIsDefined(document.getElementById('gettingStartedSlideDetails'));
 
 		if (this.editorInput.selectedCategory) {
 			this.currentCategory = this.gettingStartedCategories.find(category => category.id === this.editorInput.selectedCategory);
