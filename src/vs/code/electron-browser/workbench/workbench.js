@@ -51,7 +51,7 @@
 
 	/**
 	 * @returns {{
-	 *   load: (modules: string[], resultCallback: (result, configuration: object) => any, options: object) => unknown,
+	 *   load: (modules: string[], resultCallback: (result, configuration: import('../../../platform/windows/common/windows').INativeWindowConfiguration) => any, options: object) => unknown,
 	 *   globals: () => typeof import('../../../base/parts/sandbox/electron-sandbox/globals'),
 	 *   perfLib: () => { mark: (name: string) => void }
 	 * }}

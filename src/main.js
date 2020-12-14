@@ -7,17 +7,16 @@
 'use strict';
 
 const perf = require('./vs/base/common/performance');
-const lp = require('./vs/base/node/languagePacks');
-
 perf.mark('main:started');
 
+const lp = require('./vs/base/node/languagePacks');
 const path = require('path');
 const fs = require('fs');
 const os = require('os');
 const bootstrap = require('./bootstrap');
 const bootstrapNode = require('./bootstrap-node');
 const paths = require('./paths');
-/** @type {any} */
+/** @type {Partial<import('./vs/platform/product/common/productService').IProductConfiguration> & { applicationName: string}} */
 const product = require('../product.json');
 const { app, protocol, crashReporter } = require('electron');
 
@@ -213,9 +212,7 @@ async function onReady() {
 }
 
 /**
- * @typedef	 {{ [arg: string]: any; '--'?: string[]; _: string[]; }} NativeParsedArgs
- *
- * @param {NativeParsedArgs} cliArgs
+ * @param {import('./vs/platform/environment/common/argv').NativeParsedArgs} cliArgs
  */
 function configureCommandlineSwitchesSync(cliArgs) {
 	const SUPPORTED_ELECTRON_SWITCHES = [
@@ -368,7 +365,7 @@ function getArgvConfigPath() {
 }
 
 /**
- * @param {NativeParsedArgs} cliArgs
+ * @param {import('./vs/platform/environment/common/argv').NativeParsedArgs} cliArgs
  * @returns {string | null}
  */
 function getJSFlags(cliArgs) {
@@ -388,7 +385,7 @@ function getJSFlags(cliArgs) {
 }
 
 /**
- * @param {NativeParsedArgs} cliArgs
+ * @param {import('./vs/platform/environment/common/argv').NativeParsedArgs} cliArgs
  *
  * @returns {string}
  */
@@ -401,7 +398,7 @@ function getUserDataPath(cliArgs) {
 }
 
 /**
- * @returns {NativeParsedArgs}
+ * @returns {import('./vs/platform/environment/common/argv').NativeParsedArgs}
  */
 function parseCLIArgs() {
 	const minimist = require('minimist');
@@ -450,11 +447,16 @@ function registerListeners() {
 	 * @type {string[]}
 	 */
 	const openUrls = [];
-	const onOpenUrl = function (event, url) {
-		event.preventDefault();
+	const onOpenUrl =
+		/**
+		 * @param {{ preventDefault: () => void; }} event
+		 * @param {string} url
+		 */
+		function (event, url) {
+			event.preventDefault();
 
-		openUrls.push(url);
-	};
+			openUrls.push(url);
+		};
 
 	app.on('will-finish-launching', function () {
 		app.on('open-url', onOpenUrl);
