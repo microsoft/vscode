@@ -446,7 +446,7 @@ jobs:
           token: ${{secrets.GITHUB_TOKEN}}
           assignees: alexdima #${{github.actor}}
           labels: unit-test-failure
-          body: Running unit tests failed for commit ${{github.sha}}. Please see https://github.com/microsoft/vscode/runs/${{GITHUB_RUN_ID}}
+          body: Running unit tests failed for commit ${{github.sha}}. Please see https://github.com/microsoft/vscode/runs/${{github.run_id}}
 
       - name: Create Issue on Integration Test Failure
         uses: nashmaniac/create-issue-action@v1.1
@@ -456,7 +456,7 @@ jobs:
           token: ${{secrets.GITHUB_TOKEN}}
           assignees: alexdima #${{github.actor}}
           labels: integration-test-failure
-          body: Running integration tests failed for commit ${{github.sha}}. Please see https://github.com/microsoft/vscode/runs/${{GITHUB_RUN_ID}}
+          body: Running integration tests failed for commit ${{github.sha}}. Please see https://github.com/microsoft/vscode/runs/${{github.run_id}}
 
   windows:
     name: Windows
