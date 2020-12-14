@@ -427,13 +427,36 @@ jobs:
         run: yarn concurrently --max_old_space_size=4095 --names "compile,electron,playwright,builtin-extensions" "node --max_old_space_size=4095 ./node_modules/gulp/bin/gulp.js compile" "yarn electron x64" "node ./node_modules/playwright/install.js" "yarn download-builtin-extensions"
 
       - name: Run Unit Tests (Electron)
+        id: electron-unit-tests
         run: DISPLAY=:10 ./scripts/test.sh
 
       - name: Run Unit Tests (Browser)
+        id: browser-unit-tests
         run: DISPLAY=:10 yarn test-browser --browser chromium
 
       - name: Run Integration Tests (Electron)
+        id: electron-integration-tests
         run: DISPLAY=:10 ./scripts/test-integration.sh
+
+      - name: Create Issue on Unit Test Failure
+        uses: nashmaniac/create-issue-action@v1.1
+        if: ${{ steps.electron-unit-tests.outputs.status == 'failure' || steps.browser-unit-tests.outputs.status == 'failure' }}
+        with:
+          title: Unit Test Failed
+          token: ${{secrets.GITHUB_TOKEN}}
+          assignees: ${{github.actor}}
+          labels: unit-test-failure
+          body: Running unit tests failed for commit ${{github.sha}}. Please see https://github.com/microsoft/vscode/runs/${{GITHUB_RUN_ID}}
+
+      - name: Create Issue on Integration Test Failure
+        uses: nashmaniac/create-issue-action@v1.1
+        if: ${{ steps.electron-integration-tests.outputs.status == 'failure' && steps.electron-unit-tests.outputs.status != 'failure' && steps.browser-unit-tests.outputs.status != 'failure' }}
+        with:
+          title: Integration Test Failed
+          token: ${{secrets.GITHUB_TOKEN}}
+          assignees: ${{github.actor}}
+          labels: integration-test-failure
+          body: Running integration tests failed for commit ${{github.sha}}. Please see https://github.com/microsoft/vscode/runs/${{GITHUB_RUN_ID}}
 
   windows:
     name: Windows
