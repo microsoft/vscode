@@ -396,7 +396,7 @@ jobs:
           token: ${{secrets.GITHUB_TOKEN}}
           assignees: alexdima #${{github.actor}}
           labels: unit-test-failure linux
-          body: Running tests failed for commit ${{github.sha}}. Please see https://github.com/microsoft/vscode/runs/${{github.run_id}}
+          body: Running tests failed for commit ${{github.sha}}. Please see https://github.com/microsoft/vscode/actions/runs/${{github.run_id}}
 
   windows:
     name: Windows
