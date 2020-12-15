@@ -72,6 +72,7 @@ export class TabsTitleControl extends TitleControl {
 	};
 
 	private static readonly TAB_HEIGHT = 35;
+	private static readonly MAX_WRAPPED_HEIGHT = TabsTitleControl.TAB_HEIGHT * 3;
 
 	private static readonly MOUSE_WHEEL_EVENT_THRESHOLD = 150;
 	private static readonly MOUSE_WHEEL_DISTANCE_THRESHOLD = 1.5;
@@ -1437,13 +1438,15 @@ export class TabsTitleControl extends TitleControl {
 			let tabsWrapMultiLine = tabsContainer.classList.contains('wrap');
 
 			// Tabs do not wrap multiline: add wrapping if tabs exceed the tabs container width
-			if (!tabsWrapMultiLine && allTabsWidth > visibleTabsContainerWidth) {
+			// and the height of the tabs container does not exceed the maximum
+			if (!tabsWrapMultiLine && allTabsWidth > visibleTabsContainerWidth && (tabsContainer.offsetHeight <= TabsTitleControl.MAX_WRAPPED_HEIGHT)) {
 				tabsContainer.classList.add('wrap');
 				tabsWrapMultiLine = true;
 			}
 
 			// Tabs wrap multiline: remove wrapping if height exceeds available height
-			if (tabsWrapMultiLine && tabsContainer.offsetHeight > dimensions.available.height) {
+			// or the maximum allowed height
+			if (tabsWrapMultiLine && (tabsContainer.offsetHeight > dimensions.available.height || tabsContainer.offsetHeight > TabsTitleControl.MAX_WRAPPED_HEIGHT)) {
 				tabsContainer.classList.remove('wrap');
 				tabsWrapMultiLine = false;
 			}
