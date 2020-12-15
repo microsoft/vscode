@@ -79,6 +79,8 @@ steps:
       $env:npm_config_arch="$(VSCODE_ARCH)"
       $env:CHILD_CONCURRENCY="1"
       retry { exec { yarn --frozen-lockfile } }
+    env:
+      ELECTRON_SKIP_BINARY_DOWNLOAD: 1
     displayName: Install dependencies
     condition: and(succeeded(), ne(variables['CacheRestored'], 'true'))
 
