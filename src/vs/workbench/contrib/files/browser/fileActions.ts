@@ -20,7 +20,7 @@ import { IViewletService } from 'vs/workbench/services/viewlet/browser/viewlet';
 import { IInstantiationService, ServicesAccessor } from 'vs/platform/instantiation/common/instantiation';
 import { ITextModel } from 'vs/editor/common/model';
 import { IHostService } from 'vs/workbench/services/host/browser/host';
-import { REVEAL_IN_EXPLORER_COMMAND_ID, SAVE_ALL_COMMAND_ID, SAVE_ALL_LABEL, SAVE_ALL_IN_GROUP_COMMAND_ID, NEW_UNTITLED_FILE_COMMAND_ID } from 'vs/workbench/contrib/files/browser/fileCommands';
+import { REVEAL_IN_EXPLORER_COMMAND_ID, SAVE_ALL_IN_GROUP_COMMAND_ID, NEW_UNTITLED_FILE_COMMAND_ID } from 'vs/workbench/contrib/files/browser/fileCommands';
 import { ITextModelService, ITextModelContentProvider } from 'vs/editor/common/services/resolverService';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { IClipboardService } from 'vs/platform/clipboard/common/clipboardService';
@@ -525,20 +525,6 @@ export abstract class BaseSaveAllAction extends Action {
 		} catch (error) {
 			onError(this.notificationService, error);
 		}
-	}
-}
-
-export class SaveAllAction extends BaseSaveAllAction {
-
-	static readonly ID = 'workbench.action.files.saveAll';
-	static readonly LABEL = SAVE_ALL_LABEL;
-
-	get class(): string {
-		return 'explorer-action ' + Codicon.saveAll.classNames;
-	}
-
-	protected doRun(): Promise<void> {
-		return this.commandService.executeCommand(SAVE_ALL_COMMAND_ID);
 	}
 }
 
