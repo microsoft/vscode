@@ -11,6 +11,7 @@ import * as marked from 'vs/base/common/marked/marked';
 import { Schemas } from 'vs/base/common/network';
 import { isEqual } from 'vs/base/common/resources';
 import { requireToContent } from 'vs/workbench/contrib/welcome/walkThrough/common/walkThroughContentProvider';
+import { Dimension } from 'vs/base/browser/dom';
 
 export class WalkThroughModel extends EditorModel {
 
@@ -42,6 +43,7 @@ export interface WalkThroughInputOptions {
 	readonly resource: URI;
 	readonly telemetryFrom: string;
 	readonly onReady?: (container: HTMLElement) => void;
+	readonly layout?: (dimension: Dimension) => void;
 }
 
 export class WalkThroughInput extends EditorInput {
@@ -89,6 +91,10 @@ export class WalkThroughInput extends EditorInput {
 
 	get onReady() {
 		return this.options.onReady;
+	}
+
+	get layout() {
+		return this.options.layout;
 	}
 
 	resolve(): Promise<WalkThroughModel> {

@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { zoomLevelToZoomFactor } from 'vs/platform/windows/common/windows';
-import { importEntries, mark } from 'vs/base/common/performance';
+import { mark } from 'vs/base/common/performance';
 import { Workbench } from 'vs/workbench/browser/workbench';
 import { NativeWindow } from 'vs/workbench/electron-sandbox/window';
 import { setZoomLevel, setZoomFactor, setFullscreen } from 'vs/base/browser/browser';
@@ -52,9 +52,6 @@ class DesktopMain extends Disposable {
 		// Massage configuration file URIs
 		this.reviveUris();
 
-		// Setup perf
-		importEntries(this.configuration.perfEntries);
-
 		// Browser config
 		const zoomLevel = this.configuration.zoomLevel || 0;
 		setZoomFactor(zoomLevelToZoomFactor(zoomLevel));
@@ -92,7 +89,7 @@ class DesktopMain extends Disposable {
 		const services = await this.initServices();
 
 		await domContentLoaded();
-		mark('willStartWorkbench');
+		mark('code/willStartWorkbench');
 
 		// Create Workbench
 		const workbench = new Workbench(document.body, services.serviceCollection, services.logService);
@@ -117,7 +114,7 @@ class DesktopMain extends Disposable {
 
 		// Workbench Lifecycle
 		this._register(workbench.onShutdown(() => this.dispose()));
-		this._register(workbench.onWillShutdown(event => event.join(storageService.close())));
+		this._register(workbench.onWillShutdown(event => event.join(storageService.close(), 'join.closeStorage')));
 	}
 
 	private onWindowResize(e: Event, retry: boolean, workbench: Workbench): void {

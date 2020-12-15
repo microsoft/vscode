@@ -133,6 +133,8 @@ export class MenuId {
 	static readonly TimelineTitle = new MenuId('TimelineTitle');
 	static readonly TimelineTitleContext = new MenuId('TimelineTitleContext');
 	static readonly AccountsContext = new MenuId('AccountsContext');
+	static readonly PanelTitle = new MenuId('PanelTitle');
+	static readonly PanelTitleContext = new MenuId('PanelTitleContext');
 
 	readonly id: number;
 	readonly _debugName: string;
@@ -304,21 +306,18 @@ export class ExecuteCommandAction extends Action {
 
 export class SubmenuItemAction extends SubmenuAction {
 
-	constructor(
-		readonly item: ISubmenuItem,
-		private readonly menuService: IMenuService,
-		private readonly contextKeyService: IContextKeyService,
-		private readonly options?: IMenuActionOptions
-	) {
-		super(`submenuitem.${item.submenu.id}`, typeof item.title === 'string' ? item.title : item.title.value, [], 'submenu');
-		const menu = this._register(this.menuService.createMenu(this.item.submenu, this.contextKeyService));
-		this.update(menu);
-		this._register(menu.onDidChange(() => this.update(menu)));
-	}
+	readonly item: ISubmenuItem;
 
-	private update(menu: IMenu): void {
+	constructor(
+		item: ISubmenuItem,
+		menuService: IMenuService,
+		contextKeyService: IContextKeyService,
+		options?: IMenuActionOptions
+	) {
 		const result: IAction[] = [];
-		const groups = menu.getActions(this.options);
+		const menu = menuService.createMenu(item.submenu, contextKeyService);
+		const groups = menu.getActions(options);
+		menu.dispose();
 
 		for (let group of groups) {
 			const [, actions] = group;
@@ -333,7 +332,8 @@ export class SubmenuItemAction extends SubmenuAction {
 			result.pop(); // remove last separator
 		}
 
-		this.setActions(result);
+		super(`submenuitem.${item.submenu.id}`, typeof item.title === 'string' ? item.title : item.title.value, result, 'submenu');
+		this.item = item;
 	}
 }
 

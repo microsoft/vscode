@@ -308,6 +308,11 @@ export class ThemeConfiguration {
 		return theme;
 	}
 
+	public isDefaultColorTheme(theme: IWorkbenchColorTheme): boolean {
+		let settings = this.configurationService.inspect(ThemeSettings.COLOR_THEME);
+		return settings && settings.default?.value === theme.settingsId;
+	}
+
 	public findAutoConfigurationTarget(key: string) {
 		let settings = this.configurationService.inspect(key);
 		if (!types.isUndefined(settings.workspaceFolderValue)) {

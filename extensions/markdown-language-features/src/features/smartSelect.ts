@@ -162,9 +162,9 @@ function createFencedRange(token: Token, cursorLine: number, document: vscode.Te
 }
 
 function createBoldRange(lineText: string, cursorChar: number, cursorLine: number, parent?: vscode.SelectionRange): vscode.SelectionRange | undefined {
-	const regex = /(?:^|(?<=\s))(?:\*\*\s*([^*]+)(?:\*\s*([^*]+)\s*?\*)*([^*]+)\s*?\*\*)/g;
+	const regex = /(?:\*\*([^*]+)(?:\*([^*]+)([^*]+)\*)*([^*]+)\*\*)/g;
 	const matches = [...lineText.matchAll(regex)].filter(match => lineText.indexOf(match[0]) <= cursorChar && lineText.indexOf(match[0]) + match[0].length >= cursorChar);
-	if (matches.length > 0) {
+	if (matches.length) {
 		// should only be one match, so select first and index 0 contains the entire match
 		const bold = matches[0][0];
 		const startIndex = lineText.indexOf(bold);
@@ -177,11 +177,20 @@ function createBoldRange(lineText: string, cursorChar: number, cursorLine: numbe
 }
 
 function createOtherInlineRange(lineText: string, cursorChar: number, cursorLine: number, isItalic: boolean, parent?: vscode.SelectionRange): vscode.SelectionRange | undefined {
-	const regex = isItalic ? /(?:^|(?<=\s))(?:\*\s*([^*]+)(?:\*\*\s*([^*]+)\s*?\*\*)*([^*]+)\s*?\*)/g : /\`[^\`]*\`/g;
-	const matches = [...lineText.matchAll(regex)].filter(match => lineText.indexOf(match[0]) <= cursorChar && lineText.indexOf(match[0]) + match[0].length >= cursorChar);
-	if (matches.length > 0) {
-		// should only be one match, so select first and index 0 contains the entire match
-		const match = matches[0][0];
+	const italicRegexes = [/(?:[^*]+)(\*([^*]+)(?:\*\*[^*]*\*\*)*([^*]+)\*)(?:[^*]+)/g, /^(?:[^*]*)(\*([^*]+)(?:\*\*[^*]*\*\*)*([^*]+)\*)(?:[^*]*)$/g];
+	let matches = [];
+	if (isItalic) {
+		matches = [...lineText.matchAll(italicRegexes[0])].filter(match => lineText.indexOf(match[0]) <= cursorChar && lineText.indexOf(match[0]) + match[0].length >= cursorChar);
+		if (!matches.length) {
+			matches = [...lineText.matchAll(italicRegexes[1])].filter(match => lineText.indexOf(match[0]) <= cursorChar && lineText.indexOf(match[0]) + match[0].length >= cursorChar);
+		}
+	} else {
+		matches = [...lineText.matchAll(/\`[^\`]*\`/g)].filter(match => lineText.indexOf(match[0]) <= cursorChar && lineText.indexOf(match[0]) + match[0].length >= cursorChar);
+	}
+	if (matches.length) {
+		// should only be one match, so select first and select group 1 for italics because that contains just the italic section
+		// doesn't include the leading and trailing characters which are guaranteed to not be * so as not to be confused with bold
+		const match = isItalic ? matches[0][1] : matches[0][0];
 		const startIndex = lineText.indexOf(match);
 		const cursorOnType = cursorChar === startIndex || cursorChar === startIndex + match.length;
 		const contentAndType = new vscode.SelectionRange(new vscode.Range(cursorLine, startIndex, cursorLine, startIndex + match.length), parent);
@@ -195,7 +204,7 @@ function createLinkRange(lineText: string, cursorChar: number, cursorLine: numbe
 	const regex = /(\[[^\(\)]*\])(\([^\[\]]*\))/g;
 	const matches = [...lineText.matchAll(regex)].filter(match => lineText.indexOf(match[0]) <= cursorChar && lineText.indexOf(match[0]) + match[0].length > cursorChar);
 
-	if (matches.length > 0) {
+	if (matches.length) {
 		// should only be one match, so select first and index 0 contains the entire match, so match = [text](url)
 		const link = matches[0][0];
 		const linkRange = new vscode.SelectionRange(new vscode.Range(cursorLine, lineText.indexOf(link), cursorLine, lineText.indexOf(link) + link.length), parent);

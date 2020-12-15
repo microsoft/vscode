@@ -57,7 +57,7 @@ import { IPreferencesService, ISettingsEditorOptions } from 'vs/workbench/servic
 import { ITextFileService } from 'vs/workbench/services/textfile/common/textfiles';
 import { relativePath } from 'vs/base/common/resources';
 import { IAccessibilityService } from 'vs/platform/accessibility/common/accessibility';
-import { ViewPane, IViewPaneOptions } from 'vs/workbench/browser/parts/views/viewPaneContainer';
+import { ViewPane, IViewPaneOptions } from 'vs/workbench/browser/parts/views/viewPane';
 import { IKeybindingService } from 'vs/platform/keybinding/common/keybinding';
 import { Memento, MementoObject } from 'vs/workbench/common/memento';
 import { IStorageService, StorageScope, StorageTarget } from 'vs/platform/storage/common/storage';
@@ -397,7 +397,7 @@ export class SearchView extends ViewPane {
 		return this.inputPatternIncludes;
 	}
 
-	get searchExcludePattern(): PatternInputWidget {
+	get searchExcludePattern(): ExcludePatternInputWidget {
 		return this.inputPatternExcludes;
 	}
 
@@ -1745,9 +1745,10 @@ export class SearchView extends ViewPane {
 				revealIfVisible: true
 			}
 		}, sideBySide ? SIDE_GROUP : ACTIVE_GROUP).then(editor => {
-			if (element instanceof Match && preserveFocus && isCodeEditor(editor)) {
+			const editorControl = editor?.getControl();
+			if (element instanceof Match && preserveFocus && isCodeEditor(editorControl)) {
 				this.viewModel.searchResult.rangeHighlightDecorations.highlightRange(
-					(<ICodeEditor>editor.getControl()).getModel()!,
+					editorControl.getModel()!,
 					element.range()
 				);
 			} else {

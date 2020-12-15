@@ -505,7 +505,7 @@ export class ColorThemeData implements IWorkbenchColorTheme {
 		this.customTokenScopeMatchers = undefined;
 	}
 
-	toStorage(storageService: IStorageService) {
+	toStorage(storageService: IStorageService, isDefaultTheme: boolean) {
 		let colorMapData: { [key: string]: string } = {};
 		for (let key in this.colorMap) {
 			colorMapData[key] = Color.Format.CSS.formatHexA(this.colorMap[key], true);
@@ -515,12 +515,13 @@ export class ColorThemeData implements IWorkbenchColorTheme {
 			id: this.id,
 			label: this.label,
 			settingsId: this.settingsId,
-			themeTokenColors: this.themeTokenColors.map(tc => ({ settings: tc.settings, scope: tc.scope })), // don't pesist names
+			themeTokenColors: this.themeTokenColors.map(tc => ({ settings: tc.settings, scope: tc.scope })), // don't persist names
 			semanticTokenRules: this.semanticTokenRules.map(SemanticTokenRule.toJSONObject),
 			extensionData: ExtensionData.toJSONObject(this.extensionData),
 			themeSemanticHighlighting: this.themeSemanticHighlighting,
 			colorMap: colorMapData,
-			watch: this.watch
+			watch: this.watch,
+			isDefaultTheme
 		});
 
 		// roam persisted color theme colors. Don't enable for icons as they contain references to fonts and images.
@@ -570,12 +571,14 @@ export class ColorThemeData implements IWorkbenchColorTheme {
 		return themeData;
 	}
 
-	static fromStorageData(storageService: IStorageService): ColorThemeData | undefined {
+	static fromStorageData(storageService: IStorageService, doNotRestoreDefaultTheme: boolean): ColorThemeData | undefined {
 		const input = storageService.get(ColorThemeData.STORAGE_KEY, StorageScope.GLOBAL);
 		if (!input) {
 			return undefined;
 		}
 		try {
+			let isDefaultTheme = false;
+
 			let data = JSON.parse(input);
 			let theme = new ColorThemeData('', '', '');
 			for (let key in data) {
@@ -607,9 +610,12 @@ export class ColorThemeData implements IWorkbenchColorTheme {
 					case 'extensionData':
 						theme.extensionData = ExtensionData.fromJSONObject(data.extensionData);
 						break;
+					case 'isDefaultTheme':
+						isDefaultTheme = data.isDefaultTheme;
+						break;
 				}
 			}
-			if (!theme.id || !theme.settingsId) {
+			if (!theme.id || !theme.settingsId || doNotRestoreDefaultTheme && isDefaultTheme) {
 				return undefined;
 			}
 			return theme;

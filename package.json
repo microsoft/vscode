@@ -1,7 +1,7 @@
 {
   "name": "code-oss-dev",
   "version": "1.53.0",
-  "distro": "b1d4d66f8f5734c216ae6288c36660e81511706b",
+  "distro": "47d34c9d35c811ed6a3832be96c8f71e5c1701da",
   "author": {
     "name": "Microsoft Corporation"
   },
@@ -45,7 +45,7 @@
     "compile-web": "gulp compile-web --max_old_space_size=4095",
     "watch-web": "gulp watch-web --max_old_space_size=4095",
     "eslint": "eslint -c .eslintrc.json --rulesdir ./build/lib/eslint --ext .ts --ext .js ./src/vs ./extensions",
-    "electron-rebuild": "electron-rebuild --arch=arm64 --force --version=11.0.3"
+    "electron-rebuild": "electron-rebuild --arch=arm64 --force --version=11.0.5"
   },
   "dependencies": {
     "applicationinsights": "1.0.8",
@@ -112,7 +112,7 @@
     "css-loader": "^3.2.0",
     "debounce": "^1.0.0",
     "deemon": "^1.4.0",
-    "electron": "11.0.3",
+    "electron": "11.0.5",
     "electron-rebuild": "2.0.3",
     "eslint": "6.8.0",
     "eslint-plugin-jsdoc": "^19.1.0",
@@ -124,7 +124,7 @@
     "glob": "^5.0.13",
     "gulp": "^4.0.0",
     "gulp-atom-electron": "^1.22.0",
-    "gulp-azure-storage": "^0.10.0",
+    "gulp-azure-storage": "^0.11.1",
     "gulp-buffer": "0.0.2",
     "gulp-concat": "^2.6.1",
     "gulp-cssnano": "^2.1.3",
