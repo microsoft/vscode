@@ -14,7 +14,7 @@ import { IEditorInputFactory } from 'vs/workbench/common/editor';
 import { Disposable, DisposableStore } from 'vs/base/common/lifecycle';
 import { IEditorOptions } from 'vs/platform/editor/common/editor';
 import { assertIsDefined } from 'vs/base/common/types';
-import { $, addDisposableListener } from 'vs/base/browser/dom';
+import { $, addDisposableListener, Dimension } from 'vs/base/browser/dom';
 import { ICommandService } from 'vs/platform/commands/common/commands';
 import { IProductService } from 'vs/platform/product/common/productService';
 import { IGettingStartedCategoryWithProgress, IGettingStartedService } from 'vs/workbench/services/gettingStarted/common/gettingStartedService';
@@ -45,6 +45,8 @@ export class GettingStartedPage extends Disposable {
 	private gettingStartedCategories: IGettingStartedCategoryWithProgress[];
 	private currentCategory: IGettingStartedCategoryWithProgress | undefined;
 
+	private scrollbar: DomScrollableElement | undefined;
+
 	constructor(
 		initialState: { selectedCategory?: string, selectedTask?: string },
 		@IEditorService private readonly editorService: IEditorService,
@@ -69,7 +71,8 @@ export class GettingStartedPage extends Disposable {
 			name: localize('editorGettingStarted.title', "Getting Started"),
 			resource,
 			telemetryFrom,
-			onReady: (container: HTMLElement) => this.onReady(container)
+			onReady: (container: HTMLElement) => this.onReady(container),
+			layout: () => this.layout(),
 		});
 
 		this.editorInput.selectedCategory = initialState.selectedCategory;
@@ -219,9 +222,10 @@ export class GettingStartedPage extends Disposable {
 		});
 
 		categoryScrollContainer.appendChild(categoriesContainer);
-		const scrollable = new DomScrollableElement(categoryScrollContainer, {});
-		categoriesSlide.appendChild(scrollable.getDomNode());
+		this.scrollbar = this._register(new DomScrollableElement(categoryScrollContainer, {}));
+		categoriesSlide.appendChild(this.scrollbar.getDomNode());
 		categoriesSlide.appendChild($('.gap'));
+		this.scrollbar.scanDomNode();
 
 		this.updateCategoryProgress();
 
@@ -239,6 +243,10 @@ export class GettingStartedPage extends Disposable {
 		} else {
 			tasksSlide.classList.add('next');
 		}
+	}
+
+	private layout() {
+		this.scrollbar?.scanDomNode();
 	}
 
 	private updateCategoryProgress() {
