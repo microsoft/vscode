@@ -25,7 +25,6 @@ import { IWorkbenchLayoutService, Parts } from 'vs/workbench/services/layout/bro
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { IWorkspaceContextService, WorkbenchState, IWorkspaceFolder } from 'vs/platform/workspace/common/workspace';
 import { IEditorService } from 'vs/workbench/services/editor/common/editorService';
-import { parse, getFirstFrame } from 'vs/base/common/console';
 import { IDialogService } from 'vs/platform/dialogs/common/dialogs';
 import { INotificationService } from 'vs/platform/notification/common/notification';
 import { IAction, Action } from 'vs/base/common/actions';
@@ -147,16 +146,6 @@ export class DebugService implements IDebugService {
 			const session = this.model.getSession(event.sessionId);
 			if (session && session.subId === event.subId) {
 				session.disconnect();
-			}
-		}));
-		this.toDispose.push(this.extensionHostDebugService.onLogToSession(event => {
-			const session = this.model.getSession(event.sessionId, true);
-			if (session) {
-				// extension logged output -> show it in REPL
-				const sev = event.log.severity === 'warn' ? severity.Warning : event.log.severity === 'error' ? severity.Error : severity.Info;
-				const { args, stack } = parse(event.log);
-				const frame = !!stack ? getFirstFrame(stack) : undefined;
-				session.logToRepl(sev, args, frame);
 			}
 		}));
 
@@ -290,6 +279,11 @@ export class DebugService implements IDebugService {
 			await this.extensionService.activateByEvent('onDebug');
 			if (!options?.parentSession) {
 				await this.editorService.saveAll();
+				const activeEditor = this.editorService.activeEditorPane;
+				if (activeEditor) {
+					// Make sure to save the active editor in case it is in untitled file it wont be saved as part of saveAll #111850
+					await this.editorService.save({ editor: activeEditor.input, groupId: activeEditor.group.id });
+				}
 			}
 			await this.configurationService.reloadConfiguration(launch ? launch.workspace : undefined);
 			await this.extensionService.whenInstalledExtensionsRegistered();

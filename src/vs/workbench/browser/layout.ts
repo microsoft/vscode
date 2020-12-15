@@ -652,7 +652,7 @@ export abstract class Layout extends Disposable implements IWorkbenchLayoutServi
 
 		// Restore editors
 		restorePromises.push((async () => {
-			mark('willRestoreEditors');
+			mark('code/willRestoreEditors');
 
 			// first ensure the editor part is restored
 			await this.editorGroupService.whenRestored;
@@ -669,13 +669,13 @@ export abstract class Layout extends Disposable implements IWorkbenchLayoutServi
 				await this.editorService.openEditors(editors);
 			}
 
-			mark('didRestoreEditors');
+			mark('code/didRestoreEditors');
 		})());
 
 		// Restore default views
 		const restoreDefaultViewsPromise = (async () => {
 			if (this.state.views.defaults?.length) {
-				mark('willOpenDefaultViews');
+				mark('code/willOpenDefaultViews');
 
 				let locationsRestored: { id: string; order: number }[] = [];
 
@@ -733,7 +733,7 @@ export abstract class Layout extends Disposable implements IWorkbenchLayoutServi
 					this.state.panel.panelToRestore = locationsRestored[ViewContainerLocation.Panel].id;
 				}
 
-				mark('didOpenDefaultViews');
+				mark('code/didOpenDefaultViews');
 			}
 		})();
 		restorePromises.push(restoreDefaultViewsPromise);
@@ -748,14 +748,14 @@ export abstract class Layout extends Disposable implements IWorkbenchLayoutServi
 				return;
 			}
 
-			mark('willRestoreViewlet');
+			mark('code/willRestoreViewlet');
 
 			const viewlet = await this.viewletService.openViewlet(this.state.sideBar.viewletToRestore);
 			if (!viewlet) {
 				await this.viewletService.openViewlet(this.viewDescriptorService.getDefaultViewContainer(ViewContainerLocation.Sidebar)?.id); // fallback to default viewlet as needed
 			}
 
-			mark('didRestoreViewlet');
+			mark('code/didRestoreViewlet');
 		})());
 
 		// Restore Panel
@@ -768,14 +768,14 @@ export abstract class Layout extends Disposable implements IWorkbenchLayoutServi
 				return;
 			}
 
-			mark('willRestorePanel');
+			mark('code/willRestorePanel');
 
 			const panel = await this.panelService.openPanel(this.state.panel.panelToRestore!);
 			if (!panel) {
 				await this.panelService.openPanel(Registry.as<PanelRegistry>(PanelExtensions.Panels).getDefaultPanelId()); // fallback to default panel as needed
 			}
 
-			mark('didRestorePanel');
+			mark('code/didRestorePanel');
 		})());
 
 		// Restore Zen Mode
@@ -1410,7 +1410,29 @@ export abstract class Layout extends Disposable implements IWorkbenchLayoutServi
 
 		// If panel part becomes visible, show last active panel or default panel
 		else if (!hidden && !this.panelService.getActivePanel()) {
-			const panelToOpen = this.panelService.getLastActivePanelId();
+			let panelToOpen: string | undefined = this.panelService.getLastActivePanelId();
+			const hasViews = (id: string): boolean => {
+				const viewContainer = this.viewDescriptorService.getViewContainerById(id);
+				if (!viewContainer) {
+					return false;
+				}
+
+				const viewContainerModel = this.viewDescriptorService.getViewContainerModel(viewContainer);
+				if (!viewContainerModel) {
+					return false;
+				}
+
+				return viewContainerModel.activeViewDescriptors.length >= 1;
+			};
+
+			// verify that the panel we try to open has views before we default to it
+			// otherwise fall back to any view that has views still refs #111463
+			if (!panelToOpen || !hasViews(panelToOpen)) {
+				panelToOpen = this.viewDescriptorService
+					.getViewContainersByLocation(ViewContainerLocation.Panel)
+					.find(viewContainer => hasViews(viewContainer.id))?.id;
+			}
+
 			if (panelToOpen) {
 				const focus = !skipLayout;
 				this.panelService.openPanel(panelToOpen, focus);

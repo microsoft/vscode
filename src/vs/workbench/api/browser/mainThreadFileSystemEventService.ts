@@ -11,6 +11,8 @@ import { localize } from 'vs/nls';
 import { Extensions, IConfigurationRegistry } from 'vs/platform/configuration/common/configurationRegistry';
 import { Registry } from 'vs/platform/registry/common/platform';
 import { IWorkingCopyFileService } from 'vs/workbench/services/workingCopy/common/workingCopyFileService';
+import { reviveWorkspaceEditDto2 } from 'vs/workbench/api/browser/mainThreadEditors';
+import { IBulkEditService } from 'vs/editor/browser/services/bulkEditService';
 
 @extHostCustomer
 export class MainThreadFileSystemEventService {
@@ -20,7 +22,8 @@ export class MainThreadFileSystemEventService {
 	constructor(
 		extHostContext: IExtHostContext,
 		@IFileService fileService: IFileService,
-		@IWorkingCopyFileService workingCopyFileService: IWorkingCopyFileService
+		@IWorkingCopyFileService workingCopyFileService: IWorkingCopyFileService,
+		@IBulkEditService bulkEditService: IBulkEditService
 	) {
 
 		const proxy = extHostContext.getProxy(ExtHostContext.ExtHostFileSystemEventService);
@@ -56,9 +59,17 @@ export class MainThreadFileSystemEventService {
 		// BEFORE file operation
 		this._listener.add(workingCopyFileService.addFileOperationParticipant({
 			participate: async (files, operation, undoRedoGroupId, isUndoing, _progress, timeout, token) => {
-				if (!isUndoing) {
-					return proxy.$onWillRunFileOperation(operation, files, undoRedoGroupId, timeout, token);
+				if (isUndoing) {
+					return;
 				}
+				const data = await proxy.$onWillRunFileOperation(operation, files, timeout, token);
+				const edit = reviveWorkspaceEditDto2(data);
+				await bulkEditService.apply(edit, {
+					undoRedoGroupId,
+					// this is a nested workspace edit, e.g one from a onWill-handler and for now we need to forcefully suppress
+					// refactor previewing, see: https://github.com/microsoft/vscode/issues/111873#issuecomment-738739852
+					suppressPreview: true
+				});
 			}
 		}));
 

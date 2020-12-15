@@ -327,44 +327,6 @@ export class AddFunctionBreakpointAction extends AbstractDebugAction {
 	}
 }
 
-export class AddWatchExpressionAction extends AbstractDebugAction {
-	static readonly ID = 'workbench.debug.viewlet.action.addWatchExpression';
-	static readonly LABEL = nls.localize('addWatchExpression', "Add Expression");
-
-	constructor(id: string, label: string, @IDebugService debugService: IDebugService, @IKeybindingService keybindingService: IKeybindingService) {
-		super(id, label, 'debug-action ' + ThemeIcon.asClassName(icons.watchExpressionsAdd), debugService, keybindingService);
-		this._register(this.debugService.getModel().onDidChangeWatchExpressions(() => this.updateEnablement()));
-		this._register(this.debugService.getViewModel().onDidSelectExpression(() => this.updateEnablement()));
-	}
-
-	async run(): Promise<any> {
-		this.debugService.addWatchExpression();
-	}
-
-	protected isEnabled(_: State): boolean {
-		const focusedExpression = this.debugService.getViewModel().getSelectedExpression();
-		return this.debugService.getModel().getWatchExpressions().every(we => !!we.name && we !== focusedExpression);
-	}
-}
-
-export class RemoveAllWatchExpressionsAction extends AbstractDebugAction {
-	static readonly ID = 'workbench.debug.viewlet.action.removeAllWatchExpressions';
-	static readonly LABEL = nls.localize('removeAllWatchExpressions', "Remove All Expressions");
-
-	constructor(id: string, label: string, @IDebugService debugService: IDebugService, @IKeybindingService keybindingService: IKeybindingService) {
-		super(id, label, 'debug-action ' + ThemeIcon.asClassName(icons.watchExpressionsRemoveAll), debugService, keybindingService);
-		this._register(this.debugService.getModel().onDidChangeWatchExpressions(() => this.updateEnablement()));
-	}
-
-	async run(): Promise<any> {
-		this.debugService.removeWatchExpressions();
-	}
-
-	protected isEnabled(_: State): boolean {
-		return this.debugService.getModel().getWatchExpressions().length > 0;
-	}
-}
-
 export class FocusSessionAction extends AbstractDebugAction {
 	static readonly ID = 'workbench.action.debug.focusProcess';
 	static readonly LABEL = nls.localize('focusSession', "Focus Session");

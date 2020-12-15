@@ -500,12 +500,12 @@ export class CommandCenter {
 
 	@command('git.clone')
 	async clone(url?: string, parentPath?: string): Promise<void> {
-		this.cloneRepository(url, parentPath);
+		await this.cloneRepository(url, parentPath);
 	}
 
 	@command('git.cloneRecursive')
 	async cloneRecursive(url?: string, parentPath?: string): Promise<void> {
-		this.cloneRepository(url, parentPath, { recursive: true });
+		await this.cloneRepository(url, parentPath, { recursive: true });
 	}
 
 	@command('git.init')

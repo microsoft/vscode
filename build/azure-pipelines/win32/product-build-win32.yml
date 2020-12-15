@@ -79,6 +79,9 @@ steps:
       $env:npm_config_arch="$(VSCODE_ARCH)"
       $env:CHILD_CONCURRENCY="1"
       retry { exec { yarn --frozen-lockfile } }
+    env:
+      ELECTRON_SKIP_BINARY_DOWNLOAD: 1
+      PLAYWRIGHT_SKIP_BROWSER_DOWNLOAD: 1
     displayName: Install dependencies
     condition: and(succeeded(), ne(variables['CacheRestored'], 'true'))
 
@@ -107,10 +110,17 @@ steps:
       $ErrorActionPreference = "Stop"
       $env:VSCODE_MIXIN_PASSWORD="$(github-distro-mixin-password)"
       exec { yarn gulp "vscode-win32-$(VSCODE_ARCH)-min-ci" }
-      exec { yarn gulp "vscode-win32-$(VSCODE_ARCH)-code-helper" }
-      exec { yarn gulp "vscode-win32-$(VSCODE_ARCH)-inno-updater" }
       echo "##vso[task.setvariable variable=CodeSigningFolderPath]$(agent.builddirectory)/VSCode-win32-$(VSCODE_ARCH)"
     displayName: Build
+
+  - powershell: |
+      . build/azure-pipelines/win32/exec.ps1
+      $ErrorActionPreference = "Stop"
+      $env:VSCODE_MIXIN_PASSWORD="$(github-distro-mixin-password)"
+      exec { yarn gulp "vscode-win32-$(VSCODE_ARCH)-code-helper" }
+      exec { yarn gulp "vscode-win32-$(VSCODE_ARCH)-inno-updater" }
+    displayName: Prepare Package
+    condition: and(succeeded(), ne(variables['VSCODE_PUBLISH'], 'false'))
 
   - powershell: |
       . build/azure-pipelines/win32/exec.ps1
@@ -121,6 +131,13 @@ steps:
       echo "##vso[task.setvariable variable=CodeSigningFolderPath]$(CodeSigningFolderPath),$(agent.builddirectory)/vscode-reh-win32-$(VSCODE_ARCH)"
     displayName: Build Server
     condition: and(succeeded(), ne(variables['VSCODE_ARCH'], 'arm64'))
+
+  - powershell: |
+      . build/azure-pipelines/win32/exec.ps1
+      $ErrorActionPreference = "Stop"
+      exec { yarn npm-run-all -lp "electron $(VSCODE_ARCH)" "playwright-install" }
+    displayName: Download Electron and Playwright
+    condition: and(succeeded(), eq(variables['VSCODE_STEP_ON_IT'], 'false'), ne(variables['VSCODE_ARCH'], 'arm64'))
 
   - powershell: |
       . build/azure-pipelines/win32/exec.ps1
@@ -236,6 +253,7 @@ steps:
           }
         ]
       SessionTimeout: 120
+    condition: and(succeeded(), ne(variables['VSCODE_PUBLISH'], 'false'))
 
   - task: NuGetCommand@2
     displayName: Install ESRPClient.exe
@@ -245,11 +263,13 @@ steps:
       nugetConfigPath: 'build\azure-pipelines\win32\ESRPClient\NuGet.config'
       externalFeedCredentials: "ESRP Nuget"
       restoreDirectory: packages
+    condition: and(succeeded(), ne(variables['VSCODE_PUBLISH'], 'false'))
 
   - task: ESRPImportCertTask@1
     displayName: Import ESRP Request Signing Certificate
     inputs:
       ESRP: "ESRP CodeSign"
+    condition: and(succeeded(), ne(variables['VSCODE_PUBLISH'], 'false'))
 
   - task: PowerShell@2
     inputs:
@@ -257,6 +277,7 @@ steps:
       filePath: .\build\azure-pipelines\win32\import-esrp-auth-cert.ps1
       arguments: "$(ESRP-SSL-AADAuth)"
     displayName: Import ESRP Auth Certificate
+    condition: and(succeeded(), ne(variables['VSCODE_PUBLISH'], 'false'))
 
   - powershell: |
       . build/azure-pipelines/win32/exec.ps1
@@ -266,6 +287,7 @@ steps:
       $env:VSCODE_MIXIN_PASSWORD="$(github-distro-mixin-password)"
       .\build\azure-pipelines\win32\publish.ps1
     displayName: Publish
+    condition: and(succeeded(), ne(variables['VSCODE_PUBLISH'], 'false'))
 
   - task: ms.vss-governance-buildtask.governance-build-task-component-detection.ComponentGovernanceComponentDetection@0
     displayName: "Component Detection"

@@ -45,7 +45,7 @@ import { IListVirtualDelegate } from 'vs/base/browser/ui/list/list';
 import { IAccessibilityService } from 'vs/platform/accessibility/common/accessibility';
 import { KeyCode } from 'vs/base/common/keyCodes';
 import { editorLightBulbForeground, editorLightBulbAutoFixForeground } from 'vs/platform/theme/common/colorRegistry';
-import { ViewPane, IViewPaneOptions } from 'vs/workbench/browser/parts/views/viewPaneContainer';
+import { ViewPane, IViewPaneOptions } from 'vs/workbench/browser/parts/views/viewPane';
 import { IViewDescriptorService } from 'vs/workbench/common/views';
 import { IOpenerService } from 'vs/platform/opener/common/opener';
 import { Codicon } from 'vs/base/common/codicons';
@@ -219,7 +219,7 @@ export class MarkersView extends ViewPane implements IMarkerFilterController {
 						id: MenuId.ViewTitle,
 						when: ContextKeyEqualsExpr.create('view', that.id),
 						group: 'navigation',
-						order: Number.MAX_SAFE_INTEGER,
+						order: 2,
 					},
 					icon: Codicon.collapseAll
 				});

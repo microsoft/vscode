@@ -16,7 +16,6 @@ import { Widget } from 'vs/base/browser/ui/widget';
 import { AnchorPosition } from 'vs/base/browser/ui/contextview/contextview';
 import { IOpenerService } from 'vs/platform/opener/common/opener';
 import { IWorkbenchLayoutService } from 'vs/workbench/services/layout/browser/layoutService';
-import { MarkdownString, MarkdownStringTextNewlineStyle } from 'vs/base/common/htmlContent';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { MarkdownRenderer } from 'vs/editor/browser/core/markdownRenderer';
 
@@ -82,25 +81,29 @@ export class HoverWidget extends Widget {
 
 		const rowElement = $('div.hover-row.markdown-hover');
 		const contentsElement = $('div.hover-contents');
-		const markdown = typeof options.text === 'string' ? new MarkdownString().appendText(options.text, MarkdownStringTextNewlineStyle.Break) : options.text;
+		if (typeof options.text === 'string') {
+			contentsElement.textContent = options.text;
+			contentsElement.style.whiteSpace = 'pre-wrap';
+		} else {
+			const markdown = options.text;
+			const mdRenderer = this._instantiationService.createInstance(
+				MarkdownRenderer,
+				{ codeBlockFontFamily: this._configurationService.getValue<IEditorOptions>('editor').fontFamily || EDITOR_FONT_DEFAULTS.fontFamily }
+			);
 
-		const mdRenderer = this._instantiationService.createInstance(
-			MarkdownRenderer,
-			{ codeBlockFontFamily: this._configurationService.getValue<IEditorOptions>('editor').fontFamily || EDITOR_FONT_DEFAULTS.fontFamily }
-		);
-
-		const { element } = mdRenderer.render(markdown, {
-			actionHandler: {
-				callback: (content) => this._linkHandler(content),
-				disposeables: this._messageListeners
-			},
-			asyncRenderCallback: () => {
-				contentsElement.classList.add('code-hover-contents');
-				// This changes the dimensions of the hover so trigger a layout
-				this._onRequestLayout.fire();
-			}
-		});
-		contentsElement.appendChild(element);
+			const { element } = mdRenderer.render(markdown, {
+				actionHandler: {
+					callback: (content) => this._linkHandler(content),
+					disposeables: this._messageListeners
+				},
+				asyncRenderCallback: () => {
+					contentsElement.classList.add('code-hover-contents');
+					// This changes the dimensions of the hover so trigger a layout
+					this._onRequestLayout.fire();
+				}
+			});
+			contentsElement.appendChild(element);
+		}
 		rowElement.appendChild(contentsElement);
 		this._hover.contentsDomNode.appendChild(rowElement);
 

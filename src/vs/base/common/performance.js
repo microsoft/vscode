@@ -9,64 +9,50 @@
 
 function _factory(sharedObj) {
 
-	sharedObj.MonacoPerformanceMarks = sharedObj.MonacoPerformanceMarks || [];
-
-	const _dataLen = 2;
-	const _nativeMark = typeof performance === 'object' && typeof performance.mark === 'function' ? performance.mark.bind(performance) : () => { };
-
-	function importEntries(entries) {
-		sharedObj.MonacoPerformanceMarks.splice(0, 0, ...entries);
-	}
-
-	function exportEntries() {
-		return sharedObj.MonacoPerformanceMarks.slice(0);
-	}
-
-	function getEntries() {
-		const result = [];
-		const entries = sharedObj.MonacoPerformanceMarks;
-		for (let i = 0; i < entries.length; i += _dataLen) {
-			result.push({
-				name: entries[i],
-				startTime: entries[i + 1],
+	if (typeof performance === 'object' && typeof performance.mark === 'function') {
+		// in a browser context, reuse performance-util
+		function mark(name) {
+			performance.mark(name);
+		}
+		function getMarks() {
+			let timeOrigin = performance.timeOrigin;
+			if (!timeOrigin) {
+				// polyfill for Safari
+				const entry = performance.timing;
+				timeOrigin = entry.navigationStart || entry.redirectStart || entry.fetchStart;
+			}
+			return performance.getEntriesByType('mark').map(entry => {
+				return {
+					name: entry.name,
+					startTime: Math.round(timeOrigin + entry.startTime)
+				};
 			});
 		}
-		return result;
-	}
 
-	function getDuration(from, to) {
-		const entries = sharedObj.MonacoPerformanceMarks;
-		let target = to;
-		let endIndex = 0;
-		for (let i = entries.length - _dataLen; i >= 0; i -= _dataLen) {
-			if (entries[i] === target) {
-				if (target === to) {
-					// found `to` (end of interval)
-					endIndex = i;
-					target = from;
-				} else {
-					// found `from` (start of interval)
-					return entries[endIndex + 1] - entries[i + 1];
-				}
-			}
+		return { mark, getMarks };
+
+	} else {
+		// node.js context, use mock and a shared obj that's share between module systems
+		sharedObj.MonacoPerformanceMarks = sharedObj.MonacoPerformanceMarks || [];
+
+		function mark(name) {
+			sharedObj.MonacoPerformanceMarks.push(name, Date.now());
 		}
-		return 0;
+
+		function getMarks() {
+			const result = [];
+			const entries = sharedObj.MonacoPerformanceMarks;
+			for (let i = 0; i < entries.length; i += 2) {
+				result.push({
+					name: entries[i],
+					startTime: entries[i + 1],
+				});
+			}
+			return result;
+		}
+
+		return { mark, getMarks };
 	}
-
-	function mark(name) {
-		sharedObj.MonacoPerformanceMarks.push(name, Date.now());
-		_nativeMark(name);
-	}
-
-	const exports = {
-		mark: mark,
-		getEntries: getEntries,
-		getDuration: getDuration,
-		importEntries: importEntries,
-		exportEntries: exportEntries
-	};
-
-	return exports;
 }
 
 // This module can be loaded in an amd and commonjs-context.

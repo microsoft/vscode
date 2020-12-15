@@ -25,7 +25,7 @@ import { IDecorationsService } from 'vs/workbench/services/decorations/browser/d
 import { WorkbenchCompressibleAsyncDataTree } from 'vs/platform/list/browser/listService';
 import { DelayedDragHandler } from 'vs/base/browser/dnd';
 import { IEditorService, SIDE_GROUP, ACTIVE_GROUP } from 'vs/workbench/services/editor/common/editorService';
-import { IViewPaneOptions, ViewPane } from 'vs/workbench/browser/parts/views/viewPaneContainer';
+import { IViewPaneOptions, ViewPane } from 'vs/workbench/browser/parts/views/viewPane';
 import { ILabelService } from 'vs/platform/label/common/label';
 import { ExplorerDelegate, ExplorerDataSource, FilesRenderer, ICompressedNavigationController, FilesFilter, FileSorter, FileDragAndDrop, ExplorerCompressionDelegate, isCompressedFolderName } from 'vs/workbench/contrib/files/browser/views/explorerViewer';
 import { IThemeService, IFileIconTheme } from 'vs/platform/theme/common/themeService';
@@ -635,7 +635,7 @@ export class ExplorerView extends ViewPane {
 
 		const initialInputSetup = !this.tree.getInput();
 		if (initialInputSetup) {
-			perf.mark('willResolveExplorer');
+			perf.mark('code/willResolveExplorer');
 		}
 		const roots = this.explorerService.roots;
 		let input: ExplorerItem | ExplorerItem[] = roots[0];
@@ -675,7 +675,7 @@ export class ExplorerView extends ViewPane {
 				}
 			}
 			if (initialInputSetup) {
-				perf.mark('didResolveExplorer');
+				perf.mark('code/didResolveExplorer');
 			}
 		});
 

@@ -104,7 +104,7 @@
   {
     "kind": 2,
     "language": "github-issues",
-    "value": "$REPOS $MILESTONE label:candidate",
+    "value": "$REPOS $MILESTONE is:open label:candidate",
     "editable": true
   }
 ]

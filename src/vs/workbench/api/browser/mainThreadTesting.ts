@@ -23,6 +23,10 @@ export class MainThreadTesting extends Disposable implements MainThreadTestingSh
 		this.proxy = extHostContext.getProxy(ExtHostContext.ExtHostTesting);
 		this._register(this.testService.onShouldSubscribe(args => this.proxy.$subscribeToTests(args.resource, args.uri)));
 		this._register(this.testService.onShouldUnsubscribe(args => this.proxy.$unsubscribeFromTests(args.resource, args.uri)));
+
+		for (const { resource, uri } of this.testService.subscriptions) {
+			this.proxy.$subscribeToTests(resource, uri);
+		}
 	}
 
 	/**

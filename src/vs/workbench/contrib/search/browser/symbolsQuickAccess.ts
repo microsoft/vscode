@@ -75,11 +75,11 @@ export class SymbolsQuickAccessProvider extends PickerQuickAccessProvider<ISymbo
 	}
 
 	private get configuration() {
-		const editorConfig = this.configurationService.getValue<IWorkbenchEditorConfiguration>().workbench.editor;
+		const editorConfig = this.configurationService.getValue<IWorkbenchEditorConfiguration>().workbench?.editor;
 
 		return {
-			openEditorPinned: !editorConfig.enablePreviewFromQuickOpen,
-			openSideBySideDirection: editorConfig.openSideBySideDirection
+			openEditorPinned: !editorConfig?.enablePreviewFromQuickOpen || !editorConfig?.enablePreview,
+			openSideBySideDirection: editorConfig?.openSideBySideDirection
 		};
 	}
 
@@ -251,7 +251,7 @@ export class SymbolsQuickAccessProvider extends PickerQuickAccessProvider<ISymbo
 					pinned: options.keyMods.alt || options.forcePinned || this.configuration.openEditorPinned,
 					selection: symbolToOpen.location.range ? Range.collapseToStart(symbolToOpen.location.range) : undefined
 				}
-			}, options.keyMods.ctrlCmd || options?.forceOpenSideBySide ? SIDE_GROUP : ACTIVE_GROUP);
+			}, options.keyMods.ctrlCmd || (this.configuration.openEditorPinned && options.keyMods.alt) || options?.forceOpenSideBySide ? SIDE_GROUP : ACTIVE_GROUP);
 		}
 	}
 

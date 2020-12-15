@@ -73,6 +73,7 @@ const indentationFilter = [
 	'!**/codicon/**',
 	'!**/fixtures/**',
 	'!**/lib/**',
+	'!extensions/**/dist/**',
 	'!extensions/**/out/**',
 	'!extensions/**/snippets/**',
 	'!extensions/**/syntaxes/**',
