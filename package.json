@@ -45,7 +45,8 @@
     "compile-web": "gulp compile-web --max_old_space_size=4095",
     "watch-web": "gulp watch-web --max_old_space_size=4095",
     "eslint": "eslint -c .eslintrc.json --rulesdir ./build/lib/eslint --ext .ts --ext .js ./src/vs ./extensions",
-    "electron-rebuild": "electron-rebuild --arch=arm64 --force --version=11.0.5"
+    "electron-rebuild": "electron-rebuild --arch=arm64 --force --version=11.0.5",
+    "playwright-install": "node node_modules/playwright/install.js"
   },
   "dependencies": {
     "applicationinsights": "1.0.8",
