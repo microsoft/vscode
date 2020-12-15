@@ -22,7 +22,7 @@ export enum PropertyFoldingState {
 	Collapsed
 }
 
-export abstract class CellDiffViewModelBase extends Disposable {
+export abstract class DiffElementViewModelBase extends Disposable {
 	public metadataFoldingState: PropertyFoldingState;
 	public outputFoldingState: PropertyFoldingState;
 	protected _layoutInfoEmitter = new Emitter<CellDiffViewModelLayoutChangeEvent>();
@@ -143,7 +143,7 @@ export abstract class CellDiffViewModelBase extends Disposable {
 	}
 }
 
-export class SideBySideCellDiffViewModel extends CellDiffViewModelBase {
+export class SideBySideDiffElementViewModel extends DiffElementViewModelBase {
 	protected _originalOutputCollection: number[] = [];
 	protected _originalOutputsTop: PrefixSumComputer | null = null;
 	protected _modifiedOutputCollection: number[] = [];
@@ -296,7 +296,7 @@ export class SideBySideCellDiffViewModel extends CellDiffViewModelBase {
 	}
 }
 
-export class SingleSideCellDiffViewModel extends CellDiffViewModelBase {
+export class SingleSideDiffElementViewModel extends DiffElementViewModelBase {
 	protected _outputCollection: number[] = [];
 	protected _outputsTop: PrefixSumComputer | null = null;
 

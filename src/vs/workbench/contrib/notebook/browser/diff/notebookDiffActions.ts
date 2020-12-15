@@ -8,7 +8,7 @@ import { localize } from 'vs/nls';
 import { Action2, MenuId, registerAction2 } from 'vs/platform/actions/common/actions';
 import { ServicesAccessor } from 'vs/platform/instantiation/common/instantiation';
 import { ActiveEditorContext, viewColumnToEditorGroup } from 'vs/workbench/common/editor';
-import { CellDiffViewModelBase } from 'vs/workbench/contrib/notebook/browser/diff/celllDiffViewModel';
+import { DiffElementViewModelBase } from 'vs/workbench/contrib/notebook/browser/diff/diffElementViewModel';
 import { NotebookTextDiffEditor } from 'vs/workbench/contrib/notebook/browser/diff/notebookTextDiffEditor';
 import { NotebookDiffEditorInput } from 'vs/workbench/contrib/notebook/browser/notebookDiffEditorInput';
 import { openAsTextIcon, revertIcon } from 'vs/workbench/contrib/notebook/browser/notebookIcons';
@@ -65,7 +65,7 @@ registerAction2(class extends Action2 {
 			}
 		);
 	}
-	run(accessor: ServicesAccessor, context?: { cell: CellDiffViewModelBase }) {
+	run(accessor: ServicesAccessor, context?: { cell: DiffElementViewModelBase }) {
 		if (!context) {
 			return;
 		}
@@ -95,7 +95,7 @@ registerAction2(class extends Action2 {
 			}
 		);
 	}
-	run(accessor: ServicesAccessor, context?: { cell: CellDiffViewModelBase }) {
+	run(accessor: ServicesAccessor, context?: { cell: DiffElementViewModelBase }) {
 		if (!context) {
 			return;
 		}
@@ -125,7 +125,7 @@ registerAction2(class extends Action2 {
 			}
 		);
 	}
-	run(accessor: ServicesAccessor, context?: { cell: CellDiffViewModelBase }) {
+	run(accessor: ServicesAccessor, context?: { cell: DiffElementViewModelBase }) {
 		if (!context) {
 			return;
 		}

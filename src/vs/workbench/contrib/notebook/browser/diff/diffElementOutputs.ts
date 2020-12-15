@@ -6,7 +6,7 @@
 import * as DOM from 'vs/base/browser/dom';
 import { Disposable, DisposableStore } from 'vs/base/common/lifecycle';
 import { IOpenerService } from 'vs/platform/opener/common/opener';
-import { CellDiffViewModelBase, SideBySideCellDiffViewModel, SingleSideCellDiffViewModel } from 'vs/workbench/contrib/notebook/browser/diff/celllDiffViewModel';
+import { DiffElementViewModelBase, SideBySideDiffElementViewModel, SingleSideDiffElementViewModel } from 'vs/workbench/contrib/notebook/browser/diff/diffElementViewModel';
 import { INotebookTextDiffEditor } from 'vs/workbench/contrib/notebook/browser/diff/common';
 import { ICellOutputViewModel, IRenderOutput, outputHasDynamicHeight, RenderOutputType } from 'vs/workbench/contrib/notebook/browser/notebookBrowser';
 import { getResizesObserver } from 'vs/workbench/contrib/notebook/browser/view/renderers/cellWidgets';
@@ -26,7 +26,7 @@ export class OutputElement extends Disposable {
 		private notebookEditor: INotebookTextDiffEditor,
 		private notebookTextModel: NotebookTextModel,
 		private notebookService: INotebookService,
-		private cellViewModel: CellDiffViewModelBase,
+		private cellViewModel: DiffElementViewModelBase,
 		private modified: boolean,
 
 		private cell: NotebookCellTextModel,
@@ -86,7 +86,7 @@ export class OutputElement extends Disposable {
 				this.cell,
 				result,
 				this.getOutputOffsetInContainer(index),
-				this.cellViewModel instanceof SideBySideCellDiffViewModel
+				this.cellViewModel instanceof SideBySideDiffElementViewModel
 					? this.modified
 					: this.cellViewModel.type === 'insert'
 			);
@@ -133,38 +133,38 @@ export class OutputElement extends Disposable {
 	}
 
 	getCellOutputCurrentIndex() {
-		if (this.cellViewModel instanceof SideBySideCellDiffViewModel) {
+		if (this.cellViewModel instanceof SideBySideDiffElementViewModel) {
 			if (this.modified) {
 				return this.cellViewModel.modified.outputs.indexOf(this.output.model);
 			} else {
 				return this.cellViewModel.original.outputs.indexOf(this.output.model);
 			}
 		} else {
-			return (this.cellViewModel as SingleSideCellDiffViewModel).cellTextModel!.outputs.indexOf(this.output.model);
+			return (this.cellViewModel as SingleSideDiffElementViewModel).cellTextModel!.outputs.indexOf(this.output.model);
 		}
 	}
 
 	updateHeight(index: number, height: number) {
-		if (this.cellViewModel instanceof SideBySideCellDiffViewModel) {
+		if (this.cellViewModel instanceof SideBySideDiffElementViewModel) {
 			this.cellViewModel.updateOutputHeight(!this.modified, index, height);
 		} else {
-			(this.cellViewModel as SingleSideCellDiffViewModel).updateOutputHeight(index, height);
+			(this.cellViewModel as SingleSideDiffElementViewModel).updateOutputHeight(index, height);
 		}
 	}
 
 	getOutputOffsetInContainer(index: number) {
-		if (this.cellViewModel instanceof SideBySideCellDiffViewModel) {
+		if (this.cellViewModel instanceof SideBySideDiffElementViewModel) {
 			return this.cellViewModel.getOutputOffsetInContainer(!this.modified, index);
 		} else {
-			return (this.cellViewModel as SingleSideCellDiffViewModel).getOutputOffsetInContainer(index);
+			return (this.cellViewModel as SingleSideDiffElementViewModel).getOutputOffsetInContainer(index);
 		}
 	}
 
 	getOutputOffsetInCell(index: number) {
-		if (this.cellViewModel instanceof SideBySideCellDiffViewModel) {
+		if (this.cellViewModel instanceof SideBySideDiffElementViewModel) {
 			return this.cellViewModel.getOutputOffsetInCell(!this.modified, index);
 		} else {
-			return (this.cellViewModel as SingleSideCellDiffViewModel).getOutputOffsetInCell(index);
+			return (this.cellViewModel as SingleSideDiffElementViewModel).getOutputOffsetInCell(index);
 		}
 	}
 }
@@ -175,7 +175,7 @@ export class OutputContainer extends Disposable {
 	constructor(
 		private _editor: INotebookTextDiffEditor,
 		private notebookTextModel: NotebookTextModel,
-		private cellViewModel: CellDiffViewModelBase,
+		private cellViewModel: DiffElementViewModelBase,
 		private cell: NotebookCellTextModel,
 		private modified: boolean,
 		private outputContainer: HTMLElement,
@@ -197,11 +197,11 @@ export class OutputContainer extends Disposable {
 			this.outputEntries.forEach((value, key) => {
 				const index = cell.outputs.indexOf(key.model);
 				if (index >= 0) {
-					if (this.cellViewModel instanceof SideBySideCellDiffViewModel) {
+					if (this.cellViewModel instanceof SideBySideDiffElementViewModel) {
 						const top = this.cellViewModel.getOutputOffsetInContainer(!this.modified, index);
 						value.domNode.style.top = `${top}px`;
 					} else {
-						const top = (this.cellViewModel as SingleSideCellDiffViewModel).getOutputOffsetInContainer(index);
+						const top = (this.cellViewModel as SingleSideDiffElementViewModel).getOutputOffsetInContainer(index);
 						value.domNode.style.top = `${top}px`;
 					}
 				}

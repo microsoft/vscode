@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { IInsetRenderOutput, NotebookLayoutInfo } from 'vs/workbench/contrib/notebook/browser/notebookBrowser';
-import { CellDiffViewModelBase } from 'vs/workbench/contrib/notebook/browser/diff/celllDiffViewModel';
+import { DiffElementViewModelBase } from 'vs/workbench/contrib/notebook/browser/diff/diffElementViewModel';
 import { Event } from 'vs/base/common/event';
 import { BareFontInfo } from 'vs/editor/common/config/fontInfo';
 import { DisposableStore } from 'vs/base/common/lifecycle';
@@ -17,12 +17,12 @@ import { NotebookCellTextModel } from 'vs/workbench/contrib/notebook/common/mode
 
 export interface INotebookTextDiffEditor {
 	readonly textModel?: NotebookTextModel;
-	onMouseUp: Event<{ readonly event: MouseEvent; readonly target: CellDiffViewModelBase; }>;
+	onMouseUp: Event<{ readonly event: MouseEvent; readonly target: DiffElementViewModelBase; }>;
 	getOverflowContainerDomNode(): HTMLElement;
 	getLayoutInfo(): NotebookLayoutInfo;
-	layoutNotebookCell(cell: CellDiffViewModelBase, height: number): void;
+	layoutNotebookCell(cell: DiffElementViewModelBase, height: number): void;
 	getOutputRenderer(): OutputRenderer;
-	createInset(cellDiffViewModel: CellDiffViewModelBase, cellTextModel: NotebookCellTextModel, output: IInsetRenderOutput, offset: number, rightEditor: boolean): void;
+	createInset(cellDiffViewModel: DiffElementViewModelBase, cellTextModel: NotebookCellTextModel, output: IInsetRenderOutput, offset: number, rightEditor: boolean): void;
 }
 
 export interface CellDiffSingleSideRenderTemplate {

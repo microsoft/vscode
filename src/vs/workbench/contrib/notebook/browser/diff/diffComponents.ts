@@ -7,7 +7,7 @@ import * as DOM from 'vs/base/browser/dom';
 import { Disposable, DisposableStore } from 'vs/base/common/lifecycle';
 import { IDiffEditorOptions, IEditorOptions } from 'vs/editor/common/config/editorOptions';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
-import { CellDiffViewModelBase, getFormatedMetadataJSON, PropertyFoldingState, SideBySideCellDiffViewModel, SingleSideCellDiffViewModel } from 'vs/workbench/contrib/notebook/browser/diff/celllDiffViewModel';
+import { DiffElementViewModelBase, getFormatedMetadataJSON, PropertyFoldingState, SideBySideDiffElementViewModel, SingleSideDiffElementViewModel } from 'vs/workbench/contrib/notebook/browser/diff/diffElementViewModel';
 import { CellDiffSideBySideRenderTemplate, CellDiffSingleSideRenderTemplate, DIFF_CELL_MARGIN, INotebookTextDiffEditor } from 'vs/workbench/contrib/notebook/browser/diff/common';
 import { EDITOR_BOTTOM_PADDING } from 'vs/workbench/contrib/notebook/browser/constants';
 import { CodeEditorWidget } from 'vs/editor/browser/widget/codeEditorWidget';
@@ -31,7 +31,7 @@ import { getEditorTopPadding } from 'vs/workbench/contrib/notebook/browser/noteb
 import { ThemeIcon } from 'vs/platform/theme/common/themeService';
 import { collapsedIcon, expandedIcon } from 'vs/workbench/contrib/notebook/browser/notebookIcons';
 import { renderCodicons } from 'vs/base/browser/codicons';
-import { OutputContainer } from 'vs/workbench/contrib/notebook/browser/diff/cellOutputs';
+import { OutputContainer } from 'vs/workbench/contrib/notebook/browser/diff/diffElementOutputs';
 
 const RENDER_RICH_OUTPUT = true;
 
@@ -74,8 +74,6 @@ const fixedDiffEditorOptions: IDiffEditorOptions = {
 	isInEmbeddedEditor: true,
 };
 
-
-
 class PropertyHeader extends Disposable {
 	protected _foldingIndicator!: HTMLElement;
 	protected _statusSpan!: HTMLElement;
@@ -83,14 +81,14 @@ class PropertyHeader extends Disposable {
 	protected _menu!: IMenu;
 
 	constructor(
-		readonly cell: CellDiffViewModelBase,
+		readonly cell: DiffElementViewModelBase,
 		readonly propertyHeaderContainer: HTMLElement,
 		readonly notebookEditor: INotebookTextDiffEditor,
 		readonly accessor: {
 			updateInfoRendering: () => void;
-			checkIfModified: (cell: CellDiffViewModelBase) => boolean;
-			getFoldingState: (cell: CellDiffViewModelBase) => PropertyFoldingState;
-			updateFoldingState: (cell: CellDiffViewModelBase, newState: PropertyFoldingState) => void;
+			checkIfModified: (cell: DiffElementViewModelBase) => boolean;
+			getFoldingState: (cell: DiffElementViewModelBase) => PropertyFoldingState;
+			updateFoldingState: (cell: DiffElementViewModelBase, newState: PropertyFoldingState) => void;
 			unChangedLabel: string;
 			changedLabel: string;
 			prefix: string;
@@ -212,7 +210,7 @@ class PropertyHeader extends Disposable {
 	}
 }
 
-abstract class AbstractCellRenderer extends Disposable {
+abstract class AbstractElementRenderer extends Disposable {
 	protected _metadataHeaderContainer!: HTMLElement;
 	protected _metadataHeader!: PropertyHeader;
 	protected _metadataInfoContainer!: HTMLElement;
@@ -239,7 +237,7 @@ abstract class AbstractCellRenderer extends Disposable {
 
 	constructor(
 		readonly notebookEditor: INotebookTextDiffEditor,
-		readonly cell: CellDiffViewModelBase,
+		readonly cell: DiffElementViewModelBase,
 		readonly templateData: CellDiffSingleSideRenderTemplate | CellDiffSideBySideRenderTemplate,
 		readonly style: 'left' | 'right' | 'full',
 		protected readonly instantiationService: IInstantiationService,
@@ -398,7 +396,7 @@ abstract class AbstractCellRenderer extends Disposable {
 	}
 
 	private _buildMetadataEditor() {
-		if (this.cell instanceof SideBySideCellDiffViewModel) {
+		if (this.cell instanceof SideBySideDiffElementViewModel) {
 			const originalMetadataSource = getFormatedMetadataJSON(this.notebookEditor.textModel!, this.cell.original?.metadata || {}, this.cell.original?.language);
 			const modifiedMetadataSource = getFormatedMetadataJSON(this.notebookEditor.textModel!, this.cell.modified?.metadata || {}, this.cell.modified?.language);
 			this._metadataEditor = this.instantiationService.createInstance(DiffEditorWidget, this._metadataEditorContainer!, {
@@ -596,10 +594,10 @@ abstract class AbstractCellRenderer extends Disposable {
 	abstract layout(state: { outerWidth?: boolean, editorHeight?: boolean, metadataEditor?: boolean, outputEditor?: boolean, outputView?: boolean }): void;
 }
 
-abstract class SingleSideCell extends AbstractCellRenderer {
+abstract class SingleSideDiffElement extends AbstractElementRenderer {
 	constructor(
 		readonly notebookEditor: INotebookTextDiffEditor,
-		readonly cell: SingleSideCellDiffViewModel,
+		readonly cell: SingleSideDiffElementViewModel,
 		readonly templateData: CellDiffSingleSideRenderTemplate,
 		readonly style: 'left' | 'right' | 'full',
 		protected readonly instantiationService: IInstantiationService,
@@ -718,11 +716,11 @@ abstract class SingleSideCell extends AbstractCellRenderer {
 		this._outputHeader.buildHeader();
 	}
 }
-export class DeletedCell extends SingleSideCell {
+export class DeletedElement extends SingleSideDiffElement {
 	private _editor!: CodeEditorWidget;
 	constructor(
 		readonly notebookEditor: INotebookTextDiffEditor,
-		readonly cell: SingleSideCellDiffViewModel,
+		readonly cell: SingleSideDiffElementViewModel,
 		readonly templateData: CellDiffSingleSideRenderTemplate,
 		@IModeService readonly modeService: IModeService,
 		@IModelService readonly modelService: IModelService,
@@ -809,11 +807,11 @@ export class DeletedCell extends SingleSideCell {
 	}
 }
 
-export class InsertCell extends SingleSideCell {
+export class InsertElement extends SingleSideDiffElement {
 	private _editor!: CodeEditorWidget;
 	constructor(
 		readonly notebookEditor: INotebookTextDiffEditor,
-		readonly cell: SingleSideCellDiffViewModel,
+		readonly cell: SingleSideDiffElementViewModel,
 		readonly templateData: CellDiffSingleSideRenderTemplate,
 		@IInstantiationService protected readonly instantiationService: IInstantiationService,
 		@IModeService readonly modeService: IModeService,
@@ -905,7 +903,7 @@ export class InsertCell extends SingleSideCell {
 	}
 }
 
-export class ModifiedCell extends AbstractCellRenderer {
+export class ModifiedElement extends AbstractElementRenderer {
 	private _editor?: DiffEditorWidget;
 	private _editorContainer!: HTMLElement;
 	private _inputToolbarContainer!: HTMLElement;
@@ -914,7 +912,7 @@ export class ModifiedCell extends AbstractCellRenderer {
 
 	constructor(
 		readonly notebookEditor: INotebookTextDiffEditor,
-		readonly cell: SideBySideCellDiffViewModel,
+		readonly cell: SideBySideDiffElementViewModel,
 		readonly templateData: CellDiffSideBySideRenderTemplate,
 		@IInstantiationService protected readonly instantiationService: IInstantiationService,
 		@IModeService readonly modeService: IModeService,
