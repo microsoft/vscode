@@ -14,7 +14,7 @@ import { IEditorInputFactory } from 'vs/workbench/common/editor';
 import { Disposable, DisposableStore } from 'vs/base/common/lifecycle';
 import { IEditorOptions } from 'vs/platform/editor/common/editor';
 import { assertIsDefined } from 'vs/base/common/types';
-import { $, addDisposableListener, Dimension } from 'vs/base/browser/dom';
+import { $, addDisposableListener } from 'vs/base/browser/dom';
 import { ICommandService } from 'vs/platform/commands/common/commands';
 import { IProductService } from 'vs/platform/product/common/productService';
 import { IGettingStartedCategoryWithProgress, IGettingStartedService } from 'vs/workbench/services/gettingStarted/common/gettingStartedService';
