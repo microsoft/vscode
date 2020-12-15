@@ -470,6 +470,12 @@ export abstract class AbstractExtHostExtensionService extends Disposable impleme
 					startTime: entry.startTime
 				};
 			}
+			if (entry.name.startsWith('code/')) {
+				return {
+					name: `extHost/` + entry.name.substr('code/'.length),
+					startTime: entry.startTime
+				};
+			}
 			return entry;
 		});
 		this._mainThreadExtensionsProxy.$setPerformanceMarks(marks);
