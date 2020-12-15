@@ -22,7 +22,6 @@ import { preloadsScriptStr } from 'vs/workbench/contrib/notebook/browser/view/re
 import { FileAccess, Schemas } from 'vs/base/common/network';
 import { IWorkbenchEnvironmentService } from 'vs/workbench/services/environment/common/environmentService';
 import { INotebookTextDiffEditor } from 'vs/workbench/contrib/notebook/browser/diff/common';
-import { DiffNestedCellViewModel } from 'vs/workbench/contrib/notebook/browser/diff/diffNestedCellViewModel';
 import { DiffElementViewModelBase, SideBySideDiffElementViewModel, SingleSideDiffElementViewModel } from 'vs/workbench/contrib/notebook/browser/diff/diffElementViewModel';
 import { IGenericCellViewModel } from 'vs/workbench/contrib/notebook/browser/genericTypes';
 
