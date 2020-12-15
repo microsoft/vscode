@@ -78,7 +78,7 @@ steps:
 
   - script: |
       set -e
-      if [ -z "$CC" || -z "$CXX" ]
+      if [ -z "$CC" ] || [ -z "$CXX" ]
       then
         export CC=$(which gcc-5)
         export CXX=$(which g++-5)
