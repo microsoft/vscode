@@ -14,7 +14,6 @@ import { hash } from 'vs/base/common/hash';
 import { format } from 'vs/base/common/jsonFormatter';
 import { applyEdits } from 'vs/base/common/jsonEdit';
 import { NotebookCellMetadata } from 'vs/workbench/contrib/notebook/common/notebookCommon';
-import { PrefixSumComputer } from 'vs/editor/common/viewModel/prefixSumComputer';
 import { DiffNestedCellViewModel } from 'vs/workbench/contrib/notebook/browser/diff/diffNestedCellViewModel';
 
 export enum PropertyFoldingState {
