@@ -294,7 +294,7 @@ abstract class AbstractCellRenderer extends Disposable {
 					this._outputViewContainer = DOM.append(this._outputInfoContainer, DOM.$('.output-view-container'));
 					this._buildOutputContainer();
 				} else {
-					this._updateOutputContainerHeight();
+					this.cell.layoutChange();
 				}
 			} else {
 				this._outputInfoContainer.style.display = 'block';
@@ -315,7 +315,6 @@ abstract class AbstractCellRenderer extends Disposable {
 	}
 
 	abstract _buildOutputContainer(): void;
-	abstract _updateOutputContainerHeight(): void;
 
 	private _applySanitizedMetadataChanges(currentMetadata: NotebookCellMetadata, newMetadata: any) {
 		let result: { [key: string]: any } = {};
@@ -808,10 +807,6 @@ export class DeletedCell extends SingleSideCell {
 		// this._outputView.render();
 		// this.layout({ outputView: true });
 	}
-
-	_updateOutputContainerHeight(): void {
-		// throw new Error('Method not implemented.');
-	}
 }
 
 export class InsertCell extends SingleSideCell {
@@ -874,11 +869,7 @@ export class InsertCell extends SingleSideCell {
 	_buildOutputContainer() {
 		this._outputLeftView = this.instantiationService.createInstance(OutputContainer, this.notebookEditor, this.notebookEditor.textModel!, this.cell, this.cell.modified!, true, this._outputViewContainer!);
 		this._outputLeftView.render();
-		this.cell.outputHeight = this.cell.getOutputTotalHeight();
-	}
-
-	_updateOutputContainerHeight(): void {
-		this.cell.outputHeight = this.cell.getOutputTotalHeight();
+		this.cell.layoutChange();
 	}
 
 	layout(state: { outerWidth?: boolean, editorHeight?: boolean, metadataEditor?: boolean, outputEditor?: boolean, outputView?: boolean }) {
@@ -1041,13 +1032,9 @@ export class ModifiedCell extends AbstractCellRenderer {
 		this._outputRightView = this.instantiationService.createInstance(OutputContainer, this.notebookEditor, this.notebookEditor.textModel!, this.cell, this.cell.modified!, true, this._outputRightContainer!);
 		this._outputRightView.render();
 
-		this.cell.outputHeight = this.cell.getOutputTotalHeight();
+		this.cell.layoutChange();
 	}
 
-
-	_updateOutputContainerHeight(): void {
-		this.cell.outputHeight = this.cell.getOutputTotalHeight();
-	}
 
 	updateSourceEditor(): void {
 		const modifiedCell = this.cell.modified!;
