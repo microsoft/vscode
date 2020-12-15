@@ -2191,12 +2191,12 @@ registerThemingParticipant((theme, collector) => {
 
 	const cellStatusSuccessIcon = theme.getColor(cellStatusIconSuccess);
 	if (cellStatusSuccessIcon) {
-		collector.addRule(`.monaco-workbench .notebookOverlay .cell-statusbar-container .cell-run-status .codicon-check { color: ${cellStatusSuccessIcon} }`);
+		collector.addRule(`.monaco-workbench .notebookOverlay .cell-statusbar-container .cell-run-status .codicon-notebook-state-success { color: ${cellStatusSuccessIcon} }`);
 	}
 
 	const cellStatusErrorIcon = theme.getColor(cellStatusIconError);
 	if (cellStatusErrorIcon) {
-		collector.addRule(`.monaco-workbench .notebookOverlay .cell-statusbar-container .cell-run-status .codicon-error { color: ${cellStatusErrorIcon} }`);
+		collector.addRule(`.monaco-workbench .notebookOverlay .cell-statusbar-container .cell-run-status .codicon-notebook-state-error { color: ${cellStatusErrorIcon} }`);
 	}
 
 	const cellStatusRunningIcon = theme.getColor(cellStatusIconRunning);
