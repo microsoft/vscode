@@ -145,19 +145,14 @@ suite('Workbench - Terminal Typeahead', () => {
 		});
 
 		test('handles left arrow when we hit the boundary', () => {
-			const t = createMockTerminal({ lines: ['o|'] });
+			const t = createMockTerminal({ lines: ['|'] });
 			addon.activate(t.terminal);
-			let cursorXBefore = addon.getCursor(t.terminal.buffer.active)?.x!;
-			t.onData(`${CSI}${CursorMoveDirection.Back}`);
-			t.expectWritten('');
-			assert.strictEqual(
-				addon.getCursor(t.terminal.buffer.active)?.x,
-				// We should have moved to the left by one
-				cursorXBefore - 1);
+			addon.unlockLeftNavigating();
 
-			cursorXBefore = addon.getCursor(t.terminal.buffer.active)?.x!;
+			const cursorXBefore = addon.getCursor(t.terminal.buffer.active)?.x!;
 			t.onData(`${CSI}${CursorMoveDirection.Back}`);
 			t.expectWritten('');
+			addon.undoAllPredictions();
 
 			assert.strictEqual(
 				addon.getCursor(t.terminal.buffer.active)?.x,
@@ -322,6 +317,10 @@ class TestTypeAheadAddon extends TypeAheadAddon {
 
 	public get isShowing() {
 		return !!this.timeline?.isShowingPredictions;
+	}
+
+	public undoAllPredictions() {
+		this.timeline?.undoAllPredictions();
 	}
 
 	public getCursor(buffer: IBuffer) {
