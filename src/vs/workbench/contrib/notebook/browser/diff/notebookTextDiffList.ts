@@ -331,6 +331,16 @@ export class NotebookTextDiffList extends WorkbenchList<CellDiffViewModelBase> i
 		super(listUser, container, delegate, renderers, options, contextKeyService, listService, themeService, configurationService, keybindingService);
 	}
 
+	getAbsoluteTopOfElement(element: CellDiffViewModelBase): number {
+		const index = this.indexOf(element);
+		// if (index === undefined || index < 0 || index >= this.length) {
+		// 	this._getViewIndexUpperBound(element);
+		// 	throw new ListError(this.listUser, `Invalid index ${index}`);
+		// }
+
+		return this.view.elementTop(index);
+	}
+
 	style(styles: IListStyles) {
 		const selectorSuffix = this.view.domId;
 		if (!this.styleElement) {
