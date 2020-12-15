@@ -114,16 +114,6 @@ steps:
       set -e
       export npm_config_arch=$(VSCODE_ARCH)
       export npm_config_node_gyp=$(which node-gyp)
-      export SDKROOT=/Applications/Xcode_12.2.app/Contents/Developer/Platforms/MacOSX.platform/Developer/SDKs/MacOSX11.0.sdk
-      ls /Applications/Xcode_12.2.app/Contents/Developer/Platforms/MacOSX.platform/Developer/SDKs/
-      yarn postinstall
-    displayName: Run postinstall scripts
-    condition: and(succeeded(), eq(variables['CacheRestored'], 'true'))
-
-  - script: |
-      set -e
-      export npm_config_arch=$(VSCODE_ARCH)
-      export npm_config_node_gyp=$(which node-gyp)
       export npm_config_build_from_source=true
       export SDKROOT=/Applications/Xcode_12.2.app/Contents/Developer/Platforms/MacOSX.platform/Developer/SDKs/MacOSX11.0.sdk
       ls /Applications/Xcode_12.2.app/Contents/Developer/Platforms/MacOSX.platform/Developer/SDKs/

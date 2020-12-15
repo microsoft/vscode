@@ -108,12 +108,6 @@ steps:
 
   - script: |
       set -e
-      yarn postinstall
-    displayName: Run postinstall scripts
-    condition: and(succeeded(), eq(variables['CacheRestored'], 'true'))
-
-  - script: |
-      set -e
       export CC=$(which gcc-4.8)
       export CXX=$(which g++-4.8)
       export npm_config_node_gyp=$(which node-gyp)
