@@ -26,6 +26,7 @@ import { IFileService } from 'vs/platform/files/common/files';
 import { VSBuffer } from 'vs/base/common/buffer';
 import { getExtensionForMimeType } from 'vs/base/common/mime';
 import { IWorkbenchEnvironmentService } from 'vs/workbench/services/environment/common/environmentService';
+import { IDisplayOutputLayoutUpdateRequest } from 'vs/workbench/contrib/notebook/browser/genericTypes';
 
 export interface WebviewIntialized {
 	__vscode_notebook_message: boolean;
@@ -609,7 +610,7 @@ var requirejs = (function() {
 		return true;
 	}
 
-	updateViewScrollTop(top: number, forceDisplay: boolean, items: { output: IDisplayOutputViewModel, cellTop: number, outputOffset: number }[]) {
+	updateViewScrollTop(top: number, forceDisplay: boolean, items: IDisplayOutputLayoutUpdateRequest[]) {
 		if (this._disposed) {
 			return;
 		}

@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { URI } from 'vs/base/common/uri';
-import { ICellOutputViewModel } from 'vs/workbench/contrib/notebook/browser/notebookBrowser';
+import { ICellOutputViewModel, IDisplayOutputViewModel } from 'vs/workbench/contrib/notebook/browser/notebookBrowser';
 import { NotebookCellMetadata } from 'vs/workbench/contrib/notebook/common/notebookCommon';
 
 export interface IGenericCellViewModel {
@@ -16,4 +16,10 @@ export interface IGenericCellViewModel {
 	outputsViewModels: ICellOutputViewModel[];
 	getOutputOffset(index: number): number;
 	updateOutputHeight(index: number, height: number): void;
+}
+
+export interface IDisplayOutputLayoutUpdateRequest {
+	output: IDisplayOutputViewModel;
+	cellTop: number;
+	outputOffset: number;
 }

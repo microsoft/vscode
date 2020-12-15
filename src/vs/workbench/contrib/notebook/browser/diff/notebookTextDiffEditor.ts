@@ -42,7 +42,7 @@ import { BackLayerWebView } from 'vs/workbench/contrib/notebook/browser/diff/bac
 import { generateUuid } from 'vs/base/common/uuid';
 import { IMouseWheelEvent, StandardMouseEvent } from 'vs/base/browser/mouseEvent';
 import { DiffNestedCellViewModel } from 'vs/workbench/contrib/notebook/browser/diff/diffNestedCellViewModel';
-import { IGenericCellViewModel } from 'vs/workbench/contrib/notebook/browser/genericTypes';
+import { IDisplayOutputLayoutUpdateRequest, IGenericCellViewModel } from 'vs/workbench/contrib/notebook/browser/genericTypes';
 
 const $ = DOM.$;
 
@@ -192,7 +192,7 @@ export class NotebookTextDiffEditor extends EditorPane implements INotebookTextD
 				this._modifiedWebview!.element.style.height = `${scrollHeight}px`;
 
 				if (this._modifiedWebview?.insetMapping) {
-					const updateItems: { cell: IGenericCellViewModel, output: IDisplayOutputViewModel, cellTop: number, outputOffset: number }[] = [];
+					const updateItems: IDisplayOutputLayoutUpdateRequest[] = [];
 					const removedItems: IDisplayOutputViewModel[] = [];
 					this._modifiedWebview?.insetMapping.forEach((value, key) => {
 						const cell = value.cell;
@@ -218,9 +218,7 @@ export class NotebookTextDiffEditor extends EditorPane implements INotebookTextD
 								outputOffset = cellTop + (value.diffElement as SingleSideDiffElementViewModel).getOutputOffsetInCell(outputIndex);
 							}
 
-
 							updateItems.push({
-								cell: cell,
 								output: key,
 								cellTop: cellTop,
 								outputOffset: outputOffset
@@ -481,7 +479,7 @@ export class NotebookTextDiffEditor extends EditorPane implements INotebookTextD
 						outputOffset = cellTop + (cellDiffViewModel as SingleSideDiffElementViewModel).getOutputOffsetInCell(outputIndex);
 					}
 
-					this._modifiedWebview!.updateViewScrollTop(-scrollTop, true, [{ cell: cellViewModel, output: output.source, cellTop, outputOffset }]);
+					this._modifiedWebview!.updateViewScrollTop(-scrollTop, true, [{ output: output.source, cellTop, outputOffset }]);
 				}
 			}
 		});
