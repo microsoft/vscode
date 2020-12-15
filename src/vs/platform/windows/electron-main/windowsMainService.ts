@@ -246,9 +246,7 @@ export class WindowsMainService extends Disposable implements IWindowsMainServic
 			filesToOpen.filesToWait = { paths: [...filesToOpen.filesToDiff, ...filesToOpen.filesToOpenOrCreate], waitMarkerFileUri: openConfig.waitMarkerFileURI };
 		}
 
-		//
 		// These are windows to restore because of hot-exit or from previous session (only performed once on startup!)
-		//
 		if (openConfig.initialStartup) {
 
 			// Untitled workspaces are always restored
@@ -362,8 +360,19 @@ export class WindowsMainService extends Disposable implements IWindowsMainServic
 		filesToOpen: IFilesToOpen | undefined,
 		foldersToAdd: IFolderPathToOpen[]
 	): { windows: ICodeWindow[], filesOpenedInWindow: ICodeWindow | undefined } {
+
+		// Keep track of used windows and remember
+		// if files have been opened in one of them
 		const usedWindows: ICodeWindow[] = [];
 		let filesOpenedInWindow: ICodeWindow | undefined = undefined;
+		function addUsedWindow(window: ICodeWindow, openedFiles?: boolean): void {
+			usedWindows.push(window);
+
+			if (openedFiles) {
+				filesOpenedInWindow = window;
+				filesToOpen = undefined; // reset `filesToOpen` since files have been opened
+			}
+		}
 
 		// Settings can decide if files/folders open in new window or not
 		let { openFolderInNewWindow, openFilesInNewWindow } = this.shouldOpenNewWindow(openConfig);
@@ -373,13 +382,14 @@ export class WindowsMainService extends Disposable implements IWindowsMainServic
 			const authority = foldersToAdd[0].remoteAuthority;
 			const lastActiveWindow = this.getLastActiveWindowForAuthority(authority);
 			if (lastActiveWindow) {
-				usedWindows.push(this.doAddFoldersToExistingWindow(lastActiveWindow, foldersToAdd.map(f => f.folderUri)));
+				addUsedWindow(this.doAddFoldersToExistingWindow(lastActiveWindow, foldersToAdd.map(folderToAdd => folderToAdd.folderUri)));
 			}
 		}
 
-		// Handle files to open/diff or to create when we dont open a folder and we do not restore any folder/untitled from hot-exit
-		const potentialWindowsCount = foldersToOpen.length + workspacesToOpen.length + emptyToRestore.length;
-		if (potentialWindowsCount === 0 && filesToOpen) {
+		// Handle files to open/diff or to create when we dont open a folder and we do not restore any
+		// folder/untitled from hot-exit by trying to open them in the window that fits best
+		const potentialNewWindowsCount = foldersToOpen.length + workspacesToOpen.length + emptyToRestore.length;
+		if (filesToOpen && potentialNewWindowsCount === 0) {
 
 			// Find suitable window or folder path to open files in
 			const fileToCheck = filesToOpen.filesToOpenOrCreate[0] || filesToOpen.filesToDiff[0];
@@ -418,20 +428,13 @@ export class WindowsMainService extends Disposable implements IWindowsMainServic
 
 				// Window is empty
 				else {
-
-					// Do open files
-					const window = this.doOpenFilesInExistingWindow(openConfig, windowToUseForFiles, filesToOpen);
-					usedWindows.push(window);
-
-					// Reset `filesToOpen` because we handled them and also remember window we used
-					filesToOpen = undefined;
-					filesOpenedInWindow = window;
+					addUsedWindow(this.doOpenFilesInExistingWindow(openConfig, windowToUseForFiles, filesToOpen), true);
 				}
 			}
 
 			// Finally, if no window or folder is found, just open the files in an empty window
 			else {
-				const window = this.openInBrowserWindow({
+				addUsedWindow(this.openInBrowserWindow({
 					userEnv: openConfig.userEnv,
 					cli: openConfig.cli,
 					initialStartup: openConfig.initialStartup,
@@ -439,12 +442,7 @@ export class WindowsMainService extends Disposable implements IWindowsMainServic
 					forceNewWindow: true,
 					remoteAuthority: filesToOpen.remoteAuthority,
 					forceNewTabbedWindow: openConfig.forceNewTabbedWindow
-				});
-				usedWindows.push(window);
-
-				// Reset `filesToOpen` because we handled them and also remember window we used
-				filesToOpen = undefined;
-				filesOpenedInWindow = window;
+				}), true);
 			}
 		}
 
@@ -459,14 +457,7 @@ export class WindowsMainService extends Disposable implements IWindowsMainServic
 				const filesToOpenInWindow = (filesToOpen?.remoteAuthority === windowOnWorkspace.remoteAuthority) ? filesToOpen : undefined;
 
 				// Do open files
-				const window = this.doOpenFilesInExistingWindow(openConfig, windowOnWorkspace, filesToOpenInWindow);
-				usedWindows.push(window);
-
-				// Reset `filesToOpen` because we handled them and also remember window we used
-				if (filesToOpenInWindow) {
-					filesToOpen = undefined;
-					filesOpenedInWindow = window;
-				}
+				addUsedWindow(this.doOpenFilesInExistingWindow(openConfig, windowOnWorkspace, filesToOpenInWindow), !!filesToOpenInWindow);
 
 				openFolderInNewWindow = true; // any other folders to open must open in new window then
 			}
@@ -481,14 +472,7 @@ export class WindowsMainService extends Disposable implements IWindowsMainServic
 				const filesToOpenInWindow = (filesToOpen?.remoteAuthority === remoteAuthority) ? filesToOpen : undefined;
 
 				// Do open folder
-				const window = this.doOpenFolderOrWorkspace(openConfig, workspaceToOpen, openFolderInNewWindow, filesToOpenInWindow);
-				usedWindows.push(window);
-
-				// Reset `filesToOpen` because we handled them and also remember window we used
-				if (filesToOpenInWindow) {
-					filesToOpen = undefined;
-					filesOpenedInWindow = window;
-				}
+				addUsedWindow(this.doOpenFolderOrWorkspace(openConfig, workspaceToOpen, openFolderInNewWindow, filesToOpenInWindow), !!filesToOpenInWindow);
 
 				openFolderInNewWindow = true; // any other folders to open must open in new window then
 			});
@@ -505,14 +489,7 @@ export class WindowsMainService extends Disposable implements IWindowsMainServic
 				const filesToOpenInWindow = filesToOpen?.remoteAuthority === windowOnFolderPath.remoteAuthority ? filesToOpen : undefined;
 
 				// Do open files
-				const window = this.doOpenFilesInExistingWindow(openConfig, windowOnFolderPath, filesToOpenInWindow);
-				usedWindows.push(window);
-
-				// Reset `filesToOpen` because we handled them and also remember window we used
-				if (filesToOpenInWindow) {
-					filesToOpen = undefined;
-					filesOpenedInWindow = window;
-				}
+				addUsedWindow(this.doOpenFilesInExistingWindow(openConfig, windowOnFolderPath, filesToOpenInWindow), !!filesToOpenInWindow);
 
 				openFolderInNewWindow = true; // any other folders to open must open in new window then
 			}
@@ -528,14 +505,7 @@ export class WindowsMainService extends Disposable implements IWindowsMainServic
 				const filesToOpenInWindow = (filesToOpen?.remoteAuthority === remoteAuthority) ? filesToOpen : undefined;
 
 				// Do open folder
-				const window = this.doOpenFolderOrWorkspace(openConfig, folderToOpen, openFolderInNewWindow, filesToOpenInWindow);
-				usedWindows.push(window);
-
-				// Reset `filesToOpen` because we handled them and also remember window we used
-				if (filesToOpenInWindow) {
-					filesToOpen = undefined;
-					filesOpenedInWindow = window;
-				}
+				addUsedWindow(this.doOpenFolderOrWorkspace(openConfig, folderToOpen, openFolderInNewWindow, filesToOpenInWindow), !!filesToOpenInWindow);
 
 				openFolderInNewWindow = true; // any other folders to open must open in new window then
 			});
@@ -548,7 +518,7 @@ export class WindowsMainService extends Disposable implements IWindowsMainServic
 				const remoteAuthority = emptyWindowBackupInfo.remoteAuthority;
 				const filesToOpenInWindow = (filesToOpen?.remoteAuthority === remoteAuthority) ? filesToOpen : undefined;
 
-				const window = this.openInBrowserWindow({
+				addUsedWindow(this.openInBrowserWindow({
 					userEnv: openConfig.userEnv,
 					cli: openConfig.cli,
 					initialStartup: openConfig.initialStartup,
@@ -557,14 +527,7 @@ export class WindowsMainService extends Disposable implements IWindowsMainServic
 					forceNewWindow: true,
 					forceNewTabbedWindow: openConfig.forceNewTabbedWindow,
 					emptyWindowBackupInfo
-				});
-				usedWindows.push(window);
-
-				// Reset `filesToOpen` because we handled them and also remember window we used
-				if (filesToOpenInWindow) {
-					filesToOpen = undefined;
-					filesOpenedInWindow = window;
-				}
+				}), !!filesToOpenInWindow);
 
 				openFolderInNewWindow = true; // any other folders to open must open in new window then
 			});
@@ -579,14 +542,7 @@ export class WindowsMainService extends Disposable implements IWindowsMainServic
 			const remoteAuthority = filesToOpen ? filesToOpen.remoteAuthority : (openConfig.cli && openConfig.cli.remote || undefined);
 
 			for (let i = 0; i < emptyToOpen; i++) {
-				const window = this.doOpenEmpty(openConfig, openFolderInNewWindow, remoteAuthority, filesToOpen);
-				usedWindows.push(window);
-
-				// Reset `filesToOpen` because we handled them and also remember window we used
-				if (filesToOpen) {
-					filesToOpen = undefined;
-					filesOpenedInWindow = window;
-				}
+				addUsedWindow(this.doOpenEmpty(openConfig, openFolderInNewWindow, remoteAuthority, filesToOpen), !!filesToOpen);
 
 				// any other window to open must open in new window then
 				openFolderInNewWindow = true;
