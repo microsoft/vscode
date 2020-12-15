@@ -579,7 +579,7 @@ var requirejs = (function() {
 		return true;
 	}
 
-	updateViewScrollTop(top: number, forceDisplay: boolean, items: { diffElement: DiffElementViewModelBase, cell: DiffNestedCellViewModel, output: IDisplayOutputViewModel, cellTop: number }[]) {
+	updateViewScrollTop(top: number, forceDisplay: boolean, items: { diffElement: DiffElementViewModelBase, cell: IGenericCellViewModel, output: IDisplayOutputViewModel, cellTop: number }[]) {
 		if (this._disposed) {
 			return;
 		}

@@ -29,7 +29,7 @@ import { Emitter } from 'vs/base/common/event';
 import { DisposableStore, IDisposable, toDisposable } from 'vs/base/common/lifecycle';
 import { NotebookDiffEditorEventDispatcher, NotebookLayoutChangedEvent } from 'vs/workbench/contrib/notebook/browser/viewModel/eventDispatcher';
 import { EditorPane } from 'vs/workbench/browser/parts/editor/editorPane';
-import { INotebookDiffEditorModel } from 'vs/workbench/contrib/notebook/common/notebookCommon';
+import { INotebookDiffEditorModel, ITransformedDisplayOutputDto } from 'vs/workbench/contrib/notebook/common/notebookCommon';
 import { FileService } from 'vs/platform/files/common/fileService';
 import { IFileService } from 'vs/platform/files/common/files';
 import { URI } from 'vs/base/common/uri';
@@ -42,6 +42,7 @@ import { BackLayerWebView } from 'vs/workbench/contrib/notebook/browser/diff/bac
 import { generateUuid } from 'vs/base/common/uuid';
 import { StandardMouseEvent } from 'vs/base/browser/mouseEvent';
 import { DiffNestedCellViewModel } from 'vs/workbench/contrib/notebook/browser/diff/diffNestedCellViewModel';
+import { IGenericCellViewModel } from 'vs/workbench/contrib/notebook/browser/genericTypes';
 
 const $ = DOM.$;
 
@@ -177,6 +178,54 @@ export class NotebookTextDiffEditor extends EditorPane implements INotebookTextD
 				// no matter when
 				this._webviewTransparentCover.style.display = 'none';
 			}
+		}));
+
+		this._register(this._list.onDidChangeContentHeight(() => {
+			DOM.scheduleAtNextAnimationFrame(() => {
+				const scrollTop = this._list.scrollTop;
+				const scrollHeight = this._list.scrollHeight;
+
+				if (!this._modifiedWebview) {
+					return;
+				}
+
+				this._modifiedWebview!.element.style.height = `${scrollHeight}px`;
+
+				if (this._modifiedWebview?.insetMapping) {
+					const updateItems: { diffElement: DiffElementViewModelBase, cell: IGenericCellViewModel, output: IDisplayOutputViewModel, cellTop: number }[] = [];
+					const removedItems: IDisplayOutputViewModel[] = [];
+					this._modifiedWebview?.insetMapping.forEach((value, key) => {
+						const cell = value.cell;
+						const viewIndex = this._list.indexOf(value.diffElement);
+
+						if (viewIndex === undefined) {
+							return;
+						}
+
+						if (cell.outputsViewModels.findIndex(viewModel => (viewModel.model as ITransformedDisplayOutputDto).outputId === (key.model as ITransformedDisplayOutputDto).outputId) < 0) {
+							// output is already gone
+							removedItems.push(key);
+						}
+
+						const cellTop = this._list.getAbsoluteTopOfElement(value.diffElement);
+						if (this._modifiedWebview!.shouldUpdateInset(cell, key, cellTop)) {
+							updateItems.push({
+								diffElement: value.diffElement,
+								cell: cell,
+								output: key,
+								cellTop: cellTop
+							});
+						}
+					});
+
+					removedItems.forEach(output => this._modifiedWebview?.removeInset(output));
+
+					if (updateItems.length) {
+						this._modifiedWebview?.updateViewScrollTop(-scrollTop, false, updateItems);
+					}
+				}
+
+			});
 		}));
 	}
 
