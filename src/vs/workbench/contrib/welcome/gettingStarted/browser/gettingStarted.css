@@ -17,7 +17,7 @@
 }
 
 .monaco-workbench .part.editor > .content .walkThroughContent .gettingStartedContainer .gettingStartedSlide.categories {
-	height: calc(100% - 50px);
+	height: calc(100% - 10px);
 	display: flex;
 	flex-direction: column;
 	overflow: hidden;
@@ -251,14 +251,6 @@
 	font-size: 16px;
 	margin: 0;
 	padding: 0;
-}
-
-.monaco-workbench .part.editor > .content .walkThroughContent .gettingStartedContainer .footer {
-	position: absolute;
-	text-align: center;
-	bottom: 0;
-	width: calc(100% - 40px);
-	margin-bottom: 10px;
 }
 
 .monaco-workbench .part.editor > .content .walkThroughContent .gettingStartedContainer .gettingStartedSlide.next {

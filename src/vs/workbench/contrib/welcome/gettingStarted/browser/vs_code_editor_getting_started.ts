@@ -28,13 +28,6 @@ export default () => `
 				<div class="gap"></div>
 			</div>
 		</div>
-		<div class="footer">
-			<a class="skip" x-dispatch="skip">Skip</a>
-		</div>
 	</div>
 </div>
 `.replace(/\|/g, '`');
-
-
-// <div id="getting-started-categories-scrolling-container"><div id="getting-started-categories-container"></div></div>
-// <div class="gap"></div>

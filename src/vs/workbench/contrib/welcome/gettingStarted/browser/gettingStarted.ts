@@ -222,6 +222,8 @@ export class GettingStartedPage extends Disposable {
 		});
 
 		categoryScrollContainer.appendChild(categoriesContainer);
+		categoryScrollContainer.appendChild($('.footer', {}, $('a.skip', { 'x-dispatch': 'skip' }, localize('gettingStarted.skip', "Skip"))));
+
 		this.scrollbar = this._register(new DomScrollableElement(categoryScrollContainer, {}));
 		categoriesSlide.appendChild(this.scrollbar.getDomNode());
 		categoriesSlide.appendChild($('.gap'));
