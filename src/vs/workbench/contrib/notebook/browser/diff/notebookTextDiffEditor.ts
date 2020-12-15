@@ -37,11 +37,11 @@ import { Schemas } from 'vs/base/common/network';
 import { IDiffChange } from 'vs/base/common/diff/diff';
 import { NotebookTextModel } from 'vs/workbench/contrib/notebook/common/model/notebookTextModel';
 import { OutputRenderer } from 'vs/workbench/contrib/notebook/browser/view/output/outputRenderer';
-import { NotebookCellTextModel } from 'vs/workbench/contrib/notebook/common/model/notebookCellTextModel';
 import { SequencerByKey } from 'vs/base/common/async';
 import { BackLayerWebView } from 'vs/workbench/contrib/notebook/browser/diff/backLayerWebview2';
 import { generateUuid } from 'vs/base/common/uuid';
 import { StandardMouseEvent } from 'vs/base/browser/mouseEvent';
+import { DiffNestedCellViewModel } from 'vs/workbench/contrib/notebook/browser/diff/diffNestedCellViewModel';
 
 const $ = DOM.$;
 
@@ -282,8 +282,8 @@ export class NotebookTextDiffEditor extends EditorPane implements INotebookTextD
 				if (originalCell.getHashValue() === modifiedCell.getHashValue()) {
 					diffElementViewModels.push(new SideBySideDiffElementViewModel(
 						this._model.modified.notebook,
-						originalCell,
-						modifiedCell,
+						this.instantiationService.createInstance(DiffNestedCellViewModel, originalCell),
+						this.instantiationService.createInstance(DiffNestedCellViewModel, modifiedCell),
 						'unchanged',
 						this._eventDispatcher!
 					));
@@ -294,8 +294,8 @@ export class NotebookTextDiffEditor extends EditorPane implements INotebookTextD
 
 					diffElementViewModels.push(new SideBySideDiffElementViewModel(
 						this._model.modified.notebook,
-						originalCell,
-						modifiedCell,
+						this.instantiationService.createInstance(DiffNestedCellViewModel, originalCell),
+						this.instantiationService.createInstance(DiffNestedCellViewModel, modifiedCell),
 						'modified',
 						this._eventDispatcher!
 					));
@@ -315,8 +315,8 @@ export class NotebookTextDiffEditor extends EditorPane implements INotebookTextD
 		for (let i = originalCellIndex; i < originalModel.cells.length; i++) {
 			diffElementViewModels.push(new SideBySideDiffElementViewModel(
 				this._model.modified.notebook,
-				originalModel.cells[i],
-				modifiedModel.cells[i - originalCellIndex + modifiedCellIndex],
+				this.instantiationService.createInstance(DiffNestedCellViewModel, originalModel.cells[i]),
+				this.instantiationService.createInstance(DiffNestedCellViewModel, modifiedModel.cells[i - originalCellIndex + modifiedCellIndex]),
 				'unchanged',
 				this._eventDispatcher!
 			));
@@ -339,8 +339,8 @@ export class NotebookTextDiffEditor extends EditorPane implements INotebookTextD
 		for (let j = 0; j < modifiedLen; j++) {
 			result.push(new SideBySideDiffElementViewModel(
 				modifiedModel,
-				originalModel.cells[change.originalStart + j],
-				modifiedModel.cells[change.modifiedStart + j],
+				this.instantiationService.createInstance(DiffNestedCellViewModel, originalModel.cells[change.originalStart + j]),
+				this.instantiationService.createInstance(DiffNestedCellViewModel, modifiedModel.cells[change.modifiedStart + j]),
 				'modified',
 				this._eventDispatcher!
 			));
@@ -350,7 +350,7 @@ export class NotebookTextDiffEditor extends EditorPane implements INotebookTextD
 			// deletion
 			result.push(new SingleSideDiffElementViewModel(
 				originalModel,
-				originalModel.cells[change.originalStart + j],
+				this.instantiationService.createInstance(DiffNestedCellViewModel, originalModel.cells[change.originalStart + j]),
 				undefined,
 				'delete',
 				this._eventDispatcher!
@@ -362,7 +362,7 @@ export class NotebookTextDiffEditor extends EditorPane implements INotebookTextD
 			result.push(new SingleSideDiffElementViewModel(
 				modifiedModel,
 				undefined,
-				modifiedModel.cells[change.modifiedStart + j],
+				this.instantiationService.createInstance(DiffNestedCellViewModel, modifiedModel.cells[change.modifiedStart + j]),
 				'insert',
 				this._eventDispatcher!
 			));
@@ -402,13 +402,17 @@ export class NotebookTextDiffEditor extends EditorPane implements INotebookTextD
 	}
 
 
-	createInset(cellDiffViewModel: DiffElementViewModelBase, cellTextModel: NotebookCellTextModel, output: IInsetRenderOutput, offset: number, rightEditor: boolean): void {
+	createInset(cellDiffViewModel: DiffElementViewModelBase, cellViewModel: DiffNestedCellViewModel, output: IInsetRenderOutput, offset: number, rightEditor: boolean): void {
 		this._insetModifyQueueByOutputId.queue(output.source.model.outputId, async () => {
 			if (rightEditor) {
 				if (!this._modifiedWebview!.insetMapping.has(output.source)) {
 					const cellTop = this._list.getAbsoluteTopOfElement(cellDiffViewModel);
-					await this._modifiedWebview?.createInset(cellTextModel, output, cellTop, offset);
+					await this._modifiedWebview?.createInset(cellDiffViewModel, cellViewModel, output, cellTop, offset);
+				} else {
+					const cellTop = this._list.getAbsoluteTopOfElement(cellDiffViewModel);
+					const scrollTop = this._list.scrollTop;
 
+					this._modifiedWebview!.updateViewScrollTop(-scrollTop, true, [{ diffElement: cellDiffViewModel, cell: cellViewModel, output: output.source, cellTop }]);
 				}
 			}
 		});

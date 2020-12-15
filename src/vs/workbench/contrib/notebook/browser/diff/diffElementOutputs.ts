@@ -11,11 +11,11 @@ import { INotebookTextDiffEditor } from 'vs/workbench/contrib/notebook/browser/d
 import { ICellOutputViewModel, IRenderOutput, outputHasDynamicHeight, RenderOutputType } from 'vs/workbench/contrib/notebook/browser/notebookBrowser';
 import { getResizesObserver } from 'vs/workbench/contrib/notebook/browser/view/renderers/cellWidgets';
 import { CellOutputViewModel } from 'vs/workbench/contrib/notebook/browser/viewModel/cellOutputViewModel';
-import { NotebookCellTextModel } from 'vs/workbench/contrib/notebook/common/model/notebookCellTextModel';
 import { NotebookTextModel } from 'vs/workbench/contrib/notebook/common/model/notebookTextModel';
 import { BUILTIN_RENDERER_ID } from 'vs/workbench/contrib/notebook/common/notebookCommon';
 import { INotebookService } from 'vs/workbench/contrib/notebook/common/notebookService';
 import { ITextFileService } from 'vs/workbench/services/textfile/common/textfiles';
+import { DiffNestedCellViewModel } from 'vs/workbench/contrib/notebook/browser/diff/diffNestedCellViewModel';
 
 export class OutputElement extends Disposable {
 	readonly resizeListener = new DisposableStore();
@@ -29,7 +29,7 @@ export class OutputElement extends Disposable {
 		private cellViewModel: DiffElementViewModelBase,
 		private modified: boolean,
 
-		private cell: NotebookCellTextModel,
+		private cell: DiffNestedCellViewModel,
 		private outputContainer: HTMLElement,
 		readonly output: ICellOutputViewModel
 	) {
@@ -176,7 +176,7 @@ export class OutputContainer extends Disposable {
 		private _editor: INotebookTextDiffEditor,
 		private notebookTextModel: NotebookTextModel,
 		private cellViewModel: DiffElementViewModelBase,
-		private cell: NotebookCellTextModel,
+		private cell: DiffNestedCellViewModel,
 		private modified: boolean,
 		private outputContainer: HTMLElement,
 		@INotebookService private notebookService: INotebookService,

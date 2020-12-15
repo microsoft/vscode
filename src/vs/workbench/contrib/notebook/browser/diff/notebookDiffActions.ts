@@ -77,7 +77,7 @@ registerAction2(class extends Action2 {
 			return;
 		}
 
-		modified.metadata = original.metadata;
+		modified.textModel.metadata = original.metadata;
 	}
 });
 
@@ -107,7 +107,7 @@ registerAction2(class extends Action2 {
 			return;
 		}
 
-		modified.spliceNotebookCellOutputs([[0, modified.outputs.length, original.outputs]]);
+		modified.textModel.spliceNotebookCellOutputs([[0, modified.outputs.length, original.outputs]]);
 	}
 });
 
@@ -139,7 +139,7 @@ registerAction2(class extends Action2 {
 
 		const bulkEditService = accessor.get(IBulkEditService);
 		return bulkEditService.apply([
-			new ResourceTextEdit(modified.uri, { range: modified.getFullModelRange(), text: original.getValue() }),
+			new ResourceTextEdit(modified.uri, { range: modified.textModel.getFullModelRange(), text: original.textModel.getValue() }),
 		], { quotableLabel: 'Split Notebook Cell' });
 	}
 });

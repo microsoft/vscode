@@ -3,7 +3,6 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { NotebookCellTextModel } from 'vs/workbench/contrib/notebook/common/model/notebookCellTextModel';
 import { NotebookDiffEditorEventDispatcher } from 'vs/workbench/contrib/notebook/browser/viewModel/eventDispatcher';
 import { Emitter } from 'vs/base/common/event';
 import { Disposable } from 'vs/base/common/lifecycle';
@@ -16,6 +15,7 @@ import { format } from 'vs/base/common/jsonFormatter';
 import { applyEdits } from 'vs/base/common/jsonEdit';
 import { NotebookCellMetadata } from 'vs/workbench/contrib/notebook/common/notebookCommon';
 import { PrefixSumComputer } from 'vs/editor/common/viewModel/prefixSumComputer';
+import { DiffNestedCellViewModel } from 'vs/workbench/contrib/notebook/browser/diff/diffNestedCellViewModel';
 
 export enum PropertyFoldingState {
 	Expanded,
@@ -100,8 +100,8 @@ export abstract class DiffElementViewModelBase extends Disposable {
 
 	constructor(
 		readonly documentTextModel: NotebookTextModel,
-		readonly original: NotebookCellTextModel | undefined,
-		readonly modified: NotebookCellTextModel | undefined,
+		readonly original: DiffNestedCellViewModel | undefined,
+		readonly modified: DiffNestedCellViewModel | undefined,
 		readonly type: 'unchanged' | 'insert' | 'delete' | 'modified',
 		readonly editorEventDispatcher: NotebookDiffEditorEventDispatcher
 	) {
@@ -151,8 +151,8 @@ export class SideBySideDiffElementViewModel extends DiffElementViewModelBase {
 
 	constructor(
 		readonly documentTextModel: NotebookTextModel,
-		readonly original: NotebookCellTextModel,
-		readonly modified: NotebookCellTextModel,
+		readonly original: DiffNestedCellViewModel,
+		readonly modified: DiffNestedCellViewModel,
 		readonly type: 'unchanged' | 'modified',
 		readonly editorEventDispatcher: NotebookDiffEditorEventDispatcher
 	) {
@@ -306,8 +306,8 @@ export class SingleSideDiffElementViewModel extends DiffElementViewModelBase {
 
 	constructor(
 		readonly documentTextModel: NotebookTextModel,
-		readonly original: NotebookCellTextModel | undefined,
-		readonly modified: NotebookCellTextModel | undefined,
+		readonly original: DiffNestedCellViewModel | undefined,
+		readonly modified: DiffNestedCellViewModel | undefined,
 		readonly type: 'insert' | 'delete',
 		readonly editorEventDispatcher: NotebookDiffEditorEventDispatcher
 	) {

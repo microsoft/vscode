@@ -397,6 +397,7 @@ function webviewPreloads() {
 
 	window.addEventListener('message', rawEvent => {
 		const event = rawEvent as ({ data: ToWebviewMessage; });
+		console.log(event);
 
 		switch (event.data.type) {
 			case 'html':

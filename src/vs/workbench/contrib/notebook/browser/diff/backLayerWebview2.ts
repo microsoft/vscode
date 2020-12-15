@@ -11,23 +11,20 @@ import { URI } from 'vs/base/common/uri';
 import * as UUID from 'vs/base/common/uuid';
 import { IOpenerService, matchesScheme } from 'vs/platform/opener/common/opener';
 import { CELL_MARGIN, CELL_RUN_GUTTER, CODE_CELL_LEFT_MARGIN, CELL_OUTPUT_PADDING } from 'vs/workbench/contrib/notebook/browser/constants';
-import { IDisplayOutputViewModel, IInsetRenderOutput, INotebookEditor, RenderOutputType } from 'vs/workbench/contrib/notebook/browser/notebookBrowser';
+import { IDisplayOutputViewModel, IInsetRenderOutput, RenderOutputType } from 'vs/workbench/contrib/notebook/browser/notebookBrowser';
 import { CodeCellViewModel } from 'vs/workbench/contrib/notebook/browser/viewModel/codeCellViewModel';
 import { CellOutputKind, IDisplayOutput, INotebookRendererInfo } from 'vs/workbench/contrib/notebook/common/notebookCommon';
 import { INotebookService } from 'vs/workbench/contrib/notebook/common/notebookService';
 import { IWebviewService, WebviewElement, WebviewContentPurpose } from 'vs/workbench/contrib/webview/browser/webview';
 import { asWebviewUri } from 'vs/workbench/contrib/webview/common/webviewUri';
-import { dirname, joinPath } from 'vs/base/common/resources';
+import { dirname } from 'vs/base/common/resources';
 import { IWorkspaceContextService } from 'vs/platform/workspace/common/workspace';
 import { preloadsScriptStr } from 'vs/workbench/contrib/notebook/browser/view/renderers/webviewPreloads';
 import { FileAccess, Schemas } from 'vs/base/common/network';
-import { IFileDialogService } from 'vs/platform/dialogs/common/dialogs';
-import { IFileService } from 'vs/platform/files/common/files';
-import { VSBuffer } from 'vs/base/common/buffer';
-import { getExtensionForMimeType } from 'vs/base/common/mime';
 import { IWorkbenchEnvironmentService } from 'vs/workbench/services/environment/common/environmentService';
 import { INotebookTextDiffEditor } from 'vs/workbench/contrib/notebook/browser/diff/common';
-import { NotebookCellTextModel } from 'vs/workbench/contrib/notebook/common/model/notebookCellTextModel';
+import { DiffNestedCellViewModel } from 'vs/workbench/contrib/notebook/browser/diff/diffNestedCellViewModel';
+import { DiffElementViewModelBase, SideBySideDiffElementViewModel, SingleSideDiffElementViewModel } from 'vs/workbench/contrib/notebook/browser/diff/diffElementViewModel';
 
 export interface WebviewIntialized {
 	__vscode_notebook_message: boolean;
@@ -200,7 +197,8 @@ export type AnyMessage = FromWebviewMessage | ToWebviewMessage;
 
 interface ICachedInset {
 	outputId: string;
-	cell: CodeCellViewModel;
+	diffElement: DiffElementViewModelBase;
+	cell: DiffNestedCellViewModel;
 	renderer?: INotebookRendererInfo;
 	cachedCreation: ICreationRequestMessage;
 }
@@ -244,8 +242,6 @@ export class BackLayerWebView extends Disposable {
 		@INotebookService private readonly notebookService: INotebookService,
 		@IWorkspaceContextService private readonly contextService: IWorkspaceContextService,
 		@IWorkbenchEnvironmentService private readonly environmentService: IWorkbenchEnvironmentService,
-		@IFileDialogService private readonly fileDialogService: IFileDialogService,
-		@IFileService private readonly fileService: IFileService,
 	) {
 		super();
 
@@ -338,27 +334,27 @@ export class BackLayerWebView extends Disposable {
 		});
 	}
 
-	private resolveOutputId(id: string): { cell: CodeCellViewModel, output: IDisplayOutputViewModel } | undefined {
+	private resolveOutputId(id: string): { cell: DiffNestedCellViewModel, diffElement: DiffElementViewModelBase, output: IDisplayOutputViewModel } | undefined {
 		const output = this.reversedInsetMapping.get(id);
 		if (!output) {
 			return;
 		}
 
-		const cell = this.insetMapping.get(output)!.cell;
+		const info = this.insetMapping.get(output)!;
 
 		// const currCell = this.notebookEditor.viewModel?.viewCells.find(vc => vc.handle === cell.handle);
 		// if (currCell !== cell && currCell !== undefined) {
 		// 	this.insetMapping.get(output)!.cell = currCell as CodeCellViewModel;
 		// }
 
-		return { cell: this.insetMapping.get(output)!.cell, output };
+		return { cell: info.cell, diffElement: info.diffElement, output };
 	}
 
 	async createWebview(): Promise<void> {
 		let coreDependencies = '';
 		let resolveFunc: () => void;
 
-		this._initalized = new Promise<void>((resolve, reject) => {
+		this._initalized = new Promise<void>((resolve) => {
 			resolveFunc = resolve;
 		});
 
@@ -455,18 +451,25 @@ var requirejs = (function() {
 				return;
 			}
 
-			// if (data.__vscode_notebook_message) {
-			// 	if (data.type === 'dimension') {
-			// 		const height = data.data.height;
-			// 		const outputHeight = height;
+			if (data.__vscode_notebook_message) {
+				if (data.type === 'dimension') {
+					const height = data.data.height;
+					const outputHeight = height;
 
-			// 		const info = this.resolveOutputId(data.id);
-			// 		if (info) {
-			// 			const { cell, output } = info;
-			// 			const outputIndex = cell.outputsViewModels.indexOf(output);
-			// 			cell.updateOutputHeight(outputIndex, outputHeight);
-			// 			this.notebookEditor.layoutNotebookCell(cell, cell.layoutInfo.totalHeight);
-			// 		}
+					const info = this.resolveOutputId(data.id);
+					if (info) {
+						const { diffElement, cell, output } = info;
+						const outputIndex = cell.outputsViewModels.indexOf(output);
+
+						if (diffElement instanceof SideBySideDiffElementViewModel) {
+							diffElement.updateOutputHeight(false, outputIndex, outputHeight);
+						} else {
+							(diffElement as SingleSideDiffElementViewModel).updateOutputHeight(outputIndex, outputHeight);
+						}
+						// cell.updateOutputHeight(outputIndex, outputHeight);
+						// this.notebookEditor.layoutNotebookCell(cell, cell.layoutInfo.totalHeight);
+					}
+				}
 			// 	} else if (data.type === 'mouseenter') {
 			// 		const info = this.resolveOutputId(data.id);
 			// 		if (info) {
@@ -514,46 +517,12 @@ var requirejs = (function() {
 			// 		this._onMessage.fire({ message: data.message, forRenderer: data.rendererId });
 			// 	}
 			// 	return;
-			// }
+			}
 
 			this._onMessage.fire({ message: data });
 		}));
 	}
 
-	private async _onDidClickDataLink(event: IClickedDataUrlMessage): Promise<void> {
-		const [splitStart, splitData] = event.data.split(';base64,');
-		if (!splitData || !splitStart) {
-			return;
-		}
-
-		const defaultDir = dirname(this.documentUri);
-		let defaultName: string;
-		if (event.downloadName) {
-			defaultName = event.downloadName;
-		} else {
-			const mimeType = splitStart.replace(/^data:/, '');
-			const candidateExtension = mimeType && getExtensionForMimeType(mimeType);
-			defaultName = candidateExtension ? `download${candidateExtension}` : 'download';
-		}
-
-		const defaultUri = joinPath(defaultDir, defaultName);
-		const newFileUri = await this.fileDialogService.showSaveDialog({
-			defaultUri
-		});
-		if (!newFileUri) {
-			return;
-		}
-
-		const decoded = atob(splitData);
-		const typedArray = new Uint8Array(decoded.length);
-		for (let i = 0; i < decoded.length; i++) {
-			typedArray[i] = decoded.charCodeAt(i);
-		}
-
-		const buff = VSBuffer.wrap(typedArray);
-		await this.fileService.writeFile(newFileUri, buff);
-		await this.openerService.open(newFileUri);
-	}
 
 	private _createInset(webviewService: IWebviewService, content: string) {
 		const rootPath = isWeb ? FileAccess.asBrowserUri('', require) : FileAccess.asFileUri('', require);
@@ -572,7 +541,7 @@ var requirejs = (function() {
 		}, undefined);
 
 		let resolveFunc: () => void;
-		this._loaded = new Promise<void>((resolve, reject) => {
+		this._loaded = new Promise<void>((resolve) => {
 			resolveFunc = resolve;
 		});
 
@@ -611,7 +580,7 @@ var requirejs = (function() {
 		return true;
 	}
 
-	updateViewScrollTop(top: number, forceDisplay: boolean, items: { cell: CodeCellViewModel, output: IDisplayOutputViewModel, cellTop: number }[]) {
+	updateViewScrollTop(top: number, forceDisplay: boolean, items: { diffElement: DiffElementViewModelBase, cell: DiffNestedCellViewModel, output: IDisplayOutputViewModel, cellTop: number }[]) {
 		if (this._disposed) {
 			return;
 		}
@@ -620,8 +589,14 @@ var requirejs = (function() {
 			const outputCache = this.insetMapping.get(item.output)!;
 			const id = outputCache.outputId;
 			const outputIndex = item.cell.outputsViewModels.indexOf(item.output);
+			let outputOffset = 0;
+			if (item.diffElement instanceof SideBySideDiffElementViewModel) {
+				outputOffset = item.diffElement.getOutputOffsetInCell(false, outputIndex);
+			} else {
+				outputOffset = (item.diffElement as SingleSideDiffElementViewModel).getOutputOffsetInCell(outputIndex);
+			}
 
-			const outputOffset = item.cellTop + item.cell.getOutputOffset(outputIndex);
+			// const outputOffset = item.cellTop + item.cell.getOutputOffset(outputIndex);
 			outputCache.cachedCreation.top = outputOffset;
 			this.hiddenInsetMapping.delete(item.output);
 
@@ -641,7 +616,7 @@ var requirejs = (function() {
 		});
 	}
 
-	async createInset(cell: NotebookCellTextModel, content: IInsetRenderOutput, cellTop: number, offset: number) {
+	async createInset(cellDiffViewModel: DiffElementViewModelBase, cell: DiffNestedCellViewModel, content: IInsetRenderOutput, cellTop: number, offset: number) {
 		if (this._disposed) {
 			return;
 		}
@@ -703,7 +678,7 @@ var requirejs = (function() {
 		}
 
 		this._sendMessageToWebview(message);
-		this.insetMapping.set(content.source, { outputId: message.outputId, cell, renderer, cachedCreation: message });
+		this.insetMapping.set(content.source, { outputId: message.outputId, diffElement: cellDiffViewModel, cell, renderer, cachedCreation: message });
 		this.hiddenInsetMapping.delete(content.source);
 		this.reversedInsetMapping.set(message.outputId, content.source);
 	}

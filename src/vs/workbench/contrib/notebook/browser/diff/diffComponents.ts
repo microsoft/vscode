@@ -371,7 +371,7 @@ abstract class AbstractElementRenderer extends Disposable {
 			}
 
 			if (newLangauge !== undefined && newLangauge !== this.cell.modified!.language) {
-				const index = this.notebookEditor.textModel!.cells.indexOf(this.cell.modified!);
+				const index = this.notebookEditor.textModel!.cells.indexOf(this.cell.modified!.textModel);
 				this.notebookEditor.textModel!.applyEdits(
 					this.notebookEditor.textModel!.versionId,
 					[{ editType: CellEditType.CellLanguage, index, language: newLangauge }],
@@ -382,7 +382,7 @@ abstract class AbstractElementRenderer extends Disposable {
 				);
 			}
 
-			const index = this.notebookEditor.textModel!.cells.indexOf(this.cell.modified!);
+			const index = this.notebookEditor.textModel!.cells.indexOf(this.cell.modified!.textModel);
 
 			if (index < 0) {
 				return;
@@ -444,7 +444,7 @@ abstract class AbstractElementRenderer extends Disposable {
 				respondingToContentChange = false;
 			}));
 
-			this._register(this.cell.modified!.onDidChangeMetadata(() => {
+			this._register(this.cell.modified!.textModel.onDidChangeMetadata(() => {
 				if (respondingToContentChange) {
 					return;
 				}
@@ -538,7 +538,7 @@ abstract class AbstractElementRenderer extends Disposable {
 					}
 				}));
 
-				this._register(this.cell.modified!.onDidChangeOutputs(() => {
+				this._register(this.cell.modified!.textModel.onDidChangeOutputs(() => {
 					const modifiedOutputsSource = this._getFormatedOutputJSON(this.cell.modified?.outputs || []);
 					modifiedModel.setValue(modifiedOutputsSource);
 					this._outputHeader.refresh();
@@ -742,7 +742,7 @@ export class DeletedElement extends SingleSideDiffElement {
 
 	updateSourceEditor(): void {
 		const originalCell = this.cell.original!;
-		const lineCount = originalCell.textBuffer.getLineCount();
+		const lineCount = originalCell.textModel.textBuffer.getLineCount();
 		const lineHeight = this.notebookEditor.getLayoutInfo().fontInfo.lineHeight || 17;
 		const editorHeight = lineCount * lineHeight + getEditorTopPadding() + EDITOR_BOTTOM_PADDING;
 
@@ -760,7 +760,7 @@ export class DeletedElement extends SingleSideDiffElement {
 			}
 		}));
 
-		originalCell.resolveTextModelRef().then(ref => {
+		originalCell.textModel.resolveTextModelRef().then(ref => {
 			if (this._isDisposed) {
 				return;
 			}
@@ -831,7 +831,7 @@ export class InsertElement extends SingleSideDiffElement {
 
 	updateSourceEditor(): void {
 		const modifiedCell = this.cell.modified!;
-		const lineCount = modifiedCell.textBuffer.getLineCount();
+		const lineCount = modifiedCell.textModel.textBuffer.getLineCount();
 		const lineHeight = this.notebookEditor.getLayoutInfo().fontInfo.lineHeight || 17;
 		const editorHeight = lineCount * lineHeight + getEditorTopPadding() + EDITOR_BOTTOM_PADDING;
 
@@ -851,7 +851,7 @@ export class InsertElement extends SingleSideDiffElement {
 			}
 		}));
 
-		modifiedCell.resolveTextModelRef().then(ref => {
+		modifiedCell.textModel.resolveTextModelRef().then(ref => {
 			if (this._isDisposed) {
 				return;
 			}
@@ -1036,7 +1036,7 @@ export class ModifiedElement extends AbstractElementRenderer {
 
 	updateSourceEditor(): void {
 		const modifiedCell = this.cell.modified!;
-		const lineCount = modifiedCell.textBuffer.getLineCount();
+		const lineCount = modifiedCell.textModel.textBuffer.getLineCount();
 		const lineHeight = this.notebookEditor.getLayoutInfo().fontInfo.lineHeight || 17;
 		const editorHeight = lineCount * lineHeight + getEditorTopPadding() + EDITOR_BOTTOM_PADDING;
 		this._editorContainer = this.templateData.editorContainer;
@@ -1072,14 +1072,14 @@ export class ModifiedElement extends AbstractElementRenderer {
 		createAndFillInActionBarActions(this._menu, { shouldForwardArgs: true }, actions);
 		this._toolbar.setActions(actions);
 
-		if (this.cell.modified!.getValue() !== this.cell.original!.getValue()) {
+		if (this.cell.modified!.textModel.getValue() !== this.cell.original!.textModel.getValue()) {
 			this._inputToolbarContainer.style.display = 'block';
 		} else {
 			this._inputToolbarContainer.style.display = 'none';
 		}
 
-		this._register(this.cell.modified!.onDidChangeContent(() => {
-			if (this.cell.modified!.getValue() !== this.cell.original!.getValue()) {
+		this._register(this.cell.modified!.textModel.onDidChangeContent(() => {
+			if (this.cell.modified!.textModel.getValue() !== this.cell.original!.textModel.getValue()) {
 				this._inputToolbarContainer.style.display = 'block';
 			} else {
 				this._inputToolbarContainer.style.display = 'none';
@@ -1091,8 +1091,8 @@ export class ModifiedElement extends AbstractElementRenderer {
 		const originalCell = this.cell.original!;
 		const modifiedCell = this.cell.modified!;
 
-		const originalRef = await originalCell.resolveTextModelRef();
-		const modifiedRef = await modifiedCell.resolveTextModelRef();
+		const originalRef = await originalCell.textModel.resolveTextModelRef();
+		const modifiedRef = await modifiedCell.textModel.resolveTextModelRef();
 
 		if (this._isDisposed) {
 			return;
