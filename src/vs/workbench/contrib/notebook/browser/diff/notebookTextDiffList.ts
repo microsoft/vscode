@@ -313,6 +313,10 @@ export class CellDiffSideBySideRenderer implements IListRenderer<SideBySideCellD
 export class NotebookTextDiffList extends WorkbenchList<CellDiffViewModelBase> implements IDisposable, IStyleController {
 	private styleElement?: HTMLStyleElement;
 
+	get rowsContainer(): HTMLElement {
+		return this.view.containerDomNode;
+	}
+
 	constructor(
 		listUser: string,
 		container: HTMLElement,
