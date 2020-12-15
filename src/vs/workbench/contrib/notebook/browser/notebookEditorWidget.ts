@@ -62,7 +62,7 @@ import { editorGutterModifiedBackground } from 'vs/workbench/contrib/scm/browser
 import { Webview } from 'vs/workbench/contrib/webview/browser/webview';
 import { IEditorGroupsService } from 'vs/workbench/services/editor/common/editorGroupsService';
 import { configureKernelIcon, errorStateIcon, successStateIcon } from 'vs/workbench/contrib/notebook/browser/notebookIcons';
-import { IDisplayOutputLayoutUpdateRequest } from 'vs/workbench/contrib/notebook/browser/genericTypes';
+import { ICommonCellInfo, IDisplayOutputLayoutUpdateRequest } from 'vs/workbench/contrib/notebook/browser/genericTypes';
 
 const $ = DOM.$;
 
@@ -74,9 +74,9 @@ export class NotebookEditorWidget extends Disposable implements INotebookEditor 
 	private _overlayContainer!: HTMLElement;
 	private _body!: HTMLElement;
 	private _overflowContainer!: HTMLElement;
-	private _webview: BackLayerWebView | null = null;
+	private _webview: BackLayerWebView<ICommonCellInfo> | null = null;
 	private _webviewResolved: boolean = false;
-	private _webviewResolvePromise: Promise<BackLayerWebView | null> | null = null;
+	private _webviewResolvePromise: Promise<BackLayerWebView<ICommonCellInfo> | null> | null = null;
 	private _webviewTransparentCover: HTMLElement | null = null;
 	private _list!: INotebookCellList;
 	private _dndController: CellDragAndDropController | null = null;
@@ -893,7 +893,7 @@ export class NotebookEditorWidget extends Disposable implements INotebookEditor 
 		this._notebookExecuting?.set(notebookMetadata.runState === NotebookRunState.Running);
 	}
 
-	private async _resolveWebview(): Promise<BackLayerWebView | null> {
+	private async _resolveWebview(): Promise<BackLayerWebView<ICommonCellInfo> | null> {
 		if (!this.textModel) {
 			return null;
 		}
@@ -1020,7 +1020,12 @@ export class NotebookEditorWidget extends Disposable implements INotebookEditor 
 					const updateItems: IDisplayOutputLayoutUpdateRequest[] = [];
 					const removedItems: IDisplayOutputViewModel[] = [];
 					this._webview?.insetMapping.forEach((value, key) => {
-						const cell = value.cell;
+						const cell = this.viewModel?.getCellByHandle(value.cellInfo.cellHandle);
+						if (!cell || !(cell instanceof CodeCellViewModel)) {
+							return;
+						}
+
+						this.viewModel?.viewCells.find(cell => cell.handle === value.cellInfo.cellHandle);
 						const viewIndex = this._list.getViewIndex(cell);
 
 						if (viewIndex === undefined) {
@@ -1861,7 +1866,7 @@ export class NotebookEditorWidget extends Disposable implements INotebookEditor 
 
 			if (!this._webview!.insetMapping.has(output.source)) {
 				const cellTop = this._list.getAbsoluteTopOfElement(cell);
-				await this._webview!.createInset(cell, output, cellTop, offset);
+				await this._webview!.createInset({ cellId: cell.id, cellHandle: cell.handle, cellUri: cell.uri }, output, cellTop, offset);
 			} else {
 				const cellTop = this._list.getAbsoluteTopOfElement(cell);
 				const scrollTop = this._list.scrollTop;
@@ -1926,6 +1931,20 @@ export class NotebookEditorWidget extends Disposable implements INotebookEditor 
 
 	removeClassName(className: string) {
 		this._overlayContainer.classList.remove(className);
+	}
+
+	getCellByInfo(cellInfo: ICommonCellInfo): ICellViewModel {
+		const { cellHandle } = cellInfo;
+		return this.viewModel?.viewCells.find(vc => vc.handle === cellHandle) as CodeCellViewModel;
+	}
+
+	updateOutputHeight(cellInfo: ICommonCellInfo, output: IDisplayOutputViewModel, outputHeight: number): void {
+		const cell = this.viewModel?.viewCells.find(vc => vc.handle === cellInfo.cellHandle);
+		if (cell && cell instanceof CodeCellViewModel) {
+			const outputIndex = cell.outputsViewModels.indexOf(output);
+			cell.updateOutputHeight(outputIndex, outputHeight);
+			this.layoutNotebookCell(cell, cell.layoutInfo.totalHeight);
+		}
 	}
 
 

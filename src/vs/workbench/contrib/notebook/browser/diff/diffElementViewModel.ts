@@ -15,6 +15,8 @@ import { format } from 'vs/base/common/jsonFormatter';
 import { applyEdits } from 'vs/base/common/jsonEdit';
 import { NotebookCellMetadata } from 'vs/workbench/contrib/notebook/common/notebookCommon';
 import { DiffNestedCellViewModel } from 'vs/workbench/contrib/notebook/browser/diff/diffNestedCellViewModel';
+import { URI } from 'vs/base/common/uri';
+import { IGenericCellViewModel } from 'vs/workbench/contrib/notebook/browser/genericTypes';
 
 export enum PropertyFoldingState {
 	Expanded,
@@ -131,6 +133,7 @@ export abstract class DiffElementViewModelBase extends Disposable {
 	abstract checkIfOutputsModified(): boolean;
 	abstract checkMetadataIfModified(): boolean;
 	abstract layoutChange(): void;
+	abstract getCellByUri(cellUri: URI): IGenericCellViewModel;
 
 	getComputedCellContainerWidth(layoutInfo: NotebookLayoutInfo, diffEditor: boolean, fullWidth: boolean) {
 		if (fullWidth) {
@@ -231,6 +234,14 @@ export class SideBySideDiffElementViewModel extends DiffElementViewModelBase {
 	getOutputTotalHeight() {
 		return Math.max(this.original.getOutputTotalHeight(), this.modified.getOutputTotalHeight());
 	}
+
+	getCellByUri(cellUri: URI): IGenericCellViewModel {
+		if (cellUri.toString() === this.original.uri.toString()) {
+			return this.original;
+		} else {
+			return this.modified;
+		}
+	}
 }
 
 export class SingleSideDiffElementViewModel extends DiffElementViewModelBase {
@@ -298,6 +309,10 @@ export class SingleSideDiffElementViewModel extends DiffElementViewModelBase {
 
 	getOutputTotalHeight() {
 		return this.cellViewModel?.getOutputTotalHeight() ?? 0;
+	}
+
+	getCellByUri(cellUri: URI): IGenericCellViewModel {
+		return this.cellViewModel!;
 	}
 }
 

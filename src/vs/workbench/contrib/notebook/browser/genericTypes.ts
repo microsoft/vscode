@@ -23,3 +23,9 @@ export interface IDisplayOutputLayoutUpdateRequest {
 	cellTop: number;
 	outputOffset: number;
 }
+
+export interface ICommonCellInfo {
+	cellId: string;
+	cellHandle: number;
+	cellUri: URI;
+}

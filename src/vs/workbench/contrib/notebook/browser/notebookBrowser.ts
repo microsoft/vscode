@@ -31,6 +31,7 @@ import { EditorOptions } from 'vs/workbench/common/editor';
 import { IResourceEditorInput } from 'vs/platform/editor/common/editor';
 import { IConstructorSignature1 } from 'vs/platform/instantiation/common/instantiation';
 import { CellEditorStatusBar } from 'vs/workbench/contrib/notebook/browser/view/renderers/cellWidgets';
+import { ICommonCellInfo } from 'vs/workbench/contrib/notebook/browser/genericTypes';
 
 export const KEYBINDING_CONTEXT_NOTEBOOK_FIND_WIDGET_FOCUSED = new RawContextKey<boolean>('notebookFindWidgetFocused', false);
 
@@ -185,6 +186,7 @@ export interface ICellViewModel {
 	cellKind: CellKind;
 	editState: CellEditState;
 	focusMode: CellFocusMode;
+	outputIsHovered: boolean;
 	getText(): string;
 	getTextLength(): number;
 	metadata: NotebookCellMetadata | undefined;
@@ -528,6 +530,9 @@ export interface INotebookEditor extends IEditor {
 	 * @return The contribution or null if contribution not found.
 	 */
 	getContribution<T extends INotebookEditorContribution>(id: string): T;
+
+	getCellByInfo(cellInfo: ICommonCellInfo): ICellViewModel;
+	updateOutputHeight(cellInfo: ICommonCellInfo, output: IDisplayOutputViewModel, height: number): void;
 }
 
 export interface INotebookCellList {

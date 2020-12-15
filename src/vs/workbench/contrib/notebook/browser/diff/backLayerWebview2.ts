@@ -23,7 +23,7 @@ import { FileAccess, Schemas } from 'vs/base/common/network';
 import { IWorkbenchEnvironmentService } from 'vs/workbench/services/environment/common/environmentService';
 import { INotebookTextDiffEditor } from 'vs/workbench/contrib/notebook/browser/diff/common';
 import { DiffElementViewModelBase, SideBySideDiffElementViewModel, SingleSideDiffElementViewModel } from 'vs/workbench/contrib/notebook/browser/diff/diffElementViewModel';
-import { IDisplayOutputLayoutUpdateRequest, IGenericCellViewModel } from 'vs/workbench/contrib/notebook/browser/genericTypes';
+import { ICommonCellInfo, IDisplayOutputLayoutUpdateRequest, IGenericCellViewModel } from 'vs/workbench/contrib/notebook/browser/genericTypes';
 import { getExtensionForMimeType } from 'vs/base/common/mime';
 import { IFileDialogService } from 'vs/platform/dialogs/common/dialogs';
 import { VSBuffer } from 'vs/base/common/buffer';
@@ -198,10 +198,9 @@ export type ToWebviewMessage =
 
 export type AnyMessage = FromWebviewMessage | ToWebviewMessage;
 
-interface ICachedInset {
+interface ICachedInset<K extends ICommonCellInfo> {
 	outputId: string;
-	diffElement: DiffElementViewModelBase;
-	cell: IGenericCellViewModel;
+	cellInfo: K;
 	renderer?: INotebookRendererInfo;
 	cachedCreation: ICreationRequestMessage;
 }
@@ -220,10 +219,10 @@ export interface INotebookWebviewMessage {
 }
 
 let version = 0;
-export class BackLayerWebView extends Disposable {
+export class BackLayerWebView<T extends ICommonCellInfo> extends Disposable {
 	element: HTMLElement;
 	webview: WebviewElement | undefined = undefined;
-	insetMapping: Map<IDisplayOutputViewModel, ICachedInset> = new Map();
+	insetMapping: Map<IDisplayOutputViewModel, ICachedInset<T>> = new Map();
 	hiddenInsetMapping: Set<IDisplayOutputViewModel> = new Set();
 	reversedInsetMapping: Map<string, IDisplayOutputViewModel> = new Map();
 	localResourceRootsCache: URI[] | undefined = undefined;
@@ -339,7 +338,7 @@ export class BackLayerWebView extends Disposable {
 		});
 	}
 
-	private resolveOutputId(id: string): { cell: IGenericCellViewModel, diffElement: DiffElementViewModelBase, output: IDisplayOutputViewModel } | undefined {
+	private resolveOutputId(id: string): { cachedInset: ICachedInset<T>, output: IDisplayOutputViewModel } | undefined {
 		const output = this.reversedInsetMapping.get(id);
 		if (!output) {
 			return;
@@ -352,7 +351,7 @@ export class BackLayerWebView extends Disposable {
 		// 	this.insetMapping.get(output)!.cell = currCell as CodeCellViewModel;
 		// }
 
-		return { cell: info.cell, diffElement: info.diffElement, output };
+		return { cachedInset: info, output };
 	}
 
 	async createWebview(): Promise<void> {
@@ -461,27 +460,21 @@ var requirejs = (function() {
 					const height = data.data.height;
 					const outputHeight = height;
 
-					const info = this.resolveOutputId(data.id);
-					if (info) {
-						const { diffElement, cell, output } = info;
-						const outputIndex = cell.outputsViewModels.findIndex(viewModel => (viewModel.model as ITransformedDisplayOutputDto).outputId === (output.model as ITransformedDisplayOutputDto).outputId);
-						if (diffElement instanceof SideBySideDiffElementViewModel) {
-							diffElement.updateOutputHeight(false, outputIndex, outputHeight);
-						} else {
-							(diffElement as SingleSideDiffElementViewModel).updateOutputHeight(outputIndex, outputHeight);
-						}
-						// this.notebookEditor.layoutNotebookCell(cell, cell.layoutInfo.totalHeight);
+					const resolvedResult = this.resolveOutputId(data.id);
+					if (resolvedResult) {
+						const { cachedInset, output } = resolvedResult;
+						this.notebookEditor.updateOutputHeight(cachedInset.cellInfo, output, outputHeight);
 					}
 				} else if (data.type === 'mouseenter') {
-					const info = this.resolveOutputId(data.id);
-					if (info) {
-						const { cell } = info;
+					const resolvedResult = this.resolveOutputId(data.id);
+					if (resolvedResult) {
+						const cell = this.notebookEditor.getCellByInfo(resolvedResult.cachedInset.cellInfo);
 						cell.outputIsHovered = true;
 					}
 				} else if (data.type === 'mouseleave') {
-					const info = this.resolveOutputId(data.id);
-					if (info) {
-						const { cell } = info;
+					const resolvedResult = this.resolveOutputId(data.id);
+					if (resolvedResult) {
+						const cell = this.notebookEditor.getCellByInfo(resolvedResult.cachedInset.cellInfo);
 						cell.outputIsHovered = false;
 					}
 				} else if (data.type === 'scroll-ack') {
@@ -646,7 +639,7 @@ var requirejs = (function() {
 		});
 	}
 
-	async createInset(cellDiffViewModel: DiffElementViewModelBase, cell: IGenericCellViewModel, content: IInsetRenderOutput, cellTop: number, offset: number) {
+	async createInset(cellInfo: T, content: IInsetRenderOutput, cellTop: number, offset: number) {
 		if (this._disposed) {
 			return;
 		}
@@ -660,7 +653,7 @@ var requirejs = (function() {
 				this.hiddenInsetMapping.delete(content.source);
 				this._sendMessageToWebview({
 					type: 'showOutput',
-					cellId: outputCache.cell.id,
+					cellId: outputCache.cellInfo.cellId,
 					outputId: outputCache.outputId,
 					top: initialTop
 				});
@@ -670,7 +663,7 @@ var requirejs = (function() {
 
 		const messageBase = {
 			type: 'html',
-			cellId: cell.id,
+			cellId: cellInfo.cellId,
 			top: initialTop,
 			left: 0,
 			requiredPreloads: [],
@@ -708,7 +701,7 @@ var requirejs = (function() {
 		}
 
 		this._sendMessageToWebview(message);
-		this.insetMapping.set(content.source, { outputId: message.outputId, diffElement: cellDiffViewModel, cell, renderer, cachedCreation: message });
+		this.insetMapping.set(content.source, { outputId: message.outputId, cellInfo: cellInfo, renderer, cachedCreation: message });
 		this.hiddenInsetMapping.delete(content.source);
 		this.reversedInsetMapping.set(message.outputId, content.source);
 	}
@@ -728,9 +721,9 @@ var requirejs = (function() {
 		this._sendMessageToWebview({
 			type: 'clearOutput',
 			apiNamespace: outputCache.cachedCreation.apiNamespace,
-			cellUri: outputCache.cell.uri.toString(),
+			cellUri: outputCache.cellInfo.cellUri.toString(),
 			outputId: id,
-			cellId: outputCache.cell.id
+			cellId: outputCache.cellInfo.cellId
 		});
 		this.insetMapping.delete(output);
 		this.reversedInsetMapping.delete(id);
@@ -751,7 +744,7 @@ var requirejs = (function() {
 		this._sendMessageToWebview({
 			type: 'hideOutput',
 			outputId: outputCache.outputId,
-			cellId: outputCache.cell.id,
+			cellId: outputCache.cellInfo.cellId,
 		});
 	}
 

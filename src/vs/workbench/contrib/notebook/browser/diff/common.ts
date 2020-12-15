@@ -14,6 +14,11 @@ import { DiffEditorWidget } from 'vs/editor/browser/widget/diffEditorWidget';
 import { ToolBar } from 'vs/base/browser/ui/toolbar/toolbar';
 import { OutputRenderer } from 'vs/workbench/contrib/notebook/browser/view/output/outputRenderer';
 import { IMouseWheelEvent } from 'vs/base/browser/mouseEvent';
+import { ICommonCellInfo, IGenericCellViewModel } from 'vs/workbench/contrib/notebook/browser/genericTypes';
+
+export interface IDiffCellInfo extends ICommonCellInfo {
+	diffElement: DiffElementViewModelBase;
+}
 
 export interface INotebookTextDiffEditor {
 	readonly textModel?: NotebookTextModel;
@@ -28,6 +33,8 @@ export interface INotebookTextDiffEditor {
 	 * Trigger the editor to scroll from scroll event programmatically
 	 */
 	triggerScroll(event: IMouseWheelEvent): void;
+	getCellByInfo(cellInfo: ICommonCellInfo): IGenericCellViewModel;
+	updateOutputHeight(cellInfo: ICommonCellInfo, output: IDisplayOutputViewModel, height: number): void;
 }
 
 export interface IDiffNestedCellViewModel {
