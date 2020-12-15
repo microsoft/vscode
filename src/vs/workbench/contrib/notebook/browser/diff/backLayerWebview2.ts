@@ -16,7 +16,7 @@ import { CellOutputKind, IDisplayOutput, INotebookRendererInfo, ITransformedDisp
 import { INotebookService } from 'vs/workbench/contrib/notebook/common/notebookService';
 import { IWebviewService, WebviewElement, WebviewContentPurpose } from 'vs/workbench/contrib/webview/browser/webview';
 import { asWebviewUri } from 'vs/workbench/contrib/webview/common/webviewUri';
-import { dirname } from 'vs/base/common/resources';
+import { dirname, joinPath } from 'vs/base/common/resources';
 import { IWorkspaceContextService } from 'vs/platform/workspace/common/workspace';
 import { preloadsScriptStr } from 'vs/workbench/contrib/notebook/browser/view/renderers/webviewPreloads';
 import { FileAccess, Schemas } from 'vs/base/common/network';
@@ -24,6 +24,10 @@ import { IWorkbenchEnvironmentService } from 'vs/workbench/services/environment/
 import { INotebookTextDiffEditor } from 'vs/workbench/contrib/notebook/browser/diff/common';
 import { DiffElementViewModelBase, SideBySideDiffElementViewModel, SingleSideDiffElementViewModel } from 'vs/workbench/contrib/notebook/browser/diff/diffElementViewModel';
 import { IGenericCellViewModel } from 'vs/workbench/contrib/notebook/browser/genericTypes';
+import { getExtensionForMimeType } from 'vs/base/common/mime';
+import { IFileDialogService } from 'vs/platform/dialogs/common/dialogs';
+import { VSBuffer } from 'vs/base/common/buffer';
+import { IFileService } from 'vs/platform/files/common/files';
 
 export interface WebviewIntialized {
 	__vscode_notebook_message: boolean;
@@ -241,6 +245,8 @@ export class BackLayerWebView extends Disposable {
 		@INotebookService private readonly notebookService: INotebookService,
 		@IWorkspaceContextService private readonly contextService: IWorkspaceContextService,
 		@IWorkbenchEnvironmentService private readonly environmentService: IWorkbenchEnvironmentService,
+		@IFileDialogService private readonly fileDialogService: IFileDialogService,
+		@IFileService private readonly fileService: IFileService,
 	) {
 		super();
 
@@ -478,10 +484,10 @@ var requirejs = (function() {
 						const { cell } = info;
 						cell.outputIsHovered = false;
 					}
-					// 	} else if (data.type === 'scroll-ack') {
-					// 		// const date = new Date();
-					// 		// const top = data.data.top;
-					// 		// console.log('ack top ', top, ' version: ', data.version, ' - ', date.getMinutes() + ':' + date.getSeconds() + ':' + date.getMilliseconds());
+				} else if (data.type === 'scroll-ack') {
+					// const date = new Date();
+					// const top = data.data.top;
+					// console.log('ack top ', top, ' version: ', data.version, ' - ', date.getMinutes() + ':' + date.getSeconds() + ':' + date.getMilliseconds());
 				} else if (data.type === 'did-scroll-wheel') {
 					this.notebookEditor.triggerScroll({
 						...data.payload,
@@ -507,19 +513,53 @@ var requirejs = (function() {
 					// 				this.notebookEditor.focusNotebookCell(info.cell, 'editor');
 					// 			}
 					// 		}
-					// 	} else if (data.type === 'clicked-data-url') {
-					// 		this._onDidClickDataLink(data);
-					// 	} else if (data.type === 'customRendererMessage') {
-					// 		this._onMessage.fire({ message: data.message, forRenderer: data.rendererId });
-					// 	}
-					// 	return;
+				} else if (data.type === 'clicked-data-url') {
+					this._onDidClickDataLink(data);
+				} else if (data.type === 'customRendererMessage') {
+					this._onMessage.fire({ message: data.message, forRenderer: data.rendererId });
 				}
+				return;
 			}
+
 
 			this._onMessage.fire({ message: data });
 		}));
 	}
 
+	private async _onDidClickDataLink(event: IClickedDataUrlMessage): Promise<void> {
+		const [splitStart, splitData] = event.data.split(';base64,');
+		if (!splitData || !splitStart) {
+			return;
+		}
+
+		const defaultDir = dirname(this.documentUri);
+		let defaultName: string;
+		if (event.downloadName) {
+			defaultName = event.downloadName;
+		} else {
+			const mimeType = splitStart.replace(/^data:/, '');
+			const candidateExtension = mimeType && getExtensionForMimeType(mimeType);
+			defaultName = candidateExtension ? `download${candidateExtension}` : 'download';
+		}
+
+		const defaultUri = joinPath(defaultDir, defaultName);
+		const newFileUri = await this.fileDialogService.showSaveDialog({
+			defaultUri
+		});
+		if (!newFileUri) {
+			return;
+		}
+
+		const decoded = atob(splitData);
+		const typedArray = new Uint8Array(decoded.length);
+		for (let i = 0; i < decoded.length; i++) {
+			typedArray[i] = decoded.charCodeAt(i);
+		}
+
+		const buff = VSBuffer.wrap(typedArray);
+		await this.fileService.writeFile(newFileUri, buff);
+		await this.openerService.open(newFileUri);
+	}
 
 	private _createInset(webviewService: IWebviewService, content: string) {
 		const rootPath = isWeb ? FileAccess.asBrowserUri('', require) : FileAccess.asFileUri('', require);
