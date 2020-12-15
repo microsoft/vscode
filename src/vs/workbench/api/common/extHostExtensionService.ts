@@ -5,6 +5,7 @@
 
 import * as nls from 'vs/nls';
 import * as path from 'vs/base/common/path';
+import * as performance from 'vs/base/common/performance';
 import { originalFSPath, joinPath } from 'vs/base/common/resources';
 import { Barrier, timeout } from 'vs/base/common/async';
 import { dispose, toDisposable, DisposableStore, Disposable } from 'vs/base/common/lifecycle';
@@ -184,6 +185,7 @@ export abstract class AbstractExtHostExtensionService extends Disposable impleme
 			this._almostReadyToRunExtensions.open();
 
 			await this._extHostWorkspace.waitForInitializeCall();
+			performance.mark('extHost/ready');
 			this._readyToStartExtensionHost.open();
 
 			if (this._initData.autoStart) {
@@ -362,10 +364,14 @@ export abstract class AbstractExtHostExtensionService extends Disposable impleme
 
 		const activationTimesBuilder = new ExtensionActivationTimesBuilder(reason.startup);
 		return Promise.all([
-			this._loadCommonJSModule<IExtensionModule>(joinPath(extensionDescription.extensionLocation, entryPoint), activationTimesBuilder),
+			this._loadCommonJSModule<IExtensionModule>(extensionDescription.identifier, joinPath(extensionDescription.extensionLocation, entryPoint), activationTimesBuilder),
 			this._loadExtensionContext(extensionDescription)
 		]).then(values => {
+			performance.mark(`extHost/willActivateExtension/${extensionDescription.identifier.value}`);
 			return AbstractExtHostExtensionService._callActivate(this._logService, extensionDescription.identifier, values[0], values[1], activationTimesBuilder);
+		}).then((activatedExtension) => {
+			performance.mark(`extHost/didActivateExtension/${extensionDescription.identifier.value}`);
+			return activatedExtension;
 		});
 	}
 
@@ -456,6 +462,18 @@ export abstract class AbstractExtHostExtensionService extends Disposable impleme
 	}
 
 	private _activateAllStartupFinished(): void {
+		// startup is considered finished
+		const marks = performance.getMarks().map((entry) => {
+			if (entry.name.startsWith('fork/')) {
+				return {
+					name: `extHost/` + entry.name.substr('fork/'.length),
+					startTime: entry.startTime
+				};
+			}
+			return entry;
+		});
+		this._mainThreadExtensionsProxy.$setPerformanceMarks(marks);
+
 		for (const desc of this._registry.getAllExtensionDescriptions()) {
 			if (desc.activationEvents) {
 				for (const activationEvent of desc.activationEvents) {
@@ -541,7 +559,7 @@ export abstract class AbstractExtHostExtensionService extends Disposable impleme
 		let testRunner: ITestRunner | INewTestRunner | undefined;
 		let requireError: Error | undefined;
 		try {
-			testRunner = await this._loadCommonJSModule(URI.file(extensionTestsPath), new ExtensionActivationTimesBuilder(false));
+			testRunner = await this._loadCommonJSModule(null, URI.file(extensionTestsPath), new ExtensionActivationTimesBuilder(false));
 		} catch (error) {
 			requireError = error;
 		}
@@ -644,7 +662,9 @@ export abstract class AbstractExtHostExtensionService extends Disposable impleme
 		}
 
 		try {
+			performance.mark(`extHost/willResolveAuthority/${authorityPrefix}`);
 			const result = await resolver.resolve(remoteAuthority, { resolveAttempt });
+			performance.mark(`extHost/didResolveAuthorityOK/${authorityPrefix}`);
 			this._disposables.add(await this._extHostTunnelService.setTunnelExtensionFunctions(resolver));
 
 			// Split merged API result into separate authority/options
@@ -667,6 +687,7 @@ export abstract class AbstractExtHostExtensionService extends Disposable impleme
 				}
 			};
 		} catch (err) {
+			performance.mark(`extHost/didResolveAuthorityError/${authorityPrefix}`);
 			if (err instanceof RemoteAuthorityResolverError) {
 				return {
 					type: 'error',
@@ -754,7 +775,7 @@ export abstract class AbstractExtHostExtensionService extends Disposable impleme
 
 	protected abstract _beforeAlmostReadyToRunExtensions(): Promise<void>;
 	protected abstract _getEntryPoint(extensionDescription: IExtensionDescription): string | undefined;
-	protected abstract _loadCommonJSModule<T>(module: URI, activationTimesBuilder: ExtensionActivationTimesBuilder): Promise<T>;
+	protected abstract _loadCommonJSModule<T>(extensionId: ExtensionIdentifier | null, module: URI, activationTimesBuilder: ExtensionActivationTimesBuilder): Promise<T>;
 	public abstract $setRemoteEnvironment(env: { [key: string]: string | null }): Promise<void>;
 }
 
