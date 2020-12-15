@@ -393,26 +393,27 @@ export function getHtmlNodeLS(document: LSTextDocument, position: vscode.Positio
 	return getHtmlNodeLSInternal(document, selectionStartOffset);
 }
 
-function getHtmlNodeLSInternal(document: LSTextDocument, offset: number): LSNode | undefined {
-	const parsedDocument = parseHTMLDocument(document);
-	const documentText = document.getText();
+function getHtmlNodeLSInternal(document: LSTextDocument, offset: number, isInTemplateNode: boolean = false): LSNode | undefined {
+	const useCache = !isInTemplateNode;
+	const parsedDocument = parseHTMLDocument(document, useCache);
 
 	const currentNode: LSNode = parsedDocument.findNodeAt(offset);
 	if (!currentNode.tag) { return; }
 
 	const isTemplateScript = isNodeTemplateScriptLS(currentNode);
-	if (isTemplateScript &&
-		currentNode.startTagEnd && currentNode.endTagStart &&
-		offset > currentNode.startTagEnd &&
-		offset < currentNode.endTagStart) {
+	if (isTemplateScript
+		&& currentNode.startTagEnd
+		&& offset > currentNode.startTagEnd
+		&& (!currentNode.endTagStart || offset < currentNode.endTagStart)) {
 		// blank out the rest of the document and search for the node within
+		const documentText = document.getText();
 		const beforePadding = ' '.repeat(currentNode.startTagEnd);
-		const afterPadding = ' '.repeat(documentText.length - currentNode.endTagStart);
-		const scriptBodyText = beforePadding + documentText.substring(currentNode.startTagEnd, currentNode.endTagStart) + afterPadding;
+		const scriptBodyText = beforePadding + documentText.substring(currentNode.startTagEnd, currentNode.endTagStart ?? currentNode.end);
 		const scriptBodyDocument = LSTextDocument.create(document.uri, document.languageId, document.version, scriptBodyText);
-		const scriptBodyNode = getHtmlNodeLSInternal(scriptBodyDocument, offset);
+		const scriptBodyNode = getHtmlNodeLSInternal(scriptBodyDocument, offset, true);
 		if (scriptBodyNode) {
 			scriptBodyNode.parent = currentNode;
+			currentNode.children.push(scriptBodyNode);
 			return scriptBodyNode;
 		}
 	}

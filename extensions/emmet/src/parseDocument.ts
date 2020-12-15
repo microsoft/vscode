@@ -14,19 +14,21 @@ type Pair<K, V> = {
 // Map(filename, Pair(fileVersion, parsedContent))
 const _parseCache = new Map<string, Pair<number, HTMLDocument> | undefined>();
 
-export function parseHTMLDocument(document: LSTextDocument): HTMLDocument {
+export function parseHTMLDocument(document: LSTextDocument, useCache: boolean = true): HTMLDocument {
 	const languageService = getLanguageService();
 	const key = document.uri;
 	const result = _parseCache.get(key);
 	const documentVersion = document.version;
-	if (result) {
+	if (useCache && result) {
 		if (documentVersion === result.key) {
 			return result.value;
 		}
 	}
 
 	const parsedDocument = languageService.parseHTMLDocument(document);
-	_parseCache.set(key, { key: documentVersion, value: parsedDocument });
+	if (useCache) {
+		_parseCache.set(key, { key: documentVersion, value: parsedDocument });
+	}
 	return parsedDocument;
 }
 
