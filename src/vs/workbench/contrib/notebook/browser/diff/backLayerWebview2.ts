@@ -617,7 +617,7 @@ var requirejs = (function() {
 		return true;
 	}
 
-	updateViewScrollTop(top: number, forceDisplay: boolean, items: { diffElement: DiffElementViewModelBase, cell: IGenericCellViewModel, output: IDisplayOutputViewModel, cellTop: number }[]) {
+	updateViewScrollTop(top: number, forceDisplay: boolean, items: { cell: IGenericCellViewModel, output: IDisplayOutputViewModel, cellTop: number, outputOffset: number }[]) {
 		if (this._disposed) {
 			return;
 		}
@@ -625,14 +625,7 @@ var requirejs = (function() {
 		const widgets: IContentWidgetTopRequest[] = items.map(item => {
 			const outputCache = this.insetMapping.get(item.output)!;
 			const id = outputCache.outputId;
-			// why? does it mean, we create new output view model every time?
-			const outputIndex = item.cell.outputsViewModels.findIndex(viewModel => (viewModel.model as ITransformedDisplayOutputDto).outputId === (item.output.model as ITransformedDisplayOutputDto).outputId);
-			let outputOffset = 0;
-			if (item.diffElement instanceof SideBySideDiffElementViewModel) {
-				outputOffset = item.cellTop + item.diffElement.getOutputOffsetInCell(false, outputIndex);
-			} else {
-				outputOffset = item.cellTop + (item.diffElement as SingleSideDiffElementViewModel).getOutputOffsetInCell(outputIndex);
-			}
+			const outputOffset = item.outputOffset;
 
 			outputCache.cachedCreation.top = outputOffset;
 			this.hiddenInsetMapping.delete(item.output);

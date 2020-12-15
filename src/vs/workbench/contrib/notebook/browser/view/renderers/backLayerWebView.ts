@@ -609,7 +609,7 @@ var requirejs = (function() {
 		return true;
 	}
 
-	updateViewScrollTop(top: number, forceDisplay: boolean, items: { cell: CodeCellViewModel, output: IDisplayOutputViewModel, cellTop: number }[]) {
+	updateViewScrollTop(top: number, forceDisplay: boolean, items: { output: IDisplayOutputViewModel, cellTop: number, outputOffset: number }[]) {
 		if (this._disposed) {
 			return;
 		}
@@ -617,9 +617,7 @@ var requirejs = (function() {
 		const widgets: IContentWidgetTopRequest[] = items.map(item => {
 			const outputCache = this.insetMapping.get(item.output)!;
 			const id = outputCache.outputId;
-			const outputIndex = item.cell.outputsViewModels.indexOf(item.output);
-
-			const outputOffset = item.cellTop + item.cell.getOutputOffset(outputIndex);
+			const outputOffset = item.outputOffset;
 			outputCache.cachedCreation.top = outputOffset;
 			this.hiddenInsetMapping.delete(item.output);
 

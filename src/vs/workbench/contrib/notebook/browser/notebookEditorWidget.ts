@@ -1016,7 +1016,7 @@ export class NotebookEditorWidget extends Disposable implements INotebookEditor 
 				this._webview!.element.style.height = `${scrollHeight}px`;
 
 				if (this._webview?.insetMapping) {
-					const updateItems: { cell: CodeCellViewModel, output: IDisplayOutputViewModel, cellTop: number }[] = [];
+					const updateItems: { output: IDisplayOutputViewModel, cellTop: number, outputOffset: number }[] = [];
 					const removedItems: IDisplayOutputViewModel[] = [];
 					this._webview?.insetMapping.forEach((value, key) => {
 						const cell = value.cell;
@@ -1033,10 +1033,14 @@ export class NotebookEditorWidget extends Disposable implements INotebookEditor 
 
 						const cellTop = this._list.getAbsoluteTopOfElement(cell);
 						if (this._webview!.shouldUpdateInset(cell, key, cellTop)) {
+							const outputIndex = cell.outputsViewModels.indexOf(key);
+
+							const outputOffset = cellTop + cell.getOutputOffset(outputIndex);
+
 							updateItems.push({
-								cell: cell,
 								output: key,
-								cellTop: cellTop
+								cellTop: cellTop,
+								outputOffset
 							});
 						}
 					});
@@ -1860,8 +1864,10 @@ export class NotebookEditorWidget extends Disposable implements INotebookEditor 
 			} else {
 				const cellTop = this._list.getAbsoluteTopOfElement(cell);
 				const scrollTop = this._list.scrollTop;
+				const outputIndex = cell.outputsViewModels.indexOf(output.source);
+				const outputOffset = cellTop + cell.getOutputOffset(outputIndex);
 
-				this._webview!.updateViewScrollTop(-scrollTop, true, [{ cell, output: output.source, cellTop }]);
+				this._webview!.updateViewScrollTop(-scrollTop, true, [{ output: output.source, cellTop, outputOffset }]);
 			}
 		});
 	}
