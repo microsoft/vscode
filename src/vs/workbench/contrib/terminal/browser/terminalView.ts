@@ -98,6 +98,7 @@ export class TerminalViewPane extends ViewPane {
 			if (e.affectsConfiguration('terminal.integrated.fontFamily') || e.affectsConfiguration('editor.fontFamily')) {
 				const configHelper = this._terminalService.configHelper;
 				if (!configHelper.configFontIsMonospace()) {
+					this.configurationService.updateValue('terminal.integrated.fontFamily', 'monospace');
 					const choices: IPromptChoice[] = [{
 						label: nls.localize('terminal.useMonospace', "Use 'monospace'"),
 						run: () => this.configurationService.updateValue('terminal.integrated.fontFamily', 'monospace'),
