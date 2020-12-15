@@ -127,7 +127,7 @@ export class OutputElement extends Disposable {
 
 		if (result.type !== RenderOutputType.None) {
 			this.viewCell.selfSizeMonitoring = true;
-			this.notebookEditor.createInset(this.viewCell, result as any, this.viewCell.getOutputOffset(index));
+			this.notebookEditor.createInset(this.viewCell, result, this.viewCell.getOutputOffset(index));
 		} else {
 			outputItemDiv.classList.add('foreground', 'output-element');
 			outputItemDiv.style.position = 'absolute';
