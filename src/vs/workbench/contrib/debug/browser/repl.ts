@@ -815,7 +815,7 @@ function getReplView(viewsService: IViewsService): Repl | undefined {
 	return viewsService.getActiveViewWithId(REPL_VIEW_ID) as Repl ?? undefined;
 }
 
-registerAction2(class FilterAction extends Action2 {
+registerAction2(class extends Action2 {
 	constructor() {
 		super({
 			id: FILTER_ACTION_ID,
@@ -836,7 +836,7 @@ registerAction2(class FilterAction extends Action2 {
 });
 
 const selectReplCommandId = 'workbench.action.debug.selectRepl';
-registerAction2(class SelectRepl extends ViewAction<Repl> {
+registerAction2(class extends ViewAction<Repl> {
 	constructor() {
 		super({
 			id: selectReplCommandId,
@@ -877,7 +877,7 @@ const clearReplCommand = {
 		order: 30
 	}
 };
-registerAction2(class ClearRepl extends ViewAction<Repl> {
+registerAction2(class extends ViewAction<Repl> {
 	constructor() {
 		super(clearReplCommand);
 	}
