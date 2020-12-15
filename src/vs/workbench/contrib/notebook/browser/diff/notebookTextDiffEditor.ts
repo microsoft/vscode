@@ -42,7 +42,7 @@ import { BackLayerWebView } from 'vs/workbench/contrib/notebook/browser/diff/bac
 import { generateUuid } from 'vs/base/common/uuid';
 import { IMouseWheelEvent, StandardMouseEvent } from 'vs/base/browser/mouseEvent';
 import { DiffNestedCellViewModel } from 'vs/workbench/contrib/notebook/browser/diff/diffNestedCellViewModel';
-import { ICommonCellInfo, IDisplayOutputLayoutUpdateRequest, IGenericCellViewModel } from 'vs/workbench/contrib/notebook/browser/genericTypes';
+import { IDisplayOutputLayoutUpdateRequest, IGenericCellViewModel } from 'vs/workbench/contrib/notebook/browser/genericTypes';
 
 const $ = DOM.$;
 
@@ -55,7 +55,7 @@ export class NotebookTextDiffEditor extends EditorPane implements INotebookTextD
 	private _rootElement!: HTMLElement;
 	private _overflowContainer!: HTMLElement;
 	private _dimension: DOM.Dimension | null = null;
-	private _diffElementViewModels: DiffElementViewModelBase[] = [];
+	// private _diffElementViewModels: DiffElementViewModelBase[] = [];
 	private _list!: NotebookTextDiffList;
 	private _modifiedWebview: BackLayerWebView<IDiffCellInfo> | null = null;
 	private _webviewTransparentCover: HTMLElement | null = null;
@@ -397,7 +397,7 @@ export class NotebookTextDiffEditor extends EditorPane implements INotebookTextD
 			));
 		}
 
-		this._diffElementViewModels = diffElementViewModels;
+		// this._diffElementViewModels = diffElementViewModels;
 		this._list.splice(0, this._list.length, diffElementViewModels);
 
 		if (this._revealFirst && firstChangeIndex !== -1) {

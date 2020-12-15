@@ -12,7 +12,7 @@ import * as UUID from 'vs/base/common/uuid';
 import { IOpenerService, matchesScheme } from 'vs/platform/opener/common/opener';
 import { CELL_MARGIN, CELL_RUN_GUTTER, CODE_CELL_LEFT_MARGIN, CELL_OUTPUT_PADDING } from 'vs/workbench/contrib/notebook/browser/constants';
 import { IDisplayOutputViewModel, IInsetRenderOutput, RenderOutputType } from 'vs/workbench/contrib/notebook/browser/notebookBrowser';
-import { CellOutputKind, IDisplayOutput, INotebookRendererInfo, ITransformedDisplayOutputDto } from 'vs/workbench/contrib/notebook/common/notebookCommon';
+import { CellOutputKind, IDisplayOutput, INotebookRendererInfo } from 'vs/workbench/contrib/notebook/common/notebookCommon';
 import { INotebookService } from 'vs/workbench/contrib/notebook/common/notebookService';
 import { IWebviewService, WebviewElement, WebviewContentPurpose } from 'vs/workbench/contrib/webview/browser/webview';
 import { asWebviewUri } from 'vs/workbench/contrib/webview/common/webviewUri';
@@ -22,7 +22,6 @@ import { preloadsScriptStr } from 'vs/workbench/contrib/notebook/browser/view/re
 import { FileAccess, Schemas } from 'vs/base/common/network';
 import { IWorkbenchEnvironmentService } from 'vs/workbench/services/environment/common/environmentService';
 import { INotebookTextDiffEditor } from 'vs/workbench/contrib/notebook/browser/diff/common';
-import { DiffElementViewModelBase, SideBySideDiffElementViewModel, SingleSideDiffElementViewModel } from 'vs/workbench/contrib/notebook/browser/diff/diffElementViewModel';
 import { ICommonCellInfo, IDisplayOutputLayoutUpdateRequest, IGenericCellViewModel } from 'vs/workbench/contrib/notebook/browser/genericTypes';
 import { getExtensionForMimeType } from 'vs/base/common/mime';
 import { IFileDialogService } from 'vs/platform/dialogs/common/dialogs';
