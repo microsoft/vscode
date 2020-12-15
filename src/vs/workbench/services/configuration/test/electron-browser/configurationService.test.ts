@@ -1174,6 +1174,20 @@ suite('WorkspaceConfigurationService - Folder', () => {
 			.then(() => assert.ok(target.called));
 	});
 
+	test('remove setting from all targets', async () => {
+		const key = 'configurationService.folder.testSetting';
+		await testObject.updateValue(key, 'workspaceValue', ConfigurationTarget.WORKSPACE);
+		await testObject.updateValue(key, 'userValue', ConfigurationTarget.USER);
+
+		await testObject.updateValue(key, undefined);
+		await testObject.reloadConfiguration();
+
+		const actual = testObject.inspect(key, { resource: workspaceService.getWorkspace().folders[0].uri });
+		assert.equal(actual.userValue, undefined);
+		assert.equal(actual.workspaceValue, undefined);
+		assert.equal(actual.workspaceFolderValue, undefined);
+	});
+
 	test('update user configuration to default value when target is not passed', async () => {
 		await testObject.updateValue('configurationService.folder.testSetting', 'value', ConfigurationTarget.USER);
 		await testObject.updateValue('configurationService.folder.testSetting', 'isSet');
@@ -1803,6 +1817,22 @@ suite('WorkspaceConfigurationService-Multiroot', () => {
 		testObject.onDidChangeConfiguration(target);
 		return testObject.updateValue('configurationService.workspace.testSetting', 'memoryValue', ConfigurationTarget.MEMORY)
 			.then(() => assert.ok(target.called));
+	});
+
+	test('remove setting from all targets', async () => {
+		const workspace = workspaceContextService.getWorkspace();
+		const key = 'configurationService.workspace.testResourceSetting';
+		await testObject.updateValue(key, 'workspaceFolderValue', { resource: workspace.folders[0].uri }, ConfigurationTarget.WORKSPACE_FOLDER);
+		await testObject.updateValue(key, 'workspaceValue', ConfigurationTarget.WORKSPACE);
+		await testObject.updateValue(key, 'userValue', ConfigurationTarget.USER);
+
+		await testObject.updateValue(key, undefined, { resource: workspace.folders[0].uri });
+		await testObject.reloadConfiguration();
+
+		const actual = testObject.inspect(key, { resource: workspace.folders[0].uri });
+		assert.equal(actual.userValue, undefined);
+		assert.equal(actual.workspaceValue, undefined);
+		assert.equal(actual.workspaceFolderValue, undefined);
 	});
 
 	test('update tasks configuration in a folder', () => {
