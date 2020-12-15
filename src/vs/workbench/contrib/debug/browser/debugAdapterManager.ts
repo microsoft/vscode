@@ -54,7 +54,7 @@ export class AdapterManager implements IAdapterManager {
 					if (!rawAdapter.type || (typeof rawAdapter.type !== 'string')) {
 						added.collector.error(nls.localize('debugNoType', "Debugger 'type' can not be omitted and must be of type 'string'."));
 					}
-					if (rawAdapter.enableBreakpointsFor) {
+					if (rawAdapter.enableBreakpointsFor && rawAdapter.enableBreakpointsFor.languageIds) {
 						rawAdapter.enableBreakpointsFor.languageIds.forEach(modeId => {
 							this.breakpointModeIdsSet.add(modeId);
 						});
