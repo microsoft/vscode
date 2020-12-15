@@ -152,6 +152,25 @@ suite('Workbench - Terminal Typeahead', () => {
 			const cursorXBefore = addon.getCursor(t.terminal.buffer.active)?.x!;
 			t.onData(`${CSI}${CursorMoveDirection.Back}`);
 			t.expectWritten('');
+
+			// Trigger rollback because we don't expect this data
+			onBeforeProcessData.fire({ data: 'xy' });
+
+			assert.strictEqual(
+				addon.getCursor(t.terminal.buffer.active)?.x,
+				// The cursor should not have changed because we've hit the
+				// boundary (start of prompt)
+				cursorXBefore);
+		});
+
+		test('internal cursor state is reset when all predictions are undone', () => {
+			const t = createMockTerminal({ lines: ['|'] });
+			addon.activate(t.terminal);
+			addon.unlockLeftNavigating();
+
+			const cursorXBefore = addon.getCursor(t.terminal.buffer.active)?.x!;
+			t.onData(`${CSI}${CursorMoveDirection.Back}`);
+			t.expectWritten('');
 			addon.undoAllPredictions();
 
 			assert.strictEqual(
