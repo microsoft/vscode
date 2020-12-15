@@ -14,11 +14,11 @@ import { SuggestController } from 'vs/editor/contrib/suggest/suggestController';
 import { ITextModel } from 'vs/editor/common/model';
 import { Range } from 'vs/editor/common/core/range';
 import { Position } from 'vs/editor/common/core/position';
-import { registerEditorAction, ServicesAccessor, EditorAction } from 'vs/editor/browser/editorExtensions';
+import { registerEditorAction, EditorAction } from 'vs/editor/browser/editorExtensions';
 import { IModelService } from 'vs/editor/common/services/modelService';
 import { ServiceCollection } from 'vs/platform/instantiation/common/serviceCollection';
-import { IContextKeyService, IContextKey } from 'vs/platform/contextkey/common/contextkey';
-import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
+import { IContextKeyService, IContextKey, ContextKeyEqualsExpr, ContextKeyExpr } from 'vs/platform/contextkey/common/contextkey';
+import { IInstantiationService, ServicesAccessor } from 'vs/platform/instantiation/common/instantiation';
 import { IStorageService, StorageScope, StorageTarget } from 'vs/platform/storage/common/storage';
 import { IThemeService, ThemeIcon } from 'vs/platform/theme/common/themeService';
 import { ICodeEditor, isCodeEditor } from 'vs/editor/browser/editorBrowser';
@@ -26,7 +26,7 @@ import { memoize } from 'vs/base/common/decorators';
 import { dispose, IDisposable, Disposable } from 'vs/base/common/lifecycle';
 import { EditorContextKeys } from 'vs/editor/common/editorContextKeys';
 import { CodeEditorWidget } from 'vs/editor/browser/widget/codeEditorWidget';
-import { IDebugService, DEBUG_SCHEME, CONTEXT_IN_DEBUG_REPL, IDebugSession, State, IReplElement, IDebugConfiguration, REPL_VIEW_ID } from 'vs/workbench/contrib/debug/common/debug';
+import { IDebugService, DEBUG_SCHEME, CONTEXT_IN_DEBUG_REPL, IDebugSession, State, IReplElement, IDebugConfiguration, REPL_VIEW_ID, CONTEXT_MULTI_SESSION_REPL } from 'vs/workbench/contrib/debug/common/debug';
 import { HistoryNavigator } from 'vs/base/common/history';
 import { IHistoryNavigationWidget } from 'vs/base/browser/history';
 import { createAndBindHistoryNavigationWidgetScopedContextKeyService } from 'vs/platform/browser/contextScopedHistoryWidget';
@@ -50,7 +50,7 @@ import { FuzzyScore } from 'vs/base/common/filters';
 import { IClipboardService } from 'vs/platform/clipboard/common/clipboardService';
 import { ReplDelegate, ReplVariablesRenderer, ReplSimpleElementsRenderer, ReplEvaluationInputsRenderer, ReplEvaluationResultsRenderer, ReplRawObjectsRenderer, ReplDataSource, ReplAccessibilityProvider, ReplGroupRenderer } from 'vs/workbench/contrib/debug/browser/replViewer';
 import { localize } from 'vs/nls';
-import { ViewPane, IViewPaneOptions } from 'vs/workbench/browser/parts/views/viewPane';
+import { ViewPane, IViewPaneOptions, ViewAction } from 'vs/workbench/browser/parts/views/viewPane';
 import { IKeybindingService } from 'vs/platform/keybinding/common/keybinding';
 import { IViewsService, IViewDescriptorService } from 'vs/workbench/common/views';
 import { IOpenerService } from 'vs/platform/opener/common/opener';
@@ -60,6 +60,7 @@ import { EDITOR_FONT_DEFAULTS, EditorOption } from 'vs/editor/common/config/edit
 import { MOUSE_CURSOR_TEXT_CSS_CLASS_NAME } from 'vs/base/browser/ui/mouseCursor/mouseCursor';
 import { ReplFilter, ReplFilterState, ReplFilterActionViewItem } from 'vs/workbench/contrib/debug/browser/replFilter';
 import { debugConsoleClearAll, debugConsoleEvaluationPrompt } from 'vs/workbench/contrib/debug/browser/debugIcons';
+import { registerAction2, MenuId, MenuItemAction, Action2 } from 'vs/platform/actions/common/actions';
 
 const $ = dom.$;
 
@@ -98,6 +99,7 @@ export class Repl extends ViewPane implements IHistoryNavigationWidget {
 	private filter: ReplFilter;
 	private filterState: ReplFilterState;
 	private filterActionViewItem: ReplFilterActionViewItem | undefined;
+	private multiSessionRepl: IContextKey<boolean>;
 
 	constructor(
 		options: IViewPaneOptions,
@@ -123,6 +125,8 @@ export class Repl extends ViewPane implements IHistoryNavigationWidget {
 		this.history = new HistoryNavigator(JSON.parse(this.storageService.get(HISTORY_STORAGE_KEY, StorageScope.WORKSPACE, '[]')), 50);
 		this.filter = new ReplFilter();
 		this.filterState = new ReplFilterState(this);
+		this.multiSessionRepl = CONTEXT_MULTI_SESSION_REPL.bindTo(contextKeyService);
+		this.multiSessionRepl.set(this.isMultiSessionView);
 
 		codeEditorService.registerDecorationType(DECORATION_KEY, {});
 		this.registerListeners();
@@ -207,7 +211,7 @@ export class Repl extends ViewPane implements IHistoryNavigationWidget {
 			if (!input || input.state === State.Inactive) {
 				await this.selectSession(newSession);
 			}
-			this.updateActions();
+			this.multiSessionRepl.set(this.isMultiSessionView);
 		}));
 		this._register(this.themeService.onDidColorThemeChange(() => {
 			this.refreshReplElements(false);
@@ -397,7 +401,7 @@ export class Repl extends ViewPane implements IHistoryNavigationWidget {
 				// Ignore inactive sessions which got cleared - so they are not shown any more
 				sessionsToIgnore.add(session);
 				await this.selectSession();
-				this.updateActions();
+				this.multiSessionRepl.set(this.isMultiSessionView);
 			}
 		}
 		this.replInput.focus();
@@ -460,9 +464,9 @@ export class Repl extends ViewPane implements IHistoryNavigationWidget {
 	}
 
 	getActionViewItem(action: IAction): IActionViewItem | undefined {
-		if (action.id === SelectReplAction.ID) {
+		if (action.id === selectReplCommandId) {
 			const session = (this.tree ? this.tree.getInput() : undefined) ?? this.debugService.getViewModel().focusedSession;
-			return this.instantiationService.createInstance(SelectReplActionViewItem, this.selectReplAction, session);
+			return this.instantiationService.createInstance(SelectReplActionViewItem, action, session);
 		} else if (action.id === FILTER_ACTION_ID) {
 			const filterHistory = JSON.parse(this.storageService.get(FILTER_HISTORY_STORAGE_KEY, StorageScope.WORKSPACE, '[]')) as string[];
 			this.filterActionViewItem = this.instantiationService.createInstance(ReplFilterActionViewItem, action,
@@ -473,29 +477,11 @@ export class Repl extends ViewPane implements IHistoryNavigationWidget {
 		return super.getActionViewItem(action);
 	}
 
-	getActions(): IAction[] {
-		const result: IAction[] = [];
-		result.push(new Action(FILTER_ACTION_ID));
-		if (this.debugService.getModel().getSessions(true).filter(s => s.hasSeparateRepl() && !sessionsToIgnore.has(s)).length > 1) {
-			result.push(this.selectReplAction);
-		}
-		result.push(this.clearReplAction);
-
-		result.forEach(a => this._register(a));
-
-		return result;
+	private get isMultiSessionView(): boolean {
+		return this.debugService.getModel().getSessions(true).filter(s => s.hasSeparateRepl() && !sessionsToIgnore.has(s)).length > 1;
 	}
 
 	// --- Cached locals
-	@memoize
-	private get selectReplAction(): SelectReplAction {
-		return this.instantiationService.createInstance(SelectReplAction, SelectReplAction.ID, SelectReplAction.LABEL);
-	}
-
-	@memoize
-	private get clearReplAction(): ClearReplAction {
-		return this.instantiationService.createInstance(ClearReplAction, ClearReplAction.ID, ClearReplAction.LABEL);
-	}
 
 	@memoize
 	private get refreshScheduler(): RunOnceScheduler {
@@ -660,7 +646,7 @@ export class Repl extends ViewPane implements IHistoryNavigationWidget {
 			return Promise.resolve();
 		}));
 		actions.push(new Separator());
-		actions.push(this.clearReplAction);
+		actions.push(this.instantiationService.createInstance(MenuItemAction, clearReplCommand, undefined, {}));
 
 		this.contextMenuService.showContextMenu({
 			getAnchor: () => e.anchor,
@@ -825,48 +811,79 @@ class SelectReplActionViewItem extends FocusSessionActionViewItem {
 	}
 }
 
-class SelectReplAction extends Action {
-
-	static readonly ID = 'workbench.action.debug.selectRepl';
-	static readonly LABEL = localize('selectRepl', "Select Debug Console");
-
-	constructor(id: string, label: string,
-		@IDebugService private readonly debugService: IDebugService,
-		@IViewsService private readonly viewsService: IViewsService
-	) {
-		super(id, label);
-	}
-
-	async run(session: IDebugSession): Promise<any> {
-		// If session is already the focused session we need to manualy update the tree since view model will not send a focused change event
-		if (session && session.state !== State.Inactive && session !== this.debugService.getViewModel().focusedSession) {
-			await this.debugService.focusStackFrame(undefined, undefined, session, true);
-		} else {
-			const repl = getReplView(this.viewsService);
-			if (repl) {
-				await repl.selectSession(session);
-			}
-		}
-	}
-}
-
-export class ClearReplAction extends Action {
-	static readonly ID = 'workbench.debug.panel.action.clearReplAction';
-	static readonly LABEL = localize('clearRepl', "Clear Console");
-
-	constructor(id: string, label: string,
-		@IViewsService private readonly viewsService: IViewsService
-	) {
-		super(id, label, 'debug-action ' + ThemeIcon.asClassName(debugConsoleClearAll));
-	}
-
-	async run(): Promise<any> {
-		const view = await this.viewsService.openView(REPL_VIEW_ID) as Repl;
-		await view.clearRepl();
-		aria.status(localize('debugConsoleCleared', "Debug console was cleared"));
-	}
-}
-
 function getReplView(viewsService: IViewsService): Repl | undefined {
 	return viewsService.getActiveViewWithId(REPL_VIEW_ID) as Repl ?? undefined;
 }
+
+registerAction2(class extends Action2 {
+	constructor() {
+		super({
+			id: FILTER_ACTION_ID,
+			title: localize('filter', "Filter"),
+			f1: true,
+			menu: {
+				id: MenuId.ViewTitle,
+				group: 'navigation',
+				when: ContextKeyEqualsExpr.create('view', REPL_VIEW_ID),
+				order: 10
+			}
+		});
+	}
+
+	run(_accessor: ServicesAccessor) {
+		// noop this action is just a placeholder for the filter action view item
+	}
+});
+
+const selectReplCommandId = 'workbench.action.debug.selectRepl';
+registerAction2(class extends ViewAction<Repl> {
+	constructor() {
+		super({
+			id: selectReplCommandId,
+			viewId: REPL_VIEW_ID,
+			title: localize('selectRepl', "Select Debug Console"),
+			f1: true,
+			icon: debugConsoleClearAll,
+			menu: {
+				id: MenuId.ViewTitle,
+				group: 'navigation',
+				when: ContextKeyExpr.and(ContextKeyEqualsExpr.create('view', REPL_VIEW_ID), CONTEXT_MULTI_SESSION_REPL),
+				order: 20
+			}
+		});
+	}
+
+	async runInView(accessor: ServicesAccessor, view: Repl, session: IDebugSession | undefined) {
+		const debugService = accessor.get(IDebugService);
+		// If session is already the focused session we need to manualy update the tree since view model will not send a focused change event
+		if (session && session.state !== State.Inactive && session !== debugService.getViewModel().focusedSession) {
+			await debugService.focusStackFrame(undefined, undefined, session, true);
+		} else {
+			await view.selectSession(session);
+		}
+	}
+});
+
+const clearReplCommand = {
+	id: 'workbench.debug.panel.action.clearReplAction',
+	viewId: REPL_VIEW_ID,
+	title: localize('clearRepl', "Clear Console"),
+	f1: true,
+	icon: debugConsoleClearAll,
+	menu: {
+		id: MenuId.ViewTitle,
+		group: 'navigation',
+		when: ContextKeyEqualsExpr.create('view', REPL_VIEW_ID),
+		order: 30
+	}
+};
+registerAction2(class extends ViewAction<Repl> {
+	constructor() {
+		super(clearReplCommand);
+	}
+
+	runInView(_accessor: ServicesAccessor, view: Repl) {
+		view.clearRepl();
+		aria.status(localize('debugConsoleCleared', "Debug console was cleared"));
+	}
+});

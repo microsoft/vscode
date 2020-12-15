@@ -20,7 +20,9 @@ import { ILogService } from 'vs/platform/log/common/log';
 import { IEditorService } from 'vs/workbench/services/editor/common/editorService';
 import { SaveReason } from 'vs/workbench/common/editor';
 import { IEnvironmentService } from 'vs/platform/environment/common/environment';
-import { CancellationToken } from 'vs/base/common/cancellation';
+import { CancellationToken, CancellationTokenSource } from 'vs/base/common/cancellation';
+import { IProgressService, ProgressLocation } from 'vs/platform/progress/common/progress';
+import { raceCancellation } from 'vs/base/common/async';
 
 export class NativeBackupTracker extends BackupTracker implements IWorkbenchContribution {
 
@@ -47,7 +49,8 @@ export class NativeBackupTracker extends BackupTracker implements IWorkbenchCont
 		@INativeHostService private readonly nativeHostService: INativeHostService,
 		@ILogService logService: ILogService,
 		@IEditorService private readonly editorService: IEditorService,
-		@IEnvironmentService private readonly environmentService: IEnvironmentService
+		@IEnvironmentService private readonly environmentService: IEnvironmentService,
+		@IProgressService private readonly progressService: IProgressService
 	) {
 		super(backupFileService, workingCopyService, logService, lifecycleService);
 	}
@@ -87,8 +90,19 @@ export class NativeBackupTracker extends BackupTracker implements IWorkbenchCont
 		// and then check again for dirty copies
 		if (this.filesConfigurationService.getAutoSaveMode() !== AutoSaveMode.OFF) {
 
-			// Save all files
-			await this.doSaveAllBeforeShutdown(false /* not untitled */, SaveReason.AUTO);
+			// Save all files but show progress and allow to cancel
+			// (https://github.com/microsoft/vscode/issues/112278)
+			const cts = new CancellationTokenSource();
+			await this.progressService.withProgress({
+				location: ProgressLocation.Notification,
+				cancellable: true,
+				delay: 800, // delay notification so that it only appears when saving takes a long time
+				title: localize('saveBeforeShutdown', "Waiting for dirty editors to save...")
+			}, () => {
+				const autoSavePromise = this.doSaveAllBeforeShutdown(false /* not untitled */, SaveReason.AUTO);
+
+				return raceCancellation(autoSavePromise, cts.token);
+			}, () => cts.dispose(true));
 
 			// If we still have dirty working copies, we either have untitled ones or working copies that cannot be saved
 			const remainingDirtyWorkingCopies = this.workingCopyService.dirtyWorkingCopies;

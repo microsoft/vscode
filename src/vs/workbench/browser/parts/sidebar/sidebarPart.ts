@@ -288,7 +288,7 @@ export class SidebarPart extends CompositePart<Viewlet> implements IViewletServi
 				const anchor: { x: number, y: number } = { x: event.posx, y: event.posy };
 				this.contextMenuService.showContextMenu({
 					getAnchor: () => anchor,
-					getActions: () => contextMenuActions,
+					getActions: () => contextMenuActions.slice(),
 					getActionViewItem: action => this.actionViewItemProvider(action as Action),
 					actionRunner: activeViewlet.getActionRunner()
 				});

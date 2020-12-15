@@ -9,9 +9,9 @@ import { Event, Emitter } from 'vs/base/common/event';
 import { ColorIdentifier, activeContrastBorder } from 'vs/platform/theme/common/colorRegistry';
 import { attachStyler, IColorMapping } from 'vs/platform/theme/common/styler';
 import { SIDE_BAR_DRAG_AND_DROP_BACKGROUND, SIDE_BAR_SECTION_HEADER_FOREGROUND, SIDE_BAR_SECTION_HEADER_BACKGROUND, SIDE_BAR_SECTION_HEADER_BORDER, PANEL_SECTION_HEADER_FOREGROUND, PANEL_SECTION_HEADER_BACKGROUND, PANEL_SECTION_HEADER_BORDER, PANEL_SECTION_DRAG_AND_DROP_BACKGROUND, PANEL_SECTION_BORDER } from 'vs/workbench/common/theme';
-import { EventType, isAncestor, Dimension, addDisposableListener } from 'vs/base/browser/dom';
+import { EventType, Dimension, addDisposableListener, isAncestor } from 'vs/base/browser/dom';
 import { IDisposable, combinedDisposable, dispose, toDisposable } from 'vs/base/common/lifecycle';
-import { IAction, Separator, IActionViewItem } from 'vs/base/common/actions';
+import { IAction, IActionViewItem, Separator } from 'vs/base/common/actions';
 import { IContextMenuService } from 'vs/platform/contextview/browser/contextView';
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
 import { IThemeService, Themable } from 'vs/platform/theme/common/themeService';
@@ -19,16 +19,16 @@ import { PaneView, IPaneViewOptions } from 'vs/base/browser/ui/splitview/panevie
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { IWorkbenchLayoutService, Position } from 'vs/workbench/services/layout/browser/layoutService';
 import { StandardMouseEvent } from 'vs/base/browser/mouseEvent';
-import { IView, FocusedViewContext, IViewDescriptor, ViewContainer, IViewDescriptorService, ViewContainerLocation, IViewPaneContainer, IAddedViewDescriptorRef, IViewDescriptorRef, IViewContainerModel, IViewsService } from 'vs/workbench/common/views';
+import { IView, FocusedViewContext, IViewDescriptor, ViewContainer, IViewDescriptorService, ViewContainerLocation, IViewPaneContainer, IAddedViewDescriptorRef, IViewDescriptorRef, IViewContainerModel, IViewsService, ViewContainerLocationToString } from 'vs/workbench/common/views';
 import { IStorageService, StorageScope, StorageTarget } from 'vs/platform/storage/common/storage';
-import { IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
+import { ContextKeyEqualsExpr, IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
 import { assertIsDefined } from 'vs/base/common/types';
 import { IInstantiationService, ServicesAccessor } from 'vs/platform/instantiation/common/instantiation';
 import { IViewletViewOptions } from 'vs/workbench/browser/parts/views/viewsViewlet';
 import { IExtensionService } from 'vs/workbench/services/extensions/common/extensions';
 import { IWorkspaceContextService } from 'vs/platform/workspace/common/workspace';
 import { Component } from 'vs/workbench/common/component';
-import { registerAction2, Action2, IAction2Options, IMenuService, MenuId } from 'vs/platform/actions/common/actions';
+import { registerAction2, Action2, IAction2Options, IMenuService, MenuId, MenuRegistry, ISubmenuItem, SubmenuItemAction, MenuItemAction } from 'vs/platform/actions/common/actions';
 import { CompositeDragAndDropObserver, DragAndDropObserver, toggleDropEffect } from 'vs/workbench/browser/dnd';
 import { Orientation } from 'vs/base/browser/ui/sash/sash';
 import { RunOnceScheduler } from 'vs/base/common/async';
@@ -36,6 +36,15 @@ import { KeyMod, KeyCode, KeyChord } from 'vs/base/common/keyCodes';
 import { KeybindingWeight } from 'vs/platform/keybinding/common/keybindingsRegistry';
 import { ViewPane } from 'vs/workbench/browser/parts/views/viewPane';
 import { CompositeMenuActions } from 'vs/workbench/browser/menuActions';
+import { MenuEntryActionViewItem, SubmenuEntryActionViewItem } from 'vs/platform/actions/browser/menuEntryActionViewItem';
+
+export const ViewsSubMenu = new MenuId('Views');
+MenuRegistry.appendMenuItem(MenuId.ViewContainerTitle, <ISubmenuItem>{
+	submenu: ViewsSubMenu,
+	title: nls.localize('views', "Views"),
+	order: 1,
+	when: ContextKeyEqualsExpr.create('viewContainerLocation', ViewContainerLocationToString(ViewContainerLocation.Sidebar)),
+});
 
 export interface IPaneColors extends IColorMapping {
 	dropBackground?: ColorIdentifier;
@@ -287,13 +296,16 @@ class ViewPaneDropOverlay extends Themable {
 class ViewContainerMenuActions extends CompositeMenuActions {
 	constructor(
 		viewContainer: ViewContainer,
+		@IViewDescriptorService viewDescriptorService: IViewDescriptorService,
 		@IContextKeyService contextKeyService: IContextKeyService,
 		@IMenuService menuService: IMenuService,
 	) {
 		const scopedContextKeyService = contextKeyService.createScoped();
 		scopedContextKeyService.createKey('viewContainer', viewContainer.id);
+		const viewContainerLocationKey = scopedContextKeyService.createKey('viewContainerLocation', ViewContainerLocationToString(viewDescriptorService.getViewContainerLocation(viewContainer)!));
 		super(MenuId.ViewContainerTitle, MenuId.ViewContainerTitleContext, { shouldForwardArgs: true }, scopedContextKeyService, menuService);
 		this._register(scopedContextKeyService);
+		this._register(Event.filter(viewDescriptorService.onDidChangeContainerLocation, e => e.viewContainer === viewContainer)(() => viewContainerLocationKey.set(ViewContainerLocationToString(viewDescriptorService.getViewContainerLocation(viewContainer)!))));
 	}
 }
 
@@ -552,67 +564,44 @@ export class ViewPaneContainer extends Component implements IViewPaneContainer {
 		let anchor: { x: number, y: number; } = { x: event.posx, y: event.posy };
 		this.contextMenuService.showContextMenu({
 			getAnchor: () => anchor,
-			getActions: () => [...this.getContextMenuActions()]
+			getActions: () => [...this.getContextMenuActions2()]
 		});
 	}
 
-	getContextMenuActions(): ReadonlyArray<IAction> {
-		const result = [];
-		result.push(...this.menuActions.getContextMenuActions());
-
-		if (result.length) {
-			result.push(new Separator());
-		}
-
-		result.push(...this._getContextMenuActions());
-		return result;
+	getContextMenuActions2(): ReadonlyArray<IAction> {
+		return this.menuActions.getContextMenuActions();
 	}
 
-	private _getContextMenuActions(viewDescriptor?: IViewDescriptor): IAction[] {
-		const result: IAction[] = [];
+	getContextMenuActions(viewDescriptor?: IViewDescriptor): IAction[] {
+		return [];
+	}
 
-		let showHide = true;
-		if (!viewDescriptor && this.isViewMergedWithContainer()) {
-			viewDescriptor = this.viewDescriptorService.getViewDescriptorById(this.panes[0].id) || undefined;
-			showHide = false;
+	getActions2(): IAction[] {
+		const result = [];
+		result.push(...this.menuActions.getPrimaryActions());
+		if (this.isViewMergedWithContainer()) {
+			result.push(...this.paneItems[0].pane.getActions());
 		}
-
-		if (viewDescriptor) {
-			if (showHide) {
-				result.push(<IAction>{
-					id: `${viewDescriptor.id}.removeView`,
-					label: nls.localize('hideView', "Hide"),
-					enabled: viewDescriptor.canToggleVisibility,
-					run: () => this.toggleViewVisibility(viewDescriptor!.id)
-				});
-			}
-			const view = this.getView(viewDescriptor.id);
-			if (view) {
-				result.push(...view.getContextMenuActions());
-			}
-		}
-
-		const viewToggleActions = this.getViewsVisibilityActions();
-		if (result.length && viewToggleActions.length) {
-			result.push(new Separator());
-		}
-
-		result.push(...viewToggleActions);
-
 		return result;
 	}
 
 	getActions(): IAction[] {
-		const result = [];
-		if (this.isViewMergedWithContainer()) {
-			result.push(...this.paneItems[0].pane.getActions());
-		}
-		result.push(...this.menuActions.getPrimaryActions());
-		return result;
+		return [];
 	}
 
-	getSecondaryActions(): IAction[] {
-		const menuActions = this.menuActions.getSecondaryActions();
+	getSecondaryActions2(): IAction[] {
+		let menuActions = this.menuActions.getSecondaryActions();
+		const isViewsSubMenuAction = (action: IAction) => action instanceof SubmenuItemAction && action.item.submenu === ViewsSubMenu;
+		const index = menuActions.findIndex(a => isViewsSubMenuAction(a));
+		if (index !== -1) {
+			if (index !== 0) {
+				menuActions = [menuActions[index], ...menuActions.slice(0, index), ...menuActions.slice(index + 1)];
+			}
+			if (menuActions.length === 1) {
+				menuActions = (<SubmenuItemAction>menuActions[0]).actions;
+			}
+		}
+
 		const viewPaneContainerActions = this.isViewMergedWithContainer() ? this.paneItems[0].pane.getSecondaryActions() : [];
 		if (menuActions.length && viewPaneContainerActions.length) {
 			return [
@@ -621,26 +610,29 @@ export class ViewPaneContainer extends Component implements IViewPaneContainer {
 				...viewPaneContainerActions
 			];
 		}
+
 		return menuActions.length ? menuActions : viewPaneContainerActions;
+	}
+
+	getSecondaryActions(): IAction[] {
+		return [];
 	}
 
 	getActionsContext(): unknown {
 		return undefined;
 	}
 
-	getViewsVisibilityActions(): IAction[] {
-		return this.viewContainerModel.activeViewDescriptors.map(viewDescriptor => (<IAction>{
-			id: `${viewDescriptor.id}.toggleVisibility`,
-			label: viewDescriptor.name,
-			checked: this.viewContainerModel.isVisible(viewDescriptor.id),
-			enabled: viewDescriptor.canToggleVisibility && (!this.viewContainerModel.isVisible(viewDescriptor.id) || this.viewContainerModel.visibleViewDescriptors.length > 1),
-			run: () => this.toggleViewVisibility(viewDescriptor.id)
-		}));
-	}
-
 	getActionViewItem(action: IAction): IActionViewItem | undefined {
 		if (this.isViewMergedWithContainer()) {
 			return this.paneItems[0].pane.getActionViewItem(action);
+		}
+
+		if (action instanceof MenuItemAction) {
+			return this.instantiationService.createInstance(MenuEntryActionViewItem, action);
+		}
+
+		if (action instanceof SubmenuItemAction) {
+			return this.instantiationService.createInstance(SubmenuEntryActionViewItem, action);
 		}
 
 		return undefined;
@@ -781,11 +773,11 @@ export class ViewPaneContainer extends Component implements IViewPaneContainer {
 		this.storageService.store(this.visibleViewsStorageId, this.length, StorageScope.WORKSPACE, StorageTarget.USER);
 	}
 
-	private onContextMenu(event: StandardMouseEvent, viewDescriptor: IViewDescriptor): void {
+	private onContextMenu(event: StandardMouseEvent, viewPane: ViewPane): void {
 		event.stopPropagation();
 		event.preventDefault();
 
-		const actions: IAction[] = this._getContextMenuActions(viewDescriptor);
+		const actions: IAction[] = viewPane.getContextMenuActions();
 
 		let anchor: { x: number, y: number } = { x: event.posx, y: event.posy };
 		this.contextMenuService.showContextMenu({
@@ -824,7 +816,7 @@ export class ViewPaneContainer extends Component implements IViewPaneContainer {
 			const contextMenuDisposable = addDisposableListener(pane.draggableElement, 'contextmenu', e => {
 				e.stopPropagation();
 				e.preventDefault();
-				this.onContextMenu(new StandardMouseEvent(e), viewDescriptor);
+				this.onContextMenu(new StandardMouseEvent(e), pane);
 			});
 
 			const collapseDisposable = Event.latch(Event.map(pane.onDidChange, () => !pane.isExpanded()))(collapsed => {
@@ -861,7 +853,7 @@ export class ViewPaneContainer extends Component implements IViewPaneContainer {
 		}
 	}
 
-	protected toggleViewVisibility(viewId: string): void {
+	toggleViewVisibility(viewId: string): void {
 		// Check if view is active
 		if (this.viewContainerModel.activeViewDescriptors.some(viewDescriptor => viewDescriptor.id === viewId)) {
 			const visible = !this.viewContainerModel.isVisible(viewId);
@@ -1133,11 +1125,11 @@ export abstract class ViewPaneContainerAction<T extends IViewPaneContainer> exte
 	run(accessor: ServicesAccessor, ...args: any[]) {
 		const viewPaneContainer = accessor.get(IViewsService).getActiveViewPaneContainerWithId(this.desc.viewPaneContainerId);
 		if (viewPaneContainer) {
-			return this.runInView(accessor, <T>viewPaneContainer, ...args);
+			return this.runInViewPaneContainer(accessor, <T>viewPaneContainer, ...args);
 		}
 	}
 
-	abstract runInView(accessor: ServicesAccessor, view: T, ...args: any[]): any;
+	abstract runInViewPaneContainer(accessor: ServicesAccessor, viewPaneContainer: T, ...args: any[]): any;
 }
 
 class MoveViewPosition extends Action2 {

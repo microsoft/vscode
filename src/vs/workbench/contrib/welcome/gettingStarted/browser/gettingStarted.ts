@@ -24,6 +24,7 @@ import { activeContrastBorder, buttonBackground, buttonForeground, buttonHoverBa
 import { getExtraColor } from 'vs/workbench/contrib/welcome/walkThrough/common/walkThroughUtils';
 import { IKeybindingService } from 'vs/platform/keybinding/common/keybinding';
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
+import { DomScrollableElement } from 'vs/base/browser/ui/scrollbar/scrollableElement';
 
 export const gettingStartedInputTypeId = 'workbench.editors.gettingStartedInput';
 const telemetryFrom = 'gettingStartedPage';
@@ -43,6 +44,8 @@ export class GettingStartedPage extends Disposable {
 
 	private gettingStartedCategories: IGettingStartedCategoryWithProgress[];
 	private currentCategory: IGettingStartedCategoryWithProgress | undefined;
+
+	private scrollbar: DomScrollableElement | undefined;
 
 	constructor(
 		initialState: { selectedCategory?: string, selectedTask?: string },
@@ -68,7 +71,8 @@ export class GettingStartedPage extends Disposable {
 			name: localize('editorGettingStarted.title', "Getting Started"),
 			resource,
 			telemetryFrom,
-			onReady: (container: HTMLElement) => this.onReady(container)
+			onReady: (container: HTMLElement) => this.onReady(container),
+			layout: () => this.layout(),
 		});
 
 		this.editorInput.selectedCategory = initialState.selectedCategory;
@@ -205,21 +209,29 @@ export class GettingStartedPage extends Disposable {
 					$('.codicon.codicon-' + category.codicon, {}), categoryDescriptionElement);
 			});
 
+		const categoriesSlide = assertIsDefined(document.getElementById('gettingStartedSlideCategory'));
+		const tasksSlide = assertIsDefined(document.getElementById('gettingStartedSlideDetails'));
+
 		const rightColumn = assertIsDefined(container.querySelector('#getting-started-detail-right'));
 		rightColumn.appendChild($('img#getting-started-media'));
 
-		const categoriesContainer = assertIsDefined(document.getElementById('getting-started-categories-container'));
+		const categoryScrollContainer = $('#getting-started-categories-scrolling-container');
+		const categoriesContainer = $('#getting-started-categories-container');
 		categoryElements.forEach(element => {
 			categoriesContainer.appendChild(element);
 		});
+
+		categoryScrollContainer.appendChild(categoriesContainer);
+		this.scrollbar = this._register(new DomScrollableElement(categoryScrollContainer, {}));
+		categoriesSlide.appendChild(this.scrollbar.getDomNode());
+		categoriesSlide.appendChild($('.gap'));
+		this.scrollbar.scanDomNode();
 
 		this.updateCategoryProgress();
 
 		assertIsDefined(document.getElementById('product-name')).textContent = this.productService.nameLong;
 		this.registerDispatchListeners(container);
 
-		const categoriesSlide = assertIsDefined(document.getElementById('gettingStartedSlideCategory'));
-		const tasksSlide = assertIsDefined(document.getElementById('gettingStartedSlideDetails'));
 
 		if (this.editorInput.selectedCategory) {
 			this.currentCategory = this.gettingStartedCategories.find(category => category.id === this.editorInput.selectedCategory);
@@ -231,6 +243,10 @@ export class GettingStartedPage extends Disposable {
 		} else {
 			tasksSlide.classList.add('next');
 		}
+	}
+
+	private layout() {
+		this.scrollbar?.scanDomNode();
 	}
 
 	private updateCategoryProgress() {
