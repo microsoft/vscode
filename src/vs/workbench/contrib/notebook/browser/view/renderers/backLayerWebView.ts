@@ -12,7 +12,6 @@ import * as UUID from 'vs/base/common/uuid';
 import { IOpenerService, matchesScheme } from 'vs/platform/opener/common/opener';
 import { CELL_MARGIN, CELL_RUN_GUTTER, CODE_CELL_LEFT_MARGIN, CELL_OUTPUT_PADDING } from 'vs/workbench/contrib/notebook/browser/constants';
 import { IDisplayOutputViewModel, IInsetRenderOutput, INotebookEditor, RenderOutputType } from 'vs/workbench/contrib/notebook/browser/notebookBrowser';
-import { CodeCellViewModel } from 'vs/workbench/contrib/notebook/browser/viewModel/codeCellViewModel';
 import { CellOutputKind, IDisplayOutput, INotebookRendererInfo } from 'vs/workbench/contrib/notebook/common/notebookCommon';
 import { INotebookService } from 'vs/workbench/contrib/notebook/common/notebookService';
 import { IWebviewService, WebviewElement, WebviewContentPurpose } from 'vs/workbench/contrib/webview/browser/webview';
@@ -26,7 +25,7 @@ import { IFileService } from 'vs/platform/files/common/files';
 import { VSBuffer } from 'vs/base/common/buffer';
 import { getExtensionForMimeType } from 'vs/base/common/mime';
 import { IWorkbenchEnvironmentService } from 'vs/workbench/services/environment/common/environmentService';
-import { ICommonCellInfo, IDisplayOutputLayoutUpdateRequest } from 'vs/workbench/contrib/notebook/browser/genericTypes';
+import { ICommonCellInfo, IDisplayOutputLayoutUpdateRequest, IGenericCellViewModel } from 'vs/workbench/contrib/notebook/browser/genericTypes';
 
 export interface WebviewIntialized {
 	__vscode_notebook_message: boolean;
@@ -453,9 +452,9 @@ var requirejs = (function() {
 					const height = data.data.height;
 					const outputHeight = height;
 
-					const info = this.resolveOutputId(data.id);
-					if (info) {
-						const { cellInfo, output } = info;
+					const resolvedResult = this.resolveOutputId(data.id);
+					if (resolvedResult) {
+						const { cellInfo, output } = resolvedResult;
 						this.notebookEditor.updateOutputHeight(cellInfo, output, outputHeight);
 					}
 				} else if (data.type === 'mouseenter') {
@@ -587,7 +586,7 @@ var requirejs = (function() {
 		return webview;
 	}
 
-	shouldUpdateInset(cell: CodeCellViewModel, output: IDisplayOutputViewModel, cellTop: number) {
+	shouldUpdateInset(cell: IGenericCellViewModel, output: IDisplayOutputViewModel, cellTop: number) {
 		if (this._disposed) {
 			return;
 		}

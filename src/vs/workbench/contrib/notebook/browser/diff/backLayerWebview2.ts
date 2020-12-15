@@ -20,13 +20,13 @@ import { dirname, joinPath } from 'vs/base/common/resources';
 import { IWorkspaceContextService } from 'vs/platform/workspace/common/workspace';
 import { preloadsScriptStr } from 'vs/workbench/contrib/notebook/browser/view/renderers/webviewPreloads';
 import { FileAccess, Schemas } from 'vs/base/common/network';
-import { IWorkbenchEnvironmentService } from 'vs/workbench/services/environment/common/environmentService';
 import { INotebookTextDiffEditor } from 'vs/workbench/contrib/notebook/browser/diff/common';
-import { ICommonCellInfo, IDisplayOutputLayoutUpdateRequest, IGenericCellViewModel } from 'vs/workbench/contrib/notebook/browser/genericTypes';
-import { getExtensionForMimeType } from 'vs/base/common/mime';
 import { IFileDialogService } from 'vs/platform/dialogs/common/dialogs';
-import { VSBuffer } from 'vs/base/common/buffer';
 import { IFileService } from 'vs/platform/files/common/files';
+import { VSBuffer } from 'vs/base/common/buffer';
+import { getExtensionForMimeType } from 'vs/base/common/mime';
+import { IWorkbenchEnvironmentService } from 'vs/workbench/services/environment/common/environmentService';
+import { ICommonCellInfo, IDisplayOutputLayoutUpdateRequest, IGenericCellViewModel } from 'vs/workbench/contrib/notebook/browser/genericTypes';
 
 export interface WebviewIntialized {
 	__vscode_notebook_message: boolean;
@@ -337,27 +337,21 @@ export class BackLayerWebView<T extends ICommonCellInfo> extends Disposable {
 		});
 	}
 
-	private resolveOutputId(id: string): { cachedInset: ICachedInset<T>, output: IDisplayOutputViewModel } | undefined {
+	private resolveOutputId(id: string): { cellInfo: T, output: IDisplayOutputViewModel } | undefined {
 		const output = this.reversedInsetMapping.get(id);
 		if (!output) {
 			return;
 		}
 
-		const info = this.insetMapping.get(output)!;
-
-		// const currCell = this.notebookEditor.viewModel?.viewCells.find(vc => vc.handle === cell.handle);
-		// if (currCell !== cell && currCell !== undefined) {
-		// 	this.insetMapping.get(output)!.cell = currCell as CodeCellViewModel;
-		// }
-
-		return { cachedInset: info, output };
+		const cellInfo = this.insetMapping.get(output)!.cellInfo;
+		return { cellInfo, output };
 	}
 
 	async createWebview(): Promise<void> {
 		let coreDependencies = '';
 		let resolveFunc: () => void;
 
-		this._initalized = new Promise<void>((resolve) => {
+		this._initalized = new Promise<void>((resolve, reject) => {
 			resolveFunc = resolve;
 		});
 
@@ -461,20 +455,24 @@ var requirejs = (function() {
 
 					const resolvedResult = this.resolveOutputId(data.id);
 					if (resolvedResult) {
-						const { cachedInset, output } = resolvedResult;
-						this.notebookEditor.updateOutputHeight(cachedInset.cellInfo, output, outputHeight);
+						const { cellInfo, output } = resolvedResult;
+						this.notebookEditor.updateOutputHeight(cellInfo, output, outputHeight);
 					}
 				} else if (data.type === 'mouseenter') {
 					const resolvedResult = this.resolveOutputId(data.id);
 					if (resolvedResult) {
-						const cell = this.notebookEditor.getCellByInfo(resolvedResult.cachedInset.cellInfo);
-						cell.outputIsHovered = true;
+						const latestCell = this.notebookEditor.getCellByInfo(resolvedResult.cellInfo);
+						if (latestCell) {
+							latestCell.outputIsHovered = true;
+						}
 					}
 				} else if (data.type === 'mouseleave') {
 					const resolvedResult = this.resolveOutputId(data.id);
 					if (resolvedResult) {
-						const cell = this.notebookEditor.getCellByInfo(resolvedResult.cachedInset.cellInfo);
-						cell.outputIsHovered = false;
+						const latestCell = this.notebookEditor.getCellByInfo(resolvedResult.cellInfo);
+						if (latestCell) {
+							latestCell.outputIsHovered = false;
+						}
 					}
 				} else if (data.type === 'scroll-ack') {
 					// const date = new Date();
@@ -512,7 +510,6 @@ var requirejs = (function() {
 				}
 				return;
 			}
-
 
 			this._onMessage.fire({ message: data });
 		}));
@@ -570,7 +567,7 @@ var requirejs = (function() {
 		}, undefined);
 
 		let resolveFunc: () => void;
-		this._loaded = new Promise<void>((resolve) => {
+		this._loaded = new Promise<void>((resolve, reject) => {
 			resolveFunc = resolve;
 		});
 
@@ -618,7 +615,6 @@ var requirejs = (function() {
 			const outputCache = this.insetMapping.get(item.output)!;
 			const id = outputCache.outputId;
 			const outputOffset = item.outputOffset;
-
 			outputCache.cachedCreation.top = outputOffset;
 			this.hiddenInsetMapping.delete(item.output);
 
