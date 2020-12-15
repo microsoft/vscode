@@ -442,10 +442,36 @@ interface IWorkbenchConstructionOptions {
 	//#endregion
 }
 
+interface IPerformanceMark {
+	/**
+	 * The name of a performace marker.
+	 */
+	readonly name: string;
+
+	/**
+	 * The UNIX timestamp at which the marker has been set.
+	 */
+	readonly startTime: number;
+}
+
 interface IWorkbench {
 	commands: {
 		executeCommand(command: string, ...args: any[]): Promise<unknown>;
 	},
+	env: {
+		/**
+		 * Retrieve performance marks that have been collected during startup. This function
+		 * returns tuples of source and marks. A source is a dedicated context, like
+		 * the renderer or an extension host.
+		 *
+		 * *Note* that marks can be collected on different machines and in different processes
+		 * and that therefore "different clocks" are used. So, comparing `startTime`-properties
+		 * across contexts should be taken with a grain of salt.
+		 *
+		 * @returns A promise that resolves to tuples of source and marks.
+		 */
+		retrievePerformanceMarks(): Promise<[string, readonly IPerformanceMark[]][]>;
+	}
 	shutdown: () => void;
 }
 
