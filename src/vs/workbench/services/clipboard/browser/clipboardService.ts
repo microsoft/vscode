@@ -11,12 +11,14 @@ import { INotificationService, Severity } from 'vs/platform/notification/common/
 import { IOpenerService } from 'vs/platform/opener/common/opener';
 import { once } from 'vs/base/common/functional';
 import { DisposableStore } from 'vs/base/common/lifecycle';
+import { IWorkbenchEnvironmentService } from 'vs/workbench/services/environment/common/environmentService';
 
 export class BrowserClipboardService extends BaseBrowserClipboardService {
 
 	constructor(
 		@INotificationService private readonly notificationService: INotificationService,
-		@IOpenerService private readonly openerService: IOpenerService
+		@IOpenerService private readonly openerService: IOpenerService,
+		@IWorkbenchEnvironmentService private readonly environmentService: IWorkbenchEnvironmentService
 	) {
 		super();
 	}
@@ -29,6 +31,10 @@ export class BrowserClipboardService extends BaseBrowserClipboardService {
 		try {
 			return await navigator.clipboard.readText();
 		} catch (error) {
+			if (!!this.environmentService.extensionTestsLocationURI) {
+				return ''; // do not ask for input in tests (https://github.com/microsoft/vscode/issues/112264)
+			}
+
 			return new Promise<string>(resolve => {
 
 				// Inform user about permissions problem (https://github.com/microsoft/vscode/issues/112089)

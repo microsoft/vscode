@@ -139,7 +139,7 @@ export class WorkbenchThemeService implements IWorkbenchThemeService {
 		// In order to avoid paint flashing for tokens, because
 		// themes are loaded asynchronously, we need to initialize
 		// a color theme document with good defaults until the theme is loaded
-		let themeData: ColorThemeData | undefined = ColorThemeData.fromStorageData(this.storageService);
+		let themeData: ColorThemeData | undefined = ColorThemeData.fromStorageData(this.storageService, isWeb);
 
 		// the preferred color scheme (high contrast, light, dark) has changed since the last start
 		const preferredColorScheme = this.getPreferredColorScheme();
@@ -496,7 +496,7 @@ export class WorkbenchThemeService implements IWorkbenchThemeService {
 
 		// remember theme data for a quick restore
 		if (newTheme.isLoaded) {
-			newTheme.toStorage(this.storageService);
+			newTheme.toStorage(this.storageService, this.settings.isDefaultColorTheme(newTheme));
 		}
 
 		return this.settings.setColorTheme(this.currentColorTheme, settingsTarget);

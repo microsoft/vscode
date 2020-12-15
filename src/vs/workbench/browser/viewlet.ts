@@ -6,12 +6,11 @@
 import * as nls from 'vs/nls';
 import * as DOM from 'vs/base/browser/dom';
 import { Registry } from 'vs/platform/registry/common/platform';
-import { Action, IAction, Separator, SubmenuAction } from 'vs/base/common/actions';
+import { Action } from 'vs/base/common/actions';
 import { IViewletService } from 'vs/workbench/services/viewlet/browser/viewlet';
 import { IViewlet } from 'vs/workbench/common/viewlet';
 import { CompositeDescriptor, CompositeRegistry } from 'vs/workbench/browser/composite';
 import { IConstructorSignature0, IInstantiationService, BrandedService } from 'vs/platform/instantiation/common/instantiation';
-import { ToggleSidebarVisibilityAction, ToggleSidebarPositionAction } from 'vs/workbench/browser/actions/layoutActions';
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
 import { IWorkbenchLayoutService, Parts } from 'vs/workbench/services/layout/browser/layoutService';
 import { IThemeService } from 'vs/platform/theme/common/themeService';
@@ -51,40 +50,6 @@ export abstract class Viewlet extends PaneComposite implements IViewlet {
 				this.updateTitleArea();
 			}));
 		}
-	}
-
-	getContextMenuActions(): IAction[] {
-		const parentActions = [...super.getContextMenuActions()];
-		if (parentActions.length) {
-			parentActions.push(new Separator());
-		}
-
-		const toggleSidebarPositionAction = new ToggleSidebarPositionAction(ToggleSidebarPositionAction.ID, ToggleSidebarPositionAction.getLabel(this.layoutService), this.layoutService, this.configurationService);
-		return [...parentActions, toggleSidebarPositionAction,
-		<IAction>{
-			id: ToggleSidebarVisibilityAction.ID,
-			label: nls.localize('compositePart.hideSideBarLabel', "Hide Side Bar"),
-			enabled: true,
-			run: () => this.layoutService.setSideBarHidden(true)
-		}];
-	}
-
-	getSecondaryActions(): IAction[] {
-		const viewVisibilityActions = this.viewPaneContainer.getViewsVisibilityActions();
-		const secondaryActions = this.viewPaneContainer.getSecondaryActions();
-		if (viewVisibilityActions.length <= 1 || viewVisibilityActions.every(({ enabled }) => !enabled)) {
-			return secondaryActions;
-		}
-
-		if (secondaryActions.length === 0) {
-			return viewVisibilityActions;
-		}
-
-		return [
-			new SubmenuAction('workbench.views', nls.localize('views', "Views"), viewVisibilityActions),
-			new Separator(),
-			...secondaryActions
-		];
 	}
 }
 

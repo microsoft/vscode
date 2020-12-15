@@ -311,6 +311,7 @@ export class GitError {
 
 export interface IGitOptions {
 	gitPath: string;
+	userAgent: string;
 	version: string;
 	env?: any;
 }
@@ -362,6 +363,8 @@ export interface ICloneOptions {
 export class Git {
 
 	readonly path: string;
+	readonly userAgent: string;
+	readonly version: string;
 	private env: any;
 
 	private _onOutput = new EventEmitter();
@@ -369,6 +372,8 @@ export class Git {
 
 	constructor(options: IGitOptions) {
 		this.path = options.gitPath;
+		this.version = options.version;
+		this.userAgent = options.userAgent;
 		this.env = options.env || {};
 	}
 
@@ -1688,6 +1693,8 @@ export class Repository {
 		if (name) {
 			args.push(name);
 		}
+
+		args.splice(0, 0, '-c', `http.userAgent=${this.git.userAgent}`);
 
 		try {
 			await this.run(args);

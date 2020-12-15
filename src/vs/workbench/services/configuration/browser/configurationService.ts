@@ -349,13 +349,13 @@ export class WorkspaceService extends Disposable implements IWorkbenchConfigurat
 	}
 
 	async initialize(arg: IWorkspaceInitializationPayload): Promise<void> {
-		mark('willInitWorkspaceService');
+		mark('code/willInitWorkspaceService');
 
 		const workspace = await this.createWorkspace(arg);
 		await this.updateWorkspaceAndInitializeConfiguration(workspace);
 		this.checkAndMarkWorkspaceComplete();
 
-		mark('didInitWorkspaceService');
+		mark('code/didInitWorkspaceService');
 	}
 
 	acquireInstantiationService(instantiationService: IInstantiationService): void {

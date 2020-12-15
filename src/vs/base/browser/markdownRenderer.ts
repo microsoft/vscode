@@ -303,7 +303,7 @@ function getInsaneOptions(options: { readonly isTrusted?: boolean }): InsaneOpti
 					return !!token.attrs['style'].match(/^(color\:#[0-9a-fA-F]+;)?(background-color\:#[0-9a-fA-F]+;)?$/);
 				} else if (token.attrs['class']) {
 					// The class should match codicon rendering in src\vs\base\common\codicons.ts
-					return !!token.attrs['class'].match(/^codicon codicon-[a-z\-]+( codicon-animation-[a-z\-]+)?$/);
+					return !!token.attrs['class'].match(/^codicon codicon-[a-z\-]+( codicon-modifier-[a-z\-]+)?$/);
 				}
 				return false;
 			}

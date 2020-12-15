@@ -14,15 +14,7 @@ function _factory(sharedObj) {
 	const _dataLen = 2;
 	const _nativeMark = typeof performance === 'object' && typeof performance.mark === 'function' ? performance.mark.bind(performance) : () => { };
 
-	function importEntries(entries) {
-		sharedObj.MonacoPerformanceMarks.splice(0, 0, ...entries);
-	}
-
-	function exportEntries() {
-		return sharedObj.MonacoPerformanceMarks.slice(0);
-	}
-
-	function getEntries() {
+	function getMarks() {
 		const result = [];
 		const entries = sharedObj.MonacoPerformanceMarks;
 		for (let i = 0; i < entries.length; i += _dataLen) {
@@ -34,37 +26,12 @@ function _factory(sharedObj) {
 		return result;
 	}
 
-	function getDuration(from, to) {
-		const entries = sharedObj.MonacoPerformanceMarks;
-		let target = to;
-		let endIndex = 0;
-		for (let i = entries.length - _dataLen; i >= 0; i -= _dataLen) {
-			if (entries[i] === target) {
-				if (target === to) {
-					// found `to` (end of interval)
-					endIndex = i;
-					target = from;
-				} else {
-					// found `from` (start of interval)
-					return entries[endIndex + 1] - entries[i + 1];
-				}
-			}
-		}
-		return 0;
-	}
-
 	function mark(name) {
 		sharedObj.MonacoPerformanceMarks.push(name, Date.now());
 		_nativeMark(name);
 	}
 
-	const exports = {
-		mark: mark,
-		getEntries: getEntries,
-		getDuration: getDuration,
-		importEntries: importEntries,
-		exportEntries: exportEntries
-	};
+	const exports = { mark, getMarks };
 
 	return exports;
 }

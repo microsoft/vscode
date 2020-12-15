@@ -25,7 +25,7 @@ function watch(root: string): Stream {
 	const result = es.through();
 	let child: cp.ChildProcess | null = cp.spawn(watcherPath, [root]);
 
-	child.stdout.on('data', function (data) {
+	child.stdout!.on('data', function (data) {
 		const lines: string[] = data.toString('utf8').split('\n');
 		for (let i = 0; i < lines.length; i++) {
 			const line = lines[i].trim();
@@ -52,7 +52,7 @@ function watch(root: string): Stream {
 		}
 	});
 
-	child.stderr.on('data', function (data) {
+	child.stderr!.on('data', function (data) {
 		result.emit('error', data);
 	});
 

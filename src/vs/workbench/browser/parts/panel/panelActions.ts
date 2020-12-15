@@ -5,44 +5,24 @@
 
 import 'vs/css!./media/panelpart';
 import * as nls from 'vs/nls';
-import { DisposableStore } from 'vs/base/common/lifecycle';
 import { KeyMod, KeyCode } from 'vs/base/common/keyCodes';
 import { Action } from 'vs/base/common/actions';
 import { Registry } from 'vs/platform/registry/common/platform';
-import { SyncActionDescriptor, MenuId, MenuRegistry } from 'vs/platform/actions/common/actions';
+import { SyncActionDescriptor, MenuId, MenuRegistry, registerAction2, Action2 } from 'vs/platform/actions/common/actions';
 import { IWorkbenchActionRegistry, Extensions as WorkbenchExtensions, CATEGORIES } from 'vs/workbench/common/actions';
 import { IPanelService } from 'vs/workbench/services/panel/common/panelService';
 import { IWorkbenchLayoutService, Parts, Position, positionToString } from 'vs/workbench/services/layout/browser/layoutService';
 import { ActivityAction, ToggleCompositePinnedAction, ICompositeBar } from 'vs/workbench/browser/parts/compositeBarActions';
 import { IActivity } from 'vs/workbench/common/activity';
-import { IEditorGroupsService } from 'vs/workbench/services/editor/common/editorGroupsService';
-import { ActivePanelContext, PanelPositionContext } from 'vs/workbench/common/panel';
+import { ActivePanelContext, PanelMaximizedContext, PanelPositionContext, PanelVisibleContext } from 'vs/workbench/common/panel';
 import { ContextKeyExpression } from 'vs/platform/contextkey/common/contextkey';
 import { Codicon } from 'vs/base/common/codicons';
 import { registerIcon } from 'vs/platform/theme/common/iconRegistry';
-import { ThemeIcon } from 'vs/platform/theme/common/themeService';
+import { ServicesAccessor } from 'vs/editor/browser/editorExtensions';
 
 const maximizeIcon = registerIcon('panel-maximize', Codicon.chevronUp, nls.localize('maximizeIcon', 'Icon to maximize a panel.'));
 const restoreIcon = registerIcon('panel-restore', Codicon.chevronDown, nls.localize('restoreIcon', 'Icon to restore a panel.'));
 const closeIcon = registerIcon('panel-close', Codicon.close, nls.localize('closeIcon', 'Icon to close a panel.'));
-
-export class ClosePanelAction extends Action {
-
-	static readonly ID = 'workbench.action.closePanel';
-	static readonly LABEL = nls.localize('closePanel', "Close Panel");
-
-	constructor(
-		id: string,
-		name: string,
-		@IWorkbenchLayoutService private readonly layoutService: IWorkbenchLayoutService
-	) {
-		super(id, name, ThemeIcon.asClassName(closeIcon));
-	}
-
-	async run(): Promise<void> {
-		this.layoutService.setPanelHidden(true);
-	}
-}
 
 export class TogglePanelAction extends Action {
 
@@ -87,46 +67,6 @@ class FocusPanelAction extends Action {
 		let panel = this.panelService.getActivePanel();
 		if (panel) {
 			panel.focus();
-		}
-	}
-}
-
-
-export class ToggleMaximizedPanelAction extends Action {
-
-	static readonly ID = 'workbench.action.toggleMaximizedPanel';
-	static readonly LABEL = nls.localize('toggleMaximizedPanel', "Toggle Maximized Panel");
-
-	private static readonly MAXIMIZE_LABEL = nls.localize('maximizePanel', "Maximize Panel Size");
-	private static readonly RESTORE_LABEL = nls.localize('minimizePanel', "Restore Panel Size");
-
-	private readonly toDispose = this._register(new DisposableStore());
-
-	constructor(
-		id: string,
-		label: string,
-		@IWorkbenchLayoutService private readonly layoutService: IWorkbenchLayoutService,
-		@IEditorGroupsService editorGroupsService: IEditorGroupsService
-	) {
-		super(id, label, layoutService.isPanelMaximized() ? ThemeIcon.asClassName(restoreIcon) : ThemeIcon.asClassName(maximizeIcon));
-
-		this.toDispose.add(editorGroupsService.onDidLayout(() => {
-			const maximized = this.layoutService.isPanelMaximized();
-			this.class = maximized ? ThemeIcon.asClassName(restoreIcon) : ThemeIcon.asClassName(maximizeIcon);
-			this.label = maximized ? ToggleMaximizedPanelAction.RESTORE_LABEL : ToggleMaximizedPanelAction.MAXIMIZE_LABEL;
-		}));
-	}
-
-	async run(): Promise<void> {
-		if (!this.layoutService.isVisible(Parts.PANEL_PART)) {
-			this.layoutService.setPanelHidden(false);
-			// If the panel is not already maximized, maximize it
-			if (!this.layoutService.isPanelMaximized()) {
-				this.layoutService.toggleMaximizedPanel();
-			}
-		}
-		else {
-			this.layoutService.toggleMaximizedPanel();
 		}
 	}
 }
@@ -287,10 +227,62 @@ export class NextPanelViewAction extends SwitchPanelViewAction {
 const actionRegistry = Registry.as<IWorkbenchActionRegistry>(WorkbenchExtensions.WorkbenchActions);
 actionRegistry.registerWorkbenchAction(SyncActionDescriptor.from(TogglePanelAction, { primary: KeyMod.CtrlCmd | KeyCode.KEY_J }), 'View: Toggle Panel', CATEGORIES.View.value);
 actionRegistry.registerWorkbenchAction(SyncActionDescriptor.from(FocusPanelAction), 'View: Focus into Panel', CATEGORIES.View.value);
-actionRegistry.registerWorkbenchAction(SyncActionDescriptor.from(ToggleMaximizedPanelAction), 'View: Toggle Maximized Panel', CATEGORIES.View.value);
-actionRegistry.registerWorkbenchAction(SyncActionDescriptor.from(ClosePanelAction), 'View: Close Panel', CATEGORIES.View.value);
 actionRegistry.registerWorkbenchAction(SyncActionDescriptor.from(PreviousPanelViewAction), 'View: Previous Panel View', CATEGORIES.View.value);
 actionRegistry.registerWorkbenchAction(SyncActionDescriptor.from(NextPanelViewAction), 'View: Next Panel View', CATEGORIES.View.value);
+
+registerAction2(class extends Action2 {
+	constructor() {
+		super({
+			id: 'workbench.action.toggleMaximizedPanel',
+			title: { value: nls.localize('toggleMaximizedPanel', "Toggle Maximized Panel"), original: 'Toggle Maximized Panel' },
+			tooltip: { value: nls.localize('maximizePanel', "Maximize Panel Size"), original: 'Maximize Panel Size' },
+			category: CATEGORIES.View,
+			f1: true,
+			icon: maximizeIcon,
+			toggled: { condition: PanelMaximizedContext, icon: restoreIcon, tooltip: { value: nls.localize('minimizePanel', "Restore Panel Size"), original: 'Restore Panel Size' } },
+			menu: [{
+				id: MenuId.PanelTitle,
+				group: 'navigation',
+				order: 1
+			}]
+		});
+	}
+	run(accessor: ServicesAccessor) {
+		const layoutService = accessor.get(IWorkbenchLayoutService);
+		if (!layoutService.isVisible(Parts.PANEL_PART)) {
+			layoutService.setPanelHidden(false);
+			// If the panel is not already maximized, maximize it
+			if (!layoutService.isPanelMaximized()) {
+				layoutService.toggleMaximizedPanel();
+			}
+		}
+		else {
+			layoutService.toggleMaximizedPanel();
+		}
+	}
+});
+
+registerAction2(class extends Action2 {
+	constructor() {
+		super({
+			id: 'workbench.action.closePanel',
+			title: { value: nls.localize('closePanel', "Close Panel"), original: 'Close Panel' },
+			category: CATEGORIES.View,
+			icon: closeIcon,
+			menu: [{
+				id: MenuId.CommandPalette,
+				when: PanelVisibleContext,
+			}, {
+				id: MenuId.PanelTitle,
+				group: 'navigation',
+				order: 2
+			}]
+		});
+	}
+	run(accessor: ServicesAccessor) {
+		accessor.get(IWorkbenchLayoutService).setPanelHidden(true);
+	}
+});
 
 MenuRegistry.appendMenuItem(MenuId.MenubarAppearanceMenu, {
 	group: '2_workbench_layout',

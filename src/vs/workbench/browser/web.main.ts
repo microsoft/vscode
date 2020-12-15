@@ -84,7 +84,7 @@ class BrowserMain extends Disposable {
 		const services = await this.initServices();
 
 		await domContentLoaded();
-		mark('willStartWorkbench');
+		mark('code/willStartWorkbench');
 
 		// Create Workbench
 		const workbench = new Workbench(
@@ -145,8 +145,7 @@ class BrowserMain extends Disposable {
 		// Workbench Lifecycle
 		this._register(workbench.onBeforeShutdown(event => {
 			if (storageService.hasPendingUpdate) {
-				logService.warn('Unload veto: pending storage update');
-				event.veto(true); // prevent data loss from pending storage update
+				event.veto(true, 'veto.pendingStorageUpdate'); // prevent data loss from pending storage update
 			}
 		}));
 		this._register(workbench.onWillShutdown(() => storageService.close()));
@@ -243,7 +242,7 @@ class BrowserMain extends Disposable {
 		serviceCollection.set(IUserDataInitializationService, userDataInitializationService);
 
 		if (await userDataInitializationService.requiresInitialization()) {
-			mark('willInitRequiredUserData');
+			mark('code/willInitRequiredUserData');
 
 			// Initialize required resources - settings & global state
 			await userDataInitializationService.initializeRequiredResources();
@@ -252,7 +251,7 @@ class BrowserMain extends Disposable {
 			// Reloading complete configuraiton blocks workbench until remote configuration is loaded.
 			await configurationService.reloadLocalUserConfiguration();
 
-			mark('didInitRequiredUserData');
+			mark('code/didInitRequiredUserData');
 		}
 
 		return { serviceCollection, configurationService, logService, storageService };
@@ -267,8 +266,9 @@ class BrowserMain extends Disposable {
 			try {
 				indexedDBLogProvider = await indexedDB.createFileSystemProvider(logsPath.scheme, INDEXEDDB_LOGS_OBJECT_STORE);
 			} catch (error) {
-				console.error(error);
+				onUnexpectedError(error);
 			}
+
 			if (indexedDBLogProvider) {
 				fileService.registerProvider(logsPath.scheme, indexedDBLogProvider);
 			} else {
@@ -285,6 +285,7 @@ class BrowserMain extends Disposable {
 
 		const connection = remoteAgentService.getConnection();
 		if (connection) {
+
 			// Remote file system
 			const remoteFileSystemProvider = this._register(new RemoteFileSystemProvider(remoteAgentService));
 			fileService.registerProvider(Schemas.vscodeRemote, remoteFileSystemProvider);
@@ -295,8 +296,9 @@ class BrowserMain extends Disposable {
 		try {
 			indexedDBUserDataProvider = await indexedDB.createFileSystemProvider(Schemas.userData, INDEXEDDB_USERDATA_OBJECT_STORE);
 		} catch (error) {
-			console.error(error);
+			onUnexpectedError(error);
 		}
+		fileService.registerProvider(Schemas.userData, indexedDBUserDataProvider || new InMemoryFileSystemProvider());
 
 		if (indexedDBUserDataProvider) {
 			registerAction2(class ResetUserDataAction extends Action2 {
@@ -310,21 +312,22 @@ class BrowserMain extends Disposable {
 						}
 					});
 				}
+
 				async run(accessor: ServicesAccessor): Promise<void> {
 					const dialogService = accessor.get(IDialogService);
 					const hostService = accessor.get(IHostService);
 					const result = await dialogService.confirm({
 						message: localize('reset user data message', "Would you like to reset your data (settings, keybindings, extensions, snippets and UI State) and reload?")
 					});
+
 					if (result.confirmed) {
-						await indexedDBUserDataProvider!.reset();
+						await indexedDBUserDataProvider?.reset();
 					}
+
 					hostService.reload();
 				}
 			});
 		}
-
-		fileService.registerProvider(Schemas.userData, indexedDBUserDataProvider || new InMemoryFileSystemProvider());
 	}
 
 	private async createStorageService(payload: IWorkspaceInitializationPayload, environmentService: IWorkbenchEnvironmentService, fileService: IFileService, logService: ILogService): Promise<BrowserStorageService> {

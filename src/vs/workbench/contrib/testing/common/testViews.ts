@@ -3,13 +3,4 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-@keyframes codicon-spin {
-	100% {
-		transform:rotate(360deg);
-	}
-}
-
-.codicon-animation-spin {
-	/* Use steps to throttle FPS to reduce CPU usage */
-	animation: codicon-spin 1.5s steps(30) infinite;
-}
+export const TESTING_VIEWLET_ID = 'workbench.view.testing';

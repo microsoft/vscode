@@ -3,8 +3,7 @@
 <html>
 	<head>
 		<script>
-			globalThis.MonacoPerformanceMarks = globalThis.MonacoPerformanceMarks || [];
-			globalThis.MonacoPerformanceMarks.push('renderer/started', Date.now());
+			performance.mark('code/didStartRenderer')
 		</script>
 		<meta charset="utf-8" />
 
@@ -56,7 +55,7 @@
 	</script>
 	<script src="./static/out/vs/loader.js"></script>
 	<script>
-		globalThis.MonacoPerformanceMarks.push('willLoadWorkbenchMain', Date.now());
+		performance.mark('code/willLoadWorkbenchMain');
 	</script>
 	<script>
 		require(['vs/code/browser/workbench/workbench'], function() {});

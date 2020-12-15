@@ -417,7 +417,12 @@ class ScopedContextKeyService extends AbstractContextKeyService {
 		if (domNode) {
 			this._domNode = domNode;
 			if (this._domNode.hasAttribute(KEYBINDING_CONTEXT_ATTR)) {
-				console.error('Element already has context attribute');
+				let extraInfo = '';
+				if ((this._domNode as HTMLElement).classList) {
+					extraInfo = Array.from((this._domNode as HTMLElement).classList.values()).join(', ');
+				}
+
+				console.error(`Element already has context attribute${extraInfo ? ': ' + extraInfo : ''}`);
 			}
 			this._domNode.setAttribute(KEYBINDING_CONTEXT_ATTR, String(this._myContextId));
 		}
