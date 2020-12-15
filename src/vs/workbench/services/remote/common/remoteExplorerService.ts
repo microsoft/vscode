@@ -97,7 +97,7 @@ export function mapHasAddressLocalhostOrAllInterfaces<T>(map: Map<string, T>, ho
 	if (originalAddress) {
 		return originalAddress;
 	}
-	const otherHost = isAllInterfaces(host) ? 'localhost' : (host === 'localhost' ? '0.0.0.0' : undefined);
+	const otherHost = isAllInterfaces(host) ? 'localhost' : (isLocalhost(host) ? '0.0.0.0' : undefined);
 	if (otherHost) {
 		return mapHasAddress(map, otherHost, port);
 	}
