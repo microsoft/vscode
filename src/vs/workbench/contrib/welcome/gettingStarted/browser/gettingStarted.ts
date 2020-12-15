@@ -94,12 +94,12 @@ export class GettingStartedPage extends Disposable {
 			if (category.id === this.currentCategory?.id) {
 				const badgeelement = assertIsDefined(document.getElementById('done-task-' + task.id));
 				if (task.done) {
-					badgeelement.classList.remove('codicon-star-empty');
-					badgeelement.classList.add('codicon-star-full');
+					badgeelement.classList.remove('codicon-circle-large-outline');
+					badgeelement.classList.add('codicon-pass-filled');
 				}
 				else {
-					badgeelement.classList.add('codicon-star-empty');
-					badgeelement.classList.remove('codicon-star-full');
+					badgeelement.classList.add('codicon-circle-large-outline');
+					badgeelement.classList.remove('codicon-pass-filled');
 				}
 			}
 			this.updateCategoryProgress();
@@ -303,7 +303,7 @@ export class GettingStartedPage extends Disposable {
 		const categoryElements = category.content.items.map(
 			(task, i, arr) => $('button.getting-started-task',
 				{ 'x-dispatch': 'selectTask:' + task.id, id: 'getting-started-task-' + task.id },
-				$('.codicon' + (task.done ? '.complete.codicon-pass-filled' : '.codicon-circle-large-outline'), { id: 'done-task-' + task.id }),
+				$('.codicon' + (task.done ? '.codicon-pass-filled' : '.codicon-circle-large-outline'), { id: 'done-task-' + task.id }),
 				$('.task-description-container', {},
 					$('h3.task-title', {}, task.title),
 					$('.task-description.description', {}, task.description),
