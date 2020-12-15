@@ -1174,6 +1174,18 @@ suite('WorkspaceConfigurationService - Folder', () => {
 			.then(() => assert.ok(target.called));
 	});
 
+	test('update user configuration to default value when target is not passed', async () => {
+		await testObject.updateValue('configurationService.folder.testSetting', 'value', ConfigurationTarget.USER);
+		await testObject.updateValue('configurationService.folder.testSetting', 'isSet');
+		assert.equal(testObject.inspect('configurationService.folder.testSetting').userValue, undefined);
+	});
+
+	test('update user configuration to default value when target is passed', async () => {
+		await testObject.updateValue('configurationService.folder.testSetting', 'value', ConfigurationTarget.USER);
+		await testObject.updateValue('configurationService.folder.testSetting', 'isSet', ConfigurationTarget.USER);
+		assert.equal(testObject.inspect('configurationService.folder.testSetting').userValue, 'isSet');
+	});
+
 	test('update task configuration should trigger change event before promise is resolve', () => {
 		const target = sinon.spy();
 		testObject.onDidChangeConfiguration(target);

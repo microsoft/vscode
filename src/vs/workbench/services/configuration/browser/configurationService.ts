@@ -288,13 +288,22 @@ export class WorkspaceService extends Disposable implements IWorkbenchConfigurat
 	updateValue(key: string, value: any, target: ConfigurationTarget): Promise<void>;
 	updateValue(key: string, value: any, overrides: IConfigurationOverrides, target: ConfigurationTarget): Promise<void>;
 	updateValue(key: string, value: any, overrides: IConfigurationOverrides, target: ConfigurationTarget, donotNotifyError: boolean): Promise<void>;
-	updateValue(key: string, value: any, arg3?: any, arg4?: any, donotNotifyError?: any): Promise<void> {
-		return this.cyclicDependency.then(() => {
-			const overrides = isConfigurationOverrides(arg3) ? arg3 : undefined;
-			const target = this.deriveConfigurationTarget(key, value, overrides, overrides ? arg4 : arg3);
-			return target ? this.writeConfigurationValue(key, value, target, overrides, donotNotifyError)
-				: Promise.resolve();
-		});
+	async updateValue(key: string, value: any, arg3?: any, arg4?: any, donotNotifyError?: any): Promise<void> {
+		await this.cyclicDependency;
+		const overrides = isConfigurationOverrides(arg3) ? arg3 : undefined;
+		let target: ConfigurationTarget | undefined = overrides ? arg4 : arg3;
+
+		if (!target) {
+			const inspect = this.inspect(key, overrides);
+			target = this.deriveConfigurationTarget(key, value, inspect);
+			if (target === ConfigurationTarget.USER && equals(value, inspect.defaultValue)) {
+				value = undefined;
+			}
+		}
+
+		if (target) {
+			await this.writeConfigurationValue(key, value, target, overrides, donotNotifyError);
+		}
 	}
 
 	async reloadConfiguration(target?: ConfigurationTarget | IWorkspaceFolder): Promise<void> {
@@ -748,17 +757,12 @@ export class WorkspaceService extends Disposable implements IWorkbenchConfigurat
 			});
 	}
 
-	private deriveConfigurationTarget(key: string, value: any, overrides: IConfigurationOverrides | undefined, target: ConfigurationTarget): ConfigurationTarget | undefined {
-		if (target) {
-			return target;
-		}
-
+	private deriveConfigurationTarget(key: string, value: any, inspect: IConfigurationValue<any>): ConfigurationTarget | undefined {
 		if (value === undefined) {
 			// Ignore. But expected is to remove the value from all targets
 			return undefined;
 		}
 
-		const inspect = this.inspect(key, overrides);
 		if (equals(value, inspect.value)) {
 			// No change. So ignore.
 			return undefined;
