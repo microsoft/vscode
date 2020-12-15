@@ -135,8 +135,8 @@ import { isStandalone } from 'vs/base/browser/browser';
 			},
 			'workbench.editor.enablePreviewFromCodeNavigation': {
 				'type': 'boolean',
-				'description': nls.localize('enablePreviewFromCodeNavigation', "Controls whether preview editors should be kept open as regular editors when opening a second editor from the preview (e.g. via go to definition)"),
-				'default': true
+				'description': nls.localize('enablePreviewFromCodeNavigation', "Controls whether editors remain in preview when a code navigation is started from them. Preview editors do not keep open and are reused until explicitly set to be kept open (e.g. via double click or editing)."),
+				'default': false
 			},
 			'workbench.editor.closeOnFileDelete': {
 				'type': 'boolean',
