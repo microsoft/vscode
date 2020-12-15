@@ -3,7 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { NotebookLayoutInfo } from 'vs/workbench/contrib/notebook/browser/notebookBrowser';
+import { IInsetRenderOutput, NotebookLayoutInfo } from 'vs/workbench/contrib/notebook/browser/notebookBrowser';
 import { CellDiffViewModelBase } from 'vs/workbench/contrib/notebook/browser/diff/celllDiffViewModel';
 import { Event } from 'vs/base/common/event';
 import { BareFontInfo } from 'vs/editor/common/config/fontInfo';
@@ -13,6 +13,7 @@ import { CodeEditorWidget } from 'vs/editor/browser/widget/codeEditorWidget';
 import { DiffEditorWidget } from 'vs/editor/browser/widget/diffEditorWidget';
 import { ToolBar } from 'vs/base/browser/ui/toolbar/toolbar';
 import { OutputRenderer } from 'vs/workbench/contrib/notebook/browser/view/output/outputRenderer';
+import { NotebookCellTextModel } from 'vs/workbench/contrib/notebook/common/model/notebookCellTextModel';
 
 export interface INotebookTextDiffEditor {
 	readonly textModel?: NotebookTextModel;
@@ -21,6 +22,7 @@ export interface INotebookTextDiffEditor {
 	getLayoutInfo(): NotebookLayoutInfo;
 	layoutNotebookCell(cell: CellDiffViewModelBase, height: number): void;
 	getOutputRenderer(): OutputRenderer;
+	createInset(cellDiffViewModel: CellDiffViewModelBase, cellTextModel: NotebookCellTextModel, output: IInsetRenderOutput, offset: number, rightEditor: boolean): void;
 }
 
 export interface CellDiffSingleSideRenderTemplate {

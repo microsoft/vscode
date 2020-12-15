@@ -24,7 +24,7 @@ import { IConfigurationService } from 'vs/platform/configuration/common/configur
 import { IEditorOptions } from 'vs/editor/common/config/editorOptions';
 import { BareFontInfo } from 'vs/editor/common/config/fontInfo';
 import { getZoomLevel } from 'vs/base/browser/browser';
-import { INotebookEditor, NotebookLayoutInfo } from 'vs/workbench/contrib/notebook/browser/notebookBrowser';
+import { IInsetRenderOutput, INotebookEditor, NotebookLayoutInfo } from 'vs/workbench/contrib/notebook/browser/notebookBrowser';
 import { DIFF_CELL_MARGIN, INotebookTextDiffEditor } from 'vs/workbench/contrib/notebook/browser/diff/common';
 import { Emitter } from 'vs/base/common/event';
 import { DisposableStore, IDisposable, toDisposable } from 'vs/base/common/lifecycle';
@@ -38,6 +38,8 @@ import { Schemas } from 'vs/base/common/network';
 import { IDiffChange } from 'vs/base/common/diff/diff';
 import { NotebookTextModel } from 'vs/workbench/contrib/notebook/common/model/notebookTextModel';
 import { OutputRenderer } from 'vs/workbench/contrib/notebook/browser/view/output/outputRenderer';
+import { NotebookCellTextModel } from 'vs/workbench/contrib/notebook/common/model/notebookCellTextModel';
+import { SequencerByKey } from 'vs/base/common/async';
 
 export const IN_NOTEBOOK_TEXT_DIFF_EDITOR = new RawContextKey<boolean>('isInNotebookTextDiffEditor', false);
 
@@ -63,6 +65,7 @@ export class NotebookTextDiffEditor extends EditorPane implements INotebookTextD
 	}
 
 	private _revealFirst: boolean;
+	private readonly _insetModifyQueueByOutputId = new SequencerByKey<string>();
 
 	constructor(
 		@IInstantiationService readonly instantiationService: IInstantiationService,
@@ -363,6 +366,18 @@ export class NotebookTextDiffEditor extends EditorPane implements INotebookTextD
 
 		return new Promise<void>(resolve => { r = resolve; });
 	}
+
+
+	createInset(cellDiffViewModel: CellDiffViewModelBase, cellTextModel: NotebookCellTextModel, output: IInsetRenderOutput, offset: number, rightEditor: boolean): void {
+		this._insetModifyQueueByOutputId.queue(output.source.model.outputId, async () => {
+		});
+	}
+
+	// private async _resolveWebview(rightEditor: boolean): Promise<BackLayerWebView | null> {
+	// 	if (rightEditor) {
+
+	// 	}
+	// }
 
 	getDomNode() {
 		return this._rootElement;

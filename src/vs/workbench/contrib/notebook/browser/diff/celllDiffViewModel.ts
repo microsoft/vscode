@@ -272,6 +272,18 @@ export class SideBySideCellDiffViewModel extends CellDiffViewModelBase {
 		}
 	}
 
+	getOutputOffsetInCell(original: boolean, index: number) {
+		const offsetInOutputsContainer = this.getOutputOffsetInContainer(original, index);
+
+		return this._layoutInfo.editorHeight
+			+ this._layoutInfo.editorMargin
+			+ this._layoutInfo.metadataHeight
+			+ this._layoutInfo.metadataStatusHeight
+			+ this._layoutInfo.outputStatusHeight
+			+ this._layoutInfo.bodyMargin / 2
+			+ offsetInOutputsContainer;
+	}
+
 	getOutputTotalHeight() {
 		this.ensureOutputsTop();
 
@@ -361,6 +373,18 @@ export class SingleSideCellDiffViewModel extends CellDiffViewModelBase {
 		}
 
 		return this._outputsTop!.getAccumulatedValue(index - 1);
+	}
+
+	getOutputOffsetInCell(index: number) {
+		const offsetInOutputsContainer = this.getOutputOffsetInContainer(index);
+
+		return this._layoutInfo.editorHeight
+			+ this._layoutInfo.editorMargin
+			+ this._layoutInfo.metadataHeight
+			+ this._layoutInfo.metadataStatusHeight
+			+ this._layoutInfo.outputStatusHeight
+			+ this._layoutInfo.bodyMargin / 2
+			+ offsetInOutputsContainer;
 	}
 
 	getOutputTotalHeight() {
