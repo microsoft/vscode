@@ -67,6 +67,9 @@ export class TestNotebookEditor implements INotebookEditor {
 
 	constructor(
 	) { }
+	focusNextNotebookCell(cell: ICellViewModel, focus: 'editor' | 'container' | 'output'): void {
+		throw new Error('Method not implemented.');
+	}
 	getCellByInfo(cellInfo: ICommonCellInfo): ICellViewModel {
 		throw new Error('Method not implemented.');
 	}
