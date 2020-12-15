@@ -745,18 +745,12 @@ export class WindowsMainService extends Disposable implements IWindowsMainServic
 					detail = localize('uriInvalidDetail', "The URI '{0}' is not valid and can not be opened.", uri.toString());
 				}
 
-				const options: MessageBoxOptions = {
-					title: product.nameLong,
-					type: 'info',
-					buttons: [localize('ok', "OK")],
-					message,
-					detail,
-					noLink: true
-				};
+				const options: MessageBoxOptions = { title: product.nameLong, type: 'info', buttons: [localize('ok', "OK")], message, detail, noLink: true };
 
 				this.dialogMainService.showMessageBox(options, withNullAsUndefined(BrowserWindow.getFocusedWindow()));
 			}
 		}
+
 		return pathsToOpen;
 	}
 
@@ -892,6 +886,7 @@ export class WindowsMainService extends Disposable implements IWindowsMainServic
 			const uri = URI.parse(arg);
 			if (!uri.scheme) {
 				this.logService.error(`Invalid URI input string, scheme missing: ${arg}`);
+
 				return undefined;
 			}
 
@@ -1357,9 +1352,9 @@ export class WindowsMainService extends Disposable implements IWindowsMainServic
 	}
 
 	getFocusedWindow(): ICodeWindow | undefined {
-		const win = BrowserWindow.getFocusedWindow();
-		if (win) {
-			return this.getWindowById(win.id);
+		const window = BrowserWindow.getFocusedWindow();
+		if (window) {
+			return this.getWindowById(window.id);
 		}
 
 		return undefined;
@@ -1406,9 +1401,9 @@ export class WindowsMainService extends Disposable implements IWindowsMainServic
 	}
 
 	getWindowById(windowId: number): ICodeWindow | undefined {
-		const res = this.getWindows().filter(window => window.id === windowId);
+		const windows = this.getWindows().filter(window => window.id === windowId);
 
-		return firstOrDefault(res);
+		return firstOrDefault(windows);
 	}
 
 	getWindowByWebContents(webContents: WebContents): ICodeWindow | undefined {
