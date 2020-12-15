@@ -809,14 +809,14 @@ export class ListView<T> implements ISpliceable<T>, IDisposable {
 		return scrollPosition.scrollTop;
 	}
 
-	setScrollTop(scrollTop: number): void {
+	setScrollTop(scrollTop: number, reuseAnimation?: boolean): void {
 		if (this.scrollableElementUpdateDisposable) {
 			this.scrollableElementUpdateDisposable.dispose();
 			this.scrollableElementUpdateDisposable = null;
 			this.scrollableElement.setScrollDimensions({ scrollHeight: this.scrollHeight });
 		}
 
-		this.scrollableElement.setScrollPosition({ scrollTop });
+		this.scrollableElement.setScrollPosition({ scrollTop, reuseAnimation });
 	}
 
 	getScrollLeft(): number {
@@ -895,9 +895,7 @@ export class ListView<T> implements ISpliceable<T>, IDisposable {
 			this.render(previousRenderRange, e.scrollTop, e.height, e.scrollLeft, e.scrollWidth);
 
 			if (this.supportDynamicHeights) {
-				// Don't update scrollTop from within an scroll event
-				// so we don't break smooth scrolling. #104144
-				this._rerender(e.scrollTop, e.height, false);
+				this._rerender(e.scrollTop, e.height, e.inSmoothScrolling);
 			}
 		} catch (err) {
 			console.error('Got bad scroll event:', e);
@@ -1167,7 +1165,7 @@ export class ListView<T> implements ISpliceable<T>, IDisposable {
 	 * Given a stable rendered state, checks every rendered element whether it needs
 	 * to be probed for dynamic height. Adjusts scroll height and top if necessary.
 	 */
-	private _rerender(renderTop: number, renderHeight: number, updateScrollTop: boolean = true): void {
+	private _rerender(renderTop: number, renderHeight: number, inSmoothScrolling?: boolean): void {
 		const previousRenderRange = this.getRenderRange(renderTop, renderHeight);
 
 		// Let's remember the second element's position, this helps in scrolling up
@@ -1233,8 +1231,15 @@ export class ListView<T> implements ISpliceable<T>, IDisposable {
 					}
 				}
 
-				if (updateScrollTop && typeof anchorElementIndex === 'number') {
-					this.scrollTop = this.elementTop(anchorElementIndex) - anchorElementTopDelta!;
+				if (typeof anchorElementIndex === 'number') {
+					// To compute a destination scroll top, we need to take into account the current smooth scrolling
+					// animation, and then reuse it with a new target (to avoid prolonging the scroll)
+					// See https://github.com/microsoft/vscode/issues/104144
+					// See https://github.com/microsoft/vscode/pull/104284
+					// See https://github.com/microsoft/vscode/issues/107704
+					const deltaScrollTop = this.scrollable.getFutureScrollPosition().scrollTop - renderTop;
+					const newScrollTop = this.elementTop(anchorElementIndex) - anchorElementTopDelta! + deltaScrollTop;
+					this.setScrollTop(newScrollTop, inSmoothScrolling);
 				}
 
 				this._onDidChangeContentHeight.fire(this.contentHeight);

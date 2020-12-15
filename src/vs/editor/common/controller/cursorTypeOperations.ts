@@ -351,13 +351,6 @@ export class TypeOperations {
 			if (ir) {
 				let oldEndViewColumn = CursorColumns.visibleColumnFromColumn2(config, model, range.getEndPosition());
 				const oldEndColumn = range.endColumn;
-
-				let beforeText = '\n';
-				if (indentation !== config.normalizeIndentation(ir.beforeEnter)) {
-					beforeText = config.normalizeIndentation(ir.beforeEnter) + lineText.substring(indentation.length, range.startColumn - 1) + '\n';
-					range = new Range(range.startLineNumber, 1, range.endLineNumber, range.endColumn);
-				}
-
 				const newLineContent = model.getLineContent(range.endLineNumber);
 				const firstNonWhitespace = strings.firstNonWhitespaceIndex(newLineContent);
 				if (firstNonWhitespace >= 0) {
@@ -367,7 +360,7 @@ export class TypeOperations {
 				}
 
 				if (keepPosition) {
-					return new ReplaceCommandWithoutChangingPosition(range, beforeText + config.normalizeIndentation(ir.afterEnter), true);
+					return new ReplaceCommandWithoutChangingPosition(range, '\n' + config.normalizeIndentation(ir.afterEnter), true);
 				} else {
 					let offset = 0;
 					if (oldEndColumn <= firstNonWhitespace + 1) {
@@ -376,7 +369,7 @@ export class TypeOperations {
 						}
 						offset = Math.min(oldEndViewColumn + 1 - config.normalizeIndentation(ir.afterEnter).length - 1, 0);
 					}
-					return new ReplaceCommandWithOffsetCursorState(range, beforeText + config.normalizeIndentation(ir.afterEnter), 0, offset, true);
+					return new ReplaceCommandWithOffsetCursorState(range, '\n' + config.normalizeIndentation(ir.afterEnter), 0, offset, true);
 				}
 			}
 		}

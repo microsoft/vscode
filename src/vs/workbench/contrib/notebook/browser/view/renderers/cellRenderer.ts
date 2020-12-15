@@ -49,6 +49,8 @@ import { MarkdownCellViewModel } from 'vs/workbench/contrib/notebook/browser/vie
 import { CellViewModel } from 'vs/workbench/contrib/notebook/browser/viewModel/notebookViewModel';
 import { CellEditType, CellKind, NotebookCellMetadata, NotebookCellRunState, NotebookCellsChangeType, ShowCellStatusBarKey } from 'vs/workbench/contrib/notebook/common/notebookCommon';
 import { CodiconActionViewItem, createAndFillInActionBarActionsWithVerticalSeparators, VerticalSeparator, VerticalSeparatorViewItem } from './cellActionView';
+import { ThemeIcon } from 'vs/platform/theme/common/themeService';
+import { errorStateIcon, successStateIcon, unfoldIcon } from 'vs/workbench/contrib/notebook/browser/notebookIcons';
 
 const $ = DOM.$;
 
@@ -357,8 +359,8 @@ abstract class AbstractCellRenderer {
 	}
 
 	protected setupCollapsedPart(container: HTMLElement): { collapsedPart: HTMLElement, expandButton: HTMLElement } {
-		const collapsedPart = DOM.append(container, $('.cell.cell-collapsed-part', undefined, ...renderCodicons('$(unfold)')));
-		const expandButton = collapsedPart.querySelector('.codicon') as HTMLElement;
+		const collapsedPart = DOM.append(container, $('.cell.cell-collapsed-part', undefined, $('span.expandButton' + ThemeIcon.asCSSSelector(unfoldIcon))));
+		const expandButton = collapsedPart.querySelector('.expandButton') as HTMLElement;
 		const keybinding = this.keybindingService.lookupKeybinding(EXPAND_CELL_CONTENT_COMMAND_ID);
 		let title = localize('cellExpandButtonLabel', "Expand");
 		if (keybinding) {
@@ -454,7 +456,7 @@ export class MarkdownCellRenderer extends AbstractCellRenderer implements IListR
 	}
 
 	private getDragImage(templateData: MarkdownCellRenderTemplate): HTMLElement {
-		if (templateData.currentRenderedCell!.editState === CellEditState.Editing) {
+		if (templateData.currentRenderedCell?.editState === CellEditState.Editing) {
 			return this.getEditDragImage(templateData);
 		} else {
 			return this.getMarkdownDragImage(templateData);
@@ -501,7 +503,7 @@ export class MarkdownCellRenderer extends AbstractCellRenderer implements IListR
 
 		templateData.currentRenderedCell = element;
 		templateData.currentEditor = undefined;
-		templateData.editorPart!.style.display = 'none';
+		templateData.editorPart.style.display = 'none';
 		templateData.cellContainer.innerText = '';
 
 		if (height === undefined) {
@@ -592,7 +594,7 @@ class EditorTextRenderer {
 		const element = DOM.$('div', { style });
 
 		const linesHtml = this.getRichTextLinesAsHtml(model, modelRange, colorMap);
-		element.innerHTML = linesHtml as unknown as string;
+		element.innerHTML = linesHtml as string;
 		return element;
 	}
 
@@ -710,13 +712,14 @@ export class CodeCellRenderer extends AbstractCellRenderer implements IListRende
 
 		const executionOrderLabel = DOM.append(cellContainer, $('div.execution-count-label'));
 
+		const editorPart = DOM.append(cellContainer, $('.cell-editor-part'));
+		const editorContainer = DOM.append(editorPart, $('.cell-editor-container'));
+
 		// create a special context key service that set the inCompositeEditor-contextkey
-		const editorContextKeyService = disposables.add(this.contextKeyServiceProvider(container));
+		const editorContextKeyService = disposables.add(this.contextKeyServiceProvider(editorPart));
 		const editorInstaService = this.instantiationService.createChild(new ServiceCollection([IContextKeyService, editorContextKeyService]));
 		EditorContextKeys.inCompositeEditor.bindTo(editorContextKeyService).set(true);
 
-		const editorPart = DOM.append(cellContainer, $('.cell-editor-part'));
-		const editorContainer = DOM.append(editorPart, $('.cell-editor-container'));
 		const editor = editorInstaService.createInstance(CodeEditorWidget, editorContainer, {
 			...this.editorOptions.value,
 			dimension: {
@@ -1032,6 +1035,7 @@ export class RunStateRenderer {
 	clear() {
 		if (this.spinnerTimer) {
 			clearTimeout(this.spinnerTimer);
+			this.spinnerTimer = undefined;
 		}
 	}
 
@@ -1048,9 +1052,9 @@ export class RunStateRenderer {
 		}
 
 		if (runState === NotebookCellRunState.Success) {
-			DOM.reset(this.element, ...renderCodicons('$(check)'));
+			DOM.reset(this.element, ...renderCodicons(ThemeIcon.asCodiconLabel(successStateIcon)));
 		} else if (runState === NotebookCellRunState.Error) {
-			DOM.reset(this.element, ...renderCodicons('$(error)'));
+			DOM.reset(this.element, ...renderCodicons(ThemeIcon.asCodiconLabel(errorStateIcon)));
 		} else if (runState === NotebookCellRunState.Running) {
 			DOM.reset(this.element, ...renderCodicons('$(sync~spin)'));
 

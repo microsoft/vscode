@@ -361,7 +361,7 @@ export abstract class AbstractRuntimeExtensionsEditor extends EditorPane {
 					data.msgContainer.appendChild(el);
 				}
 
-				if (element.description.extensionLocation.scheme !== Schemas.file) {
+				if (element.description.extensionLocation.scheme === Schemas.vscodeRemote) {
 					const el = $('span', undefined, ...renderCodicons(`$(remote) ${element.description.extensionLocation.authority}`));
 					data.msgContainer.appendChild(el);
 

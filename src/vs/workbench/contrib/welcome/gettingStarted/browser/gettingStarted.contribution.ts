@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { localize } from 'vs/nls';
-import { GettingStartedInputFactory, GettingStartedPage } from 'vs/workbench/contrib/welcome/gettingStarted/browser/gettingStarted';
+import { GettingStartedInputFactory, GettingStartedPage, GettingStartedInput } from 'vs/workbench/contrib/welcome/gettingStarted/browser/gettingStarted';
 import { Registry } from 'vs/platform/registry/common/platform';
 import { Extensions as EditorInputExtensions, IEditorInputFactoryRegistry } from 'vs/workbench/common/editor';
 import { MenuId, registerAction2, Action2 } from 'vs/platform/actions/common/actions';
@@ -32,11 +32,11 @@ registerAction2(class extends Action2 {
 	}
 
 	public run(accessor: ServicesAccessor) {
-		return accessor.get(IInstantiationService).createInstance(GettingStartedPage).openEditor();
+		return accessor.get(IInstantiationService).createInstance(GettingStartedPage, {}).openEditor();
 	}
 });
 
-Registry.as<IEditorInputFactoryRegistry>(EditorInputExtensions.EditorInputFactories).registerEditorInputFactory(GettingStartedInputFactory.ID, GettingStartedInputFactory);
+Registry.as<IEditorInputFactoryRegistry>(EditorInputExtensions.EditorInputFactories).registerEditorInputFactory(GettingStartedInput.ID, GettingStartedInputFactory);
 
 if (product.quality !== 'stable') {
 	Registry.as<IConfigurationRegistry>(ConfigurationExtensions.Configuration).registerConfiguration({
@@ -44,7 +44,7 @@ if (product.quality !== 'stable') {
 		properties: {
 			'workbench.experimental.gettingStarted': {
 				type: 'boolean',
-				description: localize('gettingStartedDescription', "Enables an experimental Getting Started page, accesible via the Help menu."),
+				description: localize('gettingStartedDescription', "Enables an experimental Getting Started page, available via the Help menu."),
 				default: false,
 			}
 		}

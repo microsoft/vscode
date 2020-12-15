@@ -49,7 +49,7 @@ class PartsSplash {
 	) {
 		lifecycleService.when(LifecyclePhase.Restored).then(_ => {
 			this._removePartsSplash();
-			perf.mark('didRemovePartsSplash');
+			perf.mark('code/didRemovePartsSplash');
 		});
 		Event.debounce(Event.any<any>(
 			onDidChangeFullscreen,

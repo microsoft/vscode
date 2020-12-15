@@ -9,7 +9,7 @@ import { ICodeEditorService } from 'vs/editor/browser/services/codeEditorService
 import { TERMINAL_VIEW_ID, ITerminalConfigHelper, TitleEventSource, TERMINAL_COMMAND_ID, KEYBINDING_CONTEXT_TERMINAL_FIND_FOCUSED, TERMINAL_ACTION_CATEGORY, KEYBINDING_CONTEXT_TERMINAL_FOCUS, KEYBINDING_CONTEXT_TERMINAL_FIND_VISIBLE, KEYBINDING_CONTEXT_TERMINAL_TEXT_SELECTED, KEYBINDING_CONTEXT_TERMINAL_FIND_NOT_VISIBLE, KEYBINDING_CONTEXT_TERMINAL_A11Y_TREE_FOCUS, KEYBINDING_CONTEXT_TERMINAL_PROCESS_SUPPORTED, IRemoteTerminalAttachTarget } from 'vs/workbench/contrib/terminal/common/terminal';
 import { IWorkbenchLayoutService } from 'vs/workbench/services/layout/browser/layoutService';
 import { attachSelectBoxStyler, attachStylerCallback } from 'vs/platform/theme/common/styler';
-import { IThemeService } from 'vs/platform/theme/common/themeService';
+import { IThemeService, ThemeIcon } from 'vs/platform/theme/common/themeService';
 import { IQuickInputService, IPickOptions, IQuickPickItem } from 'vs/platform/quickinput/common/quickInput';
 import { ServicesAccessor } from 'vs/platform/instantiation/common/instantiation';
 import { IContextViewService } from 'vs/platform/contextview/browser/contextView';
@@ -42,6 +42,8 @@ import { FindInFilesCommand, IFindInFilesArgs } from 'vs/workbench/contrib/searc
 import { ILabelService } from 'vs/platform/label/common/label';
 import { RemoteNameContext } from 'vs/workbench/browser/contextkeys';
 import { IPreferencesService } from 'vs/workbench/services/preferences/common/preferences';
+import { killTerminalIcon, newTerminalIcon } from 'vs/workbench/contrib/terminal/browser/terminalIcons';
+import { Codicon } from 'vs/base/common/codicons';
 
 async function getCwdForSplit(configHelper: ITerminalConfigHelper, instance: ITerminalInstance, folders?: IWorkspaceFolder[], commandService?: ICommandService): Promise<string | URI | undefined> {
 	switch (configHelper.config.splitCwd) {
@@ -96,7 +98,7 @@ export class KillTerminalAction extends Action {
 		id: string, label: string,
 		@ITerminalService private readonly _terminalService: ITerminalService
 	) {
-		super(id, label, 'terminal-action codicon-trash');
+		super(id, label, 'terminal-action ' + ThemeIcon.asClassName(killTerminalIcon));
 	}
 
 	async run() {
@@ -176,7 +178,7 @@ export class CreateNewTerminalAction extends Action {
 		@ICommandService private readonly _commandService: ICommandService,
 		@IWorkspaceContextService private readonly _workspaceContextService: IWorkspaceContextService
 	) {
-		super(id, label, 'terminal-action codicon-add');
+		super(id, label, 'terminal-action ' + ThemeIcon.asClassName(newTerminalIcon));
 	}
 
 	async run(event?: any) {
@@ -217,8 +219,8 @@ export class SplitTerminalAction extends Action {
 	public static readonly ID = TERMINAL_COMMAND_ID.SPLIT;
 	public static readonly LABEL = localize('workbench.action.terminal.split', "Split Terminal");
 	public static readonly SHORT_LABEL = localize('workbench.action.terminal.split.short', "Split");
-	public static readonly HORIZONTAL_CLASS = 'terminal-action codicon-split-horizontal';
-	public static readonly VERTICAL_CLASS = 'terminal-action codicon-split-vertical';
+	public static readonly HORIZONTAL_CLASS = 'terminal-action ' + Codicon.splitHorizontal.classNames;
+	public static readonly VERTICAL_CLASS = 'terminal-action ' + Codicon.splitVertical.classNames;
 
 	constructor(
 		id: string, label: string,

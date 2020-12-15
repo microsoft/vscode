@@ -311,18 +311,18 @@ class DocumentHighlightAdapter {
 	}
 }
 
-class OnTypeRenameRangeAdapter {
+class LinkedEditingRangeAdapter {
 	constructor(
 		private readonly _documents: ExtHostDocuments,
-		private readonly _provider: vscode.OnTypeRenameRangeProvider
+		private readonly _provider: vscode.LinkedEditingRangeProvider
 	) { }
 
-	provideOnTypeRenameRanges(resource: URI, position: IPosition, token: CancellationToken): Promise<modes.OnTypeRenameRanges | undefined> {
+	provideLinkedEditingRanges(resource: URI, position: IPosition, token: CancellationToken): Promise<modes.LinkedEditingRanges | undefined> {
 
 		const doc = this._documents.getDocument(resource);
 		const pos = typeConvert.Position.to(position);
 
-		return asPromise(() => this._provider.provideOnTypeRenameRanges(doc, pos, token)).then(value => {
+		return asPromise(() => this._provider.provideLinkedEditingRanges(doc, pos, token)).then(value => {
 			if (value && Array.isArray(value.ranges)) {
 				return {
 					ranges: coalesce(value.ranges.map(typeConvert.Range.from)),
@@ -1320,7 +1320,7 @@ type Adapter = DocumentSymbolAdapter | CodeLensAdapter | DefinitionAdapter | Hov
 	| SuggestAdapter | SignatureHelpAdapter | LinkProviderAdapter | ImplementationAdapter
 	| TypeDefinitionAdapter | ColorProviderAdapter | FoldingProviderAdapter | DeclarationAdapter
 	| SelectionRangeAdapter | CallHierarchyAdapter | DocumentSemanticTokensAdapter | DocumentRangeSemanticTokensAdapter | EvaluatableExpressionAdapter
-	| OnTypeRenameRangeAdapter;
+	| LinkedEditingRangeAdapter;
 
 class AdapterData {
 	constructor(
@@ -1562,17 +1562,17 @@ export class ExtHostLanguageFeatures implements extHostProtocol.ExtHostLanguageF
 		return this._withAdapter(handle, DocumentHighlightAdapter, adapter => adapter.provideDocumentHighlights(URI.revive(resource), position, token), undefined);
 	}
 
-	// --- on type rename
+	// --- linked editing
 
-	registerOnTypeRenameRangeProvider(extension: IExtensionDescription, selector: vscode.DocumentSelector, provider: vscode.OnTypeRenameRangeProvider): vscode.Disposable {
-		const handle = this._addNewAdapter(new OnTypeRenameRangeAdapter(this._documents, provider), extension);
-		this._proxy.$registerOnTypeRenameRangeProvider(handle, this._transformDocumentSelector(selector));
+	registerLinkedEditingRangeProvider(extension: IExtensionDescription, selector: vscode.DocumentSelector, provider: vscode.LinkedEditingRangeProvider): vscode.Disposable {
+		const handle = this._addNewAdapter(new LinkedEditingRangeAdapter(this._documents, provider), extension);
+		this._proxy.$registerLinkedEditingRangeProvider(handle, this._transformDocumentSelector(selector));
 		return this._createDisposable(handle);
 	}
 
-	$provideOnTypeRenameRanges(handle: number, resource: UriComponents, position: IPosition, token: CancellationToken): Promise<extHostProtocol.IOnTypeRenameRangesDto | undefined> {
-		return this._withAdapter(handle, OnTypeRenameRangeAdapter, async adapter => {
-			const res = await adapter.provideOnTypeRenameRanges(URI.revive(resource), position, token);
+	$provideLinkedEditingRanges(handle: number, resource: UriComponents, position: IPosition, token: CancellationToken): Promise<extHostProtocol.ILinkedEditingRangesDto | undefined> {
+		return this._withAdapter(handle, LinkedEditingRangeAdapter, async adapter => {
+			const res = await adapter.provideLinkedEditingRanges(URI.revive(resource), position, token);
 			if (res) {
 				return {
 					ranges: res.ranges,

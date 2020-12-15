@@ -34,7 +34,7 @@ interface IReplEvaluationInputTemplateData {
 }
 
 interface IReplGroupTemplateData {
-	label: HighlightedLabel;
+	label: HTMLElement;
 }
 
 interface IReplEvaluationResultTemplateData {
@@ -87,22 +87,28 @@ export class ReplEvaluationInputsRenderer implements ITreeRenderer<ReplEvaluatio
 export class ReplGroupRenderer implements ITreeRenderer<ReplGroup, FuzzyScore, IReplGroupTemplateData> {
 	static readonly ID = 'replGroup';
 
+	constructor(
+		private readonly linkDetector: LinkDetector,
+		@IThemeService private readonly themeService: IThemeService
+	) { }
+
 	get templateId(): string {
 		return ReplGroupRenderer.ID;
 	}
 
-	renderTemplate(container: HTMLElement): IReplEvaluationInputTemplateData {
-		const input = dom.append(container, $('.expression'));
-		const label = new HighlightedLabel(input, false);
+	renderTemplate(container: HTMLElement): IReplGroupTemplateData {
+		const label = dom.append(container, $('.expression'));
 		return { label };
 	}
 
 	renderElement(element: ITreeNode<ReplGroup, FuzzyScore>, _index: number, templateData: IReplGroupTemplateData): void {
 		const replGroup = element.element;
-		templateData.label.set(replGroup.name, createMatches(element.filterData));
+		dom.clearNode(templateData.label);
+		const result = handleANSIOutput(replGroup.name, this.linkDetector, this.themeService, undefined);
+		templateData.label.appendChild(result);
 	}
 
-	disposeTemplate(_templateData: IReplEvaluationInputTemplateData): void {
+	disposeTemplate(_templateData: IReplGroupTemplateData): void {
 		// noop
 	}
 }
@@ -300,15 +306,15 @@ export class ReplDelegate extends CachedListVirtualDelegate<IReplElement> {
 
 	protected estimateHeight(element: IReplElement, ignoreValueLength = false): number {
 		const config = this.configurationService.getValue<IDebugConfiguration>('debug');
-		const rowHeight = Math.ceil(1.4 * config.console.fontSize);
+		const rowHeight = Math.ceil(1.3 * config.console.fontSize);
 		const countNumberOfLines = (str: string) => Math.max(1, (str && str.match(/\r\n|\n/g) || []).length);
 		const hasValue = (e: any): e is { value: string } => typeof e.value === 'string';
 
 		// Calculate a rough overestimation for the height
-		// For every 30 characters increase the number of lines needed
+		// For every 70 characters increase the number of lines needed beyond the first
 		if (hasValue(element)) {
 			let value = element.value;
-			let valueRows = countNumberOfLines(value) + (ignoreValueLength ? 0 : Math.floor(value.length / 30));
+			let valueRows = countNumberOfLines(value) + (ignoreValueLength ? 0 : Math.floor(value.length / 70));
 
 			return valueRows * rowHeight;
 		}
@@ -383,7 +389,8 @@ export class ReplAccessibilityProvider implements IListAccessibilityProvider<IRe
 			return localize('replVariableAriaLabel', "Variable {0}, value {1}", element.name, element.value);
 		}
 		if (element instanceof SimpleReplElement || element instanceof ReplEvaluationInput || element instanceof ReplEvaluationResult) {
-			return element.value + (element instanceof SimpleReplElement && element.count > 1 ? localize('occurred', ", occured {0} times", element.count) : '');
+			return element.value + (element instanceof SimpleReplElement && element.count > 1 ? localize({ key: 'occurred', comment: ['Front will the the value of the debug console element. Placeholder will be replaced by a number which represents occurrance count.'] },
+				", occured {0} times", element.count) : '');
 		}
 		if (element instanceof RawObjectReplElement) {
 			return localize('replRawObjectAriaLabel', "Debug console variable {0}, value {1}", element.name, element.value);

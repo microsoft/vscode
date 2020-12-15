@@ -9,7 +9,7 @@ import { OperatingSystem } from 'vs/base/common/platform';
 import { URI } from 'vs/base/common/uri';
 import { TerminalLink, OPEN_FILE_LABEL, FOLDER_IN_WORKSPACE_LABEL, FOLDER_NOT_IN_WORKSPACE_LABEL } from 'vs/workbench/contrib/terminal/browser/links/terminalLink';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
-import { isEqualOrParent } from 'vs/base/common/resources';
+import { IUriIdentityService } from 'vs/workbench/services/uriIdentity/common/uriIdentity';
 import { ICommandService } from 'vs/platform/commands/common/commands';
 import { IWorkspaceContextService } from 'vs/platform/workspace/common/workspace';
 import { IHostService } from 'vs/workbench/services/host/browser/host';
@@ -62,7 +62,8 @@ export class TerminalValidatedLocalLinkProvider extends TerminalBaseLinkProvider
 		@IInstantiationService private readonly _instantiationService: IInstantiationService,
 		@ICommandService private readonly _commandService: ICommandService,
 		@IWorkspaceContextService private readonly _workspaceContextService: IWorkspaceContextService,
-		@IHostService private readonly _hostService: IHostService
+		@IHostService private readonly _hostService: IHostService,
+		@IUriIdentityService private readonly _uriIdentityService: IUriIdentityService
 	) {
 		super();
 	}
@@ -183,7 +184,7 @@ export class TerminalValidatedLocalLinkProvider extends TerminalBaseLinkProvider
 	private _isDirectoryInsideWorkspace(uri: URI) {
 		const folders = this._workspaceContextService.getWorkspace().folders;
 		for (let i = 0; i < folders.length; i++) {
-			if (isEqualOrParent(uri, folders[i].uri)) {
+			if (this._uriIdentityService.extUri.isEqualOrParent(uri, folders[i].uri)) {
 				return true;
 			}
 		}

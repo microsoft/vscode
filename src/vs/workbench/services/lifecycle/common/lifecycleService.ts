@@ -49,7 +49,7 @@ export abstract class AbstractLifecycleService extends Disposable implements ILi
 		this.logService.trace(`lifecycle: phase changed (value: ${value})`);
 
 		this._phase = value;
-		mark(`LifecyclePhase/${LifecyclePhaseToString(value)}`);
+		mark(`code/LifecyclePhase/${LifecyclePhaseToString(value)}`);
 
 		const barrier = this.phaseWhen.get(this._phase);
 		if (barrier) {

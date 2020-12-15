@@ -63,7 +63,9 @@ class BulkEdit {
 			}
 		}
 
-		this._progress.report({ increment: 0, total: 100 });
+		// Show infinte progress when there is only 1 item since we do not know how long it takes
+		const increment = this._edits.length > 1 ? 0 : undefined;
+		this._progress.report({ increment, total: 100 });
 		// Increment by percentage points since progress API expects that
 		const progress: IProgress<void> = { report: _ => this._progress.report({ increment: 100 / this._edits.length }) };
 
@@ -137,7 +139,7 @@ export class BulkEditService implements IBulkEditService {
 			return { ariaSummary: localize('nothing', "Made no edits") };
 		}
 
-		if (this._previewHandler && (options?.showPreview || edits.some(value => value.metadata?.needsConfirmation))) {
+		if (this._previewHandler && !options?.suppressPreview && (options?.showPreview || edits.some(value => value.metadata?.needsConfirmation))) {
 			edits = await this._previewHandler(edits, options);
 		}
 

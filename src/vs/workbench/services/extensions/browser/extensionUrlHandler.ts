@@ -26,6 +26,7 @@ import { Action2, MenuId, registerAction2 } from 'vs/platform/actions/common/act
 import { IQuickInputService, IQuickPickItem } from 'vs/platform/quickinput/common/quickInput';
 import { IProgressService, ProgressLocation } from 'vs/platform/progress/common/progress';
 import { IsWebContext } from 'vs/platform/contextkey/common/contextkeys';
+import { IExtensionUrlTrustService } from 'vs/platform/extensionManagement/common/extensionUrlTrust';
 
 const FIVE_MINUTES = 5 * 60 * 1000;
 const THIRTY_SECONDS = 30 * 1000;
@@ -101,7 +102,8 @@ class ExtensionUrlHandler implements IExtensionUrlHandler, IURLHandler {
 		@IExtensionGalleryService private readonly galleryService: IExtensionGalleryService,
 		@IStorageService private readonly storageService: IStorageService,
 		@IConfigurationService private readonly configurationService: IConfigurationService,
-		@IProgressService private readonly progressService: IProgressService
+		@IProgressService private readonly progressService: IProgressService,
+		@IExtensionUrlTrustService private readonly extensionUrlTrustService: IExtensionUrlTrustService
 	) {
 		this.userTrustedExtensionsStorage = new UserTrustedExtensionIdStorage(storageService);
 
@@ -135,11 +137,9 @@ class ExtensionUrlHandler implements IExtensionUrlHandler, IURLHandler {
 			return true;
 		}
 
-		let trusted = options?.trusted;
-
-		if (!trusted) {
-			trusted = this.didUserTrustExtension(ExtensionIdentifier.toKey(extensionId));
-		}
+		const trusted = options?.trusted
+			|| (options?.originalUrl ? await this.extensionUrlTrustService.isExtensionUrlTrusted(extensionId, options.originalUrl) : false)
+			|| this.didUserTrustExtension(ExtensionIdentifier.toKey(extensionId));
 
 		if (!trusted) {
 			let uriString = uri.toString(false);

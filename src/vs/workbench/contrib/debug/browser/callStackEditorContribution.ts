@@ -127,17 +127,21 @@ export class CallStackEditorContribution implements IEditorContribution {
 			const isSessionFocused = s === focusedStackFrame?.thread.session;
 			s.getAllThreads().forEach(t => {
 				if (t.stopped) {
-					let candidateStackFrame = t === focusedStackFrame?.thread ? focusedStackFrame : undefined;
-					if (!candidateStackFrame) {
-						const callStack = t.getCallStack();
-						if (callStack.length) {
-							candidateStackFrame = callStack[0];
+					const callStack = t.getCallStack();
+					const stackFrames: IStackFrame[] = [];
+					if (callStack.length > 0) {
+						// Always decorate top stack frame, and decorate focused stack frame if it is not the top stack frame
+						if (focusedStackFrame && !focusedStackFrame.equals(callStack[0])) {
+							stackFrames.push(focusedStackFrame);
 						}
+						stackFrames.push(callStack[0]);
 					}
 
-					if (candidateStackFrame && this.uriIdentityService.extUri.isEqual(candidateStackFrame.source.uri, this.editor.getModel()?.uri)) {
-						decorations.push(...createDecorationsForStackFrame(candidateStackFrame, this.topStackFrameRange, isSessionFocused));
-					}
+					stackFrames.forEach(candidateStackFrame => {
+						if (candidateStackFrame && this.uriIdentityService.extUri.isEqual(candidateStackFrame.source.uri, this.editor.getModel()?.uri)) {
+							decorations.push(...createDecorationsForStackFrame(candidateStackFrame, this.topStackFrameRange, isSessionFocused));
+						}
+					});
 				}
 			});
 		});

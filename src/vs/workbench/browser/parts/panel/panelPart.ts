@@ -18,7 +18,7 @@ import { IContextMenuService } from 'vs/platform/contextview/browser/contextView
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
 import { IKeybindingService } from 'vs/platform/keybinding/common/keybinding';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
-import { ClosePanelAction, PanelActivityAction, ToggleMaximizedPanelAction, TogglePanelAction, PlaceHolderPanelActivityAction, PlaceHolderToggleCompositePinnedAction, PositionPanelActionConfigs, SetPanelPositionAction } from 'vs/workbench/browser/parts/panel/panelActions';
+import { PanelActivityAction, TogglePanelAction, PlaceHolderPanelActivityAction, PlaceHolderToggleCompositePinnedAction, PositionPanelActionConfigs, SetPanelPositionAction } from 'vs/workbench/browser/parts/panel/panelActions';
 import { IThemeService, registerThemingParticipant, IColorTheme, ICssStyleCollector } from 'vs/platform/theme/common/themeService';
 import { PANEL_BACKGROUND, PANEL_BORDER, PANEL_ACTIVE_TITLE_FOREGROUND, PANEL_INACTIVE_TITLE_FOREGROUND, PANEL_ACTIVE_TITLE_BORDER, PANEL_INPUT_BORDER, EDITOR_DRAG_AND_DROP_BACKGROUND, PANEL_DRAG_AND_DROP_BORDER } from 'vs/workbench/common/theme';
 import { activeContrastBorder, focusBorder, contrastBorder, editorBackground, badgeBackground, badgeForeground } from 'vs/platform/theme/common/colorRegistry';
@@ -28,17 +28,17 @@ import { IBadge } from 'vs/workbench/services/activity/common/activity';
 import { INotificationService } from 'vs/platform/notification/common/notification';
 import { Dimension, trackFocus, EventHelper } from 'vs/base/browser/dom';
 import { localize } from 'vs/nls';
-import { IDisposable, DisposableStore } from 'vs/base/common/lifecycle';
+import { IDisposable, DisposableStore, MutableDisposable } from 'vs/base/common/lifecycle';
 import { IContextKey, IContextKeyService, ContextKeyExpr } from 'vs/platform/contextkey/common/contextkey';
 import { isUndefinedOrNull, assertIsDefined } from 'vs/base/common/types';
 import { registerSingleton } from 'vs/platform/instantiation/common/extensions';
 import { IExtensionService } from 'vs/workbench/services/extensions/common/extensions';
 import { ViewContainer, IViewDescriptorService, IViewContainerModel, ViewContainerLocation } from 'vs/workbench/common/views';
-import { MenuId } from 'vs/platform/actions/common/actions';
-import { ViewMenuActions, ViewContainerMenuActions } from 'vs/workbench/browser/parts/views/viewMenuActions';
 import { IPaneComposite } from 'vs/workbench/common/panecomposite';
 import { Before2D, CompositeDragAndDropObserver, ICompositeDragAndDrop, toggleDropEffect } from 'vs/workbench/browser/dnd';
 import { IActivity } from 'vs/workbench/common/activity';
+import { IMenuService, MenuId } from 'vs/platform/actions/common/actions';
+import { createAndFillInActionBarActions } from 'vs/platform/actions/browser/menuEntryActionViewItem';
 
 interface ICachedPanel {
 	id: string;
@@ -117,6 +117,7 @@ export class PanelPart extends CompositePart<Panel> implements IPanelService {
 		@IViewDescriptorService private readonly viewDescriptorService: IViewDescriptorService,
 		@IContextKeyService private readonly contextKeyService: IContextKeyService,
 		@IExtensionService private readonly extensionService: IExtensionService,
+		@IMenuService private readonly menuService: IMenuService,
 	) {
 		super(
 			notificationService,
@@ -184,21 +185,15 @@ export class PanelPart extends CompositePart<Panel> implements IPanelService {
 		this.onDidRegisterPanels([...this.getPanels()]);
 	}
 
+	private readonly panelContextMenuActionsDisposable = this._register(new MutableDisposable());
 	private getContextMenuActionsForComposite(compositeId: string): readonly IAction[] {
 		const result: IAction[] = [];
-		const container = this.getViewContainer(compositeId);
-		if (container) {
-			const viewContainerModel = this.viewDescriptorService.getViewContainerModel(container);
-			if (viewContainerModel.allViewDescriptors.length === 1) {
-				const viewMenuActions = this.instantiationService.createInstance(ViewMenuActions, viewContainerModel.allViewDescriptors[0].id, MenuId.ViewTitle, MenuId.ViewTitleContext);
-				result.push(...viewMenuActions.getContextMenuActions());
-				viewMenuActions.dispose();
-			}
-
-			const viewContainerMenuActions = this.instantiationService.createInstance(ViewContainerMenuActions, container.id, MenuId.ViewContainerTitleContext);
-			result.push(...viewContainerMenuActions.getContextMenuActions());
-			viewContainerMenuActions.dispose();
-		}
+		const scopedContextKeyService = this.contextKeyService.createScoped();
+		scopedContextKeyService.createKey('viewContainer', compositeId);
+		const menu = this.menuService.createMenu(MenuId.PanelTitleContext, scopedContextKeyService);
+		this.panelContextMenuActionsDisposable.value = createAndFillInActionBarActions(menu, undefined, { primary: [], secondary: result });
+		scopedContextKeyService.dispose();
+		menu.dispose();
 		return result;
 	}
 
@@ -532,13 +527,6 @@ export class PanelPart extends CompositePart<Panel> implements IPanelService {
 		return this.getPanels()
 			.filter(p => pinnedCompositeIds.includes(p.id))
 			.sort((p1, p2) => pinnedCompositeIds.indexOf(p1.id) - pinnedCompositeIds.indexOf(p2.id));
-	}
-
-	protected getActions(): ReadonlyArray<IAction> {
-		return [
-			this.instantiationService.createInstance(ToggleMaximizedPanelAction, ToggleMaximizedPanelAction.ID, ToggleMaximizedPanelAction.LABEL),
-			this.instantiationService.createInstance(ClosePanelAction, ClosePanelAction.ID, ClosePanelAction.LABEL)
-		];
 	}
 
 	getActivePanel(): IPanel | undefined {

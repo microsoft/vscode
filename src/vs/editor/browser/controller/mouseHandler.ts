@@ -110,7 +110,12 @@ export class MouseHandler extends ViewEventHandler {
 				return;
 			}
 			const e = new StandardWheelEvent(browserEvent);
-			if (e.browserEvent!.ctrlKey || e.browserEvent!.metaKey) {
+			const doMouseWheelZoom = (
+				platform.isMacintosh
+					? (browserEvent.metaKey && !browserEvent.ctrlKey && !browserEvent.shiftKey && !browserEvent.altKey)
+					: (browserEvent.ctrlKey && !browserEvent.metaKey && !browserEvent.shiftKey && !browserEvent.altKey)
+			);
+			if (doMouseWheelZoom) {
 				const zoomLevel: number = EditorZoom.getZoomLevel();
 				const delta = e.deltaY > 0 ? 1 : -1;
 				EditorZoom.setZoomLevel(zoomLevel + delta);

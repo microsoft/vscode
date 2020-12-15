@@ -105,7 +105,9 @@ export class WelcomePageContribution implements IWorkbenchContribution {
 							});
 					} else {
 						const startupEditorTypeID = startupEditorSetting === 'gettingStarted' ? gettingStartedInputTypeId : welcomeInputTypeId;
-						const startupEditorCtor = startupEditorSetting === 'gettingStarted' ? GettingStartedPage : WelcomePage;
+						const launchEditor = startupEditorSetting === 'gettingStarted'
+							? instantiationService.createInstance(GettingStartedPage, {})
+							: instantiationService.createInstance(WelcomePage);
 
 						let options: IEditorOptions;
 						let editor = editorService.activeEditor;
@@ -118,7 +120,7 @@ export class WelcomePageContribution implements IWorkbenchContribution {
 						} else {
 							options = { pinned: false };
 						}
-						return instantiationService.createInstance(startupEditorCtor).openEditor(options);
+						return launchEditor.openEditor(options);
 					}
 				}
 				return undefined;
@@ -337,14 +339,12 @@ class WelcomePage extends Disposable {
 			prodName.textContent = this.productService.nameLong;
 		}
 
-		const pageElement = container.querySelector('.welcomePage') as HTMLElement;
-		pageElement.classList.add(this.contextService.getWorkbenchState() === WorkbenchState.EMPTY ? 'empty-window' : 'none-empty-window');
-
 		recentlyOpened.then(({ workspaces }) => {
 			// Filter out the current workspace
 			workspaces = workspaces.filter(recent => !this.contextService.isCurrentWorkspace(isRecentWorkspace(recent) ? recent.workspace : recent.folderUri));
 			if (!workspaces.length) {
-				pageElement.classList.add('emptyRecent');
+				const recent = container.querySelector('.welcomePage') as HTMLElement;
+				recent.classList.add('emptyRecent');
 				return;
 			}
 			const ul = container.querySelector('.recent ul');

@@ -22,6 +22,9 @@ export interface ITestService {
 	readonly _serviceBrand: undefined;
 	readonly onShouldSubscribe: Event<{ resource: ExtHostTestingResource, uri: URI }>;
 	readonly onShouldUnsubscribe: Event<{ resource: ExtHostTestingResource, uri: URI }>;
+	readonly onDidChangeProviders: Event<{ delta: number }>;
+	readonly providers: number;
+	readonly subscriptions: ReadonlyArray<{ resource: ExtHostTestingResource, uri: URI }>;
 	registerTestController(id: string, controller: MainTestController): void;
 	unregisterTestController(id: string): void;
 	runTests(req: RunTestsRequest): Promise<RunTestsResult>;

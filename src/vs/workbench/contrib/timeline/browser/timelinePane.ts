@@ -21,7 +21,7 @@ import { URI } from 'vs/base/common/uri';
 import { IconLabel } from 'vs/base/browser/ui/iconLabel/iconLabel';
 import { IListVirtualDelegate, IIdentityProvider, IKeyboardNavigationLabelProvider } from 'vs/base/browser/ui/list/list';
 import { ITreeNode, ITreeRenderer, ITreeContextMenuEvent, ITreeElement } from 'vs/base/browser/ui/tree/tree';
-import { ViewPane, IViewPaneOptions } from 'vs/workbench/browser/parts/views/viewPaneContainer';
+import { ViewPane, IViewPaneOptions } from 'vs/workbench/browser/parts/views/viewPane';
 import { WorkbenchObjectTree } from 'vs/platform/list/browser/listService';
 import { IKeybindingService } from 'vs/platform/keybinding/common/keybinding';
 import { IContextMenuService } from 'vs/platform/contextview/browser/contextView';

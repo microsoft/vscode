@@ -50,7 +50,7 @@ import { FuzzyScore } from 'vs/base/common/filters';
 import { IClipboardService } from 'vs/platform/clipboard/common/clipboardService';
 import { ReplDelegate, ReplVariablesRenderer, ReplSimpleElementsRenderer, ReplEvaluationInputsRenderer, ReplEvaluationResultsRenderer, ReplRawObjectsRenderer, ReplDataSource, ReplAccessibilityProvider, ReplGroupRenderer } from 'vs/workbench/contrib/debug/browser/replViewer';
 import { localize } from 'vs/nls';
-import { ViewPane, IViewPaneOptions } from 'vs/workbench/browser/parts/views/viewPaneContainer';
+import { ViewPane, IViewPaneOptions } from 'vs/workbench/browser/parts/views/viewPane';
 import { IKeybindingService } from 'vs/platform/keybinding/common/keybinding';
 import { IViewsService, IViewDescriptorService } from 'vs/workbench/common/views';
 import { IOpenerService } from 'vs/platform/opener/common/opener';
@@ -305,7 +305,7 @@ export class Repl extends ViewPane implements IHistoryNavigationWidget {
 		if (this.styleElement) {
 			const debugConsole = this.configurationService.getValue<IDebugConfiguration>('debug').console;
 			const fontSize = debugConsole.fontSize;
-			const fontFamily = debugConsole.fontFamily === 'default' ? 'var(--monaco-monospace-font)' : debugConsole.fontFamily;
+			const fontFamily = debugConsole.fontFamily === 'default' ? 'var(--monaco-monospace-font)' : `${debugConsole.fontFamily}`;
 			const lineHeight = debugConsole.lineHeight ? `${debugConsole.lineHeight}px` : '1.4em';
 			const backgroundColor = this.themeService.getColorTheme().getColor(this.getBackgroundColor());
 
@@ -321,7 +321,6 @@ export class Repl extends ViewPane implements IHistoryNavigationWidget {
 			this.styleElement.textContent = `
 				.repl .repl-tree .expression {
 					font-size: ${fontSize}px;
-					font-family: ${fontFamily};
 				}
 
 				.repl .repl-tree .expression {
@@ -340,6 +339,7 @@ export class Repl extends ViewPane implements IHistoryNavigationWidget {
 					background-color: ${backgroundColor};
 				}
 			`;
+			this.container.style.setProperty(`--vscode-repl-font-family`, fontFamily);
 
 			this.tree.rerender();
 
@@ -559,7 +559,7 @@ export class Repl extends ViewPane implements IHistoryNavigationWidget {
 				this.instantiationService.createInstance(ReplVariablesRenderer, linkDetector),
 				this.instantiationService.createInstance(ReplSimpleElementsRenderer, linkDetector),
 				new ReplEvaluationInputsRenderer(),
-				new ReplGroupRenderer(),
+				this.instantiationService.createInstance(ReplGroupRenderer, linkDetector),
 				new ReplEvaluationResultsRenderer(linkDetector),
 				new ReplRawObjectsRenderer(linkDetector),
 			],

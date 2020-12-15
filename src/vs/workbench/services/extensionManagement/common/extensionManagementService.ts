@@ -5,7 +5,7 @@
 
 import { Event, EventMultiplexer } from 'vs/base/common/event';
 import {
-	ILocalExtension, IGalleryExtension, InstallExtensionEvent, DidInstallExtensionEvent, IExtensionIdentifier, DidUninstallExtensionEvent, IReportedExtension, IGalleryMetadata, IExtensionGalleryService, INSTALL_ERROR_NOT_SUPPORTED, InstallOptions
+	ILocalExtension, IGalleryExtension, InstallExtensionEvent, DidInstallExtensionEvent, IExtensionIdentifier, DidUninstallExtensionEvent, IReportedExtension, IGalleryMetadata, IExtensionGalleryService, INSTALL_ERROR_NOT_SUPPORTED, InstallOptions, UninstallOptions
 } from 'vs/platform/extensionManagement/common/extensionManagement';
 import { IExtensionManagementServer, IExtensionManagementServerService, IWorkbenchExtensioManagementService } from 'vs/workbench/services/extensionManagement/common/extensionManagement';
 import { ExtensionType, isLanguagePackExtension, IExtensionManifest } from 'vs/platform/extensions/common/extensions';
@@ -68,7 +68,7 @@ export class ExtensionManagementService extends Disposable implements IWorkbench
 		return flatten(result);
 	}
 
-	async uninstall(extension: ILocalExtension): Promise<void> {
+	async uninstall(extension: ILocalExtension, options?: UninstallOptions): Promise<void> {
 		const server = this.getServer(extension);
 		if (!server) {
 			return Promise.reject(`Invalid location ${extension.location.toString()}`);
@@ -77,7 +77,7 @@ export class ExtensionManagementService extends Disposable implements IWorkbench
 			if (isLanguagePackExtension(extension.manifest)) {
 				return this.uninstallEverywhere(extension);
 			}
-			return this.uninstallInServer(extension, server);
+			return this.uninstallInServer(extension, server, options);
 		}
 		return server.extensionManagementService.uninstall(extension);
 	}
@@ -101,7 +101,7 @@ export class ExtensionManagementService extends Disposable implements IWorkbench
 		return promise;
 	}
 
-	private async uninstallInServer(extension: ILocalExtension, server: IExtensionManagementServer, force?: boolean): Promise<void> {
+	private async uninstallInServer(extension: ILocalExtension, server: IExtensionManagementServer, options?: UninstallOptions): Promise<void> {
 		if (server === this.extensionManagementServerService.localExtensionManagementServer) {
 			const installedExtensions = await this.extensionManagementServerService.remoteExtensionManagementServer!.extensionManagementService.getInstalled(ExtensionType.User);
 			const dependentNonUIExtensions = installedExtensions.filter(i => !prefersExecuteOnUI(i.manifest, this.productService, this.configurationService)
@@ -110,7 +110,7 @@ export class ExtensionManagementService extends Disposable implements IWorkbench
 				return Promise.reject(new Error(this.getDependentsErrorMessage(extension, dependentNonUIExtensions)));
 			}
 		}
-		return server.extensionManagementService.uninstall(extension, force);
+		return server.extensionManagementService.uninstall(extension, options);
 	}
 
 	private getDependentsErrorMessage(extension: ILocalExtension, dependents: ILocalExtension[]): string {
