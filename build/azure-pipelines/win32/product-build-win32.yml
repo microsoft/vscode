@@ -81,6 +81,7 @@ steps:
       retry { exec { yarn --frozen-lockfile } }
     env:
       ELECTRON_SKIP_BINARY_DOWNLOAD: 1
+      PLAYWRIGHT_SKIP_BROWSER_DOWNLOAD: 1
     displayName: Install dependencies
     condition: and(succeeded(), ne(variables['CacheRestored'], 'true'))
 
@@ -130,6 +131,13 @@ steps:
       echo "##vso[task.setvariable variable=CodeSigningFolderPath]$(CodeSigningFolderPath),$(agent.builddirectory)/vscode-reh-win32-$(VSCODE_ARCH)"
     displayName: Build Server
     condition: and(succeeded(), ne(variables['VSCODE_ARCH'], 'arm64'))
+
+  - powershell: |
+      . build/azure-pipelines/win32/exec.ps1
+      $ErrorActionPreference = "Stop"
+      exec { yarn npm-run-all -lp "electron $(VSCODE_ARCH)" "playwright-install" }
+    displayName: Download Electron and Playwright
+    condition: and(succeeded(), eq(variables['VSCODE_STEP_ON_IT'], 'false'), ne(variables['VSCODE_ARCH'], 'arm64'))
 
   - powershell: |
       . build/azure-pipelines/win32/exec.ps1

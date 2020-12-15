@@ -99,6 +99,7 @@ steps:
       done
     env:
       ELECTRON_SKIP_BINARY_DOWNLOAD: 1
+      PLAYWRIGHT_SKIP_BROWSER_DOWNLOAD: 1
     displayName: Install dependencies
     condition: and(succeeded(), ne(variables['CacheRestored'], 'true'))
 
@@ -154,8 +155,8 @@ steps:
 
   - script: |
       set -e
-      yarn electron $(VSCODE_ARCH)
-    displayName: Download Electron
+      yarn npm-run-all -lp "electron $(VSCODE_ARCH)" "playwright-install"
+    displayName: Download Electron and Playwright
     condition: and(succeeded(), eq(variables['VSCODE_STEP_ON_IT'], 'false'))
 
   - script: |
