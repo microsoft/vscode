@@ -1828,6 +1828,20 @@ export class NotebookEditorWidget extends Disposable implements INotebookEditor 
 		}
 	}
 
+	focusNextNotebookCell(cell: ICellViewModel, focusItem: 'editor' | 'container' | 'output') {
+		const idx = this.viewModel?.getCellIndex(cell);
+		if (typeof idx !== 'number') {
+			return;
+		}
+
+		const newCell = this.viewModel?.viewCells[idx + 1];
+		if (!newCell) {
+			return;
+		}
+
+		this.focusNotebookCell(newCell, focusItem);
+	}
+
 	//#endregion
 
 	//#region MISC

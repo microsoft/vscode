@@ -377,6 +377,8 @@ export interface INotebookEditor extends IEditor {
 	 */
 	focusNotebookCell(cell: ICellViewModel, focus: 'editor' | 'container' | 'output'): void;
 
+	focusNextNotebookCell(cell: ICellViewModel, focus: 'editor' | 'container' | 'output'): void;
+
 	/**
 	 * Execute the given notebook cell
 	 */

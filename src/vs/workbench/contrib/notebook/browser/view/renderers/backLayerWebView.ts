@@ -492,17 +492,7 @@ var requirejs = (function() {
 						}
 
 						if (data.focusNext) {
-							const idx = this.notebookEditor.viewModel?.getCellIndex(latestCell);
-							if (typeof idx !== 'number') {
-								return;
-							}
-
-							const newCell = this.notebookEditor.viewModel?.viewCells[idx + 1];
-							if (!newCell) {
-								return;
-							}
-
-							this.notebookEditor.focusNotebookCell(newCell, 'editor');
+							this.notebookEditor.focusNextNotebookCell(latestCell, 'editor');
 						} else {
 							this.notebookEditor.focusNotebookCell(latestCell, 'editor');
 						}

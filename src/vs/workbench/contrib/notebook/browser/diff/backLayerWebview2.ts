@@ -484,25 +484,20 @@ var requirejs = (function() {
 						preventDefault: () => { },
 						stopPropagation: () => { }
 					});
-					// 	} else if (data.type === 'focus-editor') {
-					// 		const info = this.resolveOutputId(data.id);
-					// 		if (info) {
-					// 			if (data.focusNext) {
-					// 				const idx = this.notebookEditor.viewModel?.getCellIndex(info.cell);
-					// 				if (typeof idx !== 'number') {
-					// 					return;
-					// 				}
+				} else if (data.type === 'focus-editor') {
+					const resolvedResult = this.resolveOutputId(data.id);
+					if (resolvedResult) {
+						const latestCell = this.notebookEditor.getCellByInfo(resolvedResult.cellInfo);
+						if (!latestCell) {
+							return;
+						}
 
-					// 				const newCell = this.notebookEditor.viewModel?.viewCells[idx + 1];
-					// 				if (!newCell) {
-					// 					return;
-					// 				}
-
-					// 				this.notebookEditor.focusNotebookCell(newCell, 'editor');
-					// 			} else {
-					// 				this.notebookEditor.focusNotebookCell(info.cell, 'editor');
-					// 			}
-					// 		}
+						if (data.focusNext) {
+							this.notebookEditor.focusNextNotebookCell(latestCell, 'editor');
+						} else {
+							this.notebookEditor.focusNotebookCell(latestCell, 'editor');
+						}
+					}
 				} else if (data.type === 'clicked-data-url') {
 					this._onDidClickDataLink(data);
 				} else if (data.type === 'customRendererMessage') {
