@@ -14,6 +14,7 @@ import { IConfigurationService } from 'vs/platform/configuration/common/configur
 import { TunnelInformation, TunnelDescription, IRemoteAuthorityResolverService } from 'vs/platform/remote/common/remoteAuthorityResolver';
 import { IWorkbenchEnvironmentService } from 'vs/workbench/services/environment/common/environmentService';
 import { IAddressProvider } from 'vs/platform/remote/common/remoteAgentConnection';
+import { ThemeIcon } from 'vs/platform/theme/common/themeService';
 
 export const IRemoteExplorerService = createDecorator<IRemoteExplorerService>('remoteExplorerService');
 export const REMOTE_EXPLORER_TYPE_KEY: string = 'remote.explorerType';
@@ -36,7 +37,7 @@ export interface ITunnelItem {
 	name?: string;
 	closeable?: boolean;
 	description?: string;
-	readonly iconClasses?: string;
+	readonly icon?: ThemeIcon;
 	readonly label: string;
 }
 
@@ -96,7 +97,7 @@ export function mapHasAddressLocalhostOrAllInterfaces<T>(map: Map<string, T>, ho
 	if (originalAddress) {
 		return originalAddress;
 	}
-	const otherHost = isAllInterfaces(host) ? 'localhost' : (host === 'localhost' ? '0.0.0.0' : undefined);
+	const otherHost = isAllInterfaces(host) ? 'localhost' : (isLocalhost(host) ? '0.0.0.0' : undefined);
 	if (otherHost) {
 		return mapHasAddress(map, otherHost, port);
 	}

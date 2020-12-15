@@ -11,7 +11,8 @@
   "scripts": {
     "prepare": "npm run compile",
     "compile": "npm run copy-driver && npm run copy-driver-definition && tsc",
-    "watch": "concurrently \"npm run watch-driver\" \"npm run watch-driver-definition\" \"tsc --watch\"",
+    "watch": "npm-run-all -lp watch-driver watch-driver-definition watch-tsc",
+    "watch-tsc": "tsc --watch --preserveWatchOutput",
     "copy-driver": "cpx src/driver.js out/",
     "watch-driver": "cpx src/driver.js out/ -w",
     "copy-driver-definition": "node tools/copy-driver-definition.js",
@@ -25,11 +26,11 @@
     "@types/ncp": "2.0.1",
     "@types/node": "^12.11.7",
     "@types/tmp": "0.1.0",
-    "concurrently": "^3.5.1",
     "cpx": "^1.5.0",
+    "npm-run-all": "^4.1.5",
+    "tree-kill": "1.2.2",
     "typescript": "3.7.5",
-    "watch": "^1.0.2",
-    "tree-kill": "1.2.2"
+    "watch": "^1.0.2"
   },
   "dependencies": {
     "mkdirp": "^0.5.1",

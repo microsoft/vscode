@@ -97,6 +97,9 @@ steps:
         fi
         echo "Yarn failed $i, trying again..."
       done
+    env:
+      ELECTRON_SKIP_BINARY_DOWNLOAD: 1
+      PLAYWRIGHT_SKIP_BROWSER_DOWNLOAD: 1
     displayName: Install dependencies
     condition: and(succeeded(), ne(variables['CacheRestored'], 'true'))
 
@@ -152,8 +155,8 @@ steps:
 
   - script: |
       set -e
-      yarn electron $(VSCODE_ARCH)
-    displayName: Download Electron
+      yarn npm-run-all -lp "electron $(VSCODE_ARCH)" "playwright-install"
+    displayName: Download Electron and Playwright
     condition: and(succeeded(), eq(variables['VSCODE_STEP_ON_IT'], 'false'))
 
   - script: |
@@ -172,12 +175,14 @@ steps:
       set -e
       ./scripts/test.sh --build --tfs "Unit Tests"
     displayName: Run unit tests (Electron)
+    timeoutInMinutes: 5
     condition: and(succeeded(), eq(variables['VSCODE_ARCH'], 'x64'), eq(variables['VSCODE_STEP_ON_IT'], 'false'))
 
   - script: |
       set -e
       yarn test-browser --build --browser chromium --browser webkit --browser firefox --tfs "Browser Unit Tests"
     displayName: Run unit tests (Browser)
+    timeoutInMinutes: 5
     condition: and(succeeded(), eq(variables['VSCODE_ARCH'], 'x64'), eq(variables['VSCODE_STEP_ON_IT'], 'false'))
 
   - script: |
@@ -191,6 +196,7 @@ steps:
       VSCODE_REMOTE_SERVER_PATH="$(agent.builddirectory)/vscode-reh-darwin" \
       ./scripts/test-integration.sh --build --tfs "Integration Tests"
     displayName: Run integration tests (Electron)
+    timeoutInMinutes: 5
     condition: and(succeeded(),  eq(variables['VSCODE_ARCH'], 'x64'), eq(variables['VSCODE_STEP_ON_IT'], 'false'))
 
   - script: |
@@ -198,6 +204,7 @@ steps:
       VSCODE_REMOTE_SERVER_PATH="$(agent.builddirectory)/vscode-reh-web-darwin" \
       ./resources/server/test/test-web-integration.sh --browser webkit
     displayName: Run integration tests (Browser)
+    timeoutInMinutes: 5
     condition: and(succeeded(), eq(variables['VSCODE_ARCH'], 'x64'), eq(variables['VSCODE_STEP_ON_IT'], 'false'))
 
   - script: |
@@ -208,6 +215,7 @@ steps:
       VSCODE_REMOTE_SERVER_PATH="$(agent.builddirectory)/vscode-reh-darwin" \
       ./resources/server/test/test-remote-integration.sh
     displayName: Run remote integration tests (Electron)
+    timeoutInMinutes: 5
     condition: and(succeeded(), eq(variables['VSCODE_ARCH'], 'x64'), eq(variables['VSCODE_STEP_ON_IT'], 'false'))
 
   - script: |
@@ -216,6 +224,7 @@ steps:
       APP_NAME="`ls $APP_ROOT | head -n 1`"
       yarn smoketest --build "$APP_ROOT/$APP_NAME"
     continueOnError: true
+    timeoutInMinutes: 5
     displayName: Run smoke tests (Electron)
     condition: and(succeeded(), eq(variables['VSCODE_ARCH'], 'x64'), eq(variables['VSCODE_STEP_ON_IT'], 'false'))
 
@@ -224,6 +233,7 @@ steps:
       VSCODE_REMOTE_SERVER_PATH="$(agent.builddirectory)/vscode-reh-web-darwin" \
       yarn smoketest --web --headless
     continueOnError: true
+    timeoutInMinutes: 5
     displayName: Run smoke tests (Browser)
     condition: and(succeeded(), eq(variables['VSCODE_ARCH'], 'x64'), eq(variables['VSCODE_STEP_ON_IT'], 'false'))
 
