@@ -293,19 +293,20 @@ export class WorkspaceService extends Disposable implements IWorkbenchConfigurat
 	async updateValue(key: string, value: any, arg3?: any, arg4?: any, donotNotifyError?: any): Promise<void> {
 		await this.cyclicDependency;
 		const overrides = isConfigurationOverrides(arg3) ? arg3 : undefined;
-		let target: ConfigurationTarget | undefined = overrides ? arg4 : arg3;
+		const target: ConfigurationTarget | undefined = overrides ? arg4 : arg3;
+		const targets: ConfigurationTarget[] = target ? [target] : [];
 
-		if (!target) {
+		if (!targets.length) {
 			const inspect = this.inspect(key, overrides);
-			target = this.deriveConfigurationTarget(key, value, inspect);
-			if (target === ConfigurationTarget.USER && equals(value, inspect.defaultValue)) {
+			targets.push(...this.deriveConfigurationTargets(key, value, inspect));
+
+			// Remove the setting, if the value is same as default value and is updated only in user target
+			if (equals(value, inspect.defaultValue) && targets.length === 1 && (targets[0] === ConfigurationTarget.USER || targets[0] === ConfigurationTarget.USER_LOCAL)) {
 				value = undefined;
 			}
 		}
 
-		if (target) {
-			await this.writeConfigurationValue(key, value, target, overrides, donotNotifyError);
-		}
+		await Promise.all(targets.map(target => this.writeConfigurationValue(key, value, target, overrides, donotNotifyError)));
 	}
 
 	async reloadConfiguration(target?: ConfigurationTarget | IWorkspaceFolder): Promise<void> {
@@ -759,26 +760,31 @@ export class WorkspaceService extends Disposable implements IWorkbenchConfigurat
 			});
 	}
 
-	private deriveConfigurationTarget(key: string, value: any, inspect: IConfigurationValue<any>): ConfigurationTarget | undefined {
-		if (value === undefined) {
-			// Ignore. But expected is to remove the value from all targets
-			return undefined;
-		}
-
+	private deriveConfigurationTargets(key: string, value: any, inspect: IConfigurationValue<any>): ConfigurationTarget[] {
 		if (equals(value, inspect.value)) {
-			// No change. So ignore.
-			return undefined;
+			return [];
 		}
 
+		const definedTargets: ConfigurationTarget[] = [];
 		if (inspect.workspaceFolderValue !== undefined) {
-			return ConfigurationTarget.WORKSPACE_FOLDER;
+			definedTargets.push(ConfigurationTarget.WORKSPACE_FOLDER);
 		}
-
 		if (inspect.workspaceValue !== undefined) {
-			return ConfigurationTarget.WORKSPACE;
+			definedTargets.push(ConfigurationTarget.WORKSPACE);
+		}
+		if (inspect.userRemoteValue !== undefined) {
+			definedTargets.push(ConfigurationTarget.USER_REMOTE);
+		}
+		if (inspect.userLocalValue !== undefined) {
+			definedTargets.push(ConfigurationTarget.USER_LOCAL);
 		}
 
-		return ConfigurationTarget.USER;
+		if (value === undefined) {
+			// Remove the setting in all defined targets
+			return definedTargets;
+		}
+
+		return [definedTargets[0] || ConfigurationTarget.USER];
 	}
 
 	private triggerConfigurationChange(change: IConfigurationChange, previous: { data: IConfigurationData, workspace?: Workspace } | undefined, target: ConfigurationTarget): void {

@@ -12,6 +12,7 @@ import { ExtensionHostMain } from 'vs/workbench/services/extensions/common/exten
 import { IHostUtils } from 'vs/workbench/api/common/extHostExtensionService';
 import { NestedWorker } from 'vs/workbench/services/extensions/worker/polyfillNestedWorker';
 import * as path from 'vs/base/common/path';
+import * as performance from 'vs/base/common/performance';
 
 import 'vs/workbench/api/common/extHost.common.services';
 import 'vs/workbench/api/worker/extHost.worker.services';
@@ -150,9 +151,9 @@ let onTerminate = nativeClose;
 
 (function create(): void {
 	const res = new ExtensionWorker();
-
+	performance.mark(`extHost/willConnectToRenderer`);
 	connectToRenderer(res.protocol).then(data => {
-
+		performance.mark(`extHost/didWaitForInitData`);
 		const extHostMain = new ExtensionHostMain(
 			data.protocol,
 			data.initData,
