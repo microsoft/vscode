@@ -13,7 +13,7 @@ import { IOpenerService, matchesScheme } from 'vs/platform/opener/common/opener'
 import { CELL_MARGIN, CELL_RUN_GUTTER, CODE_CELL_LEFT_MARGIN, CELL_OUTPUT_PADDING } from 'vs/workbench/contrib/notebook/browser/constants';
 import { IDisplayOutputViewModel, IInsetRenderOutput, RenderOutputType } from 'vs/workbench/contrib/notebook/browser/notebookBrowser';
 import { CodeCellViewModel } from 'vs/workbench/contrib/notebook/browser/viewModel/codeCellViewModel';
-import { CellOutputKind, IDisplayOutput, INotebookRendererInfo } from 'vs/workbench/contrib/notebook/common/notebookCommon';
+import { CellOutputKind, IDisplayOutput, INotebookRendererInfo, ITransformedDisplayOutputDto } from 'vs/workbench/contrib/notebook/common/notebookCommon';
 import { INotebookService } from 'vs/workbench/contrib/notebook/common/notebookService';
 import { IWebviewService, WebviewElement, WebviewContentPurpose } from 'vs/workbench/contrib/webview/browser/webview';
 import { asWebviewUri } from 'vs/workbench/contrib/webview/common/webviewUri';
@@ -588,15 +588,15 @@ var requirejs = (function() {
 		const widgets: IContentWidgetTopRequest[] = items.map(item => {
 			const outputCache = this.insetMapping.get(item.output)!;
 			const id = outputCache.outputId;
-			const outputIndex = item.cell.outputsViewModels.indexOf(item.output);
+			// why? does it mean, we create new output view model every time?
+			const outputIndex = item.cell.outputsViewModels.findIndex(viewModel => (viewModel.model as ITransformedDisplayOutputDto).outputId === (item.output.model as ITransformedDisplayOutputDto).outputId);
 			let outputOffset = 0;
 			if (item.diffElement instanceof SideBySideDiffElementViewModel) {
-				outputOffset = item.diffElement.getOutputOffsetInCell(false, outputIndex);
+				outputOffset = item.cellTop + item.diffElement.getOutputOffsetInCell(false, outputIndex);
 			} else {
-				outputOffset = (item.diffElement as SingleSideDiffElementViewModel).getOutputOffsetInCell(outputIndex);
+				outputOffset = item.cellTop + (item.diffElement as SingleSideDiffElementViewModel).getOutputOffsetInCell(outputIndex);
 			}
 
-			// const outputOffset = item.cellTop + item.cell.getOutputOffset(outputIndex);
 			outputCache.cachedCreation.top = outputOffset;
 			this.hiddenInsetMapping.delete(item.output);
 

@@ -292,7 +292,9 @@ abstract class AbstractElementRenderer extends Disposable {
 					this._outputViewContainer = DOM.append(this._outputInfoContainer, DOM.$('.output-view-container'));
 					this._buildOutputContainer();
 				} else {
-					this.cell.layoutChange();
+					// todo, show insets
+					this._showOutputs();
+					// this.cell.layoutChange();
 				}
 			} else {
 				this._outputInfoContainer.style.display = 'block';
@@ -306,13 +308,20 @@ abstract class AbstractElementRenderer extends Disposable {
 				}
 			}
 		} else {
-			this._outputInfoContainer.style.display = 'none';
-			this._outputEditorDisposeStore.clear();
-			this.cell.layoutChange();
+			if (RENDER_RICH_OUTPUT) {
+				this._hideOutputs();
+				this.cell.layoutChange();
+			} else {
+				this._outputInfoContainer.style.display = 'none';
+				this._outputEditorDisposeStore.clear();
+				this.cell.layoutChange();
+			}
 		}
 	}
 
 	abstract _buildOutputContainer(): void;
+	abstract _hideOutputs(): void;
+	abstract _showOutputs(): void;
 
 	private _applySanitizedMetadataChanges(currentMetadata: NotebookCellMetadata, newMetadata: any) {
 		let result: { [key: string]: any } = {};
@@ -805,6 +814,14 @@ export class DeletedElement extends SingleSideDiffElement {
 		// this._outputView.render();
 		// this.layout({ outputView: true });
 	}
+
+	_showOutputs() {
+
+	}
+
+	_hideOutputs() {
+
+	}
 }
 
 export class InsertElement extends SingleSideDiffElement {
@@ -868,6 +885,15 @@ export class InsertElement extends SingleSideDiffElement {
 		this._outputLeftView = this.instantiationService.createInstance(OutputContainer, this.notebookEditor, this.notebookEditor.textModel!, this.cell, this.cell.modified!, true, this._outputViewContainer!);
 		this._outputLeftView.render();
 		this.cell.layoutChange();
+	}
+
+	_showOutputs() {
+		this._outputLeftView?.render();
+		this.cell.layoutChange();
+	}
+
+	_hideOutputs() {
+		this._outputLeftView?.hideOutputs();
 	}
 
 	layout(state: { outerWidth?: boolean, editorHeight?: boolean, metadataEditor?: boolean, outputEditor?: boolean, outputView?: boolean }) {
@@ -1033,6 +1059,15 @@ export class ModifiedElement extends AbstractElementRenderer {
 		this.cell.layoutChange();
 	}
 
+	_showOutputs() {
+		this._outputLeftView?.render();
+		this._outputRightView?.render();
+		this.cell.layoutChange();
+	}
+
+	_hideOutputs() {
+
+	}
 
 	updateSourceEditor(): void {
 		const modifiedCell = this.cell.modified!;
@@ -1127,6 +1162,8 @@ export class ModifiedElement extends AbstractElementRenderer {
 		const contentHeight = this._editor!.getContentHeight();
 		this.cell.editorHeight = contentHeight;
 	}
+
+
 
 	layout(state: { outerWidth?: boolean, editorHeight?: boolean, metadataEditor?: boolean, outputEditor?: boolean, outputView?: boolean }) {
 		DOM.scheduleAtNextAnimationFrame(() => {

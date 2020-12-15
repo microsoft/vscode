@@ -115,6 +115,7 @@
 .monaco-workbench .notebook-text-diff-editor > .monaco-list > .monaco-scrollable-element > .monaco-list-rows > .monaco-list-row:hover,
 .monaco-workbench .notebook-text-diff-editor > .monaco-list > .monaco-scrollable-element > .monaco-list-rows > .monaco-list-row.focused {
 	outline: none !important;
+	background-color: transparent !important;
 }
 
 .notebook-text-diff-editor .cell-diff-editor-container .editor-input-toolbar-container {
@@ -137,7 +138,7 @@
 .monaco-workbench .notebook-text-diff-editor .cell-body.left .output-view-container .output-inner-container,
 .monaco-workbench .notebook-text-diff-editor .cell-body.right .output-view-container .output-inner-container {
 	width: 100%;
-	padding: 4px 8px;
+	padding: 0px 8px;
 	box-sizing: border-box;
 }
 .monaco-workbench .notebook-text-diff-editor .cell-body.full .output-view-container .output-inner-container {

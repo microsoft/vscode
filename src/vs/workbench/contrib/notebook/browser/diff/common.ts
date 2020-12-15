@@ -3,7 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { IInsetRenderOutput, NotebookLayoutInfo } from 'vs/workbench/contrib/notebook/browser/notebookBrowser';
+import { IDisplayOutputViewModel, IInsetRenderOutput, NotebookLayoutInfo } from 'vs/workbench/contrib/notebook/browser/notebookBrowser';
 import { DiffElementViewModelBase } from 'vs/workbench/contrib/notebook/browser/diff/diffElementViewModel';
 import { Event } from 'vs/base/common/event';
 import { BareFontInfo } from 'vs/editor/common/config/fontInfo';
@@ -22,6 +22,7 @@ export interface INotebookTextDiffEditor {
 	layoutNotebookCell(cell: DiffElementViewModelBase, height: number): void;
 	getOutputRenderer(): OutputRenderer;
 	createInset(cellDiffViewModel: DiffElementViewModelBase, cellViewModel: IDiffNestedCellViewModel, output: IInsetRenderOutput, offset: number, rightEditor: boolean): void;
+	hideInset(cellDiffViewModel: DiffElementViewModelBase, cellViewModel: IDiffNestedCellViewModel, output: IDisplayOutputViewModel): void;
 }
 
 export interface IDiffNestedCellViewModel {

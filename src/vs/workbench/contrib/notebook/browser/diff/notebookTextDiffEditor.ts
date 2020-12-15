@@ -23,7 +23,7 @@ import { IConfigurationService } from 'vs/platform/configuration/common/configur
 import { IEditorOptions } from 'vs/editor/common/config/editorOptions';
 import { BareFontInfo } from 'vs/editor/common/config/fontInfo';
 import { getZoomLevel } from 'vs/base/browser/browser';
-import { IInsetRenderOutput, INotebookEditor, NotebookLayoutInfo } from 'vs/workbench/contrib/notebook/browser/notebookBrowser';
+import { IDisplayOutputViewModel, IInsetRenderOutput, INotebookEditor, NotebookLayoutInfo } from 'vs/workbench/contrib/notebook/browser/notebookBrowser';
 import { DIFF_CELL_MARGIN, INotebookTextDiffEditor } from 'vs/workbench/contrib/notebook/browser/diff/common';
 import { Emitter } from 'vs/base/common/event';
 import { DisposableStore, IDisposable, toDisposable } from 'vs/base/common/lifecycle';
@@ -416,6 +416,14 @@ export class NotebookTextDiffEditor extends EditorPane implements INotebookTextD
 				}
 			}
 		});
+	}
+
+	removeInset(cellDiffViewModel: DiffElementViewModelBase, cellViewModel: DiffNestedCellViewModel, output: IInsetRenderOutput) {
+
+	}
+
+	hideInset(cellDiffViewModel: DiffElementViewModelBase, cellViewModel: DiffNestedCellViewModel, output: IDisplayOutputViewModel) {
+		this._modifiedWebview?.hideInset(output);
 	}
 
 	// private async _resolveWebview(rightEditor: boolean): Promise<BackLayerWebView | null> {

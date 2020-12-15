@@ -85,7 +85,7 @@ export class OutputElement extends Disposable {
 				this.cellViewModel,
 				this.cell,
 				result,
-				this.getOutputOffsetInContainer(index),
+				this.getOutputOffsetInCell(index),
 				this.cellViewModel instanceof SideBySideDiffElementViewModel
 					? this.modified
 					: this.cellViewModel.type === 'insert'
@@ -175,8 +175,8 @@ export class OutputContainer extends Disposable {
 	constructor(
 		private _editor: INotebookTextDiffEditor,
 		private notebookTextModel: NotebookTextModel,
-		private cellViewModel: DiffElementViewModelBase,
-		private cell: DiffNestedCellViewModel,
+		private diffElementViewModel: DiffElementViewModelBase,
+		private cellViewModel: DiffNestedCellViewModel,
 		private modified: boolean,
 		private outputContainer: HTMLElement,
 		@INotebookService private notebookService: INotebookService,
@@ -186,22 +186,22 @@ export class OutputContainer extends Disposable {
 
 	) {
 		super();
-		this._outputViewModels = cell.outputs.map(output => new CellOutputViewModel(output, notebookService));
+		this._outputViewModels = cellViewModel.outputs.map(output => new CellOutputViewModel(output, notebookService));
 
 		// TODO, onDidChangeOutputs
 
 		// viewCell.onDidChangeLayout
 		// say the height of the cell editor changes
 
-		this._register(this.cellViewModel.onDidLayoutChange(() => {
+		this._register(this.diffElementViewModel.onDidLayoutChange(() => {
 			this.outputEntries.forEach((value, key) => {
-				const index = cell.outputs.indexOf(key.model);
+				const index = cellViewModel.outputs.indexOf(key.model);
 				if (index >= 0) {
-					if (this.cellViewModel instanceof SideBySideDiffElementViewModel) {
-						const top = this.cellViewModel.getOutputOffsetInContainer(!this.modified, index);
+					if (this.diffElementViewModel instanceof SideBySideDiffElementViewModel) {
+						const top = this.diffElementViewModel.getOutputOffsetInContainer(!this.modified, index);
 						value.domNode.style.top = `${top}px`;
 					} else {
-						const top = (this.cellViewModel as SingleSideDiffElementViewModel).getOutputOffsetInContainer(index);
+						const top = (this.diffElementViewModel as SingleSideDiffElementViewModel).getOutputOffsetInContainer(index);
 						value.domNode.style.top = `${top}px`;
 					}
 				}
@@ -219,9 +219,17 @@ export class OutputContainer extends Disposable {
 		}
 	}
 
+	hideOutputs() {
+		this.outputEntries.forEach((outputElement, cellOutputViewModel) => {
+			if (cellOutputViewModel.isDisplayOutput()) {
+				this._editor.hideInset(this.diffElementViewModel, this.cellViewModel, cellOutputViewModel);
+			}
+		});
+	}
+
 	private _renderOutput(currOutput: ICellOutputViewModel, index: number, beforeElement?: HTMLElement) {
 		if (!this.outputEntries.has(currOutput)) {
-			this.outputEntries.set(currOutput, new OutputElement(this._editor, this.notebookTextModel, this.notebookService, this.cellViewModel, this.modified, this.cell, this.outputContainer, currOutput));
+			this.outputEntries.set(currOutput, new OutputElement(this._editor, this.notebookTextModel, this.notebookService, this.diffElementViewModel, this.modified, this.cellViewModel, this.outputContainer, currOutput));
 		}
 
 		const renderElement = this.outputEntries.get(currOutput)!;

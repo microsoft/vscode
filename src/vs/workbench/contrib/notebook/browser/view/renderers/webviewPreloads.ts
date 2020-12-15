@@ -20,6 +20,12 @@ declare module globalThis {
 	});
 }
 
+declare var acquireVsCodeApi: () => ({
+	getState(): { [key: string]: unknown; };
+	setState(data: { [key: string]: unknown; }): void;
+	postMessage: (msg: unknown) => void;
+});
+
 declare class ResizeObserver {
 	constructor(onChange: (entries: { target: HTMLElement, contentRect?: ClientRect; }[]) => void);
 	observe(element: Element): void;
@@ -36,7 +42,7 @@ interface EmitterLike<T> {
 }
 
 function webviewPreloads() {
-	const acquireVsCodeApi = globalThis.acquireVsCodeApi;
+	// const acquireVsCodeApi = acquireVsCodeApi;
 	const vscode = acquireVsCodeApi();
 	delete (globalThis as any).acquireVsCodeApi;
 
@@ -397,7 +403,6 @@ function webviewPreloads() {
 
 	window.addEventListener('message', rawEvent => {
 		const event = rawEvent as ({ data: ToWebviewMessage; });
-		console.log(event);
 
 		switch (event.data.type) {
 			case 'html':
