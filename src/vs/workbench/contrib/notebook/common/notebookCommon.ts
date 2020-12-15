@@ -748,7 +748,6 @@ export interface IEditor extends editorCommon.ICompositeCodeEditor {
 	textModel?: NotebookTextModel;
 	getId(): string;
 	hasFocus(): boolean;
-	hasModel(): boolean;
 }
 
 export enum NotebookEditorPriority {

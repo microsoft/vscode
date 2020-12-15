@@ -17,8 +17,8 @@ export function renderCodicons(text: string): Array<HTMLSpanElement | string> {
 		elements.push(text.substring(textStart, textStop));
 		textStart = (match.index || 0) + match[0].length;
 
-		const [, escaped, codicon, name, animation] = match;
-		elements.push(escaped ? `$(${codicon})` : renderCodicon(name, animation));
+		const [, escaped, codicon, name, modifier] = match;
+		elements.push(escaped ? `$(${codicon})` : renderCodicon(name, modifier));
 	}
 
 	if (textStart < text.length) {
@@ -27,6 +27,6 @@ export function renderCodicons(text: string): Array<HTMLSpanElement | string> {
 	return elements;
 }
 
-export function renderCodicon(name: string, animation: string): HTMLSpanElement {
-	return dom.$(`span.codicon.codicon-${name}${animation ? `.codicon-animation-${animation}` : ''}`);
+export function renderCodicon(name: string, modifier: string): HTMLSpanElement {
+	return dom.$(`span.codicon.codicon-${name}${modifier ? `.codicon-modifier-${modifier}` : ''}`);
 }

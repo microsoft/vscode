@@ -11,6 +11,7 @@ import { ColorIdentifier } from 'vs/platform/theme/common/colorRegistry';
 import { Event, Emitter } from 'vs/base/common/event';
 import { IEnvironmentService } from 'vs/platform/environment/common/environment';
 import { ColorScheme } from 'vs/platform/theme/common/theme';
+import { CSSIcon } from 'vs/base/common/codicons';
 
 export const IThemeService = createDecorator<IThemeService>('themeService');
 
@@ -71,18 +72,36 @@ export namespace ThemeIcon {
 
 	const _regexAsClassName = /^(codicon\/)?([a-z-]+)(~[a-z]+)?$/i;
 
-	export function asClassName(icon: ThemeIcon): string | undefined {
-		// todo@martin,joh -> this should go into the ThemeService
+	export function asClassNameArray(icon: ThemeIcon): string[] {
 		const match = _regexAsClassName.exec(icon.id);
 		if (!match) {
-			return undefined;
+			return ['codicon', 'codicon-error'];
 		}
 		let [, , name, modifier] = match;
-		let className = `codicon codicon-${name}`;
+		let className = `codicon-${name}`;
 		if (modifier) {
-			className += ` ${modifier.substr(1)}`;
+			return ['codicon', className, `codicon-modifier-${modifier.substr(1)}`];
 		}
-		return className;
+		return ['codicon', className];
+	}
+
+
+	export function asClassName(icon: ThemeIcon): string {
+		return asClassNameArray(icon).join(' ');
+	}
+
+	export function asCSSSelector(icon: ThemeIcon): string {
+		return '.' + asClassNameArray(icon).join('.');
+	}
+
+	export function asCSSIcon(icon: ThemeIcon): CSSIcon {
+		return {
+			classNames: asClassName(icon)
+		};
+	}
+
+	export function asCodiconLabel(icon: ThemeIcon): string {
+		return '$(' + icon.id + ')';
 	}
 
 	export function revive(icon: any): ThemeIcon | undefined {

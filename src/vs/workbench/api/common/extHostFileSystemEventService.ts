@@ -8,7 +8,7 @@ import { IRelativePattern, parse } from 'vs/base/common/glob';
 import { URI } from 'vs/base/common/uri';
 import { ExtHostDocumentsAndEditors } from 'vs/workbench/api/common/extHostDocumentsAndEditors';
 import type * as vscode from 'vscode';
-import { ExtHostFileSystemEventServiceShape, FileSystemEvents, IMainContext, MainContext, SourceTargetPair, IWorkspaceEditDto, MainThreadBulkEditsShape } from './extHost.protocol';
+import { ExtHostFileSystemEventServiceShape, FileSystemEvents, IMainContext, SourceTargetPair, IWorkspaceEditDto } from './extHost.protocol';
 import * as typeConverter from './extHostTypeConverters';
 import { Disposable, WorkspaceEdit } from './extHostTypes';
 import { IExtensionDescription } from 'vs/platform/extensions/common/extensions';
@@ -122,8 +122,7 @@ export class ExtHostFileSystemEventService implements ExtHostFileSystemEventServ
 	constructor(
 		mainContext: IMainContext,
 		private readonly _logService: ILogService,
-		private readonly _extHostDocumentsAndEditors: ExtHostDocumentsAndEditors,
-		private readonly _mainThreadBulkEdits: MainThreadBulkEditsShape = mainContext.getProxy(MainContext.MainThreadBulkEdits)
+		private readonly _extHostDocumentsAndEditors: ExtHostDocumentsAndEditors
 	) {
 		//
 	}
@@ -178,23 +177,19 @@ export class ExtHostFileSystemEventService implements ExtHostFileSystemEventServ
 		};
 	}
 
-	async $onWillRunFileOperation(operation: FileOperation, files: SourceTargetPair[], undoRedoGroupId: number | undefined, timeout: number, token: CancellationToken): Promise<any> {
+	async $onWillRunFileOperation(operation: FileOperation, files: SourceTargetPair[], timeout: number, token: CancellationToken): Promise<IWorkspaceEditDto | undefined> {
 		switch (operation) {
 			case FileOperation.MOVE:
-				await this._fireWillEvent(this._onWillRenameFile, { files: files.map(f => ({ oldUri: URI.revive(f.source!), newUri: URI.revive(f.target) })) }, undoRedoGroupId, timeout, token);
-				break;
+				return await this._fireWillEvent(this._onWillRenameFile, { files: files.map(f => ({ oldUri: URI.revive(f.source!), newUri: URI.revive(f.target) })) }, timeout, token);
 			case FileOperation.DELETE:
-				await this._fireWillEvent(this._onWillDeleteFile, { files: files.map(f => URI.revive(f.target)) }, undoRedoGroupId, timeout, token);
-				break;
+				return await this._fireWillEvent(this._onWillDeleteFile, { files: files.map(f => URI.revive(f.target)) }, timeout, token);
 			case FileOperation.CREATE:
-				await this._fireWillEvent(this._onWillCreateFile, { files: files.map(f => URI.revive(f.target)) }, undoRedoGroupId, timeout, token);
-				break;
-			default:
-			//ignore, dont send
+				return await this._fireWillEvent(this._onWillCreateFile, { files: files.map(f => URI.revive(f.target)) }, timeout, token);
 		}
+		return undefined;
 	}
 
-	private async _fireWillEvent<E extends IWaitUntil>(emitter: AsyncEmitter<E>, data: Omit<E, 'waitUntil'>, undoRedoGroupId: number | undefined, timeout: number, token: CancellationToken): Promise<any> {
+	private async _fireWillEvent<E extends IWaitUntil>(emitter: AsyncEmitter<E>, data: Omit<E, 'waitUntil'>, timeout: number, token: CancellationToken): Promise<IWorkspaceEditDto | undefined> {
 
 		const edits: WorkspaceEdit[] = [];
 
@@ -212,17 +207,19 @@ export class ExtHostFileSystemEventService implements ExtHostFileSystemEventServ
 		});
 
 		if (token.isCancellationRequested) {
-			return;
+			return undefined;
 		}
 
-		if (edits.length > 0) {
-			// concat all WorkspaceEdits collected via waitUntil-call and apply them in one go.
-			const dto: IWorkspaceEditDto = { edits: [] };
-			for (let edit of edits) {
-				let { edits } = typeConverter.WorkspaceEdit.from(edit, this._extHostDocumentsAndEditors);
-				dto.edits = dto.edits.concat(edits);
-			}
-			return this._mainThreadBulkEdits.$tryApplyWorkspaceEdit(dto, undoRedoGroupId);
+		if (edits.length === 0) {
+			return undefined;
 		}
+
+		// concat all WorkspaceEdits collected via waitUntil-call and send them over to the renderer
+		const dto: IWorkspaceEditDto = { edits: [] };
+		for (let edit of edits) {
+			let { edits } = typeConverter.WorkspaceEdit.from(edit, this._extHostDocumentsAndEditors);
+			dto.edits = dto.edits.concat(edits);
+		}
+		return dto;
 	}
 }

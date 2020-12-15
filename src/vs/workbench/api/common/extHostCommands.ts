@@ -194,7 +194,7 @@ export class ExtHostCommands implements ExtHostCommandsShape {
 		}
 	}
 
-	private _executeContributedCommand<T>(id: string, args: any[]): Promise<T> {
+	private async _executeContributedCommand<T>(id: string, args: any[]): Promise<T> {
 		const command = this._commands.get(id);
 		if (!command) {
 			throw new Error('Unknown command');
@@ -205,17 +205,17 @@ export class ExtHostCommands implements ExtHostCommandsShape {
 				try {
 					validateConstraint(args[i], description.args[i].constraint);
 				} catch (err) {
-					return Promise.reject(new Error(`Running the contributed command: '${id}' failed. Illegal argument '${description.args[i].name}' - ${description.args[i].description}`));
+					throw new Error(`Running the contributed command: '${id}' failed. Illegal argument '${description.args[i].name}' - ${description.args[i].description}`);
 				}
 			}
 		}
 
 		try {
-			const result = callback.apply(thisArg, args);
-			return Promise.resolve(result);
+			return await callback.apply(thisArg, args);
 		} catch (err) {
+			console.error(err); // so that it shows up in any attached debugger
 			this._logService.error(err, id);
-			return Promise.reject(new Error(`Running the contributed command: '${id}' failed.`));
+			throw new Error(`Running the contributed command: '${id}' failed.`);
 		}
 	}
 

@@ -15,6 +15,7 @@ import { IClipboardService } from 'vs/platform/clipboard/common/clipboardService
 import { IQuickInputService } from 'vs/platform/quickinput/common/quickInput';
 import { deepClone } from 'vs/base/common/objects';
 import * as icons from 'vs/workbench/contrib/debug/browser/debugIcons';
+import { ThemeIcon } from 'vs/platform/theme/common/themeService';
 
 export abstract class AbstractDebugAction extends Action {
 
@@ -65,7 +66,7 @@ export class ConfigureAction extends AbstractDebugAction {
 		@IWorkspaceContextService private readonly contextService: IWorkspaceContextService,
 		@IQuickInputService private readonly quickInputService: IQuickInputService
 	) {
-		super(id, label, 'debug-action ' + icons.debugConfigure.classNames, debugService, keybindingService);
+		super(id, label, 'debug-action ' + ThemeIcon.asClassName(icons.debugConfigure), debugService, keybindingService);
 		this._register(debugService.getConfigurationManager().onDidSelectConfiguration(() => this.updateClass()));
 		this.updateClass();
 	}
@@ -80,7 +81,7 @@ export class ConfigureAction extends AbstractDebugAction {
 
 	private updateClass(): void {
 		const configurationManager = this.debugService.getConfigurationManager();
-		this.class = configurationManager.selectedConfiguration.name ? 'debug-action' + icons.debugConfigure.classNames : 'debug-action ' + icons.debugConfigure.classNames + ' notification';
+		this.class = configurationManager.selectedConfiguration.name ? 'debug-action' + ThemeIcon.asClassName(icons.debugConfigure) : 'debug-action ' + ThemeIcon.asClassName(icons.debugConfigure) + ' notification';
 	}
 
 	async run(): Promise<any> {
@@ -206,25 +207,6 @@ export class RemoveBreakpointAction extends Action {
 	}
 }
 
-export class RemoveAllBreakpointsAction extends AbstractDebugAction {
-	static readonly ID = 'workbench.debug.viewlet.action.removeAllBreakpoints';
-	static readonly LABEL = nls.localize('removeAllBreakpoints', "Remove All Breakpoints");
-
-	constructor(id: string, label: string, @IDebugService debugService: IDebugService, @IKeybindingService keybindingService: IKeybindingService) {
-		super(id, label, 'debug-action ' + icons.breakpointsRemoveAll.classNames, debugService, keybindingService);
-		this._register(this.debugService.getModel().onDidChangeBreakpoints(() => this.updateEnablement()));
-	}
-
-	run(): Promise<any> {
-		return Promise.all([this.debugService.removeBreakpoints(), this.debugService.removeFunctionBreakpoints(), this.debugService.removeDataBreakpoints()]);
-	}
-
-	protected isEnabled(_: State): boolean {
-		const model = this.debugService.getModel();
-		return (model.getBreakpoints().length > 0 || model.getFunctionBreakpoints().length > 0 || model.getDataBreakpoints().length > 0);
-	}
-}
-
 export class EnableAllBreakpointsAction extends AbstractDebugAction {
 	static readonly ID = 'workbench.debug.viewlet.action.enableAllBreakpoints';
 	static readonly LABEL = nls.localize('enableAllBreakpoints', "Enable All Breakpoints");
@@ -263,30 +245,6 @@ export class DisableAllBreakpointsAction extends AbstractDebugAction {
 	}
 }
 
-export class ToggleBreakpointsActivatedAction extends AbstractDebugAction {
-	static readonly ID = 'workbench.debug.viewlet.action.toggleBreakpointsActivatedAction';
-	static readonly ACTIVATE_LABEL = nls.localize('activateBreakpoints', "Activate Breakpoints");
-	static readonly DEACTIVATE_LABEL = nls.localize('deactivateBreakpoints', "Deactivate Breakpoints");
-
-	constructor(id: string, label: string, @IDebugService debugService: IDebugService, @IKeybindingService keybindingService: IKeybindingService) {
-		super(id, label, 'debug-action ' + icons.breakpointsActivate.classNames, debugService, keybindingService);
-		this.updateLabel(this.debugService.getModel().areBreakpointsActivated() ? ToggleBreakpointsActivatedAction.DEACTIVATE_LABEL : ToggleBreakpointsActivatedAction.ACTIVATE_LABEL);
-
-		this._register(this.debugService.getModel().onDidChangeBreakpoints(() => {
-			this.updateLabel(this.debugService.getModel().areBreakpointsActivated() ? ToggleBreakpointsActivatedAction.DEACTIVATE_LABEL : ToggleBreakpointsActivatedAction.ACTIVATE_LABEL);
-			this.updateEnablement();
-		}));
-	}
-
-	run(): Promise<any> {
-		return this.debugService.setBreakpointsActivated(!this.debugService.getModel().areBreakpointsActivated());
-	}
-
-	protected isEnabled(_: State): boolean {
-		return !!(this.debugService.getModel().getFunctionBreakpoints().length || this.debugService.getModel().getBreakpoints().length || this.debugService.getModel().getDataBreakpoints().length);
-	}
-}
-
 export class ReapplyBreakpointsAction extends AbstractDebugAction {
 	static readonly ID = 'workbench.debug.viewlet.action.reapplyBreakpointsAction';
 	static readonly LABEL = nls.localize('reapplyAllBreakpoints', "Reapply All Breakpoints");
@@ -304,63 +262,6 @@ export class ReapplyBreakpointsAction extends AbstractDebugAction {
 		const model = this.debugService.getModel();
 		return (state === State.Running || state === State.Stopped) &&
 			((model.getFunctionBreakpoints().length + model.getBreakpoints().length + model.getExceptionBreakpoints().length + model.getDataBreakpoints().length) > 0);
-	}
-}
-
-export class AddFunctionBreakpointAction extends AbstractDebugAction {
-	static readonly ID = 'workbench.debug.viewlet.action.addFunctionBreakpointAction';
-	static readonly LABEL = nls.localize('addFunctionBreakpoint', "Add Function Breakpoint");
-
-	constructor(id: string, label: string, @IDebugService debugService: IDebugService, @IKeybindingService keybindingService: IKeybindingService) {
-		super(id, label, 'debug-action ' + icons.watchExpressionsAddFuncBreakpoint.classNames, debugService, keybindingService);
-		this._register(this.debugService.getModel().onDidChangeBreakpoints(() => this.updateEnablement()));
-	}
-
-	async run(): Promise<any> {
-		this.debugService.addFunctionBreakpoint();
-	}
-
-	protected isEnabled(_: State): boolean {
-		return !this.debugService.getViewModel().getSelectedFunctionBreakpoint()
-			&& this.debugService.getModel().getFunctionBreakpoints().every(fbp => !!fbp.name);
-	}
-}
-
-export class AddWatchExpressionAction extends AbstractDebugAction {
-	static readonly ID = 'workbench.debug.viewlet.action.addWatchExpression';
-	static readonly LABEL = nls.localize('addWatchExpression', "Add Expression");
-
-	constructor(id: string, label: string, @IDebugService debugService: IDebugService, @IKeybindingService keybindingService: IKeybindingService) {
-		super(id, label, 'debug-action ' + icons.watchExpressionsAdd.classNames, debugService, keybindingService);
-		this._register(this.debugService.getModel().onDidChangeWatchExpressions(() => this.updateEnablement()));
-		this._register(this.debugService.getViewModel().onDidSelectExpression(() => this.updateEnablement()));
-	}
-
-	async run(): Promise<any> {
-		this.debugService.addWatchExpression();
-	}
-
-	protected isEnabled(_: State): boolean {
-		const focusedExpression = this.debugService.getViewModel().getSelectedExpression();
-		return this.debugService.getModel().getWatchExpressions().every(we => !!we.name && we !== focusedExpression);
-	}
-}
-
-export class RemoveAllWatchExpressionsAction extends AbstractDebugAction {
-	static readonly ID = 'workbench.debug.viewlet.action.removeAllWatchExpressions';
-	static readonly LABEL = nls.localize('removeAllWatchExpressions', "Remove All Expressions");
-
-	constructor(id: string, label: string, @IDebugService debugService: IDebugService, @IKeybindingService keybindingService: IKeybindingService) {
-		super(id, label, 'debug-action ' + icons.watchExpressionsRemoveAll.classNames, debugService, keybindingService);
-		this._register(this.debugService.getModel().onDidChangeWatchExpressions(() => this.updateEnablement()));
-	}
-
-	async run(): Promise<any> {
-		this.debugService.removeWatchExpressions();
-	}
-
-	protected isEnabled(_: State): boolean {
-		return this.debugService.getModel().getWatchExpressions().length > 0;
 	}
 }
 

@@ -25,7 +25,8 @@ import { IPaneComposite } from 'vs/workbench/common/panecomposite';
 import { IAccessibilityInformation } from 'vs/platform/accessibility/common/accessibility';
 import { IMarkdownString } from 'vs/base/common/htmlContent';
 import { mixin } from 'vs/base/common/objects';
-import { Codicon, registerIcon } from 'vs/base/common/codicons';
+import { Codicon } from 'vs/base/common/codicons';
+import { registerIcon } from 'vs/platform/theme/common/iconRegistry';
 
 export const TEST_VIEW_CONTAINER_ID = 'workbench.view.extension.test';
 export const testViewIcon = registerIcon('test-view-icon', Codicon.beaker, localize('testViewIcon', 'View icon of the test view.'));
@@ -37,9 +38,16 @@ export namespace Extensions {
 	export const ViewsRegistry = 'workbench.registry.view';
 }
 
-export enum ViewContainerLocation {
+export const enum ViewContainerLocation {
 	Sidebar,
 	Panel
+}
+
+export function ViewContainerLocationToString(viewContainerLocation: ViewContainerLocation) {
+	switch (viewContainerLocation) {
+		case ViewContainerLocation.Sidebar: return 'sidebar';
+		case ViewContainerLocation.Panel: return 'panel';
+	}
 }
 
 export interface IViewContainerDescriptor {
@@ -254,6 +262,8 @@ export interface IAddedViewDescriptorState {
 }
 
 export interface IViewContainerModel {
+
+	readonly viewContainer: ViewContainer;
 
 	readonly title: string;
 	readonly icon: ThemeIcon | URI | undefined;
@@ -504,7 +514,7 @@ export interface IViewsService {
  * View Contexts
  */
 export const FocusedViewContext = new RawContextKey<string>('focusedView', '');
-export function getVisbileViewContextKey(viewId: string): string { return `${viewId}.visible`; }
+export function getVisbileViewContextKey(viewId: string): string { return `view.${viewId}.visible`; }
 
 export const IViewDescriptorService = createDecorator<IViewDescriptorService>('viewDescriptorService');
 
@@ -703,6 +713,27 @@ export class ResolvableTreeItem implements ITreeItem {
 	get hasResolve(): boolean {
 		return this._hasResolve;
 	}
+	public resetResolve() {
+		this.resolved = false;
+	}
+	public asTreeItem(): ITreeItem {
+		return {
+			handle: this.handle,
+			parentHandle: this.parentHandle,
+			collapsibleState: this.collapsibleState,
+			label: this.label,
+			description: this.description,
+			icon: this.icon,
+			iconDark: this.iconDark,
+			themeIcon: this.themeIcon,
+			resourceUri: this.resourceUri,
+			tooltip: this.tooltip,
+			contextValue: this.contextValue,
+			command: this.command,
+			children: this.children,
+			accessibilityInformation: this.accessibilityInformation
+		};
+	}
 }
 
 export interface ITreeViewDataProvider {
@@ -734,5 +765,6 @@ export interface IViewPaneContainer {
 	getActionViewItem(action: IAction): IActionViewItem | undefined;
 	getActionsContext(): unknown;
 	getView(viewId: string): IView | undefined;
+	toggleViewVisibility(viewId: string): void;
 	saveState(): void;
 }

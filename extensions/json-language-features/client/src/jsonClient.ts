@@ -21,15 +21,15 @@ import { hash } from './utils/hash';
 import { RequestService, joinPath } from './requests';
 
 namespace VSCodeContentRequest {
-	export const type: RequestType<string, string, any, any> = new RequestType('vscode/content');
+	export const type: RequestType<string, string, any> = new RequestType('vscode/content');
 }
 
 namespace SchemaContentChangeNotification {
-	export const type: NotificationType<string, any> = new NotificationType('json/schemaContent');
+	export const type: NotificationType<string> = new NotificationType('json/schemaContent');
 }
 
 namespace ForceValidateRequest {
-	export const type: RequestType<string, Diagnostic[], any, any> = new RequestType('json/validate');
+	export const type: RequestType<string, Diagnostic[], any> = new RequestType('json/validate');
 }
 
 export interface ISchemaAssociations {
@@ -42,11 +42,11 @@ export interface ISchemaAssociation {
 }
 
 namespace SchemaAssociationNotification {
-	export const type: NotificationType<ISchemaAssociations | ISchemaAssociation[], any> = new NotificationType('json/schemaAssociations');
+	export const type: NotificationType<ISchemaAssociations | ISchemaAssociation[]> = new NotificationType('json/schemaAssociations');
 }
 
 namespace ResultLimitReachedNotification {
-	export const type: NotificationType<string, any> = new NotificationType('json/resultLimitReached');
+	export const type: NotificationType<string> = new NotificationType('json/resultLimitReached');
 }
 
 interface Settings {
@@ -71,6 +71,10 @@ namespace SettingIds {
 	export const enableFormatter = 'json.format.enable';
 	export const enableSchemaDownload = 'json.schemaDownload.enable';
 	export const maxItemsComputed = 'json.maxItemsComputed';
+}
+
+namespace StorageIds {
+	export const maxItemsExceededInformation = 'json.maxItemsExceededInformation';
 }
 
 export interface TelemetryReporter {
@@ -298,8 +302,19 @@ export function startClient(context: ExtensionContext, newLanguageClient: Langua
 			}
 		}));
 
-		client.onNotification(ResultLimitReachedNotification.type, message => {
-			window.showInformationMessage(`${message}\n${localize('configureLimit', 'Use setting \'{0}\' to configure the limit.', SettingIds.maxItemsComputed)}`);
+		client.onNotification(ResultLimitReachedNotification.type, async message => {
+			const shouldPrompt = context.globalState.get<boolean>(StorageIds.maxItemsExceededInformation) !== false;
+			if (shouldPrompt) {
+				const ok = localize('ok', "Ok");
+				const openSettings = localize('goToSetting', 'Open Settings');
+				const neverAgain = localize('yes never again', "Don't Show Again");
+				const pick = await window.showInformationMessage(`${message}\n${localize('configureLimit', 'Use setting \'{0}\' to configure the limit.', SettingIds.maxItemsComputed)}`, ok, openSettings, neverAgain);
+				if (pick === neverAgain) {
+					await context.globalState.update(StorageIds.maxItemsExceededInformation, false);
+				} else if (pick === openSettings) {
+					await commands.executeCommand('workbench.action.openSettings', SettingIds.maxItemsComputed);
+				}
+			}
 		});
 
 		function updateFormatterRegistration() {
@@ -310,11 +325,18 @@ export function startClient(context: ExtensionContext, newLanguageClient: Langua
 			} else if (formatEnabled && !rangeFormatting) {
 				rangeFormatting = languages.registerDocumentRangeFormattingEditProvider(documentSelector, {
 					provideDocumentRangeFormattingEdits(document: TextDocument, range: Range, options: FormattingOptions, token: CancellationToken): ProviderResult<TextEdit[]> {
+						const filesConfig = workspace.getConfiguration('files', document);
+						const fileFormattingOptions = {
+							trimTrailingWhitespace: filesConfig.get<boolean>('trimTrailingWhitespace'),
+							trimFinalNewlines: filesConfig.get<boolean>('trimFinalNewlines'),
+							insertFinalNewline: filesConfig.get<boolean>('insertFinalNewline'),
+						};
 						const params: DocumentRangeFormattingParams = {
 							textDocument: client.code2ProtocolConverter.asTextDocumentIdentifier(document),
 							range: client.code2ProtocolConverter.asRange(range),
-							options: client.code2ProtocolConverter.asFormattingOptions(options)
+							options: client.code2ProtocolConverter.asFormattingOptions(options, fileFormattingOptions)
 						};
+
 						return client.sendRequest(DocumentRangeFormattingRequest.type, params, token).then(
 							client.protocol2CodeConverter.asTextEdits,
 							(error) => {

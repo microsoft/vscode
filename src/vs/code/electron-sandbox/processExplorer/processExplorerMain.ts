@@ -14,35 +14,223 @@ import { applyZoom, zoomIn, zoomOut } from 'vs/platform/windows/electron-sandbox
 import { IContextMenuItem } from 'vs/base/parts/contextmenu/common/contextmenu';
 import { popup } from 'vs/base/parts/contextmenu/electron-sandbox/contextmenu';
 import { ProcessItem } from 'vs/base/common/processes';
-import { addDisposableListener, $ } from 'vs/base/browser/dom';
+import * as dom from 'vs/base/browser/dom';
 import { DisposableStore } from 'vs/base/common/lifecycle';
 import { isRemoteDiagnosticError, IRemoteDiagnosticError } from 'vs/platform/diagnostics/common/diagnostics';
 import { MainProcessService } from 'vs/platform/ipc/electron-sandbox/mainProcessService';
-import { CodiconLabel } from 'vs/base/browser/ui/codicons/codiconLabel';
 import { ByteSize } from 'vs/platform/files/common/files';
+import { IListVirtualDelegate } from 'vs/base/browser/ui/list/list';
+import { IDataSource, ITreeNode, ITreeRenderer } from 'vs/base/browser/ui/tree/tree';
+import { DataTree } from 'vs/base/browser/ui/tree/dataTree';
 
 const DEBUG_FLAGS_PATTERN = /\s--(inspect|debug)(-brk|port)?=(\d+)?/;
 const DEBUG_PORT_PATTERN = /\s--(inspect|debug)-port=(\d+)/;
 
-interface FormattedProcessItem {
-	cpu: number;
-	memory: number;
-	pid: string;
+class ProcessListDelegate implements IListVirtualDelegate<MachineProcessInformation | ProcessItem | IRemoteDiagnosticError> {
+	getHeight(element: MachineProcessInformation | ProcessItem | IRemoteDiagnosticError) {
+		return 22;
+	}
+
+	getTemplateId(element: ProcessInformation | MachineProcessInformation | ProcessItem | IRemoteDiagnosticError) {
+		if (isProcessItem(element)) {
+			return 'process';
+		}
+
+		if (isMachineProcessInformation(element)) {
+			return 'machine';
+		}
+
+		if (isRemoteDiagnosticError(element)) {
+			return 'error';
+		}
+
+		if (isProcessInformation(element)) {
+			return 'header';
+		}
+
+		return '';
+	}
+}
+
+interface IProcessItemTemplateData extends IProcessRowTemplateData {
+	CPU: HTMLElement;
+	memory: HTMLElement;
+	PID: HTMLElement;
+}
+
+interface IProcessRowTemplateData {
+	name: HTMLElement;
+}
+
+class ProcessTreeDataSource implements IDataSource<ProcessTree, ProcessInformation | MachineProcessInformation | ProcessItem | IRemoteDiagnosticError>  {
+	hasChildren(element: ProcessTree | ProcessInformation | MachineProcessInformation | ProcessItem | IRemoteDiagnosticError): boolean {
+		if (isRemoteDiagnosticError(element)) {
+			return false;
+		}
+
+		if (isProcessItem(element)) {
+			return !!element.children?.length;
+		} else {
+			return true;
+		}
+	}
+
+	getChildren(element: ProcessTree | ProcessInformation | MachineProcessInformation | ProcessItem | IRemoteDiagnosticError) {
+		if (isProcessItem(element)) {
+			return element.children ? element.children : [];
+		}
+
+		if (isRemoteDiagnosticError(element)) {
+			return [];
+		}
+
+		if (isProcessInformation(element)) {
+			// If there are multiple process roots, return these, otherwise go directly to the root process
+			if (element.processRoots.length > 1) {
+				return element.processRoots;
+			} else {
+				return [element.processRoots[0].rootProcess];
+			}
+		}
+
+		if (isMachineProcessInformation(element)) {
+			return [element.rootProcess];
+		}
+
+		return [element.processes];
+	}
+}
+
+class ProcessHeaderTreeRenderer implements ITreeRenderer<ProcessInformation, void, IProcessItemTemplateData> {
+	templateId: string = 'header';
+	renderTemplate(container: HTMLElement): IProcessItemTemplateData {
+		const data = Object.create(null);
+		const row = dom.append(container, dom.$('.row'));
+		data.name = dom.append(row, dom.$('.nameLabel'));
+		data.CPU = dom.append(row, dom.$('.cpu'));
+		data.memory = dom.append(row, dom.$('.memory'));
+		data.PID = dom.append(row, dom.$('.pid'));
+		return data;
+	}
+	renderElement(node: ITreeNode<ProcessInformation, void>, index: number, templateData: IProcessItemTemplateData, height: number | undefined): void {
+		templateData.name.textContent = localize('name', "Process Name");
+		templateData.CPU.textContent = localize('cpu', "CPU %");
+		templateData.PID.textContent = localize('pid', "PID");
+		templateData.memory.textContent = localize('memory', "Memory (MB)");
+
+	}
+	disposeTemplate(templateData: any): void {
+		// Nothing to do
+	}
+}
+
+class MachineRenderer implements ITreeRenderer<MachineProcessInformation, void, IProcessRowTemplateData> {
+	templateId: string = 'machine';
+	renderTemplate(container: HTMLElement): IProcessRowTemplateData {
+		const data = Object.create(null);
+		const row = dom.append(container, dom.$('.row'));
+		data.name = dom.append(row, dom.$('.nameLabel'));
+		return data;
+	}
+	renderElement(node: ITreeNode<MachineProcessInformation, void>, index: number, templateData: IProcessRowTemplateData, height: number | undefined): void {
+		templateData.name.textContent = node.element.name;
+	}
+	disposeTemplate(templateData: IProcessRowTemplateData): void {
+		// Nothing to do
+	}
+}
+
+class ErrorRenderer implements ITreeRenderer<IRemoteDiagnosticError, void, IProcessRowTemplateData> {
+	templateId: string = 'error';
+	renderTemplate(container: HTMLElement): IProcessRowTemplateData {
+		const data = Object.create(null);
+		const row = dom.append(container, dom.$('.row'));
+		data.name = dom.append(row, dom.$('.nameLabel'));
+		return data;
+	}
+	renderElement(node: ITreeNode<IRemoteDiagnosticError, void>, index: number, templateData: IProcessRowTemplateData, height: number | undefined): void {
+		templateData.name.textContent = node.element.errorMessage;
+	}
+	disposeTemplate(templateData: IProcessRowTemplateData): void {
+		// Nothing to do
+	}
+}
+
+
+class ProcessRenderer implements ITreeRenderer<ProcessItem, void, IProcessItemTemplateData> {
+	constructor(private platform: string, private totalMem: number, private mapPidToWindowTitle: Map<number, string>) { }
+
+	templateId: string = 'process';
+	renderTemplate(container: HTMLElement): IProcessItemTemplateData {
+		const data = <IProcessItemTemplateData>Object.create(null);
+		const row = dom.append(container, dom.$('.row'));
+
+		data.name = dom.append(row, dom.$('.nameLabel'));
+		data.CPU = dom.append(row, dom.$('.cpu'));
+		data.memory = dom.append(row, dom.$('.memory'));
+		data.PID = dom.append(row, dom.$('.pid'));
+
+		return data;
+	}
+	renderElement(node: ITreeNode<ProcessItem, void>, index: number, templateData: IProcessItemTemplateData, height: number | undefined): void {
+		const { element } = node;
+
+		let name = element.name;
+		if (name === 'window') {
+			const windowTitle = this.mapPidToWindowTitle.get(element.pid);
+			name = windowTitle !== undefined ? `${name} (${this.mapPidToWindowTitle.get(element.pid)})` : name;
+		}
+
+		templateData.name.textContent = name;
+		templateData.name.title = element.cmd;
+
+		templateData.CPU.textContent = element.load.toString();
+		templateData.PID.textContent = element.pid.toString();
+
+		const memory = this.platform === 'win32' ? element.mem : (this.totalMem * (element.mem / 100));
+		templateData.memory.textContent = Math.round((memory / ByteSize.MB)).toString();
+	}
+
+	disposeTemplate(templateData: IProcessItemTemplateData): void {
+		// Nothing to do
+	}
+}
+
+interface MachineProcessInformation {
 	name: string;
-	formattedName: string;
-	cmd: string;
+	rootProcess: ProcessItem | IRemoteDiagnosticError
+}
+
+interface ProcessInformation {
+	processRoots: MachineProcessInformation[];
+}
+
+interface ProcessTree {
+	processes: ProcessInformation;
+}
+
+function isMachineProcessInformation(item: any): item is MachineProcessInformation {
+	return !!item.name && !!item.rootProcess;
+}
+
+function isProcessInformation(item: any): item is ProcessInformation {
+	return !!item.processRoots;
+}
+
+function isProcessItem(item: any): item is ProcessItem {
+	return !!item.pid;
 }
 
 class ProcessExplorer {
 	private lastRequestTime: number;
-
-	private collapsedStateCache: Map<string, boolean> = new Map<string, boolean>();
 
 	private mapPidToWindowTitle = new Map<number, string>();
 
 	private listeners = new DisposableStore();
 
 	private nativeHostService: INativeHostService;
+
+	private tree: DataTree<any, ProcessTree | MachineProcessInformation | ProcessItem | ProcessInformation | IRemoteDiagnosticError, any> | undefined;
 
 	constructor(windowId: number, private data: ProcessExplorerData) {
 		const mainProcessService = new MainProcessService(windowId);
@@ -56,8 +244,19 @@ class ProcessExplorer {
 			windows.forEach(window => this.mapPidToWindowTitle.set(window.pid, window.title));
 		});
 
-		ipcRenderer.on('vscode:listProcessesResponse', (event: unknown, processRoots: [{ name: string, rootProcess: ProcessItem | IRemoteDiagnosticError }]) => {
-			this.updateProcessInfo(processRoots);
+		ipcRenderer.on('vscode:listProcessesResponse', async (event: unknown, processRoots: MachineProcessInformation[]) => {
+			processRoots.forEach((info, index) => {
+				if (isProcessItem(info.rootProcess)) {
+					info.rootProcess.name = index === 0 ? `${this.data.applicationName} main` : 'remote agent';
+				}
+			});
+
+			if (!this.tree) {
+				await this.createProcessTree(processRoots);
+			} else {
+				this.tree.setInput({ processes: { processRoots } });
+			}
+
 			this.requestProcessList(0);
 		});
 
@@ -66,54 +265,58 @@ class ProcessExplorer {
 		ipcRenderer.send('vscode:listProcesses');
 	}
 
-	private getProcessList(rootProcess: ProcessItem, isLocal: boolean, totalMem: number): FormattedProcessItem[] {
-		const processes: FormattedProcessItem[] = [];
-		const handledProcesses = new Set<number>();
-
-		if (rootProcess) {
-			this.getProcessItem(processes, rootProcess, 0, isLocal, totalMem, handledProcesses);
+	private async createProcessTree(processRoots: MachineProcessInformation[]): Promise<void> {
+		const container = document.getElementById('process-list');
+		if (!container) {
+			return;
 		}
 
-		return processes;
-	}
+		const { totalmem } = await this.nativeHostService.getOSStatistics();
 
-	private getProcessItem(processes: FormattedProcessItem[], item: ProcessItem, indent: number, isLocal: boolean, totalMem: number, handledProcesses: Set<number>): void {
-		const isRoot = (indent === 0);
+		const renderers = [
+			new ProcessRenderer(this.data.platform, totalmem, this.mapPidToWindowTitle),
+			new ProcessHeaderTreeRenderer(),
+			new MachineRenderer(),
+			new ErrorRenderer()
+		];
 
-		handledProcesses.add(item.pid);
+		this.tree = new DataTree('processExplorer',
+			container,
+			new ProcessListDelegate(),
+			renderers,
+			new ProcessTreeDataSource(),
+			{
+				identityProvider:
+				{
+					getId: (element: ProcessTree | ProcessItem | MachineProcessInformation | ProcessInformation | IRemoteDiagnosticError) => {
+						if (isProcessItem(element)) {
+							return element.pid.toString();
+						}
 
-		let name = item.name;
-		if (isRoot) {
-			name = isLocal ? `${this.data.applicationName} main` : 'remote agent';
-		}
+						if (isRemoteDiagnosticError(element)) {
+							return element.hostName;
+						}
 
-		if (name === 'window') {
-			const windowTitle = this.mapPidToWindowTitle.get(item.pid);
-			name = windowTitle !== undefined ? `${name} (${this.mapPidToWindowTitle.get(item.pid)})` : name;
-		}
+						if (isProcessInformation(element)) {
+							return 'processes';
+						}
 
-		// Format name with indent
-		const formattedName = isRoot ? name : `${'    '.repeat(indent)} ${name}`;
-		const memory = this.data.platform === 'win32' ? item.mem : (totalMem * (item.mem / 100));
-		processes.push({
-			cpu: item.load,
-			memory: (memory / ByteSize.MB),
-			pid: item.pid.toFixed(0),
-			name,
-			formattedName,
-			cmd: item.cmd
-		});
+						if (isMachineProcessInformation(element)) {
+							return element.name;
+						}
 
-		// Recurse into children if any
-		if (Array.isArray(item.children)) {
-			item.children.forEach(child => {
-				if (!child || handledProcesses.has(child.pid)) {
-					return; // prevent loops
+						return 'header';
+					}
 				}
-
-				this.getProcessItem(processes, child, indent + 1, isLocal, totalMem, handledProcesses);
 			});
-		}
+
+		this.tree.setInput({ processes: { processRoots } });
+		this.tree.layout(window.innerHeight, window.innerWidth);
+		this.tree.onContextMenu(e => {
+			if (isProcessItem(e.element)) {
+				this.showContextMenu(e.element, true);
+			}
+		});
 	}
 
 	private isDebuggable(cmd: string): boolean {
@@ -121,7 +324,7 @@ class ProcessExplorer {
 		return (matches && matches.length >= 2) || cmd.indexOf('node ') >= 0 || cmd.indexOf('node.exe') >= 0;
 	}
 
-	private attachTo(item: FormattedProcessItem) {
+	private attachTo(item: ProcessItem) {
 		const config: any = {
 			type: 'node',
 			request: 'attach',
@@ -150,179 +353,16 @@ class ProcessExplorer {
 		ipcRenderer.send('vscode:workbenchCommand', { id: 'debug.startFromConfig', from: 'processExplorer', args: [config] });
 	}
 
-	private getProcessIdWithHighestProperty(processList: any[], propertyName: string) {
-		let max = 0;
-		let maxProcessId;
-		processList.forEach(process => {
-			if (process[propertyName] > max) {
-				max = process[propertyName];
-				maxProcessId = process.pid;
-			}
-		});
-
-		return maxProcessId;
-	}
-
-	private updateSectionCollapsedState(shouldExpand: boolean, body: HTMLElement, twistie: CodiconLabel, sectionName: string) {
-		if (shouldExpand) {
-			body.classList.remove('hidden');
-			this.collapsedStateCache.set(sectionName, false);
-			twistie.text = '$(chevron-down)';
-		} else {
-			body.classList.add('hidden');
-			this.collapsedStateCache.set(sectionName, true);
-			twistie.text = '$(chevron-right)';
-		}
-	}
-
-	private renderProcessFetchError(sectionName: string, errorMessage: string) {
-		const container = document.getElementById('process-list');
-		if (!container) {
-			return;
-		}
-
-		const body = document.createElement('tbody');
-
-		this.renderProcessGroupHeader(sectionName, body, container);
-
-		const errorRow = document.createElement('tr');
-		const data = document.createElement('td');
-		data.textContent = errorMessage;
-		data.className = 'error';
-		data.colSpan = 4;
-		errorRow.appendChild(data);
-
-		body.appendChild(errorRow);
-		container.appendChild(body);
-	}
-
-	private renderProcessGroupHeader(sectionName: string, body: HTMLElement, container: HTMLElement) {
-		const headerRow = document.createElement('tr');
-
-		const headerData = document.createElement('td');
-		headerData.colSpan = 4;
-		headerRow.appendChild(headerData);
-
-		const headerContainer = document.createElement('div');
-		headerContainer.className = 'header';
-		headerData.appendChild(headerContainer);
-
-		const twistieContainer = document.createElement('div');
-		const twistieCodicon = new CodiconLabel(twistieContainer);
-		this.updateSectionCollapsedState(!this.collapsedStateCache.get(sectionName), body, twistieCodicon, sectionName);
-		headerContainer.appendChild(twistieContainer);
-
-		const headerLabel = document.createElement('span');
-		headerLabel.textContent = sectionName;
-		headerContainer.appendChild(headerLabel);
-
-		this.listeners.add(addDisposableListener(headerData, 'click', (e) => {
-			const isHidden = body.classList.contains('hidden');
-			this.updateSectionCollapsedState(isHidden, body, twistieCodicon, sectionName);
-		}));
-
-		container.appendChild(headerRow);
-	}
-
-	private renderTableSection(sectionName: string, processList: FormattedProcessItem[], renderManySections: boolean, sectionIsLocal: boolean): void {
-		const container = document.getElementById('process-list');
-		if (!container) {
-			return;
-		}
-
-		const highestCPUProcess = this.getProcessIdWithHighestProperty(processList, 'cpu');
-		const highestMemoryProcess = this.getProcessIdWithHighestProperty(processList, 'memory');
-
-		const body = document.createElement('tbody');
-
-		if (renderManySections) {
-			this.renderProcessGroupHeader(sectionName, body, container);
-		}
-
-		processList.forEach(p => {
-			const row = document.createElement('tr');
-			row.id = p.pid.toString();
-
-			const cpu = document.createElement('td');
-			p.pid === highestCPUProcess
-				? cpu.classList.add('centered', 'highest')
-				: cpu.classList.add('centered');
-			cpu.textContent = p.cpu.toFixed(0);
-
-			const memory = document.createElement('td');
-			p.pid === highestMemoryProcess
-				? memory.classList.add('centered', 'highest')
-				: memory.classList.add('centered');
-			memory.textContent = p.memory.toFixed(0);
-
-			const pid = document.createElement('td');
-			pid.classList.add('centered');
-			pid.textContent = p.pid;
-
-			const name = document.createElement('th');
-			name.scope = 'row';
-			name.classList.add('data');
-			name.title = p.cmd;
-			name.textContent = p.formattedName;
-
-			row.append(cpu, memory, pid, name);
-
-			this.listeners.add(addDisposableListener(row, 'contextmenu', (e) => {
-				this.showContextMenu(e, p, sectionIsLocal);
-			}));
-
-			body.appendChild(row);
-		});
-
-		container.appendChild(body);
-	}
-
-	private async updateProcessInfo(processLists: [{ name: string, rootProcess: ProcessItem | IRemoteDiagnosticError }]): Promise<void> {
-		const container = document.getElementById('process-list');
-		if (!container) {
-			return;
-		}
-
-		container.innerText = '';
-		this.listeners.clear();
-
-		const tableHead = $('thead', undefined);
-		const row = $('tr');
-		tableHead.append(row);
-
-		row.append($('th.cpu', { scope: 'col' }, localize('cpu', "CPU %")));
-		row.append($('th.memory', { scope: 'col' }, localize('memory', "Memory (MB)")));
-		row.append($('th.pid', { scope: 'col' }, localize('pid', "PID")));
-		row.append($('th.nameLabel', { scope: 'col' }, localize('name', "Name")));
-
-		container.append(tableHead);
-
-		const hasMultipleMachines = Object.keys(processLists).length > 1;
-		const { totalmem } = await this.nativeHostService.getOSStatistics();
-		processLists.forEach((remote, i) => {
-			const isLocal = i === 0;
-			if (isRemoteDiagnosticError(remote.rootProcess)) {
-				this.renderProcessFetchError(remote.name, remote.rootProcess.errorMessage);
-			} else {
-				this.renderTableSection(remote.name, this.getProcessList(remote.rootProcess, isLocal, totalmem), hasMultipleMachines, isLocal);
-			}
-		});
-	}
-
 	private applyStyles(styles: ProcessExplorerStyles): void {
 		const styleTag = document.createElement('style');
 		const content: string[] = [];
 
 		if (styles.hoverBackground) {
-			content.push(`tbody > tr:hover, table > tr:hover  { background-color: ${styles.hoverBackground}; }`);
+			content.push(`.monaco-list-row:hover  { background-color: ${styles.hoverBackground}; }`);
 		}
 
 		if (styles.hoverForeground) {
-			content.push(`tbody > tr:hover, table > tr:hover { color: ${styles.hoverForeground}; }`);
-		}
-
-		if (styles.highlightForeground) {
-			content.push(`.highest { color: ${styles.highlightForeground}; }`);
+			content.push(`.monaco-list-row:hover { color: ${styles.hoverForeground}; }`);
 		}
 
 		styleTag.textContent = content.join('\n');
@@ -334,9 +374,7 @@ class ProcessExplorer {
 		}
 	}
 
-	private showContextMenu(e: MouseEvent, item: FormattedProcessItem, isLocal: boolean) {
-		e.preventDefault();
-
+	private showContextMenu(item: ProcessItem, isLocal: boolean) {
 		const items: IContextMenuItem[] = [];
 		const pid = Number(item.pid);
 
@@ -416,8 +454,6 @@ class ProcessExplorer {
 		this.listeners.dispose();
 	}
 }
-
-
 
 export function startup(windowId: number, data: ProcessExplorerData): void {
 	const platformClass = data.platform === 'win32' ? 'windows' : data.platform === 'linux' ? 'linux' : 'mac';

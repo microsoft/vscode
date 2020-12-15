@@ -766,7 +766,7 @@ export class EditorStatus extends Disposable implements IWorkbenchContribution {
 		if (editorWidget) {
 			const screenReaderDetected = this.accessibilityService.isScreenReaderOptimized();
 			if (screenReaderDetected) {
-				const screenReaderConfiguration = this.configurationService.getValue<IEditorOptions>('editor').accessibilitySupport;
+				const screenReaderConfiguration = this.configurationService.getValue<IEditorOptions>('editor')?.accessibilitySupport;
 				if (screenReaderConfiguration === 'auto') {
 					if (!this.promptedScreenReader) {
 						this.promptedScreenReader = true;
@@ -1150,7 +1150,7 @@ export class ChangeModeAction extends Action {
 
 		// User decided to configure settings for current language
 		if (pick === configureModeSettings) {
-			this.preferencesService.openGlobalSettings(true, { editSetting: `[${withUndefinedAsNull(currentModeId)}]` });
+			this.preferencesService.openGlobalSettings(true, { revealSetting: { key: `[${withUndefinedAsNull(currentModeId)}]`, edit: true } });
 			return;
 		}
 

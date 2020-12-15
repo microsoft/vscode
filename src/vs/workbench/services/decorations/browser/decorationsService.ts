@@ -107,9 +107,7 @@ class DecorationStyles {
 	private readonly _decorationRules = new Map<string, DecorationRule>();
 	private readonly _dispoables = new DisposableStore();
 
-	constructor(
-		private _themeService: IThemeService,
-	) {
+	constructor(private readonly _themeService: IThemeService) {
 		this._themeService.onDidColorThemeChange(this._onThemeChange, this, this._dispoables);
 	}
 
@@ -150,7 +148,7 @@ class DecorationStyles {
 			badgeClassName,
 			tooltip,
 			dispose: () => {
-				if (rule && rule.release()) {
+				if (rule?.release()) {
 					this._decorationRules.delete(key);
 					rule.removeCSSRules(this._styleElement);
 					rule = undefined;
@@ -175,7 +173,7 @@ class FileDecorationChangeEvent implements IResourceDecorationChangeEvent {
 		return this._data.get(uri) ?? this._data.findSuperstr(uri) !== undefined;
 	}
 
-	static debouncer(last: FileDecorationChangeEvent | undefined, current: URI | URI[]) {
+	static debouncer(last: FileDecorationChangeEvent | undefined, current: URI | URI[]): FileDecorationChangeEvent {
 		if (!last) {
 			last = new FileDecorationChangeEvent();
 		}

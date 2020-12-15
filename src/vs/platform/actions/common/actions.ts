@@ -112,6 +112,7 @@ export class MenuId {
 	static readonly TunnelInline = new MenuId('TunnelInline');
 	static readonly TunnelTitle = new MenuId('TunnelTitle');
 	static readonly ViewItemContext = new MenuId('ViewItemContext');
+	static readonly ViewContainerTitle = new MenuId('ViewContainerTitle');
 	static readonly ViewContainerTitleContext = new MenuId('ViewContainerTitleContext');
 	static readonly ViewTitle = new MenuId('ViewTitle');
 	static readonly ViewTitleContext = new MenuId('ViewTitleContext');
@@ -132,6 +133,8 @@ export class MenuId {
 	static readonly TimelineTitle = new MenuId('TimelineTitle');
 	static readonly TimelineTitleContext = new MenuId('TimelineTitleContext');
 	static readonly AccountsContext = new MenuId('AccountsContext');
+	static readonly PanelTitle = new MenuId('PanelTitle');
+	static readonly PanelTitleContext = new MenuId('PanelTitleContext');
 
 	readonly id: number;
 	readonly _debugName: string;

@@ -3,6 +3,37 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
+/*
+	################################### z-index explainer ###################################
+
+	Tabs have various levels of z-index depending on state, typically:
+	- scrollbar should be above all
+	- sticky (compact, shrink) tabs need to be above non-sticky tabs for scroll under effect
+	including non-sticky tabs-top borders, otherwise these borders would not scroll under
+	(https://github.com/microsoft/vscode/issues/111641)
+	- bottom-border needs to be above tabs bottom border to win but also support sticky tabs
+	(https://github.com/microsoft/vscode/issues/99084) <- this currently cannot be done and
+	is still broken. putting sticky-tabs above tabs bottom border would not render this
+	border at all for sticky tabs.
+
+	On top of that there is 2 borders with a z-index for a general border below tabs
+	- tabs bottom border
+	- editor title bottom border (when breadcrumbs are disabled, this border will appear
+	same as tabs bottom border)
+
+	The following tabls shows the current stacking order:
+
+	[z-index] 	[kind]
+			7 	scrollbar
+			6	active-tab border-bottom
+			5	tabs, title border bottom
+			4	sticky-tab
+			2  	active/dirty-tab border top
+			0   tab
+
+	##########################################################################################
+*/
+
 /* Title Container */
 
 .monaco-workbench .part.editor > .content .editor-group-container > .title.tabs > .tabs-and-actions-container {
@@ -30,7 +61,7 @@
 }
 
 .monaco-workbench .part.editor > .content .editor-group-container > .title.tabs > .tabs-and-actions-container > .monaco-scrollable-element .scrollbar {
-	z-index: 3; /* on top of tabs */
+	z-index: 7;
 	cursor: default;
 }
 
@@ -89,7 +120,7 @@
 
 	/** Sticky compact/shrink tabs do not scroll in case of overflow and are always above unsticky tabs which scroll under */
 	position: sticky;
-	z-index: 1;
+	z-index: 4;
 
 	/** Sticky compact/shrink tabs are even and never grow */
 	flex-basis: 0;
@@ -167,24 +198,26 @@
 	display: block;
 	position: absolute;
 	left: 0;
-	z-index: 6; /* over possible title border */
 	pointer-events: none;
 	width: 100%;
 }
 
 .monaco-workbench .part.editor > .content .editor-group-container > .title .tabs-container > .tab.active.tab-border-top > .tab-border-top-container {
+	z-index: 2;
 	top: 0;
 	height: 1px;
 	background-color: var(--tab-border-top-color);
 }
 
 .monaco-workbench .part.editor > .content .editor-group-container > .title .tabs-container > .tab.active.tab-border-bottom > .tab-border-bottom-container {
+	z-index: 6;
 	bottom: 0;
 	height: 1px;
 	background-color: var(--tab-border-bottom-color);
 }
 
 .monaco-workbench .part.editor > .content .editor-group-container > .title .tabs-container > .tab.dirty-border-top > .tab-border-top-container {
+	z-index: 2;
 	top: 0;
 	height: 2px;
 	background-color: var(--tab-dirty-border-top-color);

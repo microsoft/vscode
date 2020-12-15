@@ -17,7 +17,7 @@ import { BulkEditPreviewProvider, BulkFileOperations, BulkFileOperationType } fr
 import { ILabelService } from 'vs/platform/label/common/label';
 import { ITextModelService } from 'vs/editor/common/services/resolverService';
 import { URI } from 'vs/base/common/uri';
-import { ViewPane } from 'vs/workbench/browser/parts/views/viewPaneContainer';
+import { ViewPane } from 'vs/workbench/browser/parts/views/viewPane';
 import { IKeybindingService } from 'vs/platform/keybinding/common/keybinding';
 import { IContextMenuService } from 'vs/platform/contextview/browser/contextView';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
@@ -298,7 +298,7 @@ export class BulkEditPane extends ViewPane {
 		}
 	}
 
-	private async _openElementAsEditor(e: IOpenEvent<BulkEditElement | null>): Promise<void> {
+	private async _openElementAsEditor(e: IOpenEvent<BulkEditElement | undefined>): Promise<void> {
 		type Mutable<T> = {
 			-readonly [P in keyof T]: T[P]
 		};

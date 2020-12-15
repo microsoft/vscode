@@ -110,6 +110,10 @@
 	margin: 4px 5px; /* allows button focus outline to be visible */
 }
 
+.monaco-workbench .notifications-list-container .notification-list-item .notification-list-item-buttons-container .monaco-button {
+	outline-offset: 2px !important;
+}
+
 .monaco-workbench .notifications-list-container .notification-list-item .notification-list-item-buttons-container .monaco-text-button {
 	width: fit-content;
 	width: -moz-fit-content;

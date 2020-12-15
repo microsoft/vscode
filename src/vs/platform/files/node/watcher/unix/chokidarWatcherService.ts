@@ -6,9 +6,8 @@
 import * as chokidar from 'chokidar';
 import * as fs from 'fs';
 import * as gracefulFs from 'graceful-fs';
-gracefulFs.gracefulify(fs);
-import * as extpath from 'vs/base/common/extpath';
 import * as glob from 'vs/base/common/glob';
+import { isEqualOrParent } from 'vs/base/common/extpath';
 import { FileChangeType } from 'vs/platform/files/common/files';
 import { ThrottledDelayer } from 'vs/base/common/async';
 import { normalizeNFC } from 'vs/base/common/normalization';
@@ -19,6 +18,8 @@ import { IWatcherRequest, IWatcherService, IWatcherOptions } from 'vs/platform/f
 import { Emitter, Event } from 'vs/base/common/event';
 import { equals } from 'vs/base/common/arrays';
 import { Disposable } from 'vs/base/common/lifecycle';
+
+gracefulFs.gracefulify(fs); // enable gracefulFs
 
 process.noAsar = true; // disable ASAR support in watcher process
 
@@ -311,7 +312,7 @@ function isIgnored(path: string, requests: ExtendedWatcherRequest[]): boolean {
 			return false;
 		}
 
-		if (extpath.isEqualOrParent(path, request.path)) {
+		if (isEqualOrParent(path, request.path)) {
 			if (!request.parsedPattern) {
 				if (request.excludes && request.excludes.length > 0) {
 					const pattern = `{${request.excludes.join(',')}}`;
@@ -343,7 +344,7 @@ export function normalizeRoots(requests: IWatcherRequest[]): { [basePath: string
 	for (const request of requests) {
 		const basePath = request.path;
 		const ignored = (request.excludes || []).sort();
-		if (prevRequest && (extpath.isEqualOrParent(basePath, prevRequest.path))) {
+		if (prevRequest && (isEqualOrParent(basePath, prevRequest.path))) {
 			if (!isEqualIgnore(ignored, prevRequest.excludes)) {
 				result[prevRequest.path].push({ path: basePath, excludes: ignored });
 			}

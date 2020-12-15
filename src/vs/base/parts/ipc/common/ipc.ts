@@ -505,6 +505,7 @@ export interface IIPCLogger {
 
 export class ChannelClient implements IChannelClient, IDisposable {
 
+	private isDisposed: boolean = false;
 	private state: State = State.Uninitialized;
 	private activeRequests = new Set<IDisposable>();
 	private handlers = new Map<number, IHandler>();
@@ -525,9 +526,15 @@ export class ChannelClient implements IChannelClient, IDisposable {
 
 		return {
 			call(command: string, arg?: any, cancellationToken?: CancellationToken) {
+				if (that.isDisposed) {
+					return Promise.resolve(errors.canceled());
+				}
 				return that.requestPromise(channelName, command, arg, cancellationToken);
 			},
 			listen(event: string, arg: any) {
+				if (that.isDisposed) {
+					return Promise.resolve(errors.canceled());
+				}
 				return that.requestEvent(channelName, event, arg);
 			}
 		} as T;
@@ -725,6 +732,7 @@ export class ChannelClient implements IChannelClient, IDisposable {
 	}
 
 	dispose(): void {
+		this.isDisposed = true;
 		if (this.protocolListener) {
 			this.protocolListener.dispose();
 			this.protocolListener = null;

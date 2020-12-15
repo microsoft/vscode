@@ -28,7 +28,8 @@ import { DelegatingEditorService } from 'vs/workbench/services/editor/browser/ed
 import { IEditorGroupsService } from 'vs/workbench/services/editor/common/editorGroupsService';
 import { IEditorService } from 'vs/workbench/services/editor/common/editorService';
 import { IEditorPane } from 'vs/workbench/common/editor';
-import { ViewPane, ViewPaneContainer } from 'vs/workbench/browser/parts/views/viewPaneContainer';
+import { ViewPaneContainer } from 'vs/workbench/browser/parts/views/viewPaneContainer';
+import { ViewPane } from 'vs/workbench/browser/parts/views/viewPane';
 import { KeyChord, KeyMod, KeyCode } from 'vs/base/common/keyCodes';
 import { Registry } from 'vs/platform/registry/common/platform';
 import { IProgressService, ProgressLocation } from 'vs/platform/progress/common/progress';
@@ -37,7 +38,8 @@ import { WorkbenchStateContext, RemoteNameContext } from 'vs/workbench/browser/c
 import { IsWebContext } from 'vs/platform/contextkey/common/contextkeys';
 import { AddRootFolderAction, OpenFolderAction, OpenFileFolderAction } from 'vs/workbench/browser/actions/workspaceActions';
 import { isMacintosh } from 'vs/base/common/platform';
-import { Codicon, registerIcon } from 'vs/base/common/codicons';
+import { Codicon } from 'vs/base/common/codicons';
+import { registerIcon } from 'vs/platform/theme/common/iconRegistry';
 
 const explorerViewIcon = registerIcon('explorer-view-icon', Codicon.files, localize('explorerViewIcon', 'View icon of the explorer view.'));
 
@@ -206,7 +208,7 @@ export class ExplorerViewPaneContainer extends ViewPaneContainer {
 					let delay = 0;
 
 					const config = this.configurationService.getValue<IFilesConfiguration>();
-					const delayEditorOpeningInOpenedEditors = !!config.workbench.editor.enablePreview; // No need to delay if preview is disabled
+					const delayEditorOpeningInOpenedEditors = !!config.workbench?.editor?.enablePreview; // No need to delay if preview is disabled
 
 					const activeGroup = this.editorGroupService.activeGroup;
 					if (delayEditorOpeningInOpenedEditors && group === activeGroup && !activeGroup.previewEditor) {

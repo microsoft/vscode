@@ -1,0 +1,42 @@
+/*---------------------------------------------------------------------------------------------
+ *  Copyright (c) Microsoft Corporation. All rights reserved.
+ *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *--------------------------------------------------------------------------------------------*/
+
+.test-explorer .test-item {
+	display: flex;
+}
+
+.test-explorer .monaco-list-row .monaco-action-bar {
+	display: none;
+	flex-shrink: 0;
+	margin-right: 1px;
+}
+
+.test-explorer .monaco-list-row:hover .monaco-action-bar {
+	display: initial;
+}
+
+.test-explorer .name {
+	overflow: hidden;
+	text-overflow: ellipsis;
+	flex-grow: 1;
+	height: 22px;
+	align-items: center;
+}
+
+.test-explore .codicon {
+	line-height: 22px;
+	margin-right: 2px;
+}
+
+.monaco-workbench
+	.test-explorer
+	.monaco-action-bar
+	.action-item
+	> .action-label {
+	width: 16px;
+	height: 100%;
+	line-height: 22px;
+	margin-right: 8px;
+}

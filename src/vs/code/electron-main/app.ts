@@ -3,11 +3,10 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { app, ipcMain as ipc, systemPreferences, contentTracing, protocol, BrowserWindow, dialog, session } from 'electron';
+import { app, ipcMain, systemPreferences, contentTracing, protocol, BrowserWindow, dialog, session } from 'electron';
 import { IProcessEnvironment, isWindows, isMacintosh, isLinux } from 'vs/base/common/platform';
 import { WindowsMainService } from 'vs/platform/windows/electron-main/windowsMainService';
 import { IWindowOpenable } from 'vs/platform/windows/common/windows';
-import { OpenContext } from 'vs/platform/windows/node/window';
 import { ILifecycleMainService, LifecycleMainPhase } from 'vs/platform/lifecycle/electron-main/lifecycleMainService';
 import { resolveShellEnv } from 'vs/code/node/shellEnv';
 import { IUpdateService } from 'vs/platform/update/common/update';
@@ -24,7 +23,7 @@ import { ILogService } from 'vs/platform/log/common/log';
 import { IStateService } from 'vs/platform/state/node/state';
 import { IEnvironmentMainService } from 'vs/platform/environment/electron-main/environmentMainService';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
-import { IURLService } from 'vs/platform/url/common/url';
+import { IOpenURLOptions, IURLService } from 'vs/platform/url/common/url';
 import { URLHandlerChannelClient, URLHandlerRouter } from 'vs/platform/url/common/urlIpc';
 import { ITelemetryService, machineIdKey } from 'vs/platform/telemetry/common/telemetry';
 import { NullTelemetryService } from 'vs/platform/telemetry/common/telemetryUtils';
@@ -34,9 +33,9 @@ import { resolveCommonProperties } from 'vs/platform/telemetry/node/commonProper
 import { getDelayedChannel, StaticRouter, createChannelReceiver, createChannelSender } from 'vs/base/parts/ipc/common/ipc';
 import product from 'vs/platform/product/common/product';
 import { ProxyAuthHandler } from 'vs/code/electron-main/auth';
-import { ProxyAuthHandler2 } from 'vs/code/electron-main/auth2';
+import { FileProtocolHandler } from 'vs/code/electron-main/protocol';
 import { Disposable } from 'vs/base/common/lifecycle';
-import { IWindowsMainService, ICodeWindow } from 'vs/platform/windows/electron-main/windows';
+import { IWindowsMainService, ICodeWindow, OpenContext } from 'vs/platform/windows/electron-main/windows';
 import { URI } from 'vs/base/common/uri';
 import { hasWorkspaceFileExtension, IWorkspacesService } from 'vs/platform/workspaces/common/workspaces';
 import { WorkspacesService } from 'vs/platform/workspaces/electron-main/workspacesService';
@@ -70,9 +69,8 @@ import { ExtensionHostDebugBroadcastChannel } from 'vs/platform/debug/common/ext
 import { ElectronExtensionHostDebugBroadcastChannel } from 'vs/platform/debug/electron-main/extensionHostDebugIpc';
 import { INativeHostMainService, NativeHostMainService } from 'vs/platform/native/electron-main/nativeHostMainService';
 import { ISharedProcessMainService, SharedProcessMainService } from 'vs/platform/ipc/electron-main/sharedProcessMainService';
-import { IDialogMainService, DialogMainService } from 'vs/platform/dialogs/electron-main/dialogs';
+import { IDialogMainService, DialogMainService } from 'vs/platform/dialogs/electron-main/dialogMainService';
 import { withNullAsUndefined } from 'vs/base/common/types';
-import { coalesce } from 'vs/base/common/arrays';
 import { mnemonicButtonLabel, getPathLabel } from 'vs/base/common/labels';
 import { WebviewMainService } from 'vs/platform/webview/electron-main/webviewMainService';
 import { IWebviewManagerService } from 'vs/platform/webview/common/webviewManagerService';
@@ -81,13 +79,16 @@ import { stripComments } from 'vs/base/common/json';
 import { generateUuid } from 'vs/base/common/uuid';
 import { VSBuffer } from 'vs/base/common/buffer';
 import { EncryptionMainService, IEncryptionMainService } from 'vs/platform/encryption/electron-main/encryptionMainService';
-import { ActiveWindowManager } from 'vs/platform/windows/common/windowTracker';
+import { ActiveWindowManager } from 'vs/platform/windows/node/windowTracker';
 import { IKeyboardLayoutMainService, KeyboardLayoutMainService } from 'vs/platform/keyboardLayout/electron-main/keyboardLayoutMainService';
 import { NativeParsedArgs } from 'vs/platform/environment/common/argv';
 import { DisplayMainService, IDisplayMainService } from 'vs/platform/display/electron-main/displayMainService';
 import { isLaunchedFromCli } from 'vs/platform/environment/node/argvHelper';
 import { isEqualOrParent } from 'vs/base/common/extpath';
 import { CancellationToken, CancellationTokenSource } from 'vs/base/common/cancellation';
+import { IExtensionUrlTrustService } from 'vs/platform/extensionManagement/common/extensionUrlTrust';
+import { ExtensionUrlTrustService } from 'vs/platform/extensionManagement/node/extensionUrlTrustService';
+import { once } from 'vs/base/common/functional';
 
 export class CodeApplication extends Disposable {
 	private windowsMainService: IWindowsMainService | undefined;
@@ -269,7 +270,7 @@ export class CodeApplication extends Disposable {
 
 		//#region Bootstrap IPC Handlers
 
-		ipc.on('vscode:fetchShellEnv', async event => {
+		ipcMain.on('vscode:fetchShellEnv', async event => {
 			const webContents = event.sender;
 			const window = this.windowsMainService?.getWindowByWebContents(event.sender);
 
@@ -319,28 +320,28 @@ export class CodeApplication extends Disposable {
 			acceptShellEnv(shellEnv);
 		});
 
-		ipc.handle('vscode:writeNlsFile', (event, path: unknown, data: unknown) => {
+		ipcMain.handle('vscode:writeNlsFile', async (event, path: unknown, data: unknown) => {
 			const uri = this.validateNlsPath([path]);
 			if (!uri || typeof data !== 'string') {
-				return Promise.reject('Invalid operation (vscode:writeNlsFile)');
+				throw new Error('Invalid operation (vscode:writeNlsFile)');
 			}
 
 			return this.fileService.writeFile(uri, VSBuffer.fromString(data));
 		});
 
-		ipc.handle('vscode:readNlsFile', async (event, ...paths: unknown[]) => {
+		ipcMain.handle('vscode:readNlsFile', async (event, ...paths: unknown[]) => {
 			const uri = this.validateNlsPath(paths);
 			if (!uri) {
-				return Promise.reject('Invalid operation (vscode:readNlsFile)');
+				throw new Error('Invalid operation (vscode:readNlsFile)');
 			}
 
 			return (await this.fileService.readFile(uri)).value.toString();
 		});
 
-		ipc.on('vscode:toggleDevTools', event => event.sender.toggleDevTools());
-		ipc.on('vscode:openDevTools', event => event.sender.openDevTools());
+		ipcMain.on('vscode:toggleDevTools', event => event.sender.toggleDevTools());
+		ipcMain.on('vscode:openDevTools', event => event.sender.openDevTools());
 
-		ipc.on('vscode:reloadWindow', event => event.sender.reload());
+		ipcMain.on('vscode:reloadWindow', event => event.sender.reload());
 
 		//#endregion
 	}
@@ -412,6 +413,9 @@ export class CodeApplication extends Disposable {
 			this.logService.error(error);
 		}
 
+		// Setup Protocol Handler
+		const fileProtocolHandler = this._register(this.instantiationService.createInstance(FileProtocolHandler));
+
 		// Create Electron IPC Server
 		const electronIpcServer = new ElectronIPCServer();
 
@@ -449,15 +453,11 @@ export class CodeApplication extends Disposable {
 			this._register(server);
 		}
 
-		// Setup Auth Handler (TODO@ben remove old auth handler eventually)
-		if (this.configurationService.getValue('window.enableExperimentalProxyLoginDialog') !== true) {
-			this._register(new ProxyAuthHandler());
-		} else {
-			this._register(appInstantiationService.createInstance(ProxyAuthHandler2));
-		}
+		// Setup Auth Handler
+		this._register(appInstantiationService.createInstance(ProxyAuthHandler));
 
 		// Open Windows
-		const windows = appInstantiationService.invokeFunction(accessor => this.openFirstWindow(accessor, electronIpcServer, sharedProcessClient));
+		const windows = appInstantiationService.invokeFunction(accessor => this.openFirstWindow(accessor, electronIpcServer, sharedProcessClient, fileProtocolHandler));
 
 		// Post Open Windows Tasks
 		appInstantiationService.invokeFunction(accessor => this.afterWindowOpen(accessor));
@@ -517,6 +517,7 @@ export class CodeApplication extends Disposable {
 		services.set(IWebviewManagerService, new SyncDescriptor(WebviewMainService));
 		services.set(IWorkspacesService, new SyncDescriptor(WorkspacesService));
 		services.set(IMenubarMainService, new SyncDescriptor(MenubarMainService));
+		services.set(IExtensionUrlTrustService, new SyncDescriptor(ExtensionUrlTrustService));
 
 		const storageMainService = new StorageMainService(this.logService, this.environmentService);
 		services.set(IStorageMainService, storageMainService);
@@ -583,7 +584,7 @@ export class CodeApplication extends Disposable {
 		});
 	}
 
-	private openFirstWindow(accessor: ServicesAccessor, electronIpcServer: ElectronIPCServer, sharedProcessClient: Promise<Client<string>>): ICodeWindow[] {
+	private openFirstWindow(accessor: ServicesAccessor, electronIpcServer: ElectronIPCServer, sharedProcessClient: Promise<Client<string>>, fileProtocolHandler: FileProtocolHandler): ICodeWindow[] {
 
 		// Register more Main IPC services
 		const launchMainService = accessor.get(ILaunchMainService);
@@ -632,6 +633,10 @@ export class CodeApplication extends Disposable {
 		const urlChannel = createChannelReceiver(urlService);
 		electronIpcServer.registerChannel('url', urlChannel);
 
+		const extensionUrlTrustService = accessor.get(IExtensionUrlTrustService);
+		const extensionUrlTrustChannel = createChannelReceiver(extensionUrlTrustService);
+		electronIpcServer.registerChannel('extensionUrlTrust', extensionUrlTrustChannel);
+
 		const webviewManagerService = accessor.get(IWebviewManagerService);
 		const webviewChannel = createChannelReceiver(webviewManagerService);
 		electronIpcServer.registerChannel('webview', webviewChannel);
@@ -645,8 +650,10 @@ export class CodeApplication extends Disposable {
 		electronIpcServer.registerChannel('logger', loggerChannel);
 		sharedProcessClient.then(client => client.registerChannel('logger', loggerChannel));
 
-		// ExtensionHost Debug broadcast service
 		const windowsMainService = this.windowsMainService = accessor.get(IWindowsMainService);
+		fileProtocolHandler.injectWindowsMainService(windowsMainService);
+
+		// ExtensionHost Debug broadcast service
 		electronIpcServer.registerChannel(ExtensionHostDebugBroadcastChannel.ChannelName, new ElectronExtensionHostDebugBroadcastChannel(windowsMainService));
 
 		// Signal phase: ready (services set)
@@ -657,30 +664,32 @@ export class CodeApplication extends Disposable {
 
 		// Check for initial URLs to handle from protocol link invocations
 		const pendingWindowOpenablesFromProtocolLinks: IWindowOpenable[] = [];
-		const pendingProtocolLinksToHandle = coalesce([
-
+		const pendingProtocolLinksToHandle = [
 			// Windows/Linux: protocol handler invokes CLI with --open-url
 			...this.environmentService.args['open-url'] ? this.environmentService.args._urls || [] : [],
 
 			// macOS: open-url events
 			...((<any>global).getOpenUrls() || []) as string[]
-		].map(pendingUrlToHandle => {
+		].map(url => {
 			try {
-				return URI.parse(pendingUrlToHandle);
-			} catch (error) {
-				return undefined;
+				return { uri: URI.parse(url), url };
+			} catch {
+				return null;
 			}
-		})).filter(pendingUriToHandle => {
+		}).filter((obj): obj is { uri: URI, url: string } => {
+			if (!obj) {
+				return false;
+			}
 
 			// If URI should be blocked, filter it out
-			if (this.shouldBlockURI(pendingUriToHandle)) {
+			if (this.shouldBlockURI(obj.uri)) {
 				return false;
 			}
 
 			// Filter out any protocol link that wants to open as window so that
 			// we open the right set of windows on startup and not restore the
 			// previous workspace too.
-			const windowOpenable = this.getWindowOpenableFromProtocolLink(pendingUriToHandle);
+			const windowOpenable = this.getWindowOpenableFromProtocolLink(obj.uri);
 			if (windowOpenable) {
 				pendingWindowOpenablesFromProtocolLinks.push(windowOpenable);
 
@@ -694,7 +703,7 @@ export class CodeApplication extends Disposable {
 		const app = this;
 		const environmentService = this.environmentService;
 		urlService.registerHandler({
-			async handleURL(uri: URI): Promise<boolean> {
+			async handleURL(uri: URI, options?: IOpenURLOptions): Promise<boolean> {
 
 				// If URI should be blocked, behave as if it's handled
 				if (app.shouldBlockURI(uri)) {
@@ -726,7 +735,7 @@ export class CodeApplication extends Disposable {
 
 					await window.ready();
 
-					return urlService.open(uri);
+					return urlService.open(uri, options);
 				}
 
 				return false;
@@ -887,8 +896,25 @@ export class CodeApplication extends Disposable {
 		// Signal phase: after window open
 		this.lifecycleMainService.phase = LifecycleMainPhase.AfterWindowOpen;
 
+		// Windows: install mutex
+		const win32MutexName = product.win32MutexName;
+		if (isWindows && win32MutexName) {
+			try {
+				const WindowsMutex = (require.__$__nodeRequire('windows-mutex') as typeof import('windows-mutex')).Mutex;
+				const mutex = new WindowsMutex(win32MutexName);
+				once(this.lifecycleMainService.onWillShutdown)(() => mutex.release());
+			} catch (e) {
+				this.logService.error(e);
+			}
+		}
+
 		// Remote Authorities
-		this.handleRemoteAuthorities();
+		protocol.registerHttpProtocol(Schemas.vscodeRemoteResource, (request, callback) => {
+			callback({
+				url: request.url.replace(/^vscode-remote-resource:/, 'http:'),
+				method: request.method
+			});
+		});
 
 		// Initialize update service
 		const updateService = accessor.get(IUpdateService);
@@ -920,19 +946,11 @@ export class CodeApplication extends Disposable {
 					'}'
 				];
 				const newArgvString = argvString.substring(0, argvString.length - 2).concat(',\n', additionalArgvContent.join('\n'));
+
 				await this.fileService.writeFile(this.environmentService.argvResource, VSBuffer.fromString(newArgvString));
 			}
 		} catch (error) {
 			this.logService.error(error);
 		}
-	}
-
-	private handleRemoteAuthorities(): void {
-		protocol.registerHttpProtocol(Schemas.vscodeRemoteResource, (request, callback) => {
-			callback({
-				url: request.url.replace(/^vscode-remote-resource:/, 'http:'),
-				method: request.method
-			});
-		});
 	}
 }

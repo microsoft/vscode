@@ -51,12 +51,6 @@ export class PieceTreeTextBuffer extends Disposable implements ITextBuffer {
 		this._pieceTree = new PieceTreeBase(chunks, eol, eolNormalized);
 	}
 
-	dispose(): void {
-		super.dispose();
-		// Manually release reference to previous piece tree to avoid large leaks
-		this._pieceTree = new PieceTreeBase([], '\n', true);
-	}
-
 	// #region TextBuffer
 	public equals(other: ITextBuffer): boolean {
 		if (!(other instanceof PieceTreeTextBuffer)) {

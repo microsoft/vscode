@@ -13,7 +13,7 @@ import { localize } from 'vs/nls';
 import { StartAction, ConfigureAction, SelectAndStartAction } from 'vs/workbench/contrib/debug/browser/debugActions';
 import { IDebugService, CONTEXT_DEBUGGERS_AVAILABLE } from 'vs/workbench/contrib/debug/common/debug';
 import { IEditorService } from 'vs/workbench/services/editor/common/editorService';
-import { ViewPane } from 'vs/workbench/browser/parts/views/viewPaneContainer';
+import { ViewPane } from 'vs/workbench/browser/parts/views/viewPane';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { IViewDescriptorService, IViewsRegistry, Extensions, ViewContentGroups } from 'vs/workbench/common/views';
 import { Registry } from 'vs/platform/registry/common/platform';

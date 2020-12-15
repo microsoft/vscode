@@ -60,8 +60,14 @@ export function extractLocalHostUriMetaDataForPortMapping(uri: URI): { address: 
 	};
 }
 
+export const LOCALHOST_ADDRESSES = ['localhost', '127.0.0.1', '0:0:0:0:0:0:0:1', '::1'];
 export function isLocalhost(host: string): boolean {
-	return host === 'localhost' || host === '127.0.0.1';
+	return LOCALHOST_ADDRESSES.indexOf(host) >= 0;
+}
+
+export const ALL_INTERFACES_ADDRESSES = ['0.0.0.0', '0:0:0:0:0:0:0:0', '::'];
+export function isAllInterfaces(host: string): boolean {
+	return ALL_INTERFACES_ADDRESSES.indexOf(host) >= 0;
 }
 
 function getOtherLocalhost(host: string): string | undefined {

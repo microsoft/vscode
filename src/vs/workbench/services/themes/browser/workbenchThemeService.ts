@@ -36,9 +36,9 @@ import { ILogService } from 'vs/platform/log/common/log';
 import { isWeb } from 'vs/base/common/platform';
 import { ColorScheme } from 'vs/platform/theme/common/theme';
 import { IHostColorSchemeService } from 'vs/workbench/services/themes/common/hostColorSchemeService';
-import { CodiconStyles } from 'vs/base/browser/ui/codicons/codiconStyles';
 import { RunOnceScheduler, Sequencer } from 'vs/base/common/async';
 import { IUserDataInitializationService } from 'vs/workbench/services/userData/browser/userDataInit';
+import { getIconRegistry } from 'vs/platform/theme/common/iconRegistry';
 
 // implementation
 
@@ -140,6 +140,10 @@ export class WorkbenchThemeService implements IWorkbenchThemeService {
 		// themes are loaded asynchronously, we need to initialize
 		// a color theme document with good defaults until the theme is loaded
 		let themeData: ColorThemeData | undefined = ColorThemeData.fromStorageData(this.storageService);
+		if (themeData && this.settings.colorTheme !== themeData.settingsId && this.settings.isDefaultColorTheme()) {
+			// the web has different defaults than the desktop, therefore do not restore when the setting is the default theme and the storage doesn't match that.
+			themeData = undefined;
+		}
 
 		// the preferred color scheme (high contrast, light, dark) has changed since the last start
 		const preferredColorScheme = this.getPreferredColorScheme();
@@ -179,12 +183,13 @@ export class WorkbenchThemeService implements IWorkbenchThemeService {
 		const codiconStyleSheet = createStyleSheet();
 		codiconStyleSheet.id = 'codiconStyles';
 
+		const iconRegistry = getIconRegistry();
 		function updateAll() {
-			codiconStyleSheet.textContent = CodiconStyles.getCSS();
+			codiconStyleSheet.textContent = iconRegistry.getCSS();
 		}
 
 		const delayer = new RunOnceScheduler(updateAll, 0);
-		CodiconStyles.onDidChange(() => delayer.schedule());
+		iconRegistry.onDidChange(() => delayer.schedule());
 		delayer.schedule();
 	}
 
@@ -494,7 +499,7 @@ export class WorkbenchThemeService implements IWorkbenchThemeService {
 		this.onColorThemeChange.fire(this.currentColorTheme);
 
 		// remember theme data for a quick restore
-		if (newTheme.isLoaded) {
+		if (newTheme.isLoaded && settingsTarget) {
 			newTheme.toStorage(this.storageService);
 		}
 

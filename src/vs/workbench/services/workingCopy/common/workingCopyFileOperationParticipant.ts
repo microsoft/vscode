@@ -5,7 +5,7 @@
 
 import { localize } from 'vs/nls';
 import { raceCancellation } from 'vs/base/common/async';
-import { CancellationTokenSource } from 'vs/base/common/cancellation';
+import { CancellationToken, CancellationTokenSource } from 'vs/base/common/cancellation';
 import { ILogService } from 'vs/platform/log/common/log';
 import { IProgressService, ProgressLocation } from 'vs/platform/progress/common/progress';
 import { IDisposable, Disposable, toDisposable } from 'vs/base/common/lifecycle';
@@ -32,13 +32,13 @@ export class WorkingCopyFileOperationParticipant extends Disposable {
 		return toDisposable(() => remove());
 	}
 
-	async participate(files: { source?: URI, target: URI }[], operation: FileOperation, undoRedoGroupId: number | undefined, isUndoing: boolean | undefined): Promise<void> {
+	async participate(files: { source?: URI, target: URI }[], operation: FileOperation, undoRedoGroupId: number | undefined, isUndoing: boolean | undefined, token: CancellationToken | undefined): Promise<void> {
 		const timeout = this.configurationService.getValue<number>('files.participants.timeout');
 		if (timeout <= 0) {
 			return; // disabled
 		}
 
-		const cts = new CancellationTokenSource();
+		const cts = new CancellationTokenSource(token);
 		const timer = setTimeout(() => cts.cancel(), timeout);
 
 		return this.progressService.withProgress({

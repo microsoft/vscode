@@ -14,7 +14,7 @@ import { ITreeView, ITreeViewDescriptor, IViewsRegistry, Extensions, IViewDescri
 import { IViewletViewOptions } from 'vs/workbench/browser/parts/views/viewsViewlet';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { IThemeService, FileThemeIcon, FolderThemeIcon, registerThemingParticipant, ThemeIcon } from 'vs/platform/theme/common/themeService';
-import { ViewPane, IViewPaneOptions } from 'vs/workbench/browser/parts/views/viewPaneContainer';
+import { ViewPane, IViewPaneOptions } from 'vs/workbench/browser/parts/views/viewPane';
 import { Registry } from 'vs/platform/registry/common/platform';
 import { IOpenerService } from 'vs/platform/opener/common/opener';
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
@@ -776,10 +776,17 @@ class TreeDataSource implements IAsyncDataSource<ITreeItem, ITreeItem> {
 	}
 
 	async getChildren(element: ITreeItem): Promise<ITreeItem[]> {
+		let result: ITreeItem[] = [];
 		if (this.treeView.dataProvider) {
-			return this.withProgress(this.treeView.dataProvider.getChildren(element));
+			try {
+				result = await this.withProgress(this.treeView.dataProvider.getChildren(element));
+			} catch (e) {
+				if (!(<string>e.message).startsWith('Bad progress location:')) {
+					throw e;
+				}
+			}
 		}
-		return [];
+		return result;
 	}
 }
 
@@ -880,10 +887,12 @@ class TreeRenderer extends Disposable implements ITreeRenderer<ITreeItem, FuzzyS
 		}
 
 		return {
-			markdown: new Promise<IMarkdownString | string | undefined>(async (resolve) => {
-				await node.resolve();
-				resolve(node.tooltip);
-			}),
+			markdown: (): Promise<IMarkdownString | string | undefined> => {
+				return new Promise<IMarkdownString | string | undefined>(async (resolve) => {
+					await node.resolve();
+					resolve(node.tooltip);
+				});
+			},
 			markdownNotSupportedFallback: resource ? undefined : '' // Passing undefined as the fallback for a resource falls back to the old native hover
 		};
 	}

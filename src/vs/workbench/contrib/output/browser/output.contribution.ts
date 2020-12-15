@@ -32,7 +32,8 @@ import { assertIsDefined } from 'vs/base/common/types';
 import { IWorkbenchLayoutService } from 'vs/workbench/services/layout/browser/layoutService';
 import { ContextKeyEqualsExpr, ContextKeyExpr, IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
 import { ToggleViewAction } from 'vs/workbench/browser/actions/layoutActions';
-import { Codicon, registerIcon } from 'vs/base/common/codicons';
+import { Codicon } from 'vs/base/common/codicons';
+import { registerIcon } from 'vs/platform/theme/common/iconRegistry';
 import { CATEGORIES } from 'vs/workbench/common/actions';
 
 // Register Service

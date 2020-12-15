@@ -277,7 +277,7 @@ export class FeedbackDropdown extends Dropdown {
 		this.sendButton = new Button(buttonsContainer);
 		this.sendButton.enabled = false;
 		this.sendButton.label = nls.localize('tweet', "Tweet");
-		dom.prepend(this.sendButton.element, dom.$('span.codicon.codicon-twitter'));
+		dom.prepend(this.sendButton.element, dom.$('span' + Codicon.twitter.cssSelector));
 		this.sendButton.element.classList.add('send');
 		this.sendButton.element.title = nls.localize('tweetFeedback', "Tweet Feedback");
 		disposables.add(attachButtonStyler(this.sendButton, this.themeService));
