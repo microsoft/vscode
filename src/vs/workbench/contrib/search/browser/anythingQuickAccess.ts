@@ -189,7 +189,7 @@ export class AnythingQuickAccessProvider extends PickerQuickAccessProvider<IAnyt
 		const quickAccessConfig = this.configurationService.getValue<IWorkbenchQuickAccessConfiguration>().workbench.quickOpen;
 
 		return {
-			openEditorPinned: !editorConfig.enablePreviewFromQuickOpen,
+			openEditorPinned: !editorConfig.enablePreviewFromQuickOpen || !editorConfig.enablePreview,
 			openSideBySideDirection: editorConfig.openSideBySideDirection,
 			includeSymbols: searchConfig.quickOpen.includeSymbols,
 			includeHistory: searchConfig.quickOpen.includeHistory,

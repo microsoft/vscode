@@ -55,7 +55,7 @@ export class GotoSymbolQuickAccessProvider extends AbstractGotoSymbolQuickAccess
 		const editorConfig = this.configurationService.getValue<IWorkbenchEditorConfiguration>().workbench.editor;
 
 		return {
-			openEditorPinned: !editorConfig.enablePreviewFromQuickOpen,
+			openEditorPinned: !editorConfig.enablePreviewFromQuickOpen || !editorConfig.enablePreview,
 			openSideBySideDirection: editorConfig.openSideBySideDirection
 		};
 	}
