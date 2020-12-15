@@ -125,6 +125,9 @@
 	margin: 4px 2px;
 }
 
+.monaco-workbench .notebook-text-diff-editor .cell-body {
+	height: 0;
+}
 
 .monaco-workbench .notebook-text-diff-editor .cell-body .output-view-container {
 	user-select: text;
