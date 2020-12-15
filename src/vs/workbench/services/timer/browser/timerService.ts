@@ -14,6 +14,7 @@ import { IPanelService } from 'vs/workbench/services/panel/common/panelService';
 import { IEditorService } from 'vs/workbench/services/editor/common/editorService';
 import { IAccessibilityService } from 'vs/platform/accessibility/common/accessibility';
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
+import { Barrier } from 'vs/base/common/async';
 
 /* __GDPR__FRAGMENT__
 	"IMemoryInfo" : {
@@ -326,10 +327,29 @@ export interface IStartupMetrics {
 
 export interface ITimerService {
 	readonly _serviceBrand: undefined;
-	readonly startupMetrics: Promise<IStartupMetrics>;
 
+	/**
+	 * A promise that resolved when startup timings and perf marks
+	 * are available. This depends on lifecycle phases and extension
+	 * hosts being started.
+	 */
+	whenReady(): Promise<boolean>;
+
+	/**
+	 * Startup metrics. Can ONLY be accessed after `whenReady` has resolved.
+	 */
+	readonly startupMetrics: IStartupMetrics;
+
+	/**
+	 * Deliver performance marks from a source, like the main process or extension hosts.
+	 * The source argument acts as an identifier and therefore it must be unique.
+	 */
 	setPerformanceMarks(source: string, marks: perf.PerformanceMark[]): void;
 
+	/**
+	 * Get all currently known performance marks by source. There is no sorting of the
+	 * returned tuples but the marks of a tuple are guaranteed to be sorted by start times.
+	 */
 	getPerformanceMarks(): [source: string, marks: readonly perf.PerformanceMark[]][];
 }
 
@@ -380,8 +400,9 @@ export abstract class AbstractTimerService implements ITimerService {
 
 	declare readonly _serviceBrand: undefined;
 
-	private readonly _startupMetrics: Promise<IStartupMetrics>;
+	private readonly _barrier = new Barrier();
 	private readonly _marks = new PerfMarks();
+	private _startupMetrics?: IStartupMetrics;
 
 	constructor(
 		@ILifecycleService private readonly _lifecycleService: ILifecycleService,
@@ -394,19 +415,29 @@ export abstract class AbstractTimerService implements ITimerService {
 		@IAccessibilityService private readonly _accessibilityService: IAccessibilityService,
 		@ITelemetryService private readonly _telemetryService: ITelemetryService,
 	) {
-		this._startupMetrics = Promise.all([
+		Promise.all([
 			this._extensionService.whenInstalledExtensionsRegistered(),
 			_lifecycleService.when(LifecyclePhase.Restored)
 		]).then(() => {
-
 			// set perf mark from renderer
 			this.setPerformanceMarks('renderer', perf.getMarks());
-
 			return this._computeStartupMetrics();
 		}).then(metrics => {
+			this._startupMetrics = metrics;
 			this._reportStartupTimes(metrics);
-			return metrics;
+			this._barrier.open();
 		});
+	}
+
+	whenReady(): Promise<boolean> {
+		return this._barrier.wait();
+	}
+
+	get startupMetrics(): IStartupMetrics {
+		if (!this._startupMetrics) {
+			throw new Error('illegal state, MUST NOT access startupMetrics before whenReady has resolved');
+		}
+		return this._startupMetrics;
 	}
 
 	setPerformanceMarks(source: string, marks: perf.PerformanceMark[]): void {
@@ -415,10 +446,6 @@ export abstract class AbstractTimerService implements ITimerService {
 
 	getPerformanceMarks(): [source: string, marks: readonly perf.PerformanceMark[]][] {
 		return this._marks.getEntries();
-	}
-
-	get startupMetrics(): Promise<IStartupMetrics> {
-		return this._startupMetrics;
 	}
 
 	private _reportStartupTimes(metrics: IStartupMetrics): void {
