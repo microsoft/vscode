@@ -6,6 +6,9 @@
 //@ts-check
 'use strict';
 
+const performance = require('./vs/base/common/performance');
+performance.mark('fork/start');
+
 const bootstrap = require('./bootstrap');
 const bootstrapNode = require('./bootstrap-node');
 
