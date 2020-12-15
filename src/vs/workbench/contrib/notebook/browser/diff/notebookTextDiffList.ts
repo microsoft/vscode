@@ -34,6 +34,7 @@ import { SelectionClipboardContributionID } from 'vs/workbench/contrib/codeEdito
 import { TabCompletionController } from 'vs/workbench/contrib/snippets/browser/tabCompletion';
 import { AccessibilityHelpController } from 'vs/workbench/contrib/codeEditor/browser/accessibility/accessibility';
 import { CodiconActionViewItem } from 'vs/workbench/contrib/notebook/browser/view/renderers/cellActionView';
+import { IMouseWheelEvent } from 'vs/base/browser/mouseEvent';
 
 const fixedEditorOptions: IEditorOptions = {
 	padding: {
@@ -339,6 +340,10 @@ export class NotebookTextDiffList extends WorkbenchList<DiffElementViewModelBase
 		// }
 
 		return this.view.elementTop(index);
+	}
+
+	triggerScrollFromMouseWheelEvent(browserEvent: IMouseWheelEvent) {
+		this.view.triggerScrollFromMouseWheelEvent(browserEvent);
 	}
 
 	style(styles: IListStyles) {

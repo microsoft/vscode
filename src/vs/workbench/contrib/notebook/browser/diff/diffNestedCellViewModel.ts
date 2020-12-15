@@ -9,7 +9,7 @@ import { generateUuid } from 'vs/base/common/uuid';
 import { PrefixSumComputer } from 'vs/editor/common/viewModel/prefixSumComputer';
 import { IDiffNestedCellViewModel } from 'vs/workbench/contrib/notebook/browser/diff/common';
 import { IGenericCellViewModel } from 'vs/workbench/contrib/notebook/browser/genericTypes';
-import { ICellOutputViewModel } from 'vs/workbench/contrib/notebook/browser/notebookBrowser';
+import { CellViewModelStateChangeEvent, ICellOutputViewModel } from 'vs/workbench/contrib/notebook/browser/notebookBrowser';
 import { CellOutputViewModel } from 'vs/workbench/contrib/notebook/browser/viewModel/cellOutputViewModel';
 import { NotebookCellTextModel } from 'vs/workbench/contrib/notebook/common/model/notebookCellTextModel';
 import { INotebookService } from 'vs/workbench/contrib/notebook/common/notebookService';
@@ -40,6 +40,17 @@ export class DiffNestedCellViewModel extends Disposable implements IDiffNestedCe
 		return this.textModel.handle;
 	}
 
+	protected readonly _onDidChangeState: Emitter<CellViewModelStateChangeEvent> = this._register(new Emitter<CellViewModelStateChangeEvent>());
+
+	private _hoveringOutput: boolean = false;
+	public get outputIsHovered(): boolean {
+		return this._hoveringOutput;
+	}
+
+	public set outputIsHovered(v: boolean) {
+		this._hoveringOutput = v;
+		this._onDidChangeState.fire({ outputIsHoveredChanged: true });
+	}
 	private _outputViewModels: ICellOutputViewModel[];
 
 	get outputsViewModels() {

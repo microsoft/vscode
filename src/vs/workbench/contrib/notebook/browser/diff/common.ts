@@ -13,6 +13,7 @@ import { CodeEditorWidget } from 'vs/editor/browser/widget/codeEditorWidget';
 import { DiffEditorWidget } from 'vs/editor/browser/widget/diffEditorWidget';
 import { ToolBar } from 'vs/base/browser/ui/toolbar/toolbar';
 import { OutputRenderer } from 'vs/workbench/contrib/notebook/browser/view/output/outputRenderer';
+import { IMouseWheelEvent } from 'vs/base/browser/mouseEvent';
 
 export interface INotebookTextDiffEditor {
 	readonly textModel?: NotebookTextModel;
@@ -23,6 +24,10 @@ export interface INotebookTextDiffEditor {
 	getOutputRenderer(): OutputRenderer;
 	createInset(cellDiffViewModel: DiffElementViewModelBase, cellViewModel: IDiffNestedCellViewModel, output: IInsetRenderOutput, offset: number, rightEditor: boolean): void;
 	hideInset(cellDiffViewModel: DiffElementViewModelBase, cellViewModel: IDiffNestedCellViewModel, output: IDisplayOutputViewModel): void;
+	/**
+	 * Trigger the editor to scroll from scroll event programmatically
+	 */
+	triggerScroll(event: IMouseWheelEvent): void;
 }
 
 export interface IDiffNestedCellViewModel {

@@ -40,7 +40,7 @@ import { OutputRenderer } from 'vs/workbench/contrib/notebook/browser/view/outpu
 import { SequencerByKey } from 'vs/base/common/async';
 import { BackLayerWebView } from 'vs/workbench/contrib/notebook/browser/diff/backLayerWebview2';
 import { generateUuid } from 'vs/base/common/uuid';
-import { StandardMouseEvent } from 'vs/base/browser/mouseEvent';
+import { IMouseWheelEvent, StandardMouseEvent } from 'vs/base/browser/mouseEvent';
 import { DiffNestedCellViewModel } from 'vs/workbench/contrib/notebook/browser/diff/diffNestedCellViewModel';
 import { IGenericCellViewModel } from 'vs/workbench/contrib/notebook/browser/genericTypes';
 
@@ -450,6 +450,9 @@ export class NotebookTextDiffEditor extends EditorPane implements INotebookTextD
 		return new Promise<void>(resolve => { r = resolve; });
 	}
 
+	triggerScroll(event: IMouseWheelEvent) {
+		this._list.triggerScrollFromMouseWheelEvent(event);
+	}
 
 	createInset(cellDiffViewModel: DiffElementViewModelBase, cellViewModel: DiffNestedCellViewModel, output: IInsetRenderOutput, offset: number, rightEditor: boolean): void {
 		this._insetModifyQueueByOutputId.queue(output.source.model.outputId, async () => {

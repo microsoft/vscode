@@ -464,57 +464,56 @@ var requirejs = (function() {
 						} else {
 							(diffElement as SingleSideDiffElementViewModel).updateOutputHeight(outputIndex, outputHeight);
 						}
-						// cell.updateOutputHeight(outputIndex, outputHeight);
 						// this.notebookEditor.layoutNotebookCell(cell, cell.layoutInfo.totalHeight);
 					}
+				} else if (data.type === 'mouseenter') {
+					const info = this.resolveOutputId(data.id);
+					if (info) {
+						const { cell } = info;
+						cell.outputIsHovered = true;
+					}
+				} else if (data.type === 'mouseleave') {
+					const info = this.resolveOutputId(data.id);
+					if (info) {
+						const { cell } = info;
+						cell.outputIsHovered = false;
+					}
+					// 	} else if (data.type === 'scroll-ack') {
+					// 		// const date = new Date();
+					// 		// const top = data.data.top;
+					// 		// console.log('ack top ', top, ' version: ', data.version, ' - ', date.getMinutes() + ':' + date.getSeconds() + ':' + date.getMilliseconds());
+				} else if (data.type === 'did-scroll-wheel') {
+					this.notebookEditor.triggerScroll({
+						...data.payload,
+						preventDefault: () => { },
+						stopPropagation: () => { }
+					});
+					// 	} else if (data.type === 'focus-editor') {
+					// 		const info = this.resolveOutputId(data.id);
+					// 		if (info) {
+					// 			if (data.focusNext) {
+					// 				const idx = this.notebookEditor.viewModel?.getCellIndex(info.cell);
+					// 				if (typeof idx !== 'number') {
+					// 					return;
+					// 				}
+
+					// 				const newCell = this.notebookEditor.viewModel?.viewCells[idx + 1];
+					// 				if (!newCell) {
+					// 					return;
+					// 				}
+
+					// 				this.notebookEditor.focusNotebookCell(newCell, 'editor');
+					// 			} else {
+					// 				this.notebookEditor.focusNotebookCell(info.cell, 'editor');
+					// 			}
+					// 		}
+					// 	} else if (data.type === 'clicked-data-url') {
+					// 		this._onDidClickDataLink(data);
+					// 	} else if (data.type === 'customRendererMessage') {
+					// 		this._onMessage.fire({ message: data.message, forRenderer: data.rendererId });
+					// 	}
+					// 	return;
 				}
-				// 	} else if (data.type === 'mouseenter') {
-				// 		const info = this.resolveOutputId(data.id);
-				// 		if (info) {
-				// 			const { cell } = info;
-				// 			cell.outputIsHovered = true;
-				// 		}
-				// 	} else if (data.type === 'mouseleave') {
-				// 		const info = this.resolveOutputId(data.id);
-				// 		if (info) {
-				// 			const { cell } = info;
-				// 			cell.outputIsHovered = false;
-				// 		}
-				// 	} else if (data.type === 'scroll-ack') {
-				// 		// const date = new Date();
-				// 		// const top = data.data.top;
-				// 		// console.log('ack top ', top, ' version: ', data.version, ' - ', date.getMinutes() + ':' + date.getSeconds() + ':' + date.getMilliseconds());
-				// 	} else if (data.type === 'did-scroll-wheel') {
-				// 		this.notebookEditor.triggerScroll({
-				// 			...data.payload,
-				// 			preventDefault: () => { },
-				// 			stopPropagation: () => { }
-				// 		});
-				// 	} else if (data.type === 'focus-editor') {
-				// 		const info = this.resolveOutputId(data.id);
-				// 		if (info) {
-				// 			if (data.focusNext) {
-				// 				const idx = this.notebookEditor.viewModel?.getCellIndex(info.cell);
-				// 				if (typeof idx !== 'number') {
-				// 					return;
-				// 				}
-
-				// 				const newCell = this.notebookEditor.viewModel?.viewCells[idx + 1];
-				// 				if (!newCell) {
-				// 					return;
-				// 				}
-
-				// 				this.notebookEditor.focusNotebookCell(newCell, 'editor');
-				// 			} else {
-				// 				this.notebookEditor.focusNotebookCell(info.cell, 'editor');
-				// 			}
-				// 		}
-				// 	} else if (data.type === 'clicked-data-url') {
-				// 		this._onDidClickDataLink(data);
-				// 	} else if (data.type === 'customRendererMessage') {
-				// 		this._onMessage.fire({ message: data.message, forRenderer: data.rendererId });
-				// 	}
-				// 	return;
 			}
 
 			this._onMessage.fire({ message: data });

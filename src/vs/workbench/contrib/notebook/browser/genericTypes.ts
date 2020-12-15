@@ -12,6 +12,7 @@ export interface IGenericCellViewModel {
 	handle: number;
 	uri: URI;
 	metadata: NotebookCellMetadata;
+	outputIsHovered: boolean;
 	outputsViewModels: ICellOutputViewModel[];
 	getOutputOffset(index: number): number;
 	updateOutputHeight(index: number, height: number): void;
