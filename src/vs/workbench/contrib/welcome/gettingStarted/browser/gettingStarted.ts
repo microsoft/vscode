@@ -20,10 +20,11 @@ import { IProductService } from 'vs/platform/product/common/productService';
 import { IGettingStartedCategoryWithProgress, IGettingStartedService } from 'vs/workbench/services/gettingStarted/common/gettingStartedService';
 import { registerThemingParticipant } from 'vs/platform/theme/common/themeService';
 import { buttonBackground as welcomeButtonBackground, buttonHoverBackground as welcomeButtonHoverBackground, welcomePageBackground } from 'vs/workbench/contrib/welcome/page/browser/welcomePageColors';
-import { activeContrastBorder, buttonBackground, buttonForeground, buttonHoverBackground, contrastBorder, descriptionForeground, focusBorder, foreground, textLinkActiveForeground, textLinkForeground } from 'vs/platform/theme/common/colorRegistry';
+import { activeContrastBorder, buttonBackground, buttonForeground, buttonHoverBackground, buttonSecondaryBackground, contrastBorder, descriptionForeground, focusBorder, foreground, textLinkActiveForeground, textLinkForeground } from 'vs/platform/theme/common/colorRegistry';
 import { getExtraColor } from 'vs/workbench/contrib/welcome/walkThrough/common/walkThroughUtils';
 import { IKeybindingService } from 'vs/platform/keybinding/common/keybinding';
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
+import { DomScrollableElement } from 'vs/base/browser/ui/scrollbar/scrollableElement';
 
 export const gettingStartedInputTypeId = 'workbench.editors.gettingStartedInput';
 const telemetryFrom = 'gettingStartedPage';
@@ -43,6 +44,8 @@ export class GettingStartedPage extends Disposable {
 
 	private gettingStartedCategories: IGettingStartedCategoryWithProgress[];
 	private currentCategory: IGettingStartedCategoryWithProgress | undefined;
+
+	private scrollbar: DomScrollableElement | undefined;
 
 	constructor(
 		initialState: { selectedCategory?: string, selectedTask?: string },
@@ -68,7 +71,8 @@ export class GettingStartedPage extends Disposable {
 			name: localize('editorGettingStarted.title', "Getting Started"),
 			resource,
 			telemetryFrom,
-			onReady: (container: HTMLElement) => this.onReady(container)
+			onReady: (container: HTMLElement) => this.onReady(container),
+			layout: () => this.layout(),
 		});
 
 		this.editorInput.selectedCategory = initialState.selectedCategory;
@@ -176,11 +180,14 @@ export class GettingStartedPage extends Disposable {
 			}
 			this.editorInput.selectedTask = id;
 			const taskToExpand = assertIsDefined(this.currentCategory.content.items.find(task => task.id === id));
-			mediaElement.setAttribute('src', taskToExpand.media.toString());
+
+			mediaElement.setAttribute('src', taskToExpand.media.path.toString());
+			mediaElement.setAttribute('alt', taskToExpand.media.altText);
 			taskElement.parentElement?.querySelectorAll('.expanded').forEach(node => node.classList.remove('expanded'));
 			taskElement.classList.add('expanded');
 		} else {
 			mediaElement.setAttribute('src', '');
+			mediaElement.setAttribute('alt', '');
 		}
 	}
 
@@ -202,21 +209,29 @@ export class GettingStartedPage extends Disposable {
 					$('.codicon.codicon-' + category.codicon, {}), categoryDescriptionElement);
 			});
 
+		const categoriesSlide = assertIsDefined(document.getElementById('gettingStartedSlideCategory'));
+		const tasksSlide = assertIsDefined(document.getElementById('gettingStartedSlideDetails'));
+
 		const rightColumn = assertIsDefined(container.querySelector('#getting-started-detail-right'));
 		rightColumn.appendChild($('img#getting-started-media'));
 
-		const categoriesContainer = assertIsDefined(document.getElementById('getting-started-categories-container'));
+		const categoryScrollContainer = $('#getting-started-categories-scrolling-container');
+		const categoriesContainer = $('#getting-started-categories-container');
 		categoryElements.forEach(element => {
 			categoriesContainer.appendChild(element);
 		});
+
+		categoryScrollContainer.appendChild(categoriesContainer);
+		this.scrollbar = this._register(new DomScrollableElement(categoryScrollContainer, {}));
+		categoriesSlide.appendChild(this.scrollbar.getDomNode());
+		categoriesSlide.appendChild($('.gap'));
+		this.scrollbar.scanDomNode();
 
 		this.updateCategoryProgress();
 
 		assertIsDefined(document.getElementById('product-name')).textContent = this.productService.nameLong;
 		this.registerDispatchListeners(container);
 
-		const categoriesSlide = assertIsDefined(document.getElementById('gettingStartedSlideCategory'));
-		const tasksSlide = assertIsDefined(document.getElementById('gettingStartedSlideDetails'));
 
 		if (this.editorInput.selectedCategory) {
 			this.currentCategory = this.gettingStartedCategories.find(category => category.id === this.editorInput.selectedCategory);
@@ -228,6 +243,10 @@ export class GettingStartedPage extends Disposable {
 		} else {
 			tasksSlide.classList.add('next');
 		}
+	}
+
+	private layout() {
+		this.scrollbar?.scanDomNode();
 	}
 
 	private updateCategoryProgress() {
@@ -284,23 +303,24 @@ export class GettingStartedPage extends Disposable {
 		const categoryElements = category.content.items.map(
 			(task, i, arr) => $('button.getting-started-task',
 				{ 'x-dispatch': 'selectTask:' + task.id, id: 'getting-started-task-' + task.id },
-				$('.codicon' + (task.done ? '.codicon-star-full' : '.codicon-star-empty'), { id: 'done-task-' + task.id }),
+				$('.codicon' + (task.done ? '.complete.codicon-pass-filled' : '.codicon-circle-large-outline'), { id: 'done-task-' + task.id }),
 				$('.task-description-container', {},
 					$('h3.task-title', {}, task.title),
 					$('.task-description.description', {}, task.description),
-					...(
-						task.button
-							? [$('button.emphasis.getting-started-task-action', { 'x-dispatch': 'runTaskAction:' + task.id },
-								task.button.title + this.getKeybindingLabel(task.button.command)
-							)]
-							: []),
-					...(
-						arr[i + 1]
-							? [
-								$('a.task-next',
-									{ 'x-dispatch': 'selectTask:' + arr[i + 1].id }, localize('next', "Next")),
-							] : []
-					)
+					$('.actions', {},
+						...(
+							task.button
+								? [$('button.emphasis.getting-started-task-action', { 'x-dispatch': 'runTaskAction:' + task.id },
+									task.button.title + this.getKeybindingLabel(task.button.command)
+								)]
+								: []),
+						...(
+							arr[i + 1]
+								? [
+									$('a.task-next',
+										{ 'x-dispatch': 'selectTask:' + arr[i + 1].id }, localize('next', "Next")),
+								] : []
+						))
 				)));
 
 		const detailContainer = assertIsDefined(document.getElementById('getting-started-detail-container'));
@@ -394,7 +414,12 @@ registerThemingParticipant((theme, collector) => {
 	if (emphasisButtonBackground) {
 		collector.addRule(`.monaco-workbench .part.editor > .content .walkThroughContent .gettingStartedContainer button.emphasis { background: ${emphasisButtonBackground}; }`);
 		collector.addRule(`.monaco-workbench .part.editor > .content .walkThroughContent .gettingStartedContainer .getting-started-category .codicon { color: ${emphasisButtonBackground} }`);
-		collector.addRule(`.monaco-workbench .part.editor > .content .walkThroughContent .gettingStartedContainer .gettingStartedSlide.detail .getting-started-task .codicon { color: ${emphasisButtonBackground} } `);
+		collector.addRule(`.monaco-workbench .part.editor > .content .walkThroughContent .gettingStartedContainer .gettingStartedSlide.detail .getting-started-task .codicon.complete { color: ${emphasisButtonBackground} } `);
+	}
+
+	const pendingItemColor = theme.getColor(buttonSecondaryBackground);
+	if (pendingItemColor) {
+		collector.addRule(`.monaco-workbench .part.editor > .content .walkThroughContent .gettingStartedContainer .gettingStartedSlide.detail .getting-started-task .codicon { color: ${pendingItemColor} } `);
 	}
 
 	const emphasisButtonHoverBackground = theme.getColor(buttonHoverBackground);

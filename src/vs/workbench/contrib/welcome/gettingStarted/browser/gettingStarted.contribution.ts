@@ -44,7 +44,7 @@ if (product.quality !== 'stable') {
 		properties: {
 			'workbench.experimental.gettingStarted': {
 				type: 'boolean',
-				description: localize('gettingStartedDescription', "Enables an experimental Getting Started page, accesible via the Help menu."),
+				description: localize('gettingStartedDescription', "Enables an experimental Getting Started page, available via the Help menu."),
 				default: false,
 			}
 		}

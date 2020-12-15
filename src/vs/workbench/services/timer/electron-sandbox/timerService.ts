@@ -33,6 +33,7 @@ export class TimerService extends AbstractTimerService {
 		@ITelemetryService telemetryService: ITelemetryService,
 	) {
 		super(lifecycleService, contextService, extensionService, updateService, viewletService, panelService, editorService, accessibilityService, telemetryService);
+		this.setPerformanceMarks('main', _environmentService.configuration.perfMarks);
 	}
 
 	protected _isInitialStartup(): boolean {

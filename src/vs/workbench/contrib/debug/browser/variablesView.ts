@@ -16,7 +16,7 @@ import { renderViewTree, renderVariable, IInputBoxOptions, AbstractExpressionsRe
 import { IAction } from 'vs/base/common/actions';
 import { CopyValueAction } from 'vs/workbench/contrib/debug/browser/debugActions';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
-import { ViewPane } from 'vs/workbench/browser/parts/views/viewPaneContainer';
+import { ViewPane } from 'vs/workbench/browser/parts/views/viewPane';
 import { IListAccessibilityProvider } from 'vs/base/browser/ui/list/listWidget';
 import { IListVirtualDelegate } from 'vs/base/browser/ui/list/list';
 import { ITreeRenderer, ITreeNode, ITreeMouseEvent, ITreeContextMenuEvent, IAsyncDataSource } from 'vs/base/browser/ui/tree/tree';

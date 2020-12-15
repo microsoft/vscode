@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { zoomLevelToZoomFactor } from 'vs/platform/windows/common/windows';
-import { importEntries, mark } from 'vs/base/common/performance';
+import { mark } from 'vs/base/common/performance';
 import { Workbench } from 'vs/workbench/browser/workbench';
 import { NativeWindow } from 'vs/workbench/electron-sandbox/window';
 import { setZoomLevel, setZoomFactor, setFullscreen } from 'vs/base/browser/browser';
@@ -16,7 +16,7 @@ import { reviveWorkspaceIdentifier } from 'vs/platform/workspaces/common/workspa
 import { ILogService } from 'vs/platform/log/common/log';
 import { Schemas } from 'vs/base/common/network';
 import { IWorkspaceContextService } from 'vs/platform/workspace/common/workspace';
-import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
+import { IWorkbenchConfigurationService } from 'vs/workbench/services/configuration/common/configuration';
 import { IStorageService } from 'vs/platform/storage/common/storage';
 import { Disposable } from 'vs/base/common/lifecycle';
 import { IMainProcessService, MainProcessService } from 'vs/platform/ipc/electron-sandbox/mainProcessService';
@@ -51,9 +51,6 @@ class DesktopMain extends Disposable {
 
 		// Massage configuration file URIs
 		this.reviveUris();
-
-		// Setup perf
-		importEntries(this.configuration.perfEntries);
 
 		// Browser config
 		const zoomLevel = this.configuration.zoomLevel || 0;
@@ -92,7 +89,7 @@ class DesktopMain extends Disposable {
 		const services = await this.initServices();
 
 		await domContentLoaded();
-		mark('willStartWorkbench');
+		mark('code/willStartWorkbench');
 
 		// Create Workbench
 		const workbench = new Workbench(document.body, services.serviceCollection, services.logService);
@@ -117,7 +114,7 @@ class DesktopMain extends Disposable {
 
 		// Workbench Lifecycle
 		this._register(workbench.onShutdown(() => this.dispose()));
-		this._register(workbench.onWillShutdown(event => event.join(storageService.close())));
+		this._register(workbench.onWillShutdown(event => event.join(storageService.close(), 'join.closeStorage')));
 	}
 
 	private onWindowResize(e: Event, retry: boolean, workbench: Workbench): void {
@@ -239,7 +236,7 @@ class DesktopMain extends Disposable {
 				serviceCollection.set(IWorkspaceContextService, service);
 
 				// Configuration
-				serviceCollection.set(IConfigurationService, new SimpleConfigurationService());
+				serviceCollection.set(IWorkbenchConfigurationService, new SimpleConfigurationService());
 
 				return service;
 			}),

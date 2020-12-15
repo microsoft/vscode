@@ -6,7 +6,7 @@
 import 'vs/css!./media/panel';
 import * as nls from 'vs/nls';
 import * as dom from 'vs/base/browser/dom';
-import { basename, isEqual } from 'vs/base/common/resources';
+import { basename } from 'vs/base/common/resources';
 import { IAction, Action } from 'vs/base/common/actions';
 import { CollapseAllAction } from 'vs/base/browser/ui/tree/treeDefaults';
 import { isCodeEditor } from 'vs/editor/browser/editorBrowser';
@@ -20,7 +20,7 @@ import { CommandsRegistry } from 'vs/platform/commands/common/commands';
 import { textLinkForeground, textLinkActiveForeground, focusBorder, textPreformatForeground } from 'vs/platform/theme/common/colorRegistry';
 import { ResourceLabels } from 'vs/workbench/browser/labels';
 import { CommentsList, COMMENTS_VIEW_ID, COMMENTS_VIEW_TITLE } from 'vs/workbench/contrib/comments/browser/commentsTreeViewer';
-import { ViewPane, IViewPaneOptions } from 'vs/workbench/browser/parts/views/viewPaneContainer';
+import { ViewPane, IViewPaneOptions } from 'vs/workbench/browser/parts/views/viewPane';
 import { IViewDescriptorService, IViewsService } from 'vs/workbench/common/views';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
@@ -28,6 +28,7 @@ import { IContextMenuService } from 'vs/platform/contextview/browser/contextView
 import { IKeybindingService } from 'vs/platform/keybinding/common/keybinding';
 import { IOpenerService } from 'vs/platform/opener/common/opener';
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
+import { IUriIdentityService } from 'vs/workbench/services/uriIdentity/common/uriIdentity';
 
 export class CommentsPanel extends ViewPane {
 	private treeLabels!: ResourceLabels;
@@ -52,6 +53,7 @@ export class CommentsPanel extends ViewPane {
 		@IThemeService themeService: IThemeService,
 		@ICommentService private readonly commentService: ICommentService,
 		@ITelemetryService telemetryService: ITelemetryService,
+		@IUriIdentityService private readonly uriIdentityService: IUriIdentityService
 	) {
 		super(options, keybindingService, contextMenuService, configurationService, contextKeyService, viewDescriptorService, instantiationService, openerService, themeService, telemetryService);
 	}
@@ -206,7 +208,7 @@ export class CommentsPanel extends ViewPane {
 
 		const activeEditor = this.editorService.activeEditor;
 		let currentActiveResource = activeEditor ? activeEditor.resource : undefined;
-		if (currentActiveResource && isEqual(currentActiveResource, element.resource)) {
+		if (this.uriIdentityService.extUri.isEqual(element.resource, currentActiveResource)) {
 			const threadToReveal = element instanceof ResourceWithCommentThreads ? element.commentThreads[0].threadId : element.threadId;
 			const commentToReveal = element instanceof ResourceWithCommentThreads ? element.commentThreads[0].comment.uniqueIdInThread : element.comment.uniqueIdInThread;
 			const control = this.editorService.activeTextEditorControl;

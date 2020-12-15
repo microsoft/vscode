@@ -30,6 +30,7 @@ import { isEqual } from 'vs/base/common/resources';
 import { URI } from 'vs/base/common/uri';
 import { IViewsService, ViewContainerLocation, IViewDescriptorService } from 'vs/workbench/common/views';
 import { ILifecycleService } from 'vs/workbench/services/lifecycle/common/lifecycle';
+import { isWeb } from 'vs/base/common/platform';
 
 type UserAccountClassification = {
 	id: { classification: 'EndUserPseudonymizedInformation', purpose: 'BusinessInsight' };
@@ -268,7 +269,9 @@ export class UserDataSyncWorkbenchService extends Disposable implements IUserDat
 		const syncTitle = SYNC_TITLE;
 		const title = `${syncTitle} [(${localize('show log', "show log")})](command:${SHOW_SYNC_LOG_COMMAND_ID})`;
 		const manualSyncTask = await this.userDataSyncService.createManualSyncTask();
-		const disposable = this.lifecycleService.onBeforeShutdown(e => e.veto(this.onBeforeShutdown(manualSyncTask)));
+		const disposable = isWeb
+			? Disposable.None /* In web long running shutdown handlers will not work */
+			: this.lifecycleService.onBeforeShutdown(e => e.veto(this.onBeforeShutdown(manualSyncTask), 'veto.settingsSync'));
 
 		try {
 			await this.syncBeforeTurningOn(title, manualSyncTask);

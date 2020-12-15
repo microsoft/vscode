@@ -168,6 +168,9 @@ async function deleteFiles(explorerService: IExplorerService, workingCopyFileSer
 	}
 
 	let confirmation: IConfirmationResult;
+	// We do not support undo of folders, so in that case the delete action is irreversible
+	const deleteDetail = distinctElements.some(e => e.isDirectory) ? nls.localize('irreversible', "This action is irreversible!") :
+		distinctElements.length > 1 ? nls.localize('restorePlural', "You can restore these files using the Undo command") : nls.localize('restore', "You can restore this file using the Undo command");
 
 	// Check if we need to ask for confirmation at all
 	if (skipConfirm || (useTrash && configurationService.getValue<boolean>(CONFIRM_DELETE_SETTING_KEY) === false)) {
@@ -199,7 +202,7 @@ async function deleteFiles(explorerService: IExplorerService, workingCopyFileSer
 	else {
 		let { message, detail } = getDeleteMessage(distinctElements);
 		detail += detail ? '\n' : '';
-		detail += nls.localize('irreversible', "This action is irreversible!");
+		detail += deleteDetail;
 		confirmation = await dialogService.confirm({
 			message,
 			detail,
@@ -222,8 +225,8 @@ async function deleteFiles(explorerService: IExplorerService, workingCopyFileSer
 	try {
 		const resourceFileEdits = distinctElements.map(e => new ResourceFileEdit(e.resource, undefined, { recursive: true, folder: e.isDirectory, skipTrashBin: !useTrash, maxSize: MAX_UNDO_FILE_SIZE }));
 		const options = {
-			undoLabel: distinctElements.length > 1 ? nls.localize('deleteBulkEdit', "Delete {0} files", distinctElements.length) : nls.localize('deleteFileBulkEdit', "Delete {0}", distinctElements[0].name),
-			progressLabel: distinctElements.length > 1 ? nls.localize('deletingBulkEdit', "Deleting {0} files", distinctElements.length) : nls.localize('deletingFileBulkEdit', "Deleting {0}", distinctElements[0].name),
+			undoLabel: distinctElements.length > 1 ? nls.localize({ key: 'deleteBulkEdit', comment: ['Placeholder will be replaced by the number of files deleted'] }, "Delete {0} files", distinctElements.length) : nls.localize({ key: 'deleteFileBulkEdit', comment: ['Placeholder will be replaced by the name of the file deleted'] }, "Delete {0}", distinctElements[0].name),
+			progressLabel: distinctElements.length > 1 ? nls.localize({ key: 'deletingBulkEdit', comment: ['Placeholder will be replaced by the number of files deleted'] }, "Deleting {0} files", distinctElements.length) : nls.localize({ key: 'deletingFileBulkEdit', comment: ['Placeholder will be replaced by the name of the file deleted'] }, "Deleting {0}", distinctElements[0].name),
 		};
 		await explorerService.applyBulkEdit(resourceFileEdits, options);
 	} catch (error) {
@@ -234,7 +237,7 @@ async function deleteFiles(explorerService: IExplorerService, workingCopyFileSer
 		let primaryButton: string;
 		if (useTrash) {
 			errorMessage = isWindows ? nls.localize('binFailed', "Failed to delete using the Recycle Bin. Do you want to permanently delete instead?") : nls.localize('trashFailed', "Failed to delete using the Trash. Do you want to permanently delete instead?");
-			detailMessage = nls.localize('irreversible', "This action is irreversible!");
+			detailMessage = deleteDetail;
 			primaryButton = nls.localize({ key: 'deletePermanentlyButtonLabel', comment: ['&& denotes a mnemonic'] }, "&&Delete Permanently");
 		} else {
 			errorMessage = toErrorMessage(error, false);
@@ -914,8 +917,8 @@ async function openExplorerAndCreate(accessor: ServicesAccessor, isFolder: boole
 		try {
 			const resourceToCreate = resources.joinPath(folder.resource, value);
 			await explorerService.applyBulkEdit([new ResourceFileEdit(undefined, resourceToCreate, { folder: isFolder })], {
-				progressLabel: nls.localize('newBulkEdit', "New {0}", value),
-				undoLabel: nls.localize('newBulkEdit', "New {0}", value)
+				undoLabel: nls.localize('createBulkEdit', "Create {0}", value),
+				progressLabel: nls.localize('creatingBulkEdit', "Creating {0}", value)
 			});
 			await refreshIfSeparator(value, explorerService);
 
@@ -1025,7 +1028,7 @@ export const cutFileHandler = async (accessor: ServicesAccessor) => {
 };
 
 export const DOWNLOAD_COMMAND_ID = 'explorer.download';
-const downloadFileHandler = (accessor: ServicesAccessor) => {
+const downloadFileHandler = async (accessor: ServicesAccessor) => {
 	const logService = accessor.get(ILogService);
 	const fileService = accessor.get(IFileService);
 	const fileDialogService = accessor.get(IFileDialogService);
@@ -1037,7 +1040,7 @@ const downloadFileHandler = (accessor: ServicesAccessor) => {
 
 	const cts = new CancellationTokenSource();
 
-	const downloadPromise = progressService.withProgress({
+	await progressService.withProgress({
 		location: ProgressLocation.Window,
 		delay: 800,
 		cancellable: isWeb,
@@ -1257,9 +1260,6 @@ const downloadFileHandler = (accessor: ServicesAccessor) => {
 			}
 		}));
 	}, () => cts.dispose(true));
-
-	// Also indicate progress in the files view
-	progressService.withProgress({ location: VIEW_ID, delay: 800 }, () => downloadPromise);
 };
 
 CommandsRegistry.registerCommand({
@@ -1303,24 +1303,28 @@ export const pasteFileHandler = async (accessor: ServicesAccessor) => {
 			return { source: fileToPaste, target: targetFile };
 		}));
 
-		// Move/Copy File
-		if (pasteShouldMove) {
-			const resourceFileEdits = sourceTargetPairs.map(pair => new ResourceFileEdit(pair.source, pair.target));
-			const options = {
-				progressLabel: sourceTargetPairs.length > 1 ? nls.localize('movingBulkEdit', "Moving {0} files", sourceTargetPairs.length) : nls.localize('movingFileBulkEdit', "Moving {0}", resources.basenameOrAuthority(sourceTargetPairs[0].target)),
-				undoLabel: sourceTargetPairs.length > 1 ? nls.localize('moveBulkEdit', "Move {0} files", sourceTargetPairs.length) : nls.localize('moveFileBulkEdit', "Move {0}", resources.basenameOrAuthority(sourceTargetPairs[0].target))
-			};
-			await explorerService.applyBulkEdit(resourceFileEdits, options);
-		} else {
-			const resourceFileEdits = sourceTargetPairs.map(pair => new ResourceFileEdit(pair.source, pair.target, { copy: true }));
-			const options = {
-				progressLabel: sourceTargetPairs.length > 1 ? nls.localize('copyingBulkEdit', "Copying {0} files", sourceTargetPairs.length) : nls.localize('copyingFileBulkEdit', "Copying {0}", resources.basenameOrAuthority(sourceTargetPairs[0].target)),
-				undoLabel: sourceTargetPairs.length > 1 ? nls.localize('copyBulkEdit', "Copy {0} files", sourceTargetPairs.length) : nls.localize('copyFileBulkEdit', "Copy {0}", resources.basenameOrAuthority(sourceTargetPairs[0].target))
-			};
-			await explorerService.applyBulkEdit(resourceFileEdits, options);
-		}
-
 		if (sourceTargetPairs.length >= 1) {
+			// Move/Copy File
+			if (pasteShouldMove) {
+				const resourceFileEdits = sourceTargetPairs.map(pair => new ResourceFileEdit(pair.source, pair.target));
+				const options = {
+					progressLabel: sourceTargetPairs.length > 1 ? nls.localize({ key: 'movingBulkEdit', comment: ['Placeholder will be replaced by the number of files being moved'] }, "Moving {0} files", sourceTargetPairs.length)
+						: nls.localize({ key: 'movingFileBulkEdit', comment: ['Placeholder will be replaced by the name of the file moved.'] }, "Moving {0}", resources.basenameOrAuthority(sourceTargetPairs[0].target)),
+					undoLabel: sourceTargetPairs.length > 1 ? nls.localize({ key: 'moveBulkEdit', comment: ['Placeholder will be replaced by the number of files being moved'] }, "Move {0} files", sourceTargetPairs.length)
+						: nls.localize({ key: 'moveFileBulkEdit', comment: ['Placeholder will be replaced by the name of the file moved.'] }, "Move {0}", resources.basenameOrAuthority(sourceTargetPairs[0].target))
+				};
+				await explorerService.applyBulkEdit(resourceFileEdits, options);
+			} else {
+				const resourceFileEdits = sourceTargetPairs.map(pair => new ResourceFileEdit(pair.source, pair.target, { copy: true }));
+				const options = {
+					progressLabel: sourceTargetPairs.length > 1 ? nls.localize({ key: 'copyingBulkEdit', comment: ['Placeholder will be replaced by the number of files being copied'] }, "Copying {0} files", sourceTargetPairs.length)
+						: nls.localize({ key: 'copyingFileBulkEdit', comment: ['Placeholder will be replaced by the name of the file copied.'] }, "Copying {0}", resources.basenameOrAuthority(sourceTargetPairs[0].target)),
+					undoLabel: sourceTargetPairs.length > 1 ? nls.localize({ key: 'copyBulkEdit', comment: ['Placeholder will be replaced by the number of files being copied'] }, "Copy {0} files", sourceTargetPairs.length)
+						: nls.localize({ key: 'copyFileBulkEdit', comment: ['Placeholder will be replaced by the name of the file copied.'] }, "Copy {0}", resources.basenameOrAuthority(sourceTargetPairs[0].target))
+				};
+				await explorerService.applyBulkEdit(resourceFileEdits, options);
+			}
+
 			const pair = sourceTargetPairs[0];
 			await explorerService.select(pair.target);
 			if (sourceTargetPairs.length === 1) {

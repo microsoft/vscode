@@ -130,7 +130,7 @@ function _createExtHostProtocol(): Promise<PersistentProtocol> {
 					} else {
 						clearTimeout(timer);
 						protocol = new PersistentProtocol(socket, initialDataChunk);
-						protocol.onClose(() => onTerminate());
+						protocol.onDidDispose(() => onTerminate());
 						resolve(protocol);
 
 						// Wait for rich client to reconnect

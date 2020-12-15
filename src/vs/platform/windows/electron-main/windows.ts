@@ -4,7 +4,6 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { IWindowOpenable, IOpenEmptyWindowOptions, INativeWindowConfiguration } from 'vs/platform/windows/common/windows';
-import { OpenContext } from 'vs/platform/windows/node/window';
 import { NativeParsedArgs } from 'vs/platform/environment/common/argv';
 import { Event } from 'vs/base/common/event';
 import { createDecorator } from 'vs/platform/instantiation/common/instantiation';
@@ -15,6 +14,27 @@ import { URI } from 'vs/base/common/uri';
 import { Rectangle, BrowserWindow, WebContents } from 'electron';
 import { IDisposable } from 'vs/base/common/lifecycle';
 import { CancellationToken } from 'vs/base/common/cancellation';
+
+export const enum OpenContext {
+
+	// opening when running from the command line
+	CLI,
+
+	// macOS only: opening from the dock (also when opening files to a running instance from desktop)
+	DOCK,
+
+	// opening from the main application window
+	MENU,
+
+	// opening from a file or folder dialog
+	DIALOG,
+
+	// opening from the OS's UI
+	DESKTOP,
+
+	// opening through the API
+	API
+}
 
 export interface IWindowState {
 	width?: number;
@@ -104,9 +124,11 @@ export interface IWindowsMainService {
 
 	readonly _serviceBrand: undefined;
 
+	readonly onWindowsCountChanged: Event<IWindowsCountChangedEvent>;
+
 	readonly onWindowOpened: Event<ICodeWindow>;
 	readonly onWindowReady: Event<ICodeWindow>;
-	readonly onWindowsCountChanged: Event<IWindowsCountChangedEvent>;
+	readonly onWindowDestroyed: Event<ICodeWindow>;
 
 	open(openConfig: IOpenConfiguration): ICodeWindow[];
 	openEmptyWindow(openConfig: IOpenEmptyConfiguration, options?: IOpenEmptyWindowOptions): ICodeWindow[];
@@ -115,13 +137,14 @@ export interface IWindowsMainService {
 	sendToFocused(channel: string, ...args: any[]): void;
 	sendToAll(channel: string, payload?: any, windowIdsToIgnore?: number[]): void;
 
+	getWindows(): ICodeWindow[];
+	getWindowCount(): number;
+
 	getFocusedWindow(): ICodeWindow | undefined;
 	getLastActiveWindow(): ICodeWindow | undefined;
 
 	getWindowById(windowId: number): ICodeWindow | undefined;
 	getWindowByWebContents(webContents: WebContents): ICodeWindow | undefined;
-	getWindows(): ICodeWindow[];
-	getWindowCount(): number;
 }
 
 export interface IBaseOpenConfiguration {

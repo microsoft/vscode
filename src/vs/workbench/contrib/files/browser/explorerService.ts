@@ -10,7 +10,7 @@ import { IFilesConfiguration, SortOrder } from 'vs/workbench/contrib/files/commo
 import { ExplorerItem, ExplorerModel } from 'vs/workbench/contrib/files/common/explorerModel';
 import { URI } from 'vs/base/common/uri';
 import { FileOperationEvent, FileOperation, IFileService, FileChangesEvent, FileChangeType, IResolveFileOptions } from 'vs/platform/files/common/files';
-import { dirname } from 'vs/base/common/resources';
+import { dirname, basename } from 'vs/base/common/resources';
 import { IConfigurationService, IConfigurationChangeEvent } from 'vs/platform/configuration/common/configuration';
 import { IClipboardService } from 'vs/platform/clipboard/common/clipboardService';
 import { IEditorService } from 'vs/workbench/services/editor/common/editorService';
@@ -21,6 +21,7 @@ import { UndoRedoSource } from 'vs/platform/undoRedo/common/undoRedo';
 import { IExplorerView, IExplorerService } from 'vs/workbench/contrib/files/browser/files';
 import { IProgressService, ProgressLocation } from 'vs/platform/progress/common/progress';
 import { CancellationTokenSource } from 'vs/base/common/cancellation';
+import { RunOnceScheduler } from 'vs/base/common/async';
 
 export const UNDO_REDO_SOURCE = new UndoRedoSource();
 
@@ -35,6 +36,8 @@ export class ExplorerService implements IExplorerService {
 	private cutItems: ExplorerItem[] | undefined;
 	private view: IExplorerView | undefined;
 	private model: ExplorerModel;
+	private onFileChangesScheduler: RunOnceScheduler;
+	private fileChangeEvents: FileChangesEvent[] = [];
 
 	constructor(
 		@IFileService private fileService: IFileService,
@@ -51,7 +54,51 @@ export class ExplorerService implements IExplorerService {
 		this.model = new ExplorerModel(this.contextService, this.uriIdentityService, this.fileService);
 		this.disposables.add(this.model);
 		this.disposables.add(this.fileService.onDidRunOperation(e => this.onDidRunOperation(e)));
-		this.disposables.add(this.fileService.onDidFilesChange(e => this.onDidFilesChange(e)));
+
+		this.onFileChangesScheduler = new RunOnceScheduler(async () => {
+			const events = this.fileChangeEvents;
+			this.fileChangeEvents = [];
+
+			// Filter to the ones we care
+			const types = [FileChangeType.DELETED];
+			if (this._sortOrder === SortOrder.Modified) {
+				types.push(FileChangeType.UPDATED);
+			}
+
+			let shouldRefresh = false;
+			// For DELETED and UPDATED events go through the explorer model and check if any of the items got affected
+			this.roots.forEach(r => {
+				if (this.view && !shouldRefresh) {
+					shouldRefresh = doesFileEventAffect(r, this.view, events, types);
+				}
+			});
+			// For ADDED events we need to go through all the events and check if the explorer is already aware of some of them
+			// Or if they affect not yet resolved parts of the explorer. If that is the case we will not refresh.
+			events.forEach(e => {
+				if (!shouldRefresh) {
+					const added = e.getAdded();
+					if (added.some(a => {
+						const parent = this.model.findClosest(dirname(a.resource));
+						// Parent of the added resource is resolved and the explorer model is not aware of the added resource - we need to refresh
+						return parent && !parent.getChild(basename(a.resource));
+					})) {
+						shouldRefresh = true;
+					}
+				}
+			});
+
+			if (shouldRefresh) {
+				await this.refresh(false);
+			}
+
+		}, ExplorerService.EXPLORER_FILE_CHANGES_REACT_DELAY);
+
+		this.disposables.add(this.fileService.onDidFilesChange(e => {
+			this.fileChangeEvents.push(e);
+			if (!this.onFileChangesScheduler.isScheduled()) {
+				this.onFileChangesScheduler.schedule();
+			}
+		}));
 		this.disposables.add(this.configurationService.onDidChangeConfiguration(e => this.onConfigurationUpdated(this.configurationService.getValue<IFilesConfiguration>())));
 		this.disposables.add(Event.any<{ scheme: string }>(this.fileService.onDidChangeFileSystemProviderRegistrations, this.fileService.onDidChangeFileSystemProviderCapabilities)(async e => {
 			let affected = false;
@@ -296,32 +343,6 @@ export class ExplorerService implements IExplorerService {
 		}
 	}
 
-	private onDidFilesChange(e: FileChangesEvent): void {
-		// Check if an explorer refresh is necessary (delayed to give internal events a chance to react first)
-		// Note: there is no guarantee when the internal events are fired vs real ones. Code has to deal with the fact that one might
-		// be fired first over the other or not at all.
-		setTimeout(async () => {
-			// Filter to the ones we care
-			const types = [FileChangeType.ADDED, FileChangeType.DELETED];
-			if (this._sortOrder === SortOrder.Modified) {
-				types.push(FileChangeType.UPDATED);
-			}
-
-			const allResolvedDirectories: ExplorerItem[] = [];
-			this.roots.forEach(r => {
-				allResolvedDirectories.push(r);
-				if (this.view) {
-					getAllNonFilteredDescendants(r, allResolvedDirectories, this.view);
-				}
-			});
-
-			const shouldRefresh = allResolvedDirectories.some(r => e.affects(r.resource, ...types));
-			if (shouldRefresh) {
-				await this.refresh(false);
-			}
-		}, ExplorerService.EXPLORER_FILE_CHANGES_REACT_DELAY);
-	}
-
 	private async onConfigurationUpdated(configuration: IFilesConfiguration, event?: IConfigurationChangeEvent): Promise<void> {
 		const configSortOrder = configuration?.explorer?.sortOrder || 'default';
 		if (this._sortOrder !== configSortOrder) {
@@ -338,13 +359,19 @@ export class ExplorerService implements IExplorerService {
 	}
 }
 
-function getAllNonFilteredDescendants(item: ExplorerItem, result: ExplorerItem[], view: IExplorerView): void {
+function doesFileEventAffect(item: ExplorerItem, view: IExplorerView, events: FileChangesEvent[], types: FileChangeType[]): boolean {
 	for (let [_name, child] of item.children) {
 		if (view.isItemVisible(child)) {
+			if (events.some(e => e.contains(child.resource, ...types))) {
+				return true;
+			}
 			if (child.isDirectory && child.isDirectoryResolved) {
-				result.push(child);
-				getAllNonFilteredDescendants(child, result, view);
+				if (doesFileEventAffect(child, view, events, types)) {
+					return true;
+				}
 			}
 		}
 	}
+
+	return false;
 }

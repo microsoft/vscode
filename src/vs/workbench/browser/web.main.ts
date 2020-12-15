@@ -5,7 +5,7 @@
 
 import { mark } from 'vs/base/common/performance';
 import { hash } from 'vs/base/common/hash';
-import { domContentLoaded, addDisposableListener, EventType, EventHelper, detectFullscreen, addDisposableThrottledListener } from 'vs/base/browser/dom';
+import { domContentLoaded, addDisposableListener, EventType, EventHelper, detectFullscreen, addDisposableThrottledListener, getCookieValue } from 'vs/base/browser/dom';
 import { ServiceCollection } from 'vs/platform/instantiation/common/serviceCollection';
 import { ILogService, ConsoleLogService, MultiplexLogService, getLogLevel } from 'vs/platform/log/common/log';
 import { ConsoleLogInAutomationService } from 'vs/platform/log/browser/log';
@@ -24,7 +24,7 @@ import { IFileService, IFileSystemProvider } from 'vs/platform/files/common/file
 import { FileService } from 'vs/platform/files/common/fileService';
 import { Schemas } from 'vs/base/common/network';
 import { IWorkspaceContextService } from 'vs/platform/workspace/common/workspace';
-import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
+import { IWorkbenchConfigurationService } from 'vs/workbench/services/configuration/common/configuration';
 import { onUnexpectedError } from 'vs/base/common/errors';
 import { setFullscreen } from 'vs/base/browser/browser';
 import { isIOS, isMacintosh } from 'vs/base/common/platform';
@@ -61,6 +61,7 @@ import { IDialogService } from 'vs/platform/dialogs/common/dialogs';
 import { IHostService } from 'vs/workbench/services/host/browser/host';
 import { IUriIdentityService } from 'vs/workbench/services/uriIdentity/common/uriIdentity';
 import { UriIdentityService } from 'vs/workbench/services/uriIdentity/common/uriIdentityService';
+import { BrowserWindow } from 'vs/workbench/browser/window';
 
 class BrowserMain extends Disposable {
 
@@ -83,7 +84,7 @@ class BrowserMain extends Disposable {
 		const services = await this.initServices();
 
 		await domContentLoaded();
-		mark('willStartWorkbench');
+		mark('code/willStartWorkbench');
 
 		// Create Workbench
 		const workbench = new Workbench(
@@ -102,6 +103,12 @@ class BrowserMain extends Disposable {
 
 		// Startup
 		const instantiationService = workbench.startup();
+
+		// Window
+		this._register(instantiationService.createInstance(BrowserWindow));
+
+		// Logging
+		services.logService.trace('workbench configuration', JSON.stringify(this.configuration));
 
 		// Return API Facade
 		return instantiationService.invokeFunction(accessor => {
@@ -138,13 +145,10 @@ class BrowserMain extends Disposable {
 		// Workbench Lifecycle
 		this._register(workbench.onBeforeShutdown(event => {
 			if (storageService.hasPendingUpdate) {
-				logService.warn('Unload veto: pending storage update');
-				event.veto(true); // prevent data loss from pending storage update
+				event.veto(true, 'veto.pendingStorageUpdate'); // prevent data loss from pending storage update
 			}
 		}));
-		this._register(workbench.onWillShutdown(() => {
-			storageService.close();
-		}));
+		this._register(workbench.onWillShutdown(() => storageService.close()));
 		this._register(workbench.onShutdown(() => this.dispose()));
 
 		// Fullscreen (Browser)
@@ -158,7 +162,7 @@ class BrowserMain extends Disposable {
 		}, undefined, isMacintosh ? 2000 /* adjust for macOS animation */ : 800 /* can be throttled */));
 	}
 
-	private async initServices(): Promise<{ serviceCollection: ServiceCollection, configurationService: IConfigurationService, logService: ILogService, storageService: BrowserStorageService }> {
+	private async initServices(): Promise<{ serviceCollection: ServiceCollection, configurationService: IWorkbenchConfigurationService, logService: ILogService, storageService: BrowserStorageService }> {
 		const serviceCollection = new ServiceCollection();
 
 		// !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
@@ -181,9 +185,8 @@ class BrowserMain extends Disposable {
 		const logService = new BufferLogService(getLogLevel(environmentService));
 		serviceCollection.set(ILogService, logService);
 
-		const connectionToken = environmentService.options.connectionToken || this.getCookieValue('vscode-tkn');
-
 		// Remote
+		const connectionToken = environmentService.options.connectionToken || getCookieValue('vscode-tkn');
 		const remoteAuthorityResolverService = new RemoteAuthorityResolverService(connectionToken, this.configuration.resourceUriProvider);
 		serviceCollection.set(IRemoteAuthorityResolverService, remoteAuthorityResolverService);
 
@@ -212,7 +215,7 @@ class BrowserMain extends Disposable {
 				serviceCollection.set(IWorkspaceContextService, service);
 
 				// Configuration
-				serviceCollection.set(IConfigurationService, service);
+				serviceCollection.set(IWorkbenchConfigurationService, service);
 
 				return service;
 			}),
@@ -239,14 +242,16 @@ class BrowserMain extends Disposable {
 		serviceCollection.set(IUserDataInitializationService, userDataInitializationService);
 
 		if (await userDataInitializationService.requiresInitialization()) {
-			mark('willInitRequiredUserData');
+			mark('code/willInitRequiredUserData');
+
 			// Initialize required resources - settings & global state
 			await userDataInitializationService.initializeRequiredResources();
 
 			// Important: Reload only local user configuration after initializing
 			// Reloading complete configuraiton blocks workbench until remote configuration is loaded.
 			await configurationService.reloadLocalUserConfiguration();
-			mark('didInitRequiredUserData');
+
+			mark('code/didInitRequiredUserData');
 		}
 
 		return { serviceCollection, configurationService, logService, storageService };
@@ -261,8 +266,9 @@ class BrowserMain extends Disposable {
 			try {
 				indexedDBLogProvider = await indexedDB.createFileSystemProvider(logsPath.scheme, INDEXEDDB_LOGS_OBJECT_STORE);
 			} catch (error) {
-				console.error(error);
+				onUnexpectedError(error);
 			}
+
 			if (indexedDBLogProvider) {
 				fileService.registerProvider(logsPath.scheme, indexedDBLogProvider);
 			} else {
@@ -279,6 +285,7 @@ class BrowserMain extends Disposable {
 
 		const connection = remoteAgentService.getConnection();
 		if (connection) {
+
 			// Remote file system
 			const remoteFileSystemProvider = this._register(new RemoteFileSystemProvider(remoteAgentService));
 			fileService.registerProvider(Schemas.vscodeRemote, remoteFileSystemProvider);
@@ -289,8 +296,9 @@ class BrowserMain extends Disposable {
 		try {
 			indexedDBUserDataProvider = await indexedDB.createFileSystemProvider(Schemas.userData, INDEXEDDB_USERDATA_OBJECT_STORE);
 		} catch (error) {
-			console.error(error);
+			onUnexpectedError(error);
 		}
+		fileService.registerProvider(Schemas.userData, indexedDBUserDataProvider || new InMemoryFileSystemProvider());
 
 		if (indexedDBUserDataProvider) {
 			registerAction2(class ResetUserDataAction extends Action2 {
@@ -304,21 +312,22 @@ class BrowserMain extends Disposable {
 						}
 					});
 				}
+
 				async run(accessor: ServicesAccessor): Promise<void> {
 					const dialogService = accessor.get(IDialogService);
 					const hostService = accessor.get(IHostService);
 					const result = await dialogService.confirm({
 						message: localize('reset user data message', "Would you like to reset your data (settings, keybindings, extensions, snippets and UI State) and reload?")
 					});
+
 					if (result.confirmed) {
-						await indexedDBUserDataProvider!.reset();
+						await indexedDBUserDataProvider?.reset();
 					}
+
 					hostService.reload();
 				}
 			});
 		}
-
-		fileService.registerProvider(Schemas.userData, indexedDBUserDataProvider || new InMemoryFileSystemProvider());
 	}
 
 	private async createStorageService(payload: IWorkspaceInitializationPayload, environmentService: IWorkbenchEnvironmentService, fileService: IFileService, logService: ILogService): Promise<BrowserStorageService> {
@@ -369,12 +378,6 @@ class BrowserMain extends Disposable {
 		}
 
 		return { id: 'empty-window' };
-	}
-
-	private getCookieValue(name: string): string | undefined {
-		const match = document.cookie.match('(^|[^;]+)\\s*' + name + '\\s*=\\s*([^;]+)'); // See https://stackoverflow.com/a/25490531
-
-		return match ? match.pop() : undefined;
 	}
 }
 

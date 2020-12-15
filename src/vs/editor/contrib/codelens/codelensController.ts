@@ -98,14 +98,17 @@ export class CodeLensContribution implements IEditorContribution {
 		const fontFamily = this._editor.getOption(EditorOption.codeLensFontFamily);
 		const editorFontInfo = this._editor.getOption(EditorOption.fontInfo);
 
+		const fontFamilyVar = `--codelens-font-family${this._styleClassName}`;
+
 		let newStyle = `
 		.monaco-editor .codelens-decoration.${this._styleClassName} { line-height: ${codeLensHeight}px; font-size: ${fontSize}px; padding-right: ${Math.round(fontSize * 0.5)}px; font-feature-settings: ${editorFontInfo.fontFeatureSettings} }
 		.monaco-editor .codelens-decoration.${this._styleClassName} span.codicon { line-height: ${codeLensHeight}px; font-size: ${fontSize}px; }
 		`;
 		if (fontFamily) {
-			newStyle += `.monaco-editor .codelens-decoration.${this._styleClassName} { font-family: ${fontFamily}}`;
+			newStyle += `.monaco-editor .codelens-decoration.${this._styleClassName} { font-family: var(${fontFamilyVar})}`;
 		}
 		this._styleElement.textContent = newStyle;
+		this._editor.getDomNode()?.style.setProperty(fontFamilyVar, fontFamily ?? 'inherit');
 
 		//
 		this._editor.changeViewZones(accessor => {

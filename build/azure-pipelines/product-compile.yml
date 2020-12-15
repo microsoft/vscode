@@ -17,7 +17,7 @@ steps:
 
   - task: NodeTool@0
     inputs:
-      versionSpec: "12.14.1"
+      versionSpec: "12.18.3"
     condition: and(succeeded(), ne(variables['CacheExists-Compilation'], 'true'))
 
   - task: geeklearningio.gl-vsts-tasks-yarn.yarn-installer-task.YarnInstaller@2
@@ -72,6 +72,11 @@ steps:
 
   - script: |
       set -e
+      if [ -z "$CC" ] || [ -z "$CXX" ]
+      then
+        export CC=$(which gcc-5)
+        export CXX=$(which g++-5)
+      fi
       export CHILD_CONCURRENCY="1"
       for i in {1..3}; do # try 3 times, for Terrapin
         yarn --frozen-lockfile && break
@@ -97,33 +102,11 @@ steps:
     displayName: Run postinstall scripts
     condition: and(succeeded(), ne(variables['CacheExists-Compilation'], 'true'), eq(variables['CacheRestored'], 'true'))
 
-  # Mixin must run before optimize, because the CSS loader will
-  # inline small SVGs
+  # Mixin must run before optimize, because the CSS loader will inline small SVGs
   - script: |
       set -e
       node build/azure-pipelines/mixin
     displayName: Mix in quality
-    condition: and(succeeded(), ne(variables['CacheExists-Compilation'], 'true'))
-
-  - script: |
-      set -e
-      yarn gulp hygiene
-      yarn monaco-compile-check
-      yarn valid-layers-check
-    displayName: Run hygiene, monaco compile & valid layers checks
-    condition: and(succeeded(), ne(variables['CacheExists-Compilation'], 'true'), eq(variables['VSCODE_STEP_ON_IT'], 'false'))
-
-  - script: |
-      set -
-      ./build/azure-pipelines/common/extract-telemetry.sh
-    displayName: Extract Telemetry
-    condition: and(succeeded(), ne(variables['CacheExists-Compilation'], 'true'))
-
-  - script: |
-      set -e
-      AZURE_WEBVIEW_STORAGE_ACCESS_KEY="$(vscode-webview-storage-key)" \
-      ./build/azure-pipelines/common/publish-webview.sh
-    displayName: Publish Webview
     condition: and(succeeded(), ne(variables['CacheExists-Compilation'], 'true'))
 
   - script: |
@@ -141,7 +124,7 @@ steps:
       AZURE_STORAGE_ACCESS_KEY="$(ticino-storage-key)" \
         node build/azure-pipelines/upload-sourcemaps
     displayName: Upload sourcemaps
-    condition: and(succeeded(), ne(variables['CacheExists-Compilation'], 'true'))
+    condition: and(succeeded(), ne(variables['CacheExists-Compilation'], 'true'), ne(variables['VSCODE_PUBLISH'], 'false'))
 
   - script: |
       set -e
@@ -149,7 +132,7 @@ steps:
       AZURE_DOCUMENTDB_MASTERKEY="$(builds-docdb-key-readwrite)" \
         node build/azure-pipelines/common/createBuild.js $VERSION
     displayName: Create build
-    condition: and(succeeded(), ne(variables['CacheExists-Compilation'], 'true'))
+    condition: and(succeeded(), ne(variables['CacheExists-Compilation'], 'true'), ne(variables['VSCODE_PUBLISH'], 'false'))
 
   - task: 1ESLighthouseEng.PipelineArtifactCaching.SaveCacheV1.SaveCache@1
     inputs:

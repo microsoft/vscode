@@ -1,17 +1,12 @@
 pool:
   vmImage: "Ubuntu-16.04"
 
-trigger:
-  branches:
-    include: ["master"]
-pr:
-  branches:
-    include: ["master"]
+trigger: none
 
 steps:
   - task: NodeTool@0
     inputs:
-      versionSpec: "12.14.1"
+      versionSpec: "12.18.3"
 
   - task: AzureKeyVault@1
     displayName: "Azure Key Vault: Get Secrets"

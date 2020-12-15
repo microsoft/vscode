@@ -10,25 +10,23 @@ export default () => `
 <div class="gettingStartedContainer">
 	<div class="gettingStarted" role="document">
 		<div id="gettingStartedSlideCategory" class="gettingStartedSlide categories">
+			<div class="gap"></div>
 			<div class="header">
-				<div class="product-icon"></div>
-				<div class="title">
-					<h1 class="caption"><span id="product-name">${escape(localize('gettingStarted.vscode', "Visual Studio Code"))}</span></h1>
-					<p class="subtitle description">${escape(localize({ key: 'gettingStarted.editingRedefined', comment: ['Shown as subtitle on the Welcome page.'] }, "Code editing. Redefined"))}</p>
-				</div>
+				<h1 id="product-name" class="caption">${escape(localize('gettingStarted.vscode', "Visual Studio Code"))}</h1>
+				<p class="subtitle description">${escape(localize({ key: 'gettingStarted.editingRedefined', comment: ['Shown as subtitle on the Welcome page.'] }, "Code editing. Redefined"))}</p>
 			</div>
-			<div id="getting-started-categories-container"></div>
 		</div>
 		<div id="gettingStartedSlideDetails" class="gettingStartedSlide detail">
 			<a class="prev-button" x-dispatch="scrollPrev"><span
 					class="scroll-button codicon codicon-chevron-left"></span>Back</a>
 			<div id="getting-started-detail-columns">
+			<div class="gap"></div>
 				<div id="getting-started-detail-left">
 					<div id="getting-started-detail-title"></div>
 					<div id="getting-started-detail-container"></div>
 				</div>
-				<div id="getting-started-detail-right">
-				</div>
+				<div id="getting-started-detail-right"></div>
+				<div class="gap"></div>
 			</div>
 		</div>
 		<div class="footer">
@@ -37,3 +35,7 @@ export default () => `
 	</div>
 </div>
 `.replace(/\|/g, '`');
+
+
+// <div id="getting-started-categories-scrolling-container"><div id="getting-started-categories-container"></div></div>
+// <div class="gap"></div>

@@ -45,7 +45,7 @@ import { IListVirtualDelegate } from 'vs/base/browser/ui/list/list';
 import { IAccessibilityService } from 'vs/platform/accessibility/common/accessibility';
 import { KeyCode } from 'vs/base/common/keyCodes';
 import { editorLightBulbForeground, editorLightBulbAutoFixForeground } from 'vs/platform/theme/common/colorRegistry';
-import { ViewPane, IViewPaneOptions } from 'vs/workbench/browser/parts/views/viewPaneContainer';
+import { ViewPane, IViewPaneOptions } from 'vs/workbench/browser/parts/views/viewPane';
 import { IViewDescriptorService } from 'vs/workbench/common/views';
 import { IOpenerService } from 'vs/platform/opener/common/opener';
 import { Codicon } from 'vs/base/common/codicons';
@@ -54,6 +54,7 @@ import { IUriIdentityService } from 'vs/workbench/services/uriIdentity/common/ur
 import { DisposableStore, IDisposable, toDisposable } from 'vs/base/common/lifecycle';
 import { groupBy } from 'vs/base/common/arrays';
 import { ResourceMap } from 'vs/base/common/map';
+import { EditorResourceAccessor, SideBySideEditor } from 'vs/workbench/common/editor';
 
 function createResourceMarkersIterator(resourceMarkers: ResourceMarkers): Iterable<ITreeElement<TreeElement>> {
 	return Iterable.map(resourceMarkers.markers, m => {
@@ -218,7 +219,7 @@ export class MarkersView extends ViewPane implements IMarkerFilterController {
 						id: MenuId.ViewTitle,
 						when: ContextKeyEqualsExpr.create('view', that.id),
 						group: 'navigation',
-						order: Number.MAX_SAFE_INTEGER,
+						order: 2,
 					},
 					icon: Codicon.collapseAll
 				});
@@ -327,11 +328,15 @@ export class MarkersView extends ViewPane implements IMarkerFilterController {
 	}
 
 	private setTreeSelection(): void {
-		if (this.tree && this.tree.getSelection().length === 0) {
-			const firstMarker = this.markersModel.resourceMarkers[0]?.markers[0];
-			if (firstMarker) {
-				this.tree.setFocus([firstMarker]);
-				this.tree.setSelection([firstMarker]);
+		if (this.tree && this.tree.isVisible() && this.tree.getSelection().length === 0) {
+			const firstVisibleElement = this.tree.firstVisibleElement;
+			const marker = firstVisibleElement ?
+				firstVisibleElement instanceof ResourceMarkers ? firstVisibleElement.markers[0] :
+					firstVisibleElement instanceof Marker ? firstVisibleElement : undefined
+				: undefined;
+			if (marker) {
+				this.tree.setFocus([marker]);
+				this.tree.setSelection([marker]);
 			}
 		}
 	}
@@ -603,7 +608,7 @@ export class MarkersView extends ViewPane implements IMarkerFilterController {
 
 	private setCurrentActiveEditor(): void {
 		const activeEditor = this.editorService.activeEditor;
-		this.currentActiveResource = activeEditor ? withUndefinedAsNull(activeEditor.resource) : null;
+		this.currentActiveResource = activeEditor ? withUndefinedAsNull(EditorResourceAccessor.getOriginalUri(activeEditor, { supportSideBySide: SideBySideEditor.PRIMARY })) : null;
 	}
 
 	private onSelected(): void {
@@ -944,6 +949,10 @@ class MarkersTree extends WorkbenchObjectTree<TreeElement, FilterData> {
 
 	toggleVisibility(hide: boolean): void {
 		this.container.classList.toggle('hidden', hide);
+	}
+
+	isVisible(): boolean {
+		return !this.container.classList.contains('hidden');
 	}
 
 }

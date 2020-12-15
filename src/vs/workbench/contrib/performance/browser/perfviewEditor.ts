@@ -12,9 +12,8 @@ import { ILifecycleService, LifecyclePhase, StartupKindToString } from 'vs/workb
 import { IModeService } from 'vs/editor/common/services/modeService';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { IModelService } from 'vs/editor/common/services/modelService';
-import { ITimerService, IStartupMetrics } from 'vs/workbench/services/timer/browser/timerService';
+import { ITimerService } from 'vs/workbench/services/timer/browser/timerService';
 import { IExtensionService } from 'vs/workbench/services/extensions/common/extensions';
-import * as perf from 'vs/base/common/performance';
 import { IDisposable, dispose } from 'vs/base/common/lifecycle';
 import { ICodeEditorService } from 'vs/editor/browser/services/codeEditorService';
 import { writeTransientState } from 'vs/workbench/contrib/codeEditor/browser/toggleWordWrap';
@@ -108,7 +107,7 @@ class PerfModelContentProvider implements ITextModelContentProvider {
 			this._modelDisposables.push(langId);
 			this._modelDisposables.push(this._extensionService.onDidChangeExtensionsStatus(this._updateModel, this));
 
-			writeTransientState(this._model, { forceWordWrap: 'off', forceWordWrapMinified: false }, this._editorService);
+			writeTransientState(this._model, { wordWrapOverride: 'off' }, this._editorService);
 		}
 		this._updateModel();
 		return Promise.resolve(this._model);
@@ -117,17 +116,17 @@ class PerfModelContentProvider implements ITextModelContentProvider {
 	private _updateModel(): void {
 
 		Promise.all([
-			this._timerService.startupMetrics,
+			this._timerService.whenReady(),
 			this._lifecycleService.when(LifecyclePhase.Eventually),
 			this._extensionService.whenInstalledExtensionsRegistered()
-		]).then(([metrics]) => {
+		]).then(() => {
 			if (this._model && !this._model.isDisposed()) {
 
 				let stats = LoaderStats.get();
 				let md = new MarkdownBuilder();
-				this._addSummary(md, metrics);
+				this._addSummary(md);
 				md.blank();
-				this._addSummaryTable(md, metrics, stats);
+				this._addSummaryTable(md, stats);
 				md.blank();
 				this._addExtensionsTable(md);
 				md.blank();
@@ -143,7 +142,8 @@ class PerfModelContentProvider implements ITextModelContentProvider {
 
 	}
 
-	private _addSummary(md: MarkdownBuilder, metrics: IStartupMetrics): void {
+	private _addSummary(md: MarkdownBuilder): void {
+		const metrics = this._timerService.startupMetrics;
 		md.heading(2, 'System Info');
 		md.li(`${this._productService.nameShort}: ${this._productService.version} (${this._productService.commit || '0000000'})`);
 		md.li(`OS: ${metrics.platform}(${metrics.release})`);
@@ -163,12 +163,13 @@ class PerfModelContentProvider implements ITextModelContentProvider {
 		md.li(`Empty Workspace: ${metrics.emptyWorkbench}`);
 	}
 
-	private _addSummaryTable(md: MarkdownBuilder, metrics: IStartupMetrics, stats?: LoaderStats): void {
+	private _addSummaryTable(md: MarkdownBuilder, stats?: LoaderStats): void {
 
+		const metrics = this._timerService.startupMetrics;
 		const table: Array<Array<string | number | undefined>> = [];
 		table.push(['start => app.isReady', metrics.timers.ellapsedAppReady, '[main]', `initial startup: ${metrics.initialStartup}`]);
 		table.push(['nls:start => nls:end', metrics.timers.ellapsedNlsGeneration, '[main]', `initial startup: ${metrics.initialStartup}`]);
-		table.push(['require(main.bundle.js)', metrics.initialStartup ? perf.getDuration('willLoadMainBundle', 'didLoadMainBundle') : undefined, '[main]', `initial startup: ${metrics.initialStartup}`]);
+		table.push(['require(main.bundle.js)', metrics.timers.ellapsedLoadMainBundle, '[main]', `initial startup: ${metrics.initialStartup}`]);
 		table.push(['app.isReady => window.loadUrl()', metrics.timers.ellapsedWindowLoad, '[main]', `initial startup: ${metrics.initialStartup}`]);
 		table.push(['window.loadUrl() => begin to require(workbench.desktop.main.js)', metrics.timers.ellapsedWindowLoadToRequire, '[main->renderer]', StartupKindToString(metrics.windowKind)]);
 		table.push(['require(workbench.desktop.main.js)', metrics.timers.ellapsedRequire, '[renderer]', `cached data: ${(metrics.didUseCachedData ? 'YES' : 'NO')}${stats ? `, node_modules took ${stats.nodeRequireTotal}ms` : ''}`]);
@@ -220,18 +221,21 @@ class PerfModelContentProvider implements ITextModelContentProvider {
 	}
 
 	private _addRawPerfMarks(md: MarkdownBuilder): void {
-		md.heading(2, 'Raw Perf Marks');
-		md.value += '```\n';
-		md.value += `Name\tTimestamp\tDelta\tTotal\n`;
-		let lastStartTime = -1;
-		let total = 0;
-		for (const { name, startTime } of perf.getEntries()) {
-			let delta = lastStartTime !== -1 ? startTime - lastStartTime : 0;
-			total += delta;
-			md.value += `${name}\t${startTime}\t${delta}\t${total}\n`;
-			lastStartTime = startTime;
+
+		for (let [source, marks] of this._timerService.getPerformanceMarks()) {
+			md.heading(2, `Raw Perf Marks: ${source}`);
+			md.value += '```\n';
+			md.value += `Name\tTimestamp\tDelta\tTotal\n`;
+			let lastStartTime = -1;
+			let total = 0;
+			for (const { name, startTime } of marks) {
+				let delta = lastStartTime !== -1 ? startTime - lastStartTime : 0;
+				total += delta;
+				md.value += `${name}\t${startTime}\t${delta}\t${total}\n`;
+				lastStartTime = startTime;
+			}
+			md.value += '```\n';
 		}
-		md.value += '```\n';
 	}
 
 	private _addLoaderStats(md: MarkdownBuilder, stats: LoaderStats): void {

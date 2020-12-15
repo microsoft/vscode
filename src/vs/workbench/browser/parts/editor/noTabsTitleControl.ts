@@ -5,7 +5,7 @@
 
 import 'vs/css!./media/notabstitlecontrol';
 import { EditorResourceAccessor, Verbosity, IEditorInput, IEditorPartOptions, SideBySideEditor } from 'vs/workbench/common/editor';
-import { TitleControl, IToolbarActions } from 'vs/workbench/browser/parts/editor/titleControl';
+import { TitleControl, IToolbarActions, ITitleControlDimensions } from 'vs/workbench/browser/parts/editor/titleControl';
 import { ResourceLabel, IResourceLabel } from 'vs/workbench/browser/labels';
 import { TAB_ACTIVE_FOREGROUND, TAB_UNFOCUSED_ACTIVE_FOREGROUND } from 'vs/workbench/common/theme';
 import { EventType as TouchEventType, GestureEvent, Gesture } from 'vs/base/browser/touch';
@@ -339,9 +339,11 @@ export class NoTabsTitleControl extends TitleControl {
 		};
 	}
 
-	layout(dimension: Dimension): void {
+	layout(dimensions: ITitleControlDimensions): Dimension {
 		if (this.breadcrumbsControl) {
 			this.breadcrumbsControl.layout(undefined);
 		}
+
+		return new Dimension(dimensions.container.width, this.getDimensions().height);
 	}
 }

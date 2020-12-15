@@ -234,9 +234,9 @@ class InitializeOtherResourcesContribution implements IWorkbenchContribution {
 
 	private async initializeOtherResource(userDataInitializeService: IUserDataInitializationService, instantiationService: IInstantiationService): Promise<void> {
 		if (await userDataInitializeService.requiresInitialization()) {
-			mark('willInitOtherUserData');
+			mark('code/willInitOtherUserData');
 			await userDataInitializeService.initializeOtherResources(instantiationService);
-			mark('didInitOtherUserData');
+			mark('code/didInitOtherUserData');
 		}
 	}
 }

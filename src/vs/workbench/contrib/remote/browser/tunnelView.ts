@@ -10,9 +10,9 @@ import { IViewDescriptor, IEditableData, IViewsService, IViewDescriptorService }
 import { WorkbenchAsyncDataTree } from 'vs/platform/list/browser/listService';
 import { IKeybindingService } from 'vs/platform/keybinding/common/keybinding';
 import { IContextMenuService, IContextViewService } from 'vs/platform/contextview/browser/contextView';
-import { IContextKeyService, IContextKey, RawContextKey, ContextKeyExpr } from 'vs/platform/contextkey/common/contextkey';
+import { IContextKeyService, IContextKey, RawContextKey, ContextKeyExpr, ContextKeyEqualsExpr } from 'vs/platform/contextkey/common/contextkey';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
-import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
+import { IInstantiationService, ServicesAccessor } from 'vs/platform/instantiation/common/instantiation';
 import { IOpenerService } from 'vs/platform/opener/common/opener';
 import { IQuickInputService, IQuickPickItem, QuickPickInput } from 'vs/platform/quickinput/common/quickInput';
 import { ICommandService, ICommandHandler, CommandsRegistry } from 'vs/platform/commands/common/commands';
@@ -24,7 +24,7 @@ import { Disposable, IDisposable, toDisposable, MutableDisposable, dispose, Disp
 import { ActionBar } from 'vs/base/browser/ui/actionbar/actionbar';
 import { IconLabel } from 'vs/base/browser/ui/iconLabel/iconLabel';
 import { ActionRunner, IAction } from 'vs/base/common/actions';
-import { IMenuService, MenuId, IMenu, MenuRegistry, MenuItemAction, ILocalizedString, SubmenuItemAction } from 'vs/platform/actions/common/actions';
+import { IMenuService, MenuId, IMenu, MenuRegistry, MenuItemAction, ILocalizedString, SubmenuItemAction, Action2, registerAction2 } from 'vs/platform/actions/common/actions';
 import { createAndFillInContextMenuActions, createAndFillInActionBarActions, MenuEntryActionViewItem, SubmenuEntryActionViewItem } from 'vs/platform/actions/browser/menuEntryActionViewItem';
 import { IRemoteExplorerService, TunnelModel, makeAddress, TunnelType, ITunnelItem, Tunnel, mapHasAddressLocalhostOrAllInterfaces, TUNNEL_VIEW_ID, parseAddress } from 'vs/workbench/services/remote/common/remoteExplorerService';
 import { IClipboardService } from 'vs/platform/clipboard/common/clipboardService';
@@ -35,7 +35,7 @@ import { once } from 'vs/base/common/functional';
 import { KeyCode, KeyMod } from 'vs/base/common/keyCodes';
 import { IThemeService } from 'vs/platform/theme/common/themeService';
 import { IKeyboardEvent } from 'vs/base/browser/keyboardEvent';
-import { ViewPane, IViewPaneOptions } from 'vs/workbench/browser/parts/views/viewPaneContainer';
+import { ViewPane, IViewPaneOptions } from 'vs/workbench/browser/parts/views/viewPane';
 import { URI } from 'vs/base/common/uri';
 import { RemoteTunnel } from 'vs/platform/remote/common/tunnel';
 import { SyncDescriptor } from 'vs/platform/instantiation/common/descriptors';
@@ -292,6 +292,9 @@ class TunnelTreeRenderer extends Disposable implements ITreeRenderer<ITunnelGrou
 			templateData.icon.className = 'custom-view-tree-node-item-icon';
 			templateData.icon.hidden = true;
 		}
+
+		menu.dispose();
+		contextKeyService.dispose();
 	}
 
 	private renderInputBox(container: HTMLElement, editableData: IEditableData): IDisposable {
@@ -634,10 +637,6 @@ export class TunnelPanel extends ViewPane {
 		return contributedContextMenu;
 	}
 
-	getActions(): IAction[] {
-		return this.titleActions;
-	}
-
 	shouldShowWelcome(): boolean {
 		return (this.viewModel.forwarded.length === 0) && (this.viewModel.candidates.length === 0) &&
 			(this.viewModel.detected.length === 0) && !this.isEditing;
@@ -726,9 +725,13 @@ export class TunnelPanelDescriptor implements IViewDescriptor {
 	readonly canToggleVisibility = true;
 	readonly hideByDefault = false;
 	readonly workspace = true;
+	// group is not actually used for views that are not extension contributed. Use order instead.
 	readonly group = 'details@0';
+	// -500 comes from the remote explorer viewOrderDelegate
+	readonly order = -500;
 	readonly remoteAuthority?: string | string[];
 	readonly canMoveView = true;
+	readonly containerIcon = Codicon.plug;
 
 	constructor(viewModel: ITunnelViewModel, environmentService: IWorkbenchEnvironmentService) {
 		this.ctorDescriptor = new SyncDescriptor(TunnelPanel, [viewModel]);
@@ -1113,15 +1116,25 @@ MenuRegistry.appendMenuItem(MenuId.CommandPalette, ({
 	},
 	when: forwardedPortsViewEnabled
 }));
-MenuRegistry.appendMenuItem(MenuId.TunnelTitle, ({
-	group: 'navigation',
-	order: 0,
-	command: {
-		id: ForwardPortAction.INLINE_ID,
-		title: ForwardPortAction.LABEL,
-		icon: Codicon.plus
+registerAction2(class extends Action2 {
+	constructor() {
+		super({
+			id: ForwardPortAction.INLINE_ID,
+			title: ForwardPortAction.LABEL,
+			icon: Codicon.plus,
+			menu: [{
+				id: MenuId.ViewTitle,
+				group: 'navigation',
+				order: 0,
+				when: ContextKeyEqualsExpr.create('view', TUNNEL_VIEW_ID),
+			}]
+		});
 	}
-}));
+	run(accessor: ServicesAccessor, ...args: any[]) {
+		return ForwardPortAction.inlineHandler()(accessor, args);
+	}
+});
+
 MenuRegistry.appendMenuItem(MenuId.TunnelContext, ({
 	group: '0_manage',
 	order: 0,

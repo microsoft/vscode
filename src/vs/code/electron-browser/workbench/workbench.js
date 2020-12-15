@@ -12,8 +12,7 @@
 	const bootstrapWindow = bootstrapWindowLib();
 
 	// Add a perf entry right from the top
-	const perf = bootstrapWindow.perfLib();
-	perf.mark('renderer/started');
+	performance.mark('code/didStartRenderer');
 
 	// Load workbench main JS, CSS and NLS all in parallel. This is an
 	// optimization to prevent a waterfall of loading to happen, because
@@ -27,7 +26,7 @@
 		async function (workbench, configuration) {
 
 			// Mark start of workbench
-			perf.mark('didLoadWorkbenchMain');
+			performance.mark('code/didLoadWorkbenchMain');
 
 			// @ts-ignore
 			return require('vs/workbench/electron-browser/desktop.main').main(configuration);
@@ -41,7 +40,7 @@
 				loaderConfig.recordStats = true;
 			},
 			beforeRequire: function () {
-				perf.mark('willLoadWorkbenchMain');
+				performance.mark('code/willLoadWorkbenchMain');
 			}
 		}
 	);
@@ -51,9 +50,8 @@
 
 	/**
 	 * @returns {{
-	 *   load: (modules: string[], resultCallback: (result, configuration: object) => any, options: object) => unknown,
-	 *   globals: () => typeof import('../../../base/parts/sandbox/electron-sandbox/globals'),
-	 *   perfLib: () => { mark: (name: string) => void }
+	 *   load: (modules: string[], resultCallback: (result, configuration: import('../../../platform/windows/common/windows').INativeWindowConfiguration) => any, options: object) => unknown,
+	 *   globals: () => typeof import('../../../base/parts/sandbox/electron-sandbox/globals')
 	 * }}
 	 */
 	function bootstrapWindowLib() {
@@ -72,7 +70,7 @@
 	 * }} configuration
 	 */
 	function showPartsSplash(configuration) {
-		perf.mark('willShowPartsSplash');
+		performance.mark('code/willShowPartsSplash');
 
 		let data;
 		if (typeof configuration.partsSplashPath === 'string') {
@@ -162,7 +160,7 @@
 			document.body.appendChild(splash);
 		}
 
-		perf.mark('didShowPartsSplash');
+		performance.mark('code/didShowPartsSplash');
 	}
 
 	//#endregion

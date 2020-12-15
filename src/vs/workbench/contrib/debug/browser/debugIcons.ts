@@ -15,25 +15,37 @@ export const callStackViewIcon = registerIcon('callstack-view-icon', Codicon.deb
 export const breakpointsViewIcon = registerIcon('breakpoints-view-icon', Codicon.debugAlt, localize('breakpointsViewIcon', 'View icon of the breakpoints view.'));
 export const loadedScriptsViewIcon = registerIcon('loaded-scripts-view-icon', Codicon.debugAlt, localize('loadedScriptsViewIcon', 'View icon of the loaded scripts view.'));
 
-export const debugBreakpoint = registerIcon('debug-breakpoint', Codicon.debugBreakpoint, localize('debugBreakpoint', 'Icon for breakpoints.'));
-export const debugBreakpointDisabled = registerIcon('debug-breakpoint-disabled', Codicon.debugBreakpointDisabled, localize('debugBreakpointDisabled', 'Icon for disabled breakpoints.'));
-export const debugBreakpointUnverified = registerIcon('debug-breakpoint-unverified', Codicon.debugBreakpointUnverified, localize('debugBreakpointUnverified', 'Icon for unverified breakpoints.'));
-export const debugBreakpointHint = registerIcon('debug-hint', Codicon.debugHint, localize('debugBreakpointHint', 'Icon for breakpoint hints shown on hover in editor glyph margin.'));
-export const debugBreakpointFunction = registerIcon('debug-breakpoint-function', Codicon.debugBreakpointFunction, localize('debugBreakpointFunction', 'Icon for function breakpoints.'));
-export const debugBreakpointFunctionUnverified = registerIcon('debug-breakpoint-function-unverified', Codicon.debugBreakpointFunctionUnverified, localize('debugBreakpointFunctionUnverified', 'Icon for unverified function breakpoints.'));
-export const debugBreakpointFunctionDisabled = registerIcon('debug-breakpoint-function-disabled', Codicon.debugBreakpointFunctionDisabled, localize('debugBreakpointFunctionDisabled', 'Icon for disabled function breakpoints.'));
+export const breakpoint = {
+	regular: registerIcon('debug-breakpoint', Codicon.debugBreakpoint, localize('debugBreakpoint', 'Icon for breakpoints.')),
+	disabled: registerIcon('debug-breakpoint-disabled', Codicon.debugBreakpointDisabled, localize('debugBreakpointDisabled', 'Icon for disabled breakpoints.')),
+	unverified: registerIcon('debug-breakpoint-unverified', Codicon.debugBreakpointUnverified, localize('debugBreakpointUnverified', 'Icon for unverified breakpoints.'))
+};
+export const functionBreakpoint = {
+	regular: registerIcon('debug-breakpoint-function', Codicon.debugBreakpointFunction, localize('debugBreakpointFunction', 'Icon for function breakpoints.')),
+	disabled: registerIcon('debug-breakpoint-function-disabled', Codicon.debugBreakpointFunctionDisabled, localize('debugBreakpointFunctionDisabled', 'Icon for disabled function breakpoints.')),
+	unverified: registerIcon('debug-breakpoint-function-unverified', Codicon.debugBreakpointFunctionUnverified, localize('debugBreakpointFunctionUnverified', 'Icon for unverified function breakpoints.'))
+};
+export const conditionalBreakpoint = {
+	regular: registerIcon('debug-breakpoint-conditional', Codicon.debugBreakpointConditional, localize('debugBreakpointConditional', 'Icon for conditional breakpoints.')),
+	disabled: registerIcon('debug-breakpoint-conditional-disabled', Codicon.debugBreakpointConditionalDisabled, localize('debugBreakpointConditionalDisabled', 'Icon for disabled conditional breakpoints.')),
+	unverified: registerIcon('debug-breakpoint-conditional-unverified', Codicon.debugBreakpointConditionalUnverified, localize('debugBreakpointConditionalUnverified', 'Icon for unverified conditional breakpoints.'))
+};
+export const dataBreakpoint = {
+	regular: registerIcon('debug-breakpoint-data', Codicon.debugBreakpointData, localize('debugBreakpointData', 'Icon for data breakpoints.')),
+	disabled: registerIcon('debug-breakpoint-data-disabled', Codicon.debugBreakpointDataDisabled, localize('debugBreakpointDataDisabled', 'Icon for disabled data breakpoints.')),
+	unverified: registerIcon('debug-breakpoint-data-unverified', Codicon.debugBreakpointDataUnverified, localize('debugBreakpointDataUnverified', 'Icon for unverified data breakpoints.')),
+};
+export const logBreakpoint = {
+	regular: registerIcon('debug-breakpoint-log', Codicon.debugBreakpointLog, localize('debugBreakpointLog', 'Icon for log breakpoints.')),
+	disabled: registerIcon('debug-breakpoint-log-disabled', Codicon.debugBreakpointLogDisabled, localize('debugBreakpointLogDisabled', 'Icon for disabled log breakpoint.')),
+	unverified: registerIcon('debug-breakpoint-log-unverified', Codicon.debugBreakpointLogUnverified, localize('debugBreakpointLogUnverified', 'Icon for unverified log breakpoints.')),
+};
 
+export const debugBreakpointHint = registerIcon('debug-hint', Codicon.debugHint, localize('debugBreakpointHint', 'Icon for breakpoint hints shown on hover in editor glyph margin.'));
 export const debugBreakpointUnsupported = registerIcon('debug-breakpoint-unsupported', Codicon.debugBreakpointUnsupported, localize('debugBreakpointUnsupported', 'Icon for unsupported breakpoints.'));
 
-export const debugBreakpointConditionalUnverified = registerIcon('debug-breakpoint-conditional-unverified', Codicon.debugBreakpointConditionalUnverified, localize('debugBreakpointConditionalUnverified', 'Icon for unverified conditional breakpoints.'));
-export const debugBreakpointConditional = registerIcon('debug-breakpoint-conditional', Codicon.debugBreakpointConditional, localize('debugBreakpointConditional', 'Icon for conditional breakpoints.'));
-export const debugBreakpointConditionalDisabled = registerIcon('debug-breakpoint-conditional-disabled', Codicon.debugBreakpointConditionalDisabled, localize('debugBreakpointConditionalDisabled', 'Icon for disabled conditional breakpoints.'));
-export const debugBreakpointDataUnverified = registerIcon('debug-breakpoint-data-unverified', Codicon.debugBreakpointDataUnverified, localize('debugBreakpointDataUnverified', 'Icon for unverified data breakpoints.'));
-export const debugBreakpointData = registerIcon('debug-breakpoint-data', Codicon.debugBreakpointData, localize('debugBreakpointData', 'Icon for data breakpoints.'));
-export const debugBreakpointDataDisabled = registerIcon('debug-breakpoint-data-disabled', Codicon.debugBreakpointDataDisabled, localize('debugBreakpointDataDisabled', 'Icon for disabled data breakpoints.'));
-export const debugBreakpointLogUnverified = registerIcon('debug-breakpoint-log-unverified', Codicon.debugBreakpointLogUnverified, localize('debugBreakpointLogUnverified', 'Icon for unverified log breakpoints.'));
-export const debugBreakpointLog = registerIcon('debug-breakpoint-log', Codicon.debugBreakpointLog, localize('debugBreakpointLog', 'Icon for log breakpoints.'));
-export const debugBreakpointLogDisabled = registerIcon('debug-breakpoint-log-disabled', Codicon.debugBreakpointLogDisabled, localize('debugBreakpointLogDisabled', 'Icon for disabled log breakpoint.'));
+export const allBreakpoints = [breakpoint, functionBreakpoint, conditionalBreakpoint, dataBreakpoint, logBreakpoint];
+
 
 export const debugStackframe = registerIcon('debug-stackframe', Codicon.debugStackframe, localize('debugStackframe', 'Icon for a stackframe shown in the editor glyph margin.'));
 export const debugStackframeFocused = registerIcon('debug-stackframe-focused', Codicon.debugStackframeFocused, localize('debugStackframeFocused', 'Icon for a focused stackframe  shown in the editor glyph margin.'));

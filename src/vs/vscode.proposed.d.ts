@@ -2211,16 +2211,18 @@ declare module 'vscode' {
 	export enum TestRunState {
 		// Initial state
 		Unset = 0,
+		// Test will be run, but is not currently running.
+		Queued = 1,
 		// Test is currently running
-		Running = 1,
+		Running = 2,
 		// Test run has passed
-		Passed = 2,
+		Passed = 3,
 		// Test run has failed (on an assertion)
-		Failed = 3,
+		Failed = 4,
 		// Test run has been skipped
-		Skipped = 4,
+		Skipped = 5,
 		// Test run failed for some other reason (compilation error, timeout, etc)
-		Errored = 5
+		Errored = 6
 	}
 
 	/**
@@ -2307,12 +2309,12 @@ declare module 'vscode' {
 		/**
 		 * The background color for this entry.
 		 *
-		 * Note: the supported colors for background are currently limited to
-		 * `ThemeColors` with id `statusBarItem.errorBackground`. Other `ThemeColors`
-		 * will be ignored.
+		 * Note: only `new ThemeColor('statusBarItem.errorBackground')` is
+		 * supported for now. More background colors may be supported in the
+		 * future.
 		 *
-		 * When setting the background color to `statusBarItem.errorBackground`, it is
-		 * recommended to also set `color` to `statusBarItem.errorForeground`.
+		 * Note: when a background color is set, the statusbar may override
+		 * the `color` choice to ensure the entry is readable in all themes.
 		 */
 		backgroundColor: ThemeColor | undefined;
 	}

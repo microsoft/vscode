@@ -34,7 +34,7 @@ import { IMenuService, MenuId, IMenu } from 'vs/platform/actions/common/actions'
 import { OpenEditorsDirtyEditorContext, OpenEditorsGroupContext, OpenEditorsReadonlyEditorContext } from 'vs/workbench/contrib/files/browser/fileCommands';
 import { ResourceContextKey } from 'vs/workbench/common/resources';
 import { ResourcesDropHandler, fillResourceDataTransfers, CodeDataTransfers, containsDragType } from 'vs/workbench/browser/dnd';
-import { ViewPane } from 'vs/workbench/browser/parts/views/viewPaneContainer';
+import { ViewPane } from 'vs/workbench/browser/parts/views/viewPane';
 import { IViewletViewOptions } from 'vs/workbench/browser/parts/views/viewsViewlet';
 import { IDragAndDropData, DataTransfers } from 'vs/base/browser/dnd';
 import { memoize } from 'vs/base/common/decorators';
@@ -267,20 +267,16 @@ export class OpenEditorsView extends ViewPane {
 		}));
 		const resourceNavigator = this._register(new ListResourceNavigator(this.list, { configurationService: this.configurationService }));
 		this._register(resourceNavigator.onDidOpen(e => {
-			if (typeof e.element !== 'number') {
+			if (!e.element) {
 				return;
-			}
-
-			const element = this.list.element(e.element);
-
-			if (element instanceof OpenEditor) {
+			} else if (e.element instanceof OpenEditor) {
 				if (e.browserEvent instanceof MouseEvent && e.browserEvent.button === 1) {
 					return; // middle click already handled above: closes the editor
 				}
 
-				this.openEditor(element, { preserveFocus: e.editorOptions.preserveFocus, pinned: e.editorOptions.pinned, sideBySide: e.sideBySide });
+				this.openEditor(e.element, { preserveFocus: e.editorOptions.preserveFocus, pinned: e.editorOptions.pinned, sideBySide: e.sideBySide });
 			} else {
-				this.editorGroupService.activateGroup(element);
+				this.editorGroupService.activateGroup(e.element);
 			}
 		}));
 

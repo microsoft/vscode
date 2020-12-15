@@ -4545,6 +4545,12 @@ declare module 'vscode' {
 	 * Represents a list of ranges that can be edited together along with a word pattern to describe valid range contents.
 	 */
 	export class LinkedEditingRanges {
+		/**
+		 * Create a new linked editing ranges object.
+		 *
+		 * @param ranges A list of ranges that can be edited together
+		 * @param wordPattern An optional word pattern that describes valid contents for the given ranges
+		 */
 		constructor(ranges: Range[], wordPattern?: RegExp);
 
 		/**
@@ -5167,9 +5173,9 @@ declare module 'vscode' {
 		set(uri: Uri, diagnostics: ReadonlyArray<Diagnostic> | undefined): void;
 
 		/**
-		 * Replace all entries in this collection.
+		 * Replace diagnostics for multiple resources in this collection.
 		 *
-		 * Diagnostics of multiple tuples of the same uri will be merged, e.g
+		 *  _Note_ that multiple tuples of the same uri will be merged, e.g
 		 * `[[file1, [d1]], [file1, [d2]]]` is equivalent to `[[file1, [d1, d2]]]`.
 		 * If a diagnostics item is `undefined` as in `[file1, undefined]`
 		 * all previous but not subsequent diagnostics are removed.
@@ -8855,6 +8861,8 @@ declare module 'vscode' {
 		 * properties on selection and/or on open.
 		 *
 		 * Will only ever be called once per TreeItem.
+		 *
+		 * onDidChangeTreeData should not be triggered from within resolveTreeItem.
 		 *
 		 * *Note* that this function is called when tree items are already showing in the UI.
 		 * Because of that, no property that changes the presentation (label, description, command, etc.)

@@ -22,7 +22,7 @@ steps:
 
   - task: NodeTool@0
     inputs:
-      versionSpec: "12.14.1"
+      versionSpec: "12.18.3"
 
   - task: geeklearningio.gl-vsts-tasks-yarn.yarn-installer-task.YarnInstaller@2
     inputs:
@@ -78,10 +78,9 @@ steps:
 
   - script: |
       set -e
-      npm install -g node-gyp@7.1.0
+      npm install -g node-gyp@latest
       node-gyp --version
     displayName: Update node-gyp
-    condition: and(succeeded(), ne(variables['CacheRestored'], 'true'))
 
   - script: |
       set -e
@@ -148,7 +147,7 @@ steps:
         yarn gulp vscode-reh-darwin-min-ci
       VSCODE_MIXIN_PASSWORD="$(github-distro-mixin-password)" \
         yarn gulp vscode-reh-web-darwin-min-ci
-    displayName: Build reh
+    displayName: Build Server
     condition: and(succeeded(), eq(variables['VSCODE_ARCH'], 'x64'))
 
   - script: |
@@ -167,6 +166,7 @@ steps:
       security set-key-partition-list -S apple-tool:,apple:,codesign: -s -k pwd $(agent.tempdirectory)/buildagent.keychain
       VSCODE_ARCH="$(VSCODE_ARCH)" DEBUG=electron-osx-sign* node build/darwin/sign.js
     displayName: Set Hardened Entitlements
+    condition: and(succeeded(), ne(variables['VSCODE_PUBLISH'], 'false'))
 
   - script: |
       set -e
@@ -246,6 +246,7 @@ steps:
       set -e
       pushd $(agent.builddirectory)/VSCode-darwin-$(VSCODE_ARCH) && zip -r -X -y $(agent.builddirectory)/VSCode-darwin-$(VSCODE_ARCH).zip * && popd
     displayName: Archive build
+    condition: and(succeeded(), ne(variables['VSCODE_PUBLISH'], 'false'))
 
   - task: SFP.build-tasks.custom-build-task-1.EsrpCodeSigning@1
     inputs:
@@ -270,10 +271,12 @@ steps:
         ]
       SessionTimeout: 60
     displayName: Codesign
+    condition: and(succeeded(), ne(variables['VSCODE_PUBLISH'], 'false'))
 
   - script: |
       zip -d $(agent.builddirectory)/VSCode-darwin-$(VSCODE_ARCH).zip "*.pkg"
-    displayName: Clean Archive
+    displayName: Clean
+    condition: and(succeeded(), ne(variables['VSCODE_PUBLISH'], 'false'))
 
   - script: |
       APP_ROOT=$(agent.builddirectory)/VSCode-darwin-$(VSCODE_ARCH)
@@ -281,6 +284,7 @@ steps:
       BUNDLE_IDENTIFIER=$(node -p "require(\"$APP_ROOT/$APP_NAME/Contents/Resources/app/product.json\").darwinBundleIdentifier")
       echo "##vso[task.setvariable variable=BundleIdentifier]$BUNDLE_IDENTIFIER"
     displayName: Export bundle identifier
+    condition: and(succeeded(), ne(variables['VSCODE_PUBLISH'], 'false'))
 
   - task: SFP.build-tasks.custom-build-task-1.EsrpCodeSigning@1
     inputs:
@@ -305,6 +309,7 @@ steps:
         ]
       SessionTimeout: 60
     displayName: Notarization
+    condition: and(succeeded(), ne(variables['VSCODE_PUBLISH'], 'false'))
 
   - script: |
       set -e
@@ -312,7 +317,7 @@ steps:
       APP_NAME="`ls $APP_ROOT | head -n 1`"
       "$APP_ROOT/$APP_NAME/Contents/Resources/app/bin/code" --export-default-configuration=.build
     displayName: Verify start after signing (export configuration)
-    condition: and(succeeded(), eq(variables['VSCODE_ARCH'], 'x64'))
+    condition: and(succeeded(), eq(variables['VSCODE_ARCH'], 'x64'), ne(variables['VSCODE_PUBLISH'], 'false'))
 
   - script: |
       set -e
@@ -323,13 +328,14 @@ steps:
       VSCODE_ARCH="$(VSCODE_ARCH)" \
       ./build/azure-pipelines/darwin/publish.sh
     displayName: Publish
+    condition: and(succeeded(), ne(variables['VSCODE_PUBLISH'], 'false'))
 
   - script: |
       AZURE_STORAGE_ACCESS_KEY="$(ticino-storage-key)" \
       VSCODE_ARCH="$(VSCODE_ARCH)" \
       yarn gulp upload-vscode-configuration
     displayName: Upload configuration (for Bing settings search)
-    condition: and(succeeded(), eq(variables['VSCODE_ARCH'], 'x64'))
+    condition: and(succeeded(), eq(variables['VSCODE_ARCH'], 'x64'), ne(variables['VSCODE_PUBLISH'], 'false'))
     continueOnError: true
 
   - task: ms.vss-governance-buildtask.governance-build-task-component-detection.ComponentGovernanceComponentDetection@0

@@ -585,8 +585,6 @@
 							newFrame.contentWindow.focus();
 						}
 
-
-
 						contentWindow.addEventListener('scroll', handleInnerScroll);
 						contentWindow.addEventListener('wheel', handleWheel);
 

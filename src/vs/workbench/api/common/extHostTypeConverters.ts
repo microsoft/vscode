@@ -274,8 +274,8 @@ export namespace MarkdownString {
 		if (isCodeblock(markup)) {
 			const { language, value } = markup;
 			res = { value: '```' + language + '\n' + value + '\n```\n' };
-		} else if (htmlContent.isMarkdownString(markup)) {
-			res = markup;
+		} else if (types.MarkdownString.isMarkdownString(markup)) {
+			res = { value: markup.value, isTrusted: markup.isTrusted, supportThemeIcons: markup.supportThemeIcons };
 		} else if (typeof markup === 'string') {
 			res = { value: markup };
 		} else {
@@ -343,7 +343,7 @@ export namespace MarkdownString {
 		return result;
 	}
 
-	export function fromStrict(value: string | types.MarkdownString): undefined | string | htmlContent.IMarkdownString {
+	export function fromStrict(value: string | vscode.MarkdownString): undefined | string | htmlContent.IMarkdownString {
 		if (!value) {
 			return undefined;
 		}
@@ -1393,9 +1393,9 @@ export namespace TestItem {
 		return {
 			label: item.label,
 			location: item.location ? location.from(item.location) : undefined,
-			debuggable: item.debuggable,
+			debuggable: item.debuggable ?? false,
 			description: item.description,
-			runnable: item.runnable,
+			runnable: item.runnable ?? true,
 			state: TestState.from(item.state),
 		};
 	}
