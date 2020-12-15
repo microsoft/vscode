@@ -16,7 +16,7 @@ import { IConfigurationChangeEvent, ConfigurationTarget, IConfigurationOverrides
 import { Configuration } from 'vs/workbench/services/configuration/common/configurationModels';
 import { FOLDER_CONFIG_FOLDER_NAME, defaultSettingsSchemaId, userSettingsSchemaId, workspaceSettingsSchemaId, folderSettingsSchemaId, IConfigurationCache, machineSettingsSchemaId, LOCAL_MACHINE_SCOPES, IWorkbenchConfigurationService } from 'vs/workbench/services/configuration/common/configuration';
 import { Registry } from 'vs/platform/registry/common/platform';
-import { IConfigurationRegistry, Extensions, allSettings, windowSettings, resourceSettings, applicationSettings, machineSettings, machineOverridableSettings } from 'vs/platform/configuration/common/configurationRegistry';
+import { IConfigurationRegistry, Extensions, allSettings, windowSettings, resourceSettings, applicationSettings, machineSettings, machineOverridableSettings, ConfigurationScope } from 'vs/platform/configuration/common/configurationRegistry';
 import { IWorkspaceIdentifier, isWorkspaceIdentifier, IStoredWorkspaceFolder, isStoredWorkspaceFolder, IWorkspaceFolderCreationData, ISingleFolderWorkspaceIdentifier, isSingleFolderWorkspaceIdentifier, IWorkspaceInitializationPayload, isSingleFolderWorkspaceInitializationPayload, ISingleFolderWorkspaceInitializationPayload, IEmptyWorkspaceInitializationPayload, useSlashForPath, getStoredWorkspaceFolder } from 'vs/platform/workspaces/common/workspaces';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { ConfigurationEditingService, EditableConfigurationTarget } from 'vs/workbench/services/configuration/common/configurationEditingService';
@@ -70,6 +70,8 @@ export class WorkspaceService extends Disposable implements IWorkbenchConfigurat
 	protected readonly _onDidChangeWorkbenchState: Emitter<WorkbenchState> = this._register(new Emitter<WorkbenchState>());
 	public readonly onDidChangeWorkbenchState: Event<WorkbenchState> = this._onDidChangeWorkbenchState.event;
 
+	private readonly configurationRegistry: IConfigurationRegistry;
+
 	// TODO@sandeep debt with cyclic dependencies
 	private configurationEditingService!: ConfigurationEditingService;
 	private jsonEditingService!: JSONEditingService;
@@ -86,11 +88,11 @@ export class WorkspaceService extends Disposable implements IWorkbenchConfigurat
 	) {
 		super();
 
-		const configurationRegistry = Registry.as<IConfigurationRegistry>(Extensions.Configuration);
+		this.configurationRegistry = Registry.as<IConfigurationRegistry>(Extensions.Configuration);
 		// register defaults before creating default configuration model
 		// so that the model is not required to be updated after registering
 		if (environmentService.options?.configurationDefaults) {
-			configurationRegistry.registerDefaultConfigurations([environmentService.options.configurationDefaults]);
+			this.configurationRegistry.registerDefaultConfigurations([environmentService.options.configurationDefaults]);
 		}
 
 		this.initRemoteUserConfigurationBarrier = new Barrier();
@@ -123,7 +125,7 @@ export class WorkspaceService extends Disposable implements IWorkbenchConfigurat
 			});
 		}));
 
-		this._register(configurationRegistry.onDidUpdateConfiguration(configurationProperties => this.onDefaultConfigurationChanged(configurationProperties)));
+		this._register(this.configurationRegistry.onDidUpdateConfiguration(configurationProperties => this.onDefaultConfigurationChanged(configurationProperties)));
 
 		this.workspaceEditingQueue = new Queue<void>();
 	}
@@ -802,8 +804,14 @@ export class WorkspaceService extends Disposable implements IWorkbenchConfigurat
 
 	private toEditableConfigurationTarget(target: ConfigurationTarget, key: string): EditableConfigurationTarget | null {
 		if (target === ConfigurationTarget.USER) {
-			if (this.inspect(key).userRemoteValue !== undefined) {
-				return EditableConfigurationTarget.USER_REMOTE;
+			if (this.remoteUserConfiguration) {
+				const scope = this.configurationRegistry.getConfigurationProperties()[key]?.scope;
+				if (scope === ConfigurationScope.MACHINE || scope === ConfigurationScope.MACHINE_OVERRIDABLE) {
+					return EditableConfigurationTarget.USER_REMOTE;
+				}
+				if (this.inspect(key).userRemoteValue !== undefined) {
+					return EditableConfigurationTarget.USER_REMOTE;
+				}
 			}
 			return EditableConfigurationTarget.USER_LOCAL;
 		}

@@ -2029,6 +2029,33 @@ suite('WorkspaceConfigurationService - Remote Folder', () => {
 		assert.equal(testObject.getValue('configurationService.remote.machineOverridableSetting'), 'isSet');
 	});
 
+	test('non machine setting is written in local settings', async () => {
+		registerRemoteFileSystemProvider();
+		resolveRemoteEnvironment();
+		await initialize();
+		await testObject.updateValue('configurationService.remote.applicationSetting', 'applicationValue');
+		await testObject.reloadConfiguration();
+		assert.equal(testObject.inspect('configurationService.remote.applicationSetting').userLocalValue, 'applicationValue');
+	});
+
+	test('machine setting is written in remote settings', async () => {
+		registerRemoteFileSystemProvider();
+		resolveRemoteEnvironment();
+		await initialize();
+		await testObject.updateValue('configurationService.remote.machineSetting', 'machineValue');
+		await testObject.reloadConfiguration();
+		assert.equal(testObject.inspect('configurationService.remote.machineSetting').userRemoteValue, 'machineValue');
+	});
+
+	test('machine overridable setting is written in remote settings', async () => {
+		registerRemoteFileSystemProvider();
+		resolveRemoteEnvironment();
+		await initialize();
+		await testObject.updateValue('configurationService.remote.machineOverridableSetting', 'machineValue');
+		await testObject.reloadConfiguration();
+		assert.equal(testObject.inspect('configurationService.remote.machineOverridableSetting').userRemoteValue, 'machineValue');
+	});
+
 	test('machine settings in local user settings does not override defaults after defalts are registered ', async () => {
 		fs.writeFileSync(globalSettingsFile, '{ "configurationService.remote.newMachineSetting": "userValue" }');
 		registerRemoteFileSystemProvider();
@@ -2048,7 +2075,7 @@ suite('WorkspaceConfigurationService - Remote Folder', () => {
 		assert.equal(testObject.getValue('configurationService.remote.newMachineSetting'), 'isSet');
 	});
 
-	test('machine overridable settings in local user settings does not override defaults after defalts are registered ', async () => {
+	test('machine overridable settings in local user settings does not override defaults after defaults are registered ', async () => {
 		fs.writeFileSync(globalSettingsFile, '{ "configurationService.remote.newMachineOverridableSetting": "userValue" }');
 		registerRemoteFileSystemProvider();
 		resolveRemoteEnvironment();
