@@ -3,15 +3,18 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
+import { Emitter } from 'vs/base/common/event';
 import { Disposable } from 'vs/base/common/lifecycle';
 import { generateUuid } from 'vs/base/common/uuid';
+import { PrefixSumComputer } from 'vs/editor/common/viewModel/prefixSumComputer';
 import { IDiffNestedCellViewModel } from 'vs/workbench/contrib/notebook/browser/diff/common';
+import { IGenericCellViewModel } from 'vs/workbench/contrib/notebook/browser/genericTypes';
 import { ICellOutputViewModel } from 'vs/workbench/contrib/notebook/browser/notebookBrowser';
 import { CellOutputViewModel } from 'vs/workbench/contrib/notebook/browser/viewModel/cellOutputViewModel';
 import { NotebookCellTextModel } from 'vs/workbench/contrib/notebook/common/model/notebookCellTextModel';
 import { INotebookService } from 'vs/workbench/contrib/notebook/common/notebookService';
 
-export class DiffNestedCellViewModel extends Disposable implements IDiffNestedCellViewModel {
+export class DiffNestedCellViewModel extends Disposable implements IDiffNestedCellViewModel, IGenericCellViewModel {
 	private _id: string;
 	get id() {
 		return this._id;
@@ -43,6 +46,12 @@ export class DiffNestedCellViewModel extends Disposable implements IDiffNestedCe
 		return this._outputViewModels;
 	}
 
+	protected _outputCollection: number[] = [];
+	protected _outputsTop: PrefixSumComputer | null = null;
+	protected readonly _onDidChangeOutputLayout = new Emitter<void>();
+	readonly onDidChangeOutputLayout = this._onDidChangeOutputLayout.event;
+
+
 	constructor(
 		readonly textModel: NotebookCellTextModel,
 		@INotebookService private _notebookService: INotebookService
@@ -51,14 +60,54 @@ export class DiffNestedCellViewModel extends Disposable implements IDiffNestedCe
 		this._id = generateUuid();
 
 		this._outputViewModels = this.textModel.outputs.map(output => new CellOutputViewModel(output, this._notebookService));
-		// this._register(this.textModel.onDidChangeOutputs((splices) => {
-		// 	splices.reverse().forEach(splice => {
-		// 		this._outputCollection.splice(splice[0], splice[1], ...splice[2].map(() => 0));
-		// 		this._outputViewModels.splice(splice[0], splice[1], ...splice[2].map(output => new CellOutputViewModel(output, this._notebookService)));
-		// 	});
+		this._register(this.textModel.onDidChangeOutputs((splices) => {
+			splices.reverse().forEach(splice => {
+				this._outputCollection.splice(splice[0], splice[1], ...splice[2].map(() => 0));
+				this._outputViewModels.splice(splice[0], splice[1], ...splice[2].map(output => new CellOutputViewModel(output, this._notebookService)));
+			});
 
-		// 	this._outputsTop = null;
-		// 	this._onDidChangeOutputs.fire(splices);
-		// }));
+			this._outputsTop = null;
+			this._onDidChangeOutputLayout.fire();
+		}));
+		this._outputCollection = new Array(this.textModel.outputs.length);
+	}
+
+	private _ensureOutputsTop() {
+		if (!this._outputsTop) {
+			const values = new Uint32Array(this._outputCollection.length);
+			for (let i = 0; i < this._outputCollection.length; i++) {
+				values[i] = this._outputCollection[i];
+			}
+
+			this._outputsTop = new PrefixSumComputer(values);
+		}
+	}
+
+	getOutputOffset(index: number): number {
+		this._ensureOutputsTop();
+
+		if (index >= this._outputCollection.length) {
+			throw new Error('Output index out of range!');
+		}
+
+		return this._outputsTop!.getAccumulatedValue(index - 1);
+	}
+
+	updateOutputHeight(index: number, height: number): void {
+		if (index >= this._outputCollection.length) {
+			throw new Error('Output index out of range!');
+		}
+
+		this._ensureOutputsTop();
+		this._outputCollection[index] = height;
+		if (this._outputsTop!.changeValue(index, height)) {
+			this._onDidChangeOutputLayout.fire();
+		}
+	}
+
+	getOutputTotalHeight() {
+		this._ensureOutputsTop();
+
+		return this._outputsTop?.getTotalValue() ?? 0;
 	}
 }

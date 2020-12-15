@@ -12,7 +12,6 @@ import * as UUID from 'vs/base/common/uuid';
 import { IOpenerService, matchesScheme } from 'vs/platform/opener/common/opener';
 import { CELL_MARGIN, CELL_RUN_GUTTER, CODE_CELL_LEFT_MARGIN, CELL_OUTPUT_PADDING } from 'vs/workbench/contrib/notebook/browser/constants';
 import { IDisplayOutputViewModel, IInsetRenderOutput, RenderOutputType } from 'vs/workbench/contrib/notebook/browser/notebookBrowser';
-import { CodeCellViewModel } from 'vs/workbench/contrib/notebook/browser/viewModel/codeCellViewModel';
 import { CellOutputKind, IDisplayOutput, INotebookRendererInfo, ITransformedDisplayOutputDto } from 'vs/workbench/contrib/notebook/common/notebookCommon';
 import { INotebookService } from 'vs/workbench/contrib/notebook/common/notebookService';
 import { IWebviewService, WebviewElement, WebviewContentPurpose } from 'vs/workbench/contrib/webview/browser/webview';
@@ -25,6 +24,7 @@ import { IWorkbenchEnvironmentService } from 'vs/workbench/services/environment/
 import { INotebookTextDiffEditor } from 'vs/workbench/contrib/notebook/browser/diff/common';
 import { DiffNestedCellViewModel } from 'vs/workbench/contrib/notebook/browser/diff/diffNestedCellViewModel';
 import { DiffElementViewModelBase, SideBySideDiffElementViewModel, SingleSideDiffElementViewModel } from 'vs/workbench/contrib/notebook/browser/diff/diffElementViewModel';
+import { IGenericCellViewModel } from 'vs/workbench/contrib/notebook/browser/genericTypes';
 
 export interface WebviewIntialized {
 	__vscode_notebook_message: boolean;
@@ -198,7 +198,7 @@ export type AnyMessage = FromWebviewMessage | ToWebviewMessage;
 interface ICachedInset {
 	outputId: string;
 	diffElement: DiffElementViewModelBase;
-	cell: DiffNestedCellViewModel;
+	cell: IGenericCellViewModel;
 	renderer?: INotebookRendererInfo;
 	cachedCreation: ICreationRequestMessage;
 }
@@ -334,7 +334,7 @@ export class BackLayerWebView extends Disposable {
 		});
 	}
 
-	private resolveOutputId(id: string): { cell: DiffNestedCellViewModel, diffElement: DiffElementViewModelBase, output: IDisplayOutputViewModel } | undefined {
+	private resolveOutputId(id: string): { cell: IGenericCellViewModel, diffElement: DiffElementViewModelBase, output: IDisplayOutputViewModel } | undefined {
 		const output = this.reversedInsetMapping.get(id);
 		if (!output) {
 			return;
@@ -555,7 +555,7 @@ var requirejs = (function() {
 		return webview;
 	}
 
-	shouldUpdateInset(cell: CodeCellViewModel, output: IDisplayOutputViewModel, cellTop: number) {
+	shouldUpdateInset(cell: IGenericCellViewModel, output: IDisplayOutputViewModel, cellTop: number) {
 		if (this._disposed) {
 			return;
 		}
@@ -615,7 +615,7 @@ var requirejs = (function() {
 		});
 	}
 
-	async createInset(cellDiffViewModel: DiffElementViewModelBase, cell: DiffNestedCellViewModel, content: IInsetRenderOutput, cellTop: number, offset: number) {
+	async createInset(cellDiffViewModel: DiffElementViewModelBase, cell: IGenericCellViewModel, content: IInsetRenderOutput, cellTop: number, offset: number) {
 		if (this._disposed) {
 			return;
 		}

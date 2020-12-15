@@ -140,7 +140,7 @@ export class OutputElement extends Disposable {
 				return this.cellViewModel.original.outputs.indexOf(this.output.model);
 			}
 		} else {
-			return (this.cellViewModel as SingleSideDiffElementViewModel).cellTextModel!.outputs.indexOf(this.output.model);
+			return (this.cellViewModel as SingleSideDiffElementViewModel).cellViewModel!.outputs.indexOf(this.output.model);
 		}
 	}
 
