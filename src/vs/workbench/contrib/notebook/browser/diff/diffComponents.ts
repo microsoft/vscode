@@ -310,6 +310,8 @@ abstract class AbstractElementRenderer extends Disposable {
 		} else {
 			if (RENDER_RICH_OUTPUT) {
 				this._hideOutputs();
+				this._outputInfoContainer.style.display = 'none';
+				this._outputEditorDisposeStore.clear();
 				this.cell.layoutChange();
 			} else {
 				this._outputInfoContainer.style.display = 'none';
