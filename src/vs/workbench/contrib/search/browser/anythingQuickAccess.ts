@@ -184,16 +184,16 @@ export class AnythingQuickAccessProvider extends PickerQuickAccessProvider<IAnyt
 	}
 
 	private get configuration() {
-		const editorConfig = this.configurationService.getValue<IWorkbenchEditorConfiguration>().workbench.editor;
+		const editorConfig = this.configurationService.getValue<IWorkbenchEditorConfiguration>().workbench?.editor;
 		const searchConfig = this.configurationService.getValue<IWorkbenchSearchConfiguration>().search;
 		const quickAccessConfig = this.configurationService.getValue<IWorkbenchQuickAccessConfiguration>().workbench.quickOpen;
 
 		return {
-			openEditorPinned: !editorConfig.enablePreviewFromQuickOpen || !editorConfig.enablePreview,
-			openSideBySideDirection: editorConfig.openSideBySideDirection,
-			includeSymbols: searchConfig.quickOpen.includeSymbols,
-			includeHistory: searchConfig.quickOpen.includeHistory,
-			historyFilterSortOrder: searchConfig.quickOpen.history.filterSortOrder,
+			openEditorPinned: !editorConfig?.enablePreviewFromQuickOpen || !editorConfig?.enablePreview,
+			openSideBySideDirection: editorConfig?.openSideBySideDirection,
+			includeSymbols: searchConfig?.quickOpen.includeSymbols,
+			includeHistory: searchConfig?.quickOpen.includeHistory,
+			historyFilterSortOrder: searchConfig?.quickOpen.history.filterSortOrder,
 			shortAutoSaveDelay: this.filesConfigurationService.getAutoSaveMode() === AutoSaveMode.AFTER_SHORT_DELAY,
 			preserveInput: quickAccessConfig.preserveInput
 		};

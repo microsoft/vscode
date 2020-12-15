@@ -30,10 +30,10 @@ export class GotoLineQuickAccessProvider extends AbstractGotoLineQuickAccessProv
 	}
 
 	private get configuration() {
-		const editorConfig = this.configurationService.getValue<IWorkbenchEditorConfiguration>().workbench.editor;
+		const editorConfig = this.configurationService.getValue<IWorkbenchEditorConfiguration>().workbench?.editor;
 
 		return {
-			openEditorPinned: !editorConfig.enablePreviewFromQuickOpen || !editorConfig.enablePreview
+			openEditorPinned: !editorConfig?.enablePreviewFromQuickOpen || !editorConfig?.enablePreview
 		};
 	}
 

@@ -75,11 +75,11 @@ export class SymbolsQuickAccessProvider extends PickerQuickAccessProvider<ISymbo
 	}
 
 	private get configuration() {
-		const editorConfig = this.configurationService.getValue<IWorkbenchEditorConfiguration>().workbench.editor;
+		const editorConfig = this.configurationService.getValue<IWorkbenchEditorConfiguration>().workbench?.editor;
 
 		return {
-			openEditorPinned: !editorConfig.enablePreviewFromQuickOpen || !editorConfig.enablePreview,
-			openSideBySideDirection: editorConfig.openSideBySideDirection
+			openEditorPinned: !editorConfig?.enablePreviewFromQuickOpen || !editorConfig?.enablePreview,
+			openSideBySideDirection: editorConfig?.openSideBySideDirection
 		};
 	}
 

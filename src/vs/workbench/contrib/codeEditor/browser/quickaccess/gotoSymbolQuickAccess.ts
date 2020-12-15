@@ -52,11 +52,11 @@ export class GotoSymbolQuickAccessProvider extends AbstractGotoSymbolQuickAccess
 	}
 
 	private get configuration() {
-		const editorConfig = this.configurationService.getValue<IWorkbenchEditorConfiguration>().workbench.editor;
+		const editorConfig = this.configurationService.getValue<IWorkbenchEditorConfiguration>().workbench?.editor;
 
 		return {
-			openEditorPinned: !editorConfig.enablePreviewFromQuickOpen || !editorConfig.enablePreview,
-			openSideBySideDirection: editorConfig.openSideBySideDirection
+			openEditorPinned: !editorConfig?.enablePreviewFromQuickOpen || !editorConfig?.enablePreview,
+			openSideBySideDirection: editorConfig?.openSideBySideDirection
 		};
 	}
 
