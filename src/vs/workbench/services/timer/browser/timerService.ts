@@ -399,35 +399,14 @@ export abstract class AbstractTimerService implements ITimerService {
 			_lifecycleService.when(LifecyclePhase.Restored)
 		]).then(() => {
 
-			// import native-browser marks
-			this._submitNativeMarks();
-
-			// because "our" perf.mark-util also adds native performance marks
-			// no extra import of "our" marks is needed, they are already imported
-			// by importing native perf marks (see above)
-			// this.submitPerformanceMarks(perf.getMarks());
+			// set perf mark from renderer
+			this.setPerformanceMarks('renderer', perf.getMarks());
 
 			return this._computeStartupMetrics();
 		}).then(metrics => {
 			this._reportStartupTimes(metrics);
 			return metrics;
 		});
-	}
-
-	private _submitNativeMarks(): void {
-		let timeOrigin = performance.timeOrigin;
-		if (!timeOrigin) {
-			// polyfill for Safari
-			const entry = performance.timing;
-			timeOrigin = entry.navigationStart || entry.redirectStart || entry.fetchStart;
-		}
-		const marks: perf.PerformanceMark[] = performance.getEntriesByType('mark').map(entry => {
-			return {
-				name: entry.name,
-				startTime: Math.round(timeOrigin + entry.startTime)
-			};
-		});
-		this.setPerformanceMarks('renderer', marks);
 	}
 
 	setPerformanceMarks(source: string, marks: perf.PerformanceMark[]): void {
