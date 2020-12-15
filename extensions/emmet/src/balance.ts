@@ -9,7 +9,6 @@ import { parseHTMLDocument } from './parseDocument';
 import { TextDocument as LSTextDocument } from 'vscode-html-languageservice';
 
 let balanceOutStack: Array<vscode.Selection[]> = [];
-let lastOut = false;
 let lastBalancedSelections: vscode.Selection[] = [];
 
 export function balanceOut() {
@@ -38,28 +37,21 @@ function balance(out: boolean) {
 		newSelections.push(range);
 	});
 
-	if (areSameSelections(newSelections, editor.selections)) {
-		return;
-	}
-
+	// check whether we are starting a balance elsewhere
 	if (areSameSelections(lastBalancedSelections, editor.selections)) {
+		// we are not starting elsewhere, so use the stack as-is
 		if (out) {
-			if (!balanceOutStack.length) {
-				balanceOutStack.push(editor.selections);
-			}
-			balanceOutStack.push(newSelections);
-		} else {
-			if (lastOut) {
-				balanceOutStack.pop();
-			}
-			newSelections = balanceOutStack.pop() || newSelections;
+			balanceOutStack.push(editor.selections);
+		} else if (balanceOutStack.length) {
+			newSelections = balanceOutStack.pop()!;
 		}
 	} else {
-		balanceOutStack = out ? [editor.selections, newSelections] : [];
+		// we are starting elsewhere, so reset the stack
+		balanceOutStack = out ? [editor.selections] : [];
 	}
 
-	lastOut = out;
-	lastBalancedSelections = editor.selections = newSelections;
+	editor.selections = newSelections;
+	lastBalancedSelections = editor.selections;
 }
 
 function getRangeToBalanceOut(document: LSTextDocument, selection: vscode.Selection): vscode.Selection {
