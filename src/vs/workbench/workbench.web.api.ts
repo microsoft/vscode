@@ -456,8 +456,13 @@ interface IPerformanceMark {
 
 interface IWorkbench {
 	commands: {
+
+		/**
+		 * Allows to execute a command, either built-in or from extensions.
+		 */
 		executeCommand(command: string, ...args: any[]): Promise<unknown>;
 	},
+
 	env: {
 		/**
 		 * Retrieve performance marks that have been collected during startup. This function
@@ -472,6 +477,15 @@ interface IWorkbench {
 		 */
 		retrievePerformanceMarks(): Promise<[string, readonly IPerformanceMark[]][]>;
 	}
+
+	/**
+	 * Triggers shutdown of the workbench programmatically. After this method is
+	 * called, the workbench is not usable anymore and the page needs to reload
+	 * or closed.
+	 *
+	 * This will also remove any `beforeUnload` handlers that would bring up a
+	 * confirmation dialog.
+	 */
 	shutdown: () => void;
 }
 
@@ -626,7 +640,10 @@ export {
 	IDefaultEditor,
 	IDefaultLayout,
 	IDefaultPanelLayout,
-	IDefaultSideBarLayout
+	IDefaultSideBarLayout,
+
+	// Env
+	IPerformanceMark
 };
 
 //#endregion
