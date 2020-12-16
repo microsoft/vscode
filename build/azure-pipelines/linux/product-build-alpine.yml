@@ -90,6 +90,9 @@ steps:
         fi
         echo "Yarn failed $i, trying again..."
       done
+    env:
+      ELECTRON_SKIP_BINARY_DOWNLOAD: 1
+      PLAYWRIGHT_SKIP_BROWSER_DOWNLOAD: 1
     displayName: Install dependencies
     condition: and(succeeded(), ne(variables['CacheRestored'], 'true'))
 
@@ -129,6 +132,7 @@ steps:
       VSCODE_MIXIN_PASSWORD="$(github-distro-mixin-password)" \
       ./build/azure-pipelines/linux/alpine/publish.sh
     displayName: Publish
+    condition: and(succeeded(), ne(variables['VSCODE_PUBLISH'], 'false'))
 
   - task: ms.vss-governance-buildtask.governance-build-task-component-detection.ComponentGovernanceComponentDetection@0
     displayName: "Component Detection"

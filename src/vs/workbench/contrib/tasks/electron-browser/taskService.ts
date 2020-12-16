@@ -116,7 +116,7 @@ export class TaskService extends AbstractTaskService {
 			preferencesService,
 			viewDescriptorService,
 			logService);
-		this._register(lifecycleService.onBeforeShutdown(event => event.veto(this.beforeShutdown())));
+		this._register(lifecycleService.onBeforeShutdown(event => event.veto(this.beforeShutdown(), 'veto.tasks')));
 	}
 
 	protected getTaskSystem(): ITaskSystem {

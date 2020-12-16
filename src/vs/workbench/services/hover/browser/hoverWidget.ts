@@ -83,6 +83,7 @@ export class HoverWidget extends Widget {
 		const contentsElement = $('div.hover-contents');
 		if (typeof options.text === 'string') {
 			contentsElement.textContent = options.text;
+			contentsElement.style.whiteSpace = 'pre-wrap';
 		} else {
 			const markdown = options.text;
 			const mdRenderer = this._instantiationService.createInstance(

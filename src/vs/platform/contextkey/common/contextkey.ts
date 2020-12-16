@@ -1278,11 +1278,11 @@ export class RawContextKey<T> extends ContextKeyDefinedExpr {
 		return ContextKeyExpr.not(this.key);
 	}
 
-	public isEqualTo(value: string): ContextKeyExpression {
+	public isEqualTo(value: any): ContextKeyExpression {
 		return ContextKeyExpr.equals(this.key, value);
 	}
 
-	public notEqualsTo(value: string): ContextKeyExpression {
+	public notEqualsTo(value: any): ContextKeyExpression {
 		return ContextKeyExpr.notEquals(this.key, value);
 	}
 }

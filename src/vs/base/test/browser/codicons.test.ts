@@ -41,7 +41,7 @@ suite('renderCodicons', () => {
 	test('codicon with animation', () => {
 		const result = renderCodicons('$(zip~anim)');
 
-		assert.equal(elementsToString(result), '<span class="codicon codicon-zip codicon-animation-anim"></span>');
+		assert.equal(elementsToString(result), '<span class="codicon codicon-zip codicon-modifier-anim"></span>');
 	});
 
 	const elementsToString = (elements: Array<HTMLElement | string>): string => {

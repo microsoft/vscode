@@ -10,6 +10,7 @@ import { URI } from 'vs/base/common/uri';
 import { IExtHostContext } from 'vs/workbench/api/common/extHost.protocol';
 import { mock } from 'vs/workbench/test/common/workbenchTestServices';
 import { IUriIdentityService } from 'vs/workbench/services/uriIdentity/common/uriIdentity';
+import { ExtensionHostKind } from 'vs/workbench/services/extensions/common/extensions';
 
 
 suite('MainThreadDiagnostics', function () {
@@ -25,6 +26,7 @@ suite('MainThreadDiagnostics', function () {
 		let diag = new MainThreadDiagnostics(
 			new class implements IExtHostContext {
 				remoteAuthority = '';
+				extensionHostKind = ExtensionHostKind.LocalProcess;
 				assertRegistered() { }
 				set(v: any): any { return null; }
 				getProxy(): any {

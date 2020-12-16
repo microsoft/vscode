@@ -234,16 +234,16 @@ export function toWorkspaceFolder(resource: URI): WorkspaceFolder {
 	return new WorkspaceFolder({ uri: resource, index: 0, name: resources.basenameOrAuthority(resource) }, { uri: resource.toString() });
 }
 
-export function toWorkspaceFolders(configuredFolders: IStoredWorkspaceFolder[], workspaceConfigFile: URI): WorkspaceFolder[] {
+export function toWorkspaceFolders(configuredFolders: IStoredWorkspaceFolder[], workspaceConfigFile: URI, extUri: resources.IExtUri): WorkspaceFolder[] {
 	let result: WorkspaceFolder[] = [];
 	let seen: Set<string> = new Set();
 
-	const relativeTo = resources.dirname(workspaceConfigFile);
+	const relativeTo = extUri.dirname(workspaceConfigFile);
 	for (let configuredFolder of configuredFolders) {
 		let uri: URI | null = null;
 		if (isRawFileWorkspaceFolder(configuredFolder)) {
 			if (configuredFolder.path) {
-				uri = resources.resolvePath(relativeTo, configuredFolder.path);
+				uri = extUri.resolvePath(relativeTo, configuredFolder.path);
 			}
 		} else if (isRawUriWorkspaceFolder(configuredFolder)) {
 			try {
@@ -259,11 +259,11 @@ export function toWorkspaceFolders(configuredFolders: IStoredWorkspaceFolder[], 
 		}
 		if (uri) {
 			// remove duplicates
-			let comparisonKey = resources.getComparisonKey(uri);
+			let comparisonKey = extUri.getComparisonKey(uri);
 			if (!seen.has(comparisonKey)) {
 				seen.add(comparisonKey);
 
-				const name = configuredFolder.name || resources.basenameOrAuthority(uri);
+				const name = configuredFolder.name || extUri.basenameOrAuthority(uri);
 				result.push(new WorkspaceFolder({ uri, name, index: result.length }, configuredFolder));
 			}
 		}

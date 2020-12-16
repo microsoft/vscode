@@ -3223,6 +3223,11 @@ declare namespace monaco.editor {
 		 */
 		isInEmbeddedEditor?: boolean;
 		/**
+		 * Is the diff editor should render overview ruler
+		 * Defaults to true
+		 */
+		renderOverviewRuler?: boolean;
+		/**
 		 * Control the wrapping of the diff editor.
 		 */
 		diffWordWrap?: 'off' | 'on' | 'inherit';
@@ -4492,6 +4497,10 @@ declare namespace monaco.editor {
 	}
 
 	export interface IDiffEditorConstructionOptions extends IDiffEditorOptions {
+		/**
+		 * The initial editor dimension (to avoid measuring the container).
+		 */
+		dimension?: IDimension;
 		/**
 		 * Place overflow widgets inside an external DOM node.
 		 * Defaults to an internal DOM node.

@@ -49,6 +49,7 @@ import { TestWorkingCopy } from 'vs/workbench/test/common/workbenchTestServices'
 import { CancellationToken } from 'vs/base/common/cancellation';
 import { timeout } from 'vs/base/common/async';
 import { Workspace } from 'vs/platform/workspace/test/common/testWorkspace';
+import { IProgressService } from 'vs/platform/progress/common/progress';
 
 const userdataDir = getRandomTestPath(os.tmpdir(), 'vsctests', 'backuprestorer');
 const backupHome = path.join(userdataDir, 'Backups');
@@ -70,9 +71,10 @@ class TestBackupTracker extends NativeBackupTracker {
 		@INativeHostService nativeHostService: INativeHostService,
 		@ILogService logService: ILogService,
 		@IEditorService editorService: IEditorService,
-		@IEnvironmentService environmentService: IEnvironmentService
+		@IEnvironmentService environmentService: IEnvironmentService,
+		@IProgressService progressService: IProgressService
 	) {
-		super(backupFileService, filesConfigurationService, workingCopyService, lifecycleService, fileDialogService, dialogService, contextService, nativeHostService, logService, editorService, environmentService);
+		super(backupFileService, filesConfigurationService, workingCopyService, lifecycleService, fileDialogService, dialogService, contextService, nativeHostService, logService, editorService, environmentService, progressService);
 	}
 
 	protected getBackupScheduleDelay(): number {
@@ -90,9 +92,16 @@ class BeforeShutdownEventImpl implements BeforeShutdownEvent {
 	}
 }
 
-suite('BackupTracker', () => {
+suite('BackupTracker', function () {
 	let accessor: TestServiceAccessor;
 	let disposables: IDisposable[] = [];
+
+	// Given issues such as https://github.com/microsoft/vscode/issues/112146
+	// we see random test failures when accessing the native file system. To
+	// diagnose further, we retry node.js file access tests up to 3 times to rule
+	// out any random disk issue and increase the timeout.
+	this.retries(3);
+	this.timeout(1000 * 10);
 
 	setup(async () => {
 		const instantiationService = workbenchInstantiationService();

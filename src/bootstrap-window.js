@@ -34,7 +34,7 @@
 
 	/**
 	 * @param {string[]} modulePaths
-	 * @param {(result, configuration: object) => any} resultCallback
+	 * @param {(result: unknown, configuration: object) => Promise<unknown> | undefined} resultCallback
 	 * @param {{ forceEnableDeveloperKeybindings?: boolean, disallowReloadKeybinding?: boolean, removeDeveloperKeybindingsAfterLoad?: boolean, canModifyDOM?: (config: object) => void, beforeLoaderConfig?: (config: object, loaderConfig: object) => void, beforeRequire?: () => void }=} options
 	 */
 	function load(modulePaths, resultCallback, options) {
@@ -145,10 +145,9 @@
 			try {
 
 				// Wait for process environment being fully resolved
-				const perf = perfLib();
-				perf.mark('willWaitForShellEnv');
+				performance.mark('code/willWaitForShellEnv');
 				await whenEnvResolved;
-				perf.mark('didWaitForShellEnv');
+				performance.mark('code/didWaitForShellEnv');
 
 				// Callback only after process environment is resolved
 				const callbackResult = resultCallback(result, configuration);
@@ -166,7 +165,7 @@
 	}
 
 	/**
-	 * Parses the contents of the `INativeWindowConfiguration` that
+	 * Parses the contents of the window condiguration that
 	 * is passed into the URL from the `electron-main` side.
 	 *
 	 * @returns {{
@@ -195,22 +194,26 @@
 	function registerDeveloperKeybindings(disallowReloadKeybinding) {
 		const ipcRenderer = preloadGlobals.ipcRenderer;
 
-		const extractKey = function (e) {
-			return [
-				e.ctrlKey ? 'ctrl-' : '',
-				e.metaKey ? 'meta-' : '',
-				e.altKey ? 'alt-' : '',
-				e.shiftKey ? 'shift-' : '',
-				e.keyCode
-			].join('');
-		};
+		const extractKey =
+			/**
+			 * @param {KeyboardEvent} e
+			 */
+			function (e) {
+				return [
+					e.ctrlKey ? 'ctrl-' : '',
+					e.metaKey ? 'meta-' : '',
+					e.altKey ? 'alt-' : '',
+					e.shiftKey ? 'shift-' : '',
+					e.keyCode
+				].join('');
+			};
 
 		// Devtools & reload support
 		const TOGGLE_DEV_TOOLS_KB = (safeProcess.platform === 'darwin' ? 'meta-alt-73' : 'ctrl-shift-73'); // mac: Cmd-Alt-I, rest: Ctrl-Shift-I
 		const TOGGLE_DEV_TOOLS_KB_ALT = '123'; // F12
 		const RELOAD_KB = (safeProcess.platform === 'darwin' ? 'meta-82' : 'ctrl-82'); // mac: Cmd-R, rest: Ctrl-R
 
-		/** @type {((e: any) => void) | undefined} */
+		/** @type {((e: KeyboardEvent) => void) | undefined} */
 		let listener = function (e) {
 			const key = extractKey(e);
 			if (key === TOGGLE_DEV_TOOLS_KB || key === TOGGLE_DEV_TOOLS_KB_ALT) {
@@ -263,26 +266,8 @@
 		return window.vscode;
 	}
 
-	/**
-	 * @return {{ mark: (name: string) => void }}
-	 */
-	function perfLib() {
-		globalThis.MonacoPerformanceMarks = globalThis.MonacoPerformanceMarks || [];
-
-		return {
-			/**
-			 * @param {string} name
-			 */
-			mark(name) {
-				globalThis.MonacoPerformanceMarks.push(name, Date.now());
-				performance.mark(name);
-			}
-		};
-	}
-
 	return {
 		load,
-		globals,
-		perfLib
+		globals
 	};
 }));

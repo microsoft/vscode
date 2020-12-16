@@ -20,6 +20,7 @@ import { CancellationTokenSource, CancellationToken } from 'vs/base/common/cance
 import { Schemas } from 'vs/base/common/network';
 import { readFileIntoStream } from 'vs/platform/files/common/io';
 import { Iterable } from 'vs/base/common/iterator';
+import * as perf from 'vs/base/common/performance';
 
 export class FileService extends Disposable implements IFileService {
 
@@ -48,6 +49,8 @@ export class FileService extends Disposable implements IFileService {
 		if (this.provider.has(scheme)) {
 			throw new Error(`A filesystem provider for the scheme '${scheme}' is already registered.`);
 		}
+
+		perf.mark(`code/registerFilesystem/${scheme}`);
 
 		// Add provider with event
 		this.provider.set(scheme, provider);

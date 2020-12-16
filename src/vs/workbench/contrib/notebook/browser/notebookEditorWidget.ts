@@ -61,7 +61,7 @@ import { INotebookService } from 'vs/workbench/contrib/notebook/common/notebookS
 import { editorGutterModifiedBackground } from 'vs/workbench/contrib/scm/browser/dirtydiffDecorator';
 import { Webview } from 'vs/workbench/contrib/webview/browser/webview';
 import { IEditorGroupsService } from 'vs/workbench/services/editor/common/editorGroupsService';
-import { configureKernelIcon } from 'vs/workbench/contrib/notebook/browser/notebookIcons';
+import { configureKernelIcon, errorStateIcon, successStateIcon } from 'vs/workbench/contrib/notebook/browser/notebookIcons';
 
 const $ = DOM.$;
 
@@ -2022,7 +2022,7 @@ export const selectedCellBorder = registerColor('notebook.selectedCellBorder', {
 	dark: notebookCellBorder,
 	light: notebookCellBorder,
 	hc: contrastBorder
-}, nls.localize('notebook.selectedCellBorder', "The color of the cell's top and bottom border when the cell is selected but not focusd."));
+}, nls.localize('notebook.selectedCellBorder', "The color of the cell's top and bottom border when the cell is selected but not focused."));
 
 export const focusedCellBorder = registerColor('notebook.focusedCellBorder', {
 	dark: focusBorder,
@@ -2191,12 +2191,12 @@ registerThemingParticipant((theme, collector) => {
 
 	const cellStatusSuccessIcon = theme.getColor(cellStatusIconSuccess);
 	if (cellStatusSuccessIcon) {
-		collector.addRule(`.monaco-workbench .notebookOverlay .cell-statusbar-container .cell-run-status .codicon-check { color: ${cellStatusSuccessIcon} }`);
+		collector.addRule(`.monaco-workbench .notebookOverlay .cell-statusbar-container .cell-run-status ${ThemeIcon.asCSSSelector(successStateIcon)} { color: ${cellStatusSuccessIcon} }`);
 	}
 
 	const cellStatusErrorIcon = theme.getColor(cellStatusIconError);
 	if (cellStatusErrorIcon) {
-		collector.addRule(`.monaco-workbench .notebookOverlay .cell-statusbar-container .cell-run-status .codicon-error { color: ${cellStatusErrorIcon} }`);
+		collector.addRule(`.monaco-workbench .notebookOverlay .cell-statusbar-container .cell-run-status ${ThemeIcon.asCSSSelector(errorStateIcon)} { color: ${cellStatusErrorIcon} }`);
 	}
 
 	const cellStatusRunningIcon = theme.getColor(cellStatusIconRunning);

@@ -3,6 +3,8 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-.codicon-wrench-subaction {
-	opacity: 0.5;
+import { RawContextKey } from 'vs/platform/contextkey/common/contextkey';
+
+export namespace TestingContextKeys {
+	export const providerCount = new RawContextKey<number>('testingProviderCount', 0);
 }

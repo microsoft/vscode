@@ -25,22 +25,18 @@ namespace CustomDataChangedNotification {
 }
 
 namespace TagCloseRequest {
-	export const type: RequestType<TextDocumentPositionParams, string, any, any> = new RequestType('html/tag');
+	export const type: RequestType<TextDocumentPositionParams, string, any> = new RequestType('html/tag');
 }
-namespace LinkedEditingRequest {
-	export const type: RequestType<TextDocumentPositionParams, LspRange[] | null, any, any> = new RequestType('html/linkedEditing');
-}
-
 // experimental: semantic tokens
 interface SemanticTokenParams {
 	textDocument: TextDocumentIdentifier;
 	ranges?: LspRange[];
 }
 namespace SemanticTokenRequest {
-	export const type: RequestType<SemanticTokenParams, number[] | null, any, any> = new RequestType('html/semanticTokens');
+	export const type: RequestType<SemanticTokenParams, number[] | null, any> = new RequestType('html/semanticTokens');
 }
 namespace SemanticTokenLegendRequest {
-	export const type: RequestType0<{ types: string[]; modifiers: string[] } | null, any, any> = new RequestType0('html/semanticTokenLegend');
+	export const type: RequestType0<{ types: string[]; modifiers: string[] } | null, any> = new RequestType0('html/semanticTokenLegend');
 }
 
 namespace SettingIds {
@@ -168,22 +164,6 @@ export function startClient(context: ExtensionContext, newLanguageClient: Langua
 				toDispose.push(languages.registerDocumentSemanticTokensProvider(documentSelector, provider, new SemanticTokensLegend(legend.types, legend.modifiers)));
 			}
 		});
-
-		disposable = languages.registerLinkedEditingRangeProvider(documentSelector, {
-			async provideLinkedEditingRanges(document, position) {
-				const param = client.code2ProtocolConverter.asTextDocumentPositionParams(document, position);
-				return client.sendRequest(LinkedEditingRequest.type, param).then(response => {
-					if (response) {
-						return {
-							ranges: response.map(r => client.protocol2CodeConverter.asRange(r))
-						};
-					}
-					return undefined;
-				});
-			}
-		});
-		toDispose.push(disposable);
-
 	});
 
 	function updateFormatterRegistration() {
@@ -194,10 +174,16 @@ export function startClient(context: ExtensionContext, newLanguageClient: Langua
 		} else if (formatEnabled && !rangeFormatting) {
 			rangeFormatting = languages.registerDocumentRangeFormattingEditProvider(documentSelector, {
 				provideDocumentRangeFormattingEdits(document: TextDocument, range: Range, options: FormattingOptions, token: CancellationToken): ProviderResult<TextEdit[]> {
+					const filesConfig = workspace.getConfiguration('files', document);
+					const fileFormattingOptions = {
+						trimTrailingWhitespace: filesConfig.get<boolean>('trimTrailingWhitespace'),
+						trimFinalNewlines: filesConfig.get<boolean>('trimFinalNewlines'),
+						insertFinalNewline: filesConfig.get<boolean>('insertFinalNewline'),
+					};
 					let params: DocumentRangeFormattingParams = {
 						textDocument: client.code2ProtocolConverter.asTextDocumentIdentifier(document),
 						range: client.code2ProtocolConverter.asRange(range),
-						options: client.code2ProtocolConverter.asFormattingOptions(options)
+						options: client.code2ProtocolConverter.asFormattingOptions(options, fileFormattingOptions)
 					};
 					return client.sendRequest(DocumentRangeFormattingRequest.type, params, token).then(
 						client.protocol2CodeConverter.asTextEdits,

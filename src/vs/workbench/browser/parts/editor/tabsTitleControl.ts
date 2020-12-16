@@ -1298,13 +1298,6 @@ export class TabsTitleControl extends TitleControl {
 			Object.assign(this.dimensions, dimensions);
 		}
 
-		// We need an opened editor and dimensions to layout the title
-		// Otherwise quickly return from the layout algorithm
-		const activeTabAndIndex = this.group.activeEditor ? this.getTabAndIndex(this.group.activeEditor) : undefined;
-		if (!activeTabAndIndex || dimensions.container === Dimension.None || dimensions.available === Dimension.None) {
-			return Dimension.None;
-		}
-
 		// Layout tabs synchronously if wrapping tabs are enabled so that
 		// the correct height of the title area can be returned to the title
 		// control
@@ -1354,8 +1347,8 @@ export class TabsTitleControl extends TitleControl {
 
 	private doLayout(dimensions: ITitleControlDimensions): void {
 		const activeTabAndIndex = this.group.activeEditor ? this.getTabAndIndex(this.group.activeEditor) : undefined;
-		if (!activeTabAndIndex) {
-			return; // nothing to do if not editor opened
+		if (!activeTabAndIndex || dimensions.container === Dimension.None || dimensions.available === Dimension.None) {
+			return; // nothing to do if not editor opened or we got no dimensions yet
 		}
 
 		// Breadcrumbs
