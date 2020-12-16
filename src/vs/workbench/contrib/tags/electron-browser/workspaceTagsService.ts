@@ -500,8 +500,8 @@ export class WorkspaceTagsService implements IWorkspaceTagsService {
 				}
 			});
 
-			const androidPromises = (folders as URI[]).map(workspaceUri => {
-				const manifest = workspaceUri.with({ path: `${workspaceUri.path !== '/' ? workspaceUri.path : ''}/app/src/main/AndroidManifest.xml` });
+			const androidPromises = folders.map(workspaceUri => {
+				const manifest = URI.joinPath(workspaceUri, '/app/src/main/AndroidManifest.xml');
 				return this.fileService.exists(manifest).then(result => {
 					if (result) {
 						tags['workspace.java.android'] = true;
