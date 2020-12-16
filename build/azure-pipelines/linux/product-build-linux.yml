@@ -118,16 +118,6 @@ steps:
 
   - script: |
       set -e
-      export CC=$(which gcc-4.8)
-      export CXX=$(which g++-4.8)
-      export npm_config_node_gyp=$(which node-gyp)
-      cd remote && rm -rf node_modules/
-      yarn
-    displayName: Rebuild remote modules with gcc-4.8
-    condition: and(succeeded(), eq(variables['VSCODE_ARCH'], 'x64'))
-
-  - script: |
-      set -e
       node build/azure-pipelines/mixin
     displayName: Mix in quality
 
