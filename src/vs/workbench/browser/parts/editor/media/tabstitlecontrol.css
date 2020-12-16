@@ -98,10 +98,6 @@
 	padding-left: 10px;
 }
 
-.monaco-workbench .part.editor > .content .editor-group-container > .title .tabs-container.wrap > .tab {
-	flex-grow: 1; /* Grow the tabs to fill each row for a more homogeneous look when tabs wrap */
-}
-
 .monaco-workbench .part.editor > .content .editor-group-container > .title .tabs-container > .tab.sizing-shrink.has-icon.tab-actions-right,
 .monaco-workbench .part.editor > .content .editor-group-container > .title .tabs-container > .tab.sizing-shrink.has-icon.tab-actions-off:not(.sticky-compact) {
 	padding-left: 5px; /* reduce padding when we show icons and are in shrinking mode and tab actions is not left (unless sticky-compact) */
@@ -112,6 +108,10 @@
 	min-width: fit-content;
 	min-width: -moz-fit-content;
 	flex-shrink: 0;
+}
+
+.monaco-workbench .part.editor > .content .editor-group-container > .title .tabs-container.wrap > .tab.sizing-fit {
+	flex-grow: 1; /* Grow the tabs to fill each row for a more homogeneous look when tabs wrap */
 }
 
 .monaco-workbench .part.editor > .content .editor-group-container > .title .tabs-container > .tab.sizing-shrink {
