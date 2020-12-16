@@ -4,16 +4,16 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { reset } from 'vs/base/browser/dom';
-import { renderCodicons } from 'vs/base/browser/codicons';
+import { renderLabelWithIcons } from 'vs/base/browser/ui/iconLabel/iconLabels';
 
-export class CodiconLabel {
+export class SimpleIconLabel {
 
 	constructor(
 		private readonly _container: HTMLElement
 	) { }
 
 	set text(text: string) {
-		reset(this._container, ...renderCodicons(text ?? ''));
+		reset(this._container, ...renderLabelWithIcons(text ?? ''));
 	}
 
 	set title(title: string) {

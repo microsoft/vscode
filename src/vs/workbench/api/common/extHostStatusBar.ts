@@ -10,8 +10,6 @@ import { MainContext, MainThreadStatusBarShape, IMainContext, ICommandDto } from
 import { localize } from 'vs/nls';
 import { CommandsConverter } from 'vs/workbench/api/common/extHostCommands';
 import { DisposableStore } from 'vs/base/common/lifecycle';
-import { IExtensionDescription } from 'vs/platform/extensions/common/extensions';
-import { checkProposedApiEnabled } from 'vs/workbench/services/extensions/common/extensions';
 
 export class ExtHostStatusBarEntry implements vscode.StatusBarItem {
 	private static ID_GEN = 0;
@@ -48,9 +46,8 @@ export class ExtHostStatusBarEntry implements vscode.StatusBarItem {
 	private _proxy: MainThreadStatusBarShape;
 	private _commands: CommandsConverter;
 	private _accessibilityInformation?: vscode.AccessibilityInformation;
-	private _extension?: IExtensionDescription;
 
-	constructor(proxy: MainThreadStatusBarShape, commands: CommandsConverter, id: string, name: string, alignment: ExtHostStatusBarAlignment = ExtHostStatusBarAlignment.Left, priority?: number, accessibilityInformation?: vscode.AccessibilityInformation, extension?: IExtensionDescription) {
+	constructor(proxy: MainThreadStatusBarShape, commands: CommandsConverter, id: string, name: string, alignment: ExtHostStatusBarAlignment = ExtHostStatusBarAlignment.Left, priority?: number, accessibilityInformation?: vscode.AccessibilityInformation) {
 		this._id = ExtHostStatusBarEntry.ID_GEN++;
 		this._proxy = proxy;
 		this._commands = commands;
@@ -59,7 +56,6 @@ export class ExtHostStatusBarEntry implements vscode.StatusBarItem {
 		this._alignment = alignment;
 		this._priority = priority;
 		this._accessibilityInformation = accessibilityInformation;
-		this._extension = extension;
 	}
 
 	public get id(): number {
@@ -87,10 +83,6 @@ export class ExtHostStatusBarEntry implements vscode.StatusBarItem {
 	}
 
 	public get backgroundColor(): ThemeColor | undefined {
-		if (this._extension) {
-			checkProposedApiEnabled(this._extension);
-		}
-
 		return this._backgroundColor;
 	}
 
@@ -118,10 +110,6 @@ export class ExtHostStatusBarEntry implements vscode.StatusBarItem {
 	}
 
 	public set backgroundColor(color: ThemeColor | undefined) {
-		if (this._extension) {
-			checkProposedApiEnabled(this._extension);
-		}
-
 		if (color && !ExtHostStatusBarEntry.ALLOWED_BACKGROUND_COLORS.has(color.id)) {
 			color = undefined;
 		}
@@ -248,8 +236,8 @@ export class ExtHostStatusBar {
 		this._statusMessage = new StatusBarMessage(this);
 	}
 
-	createStatusBarEntry(id: string, name: string, alignment?: ExtHostStatusBarAlignment, priority?: number, accessibilityInformation?: vscode.AccessibilityInformation, extension?: IExtensionDescription): vscode.StatusBarItem {
-		return new ExtHostStatusBarEntry(this._proxy, this._commands, id, name, alignment, priority, accessibilityInformation, extension);
+	createStatusBarEntry(id: string, name: string, alignment?: ExtHostStatusBarAlignment, priority?: number, accessibilityInformation?: vscode.AccessibilityInformation): vscode.StatusBarItem {
+		return new ExtHostStatusBarEntry(this._proxy, this._commands, id, name, alignment, priority, accessibilityInformation);
 	}
 
 	setStatusBarMessage(text: string, timeoutOrThenable?: number | Thenable<any>): Disposable {

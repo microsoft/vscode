@@ -23,7 +23,7 @@ import { IEnvironmentService } from 'vs/platform/environment/common/environment'
 import { ContextMenuService as HTMLContextMenuService } from 'vs/platform/contextview/browser/contextMenuService';
 import { IThemeService } from 'vs/platform/theme/common/themeService';
 import { registerSingleton } from 'vs/platform/instantiation/common/extensions';
-import { stripCodicons } from 'vs/base/common/codicons';
+import { stripIcons } from 'vs/base/common/iconLabels';
 import { coalesce } from 'vs/base/common/arrays';
 
 export class ContextMenuService extends Disposable implements IContextMenuService {
@@ -137,7 +137,7 @@ class NativeContextMenuService extends Disposable implements IContextMenuService
 			}
 
 			return {
-				label: unmnemonicLabel(stripCodicons(entry.label)).trim(),
+				label: unmnemonicLabel(stripIcons(entry.label)).trim(),
 				submenu: this.createMenu(delegate, entry.actions, onHide, new Set([...submenuIds, entry.id]))
 			};
 		}
@@ -154,7 +154,7 @@ class NativeContextMenuService extends Disposable implements IContextMenuService
 			}
 
 			const item: IContextMenuItem = {
-				label: unmnemonicLabel(stripCodicons(entry.label)).trim(),
+				label: unmnemonicLabel(stripIcons(entry.label)).trim(),
 				checked: !!entry.checked,
 				type,
 				enabled: !!entry.enabled,

@@ -130,7 +130,7 @@ export class RemoteExtensionHost extends Disposable implements IExtensionHost {
 					this._extensionHostDebugService.attachSession(this._environmentService.debugExtensionHost.debugId, debugPort, this._initDataProvider.remoteAuthority);
 				}
 
-				protocol.onClose(() => {
+				protocol.onDidDispose(() => {
 					this._onExtHostConnectionLost();
 				});
 

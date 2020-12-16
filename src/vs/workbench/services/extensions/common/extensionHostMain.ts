@@ -5,6 +5,7 @@
 
 import { timeout } from 'vs/base/common/async';
 import * as errors from 'vs/base/common/errors';
+import * as performance from 'vs/base/common/performance';
 import { DisposableStore } from 'vs/base/common/lifecycle';
 import { URI } from 'vs/base/common/uri';
 import { IURITransformer } from 'vs/base/common/uriIpc';
@@ -36,6 +37,7 @@ export class ExtensionHostMain {
 	private _isTerminating: boolean;
 	private readonly _hostUtils: IHostUtils;
 	private readonly _extensionService: IExtHostExtensionService;
+	private readonly _logService: ILogService;
 	private readonly _disposables = new DisposableStore();
 
 	constructor(
@@ -64,11 +66,11 @@ export class ExtensionHostMain {
 		const terminalService = instaService.invokeFunction(accessor => accessor.get(IExtHostTerminalService));
 		this._disposables.add(terminalService);
 
-		const logService = instaService.invokeFunction(accessor => accessor.get(ILogService));
-		this._disposables.add(logService);
+		this._logService = instaService.invokeFunction(accessor => accessor.get(ILogService));
 
-		logService.info('extension host started');
-		logService.trace('initData', initData);
+		performance.mark(`extHost/didCreateServices`);
+		this._logService.info('extension host started');
+		this._logService.trace('initData', initData);
 
 		// ugly self - inject
 		// must call initialize *after* creating the extension service
@@ -110,12 +112,14 @@ export class ExtensionHostMain {
 		});
 	}
 
-	terminate(): void {
+	terminate(reason: string): void {
 		if (this._isTerminating) {
 			// we are already shutting down...
 			return;
 		}
 		this._isTerminating = true;
+		this._logService.info(`extension host terminating: ${reason}`);
+		this._logService.flush();
 
 		this._disposables.dispose();
 
@@ -127,7 +131,12 @@ export class ExtensionHostMain {
 
 		// Give extensions 1 second to wrap up any async dispose, then exit in at most 4 seconds
 		setTimeout(() => {
-			Promise.race([timeout(4000), extensionsDeactivated]).finally(() => this._hostUtils.exit());
+			Promise.race([timeout(4000), extensionsDeactivated]).finally(() => {
+				this._logService.info(`exiting with code 0`);
+				this._logService.flush();
+				this._logService.dispose();
+				this._hostUtils.exit(0);
+			});
 		}, 1000);
 	}
 
