@@ -18,9 +18,8 @@ import { FocusSessionActionViewItem } from 'vs/workbench/contrib/debug/browser/d
 import { IConfigurationService, IConfigurationChangeEvent } from 'vs/platform/configuration/common/configuration';
 import { IStorageService, StorageScope, StorageTarget } from 'vs/platform/storage/common/storage';
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
-import { registerThemingParticipant, IThemeService, Themable, ThemeIcon } from 'vs/platform/theme/common/themeService';
-import { registerColor, contrastBorder, widgetShadow } from 'vs/platform/theme/common/colorRegistry';
-import { localize } from 'vs/nls';
+import { IThemeService, Themable, ThemeIcon } from 'vs/platform/theme/common/themeService';
+import { contrastBorder, widgetShadow } from 'vs/platform/theme/common/colorRegistry';
 import { INotificationService } from 'vs/platform/notification/common/notification';
 import { RunOnceScheduler } from 'vs/base/common/async';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
@@ -30,6 +29,7 @@ import { IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
 import { FocusSessionAction } from 'vs/workbench/contrib/debug/browser/debugActions';
 import { IDisposable, dispose } from 'vs/base/common/lifecycle';
 import * as icons from 'vs/workbench/contrib/debug/browser/debugIcons';
+import { debugToolBarBackground, debugToolBarBorder } from 'vs/workbench/contrib/debug/browser/debugColors';
 
 const DEBUG_TOOLBAR_POSITION_KEY = 'debug.actionswidgetposition';
 const DEBUG_TOOLBAR_Y_KEY = 'debug.actionswidgety';
@@ -275,113 +275,3 @@ export class DebugToolBar extends Themable implements IWorkbenchContribution {
 		}
 	}
 }
-
-export const debugToolBarBackground = registerColor('debugToolBar.background', {
-	dark: '#333333',
-	light: '#F3F3F3',
-	hc: '#000000'
-}, localize('debugToolBarBackground', "Debug toolbar background color."));
-
-export const debugToolBarBorder = registerColor('debugToolBar.border', {
-	dark: null,
-	light: null,
-	hc: null
-}, localize('debugToolBarBorder', "Debug toolbar border color."));
-
-export const debugIconStartForeground = registerColor('debugIcon.startForeground', {
-	dark: '#89D185',
-	light: '#388A34',
-	hc: '#89D185'
-}, localize('debugIcon.startForeground', "Debug toolbar icon for start debugging."));
-
-export const debugIconPauseForeground = registerColor('debugIcon.pauseForeground', {
-	dark: '#75BEFF',
-	light: '#007ACC',
-	hc: '#75BEFF'
-}, localize('debugIcon.pauseForeground', "Debug toolbar icon for pause."));
-
-export const debugIconStopForeground = registerColor('debugIcon.stopForeground', {
-	dark: '#F48771',
-	light: '#A1260D',
-	hc: '#F48771'
-}, localize('debugIcon.stopForeground', "Debug toolbar icon for stop."));
-
-export const debugIconDisconnectForeground = registerColor('debugIcon.disconnectForeground', {
-	dark: '#F48771',
-	light: '#A1260D',
-	hc: '#F48771'
-}, localize('debugIcon.disconnectForeground', "Debug toolbar icon for disconnect."));
-
-export const debugIconRestartForeground = registerColor('debugIcon.restartForeground', {
-	dark: '#89D185',
-	light: '#388A34',
-	hc: '#89D185'
-}, localize('debugIcon.restartForeground', "Debug toolbar icon for restart."));
-
-export const debugIconStepOverForeground = registerColor('debugIcon.stepOverForeground', {
-	dark: '#75BEFF',
-	light: '#007ACC',
-	hc: '#75BEFF'
-}, localize('debugIcon.stepOverForeground', "Debug toolbar icon for step over."));
-
-export const debugIconStepIntoForeground = registerColor('debugIcon.stepIntoForeground', {
-	dark: '#75BEFF',
-	light: '#007ACC',
-	hc: '#75BEFF'
-}, localize('debugIcon.stepIntoForeground', "Debug toolbar icon for step into."));
-
-export const debugIconStepOutForeground = registerColor('debugIcon.stepOutForeground', {
-	dark: '#75BEFF',
-	light: '#007ACC',
-	hc: '#75BEFF'
-}, localize('debugIcon.stepOutForeground', "Debug toolbar icon for step over."));
-
-export const debugIconContinueForeground = registerColor('debugIcon.continueForeground', {
-	dark: '#75BEFF',
-	light: '#007ACC',
-	hc: '#75BEFF'
-}, localize('debugIcon.continueForeground', "Debug toolbar icon for continue."));
-
-export const debugIconStepBackForeground = registerColor('debugIcon.stepBackForeground', {
-	dark: '#75BEFF',
-	light: '#007ACC',
-	hc: '#75BEFF'
-}, localize('debugIcon.stepBackForeground', "Debug toolbar icon for step back."));
-
-registerThemingParticipant((theme, collector) => {
-
-	const debugIconStartColor = theme.getColor(debugIconStartForeground);
-	if (debugIconStartColor) {
-		collector.addRule(`.monaco-workbench ${ThemeIcon.asCSSSelector(icons.debugStart)} { color: ${debugIconStartColor} !important; }`);
-	}
-
-	const debugIconPauseColor = theme.getColor(debugIconPauseForeground);
-	if (debugIconPauseColor) {
-		collector.addRule(`.monaco-workbench ${ThemeIcon.asCSSSelector(icons.debugPause)} { color: ${debugIconPauseColor} !important; }`);
-	}
-
-	const debugIconStopColor = theme.getColor(debugIconStopForeground);
-	if (debugIconStopColor) {
-		collector.addRule(`.monaco-workbench ${ThemeIcon.asCSSSelector(icons.debugStop)} { color: ${debugIconStopColor} !important; }`);
-	}
-
-	const debugIconDisconnectColor = theme.getColor(debugIconDisconnectForeground);
-	if (debugIconDisconnectColor) {
-		collector.addRule(`.monaco-workbench .debug-view-content ${ThemeIcon.asCSSSelector(icons.debugDisconnect)}, .monaco-workbench .debug-toolbar ${ThemeIcon.asCSSSelector(icons.debugDisconnect)} { color: ${debugIconDisconnectColor} !important; }`);
-	}
-
-	const debugIconRestartColor = theme.getColor(debugIconRestartForeground);
-	if (debugIconRestartColor) {
-		collector.addRule(`.monaco-workbench ${ThemeIcon.asCSSSelector(icons.debugRestart)}, .monaco-workbench ${ThemeIcon.asCSSSelector(icons.debugRestartFrame)} { color: ${debugIconRestartColor} !important; }`);
-	}
-
-	const debugIconContinueColor = theme.getColor(debugIconContinueForeground);
-	if (debugIconContinueColor) {
-		collector.addRule(`.monaco-workbench ${ThemeIcon.asCSSSelector(icons.debugContinue)}, .monaco-workbench ${ThemeIcon.asCSSSelector(icons.debugReverseContinue)} { color: ${debugIconContinueColor} !important; }`);
-	}
-
-	const debugIconStepBackColor = theme.getColor(debugIconStepBackForeground);
-	if (debugIconStepBackColor) {
-		collector.addRule(`.monaco-workbench ${ThemeIcon.asCSSSelector(icons.debugStepBack)} { color: ${debugIconStepBackColor} !important; }`);
-	}
-});
