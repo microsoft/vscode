@@ -25,7 +25,7 @@ export interface ITrustedContentModel {
 	getFolderTrustState(folder: URI): TrustState;
 }
 
-export interface ITrustedWorskpacesService {
+export interface ITrustedWorkspaceService {
 	readonly _serviceBrand: undefined;
 
 	onDidChangeTrust: WorkspaceTrustChangeEvent;
@@ -126,7 +126,7 @@ export class TrustedContentModel extends Disposable implements ITrustedContentMo
 	}
 }
 
-export class TrustedWorkspacesService extends Disposable implements ITrustedWorskpacesService {
+export class TrustedWorkspaceService extends Disposable implements ITrustedWorkspaceService {
 
 	_serviceBrand: undefined;
 	readonly model: ITrustedContentModel;
