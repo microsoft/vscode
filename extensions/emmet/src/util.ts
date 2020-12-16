@@ -10,7 +10,7 @@ import { Node, HtmlNode, CssToken, Property, Rule, Stylesheet } from 'EmmetNode'
 import { DocumentStreamReader } from './bufferStream';
 import * as EmmetHelper from 'vscode-emmet-helper';
 import { Position as LSPosition, getLanguageService as getLanguageServiceInternal, LanguageService, LanguageServiceOptions, TextDocument as LSTextDocument, Node as LSNode } from 'vscode-html-languageservice';
-import { parseHTMLDocument } from './parseDocument';
+import { parseMarkupDocument } from './parseMarkupDocument';
 
 let _emmetHelper: typeof EmmetHelper;
 let _languageService: LanguageService;
@@ -395,7 +395,7 @@ export function getHtmlNodeLS(document: LSTextDocument, position: vscode.Positio
 
 function getHtmlNodeLSInternal(document: LSTextDocument, offset: number, isInTemplateNode: boolean = false): LSNode | undefined {
 	const useCache = !isInTemplateNode;
-	const parsedDocument = parseHTMLDocument(document, useCache);
+	const parsedDocument = parseMarkupDocument(document, useCache);
 
 	const currentNode: LSNode = parsedDocument.findNodeAt(offset);
 	if (!currentNode.tag) { return; }
@@ -735,4 +735,14 @@ export function getPathBaseName(path: string): string {
 	const pathAfterSlashSplit = path.split('/').pop();
 	const pathAfterBackslashSplit = pathAfterSlashSplit ? pathAfterSlashSplit.split('\\').pop() : '';
 	return pathAfterBackslashSplit ?? '';
+}
+
+export function getSyntaxes() {
+	/**
+	 * List of all known syntaxes, from emmetio/emmet
+	 */
+	return {
+		markup: ['html', 'xml', 'xsl', 'jsx', 'js', 'pug', 'slim', 'haml'],
+		stylesheet: ['css', 'sass', 'scss', 'less', 'sss', 'stylus']
+	};
 }

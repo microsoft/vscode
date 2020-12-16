@@ -35,7 +35,7 @@ function getRangesToReplace(document: LSTextDocument, nodeToUpdate: LSNode): vsc
 		return;
 	}
 
-	if (!nodeToUpdate.endTagStart || !nodeToUpdate.startTagEnd) {
+	if (nodeToUpdate.endTagStart === undefined || nodeToUpdate.startTagEnd === undefined) {
 		// Split Tag
 		const nodeText = document.getText().substring(nodeToUpdate.start, nodeToUpdate.end);
 		const m = nodeText.match(/(\s*\/)?>$/);

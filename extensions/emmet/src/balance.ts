@@ -5,7 +5,7 @@
 
 import * as vscode from 'vscode';
 import { getHtmlNodeLS, offsetRangeToSelection, toLSTextDocument, validate } from './util';
-import { parseHTMLDocument } from './parseDocument';
+import { parseMarkupDocument } from './parseMarkupDocument';
 import { TextDocument as LSTextDocument } from 'vscode-html-languageservice';
 
 let balanceOutStack: Array<vscode.Selection[]> = [];
@@ -25,7 +25,7 @@ function balance(out: boolean) {
 	}
 	const editor = vscode.window.activeTextEditor;
 	const document = toLSTextDocument(editor.document);
-	const htmlDocument = parseHTMLDocument(document);
+	const htmlDocument = parseMarkupDocument(document);
 	if (!htmlDocument) {
 		return;
 	}
@@ -41,7 +41,10 @@ function balance(out: boolean) {
 	if (areSameSelections(lastBalancedSelections, editor.selections)) {
 		// we are not starting elsewhere, so use the stack as-is
 		if (out) {
-			balanceOutStack.push(editor.selections);
+			// make sure we are able to expand outwards
+			if (!areSameSelections(editor.selections, newSelections)) {
+				balanceOutStack.push(editor.selections);
+			}
 		} else if (balanceOutStack.length) {
 			newSelections = balanceOutStack.pop()!;
 		}
@@ -83,7 +86,7 @@ function getRangeToBalanceIn(document: LSTextDocument, selection: vscode.Selecti
 
 	const selectionStart = document.offsetAt(selection.start);
 	const selectionEnd = document.offsetAt(selection.end);
-	if (nodeToBalance.endTagStart && nodeToBalance.startTagEnd) {
+	if (nodeToBalance.endTagStart !== undefined && nodeToBalance.startTagEnd !== undefined) {
 		const entireNodeSelected = selectionStart === nodeToBalance.start && selectionEnd === nodeToBalance.end;
 		const startInOpenTag = selectionStart > nodeToBalance.start && selectionStart < nodeToBalance.startTagEnd;
 		const startInCloseTag = selectionStart > nodeToBalance.endTagStart && selectionStart < nodeToBalance.end;
@@ -100,8 +103,8 @@ function getRangeToBalanceIn(document: LSTextDocument, selection: vscode.Selecti
 	const firstChild = nodeToBalance.children[0];
 	if (selectionStart === firstChild.start
 		&& selectionEnd === firstChild.end
-		&& firstChild.endTagStart
-		&& firstChild.startTagEnd) {
+		&& firstChild.endTagStart !== undefined
+		&& firstChild.startTagEnd !== undefined) {
 		return offsetRangeToSelection(document, firstChild.startTagEnd, firstChild.endTagStart);
 	}
 

@@ -25,7 +25,7 @@ export function updateTag(tagName: string): Thenable<boolean> | undefined {
 }
 
 function getPositionFromOffset(offset: number | undefined, document: LSTextDocument): vscode.Position | undefined {
-	if (!offset) {
+	if (offset === undefined) {
 		return undefined;
 	}
 	const pos = document.positionAt(offset);
@@ -41,7 +41,7 @@ function getRangesFromNode(node: LSNode, document: LSTextDocument): vscode.Range
 	let ranges: vscode.Range[] = [];
 	if (startTagEnd) {
 		ranges.push(new vscode.Range(start.translate(0, 1),
-			start.translate(0, 1).translate(0, node.tag?.length ?? 0)));
+			start.translate(0, 1).translate(0, node.tag!.length ?? 0)));
 	}
 	if (endTagStart) {
 		ranges.push(new vscode.Range(endTagStart.translate(0, 2), end.translate(0, -1)));

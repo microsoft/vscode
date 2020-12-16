@@ -17,9 +17,9 @@ import { fetchEditPoint } from './editPoint';
 import { fetchSelectItem } from './selectItem';
 import { evaluateMathExpression } from './evaluateMathExpression';
 import { incrementDecrement } from './incrementDecrement';
-import { LANGUAGE_MODES, getMappingForIncludedLanguages, updateEmmetExtensionsPath, getPathBaseName, toLSTextDocument } from './util';
+import { LANGUAGE_MODES, getMappingForIncludedLanguages, updateEmmetExtensionsPath, getPathBaseName, toLSTextDocument, getSyntaxes } from './util';
 import { reflectCssValue } from './reflectCssValue';
-import { addFileToParseCache, removeFileFromParseCache } from './parseDocument';
+import { addFileToMarkupParseCache, removeFileFromMarkupParseCache } from './parseMarkupDocument';
 
 export function activateEmmetExtension(context: vscode.ExtensionContext) {
 	registerCompletionProviders(context);
@@ -148,11 +148,15 @@ export function activateEmmetExtension(context: vscode.ExtensionContext) {
 	}));
 
 	context.subscriptions.push(vscode.workspace.onDidOpenTextDocument((e) => {
-		addFileToParseCache(toLSTextDocument(e));
+		if (getSyntaxes().markup.includes(e.languageId)) {
+			addFileToMarkupParseCache(toLSTextDocument(e));
+		}
 	}));
 
 	context.subscriptions.push(vscode.workspace.onDidCloseTextDocument((e) => {
-		removeFileFromParseCache(toLSTextDocument(e));
+		if (getSyntaxes().markup.includes(e.languageId)) {
+			removeFileFromMarkupParseCache(toLSTextDocument(e));
+		}
 	}));
 }
 

@@ -14,7 +14,7 @@ type Pair<K, V> = {
 // Map(filename, Pair(fileVersion, parsedContent))
 const _parseCache = new Map<string, Pair<number, HTMLDocument> | undefined>();
 
-export function parseHTMLDocument(document: LSTextDocument, useCache: boolean = true): HTMLDocument {
+export function parseMarkupDocument(document: LSTextDocument, useCache: boolean = true): HTMLDocument {
 	const languageService = getLanguageService();
 	const key = document.uri;
 	const result = _parseCache.get(key);
@@ -32,12 +32,12 @@ export function parseHTMLDocument(document: LSTextDocument, useCache: boolean = 
 	return parsedDocument;
 }
 
-export function addFileToParseCache(document: LSTextDocument) {
+export function addFileToMarkupParseCache(document: LSTextDocument) {
 	const filename = document.uri;
 	_parseCache.set(filename, undefined);
 }
 
-export function removeFileFromParseCache(document: LSTextDocument) {
+export function removeFileFromMarkupParseCache(document: LSTextDocument) {
 	const filename = document.uri;
 	_parseCache.delete(filename);
 }

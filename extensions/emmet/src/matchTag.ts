@@ -37,8 +37,8 @@ function getUpdatedSelections(document: LSTextDocument, position: vscode.Positio
 	const offset = document.offsetAt(position);
 
 	// If no closing tag or cursor is between open and close tag, then no-op
-	if (!currentNode?.endTagStart
-		|| !currentNode?.startTagEnd
+	if (currentNode.endTagStart === undefined
+		|| currentNode.startTagEnd === undefined
 		|| (offset > currentNode.startTagEnd && offset < currentNode.endTagStart)) {
 		return;
 	}
