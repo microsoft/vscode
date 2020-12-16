@@ -298,8 +298,8 @@ function getInsaneOptions(options: { readonly isTrusted?: boolean }): InsaneOpti
 			'td': ['align']
 		},
 		filter(token: { tag: string; attrs: { readonly [key: string]: string; }; }): boolean {
-			if (token.tag === 'span' && options.isTrusted && (Object.keys(token.attrs).length === 1)) {
-				if (token.attrs['style']) {
+			if (token.tag === 'span' && options.isTrusted) {
+				if (token.attrs['style'] && (Object.keys(token.attrs).length === 1)) {
 					return !!token.attrs['style'].match(/^(color\:#[0-9a-fA-F]+;)?(background-color\:#[0-9a-fA-F]+;)?$/);
 				} else if (token.attrs['class']) {
 					// The class should match codicon rendering in src\vs\base\common\codicons.ts
