@@ -2350,7 +2350,7 @@ declare module 'vscode' {
 		/**
 		 * Register a new `ExternalUriOpener`.
 		 *
-		 * When a uri is about to be opened, a `onUriOpen:SCHEME` activation event is fired.
+		 * When a uri is about to be opened, an `onUriOpen:SCHEME` activation event is fired.
 		 *
 		 * @param schemes List of uri schemes the opener is triggered for. Currently only `http`
 		 * and `https` are supported.

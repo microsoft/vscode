@@ -789,7 +789,7 @@ export interface ExtHostUrlsShape {
 }
 
 export interface MainThreadUriOpenersShape extends IDisposable {
-	$registerUriOpener(handle: number): Promise<void>;
+	$registerUriOpener(handle: number, schemes: readonly string[]): Promise<void>;
 	$unregisterUriOpener(handle: number): Promise<void>;
 }
 

@@ -38,7 +38,6 @@ export class ExtHostUriOpeners implements ExtHostUriOpenersShape {
 		schemes: readonly string[],
 		opener: vscode.ExternalUriOpener,
 	): vscode.Disposable {
-
 		const handle = ExtHostUriOpeners.HandlePool++;
 
 		this._openers.set(handle, { opener, schemes: new Set(schemes) });
