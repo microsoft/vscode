@@ -375,21 +375,6 @@ registerThemingParticipant((theme, collector) => {
 		collector.addRule(`.monaco-workbench ${ThemeIcon.asCSSSelector(icons.debugRestart)}, .monaco-workbench ${ThemeIcon.asCSSSelector(icons.debugRestartFrame)} { color: ${debugIconRestartColor} !important; }`);
 	}
 
-	const debugIconStepOverColor = theme.getColor(debugIconStepOverForeground);
-	if (debugIconStepOverColor) {
-		collector.addRule(`.monaco-workbench ${ThemeIcon.asCSSSelector(icons.debugStepOver)} { color: ${debugIconStepOverColor} !important; }`);
-	}
-
-	const debugIconStepIntoColor = theme.getColor(debugIconStepIntoForeground);
-	if (debugIconStepIntoColor) {
-		collector.addRule(`.monaco-workbench ${ThemeIcon.asCSSSelector(icons.debugStepInto)} { color: ${debugIconStepIntoColor} !important; }`);
-	}
-
-	const debugIconStepOutColor = theme.getColor(debugIconStepOutForeground);
-	if (debugIconStepOutColor) {
-		collector.addRule(`.monaco-workbench ${ThemeIcon.asCSSSelector(icons.debugStepOut)} { color: ${debugIconStepOutColor} !important; }`);
-	}
-
 	const debugIconContinueColor = theme.getColor(debugIconContinueForeground);
 	if (debugIconContinueColor) {
 		collector.addRule(`.monaco-workbench ${ThemeIcon.asCSSSelector(icons.debugContinue)}, .monaco-workbench ${ThemeIcon.asCSSSelector(icons.debugReverseContinue)} { color: ${debugIconContinueColor} !important; }`);
