@@ -41,7 +41,7 @@ import { SequencerByKey } from 'vs/base/common/async';
 import { generateUuid } from 'vs/base/common/uuid';
 import { IMouseWheelEvent, StandardMouseEvent } from 'vs/base/browser/mouseEvent';
 import { DiffNestedCellViewModel } from 'vs/workbench/contrib/notebook/browser/diff/diffNestedCellViewModel';
-import { BackLayerWebView } from 'vs/workbench/contrib/notebook/browser/view/renderers/backLayerWebView';
+import { BackLayerWebView, ICachedInset } from 'vs/workbench/contrib/notebook/browser/view/renderers/backLayerWebView';
 
 const $ = DOM.$;
 
@@ -218,107 +218,68 @@ export class NotebookTextDiffEditor extends EditorPane implements INotebookTextD
 				const scrollHeight = this._list.scrollHeight;
 
 				if (this._modifiedWebview) {
-					this._modifiedWebview!.element.style.height = `${scrollHeight}px`;
-
-					if (this._modifiedWebview?.insetMapping) {
-						const updateItems: IDisplayOutputLayoutUpdateRequest[] = [];
-						const removedItems: IDisplayOutputViewModel[] = [];
-						this._modifiedWebview?.insetMapping.forEach((value, key) => {
-							const cell = value.cellInfo.diffElement.modified;
-							if (!cell) {
-								return;
-							}
-
-							const viewIndex = this._list.indexOf(value.cellInfo.diffElement);
-
-							if (viewIndex === undefined) {
-								return;
-							}
-
-							if (cell.outputsViewModels.findIndex(viewModel => (viewModel.model as ITransformedDisplayOutputDto).outputId === (key.model as ITransformedDisplayOutputDto).outputId) < 0) {
-								// output is already gone
-								removedItems.push(key);
-							}
-
-							const cellTop = this._list.getAbsoluteTopOfElement(value.cellInfo.diffElement);
-							if (this._modifiedWebview!.shouldUpdateInset(cell, key, cellTop)) {
-								// TODO: why? does it mean, we create new output view model every time?
-								const outputIndex = cell.outputsViewModels.findIndex(viewModel => (viewModel.model as ITransformedDisplayOutputDto).outputId === (key.model as ITransformedDisplayOutputDto).outputId);
-								let outputOffset = 0;
-								if (value.cellInfo.diffElement instanceof SideBySideDiffElementViewModel) {
-									outputOffset = cellTop + value.cellInfo.diffElement.getOutputOffsetInCell(false, outputIndex);
-								} else {
-									outputOffset = cellTop + (value.cellInfo.diffElement as SingleSideDiffElementViewModel).getOutputOffsetInCell(outputIndex);
-								}
-
-								updateItems.push({
-									output: key,
-									cellTop: cellTop,
-									outputOffset: outputOffset
-								});
-							}
-						});
-
-						removedItems.forEach(output => this._modifiedWebview?.removeInset(output));
-
-						if (updateItems.length) {
-							this._modifiedWebview?.updateViewScrollTop(-scrollTop, false, updateItems);
-						}
-					}
+					this._updateOutputsOffsetsInWebview(scrollTop, scrollHeight, this._modifiedWebview, (diffElement: DiffElementViewModelBase) => {
+						return diffElement.modified;
+					});
 				}
 
 				if (this._originalWebview) {
-					this._originalWebview.element.style.height = `${scrollHeight}px`;
-
-					if (this._originalWebview.insetMapping) {
-						const updateItems: IDisplayOutputLayoutUpdateRequest[] = [];
-						const removedItems: IDisplayOutputViewModel[] = [];
-						this._originalWebview.insetMapping.forEach((value, key) => {
-							const cell = value.cellInfo.diffElement.original;
-							if (!cell) {
-								return;
-							}
-
-							const viewIndex = this._list.indexOf(value.cellInfo.diffElement);
-
-							if (viewIndex === undefined) {
-								return;
-							}
-
-							if (cell.outputsViewModels.findIndex(viewModel => (viewModel.model as ITransformedDisplayOutputDto).outputId === (key.model as ITransformedDisplayOutputDto).outputId) < 0) {
-								// output is already gone
-								removedItems.push(key);
-							}
-
-							const cellTop = this._list.getAbsoluteTopOfElement(value.cellInfo.diffElement);
-							if (this._originalWebview!.shouldUpdateInset(cell, key, cellTop)) {
-								// TODO: why? does it mean, we create new output view model every time?
-								const outputIndex = cell.outputsViewModels.findIndex(viewModel => (viewModel.model as ITransformedDisplayOutputDto).outputId === (key.model as ITransformedDisplayOutputDto).outputId);
-								let outputOffset = 0;
-								if (value.cellInfo.diffElement instanceof SideBySideDiffElementViewModel) {
-									outputOffset = cellTop + value.cellInfo.diffElement.getOutputOffsetInCell(true, outputIndex);
-								} else {
-									outputOffset = cellTop + (value.cellInfo.diffElement as SingleSideDiffElementViewModel).getOutputOffsetInCell(outputIndex);
-								}
-
-								updateItems.push({
-									output: key,
-									cellTop: cellTop,
-									outputOffset: outputOffset
-								});
-							}
-						});
-
-						removedItems.forEach(output => this._originalWebview?.removeInset(output));
-
-						if (updateItems.length) {
-							this._originalWebview?.updateViewScrollTop(-scrollTop, false, updateItems);
-						}
-					}
+					this._updateOutputsOffsetsInWebview(scrollTop, scrollHeight, this._originalWebview, (diffElement: DiffElementViewModelBase) => {
+						return diffElement.original;
+					});
 				}
-
 			});
 		}));
+	}
+
+	private _updateOutputsOffsetsInWebview(scrollTop: number, scrollHeight: number, activeWebview: BackLayerWebView<IDiffCellInfo>, getActiveNestedCell: (diffElement: DiffElementViewModelBase) => DiffNestedCellViewModel | undefined) {
+		activeWebview.element.style.height = `${scrollHeight}px`;
+
+		if (activeWebview.insetMapping) {
+			const updateItems: IDisplayOutputLayoutUpdateRequest[] = [];
+			const removedItems: IDisplayOutputViewModel[] = [];
+			activeWebview.insetMapping.forEach((value, key) => {
+				const cell = getActiveNestedCell(value.cellInfo.diffElement);
+				if (!cell) {
+					return;
+				}
+
+				const viewIndex = this._list.indexOf(value.cellInfo.diffElement);
+
+				if (viewIndex === undefined) {
+					return;
+				}
+
+				if (cell.outputsViewModels.findIndex(viewModel => (viewModel.model as ITransformedDisplayOutputDto).outputId === (key.model as ITransformedDisplayOutputDto).outputId) < 0) {
+					// output is already gone
+					removedItems.push(key);
+				}
+
+				const cellTop = this._list.getAbsoluteTopOfElement(value.cellInfo.diffElement);
+				if (activeWebview.shouldUpdateInset(cell, key, cellTop)) {
+					// TODO: why? does it mean, we create new output view model every time?
+					const outputIndex = cell.outputsViewModels.findIndex(viewModel => (viewModel.model as ITransformedDisplayOutputDto).outputId === (key.model as ITransformedDisplayOutputDto).outputId);
+					let outputOffset = 0;
+					if (value.cellInfo.diffElement instanceof SideBySideDiffElementViewModel) {
+						outputOffset = cellTop + value.cellInfo.diffElement.getOutputOffsetInCell(false, outputIndex);
+					} else {
+						outputOffset = cellTop + (value.cellInfo.diffElement as SingleSideDiffElementViewModel).getOutputOffsetInCell(outputIndex);
+					}
+
+					updateItems.push({
+						output: key,
+						cellTop: cellTop,
+						outputOffset: outputOffset
+					});
+				}
+			});
+
+			removedItems.forEach(output => activeWebview.removeInset(output));
+
+			if (updateItems.length) {
+				activeWebview.updateViewScrollTop(-scrollTop, false, updateItems);
+			}
+		}
 	}
 
 	async setInput(input: NotebookDiffEditorInput, options: EditorOptions | undefined, context: IEditorOpenContext, token: CancellationToken): Promise<void> {

@@ -195,7 +195,7 @@ export type ToWebviewMessage =
 
 export type AnyMessage = FromWebviewMessage | ToWebviewMessage;
 
-interface ICachedInset<K extends ICommonCellInfo> {
+export interface ICachedInset<K extends ICommonCellInfo> {
 	outputId: string;
 	cellInfo: K;
 	renderer?: INotebookRendererInfo;
