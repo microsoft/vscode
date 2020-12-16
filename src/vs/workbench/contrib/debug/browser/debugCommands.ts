@@ -47,6 +47,8 @@ export const RESTART_FRAME_ID = 'workbench.action.debug.restartFrame';
 export const CONTINUE_ID = 'workbench.action.debug.continue';
 export const FOCUS_REPL_ID = 'workbench.debug.action.focusRepl';
 export const JUMP_TO_CURSOR_ID = 'debug.jumpToCursor';
+export const FOCUS_SESSION_ID = 'workbench.action.debug.focusProcess';
+export const SELECT_AND_START_ID = 'workbench.action.debug.selectandstart';
 
 export const RESTART_LABEL = nls.localize('restartDebug', "Restart");
 export const STEP_OVER_LABEL = nls.localize('stepOverDebug', "Step Over");
@@ -56,6 +58,8 @@ export const PAUSE_LABEL = nls.localize('pauseDebug', "Pause");
 export const DISCONNECT_LABEL = nls.localize('disconnect', "Disconnect");
 export const STOP_LABEL = nls.localize('stop', "Stop");
 export const CONTINUE_LABEL = nls.localize('continueDebug', "Continue");
+export const FOCUS_SESSION_LABEL = nls.localize('focusSession', "Focus Session");
+export const SELECT_AND_START_LABEL = nls.localize('selectAndStartDebugging', "Select and Start Debugging");
 
 interface CallStackContext {
 	sessionId: string;
@@ -343,6 +347,27 @@ export function registerCommands(): void {
 		handler: async (accessor, config: IConfig) => {
 			const debugService = accessor.get(IDebugService);
 			await debugService.startDebugging(undefined, config);
+		}
+	});
+
+	CommandsRegistry.registerCommand({
+		id: FOCUS_SESSION_ID,
+		handler: async (accessor: ServicesAccessor, session: IDebugSession) => {
+			const debugService = accessor.get(IDebugService);
+			const editorService = accessor.get(IEditorService);
+			await debugService.focusStackFrame(undefined, undefined, session, true);
+			const stackFrame = debugService.getViewModel().focusedStackFrame;
+			if (stackFrame) {
+				await stackFrame.openInEditor(editorService, true);
+			}
+		}
+	});
+
+	CommandsRegistry.registerCommand({
+		id: SELECT_AND_START_ID,
+		handler: async (accessor: ServicesAccessor) => {
+			const quickInputService = accessor.get(IQuickInputService);
+			quickInputService.quickAccess.show('debug ');
 		}
 	});
 

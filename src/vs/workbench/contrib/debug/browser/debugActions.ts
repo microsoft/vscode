@@ -6,16 +6,11 @@
 import * as nls from 'vs/nls';
 import { Action } from 'vs/base/common/actions';
 import { IKeybindingService } from 'vs/platform/keybinding/common/keybinding';
-import { IWorkspaceContextService, WorkbenchState } from 'vs/platform/workspace/common/workspace';
-import { IDebugService, State, IEnablement, IBreakpoint, IDebugSession, ILaunch } from 'vs/workbench/contrib/debug/common/debug';
+import { IWorkspaceContextService } from 'vs/platform/workspace/common/workspace';
+import { IDebugService, State, IEnablement, IBreakpoint } from 'vs/workbench/contrib/debug/common/debug';
 import { Variable, Breakpoint, FunctionBreakpoint, Expression } from 'vs/workbench/contrib/debug/common/debugModel';
-import { IEditorService } from 'vs/workbench/services/editor/common/editorService';
-import { INotificationService } from 'vs/platform/notification/common/notification';
 import { IClipboardService } from 'vs/platform/clipboard/common/clipboardService';
-import { IQuickInputService } from 'vs/platform/quickinput/common/quickInput';
 import { deepClone } from 'vs/base/common/objects';
-import * as icons from 'vs/workbench/contrib/debug/browser/debugIcons';
-import { ThemeIcon } from 'vs/platform/theme/common/themeService';
 
 export abstract class AbstractDebugAction extends Action {
 
@@ -52,67 +47,6 @@ export abstract class AbstractDebugAction extends Action {
 
 	protected isEnabled(_: State): boolean {
 		return true;
-	}
-}
-
-export class ConfigureAction extends AbstractDebugAction {
-	static readonly ID = 'workbench.action.debug.configure';
-	static readonly LABEL = nls.localize('openLaunchJson', "Open {0}", 'launch.json');
-
-	constructor(id: string, label: string,
-		@IDebugService debugService: IDebugService,
-		@IKeybindingService keybindingService: IKeybindingService,
-		@INotificationService private readonly notificationService: INotificationService,
-		@IWorkspaceContextService private readonly contextService: IWorkspaceContextService,
-		@IQuickInputService private readonly quickInputService: IQuickInputService
-	) {
-		super(id, label, 'debug-action ' + ThemeIcon.asClassName(icons.debugConfigure), debugService, keybindingService);
-		this._register(debugService.getConfigurationManager().onDidSelectConfiguration(() => this.updateClass()));
-		this.updateClass();
-	}
-
-	get tooltip(): string {
-		if (this.debugService.getConfigurationManager().selectedConfiguration.name) {
-			return ConfigureAction.LABEL;
-		}
-
-		return nls.localize('launchJsonNeedsConfigurtion', "Configure or Fix 'launch.json'");
-	}
-
-	private updateClass(): void {
-		const configurationManager = this.debugService.getConfigurationManager();
-		this.class = configurationManager.selectedConfiguration.name ? 'debug-action' + ThemeIcon.asClassName(icons.debugConfigure) : 'debug-action ' + ThemeIcon.asClassName(icons.debugConfigure) + ' notification';
-	}
-
-	async run(): Promise<any> {
-		if (this.contextService.getWorkbenchState() === WorkbenchState.EMPTY || this.contextService.getWorkspace().folders.length === 0) {
-			this.notificationService.info(nls.localize('noFolderDebugConfig', "Please first open a folder in order to do advanced debug configuration."));
-			return;
-		}
-
-		const configurationManager = this.debugService.getConfigurationManager();
-		let launch: ILaunch | undefined;
-		if (configurationManager.selectedConfiguration.name) {
-			launch = configurationManager.selectedConfiguration.launch;
-		} else {
-			const launches = configurationManager.getLaunches().filter(l => !l.hidden);
-			if (launches.length === 1) {
-				launch = launches[0];
-			} else {
-				const picks = launches.map(l => ({ label: l.name, launch: l }));
-				const picked = await this.quickInputService.pick<{ label: string, launch: ILaunch }>(picks, {
-					activeItem: picks[0],
-					placeHolder: nls.localize({ key: 'selectWorkspaceFolder', comment: ['User picks a workspace folder or a workspace configuration file here. Workspace configuration files can contain settings and thus a launch.json configuration can be written into one.'] }, "Select a workspace folder to create a launch.json file in or add it to the workspace config file")
-				});
-				if (picked) {
-					launch = picked.launch;
-				}
-			}
-		}
-
-		if (launch) {
-			return launch.openConfigFile(false);
-		}
 	}
 }
 
@@ -173,23 +107,6 @@ export class RunAction extends StartAction {
 
 	protected isNoDebug(): boolean {
 		return true;
-	}
-}
-
-export class SelectAndStartAction extends AbstractDebugAction {
-	static readonly ID = 'workbench.action.debug.selectandstart';
-	static readonly LABEL = nls.localize('selectAndStartDebugging', "Select and Start Debugging");
-
-	constructor(id: string, label: string,
-		@IDebugService debugService: IDebugService,
-		@IKeybindingService keybindingService: IKeybindingService,
-		@IQuickInputService private readonly quickInputService: IQuickInputService
-	) {
-		super(id, label, '', debugService, keybindingService);
-	}
-
-	async run(): Promise<any> {
-		this.quickInputService.quickAccess.show('debug ');
 	}
 }
 
@@ -262,27 +179,6 @@ export class ReapplyBreakpointsAction extends AbstractDebugAction {
 		const model = this.debugService.getModel();
 		return (state === State.Running || state === State.Stopped) &&
 			((model.getFunctionBreakpoints().length + model.getBreakpoints().length + model.getExceptionBreakpoints().length + model.getDataBreakpoints().length) > 0);
-	}
-}
-
-export class FocusSessionAction extends AbstractDebugAction {
-	static readonly ID = 'workbench.action.debug.focusProcess';
-	static readonly LABEL = nls.localize('focusSession', "Focus Session");
-
-	constructor(id: string, label: string,
-		@IDebugService debugService: IDebugService,
-		@IKeybindingService keybindingService: IKeybindingService,
-		@IEditorService private readonly editorService: IEditorService
-	) {
-		super(id, label, '', debugService, keybindingService);
-	}
-
-	async run(session: IDebugSession): Promise<any> {
-		await this.debugService.focusStackFrame(undefined, undefined, session, true);
-		const stackFrame = this.debugService.getViewModel().focusedStackFrame;
-		if (stackFrame) {
-			await stackFrame.openInEditor(this.editorService, true);
-		}
 	}
 }
 

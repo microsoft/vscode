@@ -8,14 +8,15 @@ import * as errors from 'vs/base/common/errors';
 import * as browser from 'vs/base/browser/browser';
 import * as dom from 'vs/base/browser/dom';
 import * as arrays from 'vs/base/common/arrays';
+import { localize } from 'vs/nls';
 import { StandardMouseEvent } from 'vs/base/browser/mouseEvent';
-import { IAction, IRunEvent, WorkbenchActionExecutedEvent, WorkbenchActionExecutedClassification, Separator } from 'vs/base/common/actions';
+import { IAction, IRunEvent, WorkbenchActionExecutedEvent, WorkbenchActionExecutedClassification } from 'vs/base/common/actions';
 import { ActionBar, ActionsOrientation } from 'vs/base/browser/ui/actionbar/actionbar';
 import { IWorkbenchLayoutService } from 'vs/workbench/services/layout/browser/layoutService';
 import { IWorkbenchContribution } from 'vs/workbench/common/contributions';
-import { IDebugConfiguration, IDebugService, State } from 'vs/workbench/contrib/debug/common/debug';
+import { IDebugConfiguration, IDebugService, State, CONTEXT_DEBUG_STATE, CONTEXT_FOCUSED_SESSION_IS_ATTACH, CONTEXT_STEP_BACK_SUPPORTED, CONTEXT_MULTI_SESSION_DEBUG } from 'vs/workbench/contrib/debug/common/debug';
 import { FocusSessionActionViewItem } from 'vs/workbench/contrib/debug/browser/debugActionViewItems';
-import { IConfigurationService, IConfigurationChangeEvent } from 'vs/platform/configuration/common/configuration';
+import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { IStorageService, StorageScope, StorageTarget } from 'vs/platform/storage/common/storage';
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
 import { IThemeService, Themable, ThemeIcon } from 'vs/platform/theme/common/themeService';
@@ -24,12 +25,13 @@ import { INotificationService } from 'vs/platform/notification/common/notificati
 import { RunOnceScheduler } from 'vs/base/common/async';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { createAndFillInActionBarActions, MenuEntryActionViewItem, SubmenuEntryActionViewItem } from 'vs/platform/actions/browser/menuEntryActionViewItem';
-import { IMenu, IMenuService, MenuId, MenuItemAction, SubmenuItemAction } from 'vs/platform/actions/common/actions';
-import { IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
-import { FocusSessionAction } from 'vs/workbench/contrib/debug/browser/debugActions';
+import { IMenu, IMenuService, MenuId, MenuItemAction, SubmenuItemAction, MenuRegistry } from 'vs/platform/actions/common/actions';
+import { IContextKeyService, ContextKeyExpression, ContextKeyExpr } from 'vs/platform/contextkey/common/contextkey';
 import { IDisposable, dispose } from 'vs/base/common/lifecycle';
 import * as icons from 'vs/workbench/contrib/debug/browser/debugIcons';
 import { debugToolBarBackground, debugToolBarBorder } from 'vs/workbench/contrib/debug/browser/debugColors';
+import { URI } from 'vs/base/common/uri';
+import { CONTINUE_LABEL, CONTINUE_ID, PAUSE_ID, STOP_ID, DISCONNECT_ID, STEP_OVER_ID, STEP_INTO_ID, RESTART_SESSION_ID, STEP_OUT_ID, STEP_BACK_ID, REVERSE_CONTINUE_ID, RESTART_LABEL, STEP_OUT_LABEL, STEP_INTO_LABEL, STEP_OVER_LABEL, DISCONNECT_LABEL, STOP_LABEL, PAUSE_LABEL, FOCUS_SESSION_ID, FOCUS_SESSION_LABEL } from 'vs/workbench/contrib/debug/browser/debugCommands';
 
 const DEBUG_TOOLBAR_POSITION_KEY = 'debug.actionswidgetposition';
 const DEBUG_TOOLBAR_Y_KEY = 'debug.actionswidgety';
@@ -75,7 +77,7 @@ export class DebugToolBar extends Themable implements IWorkbenchContribution {
 		this.actionBar = this._register(new ActionBar(actionBarContainer, {
 			orientation: ActionsOrientation.HORIZONTAL,
 			actionViewItemProvider: (action: IAction) => {
-				if (action.id === FocusSessionAction.ID) {
+				if (action.id === FOCUS_SESSION_ID) {
 					return this.instantiationService.createInstance(FocusSessionActionViewItem, action, undefined);
 				} else if (action instanceof MenuItemAction) {
 					return this.instantiationService.createInstance(MenuEntryActionViewItem, action);
@@ -94,7 +96,8 @@ export class DebugToolBar extends Themable implements IWorkbenchContribution {
 				return this.hide();
 			}
 
-			const { actions, disposable } = DebugToolBar.getActions(this.debugToolBarMenu, this.debugService, this.instantiationService);
+			const actions: IAction[] = [];
+			const disposable = createAndFillInActionBarActions(this.debugToolBarMenu, undefined, actions, () => false);
 			if (!arrays.equals(actions, this.activeActions, (first, second) => first.id === second.id && first.enabled === second.enabled)) {
 				this.actionBar.clear();
 				this.actionBar.push(actions, { icon: true, label: false });
@@ -115,9 +118,11 @@ export class DebugToolBar extends Themable implements IWorkbenchContribution {
 
 	private registerListeners(): void {
 		this._register(this.debugService.onDidChangeState(() => this.updateScheduler.schedule()));
-		this._register(this.debugService.getViewModel().onDidFocusSession(() => this.updateScheduler.schedule()));
-		this._register(this.debugService.onDidNewSession(() => this.updateScheduler.schedule()));
-		this._register(this.configurationService.onDidChangeConfiguration(e => this.onDidConfigurationChange(e)));
+		this._register(this.configurationService.onDidChangeConfiguration(e => {
+			if (e.affectsConfiguration('debug.toolBarLocation')) {
+				this.updateScheduler.schedule();
+			}
+		}));
 		this._register(this.debugToolBarMenu.onDidChange(() => this.updateScheduler.schedule()));
 		this._register(this.actionBar.actionRunner.onDidRun((e: IRunEvent) => {
 			// check for error
@@ -225,12 +230,6 @@ export class DebugToolBar extends Themable implements IWorkbenchContribution {
 		}
 	}
 
-	private onDidConfigurationChange(event: IConfigurationChangeEvent): void {
-		if (event.affectsConfiguration('debug.hideActionBar') || event.affectsConfiguration('debug.toolBarLocation')) {
-			this.updateScheduler.schedule();
-		}
-	}
-
 	private show(): void {
 		if (this.isVisible) {
 			this.setCoordinates();
@@ -251,19 +250,6 @@ export class DebugToolBar extends Themable implements IWorkbenchContribution {
 		dom.hide(this.$el);
 	}
 
-	static getActions(menu: IMenu, debugService: IDebugService, instantiationService: IInstantiationService): { actions: IAction[], disposable: IDisposable } {
-		const actions: IAction[] = [];
-		const disposable = createAndFillInActionBarActions(menu, undefined, actions, () => false);
-		if (debugService.getViewModel().isMultiSessionView()) {
-			actions.push(instantiationService.createInstance(FocusSessionAction, FocusSessionAction.ID, FocusSessionAction.LABEL));
-		}
-
-		return {
-			actions: actions.filter(a => !(a instanceof Separator)), // do not render separators for now
-			disposable
-		};
-	}
-
 	dispose(): void {
 		super.dispose();
 
@@ -275,3 +261,44 @@ export class DebugToolBar extends Themable implements IWorkbenchContribution {
 		}
 	}
 }
+
+// Debug toolbar
+
+const registerDebugToolBarItem = (id: string, title: string, order: number, icon?: { light?: URI, dark?: URI } | ThemeIcon, when?: ContextKeyExpression, precondition?: ContextKeyExpression) => {
+	MenuRegistry.appendMenuItem(MenuId.DebugToolBar, {
+		group: 'navigation',
+		when,
+		order,
+		command: {
+			id,
+			title,
+			icon,
+			precondition
+		}
+	});
+
+	// Register actions in debug viewlet when toolbar is docked
+	MenuRegistry.appendMenuItem(MenuId.ViewContainerTitle, {
+		group: 'navigation',
+		when: ContextKeyExpr.and(when, CONTEXT_DEBUG_STATE.notEqualsTo('inactive'), ContextKeyExpr.equals('config.debug.toolBarLocation', 'docked')),
+		order,
+		command: {
+			id,
+			title,
+			icon,
+			precondition
+		}
+	});
+};
+
+registerDebugToolBarItem(CONTINUE_ID, CONTINUE_LABEL, 10, icons.debugContinue, CONTEXT_DEBUG_STATE.isEqualTo('stopped'));
+registerDebugToolBarItem(PAUSE_ID, PAUSE_LABEL, 10, icons.debugPause, CONTEXT_DEBUG_STATE.notEqualsTo('stopped'), CONTEXT_DEBUG_STATE.isEqualTo('running'));
+registerDebugToolBarItem(STOP_ID, STOP_LABEL, 70, icons.debugStop, CONTEXT_FOCUSED_SESSION_IS_ATTACH.toNegated());
+registerDebugToolBarItem(DISCONNECT_ID, DISCONNECT_LABEL, 70, icons.debugDisconnect, CONTEXT_FOCUSED_SESSION_IS_ATTACH);
+registerDebugToolBarItem(STEP_OVER_ID, STEP_OVER_LABEL, 20, icons.debugStepOver, undefined, CONTEXT_DEBUG_STATE.isEqualTo('stopped'));
+registerDebugToolBarItem(STEP_INTO_ID, STEP_INTO_LABEL, 30, icons.debugStepInto, undefined, CONTEXT_DEBUG_STATE.isEqualTo('stopped'));
+registerDebugToolBarItem(STEP_OUT_ID, STEP_OUT_LABEL, 40, icons.debugStepOut, undefined, CONTEXT_DEBUG_STATE.isEqualTo('stopped'));
+registerDebugToolBarItem(RESTART_SESSION_ID, RESTART_LABEL, 60, icons.debugRestart);
+registerDebugToolBarItem(STEP_BACK_ID, localize('stepBackDebug', "Step Back"), 50, icons.debugStepBack, CONTEXT_STEP_BACK_SUPPORTED, CONTEXT_DEBUG_STATE.isEqualTo('stopped'));
+registerDebugToolBarItem(REVERSE_CONTINUE_ID, localize('reverseContinue', "Reverse"), 60, icons.debugReverseContinue, CONTEXT_STEP_BACK_SUPPORTED, CONTEXT_DEBUG_STATE.isEqualTo('stopped'));
+registerDebugToolBarItem(FOCUS_SESSION_ID, FOCUS_SESSION_LABEL, 100, undefined, CONTEXT_MULTI_SESSION_DEBUG);
