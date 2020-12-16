@@ -7,12 +7,11 @@ import { RunOnceScheduler } from 'vs/base/common/async';
 import * as dom from 'vs/base/browser/dom';
 import { IViewletViewOptions } from 'vs/workbench/browser/parts/views/viewsViewlet';
 import { IDebugService, IExpression, IScope, CONTEXT_VARIABLES_FOCUSED, IStackFrame, CONTEXT_DEBUG_PROTOCOL_VARIABLE_MENU_CONTEXT, IDataBreakpointInfoResponse, CONTEXT_BREAK_WHEN_VALUE_CHANGES_SUPPORTED, CONTEXT_VARIABLE_EVALUATE_NAME_PRESENT, VARIABLES_VIEW_ID } from 'vs/workbench/contrib/debug/common/debug';
-import { Variable, Scope, ErrorScope, StackFrame } from 'vs/workbench/contrib/debug/common/debugModel';
+import { Variable, Scope, ErrorScope, StackFrame, Expression } from 'vs/workbench/contrib/debug/common/debugModel';
 import { IContextMenuService } from 'vs/platform/contextview/browser/contextView';
 import { IKeybindingService } from 'vs/platform/keybinding/common/keybinding';
 import { renderViewTree, renderVariable, IInputBoxOptions, AbstractExpressionsRenderer, IExpressionTemplateData } from 'vs/workbench/contrib/debug/browser/baseDebugView';
 import { IAction } from 'vs/base/common/actions';
-import { CopyValueAction } from 'vs/workbench/contrib/debug/browser/debugActions';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { ViewPane, ViewAction } from 'vs/workbench/browser/parts/views/viewPane';
 import { IListAccessibilityProvider } from 'vs/base/browser/ui/list/listWidget';
@@ -391,14 +390,38 @@ CommandsRegistry.registerCommand({
 	}
 });
 
-export const COPY_VALUE_ID = 'debug.copyValue';
+export const COPY_VALUE_ID = 'workbench.debug.viewlet.action.copyValue';
 CommandsRegistry.registerCommand({
 	id: COPY_VALUE_ID,
-	handler: async (accessor: ServicesAccessor) => {
-		const instantiationService = accessor.get(IInstantiationService);
-		if (variableInternalContext) {
-			const action = instantiationService.createInstance(CopyValueAction, CopyValueAction.ID, CopyValueAction.LABEL, variableInternalContext, 'variables');
-			await action.run();
+	handler: async (accessor: ServicesAccessor, element: Variable | Expression | unknown) => {
+		const debugService = accessor.get(IDebugService);
+		const clipboardService = accessor.get(IClipboardService);
+		let elementContext = '';
+		if (element instanceof Variable || element instanceof Expression) {
+			elementContext = 'watch';
+		} else {
+			element = variableInternalContext;
+			elementContext = 'variables';
+		}
+
+		const stackFrame = debugService.getViewModel().focusedStackFrame;
+		const session = debugService.getViewModel().focusedSession;
+		if (!stackFrame || !session || !(element instanceof Variable || element instanceof Expression)) {
+			return;
+		}
+
+		const context = session.capabilities.supportsClipboardContext ? 'clipboard' : elementContext;
+		const toEvaluate = element instanceof Variable ? (element.evaluateName || element.value) : element.name;
+
+		try {
+			const evaluation = await session.evaluate(toEvaluate, stackFrame.frameId, context);
+			if (evaluation) {
+				clipboardService.writeText(evaluation.body.result);
+			}
+		} catch (e) {
+			if (element instanceof Variable || element instanceof Expression) {
+				clipboardService.writeText(element.value);
+			}
 		}
 	}
 });

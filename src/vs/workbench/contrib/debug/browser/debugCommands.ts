@@ -53,6 +53,8 @@ export const SELECT_AND_START_ID = 'workbench.action.debug.selectandstart';
 export const DEBUG_CONFIGURE_COMMAND_ID = 'workbench.action.debug.configure';
 export const DEBUG_START_COMMAND_ID = 'workbench.action.debug.start';
 export const DEBUG_RUN_COMMAND_ID = 'workbench.action.debug.run';
+export const EDIT_EXPRESSION_COMMAND_ID = 'debug.renameWatchExpression';
+export const REMOVE_EXPRESSION_COMMAND_ID = 'debug.removeWatchExpression';
 
 export const RESTART_LABEL = nls.localize('restartDebug', "Restart");
 export const STEP_OVER_LABEL = nls.localize('stepOverDebug', "Step Over");
@@ -447,21 +449,26 @@ export function registerCommands(): void {
 	});
 
 	KeybindingsRegistry.registerCommandAndKeybindingRule({
-		id: 'debug.renameWatchExpression',
+		id: EDIT_EXPRESSION_COMMAND_ID,
 		weight: KeybindingWeight.WorkbenchContrib + 5,
 		when: CONTEXT_WATCH_EXPRESSIONS_FOCUSED,
 		primary: KeyCode.F2,
 		mac: { primary: KeyCode.Enter },
-		handler: (accessor) => {
-			const listService = accessor.get(IListService);
+		handler: (accessor: ServicesAccessor, expression: Expression | unknown) => {
 			const debugService = accessor.get(IDebugService);
-			const focused = listService.lastFocusedList;
-
-			if (focused) {
-				const elements = focused.getFocus();
-				if (Array.isArray(elements) && elements[0] instanceof Expression) {
-					debugService.getViewModel().setSelectedExpression(elements[0]);
+			if (!(expression instanceof Expression)) {
+				const listService = accessor.get(IListService);
+				const focused = listService.lastFocusedList;
+				if (focused) {
+					const elements = focused.getFocus();
+					if (Array.isArray(elements) && elements[0] instanceof Expression) {
+						expression = elements[0];
+					}
 				}
+			}
+
+			if (expression instanceof Expression) {
+				debugService.getViewModel().setSelectedExpression(expression);
 			}
 		}
 	});
@@ -487,16 +494,21 @@ export function registerCommands(): void {
 	});
 
 	KeybindingsRegistry.registerCommandAndKeybindingRule({
-		id: 'debug.removeWatchExpression',
+		id: REMOVE_EXPRESSION_COMMAND_ID,
 		weight: KeybindingWeight.WorkbenchContrib,
 		when: ContextKeyExpr.and(CONTEXT_WATCH_EXPRESSIONS_FOCUSED, CONTEXT_EXPRESSION_SELECTED.toNegated()),
 		primary: KeyCode.Delete,
 		mac: { primary: KeyMod.CtrlCmd | KeyCode.Backspace },
-		handler: (accessor) => {
-			const listService = accessor.get(IListService);
+		handler: (accessor: ServicesAccessor, expression: Expression | unknown) => {
 			const debugService = accessor.get(IDebugService);
-			const focused = listService.lastFocusedList;
 
+			if (expression instanceof Expression) {
+				debugService.removeWatchExpressions(expression.getId());
+				return;
+			}
+
+			const listService = accessor.get(IListService);
+			const focused = listService.lastFocusedList;
 			if (focused) {
 				let elements = focused.getFocus();
 				if (Array.isArray(elements) && elements[0] instanceof Expression) {

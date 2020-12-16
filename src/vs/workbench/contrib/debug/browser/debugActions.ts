@@ -7,8 +7,7 @@ import * as nls from 'vs/nls';
 import { Action } from 'vs/base/common/actions';
 import { IKeybindingService } from 'vs/platform/keybinding/common/keybinding';
 import { IDebugService, State, IEnablement, IBreakpoint } from 'vs/workbench/contrib/debug/common/debug';
-import { Variable, Breakpoint, FunctionBreakpoint, Expression } from 'vs/workbench/contrib/debug/common/debugModel';
-import { IClipboardService } from 'vs/platform/clipboard/common/clipboardService';
+import { Breakpoint, FunctionBreakpoint } from 'vs/workbench/contrib/debug/common/debugModel';
 
 export abstract class AbstractDebugAction extends Action {
 
@@ -117,39 +116,5 @@ export class ReapplyBreakpointsAction extends AbstractDebugAction {
 		const model = this.debugService.getModel();
 		return (state === State.Running || state === State.Stopped) &&
 			((model.getFunctionBreakpoints().length + model.getBreakpoints().length + model.getExceptionBreakpoints().length + model.getDataBreakpoints().length) > 0);
-	}
-}
-
-export class CopyValueAction extends Action {
-	static readonly ID = 'workbench.debug.viewlet.action.copyValue';
-	static readonly LABEL = nls.localize('copyValue', "Copy Value");
-
-	constructor(
-		id: string, label: string, private value: Variable | Expression, private context: string,
-		@IDebugService private readonly debugService: IDebugService,
-		@IClipboardService private readonly clipboardService: IClipboardService
-	) {
-		super(id, label);
-		this._enabled = (this.value instanceof Expression) || (this.value instanceof Variable && !!this.value.evaluateName);
-	}
-
-	async run(): Promise<any> {
-		const stackFrame = this.debugService.getViewModel().focusedStackFrame;
-		const session = this.debugService.getViewModel().focusedSession;
-		if (!stackFrame || !session) {
-			return;
-		}
-
-		const context = session.capabilities.supportsClipboardContext ? 'clipboard' : this.context;
-		const toEvaluate = this.value instanceof Variable ? (this.value.evaluateName || this.value.value) : this.value.name;
-
-		try {
-			const evaluation = await session.evaluate(toEvaluate, stackFrame.frameId, context);
-			if (evaluation) {
-				this.clipboardService.writeText(evaluation.body.result);
-			}
-		} catch (e) {
-			this.clipboardService.writeText(typeof this.value === 'string' ? this.value : this.value.value);
-		}
 	}
 }
