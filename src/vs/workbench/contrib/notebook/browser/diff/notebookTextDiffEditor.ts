@@ -257,6 +257,56 @@ export class NotebookTextDiffEditor extends EditorPane implements INotebookTextD
 					}
 				}
 
+				if (this._originalWebview) {
+					this._originalWebview.element.style.height = `${scrollHeight}px`;
+
+					if (this._originalWebview.insetMapping) {
+						const updateItems: IDisplayOutputLayoutUpdateRequest[] = [];
+						const removedItems: IDisplayOutputViewModel[] = [];
+						this._originalWebview.insetMapping.forEach((value, key) => {
+							const cell = value.cellInfo.diffElement.modified;
+							if (!cell) {
+								return;
+							}
+
+							const viewIndex = this._list.indexOf(value.cellInfo.diffElement);
+
+							if (viewIndex === undefined) {
+								return;
+							}
+
+							if (cell.outputsViewModels.findIndex(viewModel => (viewModel.model as ITransformedDisplayOutputDto).outputId === (key.model as ITransformedDisplayOutputDto).outputId) < 0) {
+								// output is already gone
+								removedItems.push(key);
+							}
+
+							const cellTop = this._list.getAbsoluteTopOfElement(value.cellInfo.diffElement);
+							if (this._originalWebview!.shouldUpdateInset(cell, key, cellTop)) {
+								// TODO: why? does it mean, we create new output view model every time?
+								const outputIndex = cell.outputsViewModels.findIndex(viewModel => (viewModel.model as ITransformedDisplayOutputDto).outputId === (key.model as ITransformedDisplayOutputDto).outputId);
+								let outputOffset = 0;
+								if (value.cellInfo.diffElement instanceof SideBySideDiffElementViewModel) {
+									outputOffset = cellTop + value.cellInfo.diffElement.getOutputOffsetInCell(true, outputIndex);
+								} else {
+									outputOffset = cellTop + (value.cellInfo.diffElement as SingleSideDiffElementViewModel).getOutputOffsetInCell(outputIndex);
+								}
+
+								updateItems.push({
+									output: key,
+									cellTop: cellTop,
+									outputOffset: outputOffset
+								});
+							}
+						});
+
+						removedItems.forEach(output => this._originalWebview?.removeInset(output));
+
+						if (updateItems.length) {
+							this._originalWebview?.updateViewScrollTop(-scrollTop, false, updateItems);
+						}
+					}
+				}
+
 			});
 		}));
 	}
@@ -548,6 +598,7 @@ export class NotebookTextDiffEditor extends EditorPane implements INotebookTextD
 
 	hideInset(cellDiffViewModel: DiffElementViewModelBase, cellViewModel: DiffNestedCellViewModel, output: IDisplayOutputViewModel) {
 		this._modifiedWebview?.hideInset(output);
+		this._originalWebview?.hideInset(output);
 	}
 
 	// private async _resolveWebview(rightEditor: boolean): Promise<BackLayerWebView | null> {
