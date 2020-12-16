@@ -45,7 +45,9 @@ export class GettingStartedPage extends Disposable {
 	private gettingStartedCategories: IGettingStartedCategoryWithProgress[];
 	private currentCategory: IGettingStartedCategoryWithProgress | undefined;
 
-	private scrollbar: DomScrollableElement | undefined;
+	private categoriesScrollbar: DomScrollableElement | undefined;
+	private detailsScrollbar: DomScrollableElement | undefined;
+	private detailImageScrollbar: DomScrollableElement | undefined;
 
 	constructor(
 		initialState: { selectedCategory?: string, selectedTask?: string },
@@ -95,11 +97,11 @@ export class GettingStartedPage extends Disposable {
 				const badgeelement = assertIsDefined(document.getElementById('done-task-' + task.id));
 				if (task.done) {
 					badgeelement.classList.remove('codicon-circle-large-outline');
-					badgeelement.classList.add('codicon-pass-filled');
+					badgeelement.classList.add('codicon-pass-filled', 'complete');
 				}
 				else {
 					badgeelement.classList.add('codicon-circle-large-outline');
-					badgeelement.classList.remove('codicon-pass-filled');
+					badgeelement.classList.remove('codicon-pass-filled', 'complete');
 				}
 			}
 			this.updateCategoryProgress();
@@ -189,6 +191,8 @@ export class GettingStartedPage extends Disposable {
 			mediaElement.setAttribute('src', '');
 			mediaElement.setAttribute('alt', '');
 		}
+		this.detailsScrollbar?.scanDomNode();
+		this.detailImageScrollbar?.scanDomNode();
 	}
 
 	private onReady(container: HTMLElement) {
@@ -212,6 +216,14 @@ export class GettingStartedPage extends Disposable {
 		const categoriesSlide = assertIsDefined(document.getElementById('gettingStartedSlideCategory'));
 		const tasksSlide = assertIsDefined(document.getElementById('gettingStartedSlideDetails'));
 
+		const tasksContent = assertIsDefined(document.getElementById('getting-started-detail-columns'));
+		tasksContent.remove();
+		if (this.detailImageScrollbar) { this.detailImageScrollbar.dispose(); }
+		this.detailImageScrollbar = this._register(new DomScrollableElement(tasksContent, {}));
+		tasksSlide.appendChild(this.detailImageScrollbar.getDomNode());
+		tasksSlide.appendChild($('.gap'));
+		this.detailImageScrollbar.scanDomNode();
+
 		const rightColumn = assertIsDefined(container.querySelector('#getting-started-detail-right'));
 		rightColumn.appendChild($('img#getting-started-media'));
 
@@ -224,10 +236,11 @@ export class GettingStartedPage extends Disposable {
 		categoryScrollContainer.appendChild(categoriesContainer);
 		categoryScrollContainer.appendChild($('.footer', {}, $('a.skip', { 'x-dispatch': 'skip' }, localize('gettingStarted.skip', "Skip"))));
 
-		this.scrollbar = this._register(new DomScrollableElement(categoryScrollContainer, {}));
-		categoriesSlide.appendChild(this.scrollbar.getDomNode());
+		if (this.categoriesScrollbar) { this.categoriesScrollbar.dispose(); }
+		this.categoriesScrollbar = this._register(new DomScrollableElement(categoryScrollContainer, {}));
+		categoriesSlide.appendChild(this.categoriesScrollbar.getDomNode());
 		categoriesSlide.appendChild($('.gap'));
-		this.scrollbar.scanDomNode();
+		this.categoriesScrollbar.scanDomNode();
 
 		this.updateCategoryProgress();
 
@@ -248,14 +261,16 @@ export class GettingStartedPage extends Disposable {
 	}
 
 	private layout() {
-		this.scrollbar?.scanDomNode();
+		this.categoriesScrollbar?.scanDomNode();
+		this.detailsScrollbar?.scanDomNode();
+		this.detailImageScrollbar?.scanDomNode();
 	}
 
 	private updateCategoryProgress() {
 		document.querySelectorAll('.category-progress').forEach(element => {
 			const categoryID = element.getAttribute('x-data-category-id');
 			const category = this.gettingStartedCategories.find(category => category.id === categoryID);
-			if (!category) { throw Error('Could not find c=ategory with ID ' + categoryID); }
+			if (!category) { throw Error('Could not find category with ID ' + categoryID); }
 			if (category.content.type !== 'items') { throw Error('Category with ID ' + categoryID + ' is not of items type'); }
 			const numDone = category.content.items.filter(task => task.done).length;
 			const numTotal = category.content.items.length;
@@ -293,6 +308,7 @@ export class GettingStartedPage extends Disposable {
 		if (!category) { throw Error('could not find category with ID ' + categoryID); }
 		if (category.content.type !== 'items') { throw Error('category with ID ' + categoryID + ' is not of items type'); }
 
+		const leftColumn = assertIsDefined(document.getElementById('getting-started-detail-left'));
 		const detailTitle = assertIsDefined(document.getElementById('getting-started-detail-title'));
 		detailTitle.appendChild(
 			$('.getting-started-category',
@@ -305,7 +321,7 @@ export class GettingStartedPage extends Disposable {
 		const categoryElements = category.content.items.map(
 			(task, i, arr) => $('button.getting-started-task',
 				{ 'x-dispatch': 'selectTask:' + task.id, id: 'getting-started-task-' + task.id },
-				$('.codicon' + (task.done ? '.codicon-pass-filled' : '.codicon-circle-large-outline'), { id: 'done-task-' + task.id }),
+				$('.codicon' + (task.done ? '.complete.codicon-pass-filled' : '.codicon-circle-large-outline'), { id: 'done-task-' + task.id }),
 				$('.task-description-container', {},
 					$('h3.task-title', {}, task.title),
 					$('.task-description.description', {}, task.description),
@@ -325,17 +341,21 @@ export class GettingStartedPage extends Disposable {
 						))
 				)));
 
-		const detailContainer = assertIsDefined(document.getElementById('getting-started-detail-container'));
+		const detailContainer = $('#getting-started-detail-container');
+		if (this.detailsScrollbar) { this.detailsScrollbar.getDomNode().remove(); this.detailsScrollbar.dispose(); }
+		this.detailsScrollbar = this._register(new DomScrollableElement(detailContainer, { className: 'full-height-scrollable' }));
 		categoryElements.forEach(element => detailContainer.appendChild(element));
+		leftColumn.appendChild(this.detailsScrollbar.getDomNode());
 
 		const toExpand = category.content.items.find(item => !item.done) ?? category.content.items[0];
 		this.selectTask(selectedItem ?? toExpand.id);
+		this.detailsScrollbar.scanDomNode();
 		this.registerDispatchListeners(container);
 	}
 
 	private clearDetialView() {
-		const detailContainer = assertIsDefined(document.getElementById('getting-started-detail-container'));
-		while (detailContainer.firstChild) { detailContainer.removeChild(detailContainer.firstChild); }
+		const detailContainer = (document.getElementById('getting-started-detail-container'));
+		detailContainer?.remove();
 		const detailTitle = assertIsDefined(document.getElementById('getting-started-detail-title'));
 		while (detailTitle.firstChild) { detailTitle.removeChild(detailTitle.firstChild); }
 	}
