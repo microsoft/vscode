@@ -463,22 +463,7 @@ export abstract class AbstractExtHostExtensionService extends Disposable impleme
 
 	private _activateAllStartupFinished(): void {
 		// startup is considered finished
-		const marks = performance.getMarks().map((entry) => {
-			if (entry.name.startsWith('fork/')) {
-				return {
-					name: `extHost/` + entry.name.substr('fork/'.length),
-					startTime: entry.startTime
-				};
-			}
-			if (entry.name.startsWith('code/')) {
-				return {
-					name: `extHost/` + entry.name.substr('code/'.length),
-					startTime: entry.startTime
-				};
-			}
-			return entry;
-		});
-		this._mainThreadExtensionsProxy.$setPerformanceMarks(marks);
+		this._mainThreadExtensionsProxy.$setPerformanceMarks(performance.getMarks());
 
 		for (const desc of this._registry.getAllExtensionDescriptions()) {
 			if (desc.activationEvents) {
