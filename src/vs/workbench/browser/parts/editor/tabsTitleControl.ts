@@ -1280,17 +1280,11 @@ export class TabsTitleControl extends TitleControl {
 		// that can result in the browser doing a full page layout to validate them. To buffer
 		// this a little bit we try at least to schedule this work on the next animation frame.
 		if (!this.layoutScheduled.value) {
+			this.layoutScheduled.value = scheduleAtNextAnimationFrame(() => {
+				this.doLayout(this.dimensions);
 
-			// We need an opened editor and dimensions to layout the title,
-			// otherwise we skip the layout call until we have opened editors
-			const activeTabAndIndex = this.group.activeEditor ? this.getTabAndIndex(this.group.activeEditor) : undefined;
-			if (activeTabAndIndex && dimensions.container !== Dimension.None && dimensions.available !== Dimension.None) {
-				this.layoutScheduled.value = scheduleAtNextAnimationFrame(() => {
-					this.doLayout(this.dimensions);
-
-					this.layoutScheduled.clear();
-				});
-			}
+				this.layoutScheduled.clear();
+			});
 		}
 
 		return new Dimension(dimensions.container.width, this.getDimensions().height);
@@ -1298,8 +1292,8 @@ export class TabsTitleControl extends TitleControl {
 
 	private doLayout(dimensions: ITitleControlDimensions): void {
 		const activeTabAndIndex = this.group.activeEditor ? this.getTabAndIndex(this.group.activeEditor) : undefined;
-		if (!activeTabAndIndex) {
-			return; // nothing to do if not editor opened
+		if (!activeTabAndIndex || dimensions.container === Dimension.None || dimensions.available === Dimension.None) {
+			return; // nothing to do if not editor opened or we got no dimensions yet
 		}
 
 		// Breadcrumbs
