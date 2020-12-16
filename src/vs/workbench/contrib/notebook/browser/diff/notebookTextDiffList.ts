@@ -189,6 +189,8 @@ export class CellDiffSingleSideRenderer implements IListRenderer<SingleSideDiffE
 	}
 
 	renderElement(element: SingleSideDiffElementViewModel, index: number, templateData: CellDiffSingleSideRenderTemplate, height: number | undefined): void {
+		templateData.body.classList.remove('left', 'right', 'full');
+
 		switch (element.type) {
 			case 'delete':
 				templateData.elementDisposables.add(this.instantiationService.createInstance(DeletedElement, this.notebookEditor, element, templateData));
@@ -309,6 +311,8 @@ export class CellDiffSideBySideRenderer implements IListRenderer<SideBySideDiffE
 	}
 
 	renderElement(element: SideBySideDiffElementViewModel, index: number, templateData: CellDiffSideBySideRenderTemplate, height: number | undefined): void {
+		templateData.body.classList.remove('left', 'right', 'full');
+
 		switch (element.type) {
 			case 'unchanged':
 				templateData.elementDisposables.add(this.instantiationService.createInstance(ModifiedElement, this.notebookEditor, element, templateData));

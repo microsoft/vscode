@@ -331,8 +331,8 @@ export class NotebookTextDiffEditor extends EditorPane implements INotebookTextD
 		// attach the webview container to the DOM tree first
 		this._list.rowsContainer.insertAdjacentElement('afterbegin', this._originalWebview.element);
 		await this._originalWebview.createWebview();
-		this._originalWebview.element.style.width = `calc(50%)`;
-		this._originalWebview.element.style.left = `0`;
+		this._originalWebview.element.style.width = `calc(50% - 16px)`;
+		this._originalWebview.element.style.left = `16px`;
 	}
 
 	private async _resolveStats(resource: URI) {
@@ -518,7 +518,22 @@ export class NotebookTextDiffEditor extends EditorPane implements INotebookTextD
 					this._modifiedWebview!.updateViewScrollTop(-scrollTop, true, [{ output: output.source, cellTop, outputOffset }]);
 				}
 			} else {
+				if (!this._originalWebview!.insetMapping.has(output.source)) {
+					const cellTop = this._list.getAbsoluteTopOfElement(cellDiffViewModel);
+					await this._originalWebview?.createInset({ diffElement: cellDiffViewModel, cellHandle: cellViewModel.handle, cellId: cellViewModel.id, cellUri: cellViewModel.uri }, output, cellTop, offset);
+				} else {
+					const cellTop = this._list.getAbsoluteTopOfElement(cellDiffViewModel);
+					const scrollTop = this._list.scrollTop;
+					const outputIndex = cellViewModel.outputsViewModels.findIndex(viewModel => (viewModel.model as ITransformedDisplayOutputDto).outputId === (output.source.model as ITransformedDisplayOutputDto).outputId);
+					let outputOffset = 0;
+					if (cellDiffViewModel instanceof SideBySideDiffElementViewModel) {
+						outputOffset = cellTop + cellDiffViewModel.getOutputOffsetInCell(true, outputIndex);
+					} else {
+						outputOffset = cellTop + (cellDiffViewModel as SingleSideDiffElementViewModel).getOutputOffsetInCell(outputIndex);
+					}
 
+					this._originalWebview!.updateViewScrollTop(-scrollTop, true, [{ output: output.source, cellTop, outputOffset }]);
+				}
 			}
 		});
 	}
