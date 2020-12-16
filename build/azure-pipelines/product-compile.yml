@@ -110,4 +110,4 @@ steps:
     inputs:
       targetPath: $(System.DefaultWorkingDirectory)
       artifactName: CompilationOutput
-    displayName: Publish Compilation Output
+    displayName: Publish compilation output

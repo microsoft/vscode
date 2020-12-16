@@ -17,7 +17,7 @@ steps:
     inputs:
       artifact: CompilationOutput
       path: $(System.DefaultWorkingDirectory)
-    displayName: Download Compilation Output
+    displayName: Download compilation output
 
   - script: |
       set -e
