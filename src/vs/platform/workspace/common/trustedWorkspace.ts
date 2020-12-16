@@ -203,7 +203,7 @@ export class TrustedWorkspaceService extends Disposable implements ITrustedWorks
 
 		this._register(this.dataModel.onDidChangeTrust(() => this.currentTrustState = this.calculateWorkspaceTrustState()));
 
-		this._register(this.requestModel.onDidCompleteRequest((trustState) => this.onTrustRequestCompleted(trustState));
+		this._register(this.requestModel.onDidCompleteRequest((trustState) => this.onTrustRequestCompleted(trustState)));
 	}
 
 	private get currentTrustState(): TrustState {
