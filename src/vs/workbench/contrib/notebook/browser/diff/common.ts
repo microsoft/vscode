@@ -42,7 +42,14 @@ export interface IDiffNestedCellViewModel {
 
 }
 
-export interface CellDiffSingleSideRenderTemplate {
+export interface CellDiffCommonRenderTemplate {
+	readonly leftBorder: HTMLElement;
+	readonly rightBorder: HTMLElement;
+	readonly topBorder: HTMLElement;
+	readonly bottomBorder: HTMLElement;
+}
+
+export interface CellDiffSingleSideRenderTemplate extends CellDiffCommonRenderTemplate {
 	readonly container: HTMLElement;
 	readonly body: HTMLElement;
 	readonly diffEditorContainer: HTMLElement;
@@ -53,10 +60,11 @@ export interface CellDiffSingleSideRenderTemplate {
 	readonly metadataInfoContainer: HTMLElement;
 	readonly outputHeaderContainer: HTMLElement;
 	readonly outputInfoContainer: HTMLElement;
+
 }
 
 
-export interface CellDiffSideBySideRenderTemplate {
+export interface CellDiffSideBySideRenderTemplate extends CellDiffCommonRenderTemplate {
 	readonly container: HTMLElement;
 	readonly body: HTMLElement;
 	readonly diffEditorContainer: HTMLElement;

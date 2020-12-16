@@ -148,6 +148,12 @@ export class CellDiffSingleSideRenderer implements IListRenderer<SingleSideDiffE
 		const outputHeaderContainer = DOM.append(diffEditorContainer, DOM.$('.output-header-container'));
 		const outputInfoContainer = DOM.append(diffEditorContainer, DOM.$('.output-info-container'));
 
+		const borderContainer = DOM.append(body, DOM.$('.border-container'));
+		const leftBorder = DOM.append(borderContainer, DOM.$('.left-border'));
+		const rightBorder = DOM.append(borderContainer, DOM.$('.right-border'));
+		const topBorder = DOM.append(borderContainer, DOM.$('.top-border'));
+		const bottomBorder = DOM.append(borderContainer, DOM.$('.bottom-border'));
+
 		return {
 			body,
 			container,
@@ -158,6 +164,10 @@ export class CellDiffSingleSideRenderer implements IListRenderer<SingleSideDiffE
 			metadataInfoContainer,
 			outputHeaderContainer,
 			outputInfoContainer,
+			leftBorder,
+			rightBorder,
+			topBorder,
+			bottomBorder,
 			elementDisposables: new DisposableStore()
 		};
 	}
@@ -247,6 +257,13 @@ export class CellDiffSideBySideRenderer implements IListRenderer<SideBySideDiffE
 		const outputHeaderContainer = DOM.append(diffEditorContainer, DOM.$('.output-header-container'));
 		const outputInfoContainer = DOM.append(diffEditorContainer, DOM.$('.output-info-container'));
 
+		const borderContainer = DOM.append(body, DOM.$('.border-container'));
+		const leftBorder = DOM.append(borderContainer, DOM.$('.left-border'));
+		const rightBorder = DOM.append(borderContainer, DOM.$('.right-border'));
+		const topBorder = DOM.append(borderContainer, DOM.$('.top-border'));
+		const bottomBorder = DOM.append(borderContainer, DOM.$('.bottom-border'));
+
+
 		return {
 			body,
 			container,
@@ -259,6 +276,10 @@ export class CellDiffSideBySideRenderer implements IListRenderer<SideBySideDiffE
 			metadataInfoContainer,
 			outputHeaderContainer,
 			outputInfoContainer,
+			leftBorder,
+			rightBorder,
+			topBorder,
+			bottomBorder,
 			elementDisposables: new DisposableStore()
 		};
 	}

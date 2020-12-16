@@ -258,6 +258,7 @@ abstract class AbstractElementRenderer extends Disposable {
 		this._outputEditorDisposeStore = new DisposableStore();
 		this._register(this._metadataEditorDisposeStore);
 		this._register(cell.onDidLayoutChange(e => this.layout(e)));
+		this._register(cell.onDidLayoutChange(e => this.updateBorders()));
 		this.buildBody();
 	}
 
@@ -593,6 +594,12 @@ abstract class AbstractElementRenderer extends Disposable {
 			this.cell,
 			this.cell.totalHeight
 		);
+	}
+
+	updateBorders() {
+		this.templateData.leftBorder.style.height = `${this.cell.totalHeight - 32}px`;
+		this.templateData.rightBorder.style.height = `${this.cell.totalHeight - 32}px`;
+		this.templateData.bottomBorder.style.top = `${this.cell.totalHeight - 32}px`;
 	}
 
 	dispose() {

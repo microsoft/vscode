@@ -593,7 +593,10 @@ export class NotebookTextDiffEditor extends EditorPane implements INotebookTextD
 registerThemingParticipant((theme, collector) => {
 	const cellBorderColor = theme.getColor(notebookCellBorder);
 	if (cellBorderColor) {
-		collector.addRule(`.notebook-text-diff-editor .cell-body { border: 1px solid ${cellBorderColor};}`);
+		collector.addRule(`.notebook-text-diff-editor .cell-body .border-container .top-border { border-top: 1px solid ${cellBorderColor};}`);
+		collector.addRule(`.notebook-text-diff-editor .cell-body .border-container .bottom-border { border-top: 1px solid ${cellBorderColor};}`);
+		collector.addRule(`.notebook-text-diff-editor .cell-body .border-container .left-border { border-left: 1px solid ${cellBorderColor};}`);
+		collector.addRule(`.notebook-text-diff-editor .cell-body .border-container .right-border { border-right: 1px solid ${cellBorderColor};}`);
 		collector.addRule(`.notebook-text-diff-editor .cell-diff-editor-container .output-header-container,
 		.notebook-text-diff-editor .cell-diff-editor-container .metadata-header-container {
 			border-top: 1px solid ${cellBorderColor};

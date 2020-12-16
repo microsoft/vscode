@@ -21,6 +21,26 @@
 	flex-direction: row;
 }
 
+.notebook-text-diff-editor .cell-body .border-container {
+	position: absolute;
+	width: calc(100% - 32px);
+}
+
+.notebook-text-diff-editor .cell-body .border-container .top-border,
+.notebook-text-diff-editor .cell-body .border-container .bottom-border {
+	position: absolute;
+	width: 100%;
+}
+
+.notebook-text-diff-editor .cell-body .border-container .left-border,
+.notebook-text-diff-editor .cell-body .border-container .right-border {
+	position: absolute;
+}
+
+.notebook-text-diff-editor .cell-body .border-container .right-border {
+	left: 100%;
+}
+
 .notebook-text-diff-editor .cell-body.right {
 	flex-direction: row-reverse;
 }
