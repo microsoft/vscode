@@ -259,7 +259,8 @@ export class SuggestController implements IEditorContribution {
 
 	protected _insertSuggestion(
 		event: ISelectedSuggestion | undefined,
-		flags: InsertFlags
+		flags: InsertFlags,
+		replace?: boolean
 	): void {
 		if (!event || !event.item) {
 			this._alternatives.value.reset();
@@ -286,7 +287,7 @@ export class SuggestController implements IEditorContribution {
 		}
 
 		// compute overwrite[Before|After] deltas BEFORE applying extra edits
-		const info = this.getOverwriteInfo(item, Boolean(flags & InsertFlags.AlternativeOverwriteConfig));
+		const info = this.getOverwriteInfo(item, Boolean(flags & InsertFlags.AlternativeOverwriteConfig), replace);
 
 		// keep item in memory
 		this._memoryService.memorize(model, this.editor.getPosition(), item);
@@ -422,10 +423,13 @@ export class SuggestController implements IEditorContribution {
 		});
 	}
 
-	getOverwriteInfo(item: CompletionItem, toggleMode: boolean): { overwriteBefore: number, overwriteAfter: number } {
+	getOverwriteInfo(item: CompletionItem, toggleMode: boolean, replace?: boolean): { overwriteBefore: number, overwriteAfter: number } {
 		assertType(this.editor.hasModel());
 
-		let replace = this.editor.getOption(EditorOption.suggest).insertMode === 'replace';
+		if (replace === undefined) {
+			replace = this.editor.getOption(EditorOption.suggest).insertMode === 'replace';
+		}
+
 		if (toggleMode) {
 			replace = !replace;
 		}
@@ -524,7 +528,7 @@ export class SuggestController implements IEditorContribution {
 		this.editor.focus();
 	}
 
-	acceptSelectedSuggestion(keepAlternativeSuggestions: boolean, alternativeOverwriteConfig: boolean): void {
+	acceptSelectedSuggestion(keepAlternativeSuggestions: boolean, alternativeOverwriteConfig: boolean, replace?: boolean): void {
 		const item = this.widget.value.getFocusedItem();
 		let flags = 0;
 		if (keepAlternativeSuggestions) {
@@ -533,7 +537,7 @@ export class SuggestController implements IEditorContribution {
 		if (alternativeOverwriteConfig) {
 			flags |= InsertFlags.AlternativeOverwriteConfig;
 		}
-		this._insertSuggestion(item, flags);
+		this._insertSuggestion(item, flags, replace);
 	}
 	acceptNextSuggestion() {
 		this._alternatives.value.next();
@@ -637,9 +641,25 @@ registerEditorCommand(new SuggestCommand({
 	}
 }));
 
+registerEditorCommand(new SuggestCommand({
+	id: 'replaceWithSuggestion',
+	precondition: SuggestContext.Visible,
+	handler(x) {
+		x.acceptSelectedSuggestion(true, false, true);
+	}
+}));
+
+registerEditorCommand(new SuggestCommand({
+	id: 'insertSuggestion',
+	precondition: SuggestContext.Visible,
+	handler(x) {
+		x.acceptSelectedSuggestion(true, false, false);
+	}
+}));
+
 // normal tab
 KeybindingsRegistry.registerKeybindingRule({
-	id: 'acceptSelectedSuggestion',
+	id: 'replaceWithSuggestion',
 	when: ContextKeyExpr.and(SuggestContext.Visible, EditorContextKeys.textInputFocus),
 	primary: KeyCode.Tab,
 	weight
@@ -647,26 +667,27 @@ KeybindingsRegistry.registerKeybindingRule({
 
 // accept on enter has special rules
 KeybindingsRegistry.registerKeybindingRule({
-	id: 'acceptSelectedSuggestion',
-	when: ContextKeyExpr.and(SuggestContext.Visible, EditorContextKeys.textInputFocus, SuggestContext.AcceptSuggestionsOnEnter, SuggestContext.MakesTextEdit),
+	id: 'insertSuggestion',
+	// when: ContextKeyExpr.and(SuggestContext.Visible, EditorContextKeys.textInputFocus, SuggestContext.AcceptSuggestionsOnEnter, SuggestContext.MakesTextEdit),
+	when: ContextKeyExpr.and(SuggestContext.Visible, EditorContextKeys.textInputFocus),
 	primary: KeyCode.Enter,
 	weight,
 });
 
 MenuRegistry.appendMenuItem(suggestWidgetStatusbarMenu, {
-	command: { id: 'acceptSelectedSuggestion', title: nls.localize('accept.insert', "Insert") },
+	command: { id: 'insertSuggestion', title: nls.localize('accept.insert', "Insert") },
 	group: 'left',
 	order: 1,
 	when: SuggestContext.HasInsertAndReplaceRange.toNegated()
 });
 MenuRegistry.appendMenuItem(suggestWidgetStatusbarMenu, {
-	command: { id: 'acceptSelectedSuggestion', title: nls.localize('accept.insert', "Insert") },
+	command: { id: 'insertSuggestion', title: nls.localize('accept.insert', "Insert") },
 	group: 'left',
 	order: 1,
 	when: ContextKeyExpr.and(SuggestContext.HasInsertAndReplaceRange, SuggestContext.InsertMode.isEqualTo('insert'))
 });
 MenuRegistry.appendMenuItem(suggestWidgetStatusbarMenu, {
-	command: { id: 'acceptSelectedSuggestion', title: nls.localize('accept.replace', "Replace") },
+	command: { id: 'replaceWithSuggestion', title: nls.localize('accept.replace', "Replace") },
 	group: 'left',
 	order: 1,
 	when: ContextKeyExpr.and(SuggestContext.HasInsertAndReplaceRange, SuggestContext.InsertMode.isEqualTo('replace'))
