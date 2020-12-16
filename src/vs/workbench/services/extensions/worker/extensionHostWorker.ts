@@ -111,7 +111,7 @@ class ExtensionWorker {
 			if (isMessageOfType(msg, MessageType.Terminate)) {
 				// handle terminate-message right here
 				terminating = true;
-				onTerminate();
+				onTerminate('received terminate message from renderer');
 				return;
 			}
 
@@ -147,7 +147,7 @@ function connectToRenderer(protocol: IMessagePassingProtocol): Promise<IRenderer
 	});
 }
 
-let onTerminate = nativeClose;
+let onTerminate = (reason: string) => nativeClose();
 
 (function create(): void {
 	const res = new ExtensionWorker();
@@ -161,6 +161,6 @@ let onTerminate = nativeClose;
 			null,
 		);
 
-		onTerminate = () => extHostMain.terminate();
+		onTerminate = (reason: string) => extHostMain.terminate(reason);
 	});
 })();

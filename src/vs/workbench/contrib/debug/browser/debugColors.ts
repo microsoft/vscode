@@ -4,8 +4,28 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { registerColor, foreground, editorInfoForeground, editorWarningForeground, errorForeground, badgeBackground, badgeForeground, listDeemphasizedForeground, contrastBorder, inputBorder } from 'vs/platform/theme/common/colorRegistry';
-import { registerThemingParticipant } from 'vs/platform/theme/common/themeService';
+import { registerThemingParticipant, ThemeIcon } from 'vs/platform/theme/common/themeService';
 import { Color } from 'vs/base/common/color';
+import { localize } from 'vs/nls';
+import * as icons from 'vs/workbench/contrib/debug/browser/debugIcons';
+
+export const debugToolBarBackground = registerColor('debugToolBar.background', {
+	dark: '#333333',
+	light: '#F3F3F3',
+	hc: '#000000'
+}, localize('debugToolBarBackground', "Debug toolbar background color."));
+
+export const debugToolBarBorder = registerColor('debugToolBar.border', {
+	dark: null,
+	light: null,
+	hc: null
+}, localize('debugToolBarBorder', "Debug toolbar border color."));
+
+export const debugIconStartForeground = registerColor('debugIcon.startForeground', {
+	dark: '#89D185',
+	light: '#388A34',
+	hc: '#89D185'
+}, localize('debugIcon.startForeground', "Debug toolbar icon for start debugging."));
 
 export function registerColors() {
 
@@ -27,6 +47,62 @@ export function registerColors() {
 	const debugConsoleErrorForeground = registerColor('debugConsole.errorForeground', { dark: errorForeground, light: errorForeground, hc: errorForeground }, 'Foreground color for error messages in debug REPL console.');
 	const debugConsoleSourceForeground = registerColor('debugConsole.sourceForeground', { dark: foreground, light: foreground, hc: foreground }, 'Foreground color for source filenames in debug REPL console.');
 	const debugConsoleInputIconForeground = registerColor('debugConsoleInputIcon.foreground', { dark: foreground, light: foreground, hc: foreground }, 'Foreground color for debug console input marker icon.');
+
+
+
+	const debugIconPauseForeground = registerColor('debugIcon.pauseForeground', {
+		dark: '#75BEFF',
+		light: '#007ACC',
+		hc: '#75BEFF'
+	}, localize('debugIcon.pauseForeground', "Debug toolbar icon for pause."));
+
+	const debugIconStopForeground = registerColor('debugIcon.stopForeground', {
+		dark: '#F48771',
+		light: '#A1260D',
+		hc: '#F48771'
+	}, localize('debugIcon.stopForeground', "Debug toolbar icon for stop."));
+
+	const debugIconDisconnectForeground = registerColor('debugIcon.disconnectForeground', {
+		dark: '#F48771',
+		light: '#A1260D',
+		hc: '#F48771'
+	}, localize('debugIcon.disconnectForeground', "Debug toolbar icon for disconnect."));
+
+	const debugIconRestartForeground = registerColor('debugIcon.restartForeground', {
+		dark: '#89D185',
+		light: '#388A34',
+		hc: '#89D185'
+	}, localize('debugIcon.restartForeground', "Debug toolbar icon for restart."));
+
+	const debugIconStepOverForeground = registerColor('debugIcon.stepOverForeground', {
+		dark: '#75BEFF',
+		light: '#007ACC',
+		hc: '#75BEFF'
+	}, localize('debugIcon.stepOverForeground', "Debug toolbar icon for step over."));
+
+	const debugIconStepIntoForeground = registerColor('debugIcon.stepIntoForeground', {
+		dark: '#75BEFF',
+		light: '#007ACC',
+		hc: '#75BEFF'
+	}, localize('debugIcon.stepIntoForeground', "Debug toolbar icon for step into."));
+
+	const debugIconStepOutForeground = registerColor('debugIcon.stepOutForeground', {
+		dark: '#75BEFF',
+		light: '#007ACC',
+		hc: '#75BEFF'
+	}, localize('debugIcon.stepOutForeground', "Debug toolbar icon for step over."));
+
+	const debugIconContinueForeground = registerColor('debugIcon.continueForeground', {
+		dark: '#75BEFF',
+		light: '#007ACC',
+		hc: '#75BEFF'
+	}, localize('debugIcon.continueForeground', "Debug toolbar icon for continue."));
+
+	const debugIconStepBackForeground = registerColor('debugIcon.stepBackForeground', {
+		dark: '#75BEFF',
+		light: '#007ACC',
+		hc: '#75BEFF'
+	}, localize('debugIcon.stepBackForeground', "Debug toolbar icon for step back."));
 
 	registerThemingParticipant((theme, collector) => {
 		// All these colours provide a default value so they will never be undefined, hence the `!`
@@ -185,6 +261,56 @@ export function registerColors() {
 					opacity: 1;
 				}
 			`);
+		}
+
+		const debugIconStartColor = theme.getColor(debugIconStartForeground);
+		if (debugIconStartColor) {
+			collector.addRule(`.monaco-workbench ${ThemeIcon.asCSSSelector(icons.debugStart)} { color: ${debugIconStartColor} !important; }`);
+		}
+
+		const debugIconPauseColor = theme.getColor(debugIconPauseForeground);
+		if (debugIconPauseColor) {
+			collector.addRule(`.monaco-workbench ${ThemeIcon.asCSSSelector(icons.debugPause)} { color: ${debugIconPauseColor} !important; }`);
+		}
+
+		const debugIconStopColor = theme.getColor(debugIconStopForeground);
+		if (debugIconStopColor) {
+			collector.addRule(`.monaco-workbench ${ThemeIcon.asCSSSelector(icons.debugStop)} { color: ${debugIconStopColor} !important; }`);
+		}
+
+		const debugIconDisconnectColor = theme.getColor(debugIconDisconnectForeground);
+		if (debugIconDisconnectColor) {
+			collector.addRule(`.monaco-workbench .debug-view-content ${ThemeIcon.asCSSSelector(icons.debugDisconnect)}, .monaco-workbench .debug-toolbar ${ThemeIcon.asCSSSelector(icons.debugDisconnect)} { color: ${debugIconDisconnectColor} !important; }`);
+		}
+
+		const debugIconRestartColor = theme.getColor(debugIconRestartForeground);
+		if (debugIconRestartColor) {
+			collector.addRule(`.monaco-workbench ${ThemeIcon.asCSSSelector(icons.debugRestart)}, .monaco-workbench ${ThemeIcon.asCSSSelector(icons.debugRestartFrame)} { color: ${debugIconRestartColor} !important; }`);
+		}
+
+		const debugIconStepOverColor = theme.getColor(debugIconStepOverForeground);
+		if (debugIconStepOverColor) {
+			collector.addRule(`.monaco-workbench ${ThemeIcon.asCSSSelector(icons.debugStepOver)} { color: ${debugIconStepOverColor} !important; }`);
+		}
+
+		const debugIconStepIntoColor = theme.getColor(debugIconStepIntoForeground);
+		if (debugIconStepIntoColor) {
+			collector.addRule(`.monaco-workbench ${ThemeIcon.asCSSSelector(icons.debugStepInto)} { color: ${debugIconStepIntoColor} !important; }`);
+		}
+
+		const debugIconStepOutColor = theme.getColor(debugIconStepOutForeground);
+		if (debugIconStepOutColor) {
+			collector.addRule(`.monaco-workbench ${ThemeIcon.asCSSSelector(icons.debugStepOut)} { color: ${debugIconStepOutColor} !important; }`);
+		}
+
+		const debugIconContinueColor = theme.getColor(debugIconContinueForeground);
+		if (debugIconContinueColor) {
+			collector.addRule(`.monaco-workbench ${ThemeIcon.asCSSSelector(icons.debugContinue)}, .monaco-workbench ${ThemeIcon.asCSSSelector(icons.debugReverseContinue)} { color: ${debugIconContinueColor} !important; }`);
+		}
+
+		const debugIconStepBackColor = theme.getColor(debugIconStepBackForeground);
+		if (debugIconStepBackColor) {
+			collector.addRule(`.monaco-workbench ${ThemeIcon.asCSSSelector(icons.debugStepBack)} { color: ${debugIconStepBackColor} !important; }`);
 		}
 	});
 }

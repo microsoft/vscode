@@ -3,8 +3,8 @@
   "version": "0.1.0",
   "main": "./index.js",
   "scripts": {
-    "postinstall": "npm run compile",
-    "compile": "yarn tsc"
+    "postinstall": "tsc",
+    "compile": "tsc"
   },
   "devDependencies": {
     "@types/mkdirp": "0.5.1",

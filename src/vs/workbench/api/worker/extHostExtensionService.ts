@@ -71,7 +71,19 @@ export class ExtHostExtensionService extends AbstractExtHostExtensionService {
 		// Here we append #vscode-extension to serve as a marker, such that source maps
 		// can be adjusted for the extra wrapping function.
 		const sourceURL = `${module.toString(true)}#vscode-extension`;
-		const initFn = new Function('module', 'exports', 'require', `${source}\n//# sourceURL=${sourceURL}`);
+		let initFn: Function;
+		try {
+			initFn = new Function('module', 'exports', 'require', `${source}\n//# sourceURL=${sourceURL}`);
+		} catch (err) {
+			if (extensionId) {
+				console.error(`Loading code for extension ${extensionId.value} failed: ${err.message}`);
+			} else {
+				console.error(`Loading code failed: ${err.message}`);
+			}
+			console.error(`${module.toString(true)}${typeof err.line === 'number' ? ` line ${err.line}` : ''}${typeof err.column === 'number' ? ` column ${err.column}` : ''}`);
+			console.error(err);
+			throw err;
+		}
 
 		// define commonjs globals: `module`, `exports`, and `require`
 		const _exports = {};

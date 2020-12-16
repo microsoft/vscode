@@ -51,9 +51,7 @@ steps:
   - powershell: |
       . build/azure-pipelines/win32/exec.ps1
       $ErrorActionPreference = "Stop"
-      exec { git remote add distro "https://github.com/$(VSCODE_MIXIN_REPO).git" }
-      exec { git fetch distro }
-      exec { git merge $(node -p "require('./package.json').distro") }
+      exec { git pull --no-rebase https://github.com/$(VSCODE_MIXIN_REPO).git $(node -p "require('./package.json').distro") }
     displayName: Merge distro
 
   - script: |
@@ -91,13 +89,6 @@ steps:
       targetfolder: "**/node_modules, !**/node_modules/**/node_modules"
       vstsFeed: "npm-vscode"
     condition: and(succeeded(), ne(variables['CacheRestored'], 'true'))
-
-  - powershell: |
-      . build/azure-pipelines/win32/exec.ps1
-      $ErrorActionPreference = "Stop"
-      exec { yarn postinstall }
-    displayName: Run postinstall scripts
-    condition: and(succeeded(), eq(variables['CacheRestored'], 'true'))
 
   - powershell: |
       . build/azure-pipelines/win32/exec.ps1
@@ -155,6 +146,13 @@ steps:
     displayName: Run unit tests (Browser)
     timeoutInMinutes: 7
     condition: and(succeeded(), eq(variables['VSCODE_STEP_ON_IT'], 'false'), ne(variables['VSCODE_ARCH'], 'arm64'))
+
+  - powershell: |
+      . build/azure-pipelines/win32/exec.ps1
+      $ErrorActionPreference = "Stop"
+      exec { yarn --cwd test/integration/browser compile }
+    displayName: Compile integration tests
+    condition: and(succeeded(), eq(variables['CacheRestored'], 'true'), eq(variables['VSCODE_STEP_ON_IT'], 'false'), ne(variables['VSCODE_ARCH'], 'arm64'))
 
   - powershell: |
       # Figure out the full absolute path of the product we just built

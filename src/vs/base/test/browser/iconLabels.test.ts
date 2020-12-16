@@ -3,43 +3,43 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { renderCodicons } from 'vs/base/browser/codicons';
+import { renderLabelWithIcons } from 'vs/base/browser/ui/iconLabel/iconLabels';
 import * as assert from 'assert';
 
-suite('renderCodicons', () => {
+suite('renderLabelWithIcons', () => {
 
-	test('no codicons', () => {
-		const result = renderCodicons(' hello World .');
+	test('no icons', () => {
+		const result = renderLabelWithIcons(' hello World .');
 
 		assert.equal(elementsToString(result), ' hello World .');
 	});
 
-	test('codicon only', () => {
-		const result = renderCodicons('$(alert)');
+	test('icons only', () => {
+		const result = renderLabelWithIcons('$(alert)');
 
 		assert.equal(elementsToString(result), '<span class="codicon codicon-alert"></span>');
 	});
 
-	test('codicon and non-codicon strings', () => {
-		const result = renderCodicons(` $(alert) Unresponsive`);
+	test('icon and non-icon strings', () => {
+		const result = renderLabelWithIcons(` $(alert) Unresponsive`);
 
 		assert.equal(elementsToString(result), ' <span class="codicon codicon-alert"></span> Unresponsive');
 	});
 
-	test('multiple codicons', () => {
-		const result = renderCodicons('$(check)$(error)');
+	test('multiple icons', () => {
+		const result = renderLabelWithIcons('$(check)$(error)');
 
 		assert.equal(elementsToString(result), '<span class="codicon codicon-check"></span><span class="codicon codicon-error"></span>');
 	});
 
-	test('escaped codicon', () => {
-		const result = renderCodicons('\\$(escaped)');
+	test('escaped icons', () => {
+		const result = renderLabelWithIcons('\\$(escaped)');
 
 		assert.equal(elementsToString(result), '$(escaped)');
 	});
 
-	test('codicon with animation', () => {
-		const result = renderCodicons('$(zip~anim)');
+	test('icon with animation', () => {
+		const result = renderLabelWithIcons('$(zip~anim)');
 
 		assert.equal(elementsToString(result), '<span class="codicon codicon-zip codicon-modifier-anim"></span>');
 	});

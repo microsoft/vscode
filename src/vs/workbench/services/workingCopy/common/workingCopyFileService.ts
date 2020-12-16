@@ -13,13 +13,12 @@ import { IFileService, FileOperation, IFileStatWithMetadata } from 'vs/platform/
 import { CancellationToken } from 'vs/base/common/cancellation';
 import { IWorkingCopyService, IWorkingCopy } from 'vs/workbench/services/workingCopy/common/workingCopyService';
 import { IUriIdentityService } from 'vs/workbench/services/uriIdentity/common/uriIdentity';
-import { IProgress, IProgressStep } from 'vs/platform/progress/common/progress';
 import { WorkingCopyFileOperationParticipant } from 'vs/workbench/services/workingCopy/common/workingCopyFileOperationParticipant';
 import { VSBuffer, VSBufferReadable, VSBufferReadableStream } from 'vs/base/common/buffer';
 
 export const IWorkingCopyFileService = createDecorator<IWorkingCopyFileService>('workingCopyFileService');
 
-interface SourceTargetPair {
+export interface SourceTargetPair {
 
 	/**
 	 * The source resource that is defined for move operations.
@@ -62,7 +61,6 @@ export interface IWorkingCopyFileOperationParticipant {
 		operation: FileOperation,
 		undoRedoGroupId: number | undefined,
 		isUndoing: boolean | undefined,
-		progress: IProgress<IProgressStep>,
 		timeout: number,
 		token: CancellationToken
 	): Promise<void>;

@@ -369,6 +369,8 @@ export class TerminalInstance extends Disposable implements ITerminalInstance {
 		return TerminalInstance._lastKnownCanvasDimensions;
 	}
 
+	public get remoteTerminalId(): number | undefined { return this._processManager.remoteTerminalId; }
+
 	private async _getXtermConstructor(): Promise<typeof XTermTerminal> {
 		if (xtermConstructor) {
 			return xtermConstructor;

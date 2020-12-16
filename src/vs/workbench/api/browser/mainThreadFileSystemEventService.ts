@@ -4,15 +4,18 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { DisposableStore } from 'vs/base/common/lifecycle';
-import { FileChangeType, IFileService } from 'vs/platform/files/common/files';
+import { FileChangeType, FileOperation, IFileService } from 'vs/platform/files/common/files';
 import { extHostCustomer } from 'vs/workbench/api/common/extHostCustomers';
 import { ExtHostContext, FileSystemEvents, IExtHostContext } from '../common/extHost.protocol';
 import { localize } from 'vs/nls';
 import { Extensions, IConfigurationRegistry } from 'vs/platform/configuration/common/configurationRegistry';
 import { Registry } from 'vs/platform/registry/common/platform';
-import { IWorkingCopyFileService } from 'vs/workbench/services/workingCopy/common/workingCopyFileService';
+import { IWorkingCopyFileOperationParticipant, IWorkingCopyFileService, SourceTargetPair } from 'vs/workbench/services/workingCopy/common/workingCopyFileService';
 import { reviveWorkspaceEditDto2 } from 'vs/workbench/api/browser/mainThreadEditors';
 import { IBulkEditService } from 'vs/editor/browser/services/bulkEditService';
+import { IProgressService, ProgressLocation } from 'vs/platform/progress/common/progress';
+import { raceCancellation } from 'vs/base/common/async';
+import { CancellationToken, CancellationTokenSource } from 'vs/base/common/cancellation';
 
 @extHostCustomer
 export class MainThreadFileSystemEventService {
@@ -23,7 +26,8 @@ export class MainThreadFileSystemEventService {
 		extHostContext: IExtHostContext,
 		@IFileService fileService: IFileService,
 		@IWorkingCopyFileService workingCopyFileService: IWorkingCopyFileService,
-		@IBulkEditService bulkEditService: IBulkEditService
+		@IBulkEditService bulkEditService: IBulkEditService,
+		@IProgressService progressService: IProgressService
 	) {
 
 		const proxy = extHostContext.getProxy(ExtHostContext.ExtHostFileSystemEventService);
@@ -56,13 +60,38 @@ export class MainThreadFileSystemEventService {
 		}));
 
 
-		// BEFORE file operation
-		this._listener.add(workingCopyFileService.addFileOperationParticipant({
-			participate: async (files, operation, undoRedoGroupId, isUndoing, _progress, timeout, token) => {
+		const fileOperationParticipant = new class implements IWorkingCopyFileOperationParticipant {
+			async participate(files: SourceTargetPair[], operation: FileOperation, undoRedoGroupId: number | undefined, isUndoing: boolean | undefined, timeout: number, token: CancellationToken) {
 				if (isUndoing) {
 					return;
 				}
-				const data = await proxy.$onWillRunFileOperation(operation, files, timeout, token);
+
+				const cts = new CancellationTokenSource(token);
+				const timer = setTimeout(() => cts.cancel(), timeout);
+
+				const data = await progressService.withProgress({
+					location: ProgressLocation.Notification,
+					title: this._progressLabel(operation),
+					cancellable: true,
+					delay: Math.min(timeout / 2, 3000)
+				}, () => {
+					// race extension host event delivery against timeout AND user-cancel
+					const onWillEvent = proxy.$onWillRunFileOperation(operation, files, timeout, token);
+					return raceCancellation(onWillEvent, cts.token);
+				}, () => {
+					// user-cancel
+					cts.cancel();
+
+				}).finally(() => {
+					cts.dispose();
+					clearTimeout(timer);
+				});
+
+				if (!data) {
+					// cancelled or no reply
+					return;
+				}
+
 				const edit = reviveWorkspaceEditDto2(data);
 				await bulkEditService.apply(edit, {
 					undoRedoGroupId,
@@ -71,7 +100,22 @@ export class MainThreadFileSystemEventService {
 					suppressPreview: true
 				});
 			}
-		}));
+			private _progressLabel(operation: FileOperation): string {
+				switch (operation) {
+					case FileOperation.CREATE:
+						return localize('msg-create', "Running 'File Create' participants...");
+					case FileOperation.MOVE:
+						return localize('msg-rename', "Running 'File Rename' participants...");
+					case FileOperation.COPY:
+						return localize('msg-copy', "Running 'File Copy' participants...");
+					case FileOperation.DELETE:
+						return localize('msg-delete', "Running 'File Delete' participants...");
+				}
+			}
+		};
+
+		// BEFORE file operation
+		this._listener.add(workingCopyFileService.addFileOperationParticipant(fileOperationParticipant));
 
 		// AFTER file operation
 		this._listener.add(workingCopyFileService.onDidRunWorkingCopyFileOperation(e => proxy.$onDidRunFileOperation(e.operation, e.files)));
@@ -80,6 +124,8 @@ export class MainThreadFileSystemEventService {
 	dispose(): void {
 		this._listener.dispose();
 	}
+
+
 }
 
 

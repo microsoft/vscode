@@ -888,11 +888,11 @@ export function getBreakpointMessageAndIcon(state: State, breakpointsActivated: 
 	};
 }
 
-export const functionBreakpointCommandId = 'workbench.debug.viewlet.action.addFunctionBreakpointAction';
+export const FUNCTION_BREAKPOINT_COMMAND_ID = 'workbench.debug.viewlet.action.addFunctionBreakpointAction';
 registerAction2(class extends Action2 {
 	constructor() {
 		super({
-			id: functionBreakpointCommandId,
+			id: FUNCTION_BREAKPOINT_COMMAND_ID,
 			title: localize('addFunctionBreakpoint', "Add Function Breakpoint"),
 			f1: true,
 			icon: icons.watchExpressionsAddFuncBreakpoint,
