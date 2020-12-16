@@ -189,7 +189,7 @@ export class NoTabsTitleControl extends TitleControl {
 	}
 
 	updateOptions(oldOptions: IEditorPartOptions, newOptions: IEditorPartOptions): void {
-		if (oldOptions.labelFormat !== newOptions.labelFormat || !equals(oldOptions.tabDecorations, newOptions.tabDecorations)) {
+		if (oldOptions.labelFormat !== newOptions.labelFormat || !equals(oldOptions.decorations, newOptions.decorations)) {
 			this.redraw();
 		}
 	}
@@ -295,8 +295,8 @@ export class NoTabsTitleControl extends TitleControl {
 					italic: !isEditorPinned,
 					extraClasses: ['no-tabs', 'title-label'],
 					fileDecorations: {
-						colors: Boolean(options.tabDecorations?.colors),
-						badges: Boolean(options.tabDecorations?.badges)
+						colors: Boolean(options.decorations?.colors),
+						badges: Boolean(options.decorations?.badges)
 					},
 				}
 			);

@@ -43,14 +43,14 @@ import { isStandalone } from 'vs/base/browser/browser';
 				'markdownDescription': nls.localize('highlightModifiedTabs', "Controls whether a top border is drawn on modified (dirty) editor tabs or not. This value is ignored when `#workbench.editor.showTabs#` is disabled."),
 				'default': false
 			},
-			'workbench.editor.tabDecorations.badges': {
+			'workbench.editor.decorations.badges': {
 				'type': 'boolean',
-				'markdownDescription': nls.localize('tabDecorations.badges', "Controls whether editor file decorations should use badges."),
+				'markdownDescription': nls.localize('decorations.badges', "Controls whether editor file decorations should use badges."),
 				'default': true
 			},
-			'workbench.editor.tabDecorations.colors': {
+			'workbench.editor.decorations.colors': {
 				'type': 'boolean',
-				'markdownDescription': nls.localize('tabDecorations.colors', "Controls whether editor file decorations should use colors."),
+				'markdownDescription': nls.localize('decorations.colors', "Controls whether editor file decorations should use colors."),
 				'default': true
 			},
 			'workbench.editor.labelFormat': {

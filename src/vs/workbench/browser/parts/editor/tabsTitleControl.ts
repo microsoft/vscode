@@ -561,7 +561,7 @@ export class TabsTitleControl extends TitleControl {
 			oldOptions.showIcons !== newOptions.showIcons ||
 			oldOptions.hasIcons !== newOptions.hasIcons ||
 			oldOptions.highlightModifiedTabs !== newOptions.highlightModifiedTabs ||
-			!equals(oldOptions.tabDecorations, newOptions.tabDecorations)
+			!equals(oldOptions.decorations, newOptions.decorations)
 		) {
 			this.redraw();
 		}
@@ -1146,7 +1146,7 @@ export class TabsTitleControl extends TitleControl {
 		// Label
 		tabLabelWidget.setResource(
 			{ name, description, resource: EditorResourceAccessor.getOriginalUri(editor, { supportSideBySide: SideBySideEditor.BOTH }) },
-			{ title, extraClasses: ['tab-label'], italic: !this.group.isPinned(editor), forceLabel, fileDecorations: { colors: Boolean(options.tabDecorations?.colors), badges: Boolean(options.tabDecorations?.badges) } }
+			{ title, extraClasses: ['tab-label'], italic: !this.group.isPinned(editor), forceLabel, fileDecorations: { colors: Boolean(options.decorations?.colors), badges: Boolean(options.decorations?.badges) } }
 		);
 
 		// Tests helper

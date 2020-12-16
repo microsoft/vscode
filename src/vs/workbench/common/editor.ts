@@ -1291,7 +1291,7 @@ interface IEditorPartConfiguration {
 		value?: number;
 		perEditorGroup?: boolean;
 	};
-	tabDecorations?: {
+	decorations?: {
 		badges?: boolean;
 		colors?: boolean;
 	}
