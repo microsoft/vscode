@@ -32,6 +32,7 @@ import { IResourceEditorInput } from 'vs/platform/editor/common/editor';
 import { IConstructorSignature1 } from 'vs/platform/instantiation/common/instantiation';
 import { CellEditorStatusBar } from 'vs/workbench/contrib/notebook/browser/view/renderers/cellWidgets';
 
+//#region Context Keys
 export const KEYBINDING_CONTEXT_NOTEBOOK_FIND_WIDGET_FOCUSED = new RawContextKey<boolean>('notebookFindWidgetFocused', false);
 
 // Is Notebook
@@ -57,17 +58,73 @@ export const NOTEBOOK_CELL_RUN_STATE = new RawContextKey<string>('notebookCellRu
 export const NOTEBOOK_CELL_HAS_OUTPUTS = new RawContextKey<boolean>('notebookCellHasOutputs', false); // bool
 export const NOTEBOOK_CELL_INPUT_COLLAPSED = new RawContextKey<boolean>('notebookCellInputIsCollapsed', false); // bool
 export const NOTEBOOK_CELL_OUTPUT_COLLAPSED = new RawContextKey<boolean>('notebookCellOutputIsCollapsed', false); // bool
+// Kernels
+export const NOTEBOOK_HAS_MULTIPLE_KERNELS = new RawContextKey<boolean>('notebookHasMultipleKernels', false);
 
-// Shared commands
+//#endregion
+
+//#region Shared commands
 export const EXPAND_CELL_CONTENT_COMMAND_ID = 'notebook.cell.expandCellContent';
 export const EXECUTE_CELL_COMMAND_ID = 'notebook.cell.execute';
 
-// Kernels
+//#endregion
 
-export const NOTEBOOK_HAS_MULTIPLE_KERNELS = new RawContextKey<boolean>('notebookHasMultipleKernels', false);
+//#region  Output related types
+export const enum RenderOutputType {
+	None,
+	Html,
+	Extension
+}
+
+export interface IRenderNoOutput {
+	type: RenderOutputType.None;
+	hasDynamicHeight: boolean;
+}
+
+export interface IRenderPlainHtmlOutput {
+	type: RenderOutputType.Html;
+	source: IDisplayOutputViewModel;
+	htmlContent: string;
+	hasDynamicHeight: boolean;
+}
+
+export interface IRenderOutputViaExtension {
+	type: RenderOutputType.Extension;
+	source: IDisplayOutputViewModel;
+	mimeType: string;
+	renderer: INotebookRendererInfo;
+}
+
+export type IInsetRenderOutput = IRenderPlainHtmlOutput | IRenderOutputViaExtension;
+export type IRenderOutput = IRenderNoOutput | IInsetRenderOutput;
+
+export const outputHasDynamicHeight = (o: IRenderOutput) => o.type !== RenderOutputType.Extension && o.hasDynamicHeight;
 
 
-// These are types shared by the Notebook Editor and Notebook Diff Editor
+export interface ICellOutputViewModel {
+	model: IProcessedOutput;
+	isDisplayOutput(): this is IDisplayOutputViewModel;
+	isErrorOutput(): this is IErrorOutputViewModel;
+	isStreamOutput(): this is IStreamOutputViewModel;
+}
+
+export interface IDisplayOutputViewModel extends ICellOutputViewModel {
+	model: ITransformedDisplayOutputDto;
+	resolveMimeTypes(textModel: NotebookTextModel): [readonly IOrderedMimeType[], number];
+	pickedMimeType: number;
+}
+
+export interface IErrorOutputViewModel extends ICellOutputViewModel {
+	model: IErrorOutput;
+}
+
+export interface IStreamOutputViewModel extends ICellOutputViewModel {
+	model: IStreamOutput;
+}
+
+//#endregion
+
+//#region Shared types between the Notebook Editor and Notebook Diff Editor, they are mostly used for output rendering
 
 export interface IGenericCellViewModel {
 	id: string;
@@ -100,6 +157,7 @@ export interface ICommonNotebookEditor {
 	updateOutputHeight(cellInfo: ICommonCellInfo, output: IDisplayOutputViewModel, height: number): void;
 }
 
+//#endregion
 
 export interface NotebookLayoutInfo {
 	width: number;
@@ -155,58 +213,6 @@ export interface MarkdownCellLayoutChangeEvent {
 	font?: BareFontInfo;
 	outerWidth?: number;
 	totalHeight?: number;
-}
-
-export const enum RenderOutputType {
-	None,
-	Html,
-	Extension
-}
-
-export interface IRenderNoOutput {
-	type: RenderOutputType.None;
-	hasDynamicHeight: boolean;
-}
-
-export interface IRenderPlainHtmlOutput {
-	type: RenderOutputType.Html;
-	source: IDisplayOutputViewModel;
-	htmlContent: string;
-	hasDynamicHeight: boolean;
-}
-
-export interface IRenderOutputViaExtension {
-	type: RenderOutputType.Extension;
-	source: IDisplayOutputViewModel;
-	mimeType: string;
-	renderer: INotebookRendererInfo;
-}
-
-export type IInsetRenderOutput = IRenderPlainHtmlOutput | IRenderOutputViaExtension;
-export type IRenderOutput = IRenderNoOutput | IInsetRenderOutput;
-
-export const outputHasDynamicHeight = (o: IRenderOutput) => o.type !== RenderOutputType.Extension && o.hasDynamicHeight;
-
-
-export interface ICellOutputViewModel {
-	model: IProcessedOutput;
-	isDisplayOutput(): this is IDisplayOutputViewModel;
-	isErrorOutput(): this is IErrorOutputViewModel;
-	isStreamOutput(): this is IStreamOutputViewModel;
-}
-
-export interface IDisplayOutputViewModel extends ICellOutputViewModel {
-	model: ITransformedDisplayOutputDto;
-	resolveMimeTypes(textModel: NotebookTextModel): [readonly IOrderedMimeType[], number];
-	pickedMimeType: number;
-}
-
-export interface IErrorOutputViewModel extends ICellOutputViewModel {
-	model: IErrorOutput;
-}
-
-export interface IStreamOutputViewModel extends ICellOutputViewModel {
-	model: IStreamOutput;
 }
 
 export interface ICellViewModel extends IGenericCellViewModel {
