@@ -93,13 +93,6 @@ steps:
   - powershell: |
       . build/azure-pipelines/win32/exec.ps1
       $ErrorActionPreference = "Stop"
-      exec { yarn postinstall }
-    displayName: Run postinstall scripts
-    condition: and(succeeded(), eq(variables['CacheRestored'], 'true'))
-
-  - powershell: |
-      . build/azure-pipelines/win32/exec.ps1
-      $ErrorActionPreference = "Stop"
       exec { node build/azure-pipelines/mixin }
     displayName: Mix in quality
 
@@ -153,6 +146,13 @@ steps:
     displayName: Run unit tests (Browser)
     timeoutInMinutes: 7
     condition: and(succeeded(), eq(variables['VSCODE_STEP_ON_IT'], 'false'), ne(variables['VSCODE_ARCH'], 'arm64'))
+
+  - powershell: |
+      . build/azure-pipelines/win32/exec.ps1
+      $ErrorActionPreference = "Stop"
+      exec { yarn --cwd test/integration/browser compile }
+    displayName: Compile integration tests
+    condition: and(succeeded(), eq(variables['CacheRestored'], 'true'), eq(variables['VSCODE_STEP_ON_IT'], 'false'), ne(variables['VSCODE_ARCH'], 'arm64'))
 
   - powershell: |
       # Figure out the full absolute path of the product we just built

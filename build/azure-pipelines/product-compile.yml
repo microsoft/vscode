@@ -96,12 +96,6 @@ steps:
       vstsFeed: "npm-vscode"
     condition: and(succeeded(), ne(variables['CacheExists-Compilation'], 'true'), ne(variables['CacheRestored'], 'true'))
 
-  - script: |
-      set -e
-      yarn postinstall
-    displayName: Run postinstall scripts
-    condition: and(succeeded(), ne(variables['CacheExists-Compilation'], 'true'), eq(variables['CacheRestored'], 'true'))
-
   # Mixin must run before optimize, because the CSS loader will inline small SVGs
   - script: |
       set -e

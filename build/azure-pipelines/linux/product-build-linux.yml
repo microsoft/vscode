@@ -112,12 +112,6 @@ steps:
 
   - script: |
       set -e
-      yarn postinstall
-    displayName: Run postinstall scripts
-    condition: and(succeeded(), eq(variables['CacheRestored'], 'true'))
-
-  - script: |
-      set -e
       node build/azure-pipelines/mixin
     displayName: Mix in quality
 
@@ -154,6 +148,12 @@ steps:
     displayName: Run unit tests (Browser)
     timeoutInMinutes: 5
     condition: and(succeeded(), eq(variables['VSCODE_ARCH'], 'x64'), eq(variables['VSCODE_STEP_ON_IT'], 'false'))
+
+  - script: |
+      set -e
+      yarn --cwd test/integration/browser compile
+    displayName: Compile integration tests
+    condition: and(succeeded(), eq(variables['CacheRestored'], 'true'), eq(variables['VSCODE_ARCH'], 'x64'), eq(variables['VSCODE_STEP_ON_IT'], 'false'))
 
   - script: |
       # Figure out the full absolute path of the product we just built

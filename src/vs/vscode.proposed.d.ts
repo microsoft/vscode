@@ -18,6 +18,25 @@ import { Command } from 'vscode';
 
 declare module 'vscode' {
 
+	//#region https://github.com/microsoft/vscode/issues/93686
+
+	/**
+	 * An error type should be used to signal cancellation of an operation.
+	 *
+	 * This type can be used in response to a cancellation token or when an
+	 * operation is being cancelled by the executor of that operation.
+	 */
+	export class CancellationError extends Error {
+
+		/**
+		 * Creates a new cancellation error.
+		 */
+		constructor();
+	}
+
+
+	//#endregion
+
 	// #region auth provider: https://github.com/microsoft/vscode/issues/88309
 
 	/**

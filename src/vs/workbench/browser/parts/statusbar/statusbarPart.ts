@@ -7,7 +7,7 @@ import 'vs/css!./media/statusbarpart';
 import * as nls from 'vs/nls';
 import { toErrorMessage } from 'vs/base/common/errorMessage';
 import { dispose, IDisposable, Disposable, toDisposable, MutableDisposable } from 'vs/base/common/lifecycle';
-import { CodiconLabel } from 'vs/base/browser/ui/codicons/codiconLabel';
+import { SimpleIconLabel } from 'vs/base/browser/ui/iconLabel/simpleIconLabel';
 import { ICommandService } from 'vs/platform/commands/common/commands';
 import { Part } from 'vs/workbench/browser/part';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
@@ -38,7 +38,8 @@ import { KeybindingsRegistry, KeybindingWeight } from 'vs/platform/keybinding/co
 import { ServicesAccessor } from 'vs/editor/browser/editorExtensions';
 import { RawContextKey, IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
 import { ColorScheme } from 'vs/platform/theme/common/theme';
-import { renderCodicon, renderCodicons } from 'vs/base/browser/codicons';
+import { renderIcon, renderLabelWithIcons } from 'vs/base/browser/ui/iconLabel/iconLabels';
+import { syncing } from 'vs/platform/theme/common/iconRegistry';
 
 interface IPendingStatusbarEntry {
 	id: string;
@@ -704,9 +705,9 @@ export class StatusbarPart extends Part implements IStatusbarService {
 	}
 }
 
-class StatusBarCodiconLabel extends CodiconLabel {
+class StatusBarCodiconLabel extends SimpleIconLabel {
 
-	private readonly progressCodicon = renderCodicon('sync', 'spin');
+	private readonly progressCodicon = renderIcon(syncing);
 
 	private currentText = '';
 	private currentShowProgress = false;
@@ -749,7 +750,7 @@ class StatusBarCodiconLabel extends CodiconLabel {
 			}
 
 			// Append new elements
-			appendChildren(this.container, ...renderCodicons(textContent));
+			appendChildren(this.container, ...renderLabelWithIcons(textContent));
 		}
 
 		// No Progress: no special handling

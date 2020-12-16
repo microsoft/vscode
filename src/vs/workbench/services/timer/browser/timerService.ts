@@ -465,7 +465,12 @@ export abstract class AbstractTimerService implements ITimerService {
 		// defines the start
 		for (const [source, marks] of this.getPerformanceMarks()) {
 			type Mark = { source: string; name: string; relativeStartTime: number; startTime: number };
-			type MarkClassification = { [K in keyof Mark]: { classification: 'SystemMetaData', purpose: 'PerformanceAndHealth' } };
+			type MarkClassification = {
+				source: { classification: 'SystemMetaData', purpose: 'PerformanceAndHealth' },
+				name: { classification: 'SystemMetaData', purpose: 'PerformanceAndHealth' },
+				relativeStartTime: { classification: 'SystemMetaData', purpose: 'PerformanceAndHealth', isMeasurement: true },
+				startTime: { classification: 'SystemMetaData', purpose: 'PerformanceAndHealth', isMeasurement: true },
+			};
 
 			let lastMark: perf.PerformanceMark = marks[0];
 			for (const mark of marks) {

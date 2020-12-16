@@ -29,9 +29,8 @@ import { IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
 import { Delayer } from 'vs/base/common/async';
 import { CodiconActionViewItem } from 'vs/workbench/contrib/notebook/browser/view/renderers/cellActionView';
 import { getEditorTopPadding } from 'vs/workbench/contrib/notebook/browser/notebookBrowser';
-import { ThemeIcon } from 'vs/platform/theme/common/themeService';
 import { collapsedIcon, expandedIcon } from 'vs/workbench/contrib/notebook/browser/notebookIcons';
-import { renderCodicons } from 'vs/base/browser/codicons';
+import { renderIcon } from 'vs/base/browser/ui/iconLabel/iconLabels';
 
 const fixedEditorOptions: IEditorOptions = {
 	padding: {
@@ -203,9 +202,9 @@ class PropertyHeader extends Disposable {
 
 	private _updateFoldingIcon() {
 		if (this.accessor.getFoldingState(this.cell) === PropertyFoldingState.Collapsed) {
-			DOM.reset(this._foldingIndicator, ...renderCodicons(ThemeIcon.asCodiconLabel(collapsedIcon)));
+			DOM.reset(this._foldingIndicator, renderIcon(collapsedIcon));
 		} else {
-			DOM.reset(this._foldingIndicator, ...renderCodicons(ThemeIcon.asCodiconLabel(expandedIcon)));
+			DOM.reset(this._foldingIndicator, renderIcon(expandedIcon));
 		}
 	}
 }
