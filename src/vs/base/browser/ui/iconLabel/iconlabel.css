@@ -64,6 +64,11 @@
 	font-style: italic;
 }
 
+/* make sure apply italic font style to decorations as well */
+.monaco-icon-label.italic::after {
+	font-style: italic;
+}
+
 .monaco-icon-label.strikethrough > .monaco-icon-label-container > .monaco-icon-name-container > .label-name,
 .monaco-icon-label.strikethrough > .monaco-icon-label-container > .monaco-icon-description-container > .label-description {
 	text-decoration: line-through;
@@ -75,10 +80,6 @@
 	font-weight: 600;
 	padding: 0 16px 0 5px;
 	text-align: center;
-}
-
-.monaco-icon-label.italic::after {
-	font-style: italic;
 }
 
 /* make sure selection color wins when a label is being selected */
