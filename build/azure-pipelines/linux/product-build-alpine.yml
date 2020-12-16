@@ -102,12 +102,6 @@ steps:
 
   - script: |
       set -e
-      yarn postinstall
-    displayName: Run postinstall scripts
-    condition: and(succeeded(), eq(variables['CacheRestored'], 'true'))
-
-  - script: |
-      set -e
       node build/azure-pipelines/mixin
     displayName: Mix in quality
 

@@ -105,12 +105,6 @@ steps:
 
   - script: |
       set -e
-      yarn postinstall
-    displayName: Run postinstall scripts
-    condition: and(succeeded(), eq(variables['CacheRestored'], 'true'))
-
-  - script: |
-      set -e
       export CC=$(which gcc-4.8)
       export CXX=$(which g++-4.8)
       export npm_config_node_gyp=$(which node-gyp)
@@ -157,6 +151,12 @@ steps:
     displayName: Run unit tests (Browser)
     timeoutInMinutes: 5
     condition: and(succeeded(), eq(variables['VSCODE_ARCH'], 'x64'), eq(variables['VSCODE_STEP_ON_IT'], 'false'))
+
+  - script: |
+      set -e
+      yarn --cwd test/integration/browser compile
+    displayName: Compile integration tests
+    condition: and(succeeded(), eq(variables['CacheRestored'], 'true'), eq(variables['VSCODE_ARCH'], 'x64'), eq(variables['VSCODE_STEP_ON_IT'], 'false'))
 
   - script: |
       # Figure out the full absolute path of the product we just built
