@@ -76,6 +76,12 @@ export class NotebookTextDiffEditor extends EditorPane implements INotebookTextD
 	private _revealFirst: boolean;
 	private readonly _insetModifyQueueByOutputId = new SequencerByKey<string>();
 
+	private _isDisposed: boolean = false;
+
+	get isDisposed() {
+		return this._isDisposed;
+	}
+
 	constructor(
 		@IInstantiationService readonly instantiationService: IInstantiationService,
 		@IThemeService readonly themeService: IThemeService,
@@ -204,6 +210,10 @@ export class NotebookTextDiffEditor extends EditorPane implements INotebookTextD
 
 		this._register(this._list.onDidChangeContentHeight(() => {
 			DOM.scheduleAtNextAnimationFrame(() => {
+				if (this._isDisposed) {
+					return;
+				}
+
 				const scrollTop = this._list.scrollTop;
 				const scrollHeight = this._list.scrollHeight;
 
@@ -264,7 +274,7 @@ export class NotebookTextDiffEditor extends EditorPane implements INotebookTextD
 						const updateItems: IDisplayOutputLayoutUpdateRequest[] = [];
 						const removedItems: IDisplayOutputViewModel[] = [];
 						this._originalWebview.insetMapping.forEach((value, key) => {
-							const cell = value.cellInfo.diffElement.modified;
+							const cell = value.cellInfo.diffElement.original;
 							if (!cell) {
 								return;
 							}
@@ -665,6 +675,11 @@ export class NotebookTextDiffEditor extends EditorPane implements INotebookTextD
 		}
 
 		this._eventDispatcher?.emit([new NotebookLayoutChangedEvent({ width: true, fontInfo: true }, this.getLayoutInfo())]);
+	}
+
+	dispose() {
+		this._isDisposed = true;
+		super.dispose();
 	}
 }
 
