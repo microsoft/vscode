@@ -141,8 +141,8 @@ export function getEmmetMode(language: string, excludedLanguages: string[]): str
 	if (language === 'jade') {
 		return 'pug';
 	}
-	const emmetModes = ['html', 'pug', 'slim', 'haml', 'xml', 'xsl', 'jsx', 'css', 'scss', 'sass', 'less', 'stylus'];
-	if (emmetModes.indexOf(language) > -1) {
+	const syntaxes = getSyntaxes();
+	if (syntaxes.markup.includes(language) || syntaxes.stylesheet.includes(language)) {
 		return language;
 	}
 	return;
