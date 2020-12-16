@@ -1276,22 +1276,21 @@ export class TabsTitleControl extends TitleControl {
 	layout(dimensions: ITitleControlDimensions): Dimension {
 		this.dimensions = dimensions;
 
-		// We need an opened editor and dimensions to layout the title
-		// Otherwise quickly return from the layout algorithm
-		const activeTabAndIndex = this.group.activeEditor ? this.getTabAndIndex(this.group.activeEditor) : undefined;
-		if (!activeTabAndIndex || dimensions.container === Dimension.None || dimensions.available === Dimension.None) {
-			return Dimension.None;
-		}
-
 		// The layout of tabs can be an expensive operation because we access DOM properties
 		// that can result in the browser doing a full page layout to validate them. To buffer
 		// this a little bit we try at least to schedule this work on the next animation frame.
 		if (!this.layoutScheduled.value) {
-			this.layoutScheduled.value = scheduleAtNextAnimationFrame(() => {
-				this.doLayout(this.dimensions);
 
-				this.layoutScheduled.clear();
-			});
+			// We need an opened editor and dimensions to layout the title,
+			// otherwise we skip the layout call until we have opened editors
+			const activeTabAndIndex = this.group.activeEditor ? this.getTabAndIndex(this.group.activeEditor) : undefined;
+			if (activeTabAndIndex && dimensions.container !== Dimension.None && dimensions.available !== Dimension.None) {
+				this.layoutScheduled.value = scheduleAtNextAnimationFrame(() => {
+					this.doLayout(this.dimensions);
+
+					this.layoutScheduled.clear();
+				});
+			}
 		}
 
 		return new Dimension(dimensions.container.width, this.getDimensions().height);
