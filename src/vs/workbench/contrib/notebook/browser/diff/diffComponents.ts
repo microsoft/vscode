@@ -823,17 +823,18 @@ export class DeletedElement extends SingleSideDiffElement {
 	}
 
 	_buildOutputContainer() {
-		// this._outputView = this.instantiationService.createInstance(OutputContainer, this.notebookEditor, this.notebookEditor.textModel!, this.cell.modified!, this._outputViewContainer!);
-		// this._outputView.render();
-		// this.layout({ outputView: true });
+		this._outputLeftView = this.instantiationService.createInstance(OutputContainer, this.notebookEditor, this.notebookEditor.textModel!, this.cell, this.cell.original!, false, this._outputViewContainer!);
+		this._outputLeftView.render();
+		this.cell.layoutChange();
 	}
 
 	_showOutputs() {
-
+		this._outputLeftView?.render();
+		this.cell.layoutChange();
 	}
 
 	_hideOutputs() {
-
+		this._outputLeftView?.hideOutputs();
 	}
 }
 
@@ -895,18 +896,18 @@ export class InsertElement extends SingleSideDiffElement {
 	}
 
 	_buildOutputContainer() {
-		this._outputLeftView = this.instantiationService.createInstance(OutputContainer, this.notebookEditor, this.notebookEditor.textModel!, this.cell, this.cell.modified!, true, this._outputViewContainer!);
-		this._outputLeftView.render();
+		this._outputRightView = this.instantiationService.createInstance(OutputContainer, this.notebookEditor, this.notebookEditor.textModel!, this.cell, this.cell.modified!, true, this._outputViewContainer!);
+		this._outputRightView.render();
 		this.cell.layoutChange();
 	}
 
 	_showOutputs() {
-		this._outputLeftView?.render();
+		this._outputRightView?.render();
 		this.cell.layoutChange();
 	}
 
 	_hideOutputs() {
-		this._outputLeftView?.hideOutputs();
+		this._outputRightView?.hideOutputs();
 	}
 
 	layout(state: { outerWidth?: boolean, editorHeight?: boolean, metadataEditor?: boolean, outputEditor?: boolean, outputView?: boolean }) {

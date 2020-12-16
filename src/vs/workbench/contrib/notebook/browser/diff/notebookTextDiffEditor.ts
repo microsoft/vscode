@@ -57,6 +57,7 @@ export class NotebookTextDiffEditor extends EditorPane implements INotebookTextD
 	// private _diffElementViewModels: DiffElementViewModelBase[] = [];
 	private _list!: NotebookTextDiffList;
 	private _modifiedWebview: BackLayerWebView<IDiffCellInfo> | null = null;
+	private _originalWebview: BackLayerWebView<IDiffCellInfo> | null = null;
 	private _webviewTransparentCover: HTMLElement | null = null;
 	private _fontInfo: BareFontInfo | undefined;
 
@@ -206,55 +207,53 @@ export class NotebookTextDiffEditor extends EditorPane implements INotebookTextD
 				const scrollTop = this._list.scrollTop;
 				const scrollHeight = this._list.scrollHeight;
 
-				if (!this._modifiedWebview) {
-					return;
-				}
+				if (this._modifiedWebview) {
+					this._modifiedWebview!.element.style.height = `${scrollHeight}px`;
 
-				this._modifiedWebview!.element.style.height = `${scrollHeight}px`;
-
-				if (this._modifiedWebview?.insetMapping) {
-					const updateItems: IDisplayOutputLayoutUpdateRequest[] = [];
-					const removedItems: IDisplayOutputViewModel[] = [];
-					this._modifiedWebview?.insetMapping.forEach((value, key) => {
-						const cell = value.cellInfo.diffElement.modified;
-						if (!cell) {
-							return;
-						}
-
-						const viewIndex = this._list.indexOf(value.cellInfo.diffElement);
-
-						if (viewIndex === undefined) {
-							return;
-						}
-
-						if (cell.outputsViewModels.findIndex(viewModel => (viewModel.model as ITransformedDisplayOutputDto).outputId === (key.model as ITransformedDisplayOutputDto).outputId) < 0) {
-							// output is already gone
-							removedItems.push(key);
-						}
-
-						const cellTop = this._list.getAbsoluteTopOfElement(value.cellInfo.diffElement);
-						if (this._modifiedWebview!.shouldUpdateInset(cell, key, cellTop)) {
-							// TODO: why? does it mean, we create new output view model every time?
-							const outputIndex = cell.outputsViewModels.findIndex(viewModel => (viewModel.model as ITransformedDisplayOutputDto).outputId === (key.model as ITransformedDisplayOutputDto).outputId);
-							let outputOffset = 0;
-							if (value.cellInfo.diffElement instanceof SideBySideDiffElementViewModel) {
-								outputOffset = cellTop + value.cellInfo.diffElement.getOutputOffsetInCell(false, outputIndex);
-							} else {
-								outputOffset = cellTop + (value.cellInfo.diffElement as SingleSideDiffElementViewModel).getOutputOffsetInCell(outputIndex);
+					if (this._modifiedWebview?.insetMapping) {
+						const updateItems: IDisplayOutputLayoutUpdateRequest[] = [];
+						const removedItems: IDisplayOutputViewModel[] = [];
+						this._modifiedWebview?.insetMapping.forEach((value, key) => {
+							const cell = value.cellInfo.diffElement.modified;
+							if (!cell) {
+								return;
 							}
 
-							updateItems.push({
-								output: key,
-								cellTop: cellTop,
-								outputOffset: outputOffset
-							});
+							const viewIndex = this._list.indexOf(value.cellInfo.diffElement);
+
+							if (viewIndex === undefined) {
+								return;
+							}
+
+							if (cell.outputsViewModels.findIndex(viewModel => (viewModel.model as ITransformedDisplayOutputDto).outputId === (key.model as ITransformedDisplayOutputDto).outputId) < 0) {
+								// output is already gone
+								removedItems.push(key);
+							}
+
+							const cellTop = this._list.getAbsoluteTopOfElement(value.cellInfo.diffElement);
+							if (this._modifiedWebview!.shouldUpdateInset(cell, key, cellTop)) {
+								// TODO: why? does it mean, we create new output view model every time?
+								const outputIndex = cell.outputsViewModels.findIndex(viewModel => (viewModel.model as ITransformedDisplayOutputDto).outputId === (key.model as ITransformedDisplayOutputDto).outputId);
+								let outputOffset = 0;
+								if (value.cellInfo.diffElement instanceof SideBySideDiffElementViewModel) {
+									outputOffset = cellTop + value.cellInfo.diffElement.getOutputOffsetInCell(false, outputIndex);
+								} else {
+									outputOffset = cellTop + (value.cellInfo.diffElement as SingleSideDiffElementViewModel).getOutputOffsetInCell(outputIndex);
+								}
+
+								updateItems.push({
+									output: key,
+									cellTop: cellTop,
+									outputOffset: outputOffset
+								});
+							}
+						});
+
+						removedItems.forEach(output => this._modifiedWebview?.removeInset(output));
+
+						if (updateItems.length) {
+							this._modifiedWebview?.updateViewScrollTop(-scrollTop, false, updateItems);
 						}
-					});
-
-					removedItems.forEach(output => this._modifiedWebview?.removeInset(output));
-
-					if (updateItems.length) {
-						this._modifiedWebview?.updateViewScrollTop(-scrollTop, false, updateItems);
 					}
 				}
 
@@ -311,6 +310,7 @@ export class NotebookTextDiffEditor extends EditorPane implements INotebookTextD
 			}
 		}));
 
+		await this._createOriginalWebview(generateUuid(), this._model.original.resource);
 		await this._createModifiedWebview(generateUuid(), this._model.modified.resource);
 
 		this._eventDispatcher = new NotebookDiffEditorEventDispatcher();
@@ -322,7 +322,17 @@ export class NotebookTextDiffEditor extends EditorPane implements INotebookTextD
 		// attach the webview container to the DOM tree first
 		this._list.rowsContainer.insertAdjacentElement('afterbegin', this._modifiedWebview.element);
 		await this._modifiedWebview.createWebview();
+		this._modifiedWebview.element.style.width = `calc(50%)`;
 		this._modifiedWebview.element.style.left = `calc(50%)`;
+	}
+
+	private async _createOriginalWebview(id: string, resource: URI): Promise<void> {
+		this._originalWebview = this.instantiationService.createInstance(BackLayerWebView, this, id, resource) as BackLayerWebView<IDiffCellInfo>;
+		// attach the webview container to the DOM tree first
+		this._list.rowsContainer.insertAdjacentElement('afterbegin', this._originalWebview.element);
+		await this._originalWebview.createWebview();
+		this._originalWebview.element.style.width = `calc(50%)`;
+		this._originalWebview.element.style.left = `0`;
 	}
 
 	private async _resolveStats(resource: URI) {
@@ -507,6 +517,8 @@ export class NotebookTextDiffEditor extends EditorPane implements INotebookTextD
 
 					this._modifiedWebview!.updateViewScrollTop(-scrollTop, true, [{ output: output.source, cellTop, outputOffset }]);
 				}
+			} else {
+
 			}
 		});
 	}
