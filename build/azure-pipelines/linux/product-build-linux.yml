@@ -1,7 +1,8 @@
 steps:
-  - download: current
-    artifact: CompilationOutput
-    path: $(System.DefaultWorkingDirectory)
+  - task: DownloadPipelineArtifact@2
+    inputs:
+      artifact: CompilationOutput
+      path: $(System.DefaultWorkingDirectory)
 
   - script: |
       set -e
