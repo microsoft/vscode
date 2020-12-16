@@ -1,15 +1,4 @@
 steps:
-  - task: DownloadPipelineArtifact@2
-    inputs:
-      artifact: CompilationOutput
-      path: $(System.DefaultWorkingDirectory)
-
-  - script: |
-      set -e
-      exit 1
-    displayName: Check RestoreCache
-    condition: and(succeeded(), ne(variables['CacheRestored-Compilation'], 'true'))
-
   - task: NodeTool@0
     inputs:
       versionSpec: "12.18.3"
@@ -23,6 +12,12 @@ steps:
     inputs:
       azureSubscription: "vscode-builds-subscription"
       KeyVaultName: vscode
+
+  - task: DownloadPipelineArtifact@2
+    inputs:
+      artifact: CompilationOutput
+      path: $(System.DefaultWorkingDirectory)
+    displayName: Download Compilation Output
 
   - script: |
       set -e

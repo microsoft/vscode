@@ -105,5 +105,8 @@ steps:
     displayName: Create build
     condition: and(succeeded(), ne(variables['VSCODE_PUBLISH'], 'false'))
 
-  - publish: $(System.DefaultWorkingDirectory)
-    artifact: CompilationOutput
+  - task: PublishPipelineArtifact@1
+    inputs:
+      targetPath: $(System.DefaultWorkingDirectory)
+      artifactName: CompilationOutput
+    displayName: Publish Compilation Output
