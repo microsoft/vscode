@@ -5,6 +5,7 @@
 
 import { timeout } from 'vs/base/common/async';
 import * as errors from 'vs/base/common/errors';
+import * as performance from 'vs/base/common/performance';
 import { DisposableStore } from 'vs/base/common/lifecycle';
 import { URI } from 'vs/base/common/uri';
 import { IURITransformer } from 'vs/base/common/uriIpc';
@@ -67,6 +68,7 @@ export class ExtensionHostMain {
 		const logService = instaService.invokeFunction(accessor => accessor.get(ILogService));
 		this._disposables.add(logService);
 
+		performance.mark(`extHost/didCreateServices`);
 		logService.info('extension host started');
 		logService.trace('initData', initData);
 

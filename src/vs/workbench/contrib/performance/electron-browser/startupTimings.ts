@@ -55,10 +55,10 @@ export class StartupTimings implements IWorkbenchContribution {
 		const { sessionId } = await this._telemetryService.getTelemetryInfo();
 
 		Promise.all([
-			this._timerService.startupMetrics,
+			this._timerService.whenReady(),
 			timeout(15000), // wait: cached data creation, telemetry sending
-		]).then(([startupMetrics]) => {
-			return promisify(appendFile)(appendTo, `${startupMetrics.ellapsed}\t${this._productService.nameShort}\t${(this._productService.commit || '').slice(0, 10) || '0000000000'}\t${sessionId}\t${standardStartupError === undefined ? 'standard_start' : 'NO_standard_start : ' + standardStartupError}\n`);
+		]).then(() => {
+			return promisify(appendFile)(appendTo, `${this._timerService.startupMetrics.ellapsed}\t${this._productService.nameShort}\t${(this._productService.commit || '').slice(0, 10) || '0000000000'}\t${sessionId}\t${standardStartupError === undefined ? 'standard_start' : 'NO_standard_start : ' + standardStartupError}\n`);
 		}).then(() => {
 			this._nativeHostService.quit();
 		}).catch(err => {
