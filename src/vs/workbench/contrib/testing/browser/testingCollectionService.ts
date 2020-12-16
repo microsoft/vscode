@@ -12,8 +12,6 @@ import { TestRunState } from 'vs/workbench/api/common/extHostTypes';
 import { AbstractIncrementalTestCollection, IncrementalChangeCollector, IncrementalTestCollectionItem, InternalTestItem } from 'vs/workbench/contrib/testing/common/testCollection';
 import { ITestService } from 'vs/workbench/contrib/testing/common/testService';
 
-export const isTestItem = (v: ITestSubscriptionItem | ITestSubscriptionFolder | undefined): v is ITestSubscriptionItem => !!v && v.depth > 0;
-
 export interface ITestSubscriptionFolder {
 	depth: 0;
 	folder: IWorkspaceFolder;

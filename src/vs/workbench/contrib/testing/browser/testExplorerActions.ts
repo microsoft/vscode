@@ -5,16 +5,34 @@
 
 
 import { Action } from 'vs/base/common/actions';
-import { Event } from 'vs/base/common/event';
+import { Emitter } from 'vs/base/common/event';
 import { Iterable } from 'vs/base/common/iterator';
 import { localize } from 'vs/nls';
 import { ThemeIcon } from 'vs/platform/theme/common/themeService';
 import { TestRunState } from 'vs/workbench/api/common/extHostTypes';
 import * as icons from 'vs/workbench/contrib/testing/browser/icons';
-import { isTestItem, ITestingCollectionService, ITestSubscriptionItem } from 'vs/workbench/contrib/testing/browser/testingCollectionService';
+import { isTestItem } from 'vs/workbench/contrib/testing/browser/testExplorerTree';
+import { ITestingCollectionService, ITestSubscriptionItem } from 'vs/workbench/contrib/testing/browser/testingCollectionService';
 import { TestingExplorerViewModel } from 'vs/workbench/contrib/testing/browser/testingExplorerView';
 import { EMPTY_TEST_RESULT, RunTestsResult } from 'vs/workbench/contrib/testing/common/testCollection';
 import { ITestService } from 'vs/workbench/contrib/testing/common/testService';
+
+export class FilterableAction extends Action {
+	private visChangeEmitter = new Emitter<boolean>();
+
+	public onDidChangeVisibility = this.visChangeEmitter.event;
+	public isVisible = true;
+
+	protected _setVisible(isVisible: boolean) {
+		if (isVisible !== this.isVisible) {
+			this.isVisible = isVisible;
+			this.visChangeEmitter.fire(isVisible);
+		}
+	}
+}
+
+export const filterVisibleActions = (actions: ReadonlyArray<Action>) =>
+	actions.filter(a => !(a instanceof FilterableAction) || a.isVisible);
 
 export class DebugAction extends Action {
 	constructor(
@@ -58,7 +76,7 @@ export class RunAction extends Action {
 	}
 }
 
-abstract class RunOrDebugAction extends Action {
+abstract class RunOrDebugAction extends FilterableAction {
 	constructor(
 		private readonly viewModel: TestingExplorerViewModel,
 		id: string,
@@ -74,8 +92,8 @@ abstract class RunOrDebugAction extends Action {
 			/* enabled= */ Iterable.first(testService.testRuns) === undefined,
 		);
 
-		this._register(testService.onTestRunStarted(this.updateEnablementState, this));
-		this._register(testService.onTestRunCompleted(this.updateEnablementState, this));
+		this._register(testService.onTestRunStarted(this.updateVisibility, this));
+		this._register(testService.onTestRunCompleted(this.updateVisibility, this));
 		this._register(viewModel.onDidChangeSelection(this.updateEnablementState, this));
 	}
 
@@ -88,12 +106,12 @@ abstract class RunOrDebugAction extends Action {
 		return this.testService.runTests({ tests, debug: false });
 	}
 
+	private updateVisibility() {
+		this._setVisible(Iterable.isEmpty(this.testService.testRuns));
+	}
+
 	private updateEnablementState() {
-		if (Iterable.first(this.testService.testRuns) !== undefined) {
-			this._setEnabled(false);
-		} else {
-			this._setEnabled(Iterable.first(this.getActionableTests()) !== undefined);
-		}
+		this._setEnabled(!Iterable.isEmpty(this.getActionableTests()));
 	}
 
 	private *getActionableTests() {
@@ -167,7 +185,31 @@ export class DebugSelectedAction extends RunOrDebugAction {
 	}
 
 	public filter({ item }: ITestSubscriptionItem) {
-		return item.runnable;
+		return item.debuggable;
+	}
+}
+
+export class CancelTestRunAction extends FilterableAction {
+	constructor(@ITestService private readonly testService: ITestService) {
+		super(
+			'action.cancelRun',
+			localize('cancelRunTests', 'Cancel Test Run'),
+			ThemeIcon.asClassName(icons.testingCancelIcon),
+		);
+
+		this._register(testService.onTestRunStarted(this.updateVisibility, this));
+		this._register(testService.onTestRunCompleted(this.updateVisibility, this));
+		this.updateVisibility();
+	}
+
+	private updateVisibility() {
+		this._setVisible(!Iterable.isEmpty(this.testService.testRuns));
+	}
+
+	public async run(): Promise<void> {
+		for (const run of this.testService.testRuns) {
+			this.testService.cancelTestRun(run);
+		}
 	}
 }
 
@@ -176,8 +218,36 @@ export const enum ViewMode {
 	Tree
 }
 
+export const enum ViewGrouping {
+	ByTree,
+	ByStatus,
+}
+
 export class ToggleViewModeAction extends Action {
-	constructor(private readonly viewModel: { viewMode: ViewMode, onViewModeChange: Event<ViewMode> }) {
+	constructor(private readonly viewModel: TestingExplorerViewModel) {
+		super(
+			'workbench.testing.action.toggleViewMode',
+			localize('toggleViewMode', "View as List"),
+		);
+		this._register(viewModel.onViewModeChange(this.onDidChangeMode, this));
+		this.onDidChangeMode(this.viewModel.viewMode);
+	}
+
+	async run(): Promise<void> {
+		this.viewModel.viewMode = this.viewModel.viewMode === ViewMode.List
+			? ViewMode.Tree
+			: ViewMode.List;
+	}
+
+	private onDidChangeMode(mode: ViewMode): void {
+		const iconClass = ThemeIcon.asClassName(mode === ViewMode.List ? icons.testingShowAsList : icons.testingShowAsTree);
+		this.class = iconClass;
+		this.checked = mode === ViewMode.List;
+	}
+}
+
+export class ToggleViewGroupingAction extends Action {
+	constructor(private readonly viewModel: TestingExplorerViewModel) {
 		super(
 			'workbench.testing.action.toggleViewMode',
 			localize('toggleViewMode', "View as List"),

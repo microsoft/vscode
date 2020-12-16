@@ -1776,7 +1776,7 @@ export const enum ExtHostTestingResource {
 }
 
 export interface ExtHostTestingShape {
-	$runTestsForProvider(req: RunTestForProviderRequest): Promise<RunTestsResult>;
+	$runTestsForProvider(req: RunTestForProviderRequest, token: CancellationToken): Promise<RunTestsResult>;
 	$subscribeToTests(resource: ExtHostTestingResource, uri: UriComponents): void;
 	$unsubscribeFromTests(resource: ExtHostTestingResource, uri: UriComponents): void;
 
@@ -1789,7 +1789,7 @@ export interface MainThreadTestingShape {
 	$subscribeToDiffs(resource: ExtHostTestingResource, uri: UriComponents): void;
 	$unsubscribeFromDiffs(resource: ExtHostTestingResource, uri: UriComponents): void;
 	$publishDiff(resource: ExtHostTestingResource, uri: UriComponents, diff: TestsDiff): void;
-	$runTests(req: RunTestsRequest): Promise<RunTestsResult>;
+	$runTests(req: RunTestsRequest, token: CancellationToken): Promise<RunTestsResult>;
 }
 
 // --- proxy identifiers

@@ -37,10 +37,11 @@ import { ViewPane } from 'vs/workbench/browser/parts/views/viewPane';
 import { IViewletViewOptions } from 'vs/workbench/browser/parts/views/viewsViewlet';
 import { IViewDescriptorService } from 'vs/workbench/common/views';
 import { testingStatesToIcons } from 'vs/workbench/contrib/testing/browser/icons';
-import { isTestItem, ITestingCollectionService, ITestSubscriptionFolder, ITestSubscriptionItem } from 'vs/workbench/contrib/testing/browser/testingCollectionService';
+import { getLabel, isTestItem, maxPriority, statePriority, TreeElement } from 'vs/workbench/contrib/testing/browser/testExplorerTree';
+import { ITestingCollectionService, ITestSubscriptionItem } from 'vs/workbench/contrib/testing/browser/testingCollectionService';
 import { ITestService } from 'vs/workbench/contrib/testing/common/testService';
 import { IEditorService } from 'vs/workbench/services/editor/common/editorService';
-import { DebugAction, DebugSelectedAction, RunAction, RunSelectedAction, ToggleViewModeAction, ViewMode } from './testExplorerActions';
+import { CancelTestRunAction, DebugAction, DebugSelectedAction, FilterableAction, filterVisibleActions, RunAction, RunSelectedAction, ToggleViewModeAction, ViewMode } from './testExplorerActions';
 
 export const TESTING_EXPLORER_VIEW_ID = 'workbench.view.testing';
 
@@ -94,8 +95,15 @@ export class TestingExplorerView extends ViewPane {
 		this.primaryActions = [
 			this.instantiationService.createInstance(RunSelectedAction, this.viewModel),
 			this.instantiationService.createInstance(DebugSelectedAction, this.viewModel),
+			this.instantiationService.createInstance(CancelTestRunAction),
 		];
 		this.primaryActions.forEach(this._register, this);
+
+		for (const action of [...this.primaryActions, ...this.secondaryActions]) {
+			if (action instanceof FilterableAction) {
+				action.onDidChangeVisibility(this.updateActions, this);
+			}
+		}
 
 		this._register(this.onDidChangeBodyVisibility(visible => {
 			if (!visible && this.currentSubscription) {
@@ -111,14 +119,14 @@ export class TestingExplorerView extends ViewPane {
 	 * @override
 	 */
 	public getActions() {
-		return [...this.primaryActions, ...super.getActions()];
+		return [...filterVisibleActions(this.primaryActions), ...super.getActions()];
 	}
 
 	/**
 	 * @override
 	 */
 	public getSecondaryActions() {
-		return [...this.secondaryActions, ...super.getSecondaryActions()];
+		return [...filterVisibleActions(this.secondaryActions), ...super.getSecondaryActions()];
 	}
 
 
@@ -348,6 +356,7 @@ export class TestingExplorerViewModel extends Disposable {
 	private isRendered(node: TreeElement) {
 		return this.viewMode === ViewMode.Tree || node.depth <= 1;
 	}
+
 	private getListChildrenOf(node: ITestSubscriptionItem) {
 		const leafNodes: ICompressedTreeElement<TreeElement>[] = [];
 
@@ -381,23 +390,6 @@ export class TestingExplorerViewModel extends Disposable {
 }
 
 /**
- * List of display priorities for different run states. When tests update,
- * the highest-priority state from any of their children will be the state
- * reflected in the parent node.
- */
-const statePriority: { [K in TestRunState]: number } = {
-	[TestRunState.Running]: 6,
-	[TestRunState.Queued]: 5,
-	[TestRunState.Errored]: 4,
-	[TestRunState.Failed]: 3,
-	[TestRunState.Passed]: 2,
-	[TestRunState.Skipped]: 1,
-	[TestRunState.Unset]: 0,
-};
-
-const maxPriority = (a: TestRunState, b: TestRunState) => statePriority[a] > statePriority[b] ? a : b;
-
-/**
  * Gets the computed state for the node.
  */
 const getComputedState = (node: TreeElement) => {
@@ -419,8 +411,6 @@ const renderElement = (item: TreeElement): ICompressedTreeElement<TreeElement> =
 	};
 };
 
-const getLabel = (item: TreeElement) => isTestItem(item) ? item.item.label : item.folder.name;
-
 class TestsFilter implements ITreeFilter<TreeElement, FuzzyScore> {
 	private filterText: string | undefined;
 
@@ -440,9 +430,6 @@ class TestsFilter implements ITreeFilter<TreeElement, FuzzyScore> {
 		return element.childCount ? TreeVisibility.Recurse : TreeVisibility.Hidden;
 	}
 }
-
-type TreeElement = ITestSubscriptionFolder | ITestSubscriptionItem;
-
 class TreeSorter implements ITreeSorter<TreeElement> {
 	public compare(a: TreeElement, b: TreeElement): number {
 		return getLabel(a).localeCompare(getLabel(b));

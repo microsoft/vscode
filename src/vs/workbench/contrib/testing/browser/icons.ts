@@ -13,6 +13,7 @@ import { testStatesToIconColors } from 'vs/workbench/contrib/testing/browser/the
 export const testingViewIcon = registerIcon('testing-view-icon', Codicon.beaker, localize('testingViewIcon', 'View icon of the testing view.'));
 export const testingRunIcon = registerIcon('testing-run-icon', Codicon.debugStart, localize('testingRunIcon', 'Icon of the "run test" action.'));
 export const testingDebugIcon = registerIcon('testing-debug-icon', Codicon.debugAlt, localize('testingDebugIcon', 'Icon of the "debug test" action.'));
+export const testingCancelIcon = registerIcon('testing-cancel-icon', Codicon.close, localize('testingCancelIcon', 'Icon to cancel ongoing test runs.'));
 
 export const testingShowAsList = registerIcon('testing-show-as-list-icon', Codicon.listTree, localize('testingShowAsList', 'Icon shown when the test explorer is disabled as a tree.'));
 export const testingShowAsTree = registerIcon('testing-show-as-list-icon', Codicon.listFlat, localize('testingShowAsTree', 'Icon shown when the test explorer is disabled as a list.'));

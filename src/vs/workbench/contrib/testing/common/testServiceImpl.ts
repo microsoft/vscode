@@ -4,13 +4,16 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { groupBy } from 'vs/base/common/arrays';
+import { CancellationToken, CancellationTokenSource } from 'vs/base/common/cancellation';
 import { Emitter } from 'vs/base/common/event';
 import { Disposable, toDisposable } from 'vs/base/common/lifecycle';
 import { isDefined } from 'vs/base/common/types';
 import { URI, UriComponents } from 'vs/base/common/uri';
+import { localize } from 'vs/nls';
 import { IContextKey, IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
+import { INotificationService } from 'vs/platform/notification/common/notification';
 import { ExtHostTestingResource } from 'vs/workbench/api/common/extHost.protocol';
-import { AbstractIncrementalTestCollection, collectTestResults, getTestSubscriptionKey, IncrementalTestCollectionItem, InternalTestItem, RunTestsRequest, RunTestsResult, TestDiffOpType, TestsDiff } from 'vs/workbench/contrib/testing/common/testCollection';
+import { AbstractIncrementalTestCollection, collectTestResults, EMPTY_TEST_RESULT, getTestSubscriptionKey, IncrementalTestCollectionItem, InternalTestItem, RunTestsRequest, RunTestsResult, TestDiffOpType, TestsDiff } from 'vs/workbench/contrib/testing/common/testCollection';
 import { TestingContextKeys } from 'vs/workbench/contrib/testing/common/testingContextKeys';
 import { ITestService, MainTestController, TestDiffListener } from 'vs/workbench/contrib/testing/common/testService';
 
@@ -30,14 +33,21 @@ export class TestService extends Disposable implements ITestService {
 	private readonly providerCount: IContextKey<number>;
 	private readonly runStartedEmitter = new Emitter<RunTestsRequest>();
 	private readonly runCompletedEmitter = new Emitter<{ req: RunTestsRequest, result: RunTestsResult }>();
+	private readonly runningTests = new Map<RunTestsRequest, CancellationTokenSource>();
 
-	public readonly testRuns = new Set<RunTestsRequest>();
 	public readonly onTestRunStarted = this.runStartedEmitter.event;
 	public readonly onTestRunCompleted = this.runCompletedEmitter.event;
 
-	constructor(@IContextKeyService contextKeyService: IContextKeyService) {
+	constructor(@IContextKeyService contextKeyService: IContextKeyService, @INotificationService private readonly notificationService: INotificationService) {
 		super();
 		this.providerCount = TestingContextKeys.providerCount.bindTo(contextKeyService);
+	}
+
+	/**
+	 * Gets currently running tests.
+	 */
+	public get testRuns() {
+		return this.runningTests.keys();
 	}
 
 	/**
@@ -72,18 +82,30 @@ export class TestService extends Disposable implements ITestService {
 	/**
 	 * @inheritdoc
 	 */
-	async runTests(req: RunTestsRequest): Promise<RunTestsResult> {
+	public cancelTestRun(req: RunTestsRequest) {
+		this.runningTests.get(req)?.cancel();
+	}
+
+
+	/**
+	 * @inheritdoc
+	 */
+	public async runTests(req: RunTestsRequest, token = CancellationToken.None): Promise<RunTestsResult> {
 		const tests = groupBy(req.tests, (a, b) => a.providerId === b.providerId ? 0 : 1);
+		const cancelSource = new CancellationTokenSource(token);
 		const requests = tests.map(group => {
 			const providerId = group[0].providerId;
 			const controller = this.testControllers.get(providerId);
-			return controller?.runTests({ providerId, debug: req.debug, ids: group.map(t => t.testId) });
+			return controller?.runTests({ providerId, debug: req.debug, ids: group.map(t => t.testId) }, cancelSource.token).catch(err => {
+				this.notificationService.error(localize('testError', 'An error occurred attempting to run tests: {0}', err.message));
+				return EMPTY_TEST_RESULT;
+			});
 		}).filter(isDefined);
 
-		this.testRuns.add(req);
+		this.runningTests.set(req, cancelSource);
 		this.runStartedEmitter.fire(req);
 		const result = await collectTestResults(await Promise.all(requests));
-		this.testRuns.delete(req);
+		this.runningTests.delete(req);
 		this.runCompletedEmitter.fire({ req, result });
 
 		return result;
