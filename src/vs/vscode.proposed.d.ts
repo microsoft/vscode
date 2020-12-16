@@ -3,6 +3,8 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
+import { Command } from 'vscode';
+
 /**
  * This is the place for API experiments and proposals.
  * These API are NOT stable and subject to change. They are only available in the Insiders
@@ -2296,5 +2298,49 @@ declare module 'vscode' {
 		 */
 		location?: Location;
 	}
+	//#endregion
+
+	//#region Opener service (https://github.com/microsoft/vscode/issues/109277)
+
+	/**
+	 * Handles opening external uris.
+	 *
+	 * An extension can use this to open a `http` link to a webserver inside of VS Code instead of
+	 * having the link be opened by the webbrowser.
+	 *
+	 * Currently openers may only be registered for `http` and `https` uris.
+	 */
+	export interface ExternalUriOpener {
+
+		/**
+		 * Try to open a given uri.
+		 *
+		 * @param uri The uri being opened.
+		 * @param ctx Additional metadata about how the open was triggered.
+		 * @param token Cancellation token.
+		 *
+		 * @return Optional command that opens the uri. If no command is returned, VS Code will
+		 * continue checking to see if any other openers are available.
+		 *
+		 * If multiple openers are available for a given uri, then the `Command.title` is shown in the UI.
+		 */
+		openExternalUri(uri: Uri, ctx: {}, token: CancellationToken): ProviderResult<Command>;
+	}
+
+	namespace window {
+		/**
+		 * Register a new `ExternalUriOpener`.
+		 *
+		 * When a uri is about to be opened, a `onUriOpen:SCHEME` activation event is fired.
+		 *
+		 * @param schemes List of uri schemes the opener is triggered for. Currently only `http`
+		 * and `https` are supported.
+		 * @param opener Opener to register.
+		 *
+		* @returns Disposable that unregisters the opener.
+		 */
+		export function registerExternalUriOpener(schemes: readonly string[], opener: ExternalUriOpener,): Disposable;
+	}
+
 	//#endregion
 }
