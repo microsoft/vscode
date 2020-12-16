@@ -74,29 +74,29 @@ export interface IIndexedDBFileSystemProvider extends Disposable, IFileSystemPro
 }
 
 type DirEntry = [string, FileType];
-type fsnode =
+type FSNode =
 	| {
 		path: string,
 		type: FileType.Directory,
-		parent: fsnode | undefined,
-		children: Map<string, fsnode>,
+		parent: FSNode | undefined,
+		children: Map<string, FSNode>,
 	}
 	| {
 		path: string,
 		type: FileType.File,
-		parent: fsnode | undefined,
+		parent: FSNode | undefined,
 		size: number | undefined,
 	};
 
-const printSuperBlock = (block: fsnode, indentation = '') => {
+const printSuperBlock = (block: FSNode, indentation = '') => {
 	console.log(indentation + block.path);
 	if (block.type === FileType.Directory) {
 		block.children.forEach(child => printSuperBlock(child, indentation + ' '));
 	}
 };
 
-const readFromSuperblock = (block: fsnode, path: string) => {
-	const doReadFromSuperblock = (block: fsnode, pathParts: string[]): fsnode | undefined => {
+const readFromSuperblock = (block: FSNode, path: string) => {
+	const doReadFromSuperblock = (block: FSNode, pathParts: string[]): FSNode | undefined => {
 		if (pathParts.length === 0) { return block; }
 		if (block.type !== FileType.Directory) {
 			throw new Error('Internal error reading from superblock -- expected directory at ' + block.path);
@@ -109,8 +109,8 @@ const readFromSuperblock = (block: fsnode, path: string) => {
 	return doReadFromSuperblock(block, path.split('/').filter(p => p.length));
 };
 
-const deleteFromSuperblock = (block: fsnode, path: string) => {
-	const doDeleteFromSuperblock = (block: fsnode, pathParts: string[]) => {
+const deleteFromSuperblock = (block: FSNode, path: string) => {
+	const doDeleteFromSuperblock = (block: FSNode, pathParts: string[]) => {
 		if (pathParts.length === 0) { throw new Error(`Internal error deleting from superblock -- got no deletion path parts (encountered while deleting ${path})`); }
 		else if (block.type !== FileType.Directory) {
 			throw new Error('Internal error reading from superblock -- expected directory at ' + block.path);
@@ -138,8 +138,8 @@ const deleteFromSuperblock = (block: fsnode, path: string) => {
 	}
 };
 
-const addEntryToSuperblock = (block: fsnode, path: string, entry: { type: 'file', size?: number } | { type: 'dir' }) => {
-	const doAddEntryToSuperblock = (block: fsnode, pathParts: string[]) => {
+const addEntryToSuperblock = (block: FSNode, path: string, entry: { type: 'file', size?: number } | { type: 'dir' }) => {
+	const doAddEntryToSuperblock = (block: FSNode, pathParts: string[]) => {
 		if (pathParts.length === 0) {
 			throw new Error(`Internal error creating superblock -- adding empty path (encountered while adding ${path})`);
 		}
@@ -208,7 +208,7 @@ class IndexedDBFileSystemProvider extends Disposable implements IIndexedDBFileSy
 
 	private readonly versions: Map<string, number> = new Map<string, number>();
 
-	private superblock: Promise<fsnode>;
+	private superblock: Promise<FSNode>;
 	private writeManyThrottler: Throttler;
 
 	constructor(scheme: string, private readonly database: IDBDatabase, private readonly store: string) {
@@ -361,14 +361,14 @@ class IndexedDBFileSystemProvider extends Disposable implements IIndexedDBFileSy
 		return Promise.reject(new Error('Not Supported'));
 	}
 
-	private getSuperblock(): Promise<fsnode> {
+	private getSuperblock(): Promise<FSNode> {
 		return new Promise((c, e) => {
 			const transaction = this.database.transaction([this.store]);
 			const objectStore = transaction.objectStore(this.store);
 			const request = objectStore.getAllKeys();
 			request.onerror = () => e(request.error);
 			request.onsuccess = () => {
-				const superblock: fsnode = {
+				const superblock: FSNode = {
 					children: new Map(),
 					parent: undefined,
 					path: '',
