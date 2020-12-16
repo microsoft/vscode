@@ -48,9 +48,7 @@ steps:
 
   - script: |
       set -e
-      git remote add distro "https://github.com/$(VSCODE_MIXIN_REPO).git"
-      git fetch distro
-      git merge $(node -p "require('./package.json').distro")
+      git pull --no-rebase https://github.com/$(VSCODE_MIXIN_REPO).git $(node -p "require('./package.json').distro")
     displayName: Merge distro
 
   - script: |
@@ -84,7 +82,6 @@ steps:
         export CXX=$(which g++-5)
       fi
       export npm_config_arch=$(NPM_ARCH)
-      export CHILD_CONCURRENCY="1"
       for i in {1..3}; do # try 3 times, for Terrapin
         yarn --frozen-lockfile && break
         if [ $i -eq 3 ]; then
@@ -93,6 +90,9 @@ steps:
         fi
         echo "Yarn failed $i, trying again..."
       done
+    env:
+      ELECTRON_SKIP_BINARY_DOWNLOAD: 1
+      PLAYWRIGHT_SKIP_BROWSER_DOWNLOAD: 1
     displayName: Install dependencies
     condition: and(succeeded(), ne(variables['CacheRestored'], 'true'))
 
@@ -140,14 +140,22 @@ steps:
 
   - script: |
       set -e
+      yarn npm-run-all -lp "electron $(VSCODE_ARCH)" "playwright-install"
+    displayName: Download Electron and Playwright
+    condition: and(succeeded(), eq(variables['VSCODE_ARCH'], 'x64'), eq(variables['VSCODE_STEP_ON_IT'], 'false'))
+
+  - script: |
+      set -e
       DISPLAY=:10 ./scripts/test.sh --build --tfs "Unit Tests"
     displayName: Run unit tests (Electron)
+    timeoutInMinutes: 5
     condition: and(succeeded(), eq(variables['VSCODE_ARCH'], 'x64'), eq(variables['VSCODE_STEP_ON_IT'], 'false'))
 
   - script: |
       set -e
       DISPLAY=:10 yarn test-browser --build --browser chromium --tfs "Browser Unit Tests"
     displayName: Run unit tests (Browser)
+    timeoutInMinutes: 5
     condition: and(succeeded(), eq(variables['VSCODE_ARCH'], 'x64'), eq(variables['VSCODE_STEP_ON_IT'], 'false'))
 
   - script: |
@@ -162,6 +170,7 @@ steps:
       VSCODE_REMOTE_SERVER_PATH="$(agent.builddirectory)/vscode-reh-linux-$(VSCODE_ARCH)" \
       DISPLAY=:10 ./scripts/test-integration.sh --build --tfs "Integration Tests"
     displayName: Run integration tests (Electron)
+    timeoutInMinutes: 5
     condition: and(succeeded(), eq(variables['VSCODE_ARCH'], 'x64'), eq(variables['VSCODE_STEP_ON_IT'], 'false'))
 
   - script: |
@@ -169,6 +178,7 @@ steps:
       VSCODE_REMOTE_SERVER_PATH="$(agent.builddirectory)/vscode-reh-web-linux-$(VSCODE_ARCH)" \
       DISPLAY=:10 ./resources/server/test/test-web-integration.sh --browser chromium
     displayName: Run integration tests (Browser)
+    timeoutInMinutes: 5
     condition: and(succeeded(), eq(variables['VSCODE_ARCH'], 'x64'), eq(variables['VSCODE_STEP_ON_IT'], 'false'))
 
   - script: |
@@ -180,6 +190,7 @@ steps:
       VSCODE_REMOTE_SERVER_PATH="$(agent.builddirectory)/vscode-reh-linux-$(VSCODE_ARCH)" \
       DISPLAY=:10 ./resources/server/test/test-remote-integration.sh
     displayName: Run remote integration tests (Electron)
+    timeoutInMinutes: 5
     condition: and(succeeded(), eq(variables['VSCODE_ARCH'], 'x64'), eq(variables['VSCODE_STEP_ON_IT'], 'false'))
 
   - task: PublishPipelineArtifact@0

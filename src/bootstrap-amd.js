@@ -8,6 +8,7 @@
 
 const loader = require('./vs/loader');
 const bootstrap = require('./bootstrap');
+const performance = require('./vs/base/common/performance');
 
 // Bootstrap: NLS
 const nlsConfig = bootstrap.setupNLS();
@@ -55,5 +56,6 @@ exports.load = function (entrypoint, onLoad, onError) {
 	onLoad = onLoad || function () { };
 	onError = onError || function (err) { console.error(err); };
 
+	performance.mark(`fork/willLoadCode`);
 	loader([entrypoint], onLoad, onError);
 };

@@ -47,10 +47,19 @@ abstract class ExtensionManifestHandler {
 
 class ExtensionManifestParser extends ExtensionManifestHandler {
 
+	private static _fastParseJSON(text: string, errors: json.ParseError[]): any {
+		try {
+			return JSON.parse(text);
+		} catch (err) {
+			// invalid JSON, let's get good errors
+			return json.parse(text, errors);
+		}
+	}
+
 	public parse(): Promise<IExtensionDescription> {
 		return pfs.readFile(this._absoluteManifestPath).then((manifestContents) => {
 			const errors: json.ParseError[] = [];
-			const manifest = json.parse(manifestContents.toString(), errors);
+			const manifest = ExtensionManifestParser._fastParseJSON(manifestContents.toString(), errors);
 			if (json.getNodeType(manifest) !== 'object') {
 				this._log.error(this._absoluteFolderPath, nls.localize('jsonParseInvalidType', "Invalid manifest file {0}: Not an JSON object.", this._absoluteManifestPath));
 			} else if (errors.length === 0) {

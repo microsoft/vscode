@@ -3,7 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { IShellLaunchConfig, TERMINAL_VIEW_ID } from 'vs/workbench/contrib/terminal/common/terminal';
+import { IShellLaunchConfig, ITerminalTabLayoutInfoById, TERMINAL_VIEW_ID } from 'vs/workbench/contrib/terminal/common/terminal';
 import { Event, Emitter } from 'vs/base/common/event';
 import { IDisposable, Disposable, DisposableStore } from 'vs/base/common/lifecycle';
 import { SplitView, Orientation, IView, Sizing } from 'vs/base/browser/ui/splitview/splitview';
@@ -97,6 +97,22 @@ class SplitPaneContainer extends Disposable {
 		sizes[indexToChange] -= amount;
 		for (let i = 0; i < this._splitView.length - 1; i++) {
 			this._splitView.resizeView(i, sizes[i]);
+		}
+	}
+
+	public resizePanes(relativeSizes: number[]): void {
+		if (this._children.length <= 1) {
+			return;
+		}
+
+		// assign any extra size to last terminal
+		relativeSizes[relativeSizes.length - 1] += 1 - relativeSizes.reduce((totalValue, currentValue) => totalValue + currentValue, 0);
+		let totalSize = 0;
+		for (let i = 0; i < this._splitView.length; i++) {
+			totalSize += this._splitView.getViewSize(i);
+		}
+		for (let i = 0; i < this._splitView.length; i++) {
+			this._splitView.resizeView(i, totalSize * relativeSizes[i]);
 		}
 	}
 
@@ -212,6 +228,7 @@ class SplitPane implements IView {
 export class TerminalTab extends Disposable implements ITerminalTab {
 	private _terminalInstances: ITerminalInstance[] = [];
 	private _splitPaneContainer: SplitPaneContainer | undefined;
+	private get splitPaneContainer(): SplitPaneContainer | undefined { return this._splitPaneContainer; }
 	private _tabElement: HTMLElement | undefined;
 	private _panelPosition: Position = Position.BOTTOM;
 	private _terminalLocation: ViewContainerLocation = ViewContainerLocation.Panel;
@@ -221,11 +238,12 @@ export class TerminalTab extends Disposable implements ITerminalTab {
 
 	public get terminalInstances(): ITerminalInstance[] { return this._terminalInstances; }
 
+	private _initialRelativeSizes: number[] | undefined;
+
 	private readonly _onDisposed: Emitter<ITerminalTab> = this._register(new Emitter<ITerminalTab>());
 	public readonly onDisposed: Event<ITerminalTab> = this._onDisposed.event;
 	private readonly _onInstancesChanged: Emitter<void> = this._register(new Emitter<void>());
 	public readonly onInstancesChanged: Event<void> = this._onInstancesChanged.event;
-
 	constructor(
 		private _container: HTMLElement | undefined,
 		shellLaunchConfigOrInstance: IShellLaunchConfig | ITerminalInstance | undefined,
@@ -235,13 +253,10 @@ export class TerminalTab extends Disposable implements ITerminalTab {
 		@IInstantiationService private readonly _instantiationService: IInstantiationService
 	) {
 		super();
-
 		if (shellLaunchConfigOrInstance) {
 			this.addInstance(shellLaunchConfigOrInstance);
 		}
-
 		this._activeInstanceIndex = 0;
-
 		if (this._container) {
 			this.attachToElement(this._container);
 		}
@@ -279,6 +294,22 @@ export class TerminalTab extends Disposable implements ITerminalTab {
 			return null;
 		}
 		return this._terminalInstances[this._activeInstanceIndex];
+	}
+
+	public getLayoutInfo(isActive: boolean): ITerminalTabLayoutInfoById {
+		const isHorizontal = this.splitPaneContainer?.orientation === Orientation.HORIZONTAL;
+		const remoteInstances = this.terminalInstances.filter(instance => typeof instance.remoteTerminalId === 'number');
+		const totalSize = remoteInstances.map(instance => isHorizontal ? instance.cols : instance.rows).reduce((totalValue, currentValue) => totalValue + currentValue, 0);
+		return {
+			isActive: isActive,
+			activeTerminalProcessId: this.activeInstance?.processId || 0,
+			terminals: remoteInstances.map(t => {
+				return {
+					relativeSize: isHorizontal ? t.cols / totalSize : t.rows / totalSize,
+					terminal: t.remoteTerminalId!
+				};
+			})
+		};
 	}
 
 	private _initInstanceListeners(instance: ITerminalInstance): void {
@@ -366,7 +397,6 @@ export class TerminalTab extends Disposable implements ITerminalTab {
 			this._splitPaneContainer = newLocal;
 			this.terminalInstances.forEach(instance => this._splitPaneContainer!.split(instance));
 		}
-
 		this.setVisible(this._isVisible);
 	}
 
@@ -389,10 +419,6 @@ export class TerminalTab extends Disposable implements ITerminalTab {
 	}
 
 	public split(shellLaunchConfig: IShellLaunchConfig): ITerminalInstance {
-		if (!this._container) {
-			throw new Error('Cannot split terminal that has not been attached');
-		}
-
 		const instance = this._terminalService.createInstance(undefined, shellLaunchConfig);
 		this._terminalInstances.splice(this._activeInstanceIndex + 1, 0, instance);
 		this._initInstanceListeners(instance);
@@ -415,15 +441,17 @@ export class TerminalTab extends Disposable implements ITerminalTab {
 			const newPanelPosition = this._layoutService.getPanelPosition();
 			const newTerminalLocation = this._viewDescriptorService.getViewLocationById(TERMINAL_VIEW_ID)!;
 			const terminalPositionChanged = newPanelPosition !== this._panelPosition || newTerminalLocation !== this._terminalLocation;
-
 			if (terminalPositionChanged) {
 				const newOrientation = newTerminalLocation === ViewContainerLocation.Panel && newPanelPosition === Position.BOTTOM ? Orientation.HORIZONTAL : Orientation.VERTICAL;
 				this._splitPaneContainer.setOrientation(newOrientation);
 				this._panelPosition = newPanelPosition;
 				this._terminalLocation = newTerminalLocation;
 			}
-
 			this._splitPaneContainer.layout(width, height);
+			if (this._initialRelativeSizes && height > 0 && width > 0) {
+				this.resizePanes(this._initialRelativeSizes);
+				this._initialRelativeSizes = undefined;
+			}
 		}
 	}
 
@@ -449,5 +477,14 @@ export class TerminalTab extends Disposable implements ITerminalTab {
 		if (amount) {
 			this._splitPaneContainer.resizePane(this._activeInstanceIndex, direction, amount);
 		}
+	}
+
+	public resizePanes(relativeSizes: number[]): void {
+		if (!this._splitPaneContainer) {
+			this._initialRelativeSizes = relativeSizes;
+			return;
+		}
+
+		this._splitPaneContainer.resizePanes(relativeSizes);
 	}
 }

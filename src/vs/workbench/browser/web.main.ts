@@ -62,6 +62,7 @@ import { IHostService } from 'vs/workbench/services/host/browser/host';
 import { IUriIdentityService } from 'vs/workbench/services/uriIdentity/common/uriIdentity';
 import { UriIdentityService } from 'vs/workbench/services/uriIdentity/common/uriIdentityService';
 import { BrowserWindow } from 'vs/workbench/browser/window';
+import { ITimerService } from 'vs/workbench/services/timer/browser/timerService';
 
 class BrowserMain extends Disposable {
 
@@ -114,10 +115,17 @@ class BrowserMain extends Disposable {
 		return instantiationService.invokeFunction(accessor => {
 			const commandService = accessor.get(ICommandService);
 			const lifecycleService = accessor.get(ILifecycleService);
+			const timerService = accessor.get(ITimerService);
 
 			return {
 				commands: {
 					executeCommand: (command, ...args) => commandService.executeCommand(command, ...args)
+				},
+				env: {
+					async retrievePerformanceMarks() {
+						await timerService.whenReady();
+						return timerService.getPerformanceMarks();
+					}
 				},
 				shutdown: () => lifecycleService.shutdown()
 			};

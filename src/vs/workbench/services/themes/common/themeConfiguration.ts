@@ -308,9 +308,9 @@ export class ThemeConfiguration {
 		return theme;
 	}
 
-	public isDefaultColorTheme(theme: IWorkbenchColorTheme): boolean {
+	public isDefaultColorTheme(): boolean {
 		let settings = this.configurationService.inspect(ThemeSettings.COLOR_THEME);
-		return settings && settings.default?.value === theme.settingsId;
+		return settings && settings.default?.value === settings.value;
 	}
 
 	public findAutoConfigurationTarget(key: string) {

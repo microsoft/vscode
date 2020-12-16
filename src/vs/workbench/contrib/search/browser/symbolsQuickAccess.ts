@@ -248,10 +248,10 @@ export class SymbolsQuickAccessProvider extends PickerQuickAccessProvider<ISymbo
 				resource: symbolToOpen.location.uri,
 				options: {
 					preserveFocus: options?.preserveFocus,
-					pinned: options.keyMods.alt || options.forcePinned || this.configuration.openEditorPinned,
+					pinned: options.keyMods.ctrlCmd || options.forcePinned || this.configuration.openEditorPinned,
 					selection: symbolToOpen.location.range ? Range.collapseToStart(symbolToOpen.location.range) : undefined
 				}
-			}, options.keyMods.ctrlCmd || (this.configuration.openEditorPinned && options.keyMods.alt) || options?.forceOpenSideBySide ? SIDE_GROUP : ACTIVE_GROUP);
+			}, options.keyMods.alt || (this.configuration.openEditorPinned && options.keyMods.ctrlCmd) || options?.forceOpenSideBySide ? SIDE_GROUP : ACTIVE_GROUP);
 		}
 	}
 

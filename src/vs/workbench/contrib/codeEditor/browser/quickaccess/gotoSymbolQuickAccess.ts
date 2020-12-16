@@ -67,12 +67,12 @@ export class GotoSymbolQuickAccessProvider extends AbstractGotoSymbolQuickAccess
 	protected gotoLocation(context: IQuickAccessTextEditorContext, options: { range: IRange, keyMods: IKeyMods, forceSideBySide?: boolean, preserveFocus?: boolean }): void {
 
 		// Check for sideBySide use
-		if ((options.keyMods.ctrlCmd || (this.configuration.openEditorPinned && options.keyMods.alt) || options.forceSideBySide) && this.editorService.activeEditor) {
+		if ((options.keyMods.alt || (this.configuration.openEditorPinned && options.keyMods.ctrlCmd) || options.forceSideBySide) && this.editorService.activeEditor) {
 			context.restoreViewState?.(); // since we open to the side, restore view state in this editor
 
 			this.editorService.openEditor(this.editorService.activeEditor, {
 				selection: options.range,
-				pinned: options.keyMods.alt || this.configuration.openEditorPinned,
+				pinned: options.keyMods.ctrlCmd || this.configuration.openEditorPinned,
 				preserveFocus: options.preserveFocus
 			}, SIDE_GROUP);
 		}

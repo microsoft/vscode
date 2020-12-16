@@ -8,12 +8,10 @@ import { Registry } from 'vs/platform/registry/common/platform';
 import { Action } from 'vs/base/common/actions';
 import { SyncActionDescriptor, MenuId, MenuRegistry, registerAction2, Action2 } from 'vs/platform/actions/common/actions';
 import { IWorkbenchActionRegistry, Extensions as WorkbenchExtensions, CATEGORIES } from 'vs/workbench/common/actions';
-import { ConfigurationTarget, IConfigurationService } from 'vs/platform/configuration/common/configuration';
+import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { IWorkbenchLayoutService, Parts, Position } from 'vs/workbench/services/layout/browser/layoutService';
-import { IEditorGroupsService, GroupOrientation } from 'vs/workbench/services/editor/common/editorGroupsService';
 import { ServicesAccessor, IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { KeyMod, KeyCode, KeyChord } from 'vs/base/common/keyCodes';
-import { DisposableStore } from 'vs/base/common/lifecycle';
 import { getMenuBarVisibility } from 'vs/platform/windows/common/windows';
 import { isWindows, isLinux, isWeb } from 'vs/base/common/platform';
 import { IsMacNativeContext } from 'vs/platform/contextkey/common/contextkeys';
@@ -26,7 +24,6 @@ import { IQuickInputService, IQuickPickItem, IQuickPickSeparator } from 'vs/plat
 import { INotificationService } from 'vs/platform/notification/common/notification';
 import { IActivityBarService } from 'vs/workbench/services/activityBar/browser/activityBarService';
 import { IPanelService } from 'vs/workbench/services/panel/common/panelService';
-import { Codicon } from 'vs/base/common/codicons';
 
 const registry = Registry.as<IWorkbenchActionRegistry>(WorkbenchExtensions.WorkbenchActions);
 
@@ -123,54 +120,6 @@ MenuRegistry.appendMenuItem(MenuId.MenubarAppearanceMenu, {
 		toggled: IsCenteredLayoutContext
 	},
 	order: 3
-});
-
-// --- Toggle Editor Layout
-
-export class ToggleEditorLayoutAction extends Action {
-
-	static readonly ID = 'workbench.action.toggleEditorGroupLayout';
-	static readonly LABEL = nls.localize('flipLayout', "Toggle Vertical/Horizontal Editor Layout");
-
-	private readonly toDispose = this._register(new DisposableStore());
-
-	constructor(
-		id: string,
-		label: string,
-		@IEditorGroupsService private readonly editorGroupService: IEditorGroupsService
-	) {
-		super(id, label);
-
-		this.class = Codicon.editorLayout.classNames;
-		this.updateEnablement();
-
-		this.registerListeners();
-	}
-
-	private registerListeners(): void {
-		this.toDispose.add(this.editorGroupService.onDidAddGroup(() => this.updateEnablement()));
-		this.toDispose.add(this.editorGroupService.onDidRemoveGroup(() => this.updateEnablement()));
-	}
-
-	private updateEnablement(): void {
-		this.enabled = this.editorGroupService.count > 1;
-	}
-
-	async run(): Promise<void> {
-		const newOrientation = (this.editorGroupService.orientation === GroupOrientation.VERTICAL) ? GroupOrientation.HORIZONTAL : GroupOrientation.VERTICAL;
-		this.editorGroupService.setGroupOrientation(newOrientation);
-	}
-}
-
-registry.registerWorkbenchAction(SyncActionDescriptor.from(ToggleEditorLayoutAction, { primary: KeyMod.Shift | KeyMod.Alt | KeyCode.KEY_0, mac: { primary: KeyMod.CtrlCmd | KeyMod.Alt | KeyCode.KEY_0 } }), 'View: Toggle Vertical/Horizontal Editor Layout', CATEGORIES.View.value);
-
-MenuRegistry.appendMenuItem(MenuId.MenubarLayoutMenu, {
-	group: 'z_flip',
-	command: {
-		id: ToggleEditorLayoutAction.ID,
-		title: nls.localize({ key: 'miToggleEditorLayout', comment: ['&& denotes a mnemonic'] }, "Flip &&Layout")
-	},
-	order: 1
 });
 
 // --- Toggle Sidebar Position
@@ -484,7 +433,7 @@ export class ToggleMenuBarAction extends Action {
 			newVisibilityValue = (isWeb && currentVisibilityValue === 'hidden') ? 'compact' : 'default';
 		}
 
-		return this.configurationService.updateValue(ToggleMenuBarAction.menuBarVisibilityKey, newVisibilityValue, ConfigurationTarget.USER);
+		return this.configurationService.updateValue(ToggleMenuBarAction.menuBarVisibilityKey, newVisibilityValue);
 	}
 }
 

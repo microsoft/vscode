@@ -54,8 +54,8 @@ import { ExtensionsRegistry, IExtensionPointUser } from 'vs/workbench/services/e
 import { SyncDescriptor } from 'vs/platform/instantiation/common/descriptors';
 import { RemoteStatusIndicator } from 'vs/workbench/contrib/remote/browser/remoteIndicator';
 import { inQuickPickContextKeyValue } from 'vs/workbench/browser/quickaccess';
-import { Codicon } from 'vs/base/common/codicons';
-import { registerIcon } from 'vs/platform/theme/common/iconRegistry';
+import * as icons from 'vs/workbench/contrib/remote/browser/remoteIcons';
+
 
 export interface HelpInformation {
 	extensionDescription: IExtensionDescription;
@@ -149,14 +149,6 @@ class HelpDataSource implements IAsyncDataSource<HelpModel, IHelpItem> {
 		return [];
 	}
 }
-
-const getStartedIcon = registerIcon('remote-explorer-get-started', Codicon.star, nls.localize('getStartedIcon', 'Getting started icon in the remote explorer view.'));
-const documentationIcon = registerIcon('remote-explorer-documentation', Codicon.book, nls.localize('documentationIcon', 'Documentation icon in the remote explorer view.'));
-const feedbackIcon = registerIcon('remote-explorer-feedback', Codicon.twitter, nls.localize('feedbackIcon', 'Feedback icon in the remote explorer view.'));
-const reviewIssuesIcon = registerIcon('remote-explorer-review-issues', Codicon.issues, nls.localize('reviewIssuesIcon', 'Review issue icon in the remote explorer view.'));
-const reportIssuesIcon = registerIcon('remote-explorer-report-issues', Codicon.comment, nls.localize('reportIssuesIcon', 'Report issue icon in the remote explorer view.'));
-const remoteExplorerViewIcon = registerIcon('remote-explorer-view-icon', Codicon.remoteExplorer, nls.localize('remoteExplorerViewIcon', 'View icon of the remote explorer view.'));
-
 interface IHelpItem {
 	icon: ThemeIcon,
 	iconClasses: string[];
@@ -180,7 +172,7 @@ class HelpModel {
 
 		if (getStarted.length) {
 			helpItems.push(new HelpItem(
-				getStartedIcon,
+				icons.getStartedIcon,
 				nls.localize('remote.help.getStarted', "Get Started"),
 				getStarted.map((info: HelpInformation) => (new HelpItemValue(commandService,
 					info.extensionDescription,
@@ -198,7 +190,7 @@ class HelpModel {
 
 		if (documentation.length) {
 			helpItems.push(new HelpItem(
-				documentationIcon,
+				icons.documentationIcon,
 				nls.localize('remote.help.documentation', "Read Documentation"),
 				documentation.map((info: HelpInformation) => (new HelpItemValue(commandService,
 					info.extensionDescription,
@@ -216,7 +208,7 @@ class HelpModel {
 
 		if (feedback.length) {
 			helpItems.push(new HelpItem(
-				feedbackIcon,
+				icons.feedbackIcon,
 				nls.localize('remote.help.feedback', "Provide Feedback"),
 				feedback.map((info: HelpInformation) => (new HelpItemValue(commandService,
 					info.extensionDescription,
@@ -234,7 +226,7 @@ class HelpModel {
 
 		if (issues.length) {
 			helpItems.push(new HelpItem(
-				reviewIssuesIcon,
+				icons.reviewIssuesIcon,
 				nls.localize('remote.help.issues', "Review Issues"),
 				issues.map((info: HelpInformation) => (new HelpItemValue(commandService,
 					info.extensionDescription,
@@ -250,7 +242,7 @@ class HelpModel {
 
 		if (helpItems.length) {
 			helpItems.push(new IssueReporterItem(
-				reportIssuesIcon,
+				icons.reportIssuesIcon,
 				nls.localize('remote.help.report', "Report Issue"),
 				viewModel.helpInformation.map(info => (new HelpItemValue(commandService,
 					info.extensionDescription,
@@ -572,7 +564,7 @@ Registry.as<IViewContainersRegistry>(Extensions.ViewContainersRegistry).register
 				return;
 			}
 		},
-		icon: remoteExplorerViewIcon,
+		icon: icons.remoteExplorerViewIcon,
 		order: 4
 	}, ViewContainerLocation.Sidebar);
 
