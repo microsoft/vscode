@@ -31,7 +31,6 @@ import { EditorOptions } from 'vs/workbench/common/editor';
 import { IResourceEditorInput } from 'vs/platform/editor/common/editor';
 import { IConstructorSignature1 } from 'vs/platform/instantiation/common/instantiation';
 import { CellEditorStatusBar } from 'vs/workbench/contrib/notebook/browser/view/renderers/cellWidgets';
-import { ICommonCellInfo, ICommonNotebookEditor, IGenericCellViewModel } from 'vs/workbench/contrib/notebook/browser/genericTypes';
 
 export const KEYBINDING_CONTEXT_NOTEBOOK_FIND_WIDGET_FOCUSED = new RawContextKey<boolean>('notebookFindWidgetFocused', false);
 
@@ -66,6 +65,41 @@ export const EXECUTE_CELL_COMMAND_ID = 'notebook.cell.execute';
 // Kernels
 
 export const NOTEBOOK_HAS_MULTIPLE_KERNELS = new RawContextKey<boolean>('notebookHasMultipleKernels', false);
+
+
+// These are types shared by the Notebook Editor and Notebook Diff Editor
+
+export interface IGenericCellViewModel {
+	id: string;
+	handle: number;
+	uri: URI;
+	metadata: NotebookCellMetadata | undefined;
+	outputIsHovered: boolean;
+	outputsViewModels: ICellOutputViewModel[];
+	getOutputOffset(index: number): number;
+	updateOutputHeight(index: number, height: number): void;
+}
+
+export interface IDisplayOutputLayoutUpdateRequest {
+	output: IDisplayOutputViewModel;
+	cellTop: number;
+	outputOffset: number;
+}
+
+export interface ICommonCellInfo {
+	cellId: string;
+	cellHandle: number;
+	cellUri: URI;
+}
+
+export interface ICommonNotebookEditor {
+	triggerScroll(event: IMouseWheelEvent): void;
+	getCellByInfo(cellInfo: ICommonCellInfo): IGenericCellViewModel;
+	focusNotebookCell(cell: IGenericCellViewModel, focus: 'editor' | 'container' | 'output'): void;
+	focusNextNotebookCell(cell: IGenericCellViewModel, focus: 'editor' | 'container' | 'output'): void;
+	updateOutputHeight(cellInfo: ICommonCellInfo, output: IDisplayOutputViewModel, height: number): void;
+}
+
 
 export interface NotebookLayoutInfo {
 	width: number;
