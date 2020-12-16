@@ -49,6 +49,7 @@ export const FOCUS_REPL_ID = 'workbench.debug.action.focusRepl';
 export const JUMP_TO_CURSOR_ID = 'debug.jumpToCursor';
 export const FOCUS_SESSION_ID = 'workbench.action.debug.focusProcess';
 export const SELECT_AND_START_ID = 'workbench.action.debug.selectandstart';
+export const DEBUG_CONFIGURE_COMMAND_ID = 'workbench.action.debug.configure';
 
 export const RESTART_LABEL = nls.localize('restartDebug', "Restart");
 export const STEP_OVER_LABEL = nls.localize('stepOverDebug', "Step Over");
@@ -60,6 +61,7 @@ export const STOP_LABEL = nls.localize('stop', "Stop");
 export const CONTINUE_LABEL = nls.localize('continueDebug', "Continue");
 export const FOCUS_SESSION_LABEL = nls.localize('focusSession', "Focus Session");
 export const SELECT_AND_START_LABEL = nls.localize('selectAndStartDebugging', "Select and Start Debugging");
+export const DEBUG_CONFIGURE_LABEL = nls.localize('openLaunchJson', "Open {0}", 'launch.json');
 
 interface CallStackContext {
 	sessionId: string;

@@ -25,8 +25,7 @@ import { isCodeEditor } from 'vs/editor/browser/editorBrowser';
 import { IStorageService, StorageScope, StorageTarget } from 'vs/platform/storage/common/storage';
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
 import { DisposableStore } from 'vs/base/common/lifecycle';
-import { DEBUG_CONFIGURE_COMMAND_ID } from 'vs/workbench/contrib/debug/browser/debugViewlet';
-import { SELECT_AND_START_ID } from 'vs/workbench/contrib/debug/browser/debugCommands';
+import { SELECT_AND_START_ID, DEBUG_CONFIGURE_COMMAND_ID } from 'vs/workbench/contrib/debug/browser/debugCommands';
 
 const debugStartLanguageKey = 'debugStartLanguage';
 const CONTEXT_DEBUG_START_LANGUAGE = new RawContextKey<string>(debugStartLanguageKey, undefined);

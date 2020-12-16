@@ -36,7 +36,7 @@ import { IQuickInputService } from 'vs/platform/quickinput/common/quickInput';
 import { KeyCode, KeyMod } from 'vs/base/common/keyCodes';
 import { KeybindingWeight } from 'vs/platform/keybinding/common/keybindingsRegistry';
 import { ToggleViewAction } from 'vs/workbench/browser/actions/layoutActions';
-import { FOCUS_SESSION_ID, SELECT_AND_START_ID } from 'vs/workbench/contrib/debug/browser/debugCommands';
+import { FOCUS_SESSION_ID, SELECT_AND_START_ID, DEBUG_CONFIGURE_COMMAND_ID, DEBUG_CONFIGURE_LABEL } from 'vs/workbench/contrib/debug/browser/debugCommands';
 
 export class DebugViewPaneContainer extends ViewPaneContainer {
 
@@ -202,8 +202,6 @@ registerAction2(class extends Action2 {
 	}
 });
 
-export const DEBUG_CONFIGURE_COMMAND_ID = 'workbench.action.debug.configure';
-export const DEBUG_CONFIGURE_LABEL = nls.localize('openLaunchJson', "Open {0}", 'launch.json');
 registerAction2(class extends Action2 {
 	constructor() {
 		super({
