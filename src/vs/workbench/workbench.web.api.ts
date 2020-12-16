@@ -442,10 +442,50 @@ interface IWorkbenchConstructionOptions {
 	//#endregion
 }
 
+interface IPerformanceMark {
+	/**
+	 * The name of a performace marker.
+	 */
+	readonly name: string;
+
+	/**
+	 * The UNIX timestamp at which the marker has been set.
+	 */
+	readonly startTime: number;
+}
+
 interface IWorkbench {
 	commands: {
+
+		/**
+		 * Allows to execute a command, either built-in or from extensions.
+		 */
 		executeCommand(command: string, ...args: any[]): Promise<unknown>;
 	},
+
+	env: {
+		/**
+		 * Retrieve performance marks that have been collected during startup. This function
+		 * returns tuples of source and marks. A source is a dedicated context, like
+		 * the renderer or an extension host.
+		 *
+		 * *Note* that marks can be collected on different machines and in different processes
+		 * and that therefore "different clocks" are used. So, comparing `startTime`-properties
+		 * across contexts should be taken with a grain of salt.
+		 *
+		 * @returns A promise that resolves to tuples of source and marks.
+		 */
+		retrievePerformanceMarks(): Promise<[string, readonly IPerformanceMark[]][]>;
+	}
+
+	/**
+	 * Triggers shutdown of the workbench programmatically. After this method is
+	 * called, the workbench is not usable anymore and the page needs to reload
+	 * or closed.
+	 *
+	 * This will also remove any `beforeUnload` handlers that would bring up a
+	 * confirmation dialog.
+	 */
 	shutdown: () => void;
 }
 
@@ -600,7 +640,10 @@ export {
 	IDefaultEditor,
 	IDefaultLayout,
 	IDefaultPanelLayout,
-	IDefaultSideBarLayout
+	IDefaultSideBarLayout,
+
+	// Env
+	IPerformanceMark
 };
 
 //#endregion

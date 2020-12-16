@@ -15,13 +15,12 @@ import { DisposableStore, dispose, IDisposable, toDisposable } from 'vs/base/com
 import { VIEWLET_ID, IFilesConfiguration, VIEW_ID } from 'vs/workbench/contrib/files/common/files';
 import { ByteSize, IFileService, IFileStatWithMetadata } from 'vs/platform/files/common/files';
 import { EditorResourceAccessor, SideBySideEditor } from 'vs/workbench/common/editor';
-import { ExplorerViewPaneContainer } from 'vs/workbench/contrib/files/browser/explorerViewlet';
 import { IQuickInputService, ItemActivation } from 'vs/platform/quickinput/common/quickInput';
 import { IViewletService } from 'vs/workbench/services/viewlet/browser/viewlet';
 import { IInstantiationService, ServicesAccessor } from 'vs/platform/instantiation/common/instantiation';
 import { ITextModel } from 'vs/editor/common/model';
 import { IHostService } from 'vs/workbench/services/host/browser/host';
-import { REVEAL_IN_EXPLORER_COMMAND_ID, SAVE_ALL_COMMAND_ID, SAVE_ALL_LABEL, SAVE_ALL_IN_GROUP_COMMAND_ID, NEW_UNTITLED_FILE_COMMAND_ID } from 'vs/workbench/contrib/files/browser/fileCommands';
+import { REVEAL_IN_EXPLORER_COMMAND_ID, SAVE_ALL_IN_GROUP_COMMAND_ID, NEW_UNTITLED_FILE_COMMAND_ID } from 'vs/workbench/contrib/files/browser/fileCommands';
 import { ITextModelService, ITextModelContentProvider } from 'vs/editor/common/services/resolverService';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { IClipboardService } from 'vs/platform/clipboard/common/clipboardService';
@@ -80,40 +79,6 @@ async function refreshIfSeparator(value: string, explorerService: IExplorerServi
 	if (value && ((value.indexOf('/') >= 0) || (value.indexOf('\\') >= 0))) {
 		// New input contains separator, multiple resources will get created workaround for #68204
 		await explorerService.refresh();
-	}
-}
-
-/* New File */
-export class NewFileAction extends Action {
-	static readonly ID = 'workbench.files.action.createFileFromExplorer';
-	static readonly LABEL = nls.localize('createNewFile', "New File");
-
-	constructor(
-		@ICommandService private commandService: ICommandService
-	) {
-		super('explorer.newFile', NEW_FILE_LABEL);
-		this.class = 'explorer-action ' + Codicon.newFile.classNames;
-	}
-
-	run(): Promise<void> {
-		return this.commandService.executeCommand(NEW_FILE_COMMAND_ID);
-	}
-}
-
-/* New Folder */
-export class NewFolderAction extends Action {
-	static readonly ID = 'workbench.files.action.createFolderFromExplorer';
-	static readonly LABEL = nls.localize('createNewFolder', "New Folder");
-
-	constructor(
-		@ICommandService private commandService: ICommandService
-	) {
-		super('explorer.newFolder', NEW_FOLDER_LABEL);
-		this.class = 'explorer-action ' + Codicon.newFolder.classNames;
-	}
-
-	run(): Promise<void> {
-		return this.commandService.executeCommand(NEW_FOLDER_COMMAND_ID);
 	}
 }
 
@@ -563,20 +528,6 @@ export abstract class BaseSaveAllAction extends Action {
 	}
 }
 
-export class SaveAllAction extends BaseSaveAllAction {
-
-	static readonly ID = 'workbench.action.files.saveAll';
-	static readonly LABEL = SAVE_ALL_LABEL;
-
-	get class(): string {
-		return 'explorer-action ' + Codicon.saveAll.classNames;
-	}
-
-	protected doRun(): Promise<void> {
-		return this.commandService.executeCommand(SAVE_ALL_COMMAND_ID);
-	}
-}
-
 export class SaveAllInGroupAction extends BaseSaveAllAction {
 
 	static readonly ID = 'workbench.files.action.saveAllInGroup';
@@ -645,48 +596,6 @@ export class ShowActiveFileInExplorer extends Action {
 		} else {
 			this.notificationService.info(nls.localize('openFileToShow', "Open a file first to show it in the explorer"));
 		}
-	}
-}
-
-export class CollapseExplorerView extends Action {
-
-	static readonly ID = 'workbench.files.action.collapseExplorerFolders';
-	static readonly LABEL = nls.localize('collapseExplorerFolders', "Collapse Folders in Explorer");
-
-	constructor(id: string,
-		label: string,
-		@IViewletService private readonly viewletService: IViewletService,
-		@IExplorerService readonly explorerService: IExplorerService
-	) {
-		super(id, label, 'explorer-action ' + Codicon.collapseAll.classNames);
-	}
-
-	async run(): Promise<void> {
-		const explorerViewlet = (await this.viewletService.openViewlet(VIEWLET_ID))?.getViewPaneContainer() as ExplorerViewPaneContainer;
-		const explorerView = explorerViewlet.getExplorerView();
-		if (explorerView) {
-			explorerView.collapseAll();
-		}
-	}
-}
-
-export class RefreshExplorerView extends Action {
-
-	static readonly ID = 'workbench.files.action.refreshFilesExplorer';
-	static readonly LABEL = nls.localize('refreshExplorer', "Refresh Explorer");
-
-
-	constructor(
-		id: string, label: string,
-		@IViewletService private readonly viewletService: IViewletService,
-		@IExplorerService private readonly explorerService: IExplorerService
-	) {
-		super(id, label, 'explorer-action ' + Codicon.refresh.classNames);
-	}
-
-	async run(): Promise<void> {
-		await this.viewletService.openViewlet(VIEWLET_ID);
-		await this.explorerService.refresh();
 	}
 }
 

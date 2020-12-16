@@ -776,10 +776,17 @@ class TreeDataSource implements IAsyncDataSource<ITreeItem, ITreeItem> {
 	}
 
 	async getChildren(element: ITreeItem): Promise<ITreeItem[]> {
+		let result: ITreeItem[] = [];
 		if (this.treeView.dataProvider) {
-			return this.withProgress(this.treeView.dataProvider.getChildren(element));
+			try {
+				result = await this.withProgress(this.treeView.dataProvider.getChildren(element));
+			} catch (e) {
+				if (!(<string>e.message).startsWith('Bad progress location:')) {
+					throw e;
+				}
+			}
 		}
-		return [];
+		return result;
 	}
 }
 
