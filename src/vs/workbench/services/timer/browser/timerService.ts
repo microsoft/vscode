@@ -464,13 +464,18 @@ export abstract class AbstractTimerService implements ITimerService {
 		// event and it is "normalized" to a relative timestamp where the first mark
 		// defines the start
 		for (const [source, marks] of this.getPerformanceMarks()) {
-			type Mark = { source: string; name: string; relativeStartTime: number; };
+			type Mark = { source: string; name: string; relativeStartTime: number; startTime: number };
 			type MarkClassification = { [K in keyof Mark]: { classification: 'SystemMetaData', purpose: 'PerformanceAndHealth' } };
 
 			let lastMark: perf.PerformanceMark = marks[0];
 			for (const mark of marks) {
 				let delta = mark.startTime - lastMark.startTime;
-				this._telemetryService.publicLog2<Mark, MarkClassification>('startup.timer.mark', { source, name: mark.name, relativeStartTime: delta });
+				this._telemetryService.publicLog2<Mark, MarkClassification>('startup.timer.mark', {
+					source,
+					name: mark.name,
+					relativeStartTime: delta,
+					startTime: mark.startTime
+				});
 				lastMark = mark;
 			}
 		}

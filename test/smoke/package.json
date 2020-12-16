@@ -5,7 +5,9 @@
   "scripts": {
     "postinstall": "npm run compile",
     "compile": "yarn --cwd ../automation compile && tsc",
-    "watch": "concurrently \"yarn --cwd ../automation watch --preserveWatchOutput\" \"tsc --watch --preserveWatchOutput\"",
+    "watch-automation": "yarn --cwd ../automation watch",
+    "watch-smoke": "tsc --watch --preserveWatchOutput",
+    "watch": "npm-run-all -lp watch-automation watch-smoke",
     "mocha": "mocha"
   },
   "devDependencies": {
@@ -15,7 +17,6 @@
     "@types/ncp": "2.0.1",
     "@types/node": "^12.11.7",
     "@types/rimraf": "2.0.2",
-    "concurrently": "^3.5.1",
     "cpx": "^1.5.0",
     "htmlparser2": "^3.9.2",
     "mkdirp": "^0.5.1",
@@ -29,5 +30,8 @@
     "tmp": "0.0.33",
     "typescript": "3.7.5",
     "watch": "^1.0.2"
+  },
+  "dependencies": {
+    "npm-run-all": "^4.1.5"
   }
 }

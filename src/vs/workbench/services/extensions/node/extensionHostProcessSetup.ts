@@ -6,6 +6,7 @@
 import * as nativeWatchdog from 'native-watchdog';
 import * as net from 'net';
 import * as minimist from 'minimist';
+import * as performance from 'vs/base/common/performance';
 import { onUnexpectedError } from 'vs/base/common/errors';
 import { Event } from 'vs/base/common/event';
 import { IMessagePassingProtocol } from 'vs/base/parts/ipc/common/ipc';
@@ -295,9 +296,11 @@ function connectToRenderer(protocol: IMessagePassingProtocol): Promise<IRenderer
 }
 
 export async function startExtensionHostProcess(): Promise<void> {
-
+	performance.mark(`extHost/willConnectToRenderer`);
 	const protocol = await createExtHostProtocol();
+	performance.mark(`extHost/didConnectToRenderer`);
 	const renderer = await connectToRenderer(protocol);
+	performance.mark(`extHost/didWaitForInitData`);
 	const { initData } = renderer;
 	// setup things
 	patchProcess(!!initData.environment.extensionTestsLocationURI); // to support other test frameworks like Jasmin that use process.exit (https://github.com/microsoft/vscode/issues/37708)

@@ -432,7 +432,7 @@ CommandsRegistry.registerCommand({
 	}
 });
 
-registerAction2(class Collapse extends ViewAction<VariablesView> {
+registerAction2(class extends ViewAction<VariablesView> {
 	constructor() {
 		super({
 			id: 'variables.collapse',
