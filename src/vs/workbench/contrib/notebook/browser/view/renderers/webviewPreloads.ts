@@ -20,7 +20,7 @@ declare module globalThis {
 	});
 }
 
-declare var acquireVsCodeApi: () => ({
+declare let acquireVsCodeApi: () => ({
 	getState(): { [key: string]: unknown; };
 	setState(data: { [key: string]: unknown; }): void;
 	postMessage: (msg: unknown) => void;
