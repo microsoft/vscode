@@ -27,7 +27,7 @@ import { ReadableStreamEventPayload } from 'vs/base/common/stream';
 import { URI } from 'vs/base/common/uri';
 import { IRawURITransformer, transformIncomingURIs, transformOutgoingURIs, URITransformer } from 'vs/base/common/uriIpc';
 import { generateUuid } from 'vs/base/common/uuid';
-import { mkdirp } from 'vs/base/node/pfs';
+import { mkdirp, rimraf, readdir, unlink } from 'vs/base/node/pfs';
 import { ClientConnectionEvent, IPCServer, IServerChannel } from 'vs/base/parts/ipc/common/ipc';
 import { PersistentProtocol, ProtocolConstants } from 'vs/base/parts/ipc/common/ipc.net';
 import { NodeSocket, WebSocketNodeSocket } from 'vs/base/parts/ipc/node/ipc.net';
@@ -241,13 +241,16 @@ async function installExtensionsFromServer(
 }
 
 async function main(): Promise<void> {
+	const cliServerSocketsPath = path.join(os.tmpdir(), 'gitpod-cli-server-sockets');
+
 	const connectionToken = generateUuid();
 
 	const parsedArgs = parseArgs(process.argv.splice(0, 2), OPTIONS);
 	parsedArgs['user-data-dir'] = URI.file(path.join(os.homedir(), product.dataFolderName)).fsPath;
 	const environmentService = new NativeEnvironmentService(parsedArgs);
 
-	await Promise.all<void | undefined>([environmentService.appSettingsHome.fsPath, environmentService.extensionsPath]
+	await rimraf(cliServerSocketsPath).catch(() => { });
+	await Promise.all<void | undefined>([environmentService.appSettingsHome.fsPath, environmentService.extensionsPath, cliServerSocketsPath]
 		.map((path): undefined | Promise<void> => path ? mkdirp(path) : undefined));
 
 	const onDidClientConnectEmitter = new Emitter<ClientConnectionEvent>();
@@ -554,11 +557,30 @@ async function main(): Promise<void> {
 				return serveFile(req, res, fsPath);
 			}
 
+			if (pathname === '/gitpod-cli-server-sockets') {
+				const linkNames = await readdir(cliServerSocketsPath);
+				const processes = new Set<string>();
+				clients.forEach(client => {
+					if (client.extensionHost) {
+						processes.add(String(client.extensionHost.pid));
+					}
+				});
+				const links = [];
+				for (const linkName of linkNames) {
+					const link = path.join(cliServerSocketsPath, linkName);
+					if (processes.has(path.parse(link).name)) {
+						links.push(link);
+					}
+				}
+				res.writeHead(200, { 'Content-Type': 'application/json' });
+				return res.end(JSON.stringify({ links }));
+			}
+
 			if (devMode) {
 				if (pathname === '/_supervisor/v1/environment/workspace') {
 					const stat = await util.promisify(fs.stat)(process.env.THEIA_WORKSPACE_ROOT!);
 					res.writeHead(200, { 'Content-Type': 'application/json' });
-					res.end(JSON.stringify({
+					return res.end(JSON.stringify({
 						workspace_location: {
 							file: stat.isFile() ? process.env.THEIA_WORKSPACE_ROOT : undefined,
 							folder: stat.isDirectory() ? process.env.THEIA_WORKSPACE_ROOT : undefined
@@ -796,6 +818,10 @@ async function main(): Promise<void> {
 								socket.end();
 								extensionHost.kill();
 								client.extensionHost = undefined;
+
+								unlink(path.join(cliServerSocketsPath, extensionHost.pid + '.socket')).catch(e => {
+									console.error('Failed to unlink cli server socket:', e);
+								});
 							}
 
 							extensionHost.on('error', err => {

@@ -21,6 +21,9 @@ import { TokenServiceClient } from '@gitpod/supervisor-api-grpc/lib/token_grpc_p
 import { GetTokenRequest, GetTokenResponse } from '@gitpod/supervisor-api-grpc/lib/token_pb';
 import * as grpc from '@grpc/grpc-js';
 import ReconnectingWebSocket from 'reconnecting-websocket';
+import * as fs from 'fs';
+import * as os from 'os';
+import * as path from 'path';
 import { URL } from 'url';
 import * as util from 'util';
 import * as vscode from 'vscode';
@@ -644,6 +647,22 @@ export async function activate(context: vscode.ExtensionContext) {
 		}
 	}));
 	vscode.extensions.getExtension('vscode.github-authentication')?.activate();
+	//#endregion
+
+	//#region cli
+	const vscodeIpcHookCli = process.env['VSCODE_IPC_HOOK_CLI'];
+	if (vscodeIpcHookCli) {
+		const cliServerSocketLink = path.join(os.tmpdir(), 'gitpod-cli-server-sockets', process.pid + '.socket');
+		(async () => {
+			try {
+				await util.promisify(fs.symlink)(vscodeIpcHookCli, cliServerSocketLink);
+			} catch (e) {
+				console.error('Failed to symlink cli server socket:', e);
+			}
+		})();
+	} else {
+		console.error('VSCODE_IPC_HOOK_CLI is not defined, cannot create a symlink to the cli server socket');
+	}
 	//#endregion
 }
 
