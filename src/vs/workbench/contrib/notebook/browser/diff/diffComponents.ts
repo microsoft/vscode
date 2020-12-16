@@ -814,6 +814,10 @@ export class DeletedElement extends SingleSideDiffElement {
 				});
 			}
 
+			if (this._diagonalFill) {
+				this._diagonalFill.style.height = `${this.cell.totalHeight - 32}px`;
+			}
+
 			this.layoutNotebookCell();
 		});
 	}
@@ -967,6 +971,7 @@ export class ModifiedElement extends AbstractElementRenderer {
 	buildBody() {
 		const body = this.templateData.body;
 		this._diffEditorContainer = this.templateData.diffEditorContainer;
+		body.classList.remove('left', 'right', 'full');
 		switch (this.style) {
 			case 'left':
 				body.classList.add('left');
