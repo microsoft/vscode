@@ -35,9 +35,9 @@ yarnInstall('extensions'); // node modules shared by all extensions
 
 if (!(process.platform === 'win32' && (process.arch === 'arm64' || process.env['npm_config_arch'] === 'arm64'))) {
 	const env = { ...process.env };
-	env['CC'] = process.env['VSCODE_REMOTE_CC'] ?? env['CC'];
-	env['CXX'] = process.env['VSCODE_REMOTE_CXX'] ?? env['CXX'];
-	env['npm_config_node_gyp'] = process.env['VSCODE_REMOTE_NODE_GYP'] ?? env['npm_config_node_gyp'];
+	if (process.env['VSCODE_REMOTE_CC']) { env['CC'] = process.env['VSCODE_REMOTE_CC']; }
+	if (process.env['VSCODE_REMOTE_CXX']) { env['CXX'] = process.env['VSCODE_REMOTE_CXX']; }
+	if (process.env['VSCODE_REMOTE_NODE_GYP']) { env['npm_config_node_gyp'] = process.env['VSCODE_REMOTE_NODE_GYP']; }
 
 	console.log('remote yarn install env', JSON.stringify(env, undefined, '  '));
 
