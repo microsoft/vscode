@@ -6,11 +6,9 @@
 import * as nls from 'vs/nls';
 import { Action } from 'vs/base/common/actions';
 import { IKeybindingService } from 'vs/platform/keybinding/common/keybinding';
-import { IWorkspaceContextService } from 'vs/platform/workspace/common/workspace';
 import { IDebugService, State, IEnablement, IBreakpoint } from 'vs/workbench/contrib/debug/common/debug';
 import { Variable, Breakpoint, FunctionBreakpoint, Expression } from 'vs/workbench/contrib/debug/common/debugModel';
 import { IClipboardService } from 'vs/platform/clipboard/common/clipboardService';
-import { deepClone } from 'vs/base/common/objects';
 
 export abstract class AbstractDebugAction extends Action {
 
@@ -46,66 +44,6 @@ export abstract class AbstractDebugAction extends Action {
 	}
 
 	protected isEnabled(_: State): boolean {
-		return true;
-	}
-}
-
-export class StartAction extends AbstractDebugAction {
-	static ID = 'workbench.action.debug.start';
-	static LABEL = nls.localize('startDebug', "Start Debugging");
-
-	constructor(id: string, label: string,
-		@IDebugService debugService: IDebugService,
-		@IKeybindingService keybindingService: IKeybindingService,
-		@IWorkspaceContextService private readonly contextService: IWorkspaceContextService,
-	) {
-		super(id, label, 'debug-action start', debugService, keybindingService);
-
-		this._register(this.debugService.getConfigurationManager().onDidSelectConfiguration(() => this.updateEnablement()));
-		this._register(this.debugService.onDidNewSession(() => this.updateEnablement()));
-		this._register(this.debugService.onDidEndSession(() => this.updateEnablement()));
-		this._register(this.contextService.onDidChangeWorkbenchState(() => this.updateEnablement()));
-	}
-
-	async run(): Promise<boolean> {
-		let { launch, name, getConfig } = this.debugService.getConfigurationManager().selectedConfiguration;
-		const config = await getConfig();
-		const clonedConfig = deepClone(config);
-		return this.debugService.startDebugging(launch, clonedConfig || name, { noDebug: this.isNoDebug() });
-	}
-
-	protected isNoDebug(): boolean {
-		return false;
-	}
-
-	static isEnabled(debugService: IDebugService) {
-		const sessions = debugService.getModel().getSessions();
-
-		if (debugService.state === State.Initializing) {
-			return false;
-		}
-		let { name, launch } = debugService.getConfigurationManager().selectedConfiguration;
-		let nameToStart = name;
-
-		if (sessions.some(s => s.configuration.name === nameToStart && s.root === launch?.workspace)) {
-			// There is already a debug session running and we do not have any launch configuration selected
-			return false;
-		}
-
-		return true;
-	}
-
-	// Disabled if the launch drop down shows the launch config that is already running.
-	protected isEnabled(): boolean {
-		return StartAction.isEnabled(this.debugService);
-	}
-}
-
-export class RunAction extends StartAction {
-	static readonly ID = 'workbench.action.debug.run';
-	static LABEL = nls.localize('startWithoutDebugging', "Start Without Debugging");
-
-	protected isNoDebug(): boolean {
 		return true;
 	}
 }
