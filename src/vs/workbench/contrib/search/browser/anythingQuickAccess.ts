@@ -932,11 +932,11 @@ export class AnythingQuickAccessProvider extends PickerQuickAccessProvider<IAnyt
 	private async openAnything(resourceOrEditor: URI | IEditorInput | IResourceEditorInput, options: { keyMods?: IKeyMods, preserveFocus?: boolean, range?: IRange, forceOpenSideBySide?: boolean, forcePinned?: boolean }): Promise<void> {
 		const editorOptions: ITextEditorOptions = {
 			preserveFocus: options.preserveFocus,
-			pinned: options.keyMods?.alt || options.forcePinned || this.configuration.openEditorPinned,
+			pinned: options.keyMods?.ctrlCmd || options.forcePinned || this.configuration.openEditorPinned,
 			selection: options.range ? Range.collapseToStart(options.range) : undefined
 		};
 
-		const targetGroup = options.keyMods?.ctrlCmd || (this.configuration.openEditorPinned && options.keyMods?.alt) || options.forceOpenSideBySide ? SIDE_GROUP : ACTIVE_GROUP;
+		const targetGroup = options.keyMods?.alt || (this.configuration.openEditorPinned && options.keyMods?.ctrlCmd) || options.forceOpenSideBySide ? SIDE_GROUP : ACTIVE_GROUP;
 
 		// Restore any view state if the target is the side group
 		if (targetGroup === SIDE_GROUP) {
