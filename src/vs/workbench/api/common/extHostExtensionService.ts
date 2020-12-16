@@ -51,7 +51,7 @@ export const IHostUtils = createDecorator<IHostUtils>('IHostUtils');
 
 export interface IHostUtils {
 	readonly _serviceBrand: undefined;
-	exit(code?: number): void;
+	exit(code: number): void;
 	exists(path: string): Promise<boolean>;
 	realpath(path: string): Promise<string>;
 }
@@ -610,11 +610,17 @@ export abstract class AbstractExtHostExtensionService extends Disposable impleme
 	}
 
 	private _testRunnerExit(code: number): void {
+		this._logService.info(`extension host terminating: test runner requested exit with code ${code}`);
+		this._logService.flush();
+
 		// wait at most 5000ms for the renderer to confirm our exit request and for the renderer socket to drain
 		// (this is to ensure all outstanding messages reach the renderer)
 		const exitPromise = this._mainThreadExtensionsProxy.$onExtensionHostExit(code);
 		const drainPromise = this._extHostContext.drain();
 		Promise.race([Promise.all([exitPromise, drainPromise]), timeout(5000)]).then(() => {
+			this._logService.info(`exiting with code ${code}`);
+			this._logService.flush();
+
 			this._hostUtils.exit(code);
 		});
 	}
