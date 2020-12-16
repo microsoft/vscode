@@ -37,6 +37,7 @@ steps:
     condition: and(succeeded(), eq(variables['ENABLE_TERRAPIN'], 'true'))
 
   - script: |
+      mkdir -p .build
       echo -n $(VSCODE_ARCH) > .build/arch
       echo -n $ENABLE_TERRAPIN > .build/terrapin
     displayName: Prepare yarn cache flags
