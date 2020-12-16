@@ -195,6 +195,12 @@
 	height: 100%;
 }
 
+.monaco-workbench .part.editor > .content .walkThroughContent .gettingStartedContainer .gettingStartedSlide.detail #gettingStartedDetailsContent {
+	height: 100%;
+	display: flex;
+	flex-direction: column;
+}
+
 .monaco-workbench .part.editor > .content .walkThroughContent .gettingStartedContainer .gettingStartedSlide.detail #getting-started-detail-right {
 	display: flex;
 	align-items: center;
@@ -231,6 +237,7 @@
 	top: -10px;
 	font-size: 12pt;
 	margin: 10px;
+	z-index: 1;
 }
 
 .monaco-workbench .part.editor > .content .walkThroughContent .gettingStartedContainer .prev-button:hover {
