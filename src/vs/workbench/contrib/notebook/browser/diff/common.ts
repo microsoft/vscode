@@ -14,13 +14,13 @@ import { DiffEditorWidget } from 'vs/editor/browser/widget/diffEditorWidget';
 import { ToolBar } from 'vs/base/browser/ui/toolbar/toolbar';
 import { OutputRenderer } from 'vs/workbench/contrib/notebook/browser/view/output/outputRenderer';
 import { IMouseWheelEvent } from 'vs/base/browser/mouseEvent';
-import { ICommonCellInfo, IGenericCellViewModel } from 'vs/workbench/contrib/notebook/browser/genericTypes';
+import { ICommonCellInfo, ICommonNotebookEditor, IGenericCellViewModel } from 'vs/workbench/contrib/notebook/browser/genericTypes';
 
 export interface IDiffCellInfo extends ICommonCellInfo {
 	diffElement: DiffElementViewModelBase;
 }
 
-export interface INotebookTextDiffEditor {
+export interface INotebookTextDiffEditor extends ICommonNotebookEditor {
 	readonly textModel?: NotebookTextModel;
 	onMouseUp: Event<{ readonly event: MouseEvent; readonly target: DiffElementViewModelBase; }>;
 	getOverflowContainerDomNode(): HTMLElement;

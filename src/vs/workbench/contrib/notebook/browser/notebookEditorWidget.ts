@@ -904,6 +904,8 @@ export class NotebookEditorWidget extends Disposable implements INotebookEditor 
 
 		if (!this._webview) {
 			this._webview = this.instantiationService.createInstance(BackLayerWebView, this, this.getId(), this.textModel!.uri);
+			this._webview.element.style.margin = `0px 0 0px ${CODE_CELL_LEFT_MARGIN + CELL_RUN_GUTTER}px`;
+
 			// attach the webview container to the DOM tree first
 			this._list.rowsContainer.insertAdjacentElement('afterbegin', this._webview.element);
 		}
@@ -952,6 +954,7 @@ export class NotebookEditorWidget extends Disposable implements INotebookEditor 
 
 	private async _createWebview(id: string, resource: URI): Promise<void> {
 		this._webview = this.instantiationService.createInstance(BackLayerWebView, this, id, resource);
+		this._webview.element.style.margin = `0px 0 0px ${CODE_CELL_LEFT_MARGIN + CELL_RUN_GUTTER}px`;
 		// attach the webview container to the DOM tree first
 		this._list.rowsContainer.insertAdjacentElement('afterbegin', this._webview.element);
 	}

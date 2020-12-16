@@ -20,13 +20,12 @@ import { dirname, joinPath } from 'vs/base/common/resources';
 import { IWorkspaceContextService } from 'vs/platform/workspace/common/workspace';
 import { preloadsScriptStr } from 'vs/workbench/contrib/notebook/browser/view/renderers/webviewPreloads';
 import { FileAccess, Schemas } from 'vs/base/common/network';
-import { INotebookTextDiffEditor } from 'vs/workbench/contrib/notebook/browser/diff/common';
 import { IFileDialogService } from 'vs/platform/dialogs/common/dialogs';
 import { IFileService } from 'vs/platform/files/common/files';
 import { VSBuffer } from 'vs/base/common/buffer';
 import { getExtensionForMimeType } from 'vs/base/common/mime';
 import { IWorkbenchEnvironmentService } from 'vs/workbench/services/environment/common/environmentService';
-import { ICommonCellInfo, IDisplayOutputLayoutUpdateRequest, IGenericCellViewModel } from 'vs/workbench/contrib/notebook/browser/genericTypes';
+import { ICommonCellInfo, ICommonNotebookEditor, IDisplayOutputLayoutUpdateRequest, IGenericCellViewModel } from 'vs/workbench/contrib/notebook/browser/genericTypes';
 
 export interface WebviewIntialized {
 	__vscode_notebook_message: boolean;
@@ -235,7 +234,7 @@ export class BackLayerWebView<T extends ICommonCellInfo> extends Disposable {
 	private _disposed = false;
 
 	constructor(
-		public notebookEditor: INotebookTextDiffEditor,
+		public notebookEditor: ICommonNotebookEditor,
 		public id: string,
 		public documentUri: URI,
 		@IWebviewService readonly webviewService: IWebviewService,
@@ -253,7 +252,6 @@ export class BackLayerWebView<T extends ICommonCellInfo> extends Disposable {
 		this.element.style.width = `calc(100% - ${CODE_CELL_LEFT_MARGIN + (CELL_MARGIN * 2) + CELL_RUN_GUTTER}px)`;
 		this.element.style.height = '1400px';
 		this.element.style.position = 'absolute';
-		// this.element.style.margin = `0px 0 0px ${CODE_CELL_LEFT_MARGIN + CELL_RUN_GUTTER}px`;
 	}
 	generateContent(outputNodePadding: number, coreDependencies: string, baseUrl: string) {
 		return html`

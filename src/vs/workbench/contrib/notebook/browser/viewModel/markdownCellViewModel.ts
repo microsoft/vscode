@@ -11,7 +11,7 @@ import * as nls from 'vs/nls';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { BOTTOM_CELL_TOOLBAR_GAP, BOTTOM_CELL_TOOLBAR_HEIGHT, CELL_BOTTOM_MARGIN, CELL_MARGIN, CELL_TOP_MARGIN, CODE_CELL_LEFT_MARGIN, COLLAPSED_INDICATOR_HEIGHT } from 'vs/workbench/contrib/notebook/browser/constants';
 import { EditorFoldingStateDelegate } from 'vs/workbench/contrib/notebook/browser/contrib/fold/foldingModel';
-import { CellFindMatch, ICellViewModel, MarkdownCellLayoutChangeEvent, MarkdownCellLayoutInfo, NotebookLayoutInfo } from 'vs/workbench/contrib/notebook/browser/notebookBrowser';
+import { CellFindMatch, ICellOutputViewModel, ICellViewModel, MarkdownCellLayoutChangeEvent, MarkdownCellLayoutInfo, NotebookLayoutInfo } from 'vs/workbench/contrib/notebook/browser/notebookBrowser';
 import { MarkdownRenderer } from 'vs/editor/browser/core/markdownRenderer';
 import { BaseCellViewModel } from 'vs/workbench/contrib/notebook/browser/viewModel/baseCellViewModel';
 import { NotebookCellStateChangedEvent, NotebookEventDispatcher } from 'vs/workbench/contrib/notebook/browser/viewModel/eventDispatcher';
@@ -91,6 +91,18 @@ export class MarkdownCellViewModel extends BaseCellViewModel implements ICellVie
 		this._register(this.onDidChangeState(e => {
 			eventDispatcher.emit([new NotebookCellStateChangedEvent(e, this)]);
 		}));
+	}
+
+	/**
+	 * we put outputs stuff here to make compiler happy
+	 */
+	outputsViewModels: ICellOutputViewModel[] = [];
+	getOutputOffset(index: number): number {
+		// throw new Error('Method not implemented.');
+		return -1;
+	}
+	updateOutputHeight(index: number, height: number): void {
+		// throw new Error('Method not implemented.');
 	}
 
 	triggerfoldingStateChange() {
