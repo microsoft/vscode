@@ -15,10 +15,10 @@ import { cloneAndChange } from 'vs/base/common/objects';
 import { escape } from 'vs/base/common/strings';
 import { URI } from 'vs/base/common/uri';
 import { FileAccess, Schemas } from 'vs/base/common/network';
-import { markdownEscapeEscapedCodicons } from 'vs/base/common/codicons';
+import { markdownEscapeEscapedIcons } from 'vs/base/common/iconLabels';
 import { resolvePath } from 'vs/base/common/resources';
 import { StandardMouseEvent } from 'vs/base/browser/mouseEvent';
-import { renderCodicons } from 'vs/base/browser/codicons';
+import { renderLabelWithIcons } from 'vs/base/browser/ui/iconLabel/iconLabels';
 import { Event } from 'vs/base/common/event';
 import { domEvent } from 'vs/base/browser/event';
 
@@ -156,7 +156,7 @@ export function renderMarkdown(markdown: IMarkdownString, options: MarkdownRende
 	};
 	renderer.paragraph = (text): string => {
 		if (markdown.supportThemeIcons) {
-			const elements = renderCodicons(text);
+			const elements = renderLabelWithIcons(text);
 			text = elements.map(e => typeof e === 'string' ? e : e.outerHTML).join('');
 		}
 		return `<p>${text}</p>`;
@@ -233,7 +233,7 @@ export function renderMarkdown(markdown: IMarkdownString, options: MarkdownRende
 	}
 	// escape theme icons
 	if (markdown.supportThemeIcons) {
-		value = markdownEscapeEscapedCodicons(value);
+		value = markdownEscapeEscapedIcons(value);
 	}
 
 	const renderedMarkdown = marked.parse(value, markedOptions);

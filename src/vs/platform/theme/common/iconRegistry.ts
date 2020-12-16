@@ -12,7 +12,6 @@ import { Extensions as JSONExtensions, IJSONContributionRegistry } from 'vs/plat
 import { RunOnceScheduler } from 'vs/base/common/async';
 import * as Codicons from 'vs/base/common/codicons';
 
-
 //  ------ API types
 
 
@@ -263,3 +262,5 @@ export const widgetClose = registerIcon('widget-close', Codicons.Codicon.close, 
 
 export const gotoPreviousLocation = registerIcon('goto-previous-location', Codicons.Codicon.arrowUp, localize('previousChangeIcon', 'Icon for goto previous editor location.'));
 export const gotoNextLocation = registerIcon('goto-next-location', Codicons.Codicon.arrowDown, localize('nextChangeIcon', 'Icon for goto next editor location.'));
+
+export const syncing = ThemeIcon.modify(Codicons.Codicon.sync, 'spin');

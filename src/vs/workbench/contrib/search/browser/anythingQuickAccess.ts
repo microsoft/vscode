@@ -48,8 +48,9 @@ import { once } from 'vs/base/common/functional';
 import { IEditorGroup } from 'vs/workbench/services/editor/common/editorGroupsService';
 import { getIEditor } from 'vs/editor/browser/editorBrowser';
 import { withNullAsUndefined } from 'vs/base/common/types';
-import { Codicon, stripCodicons } from 'vs/base/common/codicons';
+import { Codicon } from 'vs/base/common/codicons';
 import { IUriIdentityService } from 'vs/workbench/services/uriIdentity/common/uriIdentity';
+import { stripIcons } from 'vs/base/common/iconLabels';
 
 interface IAnythingQuickPickItem extends IPickerQuickAccessItem, IQuickPickItemWithResource { }
 
@@ -815,7 +816,7 @@ export class AnythingQuickAccessProvider extends PickerQuickAccessProvider<IAnyt
 		}
 
 		// Ask provider for editor symbols
-		const editorSymbolPicks = (await this.editorSymbolsQuickAccess.getSymbolPicks(model, filter, { extraContainerLabel: stripCodicons(activeGlobalPick.label) }, disposables, token));
+		const editorSymbolPicks = (await this.editorSymbolsQuickAccess.getSymbolPicks(model, filter, { extraContainerLabel: stripIcons(activeGlobalPick.label) }, disposables, token));
 		if (token.isCancellationRequested) {
 			return [];
 		}
