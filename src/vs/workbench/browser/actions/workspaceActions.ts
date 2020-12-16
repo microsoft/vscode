@@ -12,9 +12,9 @@ import { IEditorService } from 'vs/workbench/services/editor/common/editorServic
 import { ICommandService, CommandsRegistry } from 'vs/platform/commands/common/commands';
 import { ADD_ROOT_FOLDER_COMMAND_ID, ADD_ROOT_FOLDER_LABEL, PICK_WORKSPACE_FOLDER_COMMAND_ID } from 'vs/workbench/browser/actions/workspaceCommands';
 import { IFileDialogService } from 'vs/platform/dialogs/common/dialogs';
-import { MenuRegistry, MenuId, SyncActionDescriptor } from 'vs/platform/actions/common/actions';
+import { MenuRegistry, MenuId, SyncActionDescriptor, Action2 } from 'vs/platform/actions/common/actions';
 import { EmptyWorkspaceSupportContext, WorkbenchStateContext, WorkspaceFolderCountContext } from 'vs/workbench/browser/contextkeys';
-import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
+import { IInstantiationService, ServicesAccessor } from 'vs/platform/instantiation/common/instantiation';
 import { Registry } from 'vs/platform/registry/common/platform';
 import { IWorkbenchActionRegistry, Extensions } from 'vs/workbench/common/actions';
 import { INotificationService } from 'vs/platform/notification/common/notification';
@@ -23,6 +23,7 @@ import { KeyChord, KeyCode, KeyMod } from 'vs/base/common/keyCodes';
 import { ContextKeyExpr } from 'vs/platform/contextkey/common/contextkey';
 import { IWorkbenchEnvironmentService } from 'vs/workbench/services/environment/common/environmentService';
 import { IWorkspacesService, hasWorkspaceFileExtension } from 'vs/platform/workspaces/common/workspaces';
+import { ITrustedWorkspaceService, TrustState } from 'vs/platform/workspace/common/trustedWorkspace';
 
 export class OpenFileAction extends Action {
 
@@ -247,6 +248,16 @@ export class DuplicateWorkspaceInNewWindowAction extends Action {
 		await this.workspaceEditingService.copyWorkspaceSettings(newWorkspace);
 
 		return this.hostService.openWindow([{ workspaceUri: newWorkspace.configPath }], { forceNewWindow: true });
+	}
+}
+
+export class WorkspaceTrustRequiredAction extends Action2 {
+	run(accessor: ServicesAccessor) {
+		const workspaceTrustService = accessor.get(ITrustedWorkspaceService);
+
+		workspaceTrustService.requireWorkspaceTrust(true).then(trustState => {
+			console.log(`Trust State: ${trustState === TrustState.Unknown ? 'Unknown' : trustState === TrustState.Trusted ? 'Trusted' : 'Untrusted'}`);
+		});
 	}
 }
 
