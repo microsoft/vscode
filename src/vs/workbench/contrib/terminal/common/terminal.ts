@@ -180,7 +180,32 @@ export interface IRemoteTerminalAttachTarget {
 	cwd: string;
 	workspaceId: string;
 	workspaceName: string;
+	isOrphan: boolean;
 }
+
+export interface IRawTerminalInstanceLayoutInfo<T> {
+	relativeSize: number;
+	terminal: T;
+}
+
+export type ITerminalInstanceLayoutInfoById = IRawTerminalInstanceLayoutInfo<number>;
+export type ITerminalInstanceLayoutInfo = IRawTerminalInstanceLayoutInfo<IRemoteTerminalAttachTarget>;
+
+export interface IRawTerminalTabLayoutInfo<T> {
+	isActive: boolean;
+	activeTerminalProcessId: number;
+	terminals: IRawTerminalInstanceLayoutInfo<T>[];
+}
+
+export type ITerminalTabLayoutInfoById = IRawTerminalTabLayoutInfo<number>;
+export type ITerminalTabLayoutInfo = IRawTerminalTabLayoutInfo<IRemoteTerminalAttachTarget | null>;
+
+export interface IRawTerminalsLayoutInfo<T> {
+	tabs: IRawTerminalTabLayoutInfo<T>[];
+}
+
+export type ITerminalsLayoutInfo = IRawTerminalsLayoutInfo<IRemoteTerminalAttachTarget | null>;
+export type ITerminalsLayoutInfoById = IRawTerminalsLayoutInfo<number>;
 
 export interface IShellLaunchConfig {
 	/**
@@ -339,6 +364,7 @@ export interface ITerminalProcessManager extends IDisposable {
 	readonly os: OperatingSystem | undefined;
 	readonly userHome: string | undefined;
 	readonly environmentVariableInfo: IEnvironmentVariableInfo | undefined;
+	readonly remoteTerminalId: number | undefined;
 
 	readonly onProcessReady: Event<void>;
 	readonly onBeforeProcessData: Event<IBeforeProcessDataEvent>;
@@ -469,7 +495,7 @@ export interface ITerminalChildProcess {
 	 * @returns undefined when the process was successfully started, otherwise an object containing
 	 * information on what went wrong.
 	 */
-	start(): Promise<ITerminalLaunchError | undefined>;
+	start(): Promise<ITerminalLaunchError | { remoteTerminalId: number } | undefined>;
 
 	/**
 	 * Shutdown the terminal process.
