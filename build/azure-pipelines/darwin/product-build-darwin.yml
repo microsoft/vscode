@@ -55,9 +55,7 @@ steps:
 
   - script: |
       set -e
-      git remote add distro "https://github.com/$(VSCODE_MIXIN_REPO).git"
-      git fetch distro
-      git merge $(node -p "require('./package.json').distro")
+      git pull --no-rebase https://github.com/$(VSCODE_MIXIN_REPO).git $(node -p "require('./package.json').distro")
     displayName: Merge distro
 
   - script: |
