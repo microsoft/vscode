@@ -132,15 +132,7 @@ export class OutputElement extends Disposable {
 	}
 
 	getCellOutputCurrentIndex() {
-		if (this._diffElementViewModel instanceof SideBySideDiffElementViewModel) {
-			if (this._diffSide === DiffSide.Modified) {
-				return this._diffElementViewModel.modified.outputs.indexOf(this.output.model);
-			} else {
-				return this._diffElementViewModel.original.outputs.indexOf(this.output.model);
-			}
-		} else {
-			return (this._diffElementViewModel as SingleSideDiffElementViewModel).cellViewModel!.outputs.indexOf(this.output.model);
-		}
+		return this._diffElementViewModel.getNestedCellViewModel(this._diffSide).outputs.indexOf(this.output.model);
 	}
 
 	updateHeight(index: number, height: number) {
@@ -164,7 +156,7 @@ export class OutputContainer extends Disposable {
 		private _notebookTextModel: NotebookTextModel,
 		private _diffElementViewModel: DiffElementViewModelBase,
 		private _nestedCellViewModel: DiffNestedCellViewModel,
-		private _diffVersion: DiffSide,
+		private _diffSide: DiffSide,
 		private _outputContainer: HTMLElement,
 		@INotebookService private _notebookService: INotebookService,
 		// @IQuickInputService private readonly quickInputService: IQuickInputService,
@@ -184,13 +176,8 @@ export class OutputContainer extends Disposable {
 			this._outputEntries.forEach((value, key) => {
 				const index = _nestedCellViewModel.outputs.indexOf(key.model);
 				if (index >= 0) {
-					if (this._diffElementViewModel instanceof SideBySideDiffElementViewModel) {
-						const top = this._diffElementViewModel.getOutputOffsetInContainer(this._diffVersion, index);
-						value.domNode.style.top = `${top}px`;
-					} else {
-						const top = (this._diffElementViewModel as SingleSideDiffElementViewModel).getOutputOffsetInContainer(index);
-						value.domNode.style.top = `${top}px`;
-					}
+					const top = this._diffElementViewModel.getOutputOffsetInContainer(this._diffSide, index);
+					value.domNode.style.top = `${top}px`;
 				}
 			});
 		}));
@@ -216,7 +203,7 @@ export class OutputContainer extends Disposable {
 
 	private _renderOutput(currOutput: ICellOutputViewModel, index: number, beforeElement?: HTMLElement) {
 		if (!this._outputEntries.has(currOutput)) {
-			this._outputEntries.set(currOutput, new OutputElement(this._editor, this._notebookTextModel, this._notebookService, this._diffElementViewModel, this._diffVersion, this._nestedCellViewModel, this._outputContainer, currOutput));
+			this._outputEntries.set(currOutput, new OutputElement(this._editor, this._notebookTextModel, this._notebookService, this._diffElementViewModel, this._diffSide, this._nestedCellViewModel, this._outputContainer, currOutput));
 		}
 
 		const renderElement = this._outputEntries.get(currOutput)!;

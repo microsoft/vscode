@@ -150,6 +150,7 @@ export abstract class DiffElementViewModelBase extends Disposable {
 	abstract getOutputOffsetInCell(diffSide: DiffSide, index: number): number;
 	abstract getOutputOffsetInContainer(diffSide: DiffSide, index: number): number;
 	abstract updateOutputHeight(diffSide: DiffSide, index: number, height: number): void;
+	abstract getNestedCellViewModel(diffSide: DiffSide): DiffNestedCellViewModel;
 
 	getComputedCellContainerWidth(layoutInfo: NotebookLayoutInfo, diffEditor: boolean, fullWidth: boolean) {
 		if (fullWidth) {
@@ -251,6 +252,10 @@ export class SideBySideDiffElementViewModel extends DiffElementViewModelBase {
 		return Math.max(this.original.getOutputTotalHeight(), this.modified.getOutputTotalHeight());
 	}
 
+	getNestedCellViewModel(diffSide: DiffSide): DiffNestedCellViewModel {
+		throw new Error('Method not implemented.');
+	}
+
 	getCellByUri(cellUri: URI): IGenericCellViewModel {
 		if (cellUri.toString() === this.original.uri.toString()) {
 			return this.original;
@@ -262,7 +267,7 @@ export class SideBySideDiffElementViewModel extends DiffElementViewModelBase {
 
 export class SingleSideDiffElementViewModel extends DiffElementViewModelBase {
 	get cellViewModel() {
-		return this.type === 'insert' ? this.modified : this.original;
+		return this.type === 'insert' ? this.modified! : this.original!;
 	}
 
 	constructor(
@@ -276,6 +281,10 @@ export class SingleSideDiffElementViewModel extends DiffElementViewModelBase {
 		this._register(this.cellViewModel!.onDidChangeOutputLayout(() => {
 			this.layoutChange();
 		}));
+	}
+
+	getNestedCellViewModel(diffSide: DiffSide): DiffNestedCellViewModel {
+		return this.type === 'insert' ? this.modified! : this.original!;
 	}
 
 	layoutChange() {
@@ -307,7 +316,7 @@ export class SingleSideDiffElementViewModel extends DiffElementViewModelBase {
 		this.cellViewModel?.updateOutputHeight(index, height);
 	}
 
-	getOutputOffsetInContainer(index: number) {
+	getOutputOffsetInContainer(diffSide: DiffSide, index: number) {
 		return this.cellViewModel!.getOutputOffset(index);
 	}
 

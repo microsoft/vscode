@@ -104,7 +104,7 @@ export class NotebookTextDiffEditor extends EditorPane implements INotebookTextD
 
 		this._register(this._modifiedResourceDisposableStore);
 		// TODO
-		this._outputRenderer = new OutputRenderer(this as unknown as INotebookEditor, this.instantiationService);
+		this._outputRenderer = new OutputRenderer(this, this.instantiationService);
 	}
 
 	focusNotebookCell(cell: IGenericCellViewModel, focus: 'output' | 'editor' | 'container'): void {
@@ -535,12 +535,7 @@ export class NotebookTextDiffEditor extends EditorPane implements INotebookTextD
 					const scrollTop = this._list.scrollTop;
 					const outputIndex = cellViewModel.outputsViewModels.findIndex(viewModel => (viewModel.model as ITransformedDisplayOutputDto).outputId === (output.source.model as ITransformedDisplayOutputDto).outputId);
 					let outputOffset = 0;
-					if (cellDiffViewModel instanceof SideBySideDiffElementViewModel) {
-						outputOffset = cellTop + cellDiffViewModel.getOutputOffsetInCell(diffSide, outputIndex);
-					} else {
-						outputOffset = cellTop + (cellDiffViewModel as SingleSideDiffElementViewModel).getOutputOffsetInCell(diffSide, outputIndex);
-					}
-
+					outputOffset = cellTop + cellDiffViewModel.getOutputOffsetInCell(diffSide, outputIndex);
 					this._modifiedWebview!.updateViewScrollTop(-scrollTop, true, [{ output: output.source, cellTop, outputOffset }]);
 				}
 			} else {
