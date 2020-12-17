@@ -451,7 +451,6 @@ export class ViewsService extends Disposable implements IViewsService {
 			undefined,
 			viewContainer.order,
 			viewContainer.requestedIndex,
-			viewContainer.focusCommand?.id,
 		));
 	}
 
