@@ -202,6 +202,10 @@ export class LocalProcessExtensionHost implements IExtensionHost {
 					opts.execArgv = ['--inspect-port=0'];
 				}
 
+				if (this._environmentService.args['prof-v8-extensions']) {
+					opts.execArgv.unshift('--prof');
+				}
+
 				// On linux crash reporter needs to be started on child node processes explicitly
 				if (platform.isLinux) {
 					const crashReporterStartOptions: CrashReporterStartOptions = {
