@@ -213,13 +213,13 @@ class IndexedDBFileSystemProvider extends Disposable implements IIndexedDBFileSy
 
 	private readonly versions: Map<string, number> = new Map<string, number>();
 
-	private cachedFiletree: Promise<IndexedDBFileSystemNode>;
+	private cachedFiletree: Promise<IndexedDBFileSystemNode> | undefined;
 	private writeManyThrottler: Throttler;
 
 	constructor(scheme: string, private readonly database: IDBDatabase, private readonly store: string) {
 		super();
 		this.writeManyThrottler = new Throttler();
-		this.cachedFiletree = this.getSuperblock();
+
 	}
 
 	watch(resource: URI, opts: IWatchOptions): IDisposable {
@@ -233,11 +233,11 @@ class IndexedDBFileSystemProvider extends Disposable implements IIndexedDBFileSy
 				throw createFileSystemProviderError(localize('fileNotDirectory', "File is not a directory"), FileSystemProviderErrorCode.FileNotADirectory);
 			}
 		} catch (error) { /* Ignore */ }
-		(await this.cachedFiletree).add(resource.path, { type: 'dir' });
+		(await this.getFiletree()).add(resource.path, { type: 'dir' });
 	}
 
 	async stat(resource: URI): Promise<IStat> {
-		const content = (await this.cachedFiletree).read(resource.path);
+		const content = (await this.getFiletree()).read(resource.path);
 		if (content?.type === FileType.File) {
 			return {
 				type: FileType.File,
@@ -259,10 +259,10 @@ class IndexedDBFileSystemProvider extends Disposable implements IIndexedDBFileSy
 	}
 
 	async readdir(resource: URI): Promise<DirEntry[]> {
-		const entry = (await this.cachedFiletree).read(resource.path);
+		const entry = (await this.getFiletree()).read(resource.path);
 		if (!entry) {
 			// Dirs aren't saved to disk, so empty dirs will be lost on reload.
-			// Thus we have two options for what ahappens when you try to read a dir and nothing is found:
+			// Thus we have two options for what happens when you try to read a dir and nothing is found:
 			// - Throw FileSystemProviderErrorCode.FileNotFound
 			// - Return []
 			// We choose to return [] as creating a dir then reading it (even after reload) should not throw an error.
@@ -298,7 +298,7 @@ class IndexedDBFileSystemProvider extends Disposable implements IIndexedDBFileSy
 			};
 		});
 
-		(await this.cachedFiletree).add(resource.path, { type: 'file', size: buffer.byteLength });
+		(await this.getFiletree()).add(resource.path, { type: 'file', size: buffer.byteLength });
 		return buffer;
 	}
 
@@ -310,7 +310,7 @@ class IndexedDBFileSystemProvider extends Disposable implements IIndexedDBFileSy
 
 		this.fileWriteBatch.push({ content, resource });
 		await this.writeManyThrottler.queue(() => this.writeMany());
-		(await this.cachedFiletree).add(resource.path, { type: 'file', size: content.byteLength });
+		(await this.getFiletree()).add(resource.path, { type: 'file', size: content.byteLength });
 		this.versions.set(resource.toString(), (this.versions.get(resource.toString()) || 0) + 1);
 		this._onDidChangeFile.fire([{ resource, type: FileChangeType.UPDATED }]);
 	}
@@ -337,7 +337,7 @@ class IndexedDBFileSystemProvider extends Disposable implements IIndexedDBFileSy
 			toDelete = [resource.path];
 		}
 		await this.deleteKeys(toDelete);
-		(await this.cachedFiletree).delete(resource.path);
+		(await this.getFiletree()).delete(resource.path);
 		toDelete.forEach(key => this.versions.delete(key));
 		this._onDidChangeFile.fire(toDelete.map(path => ({ resource: resource.with({ path }), type: FileChangeType.DELETED })));
 	}
@@ -366,24 +366,27 @@ class IndexedDBFileSystemProvider extends Disposable implements IIndexedDBFileSy
 		return Promise.reject(new Error('Not Supported'));
 	}
 
-	private getSuperblock(): Promise<IndexedDBFileSystemNode> {
-		return new Promise((c, e) => {
-			const transaction = this.database.transaction([this.store]);
-			const objectStore = transaction.objectStore(this.store);
-			const request = objectStore.getAllKeys();
-			request.onerror = () => e(request.error);
-			request.onsuccess = () => {
-				const superblock = new IndexedDBFileSystemNode({
-					children: new Map(),
-					path: '',
-					type: FileType.Directory
-				});
-				const keys = request.result.map(key => key.toString());
-				keys.forEach(key => superblock.add(key, { type: 'file' }));
+	private getFiletree(): Promise<IndexedDBFileSystemNode> {
+		if (!this.cachedFiletree) {
+			this.cachedFiletree = new Promise((c, e) => {
+				const transaction = this.database.transaction([this.store]);
+				const objectStore = transaction.objectStore(this.store);
+				const request = objectStore.getAllKeys();
+				request.onerror = () => e(request.error);
+				request.onsuccess = () => {
+					const superblock = new IndexedDBFileSystemNode({
+						children: new Map(),
+						path: '',
+						type: FileType.Directory
+					});
+					const keys = request.result.map(key => key.toString());
+					keys.forEach(key => superblock.add(key, { type: 'file' }));
 
-				c(superblock);
-			};
-		});
+					c(superblock);
+				};
+			});
+		}
+		return this.cachedFiletree;
 	}
 
 	private fileWriteBatch: { resource: URI, content: Uint8Array }[] = [];
