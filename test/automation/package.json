@@ -1,6 +1,6 @@
 {
   "name": "vscode-automation",
-  "version": "1.39.0",
+  "version": "1.53.0",
   "description": "VS Code UI automation driver",
   "author": {
     "name": "Microsoft Corporation"
