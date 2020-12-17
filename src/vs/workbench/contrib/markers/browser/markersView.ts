@@ -11,9 +11,9 @@ import { IAction, IActionViewItem, Action, Separator } from 'vs/base/common/acti
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
 import { IEditorService, SIDE_GROUP, ACTIVE_GROUP } from 'vs/workbench/services/editor/common/editorService';
 import Constants from 'vs/workbench/contrib/markers/browser/constants';
-import { Marker, ResourceMarkers, RelatedInformation, MarkerChangesEvent, MarkersModel, compareMarkersByUri } from 'vs/workbench/contrib/markers/browser/markersModel';
+import { Marker, ResourceMarkers, RelatedInformation, MarkerChangesEvent, MarkersModel, compareMarkersByUri, MarkerElement } from 'vs/workbench/contrib/markers/browser/markersModel';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
-import { MarkersFilterActionViewItem, MarkersFilters, IMarkersFiltersChangeEvent, IMarkerFilterController } from 'vs/workbench/contrib/markers/browser/markersViewActions';
+import { MarkersFilterActionViewItem, MarkersFilters, IMarkersFiltersChangeEvent } from 'vs/workbench/contrib/markers/browser/markersViewActions';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import Messages from 'vs/workbench/contrib/markers/browser/messages';
 import { RangeHighlightDecorations } from 'vs/workbench/browser/parts/editor/rangeDecorations';
@@ -21,7 +21,7 @@ import { IThemeService, registerThemingParticipant, IColorTheme, ICssStyleCollec
 import { ICodeEditor } from 'vs/editor/browser/editorBrowser';
 import { IStorageService, StorageScope, StorageTarget } from 'vs/platform/storage/common/storage';
 import { localize } from 'vs/nls';
-import { IContextKey, IContextKeyService, ContextKeyEqualsExpr, ContextKeyExpr } from 'vs/platform/contextkey/common/contextkey';
+import { IContextKey, IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
 import { Iterable } from 'vs/base/common/iterator';
 import { ITreeElement, ITreeNode, ITreeContextMenuEvent, ITreeRenderer } from 'vs/base/browser/ui/tree/tree';
 import { Relay, Event, Emitter } from 'vs/base/common/event';
@@ -30,10 +30,10 @@ import { FilterOptions } from 'vs/workbench/contrib/markers/browser/markersFilte
 import { IExpression } from 'vs/base/common/glob';
 import { deepClone } from 'vs/base/common/objects';
 import { IWorkspaceContextService } from 'vs/platform/workspace/common/workspace';
-import { FilterData, Filter, VirtualDelegate, ResourceMarkersRenderer, MarkerRenderer, RelatedInformationRenderer, TreeElement, MarkersTreeAccessibilityProvider, MarkersViewModel, ResourceDragAndDrop } from 'vs/workbench/contrib/markers/browser/markersTreeViewer';
+import { FilterData, Filter, VirtualDelegate, ResourceMarkersRenderer, MarkerRenderer, RelatedInformationRenderer, MarkersTreeAccessibilityProvider, MarkersViewModel, ResourceDragAndDrop } from 'vs/workbench/contrib/markers/browser/markersTreeViewer';
 import { IContextMenuService } from 'vs/platform/contextview/browser/contextView';
 import { ActionBar } from 'vs/base/browser/ui/actionbar/actionbar';
-import { IMenuService, MenuId, registerAction2, Action2 } from 'vs/platform/actions/common/actions';
+import { IMenuService, MenuId } from 'vs/platform/actions/common/actions';
 import { IKeybindingService } from 'vs/platform/keybinding/common/keybinding';
 import { StandardKeyboardEvent, IKeyboardEvent } from 'vs/base/browser/keyboardEvent';
 import { domEvent } from 'vs/base/browser/event';
@@ -55,8 +55,9 @@ import { DisposableStore, IDisposable, toDisposable } from 'vs/base/common/lifec
 import { groupBy } from 'vs/base/common/arrays';
 import { ResourceMap } from 'vs/base/common/map';
 import { EditorResourceAccessor, SideBySideEditor } from 'vs/workbench/common/editor';
+import { IMarkersView } from 'vs/workbench/contrib/markers/browser/markers';
 
-function createResourceMarkersIterator(resourceMarkers: ResourceMarkers): Iterable<ITreeElement<TreeElement>> {
+function createResourceMarkersIterator(resourceMarkers: ResourceMarkers): Iterable<ITreeElement<MarkerElement>> {
 	return Iterable.map(resourceMarkers.markers, m => {
 		const relatedInformationIt = Iterable.from(m.relatedInformation);
 		const children = Iterable.map(relatedInformationIt, r => ({ element: r }));
@@ -65,7 +66,7 @@ function createResourceMarkersIterator(resourceMarkers: ResourceMarkers): Iterab
 	});
 }
 
-export class MarkersView extends ViewPane implements IMarkerFilterController {
+export class MarkersView extends ViewPane implements IMarkersView {
 
 	private lastSelectedRelativeTop: number = 0;
 	private currentActiveResource: URI | null = null;
@@ -88,7 +89,7 @@ export class MarkersView extends ViewPane implements IMarkerFilterController {
 	private cachedFilterStats: { total: number; filtered: number; } | undefined = undefined;
 
 	private currentResourceGotAddedToMarkersData: boolean = false;
-	readonly markersViewModel: MarkersViewModel;
+	private readonly markersViewModel: MarkersViewModel;
 	private readonly smallLayoutContextKey: IContextKey<boolean>;
 	private get smallLayout(): boolean { return !!this.smallLayoutContextKey.get(); }
 	private set smallLayout(smallLayout: boolean) { this.smallLayoutContextKey.set(smallLayout); }
@@ -132,8 +133,6 @@ export class MarkersView extends ViewPane implements IMarkerFilterController {
 		this.filter = new Filter(FilterOptions.EMPTY(uriIdentityService));
 		this.rangeHighlightDecorations = this._register(this.instantiationService.createInstance(RangeHighlightDecorations));
 
-		// actions
-		this.regiserActions();
 		this.filters = this._register(new MarkersFilters({
 			filterText: this.panelState['filter'] || '',
 			filterHistory: this.panelState['filterHistory'] || [],
@@ -206,43 +205,6 @@ export class MarkersView extends ViewPane implements IMarkerFilterController {
 
 	public clearFilterText(): void {
 		this._onDidClearFilterText.fire();
-	}
-
-	private regiserActions(): void {
-		const that = this;
-		this._register(registerAction2(class extends Action2 {
-			constructor() {
-				super({
-					id: `workbench.actions.treeView.${that.id}.collapseAll`,
-					title: localize('collapseAll', "Collapse All"),
-					menu: {
-						id: MenuId.ViewTitle,
-						when: ContextKeyEqualsExpr.create('view', that.id),
-						group: 'navigation',
-						order: 2,
-					},
-					icon: Codicon.collapseAll
-				});
-			}
-			async run(): Promise<void> {
-				return that.collapseAll();
-			}
-		}));
-		this._register(registerAction2(class extends Action2 {
-			constructor() {
-				super({
-					id: `workbench.actions.treeView.${that.id}.filter`,
-					title: localize('filter', "Filter"),
-					menu: {
-						id: MenuId.ViewTitle,
-						when: ContextKeyExpr.and(ContextKeyEqualsExpr.create('view', that.id), Constants.MarkersViewSmallLayoutContextKey.negate()),
-						group: 'navigation',
-						order: 1,
-					},
-				});
-			}
-			async run(): Promise<void> { }
-		}));
 	}
 
 	public showQuickFixes(marker: Marker): void {
@@ -423,7 +385,7 @@ export class MarkersView extends ViewPane implements IMarkerFilterController {
 		const accessibilityProvider = this.instantiationService.createInstance(MarkersTreeAccessibilityProvider);
 
 		const identityProvider = {
-			getId(element: TreeElement) {
+			getId(element: MarkerElement) {
 				return element.id;
 			}
 		};
@@ -438,7 +400,7 @@ export class MarkersView extends ViewPane implements IMarkerFilterController {
 				accessibilityProvider,
 				identityProvider,
 				dnd: new ResourceDragAndDrop(this.instantiationService),
-				expandOnlyOnTwistieClick: (e: TreeElement) => e instanceof Marker && e.relatedInformation.length > 0,
+				expandOnlyOnTwistieClick: (e: MarkerElement) => e instanceof Marker && e.relatedInformation.length > 0,
 				overrideStyles: {
 					listBackground: this.getBackgroundColor()
 				},
@@ -501,7 +463,7 @@ export class MarkersView extends ViewPane implements IMarkerFilterController {
 		this._register(this.tree.onDidChangeSelection(() => this.onSelected()));
 	}
 
-	private collapseAll(): void {
+	collapseAll(): void {
 		if (this.tree) {
 			this.tree.collapseAll();
 			this.tree.setSelection([]);
@@ -509,6 +471,10 @@ export class MarkersView extends ViewPane implements IMarkerFilterController {
 			this.tree.getHTMLElement().focus();
 			this.tree.focusFirst();
 		}
+	}
+
+	setMultiline(multiline: boolean): void {
+		this.markersViewModel.multiline = multiline;
 	}
 
 	private onDidChangeMarkersViewVisibility(visible: boolean): void {
@@ -790,7 +756,7 @@ export class MarkersView extends ViewPane implements IMarkerFilterController {
 		this.rangeHighlightDecorations.highlightRange(selection);
 	}
 
-	private onContextMenu(e: ITreeContextMenuEvent<TreeElement | null>): void {
+	private onContextMenu(e: ITreeContextMenuEvent<MarkerElement | null>): void {
 		const element = e.element;
 		if (!element) {
 			return;
@@ -817,7 +783,7 @@ export class MarkersView extends ViewPane implements IMarkerFilterController {
 		});
 	}
 
-	private getMenuActions(element: TreeElement): IAction[] {
+	private getMenuActions(element: MarkerElement): IAction[] {
 		const result: IAction[] = [];
 
 		if (element instanceof Marker) {
@@ -845,8 +811,8 @@ export class MarkersView extends ViewPane implements IMarkerFilterController {
 		return result;
 	}
 
-	public getFocusElement() {
-		return this.tree ? this.tree.getFocus()[0] : undefined;
+	public getFocusElement(): MarkerElement | undefined {
+		return this.tree?.getFocus()[0] || undefined;
 	}
 
 	public getActionViewItem(action: IAction): IActionViewItem | undefined {
@@ -924,14 +890,14 @@ export class MarkersView extends ViewPane implements IMarkerFilterController {
 
 }
 
-class MarkersTree extends WorkbenchObjectTree<TreeElement, FilterData> {
+class MarkersTree extends WorkbenchObjectTree<MarkerElement, FilterData> {
 
 	constructor(
 		user: string,
 		readonly container: HTMLElement,
-		delegate: IListVirtualDelegate<TreeElement>,
-		renderers: ITreeRenderer<TreeElement, FilterData, any>[],
-		options: IWorkbenchObjectTreeOptions<TreeElement, FilterData>,
+		delegate: IListVirtualDelegate<MarkerElement>,
+		renderers: ITreeRenderer<MarkerElement, FilterData, any>[],
+		options: IWorkbenchObjectTreeOptions<MarkerElement, FilterData>,
 		@IContextKeyService contextKeyService: IContextKeyService,
 		@IListService listService: IListService,
 		@IThemeService themeService: IThemeService,

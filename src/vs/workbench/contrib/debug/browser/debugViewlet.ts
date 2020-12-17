@@ -24,7 +24,7 @@ import { ViewPane } from 'vs/workbench/browser/parts/views/viewPane';
 import { MenuId, MenuItemAction, SubmenuItemAction, registerAction2, Action2, MenuRegistry } from 'vs/platform/actions/common/actions';
 import { IContextKeyService, ContextKeyEqualsExpr, ContextKeyExpr } from 'vs/platform/contextkey/common/contextkey';
 import { MenuEntryActionViewItem, SubmenuEntryActionViewItem } from 'vs/platform/actions/browser/menuEntryActionViewItem';
-import { IViewDescriptorService, IViewsService } from 'vs/workbench/common/views';
+import { IViewDescriptorService } from 'vs/workbench/common/views';
 import { WelcomeView } from 'vs/workbench/contrib/debug/browser/welcomeView';
 import { ShowViewletAction } from 'vs/workbench/browser/viewlet';
 import { IViewletService } from 'vs/workbench/services/viewlet/browser/viewlet';
@@ -269,15 +269,7 @@ registerAction2(class extends Action2 {
 	}
 
 	async run(accessor: ServicesAccessor): Promise<void> {
-		const viewsService = accessor.get(IViewsService);
-		const viewDescriptorService = accessor.get(IViewDescriptorService);
-		const contextKeyService = accessor.get(IContextKeyService);
-		const layoutService = accessor.get(IWorkbenchLayoutService);
-		return new class extends ToggleViewAction {
-			constructor() {
-				super(OPEN_REPL_COMMAND_ID, 'Debug Console', REPL_VIEW_ID, viewsService, viewDescriptorService, contextKeyService, layoutService);
-			}
-		}().run();
+		return accessor.get(IInstantiationService).createInstance(ToggleViewAction, OPEN_REPL_COMMAND_ID, 'Debug Console', REPL_VIEW_ID).run();
 	}
 });
 
