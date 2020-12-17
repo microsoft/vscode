@@ -24,27 +24,11 @@ import { Marker } from 'vs/workbench/contrib/markers/browser/markersModel';
 import { IContextKey, IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
 import { Event, Emitter } from 'vs/base/common/event';
 import { AnchorAlignment } from 'vs/base/browser/ui/contextview/contextview';
-import { IViewsService } from 'vs/workbench/common/views';
 import { Codicon } from 'vs/base/common/codicons';
 import { BaseActionViewItem, ActionViewItem } from 'vs/base/browser/ui/actionbar/actionViewItems';
 import { DropdownMenuActionViewItem } from 'vs/base/browser/ui/dropdown/dropdownActionViewItem';
 import { registerIcon } from 'vs/platform/theme/common/iconRegistry';
-
-export class ShowProblemsPanelAction extends Action {
-
-	public static readonly ID = 'workbench.action.problems.focus';
-	public static readonly LABEL = Messages.MARKERS_PANEL_SHOW_LABEL;
-
-	constructor(id: string, label: string,
-		@IViewsService private readonly viewsService: IViewsService
-	) {
-		super(id, label);
-	}
-
-	public run(): Promise<any> {
-		return this.viewsService.openView(Constants.MARKERS_VIEW_ID, true);
-	}
-}
+import { IMarkersView } from 'vs/workbench/contrib/markers/browser/markers';
 
 export interface IMarkersFiltersChangeEvent {
 	filterText?: boolean;
@@ -164,14 +148,6 @@ export class MarkersFilters extends Disposable {
 	}
 }
 
-export interface IMarkerFilterController {
-	readonly onDidFocusFilter: Event<void>;
-	readonly onDidClearFilterText: Event<void>;
-	readonly filters: MarkersFilters;
-	readonly onDidChangeFilterStats: Event<{ total: number, filtered: number }>;
-	getFilterStats(): { total: number, filtered: number };
-}
-
 class FiltersDropdownMenuActionViewItem extends DropdownMenuActionViewItem {
 
 	constructor(
@@ -271,7 +247,7 @@ export class MarkersFilterActionViewItem extends BaseActionViewItem {
 
 	constructor(
 		action: IAction,
-		private filterController: IMarkerFilterController,
+		private markersView: IMarkersView,
 		@IInstantiationService private readonly instantiationService: IInstantiationService,
 		@IContextViewService private readonly contextViewService: IContextViewService,
 		@IThemeService private readonly themeService: IThemeService,
@@ -281,11 +257,11 @@ export class MarkersFilterActionViewItem extends BaseActionViewItem {
 		this.focusContextKey = Constants.MarkerViewFilterFocusContextKey.bindTo(contextKeyService);
 		this.delayedFilterUpdate = new Delayer<void>(400);
 		this._register(toDisposable(() => this.delayedFilterUpdate.cancel()));
-		this._register(filterController.onDidFocusFilter(() => this.focus()));
-		this._register(filterController.onDidClearFilterText(() => this.clearFilterText()));
+		this._register(markersView.onDidFocusFilter(() => this.focus()));
+		this._register(markersView.onDidClearFilterText(() => this.clearFilterText()));
 		this.filtersAction = new Action('markersFiltersAction', Messages.MARKERS_PANEL_ACTION_TOOLTIP_MORE_FILTERS, 'markers-filters ' + ThemeIcon.asClassName(filterIcon));
 		this.filtersAction.checked = this.hasFiltersChanged();
-		this._register(filterController.filters.onDidChange(e => this.onDidFiltersChange(e)));
+		this._register(markersView.filters.onDidChange(e => this.onDidFiltersChange(e)));
 	}
 
 	render(container: HTMLElement): void {
@@ -321,21 +297,21 @@ export class MarkersFilterActionViewItem extends BaseActionViewItem {
 	}
 
 	private hasFiltersChanged(): boolean {
-		return !this.filterController.filters.showErrors || !this.filterController.filters.showWarnings || !this.filterController.filters.showInfos || this.filterController.filters.excludedFiles || this.filterController.filters.activeFile;
+		return !this.markersView.filters.showErrors || !this.markersView.filters.showWarnings || !this.markersView.filters.showInfos || this.markersView.filters.excludedFiles || this.markersView.filters.activeFile;
 	}
 
 	private createInput(container: HTMLElement): void {
 		this.filterInputBox = this._register(this.instantiationService.createInstance(ContextScopedHistoryInputBox, container, this.contextViewService, {
 			placeholder: Messages.MARKERS_PANEL_FILTER_PLACEHOLDER,
 			ariaLabel: Messages.MARKERS_PANEL_FILTER_ARIA_LABEL,
-			history: this.filterController.filters.filterHistory
+			history: this.markersView.filters.filterHistory
 		}));
 		this._register(attachInputBoxStyler(this.filterInputBox, this.themeService));
-		this.filterInputBox.value = this.filterController.filters.filterText;
+		this.filterInputBox.value = this.markersView.filters.filterText;
 		this._register(this.filterInputBox.onDidChange(filter => this.delayedFilterUpdate.trigger(() => this.onDidInputChange(this.filterInputBox!))));
-		this._register(this.filterController.filters.onDidChange((event: IMarkersFiltersChangeEvent) => {
+		this._register(this.markersView.filters.onDidChange((event: IMarkersFiltersChangeEvent) => {
 			if (event.filterText) {
-				this.filterInputBox!.value = this.filterController.filters.filterText;
+				this.filterInputBox!.value = this.markersView.filters.filterText;
 			}
 		}));
 		this._register(DOM.addStandardDisposableListener(this.filterInputBox.inputElement, DOM.EventType.KEY_DOWN, (e: any) => this.onInputKeyDown(e, this.filterInputBox!)));
@@ -373,14 +349,14 @@ export class MarkersFilterActionViewItem extends BaseActionViewItem {
 			filterBadge.style.color = foreground;
 		}));
 		this.updateBadge();
-		this._register(this.filterController.onDidChangeFilterStats(() => this.updateBadge()));
+		this._register(this.markersView.onDidChangeFilterStats(() => this.updateBadge()));
 	}
 
 	private createFilters(container: HTMLElement): void {
 		const actionbar = this._register(new ActionBar(container, {
 			actionViewItemProvider: action => {
 				if (action.id === this.filtersAction.id) {
-					return this.instantiationService.createInstance(FiltersDropdownMenuActionViewItem, action, this.filterController.filters, this.actionRunner);
+					return this.instantiationService.createInstance(FiltersDropdownMenuActionViewItem, action, this.markersView.filters, this.actionRunner);
 				}
 				return undefined;
 			}
@@ -390,13 +366,13 @@ export class MarkersFilterActionViewItem extends BaseActionViewItem {
 
 	private onDidInputChange(inputbox: HistoryInputBox) {
 		inputbox.addToHistory();
-		this.filterController.filters.filterText = inputbox.value;
-		this.filterController.filters.filterHistory = inputbox.getHistory();
+		this.markersView.filters.filterText = inputbox.value;
+		this.markersView.filters.filterHistory = inputbox.getHistory();
 	}
 
 	private updateBadge(): void {
 		if (this.filterBadge) {
-			const { total, filtered } = this.filterController.getFilterStats();
+			const { total, filtered } = this.markersView.getFilterStats();
 			this.filterBadge.classList.toggle('hidden', total === filtered || total === 0);
 			this.filterBadge.textContent = localize('showing filtered problems', "Showing {0} of {1}", filtered, total);
 			this.adjustInputBox();
@@ -441,9 +417,9 @@ export class MarkersFilterActionViewItem extends BaseActionViewItem {
 	}
 
 	protected get class(): string {
-		if (this.filterController.filters.layout.width > 600) {
+		if (this.markersView.filters.layout.width > 600) {
 			return 'markers-panel-action-filter grow';
-		} else if (this.filterController.filters.layout.width < 400) {
+		} else if (this.markersView.filters.layout.width < 400) {
 			return 'markers-panel-action-filter small';
 		} else {
 			return 'markers-panel-action-filter';

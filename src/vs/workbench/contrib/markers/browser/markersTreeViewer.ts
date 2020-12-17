@@ -10,7 +10,7 @@ import { CountBadge } from 'vs/base/browser/ui/countBadge/countBadge';
 import { ResourceLabels, IResourceLabel } from 'vs/workbench/browser/labels';
 import { HighlightedLabel } from 'vs/base/browser/ui/highlightedlabel/highlightedLabel';
 import { IMarker, MarkerSeverity } from 'vs/platform/markers/common/markers';
-import { ResourceMarkers, Marker, RelatedInformation } from 'vs/workbench/contrib/markers/browser/markersModel';
+import { ResourceMarkers, Marker, RelatedInformation, MarkerElement } from 'vs/workbench/contrib/markers/browser/markersModel';
 import Messages from 'vs/workbench/contrib/markers/browser/messages';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { attachBadgeStyler } from 'vs/platform/theme/common/styler';
@@ -56,8 +56,6 @@ import { ActionViewItem } from 'vs/base/browser/ui/actionbar/actionViewItems';
 import { Codicon } from 'vs/base/common/codicons';
 import { registerIcon } from 'vs/platform/theme/common/iconRegistry';
 
-export type TreeElement = ResourceMarkers | Marker | RelatedInformation;
-
 interface IResourceMarkersTemplateData {
 	resourceLabel: IResourceLabel;
 	count: CountBadge;
@@ -74,7 +72,7 @@ interface IRelatedInformationTemplateData {
 	description: HighlightedLabel;
 }
 
-export class MarkersTreeAccessibilityProvider implements IListAccessibilityProvider<TreeElement> {
+export class MarkersTreeAccessibilityProvider implements IListAccessibilityProvider<MarkerElement> {
 
 	constructor(@ILabelService private readonly labelService: ILabelService) { }
 
@@ -82,7 +80,7 @@ export class MarkersTreeAccessibilityProvider implements IListAccessibilityProvi
 		return localize('problemsView', "Problems View");
 	}
 
-	public getAriaLabel(element: TreeElement): string | null {
+	public getAriaLabel(element: MarkerElement): string | null {
 		if (element instanceof ResourceMarkers) {
 			const path = this.labelService.getUriLabel(element.resource, { relative: true }) || element.resource.fsPath;
 			return Messages.MARKERS_TREE_ARIA_LABEL_RESOURCE(element.markers.length, element.name, paths.dirname(path));
@@ -103,13 +101,13 @@ const enum TemplateId {
 	RelatedInformation = 'ri'
 }
 
-export class VirtualDelegate implements IListVirtualDelegate<TreeElement> {
+export class VirtualDelegate implements IListVirtualDelegate<MarkerElement> {
 
 	static LINE_HEIGHT: number = 22;
 
 	constructor(private readonly markersViewState: MarkersViewModel) { }
 
-	getHeight(element: TreeElement): number {
+	getHeight(element: MarkerElement): number {
 		if (element instanceof Marker) {
 			const viewModel = this.markersViewState.getViewModel(element);
 			const noOfLines = !viewModel || viewModel.multiline ? element.lines.length : 1;
@@ -118,7 +116,7 @@ export class VirtualDelegate implements IListVirtualDelegate<TreeElement> {
 		return VirtualDelegate.LINE_HEIGHT;
 	}
 
-	getTemplateId(element: TreeElement): string {
+	getTemplateId(element: MarkerElement): string {
 		if (element instanceof ResourceMarkers) {
 			return TemplateId.ResourceMarkers;
 		} else if (element instanceof Marker) {
@@ -512,11 +510,11 @@ export class RelatedInformationRenderer implements ITreeRenderer<RelatedInformat
 	}
 }
 
-export class Filter implements ITreeFilter<TreeElement, FilterData> {
+export class Filter implements ITreeFilter<MarkerElement, FilterData> {
 
 	constructor(public options: FilterOptions) { }
 
-	filter(element: TreeElement, parentVisibility: TreeVisibility): TreeFilterResult<FilterData> {
+	filter(element: MarkerElement, parentVisibility: TreeVisibility): TreeFilterResult<FilterData> {
 		if (element instanceof ResourceMarkers) {
 			return this.filterResourceMarkers(element);
 		} else if (element instanceof Marker) {
@@ -852,23 +850,23 @@ export class MarkersViewModel extends Disposable {
 
 }
 
-export class ResourceDragAndDrop implements ITreeDragAndDrop<TreeElement> {
+export class ResourceDragAndDrop implements ITreeDragAndDrop<MarkerElement> {
 	constructor(
 		private instantiationService: IInstantiationService
 	) { }
 
-	onDragOver(data: IDragAndDropData, targetElement: TreeElement, targetIndex: number, originalEvent: DragEvent): boolean | ITreeDragOverReaction {
+	onDragOver(data: IDragAndDropData, targetElement: MarkerElement, targetIndex: number, originalEvent: DragEvent): boolean | ITreeDragOverReaction {
 		return false;
 	}
 
-	getDragURI(element: TreeElement): string | null {
+	getDragURI(element: MarkerElement): string | null {
 		if (element instanceof ResourceMarkers) {
 			return element.resource.toString();
 		}
 		return null;
 	}
 
-	getDragLabel?(elements: TreeElement[]): string | undefined {
+	getDragLabel?(elements: MarkerElement[]): string | undefined {
 		if (elements.length > 1) {
 			return String(elements.length);
 		}
@@ -877,7 +875,7 @@ export class ResourceDragAndDrop implements ITreeDragAndDrop<TreeElement> {
 	}
 
 	onDragStart(data: IDragAndDropData, originalEvent: DragEvent): void {
-		const elements = (data as ElementsDragAndDropData<TreeElement>).elements;
+		const elements = (data as ElementsDragAndDropData<MarkerElement>).elements;
 		const resources: URI[] = elements
 			.filter(e => e instanceof ResourceMarkers)
 			.map(resourceMarker => (resourceMarker as ResourceMarkers).resource);
@@ -888,7 +886,7 @@ export class ResourceDragAndDrop implements ITreeDragAndDrop<TreeElement> {
 		}
 	}
 
-	drop(data: IDragAndDropData, targetElement: TreeElement, targetIndex: number, originalEvent: DragEvent): void {
+	drop(data: IDragAndDropData, targetElement: MarkerElement, targetIndex: number, originalEvent: DragEvent): void {
 	}
 }
 

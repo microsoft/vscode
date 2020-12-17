@@ -16,9 +16,18 @@ import { IBulkEditService } from 'vs/editor/browser/services/bulkEditService';
 import { IProgressService, ProgressLocation } from 'vs/platform/progress/common/progress';
 import { raceCancellation } from 'vs/base/common/async';
 import { CancellationToken, CancellationTokenSource } from 'vs/base/common/cancellation';
+import { IDialogService } from 'vs/platform/dialogs/common/dialogs';
+import Severity from 'vs/base/common/severity';
+import { IStorageService, StorageScope, StorageTarget } from 'vs/platform/storage/common/storage';
+import { Action2, registerAction2 } from 'vs/platform/actions/common/actions';
+import { ServicesAccessor } from 'vs/platform/instantiation/common/instantiation';
+import { ILogService } from 'vs/platform/log/common/log';
+import { IEnvironmentService } from 'vs/platform/environment/common/environment';
 
 @extHostCustomer
 export class MainThreadFileSystemEventService {
+
+	static readonly MementoKeyAdditionalEdits = `file.particpants.additionalEdits`;
 
 	private readonly _listener = new DisposableStore();
 
@@ -27,7 +36,11 @@ export class MainThreadFileSystemEventService {
 		@IFileService fileService: IFileService,
 		@IWorkingCopyFileService workingCopyFileService: IWorkingCopyFileService,
 		@IBulkEditService bulkEditService: IBulkEditService,
-		@IProgressService progressService: IProgressService
+		@IProgressService progressService: IProgressService,
+		@IDialogService dialogService: IDialogService,
+		@IStorageService storageService: IStorageService,
+		@ILogService logService: ILogService,
+		@IEnvironmentService envService: IEnvironmentService
 	) {
 
 		const proxy = extHostContext.getProxy(ExtHostContext.ExtHostFileSystemEventService);
@@ -92,9 +105,60 @@ export class MainThreadFileSystemEventService {
 					return;
 				}
 
-				const edit = reviveWorkspaceEditDto2(data);
-				await bulkEditService.apply(edit, { undoRedoGroupId });
+				const needsConfirmation = data.edit.edits.some(edit => edit.metadata?.needsConfirmation);
+				let showPreview = storageService.getBoolean(MainThreadFileSystemEventService.MementoKeyAdditionalEdits, StorageScope.GLOBAL);
+
+				if (envService.extensionTestsLocationURI) {
+					// don't show dialog in tests
+					showPreview = false;
+				}
+
+				if (showPreview === undefined) {
+					// show a user facing message
+
+					let message: string;
+					if (data.extensionNames.length === 1) {
+						message = localize('ask.1', "Extension '{0}' wants to make additional edits for this file operation.", data.extensionNames[0]);
+					} else {
+						message = localize('ask.N', "{0} extensions want to make additional edits for this file operation.", data.extensionNames.length);
+					}
+
+					if (needsConfirmation) {
+						// edit which needs confirmation -> always show dialog
+						const answer = await dialogService.show(Severity.Info, message, [localize('preview', "Show Preview"), localize('cancel', "Skip additional edits")], { cancelId: 1 });
+						showPreview = true;
+						if (answer.choice === 1) {
+							// no additional edits wanted
+							return;
+						}
+					} else {
+						// choice
+						const answer = await dialogService.show(Severity.Info, message,
+							[localize('ok', "OK"), localize('preview', "Show Preview"), localize('cancel', "Skip additional edits")],
+							{
+								cancelId: 2,
+								checkbox: { label: localize('again', "Don't ask again") }
+							}
+						);
+						if (answer.choice === 2) {
+							// no additional edits wanted, don't persist cancel option
+							return;
+						}
+						showPreview = answer.choice === 1;
+						if (answer.checkboxChecked /* && answer.choice !== 2 */) {
+							storageService.store(MainThreadFileSystemEventService.MementoKeyAdditionalEdits, showPreview, StorageScope.GLOBAL, StorageTarget.USER);
+						}
+					}
+				}
+
+				logService.info('[onWill-handler] applying additional workspace edit from extensions', data.extensionNames);
+
+				await bulkEditService.apply(
+					reviveWorkspaceEditDto2(data.edit),
+					{ undoRedoGroupId, showPreview }
+				);
 			}
+
 			private _progressLabel(operation: FileOperation): string {
 				switch (operation) {
 					case FileOperation.CREATE:
@@ -119,9 +183,20 @@ export class MainThreadFileSystemEventService {
 	dispose(): void {
 		this._listener.dispose();
 	}
-
-
 }
+
+registerAction2(class ResetMemento extends Action2 {
+	constructor() {
+		super({
+			id: 'files.participants.resetChoice',
+			title: localize('label', "Reset choice for 'File operation needs preview'"),
+			f1: true
+		});
+	}
+	run(accessor: ServicesAccessor) {
+		accessor.get(IStorageService).remove(MainThreadFileSystemEventService.MementoKeyAdditionalEdits, StorageScope.GLOBAL);
+	}
+});
 
 
 Registry.as<IConfigurationRegistry>(Extensions.Configuration).registerConfiguration({
