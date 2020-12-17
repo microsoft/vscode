@@ -57,7 +57,7 @@ class RenameOperation implements IFileOperation {
 			return new Noop(); // not overwriting, but ignoring, and the target file exists
 		}
 
-		await this._workingCopyFileService.move([{ source: this.oldUri, target: this.newUri }], { overwrite: this.options.overwrite, ...this.undoRedoInfo }, token);
+		await this._workingCopyFileService.move([{ file: { source: this.oldUri, target: this.newUri }, options: { overwrite: this.options.overwrite, ...this.undoRedoInfo } }], token);
 		return new RenameOperation(this.oldUri, this.newUri, this.options, { isUndoing: true }, this._workingCopyFileService, this._fileService);
 	}
 
@@ -93,7 +93,7 @@ class CopyOperation implements IFileOperation {
 			return new Noop(); // not overwriting, but ignoring, and the target file exists
 		}
 
-		const stat = await this._workingCopyFileService.copy([{ source: this.oldUri, target: this.newUri }], { overwrite: this.options.overwrite, ...this.undoRedoInfo }, token);
+		const stat = await this._workingCopyFileService.copy([{ file: { source: this.oldUri, target: this.newUri }, options: { overwrite: this.options.overwrite, ...this.undoRedoInfo } }], token);
 		const folder = this.options.folder || (stat.length === 1 && stat[0].isDirectory);
 		return this._instaService.createInstance(DeleteOperation, this.newUri, { recursive: true, folder, ...this.options }, { isUndoing: true }, false);
 	}
@@ -175,7 +175,7 @@ class DeleteOperation implements IFileOperation {
 		}
 
 		const useTrash = !this.options.skipTrashBin && this._fileService.hasCapability(this.oldUri, FileSystemProviderCapabilities.Trash) && this._configurationService.getValue<boolean>('files.enableTrash');
-		await this._workingCopyFileService.delete([this.oldUri], { useTrash, recursive: this.options.recursive, ...this.undoRedoInfo }, token);
+		await this._workingCopyFileService.delete([{ resource: this.oldUri, options: { useTrash, recursive: this.options.recursive, ...this.undoRedoInfo } }], token);
 
 		if (typeof this.options.maxSize === 'number' && fileContent && (fileContent?.size > this.options.maxSize)) {
 			return new Noop();

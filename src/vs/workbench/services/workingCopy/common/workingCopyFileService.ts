@@ -31,6 +31,13 @@ export interface SourceTargetPair {
 	readonly target: URI
 }
 
+export interface SourceTargetPairWithOptions extends SourceTargetPair {
+	options?: {
+		undoRedoGroupId?: number;
+		isUndoing?: boolean
+	}
+}
+
 export interface WorkingCopyFileEvent extends IWaitUntil {
 
 	/**
@@ -57,14 +64,33 @@ export interface IWorkingCopyFileOperationParticipant {
 	 * change the working copies before they are being saved to disk.
 	 */
 	participate(
-		files: SourceTargetPair[],
+		files: SourceTargetPairWithOptions[],
 		operation: FileOperation,
-		undoRedoGroupId: number | undefined,
-		isUndoing: boolean | undefined,
 		timeout: number,
 		token: CancellationToken
 	): Promise<void>;
 }
+
+export interface IDeleteOperation {
+	resource: URI;
+	options?: {
+		useTrash?: boolean;
+		recursive?: boolean;
+		undoRedoGroupId?: number;
+		isUndoing?: boolean
+	};
+}
+
+export interface IMoveOperation {
+	file: Required<SourceTargetPair>;
+	options?: {
+		overwrite?: boolean;
+		undoRedoGroupId?: number;
+		isUndoing?: boolean
+	}
+}
+
+export interface ICopyOperation extends IMoveOperation { }
 
 /**
  * Returns the working copies for a given resource.
@@ -150,7 +176,7 @@ export interface IWorkingCopyFileService {
 	 * Working copy owners can listen to the `onWillRunWorkingCopyFileOperation` and
 	 * `onDidRunWorkingCopyFileOperation` events to participate.
 	 */
-	move(files: Required<SourceTargetPair>[], options?: { overwrite?: boolean, undoRedoGroupId?: number, isUndoing?: boolean }, token?: CancellationToken): Promise<IFileStatWithMetadata[]>;
+	move(operations: IMoveOperation[], token?: CancellationToken): Promise<IFileStatWithMetadata[]>;
 
 	/**
 	 * Will copy working copies matching the provided resources and corresponding children
@@ -159,7 +185,7 @@ export interface IWorkingCopyFileService {
 	 * Working copy owners can listen to the `onWillRunWorkingCopyFileOperation` and
 	 * `onDidRunWorkingCopyFileOperation` events to participate.
 	 */
-	copy(files: Required<SourceTargetPair>[], options?: { overwrite?: boolean, undoRedoGroupId?: number, isUndoing?: boolean }, token?: CancellationToken): Promise<IFileStatWithMetadata[]>;
+	copy(operations: ICopyOperation[], token?: CancellationToken): Promise<IFileStatWithMetadata[]>;
 
 	/**
 	 * Will delete working copies matching the provided resources and children
@@ -168,7 +194,7 @@ export interface IWorkingCopyFileService {
 	 * Working copy owners can listen to the `onWillRunWorkingCopyFileOperation` and
 	 * `onDidRunWorkingCopyFileOperation` events to participate.
 	 */
-	delete(resources: URI[], options?: { useTrash?: boolean, recursive?: boolean, undoRedoGroupId?: number, isUndoing?: boolean }, token?: CancellationToken): Promise<void>;
+	delete(operations: IDeleteOperation[], token?: CancellationToken): Promise<void>;
 
 	//#endregion
 
@@ -256,7 +282,7 @@ export class WorkingCopyFileService extends Disposable implements IWorkingCopyFi
 		}
 
 		// file operation participant
-		await this.runFileOperationParticipants([{ target: resource }], FileOperation.CREATE, options?.undoRedoGroupId, options?.isUndoing, token);
+		await this.runFileOperationParticipants([{ target: resource, options: { isUndoing: options?.isUndoing, undoRedoGroupId: options?.undoRedoGroupId } }], FileOperation.CREATE, token);
 
 		// before events
 		const event = { correlationId: this.correlationIds++, operation: FileOperation.CREATE, files: [{ target: resource }] };
@@ -284,36 +310,38 @@ export class WorkingCopyFileService extends Disposable implements IWorkingCopyFi
 		return stat;
 	}
 
-	async move(files: Required<SourceTargetPair>[], options?: { overwrite?: boolean, undoRedoGroupId?: number, isUndoing?: boolean }, token?: CancellationToken): Promise<IFileStatWithMetadata[]> {
-		return this.doMoveOrCopy(files, true, options, token);
+	async move(operations: IMoveOperation[], token?: CancellationToken): Promise<IFileStatWithMetadata[]> {
+		return this.doMoveOrCopy(operations, true, token);
 	}
 
-	async copy(files: Required<SourceTargetPair>[], options?: { overwrite?: boolean, undoRedoGroupId?: number, isUndoing?: boolean }, token?: CancellationToken): Promise<IFileStatWithMetadata[]> {
-		return this.doMoveOrCopy(files, false, options, token);
+	async copy(operations: ICopyOperation[], token?: CancellationToken): Promise<IFileStatWithMetadata[]> {
+		return this.doMoveOrCopy(operations, false, token);
 	}
 
-	private async doMoveOrCopy(files: Required<SourceTargetPair>[], move: boolean, options?: { overwrite?: boolean, undoRedoGroupId?: number, isUndoing?: boolean }, token?: CancellationToken): Promise<IFileStatWithMetadata[]> {
-		const overwrite = options?.overwrite;
+	private async doMoveOrCopy(operations: IMoveOperation[] | ICopyOperation[], move: boolean, token?: CancellationToken): Promise<IFileStatWithMetadata[]> {
 		const stats: IFileStatWithMetadata[] = [];
 
 		// validate move/copy operation before starting
-		for (const { source, target } of files) {
-			const validateMoveOrCopy = await (move ? this.fileService.canMove(source, target, overwrite) : this.fileService.canCopy(source, target, overwrite));
+		for (const operation of operations) {
+			const { source, target } = operation.file;
+			const validateMoveOrCopy = await (move ? this.fileService.canMove(source, target, operation.options?.overwrite) : this.fileService.canCopy(source, target, operation.options?.overwrite));
 			if (validateMoveOrCopy instanceof Error) {
 				throw validateMoveOrCopy;
 			}
 		}
 
 		// file operation participant
-		await this.runFileOperationParticipants(files, move ? FileOperation.MOVE : FileOperation.COPY, options?.undoRedoGroupId, options?.isUndoing, token);
+		const files = operations.map(o => o.file);
+		// TODO@isidor should the options be passed here
+		await this.runFileOperationParticipants(files, move ? FileOperation.MOVE : FileOperation.COPY, token);
 
 		// before event
 		const event = { correlationId: this.correlationIds++, operation: move ? FileOperation.MOVE : FileOperation.COPY, files };
 		await this._onWillRunWorkingCopyFileOperation.fireAsync(event, CancellationToken.None);
 
 		try {
-			for (const { source, target } of files) {
-
+			for (const operation of operations) {
+				const { source, target } = operation.file;
 				// if source and target are not equal, handle dirty working copies
 				// depending on the operation:
 				// - move: revert both source and target (if any)
@@ -325,9 +353,9 @@ export class WorkingCopyFileService extends Disposable implements IWorkingCopyFi
 
 				// now we can rename the source to target via file operation
 				if (move) {
-					stats.push(await this.fileService.move(source, target, overwrite));
+					stats.push(await this.fileService.move(source, target, operation.options?.overwrite));
 				} else {
-					stats.push(await this.fileService.copy(source, target, overwrite));
+					stats.push(await this.fileService.copy(source, target, operation.options?.overwrite));
 				}
 			}
 		} catch (error) {
@@ -344,19 +372,19 @@ export class WorkingCopyFileService extends Disposable implements IWorkingCopyFi
 		return stats;
 	}
 
-	async delete(resources: URI[], options?: { useTrash?: boolean, recursive?: boolean, undoRedoGroupId?: number, isUndoing?: boolean }, token?: CancellationToken): Promise<void> {
+	async delete(operations: IDeleteOperation[], token?: CancellationToken): Promise<void> {
 
 		// validate delete operation before starting
-		for (const resource of resources) {
-			const validateDelete = await this.fileService.canDelete(resource, options);
+		for (const operation of operations) {
+			const validateDelete = await this.fileService.canDelete(operation.resource, operation.options);
 			if (validateDelete instanceof Error) {
 				throw validateDelete;
 			}
 		}
 
 		// file operation participant
-		const files = resources.map(target => ({ target }));
-		await this.runFileOperationParticipants(files, FileOperation.DELETE, options?.undoRedoGroupId, options?.isUndoing, token);
+		const files = operations.map(operation => ({ target: operation.resource, options: operation.options }));
+		await this.runFileOperationParticipants(files, FileOperation.DELETE, token);
 
 		// before events
 		const event = { correlationId: this.correlationIds++, operation: FileOperation.DELETE, files };
@@ -365,15 +393,15 @@ export class WorkingCopyFileService extends Disposable implements IWorkingCopyFi
 		// check for any existing dirty working copies for the resource
 		// and do a soft revert before deleting to be able to close
 		// any opened editor with these working copies
-		for (const resource of resources) {
-			const dirtyWorkingCopies = this.getDirty(resource);
+		for (const operation of operations) {
+			const dirtyWorkingCopies = this.getDirty(operation.resource);
 			await Promise.all(dirtyWorkingCopies.map(dirtyWorkingCopy => dirtyWorkingCopy.revert({ soft: true })));
 		}
 
 		// now actually delete from disk
 		try {
-			for (const resource of resources) {
-				await this.fileService.del(resource, options);
+			for (const operation of operations) {
+				await this.fileService.del(operation.resource, operation.options);
 			}
 		} catch (error) {
 
@@ -398,8 +426,8 @@ export class WorkingCopyFileService extends Disposable implements IWorkingCopyFi
 		return this.fileOperationParticipants.addFileOperationParticipant(participant);
 	}
 
-	private runFileOperationParticipants(files: SourceTargetPair[], operation: FileOperation, undoRedoGroupId: number | undefined, isUndoing: boolean | undefined, token: CancellationToken | undefined): Promise<void> {
-		return this.fileOperationParticipants.participate(files, operation, undoRedoGroupId, isUndoing, token);
+	private runFileOperationParticipants(files: SourceTargetPairWithOptions[], operation: FileOperation, token: CancellationToken | undefined): Promise<void> {
+		return this.fileOperationParticipants.participate(files, operation, token);
 	}
 
 	//#endregion

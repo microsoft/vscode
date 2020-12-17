@@ -10,7 +10,7 @@ import { ExtHostContext, FileSystemEvents, IExtHostContext } from '../common/ext
 import { localize } from 'vs/nls';
 import { Extensions, IConfigurationRegistry } from 'vs/platform/configuration/common/configurationRegistry';
 import { Registry } from 'vs/platform/registry/common/platform';
-import { IWorkingCopyFileOperationParticipant, IWorkingCopyFileService, SourceTargetPair } from 'vs/workbench/services/workingCopy/common/workingCopyFileService';
+import { IWorkingCopyFileOperationParticipant, IWorkingCopyFileService, SourceTargetPairWithOptions } from 'vs/workbench/services/workingCopy/common/workingCopyFileService';
 import { reviveWorkspaceEditDto2 } from 'vs/workbench/api/browser/mainThreadEditors';
 import { IBulkEditService } from 'vs/editor/browser/services/bulkEditService';
 import { IProgressService, ProgressLocation } from 'vs/platform/progress/common/progress';
@@ -74,8 +74,8 @@ export class MainThreadFileSystemEventService {
 
 
 		const fileOperationParticipant = new class implements IWorkingCopyFileOperationParticipant {
-			async participate(files: SourceTargetPair[], operation: FileOperation, undoRedoGroupId: number | undefined, isUndoing: boolean | undefined, timeout: number, token: CancellationToken) {
-				if (isUndoing) {
+			async participate(files: SourceTargetPairWithOptions[], operation: FileOperation, timeout: number, token: CancellationToken) {
+				if (files.some(f => f.options?.isUndoing)) {
 					return;
 				}
 
@@ -169,6 +169,8 @@ export class MainThreadFileSystemEventService {
 
 				logService.info('[onWill-handler] applying additional workspace edit from extensions', data.extensionNames);
 
+				// TODO@isidor undo redo group is per resource, this is false generalization
+				const undoRedoGroupId = files.length > 0 ? files[0].options?.undoRedoGroupId : undefined;
 				await bulkEditService.apply(
 					reviveWorkspaceEditDto2(data.edit),
 					{ undoRedoGroupId, showPreview }
