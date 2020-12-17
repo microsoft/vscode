@@ -450,6 +450,7 @@ class HelpPanelDescriptor implements IViewDescriptor {
 	readonly canToggleVisibility = true;
 	readonly hideByDefault = false;
 	readonly group = 'help@50';
+	readonly order = -10;
 
 	constructor(viewModel: IViewModel) {
 		this.ctorDescriptor = new SyncDescriptor(HelpPanel, [viewModel]);
