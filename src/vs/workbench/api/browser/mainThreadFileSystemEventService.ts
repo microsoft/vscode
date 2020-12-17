@@ -93,12 +93,7 @@ export class MainThreadFileSystemEventService {
 				}
 
 				const edit = reviveWorkspaceEditDto2(data);
-				await bulkEditService.apply(edit, {
-					undoRedoGroupId,
-					// this is a nested workspace edit, e.g one from a onWill-handler and for now we need to forcefully suppress
-					// refactor previewing, see: https://github.com/microsoft/vscode/issues/111873#issuecomment-738739852
-					suppressPreview: true
-				});
+				await bulkEditService.apply(edit, { undoRedoGroupId });
 			}
 			private _progressLabel(operation: FileOperation): string {
 				switch (operation) {
