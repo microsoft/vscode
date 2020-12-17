@@ -27,8 +27,7 @@ export class OutputElement extends Disposable {
 		private _notebookTextModel: NotebookTextModel,
 		private _notebookService: INotebookService,
 		private _diffElementViewModel: DiffElementViewModelBase,
-		private _diffVersion: DiffSide,
-
+		private _diffSide: DiffSide,
 		private _nestedCell: DiffNestedCellViewModel,
 		private _outputContainer: HTMLElement,
 		readonly output: ICellOutputViewModel
@@ -87,7 +86,7 @@ export class OutputElement extends Disposable {
 				result,
 				() => this.getOutputOffsetInCell(index),
 				this._diffElementViewModel instanceof SideBySideDiffElementViewModel
-					? this._diffVersion
+					? this._diffSide
 					: this._diffElementViewModel.type === 'insert' ? DiffSide.Modified : DiffSide.Original
 			);
 		} else {
@@ -134,7 +133,7 @@ export class OutputElement extends Disposable {
 
 	getCellOutputCurrentIndex() {
 		if (this._diffElementViewModel instanceof SideBySideDiffElementViewModel) {
-			if (this._diffVersion === DiffSide.Modified) {
+			if (this._diffSide === DiffSide.Modified) {
 				return this._diffElementViewModel.modified.outputs.indexOf(this.output.model);
 			} else {
 				return this._diffElementViewModel.original.outputs.indexOf(this.output.model);
@@ -145,27 +144,15 @@ export class OutputElement extends Disposable {
 	}
 
 	updateHeight(index: number, height: number) {
-		if (this._diffElementViewModel instanceof SideBySideDiffElementViewModel) {
-			this._diffElementViewModel.updateOutputHeight(this._diffVersion, index, height);
-		} else {
-			(this._diffElementViewModel as SingleSideDiffElementViewModel).updateOutputHeight(index, height);
-		}
+		this._diffElementViewModel.updateOutputHeight(this._diffSide, index, height);
 	}
 
 	getOutputOffsetInContainer(index: number) {
-		if (this._diffElementViewModel instanceof SideBySideDiffElementViewModel) {
-			return this._diffElementViewModel.getOutputOffsetInContainer(this._diffVersion, index);
-		} else {
-			return (this._diffElementViewModel as SingleSideDiffElementViewModel).getOutputOffsetInContainer(index);
-		}
+		return this._diffElementViewModel.getOutputOffsetInContainer(this._diffSide, index);
 	}
 
 	getOutputOffsetInCell(index: number) {
-		if (this._diffElementViewModel instanceof SideBySideDiffElementViewModel) {
-			return this._diffElementViewModel.getOutputOffsetInCell(this._diffVersion, index);
-		} else {
-			return (this._diffElementViewModel as SingleSideDiffElementViewModel).getOutputOffsetInCell(index);
-		}
+		return this._diffElementViewModel.getOutputOffsetInCell(this._diffSide, index);
 	}
 }
 

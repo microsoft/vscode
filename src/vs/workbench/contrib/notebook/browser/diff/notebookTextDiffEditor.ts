@@ -128,7 +128,7 @@ export class NotebookTextDiffEditor extends EditorPane implements INotebookTextD
 
 			diffElement.updateOutputHeight(info.notebook.toString() === this._model?.original.resource.toString() ? DiffSide.Original : DiffSide.Modified, outputIndex, outputHeight);
 		} else {
-			(diffElement as SingleSideDiffElementViewModel).updateOutputHeight(outputIndex, outputHeight);
+			diffElement.updateOutputHeight(diffElement.type === 'insert' ? DiffSide.Modified : DiffSide.Original, outputIndex, outputHeight);
 		}
 
 		if (isInit) {
@@ -269,12 +269,7 @@ export class NotebookTextDiffEditor extends EditorPane implements INotebookTextD
 				if (activeWebview.shouldUpdateInset(cell, key, cellTop)) {
 					// TODO: why? does it mean, we create new output view model every time?
 					const outputIndex = cell.outputsViewModels.findIndex(viewModel => (viewModel.model as ITransformedDisplayOutputDto).outputId === (key.model as ITransformedDisplayOutputDto).outputId);
-					let outputOffset = 0;
-					if (value.cellInfo.diffElement instanceof SideBySideDiffElementViewModel) {
-						outputOffset = cellTop + value.cellInfo.diffElement.getOutputOffsetInCell(diffSide, outputIndex);
-					} else {
-						outputOffset = cellTop + (value.cellInfo.diffElement as SingleSideDiffElementViewModel).getOutputOffsetInCell(outputIndex);
-					}
+					const outputOffset = cellTop + value.cellInfo.diffElement.getOutputOffsetInCell(diffSide, outputIndex);
 
 					updateItems.push({
 						output: key,
@@ -543,7 +538,7 @@ export class NotebookTextDiffEditor extends EditorPane implements INotebookTextD
 					if (cellDiffViewModel instanceof SideBySideDiffElementViewModel) {
 						outputOffset = cellTop + cellDiffViewModel.getOutputOffsetInCell(diffSide, outputIndex);
 					} else {
-						outputOffset = cellTop + (cellDiffViewModel as SingleSideDiffElementViewModel).getOutputOffsetInCell(outputIndex);
+						outputOffset = cellTop + (cellDiffViewModel as SingleSideDiffElementViewModel).getOutputOffsetInCell(diffSide, outputIndex);
 					}
 
 					this._modifiedWebview!.updateViewScrollTop(-scrollTop, true, [{ output: output.source, cellTop, outputOffset }]);
@@ -556,13 +551,7 @@ export class NotebookTextDiffEditor extends EditorPane implements INotebookTextD
 					const cellTop = this._list.getAbsoluteTopOfElement(cellDiffViewModel);
 					const scrollTop = this._list.scrollTop;
 					const outputIndex = cellViewModel.outputsViewModels.findIndex(viewModel => (viewModel.model as ITransformedDisplayOutputDto).outputId === (output.source.model as ITransformedDisplayOutputDto).outputId);
-					let outputOffset = 0;
-					if (cellDiffViewModel instanceof SideBySideDiffElementViewModel) {
-						outputOffset = cellTop + cellDiffViewModel.getOutputOffsetInCell(diffSide, outputIndex);
-					} else {
-						outputOffset = cellTop + (cellDiffViewModel as SingleSideDiffElementViewModel).getOutputOffsetInCell(outputIndex);
-					}
-
+					const outputOffset = cellTop + cellDiffViewModel.getOutputOffsetInCell(diffSide, outputIndex);
 					this._originalWebview!.updateViewScrollTop(-scrollTop, true, [{ output: output.source, cellTop, outputOffset }]);
 				}
 			}

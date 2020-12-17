@@ -147,6 +147,9 @@ export abstract class DiffElementViewModelBase extends Disposable {
 	abstract checkMetadataIfModified(): boolean;
 	abstract layoutChange(): void;
 	abstract getCellByUri(cellUri: URI): IGenericCellViewModel;
+	abstract getOutputOffsetInCell(diffSide: DiffSide, index: number): number;
+	abstract getOutputOffsetInContainer(diffSide: DiffSide, index: number): number;
+	abstract updateOutputHeight(diffSide: DiffSide, index: number, height: number): void;
 
 	getComputedCellContainerWidth(layoutInfo: NotebookLayoutInfo, diffEditor: boolean, fullWidth: boolean) {
 		if (fullWidth) {
@@ -300,7 +303,7 @@ export class SingleSideDiffElementViewModel extends DiffElementViewModelBase {
 		return false;
 	}
 
-	updateOutputHeight(index: number, height: number) {
+	updateOutputHeight(diffSide: DiffSide, index: number, height: number) {
 		this.cellViewModel?.updateOutputHeight(index, height);
 	}
 
@@ -308,7 +311,7 @@ export class SingleSideDiffElementViewModel extends DiffElementViewModelBase {
 		return this.cellViewModel!.getOutputOffset(index);
 	}
 
-	getOutputOffsetInCell(index: number) {
+	getOutputOffsetInCell(diffSide: DiffSide, index: number) {
 		const offsetInOutputsContainer = this.cellViewModel!.getOutputOffset(index);
 
 		return this._layoutInfo.editorHeight
