@@ -19,8 +19,7 @@
   },
   "dependencies": {},
   "devDependencies": {
-    "@types/node": "^12.11.7",
-    "vscode": "~1.1.36"
+    "@types/node": "^12.11.7"
   },
   "contributes": {
     "commands": [

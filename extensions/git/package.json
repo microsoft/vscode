@@ -2321,7 +2321,6 @@
     "@types/file-type": "^5.2.1",
     "@types/mocha": "2.2.43",
     "@types/node": "^12.12.31",
-    "@types/which": "^1.0.28",
-    "vscode": "^1.1.36"
+    "@types/which": "^1.0.28"
   }
 }

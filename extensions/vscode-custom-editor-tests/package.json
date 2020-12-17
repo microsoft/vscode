@@ -22,8 +22,7 @@
   },
   "devDependencies": {
     "@types/node": "^12.11.7",
-    "@types/p-limit": "^2.2.0",
-    "vscode": "^1.1.36"
+    "@types/p-limit": "^2.2.0"
   },
   "contributes": {
     "customEditors": [

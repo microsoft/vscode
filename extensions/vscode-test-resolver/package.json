@@ -21,8 +21,7 @@
 	],
 	"main": "./out/extension",
 	"devDependencies": {
-		"@types/node": "^12.11.7",
-		"vscode": "1.1.5"
+		"@types/node": "^12.11.7"
 	},
 	"contributes": {
 		"resourceLabelFormatters": [
