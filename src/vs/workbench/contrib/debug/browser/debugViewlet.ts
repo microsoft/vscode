@@ -19,10 +19,10 @@ import { IContextMenuService, IContextViewService } from 'vs/platform/contextvie
 import { IDisposable, dispose } from 'vs/base/common/lifecycle';
 import { IWorkbenchLayoutService } from 'vs/workbench/services/layout/browser/layoutService';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
-import { ViewPaneContainer } from 'vs/workbench/browser/parts/views/viewPaneContainer';
+import { ViewPaneContainer, ViewsSubMenu } from 'vs/workbench/browser/parts/views/viewPaneContainer';
 import { ViewPane } from 'vs/workbench/browser/parts/views/viewPane';
 import { MenuId, MenuItemAction, SubmenuItemAction, registerAction2, Action2, MenuRegistry } from 'vs/platform/actions/common/actions';
-import { IContextKeyService, ContextKeyEqualsExpr, ContextKeyExpr } from 'vs/platform/contextkey/common/contextkey';
+import { IContextKeyService, ContextKeyEqualsExpr, ContextKeyExpr, ContextKeyDefinedExpr } from 'vs/platform/contextkey/common/contextkey';
 import { MenuEntryActionViewItem, SubmenuEntryActionViewItem } from 'vs/platform/actions/browser/menuEntryActionViewItem';
 import { IViewDescriptorService } from 'vs/workbench/common/views';
 import { WelcomeView } from 'vs/workbench/contrib/debug/browser/welcomeView';
@@ -245,25 +245,18 @@ registerAction2(class extends Action2 {
 	constructor() {
 		super({
 			id: OPEN_REPL_COMMAND_ID,
-			title: nls.localize('toggleDebugPanel', "Debug Console"),
+			title: nls.localize('debugPanel', "Debug Console"),
 			f1: true,
 			keybinding: {
 				primary: KeyMod.CtrlCmd | KeyMod.Shift | KeyCode.KEY_Y,
 				weight: KeybindingWeight.WorkbenchContrib
 			},
+			toggled: ContextKeyDefinedExpr.create(`view.${REPL_VIEW_ID}.visible`),
 			icon: debugConsole,
-			precondition: CONTEXT_DEBUG_UX.notEqualsTo('simple'),
 			menu: [{
-				id: MenuId.ViewContainerTitle,
-				group: 'navigation',
+				id: ViewsSubMenu,
 				order: 30,
-				when: ContextKeyExpr.and(ContextKeyEqualsExpr.create('viewContainer', VIEWLET_ID), CONTEXT_DEBUG_UX.notEqualsTo('simple'), WorkbenchStateContext.notEqualsTo('empty'),
-					ContextKeyExpr.or(CONTEXT_DEBUG_STATE.isEqualTo('inactive'), ContextKeyExpr.notEquals('config.debug.toolBarLocation', 'docked')))
-			}, {
-				id: MenuId.ViewContainerTitle,
-				order: 30,
-				// Show in debug viewlet secondary actions when debugging and debug toolbar is docked
-				when: ContextKeyExpr.and(ContextKeyEqualsExpr.create('viewContainer', VIEWLET_ID), CONTEXT_DEBUG_STATE.notEqualsTo('inactive'), ContextKeyExpr.equals('config.debug.toolBarLocation', 'docked'))
+				when: ContextKeyExpr.and(ContextKeyEqualsExpr.create('viewContainer', VIEWLET_ID))
 			}]
 		});
 	}
