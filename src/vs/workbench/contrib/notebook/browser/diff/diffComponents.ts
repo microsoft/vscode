@@ -8,7 +8,7 @@ import { Disposable, DisposableStore } from 'vs/base/common/lifecycle';
 import { IDiffEditorOptions, IEditorOptions } from 'vs/editor/common/config/editorOptions';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { DiffElementViewModelBase, getFormatedMetadataJSON, PropertyFoldingState, SideBySideDiffElementViewModel, SingleSideDiffElementViewModel } from 'vs/workbench/contrib/notebook/browser/diff/diffElementViewModel';
-import { CellDiffSideBySideRenderTemplate, CellDiffSingleSideRenderTemplate, DIFF_CELL_MARGIN, INotebookTextDiffEditor } from 'vs/workbench/contrib/notebook/browser/diff/notebookDiffEditorBrowser';
+import { CellDiffSideBySideRenderTemplate, CellDiffSingleSideRenderTemplate, DiffSide, DIFF_CELL_MARGIN, INotebookTextDiffEditor } from 'vs/workbench/contrib/notebook/browser/diff/notebookDiffEditorBrowser';
 import { EDITOR_BOTTOM_PADDING } from 'vs/workbench/contrib/notebook/browser/constants';
 import { CodeEditorWidget } from 'vs/editor/browser/widget/codeEditorWidget';
 import { DiffEditorWidget } from 'vs/editor/browser/widget/diffEditorWidget';
@@ -839,7 +839,7 @@ export class DeletedElement extends SingleSideDiffElement {
 	}
 
 	_buildOutputContainer() {
-		this._outputLeftView = this.instantiationService.createInstance(OutputContainer, this.notebookEditor, this.notebookEditor.textModel!, this.cell, this.cell.original!, false, this._outputViewContainer!);
+		this._outputLeftView = this.instantiationService.createInstance(OutputContainer, this.notebookEditor, this.notebookEditor.textModel!, this.cell, this.cell.original!, DiffSide.Original, this._outputViewContainer!);
 		this._outputLeftView.render();
 		this.cell.layoutChange();
 	}
@@ -912,7 +912,7 @@ export class InsertElement extends SingleSideDiffElement {
 	}
 
 	_buildOutputContainer() {
-		this._outputRightView = this.instantiationService.createInstance(OutputContainer, this.notebookEditor, this.notebookEditor.textModel!, this.cell, this.cell.modified!, true, this._outputViewContainer!);
+		this._outputRightView = this.instantiationService.createInstance(OutputContainer, this.notebookEditor, this.notebookEditor.textModel!, this.cell, this.cell.modified!, DiffSide.Modified, this._outputViewContainer!);
 		this._outputRightView.render();
 		this.cell.layoutChange();
 	}
@@ -1085,21 +1085,21 @@ export class ModifiedElement extends AbstractElementRenderer {
 		this._outputLeftContainer = DOM.append(this._outputViewContainer!, DOM.$('.output-view-container-left'));
 		this._outputRightContainer = DOM.append(this._outputViewContainer!, DOM.$('.output-view-container-right'));
 		// We should use the original text model here
-		this._outputLeftView = this.instantiationService.createInstance(OutputContainer, this.notebookEditor, this.notebookEditor.textModel!, this.cell, this.cell.original!, false, this._outputLeftContainer!);
+		this._outputLeftView = this.instantiationService.createInstance(OutputContainer, this.notebookEditor, this.notebookEditor.textModel!, this.cell, this.cell.original!, DiffSide.Original, this._outputLeftContainer!);
 		this._outputLeftView.render();
-		this._outputRightView = this.instantiationService.createInstance(OutputContainer, this.notebookEditor, this.notebookEditor.textModel!, this.cell, this.cell.modified!, true, this._outputRightContainer!);
+		this._outputRightView = this.instantiationService.createInstance(OutputContainer, this.notebookEditor, this.notebookEditor.textModel!, this.cell, this.cell.modified!, DiffSide.Modified, this._outputRightContainer!);
 		this._outputRightView.render();
 
 		const originalOutputRenderListener = this.notebookEditor.onDidDynamicOutputRendered(e => {
 			if (e.cell.uri.toString() === this.cell.original.uri.toString()) {
-				this.notebookEditor.deltaCellOutputContainerClassNames(true, this.cell.original.id, ['nb-cellDeleted'], []);
+				this.notebookEditor.deltaCellOutputContainerClassNames(DiffSide.Original, this.cell.original.id, ['nb-cellDeleted'], []);
 				originalOutputRenderListener.dispose();
 			}
 		});
 
 		const modifiedOutputRenderListener = this.notebookEditor.onDidDynamicOutputRendered(e => {
 			if (e.cell.uri.toString() === this.cell.modified.uri.toString()) {
-				this.notebookEditor.deltaCellOutputContainerClassNames(false, this.cell.modified.id, ['nb-cellAdded'], []);
+				this.notebookEditor.deltaCellOutputContainerClassNames(DiffSide.Modified, this.cell.modified.id, ['nb-cellAdded'], []);
 				modifiedOutputRenderListener.dispose();
 			}
 		});
@@ -1116,8 +1116,8 @@ export class ModifiedElement extends AbstractElementRenderer {
 	}
 
 	_decorate() {
-		this.notebookEditor.deltaCellOutputContainerClassNames(true, this.cell.original.id, ['nb-cellDeleted'], []);
-		this.notebookEditor.deltaCellOutputContainerClassNames(false, this.cell.modified.id, ['nb-cellAdded'], []);
+		this.notebookEditor.deltaCellOutputContainerClassNames(DiffSide.Original, this.cell.original.id, ['nb-cellDeleted'], []);
+		this.notebookEditor.deltaCellOutputContainerClassNames(DiffSide.Modified, this.cell.modified.id, ['nb-cellAdded'], []);
 	}
 
 	_hideOutputs() {

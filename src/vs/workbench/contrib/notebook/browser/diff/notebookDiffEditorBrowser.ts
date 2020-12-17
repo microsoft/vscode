@@ -15,6 +15,11 @@ import { ToolBar } from 'vs/base/browser/ui/toolbar/toolbar';
 import { OutputRenderer } from 'vs/workbench/contrib/notebook/browser/view/output/outputRenderer';
 import { IMouseWheelEvent } from 'vs/base/browser/mouseEvent';
 
+export enum DiffSide {
+	Original = 0,
+	Modified = 1
+}
+
 export interface IDiffCellInfo extends ICommonCellInfo {
 	diffElement: DiffElementViewModelBase;
 }
@@ -27,7 +32,7 @@ export interface INotebookTextDiffEditor extends ICommonNotebookEditor {
 	getLayoutInfo(): NotebookLayoutInfo;
 	layoutNotebookCell(cell: DiffElementViewModelBase, height: number): void;
 	getOutputRenderer(): OutputRenderer;
-	createInset(cellDiffViewModel: DiffElementViewModelBase, cellViewModel: IDiffNestedCellViewModel, output: IInsetRenderOutput, getOffset: () => number, rightEditor: boolean): void;
+	createInset(cellDiffViewModel: DiffElementViewModelBase, cellViewModel: IDiffNestedCellViewModel, output: IInsetRenderOutput, getOffset: () => number, diffSide: DiffSide): void;
 	hideInset(cellDiffViewModel: DiffElementViewModelBase, cellViewModel: IDiffNestedCellViewModel, output: IDisplayOutputViewModel): void;
 	/**
 	 * Trigger the editor to scroll from scroll event programmatically
@@ -37,7 +42,7 @@ export interface INotebookTextDiffEditor extends ICommonNotebookEditor {
 	focusNotebookCell(cell: IGenericCellViewModel, focus: 'editor' | 'container' | 'output'): void;
 	focusNextNotebookCell(cell: IGenericCellViewModel, focus: 'editor' | 'container' | 'output'): void;
 	updateOutputHeight(cellInfo: ICommonCellInfo, output: IDisplayOutputViewModel, height: number, isInit: boolean): void;
-	deltaCellOutputContainerClassNames(original: boolean, cellId: string, added: string[], removed: string[]): void;
+	deltaCellOutputContainerClassNames(diffSide: DiffSide, cellId: string, added: string[], removed: string[]): void;
 }
 
 export interface IDiffNestedCellViewModel {

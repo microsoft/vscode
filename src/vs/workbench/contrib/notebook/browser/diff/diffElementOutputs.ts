@@ -7,7 +7,7 @@ import * as DOM from 'vs/base/browser/dom';
 import { Disposable, DisposableStore } from 'vs/base/common/lifecycle';
 import { IOpenerService } from 'vs/platform/opener/common/opener';
 import { DiffElementViewModelBase, SideBySideDiffElementViewModel, SingleSideDiffElementViewModel } from 'vs/workbench/contrib/notebook/browser/diff/diffElementViewModel';
-import { INotebookTextDiffEditor } from 'vs/workbench/contrib/notebook/browser/diff/notebookDiffEditorBrowser';
+import { DiffSide, INotebookTextDiffEditor } from 'vs/workbench/contrib/notebook/browser/diff/notebookDiffEditorBrowser';
 import { ICellOutputViewModel, IRenderOutput, outputHasDynamicHeight, RenderOutputType } from 'vs/workbench/contrib/notebook/browser/notebookBrowser';
 import { getResizesObserver } from 'vs/workbench/contrib/notebook/browser/view/renderers/cellWidgets';
 import { CellOutputViewModel } from 'vs/workbench/contrib/notebook/browser/viewModel/cellOutputViewModel';
@@ -27,7 +27,7 @@ export class OutputElement extends Disposable {
 		private _notebookTextModel: NotebookTextModel,
 		private _notebookService: INotebookService,
 		private _diffElementViewModel: DiffElementViewModelBase,
-		private _modified: boolean,
+		private _diffVersion: DiffSide,
 
 		private _nestedCell: DiffNestedCellViewModel,
 		private _outputContainer: HTMLElement,
@@ -87,8 +87,8 @@ export class OutputElement extends Disposable {
 				result,
 				() => this.getOutputOffsetInCell(index),
 				this._diffElementViewModel instanceof SideBySideDiffElementViewModel
-					? this._modified
-					: this._diffElementViewModel.type === 'insert'
+					? this._diffVersion
+					: this._diffElementViewModel.type === 'insert' ? DiffSide.Modified : DiffSide.Original
 			);
 		} else {
 			outputItemDiv.classList.add('foreground', 'output-element');
@@ -134,7 +134,7 @@ export class OutputElement extends Disposable {
 
 	getCellOutputCurrentIndex() {
 		if (this._diffElementViewModel instanceof SideBySideDiffElementViewModel) {
-			if (this._modified) {
+			if (this._diffVersion === DiffSide.Modified) {
 				return this._diffElementViewModel.modified.outputs.indexOf(this.output.model);
 			} else {
 				return this._diffElementViewModel.original.outputs.indexOf(this.output.model);
@@ -146,7 +146,7 @@ export class OutputElement extends Disposable {
 
 	updateHeight(index: number, height: number) {
 		if (this._diffElementViewModel instanceof SideBySideDiffElementViewModel) {
-			this._diffElementViewModel.updateOutputHeight(!this._modified, index, height);
+			this._diffElementViewModel.updateOutputHeight(this._diffVersion, index, height);
 		} else {
 			(this._diffElementViewModel as SingleSideDiffElementViewModel).updateOutputHeight(index, height);
 		}
@@ -154,7 +154,7 @@ export class OutputElement extends Disposable {
 
 	getOutputOffsetInContainer(index: number) {
 		if (this._diffElementViewModel instanceof SideBySideDiffElementViewModel) {
-			return this._diffElementViewModel.getOutputOffsetInContainer(!this._modified, index);
+			return this._diffElementViewModel.getOutputOffsetInContainer(this._diffVersion, index);
 		} else {
 			return (this._diffElementViewModel as SingleSideDiffElementViewModel).getOutputOffsetInContainer(index);
 		}
@@ -162,7 +162,7 @@ export class OutputElement extends Disposable {
 
 	getOutputOffsetInCell(index: number) {
 		if (this._diffElementViewModel instanceof SideBySideDiffElementViewModel) {
-			return this._diffElementViewModel.getOutputOffsetInCell(!this._modified, index);
+			return this._diffElementViewModel.getOutputOffsetInCell(this._diffVersion, index);
 		} else {
 			return (this._diffElementViewModel as SingleSideDiffElementViewModel).getOutputOffsetInCell(index);
 		}
@@ -177,7 +177,7 @@ export class OutputContainer extends Disposable {
 		private _notebookTextModel: NotebookTextModel,
 		private _diffElementViewModel: DiffElementViewModelBase,
 		private _nestedCellViewModel: DiffNestedCellViewModel,
-		private _modified: boolean,
+		private _diffVersion: DiffSide,
 		private _outputContainer: HTMLElement,
 		@INotebookService private _notebookService: INotebookService,
 		// @IQuickInputService private readonly quickInputService: IQuickInputService,
@@ -198,7 +198,7 @@ export class OutputContainer extends Disposable {
 				const index = _nestedCellViewModel.outputs.indexOf(key.model);
 				if (index >= 0) {
 					if (this._diffElementViewModel instanceof SideBySideDiffElementViewModel) {
-						const top = this._diffElementViewModel.getOutputOffsetInContainer(!this._modified, index);
+						const top = this._diffElementViewModel.getOutputOffsetInContainer(this._diffVersion, index);
 						value.domNode.style.top = `${top}px`;
 					} else {
 						const top = (this._diffElementViewModel as SingleSideDiffElementViewModel).getOutputOffsetInContainer(index);
@@ -229,7 +229,7 @@ export class OutputContainer extends Disposable {
 
 	private _renderOutput(currOutput: ICellOutputViewModel, index: number, beforeElement?: HTMLElement) {
 		if (!this._outputEntries.has(currOutput)) {
-			this._outputEntries.set(currOutput, new OutputElement(this._editor, this._notebookTextModel, this._notebookService, this._diffElementViewModel, this._modified, this._nestedCellViewModel, this._outputContainer, currOutput));
+			this._outputEntries.set(currOutput, new OutputElement(this._editor, this._notebookTextModel, this._notebookService, this._diffElementViewModel, this._diffVersion, this._nestedCellViewModel, this._outputContainer, currOutput));
 		}
 
 		const renderElement = this._outputEntries.get(currOutput)!;

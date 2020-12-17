@@ -6,7 +6,7 @@
 import { NotebookDiffEditorEventDispatcher } from 'vs/workbench/contrib/notebook/browser/viewModel/eventDispatcher';
 import { Emitter } from 'vs/base/common/event';
 import { Disposable } from 'vs/base/common/lifecycle';
-import { CellDiffViewModelLayoutChangeEvent, DIFF_CELL_MARGIN } from 'vs/workbench/contrib/notebook/browser/diff/notebookDiffEditorBrowser';
+import { CellDiffViewModelLayoutChangeEvent, DiffSide, DIFF_CELL_MARGIN } from 'vs/workbench/contrib/notebook/browser/diff/notebookDiffEditorBrowser';
 import { IGenericCellViewModel, NotebookLayoutInfo } from 'vs/workbench/contrib/notebook/browser/notebookBrowser';
 import { DiffEditorWidget } from 'vs/editor/browser/widget/diffEditorWidget';
 import { NotebookTextModel } from 'vs/workbench/contrib/notebook/common/model/notebookTextModel';
@@ -216,24 +216,24 @@ export class SideBySideDiffElementViewModel extends DiffElementViewModelBase {
 		return hash(getFormatedMetadataJSON(this.documentTextModel, this.original?.metadata || {}, this.original?.language)) !== hash(getFormatedMetadataJSON(this.documentTextModel, this.modified?.metadata ?? {}, this.modified?.language));
 	}
 
-	updateOutputHeight(original: boolean, index: number, height: number) {
-		if (original) {
+	updateOutputHeight(diffSide: DiffSide, index: number, height: number) {
+		if (diffSide === DiffSide.Original) {
 			this.original.updateOutputHeight(index, height);
 		} else {
 			this.modified.updateOutputHeight(index, height);
 		}
 	}
 
-	getOutputOffsetInContainer(original: boolean, index: number) {
-		if (original) {
+	getOutputOffsetInContainer(diffSide: DiffSide, index: number) {
+		if (diffSide === DiffSide.Original) {
 			return this.original.getOutputOffset(index);
 		} else {
 			return this.modified.getOutputOffset(index);
 		}
 	}
 
-	getOutputOffsetInCell(original: boolean, index: number) {
-		const offsetInOutputsContainer = this.getOutputOffsetInContainer(original, index);
+	getOutputOffsetInCell(diffSide: DiffSide, index: number) {
+		const offsetInOutputsContainer = this.getOutputOffsetInContainer(diffSide, index);
 
 		return this._layoutInfo.editorHeight
 			+ this._layoutInfo.editorMargin
