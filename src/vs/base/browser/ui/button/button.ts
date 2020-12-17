@@ -203,7 +203,7 @@ export class Button extends Disposable implements IButton {
 	}
 
 	set icon(icon: CSSIcon) {
-		this._element.classList.add(...icon.classNames.split(' '));
+		this._element.classList.add(...CSSIcon.asClassNameArray(icon));
 	}
 
 	set enabled(value: boolean) {
