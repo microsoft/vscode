@@ -23,7 +23,7 @@ import { IConfigurationService } from 'vs/platform/configuration/common/configur
 import { IEditorOptions } from 'vs/editor/common/config/editorOptions';
 import { BareFontInfo } from 'vs/editor/common/config/fontInfo';
 import { getZoomLevel } from 'vs/base/browser/browser';
-import { IDisplayOutputLayoutUpdateRequest, IDisplayOutputViewModel, IGenericCellViewModel, IInsetRenderOutput, INotebookEditor, NotebookLayoutInfo } from 'vs/workbench/contrib/notebook/browser/notebookBrowser';
+import { IDisplayOutputLayoutUpdateRequest, IDisplayOutputViewModel, IGenericCellViewModel, IInsetRenderOutput, NotebookLayoutInfo } from 'vs/workbench/contrib/notebook/browser/notebookBrowser';
 import { DiffSide, DIFF_CELL_MARGIN, IDiffCellInfo, INotebookTextDiffEditor } from 'vs/workbench/contrib/notebook/browser/diff/notebookDiffEditorBrowser';
 import { Emitter } from 'vs/base/common/event';
 import { DisposableStore, IDisposable, toDisposable } from 'vs/base/common/lifecycle';
