@@ -5,10 +5,9 @@
 
 import * as resources from 'vs/base/common/resources';
 import * as dom from 'vs/base/browser/dom';
-import { IAction, Action, Separator } from 'vs/base/common/actions';
-import { IDebugService, IBreakpoint, CONTEXT_BREAKPOINTS_FOCUSED, State, DEBUG_SCHEME, IFunctionBreakpoint, IExceptionBreakpoint, IEnablement, BREAKPOINT_EDITOR_CONTRIBUTION_ID, IBreakpointEditorContribution, IDebugModel, IDataBreakpoint, BREAKPOINTS_VIEW_ID } from 'vs/workbench/contrib/debug/common/debug';
+import { IAction } from 'vs/base/common/actions';
+import { IDebugService, IBreakpoint, CONTEXT_BREAKPOINTS_FOCUSED, State, DEBUG_SCHEME, IFunctionBreakpoint, IExceptionBreakpoint, IEnablement, IDebugModel, IDataBreakpoint, BREAKPOINTS_VIEW_ID, CONTEXT_BREAKPOINT_ITEM_TYPE, CONTEXT_EXCEPTION_BREAKPOINT_SUPPORTS_CONDITION, CONTEXT_BREAKPOINTS_EXIST, CONTEXT_DEBUGGERS_AVAILABLE, CONTEXT_IN_DEBUG_MODE, IBaseBreakpoint, IBreakpointEditorContribution, BREAKPOINT_EDITOR_CONTRIBUTION_ID } from 'vs/workbench/contrib/debug/common/debug';
 import { ExceptionBreakpoint, FunctionBreakpoint, Breakpoint, DataBreakpoint } from 'vs/workbench/contrib/debug/common/debugModel';
-import { RemoveBreakpointAction, EnableAllBreakpointsAction, DisableAllBreakpointsAction, ReapplyBreakpointsAction } from 'vs/workbench/contrib/debug/browser/debugActions';
 import { IContextMenuService, IContextViewService } from 'vs/platform/contextview/browser/contextView';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { IKeybindingService } from 'vs/platform/keybinding/common/keybinding';
@@ -23,12 +22,11 @@ import { KeyCode } from 'vs/base/common/keyCodes';
 import { WorkbenchList, ListResourceNavigator } from 'vs/platform/list/browser/listService';
 import { IViewletViewOptions } from 'vs/workbench/browser/parts/views/viewsViewlet';
 import { attachInputBoxStyler } from 'vs/platform/theme/common/styler';
-import { isCodeEditor } from 'vs/editor/browser/editorBrowser';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { IEditorService, SIDE_GROUP, ACTIVE_GROUP } from 'vs/workbench/services/editor/common/editorService';
 import { ViewPane } from 'vs/workbench/browser/parts/views/viewPane';
 import { ILabelService } from 'vs/platform/label/common/label';
-import { IContextKeyService, ContextKeyEqualsExpr } from 'vs/platform/contextkey/common/contextkey';
+import { IContextKeyService, ContextKeyEqualsExpr, IContextKey, ContextKeyExpr } from 'vs/platform/contextkey/common/contextkey';
 import { Gesture } from 'vs/base/browser/touch';
 import { IViewDescriptorService } from 'vs/workbench/common/views';
 import { TextEditorSelectionRevealType } from 'vs/platform/editor/common/editor';
@@ -37,9 +35,11 @@ import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
 import { Orientation } from 'vs/base/browser/ui/splitview/splitview';
 import { IListAccessibilityProvider } from 'vs/base/browser/ui/list/listWidget';
 import * as icons from 'vs/workbench/contrib/debug/browser/debugIcons';
-import { registerAction2, Action2, MenuId, MenuItemAction } from 'vs/platform/actions/common/actions';
+import { registerAction2, Action2, MenuId, IMenu, IMenuService } from 'vs/platform/actions/common/actions';
 import { localize } from 'vs/nls';
 import { ServicesAccessor } from 'vs/editor/browser/editorExtensions';
+import { createAndFillInContextMenuActions } from 'vs/platform/actions/browser/menuEntryActionViewItem';
+import { isCodeEditor } from 'vs/editor/browser/editorBrowser';
 
 const $ = dom.$;
 
@@ -64,6 +64,9 @@ export class BreakpointsView extends ViewPane {
 	private list!: WorkbenchList<BreakpointItem>;
 	private needsRefresh = false;
 	private ignoreLayout = false;
+	private menu: IMenu;
+	private breakpointItemType: IContextKey<string | undefined>;
+	private exceptionBreakpointSupportsCondition: IContextKey<boolean>;
 
 	constructor(
 		options: IViewletViewOptions,
@@ -80,10 +83,21 @@ export class BreakpointsView extends ViewPane {
 		@IOpenerService openerService: IOpenerService,
 		@ITelemetryService telemetryService: ITelemetryService,
 		@ILabelService private readonly labelService: ILabelService,
+		@IMenuService menuService: IMenuService
 	) {
 		super(options, keybindingService, contextMenuService, configurationService, contextKeyService, viewDescriptorService, instantiationService, openerService, themeService, telemetryService);
 
+		this.menu = menuService.createMenu(MenuId.DebugBreakpointsContext, contextKeyService);
+		this._register(this.menu);
+		this.breakpointItemType = CONTEXT_BREAKPOINT_ITEM_TYPE.bindTo(contextKeyService);
+		this.exceptionBreakpointSupportsCondition = CONTEXT_EXCEPTION_BREAKPOINT_SUPPORTS_CONDITION.bindTo(contextKeyService);
 		this._register(this.debugService.getModel().onDidChangeBreakpoints(() => this.onBreakpointsChange()));
+		this._register(this.debugService.getViewModel().onDidSelectBreakpoint(breakpoint => {
+			if (breakpoint) {
+				// Only react when a new breakpoint is selected - to reduce refresh, since other times a refresh is not needed
+				this.onBreakpointsChange();
+			}
+		}));
 	}
 
 	public renderBody(container: HTMLElement): void {
@@ -140,7 +154,6 @@ export class BreakpointsView extends ViewPane {
 			if (e.browserEvent instanceof MouseEvent && e.browserEvent.detail === 2 && e.element instanceof FunctionBreakpoint && e.element !== this.debugService.getViewModel().getSelectedBreakpoint()) {
 				// double click
 				this.debugService.getViewModel().setSelectedBreakpoint(e.element);
-				this.onBreakpointsChange();
 			}
 		}));
 
@@ -183,60 +196,20 @@ export class BreakpointsView extends ViewPane {
 	}
 
 	private onListContextMenu(e: IListContextMenuEvent<IEnablement>): void {
-		if (!e.element) {
-			return;
-		}
+		const element = e.element;
+		const type = element instanceof Breakpoint ? 'breakpoint' : element instanceof ExceptionBreakpoint ? 'exceptionBreakpoint' :
+			element instanceof FunctionBreakpoint ? 'functionBreakpoint' : element instanceof DataBreakpoint ? 'dataBreakpoint' : undefined;
+		this.breakpointItemType.set(type);
+		this.exceptionBreakpointSupportsCondition.set(element instanceof ExceptionBreakpoint && element.supportsCondition);
 
 		const actions: IAction[] = [];
-		const element = e.element;
-
-		if (element instanceof ExceptionBreakpoint) {
-			if (element.supportsCondition) {
-				actions.push(new Action('workbench.action.debug.editExceptionBreakpointCondition', localize('editCondition', "Edit Condition"), '', true, async () => {
-					this.debugService.getViewModel().setSelectedBreakpoint(element);
-					this.onBreakpointsChange();
-				}));
-			}
-		} else {
-			const breakpointType = element instanceof Breakpoint && element.logMessage ? localize('Logpoint', "Logpoint") : localize('Breakpoint', "Breakpoint");
-			if (element instanceof Breakpoint || element instanceof FunctionBreakpoint) {
-				actions.push(new Action('workbench.action.debug.openEditorAndEditBreakpoint', localize('editBreakpoint', "Edit {0}...", breakpointType), '', true, async () => {
-					if (element instanceof Breakpoint) {
-						const editor = await openBreakpointSource(element, false, false, true, this.debugService, this.editorService);
-						if (editor) {
-							const codeEditor = editor.getControl();
-							if (isCodeEditor(codeEditor)) {
-								codeEditor.getContribution<IBreakpointEditorContribution>(BREAKPOINT_EDITOR_CONTRIBUTION_ID).showBreakpointWidget(element.lineNumber, element.column);
-							}
-						}
-					} else {
-						this.debugService.getViewModel().setSelectedBreakpoint(element);
-						this.onBreakpointsChange();
-					}
-				}));
-				actions.push(new Separator());
-			}
-
-
-			actions.push(new RemoveBreakpointAction(RemoveBreakpointAction.ID, localize('removeBreakpoint', "Remove {0}", breakpointType), this.debugService));
-
-			if (this.debugService.getModel().getBreakpoints().length + this.debugService.getModel().getFunctionBreakpoints().length >= 1) {
-				actions.push(this.instantiationService.createInstance(MenuItemAction, removeAllBreakpointsCommand, undefined, {}));
-				actions.push(new Separator());
-
-				actions.push(new EnableAllBreakpointsAction(EnableAllBreakpointsAction.ID, EnableAllBreakpointsAction.LABEL, this.debugService, this.keybindingService));
-				actions.push(new DisableAllBreakpointsAction(DisableAllBreakpointsAction.ID, DisableAllBreakpointsAction.LABEL, this.debugService, this.keybindingService));
-			}
-
-			actions.push(new Separator());
-			actions.push(new ReapplyBreakpointsAction(ReapplyBreakpointsAction.ID, ReapplyBreakpointsAction.LABEL, this.debugService, this.keybindingService));
-		}
+		const actionsDisposable = createAndFillInContextMenuActions(this.menu, { arg: e.element, shouldForwardArgs: false }, actions);
 
 		this.contextMenuService.showContextMenu({
 			getAnchor: () => e.anchor,
 			getActions: () => actions,
 			getActionsContext: () => element,
-			onHide: () => dispose(actions)
+			onHide: () => dispose(actionsDisposable)
 		});
 	}
 
@@ -933,21 +906,60 @@ registerAction2(class extends Action2 {
 	}
 });
 
-export const removeAllBreakpointsCommand = {
-	id: 'workbench.debug.viewlet.action.removeAllBreakpoints',
-	title: localize('removeAllBreakpoints', "Remove All Breakpoints"),
-	f1: true,
-	icon: icons.breakpointsRemoveAll,
-	menu: [{
-		id: MenuId.ViewTitle,
-		group: 'navigation',
-		order: 30,
-		when: ContextKeyEqualsExpr.create('view', BREAKPOINTS_VIEW_ID)
-	}]
-};
 registerAction2(class extends Action2 {
 	constructor() {
-		super(removeAllBreakpointsCommand);
+		super({
+			id: 'workbench.debug.viewlet.action.removeBreakpoint',
+			title: localize('removeBreakpoint', "Remove Breakpoint"),
+			menu: [{
+				id: MenuId.DebugBreakpointsContext,
+				group: '3_modification',
+				order: 10,
+				when: CONTEXT_BREAKPOINT_ITEM_TYPE.notEqualsTo('exceptionBreakpoint')
+			}]
+		});
+	}
+
+	async run(accessor: ServicesAccessor, breakpoint: IBaseBreakpoint): Promise<void> {
+		const debugService = accessor.get(IDebugService);
+		if (breakpoint instanceof Breakpoint) {
+			await debugService.removeBreakpoints(breakpoint.getId());
+		} else if (breakpoint instanceof FunctionBreakpoint) {
+			await debugService.removeFunctionBreakpoints(breakpoint.getId());
+		} else if (breakpoint instanceof DataBreakpoint) {
+			await debugService.removeDataBreakpoints(breakpoint.getId());
+		}
+	}
+});
+
+registerAction2(class extends Action2 {
+	constructor() {
+		super({
+			id: 'workbench.debug.viewlet.action.removeAllBreakpoints',
+			title: {
+				original: 'Remove All Breakpoints',
+				value: localize('removeAllBreakpoints', "Remove All Breakpoints"),
+				mnemonicedTitle: localize({ key: 'miRemoveAllBreakpoints', comment: ['&& denotes a mnemonic'] }, "Remove &&All Breakpoints")
+			},
+			f1: true,
+			icon: icons.breakpointsRemoveAll,
+			menu: [{
+				id: MenuId.ViewTitle,
+				group: 'navigation',
+				order: 30,
+				when: ContextKeyEqualsExpr.create('view', BREAKPOINTS_VIEW_ID)
+			}, {
+				id: MenuId.DebugBreakpointsContext,
+				group: '3_modification',
+				order: 20,
+				when: ContextKeyExpr.and(CONTEXT_BREAKPOINTS_EXIST, CONTEXT_BREAKPOINT_ITEM_TYPE.notEqualsTo('exceptionBreakpoint'))
+			}, {
+				id: MenuId.MenubarDebugMenu,
+				group: '5_breakpoints',
+				order: 3,
+				when: CONTEXT_DEBUGGERS_AVAILABLE
+			}]
+		});
 	}
 
 	run(accessor: ServicesAccessor): void {
@@ -955,5 +967,142 @@ registerAction2(class extends Action2 {
 		debugService.removeBreakpoints();
 		debugService.removeFunctionBreakpoints();
 		debugService.removeDataBreakpoints();
+	}
+});
+
+registerAction2(class extends Action2 {
+	constructor() {
+		super({
+			id: 'workbench.debug.viewlet.action.enableAllBreakpoints',
+			title: {
+				original: '',
+				value: localize('enableAllBreakpoints', "Enable All Breakpoints"),
+				mnemonicedTitle: localize({ key: 'miEnableAllBreakpoints', comment: ['&& denotes a mnemonic'] }, "&&Enable All Breakpoints"),
+			},
+			f1: true,
+			precondition: CONTEXT_DEBUGGERS_AVAILABLE,
+			menu: [{
+				id: MenuId.DebugBreakpointsContext,
+				group: 'z_commands',
+				order: 10,
+				when: ContextKeyExpr.and(CONTEXT_BREAKPOINTS_EXIST, CONTEXT_BREAKPOINT_ITEM_TYPE.notEqualsTo('exceptionBreakpoint'))
+			}, {
+				id: MenuId.MenubarDebugMenu,
+				group: '5_breakpoints',
+				order: 1,
+				when: CONTEXT_DEBUGGERS_AVAILABLE
+			}]
+		});
+	}
+
+	async run(accessor: ServicesAccessor): Promise<void> {
+		const debugService = accessor.get(IDebugService);
+		await debugService.enableOrDisableBreakpoints(true);
+	}
+});
+
+registerAction2(class extends Action2 {
+	constructor() {
+		super({
+			id: 'workbench.debug.viewlet.action.disableAllBreakpoints',
+			title: {
+				original: 'Disable All Breakpoints',
+				value: localize('disableAllBreakpoints', "Disable All Breakpoints"),
+				mnemonicedTitle: localize({ key: 'miDisableAllBreakpoints', comment: ['&& denotes a mnemonic'] }, "Disable A&&ll Breakpoints")
+			},
+			f1: true,
+			precondition: CONTEXT_DEBUGGERS_AVAILABLE,
+			menu: [{
+				id: MenuId.DebugBreakpointsContext,
+				group: 'z_commands',
+				order: 20,
+				when: ContextKeyExpr.and(CONTEXT_BREAKPOINTS_EXIST, CONTEXT_BREAKPOINT_ITEM_TYPE.notEqualsTo('exceptionBreakpoint'))
+			}, {
+				id: MenuId.MenubarDebugMenu,
+				group: '5_breakpoints',
+				order: 2,
+
+				when: CONTEXT_DEBUGGERS_AVAILABLE
+			}]
+		});
+	}
+
+	async run(accessor: ServicesAccessor): Promise<void> {
+		const debugService = accessor.get(IDebugService);
+		await debugService.enableOrDisableBreakpoints(false);
+	}
+});
+
+registerAction2(class extends Action2 {
+	constructor() {
+		super({
+			id: 'workbench.debug.viewlet.action.reapplyBreakpointsAction',
+			title: localize('reapplyAllBreakpoints', "Reapply All Breakpoints"),
+			f1: true,
+			precondition: CONTEXT_IN_DEBUG_MODE,
+			menu: [{
+				id: MenuId.DebugBreakpointsContext,
+				group: 'z_commands',
+				order: 30,
+				when: ContextKeyExpr.and(CONTEXT_BREAKPOINTS_EXIST, CONTEXT_BREAKPOINT_ITEM_TYPE.notEqualsTo('exceptionBreakpoint'))
+			}]
+		});
+	}
+
+	async run(accessor: ServicesAccessor): Promise<void> {
+		const debugService = accessor.get(IDebugService);
+		await debugService.setBreakpointsActivated(true);
+	}
+});
+
+registerAction2(class extends Action2 {
+	constructor() {
+		super({
+			id: 'workbench.action.debug.editExceptionBreakpointCondition',
+			title: localize('editCondition', "Edit Condition"),
+			menu: [{
+				id: MenuId.DebugBreakpointsContext,
+				group: 'navigation',
+				order: 10,
+				when: CONTEXT_EXCEPTION_BREAKPOINT_SUPPORTS_CONDITION
+			}]
+		});
+	}
+
+	async run(accessor: ServicesAccessor, breakpoint: ExceptionBreakpoint): Promise<void> {
+		const debugService = accessor.get(IDebugService);
+		debugService.getViewModel().setSelectedBreakpoint(breakpoint);
+	}
+});
+
+
+registerAction2(class extends Action2 {
+	constructor() {
+		super({
+			id: 'debug.editBreakpoint',
+			title: localize('editBreakpoint', "Edit Breakpoint..."),
+			menu: [{
+				id: MenuId.DebugBreakpointsContext,
+				group: 'navigation',
+				order: 10,
+				when: ContextKeyExpr.or(CONTEXT_BREAKPOINT_ITEM_TYPE.isEqualTo('breakpoint'), CONTEXT_BREAKPOINT_ITEM_TYPE.isEqualTo('functionBreakpoint'))
+			}]
+		});
+	}
+
+	async run(accessor: ServicesAccessor, breakpoint: ExceptionBreakpoint): Promise<void> {
+		const debugService = accessor.get(IDebugService);
+		const editorService = accessor.get(IEditorService);
+		if (breakpoint instanceof Breakpoint) {
+			const editor = await openBreakpointSource(breakpoint, false, false, true, debugService, editorService);
+			if (editor) {
+				const codeEditor = editor.getControl();
+				if (isCodeEditor(codeEditor)) {
+					codeEditor.getContribution<IBreakpointEditorContribution>(BREAKPOINT_EDITOR_CONTRIBUTION_ID).showBreakpointWidget(breakpoint.lineNumber, breakpoint.column);
+				}
+			}
+		} else {
+			debugService.getViewModel().setSelectedBreakpoint(breakpoint);
+		}
 	}
 });
