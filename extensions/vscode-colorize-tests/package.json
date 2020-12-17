@@ -20,8 +20,7 @@
     "jsonc-parser": "2.2.1"
   },
   "devDependencies": {
-    "@types/node": "^12.11.7",
-    "vscode": "1.1.5"
+    "@types/node": "^12.11.7"
   },
   "contributes": {
     "semanticTokenTypes": [

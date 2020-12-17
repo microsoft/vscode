@@ -169,6 +169,7 @@
     "rimraf": "^2.2.8",
     "sinon": "^1.17.2",
     "source-map": "^0.4.4",
+    "source-map-support": "^0.3.2",
     "style-loader": "^1.0.0",
     "ts-loader": "^6.2.1",
     "tsec": "googleinterns/tsec#7bf4ab23686500522341b977b3e2cc04b1f720b1",
