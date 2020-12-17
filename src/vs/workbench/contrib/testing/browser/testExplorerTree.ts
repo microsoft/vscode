@@ -4,18 +4,9 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { TestRunState } from 'vs/workbench/api/common/extHostTypes';
-import { ITestSubscriptionFolder, ITestSubscriptionItem } from 'vs/workbench/contrib/testing/browser/testingCollectionService';
-
-
-export type TreeElement = ITestSubscriptionFolder | ITestSubscriptionItem;
 
 export type TreeStateNode = { statusNode: true; state: TestRunState; priority: number };
 
-export const isTestItem = (v: TreeElement | undefined): v is ITestSubscriptionItem => !!v && (v as any).depth > 0;
-
-export const getLabel = (item: TreeElement) => isTestItem(item)
-	? item.item.label
-	: item.folder.name;
 
 /**
  * List of display priorities for different run states. When tests update,

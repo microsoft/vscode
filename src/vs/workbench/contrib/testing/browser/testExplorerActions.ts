@@ -11,10 +11,9 @@ import { localize } from 'vs/nls';
 import { ThemeIcon } from 'vs/platform/theme/common/themeService';
 import { TestRunState } from 'vs/workbench/api/common/extHostTypes';
 import * as icons from 'vs/workbench/contrib/testing/browser/icons';
-import { isTestItem } from 'vs/workbench/contrib/testing/browser/testExplorerTree';
-import { ITestingCollectionService, ITestSubscriptionItem } from 'vs/workbench/contrib/testing/browser/testingCollectionService';
+import { ITestingCollectionService } from 'vs/workbench/contrib/testing/browser/testingCollectionService';
 import { TestingExplorerViewModel } from 'vs/workbench/contrib/testing/browser/testingExplorerView';
-import { EMPTY_TEST_RESULT, RunTestsResult } from 'vs/workbench/contrib/testing/common/testCollection';
+import { EMPTY_TEST_RESULT, InternalTestItem, RunTestsResult } from 'vs/workbench/contrib/testing/common/testCollection';
 import { ITestService } from 'vs/workbench/contrib/testing/common/testService';
 
 export class FilterableAction extends Action {
@@ -36,7 +35,7 @@ export const filterVisibleActions = (actions: ReadonlyArray<Action>) =>
 
 export class DebugAction extends Action {
 	constructor(
-		private readonly test: ITestSubscriptionItem,
+		private readonly test: InternalTestItem,
 		@ITestService private readonly testService: ITestService
 	) {
 		super(
@@ -57,7 +56,7 @@ export class DebugAction extends Action {
 
 export class RunAction extends Action {
 	constructor(
-		private readonly test: ITestSubscriptionItem,
+		private readonly test: InternalTestItem,
 		@ITestService private readonly testService: ITestService
 	) {
 		super(
@@ -116,27 +115,25 @@ abstract class RunOrDebugAction extends FilterableAction {
 
 	private *getActionableTests() {
 		const selected = this.viewModel.getSelectedTests();
-		for (const item of selected.length ? selected : this.testCollection.workspaceFolders()) {
-			if (!item) {
-				continue;
-			}
-
-			if (isTestItem(item)) {
-				if (this.filter(item)) {
-					yield { testId: item.id, providerId: item.providerId };
-				}
-			} else {
-				for (const child of item.getChildren()) {
+		if (!selected.length) {
+			for (const folder of this.testCollection.workspaceFolders()) {
+				for (const child of folder.getChildren()) {
 					if (this.filter(child)) {
 						yield { testId: child.id, providerId: child.providerId };
 					}
+				}
+			}
+		} else {
+			for (const item of selected) {
+				if (item?.test && this.filter(item.test)) {
+					yield { testId: item.test.id, providerId: item.test.providerId };
 				}
 			}
 		}
 	}
 
 	protected abstract debug(): boolean;
-	protected abstract filter(item: ITestSubscriptionItem): boolean;
+	protected abstract filter(item: InternalTestItem): boolean;
 }
 
 export class RunSelectedAction extends RunOrDebugAction {
@@ -159,7 +156,7 @@ export class RunSelectedAction extends RunOrDebugAction {
 		return false;
 	}
 
-	public filter({ item }: ITestSubscriptionItem) {
+	public filter({ item }: InternalTestItem) {
 		return item.runnable;
 	}
 }
@@ -184,7 +181,7 @@ export class DebugSelectedAction extends RunOrDebugAction {
 		return true;
 	}
 
-	public filter({ item }: ITestSubscriptionItem) {
+	public filter({ item }: InternalTestItem) {
 		return item.debuggable;
 	}
 }
