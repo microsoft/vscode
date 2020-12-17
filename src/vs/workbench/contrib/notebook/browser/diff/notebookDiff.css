@@ -168,11 +168,14 @@
 	width: 100%;
 	padding: 0px 8px;
 	box-sizing: border-box;
+	overflow-x: hidden;
 }
+
 .monaco-workbench .notebook-text-diff-editor .cell-body.full .output-view-container .output-inner-container {
 	width: calc(100% - 16px);
 	padding: 4px 8px;
 	box-sizing: border-box;
+	overflow-x: hidden;
 }
 
 .monaco-workbench .notebook-text-diff-editor .cell-body.full .output-info-container.modified .output-view-container .output-view-container-left {
@@ -213,7 +216,9 @@
 }
 
 .monaco-workbench .notebook-text-diff-editor .output-view-container .error pre.traceback {
-	margin: 8px 0;
+	box-sizing: border-box;
+	padding: 8px 0;
+	margin: 0px;
 }
 
 .monaco-workbench .notebook-text-diff-editor .output-view-container .error .traceback > span {
