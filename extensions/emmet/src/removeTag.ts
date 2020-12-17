@@ -11,11 +11,9 @@ export function removeTag() {
 		return;
 	}
 	const editor = vscode.window.activeTextEditor;
-
-	const tabSize: number = +editor.options.tabSize!;
 	let finalRangesToRemove = editor.selections.reverse()
 		.reduce<vscode.Range[]>((prev, selection) =>
-			prev.concat(getRangesToRemove(editor.document, selection, tabSize)), []);
+			prev.concat(getRangesToRemove(editor.document, selection)), []);
 
 	return editor.edit(editBuilder => {
 		finalRangesToRemove.forEach(range => {
@@ -28,9 +26,8 @@ export function removeTag() {
  * Calculates the ranges to remove, along with what to replace those ranges with.
  * It finds the node to remove based on the selection's start position
  * and then removes that node, reindenting the content in between.
- * Assumption: The document indents consist of only tabs or only spaces.
  */
-function getRangesToRemove(document: vscode.TextDocument, selection: vscode.Selection, tabSize: number): vscode.Range[] {
+function getRangesToRemove(document: vscode.TextDocument, selection: vscode.Selection): vscode.Range[] {
 	const lsDocument = toLSTextDocument(document);
 	const nodeToUpdate = getHtmlNodeLS(lsDocument, selection.start, true);
 	if (!nodeToUpdate) {
@@ -45,7 +42,7 @@ function getRangesToRemove(document: vscode.TextDocument, selection: vscode.Sele
 
 	let rangesToRemove = [openTagRange];
 	if (closeTagRange) {
-		const indentAmountToRemove = calculateIndentAmountToRemove(document, openTagRange, closeTagRange, tabSize);
+		const indentAmountToRemove = calculateIndentAmountToRemove(document, openTagRange, closeTagRange);
 		for (let i = openTagRange.start.line + 1; i < closeTagRange.start.line; i++) {
 			rangesToRemove.push(new vscode.Range(i, 0, i, indentAmountToRemove));
 		}
@@ -54,71 +51,30 @@ function getRangesToRemove(document: vscode.TextDocument, selection: vscode.Sele
 	return rangesToRemove;
 }
 
-type IndentInfo = {
-	indentAmount: number,
-	tabsOnly: boolean
-};
-
 /**
  * Calculates the amount of indent to remove for getRangesToRemove.
  */
-function calculateIndentAmountToRemove(document: vscode.TextDocument, openRange: vscode.Range, closeRange: vscode.Range, tabSize: number): number {
+function calculateIndentAmountToRemove(document: vscode.TextDocument, openRange: vscode.Range, closeRange: vscode.Range): number {
 	const startLine = openRange.start.line;
 	const endLine = closeRange.start.line;
 
-	const startLineIndent = calculateLineIndentInSpaces(document.lineAt(startLine).text, tabSize);
-	const endLineIndent = calculateLineIndentInSpaces(document.lineAt(endLine).text, tabSize);
+	const startLineIndent = document.lineAt(startLine).firstNonWhitespaceCharacterIndex;
+	const endLineIndent = document.lineAt(endLine).firstNonWhitespaceCharacterIndex;
 
-	let contentIndent: IndentInfo | undefined;
-	for (let i = startLine + 1; i <= endLine - 1; i++) {
-		const lineContent = document.lineAt(i).text;
-		const indent = calculateLineIndentInSpaces(lineContent, tabSize);
-		contentIndent = !contentIndent ? indent :
-			{
-				indentAmount: Math.min(contentIndent.indentAmount, indent.indentAmount),
-				tabsOnly: contentIndent.tabsOnly && indent.tabsOnly
-			};
+	let contentIndent: number | undefined;
+	for (let i = startLine + 1; i < endLine; i++) {
+		const lineIndent = document.lineAt(i).firstNonWhitespaceCharacterIndex;
+		contentIndent = !contentIndent ? lineIndent : Math.min(contentIndent, lineIndent);
 	}
 
-	let indentAmountSpaces = 0;
-	let tabsOnly = startLineIndent.tabsOnly && endLineIndent.tabsOnly;
-
+	let indentAmount = 0;
 	if (contentIndent) {
-		if (contentIndent.indentAmount < startLineIndent.indentAmount
-			|| contentIndent.indentAmount < endLineIndent.indentAmount) {
-			indentAmountSpaces = 0;
+		if (contentIndent < startLineIndent || contentIndent < endLineIndent) {
+			indentAmount = 0;
 		}
 		else {
-			indentAmountSpaces = Math.min(
-				contentIndent.indentAmount - startLineIndent.indentAmount,
-				contentIndent.indentAmount - endLineIndent.indentAmount
-			);
-		}
-		tabsOnly = tabsOnly && contentIndent.tabsOnly;
-	}
-	return tabsOnly ? Math.trunc(indentAmountSpaces / tabSize) : indentAmountSpaces;
-}
-
-function calculateLineIndentInSpaces(line: string, tabSize: number): IndentInfo {
-	const whiteSpaceMatch = line.match(/^\s+/);
-	const whiteSpaceContent = whiteSpaceMatch ? whiteSpaceMatch[0] : '';
-
-	if (!whiteSpaceContent) {
-		return { indentAmount: 0, tabsOnly: true };
-	}
-
-	let numSpaces = 0;
-	let numTabs = 0;
-	let tabsOnly = true;
-	for (const c of whiteSpaceContent) {
-		if (c === '\t') {
-			numTabs++;
-		}
-		else {
-			numSpaces++;
-			tabsOnly = false;
+			indentAmount = Math.min(contentIndent - startLineIndent, contentIndent - endLineIndent);
 		}
 	}
-
-	return { indentAmount: numTabs * tabSize + numSpaces, tabsOnly };
+	return indentAmount;
 }
