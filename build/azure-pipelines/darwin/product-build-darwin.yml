@@ -15,9 +15,14 @@ steps:
 
   - task: DownloadPipelineArtifact@2
     inputs:
-      artifact: CompilationOutput
-      path: $(System.DefaultWorkingDirectory)
+      artifact: Compilation
+      path: $(Build.ArtifactStagingDirectory)
     displayName: Download compilation output
+
+  - script: |
+      set -e
+      tar -xzf $(Build.ArtifactStagingDirectory)/compilation.tar.gz
+    displayName: Extract compilation output
 
   - script: |
       set -e
