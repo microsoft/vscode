@@ -1081,7 +1081,8 @@ export class ModifiedElement extends AbstractElementRenderer {
 	}
 
 	_hideOutputs() {
-
+		this._outputLeftView?.hideOutputs();
+		this._outputRightView?.hideOutputs();
 	}
 
 	updateSourceEditor(): void {

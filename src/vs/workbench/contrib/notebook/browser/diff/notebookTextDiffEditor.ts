@@ -117,7 +117,12 @@ export class NotebookTextDiffEditor extends EditorPane implements INotebookTextD
 		const outputIndex = cell.outputsViewModels.findIndex(viewModel => (viewModel.model as ITransformedDisplayOutputDto).outputId === (output.model as ITransformedDisplayOutputDto).outputId);
 
 		if (diffElement instanceof SideBySideDiffElementViewModel) {
-			diffElement.updateOutputHeight(false, outputIndex, outputHeight);
+			const info = CellUri.parse(cellInfo.cellUri);
+			if (!info) {
+				return;
+			}
+
+			diffElement.updateOutputHeight(info.notebook.toString() === this._model?.original.resource.toString(), outputIndex, outputHeight);
 		} else {
 			(diffElement as SingleSideDiffElementViewModel).updateOutputHeight(outputIndex, outputHeight);
 		}
@@ -220,19 +225,19 @@ export class NotebookTextDiffEditor extends EditorPane implements INotebookTextD
 				if (this._modifiedWebview) {
 					this._updateOutputsOffsetsInWebview(scrollTop, scrollHeight, this._modifiedWebview, (diffElement: DiffElementViewModelBase) => {
 						return diffElement.modified;
-					});
+					}, false);
 				}
 
 				if (this._originalWebview) {
 					this._updateOutputsOffsetsInWebview(scrollTop, scrollHeight, this._originalWebview, (diffElement: DiffElementViewModelBase) => {
 						return diffElement.original;
-					});
+					}, true);
 				}
 			});
 		}));
 	}
 
-	private _updateOutputsOffsetsInWebview(scrollTop: number, scrollHeight: number, activeWebview: BackLayerWebView<IDiffCellInfo>, getActiveNestedCell: (diffElement: DiffElementViewModelBase) => DiffNestedCellViewModel | undefined) {
+	private _updateOutputsOffsetsInWebview(scrollTop: number, scrollHeight: number, activeWebview: BackLayerWebView<IDiffCellInfo>, getActiveNestedCell: (diffElement: DiffElementViewModelBase) => DiffNestedCellViewModel | undefined, original: boolean) {
 		activeWebview.element.style.height = `${scrollHeight}px`;
 
 		if (activeWebview.insetMapping) {
@@ -261,7 +266,7 @@ export class NotebookTextDiffEditor extends EditorPane implements INotebookTextD
 					const outputIndex = cell.outputsViewModels.findIndex(viewModel => (viewModel.model as ITransformedDisplayOutputDto).outputId === (key.model as ITransformedDisplayOutputDto).outputId);
 					let outputOffset = 0;
 					if (value.cellInfo.diffElement instanceof SideBySideDiffElementViewModel) {
-						outputOffset = cellTop + value.cellInfo.diffElement.getOutputOffsetInCell(false, outputIndex);
+						outputOffset = cellTop + value.cellInfo.diffElement.getOutputOffsetInCell(original, outputIndex);
 					} else {
 						outputOffset = cellTop + (value.cellInfo.diffElement as SingleSideDiffElementViewModel).getOutputOffsetInCell(outputIndex);
 					}
