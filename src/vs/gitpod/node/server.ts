@@ -883,8 +883,8 @@ async function main(): Promise<void> {
 		});
 	});
 	let port = 3000;
-	if (process.env.GITPOD_CODE_PORT) {
-		port = Number(process.env.GITPOD_CODE_PORT);
+	if (!devMode && process.env.GITPOD_THEIA_PORT) {
+		port = Number(process.env.GITPOD_THEIA_PORT);
 	}
 	server.listen(port, '0.0.0.0', () => {
 		const { address, port } = server.address() as net.AddressInfo;

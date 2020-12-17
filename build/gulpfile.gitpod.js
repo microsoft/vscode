@@ -56,6 +56,7 @@ const gitpodWebResources = [
 
 const gitpodServerResources = [
 	// Server
+	'out-build/gitpod-cli.js',
 	'out-build/gitpod.js',
 	'out-build/bootstrap.js',
 	'out-build/bootstrap-fork.js',
@@ -82,6 +83,7 @@ const gitpodWebEntryPoints = _.flatten([
 ]);
 
 const gitpodServerEntryPoints = _.flatten([
+	buildfile.entrypoint('vs/gitpod/node/cli'),
 	buildfile.entrypoint('vs/gitpod/node/server'),
 	buildfile.entrypoint('vs/workbench/services/extensions/node/extensionHostProcess'),
 	buildfile.entrypoint('vs/platform/files/node/watcher/unix/watcherApp'),
