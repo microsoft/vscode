@@ -115,7 +115,6 @@
   "devDependencies": {
     "@types/mocha": "2.2.43",
     "@types/node": "^12.11.7",
-    "typescript": "^1.6.2",
     "vscode": "1.1.5"
   }
 }
