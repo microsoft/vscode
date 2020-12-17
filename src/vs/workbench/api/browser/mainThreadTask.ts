@@ -567,13 +567,19 @@ export class MainThreadTask implements MainThreadTaskShape {
 						if (!task) {
 							reject(new Error('Task not found'));
 						} else {
-							this._taskService.run(task).then(undefined, reason => {
-								// eat the error, it has already been surfaced to the user and we don't care about it here
-							});
 							const result: TaskExecutionDTO = {
 								id: value.id,
 								task: TaskDTO.from(task)
 							};
+							this._taskService.run(task).then(summary => {
+								// Ensure that the task execution gets cleaned up if the exit code is undefined
+								// This can happen when the task has dependent tasks and one of them failed
+								if ((summary?.exitCode === undefined) || (summary.exitCode !== 0)) {
+									this._proxy.$OnDidEndTask(result);
+								}
+							}, reason => {
+								// eat the error, it has already been surfaced to the user and we don't care about it here
+							});
 							resolve(result);
 						}
 					}, (_error) => {

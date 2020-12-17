@@ -15,10 +15,9 @@ import { IWorkbenchLayoutService, Parts, Position, positionToString } from 'vs/w
 import { ActivityAction, ToggleCompositePinnedAction, ICompositeBar } from 'vs/workbench/browser/parts/compositeBarActions';
 import { IActivity } from 'vs/workbench/common/activity';
 import { ActivePanelContext, PanelMaximizedContext, PanelPositionContext, PanelVisibleContext } from 'vs/workbench/common/panel';
-import { ContextKeyEqualsExpr, ContextKeyExpression } from 'vs/platform/contextkey/common/contextkey';
+import { ContextKeyExpression } from 'vs/platform/contextkey/common/contextkey';
 import { Codicon } from 'vs/base/common/codicons';
 import { registerIcon } from 'vs/platform/theme/common/iconRegistry';
-import { ViewContainerLocation, ViewContainerLocationToString } from 'vs/workbench/common/views';
 import { ServicesAccessor } from 'vs/editor/browser/editorExtensions';
 
 const maximizeIcon = registerIcon('panel-maximize', Codicon.chevronUp, nls.localize('maximizeIcon', 'Icon to maximize a panel.'));
@@ -242,8 +241,7 @@ registerAction2(class extends Action2 {
 			icon: maximizeIcon,
 			toggled: { condition: PanelMaximizedContext, icon: restoreIcon, tooltip: { value: nls.localize('minimizePanel', "Restore Panel Size"), original: 'Restore Panel Size' } },
 			menu: [{
-				id: MenuId.ViewContainerTitle,
-				when: ContextKeyEqualsExpr.create('viewContainerLocation', ViewContainerLocationToString(ViewContainerLocation.Panel)),
+				id: MenuId.PanelTitle,
 				group: 'navigation',
 				order: 1
 			}]
@@ -275,8 +273,7 @@ registerAction2(class extends Action2 {
 				id: MenuId.CommandPalette,
 				when: PanelVisibleContext,
 			}, {
-				id: MenuId.ViewContainerTitle,
-				when: ContextKeyEqualsExpr.create('viewContainerLocation', ViewContainerLocationToString(ViewContainerLocation.Panel)),
+				id: MenuId.PanelTitle,
 				group: 'navigation',
 				order: 2
 			}]

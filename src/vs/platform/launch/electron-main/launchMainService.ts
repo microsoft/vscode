@@ -9,8 +9,7 @@ import { IProcessEnvironment, isMacintosh } from 'vs/base/common/platform';
 import { NativeParsedArgs } from 'vs/platform/environment/common/argv';
 import { createDecorator } from 'vs/platform/instantiation/common/instantiation';
 import { IWindowSettings } from 'vs/platform/windows/common/windows';
-import { OpenContext } from 'vs/platform/windows/electron-main/window';
-import { IWindowsMainService, ICodeWindow } from 'vs/platform/windows/electron-main/windows';
+import { IWindowsMainService, ICodeWindow, OpenContext } from 'vs/platform/windows/electron-main/windows';
 import { whenDeleted } from 'vs/base/node/pfs';
 import { IWorkspacesMainService } from 'vs/platform/workspaces/electron-main/workspacesMainService';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
@@ -298,10 +297,10 @@ export class LaunchMainService implements ILaunchMainService {
 		return this.browserWindowToInfo(window.win, folderURIs, window.remoteAuthority);
 	}
 
-	private browserWindowToInfo(win: BrowserWindow, folderURIs: URI[] = [], remoteAuthority?: string): IWindowInfo {
+	private browserWindowToInfo(window: BrowserWindow, folderURIs: URI[] = [], remoteAuthority?: string): IWindowInfo {
 		return {
-			pid: win.webContents.getOSProcessId(),
-			title: win.getTitle(),
+			pid: window.webContents.getOSProcessId(),
+			title: window.getTitle(),
 			folderURIs,
 			remoteAuthority
 		};

@@ -14,6 +14,8 @@ import { ExtensionType, IExtensionDescription } from 'vs/platform/extensions/com
 import { IOpenerService } from 'vs/platform/opener/common/opener';
 import { URI } from 'vs/base/common/uri';
 
+const builtinExtensionIssueUrl = 'https://github.com/microsoft/vscode';
+
 export class ReportExtensionIssueAction extends Action {
 
 	private static readonly _id = 'workbench.extensions.action.reportExtensionIssue';
@@ -34,7 +36,8 @@ export class ReportExtensionIssueAction extends Action {
 		@INativeHostService private readonly nativeHostService: INativeHostService
 	) {
 		super(ReportExtensionIssueAction._id, ReportExtensionIssueAction._label, 'extension-action report-issue');
-		this.enabled = !!extension.description.repository && !!extension.description.repository.url;
+
+		this.enabled = extension.description.isBuiltin || (!!extension.description.repository && !!extension.description.repository.url);
 	}
 
 	async run(): Promise<void> {
@@ -51,6 +54,9 @@ export class ReportExtensionIssueAction extends Action {
 		unresponsiveProfile?: IExtensionHostProfile
 	}): Promise<string> {
 		let baseUrl = extension.marketplaceInfo && extension.marketplaceInfo.type === ExtensionType.User && extension.description.repository ? extension.description.repository.url : undefined;
+		if (!baseUrl && extension.description.isBuiltin) {
+			baseUrl = builtinExtensionIssueUrl;
+		}
 		if (!!baseUrl) {
 			baseUrl = `${baseUrl.indexOf('.git') !== -1 ? baseUrl.substr(0, baseUrl.length - 4) : baseUrl}/issues/new/`;
 		} else {

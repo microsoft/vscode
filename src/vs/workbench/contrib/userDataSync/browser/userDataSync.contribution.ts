@@ -12,7 +12,6 @@ import { INotificationService, Severity } from 'vs/platform/notification/common/
 import { Disposable } from 'vs/base/common/lifecycle';
 import { localize } from 'vs/nls';
 import { isWeb } from 'vs/base/common/platform';
-import { IConfigurationService, ConfigurationTarget } from 'vs/platform/configuration/common/configuration';
 import { UserDataSyncTrigger } from 'vs/workbench/contrib/userDataSync/browser/userDataSyncTrigger';
 
 class UserDataSyncReportIssueContribution extends Disposable implements IWorkbenchContribution {
@@ -40,34 +39,8 @@ class UserDataSyncReportIssueContribution extends Disposable implements IWorkben
 	}
 }
 
-export class UserDataSyncSettingsMigrationContribution implements IWorkbenchContribution {
-
-	constructor(
-		@IConfigurationService private readonly configurationService: IConfigurationService
-	) {
-		this.migrateSettings();
-	}
-
-	private async migrateSettings(): Promise<void> {
-		await this.migrateSetting('sync.keybindingsPerPlatform', 'settingsSync.keybindingsPerPlatform');
-		await this.migrateSetting('sync.ignoredExtensions', 'settingsSync.ignoredExtensions');
-		await this.migrateSetting('sync.ignoredSettings', 'settingsSync.ignoredSettings');
-	}
-
-	private async migrateSetting(oldSetting: string, newSetting: string): Promise<void> {
-		const userValue = this.configurationService.inspect(oldSetting).userValue;
-		if (userValue !== undefined) {
-			// remove the old setting
-			await this.configurationService.updateValue(oldSetting, undefined, ConfigurationTarget.USER);
-			// add the new setting
-			await this.configurationService.updateValue(newSetting, userValue, ConfigurationTarget.USER);
-		}
-	}
-}
-
 const workbenchRegistry = Registry.as<IWorkbenchContributionsRegistry>(WorkbenchExtensions.Workbench);
 workbenchRegistry.registerWorkbenchContribution(UserDataSyncWorkbenchContribution, LifecyclePhase.Ready);
-workbenchRegistry.registerWorkbenchContribution(UserDataSyncSettingsMigrationContribution, LifecyclePhase.Eventually);
 workbenchRegistry.registerWorkbenchContribution(UserDataSyncTrigger, LifecyclePhase.Eventually);
 
 if (isWeb) {

@@ -82,7 +82,7 @@ export class ExtHostTesting implements ExtHostTestingShape {
 	/**
 	 * Implements vscode.test.runTests
 	 */
-	public async runTests(req: vscode.TestRunOptions<vscode.TestItem>) {
+	public async runTests(req: vscode.TestRunOptions<vscode.TestItem>, token = CancellationToken.None) {
 		await this.proxy.$runTests({
 			tests: req.tests
 				// Find workspace items first, then owned tests, then document tests.
@@ -94,7 +94,7 @@ export class ExtHostTesting implements ExtHostTestingShape {
 				.filter(isDefined)
 				.map(item => ({ providerId: item.providerId, testId: item.id })),
 			debug: req.debug
-		});
+		}, token);
 	}
 
 	/**
@@ -178,7 +178,7 @@ export class ExtHostTesting implements ExtHostTestingShape {
 	 * providers to be run.
 	 * @override
 	 */
-	public async $runTestsForProvider(req: RunTestForProviderRequest): Promise<RunTestsResult> {
+	public async $runTestsForProvider(req: RunTestForProviderRequest, cancellation: CancellationToken): Promise<RunTestsResult> {
 		const provider = this.providers.get(req.providerId);
 		if (!provider || !provider.runTests) {
 			return EMPTY_TEST_RESULT;
@@ -189,8 +189,13 @@ export class ExtHostTesting implements ExtHostTestingShape {
 			return EMPTY_TEST_RESULT;
 		}
 
-		await provider.runTests({ tests, debug: req.debug }, CancellationToken.None);
-		return EMPTY_TEST_RESULT;
+		try {
+			await provider.runTests({ tests, debug: req.debug }, cancellation);
+			return EMPTY_TEST_RESULT;
+		} catch (e) {
+			console.error(e); // so it appears to attached debuggers
+			throw e;
+		}
 	}
 }
 

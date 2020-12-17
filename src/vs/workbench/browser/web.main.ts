@@ -62,6 +62,7 @@ import { IHostService } from 'vs/workbench/services/host/browser/host';
 import { IUriIdentityService } from 'vs/workbench/services/uriIdentity/common/uriIdentity';
 import { UriIdentityService } from 'vs/workbench/services/uriIdentity/common/uriIdentityService';
 import { BrowserWindow } from 'vs/workbench/browser/window';
+import { ITimerService } from 'vs/workbench/services/timer/browser/timerService';
 
 class BrowserMain extends Disposable {
 
@@ -84,7 +85,7 @@ class BrowserMain extends Disposable {
 		const services = await this.initServices();
 
 		await domContentLoaded();
-		mark('willStartWorkbench');
+		mark('code/willStartWorkbench');
 
 		// Create Workbench
 		const workbench = new Workbench(
@@ -114,10 +115,17 @@ class BrowserMain extends Disposable {
 		return instantiationService.invokeFunction(accessor => {
 			const commandService = accessor.get(ICommandService);
 			const lifecycleService = accessor.get(ILifecycleService);
+			const timerService = accessor.get(ITimerService);
 
 			return {
 				commands: {
 					executeCommand: (command, ...args) => commandService.executeCommand(command, ...args)
+				},
+				env: {
+					async retrievePerformanceMarks() {
+						await timerService.whenReady();
+						return timerService.getPerformanceMarks();
+					}
 				},
 				shutdown: () => lifecycleService.shutdown()
 			};
@@ -145,8 +153,7 @@ class BrowserMain extends Disposable {
 		// Workbench Lifecycle
 		this._register(workbench.onBeforeShutdown(event => {
 			if (storageService.hasPendingUpdate) {
-				logService.warn('Unload veto: pending storage update');
-				event.veto(true); // prevent data loss from pending storage update
+				event.veto(true, 'veto.pendingStorageUpdate'); // prevent data loss from pending storage update
 			}
 		}));
 		this._register(workbench.onWillShutdown(() => storageService.close()));
@@ -243,7 +250,7 @@ class BrowserMain extends Disposable {
 		serviceCollection.set(IUserDataInitializationService, userDataInitializationService);
 
 		if (await userDataInitializationService.requiresInitialization()) {
-			mark('willInitRequiredUserData');
+			mark('code/willInitRequiredUserData');
 
 			// Initialize required resources - settings & global state
 			await userDataInitializationService.initializeRequiredResources();
@@ -252,7 +259,7 @@ class BrowserMain extends Disposable {
 			// Reloading complete configuraiton blocks workbench until remote configuration is loaded.
 			await configurationService.reloadLocalUserConfiguration();
 
-			mark('didInitRequiredUserData');
+			mark('code/didInitRequiredUserData');
 		}
 
 		return { serviceCollection, configurationService, logService, storageService };

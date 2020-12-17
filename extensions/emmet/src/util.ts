@@ -9,9 +9,11 @@ import parseStylesheet from '@emmetio/css-parser';
 import { Node, HtmlNode, CssToken, Property, Rule, Stylesheet } from 'EmmetNode';
 import { DocumentStreamReader } from './bufferStream';
 import * as EmmetHelper from 'vscode-emmet-helper';
-import { TextDocument as LSTextDocument } from 'vscode-html-languageservice';
+import { Position as LSPosition, getLanguageService as getLanguageServiceInternal, LanguageService, LanguageServiceOptions, TextDocument as LSTextDocument, Node as LSNode } from 'vscode-html-languageservice';
+import { parseMarkupDocument } from './parseMarkupDocument';
 
 let _emmetHelper: typeof EmmetHelper;
+let _languageService: LanguageService;
 let _currentExtensionsPath: string | undefined = undefined;
 
 let _homeDir: vscode.Uri | undefined;
@@ -21,7 +23,6 @@ export function setHomeDir(homeDir: vscode.Uri) {
 	_homeDir = homeDir;
 }
 
-
 export function getEmmetHelper() {
 	// Lazy load vscode-emmet-helper instead of importing it
 	// directly to reduce the start-up time of the extension
@@ -30,6 +31,16 @@ export function getEmmetHelper() {
 	}
 	updateEmmetExtensionsPath();
 	return _emmetHelper;
+}
+
+export function getLanguageService(options?: LanguageServiceOptions): LanguageService {
+	if (!options) {
+		if (!_languageService) {
+			_languageService = getLanguageServiceInternal();
+		}
+		return _languageService;
+	}
+	return getLanguageServiceInternal(options);
 }
 
 /**
@@ -130,8 +141,8 @@ export function getEmmetMode(language: string, excludedLanguages: string[]): str
 	if (language === 'jade') {
 		return 'pug';
 	}
-	const emmetModes = ['html', 'pug', 'slim', 'haml', 'xml', 'xsl', 'jsx', 'css', 'scss', 'sass', 'less', 'stylus'];
-	if (emmetModes.indexOf(language) > -1) {
+	const syntaxes = getSyntaxes();
+	if (syntaxes.markup.includes(language) || syntaxes.stylesheet.includes(language)) {
 		return language;
 	}
 	return;
@@ -364,6 +375,78 @@ export function getHtmlNode(document: vscode.TextDocument, root: Node | undefine
 	}
 
 	return currentNode;
+}
+
+/**
+ * Finds the HTML node within an HTML document at a given position
+ */
+export function getHtmlNodeLS(document: LSTextDocument, position: vscode.Position, includeNodeBoundary: boolean): LSNode | undefined {
+	const documentText = document.getText();
+	const offset = document.offsetAt(position);
+	let selectionStartOffset = offset;
+	if (includeNodeBoundary && documentText.charAt(offset) === '<') {
+		selectionStartOffset++;
+	}
+	else if (includeNodeBoundary && documentText.charAt(offset) === '>') {
+		selectionStartOffset--;
+	}
+	return getHtmlNodeLSInternal(document, selectionStartOffset);
+}
+
+function getHtmlNodeLSInternal(document: LSTextDocument, offset: number, isInTemplateNode: boolean = false): LSNode | undefined {
+	const useCache = !isInTemplateNode;
+	const parsedDocument = parseMarkupDocument(document, useCache);
+
+	const currentNode: LSNode = parsedDocument.findNodeAt(offset);
+	if (!currentNode.tag) { return; }
+
+	const isTemplateScript = isNodeTemplateScriptLS(currentNode);
+	if (isTemplateScript
+		&& currentNode.startTagEnd
+		&& offset > currentNode.startTagEnd
+		&& (!currentNode.endTagStart || offset < currentNode.endTagStart)) {
+		// blank out the rest of the document and search for the node within
+		const documentText = document.getText();
+		const beforePadding = ' '.repeat(currentNode.startTagEnd);
+		const scriptBodyText = beforePadding + documentText.substring(currentNode.startTagEnd, currentNode.endTagStart ?? currentNode.end);
+		const scriptBodyDocument = LSTextDocument.create(document.uri, document.languageId, document.version, scriptBodyText);
+		const scriptBodyNode = getHtmlNodeLSInternal(scriptBodyDocument, offset, true);
+		if (scriptBodyNode) {
+			scriptBodyNode.parent = currentNode;
+			currentNode.children.push(scriptBodyNode);
+			return scriptBodyNode;
+		}
+	}
+	return currentNode;
+}
+
+/**
+ * Returns whether the node is a <script> node
+ * that we want to search through and parse for more potential HTML nodes
+ */
+function isNodeTemplateScriptLS(node: LSNode): boolean {
+	if (node.tag === 'script' && node.attributes && node.attributes['type']) {
+		let scriptType = node.attributes['type'];
+		scriptType = scriptType.substring(1, scriptType.length - 1);
+		return allowedMimeTypesInScriptTag.includes(scriptType);
+	}
+	return false;
+}
+
+function toVsPosition(position: LSPosition): vscode.Position {
+	return new vscode.Position(position.line, position.character);
+}
+
+export function offsetRangeToSelection(document: LSTextDocument, start: number, end: number): vscode.Selection {
+	const startPos = document.positionAt(start);
+	const endPos = document.positionAt(end);
+	return new vscode.Selection(toVsPosition(startPos), toVsPosition(endPos));
+}
+
+export function offsetRangeToVsRange(document: LSTextDocument, start: number, end: number): vscode.Range {
+	const startPos = document.positionAt(start);
+	const endPos = document.positionAt(end);
+	return new vscode.Range(toVsPosition(startPos), toVsPosition(endPos));
 }
 
 /**
@@ -652,4 +735,14 @@ export function getPathBaseName(path: string): string {
 	const pathAfterSlashSplit = path.split('/').pop();
 	const pathAfterBackslashSplit = pathAfterSlashSplit ? pathAfterSlashSplit.split('\\').pop() : '';
 	return pathAfterBackslashSplit ?? '';
+}
+
+export function getSyntaxes() {
+	/**
+	 * List of all known syntaxes, from emmetio/emmet
+	 */
+	return {
+		markup: ['html', 'xml', 'xsl', 'jsx', 'js', 'pug', 'slim', 'haml'],
+		stylesheet: ['css', 'sass', 'scss', 'less', 'sss', 'stylus']
+	};
 }

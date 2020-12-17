@@ -83,6 +83,8 @@ export class TerminalProcessManager extends Disposable implements ITerminalProce
 	public get onEnvironmentVariableInfoChanged(): Event<IEnvironmentVariableInfo> { return this._onEnvironmentVariableInfoChange.event; }
 
 	public get environmentVariableInfo(): IEnvironmentVariableInfo | undefined { return this._environmentVariableInfo; }
+	private _remoteTerminalId: number | undefined;
+	public get remoteTerminalId(): number | undefined { return this._remoteTerminalId; }
 
 	constructor(
 		private readonly _terminalId: number,
@@ -208,9 +210,12 @@ export class TerminalProcessManager extends Disposable implements ITerminalProce
 			}
 		}, LAUNCHING_DURATION);
 
-		const error = await this._process.start();
-		if (error) {
-			return error;
+		const result = await this._process.start();
+		if (result && 'remoteTerminalId' in result) {
+			this._remoteTerminalId = result.remoteTerminalId;
+		} else if (result) {
+			// Error
+			return result;
 		}
 
 		return undefined;

@@ -1,25 +1,4 @@
 steps:
-  - script: |
-      mkdir -p .build
-      echo -n $BUILD_SOURCEVERSION > .build/commit
-      echo -n $VSCODE_QUALITY > .build/quality
-      echo -n $ENABLE_TERRAPIN > .build/terrapin
-    displayName: Prepare compilation cache flags
-
-  - task: 1ESLighthouseEng.PipelineArtifactCaching.RestoreCacheV1.RestoreCache@1
-    inputs:
-      keyfile: "build/.cachesalt, .build/commit, .build/quality, .build/terrapin"
-      targetfolder: ".build, out-build, out-vscode-min, out-vscode-reh-min, out-vscode-reh-web-min"
-      vstsFeed: "npm-vscode"
-      platformIndependent: true
-      alias: "Compilation"
-
-  - script: |
-      set -e
-      exit 1
-    displayName: Check RestoreCache
-    condition: and(succeeded(), ne(variables['CacheRestored-Compilation'], 'true'))
-
   - task: NodeTool@0
     inputs:
       versionSpec: "12.18.3"
@@ -33,6 +12,12 @@ steps:
     inputs:
       azureSubscription: "vscode-builds-subscription"
       KeyVaultName: vscode
+
+  - task: DownloadPipelineArtifact@2
+    inputs:
+      artifact: CompilationOutput
+      path: $(System.DefaultWorkingDirectory)
+    displayName: Download compilation output
 
   - script: |
       set -e
@@ -48,9 +33,7 @@ steps:
 
   - script: |
       set -e
-      git remote add distro "https://github.com/$(VSCODE_MIXIN_REPO).git"
-      git fetch distro
-      git merge $(node -p "require('./package.json').distro")
+      git pull --no-rebase https://github.com/$(VSCODE_MIXIN_REPO).git $(node -p "require('./package.json').distro")
     displayName: Merge distro
 
   - script: |
@@ -61,6 +44,7 @@ steps:
 
   - script: |
       echo -n $(VSCODE_ARCH) > .build/arch
+      echo -n $ENABLE_TERRAPIN > .build/terrapin
     displayName: Prepare yarn cache flags
 
   - task: 1ESLighthouseEng.PipelineArtifactCaching.RestoreCacheV1.RestoreCache@1
@@ -78,13 +62,12 @@ steps:
 
   - script: |
       set -e
-      if [ -z "$CC" || -z "$CXX" ]
+      if [ -z "$CC" ] || [ -z "$CXX" ]
       then
         export CC=$(which gcc-5)
         export CXX=$(which g++-5)
       fi
       export npm_config_arch=$(NPM_ARCH)
-      export CHILD_CONCURRENCY="1"
       for i in {1..3}; do # try 3 times, for Terrapin
         yarn --frozen-lockfile && break
         if [ $i -eq 3 ]; then
@@ -93,6 +76,9 @@ steps:
         fi
         echo "Yarn failed $i, trying again..."
       done
+    env:
+      ELECTRON_SKIP_BINARY_DOWNLOAD: 1
+      PLAYWRIGHT_SKIP_BROWSER_DOWNLOAD: 1
     displayName: Install dependencies
     condition: and(succeeded(), ne(variables['CacheRestored'], 'true'))
 
@@ -102,12 +88,6 @@ steps:
       targetfolder: "**/node_modules, !**/node_modules/**/node_modules"
       vstsFeed: "npm-vscode"
     condition: and(succeeded(), ne(variables['CacheRestored'], 'true'))
-
-  - script: |
-      set -e
-      yarn postinstall
-    displayName: Run postinstall scripts
-    condition: and(succeeded(), eq(variables['CacheRestored'], 'true'))
 
   - script: |
       set -e
@@ -128,23 +108,41 @@ steps:
       set -e
       VSCODE_MIXIN_PASSWORD="$(github-distro-mixin-password)" \
         yarn gulp vscode-linux-$(VSCODE_ARCH)-min-ci
+    displayName: Build
+
+  - script: |
+      set -e
       VSCODE_MIXIN_PASSWORD="$(github-distro-mixin-password)" \
         yarn gulp vscode-reh-linux-$(VSCODE_ARCH)-min-ci
       VSCODE_MIXIN_PASSWORD="$(github-distro-mixin-password)" \
         yarn gulp vscode-reh-web-linux-$(VSCODE_ARCH)-min-ci
-    displayName: Build
+    displayName: Build Server
+
+  - script: |
+      set -e
+      yarn npm-run-all -lp "electron $(VSCODE_ARCH)" "playwright-install"
+    displayName: Download Electron and Playwright
+    condition: and(succeeded(), eq(variables['VSCODE_ARCH'], 'x64'), eq(variables['VSCODE_STEP_ON_IT'], 'false'))
 
   - script: |
       set -e
       DISPLAY=:10 ./scripts/test.sh --build --tfs "Unit Tests"
     displayName: Run unit tests (Electron)
+    timeoutInMinutes: 5
     condition: and(succeeded(), eq(variables['VSCODE_ARCH'], 'x64'), eq(variables['VSCODE_STEP_ON_IT'], 'false'))
 
   - script: |
       set -e
       DISPLAY=:10 yarn test-browser --build --browser chromium --tfs "Browser Unit Tests"
     displayName: Run unit tests (Browser)
+    timeoutInMinutes: 5
     condition: and(succeeded(), eq(variables['VSCODE_ARCH'], 'x64'), eq(variables['VSCODE_STEP_ON_IT'], 'false'))
+
+  - script: |
+      set -e
+      yarn --cwd test/integration/browser compile
+    displayName: Compile integration tests
+    condition: and(succeeded(), eq(variables['CacheRestored'], 'true'), eq(variables['VSCODE_ARCH'], 'x64'), eq(variables['VSCODE_STEP_ON_IT'], 'false'))
 
   - script: |
       # Figure out the full absolute path of the product we just built
@@ -158,6 +156,7 @@ steps:
       VSCODE_REMOTE_SERVER_PATH="$(agent.builddirectory)/vscode-reh-linux-$(VSCODE_ARCH)" \
       DISPLAY=:10 ./scripts/test-integration.sh --build --tfs "Integration Tests"
     displayName: Run integration tests (Electron)
+    timeoutInMinutes: 5
     condition: and(succeeded(), eq(variables['VSCODE_ARCH'], 'x64'), eq(variables['VSCODE_STEP_ON_IT'], 'false'))
 
   - script: |
@@ -165,6 +164,7 @@ steps:
       VSCODE_REMOTE_SERVER_PATH="$(agent.builddirectory)/vscode-reh-web-linux-$(VSCODE_ARCH)" \
       DISPLAY=:10 ./resources/server/test/test-web-integration.sh --browser chromium
     displayName: Run integration tests (Browser)
+    timeoutInMinutes: 5
     condition: and(succeeded(), eq(variables['VSCODE_ARCH'], 'x64'), eq(variables['VSCODE_STEP_ON_IT'], 'false'))
 
   - script: |
@@ -176,6 +176,7 @@ steps:
       VSCODE_REMOTE_SERVER_PATH="$(agent.builddirectory)/vscode-reh-linux-$(VSCODE_ARCH)" \
       DISPLAY=:10 ./resources/server/test/test-remote-integration.sh
     displayName: Run remote integration tests (Electron)
+    timeoutInMinutes: 5
     condition: and(succeeded(), eq(variables['VSCODE_ARCH'], 'x64'), eq(variables['VSCODE_STEP_ON_IT'], 'false'))
 
   - task: PublishPipelineArtifact@0
@@ -198,17 +199,20 @@ steps:
       yarn gulp "vscode-linux-$(VSCODE_ARCH)-build-deb"
       yarn gulp "vscode-linux-$(VSCODE_ARCH)-build-rpm"
     displayName: Build deb, rpm packages
+    condition: and(succeeded(), ne(variables['VSCODE_PUBLISH'], 'false'))
 
   - script: |
       set -e
       yarn gulp "vscode-linux-$(VSCODE_ARCH)-prepare-snap"
     displayName: Prepare snap package
+    condition: and(succeeded(), ne(variables['VSCODE_PUBLISH'], 'false'))
 
   # needed for code signing
   - task: UseDotNet@2
     displayName: "Install .NET Core SDK 2.x"
     inputs:
       version: 2.x
+    condition: and(succeeded(), ne(variables['VSCODE_PUBLISH'], 'false'))
 
   - task: SFP.build-tasks.custom-build-task-1.EsrpCodeSigning@1
     inputs:
@@ -228,6 +232,7 @@ steps:
         ]
       SessionTimeout: 120
     displayName: Codesign rpm
+    condition: and(succeeded(), ne(variables['VSCODE_PUBLISH'], 'false'))
 
   - script: |
       set -e
@@ -237,12 +242,14 @@ steps:
       VSCODE_ARCH="$(VSCODE_ARCH)" \
       ./build/azure-pipelines/linux/publish.sh
     displayName: Publish
+    condition: and(succeeded(), ne(variables['VSCODE_PUBLISH'], 'false'))
 
   - task: PublishPipelineArtifact@0
     displayName: "Publish Pipeline Artifact"
     inputs:
       artifactName: "snap-$(VSCODE_ARCH)"
       targetPath: .build/linux/snap-tarball
+    condition: and(succeeded(), ne(variables['VSCODE_PUBLISH'], 'false'))
 
   - task: ms.vss-governance-buildtask.governance-build-task-component-detection.ComponentGovernanceComponentDetection@0
     displayName: "Component Detection"

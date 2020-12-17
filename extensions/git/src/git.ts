@@ -1694,7 +1694,7 @@ export class Repository {
 			args.push(name);
 		}
 
-		args.splice(0, 0, '-c', `http.userAgent="${this.git.userAgent}"`);
+		args.splice(0, 0, '-c', `http.userAgent=${this.git.userAgent}`);
 
 		try {
 			await this.run(args);

@@ -51,7 +51,7 @@ export class OneReference {
 			);
 		} else {
 			return localize(
-				'aria.oneReference.preview', "symbol in {0} on line {1} at column {2}, {3}",
+				{ key: 'aria.oneReference.preview', comment: ['Placeholders are: 0: filename, 1:line number, 2: column number, 3: preview snippet of source code'] }, "symbol in {0} on line {1} at column {2}, {3}",
 				basename(this.uri), this.range.startLineNumber, this.range.startColumn, preview.value
 			);
 		}

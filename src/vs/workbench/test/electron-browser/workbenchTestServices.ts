@@ -52,7 +52,7 @@ export const TestWorkbenchConfiguration: INativeWorkbenchConfiguration = {
 	appRoot: '',
 	userEnv: {},
 	execPath: process.execPath,
-	perfEntries: [],
+	perfMarks: [],
 	colorScheme: { dark: true, highContrast: false },
 	os: { release: release() },
 	...parseArgs(process.argv, OPTIONS)

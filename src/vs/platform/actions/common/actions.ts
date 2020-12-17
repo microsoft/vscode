@@ -133,6 +133,8 @@ export class MenuId {
 	static readonly TimelineTitle = new MenuId('TimelineTitle');
 	static readonly TimelineTitleContext = new MenuId('TimelineTitleContext');
 	static readonly AccountsContext = new MenuId('AccountsContext');
+	static readonly PanelTitle = new MenuId('PanelTitle');
+	static readonly PanelTitleContext = new MenuId('PanelTitleContext');
 
 	readonly id: number;
 	readonly _debugName: string;

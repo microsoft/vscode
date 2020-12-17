@@ -3,7 +3,10 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { windowOpenNoOpener } from 'vs/base/browser/dom';
+import { EventType, windowOpenNoOpener } from 'vs/base/browser/dom';
+import { domEvent } from 'vs/base/browser/event';
+import { timeout } from 'vs/base/common/async';
+import { Event } from 'vs/base/common/event';
 import { Disposable } from 'vs/base/common/lifecycle';
 import { Schemas } from 'vs/base/common/network';
 import Severity from 'vs/base/common/severity';
@@ -33,9 +36,19 @@ export class BrowserWindow extends Disposable {
 	}
 
 	private onWillShutdown(): void {
-		// Use a timeout so that the dialog does not appear on each reload
-		// that is triggered by the user itself.
-		setTimeout(async () => {
+
+		// Try to detect some user interaction with the workbench
+		// when shutdown has happened to not show the dialog e.g.
+		// when navigation takes a longer time.
+		Event.toPromise(Event.any(
+			Event.once(domEvent(document.body, EventType.KEY_DOWN, true)),
+			Event.once(domEvent(document.body, EventType.MOUSE_DOWN, true))
+		)).then(async () => {
+
+			// Delay the dialog in case the user interacted
+			// with the page before it transitioned away
+			await timeout(3000);
+
 			// This should normally not happen, but if for some reason
 			// the workbench was shutdown while the page is still there,
 			// inform the user that only a reload can bring back a working
@@ -54,7 +67,7 @@ export class BrowserWindow extends Disposable {
 			if (res.choice === 0) {
 				this.hostService.reload();
 			}
-		}, 1500);
+		});
 	}
 
 	private create(): void {

@@ -766,7 +766,7 @@ export class EditorStatus extends Disposable implements IWorkbenchContribution {
 		if (editorWidget) {
 			const screenReaderDetected = this.accessibilityService.isScreenReaderOptimized();
 			if (screenReaderDetected) {
-				const screenReaderConfiguration = this.configurationService.getValue<IEditorOptions>('editor').accessibilitySupport;
+				const screenReaderConfiguration = this.configurationService.getValue<IEditorOptions>('editor')?.accessibilitySupport;
 				if (screenReaderConfiguration === 'auto') {
 					if (!this.promptedScreenReader) {
 						this.promptedScreenReader = true;
