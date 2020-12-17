@@ -96,7 +96,7 @@ function calculateIndentAmountToRemove(document: vscode.TextDocument, openRange:
 		}
 		tabsOnly = tabsOnly && contentIndent.tabsOnly;
 	}
-	return tabsOnly ? indentAmountSpaces / tabSize : indentAmountSpaces;
+	return tabsOnly ? Math.trunc(indentAmountSpaces / tabSize) : indentAmountSpaces;
 }
 
 function calculateLineIndentInSpaces(line: string, tabSize: number): IndentInfo {
