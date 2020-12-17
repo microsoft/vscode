@@ -8,8 +8,8 @@ schedules:
         - master
 
 variables:
-  ${{ if and(eq(variables['VSCODE_PUBLISH'], ''), or(eq(variables['Build.Reason'], 'IndividualCI'), eq(variables['Build.Reason'], 'BatchedCI'))) }}:
-    VSCODE_PUBLISH: 'false'
+  ? ${{ if and(eq(variables['VSCODE_PUBLISH'], ''), or(eq(variables['Build.Reason'], 'IndividualCI'), eq(variables['Build.Reason'], 'BatchedCI'))) }}
+  : VSCODE_PUBLISH: "false"
 
 resources:
   containers:
@@ -167,14 +167,6 @@ stages:
           VSCODE_ARCH: x64
         steps:
           - template: darwin/product-build-darwin.yml
-
-  - stage: macOSARM64
-    dependsOn:
-      - Compile
-    condition: and(succeeded(), eq(variables['VSCODE_COMPILE_ONLY'], 'false'))
-    pool:
-      vmImage: macOS-latest
-    jobs:
       - job: macOSARM64
         condition: and(succeeded(), eq(variables['VSCODE_BUILD_MACOS_ARM64'], 'true'), ne(variables['VSCODE_PUBLISH'], 'false'))
         timeoutInMinutes: 90
@@ -188,7 +180,6 @@ stages:
       - Windows
       - Linux
       - macOS
-      - macOSARM64
     condition: and(succeededOrFailed(), eq(variables['VSCODE_COMPILE_ONLY'], 'false'), ne(variables['VSCODE_PUBLISH'], 'false'))
     pool:
       vmImage: "Ubuntu-18.04"
@@ -203,7 +194,6 @@ stages:
       - Windows
       - Linux
       - macOS
-      - macOSARM64
     condition: and(succeeded(), eq(variables['VSCODE_COMPILE_ONLY'], 'false'), ne(variables['VSCODE_PUBLISH'], 'false'), or(eq(variables['VSCODE_RELEASE'], 'true'), and(or(eq(variables['VSCODE_QUALITY'], 'insider'), eq(variables['VSCODE_QUALITY'], 'exploration')), eq(variables['Build.Reason'], 'Schedule'))))
     pool:
       vmImage: "Ubuntu-18.04"
