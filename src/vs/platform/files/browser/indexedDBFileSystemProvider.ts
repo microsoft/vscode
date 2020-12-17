@@ -17,6 +17,15 @@ const INDEXEDDB_VSCODE_DB = 'vscode-web-db';
 export const INDEXEDDB_USERDATA_OBJECT_STORE = 'vscode-userdata-store';
 export const INDEXEDDB_LOGS_OBJECT_STORE = 'vscode-logs-store';
 
+// Standard FS Errors (expected to be thrown in production when invalid FS operations are requested)
+const ERR_FILE_NOT_FOUND = createFileSystemProviderError(localize('fileNotExists', "File does not exist"), FileSystemProviderErrorCode.FileNotFound);
+const ERR_FILE_IS_DIR = createFileSystemProviderError(localize('fileIsDirectory', "File is Directory"), FileSystemProviderErrorCode.FileIsADirectory);
+const ERR_FILE_NOT_DIR = createFileSystemProviderError(localize('fileNotDirectory', "File is not a directory"), FileSystemProviderErrorCode.FileNotADirectory);
+const ERR_DIR_NOT_EMPTY = createFileSystemProviderError(localize('dirIsNotEmpty', "Directory is not empty"), FileSystemProviderErrorCode.Unknown);
+
+// Arbitrary Internal Errors (should never be thrown in production)
+const ERR_UNKNOWN_INTERNAL = (message: string) => createFileSystemProviderError(localize('internal', "Internal error occured in IndexedDB File System Provider. ({0})", message), FileSystemProviderErrorCode.Unknown);
+
 export class IndexedDB {
 
 	private indexedDBPromise: Promise<IDBDatabase | null>;
@@ -66,7 +75,6 @@ export class IndexedDB {
 			};
 		});
 	}
-
 }
 
 export interface IIndexedDBFileSystemProvider extends Disposable, IFileSystemProviderWithFileReadWriteCapability {
@@ -102,7 +110,7 @@ class IndexedDBFileSystemNode {
 	private doRead(pathParts: string[]): IndexedDBFileSystemEntry | undefined {
 		if (pathParts.length === 0) { return this.entry; }
 		if (this.entry.type !== FileType.Directory) {
-			throw new Error('Internal error reading from superblock -- expected directory at ' + this.entry.path);
+			throw ERR_UNKNOWN_INTERNAL('Internal error reading from IndexedDBFSNode -- expected directory at ' + this.entry.path);
 		}
 		const next = this.entry.children.get(pathParts[0]);
 
@@ -114,7 +122,7 @@ class IndexedDBFileSystemNode {
 		const toDelete = path.split('/').filter(p => p.length);
 		if (toDelete.length === 0) {
 			if (this.entry.type !== FileType.Directory) {
-				throw new Error(`Internal error deleting from superblock. Expected root entry to be directory`);
+				throw ERR_UNKNOWN_INTERNAL(`Internal error deleting from IndexedDBFSNode. Expected root entry to be directory`);
 			}
 			this.entry.children.clear();
 		} else {
@@ -124,10 +132,10 @@ class IndexedDBFileSystemNode {
 
 	private doDelete = (pathParts: string[], originalPath: string) => {
 		if (pathParts.length === 0) {
-			throw new Error(`Internal error deleting from superblock -- got no deletion path parts (encountered while deleting ${originalPath})`);
+			throw ERR_UNKNOWN_INTERNAL(`Internal error deleting from IndexedDBFSNode -- got no deletion path parts (encountered while deleting ${originalPath})`);
 		}
 		else if (this.entry.type !== FileType.Directory) {
-			throw new Error('Internal error reading from superblock -- expected directory at ' + this.entry.path);
+			throw ERR_UNKNOWN_INTERNAL('Internal error deleting from IndexedDBFSNode -- expected directory at ' + this.entry.path);
 		}
 		else if (pathParts.length === 1) {
 			this.entry.children.delete(pathParts[0]);
@@ -135,7 +143,7 @@ class IndexedDBFileSystemNode {
 		else {
 			const next = this.entry.children.get(pathParts[0]);
 			if (!next) {
-				throw new Error('Internal error reading from superblock -- expected entry at ' + this.entry.path + '/' + next);
+				throw ERR_UNKNOWN_INTERNAL('Internal error deleting from IndexedDBFSNode -- expected entry at ' + this.entry.path + '/' + next);
 			}
 			next.doDelete(pathParts.slice(1), originalPath);
 		}
@@ -147,17 +155,17 @@ class IndexedDBFileSystemNode {
 
 	private doAdd(pathParts: string[], entry: { type: 'file', size?: number } | { type: 'dir' }, originalPath: string) {
 		if (pathParts.length === 0) {
-			throw new Error(`Internal error creating superblock -- adding empty path (encountered while adding ${originalPath})`);
+			throw ERR_UNKNOWN_INTERNAL(`Internal error creating IndexedDBFSNode -- adding empty path (encountered while adding ${originalPath})`);
 		}
 		else if (this.entry.type !== FileType.Directory) {
-			throw new Error(`Internal error creating superblock -- parent is not a directory (encountered while adding ${originalPath})`);
+			throw ERR_UNKNOWN_INTERNAL(`Internal error creating IndexedDBFSNode -- parent is not a directory (encountered while adding ${originalPath})`);
 		}
 		else if (pathParts.length === 1) {
 			const next = pathParts[0];
 			const existing = this.entry.children.get(next);
 			if (entry.type === 'dir') {
 				if (existing?.entry.type === FileType.File) {
-					throw new Error(`Internal error creating superblock -- overwriting file with directory: ${this.entry.path}/${next} (encountered while adding ${originalPath})`);
+					throw ERR_UNKNOWN_INTERNAL(`Internal error creating IndexedDBFSNode -- overwriting file with directory: ${this.entry.path}/${next} (encountered while adding ${originalPath})`);
 				}
 				this.entry.children.set(next, existing ?? new IndexedDBFileSystemNode({
 					type: FileType.Directory,
@@ -166,7 +174,7 @@ class IndexedDBFileSystemNode {
 				}));
 			} else {
 				if (existing?.entry.type === FileType.Directory) {
-					throw new Error(`Internal error creating superblock -- overwriting directory with file: ${this.entry.path}/${next} (encountered while adding ${originalPath})`);
+					throw ERR_UNKNOWN_INTERNAL(`Internal error creating IndexedDBFSNode -- overwriting directory with file: ${this.entry.path}/${next} (encountered while adding ${originalPath})`);
 				}
 				this.entry.children.set(next, new IndexedDBFileSystemNode({
 					type: FileType.File,
@@ -187,7 +195,7 @@ class IndexedDBFileSystemNode {
 				this.entry.children.set(next, childNode);
 			}
 			else if (childNode.type === FileType.File) {
-				throw new Error(`Internal error creating superblock -- overwriting file entry with directory: ${this.entry.path}/${next} (encountered while adding ${originalPath})`);
+				throw ERR_UNKNOWN_INTERNAL(`Internal error creating IndexedDBFSNode -- overwriting file entry with directory: ${this.entry.path}/${next} (encountered while adding ${originalPath})`);
 			}
 			childNode.doAdd(pathParts.slice(1), entry, originalPath);
 		}
@@ -230,7 +238,7 @@ class IndexedDBFileSystemProvider extends Disposable implements IIndexedDBFileSy
 		try {
 			const resourceStat = await this.stat(resource);
 			if (resourceStat.type === FileType.File) {
-				throw createFileSystemProviderError(localize('fileNotDirectory', "File is not a directory"), FileSystemProviderErrorCode.FileNotADirectory);
+				throw ERR_FILE_NOT_DIR;
 			}
 		} catch (error) { /* Ignore */ }
 		(await this.getFiletree()).add(resource.path, { type: 'dir' });
@@ -254,7 +262,7 @@ class IndexedDBFileSystemProvider extends Disposable implements IIndexedDBFileSy
 			};
 		}
 		else {
-			throw createFileSystemProviderError(localize('fileNotExists', "File does not exist"), FileSystemProviderErrorCode.FileNotFound);
+			throw ERR_FILE_NOT_FOUND;
 		}
 	}
 
@@ -269,7 +277,7 @@ class IndexedDBFileSystemProvider extends Disposable implements IIndexedDBFileSy
 			return [];
 		}
 		if (entry.type !== FileType.Directory) {
-			throw createFileSystemProviderError(localize('fileNotDir', "File is not a Directory"), FileSystemProviderErrorCode.FileNotADirectory);
+			throw ERR_FILE_NOT_DIR;
 		}
 		else {
 			return [...entry.children.entries()].map(([name, node]) => [name, node.type]);
@@ -290,9 +298,9 @@ class IndexedDBFileSystemProvider extends Disposable implements IIndexedDBFileSy
 				}
 				else {
 					if (request.result === undefined) {
-						e(createFileSystemProviderError(localize('fileNotExists', "File does not exist"), FileSystemProviderErrorCode.FileNotFound));
+						e(ERR_FILE_NOT_FOUND);
 					} else {
-						e(createFileSystemProviderError(localize('internal', "Internal error occured while reading file"), FileSystemProviderErrorCode.Unknown));
+						e(ERR_UNKNOWN_INTERNAL(`IndexedDB entry at "${resource.path}" in unexpected format`));
 					}
 				}
 			};
@@ -305,7 +313,7 @@ class IndexedDBFileSystemProvider extends Disposable implements IIndexedDBFileSy
 	async writeFile(resource: URI, content: Uint8Array, opts: FileWriteOptions): Promise<void> {
 		const existing = await this.stat(resource).catch(() => undefined);
 		if (existing?.type === FileType.Directory) {
-			throw createFileSystemProviderError(localize('fileIsDirectory', "File is Directory"), FileSystemProviderErrorCode.FileIsADirectory);
+			throw ERR_FILE_IS_DIR;
 		}
 
 		this.fileWriteBatch.push({ content, resource });
@@ -332,7 +340,7 @@ class IndexedDBFileSystemProvider extends Disposable implements IIndexedDBFileSy
 			toDelete = tree.map(([path]) => path);
 		} else {
 			if (stat.type === FileType.Directory && (await this.readdir(resource)).length) {
-				throw createFileSystemProviderError(localize('dirIsNotEmpty', "Directory is not empty"), FileSystemProviderErrorCode.Unknown);
+				throw ERR_DIR_NOT_EMPTY;
 			}
 			toDelete = [resource.path];
 		}
@@ -374,15 +382,14 @@ class IndexedDBFileSystemProvider extends Disposable implements IIndexedDBFileSy
 				const request = objectStore.getAllKeys();
 				request.onerror = () => e(request.error);
 				request.onsuccess = () => {
-					const superblock = new IndexedDBFileSystemNode({
+					const rootNode = new IndexedDBFileSystemNode({
 						children: new Map(),
 						path: '',
 						type: FileType.Directory
 					});
 					const keys = request.result.map(key => key.toString());
-					keys.forEach(key => superblock.add(key, { type: 'file' }));
-
-					c(superblock);
+					keys.forEach(key => rootNode.add(key, { type: 'file' }));
+					c(rootNode);
 				};
 			});
 		}
