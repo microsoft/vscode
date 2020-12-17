@@ -5,7 +5,7 @@
 
 import 'vs/css!./media/repl';
 import { URI as uri } from 'vs/base/common/uri';
-import { IAction, IActionViewItem, Action, Separator } from 'vs/base/common/actions';
+import { IAction, IActionViewItem } from 'vs/base/common/actions';
 import * as dom from 'vs/base/browser/dom';
 import * as aria from 'vs/base/browser/ui/aria/aria';
 import { CancellationToken } from 'vs/base/common/cancellation';
@@ -26,7 +26,7 @@ import { memoize } from 'vs/base/common/decorators';
 import { dispose, IDisposable, Disposable } from 'vs/base/common/lifecycle';
 import { EditorContextKeys } from 'vs/editor/common/editorContextKeys';
 import { CodeEditorWidget } from 'vs/editor/browser/widget/codeEditorWidget';
-import { IDebugService, DEBUG_SCHEME, CONTEXT_IN_DEBUG_REPL, IDebugSession, State, IReplElement, IDebugConfiguration, REPL_VIEW_ID, CONTEXT_MULTI_SESSION_REPL } from 'vs/workbench/contrib/debug/common/debug';
+import { IDebugService, DEBUG_SCHEME, CONTEXT_IN_DEBUG_REPL, IDebugSession, State, IReplElement, IDebugConfiguration, REPL_VIEW_ID, CONTEXT_MULTI_SESSION_REPL, CONTEXT_DEBUG_STATE, getStateLabel } from 'vs/workbench/contrib/debug/common/debug';
 import { HistoryNavigator } from 'vs/base/common/history';
 import { IHistoryNavigationWidget } from 'vs/base/browser/history';
 import { createAndBindHistoryNavigationWidgetScopedContextKeyService } from 'vs/platform/browser/contextScopedHistoryWidget';
@@ -60,7 +60,8 @@ import { EDITOR_FONT_DEFAULTS, EditorOption } from 'vs/editor/common/config/edit
 import { MOUSE_CURSOR_TEXT_CSS_CLASS_NAME } from 'vs/base/browser/ui/mouseCursor/mouseCursor';
 import { ReplFilter, ReplFilterState, ReplFilterActionViewItem } from 'vs/workbench/contrib/debug/browser/replFilter';
 import { debugConsoleClearAll, debugConsoleEvaluationPrompt } from 'vs/workbench/contrib/debug/browser/debugIcons';
-import { registerAction2, MenuId, MenuItemAction, Action2 } from 'vs/platform/actions/common/actions';
+import { registerAction2, MenuId, Action2, IMenuService, IMenu } from 'vs/platform/actions/common/actions';
+import { createAndFillInContextMenuActions } from 'vs/platform/actions/browser/menuEntryActionViewItem';
 
 const $ = dom.$;
 
@@ -100,6 +101,7 @@ export class Repl extends ViewPane implements IHistoryNavigationWidget {
 	private filterState: ReplFilterState;
 	private filterActionViewItem: ReplFilterActionViewItem | undefined;
 	private multiSessionRepl: IContextKey<boolean>;
+	private menu: IMenu;
 
 	constructor(
 		options: IViewPaneOptions,
@@ -114,14 +116,16 @@ export class Repl extends ViewPane implements IHistoryNavigationWidget {
 		@IContextMenuService contextMenuService: IContextMenuService,
 		@IConfigurationService configurationService: IConfigurationService,
 		@ITextResourcePropertiesService private readonly textResourcePropertiesService: ITextResourcePropertiesService,
-		@IClipboardService private readonly clipboardService: IClipboardService,
 		@IEditorService private readonly editorService: IEditorService,
 		@IKeybindingService keybindingService: IKeybindingService,
 		@IOpenerService openerService: IOpenerService,
 		@ITelemetryService telemetryService: ITelemetryService,
+		@IMenuService menuService: IMenuService
 	) {
 		super(options, keybindingService, contextMenuService, configurationService, contextKeyService, viewDescriptorService, instantiationService, openerService, themeService, telemetryService);
 
+		this.menu = menuService.createMenu(MenuId.DebugConsoleContext, contextKeyService);
+		this._register(this.menu);
 		this.history = new HistoryNavigator(JSON.parse(this.storageService.get(HISTORY_STORAGE_KEY, StorageScope.WORKSPACE, '[]')), 50);
 		this.filter = new ReplFilter();
 		this.filterState = new ReplFilterState(this);
@@ -459,6 +463,14 @@ export class Repl extends ViewPane implements IHistoryNavigationWidget {
 		this.replInput.layout({ width: width - 30, height: replInputHeight });
 	}
 
+	collapseAll(): void {
+		this.tree.collapseAll();
+	}
+
+	getReplInput(): CodeEditorWidget {
+		return this.replInput;
+	}
+
 	focus(): void {
 		setTimeout(() => this.replInput.focus(), 0);
 	}
@@ -615,44 +627,12 @@ export class Repl extends ViewPane implements IHistoryNavigationWidget {
 
 	private onContextMenu(e: ITreeContextMenuEvent<IReplElement>): void {
 		const actions: IAction[] = [];
-		actions.push(new Action('debug.replCopy', localize('copy', "Copy"), undefined, true, async () => {
-			const nativeSelection = window.getSelection();
-			if (nativeSelection) {
-				await this.clipboardService.writeText(nativeSelection.toString());
-			}
-			return Promise.resolve();
-		}));
-		actions.push(new Action('workbench.debug.action.copyAll', localize('copyAll', "Copy All"), undefined, true, async () => {
-			await this.clipboardService.writeText(this.getVisibleContent());
-			return Promise.resolve();
-		}));
-		actions.push(new Action('debug.replPaste', localize('paste', "Paste"), undefined, this.debugService.state !== State.Inactive, async () => {
-			const clipboardText = await this.clipboardService.readText();
-			if (clipboardText) {
-				this.replInput.setValue(this.replInput.getValue().concat(clipboardText));
-				this.replInput.focus();
-				const model = this.replInput.getModel();
-				const lineNumber = model ? model.getLineCount() : 0;
-				const column = model?.getLineMaxColumn(lineNumber);
-				if (typeof lineNumber === 'number' && typeof column === 'number') {
-					this.replInput.setPosition({ lineNumber, column });
-				}
-			}
-		}));
-		actions.push(new Separator());
-		actions.push(new Action('debug.collapseRepl', localize('collapse', "Collapse All"), undefined, true, () => {
-			this.tree.collapseAll();
-			this.replInput.focus();
-			return Promise.resolve();
-		}));
-		actions.push(new Separator());
-		actions.push(this.instantiationService.createInstance(MenuItemAction, clearReplCommand, undefined, {}));
-
+		const actionsDisposable = createAndFillInContextMenuActions(this.menu, { arg: e.element, shouldForwardArgs: false }, actions);
 		this.contextMenuService.showContextMenu({
 			getAnchor: () => e.anchor,
 			getActions: () => actions,
 			getActionsContext: () => e.element,
-			onHide: () => dispose(actions)
+			onHide: () => dispose(actionsDisposable)
 		});
 	}
 
@@ -864,26 +844,123 @@ registerAction2(class extends ViewAction<Repl> {
 	}
 });
 
-const clearReplCommand = {
-	id: 'workbench.debug.panel.action.clearReplAction',
-	viewId: REPL_VIEW_ID,
-	title: localize('clearRepl', "Clear Console"),
-	f1: true,
-	icon: debugConsoleClearAll,
-	menu: {
-		id: MenuId.ViewTitle,
-		group: 'navigation',
-		when: ContextKeyEqualsExpr.create('view', REPL_VIEW_ID),
-		order: 30
-	}
-};
 registerAction2(class extends ViewAction<Repl> {
 	constructor() {
-		super(clearReplCommand);
+		super({
+			id: 'workbench.debug.panel.action.clearReplAction',
+			viewId: REPL_VIEW_ID,
+			title: localize('clearRepl', "Clear Console"),
+			f1: true,
+			icon: debugConsoleClearAll,
+			menu: [{
+				id: MenuId.ViewTitle,
+				group: 'navigation',
+				when: ContextKeyEqualsExpr.create('view', REPL_VIEW_ID),
+				order: 30
+			}, {
+				id: MenuId.DebugConsoleContext,
+				group: 'z_commands',
+				order: 20
+			}]
+		});
 	}
 
-	runInView(_accessor: ServicesAccessor, view: Repl) {
+	runInView(_accessor: ServicesAccessor, view: Repl): void {
 		view.clearRepl();
 		aria.status(localize('debugConsoleCleared', "Debug console was cleared"));
+	}
+});
+
+registerAction2(class extends ViewAction<Repl> {
+	constructor() {
+		super({
+			id: 'debug.collapseRepl',
+			title: localize('collapse', "Collapse All"),
+			viewId: REPL_VIEW_ID,
+			menu: {
+				id: MenuId.DebugConsoleContext,
+				group: 'z_commands',
+				order: 10
+			}
+		});
+	}
+
+	runInView(_accessor: ServicesAccessor, view: Repl): void {
+		view.collapseAll();
+		view.focus();
+	}
+});
+
+registerAction2(class extends ViewAction<Repl> {
+	constructor() {
+		super({
+			id: 'debug.replPaste',
+			title: localize('paste', "Paste"),
+			viewId: REPL_VIEW_ID,
+			precondition: CONTEXT_DEBUG_STATE.notEqualsTo(getStateLabel(State.Inactive)),
+			menu: {
+				id: MenuId.DebugConsoleContext,
+				group: '2_cutcopypaste',
+				order: 30
+			}
+		});
+	}
+
+	async runInView(accessor: ServicesAccessor, view: Repl): Promise<void> {
+		const clipboardService = accessor.get(IClipboardService);
+		const clipboardText = await clipboardService.readText();
+		if (clipboardText) {
+			const replInput = view.getReplInput();
+			replInput.setValue(replInput.getValue().concat(clipboardText));
+			view.focus();
+			const model = replInput.getModel();
+			const lineNumber = model ? model.getLineCount() : 0;
+			const column = model?.getLineMaxColumn(lineNumber);
+			if (typeof lineNumber === 'number' && typeof column === 'number') {
+				replInput.setPosition({ lineNumber, column });
+			}
+		}
+	}
+});
+
+registerAction2(class extends ViewAction<Repl> {
+	constructor() {
+		super({
+			id: 'workbench.debug.action.copyAll',
+			title: localize('copyAll', "Copy All"),
+			viewId: REPL_VIEW_ID,
+			menu: {
+				id: MenuId.DebugConsoleContext,
+				group: '2_cutcopypaste',
+				order: 20
+			}
+		});
+	}
+
+	async runInView(accessor: ServicesAccessor, view: Repl): Promise<void> {
+		const clipboardService = accessor.get(IClipboardService);
+		await clipboardService.writeText(view.getVisibleContent());
+	}
+});
+
+registerAction2(class extends Action2 {
+	constructor() {
+		super({
+			id: 'debug.replCopy',
+			title: localize('copy', "Copy"),
+			menu: {
+				id: MenuId.DebugConsoleContext,
+				group: '2_cutcopypaste',
+				order: 10
+			}
+		});
+	}
+
+	async run(accessor: ServicesAccessor): Promise<void> {
+		const clipboardService = accessor.get(IClipboardService);
+		const nativeSelection = window.getSelection();
+		if (nativeSelection) {
+			await clipboardService.writeText(nativeSelection.toString());
+		}
 	}
 });
