@@ -175,7 +175,7 @@ stages:
         steps:
           - template: darwin/product-build-darwin.yml
 
-  - stage: Mooncake
+  - stage: Publish
     dependsOn:
       - Windows
       - Linux
@@ -188,17 +188,8 @@ stages:
         displayName: Sync Mooncake
         steps:
           - template: sync-mooncake.yml
-
-  - stage: Publish
-    dependsOn:
-      - Windows
-      - Linux
-      - macOS
-    condition: and(succeeded(), eq(variables['VSCODE_COMPILE_ONLY'], 'false'), ne(variables['VSCODE_PUBLISH'], 'false'), or(eq(variables['VSCODE_RELEASE'], 'true'), and(or(eq(variables['VSCODE_QUALITY'], 'insider'), eq(variables['VSCODE_QUALITY'], 'exploration')), eq(variables['Build.Reason'], 'Schedule'))))
-    pool:
-      vmImage: "Ubuntu-18.04"
-    jobs:
-      - job: BuildService
-        displayName: Build Service
+      - job: ReleaseBuild
+        condition: and(succeeded(), or(eq(variables['VSCODE_RELEASE'], 'true'), and(or(eq(variables['VSCODE_QUALITY'], 'insider'), eq(variables['VSCODE_QUALITY'], 'exploration')), eq(variables['Build.Reason'], 'Schedule'))))
+        displayName: Release Build
         steps:
           - template: release.yml
