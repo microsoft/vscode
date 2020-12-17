@@ -16,11 +16,7 @@
   },
   "devDependencies": {
     "@types/mocha": "7.0.2",
-    "@types/node": "^12.11.7",
-    "glob": "^7.1.6",
-    "mocha": "^7.1.2",
-    "mocha-junit-reporter": "^1.23.3",
-    "mocha-multi-reporters": "^1.1.7"
+    "@types/node": "^12.11.7"
   },
   "scripts": {
     "compile": "gulp compile-extension:css-language-features-server",
