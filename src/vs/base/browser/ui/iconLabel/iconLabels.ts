@@ -28,7 +28,7 @@ export function renderLabelWithIcons(text: string): Array<HTMLSpanElement | stri
 	return elements;
 }
 
-export const iconIdRegex = /^(codicon\/)?([a-z-]+)(~[a-z]+)?$/i;
+export const iconIdRegex = /^(codicon\/)?([a-z\-]+)(?:~([a-z\-]+))?$/i;
 
 export function renderIcon(icon: { id: string }): HTMLSpanElement {
 	const match = iconIdRegex.exec(icon.id);
