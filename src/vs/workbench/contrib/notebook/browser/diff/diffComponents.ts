@@ -33,8 +33,6 @@ import { collapsedIcon, expandedIcon } from 'vs/workbench/contrib/notebook/brows
 import { renderCodicons } from 'vs/base/browser/codicons';
 import { OutputContainer } from 'vs/workbench/contrib/notebook/browser/diff/diffElementOutputs';
 
-const RENDER_RICH_OUTPUT = true;
-
 const fixedEditorOptions: IEditorOptions = {
 	padding: {
 		top: 12,
@@ -284,9 +282,15 @@ abstract class AbstractElementRenderer extends Disposable {
 		}
 	}
 
-	updateOutputRendering() {
+	updateOutputRendering(renderRichOutput: boolean = true) {
 		if (this.cell.outputFoldingState === PropertyFoldingState.Expanded) {
-			if (RENDER_RICH_OUTPUT) {
+			if (renderRichOutput) {
+				if (this._outputEditorContainer) {
+					this._hideOutputs();
+					this._outputEditorContainer.style.display = 'none';
+					this._outputEditorDisposeStore.clear();
+				}
+
 				this._outputInfoContainer.style.display = 'block';
 
 				if (!this._outputViewContainer) {
@@ -297,7 +301,16 @@ abstract class AbstractElementRenderer extends Disposable {
 					this._showOutputs();
 					// this.cell.layoutChange();
 				}
+
+				this.cell.layoutChange();
+
 			} else {
+				if (this._outputInfoContainer) {
+					this._hideOutputs();
+					this._outputInfoContainer.style.display = 'none';
+					this._outputEditorDisposeStore.clear();
+				}
+
 				this._outputInfoContainer.style.display = 'block';
 
 				if (!this._outputEditorContainer || !this._outputEditor) {
@@ -305,11 +318,14 @@ abstract class AbstractElementRenderer extends Disposable {
 					this._outputEditorContainer = DOM.append(this._outputInfoContainer, DOM.$('.output-editor-container'));
 					this._buildOutputEditor();
 				} else {
+					this._outputEditorContainer.style.display = 'block';
 					this.cell.outputHeight = this._outputEditor.getContentHeight();
 				}
+
+				this.cell.layoutChange();
 			}
 		} else {
-			if (RENDER_RICH_OUTPUT) {
+			if (renderRichOutput) {
 				this._hideOutputs();
 				this._outputInfoContainer.style.display = 'none';
 				this._outputEditorDisposeStore.clear();
@@ -963,6 +979,10 @@ export class ModifiedElement extends AbstractElementRenderer {
 		@IContextKeyService protected readonly contextKeyService: IContextKeyService
 	) {
 		super(notebookEditor, cell, templateData, 'full', instantiationService, modeService, modelService, contextMenuService, keybindingService, notificationService, menuService, contextKeyService);
+
+		this._register(cell.onDidStateChange(() => {
+			this.updateOutputRendering(this.cell.renderOutput);
+		}));
 	}
 
 	styleContainer(container: HTMLElement): void {

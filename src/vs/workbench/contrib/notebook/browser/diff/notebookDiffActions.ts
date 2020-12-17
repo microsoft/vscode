@@ -11,7 +11,7 @@ import { ActiveEditorContext, viewColumnToEditorGroup } from 'vs/workbench/commo
 import { DiffElementViewModelBase } from 'vs/workbench/contrib/notebook/browser/diff/diffElementViewModel';
 import { NotebookTextDiffEditor } from 'vs/workbench/contrib/notebook/browser/diff/notebookTextDiffEditor';
 import { NotebookDiffEditorInput } from 'vs/workbench/contrib/notebook/browser/notebookDiffEditorInput';
-import { openAsTextIcon, revertIcon } from 'vs/workbench/contrib/notebook/browser/notebookIcons';
+import { openAsTextIcon, revertIcon, showOutputRawIcon } from 'vs/workbench/contrib/notebook/browser/notebookIcons';
 import { IEditorGroupsService } from 'vs/workbench/services/editor/common/editorGroupsService';
 import { IEditorService } from 'vs/workbench/services/editor/common/editorService';
 
@@ -81,6 +81,53 @@ registerAction2(class extends Action2 {
 	}
 });
 
+// registerAction2(class extends Action2 {
+// 	constructor() {
+// 		super(
+// 			{
+// 				id: 'notebook.diff.cell.switchOutputRenderingStyle',
+// 				title: localize('notebook.diff.cell.switchOutputRenderingStyle', "Switch Outputs Rendering"),
+// 				icon: renderOutputIcon,
+// 				f1: false,
+// 				menu: {
+// 					id: MenuId.NotebookDiffCellOutputsTitle
+// 				}
+// 			}
+// 		);
+// 	}
+// 	run(accessor: ServicesAccessor, context?: { cell: DiffElementViewModelBase }) {
+// 		if (!context) {
+// 			return;
+// 		}
+
+// 		context.cell.renderOutput = true;
+// 	}
+// });
+
+
+registerAction2(class extends Action2 {
+	constructor() {
+		super(
+			{
+				id: 'notebook.diff.cell.switchOutputRenderingStyleToText',
+				title: localize('notebook.diff.cell.switchOutputRenderingStyleToText', "View outputs raw data"),
+				icon: showOutputRawIcon,
+				f1: false,
+				menu: {
+					id: MenuId.NotebookDiffCellOutputsTitle
+				},
+			}
+		);
+	}
+	run(accessor: ServicesAccessor, context?: { cell: DiffElementViewModelBase }) {
+		if (!context) {
+			return;
+		}
+
+		context.cell.renderOutput = !context.cell.renderOutput;
+	}
+});
+
 registerAction2(class extends Action2 {
 	constructor() {
 		super(
@@ -110,6 +157,7 @@ registerAction2(class extends Action2 {
 		modified.textModel.spliceNotebookCellOutputs([[0, modified.outputs.length, original.outputs]]);
 	}
 });
+
 
 registerAction2(class extends Action2 {
 	constructor() {

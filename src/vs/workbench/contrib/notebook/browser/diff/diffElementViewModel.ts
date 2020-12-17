@@ -27,6 +27,9 @@ export abstract class DiffElementViewModelBase extends Disposable {
 	public outputFoldingState: PropertyFoldingState;
 	protected _layoutInfoEmitter = new Emitter<CellDiffViewModelLayoutChangeEvent>();
 	onDidLayoutChange = this._layoutInfoEmitter.event;
+	protected _stateChangeEmitter = new Emitter<{ renderOutput: boolean; }>();
+	onDidStateChange = this._stateChangeEmitter.event;
+
 
 	protected _layoutInfo!: {
 		width: number;
@@ -86,6 +89,17 @@ export abstract class DiffElementViewModelBase extends Disposable {
 
 	get metadataHeight() {
 		return this._layoutInfo.metadataHeight;
+	}
+
+	private _renderOutput = true;
+
+	set renderOutput(value: boolean) {
+		this._renderOutput = value;
+		this._stateChangeEmitter.fire({ renderOutput: this._renderOutput });
+	}
+
+	get renderOutput() {
+		return this._renderOutput;
 	}
 
 	get totalHeight() {
