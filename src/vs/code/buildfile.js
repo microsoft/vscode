@@ -17,6 +17,8 @@ function createModuleDescription(name, exclude) {
 	return result;
 }
 
+exports.createModuleDescription = createModuleDescription;
+
 exports.collectModules = function () {
 	return [
 		createModuleDescription('vs/code/electron-main/main', []),

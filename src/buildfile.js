@@ -27,6 +27,7 @@ exports.keyboardMaps = [
 	entrypoint('vs/workbench/services/keybinding/browser/keyboardLayouts/layout.contribution.win')
 ];
 
-exports.code = require('./vs/code/buildfile').collectModules();
+const buildfile = require('./vs/code/buildfile');
+exports.code = buildfile.collectModules();
 
 exports.entrypoint = entrypoint;
