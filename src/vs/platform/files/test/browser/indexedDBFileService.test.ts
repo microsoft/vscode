@@ -33,7 +33,8 @@ suite('IndexedDB File Service', function () {
 		await Promise.all(
 			[['fixtures', 'resolver', 'examples'],
 			['fixtures', 'resolver', 'other', 'deep'],
-			['fixtures', 'service', 'deep']]
+			['fixtures', 'service', 'deep'],
+			['batched']]
 				.map(path => userdataURIFromPaths(path))
 				.map(uri => service.createFolder(uri)));
 		await Promise.all(
@@ -228,6 +229,26 @@ suite('IndexedDB File Service', function () {
 		assert.equal(event!.operation, FileOperation.CREATE);
 		assert.equal(event!.target!.resource.path, resource.path);
 	}
+
+	// This may be flakey on build machines. If so please disable and ping me (jackson) and we can try an alternative approach (probably exposing more internal state from the FSP)
+	test('createFile (batched)', async () => {
+		// Batched writes take approx .5ms/file, sequenced take approx 10ms/file.
+		// Testing with 1000 files would take ~10s without batching (exceeds 5s timeout), or 500ms with (well winthin 5s timeout)
+		const batch = Array.from({ length: 1000 }).map((_, i) => ({ contents: `Hello${i}`, resource: userdataURIFromPaths(['batched', `Hello${i}.txt`]) }));
+		const stats = await Promise.all(batch.map(entry => service.createFile(entry.resource, VSBuffer.fromString(entry.contents))));
+		for (let i = 0; i < stats.length; i++) {
+			const entry = batch[i];
+			const stat = stats[i];
+			assert.equal(stat.name, `Hello${i}.txt`);
+			assert.equal((await userdataFileProvider.stat(stat.resource)).type, FileType.File);
+			assert.equal(new TextDecoder().decode(await userdataFileProvider.readFile(stat.resource)), entry.contents);
+		}
+		await service.del(userdataURIFromPaths(['batched']), { recursive: true, useTrash: false });
+		for (let i = 0; i < stats.length; i++) {
+			const stat = stats[i];
+			assert.rejects(userdataFileProvider.stat(stat.resource));
+		}
+	});
 
 	test('deleteFile', async () => {
 		await initFixtures();
