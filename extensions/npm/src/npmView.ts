@@ -126,8 +126,10 @@ class NoScripts extends TreeItem {
 	}
 }
 
+type TaskTree = Folder[] | PackageJSON[] | NoScripts[];
+
 export class NpmScriptsTreeDataProvider implements TreeDataProvider<TreeItem> {
-	private taskTree: Folder[] | PackageJSON[] | NoScripts[] | null = null;
+	private taskTree: TaskTree | null = null;
 	private extensionContext: ExtensionContext;
 	private _onDidChangeTreeData: EventEmitter<TreeItem | null> = new EventEmitter<TreeItem | null>();
 	readonly onDidChangeTreeData: Event<TreeItem | null> = this._onDidChangeTreeData.event;
@@ -241,7 +243,8 @@ export class NpmScriptsTreeDataProvider implements TreeDataProvider<TreeItem> {
 		if (!this.taskTree) {
 			const taskItems = await this.taskProvider.tasksWithLocation;
 			if (taskItems) {
-				this.taskTree = this.buildTaskTree(taskItems);
+				const taskTree = this.buildTaskTree(taskItems);
+				this.taskTree = this.sortTaskTree(taskTree);
 				if (this.taskTree.length === 0) {
 					let message = localize('noScripts', 'No scripts found.');
 					if (!isAutoDetectionEnabled()) {
@@ -276,7 +279,15 @@ export class NpmScriptsTreeDataProvider implements TreeDataProvider<TreeItem> {
 		return fullName === task.name;
 	}
 
-	private buildTaskTree(tasks: TaskWithLocation[]): Folder[] | PackageJSON[] | NoScripts[] {
+	private sortTaskTree(taskTree: TaskTree) {
+		return taskTree.sort((first, second) => {
+			const firstLabel = first.label?.toString() || '';
+			const secondLabel = second.label?.toString() || '';
+			return firstLabel.localeCompare(secondLabel);
+		});
+	}
+
+	private buildTaskTree(tasks: TaskWithLocation[]): TaskTree {
 		let folders: Map<String, Folder> = new Map();
 		let packages: Map<String, PackageJSON> = new Map();
 
