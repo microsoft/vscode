@@ -378,7 +378,7 @@ export class QueryBuilder {
 					});
 				} else {
 					// No root folder with name
-					const searchPathNotFoundError = nls.localize('search.noWorkspaceWithName', "No folder in workspace with name: {0}", searchPathRoot);
+					const searchPathNotFoundError = nls.localize('search.noWorkspaceWithName', "Workspace folder does not exist: {0}", searchPathRoot);
 					throw new Error(searchPathNotFoundError);
 				}
 			} else {
