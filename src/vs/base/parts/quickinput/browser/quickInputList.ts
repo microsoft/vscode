@@ -41,7 +41,6 @@ interface IListElement {
 	readonly labelHighlights?: IMatch[];
 	readonly descriptionHighlights?: IMatch[];
 	readonly detailHighlights?: IMatch[];
-	readonly metaHighlights?: IMatch[];
 	readonly checked: boolean;
 	readonly separator?: IQuickPickSeparator;
 	readonly fireButtonTriggered: (event: IQuickPickItemButtonEvent<IQuickPickItem>) => void;
@@ -72,7 +71,6 @@ class ListElement implements IListElement, IDisposable {
 	labelHighlights?: IMatch[];
 	descriptionHighlights?: IMatch[];
 	detailHighlights?: IMatch[];
-	metaHighlights?: IMatch[];
 	fireButtonTriggered!: (event: IQuickPickItemButtonEvent<IQuickPickItem>) => void;
 
 	constructor(init: IListElement) {
@@ -615,13 +613,11 @@ export class QuickInputList {
 					element.labelHighlights = labelHighlights;
 					element.descriptionHighlights = descriptionHighlights;
 					element.detailHighlights = detailHighlights;
-					element.metaHighlights = metaHighlights;
 					element.hidden = false;
 				} else {
 					element.labelHighlights = undefined;
 					element.descriptionHighlights = undefined;
 					element.detailHighlights = undefined;
-					element.metaHighlights = undefined;
 					element.hidden = !element.item.alwaysShow;
 				}
 				element.separator = undefined;
