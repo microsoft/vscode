@@ -526,29 +526,20 @@ export class NotebookTextDiffEditor extends EditorPane implements INotebookTextD
 
 	createInset(cellDiffViewModel: DiffElementViewModelBase, cellViewModel: DiffNestedCellViewModel, output: IInsetRenderOutput, getOffset: () => number, diffSide: DiffSide): void {
 		this._insetModifyQueueByOutputId.queue(output.source.model.outputId + (diffSide === DiffSide.Modified ? '-right' : 'left'), async () => {
-			if (diffSide === DiffSide.Modified) {
-				if (!this._modifiedWebview!.insetMapping.has(output.source)) {
-					const cellTop = this._list.getAbsoluteTopOfElement(cellDiffViewModel);
-					await this._modifiedWebview?.createInset({ diffElement: cellDiffViewModel, cellHandle: cellViewModel.handle, cellId: cellViewModel.id, cellUri: cellViewModel.uri }, output, cellTop, getOffset());
-				} else {
-					const cellTop = this._list.getAbsoluteTopOfElement(cellDiffViewModel);
-					const scrollTop = this._list.scrollTop;
-					const outputIndex = cellViewModel.outputsViewModels.findIndex(viewModel => (viewModel.model as ITransformedDisplayOutputDto).outputId === (output.source.model as ITransformedDisplayOutputDto).outputId);
-					let outputOffset = 0;
-					outputOffset = cellTop + cellDiffViewModel.getOutputOffsetInCell(diffSide, outputIndex);
-					this._modifiedWebview!.updateViewScrollTop(-scrollTop, true, [{ output: output.source, cellTop, outputOffset }]);
-				}
+			const activeWebview = diffSide === DiffSide.Modified ? this._modifiedWebview : this._originalWebview;
+			if (!activeWebview) {
+				return;
+			}
+
+			if (!activeWebview.insetMapping.has(output.source)) {
+				const cellTop = this._list.getAbsoluteTopOfElement(cellDiffViewModel);
+				await activeWebview.createInset({ diffElement: cellDiffViewModel, cellHandle: cellViewModel.handle, cellId: cellViewModel.id, cellUri: cellViewModel.uri }, output, cellTop, getOffset());
 			} else {
-				if (!this._originalWebview!.insetMapping.has(output.source)) {
-					const cellTop = this._list.getAbsoluteTopOfElement(cellDiffViewModel);
-					await this._originalWebview?.createInset({ diffElement: cellDiffViewModel, cellHandle: cellViewModel.handle, cellId: cellViewModel.id, cellUri: cellViewModel.uri }, output, cellTop, getOffset());
-				} else {
-					const cellTop = this._list.getAbsoluteTopOfElement(cellDiffViewModel);
-					const scrollTop = this._list.scrollTop;
-					const outputIndex = cellViewModel.outputsViewModels.findIndex(viewModel => (viewModel.model as ITransformedDisplayOutputDto).outputId === (output.source.model as ITransformedDisplayOutputDto).outputId);
-					const outputOffset = cellTop + cellDiffViewModel.getOutputOffsetInCell(diffSide, outputIndex);
-					this._originalWebview!.updateViewScrollTop(-scrollTop, true, [{ output: output.source, cellTop, outputOffset }]);
-				}
+				const cellTop = this._list.getAbsoluteTopOfElement(cellDiffViewModel);
+				const scrollTop = this._list.scrollTop;
+				const outputIndex = cellViewModel.outputsViewModels.findIndex(viewModel => (viewModel.model as ITransformedDisplayOutputDto).outputId === (output.source.model as ITransformedDisplayOutputDto).outputId);
+				const outputOffset = cellTop + cellDiffViewModel.getOutputOffsetInCell(diffSide, outputIndex);
+				activeWebview.updateViewScrollTop(-scrollTop, true, [{ output: output.source, cellTop, outputOffset }]);
 			}
 		});
 	}
