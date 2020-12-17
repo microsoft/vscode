@@ -22,6 +22,7 @@ import { IStorageService, StorageScope, StorageTarget } from 'vs/platform/storag
 import { Action2, registerAction2 } from 'vs/platform/actions/common/actions';
 import { ServicesAccessor } from 'vs/platform/instantiation/common/instantiation';
 import { ILogService } from 'vs/platform/log/common/log';
+import { IEnvironmentService } from 'vs/platform/environment/common/environment';
 
 @extHostCustomer
 export class MainThreadFileSystemEventService {
@@ -38,7 +39,8 @@ export class MainThreadFileSystemEventService {
 		@IProgressService progressService: IProgressService,
 		@IDialogService dialogService: IDialogService,
 		@IStorageService storageService: IStorageService,
-		@ILogService logService: ILogService
+		@ILogService logService: ILogService,
+		@IEnvironmentService envService: IEnvironmentService
 	) {
 
 		const proxy = extHostContext.getProxy(ExtHostContext.ExtHostFileSystemEventService);
@@ -105,6 +107,11 @@ export class MainThreadFileSystemEventService {
 
 				const needsConfirmation = data.edit.edits.some(edit => edit.metadata?.needsConfirmation);
 				let showPreview = storageService.getBoolean(MainThreadFileSystemEventService.MementoKeyAdditionalEdits, StorageScope.GLOBAL);
+
+				if (envService.extensionTestsLocationURI) {
+					// don't show dialog in tests
+					showPreview = false;
+				}
 
 				if (showPreview === undefined) {
 					// show a user facing message
