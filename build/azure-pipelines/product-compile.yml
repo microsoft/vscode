@@ -70,11 +70,19 @@ steps:
 
   - script: |
       set -e
-      if [ -z "$CC" ] || [ -z "$CXX" ]
-      then
+      export npm_config_arch=$(NPM_ARCH)
+
+      if [ -z "$CC" ] || [ -z "$CXX" ]; then
         export CC=$(which gcc-5)
         export CXX=$(which g++-5)
       fi
+
+      if [ "$VSCODE_ARCH" == "x64" ]; then
+        export VSCODE_REMOTE_CC=$(which gcc-4.8)
+        export VSCODE_REMOTE_CXX=$(which g++-4.8)
+        export VSCODE_REMOTE_NODE_GYP=$(which node-gyp)
+      fi
+
       for i in {1..3}; do # try 3 times, for Terrapin
         yarn --frozen-lockfile && break
         if [ $i -eq 3 ]; then
