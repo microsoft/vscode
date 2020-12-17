@@ -197,7 +197,7 @@ registerAction2(class extends Action2 {
 	constructor() {
 		super({
 			id: 'extension.bisect.start',
-			title: localize('title.start', "Start Extension Bisect"),
+			title: { value: localize('title.start', "Start Extension Bisect"), original: 'Start Extension Bisect' },
 			category: localize('help', "Help"),
 			f1: true,
 			precondition: ExtensionBisectUi.ctxIsBisectActive.negate()
