@@ -336,10 +336,7 @@
 		"@types/markdown-it": "0.0.2",
 		"@types/node": "^12.11.7",
 		"lodash.throttle": "^4.1.1",
-		"ts-loader": "^6.2.1",
 		"typescript": "^3.7.3",
-		"vscode": "^1.1.10",
-		"webpack": "^4.41.2",
-		"webpack-cli": "^3.3.0"
+		"vscode": "^1.1.10"
 	}
 }
