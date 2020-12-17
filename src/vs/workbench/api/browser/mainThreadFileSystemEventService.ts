@@ -118,30 +118,46 @@ export class MainThreadFileSystemEventService {
 
 					let message: string;
 					if (data.extensionNames.length === 1) {
-						message = localize('ask.1', "Extension '{0}' wants to make additional edits for this file operation.", data.extensionNames[0]);
+						if (operation === FileOperation.CREATE) {
+							message = localize('ask.1.create', "Extension '{0}' wants to make refactoring changes with this file creation", data.extensionNames[0]);
+						} else if (operation === FileOperation.COPY) {
+							message = localize('ask.1.copy', "Extension '{0}' wants to make refactoring changes with this file copy", data.extensionNames[0]);
+						} else if (operation === FileOperation.MOVE) {
+							message = localize('ask.1.move', "Extension '{0}' wants to make refactoring changes with this file move", data.extensionNames[0]);
+						} else /* if (operation === FileOperation.DELETE) */ {
+							message = localize('ask.1.delete', "Extension '{0}' wants to make refactoring changes with this file deletion", data.extensionNames[0]);
+						}
 					} else {
-						message = localize('ask.N', "{0} extensions want to make additional edits for this file operation.", data.extensionNames.length);
+						if (operation === FileOperation.CREATE) {
+							message = localize('ask.N.create', "{0} extensions want to make refactoring changes with this file creation", data.extensionNames.length);
+						} else if (operation === FileOperation.COPY) {
+							message = localize('ask.N.copy', "{0} extensions want to make refactoring changes with this file copy", data.extensionNames.length);
+						} else if (operation === FileOperation.MOVE) {
+							message = localize('ask.N.move', "{0} extensions want to make refactoring changes with this file move", data.extensionNames.length);
+						} else /* if (operation === FileOperation.DELETE) */ {
+							message = localize('ask.N.delete', "{0} extensions want to make refactoring changes with this file deletion", data.extensionNames.length);
+						}
 					}
 
 					if (needsConfirmation) {
 						// edit which needs confirmation -> always show dialog
-						const answer = await dialogService.show(Severity.Info, message, [localize('preview', "Show Preview"), localize('cancel', "Skip additional edits")], { cancelId: 1 });
+						const answer = await dialogService.show(Severity.Info, message, [localize('preview', "Show Preview"), localize('cancel', "Skip Changes")], { cancelId: 1 });
 						showPreview = true;
 						if (answer.choice === 1) {
-							// no additional edits wanted
+							// no changes wanted
 							return;
 						}
 					} else {
 						// choice
 						const answer = await dialogService.show(Severity.Info, message,
-							[localize('ok', "OK"), localize('preview', "Show Preview"), localize('cancel', "Skip additional edits")],
+							[localize('ok', "OK"), localize('preview', "Show Preview"), localize('cancel', "Skip Changes")],
 							{
 								cancelId: 2,
 								checkbox: { label: localize('again', "Don't ask again") }
 							}
 						);
 						if (answer.choice === 2) {
-							// no additional edits wanted, don't persist cancel option
+							// no changes wanted, don't persist cancel option
 							return;
 						}
 						showPreview = answer.choice === 1;
