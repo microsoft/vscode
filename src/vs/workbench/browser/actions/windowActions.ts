@@ -49,10 +49,15 @@ abstract class BaseOpenRecentAction extends Action {
 		tooltip: nls.localize('remove', "Remove from Recently Opened")
 	};
 
-	private readonly dirtyRecentlyOpened: IQuickInputButton = {
+	private readonly dirtyRecentlyOpenedFolder: IQuickInputButton = {
 		iconClass: 'dirty-workspace ' + Codicon.closeDirty.classNames,
-		tooltip: nls.localize('dirtyRecentlyOpened', "Workspace With Dirty Files"),
+		tooltip: nls.localize('dirtyRecentlyOpenedFolder', "Folder With Unsaved Files"),
 		alwaysVisible: true
+	};
+
+	private readonly dirtyRecentlyOpenedWorkspace: IQuickInputButton = {
+		...this.dirtyRecentlyOpenedFolder,
+		tooltip: nls.localize('dirtyRecentlyOpenedWorkspace', "Workspace With Unsaved Files"),
 	};
 
 	constructor(
@@ -77,7 +82,9 @@ abstract class BaseOpenRecentAction extends Action {
 		const recentlyOpened = await this.workspacesService.getRecentlyOpened();
 		const dirtyWorkspacesAndFolders = await this.workspacesService.getDirtyWorkspaces();
 
-		// Identify all folders and workspaces with dirty files
+		let hasWorkspaces = false;
+
+		// Identify all folders and workspaces with unsaved files
 		const dirtyFolders = new ResourceMap<boolean>();
 		const dirtyWorkspaces = new ResourceMap<IWorkspaceIdentifier>();
 		for (const dirtyWorkspace of dirtyWorkspacesAndFolders) {
@@ -85,6 +92,7 @@ abstract class BaseOpenRecentAction extends Action {
 				dirtyFolders.set(dirtyWorkspace, true);
 			} else {
 				dirtyWorkspaces.set(dirtyWorkspace.configPath, dirtyWorkspace);
+				hasWorkspaces = true;
 			}
 		}
 
@@ -96,6 +104,7 @@ abstract class BaseOpenRecentAction extends Action {
 				recentFolders.set(recent.folderUri, true);
 			} else {
 				recentWorkspaces.set(recent.workspace.configPath, recent.workspace);
+				hasWorkspaces = true;
 			}
 		}
 
@@ -124,7 +133,7 @@ abstract class BaseOpenRecentAction extends Action {
 
 		let keyMods: IKeyMods | undefined;
 
-		const workspaceSeparator: IQuickPickSeparator = { type: 'separator', label: nls.localize('workspaces', "workspaces") };
+		const workspaceSeparator: IQuickPickSeparator = { type: 'separator', label: hasWorkspaces ? nls.localize('workspacesAndFolders', "folders & workspaces") : nls.localize('folders', "folders") };
 		const fileSeparator: IQuickPickSeparator = { type: 'separator', label: nls.localize('files', "files") };
 		const picks = [workspaceSeparator, ...workspacePicks, fileSeparator, ...filePicks];
 
@@ -143,13 +152,14 @@ abstract class BaseOpenRecentAction extends Action {
 					context.removeItem();
 				}
 
-				// Dirty Workspace
-				else if (context.button === this.dirtyRecentlyOpened) {
+				// Dirty Folder/Workspace
+				else if (context.button === this.dirtyRecentlyOpenedFolder || context.button === this.dirtyRecentlyOpenedWorkspace) {
+					const isDirtyWorkspace = context.button === this.dirtyRecentlyOpenedWorkspace;
 					const result = await this.dialogService.confirm({
 						type: 'question',
-						title: nls.localize('dirtyWorkspace', "Workspace with Dirty Files"),
-						message: nls.localize('dirtyWorkspaceConfirm', "Do you want to open the workspace to review the dirty files?"),
-						detail: nls.localize('dirtyWorkspaceConfirmDetail', "Workspaces with dirty files cannot be removed until all dirty files have been saved or reverted.")
+						title: isDirtyWorkspace ? nls.localize('dirtyWorkspace', "Workspace with Unsaved Files") : nls.localize('dirtyFolder', "Folder with Unsaved Files"),
+						message: isDirtyWorkspace ? nls.localize('dirtyWorkspaceConfirm', "Do you want to open the workspace to review the unsaved files?") : nls.localize('dirtyFolderConfirm', "Do you want to open the folder to review the unsaved files?"),
+						detail: isDirtyWorkspace ? nls.localize('dirtyWorkspaceConfirmDetail', "Workspaces with unsaved files cannot be removed until all unsaved files have been saved or reverted.") : nls.localize('dirtyFolderConfirmDetail', "Folders with unsaved files cannot be removed until all unsaved files have been saved or reverted.")
 					});
 
 					if (result.confirmed) {
@@ -170,6 +180,7 @@ abstract class BaseOpenRecentAction extends Action {
 		let iconClasses: string[];
 		let fullLabel: string | undefined;
 		let resource: URI | undefined;
+		let isWorkspace = false;
 
 		// Folder
 		if (isRecentFolder(recent)) {
@@ -185,6 +196,7 @@ abstract class BaseOpenRecentAction extends Action {
 			iconClasses = getIconClasses(this.modelService, this.modeService, resource, FileKind.ROOT_FOLDER);
 			openable = { workspaceUri: resource };
 			fullLabel = recent.label || this.labelService.getWorkspaceLabel(recent.workspace, { verbose: true });
+			isWorkspace = true;
 		}
 
 		// File
@@ -200,9 +212,9 @@ abstract class BaseOpenRecentAction extends Action {
 		return {
 			iconClasses,
 			label: name,
-			ariaLabel: isDirty ? nls.localize('recentDirtyAriaLabel', "{0}, dirty workspace", name) : name,
+			ariaLabel: isDirty ? isWorkspace ? nls.localize('recentDirtyWorkspaceAriaLabel', "{0}, workspace with unsaved changes", name) : nls.localize('recentDirtyFolderAriaLabel', "{0}, folder with unsaved changes", name) : name,
 			description: parentPath,
-			buttons: isDirty ? [this.dirtyRecentlyOpened] : [this.removeFromRecentlyOpened],
+			buttons: isDirty ? [isWorkspace ? this.dirtyRecentlyOpenedWorkspace : this.dirtyRecentlyOpenedFolder] : [this.removeFromRecentlyOpened],
 			openable,
 			resource
 		};

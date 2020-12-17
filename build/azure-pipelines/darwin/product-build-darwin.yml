@@ -1,25 +1,4 @@
 steps:
-  - script: |
-      mkdir -p .build
-      echo -n $BUILD_SOURCEVERSION > .build/commit
-      echo -n $VSCODE_QUALITY > .build/quality
-      echo -n $ENABLE_TERRAPIN > .build/terrapin
-    displayName: Prepare compilation cache flags
-
-  - task: 1ESLighthouseEng.PipelineArtifactCaching.RestoreCacheV1.RestoreCache@1
-    inputs:
-      keyfile: "build/.cachesalt, .build/commit, .build/quality, .build/terrapin"
-      targetfolder: ".build, out-build, out-vscode-min, out-vscode-reh-min, out-vscode-reh-web-min"
-      vstsFeed: "npm-vscode"
-      platformIndependent: true
-      alias: "Compilation"
-
-  - script: |
-      set -e
-      exit 1
-    displayName: Check RestoreCache
-    condition: and(succeeded(), ne(variables['CacheRestored-Compilation'], 'true'))
-
   - task: NodeTool@0
     inputs:
       versionSpec: "12.18.3"
@@ -34,9 +13,19 @@ steps:
       azureSubscription: "vscode-builds-subscription"
       KeyVaultName: vscode
 
+  - task: DownloadPipelineArtifact@2
+    inputs:
+      artifact: Compilation
+      path: $(Build.ArtifactStagingDirectory)
+    displayName: Download compilation output
+
   - script: |
       set -e
+      tar -xzf $(Build.ArtifactStagingDirectory)/compilation.tar.gz
+    displayName: Extract compilation output
 
+  - script: |
+      set -e
       cat << EOF > ~/.netrc
       machine github.com
       login vscode
@@ -66,6 +55,7 @@ steps:
 
   - script: |
       echo -n $(VSCODE_ARCH) > .build/arch
+      echo -n $ENABLE_TERRAPIN > .build/terrapin
     displayName: Prepare yarn cache flags
 
   - task: 1ESLighthouseEng.PipelineArtifactCaching.RestoreCacheV1.RestoreCache@1
