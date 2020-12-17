@@ -35,6 +35,7 @@ export interface IDimensionMessage {
 	__vscode_notebook_message: boolean;
 	type: 'dimension';
 	id: string;
+	init: boolean;
 	data: DOM.Dimension;
 }
 
@@ -269,6 +270,14 @@ export class BackLayerWebView<T extends ICommonCellInfo> extends Disposable {
 						background-color: var(--vscode-notebook-symbolHighlightBackground);
 					}
 
+					#container > div.nb-cellDeleted > div {
+						background-color: var(--vscode-diffEditor-removedTextBackground);
+					}
+
+					#container > div.nb-cellAdded > div {
+						background-color: var(--vscode-diffEditor-insertedTextBackground);
+					}
+
 					#container > div > div > div {
 						overflow-x: scroll;
 					}
@@ -452,7 +461,7 @@ var requirejs = (function() {
 					const resolvedResult = this.resolveOutputId(data.id);
 					if (resolvedResult) {
 						const { cellInfo, output } = resolvedResult;
-						this.notebookEditor.updateOutputHeight(cellInfo, output, outputHeight);
+						this.notebookEditor.updateOutputHeight(cellInfo, output, outputHeight, !!data.init);
 					}
 				} else if (data.type === 'mouseenter') {
 					const resolvedResult = this.resolveOutputId(data.id);

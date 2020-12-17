@@ -85,7 +85,7 @@ export class OutputElement extends Disposable {
 				this._diffElementViewModel,
 				this._nestedCell,
 				result,
-				this.getOutputOffsetInCell(index),
+				() => this.getOutputOffsetInCell(index),
 				this._diffElementViewModel instanceof SideBySideDiffElementViewModel
 					? this._modified
 					: this._diffElementViewModel.type === 'insert'

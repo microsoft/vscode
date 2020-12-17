@@ -76,6 +76,10 @@ export class NotebookTextDiffEditor extends EditorPane implements INotebookTextD
 	private _revealFirst: boolean;
 	private readonly _insetModifyQueueByOutputId = new SequencerByKey<string>();
 
+	protected _onDidDynamicOutputRendered = new Emitter<{ cell: IGenericCellViewModel, output: IDisplayOutputViewModel }>();
+	onDidDynamicOutputRendered = this._onDidDynamicOutputRendered.event;
+
+
 	private _isDisposed: boolean = false;
 
 	get isDisposed() {
@@ -111,7 +115,7 @@ export class NotebookTextDiffEditor extends EditorPane implements INotebookTextD
 		// throw new Error('Method not implemented.');
 	}
 
-	updateOutputHeight(cellInfo: IDiffCellInfo, output: IDisplayOutputViewModel, outputHeight: number): void {
+	updateOutputHeight(cellInfo: IDiffCellInfo, output: IDisplayOutputViewModel, outputHeight: number, isInit: boolean): void {
 		const diffElement = cellInfo.diffElement;
 		const cell = this.getCellByInfo(cellInfo);
 		const outputIndex = cell.outputsViewModels.findIndex(viewModel => (viewModel.model as ITransformedDisplayOutputDto).outputId === (output.model as ITransformedDisplayOutputDto).outputId);
@@ -125,6 +129,10 @@ export class NotebookTextDiffEditor extends EditorPane implements INotebookTextD
 			diffElement.updateOutputHeight(info.notebook.toString() === this._model?.original.resource.toString(), outputIndex, outputHeight);
 		} else {
 			(diffElement as SingleSideDiffElementViewModel).updateOutputHeight(outputIndex, outputHeight);
+		}
+
+		if (isInit) {
+			this._onDidDynamicOutputRendered.fire({ cell, output });
 		}
 	}
 
@@ -219,17 +227,14 @@ export class NotebookTextDiffEditor extends EditorPane implements INotebookTextD
 					return;
 				}
 
-				const scrollTop = this._list.scrollTop;
-				const scrollHeight = this._list.scrollHeight;
-
 				if (this._modifiedWebview) {
-					this._updateOutputsOffsetsInWebview(scrollTop, scrollHeight, this._modifiedWebview, (diffElement: DiffElementViewModelBase) => {
+					this._updateOutputsOffsetsInWebview(this._list.scrollTop, this._list.scrollHeight, this._modifiedWebview, (diffElement: DiffElementViewModelBase) => {
 						return diffElement.modified;
 					}, false);
 				}
 
 				if (this._originalWebview) {
-					this._updateOutputsOffsetsInWebview(scrollTop, scrollHeight, this._originalWebview, (diffElement: DiffElementViewModelBase) => {
+					this._updateOutputsOffsetsInWebview(this._list.scrollTop, this._list.scrollHeight, this._originalWebview, (diffElement: DiffElementViewModelBase) => {
 						return diffElement.original;
 					}, true);
 				}
@@ -524,12 +529,12 @@ export class NotebookTextDiffEditor extends EditorPane implements INotebookTextD
 		this._list.triggerScrollFromMouseWheelEvent(event);
 	}
 
-	createInset(cellDiffViewModel: DiffElementViewModelBase, cellViewModel: DiffNestedCellViewModel, output: IInsetRenderOutput, offset: number, rightEditor: boolean): void {
-		this._insetModifyQueueByOutputId.queue(output.source.model.outputId, async () => {
+	createInset(cellDiffViewModel: DiffElementViewModelBase, cellViewModel: DiffNestedCellViewModel, output: IInsetRenderOutput, getOffset: () => number, rightEditor: boolean): void {
+		this._insetModifyQueueByOutputId.queue(output.source.model.outputId + (rightEditor ? '-right' : 'left'), async () => {
 			if (rightEditor) {
 				if (!this._modifiedWebview!.insetMapping.has(output.source)) {
 					const cellTop = this._list.getAbsoluteTopOfElement(cellDiffViewModel);
-					await this._modifiedWebview?.createInset({ diffElement: cellDiffViewModel, cellHandle: cellViewModel.handle, cellId: cellViewModel.id, cellUri: cellViewModel.uri }, output, cellTop, offset);
+					await this._modifiedWebview?.createInset({ diffElement: cellDiffViewModel, cellHandle: cellViewModel.handle, cellId: cellViewModel.id, cellUri: cellViewModel.uri }, output, cellTop, getOffset());
 				} else {
 					const cellTop = this._list.getAbsoluteTopOfElement(cellDiffViewModel);
 					const scrollTop = this._list.scrollTop;
@@ -546,7 +551,7 @@ export class NotebookTextDiffEditor extends EditorPane implements INotebookTextD
 			} else {
 				if (!this._originalWebview!.insetMapping.has(output.source)) {
 					const cellTop = this._list.getAbsoluteTopOfElement(cellDiffViewModel);
-					await this._originalWebview?.createInset({ diffElement: cellDiffViewModel, cellHandle: cellViewModel.handle, cellId: cellViewModel.id, cellUri: cellViewModel.uri }, output, cellTop, offset);
+					await this._originalWebview?.createInset({ diffElement: cellDiffViewModel, cellHandle: cellViewModel.handle, cellId: cellViewModel.id, cellUri: cellViewModel.uri }, output, cellTop, getOffset());
 				} else {
 					const cellTop = this._list.getAbsoluteTopOfElement(cellDiffViewModel);
 					const scrollTop = this._list.scrollTop;
@@ -612,6 +617,14 @@ export class NotebookTextDiffEditor extends EditorPane implements INotebookTextD
 
 	getOutputRenderer(): OutputRenderer {
 		return this._outputRenderer;
+	}
+
+	deltaCellOutputContainerClassNames(original: boolean, cellId: string, added: string[], removed: string[]) {
+		if (original) {
+			this._originalWebview?.deltaCellOutputContainerClassNames(cellId, added, removed);
+		} else {
+			this._modifiedWebview?.deltaCellOutputContainerClassNames(cellId, added, removed);
+		}
 	}
 
 	getLayoutInfo(): NotebookLayoutInfo {

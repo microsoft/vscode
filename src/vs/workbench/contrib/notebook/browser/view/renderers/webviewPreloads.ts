@@ -474,6 +474,7 @@ function webviewPreloads() {
 						__vscode_notebook_message: true,
 						type: 'dimension',
 						id: outputId,
+						init: true,
 						data: {
 							height: outputNode.clientHeight
 						}

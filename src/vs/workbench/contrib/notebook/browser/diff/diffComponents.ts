@@ -933,7 +933,6 @@ export class InsertElement extends SingleSideDiffElement {
 				});
 			}
 
-
 			this.layoutNotebookCell();
 
 			if (this._diagonalFill) {
@@ -1071,13 +1070,34 @@ export class ModifiedElement extends AbstractElementRenderer {
 		this._outputRightView = this.instantiationService.createInstance(OutputContainer, this.notebookEditor, this.notebookEditor.textModel!, this.cell, this.cell.modified!, true, this._outputRightContainer!);
 		this._outputRightView.render();
 
+		const originalOutputRenderListener = this.notebookEditor.onDidDynamicOutputRendered(e => {
+			if (e.cell.uri.toString() === this.cell.original.uri.toString()) {
+				this.notebookEditor.deltaCellOutputContainerClassNames(true, this.cell.original.id, ['nb-cellDeleted'], []);
+				originalOutputRenderListener.dispose();
+			}
+		});
+
+		const modifiedOutputRenderListener = this.notebookEditor.onDidDynamicOutputRendered(e => {
+			if (e.cell.uri.toString() === this.cell.modified.uri.toString()) {
+				this.notebookEditor.deltaCellOutputContainerClassNames(false, this.cell.modified.id, ['nb-cellAdded'], []);
+				modifiedOutputRenderListener.dispose();
+			}
+		});
+
+		this._decorate();
 		this.cell.layoutChange();
 	}
 
 	_showOutputs() {
 		this._outputLeftView?.render();
 		this._outputRightView?.render();
+		this._decorate();
 		this.cell.layoutChange();
+	}
+
+	_decorate() {
+		this.notebookEditor.deltaCellOutputContainerClassNames(true, this.cell.original.id, ['nb-cellDeleted'], []);
+		this.notebookEditor.deltaCellOutputContainerClassNames(false, this.cell.modified.id, ['nb-cellAdded'], []);
 	}
 
 	_hideOutputs() {
@@ -1178,8 +1198,6 @@ export class ModifiedElement extends AbstractElementRenderer {
 		const contentHeight = this._editor!.getContentHeight();
 		this.cell.editorHeight = contentHeight;
 	}
-
-
 
 	layout(state: { outerWidth?: boolean, editorHeight?: boolean, metadataEditor?: boolean, outputEditor?: boolean, outputView?: boolean }) {
 		DOM.scheduleAtNextAnimationFrame(() => {

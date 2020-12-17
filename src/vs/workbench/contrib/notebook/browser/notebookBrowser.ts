@@ -162,7 +162,7 @@ export interface ICommonNotebookEditor {
 	getCellByInfo(cellInfo: ICommonCellInfo): IGenericCellViewModel;
 	focusNotebookCell(cell: IGenericCellViewModel, focus: 'editor' | 'container' | 'output'): void;
 	focusNextNotebookCell(cell: IGenericCellViewModel, focus: 'editor' | 'container' | 'output'): void;
-	updateOutputHeight(cellInfo: ICommonCellInfo, output: IDisplayOutputViewModel, height: number): void;
+	updateOutputHeight(cellInfo: ICommonCellInfo, output: IDisplayOutputViewModel, height: number, isInit: boolean): void;
 }
 
 //#endregion
@@ -582,7 +582,7 @@ export interface INotebookEditor extends IEditor, ICommonNotebookEditor {
 	getContribution<T extends INotebookEditorContribution>(id: string): T;
 
 	getCellByInfo(cellInfo: ICommonCellInfo): ICellViewModel;
-	updateOutputHeight(cellInfo: ICommonCellInfo, output: IDisplayOutputViewModel, height: number): void;
+	updateOutputHeight(cellInfo: ICommonCellInfo, output: IDisplayOutputViewModel, height: number, isInit: boolean): void;
 }
 
 export interface INotebookCellList {

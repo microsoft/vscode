@@ -72,7 +72,7 @@ export class TestNotebookEditor implements INotebookEditor {
 	getCellByInfo(cellInfo: ICommonCellInfo): ICellViewModel {
 		throw new Error('Method not implemented.');
 	}
-	updateOutputHeight(cellInfo: ICommonCellInfo, output: IDisplayOutputViewModel, height: number): void {
+	updateOutputHeight(cellInfo: ICommonCellInfo, output: IDisplayOutputViewModel, height: number, isInit: boolean): void {
 		throw new Error('Method not implemented.');
 	}
 	async beginComputeContributedKernels(): Promise<INotebookKernelInfo2[]> {
