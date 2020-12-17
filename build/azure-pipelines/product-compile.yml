@@ -114,17 +114,14 @@ steps:
     displayName: Create build
     condition: and(succeeded(), ne(variables['VSCODE_PUBLISH'], 'false'))
 
+  # we gotta tarball everything in order to preserve file permissions
   - script: |
       set -e
-      cat << EOF > .artifactignore
-      **/*
-      !.build/**
-      !out-*/**
-      EOF
-    displayName: Prepare .artifactignore
+      tar -czf $(Build.ArtifactStagingDirectory)/compilation.tar.gz .build out-*
+    displayName: Compress compilation artifact
 
   - task: PublishPipelineArtifact@1
     inputs:
-      targetPath: $(System.DefaultWorkingDirectory)
-      artifactName: CompilationOutput
-    displayName: Publish compilation output
+      targetPath: $(Build.ArtifactStagingDirectory)/compilation.tar.gz
+      artifactName: Compilation
+    displayName: Publish compilation artifact
