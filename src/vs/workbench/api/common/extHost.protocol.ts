@@ -1157,9 +1157,14 @@ export interface SourceTargetPair {
 	target: UriComponents;
 }
 
+export interface IWillRunFileOperationParticipation {
+	edit: IWorkspaceEditDto;
+	extensionNames: string[]
+}
+
 export interface ExtHostFileSystemEventServiceShape {
 	$onFileEvent(events: FileSystemEvents): void;
-	$onWillRunFileOperation(operation: files.FileOperation, files: SourceTargetPair[], timeout: number, token: CancellationToken): Promise<IWorkspaceEditDto | undefined>;
+	$onWillRunFileOperation(operation: files.FileOperation, files: SourceTargetPair[], timeout: number, token: CancellationToken): Promise<IWillRunFileOperationParticipation | undefined>;
 	$onDidRunFileOperation(operation: files.FileOperation, files: SourceTargetPair[]): void;
 }
 
