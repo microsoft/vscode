@@ -34,6 +34,7 @@ interface IListElement {
 	readonly index: number;
 	readonly item: IQuickPickItem;
 	readonly saneLabel: string;
+	readonly saneMeta?: string;
 	readonly saneAriaLabel: string;
 	readonly saneDescription?: string;
 	readonly saneDetail?: string;
@@ -49,6 +50,7 @@ class ListElement implements IListElement, IDisposable {
 	index!: number;
 	item!: IQuickPickItem;
 	saneLabel!: string;
+	saneMeta!: string;
 	saneAriaLabel!: string;
 	saneDescription?: string;
 	saneDetail?: string;
@@ -247,6 +249,7 @@ export class QuickInputList {
 	matchOnDescription = false;
 	matchOnDetail = false;
 	matchOnLabel = true;
+	matchOnMeta = true;
 	sortByLabel = true;
 	private readonly _onChangedAllVisibleChecked = new Emitter<boolean>();
 	onChangedAllVisibleChecked: Event<boolean> = this._onChangedAllVisibleChecked.event;
@@ -420,6 +423,7 @@ export class QuickInputList {
 			if (item.type !== 'separator') {
 				const previous = index && inputElements[index - 1];
 				const saneLabel = item.label && item.label.replace(/\r?\n/g, ' ');
+				const saneMeta = item.meta && item.meta.replace(/\r?\n/g, ' ');
 				const saneDescription = item.description && item.description.replace(/\r?\n/g, ' ');
 				const saneDetail = item.detail && item.detail.replace(/\r?\n/g, ' ');
 				const saneAriaLabel = item.ariaLabel || [saneLabel, saneDescription, saneDetail]
@@ -431,6 +435,7 @@ export class QuickInputList {
 					index,
 					item,
 					saneLabel,
+					saneMeta,
 					saneAriaLabel,
 					saneDescription,
 					saneDetail,
@@ -602,8 +607,9 @@ export class QuickInputList {
 				const labelHighlights = this.matchOnLabel ? withNullAsUndefined(matchesFuzzyIconAware(query, parseLabelWithIcons(element.saneLabel))) : undefined;
 				const descriptionHighlights = this.matchOnDescription ? withNullAsUndefined(matchesFuzzyIconAware(query, parseLabelWithIcons(element.saneDescription || ''))) : undefined;
 				const detailHighlights = this.matchOnDetail ? withNullAsUndefined(matchesFuzzyIconAware(query, parseLabelWithIcons(element.saneDetail || ''))) : undefined;
+        const metaHighlights = this.matchOnMeta ? withNullAsUndefined(matchesFuzzyIconAware(query, parseLabelWithIcons(element.saneMeta || ''))) : undefined;
 
-				if (labelHighlights || descriptionHighlights || detailHighlights) {
+				if (labelHighlights || descriptionHighlights || detailHighlights || metaHighlights) {
 					element.labelHighlights = labelHighlights;
 					element.descriptionHighlights = descriptionHighlights;
 					element.detailHighlights = detailHighlights;
