@@ -199,15 +199,14 @@ class FileDataSource implements IAsyncDataSource<IWorkspace | URI, IWorkspaceFol
 			|| element.isDirectory;
 	}
 
-	getChildren(element: IWorkspace | URI | IWorkspaceFolder | IFileStat): Promise<(IWorkspaceFolder | IFileStat)[]> {
+	async getChildren(element: IWorkspace | URI | IWorkspaceFolder | IFileStat): Promise<(IWorkspaceFolder | IFileStat)[]> {
 
 		if (IWorkspace.isIWorkspace(element)) {
-			return Promise.resolve(element.folders).then(folders => {
-				for (let child of folders) {
-					this._parents.set(element, child);
-				}
-				return folders;
-			});
+			const folders = element.folders;
+			for (let child of folders) {
+				this._parents.set(element, child);
+			}
+			return folders;
 		}
 		let uri: URI;
 		if (IWorkspaceFolder.isIWorkspaceFolder(element)) {
@@ -217,12 +216,11 @@ class FileDataSource implements IAsyncDataSource<IWorkspace | URI, IWorkspaceFol
 		} else {
 			uri = element.resource;
 		}
-		return this._fileService.resolve(uri).then(stat => {
-			for (const child of stat.children || []) {
-				this._parents.set(stat, child);
-			}
-			return stat.children || [];
-		});
+		const stat = await this._fileService.resolve(uri);
+		for (const child of stat.children || []) {
+			this._parents.set(stat, child);
+		}
+		return stat.children || [];
 	}
 }
 
@@ -406,7 +404,7 @@ export class BreadcrumbsFilePicker extends BreadcrumbsPicker {
 			});
 	}
 
-	_setInput(element: BreadcrumbElement): Promise<void> {
+	async _setInput(element: BreadcrumbElement): Promise<void> {
 		const { uri, kind } = (element as FileElement);
 		let input: IWorkspace | URI;
 		if (kind === FileKind.ROOT_FOLDER) {
@@ -416,23 +414,22 @@ export class BreadcrumbsFilePicker extends BreadcrumbsPicker {
 		}
 
 		const tree = this._tree as WorkbenchAsyncDataTree<IWorkspace | URI, IWorkspaceFolder | IFileStat, FuzzyScore>;
-		return tree.setInput(input).then(() => {
-			let focusElement: IWorkspaceFolder | IFileStat | undefined;
-			for (const { element } of tree.getNode().children) {
-				if (IWorkspaceFolder.isIWorkspaceFolder(element) && isEqual(element.uri, uri)) {
-					focusElement = element;
-					break;
-				} else if (isEqual((element as IFileStat).resource, uri)) {
-					focusElement = element as IFileStat;
-					break;
-				}
+		await tree.setInput(input);
+		let focusElement: IWorkspaceFolder | IFileStat | undefined;
+		for (const { element } of tree.getNode().children) {
+			if (IWorkspaceFolder.isIWorkspaceFolder(element) && isEqual(element.uri, uri)) {
+				focusElement = element;
+				break;
+			} else if (isEqual((element as IFileStat).resource, uri)) {
+				focusElement = element as IFileStat;
+				break;
 			}
-			if (focusElement) {
-				tree.reveal(focusElement, 0.5);
-				tree.setFocus([focusElement], this._fakeEvent);
-			}
-			tree.domFocus();
-		});
+		}
+		if (focusElement) {
+			tree.reveal(focusElement, 0.5);
+			tree.setFocus([focusElement], this._fakeEvent);
+		}
+		tree.domFocus();
 	}
 
 	protected _getTargetFromEvent(element: any): any | undefined {
