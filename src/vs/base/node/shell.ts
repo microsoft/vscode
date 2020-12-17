@@ -5,6 +5,7 @@
 
 import * as os from 'os';
 import * as platform from 'vs/base/common/platform';
+import { getFirstAvailablePowerShellInstallation } from 'vs/base/node/powershell';
 import * as processes from 'vs/base/node/processes';
 
 /**
@@ -15,7 +16,7 @@ import * as processes from 'vs/base/node/processes';
 export function getSystemShell(p: platform.Platform, env = process.env as platform.IProcessEnvironment): string {
 	if (p === platform.Platform.Windows) {
 		if (platform.isWindows) {
-			return getSystemShellWindows(env);
+			return getSystemShellWindows();
 		}
 		// Don't detect Windows shell when not on Windows
 		return processes.getWindowsShell(env);
@@ -59,12 +60,9 @@ function getSystemShellUnixLike(env: platform.IProcessEnvironment): string {
 }
 
 let _TERMINAL_DEFAULT_SHELL_WINDOWS: string | null = null;
-function getSystemShellWindows(env: platform.IProcessEnvironment): string {
+function getSystemShellWindows(): string {
 	if (!_TERMINAL_DEFAULT_SHELL_WINDOWS) {
-		const isAtLeastWindows10 = platform.isWindows && parseFloat(os.release()) >= 10;
-		const is32ProcessOn64Windows = env.hasOwnProperty('PROCESSOR_ARCHITEW6432');
-		const powerShellPath = `${env['windir']}\\${is32ProcessOn64Windows ? 'Sysnative' : 'System32'}\\WindowsPowerShell\\v1.0\\powershell.exe`;
-		_TERMINAL_DEFAULT_SHELL_WINDOWS = isAtLeastWindows10 ? powerShellPath : processes.getWindowsShell(env);
+		_TERMINAL_DEFAULT_SHELL_WINDOWS = getFirstAvailablePowerShellInstallation()!.exePath;
 	}
 	return _TERMINAL_DEFAULT_SHELL_WINDOWS;
 }
