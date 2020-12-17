@@ -7,7 +7,7 @@ import * as assert from 'assert';
 import { FileService } from 'vs/platform/files/common/fileService';
 import { Schemas } from 'vs/base/common/network';
 import { URI } from 'vs/base/common/uri';
-import { FileOperation, FileOperationError, FileOperationEvent, FileOperationResult, FileType } from 'vs/platform/files/common/files';
+import { FileOperation, FileOperationError, FileOperationEvent, FileOperationResult, FileSystemProviderErrorCode, FileType } from 'vs/platform/files/common/files';
 import { NullLogService } from 'vs/platform/log/common/log';
 import { DisposableStore } from 'vs/base/common/lifecycle';
 import { IIndexedDBFileSystemProvider, IndexedDB, INDEXEDDB_LOGS_OBJECT_STORE, INDEXEDDB_USERDATA_OBJECT_STORE } from 'vs/platform/files/browser/indexedDBFileSystemProvider';
@@ -244,10 +244,10 @@ suite('IndexedDB File Service', function () {
 			assert.equal(new TextDecoder().decode(await userdataFileProvider.readFile(stat.resource)), entry.contents);
 		}
 		await service.del(userdataURIFromPaths(['batched']), { recursive: true, useTrash: false });
-		for (let i = 0; i < stats.length; i++) {
-			const stat = stats[i];
-			assert.rejects(userdataFileProvider.stat(stat.resource));
-		}
+		await Promise.all(stats.map(async stat => {
+			const newStat = await userdataFileProvider.stat(stat.resource).catch(e => e.code);
+			assert.equal(newStat, FileSystemProviderErrorCode.FileNotFound);
+		}));
 	});
 
 	test('deleteFile', async () => {
