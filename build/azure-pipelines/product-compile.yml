@@ -42,11 +42,13 @@ steps:
       echo -n $ENABLE_TERRAPIN > .build/terrapin
     displayName: Prepare yarn cache flags
 
-  - task: 1ESLighthouseEng.PipelineArtifactCaching.RestoreCacheV1.RestoreCache@1
+  - task: Cache@2
     inputs:
-      keyfile: ".build/arch, .build/terrapin, build/.cachesalt, .yarnrc, remote/.yarnrc, **/yarn.lock, !**/node_modules/**/yarn.lock, !**/.*/**/yarn.lock"
-      targetfolder: "**/node_modules, !**/node_modules/**/node_modules"
-      vstsFeed: "npm-vscode"
+      key: '$(Agent.OS) | cacheNodeModules | .build/arch, .build/terrapin, build/.cachesalt, .yarnrc, remote/.yarnrc, **/yarn.lock, !**/node_modules/**/yarn.lock, !**/.*/**/yarn.lock'
+      path: "**/node_modules"
+      restoreKeys: '$(Agent.OS) | cacheNodeModules'
+      cacheHitVar: NODE_MODULES_RESTORED
+    displayName: Cache node modules
 
   - script: |
       set -e
@@ -75,14 +77,7 @@ steps:
       ELECTRON_SKIP_BINARY_DOWNLOAD: 1
       PLAYWRIGHT_SKIP_BROWSER_DOWNLOAD: 1
     displayName: Install dependencies
-    condition: and(succeeded(), ne(variables['CacheRestored'], 'true'))
-
-  - task: 1ESLighthouseEng.PipelineArtifactCaching.SaveCacheV1.SaveCache@1
-    inputs:
-      keyfile: ".build/arch, .build/terrapin, build/.cachesalt, .yarnrc, remote/.yarnrc, **/yarn.lock, !**/node_modules/**/yarn.lock, !**/.*/**/yarn.lock"
-      targetfolder: "**/node_modules, !**/node_modules/**/node_modules"
-      vstsFeed: "npm-vscode"
-    condition: and(succeeded(), ne(variables['CacheRestored'], 'true'))
+    condition: and(succeeded(), ne(variables.NODE_MODULES_RESTORED, 'true'))
 
   # Mixin must run before optimize, because the CSS loader will inline small SVGs
   - script: |
