@@ -3,6 +3,7 @@
   "version": "1.0.0",
   "license": "MIT",
   "devDependencies": {
+    "@azure/cosmos": "^3.9.3",
     "@types/ansi-colors": "^3.2.0",
     "@types/azure": "0.9.19",
     "@types/debounce": "^1.0.0",
@@ -58,8 +59,5 @@
     "watch": "tsc -p tsconfig.build.json --watch",
     "postinstall": "npm run compile",
     "npmCheckJs": "tsc --noEmit"
-  },
-  "dependencies": {
-    "@azure/cosmos": "^3.9.3"
   }
 }
