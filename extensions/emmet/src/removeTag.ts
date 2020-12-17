@@ -28,11 +28,11 @@ export function removeTag() {
 function getRangeToRemove(document: vscode.TextDocument, selection: vscode.Selection, indentInSpaces: string): vscode.Range[] {
 	const lsDocument = toLSTextDocument(document);
 	const nodeToUpdate = getHtmlNodeLS(lsDocument, selection.start, true);
-	if (!nodeToUpdate || nodeToUpdate.startTagEnd === undefined) {
+	if (!nodeToUpdate) {
 		return [];
 	}
 
-	const openRange = offsetRangeToVsRange(lsDocument, nodeToUpdate.start, nodeToUpdate.startTagEnd);
+	const openRange = offsetRangeToVsRange(lsDocument, nodeToUpdate.start, nodeToUpdate.startTagEnd ?? nodeToUpdate.end);
 	let closeRange: vscode.Range | null = null;
 	if (nodeToUpdate.endTagStart !== undefined) {
 		closeRange = offsetRangeToVsRange(lsDocument, nodeToUpdate.endTagStart, nodeToUpdate.end);
