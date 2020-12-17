@@ -6,7 +6,7 @@
 import * as DOM from 'vs/base/browser/dom';
 import { CellOutputKind } from 'vs/workbench/contrib/notebook/common/notebookCommon';
 import { NotebookRegistry } from 'vs/workbench/contrib/notebook/browser/notebookRegistry';
-import { INotebookEditor, IOutputTransformContribution, IRenderOutput, IStreamOutputViewModel, RenderOutputType } from 'vs/workbench/contrib/notebook/browser/notebookBrowser';
+import { ICommonNotebookEditor, IOutputTransformContribution, IRenderOutput, IStreamOutputViewModel, RenderOutputType } from 'vs/workbench/contrib/notebook/browser/notebookBrowser';
 import { truncatedArrayOfString } from 'vs/workbench/contrib/notebook/browser/view/output/transforms/textHelper';
 import { IOpenerService } from 'vs/platform/opener/common/opener';
 import { ITextFileService } from 'vs/workbench/services/textfile/common/textfiles';
@@ -14,7 +14,7 @@ import { IThemeService } from 'vs/platform/theme/common/themeService';
 
 class StreamRenderer implements IOutputTransformContribution {
 	constructor(
-		editor: INotebookEditor,
+		editor: ICommonNotebookEditor,
 		@IOpenerService readonly openerService: IOpenerService,
 		@ITextFileService readonly textFileService: ITextFileService,
 		@IThemeService readonly themeService: IThemeService

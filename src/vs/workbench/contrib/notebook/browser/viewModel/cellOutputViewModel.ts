@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { Disposable } from 'vs/base/common/lifecycle';
-import { ICellOutputViewModel, IDisplayOutputViewModel, IErrorOutputViewModel, IStreamOutputViewModel } from 'vs/workbench/contrib/notebook/browser/notebookBrowser';
+import { ICellOutputViewModel, IDisplayOutputViewModel, IErrorOutputViewModel, IGenericCellViewModel, IStreamOutputViewModel } from 'vs/workbench/contrib/notebook/browser/notebookBrowser';
 import { NotebookTextModel } from 'vs/workbench/contrib/notebook/common/model/notebookTextModel';
 import { CellOutputKind, IOrderedMimeType, IProcessedOutput, ITransformedDisplayOutputDto, RENDERER_NOT_AVAILABLE } from 'vs/workbench/contrib/notebook/common/notebookCommon';
 import { INotebookService } from 'vs/workbench/contrib/notebook/common/notebookService';
@@ -24,11 +24,13 @@ export class CellOutputViewModel extends Disposable implements ICellOutputViewMo
 	}
 
 	constructor(
+		readonly cellViewModel: IGenericCellViewModel,
 		private readonly _outputData: IProcessedOutput,
 		private readonly _notebookService: INotebookService
 	) {
 		super();
 	}
+
 	isStreamOutput(): this is IStreamOutputViewModel {
 		return this._outputData.outputKind === CellOutputKind.Text;
 	}

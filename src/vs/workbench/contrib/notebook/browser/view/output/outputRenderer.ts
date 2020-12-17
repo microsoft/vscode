@@ -6,7 +6,7 @@
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { NotebookRegistry } from 'vs/workbench/contrib/notebook/browser/notebookRegistry';
 import { onUnexpectedError } from 'vs/base/common/errors';
-import { ICellOutputViewModel, INotebookEditor, IOutputTransformContribution, IRenderOutput, RenderOutputType } from 'vs/workbench/contrib/notebook/browser/notebookBrowser';
+import { ICellOutputViewModel, ICommonNotebookEditor, IOutputTransformContribution, IRenderOutput, RenderOutputType } from 'vs/workbench/contrib/notebook/browser/notebookBrowser';
 import { URI } from 'vs/base/common/uri';
 
 export class OutputRenderer {
@@ -14,7 +14,7 @@ export class OutputRenderer {
 	protected readonly _mimeTypeMapping: { [key: number]: IOutputTransformContribution; };
 
 	constructor(
-		notebookEditor: INotebookEditor,
+		notebookEditor: ICommonNotebookEditor,
 		private readonly instantiationService: IInstantiationService
 	) {
 		this._contributions = {};

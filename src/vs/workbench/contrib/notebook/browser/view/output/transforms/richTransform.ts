@@ -6,7 +6,7 @@
 import { CellOutputKind } from 'vs/workbench/contrib/notebook/common/notebookCommon';
 import { NotebookRegistry } from 'vs/workbench/contrib/notebook/browser/notebookRegistry';
 import * as DOM from 'vs/base/browser/dom';
-import { IDisplayOutputViewModel, INotebookEditor, IOutputTransformContribution, IRenderOutput, RenderOutputType } from 'vs/workbench/contrib/notebook/browser/notebookBrowser';
+import { ICommonNotebookEditor, IDisplayOutputViewModel, IOutputTransformContribution, IRenderOutput, RenderOutputType } from 'vs/workbench/contrib/notebook/browser/notebookBrowser';
 import { isArray } from 'vs/base/common/types';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { IEditorOptions } from 'vs/editor/common/config/editorOptions';
@@ -25,7 +25,7 @@ class RichRenderer implements IOutputTransformContribution {
 	private _richMimeTypeRenderers = new Map<string, (output: IDisplayOutputViewModel, notebookUri: URI, container: HTMLElement) => IRenderOutput>();
 
 	constructor(
-		public notebookEditor: INotebookEditor,
+		public notebookEditor: ICommonNotebookEditor,
 		@IInstantiationService private readonly instantiationService: IInstantiationService,
 		@IModelService private readonly modelService: IModelService,
 		@IModeService private readonly modeService: IModeService,
@@ -94,8 +94,8 @@ class RichRenderer implements IOutputTransformContribution {
 		const textModel = this.modelService.createModel(str, mode, resource, false);
 		editor.setModel(textModel);
 
-		const width = this.notebookEditor.getLayoutInfo().width;
-		const fontInfo = this.notebookEditor.getLayoutInfo().fontInfo;
+		const width = this.notebookEditor.getCellOutputLayoutInfo(output.cellViewModel).width;
+		const fontInfo = this.notebookEditor.getCellOutputLayoutInfo(output.cellViewModel).fontInfo;
 		const height = Math.min(textModel.getLineCount(), 16) * (fontInfo.lineHeight || 18);
 
 		editor.layout({
@@ -127,8 +127,8 @@ class RichRenderer implements IOutputTransformContribution {
 		const textModel = this.modelService.createModel(str, mode, resource, false);
 		editor.setModel(textModel);
 
-		const width = this.notebookEditor.getLayoutInfo().width;
-		const fontInfo = this.notebookEditor.getLayoutInfo().fontInfo;
+		const width = this.notebookEditor.getCellOutputLayoutInfo(output.cellViewModel).width;
+		const fontInfo = this.notebookEditor.getCellOutputLayoutInfo(output.cellViewModel).fontInfo;
 		const height = Math.min(textModel.getLineCount(), 16) * (fontInfo.lineHeight || 18);
 
 		editor.layout({

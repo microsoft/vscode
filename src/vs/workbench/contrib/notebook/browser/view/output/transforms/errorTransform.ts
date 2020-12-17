@@ -8,11 +8,11 @@ import { NotebookRegistry } from 'vs/workbench/contrib/notebook/browser/notebook
 import { RGBA, Color } from 'vs/base/common/color';
 import { ansiColorIdentifiers } from 'vs/workbench/contrib/terminal/common/terminalColorRegistry';
 import { IThemeService } from 'vs/platform/theme/common/themeService';
-import { IErrorOutputViewModel, INotebookEditor, IOutputTransformContribution, IRenderOutput, RenderOutputType } from 'vs/workbench/contrib/notebook/browser/notebookBrowser';
+import { ICommonNotebookEditor, IErrorOutputViewModel, IOutputTransformContribution, IRenderOutput, RenderOutputType } from 'vs/workbench/contrib/notebook/browser/notebookBrowser';
 
 class ErrorTransform implements IOutputTransformContribution {
 	constructor(
-		public editor: INotebookEditor,
+		public editor: ICommonNotebookEditor,
 		@IThemeService private readonly themeService: IThemeService
 	) {
 	}

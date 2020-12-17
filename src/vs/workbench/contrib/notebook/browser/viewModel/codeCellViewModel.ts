@@ -79,12 +79,12 @@ export class CodeCellViewModel extends BaseCellViewModel implements ICellViewMod
 		@INotebookService private _notebookService: INotebookService
 	) {
 		super(viewType, model, UUID.generateUuid(), configurationService);
-		this._outputViewModels = this.model.outputs.map(output => new CellOutputViewModel(output, this._notebookService));
+		this._outputViewModels = this.model.outputs.map(output => new CellOutputViewModel(this, output, this._notebookService));
 
 		this._register(this.model.onDidChangeOutputs((splices) => {
 			splices.reverse().forEach(splice => {
 				this._outputCollection.splice(splice[0], splice[1], ...splice[2].map(() => 0));
-				this._outputViewModels.splice(splice[0], splice[1], ...splice[2].map(output => new CellOutputViewModel(output, this._notebookService)));
+				this._outputViewModels.splice(splice[0], splice[1], ...splice[2].map(output => new CellOutputViewModel(this, output, this._notebookService)));
 			});
 
 			this._outputsTop = null;

@@ -29,7 +29,7 @@ import { Emitter } from 'vs/base/common/event';
 import { DisposableStore, IDisposable, toDisposable } from 'vs/base/common/lifecycle';
 import { NotebookDiffEditorEventDispatcher, NotebookLayoutChangedEvent } from 'vs/workbench/contrib/notebook/browser/viewModel/eventDispatcher';
 import { EditorPane } from 'vs/workbench/browser/parts/editor/editorPane';
-import { INotebookDiffEditorModel, ITransformedDisplayOutputDto } from 'vs/workbench/contrib/notebook/common/notebookCommon';
+import { CellUri, INotebookDiffEditorModel, ITransformedDisplayOutputDto } from 'vs/workbench/contrib/notebook/common/notebookCommon';
 import { FileService } from 'vs/platform/files/common/fileService';
 import { IFileService } from 'vs/platform/files/common/files';
 import { URI } from 'vs/base/common/uri';
@@ -54,7 +54,7 @@ export class NotebookTextDiffEditor extends EditorPane implements INotebookTextD
 	private _rootElement!: HTMLElement;
 	private _overflowContainer!: HTMLElement;
 	private _dimension: DOM.Dimension | null = null;
-	// private _diffElementViewModels: DiffElementViewModelBase[] = [];
+	private _diffElementViewModels: DiffElementViewModelBase[] = [];
 	private _list!: NotebookTextDiffList;
 	private _modifiedWebview: BackLayerWebView<IDiffCellInfo> | null = null;
 	private _originalWebview: BackLayerWebView<IDiffCellInfo> | null = null;
@@ -435,7 +435,7 @@ export class NotebookTextDiffEditor extends EditorPane implements INotebookTextD
 			));
 		}
 
-		// this._diffElementViewModels = diffElementViewModels;
+		this._diffElementViewModels = diffElementViewModels;
 		this._list.splice(0, this._list.length, diffElementViewModels);
 
 		if (this._revealFirst && firstChangeIndex !== -1) {
@@ -619,6 +619,56 @@ export class NotebookTextDiffEditor extends EditorPane implements INotebookTextD
 			height: this._dimension!.height,
 			fontInfo: this._fontInfo!
 		};
+	}
+
+	getCellOutputLayoutInfo(nestedCell: DiffNestedCellViewModel) {
+		if (!this._model) {
+			throw new Error('Editor is not attached to model yet');
+		}
+		const documentModel = CellUri.parse(nestedCell.uri);
+		if (!documentModel) {
+			throw new Error('Nested cell in the diff editor has wrong Uri');
+		}
+
+		const belongToOriginalDocument = this._model.original.notebook.uri.toString() === documentModel.notebook.toString();
+		const viewModel = this._diffElementViewModels.find(element => {
+			const textModel = belongToOriginalDocument ? element.original : element.modified;
+			if (!textModel) {
+				return false;
+			}
+
+			if (textModel.uri.toString() === nestedCell.uri.toString()) {
+				return true;
+			}
+
+			return false;
+		});
+
+		if (!viewModel) {
+			throw new Error('Nested cell in the diff editor does not match any diff element');
+		}
+
+		if (viewModel.type === 'unchanged') {
+			return this.getLayoutInfo();
+		}
+
+		if (viewModel.type === 'insert' || viewModel.type === 'delete') {
+			return {
+				width: this._dimension!.width / 2,
+				height: this._dimension!.height / 2,
+				fontInfo: this._fontInfo!
+			};
+		}
+
+		if (viewModel.checkIfOutputsModified()) {
+			return {
+				width: this._dimension!.width / 2,
+				height: this._dimension!.height / 2,
+				fontInfo: this._fontInfo!
+			};
+		} else {
+			return this.getLayoutInfo();
+		}
 	}
 
 	layout(dimension: DOM.Dimension): void {

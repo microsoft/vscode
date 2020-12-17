@@ -186,7 +186,7 @@ export class OutputContainer extends Disposable {
 
 	) {
 		super();
-		this._outputViewModels = _nestedCellViewModel.outputs.map(output => new CellOutputViewModel(output, _notebookService));
+		this._outputViewModels = _nestedCellViewModel.outputs.map(output => new CellOutputViewModel(_nestedCellViewModel, output, _notebookService));
 
 		// TODO, onDidChangeOutputs
 

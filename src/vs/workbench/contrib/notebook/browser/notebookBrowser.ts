@@ -102,6 +102,7 @@ export const outputHasDynamicHeight = (o: IRenderOutput) => o.type !== RenderOut
 
 
 export interface ICellOutputViewModel {
+	cellViewModel: IGenericCellViewModel;
 	model: IProcessedOutput;
 	isDisplayOutput(): this is IDisplayOutputViewModel;
 	isErrorOutput(): this is IErrorOutputViewModel;
@@ -149,7 +150,14 @@ export interface ICommonCellInfo {
 	cellUri: URI;
 }
 
+export interface INotebookCellOutputLayoutInfo {
+	width: number;
+	height: number;
+	fontInfo: BareFontInfo;
+}
+
 export interface ICommonNotebookEditor {
+	getCellOutputLayoutInfo(cell: IGenericCellViewModel): INotebookCellOutputLayoutInfo;
 	triggerScroll(event: IMouseWheelEvent): void;
 	getCellByInfo(cellInfo: ICommonCellInfo): IGenericCellViewModel;
 	focusNotebookCell(cell: IGenericCellViewModel, focus: 'editor' | 'container' | 'output'): void;
