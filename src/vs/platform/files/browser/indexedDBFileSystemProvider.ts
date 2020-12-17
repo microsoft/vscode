@@ -74,127 +74,132 @@ export interface IIndexedDBFileSystemProvider extends Disposable, IFileSystemPro
 }
 
 type DirEntry = [string, FileType];
-type FSNode =
+
+type IndexedDBFileSystemEntry =
 	| {
 		path: string,
 		type: FileType.Directory,
-		parent: FSNode | undefined,
-		children: Map<string, FSNode>,
+		children: Map<string, IndexedDBFileSystemNode>,
 	}
 	| {
 		path: string,
 		type: FileType.File,
-		parent: FSNode | undefined,
 		size: number | undefined,
 	};
 
-const printSuperBlock = (block: FSNode, indentation = '') => {
-	console.log(indentation + block.path);
-	if (block.type === FileType.Directory) {
-		block.children.forEach(child => printSuperBlock(child, indentation + ' '));
-	}
-};
+class IndexedDBFileSystemNode {
+	public type: FileType;
 
-const readFromSuperblock = (block: FSNode, path: string) => {
-	const doReadFromSuperblock = (block: FSNode, pathParts: string[]): FSNode | undefined => {
-		if (pathParts.length === 0) { return block; }
-		if (block.type !== FileType.Directory) {
-			throw new Error('Internal error reading from superblock -- expected directory at ' + block.path);
+	constructor(private entry: IndexedDBFileSystemEntry) {
+		this.type = entry.type;
+	}
+
+
+	read(path: string) {
+		return this.doRead(path.split('/').filter(p => p.length));
+	}
+
+	private doRead(pathParts: string[]): IndexedDBFileSystemEntry | undefined {
+		if (pathParts.length === 0) { return this.entry; }
+		if (this.entry.type !== FileType.Directory) {
+			throw new Error('Internal error reading from superblock -- expected directory at ' + this.entry.path);
 		}
-		const next = block.children.get(pathParts[0]);
+		const next = this.entry.children.get(pathParts[0]);
 
 		if (!next) { return undefined; }
-		return doReadFromSuperblock(next, pathParts.slice(1));
-	};
-	return doReadFromSuperblock(block, path.split('/').filter(p => p.length));
-};
+		return next.doRead(pathParts.slice(1));
+	}
 
-const deleteFromSuperblock = (block: FSNode, path: string) => {
-	const doDeleteFromSuperblock = (block: FSNode, pathParts: string[]) => {
-		if (pathParts.length === 0) { throw new Error(`Internal error deleting from superblock -- got no deletion path parts (encountered while deleting ${path})`); }
-		else if (block.type !== FileType.Directory) {
-			throw new Error('Internal error reading from superblock -- expected directory at ' + block.path);
+	delete(path: string) {
+		const toDelete = path.split('/').filter(p => p.length);
+		if (toDelete.length === 0) {
+			if (this.entry.type !== FileType.Directory) {
+				throw new Error(`Internal error deleting from superblock. Expected root entry to be directory`);
+			}
+			this.entry.children.clear();
+		} else {
+			return this.doDelete(toDelete, path);
+		}
+	}
+
+	private doDelete = (pathParts: string[], originalPath: string) => {
+		if (pathParts.length === 0) {
+			throw new Error(`Internal error deleting from superblock -- got no deletion path parts (encountered while deleting ${originalPath})`);
+		}
+		else if (this.entry.type !== FileType.Directory) {
+			throw new Error('Internal error reading from superblock -- expected directory at ' + this.entry.path);
 		}
 		else if (pathParts.length === 1) {
-			block.children.delete(pathParts[0]);
+			this.entry.children.delete(pathParts[0]);
 		}
 		else {
-			const next = block.children.get(pathParts[0]);
+			const next = this.entry.children.get(pathParts[0]);
 			if (!next) {
-				throw new Error('Internal error reading from superblock -- expected entry at ' + block.path + '/' + next);
+				throw new Error('Internal error reading from superblock -- expected entry at ' + this.entry.path + '/' + next);
 			}
-			doDeleteFromSuperblock(next, pathParts.slice(1));
+			next.doDelete(pathParts.slice(1), originalPath);
 		}
 	};
 
-	const toDelete = path.split('/').filter(p => p.length);
-	if (toDelete.length === 0) {
-		if (block.type !== FileType.Directory) {
-			throw new Error(`Internal error deleting from superblock. Expected root entry to be directory`);
-		}
-		block.children.clear();
-	} else {
-		return doDeleteFromSuperblock(block, path.split('/').filter(p => p.length));
+	add(path: string, entry: { type: 'file', size?: number } | { type: 'dir' }) {
+		this.doAdd(path.split('/').filter(p => p.length), entry, path);
 	}
-};
 
-const addEntryToSuperblock = (block: FSNode, path: string, entry: { type: 'file', size?: number } | { type: 'dir' }) => {
-	const doAddEntryToSuperblock = (block: FSNode, pathParts: string[]) => {
+	private doAdd(pathParts: string[], entry: { type: 'file', size?: number } | { type: 'dir' }, originalPath: string) {
 		if (pathParts.length === 0) {
-			throw new Error(`Internal error creating superblock -- adding empty path (encountered while adding ${path})`);
+			throw new Error(`Internal error creating superblock -- adding empty path (encountered while adding ${originalPath})`);
 		}
-
-		if (block.type !== FileType.Directory) {
-			throw new Error(`Internal error creating superblock -- parent is not a directory (encountered while adding ${path})`);
+		else if (this.entry.type !== FileType.Directory) {
+			throw new Error(`Internal error creating superblock -- parent is not a directory (encountered while adding ${originalPath})`);
 		}
-
-		if (pathParts.length === 1) {
+		else if (pathParts.length === 1) {
 			const next = pathParts[0];
-			const existing = block.children.get(next);
+			const existing = this.entry.children.get(next);
 			if (entry.type === 'dir') {
-				if (existing?.type === FileType.File) {
-					throw new Error(`Internal error creating superblock -- overwriting file with directory: ${block.path}/${next} (encountered while adding ${path})`);
+				if (existing?.entry.type === FileType.File) {
+					throw new Error(`Internal error creating superblock -- overwriting file with directory: ${this.entry.path}/${next} (encountered while adding ${originalPath})`);
 				}
-				block.children.set(next, existing ?? {
+				this.entry.children.set(next, existing ?? new IndexedDBFileSystemNode({
 					type: FileType.Directory,
-					path: block.path + '/' + next,
-					parent: block,
+					path: this.entry.path + '/' + next,
 					children: new Map(),
-				});
+				}));
 			} else {
-				if (existing?.type === FileType.Directory) {
-					throw new Error(`Internal error creating superblock -- overwriting directory with file: ${block.path}/${next} (encountered while adding ${path})`);
+				if (existing?.entry.type === FileType.Directory) {
+					throw new Error(`Internal error creating superblock -- overwriting directory with file: ${this.entry.path}/${next} (encountered while adding ${originalPath})`);
 				}
-				block.children.set(next, {
+				this.entry.children.set(next, new IndexedDBFileSystemNode({
 					type: FileType.File,
-					path: block.path + '/' + next,
-					parent: block,
+					path: this.entry.path + '/' + next,
 					size: entry.size,
-				});
+				}));
 			}
 		}
-
 		else if (pathParts.length > 1) {
 			const next = pathParts[0];
-			let childNode = block.children.get(next);
+			let childNode = this.entry.children.get(next);
 			if (!childNode) {
-				childNode = {
+				childNode = new IndexedDBFileSystemNode({
 					children: new Map(),
-					parent: block,
-					path: block.path + '/' + next,
+					path: this.entry.path + '/' + next,
 					type: FileType.Directory
-				};
-				block.children.set(next, childNode);
+				});
+				this.entry.children.set(next, childNode);
 			}
 			else if (childNode.type === FileType.File) {
-				throw new Error(`Internal error creating superblock -- overwriting file entry with directory: ${block.path}/${next} (encountered while adding ${path})`);
+				throw new Error(`Internal error creating superblock -- overwriting file entry with directory: ${this.entry.path}/${next} (encountered while adding ${originalPath})`);
 			}
-			doAddEntryToSuperblock(childNode, pathParts.slice(1));
+			childNode.doAdd(pathParts.slice(1), entry, originalPath);
 		}
-	};
-	doAddEntryToSuperblock(block, path.split('/').filter(p => p.length));
-};
+	}
 
+	print(indentation = '') {
+		console.log(indentation + this.entry.path);
+		if (this.entry.type === FileType.Directory) {
+			this.entry.children.forEach(child => child.print(indentation + ' '));
+		}
+	}
+}
 
 class IndexedDBFileSystemProvider extends Disposable implements IIndexedDBFileSystemProvider {
 
@@ -208,13 +213,13 @@ class IndexedDBFileSystemProvider extends Disposable implements IIndexedDBFileSy
 
 	private readonly versions: Map<string, number> = new Map<string, number>();
 
-	private superblock: Promise<FSNode>;
+	private cachedFiletree: Promise<IndexedDBFileSystemNode>;
 	private writeManyThrottler: Throttler;
 
 	constructor(scheme: string, private readonly database: IDBDatabase, private readonly store: string) {
 		super();
 		this.writeManyThrottler = new Throttler();
-		this.superblock = this.getSuperblock();
+		this.cachedFiletree = this.getSuperblock();
 	}
 
 	watch(resource: URI, opts: IWatchOptions): IDisposable {
@@ -228,11 +233,11 @@ class IndexedDBFileSystemProvider extends Disposable implements IIndexedDBFileSy
 				throw createFileSystemProviderError(localize('fileNotDirectory', "File is not a directory"), FileSystemProviderErrorCode.FileNotADirectory);
 			}
 		} catch (error) { /* Ignore */ }
-		addEntryToSuperblock(await this.superblock, resource.path, { type: 'dir' });
+		(await this.cachedFiletree).add(resource.path, { type: 'dir' });
 	}
 
 	async stat(resource: URI): Promise<IStat> {
-		const content = readFromSuperblock(await this.superblock, resource.path);
+		const content = (await this.cachedFiletree).read(resource.path);
 		if (content?.type === FileType.File) {
 			return {
 				type: FileType.File,
@@ -254,7 +259,7 @@ class IndexedDBFileSystemProvider extends Disposable implements IIndexedDBFileSy
 	}
 
 	async readdir(resource: URI): Promise<DirEntry[]> {
-		const entry = readFromSuperblock(await this.superblock, resource.path);
+		const entry = (await this.cachedFiletree).read(resource.path);
 		if (!entry) {
 			// Dirs aren't saved to disk, so empty dirs will be lost on reload.
 			// Thus we have two options for what ahappens when you try to read a dir and nothing is found:
@@ -272,7 +277,7 @@ class IndexedDBFileSystemProvider extends Disposable implements IIndexedDBFileSy
 	}
 
 	async readFile(resource: URI): Promise<Uint8Array> {
-		const read = new Promise<Uint8Array>((c, e) => {
+		const buffer = await new Promise<Uint8Array>((c, e) => {
 			const transaction = this.database.transaction([this.store]);
 			const objectStore = transaction.objectStore(this.store);
 			const request = objectStore.get(resource.path);
@@ -287,26 +292,25 @@ class IndexedDBFileSystemProvider extends Disposable implements IIndexedDBFileSy
 					if (request.result === undefined) {
 						e(createFileSystemProviderError(localize('fileNotExists', "File does not exist"), FileSystemProviderErrorCode.FileNotFound));
 					} else {
-						throw createFileSystemProviderError(localize('internal', "Internal error occured while reading file"), FileSystemProviderErrorCode.Unknown);
+						e(createFileSystemProviderError(localize('internal', "Internal error occured while reading file"), FileSystemProviderErrorCode.Unknown));
 					}
 				}
 			};
 		});
-		read.then(async buffer => addEntryToSuperblock(await this.superblock, resource.path, { type: 'file', size: buffer.byteLength }), () => { });
-		return read;
+
+		(await this.cachedFiletree).add(resource.path, { type: 'file', size: buffer.byteLength });
+		return buffer;
 	}
 
 	async writeFile(resource: URI, content: Uint8Array, opts: FileWriteOptions): Promise<void> {
-		try {
-			const existing = await this.stat(resource);
-			if (existing.type === FileType.Directory) {
-				throw createFileSystemProviderError(localize('fileIsDirectory', "File is Directory"), FileSystemProviderErrorCode.FileIsADirectory);
-			}
-		} catch { }
+		const existing = await this.stat(resource).catch(() => undefined);
+		if (existing?.type === FileType.Directory) {
+			throw createFileSystemProviderError(localize('fileIsDirectory', "File is Directory"), FileSystemProviderErrorCode.FileIsADirectory);
+		}
 
 		this.fileWriteBatch.push({ content, resource });
 		await this.writeManyThrottler.queue(() => this.writeMany());
-		addEntryToSuperblock(await this.superblock, resource.path, { type: 'file', size: content.byteLength });
+		(await this.cachedFiletree).add(resource.path, { type: 'file', size: content.byteLength });
 		this.versions.set(resource.toString(), (this.versions.get(resource.toString()) || 0) + 1);
 		this._onDidChangeFile.fire([{ resource, type: FileChangeType.UPDATED }]);
 	}
@@ -333,27 +337,28 @@ class IndexedDBFileSystemProvider extends Disposable implements IIndexedDBFileSy
 			toDelete = [resource.path];
 		}
 		await this.deleteKeys(toDelete);
-		deleteFromSuperblock(await this.superblock, resource.path);
+		(await this.cachedFiletree).delete(resource.path);
 		toDelete.forEach(key => this.versions.delete(key));
 		this._onDidChangeFile.fire(toDelete.map(path => ({ resource: resource.with({ path }), type: FileChangeType.DELETED })));
 	}
 
 	private async tree(resource: URI): Promise<DirEntry[]> {
 		if ((await this.stat(resource)).type === FileType.Directory) {
-			let items = (await this.readdir(resource)).map(([key, type]) => {
+			const topLevelEntries = (await this.readdir(resource)).map(([key, type]) => {
 				return [joinPath(resource, key).path, type] as [string, FileType];
 			});
-			await Promise.all(items.map(
+			let allEntries = topLevelEntries;
+			await Promise.all(topLevelEntries.map(
 				async ([key, type]) => {
 					if (type === FileType.Directory) {
 						const childEntries = (await this.tree(resource.with({ path: key })));
-						items = items.concat(childEntries);
+						allEntries = allEntries.concat(childEntries);
 					}
 				}));
-			return items;
+			return allEntries;
 		} else {
-			const items: DirEntry[] = [[resource.path, FileType.File]];
-			return items;
+			const entries: DirEntry[] = [[resource.path, FileType.File]];
+			return entries;
 		}
 	}
 
@@ -361,21 +366,20 @@ class IndexedDBFileSystemProvider extends Disposable implements IIndexedDBFileSy
 		return Promise.reject(new Error('Not Supported'));
 	}
 
-	private getSuperblock(): Promise<FSNode> {
+	private getSuperblock(): Promise<IndexedDBFileSystemNode> {
 		return new Promise((c, e) => {
 			const transaction = this.database.transaction([this.store]);
 			const objectStore = transaction.objectStore(this.store);
 			const request = objectStore.getAllKeys();
 			request.onerror = () => e(request.error);
 			request.onsuccess = () => {
-				const superblock: FSNode = {
+				const superblock = new IndexedDBFileSystemNode({
 					children: new Map(),
-					parent: undefined,
 					path: '',
 					type: FileType.Directory
-				};
+				});
 				const keys = request.result.map(key => key.toString());
-				keys.forEach(key => addEntryToSuperblock(superblock, key, { type: 'file' }));
+				keys.forEach(key => superblock.add(key, { type: 'file' }));
 
 				c(superblock);
 			};
