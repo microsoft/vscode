@@ -18,7 +18,13 @@ import { Iterable } from 'vs/base/common/iterator';
 import { LinkedList } from 'vs/base/common/linkedList';
 
 export interface ILocalizedString {
+	/**
+	 * The localized value of the string.
+	 */
 	value: string;
+	/**
+	 * The original (non localized value of the string)
+	 */
 	original: string;
 }
 
@@ -26,7 +32,7 @@ export type Icon = { dark?: URI; light?: URI; } | ThemeIcon;
 
 export interface ICommandAction {
 	id: string;
-	title: string | ILocalizedString;
+	title: string | ILocalizedString | ILocalizedString & { mnemonicedTitle: string };
 	category?: string | ILocalizedString;
 	tooltip?: string;
 	icon?: Icon;
