@@ -837,6 +837,13 @@ registerAction2(class extends ViewAction<Repl> {
 		const debugService = accessor.get(IDebugService);
 		// If session is already the focused session we need to manualy update the tree since view model will not send a focused change event
 		if (session && session.state !== State.Inactive && session !== debugService.getViewModel().focusedSession) {
+			if (session.state !== State.Stopped) {
+				// Focus child session instead if it is stopped #112595
+				const stopppedChildSession = debugService.getModel().getSessions().find(s => s.parentSession === session);
+				if (stopppedChildSession) {
+					session = stopppedChildSession;
+				}
+			}
 			await debugService.focusStackFrame(undefined, undefined, session, true);
 		} else {
 			await view.selectSession(session);
