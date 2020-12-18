@@ -884,8 +884,8 @@ export class ExtensionEditor extends EditorPane {
 		return { focus: () => extensionPackContent.focus() };
 	}
 
-	private openChangelog(template: IExtensionEditorTemplate,  token: CancellationToken): Promise<IActiveElement> {
-	  return this.openMarkdown(this.extensionChangelog!.get(), localize('noChangelog', "No Changelog available."), template, WebviewIndex.Changelog, token);
+	private openChangelog(template: IExtensionEditorTemplate, token: CancellationToken): Promise<IActiveElement> {
+		return this.openMarkdown(this.extensionChangelog!.get(), localize('noChangelog', "No Changelog available."), template, WebviewIndex.Changelog, token);
 	}
 
 	private openContributions(template: IExtensionEditorTemplate, token: CancellationToken): Promise<IActiveElement | null> {
