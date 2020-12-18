@@ -79,6 +79,7 @@ export class NotebookTextDiffEditor extends EditorPane implements INotebookTextD
 	protected _onDidDynamicOutputRendered = new Emitter<{ cell: IGenericCellViewModel, output: IDisplayOutputViewModel }>();
 	onDidDynamicOutputRendered = this._onDidDynamicOutputRendered.event;
 
+	private _localStore: DisposableStore = this._register(new DisposableStore());
 
 	private _isDisposed: boolean = false;
 
@@ -225,25 +226,7 @@ export class NotebookTextDiffEditor extends EditorPane implements INotebookTextD
 			this._webviewTransparentCover!.style.top = `${e.scrollTop}px`;
 		}));
 
-		this._register(this._list.onDidChangeContentHeight(() => {
-			DOM.scheduleAtNextAnimationFrame(() => {
-				if (this._isDisposed) {
-					return;
-				}
 
-				if (this._modifiedWebview) {
-					this._updateOutputsOffsetsInWebview(this._list.scrollTop, this._list.scrollHeight, this._modifiedWebview, (diffElement: DiffElementViewModelBase) => {
-						return diffElement.modified;
-					}, DiffSide.Modified);
-				}
-
-				if (this._originalWebview) {
-					this._updateOutputsOffsetsInWebview(this._list.scrollTop, this._list.scrollHeight, this._originalWebview, (diffElement: DiffElementViewModelBase) => {
-						return diffElement.original;
-					}, DiffSide.Original);
-				}
-			});
-		}));
 	}
 
 	private _updateOutputsOffsetsInWebview(scrollTop: number, scrollHeight: number, activeWebview: BackLayerWebView<IDiffCellInfo>, getActiveNestedCell: (diffElement: DiffElementViewModelBase) => DiffNestedCellViewModel | undefined, diffSide: DiffSide) {
@@ -297,15 +280,9 @@ export class NotebookTextDiffEditor extends EditorPane implements INotebookTextD
 
 		const model = await input.resolve();
 		if (this._model !== model) {
-			this._originalWebview?.dispose();
-			this._originalWebview?.element.remove();
-			this._originalWebview = null;
-			this._modifiedWebview?.dispose();
-			this._modifiedWebview?.element.remove();
-			this._modifiedWebview = null;
-
-			this._modifiedResourceDisposableStore.clear();
-			this._list.clear();
+			this._detachModel();
+			this._model = model;
+			this._attachModel();
 		}
 
 		this._model = await input.resolve();
@@ -359,6 +336,41 @@ export class NotebookTextDiffEditor extends EditorPane implements INotebookTextD
 
 		this._eventDispatcher = new NotebookDiffEditorEventDispatcher();
 		await this.updateLayout();
+	}
+
+	private _detachModel() {
+		this._localStore.clear();
+		this._originalWebview?.dispose();
+		this._originalWebview?.element.remove();
+		this._originalWebview = null;
+		this._modifiedWebview?.dispose();
+		this._modifiedWebview?.element.remove();
+		this._modifiedWebview = null;
+
+		this._modifiedResourceDisposableStore.clear();
+		this._list.clear();
+
+	}
+	private _attachModel() {
+		this._localStore.add(this._list.onDidChangeContentHeight(() => {
+			DOM.scheduleAtNextAnimationFrame(() => {
+				if (this._isDisposed) {
+					return;
+				}
+
+				if (this._modifiedWebview) {
+					this._updateOutputsOffsetsInWebview(this._list.scrollTop, this._list.scrollHeight, this._modifiedWebview, (diffElement: DiffElementViewModelBase) => {
+						return diffElement.modified;
+					}, DiffSide.Modified);
+				}
+
+				if (this._originalWebview) {
+					this._updateOutputsOffsetsInWebview(this._list.scrollTop, this._list.scrollHeight, this._originalWebview, (diffElement: DiffElementViewModelBase) => {
+						return diffElement.original;
+					}, DiffSide.Original);
+				}
+			});
+		}));
 	}
 
 	private async _createModifiedWebview(id: string, resource: URI): Promise<void> {
