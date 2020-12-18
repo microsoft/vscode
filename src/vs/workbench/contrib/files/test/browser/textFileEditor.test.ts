@@ -87,7 +87,7 @@ suite('Files - TextFileEditor', () => {
 		return viewStateTest(this, false);
 	});
 
-	async function viewStateTest(context: Mocha.ITestCallbackContext, restoreViewState: boolean): Promise<void> {
+	async function viewStateTest(context: Mocha.Context, restoreViewState: boolean): Promise<void> {
 		const [part, accessor] = await createPart(restoreViewState);
 
 		let editor = await accessor.editorService.openEditor(accessor.editorService.createEditorInput({ resource: toResource.call(context, '/path/index.txt'), forceFile: true }));

@@ -213,7 +213,7 @@ function configureCrashReporter() {
 	if (typeof crashReporterOptionsRaw === 'string') {
 		try {
 			const crashReporterOptions = JSON.parse(crashReporterOptionsRaw);
-			if (crashReporterOptions) {
+			if (crashReporterOptions && process['crashReporter'] /* Electron only */) {
 				process['crashReporter'].start(crashReporterOptions);
 			}
 		} catch (error) {

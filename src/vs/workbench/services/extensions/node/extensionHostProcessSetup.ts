@@ -268,7 +268,7 @@ function connectToRenderer(protocol: IMessagePassingProtocol): Promise<IRenderer
 				try {
 					process.kill(initData.parentPid, 0); // throws an exception if the main process doesn't exist anymore.
 				} catch (e) {
-					onTerminate(`parent process ${initData.parentPid} does not exist anymore`);
+					onTerminate(`parent process ${initData.parentPid} does not exist anymore: ${e.message} (code: ${e.code}) (errno: ${e.errno})`);
 				}
 			}, 1000);
 

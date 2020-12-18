@@ -43,6 +43,16 @@ import { isStandalone } from 'vs/base/browser/browser';
 				'markdownDescription': nls.localize('highlightModifiedTabs', "Controls whether a top border is drawn on modified (dirty) editor tabs or not. This value is ignored when `#workbench.editor.showTabs#` is disabled."),
 				'default': false
 			},
+			'workbench.editor.decorations.badges': {
+				'type': 'boolean',
+				'markdownDescription': nls.localize('decorations.badges', "Controls whether editor file decorations should use badges."),
+				'default': true
+			},
+			'workbench.editor.decorations.colors': {
+				'type': 'boolean',
+				'markdownDescription': nls.localize('decorations.colors', "Controls whether editor file decorations should use colors."),
+				'default': true
+			},
 			'workbench.editor.labelFormat': {
 				'type': 'string',
 				'enum': ['default', 'short', 'medium', 'long'],
@@ -320,8 +330,8 @@ import { isStandalone } from 'vs/base/browser/browser';
 		nls.localize('activeFolderLong', "`\${activeFolderLong}`: the full path of the folder the file is contained in (e.g. /Users/Development/myFolder/myFileFolder)."),
 		nls.localize('folderName', "`\${folderName}`: name of the workspace folder the file is contained in (e.g. myFolder)."),
 		nls.localize('folderPath', "`\${folderPath}`: file path of the workspace folder the file is contained in (e.g. /Users/Development/myFolder)."),
-		nls.localize('rootName', "`\${rootName}`: name of the workspace (e.g. myFolder or myWorkspace)."),
-		nls.localize('rootPath', "`\${rootPath}`: file path of the workspace (e.g. /Users/Development/myWorkspace)."),
+		nls.localize('rootName', "`\${rootName}`: name of the opened workspace or folder (e.g. myFolder or myWorkspace)."),
+		nls.localize('rootPath', "`\${rootPath}`: file path of the opened workspace or folder (e.g. /Users/Development/myWorkspace)."),
 		nls.localize('appName', "`\${appName}`: e.g. VS Code."),
 		nls.localize('remoteName', "`\${remoteName}`: e.g. SSH"),
 		nls.localize('dirty', "`\${dirty}`: a dirty indicator if the active editor is dirty."),

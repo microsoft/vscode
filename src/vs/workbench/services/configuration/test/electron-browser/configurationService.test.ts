@@ -363,21 +363,24 @@ suite('WorkspaceContextService - Workspace Editing', () => {
 			});
 	});
 
-	test('remove folders and add them back by writing into the file', async done => {
+	test('remove folders and add them back by writing into the file', async () => {
 		const folders = testObject.getWorkspace().folders;
 		await testObject.removeFolders([folders[0].uri]);
 
-		testObject.onDidChangeWorkspaceFolders(actual => {
-			try {
-				assert.deepEqual(actual.added.map(r => r.uri.toString()), [folders[0].uri.toString()]);
-				done();
-			} catch (error) {
-				done(error);
-			}
+		const promise = new Promise<void>((resolve, reject) => {
+			testObject.onDidChangeWorkspaceFolders(actual => {
+				try {
+					assert.deepEqual(actual.added.map(r => r.uri.toString()), [folders[0].uri.toString()]);
+					resolve();
+				} catch (error) {
+					reject(error);
+				}
+			});
 		});
 
 		const workspace = { folders: [{ path: folders[0].uri.fsPath }, { path: folders[1].uri.fsPath }] };
 		await instantiationService.get(ITextFileService).write(testObject.getWorkspace().configuration!, JSON.stringify(workspace, null, '\t'));
+		await promise;
 	});
 
 	test('update folders (remove last and add to end)', () => {

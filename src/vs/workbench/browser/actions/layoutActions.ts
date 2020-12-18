@@ -474,19 +474,18 @@ export class ResetViewLocationsAction extends Action {
 registry.registerWorkbenchAction(SyncActionDescriptor.from(ResetViewLocationsAction), 'View: Reset View Locations', CATEGORIES.View.value);
 
 // --- Toggle View with Command
-export abstract class ToggleViewAction extends Action {
+export class ToggleViewAction extends Action {
 
 	constructor(
 		id: string,
 		label: string,
 		private readonly viewId: string,
-		protected viewsService: IViewsService,
-		protected viewDescriptorService: IViewDescriptorService,
-		protected contextKeyService: IContextKeyService,
-		private layoutService: IWorkbenchLayoutService,
-		cssClass?: string
+		@IViewsService protected viewsService: IViewsService,
+		@IViewDescriptorService protected viewDescriptorService: IViewDescriptorService,
+		@IContextKeyService protected contextKeyService: IContextKeyService,
+		@IWorkbenchLayoutService private layoutService: IWorkbenchLayoutService,
 	) {
-		super(id, label, cssClass);
+		super(id, label);
 	}
 
 	async run(): Promise<void> {

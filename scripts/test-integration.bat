@@ -73,8 +73,8 @@ call "%INTEGRATION_TEST_ELECTRON_PATH%" %GITWORKSPACE% --extensionDevelopmentPat
 if %errorlevel% neq 0 exit /b %errorlevel%
 
 :: Tests in commonJS (CSS, HTML)
-call %~dp0\node-electron.bat %~dp0\..\extensions\css-language-features/server/test/index.js
-if %errorlevel% neq 0 exit /b %errorlevel%
+REM call %~dp0\node-electron.bat %~dp0\..\extensions\css-language-features/server/test/index.js
+REM if %errorlevel% neq 0 exit /b %errorlevel%
 
 call %~dp0\node-electron.bat %~dp0\..\extensions\html-language-features/server/test/index.js
 if %errorlevel% neq 0 exit /b %errorlevel%

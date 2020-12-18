@@ -182,7 +182,7 @@ suite('Files - TextFileEditorModel', () => {
 		await model.save({ force: true });
 
 		assert.ok(savedEvent);
-		assert.ok(!model.isDirty());
+		assert.strictEqual(model.isDirty(), false);
 
 		model.dispose();
 		assert.ok(!accessor.modelService.getModel(model.resource));
@@ -373,7 +373,7 @@ suite('Files - TextFileEditorModel', () => {
 		assert.equal(accessor.workingCopyService.isDirty(model.resource), true);
 
 		await model.revert();
-		assert.ok(!model.isDirty());
+		assert.strictEqual(model.isDirty(), false);
 		assert.equal(model.textEditorModel!.getValue(), 'Hello Html');
 		assert.equal(eventCounter, 1);
 
@@ -406,7 +406,7 @@ suite('Files - TextFileEditorModel', () => {
 		assert.equal(accessor.workingCopyService.isDirty(model.resource), true);
 
 		await model.revert({ soft: true });
-		assert.ok(!model.isDirty());
+		assert.strictEqual(model.isDirty(), false);
 		assert.equal(model.textEditorModel!.getValue(), 'foo');
 		assert.equal(eventCounter, 1);
 
@@ -453,7 +453,7 @@ suite('Files - TextFileEditorModel', () => {
 		assert.ok(model.isDirty());
 
 		await model.revert({ soft: true });
-		assert.ok(!model.isDirty());
+		assert.strictEqual(model.isDirty(), false);
 
 		model.onDidChangeDirty(() => eventCounter++);
 
@@ -470,7 +470,7 @@ suite('Files - TextFileEditorModel', () => {
 		assert.ok(workingCopyEvent);
 
 		model.setDirty(false);
-		assert.ok(!model.isDirty());
+		assert.strictEqual(model.isDirty(), false);
 		assert.equal(eventCounter, 2);
 
 		model.dispose();

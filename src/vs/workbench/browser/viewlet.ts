@@ -80,7 +80,7 @@ export class ViewletDescriptor extends CompositeDescriptor<Viewlet> {
 		requestedIndex?: number,
 		readonly iconUrl?: URI
 	) {
-		super(ctor, id, name, cssClass, order, requestedIndex, id);
+		super(ctor, id, name, cssClass, order, requestedIndex);
 	}
 }
 

@@ -2025,7 +2025,7 @@ declare module 'vscode' {
 		 * Runs tests with the given options. If no options are given, then
 		 * all tests are run. Returns the resulting test run.
 		 */
-		export function runTests<T extends TestItem>(options: TestRunOptions<T>): Thenable<void>;
+		export function runTests<T extends TestItem>(options: TestRunOptions<T>, cancellationToken?: CancellationToken): Thenable<void>;
 
 		/**
 		 * Returns an observer that retrieves tests in the given workspace folder.
@@ -2350,7 +2350,7 @@ declare module 'vscode' {
 		/**
 		 * Register a new `ExternalUriOpener`.
 		 *
-		 * When a uri is about to be opened, a `onUriOpen:SCHEME` activation event is fired.
+		 * When a uri is about to be opened, an `onUriOpen:SCHEME` activation event is fired.
 		 *
 		 * @param schemes List of uri schemes the opener is triggered for. Currently only `http`
 		 * and `https` are supported.
