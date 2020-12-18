@@ -60,11 +60,12 @@
 .notebook-text-diff-editor .cell-body .cell-diff-editor-container .output-editor-container.diff,
 .notebook-text-diff-editor .cell-body .cell-diff-editor-container .editor-container.diff {
 	/** 100% + diffOverviewWidth */
-	width: calc(100% + 30px);
+	width: calc(100%);
 }
 
 .notebook-text-diff-editor .cell-body .cell-diff-editor-container .metadata-editor-container .monaco-diff-editor .diffOverview,
-.notebook-text-diff-editor .cell-body .cell-diff-editor-container .editor-container.diff .monaco-diff-editor .diffOverview {
+.notebook-text-diff-editor .cell-body .cell-diff-editor-container .editor-container.diff .monaco-diff-editor .diffOverview,
+.notebook-text-diff-editor .cell-body .cell-diff-editor-container .output-editor-container.diff .monaco-diff-editor .diffOverview {
 	display: none;
 }
 

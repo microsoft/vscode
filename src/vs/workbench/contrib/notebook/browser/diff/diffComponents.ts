@@ -10,7 +10,7 @@ import { IInstantiationService } from 'vs/platform/instantiation/common/instanti
 import { DiffElementViewModelBase, getFormatedMetadataJSON, PropertyFoldingState, SideBySideDiffElementViewModel, SingleSideDiffElementViewModel } from 'vs/workbench/contrib/notebook/browser/diff/diffElementViewModel';
 import { CellDiffSideBySideRenderTemplate, CellDiffSingleSideRenderTemplate, DiffSide, DIFF_CELL_MARGIN, INotebookTextDiffEditor, NOTEBOOK_DIFF_CELL_PROPERTY, NOTEBOOK_DIFF_CELL_PROPERTY_EXPANDED } from 'vs/workbench/contrib/notebook/browser/diff/notebookDiffEditorBrowser';
 import { EDITOR_BOTTOM_PADDING } from 'vs/workbench/contrib/notebook/browser/constants';
-import { CodeEditorWidget } from 'vs/editor/browser/widget/codeEditorWidget';
+import { CodeEditorWidget, ICodeEditorWidgetOptions } from 'vs/editor/browser/widget/codeEditorWidget';
 import { DiffEditorWidget } from 'vs/editor/browser/widget/diffEditorWidget';
 import { IModelService } from 'vs/editor/common/services/modelService';
 import { IModeService } from 'vs/editor/common/services/modeService';
@@ -32,8 +32,16 @@ import { ThemeIcon } from 'vs/platform/theme/common/themeService';
 import { collapsedIcon, expandedIcon } from 'vs/workbench/contrib/notebook/browser/notebookIcons';
 import { renderCodicons } from 'vs/base/browser/codicons';
 import { OutputContainer } from 'vs/workbench/contrib/notebook/browser/diff/diffElementOutputs';
+import { EditorExtensionsRegistry } from 'vs/editor/browser/editorExtensions';
+import { ContextMenuController } from 'vs/editor/contrib/contextmenu/contextmenu';
+import { SnippetController2 } from 'vs/editor/contrib/snippet/snippetController2';
+import { SuggestController } from 'vs/editor/contrib/suggest/suggestController';
+import { AccessibilityHelpController } from 'vs/workbench/contrib/codeEditor/browser/accessibility/accessibility';
+import { MenuPreventer } from 'vs/workbench/contrib/codeEditor/browser/menuPreventer';
+import { SelectionClipboardContributionID } from 'vs/workbench/contrib/codeEditor/browser/selectionClipboard';
+import { TabCompletionController } from 'vs/workbench/contrib/snippets/browser/tabCompletion';
 
-const fixedEditorOptions: IEditorOptions = {
+export const fixedEditorOptions: IEditorOptions = {
 	padding: {
 		top: 12,
 		bottom: 12
@@ -63,13 +71,29 @@ const fixedEditorOptions: IEditorOptions = {
 	readOnly: true
 };
 
-const fixedDiffEditorOptions: IDiffEditorOptions = {
+export function getOptimizedNestedCodeEditorWidgetOptions(): ICodeEditorWidgetOptions {
+	return {
+		isSimpleWidget: false,
+		contributions: EditorExtensionsRegistry.getSomeEditorContributions([
+			MenuPreventer.ID,
+			SelectionClipboardContributionID,
+			ContextMenuController.ID,
+			SuggestController.ID,
+			SnippetController2.ID,
+			TabCompletionController.ID,
+			AccessibilityHelpController.ID
+		])
+	};
+}
+
+export const fixedDiffEditorOptions: IDiffEditorOptions = {
 	...fixedEditorOptions,
 	glyphMargin: true,
 	enableSplitViewResizing: false,
 	renderIndicators: false,
 	readOnly: false,
 	isInEmbeddedEditor: true,
+	renderOverviewRuler: false
 };
 
 class PropertyHeader extends Disposable {
@@ -439,10 +463,13 @@ abstract class AbstractElementRenderer extends Disposable {
 				ignoreTrimWhitespace: false,
 				automaticLayout: false,
 				dimension: {
-					height: 0,
-					width: 0
+					height: this.cell.layoutInfo.metadataHeight,
+					width: this.cell.getComputedCellContainerWidth(this.notebookEditor.getLayoutInfo(), true, true)
 				}
-			}, {});
+			}, {
+				originalEditor: getOptimizedNestedCodeEditorWidgetOptions(),
+				modifiedEditor: getOptimizedNestedCodeEditorWidgetOptions()
+			});
 			this._register(this._metadataEditor);
 
 			this._metadataEditorContainer?.classList.add('diff');
@@ -491,7 +518,7 @@ abstract class AbstractElementRenderer extends Disposable {
 				...fixedEditorOptions,
 				dimension: {
 					width: this.cell.getComputedCellContainerWidth(this.notebookEditor.getLayoutInfo(), false, true),
-					height: 0
+					height: this.cell.layoutInfo.metadataHeight
 				},
 				overflowWidgetsDomNode: this.notebookEditor.getOverflowContainerDomNode(),
 				readOnly: false
@@ -549,7 +576,10 @@ abstract class AbstractElementRenderer extends Disposable {
 						height: 0,
 						width: 0
 					}
-				}, {});
+				}, {
+					originalEditor: getOptimizedNestedCodeEditorWidgetOptions(),
+					modifiedEditor: getOptimizedNestedCodeEditorWidgetOptions()
+				});
 				this._register(this._outputEditor);
 
 				this._outputEditorContainer?.classList.add('diff');
@@ -583,8 +613,8 @@ abstract class AbstractElementRenderer extends Disposable {
 		this._outputEditor = this.instantiationService.createInstance(CodeEditorWidget, this._outputEditorContainer!, {
 			...fixedEditorOptions,
 			dimension: {
-				width: this.cell.getComputedCellContainerWidth(this.notebookEditor.getLayoutInfo(), false, this.cell.type === 'unchanged' || this.cell.type === 'modified'),
-				height: 0
+				width: this.cell.getComputedCellContainerWidth(this.notebookEditor.getLayoutInfo(), false, this.cell.type === 'unchanged' || this.cell.type === 'modified') - 32,
+				height: this.cell.layoutInfo.rawOutputHeight
 			},
 			overflowWidgetsDomNode: this.notebookEditor.getOverflowContainerDomNode()
 		}, {});
@@ -812,7 +842,7 @@ export class DeletedElement extends SingleSideDiffElement {
 		});
 	}
 
-	layout(state: { outerWidth?: boolean, editorHeight?: boolean, metadataEditor?: boolean, outputTotalHeight?: boolean }) {
+	layout(state: { outerWidth?: boolean, editorHeight?: boolean, metadataHeight?: boolean, outputTotalHeight?: boolean }) {
 		DOM.scheduleAtNextAnimationFrame(() => {
 			if (state.editorHeight || state.outerWidth) {
 				this._editor.layout({
@@ -821,7 +851,7 @@ export class DeletedElement extends SingleSideDiffElement {
 				});
 			}
 
-			if (state.metadataEditor || state.outerWidth) {
+			if (state.metadataHeight || state.outerWidth) {
 				this._metadataEditor?.layout({
 					width: this.cell.getComputedCellContainerWidth(this.notebookEditor.getLayoutInfo(), false, false),
 					height: this.cell.layoutInfo.metadataHeight
@@ -982,7 +1012,7 @@ export class InsertElement extends SingleSideDiffElement {
 		}
 	}
 
-	layout(state: { outerWidth?: boolean, editorHeight?: boolean, metadataEditor?: boolean, outputTotalHeight?: boolean }) {
+	layout(state: { outerWidth?: boolean, editorHeight?: boolean, metadataHeight?: boolean, outputTotalHeight?: boolean }) {
 		DOM.scheduleAtNextAnimationFrame(() => {
 			if (state.editorHeight || state.outerWidth) {
 				this._editor.layout({
@@ -991,7 +1021,7 @@ export class InsertElement extends SingleSideDiffElement {
 				});
 			}
 
-			if (state.metadataEditor || state.outerWidth) {
+			if (state.metadataHeight || state.outerWidth) {
 				this._metadataEditor?.layout({
 					width: this.cell.getComputedCellContainerWidth(this.notebookEditor.getLayoutInfo(), false, true),
 					height: this.cell.layoutInfo.metadataHeight
@@ -1198,7 +1228,7 @@ export class ModifiedElement extends AbstractElementRenderer {
 		const modifiedCell = this.cell.modified!;
 		const lineCount = modifiedCell.textModel.textBuffer.getLineCount();
 		const lineHeight = this.notebookEditor.getLayoutInfo().fontInfo.lineHeight || 17;
-		const editorHeight = lineCount * lineHeight + getEditorTopPadding() + EDITOR_BOTTOM_PADDING;
+		const editorHeight = this.cell.layoutInfo.editorHeight !== 0 ? this.cell.layoutInfo.editorHeight : lineCount * lineHeight + getEditorTopPadding() + EDITOR_BOTTOM_PADDING;
 		this._editorContainer = this.templateData.editorContainer;
 		this._editor = this.templateData.sourceEditor;
 
@@ -1288,7 +1318,7 @@ export class ModifiedElement extends AbstractElementRenderer {
 		this.cell.editorHeight = contentHeight;
 	}
 
-	layout(state: { outerWidth?: boolean, editorHeight?: boolean, metadataEditor?: boolean, outputTotalHeight?: boolean }) {
+	layout(state: { outerWidth?: boolean, editorHeight?: boolean, metadataHeight?: boolean, outputTotalHeight?: boolean }) {
 		DOM.scheduleAtNextAnimationFrame(() => {
 			if (state.editorHeight) {
 				this._editorContainer.style.height = `${this.cell.layoutInfo.editorHeight}px`;
@@ -1303,7 +1333,7 @@ export class ModifiedElement extends AbstractElementRenderer {
 				this._editor!.layout();
 			}
 
-			if (state.metadataEditor || state.outerWidth) {
+			if (state.metadataHeight || state.outerWidth) {
 				if (this._metadataEditorContainer) {
 					this._metadataEditorContainer.style.height = `${this.cell.layoutInfo.metadataHeight}px`;
 					this._metadataEditor?.layout();
