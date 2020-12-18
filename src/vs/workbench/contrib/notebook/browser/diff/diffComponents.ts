@@ -135,6 +135,7 @@ class PropertyHeader extends Disposable {
 		};
 
 		const scopedContextKeyService = this.contextKeyService.createScoped(cellToolbarContainer);
+		this._register(scopedContextKeyService);
 		const propertyChanged = NOTEBOOK_DIFF_CELL_PROPERTY.bindTo(scopedContextKeyService);
 		propertyChanged.set(metadataChanged);
 		this._propertyExpanded = NOTEBOOK_DIFF_CELL_PROPERTY_EXPANDED.bindTo(scopedContextKeyService);
