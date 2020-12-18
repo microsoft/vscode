@@ -3,20 +3,27 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
+import * as dom from 'vs/base/browser/dom';
 import { Codicon } from 'vs/base/common/codicons';
 import { Emitter, Event } from 'vs/base/common/event';
-import { DisposableStore } from 'vs/base/common/lifecycle';
+import { DisposableStore, MutableDisposable } from 'vs/base/common/lifecycle';
 import { ThemeIcon } from 'vs/platform/theme/common/themeService';
 import { ICellViewModel } from 'vs/workbench/contrib/notebook/browser/notebookBrowser';
 import { NotebookEditor } from 'vs/workbench/contrib/notebook/browser/notebookEditor';
 import { CellKind } from 'vs/workbench/contrib/notebook/common/notebookCommon';
-import { IOutline, IOutlineCreator, IOutlineService } from 'vs/workbench/services/outline/common/outline';
+import { IOutline, IOutlineCreator, IOutlineService, OutlineTreeConfiguration } from 'vs/workbench/services/outline/browser/outline';
 import { IWorkbenchContributionsRegistry, Extensions as WorkbenchExtensions } from 'vs/workbench/common/contributions';
 import { Registry } from 'vs/platform/registry/common/platform';
 import { LifecyclePhase } from 'vs/workbench/services/lifecycle/common/lifecycle';
 import { IEditorPane } from 'vs/workbench/common/editor';
+import { IListVirtualDelegate } from 'vs/base/browser/ui/list/list';
+import { ITreeNode, ITreeRenderer } from 'vs/base/browser/ui/tree/tree';
+import { FuzzyScore } from 'vs/base/common/filters';
+import { IconLabel } from 'vs/base/browser/ui/iconLabel/iconLabel';
+import { IListAccessibilityProvider } from 'vs/base/browser/ui/list/listWidget';
+import { Iterable } from 'vs/base/common/iterator';
 
-class OutlineEntry {
+export class OutlineEntry {
 	constructor(
 		readonly cell: ICellViewModel,
 		readonly label: string,
@@ -24,7 +31,59 @@ class OutlineEntry {
 	) { }
 }
 
-class NotebookOutline implements IOutline<OutlineEntry> {
+class NotebookOutlineTemplate {
+
+	static readonly templateId = 'NotebookOutlineRenderer';
+
+	constructor(
+		readonly iconLabel: IconLabel,
+		readonly iconClass: HTMLElement,
+	) { }
+}
+
+class NotebookOutlineRenderer implements ITreeRenderer<OutlineEntry, FuzzyScore, NotebookOutlineTemplate> {
+
+	templateId: string = NotebookOutlineTemplate.templateId;
+
+	renderTemplate(container: HTMLElement): NotebookOutlineTemplate {
+		const iconClass = dom.$('span');
+		container.append(iconClass);
+		const iconLabel = new IconLabel(container);
+
+		return new NotebookOutlineTemplate(iconLabel, iconClass);
+	}
+
+	renderElement(element: ITreeNode<OutlineEntry, FuzzyScore>, _index: number, templateData: NotebookOutlineTemplate, _height: number | undefined): void {
+		templateData.iconClass.classList.add(...ThemeIcon.asClassNameArray(element.element.icon));
+		templateData.iconLabel.setLabel(element.element.label, undefined, { extraClasses: [] });
+	}
+
+	disposeTemplate(templateData: NotebookOutlineTemplate): void {
+		templateData.iconLabel.dispose();
+	}
+}
+
+class NotebookOutlineAccessibility implements IListAccessibilityProvider<OutlineEntry> {
+	getAriaLabel(element: OutlineEntry): string | null {
+		return element.label;
+	}
+	getWidgetAriaLabel(): string {
+		return '';
+	}
+}
+
+class NotebookOutlineVirtualDelegate implements IListVirtualDelegate<OutlineEntry> {
+
+	getHeight(_element: OutlineEntry): number {
+		return 22;
+	}
+
+	getTemplateId(_element: OutlineEntry): string {
+		return NotebookOutlineTemplate.templateId;
+	}
+}
+
+class NotebookCellOutline implements IOutline<OutlineEntry> {
 
 	private readonly _dispoables = new DisposableStore();
 
@@ -37,15 +96,35 @@ class NotebookOutline implements IOutline<OutlineEntry> {
 	private _activeEntry?: OutlineEntry;
 	private _entries: OutlineEntry[] = [];
 
+	readonly treeConfig: OutlineTreeConfiguration<OutlineEntry>;
+
 	constructor(
 		private readonly _editor: NotebookEditor
 	) {
+
+		this._computeEntries();
+		this._computeActive();
+
+		const selectionListener = new MutableDisposable();
+		this._dispoables.add(selectionListener);
 		this._dispoables.add(_editor.onDidChangeModel(() => {
 			this._computeEntries();
 			this._computeActive();
+			if (_editor.viewModel) {
+				selectionListener.value = _editor.viewModel.onDidChangeSelection(() => this._computeActive());
+			} else {
+				selectionListener.value = undefined;
+			}
 		}));
-		this._computeEntries();
-		this._computeActive();
+
+		this.treeConfig = new OutlineTreeConfiguration<OutlineEntry>(
+			{ getBreadcrumbElements: (element) => Iterable.single(element) },
+			{ getChildren: parent => parent === this ? this._entries : [] },
+			new NotebookOutlineVirtualDelegate(),
+			[new NotebookOutlineRenderer()],
+			{ getId: element => element.cell.handle },
+			{ accessibilityProvider: new NotebookOutlineAccessibility() }
+		);
 	}
 
 	dispose(): void {
@@ -93,6 +172,10 @@ class NotebookOutline implements IOutline<OutlineEntry> {
 		}
 	}
 
+	get isEmpty(): boolean {
+		return this._entries.length === 0;
+	}
+
 	get activeEntry(): OutlineEntry | undefined {
 		return this._activeEntry;
 	}
@@ -124,7 +207,7 @@ class NotebookOutlineCreator implements IOutlineCreator<NotebookEditor, OutlineE
 	}
 
 	async createOutline(editor: NotebookEditor): Promise<IOutline<OutlineEntry> | undefined> {
-		return new NotebookOutline(editor);
+		return new NotebookCellOutline(editor);
 	}
 }
 

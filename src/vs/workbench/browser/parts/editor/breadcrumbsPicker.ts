@@ -13,8 +13,8 @@ import { posix } from 'vs/base/common/path';
 import { basename, dirname, isEqual } from 'vs/base/common/resources';
 import { URI } from 'vs/base/common/uri';
 import 'vs/css!./media/breadcrumbscontrol';
-import { OutlineElement, OutlineModel, TreeElement } from 'vs/editor/contrib/documentSymbols/outlineModel';
-import { IConfigurationService, IConfigurationOverrides } from 'vs/platform/configuration/common/configuration';
+import { OutlineElement } from 'vs/editor/contrib/documentSymbols/outlineModel';
+import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { FileKind, IFileService, IFileStat } from 'vs/platform/files/common/files';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { WorkbenchDataTree, WorkbenchAsyncDataTree } from 'vs/platform/list/browser/listService';
@@ -22,16 +22,17 @@ import { breadcrumbsPickerBackground, widgetShadow } from 'vs/platform/theme/com
 import { IWorkspace, IWorkspaceContextService, IWorkspaceFolder } from 'vs/platform/workspace/common/workspace';
 import { ResourceLabels, IResourceLabel, DEFAULT_LABELS_CONTAINER } from 'vs/workbench/browser/labels';
 import { BreadcrumbsConfig } from 'vs/workbench/browser/parts/editor/breadcrumbs';
-import { BreadcrumbElement, FileElement } from 'vs/workbench/browser/parts/editor/breadcrumbsModel';
+import { OutlineElement2, FileElement } from 'vs/workbench/browser/parts/editor/breadcrumbsModel';
 import { IAsyncDataSource, ITreeRenderer, ITreeNode, ITreeFilter, TreeVisibility, ITreeSorter } from 'vs/base/browser/ui/tree/tree';
-import { OutlineVirtualDelegate, OutlineGroupRenderer, OutlineElementRenderer, OutlineItemComparator, OutlineIdentityProvider, OutlineNavigationLabelProvider, OutlineDataSource, OutlineSortOrder, OutlineFilter, OutlineAccessibilityProvider } from 'vs/editor/contrib/documentSymbols/outlineTree';
+import { OutlineItemComparator, OutlineNavigationLabelProvider, OutlineFilter } from 'vs/editor/contrib/documentSymbols/outlineTree';
 import { IIdentityProvider, IListVirtualDelegate, IKeyboardNavigationLabelProvider } from 'vs/base/browser/ui/list/list';
 import { IFileIconTheme, IThemeService } from 'vs/platform/theme/common/themeService';
 import { IListAccessibilityProvider } from 'vs/base/browser/ui/list/listWidget';
-import { IModeService } from 'vs/editor/common/services/modeService';
+// import { IModeService } from 'vs/editor/common/services/modeService';
 import { localize } from 'vs/nls';
+import { IOutline } from 'vs/workbench/services/outline/browser/outline';
 
-export function createBreadcrumbsPicker(instantiationService: IInstantiationService, parent: HTMLElement, element: BreadcrumbElement): BreadcrumbsPicker {
+export function createBreadcrumbsPicker(instantiationService: IInstantiationService, parent: HTMLElement, element: FileElement | OutlineElement2): BreadcrumbsPicker {
 	return element instanceof FileElement
 		? instantiationService.createInstance(BreadcrumbsFilePicker, parent)
 		: instantiationService.createInstance(BreadcrumbsOutlinePicker, parent);
@@ -103,7 +104,7 @@ export abstract class BreadcrumbsPicker {
 		this._domNode.appendChild(this._treeContainer);
 
 		this._layoutInfo = { maxHeight, width, arrowSize, arrowOffset, inputHeight: 0 };
-		this._tree = this._createTree(this._treeContainer);
+		this._tree = this._createTree(this._treeContainer, input);
 
 		this._disposables.add(this._tree.onDidChangeSelection(e => {
 			if (e.browserEvent !== this._fakeEvent) {
@@ -153,8 +154,8 @@ export abstract class BreadcrumbsPicker {
 		return this._tree.useAltAsMultipleSelectionModifier;
 	}
 
-	protected abstract _setInput(element: BreadcrumbElement): Promise<void>;
-	protected abstract _createTree(container: HTMLElement): Tree<any, any>;
+	protected abstract _setInput(element: FileElement | OutlineElement2): Promise<void>;
+	protected abstract _createTree(container: HTMLElement, input: any): Tree<any, any>;
 	protected abstract _getTargetFromEvent(element: any): any | undefined;
 }
 
@@ -394,7 +395,7 @@ export class BreadcrumbsFilePicker extends BreadcrumbsPicker {
 			});
 	}
 
-	async _setInput(element: BreadcrumbElement): Promise<void> {
+	async _setInput(element: FileElement | OutlineElement2): Promise<void> {
 		const { uri, kind } = (element as FileElement);
 		let input: IWorkspace | URI;
 		if (kind === FileKind.ROOT_FOLDER) {
@@ -442,29 +443,32 @@ export class BreadcrumbsOutlinePicker extends BreadcrumbsPicker {
 		@IInstantiationService instantiationService: IInstantiationService,
 		@IThemeService themeService: IThemeService,
 		@IConfigurationService configurationService: IConfigurationService,
-		@IModeService private readonly _modeService: IModeService,
+		// @IModeService private readonly _modeService: IModeService,
 	) {
 		super(parent, instantiationService, themeService, configurationService);
 		this._symbolSortOrder = BreadcrumbsConfig.SymbolSortOrder.bindTo(this._configurationService);
 		this._outlineComparator = new OutlineItemComparator();
 	}
 
-	protected _createTree(container: HTMLElement) {
-		return <WorkbenchDataTree<OutlineModel, any, FuzzyScore>>this._instantiationService.createInstance(
+	protected _createTree(container: HTMLElement, input: OutlineElement2) {
+
+		const { treeConfig } = input.outline;
+
+		return <WorkbenchDataTree<IOutline<any>, any, FuzzyScore>>this._instantiationService.createInstance(
 			WorkbenchDataTree,
 			'BreadcrumbsOutlinePicker',
 			container,
-			new OutlineVirtualDelegate(),
-			[new OutlineGroupRenderer(), this._instantiationService.createInstance(OutlineElementRenderer)],
-			new OutlineDataSource(),
+			treeConfig.delegate,
+			treeConfig.renderers,
+			treeConfig.treeDataSource,
 			{
 				collapseByDefault: true,
 				expandOnlyOnTwistieClick: true,
 				multipleSelectionSupport: false,
 				sorter: this._outlineComparator,
-				identityProvider: new OutlineIdentityProvider(),
+				identityProvider: treeConfig.identProvider,
 				keyboardNavigationLabelProvider: new OutlineNavigationLabelProvider(),
-				accessibilityProvider: new OutlineAccessibilityProvider(localize('breadcrumbs', "Breadcrumbs")),
+				accessibilityProvider: treeConfig.options.accessibilityProvider,
 				filter: this._instantiationService.createInstance(OutlineFilter, 'breadcrumbs')
 			}
 		);
@@ -475,22 +479,23 @@ export class BreadcrumbsOutlinePicker extends BreadcrumbsPicker {
 		super.dispose();
 	}
 
-	protected _setInput(input: BreadcrumbElement): Promise<void> {
-		const element = input as TreeElement;
-		const model = OutlineModel.get(element)!;
-		const tree = this._tree as WorkbenchDataTree<OutlineModel, any, FuzzyScore>;
+	protected _setInput(input: OutlineElement2): Promise<void> {
 
-		const overrideConfiguration = {
-			resource: model.uri,
-			overrideIdentifier: this._modeService.getModeIdByFilepathOrFirstLine(model.uri)
-		};
-		this._outlineComparator.type = this._getOutlineItemCompareType(overrideConfiguration);
 
-		tree.setInput(model);
-		if (element !== model) {
-			tree.reveal(element, 0.5);
-			tree.setFocus([element], this._fakeEvent);
-		}
+		const tree = this._tree as WorkbenchDataTree<IOutline<any>, any, FuzzyScore>;
+
+		// todo@jrieken
+		// const overrideConfiguration = {
+		// 	resource: model.uri,
+		// 	overrideIdentifier: this._modeService.getModeIdByFilepathOrFirstLine(model.uri)
+		// };
+		// this._outlineComparator.type = this._getOutlineItemCompareType(overrideConfiguration);
+
+		tree.setInput(input.outline);
+		// if (element !== model) {
+		tree.reveal(input.element, 0.5);
+		tree.setFocus([input.element], this._fakeEvent);
+		// }
 		tree.domFocus();
 
 		return Promise.resolve();
@@ -502,17 +507,17 @@ export class BreadcrumbsOutlinePicker extends BreadcrumbsPicker {
 		}
 	}
 
-	private _getOutlineItemCompareType(overrideConfiguration?: IConfigurationOverrides): OutlineSortOrder {
-		switch (this._symbolSortOrder.getValue(overrideConfiguration)) {
-			case 'name':
-				return OutlineSortOrder.ByName;
-			case 'type':
-				return OutlineSortOrder.ByKind;
-			case 'position':
-			default:
-				return OutlineSortOrder.ByPosition;
-		}
-	}
+	// private _getOutlineItemCompareType(overrideConfiguration?: IConfigurationOverrides): OutlineSortOrder {
+	// 	switch (this._symbolSortOrder.getValue(overrideConfiguration)) {
+	// 		case 'name':
+	// 			return OutlineSortOrder.ByName;
+	// 		case 'type':
+	// 			return OutlineSortOrder.ByKind;
+	// 		case 'position':
+	// 		default:
+	// 			return OutlineSortOrder.ByPosition;
+	// 	}
+	// }
 }
 
 //#endregion

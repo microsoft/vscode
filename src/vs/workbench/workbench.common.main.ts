@@ -89,7 +89,7 @@ import 'vs/workbench/services/userDataSync/browser/userDataSyncWorkbenchService'
 import 'vs/workbench/services/authentication/browser/authenticationService';
 import 'vs/workbench/services/hover/browser/hoverService';
 import 'vs/workbench/services/experiment/common/experimentService';
-import 'vs/workbench/services/outline/common/outlineService';
+import 'vs/workbench/services/outline/browser/outlineService';
 
 import { registerSingleton } from 'vs/platform/instantiation/common/extensions';
 import { ExtensionGalleryService } from 'vs/platform/extensionManagement/common/extensionGalleryService';

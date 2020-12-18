@@ -3,12 +3,13 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
+import { CancellationToken } from 'vs/base/common/cancellation';
 import { IDisposable, toDisposable } from 'vs/base/common/lifecycle';
 import { LinkedList } from 'vs/base/common/linkedList';
 import { registerSingleton } from 'vs/platform/instantiation/common/extensions';
 import { IEditorPane } from 'vs/workbench/common/editor';
-import { IOutline, IOutlineCreator, IOutlineService } from 'vs/workbench/services/outline/common/outline';
-
+import { IOutline, IOutlineCreator, IOutlineService } from 'vs/workbench/services/outline/browser/outline';
+import { Event, Emitter } from 'vs/base/common/event';
 
 class OutlineService implements IOutlineService {
 
@@ -16,10 +17,13 @@ class OutlineService implements IOutlineService {
 
 	private readonly _factories = new LinkedList<IOutlineCreator<any, any>>();
 
-	async createOutline(pane: IEditorPane): Promise<IOutline<any> | undefined> {
+	private readonly _onDidChange = new Emitter<void>();
+	readonly onDidChange: Event<void> = this._onDidChange.event;
+
+	async createOutline(pane: IEditorPane, token: CancellationToken): Promise<IOutline<any> | undefined> {
 		for (let factory of this._factories) {
 			if (factory.matches(pane)) {
-				return await factory.createOutline(pane);
+				return await factory.createOutline(pane, token);
 			}
 		}
 		return undefined;
@@ -27,7 +31,11 @@ class OutlineService implements IOutlineService {
 
 	registerOutlineCreator(creator: IOutlineCreator<any, any>): IDisposable {
 		const rm = this._factories.push(creator);
-		return toDisposable(rm);
+		this._onDidChange.fire();
+		return toDisposable(() => {
+			rm();
+			this._onDidChange.fire();
+		});
 	}
 }
 

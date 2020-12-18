@@ -5,16 +5,16 @@
 
 import { Emitter, Event } from 'vs/base/common/event';
 import { DisposableStore } from 'vs/base/common/lifecycle';
-import { IOutline, IOutlineCreator, IOutlineService } from 'vs/workbench/services/outline/common/outline';
+import { IOutline, IOutlineCreator, IOutlineService, OutlineTreeConfiguration } from 'vs/workbench/services/outline/browser/outline';
 import { IWorkbenchContributionsRegistry, Extensions as WorkbenchExtensions } from 'vs/workbench/common/contributions';
 import { Registry } from 'vs/platform/registry/common/platform';
 import { LifecyclePhase } from 'vs/workbench/services/lifecycle/common/lifecycle';
 import { IEditorPane } from 'vs/workbench/common/editor';
-import { OutlineFilter } from 'vs/editor/contrib/documentSymbols/outlineTree';
+import { OutlineAccessibilityProvider, OutlineElementRenderer, OutlineFilter, OutlineGroupRenderer, OutlineIdentityProvider, OutlineNavigationLabelProvider, OutlineVirtualDelegate } from 'vs/editor/contrib/documentSymbols/outlineTree';
 import { ICodeEditor, isCodeEditor, isDiffEditor } from 'vs/editor/browser/editorBrowser';
 import { OutlineGroup, OutlineElement, OutlineModel, TreeElement } from 'vs/editor/contrib/documentSymbols/outlineModel';
 import { DocumentSymbolProviderRegistry } from 'vs/editor/common/modes';
-import { CancellationTokenSource } from 'vs/base/common/cancellation';
+import { CancellationToken, CancellationTokenSource } from 'vs/base/common/cancellation';
 import { TimeoutTimer } from 'vs/base/common/async';
 import { equals } from 'vs/base/common/arrays';
 import { onUnexpectedError } from 'vs/base/common/errors';
@@ -27,7 +27,8 @@ import { IConfigurationService } from 'vs/platform/configuration/common/configur
 import { ScrollType } from 'vs/editor/common/editorCommon';
 import { Range } from 'vs/editor/common/core/range';
 
-type DocumentSymbolItem = TreeElement;
+
+type DocumentSymbolItem = OutlineGroup | OutlineElement;
 
 class DocumentSymbolsOutline implements IOutline<DocumentSymbolItem> {
 
@@ -39,14 +40,49 @@ class DocumentSymbolsOutline implements IOutline<DocumentSymbolItem> {
 	private readonly _onDidChangeActiveEntry = new Emitter<this>();
 	readonly onDidChangeActiveEntry: Event<this> = this._onDidChangeActiveEntry.event;
 
-	private _outlineElements: Array<OutlineModel | OutlineGroup | OutlineElement> = [];
+	private _outlineModel?: OutlineModel;
+	private _outlineElementChain: Array<OutlineModel | OutlineGroup | OutlineElement> = [];
 	private _outlineDisposables = new DisposableStore();
+
+	readonly treeConfig: OutlineTreeConfiguration<DocumentSymbolItem>;
 
 	constructor(
 		private readonly _editor: ICodeEditor,
 		@IConfigurationService private readonly _configurationService: IConfigurationService,
 		@ITextResourceConfigurationService private readonly _textResourceConfigurationService: ITextResourceConfigurationService,
+		@IInstantiationService instantiationService: IInstantiationService,
 	) {
+
+		this.treeConfig = new OutlineTreeConfiguration(
+			{
+				getBreadcrumbElements: () => <DocumentSymbolItem[]>this._outlineElementChain.filter(element => !(element instanceof OutlineModel))
+			},
+			{
+				getChildren: (parent) => {
+					if (parent instanceof OutlineElement || parent instanceof OutlineGroup) {
+						return parent.children.values();
+					}
+					if (parent === this && this._outlineModel) {
+						return this._outlineModel.children.values();
+					}
+					return [];
+				}
+			},
+			new OutlineVirtualDelegate(),
+			[new OutlineGroupRenderer(), instantiationService.createInstance(OutlineElementRenderer)],
+			new OutlineIdentityProvider(),
+			{
+				collapseByDefault: true,
+				expandOnlyOnTwistieClick: true,
+				multipleSelectionSupport: false,
+				// sorter: this._outlineComparator,
+				identityProvider: new OutlineIdentityProvider(),
+				keyboardNavigationLabelProvider: new OutlineNavigationLabelProvider(),
+				accessibilityProvider: new OutlineAccessibilityProvider(''),
+				filter: instantiationService.createInstance(OutlineFilter, 'breadcrumbs')
+			}
+		);
+
 		// update as language, model, providers changes
 		this._disposables.add(DocumentSymbolProviderRegistry.onDidChange(_ => this._updateOutline()));
 		this._disposables.add(this._editor.onDidChangeModel(_ => this._updateOutline()));
@@ -88,8 +124,13 @@ class DocumentSymbolsOutline implements IOutline<DocumentSymbolItem> {
 		this._outlineDisposables.dispose();
 	}
 
+	get isEmpty(): boolean {
+		return this._outlineElementChain.length === 0;
+	}
+
 	get activeEntry(): DocumentSymbolItem | undefined {
-		return this._outlineElements[this._outlineElements.length - 1];
+		const candidate = this._outlineElementChain[this._outlineElementChain.length - 1];
+		return candidate instanceof OutlineModel ? undefined : candidate;
 	}
 
 	revealInEditor(entry: DocumentSymbolItem): void | Promise<void> {
@@ -101,19 +142,11 @@ class DocumentSymbolsOutline implements IOutline<DocumentSymbolItem> {
 		this._editor.focus();
 	}
 
-	getParent(entry: DocumentSymbolItem): DocumentSymbolItem | undefined {
-		if (entry instanceof OutlineModel) {
-			return undefined;
-		} else {
-			return entry.parent;
-		}
-	}
-
 	private _updateOutline(didChangeContent?: boolean): void {
 
 		this._outlineDisposables.clear();
 		if (!didChangeContent) {
-			this._updateOutlineElements([]);
+			this._updateOutlineElements(undefined, []);
 		}
 
 		const editor = this._editor!;
@@ -141,23 +174,23 @@ class DocumentSymbolsOutline implements IOutline<DocumentSymbolItem> {
 			}
 			if (TreeElement.empty(model)) {
 				// empty -> no outline elements
-				this._updateOutlineElements([]);
+				this._updateOutlineElements(model, []);
 
 			} else {
 				// copy the model
 				model = model.adopt();
 
-				this._updateOutlineElements(this._getOutlineElements(model, editor.getPosition()));
+				this._updateOutlineElements(model, this._getOutlineElements(model, editor.getPosition()));
 				this._outlineDisposables.add(editor.onDidChangeCursorPosition(_ => {
 					timeout.cancelAndSet(() => {
 						if (!buffer.isDisposed() && versionIdThen === buffer.getVersionId() && editor.getModel()) {
-							this._updateOutlineElements(this._getOutlineElements(model, editor.getPosition()));
+							this._updateOutlineElements(model, this._getOutlineElements(model, editor.getPosition()));
 						}
 					}, 150);
 				}));
 			}
 		}).catch(err => {
-			this._updateOutlineElements([]);
+			this._updateOutlineElements(undefined, []);
 			onUnexpectedError(err);
 		});
 	}
@@ -218,9 +251,17 @@ class DocumentSymbolsOutline implements IOutline<DocumentSymbolItem> {
 		return false;
 	}
 
-	private _updateOutlineElements(elements: Array<OutlineModel | OutlineGroup | OutlineElement>): void {
-		if (!equals(elements, this._outlineElements, DocumentSymbolsOutline._outlineElementEquals)) {
-			this._outlineElements = elements;
+	private _updateOutlineElements(model: OutlineModel | undefined, elements: Array<OutlineModel | OutlineGroup | OutlineElement>): void {
+		let fire = false;
+		if (this._outlineModel !== model) {
+			this._outlineModel = model;
+			fire = true;
+		}
+		if (!equals(elements, this._outlineElementChain, DocumentSymbolsOutline._outlineElementEquals)) {
+			this._outlineElementChain = elements;
+			fire = true;
+		}
+		if (fire) {
 			this._onDidChange.fire(this);
 		}
 	}
@@ -253,7 +294,7 @@ class DocumentSymbolsOutlineCreator implements IOutlineCreator<IEditorPane, Docu
 		return isCodeEditor(ctrl) || isDiffEditor(ctrl);
 	}
 
-	async createOutline(pane: IEditorPane): Promise<IOutline<DocumentSymbolItem> | undefined> {
+	async createOutline(pane: IEditorPane, token: CancellationToken): Promise<IOutline<DocumentSymbolItem> | undefined> {
 		const control = pane.getControl();
 		let editor: ICodeEditor | undefined;
 		if (isCodeEditor(control)) {
