@@ -178,7 +178,7 @@ export class ExtHostCustomEditors implements extHostProtocol.ExtHostCustomEditor
 		options: { webviewOptions?: vscode.WebviewPanelOptions, supportsMultipleEditorsPerDocument?: boolean },
 	): vscode.Disposable {
 		const disposables = new DisposableStore();
-		if ('resolveCustomTextEditor' in provider) {
+		if (isCustomTextEditorProvider(provider)) {
 			disposables.add(this._editorProviders.addTextProvider(viewType, extension, provider));
 			this._proxy.$registerTextEditorProvider(toExtensionData(extension), viewType, options.webviewOptions || {}, {
 				supportsMove: !!provider.moveCustomTextEditor,
@@ -207,7 +207,6 @@ export class ExtHostCustomEditors implements extHostProtocol.ExtHostCustomEditor
 				this._proxy.$unregisterEditorProvider(viewType);
 			}));
 	}
-
 
 	async $createCustomDocument(resource: UriComponents, viewType: string, backupId: string | undefined, cancellation: CancellationToken) {
 		const entry = this._editorProviders.get(viewType);
@@ -350,7 +349,6 @@ export class ExtHostCustomEditors implements extHostProtocol.ExtHostCustomEditor
 		return backup.id;
 	}
 
-
 	private getCustomDocumentEntry(viewType: string, resource: UriComponents): CustomDocumentStoreEntry {
 		const entry = this._documents.get(viewType, URI.revive(resource));
 		if (!entry) {
@@ -375,6 +373,9 @@ export class ExtHostCustomEditors implements extHostProtocol.ExtHostCustomEditor
 	}
 }
 
+function isCustomTextEditorProvider(provider: vscode.CustomReadonlyEditorProvider<vscode.CustomDocument> | vscode.CustomTextEditorProvider): provider is vscode.CustomTextEditorProvider {
+	return typeof (provider as vscode.CustomTextEditorProvider).resolveCustomTextEditor === 'function';
+}
 
 function isEditEvent(e: vscode.CustomDocumentContentChangeEvent | vscode.CustomDocumentEditEvent): e is vscode.CustomDocumentEditEvent {
 	return typeof (e as vscode.CustomDocumentEditEvent).undo === 'function'
