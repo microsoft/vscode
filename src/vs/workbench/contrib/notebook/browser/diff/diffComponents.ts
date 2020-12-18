@@ -83,7 +83,7 @@ class PropertyHeader extends Disposable {
 		readonly propertyHeaderContainer: HTMLElement,
 		readonly notebookEditor: INotebookTextDiffEditor,
 		readonly accessor: {
-			updateInfoRendering: () => void;
+			updateInfoRendering: (renderOutput: boolean) => void;
 			checkIfModified: (cell: DiffElementViewModelBase) => boolean;
 			getFoldingState: (cell: DiffElementViewModelBase) => PropertyFoldingState;
 			updateFoldingState: (cell: DiffElementViewModelBase, newState: PropertyFoldingState) => void;
@@ -172,7 +172,7 @@ class PropertyHeader extends Disposable {
 					const oldFoldingState = this.accessor.getFoldingState(this.cell);
 					this.accessor.updateFoldingState(this.cell, oldFoldingState === PropertyFoldingState.Expanded ? PropertyFoldingState.Collapsed : PropertyFoldingState.Expanded);
 					this._updateFoldingIcon();
-					this.accessor.updateInfoRendering();
+					this.accessor.updateInfoRendering(this.cell.renderOutput);
 				}
 			}
 
@@ -180,7 +180,7 @@ class PropertyHeader extends Disposable {
 		}));
 
 		this._updateFoldingIcon();
-		this.accessor.updateInfoRendering();
+		this.accessor.updateInfoRendering(this.cell.renderOutput);
 	}
 
 	refresh() {
@@ -282,7 +282,7 @@ abstract class AbstractElementRenderer extends Disposable {
 		}
 	}
 
-	updateOutputRendering(renderRichOutput: boolean = true) {
+	updateOutputRendering(renderRichOutput: boolean) {
 		if (this.cell.outputFoldingState === PropertyFoldingState.Expanded) {
 			this._outputInfoContainer.style.display = 'block';
 			if (renderRichOutput) {
@@ -566,7 +566,7 @@ abstract class AbstractElementRenderer extends Disposable {
 		this._outputEditor = this.instantiationService.createInstance(CodeEditorWidget, this._outputEditorContainer!, {
 			...fixedEditorOptions,
 			dimension: {
-				width: this.cell.getComputedCellContainerWidth(this.notebookEditor.getLayoutInfo(), false, true),
+				width: this.cell.getComputedCellContainerWidth(this.notebookEditor.getLayoutInfo(), false, this.cell.type === 'unchanged' || this.cell.type === 'modified'),
 				height: 0
 			},
 			overflowWidgetsDomNode: this.notebookEditor.getOverflowContainerDomNode()
@@ -981,7 +981,7 @@ export class InsertElement extends SingleSideDiffElement {
 
 			if (state.outputEditor || state.outerWidth) {
 				this._outputEditor?.layout({
-					width: this.cell.getComputedCellContainerWidth(this.notebookEditor.getLayoutInfo(), false, true),
+					width: this.cell.getComputedCellContainerWidth(this.notebookEditor.getLayoutInfo(), false, false),
 					height: this.cell.outputHeight
 				});
 			}

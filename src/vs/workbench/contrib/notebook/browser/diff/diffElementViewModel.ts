@@ -91,7 +91,7 @@ export abstract class DiffElementViewModelBase extends Disposable {
 		return this._layoutInfo.metadataHeight;
 	}
 
-	private _renderOutput = true;
+	private _renderOutput = false;
 
 	set renderOutput(value: boolean) {
 		this._renderOutput = value;
@@ -337,7 +337,11 @@ export class SingleSideDiffElementViewModel extends DiffElementViewModelBase {
 	}
 
 	getOutputTotalHeight() {
-		return this.cellViewModel?.getOutputTotalHeight() ?? 0;
+		if (this.renderOutput) {
+			return this.cellViewModel?.getOutputTotalHeight() ?? 0;
+		} else {
+			return this._layoutInfo.outputHeight;
+		}
 	}
 
 	getCellByUri(cellUri: URI): IGenericCellViewModel {
