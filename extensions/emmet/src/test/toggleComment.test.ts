@@ -26,7 +26,7 @@ suite('Tests for Toggle Comment action from Emmet (HTML)', () => {
 			<div><li><span>Bye</span></li></div>
 		</ul>
 		<ul>
-			<!--<li>Previously Commented Node</li>-->
+			<!-- <li>Previously Commented Node</li> -->
 			<li>Another Node</li>
 		</ul>
 		<span/>
@@ -47,14 +47,14 @@ suite('Tests for Toggle Comment action from Emmet (HTML)', () => {
 		const expectedContents = `
 	<div class="hello">
 		<ul>
-			<li><!--<span>Hello</span>--></li>
-			<!--<li><span>There</span></li>-->
-			<!--<div><li><span>Bye</span></li></div>-->
+			<li><!-- <span>Hello</span> --></li>
+			<!-- <li><span>There</span></li> -->
+			<!-- <div><li><span>Bye</span></li></div> -->
 		</ul>
-		<!--<ul>
+		<!-- <ul>
 			<li>Previously Commented Node</li>
 			<li>Another Node</li>
-		</ul>-->
+		</ul> -->
 		<span/>
 		<style>
 			.boo {
@@ -89,14 +89,14 @@ suite('Tests for Toggle Comment action from Emmet (HTML)', () => {
 		const expectedContents = `
 	<div class="hello">
 		<ul>
-			<li><!--<span>Hello</span>--></li>
-			<!--<li><span>There</span></li>-->
+			<li><!-- <span>Hello</span> --></li>
+			<!-- <li><span>There</span></li> -->
 			<div><li><span>Bye</span></li></div>
 		</ul>
-		<!--<ul>
+		<!-- <ul>
 			<li>Previously Commented Node</li>
 			<li>Another Node</li>
-		</ul>-->
+		</ul> -->
 		<span/>
 		<style>
 			.boo {
@@ -130,12 +130,12 @@ suite('Tests for Toggle Comment action from Emmet (HTML)', () => {
 		const expectedContents = `
 	<div class="hello">
 		<ul>
-			<!--<li><span>Hello</span></li>
-			<li><span>There</span></li>-->
+			<!-- <li><span>Hello</span></li>
+			<li><span>There</span></li> -->
 			<div><li><span>Bye</span></li></div>
 		</ul>
 		<ul>
-			<!--<li>Previously Commented Node</li>-->
+			<!-- <li>Previously Commented Node</li> -->
 			<li>Another Node</li>
 		</ul>
 		<span/>
@@ -168,14 +168,14 @@ suite('Tests for Toggle Comment action from Emmet (HTML)', () => {
 		const expectedContents = `
 	<div class="hello">
 		<ul>
-			<!--<li><span>Hello</span></li>
-			<li><span>There</span></li>-->
+			<!-- <li><span>Hello</span></li>
+			<li><span>There</span></li> -->
 			<div><li><span>Bye</span></li></div>
 		</ul>
-		<!--<ul>
+		<!-- <ul>
 			<li>Previously Commented Node</li>
 			<li>Another Node</li>
-		</ul>-->
+		</ul> -->
 		<span/>
 		<style>
 			.boo {
@@ -206,16 +206,16 @@ suite('Tests for Toggle Comment action from Emmet (HTML)', () => {
 		const expectedContents = `
 	<div class="hello">
 		<ul>
-			<li><!--<span>Hello</span>--></li>
-			<!--<li><span>There</span></li>-->
+			<li><!-- <span>Hello</span> --></li>
+			<!-- <li><span>There</span></li> -->
 			<div><li><span>Bye</span></li></div>
 		</ul>
-		<!--<ul>
+		<!-- <ul>
 			<li>Previously Commented Node</li>
 			<li>Another Node</li>
-		</ul>-->
+		</ul> -->
 		<span/>
-		<!--<style>
+		<!-- <style>
 			.boo {
 				margin: 10px;
 				padding: 20px;
@@ -224,7 +224,7 @@ suite('Tests for Toggle Comment action from Emmet (HTML)', () => {
 				margin: 10px;
 				padding: 20px;
 			}
-		</style>-->
+		</style> -->
 	</div>
 	`;
 		return withRandomFileEditor(contents, 'html', (editor, doc) => {
@@ -252,16 +252,16 @@ suite('Tests for Toggle Comment action from Emmet (HTML)', () => {
 		const templateContents = `
 	<script type="text/template">
 		<li><span>Hello</span></li>
-		<li><!--<span>There</span>--></li>
+		<li><!-- <span>There</span> --></li>
 		<div><li><span>Bye</span></li></div>
 		<span/>
 	</script>
 	`;
 		const expectedContents = `
 	<script type="text/template">
-		<!--<li><span>Hello</span></li>-->
+		<!-- <li><span>Hello</span></li> -->
 		<li><span>There</span></li>
-		<div><li><!--<span>Bye</span>--></li></div>
+		<div><li><!-- <span>Bye</span> --></li></div>
 		<span/>
 	</script>
 	`;
@@ -733,9 +733,9 @@ suite('Tests for Toggle Comment action from Emmet in nested css (SCSS)', () => {
 	</div>
 	`;
 		const expectedContents = `
-	<!--<div>
+	<!-- <div>
 		<p>Hello</p>
-	</div>-->
+	</div> -->
 	`;
 		return withRandomFileEditor(contents, 'html', (editor, doc) => {
 			editor.selections = [

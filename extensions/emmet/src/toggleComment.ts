@@ -11,8 +11,8 @@ import { DocumentStreamReader } from './bufferStream';
 
 const startCommentStylesheet = '/*';
 const endCommentStylesheet = '*/';
-const startCommentHTML = '<!--';
-const endCommentHTML = '-->';
+const startCommentHTML = '<!-- ';
+const endCommentHTML = ' -->';
 
 export function toggleComment(): Thenable<boolean> | undefined {
 	if (!validate() || !vscode.window.activeTextEditor) {
