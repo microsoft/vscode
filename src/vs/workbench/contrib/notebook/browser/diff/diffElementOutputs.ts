@@ -149,7 +149,6 @@ export class OutputElement extends Disposable {
 }
 
 export class OutputContainer extends Disposable {
-	private _outputViewModels: ICellOutputViewModel[];
 	private _outputEntries = new Map<ICellOutputViewModel, OutputElement>();
 	constructor(
 		private _editor: INotebookTextDiffEditor,
@@ -165,7 +164,6 @@ export class OutputContainer extends Disposable {
 
 	) {
 		super();
-		this._outputViewModels = _nestedCellViewModel.outputs.map(output => new CellOutputViewModel(_nestedCellViewModel, output, _notebookService));
 
 		// TODO, onDidChangeOutputs
 
@@ -185,8 +183,8 @@ export class OutputContainer extends Disposable {
 
 	render() {
 		// TODO, outputs to render (should have a limit)
-		for (let index = 0; index < this._outputViewModels.length; index++) {
-			const currOutput = this._outputViewModels[index];
+		for (let index = 0; index < this._nestedCellViewModel.outputsViewModels.length; index++) {
+			const currOutput = this._nestedCellViewModel.outputsViewModels[index];
 
 			// always add to the end
 			this._renderOutput(currOutput, index, undefined);
@@ -194,8 +192,8 @@ export class OutputContainer extends Disposable {
 	}
 
 	showOutputs() {
-		for (let index = 0; index < this._outputViewModels.length; index++) {
-			const currOutput = this._outputViewModels[index];
+		for (let index = 0; index < this._nestedCellViewModel.outputsViewModels.length; index++) {
+			const currOutput = this._nestedCellViewModel.outputsViewModels[index];
 
 			if (currOutput.isDisplayOutput()) {
 				// always add to the end

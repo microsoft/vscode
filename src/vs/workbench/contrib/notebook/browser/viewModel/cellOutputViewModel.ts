@@ -9,7 +9,9 @@ import { NotebookTextModel } from 'vs/workbench/contrib/notebook/common/model/no
 import { CellOutputKind, IOrderedMimeType, IProcessedOutput, ITransformedDisplayOutputDto, RENDERER_NOT_AVAILABLE } from 'vs/workbench/contrib/notebook/common/notebookCommon';
 import { INotebookService } from 'vs/workbench/contrib/notebook/common/notebookService';
 
+let handle = 0;
 export class CellOutputViewModel extends Disposable implements ICellOutputViewModel {
+	outputHandle = handle++;
 	get model() {
 		return this._outputData;
 	}
@@ -29,6 +31,7 @@ export class CellOutputViewModel extends Disposable implements ICellOutputViewMo
 		private readonly _notebookService: INotebookService
 	) {
 		super();
+		console.log('create cell', this.outputHandle);
 	}
 
 	isStreamOutput(): this is IStreamOutputViewModel {
