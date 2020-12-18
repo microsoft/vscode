@@ -69,12 +69,12 @@ export abstract class Panel extends PaneComposite implements IPanel {
  */
 export class PanelDescriptor extends CompositeDescriptor<Panel> {
 
-	static create<Services extends BrandedService[]>(ctor: { new(...services: Services): Panel }, id: string, name: string, cssClass?: string, order?: number, requestedIndex?: number, _commandId?: string): PanelDescriptor {
-		return new PanelDescriptor(ctor as IConstructorSignature0<Panel>, id, name, cssClass, order, requestedIndex, _commandId);
+	static create<Services extends BrandedService[]>(ctor: { new(...services: Services): Panel }, id: string, name: string, cssClass?: string, order?: number, requestedIndex?: number): PanelDescriptor {
+		return new PanelDescriptor(ctor as IConstructorSignature0<Panel>, id, name, cssClass, order, requestedIndex);
 	}
 
-	private constructor(ctor: IConstructorSignature0<Panel>, id: string, name: string, cssClass?: string, order?: number, requestedIndex?: number, _commandId?: string) {
-		super(ctor, id, name, cssClass, order, requestedIndex, _commandId);
+	private constructor(ctor: IConstructorSignature0<Panel>, id: string, name: string, cssClass?: string, order?: number, requestedIndex?: number) {
+		super(ctor, id, name, cssClass, order, requestedIndex);
 	}
 }
 

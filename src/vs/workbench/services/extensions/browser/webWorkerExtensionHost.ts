@@ -166,8 +166,8 @@ export class WebWorkerExtensionHost extends Disposable implements IExtensionHost
 		};
 
 		startTimeout = setTimeout(() => {
-			rejectBarrier(ExtensionHostExitCode.StartTimeout10s, new Error('The Web Worker Extension Host did not start in 10s'));
-		}, 10000);
+			rejectBarrier(ExtensionHostExitCode.StartTimeout60s, new Error('The Web Worker Extension Host did not start in 60s'));
+		}, 60000);
 
 		this._register(dom.addDisposableListener(window, 'message', (event) => {
 			if (event.source !== iframe.contentWindow) {

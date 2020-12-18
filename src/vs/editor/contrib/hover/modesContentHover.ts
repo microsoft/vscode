@@ -607,6 +607,10 @@ export class ModesContentHoverWidget extends ContentHoverWidget {
 				}
 			}
 			const updatePlaceholderDisposable = this.recentMarkerCodeActionsInfo && !this.recentMarkerCodeActionsInfo.hasCodeActions ? Disposable.None : disposables.add(disposableTimeout(() => quickfixPlaceholderElement.textContent = nls.localize('checkingForQuickFixes', "Checking for quick fixes..."), 200));
+			if (!quickfixPlaceholderElement.textContent) {
+				// Have some content in here to avoid flickering
+				quickfixPlaceholderElement.textContent = String.fromCharCode(0xA0); // &nbsp;
+			}
 			const codeActionsPromise = this.getCodeActions(markerHover.marker);
 			disposables.add(toDisposable(() => codeActionsPromise.cancel()));
 			codeActionsPromise.then(actions => {

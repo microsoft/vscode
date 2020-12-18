@@ -15,7 +15,6 @@ suite('Processes', () => {
 			ELECTRON_NO_ASAR: 'x',
 			ELECTRON_NO_ATTACH_CONSOLE: 'x',
 			ELECTRON_RUN_AS_NODE: 'x',
-			GOOGLE_API_KEY: 'x',
 			VSCODE_CLI: 'x',
 			VSCODE_DEV: 'x',
 			VSCODE_IPC_HOOK: 'x',

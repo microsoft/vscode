@@ -527,13 +527,13 @@ export class ChannelClient implements IChannelClient, IDisposable {
 		return {
 			call(command: string, arg?: any, cancellationToken?: CancellationToken) {
 				if (that.isDisposed) {
-					return Promise.resolve(errors.canceled());
+					return Promise.reject(errors.canceled());
 				}
 				return that.requestPromise(channelName, command, arg, cancellationToken);
 			},
 			listen(event: string, arg: any) {
 				if (that.isDisposed) {
-					return Promise.resolve(errors.canceled());
+					return Promise.reject(errors.canceled());
 				}
 				return that.requestEvent(channelName, event, arg);
 			}

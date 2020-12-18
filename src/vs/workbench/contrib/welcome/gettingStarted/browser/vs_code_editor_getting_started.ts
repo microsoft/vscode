@@ -18,23 +18,19 @@ export default () => `
 		</div>
 		<div id="gettingStartedSlideDetails" class="gettingStartedSlide detail">
 			<a class="prev-button" x-dispatch="scrollPrev"><span class="scroll-button codicon codicon-chevron-left"></span>Back</a>
-			<div id="getting-started-detail-columns">
+			<div id="gettingStartedDetailsContent">
 				<div class="gap"></div>
-				<div id="getting-started-detail-left">
-					<div id="getting-started-detail-title"></div>
-					<div id="getting-started-detail-container"></div>
+				<div id="getting-started-detail-columns">
+					<div class="gap"></div>
+					<div id="getting-started-detail-left">
+						<div id="getting-started-detail-title"></div>
+					</div>
+					<div id="getting-started-detail-right"></div>
+					<div class="gap"></div>
 				</div>
-				<div id="getting-started-detail-right"></div>
 				<div class="gap"></div>
 			</div>
-		</div>
-		<div class="footer">
-			<a class="skip" x-dispatch="skip">Skip</a>
 		</div>
 	</div>
 </div>
 `.replace(/\|/g, '`');
-
-
-// <div id="getting-started-categories-scrolling-container"><div id="getting-started-categories-container"></div></div>
-// <div class="gap"></div>

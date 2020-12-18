@@ -28,9 +28,7 @@ import { IContextKey, IContextKeyService } from 'vs/platform/contextkey/common/c
 import { Delayer } from 'vs/base/common/async';
 import { CodiconActionViewItem } from 'vs/workbench/contrib/notebook/browser/view/renderers/cellActionView';
 import { getEditorTopPadding } from 'vs/workbench/contrib/notebook/browser/notebookBrowser';
-import { ThemeIcon } from 'vs/platform/theme/common/themeService';
 import { collapsedIcon, expandedIcon } from 'vs/workbench/contrib/notebook/browser/notebookIcons';
-import { renderCodicons } from 'vs/base/browser/codicons';
 import { OutputContainer } from 'vs/workbench/contrib/notebook/browser/diff/diffElementOutputs';
 import { EditorExtensionsRegistry } from 'vs/editor/browser/editorExtensions';
 import { ContextMenuController } from 'vs/editor/contrib/contextmenu/contextmenu';
@@ -40,6 +38,7 @@ import { AccessibilityHelpController } from 'vs/workbench/contrib/codeEditor/bro
 import { MenuPreventer } from 'vs/workbench/contrib/codeEditor/browser/menuPreventer';
 import { SelectionClipboardContributionID } from 'vs/workbench/contrib/codeEditor/browser/selectionClipboard';
 import { TabCompletionController } from 'vs/workbench/contrib/snippets/browser/tabCompletion';
+import { renderIcon } from 'vs/base/browser/ui/iconLabel/iconLabels';
 
 export const fixedEditorOptions: IEditorOptions = {
 	padding: {
@@ -236,10 +235,10 @@ class PropertyHeader extends Disposable {
 
 	private _updateFoldingIcon() {
 		if (this.accessor.getFoldingState(this.cell) === PropertyFoldingState.Collapsed) {
-			DOM.reset(this._foldingIndicator, ...renderCodicons(ThemeIcon.asCodiconLabel(collapsedIcon)));
+			DOM.reset(this._foldingIndicator, renderIcon(collapsedIcon));
 			this._propertyExpanded?.set(false);
 		} else {
-			DOM.reset(this._foldingIndicator, ...renderCodicons(ThemeIcon.asCodiconLabel(expandedIcon)));
+			DOM.reset(this._foldingIndicator, renderIcon(expandedIcon));
 			this._propertyExpanded?.set(true);
 		}
 

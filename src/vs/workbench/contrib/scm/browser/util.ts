@@ -11,7 +11,7 @@ import { Action, IAction } from 'vs/base/common/actions';
 import { createAndFillInActionBarActions, createAndFillInContextMenuActions } from 'vs/platform/actions/browser/menuEntryActionViewItem';
 import { equals } from 'vs/base/common/arrays';
 import { ActionViewItem } from 'vs/base/browser/ui/actionbar/actionViewItems';
-import { renderCodicons } from 'vs/base/browser/codicons';
+import { renderLabelWithIcons } from 'vs/base/browser/ui/iconLabel/iconLabels';
 import { ICommandService } from 'vs/platform/commands/common/commands';
 import { Command } from 'vs/editor/common/modes';
 import { basename } from 'vs/base/common/resources';
@@ -104,7 +104,7 @@ export class StatusBarActionViewItem extends ActionViewItem {
 
 	updateLabel(): void {
 		if (this.options.label && this.label) {
-			reset(this.label, ...renderCodicons(this.getAction().label));
+			reset(this.label, ...renderLabelWithIcons(this.getAction().label));
 		}
 	}
 }

@@ -3,6 +3,8 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
+import { Command } from 'vscode';
+
 /**
  * This is the place for API experiments and proposals.
  * These API are NOT stable and subject to change. They are only available in the Insiders
@@ -15,6 +17,25 @@
  */
 
 declare module 'vscode' {
+
+	//#region https://github.com/microsoft/vscode/issues/93686
+
+	/**
+	 * An error type should be used to signal cancellation of an operation.
+	 *
+	 * This type can be used in response to a cancellation token or when an
+	 * operation is being cancelled by the executor of that operation.
+	 */
+	export class CancellationError extends Error {
+
+		/**
+		 * Creates a new cancellation error.
+		 */
+		constructor();
+	}
+
+
+	//#endregion
 
 	// #region auth provider: https://github.com/microsoft/vscode/issues/88309
 
@@ -2004,7 +2025,7 @@ declare module 'vscode' {
 		 * Runs tests with the given options. If no options are given, then
 		 * all tests are run. Returns the resulting test run.
 		 */
-		export function runTests<T extends TestItem>(options: TestRunOptions<T>): Thenable<void>;
+		export function runTests<T extends TestItem>(options: TestRunOptions<T>, cancellationToken?: CancellationToken): Thenable<void>;
 
 		/**
 		 * Returns an observer that retrieves tests in the given workspace folder.
@@ -2296,5 +2317,49 @@ declare module 'vscode' {
 		 */
 		location?: Location;
 	}
+	//#endregion
+
+	//#region Opener service (https://github.com/microsoft/vscode/issues/109277)
+
+	/**
+	 * Handles opening external uris.
+	 *
+	 * An extension can use this to open a `http` link to a webserver inside of VS Code instead of
+	 * having the link be opened by the webbrowser.
+	 *
+	 * Currently openers may only be registered for `http` and `https` uris.
+	 */
+	export interface ExternalUriOpener {
+
+		/**
+		 * Try to open a given uri.
+		 *
+		 * @param uri The uri being opened.
+		 * @param ctx Additional metadata about how the open was triggered.
+		 * @param token Cancellation token.
+		 *
+		 * @return Optional command that opens the uri. If no command is returned, VS Code will
+		 * continue checking to see if any other openers are available.
+		 *
+		 * If multiple openers are available for a given uri, then the `Command.title` is shown in the UI.
+		 */
+		openExternalUri(uri: Uri, ctx: {}, token: CancellationToken): ProviderResult<Command>;
+	}
+
+	namespace window {
+		/**
+		 * Register a new `ExternalUriOpener`.
+		 *
+		 * When a uri is about to be opened, an `onUriOpen:SCHEME` activation event is fired.
+		 *
+		 * @param schemes List of uri schemes the opener is triggered for. Currently only `http`
+		 * and `https` are supported.
+		 * @param opener Opener to register.
+		 *
+		* @returns Disposable that unregisters the opener.
+		 */
+		export function registerExternalUriOpener(schemes: readonly string[], opener: ExternalUriOpener,): Disposable;
+	}
+
 	//#endregion
 }

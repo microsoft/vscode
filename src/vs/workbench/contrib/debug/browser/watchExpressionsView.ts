@@ -5,13 +5,12 @@
 
 import { RunOnceScheduler } from 'vs/base/common/async';
 import { IViewletViewOptions } from 'vs/workbench/browser/parts/views/viewsViewlet';
-import { IDebugService, IExpression, CONTEXT_WATCH_EXPRESSIONS_FOCUSED, WATCH_VIEW_ID, CONTEXT_WATCH_EXPRESSIONS_EXIST } from 'vs/workbench/contrib/debug/common/debug';
+import { IDebugService, IExpression, CONTEXT_WATCH_EXPRESSIONS_FOCUSED, WATCH_VIEW_ID, CONTEXT_WATCH_EXPRESSIONS_EXIST, CONTEXT_WATCH_ITEM_TYPE } from 'vs/workbench/contrib/debug/common/debug';
 import { Expression, Variable } from 'vs/workbench/contrib/debug/common/debugModel';
-import { CopyValueAction } from 'vs/workbench/contrib/debug/browser/debugActions';
 import { IContextMenuService } from 'vs/platform/contextview/browser/contextView';
 import { IInstantiationService, ServicesAccessor } from 'vs/platform/instantiation/common/instantiation';
 import { IKeybindingService } from 'vs/platform/keybinding/common/keybinding';
-import { IAction, Action, Separator } from 'vs/base/common/actions';
+import { IAction } from 'vs/base/common/actions';
 import { renderExpressionValue, renderViewTree, IInputBoxOptions, AbstractExpressionsRenderer, IExpressionTemplateData } from 'vs/workbench/contrib/debug/browser/baseDebugView';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { ViewPane, ViewAction } from 'vs/workbench/browser/parts/views/viewPane';
@@ -30,10 +29,11 @@ import { IViewDescriptorService } from 'vs/workbench/common/views';
 import { IOpenerService } from 'vs/platform/opener/common/opener';
 import { IThemeService } from 'vs/platform/theme/common/themeService';
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
-import { watchExpressionsAdd, watchExpressionsRemoveAll } from 'vs/workbench/contrib/debug/browser/debugIcons';
-import { registerAction2, MenuId, Action2, MenuItemAction } from 'vs/platform/actions/common/actions';
+import { watchExpressionsRemoveAll, watchExpressionsAdd } from 'vs/workbench/contrib/debug/browser/debugIcons';
+import { registerAction2, MenuId, Action2, IMenuService, IMenu } from 'vs/platform/actions/common/actions';
 import { localize } from 'vs/nls';
 import { Codicon } from 'vs/base/common/codicons';
+import { createAndFillInContextMenuActions } from 'vs/platform/actions/browser/menuEntryActionViewItem';
 
 const MAX_VALUE_RENDER_LENGTH_IN_VIEWLET = 1024;
 let ignoreViewUpdates = false;
@@ -45,6 +45,8 @@ export class WatchExpressionsView extends ViewPane {
 	private needsRefresh = false;
 	private tree!: WorkbenchAsyncDataTree<IDebugService | IExpression, IExpression, FuzzyScore>;
 	private watchExpressionsExist: IContextKey<boolean>;
+	private watchItemType: IContextKey<string | undefined>;
+	private menu: IMenu;
 
 	constructor(
 		options: IViewletViewOptions,
@@ -58,15 +60,19 @@ export class WatchExpressionsView extends ViewPane {
 		@IOpenerService openerService: IOpenerService,
 		@IThemeService themeService: IThemeService,
 		@ITelemetryService telemetryService: ITelemetryService,
+		@IMenuService menuService: IMenuService
 	) {
 		super(options, keybindingService, contextMenuService, configurationService, contextKeyService, viewDescriptorService, instantiationService, openerService, themeService, telemetryService);
 
+		this.menu = menuService.createMenu(MenuId.DebugWatchContext, contextKeyService);
+		this._register(this.menu);
 		this.watchExpressionsUpdatedScheduler = new RunOnceScheduler(() => {
 			this.needsRefresh = false;
 			this.tree.updateChildren();
 		}, 50);
 		this.watchExpressionsExist = CONTEXT_WATCH_EXPRESSIONS_EXIST.bindTo(contextKeyService);
 		this.watchExpressionsExist.set(this.debugService.getModel().getWatchExpressions().length > 0);
+		this.watchItemType = CONTEXT_WATCH_ITEM_TYPE.bindTo(contextKeyService);
 	}
 
 	renderBody(container: HTMLElement): void {
@@ -146,7 +152,10 @@ export class WatchExpressionsView extends ViewPane {
 					this.tree.updateOptions({ horizontalScrolling: false });
 				}
 
-				this.tree.rerender(e);
+				if (e.name) {
+					// Only rerender if the input is already done since otherwise the tree is not yet aware of the new element
+					this.tree.rerender(e);
+				}
 			} else if (!e && horizontalScrolling !== undefined) {
 				this.tree.updateOptions({ horizontalScrolling: horizontalScrolling });
 				horizontalScrolling = undefined;
@@ -185,42 +194,15 @@ export class WatchExpressionsView extends ViewPane {
 
 	private onContextMenu(e: ITreeContextMenuEvent<IExpression>): void {
 		const element = e.element;
-		const anchor = e.anchor;
-		if (!anchor) {
-			return;
-		}
+		this.watchItemType.set(element instanceof Expression ? 'expression' : element instanceof Variable ? 'variable' : undefined);
 		const actions: IAction[] = [];
-
-		if (element instanceof Expression) {
-			const expression = <Expression>element;
-			actions.push(this.instantiationService.createInstance(MenuItemAction, addWatchExpressionCommand, undefined, {}));
-			actions.push(new Action('debug.editWatchExpression', localize('editWatchExpression', "Edit Expression"), undefined, true, () => {
-				this.debugService.getViewModel().setSelectedExpression(expression);
-				return Promise.resolve();
-			}));
-			actions.push(this.instantiationService.createInstance(CopyValueAction, CopyValueAction.ID, CopyValueAction.LABEL, expression, 'watch'));
-			actions.push(new Separator());
-
-			actions.push(new Action('debug.removeWatchExpression', localize('removeWatchExpression', "Remove Expression"), undefined, true, () => {
-				this.debugService.removeWatchExpressions(expression.getId());
-				return Promise.resolve();
-			}));
-			actions.push(this.instantiationService.createInstance(MenuItemAction, removeAllWatchExpressionsCommand, undefined, {}));
-		} else {
-			actions.push(this.instantiationService.createInstance(MenuItemAction, addWatchExpressionCommand, undefined, {}));
-			if (element instanceof Variable) {
-				const variable = element as Variable;
-				actions.push(this.instantiationService.createInstance(CopyValueAction, CopyValueAction.ID, CopyValueAction.LABEL, variable, 'watch'));
-				actions.push(new Separator());
-			}
-			actions.push(this.instantiationService.createInstance(MenuItemAction, removeAllWatchExpressionsCommand, undefined, {}));
-		}
+		const actionsDisposable = createAndFillInContextMenuActions(this.menu, { arg: element, shouldForwardArgs: false }, actions);
 
 		this.contextMenuService.showContextMenu({
-			getAnchor: () => anchor,
+			getAnchor: () => e.anchor,
 			getActions: () => actions,
 			getActionsContext: () => element,
-			onHide: () => dispose(actions)
+			onHide: () => dispose(actionsDisposable)
 		});
 	}
 }
@@ -369,8 +351,10 @@ registerAction2(class Collapse extends ViewAction<WatchExpressionsView> {
 			title: localize('collapse', "Collapse All"),
 			f1: false,
 			icon: Codicon.collapseAll,
+			precondition: CONTEXT_WATCH_EXPRESSIONS_EXIST,
 			menu: {
 				id: MenuId.ViewTitle,
+				order: 30,
 				group: 'navigation',
 				when: ContextKeyEqualsExpr.create('view', WATCH_VIEW_ID)
 			}
@@ -382,21 +366,22 @@ registerAction2(class Collapse extends ViewAction<WatchExpressionsView> {
 	}
 });
 
+export const ADD_WATCH_ID = 'workbench.debug.viewlet.action.addWatchExpression'; // Use old and long id for backwards compatibility
+export const ADD_WATCH_LABEL = localize('addWatchExpression', "Add Expression");
 
-const addWatchExpressionCommand = {
-	id: 'workbench.debug.viewlet.action.addWatchExpression', // Use old and long id for backwards compatibility
-	title: localize('addWatchExpression', "Add Expression"),
-	f1: false,
-	icon: watchExpressionsAdd,
-	menu: {
-		id: MenuId.ViewTitle,
-		group: 'navigation',
-		when: ContextKeyEqualsExpr.create('view', WATCH_VIEW_ID)
-	}
-};
 registerAction2(class AddWatchExpressionAction extends Action2 {
 	constructor() {
-		super(addWatchExpressionCommand);
+		super({
+			id: ADD_WATCH_ID,
+			title: ADD_WATCH_LABEL,
+			f1: false,
+			icon: watchExpressionsAdd,
+			menu: {
+				id: MenuId.ViewTitle,
+				group: 'navigation',
+				when: ContextKeyEqualsExpr.create('view', WATCH_VIEW_ID)
+			}
+		});
 	}
 
 	run(accessor: ServicesAccessor): void {
@@ -405,21 +390,23 @@ registerAction2(class AddWatchExpressionAction extends Action2 {
 	}
 });
 
-const removeAllWatchExpressionsCommand = {
-	id: 'workbench.debug.viewlet.action.removeAllWatchExpressions', // Use old and long id for backwards compatibility
-	title: localize('removeAllWatchExpressions', "Remove All Expressions"),
-	f1: false,
-	icon: watchExpressionsRemoveAll,
-	precondition: CONTEXT_WATCH_EXPRESSIONS_EXIST,
-	menu: {
-		id: MenuId.ViewTitle,
-		group: 'navigation',
-		when: ContextKeyEqualsExpr.create('view', WATCH_VIEW_ID)
-	}
-};
+export const REMOVE_WATCH_EXPRESSIONS_COMMAND_ID = 'workbench.debug.viewlet.action.removeAllWatchExpressions';
+export const REMOVE_WATCH_EXPRESSIONS_LABEL = localize('removeAllWatchExpressions', "Remove All Expressions");
 registerAction2(class RemoveAllWatchExpressionsAction extends Action2 {
 	constructor() {
-		super(removeAllWatchExpressionsCommand);
+		super({
+			id: REMOVE_WATCH_EXPRESSIONS_COMMAND_ID, // Use old and long id for backwards compatibility
+			title: REMOVE_WATCH_EXPRESSIONS_LABEL,
+			f1: false,
+			icon: watchExpressionsRemoveAll,
+			precondition: CONTEXT_WATCH_EXPRESSIONS_EXIST,
+			menu: {
+				id: MenuId.ViewTitle,
+				order: 20,
+				group: 'navigation',
+				when: ContextKeyEqualsExpr.create('view', WATCH_VIEW_ID)
+			}
+		});
 	}
 
 	run(accessor: ServicesAccessor): void {

@@ -450,6 +450,7 @@ class HelpPanelDescriptor implements IViewDescriptor {
 	readonly canToggleVisibility = true;
 	readonly hideByDefault = false;
 	readonly group = 'help@50';
+	readonly order = -10;
 
 	constructor(viewModel: IViewModel) {
 		this.ctorDescriptor = new SyncDescriptor(HelpPanel, [viewModel]);
@@ -457,6 +458,8 @@ class HelpPanelDescriptor implements IViewDescriptor {
 }
 
 export class RemoteViewPaneContainer extends FilterViewPaneContainer implements IViewModel {
+	private switchRemoteInstance: SwitchRemoteViewItem | undefined;
+
 	private helpPanelDescriptor = new HelpPanelDescriptor(this);
 	helpInformation: HelpInformation[] = [];
 
@@ -519,7 +522,11 @@ export class RemoteViewPaneContainer extends FilterViewPaneContainer implements 
 
 	public getActionViewItem(action: Action): IActionViewItem | undefined {
 		if (action.id === SwitchRemoteAction.ID) {
-			return this.instantiationService.createInstance(SwitchRemoteViewItem, action, SwitchRemoteViewItem.createOptionItems(Registry.as<IViewsRegistry>(Extensions.ViewsRegistry).getViews(this.viewContainer), this.contextKeyService));
+			if (this.switchRemoteInstance === undefined) {
+				this.switchRemoteInstance = this.instantiationService.createInstance(SwitchRemoteViewItem, action, SwitchRemoteViewItem.createOptionItems(Registry.as<IViewsRegistry>(Extensions.ViewsRegistry).getViews(this.viewContainer), this.contextKeyService));
+			}
+
+			return this.switchRemoteInstance;
 		}
 
 		return super.getActionViewItem(action);

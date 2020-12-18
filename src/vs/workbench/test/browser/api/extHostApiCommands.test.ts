@@ -200,7 +200,7 @@ suite('ExtHostLanguageFeatureCommands', function () {
 			return commands.executeCommand<vscode.SymbolInformation[]>('vscode.executeWorkspaceSymbolProvider', 'testing').then(value => {
 
 				for (let info of value) {
-					assert.ok(info instanceof types.SymbolInformation);
+					assert.strictEqual(info instanceof types.SymbolInformation, true);
 					assert.equal(info.name, 'testing');
 					assert.equal(info.kind, types.SymbolKind.Array);
 				}
@@ -566,8 +566,8 @@ suite('ExtHostLanguageFeatureCommands', function () {
 			return commands.executeCommand<vscode.SymbolInformation[]>('vscode.executeDocumentSymbolProvider', model.uri).then(values => {
 				assert.equal(values.length, 2);
 				let [first, second] = values;
-				assert.ok(first instanceof types.SymbolInformation);
-				assert.ok(second instanceof types.SymbolInformation);
+				assert.strictEqual(first instanceof types.SymbolInformation, true);
+				assert.strictEqual(second instanceof types.SymbolInformation, true);
 				assert.equal(first.name, 'testing2');
 				assert.equal(second.name, 'testing1');
 			});
@@ -594,9 +594,9 @@ suite('ExtHostLanguageFeatureCommands', function () {
 			return commands.executeCommand<(vscode.SymbolInformation & vscode.DocumentSymbol)[]>('vscode.executeDocumentSymbolProvider', model.uri).then(values => {
 				assert.equal(values.length, 2);
 				let [first, second] = values;
-				assert.ok(first instanceof types.SymbolInformation);
-				assert.ok(!(first instanceof types.DocumentSymbol));
-				assert.ok(second instanceof types.SymbolInformation);
+				assert.strictEqual(first instanceof types.SymbolInformation, true);
+				assert.strictEqual(first instanceof types.DocumentSymbol, false);
+				assert.strictEqual(second instanceof types.SymbolInformation, true);
 				assert.equal(first.name, 'DocumentSymbol');
 				assert.equal(first.children.length, 1);
 				assert.equal(second.name, 'SymbolInformation');
