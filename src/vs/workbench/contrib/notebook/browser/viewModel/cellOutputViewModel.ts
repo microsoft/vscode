@@ -31,7 +31,6 @@ export class CellOutputViewModel extends Disposable implements ICellOutputViewMo
 		private readonly _notebookService: INotebookService
 	) {
 		super();
-		console.log('create cell', this.outputHandle);
 	}
 
 	isStreamOutput(): this is IStreamOutputViewModel {

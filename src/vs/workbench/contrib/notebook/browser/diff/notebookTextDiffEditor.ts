@@ -291,6 +291,19 @@ export class NotebookTextDiffEditor extends EditorPane implements INotebookTextD
 	async setInput(input: NotebookDiffEditorInput, options: EditorOptions | undefined, context: IEditorOpenContext, token: CancellationToken): Promise<void> {
 		await super.setInput(input, options, context, token);
 
+		const model = await input.resolve();
+		if (this._model !== model) {
+			this._originalWebview?.dispose();
+			this._originalWebview?.element.remove();
+			this._originalWebview = null;
+			this._modifiedWebview?.dispose();
+			this._modifiedWebview?.element.remove();
+			this._modifiedWebview = null;
+
+			this._modifiedResourceDisposableStore.clear();
+			this._list.clear();
+		}
+
 		this._model = await input.resolve();
 		if (this._model === null) {
 			return;

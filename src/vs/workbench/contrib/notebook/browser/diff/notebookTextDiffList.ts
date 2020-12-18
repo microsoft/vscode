@@ -309,6 +309,10 @@ export class NotebookTextDiffList extends WorkbenchList<DiffElementViewModelBase
 		this.view.triggerScrollFromMouseWheelEvent(browserEvent);
 	}
 
+	clear() {
+		super.splice(0, this.length);
+	}
+
 	style(styles: IListStyles) {
 		const selectorSuffix = this.view.domId;
 		if (!this.styleElement) {

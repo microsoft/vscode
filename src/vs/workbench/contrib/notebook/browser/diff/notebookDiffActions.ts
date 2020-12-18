@@ -12,7 +12,7 @@ import { DiffElementViewModelBase } from 'vs/workbench/contrib/notebook/browser/
 import { NOTEBOOK_DIFF_CELL_PROPERTY, NOTEBOOK_DIFF_CELL_PROPERTY_EXPANDED } from 'vs/workbench/contrib/notebook/browser/diff/notebookDiffEditorBrowser';
 import { NotebookTextDiffEditor } from 'vs/workbench/contrib/notebook/browser/diff/notebookTextDiffEditor';
 import { NotebookDiffEditorInput } from 'vs/workbench/contrib/notebook/browser/notebookDiffEditorInput';
-import { openAsTextIcon, revertIcon, showOutputRawIcon } from 'vs/workbench/contrib/notebook/browser/notebookIcons';
+import { openAsTextIcon, renderOutputIcon, revertIcon } from 'vs/workbench/contrib/notebook/browser/notebookIcons';
 import { IEditorGroupsService } from 'vs/workbench/services/editor/common/editorGroupsService';
 import { IEditorService } from 'vs/workbench/services/editor/common/editorService';
 
@@ -114,7 +114,7 @@ registerAction2(class extends Action2 {
 			{
 				id: 'notebook.diff.cell.switchOutputRenderingStyleToText',
 				title: localize('notebook.diff.cell.switchOutputRenderingStyleToText', "Switch Output Rendering"),
-				icon: showOutputRawIcon,
+				icon: renderOutputIcon,
 				f1: false,
 				menu: {
 					id: MenuId.NotebookDiffCellOutputsTitle,

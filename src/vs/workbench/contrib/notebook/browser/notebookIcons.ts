@@ -30,5 +30,4 @@ export const expandedIcon = registerIcon('notebook-expanded', Codicon.chevronDow
 export const openAsTextIcon = registerIcon('notebook-open-as-text', Codicon.fileCode, localize('openAsTextIcon', 'Icon to open the notebook in a text editor.'));
 export const revertIcon = registerIcon('notebook-revert', Codicon.discard, localize('revertIcon', 'Icon to revert in notebook editors.'));
 export const renderOutputIcon = registerIcon('notebook-render-output', Codicon.preview, localize('renderOutputIcon', 'Icon to render output in diff editor.'));
-export const showOutputRawIcon = registerIcon('notebook-show-output-raw', Codicon.fileCode, localize('showOutputRawIcon', 'Icon to show output raw data.'));
 export const mimetypeIcon = registerIcon('notebook-mimetype', Codicon.code, localize('mimetypeIcon', 'Icon for a mime type in notebook editors.'));
