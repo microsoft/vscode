@@ -32,7 +32,15 @@ export interface SourceTargetPair {
 }
 
 export interface IFileOperationUndoRedoInfo {
+
+	/**
+	 * Id of the undo group that the file operation belongs to.
+	 */
 	undoRedoGroupId?: number;
+
+	/**
+	 * Flag indicates if the operation is an undo.
+	 */
 	isUndoing?: boolean
 }
 
@@ -68,6 +76,15 @@ export interface IWorkingCopyFileOperationParticipant {
 		timeout: number,
 		token: CancellationToken
 	): Promise<void>;
+}
+
+export interface ICreateOperation {
+	resource: URI;
+	overwrite?: boolean;
+}
+
+export interface ICreateFileOperation extends ICreateOperation {
+	contents?: VSBuffer | VSBufferReadable | VSBufferReadableStream,
 }
 
 export interface IDeleteOperation {
@@ -147,7 +164,7 @@ export interface IWorkingCopyFileService {
 	 * Working copy owners can listen to the `onWillRunWorkingCopyFileOperation` and
 	 * `onDidRunWorkingCopyFileOperation` events to participate.
 	 */
-	create(resource: URI, contents?: VSBuffer | VSBufferReadable | VSBufferReadableStream, options?: { overwrite?: boolean, undoRedoGroupId?: number, isUndoing?: boolean }, token?: CancellationToken): Promise<IFileStatWithMetadata>;
+	create(operations: ICreateFileOperation[], undoInfo?: IFileOperationUndoRedoInfo, token?: CancellationToken): Promise<IFileStatWithMetadata[]>;
 
 	/**
 	 * Will create a folder and any parent folder that needs to be created.
@@ -158,7 +175,7 @@ export interface IWorkingCopyFileService {
 	 * Note: events will only be emitted for the provided resource, but not any
 	 * parent folders that are being created as part of the operation.
 	 */
-	createFolder(resource: URI, undoInfo?: IFileOperationUndoRedoInfo, token?: CancellationToken): Promise<IFileStatWithMetadata>;
+	createFolder(operations: ICreateOperation[], undoInfo?: IFileOperationUndoRedoInfo, token?: CancellationToken): Promise<IFileStatWithMetadata[]>;
 
 	/**
 	 * Will move working copies matching the provided resources and corresponding children
@@ -254,38 +271,38 @@ export class WorkingCopyFileService extends Disposable implements IWorkingCopyFi
 
 	//#region File operations
 
-	create(resource: URI, contents?: VSBuffer | VSBufferReadable | VSBufferReadableStream, options?: { overwrite?: boolean, undoRedoGroupId?: number, isUndoing?: boolean }, token?: CancellationToken): Promise<IFileStatWithMetadata> {
-		return this.doCreateFileOrFolder(resource, true, contents, options, token);
+	create(operations: ICreateFileOperation[], undoInfo?: IFileOperationUndoRedoInfo, token?: CancellationToken): Promise<IFileStatWithMetadata[]> {
+		return Promise.all(operations.map(o => this.doCreateFileOrFolder(o, true, undoInfo, token)));
 	}
 
-	createFolder(resource: URI, options?: { overwrite?: boolean, undoRedoGroupId?: number, isUndoing?: boolean }, token?: CancellationToken): Promise<IFileStatWithMetadata> {
-		return this.doCreateFileOrFolder(resource, false, undefined, options, token);
+	createFolder(operations: ICreateOperation[], undoInfo?: IFileOperationUndoRedoInfo, token?: CancellationToken): Promise<IFileStatWithMetadata[]> {
+		return Promise.all(operations.map(o => this.doCreateFileOrFolder(o, false, undoInfo, token)));
 	}
 
-	async doCreateFileOrFolder(resource: URI, isFile: boolean, contents?: VSBuffer | VSBufferReadable | VSBufferReadableStream, options?: { overwrite?: boolean, undoRedoGroupId?: number, isUndoing?: boolean }, token?: CancellationToken): Promise<IFileStatWithMetadata> {
+	async doCreateFileOrFolder(operation: ICreateFileOperation | ICreateOperation, isFile: boolean, undoInfo?: IFileOperationUndoRedoInfo, token?: CancellationToken): Promise<IFileStatWithMetadata> {
 
 		// validate create operation before starting
 		if (isFile) {
-			const validateCreate = await this.fileService.canCreateFile(resource, options);
+			const validateCreate = await this.fileService.canCreateFile(operation.resource, { overwrite: operation.overwrite });
 			if (validateCreate instanceof Error) {
 				throw validateCreate;
 			}
 		}
 
 		// file operation participant
-		await this.runFileOperationParticipants([{ target: resource }], FileOperation.CREATE, options, token);
+		await this.runFileOperationParticipants([{ target: operation.resource }], FileOperation.CREATE, undoInfo, token);
 
 		// before events
-		const event = { correlationId: this.correlationIds++, operation: FileOperation.CREATE, files: [{ target: resource }] };
+		const event = { correlationId: this.correlationIds++, operation: FileOperation.CREATE, files: [{ target: operation.resource }] };
 		await this._onWillRunWorkingCopyFileOperation.fireAsync(event, CancellationToken.None);
 
 		// now actually create on disk
 		let stat: IFileStatWithMetadata;
 		try {
 			if (isFile) {
-				stat = await this.fileService.createFile(resource, contents, { overwrite: options?.overwrite });
+				stat = await this.fileService.createFile(operation.resource, (operation as ICreateFileOperation).contents, { overwrite: operation.overwrite });
 			} else {
-				stat = await this.fileService.createFolder(resource);
+				stat = await this.fileService.createFolder(operation.resource);
 			}
 		} catch (error) {
 
