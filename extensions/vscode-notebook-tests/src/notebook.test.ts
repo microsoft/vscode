@@ -1287,7 +1287,7 @@ suite('regression', () => {
 		// removes the fragment if it matches something numeric. For notebooks that's not wanted...
 		await vscode.commands.executeCommand('vscode.open', cell.uri);
 
-		assert.strictEqual(vscode.window.activeNotebookEditor?.document.uri.toString(), resource.toString());
+		assert.strictEqual(vscode.window.activeNotebookEditor!.document.uri.toString(), resource.toString());
 	});
 
 	test('#97830, #97764. Support switch to other editor types', async function () {
