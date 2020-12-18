@@ -585,7 +585,7 @@
 	display: flex;
 	align-items: center;
 	justify-content: center;
-	z-index: 25; /* over the focus outline on the editor, below the title toolbar */
+	z-index: 28; /* over the focus outline on the editor, below the title toolbar */
 	width: 100%;
 	opacity: 0;
 	transition: opacity 0.2s ease-in-out;
