@@ -159,7 +159,7 @@ steps:
       set -e
       yarn test-browser --build --browser chromium --browser webkit --browser firefox --tfs "Browser Unit Tests"
     displayName: Run unit tests (Browser)
-    timeoutInMinutes: 5
+    timeoutInMinutes: 10
     condition: and(succeeded(), eq(variables['VSCODE_ARCH'], 'x64'), eq(variables['VSCODE_STEP_ON_IT'], 'false'))
 
   - script: |
