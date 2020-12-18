@@ -9,7 +9,7 @@ import { IConfigurationNode, IConfigurationRegistry, Extensions } from 'vs/platf
 import { workbenchConfigurationNodeBase } from 'vs/workbench/common/configuration';
 import { Registry } from 'vs/platform/registry/common/platform';
 import { ICustomEditorInfo, IEditorService, IOpenEditorOverrideHandler, IOpenEditorOverrideEntry } from 'vs/workbench/services/editor/common/editorService';
-import { IEditorInput, IEditorPane, IEditorInputFactoryRegistry, Extensions as EditorExtensions, EditorResourceAccessor } from 'vs/workbench/common/editor';
+import { IEditorInput, IEditorPane, IEditorInputFactoryRegistry, Extensions as EditorExtensions, EditorResourceAccessor, EditorOptions } from 'vs/workbench/common/editor';
 import { ITextEditorOptions, IEditorOptions } from 'vs/platform/editor/common/editor';
 import { IEditorGroup, IEditorGroupsService, OpenEditorContext, preferredSideBySideGroupDirection } from 'vs/workbench/services/editor/common/editorGroupsService';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
@@ -214,7 +214,21 @@ export function getAllAvailableEditors(
 
 					const fileEditorInput = editorService.createEditorInput({ resource, forceFile: true });
 					const textOptions: IEditorOptions | ITextEditorOptions = options ? { ...options, override: false } : { override: false };
-					return { override: editorService.openEditor(fileEditorInput, textOptions, group) };
+					return {
+						override: (async () => {
+							// Try to replace existing editors for resource
+							const existingEditor = group.editors.find(editor => editor.resource && isEqual(editor.resource, resource));
+							if (existingEditor && !fileEditorInput.matches(existingEditor)) {
+								await editorService.replaceEditors([{
+									editor: existingEditor,
+									replacement: fileEditorInput,
+									options: options ? EditorOptions.create(options) : undefined,
+								}], group);
+							}
+
+							return editorService.openEditor(fileEditorInput, textOptions, group);
+						})()
+					};
 				}
 			},
 			{
