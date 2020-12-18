@@ -1269,7 +1269,7 @@ suite('regression', () => {
 		await vscode.commands.executeCommand('vscode.open', cell.uri, vscode.ViewColumn.Active);
 
 		assert.strictEqual(!!vscode.window.activeNotebookEditor, true);
-		assert.strictEqual(vscode.window.activeNotebookEditor?.document.uri.toString(), resource.toString());
+		assert.strictEqual(vscode.window.activeNotebookEditor!.document.uri.toString(), resource.toString());
 	});
 
 	test('Cannot open notebook from cell-uri with vscode.open-command', async function () {
