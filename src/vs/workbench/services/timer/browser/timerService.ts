@@ -358,13 +358,10 @@ export const ITimerService = createDecorator<ITimerService>('timerService');
 
 class PerfMarks {
 
-	private readonly _entries = new Map<string, perf.PerformanceMark[]>();
+	private readonly _entries: [string, perf.PerformanceMark[]][] = [];
 
 	setMarks(source: string, entries: perf.PerformanceMark[]): void {
-		if (this._entries.has(source)) {
-			throw new Error(`${source} EXISTS already`);
-		}
-		this._entries.set(source, entries);
+		this._entries.push([source, entries]);
 	}
 
 	getDuration(from: string, to: string): number {
@@ -380,17 +377,17 @@ class PerfMarks {
 	}
 
 	private _findEntry(name: string): perf.PerformanceMark | void {
-		for (let entries of this._entries.values()) {
-			for (let i = entries.length - 1; i >= 0; i--) {
-				if (entries[i].name === name) {
-					return entries[i];
+		for (let [, marks] of this._entries) {
+			for (let i = marks.length - 1; i >= 0; i--) {
+				if (marks[i].name === name) {
+					return marks[i];
 				}
 			}
 		}
 	}
 
 	getEntries() {
-		return Array.from(this._entries);
+		return this._entries.slice(0);
 	}
 }
 
@@ -465,7 +462,12 @@ export abstract class AbstractTimerService implements ITimerService {
 		// defines the start
 		for (const [source, marks] of this.getPerformanceMarks()) {
 			type Mark = { source: string; name: string; relativeStartTime: number; startTime: number };
-			type MarkClassification = { [K in keyof Mark]: { classification: 'SystemMetaData', purpose: 'PerformanceAndHealth' } };
+			type MarkClassification = {
+				source: { classification: 'SystemMetaData', purpose: 'PerformanceAndHealth' },
+				name: { classification: 'SystemMetaData', purpose: 'PerformanceAndHealth' },
+				relativeStartTime: { classification: 'SystemMetaData', purpose: 'PerformanceAndHealth', isMeasurement: true },
+				startTime: { classification: 'SystemMetaData', purpose: 'PerformanceAndHealth', isMeasurement: true },
+			};
 
 			let lastMark: perf.PerformanceMark = marks[0];
 			for (const mark of marks) {

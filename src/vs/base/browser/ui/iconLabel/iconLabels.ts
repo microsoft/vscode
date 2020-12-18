@@ -4,21 +4,22 @@
  *--------------------------------------------------------------------------------------------*/
 
 import * as dom from 'vs/base/browser/dom';
+import { CSSIcon } from 'vs/base/common/codicons';
 
-const renderCodiconsRegex = /(\\)?\$\((([a-z0-9\-]+?)(?:~([a-z0-9\-]*?))?)\)/gi;
+const labelWithIconsRegex = /(\\)?\$\(([a-z\-]+(?:~[a-z\-]+)?)\)/gi;
 
-export function renderCodicons(text: string): Array<HTMLSpanElement | string> {
+export function renderLabelWithIcons(text: string): Array<HTMLSpanElement | string> {
 	const elements = new Array<HTMLSpanElement | string>();
 	let match: RegExpMatchArray | null;
 
 	let textStart = 0, textStop = 0;
-	while ((match = renderCodiconsRegex.exec(text)) !== null) {
+	while ((match = labelWithIconsRegex.exec(text)) !== null) {
 		textStop = match.index || 0;
 		elements.push(text.substring(textStart, textStop));
 		textStart = (match.index || 0) + match[0].length;
 
-		const [, escaped, codicon, name, modifier] = match;
-		elements.push(escaped ? `$(${codicon})` : renderCodicon(name, modifier));
+		const [, escaped, codicon] = match;
+		elements.push(escaped ? `$(${codicon})` : renderIcon({ id: codicon }));
 	}
 
 	if (textStart < text.length) {
@@ -27,6 +28,8 @@ export function renderCodicons(text: string): Array<HTMLSpanElement | string> {
 	return elements;
 }
 
-export function renderCodicon(name: string, modifier: string): HTMLSpanElement {
-	return dom.$(`span.codicon.codicon-${name}${modifier ? `.codicon-modifier-${modifier}` : ''}`);
+export function renderIcon(icon: CSSIcon): HTMLSpanElement {
+	const node = dom.$(`span`);
+	node.classList.add(...CSSIcon.asClassNameArray(icon));
+	return node;
 }

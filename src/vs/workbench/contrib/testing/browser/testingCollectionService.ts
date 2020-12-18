@@ -4,34 +4,54 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { debounce } from 'vs/base/common/decorators';
+import { Emitter } from 'vs/base/common/event';
 import { Disposable, IDisposable, toDisposable } from 'vs/base/common/lifecycle';
 import { createDecorator, IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
-import { IWorkspaceContextService, IWorkspaceFolder } from 'vs/platform/workspace/common/workspace';
+import { IWorkspaceContextService, IWorkspaceFolder, IWorkspaceFoldersChangeEvent } from 'vs/platform/workspace/common/workspace';
 import { ExtHostTestingResource } from 'vs/workbench/api/common/extHost.protocol';
-import { AbstractIncrementalTestCollection, IncrementalChangeCollector, IncrementalTestCollectionItem, InternalTestItem } from 'vs/workbench/contrib/testing/common/testCollection';
+import { AbstractIncrementalTestCollection, IncrementalChangeCollector, IncrementalTestCollectionItem, InternalTestItem, TestsDiff } from 'vs/workbench/contrib/testing/common/testCollection';
 import { ITestService } from 'vs/workbench/contrib/testing/common/testService';
 
-export const isTestItem = (v: ITestSubscriptionItem | ITestSubscriptionFolder): v is ITestSubscriptionItem => v.depth > 0;
-
 export interface ITestSubscriptionFolder {
-	depth: 0;
 	folder: IWorkspaceFolder;
-	childCount: number;
 	getChildren(): Iterable<ITestSubscriptionItem>;
 }
 
 export interface ITestSubscriptionItem extends IncrementalTestCollectionItem {
-	depth: number;
-	getChildren(): Iterable<ITestSubscriptionItem>;
-	childCount: number;
 	root: ITestSubscriptionFolder;
-	parentItem: ITestSubscriptionItem | ITestSubscriptionFolder;
 }
 
-export interface ITestSubscription {
-	add(node: ITestSubscriptionItem | ITestSubscriptionFolder): void;
-	update(node: ITestSubscriptionItem | ITestSubscriptionFolder): void;
-	remove(node: ITestSubscriptionItem | ITestSubscriptionFolder): void;
+export class TestSubscriptionListener extends Disposable {
+	private onDiffEmitter = new Emitter<[workspaceFolder: IWorkspaceFolder, diff: TestsDiff]>();
+	private onFolderChangeEmitter = new Emitter<IWorkspaceFoldersChangeEvent>();
+
+	public readonly onDiff = this.onDiffEmitter.event;
+	public readonly onFolderChange = this.onFolderChangeEmitter.event;
+
+	public get testCount() {
+		return this.subscription.testCount;
+	}
+
+	public get workspaceFolders() {
+		return this.subscription.workspaceFolders;
+	}
+
+	public get workspaceFolderCollections() {
+		return this.subscription.workspaceFolderCollections;
+	}
+
+	constructor(private readonly subscription: TestSubscription, public readonly onDispose: () => void) {
+		super();
+		this._register(toDisposable(onDispose));
+	}
+
+	public publishFolderChange(evt: IWorkspaceFoldersChangeEvent) {
+		this.onFolderChangeEmitter.fire(evt);
+	}
+
+	public publishDiff(folder: IWorkspaceFolder, diff: TestsDiff) {
+		this.onDiffEmitter.fire([folder, diff]);
+	}
 }
 
 /**
@@ -54,7 +74,7 @@ export interface ITestingCollectionService {
 	/**
 	 * Adds a listener that receives updates about tests.
 	 */
-	subscribeToWorkspaceTests(collector: ITestSubscription): IDisposable;
+	subscribeToWorkspaceTests(): TestSubscriptionListener;
 }
 
 export const ITestingCollectionService = createDecorator<ITestingCollectionService>('ITestingViewService');
@@ -80,13 +100,12 @@ export class TestingCollectionService implements ITestingCollectionService {
 	/**
 	 * @inheritdoc
 	 */
-	public subscribeToWorkspaceTests(listener: ITestSubscription): IDisposable {
+	public subscribeToWorkspaceTests(): TestSubscriptionListener {
 		if (!this.subscription) {
 			this.subscription = this.instantiationService.createInstance(TestSubscription);
 		}
 
-		this.subscription.addListener(listener);
-		return toDisposable(() => {
+		const listener = new TestSubscriptionListener(this.subscription, () => {
 			if (!this.subscription) {
 				return;
 			}
@@ -96,6 +115,9 @@ export class TestingCollectionService implements ITestingCollectionService {
 				this.debounceDispose();
 			}
 		});
+
+		this.subscription.addListener(listener);
+		return listener;
 	}
 
 	@debounce(10_0000)
@@ -109,12 +131,13 @@ export class TestingCollectionService implements ITestingCollectionService {
 
 
 class TestSubscription extends Disposable {
-	private listeners = new Set<ITestSubscription>();
+	private listeners = new Set<TestSubscriptionListener>();
 	private readonly collectionsForWorkspaces = new Map<string, {
 		listener: IDisposable,
 		folder: ITestSubscriptionFolder,
 		collection: TestCollection,
 	}>();
+
 	public testCount = 0;
 
 	public get listenerCount() {
@@ -123,6 +146,10 @@ class TestSubscription extends Disposable {
 
 	public get workspaceFolders() {
 		return [...this.collectionsForWorkspaces.values()].map(v => v.folder);
+	}
+
+	public get workspaceFolderCollections() {
+		return [...this.collectionsForWorkspaces.values()].map(v => [v.folder, v.collection] as const);
 	}
 
 	constructor(
@@ -147,10 +174,11 @@ class TestSubscription extends Disposable {
 				if (existing) {
 					this.collectionsForWorkspaces.delete(folder.uri.toString());
 					existing.listener.dispose();
-					for (const listener of this.listeners) {
-						listener.remove(existing.folder);
-					}
 				}
+			}
+
+			for (const listener of this.listeners) {
+				listener.publishFolderChange(evt);
 			}
 		}));
 
@@ -159,31 +187,17 @@ class TestSubscription extends Disposable {
 		}
 	}
 
-	public addListener(listener: ITestSubscription) {
+	public addListener(listener: TestSubscriptionListener) {
 		this.listeners.add(listener);
-		for (const { collection, folder } of this.collectionsForWorkspaces.values()) {
-			listener.add(folder);
-
-			const queue = [collection.rootNodes];
-			while (queue.length) {
-				for (const node of queue.pop()!) {
-					listener.add(collection.getNodeById(node)!);
-				}
-			}
-		}
 	}
 
-	public removeListener(listener: ITestSubscription) {
+	public removeListener(listener: TestSubscriptionListener) {
 		this.listeners.delete(listener);
 	}
 
 	private subscribeToWorkspace(folder: IWorkspaceFolder) {
 		const folderNode: ITestSubscriptionFolder = {
 			folder,
-			depth: 0,
-			get childCount() {
-				return collection.rootNodes.size;
-			},
 			getChildren: function* () {
 				for (const rootId of collection.rootNodes) {
 					const node = collection.getNodeById(rootId);
@@ -195,38 +209,25 @@ class TestSubscription extends Disposable {
 		};
 
 		const collection = new TestCollection(folderNode, {
-			add: node => {
+			add: () => {
 				this.testCount++;
-				for (const listener of this.listeners) {
-					listener.add(node);
-				}
 			},
-			remove: (node, isNested) => {
+			remove: () => {
 				this.testCount--;
-				if (!isNested) {
-					for (const listener of this.listeners) {
-						listener.remove(node);
-					}
-				}
 			},
-			update: node => {
-				for (const listener of this.listeners) {
-					listener.update(node);
-				}
-			},
-			complete: () => {
-				// no-op
-			},
+			update: () => undefined,
+			complete: () => undefined,
 		});
-
-		for (const listener of this.listeners) {
-			listener.add(folderNode);
-		}
 
 		const listener = this.testService.subscribeToDiffs(
 			ExtHostTestingResource.Workspace,
 			folder.uri,
-			diff => collection.apply(diff),
+			diff => {
+				collection.apply(diff);
+				for (const listener of this.listeners) {
+					listener.publishDiff(folder, diff);
+				}
+			},
 		);
 
 		this.collectionsForWorkspaces.set(folder.uri.toString(), { listener, collection, folder: folderNode });
@@ -250,27 +251,7 @@ class TestCollection extends AbstractIncrementalTestCollection<ITestSubscription
 		return this.collector;
 	}
 
-	protected createItem(internal: InternalTestItem, parentItem?: ITestSubscriptionItem): ITestSubscriptionItem {
-		const children = new Set<string>();
-		const items = this.items;
-		const actualParent = parentItem || this.workspace;
-		return {
-			...internal,
-			depth: actualParent.depth + 1,
-			parentItem: actualParent,
-			root: this.workspace,
-			get childCount() {
-				return children.size;
-			},
-			getChildren: function* () {
-				for (const childId of children) {
-					const node = items.get(childId);
-					if (node) {
-						yield node;
-					}
-				}
-			},
-			children: children,
-		};
+	protected createItem(internal: InternalTestItem): ITestSubscriptionItem {
+		return { ...internal, root: this.workspace, children: new Set<string>() };
 	}
 }

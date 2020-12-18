@@ -216,12 +216,11 @@ export class GettingStartedPage extends Disposable {
 		const categoriesSlide = assertIsDefined(document.getElementById('gettingStartedSlideCategory'));
 		const tasksSlide = assertIsDefined(document.getElementById('gettingStartedSlideDetails'));
 
-		const tasksContent = assertIsDefined(document.getElementById('getting-started-detail-columns'));
+		const tasksContent = assertIsDefined(document.getElementById('gettingStartedDetailsContent'));
 		tasksContent.remove();
 		if (this.detailImageScrollbar) { this.detailImageScrollbar.dispose(); }
-		this.detailImageScrollbar = this._register(new DomScrollableElement(tasksContent, {}));
+		this.detailImageScrollbar = this._register(new DomScrollableElement(tasksContent, { className: 'full-height-scrollable' }));
 		tasksSlide.appendChild(this.detailImageScrollbar.getDomNode());
-		tasksSlide.appendChild($('.gap'));
 		this.detailImageScrollbar.scanDomNode();
 
 		const rightColumn = assertIsDefined(container.querySelector('#getting-started-detail-right'));

@@ -27,6 +27,7 @@ import { IFilesConfigurationService } from 'vs/workbench/services/filesConfigura
 import { IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
 import { MockContextKeyService } from 'vs/platform/keybinding/test/common/mockKeybindingService';
 import { ITextResourceConfigurationService } from 'vs/editor/common/services/textResourceConfigurationService';
+import { raceTimeout } from 'vs/base/common/async';
 
 suite('Files - TextFileEditor', () => {
 
@@ -73,7 +74,7 @@ suite('Files - TextFileEditor', () => {
 
 		const accessor = instantiationService.createInstance(TestServiceAccessor);
 
-		await part.whenRestored;
+		await raceTimeout(part.whenRestored, 2000, () => assert.fail('textFileEditor.test.ts: Unexpected long time to wait for part to restore (#112649)'));
 
 		return [part, accessor, instantiationService, editorService];
 	}

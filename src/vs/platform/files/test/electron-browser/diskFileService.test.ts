@@ -2008,73 +2008,72 @@ suite('Disk File Service', function () {
 
 	const runWatchTests = isLinux;
 
-	(runWatchTests ? test : test.skip)('watch - file', done => {
+	(runWatchTests ? test : test.skip)('watch - file', async () => {
 		const toWatch = URI.file(join(testDir, 'index-watch1.html'));
 		writeFileSync(toWatch.fsPath, 'Init');
 
-		assertWatch(toWatch, [[FileChangeType.UPDATED, toWatch]], done);
-
+		const promise = assertWatch(toWatch, [[FileChangeType.UPDATED, toWatch]]);
 		setTimeout(() => writeFileSync(toWatch.fsPath, 'Changes'), 50);
+		await promise;
 	});
 
-	(runWatchTests && !isWindows /* symbolic links not reliable on windows */ ? test : test.skip)('watch - file symbolic link', async done => {
+	(runWatchTests && !isWindows /* symbolic links not reliable on windows */ ? test : test.skip)('watch - file symbolic link', async () => {
 		const toWatch = URI.file(join(testDir, 'lorem.txt-linked'));
 		await symlink(join(testDir, 'lorem.txt'), toWatch.fsPath);
 
-		assertWatch(toWatch, [[FileChangeType.UPDATED, toWatch]], done);
-
+		const promise = assertWatch(toWatch, [[FileChangeType.UPDATED, toWatch]]);
 		setTimeout(() => writeFileSync(toWatch.fsPath, 'Changes'), 50);
+		await promise;
 	});
 
-	(runWatchTests ? test : test.skip)('watch - file - multiple writes', done => {
+	(runWatchTests ? test : test.skip)('watch - file - multiple writes', async () => {
 		const toWatch = URI.file(join(testDir, 'index-watch1.html'));
 		writeFileSync(toWatch.fsPath, 'Init');
 
-		assertWatch(toWatch, [[FileChangeType.UPDATED, toWatch]], done);
-
+		const promise = assertWatch(toWatch, [[FileChangeType.UPDATED, toWatch]]);
 		setTimeout(() => writeFileSync(toWatch.fsPath, 'Changes 1'), 0);
 		setTimeout(() => writeFileSync(toWatch.fsPath, 'Changes 2'), 10);
 		setTimeout(() => writeFileSync(toWatch.fsPath, 'Changes 3'), 20);
+		await promise;
 	});
 
-	(runWatchTests ? test : test.skip)('watch - file - delete file', done => {
+	(runWatchTests ? test : test.skip)('watch - file - delete file', async () => {
 		const toWatch = URI.file(join(testDir, 'index-watch1.html'));
 		writeFileSync(toWatch.fsPath, 'Init');
 
-		assertWatch(toWatch, [[FileChangeType.DELETED, toWatch]], done);
-
+		const promise = assertWatch(toWatch, [[FileChangeType.DELETED, toWatch]]);
 		setTimeout(() => unlinkSync(toWatch.fsPath), 50);
+		await promise;
 	});
 
-	(runWatchTests ? test : test.skip)('watch - file - rename file', done => {
+	(runWatchTests ? test : test.skip)('watch - file - rename file', async () => {
 		const toWatch = URI.file(join(testDir, 'index-watch1.html'));
 		const toWatchRenamed = URI.file(join(testDir, 'index-watch1-renamed.html'));
 		writeFileSync(toWatch.fsPath, 'Init');
 
-		assertWatch(toWatch, [[FileChangeType.DELETED, toWatch]], done);
-
+		const promise = assertWatch(toWatch, [[FileChangeType.DELETED, toWatch]]);
 		setTimeout(() => renameSync(toWatch.fsPath, toWatchRenamed.fsPath), 50);
+		await promise;
 	});
 
-	(runWatchTests ? test : test.skip)('watch - file - rename file (different case)', done => {
+	(runWatchTests ? test : test.skip)('watch - file - rename file (different case)', async () => {
 		const toWatch = URI.file(join(testDir, 'index-watch1.html'));
 		const toWatchRenamed = URI.file(join(testDir, 'INDEX-watch1.html'));
 		writeFileSync(toWatch.fsPath, 'Init');
 
-		if (isLinux) {
-			assertWatch(toWatch, [[FileChangeType.DELETED, toWatch]], done);
-		} else {
-			assertWatch(toWatch, [[FileChangeType.UPDATED, toWatch]], done); // case insensitive file system treat this as change
-		}
+		const promise = isLinux
+			? assertWatch(toWatch, [[FileChangeType.DELETED, toWatch]])
+			: assertWatch(toWatch, [[FileChangeType.UPDATED, toWatch]]);  // case insensitive file system treat this as change
 
 		setTimeout(() => renameSync(toWatch.fsPath, toWatchRenamed.fsPath), 50);
+		await promise;
 	});
 
-	(runWatchTests ? test : test.skip)('watch - file (atomic save)', function (done) {
+	(runWatchTests ? test : test.skip)('watch - file (atomic save)', async () => {
 		const toWatch = URI.file(join(testDir, 'index-watch2.html'));
 		writeFileSync(toWatch.fsPath, 'Init');
 
-		assertWatch(toWatch, [[FileChangeType.UPDATED, toWatch]], done);
+		const promise = assertWatch(toWatch, [[FileChangeType.UPDATED, toWatch]]);
 
 		setTimeout(() => {
 			// Simulate atomic save by deleting the file, creating it under different name
@@ -2084,79 +2083,81 @@ suite('Disk File Service', function () {
 			writeFileSync(renamed, 'Changes');
 			renameSync(renamed, toWatch.fsPath);
 		}, 50);
+
+		await promise;
 	});
 
-	(runWatchTests ? test : test.skip)('watch - folder (non recursive) - change file', done => {
+	(runWatchTests ? test : test.skip)('watch - folder (non recursive) - change file', async () => {
 		const watchDir = URI.file(join(testDir, 'watch3'));
 		mkdirSync(watchDir.fsPath);
 
 		const file = URI.file(join(watchDir.fsPath, 'index.html'));
 		writeFileSync(file.fsPath, 'Init');
 
-		assertWatch(watchDir, [[FileChangeType.UPDATED, file]], done);
-
+		const promise = assertWatch(watchDir, [[FileChangeType.UPDATED, file]]);
 		setTimeout(() => writeFileSync(file.fsPath, 'Changes'), 50);
+		await promise;
 	});
 
-	(runWatchTests ? test : test.skip)('watch - folder (non recursive) - add file', done => {
+	(runWatchTests ? test : test.skip)('watch - folder (non recursive) - add file', async () => {
 		const watchDir = URI.file(join(testDir, 'watch4'));
 		mkdirSync(watchDir.fsPath);
 
 		const file = URI.file(join(watchDir.fsPath, 'index.html'));
 
-		assertWatch(watchDir, [[FileChangeType.ADDED, file]], done);
-
+		const promise = assertWatch(watchDir, [[FileChangeType.ADDED, file]]);
 		setTimeout(() => writeFileSync(file.fsPath, 'Changes'), 50);
+		await promise;
 	});
 
-	(runWatchTests ? test : test.skip)('watch - folder (non recursive) - delete file', done => {
+	(runWatchTests ? test : test.skip)('watch - folder (non recursive) - delete file', async () => {
 		const watchDir = URI.file(join(testDir, 'watch5'));
 		mkdirSync(watchDir.fsPath);
 
 		const file = URI.file(join(watchDir.fsPath, 'index.html'));
 		writeFileSync(file.fsPath, 'Init');
 
-		assertWatch(watchDir, [[FileChangeType.DELETED, file]], done);
-
+		const promise = assertWatch(watchDir, [[FileChangeType.DELETED, file]]);
 		setTimeout(() => unlinkSync(file.fsPath), 50);
+		await promise;
 	});
 
-	(runWatchTests ? test : test.skip)('watch - folder (non recursive) - add folder', done => {
+	(runWatchTests ? test : test.skip)('watch - folder (non recursive) - add folder', async () => {
 		const watchDir = URI.file(join(testDir, 'watch6'));
 		mkdirSync(watchDir.fsPath);
 
 		const folder = URI.file(join(watchDir.fsPath, 'folder'));
 
-		assertWatch(watchDir, [[FileChangeType.ADDED, folder]], done);
-
+		const promise = assertWatch(watchDir, [[FileChangeType.ADDED, folder]]);
 		setTimeout(() => mkdirSync(folder.fsPath), 50);
+		await promise;
 	});
 
-	(runWatchTests ? test : test.skip)('watch - folder (non recursive) - delete folder', done => {
+	(runWatchTests ? test : test.skip)('watch - folder (non recursive) - delete folder', async () => {
 		const watchDir = URI.file(join(testDir, 'watch7'));
 		mkdirSync(watchDir.fsPath);
 
 		const folder = URI.file(join(watchDir.fsPath, 'folder'));
 		mkdirSync(folder.fsPath);
 
-		assertWatch(watchDir, [[FileChangeType.DELETED, folder]], done);
-
+		const promise = assertWatch(watchDir, [[FileChangeType.DELETED, folder]]);
 		setTimeout(() => rimrafSync(folder.fsPath), 50);
+		await promise;
 	});
 
-	(runWatchTests && !isWindows /* symbolic links not reliable on windows */ ? test : test.skip)('watch - folder (non recursive) - symbolic link - change file', async done => {
+	(runWatchTests && !isWindows /* symbolic links not reliable on windows */ ? test : test.skip)('watch - folder (non recursive) - symbolic link - change file', async () => {
 		const watchDir = URI.file(join(testDir, 'deep-link'));
 		await symlink(join(testDir, 'deep'), watchDir.fsPath);
 
 		const file = URI.file(join(watchDir.fsPath, 'index.html'));
 		writeFileSync(file.fsPath, 'Init');
 
-		assertWatch(watchDir, [[FileChangeType.UPDATED, file]], done);
-
+		const promise = assertWatch(watchDir, [[FileChangeType.UPDATED, file]]);
 		setTimeout(() => writeFileSync(file.fsPath, 'Changes'), 50);
+		await promise;
 	});
 
-	(runWatchTests ? test : test.skip)('watch - folder (non recursive) - rename file', done => {
+	(runWatchTests ? test : test.skip)('watch - folder (non recursive) - rename file', async () => {
 		const watchDir = URI.file(join(testDir, 'watch8'));
 		mkdirSync(watchDir.fsPath);
 
@@ -2165,12 +2166,12 @@ suite('Disk File Service', function () {
 
 		const fileRenamed = URI.file(join(watchDir.fsPath, 'index-renamed.html'));
 
-		assertWatch(watchDir, [[FileChangeType.DELETED, file], [FileChangeType.ADDED, fileRenamed]], done);
-
+		const promise = assertWatch(watchDir, [[FileChangeType.DELETED, file], [FileChangeType.ADDED, fileRenamed]]);
 		setTimeout(() => renameSync(file.fsPath, fileRenamed.fsPath), 50);
+		await promise;
 	});
 
-	(runWatchTests && isLinux /* this test requires a case sensitive file system */ ? test : test.skip)('watch - folder (non recursive) - rename file (different case)', done => {
+	(runWatchTests && isLinux /* this test requires a case sensitive file system */ ? test : test.skip)('watch - folder (non recursive) - rename file (different case)', async () => {
 		const watchDir = URI.file(join(testDir, 'watch8'));
 		mkdirSync(watchDir.fsPath);
 
@@ -2179,46 +2180,48 @@ suite('Disk File Service', function () {
 
 		const fileRenamed = URI.file(join(watchDir.fsPath, 'INDEX.html'));
 
-		assertWatch(watchDir, [[FileChangeType.DELETED, file], [FileChangeType.ADDED, fileRenamed]], done);
-
+		const promise = assertWatch(watchDir, [[FileChangeType.DELETED, file], [FileChangeType.ADDED, fileRenamed]]);
 		setTimeout(() => renameSync(file.fsPath, fileRenamed.fsPath), 50);
+		await promise;
 	});
 
-	function assertWatch(toWatch: URI, expected: [FileChangeType, URI][], done: MochaDone): void {
-		const watcherDisposable = service.watch(toWatch);
+	function assertWatch(toWatch: URI, expected: [FileChangeType, URI][]): Promise<void> {
+		return new Promise<void>((resolve, reject) => {
+			const watcherDisposable = service.watch(toWatch);
 
-		function toString(type: FileChangeType): string {
-			switch (type) {
-				case FileChangeType.ADDED: return 'added';
-				case FileChangeType.DELETED: return 'deleted';
-				case FileChangeType.UPDATED: return 'updated';
-			}
-		}
-
-		function printEvents(event: FileChangesEvent): string {
-			return event.changes.map(change => `Change: type ${toString(change.type)} path ${change.resource.toString()}`).join('\n');
-		}
-
-		const listenerDisposable = service.onDidFilesChange(event => {
-			watcherDisposable.dispose();
-			listenerDisposable.dispose();
-
-			try {
-				assert.equal(event.changes.length, expected.length, `Expected ${expected.length} events, but got ${event.changes.length}. Details (${printEvents(event)})`);
-
-				if (expected.length === 1) {
-					assert.equal(event.changes[0].type, expected[0][0], `Expected ${toString(expected[0][0])} but got ${toString(event.changes[0].type)}. Details (${printEvents(event)})`);
-					assert.equal(event.changes[0].resource.fsPath, expected[0][1].fsPath);
-				} else {
-					for (const expect of expected) {
-						assert.equal(hasChange(event.changes, expect[0], expect[1]), true, `Unable to find ${toString(expect[0])} for ${expect[1].fsPath}. Details (${printEvents(event)})`);
-					}
+			function toString(type: FileChangeType): string {
+				switch (type) {
+					case FileChangeType.ADDED: return 'added';
+					case FileChangeType.DELETED: return 'deleted';
+					case FileChangeType.UPDATED: return 'updated';
 				}
-
-				done();
-			} catch (error) {
-				done(error);
 			}
+
+			function printEvents(event: FileChangesEvent): string {
+				return event.changes.map(change => `Change: type ${toString(change.type)} path ${change.resource.toString()}`).join('\n');
+			}
+
+			const listenerDisposable = service.onDidFilesChange(event => {
+				watcherDisposable.dispose();
+				listenerDisposable.dispose();
+
+				try {
+					assert.equal(event.changes.length, expected.length, `Expected ${expected.length} events, but got ${event.changes.length}. Details (${printEvents(event)})`);
+
+					if (expected.length === 1) {
+						assert.equal(event.changes[0].type, expected[0][0], `Expected ${toString(expected[0][0])} but got ${toString(event.changes[0].type)}. Details (${printEvents(event)})`);
+						assert.equal(event.changes[0].resource.fsPath, expected[0][1].fsPath);
+					} else {
+						for (const expect of expected) {
+							assert.equal(hasChange(event.changes, expect[0], expect[1]), true, `Unable to find ${toString(expect[0])} for ${expect[1].fsPath}. Details (${printEvents(event)})`);
+						}
+					}
+
+					resolve();
+				} catch (error) {
+					reject(error);
+				}
+			});
 		});
 	}
 

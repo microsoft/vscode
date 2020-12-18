@@ -123,11 +123,11 @@ export class ForwardedPortsView extends Disposable implements IWorkbenchContribu
 	}
 
 	private async updateActivityBadge() {
-		if (this._activityBadge) {
-			this._activityBadge.dispose();
-		}
 		if (!(await this.usePanelTreatment())) {
 			return;
+		}
+		if (this._activityBadge) {
+			this._activityBadge.dispose();
 		}
 		if (this.remoteExplorerService.tunnelModel.forwarded.size > 0) {
 			const viewContainer = this.viewDescriptorService.getViewContainerByViewId(TUNNEL_VIEW_ID);

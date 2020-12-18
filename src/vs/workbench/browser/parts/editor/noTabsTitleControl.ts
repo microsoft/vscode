@@ -15,6 +15,7 @@ import { CLOSE_EDITOR_COMMAND_ID } from 'vs/workbench/browser/parts/editor/edito
 import { Color } from 'vs/base/common/color';
 import { withNullAsUndefined, assertIsDefined, assertAllDefined } from 'vs/base/common/types';
 import { IEditorGroupTitleDimensions } from 'vs/workbench/browser/parts/editor/editor';
+import { equals } from 'vs/base/common/objects';
 
 interface IRenderedEditorLabel {
 	editor?: IEditorInput;
@@ -188,7 +189,7 @@ export class NoTabsTitleControl extends TitleControl {
 	}
 
 	updateOptions(oldOptions: IEditorPartOptions, newOptions: IEditorPartOptions): void {
-		if (oldOptions.labelFormat !== newOptions.labelFormat) {
+		if (oldOptions.labelFormat !== newOptions.labelFormat || !equals(oldOptions.decorations, newOptions.decorations)) {
 			this.redraw();
 		}
 	}
@@ -236,6 +237,7 @@ export class NoTabsTitleControl extends TitleControl {
 
 	private redraw(): void {
 		const editor = withNullAsUndefined(this.group.activeEditor);
+		const options = this.accessor.partOptions;
 
 		const isEditorPinned = editor ? this.group.isPinned(editor) : false;
 		const isGroupActive = this.accessor.activeGroup === this.group;
@@ -291,14 +293,18 @@ export class NoTabsTitleControl extends TitleControl {
 				{
 					title,
 					italic: !isEditorPinned,
-					extraClasses: ['no-tabs', 'title-label']
+					extraClasses: ['no-tabs', 'title-label'],
+					fileDecorations: {
+						colors: Boolean(options.decorations?.colors),
+						badges: Boolean(options.decorations?.badges)
+					},
 				}
 			);
 
 			if (isGroupActive) {
-				editorLabel.element.style.color = this.getColor(TAB_ACTIVE_FOREGROUND) || '';
+				titleContainer.style.color = this.getColor(TAB_ACTIVE_FOREGROUND) || '';
 			} else {
-				editorLabel.element.style.color = this.getColor(TAB_UNFOCUSED_ACTIVE_FOREGROUND) || '';
+				titleContainer.style.color = this.getColor(TAB_UNFOCUSED_ACTIVE_FOREGROUND) || '';
 			}
 
 			// Update Editor Actions Toolbar

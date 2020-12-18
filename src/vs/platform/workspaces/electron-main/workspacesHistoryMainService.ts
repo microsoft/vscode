@@ -6,7 +6,7 @@
 import { localize } from 'vs/nls';
 import { coalesce } from 'vs/base/common/arrays';
 import { IStateService } from 'vs/platform/state/node/state';
-import { app, JumpListCategory } from 'electron';
+import { app, JumpListCategory, JumpListItem } from 'electron';
 import { ILogService } from 'vs/platform/log/common/log';
 import { getBaseLabel, getPathLabel, splitName } from 'vs/base/common/labels';
 import { Event as CommonEvent, Emitter } from 'vs/base/common/event';
@@ -350,34 +350,40 @@ export class WorkspacesHistoryMainService extends Disposable implements IWorkspa
 			this.removeRecentlyOpened(toRemove);
 
 			// Add entries
-			jumpList.push({
-				type: 'custom',
-				name: localize('recentFolders', "Recent Workspaces"),
-				items: coalesce(this.getRecentlyOpened().workspaces.slice(0, 7 /* limit number of entries here */).map(recent => {
-					const workspace = isRecentWorkspace(recent) ? recent.workspace : recent.folderUri;
-					const title = recent.label ? splitName(recent.label).name : this.getSimpleWorkspaceLabel(workspace, this.environmentService.untitledWorkspacesHome);
+			let hasWorkspaces = false;
+			const items: JumpListItem[] = coalesce(this.getRecentlyOpened().workspaces.slice(0, 7 /* limit number of entries here */).map(recent => {
+				const workspace = isRecentWorkspace(recent) ? recent.workspace : recent.folderUri;
+				const title = recent.label ? splitName(recent.label).name : this.getSimpleWorkspaceLabel(workspace, this.environmentService.untitledWorkspacesHome);
 
-					let description;
-					let args;
-					if (isSingleFolderWorkspaceIdentifier(workspace)) {
-						description = localize('folderDesc', "{0} {1}", getBaseLabel(workspace), getPathLabel(dirname(workspace), this.environmentService));
-						args = `--folder-uri "${workspace.toString()}"`;
-					} else {
-						description = localize('workspaceDesc', "{0} {1}", getBaseLabel(workspace.configPath), getPathLabel(dirname(workspace.configPath), this.environmentService));
-						args = `--file-uri "${workspace.configPath.toString()}"`;
-					}
+				let description;
+				let args;
+				if (isSingleFolderWorkspaceIdentifier(workspace)) {
+					description = localize('folderDesc', "{0} {1}", getBaseLabel(workspace), getPathLabel(dirname(workspace), this.environmentService));
+					args = `--folder-uri "${workspace.toString()}"`;
+				} else {
+					hasWorkspaces = true;
+					description = localize('workspaceDesc', "{0} {1}", getBaseLabel(workspace.configPath), getPathLabel(dirname(workspace.configPath), this.environmentService));
+					args = `--file-uri "${workspace.configPath.toString()}"`;
+				}
 
-					return {
-						type: 'task',
-						title: title.substr(0, 255), 				// Windows seems to be picky around the length of entries
-						description: description.substr(0, 255),	// (see https://github.com/microsoft/vscode/issues/111177)
-						program: process.execPath,
-						args,
-						iconPath: 'explorer.exe', // simulate folder icon
-						iconIndex: 0
-					};
-				}))
-			});
+				return {
+					type: 'task',
+					title: title.substr(0, 255), 				// Windows seems to be picky around the length of entries
+					description: description.substr(0, 255),	// (see https://github.com/microsoft/vscode/issues/111177)
+					program: process.execPath,
+					args,
+					iconPath: 'explorer.exe', // simulate folder icon
+					iconIndex: 0
+				};
+			}));
+
+			if (items.length > 0) {
+				jumpList.push({
+					type: 'custom',
+					name: hasWorkspaces ? localize('recentFoldersAndWorkspaces', "Recent Folders & Workspaces") : localize('recentFolders', "Recent Folders"),
+					items
+				});
+			}
 		}
 
 		// Recent

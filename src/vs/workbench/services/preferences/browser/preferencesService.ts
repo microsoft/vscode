@@ -246,7 +246,7 @@ export class PreferencesService extends Disposable implements IPreferencesServic
 			jsonEditor;
 
 		if (!this.workspaceSettingsResource) {
-			this.notificationService.info(nls.localize('openFolderFirst', "Open a folder first to create workspace settings"));
+			this.notificationService.info(nls.localize('openFolderFirst', "Open a folder or workspace first to create workspace or folder settings."));
 			return Promise.reject(null);
 		}
 

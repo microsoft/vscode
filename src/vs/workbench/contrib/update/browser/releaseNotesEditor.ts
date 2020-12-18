@@ -4,9 +4,14 @@
  *--------------------------------------------------------------------------------------------*/
 
 import 'vs/css!./media/releasenoteseditor';
+import { CancellationToken } from 'vs/base/common/cancellation';
 import { onUnexpectedError } from 'vs/base/common/errors';
+import { escapeMarkdownSyntaxTokens } from 'vs/base/common/htmlContent';
+import { KeybindingParser } from 'vs/base/common/keybindingParser';
 import { OS } from 'vs/base/common/platform';
+import { escape } from 'vs/base/common/strings';
 import { URI } from 'vs/base/common/uri';
+import { generateUuid } from 'vs/base/common/uuid';
 import { TokenizationRegistry } from 'vs/editor/common/modes';
 import { generateTokensCSSForColorMap } from 'vs/editor/common/modes/supports/tokenization';
 import { IModeService } from 'vs/editor/common/services/modeService';
@@ -15,18 +20,15 @@ import { IEnvironmentService } from 'vs/platform/environment/common/environment'
 import { ServicesAccessor } from 'vs/platform/instantiation/common/instantiation';
 import { IKeybindingService } from 'vs/platform/keybinding/common/keybinding';
 import { IOpenerService } from 'vs/platform/opener/common/opener';
-import { IRequestService, asText } from 'vs/platform/request/common/request';
-import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
 import { IProductService } from 'vs/platform/product/common/productService';
-import { IWebviewWorkbenchService } from 'vs/workbench/contrib/webviewPanel/browser/webviewWorkbenchService';
-import { IEditorService, ACTIVE_GROUP } from 'vs/workbench/services/editor/common/editorService';
-import { WebviewInput } from 'vs/workbench/contrib/webviewPanel/browser/webviewEditorInput';
-import { KeybindingParser } from 'vs/base/common/keybindingParser';
-import { CancellationToken } from 'vs/base/common/cancellation';
-import { IExtensionService } from 'vs/workbench/services/extensions/common/extensions';
-import { IEditorGroupsService } from 'vs/workbench/services/editor/common/editorGroupsService';
-import { generateUuid } from 'vs/base/common/uuid';
+import { asText, IRequestService } from 'vs/platform/request/common/request';
+import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
 import { renderMarkdownDocument } from 'vs/workbench/contrib/markdown/common/markdownDocumentRenderer';
+import { WebviewInput } from 'vs/workbench/contrib/webviewPanel/browser/webviewEditorInput';
+import { IWebviewWorkbenchService } from 'vs/workbench/contrib/webviewPanel/browser/webviewWorkbenchService';
+import { IEditorGroupsService } from 'vs/workbench/services/editor/common/editorGroupsService';
+import { ACTIVE_GROUP, IEditorService } from 'vs/workbench/services/editor/common/editorService';
+import { IExtensionService } from 'vs/workbench/services/extensions/common/extensions';
 
 export class ReleaseNotesManager {
 
@@ -106,6 +108,10 @@ export class ReleaseNotesManager {
 		const url = `${baseUrl}/v${versionLabel}.md`;
 		const unassigned = nls.localize('unassigned', "unassigned");
 
+		const escapeMdHtml = (text: string): string => {
+			return escape(text).replace(/\\/g, '\\\\');
+		};
+
 		const patchKeybindings = (text: string): string => {
 			const kb = (match: string, kb: string) => {
 				const keybinding = this._keybindingService.lookupKeybinding(kb);
@@ -135,19 +141,19 @@ export class ReleaseNotesManager {
 
 			const kbCode = (match: string, binding: string) => {
 				const resolved = kb(match, binding);
-				return resolved ? `<code title="${binding}">${resolved}</code>` : resolved;
+				return resolved ? `<code title="${binding}">${escapeMdHtml(resolved)}</code>` : resolved;
 			};
 
 			const kbstyleCode = (match: string, binding: string) => {
 				const resolved = kbstyle(match, binding);
-				return resolved ? `<code title="${binding}">${resolved}</code>` : resolved;
+				return resolved ? `<code title="${binding}">${escapeMdHtml(resolved)}</code>` : resolved;
 			};
 
 			return text
 				.replace(/`kb\(([a-z.\d\-]+)\)`/gi, kbCode)
 				.replace(/`kbstyle\(([^\)]+)\)`/gi, kbstyleCode)
-				.replace(/kb\(([a-z.\d\-]+)\)/gi, kb)
-				.replace(/kbstyle\(([^\)]+)\)/gi, kbstyle);
+				.replace(/kb\(([a-z.\d\-]+)\)/gi, (match, binding) => escapeMarkdownSyntaxTokens(kb(match, binding)))
+				.replace(/kbstyle\(([^\)]+)\)/gi, (match, binding) => escapeMarkdownSyntaxTokens(kbstyle(match, binding)));
 		};
 
 		const fetchReleaseNotes = async () => {

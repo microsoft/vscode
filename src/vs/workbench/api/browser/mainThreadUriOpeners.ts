@@ -16,7 +16,7 @@ import { extHostNamedCustomer } from '../common/extHostCustomers';
 export class MainThreadUriOpeners implements MainThreadUriOpenersShape, IOpener {
 
 	private readonly proxy: ExtHostUriOpenersShape;
-	private readonly handlers = new Set<number>();
+	private readonly handlers = new Map<number, { schemes: ReadonlySet<string> }>();
 
 	constructor(
 		context: IExtHostContext,
@@ -41,16 +41,17 @@ export class MainThreadUriOpeners implements MainThreadUriOpenersShape, IOpener 
 
 		await this.extensionService.activateByEvent(`onUriOpen:${targetUri.scheme}`);
 
-		// No handlers so no point in making a rount trip
-		if (!this.handlers.size) {
+		// If there are no handlers there is no point in making a round trip
+		const hasHandler = Array.from(this.handlers.values()).some(x => x.schemes.has(targetUri.scheme));
+		if (!hasHandler) {
 			return false;
 		}
 
 		return await this.proxy.$openUri(targetUri, CancellationToken.None);
 	}
 
-	async $registerUriOpener(handle: number): Promise<void> {
-		this.handlers.add(handle);
+	async $registerUriOpener(handle: number, schemes: readonly string[]): Promise<void> {
+		this.handlers.set(handle, { schemes: new Set(schemes) });
 	}
 
 	async $unregisterUriOpener(handle: number): Promise<void> {

@@ -69,7 +69,6 @@ export interface IBulkEditOptions {
 	progress?: IProgress<IProgressStep>;
 	token?: CancellationToken;
 	showPreview?: boolean;
-	suppressPreview?: boolean;
 	label?: string;
 	quotableLabel?: string;
 	undoRedoSource?: UndoRedoSource;
