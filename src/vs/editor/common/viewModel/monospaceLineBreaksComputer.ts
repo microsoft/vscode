@@ -448,6 +448,10 @@ function computeCharWidth(charCode: number, visibleColumn: number, tabSize: numb
 	if (strings.isFullWidthCharacter(charCode)) {
 		return columnsForFullWidthChar;
 	}
+	if (charCode < 32) {
+		// when using `editor.renderControlCharacters`, the substitutions are often wide
+		return columnsForFullWidthChar;
+	}
 	return 1;
 }
 
