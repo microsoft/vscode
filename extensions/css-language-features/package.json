@@ -808,7 +808,8 @@
   },
   "dependencies": {
     "vscode-languageclient": "^7.0.0",
-    "vscode-nls": "^4.1.2"
+    "vscode-nls": "^4.1.2",
+    "vscode-uri": "^3.0.0"
   },
   "devDependencies": {
     "@types/node": "^12.11.7"
