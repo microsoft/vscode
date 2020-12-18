@@ -232,6 +232,7 @@ export class Repl extends ViewPane implements IHistoryNavigationWidget {
 				this.replInput.setModel(this.model);
 				this.updateInputDecoration();
 				this.refreshReplElements(true);
+				this.layoutBody(this.dimension.height, this.dimension.width);
 			}
 		}));
 		this._register(this.configurationService.onDidChangeConfiguration(e => {
