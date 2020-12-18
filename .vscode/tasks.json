@@ -66,13 +66,31 @@
 		},
 		{
 			"type": "npm",
-			"script": "kill-watchd",
-			"label": "Kill Build VS Code",
+			"script": "kill-watch-clientd",
+			"label": "Kill Build VS Code Core",
 			"group": "build",
 			"presentation": {
 				"reveal": "never"
 			},
 			"problemMatcher": "$tsc"
+		},
+		{
+			"type": "npm",
+			"script": "kill-watch-extensionsd",
+			"label": "Kill Build VS Code Extensions",
+			"group": "build",
+			"presentation": {
+				"reveal": "never"
+			},
+			"problemMatcher": "$tsc"
+		},
+		{
+			"label": "Kill Build VS Code",
+			"dependsOn": [
+				"Kill Build VS Code Core",
+				"Kill Build VS Code Extensions"
+			],
+			"group": "build"
 		},
 		{
 			"type": "npm",
@@ -107,7 +125,7 @@
 			"label": "Kill Build Web Extensions",
 			"group": "build",
 			"presentation": {
-				"reveal": "never",
+				"reveal": "never"
 			},
 			"problemMatcher": "$tsc"
 		},
@@ -168,6 +186,28 @@
 				"source": "eslint",
 				"base": "$eslint-stylish"
 			}
+		},
+		{
+			"type": "shell",
+			"command": "node build/lib/preLaunch.js",
+			"label": "Ensure Prelaunch Dependencies",
+			"presentation": {
+				"reveal": "silent"
+			}
+		},
+		{
+			"type": "npm",
+			"script": "tsec-compile-check",
+			"problemMatcher": [
+				{
+					"base": "$tsc",
+					"applyTo": "allDocuments",
+					"owner": "tsec"
+				},
+			],
+			"group": "build",
+			"label": "npm: tsec-compile-check",
+			"detail": "node_modules/tsec/bin/tsec -p src/tsconfig.json --noEmit"
 		}
 	]
 }

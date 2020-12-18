@@ -58,7 +58,7 @@ suite('Workbench - TextModelResolverService', () => {
 		assert.ok(model);
 		assert.equal(snapshotToString(((model as ResourceEditorModel).createSnapshot()!)), 'Hello Test');
 		let disposed = false;
-		let disposedPromise = new Promise(resolve => {
+		let disposedPromise = new Promise<void>(resolve => {
 			Event.once(model.onDispose)(() => {
 				disposed = true;
 				resolve();
@@ -201,7 +201,7 @@ suite('Workbench - TextModelResolverService', () => {
 		modelRef1.dispose();
 		assert(!textModel.isDisposed(), 'the text model should still not be disposed');
 
-		let p1 = new Promise(resolve => textModel.onWillDispose(resolve));
+		let p1 = new Promise<void>(resolve => textModel.onWillDispose(resolve));
 		modelRef2.dispose();
 
 		await p1;

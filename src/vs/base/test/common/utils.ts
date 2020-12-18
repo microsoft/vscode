@@ -25,21 +25,21 @@ export class DeferredPromise<T> {
 	}
 
 	public complete(value: T) {
-		return new Promise(resolve => {
+		return new Promise<void>(resolve => {
 			this.completeCallback(value);
 			resolve();
 		});
 	}
 
 	public error(err: any) {
-		return new Promise(resolve => {
+		return new Promise<void>(resolve => {
 			this.errorCallback(err);
 			resolve();
 		});
 	}
 
 	public cancel() {
-		new Promise(resolve => {
+		new Promise<void>(resolve => {
 			this.errorCallback(canceled());
 			resolve();
 		});
@@ -60,12 +60,8 @@ export function suiteRepeat(n: number, description: string, callback: (this: any
 	}
 }
 
-export function testRepeat(n: number, description: string, callback: (this: any, done: MochaDone) => any): void {
+export function testRepeat(n: number, description: string, callback: (this: any) => any): void {
 	for (let i = 0; i < n; i++) {
 		test(`${description} (iteration ${i})`, callback);
 	}
-}
-
-export function testRepeatOnly(n: number, description: string, callback: (this: any, done: MochaDone) => any): void {
-	suite.only('repeat', () => testRepeat(n, description, callback));
 }

@@ -3,17 +3,38 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { IWindowOpenable, IOpenEmptyWindowOptions } from 'vs/platform/windows/common/windows';
-import { INativeWindowConfiguration, OpenContext } from 'vs/platform/windows/node/window';
-import { ParsedArgs } from 'vs/platform/environment/node/argv';
+import { IWindowOpenable, IOpenEmptyWindowOptions, INativeWindowConfiguration } from 'vs/platform/windows/common/windows';
+import { NativeParsedArgs } from 'vs/platform/environment/common/argv';
 import { Event } from 'vs/base/common/event';
 import { createDecorator } from 'vs/platform/instantiation/common/instantiation';
 import { IProcessEnvironment } from 'vs/base/common/platform';
 import { IWorkspaceIdentifier } from 'vs/platform/workspaces/common/workspaces';
 import { ISerializableCommandAction } from 'vs/platform/actions/common/actions';
 import { URI } from 'vs/base/common/uri';
-import { Rectangle, BrowserWindow } from 'electron';
+import { Rectangle, BrowserWindow, WebContents } from 'electron';
 import { IDisposable } from 'vs/base/common/lifecycle';
+import { CancellationToken } from 'vs/base/common/cancellation';
+
+export const enum OpenContext {
+
+	// opening when running from the command line
+	CLI,
+
+	// macOS only: opening from the dock (also when opening files to a running instance from desktop)
+	DOCK,
+
+	// opening from the main application window
+	MENU,
+
+	// opening from a file or folder dialog
+	DIALOG,
+
+	// opening from the OS's UI
+	DESKTOP,
+
+	// opening through the API
+	API
+}
 
 export interface IWindowState {
 	width?: number;
@@ -32,6 +53,11 @@ export const enum WindowMode {
 }
 
 export interface ICodeWindow extends IDisposable {
+
+	readonly onLoad: Event<void>;
+	readonly onReady: Event<void>;
+	readonly onClose: Event<void>;
+	readonly onDestroy: Event<void>;
 
 	readonly whenClosedOrLoaded: Promise<void>;
 
@@ -59,15 +85,15 @@ export interface ICodeWindow extends IDisposable {
 	addTabbedWindow(window: ICodeWindow): void;
 
 	load(config: INativeWindowConfiguration, isReload?: boolean): void;
-	reload(configuration?: INativeWindowConfiguration, cli?: ParsedArgs): void;
+	reload(cli?: NativeParsedArgs): void;
 
-	focus(): void;
+	focus(options?: { force: boolean }): void;
 	close(): void;
 
 	getBounds(): Rectangle;
 
 	send(channel: string, ...args: any[]): void;
-	sendWhenReady(channel: string, ...args: any[]): void;
+	sendWhenReady(channel: string, token: CancellationToken, ...args: any[]): void;
 
 	readonly isFullScreen: boolean;
 	toggleFullScreen(): void;
@@ -98,21 +124,27 @@ export interface IWindowsMainService {
 
 	readonly _serviceBrand: undefined;
 
-	readonly onWindowReady: Event<ICodeWindow>;
 	readonly onWindowsCountChanged: Event<IWindowsCountChangedEvent>;
+
+	readonly onWindowOpened: Event<ICodeWindow>;
+	readonly onWindowReady: Event<ICodeWindow>;
+	readonly onWindowDestroyed: Event<ICodeWindow>;
 
 	open(openConfig: IOpenConfiguration): ICodeWindow[];
 	openEmptyWindow(openConfig: IOpenEmptyConfiguration, options?: IOpenEmptyWindowOptions): ICodeWindow[];
 	openExtensionDevelopmentHostWindow(extensionDevelopmentPath: string[], openConfig: IOpenConfiguration): ICodeWindow[];
 
 	sendToFocused(channel: string, ...args: any[]): void;
-	sendToAll(channel: string, payload: any, windowIdsToIgnore?: number[]): void;
+	sendToAll(channel: string, payload?: any, windowIdsToIgnore?: number[]): void;
 
+	getWindows(): ICodeWindow[];
+	getWindowCount(): number;
+
+	getFocusedWindow(): ICodeWindow | undefined;
 	getLastActiveWindow(): ICodeWindow | undefined;
 
 	getWindowById(windowId: number): ICodeWindow | undefined;
-	getWindows(): ICodeWindow[];
-	getWindowCount(): number;
+	getWindowByWebContents(webContents: WebContents): ICodeWindow | undefined;
 }
 
 export interface IBaseOpenConfiguration {
@@ -121,7 +153,7 @@ export interface IBaseOpenConfiguration {
 }
 
 export interface IOpenConfiguration extends IBaseOpenConfiguration {
-	readonly cli: ParsedArgs;
+	readonly cli: NativeParsedArgs;
 	readonly userEnv?: IProcessEnvironment;
 	readonly urisToOpen?: IWindowOpenable[];
 	readonly waitMarkerFileURI?: URI;

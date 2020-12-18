@@ -9,7 +9,7 @@ import { IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
 import { IConfigurationService, IConfigurationChangeEvent } from 'vs/platform/configuration/common/configuration';
 import { ILabelService } from 'vs/platform/label/common/label';
 import { IStorageService } from 'vs/platform/storage/common/storage';
-import { IWorkbenchEnvironmentService } from 'vs/workbench/services/environment/common/environmentService';
+import { INativeWorkbenchEnvironmentService } from 'vs/workbench/services/environment/electron-sandbox/environmentService';
 import { IHostService } from 'vs/workbench/services/host/browser/host';
 import { isMacintosh, isWindows, isLinux } from 'vs/base/common/platform';
 import { IMenuService } from 'vs/platform/actions/common/actions';
@@ -20,7 +20,7 @@ import { IWorkspaceContextService } from 'vs/platform/workspace/common/workspace
 import { IThemeService } from 'vs/platform/theme/common/themeService';
 import { IWorkbenchLayoutService } from 'vs/workbench/services/layout/browser/layoutService';
 import { IProductService } from 'vs/platform/product/common/productService';
-import { IElectronService } from 'vs/platform/electron/electron-sandbox/electron';
+import { INativeHostService } from 'vs/platform/native/electron-sandbox/native';
 import { getTitleBarStyle } from 'vs/platform/windows/common/windows';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { Codicon } from 'vs/base/common/codicons';
@@ -32,11 +32,23 @@ export class TitlebarPart extends BrowserTitleBarPart {
 	private dragRegion: HTMLElement | undefined;
 	private resizer: HTMLElement | undefined;
 
+	private getMacTitlebarSize() {
+		const osVersion = this.environmentService.os.release;
+		if (parseFloat(osVersion) >= 20) { // Big Sur increases title bar height
+			return 28;
+		}
+
+		return 22;
+	}
+
+	get minimumHeight(): number { return isMacintosh ? this.getMacTitlebarSize() / getZoomFactor() : super.minimumHeight; }
+	get maximumHeight(): number { return this.minimumHeight; }
+
 	constructor(
 		@IContextMenuService contextMenuService: IContextMenuService,
 		@IConfigurationService protected readonly configurationService: IConfigurationService,
 		@IEditorService editorService: IEditorService,
-		@IWorkbenchEnvironmentService protected readonly environmentService: IWorkbenchEnvironmentService,
+		@INativeWorkbenchEnvironmentService protected readonly environmentService: INativeWorkbenchEnvironmentService,
 		@IWorkspaceContextService contextService: IWorkspaceContextService,
 		@IInstantiationService instantiationService: IInstantiationService,
 		@IThemeService themeService: IThemeService,
@@ -47,7 +59,7 @@ export class TitlebarPart extends BrowserTitleBarPart {
 		@IContextKeyService contextKeyService: IContextKeyService,
 		@IHostService hostService: IHostService,
 		@IProductService productService: IProductService,
-		@IElectronService private readonly electronService: IElectronService
+		@INativeHostService private readonly nativeHostService: INativeHostService
 	) {
 		super(contextMenuService, configurationService, editorService, environmentService, contextService, instantiationService, themeService, labelService, storageService, layoutService, menuService, contextKeyService, hostService, productService);
 	}
@@ -64,11 +76,11 @@ export class TitlebarPart extends BrowserTitleBarPart {
 	private onDidChangeMaximized(maximized: boolean) {
 		if (this.maxRestoreControl) {
 			if (maximized) {
-				DOM.removeClasses(this.maxRestoreControl, Codicon.chromeMaximize.classNames);
-				DOM.addClasses(this.maxRestoreControl, Codicon.chromeRestore.classNames);
+				this.maxRestoreControl.classList.remove(...Codicon.chromeMaximize.classNamesArray);
+				this.maxRestoreControl.classList.add(...Codicon.chromeRestore.classNamesArray);
 			} else {
-				DOM.removeClasses(this.maxRestoreControl, Codicon.chromeRestore.classNames);
-				DOM.addClasses(this.maxRestoreControl, Codicon.chromeMaximize.classNames);
+				this.maxRestoreControl.classList.remove(...Codicon.chromeRestore.classNamesArray);
+				this.maxRestoreControl.classList.add(...Codicon.chromeMaximize.classNamesArray);
 			}
 		}
 
@@ -159,7 +171,7 @@ export class TitlebarPart extends BrowserTitleBarPart {
 			this.onUpdateAppIconDragBehavior();
 
 			this._register(DOM.addDisposableListener(this.appIcon, DOM.EventType.DBLCLICK, (e => {
-				this.electronService.closeWindow();
+				this.nativeHostService.closeWindow();
 			})));
 		}
 
@@ -173,24 +185,24 @@ export class TitlebarPart extends BrowserTitleBarPart {
 			// Minimize
 			const minimizeIcon = DOM.append(this.windowControls, DOM.$('div.window-icon.window-minimize' + Codicon.chromeMinimize.cssSelector));
 			this._register(DOM.addDisposableListener(minimizeIcon, DOM.EventType.CLICK, e => {
-				this.electronService.minimizeWindow();
+				this.nativeHostService.minimizeWindow();
 			}));
 
 			// Restore
 			this.maxRestoreControl = DOM.append(this.windowControls, DOM.$('div.window-icon.window-max-restore'));
 			this._register(DOM.addDisposableListener(this.maxRestoreControl, DOM.EventType.CLICK, async e => {
-				const maximized = await this.electronService.isMaximized();
+				const maximized = await this.nativeHostService.isMaximized();
 				if (maximized) {
-					return this.electronService.unmaximizeWindow();
+					return this.nativeHostService.unmaximizeWindow();
 				}
 
-				return this.electronService.maximizeWindow();
+				return this.nativeHostService.maximizeWindow();
 			}));
 
 			// Close
 			const closeIcon = DOM.append(this.windowControls, DOM.$('div.window-icon.window-close' + Codicon.chromeClose.cssSelector));
 			this._register(DOM.addDisposableListener(closeIcon, DOM.EventType.CLICK, e => {
-				this.electronService.closeWindow();
+				this.nativeHostService.closeWindow();
 			}));
 
 			// Resizer
@@ -206,7 +218,7 @@ export class TitlebarPart extends BrowserTitleBarPart {
 	updateLayout(dimension: DOM.Dimension): void {
 		this.lastLayoutDimensions = dimension;
 
-		if (getTitleBarStyle(this.configurationService, this.environmentService) === 'custom') {
+		if (getTitleBarStyle(this.configurationService) === 'custom') {
 			// Only prevent zooming behavior on macOS or when the menubar is not visible
 			if (isMacintosh || this.currentMenubarVisibility === 'hidden') {
 				this.title.style.zoom = `${1 / getZoomFactor()}`;

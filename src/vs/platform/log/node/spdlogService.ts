@@ -6,6 +6,7 @@
 import * as path from 'vs/base/common/path';
 import { ILogService, LogLevel, AbstractLogService } from 'vs/platform/log/common/log';
 import * as spdlog from 'spdlog';
+import { ByteSize } from 'vs/platform/files/common/files';
 
 async function createSpdLogLogger(processName: string, logsFolder: string): Promise<spdlog.RotatingLogger | null> {
 	// Do not crash if spdlog cannot be loaded
@@ -13,7 +14,7 @@ async function createSpdLogLogger(processName: string, logsFolder: string): Prom
 		const _spdlog = await import('spdlog');
 		_spdlog.setAsyncMode(8192, 500);
 		const logfilePath = path.join(logsFolder, `${processName}.log`);
-		return _spdlog.createRotatingLoggerAsync(processName, logfilePath, 1024 * 1024 * 5, 6);
+		return _spdlog.createRotatingLoggerAsync(processName, logfilePath, 5 * ByteSize.MB, 6);
 	} catch (e) {
 		console.error(e);
 	}

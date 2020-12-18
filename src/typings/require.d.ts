@@ -41,6 +41,9 @@ declare const define: {
 };
 
 interface NodeRequire {
+	/**
+	 * @deprecated use `FileAccess.asFileUri()` for node.js contexts or `FileAccess.asBrowserUri` for browser contexts.
+	 */
 	toUrl(path: string): string;
 	(dependencies: string[], callback: (...args: any[]) => any, errorback?: (err: any) => void): any;
 	config(data: any): any;

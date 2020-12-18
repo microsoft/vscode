@@ -7,13 +7,14 @@ import * as assert from 'assert';
 import { Extensions as ThemeingExtensions, IColorRegistry, ColorIdentifier } from 'vs/platform/theme/common/colorRegistry';
 import { Registry } from 'vs/platform/registry/common/platform';
 import { ansiColorIdentifiers, registerColors } from 'vs/workbench/contrib/terminal/common/terminalColorRegistry';
-import { IColorTheme, ThemeType } from 'vs/platform/theme/common/themeService';
+import { IColorTheme } from 'vs/platform/theme/common/themeService';
 import { Color } from 'vs/base/common/color';
+import { ColorScheme } from 'vs/platform/theme/common/theme';
 
 registerColors();
 
 let themingRegistry = Registry.as<IColorRegistry>(ThemeingExtensions.ColorContribution);
-function getMockTheme(type: ThemeType): IColorTheme {
+function getMockTheme(type: ColorScheme): IColorTheme {
 	let theme = {
 		selector: '',
 		label: '',
@@ -30,7 +31,7 @@ function getMockTheme(type: ThemeType): IColorTheme {
 suite('Workbench - TerminalColorRegistry', () => {
 
 	test('hc colors', function () {
-		let theme = getMockTheme('hc');
+		let theme = getMockTheme(ColorScheme.HIGH_CONTRAST);
 		let colors = ansiColorIdentifiers.map(colorId => Color.Format.CSS.formatHexA(theme.getColor(colorId)!, true));
 
 		assert.deepEqual(colors, [
@@ -55,7 +56,7 @@ suite('Workbench - TerminalColorRegistry', () => {
 	});
 
 	test('light colors', function () {
-		let theme = getMockTheme('light');
+		let theme = getMockTheme(ColorScheme.LIGHT);
 		let colors = ansiColorIdentifiers.map(colorId => Color.Format.CSS.formatHexA(theme.getColor(colorId)!, true));
 
 		assert.deepEqual(colors, [
@@ -80,7 +81,7 @@ suite('Workbench - TerminalColorRegistry', () => {
 	});
 
 	test('dark colors', function () {
-		let theme = getMockTheme('dark');
+		let theme = getMockTheme(ColorScheme.DARK);
 		let colors = ansiColorIdentifiers.map(colorId => Color.Format.CSS.formatHexA(theme.getColor(colorId)!, true));
 
 		assert.deepEqual(colors, [

@@ -8,10 +8,10 @@ import { Event, Emitter } from 'vs/base/common/event';
 import { Disposable } from 'vs/base/common/lifecycle';
 import { ILogService, LogLevel } from 'vs/platform/log/common/log';
 import { IEnvironmentService } from 'vs/platform/environment/common/environment';
-import { INativeEnvironmentService } from 'vs/platform/environment/node/environmentService';
 import { SQLiteStorageDatabase, ISQLiteStorageDatabaseLoggingOptions } from 'vs/base/parts/storage/node/storage';
 import { Storage, IStorage, InMemoryStorageDatabase } from 'vs/base/parts/storage/common/storage';
 import { join } from 'vs/base/common/path';
+import { IS_NEW_KEY } from 'vs/platform/storage/common/storage';
 
 export const IStorageMainService = createDecorator<IStorageMainService>('storageMainService');
 
@@ -104,7 +104,7 @@ export class StorageMainService extends Disposable implements IStorageMainServic
 
 	constructor(
 		@ILogService private readonly logService: ILogService,
-		@IEnvironmentService private readonly environmentService: INativeEnvironmentService
+		@IEnvironmentService private readonly environmentService: IEnvironmentService
 	) {
 		super();
 
@@ -117,7 +117,7 @@ export class StorageMainService extends Disposable implements IStorageMainServic
 			return SQLiteStorageDatabase.IN_MEMORY_PATH; // no storage during extension tests!
 		}
 
-		return join(this.environmentService.globalStorageHome, StorageMainService.STORAGE_NAME);
+		return join(this.environmentService.globalStorageHome.fsPath, StorageMainService.STORAGE_NAME);
 	}
 
 	private createLogginOptions(): ISQLiteStorageDatabaseLoggingOptions {
@@ -135,7 +135,7 @@ export class StorageMainService extends Disposable implements IStorageMainServic
 		return this.initializePromise;
 	}
 
-	private doInitialize(): Promise<void> {
+	private async doInitialize(): Promise<void> {
 		this.storage.dispose();
 		this.storage = new Storage(new SQLiteStorageDatabase(this.storagePath, {
 			logging: this.createLogginOptions()
@@ -143,7 +143,15 @@ export class StorageMainService extends Disposable implements IStorageMainServic
 
 		this._register(this.storage.onDidChangeStorage(key => this._onDidChangeStorage.fire({ key })));
 
-		return this.storage.init();
+		await this.storage.init();
+
+		// Check to see if this is the first time we are "opening" the application
+		const firstOpen = this.storage.getBoolean(IS_NEW_KEY);
+		if (firstOpen === undefined) {
+			this.storage.set(IS_NEW_KEY, true);
+		} else if (firstOpen) {
+			this.storage.set(IS_NEW_KEY, false);
+		}
 	}
 
 	get(key: string, fallbackValue: string): string;

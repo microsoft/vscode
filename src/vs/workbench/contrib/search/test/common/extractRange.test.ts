@@ -36,7 +36,7 @@ suite('extractRangeFromFilter', () => {
 	});
 
 	test('allow space after path', async function () {
-		let res = extractRangeFromFilter('/some/path/file.txt (19,20)');
+		const res = extractRangeFromFilter('/some/path/file.txt (19,20)');
 
 		assert.equal(res?.filter, '/some/path/file.txt');
 		assert.equal(res?.range.startLineNumber, 19);
@@ -44,7 +44,7 @@ suite('extractRangeFromFilter', () => {
 	});
 
 	test('unless', async function () {
-		let res = extractRangeFromFilter('/some/path/file.txt@ (19,20)', ['@']);
+		const res = extractRangeFromFilter('/some/path/file.txt@ (19,20)', ['@']);
 
 		assert.ok(!res);
 	});

@@ -40,7 +40,7 @@ const JSCHARDET_TO_ICONV_ENCODINGS: { [name: string]: string } = {
 const UTF8 = 'utf8';
 
 export async function resolveTerminalEncoding(verbose?: boolean): Promise<string> {
-	let rawEncodingPromise: Promise<string>;
+	let rawEncodingPromise: Promise<string | undefined>;
 
 	// Support a global environment variable to win over other mechanics
 	const cliEncodingEnv = process.env['VSCODE_CLI_ENCODING'];
@@ -54,13 +54,17 @@ export async function resolveTerminalEncoding(verbose?: boolean): Promise<string
 
 	// Windows: educated guess
 	else if (isWindows) {
-		rawEncodingPromise = new Promise<string>(resolve => {
+		rawEncodingPromise = new Promise<string | undefined>(resolve => {
 			if (verbose) {
 				console.log('Running "chcp" to detect terminal encoding...');
 			}
 
 			exec('chcp', (err, stdout, stderr) => {
 				if (stdout) {
+					if (verbose) {
+						console.log(`Output from "chcp" command is: ${stdout}`);
+					}
+
 					const windowsTerminalEncodingKeys = Object.keys(windowsTerminalEncodings) as Array<keyof typeof windowsTerminalEncodings>;
 					for (const key of windowsTerminalEncodingKeys) {
 						if (stdout.indexOf(key) >= 0) {

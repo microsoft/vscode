@@ -55,6 +55,13 @@ export function extractEditor(options: tss.ITreeShakingOptions & { destRoot: str
 	// Take the extra included .d.ts files from `tsconfig.monaco.json`
 	options.typings = (<string[]>tsConfig.include).filter(includedFile => /\.d\.ts$/.test(includedFile));
 
+	// Add extra .d.ts files from `node_modules/@types/`
+	if (Array.isArray(options.compilerOptions?.types)) {
+		options.compilerOptions.types.forEach((type: string) => {
+			options.typings.push(`../node_modules/@types/${type}/index.d.ts`);
+		});
+	}
+
 	let result = tss.shake(options);
 	for (let fileName in result) {
 		if (result.hasOwnProperty(fileName)) {
@@ -292,7 +299,7 @@ function transportCSS(module: string, enqueue: (module: string) => void, write: 
 
 	const filename = path.join(SRC_DIR, module);
 	const fileContents = fs.readFileSync(filename).toString();
-	const inlineResources = 'base64'; // see https://github.com/Microsoft/monaco-editor/issues/148
+	const inlineResources = 'base64'; // see https://github.com/microsoft/monaco-editor/issues/148
 
 	const newContents = _rewriteOrInlineUrls(fileContents, inlineResources === 'base64');
 	write(module, newContents);

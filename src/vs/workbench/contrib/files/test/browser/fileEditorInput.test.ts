@@ -9,7 +9,7 @@ import { toResource } from 'vs/base/test/common/utils';
 import { FileEditorInput } from 'vs/workbench/contrib/files/common/editors/fileEditorInput';
 import { workbenchInstantiationService, TestServiceAccessor, TestEditorService } from 'vs/workbench/test/browser/workbenchTestServices';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
-import { EncodingMode, Verbosity } from 'vs/workbench/common/editor';
+import { EncodingMode, IEditorInputFactoryRegistry, Verbosity, Extensions as EditorExtensions } from 'vs/workbench/common/editor';
 import { TextFileOperationError, TextFileOperationResult } from 'vs/workbench/services/textfile/common/textfiles';
 import { FileOperationResult, FileOperationError } from 'vs/platform/files/common/files';
 import { TextFileEditorModel } from 'vs/workbench/services/textfile/common/textFileEditorModel';
@@ -18,17 +18,22 @@ import { ModesRegistry, PLAINTEXT_MODE_ID } from 'vs/editor/common/modes/modesRe
 import { DisposableStore } from 'vs/base/common/lifecycle';
 import { BinaryEditorModel } from 'vs/workbench/common/editor/binaryEditorModel';
 import { IResourceEditorInput } from 'vs/platform/editor/common/editor';
+import { Registry } from 'vs/platform/registry/common/platform';
 
 suite('Files - FileEditorInput', () => {
 	let instantiationService: IInstantiationService;
 	let accessor: TestServiceAccessor;
+
+	function createFileInput(resource: URI, preferredResource?: URI, preferredMode?: string, preferredName?: string, preferredDescription?: string): FileEditorInput {
+		return instantiationService.createInstance(FileEditorInput, resource, preferredResource, preferredName, preferredDescription, undefined, preferredMode);
+	}
 
 	setup(() => {
 		instantiationService = workbenchInstantiationService({
 			editorService: () => {
 				return new class extends TestEditorService {
 					createEditorInput(input: IResourceEditorInput) {
-						return instantiationService.createInstance(FileEditorInput, input.resource, undefined, undefined, undefined);
+						return createFileInput(input.resource);
 					}
 				};
 			}
@@ -38,9 +43,9 @@ suite('Files - FileEditorInput', () => {
 	});
 
 	test('Basics', async function () {
-		let input = instantiationService.createInstance(FileEditorInput, toResource.call(this, '/foo/bar/file.js'), undefined, undefined, undefined);
-		const otherInput = instantiationService.createInstance(FileEditorInput, toResource.call(this, 'foo/bar/otherfile.js'), undefined, undefined, undefined);
-		const otherInputSame = instantiationService.createInstance(FileEditorInput, toResource.call(this, 'foo/bar/file.js'), undefined, undefined, undefined);
+		let input = createFileInput(toResource.call(this, '/foo/bar/file.js'));
+		const otherInput = createFileInput(toResource.call(this, 'foo/bar/otherfile.js'));
+		const otherInputSame = createFileInput(toResource.call(this, 'foo/bar/file.js'));
 
 		assert(input.matches(input));
 		assert(input.matches(otherInputSame));
@@ -55,10 +60,10 @@ suite('Files - FileEditorInput', () => {
 		assert.strictEqual(toResource.call(this, '/foo/bar/file.js').fsPath, input.resource.fsPath);
 		assert(input.resource instanceof URI);
 
-		input = instantiationService.createInstance(FileEditorInput, toResource.call(this, '/foo/bar.html'), undefined, undefined, undefined);
+		input = createFileInput(toResource.call(this, '/foo/bar.html'));
 
-		const inputToResolve: FileEditorInput = instantiationService.createInstance(FileEditorInput, toResource.call(this, '/foo/bar/file.js'), undefined, undefined, undefined);
-		const sameOtherInput: FileEditorInput = instantiationService.createInstance(FileEditorInput, toResource.call(this, '/foo/bar/file.js'), undefined, undefined, undefined);
+		const inputToResolve: FileEditorInput = createFileInput(toResource.call(this, '/foo/bar/file.js'));
+		const sameOtherInput: FileEditorInput = createFileInput(toResource.call(this, '/foo/bar/file.js'));
 
 		let resolved = await inputToResolve.resolve();
 		assert.ok(inputToResolve.isResolved());
@@ -92,18 +97,32 @@ suite('Files - FileEditorInput', () => {
 		}
 	});
 
-	test('label', function () {
-		const input = instantiationService.createInstance(FileEditorInput, toResource.call(this, '/foo/bar/updatefile.js'), toResource.call(this, '/foo/bar/UPDATEFILE.js'), undefined, undefined);
+	test('preferred resource', function () {
+		const resource = toResource.call(this, '/foo/bar/updatefile.js');
+		const preferredResource = toResource.call(this, '/foo/bar/UPDATEFILE.js');
+
+		const inputWithoutPreferredResource = createFileInput(resource);
+		assert.equal(inputWithoutPreferredResource.resource.toString(), resource.toString());
+		assert.equal(inputWithoutPreferredResource.preferredResource.toString(), resource.toString());
+
+		const inputWithPreferredResource = createFileInput(resource, preferredResource);
+
+		assert.equal(inputWithPreferredResource.resource.toString(), resource.toString());
+		assert.equal(inputWithPreferredResource.preferredResource.toString(), preferredResource.toString());
 
 		let didChangeLabel = false;
-		const listener = input.onDidChangeLabel(e => {
+		const listener = inputWithPreferredResource.onDidChangeLabel(e => {
 			didChangeLabel = true;
 		});
 
-		assert.equal(input.getName(), 'UPDATEFILE.js');
+		assert.equal(inputWithPreferredResource.getName(), 'UPDATEFILE.js');
 
-		input.setLabel(toResource.call(this, '/FOO/BAR/updateFILE.js'));
-		assert.equal(input.getName(), 'updateFILE.js');
+		const otherPreferredResource = toResource.call(this, '/FOO/BAR/updateFILE.js');
+		inputWithPreferredResource.setPreferredResource(otherPreferredResource);
+
+		assert.equal(inputWithPreferredResource.resource.toString(), resource.toString());
+		assert.equal(inputWithPreferredResource.preferredResource.toString(), otherPreferredResource.toString());
+		assert.equal(inputWithPreferredResource.getName(), 'updateFILE.js');
 		assert.equal(didChangeLabel, true);
 
 		listener.dispose();
@@ -115,7 +134,7 @@ suite('Files - FileEditorInput', () => {
 			id: mode,
 		});
 
-		const input = instantiationService.createInstance(FileEditorInput, toResource.call(this, '/foo/bar/file.js'), undefined, undefined, mode);
+		const input = createFileInput(toResource.call(this, '/foo/bar/file.js'), undefined, mode);
 		assert.equal(input.getPreferredMode(), mode);
 
 		const model = await input.resolve() as TextFileEditorModel;
@@ -125,7 +144,7 @@ suite('Files - FileEditorInput', () => {
 		assert.equal(input.getPreferredMode(), 'text');
 		assert.equal(model.textEditorModel!.getModeId(), PLAINTEXT_MODE_ID);
 
-		const input2 = instantiationService.createInstance(FileEditorInput, toResource.call(this, '/foo/bar/file.js'), undefined, undefined, undefined);
+		const input2 = createFileInput(toResource.call(this, '/foo/bar/file.js'));
 		input2.setPreferredMode(mode);
 
 		const model2 = await input2.resolve() as TextFileEditorModel;
@@ -133,10 +152,10 @@ suite('Files - FileEditorInput', () => {
 	});
 
 	test('matches', function () {
-		const input1 = instantiationService.createInstance(FileEditorInput, toResource.call(this, '/foo/bar/updatefile.js'), undefined, undefined, undefined);
-		const input2 = instantiationService.createInstance(FileEditorInput, toResource.call(this, '/foo/bar/updatefile.js'), undefined, undefined, undefined);
-		const input3 = instantiationService.createInstance(FileEditorInput, toResource.call(this, '/foo/bar/other.js'), undefined, undefined, undefined);
-		const input2Upper = instantiationService.createInstance(FileEditorInput, toResource.call(this, '/foo/bar/UPDATEFILE.js'), undefined, undefined, undefined);
+		const input1 = createFileInput(toResource.call(this, '/foo/bar/updatefile.js'));
+		const input2 = createFileInput(toResource.call(this, '/foo/bar/updatefile.js'));
+		const input3 = createFileInput(toResource.call(this, '/foo/bar/other.js'));
+		const input2Upper = createFileInput(toResource.call(this, '/foo/bar/UPDATEFILE.js'));
 
 		assert.strictEqual(input1.matches(null), false);
 		assert.strictEqual(input1.matches(input1), true);
@@ -147,7 +166,7 @@ suite('Files - FileEditorInput', () => {
 	});
 
 	test('getEncoding/setEncoding', async function () {
-		const input = instantiationService.createInstance(FileEditorInput, toResource.call(this, '/foo/bar/updatefile.js'), undefined, undefined, undefined);
+		const input = createFileInput(toResource.call(this, '/foo/bar/updatefile.js'));
 
 		input.setEncoding('utf16', EncodingMode.Encode);
 		assert.equal(input.getEncoding(), 'utf16');
@@ -158,7 +177,7 @@ suite('Files - FileEditorInput', () => {
 	});
 
 	test('save', async function () {
-		const input = instantiationService.createInstance(FileEditorInput, toResource.call(this, '/foo/bar/updatefile.js'), undefined, undefined, undefined);
+		const input = createFileInput(toResource.call(this, '/foo/bar/updatefile.js'));
 
 		const resolved = await input.resolve() as TextFileEditorModel;
 		resolved.textEditorModel!.setValue('changed');
@@ -170,7 +189,7 @@ suite('Files - FileEditorInput', () => {
 	});
 
 	test('revert', async function () {
-		const input = instantiationService.createInstance(FileEditorInput, toResource.call(this, '/foo/bar/updatefile.js'), undefined, undefined, undefined);
+		const input = createFileInput(toResource.call(this, '/foo/bar/updatefile.js'));
 
 		const resolved = await input.resolve() as TextFileEditorModel;
 		resolved.textEditorModel!.setValue('changed');
@@ -186,7 +205,7 @@ suite('Files - FileEditorInput', () => {
 	});
 
 	test('resolve handles binary files', async function () {
-		const input = instantiationService.createInstance(FileEditorInput, toResource.call(this, '/foo/bar/updatefile.js'), undefined, undefined, undefined);
+		const input = createFileInput(toResource.call(this, '/foo/bar/updatefile.js'));
 
 		accessor.textFileService.setResolveTextContentErrorOnce(new TextFileOperationError('error', TextFileOperationResult.FILE_IS_BINARY));
 
@@ -196,7 +215,7 @@ suite('Files - FileEditorInput', () => {
 	});
 
 	test('resolve handles too large files', async function () {
-		const input = instantiationService.createInstance(FileEditorInput, toResource.call(this, '/foo/bar/updatefile.js'), undefined, undefined, undefined);
+		const input = createFileInput(toResource.call(this, '/foo/bar/updatefile.js'));
 
 		accessor.textFileService.setResolveTextContentErrorOnce(new FileOperationError('error', FileOperationResult.FILE_TOO_LARGE));
 
@@ -206,7 +225,7 @@ suite('Files - FileEditorInput', () => {
 	});
 
 	test('attaches to model when created and reports dirty', async function () {
-		const input = instantiationService.createInstance(FileEditorInput, toResource.call(this, '/foo/bar/updatefile.js'), undefined, undefined, undefined);
+		const input = createFileInput(toResource.call(this, '/foo/bar/updatefile.js'));
 
 		let listenerCount = 0;
 		const listener = input.onDidChangeDirty(() => {
@@ -226,7 +245,7 @@ suite('Files - FileEditorInput', () => {
 	});
 
 	test('force open text/binary', async function () {
-		const input = instantiationService.createInstance(FileEditorInput, toResource.call(this, '/foo/bar/updatefile.js'), undefined, undefined, undefined);
+		const input = createFileInput(toResource.call(this, '/foo/bar/updatefile.js'));
 		input.setForceOpenAsBinary();
 
 		let resolved = await input.resolve();
@@ -238,5 +257,83 @@ suite('Files - FileEditorInput', () => {
 		assert.ok(resolved instanceof TextFileEditorModel);
 
 		resolved.dispose();
+	});
+
+	test('file editor input factory', async function () {
+		instantiationService.invokeFunction(accessor => Registry.as<IEditorInputFactoryRegistry>(EditorExtensions.EditorInputFactories).start(accessor));
+
+		const input = createFileInput(toResource.call(this, '/foo/bar/updatefile.js'));
+
+		const factory = Registry.as<IEditorInputFactoryRegistry>(EditorExtensions.EditorInputFactories).getEditorInputFactory(input.getTypeId());
+		if (!factory) {
+			assert.fail('File Editor Input Factory missing');
+		}
+
+		assert.equal(factory.canSerialize(input), true);
+
+		const inputSerialized = factory.serialize(input);
+		if (!inputSerialized) {
+			assert.fail('Unexpected serialized file input');
+		}
+
+		const inputDeserialized = factory.deserialize(instantiationService, inputSerialized);
+		assert.equal(input.matches(inputDeserialized), true);
+
+		const preferredResource = toResource.call(this, '/foo/bar/UPDATEfile.js');
+		const inputWithPreferredResource = createFileInput(toResource.call(this, '/foo/bar/updatefile.js'), preferredResource);
+
+		const inputWithPreferredResourceSerialized = factory.serialize(inputWithPreferredResource);
+		if (!inputWithPreferredResourceSerialized) {
+			assert.fail('Unexpected serialized file input');
+		}
+
+		const inputWithPreferredResourceDeserialized = factory.deserialize(instantiationService, inputWithPreferredResourceSerialized) as FileEditorInput;
+		assert.equal(inputWithPreferredResource.resource.toString(), inputWithPreferredResourceDeserialized.resource.toString());
+		assert.equal(inputWithPreferredResource.preferredResource.toString(), inputWithPreferredResourceDeserialized.preferredResource.toString());
+	});
+
+	test('preferred name/description', async function () {
+
+		// Works with custom file input
+		const customFileInput = createFileInput(toResource.call(this, '/foo/bar/updatefile.js').with({ scheme: 'test-custom' }), undefined, undefined, 'My Name', 'My Description');
+
+		let didChangeLabelCounter = 0;
+		customFileInput.onDidChangeLabel(() => {
+			didChangeLabelCounter++;
+		});
+
+		assert.equal(customFileInput.getName(), 'My Name');
+		assert.equal(customFileInput.getDescription(), 'My Description');
+
+		customFileInput.setPreferredName('My Name 2');
+		customFileInput.setPreferredDescription('My Description 2');
+
+		assert.equal(customFileInput.getName(), 'My Name 2');
+		assert.equal(customFileInput.getDescription(), 'My Description 2');
+
+		assert.equal(didChangeLabelCounter, 2);
+
+		customFileInput.dispose();
+
+		// Disallowed with local file input
+		const fileInput = createFileInput(toResource.call(this, '/foo/bar/updatefile.js'), undefined, undefined, 'My Name', 'My Description');
+
+		didChangeLabelCounter = 0;
+		fileInput.onDidChangeLabel(() => {
+			didChangeLabelCounter++;
+		});
+
+		assert.notEqual(fileInput.getName(), 'My Name');
+		assert.notEqual(fileInput.getDescription(), 'My Description');
+
+		fileInput.setPreferredName('My Name 2');
+		fileInput.setPreferredDescription('My Description 2');
+
+		assert.notEqual(fileInput.getName(), 'My Name 2');
+		assert.notEqual(fileInput.getDescription(), 'My Description 2');
+
+		assert.equal(didChangeLabelCounter, 0);
+
+		fileInput.dispose();
 	});
 });

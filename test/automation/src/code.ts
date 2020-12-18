@@ -141,7 +141,6 @@ export async function spawn(options: SpawnOptions): Promise<Code> {
 		'--disable-crash-reporter',
 		`--extensions-dir=${options.extensionsPath}`,
 		`--user-data-dir=${options.userDataDir}`,
-		`--disable-restore-windows`,
 		'--driver', handle
 	];
 

@@ -14,7 +14,7 @@ import { isRootOrDriveLetter } from 'vs/base/common/extpath';
 import { generateUuid } from 'vs/base/common/uuid';
 import { normalizeNFC } from 'vs/base/common/normalization';
 
-// See https://github.com/Microsoft/vscode/issues/30180
+// See https://github.com/microsoft/vscode/issues/30180
 const WIN32_MAX_FILE_SIZE = 300 * 1024 * 1024; // 300 MB
 const GENERAL_MAX_FILE_SIZE = 16 * 1024 * 1024 * 1024; // 16 GB
 
@@ -459,13 +459,13 @@ export function whenDeleted(path: string): Promise<void> {
 
 export async function move(source: string, target: string): Promise<void> {
 	if (source === target) {
-		return Promise.resolve();
+		return;
 	}
 
 	async function updateMtime(path: string): Promise<void> {
 		const stat = await lstat(path);
 		if (stat.isDirectory() || stat.isSymbolicLink()) {
-			return Promise.resolve(); // only for files
+			return; // only for files
 		}
 
 		const fd = await promisify(fs.open)(path, 'a');
@@ -510,7 +510,7 @@ export async function copy(source: string, target: string, copiedSourcesIn?: { [
 	}
 
 	if (copiedSources[source]) {
-		return Promise.resolve(); // escape when there are cycles (can happen with symlinks)
+		return; // escape when there are cycles (can happen with symlinks)
 	}
 
 	copiedSources[source] = true; // remember as copied

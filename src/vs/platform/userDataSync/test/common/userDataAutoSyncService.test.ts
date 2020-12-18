@@ -20,7 +20,7 @@ class TestUserDataAutoSyncService extends UserDataAutoSyncService {
 	protected getSyncTriggerDelayTime(): number { return 50; }
 
 	sync(): Promise<void> {
-		return this.triggerSync(['sync'], false);
+		return this.triggerSync(['sync'], false, false);
 	}
 }
 
@@ -37,13 +37,13 @@ suite('UserDataAutoSyncService', () => {
 		await client.setUp();
 
 		// Sync once and reset requests
-		await client.instantiationService.get(IUserDataSyncService).sync();
+		await (await client.instantiationService.get(IUserDataSyncService).createSyncTask()).run();
 		target.reset();
 
 		const testObject: UserDataAutoSyncService = client.instantiationService.createInstance(TestUserDataAutoSyncService);
 
 		// Trigger auto sync with settings change
-		await testObject.triggerSync([SyncResource.Settings], false);
+		await testObject.triggerSync([SyncResource.Settings], false, false);
 
 		// Filter out machine requests
 		const actual = target.requests.filter(request => !request.url.startsWith(`${target.url}/v1/resource/machines`));
@@ -59,14 +59,14 @@ suite('UserDataAutoSyncService', () => {
 		await client.setUp();
 
 		// Sync once and reset requests
-		await client.instantiationService.get(IUserDataSyncService).sync();
+		await (await client.instantiationService.get(IUserDataSyncService).createSyncTask()).run();
 		target.reset();
 
 		const testObject: UserDataAutoSyncService = client.instantiationService.createInstance(TestUserDataAutoSyncService);
 
 		// Trigger auto sync with settings change multiple times
 		for (let counter = 0; counter < 2; counter++) {
-			await testObject.triggerSync([SyncResource.Settings], false);
+			await testObject.triggerSync([SyncResource.Settings], false, false);
 		}
 
 		// Filter out machine requests
@@ -85,13 +85,13 @@ suite('UserDataAutoSyncService', () => {
 		await client.setUp();
 
 		// Sync once and reset requests
-		await client.instantiationService.get(IUserDataSyncService).sync();
+		await (await client.instantiationService.get(IUserDataSyncService).createSyncTask()).run();
 		target.reset();
 
 		const testObject: UserDataAutoSyncService = client.instantiationService.createInstance(TestUserDataAutoSyncService);
 
 		// Trigger auto sync with window focus once
-		await testObject.triggerSync(['windowFocus'], true);
+		await testObject.triggerSync(['windowFocus'], true, false);
 
 		// Filter out machine requests
 		const actual = target.requests.filter(request => !request.url.startsWith(`${target.url}/v1/resource/machines`));
@@ -107,14 +107,14 @@ suite('UserDataAutoSyncService', () => {
 		await client.setUp();
 
 		// Sync once and reset requests
-		await client.instantiationService.get(IUserDataSyncService).sync();
+		await (await client.instantiationService.get(IUserDataSyncService).createSyncTask()).run();
 		target.reset();
 
 		const testObject: UserDataAutoSyncService = client.instantiationService.createInstance(TestUserDataAutoSyncService);
 
 		// Trigger auto sync with window focus multiple times
 		for (let counter = 0; counter < 2; counter++) {
-			await testObject.triggerSync(['windowFocus'], true);
+			await testObject.triggerSync(['windowFocus'], true, false);
 		}
 
 		// Filter out machine requests
@@ -245,7 +245,7 @@ suite('UserDataAutoSyncService', () => {
 		// Set up and sync from the client
 		const client = disposableStore.add(new UserDataSyncClient(target));
 		await client.setUp();
-		await client.instantiationService.get(IUserDataSyncService).sync();
+		await (await client.instantiationService.get(IUserDataSyncService).createSyncTask()).run();
 
 		// Set up and sync from the test client
 		const testClient = disposableStore.add(new UserDataSyncClient(target));
@@ -334,7 +334,7 @@ suite('UserDataAutoSyncService', () => {
 		// Set up and sync from the client
 		const client = disposableStore.add(new UserDataSyncClient(target));
 		await client.setUp();
-		await client.instantiationService.get(IUserDataSyncService).sync();
+		await (await client.instantiationService.get(IUserDataSyncService).createSyncTask()).run();
 
 		// Set up and sync from the test client
 		const testClient = disposableStore.add(new UserDataSyncClient(target));
@@ -346,7 +346,7 @@ suite('UserDataAutoSyncService', () => {
 		await client.instantiationService.get(IUserDataSyncService).reset();
 
 		// Sync again from the first client to create new session
-		await client.instantiationService.get(IUserDataSyncService).sync();
+		await (await client.instantiationService.get(IUserDataSyncService).createSyncTask()).run();
 
 		// Sync from the test client
 		target.reset();
@@ -383,5 +383,46 @@ suite('UserDataAutoSyncService', () => {
 		assert.deepEqual((<UserDataSyncStoreError>e).code, UserDataSyncErrorCode.TooManyRequests);
 	});
 
+	test('test auto sync is suspended when server donot accepts requests', async () => {
+		const target = new UserDataSyncTestServer(5, 1);
+
+		// Set up and sync from the test client
+		const testClient = disposableStore.add(new UserDataSyncClient(target));
+		await testClient.setUp();
+		const testObject: TestUserDataAutoSyncService = testClient.instantiationService.createInstance(TestUserDataAutoSyncService);
+
+		while (target.requests.length < 5) {
+			await testObject.sync();
+		}
+
+		target.reset();
+		await testObject.sync();
+
+		assert.deepEqual(target.requests, []);
+	});
+
+	test('test cache control header with no cache is sent when triggered with disable cache option', async () => {
+		const target = new UserDataSyncTestServer(5, 1);
+
+		// Set up and sync from the test client
+		const testClient = disposableStore.add(new UserDataSyncClient(target));
+		await testClient.setUp();
+		const testObject: TestUserDataAutoSyncService = testClient.instantiationService.createInstance(TestUserDataAutoSyncService);
+
+		await testObject.triggerSync(['some reason'], true, true);
+		assert.equal(target.requestsWithAllHeaders[0].headers!['Cache-Control'], 'no-cache');
+	});
+
+	test('test cache control header is not sent when triggered without disable cache option', async () => {
+		const target = new UserDataSyncTestServer(5, 1);
+
+		// Set up and sync from the test client
+		const testClient = disposableStore.add(new UserDataSyncClient(target));
+		await testClient.setUp();
+		const testObject: TestUserDataAutoSyncService = testClient.instantiationService.createInstance(TestUserDataAutoSyncService);
+
+		await testObject.triggerSync(['some reason'], true, false);
+		assert.equal(target.requestsWithAllHeaders[0].headers!['Cache-Control'], undefined);
+	});
 
 });

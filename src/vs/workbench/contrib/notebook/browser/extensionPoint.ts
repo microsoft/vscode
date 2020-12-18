@@ -6,7 +6,6 @@
 import { IJSONSchema } from 'vs/base/common/jsonSchema';
 import * as nls from 'vs/nls';
 import { ExtensionsRegistry } from 'vs/workbench/services/extensions/common/extensionsRegistry';
-import { NotebookSelector } from 'vs/workbench/contrib/notebook/common/notebookProvider';
 import { NotebookEditorPriority } from 'vs/workbench/contrib/notebook/common/notebookCommon';
 
 namespace NotebookEditorContribution {
@@ -19,20 +18,24 @@ namespace NotebookEditorContribution {
 export interface INotebookEditorContribution {
 	readonly [NotebookEditorContribution.viewType]: string;
 	readonly [NotebookEditorContribution.displayName]: string;
-	readonly [NotebookEditorContribution.selector]?: readonly NotebookSelector[];
+	readonly [NotebookEditorContribution.selector]?: readonly { filenamePattern?: string; excludeFileNamePattern?: string; }[];
 	readonly [NotebookEditorContribution.priority]?: string;
 }
 
 namespace NotebookRendererContribution {
 	export const viewType = 'viewType';
+	export const id = 'id';
 	export const displayName = 'displayName';
 	export const mimeTypes = 'mimeTypes';
+	export const entrypoint = 'entrypoint';
 }
 
-interface INotebookRendererContribution {
-	readonly [NotebookRendererContribution.viewType]: string;
+export interface INotebookRendererContribution {
+	readonly [NotebookRendererContribution.id]?: string;
+	readonly [NotebookRendererContribution.viewType]?: string;
 	readonly [NotebookRendererContribution.displayName]: string;
 	readonly [NotebookRendererContribution.mimeTypes]?: readonly string[];
+	readonly [NotebookRendererContribution.entrypoint]: string;
 }
 
 const notebookProviderContribution: IJSONSchema = {
@@ -92,17 +95,23 @@ const notebookProviderContribution: IJSONSchema = {
 const notebookRendererContribution: IJSONSchema = {
 	description: nls.localize('contributes.notebook.renderer', 'Contributes notebook output renderer provider.'),
 	type: 'array',
-	defaultSnippets: [{ body: [{ viewType: '', displayName: '', mimeTypes: [''] }] }],
+	defaultSnippets: [{ body: [{ id: '', displayName: '', mimeTypes: [''], entrypoint: '' }] }],
 	items: {
 		type: 'object',
 		required: [
-			NotebookRendererContribution.viewType,
+			NotebookRendererContribution.id,
 			NotebookRendererContribution.displayName,
 			NotebookRendererContribution.mimeTypes,
+			NotebookRendererContribution.entrypoint,
 		],
 		properties: {
+			[NotebookRendererContribution.id]: {
+				type: 'string',
+				description: nls.localize('contributes.notebook.renderer.viewType', 'Unique identifier of the notebook output renderer.'),
+			},
 			[NotebookRendererContribution.viewType]: {
 				type: 'string',
+				deprecationMessage: nls.localize('contributes.notebook.provider.viewType.deprecated', 'Rename `viewType` to `id`.'),
 				description: nls.localize('contributes.notebook.renderer.viewType', 'Unique identifier of the notebook output renderer.'),
 			},
 			[NotebookRendererContribution.displayName]: {
@@ -115,7 +124,11 @@ const notebookRendererContribution: IJSONSchema = {
 				items: {
 					type: 'string'
 				}
-			}
+			},
+			[NotebookRendererContribution.entrypoint]: {
+				type: 'string',
+				description: nls.localize('contributes.notebook.renderer.entrypoint', 'File to load in the webview to render the extension.'),
+			},
 		}
 	}
 };

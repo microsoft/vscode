@@ -16,6 +16,6 @@ export class SignService implements ISignService {
 	}
 
 	async sign(value: string): Promise<string> {
-		return Promise.resolve(this._tkn || '');
+		return this._tkn || '';
 	}
 }

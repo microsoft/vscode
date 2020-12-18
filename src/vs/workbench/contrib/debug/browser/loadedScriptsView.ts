@@ -4,10 +4,9 @@
  *--------------------------------------------------------------------------------------------*/
 
 import * as nls from 'vs/nls';
-import * as dom from 'vs/base/browser/dom';
 import { IViewletViewOptions } from 'vs/workbench/browser/parts/views/viewsViewlet';
 import { normalize, isAbsolute, posix } from 'vs/base/common/path';
-import { ViewPane } from 'vs/workbench/browser/parts/views/viewPaneContainer';
+import { ViewPane } from 'vs/workbench/browser/parts/views/viewPane';
 import { IContextMenuService } from 'vs/platform/contextview/browser/contextView';
 import { IKeybindingService } from 'vs/platform/keybinding/common/keybinding';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
@@ -17,7 +16,7 @@ import { IDebugSession, IDebugService, CONTEXT_LOADED_SCRIPTS_ITEM_TYPE } from '
 import { Source } from 'vs/workbench/contrib/debug/common/debugSource';
 import { IWorkspaceContextService, IWorkspaceFolder } from 'vs/platform/workspace/common/workspace';
 import { IContextKey, IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
-import { tildify } from 'vs/base/common/labels';
+import { normalizeDriveLetter, tildify } from 'vs/base/common/labels';
 import { isWindows } from 'vs/base/common/platform';
 import { URI } from 'vs/base/common/uri';
 import { ltrim } from 'vs/base/common/strings';
@@ -56,6 +55,10 @@ class BaseTreeItem {
 
 	constructor(private _parent: BaseTreeItem | undefined, private _label: string, public readonly isIncompressible = false) {
 		this._showedMoreThanOne = false;
+	}
+
+	updateLabel(label: string) {
+		this._label = label;
 	}
 
 	isLeaf(): boolean {
@@ -347,7 +350,9 @@ class SessionTreeItem extends BaseTreeItem {
 				} else {
 					// on unix try to tildify absolute paths
 					path = normalize(path);
-					if (!isWindows) {
+					if (isWindows) {
+						path = normalizeDriveLetter(path);
+					} else {
 						path = tildify(path, (await this._pathService.userHome()).fsPath);
 					}
 				}
@@ -428,7 +433,7 @@ export class LoadedScriptsView extends ViewPane {
 		@IPathService private readonly pathService: IPathService,
 		@IOpenerService openerService: IOpenerService,
 		@IThemeService themeService: IThemeService,
-		@ITelemetryService telemetryService: ITelemetryService,
+		@ITelemetryService telemetryService: ITelemetryService
 	) {
 		super(options, keybindingService, contextMenuService, configurationService, contextKeyService, viewDescriptorService, instantiationService, openerService, themeService, telemetryService);
 		this.loadedScriptsItemType = CONTEXT_LOADED_SCRIPTS_ITEM_TYPE.bindTo(contextKeyService);
@@ -437,9 +442,9 @@ export class LoadedScriptsView extends ViewPane {
 	renderBody(container: HTMLElement): void {
 		super.renderBody(container);
 
-		dom.addClass(this.element, 'debug-pane');
-		dom.addClass(container, 'debug-loaded-scripts');
-		dom.addClass(container, 'show-file-icons');
+		this.element.classList.add('debug-pane');
+		container.classList.add('debug-loaded-scripts');
+		container.classList.add('show-file-icons');
 
 		this.treeContainer = renderViewTree(container);
 
@@ -528,9 +533,11 @@ export class LoadedScriptsView extends ViewPane {
 
 		const registerSessionListeners = (session: IDebugSession) => {
 			this._register(session.onDidChangeName(async () => {
-				// Re-add session, this will trigger proper sorting and id recalculation.
-				root.remove(session.getId());
-				await addSourcePathsToSession(session);
+				const sessionRoot = root.find(session);
+				if (sessionRoot) {
+					sessionRoot.updateLabel(session.getLabel());
+					scheduleRefreshOnVisible();
+				}
 			}));
 			this._register(session.onDidLoadedSource(async event => {
 				let sessionRoot: SessionTreeItem;

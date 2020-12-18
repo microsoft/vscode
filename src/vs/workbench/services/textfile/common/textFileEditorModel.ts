@@ -19,10 +19,11 @@ import { ITextBufferFactory, ITextModel } from 'vs/editor/common/model';
 import { INotificationService } from 'vs/platform/notification/common/notification';
 import { ILogService } from 'vs/platform/log/common/log';
 import { basename } from 'vs/base/common/path';
-import { IWorkingCopyService, IWorkingCopyBackup } from 'vs/workbench/services/workingCopy/common/workingCopyService';
+import { IWorkingCopyService, IWorkingCopyBackup, WorkingCopyCapabilities } from 'vs/workbench/services/workingCopy/common/workingCopyService';
 import { IFilesConfigurationService } from 'vs/workbench/services/filesConfiguration/common/filesConfigurationService';
 import { ILabelService } from 'vs/platform/label/common/label';
-import { CancellationTokenSource } from 'vs/base/common/cancellation';
+import { CancellationToken, CancellationTokenSource } from 'vs/base/common/cancellation';
+import { UTF8 } from 'vs/workbench/services/textfile/common/encoding';
 
 interface IBackupMetaData {
 	mtime: number;
@@ -65,7 +66,7 @@ export class TextFileEditorModel extends BaseTextEditorModel implements ITextFil
 
 	//#endregion
 
-	readonly capabilities = 0;
+	readonly capabilities = WorkingCopyCapabilities.None;
 
 	readonly name = basename(this.labelService.getUriLabel(this.resource));
 
@@ -75,6 +76,9 @@ export class TextFileEditorModel extends BaseTextEditorModel implements ITextFil
 	private bufferSavedVersionId: number | undefined;
 	private ignoreDirtyOnModelContentChange = false;
 
+	private static readonly UNDO_REDO_SAVE_PARTICIPANTS_AUTO_SAVE_THROTTLE_THRESHOLD = 500;
+	private lastModelContentChangeFromUndoRedo: number | undefined = undefined;
+
 	private lastResolvedFileStat: IFileStatWithMetadata | undefined;
 
 	private readonly saveSequentializer = new TaskSequentializer();
@@ -83,7 +87,6 @@ export class TextFileEditorModel extends BaseTextEditorModel implements ITextFil
 	private inConflictMode = false;
 	private inOrphanMode = false;
 	private inErrorMode = false;
-	private disposed = false;
 
 	constructor(
 		public readonly resource: URI,
@@ -139,12 +142,12 @@ export class TextFileEditorModel extends BaseTextEditorModel implements ITextFil
 			let newInOrphanModeValidated: boolean = false;
 			if (newInOrphanModeGuess) {
 				// We have received reports of users seeing delete events even though the file still
-				// exists (network shares issue: https://github.com/Microsoft/vscode/issues/13665).
+				// exists (network shares issue: https://github.com/microsoft/vscode/issues/13665).
 				// Since we do not want to mark the model as orphaned, we have to check if the
 				// file is really gone and not just a faulty file event.
 				await timeout(100);
 
-				if (this.disposed) {
+				if (this.isDisposed()) {
 					newInOrphanModeValidated = true;
 				} else {
 					const exists = await this.fileService.exists(this.resource);
@@ -152,7 +155,7 @@ export class TextFileEditorModel extends BaseTextEditorModel implements ITextFil
 				}
 			}
 
-			if (this.inOrphanMode !== newInOrphanModeValidated && !this.disposed) {
+			if (this.inOrphanMode !== newInOrphanModeValidated && !this.isDisposed()) {
 				this.setOrphaned(newInOrphanModeValidated);
 			}
 		}
@@ -184,7 +187,7 @@ export class TextFileEditorModel extends BaseTextEditorModel implements ITextFil
 
 	//#region Backup
 
-	async backup(): Promise<IWorkingCopyBackup> {
+	async backup(token: CancellationToken): Promise<IWorkingCopyBackup> {
 
 		// Fill in metadata if we are resolved
 		let meta: IBackupMetaData | undefined = undefined;
@@ -255,38 +258,114 @@ export class TextFileEditorModel extends BaseTextEditorModel implements ITextFil
 			return this;
 		}
 
-		// It is very important to not reload the model when the model is dirty.
-		// We also only want to reload the model from the disk if no save is pending
-		// to avoid data loss.
-		if (this.dirty || this.saveSequentializer.hasPending()) {
+		// Unless there are explicit contents provided, it is important that we do not
+		// load a model that is dirty or is in the process of saving to prevent data
+		// loss.
+		if (!options?.contents && (this.dirty || this.saveSequentializer.hasPending())) {
 			this.logService.trace('[text file model] load() - exit - without loading because model is dirty or being saved', this.resource.toString(true));
 
 			return this;
 		}
 
-		// Only for new models we support to load from backup
-		if (!this.isResolved()) {
-			const backup = await this.backupFileService.resolve<IBackupMetaData>(this.resource);
+		return this.doLoad(options);
+	}
 
-			if (this.isResolved()) {
-				return this; // Make sure meanwhile someone else did not succeed in loading
-			}
+	private async doLoad(options?: ITextFileLoadOptions): Promise<TextFileEditorModel> {
 
-			if (backup) {
-				try {
-					return await this.loadFromBackup(backup, options);
-				} catch (error) {
-					this.logService.error('[text file model] load() from backup', error); // ignore error and continue to load as file below
-				}
+		// First check if we have contents to use for the model
+		if (options?.contents) {
+			return this.loadFromBuffer(options.contents, options);
+		}
+
+		// Second, check if we have a backup to load from (only for new models)
+		const isNewModel = !this.isResolved();
+		if (isNewModel) {
+			const loadedFromBackup = await this.loadFromBackup(options);
+			if (loadedFromBackup) {
+				return loadedFromBackup;
 			}
 		}
 
-		// Otherwise load from file resource
+		// Finally, load from file resource
 		return this.loadFromFile(options);
 	}
 
-	private async loadFromBackup(backup: IResolvedBackup<IBackupMetaData>, options?: ITextFileLoadOptions): Promise<TextFileEditorModel> {
+	private async loadFromBuffer(buffer: ITextBufferFactory, options?: ITextFileLoadOptions): Promise<TextFileEditorModel> {
+		this.logService.trace('[text file model] loadFromBuffer()', this.resource.toString(true));
+
+		// Try to resolve metdata from disk
+		let mtime: number;
+		let ctime: number;
+		let size: number;
+		let etag: string;
+		try {
+			const metadata = await this.fileService.resolve(this.resource, { resolveMetadata: true });
+			mtime = metadata.mtime;
+			ctime = metadata.ctime;
+			size = metadata.size;
+			etag = metadata.etag;
+
+			// Clear orphaned state when resolving was successful
+			this.setOrphaned(false);
+		} catch (error) {
+
+			// Put some fallback values in error case
+			mtime = Date.now();
+			ctime = Date.now();
+			size = 0;
+			etag = ETAG_DISABLED;
+
+			// Apply orphaned state based on error code
+			this.setOrphaned(error.fileOperationResult === FileOperationResult.FILE_NOT_FOUND);
+		}
+
 		const preferredEncoding = await this.textFileService.encoding.getPreferredWriteEncoding(this.resource, this.preferredEncoding);
+
+		// Load with buffer
+		this.loadFromContent({
+			resource: this.resource,
+			name: this.name,
+			mtime,
+			ctime,
+			size,
+			etag,
+			value: buffer,
+			encoding: preferredEncoding.encoding
+		}, true /* dirty (loaded from buffer) */, options);
+
+		return this;
+	}
+
+	private async loadFromBackup(options?: ITextFileLoadOptions): Promise<TextFileEditorModel | undefined> {
+
+		// Resolve backup if any
+		const backup = await this.backupFileService.resolve<IBackupMetaData>(this.resource);
+
+		// Resolve preferred encoding if we need it
+		let encoding = UTF8;
+		if (backup) {
+			encoding = (await this.textFileService.encoding.getPreferredWriteEncoding(this.resource, this.preferredEncoding)).encoding;
+		}
+
+		// Abort if someone else managed to resolve the model by now
+		let isNewModel = !this.isResolved();
+		if (!isNewModel) {
+			this.logService.trace('[text file model] loadFromBackup() - exit - without loading because previously new model got created meanwhile', this.resource.toString(true));
+
+			return this; // imply that loading has happened in another operation
+		}
+
+		// Try to load from backup if we have any
+		if (backup) {
+			return this.doLoadFromBackup(backup, encoding, options);
+		}
+
+		// Otherwise signal back that loading did not happen
+		return undefined;
+	}
+
+	private doLoadFromBackup(backup: IResolvedBackup<IBackupMetaData>, encoding: string, options?: ITextFileLoadOptions): TextFileEditorModel {
+		this.logService.trace('[text file model] doLoadFromBackup()', this.resource.toString(true));
 
 		// Load with backup
 		this.loadFromContent({
@@ -297,8 +376,8 @@ export class TextFileEditorModel extends BaseTextEditorModel implements ITextFil
 			size: backup.meta ? backup.meta.size : 0,
 			etag: backup.meta ? backup.meta.etag : ETAG_DISABLED, // etag disabled if unknown!
 			value: backup.value,
-			encoding: preferredEncoding.encoding
-		}, options, true /* from backup */);
+			encoding
+		}, true /* dirty (loaded from backup) */, options);
 
 		// Restore orphaned flag based on state
 		if (backup.meta && backup.meta.orphaned) {
@@ -309,6 +388,8 @@ export class TextFileEditorModel extends BaseTextEditorModel implements ITextFil
 	}
 
 	private async loadFromFile(options?: ITextFileLoadOptions): Promise<TextFileEditorModel> {
+		this.logService.trace('[text file model] loadFromFile()', this.resource.toString(true));
+
 		const forceReadFromDisk = options?.forceReadFromDisk;
 		const allowBinary = this.isResolved() /* always allow if we resolved previously */ || options?.allowBinary;
 
@@ -320,12 +401,8 @@ export class TextFileEditorModel extends BaseTextEditorModel implements ITextFil
 			etag = this.lastResolvedFileStat.etag; // otherwise respect etag to support caching
 		}
 
-		// Ensure to track the versionId before doing a long running operation
-		// to make sure the model was not changed in the meantime which would
-		// indicate that the user or program has made edits. If we would ignore
-		// this, we could potentially loose the changes that were made because
-		// after resolving the content we update the model and reset the dirty
-		// flag.
+		// Remember current version before doing any long running operation
+		// to ensure we are not changing a model that was changed meanwhile
 		const currentVersionId = this.versionId;
 
 		// Resolve Content
@@ -335,11 +412,15 @@ export class TextFileEditorModel extends BaseTextEditorModel implements ITextFil
 			// Clear orphaned state when loading was successful
 			this.setOrphaned(false);
 
+			// Return early if the model content has changed
+			// meanwhile to prevent loosing any changes
 			if (currentVersionId !== this.versionId) {
-				return this; // Make sure meanwhile someone else did not succeed loading
+				this.logService.trace('[text file model] loadFromFile() - exit - without loading because model content changed', this.resource.toString(true));
+
+				return this;
 			}
 
-			return this.loadFromContent(content, options);
+			return this.loadFromContent(content, false /* not dirty (loaded from file) */, options);
 		} catch (error) {
 			const result = error.fileOperationResult;
 
@@ -363,7 +444,7 @@ export class TextFileEditorModel extends BaseTextEditorModel implements ITextFil
 		}
 	}
 
-	private loadFromContent(content: ITextFileStreamContent, options?: ITextFileLoadOptions, fromBackup?: boolean): TextFileEditorModel {
+	private loadFromContent(content: ITextFileStreamContent, dirty: boolean, options?: ITextFileLoadOptions): TextFileEditorModel {
 		this.logService.trace('[text file model] loadFromContent() - enter', this.resource.toString(true));
 
 		// Return early if we are disposed
@@ -404,11 +485,15 @@ export class TextFileEditorModel extends BaseTextEditorModel implements ITextFil
 
 		// Create New Model
 		else {
-			this.doCreateTextModel(content.resource, content.value, !!fromBackup);
+			this.doCreateTextModel(content.resource, content.value);
 		}
 
-		// Ensure we track the latest saved version ID
-		this.updateSavedVersionId();
+		// Update model dirty flag. This is very important to call
+		// in both cases of dirty or not because it conditionally
+		// updates the `bufferSavedVersionId` to determine the
+		// version when to consider the model as saved again (e.g.
+		// when undoing back to the saved state)
+		this.setDirty(!!dirty);
 
 		// Emit as event
 		this._onDidLoad.fire(options?.reason ?? TextFileLoadReason.OTHER);
@@ -416,16 +501,11 @@ export class TextFileEditorModel extends BaseTextEditorModel implements ITextFil
 		return this;
 	}
 
-	private doCreateTextModel(resource: URI, value: ITextBufferFactory, fromBackup: boolean): void {
+	private doCreateTextModel(resource: URI, value: ITextBufferFactory): void {
 		this.logService.trace('[text file model] doCreateTextModel()', this.resource.toString(true));
 
 		// Create model
 		const textModel = this.createTextEditorModel(value, resource, this.preferredMode);
-
-		// We restored a backup so we have to set the model as being dirty
-		if (fromBackup) {
-			this.setDirty(true);
-		}
 
 		// Model Listeners
 		this.installModelListeners(textModel);
@@ -445,20 +525,27 @@ export class TextFileEditorModel extends BaseTextEditorModel implements ITextFil
 
 	private installModelListeners(model: ITextModel): void {
 
-		// See https://github.com/Microsoft/vscode/issues/30189
+		// See https://github.com/microsoft/vscode/issues/30189
 		// This code has been extracted to a different method because it caused a memory leak
 		// where `value` was captured in the content change listener closure scope.
 
 		// Content Change
-		this._register(model.onDidChangeContent(() => this.onModelContentChanged(model)));
+		this._register(model.onDidChangeContent(e => this.onModelContentChanged(model, e.isUndoing || e.isRedoing)));
 	}
 
-	private onModelContentChanged(model: ITextModel): void {
+	private onModelContentChanged(model: ITextModel, isUndoingOrRedoing: boolean): void {
 		this.logService.trace(`[text file model] onModelContentChanged() - enter`, this.resource.toString(true));
 
 		// In any case increment the version id because it tracks the textual content state of the model at all times
 		this.versionId++;
 		this.logService.trace(`[text file model] onModelContentChanged() - new versionId ${this.versionId}`, this.resource.toString(true));
+
+		// Remember when the user changed the model through a undo/redo operation.
+		// We need this information to throttle save participants to fix
+		// https://github.com/microsoft/vscode/issues/102542
+		if (isUndoingOrRedoing) {
+			this.lastModelContentChangeFromUndoRedo = Date.now();
+		}
 
 		// We mark check for a dirty-state change upon model content change, unless:
 		// - explicitly instructed to ignore it (e.g. from model.load())
@@ -639,7 +726,31 @@ export class TextFileEditorModel extends BaseTextEditorModel implements ITextFil
 			// Save participants can also be skipped through API.
 			if (this.isResolved() && !options.skipSaveParticipants) {
 				try {
-					await this.textFileService.files.runSaveParticipants(this, { reason: options.reason ?? SaveReason.EXPLICIT }, saveCancellation.token);
+
+					// Measure the time it took from the last undo/redo operation to this save. If this
+					// time is below `UNDO_REDO_SAVE_PARTICIPANTS_THROTTLE_THRESHOLD`, we make sure to
+					// delay the save participant for the remaining time if the reason is auto save.
+					//
+					// This fixes the following issue:
+					// - the user has configured auto save with delay of 100ms or shorter
+					// - the user has a save participant enabled that modifies the file on each save
+					// - the user types into the file and the file gets saved
+					// - the user triggers undo operation
+					// - this will undo the save participant change but trigger the save participant right after
+					// - the user has no chance to undo over the save participant
+					//
+					// Reported as: https://github.com/microsoft/vscode/issues/102542
+					if (options.reason === SaveReason.AUTO && typeof this.lastModelContentChangeFromUndoRedo === 'number') {
+						const timeFromUndoRedoToSave = Date.now() - this.lastModelContentChangeFromUndoRedo;
+						if (timeFromUndoRedoToSave < TextFileEditorModel.UNDO_REDO_SAVE_PARTICIPANTS_AUTO_SAVE_THROTTLE_THRESHOLD) {
+							await timeout(TextFileEditorModel.UNDO_REDO_SAVE_PARTICIPANTS_AUTO_SAVE_THROTTLE_THRESHOLD - timeFromUndoRedoToSave);
+						}
+					}
+
+					// Run save participants unless save was cancelled meanwhile
+					if (!saveCancellation.token.isCancellationRequested) {
+						await this.textFileService.files.runSaveParticipants(this, { reason: options.reason ?? SaveReason.EXPLICIT }, saveCancellation.token);
+					}
 				} catch (error) {
 					this.logService.error(`[text file model] runSaveParticipants(${versionId}) - resulted in an error: ${error.toString()}`, this.resource.toString(true));
 				}
@@ -661,9 +772,9 @@ export class TextFileEditorModel extends BaseTextEditorModel implements ITextFil
 			// was triggerd followed by a dispose() operation right after without waiting. Typically we cannot
 			// be disposed if we are dirty, but if we are not dirty, save() and dispose() can still be triggered
 			// one after the other without waiting for the save() to complete. If we are disposed(), we risk
-			// saving contents to disk that are stale (see https://github.com/Microsoft/vscode/issues/50942).
+			// saving contents to disk that are stale (see https://github.com/microsoft/vscode/issues/50942).
 			// To fix this issue, we will not store the contents to disk when we got disposed.
-			if (this.disposed) {
+			if (this.isDisposed()) {
 				return;
 			}
 
@@ -694,15 +805,14 @@ export class TextFileEditorModel extends BaseTextEditorModel implements ITextFil
 			// participant triggering
 			this.logService.trace(`[text file model] doSave(${versionId}) - before write()`, this.resource.toString(true));
 			const lastResolvedFileStat = assertIsDefined(this.lastResolvedFileStat);
-			const textFileEdiorModel = this;
+			const textFileEditorModel = this;
 			return this.saveSequentializer.setPending(versionId, (async () => {
 				try {
-					const stat = await this.textFileService.write(lastResolvedFileStat.resource, textFileEdiorModel.createSnapshot(), {
+					const stat = await this.textFileService.write(lastResolvedFileStat.resource, textFileEditorModel.createSnapshot(), {
 						overwriteReadonly: options.overwriteReadonly,
-						overwriteEncoding: options.overwriteEncoding,
 						mtime: lastResolvedFileStat.mtime,
 						encoding: this.getEncoding(),
-						etag: (options.ignoreModifiedSince || !this.filesConfigurationService.preventSaveConflicts(lastResolvedFileStat.resource, textFileEdiorModel.getMode())) ? ETAG_DISABLED : lastResolvedFileStat.etag,
+						etag: (options.ignoreModifiedSince || !this.filesConfigurationService.preventSaveConflicts(lastResolvedFileStat.resource, textFileEditorModel.getMode())) ? ETAG_DISABLED : lastResolvedFileStat.etag,
 						writeElevated: options.writeElevated
 					});
 
@@ -867,7 +977,7 @@ export class TextFileEditorModel extends BaseTextEditorModel implements ITextFil
 			}
 
 			if (!this.inConflictMode) {
-				this.save({ overwriteEncoding: true });
+				this.save();
 			}
 		}
 
@@ -921,10 +1031,6 @@ export class TextFileEditorModel extends BaseTextEditorModel implements ITextFil
 		return this.fileService.hasCapability(this.resource, FileSystemProviderCapabilities.Readonly);
 	}
 
-	isDisposed(): boolean {
-		return this.disposed;
-	}
-
 	getStat(): IFileStatWithMetadata | undefined {
 		return this.lastResolvedFileStat;
 	}
@@ -932,7 +1038,6 @@ export class TextFileEditorModel extends BaseTextEditorModel implements ITextFil
 	dispose(): void {
 		this.logService.trace('[text file model] dispose()', this.resource.toString(true));
 
-		this.disposed = true;
 		this.inConflictMode = false;
 		this.inOrphanMode = false;
 		this.inErrorMode = false;

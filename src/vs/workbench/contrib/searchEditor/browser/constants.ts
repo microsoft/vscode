@@ -14,3 +14,5 @@ export const SearchEditorFindMatchClass = 'seaarchEditorFindMatch';
 export const SearchEditorID = 'workbench.editor.searchEditor';
 
 export const OpenNewEditorCommandId = 'search.action.openNewEditor';
+export const OpenEditorCommandId = 'search.action.openEditor';
+export const ToggleSearchEditorContextLinesCommandId = 'toggleSearchEditorContextLines';

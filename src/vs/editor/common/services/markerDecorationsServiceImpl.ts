@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { IMarkerService, IMarker, MarkerSeverity, MarkerTag } from 'vs/platform/markers/common/markers';
-import { Disposable, toDisposable, IDisposable } from 'vs/base/common/lifecycle';
+import { Disposable, toDisposable } from 'vs/base/common/lifecycle';
 import { URI } from 'vs/base/common/uri';
 import { IModelDeltaDecoration, ITextModel, IModelDecorationOptions, TrackedRangeStickiness, OverviewRulerLane, IModelDecoration, MinimapPosition, IModelDecorationMinimapOptions } from 'vs/editor/common/model';
 import { ClassName } from 'vs/editor/common/model/intervalTree';
@@ -12,12 +12,10 @@ import { themeColorFromId, ThemeColor } from 'vs/platform/theme/common/themeServ
 import { overviewRulerWarning, overviewRulerInfo, overviewRulerError } from 'vs/editor/common/view/editorColorRegistry';
 import { IModelService } from 'vs/editor/common/services/modelService';
 import { Range } from 'vs/editor/common/core/range';
-import { keys } from 'vs/base/common/map';
 import { IMarkerDecorationsService } from 'vs/editor/common/services/markersDecorationService';
 import { Schemas } from 'vs/base/common/network';
 import { Emitter, Event } from 'vs/base/common/event';
 import { minimapWarning, minimapError } from 'vs/platform/theme/common/colorRegistry';
-import { Delayer } from 'vs/base/common/async';
 
 function MODEL_ID(resource: URI): string {
 	return resource.toString();
@@ -32,17 +30,13 @@ class MarkerDecorations extends Disposable {
 	) {
 		super();
 		this._register(toDisposable(() => {
-			this.model.deltaDecorations(keys(this._markersData), []);
+			this.model.deltaDecorations([...this._markersData.keys()], []);
 			this._markersData.clear();
 		}));
 	}
 
-	register<T extends IDisposable>(t: T): T {
-		return super._register(t);
-	}
-
 	public update(markers: IMarker[], newDecorations: IModelDeltaDecoration[]): boolean {
-		const oldIds = keys(this._markersData);
+		const oldIds = [...this._markersData.keys()];
 		this._markersData.clear();
 		const ids = this.model.deltaDecorations(oldIds, newDecorations);
 		for (let index = 0; index < ids.length; index++) {
@@ -115,8 +109,6 @@ export class MarkerDecorationsService extends Disposable implements IMarkerDecor
 	private _onModelAdded(model: ITextModel): void {
 		const markerDecorations = new MarkerDecorations(model);
 		this._markerDecorations.set(MODEL_ID(model.uri), markerDecorations);
-		const delayer = markerDecorations.register(new Delayer(100));
-		markerDecorations.register(model.onDidChangeContent(() => delayer.trigger(() => this._updateDecorations(markerDecorations))));
 		this._updateDecorations(markerDecorations);
 	}
 

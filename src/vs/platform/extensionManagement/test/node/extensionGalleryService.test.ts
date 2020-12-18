@@ -5,7 +5,7 @@
 
 import * as assert from 'assert';
 import * as os from 'os';
-import { EnvironmentService } from 'vs/platform/environment/node/environmentService';
+import { NativeEnvironmentService } from 'vs/platform/environment/node/environmentService';
 import { parseArgs, OPTIONS } from 'vs/platform/environment/node/argv';
 import { getRandomTestPath } from 'vs/base/test/node/testUtils';
 import { join } from 'vs/base/common/path';
@@ -53,7 +53,7 @@ suite('Extension Gallery Service', () => {
 
 	test('marketplace machine id', () => {
 		const args = ['--user-data-dir', marketplaceHome];
-		const environmentService = new EnvironmentService(parseArgs(args, OPTIONS), process.execPath);
+		const environmentService = new NativeEnvironmentService(parseArgs(args, OPTIONS));
 		const storageService: IStorageService = new TestStorageService();
 
 		return resolveMarketplaceHeaders(product.version, environmentService, fileService, storageService).then(headers => {

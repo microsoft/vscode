@@ -290,7 +290,7 @@ suite('ParameterHintsModel', () => {
 		hintsModel.trigger({ triggerKind: modes.SignatureHelpTriggerKind.Invoke }, 0);
 		assert.strictEqual(-1, didRequestCancellationOf);
 
-		return new Promise((resolve, reject) =>
+		return new Promise<void>((resolve, reject) =>
 			hintsModel.onChangedHints(newParamterHints => {
 				try {
 					assert.strictEqual(0, didRequestCancellationOf);
@@ -461,6 +461,54 @@ suite('ParameterHintsModel', () => {
 		editor.trigger('keyboard', Handler.Type, { text: 'x' });
 
 		await getNextHint(model);
+	});
+
+	test('Retrigger while a pending resolve is still going on should preserve last active signature #96702', (done) => {
+		const editor = createMockEditor('');
+		const model = new ParameterHintsModel(editor, 50);
+		disposables.add(model);
+
+		const triggerCharacter = 'a';
+		const retriggerCharacter = 'b';
+
+		let invokeCount = 0;
+		disposables.add(modes.SignatureHelpProviderRegistry.register(mockFileSelector, new class implements modes.SignatureHelpProvider {
+			signatureHelpTriggerCharacters = [triggerCharacter];
+			signatureHelpRetriggerCharacters = [retriggerCharacter];
+
+			async provideSignatureHelp(_model: ITextModel, _position: Position, _token: CancellationToken, context: modes.SignatureHelpContext): Promise<modes.SignatureHelpResult> {
+				try {
+					++invokeCount;
+
+					if (invokeCount === 1) {
+						assert.strictEqual(context.triggerKind, modes.SignatureHelpTriggerKind.TriggerCharacter);
+						assert.strictEqual(context.triggerCharacter, triggerCharacter);
+						setTimeout(() => editor.trigger('keyboard', Handler.Type, { text: retriggerCharacter }), 50);
+					} else if (invokeCount === 2) {
+						// Trigger again while we wait for resolve to take place
+						setTimeout(() => editor.trigger('keyboard', Handler.Type, { text: retriggerCharacter }), 50);
+						await new Promise(resolve => setTimeout(resolve, 1000));
+					} else if (invokeCount === 3) {
+						// Make sure that in a retrigger during a pending resolve, we still have the old active signature.
+						assert.strictEqual(context.activeSignatureHelp, emptySigHelp);
+						done();
+					} else {
+						assert.fail('Unexpected invoke');
+					}
+
+					return emptySigHelpResult;
+				} catch (err) {
+					console.error(err);
+					done(err);
+					throw err;
+				}
+			}
+		}));
+
+		editor.trigger('keyboard', Handler.Type, { text: triggerCharacter });
+
+		getNextHint(model)
+			.then(() => getNextHint(model));
 	});
 });
 

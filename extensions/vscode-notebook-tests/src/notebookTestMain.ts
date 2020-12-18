@@ -4,7 +4,6 @@
  *--------------------------------------------------------------------------------------------*/
 
 import * as vscode from 'vscode';
-import * as path from 'path';
 import { smokeTestActivate } from './notebookSmokeTestMain';
 
 export function activate(context: vscode.ExtensionContext): any {
@@ -15,7 +14,7 @@ export function activate(context: vscode.ExtensionContext): any {
 	context.subscriptions.push(vscode.notebook.registerNotebookContentProvider('notebookCoreTest', {
 		onDidChangeNotebook: _onDidChangeNotebook.event,
 		openNotebook: async (_resource: vscode.Uri) => {
-			if (_resource.path.endsWith('empty.vsctestnb')) {
+			if (/.*empty\-.*\.vsctestnb$/.test(_resource.path)) {
 				return {
 					languages: ['typescript'],
 					metadata: {},
@@ -60,10 +59,11 @@ export function activate(context: vscode.ExtensionContext): any {
 		}
 	}));
 
-	context.subscriptions.push(vscode.notebook.registerNotebookKernel('notebookKernelTest', ['*.vsctestnb'], {
+	const kernel: vscode.NotebookKernel = {
 		label: 'Notebook Test Kernel',
-		executeAllCells: async (_document: vscode.NotebookDocument, _token: vscode.CancellationToken) => {
-			let cell = _document.cells[0];
+		isPreferred: true,
+		executeAllCells: async (_document: vscode.NotebookDocument) => {
+			const cell = _document.cells[0];
 
 			cell.outputs = [{
 				outputKind: vscode.CellOutputKind.Rich,
@@ -73,7 +73,8 @@ export function activate(context: vscode.ExtensionContext): any {
 			}];
 			return;
 		},
-		executeCell: async (document: vscode.NotebookDocument, cell: vscode.NotebookCell | undefined, _token: vscode.CancellationToken) => {
+		cancelAllCellsExecution: async (_document: vscode.NotebookDocument) => { },
+		executeCell: async (document: vscode.NotebookDocument, cell: vscode.NotebookCell | undefined) => {
 			if (!cell) {
 				cell = document.cells[0];
 			}
@@ -113,18 +114,13 @@ export function activate(context: vscode.ExtensionContext): any {
 				}
 			});
 			return;
-		}
-	}));
+		},
+		cancelCellExecution: async (_document: vscode.NotebookDocument, _cell: vscode.NotebookCell) => { }
+	};
 
-	const preloadUri = vscode.Uri.file(path.resolve(__dirname, '../src/customRenderer.js'));
-	context.subscriptions.push(vscode.notebook.registerNotebookOutputRenderer('notebookCoreTestRenderer', {
-		mimeTypes: [
-			'text/custom'
-		]
-	}, {
-		preloads: [preloadUri],
-		render(_document: vscode.NotebookDocument, _request: vscode.NotebookRenderRequest): string {
-			return '<div>test</div>';
+	context.subscriptions.push(vscode.notebook.registerNotebookKernelProvider({ filenamePattern: '*.vsctestnb' }, {
+		provideKernels: async () => {
+			return [kernel];
 		}
 	}));
 }

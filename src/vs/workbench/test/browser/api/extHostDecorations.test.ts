@@ -6,7 +6,6 @@
 import * as assert from 'assert';
 import { timeout } from 'vs/base/common/async';
 import { CancellationToken } from 'vs/base/common/cancellation';
-import { Event } from 'vs/base/common/event';
 import { URI } from 'vs/base/common/uri';
 import { mock } from 'vs/base/test/common/mock';
 import { NullLogService } from 'vs/platform/log/common/log';
@@ -47,20 +46,20 @@ suite('ExtHostDecorations', function () {
 		let calledB = false;
 
 		// never returns
-		extHostDecorations.registerDecorationProvider({
-			onDidChangeDecorations: Event.None,
-			provideDecoration() {
+		extHostDecorations.registerFileDecorationProvider({
+
+			provideFileDecoration() {
 				calledA = true;
 				return new Promise(() => { });
 			}
 		}, nullExtensionDescription.identifier);
 
 		// always returns
-		extHostDecorations.registerDecorationProvider({
-			onDidChangeDecorations: Event.None,
-			provideDecoration() {
+		extHostDecorations.registerFileDecorationProvider({
+
+			provideFileDecoration() {
 				calledB = true;
-				return new Promise(resolve => resolve({ letter: 'H', title: 'Hello' }));
+				return new Promise(resolve => resolve({ badge: 'H', tooltip: 'Hello' }));
 			}
 		}, nullExtensionDescription.identifier);
 

@@ -128,4 +128,13 @@ suite('typescript function call snippets', () => {
 			).snippet.value,
 			'foobar(${1:param})$0');
 	});
+
+	test('Should skip over this parameter', async () => {
+		assert.strictEqual(
+			snippetForFunctionCall(
+				{ label: 'foobar', },
+				[{ "text": "function", "kind": "keyword" }, { "text": " ", "kind": "space" }, { "text": "foobar", "kind": "functionName" }, { "text": "(", "kind": "punctuation" }, { "text": "this", "kind": "parameterName" }, { "text": ":", "kind": "punctuation" }, { "text": " ", "kind": "space" }, { "text": "string", "kind": "keyword" }, { "text": ",", "kind": "punctuation" }, { "text": "param", "kind": "parameterName" }, { "text": ":", "kind": "punctuation" }, { "text": " ", "kind": "space" }, { "text": "string", "kind": "keyword" }, { "text": ")", "kind": "punctuation" }, { "text": ":", "kind": "punctuation" }, { "text": " ", "kind": "space" }, { "text": "void", "kind": "keyword" }]
+			).snippet.value,
+			'foobar(${1:param})$0');
+	});
 });

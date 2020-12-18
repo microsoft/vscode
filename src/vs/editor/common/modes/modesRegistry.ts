@@ -62,7 +62,7 @@ export const PLAINTEXT_LANGUAGE_IDENTIFIER = new LanguageIdentifier(PLAINTEXT_MO
 
 ModesRegistry.registerLanguage({
 	id: PLAINTEXT_MODE_ID,
-	extensions: ['.txt', '.gitignore'],
+	extensions: ['.txt'],
 	aliases: [nls.localize('plainText.alias', "Plain Text"), 'text'],
 	mimetypes: ['text/plain']
 });

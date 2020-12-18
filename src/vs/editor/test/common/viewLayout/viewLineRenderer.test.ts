@@ -106,7 +106,7 @@ suite('viewLineRenderer.renderLine', () => {
 	}
 
 	test('empty line', () => {
-		assertParts('', 4, [], '<span>\u00a0</span>', [], []);
+		assertParts('', 4, [], '<span></span>', [], []);
 	});
 
 	test('uses part type', () => {
@@ -448,7 +448,7 @@ suite('viewLineRenderer.renderLine', () => {
 		assertCharacterMapping2(actual.characterMapping, expectedCharacterMapping);
 	});
 
-	test('issue Microsoft/monaco-editor#280: Improved source code rendering for RTL languages', () => {
+	test('issue microsoft/monaco-editor#280: Improved source code rendering for RTL languages', () => {
 		let lineText = 'var קודמות = \"מיותר קודמות צ\'ט של, אם לשון העברית שינויים ויש, אם\";';
 
 		let lineParts = createViewLineTokens([
@@ -869,7 +869,7 @@ suite('viewLineRenderer.renderLine', () => {
 
 suite('viewLineRenderer.renderLine 2', () => {
 
-	function testCreateLineParts(fontIsMonospace: boolean, lineContent: string, tokens: ViewLineToken[], fauxIndentLength: number, renderWhitespace: 'none' | 'boundary' | 'selection' | 'all', selections: LineRange[] | null, expected: string): void {
+	function testCreateLineParts(fontIsMonospace: boolean, lineContent: string, tokens: ViewLineToken[], fauxIndentLength: number, renderWhitespace: 'none' | 'boundary' | 'selection' | 'trailing' | 'all', selections: LineRange[] | null, expected: string): void {
 		let actual = renderViewLine(new RenderLineInput(
 			fontIsMonospace,
 			true,
@@ -1350,6 +1350,95 @@ suite('viewLineRenderer.renderLine 2', () => {
 				'<span class="mtk0">*</span>',
 				'<span class="mtkz" style="width:10px">\u00b7</span>',
 				'<span class="mtk0">S</span>',
+				'</span>',
+			].join('')
+		);
+	});
+
+	test('createLineParts render whitespace for trailing with leading, inner, and without trailing whitespace', () => {
+		testCreateLineParts(
+			false,
+			' Hello world!',
+			[
+				createPart(4, 0),
+				createPart(6, 1),
+				createPart(14, 2)
+			],
+			0,
+			'trailing',
+			null,
+			[
+				'<span>',
+				'<span class="mtk0">\u00a0Hel</span>',
+				'<span class="mtk1">lo</span>',
+				'<span class="mtk2">\u00a0world!</span>',
+				'</span>',
+			].join('')
+		);
+	});
+
+	test('createLineParts render whitespace for trailing with leading, inner, and trailing whitespace', () => {
+		testCreateLineParts(
+			false,
+			' Hello world! \t',
+			[
+				createPart(4, 0),
+				createPart(6, 1),
+				createPart(15, 2)
+			],
+			0,
+			'trailing',
+			null,
+			[
+				'<span>',
+				'<span class="mtk0">\u00a0Hel</span>',
+				'<span class="mtk1">lo</span>',
+				'<span class="mtk2">\u00a0world!</span>',
+				'<span class="mtkz" style="width:30px">\u00b7\u2192\u00a0</span>',
+				'</span>',
+			].join('')
+		);
+	});
+
+	test('createLineParts render whitespace for trailing with 8 leading and 8 trailing whitespaces', () => {
+		testCreateLineParts(
+			false,
+			'        Hello world!        ',
+			[
+				createPart(8, 1),
+				createPart(10, 2),
+				createPart(28, 3)
+			],
+			0,
+			'trailing',
+			null,
+			[
+				'<span>',
+				'<span class="mtk1">\u00a0\u00a0\u00a0\u00a0\u00a0\u00a0\u00a0\u00a0</span>',
+				'<span class="mtk2">He</span>',
+				'<span class="mtk3">llo\u00a0world!</span>',
+				'<span class="mtkz" style="width:40px">\u00b7\u00b7\u00b7\u00b7</span>',
+				'<span class="mtkz" style="width:40px">\u00b7\u00b7\u00b7\u00b7</span>',
+				'</span>',
+			].join('')
+		);
+	});
+
+	test('createLineParts render whitespace for trailing with line containing only whitespaces', () => {
+		testCreateLineParts(
+			false,
+			' \t ',
+			[
+				createPart(2, 0),
+				createPart(3, 1),
+			],
+			0,
+			'trailing',
+			null,
+			[
+				'<span>',
+				'<span class="mtkz" style="width:40px">\u00b7\u2192\u00a0\u00a0</span>',
+				'<span class="mtkz" style="width:10px">\u00b7</span>',
 				'</span>',
 			].join('')
 		);

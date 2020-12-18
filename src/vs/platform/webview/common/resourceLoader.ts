@@ -9,7 +9,7 @@ import { isUNC } from 'vs/base/common/extpath';
 import { Schemas } from 'vs/base/common/network';
 import { sep } from 'vs/base/common/path';
 import { URI } from 'vs/base/common/uri';
-import { IFileService } from 'vs/platform/files/common/files';
+import { ILogService } from 'vs/platform/log/common/log';
 import { IRemoteConnectionData } from 'vs/platform/remote/common/remoteAuthorityResolver';
 import { IRequestService } from 'vs/platform/request/common/request';
 import { getWebviewContentMimeType } from 'vs/platform/webview/common/mimeTypes';
@@ -35,6 +35,10 @@ export namespace WebviewResourceResponse {
 	export type StreamResponse = StreamSuccess | typeof Failed | typeof AccessDenied;
 }
 
+interface FileReader {
+	readFileStream(resource: URI): Promise<VSBufferReadableStream>;
+}
+
 export async function loadLocalResource(
 	requestUri: URI,
 	options: {
@@ -43,10 +47,16 @@ export async function loadLocalResource(
 		remoteConnectionData?: IRemoteConnectionData | null;
 		rewriteUri?: (uri: URI) => URI,
 	},
-	fileService: IFileService,
+	fileReader: FileReader,
 	requestService: IRequestService,
+	logService: ILogService,
 ): Promise<WebviewResourceResponse.StreamResponse> {
+	logService.debug(`loadLocalResource - being. requestUri=${requestUri}`);
+
 	let resourceToLoad = getResourceToLoad(requestUri, options.roots);
+
+	logService.debug(`loadLocalResource - found resource to load. requestUri=${requestUri}, resourceToLoad=${resourceToLoad}`);
+
 	if (!resourceToLoad) {
 		return WebviewResourceResponse.AccessDenied;
 	}
@@ -60,6 +70,8 @@ export async function loadLocalResource(
 
 	if (resourceToLoad.scheme === Schemas.http || resourceToLoad.scheme === Schemas.https) {
 		const response = await requestService.request({ url: resourceToLoad.toString(true) }, CancellationToken.None);
+		logService.debug(`loadLocalResource - Loaded over http(s). requestUri=${requestUri}, response=${response.res.statusCode}`);
+
 		if (response.res.statusCode === 200) {
 			return new WebviewResourceResponse.StreamSuccess(response.stream, mime);
 		}
@@ -67,10 +79,14 @@ export async function loadLocalResource(
 	}
 
 	try {
-		const contents = await fileService.readFileStream(resourceToLoad);
-		return new WebviewResourceResponse.StreamSuccess(contents.value, mime);
+		const contents = await fileReader.readFileStream(resourceToLoad);
+		logService.debug(`loadLocalResource - Loaded using fileReader. requestUri=${requestUri}`);
+
+		return new WebviewResourceResponse.StreamSuccess(contents, mime);
 	} catch (err) {
+		logService.debug(`loadLocalResource - Error using fileReader. requestUri=${requestUri}`);
 		console.log(err);
+
 		return WebviewResourceResponse.Failed;
 	}
 }
@@ -96,8 +112,15 @@ function normalizeRequestPath(requestUri: URI) {
 		//
 		// vscode-webview-resource://id/scheme//authority?/path
 		//
-		const resourceUri = URI.parse(requestUri.path.replace(/^\/([a-z0-9\-]+)\/{1,2}/i, '$1://'));
 
+		// Encode requestUri.path so that URI.parse can properly parse special characters like '#', '?', etc.
+		const resourceUri = URI.parse(encodeURIComponent(requestUri.path).replace(/%2F/gi, '/').replace(/^\/([a-z0-9\-]+)(\/{1,2})/i, (_: string, scheme: string, sep: string) => {
+			if (sep.length === 1) {
+				return `${scheme}:///`; // Add empty authority.
+			} else {
+				return `${scheme}://`; // Url has own authority.
+			}
+		}));
 		return resourceUri.with({
 			query: requestUri.query,
 			fragment: requestUri.fragment

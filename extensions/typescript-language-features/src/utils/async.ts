@@ -12,7 +12,7 @@ export class Delayer<T> {
 	public defaultDelay: number;
 	private timeout: any; // Timer
 	private completionPromise: Promise<T | null> | null;
-	private onSuccess: ((value?: T | Thenable<T>) => void) | null;
+	private onSuccess: ((value: T | PromiseLike<T> | undefined) => void) | null;
 	private task: ITask<T> | null;
 
 	constructor(defaultDelay: number) {
@@ -30,7 +30,7 @@ export class Delayer<T> {
 		}
 
 		if (!this.completionPromise) {
-			this.completionPromise = new Promise<T>((resolve) => {
+			this.completionPromise = new Promise<T | undefined>((resolve) => {
 				this.onSuccess = resolve;
 			}).then(() => {
 				this.completionPromise = null;

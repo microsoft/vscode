@@ -3,6 +3,7 @@
   "displayName": "%displayName%",
   "description": "%description%",
   "version": "1.0.0",
+  "enableProposedApi": true,
   "publisher": "vscode",
   "license": "MIT",
   "engines": {
@@ -12,6 +13,7 @@
     "Programming Languages"
   ],
   "main": "./out/extension.js",
+  "browser": "./dist/extension.js",
   "activationEvents": [
     "*"
   ],

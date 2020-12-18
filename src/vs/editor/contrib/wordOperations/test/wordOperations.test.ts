@@ -9,10 +9,14 @@ import { EditorCommand } from 'vs/editor/browser/editorExtensions';
 import { Position } from 'vs/editor/common/core/position';
 import { Selection } from 'vs/editor/common/core/selection';
 import { deserializePipePositions, serializePipePositions, testRepeatedActionAndExtractPositions } from 'vs/editor/contrib/wordOperations/test/wordTestUtils';
-import { CursorWordEndLeft, CursorWordEndLeftSelect, CursorWordEndRight, CursorWordEndRightSelect, CursorWordLeft, CursorWordLeftSelect, CursorWordRight, CursorWordRightSelect, CursorWordStartLeft, CursorWordStartLeftSelect, CursorWordStartRight, CursorWordStartRightSelect, DeleteWordEndLeft, DeleteWordEndRight, DeleteWordLeft, DeleteWordRight, DeleteWordStartLeft, DeleteWordStartRight, CursorWordAccessibilityLeft, CursorWordAccessibilityLeftSelect, CursorWordAccessibilityRight, CursorWordAccessibilityRightSelect } from 'vs/editor/contrib/wordOperations/wordOperations';
+import { CursorWordEndLeft, CursorWordEndLeftSelect, CursorWordEndRight, CursorWordEndRightSelect, CursorWordLeft, CursorWordLeftSelect, CursorWordRight, CursorWordRightSelect, CursorWordStartLeft, CursorWordStartLeftSelect, CursorWordStartRight, CursorWordStartRightSelect, DeleteWordEndLeft, DeleteWordEndRight, DeleteWordLeft, DeleteWordRight, DeleteWordStartLeft, DeleteWordStartRight, CursorWordAccessibilityLeft, CursorWordAccessibilityLeftSelect, CursorWordAccessibilityRight, CursorWordAccessibilityRightSelect, DeleteInsideWord } from 'vs/editor/contrib/wordOperations/wordOperations';
 import { withTestCodeEditor } from 'vs/editor/test/browser/testCodeEditor';
 import { CoreEditingCommands } from 'vs/editor/browser/controller/coreCommands';
 import { ViewModel } from 'vs/editor/common/viewModel/viewModelImpl';
+import { LanguageIdentifier } from 'vs/editor/common/modes';
+import { MockMode } from 'vs/editor/test/common/mocks/mockMode';
+import { LanguageConfigurationRegistry } from 'vs/editor/common/modes/languageConfigurationRegistry';
+import { createTextModel } from 'vs/editor/test/common/editorTestUtils';
 
 suite('WordOperations', () => {
 
@@ -38,6 +42,7 @@ suite('WordOperations', () => {
 	const _deleteWordRight = new DeleteWordRight();
 	const _deleteWordStartRight = new DeleteWordStartRight();
 	const _deleteWordEndRight = new DeleteWordEndRight();
+	const _deleteInsideWord = new DeleteInsideWord();
 
 	function runEditorCommand(editor: ICodeEditor, command: EditorCommand): void {
 		command.runEditorCommand(null, editor, null);
@@ -83,6 +88,9 @@ suite('WordOperations', () => {
 	}
 	function deleteWordEndRight(editor: ICodeEditor): void {
 		runEditorCommand(editor, _deleteWordEndRight);
+	}
+	function deleteInsideWord(editor: ICodeEditor): void {
+		_deleteInsideWord.run(null!, editor, null);
 	}
 
 	test('cursorWordLeft - simple', () => {
@@ -719,6 +727,146 @@ suite('WordOperations', () => {
 			const model = editor.getModel()!;
 			editor.setPosition(new Position(2, 1));
 			deleteWordLeft(editor); assert.equal(model.getLineContent(1), 'A line with text.   And another one', '001');
+		});
+	});
+
+	test('deleteWordLeft - issue #91855: Matching (quote, bracket, paren) doesn\'t get deleted when hitting Ctrl+Backspace', () => {
+		const languageId = new LanguageIdentifier('myTestMode', 5);
+		class TestMode extends MockMode {
+			constructor() {
+				super(languageId);
+				this._register(LanguageConfigurationRegistry.register(this.getLanguageIdentifier(), {
+					autoClosingPairs: [
+						{ open: '\"', close: '\"' }
+					]
+				}));
+			}
+		}
+
+		const mode = new TestMode();
+		const model = createTextModel('a ""', undefined, languageId);
+
+		withTestCodeEditor(null, { model }, (editor, _) => {
+			editor.setPosition(new Position(1, 4));
+			deleteWordLeft(editor); assert.equal(model.getLineContent(1), 'a ');
+		});
+
+		model.dispose();
+		mode.dispose();
+	});
+
+	test('deleteInsideWord - empty line', () => {
+		withTestCodeEditor([
+			'Line1',
+			'',
+			'Line2'
+		], {}, (editor, _) => {
+			const model = editor.getModel()!;
+			editor.setPosition(new Position(2, 1));
+			deleteInsideWord(editor);
+			assert.equal(model.getValue(), 'Line1\nLine2');
+		});
+	});
+
+	test('deleteInsideWord - in whitespace 1', () => {
+		withTestCodeEditor([
+			'Just  some text.'
+		], {}, (editor, _) => {
+			const model = editor.getModel()!;
+			editor.setPosition(new Position(1, 6));
+			deleteInsideWord(editor);
+			assert.equal(model.getValue(), 'Justsome text.');
+		});
+	});
+
+	test('deleteInsideWord - in whitespace 2', () => {
+		withTestCodeEditor([
+			'Just     some text.'
+		], {}, (editor, _) => {
+			const model = editor.getModel()!;
+			editor.setPosition(new Position(1, 6));
+			deleteInsideWord(editor);
+			assert.equal(model.getValue(), 'Justsome text.');
+		});
+	});
+
+	test('deleteInsideWord - in whitespace 3', () => {
+		withTestCodeEditor([
+			'Just     "some text.'
+		], {}, (editor, _) => {
+			const model = editor.getModel()!;
+			editor.setPosition(new Position(1, 6));
+			deleteInsideWord(editor);
+			assert.equal(model.getValue(), 'Just"some text.');
+			deleteInsideWord(editor);
+			assert.equal(model.getValue(), '"some text.');
+			deleteInsideWord(editor);
+			assert.equal(model.getValue(), 'some text.');
+			deleteInsideWord(editor);
+			assert.equal(model.getValue(), 'text.');
+			deleteInsideWord(editor);
+			assert.equal(model.getValue(), '.');
+			deleteInsideWord(editor);
+			assert.equal(model.getValue(), '');
+			deleteInsideWord(editor);
+			assert.equal(model.getValue(), '');
+		});
+	});
+
+	test('deleteInsideWord - in non-words', () => {
+		withTestCodeEditor([
+			'x=3+4+5+6'
+		], {}, (editor, _) => {
+			const model = editor.getModel()!;
+			editor.setPosition(new Position(1, 7));
+			deleteInsideWord(editor);
+			assert.equal(model.getValue(), 'x=3+45+6');
+			deleteInsideWord(editor);
+			assert.equal(model.getValue(), 'x=3++6');
+			deleteInsideWord(editor);
+			assert.equal(model.getValue(), 'x=36');
+			deleteInsideWord(editor);
+			assert.equal(model.getValue(), 'x=');
+			deleteInsideWord(editor);
+			assert.equal(model.getValue(), 'x');
+			deleteInsideWord(editor);
+			assert.equal(model.getValue(), '');
+			deleteInsideWord(editor);
+			assert.equal(model.getValue(), '');
+		});
+	});
+
+	test('deleteInsideWord - in words 1', () => {
+		withTestCodeEditor([
+			'This is interesting'
+		], {}, (editor, _) => {
+			const model = editor.getModel()!;
+			editor.setPosition(new Position(1, 7));
+			deleteInsideWord(editor);
+			assert.equal(model.getValue(), 'This interesting');
+			deleteInsideWord(editor);
+			assert.equal(model.getValue(), 'This');
+			deleteInsideWord(editor);
+			assert.equal(model.getValue(), '');
+			deleteInsideWord(editor);
+			assert.equal(model.getValue(), '');
+		});
+	});
+
+	test('deleteInsideWord - in words 2', () => {
+		withTestCodeEditor([
+			'This  is  interesting'
+		], {}, (editor, _) => {
+			const model = editor.getModel()!;
+			editor.setPosition(new Position(1, 7));
+			deleteInsideWord(editor);
+			assert.equal(model.getValue(), 'This  interesting');
+			deleteInsideWord(editor);
+			assert.equal(model.getValue(), 'This');
+			deleteInsideWord(editor);
+			assert.equal(model.getValue(), '');
+			deleteInsideWord(editor);
+			assert.equal(model.getValue(), '');
 		});
 	});
 });

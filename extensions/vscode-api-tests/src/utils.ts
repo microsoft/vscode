@@ -22,13 +22,13 @@ export async function createRandomFile(contents = '', dir: vscode.Uri | undefine
 	} else {
 		fakeFile = vscode.Uri.parse(`${testFs.scheme}:/${rndName() + ext}`);
 	}
-	await testFs.writeFile(fakeFile, Buffer.from(contents), { create: true, overwrite: true });
+	testFs.writeFile(fakeFile, Buffer.from(contents), { create: true, overwrite: true });
 	return fakeFile;
 }
 
 export async function deleteFile(file: vscode.Uri): Promise<boolean> {
 	try {
-		await testFs.delete(file);
+		testFs.delete(file);
 		return true;
 	} catch {
 		return false;
@@ -48,23 +48,12 @@ export function closeAllEditors(): Thenable<any> {
 	return vscode.commands.executeCommand('workbench.action.closeAllEditors');
 }
 
+export async function revertAllDirty(): Promise<void> {
+	return vscode.commands.executeCommand('_workbench.revertAllDirty');
+}
+
 export function disposeAll(disposables: vscode.Disposable[]) {
 	vscode.Disposable.from(...disposables).dispose();
-}
-
-export function conditionalTest(name: string, testCallback: (done: MochaDone) => void | Thenable<any>) {
-	if (isTestTypeActive()) {
-		const async = !!testCallback.length;
-		if (async) {
-			test(name, (done) => testCallback(done));
-		} else {
-			test(name, () => (<() => void | Thenable<any>>testCallback)());
-		}
-	}
-}
-
-function isTestTypeActive(): boolean {
-	return !!vscode.extensions.getExtension('vscode-resolver-test');
 }
 
 export function delay(ms: number) {

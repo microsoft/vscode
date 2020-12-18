@@ -32,7 +32,7 @@ function initLoader(opts) {
 		nodeRequire: require,
 		nodeMain: __filename,
 		catchError: true,
-		baseUrl: bootstrap.uriFromPath(path.join(__dirname, '../../../src')),
+		baseUrl: bootstrap.fileUriFromPath(path.join(__dirname, '../../../src'), { isWindows: process.platform === 'win32' }),
 		paths: {
 			'vs': `../${outdir}/vs`,
 			'lib': `../${outdir}/lib`,
@@ -135,9 +135,9 @@ function serializeSuite(suite) {
 		tests: suite.tests.map(serializeRunnable),
 		title: suite.title,
 		fullTitle: suite.fullTitle(),
+		titlePath: suite.titlePath(),
 		timeout: suite.timeout(),
 		retries: suite.retries(),
-		enableTimeouts: suite.enableTimeouts(),
 		slow: suite.slow(),
 		bail: suite.bail()
 	};
@@ -147,6 +147,7 @@ function serializeRunnable(runnable) {
 	return {
 		title: runnable.title,
 		fullTitle: runnable.fullTitle(),
+		titlePath: runnable.titlePath(),
 		async: runnable.async,
 		slow: runnable.slow(),
 		speed: runnable.speed,

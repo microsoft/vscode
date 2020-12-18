@@ -14,6 +14,15 @@ import { DisposableStore } from 'vs/base/common/lifecycle';
 export class ExtHostStatusBarEntry implements vscode.StatusBarItem {
 	private static ID_GEN = 0;
 
+	private static ALLOWED_BACKGROUND_COLORS = (() => {
+		const map = new Map<string, ThemeColor>();
+
+		// https://github.com/microsoft/vscode/issues/110214
+		map.set('statusBarItem.errorBackground', new ThemeColor('statusBarItem.errorForeground'));
+
+		return map;
+	})();
+
 	private _id: number;
 	private _alignment: number;
 	private _priority?: number;
@@ -26,6 +35,7 @@ export class ExtHostStatusBarEntry implements vscode.StatusBarItem {
 	private _text: string = '';
 	private _tooltip?: string;
 	private _color?: string | ThemeColor;
+	private _backgroundColor?: ThemeColor;
 	private readonly _internalCommandRegistration = new DisposableStore();
 	private _command?: {
 		readonly fromApi: string | vscode.Command,
@@ -72,6 +82,10 @@ export class ExtHostStatusBarEntry implements vscode.StatusBarItem {
 		return this._color;
 	}
 
+	public get backgroundColor(): ThemeColor | undefined {
+		return this._backgroundColor;
+	}
+
 	public get command(): string | vscode.Command | undefined {
 		return this._command?.fromApi;
 	}
@@ -92,6 +106,15 @@ export class ExtHostStatusBarEntry implements vscode.StatusBarItem {
 
 	public set color(color: string | ThemeColor | undefined) {
 		this._color = color;
+		this.update();
+	}
+
+	public set backgroundColor(color: ThemeColor | undefined) {
+		if (color && !ExtHostStatusBarEntry.ALLOWED_BACKGROUND_COLORS.has(color.id)) {
+			color = undefined;
+		}
+
+		this._backgroundColor = color;
 		this.update();
 	}
 
@@ -144,9 +167,15 @@ export class ExtHostStatusBarEntry implements vscode.StatusBarItem {
 		this._timeoutHandle = setTimeout(() => {
 			this._timeoutHandle = undefined;
 
+			// If a background color is set, the foreground is determined
+			let color = this._color;
+			if (this._backgroundColor) {
+				color = ExtHostStatusBarEntry.ALLOWED_BACKGROUND_COLORS.get(this._backgroundColor.id);
+			}
+
 			// Set to status bar
-			this._proxy.$setEntry(this.id, this._statusId, this._statusName, this.text, this.tooltip, this._command?.internal, this.color,
-				this._alignment === ExtHostStatusBarAlignment.Left ? MainThreadStatusBarAlignment.LEFT : MainThreadStatusBarAlignment.RIGHT,
+			this._proxy.$setEntry(this.id, this._statusId, this._statusName, this._text, this._tooltip, this._command?.internal, color,
+				this._backgroundColor, this._alignment === ExtHostStatusBarAlignment.Left ? MainThreadStatusBarAlignment.LEFT : MainThreadStatusBarAlignment.RIGHT,
 				this._priority, this._accessibilityInformation);
 		}, 0);
 	}

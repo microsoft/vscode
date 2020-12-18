@@ -6,8 +6,8 @@
 import 'vs/css!./media/binaryeditor';
 import * as nls from 'vs/nls';
 import { Emitter } from 'vs/base/common/event';
-import { EditorInput, EditorOptions } from 'vs/workbench/common/editor';
-import { BaseEditor } from 'vs/workbench/browser/parts/editor/baseEditor';
+import { EditorInput, EditorOptions, IEditorOpenContext } from 'vs/workbench/common/editor';
+import { EditorPane } from 'vs/workbench/browser/parts/editor/editorPane';
 import { BinaryEditorModel } from 'vs/workbench/common/editor/binaryEditorModel';
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
 import { DomScrollableElement } from 'vs/base/browser/ui/scrollbar/scrollableElement';
@@ -20,7 +20,7 @@ import { dispose, IDisposable, Disposable, DisposableStore } from 'vs/base/commo
 import { IStorageService } from 'vs/platform/storage/common/storage';
 import { IWorkbenchEnvironmentService } from 'vs/workbench/services/environment/common/environmentService';
 import { assertIsDefined, assertAllDefined } from 'vs/base/common/types';
-import { BinarySize } from 'vs/platform/files/common/files';
+import { ByteSize } from 'vs/platform/files/common/files';
 
 export interface IOpenCallbacks {
 	openInternal: (input: EditorInput, options: EditorOptions | undefined) => Promise<void>;
@@ -30,7 +30,7 @@ export interface IOpenCallbacks {
 /*
  * This class is only intended to be subclassed and not instantiated.
  */
-export abstract class BaseBinaryResourceEditor extends BaseEditor {
+export abstract class BaseBinaryResourceEditor extends EditorPane {
 
 	private readonly _onMetadataChanged = this._register(new Emitter<void>());
 	readonly onMetadataChanged = this._onMetadataChanged.event;
@@ -74,8 +74,8 @@ export abstract class BaseBinaryResourceEditor extends BaseEditor {
 		parent.appendChild(this.scrollbar.getDomNode());
 	}
 
-	async setInput(input: EditorInput, options: EditorOptions | undefined, token: CancellationToken): Promise<void> {
-		await super.setInput(input, options, token);
+	async setInput(input: EditorInput, options: EditorOptions | undefined, context: IEditorOpenContext, token: CancellationToken): Promise<void> {
+		await super.setInput(input, options, context, token);
 		const model = await input.resolve();
 
 		// Check for cancellation
@@ -96,7 +96,7 @@ export abstract class BaseBinaryResourceEditor extends BaseEditor {
 		const [binaryContainer, scrollbar] = assertAllDefined(this.binaryContainer, this.scrollbar);
 		this.resourceViewerContext = ResourceViewer.show({ name: model.getName(), resource: model.resource, size: model.getSize(), etag: model.getETag(), mime: model.getMime() }, binaryContainer, scrollbar, {
 			openInternalClb: () => this.handleOpenInternalCallback(input, options),
-			openExternalClb: this.environmentService.configuration.remoteAuthority ? undefined : resource => this.callbacks.openExternal(resource),
+			openExternalClb: this.environmentService.remoteAuthority ? undefined : resource => this.callbacks.openExternal(resource),
 			metadataClb: meta => this.handleMetadataChanged(meta)
 		});
 	}
@@ -182,7 +182,7 @@ interface ResourceViewerDelegate {
 
 class ResourceViewer {
 
-	private static readonly MAX_OPEN_INTERNAL_SIZE = BinarySize.MB * 200; // max size until we offer an action to open internally
+	private static readonly MAX_OPEN_INTERNAL_SIZE = ByteSize.MB * 200; // max size until we offer an action to open internally
 
 	static show(
 		descriptor: IResourceDescriptor,
@@ -211,7 +211,7 @@ class FileTooLargeFileView {
 		scrollbar: DomScrollableElement,
 		delegate: ResourceViewerDelegate
 	) {
-		const size = BinarySize.formatSize(descriptorSize);
+		const size = ByteSize.formatSize(descriptorSize);
 		delegate.metadataClb(size);
 
 		clearNode(container);
@@ -233,7 +233,7 @@ class FileSeemsBinaryFileView {
 		scrollbar: DomScrollableElement,
 		delegate: ResourceViewerDelegate
 	) {
-		delegate.metadataClb(typeof descriptor.size === 'number' ? BinarySize.formatSize(descriptor.size) : '');
+		delegate.metadataClb(typeof descriptor.size === 'number' ? ByteSize.formatSize(descriptor.size) : '');
 
 		clearNode(container);
 

@@ -187,7 +187,7 @@ export class GlobalEditorMouseMoveMonitor extends Disposable {
 		initialButtons: number,
 		merger: EditorMouseEventMerger,
 		mouseMoveCallback: (e: EditorMouseEvent) => void,
-		onStopCallback: () => void
+		onStopCallback: (browserEvent?: MouseEvent | KeyboardEvent) => void
 	): void {
 
 		// Add a <<capture>> keydown event listener that will cancel the monitoring
@@ -198,16 +198,16 @@ export class GlobalEditorMouseMoveMonitor extends Disposable {
 				// Allow modifier keys
 				return;
 			}
-			this._globalMouseMoveMonitor.stopMonitoring(true);
+			this._globalMouseMoveMonitor.stopMonitoring(true, e.browserEvent);
 		}, true);
 
 		const myMerger: dom.IEventMerger<EditorMouseEvent, MouseEvent> = (lastEvent: EditorMouseEvent | null, currentEvent: MouseEvent): EditorMouseEvent => {
 			return merger(lastEvent, new EditorMouseEvent(currentEvent, this._editorViewDomNode));
 		};
 
-		this._globalMouseMoveMonitor.startMonitoring(initialElement, initialButtons, myMerger, mouseMoveCallback, () => {
+		this._globalMouseMoveMonitor.startMonitoring(initialElement, initialButtons, myMerger, mouseMoveCallback, (e) => {
 			this._keydownListener!.dispose();
-			onStopCallback();
+			onStopCallback(e);
 		});
 	}
 }

@@ -3,7 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { Terminal, IViewportRange } from 'xterm';
+import type { Terminal, IViewportRange } from 'xterm';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { ITerminalConfiguration, TERMINAL_CONFIG_SECTION } from 'vs/workbench/contrib/terminal/common/terminal';
 import { TerminalLink } from 'vs/workbench/contrib/terminal/browser/links/terminalLink';
@@ -53,7 +53,7 @@ export class TerminalWordLinkProvider extends TerminalBaseLinkProvider {
 			// Add a link if this is a separator
 			if (width !== 0 && wordSeparators.indexOf(chars) >= 0) {
 				if (startX !== -1) {
-					result.push(new TerminalLink({ start: { x: startX + 1, y }, end: { x, y } }, text, this._xterm.buffer.active.viewportY, activateCallback, this._tooltipCallback, false, localize('searchWorkspace', 'Search workspace'), this._configurationService));
+					result.push(this._createTerminalLink(startX, x, y, text, activateCallback));
 					text = '';
 					startX = -1;
 				}
@@ -70,10 +70,28 @@ export class TerminalWordLinkProvider extends TerminalBaseLinkProvider {
 
 		// Add the final link if there is one
 		if (startX !== -1) {
-			result.push(new TerminalLink({ start: { x: startX + 1, y }, end: { x: line.length, y } }, text, this._xterm.buffer.active.viewportY, activateCallback, this._tooltipCallback, false, localize('searchWorkspace', 'Search workspace'), this._configurationService));
+			result.push(this._createTerminalLink(startX, line.length, y, text, activateCallback));
 		}
 
 		return result;
+	}
+
+	private _createTerminalLink(startX: number, endX: number, y: number, text: string, activateCallback: XtermLinkMatcherHandler): TerminalLink {
+		// Remove trailing colon if there is one so the link is more useful
+		if (text.length > 0 && text.charAt(text.length - 1) === ':') {
+			text = text.slice(0, -1);
+			endX--;
+		}
+		return this._instantiationService.createInstance(TerminalLink,
+			this._xterm,
+			{ start: { x: startX + 1, y }, end: { x: endX, y } },
+			text,
+			this._xterm.buffer.active.viewportY,
+			activateCallback,
+			this._tooltipCallback,
+			false,
+			localize('searchWorkspace', 'Search workspace')
+		);
 	}
 
 	private async _activate(link: string) {

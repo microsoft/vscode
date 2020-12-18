@@ -3,10 +3,11 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
+import * as glob from 'vs/base/common/glob';
 import { EditorInput, IEditorInput, GroupIdentifier, ISaveOptions, IMoveResult, IRevertOptions } from 'vs/workbench/common/editor';
 import { INotebookService } from 'vs/workbench/contrib/notebook/common/notebookService';
 import { URI } from 'vs/base/common/uri';
-import { isEqual, basename } from 'vs/base/common/resources';
+import { isEqual, basename, joinPath } from 'vs/base/common/resources';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { IFilesConfigurationService, AutoSaveMode } from 'vs/workbench/services/filesConfiguration/common/filesConfigurationService';
 import { IFileDialogService } from 'vs/platform/dialogs/common/dialogs';
@@ -108,19 +109,24 @@ export class NotebookEditorInput extends EditorInput {
 			return undefined;
 		}
 
-		const dialogPath = this._textModel.object.resource;
+		const dialogPath = this.isUntitled() ? await this.suggestName(this.name) : this._textModel.object.resource;
+
 		const target = await this._fileDialogService.pickFileToSave(dialogPath, options?.availableFileSystems);
 		if (!target) {
 			return undefined; // save cancelled
 		}
 
 		if (!provider.matches(target)) {
-			const patterns = provider.selector.map(pattern => {
-				if (pattern.excludeFileNamePattern) {
-					return `${pattern.filenamePattern} (exclude: ${pattern.excludeFileNamePattern})`;
+			const patterns = provider.selectors.map(pattern => {
+				if (typeof pattern === 'string') {
+					return pattern;
 				}
 
-				return pattern.filenamePattern;
+				if (glob.isRelativePattern(pattern)) {
+					return `${pattern} (base ${pattern.base})`;
+				}
+
+				return `${pattern.include} (exclude: ${pattern.exclude})`;
 			}).join(', ');
 			throw new Error(`File name ${target} is not supported by ${provider.providerDisplayName}.
 
@@ -134,6 +140,10 @@ ${patterns}
 		}
 
 		return this._move(group, target)?.editor;
+	}
+
+	async suggestName(suggestedFilename: string) {
+		return joinPath(await this._fileDialogService.defaultFilePath(), suggestedFilename);
 	}
 
 	// called when users rename a notebook document
@@ -161,13 +171,13 @@ ${patterns}
 		return;
 	}
 
-	async resolve(editorId?: string): Promise<INotebookEditorModel | null> {
+	async resolve(): Promise<INotebookEditorModel | null> {
 		if (!await this._notebookService.canResolve(this.viewType!)) {
 			return null;
 		}
 
 		if (!this._textModel) {
-			this._textModel = await this._notebookModelResolverService.resolve(this.resource, this.viewType!, editorId);
+			this._textModel = await this._notebookModelResolverService.resolve(this.resource, this.viewType!);
 
 			this._register(this._textModel.object.onDidChangeDirty(() => {
 				this._onDidChangeDirty.fire();

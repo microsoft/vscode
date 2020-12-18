@@ -12,6 +12,7 @@ import { mkdirp, rimraf } from 'vs/base/node/pfs';
 import { open as _openZip, Entry, ZipFile } from 'yauzl';
 import * as yazl from 'yazl';
 import { CancellationToken } from 'vs/base/common/cancellation';
+import { assertIsDefined } from 'vs/base/common/types';
 
 export interface IExtractOptions {
 	overwrite?: boolean;
@@ -72,7 +73,7 @@ function toExtractError(err: Error): ExtractError {
 function extractEntry(stream: Readable, fileName: string, mode: number, targetPath: string, options: IOptions, token: CancellationToken): Promise<void> {
 	const dirName = path.dirname(fileName);
 	const targetDirName = path.join(targetPath, dirName);
-	if (targetDirName.indexOf(targetPath) !== 0) {
+	if (!targetDirName.startsWith(targetPath)) {
 		return Promise.reject(new Error(nls.localize('invalid file', "Error extracting {0}. Invalid file.", fileName)));
 	}
 	const targetFileName = path.join(targetPath, fileName);
@@ -161,24 +162,24 @@ function extractZip(zipfile: ZipFile, targetPath: string, options: IOptions, tok
 }
 
 function openZip(zipFile: string, lazy: boolean = false): Promise<ZipFile> {
-	return new Promise((resolve, reject) => {
+	return new Promise<ZipFile>((resolve, reject) => {
 		_openZip(zipFile, lazy ? { lazyEntries: true } : undefined!, (error?: Error, zipfile?: ZipFile) => {
 			if (error) {
 				reject(toExtractError(error));
 			} else {
-				resolve(zipfile);
+				resolve(assertIsDefined(zipfile));
 			}
 		});
 	});
 }
 
 function openZipStream(zipFile: ZipFile, entry: Entry): Promise<Readable> {
-	return new Promise((resolve, reject) => {
+	return new Promise<Readable>((resolve, reject) => {
 		zipFile.openReadStream(entry, (error?: Error, stream?: Readable) => {
 			if (error) {
 				reject(toExtractError(error));
 			} else {
-				resolve(stream);
+				resolve(assertIsDefined(stream));
 			}
 		});
 	});

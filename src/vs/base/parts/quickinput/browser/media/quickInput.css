@@ -49,6 +49,10 @@
 	margin: 6px;
 }
 
+.quick-input-header .quick-input-description {
+	margin: 4px 2px;
+}
+
 .quick-input-header {
 	display: flex;
 	padding: 6px 6px 0px 6px;
@@ -124,6 +128,11 @@
 .quick-input-message {
 	margin-top: -1px;
 	padding: 5px 5px 2px 5px;
+}
+
+.quick-input-message > .codicon {
+	margin: 0 0.2em;
+	vertical-align: text-bottom;
 }
 
 .quick-input-progress.monaco-progress-container {

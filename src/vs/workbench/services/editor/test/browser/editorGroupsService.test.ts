@@ -7,11 +7,11 @@ import * as assert from 'assert';
 import { Event } from 'vs/base/common/event';
 import { workbenchInstantiationService, registerTestEditor, TestFileEditorInput, TestEditorPart, ITestInstantiationService } from 'vs/workbench/test/browser/workbenchTestServices';
 import { GroupDirection, GroupsOrder, MergeGroupMode, GroupOrientation, GroupChangeKind, GroupLocation, OpenEditorContext } from 'vs/workbench/services/editor/common/editorGroupsService';
-import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { EditorOptions, CloseDirection, IEditorPartOptions, EditorsOrder } from 'vs/workbench/common/editor';
 import { URI } from 'vs/base/common/uri';
 import { SyncDescriptor } from 'vs/platform/instantiation/common/descriptors';
 import { IDisposable, dispose } from 'vs/base/common/lifecycle';
+import { MockScopableContextKeyService } from 'vs/platform/keybinding/test/common/mockKeybindingService';
 
 const TEST_EDITOR_ID = 'MyFileEditorForEditorGroupService';
 const TEST_EDITOR_INPUT_ID = 'testEditorInputForEditorGroupService';
@@ -38,7 +38,8 @@ suite('EditorGroupsService', () => {
 	}
 
 	test('groups basics', async function () {
-		const [part] = createPart();
+		const instantiationService = workbenchInstantiationService({ contextKeyService: instantiationService => instantiationService.createInstance(MockScopableContextKeyService) });
+		const [part] = createPart(instantiationService);
 
 		let activeGroupChangeCounter = 0;
 		const activeGroupChangeListener = part.onDidActiveGroupChange(() => {
@@ -161,19 +162,12 @@ suite('EditorGroupsService', () => {
 		assert.equal(mru[0], rightGroup);
 		assert.equal(mru[1], rootGroup);
 
-		let rightGroupInstantiator!: IInstantiationService;
-		part.activeGroup.invokeWithinContext(accessor => {
-			rightGroupInstantiator = accessor.get(IInstantiationService);
-		});
+		const rightGroupContextKeyService = part.activeGroup.scopedContextKeyService;
+		const rootGroupContextKeyService = rootGroup.scopedContextKeyService;
 
-		let rootGroupInstantiator!: IInstantiationService;
-		rootGroup.invokeWithinContext(accessor => {
-			rootGroupInstantiator = accessor.get(IInstantiationService);
-		});
-
-		assert.ok(rightGroupInstantiator);
-		assert.ok(rootGroupInstantiator);
-		assert.ok(rightGroupInstantiator !== rootGroupInstantiator);
+		assert.ok(rightGroupContextKeyService);
+		assert.ok(rootGroupContextKeyService);
+		assert.ok(rightGroupContextKeyService !== rootGroupContextKeyService);
 
 		part.removeGroup(rightGroup);
 		assert.equal(groupRemovedCounter, 2);
@@ -1077,8 +1071,8 @@ suite('EditorGroupsService', () => {
 		await group.openEditors([{ editor: input, options: { pinned: true } }, { editor: inputInactive }]);
 		assert.equal(firstOpenEditorContext, undefined);
 
-		const waitForEditorWillOpen = new Promise<OpenEditorContext | undefined>(c => {
-			Event.once(rightGroup.onWillOpenEditor)(e => c(e.context));
+		const waitForEditorWillOpen = new Promise<OpenEditorContext | undefined>(resolve => {
+			Event.once(rightGroup.onWillOpenEditor)(e => resolve(e.context));
 		});
 
 		group.moveEditor(inputInactive, rightGroup, { index: 0 });
@@ -1096,8 +1090,8 @@ suite('EditorGroupsService', () => {
 		const input = new TestFileEditorInput(URI.file('foo/bar'), TEST_EDITOR_INPUT_ID);
 		const inputInactive = new TestFileEditorInput(URI.file('foo/bar/inactive'), TEST_EDITOR_INPUT_ID);
 		await group.openEditors([{ editor: input, options: { pinned: true } }, { editor: inputInactive }]);
-		const waitForEditorWillOpen = new Promise<OpenEditorContext | undefined>(c => {
-			Event.once(rightGroup.onWillOpenEditor)(e => c(e.context));
+		const waitForEditorWillOpen = new Promise<OpenEditorContext | undefined>(resolve => {
+			Event.once(rightGroup.onWillOpenEditor)(e => resolve(e.context));
 		});
 
 		group.copyEditor(inputInactive, rightGroup, { index: 0 });

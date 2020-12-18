@@ -20,7 +20,7 @@ import { CommandsRegistry } from 'vs/platform/commands/common/commands';
 import { textLinkForeground, textLinkActiveForeground, focusBorder, textPreformatForeground } from 'vs/platform/theme/common/colorRegistry';
 import { ResourceLabels } from 'vs/workbench/browser/labels';
 import { CommentsList, COMMENTS_VIEW_ID, COMMENTS_VIEW_TITLE } from 'vs/workbench/contrib/comments/browser/commentsTreeViewer';
-import { ViewPane, IViewPaneOptions } from 'vs/workbench/browser/parts/views/viewPaneContainer';
+import { ViewPane, IViewPaneOptions } from 'vs/workbench/browser/parts/views/viewPane';
 import { IViewDescriptorService, IViewsService } from 'vs/workbench/common/views';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
@@ -28,13 +28,13 @@ import { IContextMenuService } from 'vs/platform/contextview/browser/contextView
 import { IKeybindingService } from 'vs/platform/keybinding/common/keybinding';
 import { IOpenerService } from 'vs/platform/opener/common/opener';
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
+import { IUriIdentityService } from 'vs/workbench/services/uriIdentity/common/uriIdentity';
 
 export class CommentsPanel extends ViewPane {
 	private treeLabels!: ResourceLabels;
 	private tree!: CommentsList;
 	private treeContainer!: HTMLElement;
 	private messageBoxContainer!: HTMLElement;
-	private messageBox!: HTMLElement;
 	private commentsModel!: CommentsModel;
 	private collapseAllAction?: IAction;
 
@@ -53,6 +53,7 @@ export class CommentsPanel extends ViewPane {
 		@IThemeService themeService: IThemeService,
 		@ICommentService private readonly commentService: ICommentService,
 		@ITelemetryService telemetryService: ITelemetryService,
+		@IUriIdentityService private readonly uriIdentityService: IUriIdentityService
 	) {
 		super(options, keybindingService, contextMenuService, configurationService, contextKeyService, viewDescriptorService, instantiationService, openerService, themeService, telemetryService);
 	}
@@ -60,7 +61,7 @@ export class CommentsPanel extends ViewPane {
 	public renderBody(container: HTMLElement): void {
 		super.renderBody(container);
 
-		dom.addClass(container, 'comments-panel');
+		container.classList.add('comments-panel');
 
 		let domContainer = dom.append(container, dom.$('.comments-panel-container'));
 		this.treeContainer = dom.append(domContainer, dom.$('.tree-container'));
@@ -83,6 +84,18 @@ export class CommentsPanel extends ViewPane {
 		}));
 
 		this.renderComments();
+	}
+
+	public focus(): void {
+		if (this.tree && this.tree.getHTMLElement() === document.activeElement) {
+			return;
+		}
+
+		if (!this.commentsModel.hasCommentThreads() && this.messageBoxContainer) {
+			this.messageBoxContainer.focus();
+		} else if (this.tree) {
+			this.tree.domFocus();
+		}
 	}
 
 	private applyStyles(styleElement: HTMLStyleElement) {
@@ -109,13 +122,13 @@ export class CommentsPanel extends ViewPane {
 			content.push(`.comments-panel .comments-panel-container .text code { color: ${codeTextForegroundColor}; }`);
 		}
 
-		styleElement.innerHTML = content.join('\n');
+		styleElement.textContent = content.join('\n');
 	}
 
 	private async renderComments(): Promise<void> {
-		dom.toggleClass(this.treeContainer, 'hidden', !this.commentsModel.hasCommentThreads());
-		await this.tree.setInput(this.commentsModel);
+		this.treeContainer.classList.toggle('hidden', !this.commentsModel.hasCommentThreads());
 		this.renderMessage();
+		await this.tree.setInput(this.commentsModel);
 	}
 
 	public getActions(): IAction[] {
@@ -138,13 +151,12 @@ export class CommentsPanel extends ViewPane {
 
 	private createMessageBox(parent: HTMLElement): void {
 		this.messageBoxContainer = dom.append(parent, dom.$('.message-box-container'));
-		this.messageBox = dom.append(this.messageBoxContainer, dom.$('span'));
-		this.messageBox.setAttribute('tabindex', '0');
+		this.messageBoxContainer.setAttribute('tabIndex', '0');
 	}
 
 	private renderMessage(): void {
-		this.messageBox.textContent = this.commentsModel.getMessage();
-		dom.toggleClass(this.messageBoxContainer, 'hidden', this.commentsModel.hasCommentThreads());
+		this.messageBoxContainer.textContent = this.commentsModel.getMessage();
+		this.messageBoxContainer.classList.toggle('hidden', this.commentsModel.hasCommentThreads());
 	}
 
 	private createTree(): void {
@@ -196,7 +208,7 @@ export class CommentsPanel extends ViewPane {
 
 		const activeEditor = this.editorService.activeEditor;
 		let currentActiveResource = activeEditor ? activeEditor.resource : undefined;
-		if (currentActiveResource && currentActiveResource.toString() === element.resource.toString()) {
+		if (this.uriIdentityService.extUri.isEqual(element.resource, currentActiveResource)) {
 			const threadToReveal = element instanceof ResourceWithCommentThreads ? element.commentThreads[0].threadId : element.threadId;
 			const commentToReveal = element instanceof ResourceWithCommentThreads ? element.commentThreads[0].comment.uniqueIdInThread : element.comment.uniqueIdInThread;
 			const control = this.editorService.activeTextEditorControl;
@@ -231,18 +243,23 @@ export class CommentsPanel extends ViewPane {
 		return true;
 	}
 
-	private refresh(): void {
+	private async refresh(): Promise<void> {
 		if (this.isVisible()) {
 			if (this.collapseAllAction) {
 				this.collapseAllAction.enabled = this.commentsModel.hasCommentThreads();
 			}
 
-			dom.toggleClass(this.treeContainer, 'hidden', !this.commentsModel.hasCommentThreads());
-			this.tree.updateChildren().then(() => {
-				this.renderMessage();
-			}, (e) => {
-				console.log(e);
-			});
+			this.treeContainer.classList.toggle('hidden', !this.commentsModel.hasCommentThreads());
+			this.renderMessage();
+			await this.tree.updateChildren();
+
+			if (this.tree.getSelection().length === 0 && this.commentsModel.hasCommentThreads()) {
+				const firstComment = this.commentsModel.resourceCommentThreads[0].commentThreads[0];
+				if (firstComment) {
+					this.tree.setFocus([firstComment]);
+					this.tree.setSelection([firstComment]);
+				}
+			}
 		}
 	}
 

@@ -58,7 +58,7 @@ function doWatchNonRecursive(file: { path: string, isDirectory: boolean }, onCha
 
 			// Normalize file name
 			let changedFileName: string = '';
-			if (raw) { // https://github.com/Microsoft/vscode/issues/38191
+			if (raw) { // https://github.com/microsoft/vscode/issues/38191
 				changedFileName = raw.toString();
 				if (isMacintosh) {
 					// Mac: uses NFD unicode form on disk, but we want NFC

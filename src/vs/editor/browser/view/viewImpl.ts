@@ -93,7 +93,8 @@ export class View extends ViewEventHandler {
 		configuration: IConfiguration,
 		themeService: IThemeService,
 		model: IViewModel,
-		userInputEvents: ViewUserInputEvents
+		userInputEvents: ViewUserInputEvents,
+		overflowWidgetsDomNode: HTMLElement | undefined
 	) {
 		super();
 		this._selections = [new Selection(1, 1, 1, 1)];
@@ -209,7 +210,12 @@ export class View extends ViewEventHandler {
 		this._overflowGuardContainer.appendChild(this._overlayWidgets.getDomNode());
 		this._overflowGuardContainer.appendChild(minimap.getDomNode());
 		this.domNode.appendChild(this._overflowGuardContainer);
-		this.domNode.appendChild(this._contentWidgets.overflowingContentWidgetsDomNode);
+
+		if (overflowWidgetsDomNode) {
+			overflowWidgetsDomNode.appendChild(this._contentWidgets.overflowingContentWidgetsDomNode.domNode);
+		} else {
+			this.domNode.appendChild(this._contentWidgets.overflowingContentWidgetsDomNode);
+		}
 
 		this._applyLayout();
 
@@ -317,13 +323,15 @@ export class View extends ViewEventHandler {
 			this._renderAnimationFrame = null;
 		}
 
+		this._contentWidgets.overflowingContentWidgetsDomNode.domNode.remove();
+
 		this._context.removeEventHandler(this);
 
 		this._viewLines.dispose();
 
 		// Destroy view parts
-		for (let i = 0, len = this._viewParts.length; i < len; i++) {
-			this._viewParts[i].dispose();
+		for (const viewPart of this._viewParts) {
+			viewPart.dispose();
 		}
 
 		super.dispose();
@@ -346,8 +354,7 @@ export class View extends ViewEventHandler {
 
 	private _getViewPartsToRender(): ViewPart[] {
 		let result: ViewPart[] = [], resultLen = 0;
-		for (let i = 0, len = this._viewParts.length; i < len; i++) {
-			const viewPart = this._viewParts[i];
+		for (const viewPart of this._viewParts) {
 			if (viewPart.shouldRender()) {
 				result[resultLen++] = viewPart;
 			}
@@ -393,13 +400,11 @@ export class View extends ViewEventHandler {
 		const renderingContext = new RenderingContext(this._context.viewLayout, viewportData, this._viewLines);
 
 		// Render the rest of the parts
-		for (let i = 0, len = viewPartsToRender.length; i < len; i++) {
-			const viewPart = viewPartsToRender[i];
+		for (const viewPart of viewPartsToRender) {
 			viewPart.prepareRender(renderingContext);
 		}
 
-		for (let i = 0, len = viewPartsToRender.length; i < len; i++) {
-			const viewPart = viewPartsToRender[i];
+		for (const viewPart of viewPartsToRender) {
 			viewPart.render(renderingContext);
 			viewPart.onDidRender();
 		}
@@ -454,8 +459,7 @@ export class View extends ViewEventHandler {
 		if (everything) {
 			// Force everything to render...
 			this._viewLines.forceShouldRender();
-			for (let i = 0, len = this._viewParts.length; i < len; i++) {
-				const viewPart = this._viewParts[i];
+			for (const viewPart of this._viewParts) {
 				viewPart.forceShouldRender();
 			}
 		}

@@ -14,8 +14,8 @@ import { ITextModel } from 'vs/editor/common/model';
 import { DocumentSymbol, DocumentSymbolProvider, DocumentSymbolProviderRegistry } from 'vs/editor/common/modes';
 import { MarkerSeverity } from 'vs/platform/markers/common/markers';
 import { Iterable } from 'vs/base/common/iterator';
-import { MovingAverage } from 'vs/base/common/numbers';
 import { URI } from 'vs/base/common/uri';
+import { LanguageFeatureRequestDelays } from 'vs/editor/common/modes/languageFeatureRegistry';
 
 export abstract class TreeElement {
 
@@ -208,7 +208,7 @@ export class OutlineGroup extends TreeElement {
 
 export class OutlineModel extends TreeElement {
 
-	private static readonly _requestDurations = new LRUCache<string, MovingAverage>(50, 0.7);
+	private static readonly _requestDurations = new LanguageFeatureRequestDelays(DocumentSymbolProviderRegistry, 350);
 	private static readonly _requests = new LRUCache<string, { promiseCnt: number, source: CancellationTokenSource, promise: Promise<any>, model: OutlineModel | undefined }>(9, 0.75);
 	private static readonly _keys = new class {
 
@@ -252,13 +252,7 @@ export class OutlineModel extends TreeElement {
 			// keep moving average of request durations
 			const now = Date.now();
 			data.promise.then(() => {
-				let key = this._keys.for(textModel, false);
-				let avg = this._requestDurations.get(key);
-				if (!avg) {
-					avg = new MovingAverage();
-					this._requestDurations.set(key, avg);
-				}
-				avg.update(Date.now() - now);
+				this._requestDurations.update(textModel, Date.now() - now);
 			});
 		}
 
@@ -290,14 +284,7 @@ export class OutlineModel extends TreeElement {
 	}
 
 	static getRequestDelay(textModel: ITextModel | null): number {
-		if (!textModel) {
-			return 350;
-		}
-		const avg = this._requestDurations.get(this._keys.for(textModel, false));
-		if (!avg) {
-			return 350;
-		}
-		return Math.max(350, Math.floor(1.3 * avg.value));
+		return textModel ? this._requestDurations.get(textModel) : this._requestDurations.min;
 	}
 
 	private static _create(textModel: ITextModel, token: CancellationToken): Promise<OutlineModel> {

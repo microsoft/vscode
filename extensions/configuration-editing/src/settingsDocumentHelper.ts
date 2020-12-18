@@ -42,13 +42,22 @@ export class SettingsDocument {
 			});
 		}
 
-		// sync.ignoredExtensions
-		if (location.path[0] === 'sync.ignoredExtensions') {
+		// settingsSync.ignoredExtensions
+		if (location.path[0] === 'settingsSync.ignoredExtensions') {
 			let ignoredExtensions = [];
 			try {
-				ignoredExtensions = parse(this.document.getText())['sync.ignoredExtensions'];
+				ignoredExtensions = parse(this.document.getText())['settingsSync.ignoredExtensions'];
 			} catch (e) {/* ignore error */ }
-			return provideInstalledExtensionProposals(ignoredExtensions, range, true);
+			return provideInstalledExtensionProposals(ignoredExtensions, '', range, true);
+		}
+
+		// remote.extensionKind
+		if (location.path[0] === 'remote.extensionKind' && location.path.length === 2 && location.isAtPropertyKey) {
+			let alreadyConfigured: string[] = [];
+			try {
+				alreadyConfigured = Object.keys(parse(this.document.getText())['remote.extensionKind']);
+			} catch (e) {/* ignore error */ }
+			return provideInstalledExtensionProposals(alreadyConfigured, `: [\n\t"ui"\n]`, range, true);
 		}
 
 		return this.provideLanguageOverridesCompletionItems(location, position);
@@ -223,7 +232,7 @@ export class SettingsDocument {
 		if (location.path.length === 1 && location.previousNode && typeof location.previousNode.value === 'string' && location.previousNode.value.startsWith('[')) {
 			// Suggestion model word matching includes closed sqaure bracket and ending quote
 			// Hence include them in the proposal to replace
-			let range = this.document.getWordRangeAtPosition(position) || new vscode.Range(position, position);
+			const range = this.document.getWordRangeAtPosition(position) || new vscode.Range(position, position);
 			return this.provideLanguageCompletionItemsForLanguageOverrides(location, range, language => `"[${language}]"`);
 		}
 		return Promise.resolve([]);

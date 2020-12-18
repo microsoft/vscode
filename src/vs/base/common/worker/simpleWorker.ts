@@ -31,7 +31,7 @@ export function logOnceWebWorkerWarning(err: any): void {
 	}
 	if (!webWorkerWarningLogged) {
 		webWorkerWarningLogged = true;
-		console.warn('Could not create web worker(s). Falling back to loading web worker code in main thread, which might cause UI freezes. Please see https://github.com/Microsoft/monaco-editor#faq');
+		console.warn('Could not create web worker(s). Falling back to loading web worker code in main thread, which might cause UI freezes. Please see https://github.com/microsoft/monaco-editor#faq');
 	}
 	console.warn(err.message);
 }
@@ -357,6 +357,10 @@ export class SimpleWorkerServer<H extends object> {
 				if (typeof loaderConfig.paths.vs !== 'undefined') {
 					delete loaderConfig.paths['vs'];
 				}
+			}
+			if (typeof loaderConfig.trustedTypesPolicy !== undefined) {
+				// don't use, it has been destroyed during serialize
+				delete loaderConfig['trustedTypesPolicy'];
 			}
 
 			// Since this is in a web worker, enable catching errors

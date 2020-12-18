@@ -563,7 +563,7 @@ export class MonarchTokenizer implements modes.ITokenizationSupport {
 		}
 		let groupMatching: GroupMatching | null = null;
 
-		// See https://github.com/Microsoft/monaco-editor/issues/1235:
+		// See https://github.com/microsoft/monaco-editor/issues/1235:
 		// Evaluate rules at least once for an empty line
 		let forceEvaluation = true;
 

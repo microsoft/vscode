@@ -142,6 +142,15 @@ export function isPromiseCanceledError(error: any): boolean {
 	return error instanceof Error && error.name === canceledName && error.message === canceledName;
 }
 
+// !!!IMPORTANT!!!
+// Do NOT change this class because it is also used as an API-type.
+export class CancellationError extends Error {
+	constructor() {
+		super(canceledName);
+		this.name = this.message;
+	}
+}
+
 /**
  * Returns an error that signals cancellation.
  */
@@ -198,6 +207,15 @@ export function getErrorMessage(err: any): string {
 export class NotImplementedError extends Error {
 	constructor(message?: string) {
 		super('NotImplemented');
+		if (message) {
+			this.message = message;
+		}
+	}
+}
+
+export class NotSupportedError extends Error {
+	constructor(message?: string) {
+		super('NotSupported');
 		if (message) {
 			this.message = message;
 		}

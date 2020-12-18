@@ -14,33 +14,26 @@ import { TextDocument, JSONDocument, JSONSchema, getLanguageService, DocumentLan
 import { getLanguageModelCache } from './languageModelCache';
 import { RequestService, basename, resolvePath } from './requests';
 
-interface ISchemaAssociations {
-	[pattern: string]: string[];
-}
-
-interface ISchemaAssociation {
-	fileMatch: string[];
-	uri: string;
-}
+type ISchemaAssociations = Record<string, string[]>;
 
 namespace SchemaAssociationNotification {
-	export const type: NotificationType<ISchemaAssociations | ISchemaAssociation[], any> = new NotificationType('json/schemaAssociations');
+	export const type: NotificationType<ISchemaAssociations | SchemaConfiguration[]> = new NotificationType('json/schemaAssociations');
 }
 
 namespace VSCodeContentRequest {
-	export const type: RequestType<string, string, any, any> = new RequestType('vscode/content');
+	export const type: RequestType<string, string, any> = new RequestType('vscode/content');
 }
 
 namespace SchemaContentChangeNotification {
-	export const type: NotificationType<string, any> = new NotificationType('json/schemaContent');
+	export const type: NotificationType<string> = new NotificationType('json/schemaContent');
 }
 
 namespace ResultLimitReachedNotification {
-	export const type: NotificationType<string, any> = new NotificationType('json/resultLimitReached');
+	export const type: NotificationType<string> = new NotificationType('json/resultLimitReached');
 }
 
 namespace ForceValidateRequest {
-	export const type: RequestType<string, Diagnostic[], any, any> = new RequestType('json/validate');
+	export const type: RequestType<string, Diagnostic[], any> = new RequestType('json/validate');
 }
 
 
@@ -144,11 +137,11 @@ export function startServer(connection: Connection, runtime: RuntimeEnvironment)
 			} : undefined,
 			hoverProvider: true,
 			documentSymbolProvider: true,
-			documentRangeFormattingProvider: params.initializationOptions.provideFormatter === true,
+			documentRangeFormattingProvider: params.initializationOptions?.provideFormatter === true,
 			colorProvider: {},
 			foldingRangeProvider: true,
 			selectionRangeProvider: true,
-			definitionProvider: true
+			documentLinkProvider: {}
 		};
 
 		return { capabilities };
@@ -212,7 +205,7 @@ export function startServer(connection: Connection, runtime: RuntimeEnvironment)
 	}();
 
 	let jsonConfigurationSettings: JSONSchemaSettings[] | undefined = undefined;
-	let schemaAssociations: ISchemaAssociations | ISchemaAssociation[] | undefined = undefined;
+	let schemaAssociations: ISchemaAssociations | SchemaConfiguration[] | undefined = undefined;
 	let formatterRegistration: Thenable<Disposable> | null = null;
 
 	// The settings have changed. Is send on server activation as well.
@@ -488,15 +481,15 @@ export function startServer(connection: Connection, runtime: RuntimeEnvironment)
 		}, [], `Error while computing selection ranges for ${params.textDocument.uri}`, token);
 	});
 
-	connection.onDefinition((params, token) => {
+	connection.onDocumentLinks((params, token) => {
 		return runSafeAsync(async () => {
 			const document = documents.get(params.textDocument.uri);
 			if (document) {
 				const jsonDocument = getJSONDocument(document);
-				return languageService.findDefinition(document, params.position, jsonDocument);
+				return languageService.findLinks(document, jsonDocument);
 			}
 			return [];
-		}, [], `Error while computing definitions for ${params.textDocument.uri}`, token);
+		}, [], `Error while computing links for ${params.textDocument.uri}`, token);
 	});
 
 	// Listen on the connection

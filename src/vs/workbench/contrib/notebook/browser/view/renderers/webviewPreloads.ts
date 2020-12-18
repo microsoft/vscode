@@ -6,12 +6,19 @@
 import type { Event } from 'vs/base/common/event';
 import type { IDisposable } from 'vs/base/common/lifecycle';
 import { ToWebviewMessage } from 'vs/workbench/contrib/notebook/browser/view/renderers/backLayerWebView';
+import { RenderOutputType } from 'vs/workbench/contrib/notebook/common/notebookCommon';
 
 // !! IMPORTANT !! everything must be in-line within the webviewPreloads
 // function. Imports are not allowed. This is stringifies and injected into
 // the webview.
 
-declare const acquireVsCodeApi: () => ({ getState(): { [key: string]: unknown; }, setState(data: { [key: string]: unknown; }): void, postMessage: (msg: unknown) => void; });
+declare module globalThis {
+	const acquireVsCodeApi: () => ({
+		getState(): { [key: string]: unknown; };
+		setState(data: { [key: string]: unknown; }): void;
+		postMessage: (msg: unknown) => void;
+	});
+}
 
 declare class ResizeObserver {
 	constructor(onChange: (entries: { target: HTMLElement, contentRect?: ClientRect; }[]) => void);
@@ -29,7 +36,9 @@ interface EmitterLike<T> {
 }
 
 function webviewPreloads() {
+	const acquireVsCodeApi = globalThis.acquireVsCodeApi;
 	const vscode = acquireVsCodeApi();
+	delete (globalThis as any).acquireVsCodeApi;
 
 	const handleInnerClick = (event: MouseEvent) => {
 		if (!event || !event.view || !event.view.document) {
@@ -77,41 +86,89 @@ function webviewPreloads() {
 	const domEval = (container: Element) => {
 		const arr = Array.from(container.getElementsByTagName('script'));
 		for (let n = 0; n < arr.length; n++) {
-			let node = arr[n];
-			let scriptTag = document.createElement('script');
-			scriptTag.text = node.innerText;
-			for (let key of preservedScriptAttributes) {
+			const node = arr[n];
+			const scriptTag = document.createElement('script');
+			const trustedScript = ttPolicy?.createScript(node.innerText) ?? node.innerText;
+			scriptTag.text = trustedScript as string;
+			for (const key of preservedScriptAttributes) {
 				const val = node[key] || node.getAttribute && node.getAttribute(key);
 				if (val) {
 					scriptTag.setAttribute(key, val as any);
 				}
 			}
 
-			// TODO: should script with src not be removed?
+			// TODO@connor4312: should script with src not be removed?
 			container.appendChild(scriptTag).parentNode!.removeChild(scriptTag);
 		}
 	};
 
-	let observers: ResizeObserver[] = [];
+	const runScript = async (url: string, originalUri: string, globals: { [name: string]: unknown } = {}): Promise<() => (PreloadResult)> => {
+		let text: string;
+		try {
+			const res = await fetch(url);
+			text = await res.text();
+			if (!res.ok) {
+				throw new Error(`Unexpected ${res.status} requesting ${originalUri}: ${text || res.statusText}`);
+			}
+
+			globals.scriptUrl = url;
+		} catch (e) {
+			return () => ({ state: PreloadState.Error, error: e.message });
+		}
+
+		const args = Object.entries(globals);
+		return () => {
+			try {
+				new Function(...args.map(([k]) => k), text)(...args.map(([, v]) => v));
+				return { state: PreloadState.Ok };
+			} catch (e) {
+				console.error(e);
+				return { state: PreloadState.Error, error: e.message };
+			}
+		};
+	};
+
+	const outputObservers = new Map<string, ResizeObserver>();
 
 	const resizeObserve = (container: Element, id: string) => {
 		const resizeObserver = new ResizeObserver(entries => {
-			for (let entry of entries) {
+			for (const entry of entries) {
+				if (!document.body.contains(entry.target)) {
+					return;
+				}
+
 				if (entry.target.id === id && entry.contentRect) {
-					vscode.postMessage({
-						__vscode_notebook_message: true,
-						type: 'dimension',
-						id: id,
-						data: {
-							height: entry.contentRect.height + __outputNodePadding__ * 2
-						}
-					});
+					if (entry.contentRect.height !== 0) {
+						entry.target.style.padding = `${__outputNodePadding__}px`;
+						vscode.postMessage({
+							__vscode_notebook_message: true,
+							type: 'dimension',
+							id: id,
+							data: {
+								height: entry.contentRect.height + __outputNodePadding__ * 2
+							}
+						});
+					} else {
+						entry.target.style.padding = `0px`;
+						vscode.postMessage({
+							__vscode_notebook_message: true,
+							type: 'dimension',
+							id: id,
+							data: {
+								height: entry.contentRect.height
+							}
+						});
+					}
 				}
 			}
 		});
 
 		resizeObserver.observe(container);
-		observers.push(resizeObserver);
+		if (outputObservers.has(id)) {
+			outputObservers.get(id)?.disconnect();
+		}
+
+		outputObservers.set(id, resizeObserver);
 	};
 
 	function scrollWillGoToParent(event: WheelEvent) {
@@ -253,6 +310,8 @@ function webviewPreloads() {
 
 	interface ICreateCellInfo {
 		outputId: string;
+		output?: unknown;
+		mimeType?: string;
 		element: HTMLElement;
 	}
 
@@ -293,11 +352,18 @@ function webviewPreloads() {
 		};
 	};
 
+	const enum PreloadState {
+		Ok,
+		Error
+	}
+
+	type PreloadResult = { state: PreloadState.Ok } | { state: PreloadState.Error, error: string };
+
 	/**
 	 * Map of preload resource URIs to promises that resolve one the resource
 	 * loads or errors.
 	 */
-	const preloadPromises = new Map<string, Promise<void>>();
+	const preloadPromises = new Map<string, Promise<PreloadResult>>();
 	const queuedOuputActions = new Map<string, Promise<void>>();
 
 	/**
@@ -322,6 +388,11 @@ function webviewPreloads() {
 		queuedOuputActions.set(event.outputId, promise);
 	};
 
+	const ttPolicy = window.trustedTypes?.createPolicy('notebookOutputRenderer', {
+		createHTML: value => value,
+		createScript: value => value,
+	});
+
 	window.addEventListener('wheel', handleWheel);
 
 	window.addEventListener('message', rawEvent => {
@@ -330,20 +401,20 @@ function webviewPreloads() {
 		switch (event.data.type) {
 			case 'html':
 				enqueueOutputAction(event.data, async data => {
-					await Promise.all(data.requiredPreloads.map(p => preloadPromises.get(p.uri)));
+					const preloadResults = await Promise.all(data.requiredPreloads.map(p => preloadPromises.get(p.uri)));
 					if (!queuedOuputActions.has(data.outputId)) { // output was cleared while loading
 						return;
 					}
 
 					let cellOutputContainer = document.getElementById(data.cellId);
-					let outputId = data.outputId;
+					const outputId = data.outputId;
 					if (!cellOutputContainer) {
 						const container = document.getElementById('container')!;
 
 						const upperWrapperElement = createFocusSink(data.cellId, outputId);
 						container.appendChild(upperWrapperElement);
 
-						let newElement = document.createElement('div');
+						const newElement = document.createElement('div');
 
 						newElement.id = data.cellId;
 						container.appendChild(newElement);
@@ -353,23 +424,45 @@ function webviewPreloads() {
 						container.appendChild(lowerWrapperElement);
 					}
 
-					let outputNode = document.createElement('div');
+					const outputNode = document.createElement('div');
 					outputNode.style.position = 'absolute';
 					outputNode.style.top = data.top + 'px';
 					outputNode.style.left = data.left + 'px';
 					outputNode.style.width = 'calc(100% - ' + data.left + 'px)';
-					outputNode.style.minHeight = '32px';
+					// outputNode.style.minHeight = '32px';
+					outputNode.style.padding = '0px';
 					outputNode.id = outputId;
 
 					addMouseoverListeners(outputNode, outputId);
-					let content = data.content;
-					outputNode.innerHTML = content;
-					cellOutputContainer.appendChild(outputNode);
+					const content = data.content;
+					if (content.type === RenderOutputType.Html) {
+						const trustedHtml = ttPolicy?.createHTML(content.htmlContent) ?? content.htmlContent;
+						outputNode.innerHTML = trustedHtml as string;
+						cellOutputContainer.appendChild(outputNode);
+						domEval(outputNode);
+					} else if (preloadResults.some(e => e?.state === PreloadState.Error)) {
+						outputNode.innerText = `Error loading preloads:`;
+						const errList = document.createElement('ul');
+						for (const result of preloadResults) {
+							if (result?.state === PreloadState.Error) {
+								const item = document.createElement('li');
+								item.innerText = result.error;
+								errList.appendChild(item);
+							}
+						}
+						outputNode.appendChild(errList);
+						cellOutputContainer.appendChild(outputNode);
+					} else {
+						onDidCreateOutput.fire([data.apiNamespace, {
+							element: outputNode,
+							output: content.output,
+							mimeType: content.mimeType,
+							outputId
+						}]);
+						cellOutputContainer.appendChild(outputNode);
+					}
 
-					// eval
-					domEval(outputNode);
 					resizeObserve(outputNode, outputId);
-					onDidCreateOutput.fire([data.apiNamespace, { element: outputNode, outputId }]);
 
 					vscode.postMessage({
 						__vscode_notebook_message: true,
@@ -390,24 +483,28 @@ function webviewPreloads() {
 					// console.log('----- will scroll ----  ', date.getMinutes() + ':' + date.getSeconds() + ':' + date.getMilliseconds());
 
 					for (let i = 0; i < event.data.widgets.length; i++) {
-						let widget = document.getElementById(event.data.widgets[i].id)!;
-						widget.style.top = event.data.widgets[i].top + 'px';
-						widget.parentElement!.style.display = 'block';
+						const widget = document.getElementById(event.data.widgets[i].id)!;
+						if (widget) {
+							widget.style.top = event.data.widgets[i].top + 'px';
+							if (event.data.forceDisplay) {
+								widget.parentElement!.style.display = 'block';
+							}
+						}
 					}
 					break;
 				}
 			case 'clear':
 				queuedOuputActions.clear(); // stop all loading outputs
 				onWillDestroyOutput.fire([undefined, undefined]);
-				document.getElementById('container')!.innerHTML = '';
-				for (let i = 0; i < observers.length; i++) {
-					observers[i].disconnect();
-				}
+				document.getElementById('container')!.innerText = '';
 
-				observers = [];
+				outputObservers.forEach(ob => {
+					ob.disconnect();
+				});
+				outputObservers.clear();
 				break;
 			case 'clearOutput':
-				let output = document.getElementById(event.data.outputId);
+				const output = document.getElementById(event.data.outputId);
 				queuedOuputActions.delete(event.data.outputId); // stop any in-progress rendering
 				if (output && output.parentNode) {
 					onWillDestroyOutput.fire([event.data.apiNamespace, { outputId: event.data.outputId }]);
@@ -424,29 +521,56 @@ function webviewPreloads() {
 				break;
 			case 'showOutput':
 				enqueueOutputAction(event.data, ({ outputId, top }) => {
-					let output = document.getElementById(outputId);
+					const output = document.getElementById(outputId);
 					if (output) {
 						output.parentElement!.style.display = 'block';
 						output.style.top = top + 'px';
+
+						vscode.postMessage({
+							__vscode_notebook_message: true,
+							type: 'dimension',
+							id: outputId,
+							data: {
+								height: output.clientHeight
+							}
+						});
 					}
 				});
 				break;
 			case 'preload':
-				let resources = event.data.resources;
-				let preloadsContainer = document.getElementById('__vscode_preloads')!;
-				for (let i = 0; i < resources.length; i++) {
-					const { uri } = resources[i];
-					const scriptTag = document.createElement('script');
-					scriptTag.setAttribute('src', uri);
-					preloadsContainer.appendChild(scriptTag);
-					preloadPromises.set(uri, new Promise<void>(resolve => {
-						scriptTag.addEventListener('load', () => resolve());
-						scriptTag.addEventListener('error', () => resolve());
+				const resources = event.data.resources;
+				const globals = event.data.type === 'preload' ? { acquireVsCodeApi } : {};
+				let queue: Promise<PreloadResult> = Promise.resolve({ state: PreloadState.Ok });
+				for (const { uri, originalUri } of resources) {
+					// create the promise so that the scripts download in parallel, but
+					// only invoke them in series within the queue
+					const promise = runScript(uri, originalUri, globals);
+					queue = queue.then(() => promise.then(fn => {
+						const result = fn();
+						if (result.state === PreloadState.Error) {
+							console.error(result.error);
+						}
+
+						return result;
 					}));
+					preloadPromises.set(uri, queue);
 				}
 				break;
 			case 'focus-output':
 				focusFirstFocusableInCell(event.data.cellId);
+				break;
+			case 'decorations':
+				{
+					const outputContainer = document.getElementById(event.data.cellId);
+					event.data.addedClassNames.forEach(n => {
+						outputContainer?.classList.add(n);
+					});
+
+					event.data.removedClassNames.forEach(n => {
+						outputContainer?.classList.remove(n);
+					});
+				}
+
 				break;
 			case 'customRendererMessage':
 				onDidReceiveMessage.fire([event.data.rendererId, event.data.message]);

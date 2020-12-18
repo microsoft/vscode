@@ -996,7 +996,7 @@ function createResource(project: string, slug: string, xlfFile: File, apiHostnam
  * https://dev.befoolish.co/tx-docs/public/projects/updating-content#what-happens-when-you-update-files
  */
 function updateResource(project: string, slug: string, xlfFile: File, apiHostname: string, credentials: string): Promise<any> {
-	return new Promise((resolve, reject) => {
+	return new Promise<void>((resolve, reject) => {
 		const data = JSON.stringify({ content: xlfFile.contents.toString() });
 		const options = {
 			hostname: apiHostname,
@@ -1188,7 +1188,7 @@ interface I18nPack {
 	};
 }
 
-const i18nPackVersion = "1.0.0";
+const i18nPackVersion = '1.0.0';
 
 export interface TranslationPath {
 	id: string;
@@ -1308,11 +1308,7 @@ function createIslFile(originalFilePath: string, messages: Map<string>, language
 		if (line.length > 0) {
 			let firstChar = line.charAt(0);
 			if (firstChar === '[' || firstChar === ';') {
-				if (line === '; *** Inno Setup version 5.5.3+ English messages ***') {
-					content.push(`; *** Inno Setup version 5.5.3+ ${innoSetup.defaultInfo!.name} messages ***`);
-				} else {
-					content.push(line);
-				}
+				content.push(line);
 			} else {
 				let sections: string[] = line.split('=');
 				let key = sections[0];

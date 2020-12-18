@@ -18,6 +18,11 @@ if hash desktop-file-install 2>/dev/null; then
 	desktop-file-install /usr/share/applications/@@NAME@@-url-handler.desktop
 fi
 
+# Update mimetype database to pickup workspace mimetype
+if hash update-mime-database 2>/dev/null; then
+	update-mime-database /usr/share/mime
+fi
+
 if [ "@@NAME@@" != "code-oss" ]; then
 	# Remove the legacy bin command if this is the stable build
 	if [ "@@NAME@@" = "code" ]; then
@@ -68,6 +73,6 @@ NdCFTW7wY0Fb1fWJ+/KTsC4=
 	if [ "$WRITE_SOURCE" -eq "1" ]; then
 		echo "### THIS FILE IS AUTOMATICALLY CONFIGURED ###
 # You may comment out this entry, but any other modifications may be lost.
-deb [arch=amd64] http://packages.microsoft.com/repos/vscode stable main" > $CODE_SOURCE_PART
+deb [arch=amd64,arm64,armhf] http://packages.microsoft.com/repos/@@REPOSITORY_NAME@@ stable main" > $CODE_SOURCE_PART
 	fi
 fi

@@ -140,6 +140,11 @@ export interface IResponsiveStateChangeEvent {
 	isResponsive: boolean;
 }
 
+export const enum ActivationKind {
+	Normal = 0,
+	Immediate = 1
+}
+
 export interface IExtensionService {
 	readonly _serviceBrand: undefined;
 
@@ -177,8 +182,15 @@ export interface IExtensionService {
 
 	/**
 	 * Send an activation event and activate interested extensions.
+	 *
+	 * This will wait for the normal startup of the extension host(s).
+	 *
+	 * In extraordinary circumstances, if the activation event needs to activate
+	 * one or more extensions before the normal startup is finished, then you can use
+	 * `ActivationKind.Immediate`. Please do not use this flag unless really necessary
+	 * and you understand all consequences.
 	 */
-	activateByEvent(activationEvent: string): Promise<void>;
+	activateByEvent(activationEvent: string, activationKind?: ActivationKind): Promise<void>;
 
 	/**
 	 * An promise that resolves when the installed extensions are registered after
@@ -261,6 +273,7 @@ export function throwProposedApiError(extension: IExtensionDescription): never {
 export function toExtension(extensionDescription: IExtensionDescription): IExtension {
 	return {
 		type: extensionDescription.isBuiltin ? ExtensionType.System : ExtensionType.User,
+		isBuiltin: extensionDescription.isBuiltin || extensionDescription.isUserBuiltin,
 		identifier: { id: getGalleryExtensionId(extensionDescription.publisher, extensionDescription.name), uuid: extensionDescription.uuid },
 		manifest: extensionDescription,
 		location: extensionDescription.extensionLocation,
@@ -271,6 +284,7 @@ export function toExtensionDescription(extension: IExtension): IExtensionDescrip
 	return {
 		identifier: new ExtensionIdentifier(extension.identifier.id),
 		isBuiltin: extension.type === ExtensionType.System,
+		isUserBuiltin: extension.type === ExtensionType.User && extension.isBuiltin,
 		isUnderDevelopment: false,
 		extensionLocation: extension.location,
 		...extension.manifest,

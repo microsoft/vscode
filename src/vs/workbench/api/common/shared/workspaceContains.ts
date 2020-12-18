@@ -3,7 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import * as path from 'vs/base/common/path';
+import * as resources from 'vs/base/common/resources';
 import { URI, UriComponents } from 'vs/base/common/uri';
 import { CancellationTokenSource, CancellationToken } from 'vs/base/common/cancellation';
 import * as errors from 'vs/base/common/errors';
@@ -19,7 +19,7 @@ export interface IExtensionActivationHost {
 	readonly folders: readonly UriComponents[];
 	readonly forceUsingSearch: boolean;
 
-	exists(path: string): Promise<boolean>;
+	exists(uri: URI): Promise<boolean>;
 	checkExists(folders: readonly UriComponents[], includes: string[], token: CancellationToken): Promise<boolean>;
 }
 
@@ -69,7 +69,7 @@ export function checkActivateWorkspaceContainsExtension(host: IExtensionActivati
 async function _activateIfFileName(host: IExtensionActivationHost, fileName: string, activate: (activationEvent: string) => void): Promise<void> {
 	// find exact path
 	for (const uri of host.folders) {
-		if (await host.exists(path.join(URI.revive(uri).fsPath, fileName))) {
+		if (await host.exists(resources.joinPath(URI.revive(uri), fileName))) {
 			// the file was found
 			activate(`workspaceContains:${fileName}`);
 			return;

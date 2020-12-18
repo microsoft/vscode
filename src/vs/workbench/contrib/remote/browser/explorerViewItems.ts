@@ -4,21 +4,21 @@
  *--------------------------------------------------------------------------------------------*/
 
 import * as nls from 'vs/nls';
-import * as dom from 'vs/base/browser/dom';
-
-import { IAction, Action } from 'vs/base/common/actions';
-import { SelectActionViewItem } from 'vs/base/browser/ui/actionbar/actionbar';
+import { IAction } from 'vs/base/common/actions';
 import { IThemeService } from 'vs/platform/theme/common/themeService';
 import { attachSelectBoxStyler } from 'vs/platform/theme/common/styler';
 import { IContextViewService } from 'vs/platform/contextview/browser/contextView';
 import { IRemoteExplorerService, REMOTE_EXPLORER_TYPE_KEY } from 'vs/workbench/services/remote/common/remoteExplorerService';
 import { ISelectOptionItem } from 'vs/base/browser/ui/selectBox/selectBox';
 import { IViewDescriptor } from 'vs/workbench/common/views';
-import { startsWith } from 'vs/base/common/strings';
 import { isStringArray } from 'vs/base/common/types';
 import { IWorkbenchEnvironmentService } from 'vs/workbench/services/environment/common/environmentService';
 import { IStorageService, StorageScope } from 'vs/platform/storage/common/storage';
-import { IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
+import { ContextKeyEqualsExpr, IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
+import { SelectActionViewItem } from 'vs/base/browser/ui/actionbar/actionViewItems';
+import { Action2, MenuId } from 'vs/platform/actions/common/actions';
+import { ServicesAccessor } from 'vs/platform/instantiation/common/instantiation';
+import { VIEWLET_ID } from 'vs/workbench/contrib/remote/browser/remoteExplorer';
 
 export interface IRemoteSelectItem extends ISelectOptionItem {
 	authority: string[];
@@ -44,7 +44,7 @@ export class SwitchRemoteViewItem extends SelectActionViewItem {
 	private setSelectionForConnection(optionsItems: IRemoteSelectItem[], environmentService: IWorkbenchEnvironmentService, remoteExplorerService: IRemoteExplorerService) {
 		if (this.optionsItems.length > 0) {
 			let index = 0;
-			const remoteAuthority = environmentService.configuration.remoteAuthority;
+			const remoteAuthority = environmentService.remoteAuthority;
 			const explorerType: string[] | undefined = remoteAuthority ? [remoteAuthority.split('+')[0]] :
 				this.storageService.get(REMOTE_EXPLORER_TYPE_KEY, StorageScope.WORKSPACE)?.split(',') ?? this.storageService.get(REMOTE_EXPLORER_TYPE_KEY, StorageScope.GLOBAL)?.split(',');
 			if (explorerType !== undefined) {
@@ -73,7 +73,7 @@ export class SwitchRemoteViewItem extends SelectActionViewItem {
 	render(container: HTMLElement) {
 		if (this.optionsItems.length > 1) {
 			super.render(container);
-			dom.addClass(container, 'switch-remote');
+			container.classList.add('switch-remote');
 		}
 	}
 
@@ -84,7 +84,7 @@ export class SwitchRemoteViewItem extends SelectActionViewItem {
 	static createOptionItems(views: IViewDescriptor[], contextKeyService: IContextKeyService): IRemoteSelectItem[] {
 		let options: IRemoteSelectItem[] = [];
 		views.forEach(view => {
-			if (view.group && startsWith(view.group, 'targets') && view.remoteAuthority && (!view.when || contextKeyService.contextMatchesRules(view.when))) {
+			if (view.group && view.group.startsWith('targets') && view.remoteAuthority && (!view.when || contextKeyService.contextMatchesRules(view.when))) {
 				options.push({ text: view.name, authority: isStringArray(view.remoteAuthority) ? view.remoteAuthority : [view.remoteAuthority] });
 			}
 		});
@@ -92,19 +92,25 @@ export class SwitchRemoteViewItem extends SelectActionViewItem {
 	}
 }
 
-export class SwitchRemoteAction extends Action {
+export class SwitchRemoteAction extends Action2 {
 
 	public static readonly ID = 'remote.explorer.switch';
 	public static readonly LABEL = nls.localize('remote.explorer.switch', "Switch Remote");
 
-	constructor(
-		id: string, label: string,
-		@IRemoteExplorerService private readonly remoteExplorerService: IRemoteExplorerService
-	) {
-		super(id, label);
+	constructor() {
+		super({
+			id: SwitchRemoteAction.ID,
+			title: SwitchRemoteAction.LABEL,
+			menu: [{
+				id: MenuId.ViewContainerTitle,
+				when: ContextKeyEqualsExpr.create('viewContainer', VIEWLET_ID),
+				group: 'navigation',
+				order: 1
+			}],
+		});
 	}
 
-	public async run(item: IRemoteSelectItem): Promise<any> {
-		this.remoteExplorerService.targetType = item.authority;
+	public async run(accessor: ServicesAccessor, args: IRemoteSelectItem): Promise<any> {
+		accessor.get(IRemoteExplorerService).targetType = args.authority;
 	}
 }

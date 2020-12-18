@@ -6,8 +6,9 @@
 import { localize } from 'vs/nls';
 import { registerAction2, Action2 } from 'vs/platform/actions/common/actions';
 import { IInstantiationService, ServicesAccessor } from 'vs/platform/instantiation/common/instantiation';
-import { LifecyclePhase } from 'vs/platform/lifecycle/common/lifecycle';
+import { LifecyclePhase } from 'vs/workbench/services/lifecycle/common/lifecycle';
 import { Registry } from 'vs/platform/registry/common/platform';
+import { CATEGORIES } from 'vs/workbench/common/actions';
 import { Extensions, IWorkbenchContributionsRegistry } from 'vs/workbench/common/contributions';
 import { Extensions as Input, IEditorInputFactory, IEditorInputFactoryRegistry } from 'vs/workbench/common/editor';
 import { PerfviewContrib, PerfviewInput } from 'vs/workbench/contrib/performance/browser/perfviewEditor';
@@ -41,8 +42,8 @@ registerAction2(class extends Action2 {
 	constructor() {
 		super({
 			id: 'perfview.show',
-			title: localize('show.label', "Startup Performance"),
-			category: localize({ key: 'show.cat', comment: ['A developer on Code itself or someone diagnosing issues in Code'] }, "Developer"),
+			title: { value: localize('show.label', "Startup Performance"), original: 'Startup Performance' },
+			category: CATEGORIES.Developer,
 			f1: true
 		});
 	}
@@ -50,6 +51,6 @@ registerAction2(class extends Action2 {
 	run(accessor: ServicesAccessor) {
 		const editorService = accessor.get(IEditorService);
 		const instaService = accessor.get(IInstantiationService);
-		return editorService.openEditor(instaService.createInstance(PerfviewInput));
+		return editorService.openEditor(instaService.createInstance(PerfviewInput), { pinned: true });
 	}
 });

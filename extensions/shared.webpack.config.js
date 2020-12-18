@@ -70,15 +70,17 @@ function withNodeDefaults(/**@type WebpackConfig*/extConfig) {
 		devtool: 'source-map',
 		plugins: [
 			// @ts-expect-error
-			new CopyWebpackPlugin([
-				{ from: 'src', to: '.', ignore: ['**/test/**', '*.ts'] }
-			]),
+			new CopyWebpackPlugin({
+				patterns: [
+					{ from: 'src', to: '.', globOptions: { ignore: ['**/test/**', '*.ts'] } }
+				]
+			}),
 			new NLSBundlePlugin(id)
 		],
 	};
 
 	return merge(defaultConfig, extConfig);
-};
+}
 
 
 function withBrowserDefaults(/**@type WebpackConfig*/extConfig) {
@@ -127,15 +129,17 @@ function withBrowserDefaults(/**@type WebpackConfig*/extConfig) {
 		devtool: 'source-map',
 		plugins: [
 			// @ts-expect-error
-			new CopyWebpackPlugin([
-				{ from: 'src', to: '.', ignore: ['**/test/**', '*.ts'] }
-			]),
+			new CopyWebpackPlugin({
+				patterns: [
+					{ from: 'src', to: '.', globOptions: { ignore: ['**/test/**', '*.ts'] } }
+				]
+			}),
 			new DefinePlugin({ WEBWORKER: JSON.stringify(true) })
 		]
 	};
 
 	return merge(defaultConfig, extConfig);
-};
+}
 
 
 module.exports = withNodeDefaults;

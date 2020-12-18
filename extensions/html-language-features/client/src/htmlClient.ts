@@ -25,26 +25,22 @@ namespace CustomDataChangedNotification {
 }
 
 namespace TagCloseRequest {
-	export const type: RequestType<TextDocumentPositionParams, string, any, any> = new RequestType('html/tag');
+	export const type: RequestType<TextDocumentPositionParams, string, any> = new RequestType('html/tag');
 }
-namespace OnTypeRenameRequest {
-	export const type: RequestType<TextDocumentPositionParams, Range[] | null, any, any> = new RequestType('html/onTypeRename');
-}
-
 // experimental: semantic tokens
 interface SemanticTokenParams {
 	textDocument: TextDocumentIdentifier;
 	ranges?: LspRange[];
 }
 namespace SemanticTokenRequest {
-	export const type: RequestType<SemanticTokenParams, number[] | null, any, any> = new RequestType('html/semanticTokens');
+	export const type: RequestType<SemanticTokenParams, number[] | null, any> = new RequestType('html/semanticTokens');
 }
 namespace SemanticTokenLegendRequest {
-	export const type: RequestType0<{ types: string[]; modifiers: string[] } | null, any, any> = new RequestType0('html/semanticTokenLegend');
+	export const type: RequestType0<{ types: string[]; modifiers: string[] } | null, any> = new RequestType0('html/semanticTokenLegend');
 }
 
 namespace SettingIds {
-	export const renameOnType = 'editor.renameOnType';
+	export const linkedRename = 'editor.linkedRename';
 	export const formatEnable = 'html.format.enable';
 
 }
@@ -168,17 +164,6 @@ export function startClient(context: ExtensionContext, newLanguageClient: Langua
 				toDispose.push(languages.registerDocumentSemanticTokensProvider(documentSelector, provider, new SemanticTokensLegend(legend.types, legend.modifiers)));
 			}
 		});
-
-		disposable = languages.registerOnTypeRenameProvider(documentSelector, {
-			async provideOnTypeRenameRanges(document, position) {
-				const param = client.code2ProtocolConverter.asTextDocumentPositionParams(document, position);
-				const response = await client.sendRequest(OnTypeRenameRequest.type, param);
-
-				return response || [];
-			}
-		});
-		toDispose.push(disposable);
-
 	});
 
 	function updateFormatterRegistration() {
@@ -189,10 +174,16 @@ export function startClient(context: ExtensionContext, newLanguageClient: Langua
 		} else if (formatEnabled && !rangeFormatting) {
 			rangeFormatting = languages.registerDocumentRangeFormattingEditProvider(documentSelector, {
 				provideDocumentRangeFormattingEdits(document: TextDocument, range: Range, options: FormattingOptions, token: CancellationToken): ProviderResult<TextEdit[]> {
+					const filesConfig = workspace.getConfiguration('files', document);
+					const fileFormattingOptions = {
+						trimTrailingWhitespace: filesConfig.get<boolean>('trimTrailingWhitespace'),
+						trimFinalNewlines: filesConfig.get<boolean>('trimFinalNewlines'),
+						insertFinalNewline: filesConfig.get<boolean>('insertFinalNewline'),
+					};
 					let params: DocumentRangeFormattingParams = {
 						textDocument: client.code2ProtocolConverter.asTextDocumentIdentifier(document),
 						range: client.code2ProtocolConverter.asRange(range),
-						options: client.code2ProtocolConverter.asFormattingOptions(options)
+						options: client.code2ProtocolConverter.asFormattingOptions(options, fileFormattingOptions)
 					};
 					return client.sendRequest(DocumentRangeFormattingRequest.type, params, token).then(
 						client.protocol2CodeConverter.asTextEdits,
@@ -296,7 +287,7 @@ export function startClient(context: ExtensionContext, newLanguageClient: Langua
 	const promptForTypeOnRenameKey = 'html.promptForTypeOnRename';
 	const promptForTypeOnRename = extensions.getExtension('formulahendry.auto-rename-tag') !== undefined &&
 		(context.globalState.get(promptForTypeOnRenameKey) !== false) &&
-		!workspace.getConfiguration('editor', { languageId: 'html' }).get('renameOnType');
+		!workspace.getConfiguration('editor', { languageId: 'html' }).get('linkedRename');
 
 	if (promptForTypeOnRename) {
 		const activeEditorListener = window.onDidChangeActiveTextEditor(async e => {
@@ -304,9 +295,9 @@ export function startClient(context: ExtensionContext, newLanguageClient: Langua
 				context.globalState.update(promptForTypeOnRenameKey, false);
 				activeEditorListener.dispose();
 				const configure = localize('configureButton', 'Configure');
-				const res = await window.showInformationMessage(localize('renameOnTypeQuestion', 'VS Code now has built-in support for auto-renaming tags. Do you want to enable it?'), configure);
+				const res = await window.showInformationMessage(localize('linkedRenameQuestion', 'VS Code now has built-in support for auto-renaming tags. Do you want to enable it?'), configure);
 				if (res === configure) {
-					commands.executeCommand('workbench.action.openSettings', SettingIds.renameOnType);
+					commands.executeCommand('workbench.action.openSettings', SettingIds.linkedRename);
 				}
 			}
 		});

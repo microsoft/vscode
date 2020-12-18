@@ -6,7 +6,6 @@
 import { getOrDefault } from 'vs/base/common/objects';
 import { IDisposable, dispose, Disposable, toDisposable, DisposableStore } from 'vs/base/common/lifecycle';
 import { Gesture, EventType as TouchEventType, GestureEvent } from 'vs/base/browser/touch';
-import * as DOM from 'vs/base/browser/dom';
 import { Event, Emitter } from 'vs/base/common/event';
 import { domEvent } from 'vs/base/browser/event';
 import { SmoothScrollableElement } from 'vs/base/browser/ui/scrollbar/scrollableElement';
@@ -22,6 +21,7 @@ import { DataTransfers, StaticDND, IDragAndDropData } from 'vs/base/browser/dnd'
 import { disposableTimeout, Delayer } from 'vs/base/common/async';
 import { isFirefox } from 'vs/base/browser/browser';
 import { IMouseWheelEvent } from 'vs/base/browser/mouseEvent';
+import { $, animate, getContentHeight, getContentWidth, getTopLeftOffset, scheduleAtNextAnimationFrame } from 'vs/base/browser/dom';
 
 interface IItem<T> {
 	readonly id: string;
@@ -121,7 +121,7 @@ export class ExternalElementsDragAndDropData<T> implements IDragAndDropData {
 	}
 }
 
-export class DesktopDragAndDropData implements IDragAndDropData {
+export class NativeDragAndDropData implements IDragAndDropData {
 
 	readonly types: any[];
 	readonly files: any[];
@@ -260,7 +260,7 @@ export class ListView<T> implements ISpliceable<T>, IDisposable {
 		}
 
 		this._horizontalScrolling = value;
-		DOM.toggleClass(this.domNode, 'horizontal-scrolling', this._horizontalScrolling);
+		this.domNode.classList.toggle('horizontal-scrolling', this._horizontalScrolling);
 
 		if (this._horizontalScrolling) {
 			for (const item of this.items) {
@@ -268,7 +268,7 @@ export class ListView<T> implements ISpliceable<T>, IDisposable {
 			}
 
 			this.updateScrollWidth();
-			this.scrollableElement.setScrollDimensions({ width: DOM.getContentWidth(this.domNode) });
+			this.scrollableElement.setScrollDimensions({ width: getContentWidth(this.domNode) });
 			this.rowsContainer.style.width = `${Math.max(this.scrollWidth || 0, this.renderWidth)}px`;
 		} else {
 			this.scrollableElementWidthDelayer.cancel();
@@ -303,13 +303,13 @@ export class ListView<T> implements ISpliceable<T>, IDisposable {
 		this.domNode = document.createElement('div');
 		this.domNode.className = 'monaco-list';
 
-		DOM.addClass(this.domNode, this.domId);
+		this.domNode.classList.add(this.domId);
 		this.domNode.tabIndex = 0;
 
-		DOM.toggleClass(this.domNode, 'mouse-support', typeof options.mouseSupport === 'boolean' ? options.mouseSupport : true);
+		this.domNode.classList.toggle('mouse-support', typeof options.mouseSupport === 'boolean' ? options.mouseSupport : true);
 
 		this._horizontalScrolling = getOrDefault(options, o => o.horizontalScrolling, DefaultOptions.horizontalScrolling);
-		DOM.toggleClass(this.domNode, 'horizontal-scrolling', this._horizontalScrolling);
+		this.domNode.classList.toggle('horizontal-scrolling', this._horizontalScrolling);
 
 		this.additionalScrollHeight = typeof options.additionalScrollHeight === 'undefined' ? 0 : options.additionalScrollHeight;
 
@@ -325,9 +325,8 @@ export class ListView<T> implements ISpliceable<T>, IDisposable {
 
 		this.disposables.add(Gesture.addTarget(this.rowsContainer));
 
-		this.scrollable = new Scrollable(getOrDefault(options, o => o.smoothScrolling, false) ? 125 : 0, cb => DOM.scheduleAtNextAnimationFrame(cb));
+		this.scrollable = new Scrollable(getOrDefault(options, o => o.smoothScrolling, false) ? 125 : 0, cb => scheduleAtNextAnimationFrame(cb));
 		this.scrollableElement = this.disposables.add(new SmoothScrollableElement(this.rowsContainer, {
-			alwaysConsumeMouseWheel: true,
 			horizontal: ScrollbarVisibility.Auto,
 			vertical: getOrDefault(options, o => o.verticalScrollMode, DefaultOptions.verticalScrollMode),
 			useShadows: getOrDefault(options, o => o.useShadows, DefaultOptions.useShadows),
@@ -340,7 +339,7 @@ export class ListView<T> implements ISpliceable<T>, IDisposable {
 		domEvent(this.rowsContainer, TouchEventType.Change)(this.onTouchChange, this, this.disposables);
 
 		// Prevent the monaco-scrollable-element from scrolling
-		// https://github.com/Microsoft/vscode/issues/44181
+		// https://github.com/microsoft/vscode/issues/44181
 		domEvent(this.scrollableElement.getDomNode(), 'scroll')
 			(e => (e.target as HTMLElement).scrollTop = 0, null, this.disposables);
 
@@ -510,7 +509,7 @@ export class ListView<T> implements ISpliceable<T>, IDisposable {
 		this.rowsContainer.style.height = `${this._scrollHeight}px`;
 
 		if (!this.scrollableElementUpdateDisposable) {
-			this.scrollableElementUpdateDisposable = DOM.scheduleAtNextAnimationFrame(() => {
+			this.scrollableElementUpdateDisposable = scheduleAtNextAnimationFrame(() => {
 				this.scrollableElement.setScrollDimensions({ scrollHeight: this.scrollHeight });
 				this.updateScrollWidth();
 				this.scrollableElementUpdateDisposable = null;
@@ -602,6 +601,10 @@ export class ListView<T> implements ISpliceable<T>, IDisposable {
 		return this.items[index].element;
 	}
 
+	indexOf(element: T): number {
+		return this.items.findIndex(item => item.element === element);
+	}
+
 	domElement(index: number): HTMLElement | null {
 		const row = this.items[index].row;
 		return row && row.domNode;
@@ -625,7 +628,7 @@ export class ListView<T> implements ISpliceable<T>, IDisposable {
 
 	layout(height?: number, width?: number): void {
 		let scrollDimensions: INewScrollDimensions = {
-			height: typeof height === 'number' ? height : DOM.getContentHeight(this.domNode)
+			height: typeof height === 'number' ? height : getContentHeight(this.domNode)
 		};
 
 		if (this.scrollableElementUpdateDisposable) {
@@ -645,7 +648,7 @@ export class ListView<T> implements ISpliceable<T>, IDisposable {
 
 			if (this.horizontalScrolling) {
 				this.scrollableElement.setScrollDimensions({
-					width: typeof width === 'number' ? width : DOM.getContentWidth(this.domNode)
+					width: typeof width === 'number' ? width : getContentWidth(this.domNode)
 				});
 			}
 		}
@@ -750,7 +753,7 @@ export class ListView<T> implements ISpliceable<T>, IDisposable {
 		}
 
 		item.row.domNode.style.width = isFirefox ? '-moz-fit-content' : 'fit-content';
-		item.width = DOM.getContentWidth(item.row.domNode);
+		item.width = getContentWidth(item.row.domNode);
 		const style = window.getComputedStyle(item.row.domNode);
 
 		if (style.paddingLeft) {
@@ -781,7 +784,7 @@ export class ListView<T> implements ISpliceable<T>, IDisposable {
 		item.row!.domNode!.setAttribute('aria-posinset', String(this.accessibilityProvider.getPosInSet(item.element, index)));
 		item.row!.domNode!.setAttribute('id', this.getElementDomId(index));
 
-		DOM.toggleClass(item.row!.domNode!, 'drop-target', item.dropTarget);
+		item.row!.domNode!.classList.toggle('drop-target', item.dropTarget);
 	}
 
 	private removeItemFromDOM(index: number): void {
@@ -789,8 +792,8 @@ export class ListView<T> implements ISpliceable<T>, IDisposable {
 		item.dragStartDisposable.dispose();
 
 		const renderer = this.renderers.get(item.templateId);
-		if (renderer && renderer.disposeElement) {
-			renderer.disposeElement(item.element, index, item.row!.templateData, item.size);
+		if (item.row && renderer && renderer.disposeElement) {
+			renderer.disposeElement(item.element, index, item.row.templateData, item.size);
 		}
 
 		this.cache.release(item.row!);
@@ -806,14 +809,14 @@ export class ListView<T> implements ISpliceable<T>, IDisposable {
 		return scrollPosition.scrollTop;
 	}
 
-	setScrollTop(scrollTop: number): void {
+	setScrollTop(scrollTop: number, reuseAnimation?: boolean): void {
 		if (this.scrollableElementUpdateDisposable) {
 			this.scrollableElementUpdateDisposable.dispose();
 			this.scrollableElementUpdateDisposable = null;
 			this.scrollableElement.setScrollDimensions({ scrollHeight: this.scrollHeight });
 		}
 
-		this.scrollableElement.setScrollPosition({ scrollTop });
+		this.scrollableElement.setScrollPosition({ scrollTop, reuseAnimation });
 	}
 
 	getScrollLeft(): number {
@@ -892,7 +895,7 @@ export class ListView<T> implements ISpliceable<T>, IDisposable {
 			this.render(previousRenderRange, e.scrollTop, e.height, e.scrollLeft, e.scrollWidth);
 
 			if (this.supportDynamicHeights) {
-				this._rerender(e.scrollTop, e.height);
+				this._rerender(e.scrollTop, e.height, e.inSmoothScrolling);
 			}
 		} catch (err) {
 			console.error('Got bad scroll event:', e);
@@ -930,7 +933,7 @@ export class ListView<T> implements ISpliceable<T>, IDisposable {
 				label = String(elements.length);
 			}
 
-			const dragImage = DOM.$('.monaco-drag-image');
+			const dragImage = $('.monaco-drag-image');
 			dragImage.textContent = label;
 			document.body.appendChild(dragImage);
 			event.dataTransfer.setDragImage(dragImage, -10, -10);
@@ -972,7 +975,7 @@ export class ListView<T> implements ISpliceable<T>, IDisposable {
 					return false;
 				}
 
-				this.currentDragData = new DesktopDragAndDropData();
+				this.currentDragData = new NativeDragAndDropData();
 			}
 		}
 
@@ -1011,11 +1014,11 @@ export class ListView<T> implements ISpliceable<T>, IDisposable {
 		this.currentDragFeedbackDisposable.dispose();
 
 		if (feedback[0] === -1) { // entire list feedback
-			DOM.addClass(this.domNode, 'drop-target');
-			DOM.addClass(this.rowsContainer, 'drop-target');
+			this.domNode.classList.add('drop-target');
+			this.rowsContainer.classList.add('drop-target');
 			this.currentDragFeedbackDisposable = toDisposable(() => {
-				DOM.removeClass(this.domNode, 'drop-target');
-				DOM.removeClass(this.rowsContainer, 'drop-target');
+				this.domNode.classList.remove('drop-target');
+				this.rowsContainer.classList.remove('drop-target');
 			});
 		} else {
 			for (const index of feedback) {
@@ -1023,7 +1026,7 @@ export class ListView<T> implements ISpliceable<T>, IDisposable {
 				item.dropTarget = true;
 
 				if (item.row && item.row.domNode) {
-					DOM.addClass(item.row.domNode, 'drop-target');
+					item.row.domNode.classList.add('drop-target');
 				}
 			}
 
@@ -1033,7 +1036,7 @@ export class ListView<T> implements ISpliceable<T>, IDisposable {
 					item.dropTarget = false;
 
 					if (item.row && item.row.domNode) {
-						DOM.removeClass(item.row.domNode, 'drop-target');
+						item.row.domNode.classList.remove('drop-target');
 					}
 				}
 			});
@@ -1089,8 +1092,8 @@ export class ListView<T> implements ISpliceable<T>, IDisposable {
 
 	private setupDragAndDropScrollTopAnimation(event: DragEvent): void {
 		if (!this.dragOverAnimationDisposable) {
-			const viewTop = DOM.getTopLeftOffset(this.domNode).top;
-			this.dragOverAnimationDisposable = DOM.animate(this.animateDragAndDropScrollTop.bind(this, viewTop));
+			const viewTop = getTopLeftOffset(this.domNode).top;
+			this.dragOverAnimationDisposable = animate(this.animateDragAndDropScrollTop.bind(this, viewTop));
 		}
 
 		this.dragOverAnimationStopDisposable.dispose();
@@ -1162,7 +1165,7 @@ export class ListView<T> implements ISpliceable<T>, IDisposable {
 	 * Given a stable rendered state, checks every rendered element whether it needs
 	 * to be probed for dynamic height. Adjusts scroll height and top if necessary.
 	 */
-	private _rerender(renderTop: number, renderHeight: number): void {
+	private _rerender(renderTop: number, renderHeight: number, inSmoothScrolling?: boolean): void {
 		const previousRenderRange = this.getRenderRange(renderTop, renderHeight);
 
 		// Let's remember the second element's position, this helps in scrolling up
@@ -1229,7 +1232,14 @@ export class ListView<T> implements ISpliceable<T>, IDisposable {
 				}
 
 				if (typeof anchorElementIndex === 'number') {
-					this.scrollTop = this.elementTop(anchorElementIndex) - anchorElementTopDelta!;
+					// To compute a destination scroll top, we need to take into account the current smooth scrolling
+					// animation, and then reuse it with a new target (to avoid prolonging the scroll)
+					// See https://github.com/microsoft/vscode/issues/104144
+					// See https://github.com/microsoft/vscode/pull/104284
+					// See https://github.com/microsoft/vscode/issues/107704
+					const deltaScrollTop = this.scrollable.getFutureScrollPosition().scrollTop - renderTop;
+					const newScrollTop = this.elementTop(anchorElementIndex) - anchorElementTopDelta! + deltaScrollTop;
+					this.setScrollTop(newScrollTop, inSmoothScrolling);
 				}
 
 				this._onDidChangeContentHeight.fire(this.contentHeight);
@@ -1317,6 +1327,9 @@ export class ListView<T> implements ISpliceable<T>, IDisposable {
 				if (item.row) {
 					const renderer = this.renderers.get(item.row.templateId);
 					if (renderer) {
+						if (renderer.disposeElement) {
+							renderer.disposeElement(item.element, -1, item.row.templateData, undefined);
+						}
 						renderer.disposeTemplate(item.row.templateData);
 					}
 				}

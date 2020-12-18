@@ -17,7 +17,7 @@ import { ISuggestMemoryService } from 'vs/editor/contrib/suggest/suggestMemory';
 import { DisposableStore } from 'vs/base/common/lifecycle';
 import { URI } from 'vs/base/common/uri';
 import { IEditorWorkerService } from 'vs/editor/common/services/editorWorkerService';
-import { mock } from 'vs/editor/contrib/suggest/test/suggestModel.test';
+import { mock } from 'vs/base/test/common/mock';
 import { Selection } from 'vs/editor/common/core/selection';
 import { CompletionProviderRegistry, CompletionItemKind, CompletionItemInsertTextRule } from 'vs/editor/common/modes';
 import { Event } from 'vs/base/common/event';

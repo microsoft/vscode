@@ -26,12 +26,15 @@ import { toDisposable, DisposableStore } from 'vs/base/common/lifecycle';
 import { TrackedRangeStickiness, IModelDeltaDecoration, IModelDecorationOptions, OverviewRulerLane } from 'vs/editor/common/model';
 import { registerThemingParticipant, themeColorFromId, IThemeService, IColorTheme } from 'vs/platform/theme/common/themeService';
 import { IPosition } from 'vs/editor/common/core/position';
-import { Action } from 'vs/base/common/actions';
+import { IAction } from 'vs/base/common/actions';
 import { IActionBarOptions, ActionsOrientation } from 'vs/base/browser/ui/actionbar/actionbar';
-import { IStorageService, StorageScope } from 'vs/platform/storage/common/storage';
+import { IStorageService, StorageScope, StorageTarget } from 'vs/platform/storage/common/storage';
 import { Color } from 'vs/base/common/color';
 import { TreeMouseEventTarget, ITreeNode } from 'vs/base/browser/ui/tree/tree';
 import { URI } from 'vs/base/common/uri';
+import { MenuId, IMenuService } from 'vs/platform/actions/common/actions';
+import { IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
+import { createAndFillInActionBarActions } from 'vs/platform/actions/browser/menuEntryActionViewItem';
 
 const enum State {
 	Loading = 'loading',
@@ -39,31 +42,10 @@ const enum State {
 	Data = 'data'
 }
 
-class ChangeHierarchyDirectionAction extends Action {
-
-	constructor(getDirection: () => CallHierarchyDirection, toggleDirection: () => void) {
-		super('', undefined, '', true, () => {
-			toggleDirection();
-			update();
-			return Promise.resolve();
-		});
-		const update = () => {
-			if (getDirection() === CallHierarchyDirection.CallsFrom) {
-				this.label = localize('toggle.from', "Show Incoming Calls");
-				this.class = 'codicon codicon-call-incoming';
-			} else {
-				this.label = localize('toggle.to', "Showing Outgoing Calls");
-				this.class = 'codicon codicon-call-outgoing';
-			}
-		};
-		update();
-	}
-}
-
 class LayoutInfo {
 
 	static store(info: LayoutInfo, storageService: IStorageService): void {
-		storageService.store('callHierarchyPeekLayout', JSON.stringify(info), StorageScope.GLOBAL);
+		storageService.store('callHierarchyPeekLayout', JSON.stringify(info), StorageScope.GLOBAL, StorageTarget.MACHINE);
 	}
 
 	static retrieve(storageService: IStorageService): LayoutInfo {
@@ -86,7 +68,8 @@ class CallHierarchyTree extends WorkbenchAsyncDataTree<CallHierarchyModel, callH
 
 export class CallHierarchyTreePeekWidget extends peekView.PeekViewWidget {
 
-	private _changeDirectionAction?: ChangeHierarchyDirectionAction;
+	static readonly TitleMenu = new MenuId('callhierarchy/title');
+
 	private _parent!: HTMLElement;
 	private _message!: HTMLElement;
 	private _splitView!: SplitView;
@@ -107,9 +90,11 @@ export class CallHierarchyTreePeekWidget extends peekView.PeekViewWidget {
 		@IEditorService private readonly _editorService: IEditorService,
 		@ITextModelService private readonly _textModelService: ITextModelService,
 		@IStorageService private readonly _storageService: IStorageService,
+		@IMenuService private readonly _menuService: IMenuService,
+		@IContextKeyService private readonly _contextKeyService: IContextKeyService,
 		@IInstantiationService private readonly _instantiationService: IInstantiationService,
 	) {
-		super(editor, { showFrame: true, showArrow: true, isResizeable: true, isAccessible: true });
+		super(editor, { showFrame: true, showArrow: true, isResizeable: true, isAccessible: true }, _instantiationService);
 		this.create();
 		this._peekViewService.addExclusiveWidget(editor, this);
 		this._applyTheme(themeService.getColorTheme());
@@ -140,16 +125,32 @@ export class CallHierarchyTreePeekWidget extends peekView.PeekViewWidget {
 		});
 	}
 
+	protected _fillHead(container: HTMLElement): void {
+		super._fillHead(container, true);
+
+		const menu = this._menuService.createMenu(CallHierarchyTreePeekWidget.TitleMenu, this._contextKeyService);
+		const updateToolbar = () => {
+			const actions: IAction[] = [];
+			createAndFillInActionBarActions(menu, undefined, actions);
+			this._actionbarWidget!.clear();
+			this._actionbarWidget!.push(actions, { label: false, icon: true });
+		};
+		this._disposables.add(menu);
+		this._disposables.add(menu.onDidChange(updateToolbar));
+		updateToolbar();
+	}
+
 	protected _getActionBarOptions(): IActionBarOptions {
 		return {
-			orientation: ActionsOrientation.HORIZONTAL_REVERSE
+			...super._getActionBarOptions(),
+			orientation: ActionsOrientation.HORIZONTAL
 		};
 	}
 
 	protected _fillBody(parent: HTMLElement): void {
 
 		this._layoutInfo = LayoutInfo.retrieve(this._storageService);
-		this._dim = { height: 0, width: 0 };
+		this._dim = new Dimension(0, 0);
 
 		this._parent = parent;
 		parent.classList.add('call-hierarchy');
@@ -276,7 +277,7 @@ export class CallHierarchyTreePeekWidget extends peekView.PeekViewWidget {
 				this.dispose();
 				this._editorService.openEditor({
 					resource: e.element.item.uri,
-					options: { selection: e.element.item.selectionRange }
+					options: { selection: e.element.item.selectionRange, pinned: true }
 				});
 			}
 		}));
@@ -288,7 +289,7 @@ export class CallHierarchyTreePeekWidget extends peekView.PeekViewWidget {
 				this.dispose();
 				this._editorService.openEditor({
 					resource: element.item.uri,
-					options: { selection: element.item.selectionRange }
+					options: { selection: element.item.selectionRange, pinned: true }
 				});
 			}
 		}));
@@ -391,12 +392,6 @@ export class CallHierarchyTreePeekWidget extends peekView.PeekViewWidget {
 			this._tree.domFocus();
 			this._updatePreview();
 		}
-
-		if (!this._changeDirectionAction) {
-			this._changeDirectionAction = new ChangeHierarchyDirectionAction(() => this._direction, () => this.toggleDirection());
-			this._disposables.add(this._changeDirectionAction);
-			this._actionbarWidget!.push(this._changeDirectionAction, { icon: true, label: false });
-		}
 	}
 
 	getModel(): CallHierarchyModel | undefined {
@@ -407,10 +402,9 @@ export class CallHierarchyTreePeekWidget extends peekView.PeekViewWidget {
 		return this._tree.getFocus()[0];
 	}
 
-	async toggleDirection(): Promise<void> {
+	async updateDirection(newDirection: CallHierarchyDirection): Promise<void> {
 		const model = this._tree.getInput();
-		if (model) {
-			const newDirection = this._direction === CallHierarchyDirection.CallsTo ? CallHierarchyDirection.CallsFrom : CallHierarchyDirection.CallsTo;
+		if (model && newDirection !== this._direction) {
 			this._treeViewStates.set(this._direction, this._tree.getViewState());
 			this._direction = newDirection;
 			await this.showModel(model);
@@ -433,7 +427,7 @@ export class CallHierarchyTreePeekWidget extends peekView.PeekViewWidget {
 	protected _doLayoutBody(height: number, width: number): void {
 		if (this._dim.height !== height || this._dim.width !== width) {
 			super._doLayoutBody(height, width);
-			this._dim = { height, width };
+			this._dim = new Dimension(width, height);
 			this._layoutInfo.height = this._viewZone ? this._viewZone.heightInLines : this._layoutInfo.height;
 			this._splitView.layout(width);
 			this._splitView.resizeView(0, width * this._layoutInfo.ratio);

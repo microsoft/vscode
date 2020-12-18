@@ -3,7 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { EditorInput, Verbosity, GroupIdentifier, IEditorInput, ISaveOptions, IRevertOptions } from 'vs/workbench/common/editor';
+import { EditorInput, Verbosity, GroupIdentifier, IEditorInput, ISaveOptions, IRevertOptions, IEditorInputWithPreferredResource } from 'vs/workbench/common/editor';
 import { URI } from 'vs/base/common/uri';
 import { ITextFileService, ITextFileSaveOptions } from 'vs/workbench/services/textfile/common/textfiles';
 import { IEditorService } from 'vs/workbench/services/editor/common/editorService';
@@ -11,23 +11,20 @@ import { IEditorGroupsService } from 'vs/workbench/services/editor/common/editor
 import { IFileService, FileSystemProviderCapabilities } from 'vs/platform/files/common/files';
 import { ILabelService } from 'vs/platform/label/common/label';
 import { IFilesConfigurationService, AutoSaveMode } from 'vs/workbench/services/filesConfiguration/common/filesConfigurationService';
-import { createMemoizer } from 'vs/base/common/decorators';
 import { Schemas } from 'vs/base/common/network';
-import { dirname, extUri } from 'vs/base/common/resources';
+import { dirname, isEqual } from 'vs/base/common/resources';
 
 /**
  * The base class for all editor inputs that open in text editors.
  */
-export abstract class AbstractTextResourceEditorInput extends EditorInput {
+export abstract class AbstractTextResourceEditorInput extends EditorInput implements IEditorInputWithPreferredResource {
 
-	private static readonly MEMOIZER = createMemoizer();
-
-	private _label: URI;
-	get label(): URI { return this._label; }
+	private _preferredResource: URI;
+	get preferredResource(): URI { return this._preferredResource; }
 
 	constructor(
 		public readonly resource: URI,
-		preferredLabel: URI | undefined,
+		preferredResource: URI | undefined,
 		@IEditorService protected readonly editorService: IEditorService,
 		@IEditorGroupsService protected readonly editorGroupService: IEditorGroupsService,
 		@ITextFileService protected readonly textFileService: ITextFileService,
@@ -37,7 +34,7 @@ export abstract class AbstractTextResourceEditorInput extends EditorInput {
 	) {
 		super();
 
-		this._label = preferredLabel || resource;
+		this._preferredResource = preferredResource || resource;
 
 		this.registerListeners();
 	}
@@ -51,7 +48,7 @@ export abstract class AbstractTextResourceEditorInput extends EditorInput {
 	}
 
 	private onLabelEvent(scheme: string): void {
-		if (scheme === this._label.scheme) {
+		if (scheme === this._preferredResource.scheme) {
 			this.updateLabel();
 		}
 	}
@@ -59,31 +56,33 @@ export abstract class AbstractTextResourceEditorInput extends EditorInput {
 	private updateLabel(): void {
 
 		// Clear any cached labels from before
-		AbstractTextResourceEditorInput.MEMOIZER.clear();
+		this._name = undefined;
+		this._shortDescription = undefined;
+		this._mediumDescription = undefined;
+		this._longDescription = undefined;
+		this._shortTitle = undefined;
+		this._mediumTitle = undefined;
+		this._longTitle = undefined;
 
 		// Trigger recompute of label
 		this._onDidChangeLabel.fire();
 	}
 
-	setLabel(label: URI): void {
-		if (!extUri.isEqual(label, this._label)) {
-			this._label = label;
+	setPreferredResource(preferredResource: URI): void {
+		if (!isEqual(preferredResource, this._preferredResource)) {
+			this._preferredResource = preferredResource;
 
 			this.updateLabel();
 		}
 	}
 
-	getLabel(): URI {
-		return this._label;
-	}
-
+	private _name: string | undefined = undefined;
 	getName(): string {
-		return this.basename;
-	}
+		if (typeof this._name !== 'string') {
+			this._name = this.labelService.getUriBasenameLabel(this._preferredResource);
+		}
 
-	@AbstractTextResourceEditorInput.MEMOIZER
-	private get basename(): string {
-		return this.labelService.getUriBasenameLabel(this._label);
+		return this._name;
 	}
 
 	getDescription(verbosity: Verbosity = Verbosity.MEDIUM): string | undefined {
@@ -98,34 +97,58 @@ export abstract class AbstractTextResourceEditorInput extends EditorInput {
 		}
 	}
 
-	@AbstractTextResourceEditorInput.MEMOIZER
+	private _shortDescription: string | undefined = undefined;
 	private get shortDescription(): string {
-		return this.labelService.getUriBasenameLabel(dirname(this._label));
+		if (typeof this._shortDescription !== 'string') {
+			this._shortDescription = this.labelService.getUriBasenameLabel(dirname(this._preferredResource));
+		}
+
+		return this._shortDescription;
 	}
 
-	@AbstractTextResourceEditorInput.MEMOIZER
+	private _mediumDescription: string | undefined = undefined;
 	private get mediumDescription(): string {
-		return this.labelService.getUriLabel(dirname(this._label), { relative: true });
+		if (typeof this._mediumDescription !== 'string') {
+			this._mediumDescription = this.labelService.getUriLabel(dirname(this._preferredResource), { relative: true });
+		}
+
+		return this._mediumDescription;
 	}
 
-	@AbstractTextResourceEditorInput.MEMOIZER
+	private _longDescription: string | undefined = undefined;
 	private get longDescription(): string {
-		return this.labelService.getUriLabel(dirname(this._label));
+		if (typeof this._longDescription !== 'string') {
+			this._longDescription = this.labelService.getUriLabel(dirname(this._preferredResource));
+		}
+
+		return this._longDescription;
 	}
 
-	@AbstractTextResourceEditorInput.MEMOIZER
+	private _shortTitle: string | undefined = undefined;
 	private get shortTitle(): string {
-		return this.getName();
+		if (typeof this._shortTitle !== 'string') {
+			this._shortTitle = this.getName();
+		}
+
+		return this._shortTitle;
 	}
 
-	@AbstractTextResourceEditorInput.MEMOIZER
+	private _mediumTitle: string | undefined = undefined;
 	private get mediumTitle(): string {
-		return this.labelService.getUriLabel(this._label, { relative: true });
+		if (typeof this._mediumTitle !== 'string') {
+			this._mediumTitle = this.labelService.getUriLabel(this._preferredResource, { relative: true });
+		}
+
+		return this._mediumTitle;
 	}
 
-	@AbstractTextResourceEditorInput.MEMOIZER
+	private _longTitle: string | undefined = undefined;
 	private get longTitle(): string {
-		return this.labelService.getUriLabel(this._label);
+		if (typeof this._longTitle !== 'string') {
+			this._longTitle = this.labelService.getUriLabel(this._preferredResource);
+		}
+
+		return this._longTitle;
 	}
 
 	getTitle(verbosity: Verbosity): string {
@@ -141,7 +164,10 @@ export abstract class AbstractTextResourceEditorInput extends EditorInput {
 	}
 
 	isUntitled(): boolean {
-		return this.resource.scheme === Schemas.untitled;
+		//  anyFile: is never untitled as it can be saved
+		// untitled: is untitled by definition
+		// anyOther: is untitled because it cannot be saved, as such we expect a "Save As" dialog
+		return !this.fileService.canHandleResource(this.resource);
 	}
 
 	isReadonly(): boolean {
@@ -165,6 +191,14 @@ export abstract class AbstractTextResourceEditorInput extends EditorInput {
 	}
 
 	save(group: GroupIdentifier, options?: ITextFileSaveOptions): Promise<IEditorInput | undefined> {
+
+		// If this is neither an `untitled` resource, nor a resource
+		// we can handle with the file service, we can only "Save As..."
+		if (this.resource.scheme !== Schemas.untitled && !this.fileService.canHandleResource(this.resource)) {
+			return this.saveAs(group, options);
+		}
+
+		// Normal save
 		return this.doSave(group, options, false);
 	}
 
@@ -177,7 +211,7 @@ export abstract class AbstractTextResourceEditorInput extends EditorInput {
 		// Save / Save As
 		let target: URI | undefined;
 		if (saveAs) {
-			target = await this.textFileService.saveAs(this.resource, undefined, options);
+			target = await this.textFileService.saveAs(this.resource, undefined, { ...options, suggestedTarget: this.preferredResource });
 		} else {
 			target = await this.textFileService.save(this.resource, options);
 		}
@@ -187,7 +221,7 @@ export abstract class AbstractTextResourceEditorInput extends EditorInput {
 		}
 
 		// If the target is a different resource, return with a new editor input
-		if (!extUri.isEqual(target, this.resource)) {
+		if (!isEqual(target, this.preferredResource)) {
 			return this.editorService.createEditorInput({ resource: target });
 		}
 

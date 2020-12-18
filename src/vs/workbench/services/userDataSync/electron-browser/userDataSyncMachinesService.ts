@@ -8,12 +8,15 @@ import { Disposable } from 'vs/base/common/lifecycle';
 import { IChannel } from 'vs/base/parts/ipc/common/ipc';
 import { registerSingleton } from 'vs/platform/instantiation/common/extensions';
 import { IUserDataSyncMachinesService, IUserDataSyncMachine } from 'vs/platform/userDataSync/common/userDataSyncMachines';
+import { Event } from 'vs/base/common/event';
 
 class UserDataSyncMachinesService extends Disposable implements IUserDataSyncMachinesService {
 
 	declare readonly _serviceBrand: undefined;
 
 	private readonly channel: IChannel;
+
+	get onDidChange(): Event<void> { return this.channel.listen<void>('onDidChange'); }
 
 	constructor(
 		@ISharedProcessService sharedProcessService: ISharedProcessService

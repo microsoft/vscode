@@ -3,7 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { ILocalExtension, IGalleryExtension, IExtensionIdentifier, IReportedExtension } from 'vs/platform/extensionManagement/common/extensionManagement';
+import { ILocalExtension, IGalleryExtension, IExtensionIdentifier, IReportedExtension, IExtensionIdentifierWithVersion } from 'vs/platform/extensionManagement/common/extensionManagement';
 import { compareIgnoreCase } from 'vs/base/common/strings';
 import { ExtensionIdentifier } from 'vs/platform/extensions/common/extensions';
 
@@ -17,21 +17,28 @@ export function areSameExtensions(a: IExtensionIdentifier, b: IExtensionIdentifi
 	return compareIgnoreCase(a.id, b.id) === 0;
 }
 
-export class ExtensionIdentifierWithVersion {
+export class ExtensionIdentifierWithVersion implements IExtensionIdentifierWithVersion {
+
+	readonly id: string;
+	readonly uuid?: string;
+
 	constructor(
-		readonly identifier: IExtensionIdentifier,
+		identifier: IExtensionIdentifier,
 		readonly version: string
-	) { }
+	) {
+		this.id = identifier.id;
+		this.uuid = identifier.uuid;
+	}
 
 	key(): string {
-		return `${this.identifier.id}-${this.version}`;
+		return `${this.id}-${this.version}`;
 	}
 
 	equals(o: any): boolean {
 		if (!(o instanceof ExtensionIdentifierWithVersion)) {
 			return false;
 		}
-		return areSameExtensions(this.identifier, o.identifier) && this.version === o.version;
+		return areSameExtensions(this, o) && this.version === o.version;
 	}
 }
 

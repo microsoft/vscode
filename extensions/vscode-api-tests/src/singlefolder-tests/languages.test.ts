@@ -31,7 +31,7 @@ suite('vscode API - languages', () => {
 		let clock = 0;
 		const disposables: vscode.Disposable[] = [];
 
-		let close = new Promise(resolve => {
+		let close = new Promise<void>(resolve => {
 			disposables.push(vscode.workspace.onDidCloseTextDocument(e => {
 				if (e === doc) {
 					assert.equal(doc.languageId, langIdNow);
@@ -41,7 +41,7 @@ suite('vscode API - languages', () => {
 				}
 			}));
 		});
-		let open = new Promise(resolve => {
+		let open = new Promise<void>(resolve => {
 			disposables.push(vscode.workspace.onDidOpenTextDocument(e => {
 				if (e === doc) { // same instance!
 					assert.equal(doc.languageId, 'json');

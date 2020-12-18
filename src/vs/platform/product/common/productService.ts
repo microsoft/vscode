@@ -22,7 +22,14 @@ export interface IBuiltInExtension {
 	readonly metadata: any;
 }
 
-export type ConfigurationSyncStore = { url: string, authenticationProviders: IStringDictionary<{ scopes: string[] }> };
+export type ConfigurationSyncStore = {
+	web?: Partial<Omit<ConfigurationSyncStore, 'web'>>,
+	url: string,
+	insidersUrl: string,
+	stableUrl: string,
+	canSwitch: boolean,
+	authenticationProviders: IStringDictionary<{ scopes: string[] }>
+};
 
 export interface IProductConfiguration {
 	readonly version: string;
@@ -44,10 +51,18 @@ export interface IProductConfiguration {
 
 	readonly downloadUrl?: string;
 	readonly updateUrl?: string;
+	readonly webEndpointUrl?: string;
 	readonly target?: string;
 
 	readonly settingsSearchBuildId?: number;
 	readonly settingsSearchUrl?: string;
+
+	readonly tasConfig?: {
+		endpoint: string;
+		telemetryEventName: string;
+		featuresTelemetryPropertyName: string;
+		assignmentContextTelemetryPropertyName: string;
+	};
 
 	readonly experimentsUrl?: string;
 
@@ -59,12 +74,13 @@ export interface IProductConfiguration {
 	};
 
 	readonly extensionTips?: { [id: string]: string; };
-	readonly extensionImportantTips?: { [id: string]: { name: string; pattern: string; isExtensionPack?: boolean }; };
+	readonly extensionImportantTips?: IStringDictionary<ImportantExtensionTip>;
 	readonly configBasedExtensionTips?: { [id: string]: IConfigBasedExtensionTip; };
 	readonly exeBasedExtensionTips?: { [id: string]: IExeBasedExtensionTip; };
 	readonly remoteExtensionTips?: { [remoteName: string]: IRemoteExtensionTip; };
 	readonly extensionKeywords?: { [extension: string]: readonly string[]; };
 	readonly keymapExtensionTips?: readonly string[];
+	readonly trustedExtensionUrlPublicKeys?: { [id: string]: string[]; };
 
 	readonly crashReporter?: {
 		readonly companyName: string;
@@ -115,6 +131,8 @@ export interface IProductConfiguration {
 	readonly 'configurationSync.store'?: ConfigurationSyncStore;
 }
 
+export type ImportantExtensionTip = { name: string; languages?: string[]; pattern?: string; isExtensionPack?: boolean };
+
 export interface IAppCenterConfiguration {
 	readonly 'win32-ia32': string;
 	readonly 'win32-x64': string;
@@ -131,9 +149,8 @@ export interface IConfigBasedExtensionTip {
 export interface IExeBasedExtensionTip {
 	friendlyName: string;
 	windowsPath?: string;
-	recommendations: readonly string[];
 	important?: boolean;
-	exeFriendlyName?: string;
+	recommendations: IStringDictionary<{ name: string, important?: boolean, isExtensionPack?: boolean }>;
 }
 
 export interface IRemoteExtensionTip {

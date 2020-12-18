@@ -4,6 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { coalesce, distinct } from 'vs/base/common/arrays';
+import { Codicon } from 'vs/base/common/codicons';
 import { Emitter, Event } from 'vs/base/common/event';
 import { Lazy } from 'vs/base/common/lazy';
 import { Disposable, IDisposable, toDisposable } from 'vs/base/common/lifecycle';
@@ -29,7 +30,7 @@ import { CONTEXT_CUSTOM_EDITORS, CONTEXT_FOCUSED_CUSTOM_EDITOR_IS_EDITABLE, Cust
 import { CustomEditorModelManager } from 'vs/workbench/contrib/customEditor/common/customEditorModelManager';
 import { IWebviewService, webviewHasOwnEditFunctionsContext } from 'vs/workbench/contrib/webview/browser/webview';
 import { IEditorGroup, IEditorGroupsService } from 'vs/workbench/services/editor/common/editorGroupsService';
-import { CustomEditorAssociation, CustomEditorsAssociations, customEditorsAssociationsSettingId, defaultEditorOverrideEntry } from 'vs/workbench/services/editor/common/editorOpenWith';
+import { CustomEditorAssociation, CustomEditorsAssociations, customEditorsAssociationsSettingId } from 'vs/workbench/services/editor/common/editorOpenWith';
 import { ICustomEditorInfo, ICustomEditorViewTypesHandler, IEditorService, IOpenEditorOverride, IOpenEditorOverrideEntry } from 'vs/workbench/services/editor/common/editorService';
 import { ContributedCustomEditors, defaultCustomEditor } from '../common/contributedCustomEditors';
 import { CustomEditorInput } from './customEditorInput';
@@ -96,10 +97,13 @@ export class CustomEditorService extends Disposable implements ICustomEditorServ
 		return [...this._contributedEditors];
 	}
 
-	private withActiveCustomEditor(f: (editor: CustomEditorInput) => void): boolean {
+	private withActiveCustomEditor(f: (editor: CustomEditorInput) => void | Promise<void>): boolean | Promise<void> {
 		const activeEditor = this.editorService.activeEditor;
 		if (activeEditor instanceof CustomEditorInput) {
-			f(activeEditor);
+			const result = f(activeEditor);
+			if (result) {
+				return result;
+			}
 			return true;
 		}
 		return false;
@@ -170,7 +174,7 @@ export class CustomEditorService extends Disposable implements ICustomEditorServ
 				: undefined,
 			detail: editorDescriptor.providerDisplayName,
 			buttons: resourceExt ? [{
-				iconClass: 'codicon-settings-gear',
+				iconClass: Codicon.settingsGear.classNames,
 				tooltip: nls.localize('promptOpenWith.setDefaultTooltip', "Set as default editor for '{0}' files", resourceExt)
 			}] : undefined
 		}));
@@ -444,6 +448,7 @@ export class CustomEditorContribution extends Disposable implements IWorkbenchCo
 	constructor(
 		@IEditorService private readonly editorService: IEditorService,
 		@ICustomEditorService private readonly customEditorService: ICustomEditorService,
+		@IInstantiationService private readonly instantiationService: IInstantiationService
 	) {
 		super();
 
@@ -453,11 +458,6 @@ export class CustomEditorContribution extends Disposable implements IWorkbenchCo
 			},
 			getEditorOverrides: (resource: URI, options: IEditorOptions | undefined, group: IEditorGroup | undefined): IOpenEditorOverrideEntry[] => {
 				const currentEditor = group?.editors.find(editor => isEqual(editor.resource, resource));
-
-				const defaultEditorOverride: IOpenEditorOverrideEntry = {
-					...defaultEditorOverrideEntry,
-					active: this._fileEditorInputFactory.isFileEditorInput(currentEditor),
-				};
 
 				const toOverride = (entry: CustomEditorInfo): IOpenEditorOverrideEntry => {
 					return {
@@ -470,11 +470,6 @@ export class CustomEditorContribution extends Disposable implements IWorkbenchCo
 
 				if (typeof options?.override === 'string') {
 					// A specific override was requested. Only return it.
-
-					if (options.override === defaultEditorOverride.id) {
-						return [defaultEditorOverride];
-					}
-
 					const matchingEditor = this.customEditorService.getCustomEditor(options.override);
 					return matchingEditor ? [toOverride(matchingEditor)] : [];
 				}
@@ -485,12 +480,9 @@ export class CustomEditorContribution extends Disposable implements IWorkbenchCo
 					return [];
 				}
 
-				return [
-					defaultEditorOverride,
-					...customEditors.allEditors
-						.filter(entry => entry.id !== defaultCustomEditor.id)
-						.map(toOverride)
-				];
+				return customEditors.allEditors
+					.filter(entry => entry.id !== defaultCustomEditor.id)
+					.map(toOverride);
 			}
 		}));
 	}
@@ -549,6 +541,11 @@ export class CustomEditorContribution extends Disposable implements IWorkbenchCo
 		// If there is, we want to open that instead of creating a new editor.
 		// This ensures that we preserve whatever type of editor was previously being used
 		// when the user switches back to it.
+		const strictMatchEditorInput = group.editors.find(e => e === editor && !this._fileEditorInputFactory.isFileEditorInput(e));
+		if (strictMatchEditorInput) {
+			return;
+		}
+
 		const existingEditorForResource = group.editors.find(editor => isEqual(resource, editor.resource));
 		if (existingEditorForResource) {
 			if (editor === existingEditorForResource) {
@@ -656,7 +653,7 @@ export class CustomEditorContribution extends Disposable implements IWorkbenchCo
 		if (modifiedOverride || originalOverride) {
 			return {
 				override: (async () => {
-					const input = new DiffEditorInput(editor.getName(), editor.getDescription(), originalOverride || editor.originalInput, modifiedOverride || editor.modifiedInput, true);
+					const input = this.instantiationService.createInstance(DiffEditorInput, editor.getName(), editor.getDescription(), originalOverride || editor.originalInput, modifiedOverride || editor.modifiedInput, true);
 					return this.editorService.openEditor(input, { ...options, override: false }, group);
 				})(),
 			};

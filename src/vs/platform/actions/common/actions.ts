@@ -3,7 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { Action } from 'vs/base/common/actions';
+import { Action, IAction, Separator, SubmenuAction } from 'vs/base/common/actions';
 import { SyncDescriptor0, createSyncDescriptor } from 'vs/platform/instantiation/common/descriptors';
 import { IConstructorSignature2, createDecorator, BrandedService, ServicesAccessor } from 'vs/platform/instantiation/common/instantiation';
 import { IKeybindings, KeybindingsRegistry, IKeybindingRule } from 'vs/platform/keybinding/common/keybindingsRegistry';
@@ -18,7 +18,13 @@ import { Iterable } from 'vs/base/common/iterator';
 import { LinkedList } from 'vs/base/common/linkedList';
 
 export interface ILocalizedString {
+	/**
+	 * The localized value of the string.
+	 */
 	value: string;
+	/**
+	 * The original (non localized value of the string)
+	 */
 	original: string;
 }
 
@@ -26,12 +32,12 @@ export type Icon = { dark?: URI; light?: URI; } | ThemeIcon;
 
 export interface ICommandAction {
 	id: string;
-	title: string | ILocalizedString;
+	title: string | ILocalizedString | ILocalizedString & { mnemonicedTitle: string };
 	category?: string | ILocalizedString;
-	tooltip?: string | ILocalizedString;
+	tooltip?: string;
 	icon?: Icon;
 	precondition?: ContextKeyExpression;
-	toggled?: ContextKeyExpression | { condition: ContextKeyExpression, icon?: Icon, tooltip?: string | ILocalizedString };
+	toggled?: ContextKeyExpression | { condition: ContextKeyExpression, icon?: Icon, tooltip?: string };
 }
 
 export type ISerializableCommandAction = UriDto<ICommandAction>;
@@ -47,6 +53,7 @@ export interface IMenuItem {
 export interface ISubmenuItem {
 	title: string | ILocalizedString;
 	submenu: MenuId;
+	icon?: Icon;
 	when?: ContextKeyExpression;
 	group?: 'navigation' | string;
 	order?: number;
@@ -94,7 +101,7 @@ export class MenuId {
 	static readonly MenubarSwitchGroupMenu = new MenuId('MenubarSwitchGroupMenu');
 	static readonly MenubarTerminalMenu = new MenuId('MenubarTerminalMenu');
 	static readonly MenubarViewMenu = new MenuId('MenubarViewMenu');
-	static readonly MenubarWebNavigationMenu = new MenuId('MenubarWebNavigationMenu');
+	static readonly MenubarHomeMenu = new MenuId('MenubarHomeMenu');
 	static readonly OpenEditorsContext = new MenuId('OpenEditorsContext');
 	static readonly ProblemsPanelContext = new MenuId('ProblemsPanelContext');
 	static readonly SCMChangeContext = new MenuId('SCMChangeContext');
@@ -111,6 +118,7 @@ export class MenuId {
 	static readonly TunnelInline = new MenuId('TunnelInline');
 	static readonly TunnelTitle = new MenuId('TunnelTitle');
 	static readonly ViewItemContext = new MenuId('ViewItemContext');
+	static readonly ViewContainerTitle = new MenuId('ViewContainerTitle');
 	static readonly ViewContainerTitleContext = new MenuId('ViewContainerTitleContext');
 	static readonly ViewTitle = new MenuId('ViewTitle');
 	static readonly ViewTitleContext = new MenuId('ViewTitleContext');
@@ -119,13 +127,20 @@ export class MenuId {
 	static readonly CommentTitle = new MenuId('CommentTitle');
 	static readonly CommentActions = new MenuId('CommentActions');
 	static readonly NotebookCellTitle = new MenuId('NotebookCellTitle');
+	static readonly NotebookCellInsert = new MenuId('NotebookCellInsert');
 	static readonly NotebookCellBetween = new MenuId('NotebookCellBetween');
+	static readonly NotebookCellListTop = new MenuId('NotebookCellTop');
+	static readonly NotebookDiffCellInputTitle = new MenuId('NotebookDiffCellInputTitle');
+	static readonly NotebookDiffCellMetadataTitle = new MenuId('NotebookDiffCellMetadataTitle');
+	static readonly NotebookDiffCellOutputsTitle = new MenuId('NotebookDiffCellOutputsTitle');
 	static readonly BulkEditTitle = new MenuId('BulkEditTitle');
 	static readonly BulkEditContext = new MenuId('BulkEditContext');
 	static readonly TimelineItemContext = new MenuId('TimelineItemContext');
 	static readonly TimelineTitle = new MenuId('TimelineTitle');
 	static readonly TimelineTitleContext = new MenuId('TimelineTitleContext');
 	static readonly AccountsContext = new MenuId('AccountsContext');
+	static readonly PanelTitle = new MenuId('PanelTitle');
+	static readonly PanelTitleContext = new MenuId('PanelTitleContext');
 
 	readonly id: number;
 	readonly _debugName: string;
@@ -295,11 +310,35 @@ export class ExecuteCommandAction extends Action {
 	}
 }
 
-export class SubmenuItemAction extends Action {
+export class SubmenuItemAction extends SubmenuAction {
 
 	readonly item: ISubmenuItem;
-	constructor(item: ISubmenuItem) {
-		typeof item.title === 'string' ? super('', item.title, 'submenu') : super('', item.title.value, 'submenu');
+
+	constructor(
+		item: ISubmenuItem,
+		menuService: IMenuService,
+		contextKeyService: IContextKeyService,
+		options?: IMenuActionOptions
+	) {
+		const result: IAction[] = [];
+		const menu = menuService.createMenu(item.submenu, contextKeyService);
+		const groups = menu.getActions(options);
+		menu.dispose();
+
+		for (let group of groups) {
+			const [, actions] = group;
+
+			if (actions.length > 0) {
+				result.push(...actions);
+				result.push(new Separator());
+			}
+		}
+
+		if (result.length) {
+			result.pop(); // remove last separator
+		}
+
+		super(`submenuitem.${item.submenu.id}`, typeof item.title === 'string' ? item.title : item.title.value, result, 'submenu');
 		this.item = item;
 	}
 }
@@ -322,7 +361,7 @@ export class MenuItemAction extends ExecuteCommandAction {
 
 		this._cssClass = undefined;
 		this._enabled = !item.precondition || contextKeyService.contextMatchesRules(item.precondition);
-		this._tooltip = item.tooltip ? typeof item.tooltip === 'string' ? item.tooltip : item.tooltip.value : undefined;
+		this._tooltip = item.tooltip;
 
 		if (item.toggled) {
 			const toggled = ((item.toggled as { condition: ContextKeyExpression }).condition ? item.toggled : { condition: item.toggled }) as {

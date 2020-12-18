@@ -9,6 +9,7 @@ export const FindInFilesActionId = 'workbench.action.findInFiles';
 export const FocusActiveEditorCommandId = 'search.action.focusActiveEditor';
 
 export const FocusSearchFromResults = 'search.action.focusSearchFromResults';
+export const OpenMatch = 'search.action.openResult';
 export const OpenMatchToSide = 'search.action.openResultToSide';
 export const CancelActionId = 'search.action.cancel';
 export const RemoveActionId = 'search.action.remove';
@@ -25,6 +26,7 @@ export const CloseReplaceWidgetActionId = 'closeReplaceInFilesWidget';
 export const ToggleCaseSensitiveCommandId = 'toggleSearchCaseSensitive';
 export const ToggleWholeWordCommandId = 'toggleSearchWholeWord';
 export const ToggleRegexCommandId = 'toggleSearchRegex';
+export const TogglePreserveCaseId = 'toggleSearchPreserveCase';
 export const AddCursorsAtSearchResults = 'addCursorsAtSearchResults';
 export const RevealInSideBarForSearchResults = 'search.action.revealInSideBar';
 

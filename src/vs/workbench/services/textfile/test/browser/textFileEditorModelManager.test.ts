@@ -14,7 +14,6 @@ import { toResource } from 'vs/base/test/common/utils';
 import { ModesRegistry, PLAINTEXT_MODE_ID } from 'vs/editor/common/modes/modesRegistry';
 import { ITextFileEditorModel } from 'vs/workbench/services/textfile/common/textfiles';
 import { createTextBufferFactory } from 'vs/editor/common/model/textModel';
-import { extUri } from 'vs/base/common/resources';
 import { timeout } from 'vs/base/common/async';
 
 suite('Files - TextFileEditorModelManager', () => {
@@ -80,6 +79,8 @@ suite('Files - TextFileEditorModelManager', () => {
 		model1.dispose();
 		model2.dispose();
 		model3.dispose();
+
+		manager.dispose();
 	});
 
 	test('resolve', async () => {
@@ -95,14 +96,14 @@ suite('Files - TextFileEditorModelManager', () => {
 		const modelPromise = manager.resolve(resource, { encoding });
 		assert.ok(manager.get(resource)); // model known even before resolved()
 
-		const model = await modelPromise;
-		assert.ok(model);
-		assert.equal(model.getEncoding(), encoding);
-		assert.equal(manager.get(resource), model);
+		const model1 = await modelPromise;
+		assert.ok(model1);
+		assert.equal(model1.getEncoding(), encoding);
+		assert.equal(manager.get(resource), model1);
 
 		const model2 = await manager.resolve(resource, { encoding });
-		assert.equal(model2, model);
-		model.dispose();
+		assert.equal(model2, model1);
+		model1.dispose();
 
 		const model3 = await manager.resolve(resource, { encoding });
 		assert.notEqual(model3, model2);
@@ -110,10 +111,51 @@ suite('Files - TextFileEditorModelManager', () => {
 		model3.dispose();
 
 		assert.equal(events.length, 2);
-		assert.equal(events[0].resource.toString(), model.resource.toString());
+		assert.equal(events[0].resource.toString(), model1.resource.toString());
 		assert.equal(events[1].resource.toString(), model2.resource.toString());
 
 		listener.dispose();
+
+		model1.dispose();
+		model2.dispose();
+		model3.dispose();
+
+		manager.dispose();
+	});
+
+	test('resolve with initial contents', async () => {
+		const manager: TestTextFileEditorModelManager = instantiationService.createInstance(TestTextFileEditorModelManager);
+		const resource = URI.file('/test.html');
+
+		const model = await manager.resolve(resource, { contents: createTextBufferFactory('Hello World') });
+		assert.equal(model.textEditorModel?.getValue(), 'Hello World');
+		assert.equal(model.isDirty(), true);
+
+		await manager.resolve(resource, { contents: createTextBufferFactory('More Changes') });
+		assert.equal(model.textEditorModel?.getValue(), 'More Changes');
+		assert.equal(model.isDirty(), true);
+
+		model.dispose();
+		manager.dispose();
+	});
+
+	test('multiple resolves execute in sequence', async () => {
+		const manager: TestTextFileEditorModelManager = instantiationService.createInstance(TestTextFileEditorModelManager);
+		const resource = URI.file('/test.html');
+
+		const firstModelPromise = manager.resolve(resource);
+		const secondModelPromise = manager.resolve(resource, { contents: createTextBufferFactory('Hello World') });
+		const thirdModelPromise = manager.resolve(resource, { contents: createTextBufferFactory('More Changes') });
+
+		await firstModelPromise;
+		await secondModelPromise;
+		const model = await thirdModelPromise;
+
+		assert.equal(model.textEditorModel?.getValue(), 'More Changes');
+		assert.equal(model.isDirty(), true);
+
+		model.dispose();
+		manager.dispose();
 	});
 
 	test('removed from cache when model disposed', function () {
@@ -134,6 +176,8 @@ suite('Files - TextFileEditorModelManager', () => {
 
 		model2.dispose();
 		model3.dispose();
+
+		manager.dispose();
 	});
 
 	test('events', async function () {
@@ -186,8 +230,8 @@ suite('Files - TextFileEditorModelManager', () => {
 		const model1 = await manager.resolve(resource1, { encoding: 'utf8' });
 		assert.equal(loadedCounter, 1);
 
-		accessor.fileService.fireFileChanges(new FileChangesEvent([{ resource: resource1, type: FileChangeType.DELETED }], extUri));
-		accessor.fileService.fireFileChanges(new FileChangesEvent([{ resource: resource1, type: FileChangeType.ADDED }], extUri));
+		accessor.fileService.fireFileChanges(new FileChangesEvent([{ resource: resource1, type: FileChangeType.DELETED }], false));
+		accessor.fileService.fireFileChanges(new FileChangesEvent([{ resource: resource1, type: FileChangeType.ADDED }], false));
 
 		const model2 = await manager.resolve(resource2, { encoding: 'utf8' });
 		assert.equal(loadedCounter, 2);
@@ -213,6 +257,8 @@ suite('Files - TextFileEditorModelManager', () => {
 		model2.dispose();
 		assert.ok(!accessor.modelService.getModel(resource1));
 		assert.ok(!accessor.modelService.getModel(resource2));
+
+		manager.dispose();
 	});
 
 	test('disposing model takes it out of the manager', async function () {

@@ -17,7 +17,7 @@ async function updateConfig(newConfig: VsCodeConfiguration): Promise<VsCodeConfi
 	const config = vscode.workspace.getConfiguration(undefined);
 	for (const configKey of Object.keys(newConfig)) {
 		oldConfig[configKey] = config.get(configKey);
-		await new Promise((resolve, reject) =>
+		await new Promise<void>((resolve, reject) =>
 			config.update(configKey, newConfig[configKey], vscode.ConfigurationTarget.Global)
 				.then(() => resolve(), reject));
 	}

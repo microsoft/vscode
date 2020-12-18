@@ -9,12 +9,9 @@
 
 .monaco-workbench .screencast-mouse {
 	position: absolute;
-	border: 2px solid red;
-	border-radius: 20px;
-	width: 20px;
-	height: 20px;
-	top: 0;
-	left: 0;
+	border-width: 2px;
+	border-style: solid;
+	border-radius: 50%;
 	z-index: 100000;
 	content: ' ';
 	pointer-events: none;

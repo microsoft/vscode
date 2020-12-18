@@ -3,74 +3,50 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { createDecorator, IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
-import { MarkersModel, compareMarkersByUri } from './markersModel';
-import { Disposable } from 'vs/base/common/lifecycle';
-import { IMarkerService, MarkerSeverity, IMarker } from 'vs/platform/markers/common/markers';
-import { NumberBadge, ViewContaierActivityByView } from 'vs/workbench/services/activity/common/activity';
+import { Disposable, MutableDisposable, IDisposable } from 'vs/base/common/lifecycle';
+import { IMarkerService } from 'vs/platform/markers/common/markers';
+import { IActivityService, NumberBadge } from 'vs/workbench/services/activity/common/activity';
 import { localize } from 'vs/nls';
 import Constants from './constants';
-import { URI } from 'vs/base/common/uri';
-import { groupBy } from 'vs/base/common/arrays';
 import { IWorkbenchContribution } from 'vs/workbench/common/contributions';
+import { MarkersFilters } from 'vs/workbench/contrib/markers/browser/markersViewActions';
 import { Event } from 'vs/base/common/event';
-import { ResourceMap } from 'vs/base/common/map';
+import { IView } from 'vs/workbench/common/views';
+import { MarkerElement } from 'vs/workbench/contrib/markers/browser/markersModel';
 
-export const IMarkersWorkbenchService = createDecorator<IMarkersWorkbenchService>('markersWorkbenchService');
+export interface IMarkersView extends IView {
 
-export interface IMarkersWorkbenchService {
-	readonly _serviceBrand: undefined;
-	readonly markersModel: MarkersModel;
-}
+	readonly onDidFocusFilter: Event<void>;
+	readonly onDidClearFilterText: Event<void>;
+	readonly filters: MarkersFilters;
+	readonly onDidChangeFilterStats: Event<{ total: number, filtered: number }>;
+	focusFilter(): void;
+	clearFilterText(): void;
+	getFilterStats(): { total: number, filtered: number };
 
-export class MarkersWorkbenchService extends Disposable implements IMarkersWorkbenchService {
-	declare readonly _serviceBrand: undefined;
+	getFocusElement(): MarkerElement | undefined;
 
-	readonly markersModel: MarkersModel;
-
-	constructor(
-		@IMarkerService private readonly markerService: IMarkerService,
-		@IInstantiationService instantiationService: IInstantiationService,
-	) {
-		super();
-		this.markersModel = this._register(instantiationService.createInstance(MarkersModel));
-
-		this.markersModel.setResourceMarkers(groupBy(this.readMarkers(), compareMarkersByUri).map(group => [group[0].resource, group]));
-		this._register(Event.debounce<readonly URI[], ResourceMap<URI>>(markerService.onMarkerChanged, (resourcesMap, resources) => {
-			resourcesMap = resourcesMap ? resourcesMap : new ResourceMap<URI>();
-			resources.forEach(resource => resourcesMap!.set(resource, resource));
-			return resourcesMap;
-		}, 0)(resourcesMap => this.onMarkerChanged([...resourcesMap.values()])));
-	}
-
-	private onMarkerChanged(resources: URI[]): void {
-		this.markersModel.setResourceMarkers(resources.map(resource => [resource, this.readMarkers(resource)]));
-	}
-
-	private readMarkers(resource?: URI): IMarker[] {
-		return this.markerService.read({ resource, severities: MarkerSeverity.Error | MarkerSeverity.Warning | MarkerSeverity.Info });
-	}
-
+	collapseAll(): void;
+	setMultiline(multiline: boolean): void;
 }
 
 export class ActivityUpdater extends Disposable implements IWorkbenchContribution {
 
-	private readonly activity: ViewContaierActivityByView;
+	private readonly activity = this._register(new MutableDisposable<IDisposable>());
 
 	constructor(
-		@IInstantiationService instantiationService: IInstantiationService,
+		@IActivityService private readonly activityService: IActivityService,
 		@IMarkerService private readonly markerService: IMarkerService
 	) {
 		super();
-		this.activity = this._register(instantiationService.createInstance(ViewContaierActivityByView, Constants.MARKERS_VIEW_ID));
-		this._register(this.markerService.onMarkerChanged(() => this.updateActivity()));
-		this.updateActivity();
+		this._register(this.markerService.onMarkerChanged(() => this.updateBadge()));
+		this.updateBadge();
 	}
 
-	private updateActivity(): void {
+	private updateBadge(): void {
 		const { errors, warnings, infos } = this.markerService.getStatistics();
 		const total = errors + warnings + infos;
 		const message = localize('totalProblems', 'Total {0} Problems', total);
-		this.activity.setActivity({ badge: new NumberBadge(total, () => message) });
+		this.activity.value = this.activityService.showViewActivity(Constants.MARKERS_VIEW_ID, { badge: new NumberBadge(total, () => message) });
 	}
 }

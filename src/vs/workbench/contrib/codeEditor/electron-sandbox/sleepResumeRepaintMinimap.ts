@@ -3,22 +3,22 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { LifecyclePhase } from 'vs/platform/lifecycle/common/lifecycle';
+import { LifecyclePhase } from 'vs/workbench/services/lifecycle/common/lifecycle';
 import { Registry } from 'vs/platform/registry/common/platform';
 import { Extensions as WorkbenchExtensions, IWorkbenchContribution, IWorkbenchContributionsRegistry } from 'vs/workbench/common/contributions';
 import { ICodeEditorService } from 'vs/editor/browser/services/codeEditorService';
-import { IElectronService } from 'vs/platform/electron/electron-sandbox/electron';
+import { INativeHostService } from 'vs/platform/native/electron-sandbox/native';
 import { Disposable } from 'vs/base/common/lifecycle';
 
 class SleepResumeRepaintMinimap extends Disposable implements IWorkbenchContribution {
 
 	constructor(
 		@ICodeEditorService codeEditorService: ICodeEditorService,
-		@IElectronService electronService: IElectronService
+		@INativeHostService nativeHostService: INativeHostService
 	) {
 		super();
 
-		this._register(electronService.onOSResume(() => {
+		this._register(nativeHostService.onDidResumeOS(() => {
 			codeEditorService.listCodeEditors().forEach(editor => editor.render(true));
 		}));
 	}

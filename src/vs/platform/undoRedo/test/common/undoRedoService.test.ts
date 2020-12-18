@@ -7,7 +7,7 @@ import * as assert from 'assert';
 import { UndoRedoService } from 'vs/platform/undoRedo/common/undoRedoService';
 import { TestDialogService } from 'vs/platform/dialogs/test/common/testDialogService';
 import { TestNotificationService } from 'vs/platform/notification/test/common/testNotificationService';
-import { UndoRedoElementType, IUndoRedoElement } from 'vs/platform/undoRedo/common/undoRedo';
+import { UndoRedoElementType, IUndoRedoElement, UndoRedoGroup } from 'vs/platform/undoRedo/common/undoRedo';
 import { URI } from 'vs/base/common/uri';
 import { mock } from 'vs/base/test/common/mock';
 import { IDialogService } from 'vs/platform/dialogs/common/dialogs';
@@ -208,4 +208,11 @@ suite('UndoRedoService', () => {
 		assert.ok(service.getLastElement(resource2) === element1);
 
 	});
+
+	test('UndoRedoGroup.None uses id 0', () => {
+		assert.equal(UndoRedoGroup.None.id, 0);
+		assert.equal(UndoRedoGroup.None.nextOrder(), 0);
+		assert.equal(UndoRedoGroup.None.nextOrder(), 0);
+	});
+
 });

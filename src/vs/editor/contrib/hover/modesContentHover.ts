@@ -8,7 +8,7 @@ import * as dom from 'vs/base/browser/dom';
 import { CancellationToken } from 'vs/base/common/cancellation';
 import { Color, RGBA } from 'vs/base/common/color';
 import { IMarkdownString, MarkdownString, isEmptyMarkdownString, markedStringsEquals } from 'vs/base/common/htmlContent';
-import { IDisposable, toDisposable, DisposableStore, combinedDisposable, MutableDisposable } from 'vs/base/common/lifecycle';
+import { IDisposable, toDisposable, DisposableStore, combinedDisposable, MutableDisposable, Disposable } from 'vs/base/common/lifecycle';
 import { ICodeEditor } from 'vs/editor/browser/editorBrowser';
 import { Position } from 'vs/editor/common/core/position';
 import { IRange, Range } from 'vs/editor/common/core/range';
@@ -21,7 +21,7 @@ import { ColorPickerWidget } from 'vs/editor/contrib/colorPicker/colorPickerWidg
 import { getHover } from 'vs/editor/contrib/hover/getHover';
 import { HoverOperation, HoverStartMode, IHoverComputer } from 'vs/editor/contrib/hover/hoverOperation';
 import { ContentHoverWidget } from 'vs/editor/contrib/hover/hoverWidgets';
-import { MarkdownRenderer } from 'vs/editor/contrib/markdown/markdownRenderer';
+import { MarkdownRenderer } from 'vs/editor/browser/core/markdownRenderer';
 import { IThemeService, registerThemingParticipant } from 'vs/platform/theme/common/themeService';
 import { coalesce, isNonEmptyArray, asArray } from 'vs/base/common/arrays';
 import { IMarker, IMarkerData, MarkerSeverity } from 'vs/platform/markers/common/markers';
@@ -31,12 +31,12 @@ import { onUnexpectedError } from 'vs/base/common/errors';
 import { IOpenerService, NullOpenerService } from 'vs/platform/opener/common/opener';
 import { MarkerController, NextMarkerAction } from 'vs/editor/contrib/gotoError/gotoError';
 import { IKeybindingService } from 'vs/platform/keybinding/common/keybinding';
-import { CancelablePromise, createCancelablePromise } from 'vs/base/common/async';
+import { CancelablePromise, createCancelablePromise, disposableTimeout } from 'vs/base/common/async';
 import { getCodeActions, CodeActionSet } from 'vs/editor/contrib/codeAction/codeAction';
 import { QuickFixAction, QuickFixController } from 'vs/editor/contrib/codeAction/codeActionCommands';
 import { CodeActionKind, CodeActionTrigger } from 'vs/editor/contrib/codeAction/types';
 import { IModeService } from 'vs/editor/common/services/modeService';
-import { IIdentifiedSingleEditOperation } from 'vs/editor/common/model';
+import { IIdentifiedSingleEditOperation, TrackedRangeStickiness } from 'vs/editor/common/model';
 import { EditorOption } from 'vs/editor/common/config/editorOptions';
 import { Constants } from 'vs/base/common/uint';
 import { textLinkForeground } from 'vs/platform/theme/common/colorRegistry';
@@ -240,17 +240,34 @@ export class ModesContentHoverWidget extends ContentHoverWidget {
 
 		this._register(dom.addStandardDisposableListener(this.getDomNode(), dom.EventType.FOCUS, () => {
 			if (this._colorPicker) {
-				dom.addClass(this.getDomNode(), 'colorpicker-hover');
+				this.getDomNode().classList.add('colorpicker-hover');
 			}
 		}));
 		this._register(dom.addStandardDisposableListener(this.getDomNode(), dom.EventType.BLUR, () => {
-			dom.removeClass(this.getDomNode(), 'colorpicker-hover');
+			this.getDomNode().classList.remove('colorpicker-hover');
 		}));
 		this._register(editor.onDidChangeConfiguration((e) => {
 			this._hoverOperation.setHoverTime(this._editor.getOption(EditorOption.hover).delay);
 		}));
 		this._register(TokenizationRegistry.onDidChange((e) => {
 			if (this.isVisible && this._lastRange && this._messages.length > 0) {
+				this._messages = this._messages.map(msg => {
+					// If a color hover is visible, we need to update the message that
+					// created it so that the color matches the last chosen color
+					if (msg instanceof ColorHover && !!this._lastRange?.intersectRanges(msg.range) && this._colorPicker?.model.color) {
+						const color = this._colorPicker.model.color;
+						const newColor = {
+							red: color.rgba.r / 255,
+							green: color.rgba.g / 255,
+							blue: color.rgba.b / 255,
+							alpha: color.rgba.a
+						};
+						return new ColorHover(msg.range, newColor, msg.provider);
+					} else {
+						return msg;
+					}
+				});
+
 				this._hover.contentsDomNode.textContent = '';
 				this._renderMessages(this._lastRange, this._messages);
 			}
@@ -406,14 +423,16 @@ export class ModesContentHoverWidget extends ContentHoverWidget {
 								model.presentation.textEdit.range.endLineNumber,
 								model.presentation.textEdit.range.endColumn
 							);
-							newRange = newRange.setEndPosition(newRange.endLineNumber, newRange.startColumn + model.presentation.textEdit.text.length);
+							const trackedRange = this._editor.getModel()!._setTrackedRange(null, newRange, TrackedRangeStickiness.GrowsOnlyWhenTypingAfter);
+							this._editor.pushUndoStop();
+							this._editor.executeEdits('colorpicker', textEdits);
+							newRange = this._editor.getModel()!._getTrackedRange(trackedRange) || newRange;
 						} else {
 							textEdits = [{ identifier: null, range, text: model.presentation.label, forceMoveMarkers: false }];
 							newRange = range.setEndPosition(range.endLineNumber, range.startColumn + model.presentation.label.length);
+							this._editor.pushUndoStop();
+							this._editor.executeEdits('colorpicker', textEdits);
 						}
-
-						this._editor.pushUndoStop();
-						this._editor.executeEdits('colorpicker', textEdits);
 
 						if (model.presentation.additionalTextEdits) {
 							textEdits = [...model.presentation.additionalTextEdits as IIdentifiedSingleEditOperation[]];
@@ -460,8 +479,8 @@ export class ModesContentHoverWidget extends ContentHoverWidget {
 						.forEach(contents => {
 							const markdownHoverElement = $('div.hover-row.markdown-hover');
 							const hoverContentsElement = dom.append(markdownHoverElement, $('div.hover-contents'));
-							const renderer = markdownDisposeables.add(new MarkdownRenderer(this._editor, this._modeService, this._openerService));
-							markdownDisposeables.add(renderer.onDidRenderCodeBlock(() => {
+							const renderer = markdownDisposeables.add(new MarkdownRenderer({ editor: this._editor }, this._modeService, this._openerService));
+							markdownDisposeables.add(renderer.onDidRenderAsync(() => {
 								hoverContentsElement.className = 'hover-contents code-hover-contents';
 								this._hover.onContentsChanged();
 							}));
@@ -559,6 +578,7 @@ export class ModesContentHoverWidget extends ContentHoverWidget {
 		return hoverElement;
 	}
 
+	private recentMarkerCodeActionsInfo: { marker: IMarker, hasCodeActions: boolean } | undefined = undefined;
 	private renderMarkerStatusbar(markerHover: MarkerHover): HTMLElement {
 		const hoverElement = $('div.hover-row.status-bar');
 		const disposables = new DisposableStore();
@@ -575,50 +595,60 @@ export class ModesContentHoverWidget extends ContentHoverWidget {
 			}));
 		}
 
-		const quickfixPlaceholderElement = dom.append(actionsElement, $('div'));
-		quickfixPlaceholderElement.style.opacity = '0';
-		quickfixPlaceholderElement.style.transition = 'opacity 0.2s';
-		setTimeout(() => quickfixPlaceholderElement.style.opacity = '1', 200);
-		quickfixPlaceholderElement.textContent = nls.localize('checkingForQuickFixes', "Checking for quick fixes...");
-		disposables.add(toDisposable(() => quickfixPlaceholderElement.remove()));
-
-		const codeActionsPromise = this.getCodeActions(markerHover.marker);
-		disposables.add(toDisposable(() => codeActionsPromise.cancel()));
-		codeActionsPromise.then(actions => {
-			quickfixPlaceholderElement.style.transition = '';
-			quickfixPlaceholderElement.style.opacity = '1';
-
-			if (!actions.validActions.length) {
-				actions.dispose();
-				quickfixPlaceholderElement.textContent = nls.localize('noQuickFixes', "No quick fixes available");
-				return;
+		if (!this._editor.getOption(EditorOption.readOnly)) {
+			const quickfixPlaceholderElement = dom.append(actionsElement, $('div'));
+			if (this.recentMarkerCodeActionsInfo) {
+				if (IMarkerData.makeKey(this.recentMarkerCodeActionsInfo.marker) === IMarkerData.makeKey(markerHover.marker)) {
+					if (!this.recentMarkerCodeActionsInfo.hasCodeActions) {
+						quickfixPlaceholderElement.textContent = nls.localize('noQuickFixes', "No quick fixes available");
+					}
+				} else {
+					this.recentMarkerCodeActionsInfo = undefined;
+				}
 			}
-			quickfixPlaceholderElement.remove();
+			const updatePlaceholderDisposable = this.recentMarkerCodeActionsInfo && !this.recentMarkerCodeActionsInfo.hasCodeActions ? Disposable.None : disposables.add(disposableTimeout(() => quickfixPlaceholderElement.textContent = nls.localize('checkingForQuickFixes', "Checking for quick fixes..."), 200));
+			if (!quickfixPlaceholderElement.textContent) {
+				// Have some content in here to avoid flickering
+				quickfixPlaceholderElement.textContent = String.fromCharCode(0xA0); // &nbsp;
+			}
+			const codeActionsPromise = this.getCodeActions(markerHover.marker);
+			disposables.add(toDisposable(() => codeActionsPromise.cancel()));
+			codeActionsPromise.then(actions => {
+				updatePlaceholderDisposable.dispose();
+				this.recentMarkerCodeActionsInfo = { marker: markerHover.marker, hasCodeActions: actions.validActions.length > 0 };
 
-			let showing = false;
-			disposables.add(toDisposable(() => {
-				if (!showing) {
+				if (!this.recentMarkerCodeActionsInfo.hasCodeActions) {
 					actions.dispose();
+					quickfixPlaceholderElement.textContent = nls.localize('noQuickFixes', "No quick fixes available");
+					return;
 				}
-			}));
+				quickfixPlaceholderElement.style.display = 'none';
 
-			disposables.add(this._renderAction(actionsElement, {
-				label: nls.localize('quick fixes', "Quick Fix..."),
-				commandId: QuickFixAction.Id,
-				run: (target) => {
-					showing = true;
-					const controller = QuickFixController.get(this._editor);
-					const elementPosition = dom.getDomNodePagePosition(target);
-					// Hide the hover pre-emptively, otherwise the editor can close the code actions
-					// context menu as well when using keyboard navigation
-					this.hide();
-					controller.showCodeActions(markerCodeActionTrigger, actions, {
-						x: elementPosition.left + 6,
-						y: elementPosition.top + elementPosition.height + 6
-					});
-				}
-			}));
-		});
+				let showing = false;
+				disposables.add(toDisposable(() => {
+					if (!showing) {
+						actions.dispose();
+					}
+				}));
+
+				disposables.add(this._renderAction(actionsElement, {
+					label: nls.localize('quick fixes', "Quick Fix..."),
+					commandId: QuickFixAction.Id,
+					run: (target) => {
+						showing = true;
+						const controller = QuickFixController.get(this._editor);
+						const elementPosition = dom.getDomNodePagePosition(target);
+						// Hide the hover pre-emptively, otherwise the editor can close the code actions
+						// context menu as well when using keyboard navigation
+						this.hide();
+						controller.showCodeActions(markerCodeActionTrigger, actions, {
+							x: elementPosition.left + 6,
+							y: elementPosition.top + elementPosition.height + 6
+						});
+					}
+				}));
+			});
+		}
 
 		this.renderDisposable.value = disposables;
 		return hoverElement;

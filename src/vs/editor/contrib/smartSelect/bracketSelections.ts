@@ -19,8 +19,8 @@ export class BracketSelectionRangeProvider implements SelectionRangeProvider {
 			result.push(bucket);
 
 			const ranges = new Map<string, LinkedList<Range>>();
-			await new Promise(resolve => BracketSelectionRangeProvider._bracketsRightYield(resolve, 0, model, position, ranges));
-			await new Promise(resolve => BracketSelectionRangeProvider._bracketsLeftYield(resolve, 0, model, position, ranges, bucket));
+			await new Promise<void>(resolve => BracketSelectionRangeProvider._bracketsRightYield(resolve, 0, model, position, ranges));
+			await new Promise<void>(resolve => BracketSelectionRangeProvider._bracketsLeftYield(resolve, 0, model, position, ranges, bucket));
 		}
 
 		return result;

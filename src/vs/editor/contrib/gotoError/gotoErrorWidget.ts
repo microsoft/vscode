@@ -26,10 +26,11 @@ import { IActionBarOptions, ActionsOrientation } from 'vs/base/browser/ui/action
 import { SeverityIcon } from 'vs/platform/severityIcon/common/severityIcon';
 import { EditorOption } from 'vs/editor/common/config/editorOptions';
 import { IOpenerService } from 'vs/platform/opener/common/opener';
-import { MenuId, IMenuService, MenuItemAction } from 'vs/platform/actions/common/actions';
+import { MenuId, IMenuService } from 'vs/platform/actions/common/actions';
 import { IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
-import { createAndFillInActionBarActions, MenuEntryActionViewItem } from 'vs/platform/actions/browser/menuEntryActionViewItem';
+import { createAndFillInActionBarActions } from 'vs/platform/actions/browser/menuEntryActionViewItem';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
+import { splitLines } from 'vs/base/common/strings';
 
 class MessageWidget {
 
@@ -57,7 +58,7 @@ class MessageWidget {
 		domNode.className = 'descriptioncontainer';
 
 		this._messageBlock = document.createElement('div');
-		dom.addClass(this._messageBlock, 'message');
+		this._messageBlock.classList.add('message');
 		this._messageBlock.setAttribute('aria-live', 'assertive');
 		this._messageBlock.setAttribute('role', 'alert');
 		domNode.appendChild(this._messageBlock);
@@ -102,7 +103,7 @@ class MessageWidget {
 			}
 		}
 
-		const lines = message.split(/\r\n|\r|\n/g);
+		const lines = splitLines(message);
 		this._lines = lines.length;
 		this._longestLineLength = 0;
 		for (const line of lines) {
@@ -123,19 +124,19 @@ class MessageWidget {
 		}
 		if (source || code) {
 			const detailsElement = document.createElement('span');
-			dom.addClass(detailsElement, 'details');
+			detailsElement.classList.add('details');
 			lastLineElement.appendChild(detailsElement);
 			if (source) {
 				const sourceElement = document.createElement('span');
 				sourceElement.innerText = source;
-				dom.addClass(sourceElement, 'source');
+				sourceElement.classList.add('source');
 				detailsElement.appendChild(sourceElement);
 			}
 			if (code) {
 				if (typeof code === 'string') {
 					const codeElement = document.createElement('span');
 					codeElement.innerText = `(${code})`;
-					dom.addClass(codeElement, 'code');
+					codeElement.classList.add('code');
 					detailsElement.appendChild(codeElement);
 				} else {
 					this._codeLink = dom.$('a.code-link');
@@ -166,8 +167,8 @@ class MessageWidget {
 				let container = document.createElement('div');
 
 				let relatedResource = document.createElement('a');
-				dom.addClass(relatedResource, 'filename');
-				relatedResource.innerHTML = `${getBaseLabel(related.resource)}(${related.startLineNumber}, ${related.startColumn}): `;
+				relatedResource.classList.add('filename');
+				relatedResource.innerText = `${getBaseLabel(related.resource)}(${related.startLineNumber}, ${related.startColumn}): `;
 				relatedResource.title = getPathLabel(related.resource, undefined);
 				this._relatedDiagnostics.set(relatedResource, related);
 
@@ -246,10 +247,10 @@ export class MarkerNavigationWidget extends PeekViewWidget {
 		@IThemeService private readonly _themeService: IThemeService,
 		@IOpenerService private readonly _openerService: IOpenerService,
 		@IMenuService private readonly _menuService: IMenuService,
-		@IContextKeyService private readonly _contextKeyService: IContextKeyService,
-		@IInstantiationService private readonly _instantiationService: IInstantiationService,
+		@IInstantiationService instantiationService: IInstantiationService,
+		@IContextKeyService private readonly _contextKeyService: IContextKeyService
 	) {
-		super(editor, { showArrow: true, showFrame: true, isAccessible: true });
+		super(editor, { showArrow: true, showFrame: true, isAccessible: true }, instantiationService);
 		this._severity = MarkerSeverity.Warning;
 		this._backgroundColor = Color.white;
 
@@ -296,7 +297,7 @@ export class MarkerNavigationWidget extends PeekViewWidget {
 	protected _fillHead(container: HTMLElement): void {
 		super._fillHead(container);
 
-		this._disposables.add(this._actionbarWidget!.actionRunner.onDidBeforeRun(e => this.editor.focus()));
+		this._disposables.add(this._actionbarWidget!.actionRunner.onBeforeRun(e => this.editor.focus()));
 
 		const actions: IAction[] = [];
 		const menu = this._menuService.createMenu(MarkerNavigationWidget.TitleMenu, this._contextKeyService);
@@ -311,14 +312,14 @@ export class MarkerNavigationWidget extends PeekViewWidget {
 
 	protected _getActionBarOptions(): IActionBarOptions {
 		return {
-			orientation: ActionsOrientation.HORIZONTAL,
-			actionViewItemProvider: action => action instanceof MenuItemAction ? this._instantiationService.createInstance(MenuEntryActionViewItem, action) : undefined
+			...super._getActionBarOptions(),
+			orientation: ActionsOrientation.HORIZONTAL
 		};
 	}
 
 	protected _fillBody(container: HTMLElement): void {
 		this._parentContainer = container;
-		dom.addClass(container, 'marker-widget');
+		container.classList.add('marker-widget');
 		this._parentContainer.tabIndex = 0;
 		this._parentContainer.setAttribute('role', 'tooltip');
 

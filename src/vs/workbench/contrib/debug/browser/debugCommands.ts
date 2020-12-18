@@ -9,7 +9,7 @@ import { List } from 'vs/base/browser/ui/list/listWidget';
 import { KeybindingsRegistry, KeybindingWeight } from 'vs/platform/keybinding/common/keybindingsRegistry';
 import { IListService } from 'vs/platform/list/browser/listService';
 import { IWorkspaceContextService, WorkbenchState } from 'vs/platform/workspace/common/workspace';
-import { IDebugService, IEnablement, CONTEXT_BREAKPOINTS_FOCUSED, CONTEXT_WATCH_EXPRESSIONS_FOCUSED, CONTEXT_VARIABLES_FOCUSED, EDITOR_CONTRIBUTION_ID, IDebugEditorContribution, CONTEXT_IN_DEBUG_MODE, CONTEXT_EXPRESSION_SELECTED, CONTEXT_BREAKPOINT_SELECTED, IConfig, IStackFrame, IThread, IDebugSession, CONTEXT_DEBUG_STATE, IDebugConfiguration, CONTEXT_JUMP_TO_CURSOR_SUPPORTED, REPL_VIEW_ID } from 'vs/workbench/contrib/debug/common/debug';
+import { IDebugService, IEnablement, CONTEXT_BREAKPOINTS_FOCUSED, CONTEXT_WATCH_EXPRESSIONS_FOCUSED, CONTEXT_VARIABLES_FOCUSED, EDITOR_CONTRIBUTION_ID, IDebugEditorContribution, CONTEXT_IN_DEBUG_MODE, CONTEXT_EXPRESSION_SELECTED, CONTEXT_BREAKPOINT_SELECTED, IConfig, IStackFrame, IThread, IDebugSession, CONTEXT_DEBUG_STATE, IDebugConfiguration, CONTEXT_JUMP_TO_CURSOR_SUPPORTED, REPL_VIEW_ID, CONTEXT_DEBUGGERS_AVAILABLE, State, getStateLabel } from 'vs/workbench/contrib/debug/common/debug';
 import { Expression, Variable, Breakpoint, FunctionBreakpoint, DataBreakpoint } from 'vs/workbench/contrib/debug/common/debugModel';
 import { IExtensionsViewPaneContainer, VIEWLET_ID as EXTENSIONS_VIEWLET_ID } from 'vs/workbench/contrib/extensions/common/extensions';
 import { IViewletService } from 'vs/workbench/services/viewlet/browser/viewlet';
@@ -23,12 +23,13 @@ import { INotificationService } from 'vs/platform/notification/common/notificati
 import { InputFocusedContext } from 'vs/platform/contextkey/common/contextkeys';
 import { ServicesAccessor } from 'vs/editor/browser/editorExtensions';
 import { PanelFocusContext } from 'vs/workbench/common/panel';
-import { CommandsRegistry } from 'vs/platform/commands/common/commands';
+import { CommandsRegistry, ICommandService } from 'vs/platform/commands/common/commands';
 import { ITextResourcePropertiesService } from 'vs/editor/common/services/textResourceConfigurationService';
 import { IClipboardService } from 'vs/platform/clipboard/common/clipboardService';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { IQuickInputService } from 'vs/platform/quickinput/common/quickInput';
 import { IViewsService } from 'vs/workbench/common/views';
+import { deepClone } from 'vs/base/common/objects';
 
 export const ADD_CONFIGURATION_ID = 'debug.addConfiguration';
 export const TOGGLE_INLINE_BREAKPOINT_ID = 'editor.debug.action.toggleInlineBreakpoint';
@@ -47,6 +48,13 @@ export const RESTART_FRAME_ID = 'workbench.action.debug.restartFrame';
 export const CONTINUE_ID = 'workbench.action.debug.continue';
 export const FOCUS_REPL_ID = 'workbench.debug.action.focusRepl';
 export const JUMP_TO_CURSOR_ID = 'debug.jumpToCursor';
+export const FOCUS_SESSION_ID = 'workbench.action.debug.focusProcess';
+export const SELECT_AND_START_ID = 'workbench.action.debug.selectandstart';
+export const DEBUG_CONFIGURE_COMMAND_ID = 'workbench.action.debug.configure';
+export const DEBUG_START_COMMAND_ID = 'workbench.action.debug.start';
+export const DEBUG_RUN_COMMAND_ID = 'workbench.action.debug.run';
+export const EDIT_EXPRESSION_COMMAND_ID = 'debug.renameWatchExpression';
+export const REMOVE_EXPRESSION_COMMAND_ID = 'debug.removeWatchExpression';
 
 export const RESTART_LABEL = nls.localize('restartDebug', "Restart");
 export const STEP_OVER_LABEL = nls.localize('stepOverDebug', "Step Over");
@@ -56,6 +64,11 @@ export const PAUSE_LABEL = nls.localize('pauseDebug', "Pause");
 export const DISCONNECT_LABEL = nls.localize('disconnect', "Disconnect");
 export const STOP_LABEL = nls.localize('stop', "Stop");
 export const CONTINUE_LABEL = nls.localize('continueDebug', "Continue");
+export const FOCUS_SESSION_LABEL = nls.localize('focusSession', "Focus Session");
+export const SELECT_AND_START_LABEL = nls.localize('selectAndStartDebugging', "Select and Start Debugging");
+export const DEBUG_CONFIGURE_LABEL = nls.localize('openLaunchJson', "Open {0}", 'launch.json');
+export const DEBUG_START_LABEL = nls.localize('startDebug', "Start Debugging");
+export const DEBUG_RUN_LABEL = nls.localize('startWithoutDebugging', "Start Without Debugging");
 
 interface CallStackContext {
 	sessionId: string;
@@ -113,9 +126,9 @@ function isSessionContext(obj: any): obj is CallStackContext {
 
 export function registerCommands(): void {
 
-	// These commands are used in call stack context menu, call stack inline actions, command pallete, debug toolbar, mac native touch bar
+	// These commands are used in call stack context menu, call stack inline actions, command palette, debug toolbar, mac native touch bar
 	// When the command is exectued in the context of a thread(context menu on a thread, inline call stack action) we pass the thread id
-	// Otherwise when it is executed "globaly"(using the touch bar, debug toolbar, command pallete) we do not pass any id and just take whatever is the focussed thread
+	// Otherwise when it is executed "globaly"(using the touch bar, debug toolbar, command palette) we do not pass any id and just take whatever is the focussed thread
 	// Same for stackFrame commands and session commands.
 	CommandsRegistry.registerCommand({
 		id: COPY_STACK_TRACE_ID,
@@ -167,8 +180,8 @@ export function registerCommands(): void {
 				const source = stackFrame.thread.session.getSourceForUri(resource);
 				if (source) {
 					const response = await stackFrame.thread.session.gotoTargets(source.raw, position.lineNumber, position.column);
-					const targets = response.body.targets;
-					if (targets.length) {
+					const targets = response?.body.targets;
+					if (targets && targets.length) {
 						let id = targets[0].id;
 						if (targets.length > 1) {
 							const picks = targets.map(t => ({ label: t.label, _id: t.id }));
@@ -346,6 +359,53 @@ export function registerCommands(): void {
 		}
 	});
 
+	CommandsRegistry.registerCommand({
+		id: FOCUS_SESSION_ID,
+		handler: async (accessor: ServicesAccessor, session: IDebugSession) => {
+			const debugService = accessor.get(IDebugService);
+			const editorService = accessor.get(IEditorService);
+			await debugService.focusStackFrame(undefined, undefined, session, true);
+			const stackFrame = debugService.getViewModel().focusedStackFrame;
+			if (stackFrame) {
+				await stackFrame.openInEditor(editorService, true);
+			}
+		}
+	});
+
+	CommandsRegistry.registerCommand({
+		id: SELECT_AND_START_ID,
+		handler: async (accessor: ServicesAccessor) => {
+			const quickInputService = accessor.get(IQuickInputService);
+			quickInputService.quickAccess.show('debug ');
+		}
+	});
+
+	KeybindingsRegistry.registerCommandAndKeybindingRule({
+		id: DEBUG_START_COMMAND_ID,
+		weight: KeybindingWeight.WorkbenchContrib,
+		primary: KeyCode.F5,
+		when: ContextKeyExpr.and(CONTEXT_DEBUGGERS_AVAILABLE, CONTEXT_DEBUG_STATE.notEqualsTo(getStateLabel(State.Initializing))),
+		handler: async (accessor: ServicesAccessor, debugStartOptions?: { noDebug: boolean }) => {
+			const debugService = accessor.get(IDebugService);
+			let { launch, name, getConfig } = debugService.getConfigurationManager().selectedConfiguration;
+			const config = await getConfig();
+			const clonedConfig = deepClone(config);
+			await debugService.startDebugging(launch, clonedConfig || name, { noDebug: debugStartOptions && debugStartOptions.noDebug });
+		}
+	});
+
+	KeybindingsRegistry.registerCommandAndKeybindingRule({
+		id: DEBUG_RUN_COMMAND_ID,
+		weight: KeybindingWeight.WorkbenchContrib,
+		primary: KeyMod.CtrlCmd | KeyCode.F5,
+		mac: { primary: KeyMod.WinCtrl | KeyCode.F5 },
+		when: ContextKeyExpr.and(CONTEXT_DEBUGGERS_AVAILABLE, CONTEXT_DEBUG_STATE.notEqualsTo(getStateLabel(State.Initializing))),
+		handler: async (accessor: ServicesAccessor) => {
+			const commandService = accessor.get(ICommandService);
+			await commandService.executeCommand(DEBUG_START_COMMAND_ID, { noDebug: true });
+		}
+	});
+
 	KeybindingsRegistry.registerCommandAndKeybindingRule({
 		id: 'debug.toggleBreakpoint',
 		weight: KeybindingWeight.WorkbenchContrib + 5,
@@ -389,21 +449,26 @@ export function registerCommands(): void {
 	});
 
 	KeybindingsRegistry.registerCommandAndKeybindingRule({
-		id: 'debug.renameWatchExpression',
+		id: EDIT_EXPRESSION_COMMAND_ID,
 		weight: KeybindingWeight.WorkbenchContrib + 5,
 		when: CONTEXT_WATCH_EXPRESSIONS_FOCUSED,
 		primary: KeyCode.F2,
 		mac: { primary: KeyCode.Enter },
-		handler: (accessor) => {
-			const listService = accessor.get(IListService);
+		handler: (accessor: ServicesAccessor, expression: Expression | unknown) => {
 			const debugService = accessor.get(IDebugService);
-			const focused = listService.lastFocusedList;
-
-			if (focused) {
-				const elements = focused.getFocus();
-				if (Array.isArray(elements) && elements[0] instanceof Expression) {
-					debugService.getViewModel().setSelectedExpression(elements[0]);
+			if (!(expression instanceof Expression)) {
+				const listService = accessor.get(IListService);
+				const focused = listService.lastFocusedList;
+				if (focused) {
+					const elements = focused.getFocus();
+					if (Array.isArray(elements) && elements[0] instanceof Expression) {
+						expression = elements[0];
+					}
 				}
+			}
+
+			if (expression instanceof Expression) {
+				debugService.getViewModel().setSelectedExpression(expression);
 			}
 		}
 	});
@@ -429,16 +494,21 @@ export function registerCommands(): void {
 	});
 
 	KeybindingsRegistry.registerCommandAndKeybindingRule({
-		id: 'debug.removeWatchExpression',
+		id: REMOVE_EXPRESSION_COMMAND_ID,
 		weight: KeybindingWeight.WorkbenchContrib,
 		when: ContextKeyExpr.and(CONTEXT_WATCH_EXPRESSIONS_FOCUSED, CONTEXT_EXPRESSION_SELECTED.toNegated()),
 		primary: KeyCode.Delete,
 		mac: { primary: KeyMod.CtrlCmd | KeyCode.Backspace },
-		handler: (accessor) => {
-			const listService = accessor.get(IListService);
+		handler: (accessor: ServicesAccessor, expression: Expression | unknown) => {
 			const debugService = accessor.get(IDebugService);
-			const focused = listService.lastFocusedList;
 
+			if (expression instanceof Expression) {
+				debugService.removeWatchExpressions(expression.getId());
+				return;
+			}
+
+			const listService = accessor.get(IListService);
+			const focused = listService.lastFocusedList;
 			if (focused) {
 				let elements = focused.getFocus();
 				if (Array.isArray(elements) && elements[0] instanceof Expression) {
@@ -521,13 +591,13 @@ export function registerCommands(): void {
 		const control = editorService.activeTextEditorControl;
 		if (isCodeEditor(control)) {
 			const position = control.getPosition();
-			if (position && control.hasModel() && debugService.getConfigurationManager().canSetBreakpointsIn(control.getModel())) {
+			if (position && control.hasModel() && debugService.canSetBreakpointsIn(control.getModel())) {
 				const modelUri = control.getModel().uri;
 				const breakpointAlreadySet = debugService.getModel().getBreakpoints({ lineNumber: position.lineNumber, uri: modelUri })
 					.some(bp => (bp.sessionAgnosticData.column === position.column || (!bp.column && position.column <= 1)));
 
 				if (!breakpointAlreadySet) {
-					debugService.addBreakpoints(modelUri, [{ lineNumber: position.lineNumber, column: position.column > 1 ? position.column : undefined }], 'debugCommands.inlineBreakpointCommand');
+					debugService.addBreakpoints(modelUri, [{ lineNumber: position.lineNumber, column: position.column > 1 ? position.column : undefined }]);
 				}
 			}
 		}
@@ -564,7 +634,7 @@ export function registerCommands(): void {
 			if (list instanceof List) {
 				const focus = list.getFocusedElements();
 				if (focus.length && focus[0] instanceof Breakpoint) {
-					return openBreakpointSource(focus[0], true, false, accessor.get(IDebugService), accessor.get(IEditorService));
+					return openBreakpointSource(focus[0], true, false, true, accessor.get(IDebugService), accessor.get(IEditorService));
 				}
 			}
 
