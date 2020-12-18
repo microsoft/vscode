@@ -1288,53 +1288,9 @@ export class TabsTitleControl extends TitleControl {
 
 	layout(dimensions: ITitleControlDimensions): Dimension {
 
-		// We only consider to trigger relayout to outer
-		// container if the dimensions we receive are
-		// not ours already (which indicates the layout
-		// method was called internally)
-		let triggerContainerRelayoutIfNeeded: boolean;
-		if (this.dimensions === dimensions) {
-			triggerContainerRelayoutIfNeeded = true;
-		} else {
-			triggerContainerRelayoutIfNeeded = false;
-			Object.assign(this.dimensions, dimensions);
-		}
+		// Remember dimensions that we get
+		Object.assign(this.dimensions, dimensions);
 
-		// Layout tabs synchronously if wrapping tabs are enabled so that
-		// the correct height of the title area can be returned to the title
-		// control
-		if (this.accessor.partOptions.experimentalWrapTabs) {
-			this.doLayoutSync(dimensions);
-		} else {
-			this.doLayoutAsync();
-		}
-
-		// Compute new dimension of tabs title control
-		// and remember it for future usages
-		const oldDimension = this.dimensions.used;
-		const newDimension = this.dimensions.used = new Dimension(dimensions.container.width, this.getDimensions().height);
-
-		// If `layout` is called internally (not from the outer container)
-		// and tabs are wrapping, it is possible that the height of the
-		// control changes without the outer container being aware of
-		// In this case we need to `relayout` the outer container so that
-		// the editor is receiving the correct new dimensions
-		if (
-			triggerContainerRelayoutIfNeeded &&
-			this.accessor.partOptions.experimentalWrapTabs &&
-			oldDimension && oldDimension.height !== newDimension.height
-		) {
-			this.group.relayout();
-		}
-
-		return newDimension;
-	}
-
-	private doLayoutSync(dimensions: ITitleControlDimensions): void {
-		this.doLayout(dimensions);
-	}
-
-	private doLayoutAsync(): void {
 		// The layout of tabs can be an expensive operation because we access DOM properties
 		// that can result in the browser doing a full page layout to validate them. To buffer
 		// this a little bit we try at least to schedule this work on the next animation frame.
@@ -1342,9 +1298,27 @@ export class TabsTitleControl extends TitleControl {
 			this.layoutScheduled.value = scheduleAtNextAnimationFrame(() => {
 				this.doLayout(this.dimensions);
 
+				// Compute new dimension of tabs title control
+				// and remember it for future usages
+				const oldDimension = this.dimensions.used;
+				const newDimension = this.dimensions.used = new Dimension(dimensions.container.width, this.getDimensions().height);
+
+				// In case the height of the title control changed from before
+				// (currently only possible if tabs are set to wrap), we need
+				// to signal this to the outside via a `relayout` call so that
+				// e.g. the editor control can be adjusted accordingly.
+				if (
+					this.accessor.partOptions.experimentalWrapTabs &&
+					oldDimension && oldDimension.height !== newDimension.height
+				) {
+					this.group.relayout();
+				}
+
 				this.layoutScheduled.clear();
 			});
 		}
+
+		return new Dimension(dimensions.container.width, this.getDimensions().height);
 	}
 
 	private doLayout(dimensions: ITitleControlDimensions): void {
