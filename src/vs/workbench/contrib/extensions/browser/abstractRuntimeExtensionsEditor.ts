@@ -297,21 +297,28 @@ export abstract class AbstractRuntimeExtensionsEditor extends EditorPane {
 				const activationId = activationTimes.activationReason.extensionId.value;
 				const activationEvent = activationTimes.activationReason.activationEvent;
 				if (activationEvent === '*') {
-					title = nls.localize('starActivation', "Activated by {0} on start-up", activationId);
+					title = nls.localize({
+						key: 'starActivation',
+						comment: [
+							'{0} will be an extension identifier'
+						]
+					}, "Activated by {0} on start-up", activationId);
 				} else if (/^workspaceContains:/.test(activationEvent)) {
 					let fileNameOrGlob = activationEvent.substr('workspaceContains:'.length);
 					if (fileNameOrGlob.indexOf('*') >= 0 || fileNameOrGlob.indexOf('?') >= 0) {
 						title = nls.localize({
 							key: 'workspaceContainsGlobActivation',
 							comment: [
-								'{0} will be a glob pattern'
+								'{0} will be a glob pattern',
+								'{1} will be an extension identifier'
 							]
-						}, "Activated by {1} because a file matching {1} exists in your workspace", fileNameOrGlob, activationId);
+						}, "Activated by {1} because a file matching {0} exists in your workspace", fileNameOrGlob, activationId);
 					} else {
 						title = nls.localize({
 							key: 'workspaceContainsFileActivation',
 							comment: [
-								'{0} will be a file name'
+								'{0} will be a file name',
+								'{1} will be an extension identifier'
 							]
 						}, "Activated by {1} because file {0} exists in your workspace", fileNameOrGlob, activationId);
 					}
@@ -320,7 +327,8 @@ export abstract class AbstractRuntimeExtensionsEditor extends EditorPane {
 					title = nls.localize({
 						key: 'workspaceContainsTimeout',
 						comment: [
-							'{0} will be a glob pattern'
+							'{0} will be a glob pattern',
+							'{1} will be an extension identifier'
 						]
 					}, "Activated by {1} because searching for {0} took too long", glob, activationId);
 				} else if (activationEvent === 'onStartupFinished') {
@@ -337,7 +345,8 @@ export abstract class AbstractRuntimeExtensionsEditor extends EditorPane {
 					title = nls.localize({
 						key: 'workspaceGenericActivation',
 						comment: [
-							'The {0} placeholder will be an activation event, like e.g. \'language:typescript\', \'debug\', etc.'
+							'{0} will be an activation event, like e.g. \'language:typescript\', \'debug\', etc.',
+							'{1} will be an extension identifier'
 						]
 					}, "Activated by {1} on {0}", activationEvent, activationId);
 				}
