@@ -13,6 +13,7 @@ import * as modes from 'vs/editor/common/modes';
 import { IExtensionDescription } from 'vs/platform/extensions/common/extensions';
 import { ExtHostDocuments } from 'vs/workbench/api/common/extHostDocuments';
 import { IExtensionStoragePaths } from 'vs/workbench/api/common/extHostStoragePaths';
+import * as typeConverters from 'vs/workbench/api/common/extHostTypeConverters';
 import { ExtHostWebviews, toExtensionData } from 'vs/workbench/api/common/extHostWebview';
 import { ExtHostWebviewPanels } from 'vs/workbench/api/common/extHostWebviewPanels';
 import { EditorGroupColumn } from 'vs/workbench/common/editor';
@@ -260,8 +261,10 @@ export class ExtHostCustomEditors implements extHostProtocol.ExtHostCustomEditor
 			throw new Error(`No provider found for '${viewType}'`);
 		}
 
+		const viewColumn = typeConverters.ViewColumn.to(position);
+
 		const webview = this._extHostWebview.createNewWebview(handle, options, entry.extension);
-		const panel = this._extHostWebviewPanels.createNewWebviewPanel(handle, viewType, title, position, options, webview);
+		const panel = this._extHostWebviewPanels.createNewWebviewPanel(handle, viewType, title, viewColumn, options, webview);
 
 		const revivedResource = URI.revive(resource);
 
