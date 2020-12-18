@@ -102,20 +102,22 @@ class NotebookCellOutline implements IOutline<OutlineEntry> {
 		private readonly _editor: NotebookEditor
 	) {
 
-		this._computeEntries();
-		this._computeActive();
 
 		const selectionListener = new MutableDisposable();
+		const installSelectionListener = () => {
+			selectionListener.value = _editor.viewModel?.onDidChangeSelection(() => this._computeActive());
+		};
+
 		this._dispoables.add(selectionListener);
 		this._dispoables.add(_editor.onDidChangeModel(() => {
 			this._computeEntries();
 			this._computeActive();
-			if (_editor.viewModel) {
-				selectionListener.value = _editor.viewModel.onDidChangeSelection(() => this._computeActive());
-			} else {
-				selectionListener.value = undefined;
-			}
+			installSelectionListener();
 		}));
+
+		this._computeEntries();
+		this._computeActive();
+		installSelectionListener();
 
 		this.treeConfig = new OutlineTreeConfiguration<OutlineEntry>(
 			{ getBreadcrumbElements: (element) => Iterable.single(element) },
