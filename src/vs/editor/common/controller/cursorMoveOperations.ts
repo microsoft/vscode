@@ -39,11 +39,11 @@ export class MoveOperations {
 	public static leftPositionAtomicSoftTabs(model: ICursorSimpleModel, lineNumber: number, column: number, tabSize: number): Position {
 		const minColumn = model.getLineMinColumn(lineNumber);
 		const lineContent = model.getLineContent(lineNumber);
-		const newPosition = AtomicTabMoveOperations.atomicPosition(lineContent, column - minColumn, tabSize, Direction.Left);
-		if (newPosition === -1) {
+		const newPosition = AtomicTabMoveOperations.atomicPosition(lineContent, column - 1, tabSize, Direction.Left);
+		if (newPosition === -1 || newPosition + 1 < minColumn) {
 			return this.leftPosition(model, lineNumber, column);
 		}
-		return new Position(lineNumber, minColumn + newPosition);
+		return new Position(lineNumber, newPosition + 1);
 	}
 
 	public static left(config: CursorConfiguration, model: ICursorSimpleModel, lineNumber: number, column: number): CursorPosition {
@@ -81,13 +81,12 @@ export class MoveOperations {
 	}
 
 	public static rightPositionAtomicSoftTabs(model: ICursorSimpleModel, lineNumber: number, column: number, tabSize: number, indentSize: number): Position {
-		const minColumn = model.getLineMinColumn(lineNumber);
 		const lineContent = model.getLineContent(lineNumber);
-		const newPosition = AtomicTabMoveOperations.atomicPosition(lineContent, column - minColumn, tabSize, Direction.Right);
+		const newPosition = AtomicTabMoveOperations.atomicPosition(lineContent, column - 1, tabSize, Direction.Right);
 		if (newPosition === -1) {
 			return this.rightPosition(model, lineNumber, column);
 		}
-		return new Position(lineNumber, minColumn + newPosition);
+		return new Position(lineNumber, newPosition + 1);
 	}
 
 	public static right(config: CursorConfiguration, model: ICursorSimpleModel, lineNumber: number, column: number): CursorPosition {
