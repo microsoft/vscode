@@ -28,7 +28,7 @@ if (process.env.BUILD_ARTIFACTSTAGINGDIRECTORY) {
 
 const mocha = new Mocha(options);
 
-glob.sync(path.join(__dirname, '../out/test/**/*.test.js'))
+glob.sync(__dirname + '/../out/test/**/*.test.js')
 	.forEach(file => mocha.addFile(file));
 
 mocha.run(failures => process.exit(failures ? -1 : 0));
