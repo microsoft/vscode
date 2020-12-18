@@ -611,6 +611,7 @@ export class TabsTitleControl extends TitleControl {
 
 		// Tab Editor Label
 		const editorLabel = this.tabResourceLabels.create(tabContainer);
+		const editorLabelRenderDisposable = editorLabel.onDidRender(() => this.layout(this.dimensions));
 
 		// Tab Actions
 		const tabActionsContainer = document.createElement('div');
@@ -636,7 +637,7 @@ export class TabsTitleControl extends TitleControl {
 		// Eventing
 		const eventsDisposable = this.registerTabListeners(tabContainer, index, tabsContainer, tabsScrollbar);
 
-		this.tabDisposables.push(combinedDisposable(eventsDisposable, tabActionBarDisposable, tabActionRunner, editorLabel));
+		this.tabDisposables.push(combinedDisposable(eventsDisposable, tabActionBarDisposable, tabActionRunner, editorLabel, editorLabelRenderDisposable));
 
 		return tabContainer;
 	}

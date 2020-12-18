@@ -1,6 +1,7 @@
 {
   "name": "code-oss-dev-integration-test",
   "version": "0.1.0",
+  "license": "MIT",
   "main": "./index.js",
   "scripts": {
     "postinstall": "tsc",

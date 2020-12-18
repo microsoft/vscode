@@ -21,6 +21,10 @@ function yarnInstall(location, opts) {
 	const argv = JSON.parse(raw);
 	const original = argv.original || [];
 	const args = original.filter(arg => arg === '--ignore-optional' || arg === '--frozen-lockfile');
+	if (opts.ignoreEngines) {
+		args.push('--ignore-engines');
+		delete opts.ignoreEngines;
+	}
 
 	console.log(`Installing dependencies in ${location}...`);
 	console.log(`$ yarn ${args.join(' ')}`);
@@ -39,8 +43,6 @@ if (!(process.platform === 'win32' && (process.arch === 'arm64' || process.env['
 	if (process.env['VSCODE_REMOTE_CXX']) { env['CXX'] = process.env['VSCODE_REMOTE_CXX']; }
 	if (process.env['VSCODE_REMOTE_NODE_GYP']) { env['npm_config_node_gyp'] = process.env['VSCODE_REMOTE_NODE_GYP']; }
 
-	console.log('remote yarn install env', JSON.stringify(env, undefined, '  '));
-
 	yarnInstall('remote', { env }); // node modules used by vscode server
 	yarnInstall('remote/web'); // node modules used by vscode web
 }
@@ -55,7 +57,7 @@ const extensions = allExtensionFolders.filter(e => {
 	}
 });
 
-extensions.forEach(extension => yarnInstall(`extensions/${extension}`));
+extensions.forEach(extension => yarnInstall(`extensions/${extension}`, { ignoreEngines: true }));
 
 function yarnInstallBuildDependencies() {
 	// make sure we install the deps of build/lib/watch for the system installed
