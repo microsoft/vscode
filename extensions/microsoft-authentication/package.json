@@ -1,6 +1,7 @@
 {
 	"name": "microsoft-authentication",
 	"publisher": "vscode",
+	"license": "MIT",
 	"displayName": "%displayName%",
 	"description": "%description%",
 	"version": "0.0.1",
