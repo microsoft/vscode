@@ -620,7 +620,6 @@ export class ModesContentHoverWidget extends ContentHoverWidget {
 				if (!this.recentMarkerCodeActionsInfo.hasCodeActions) {
 					actions.dispose();
 					quickfixPlaceholderElement.textContent = nls.localize('noQuickFixes', "No quick fixes available");
-					this._editor.layoutContentWidget(this);
 					return;
 				}
 				quickfixPlaceholderElement.style.display = 'none';
@@ -648,7 +647,6 @@ export class ModesContentHoverWidget extends ContentHoverWidget {
 						});
 					}
 				}));
-				this._editor.layoutContentWidget(this);
 			});
 		}
 
