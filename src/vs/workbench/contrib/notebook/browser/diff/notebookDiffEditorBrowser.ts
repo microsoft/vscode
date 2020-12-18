@@ -14,6 +14,7 @@ import { DiffEditorWidget } from 'vs/editor/browser/widget/diffEditorWidget';
 import { ToolBar } from 'vs/base/browser/ui/toolbar/toolbar';
 import { OutputRenderer } from 'vs/workbench/contrib/notebook/browser/view/output/outputRenderer';
 import { IMouseWheelEvent } from 'vs/base/browser/mouseEvent';
+import { RawContextKey } from 'vs/platform/contextkey/common/contextkey';
 
 export enum DiffSide {
 	Original = 0,
@@ -97,3 +98,5 @@ export interface CellDiffViewModelLayoutChangeEvent {
 }
 
 export const DIFF_CELL_MARGIN = 16;
+export const NOTEBOOK_DIFF_CELL_PROPERTY = new RawContextKey<boolean>('notebookDiffCellPropertyChanged', false);
+export const NOTEBOOK_DIFF_CELL_PROPERTY_EXPANDED = new RawContextKey<boolean>('notebookDiffCellPropertyExpanded', false);

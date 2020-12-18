@@ -9,6 +9,7 @@ import { Action2, MenuId, registerAction2 } from 'vs/platform/actions/common/act
 import { ServicesAccessor } from 'vs/platform/instantiation/common/instantiation';
 import { ActiveEditorContext, viewColumnToEditorGroup } from 'vs/workbench/common/editor';
 import { DiffElementViewModelBase } from 'vs/workbench/contrib/notebook/browser/diff/diffElementViewModel';
+import { NOTEBOOK_DIFF_CELL_PROPERTY, NOTEBOOK_DIFF_CELL_PROPERTY_EXPANDED } from 'vs/workbench/contrib/notebook/browser/diff/notebookDiffEditorBrowser';
 import { NotebookTextDiffEditor } from 'vs/workbench/contrib/notebook/browser/diff/notebookTextDiffEditor';
 import { NotebookDiffEditorInput } from 'vs/workbench/contrib/notebook/browser/notebookDiffEditorInput';
 import { openAsTextIcon, revertIcon, showOutputRawIcon } from 'vs/workbench/contrib/notebook/browser/notebookIcons';
@@ -60,8 +61,10 @@ registerAction2(class extends Action2 {
 				icon: revertIcon,
 				f1: false,
 				menu: {
-					id: MenuId.NotebookDiffCellMetadataTitle
-				}
+					id: MenuId.NotebookDiffCellMetadataTitle,
+					when: NOTEBOOK_DIFF_CELL_PROPERTY
+				},
+				precondition: NOTEBOOK_DIFF_CELL_PROPERTY
 			}
 		);
 	}
@@ -110,12 +113,13 @@ registerAction2(class extends Action2 {
 		super(
 			{
 				id: 'notebook.diff.cell.switchOutputRenderingStyleToText',
-				title: localize('notebook.diff.cell.switchOutputRenderingStyleToText', "View outputs raw data"),
+				title: localize('notebook.diff.cell.switchOutputRenderingStyleToText', "Switch Output Rendering"),
 				icon: showOutputRawIcon,
 				f1: false,
 				menu: {
-					id: MenuId.NotebookDiffCellOutputsTitle
-				},
+					id: MenuId.NotebookDiffCellOutputsTitle,
+					when: NOTEBOOK_DIFF_CELL_PROPERTY_EXPANDED
+				}
 			}
 		);
 	}
@@ -137,8 +141,10 @@ registerAction2(class extends Action2 {
 				icon: revertIcon,
 				f1: false,
 				menu: {
-					id: MenuId.NotebookDiffCellOutputsTitle
-				}
+					id: MenuId.NotebookDiffCellOutputsTitle,
+					when: NOTEBOOK_DIFF_CELL_PROPERTY
+				},
+				precondition: NOTEBOOK_DIFF_CELL_PROPERTY
 			}
 		);
 	}
@@ -168,8 +174,11 @@ registerAction2(class extends Action2 {
 				icon: revertIcon,
 				f1: false,
 				menu: {
-					id: MenuId.NotebookDiffCellInputTitle
-				}
+					id: MenuId.NotebookDiffCellInputTitle,
+					when: NOTEBOOK_DIFF_CELL_PROPERTY
+				},
+				precondition: NOTEBOOK_DIFF_CELL_PROPERTY
+
 			}
 		);
 	}

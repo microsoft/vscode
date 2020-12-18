@@ -8,7 +8,7 @@ import { Disposable, DisposableStore } from 'vs/base/common/lifecycle';
 import { IDiffEditorOptions, IEditorOptions } from 'vs/editor/common/config/editorOptions';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { DiffElementViewModelBase, getFormatedMetadataJSON, PropertyFoldingState, SideBySideDiffElementViewModel, SingleSideDiffElementViewModel } from 'vs/workbench/contrib/notebook/browser/diff/diffElementViewModel';
-import { CellDiffSideBySideRenderTemplate, CellDiffSingleSideRenderTemplate, DiffSide, DIFF_CELL_MARGIN, INotebookTextDiffEditor } from 'vs/workbench/contrib/notebook/browser/diff/notebookDiffEditorBrowser';
+import { CellDiffSideBySideRenderTemplate, CellDiffSingleSideRenderTemplate, DiffSide, DIFF_CELL_MARGIN, INotebookTextDiffEditor, NOTEBOOK_DIFF_CELL_PROPERTY, NOTEBOOK_DIFF_CELL_PROPERTY_EXPANDED } from 'vs/workbench/contrib/notebook/browser/diff/notebookDiffEditorBrowser';
 import { EDITOR_BOTTOM_PADDING } from 'vs/workbench/contrib/notebook/browser/constants';
 import { CodeEditorWidget } from 'vs/editor/browser/widget/codeEditorWidget';
 import { DiffEditorWidget } from 'vs/editor/browser/widget/diffEditorWidget';
@@ -24,7 +24,7 @@ import { IKeybindingService } from 'vs/platform/keybinding/common/keybinding';
 import { INotificationService } from 'vs/platform/notification/common/notification';
 import { IAction } from 'vs/base/common/actions';
 import { createAndFillInActionBarActions } from 'vs/platform/actions/browser/menuEntryActionViewItem';
-import { IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
+import { IContextKey, IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
 import { Delayer } from 'vs/base/common/async';
 import { CodiconActionViewItem } from 'vs/workbench/contrib/notebook/browser/view/renderers/cellActionView';
 import { getEditorTopPadding } from 'vs/workbench/contrib/notebook/browser/notebookBrowser';
@@ -77,6 +77,7 @@ class PropertyHeader extends Disposable {
 	protected _statusSpan!: HTMLElement;
 	protected _toolbar!: ToolBar;
 	protected _menu!: IMenu;
+	protected _propertyExpanded?: IContextKey<boolean>;
 
 	constructor(
 		readonly cell: DiffElementViewModelBase,
@@ -133,14 +134,23 @@ class PropertyHeader extends Disposable {
 			cell: this.cell
 		};
 
-		this._menu = this.menuService.createMenu(this.accessor.menuId, this.contextKeyService);
+		const scopedContextKeyService = this.contextKeyService.createScoped(cellToolbarContainer);
+		const propertyChanged = NOTEBOOK_DIFF_CELL_PROPERTY.bindTo(scopedContextKeyService);
+		propertyChanged.set(metadataChanged);
+		this._propertyExpanded = NOTEBOOK_DIFF_CELL_PROPERTY_EXPANDED.bindTo(scopedContextKeyService);
+
+		this._menu = this.menuService.createMenu(this.accessor.menuId, scopedContextKeyService);
 		this._register(this._menu);
 
-		if (metadataChanged) {
+		const actions: IAction[] = [];
+		createAndFillInActionBarActions(this._menu, { shouldForwardArgs: true }, actions);
+		this._toolbar.setActions(actions);
+
+		this._register(this._menu.onDidChange(() => {
 			const actions: IAction[] = [];
 			createAndFillInActionBarActions(this._menu, { shouldForwardArgs: true }, actions);
 			this._toolbar.setActions(actions);
-		}
+		}));
 
 		this._register(this.notebookEditor.onMouseUp(e => {
 			if (!e.event.target) {
@@ -202,9 +212,12 @@ class PropertyHeader extends Disposable {
 	private _updateFoldingIcon() {
 		if (this.accessor.getFoldingState(this.cell) === PropertyFoldingState.Collapsed) {
 			DOM.reset(this._foldingIndicator, ...renderCodicons(ThemeIcon.asCodiconLabel(collapsedIcon)));
+			this._propertyExpanded?.set(false);
 		} else {
 			DOM.reset(this._foldingIndicator, ...renderCodicons(ThemeIcon.asCodiconLabel(expandedIcon)));
+			this._propertyExpanded?.set(true);
 		}
+
 	}
 }
 
@@ -258,6 +271,10 @@ abstract class AbstractElementRenderer extends Disposable {
 		this._register(cell.onDidLayoutChange(e => this.layout(e)));
 		this._register(cell.onDidLayoutChange(e => this.updateBorders()));
 		this.buildBody();
+
+		this._register(cell.onDidStateChange(() => {
+			this.updateOutputRendering(this.cell.renderOutput);
+		}));
 	}
 
 	abstract buildBody(): void;
@@ -758,6 +775,7 @@ export class DeletedElement extends SingleSideDiffElement {
 	}
 
 	styleContainer(container: HTMLElement) {
+		container.classList.remove('inserted');
 		container.classList.add('removed');
 	}
 
@@ -887,6 +905,7 @@ export class InsertElement extends SingleSideDiffElement {
 	}
 
 	styleContainer(container: HTMLElement): void {
+		container.classList.remove('removed');
 		container.classList.add('inserted');
 	}
 
@@ -1016,13 +1035,10 @@ export class ModifiedElement extends AbstractElementRenderer {
 		@IContextKeyService protected readonly contextKeyService: IContextKeyService
 	) {
 		super(notebookEditor, cell, templateData, 'full', instantiationService, modeService, modelService, contextMenuService, keybindingService, notificationService, menuService, contextKeyService);
-
-		this._register(cell.onDidStateChange(() => {
-			this.updateOutputRendering(this.cell.renderOutput);
-		}));
 	}
 
 	styleContainer(container: HTMLElement): void {
+		container.classList.remove('inserted', 'removed');
 	}
 
 	buildBody() {
