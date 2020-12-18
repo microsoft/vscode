@@ -88,10 +88,24 @@ export interface CellDiffSideBySideRenderTemplate extends CellDiffCommonRenderTe
 	readonly outputInfoContainer: HTMLElement;
 }
 
-export interface CellDiffViewModelLayoutChangeEvent {
+export interface IDiffElementLayoutInfo {
+	totalHeight: number;
+	width: number;
+	editorHeight: number;
+	editorMargin: number;
+	metadataHeight: number;
+	metadataStatusHeight: number;
+	rawOutputHeight: number;
+	outputTotalHeight: number;
+	outputStatusHeight: number;
+	bodyMargin: number
+}
+
+type IDiffElementSelfLayoutChangeEvent = { [K in keyof IDiffElementLayoutInfo]?: boolean };
+
+export interface CellDiffViewModelLayoutChangeEvent extends IDiffElementSelfLayoutChangeEvent {
 	font?: BareFontInfo;
 	outerWidth?: boolean;
-	editorHeight?: boolean;
 	metadataEditor?: boolean;
 	outputEditor?: boolean;
 	outputView?: boolean;
