@@ -1014,12 +1014,11 @@ export class MouseTargetFactory {
 	}
 
 	private static _snapToSoftTabBoundary(position: Position, viewModel: IViewModel): Position {
-		const minColumn = viewModel.getLineMinColumn(position.lineNumber);
 		const lineContent = viewModel.getLineContent(position.lineNumber);
 		const { tabSize } = viewModel.getTextModelOptions();
-		const newPosition = AtomicTabMoveOperations.atomicPosition(lineContent, position.column - minColumn, tabSize, Direction.Nearest);
+		const newPosition = AtomicTabMoveOperations.atomicPosition(lineContent, position.column - 1, tabSize, Direction.Nearest);
 		if (newPosition !== -1) {
-			return new Position(position.lineNumber, newPosition + minColumn);
+			return new Position(position.lineNumber, newPosition + 1);
 		}
 		return position;
 	}

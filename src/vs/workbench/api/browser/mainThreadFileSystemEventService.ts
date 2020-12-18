@@ -10,7 +10,7 @@ import { ExtHostContext, FileSystemEvents, IExtHostContext } from '../common/ext
 import { localize } from 'vs/nls';
 import { Extensions, IConfigurationRegistry } from 'vs/platform/configuration/common/configurationRegistry';
 import { Registry } from 'vs/platform/registry/common/platform';
-import { IWorkingCopyFileOperationParticipant, IWorkingCopyFileService, SourceTargetPair } from 'vs/workbench/services/workingCopy/common/workingCopyFileService';
+import { IWorkingCopyFileOperationParticipant, IWorkingCopyFileService, SourceTargetPair, IFileOperationUndoRedoInfo } from 'vs/workbench/services/workingCopy/common/workingCopyFileService';
 import { reviveWorkspaceEditDto2 } from 'vs/workbench/api/browser/mainThreadEditors';
 import { IBulkEditService } from 'vs/editor/browser/services/bulkEditService';
 import { IProgressService, ProgressLocation } from 'vs/platform/progress/common/progress';
@@ -74,8 +74,8 @@ export class MainThreadFileSystemEventService {
 
 
 		const fileOperationParticipant = new class implements IWorkingCopyFileOperationParticipant {
-			async participate(files: SourceTargetPair[], operation: FileOperation, undoRedoGroupId: number | undefined, isUndoing: boolean | undefined, timeout: number, token: CancellationToken) {
-				if (isUndoing) {
+			async participate(files: SourceTargetPair[], operation: FileOperation, undoInfo: IFileOperationUndoRedoInfo | undefined, timeout: number, token: CancellationToken) {
+				if (undoInfo?.isUndoing) {
 					return;
 				}
 
@@ -171,7 +171,7 @@ export class MainThreadFileSystemEventService {
 
 				await bulkEditService.apply(
 					reviveWorkspaceEditDto2(data.edit),
-					{ undoRedoGroupId, showPreview }
+					{ undoRedoGroupId: undoInfo?.undoRedoGroupId, showPreview }
 				);
 			}
 

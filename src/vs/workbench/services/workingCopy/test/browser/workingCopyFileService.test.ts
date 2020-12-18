@@ -13,6 +13,7 @@ import { URI } from 'vs/base/common/uri';
 import { FileOperation } from 'vs/platform/files/common/files';
 import { TestWorkingCopy } from 'vs/workbench/test/common/workbenchTestServices';
 import { VSBuffer } from 'vs/base/common/buffer';
+import { ICopyOperation } from 'vs/workbench/services/workingCopy/common/workingCopyFileService';
 
 suite('WorkingCopyFileService', () => {
 
@@ -52,7 +53,7 @@ suite('WorkingCopyFileService', () => {
 		let sourceModel: TextFileEditorModel = instantiationService.createInstance(TextFileEditorModel, toResource.call(this, '/path/file.txt'), 'utf8', undefined);
 		(<TestTextFileEditorModelManager>accessor.textFileService.files).add(sourceModel.resource, sourceModel);
 
-		const eventCounter = await testEventsMoveOrCopy([{ source: sourceModel.resource, target: sourceModel.resource }], true);
+		const eventCounter = await testEventsMoveOrCopy([{ file: { source: sourceModel.resource, target: sourceModel.resource }, overwrite: true }], true);
 
 		sourceModel.dispose();
 		assert.equal(eventCounter, 3);
@@ -67,8 +68,8 @@ suite('WorkingCopyFileService', () => {
 		(<TestTextFileEditorModelManager>accessor.textFileService.files).add(targetModel2.resource, targetModel2);
 
 		const eventCounter = await testEventsMoveOrCopy([
-			{ source: sourceModel1.resource, target: sourceModel1.resource },
-			{ source: sourceModel2.resource, target: targetModel2.resource }
+			{ file: { source: sourceModel1.resource, target: sourceModel1.resource }, overwrite: true },
+			{ file: { source: sourceModel2.resource, target: targetModel2.resource }, overwrite: true }
 		], true);
 
 		sourceModel1.dispose();
@@ -96,7 +97,7 @@ suite('WorkingCopyFileService', () => {
 		let sourceModel: TextFileEditorModel = instantiationService.createInstance(TextFileEditorModel, toResource.call(this, '/path/file.txt'), 'utf8', undefined);
 		(<TestTextFileEditorModelManager>accessor.textFileService.files).add(sourceModel.resource, sourceModel);
 
-		const eventCounter = await testEventsMoveOrCopy([{ source: sourceModel.resource, target: sourceModel.resource }]);
+		const eventCounter = await testEventsMoveOrCopy([{ file: { source: sourceModel.resource, target: sourceModel.resource }, overwrite: true }]);
 
 		sourceModel.dispose();
 		assert.equal(eventCounter, 3);
@@ -111,8 +112,8 @@ suite('WorkingCopyFileService', () => {
 		(<TestTextFileEditorModelManager>accessor.textFileService.files).add(targetModel2.resource, targetModel2);
 
 		const eventCounter = await testEventsMoveOrCopy([
-			{ source: sourceModel1.resource, target: sourceModel1.resource },
-			{ source: sourceModel2.resource, target: targetModel2.resource }
+			{ file: { source: sourceModel1.resource, target: sourceModel1.resource }, overwrite: true },
+			{ file: { source: sourceModel2.resource, target: targetModel2.resource }, overwrite: true }
 		]);
 
 		sourceModel1.dispose();
@@ -223,7 +224,7 @@ suite('WorkingCopyFileService', () => {
 			eventCounter++;
 		});
 
-		await accessor.workingCopyFileService.createFolder(resource);
+		await accessor.workingCopyFileService.createFolder({ resource });
 
 		assert.equal(eventCounter, 3);
 
@@ -232,7 +233,7 @@ suite('WorkingCopyFileService', () => {
 		listener2.dispose();
 	});
 
-	async function testEventsMoveOrCopy(files: { source: URI, target: URI }[], move?: boolean): Promise<number> {
+	async function testEventsMoveOrCopy(files: ICopyOperation[], move?: boolean): Promise<number> {
 		let eventCounter = 0;
 
 		const participant = accessor.workingCopyFileService.addFileOperationParticipant({
@@ -250,9 +251,9 @@ suite('WorkingCopyFileService', () => {
 		});
 
 		if (move) {
-			await accessor.workingCopyFileService.move(files, { overwrite: true });
+			await accessor.workingCopyFileService.move(files);
 		} else {
-			await accessor.workingCopyFileService.copy(files, { overwrite: true });
+			await accessor.workingCopyFileService.copy(files);
 		}
 
 		participant.dispose();
@@ -330,9 +331,9 @@ suite('WorkingCopyFileService', () => {
 		});
 
 		if (move) {
-			await accessor.workingCopyFileService.move(models.map(model => ({ source: model.sourceModel.resource, target: model.targetModel.resource })), { overwrite: true });
+			await accessor.workingCopyFileService.move(models.map(model => ({ file: { source: model.sourceModel.resource, target: model.targetModel.resource }, options: { overwrite: true } })));
 		} else {
-			await accessor.workingCopyFileService.copy(models.map(model => ({ source: model.sourceModel.resource, target: model.targetModel.resource })), { overwrite: true });
+			await accessor.workingCopyFileService.copy(models.map(model => ({ file: { source: model.sourceModel.resource, target: model.targetModel.resource }, options: { overwrite: true } })));
 		}
 
 		for (let i = 0; i < models.length; i++) {
@@ -406,7 +407,7 @@ suite('WorkingCopyFileService', () => {
 			eventCounter++;
 		});
 
-		await accessor.workingCopyFileService.delete(models.map(m => m.resource));
+		await accessor.workingCopyFileService.delete(models.map(m => ({ resource: m.resource })));
 		for (const model of models) {
 			assert.ok(!accessor.workingCopyService.isDirty(model.resource));
 			model.dispose();
@@ -458,7 +459,7 @@ suite('WorkingCopyFileService', () => {
 			eventCounter++;
 		});
 
-		await accessor.workingCopyFileService.create(resource, contents);
+		await accessor.workingCopyFileService.create({ resource, contents });
 		assert.ok(!accessor.workingCopyService.isDirty(model.resource));
 		model.dispose();
 
