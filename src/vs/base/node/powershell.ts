@@ -21,12 +21,12 @@ const PwshPreviewMsixRegex: RegExp = /^Microsoft.PowerShellPreview_.*/;
 const isProcess64Bit: boolean = process.arch === 'x64';
 const isOS64Bit: boolean = isProcess64Bit || env.hasOwnProperty('PROCESSOR_ARCHITEW6432');
 
-interface IPowerShellExeDetails {
+export interface IPowerShellExeDetails {
 	readonly displayName: string;
 	readonly exePath: string;
 }
 
-interface IPossiblePowerShellExe extends IPowerShellExeDetails {
+export interface IPossiblePowerShellExe extends IPowerShellExeDetails {
 	exists(): boolean;
 }
 
@@ -103,7 +103,6 @@ function findPSCoreWindowsInstallation(
 		{ useAlternateBitness?: boolean; findPreview?: boolean } = {}): IPossiblePowerShellExe | null {
 
 	const programFilesPath = getProgramFilesPath({ useAlternateBitness });
-
 	if (!programFilesPath) {
 		return null;
 	}
@@ -130,13 +129,9 @@ function findPSCoreWindowsInstallation(
 			}
 
 			// Verify that the part before the dash is an integer
+			// and that the part after the dash is "preview"
 			const intPart: string = item.substring(0, dashIndex);
-			if (!IntRegex.test(intPart)) {
-				continue;
-			}
-
-			// Verify that the part after the dash is "preview"
-			if (item.substring(dashIndex + 1) !== 'preview') {
+			if (!IntRegex.test(intPart) || item.substring(dashIndex + 1) !== 'preview') {
 				continue;
 			}
 
@@ -169,10 +164,7 @@ function findPSCoreWindowsInstallation(
 		return null;
 	}
 
-	const bitness: string = programFilesPath.includes('x86')
-		? '(x86)'
-		: '(x64)';
-
+	const bitness: string = programFilesPath.includes('x86') ? '(x86)' : '(x64)';
 	const preview: string = findPreview ? ' Preview' : '';
 
 	return new PossiblePowerShellExe(pwshExePath, `PowerShell${preview} ${bitness}`);
@@ -210,6 +202,7 @@ function findPSCoreMsix({ findPreview }: { findPreview?: boolean } = {}): IPossi
 
 function findPSCoreDotnetGlobalTool(): IPossiblePowerShellExe {
 	const dotnetGlobalToolExePath: string = path.join(os.homedir(), '.dotnet', 'tools', 'pwsh.exe');
+
 	return new PossiblePowerShellExe(dotnetGlobalToolExePath, '.NET Core PowerShell Global Tool');
 }
 
