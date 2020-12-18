@@ -74,8 +74,8 @@ export class MainThreadFileSystemEventService {
 
 
 		const fileOperationParticipant = new class implements IWorkingCopyFileOperationParticipant {
-			async participate(files: SourceTargetPair[], operation: FileOperation, undoInfo: IFileOperationUndoRedoInfo, timeout: number, token: CancellationToken) {
-				if (undoInfo.isUndoing) {
+			async participate(files: SourceTargetPair[], operation: FileOperation, undoInfo: IFileOperationUndoRedoInfo | undefined, timeout: number, token: CancellationToken) {
+				if (undoInfo?.isUndoing) {
 					return;
 				}
 
@@ -171,7 +171,7 @@ export class MainThreadFileSystemEventService {
 
 				await bulkEditService.apply(
 					reviveWorkspaceEditDto2(data.edit),
-					{ undoRedoGroupId: undoInfo.undoRedoGroupId, showPreview }
+					{ undoRedoGroupId: undoInfo?.undoRedoGroupId, showPreview }
 				);
 			}
 
