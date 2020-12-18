@@ -290,10 +290,10 @@ fast-json-stable-stringify@^2.0.0:
   resolved "https://registry.yarnpkg.com/fast-json-stable-stringify/-/fast-json-stable-stringify-2.1.0.tgz#874bf69c6f404c2b5d99c481341399fd55892633"
   integrity sha512-lhd/wF+Lk98HZoTCtlVraHtfh5XYijIjalXck7saUtuanSDyLMxnHhSXEDJqHxD7msR8D0uCmqlkwjCV8xvwHw==
 
-file-type@^7.2.0:
-  version "7.2.0"
-  resolved "https://registry.yarnpkg.com/file-type/-/file-type-7.2.0.tgz#113cfed52e1d6959ab80248906e2f25a8cdccb74"
-  integrity sha1-ETz+1S4daVmrgCSJBuLyWozcy3Q=
+file-type@^7.7.1:
+  version "7.7.1"
+  resolved "https://registry.yarnpkg.com/file-type/-/file-type-7.7.1.tgz#91c2f5edb8ce70688b9b68a90d931bbb6cb21f65"
+  integrity sha512-bTrKkzzZI6wH+NXhyD3SOXtb2zXTw2SbwI2RxUlRcXVsnN7jNL5hJzVQLYv7FOQhxFkK4XWdAflEaWFpaLLWpQ==
 
 forever-agent@~0.6.1:
   version "0.6.1"
