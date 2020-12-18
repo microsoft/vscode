@@ -8,7 +8,7 @@ import { KeyChord, KeyCode, KeyMod } from 'vs/base/common/keyCodes';
 import { CoreEditingCommands } from 'vs/editor/browser/controller/coreCommands';
 import { ICodeEditor, IActiveCodeEditor } from 'vs/editor/browser/editorBrowser';
 import { EditorAction, IActionOptions, ServicesAccessor, registerEditorAction } from 'vs/editor/browser/editorExtensions';
-import { ReplaceCommand, ReplaceCommandThatPreservesSelection, ReplaceCommandThatSelectsText, ReplaceCommandThatModifiesSelection } from 'vs/editor/common/commands/replaceCommand';
+import { ReplaceCommand, ReplaceCommandThatPreservesSelection, ReplaceCommandThatSelectsText } from 'vs/editor/common/commands/replaceCommand';
 import { TrimTrailingWhitespaceCommand } from 'vs/editor/common/commands/trimTrailingWhitespaceCommand';
 import { TypeOperations } from 'vs/editor/common/controller/cursorTypeOperations';
 import { EditOperation } from 'vs/editor/common/core/editOperation';
@@ -939,43 +939,39 @@ export class TransposeAction extends EditorAction {
 
 export abstract class AbstractCaseAction extends EditorAction {
 	public run(_accessor: ServicesAccessor, editor: ICodeEditor): void {
-		let selections = editor.getSelections();
+		const selections = editor.getSelections();
 		if (selections === null) {
 			return;
 		}
 
-		let model = editor.getModel();
+		const model = editor.getModel();
 		if (model === null) {
 			return;
 		}
 
-		let wordSeparators = editor.getOption(EditorOption.wordSeparators);
+		const wordSeparators = editor.getOption(EditorOption.wordSeparators);
+		const textEdits: IIdentifiedSingleEditOperation[] = [];
 
-		let commands: ICommand[] = [];
-
-		for (let i = 0, len = selections.length; i < len; i++) {
-			let selection = selections[i];
+		for (const selection of selections) {
 			if (selection.isEmpty()) {
-				let cursor = selection.getStartPosition();
+				const cursor = selection.getStartPosition();
 				const word = editor.getConfiguredWordAtPosition(cursor);
 
 				if (!word) {
 					continue;
 				}
 
-				let wordRange = new Range(cursor.lineNumber, word.startColumn, cursor.lineNumber, word.endColumn);
-				let text = model.getValueInRange(wordRange);
-				commands.push(new ReplaceCommandThatPreservesSelection(wordRange, this._modifyText(text, wordSeparators),
-					new Selection(cursor.lineNumber, cursor.column, cursor.lineNumber, cursor.column)));
-
+				const wordRange = new Range(cursor.lineNumber, word.startColumn, cursor.lineNumber, word.endColumn);
+				const text = model.getValueInRange(wordRange);
+				textEdits.push(EditOperation.replace(wordRange, this._modifyText(text, wordSeparators)));
 			} else {
-				let text = model.getValueInRange(selection);
-				commands.push(new ReplaceCommandThatPreservesSelection(selection, this._modifyText(text, wordSeparators), selection));
+				const text = model.getValueInRange(selection);
+				textEdits.push(EditOperation.replace(selection, this._modifyText(text, wordSeparators)));
 			}
 		}
 
 		editor.pushUndoStop();
-		editor.executeCommands(this.id, commands);
+		editor.executeEdits(this.id, textEdits);
 		editor.pushUndoStop();
 	}
 
@@ -1057,45 +1053,6 @@ export class SnakeCaseAction extends AbstractCaseAction {
 			alias: 'Transform to Snake Case',
 			precondition: EditorContextKeys.writable
 		});
-	}
-
-	public run(_accessor: ServicesAccessor, editor: ICodeEditor): void {
-		const selections = editor.getSelections();
-		if (selections === null) {
-			return;
-		}
-
-		const model = editor.getModel();
-		if (model === null) {
-			return;
-		}
-
-		const wordSeparators = editor.getOption(EditorOption.wordSeparators);
-		const commands: ICommand[] = [];
-
-		for (const selection of selections) {
-			if (selection.isEmpty()) {
-				const cursor = selection.getStartPosition();
-				const word = editor.getConfiguredWordAtPosition(cursor);
-
-				if (!word) {
-					continue;
-				}
-
-				const wordRange = new Range(cursor.lineNumber, word.startColumn, cursor.lineNumber, word.endColumn);
-				const text = model.getValueInRange(wordRange);
-				commands.push(new ReplaceCommandThatModifiesSelection(wordRange, this._modifyText(text, wordSeparators),
-					new Selection(cursor.lineNumber, cursor.column, cursor.lineNumber, cursor.column), text));
-
-			} else {
-				const text = model.getValueInRange(selection);
-				commands.push(new ReplaceCommandThatModifiesSelection(selection, this._modifyText(text, wordSeparators), selection, text));
-			}
-		}
-
-		editor.pushUndoStop();
-		editor.executeCommands(this.id, commands);
-		editor.pushUndoStop();
 	}
 
 	protected _modifyText(text: string, wordSeparators: string): string {
