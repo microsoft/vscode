@@ -1431,6 +1431,7 @@ export class TabsTitleControl extends TitleControl {
 		// - disabled: remove class
 		if (this.accessor.partOptions.experimentalWrapTabs) {
 			let tabsWrapMultiLine = tabsContainer.classList.contains('wrap');
+			let updateScrollbar = false;
 
 			// Tabs do not wrap multiline: add wrapping if tabs exceed the tabs container width
 			// and the height of the tabs container does not exceed the maximum
@@ -1444,6 +1445,7 @@ export class TabsTitleControl extends TitleControl {
 			if (tabsWrapMultiLine && (tabsContainer.offsetHeight > dimensions.available.height || tabsContainer.offsetHeight > TabsTitleControl.MAX_WRAPPED_HEIGHT)) {
 				tabsContainer.classList.remove('wrap');
 				tabsWrapMultiLine = false;
+				updateScrollbar = true;
 			}
 
 			// If we do not exceed the tabs container width, we cannot simply remove
@@ -1451,9 +1453,18 @@ export class TabsTitleControl extends TitleControl {
 			// and we would otherwise constantly add and remove the class. As such
 			// we need to check if the height of the tabs container is back to normal
 			// and then remove the wrap class.
-			if (allTabsWidth === visibleTabsContainerWidth && tabsWrapMultiLine && tabsContainer.offsetHeight === TabsTitleControl.TAB_HEIGHT) {
+			if (tabsWrapMultiLine && allTabsWidth === visibleTabsContainerWidth && tabsContainer.offsetHeight === TabsTitleControl.TAB_HEIGHT) {
 				tabsContainer.classList.remove('wrap');
 				tabsWrapMultiLine = false;
+				updateScrollbar = true;
+			}
+
+			// When tabs change from wrapping back to normal, we need to indicate this
+			// to the scrollbar so that revealing the active tab functions properly.
+			if (updateScrollbar) {
+				tabsScrollbar.setScrollPosition({
+					scrollLeft: tabsContainer.scrollLeft
+				});
 			}
 		} else {
 			tabsContainer.classList.remove('wrap');
