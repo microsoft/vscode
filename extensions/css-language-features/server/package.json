@@ -15,8 +15,8 @@
     "vscode-uri": "^3.0.0"
   },
   "devDependencies": {
-    "@types/mocha": "7.0.2",
-    "@types/node": "^12.11.7"
+    "@types/mocha": "^8.2.0",
+    "@types/node": "^12.19.9"
   },
   "scripts": {
     "compile": "gulp compile-extension:css-language-features-server",

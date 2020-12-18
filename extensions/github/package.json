@@ -63,6 +63,6 @@
     "vscode-nls": "^4.1.2"
   },
   "devDependencies": {
-    "@types/node": "^10.12.21"
+    "@types/node": "^12.19.9"
   }
 }

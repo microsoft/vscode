@@ -24,7 +24,7 @@
     "@types/debug": "4.1.5",
     "@types/mkdirp": "0.5.1",
     "@types/ncp": "2.0.1",
-    "@types/node": "^12.11.7",
+    "@types/node": "^12.19.9",
     "@types/tmp": "0.1.0",
     "cpx": "^1.5.0",
     "mkdirp": "^0.5.1",

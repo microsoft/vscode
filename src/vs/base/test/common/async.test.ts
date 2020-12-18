@@ -576,12 +576,12 @@ suite('Async', () => {
 		sequentializer.setPending(2, async.timeout(1));
 		assert.ok(sequentializer.hasPending());
 		assert.ok(sequentializer.hasPending(2));
-		assert.ok(!sequentializer.hasPending(1));
+		assert.strictEqual(sequentializer.hasPending(1), false);
 		assert.ok(sequentializer.pending);
 
 		await async.timeout(2);
-		assert.ok(!sequentializer.hasPending());
-		assert.ok(!sequentializer.hasPending(2));
+		assert.strictEqual(sequentializer.hasPending(), false);
+		assert.strictEqual(sequentializer.hasPending(2), false);
 		assert.ok(!sequentializer.pending);
 	});
 
