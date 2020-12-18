@@ -579,7 +579,7 @@ export class ExtensionEditor extends EditorPane {
 		return Promise.resolve(null);
 	}
 
-	private async openMarkdown(cacheResult: CacheResult<string>, noContentCopy: string, template: IExtensionEditorTemplate, webviewIndex: WebviewIndex, token: CancellationToken): Promise<IActiveElement> {
+	private async openMarkdown(cacheResult: CacheResult<string>, noContentCopy: string, template: IExtensionEditorTemplate, webviewIndex: WebviewIndex, token: CancellationToken): Promise<IActiveElement | null> {
 		try {
 			const body = await this.renderMarkdown(cacheResult, template);
 			if (token.isCancellationRequested) {
@@ -598,7 +598,7 @@ export class ExtensionEditor extends EditorPane {
 			webview.layoutWebviewOverElement(template.content);
 
 			webview.html = body;
-			webview.claim(this);
+			webview.claim(this, undefined);
 
 			this.contentDisposables.add(webview.onDidFocus(() => this.fireOnDidFocus()));
 
@@ -877,14 +877,14 @@ export class ExtensionEditor extends EditorPane {
 		const readmeContent = append(extensionPackReadme, $('div.readme-content'));
 
 		await Promise.all([
-			this.renderExtensionPack(manifest, extensionPackContent),
+			this.renderExtensionPack(manifest, extensionPackContent, token),
 			this.openMarkdown(this.extensionReadme!.get(), localize('noReadme', "No README available."), { ...template, ...{ content: readmeContent } }, WebviewIndex.Readme, token),
 		]);
 
 		return { focus: () => extensionPackContent.focus() };
 	}
 
-	private openChangelog(template: IExtensionEditorTemplate, token: CancellationToken): Promise<IActiveElement> {
+	private openChangelog(template: IExtensionEditorTemplate, token: CancellationToken): Promise<IActiveElement | null> {
 		return this.openMarkdown(this.extensionChangelog!.get(), localize('noChangelog', "No Changelog available."), template, WebviewIndex.Changelog, token);
 	}
 
