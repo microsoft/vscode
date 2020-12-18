@@ -29,7 +29,7 @@ import { Emitter } from 'vs/base/common/event';
 import { DisposableStore, IDisposable, toDisposable } from 'vs/base/common/lifecycle';
 import { NotebookDiffEditorEventDispatcher, NotebookLayoutChangedEvent } from 'vs/workbench/contrib/notebook/browser/viewModel/eventDispatcher';
 import { EditorPane } from 'vs/workbench/browser/parts/editor/editorPane';
-import { CellUri, INotebookDiffEditorModel, ITransformedDisplayOutputDto } from 'vs/workbench/contrib/notebook/common/notebookCommon';
+import { CellUri, INotebookDiffEditorModel } from 'vs/workbench/contrib/notebook/common/notebookCommon';
 import { FileService } from 'vs/platform/files/common/fileService';
 import { IFileService } from 'vs/platform/files/common/files';
 import { URI } from 'vs/base/common/uri';
@@ -118,7 +118,7 @@ export class NotebookTextDiffEditor extends EditorPane implements INotebookTextD
 	updateOutputHeight(cellInfo: IDiffCellInfo, output: IDisplayOutputViewModel, outputHeight: number, isInit: boolean): void {
 		const diffElement = cellInfo.diffElement;
 		const cell = this.getCellByInfo(cellInfo);
-		const outputIndex = cell.outputsViewModels.findIndex(viewModel => (viewModel.model as ITransformedDisplayOutputDto).outputId === (output.model as ITransformedDisplayOutputDto).outputId);
+		const outputIndex = cell.outputsViewModels.findIndex(viewModel => viewModel.model === output.model);
 
 		if (diffElement instanceof SideBySideDiffElementViewModel) {
 			const info = CellUri.parse(cellInfo.cellUri);
@@ -260,23 +260,24 @@ export class NotebookTextDiffEditor extends EditorPane implements INotebookTextD
 					return;
 				}
 
-				if (cell.outputsViewModels.findIndex(viewModel => (viewModel.model as ITransformedDisplayOutputDto).outputId === (key.model as ITransformedDisplayOutputDto).outputId) < 0) {
+				if (cell.outputsViewModels.findIndex(viewModel => viewModel.model === key.model) < 0) {
 					// output is already gone
 					removedItems.push(key);
+				} else {
+					const cellTop = this._list.getAbsoluteTopOfElement(value.cellInfo.diffElement);
+					if (activeWebview.shouldUpdateInset(cell, key, cellTop)) {
+						// TODO: why? does it mean, we create new output view model every time?
+						const outputIndex = cell.outputsViewModels.findIndex(viewModel => viewModel.model === key.model);
+						const outputOffset = cellTop + value.cellInfo.diffElement.getOutputOffsetInCell(diffSide, outputIndex);
+
+						updateItems.push({
+							output: key,
+							cellTop: cellTop,
+							outputOffset: outputOffset
+						});
+					}
 				}
 
-				const cellTop = this._list.getAbsoluteTopOfElement(value.cellInfo.diffElement);
-				if (activeWebview.shouldUpdateInset(cell, key, cellTop)) {
-					// TODO: why? does it mean, we create new output view model every time?
-					const outputIndex = cell.outputsViewModels.findIndex(viewModel => (viewModel.model as ITransformedDisplayOutputDto).outputId === (key.model as ITransformedDisplayOutputDto).outputId);
-					const outputOffset = cellTop + value.cellInfo.diffElement.getOutputOffsetInCell(diffSide, outputIndex);
-
-					updateItems.push({
-						output: key,
-						cellTop: cellTop,
-						outputOffset: outputOffset
-					});
-				}
 			});
 
 			removedItems.forEach(output => activeWebview.removeInset(output));
@@ -537,7 +538,7 @@ export class NotebookTextDiffEditor extends EditorPane implements INotebookTextD
 			} else {
 				const cellTop = this._list.getAbsoluteTopOfElement(cellDiffViewModel);
 				const scrollTop = this._list.scrollTop;
-				const outputIndex = cellViewModel.outputsViewModels.findIndex(viewModel => (viewModel.model as ITransformedDisplayOutputDto).outputId === (output.source.model as ITransformedDisplayOutputDto).outputId);
+				const outputIndex = cellViewModel.outputsViewModels.findIndex(viewModel => viewModel.model === output.source.model);
 				const outputOffset = cellTop + cellDiffViewModel.getOutputOffsetInCell(diffSide, outputIndex);
 				activeWebview.updateViewScrollTop(-scrollTop, true, [{ output: output.source, cellTop, outputOffset }]);
 			}
