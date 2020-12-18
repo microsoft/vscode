@@ -53,7 +53,7 @@ suite('WorkingCopyFileService', () => {
 		let sourceModel: TextFileEditorModel = instantiationService.createInstance(TextFileEditorModel, toResource.call(this, '/path/file.txt'), 'utf8', undefined);
 		(<TestTextFileEditorModelManager>accessor.textFileService.files).add(sourceModel.resource, sourceModel);
 
-		const eventCounter = await testEventsMoveOrCopy([{ file: { source: sourceModel.resource, target: sourceModel.resource }, options: { overwrite: true } }], true);
+		const eventCounter = await testEventsMoveOrCopy([{ file: { source: sourceModel.resource, target: sourceModel.resource }, overwrite: true }], true);
 
 		sourceModel.dispose();
 		assert.equal(eventCounter, 3);
@@ -68,8 +68,8 @@ suite('WorkingCopyFileService', () => {
 		(<TestTextFileEditorModelManager>accessor.textFileService.files).add(targetModel2.resource, targetModel2);
 
 		const eventCounter = await testEventsMoveOrCopy([
-			{ file: { source: sourceModel1.resource, target: sourceModel1.resource }, options: { overwrite: true } },
-			{ file: { source: sourceModel2.resource, target: targetModel2.resource }, options: { overwrite: true } }
+			{ file: { source: sourceModel1.resource, target: sourceModel1.resource }, overwrite: true },
+			{ file: { source: sourceModel2.resource, target: targetModel2.resource }, overwrite: true }
 		], true);
 
 		sourceModel1.dispose();
@@ -97,7 +97,7 @@ suite('WorkingCopyFileService', () => {
 		let sourceModel: TextFileEditorModel = instantiationService.createInstance(TextFileEditorModel, toResource.call(this, '/path/file.txt'), 'utf8', undefined);
 		(<TestTextFileEditorModelManager>accessor.textFileService.files).add(sourceModel.resource, sourceModel);
 
-		const eventCounter = await testEventsMoveOrCopy([{ file: { source: sourceModel.resource, target: sourceModel.resource }, options: { overwrite: true } }]);
+		const eventCounter = await testEventsMoveOrCopy([{ file: { source: sourceModel.resource, target: sourceModel.resource }, overwrite: true }]);
 
 		sourceModel.dispose();
 		assert.equal(eventCounter, 3);
@@ -112,8 +112,8 @@ suite('WorkingCopyFileService', () => {
 		(<TestTextFileEditorModelManager>accessor.textFileService.files).add(targetModel2.resource, targetModel2);
 
 		const eventCounter = await testEventsMoveOrCopy([
-			{ file: { source: sourceModel1.resource, target: sourceModel1.resource }, options: { overwrite: true } },
-			{ file: { source: sourceModel2.resource, target: targetModel2.resource }, options: { overwrite: true } }
+			{ file: { source: sourceModel1.resource, target: sourceModel1.resource }, overwrite: true },
+			{ file: { source: sourceModel2.resource, target: targetModel2.resource }, overwrite: true }
 		]);
 
 		sourceModel1.dispose();

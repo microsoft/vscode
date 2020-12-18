@@ -6,7 +6,7 @@
 import { CancellationToken } from 'vs/base/common/cancellation';
 import { ILogService } from 'vs/platform/log/common/log';
 import { IDisposable, Disposable, toDisposable } from 'vs/base/common/lifecycle';
-import { IWorkingCopyFileOperationParticipant, SourceTargetPairWithOptions } from 'vs/workbench/services/workingCopy/common/workingCopyFileService';
+import { IWorkingCopyFileOperationParticipant, SourceTargetPair, IFileOperationUndoRedoInfo } from 'vs/workbench/services/workingCopy/common/workingCopyFileService';
 import { FileOperation } from 'vs/platform/files/common/files';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { LinkedList } from 'vs/base/common/linkedList';
@@ -27,7 +27,7 @@ export class WorkingCopyFileOperationParticipant extends Disposable {
 		return toDisposable(() => remove());
 	}
 
-	async participate(files: SourceTargetPairWithOptions[], operation: FileOperation, token: CancellationToken | undefined): Promise<void> {
+	async participate(files: SourceTargetPair[], operation: FileOperation, undoInfo: IFileOperationUndoRedoInfo | undefined, token: CancellationToken | undefined): Promise<void> {
 		const timeout = this.configurationService.getValue<number>('files.participants.timeout');
 		if (timeout <= 0) {
 			return; // disabled
@@ -36,7 +36,7 @@ export class WorkingCopyFileOperationParticipant extends Disposable {
 		// For each participant
 		for (const participant of this.participants) {
 			try {
-				await participant.participate(files, operation, timeout, token ?? CancellationToken.None);
+				await participant.participate(files, operation, undoInfo, timeout, token ?? CancellationToken.None);
 			} catch (err) {
 				this.logService.warn(err);
 			}
