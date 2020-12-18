@@ -113,7 +113,7 @@
     "vscode:prepublish": "node ../../node_modules/gulp/bin/gulp.js --gulpfile ../../build/gulpfile.extensions.js compile-extension:vscode-api-tests ./tsconfig.json"
   },
   "devDependencies": {
-    "@types/mocha": "2.2.43",
-    "@types/node": "^12.11.7"
+    "@types/mocha": "^8.2.0",
+    "@types/node": "^12.19.9"
   }
 }
