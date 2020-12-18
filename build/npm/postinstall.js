@@ -39,8 +39,6 @@ if (!(process.platform === 'win32' && (process.arch === 'arm64' || process.env['
 	if (process.env['VSCODE_REMOTE_CXX']) { env['CXX'] = process.env['VSCODE_REMOTE_CXX']; }
 	if (process.env['VSCODE_REMOTE_NODE_GYP']) { env['npm_config_node_gyp'] = process.env['VSCODE_REMOTE_NODE_GYP']; }
 
-	console.log('remote yarn install env', JSON.stringify(env, undefined, '  '));
-
 	yarnInstall('remote', { env }); // node modules used by vscode server
 	yarnInstall('remote/web'); // node modules used by vscode web
 }
