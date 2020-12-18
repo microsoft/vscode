@@ -12,7 +12,7 @@ import { IEditorService } from 'vs/workbench/services/editor/common/editorServic
 import { ICommandService, CommandsRegistry } from 'vs/platform/commands/common/commands';
 import { ADD_ROOT_FOLDER_COMMAND_ID, ADD_ROOT_FOLDER_LABEL, PICK_WORKSPACE_FOLDER_COMMAND_ID } from 'vs/workbench/browser/actions/workspaceCommands';
 import { IFileDialogService } from 'vs/platform/dialogs/common/dialogs';
-import { MenuRegistry, MenuId, SyncActionDescriptor, Action2 } from 'vs/platform/actions/common/actions';
+import { MenuRegistry, MenuId, SyncActionDescriptor, Action2, registerAction2 } from 'vs/platform/actions/common/actions';
 import { EmptyWorkspaceSupportContext, WorkbenchStateContext, WorkspaceFolderCountContext } from 'vs/workbench/browser/contextkeys';
 import { IInstantiationService, ServicesAccessor } from 'vs/platform/instantiation/common/instantiation';
 import { Registry } from 'vs/platform/registry/common/platform';
@@ -251,15 +251,49 @@ export class DuplicateWorkspaceInNewWindowAction extends Action {
 	}
 }
 
-export class WorkspaceTrustRequiredAction extends Action2 {
+class WorkspaceTrustRequiredAction extends Action2 {
+	constructor() {
+		super({
+			id: 'workbench.action.requireTrust',
+			title: { value: nls.localize('requireTrustAction', "Require Workspace Trust"), original: 'Require Workspace Trust' },
+			f1: true
+		});
+	}
+
 	run(accessor: ServicesAccessor) {
 		const workspaceTrustService = accessor.get(ITrustedWorkspaceService);
+		const notificationService = accessor.get(INotificationService);
 
 		workspaceTrustService.requireWorkspaceTrust(true).then(trustState => {
-			console.log(`Trust State: ${trustState === TrustState.Unknown ? 'Unknown' : trustState === TrustState.Trusted ? 'Trusted' : 'Untrusted'}`);
+			notificationService.info(`Trust State: ${trustState === TrustState.Unknown ? 'Unknown' : trustState === TrustState.Trusted ? 'Trusted' : 'Untrusted'}`);
 		});
 	}
 }
+
+registerAction2(WorkspaceTrustRequiredAction);
+
+
+class WorkspaceTrustRequestAction extends Action2 {
+	constructor() {
+		super({
+			id: 'workbench.action.requestTrust',
+			title: { value: nls.localize('requestTrustAction', "Request Workspace Trust"), original: 'Request Workspace Trust' },
+			f1: true
+		});
+	}
+
+	run(accessor: ServicesAccessor) {
+		const workspaceTrustService = accessor.get(ITrustedWorkspaceService);
+		const notificationService = accessor.get(INotificationService);
+
+		workspaceTrustService.requireWorkspaceTrust(false).then(trustState => {
+			notificationService.info(`Trust State: ${trustState === TrustState.Unknown ? 'Unknown' : trustState === TrustState.Trusted ? 'Trusted' : 'Untrusted'}`);
+		});
+	}
+}
+
+registerAction2(WorkspaceTrustRequestAction);
+
 
 // --- Actions Registration
 

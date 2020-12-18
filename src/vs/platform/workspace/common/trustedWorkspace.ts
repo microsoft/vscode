@@ -6,6 +6,7 @@
 import { Emitter, Event } from 'vs/base/common/event';
 import { Disposable } from 'vs/base/common/lifecycle';
 import { URI } from 'vs/base/common/uri';
+import { registerSingleton } from 'vs/platform/instantiation/common/extensions';
 import { createDecorator } from 'vs/platform/instantiation/common/instantiation';
 import { IStorageService, StorageScope, StorageTarget } from 'vs/platform/storage/common/storage';
 import { IWorkspace, IWorkspaceContextService } from 'vs/platform/workspace/common/workspace';
@@ -188,8 +189,8 @@ export class TrustedWorkspaceService extends Disposable implements ITrustedWorks
 	private _inFlightResolver?: (trustState: TrustState) => void;
 
 	constructor(
-		private readonly storageService: IStorageService,
-		private readonly workspaceService: IWorkspaceContextService
+		@IStorageService private readonly storageService: IStorageService,
+		@IWorkspaceContextService private readonly workspaceService: IWorkspaceContextService
 	) {
 		super();
 
@@ -254,6 +255,8 @@ export class TrustedWorkspaceService extends Disposable implements ITrustedWorks
 
 		this._inFlightResolver!(trustState);
 		this._inFlightResolver = undefined;
+		this._currentTrustState = trustState;
+		this._trustRequestPromise = undefined;
 
 		this._workspace.folders.forEach(folder => {
 			this.dataModel.setFolderTrustState(folder.uri, trustState);
@@ -277,8 +280,10 @@ export class TrustedWorkspaceService extends Disposable implements ITrustedWorks
 			this._inFlightResolver = resolve;
 		});
 
-		this.requestModel.initiateRequest(true);
+		this.requestModel.initiateRequest(!!immediate);
 
 		return this._trustRequestPromise;
 	}
 }
+
+registerSingleton(ITrustedWorkspaceService, TrustedWorkspaceService);
