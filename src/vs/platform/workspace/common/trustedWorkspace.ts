@@ -17,6 +17,11 @@ export enum TrustState {
 	Untrusted
 }
 
+export enum TrustScope {
+	Local,
+	Remote
+}
+
 export type WorkspaceTrustChangeEvent = Event<TrustState>;
 
 export interface ITrustedContentModel {
@@ -47,7 +52,6 @@ export const ITrustedWorkspaceService = createDecorator<ITrustedWorkspaceService
 export interface ITrustedWorkspaceService {
 	readonly _serviceBrand: undefined;
 
-	readonly dataModel: ITrustedContentModel;
 	readonly requestModel: ITrustedWorkspaceRequestModel;
 
 	onDidChangeTrust: WorkspaceTrustChangeEvent;
@@ -57,7 +61,8 @@ export interface ITrustedWorkspaceService {
 
 
 interface ICachedTrustedContentInfo {
-	folders: { uri: string, trustState: TrustState }[]
+	localFolders: { uri: string, trustState: TrustState }[]
+	trustedRemoteItems: { uri: string }[]
 }
 
 export class TrustedContentModel extends Disposable implements ITrustedContentModel {
@@ -92,7 +97,7 @@ export class TrustedContentModel extends Disposable implements ITrustedContentMo
 			}
 		} catch { }
 
-		return { folders: [] };
+		return { localFolders: [], trustedRemoteItems: [] };
 	}
 
 	private saveTrustInfo(): void {
@@ -109,15 +114,15 @@ export class TrustedContentModel extends Disposable implements ITrustedContentMo
 		let changed = false;
 
 		if (trustState === TrustState.Unknown) {
-			const before = this.cachedTrustInfo.folders.length;
-			this.cachedTrustInfo.folders = this.cachedTrustInfo.folders.filter(info => info.uri !== folder.toString());
+			const before = this.cachedTrustInfo.localFolders.length;
+			this.cachedTrustInfo.localFolders = this.cachedTrustInfo.localFolders.filter(info => info.uri !== folder.toString());
 
-			if (this.cachedTrustInfo.folders.length !== before) {
+			if (this.cachedTrustInfo.localFolders.length !== before) {
 				changed = true;
 			}
 		} else {
 			let found = false;
-			for (const trustInfo of this.cachedTrustInfo.folders) {
+			for (const trustInfo of this.cachedTrustInfo.localFolders) {
 				if (trustInfo.uri === folder.toString()) {
 					found = true;
 					if (trustInfo.trustState !== trustState) {
@@ -128,7 +133,7 @@ export class TrustedContentModel extends Disposable implements ITrustedContentMo
 			}
 
 			if (!found) {
-				this.cachedTrustInfo.folders.push({ uri: folder.toString(), trustState });
+				this.cachedTrustInfo.localFolders.push({ uri: folder.toString(), trustState });
 				changed = true;
 			}
 		}
@@ -139,7 +144,7 @@ export class TrustedContentModel extends Disposable implements ITrustedContentMo
 	}
 
 	getFolderTrustState(folder: URI): TrustState {
-		for (const trustInfo of this.cachedTrustInfo.folders) {
+		for (const trustInfo of this.cachedTrustInfo.localFolders) {
 			if (trustInfo.uri === folder.toString()) {
 				return trustInfo.trustState;
 			}
@@ -177,7 +182,7 @@ export class TrustedWorkspaceRequestModel extends Disposable implements ITrusted
 export class TrustedWorkspaceService extends Disposable implements ITrustedWorkspaceService {
 
 	_serviceBrand: undefined;
-	readonly dataModel: ITrustedContentModel;
+	private readonly dataModel: ITrustedContentModel;
 	readonly requestModel: ITrustedWorkspaceRequestModel;
 
 	private readonly _onDidChangeTrust = this._register(new Emitter<TrustState>());
