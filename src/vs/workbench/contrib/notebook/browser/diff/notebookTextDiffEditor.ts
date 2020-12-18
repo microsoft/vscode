@@ -221,6 +221,10 @@ export class NotebookTextDiffEditor extends EditorPane implements INotebookTextD
 			}
 		}));
 
+		this._register(this._list.onDidScroll(e => {
+			this._webviewTransparentCover!.style.top = `${e.scrollTop}px`;
+		}));
+
 		this._register(this._list.onDidChangeContentHeight(() => {
 			DOM.scheduleAtNextAnimationFrame(() => {
 				if (this._isDisposed) {
@@ -707,8 +711,18 @@ export class NotebookTextDiffEditor extends EditorPane implements INotebookTextD
 
 
 		if (this._modifiedWebview) {
-			this._modifiedWebview.element.style.width = `${this._dimension.width / 2}px`;
+			this._modifiedWebview.element.style.width = `calc(50% - 16px)`;
 			this._modifiedWebview.element.style.left = `calc(50%)`;
+		}
+
+		if (this._originalWebview) {
+			this._originalWebview.element.style.width = `calc(50% - 16px)`;
+			this._originalWebview.element.style.left = `16px`;
+		}
+
+		if (this._webviewTransparentCover) {
+			this._webviewTransparentCover.style.height = `${dimension.height}px`;
+			this._webviewTransparentCover.style.width = `${dimension.width}px`;
 		}
 
 		this._eventDispatcher?.emit([new NotebookLayoutChangedEvent({ width: true, fontInfo: true }, this.getLayoutInfo())]);

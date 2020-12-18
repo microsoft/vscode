@@ -21,6 +21,11 @@
 	flex-direction: row;
 }
 
+.notebook-text-diff-editor .webview-cover {
+	user-select: initial;
+	-webkit-user-select: initial;
+}
+
 .notebook-text-diff-editor .cell-body .border-container {
 	position: absolute;
 	width: calc(100% - 32px);
