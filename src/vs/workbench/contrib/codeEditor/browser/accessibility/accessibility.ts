@@ -37,7 +37,7 @@ import { ICodeEditorService } from 'vs/editor/browser/services/codeEditorService
 
 const CONTEXT_ACCESSIBILITY_WIDGET_VISIBLE = new RawContextKey<boolean>('accessibilityHelpWidgetVisible', false);
 
-class AccessibilityHelpController extends Disposable implements IEditorContribution {
+export class AccessibilityHelpController extends Disposable implements IEditorContribution {
 
 	public static readonly ID = 'editor.contrib.accessibilityHelpController';
 

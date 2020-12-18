@@ -17,7 +17,7 @@ import { isMacintosh, IProcessEnvironment } from 'vs/base/common/platform';
 import { ILogService } from 'vs/platform/log/common/log';
 import { IWindowState } from 'vs/platform/windows/electron-main/windows';
 import { listProcesses } from 'vs/base/node/ps';
-import { IDialogMainService } from 'vs/platform/dialogs/electron-main/dialogs';
+import { IDialogMainService } from 'vs/platform/dialogs/electron-main/dialogMainService';
 import { createDecorator } from 'vs/platform/instantiation/common/instantiation';
 import { zoomLevelToZoomFactor } from 'vs/platform/windows/common/windows';
 import { FileAccess } from 'vs/base/common/network';
@@ -55,7 +55,7 @@ export class IssueMainService implements ICommonIssueService {
 				.then(result => {
 					const [info, remoteData] = result;
 					this.diagnosticsService.getSystemInfo(info, remoteData).then(msg => {
-						event.sender.send('vscode:issueSystemInfoResponse', msg);
+						this.safeSend(event, 'vscode:issueSystemInfoResponse', msg);
 					});
 				});
 		});
@@ -86,7 +86,7 @@ export class IssueMainService implements ICommonIssueService {
 				this.logService.error(`Listing processes failed: ${e}`);
 			}
 
-			event.sender.send('vscode:listProcessesResponse', processes);
+			this.safeSend(event, 'vscode:listProcessesResponse', processes);
 		});
 
 		ipcMain.on('vscode:issueReporterClipboard', (event: IpcMainEvent) => {
@@ -102,14 +102,14 @@ export class IssueMainService implements ICommonIssueService {
 			if (this._issueWindow) {
 				this.dialogMainService.showMessageBox(messageOptions, this._issueWindow)
 					.then(result => {
-						event.sender.send('vscode:issueReporterClipboardResponse', result.response === 0);
+						this.safeSend(event, 'vscode:issueReporterClipboardResponse', result.response === 0);
 					});
 			}
 		});
 
 		ipcMain.on('vscode:issuePerformanceInfoRequest', (event: IpcMainEvent) => {
 			this.getPerformanceInfo().then(msg => {
-				event.sender.send('vscode:issuePerformanceInfoResponse', msg);
+				this.safeSend(event, 'vscode:issuePerformanceInfoResponse', msg);
 			});
 		});
 
@@ -174,146 +174,127 @@ export class IssueMainService implements ICommonIssueService {
 
 		ipcMain.on('vscode:windowsInfoRequest', (event: IpcMainEvent) => {
 			this.launchMainService.getMainProcessInfo().then(info => {
-				event.sender.send('vscode:windowsInfoResponse', info.windows);
+				this.safeSend(event, 'vscode:windowsInfoResponse', info.windows);
 			});
 		});
 	}
 
-	openReporter(data: IssueReporterData): Promise<void> {
-		return new Promise(_ => {
-			if (!this._issueWindow) {
-				this._issueParentWindow = BrowserWindow.getFocusedWindow();
-				if (this._issueParentWindow) {
-					const position = this.getWindowPosition(this._issueParentWindow, 700, 800);
-
-					this._issueWindow = new BrowserWindow({
-						fullscreen: false,
-						width: position.width,
-						height: position.height,
-						minWidth: 300,
-						minHeight: 200,
-						x: position.x,
-						y: position.y,
-						title: localize('issueReporter', "Issue Reporter"),
-						backgroundColor: data.styles.backgroundColor || DEFAULT_BACKGROUND_COLOR,
-						webPreferences: {
-							preload: FileAccess.asFileUri('vs/base/parts/sandbox/electron-browser/preload.js', require).fsPath,
-							enableWebSQL: false,
-							enableRemoteModule: false,
-							spellcheck: false,
-							nativeWindowOpen: true,
-							zoomFactor: zoomLevelToZoomFactor(data.zoomLevel),
-							...this.environmentService.sandbox ?
-
-								// Sandbox
-								{
-									sandbox: true,
-									contextIsolation: true
-								} :
-
-								// No Sandbox
-								{
-									nodeIntegration: true
-								}
-						}
-					});
-
-					this._issueWindow.setMenuBarVisibility(false); // workaround for now, until a menu is implemented
-
-					// Modified when testing UI
-					const features: IssueReporterFeatures = {};
-
-					this.logService.trace('issueService#openReporter: opening issue reporter');
-					this._issueWindow.loadURL(this.getIssueReporterPath(data, features));
-
-					this._issueWindow.on('close', () => this._issueWindow = null);
-
-					this._issueParentWindow.on('closed', () => {
-						if (this._issueWindow) {
-							this._issueWindow.close();
-							this._issueWindow = null;
-						}
-					});
-				}
-			}
-
-			if (this._issueWindow) {
-				this._issueWindow.focus();
-			}
-		});
+	private safeSend(event: IpcMainEvent, channel: string, ...args: unknown[]): void {
+		if (!event.sender.isDestroyed()) {
+			event.sender.send(channel, ...args);
+		}
 	}
 
-	openProcessExplorer(data: ProcessExplorerData): Promise<void> {
-		return new Promise(_ => {
-			// Create as singleton
-			if (!this._processExplorerWindow) {
-				this._processExplorerParentWindow = BrowserWindow.getFocusedWindow();
-				if (this._processExplorerParentWindow) {
-					const position = this.getWindowPosition(this._processExplorerParentWindow, 800, 500);
-					this._processExplorerWindow = new BrowserWindow({
-						skipTaskbar: true,
-						resizable: true,
-						fullscreen: false,
-						width: position.width,
-						height: position.height,
-						minWidth: 300,
-						minHeight: 200,
-						x: position.x,
-						y: position.y,
-						backgroundColor: data.styles.backgroundColor,
-						title: localize('processExplorer', "Process Explorer"),
-						webPreferences: {
-							preload: FileAccess.asFileUri('vs/base/parts/sandbox/electron-browser/preload.js', require).fsPath,
-							enableWebSQL: false,
-							enableRemoteModule: false,
-							spellcheck: false,
-							nativeWindowOpen: true,
-							zoomFactor: zoomLevelToZoomFactor(data.zoomLevel),
-							...this.environmentService.sandbox ?
+	async openReporter(data: IssueReporterData): Promise<void> {
+		if (!this._issueWindow) {
+			this._issueParentWindow = BrowserWindow.getFocusedWindow();
+			if (this._issueParentWindow) {
+				const position = this.getWindowPosition(this._issueParentWindow, 700, 800);
 
-								// Sandbox
-								{
-									sandbox: true,
-									contextIsolation: true
-								} :
+				this._issueWindow = new BrowserWindow({
+					fullscreen: false,
+					width: position.width,
+					height: position.height,
+					minWidth: 300,
+					minHeight: 200,
+					x: position.x,
+					y: position.y,
+					title: localize('issueReporter', "Issue Reporter"),
+					backgroundColor: data.styles.backgroundColor || DEFAULT_BACKGROUND_COLOR,
+					webPreferences: {
+						preload: FileAccess.asFileUri('vs/base/parts/sandbox/electron-browser/preload.js', require).fsPath,
+						enableWebSQL: false,
+						enableRemoteModule: false,
+						spellcheck: false,
+						nativeWindowOpen: true,
+						zoomFactor: zoomLevelToZoomFactor(data.zoomLevel),
+						sandbox: true,
+						contextIsolation: true
+					}
+				});
 
-								// No Sandbox
-								{
-									nodeIntegration: true
-								}
-						}
-					});
+				this._issueWindow.setMenuBarVisibility(false); // workaround for now, until a menu is implemented
 
-					this._processExplorerWindow.setMenuBarVisibility(false);
+				// Modified when testing UI
+				const features: IssueReporterFeatures = {};
 
-					const windowConfiguration = {
-						appRoot: this.environmentService.appRoot,
-						nodeCachedDataDir: this.environmentService.nodeCachedDataDir,
-						windowId: this._processExplorerWindow.id,
-						userEnv: this.userEnv,
-						machineId: this.machineId,
-						data
-					};
+				this.logService.trace('issueService#openReporter: opening issue reporter');
+				this._issueWindow.loadURL(this.getIssueReporterPath(data, features));
 
-					this._processExplorerWindow.loadURL(
-						toWindowUrl('vs/code/electron-sandbox/processExplorer/processExplorer.html', windowConfiguration));
+				this._issueWindow.on('close', () => this._issueWindow = null);
 
-					this._processExplorerWindow.on('close', () => this._processExplorerWindow = null);
-
-					this._processExplorerParentWindow.on('close', () => {
-						if (this._processExplorerWindow) {
-							this._processExplorerWindow.close();
-							this._processExplorerWindow = null;
-						}
-					});
-				}
+				this._issueParentWindow.on('closed', () => {
+					if (this._issueWindow) {
+						this._issueWindow.close();
+						this._issueWindow = null;
+					}
+				});
 			}
+		}
 
-			// Focus
-			if (this._processExplorerWindow) {
-				this._processExplorerWindow.focus();
+		if (this._issueWindow) {
+			this._issueWindow.focus();
+		}
+	}
+
+	async openProcessExplorer(data: ProcessExplorerData): Promise<void> {
+		// Create as singleton
+		if (!this._processExplorerWindow) {
+			this._processExplorerParentWindow = BrowserWindow.getFocusedWindow();
+			if (this._processExplorerParentWindow) {
+				const position = this.getWindowPosition(this._processExplorerParentWindow, 800, 500);
+				this._processExplorerWindow = new BrowserWindow({
+					skipTaskbar: true,
+					resizable: true,
+					fullscreen: false,
+					width: position.width,
+					height: position.height,
+					minWidth: 300,
+					minHeight: 200,
+					x: position.x,
+					y: position.y,
+					backgroundColor: data.styles.backgroundColor,
+					title: localize('processExplorer', "Process Explorer"),
+					webPreferences: {
+						preload: FileAccess.asFileUri('vs/base/parts/sandbox/electron-browser/preload.js', require).fsPath,
+						enableWebSQL: false,
+						enableRemoteModule: false,
+						spellcheck: false,
+						nativeWindowOpen: true,
+						zoomFactor: zoomLevelToZoomFactor(data.zoomLevel),
+						sandbox: true,
+						contextIsolation: true
+					}
+				});
+
+				this._processExplorerWindow.setMenuBarVisibility(false);
+
+				const windowConfiguration = {
+					appRoot: this.environmentService.appRoot,
+					windowId: this._processExplorerWindow.id,
+					userEnv: this.userEnv,
+					machineId: this.machineId,
+					data
+				};
+
+				this._processExplorerWindow.loadURL(
+					toWindowUrl('vs/code/electron-sandbox/processExplorer/processExplorer.html', windowConfiguration));
+
+				this._processExplorerWindow.on('close', () => this._processExplorerWindow = null);
+
+				this._processExplorerParentWindow.on('close', () => {
+					if (this._processExplorerWindow) {
+						this._processExplorerWindow.close();
+						this._processExplorerWindow = null;
+					}
+				});
 			}
-		});
+		}
+
+		// Focus
+		if (this._processExplorerWindow) {
+			this._processExplorerWindow.focus();
+		}
 	}
 
 	public async getSystemStatus(): Promise<string> {
@@ -416,7 +397,6 @@ export class IssueMainService implements ICommonIssueService {
 
 		const windowConfiguration = {
 			appRoot: this.environmentService.appRoot,
-			nodeCachedDataDir: this.environmentService.nodeCachedDataDir,
 			windowId: this._issueWindow.id,
 			machineId: this.machineId,
 			userEnv: this.userEnv,
@@ -452,7 +432,7 @@ function toWindowUrl<T>(modulePathToHtml: string, windowConfiguration: T): strin
 	}
 
 	return FileAccess
-		.asBrowserUri(modulePathToHtml, require)
+		._asCodeFileUri(modulePathToHtml, require)
 		.with({ query: `config=${encodeURIComponent(JSON.stringify(config))}` })
 		.toString(true);
 }

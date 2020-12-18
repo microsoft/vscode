@@ -199,9 +199,9 @@ export class ExecutableDebugAdapter extends StreamDebugAdapter {
 					"Cannot determine executable for debug adapter '{0}'.", this.debugType));
 			}
 
-			let env = objects.mixin({}, process.env);
-			if (options.env) {
-				env = objects.mixin(env, options.env);
+			let env = process.env;
+			if (options.env && Object.keys(options.env).length > 0) {
+				env = objects.mixin(objects.deepClone(process.env), options.env);
 			}
 
 			if (command === 'node') {

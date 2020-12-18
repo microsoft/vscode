@@ -86,6 +86,10 @@ export class MockDebugService implements IDebugService {
 		throw new Error('not implemented');
 	}
 
+	setExceptionBreakpointCondition(breakpoint: IExceptionBreakpoint, condition: string): Promise<void> {
+		throw new Error('Method not implemented.');
+	}
+
 	public addFunctionBreakpoint(): void { }
 
 	public moveWatchExpression(id: string, position: number): void { }

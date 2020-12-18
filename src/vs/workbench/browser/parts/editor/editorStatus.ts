@@ -766,7 +766,7 @@ export class EditorStatus extends Disposable implements IWorkbenchContribution {
 		if (editorWidget) {
 			const screenReaderDetected = this.accessibilityService.isScreenReaderOptimized();
 			if (screenReaderDetected) {
-				const screenReaderConfiguration = this.configurationService.getValue<IEditorOptions>('editor').accessibilitySupport;
+				const screenReaderConfiguration = this.configurationService.getValue<IEditorOptions>('editor')?.accessibilitySupport;
 				if (screenReaderConfiguration === 'auto') {
 					if (!this.promptedScreenReader) {
 						this.promptedScreenReader = true;
@@ -1085,6 +1085,7 @@ export class ChangeModeAction extends Action {
 		const languages = this.modeService.getRegisteredLanguageNames();
 		const picks: QuickPickInput[] = languages.sort().map((lang, index) => {
 			const modeId = this.modeService.getModeIdForLanguageName(lang.toLowerCase()) || 'unknown';
+			const extensions = this.modeService.getExtensions(lang).join(' ');
 			let description: string;
 			if (currentLanguageId === lang) {
 				description = nls.localize('languageDescription', "({0}) - Configured Language", modeId);
@@ -1094,6 +1095,7 @@ export class ChangeModeAction extends Action {
 
 			return {
 				label: lang,
+				meta: extensions,
 				iconClasses: getIconClassesForModeId(modeId),
 				description
 			};
@@ -1150,7 +1152,7 @@ export class ChangeModeAction extends Action {
 
 		// User decided to configure settings for current language
 		if (pick === configureModeSettings) {
-			this.preferencesService.openGlobalSettings(true, { editSetting: `[${withUndefinedAsNull(currentModeId)}]` });
+			this.preferencesService.openGlobalSettings(true, { revealSetting: { key: `[${withUndefinedAsNull(currentModeId)}]`, edit: true } });
 			return;
 		}
 

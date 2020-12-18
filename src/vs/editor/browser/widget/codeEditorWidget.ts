@@ -1027,6 +1027,8 @@ export class CodeEditorWidget extends Disposable implements editorBrowser.ICodeE
 		if (this._triggerEditorCommand(source, handlerId, payload)) {
 			return;
 		}
+
+		this._commandService.executeCommand(handlerId, payload);
 	}
 
 	private _startComposition(): void {
@@ -1117,6 +1119,18 @@ export class CodeEditorWidget extends Disposable implements editorBrowser.ICodeE
 			return false;
 		}
 		this._modelData.model.pushStackElement();
+		return true;
+	}
+
+	public popUndoStop(): boolean {
+		if (!this._modelData) {
+			return false;
+		}
+		if (this._configuration.options.get(EditorOption.readOnly)) {
+			// read only editor => sorry!
+			return false;
+		}
+		this._modelData.model.popStackElement();
 		return true;
 	}
 

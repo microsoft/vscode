@@ -45,12 +45,16 @@ export const CONTEXT_IN_DEBUG_MODE = new RawContextKey<boolean>('inDebugMode', f
 export const CONTEXT_IN_DEBUG_REPL = new RawContextKey<boolean>('inDebugRepl', false);
 export const CONTEXT_BREAKPOINT_WIDGET_VISIBLE = new RawContextKey<boolean>('breakpointWidgetVisible', false);
 export const CONTEXT_IN_BREAKPOINT_WIDGET = new RawContextKey<boolean>('inBreakpointWidget', false);
-export const CONTEXT_BREAKPOINTS_FOCUSED = new RawContextKey<boolean>('breakpointsFocused', true);
-export const CONTEXT_WATCH_EXPRESSIONS_FOCUSED = new RawContextKey<boolean>('watchExpressionsFocused', true);
-export const CONTEXT_VARIABLES_FOCUSED = new RawContextKey<boolean>('variablesFocused', true);
+export const CONTEXT_BREAKPOINTS_FOCUSED = new RawContextKey<boolean>('breakpointsFocused', false);
+export const CONTEXT_WATCH_EXPRESSIONS_FOCUSED = new RawContextKey<boolean>('watchExpressionsFocused', false);
+export const CONTEXT_WATCH_EXPRESSIONS_EXIST = new RawContextKey<boolean>('watchExpressionsExist', false);
+export const CONTEXT_VARIABLES_FOCUSED = new RawContextKey<boolean>('variablesFocused', false);
 export const CONTEXT_EXPRESSION_SELECTED = new RawContextKey<boolean>('expressionSelected', false);
 export const CONTEXT_BREAKPOINT_SELECTED = new RawContextKey<boolean>('breakpointSelected', false);
 export const CONTEXT_CALLSTACK_ITEM_TYPE = new RawContextKey<string>('callStackItemType', undefined);
+export const CONTEXT_WATCH_ITEM_TYPE = new RawContextKey<string>('watchItemType', undefined);
+export const CONTEXT_BREAKPOINT_ITEM_TYPE = new RawContextKey<string>('breakpointItemType', undefined);
+export const CONTEXT_EXCEPTION_BREAKPOINT_SUPPORTS_CONDITION = new RawContextKey<boolean>('exceptionBreakpointSupportsCondition', false);
 export const CONTEXT_LOADED_SCRIPTS_SUPPORTED = new RawContextKey<boolean>('loadedScriptsSupported', false);
 export const CONTEXT_LOADED_SCRIPTS_ITEM_TYPE = new RawContextKey<string>('loadedScriptsItemType', undefined);
 export const CONTEXT_FOCUSED_SESSION_IS_ATTACH = new RawContextKey<boolean>('focusedSessionIsAttach', false);
@@ -65,6 +69,8 @@ export const CONTEXT_SET_VARIABLE_SUPPORTED = new RawContextKey<boolean>('debugS
 export const CONTEXT_BREAK_WHEN_VALUE_CHANGES_SUPPORTED = new RawContextKey<boolean>('breakWhenValueChangesSupported', false);
 export const CONTEXT_VARIABLE_EVALUATE_NAME_PRESENT = new RawContextKey<boolean>('variableEvaluateNamePresent', false);
 export const CONTEXT_EXCEPTION_WIDGET_VISIBLE = new RawContextKey<boolean>('exceptionWidgetVisible', false);
+export const CONTEXT_MULTI_SESSION_REPL = new RawContextKey<boolean>('multiSessionRepl', false);
+export const CONTEXT_MULTI_SESSION_DEBUG = new RawContextKey<boolean>('multiSessionDebug', false);
 
 export const EDITOR_CONTRIBUTION_ID = 'editor.contrib.debug';
 export const BREAKPOINT_EDITOR_CONTRIBUTION_ID = 'editor.contrib.breakpoint';
@@ -402,6 +408,7 @@ export interface IFunctionBreakpoint extends IBaseBreakpoint {
 export interface IExceptionBreakpoint extends IEnablement {
 	readonly filter: string;
 	readonly label: string;
+	readonly condition: string | undefined;
 }
 
 export interface IDataBreakpoint extends IBaseBreakpoint {
@@ -436,9 +443,9 @@ export interface IViewModel extends ITreeElement {
 	readonly focusedStackFrame: IStackFrame | undefined;
 
 	getSelectedExpression(): IExpression | undefined;
-	getSelectedFunctionBreakpoint(): IFunctionBreakpoint | undefined;
+	getSelectedBreakpoint(): IFunctionBreakpoint | IExceptionBreakpoint | undefined;
 	setSelectedExpression(expression: IExpression | undefined): void;
-	setSelectedFunctionBreakpoint(functionBreakpoint: IFunctionBreakpoint | undefined): void;
+	setSelectedBreakpoint(functionBreakpoint: IFunctionBreakpoint | IExceptionBreakpoint | undefined): void;
 	updateViews(): void;
 
 	isMultiSessionView(): boolean;
@@ -446,6 +453,7 @@ export interface IViewModel extends ITreeElement {
 	onDidFocusSession: Event<IDebugSession | undefined>;
 	onDidFocusStackFrame: Event<{ stackFrame: IStackFrame | undefined, explicit: boolean }>;
 	onDidSelectExpression: Event<IExpression | undefined>;
+	onDidSelectBreakpoint: Event<IFunctionBreakpoint | IExceptionBreakpoint | undefined>;
 	onWillUpdateViews: Event<void>;
 }
 
@@ -628,6 +636,7 @@ export interface IDebuggerContribution extends IPlatformSpecificAdapterContribut
 
 	// supported languages
 	languages?: string[];
+	enableBreakpointsFor?: { languageIds?: string[] };
 
 	// debug configuration support
 	configurationAttributes?: any;
@@ -864,6 +873,8 @@ export interface IDebugService {
 	 * Notifies debug adapter of breakpoint changes.
 	 */
 	removeDataBreakpoints(id?: string): Promise<void>;
+
+	setExceptionBreakpointCondition(breakpoint: IExceptionBreakpoint, condition: string | undefined): Promise<void>;
 
 	/**
 	 * Sends all breakpoints to the passed session.

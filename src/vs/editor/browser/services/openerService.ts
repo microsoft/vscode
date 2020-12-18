@@ -16,7 +16,6 @@ import { IOpener, IOpenerService, IValidator, IExternalUriResolver, OpenOptions,
 import { EditorOpenContext } from 'vs/platform/editor/common/editor';
 import { ResourceMap } from 'vs/base/common/map';
 
-
 class CommandOpener implements IOpener {
 
 	constructor(@ICommandService private readonly _commandService: ICommandService) { }
@@ -108,7 +107,7 @@ export class OpenerService implements IOpenerService {
 	) {
 		// Default external opener is going through window.open()
 		this._externalOpener = {
-			openExternal: href => {
+			openExternal: async href => {
 				// ensure to open HTTP/HTTPS links into new windows
 				// to not trigger a navigation. Any other link is
 				// safe to be set as HREF to prevent a blank window
@@ -118,11 +117,11 @@ export class OpenerService implements IOpenerService {
 				} else {
 					window.location.href = href;
 				}
-				return Promise.resolve(true);
+				return true;
 			}
 		};
 
-		// Default opener: maito, http(s), command, and catch-all-editors
+		// Default opener: any external, maito, http(s), command, and catch-all-editors
 		this._openers.push({
 			open: async (target: URI | string, options?: OpenOptions) => {
 				if (options?.openExternal || matchesScheme(target, Schemas.mailto) || matchesScheme(target, Schemas.http) || matchesScheme(target, Schemas.https)) {

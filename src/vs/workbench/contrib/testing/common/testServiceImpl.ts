@@ -4,12 +4,17 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { groupBy } from 'vs/base/common/arrays';
+import { CancellationToken, CancellationTokenSource } from 'vs/base/common/cancellation';
 import { Emitter } from 'vs/base/common/event';
 import { Disposable, toDisposable } from 'vs/base/common/lifecycle';
 import { isDefined } from 'vs/base/common/types';
 import { URI, UriComponents } from 'vs/base/common/uri';
+import { localize } from 'vs/nls';
+import { IContextKey, IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
+import { INotificationService } from 'vs/platform/notification/common/notification';
 import { ExtHostTestingResource } from 'vs/workbench/api/common/extHost.protocol';
-import { AbstractIncrementalTestCollection, collectTestResults, getTestSubscriptionKey, IncrementalTestCollectionItem, InternalTestItem, RunTestsRequest, RunTestsResult, TestDiffOpType, TestsDiff } from 'vs/workbench/contrib/testing/common/testCollection';
+import { AbstractIncrementalTestCollection, collectTestResults, EMPTY_TEST_RESULT, getTestSubscriptionKey, IncrementalTestCollectionItem, InternalTestItem, RunTestsRequest, RunTestsResult, TestDiffOpType, TestsDiff } from 'vs/workbench/contrib/testing/common/testCollection';
+import { TestingContextKeys } from 'vs/workbench/contrib/testing/common/testingContextKeys';
 import { ITestService, MainTestController, TestDiffListener } from 'vs/workbench/contrib/testing/common/testService';
 
 export class TestService extends Disposable implements ITestService {
@@ -17,11 +22,40 @@ export class TestService extends Disposable implements ITestService {
 	private testControllers = new Map<string, MainTestController>();
 	private readonly testSubscriptions = new Map<string, {
 		collection: MainThreadTestCollection;
+		ident: { resource: ExtHostTestingResource, uri: URI };
 		onDiff: Emitter<TestsDiff>;
 		listeners: number;
 	}>();
+
 	private readonly subscribeEmitter = new Emitter<{ resource: ExtHostTestingResource, uri: URI }>();
 	private readonly unsubscribeEmitter = new Emitter<{ resource: ExtHostTestingResource, uri: URI }>();
+	private readonly changeProvidersEmitter = new Emitter<{ delta: number }>();
+	private readonly providerCount: IContextKey<number>;
+	private readonly runStartedEmitter = new Emitter<RunTestsRequest>();
+	private readonly runCompletedEmitter = new Emitter<{ req: RunTestsRequest, result: RunTestsResult }>();
+	private readonly runningTests = new Map<RunTestsRequest, CancellationTokenSource>();
+
+	public readonly onTestRunStarted = this.runStartedEmitter.event;
+	public readonly onTestRunCompleted = this.runCompletedEmitter.event;
+
+	constructor(@IContextKeyService contextKeyService: IContextKeyService, @INotificationService private readonly notificationService: INotificationService) {
+		super();
+		this.providerCount = TestingContextKeys.providerCount.bindTo(contextKeyService);
+	}
+
+	/**
+	 * Gets currently running tests.
+	 */
+	public get testRuns() {
+		return this.runningTests.keys();
+	}
+
+	/**
+	 * Gets the current provider count.
+	 */
+	public get providers() {
+		return this.providerCount.get() || 0;
+	}
 
 	/**
 	 * Fired when extension hosts should pull events from their test factories.
@@ -34,17 +68,47 @@ export class TestService extends Disposable implements ITestService {
 	public readonly onShouldUnsubscribe = this.unsubscribeEmitter.event;
 
 	/**
+	 * Fired when the number of providers change.
+	 */
+	public readonly onDidChangeProviders = this.changeProvidersEmitter.event;
+
+	/**
 	 * @inheritdoc
 	 */
-	async runTests(req: RunTestsRequest): Promise<RunTestsResult> {
+	public get subscriptions() {
+		return [...this.testSubscriptions].map(([, s]) => s.ident);
+	}
+
+	/**
+	 * @inheritdoc
+	 */
+	public cancelTestRun(req: RunTestsRequest) {
+		this.runningTests.get(req)?.cancel();
+	}
+
+
+	/**
+	 * @inheritdoc
+	 */
+	public async runTests(req: RunTestsRequest, token = CancellationToken.None): Promise<RunTestsResult> {
 		const tests = groupBy(req.tests, (a, b) => a.providerId === b.providerId ? 0 : 1);
+		const cancelSource = new CancellationTokenSource(token);
 		const requests = tests.map(group => {
 			const providerId = group[0].providerId;
 			const controller = this.testControllers.get(providerId);
-			return controller?.runTests({ providerId, debug: req.debug, ids: group.map(t => t.testId) });
+			return controller?.runTests({ providerId, debug: req.debug, ids: group.map(t => t.testId) }, cancelSource.token).catch(err => {
+				this.notificationService.error(localize('testError', 'An error occurred attempting to run tests: {0}', err.message));
+				return EMPTY_TEST_RESULT;
+			});
 		}).filter(isDefined);
 
-		return collectTestResults(await Promise.all(requests));
+		this.runningTests.set(req, cancelSource);
+		this.runStartedEmitter.fire(req);
+		const result = await collectTestResults(await Promise.all(requests));
+		this.runningTests.delete(req);
+		this.runCompletedEmitter.fire({ req, result });
+
+		return result;
 	}
 
 	/**
@@ -54,7 +118,7 @@ export class TestService extends Disposable implements ITestService {
 		const subscriptionKey = getTestSubscriptionKey(resource, uri);
 		let subscription = this.testSubscriptions.get(subscriptionKey);
 		if (!subscription) {
-			subscription = { collection: new MainThreadTestCollection(), listeners: 0, onDiff: new Emitter() };
+			subscription = { ident: { resource, uri }, collection: new MainThreadTestCollection(), listeners: 0, onDiff: new Emitter() };
 			this.subscribeEmitter.fire({ resource, uri });
 			this.testSubscriptions.set(subscriptionKey, subscription);
 		}
@@ -93,6 +157,8 @@ export class TestService extends Disposable implements ITestService {
 	 */
 	public registerTestController(id: string, controller: MainTestController): void {
 		this.testControllers.set(id, controller);
+		this.providerCount.set(this.testControllers.size);
+		this.changeProvidersEmitter.fire({ delta: 1 });
 	}
 
 	/**
@@ -100,6 +166,8 @@ export class TestService extends Disposable implements ITestService {
 	 */
 	public unregisterTestController(id: string): void {
 		this.testControllers.delete(id);
+		this.providerCount.set(this.testControllers.size);
+		this.changeProvidersEmitter.fire({ delta: -1 });
 	}
 }
 

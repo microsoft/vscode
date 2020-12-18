@@ -21,7 +21,7 @@ import { IWorkbenchContributionsRegistry, Extensions as WorkbenchExtensions, IWo
 import { LifecyclePhase } from 'vs/workbench/services/lifecycle/common/lifecycle';
 import { IInstantiationService, ServicesAccessor } from 'vs/platform/instantiation/common/instantiation';
 import { ITextModelService } from 'vs/editor/common/services/resolverService';
-import { ViewContainer, IViewContainersRegistry, ViewContainerLocation, Extensions as ViewContainerExtensions, IViewsRegistry, IViewsService, IViewDescriptorService } from 'vs/workbench/common/views';
+import { ViewContainer, IViewContainersRegistry, ViewContainerLocation, Extensions as ViewContainerExtensions, IViewsRegistry, IViewsService } from 'vs/workbench/common/views';
 import { ViewPaneContainer } from 'vs/workbench/browser/parts/views/viewPaneContainer';
 import { IConfigurationRegistry, Extensions as ConfigurationExtensions, ConfigurationScope } from 'vs/platform/configuration/common/configurationRegistry';
 import { KeybindingWeight } from 'vs/platform/keybinding/common/keybindingsRegistry';
@@ -29,12 +29,11 @@ import { IQuickPickItem, IQuickInputService } from 'vs/platform/quickinput/commo
 import { IOutputChannelDescriptor, IFileOutputChannelDescriptor } from 'vs/workbench/services/output/common/output';
 import { IEditorService } from 'vs/workbench/services/editor/common/editorService';
 import { assertIsDefined } from 'vs/base/common/types';
-import { IWorkbenchLayoutService } from 'vs/workbench/services/layout/browser/layoutService';
-import { ContextKeyEqualsExpr, ContextKeyExpr, IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
+import { ContextKeyEqualsExpr, ContextKeyExpr } from 'vs/platform/contextkey/common/contextkey';
 import { ToggleViewAction } from 'vs/workbench/browser/actions/layoutActions';
-import { Codicon, registerIcon } from 'vs/base/common/codicons';
+import { Codicon } from 'vs/base/common/codicons';
+import { registerIcon } from 'vs/platform/theme/common/iconRegistry';
 import { CATEGORIES } from 'vs/workbench/common/actions';
-import { ThemeIcon } from 'vs/platform/theme/common/themeService';
 
 // Register Service
 registerSingleton(IOutputService, OutputService);
@@ -67,7 +66,7 @@ const outputViewIcon = registerIcon('output-view-icon', Codicon.output, nls.loca
 const VIEW_CONTAINER: ViewContainer = Registry.as<IViewContainersRegistry>(ViewContainerExtensions.ViewContainersRegistry).registerViewContainer({
 	id: OUTPUT_VIEW_ID,
 	name: nls.localize('output', "Output"),
-	icon: ThemeIcon.fromCodicon(outputViewIcon),
+	icon: outputViewIcon,
 	order: 1,
 	ctorDescriptor: new SyncDescriptor(ViewPaneContainer, [OUTPUT_VIEW_ID, { mergeViewWithContainerWhenSingleView: true, donotShowContainerTitleWhenMergedWithContainer: true }]),
 	storageId: OUTPUT_VIEW_ID,
@@ -78,7 +77,7 @@ const VIEW_CONTAINER: ViewContainer = Registry.as<IViewContainersRegistry>(ViewC
 Registry.as<IViewsRegistry>(ViewContainerExtensions.ViewsRegistry).registerViews([{
 	id: OUTPUT_VIEW_ID,
 	name: nls.localize('output', "Output"),
-	containerIcon: ThemeIcon.fromCodicon(outputViewIcon),
+	containerIcon: outputViewIcon,
 	canMoveView: true,
 	canToggleVisibility: false,
 	ctorDescriptor: new SyncDescriptor(OutputViewPane),
@@ -143,7 +142,7 @@ registerAction2(class extends Action2 {
 				id: MenuId.EditorContext,
 				when: CONTEXT_IN_OUTPUT
 			}],
-			icon: { id: 'codicon/clear-all' }
+			icon: Codicon.clearAll
 		});
 	}
 	async run(accessor: ServicesAccessor): Promise<void> {
@@ -160,18 +159,18 @@ registerAction2(class extends Action2 {
 		super({
 			id: `workbench.output.action.toggleAutoScroll`,
 			title: { value: nls.localize('toggleAutoScroll', "Toggle Auto Scrolling"), original: 'Toggle Auto Scrolling' },
-			tooltip: { value: nls.localize('outputScrollOff', "Turn Auto Scrolling Off"), original: 'Turn Auto Scrolling Off' },
+			tooltip: nls.localize('outputScrollOff', "Turn Auto Scrolling Off"),
 			menu: {
 				id: MenuId.ViewTitle,
 				when: ContextKeyExpr.and(ContextKeyEqualsExpr.create('view', OUTPUT_VIEW_ID)),
 				group: 'navigation',
 				order: 3,
 			},
-			icon: { id: 'codicon/unlock' },
+			icon: Codicon.unlock,
 			toggled: {
 				condition: CONTEXT_OUTPUT_SCROLL_LOCK,
-				icon: { id: 'codicon/lock' },
-				tooltip: { value: nls.localize('outputScrollOn', "Turn Auto Scrolling On"), original: 'Turn Auto Scrolling On' }
+				icon: Codicon.lock,
+				tooltip: nls.localize('outputScrollOn', "Turn Auto Scrolling On")
 			}
 		});
 	}
@@ -194,7 +193,7 @@ registerAction2(class extends Action2 {
 				id: MenuId.CommandPalette,
 				when: CONTEXT_ACTIVE_LOG_OUTPUT,
 			}],
-			icon: { id: 'codicon/go-to-file' },
+			icon: Codicon.goToFile,
 			precondition: CONTEXT_ACTIVE_LOG_OUTPUT
 		});
 	}
@@ -239,15 +238,7 @@ registerAction2(class extends Action2 {
 		});
 	}
 	async run(accessor: ServicesAccessor): Promise<void> {
-		const viewsService = accessor.get(IViewsService);
-		const viewDescriptorService = accessor.get(IViewDescriptorService);
-		const contextKeyService = accessor.get(IContextKeyService);
-		const layoutService = accessor.get(IWorkbenchLayoutService);
-		return new class ToggleOutputAction extends ToggleViewAction {
-			constructor() {
-				super(toggleOutputAcitonId, 'Toggle Output', OUTPUT_VIEW_ID, viewsService, viewDescriptorService, contextKeyService, layoutService);
-			}
-		}().run();
+		return accessor.get(IInstantiationService).createInstance(ToggleViewAction, toggleOutputAcitonId, 'Toggle Output', OUTPUT_VIEW_ID).run();
 	}
 });
 

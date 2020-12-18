@@ -8,12 +8,10 @@ import { Registry } from 'vs/platform/registry/common/platform';
 import { Action } from 'vs/base/common/actions';
 import { SyncActionDescriptor, MenuId, MenuRegistry, registerAction2, Action2 } from 'vs/platform/actions/common/actions';
 import { IWorkbenchActionRegistry, Extensions as WorkbenchExtensions, CATEGORIES } from 'vs/workbench/common/actions';
-import { ConfigurationTarget, IConfigurationService } from 'vs/platform/configuration/common/configuration';
+import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { IWorkbenchLayoutService, Parts, Position } from 'vs/workbench/services/layout/browser/layoutService';
-import { IEditorGroupsService, GroupOrientation } from 'vs/workbench/services/editor/common/editorGroupsService';
 import { ServicesAccessor, IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { KeyMod, KeyCode, KeyChord } from 'vs/base/common/keyCodes';
-import { DisposableStore } from 'vs/base/common/lifecycle';
 import { getMenuBarVisibility } from 'vs/platform/windows/common/windows';
 import { isWindows, isLinux, isWeb } from 'vs/base/common/platform';
 import { IsMacNativeContext } from 'vs/platform/contextkey/common/contextkeys';
@@ -21,13 +19,11 @@ import { KeybindingsRegistry, KeybindingWeight } from 'vs/platform/keybinding/co
 import { InEditorZenModeContext, IsCenteredLayoutContext, EditorAreaVisibleContext } from 'vs/workbench/common/editor';
 import { ContextKeyExpr, IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
 import { SideBarVisibleContext } from 'vs/workbench/common/viewlet';
-import { IEnvironmentService } from 'vs/platform/environment/common/environment';
 import { IViewDescriptorService, IViewsService, FocusedViewContext, ViewContainerLocation, IViewDescriptor } from 'vs/workbench/common/views';
 import { IQuickInputService, IQuickPickItem, IQuickPickSeparator } from 'vs/platform/quickinput/common/quickInput';
 import { INotificationService } from 'vs/platform/notification/common/notification';
 import { IActivityBarService } from 'vs/workbench/services/activityBar/browser/activityBarService';
 import { IPanelService } from 'vs/workbench/services/panel/common/panelService';
-import { Codicon } from 'vs/base/common/codicons';
 
 const registry = Registry.as<IWorkbenchActionRegistry>(WorkbenchExtensions.WorkbenchActions);
 
@@ -126,54 +122,6 @@ MenuRegistry.appendMenuItem(MenuId.MenubarAppearanceMenu, {
 	order: 3
 });
 
-// --- Toggle Editor Layout
-
-export class ToggleEditorLayoutAction extends Action {
-
-	static readonly ID = 'workbench.action.toggleEditorGroupLayout';
-	static readonly LABEL = nls.localize('flipLayout', "Toggle Vertical/Horizontal Editor Layout");
-
-	private readonly toDispose = this._register(new DisposableStore());
-
-	constructor(
-		id: string,
-		label: string,
-		@IEditorGroupsService private readonly editorGroupService: IEditorGroupsService
-	) {
-		super(id, label);
-
-		this.class = Codicon.editorLayout.classNames;
-		this.updateEnablement();
-
-		this.registerListeners();
-	}
-
-	private registerListeners(): void {
-		this.toDispose.add(this.editorGroupService.onDidAddGroup(() => this.updateEnablement()));
-		this.toDispose.add(this.editorGroupService.onDidRemoveGroup(() => this.updateEnablement()));
-	}
-
-	private updateEnablement(): void {
-		this.enabled = this.editorGroupService.count > 1;
-	}
-
-	async run(): Promise<void> {
-		const newOrientation = (this.editorGroupService.orientation === GroupOrientation.VERTICAL) ? GroupOrientation.HORIZONTAL : GroupOrientation.VERTICAL;
-		this.editorGroupService.setGroupOrientation(newOrientation);
-	}
-}
-
-registry.registerWorkbenchAction(SyncActionDescriptor.from(ToggleEditorLayoutAction, { primary: KeyMod.Shift | KeyMod.Alt | KeyCode.KEY_0, mac: { primary: KeyMod.CtrlCmd | KeyMod.Alt | KeyCode.KEY_0 } }), 'View: Toggle Vertical/Horizontal Editor Layout', CATEGORIES.View.value);
-
-MenuRegistry.appendMenuItem(MenuId.MenubarLayoutMenu, {
-	group: 'z_flip',
-	command: {
-		id: ToggleEditorLayoutAction.ID,
-		title: nls.localize({ key: 'miToggleEditorLayout', comment: ['&& denotes a mnemonic'] }, "Flip &&Layout")
-	},
-	order: 1
-});
-
 // --- Toggle Sidebar Position
 
 export class ToggleSidebarPositionAction extends Action {
@@ -204,7 +152,42 @@ export class ToggleSidebarPositionAction extends Action {
 	}
 }
 
-registry.registerWorkbenchAction(SyncActionDescriptor.from(ToggleSidebarPositionAction), 'View: Toggle Side Bar Position', CATEGORIES.View.value);
+registerAction2(class extends Action2 {
+	constructor() {
+		super({
+			id: ToggleSidebarPositionAction.ID,
+			title: { value: nls.localize('toggleSidebarPosition', "Toggle Side Bar Position"), original: 'Toggle Side Bar Position' },
+			category: CATEGORIES.View,
+			f1: true
+		});
+	}
+	run(accessor: ServicesAccessor) {
+		accessor.get(IInstantiationService).createInstance(ToggleSidebarPositionAction, ToggleSidebarPositionAction.ID, ToggleSidebarPositionAction.LABEL).run();
+	}
+});
+MenuRegistry.appendMenuItems([{
+	id: MenuId.ViewContainerTitleContext,
+	item: {
+		group: '3_workbench_layout_move',
+		command: {
+			id: ToggleSidebarPositionAction.ID,
+			title: nls.localize('move sidebar right', "Move Side Bar Right")
+		},
+		when: ContextKeyExpr.notEquals('config.workbench.sideBar.location', 'right'),
+		order: 1
+	}
+}, {
+	id: MenuId.ViewContainerTitleContext,
+	item: {
+		group: '3_workbench_layout_move',
+		command: {
+			id: ToggleSidebarPositionAction.ID,
+			title: nls.localize('move sidebar left', "Move Side Bar Left")
+		},
+		when: ContextKeyExpr.equals('config.workbench.sideBar.location', 'right'),
+		order: 1
+	}
+}]);
 
 MenuRegistry.appendMenuItem(MenuId.MenubarAppearanceMenu, {
 	group: '3_workbench_layout_move',
@@ -257,27 +240,6 @@ MenuRegistry.appendMenuItem(MenuId.MenubarAppearanceMenu, {
 	order: 5
 });
 
-export class ToggleSidebarVisibilityAction extends Action {
-
-	static readonly ID = 'workbench.action.toggleSidebarVisibility';
-	static readonly LABEL = nls.localize('toggleSidebar', "Toggle Side Bar Visibility");
-
-	constructor(
-		id: string,
-		label: string,
-		@IWorkbenchLayoutService private readonly layoutService: IWorkbenchLayoutService
-	) {
-		super(id, label);
-	}
-
-	async run(): Promise<void> {
-		const hideSidebar = this.layoutService.isVisible(Parts.SIDEBAR_PART);
-		this.layoutService.setSideBarHidden(hideSidebar);
-	}
-}
-
-registry.registerWorkbenchAction(SyncActionDescriptor.from(ToggleSidebarVisibilityAction, { primary: KeyMod.CtrlCmd | KeyCode.KEY_B }), 'View: Toggle Side Bar Visibility', CATEGORIES.View.value);
-
 MenuRegistry.appendMenuItem(MenuId.MenubarViewMenu, {
 	group: '2_appearance',
 	title: nls.localize({ key: 'miAppearance', comment: ['&& denotes a mnemonic'] }, "&&Appearance"),
@@ -285,10 +247,42 @@ MenuRegistry.appendMenuItem(MenuId.MenubarViewMenu, {
 	order: 1
 });
 
+export const TOGGLE_SIDEBAR_VISIBILITY_ACTION_ID = 'workbench.action.toggleSidebarVisibility';
+registerAction2(class extends Action2 {
+	constructor() {
+		super({
+			id: TOGGLE_SIDEBAR_VISIBILITY_ACTION_ID,
+			title: { value: nls.localize('toggleSidebar', "Toggle Side Bar Visibility"), original: 'Toggle Side Bar Visibility' },
+			category: CATEGORIES.View,
+			f1: true,
+			keybinding: {
+				weight: KeybindingWeight.WorkbenchContrib,
+				primary: KeyMod.CtrlCmd | KeyCode.KEY_B
+			}
+		});
+	}
+	run(accessor: ServicesAccessor) {
+		const layoutService = accessor.get(IWorkbenchLayoutService);
+		layoutService.setSideBarHidden(layoutService.isVisible(Parts.SIDEBAR_PART));
+	}
+});
+MenuRegistry.appendMenuItems([{
+	id: MenuId.ViewContainerTitleContext,
+	item: {
+		group: '3_workbench_layout_move',
+		command: {
+			id: TOGGLE_SIDEBAR_VISIBILITY_ACTION_ID,
+			title: nls.localize('compositePart.hideSideBarLabel', "Hide Side Bar"),
+		},
+		when: SideBarVisibleContext,
+		order: 2
+	}
+}]);
+
 MenuRegistry.appendMenuItem(MenuId.MenubarAppearanceMenu, {
 	group: '2_workbench_layout',
 	command: {
-		id: ToggleSidebarVisibilityAction.ID,
+		id: TOGGLE_SIDEBAR_VISIBILITY_ACTION_ID,
 		title: nls.localize({ key: 'miShowSidebar', comment: ['&& denotes a mnemonic'] }, "Show &&Side Bar"),
 		toggled: SideBarVisibleContext
 	},
@@ -419,14 +413,13 @@ export class ToggleMenuBarAction extends Action {
 	constructor(
 		id: string,
 		label: string,
-		@IConfigurationService private readonly configurationService: IConfigurationService,
-		@IEnvironmentService private readonly environmentService: IEnvironmentService
+		@IConfigurationService private readonly configurationService: IConfigurationService
 	) {
 		super(id, label);
 	}
 
 	run(): Promise<void> {
-		let currentVisibilityValue = getMenuBarVisibility(this.configurationService, this.environmentService);
+		let currentVisibilityValue = getMenuBarVisibility(this.configurationService);
 		if (typeof currentVisibilityValue !== 'string') {
 			currentVisibilityValue = 'default';
 		}
@@ -440,7 +433,7 @@ export class ToggleMenuBarAction extends Action {
 			newVisibilityValue = (isWeb && currentVisibilityValue === 'hidden') ? 'compact' : 'default';
 		}
 
-		return this.configurationService.updateValue(ToggleMenuBarAction.menuBarVisibilityKey, newVisibilityValue, ConfigurationTarget.USER);
+		return this.configurationService.updateValue(ToggleMenuBarAction.menuBarVisibilityKey, newVisibilityValue);
 	}
 }
 
@@ -481,19 +474,18 @@ export class ResetViewLocationsAction extends Action {
 registry.registerWorkbenchAction(SyncActionDescriptor.from(ResetViewLocationsAction), 'View: Reset View Locations', CATEGORIES.View.value);
 
 // --- Toggle View with Command
-export abstract class ToggleViewAction extends Action {
+export class ToggleViewAction extends Action {
 
 	constructor(
 		id: string,
 		label: string,
 		private readonly viewId: string,
-		protected viewsService: IViewsService,
-		protected viewDescriptorService: IViewDescriptorService,
-		protected contextKeyService: IContextKeyService,
-		private layoutService: IWorkbenchLayoutService,
-		cssClass?: string
+		@IViewsService protected viewsService: IViewsService,
+		@IViewDescriptorService protected viewDescriptorService: IViewDescriptorService,
+		@IContextKeyService protected contextKeyService: IContextKeyService,
+		@IWorkbenchLayoutService private layoutService: IWorkbenchLayoutService,
 	) {
-		super(id, label, cssClass);
+		super(id, label);
 	}
 
 	async run(): Promise<void> {

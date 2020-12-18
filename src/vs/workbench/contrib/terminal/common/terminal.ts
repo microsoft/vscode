@@ -51,6 +51,8 @@ export const KEYBINDING_CONTEXT_TERMINAL_PROCESS_SUPPORTED = new RawContextKey<b
 export const IS_WORKSPACE_SHELL_ALLOWED_STORAGE_KEY = 'terminal.integrated.isWorkspaceShellAllowed';
 export const NEVER_MEASURE_RENDER_TIME_STORAGE_KEY = 'terminal.integrated.neverMeasureRenderTime';
 
+export const TERMINAL_CREATION_COMMANDS = ['workbench.action.terminal.toggleTerminal', 'workbench.action.terminal.new', 'workbench.action.togglePanel', 'workbench.action.terminal.focus'];
+
 // The creation of extension host terminals is delayed by this value (milliseconds). The purpose of
 // this delay is to allow the terminal instance to initialize correctly and have its ID set before
 // trying to create the corressponding object on the ext host.
@@ -108,6 +110,7 @@ export interface ITerminalConfiguration {
 	fontWeightBold: FontWeight;
 	minimumContrastRatio: number;
 	mouseWheelScrollSensitivity: number;
+	sendKeybindingsToShell: boolean;
 	// fontLigatures: boolean;
 	fontSize: number;
 	letterSpacing: number;
@@ -177,7 +180,32 @@ export interface IRemoteTerminalAttachTarget {
 	cwd: string;
 	workspaceId: string;
 	workspaceName: string;
+	isOrphan: boolean;
 }
+
+export interface IRawTerminalInstanceLayoutInfo<T> {
+	relativeSize: number;
+	terminal: T;
+}
+
+export type ITerminalInstanceLayoutInfoById = IRawTerminalInstanceLayoutInfo<number>;
+export type ITerminalInstanceLayoutInfo = IRawTerminalInstanceLayoutInfo<IRemoteTerminalAttachTarget>;
+
+export interface IRawTerminalTabLayoutInfo<T> {
+	isActive: boolean;
+	activeTerminalProcessId: number;
+	terminals: IRawTerminalInstanceLayoutInfo<T>[];
+}
+
+export type ITerminalTabLayoutInfoById = IRawTerminalTabLayoutInfo<number>;
+export type ITerminalTabLayoutInfo = IRawTerminalTabLayoutInfo<IRemoteTerminalAttachTarget | null>;
+
+export interface IRawTerminalsLayoutInfo<T> {
+	tabs: IRawTerminalTabLayoutInfo<T>[];
+}
+
+export type ITerminalsLayoutInfo = IRawTerminalsLayoutInfo<IRemoteTerminalAttachTarget | null>;
+export type ITerminalsLayoutInfoById = IRawTerminalsLayoutInfo<number>;
 
 export interface IShellLaunchConfig {
 	/**
@@ -336,6 +364,7 @@ export interface ITerminalProcessManager extends IDisposable {
 	readonly os: OperatingSystem | undefined;
 	readonly userHome: string | undefined;
 	readonly environmentVariableInfo: IEnvironmentVariableInfo | undefined;
+	readonly remoteTerminalId: number | undefined;
 
 	readonly onProcessReady: Event<void>;
 	readonly onBeforeProcessData: Event<IBeforeProcessDataEvent>;
@@ -466,7 +495,7 @@ export interface ITerminalChildProcess {
 	 * @returns undefined when the process was successfully started, otherwise an object containing
 	 * information on what went wrong.
 	 */
-	start(): Promise<ITerminalLaunchError | undefined>;
+	start(): Promise<ITerminalLaunchError | { remoteTerminalId: number } | undefined>;
 
 	/**
 	 * Shutdown the terminal process.

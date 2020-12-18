@@ -67,7 +67,7 @@ import { ExtensionTipsService } from 'vs/platform/extensionManagement/electron-s
 import { UserDataSyncMachinesService, IUserDataSyncMachinesService } from 'vs/platform/userDataSync/common/userDataSyncMachines';
 import { IExtensionRecommendationNotificationService } from 'vs/platform/extensionRecommendations/common/extensionRecommendations';
 import { ExtensionRecommendationNotificationServiceChannelClient } from 'vs/platform/extensionRecommendations/electron-sandbox/extensionRecommendationsIpc';
-import { ActiveWindowManager } from 'vs/platform/windows/common/windowTracker';
+import { ActiveWindowManager } from 'vs/platform/windows/node/windowTracker';
 import { TelemetryLogAppender } from 'vs/platform/telemetry/common/telemetryLogAppender';
 import { UserDataAutoSyncEnablementService } from 'vs/platform/userDataSync/common/userDataAutoSyncService';
 import { IgnoredExtensionsManagementService, IIgnoredExtensionsManagementService } from 'vs/platform/userDataSync/common/ignoredExtensions';
@@ -187,7 +187,7 @@ async function main(server: Server, initData: ISharedProcessInitData, configurat
 				appender: telemetryAppender,
 				commonProperties: resolveCommonProperties(product.commit, product.version, configuration.machineId, product.msftInternalDomains, installSourcePath),
 				sendErrorTelemetry: true,
-				piiPaths: extensionsPath ? [appRoot, extensionsPath] : [appRoot]
+				piiPaths: [appRoot, extensionsPath]
 			};
 
 			telemetryService = new TelemetryService(config, configurationService);

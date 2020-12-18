@@ -14,7 +14,7 @@ import { ITreeView, ITreeViewDescriptor, IViewsRegistry, Extensions, IViewDescri
 import { IViewletViewOptions } from 'vs/workbench/browser/parts/views/viewsViewlet';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { IThemeService, FileThemeIcon, FolderThemeIcon, registerThemingParticipant, ThemeIcon } from 'vs/platform/theme/common/themeService';
-import { ViewPane, IViewPaneOptions } from 'vs/workbench/browser/parts/views/viewPaneContainer';
+import { ViewPane, IViewPaneOptions } from 'vs/workbench/browser/parts/views/viewPane';
 import { Registry } from 'vs/platform/registry/common/platform';
 import { IOpenerService } from 'vs/platform/opener/common/opener';
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
@@ -51,6 +51,7 @@ import { IMarkdownString } from 'vs/base/common/htmlContent';
 import { IIconLabelMarkdownString } from 'vs/base/browser/ui/iconLabel/iconLabel';
 import { renderMarkdownAsPlaintext } from 'vs/base/browser/markdownRenderer';
 import { API_OPEN_DIFF_EDITOR_COMMAND_ID, API_OPEN_EDITOR_COMMAND_ID } from 'vs/workbench/browser/parts/editor/editorCommands';
+import { Codicon } from 'vs/base/common/codicons';
 
 export class TreeViewPane extends ViewPane {
 
@@ -366,7 +367,7 @@ export class TreeView extends Disposable implements ITreeView {
 						group: 'navigation',
 						order: Number.MAX_SAFE_INTEGER - 1,
 					},
-					icon: { id: 'codicon/refresh' }
+					icon: Codicon.refresh
 				});
 			}
 			async run(): Promise<void> {
@@ -385,7 +386,7 @@ export class TreeView extends Disposable implements ITreeView {
 						order: Number.MAX_SAFE_INTEGER,
 					},
 					precondition: that.collapseAllToggleContextKey,
-					icon: { id: 'codicon/collapse-all' }
+					icon: Codicon.collapseAll
 				});
 			}
 			async run(): Promise<void> {
@@ -775,10 +776,17 @@ class TreeDataSource implements IAsyncDataSource<ITreeItem, ITreeItem> {
 	}
 
 	async getChildren(element: ITreeItem): Promise<ITreeItem[]> {
+		let result: ITreeItem[] = [];
 		if (this.treeView.dataProvider) {
-			return this.withProgress(this.treeView.dataProvider.getChildren(element));
+			try {
+				result = await this.withProgress(this.treeView.dataProvider.getChildren(element));
+			} catch (e) {
+				if (!(<string>e.message).startsWith('Bad progress location:')) {
+					throw e;
+				}
+			}
 		}
-		return [];
+		return result;
 	}
 }
 
@@ -879,10 +887,12 @@ class TreeRenderer extends Disposable implements ITreeRenderer<ITreeItem, FuzzyS
 		}
 
 		return {
-			markdown: new Promise<IMarkdownString | string | undefined>(async (resolve) => {
-				await node.resolve();
-				resolve(node.tooltip);
-			}),
+			markdown: (): Promise<IMarkdownString | string | undefined> => {
+				return new Promise<IMarkdownString | string | undefined>(async (resolve) => {
+					await node.resolve();
+					resolve(node.tooltip);
+				});
+			},
 			markdownNotSupportedFallback: resource ? undefined : '' // Passing undefined as the fallback for a resource falls back to the old native hover
 		};
 	}

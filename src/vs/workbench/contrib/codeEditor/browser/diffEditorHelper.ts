@@ -11,7 +11,7 @@ import { Disposable, IDisposable } from 'vs/base/common/lifecycle';
 import { FloatingClickWidget } from 'vs/workbench/browser/parts/editor/editorWidgets';
 import { IDiffComputationResult } from 'vs/editor/common/services/editorWorkerService';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
-import { IConfigurationService, ConfigurationTarget } from 'vs/platform/configuration/common/configuration';
+import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { INotificationService, Severity } from 'vs/platform/notification/common/notification';
 
 const enum WidgetState {
@@ -94,7 +94,7 @@ class DiffEditorHelperContribution extends Disposable implements IDiffEditorCont
 
 	private _onDidClickHelperWidget(): void {
 		if (this._state === WidgetState.HintWhitespace) {
-			this._configurationService.updateValue('diffEditor.ignoreTrimWhitespace', false, ConfigurationTarget.USER);
+			this._configurationService.updateValue('diffEditor.ignoreTrimWhitespace', false);
 		}
 	}
 

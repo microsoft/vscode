@@ -104,7 +104,7 @@ export class ExtHostDebugService extends ExtHostDebugServiceBase {
 				cwdForPrepareCommand = args.cwd;
 			}
 
-			terminal.show();
+			terminal.show(true);
 
 			const shellProcessId = await terminal.processId;
 

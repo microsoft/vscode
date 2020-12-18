@@ -15,14 +15,10 @@ import { IModelService } from 'vs/editor/common/services/modelService';
 import { IModeService, ILanguageSelection } from 'vs/editor/common/services/modeService';
 import { ITextFileService } from 'vs/workbench/services/textfile/common/textfiles';
 import { InputFocusedContextKey } from 'vs/platform/contextkey/common/contextkeys';
-import { IEditableData } from 'vs/workbench/common/views';
-import { createDecorator } from 'vs/platform/instantiation/common/instantiation';
 import { IEditorGroup } from 'vs/workbench/services/editor/common/editorGroupsService';
-import { ExplorerItem } from 'vs/workbench/contrib/files/common/explorerModel';
 import { once } from 'vs/base/common/functional';
 import { ITextEditorOptions } from 'vs/platform/editor/common/editor';
 import { IEditorService } from 'vs/workbench/services/editor/common/editorService';
-import { UndoRedoSource } from 'vs/platform/undoRedo/common/undoRedo';
 
 /**
  * Explorer viewlet id.
@@ -33,47 +29,6 @@ export const VIEWLET_ID = 'workbench.view.explorer';
  * Explorer file view id.
  */
 export const VIEW_ID = 'workbench.explorer.fileView';
-
-export interface IExplorerService {
-	readonly _serviceBrand: undefined;
-	readonly roots: ExplorerItem[];
-	readonly sortOrder: SortOrder;
-	undoRedoSource: UndoRedoSource;
-
-	getContext(respectMultiSelection: boolean): ExplorerItem[];
-	hasViewFocus(): boolean;
-	setEditable(stat: ExplorerItem, data: IEditableData | null): Promise<void>;
-	getEditable(): { stat: ExplorerItem, data: IEditableData } | undefined;
-	getEditableData(stat: ExplorerItem): IEditableData | undefined;
-	// If undefined is passed checks if any element is currently being edited.
-	isEditable(stat: ExplorerItem | undefined): boolean;
-	findClosest(resource: URI): ExplorerItem | null;
-	refresh(): Promise<void>;
-	setToCopy(stats: ExplorerItem[], cut: boolean): Promise<void>;
-	isCut(stat: ExplorerItem): boolean;
-
-	/**
-	 * Selects and reveal the file element provided by the given resource if its found in the explorer.
-	 * Will try to resolve the path in case the explorer is not yet expanded to the file yet.
-	 */
-	select(resource: URI, reveal?: boolean | string): Promise<void>;
-
-	registerView(contextAndRefreshProvider: IExplorerView): void;
-}
-
-export interface IExplorerView {
-	getContext(respectMultiSelection: boolean): ExplorerItem[];
-	refresh(recursive: boolean, item?: ExplorerItem): Promise<void>;
-	selectResource(resource: URI | undefined, reveal?: boolean | string): Promise<void>;
-	setTreeInput(): Promise<void>;
-	itemsCopied(tats: ExplorerItem[], cut: boolean, previousCut: ExplorerItem[] | undefined): void;
-	setEditable(stat: ExplorerItem, isEditing: boolean): Promise<void>;
-	focusNeighbourIfItemFocused(item: ExplorerItem): void;
-	isItemVisible(item: ExplorerItem): boolean;
-	hasFocus(): boolean;
-}
-
-export const IExplorerService = createDecorator<IExplorerService>('explorerService');
 
 /**
  * Context Keys to use with keybindings for the Explorer and Open Editors view

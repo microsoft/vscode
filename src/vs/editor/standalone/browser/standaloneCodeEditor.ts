@@ -459,7 +459,7 @@ export class StandaloneDiffEditor extends DiffEditorWidget implements IStandalon
 			options.theme = themeService.setTheme(options.theme);
 		}
 
-		super(domElement, options, clipboardService, editorWorkerService, contextKeyService, instantiationService, codeEditorService, themeService, notificationService, contextMenuService, editorProgressService);
+		super(domElement, options, {}, clipboardService, editorWorkerService, contextKeyService, instantiationService, codeEditorService, themeService, notificationService, contextMenuService, editorProgressService);
 
 		this._contextViewService = <ContextViewService>contextViewService;
 		this._configurationService = configurationService;

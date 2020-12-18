@@ -15,6 +15,11 @@ export const terminalConfiguration: IConfigurationNode = {
 	title: localize('terminalIntegratedConfigurationTitle', "Integrated Terminal"),
 	type: 'object',
 	properties: {
+		'terminal.integrated.sendKeybindingsToShell': {
+			markdownDescription: localize('terminal.integrated.sendKeybindingsToShell', "Dispatches most keybindings to the terminal instead of the workbench, overriding `#terminal.integrated.commandsToSkipShell#`, which can be used alternatively for fine tuning."),
+			type: 'boolean',
+			default: false
+		},
 		'terminal.integrated.automationShell.linux': {
 			markdownDescription: localize({
 				key: 'terminal.integrated.automationShell.linux',
@@ -257,7 +262,7 @@ export const terminalConfiguration: IConfigurationNode = {
 			default: true
 		},
 		'terminal.integrated.allowMnemonics': {
-			markdownDescription: localize('terminal.integrated.allowMnemonics', "Whether to allow menubar mnemonics (eg. alt+f) to trigger the open the menubar. Note that this will cause all alt keystrokes will skip the shell when true. This does nothing on macOS."),
+			markdownDescription: localize('terminal.integrated.allowMnemonics', "Whether to allow menubar mnemonics (eg. alt+f) to trigger the open the menubar. Note that this will cause all alt keystrokes to skip the shell when true. This does nothing on macOS."),
 			type: 'boolean',
 			default: false
 		},

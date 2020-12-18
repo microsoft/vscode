@@ -100,7 +100,7 @@ export class TitlebarPart extends Part implements ITitleService {
 
 		this.contextMenu = this._register(menuService.createMenu(MenuId.TitleBarContext, contextKeyService));
 
-		this.titleBarStyle = getTitleBarStyle(this.configurationService, this.environmentService);
+		this.titleBarStyle = getTitleBarStyle(this.configurationService);
 
 		this.registerListeners();
 	}
@@ -461,13 +461,13 @@ export class TitlebarPart extends Part implements ITitleService {
 	}
 
 	protected get currentMenubarVisibility(): MenuBarVisibility {
-		return getMenuBarVisibility(this.configurationService, this.environmentService);
+		return getMenuBarVisibility(this.configurationService);
 	}
 
 	updateLayout(dimension: Dimension): void {
 		this.lastLayoutDimensions = dimension;
 
-		if (getTitleBarStyle(this.configurationService, this.environmentService) === 'custom') {
+		if (getTitleBarStyle(this.configurationService) === 'custom') {
 			// Only prevent zooming behavior on macOS or when the menubar is not visible
 			if ((!isWeb && isMacintosh) || this.currentMenubarVisibility === 'hidden') {
 				this.title.style.zoom = `${1 / getZoomFactor()}`;

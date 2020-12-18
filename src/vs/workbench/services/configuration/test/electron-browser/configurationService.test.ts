@@ -363,21 +363,24 @@ suite('WorkspaceContextService - Workspace Editing', () => {
 			});
 	});
 
-	test('remove folders and add them back by writing into the file', async done => {
+	test('remove folders and add them back by writing into the file', async () => {
 		const folders = testObject.getWorkspace().folders;
 		await testObject.removeFolders([folders[0].uri]);
 
-		testObject.onDidChangeWorkspaceFolders(actual => {
-			try {
-				assert.deepEqual(actual.added.map(r => r.uri.toString()), [folders[0].uri.toString()]);
-				done();
-			} catch (error) {
-				done(error);
-			}
+		const promise = new Promise<void>((resolve, reject) => {
+			testObject.onDidChangeWorkspaceFolders(actual => {
+				try {
+					assert.deepEqual(actual.added.map(r => r.uri.toString()), [folders[0].uri.toString()]);
+					resolve();
+				} catch (error) {
+					reject(error);
+				}
+			});
 		});
 
 		const workspace = { folders: [{ path: folders[0].uri.fsPath }, { path: folders[1].uri.fsPath }] };
 		await instantiationService.get(ITextFileService).write(testObject.getWorkspace().configuration!, JSON.stringify(workspace, null, '\t'));
+		await promise;
 	});
 
 	test('update folders (remove last and add to end)', () => {
@@ -1174,6 +1177,32 @@ suite('WorkspaceConfigurationService - Folder', () => {
 			.then(() => assert.ok(target.called));
 	});
 
+	test('remove setting from all targets', async () => {
+		const key = 'configurationService.folder.testSetting';
+		await testObject.updateValue(key, 'workspaceValue', ConfigurationTarget.WORKSPACE);
+		await testObject.updateValue(key, 'userValue', ConfigurationTarget.USER);
+
+		await testObject.updateValue(key, undefined);
+		await testObject.reloadConfiguration();
+
+		const actual = testObject.inspect(key, { resource: workspaceService.getWorkspace().folders[0].uri });
+		assert.equal(actual.userValue, undefined);
+		assert.equal(actual.workspaceValue, undefined);
+		assert.equal(actual.workspaceFolderValue, undefined);
+	});
+
+	test('update user configuration to default value when target is not passed', async () => {
+		await testObject.updateValue('configurationService.folder.testSetting', 'value', ConfigurationTarget.USER);
+		await testObject.updateValue('configurationService.folder.testSetting', 'isSet');
+		assert.equal(testObject.inspect('configurationService.folder.testSetting').userValue, undefined);
+	});
+
+	test('update user configuration to default value when target is passed', async () => {
+		await testObject.updateValue('configurationService.folder.testSetting', 'value', ConfigurationTarget.USER);
+		await testObject.updateValue('configurationService.folder.testSetting', 'isSet', ConfigurationTarget.USER);
+		assert.equal(testObject.inspect('configurationService.folder.testSetting').userValue, 'isSet');
+	});
+
 	test('update task configuration should trigger change event before promise is resolve', () => {
 		const target = sinon.spy();
 		testObject.onDidChangeConfiguration(target);
@@ -1793,6 +1822,22 @@ suite('WorkspaceConfigurationService-Multiroot', () => {
 			.then(() => assert.ok(target.called));
 	});
 
+	test('remove setting from all targets', async () => {
+		const workspace = workspaceContextService.getWorkspace();
+		const key = 'configurationService.workspace.testResourceSetting';
+		await testObject.updateValue(key, 'workspaceFolderValue', { resource: workspace.folders[0].uri }, ConfigurationTarget.WORKSPACE_FOLDER);
+		await testObject.updateValue(key, 'workspaceValue', ConfigurationTarget.WORKSPACE);
+		await testObject.updateValue(key, 'userValue', ConfigurationTarget.USER);
+
+		await testObject.updateValue(key, undefined, { resource: workspace.folders[0].uri });
+		await testObject.reloadConfiguration();
+
+		const actual = testObject.inspect(key, { resource: workspace.folders[0].uri });
+		assert.equal(actual.userValue, undefined);
+		assert.equal(actual.workspaceValue, undefined);
+		assert.equal(actual.workspaceFolderValue, undefined);
+	});
+
 	test('update tasks configuration in a folder', () => {
 		const workspace = workspaceContextService.getWorkspace();
 		return testObject.updateValue('tasks', { 'version': '1.0.0', tasks: [{ 'taskName': 'myTask' }] }, { resource: workspace.folders[0].uri }, ConfigurationTarget.WORKSPACE_FOLDER)
@@ -2017,6 +2062,33 @@ suite('WorkspaceConfigurationService - Remote Folder', () => {
 		assert.equal(testObject.getValue('configurationService.remote.machineOverridableSetting'), 'isSet');
 	});
 
+	test('non machine setting is written in local settings', async () => {
+		registerRemoteFileSystemProvider();
+		resolveRemoteEnvironment();
+		await initialize();
+		await testObject.updateValue('configurationService.remote.applicationSetting', 'applicationValue');
+		await testObject.reloadConfiguration();
+		assert.equal(testObject.inspect('configurationService.remote.applicationSetting').userLocalValue, 'applicationValue');
+	});
+
+	test('machine setting is written in remote settings', async () => {
+		registerRemoteFileSystemProvider();
+		resolveRemoteEnvironment();
+		await initialize();
+		await testObject.updateValue('configurationService.remote.machineSetting', 'machineValue');
+		await testObject.reloadConfiguration();
+		assert.equal(testObject.inspect('configurationService.remote.machineSetting').userRemoteValue, 'machineValue');
+	});
+
+	test('machine overridable setting is written in remote settings', async () => {
+		registerRemoteFileSystemProvider();
+		resolveRemoteEnvironment();
+		await initialize();
+		await testObject.updateValue('configurationService.remote.machineOverridableSetting', 'machineValue');
+		await testObject.reloadConfiguration();
+		assert.equal(testObject.inspect('configurationService.remote.machineOverridableSetting').userRemoteValue, 'machineValue');
+	});
+
 	test('machine settings in local user settings does not override defaults after defalts are registered ', async () => {
 		fs.writeFileSync(globalSettingsFile, '{ "configurationService.remote.newMachineSetting": "userValue" }');
 		registerRemoteFileSystemProvider();
@@ -2036,7 +2108,7 @@ suite('WorkspaceConfigurationService - Remote Folder', () => {
 		assert.equal(testObject.getValue('configurationService.remote.newMachineSetting'), 'isSet');
 	});
 
-	test('machine overridable settings in local user settings does not override defaults after defalts are registered ', async () => {
+	test('machine overridable settings in local user settings does not override defaults after defaults are registered ', async () => {
 		fs.writeFileSync(globalSettingsFile, '{ "configurationService.remote.newMachineOverridableSetting": "userValue" }');
 		registerRemoteFileSystemProvider();
 		resolveRemoteEnvironment();

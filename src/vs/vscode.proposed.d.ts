@@ -3,6 +3,8 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
+import { Command } from 'vscode';
+
 /**
  * This is the place for API experiments and proposals.
  * These API are NOT stable and subject to change. They are only available in the Insiders
@@ -15,6 +17,25 @@
  */
 
 declare module 'vscode' {
+
+	//#region https://github.com/microsoft/vscode/issues/93686
+
+	/**
+	 * An error type should be used to signal cancellation of an operation.
+	 *
+	 * This type can be used in response to a cancellation token or when an
+	 * operation is being cancelled by the executor of that operation.
+	 */
+	export class CancellationError extends Error {
+
+		/**
+		 * Creates a new cancellation error.
+		 */
+		constructor();
+	}
+
+
+	//#endregion
 
 	// #region auth provider: https://github.com/microsoft/vscode/issues/88309
 
@@ -223,6 +244,13 @@ declare module 'vscode' {
 
 	}
 
+	export interface TunnelCreationOptions {
+		/**
+		 * True when the local operating system will require elevation to use the requested local port.
+		 */
+		elevationRequired?: boolean;
+	}
+
 	export type ResolverResult = ResolvedAuthority & ResolvedOptions & TunnelInformation;
 
 	export class RemoteAuthorityResolverError extends Error {
@@ -238,8 +266,11 @@ declare module 'vscode' {
 		 * Can be optionally implemented if the extension can forward ports better than the core.
 		 * When not implemented, the core will use its default forwarding logic.
 		 * When implemented, the core will use this to forward ports.
+		 *
+		 * To enable the "Change Local Port" action on forwarded ports, make sure to set the `localAddress` of
+		 * the returned `Tunnel` to a `{ port: number, host: string; }` and not a string.
 		 */
-		tunnelFactory?: (tunnelOptions: TunnelOptions, elevate?: boolean) => Thenable<Tunnel> | undefined;
+		tunnelFactory?: (tunnelOptions: TunnelOptions, tunnelCreationOptions: TunnelCreationOptions) => Thenable<Tunnel> | undefined;
 
 		/**
 		 * Provides filtering for candidate ports.
@@ -741,88 +772,6 @@ declare module 'vscode' {
 
 	//#endregion
 
-	//#region file-decorations: https://github.com/microsoft/vscode/issues/54938
-
-
-	/**
-	 * A file decoration represents metadata that can be rendered with a file.
-	 */
-	export class FileDecoration {
-
-		/**
-		 * A very short string that represents this decoration.
-		 */
-		badge?: string;
-
-		/**
-		 * A human-readable tooltip for this decoration.
-		 */
-		tooltip?: string;
-
-		/**
-		 * The color of this decoration.
-		 */
-		color?: ThemeColor;
-
-		/**
-		 * A flag expressing that this decoration should be
-		 * propagated to its parents.
-		 */
-		propagate?: boolean;
-
-		/**
-		 * Creates a new decoration.
-		 *
-		 * @param badge A letter that represents the decoration.
-		 * @param tooltip The tooltip of the decoration.
-		 * @param color The color of the decoration.
-		 */
-		constructor(badge?: string, tooltip?: string, color?: ThemeColor);
-	}
-
-	/**
-	 * The decoration provider interfaces defines the contract between extensions and
-	 * file decorations.
-	 */
-	export interface FileDecorationProvider {
-
-		/**
-		 * An optional event to signal that decorations for one or many files have changed.
-		 *
-		 *
-		 * *Note* that this event should be used to propagate information about children.
-		 *
-		 * @see [EventEmitter](#EventEmitter)
-		 */
-		onDidChangeFileDecorations?: Event<undefined | Uri | Uri[]>;
-
-		/**
-		 * Provide decorations for a given uri.
-		 *
-		 * *Note* that this function is only called when a file gets rendered in the UI.
-		 * This means a decoration from a descendent that propagates upwards must be signaled
-		 * to the editor via the [onDidChangeFileDecorations](#FileDecorationProvider.onDidChangeFileDecorations)-event.
-		 *
-		 * @param uri The uri of the file to provide a decoration for.
-		 * @param token A cancellation token.
-		 * @returns A decoration or a thenable that resolves to such.
-		 */
-		provideFileDecoration(uri: Uri, token: CancellationToken): ProviderResult<FileDecoration>;
-	}
-
-	export namespace window {
-
-		/**
-		 * Register a file decoration provider.
-		 *
-		 * @param provider A [FileDecorationProvider](#FileDecorationProvider).
-		 * @return A [disposable](#Disposable) that unregisters the provider.
-		 */
-		export function registerFileDecorationProvider(provider: FileDecorationProvider): Disposable;
-	}
-
-	//#endregion
-
 	//#region debug
 
 	/**
@@ -843,34 +792,7 @@ declare module 'vscode' {
 
 	//#endregion
 
-	//#region LogLevel: https://github.com/microsoft/vscode/issues/85992
 
-	/**
-	 * @deprecated DO NOT USE, will be removed
-	 */
-	export enum LogLevel {
-		Trace = 1,
-		Debug = 2,
-		Info = 3,
-		Warning = 4,
-		Error = 5,
-		Critical = 6,
-		Off = 7
-	}
-
-	export namespace env {
-		/**
-		 * @deprecated DO NOT USE, will be removed
-		 */
-		export const logLevel: LogLevel;
-
-		/**
-		 * @deprecated DO NOT USE, will be removed
-		 */
-		export const onDidChangeLogLevel: Event<LogLevel>;
-	}
-
-	//#endregion
 
 	//#region @joaomoreno: SCM validation
 
@@ -1015,29 +937,6 @@ declare module 'vscode' {
 	//#endregion
 
 	//#region Tree View: https://github.com/microsoft/vscode/issues/61313
-
-	// https://github.com/microsoft/vscode/issues/100741
-	export interface TreeDataProvider<T> {
-		/**
-		 * Called only on hover to resolve the TreeItem2#tooltip property if it is undefined.
-		 * Only properties that were undefined can be resolved in `resolveTreeItem`.
-		 * Will only ever be called once per TreeItem.
-		 * Functionality may be expanded later to include being called to resolve other missing
-		 * properties on selection and/or on open.
-		 *
-		 * @param element
-		 * @param item Undefined properties of `item` should be set then `item` should be returned.
-		 */
-		resolveTreeItem?(element: T, item: TreeItem2): TreeItem2 | Thenable<TreeItem2>;
-	}
-
-	export class TreeItem2 extends TreeItem {
-		/**
-		 * Content to be shown when you hover over the tree item.
-		 */
-		tooltip?: string | MarkdownString | /* for compilation */ any;
-	}
-
 	export interface TreeView<T> extends Disposable {
 		reveal(element: T | undefined, options?: { select?: boolean, focus?: boolean, expand?: boolean | number }): Thenable<void>;
 	}
@@ -1101,64 +1000,6 @@ declare module 'vscode' {
 		 * @return A new status bar item.
 		 */
 		export function createStatusBarItem(options?: StatusBarItemOptions): StatusBarItem;
-	}
-
-	//#endregion
-
-	//#region OnTypeRename: https://github.com/microsoft/vscode/issues/109923 @aeschli
-
-	/**
-	 * The 'on type' rename range provider interface defines the contract between extensions and
-	 * the 'on type' rename feature.
-	 */
-	export interface OnTypeRenameRangeProvider {
-		/**
-		 * For a given position in a document, returns the range of the symbol at the position and all ranges
-		 * that have the same content and can be renamed together. Optionally a word pattern can be returned
-		 * to describe valid contents. A rename to one of the ranges can be applied to all other ranges if the new content
-		 * is valid.
-		 * If no result-specific word pattern is provided, the word pattern from the language configuration is used.
-		 *
-		 * @param document The document in which the provider was invoked.
-		 * @param position The position at which the provider was invoked.
-		 * @param token A cancellation token.
-		 * @return A list of ranges that can be renamed together
-		 */
-		provideOnTypeRenameRanges(document: TextDocument, position: Position, token: CancellationToken): ProviderResult<OnTypeRenameRanges>;
-	}
-
-	namespace languages {
-		/**
-		 * Register a 'on type' rename range provider.
-		 *
-		 * Multiple providers can be registered for a language. In that case providers are sorted
-		 * by their [score](#languages.match) and the best-matching provider that has a result is used. Failure
-		 * of the selected provider will cause a failure of the whole operation.
-		 *
-		 * @param selector A selector that defines the documents this provider is applicable to.
-		 * @param provider An 'on type' rename range provider.
-		 * @return A [disposable](#Disposable) that unregisters this provider when being disposed.
-		 */
-		export function registerOnTypeRenameRangeProvider(selector: DocumentSelector, provider: OnTypeRenameRangeProvider): Disposable;
-	}
-
-	/**
-	 * Represents a list of ranges that can be renamed together along with a word pattern to describe valid range contents.
-	 */
-	export class OnTypeRenameRanges {
-		constructor(ranges: Range[], wordPattern?: RegExp);
-
-		/**
-		 * A list of ranges that can be renamed together. The ranges must have
-		 * identical length and contain identical text content. The ranges cannot overlap.
-		 */
-		readonly ranges: Range[];
-
-		/**
-		 * An optional word pattern that describes valid contents for the given ranges.
-		 * If no pattern is provided, the language configuration's word pattern will be used.
-		 */
-		readonly wordPattern?: RegExp;
 	}
 
 	//#endregion
@@ -1842,6 +1683,13 @@ declare module 'vscode' {
 		dispose(): void;
 	}
 
+	export interface NotebookDocumentShowOptions {
+		viewColumn?: ViewColumn;
+		preserveFocus?: boolean;
+		preview?: boolean;
+		selection?: NotebookCellRange;
+	}
+
 
 	export namespace notebook {
 		export function registerNotebookContentProvider(
@@ -1909,6 +1757,7 @@ declare module 'vscode' {
 		export const onDidChangeActiveNotebookEditor: Event<NotebookEditor | undefined>;
 		export const onDidChangeNotebookEditorSelection: Event<NotebookEditorSelectionChangeEvent>;
 		export const onDidChangeNotebookEditorVisibleRanges: Event<NotebookEditorVisibleRangesChangeEvent>;
+		export function showNotebookDocument(document: NotebookDocument, options?: NotebookDocumentShowOptions): Promise<NotebookEditor>;
 	}
 
 	//#endregion
@@ -2176,7 +2025,7 @@ declare module 'vscode' {
 		 * Runs tests with the given options. If no options are given, then
 		 * all tests are run. Returns the resulting test run.
 		 */
-		export function runTests<T extends TestItem>(options: TestRunOptions<T>): Thenable<void>;
+		export function runTests<T extends TestItem>(options: TestRunOptions<T>, cancellationToken?: CancellationToken): Thenable<void>;
 
 		/**
 		 * Returns an observer that retrieves tests in the given workspace folder.
@@ -2383,16 +2232,18 @@ declare module 'vscode' {
 	export enum TestRunState {
 		// Initial state
 		Unset = 0,
+		// Test will be run, but is not currently running.
+		Queued = 1,
 		// Test is currently running
-		Running = 1,
+		Running = 2,
 		// Test run has passed
-		Passed = 2,
+		Passed = 3,
 		// Test run has failed (on an assertion)
-		Failed = 3,
+		Failed = 4,
 		// Test run has been skipped
-		Skipped = 4,
+		Skipped = 5,
 		// Test run failed for some other reason (compilation error, timeout, etc)
-		Errored = 5
+		Errored = 6
 	}
 
 	/**
@@ -2466,5 +2317,49 @@ declare module 'vscode' {
 		 */
 		location?: Location;
 	}
+	//#endregion
+
+	//#region Opener service (https://github.com/microsoft/vscode/issues/109277)
+
+	/**
+	 * Handles opening external uris.
+	 *
+	 * An extension can use this to open a `http` link to a webserver inside of VS Code instead of
+	 * having the link be opened by the webbrowser.
+	 *
+	 * Currently openers may only be registered for `http` and `https` uris.
+	 */
+	export interface ExternalUriOpener {
+
+		/**
+		 * Try to open a given uri.
+		 *
+		 * @param uri The uri being opened.
+		 * @param ctx Additional metadata about how the open was triggered.
+		 * @param token Cancellation token.
+		 *
+		 * @return Optional command that opens the uri. If no command is returned, VS Code will
+		 * continue checking to see if any other openers are available.
+		 *
+		 * If multiple openers are available for a given uri, then the `Command.title` is shown in the UI.
+		 */
+		openExternalUri(uri: Uri, ctx: {}, token: CancellationToken): ProviderResult<Command>;
+	}
+
+	namespace window {
+		/**
+		 * Register a new `ExternalUriOpener`.
+		 *
+		 * When a uri is about to be opened, an `onUriOpen:SCHEME` activation event is fired.
+		 *
+		 * @param schemes List of uri schemes the opener is triggered for. Currently only `http`
+		 * and `https` are supported.
+		 * @param opener Opener to register.
+		 *
+		* @returns Disposable that unregisters the opener.
+		 */
+		export function registerExternalUriOpener(schemes: readonly string[], opener: ExternalUriOpener,): Disposable;
+	}
+
 	//#endregion
 }

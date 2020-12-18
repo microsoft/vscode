@@ -9,7 +9,8 @@ import { Event } from 'vs/base/common/event';
 import { RawContextKey } from 'vs/platform/contextkey/common/contextkey';
 import { localize } from 'vs/nls';
 import { URI } from 'vs/base/common/uri';
-import { Codicon, registerIcon } from 'vs/base/common/codicons';
+import { Codicon } from 'vs/base/common/codicons';
+import { registerIcon } from 'vs/platform/theme/common/iconRegistry';
 
 export interface IUserDataSyncAccount {
 	readonly authenticationProviderId: string;

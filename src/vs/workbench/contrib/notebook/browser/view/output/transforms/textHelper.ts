@@ -20,7 +20,7 @@ const LINES_LIMIT = 500;
 
 function generateViewMoreElement(outputs: string[], openerService: IOpenerService, textFileService: ITextFileService) {
 	const md: IMarkdownString = {
-		value: '[show more ...](command:workbench.action.openLargeOutput)',
+		value: '[show more (open the raw output data in a text editor) ...](command:workbench.action.openLargeOutput)',
 		isTrusted: true,
 		supportThemeIcons: true
 	};
@@ -88,9 +88,13 @@ export function truncatedArrayOfString(container: HTMLElement, outputs: string[]
 
 	if (buffer.getLineCount() < LINES_LIMIT) {
 		const lineCount = buffer.getLineCount();
-		const fullRange = new Range(1, 1, lineCount, buffer.getLineLastNonWhitespaceColumn(lineCount));
+		const fullRange = new Range(1, 1, lineCount, Math.max(1, buffer.getLineLastNonWhitespaceColumn(lineCount)));
 
-		container.innerText = buffer.getValueInRange(fullRange, EndOfLinePreference.TextDefined);
+		if (renderANSI) {
+			container.appendChild(handleANSIOutput(buffer.getValueInRange(fullRange, EndOfLinePreference.TextDefined), themeService));
+		} else {
+			container.innerText = buffer.getValueInRange(fullRange, EndOfLinePreference.TextDefined);
+		}
 		return;
 	}
 

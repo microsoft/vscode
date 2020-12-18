@@ -451,6 +451,8 @@ export interface IDimension {
 
 export class Dimension implements IDimension {
 
+	static readonly None = new Dimension(0, 0);
+
 	constructor(
 		public readonly width: number,
 		public readonly height: number,
@@ -1373,8 +1375,8 @@ export function safeInnerHtml(node: HTMLElement, value: string): void {
 	const options = _extInsaneOptions({
 		allowedTags: ['a', 'button', 'blockquote', 'code', 'div', 'h1', 'h2', 'h3', 'input', 'label', 'li', 'p', 'pre', 'select', 'small', 'span', 'strong', 'textarea', 'ul', 'ol'],
 		allowedAttributes: {
-			'a': ['href'],
-			'button': ['data-href'],
+			'a': ['href', 'x-dispatch'],
+			'button': ['data-href', 'x-dispatch'],
 			'input': ['type', 'placeholder', 'checked', 'required'],
 			'label': ['for'],
 			'select': ['required'],
@@ -1385,7 +1387,7 @@ export function safeInnerHtml(node: HTMLElement, value: string): void {
 	}, ['class', 'id', 'role', 'tabindex']);
 
 	const html = _ttpSafeInnerHtml?.createHTML(value, options) ?? insane(value, options);
-	node.innerHTML = html as unknown as string;
+	node.innerHTML = html as string;
 }
 
 /**
@@ -1398,7 +1400,12 @@ function toBinary(str: string): string {
 	for (let i = 0; i < codeUnits.length; i++) {
 		codeUnits[i] = str.charCodeAt(i);
 	}
-	return String.fromCharCode(...new Uint8Array(codeUnits.buffer));
+	let binary = '';
+	const uint8array = new Uint8Array(codeUnits.buffer);
+	for (let i = 0; i < uint8array.length; i++) {
+		binary += String.fromCharCode(uint8array[i]);
+	}
+	return binary;
 }
 
 /**
@@ -1594,4 +1601,10 @@ export class ModifierKeyEmitter extends Emitter<IModifierKeyStatus> {
 		super.dispose();
 		this._subscriptions.dispose();
 	}
+}
+
+export function getCookieValue(name: string): string | undefined {
+	const match = document.cookie.match('(^|[^;]+)\\s*' + name + '\\s*=\\s*([^;]+)'); // See https://stackoverflow.com/a/25490531
+
+	return match ? match.pop() : undefined;
 }

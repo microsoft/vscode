@@ -16,8 +16,8 @@ jobs:
         if: github.event_name != 'issues' || contains(github.event.issue.labels.*.name, 'author-verification-requested')
         uses: actions/checkout@v2
         with:
-          repository: 'microsoft/vscode-github-triage-actions'
-          ref: v40
+          repository: "microsoft/vscode-github-triage-actions"
+          ref: v42
           path: ./actions
       - name: Install Actions
         if: github.event_name != 'issues' || contains(github.event.issue.labels.*.name, 'author-verification-requested')

@@ -28,7 +28,10 @@
   },
   "devDependencies": {
     "@types/minimatch": "^3.0.3",
-    "@types/node": "^12.11.7"
+    "@types/node": "^12.19.9"
+  },
+  "resolutions": {
+    "which-pm/load-yaml-file/**/argparse": "1.0.9"
   },
   "main": "./out/npmMain",
   "browser": "./dist/browser/npmBrowserMain",
@@ -224,6 +227,12 @@
             "npm",
             "yarn",
             "pnpm"
+          ],
+          "enumDescriptions": [
+            "%config.npm.packageManager.auto%",
+            "%config.npm.packageManager.npm%",
+            "%config.npm.packageManager.yarn%",
+            "%config.npm.packageManager.pnpm%"
           ],
           "default": "auto",
           "description": "%config.npm.packageManager%"

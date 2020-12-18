@@ -11,7 +11,7 @@ import { IEditorOptions } from 'vs/platform/editor/common/editor';
 
 export const IOpenerService = createDecorator<IOpenerService>('openerService');
 
-type OpenInternalOptions = {
+export type OpenInternalOptions = {
 
 	/**
 	 * Signals that the intent is to open an editor to the side
@@ -31,7 +31,7 @@ type OpenInternalOptions = {
 	readonly fromUserGesture?: boolean;
 };
 
-type OpenExternalOptions = { readonly openExternal?: boolean; readonly allowTunneling?: boolean };
+export type OpenExternalOptions = { readonly openExternal?: boolean; readonly allowTunneling?: boolean };
 
 export type OpenOptions = OpenInternalOptions & OpenExternalOptions;
 

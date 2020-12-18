@@ -81,7 +81,7 @@ function registerExtensionsCompletionsInExtensionsDocument(): vscode.Disposable 
 			const range = document.getWordRangeAtPosition(position) || new vscode.Range(position, position);
 			if (location.path[0] === 'recommendations') {
 				const extensionsContent = <IExtensionsContent>parse(document.getText());
-				return provideInstalledExtensionProposals(extensionsContent && extensionsContent.recommendations || [], range, false);
+				return provideInstalledExtensionProposals(extensionsContent && extensionsContent.recommendations || [], '', range, false);
 			}
 			return [];
 		}
@@ -95,7 +95,7 @@ function registerExtensionsCompletionsInWorkspaceConfigurationDocument(): vscode
 			const range = document.getWordRangeAtPosition(position) || new vscode.Range(position, position);
 			if (location.path[0] === 'extensions' && location.path[1] === 'recommendations') {
 				const extensionsContent = <IExtensionsContent>parse(document.getText())['extensions'];
-				return provideInstalledExtensionProposals(extensionsContent && extensionsContent.recommendations || [], range, false);
+				return provideInstalledExtensionProposals(extensionsContent && extensionsContent.recommendations || [], '', range, false);
 			}
 			return [];
 		}

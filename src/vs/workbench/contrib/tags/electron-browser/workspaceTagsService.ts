@@ -3,7 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import * as crypto from 'crypto';
+import { sha1Hex } from 'vs/base/browser/hash';
 import { IFileService, IResolveFileResult, IFileStat } from 'vs/platform/files/common/files';
 import { IWorkspaceContextService, WorkbenchState, IWorkspace } from 'vs/platform/workspace/common/workspace';
 import { IWorkbenchEnvironmentService } from 'vs/workbench/services/environment/common/environmentService';
@@ -15,6 +15,7 @@ import { IWorkspaceTagsService, Tags } from 'vs/workbench/contrib/tags/common/wo
 import { getHashedRemotesFromConfig } from 'vs/workbench/contrib/tags/electron-browser/workspaceTags';
 import { IProductService } from 'vs/platform/product/common/productService';
 import { splitLines } from 'vs/base/common/strings';
+import { MavenArtifactIdRegex, MavenDependenciesRegex, MavenDependencyRegex, GradleDependencyCompactRegex, GradleDependencyLooseRegex, MavenGroupIdRegex, JavaLibrariesToLookFor } from 'vs/workbench/contrib/tags/common/javaWorkspaceTags';
 
 const MetaModulesToLookFor = [
 	// Azure packages
@@ -138,9 +139,9 @@ export class WorkspaceTagsService implements IWorkspaceTagsService {
 		return this._tags;
 	}
 
-	getTelemetryWorkspaceId(workspace: IWorkspace, state: WorkbenchState): string | undefined {
-		function createHash(uri: URI): string {
-			return crypto.createHash('sha1').update(uri.scheme === Schemas.file ? uri.fsPath : uri.toString()).digest('hex');
+	async getTelemetryWorkspaceId(workspace: IWorkspace, state: WorkbenchState): Promise<string | undefined> {
+		function createHash(uri: URI): Promise<string> {
+			return sha1Hex(uri.scheme === Schemas.file ? uri.fsPath : uri.toString());
 		}
 
 		let workspaceId: string | undefined;
@@ -149,11 +150,11 @@ export class WorkspaceTagsService implements IWorkspaceTagsService {
 				workspaceId = undefined;
 				break;
 			case WorkbenchState.FOLDER:
-				workspaceId = createHash(workspace.folders[0].uri);
+				workspaceId = await createHash(workspace.folders[0].uri);
 				break;
 			case WorkbenchState.WORKSPACE:
 				if (workspace.configuration) {
-					workspaceId = createHash(workspace.configuration);
+					workspaceId = await createHash(workspace.configuration);
 				}
 		}
 
@@ -292,13 +293,13 @@ export class WorkspaceTagsService implements IWorkspaceTagsService {
 			"workspace.py.playwright" : { "classification": "SystemMetaData", "purpose": "FeatureInsight", "isMeasurement": true }
 		}
 	*/
-	private resolveWorkspaceTags(): Promise<Tags> {
+	private async resolveWorkspaceTags(): Promise<Tags> {
 		const tags: Tags = Object.create(null);
 
 		const state = this.contextService.getWorkbenchState();
 		const workspace = this.contextService.getWorkspace();
 
-		tags['workspace.id'] = this.getTelemetryWorkspaceId(workspace, state);
+		tags['workspace.id'] = await this.getTelemetryWorkspaceId(workspace, state);
 
 		const { filesToOpenOrCreate, filesToDiff } = this.environmentService.configuration;
 		tags['workbench.filesToOpenOrCreate'] = filesToOpenOrCreate && filesToOpenOrCreate.length || 0;
@@ -333,6 +334,7 @@ export class WorkspaceTagsService implements IWorkspaceTagsService {
 			tags['workspace.bower'] = nameSet.has('bower.json') || nameSet.has('bower_components');
 
 			tags['workspace.java.pom'] = nameSet.has('pom.xml');
+			tags['workspace.java.gradle'] = nameSet.has('build.gradle') || nameSet.has('settings.gradle');
 
 			tags['workspace.yeoman.code.ext'] = nameSet.has('vsc-extension-quickstart.md');
 
@@ -468,8 +470,69 @@ export class WorkspaceTagsService implements IWorkspaceTagsService {
 					// Ignore errors when resolving file or parsing file contents
 				}
 			});
-			return Promise.all([...packageJsonPromises, ...requirementsTxtPromises, ...pipfilePromises]).then(() => tags);
+
+			const pomPromises = getFilePromises('pom.xml', this.fileService, this.textFileService, content => {
+				try {
+					let dependenciesContent;
+					while (dependenciesContent = MavenDependenciesRegex.exec(content.value)) {
+						let dependencyContent;
+						while (dependencyContent = MavenDependencyRegex.exec(dependenciesContent[1])) {
+							const groupIdContent = MavenGroupIdRegex.exec(dependencyContent[1]);
+							const artifactIdContent = MavenArtifactIdRegex.exec(dependencyContent[1]);
+							if (groupIdContent && artifactIdContent) {
+								this.tagJavaDependency(groupIdContent[1], artifactIdContent[1], 'workspace.pom.', tags);
+							}
+						}
+					}
+				}
+				catch (e) {
+					// Ignore errors when resolving maven dependencies
+				}
+			});
+
+			const gradlePromises = getFilePromises('build.gradle', this.fileService, this.textFileService, content => {
+				try {
+					this.processGradleDependencies(content.value, GradleDependencyLooseRegex, tags);
+					this.processGradleDependencies(content.value, GradleDependencyCompactRegex, tags);
+				}
+				catch (e) {
+					// Ignore errors when resolving gradle dependencies
+				}
+			});
+
+			const androidPromises = folders.map(workspaceUri => {
+				const manifest = URI.joinPath(workspaceUri, '/app/src/main/AndroidManifest.xml');
+				return this.fileService.exists(manifest).then(result => {
+					if (result) {
+						tags['workspace.java.android'] = true;
+					}
+				}, err => {
+					// Ignore errors when resolving android
+				});
+			});
+			return Promise.all([...packageJsonPromises, ...requirementsTxtPromises, ...pipfilePromises, ...pomPromises, ...gradlePromises, ...androidPromises]).then(() => tags);
 		});
+	}
+
+	private processGradleDependencies(content: string, regex: RegExp, tags: Tags): void {
+		let dependencyContent;
+		while (dependencyContent = regex.exec(content)) {
+			const groupId = dependencyContent[1];
+			const artifactId = dependencyContent[2];
+			if (groupId && artifactId) {
+				this.tagJavaDependency(groupId, artifactId, 'workspace.gradle.', tags);
+			}
+		}
+	}
+
+	private tagJavaDependency(groupId: string, artifactId: string, prefix: string, tags: Tags): void {
+		for (const javaLibrary of JavaLibrariesToLookFor) {
+			if ((groupId === javaLibrary.groupId || new RegExp(javaLibrary.groupId).test(groupId)) &&
+				(artifactId === javaLibrary.artifactId || new RegExp(javaLibrary.artifactId).test(artifactId))) {
+				tags[prefix + javaLibrary.tag] = true;
+				return;
+			}
+		}
 	}
 
 	private findFolders(): URI[] | undefined {

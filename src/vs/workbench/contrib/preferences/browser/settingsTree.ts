@@ -49,13 +49,14 @@ import { ISetting, ISettingsGroup, SettingValueType } from 'vs/workbench/service
 import { getDefaultIgnoredSettings, IUserDataAutoSyncEnablementService } from 'vs/platform/userDataSync/common/userDataSync';
 import { getInvalidTypeError } from 'vs/workbench/services/preferences/common/preferencesValidation';
 import { Codicon } from 'vs/base/common/codicons';
-import { CodiconLabel } from 'vs/base/browser/ui/codicons/codiconLabel';
+import { SimpleIconLabel } from 'vs/base/browser/ui/iconLabel/simpleIconLabel';
 import { IJSONSchema } from 'vs/base/common/jsonSchema';
 import { IList } from 'vs/base/browser/ui/tree/indexTreeModel';
 import { IListService, WorkbenchObjectTree } from 'vs/platform/list/browser/listService';
 import { IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
 import { IAccessibilityService } from 'vs/platform/accessibility/common/accessibility';
 import { ILogService } from 'vs/platform/log/common/log';
+import { settingsMoreActionIcon } from 'vs/workbench/contrib/preferences/browser/preferencesIcons';
 
 const $ = DOM.$;
 
@@ -551,7 +552,7 @@ export abstract class AbstractSettingRenderer extends Disposable implements ITre
 
 	protected createSyncIgnoredElement(container: HTMLElement): HTMLElement {
 		const syncIgnoredElement = DOM.append(container, $('span.setting-item-ignored'));
-		const syncIgnoredLabel = new CodiconLabel(syncIgnoredElement);
+		const syncIgnoredLabel = new SimpleIconLabel(syncIgnoredElement);
 		syncIgnoredLabel.text = `($(sync-ignored) ${localize('extensionSyncIgnoredLabel', 'Sync: Ignored')})`;
 
 		return syncIgnoredElement;
@@ -635,20 +636,10 @@ export abstract class AbstractSettingRenderer extends Disposable implements ITre
 
 		const toolbar = new ToolBar(container, this._contextMenuService, {
 			toggleMenuTitle,
-			renderDropdownAsChildElement: true
+			renderDropdownAsChildElement: true,
+			moreIcon: settingsMoreActionIcon // change icon from ellipsis to gear
 		});
 		return toolbar;
-	}
-
-	private fixToolbarIcon(toolbar: ToolBar): void {
-		const button = toolbar.getElement().querySelector('.codicon-toolbar-more');
-		if (button) {
-			(<HTMLElement>button).tabIndex = 0;
-
-			// change icon from ellipsis to gear
-			(<HTMLElement>button).classList.add('codicon-gear');
-			(<HTMLElement>button).classList.remove('codicon-toolbar-more');
-		}
 	}
 
 	protected renderSettingElement(node: ITreeNode<SettingsTreeSettingElement, never>, index: number, template: ISettingItemTemplate | ISettingBoolItemTemplate): void {
@@ -658,7 +649,6 @@ export abstract class AbstractSettingRenderer extends Disposable implements ITre
 		const actions = this.disposableActionFactory(element.setting);
 		actions.forEach(a => template.elementDisposables?.add(a));
 		template.toolbar.setActions([], [...this.settingActions, ...actions]);
-		this.fixToolbarIcon(template.toolbar);
 
 		const setting = element.setting;
 

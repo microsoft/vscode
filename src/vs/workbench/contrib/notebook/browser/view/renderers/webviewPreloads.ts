@@ -88,7 +88,8 @@ function webviewPreloads() {
 		for (let n = 0; n < arr.length; n++) {
 			const node = arr[n];
 			const scriptTag = document.createElement('script');
-			scriptTag.text = node.innerText;
+			const trustedScript = ttPolicy?.createScript(node.innerText) ?? node.innerText;
+			scriptTag.text = trustedScript as string;
 			for (const key of preservedScriptAttributes) {
 				const val = node[key] || node.getAttribute && node.getAttribute(key);
 				if (val) {
@@ -137,14 +138,27 @@ function webviewPreloads() {
 				}
 
 				if (entry.target.id === id && entry.contentRect) {
-					vscode.postMessage({
-						__vscode_notebook_message: true,
-						type: 'dimension',
-						id: id,
-						data: {
-							height: entry.contentRect.height + __outputNodePadding__ * 2
-						}
-					});
+					if (entry.contentRect.height !== 0) {
+						entry.target.style.padding = `${__outputNodePadding__}px`;
+						vscode.postMessage({
+							__vscode_notebook_message: true,
+							type: 'dimension',
+							id: id,
+							data: {
+								height: entry.contentRect.height + __outputNodePadding__ * 2
+							}
+						});
+					} else {
+						entry.target.style.padding = `0px`;
+						vscode.postMessage({
+							__vscode_notebook_message: true,
+							type: 'dimension',
+							id: id,
+							data: {
+								height: entry.contentRect.height
+							}
+						});
+					}
 				}
 			}
 		});
@@ -374,6 +388,11 @@ function webviewPreloads() {
 		queuedOuputActions.set(event.outputId, promise);
 	};
 
+	const ttPolicy = window.trustedTypes?.createPolicy('notebookOutputRenderer', {
+		createHTML: value => value,
+		createScript: value => value,
+	});
+
 	window.addEventListener('wheel', handleWheel);
 
 	window.addEventListener('message', rawEvent => {
@@ -410,13 +429,15 @@ function webviewPreloads() {
 					outputNode.style.top = data.top + 'px';
 					outputNode.style.left = data.left + 'px';
 					outputNode.style.width = 'calc(100% - ' + data.left + 'px)';
-					outputNode.style.minHeight = '32px';
+					// outputNode.style.minHeight = '32px';
+					outputNode.style.padding = '0px';
 					outputNode.id = outputId;
 
 					addMouseoverListeners(outputNode, outputId);
 					const content = data.content;
 					if (content.type === RenderOutputType.Html) {
-						outputNode.innerHTML = content.htmlContent;
+						const trustedHtml = ttPolicy?.createHTML(content.htmlContent) ?? content.htmlContent;
+						outputNode.innerHTML = trustedHtml as string;
 						cellOutputContainer.appendChild(outputNode);
 						domEval(outputNode);
 					} else if (preloadResults.some(e => e?.state === PreloadState.Error)) {

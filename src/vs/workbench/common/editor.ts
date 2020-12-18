@@ -1257,9 +1257,9 @@ export interface IEditorCloseEvent extends IEditorIdentifier {
 export type GroupIdentifier = number;
 
 export interface IWorkbenchEditorConfiguration {
-	workbench: {
-		editor: IEditorPartConfiguration,
-		iconTheme: string;
+	workbench?: {
+		editor?: IEditorPartConfiguration,
+		iconTheme?: string;
 	};
 }
 
@@ -1275,6 +1275,7 @@ interface IEditorPartConfiguration {
 	showIcons?: boolean;
 	enablePreview?: boolean;
 	enablePreviewFromQuickOpen?: boolean;
+	enablePreviewFromCodeNavigation?: boolean;
 	closeOnFileDelete?: boolean;
 	openPositioning?: 'left' | 'right' | 'first' | 'last';
 	openSideBySideDirection?: 'right' | 'down';
@@ -1290,6 +1291,10 @@ interface IEditorPartConfiguration {
 		value?: number;
 		perEditorGroup?: boolean;
 	};
+	decorations?: {
+		badges?: boolean;
+		colors?: boolean;
+	}
 }
 
 export interface IEditorPartOptions extends IEditorPartConfiguration {
@@ -1622,10 +1627,8 @@ export function viewColumnToEditorGroup(editorGroupService: IEditorGroupsService
 }
 
 export function editorGroupToViewColumn(editorGroupService: IEditorGroupsService, editorGroup: IEditorGroup | GroupIdentifier): EditorGroupColumn {
-	const group = (typeof editorGroup === 'number') ? editorGroupService.getGroup(editorGroup) : editorGroup;
-	if (!group) {
-		throw new Error('Invalid group provided');
-	}
+	let group = (typeof editorGroup === 'number') ? editorGroupService.getGroup(editorGroup) : editorGroup;
+	group = group ?? editorGroupService.activeGroup;
 
 	return editorGroupService.getGroups(GroupsOrder.GRID_APPEARANCE).indexOf(group);
 }

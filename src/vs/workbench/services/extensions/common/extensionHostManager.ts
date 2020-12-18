@@ -182,6 +182,7 @@ export class ExtensionHostManager extends Disposable {
 		this._register(this._rpcProtocol.onDidChangeResponsiveState((responsiveState: ResponsiveState) => this._onDidChangeResponsiveState.fire(responsiveState)));
 		const extHostContext: IExtHostContext = {
 			remoteAuthority: this._extensionHost.remoteAuthority,
+			extensionHostKind: this.kind,
 			getProxy: <T>(identifier: ProxyIdentifier<T>): T => this._rpcProtocol!.getProxy(identifier),
 			set: <T, R extends T>(identifier: ProxyIdentifier<T>, instance: R): R => this._rpcProtocol!.set(identifier, instance),
 			assertRegistered: (identifiers: ProxyIdentifier<any>[]): void => this._rpcProtocol!.assertRegistered(identifiers),

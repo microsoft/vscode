@@ -29,7 +29,7 @@ import { ShowViewletAction } from 'vs/workbench/browser/viewlet';
 import { IViewletService } from 'vs/workbench/services/viewlet/browser/viewlet';
 import { IEditorGroupsService } from 'vs/workbench/services/editor/common/editorGroupsService';
 import { IWorkbenchActionRegistry, Extensions as WorkbenchActionExtensions, CATEGORIES } from 'vs/workbench/common/actions';
-import { SyncActionDescriptor } from 'vs/platform/actions/common/actions';
+import { registerAction2, SyncActionDescriptor } from 'vs/platform/actions/common/actions';
 import { IProgress, IProgressStep, IProgressService, ProgressLocation } from 'vs/platform/progress/common/progress';
 import { IWorkbenchContribution, IWorkbenchContributionsRegistry, Extensions as WorkbenchExtensions } from 'vs/workbench/common/contributions';
 import { IRemoteAgentService } from 'vs/workbench/services/remote/common/remoteAgentService';
@@ -40,11 +40,11 @@ import { ReloadWindowAction } from 'vs/workbench/browser/actions/windowActions';
 import { IDisposable } from 'vs/base/common/lifecycle';
 import { LifecyclePhase } from 'vs/workbench/services/lifecycle/common/lifecycle';
 import { SwitchRemoteViewItem, SwitchRemoteAction } from 'vs/workbench/contrib/remote/browser/explorerViewItems';
-import { Action, IActionViewItem, IAction } from 'vs/base/common/actions';
+import { Action, IActionViewItem } from 'vs/base/common/actions';
 import { isStringArray } from 'vs/base/common/types';
 import { IRemoteExplorerService } from 'vs/workbench/services/remote/common/remoteExplorerService';
 import { IWorkbenchEnvironmentService } from 'vs/workbench/services/environment/common/environmentService';
-import { ViewPane, IViewPaneOptions } from 'vs/workbench/browser/parts/views/viewPaneContainer';
+import { ViewPane, IViewPaneOptions } from 'vs/workbench/browser/parts/views/viewPane';
 import { IListVirtualDelegate } from 'vs/base/browser/ui/list/list';
 import { ITreeRenderer, ITreeNode, IAsyncDataSource } from 'vs/base/browser/ui/tree/tree';
 import { WorkbenchAsyncDataTree } from 'vs/platform/list/browser/listService';
@@ -54,7 +54,8 @@ import { ExtensionsRegistry, IExtensionPointUser } from 'vs/workbench/services/e
 import { SyncDescriptor } from 'vs/platform/instantiation/common/descriptors';
 import { RemoteStatusIndicator } from 'vs/workbench/contrib/remote/browser/remoteIndicator';
 import { inQuickPickContextKeyValue } from 'vs/workbench/browser/quickaccess';
-import { Codicon, registerIcon } from 'vs/base/common/codicons';
+import * as icons from 'vs/workbench/contrib/remote/browser/remoteIcons';
+
 
 export interface HelpInformation {
 	extensionDescription: IExtensionDescription;
@@ -148,16 +149,8 @@ class HelpDataSource implements IAsyncDataSource<HelpModel, IHelpItem> {
 		return [];
 	}
 }
-
-const getStartedIcon = registerIcon('remote-explorer-get-started', Codicon.star);
-const documentationIcon = registerIcon('remote-explorer-documentation', Codicon.book);
-const feedbackIcon = registerIcon('remote-explorer-feedback', Codicon.twitter);
-const reviewIssuesIcon = registerIcon('remote-explorer-review-issues', Codicon.issues);
-const reportIssuesIcon = registerIcon('remote-explorer-report-issues', Codicon.comment);
-const remoteExplorerViewIcon = registerIcon('remote-explorer-view-icon', Codicon.remoteExplorer, nls.localize('remoteExplorerViewIcon', 'View icon of the remote explorer view.'));
-
 interface IHelpItem {
-	icon: Codicon,
+	icon: ThemeIcon,
 	iconClasses: string[];
 	label: string;
 	handleClick(): Promise<void>;
@@ -179,7 +172,7 @@ class HelpModel {
 
 		if (getStarted.length) {
 			helpItems.push(new HelpItem(
-				getStartedIcon,
+				icons.getStartedIcon,
 				nls.localize('remote.help.getStarted', "Get Started"),
 				getStarted.map((info: HelpInformation) => (new HelpItemValue(commandService,
 					info.extensionDescription,
@@ -197,7 +190,7 @@ class HelpModel {
 
 		if (documentation.length) {
 			helpItems.push(new HelpItem(
-				documentationIcon,
+				icons.documentationIcon,
 				nls.localize('remote.help.documentation', "Read Documentation"),
 				documentation.map((info: HelpInformation) => (new HelpItemValue(commandService,
 					info.extensionDescription,
@@ -215,7 +208,7 @@ class HelpModel {
 
 		if (feedback.length) {
 			helpItems.push(new HelpItem(
-				feedbackIcon,
+				icons.feedbackIcon,
 				nls.localize('remote.help.feedback', "Provide Feedback"),
 				feedback.map((info: HelpInformation) => (new HelpItemValue(commandService,
 					info.extensionDescription,
@@ -233,7 +226,7 @@ class HelpModel {
 
 		if (issues.length) {
 			helpItems.push(new HelpItem(
-				reviewIssuesIcon,
+				icons.reviewIssuesIcon,
 				nls.localize('remote.help.issues', "Review Issues"),
 				issues.map((info: HelpInformation) => (new HelpItemValue(commandService,
 					info.extensionDescription,
@@ -249,7 +242,7 @@ class HelpModel {
 
 		if (helpItems.length) {
 			helpItems.push(new IssueReporterItem(
-				reportIssuesIcon,
+				icons.reportIssuesIcon,
 				nls.localize('remote.help.report', "Report Issue"),
 				viewModel.helpInformation.map(info => (new HelpItemValue(commandService,
 					info.extensionDescription,
@@ -298,14 +291,14 @@ class HelpItemValue {
 abstract class HelpItemBase implements IHelpItem {
 	public iconClasses: string[] = [];
 	constructor(
-		public icon: Codicon,
+		public icon: ThemeIcon,
 		public label: string,
 		public values: HelpItemValue[],
 		private quickInputService: IQuickInputService,
 		private environmentService: IWorkbenchEnvironmentService,
 		private remoteExplorerService: IRemoteExplorerService
 	) {
-		this.iconClasses.push(...icon.classNamesArray);
+		this.iconClasses.push(...ThemeIcon.asClassNameArray(icon));
 		this.iconClasses.push('remote-help-tree-node-item-icon');
 	}
 
@@ -352,7 +345,7 @@ abstract class HelpItemBase implements IHelpItem {
 
 class HelpItem extends HelpItemBase {
 	constructor(
-		icon: Codicon,
+		icon: ThemeIcon,
 		label: string,
 		values: HelpItemValue[],
 		quickInputService: IQuickInputService,
@@ -370,7 +363,7 @@ class HelpItem extends HelpItemBase {
 
 class IssueReporterItem extends HelpItemBase {
 	constructor(
-		icon: Codicon,
+		icon: ThemeIcon,
 		label: string,
 		values: HelpItemValue[],
 		quickInputService: IQuickInputService,
@@ -456,8 +449,8 @@ class HelpPanelDescriptor implements IViewDescriptor {
 	readonly ctorDescriptor: SyncDescriptor<HelpPanel>;
 	readonly canToggleVisibility = true;
 	readonly hideByDefault = false;
-	readonly workspace = true;
 	readonly group = 'help@50';
+	readonly order = -10;
 
 	constructor(viewModel: IViewModel) {
 		this.ctorDescriptor = new SyncDescriptor(HelpPanel, [viewModel]);
@@ -467,7 +460,6 @@ class HelpPanelDescriptor implements IViewDescriptor {
 export class RemoteViewPaneContainer extends FilterViewPaneContainer implements IViewModel {
 	private helpPanelDescriptor = new HelpPanelDescriptor(this);
 	helpInformation: HelpInformation[] = [];
-	private actions: IAction[] | undefined;
 
 	constructor(
 		@IWorkbenchLayoutService layoutService: IWorkbenchLayoutService,
@@ -534,24 +526,13 @@ export class RemoteViewPaneContainer extends FilterViewPaneContainer implements 
 		return super.getActionViewItem(action);
 	}
 
-	public getActions(): IAction[] {
-		if (!this.actions) {
-			this.actions = [
-				this.instantiationService.createInstance(SwitchRemoteAction, SwitchRemoteAction.ID, SwitchRemoteAction.LABEL)
-			];
-			this.actions.forEach(a => {
-				this._register(a);
-			});
-		}
-		return this.actions;
-	}
-
 	getTitle(): string {
 		const title = nls.localize('remote.explorer', "Remote Explorer");
 		return title;
 	}
-
 }
+
+registerAction2(SwitchRemoteAction);
 
 Registry.as<IViewContainersRegistry>(Extensions.ViewContainersRegistry).registerViewContainer(
 	{
@@ -573,7 +554,7 @@ Registry.as<IViewContainersRegistry>(Extensions.ViewContainersRegistry).register
 				matches = /^details(@(\d+))?$/.exec(group);
 
 				if (matches) {
-					return -500;
+					return -500 + Number(matches[2]);
 				}
 
 				matches = /^help(@(\d+))?$/.exec(group);
@@ -584,7 +565,7 @@ Registry.as<IViewContainersRegistry>(Extensions.ViewContainersRegistry).register
 				return;
 			}
 		},
-		icon: ThemeIcon.fromCodicon(remoteExplorerViewIcon),
+		icon: icons.remoteExplorerViewIcon,
 		order: 4
 	}, ViewContainerLocation.Sidebar);
 

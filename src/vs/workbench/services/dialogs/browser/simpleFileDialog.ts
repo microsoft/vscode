@@ -34,6 +34,7 @@ import { IEditorService } from 'vs/workbench/services/editor/common/editorServic
 import { normalizeDriveLetter } from 'vs/base/common/labels';
 import { SaveReason } from 'vs/workbench/common/editor';
 import { IPathService } from 'vs/workbench/services/path/common/pathService';
+import { IAccessibilityService } from 'vs/platform/accessibility/common/accessibility';
 
 export namespace OpenLocalFileCommand {
 	export const ID = 'workbench.action.files.openLocalFile';
@@ -138,6 +139,7 @@ export class SimpleFileDialog {
 		@IPathService protected readonly pathService: IPathService,
 		@IKeybindingService private readonly keybindingService: IKeybindingService,
 		@IContextKeyService contextKeyService: IContextKeyService,
+		@IAccessibilityService private readonly accessibilityService: IAccessibilityService
 	) {
 		this.remoteAuthority = this.environmentService.remoteAuthority;
 		this.contextKey = RemoteFileDialogContext.bindTo(contextKeyService);
@@ -221,7 +223,7 @@ export class SimpleFileDialog {
 	}
 
 	private getScheme(available: readonly string[] | undefined, defaultUri: URI | undefined): string {
-		if (available) {
+		if (available && available.length > 0) {
 			if (defaultUri && (available.indexOf(defaultUri.scheme) >= 0)) {
 				return defaultUri.scheme;
 			}
@@ -642,12 +644,16 @@ export class SimpleFileDialog {
 			return true;
 		} else if (force && (!equalsIgnoreCase(this.basenameWithTrailingSlash(quickPickItem.uri), (this.userEnteredPathSegment + this.autoCompletePathSegment)))) {
 			this.userEnteredPathSegment = '';
-			this.autoCompletePathSegment = this.trimTrailingSlash(itemBasename);
+			if (!this.accessibilityService.isScreenReaderOptimized()) {
+				this.autoCompletePathSegment = this.trimTrailingSlash(itemBasename);
+			}
 			this.activeItem = quickPickItem;
-			this.filePickBox.valueSelection = [this.pathFromUri(this.currentFolder, true).length, this.filePickBox.value.length];
-			// use insert text to preserve undo buffer
-			this.insertText(this.pathAppend(this.currentFolder, this.autoCompletePathSegment), this.autoCompletePathSegment);
-			this.filePickBox.valueSelection = [this.filePickBox.value.length - this.autoCompletePathSegment.length, this.filePickBox.value.length];
+			if (!this.accessibilityService.isScreenReaderOptimized()) {
+				this.filePickBox.valueSelection = [this.pathFromUri(this.currentFolder, true).length, this.filePickBox.value.length];
+				// use insert text to preserve undo buffer
+				this.insertText(this.pathAppend(this.currentFolder, this.autoCompletePathSegment), this.autoCompletePathSegment);
+				this.filePickBox.valueSelection = [this.filePickBox.value.length - this.autoCompletePathSegment.length, this.filePickBox.value.length];
+			}
 			return true;
 		} else {
 			this.userEnteredPathSegment = startingBasename;

@@ -93,7 +93,8 @@ export class TOCTreeModel {
 			return child.matchesScope(this._viewState.settingsTarget, isRemote) &&
 				child.matchesAllTags(this._viewState.tagFilters) &&
 				child.matchesAnyFeature(this._viewState.featureFilters) &&
-				child.matchesAnyExtension(this._viewState.extensionFilters);
+				child.matchesAnyExtension(this._viewState.extensionFilters) &&
+				child.matchesAnyId(this._viewState.idFilters);
 		}).length;
 	}
 }

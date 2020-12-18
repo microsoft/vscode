@@ -330,7 +330,8 @@ class TentativeBoundary implements IPrediction {
 		return '';
 	}
 
-	public rollback() {
+	public rollback(cursor: Cursor) {
+		this.inner.rollback(cursor);
 		return '';
 	}
 

@@ -412,11 +412,10 @@ export class Workbench extends Layout {
 			}, 2500);
 
 			// Telemetry: startup metrics
-			mark('didStartWorkbench');
+			mark('code/didStartWorkbench');
 
 			// Perf reporting (devtools)
-			performance.mark('workbench-end');
-			performance.measure('perf: workbench create & restore', 'workbench-start', 'workbench-end');
+			performance.measure('perf: workbench create & restore', 'code/didLoadWorkbenchMain', 'code/didStartWorkbench');
 		}
 	}
 }
