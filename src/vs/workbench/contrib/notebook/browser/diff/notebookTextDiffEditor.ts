@@ -349,7 +349,7 @@ export class NotebookTextDiffEditor extends EditorPane implements INotebookTextD
 		// attach the webview container to the DOM tree first
 		this._list.rowsContainer.insertAdjacentElement('afterbegin', this._modifiedWebview.element);
 		await this._modifiedWebview.createWebview();
-		this._modifiedWebview.element.style.width = `calc(50%)`;
+		this._modifiedWebview.element.style.width = `calc(50% - 16px)`;
 		this._modifiedWebview.element.style.left = `calc(50%)`;
 	}
 
@@ -551,6 +551,25 @@ export class NotebookTextDiffEditor extends EditorPane implements INotebookTextD
 
 	removeInset(cellDiffViewModel: DiffElementViewModelBase, cellViewModel: DiffNestedCellViewModel, output: IInsetRenderOutput) {
 
+	}
+
+	showInset(cellDiffViewModel: DiffElementViewModelBase, cellViewModel: DiffNestedCellViewModel, displayOutput: IDisplayOutputViewModel, diffSide: DiffSide) {
+		this._insetModifyQueueByOutputId.queue(displayOutput.model.outputId + (diffSide === DiffSide.Modified ? '-right' : 'left'), async () => {
+			const activeWebview = diffSide === DiffSide.Modified ? this._modifiedWebview : this._originalWebview;
+			if (!activeWebview) {
+				return;
+			}
+
+			if (!activeWebview.insetMapping.has(displayOutput)) {
+				return;
+			}
+
+			const cellTop = this._list.getAbsoluteTopOfElement(cellDiffViewModel);
+			const scrollTop = this._list.scrollTop;
+			const outputIndex = cellViewModel.outputsViewModels.findIndex(viewModel => viewModel.model === displayOutput.model);
+			const outputOffset = cellTop + cellDiffViewModel.getOutputOffsetInCell(diffSide, outputIndex);
+			activeWebview.updateViewScrollTop(-scrollTop, true, [{ output: displayOutput, cellTop, outputOffset }]);
+		});
 	}
 
 	hideInset(cellDiffViewModel: DiffElementViewModelBase, cellViewModel: DiffNestedCellViewModel, output: IDisplayOutputViewModel) {

@@ -284,63 +284,50 @@ abstract class AbstractElementRenderer extends Disposable {
 
 	updateOutputRendering(renderRichOutput: boolean = true) {
 		if (this.cell.outputFoldingState === PropertyFoldingState.Expanded) {
+			this._outputInfoContainer.style.display = 'block';
 			if (renderRichOutput) {
-				if (this._outputEditorContainer) {
-					this._hideOutputs();
-					this._outputEditorContainer.style.display = 'none';
-					this._outputEditorDisposeStore.clear();
-				}
-
-				this._outputInfoContainer.style.display = 'block';
-
-				if (!this._outputViewContainer) {
-					this._outputViewContainer = DOM.append(this._outputInfoContainer, DOM.$('.output-view-container'));
-					this._buildOutputContainer();
-				} else {
-					// todo, show insets
-					this._showOutputs();
-					// this.cell.layoutChange();
-				}
-
-				this.cell.layoutChange();
+				this._hideOutputsRaw();
+				this._buildOutputRendererContainer();
+				this._showOutputsRenderer();
 
 			} else {
-				if (this._outputInfoContainer) {
-					this._hideOutputs();
-					this._outputInfoContainer.style.display = 'none';
-					this._outputEditorDisposeStore.clear();
-				}
-
-				this._outputInfoContainer.style.display = 'block';
-
-				if (!this._outputEditorContainer || !this._outputEditor) {
-					// create editor
-					this._outputEditorContainer = DOM.append(this._outputInfoContainer, DOM.$('.output-editor-container'));
-					this._buildOutputEditor();
-				} else {
-					this._outputEditorContainer.style.display = 'block';
-					this.cell.outputHeight = this._outputEditor.getContentHeight();
-				}
-
-				this.cell.layoutChange();
+				this._hideOutputsRenderer();
+				this._buildOutputRawContainer();
+				this._showOutputsRaw();
 			}
 		} else {
-			if (renderRichOutput) {
-				this._hideOutputs();
-				this._outputInfoContainer.style.display = 'none';
-				this._outputEditorDisposeStore.clear();
-				this.cell.layoutChange();
-			} else {
-				this._outputInfoContainer.style.display = 'none';
-				this._outputEditorDisposeStore.clear();
-				this.cell.layoutChange();
-			}
+			this._outputInfoContainer.style.display = 'none';
+
+			this._hideOutputsRaw();
+			this._hideOutputsRenderer();
+		}
+
+		this.cell.layoutChange();
+	}
+
+	private _buildOutputRawContainer() {
+		if (!this._outputEditorContainer) {
+			this._outputEditorContainer = DOM.append(this._outputInfoContainer, DOM.$('.output-editor-container'));
+			this._buildOutputEditor();
 		}
 	}
 
-	abstract _buildOutputContainer(): void;
-	abstract _hideOutputs(): void;
-	abstract _showOutputs(): void;
+	private _showOutputsRaw() {
+		if (this._outputEditorContainer) {
+			this._outputEditorContainer.style.display = 'block';
+			this.cell.outputHeight = this._outputEditor!.getContentHeight();
+		}
+	}
+
+	private _hideOutputsRaw() {
+		if (this._outputEditorContainer) {
+			this._outputEditorContainer.style.display = 'none';
+		}
+	}
+
+	abstract _buildOutputRendererContainer(): void;
+	abstract _hideOutputsRenderer(): void;
+	abstract _showOutputsRenderer(): void;
 
 	private _applySanitizedMetadataChanges(currentMetadata: NotebookCellMetadata, newMetadata: any) {
 		let result: { [key: string]: any } = {};
@@ -838,19 +825,46 @@ export class DeletedElement extends SingleSideDiffElement {
 		});
 	}
 
-	_buildOutputContainer() {
-		this._outputLeftView = this.instantiationService.createInstance(OutputContainer, this.notebookEditor, this.notebookEditor.textModel!, this.cell, this.cell.original!, DiffSide.Original, this._outputViewContainer!);
-		this._outputLeftView.render();
-		this.cell.layoutChange();
+	_buildOutputRendererContainer() {
+		if (!this._outputViewContainer) {
+			this._outputViewContainer = DOM.append(this._outputInfoContainer, DOM.$('.output-view-container'));
+
+			this._outputLeftView = this.instantiationService.createInstance(OutputContainer, this.notebookEditor, this.notebookEditor.textModel!, this.cell, this.cell.original!, DiffSide.Original, this._outputViewContainer!);
+			this._register(this._outputLeftView);
+			this._outputLeftView.render();
+
+			const removedOutputRenderListener = this.notebookEditor.onDidDynamicOutputRendered(e => {
+				if (e.cell.uri.toString() === this.cell.original!.uri.toString()) {
+					this.notebookEditor.deltaCellOutputContainerClassNames(DiffSide.Original, this.cell.original!.id, ['nb-cellDeleted'], []);
+					removedOutputRenderListener.dispose();
+				}
+			});
+
+			this._register(removedOutputRenderListener);
+		}
+
+		this._outputViewContainer.style.display = 'block';
 	}
 
-	_showOutputs() {
-		this._outputLeftView?.render();
-		this.cell.layoutChange();
+	_decorate() {
+		this.notebookEditor.deltaCellOutputContainerClassNames(DiffSide.Original, this.cell.original!.id, ['nb-cellDeleted'], []);
 	}
 
-	_hideOutputs() {
-		this._outputLeftView?.hideOutputs();
+	_showOutputsRenderer() {
+		if (this._outputViewContainer) {
+			this._outputViewContainer.style.display = 'block';
+
+			this._outputLeftView?.showOutputs();
+			this._decorate();
+		}
+	}
+
+	_hideOutputsRenderer() {
+		if (this._outputViewContainer) {
+			this._outputViewContainer.style.display = 'none';
+
+			this._outputLeftView?.hideOutputs();
+		}
 	}
 }
 
@@ -911,19 +925,42 @@ export class InsertElement extends SingleSideDiffElement {
 		});
 	}
 
-	_buildOutputContainer() {
-		this._outputRightView = this.instantiationService.createInstance(OutputContainer, this.notebookEditor, this.notebookEditor.textModel!, this.cell, this.cell.modified!, DiffSide.Modified, this._outputViewContainer!);
-		this._outputRightView.render();
-		this.cell.layoutChange();
+	_buildOutputRendererContainer() {
+		if (!this._outputViewContainer) {
+			this._outputViewContainer = DOM.append(this._outputInfoContainer, DOM.$('.output-view-container'));
+			this._outputRightView = this.instantiationService.createInstance(OutputContainer, this.notebookEditor, this.notebookEditor.textModel!, this.cell, this.cell.modified!, DiffSide.Modified, this._outputViewContainer!);
+			this._register(this._outputRightView);
+			this._outputRightView.render();
+
+			const insertOutputRenderListener = this.notebookEditor.onDidDynamicOutputRendered(e => {
+				if (e.cell.uri.toString() === this.cell.modified!.uri.toString()) {
+					this.notebookEditor.deltaCellOutputContainerClassNames(DiffSide.Modified, this.cell.modified!.id, ['nb-cellAdded'], []);
+					insertOutputRenderListener.dispose();
+				}
+			});
+			this._register(insertOutputRenderListener);
+		}
+
+		this._outputViewContainer.style.display = 'block';
 	}
 
-	_showOutputs() {
-		this._outputRightView?.render();
-		this.cell.layoutChange();
+	_decorate() {
+		this.notebookEditor.deltaCellOutputContainerClassNames(DiffSide.Modified, this.cell.modified!.id, ['nb-cellAdded'], []);
 	}
 
-	_hideOutputs() {
-		this._outputRightView?.hideOutputs();
+	_showOutputsRenderer() {
+		if (this._outputViewContainer) {
+			this._outputViewContainer.style.display = 'block';
+			this._outputRightView?.showOutputs();
+			this._decorate();
+		}
+	}
+
+	_hideOutputsRenderer() {
+		if (this._outputViewContainer) {
+			this._outputViewContainer.style.display = 'none';
+			this._outputRightView?.hideOutputs();
+		}
 	}
 
 	layout(state: { outerWidth?: boolean, editorHeight?: boolean, metadataEditor?: boolean, outputEditor?: boolean, outputView?: boolean }) {
@@ -1081,38 +1118,40 @@ export class ModifiedElement extends AbstractElementRenderer {
 		this._outputHeader.buildHeader();
 	}
 
-	_buildOutputContainer() {
-		this._outputLeftContainer = DOM.append(this._outputViewContainer!, DOM.$('.output-view-container-left'));
-		this._outputRightContainer = DOM.append(this._outputViewContainer!, DOM.$('.output-view-container-right'));
-		// We should use the original text model here
-		this._outputLeftView = this.instantiationService.createInstance(OutputContainer, this.notebookEditor, this.notebookEditor.textModel!, this.cell, this.cell.original!, DiffSide.Original, this._outputLeftContainer!);
-		this._outputLeftView.render();
-		this._outputRightView = this.instantiationService.createInstance(OutputContainer, this.notebookEditor, this.notebookEditor.textModel!, this.cell, this.cell.modified!, DiffSide.Modified, this._outputRightContainer!);
-		this._outputRightView.render();
+	_buildOutputRendererContainer() {
+		if (!this._outputViewContainer) {
+			this._outputViewContainer = DOM.append(this._outputInfoContainer, DOM.$('.output-view-container'));
+			this._outputLeftContainer = DOM.append(this._outputViewContainer!, DOM.$('.output-view-container-left'));
+			this._outputRightContainer = DOM.append(this._outputViewContainer!, DOM.$('.output-view-container-right'));
+			// We should use the original text model here
+			this._outputLeftView = this.instantiationService.createInstance(OutputContainer, this.notebookEditor, this.notebookEditor.textModel!, this.cell, this.cell.original!, DiffSide.Original, this._outputLeftContainer!);
+			this._outputLeftView.render();
+			this._register(this._outputLeftView);
+			this._outputRightView = this.instantiationService.createInstance(OutputContainer, this.notebookEditor, this.notebookEditor.textModel!, this.cell, this.cell.modified!, DiffSide.Modified, this._outputRightContainer!);
+			this._outputRightView.render();
+			this._register(this._outputRightView);
 
-		const originalOutputRenderListener = this.notebookEditor.onDidDynamicOutputRendered(e => {
-			if (e.cell.uri.toString() === this.cell.original.uri.toString()) {
-				this.notebookEditor.deltaCellOutputContainerClassNames(DiffSide.Original, this.cell.original.id, ['nb-cellDeleted'], []);
-				originalOutputRenderListener.dispose();
-			}
-		});
+			const originalOutputRenderListener = this.notebookEditor.onDidDynamicOutputRendered(e => {
+				if (e.cell.uri.toString() === this.cell.original.uri.toString()) {
+					this.notebookEditor.deltaCellOutputContainerClassNames(DiffSide.Original, this.cell.original.id, ['nb-cellDeleted'], []);
+					originalOutputRenderListener.dispose();
+				}
+			});
 
-		const modifiedOutputRenderListener = this.notebookEditor.onDidDynamicOutputRendered(e => {
-			if (e.cell.uri.toString() === this.cell.modified.uri.toString()) {
-				this.notebookEditor.deltaCellOutputContainerClassNames(DiffSide.Modified, this.cell.modified.id, ['nb-cellAdded'], []);
-				modifiedOutputRenderListener.dispose();
-			}
-		});
+			const modifiedOutputRenderListener = this.notebookEditor.onDidDynamicOutputRendered(e => {
+				if (e.cell.uri.toString() === this.cell.modified.uri.toString()) {
+					this.notebookEditor.deltaCellOutputContainerClassNames(DiffSide.Modified, this.cell.modified.id, ['nb-cellAdded'], []);
+					modifiedOutputRenderListener.dispose();
+				}
+			});
 
-		this._decorate();
-		this.cell.layoutChange();
-	}
+			this._register(originalOutputRenderListener);
+			this._register(modifiedOutputRenderListener);
 
-	_showOutputs() {
-		this._outputLeftView?.render();
-		this._outputRightView?.render();
-		this._decorate();
-		this.cell.layoutChange();
+			this._decorate();
+		}
+
+		this._outputViewContainer.style.display = 'block';
 	}
 
 	_decorate() {
@@ -1120,9 +1159,23 @@ export class ModifiedElement extends AbstractElementRenderer {
 		this.notebookEditor.deltaCellOutputContainerClassNames(DiffSide.Modified, this.cell.modified.id, ['nb-cellAdded'], []);
 	}
 
-	_hideOutputs() {
-		this._outputLeftView?.hideOutputs();
-		this._outputRightView?.hideOutputs();
+	_showOutputsRenderer() {
+		if (this._outputViewContainer) {
+			this._outputViewContainer.style.display = 'block';
+
+			this._outputLeftView?.showOutputs();
+			this._outputRightView?.showOutputs();
+			this._decorate();
+		}
+	}
+
+	_hideOutputsRenderer() {
+		if (this._outputViewContainer) {
+			this._outputViewContainer.style.display = 'none';
+
+			this._outputLeftView?.hideOutputs();
+			this._outputRightView?.hideOutputs();
+		}
 	}
 
 	updateSourceEditor(): void {

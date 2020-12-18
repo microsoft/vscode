@@ -193,6 +193,17 @@ export class OutputContainer extends Disposable {
 		}
 	}
 
+	showOutputs() {
+		for (let index = 0; index < this._outputViewModels.length; index++) {
+			const currOutput = this._outputViewModels[index];
+
+			if (currOutput.isDisplayOutput()) {
+				// always add to the end
+				this._editor.showInset(this._diffElementViewModel, currOutput.cellViewModel, currOutput, this._diffSide);
+			}
+		}
+	}
+
 	hideOutputs() {
 		this._outputEntries.forEach((outputElement, cellOutputViewModel) => {
 			if (cellOutputViewModel.isDisplayOutput()) {

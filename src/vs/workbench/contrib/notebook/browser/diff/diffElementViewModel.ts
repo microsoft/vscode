@@ -249,7 +249,11 @@ export class SideBySideDiffElementViewModel extends DiffElementViewModelBase {
 	}
 
 	getOutputTotalHeight() {
-		return Math.max(this.original.getOutputTotalHeight(), this.modified.getOutputTotalHeight());
+		if (this.renderOutput) {
+			return Math.max(this.original.getOutputTotalHeight(), this.modified.getOutputTotalHeight());
+		} else {
+			return this._layoutInfo.outputHeight;
+		}
 	}
 
 	getNestedCellViewModel(diffSide: DiffSide): DiffNestedCellViewModel {
