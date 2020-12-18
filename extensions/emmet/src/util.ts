@@ -589,11 +589,20 @@ export function getNodesInBetween(node1: Node, node2: Node): Node[] {
 	return siblings;
 }
 
+function samePositions(pos1: vscode.Position | undefined, pos2: vscode.Position | undefined): boolean {
+	if (!pos1 && !pos2) {
+		return true;
+	} else if (pos1 && pos2 && pos1.isEqual(pos2)) {
+		return true;
+	}
+	return false;
+}
+
 export function sameNodes(node1: Node, node2: Node): boolean {
 	if (!node1 || !node2) {
 		return false;
 	}
-	return (<vscode.Position>node1.start).isEqual(node2.start) && (<vscode.Position>node1.end).isEqual(node2.end);
+	return samePositions(node1.start, node2.start) && samePositions(node1.end, node2.end);
 }
 
 export function getEmmetConfiguration(syntax: string) {

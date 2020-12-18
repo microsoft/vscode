@@ -726,4 +726,29 @@ suite('Tests for Toggle Comment action from Emmet in nested css (SCSS)', () => {
 		});
 	});
 
+	test('toggle comment doesn\'t fail when start and end nodes differ HTML', () => {
+		const contents = `
+	<div>
+		<p>Hello</p>
+	</div>
+	`;
+		const expectedContents = `
+	<!--<div>
+		<p>Hello</p>
+	</div>-->
+	`;
+		return withRandomFileEditor(contents, 'html', (editor, doc) => {
+			editor.selections = [
+				new Selection(1, 2, 2, 9), // <div> to <p> inclusive
+			];
+
+			return toggleComment().then(() => {
+				assert.equal(doc.getText(), expectedContents);
+				return toggleComment().then(() => {
+					assert.equal(doc.getText(), contents);
+					return Promise.resolve();
+				});
+			});
+		});
+	});
 });
