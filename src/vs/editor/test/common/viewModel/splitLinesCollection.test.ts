@@ -391,7 +391,6 @@ suite('SplitLinesCollection', () => {
 		}
 		if (expected === null) {
 			assert.ok(false);
-			return;
 		}
 		assert.equal(actual.content, expected.content);
 		assert.equal(actual.minColumn, expected.minColumn);

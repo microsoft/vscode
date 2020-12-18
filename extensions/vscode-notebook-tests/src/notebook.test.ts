@@ -1272,8 +1272,7 @@ suite('regression', () => {
 		assert.strictEqual(vscode.window.activeNotebookEditor!.document.uri.toString(), resource.toString());
 	});
 
-	test('Cannot open notebook from cell-uri with vscode.open-command', async function () {
-		this.skip();
+	test.skip('Cannot open notebook from cell-uri with vscode.open-command', async function () {
 		assertInitalState();
 		const resource = await createRandomFile('', undefined, 'first', '.vsctestnb');
 		await vscode.commands.executeCommand('vscode.openWith', resource, 'notebookCoreTest');
