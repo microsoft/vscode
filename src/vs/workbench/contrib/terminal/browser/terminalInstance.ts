@@ -32,7 +32,7 @@ import { TerminalLinkManager } from 'vs/workbench/contrib/terminal/browser/links
 import { IAccessibilityService } from 'vs/platform/accessibility/common/accessibility';
 import { ITerminalInstanceService, ITerminalInstance, TerminalShellType, WindowsShellType, ITerminalExternalLinkProvider } from 'vs/workbench/contrib/terminal/browser/terminal';
 import { TerminalProcessManager } from 'vs/workbench/contrib/terminal/browser/terminalProcessManager';
-import type { Terminal as XTermTerminal, IBuffer, ITerminalAddon } from 'xterm';
+import type { Terminal as XTermTerminal, IBuffer, ITerminalAddon, IBufferNamespace } from 'xterm';
 import type { SearchAddon, ISearchOptions } from 'xterm-addon-search';
 import type { Unicode11Addon } from 'xterm-addon-unicode11';
 import type { WebglAddon } from 'xterm-addon-webgl';
@@ -88,6 +88,7 @@ export class TerminalInstance extends Disposable implements ITerminalInstance {
 	private _title: string = '';
 	private _wrapperElement: (HTMLElement & { xterm?: XTermTerminal }) | undefined;
 	private _xterm: XTermTerminal | undefined;
+	private _xtermBuffer: IBufferNamespace | undefined;
 	private _xtermCore: XTermCore | undefined;
 	private _xtermSearch: SearchAddon | undefined;
 	private _xtermUnicode11: Unicode11Addon | undefined;
@@ -416,6 +417,7 @@ export class TerminalInstance extends Disposable implements ITerminalInstance {
 			wordSeparator: config.wordSeparators
 		});
 		this._xterm = xterm;
+		this._xtermBuffer = xterm.buffer;
 		this._xtermCore = (xterm as any)._core as XTermCore;
 		this._updateUnicodeVersion();
 		this.updateAccessibilitySupport();
@@ -800,7 +802,7 @@ export class TerminalInstance extends Disposable implements ITerminalInstance {
 			}
 		}
 		if (this._xterm) {
-			const buffer = this._xterm.buffer;
+			const buffer = this._xtermBuffer!;
 			this._sendLineData(buffer.active, buffer.active.baseY + buffer.active.cursorY);
 			this._xterm.dispose();
 		}
@@ -881,7 +883,7 @@ export class TerminalInstance extends Disposable implements ITerminalInstance {
 			// change since the number of visible rows decreases.
 			// This can likely be removed after https://github.com/xtermjs/xterm.js/issues/291 is
 			// fixed upstream.
-			this._xtermCore._onScroll.fire(this._xterm.buffer.active.viewportY);
+			this._xtermCore._onScroll.fire(this._xtermBuffer!.active.viewportY);
 			if (this._container && this._container.parentElement) {
 				// Force a layout when the instance becomes invisible. This is particularly important
 				// for ensuring that terminals that are created in the background by an extension will
@@ -1216,7 +1218,7 @@ export class TerminalInstance extends Disposable implements ITerminalInstance {
 	}
 
 	private _onLineFeed(): void {
-		const buffer = this._xterm!.buffer;
+		const buffer = this._xtermBuffer!;
 		const newLine = buffer.active.getLine(buffer.active.baseY + buffer.active.cursorY);
 		if (newLine && !newLine.isWrapped) {
 			this._sendLineData(buffer.active, buffer.active.baseY + buffer.active.cursorY - 1);
@@ -1224,7 +1226,7 @@ export class TerminalInstance extends Disposable implements ITerminalInstance {
 	}
 
 	private _onCursorMove(): void {
-		const buffer = this._xterm!.buffer;
+		const buffer = this._xtermBuffer!;
 		this._sendLineData(buffer.active, buffer.active.baseY + buffer.active.cursorY);
 	}
 
