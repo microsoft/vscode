@@ -882,7 +882,9 @@ export class ExtensionsWorkbenchService extends Disposable implements IExtension
 			return Promise.resolve();
 		}
 
-		const toUpdate = this.outdated.filter(e => !this.isAutoUpdateIgnored(new ExtensionIdentifierWithVersion(e.identifier, e.version)));
+		const toUpdate = this.outdated.filter(e => !this.isAutoUpdateIgnored(new ExtensionIdentifierWithVersion(e.identifier, e.version)))
+			.filter(e => e.local && this.extensionEnablementService.isEnabled(e.local));
+
 		return Promises.settled(toUpdate.map(e => this.install(e)));
 	}
 
