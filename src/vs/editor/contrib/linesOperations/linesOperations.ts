@@ -1056,7 +1056,11 @@ export class SnakeCaseAction extends AbstractCaseAction {
 	}
 
 	protected _modifyText(text: string, wordSeparators: string): string {
-		return text.replace(/(?<=\p{Ll})(\p{Lu})|(?<!\b|_)(\p{Lu})(?=\p{Ll})/gmu, '_$&').toLocaleLowerCase();
+		return (text
+			.replace(/(\p{Ll})(\p{Lu})/gmu, '$1_$2')
+			.replace(/([^\b_])(\p{Lu})(\p{Ll})/gmu, '$1_$2$3')
+			.toLocaleLowerCase()
+		);
 	}
 }
 
