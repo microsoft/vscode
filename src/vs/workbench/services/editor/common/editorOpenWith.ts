@@ -91,19 +91,39 @@ export async function openEditorWith(
 		picker.selectedItems = [items[0]];
 	}
 	picker.placeholder = nls.localize('promptOpenWith.placeHolder', "Select editor for '{0}'", basename(originalResource));
+	picker.canAcceptInBackground = true;
 
 	type PickedResult = {
 		readonly item: QuickPickItem;
 		readonly keyMods?: IKeyMods;
+		readonly openInBackground: boolean;
 	};
 
+	function openEditor(picked: PickedResult) {
+		const targetGroup = getTargetGroup(group, picked.keyMods, configurationService, editorGroupsService);
+
+		const openOptions: IEditorOptions = {
+			...options,
+			override: picked.item.id,
+			preserveFocus: picked.openInBackground || options?.preserveFocus,
+		};
+		return picked.item.handler.open(input, openOptions, targetGroup, OpenEditorContext.NEW_EDITOR)?.override;
+	}
+
 	const picked = await new Promise<PickedResult | undefined>(resolve => {
-		picker.onDidAccept(() => {
+		picker.onDidAccept(e => {
 			if (picker.selectedItems.length === 1) {
-				resolve({
+				const result: PickedResult = {
 					item: picker.selectedItems[0],
-					keyMods: picker.keyMods
-				});
+					keyMods: picker.keyMods,
+					openInBackground: e.inBackground
+				};
+
+				if (e.inBackground) {
+					openEditor(result);
+				} else {
+					resolve(result);
+				}
 			} else {
 				resolve(undefined);
 			}
@@ -112,7 +132,7 @@ export async function openEditorWith(
 		picker.onDidTriggerItemButton(e => {
 			const pick = e.item;
 			const id = pick.id;
-			resolve({ item: pick }); // open the view
+			resolve({ item: pick, openInBackground: false }); // open the view
 			picker.dispose();
 
 			// And persist the setting
@@ -143,13 +163,7 @@ export async function openEditorWith(
 		return undefined;
 	}
 
-	const targetGroup = getTargetGroup(group, picked.keyMods, configurationService, editorGroupsService);
-
-	const openOptions: IEditorOptions = {
-		...options,
-		override: picked.item.id,
-	};
-	return picked.item.handler.open(input, openOptions, targetGroup, OpenEditorContext.NEW_EDITOR)?.override;
+	return openEditor(picked);
 }
 
 const builtinProviderDisplayName = nls.localize('builtinProviderDisplayName', "Built-in");
