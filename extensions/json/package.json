@@ -4,11 +4,12 @@
   "description": "%description%",
   "version": "1.0.0",
   "publisher": "vscode",
+  "license": "MIT",
   "engines": {
     "vscode": "0.10.x"
   },
   "scripts": {
-    "update-grammar": "node ../../build/npm/update-grammar.js Microsoft/vscode-JSON.tmLanguage JSON.tmLanguage ./syntaxes/JSON.tmLanguage.json"
+    "update-grammar": "node ./build/update-grammars.js"
   },
   "contributes": {
     "languages": [
@@ -21,15 +22,18 @@
         "extensions": [
           ".json",
           ".bowerrc",
-          ".jshintrc",
           ".jscsrc",
-          ".eslintrc",
-          ".babelrc",
-          ".webmanifest"
+          ".webmanifest",
+          ".js.map",
+          ".css.map",
+          ".ts.map",
+          ".har",
+          ".jslintrc",
+          ".jsonld"
         ],
         "filenames": [
-          ".watchmanconfig",
-          ".ember-cli"
+          "composer.lock",
+          ".watchmanconfig"
         ],
         "mimetypes": [
           "application/json",
@@ -43,19 +47,17 @@
           "JSON with Comments"
         ],
         "extensions": [
-          ".code-workspace",
-          "language-configuration.json",
-          "icon-theme.json",
-          "color-theme.json",
-          ".code-snippets"
+          ".jsonc",
+          ".eslintrc",
+          ".eslintrc.json",
+          ".jsfmtrc",
+          ".jshintrc",
+          ".swcrc",
+          ".hintrc",
+          ".babelrc"
         ],
         "filenames": [
-          "settings.json",
-          "launch.json",
-          "tasks.json",
-          "keybindings.json",
-          "tsconfig.json",
-          "jsconfig.json"
+          ".ember-cli"
         ],
         "configuration": "./language-configuration.json"
       }
@@ -68,14 +70,8 @@
       },
       {
         "language": "jsonc",
-        "scopeName": "source.json",
-        "path": "./syntaxes/JSON.tmLanguage.json"
-      }
-    ],
-    "jsonValidation": [
-      {
-        "fileMatch": "*.schema.json",
-        "url": "http://json-schema.org/draft-04/schema#"
+        "scopeName": "source.json.comments",
+        "path": "./syntaxes/JSONC.tmLanguage.json"
       }
     ]
   }

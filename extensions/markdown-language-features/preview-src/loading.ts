@@ -2,10 +2,13 @@
  *  Copyright (c) Microsoft Corporation. All rights reserved.
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
-import { postCommand } from './messaging';
+import { MessagePoster } from './messaging';
 
 export class StyleLoadingMonitor {
 	private unloadedStyles: string[] = [];
+	private finishedLoading: boolean = false;
+
+	private poster?: MessagePoster;
 
 	constructor() {
 		const onStyleLoadError = (event: any) => {
@@ -25,7 +28,17 @@ export class StyleLoadingMonitor {
 			if (!this.unloadedStyles.length) {
 				return;
 			}
-			postCommand('_markdown.onPreviewStyleLoadError', [this.unloadedStyles]);
+			this.finishedLoading = true;
+			if (this.poster) {
+				this.poster.postMessage('previewStyleLoadError', { unloadedStyles: this.unloadedStyles });
+			}
 		});
+	}
+
+	public setPoster(poster: MessagePoster): void {
+		this.poster = poster;
+		if (this.finishedLoading) {
+			poster.postMessage('previewStyleLoadError', { unloadedStyles: this.unloadedStyles });
+		}
 	}
 }

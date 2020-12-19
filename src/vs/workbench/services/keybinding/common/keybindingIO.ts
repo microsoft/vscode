@@ -2,167 +2,58 @@
  *  Copyright (c) Microsoft Corporation. All rights reserved.
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
-'use strict';
 
-import { Keybinding, SimpleKeybinding, ChordKeybinding, KeyCodeUtils } from 'vs/base/common/keyCodes';
-import { OperatingSystem } from 'vs/base/common/platform';
+import { SimpleKeybinding } from 'vs/base/common/keyCodes';
+import { KeybindingParser } from 'vs/base/common/keybindingParser';
+import { ScanCodeBinding } from 'vs/base/common/scanCode';
+import { ContextKeyExpr, ContextKeyExpression } from 'vs/platform/contextkey/common/contextkey';
 import { IUserFriendlyKeybinding } from 'vs/platform/keybinding/common/keybinding';
-import { ContextKeyExpr } from 'vs/platform/contextkey/common/contextkey';
 import { ResolvedKeybindingItem } from 'vs/platform/keybinding/common/resolvedKeybindingItem';
-import { ScanCodeBinding, ScanCodeUtils } from 'vs/workbench/services/keybinding/common/scanCode';
 
 export interface IUserKeybindingItem {
-	firstPart: SimpleKeybinding | ScanCodeBinding;
-	chordPart: SimpleKeybinding | ScanCodeBinding;
-	command: string;
+	parts: (SimpleKeybinding | ScanCodeBinding)[];
+	command: string | null;
 	commandArgs?: any;
-	when: ContextKeyExpr;
+	when: ContextKeyExpression | undefined;
 }
 
 export class KeybindingIO {
 
-	public static writeKeybindingItem(out: OutputBuilder, item: ResolvedKeybindingItem, OS: OperatingSystem): void {
+	public static writeKeybindingItem(out: OutputBuilder, item: ResolvedKeybindingItem): void {
+		if (!item.resolvedKeybinding) {
+			return;
+		}
 		let quotedSerializedKeybinding = JSON.stringify(item.resolvedKeybinding.getUserSettingsLabel());
 		out.write(`{ "key": ${rightPaddedString(quotedSerializedKeybinding + ',', 25)} "command": `);
 
-		let serializedWhen = item.when ? item.when.serialize() : '';
+		let quotedSerializedWhen = item.when ? JSON.stringify(item.when.serialize()) : '';
 		let quotedSerializeCommand = JSON.stringify(item.command);
-		if (serializedWhen.length > 0) {
+		if (quotedSerializedWhen.length > 0) {
 			out.write(`${quotedSerializeCommand},`);
 			out.writeLine();
-			out.write(`                                     "when": "${serializedWhen}" `);
+			out.write(`                                     "when": ${quotedSerializedWhen}`);
 		} else {
-			out.write(`${quotedSerializeCommand} `);
+			out.write(`${quotedSerializeCommand}`);
 		}
-		// out.write(String(item.weight1 + '-' + item.weight2));
-		out.write('}');
+		if (item.commandArgs) {
+			out.write(',');
+			out.writeLine();
+			out.write(`                                     "args": ${JSON.stringify(item.commandArgs)}`);
+		}
+		out.write(' }');
 	}
 
-	public static readUserKeybindingItem(input: IUserFriendlyKeybinding, OS: OperatingSystem): IUserKeybindingItem {
-		const [firstPart, chordPart] = (typeof input.key === 'string' ? this._readUserBinding(input.key) : [null, null]);
-		const when = (typeof input.when === 'string' ? ContextKeyExpr.deserialize(input.when) : null);
+	public static readUserKeybindingItem(input: IUserFriendlyKeybinding): IUserKeybindingItem {
+		const parts = (typeof input.key === 'string' ? KeybindingParser.parseUserBinding(input.key) : []);
+		const when = (typeof input.when === 'string' ? ContextKeyExpr.deserialize(input.when) : undefined);
 		const command = (typeof input.command === 'string' ? input.command : null);
-		const commandArgs = (typeof input.args !== 'undefined' ? input.args : null);
+		const commandArgs = (typeof input.args !== 'undefined' ? input.args : undefined);
 		return {
-			firstPart: firstPart,
-			chordPart: chordPart,
+			parts: parts,
 			command: command,
 			commandArgs: commandArgs,
 			when: when
 		};
-	}
-
-	private static _readModifiers(input: string) {
-		input = input.toLowerCase().trim();
-
-		let ctrl = false;
-		let shift = false;
-		let alt = false;
-		let meta = false;
-
-		let matchedModifier: boolean;
-
-		do {
-			matchedModifier = false;
-			if (/^ctrl(\+|\-)/.test(input)) {
-				ctrl = true;
-				input = input.substr('ctrl-'.length);
-				matchedModifier = true;
-			}
-			if (/^shift(\+|\-)/.test(input)) {
-				shift = true;
-				input = input.substr('shift-'.length);
-				matchedModifier = true;
-			}
-			if (/^alt(\+|\-)/.test(input)) {
-				alt = true;
-				input = input.substr('alt-'.length);
-				matchedModifier = true;
-			}
-			if (/^meta(\+|\-)/.test(input)) {
-				meta = true;
-				input = input.substr('meta-'.length);
-				matchedModifier = true;
-			}
-			if (/^win(\+|\-)/.test(input)) {
-				meta = true;
-				input = input.substr('win-'.length);
-				matchedModifier = true;
-			}
-			if (/^cmd(\+|\-)/.test(input)) {
-				meta = true;
-				input = input.substr('cmd-'.length);
-				matchedModifier = true;
-			}
-		} while (matchedModifier);
-
-		let key: string;
-
-		const firstSpaceIdx = input.indexOf(' ');
-		if (firstSpaceIdx > 0) {
-			key = input.substring(0, firstSpaceIdx);
-			input = input.substring(firstSpaceIdx);
-		} else {
-			key = input;
-			input = '';
-		}
-
-		return {
-			remains: input,
-			ctrl,
-			shift,
-			alt,
-			meta,
-			key
-		};
-	}
-
-	private static _readSimpleKeybinding(input: string): [SimpleKeybinding, string] {
-		const mods = this._readModifiers(input);
-		const keyCode = KeyCodeUtils.fromUserSettings(mods.key);
-		return [new SimpleKeybinding(mods.ctrl, mods.shift, mods.alt, mods.meta, keyCode), mods.remains];
-	}
-
-	public static readKeybinding(input: string, OS: OperatingSystem): Keybinding {
-		if (!input) {
-			return null;
-		}
-
-		let [firstPart, remains] = this._readSimpleKeybinding(input);
-		let chordPart: SimpleKeybinding = null;
-		if (remains.length > 0) {
-			[chordPart] = this._readSimpleKeybinding(remains);
-		}
-
-		if (chordPart) {
-			return new ChordKeybinding(firstPart, chordPart);
-		}
-		return firstPart;
-	}
-
-	private static _readSimpleUserBinding(input: string): [SimpleKeybinding | ScanCodeBinding, string] {
-		const mods = this._readModifiers(input);
-		const scanCodeMatch = mods.key.match(/^\[([^\]]+)\]$/);
-		if (scanCodeMatch) {
-			const strScanCode = scanCodeMatch[1];
-			const scanCode = ScanCodeUtils.lowerCaseToEnum(strScanCode);
-			return [new ScanCodeBinding(mods.ctrl, mods.shift, mods.alt, mods.meta, scanCode), mods.remains];
-		}
-		const keyCode = KeyCodeUtils.fromUserSettings(mods.key);
-		return [new SimpleKeybinding(mods.ctrl, mods.shift, mods.alt, mods.meta, keyCode), mods.remains];
-	}
-
-	static _readUserBinding(input: string): [SimpleKeybinding | ScanCodeBinding, SimpleKeybinding | ScanCodeBinding] {
-		if (!input) {
-			return [null, null];
-		}
-
-		let [firstPart, remains] = this._readSimpleUserBinding(input);
-		let chordPart: SimpleKeybinding | ScanCodeBinding = null;
-		if (remains.length > 0) {
-			[chordPart] = this._readSimpleUserBinding(remains);
-		}
-		return [firstPart, chordPart];
 	}
 }
 

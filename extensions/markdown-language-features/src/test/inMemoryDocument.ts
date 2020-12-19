@@ -4,24 +4,25 @@
  *--------------------------------------------------------------------------------------------*/
 
 import * as vscode from 'vscode';
-
+import * as os from 'os';
 export class InMemoryDocument implements vscode.TextDocument {
 	private readonly _lines: string[];
 
 	constructor(
 		public readonly uri: vscode.Uri,
-		private readonly _contents: string
+		private readonly _contents: string,
+		public readonly version = 1,
 	) {
-		this._lines = this._contents.split(/\n/g);
+		this._lines = this._contents.split(/\r\n|\n/g);
 	}
 
 
 	isUntitled: boolean = false;
 	languageId: string = '';
-	version: number = 1;
 	isDirty: boolean = false;
 	isClosed: boolean = false;
-	eol: vscode.EndOfLine = vscode.EndOfLine.LF;
+	eol: vscode.EndOfLine = os.platform() === 'win32' ? vscode.EndOfLine.CRLF : vscode.EndOfLine.LF;
+	notebook: undefined;
 
 	get fileName(): string {
 		return this.uri.fsPath;
@@ -44,8 +45,12 @@ export class InMemoryDocument implements vscode.TextDocument {
 	offsetAt(_position: vscode.Position): never {
 		throw new Error('Method not implemented.');
 	}
-	positionAt(_offset: number): never {
-		throw new Error('Method not implemented.');
+	positionAt(offset: number): vscode.Position {
+		const before = this._contents.slice(0, offset);
+		const newLines = before.match(/\r\n|\n/g);
+		const line = newLines ? newLines.length : 0;
+		const preCharacters = before.match(/(\r\n|\n|^).*$/g);
+		return new vscode.Position(line, preCharacters ? preCharacters[0].length : 0);
 	}
 	getText(_range?: vscode.Range | undefined): string {
 		return this._contents;

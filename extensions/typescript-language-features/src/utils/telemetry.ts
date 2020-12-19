@@ -3,39 +3,53 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import * as path from 'path';
+import * as vscode from 'vscode';
 import VsCodeTelemetryReporter from 'vscode-extension-telemetry';
 import { memoize } from './memoize';
 
-interface IPackageInfo {
+interface PackageInfo {
 	readonly name: string;
 	readonly version: string;
 	readonly aiKey: string;
 }
 
-export default class TelemetryReporter {
-	private _reporter: VsCodeTelemetryReporter | null = null;
+export interface TelemetryProperties {
+	readonly [prop: string]: string | number | undefined;
+}
 
-	dispose() {
-		if (this._reporter) {
-			this._reporter.dispose();
-			this._reporter = null;
-		}
-	}
+export interface TelemetryReporter {
+	logTelemetry(eventName: string, properties?: TelemetryProperties): void;
+
+	dispose(): void;
+}
+
+export class VSCodeTelemetryReporter implements TelemetryReporter {
+	private _reporter: VsCodeTelemetryReporter | null = null;
 
 	constructor(
 		private readonly clientVersionDelegate: () => string
 	) { }
 
-	public logTelemetry(eventName: string, properties?: { [prop: string]: string }) {
+	public logTelemetry(eventName: string, properties: { [prop: string]: string } = {}) {
 		const reporter = this.reporter;
-		if (reporter) {
-			if (!properties) {
-				properties = {};
-			}
-			properties['version'] = this.clientVersionDelegate();
+		if (!reporter) {
+			return;
+		}
 
-			reporter.sendTelemetryEvent(eventName, properties);
+		/* __GDPR__FRAGMENT__
+			"TypeScriptCommonProperties" : {
+				"version" : { "classification": "SystemMetaData", "purpose": "FeatureInsight" }
+			}
+		*/
+		properties['version'] = this.clientVersionDelegate();
+
+		reporter.sendTelemetryEvent(eventName, properties);
+	}
+
+	public dispose() {
+		if (this._reporter) {
+			this._reporter.dispose();
+			this._reporter = null;
 		}
 	}
 
@@ -52,14 +66,13 @@ export default class TelemetryReporter {
 	}
 
 	@memoize
-	private get packageInfo(): IPackageInfo | null {
-		const packagePath = path.join(__dirname, '..', '..', 'package.json');
-		const extensionPackage = require(packagePath);
-		if (extensionPackage) {
+	private get packageInfo(): PackageInfo | null {
+		const { packageJSON } = vscode.extensions.getExtension('vscode.typescript-language-features')!;
+		if (packageJSON) {
 			return {
-				name: extensionPackage.name,
-				version: extensionPackage.version,
-				aiKey: extensionPackage.aiKey
+				name: packageJSON.name,
+				version: packageJSON.version,
+				aiKey: packageJSON.aiKey
 			};
 		}
 		return null;

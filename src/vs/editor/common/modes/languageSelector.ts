@@ -3,24 +3,24 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-'use strict';
-
-import URI from 'vs/base/common/uri';
-import { match as matchGlobPattern, IRelativePattern } from 'vs/base/common/glob'; // TODO@Alex
+import { IRelativePattern, match as matchGlobPattern } from 'vs/base/common/glob';
+import { URI } from 'vs/base/common/uri'; // TODO@Alex
+import { normalize } from 'vs/base/common/path';
 
 export interface LanguageFilter {
-	language?: string;
-	scheme?: string;
-	pattern?: string | IRelativePattern;
+	readonly language?: string;
+	readonly scheme?: string;
+	readonly pattern?: string | IRelativePattern;
 	/**
 	 * This provider is implemented in the UI thread.
 	 */
-	hasAccessToAllModels?: boolean;
+	readonly hasAccessToAllModels?: boolean;
+	readonly exclusive?: boolean;
 }
 
-export type LanguageSelector = string | LanguageFilter | (string | LanguageFilter)[];
+export type LanguageSelector = string | LanguageFilter | ReadonlyArray<string | LanguageFilter>;
 
-export function score(selector: LanguageSelector, candidateUri: URI, candidateLanguage: string, candidateIsSynchronized: boolean): number {
+export function score(selector: LanguageSelector | undefined, candidateUri: URI, candidateLanguage: string, candidateIsSynchronized: boolean): number {
 
 	if (Array.isArray(selector)) {
 		// array -> take max individual value
@@ -43,8 +43,8 @@ export function score(selector: LanguageSelector, candidateUri: URI, candidateLa
 		}
 
 		// short-hand notion, desugars to
-		// 'fooLang' -> [{ language: 'fooLang', scheme: 'file' }, { language: 'fooLang', scheme: 'untitled' }]
-		// '*' -> { language: '*', scheme: '*' }
+		// 'fooLang' -> { language: 'fooLang'}
+		// '*' -> { language: '*' }
 		if (selector === '*') {
 			return 5;
 		} else if (selector === candidateLanguage) {
@@ -84,7 +84,19 @@ export function score(selector: LanguageSelector, candidateUri: URI, candidateLa
 		}
 
 		if (pattern) {
-			if (pattern === candidateUri.fsPath || matchGlobPattern(pattern, candidateUri.fsPath)) {
+			let normalizedPattern: string | IRelativePattern;
+			if (typeof pattern === 'string') {
+				normalizedPattern = pattern;
+			} else {
+				// Since this pattern has a `base` property, we need
+				// to normalize this path first before passing it on
+				// because we will compare it against `Uri.fsPath`
+				// which uses platform specific separators.
+				// Refs: https://github.com/microsoft/vscode/issues/99938
+				normalizedPattern = { ...pattern, base: normalize(pattern.base) };
+			}
+
+			if (normalizedPattern === candidateUri.fsPath || matchGlobPattern(normalizedPattern, candidateUri.fsPath)) {
 				ret = 10;
 			} else {
 				return 0;

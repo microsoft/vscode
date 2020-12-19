@@ -2,21 +2,18 @@
  *  Copyright (c) Microsoft Corporation. All rights reserved.
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
-'use strict';
 
-import 'vs/css!./findInputCheckboxes';
-
-import * as nls from 'vs/nls';
 import { Checkbox } from 'vs/base/browser/ui/checkbox/checkbox';
-import { IKeyboardEvent } from 'vs/base/browser/keyboardEvent';
 import { Color } from 'vs/base/common/color';
+import * as nls from 'vs/nls';
+import { Codicon } from 'vs/base/common/codicons';
 
 export interface IFindInputCheckboxOpts {
 	readonly appendTitle: string;
 	readonly isChecked: boolean;
-	readonly onChange: (viaKeyboard: boolean) => void;
-	readonly onKeyDown?: (e: IKeyboardEvent) => void;
 	readonly inputActiveOptionBorder?: Color;
+	readonly inputActiveOptionForeground?: Color;
+	readonly inputActiveOptionBackground?: Color;
 }
 
 const NLS_CASE_SENSITIVE_CHECKBOX_LABEL = nls.localize('caseDescription', "Match Case");
@@ -26,12 +23,12 @@ const NLS_REGEX_CHECKBOX_LABEL = nls.localize('regexDescription', "Use Regular E
 export class CaseSensitiveCheckbox extends Checkbox {
 	constructor(opts: IFindInputCheckboxOpts) {
 		super({
-			actionClassName: 'monaco-case-sensitive',
+			icon: Codicon.caseSensitive,
 			title: NLS_CASE_SENSITIVE_CHECKBOX_LABEL + opts.appendTitle,
 			isChecked: opts.isChecked,
-			onChange: opts.onChange,
-			onKeyDown: opts.onKeyDown,
-			inputActiveOptionBorder: opts.inputActiveOptionBorder
+			inputActiveOptionBorder: opts.inputActiveOptionBorder,
+			inputActiveOptionForeground: opts.inputActiveOptionForeground,
+			inputActiveOptionBackground: opts.inputActiveOptionBackground
 		});
 	}
 }
@@ -39,12 +36,12 @@ export class CaseSensitiveCheckbox extends Checkbox {
 export class WholeWordsCheckbox extends Checkbox {
 	constructor(opts: IFindInputCheckboxOpts) {
 		super({
-			actionClassName: 'monaco-whole-word',
+			icon: Codicon.wholeWord,
 			title: NLS_WHOLE_WORD_CHECKBOX_LABEL + opts.appendTitle,
 			isChecked: opts.isChecked,
-			onChange: opts.onChange,
-			onKeyDown: opts.onKeyDown,
-			inputActiveOptionBorder: opts.inputActiveOptionBorder
+			inputActiveOptionBorder: opts.inputActiveOptionBorder,
+			inputActiveOptionForeground: opts.inputActiveOptionForeground,
+			inputActiveOptionBackground: opts.inputActiveOptionBackground
 		});
 	}
 }
@@ -52,12 +49,12 @@ export class WholeWordsCheckbox extends Checkbox {
 export class RegexCheckbox extends Checkbox {
 	constructor(opts: IFindInputCheckboxOpts) {
 		super({
-			actionClassName: 'monaco-regex',
+			icon: Codicon.regex,
 			title: NLS_REGEX_CHECKBOX_LABEL + opts.appendTitle,
 			isChecked: opts.isChecked,
-			onChange: opts.onChange,
-			onKeyDown: opts.onKeyDown,
-			inputActiveOptionBorder: opts.inputActiveOptionBorder
+			inputActiveOptionBorder: opts.inputActiveOptionBorder,
+			inputActiveOptionForeground: opts.inputActiveOptionForeground,
+			inputActiveOptionBackground: opts.inputActiveOptionBackground
 		});
 	}
 }

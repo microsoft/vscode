@@ -4,38 +4,9 @@
  *--------------------------------------------------------------------------------------------*/
 
 /* Arrows */
-.monaco-scrollable-element > .scrollbar > .up-arrow {
-	background: url('arrow-up.svg');
+.monaco-scrollable-element > .scrollbar > .scra {
 	cursor: pointer;
-}
-.monaco-scrollable-element > .scrollbar > .down-arrow {
-	background: url('arrow-down.svg');
-	cursor: pointer;
-}
-.monaco-scrollable-element > .scrollbar > .left-arrow {
-	background: url('arrow-left.svg');
-	cursor: pointer;
-}
-.monaco-scrollable-element > .scrollbar > .right-arrow {
-	background: url('arrow-right.svg');
-	cursor: pointer;
-}
-
-.hc-black .monaco-scrollable-element > .scrollbar > .up-arrow,
-.vs-dark .monaco-scrollable-element > .scrollbar > .up-arrow {
-	background: url('arrow-up-dark.svg');
-}
-.hc-black .monaco-scrollable-element > .scrollbar > .down-arrow,
-.vs-dark .monaco-scrollable-element > .scrollbar > .down-arrow {
-	background: url('arrow-down-dark.svg');
-}
-.hc-black .monaco-scrollable-element > .scrollbar > .left-arrow,
-.vs-dark .monaco-scrollable-element > .scrollbar > .left-arrow {
-	background: url('arrow-left-dark.svg');
-}
-.hc-black .monaco-scrollable-element > .scrollbar > .right-arrow,
-.vs-dark .monaco-scrollable-element > .scrollbar > .right-arrow {
-	background: url('arrow-right-dark.svg');
+	font-size: 11px !important;
 }
 
 .monaco-scrollable-element > .visible {
@@ -44,10 +15,6 @@
 	/* Background rule added for IE9 - to allow clicks on dom node */
 	background:rgba(0,0,0,0);
 
-	-webkit-transition: opacity 100ms linear;
-	-o-transition: opacity 100ms linear;
-	-moz-transition: opacity 100ms linear;
-	-ms-transition: opacity 100ms linear;
 	transition: opacity 100ms linear;
 }
 .monaco-scrollable-element > .invisible {
@@ -55,10 +22,6 @@
 	pointer-events: none;
 }
 .monaco-scrollable-element > .invisible.fade {
-	-webkit-transition: opacity 800ms linear;
-	-o-transition: opacity 800ms linear;
-	-moz-transition: opacity 800ms linear;
-	-ms-transition: opacity 800ms linear;
 	transition: opacity 800ms linear;
 }
 

@@ -1,0 +1,72 @@
+/*---------------------------------------------------------------------------------------------
+ *  Copyright (c) Microsoft Corporation. All rights reserved.
+ *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *--------------------------------------------------------------------------------------------*/
+
+.monaco-action-bar .action-item .action-label.extension-action {
+	line-height: initial;
+	overflow: hidden;
+	white-space: nowrap;
+	text-overflow: ellipsis;
+}
+
+.monaco-action-bar .action-item > .action-label.extension-action.label,
+.monaco-action-bar .action-dropdown-item > .action-label.extension-action.label {
+	padding: 0 5px;
+}
+
+.monaco-action-bar .action-item .action-label.extension-action.label {
+	outline-offset: 1px;
+}
+
+.monaco-action-bar .action-item .action-label.extension-action.text,
+.monaco-action-bar .action-item .action-label.extension-action.label,
+.monaco-action-bar .action-dropdown-item .action-label.extension-action.label {
+	line-height: 14px;
+	margin-top: 2px;
+}
+
+.monaco-action-bar .action-item .action-label.extension-action.icon {
+	padding: 0 2px;
+	width: 16px;
+}
+
+.monaco-action-bar .action-item .action-label.extension-action.multiserver.install:after,
+.monaco-action-bar .action-item .action-label.extension-action.multiserver.update:after {
+	content: '▼';
+	padding-left: 2px;
+	font-size: 80%;
+}
+
+.monaco-action-bar .action-item.disabled .action-label.extension-action.hide,
+.monaco-action-bar .action-item.disabled .action-label.extension-action.ignore,
+.monaco-action-bar .action-item.disabled .action-label.extension-action.undo-ignore,
+.monaco-action-bar .action-item.disabled .action-label.extension-action.install:not(.installing),
+.monaco-action-bar .action-item.disabled .action-label.extension-action.uninstall:not(.uninstalling),
+.monaco-action-bar .action-item.disabled .action-label.extension-action.update,
+.monaco-action-bar .action-item.disabled .action-label.extension-action.theme,
+.monaco-action-bar .action-item.disabled .action-label.extension-action.extension-sync,
+.monaco-action-bar .action-item.action-dropdown-item.disabled,
+.monaco-action-bar .action-item.action-dropdown-item .action-label.extension-action.hide,
+.monaco-action-bar .action-item.disabled .action-label.extension-action.reload,
+.monaco-action-bar .action-item.disabled .action-label.disable-status.hide,
+.monaco-action-bar .action-item.disabled .action-label.system-disable.hide,
+.monaco-action-bar .action-item.disabled .action-label.extension-status-label.hide,
+.monaco-action-bar .action-item .action-label.extension-action.manage.hide,
+.monaco-action-bar .action-item.disabled .action-label.malicious-status.not-malicious {
+	display: none;
+}
+
+.monaco-action-bar .action-item.disabled .action-label.extension-status-label:before {
+	content: '✓';
+	padding-right: 4px;
+}
+
+.monaco-action-bar .action-item.disabled .action-label.extension-action {
+	opacity: 1;
+}
+
+.monaco-action-bar .action-item.disabled .action-label.extension-action.text {
+	opacity: 0.9;
+	font-style: italic;
+}

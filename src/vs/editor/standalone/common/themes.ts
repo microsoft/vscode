@@ -3,11 +3,9 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-'use strict';
-
+import { editorActiveIndentGuides, editorIndentGuides } from 'vs/editor/common/view/editorColorRegistry';
 import { IStandaloneThemeData } from 'vs/editor/standalone/common/standaloneThemeService';
-import { editorBackground, editorForeground, editorSelectionHighlight, editorInactiveSelection } from 'vs/platform/theme/common/colorRegistry';
-import { editorIndentGuides, editorActiveIndentGuides } from 'vs/editor/common/view/editorColorRegistry';
+import { editorBackground, editorForeground, editorInactiveSelection, editorSelectionHighlight } from 'vs/platform/theme/common/colorRegistry';
 
 /* -------------------------------- Begin vs theme -------------------------------- */
 export const vs: IStandaloneThemeData = {
@@ -23,7 +21,7 @@ export const vs: IStandaloneThemeData = {
 		{ token: 'variable.predefined', foreground: '4864AA' },
 		{ token: 'constant', foreground: 'dd0000' },
 		{ token: 'comment', foreground: '008000' },
-		{ token: 'number', foreground: '09885A' },
+		{ token: 'number', foreground: '098658' },
 		{ token: 'number.hex', foreground: '3030c0' },
 		{ token: 'regexp', foreground: '800000' },
 		{ token: 'annotation', foreground: '808080' },
@@ -34,8 +32,8 @@ export const vs: IStandaloneThemeData = {
 		{ token: 'delimiter.xml', foreground: '0000FF' },
 
 		{ token: 'tag', foreground: '800000' },
-		{ token: 'tag.id.jade', foreground: '4F76AC' },
-		{ token: 'tag.class.jade', foreground: '4F76AC' },
+		{ token: 'tag.id.pug', foreground: '4F76AC' },
+		{ token: 'tag.class.pug', foreground: '4F76AC' },
 		{ token: 'meta.scss', foreground: '800000' },
 		{ token: 'metatag', foreground: 'e00000' },
 		{ token: 'metatag.content.html', foreground: 'FF0000' },
@@ -49,8 +47,8 @@ export const vs: IStandaloneThemeData = {
 
 		{ token: 'attribute.name', foreground: 'FF0000' },
 		{ token: 'attribute.value', foreground: '0451A5' },
-		{ token: 'attribute.value.number', foreground: '09885A' },
-		{ token: 'attribute.value.unit', foreground: '09885A' },
+		{ token: 'attribute.value.number', foreground: '098658' },
+		{ token: 'attribute.value.unit', foreground: '098658' },
 		{ token: 'attribute.value.html', foreground: '0000FF' },
 		{ token: 'attribute.value.xml', foreground: '0000FF' },
 
@@ -107,8 +105,8 @@ export const vs_dark: IStandaloneThemeData = {
 		{ token: 'delimiter.xml', foreground: '808080' },
 
 		{ token: 'tag', foreground: '569CD6' },
-		{ token: 'tag.id.jade', foreground: '4F76AC' },
-		{ token: 'tag.class.jade', foreground: '4F76AC' },
+		{ token: 'tag.id.pug', foreground: '4F76AC' },
+		{ token: 'tag.class.pug', foreground: '4F76AC' },
 		{ token: 'meta.scss', foreground: 'A79873' },
 		{ token: 'meta.tag', foreground: 'CE9178' },
 		{ token: 'metatag', foreground: 'DD6A6F' },
@@ -176,8 +174,8 @@ export const hc_black: IStandaloneThemeData = {
 		{ token: 'delimiter.html', foreground: 'FFFF00' },
 
 		{ token: 'tag', foreground: '569CD6' },
-		{ token: 'tag.id.jade', foreground: '4F76AC' },
-		{ token: 'tag.class.jade', foreground: '4F76AC' },
+		{ token: 'tag.id.pug', foreground: '4F76AC' },
+		{ token: 'tag.class.pug', foreground: '4F76AC' },
 		{ token: 'meta', foreground: 'D4D4D4' },
 		{ token: 'meta.tag', foreground: 'CE9178' },
 		{ token: 'metatag', foreground: '569CD6' },

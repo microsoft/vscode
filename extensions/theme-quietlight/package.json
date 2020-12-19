@@ -4,13 +4,15 @@
 	"description": "%description%",
 	"version": "1.0.0",
 	"publisher": "vscode",
+	"license": "MIT",
 	"engines": {
 		"vscode": "*"
 	},
 	"contributes": {
 		"themes": [
 			{
-				"label": "Quiet Light",
+				"id": "Quiet Light",
+				"label": "%themeLabel%",
 				"uiTheme": "vs",
 				"path": "./themes/quietlight-color-theme.json"
 			}

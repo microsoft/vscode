@@ -2,9 +2,8 @@
  *  Copyright (c) Microsoft Corporation. All rights reserved.
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
-'use strict';
 
-import { CancellationToken, ResponseError, ErrorCodes } from 'vscode-languageserver';
+import { CancellationToken, ResponseError, LSPErrorCodes } from 'vscode-languageserver';
 
 export function formatError(message: string, err: any): string {
 	if (err instanceof Error) {
@@ -19,7 +18,7 @@ export function formatError(message: string, err: any): string {
 }
 
 export function runSafeAsync<T>(func: () => Thenable<T>, errorVal: T, errorMessage: string, token: CancellationToken): Thenable<T | ResponseError<any>> {
-	return new Promise<T | ResponseError<any>>((resolve, reject) => {
+	return new Promise<T | ResponseError<any>>((resolve) => {
 		setImmediate(() => {
 			if (token.isCancellationRequested) {
 				resolve(cancelValue());
@@ -40,7 +39,7 @@ export function runSafeAsync<T>(func: () => Thenable<T>, errorVal: T, errorMessa
 }
 
 export function runSafe<T, E>(func: () => T, errorVal: T, errorMessage: string, token: CancellationToken): Thenable<T | ResponseError<E>> {
-	return new Promise<T | ResponseError<E>>((resolve, reject) => {
+	return new Promise<T | ResponseError<E>>((resolve) => {
 		setImmediate(() => {
 			if (token.isCancellationRequested) {
 				resolve(cancelValue());
@@ -65,5 +64,5 @@ export function runSafe<T, E>(func: () => T, errorVal: T, errorMessage: string, 
 
 function cancelValue<E>() {
 	console.log('cancelled');
-	return new ResponseError<E>(ErrorCodes.RequestCancelled, 'Request cancelled');
+	return new ResponseError<E>(LSPErrorCodes.RequestCancelled, 'Request cancelled');
 }

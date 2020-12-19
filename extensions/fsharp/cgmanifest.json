@@ -1,0 +1,18 @@
+{
+	"registrations": [
+		{
+			"component": {
+				"type": "git",
+				"git": {
+					"name": "ionide/ionide-fsgrammar",
+					"repositoryUrl": "https://github.com/ionide/ionide-fsgrammar",
+					"commitHash": "fc4cac6d9bc1787f54ce48bbc77bcbb1de8160ff"
+				}
+			},
+			"license": "MIT",
+			"description": "The file syntaxes/fsharp.json was included from https://github.com/ionide/ionide-fsgrammar/blob/master/grammar/fsharp.json.",
+			"version": "0.0.0"
+		}
+	],
+	"version": 1
+}

@@ -1,0 +1,12 @@
+[Desktop Entry]
+Name=@@NAME_LONG@@ - URL Handler
+Comment=Code Editing. Redefined.
+GenericName=Text Editor
+Exec=@@EXEC@@ --no-sandbox --open-url %U
+Icon=@@ICON@@
+Type=Application
+NoDisplay=true
+StartupNotify=true
+Categories=Utility;TextEditor;Development;IDE;
+MimeType=x-scheme-handler/@@URLPROTOCOL@@;
+Keywords=vscode;

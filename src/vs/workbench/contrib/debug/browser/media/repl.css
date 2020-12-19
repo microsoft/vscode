@@ -1,0 +1,152 @@
+/*---------------------------------------------------------------------------------------------
+ *  Copyright (c) Microsoft Corporation. All rights reserved.
+ *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *--------------------------------------------------------------------------------------------*/
+
+/* Debug repl */
+
+.monaco-workbench .repl {
+	height: 100%;
+	box-sizing: border-box;
+	overflow: hidden;
+}
+
+.monaco-workbench .repl .repl-tree .monaco-tl-contents {
+	user-select: text;
+	-webkit-user-select: text;
+	white-space: pre;
+}
+
+.monaco-workbench .repl .repl-tree .monaco-tl-contents .expression {
+	font-family: var(--vscode-repl-font-family);
+}
+
+.monaco-workbench .repl .repl-tree.word-wrap .monaco-tl-contents {
+	/* Wrap words but also do not trim whitespace #6275 */
+	word-wrap: break-word;
+	white-space: pre-wrap;
+	/* Break on all #7533 */
+	word-break: break-all;
+}
+
+.monaco-workbench.mac .repl .repl-tree .monaco-tl-twistie.collapsible + .monaco-tl-contents,
+.monaco-workbench.mac .repl .repl-tree .monaco-tl-twistie {
+	cursor: pointer;
+}
+
+.monaco-workbench .repl .repl-tree .output.expression.value-and-source {
+	display: flex;
+}
+
+.monaco-workbench .repl .repl-tree .output.expression.value-and-source .value {
+	margin-right: 4px;
+}
+
+.monaco-workbench .repl .repl-tree .output.expression.value-and-source .count-badge-wrapper {
+	margin-right: 4px;
+}
+
+/* Allow the badge to be a bit shorter so it does not look cut off */
+.monaco-workbench .repl .repl-tree .output.expression.value-and-source .count-badge-wrapper .monaco-count-badge {
+	min-height: 16px;
+}
+
+.monaco-workbench .repl .repl-tree .monaco-tl-contents .arrow {
+	position:absolute;
+	left: 2px;
+}
+
+.monaco-workbench .repl .repl-tree .output.expression.value-and-source .source {
+	margin-left: auto;
+	margin-right: 8px;
+	cursor: pointer;
+	text-decoration: underline;
+	overflow: hidden;
+	text-overflow: ellipsis;
+	white-space: nowrap;
+	text-align: right;
+}
+
+.monaco-workbench .repl .repl-tree .output.expression > .value,
+.monaco-workbench .repl .repl-tree .evaluation-result.expression > .value {
+	margin-left: 0px;
+}
+
+.monaco-workbench .repl .repl-tree .output.expression .name:not(:empty) {
+	margin-right: 6px;
+}
+
+.monaco-workbench .repl .repl-input-wrapper {
+	display: flex;
+	align-items: center;
+}
+
+.monaco-workbench .repl .repl-input-wrapper .repl-input-chevron {
+	padding: 0 6px 0 8px;
+	width: 16px;
+	height: 100%;
+	display: flex;
+	flex-shrink: 0;
+	justify-content: center;
+	font-weight: 600;
+}
+
+/* Output coloring  and styling */
+.monaco-workbench .repl .repl-tree .output.expression > .ignore {
+	font-style: italic;
+}
+
+/* ANSI Codes */
+.monaco-workbench .repl .repl-tree .output.expression .code-bold	{ font-weight: bold; }
+.monaco-workbench .repl .repl-tree .output.expression .code-italic	{ font-style: italic; }
+.monaco-workbench .repl .repl-tree .output.expression .code-underline { text-decoration: underline; }
+
+.monaco-action-bar .action-item.repl-panel-filter-container {
+	cursor: default;
+	display: flex;
+}
+
+.monaco-action-bar .panel-action-tree-filter{
+	display: flex;
+	align-items: center;
+	flex: 1;
+}
+
+.monaco-action-bar .panel-action-tree-filter .monaco-inputbox {
+	height: 24px;
+	font-size: 12px;
+	flex: 1;
+}
+
+.pane-header .monaco-action-bar .panel-action-tree-filter .monaco-inputbox {
+	height: 20px;
+	line-height: 18px;
+}
+
+.monaco-workbench.vs .monaco-action-bar .panel-action-tree-filter .monaco-inputbox {
+	height: 25px;
+}
+
+.panel > .title .monaco-action-bar .action-item.repl-panel-filter-container {
+	min-width: 300px;
+	margin-right: 10px;
+}
+
+.repl-panel-filter-container .repl-panel-filter-controls {
+	position: absolute;
+	top: 0px;
+	bottom: 0;
+	right: 0px;
+	display: flex;
+	align-items: center;
+}
+
+.repl-panel-filter-container .repl-panel-filter-controls > .repl-panel-filter-badge {
+	margin: 4px;
+	padding: 0px 8px;
+	border-radius: 2px;
+}
+
+.repl-panel-filter-container .repl-panel-filter-controls > .repl-panel-filter-badge.hidden {
+	display: none;
+}

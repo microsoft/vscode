@@ -3,8 +3,6 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-'use strict';
-
 import { isObject, isUndefinedOrNull, isArray } from 'vs/base/common/types';
 
 export function deepClone<T>(obj: T): T {
@@ -12,15 +10,15 @@ export function deepClone<T>(obj: T): T {
 		return obj;
 	}
 	if (obj instanceof RegExp) {
-		// See https://github.com/Microsoft/TypeScript/issues/10990
+		// See https://github.com/microsoft/TypeScript/issues/10990
 		return obj as any;
 	}
 	const result: any = Array.isArray(obj) ? [] : {};
-	Object.keys(obj).forEach((key: keyof T) => {
-		if (obj[key] && typeof obj[key] === 'object') {
-			result[key] = deepClone(obj[key]);
+	Object.keys(<any>obj).forEach((key: string) => {
+		if ((<any>obj)[key] && typeof (<any>obj)[key] === 'object') {
+			result[key] = deepClone((<any>obj)[key]);
 		} else {
-			result[key] = obj[key];
+			result[key] = (<any>obj)[key];
 		}
 	});
 	return result;
@@ -32,11 +30,11 @@ export function deepFreeze<T>(obj: T): T {
 	}
 	const stack: any[] = [obj];
 	while (stack.length > 0) {
-		let obj = stack.shift();
+		const obj = stack.shift();
 		Object.freeze(obj);
 		for (const key in obj) {
 			if (_hasOwnProperty.call(obj, key)) {
-				let prop = obj[key];
+				const prop = obj[key];
 				if (typeof prop === 'object' && !Object.isFrozen(prop)) {
 					stack.push(prop);
 				}
@@ -49,10 +47,10 @@ export function deepFreeze<T>(obj: T): T {
 const _hasOwnProperty = Object.prototype.hasOwnProperty;
 
 export function cloneAndChange(obj: any, changer: (orig: any) => any): any {
-	return _cloneAndChange(obj, changer, []);
+	return _cloneAndChange(obj, changer, new Set());
 }
 
-function _cloneAndChange(obj: any, changer: (orig: any) => any, encounteredObjects: any[]): any {
+function _cloneAndChange(obj: any, changer: (orig: any) => any, seen: Set<any>): any {
 	if (isUndefinedOrNull(obj)) {
 		return obj;
 	}
@@ -64,24 +62,24 @@ function _cloneAndChange(obj: any, changer: (orig: any) => any, encounteredObjec
 
 	if (isArray(obj)) {
 		const r1: any[] = [];
-		for (let i1 = 0; i1 < obj.length; i1++) {
-			r1.push(_cloneAndChange(obj[i1], changer, encounteredObjects));
+		for (const e of obj) {
+			r1.push(_cloneAndChange(e, changer, seen));
 		}
 		return r1;
 	}
 
 	if (isObject(obj)) {
-		if (encounteredObjects.indexOf(obj) >= 0) {
+		if (seen.has(obj)) {
 			throw new Error('Cannot clone recursive data-structure');
 		}
-		encounteredObjects.push(obj);
+		seen.add(obj);
 		const r2 = {};
 		for (let i2 in obj) {
 			if (_hasOwnProperty.call(obj, i2)) {
-				(r2 as any)[i2] = _cloneAndChange(obj[i2], changer, encounteredObjects);
+				(r2 as any)[i2] = _cloneAndChange(obj[i2], changer, seen);
 			}
 		}
-		encounteredObjects.pop();
+		seen.delete(obj);
 		return r2;
 	}
 
@@ -112,11 +110,6 @@ export function mixin(destination: any, source: any, overwrite: boolean = true):
 			}
 		});
 	}
-	return destination;
-}
-
-export function assign(destination: any, ...sources: any[]): any {
-	sources.forEach(source => Object.keys(source).forEach(key => destination[key] = source[key]));
 	return destination;
 }
 
@@ -173,58 +166,31 @@ export function equals(one: any, other: any): boolean {
 	return true;
 }
 
-export function arrayToHash(array: any[]) {
-	const result: any = {};
-	for (let i = 0; i < array.length; ++i) {
-		result[array[i]] = true;
-	}
-	return result;
-}
-
 /**
- * Given an array of strings, returns a function which, given a string
- * returns true or false whether the string is in that array.
- */
-export function createKeywordMatcher(arr: string[], caseInsensitive: boolean = false): (str: string) => boolean {
-	if (caseInsensitive) {
-		arr = arr.map(function (x) { return x.toLowerCase(); });
-	}
-	const hash = arrayToHash(arr);
-	if (caseInsensitive) {
-		return function (word) {
-			return hash[word.toLowerCase()] !== undefined && hash.hasOwnProperty(word.toLowerCase());
-		};
-	} else {
-		return function (word) {
-			return hash[word] !== undefined && hash.hasOwnProperty(word);
-		};
-	}
-}
-
-/**
- * Calls JSON.Stringify with a replacer to break apart any circular references.
- * This prevents JSON.stringify from throwing the exception
+ * Calls `JSON.Stringify` with a replacer to break apart any circular references.
+ * This prevents `JSON`.stringify` from throwing the exception
  *  "Uncaught TypeError: Converting circular structure to JSON"
  */
 export function safeStringify(obj: any): string {
-	const seen: any[] = [];
+	const seen = new Set<any>();
 	return JSON.stringify(obj, (key, value) => {
 		if (isObject(value) || Array.isArray(value)) {
-			if (seen.indexOf(value) !== -1) {
+			if (seen.has(value)) {
 				return '[Circular]';
 			} else {
-				seen.push(value);
+				seen.add(value);
 			}
 		}
 		return value;
 	});
 }
 
-export function getOrDefault<T, R>(obj: T, fn: (obj: T) => R, defaultValue: R = null): R {
+export function getOrDefault<T, R>(obj: T, fn: (obj: T) => R | undefined, defaultValue: R): R {
 	const result = fn(obj);
 	return typeof result === 'undefined' ? defaultValue : result;
 }
 
+type obj = { [key: string]: any; };
 /**
  * Returns an object that has keys for each value that is different in the base object. Keys
  * that do not exist in the target but in the base object are not considered.
@@ -235,7 +201,6 @@ export function getOrDefault<T, R>(obj: T, fn: (obj: T) => R, defaultValue: R = 
  * @param base the object to diff against
  * @param obj the object to use for diffing
  */
-export type obj = { [key: string]: any; };
 export function distinct(base: obj, target: obj): obj {
 	const result = Object.create(null);
 
@@ -254,4 +219,10 @@ export function distinct(base: obj, target: obj): obj {
 	});
 
 	return result;
+}
+
+export function getCaseInsensitive(target: obj, key: string): any {
+	const lowercaseKey = key.toLowerCase();
+	const equivalentKey = Object.keys(target).find(k => k.toLowerCase() === lowercaseKey);
+	return equivalentKey ? target[equivalentKey] : target[key];
 }

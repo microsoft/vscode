@@ -7,7 +7,7 @@ import 'mocha';
 import * as assert from 'assert';
 import * as vscode from 'vscode';
 
-suite('Configuration tests', () => {
+suite('vscode API - configuration', () => {
 
 	test('configurations, language defaults', function () {
 		const defaultLanguageSettings = vscode.workspace.getConfiguration().get('[abcLang]');

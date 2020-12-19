@@ -2,8 +2,6 @@
  *  Copyright (c) Microsoft Corporation. All rights reserved.
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
-'use strict';
-
 import { Selection } from 'vs/editor/common/core/selection';
 import { BlockCommentCommand } from 'vs/editor/contrib/comment/blockCommentCommand';
 import { testCommand } from 'vs/editor/test/browser/testCommand';
@@ -11,7 +9,7 @@ import { CommentMode } from 'vs/editor/test/common/commentMode';
 
 function testBlockCommentCommand(lines: string[], selection: Selection, expectedLines: string[], expectedSelection: Selection): void {
 	let mode = new CommentMode({ lineComment: '!@#', blockComment: ['<0', '0>'] });
-	testCommand(lines, mode.getLanguageIdentifier(), selection, (sel) => new BlockCommentCommand(sel), expectedLines, expectedSelection);
+	testCommand(lines, mode.getLanguageIdentifier(), selection, (sel) => new BlockCommentCommand(sel, true), expectedLines, expectedSelection);
 	mode.dispose();
 }
 
@@ -59,7 +57,7 @@ suite('Editor Contrib - Block Comment Command', () => {
 		);
 	});
 
-	test('bug9511', function () {
+	test('bug9511', () => {
 		testBlockCommentCommand(
 			[
 				'first',
@@ -468,6 +466,47 @@ suite('Editor Contrib - Block Comment Command', () => {
 				' middle end'
 			],
 			new Selection(1, 1, 1, 1)
+		);
+	});
+
+	test('', () => {
+	});
+
+	test('insertSpace false', () => {
+		function testLineCommentCommand(lines: string[], selection: Selection, expectedLines: string[], expectedSelection: Selection): void {
+			let mode = new CommentMode({ lineComment: '!@#', blockComment: ['<0', '0>'] });
+			testCommand(lines, mode.getLanguageIdentifier(), selection, (sel) => new BlockCommentCommand(sel, false), expectedLines, expectedSelection);
+			mode.dispose();
+		}
+
+		testLineCommentCommand(
+			[
+				'some text'
+			],
+			new Selection(1, 1, 1, 5),
+			[
+				'<0some0> text'
+			],
+			new Selection(1, 3, 1, 7)
+		);
+	});
+
+	test('insertSpace false does not remove space', () => {
+		function testLineCommentCommand(lines: string[], selection: Selection, expectedLines: string[], expectedSelection: Selection): void {
+			let mode = new CommentMode({ lineComment: '!@#', blockComment: ['<0', '0>'] });
+			testCommand(lines, mode.getLanguageIdentifier(), selection, (sel) => new BlockCommentCommand(sel, false), expectedLines, expectedSelection);
+			mode.dispose();
+		}
+
+		testLineCommentCommand(
+			[
+				'<0 some 0> text'
+			],
+			new Selection(1, 4, 1, 8),
+			[
+				' some  text'
+			],
+			new Selection(1, 1, 1, 7)
 		);
 	});
 });

@@ -1,11 +1,5 @@
 {
 	"version": "0.2.0",
-	"compounds": [
-		{
-			"name": "Debug Extension and Language Server",
-			"configurations": ["Launch Extension", "Attach Language Server"]
-		}
-	],
 	"configurations": [
 		{
 			"name": "Launch Extension",
@@ -17,29 +11,45 @@
 			],
 			"stopOnEntry": false,
 			"sourceMaps": true,
-			"outFiles": ["${workspaceFolder}/client/out/**/*.js"],
-			"preLaunchTask": "npm"
+			"outFiles": [
+				"${workspaceFolder}/client/out/**/*.js"
+			],
+			"smartStep": true
 		},
 		{
 			"name": "Launch Tests",
 			"type": "extensionHost",
 			"request": "launch",
 			"runtimeExecutable": "${execPath}",
-			"args": ["--extensionDevelopmentPath=${workspaceFolder}", "--extensionTestsPath=${workspaceFolder}/client/out/test" ],
+			"args": [
+				"--extensionDevelopmentPath=${workspaceFolder}",
+				"--extensionTestsPath=${workspaceFolder}/client/out/test"
+			],
 			"stopOnEntry": false,
 			"sourceMaps": true,
-			"outFiles": ["${workspaceFolder}/client/out/test/**/*.js"],
-			"preLaunchTask": "npm"
+			"outFiles": [
+				"${workspaceFolder}/client/out/test/**/*.js"
+			]
 		},
 		{
-			"name": "Attach Language Server",
+			"name": "Server Unit Tests",
 			"type": "node",
-			"request": "attach",
-			"protocol": "inspector",
-			"port": 6044,
+			"request": "launch",
+			"program": "${workspaceRoot}/node_modules/mocha/bin/_mocha",
+			"stopOnEntry": false,
+			"args": [
+				"--timeout",
+				"999999",
+				"--colors"
+			],
+			"cwd": "${workspaceRoot}",
+			"runtimeExecutable": null,
+			"runtimeArgs": [],
+			"env": {},
 			"sourceMaps": true,
-			"outFiles": ["${workspaceFolder}/server/out/**/*.js"],
-			"restart": true
+			"outFiles": [
+				"${workspaceRoot}/server/out/**"
+			]
 		}
 	]
 }

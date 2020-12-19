@@ -2,7 +2,6 @@
  *  Copyright (c) Microsoft Corporation. All rights reserved.
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
-'use strict';
 
 /**
  * Represents a window in a possible chain of iframes
@@ -15,13 +14,13 @@ export interface IWindowChainElement {
 	/**
 	 * The iframe element inside the window.parent corresponding to window
 	 */
-	iframeElement: HTMLIFrameElement;
+	iframeElement: Element | null;
 }
 
 let hasDifferentOriginAncestorFlag: boolean = false;
-let sameOriginWindowChainCache: IWindowChainElement[] = null;
+let sameOriginWindowChainCache: IWindowChainElement[] | null = null;
 
-function getParentWindowIfSameOrigin(w: Window): Window {
+function getParentWindowIfSameOrigin(w: Window): Window | null {
 	if (!w.parent || w.parent === w) {
 		return null;
 	}
@@ -30,9 +29,11 @@ function getParentWindowIfSameOrigin(w: Window): Window {
 	try {
 		let location = w.location;
 		let parentLocation = w.parent.location;
-		if (location.protocol !== parentLocation.protocol || location.hostname !== parentLocation.hostname || location.port !== parentLocation.port) {
-			hasDifferentOriginAncestorFlag = true;
-			return null;
+		if (location.origin !== 'null' && parentLocation.origin !== 'null') {
+			if (location.protocol !== parentLocation.protocol || location.hostname !== parentLocation.hostname || location.port !== parentLocation.port) {
+				hasDifferentOriginAncestorFlag = true;
+				return null;
+			}
 		}
 	} catch (e) {
 		hasDifferentOriginAncestorFlag = true;
@@ -40,18 +41,6 @@ function getParentWindowIfSameOrigin(w: Window): Window {
 	}
 
 	return w.parent;
-}
-
-function findIframeElementInParentWindow(parentWindow: Window, childWindow: Window): HTMLIFrameElement {
-	let parentWindowIframes = parentWindow.document.getElementsByTagName('iframe');
-	let iframe: HTMLIFrameElement;
-	for (let i = 0, len = parentWindowIframes.length; i < len; i++) {
-		iframe = parentWindowIframes[i];
-		if (iframe.contentWindow === childWindow) {
-			return iframe;
-		}
-	}
-	return null;
 }
 
 export class IframeUtils {
@@ -64,13 +53,14 @@ export class IframeUtils {
 	public static getSameOriginWindowChain(): IWindowChainElement[] {
 		if (!sameOriginWindowChainCache) {
 			sameOriginWindowChainCache = [];
-			let w = window, parent: Window;
+			let w: Window | null = window;
+			let parent: Window | null;
 			do {
 				parent = getParentWindowIfSameOrigin(w);
 				if (parent) {
 					sameOriginWindowChainCache.push({
 						window: w,
-						iframeElement: findIframeElementInParentWindow(parent, w)
+						iframeElement: w.frameElement || null
 					});
 				} else {
 					sameOriginWindowChainCache.push({
@@ -98,7 +88,7 @@ export class IframeUtils {
 	/**
 	 * Returns the position of `childWindow` relative to `ancestorWindow`
 	 */
-	public static getPositionOfChildWindowRelativeToAncestorWindow(childWindow: Window, ancestorWindow: any) {
+	public static getPositionOfChildWindowRelativeToAncestorWindow(childWindow: Window, ancestorWindow: Window | null) {
 
 		if (!ancestorWindow || childWindow === ancestorWindow) {
 			return {
@@ -111,8 +101,10 @@ export class IframeUtils {
 
 		let windowChain = this.getSameOriginWindowChain();
 
-		for (let i = 0; i < windowChain.length; i++) {
-			let windowChainEl = windowChain[i];
+		for (const windowChainEl of windowChain) {
+
+			top += windowChainEl.window.scrollY;
+			left += windowChainEl.window.scrollX;
 
 			if (windowChainEl.window === ancestorWindow) {
 				break;

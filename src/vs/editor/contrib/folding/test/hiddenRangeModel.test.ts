@@ -2,11 +2,9 @@
  *  Copyright (c) Microsoft Corporation. All rights reserved.
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
-'use strict';
-
 import * as assert from 'assert';
 import { FoldingModel } from 'vs/editor/contrib/folding/foldingModel';
-import { TextModel } from 'vs/editor/common/model/textModel';
+import { createTextModel } from 'vs/editor/test/common/editorTestUtils';
 import { computeRanges } from 'vs/editor/contrib/folding/indentRangeProvider';
 import { TestDecorationProvider } from './foldingModel.test';
 import { HiddenRangeModel } from 'vs/editor/contrib/folding/hiddenRangeModel';
@@ -40,16 +38,16 @@ suite('Hidden Range Model', () => {
 		/* 9*/	'  }',
 		/* 10*/	'}'];
 
-		let textModel = TextModel.createFromString(lines.join('\n'));
+		let textModel = createTextModel(lines.join('\n'));
 		let foldingModel = new FoldingModel(textModel, new TestDecorationProvider(textModel));
 		let hiddenRangeModel = new HiddenRangeModel(foldingModel);
 
 		assert.equal(hiddenRangeModel.hasRanges(), false);
 
-		let ranges = computeRanges(textModel, false, null);
+		let ranges = computeRanges(textModel, false, undefined);
 		foldingModel.update(ranges);
 
-		foldingModel.toggleCollapseState([foldingModel.getRegionAtLine(1), foldingModel.getRegionAtLine(6)]);
+		foldingModel.toggleCollapseState([foldingModel.getRegionAtLine(1)!, foldingModel.getRegionAtLine(6)!]);
 		assertRanges(hiddenRangeModel.hiddenRanges, [r(2, 3), r(7, 7)]);
 
 		assert.equal(hiddenRangeModel.hasRanges(), true);
@@ -64,7 +62,7 @@ suite('Hidden Range Model', () => {
 		assert.equal(hiddenRangeModel.isHidden(9), false);
 		assert.equal(hiddenRangeModel.isHidden(10), false);
 
-		foldingModel.toggleCollapseState([foldingModel.getRegionAtLine(4)]);
+		foldingModel.toggleCollapseState([foldingModel.getRegionAtLine(4)!]);
 		assertRanges(hiddenRangeModel.hiddenRanges, [r(2, 3), r(5, 9)]);
 
 		assert.equal(hiddenRangeModel.hasRanges(), true);
@@ -79,7 +77,7 @@ suite('Hidden Range Model', () => {
 		assert.equal(hiddenRangeModel.isHidden(9), true);
 		assert.equal(hiddenRangeModel.isHidden(10), false);
 
-		foldingModel.toggleCollapseState([foldingModel.getRegionAtLine(1), foldingModel.getRegionAtLine(6), foldingModel.getRegionAtLine(4)]);
+		foldingModel.toggleCollapseState([foldingModel.getRegionAtLine(1)!, foldingModel.getRegionAtLine(6)!, foldingModel.getRegionAtLine(4)!]);
 		assertRanges(hiddenRangeModel.hiddenRanges, []);
 		assert.equal(hiddenRangeModel.hasRanges(), false);
 		assert.equal(hiddenRangeModel.isHidden(1), false);

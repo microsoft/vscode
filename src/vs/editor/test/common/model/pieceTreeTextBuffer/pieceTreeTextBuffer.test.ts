@@ -2,20 +2,19 @@
  *  Copyright (c) Microsoft Corporation. All rights reserved.
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
-'use strict';
 
 import * as assert from 'assert';
+import { WordCharacterClassifier } from 'vs/editor/common/controller/wordCharacterClassifier';
 import { Position } from 'vs/editor/common/core/position';
 import { Range } from 'vs/editor/common/core/range';
-import { PieceTreeTextBufferBuilder } from 'vs/editor/common/model/pieceTreeTextBuffer/pieceTreeTextBufferBuilder';
-import { DefaultEndOfLine } from 'vs/editor/common/model';
+import { DefaultEndOfLine, ITextSnapshot } from 'vs/editor/common/model';
 import { PieceTreeBase } from 'vs/editor/common/model/pieceTreeTextBuffer/pieceTreeBase';
-import { SENTINEL, NodeColor, TreeNode } from 'vs/editor/common/model/pieceTreeTextBuffer/rbTreeBase';
 import { PieceTreeTextBuffer } from 'vs/editor/common/model/pieceTreeTextBuffer/pieceTreeTextBuffer';
-import { TextModel } from 'vs/editor/common/model/textModel';
-import { ITextSnapshot } from 'vs/platform/files/common/files';
+import { PieceTreeTextBufferBuilder } from 'vs/editor/common/model/pieceTreeTextBuffer/pieceTreeTextBufferBuilder';
+import { NodeColor, SENTINEL, TreeNode } from 'vs/editor/common/model/pieceTreeTextBuffer/rbTreeBase';
+import { createTextModel } from 'vs/editor/test/common/editorTestUtils';
 import { SearchData } from 'vs/editor/common/model/textModelSearch';
-import { WordCharacterClassifier } from 'vs/editor/common/controller/wordCharacterClassifier';
+import { splitLines } from 'vs/base/common/strings';
 
 const alphabet = 'abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ\r\n';
 
@@ -32,7 +31,7 @@ function randomStr(len: number) {
 		len = 10;
 	}
 	return (function () {
-		var j, ref, results;
+		let j, ref, results;
 		results = [];
 		for (
 			j = 1, ref = len;
@@ -77,7 +76,7 @@ function trimLineFeed(text: string): string {
 //#region Assertion
 
 function testLinesContent(str: string, pieceTable: PieceTreeBase) {
-	let lines = str.split(/\r\n|\r|\n/);
+	let lines = splitLines(str);
 	assert.equal(pieceTable.getLineCount(), lines.length);
 	assert.equal(pieceTable.getLinesRawContent(), str);
 	for (let i = 0; i < lines.length; i++) {
@@ -107,7 +106,7 @@ function testLineStarts(str: string, pieceTable: PieceTreeBase) {
 	let prevMatchStartIndex = -1;
 	let prevMatchLength = 0;
 
-	let m: RegExpExecArray;
+	let m: RegExpExecArray | null;
 	do {
 		if (prevMatchStartIndex + prevMatchLength === str.length) {
 			// Reached the end of the line
@@ -155,8 +154,8 @@ function testLineStarts(str: string, pieceTable: PieceTreeBase) {
 
 function createTextBuffer(val: string[], normalizeEOL: boolean = true): PieceTreeBase {
 	let bufferBuilder = new PieceTreeTextBufferBuilder();
-	for (let i = 0; i < val.length; i++) {
-		bufferBuilder.acceptChunk(val[i]);
+	for (const chunk of val) {
+		bufferBuilder.acceptChunk(chunk);
 	}
 	let factory = bufferBuilder.finish(normalizeEOL);
 	return (<PieceTreeTextBuffer>factory.create(DefaultEndOfLine.LF)).getPieceTree();
@@ -999,7 +998,7 @@ suite('CRLF', () => {
 		pieceTable.delete(2, 3);
 		str = str.substring(0, 2) + str.substring(2 + 3);
 
-		let lines = str.split(/\r\n|\r|\n/);
+		let lines = splitLines(str);
 		assert.equal(pieceTable.getLineCount(), lines.length);
 		assertTreeInvariants(pieceTable);
 	});
@@ -1014,7 +1013,7 @@ suite('CRLF', () => {
 		pieceTable.delete(4, 1);
 		str = str.substring(0, 4) + str.substring(4 + 1);
 
-		let lines = str.split(/\r\n|\r|\n/);
+		let lines = splitLines(str);
 		assert.equal(pieceTable.getLineCount(), lines.length);
 		assertTreeInvariants(pieceTable);
 	});
@@ -1035,7 +1034,7 @@ suite('CRLF', () => {
 		pieceTable.insert(3, '\r\r\r\n');
 		str = str.substring(0, 3) + '\r\r\r\n' + str.substring(3);
 
-		let lines = str.split(/\r\n|\r|\n/);
+		let lines = splitLines(str);
 		assert.equal(pieceTable.getLineCount(), lines.length);
 		assertTreeInvariants(pieceTable);
 	});
@@ -1207,7 +1206,7 @@ suite('centralized lineStarts with CRLF', () => {
 		pieceTable.delete(2, 3);
 		str = str.substring(0, 2) + str.substring(2 + 3);
 
-		let lines = str.split(/\r\n|\r|\n/);
+		let lines = splitLines(str);
 		assert.equal(pieceTable.getLineCount(), lines.length);
 		assertTreeInvariants(pieceTable);
 	});
@@ -1220,7 +1219,7 @@ suite('centralized lineStarts with CRLF', () => {
 		pieceTable.delete(4, 1);
 		str = str.substring(0, 4) + str.substring(4 + 1);
 
-		let lines = str.split(/\r\n|\r|\n/);
+		let lines = splitLines(str);
 		assert.equal(pieceTable.getLineCount(), lines.length);
 		assertTreeInvariants(pieceTable);
 	});
@@ -1240,7 +1239,7 @@ suite('centralized lineStarts with CRLF', () => {
 		pieceTable.insert(3, '\r\r\r\n');
 		str = str.substring(0, 3) + '\r\r\r\n' + str.substring(3);
 
-		let lines = str.split(/\r\n|\r|\n/);
+		let lines = splitLines(str);
 		assert.equal(pieceTable.getLineCount(), lines.length);
 		assertTreeInvariants(pieceTable);
 	});
@@ -1517,7 +1516,7 @@ suite('random is unsupervised', () => {
 
 	test('random chunks', function () {
 		this.timeout(500000);
-		let chunks = [];
+		let chunks: string[] = [];
 		for (let i = 0; i < 5; i++) {
 			chunks.push(randomStr(1000));
 		}
@@ -1552,7 +1551,7 @@ suite('random is unsupervised', () => {
 
 	test('random chunks 2', function () {
 		this.timeout(500000);
-		let chunks = [];
+		let chunks: string[] = [];
 		chunks.push(randomStr(1000));
 
 		let pieceTable = createTextBuffer(chunks, false);
@@ -1696,7 +1695,7 @@ suite('search offset cache', () => {
 		pieceTable.delete(15, 2);
 		str = str.substring(0, 15) + str.substring(15 + 2);
 
-		var content = pieceTable.getLinesRawContent();
+		let content = pieceTable.getLinesRawContent();
 		assert(content === str);
 	});
 
@@ -1763,7 +1762,7 @@ function getValueInSnapshot(snapshot: ITextSnapshot) {
 }
 suite('snapshot', () => {
 	test('bug #45564, piece tree pieces should be immutable', () => {
-		const model = TextModel.createFromString('\n');
+		const model = createTextModel('\n');
 		model.applyEdits([
 			{
 				range: new Range(2, 1, 2, 1),
@@ -1791,7 +1790,7 @@ suite('snapshot', () => {
 	});
 
 	test('immutable snapshot 1', () => {
-		const model = TextModel.createFromString('abc\ndef');
+		const model = createTextModel('abc\ndef');
 		const snapshot = model.createSnapshot();
 		model.applyEdits([
 			{
@@ -1811,7 +1810,7 @@ suite('snapshot', () => {
 	});
 
 	test('immutable snapshot 2', () => {
-		const model = TextModel.createFromString('abc\ndef');
+		const model = createTextModel('abc\ndef');
 		const snapshot = model.createSnapshot();
 		model.applyEdits([
 			{
@@ -1831,7 +1830,7 @@ suite('snapshot', () => {
 	});
 
 	test('immutable snapshot 3', () => {
-		const model = TextModel.createFromString('abc\ndef');
+		const model = createTextModel('abc\ndef');
 		model.applyEdits([
 			{
 				range: new Range(2, 4, 2, 4),

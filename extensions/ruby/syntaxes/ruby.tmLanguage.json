@@ -4,7 +4,7 @@
 		"If you want to provide a fix or improvement, please create a pull request against the original repository.",
 		"Once accepted there, we are happy to receive an update request."
 	],
-	"version": "https://github.com/textmate/ruby.tmbundle/commit/74713556df10fbc7b1f9e99013ab1e34cd836f56",
+	"version": "https://github.com/textmate/ruby.tmbundle/commit/8d525dd4a0b77ae041593ff26dc883a694c648c5",
 	"name": "Ruby",
 	"scopeName": "source.ruby",
 	"comment": "\n\tTODO: unresolved issues\n\n\ttext:\n\t\"p <<end\n\tprint me!\n\tend\"\n\tsymptoms:\n\tnot recognized as a heredoc\n\tsolution:\n\tthere is no way to distinguish perfectly between the << operator and the start\n\tof a heredoc. Currently, we require assignment to recognize a heredoc. More\n\trefinement is possible.\n\t• Heredocs with indented terminators (<<-) are always distinguishable, however.\n\t• Nested heredocs are not really supportable at present\n\n\ttext:\n\tprint <<-'THERE' \n\tThis is single quoted. \n\tThe above used #{Time.now} \n\tTHERE \n\tsymtoms:\n\tFrom Programming Ruby p306; should be a non-interpolated heredoc.\n\t\n    text:\n    val?(a):p(b)\n    val?'a':'b'\n    symptoms:\n    ':p' is recognized as a symbol.. its 2 things ':' and 'p'.\n    :'b' has same problem.\n    solution:\n    ternary operator rule, precedence stuff, symbol rule.\n    but also consider 'a.b?(:c)' ??\n",
@@ -112,8 +112,31 @@
 			"name": "constant.language.ruby"
 		},
 		{
-			"match": "\\b(__(FILE|LINE)__)\\b(?![?!])",
+			"match": "\\b(__(dir|FILE|LINE)__)\\b(?![?!])",
 			"name": "variable.language.ruby"
+		},
+		{
+			"begin": "^__END__\\n",
+			"captures": {
+				"0": {
+					"name": "string.unquoted.program-block.ruby"
+				}
+			},
+			"comment": "__END__ marker",
+			"contentName": "text.plain",
+			"end": "(?=not)impossible",
+			"patterns": [
+				{
+					"begin": "(?=<?xml|<(?i:html\\b)|!DOCTYPE (?i:html\\b))",
+					"end": "(?=not)impossible",
+					"name": "text.html.embedded.ruby",
+					"patterns": [
+						{
+							"include": "text.html.basic"
+						}
+					]
+				}
+			]
 		},
 		{
 			"match": "\\b(self)\\b(?![?!])",
@@ -199,7 +222,7 @@
 			"name": "support.function.kernel.ruby"
 		},
 		{
-			"match": "\\b[_A-Z]\\w*\\b",
+			"match": "\\b[A-Z]\\w*\\b",
 			"name": "variable.other.constant.ruby"
 		},
 		{
@@ -563,29 +586,6 @@
 			"comment": "\n\t\t\tmatches questionmark-letters.\n\n\t\t\texamples (1st alternation = hex):\n\t\t\t?\\x1     ?\\x61\n\n\t\t\texamples (2nd alternation = octal):\n\t\t\t?\\0      ?\\07     ?\\017\n\n\t\t\texamples (3rd alternation = escaped):\n\t\t\t?\\n      ?\\b\n\n\t\t\texamples (4th alternation = meta-ctrl):\n\t\t\t?\\C-a    ?\\M-a    ?\\C-\\M-\\C-\\M-a\n\n\t\t\texamples (4th alternation = normal):\n\t\t\t?a       ?A       ?0 \n\t\t\t?*       ?\"       ?( \n\t\t\t?.       ?#\n\t\t\t\n\t\t\t\n\t\t\tthe negative lookbehind prevents against matching\n\t\t\tp(42.tainted?)\n\t\t\t",
 			"match": "(?<!\\w)\\?(\\\\(x\\h{1,2}(?!\\h)\\b|0[0-7]{0,2}(?![0-7])\\b|[^x0MC])|(\\\\[MC]-)+\\w|[^\\s\\\\])",
 			"name": "constant.numeric.ruby"
-		},
-		{
-			"begin": "^__END__\\n",
-			"captures": {
-				"0": {
-					"name": "string.unquoted.program-block.ruby"
-				}
-			},
-			"comment": "__END__ marker",
-			"contentName": "text.plain",
-			"end": "(?=not)impossible",
-			"patterns": [
-				{
-					"begin": "(?=<?xml|<(?i:html\\b)|!DOCTYPE (?i:html\\b))",
-					"end": "(?=not)impossible",
-					"name": "text.html.embedded.ruby",
-					"patterns": [
-						{
-							"include": "text.html.basic"
-						}
-					]
-				}
-			]
 		},
 		{
 			"begin": "(?=(?><<[-~](\"?)((?:[_\\w]+_|)HTML)\\b\\1))",

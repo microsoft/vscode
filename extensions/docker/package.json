@@ -4,6 +4,7 @@
 	"description": "%description%",
 	"version": "1.0.0",
 	"publisher": "vscode",
+	"license": "MIT",
 	"engines": { "vscode": "*" },
 	"scripts": {
 		"update-grammar": "node ../../build/npm/update-grammar.js moby/moby contrib/syntax/textmate/Docker.tmbundle/Syntaxes/Dockerfile.tmLanguage ./syntaxes/docker.tmLanguage.json"
@@ -11,15 +12,23 @@
 	"contributes": {
 		"languages": [{
 			"id": "dockerfile",
-			"extensions": [ ".dockerfile" ],
-			"filenames": [ "Dockerfile" ],
-			"aliases": [ "Dockerfile" ],
+			"extensions": [ ".dockerfile", ".containerfile" ],
+			"filenames": [ "Dockerfile", "Containerfile" ],
+			"filenamePatterns": [ "Dockerfile.*", "Containerfile.*" ],
+			"aliases": [ "Docker", "Dockerfile", "Containerfile" ],
 			"configuration": "./language-configuration.json"
 		}],
 		"grammars": [{
 			"language": "dockerfile",
 			"scopeName": "source.dockerfile",
 			"path": "./syntaxes/docker.tmLanguage.json"
-		}]
+		}],
+		"configurationDefaults": {
+			"[dockerfile]": {
+				"editor.quickSuggestions": {
+					"strings": true
+				}
+			}
+		}
 	}
 }

@@ -2,7 +2,6 @@
  *  Copyright (c) Microsoft Corporation. All rights reserved.
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
-'use strict';
 
 /**
  * A position in the editor. This interface is suitable for serialization.
@@ -37,6 +36,30 @@ export class Position {
 	}
 
 	/**
+	 * Create a new position from this position.
+	 *
+	 * @param newLineNumber new line number
+	 * @param newColumn new column
+	 */
+	with(newLineNumber: number = this.lineNumber, newColumn: number = this.column): Position {
+		if (newLineNumber === this.lineNumber && newColumn === this.column) {
+			return this;
+		} else {
+			return new Position(newLineNumber, newColumn);
+		}
+	}
+
+	/**
+	 * Derive a new position from this position.
+	 *
+	 * @param deltaLineNumber line number delta
+	 * @param deltaColumn column delta
+	 */
+	delta(deltaLineNumber: number = 0, deltaColumn: number = 0): Position {
+		return this.with(this.lineNumber + deltaLineNumber, this.column + deltaColumn);
+	}
+
+	/**
 	 * Test if this position equals other position
 	 */
 	public equals(other: IPosition): boolean {
@@ -46,7 +69,7 @@ export class Position {
 	/**
 	 * Test if position `a` equals position `b`
 	 */
-	public static equals(a: IPosition, b: IPosition): boolean {
+	public static equals(a: IPosition | null, b: IPosition | null): boolean {
 		if (!a && !b) {
 			return true;
 		}

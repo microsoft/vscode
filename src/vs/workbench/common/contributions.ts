@@ -2,13 +2,11 @@
  *  Copyright (c) Microsoft Corporation. All rights reserved.
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
-'use strict';
 
+import { IInstantiationService, IConstructorSignature0, ServicesAccessor, BrandedService } from 'vs/platform/instantiation/common/instantiation';
+import { ILifecycleService, LifecyclePhase } from 'vs/workbench/services/lifecycle/common/lifecycle';
 import { Registry } from 'vs/platform/registry/common/platform';
-import { IInstantiationService, IConstructorSignature0 } from 'vs/platform/instantiation/common/instantiation';
-import { ILifecycleService, LifecyclePhase } from 'vs/platform/lifecycle/common/lifecycle';
-
-// --- Workbench Contribution Registry
+import { runWhenIdle, IdleDeadline } from 'vs/base/common/async';
 
 /**
  * A workbench contribution that will be loaded when the workbench starts and disposed when the workbench shuts down.
@@ -21,7 +19,7 @@ export namespace Extensions {
 	export const Workbench = 'workbench.contributions.kind';
 }
 
-export type IWorkbenchContributionSignature = IConstructorSignature0<IWorkbenchContribution>;
+type IWorkbenchContributionSignature<Service extends BrandedService[]> = new (...services: Service) => IWorkbenchContribution;
 
 export interface IWorkbenchContributionsRegistry {
 
@@ -31,21 +29,22 @@ export interface IWorkbenchContributionsRegistry {
 	 *
 	 * @param phase the lifecycle phase when to instantiate the contribution.
 	 */
-	registerWorkbenchContribution(contribution: IWorkbenchContributionSignature, phase: LifecyclePhase): void;
+	registerWorkbenchContribution<Services extends BrandedService[]>(contribution: IWorkbenchContributionSignature<Services>, phase: LifecyclePhase): void;
 
 	/**
 	 * Starts the registry by providing the required services.
 	 */
-	start(instantiationService: IInstantiationService, lifecycleService: ILifecycleService): void;
+	start(accessor: ServicesAccessor): void;
 }
 
-export class WorkbenchContributionsRegistry implements IWorkbenchContributionsRegistry {
-	private instantiationService: IInstantiationService;
-	private lifecycleService: ILifecycleService;
+class WorkbenchContributionsRegistry implements IWorkbenchContributionsRegistry {
 
-	private toBeInstantiated: Map<LifecyclePhase, IConstructorSignature0<IWorkbenchContribution>[]> = new Map<LifecyclePhase, IConstructorSignature0<IWorkbenchContribution>[]>();
+	private instantiationService: IInstantiationService | undefined;
+	private lifecycleService: ILifecycleService | undefined;
 
-	public registerWorkbenchContribution(ctor: IWorkbenchContributionSignature, phase: LifecyclePhase = LifecyclePhase.Starting): void {
+	private readonly toBeInstantiated = new Map<LifecyclePhase, IConstructorSignature0<IWorkbenchContribution>[]>();
+
+	registerWorkbenchContribution(ctor: IConstructorSignature0<IWorkbenchContribution>, phase: LifecyclePhase = LifecyclePhase.Starting): void {
 
 		// Instantiate directly if we are already matching the provided phase
 		if (this.instantiationService && this.lifecycleService && this.lifecycleService.phase >= phase) {
@@ -60,15 +59,15 @@ export class WorkbenchContributionsRegistry implements IWorkbenchContributionsRe
 				this.toBeInstantiated.set(phase, toBeInstantiated);
 			}
 
-			toBeInstantiated.push(ctor);
+			toBeInstantiated.push(ctor as IConstructorSignature0<IWorkbenchContribution>);
 		}
 	}
 
-	public start(instantiationService: IInstantiationService, lifecycleService: ILifecycleService): void {
-		this.instantiationService = instantiationService;
-		this.lifecycleService = lifecycleService;
+	start(accessor: ServicesAccessor): void {
+		const instantiationService = this.instantiationService = accessor.get(IInstantiationService);
+		const lifecycleService = this.lifecycleService = accessor.get(ILifecycleService);
 
-		[LifecyclePhase.Starting, LifecyclePhase.Restoring, LifecyclePhase.Running, LifecyclePhase.Eventually].forEach(phase => {
+		[LifecyclePhase.Starting, LifecyclePhase.Ready, LifecyclePhase.Restored, LifecyclePhase.Eventually].forEach(phase => {
 			this.instantiateByPhase(instantiationService, lifecycleService, phase);
 		});
 	}
@@ -82,18 +81,46 @@ export class WorkbenchContributionsRegistry implements IWorkbenchContributionsRe
 
 		// Otherwise wait for phase to be reached
 		else {
-			lifecycleService.when(phase).then(() => {
-				this.doInstantiateByPhase(instantiationService, phase);
-			});
+			lifecycleService.when(phase).then(() => this.doInstantiateByPhase(instantiationService, phase));
 		}
 	}
 
 	private doInstantiateByPhase(instantiationService: IInstantiationService, phase: LifecyclePhase): void {
 		const toBeInstantiated = this.toBeInstantiated.get(phase);
 		if (toBeInstantiated) {
-			while (toBeInstantiated.length > 0) {
-				instantiationService.createInstance(toBeInstantiated.shift());
+			this.toBeInstantiated.delete(phase);
+			if (phase !== LifecyclePhase.Eventually) {
+				// instantiate everything synchronously and blocking
+				for (const ctor of toBeInstantiated) {
+					this.safeCreateInstance(instantiationService, ctor); // catch error so that other contributions are still considered
+				}
+			} else {
+				// for the Eventually-phase we instantiate contributions
+				// only when idle. this might take a few idle-busy-cycles
+				// but will finish within the timeouts
+				let forcedTimeout = 3000;
+				let i = 0;
+				let instantiateSome = (idle: IdleDeadline) => {
+					while (i < toBeInstantiated.length) {
+						const ctor = toBeInstantiated[i++];
+						this.safeCreateInstance(instantiationService, ctor); // catch error so that other contributions are still considered
+						if (idle.timeRemaining() < 1) {
+							// time is up -> reschedule
+							runWhenIdle(instantiateSome, forcedTimeout);
+							break;
+						}
+					}
+				};
+				runWhenIdle(instantiateSome, forcedTimeout);
 			}
+		}
+	}
+
+	private safeCreateInstance(instantiationService: IInstantiationService, ctor: IConstructorSignature0<IWorkbenchContribution>): void {
+		try {
+			instantiationService.createInstance(ctor);
+		} catch (error) {
+			console.error(`Unable to instantiate workbench contribution ${ctor.name}.`, error);
 		}
 	}
 }

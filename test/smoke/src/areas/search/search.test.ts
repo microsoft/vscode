@@ -3,16 +3,23 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { Application } from '../../application';
+import * as cp from 'child_process';
+import { Application } from '../../../../automation';
 
 export function setup() {
 	describe('Search', () => {
+		after(function () {
+			const app = this.app as Application;
+			cp.execSync('git checkout . --quiet', { cwd: app.workspacePathOrFolder });
+			cp.execSync('git reset --hard origin/master --quiet', { cwd: app.workspacePathOrFolder });
+		});
+
 		it('searches for body & checks for correct result number', async function () {
 			const app = this.app as Application;
 			await app.workbench.search.openSearchViewlet();
 			await app.workbench.search.searchFor('body');
 
-			await app.workbench.search.waitForResultText('14 results in 5 files');
+			await app.workbench.search.waitForResultText('16 results in 5 files');
 		});
 
 		it('searches only for *.js files & checks for correct result number', async function () {
@@ -30,8 +37,8 @@ export function setup() {
 		it('dismisses result & checks for correct result number', async function () {
 			const app = this.app as Application;
 			await app.workbench.search.searchFor('body');
-			await app.workbench.search.removeFileMatch(1);
-			await app.workbench.search.waitForResultText('10 results in 4 files');
+			await app.workbench.search.removeFileMatch('app.js');
+			await app.workbench.search.waitForResultText('12 results in 4 files');
 		});
 
 		it('replaces first search result with a replace term', async function () {
@@ -40,13 +47,45 @@ export function setup() {
 			await app.workbench.search.searchFor('body');
 			await app.workbench.search.expandReplace();
 			await app.workbench.search.setReplaceText('ydob');
-			await app.workbench.search.replaceFileMatch(1);
-
-			await app.workbench.search.waitForResultText('10 results in 4 files');
+			await app.workbench.search.replaceFileMatch('app.js');
+			await app.workbench.search.waitForResultText('12 results in 4 files');
 
 			await app.workbench.search.searchFor('ydob');
 			await app.workbench.search.setReplaceText('body');
-			await app.workbench.search.replaceFileMatch(1);
+			await app.workbench.search.replaceFileMatch('app.js');
+			await app.workbench.search.waitForNoResultText();
+		});
+	});
+
+	describe('Quick Access', () => {
+		it('quick access search produces correct result', async function () {
+			const app = this.app as Application;
+			const expectedNames = [
+				'.eslintrc.json',
+				'tasks.json',
+				'app.js',
+				'index.js',
+				'users.js',
+				'package.json',
+				'jsconfig.json'
+			];
+
+			await app.workbench.quickaccess.openQuickAccess('.js');
+			await app.workbench.quickinput.waitForQuickInputElements(names => expectedNames.every(n => names.some(m => n === m)));
+			await app.code.dispatchKeybinding('escape');
+		});
+
+		it('quick access respects fuzzy matching', async function () {
+			const app = this.app as Application;
+			const expectedNames = [
+				'tasks.json',
+				'app.js',
+				'package.json'
+			];
+
+			await app.workbench.quickaccess.openQuickAccess('a.s');
+			await app.workbench.quickinput.waitForQuickInputElements(names => expectedNames.every(n => names.some(m => n === m)));
+			await app.code.dispatchKeybinding('escape');
 		});
 	});
 }

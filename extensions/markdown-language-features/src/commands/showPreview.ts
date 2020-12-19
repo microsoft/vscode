@@ -6,30 +6,8 @@
 import * as vscode from 'vscode';
 
 import { Command } from '../commandManager';
-import { MarkdownPreviewManager } from '../features/previewManager';
+import { MarkdownPreviewManager, DynamicPreviewSettings } from '../features/previewManager';
 import { TelemetryReporter } from '../telemetryReporter';
-import { PreviewSettings } from '../features/preview';
-
-
-function getViewColumn(sideBySide: boolean): vscode.ViewColumn | undefined {
-	const active = vscode.window.activeTextEditor;
-	if (!active) {
-		return vscode.ViewColumn.One;
-	}
-
-	if (!sideBySide) {
-		return active.viewColumn;
-	}
-
-	switch (active.viewColumn) {
-		case vscode.ViewColumn.One:
-			return vscode.ViewColumn.Two;
-		case vscode.ViewColumn.Two:
-			return vscode.ViewColumn.Three;
-	}
-
-	return active.viewColumn;
-}
 
 interface ShowPreviewSettings {
 	readonly sideBySide?: boolean;
@@ -59,9 +37,10 @@ async function showPreview(
 		return;
 	}
 
-	webviewManager.preview(resource, {
-		resourceColumn: (vscode.window.activeTextEditor && vscode.window.activeTextEditor.viewColumn) || vscode.ViewColumn.One,
-		previewColumn: getViewColumn(!!previewSettings.sideBySide) || vscode.ViewColumn.Active,
+	const resourceColumn = (vscode.window.activeTextEditor && vscode.window.activeTextEditor.viewColumn) || vscode.ViewColumn.One;
+	webviewManager.openDynamicPreview(resource, {
+		resourceColumn: resourceColumn,
+		previewColumn: previewSettings.sideBySide ? resourceColumn + 1 : resourceColumn,
 		locked: !!previewSettings.locked
 	});
 
@@ -79,8 +58,8 @@ export class ShowPreviewCommand implements Command {
 		private readonly telemetryReporter: TelemetryReporter
 	) { }
 
-	public execute(mainUri?: vscode.Uri, allUris?: vscode.Uri[], previewSettings?: PreviewSettings) {
-		for (const uri of (allUris || [mainUri])) {
+	public execute(mainUri?: vscode.Uri, allUris?: vscode.Uri[], previewSettings?: DynamicPreviewSettings) {
+		for (const uri of Array.isArray(allUris) ? allUris : [mainUri]) {
 			showPreview(this.webviewManager, this.telemetryReporter, uri, {
 				sideBySide: false,
 				locked: previewSettings && previewSettings.locked
@@ -97,7 +76,7 @@ export class ShowPreviewToSideCommand implements Command {
 		private readonly telemetryReporter: TelemetryReporter
 	) { }
 
-	public execute(uri?: vscode.Uri, previewSettings?: PreviewSettings) {
+	public execute(uri?: vscode.Uri, previewSettings?: DynamicPreviewSettings) {
 		showPreview(this.webviewManager, this.telemetryReporter, uri, {
 			sideBySide: true,
 			locked: previewSettings && previewSettings.locked

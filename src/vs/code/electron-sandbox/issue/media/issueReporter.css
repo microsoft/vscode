@@ -1,0 +1,374 @@
+/*---------------------------------------------------------------------------------------------
+ *  Copyright (c) Microsoft Corporation. All rights reserved.
+ *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *--------------------------------------------------------------------------------------------*/
+
+/**
+ * Table
+ */
+
+table {
+	width: 100%;
+	max-width: 100%;
+	background-color: transparent;
+	border-collapse: collapse;
+}
+th {
+	vertical-align: bottom;
+	border-bottom: 1px solid;
+	padding: 5px;
+	text-align: inherit;
+}
+td {
+	padding: 5px;
+	vertical-align: top;
+}
+
+tr td:first-child {
+	width: 30%;
+}
+
+label {
+	user-select: none;
+}
+
+.block-settingsSearchResults-details {
+	padding-bottom: .5rem;
+}
+
+.block-settingsSearchResults-details > div {
+	padding: .5rem .75rem;
+}
+
+.section {
+	margin-bottom: .5em;
+}
+
+/**
+ * Forms
+ */
+input[type="text"], textarea {
+	display: block;
+	width: 100%;
+	padding: .375rem .75rem;
+	font-size: 1rem;
+	line-height: 1.5;
+	color: #495057;
+	background-color: #fff;
+	border: 1px solid #ced4da;
+}
+
+textarea {
+	overflow: auto;
+	resize: vertical;
+}
+
+/**
+ * Button
+ */
+
+.monaco-text-button {
+	display: block;
+	width: auto;
+	padding: 4px 10px;
+	align-self: flex-end;
+	margin-bottom: 10px;
+}
+
+select {
+	height: calc(2.25rem + 2px);
+	display: inline-block;
+	padding: 3px 3px;
+	font-size: 14px;
+	line-height: 1.5;
+	color: #495057;
+	background-color: #fff;
+	border: none;
+}
+
+* {
+	box-sizing: border-box;
+}
+
+textarea, input, select {
+	font-family: inherit;
+}
+
+html {
+	color: #CCCCCC;
+	height: 100%;
+}
+
+/* Font Families (with CJK support) */
+
+.mac { font-family: -apple-system, BlinkMacSystemFont, sans-serif; }
+.mac:lang(zh-Hans) { font-family: -apple-system, BlinkMacSystemFont, "PingFang SC", "Hiragino Sans GB", sans-serif; }
+.mac:lang(zh-Hant) { font-family: -apple-system, BlinkMacSystemFont, "PingFang TC", sans-serif; }
+.mac:lang(ja) { font-family: -apple-system, BlinkMacSystemFont, "Hiragino Kaku Gothic Pro", sans-serif; }
+.mac:lang(ko) { font-family: -apple-system, BlinkMacSystemFont, "Nanum Gothic", "Apple SD Gothic Neo", "AppleGothic", sans-serif; }
+
+.windows { font-family: "Segoe WPC", "Segoe UI", sans-serif; }
+.windows:lang(zh-Hans) { font-family: "Segoe WPC", "Segoe UI", "Microsoft YaHei", sans-serif; }
+.windows:lang(zh-Hant) { font-family: "Segoe WPC", "Segoe UI", "Microsoft Jhenghei", sans-serif; }
+.windows:lang(ja) { font-family: "Segoe WPC", "Segoe UI", "Yu Gothic UI", "Meiryo UI", sans-serif; }
+.windows:lang(ko) { font-family: "Segoe WPC", "Segoe UI", "Malgun Gothic", "Dotom", sans-serif; }
+
+/* Linux: add `system-ui` as first font and not `Ubuntu` to allow other distribution pick their standard OS font */
+.linux { font-family: system-ui, "Ubuntu", "Droid Sans", sans-serif; }
+.linux:lang(zh-Hans) { font-family: system-ui, "Ubuntu", "Droid Sans", "Source Han Sans SC", "Source Han Sans CN", "Source Han Sans", sans-serif; }
+.linux:lang(zh-Hant) { font-family: system-ui, "Ubuntu", "Droid Sans", "Source Han Sans TC", "Source Han Sans TW", "Source Han Sans", sans-serif; }
+.linux:lang(ja) { font-family: system-ui, "Ubuntu", "Droid Sans", "Source Han Sans J", "Source Han Sans JP", "Source Han Sans", sans-serif; }
+.linux:lang(ko) { font-family: system-ui, "Ubuntu", "Droid Sans", "Source Han Sans K", "Source Han Sans JR", "Source Han Sans", "UnDotum", "FBaekmuk Gulim", sans-serif; }
+
+body {
+	margin: 0;
+	overflow-y: scroll;
+	height: 100%;
+}
+
+.hidden {
+	display: none;
+}
+
+.block {
+	font-size: 12px;
+}
+
+.block .block-info {
+	width: 100%;
+	font-size: 12px;
+	overflow: auto;
+	overflow-wrap: break-word;
+	margin: 5px;
+	padding: 10px;
+}
+
+#issue-reporter {
+	max-width: 85vw;
+	margin-left: auto;
+	margin-right: auto;
+	padding-top: 2em;
+	padding-bottom: 2em;
+	display: flex;
+	flex-direction: column;
+	height: 100%;
+}
+
+.description-section {
+	flex-grow: 1;
+	display: flex;
+	flex-direction: column;
+	flex-shrink: 0;
+}
+
+textarea {
+	flex-grow: 1;
+	min-height: 150px;
+}
+
+.block-info-text {
+	display: flex;
+	flex-grow: 1;
+}
+
+#github-submit-btn {
+	flex-shrink: 0;
+	margin-left: auto;
+	margin-top: 10px;
+	margin-bottom: 10px;
+}
+
+.two-col {
+	display: inline-block;
+	width: 49%;
+}
+
+#vscode-version {
+	width: 90%;
+}
+
+.input-group {
+	margin-bottom: 1em;
+}
+
+#extension-selection {
+	margin-top: 1em;
+}
+
+select, input, textarea {
+	border: 1px solid transparent;
+	margin-top: 10px;
+}
+
+
+#issue-reporter .validation-error {
+	font-size: 12px;
+	padding: 10px;
+	border-top: 0px !important;
+}
+
+
+input[type="checkbox"] {
+	width: auto;
+	display: inline-block;
+	margin-top: 0;
+	vertical-align: middle;
+	cursor: pointer;
+}
+
+input:disabled {
+	opacity: 0.6;
+}
+
+.list-title {
+	margin-top: 1em;
+	margin-left: 1em;
+}
+
+.instructions {
+	font-size: 12px;
+	margin-top: .5em;
+}
+
+a, .workbenchCommand {
+	cursor: pointer;
+	border: 1px solid transparent;
+}
+
+.workbenchCommand:disabled {
+	color: #868e96;
+	cursor: default
+}
+
+.block-extensions .block-info {
+	margin-bottom: 1.5em;
+}
+
+/* Default styles, overwritten if a theme is provided */
+input, select, textarea {
+	background-color: #3c3c3c;
+	border: none;
+	color: #cccccc;
+}
+
+a {
+	color: #CCCCCC;
+	text-decoration: none;
+}
+
+.section .input-group .validation-error {
+	margin-left: 100px;
+}
+
+.section .inline-form-control, .section .inline-label {
+	display: inline-block;
+}
+
+.section .inline-label {
+	width: 95px;
+}
+
+.section .inline-form-control, .section .input-group .validation-error  {
+	width: calc(100% - 100px);
+}
+
+#issue-type {
+	cursor: pointer;
+}
+
+#similar-issues {
+	margin-left: 15%;
+	display: block;
+}
+
+#problem-source-help-text {
+	margin-left: calc(15% + 1em);
+}
+
+@media (max-width: 950px) {
+	.section .inline-label {
+		width: 15%;
+	}
+
+	#problem-source-help-text {
+		margin-left: calc(15% + 1em);
+	}
+
+	.section .inline-form-control, .section .input-group .validation-error  {
+		width: calc(85% - 5px);
+	}
+
+	.section .input-group .validation-error {
+		margin-left: calc(15% + 4px);
+	}
+}
+
+@media (max-width: 620px) {
+	.section .inline-label {
+		display: none !important;
+	}
+
+	#problem-source-help-text {
+		margin-left: 1em;
+	}
+
+	.section .inline-form-control, .section .input-group .validation-error  {
+		width: 100%;
+	}
+
+	#similar-issues, .section .input-group .validation-error {
+		margin-left: 0;
+	}
+}
+
+::-webkit-scrollbar {
+	width: 14px;
+}
+
+::-webkit-scrollbar-thumb {
+	min-height: 20px;
+}
+
+::-webkit-scrollbar-corner {
+	display: none;
+}
+
+.issues-container {
+	margin-left: 1.5em;
+	margin-top: .5em;
+	max-height: 92px;
+	overflow-y: auto;
+}
+
+.issues-container > .issue {
+	padding: 4px 0;
+	display: flex;
+}
+
+.issues-container > .issue > .issue-link {
+	width: calc(100% - 82px);
+	overflow: hidden;
+	padding-top: 3px;
+	white-space: nowrap;
+	text-overflow: ellipsis;
+}
+
+.issues-container > .issue > .issue-state .codicon {
+	width: 16px;
+}
+
+.issues-container > .issue > .issue-state {
+	width: 77px;
+	padding: 3px 6px;
+	margin-right: 5px;
+	color: #CCCCCC;
+	background-color: #3c3c3c;
+	border-radius: .25rem;
+}
+
+.issues-container > .issue .label {
+	margin-left: 5px;
+	width: 44px;
+	text-overflow: ellipsis;
+	overflow: hidden;
+}

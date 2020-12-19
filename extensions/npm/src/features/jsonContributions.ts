@@ -2,17 +2,15 @@
  *  Copyright (c) Microsoft Corporation. All rights reserved.
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
-'use strict';
 
-import { Location, getLocation, createScanner, SyntaxKind, ScanError } from 'jsonc-parser';
-import { basename } from 'path';
+import { Location, getLocation, createScanner, SyntaxKind, ScanError, JSONScanner } from 'jsonc-parser';
 import { BowerJSONContribution } from './bowerJSONContribution';
 import { PackageJSONContribution } from './packageJSONContribution';
 import { XHRRequest } from 'request-light';
 
 import {
 	CompletionItem, CompletionItemProvider, CompletionList, TextDocument, Position, Hover, HoverProvider,
-	CancellationToken, Range, MarkedString, DocumentSelector, languages, Disposable
+	CancellationToken, Range, MarkedString, DocumentSelector, languages, Disposable, Uri
 } from 'vscode';
 
 export interface ISuggestionsCollector {
@@ -24,15 +22,15 @@ export interface ISuggestionsCollector {
 
 export interface IJSONContribution {
 	getDocumentSelector(): DocumentSelector;
-	getInfoContribution(fileName: string, location: Location): Thenable<MarkedString[] | null> | null;
-	collectPropertySuggestions(fileName: string, location: Location, currentWord: string, addValue: boolean, isLast: boolean, result: ISuggestionsCollector): Thenable<any> | null;
-	collectValueSuggestions(fileName: string, location: Location, result: ISuggestionsCollector): Thenable<any> | null;
-	collectDefaultSuggestions(fileName: string, result: ISuggestionsCollector): Thenable<any>;
-	resolveSuggestion?(item: CompletionItem): Thenable<CompletionItem | null> | null;
+	getInfoContribution(resourceUri: Uri, location: Location): Thenable<MarkedString[] | null> | null;
+	collectPropertySuggestions(resourceUri: Uri, location: Location, currentWord: string, addValue: boolean, isLast: boolean, result: ISuggestionsCollector): Thenable<any> | null;
+	collectValueSuggestions(resourceUri: Uri, location: Location, result: ISuggestionsCollector): Thenable<any> | null;
+	collectDefaultSuggestions(resourceUri: Uri, result: ISuggestionsCollector): Thenable<any>;
+	resolveSuggestion?(resourceUri: Uri | undefined, item: CompletionItem): Thenable<CompletionItem | null> | null;
 }
 
-export function addJSONProviders(xhr: XHRRequest): Disposable {
-	const contributions = [new PackageJSONContribution(xhr), new BowerJSONContribution(xhr)];
+export function addJSONProviders(xhr: XHRRequest, canRunNPM: boolean): Disposable {
+	const contributions = [new PackageJSONContribution(xhr, canRunNPM), new BowerJSONContribution(xhr)];
 	const subscriptions: Disposable[] = [];
 	contributions.forEach(contribution => {
 		const selector = contribution.getDocumentSelector();
@@ -48,7 +46,6 @@ export class JSONHoverProvider implements HoverProvider {
 	}
 
 	public provideHover(document: TextDocument, position: Position, _token: CancellationToken): Thenable<Hover> | null {
-		const fileName = basename(document.fileName);
 		const offset = document.offsetAt(position);
 		const location = getLocation(document.getText(), offset);
 		if (!location.previousNode) {
@@ -56,7 +53,7 @@ export class JSONHoverProvider implements HoverProvider {
 		}
 		const node = location.previousNode;
 		if (node && node.offset <= offset && offset <= node.offset + node.length) {
-			const promise = this.jsonContribution.getInfoContribution(fileName, location);
+			const promise = this.jsonContribution.getInfoContribution(document.uri, location);
 			if (promise) {
 				return promise.then(htmlContent => {
 					const range = new Range(document.positionAt(node.offset), document.positionAt(node.offset + node.length));
@@ -74,12 +71,14 @@ export class JSONHoverProvider implements HoverProvider {
 
 export class JSONCompletionItemProvider implements CompletionItemProvider {
 
+	private lastResource: Uri | undefined;
+
 	constructor(private jsonContribution: IJSONContribution) {
 	}
 
 	public resolveCompletionItem(item: CompletionItem, _token: CancellationToken): Thenable<CompletionItem | null> {
 		if (this.jsonContribution.resolveSuggestion) {
-			const resolver = this.jsonContribution.resolveSuggestion(item);
+			const resolver = this.jsonContribution.resolveSuggestion(this.lastResource, item);
 			if (resolver) {
 				return resolver;
 			}
@@ -88,8 +87,8 @@ export class JSONCompletionItemProvider implements CompletionItemProvider {
 	}
 
 	public provideCompletionItems(document: TextDocument, position: Position, _token: CancellationToken): Thenable<CompletionList | null> | null {
+		this.lastResource = document.uri;
 
-		const fileName = basename(document.fileName);
 
 		const currentWord = this.getCurrentWord(document, position);
 		let overwriteRange: Range;
@@ -112,7 +111,7 @@ export class JSONCompletionItemProvider implements CompletionItemProvider {
 			add: (suggestion: CompletionItem) => {
 				if (!proposed[suggestion.label]) {
 					proposed[suggestion.label] = true;
-					suggestion.range = overwriteRange;
+					suggestion.range = { replacing: overwriteRange, inserting: new Range(overwriteRange.start, overwriteRange.start) };
 					items.push(suggestion);
 				}
 			},
@@ -124,14 +123,15 @@ export class JSONCompletionItemProvider implements CompletionItemProvider {
 		let collectPromise: Thenable<any> | null = null;
 
 		if (location.isAtPropertyKey) {
-			const addValue = !location.previousNode || !location.previousNode.columnOffset;
-			const isLast = this.isLast(document, position);
-			collectPromise = this.jsonContribution.collectPropertySuggestions(fileName, location, currentWord, addValue, isLast, collector);
+			const scanner = createScanner(document.getText(), true);
+			const addValue = !location.previousNode || !this.hasColonAfter(scanner, location.previousNode.offset + location.previousNode.length);
+			const isLast = this.isLast(scanner, document.offsetAt(position));
+			collectPromise = this.jsonContribution.collectPropertySuggestions(document.uri, location, currentWord, addValue, isLast, collector);
 		} else {
 			if (location.path.length === 0) {
-				collectPromise = this.jsonContribution.collectDefaultSuggestions(fileName, collector);
+				collectPromise = this.jsonContribution.collectDefaultSuggestions(document.uri, collector);
 			} else {
-				collectPromise = this.jsonContribution.collectValueSuggestions(fileName, location, collector);
+				collectPromise = this.jsonContribution.collectValueSuggestions(document.uri, location, collector);
 			}
 		}
 		if (collectPromise) {
@@ -154,13 +154,19 @@ export class JSONCompletionItemProvider implements CompletionItemProvider {
 		return text.substring(i + 1, position.character);
 	}
 
-	private isLast(document: TextDocument, position: Position): boolean {
-		const scanner = createScanner(document.getText(), true);
-		scanner.setPosition(document.offsetAt(position));
+	private isLast(scanner: JSONScanner, offset: number): boolean {
+		scanner.setPosition(offset);
 		let nextToken = scanner.scan();
 		if (nextToken === SyntaxKind.StringLiteral && scanner.getTokenError() === ScanError.UnexpectedEndOfString) {
 			nextToken = scanner.scan();
 		}
 		return nextToken === SyntaxKind.CloseBraceToken || nextToken === SyntaxKind.EOF;
 	}
+	private hasColonAfter(scanner: JSONScanner, offset: number): boolean {
+		scanner.setPosition(offset);
+		return scanner.scan() === SyntaxKind.ColonToken;
+	}
+
 }
+
+export const xhrDisabled = () => Promise.reject({ responseText: 'Use of online resources is disabled.' });

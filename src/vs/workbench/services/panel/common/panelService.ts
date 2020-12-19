@@ -4,43 +4,69 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { Event } from 'vs/base/common/event';
-import { TPromise } from 'vs/base/common/winjs.base';
 import { IPanel } from 'vs/workbench/common/panel';
-import { createDecorator, ServiceIdentifier } from 'vs/platform/instantiation/common/instantiation';
+import { createDecorator } from 'vs/platform/instantiation/common/instantiation';
+import { IBadge } from 'vs/workbench/services/activity/common/activity';
+import { IDisposable } from 'vs/base/common/lifecycle';
+import { IProgressIndicator } from 'vs/platform/progress/common/progress';
 
 export const IPanelService = createDecorator<IPanelService>('panelService');
 
 export interface IPanelIdentifier {
 	id: string;
 	name: string;
-	cssClass: string;
+	cssClass?: string;
 }
 
 export interface IPanelService {
-	_serviceBrand: ServiceIdentifier<any>;
 
-	onDidPanelOpen: Event<IPanel>;
+	readonly _serviceBrand: undefined;
 
-	onDidPanelClose: Event<IPanel>;
+	readonly onDidPanelOpen: Event<{ readonly panel: IPanel, readonly focus: boolean }>;
+	readonly onDidPanelClose: Event<IPanel>;
 
 	/**
 	 * Opens a panel with the given identifier and pass keyboard focus to it if specified.
 	 */
-	openPanel(id: string, focus?: boolean): TPromise<IPanel>;
+	openPanel(id?: string, focus?: boolean): Promise<IPanel | undefined>;
 
 	/**
 	 * Returns the current active panel or null if none
 	 */
-	getActivePanel(): IPanel;
+	getActivePanel(): IPanel | undefined;
 
 	/**
-	 * Returns all enabled panels
+	 * Returns the panel by id.
 	 */
-	getPanels(): IPanelIdentifier[];
+	getPanel(id: string): IPanelIdentifier | undefined;
 
 	/**
-	 * Enables or disables a panel. Disabled panels are completly hidden from UI.
-	 * By default all panels are enabled.
+	 * Returns all built-in panels following the default order
 	 */
-	setPanelEnablement(id: string, enabled: boolean): void;
+	getPanels(): readonly IPanelIdentifier[];
+
+	/**
+	 * Returns pinned panels following the visual order
+	 */
+	getPinnedPanels(): readonly IPanelIdentifier[];
+
+	/**
+	 * Returns the progress indicator for the panel bar.
+	 */
+	getProgressIndicator(id: string): IProgressIndicator | undefined;
+
+	/**
+	 * Show an activity in a panel.
+	 */
+	showActivity(panelId: string, badge: IBadge, clazz?: string): IDisposable;
+
+	/**
+	 * Hide the currently active panel.
+	 */
+	hideActivePanel(): void;
+
+	/**
+	 * Get the last active panel ID.
+	 */
+	getLastActivePanelId(): string;
 }

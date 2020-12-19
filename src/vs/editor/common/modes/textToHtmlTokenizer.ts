@@ -2,19 +2,29 @@
  *  Copyright (c) Microsoft Corporation. All rights reserved.
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
-'use strict';
 
-import * as strings from 'vs/base/common/strings';
-import { IState, ITokenizationSupport, TokenizationRegistry, LanguageId } from 'vs/editor/common/modes';
-import { NULL_STATE, nullTokenize2 } from 'vs/editor/common/modes/nullMode';
-import { LineTokens, IViewLineTokens } from 'vs/editor/common/core/lineTokens';
 import { CharCode } from 'vs/base/common/charCode';
+import * as strings from 'vs/base/common/strings';
+import { IViewLineTokens, LineTokens } from 'vs/editor/common/core/lineTokens';
+import { TokenizationResult2 } from 'vs/editor/common/core/token';
+import { IState, LanguageId } from 'vs/editor/common/modes';
+import { NULL_STATE, nullTokenize2 } from 'vs/editor/common/modes/nullMode';
 
-export function tokenizeToString(text: string, languageId: string): string {
-	return _tokenizeToString(text, _getSafeTokenizationSupport(languageId));
+export interface IReducedTokenizationSupport {
+	getInitialState(): IState;
+	tokenize2(line: string, state: IState, offsetDelta: number): TokenizationResult2;
 }
 
-export function tokenizeLineToHTML(text: string, viewLineTokens: IViewLineTokens, colorMap: string[], startOffset: number, endOffset: number, tabSize: number): string {
+const fallback: IReducedTokenizationSupport = {
+	getInitialState: () => NULL_STATE,
+	tokenize2: (buffer: string, state: IState, deltaOffset: number) => nullTokenize2(LanguageId.Null, buffer, state, deltaOffset)
+};
+
+export function tokenizeToString(text: string, tokenizationSupport: IReducedTokenizationSupport = fallback): string {
+	return _tokenizeToString(text, tokenizationSupport || fallback);
+}
+
+export function tokenizeLineToHTML(text: string, viewLineTokens: IViewLineTokens, colorMap: string[], startOffset: number, endOffset: number, tabSize: number, useNbsp: boolean): string {
 	let result = `<div>`;
 	let charIndex = startOffset;
 	let tabsCharDelta = 0;
@@ -36,7 +46,7 @@ export function tokenizeLineToHTML(text: string, viewLineTokens: IViewLineTokens
 					let insertSpacesCount = tabSize - (charIndex + tabsCharDelta) % tabSize;
 					tabsCharDelta += insertSpacesCount - 1;
 					while (insertSpacesCount > 0) {
-						partContent += '&nbsp;';
+						partContent += useNbsp ? '&#160;' : ' ';
 						insertSpacesCount--;
 					}
 					break;
@@ -58,13 +68,19 @@ export function tokenizeLineToHTML(text: string, viewLineTokens: IViewLineTokens
 					break;
 
 				case CharCode.UTF8_BOM:
-				case CharCode.LINE_SEPARATOR_2028:
+				case CharCode.LINE_SEPARATOR:
+				case CharCode.PARAGRAPH_SEPARATOR:
+				case CharCode.NEXT_LINE:
 					partContent += '\ufffd';
 					break;
 
 				case CharCode.CarriageReturn:
 					// zero width space, because carriage return would introduce a line break
 					partContent += '&#8203';
+					break;
+
+				case CharCode.Space:
+					partContent += useNbsp ? '&#160;' : ' ';
 					break;
 
 				default:
@@ -83,21 +99,9 @@ export function tokenizeLineToHTML(text: string, viewLineTokens: IViewLineTokens
 	return result;
 }
 
-function _getSafeTokenizationSupport(languageId: string): ITokenizationSupport {
-	let tokenizationSupport = TokenizationRegistry.get(languageId);
-	if (tokenizationSupport) {
-		return tokenizationSupport;
-	}
-	return {
-		getInitialState: () => NULL_STATE,
-		tokenize: undefined,
-		tokenize2: (buffer: string, state: IState, deltaOffset: number) => nullTokenize2(LanguageId.Null, buffer, state, deltaOffset)
-	};
-}
-
-function _tokenizeToString(text: string, tokenizationSupport: ITokenizationSupport): string {
+function _tokenizeToString(text: string, tokenizationSupport: IReducedTokenizationSupport): string {
 	let result = `<div class="monaco-tokenized-source">`;
-	let lines = text.split(/\r\n|\r|\n/);
+	let lines = strings.splitLines(text);
 	let currentState = tokenizationSupport.getInitialState();
 	for (let i = 0, len = lines.length; i < len; i++) {
 		let line = lines[i];

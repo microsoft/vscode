@@ -3,41 +3,36 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-'use strict';
-
-import product from 'vs/platform/node/product';
+import product from 'vs/platform/product/common/product';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
-import { ILifecycleService } from 'vs/platform/lifecycle/electron-main/lifecycleMain';
-import { IRequestService } from 'vs/platform/request/node/request';
-import { State, IUpdate, AvailableForDownload } from 'vs/platform/update/common/update';
+import { ILifecycleMainService } from 'vs/platform/lifecycle/electron-main/lifecycleMainService';
+import { State, IUpdate, AvailableForDownload, UpdateType } from 'vs/platform/update/common/update';
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
-import { IEnvironmentService } from 'vs/platform/environment/common/environment';
+import { IEnvironmentMainService } from 'vs/platform/environment/electron-main/environmentMainService';
 import { ILogService } from 'vs/platform/log/common/log';
-import { createUpdateURL, AbstractUpdateService } from 'vs/platform/update/electron-main/abstractUpdateService';
-import { asJson } from 'vs/base/node/request';
-import { TPromise } from 'vs/base/common/winjs.base';
-import { shell } from 'electron';
+import { createUpdateURL, AbstractUpdateService, UpdateNotAvailableClassification } from 'vs/platform/update/electron-main/abstractUpdateService';
+import { IRequestService, asJson } from 'vs/platform/request/common/request';
+import { CancellationToken } from 'vs/base/common/cancellation';
+import { INativeHostMainService } from 'vs/platform/native/electron-main/nativeHostMainService';
 
 export class LinuxUpdateService extends AbstractUpdateService {
 
-	_serviceBrand: any;
-
-	private url: string | undefined;
+	declare readonly _serviceBrand: undefined;
 
 	constructor(
-		@ILifecycleService lifecycleService: ILifecycleService,
+		@ILifecycleMainService lifecycleMainService: ILifecycleMainService,
 		@IConfigurationService configurationService: IConfigurationService,
-		@ITelemetryService private telemetryService: ITelemetryService,
-		@IEnvironmentService environmentService: IEnvironmentService,
-		@IRequestService private requestService: IRequestService,
-		@ILogService logService: ILogService
+		@ITelemetryService private readonly telemetryService: ITelemetryService,
+		@IEnvironmentMainService environmentService: IEnvironmentMainService,
+		@IRequestService requestService: IRequestService,
+		@ILogService logService: ILogService,
+		@INativeHostMainService private readonly nativeHostMainService: INativeHostMainService
 	) {
-		super(lifecycleService, configurationService, environmentService, logService);
+		super(lifecycleMainService, configurationService, environmentService, requestService, logService);
 	}
 
-	protected setUpdateFeedUrl(quality: string): boolean {
-		this.url = createUpdateURL(`linux-${process.arch}`, quality);
-		return true;
+	protected buildUpdateFeedUrl(quality: string): string {
+		return createUpdateURL(`linux-${process.arch}`, quality);
 	}
 
 	protected doCheckForUpdates(context: any): void {
@@ -46,46 +41,35 @@ export class LinuxUpdateService extends AbstractUpdateService {
 		}
 
 		this.setState(State.CheckingForUpdates(context));
-
-		this.requestService.request({ url: this.url })
-			.then<IUpdate>(asJson)
+		this.requestService.request({ url: this.url }, CancellationToken.None)
+			.then<IUpdate | null>(asJson)
 			.then(update => {
 				if (!update || !update.url || !update.version || !update.productVersion) {
-					/* __GDPR__
-							"update:notAvailable" : {
-								"explicit" : { "classification": "SystemMetaData", "purpose": "FeatureInsight", "isMeasurement": true }
-							}
-						*/
-					this.telemetryService.publicLog('update:notAvailable', { explicit: !!context });
+					this.telemetryService.publicLog2<{ explicit: boolean }, UpdateNotAvailableClassification>('update:notAvailable', { explicit: !!context });
 
-					this.setState(State.Idle);
+					this.setState(State.Idle(UpdateType.Archive));
 				} else {
 					this.setState(State.AvailableForDownload(update));
 				}
 			})
-			.then(null, err => {
+			.then(undefined, err => {
 				this.logService.error(err);
-
-				/* __GDPR__
-					"update:notAvailable" : {
-						"explicit" : { "classification": "SystemMetaData", "purpose": "FeatureInsight", "isMeasurement": true }
-					}
-					*/
-				this.telemetryService.publicLog('update:notAvailable', { explicit: !!context });
-				this.setState(State.Idle);
+				this.telemetryService.publicLog2<{ explicit: boolean }, UpdateNotAvailableClassification>('update:notAvailable', { explicit: !!context });
+				// only show message when explicitly checking for updates
+				const message: string | undefined = !!context ? (err.message || err) : undefined;
+				this.setState(State.Idle(UpdateType.Archive, message));
 			});
 	}
 
-	protected doDownloadUpdate(state: AvailableForDownload): TPromise<void> {
+	protected async doDownloadUpdate(state: AvailableForDownload): Promise<void> {
 		// Use the download URL if available as we don't currently detect the package type that was
 		// installed and the website download page is more useful than the tarball generally.
 		if (product.downloadUrl && product.downloadUrl.length > 0) {
-			shell.openExternal(product.downloadUrl);
-		} else {
-			shell.openExternal(state.update.url);
+			this.nativeHostMainService.openExternal(undefined, product.downloadUrl);
+		} else if (state.update.url) {
+			this.nativeHostMainService.openExternal(undefined, state.update.url);
 		}
-		this.setState(State.Idle);
 
-		return TPromise.as(null);
+		this.setState(State.Idle(UpdateType.Archive));
 	}
 }

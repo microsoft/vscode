@@ -3,7 +3,8 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { OutputChannel, window, workspace } from 'vscode';
+import * as vscode from 'vscode';
+import { lazy } from './util/lazy';
 
 enum Trace {
 	Off,
@@ -31,7 +32,8 @@ function isString(value: any): value is string {
 
 export class Logger {
 	private trace?: Trace;
-	private _output?: OutputChannel;
+
+	private readonly outputChannel = lazy(() => vscode.window.createOutputChannel('Markdown'));
 
 	constructor() {
 		this.updateConfiguration();
@@ -39,26 +41,31 @@ export class Logger {
 
 	public log(message: string, data?: any): void {
 		if (this.trace === Trace.Verbose) {
-			this.output.appendLine(`[Log - ${(new Date().toLocaleTimeString())}] ${message}`);
+			this.appendLine(`[Log - ${this.now()}] ${message}`);
 			if (data) {
-				this.output.appendLine(Logger.data2String(data));
+				this.appendLine(Logger.data2String(data));
 			}
 		}
+	}
+
+
+	private now(): string {
+		const now = new Date();
+		return padLeft(now.getUTCHours() + '', 2, '0')
+			+ ':' + padLeft(now.getMinutes() + '', 2, '0')
+			+ ':' + padLeft(now.getUTCSeconds() + '', 2, '0') + '.' + now.getMilliseconds();
 	}
 
 	public updateConfiguration() {
 		this.trace = this.readTrace();
 	}
 
-	private get output(): OutputChannel {
-		if (!this._output) {
-			this._output = window.createOutputChannel('Markdown');
-		}
-		return this._output;
+	private appendLine(value: string) {
+		return this.outputChannel.value.appendLine(value);
 	}
 
 	private readTrace(): Trace {
-		return Trace.fromString(workspace.getConfiguration().get<string>('markdown.trace', 'off'));
+		return Trace.fromString(vscode.workspace.getConfiguration().get<string>('markdown.trace', 'off'));
 	}
 
 	private static data2String(data: any): string {
@@ -73,4 +80,8 @@ export class Logger {
 		}
 		return JSON.stringify(data, undefined, 2);
 	}
+}
+
+function padLeft(s: string, n: number, pad = ' ') {
+	return pad.repeat(Math.max(0, n - s.length)) + s;
 }

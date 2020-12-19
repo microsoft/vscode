@@ -2,11 +2,13 @@
  *  Copyright (c) Microsoft Corporation. All rights reserved.
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
-'use strict';
 
-import { SingleCursorState, CursorColumns, CursorConfiguration, ICursorSimpleModel } from 'vs/editor/common/controller/cursorCommon';
+import { CursorColumns, CursorConfiguration, ICursorSimpleModel, SingleCursorState } from 'vs/editor/common/controller/cursorCommon';
 import { Position } from 'vs/editor/common/core/position';
 import { Range } from 'vs/editor/common/core/range';
+import * as strings from 'vs/base/common/strings';
+import { Constants } from 'vs/base/common/uint';
+import { AtomicTabMoveOperations, Direction } from 'vs/editor/common/controller/cursorAtomicMoveOperations';
 
 export class CursorPosition {
 	_cursorPositionBrand: void;
@@ -24,21 +26,31 @@ export class CursorPosition {
 
 export class MoveOperations {
 
-	public static left(config: CursorConfiguration, model: ICursorSimpleModel, lineNumber: number, column: number): CursorPosition {
-
+	public static leftPosition(model: ICursorSimpleModel, lineNumber: number, column: number): Position {
 		if (column > model.getLineMinColumn(lineNumber)) {
-			if (CursorColumns.isLowSurrogate(model, lineNumber, column - 2)) {
-				// character before column is a low surrogate
-				column = column - 2;
-			} else {
-				column = column - 1;
-			}
+			column = column - strings.prevCharLength(model.getLineContent(lineNumber), column - 1);
 		} else if (lineNumber > 1) {
 			lineNumber = lineNumber - 1;
 			column = model.getLineMaxColumn(lineNumber);
 		}
+		return new Position(lineNumber, column);
+	}
 
-		return new CursorPosition(lineNumber, column, 0);
+	public static leftPositionAtomicSoftTabs(model: ICursorSimpleModel, lineNumber: number, column: number, tabSize: number): Position {
+		const minColumn = model.getLineMinColumn(lineNumber);
+		const lineContent = model.getLineContent(lineNumber);
+		const newPosition = AtomicTabMoveOperations.atomicPosition(lineContent, column - 1, tabSize, Direction.Left);
+		if (newPosition === -1 || newPosition + 1 < minColumn) {
+			return this.leftPosition(model, lineNumber, column);
+		}
+		return new Position(lineNumber, newPosition + 1);
+	}
+
+	public static left(config: CursorConfiguration, model: ICursorSimpleModel, lineNumber: number, column: number): CursorPosition {
+		const pos = config.stickyTabStops
+			? MoveOperations.leftPositionAtomicSoftTabs(model, lineNumber, column, config.tabSize)
+			: MoveOperations.leftPosition(model, lineNumber, column);
+		return new CursorPosition(pos.lineNumber, pos.column, 0);
 	}
 
 	public static moveLeft(config: CursorConfiguration, model: ICursorSimpleModel, cursor: SingleCursorState, inSelectionMode: boolean, noOfColumns: number): SingleCursorState {
@@ -58,21 +70,30 @@ export class MoveOperations {
 		return cursor.move(inSelectionMode, lineNumber, column, 0);
 	}
 
-	public static right(config: CursorConfiguration, model: ICursorSimpleModel, lineNumber: number, column: number): CursorPosition {
-
+	public static rightPosition(model: ICursorSimpleModel, lineNumber: number, column: number): Position {
 		if (column < model.getLineMaxColumn(lineNumber)) {
-			if (CursorColumns.isHighSurrogate(model, lineNumber, column - 1)) {
-				// character after column is a high surrogate
-				column = column + 2;
-			} else {
-				column = column + 1;
-			}
+			column = column + strings.nextCharLength(model.getLineContent(lineNumber), column - 1);
 		} else if (lineNumber < model.getLineCount()) {
 			lineNumber = lineNumber + 1;
 			column = model.getLineMinColumn(lineNumber);
 		}
+		return new Position(lineNumber, column);
+	}
 
-		return new CursorPosition(lineNumber, column, 0);
+	public static rightPositionAtomicSoftTabs(model: ICursorSimpleModel, lineNumber: number, column: number, tabSize: number, indentSize: number): Position {
+		const lineContent = model.getLineContent(lineNumber);
+		const newPosition = AtomicTabMoveOperations.atomicPosition(lineContent, column - 1, tabSize, Direction.Right);
+		if (newPosition === -1) {
+			return this.rightPosition(model, lineNumber, column);
+		}
+		return new Position(lineNumber, newPosition + 1);
+	}
+
+	public static right(config: CursorConfiguration, model: ICursorSimpleModel, lineNumber: number, column: number): CursorPosition {
+		const pos = config.stickyTabStops
+			? MoveOperations.rightPositionAtomicSoftTabs(model, lineNumber, column, config.tabSize, config.indentSize)
+			: MoveOperations.rightPosition(model, lineNumber, column);
+		return new CursorPosition(pos.lineNumber, pos.column, 0);
 	}
 
 	public static moveRight(config: CursorConfiguration, model: ICursorSimpleModel, cursor: SingleCursorState, inSelectionMode: boolean, noOfColumns: number): SingleCursorState {
@@ -94,27 +115,26 @@ export class MoveOperations {
 
 	public static down(config: CursorConfiguration, model: ICursorSimpleModel, lineNumber: number, column: number, leftoverVisibleColumns: number, count: number, allowMoveOnLastLine: boolean): CursorPosition {
 		const currentVisibleColumn = CursorColumns.visibleColumnFromColumn(model.getLineContent(lineNumber), column, config.tabSize) + leftoverVisibleColumns;
+		const lineCount = model.getLineCount();
+		const wasOnLastPosition = (lineNumber === lineCount && column === model.getLineMaxColumn(lineNumber));
 
 		lineNumber = lineNumber + count;
-		let lineCount = model.getLineCount();
 		if (lineNumber > lineCount) {
 			lineNumber = lineCount;
 			if (allowMoveOnLastLine) {
 				column = model.getLineMaxColumn(lineNumber);
 			} else {
 				column = Math.min(model.getLineMaxColumn(lineNumber), column);
-				if (CursorColumns.isInsideSurrogatePair(model, lineNumber, column)) {
-					column = column - 1;
-				}
 			}
 		} else {
 			column = CursorColumns.columnFromVisibleColumn2(config, model, lineNumber, currentVisibleColumn);
-			if (CursorColumns.isInsideSurrogatePair(model, lineNumber, column)) {
-				column = column - 1;
-			}
 		}
 
-		leftoverVisibleColumns = currentVisibleColumn - CursorColumns.visibleColumnFromColumn(model.getLineContent(lineNumber), column, config.tabSize);
+		if (wasOnLastPosition) {
+			leftoverVisibleColumns = 0;
+		} else {
+			leftoverVisibleColumns = currentVisibleColumn - CursorColumns.visibleColumnFromColumn(model.getLineContent(lineNumber), column, config.tabSize);
+		}
 
 		return new CursorPosition(lineNumber, column, leftoverVisibleColumns);
 	}
@@ -153,6 +173,7 @@ export class MoveOperations {
 
 	public static up(config: CursorConfiguration, model: ICursorSimpleModel, lineNumber: number, column: number, leftoverVisibleColumns: number, count: number, allowMoveOnFirstLine: boolean): CursorPosition {
 		const currentVisibleColumn = CursorColumns.visibleColumnFromColumn(model.getLineContent(lineNumber), column, config.tabSize) + leftoverVisibleColumns;
+		const wasOnFirstPosition = (lineNumber === 1 && column === 1);
 
 		lineNumber = lineNumber - count;
 		if (lineNumber < 1) {
@@ -161,18 +182,16 @@ export class MoveOperations {
 				column = model.getLineMinColumn(lineNumber);
 			} else {
 				column = Math.min(model.getLineMaxColumn(lineNumber), column);
-				if (CursorColumns.isInsideSurrogatePair(model, lineNumber, column)) {
-					column = column - 1;
-				}
 			}
 		} else {
 			column = CursorColumns.columnFromVisibleColumn2(config, model, lineNumber, currentVisibleColumn);
-			if (CursorColumns.isInsideSurrogatePair(model, lineNumber, column)) {
-				column = column - 1;
-			}
 		}
 
-		leftoverVisibleColumns = currentVisibleColumn - CursorColumns.visibleColumnFromColumn(model.getLineContent(lineNumber), column, config.tabSize);
+		if (wasOnFirstPosition) {
+			leftoverVisibleColumns = 0;
+		} else {
+			leftoverVisibleColumns = currentVisibleColumn - CursorColumns.visibleColumnFromColumn(model.getLineContent(lineNumber), column, config.tabSize);
+		}
 
 		return new CursorPosition(lineNumber, column, leftoverVisibleColumns);
 	}
@@ -227,10 +246,10 @@ export class MoveOperations {
 		return cursor.move(inSelectionMode, lineNumber, column, 0);
 	}
 
-	public static moveToEndOfLine(config: CursorConfiguration, model: ICursorSimpleModel, cursor: SingleCursorState, inSelectionMode: boolean): SingleCursorState {
+	public static moveToEndOfLine(config: CursorConfiguration, model: ICursorSimpleModel, cursor: SingleCursorState, inSelectionMode: boolean, sticky: boolean): SingleCursorState {
 		let lineNumber = cursor.position.lineNumber;
 		let maxColumn = model.getLineMaxColumn(lineNumber);
-		return cursor.move(inSelectionMode, lineNumber, maxColumn, 0);
+		return cursor.move(inSelectionMode, lineNumber, maxColumn, sticky ? Constants.MAX_SAFE_SMALL_INTEGER - maxColumn : 0);
 	}
 
 	public static moveToBeginningOfBuffer(config: CursorConfiguration, model: ICursorSimpleModel, cursor: SingleCursorState, inSelectionMode: boolean): SingleCursorState {

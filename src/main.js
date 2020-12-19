@@ -2,60 +2,580 @@
  *  Copyright (c) Microsoft Corporation. All rights reserved.
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
+
+//@ts-check
 'use strict';
 
-let perf = require('./vs/base/common/performance');
-perf.mark('main:started');
+const perf = require('./vs/base/common/performance');
+perf.mark('code/didStartMain');
 
-// Perf measurements
-global.perfStartTime = Date.now();
+const lp = require('./vs/base/node/languagePacks');
+const path = require('path');
+const fs = require('fs');
+const os = require('os');
+const bootstrap = require('./bootstrap');
+const bootstrapNode = require('./bootstrap-node');
+const paths = require('./paths');
+/** @type {Partial<import('./vs/platform/product/common/productService').IProductConfiguration> & { applicationName: string}} */
+const product = require('../product.json');
+const { app, protocol, crashReporter } = require('electron');
 
-Error.stackTraceLimit = 100; // increase number of stack frames (from 10, https://github.com/v8/v8/wiki/Stack-Trace-API)
+// Disable render process reuse, we still have
+// non-context aware native modules in the renderer.
+app.allowRendererProcessReuse = false;
 
-//#region Add support for using node_modules.asar
-(function () {
-	const path = require('path');
-	const Module = require('module');
-	const NODE_MODULES_PATH = path.join(__dirname, '../node_modules');
-	const NODE_MODULES_ASAR_PATH = NODE_MODULES_PATH + '.asar';
+// Enable portable support
+const portable = bootstrapNode.configurePortable(product);
 
-	const originalResolveLookupPaths = Module._resolveLookupPaths;
-	Module._resolveLookupPaths = function (request, parent, newReturn) {
-		const result = originalResolveLookupPaths(request, parent, newReturn);
+// Enable ASAR support
+bootstrap.enableASARSupport(undefined);
 
-		const paths = newReturn ? result : result[1];
-		for (let i = 0, len = paths.length; i < len; i++) {
-			if (paths[i] === NODE_MODULES_PATH) {
-				paths.splice(i, 0, NODE_MODULES_ASAR_PATH);
-				break;
+// Set userData path before app 'ready' event
+const args = parseCLIArgs();
+const userDataPath = getUserDataPath(args);
+app.setPath('userData', userDataPath);
+
+// Configure static command line arguments
+const argvConfig = configureCommandlineSwitchesSync(args);
+
+// If a crash-reporter-directory is specified we store the crash reports
+// in the specified directory and don't upload them to the crash server.
+let crashReporterDirectory = args['crash-reporter-directory'];
+let submitURL = '';
+if (crashReporterDirectory) {
+	crashReporterDirectory = path.normalize(crashReporterDirectory);
+
+	if (!path.isAbsolute(crashReporterDirectory)) {
+		console.error(`The path '${crashReporterDirectory}' specified for --crash-reporter-directory must be absolute.`);
+		app.exit(1);
+	}
+
+	if (!fs.existsSync(crashReporterDirectory)) {
+		try {
+			fs.mkdirSync(crashReporterDirectory);
+		} catch (error) {
+			console.error(`The path '${crashReporterDirectory}' specified for --crash-reporter-directory does not seem to exist or cannot be created.`);
+			app.exit(1);
+		}
+	}
+
+	// Crashes are stored in the crashDumps directory by default, so we
+	// need to change that directory to the provided one
+	console.log(`Found --crash-reporter-directory argument. Setting crashDumps directory to be '${crashReporterDirectory}'`);
+	app.setPath('crashDumps', crashReporterDirectory);
+} else {
+	const appCenter = product.appCenter;
+	// Disable Appcenter crash reporting if
+	// * --crash-reporter-directory is specified
+	// * enable-crash-reporter runtime argument is set to 'false'
+	// * --disable-crash-reporter command line parameter is set
+	if (appCenter && argvConfig['enable-crash-reporter'] && !args['disable-crash-reporter']) {
+		const isWindows = (process.platform === 'win32');
+		const isLinux = (process.platform === 'linux');
+		const crashReporterId = argvConfig['crash-reporter-id'];
+		const uuidPattern = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+		if (uuidPattern.test(crashReporterId)) {
+			submitURL = isWindows ? appCenter[process.arch === 'ia32' ? 'win32-ia32' : 'win32-x64'] : isLinux ? appCenter[`linux-x64`] : appCenter.darwin;
+			submitURL = submitURL.concat('&uid=', crashReporterId, '&iid=', crashReporterId, '&sid=', crashReporterId);
+			// Send the id for child node process that are explicitly starting crash reporter.
+			// For vscode this is ExtensionHost process currently.
+			const argv = process.argv;
+			const endOfArgsMarkerIndex = argv.indexOf('--');
+			if (endOfArgsMarkerIndex === -1) {
+				argv.push('--crash-reporter-id', crashReporterId);
+			} else {
+				// if the we have an argument "--" (end of argument marker)
+				// we cannot add arguments at the end. rather, we add
+				// arguments before the "--" marker.
+				argv.splice(endOfArgsMarkerIndex, 0, '--crash-reporter-id', crashReporterId);
+			}
+		}
+	}
+}
+
+// Start crash reporter for all processes
+const productName = (product.crashReporter ? product.crashReporter.productName : undefined) || product.nameShort;
+const companyName = (product.crashReporter ? product.crashReporter.companyName : undefined) || 'Microsoft';
+crashReporter.start({
+	companyName: companyName,
+	productName: process.env['VSCODE_DEV'] ? `${productName} Dev` : productName,
+	submitURL,
+	uploadToServer: !crashReporterDirectory
+});
+
+// Set logs path before app 'ready' event if running portable
+// to ensure that no 'logs' folder is created on disk at a
+// location outside of the portable directory
+// (https://github.com/microsoft/vscode/issues/56651)
+if (portable && portable.isPortable) {
+	app.setAppLogsPath(path.join(userDataPath, 'logs'));
+}
+
+// Update cwd based on environment and platform
+setCurrentWorkingDirectory();
+
+// Register custom schemes with privileges
+protocol.registerSchemesAsPrivileged([
+	{
+		scheme: 'vscode-webview',
+		privileges: {
+			standard: true,
+			secure: true,
+			supportFetchAPI: true,
+			corsEnabled: true,
+		}
+	}, {
+		scheme: 'vscode-webview-resource',
+		privileges: {
+			secure: true,
+			standard: true,
+			supportFetchAPI: true,
+			corsEnabled: true,
+		}
+	},
+	{
+		scheme: 'vscode-file',
+		privileges: {
+			secure: true,
+			standard: true,
+			supportFetchAPI: true,
+			corsEnabled: true
+		}
+	}
+]);
+
+// Global app listeners
+registerListeners();
+
+// Cached data
+const nodeCachedDataDir = getNodeCachedDir();
+
+/**
+ * Support user defined locale: load it early before app('ready')
+ * to have more things running in parallel.
+ *
+ * @type {Promise<import('./vs/base/node/languagePacks').NLSConfiguration> | undefined}
+ */
+let nlsConfigurationPromise = undefined;
+
+const metaDataFile = path.join(__dirname, 'nls.metadata.json');
+const locale = getUserDefinedLocale(argvConfig);
+if (locale) {
+	nlsConfigurationPromise = lp.getNLSConfiguration(product.commit, userDataPath, metaDataFile, locale);
+}
+
+// Load our code once ready
+app.once('ready', function () {
+	if (args['trace']) {
+		const contentTracing = require('electron').contentTracing;
+
+		const traceOptions = {
+			categoryFilter: args['trace-category-filter'] || '*',
+			traceOptions: args['trace-options'] || 'record-until-full,enable-sampling'
+		};
+
+		contentTracing.startRecording(traceOptions).finally(() => onReady());
+	} else {
+		onReady();
+	}
+});
+
+/**
+ * Main startup routine
+ *
+ * @param {string | undefined} cachedDataDir
+ * @param {import('./vs/base/node/languagePacks').NLSConfiguration} nlsConfig
+ */
+function startup(cachedDataDir, nlsConfig) {
+	nlsConfig._languagePackSupport = true;
+
+	process.env['VSCODE_NLS_CONFIG'] = JSON.stringify(nlsConfig);
+	process.env['VSCODE_NODE_CACHED_DATA_DIR'] = cachedDataDir || '';
+
+	// Load main in AMD
+	perf.mark('code/willLoadMainBundle');
+	require('./bootstrap-amd').load('vs/code/electron-main/main', () => {
+		perf.mark('code/didLoadMainBundle');
+	});
+}
+
+async function onReady() {
+	perf.mark('code/mainAppReady');
+
+	try {
+		const [cachedDataDir, nlsConfig] = await Promise.all([nodeCachedDataDir.ensureExists(), resolveNlsConfiguration()]);
+
+		startup(cachedDataDir, nlsConfig);
+	} catch (error) {
+		console.error(error);
+	}
+}
+
+/**
+ * @param {import('./vs/platform/environment/common/argv').NativeParsedArgs} cliArgs
+ */
+function configureCommandlineSwitchesSync(cliArgs) {
+	const SUPPORTED_ELECTRON_SWITCHES = [
+
+		// alias from us for --disable-gpu
+		'disable-hardware-acceleration',
+
+		// provided by Electron
+		'disable-color-correct-rendering',
+
+		// override for the color profile to use
+		'force-color-profile'
+	];
+
+	if (process.platform === 'linux') {
+
+		// Force enable screen readers on Linux via this flag
+		SUPPORTED_ELECTRON_SWITCHES.push('force-renderer-accessibility');
+	}
+
+	const SUPPORTED_MAIN_PROCESS_SWITCHES = [
+
+		// Persistently enable proposed api via argv.json: https://github.com/microsoft/vscode/issues/99775
+		'enable-proposed-api'
+	];
+
+	// Read argv config
+	const argvConfig = readArgvConfigSync();
+
+	Object.keys(argvConfig).forEach(argvKey => {
+		const argvValue = argvConfig[argvKey];
+
+		// Append Electron flags to Electron
+		if (SUPPORTED_ELECTRON_SWITCHES.indexOf(argvKey) !== -1) {
+
+			// Color profile
+			if (argvKey === 'force-color-profile') {
+				if (argvValue) {
+					app.commandLine.appendSwitch(argvKey, argvValue);
+				}
+			}
+
+			// Others
+			else if (argvValue === true || argvValue === 'true') {
+				if (argvKey === 'disable-hardware-acceleration') {
+					app.disableHardwareAcceleration(); // needs to be called explicitly
+				} else {
+					app.commandLine.appendSwitch(argvKey);
+				}
 			}
 		}
 
-		return result;
+		// Append main process flags to process.argv
+		else if (SUPPORTED_MAIN_PROCESS_SWITCHES.indexOf(argvKey) !== -1) {
+			if (argvKey === 'enable-proposed-api') {
+				if (Array.isArray(argvValue)) {
+					argvValue.forEach(id => id && typeof id === 'string' && process.argv.push('--enable-proposed-api', id));
+				} else {
+					console.error(`Unexpected value for \`enable-proposed-api\` in argv.json. Expected array of extension ids.`);
+				}
+			}
+		}
+	});
+
+	// Support JS Flags
+	const jsFlags = getJSFlags(cliArgs);
+	if (jsFlags) {
+		app.commandLine.appendSwitch('js-flags', jsFlags);
+	}
+
+	return argvConfig;
+}
+
+function readArgvConfigSync() {
+
+	// Read or create the argv.json config file sync before app('ready')
+	const argvConfigPath = getArgvConfigPath();
+	let argvConfig;
+	try {
+		argvConfig = JSON.parse(stripComments(fs.readFileSync(argvConfigPath).toString()));
+	} catch (error) {
+		if (error && error.code === 'ENOENT') {
+			createDefaultArgvConfigSync(argvConfigPath);
+		} else {
+			console.warn(`Unable to read argv.json configuration file in ${argvConfigPath}, falling back to defaults (${error})`);
+		}
+	}
+
+	// Fallback to default
+	if (!argvConfig) {
+		argvConfig = {
+			'disable-color-correct-rendering': true // Force pre-Chrome-60 color profile handling (for https://github.com/microsoft/vscode/issues/51791)
+		};
+	}
+
+	return argvConfig;
+}
+
+/**
+ * @param {string} argvConfigPath
+ */
+function createDefaultArgvConfigSync(argvConfigPath) {
+	try {
+
+		// Ensure argv config parent exists
+		const argvConfigPathDirname = path.dirname(argvConfigPath);
+		if (!fs.existsSync(argvConfigPathDirname)) {
+			fs.mkdirSync(argvConfigPathDirname);
+		}
+
+		// Default argv content
+		const defaultArgvConfigContent = [
+			'// This configuration file allows you to pass permanent command line arguments to VS Code.',
+			'// Only a subset of arguments is currently supported to reduce the likelihood of breaking',
+			'// the installation.',
+			'//',
+			'// PLEASE DO NOT CHANGE WITHOUT UNDERSTANDING THE IMPACT',
+			'//',
+			'// NOTE: Changing this file requires a restart of VS Code.',
+			'{',
+			'	// Use software rendering instead of hardware accelerated rendering.',
+			'	// This can help in cases where you see rendering issues in VS Code.',
+			'	// "disable-hardware-acceleration": true,',
+			'',
+			'	// Enabled by default by VS Code to resolve color issues in the renderer',
+			'	// See https://github.com/microsoft/vscode/issues/51791 for details',
+			'	"disable-color-correct-rendering": true',
+			'}'
+		];
+
+		// Create initial argv.json with default content
+		fs.writeFileSync(argvConfigPath, defaultArgvConfigContent.join('\n'));
+	} catch (error) {
+		console.error(`Unable to create argv.json configuration file in ${argvConfigPath}, falling back to defaults (${error})`);
+	}
+}
+
+function getArgvConfigPath() {
+	const vscodePortable = process.env['VSCODE_PORTABLE'];
+	if (vscodePortable) {
+		return path.join(vscodePortable, 'argv.json');
+	}
+
+	let dataFolderName = product.dataFolderName;
+	if (process.env['VSCODE_DEV']) {
+		dataFolderName = `${dataFolderName}-dev`;
+	}
+
+	return path.join(os.homedir(), dataFolderName, 'argv.json');
+}
+
+/**
+ * @param {import('./vs/platform/environment/common/argv').NativeParsedArgs} cliArgs
+ * @returns {string | null}
+ */
+function getJSFlags(cliArgs) {
+	const jsFlags = [];
+
+	// Add any existing JS flags we already got from the command line
+	if (cliArgs['js-flags']) {
+		jsFlags.push(cliArgs['js-flags']);
+	}
+
+	// Support max-memory flag
+	if (cliArgs['max-memory'] && !/max_old_space_size=(\d+)/g.exec(cliArgs['js-flags'])) {
+		jsFlags.push(`--max_old_space_size=${cliArgs['max-memory']}`);
+	}
+
+	return jsFlags.length > 0 ? jsFlags.join(' ') : null;
+}
+
+/**
+ * @param {import('./vs/platform/environment/common/argv').NativeParsedArgs} cliArgs
+ *
+ * @returns {string}
+ */
+function getUserDataPath(cliArgs) {
+	if (portable.isPortable) {
+		return path.join(portable.portableDataPath, 'user-data');
+	}
+
+	return path.resolve(cliArgs['user-data-dir'] || paths.getDefaultUserDataPath());
+}
+
+/**
+ * @returns {import('./vs/platform/environment/common/argv').NativeParsedArgs}
+ */
+function parseCLIArgs() {
+	const minimist = require('minimist');
+
+	return minimist(process.argv, {
+		string: [
+			'user-data-dir',
+			'locale',
+			'js-flags',
+			'max-memory',
+			'crash-reporter-directory'
+		]
+	});
+}
+
+function setCurrentWorkingDirectory() {
+	try {
+		if (process.platform === 'win32') {
+			process.env['VSCODE_CWD'] = process.cwd(); // remember as environment variable
+			process.chdir(path.dirname(app.getPath('exe'))); // always set application folder as cwd
+		} else if (process.env['VSCODE_CWD']) {
+			process.chdir(process.env['VSCODE_CWD']);
+		}
+	} catch (err) {
+		console.error(err);
+	}
+}
+
+function registerListeners() {
+
+	/**
+	 * macOS: when someone drops a file to the not-yet running VSCode, the open-file event fires even before
+	 * the app-ready event. We listen very early for open-file and remember this upon startup as path to open.
+	 *
+	 * @type {string[]}
+	 */
+	const macOpenFiles = [];
+	global['macOpenFiles'] = macOpenFiles;
+	app.on('open-file', function (event, path) {
+		macOpenFiles.push(path);
+	});
+
+	/**
+	 * macOS: react to open-url requests.
+	 *
+	 * @type {string[]}
+	 */
+	const openUrls = [];
+	const onOpenUrl =
+		/**
+		 * @param {{ preventDefault: () => void; }} event
+		 * @param {string} url
+		 */
+		function (event, url) {
+			event.preventDefault();
+
+			openUrls.push(url);
+		};
+
+	app.on('will-finish-launching', function () {
+		app.on('open-url', onOpenUrl);
+	});
+
+	global['getOpenUrls'] = function () {
+		app.removeListener('open-url', onOpenUrl);
+
+		return openUrls;
 	};
-})();
-//#endregion
+}
 
-let app = require('electron').app;
-let fs = require('fs');
-let path = require('path');
-let minimist = require('minimist');
-let paths = require('./paths');
+/**
+ * @returns {{ ensureExists: () => Promise<string | undefined> }}
+ */
+function getNodeCachedDir() {
+	return new class {
 
-let args = minimist(process.argv, {
-	string: ['user-data-dir', 'locale']
-});
+		constructor() {
+			this.value = this._compute();
+		}
 
+		async ensureExists() {
+			if (typeof this.value === 'string') {
+				try {
+					await mkdirp(this.value);
+
+					return this.value;
+				} catch (error) {
+					// ignore
+				}
+			}
+		}
+
+		_compute() {
+			if (process.argv.indexOf('--no-cached-data') > 0) {
+				return undefined;
+			}
+
+			// IEnvironmentService.isBuilt
+			if (process.env['VSCODE_DEV']) {
+				return undefined;
+			}
+
+			// find commit id
+			const commit = product.commit;
+			if (!commit) {
+				return undefined;
+			}
+
+			return path.join(userDataPath, 'CachedData', commit);
+		}
+	};
+}
+
+/**
+ * @param {string} dir
+ * @returns {Promise<string>}
+ */
+function mkdirp(dir) {
+	const fs = require('fs');
+
+	return new Promise((resolve, reject) => {
+		fs.mkdir(dir, { recursive: true }, err => (err && err.code !== 'EEXIST') ? reject(err) : resolve(dir));
+	});
+}
+
+//#region NLS Support
+
+/**
+ * Resolve the NLS configuration
+ *
+ * @return {Promise<import('./vs/base/node/languagePacks').NLSConfiguration>}
+ */
+async function resolveNlsConfiguration() {
+
+	// First, we need to test a user defined locale. If it fails we try the app locale.
+	// If that fails we fall back to English.
+	let nlsConfiguration = nlsConfigurationPromise ? await nlsConfigurationPromise : undefined;
+	if (!nlsConfiguration) {
+
+		// Try to use the app locale. Please note that the app locale is only
+		// valid after we have received the app ready event. This is why the
+		// code is here.
+		let appLocale = app.getLocale();
+		if (!appLocale) {
+			nlsConfiguration = { locale: 'en', availableLanguages: {} };
+		} else {
+
+			// See above the comment about the loader and case sensitiviness
+			appLocale = appLocale.toLowerCase();
+
+			nlsConfiguration = await lp.getNLSConfiguration(product.commit, userDataPath, metaDataFile, appLocale);
+			if (!nlsConfiguration) {
+				nlsConfiguration = { locale: appLocale, availableLanguages: {} };
+			}
+		}
+	} else {
+		// We received a valid nlsConfig from a user defined locale
+	}
+
+	return nlsConfiguration;
+}
+
+/**
+ * @param {string} content
+ * @returns {string}
+ */
 function stripComments(content) {
-	let regexp = /("(?:[^\\\"]*(?:\\.)?)*")|('(?:[^\\\']*(?:\\.)?)*')|(\/\*(?:\r?\n|.)*?\*\/)|(\/{2,}.*?(?:(?:\r?\n)|$))/g;
-	let result = content.replace(regexp, function (match, m1, m2, m3, m4) {
+	const regexp = /("(?:[^\\"]*(?:\\.)?)*")|('(?:[^\\']*(?:\\.)?)*')|(\/\*(?:\r?\n|.)*?\*\/)|(\/{2,}.*?(?:(?:\r?\n)|$))/g;
+
+	return content.replace(regexp, function (match, m1, m2, m3, m4) {
 		// Only one of m1, m2, m3, m4 matches
 		if (m3) {
 			// A block comment. Replace with nothing
 			return '';
 		} else if (m4) {
 			// A line comment. If it ends in \r?\n then keep it.
-			let length_1 = m4.length;
+			const length_1 = m4.length;
 			if (length_1 > 2 && m4[length_1 - 1] === '\n') {
 				return m4[length_1 - 2] === '\r' ? '\r\n' : '\n';
 			}
@@ -67,454 +587,24 @@ function stripComments(content) {
 			return match;
 		}
 	});
-	return result;
 }
 
-let _commit;
-function getCommit() {
-	if (_commit) {
-		return _commit;
-	}
-	if (_commit === null) {
-		return undefined;
-	}
-	try {
-		let productJson = require(path.join(__dirname, '../product.json'));
-		if (productJson.commit) {
-			_commit = productJson.commit;
-		} else {
-			_commit = null;
-		}
-	} catch (exp) {
-		_commit = null;
-	}
-	return _commit || undefined;
-}
-
-function mkdirp(dir) {
-	return mkdir(dir)
-		.then(null, (err) => {
-			if (err && err.code === 'ENOENT') {
-				let parent = path.dirname(dir);
-				if (parent !== dir) { // if not arrived at root
-					return mkdirp(parent)
-						.then(() => {
-							return mkdir(dir);
-						});
-				}
-			}
-			throw err;
-		});
-}
-
-function mkdir(dir) {
-	return new Promise((resolve, reject) => {
-		fs.mkdir(dir, (err) => {
-			if (err && err.code !== 'EEXIST') {
-				reject(err);
-			} else {
-				resolve(dir);
-			}
-		});
-	});
-}
-
-function exists(file) {
-	return new Promise((resolve) => {
-		fs.exists(file, (result) => {
-			resolve(result);
-		});
-	});
-}
-
-function readFile(file) {
-	return new Promise((resolve, reject) => {
-		fs.readFile(file, 'utf8', (err, data) => {
-			if (err) {
-				reject(err);
-				return;
-			}
-			resolve(data);
-		});
-	});
-}
-
-function writeFile(file, content) {
-	return new Promise((resolve, reject) => {
-		fs.writeFile(file, content, 'utf8', (err) => {
-			if (err) {
-				reject(err);
-				return;
-			}
-			resolve(undefined);
-		});
-	});
-}
-
-function touch(file) {
-	return new Promise((resolve, reject) => {
-		let d = new Date();
-		fs.utimes(file, d, d, (err) => {
-			if (err) {
-				reject(err);
-				return;
-			}
-			resolve(undefined);
-		});
-	});
-}
-
-function resolveJSFlags() {
-	let jsFlags = [];
-	if (args['js-flags']) {
-		jsFlags.push(args['js-flags']);
-	}
-	if (args['max-memory'] && !/max_old_space_size=(\d+)/g.exec(args['js-flags'])) {
-		jsFlags.push(`--max_old_space_size=${args['max-memory']}`);
-	}
-	if (jsFlags.length > 0) {
-		return jsFlags.join(' ');
-	} else {
-		return null;
-	}
-}
-
-// Language tags are case insensitve however an amd loader is case sensitive
-// To make this work on case preserving & insensitive FS we do the following:
-// the language bundles have lower case language tags and we always lower case
-// the locale we receive from the user or OS.
-
-function getUserDefinedLocale() {
-	let locale = args['locale'];
+/**
+ * Language tags are case insensitive however an amd loader is case sensitive
+ * To make this work on case preserving & insensitive FS we do the following:
+ * the language bundles have lower case language tags and we always lower case
+ * the locale we receive from the user or OS.
+ *
+ * @param {{ locale: string | undefined; }} argvConfig
+ * @returns {string | undefined}
+ */
+function getUserDefinedLocale(argvConfig) {
+	const locale = args['locale'];
 	if (locale) {
-		return Promise.resolve(locale.toLowerCase());
+		return locale.toLowerCase(); // a directly provided --locale always wins
 	}
 
-	let userData = app.getPath('userData');
-	let localeConfig = path.join(userData, 'User', 'locale.json');
-	return exists(localeConfig).then((result) => {
-		if (result) {
-			return readFile(localeConfig).then((content) => {
-				content = stripComments(content);
-				try {
-					let value = JSON.parse(content).locale;
-					return value && typeof value === 'string' ? value.toLowerCase() : undefined;
-				} catch (e) {
-					return undefined;
-				}
-			});
-		} else {
-			return undefined;
-		}
-	});
+	return argvConfig.locale && typeof argvConfig.locale === 'string' ? argvConfig.locale.toLowerCase() : undefined;
 }
 
-function getLanguagePackConfigurations() {
-	let userData = app.getPath('userData');
-	let configFile = path.join(userData, 'languagepacks.json');
-	try {
-		return require(configFile);
-	} catch (err) {
-		// Do nothing. If we can't read the file we have no
-		// language pack config.
-	}
-	return undefined;
-}
-
-function resolveLanguagePackLocale(config, locale) {
-	try {
-		while (locale) {
-			if (config[locale]) {
-				return locale;
-			} else {
-				let index = locale.lastIndexOf('-');
-				if (index > 0) {
-					locale = locale.substring(0, index);
-				} else {
-					return undefined;
-				}
-			}
-		}
-	} catch (err) {
-		console.error('Resolving language pack configuration failed.', err);
-	}
-	return undefined;
-}
-
-function getNLSConfiguration(locale) {
-	if (locale === 'pseudo') {
-		return Promise.resolve({ locale: locale, availableLanguages: {}, pseudo: true });
-	}
-
-	if (process.env['VSCODE_DEV']) {
-		return Promise.resolve({ locale: locale, availableLanguages: {} });
-	}
-
-	let userData = app.getPath('userData');
-
-	// We have a built version so we have extracted nls file. Try to find
-	// the right file to use.
-
-	// Check if we have an English locale. If so fall to default since that is our
-	// English translation (we don't ship *.nls.en.json files)
-	if (locale && (locale == 'en' || locale.startsWith('en-'))) {
-		return Promise.resolve({ locale: locale, availableLanguages: {} });
-	}
-
-	let initialLocale = locale;
-
-	function resolveLocale(locale) {
-		while (locale) {
-			let candidate = path.join(__dirname, 'vs', 'code', 'electron-main', 'main.nls.') + locale + '.js';
-			if (fs.existsSync(candidate)) {
-				return { locale: initialLocale, availableLanguages: { '*': locale } };
-			} else {
-				let index = locale.lastIndexOf('-');
-				if (index > 0) {
-					locale = locale.substring(0, index);
-				} else {
-					locale = undefined;
-				}
-			}
-		}
-		return undefined;
-	}
-
-	let isCoreLanguage = true;
-	if (locale) {
-		isCoreLanguage = ['de', 'es', 'fr', 'it', 'ja', 'ko', 'ru', 'zh-cn', 'zh-tw'].some((language) => {
-			return locale === language || locale.startsWith(language + '-');
-		});
-	}
-
-	if (isCoreLanguage) {
-		return Promise.resolve(resolveLocale(locale));
-	} else {
-		perf.mark('nlsGeneration:start');
-		let defaultResult = function() {
-			perf.mark('nlsGeneration:end');
-			return Promise.resolve({ locale: locale, availableLanguages: {} });
-		};
-		try {
-			let commit = getCommit();
-			if (!commit) {
-				return defaultResult();
-			}
-			let configs = getLanguagePackConfigurations();
-			if (!configs) {
-				return defaultResult();
-			}
-			let initialLocale = locale;
-			locale = resolveLanguagePackLocale(configs, locale);
-			if (!locale) {
-				return defaultResult();
-			}
-			let packConfig = configs[locale];
-			let mainPack;
-			if (!packConfig || typeof packConfig.hash !== 'string' || !packConfig.translations || typeof (mainPack = packConfig.translations['vscode']) !== 'string') {
-				return defaultResult();
-			}
-			return exists(mainPack).then((fileExists) => {
-				if (!fileExists) {
-					return defaultResult();
-				}
-				let packId = packConfig.hash + '.' + locale;
-				let cacheRoot = path.join(userData, 'clp', packId);
-				let coreLocation = path.join(cacheRoot, commit);
-				let translationsConfigFile = path.join(cacheRoot, 'tcf.json');
-				let result = {
-					locale: initialLocale,
-					availableLanguages: { '*': locale },
-					_languagePackId: packId,
-					_translationsConfigFile: translationsConfigFile,
-					_cacheRoot: cacheRoot,
-					_resolvedLanguagePackCoreLocation: coreLocation
-				};
-				return exists(coreLocation).then((fileExists) => {
-					if (fileExists) {
-						// We don't wait for this. No big harm if we can't touch
-						touch(coreLocation).catch(() => {});
-						perf.mark('nlsGeneration:end');
-						return result;
-					}
-					return mkdirp(coreLocation).then(() => {
-						return Promise.all([readFile(path.join(__dirname, 'nls.metadata.json')), readFile(mainPack)]);
-					}).then((values) => {
-						let metadata = JSON.parse(values[0]);
-						let packData = JSON.parse(values[1]).contents;
-						let bundles = Object.keys(metadata.bundles);
-						let writes = [];
-						for (let bundle of bundles) {
-							let modules = metadata.bundles[bundle];
-							let target = Object.create(null);
-							for (let module of modules) {
-								let keys = metadata.keys[module];
-								let defaultMessages = metadata.messages[module];
-								let translations = packData[module];
-								let targetStrings;
-								if (translations) {
-									targetStrings = [];
-									for (let i = 0; i < keys.length; i++) {
-										let elem = keys[i];
-										let key = typeof elem === 'string' ? elem : elem.key;
-										let translatedMessage = translations[key];
-										if (translatedMessage === undefined) {
-											translatedMessage = defaultMessages[i];
-										}
-										targetStrings.push(translatedMessage);
-									}
-								} else {
-									targetStrings = defaultMessages;
-								}
-								target[module] = targetStrings;
-							}
-							writes.push(writeFile(path.join(coreLocation, bundle.replace(/\//g, '!') + '.nls.json'), JSON.stringify(target)));
-						}
-						writes.push(writeFile(translationsConfigFile, JSON.stringify(packConfig.translations)));
-						return Promise.all(writes);
-					}).then(() => {
-						perf.mark('nlsGeneration:end');
-						return result;
-					}).catch((err) => {
-						console.error('Generating translation files failed.', err);
-						return defaultResult();
-					});
-				});
-			});
-		} catch (err) {
-			console.error('Generating translation files failed.', err);
-			return defaultResult();
-		}
-	}
-}
-
-function getNodeCachedDataDir() {
-	// flag to disable cached data support
-	if (process.argv.indexOf('--no-cached-data') > 0) {
-		return Promise.resolve(undefined);
-	}
-
-	// IEnvironmentService.isBuilt
-	if (process.env['VSCODE_DEV']) {
-		return Promise.resolve(undefined);
-	}
-
-	// find commit id
-	let commit = getCommit();
-	if (!commit) {
-		return Promise.resolve(undefined);
-	}
-
-	let dir = path.join(app.getPath('userData'), 'CachedData', commit);
-
-	return mkdirp(dir).then(undefined, function () { /*ignore*/ });
-}
-
-// Set userData path before app 'ready' event and call to process.chdir
-let userData = path.resolve(args['user-data-dir'] || paths.getDefaultUserDataPath(process.platform));
-app.setPath('userData', userData);
-
-// Update cwd based on environment and platform
-try {
-	if (process.platform === 'win32') {
-		process.env['VSCODE_CWD'] = process.cwd(); // remember as environment letiable
-		process.chdir(path.dirname(app.getPath('exe'))); // always set application folder as cwd
-	} else if (process.env['VSCODE_CWD']) {
-		process.chdir(process.env['VSCODE_CWD']);
-	}
-} catch (err) {
-	console.error(err);
-}
-
-// Mac: when someone drops a file to the not-yet running VSCode, the open-file event fires even before
-// the app-ready event. We listen very early for open-file and remember this upon startup as path to open.
-global.macOpenFiles = [];
-app.on('open-file', function (event, path) {
-	global.macOpenFiles.push(path);
-});
-
-let openUrls = [];
-let onOpenUrl = function (event, url) {
-	event.preventDefault();
-	openUrls.push(url);
-};
-
-app.on('will-finish-launching', function () {
-	app.on('open-url', onOpenUrl);
-});
-
-global.getOpenUrls = function () {
-	app.removeListener('open-url', onOpenUrl);
-	return openUrls;
-};
-
-// use '<UserData>/CachedData'-directory to store
-// node/v8 cached data.
-let nodeCachedDataDir = getNodeCachedDataDir().then(function (value) {
-	if (value) {
-		// store the data directory
-		process.env['VSCODE_NODE_CACHED_DATA_DIR_' + process.pid] = value;
-
-		// tell v8 to not be lazy when parsing JavaScript. Generally this makes startup slower
-		// but because we generate cached data it makes subsequent startups much faster
-		let existingJSFlags = resolveJSFlags();
-		app.commandLine.appendSwitch('--js-flags', existingJSFlags ? existingJSFlags + ' --nolazy' : '--nolazy');
-	}
-	return value;
-});
-
-let nlsConfiguration = undefined;
-let userDefinedLocale = getUserDefinedLocale();
-userDefinedLocale.then((locale) => {
-	if (locale && !nlsConfiguration) {
-		nlsConfiguration = getNLSConfiguration(locale);
-	}
-});
-
-let jsFlags = resolveJSFlags();
-if (jsFlags) {
-	app.commandLine.appendSwitch('--js-flags', jsFlags);
-}
-
-// Load our code once ready
-app.once('ready', function () {
-	perf.mark('main:appReady');
-	Promise.all([nodeCachedDataDir, userDefinedLocale]).then((values) => {
-		let locale = values[1];
-		if (locale && !nlsConfiguration) {
-			nlsConfiguration = getNLSConfiguration(locale);
-		}
-		if (!nlsConfiguration) {
-			nlsConfiguration = Promise.resolve(undefined);
-		}
-		// We first need to test a user defined locale. If it fails we try the app locale.
-		// If that fails we fall back to English.
-		nlsConfiguration.then((nlsConfig) => {
-			let boot = (nlsConfig) => {
-				process.env['VSCODE_NLS_CONFIG'] = JSON.stringify(nlsConfig);
-				require('./bootstrap-amd').bootstrap('vs/code/electron-main/main');
-			};
-			// We recevied a valid nlsConfig from a user defined locale
-			if (nlsConfig) {
-				boot(nlsConfig);
-			} else {
-				// Try to use the app locale. Please note that the app locale is only
-				// valid after we have received the app ready event. This is why the
-				// code is here.
-				let appLocale = app.getLocale();
-				if (!appLocale) {
-					boot({ locale: 'en', availableLanguages: {} });
-				} else {
-					// See above the comment about the loader and case sensitiviness
-					appLocale = appLocale.toLowerCase();
-					getNLSConfiguration(appLocale).then((nlsConfig) => {
-						if (!nlsConfig) {
-							nlsConfig = { locale: appLocale, availableLanguages: {} };
-						}
-						boot(nlsConfig);
-					});
-				}
-			}
-		});
-	}, console.error);
-});
+//#endregion

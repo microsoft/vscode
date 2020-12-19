@@ -7,22 +7,24 @@
   "engines": {
     "node": "*"
   },
+  "main": "./out/node/cssServerMain",
+  "browser": "./dist/browser/cssServerMain",
   "dependencies": {
-    "vscode-css-languageservice": "^3.0.9-next.10",
-    "vscode-languageserver": "^4.0.0",
-    "vscode-languageserver-protocol-foldingprovider": "^2.0.0-next.2"
+    "vscode-css-languageservice": "^5.0.2",
+    "vscode-languageserver": "^7.0.0",
+    "vscode-uri": "^3.0.1"
   },
   "devDependencies": {
-    "@types/mocha": "2.2.33",
-    "@types/node": "7.0.43"
+    "@types/mocha": "^8.2.0",
+    "@types/node": "^12.19.9"
   },
   "scripts": {
     "compile": "gulp compile-extension:css-language-features-server",
     "watch": "gulp watch-extension:css-language-features-server",
     "install-service-next": "yarn add vscode-css-languageservice@next",
-    "install-service-local": "npm install ../../../../vscode-css-languageservice -f",
+    "install-service-local": "yarn link vscode-css-languageservice",
     "install-server-next": "yarn add vscode-languageserver@next",
-    "install-server-local": "npm install ../../../../vscode-languageserver-node/server -f",
-    "test": "../../../node_modules/.bin/mocha"
+    "install-server-local": "yarn link vscode-languageserver",
+    "test": "node ./test/index.js"
   }
 }

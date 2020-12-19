@@ -1,0 +1,49 @@
+{
+  "name": "search-result",
+  "displayName": "%displayName%",
+  "description": "%description%",
+  "version": "1.0.0",
+  "enableProposedApi": true,
+  "publisher": "vscode",
+  "license": "MIT",
+  "engines": {
+    "vscode": "^1.39.0"
+  },
+  "categories": [
+    "Programming Languages"
+  ],
+  "main": "./out/extension.js",
+  "browser": "./dist/extension.js",
+  "activationEvents": [
+    "*"
+  ],
+  "scripts": {
+    "generate-grammar": "node ./syntaxes/generateTMLanguage.js",
+    "vscode:prepublish": "node ../../node_modules/gulp/bin/gulp.js --gulpfile ../../build/gulpfile.extensions.js compile-extension:search-result ./tsconfig.json"
+  },
+  "contributes": {
+    "configurationDefaults": {
+      "[search-result]": {
+        "editor.lineNumbers": "off"
+      }
+    },
+    "languages": [
+      {
+        "id": "search-result",
+        "extensions": [
+          ".code-search"
+        ],
+        "aliases": [
+          "Search Result"
+        ]
+      }
+    ],
+    "grammars": [
+      {
+        "language": "search-result",
+        "scopeName": "text.searchResult",
+        "path": "./syntaxes/searchResult.tmLanguage.json"
+      }
+    ]
+  }
+}

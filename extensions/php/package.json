@@ -4,6 +4,7 @@
 	"description": "%description%",
 	"version": "1.0.0",
 	"publisher": "vscode",
+	"license": "MIT",
 	"engines": {
 		"vscode": "0.10.x"
 	},
@@ -22,7 +23,7 @@
 					"PHP",
 					"php"
 				],
-				"firstLine": "^#!/.*\\bphp\\b",
+				"firstLine": "^#!\\s*/.*\\bphp\\b",
 				"mimetypes": [
 					"application/x-php"
 				],
@@ -53,7 +54,7 @@
 		"snippets": [
 			{
 				"language": "php",
-				"path": "./snippets/php.snippets.json"
+				"path": "./snippets/php.code-snippets"
 			}
 		]
 	},

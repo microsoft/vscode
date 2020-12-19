@@ -4,7 +4,7 @@
 		"If you want to provide a fix or improvement, please create a pull request against the original repository.",
 		"Once accepted there, we are happy to receive an update request."
 	],
-	"version": "https://github.com/textmate/yaml.tmbundle/commit/efc96efafe5e48480cf55a2ed124b388cbea4440",
+	"version": "https://github.com/textmate/yaml.tmbundle/commit/e54ceae3b719506dba7e481a77cea4a8b576ae46",
 	"name": "YAML",
 	"scopeName": "source.yaml",
 	"patterns": [
@@ -121,16 +121,16 @@
 			"begin": "(?:(\\|)|(>))([1-9])?([-+])?(.*\\n?)",
 			"beginCaptures": {
 				"1": {
-					"name": "punctuation.definition.block.scalar.literal.yaml"
+					"name": "keyword.control.flow.block-scalar.literal.yaml"
 				},
 				"2": {
-					"name": "punctuation.definition.block.scalar.folded.yaml"
+					"name": "keyword.control.flow.block-scalar.folded.yaml"
 				},
 				"3": {
 					"name": "constant.numeric.indentation-indicator.yaml"
 				},
 				"4": {
-					"name": "support.other.chomping-indicator.yaml"
+					"name": "storage.modifier.chomping-indicator.yaml"
 				},
 				"5": {
 					"patterns": [
@@ -154,7 +154,7 @@
 			]
 		},
 		"block-sequence": {
-			"match": "(-)( |\\t|$)",
+			"match": "(-)(?!\\S)",
 			"name": "punctuation.definition.block.sequence.item.yaml"
 		},
 		"comment": {
@@ -211,7 +211,7 @@
 							"name": "support.type.tag-prefix.yaml"
 						}
 					},
-					"match": "(?x)\n                        \\G\n                        (TAG)\n                        (?:[ \\t]+\n                            ((?:!(?:[0-9A-Za-z\\-]*!)?))\n                            (?:[ \\t]+ (\n                                  !              (?x: %\\p{XDigit}{2} | [0-9A-Za-z\\-#;/?:@&=+$,_.!~*'()\\[\\]] )*\n                                | (?![,!\\[\\]{}]) (?x: %\\p{XDigit}{2} | [0-9A-Za-z\\-#;/?:@&=+$,_.!~*'()\\[\\]] )+\n                                )\n                            )?\n                        )?\n                    "
+					"match": "(?x)\n                        \\G\n                        (TAG)\n                        (?:[ \\t]+\n                            ((?:!(?:[0-9A-Za-z\\-]*!)?))\n                            (?:[ \\t]+ (\n                                  !              (?x: %[0-9A-Fa-f]{2} | [0-9A-Za-z\\-#;/?:@&=+$,_.!~*'()\\[\\]] )*\n                                | (?![,!\\[\\]{}]) (?x: %[0-9A-Fa-f]{2} | [0-9A-Za-z\\-#;/?:@&=+$,_.!~*'()\\[\\]] )+\n                                )\n                            )?\n                        )?\n                    "
 				},
 				{
 					"captures": {
@@ -598,7 +598,7 @@
 					"match": "\\G((&))([^\\s\\[\\]/{/},]+)(\\S+)?"
 				},
 				{
-					"match": "(?x)\n                        \\G\n                        (?:\n                            ! < (?: %\\p{XDigit}{2} | [0-9A-Za-z\\-#;/?:@&=+$,_.!~*'()\\[\\]] )+ >\n                          | (?:!(?:[0-9A-Za-z\\-]*!)?) (?: %\\p{XDigit}{2} | [0-9A-Za-z\\-#;/?:@&=+$_.~*'()] )+\n                          | !\n                        )\n                        (?=\\ |\\t|$)\n                    ",
+					"match": "(?x)\n                        \\G\n                        (?:\n                            ! < (?: %[0-9A-Fa-f]{2} | [0-9A-Za-z\\-#;/?:@&=+$,_.!~*'()\\[\\]] )+ >\n                          | (?:!(?:[0-9A-Za-z\\-]*!)?) (?: %[0-9A-Fa-f]{2} | [0-9A-Za-z\\-#;/?:@&=+$_.~*'()] )+\n                          | !\n                        )\n                        (?=\\ |\\t|$)\n                    ",
 					"name": "storage.type.tag-handle.yaml"
 				},
 				{

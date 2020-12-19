@@ -7,6 +7,9 @@ const cp = require('child_process');
 const fs = require('fs');
 const path = require('path');
 
+/**
+ * @param {string} location
+ */
 function updateGrammar(location) {
 	const npm = process.platform === 'win32' ? 'npm.cmd' : 'npm';
 	const result = cp.spawnSync(npm, ['run', 'update-grammar'], {
@@ -36,7 +39,7 @@ extensions.forEach(extension => updateGrammar(`extensions/${extension}`));
 // run integration tests
 
 if (process.platform === 'win32') {
-	cp.spawn('.\scripts\test-integration.bat', [], { env: process.env, stdio: 'inherit' });
+	cp.spawn('.\\scripts\\test-integration.bat', [], { env: process.env, stdio: 'inherit' });
 } else {
 	cp.spawn('/bin/bash', ['./scripts/test-integration.sh'], { env: process.env, stdio: 'inherit' });
 }

@@ -3,36 +3,27 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { IDisposable, dispose } from 'vs/base/common/lifecycle';
 import { IMessagePassingProtocol } from 'vs/base/parts/ipc/common/ipc';
-import { Event, Emitter } from 'vs/base/common/event';
+import { Event } from 'vs/base/common/event';
+import { VSBuffer } from 'vs/base/common/buffer';
 
 export interface Sender {
-	send(channel: string, ...args: any[]): void;
+	send(channel: string, msg: unknown): void;
 }
 
 export class Protocol implements IMessagePassingProtocol {
 
-	private listener: IDisposable;
+	constructor(private sender: Sender, readonly onMessage: Event<VSBuffer>) { }
 
-	private _onMessage: Event<any>;
-	get onMessage(): Event<any> { return this._onMessage; }
-
-	constructor(private sender: Sender, onMessageEvent: Event<any>) {
-		const emitter = new Emitter<any>();
-		onMessageEvent(msg => emitter.fire(msg));
-		this._onMessage = emitter.event;
-	}
-
-	send(message: any): void {
+	send(message: VSBuffer): void {
 		try {
-			this.sender.send('ipc:message', message);
+			this.sender.send('vscode:message', message.buffer);
 		} catch (e) {
 			// systems are going down
 		}
 	}
 
 	dispose(): void {
-		this.listener = dispose(this.listener);
+		this.sender.send('vscode:disconnect', null);
 	}
 }

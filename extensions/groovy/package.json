@@ -4,6 +4,7 @@
 	"description": "%description%",
 	"version": "1.0.0",
 	"publisher": "vscode",
+	"license": "MIT",
 	"engines": { "vscode": "*" },
   "scripts": {
     "update-grammar": "node ../../build/npm/update-grammar.js textmate/groovy.tmbundle Syntaxes/Groovy.tmLanguage ./syntaxes/groovy.tmLanguage.json"
@@ -12,8 +13,9 @@
 		"languages": [{
 			"id": "groovy",
 			"aliases": ["Groovy", "groovy"],
-			"extensions": [".groovy", ".gvy", ".gradle"],
-			"filenames": [ "Jenkinsfile" ],
+      "extensions": [".groovy", ".gvy", ".gradle", ".jenkinsfile", ".nf"],
+      "filenames": [ "Jenkinsfile" ],
+      "filenamePatterns": ["Jenkinsfile.*"],
 			"firstLine": "^#!.*\\bgroovy\\b",
 			"configuration": "./language-configuration.json"
 		}],
@@ -24,7 +26,7 @@
 		}],
 		"snippets": [{
 			"language": "groovy",
-			"path": "./snippets/groovy.json"
+			"path": "./snippets/groovy.code-snippets"
 		}]
 	}
 }

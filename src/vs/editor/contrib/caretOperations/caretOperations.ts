@@ -2,18 +2,17 @@
  *  Copyright (c) Microsoft Corporation. All rights reserved.
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
-'use strict';
 
 import * as nls from 'vs/nls';
+import { ICodeEditor } from 'vs/editor/browser/editorBrowser';
+import { EditorAction, IActionOptions, ServicesAccessor, registerEditorAction } from 'vs/editor/browser/editorExtensions';
 import { ICommand } from 'vs/editor/common/editorCommon';
 import { EditorContextKeys } from 'vs/editor/common/editorContextKeys';
-import { IActionOptions, registerEditorAction, EditorAction, ServicesAccessor } from 'vs/editor/browser/editorExtensions';
-import { MoveCaretCommand } from './moveCaretCommand';
-import { ICodeEditor } from 'vs/editor/browser/editorBrowser';
+import { MoveCaretCommand } from 'vs/editor/contrib/caretOperations/moveCaretCommand';
 
 class MoveCaretAction extends EditorAction {
 
-	private left: boolean;
+	private readonly left: boolean;
 
 	constructor(left: boolean, opts: IActionOptions) {
 		super(opts);
@@ -22,12 +21,15 @@ class MoveCaretAction extends EditorAction {
 	}
 
 	public run(accessor: ServicesAccessor, editor: ICodeEditor): void {
+		if (!editor.hasModel()) {
+			return;
+		}
 
-		var commands: ICommand[] = [];
-		var selections = editor.getSelections();
+		let commands: ICommand[] = [];
+		let selections = editor.getSelections();
 
-		for (var i = 0; i < selections.length; i++) {
-			commands.push(new MoveCaretCommand(selections[i], this.left));
+		for (const selection of selections) {
+			commands.push(new MoveCaretCommand(selection, this.left));
 		}
 
 		editor.pushUndoStop();
@@ -40,8 +42,8 @@ class MoveCaretLeftAction extends MoveCaretAction {
 	constructor() {
 		super(true, {
 			id: 'editor.action.moveCarretLeftAction',
-			label: nls.localize('caret.moveLeft', "Move Caret Left"),
-			alias: 'Move Caret Left',
+			label: nls.localize('caret.moveLeft', "Move Selected Text Left"),
+			alias: 'Move Selected Text Left',
 			precondition: EditorContextKeys.writable
 		});
 	}
@@ -51,8 +53,8 @@ class MoveCaretRightAction extends MoveCaretAction {
 	constructor() {
 		super(false, {
 			id: 'editor.action.moveCarretRightAction',
-			label: nls.localize('caret.moveRight', "Move Caret Right"),
-			alias: 'Move Caret Right',
+			label: nls.localize('caret.moveRight', "Move Selected Text Right"),
+			alias: 'Move Selected Text Right',
 			precondition: EditorContextKeys.writable
 		});
 	}

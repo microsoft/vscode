@@ -1,0 +1,14 @@
+{
+	"displayName": "Server Ready Action",
+	"description": "Open URI in browser if server under debugging is ready.",
+
+	"debug.server.ready.serverReadyAction.description": "Act upon a URI when a server program under debugging is ready (indicated by sending output of the form 'listening on port 3000' or 'Now listening on: https://localhost:5001' to the debug console.)",
+	"debug.server.ready.action.description": "What to do with the URI when the server is ready.",
+	"debug.server.ready.action.openExternally.description": "Open URI externally with the default application.",
+	"debug.server.ready.action.debugWithChrome.description": "Start debugging with the 'Debugger for Chrome'.",
+	"debug.server.ready.action.startDebugging.description": "Run another launch configuration.",
+	"debug.server.ready.pattern.description": "Server is ready if this pattern appears on the debug console. The first capture group must include a URI or a port number.",
+	"debug.server.ready.uriFormat.description": "A format string used when constructing the URI from a port number. The first '%s' is substituted with the port number.",
+	"debug.server.ready.webRoot.description": "Value passed to the debug configuration for the 'Debugger for Chrome'.",
+	"debug.server.ready.debugConfigName.description": "Name of the launch configuration to run."
+}

@@ -17,14 +17,14 @@
 	// 	.one {
 	// 		margin: 10px;
 	// 		padding: 10px;
-	// 		background-image: url(https://github.com/Microsoft/vscode/blob/master/resources/linux/code.png);
+	// 		background-image: url(https://github.com/microsoft/vscode/blob/master/resources/linux/code.png);
 	// 	}
 	// 	.two {
-	// 		background-image: url(https://github.com/Microsoft/vscode/blob/master/resources/linux/code.png);
+	// 		background-image: url(https://github.com/microsoft/vscode/blob/master/resources/linux/code.png);
 	// 		height: 42px;
 	// 	}
 	// 	.three {
-	// 		background-image: url(https://github.com/Microsoft/vscode/blob/master/resources/linux/code.png);
+	// 		background-image: url(https://github.com/microsoft/vscode/blob/master/resources/linux/code.png);
 	// 		width: 42px;
 	// 	}
 	// `;
@@ -32,17 +32,17 @@
 	// 	.one {
 	// 		margin: 10px;
 	// 		padding: 10px;
-	// 		background-image: url(https://github.com/Microsoft/vscode/blob/master/resources/linux/code.png);
+	// 		background-image: url(https://github.com/microsoft/vscode/blob/master/resources/linux/code.png);
 	// 		width: 32px;
 	// 		height: 32px;
 	// 	}
 	// 	.two {
-	// 		background-image: url(https://github.com/Microsoft/vscode/blob/master/resources/linux/code.png);
+	// 		background-image: url(https://github.com/microsoft/vscode/blob/master/resources/linux/code.png);
 	// 		width: 32px;
 	// 		height: 32px;
 	// 	}
 	// 	.three {
-	// 		background-image: url(https://github.com/Microsoft/vscode/blob/master/resources/linux/code.png);
+	// 		background-image: url(https://github.com/microsoft/vscode/blob/master/resources/linux/code.png);
 	// 		height: 32px;
 	// 		width: 32px;
 	// 	}
@@ -68,14 +68,14 @@
 	// 			.one {
 	// 				margin: 10px;
 	// 				padding: 10px;
-	// 				background-image: url(https://github.com/Microsoft/vscode/blob/master/resources/linux/code.png);
+	// 				background-image: url(https://github.com/microsoft/vscode/blob/master/resources/linux/code.png);
 	// 			}
 	// 			.two {
-	// 				background-image: url(https://github.com/Microsoft/vscode/blob/master/resources/linux/code.png);
+	// 				background-image: url(https://github.com/microsoft/vscode/blob/master/resources/linux/code.png);
 	// 				height: 42px;
 	// 			}
 	// 			.three {
-	// 				background-image: url(https://github.com/Microsoft/vscode/blob/master/resources/linux/code.png);
+	// 				background-image: url(https://github.com/microsoft/vscode/blob/master/resources/linux/code.png);
 	// 				width: 42px;
 	// 			}
 	// 		</style>
@@ -87,17 +87,17 @@
 	// 			.one {
 	// 				margin: 10px;
 	// 				padding: 10px;
-	// 				background-image: url(https://github.com/Microsoft/vscode/blob/master/resources/linux/code.png);
+	// 				background-image: url(https://github.com/microsoft/vscode/blob/master/resources/linux/code.png);
 	// 				width: 32px;
 	// 				height: 32px;
 	// 			}
 	// 			.two {
-	// 				background-image: url(https://github.com/Microsoft/vscode/blob/master/resources/linux/code.png);
+	// 				background-image: url(https://github.com/microsoft/vscode/blob/master/resources/linux/code.png);
 	// 				width: 32px;
 	// 				height: 32px;
 	// 			}
 	// 			.three {
-	// 				background-image: url(https://github.com/Microsoft/vscode/blob/master/resources/linux/code.png);
+	// 				background-image: url(https://github.com/microsoft/vscode/blob/master/resources/linux/code.png);
 	// 				height: 32px;
 	// 				width: 32px;
 	// 			}
@@ -121,16 +121,16 @@
 	// test('update image size in img tag in html file with multiple cursors', () => {
 	// 	const htmlwithimgtag = `
 	// 	<html>
-	// 		<img id="one" src="https://github.com/Microsoft/vscode/blob/master/resources/linux/code.png" />
-	// 		<img id="two" src="https://github.com/Microsoft/vscode/blob/master/resources/linux/code.png" width="56" />
-	// 		<img id="three" src="https://github.com/Microsoft/vscode/blob/master/resources/linux/code.png" height="56" />
+	// 		<img id="one" src="https://github.com/microsoft/vscode/blob/master/resources/linux/code.png" />
+	// 		<img id="two" src="https://github.com/microsoft/vscode/blob/master/resources/linux/code.png" width="56" />
+	// 		<img id="three" src="https://github.com/microsoft/vscode/blob/master/resources/linux/code.png" height="56" />
 	// 	</html>
 	// `;
 	// 	const expectedContents = `
 	// 	<html>
-	// 		<img id="one" src="https://github.com/Microsoft/vscode/blob/master/resources/linux/code.png" width="32" height="32" />
-	// 		<img id="two" src="https://github.com/Microsoft/vscode/blob/master/resources/linux/code.png" width="32" height="32" />
-	// 		<img id="three" src="https://github.com/Microsoft/vscode/blob/master/resources/linux/code.png" height="32" width="32" />
+	// 		<img id="one" src="https://github.com/microsoft/vscode/blob/master/resources/linux/code.png" width="32" height="32" />
+	// 		<img id="two" src="https://github.com/microsoft/vscode/blob/master/resources/linux/code.png" width="32" height="32" />
+	// 		<img id="three" src="https://github.com/microsoft/vscode/blob/master/resources/linux/code.png" height="32" width="32" />
 	// 	</html>
 	// `;
 	// 	return withRandomFileEditor(htmlwithimgtag, 'html', (editor, doc) => {

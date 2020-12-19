@@ -3,14 +3,14 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-'use strict';
-
 /**
  * A very VM friendly rgba datastructure.
  * Please don't touch unless you take a look at the IR.
  */
 export class RGBA8 {
 	_rgba8Brand: void;
+
+	static readonly Empty = new RGBA8(0, 0, 0, 0);
 
 	/**
 	 * Red: integer in [0-255]
@@ -34,6 +34,15 @@ export class RGBA8 {
 		this.g = RGBA8._clamp(g);
 		this.b = RGBA8._clamp(b);
 		this.a = RGBA8._clamp(a);
+	}
+
+	public equals(other: RGBA8): boolean {
+		return (
+			this.r === other.r
+			&& this.g === other.g
+			&& this.b === other.b
+			&& this.a === other.a
+		);
 	}
 
 	private static _clamp(c: number): number {

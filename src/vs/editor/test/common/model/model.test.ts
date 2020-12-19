@@ -2,44 +2,41 @@
  *  Copyright (c) Microsoft Corporation. All rights reserved.
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
-'use strict';
 
 import * as assert from 'assert';
+import { Disposable, dispose } from 'vs/base/common/lifecycle';
 import { EditOperation } from 'vs/editor/common/core/editOperation';
 import { Position } from 'vs/editor/common/core/position';
 import { Range } from 'vs/editor/common/core/range';
-import {
-	ModelRawContentChangedEvent, ModelRawFlush, ModelRawLineChanged,
-	ModelRawLinesDeleted, ModelRawLinesInserted
-} from 'vs/editor/common/model/textModelEvents';
-import { TextModel } from 'vs/editor/common/model/textModel';
-import { LanguageIdentifier, TokenizationRegistry, IState, MetadataConsts } from 'vs/editor/common/modes';
-import { MockMode } from 'vs/editor/test/common/mocks/mockMode';
-import { LanguageConfigurationRegistry } from 'vs/editor/common/modes/languageConfigurationRegistry';
 import { TokenizationResult2 } from 'vs/editor/common/core/token';
+import { TextModel } from 'vs/editor/common/model/textModel';
+import { ModelRawContentChangedEvent, ModelRawFlush, ModelRawLineChanged, ModelRawLinesDeleted, ModelRawLinesInserted } from 'vs/editor/common/model/textModelEvents';
+import { IState, LanguageIdentifier, MetadataConsts, TokenizationRegistry } from 'vs/editor/common/modes';
+import { LanguageConfigurationRegistry } from 'vs/editor/common/modes/languageConfigurationRegistry';
 import { NULL_STATE } from 'vs/editor/common/modes/nullMode';
-import { dispose, Disposable } from 'vs/base/common/lifecycle';
+import { MockMode } from 'vs/editor/test/common/mocks/mockMode';
+import { createTextModel } from 'vs/editor/test/common/editorTestUtils';
 
 // --------- utils
 
-var LINE1 = 'My First Line';
-var LINE2 = '\t\tMy Second Line';
-var LINE3 = '    Third Line';
-var LINE4 = '';
-var LINE5 = '1';
+const LINE1 = 'My First Line';
+const LINE2 = '\t\tMy Second Line';
+const LINE3 = '    Third Line';
+const LINE4 = '';
+const LINE5 = '1';
 
 suite('Editor Model - Model', () => {
 
-	var thisModel: TextModel;
+	let thisModel: TextModel;
 
 	setup(() => {
-		var text =
+		const text =
 			LINE1 + '\r\n' +
 			LINE2 + '\n' +
 			LINE3 + '\n' +
 			LINE4 + '\r\n' +
 			LINE5;
-		thisModel = TextModel.createFromString(text);
+		thisModel = createTextModel(text);
 	});
 
 	teardown(() => {
@@ -106,7 +103,7 @@ suite('Editor Model - Model', () => {
 	});
 
 	test('model insert text without newline eventing', () => {
-		let e: ModelRawContentChangedEvent = null;
+		let e: ModelRawContentChangedEvent | null = null;
 		thisModel.onDidChangeRawContent((_e) => {
 			if (e !== null) {
 				assert.fail('Unexpected assertion error');
@@ -125,7 +122,7 @@ suite('Editor Model - Model', () => {
 	});
 
 	test('model insert text with one newline eventing', () => {
-		let e: ModelRawContentChangedEvent = null;
+		let e: ModelRawContentChangedEvent | null = null;
 		thisModel.onDidChangeRawContent((_e) => {
 			if (e !== null) {
 				assert.fail('Unexpected assertion error');
@@ -202,7 +199,7 @@ suite('Editor Model - Model', () => {
 	});
 
 	test('model delete text from one line eventing', () => {
-		let e: ModelRawContentChangedEvent = null;
+		let e: ModelRawContentChangedEvent | null = null;
 		thisModel.onDidChangeRawContent((_e) => {
 			if (e !== null) {
 				assert.fail('Unexpected assertion error');
@@ -221,7 +218,7 @@ suite('Editor Model - Model', () => {
 	});
 
 	test('model delete all text from a line eventing', () => {
-		let e: ModelRawContentChangedEvent = null;
+		let e: ModelRawContentChangedEvent | null = null;
 		thisModel.onDidChangeRawContent((_e) => {
 			if (e !== null) {
 				assert.fail('Unexpected assertion error');
@@ -240,7 +237,7 @@ suite('Editor Model - Model', () => {
 	});
 
 	test('model delete text from two lines eventing', () => {
-		let e: ModelRawContentChangedEvent = null;
+		let e: ModelRawContentChangedEvent | null = null;
 		thisModel.onDidChangeRawContent((_e) => {
 			if (e !== null) {
 				assert.fail('Unexpected assertion error');
@@ -260,7 +257,7 @@ suite('Editor Model - Model', () => {
 	});
 
 	test('model delete text from many lines eventing', () => {
-		let e: ModelRawContentChangedEvent = null;
+		let e: ModelRawContentChangedEvent | null = null;
 		thisModel.onDidChangeRawContent((_e) => {
 			if (e !== null) {
 				assert.fail('Unexpected assertion error');
@@ -311,7 +308,7 @@ suite('Editor Model - Model', () => {
 
 	// --------- setValue
 	test('setValue eventing', () => {
-		let e: ModelRawContentChangedEvent = null;
+		let e: ModelRawContentChangedEvent | null = null;
 		thisModel.onDidChangeRawContent((_e) => {
 			if (e !== null) {
 				assert.fail('Unexpected assertion error');
@@ -333,7 +330,7 @@ suite('Editor Model - Model', () => {
 		let res = thisModel.applyEdits([
 			{ range: new Range(2, 1, 2, 1), text: 'a' },
 			{ range: new Range(1, 1, 1, 1), text: 'b' },
-		]);
+		], true);
 
 		assert.deepEqual(res[0].range, new Range(2, 1, 2, 2));
 		assert.deepEqual(res[1].range, new Range(1, 1, 1, 2));
@@ -344,16 +341,16 @@ suite('Editor Model - Model', () => {
 // --------- Special Unicode LINE SEPARATOR character
 suite('Editor Model - Model Line Separators', () => {
 
-	var thisModel: TextModel;
+	let thisModel: TextModel;
 
 	setup(() => {
-		var text =
+		const text =
 			LINE1 + '\u2028' +
 			LINE2 + '\n' +
 			LINE3 + '\u2028' +
 			LINE4 + '\r\n' +
 			LINE5;
-		thisModel = TextModel.createFromString(text);
+		thisModel = createTextModel(text);
 	});
 
 	teardown(() => {
@@ -369,7 +366,7 @@ suite('Editor Model - Model Line Separators', () => {
 	});
 
 	test('Bug 13333:Model should line break on lonely CR too', () => {
-		var model = TextModel.createFromString('Hello\rWorld!\r\nAnother line');
+		let model = createTextModel('Hello\rWorld!\r\nAnother line');
 		assert.equal(model.getLineCount(), 3);
 		assert.equal(model.getValue(), 'Hello\r\nWorld!\r\nAnother line');
 		model.dispose();
@@ -391,10 +388,10 @@ suite('Editor Model - Words', () => {
 
 			this._register(TokenizationRegistry.register(this.getLanguageIdentifier().language, {
 				getInitialState: (): IState => NULL_STATE,
-				tokenize: undefined,
+				tokenize: undefined!,
 				tokenize2: (line: string, state: IState): TokenizationResult2 => {
 					const tokensArr: number[] = [];
-					let prevLanguageId: LanguageIdentifier = undefined;
+					let prevLanguageId: LanguageIdentifier | undefined = undefined;
 					for (let i = 0; i < line.length; i++) {
 						const languageId = (line.charAt(i) === 'x' ? INNER_LANGUAGE_ID : OUTER_LANGUAGE_ID);
 						if (prevLanguageId !== languageId) {
@@ -434,7 +431,7 @@ suite('Editor Model - Words', () => {
 
 	test('Get word at position', () => {
 		const text = ['This text has some  words. '];
-		const thisModel = TextModel.createFromString(text.join('\n'));
+		const thisModel = createTextModel(text.join('\n'));
 		disposables.push(thisModel);
 
 		assert.deepEqual(thisModel.getWordAtPosition(new Position(1, 1)), { word: 'This', startColumn: 1, endColumn: 5 });
@@ -455,7 +452,7 @@ suite('Editor Model - Words', () => {
 		const innerMode = new InnerMode();
 		disposables.push(outerMode, innerMode);
 
-		const model = TextModel.createFromString('ab<xx>ab<x>', undefined, outerMode.getLanguageIdentifier());
+		const model = createTextModel('ab<xx>ab<x>', undefined, outerMode.getLanguageIdentifier());
 		disposables.push(model);
 
 		assert.deepEqual(model.getWordAtPosition(new Position(1, 1)), { word: 'ab', startColumn: 1, endColumn: 3 });
@@ -465,5 +462,31 @@ suite('Editor Model - Words', () => {
 		assert.deepEqual(model.getWordAtPosition(new Position(1, 5)), { word: 'xx', startColumn: 4, endColumn: 6 });
 		assert.deepEqual(model.getWordAtPosition(new Position(1, 6)), { word: 'xx', startColumn: 4, endColumn: 6 });
 		assert.deepEqual(model.getWordAtPosition(new Position(1, 7)), { word: 'ab', startColumn: 7, endColumn: 9 });
+	});
+
+	test('issue #61296: VS code freezes when editing CSS file with emoji', () => {
+		const MODE_ID = new LanguageIdentifier('testMode', 4);
+
+		const mode = new class extends MockMode {
+			constructor() {
+				super(MODE_ID);
+				this._register(LanguageConfigurationRegistry.register(this.getLanguageIdentifier(), {
+					wordPattern: /(#?-?\d*\.\d\w*%?)|(::?[\w-]*(?=[^,{;]*[,{]))|(([@#.!])?[\w-?]+%?|[@#!.])/g
+				}));
+			}
+		};
+		disposables.push(mode);
+
+		const thisModel = createTextModel('.🐷-a-b', undefined, MODE_ID);
+		disposables.push(thisModel);
+
+		assert.deepEqual(thisModel.getWordAtPosition(new Position(1, 1)), { word: '.', startColumn: 1, endColumn: 2 });
+		assert.deepEqual(thisModel.getWordAtPosition(new Position(1, 2)), { word: '.', startColumn: 1, endColumn: 2 });
+		assert.deepEqual(thisModel.getWordAtPosition(new Position(1, 3)), null);
+		assert.deepEqual(thisModel.getWordAtPosition(new Position(1, 4)), { word: '-a-b', startColumn: 4, endColumn: 8 });
+		assert.deepEqual(thisModel.getWordAtPosition(new Position(1, 5)), { word: '-a-b', startColumn: 4, endColumn: 8 });
+		assert.deepEqual(thisModel.getWordAtPosition(new Position(1, 6)), { word: '-a-b', startColumn: 4, endColumn: 8 });
+		assert.deepEqual(thisModel.getWordAtPosition(new Position(1, 7)), { word: '-a-b', startColumn: 4, endColumn: 8 });
+		assert.deepEqual(thisModel.getWordAtPosition(new Position(1, 8)), { word: '-a-b', startColumn: 4, endColumn: 8 });
 	});
 });

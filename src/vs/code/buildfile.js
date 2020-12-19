@@ -5,8 +5,9 @@
 'use strict';
 
 function createModuleDescription(name, exclude) {
-	var result = {};
-	var excludes = ['vs/css', 'vs/nls'];
+	const result = {};
+
+	let excludes = ['vs/css', 'vs/nls'];
 	result.name = name;
 	if (Array.isArray(exclude) && exclude.length > 0) {
 		excludes = excludes.concat(exclude);
@@ -21,10 +22,9 @@ exports.collectModules = function () {
 		createModuleDescription('vs/code/electron-main/main', []),
 		createModuleDescription('vs/code/node/cli', []),
 		createModuleDescription('vs/code/node/cliProcessMain', ['vs/code/node/cli']),
-		createModuleDescription('vs/code/electron-browser/issue/issueReporterMain', []),
+		createModuleDescription('vs/code/electron-sandbox/issue/issueReporterMain', []),
 		createModuleDescription('vs/code/electron-browser/sharedProcess/sharedProcessMain', []),
-		createModuleDescription('vs/code/electron-browser/issue/issueReporterMain', []),
 		createModuleDescription('vs/platform/driver/node/driver', []),
-		createModuleDescription('vs/code/electron-browser/processExplorer/processExplorerMain', [])
+		createModuleDescription('vs/code/electron-sandbox/processExplorer/processExplorerMain', [])
 	];
 };

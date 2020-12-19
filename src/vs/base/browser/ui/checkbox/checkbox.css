@@ -13,19 +13,10 @@
 	height: 20px;
 	border: 1px solid transparent;
 	padding: 1px;
-
-	-webkit-box-sizing:	border-box;
-	-o-box-sizing:		border-box;
-	-moz-box-sizing:	border-box;
-	-ms-box-sizing:		border-box;
-	box-sizing:			border-box;
-
-	-webkit-user-select: none;
-	-khtml-user-select: none;
-	-moz-user-select: none;
-	-o-user-select: none;
-	-ms-user-select: none;
+	box-sizing:	border-box;
 	user-select: none;
+	-webkit-user-select: none;
+	-ms-user-select: none;
 }
 
 .monaco-custom-checkbox:hover,
@@ -39,4 +30,21 @@
 
 .hc-black .monaco-custom-checkbox:hover {
 	background: none;
+}
+
+.monaco-custom-checkbox.monaco-simple-checkbox {
+	height: 18px;
+	width: 18px;
+	border: 1px solid transparent;
+	border-radius: 3px;
+	margin-right: 9px;
+	margin-left: 0px;
+	padding: 0px;
+	opacity: 1;
+	background-size: 16px !important;
+}
+
+/* hide check when unchecked */
+.monaco-custom-checkbox.monaco-simple-checkbox:not(.checked)::before {
+	visibility: hidden;
 }

@@ -1,0 +1,44 @@
+/*---------------------------------------------------------------------------------------------
+ *  Copyright (c) Microsoft Corporation. All rights reserved.
+ *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *--------------------------------------------------------------------------------------------*/
+
+.monaco-editor .dirty-diff-glyph {
+	margin-left: 5px;
+	z-index: 5;
+}
+
+.monaco-editor .dirty-diff-deleted:after {
+	content: '';
+	position: absolute;
+	bottom: -4px;
+	box-sizing: border-box;
+	width: 4px;
+	height: 0;
+	z-index: 9;
+	border-top: 4px solid transparent;
+	border-bottom: 4px solid transparent;
+	transition: border-top-width 80ms linear, border-bottom-width 80ms linear, bottom 80ms linear;
+	pointer-events: none;
+}
+
+.monaco-editor .dirty-diff-glyph:before {
+	position: absolute;
+	content: '';
+	height: 100%;
+	width: 0;
+	left: -2px;
+	transition: width 80ms linear, left 80ms linear;
+}
+
+.monaco-editor .dirty-diff-deleted:before {
+	margin-left: 3px;
+	height: 0;
+	bottom: 0;
+	transition: height 80ms linear;
+}
+
+/* Hide glyph decorations when inside the inline diff editor */
+.monaco-editor.modified-in-monaco-diff-editor .margin-view-overlays > div > .dirty-diff-glyph {
+	display: none;
+}

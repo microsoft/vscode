@@ -179,9 +179,9 @@
 		"c": "#",
 		"t": "source.dockerfile comment.line.number-sign.dockerfile punctuation.definition.comment.dockerfile",
 		"r": {
-			"dark_plus": "comment: #608B4E",
+			"dark_plus": "comment: #6A9955",
 			"light_plus": "comment: #008000",
-			"dark_vs": "comment: #608B4E",
+			"dark_vs": "comment: #6A9955",
 			"light_vs": "comment: #008000",
 			"hc_black": "comment: #7CA668"
 		}
@@ -190,9 +190,9 @@
 		"c": "RUN apt-get install -y nodejs=0.6.12~dfsg1-1ubuntu1",
 		"t": "source.dockerfile comment.line.number-sign.dockerfile",
 		"r": {
-			"dark_plus": "comment: #608B4E",
+			"dark_plus": "comment: #6A9955",
 			"light_plus": "comment: #008000",
-			"dark_vs": "comment: #608B4E",
+			"dark_vs": "comment: #6A9955",
 			"light_vs": "comment: #008000",
 			"hc_black": "comment: #7CA668"
 		}

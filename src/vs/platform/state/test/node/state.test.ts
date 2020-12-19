@@ -3,51 +3,51 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-'use strict';
-
 import * as assert from 'assert';
 import * as os from 'os';
-import * as path from 'path';
-import * as extfs from 'vs/base/node/extfs';
-import { getRandomTestPath } from 'vs/workbench/test/workbenchTestServices';
+import * as path from 'vs/base/common/path';
+import { getRandomTestPath } from 'vs/base/test/node/testUtils';
 import { FileStorage } from 'vs/platform/state/node/stateService';
+import { mkdirp, rimraf, RimRafMode, writeFileSync } from 'vs/base/node/pfs';
 
 suite('StateService', () => {
 	const parentDir = getRandomTestPath(os.tmpdir(), 'vsctests', 'stateservice');
 	const storageFile = path.join(parentDir, 'storage.json');
 
-	teardown(done => {
-		extfs.del(parentDir, os.tmpdir(), done);
-	});
+	test('Basics', async function () {
 
-	test('Basics', () => {
-		return extfs.mkdirp(parentDir).then(() => {
-			extfs.writeFileAndFlushSync(storageFile, '');
+		// https://github.com/microsoft/vscode/issues/112447
+		this.retries(3);
+		this.timeout(1000 * 20);
 
-			let service = new FileStorage(storageFile, () => null);
+		await mkdirp(parentDir);
+		writeFileSync(storageFile, '');
 
-			service.setItem('some.key', 'some.value');
-			assert.equal(service.getItem('some.key'), 'some.value');
+		let service = new FileStorage(storageFile, () => null);
 
-			service.removeItem('some.key');
-			assert.equal(service.getItem('some.key', 'some.default'), 'some.default');
+		service.setItem('some.key', 'some.value');
+		assert.equal(service.getItem('some.key'), 'some.value');
 
-			assert.ok(!service.getItem('some.unknonw.key'));
+		service.removeItem('some.key');
+		assert.equal(service.getItem('some.key', 'some.default'), 'some.default');
 
-			service.setItem('some.other.key', 'some.other.value');
+		assert.ok(!service.getItem('some.unknonw.key'));
 
-			service = new FileStorage(storageFile, () => null);
+		service.setItem('some.other.key', 'some.other.value');
 
-			assert.equal(service.getItem('some.other.key'), 'some.other.value');
+		service = new FileStorage(storageFile, () => null);
 
-			service.setItem('some.other.key', 'some.other.value');
-			assert.equal(service.getItem('some.other.key'), 'some.other.value');
+		assert.equal(service.getItem('some.other.key'), 'some.other.value');
 
-			service.setItem('some.undefined.key', void 0);
-			assert.equal(service.getItem('some.undefined.key', 'some.default'), 'some.default');
+		service.setItem('some.other.key', 'some.other.value');
+		assert.equal(service.getItem('some.other.key'), 'some.other.value');
 
-			service.setItem('some.null.key', null);
-			assert.equal(service.getItem('some.null.key', 'some.default'), 'some.default');
-		});
+		service.setItem('some.undefined.key', undefined);
+		assert.equal(service.getItem('some.undefined.key', 'some.default'), 'some.default');
+
+		service.setItem('some.null.key', null);
+		assert.equal(service.getItem('some.null.key', 'some.default'), 'some.default');
+
+		await rimraf(parentDir, RimRafMode.MOVE);
 	});
 });

@@ -4,7 +4,7 @@
 		"If you want to provide a fix or improvement, please create a pull request against the original repository.",
 		"Once accepted there, we are happy to receive an update request."
 	],
-	"version": "https://github.com/atom/language-less/commit/b5b3438916bd617fe2b61e090b438c3e27034fc1",
+	"version": "https://github.com/atom/language-less/commit/87d4d59e8de6796b506b81a16e1dc1fafc99d30f",
 	"name": "Less",
 	"scopeName": "source.css.less",
 	"patterns": [

@@ -4,22 +4,33 @@
 	"description": "%description%",
 	"version": "1.0.0",
 	"publisher": "vscode",
-	"engines": { "vscode": "*" },
+	"license": "MIT",
+	"engines": {
+		"vscode": "*"
+	},
 	"scripts": {
-		"update-grammar": "node ../../build/npm/update-grammar.js atom/language-go grammars/go.cson ./syntaxes/go.tmLanguage.json"
+		"update-grammar": "node ../../build/npm/update-grammar.js jeff-hykin/better-go-syntax export/generated.tmLanguage.json ./syntaxes/go.tmLanguage.json"
 	},
 	"contributes": {
-		"languages": [{
-			"id": "go",
-			"extensions": [ ".go" ],
-			"aliases": [ "Go" ],
-			"configuration": "./language-configuration.json"
-		}],
-		"grammars": [{
-			"language": "go",
-			"scopeName": "source.go",
-			"path": "./syntaxes/go.tmLanguage.json"
-		}],
+		"languages": [
+			{
+				"id": "go",
+				"extensions": [
+					".go"
+				],
+				"aliases": [
+					"Go"
+				],
+				"configuration": "./language-configuration.json"
+			}
+		],
+		"grammars": [
+			{
+				"language": "go",
+				"scopeName": "source.go",
+				"path": "./syntaxes/go.tmLanguage.json"
+			}
+		],
 		"configurationDefaults": {
 			"[go]": {
 				"editor.insertSpaces": false

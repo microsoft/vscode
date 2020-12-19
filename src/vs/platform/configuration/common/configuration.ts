@@ -3,16 +3,15 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { TPromise } from 'vs/base/common/winjs.base';
 import * as objects from 'vs/base/common/objects';
 import * as types from 'vs/base/common/types';
-import URI from 'vs/base/common/uri';
+import { URI, UriComponents } from 'vs/base/common/uri';
 import { Event } from 'vs/base/common/event';
 import { Registry } from 'vs/platform/registry/common/platform';
 import { IWorkspaceFolder } from 'vs/platform/workspace/common/workspace';
 import { createDecorator } from 'vs/platform/instantiation/common/instantiation';
-import { IConfigurationRegistry, Extensions, OVERRIDE_PROPERTY_PATTERN } from 'vs/platform/configuration/common/configurationRegistry';
-import { ResourceMap } from 'vs/base/common/map';
+import { IConfigurationRegistry, Extensions, OVERRIDE_PROPERTY_PATTERN, overrideIdentifierFromKey } from 'vs/platform/configuration/common/configurationRegistry';
+import { IStringDictionary } from 'vs/base/common/collections';
 
 export const IConfigurationService = createDecorator<IConfigurationService>('configurationService');
 
@@ -24,38 +23,76 @@ export function isConfigurationOverrides(thing: any): thing is IConfigurationOve
 }
 
 export interface IConfigurationOverrides {
-	overrideIdentifier?: string;
-	resource?: URI;
+	overrideIdentifier?: string | null;
+	resource?: URI | null;
 }
 
-export enum ConfigurationTarget {
+export const enum ConfigurationTarget {
 	USER = 1,
+	USER_LOCAL,
+	USER_REMOTE,
 	WORKSPACE,
 	WORKSPACE_FOLDER,
 	DEFAULT,
 	MEMORY
 }
+export function ConfigurationTargetToString(configurationTarget: ConfigurationTarget) {
+	switch (configurationTarget) {
+		case ConfigurationTarget.USER: return 'USER';
+		case ConfigurationTarget.USER_LOCAL: return 'USER_LOCAL';
+		case ConfigurationTarget.USER_REMOTE: return 'USER_REMOTE';
+		case ConfigurationTarget.WORKSPACE: return 'WORKSPACE';
+		case ConfigurationTarget.WORKSPACE_FOLDER: return 'WORKSPACE_FOLDER';
+		case ConfigurationTarget.DEFAULT: return 'DEFAULT';
+		case ConfigurationTarget.MEMORY: return 'MEMORY';
+	}
+}
+
+export interface IConfigurationChange {
+	keys: string[];
+	overrides: [string, string[]][];
+}
 
 export interface IConfigurationChangeEvent {
 
-	source: ConfigurationTarget;
-	affectedKeys: string[];
-	affectsConfiguration(configuration: string, resource?: URI): boolean;
+	readonly source: ConfigurationTarget;
+	readonly affectedKeys: string[];
+	readonly change: IConfigurationChange;
+
+	affectsConfiguration(configuration: string, overrides?: IConfigurationOverrides): boolean;
 
 	// Following data is used for telemetry
-	sourceConfig: any;
+	readonly sourceConfig: any;
+}
 
-	// Following data is used for Extension host configuration event
-	changedConfiguration: IConfigurationModel;
-	changedConfigurationByResource: ResourceMap<IConfigurationModel>;
+export interface IConfigurationValue<T> {
+
+	readonly defaultValue?: T;
+	readonly userValue?: T;
+	readonly userLocalValue?: T;
+	readonly userRemoteValue?: T;
+	readonly workspaceValue?: T;
+	readonly workspaceFolderValue?: T;
+	readonly memoryValue?: T;
+	readonly value?: T;
+
+	readonly default?: { value?: T, override?: T };
+	readonly user?: { value?: T, override?: T };
+	readonly userLocal?: { value?: T, override?: T };
+	readonly userRemote?: { value?: T, override?: T };
+	readonly workspace?: { value?: T, override?: T };
+	readonly workspaceFolder?: { value?: T, override?: T };
+	readonly memory?: { value?: T, override?: T };
+
+	readonly overrideIdentifiers?: string[];
 }
 
 export interface IConfigurationService {
-	_serviceBrand: any;
+	readonly _serviceBrand: undefined;
 
 	onDidChangeConfiguration: Event<IConfigurationChangeEvent>;
 
-	getConfigurationData(): IConfigurationData;
+	getConfigurationData(): IConfigurationData | null;
 
 	/**
 	 * Fetches the value of the section for the given overrides.
@@ -70,22 +107,14 @@ export interface IConfigurationService {
 	getValue<T>(overrides: IConfigurationOverrides): T;
 	getValue<T>(section: string, overrides: IConfigurationOverrides): T;
 
-	updateValue(key: string, value: any): TPromise<void>;
-	updateValue(key: string, value: any, overrides: IConfigurationOverrides): TPromise<void>;
-	updateValue(key: string, value: any, target: ConfigurationTarget): TPromise<void>;
-	updateValue(key: string, value: any, overrides: IConfigurationOverrides, target: ConfigurationTarget, donotNotifyError?: boolean): TPromise<void>;
+	updateValue(key: string, value: any): Promise<void>;
+	updateValue(key: string, value: any, overrides: IConfigurationOverrides): Promise<void>;
+	updateValue(key: string, value: any, target: ConfigurationTarget): Promise<void>;
+	updateValue(key: string, value: any, overrides: IConfigurationOverrides, target: ConfigurationTarget, donotNotifyError?: boolean): Promise<void>;
 
-	reloadConfiguration(): TPromise<void>;
-	reloadConfiguration(folder: IWorkspaceFolder): TPromise<void>;
+	inspect<T>(key: string, overrides?: IConfigurationOverrides): IConfigurationValue<T>;
 
-	inspect<T>(key: string, overrides?: IConfigurationOverrides): {
-		default: T,
-		user: T,
-		workspace: T,
-		workspaceFolder: T,
-		memory?: T,
-		value: T,
-	};
+	reloadConfiguration(target?: ConfigurationTarget | IWorkspaceFolder): Promise<void>;
 
 	keys(): {
 		default: string[];
@@ -103,6 +132,7 @@ export interface IConfigurationModel {
 }
 
 export interface IOverrides {
+	keys: string[];
 	contents: any;
 	identifiers: string[];
 }
@@ -111,39 +141,92 @@ export interface IConfigurationData {
 	defaults: IConfigurationModel;
 	user: IConfigurationModel;
 	workspace: IConfigurationModel;
-	folders: { [folder: string]: IConfigurationModel };
-	isComplete: boolean;
+	folders: [UriComponents, IConfigurationModel][];
 }
 
-export function compare(from: IConfigurationModel, to: IConfigurationModel): { added: string[], removed: string[], updated: string[] } {
-	const added = to.keys.filter(key => from.keys.indexOf(key) === -1);
-	const removed = from.keys.filter(key => to.keys.indexOf(key) === -1);
-	const updated = [];
+export interface IConfigurationCompareResult {
+	added: string[];
+	removed: string[];
+	updated: string[];
+	overrides: [string, string[]][];
+}
 
-	for (const key of from.keys) {
-		const value1 = getConfigurationValue(from.contents, key);
-		const value2 = getConfigurationValue(to.contents, key);
-		if (!objects.equals(value1, value2)) {
-			updated.push(key);
+export function compare(from: IConfigurationModel | undefined, to: IConfigurationModel | undefined): IConfigurationCompareResult {
+	const added = to
+		? from ? to.keys.filter(key => from.keys.indexOf(key) === -1) : [...to.keys]
+		: [];
+	const removed = from
+		? to ? from.keys.filter(key => to.keys.indexOf(key) === -1) : [...from.keys]
+		: [];
+	const updated: string[] = [];
+
+	if (to && from) {
+		for (const key of from.keys) {
+			if (to.keys.indexOf(key) !== -1) {
+				const value1 = getConfigurationValue(from.contents, key);
+				const value2 = getConfigurationValue(to.contents, key);
+				if (!objects.equals(value1, value2)) {
+					updated.push(key);
+				}
+			}
 		}
 	}
 
-	return { added, removed, updated };
+	const overrides: [string, string[]][] = [];
+	const byOverrideIdentifier = (overrides: IOverrides[]): IStringDictionary<IOverrides> => {
+		const result: IStringDictionary<IOverrides> = {};
+		for (const override of overrides) {
+			for (const identifier of override.identifiers) {
+				result[keyFromOverrideIdentifier(identifier)] = override;
+			}
+		}
+		return result;
+	};
+	const toOverridesByIdentifier: IStringDictionary<IOverrides> = to ? byOverrideIdentifier(to.overrides) : {};
+	const fromOverridesByIdentifier: IStringDictionary<IOverrides> = from ? byOverrideIdentifier(from.overrides) : {};
+
+	if (Object.keys(toOverridesByIdentifier).length) {
+		for (const key of added) {
+			const override = toOverridesByIdentifier[key];
+			if (override) {
+				overrides.push([overrideIdentifierFromKey(key), override.keys]);
+			}
+		}
+	}
+	if (Object.keys(fromOverridesByIdentifier).length) {
+		for (const key of removed) {
+			const override = fromOverridesByIdentifier[key];
+			if (override) {
+				overrides.push([overrideIdentifierFromKey(key), override.keys]);
+			}
+		}
+	}
+
+	if (Object.keys(toOverridesByIdentifier).length && Object.keys(fromOverridesByIdentifier).length) {
+		for (const key of updated) {
+			const fromOverride = fromOverridesByIdentifier[key];
+			const toOverride = toOverridesByIdentifier[key];
+			if (fromOverride && toOverride) {
+				const result = compare({ contents: fromOverride.contents, keys: fromOverride.keys, overrides: [] }, { contents: toOverride.contents, keys: toOverride.keys, overrides: [] });
+				overrides.push([overrideIdentifierFromKey(key), [...result.added, ...result.removed, ...result.updated]]);
+			}
+		}
+	}
+
+	return { added, removed, updated, overrides };
 }
 
 export function toOverrides(raw: any, conflictReporter: (message: string) => void): IOverrides[] {
 	const overrides: IOverrides[] = [];
-	const configurationProperties = Registry.as<IConfigurationRegistry>(Extensions.Configuration).getConfigurationProperties();
 	for (const key of Object.keys(raw)) {
 		if (OVERRIDE_PROPERTY_PATTERN.test(key)) {
-			const overrideRaw = {};
+			const overrideRaw: any = {};
 			for (const keyInOverrideRaw in raw[key]) {
-				if (configurationProperties[keyInOverrideRaw] && configurationProperties[keyInOverrideRaw].overridable) {
-					overrideRaw[keyInOverrideRaw] = raw[key][keyInOverrideRaw];
-				}
+				overrideRaw[keyInOverrideRaw] = raw[key][keyInOverrideRaw];
 			}
 			overrides.push({
 				identifiers: [overrideIdentifierFromKey(key).trim()],
+				keys: Object.keys(overrideRaw),
 				contents: toValuesTree(overrideRaw, conflictReporter)
 			});
 		}
@@ -163,7 +246,7 @@ export function toValuesTree(properties: { [qualifiedKey: string]: any }, confli
 
 export function addToValueTree(settingsTreeRoot: any, key: string, value: any, conflictReporter: (message: string) => void): void {
 	const segments = key.split('.');
-	const last = segments.pop();
+	const last = segments.pop()!;
 
 	let curr = settingsTreeRoot;
 	for (let i = 0; i < segments.length; i++) {
@@ -182,8 +265,12 @@ export function addToValueTree(settingsTreeRoot: any, key: string, value: any, c
 		curr = obj;
 	}
 
-	if (typeof curr === 'object') {
-		curr[last] = value; // workaround https://github.com/Microsoft/vscode/issues/13606
+	if (typeof curr === 'object' && curr !== null) {
+		try {
+			curr[last] = value; // workaround https://github.com/microsoft/vscode/issues/13606
+		} catch (e) {
+			conflictReporter(`Ignoring ${key} as ${segments.join('.')} is ${JSON.stringify(curr)}`);
+		}
 	} else {
 		conflictReporter(`Ignoring ${key} as ${segments.join('.')} is ${JSON.stringify(curr)}`);
 	}
@@ -195,7 +282,7 @@ export function removeFromValueTree(valueTree: any, key: string): void {
 }
 
 function doRemoveFromValueTree(valueTree: any, segments: string[]): void {
-	const first = segments.shift();
+	const first = segments.shift()!;
 	if (segments.length === 0) {
 		// Reached last segment
 		delete valueTree[first];
@@ -219,11 +306,11 @@ function doRemoveFromValueTree(valueTree: any, segments: string[]): void {
 export function getConfigurationValue<T>(config: any, settingPath: string, defaultValue?: T): T {
 	function accessSetting(config: any, path: string[]): any {
 		let current = config;
-		for (let i = 0; i < path.length; i++) {
+		for (const component of path) {
 			if (typeof current !== 'object' || current === null) {
 				return undefined;
 			}
-			current = current[path[i]];
+			current = current[component];
 		}
 		return <T>current;
 	}
@@ -236,14 +323,16 @@ export function getConfigurationValue<T>(config: any, settingPath: string, defau
 
 export function merge(base: any, add: any, overwrite: boolean): void {
 	Object.keys(add).forEach(key => {
-		if (key in base) {
-			if (types.isObject(base[key]) && types.isObject(add[key])) {
-				merge(base[key], add[key], overwrite);
-			} else if (overwrite) {
+		if (key !== '__proto__') {
+			if (key in base) {
+				if (types.isObject(base[key]) && types.isObject(add[key])) {
+					merge(base[key], add[key], overwrite);
+				} else if (overwrite) {
+					base[key] = add[key];
+				}
+			} else {
 				base[key] = add[key];
 			}
-		} else {
-			base[key] = add[key];
 		}
 	});
 }
@@ -265,10 +354,19 @@ export function getDefaultValues(): any {
 	return valueTreeRoot;
 }
 
-export function overrideIdentifierFromKey(key: string): string {
-	return key.substring(1, key.length - 1);
-}
-
 export function keyFromOverrideIdentifier(overrideIdentifier: string): string {
 	return `[${overrideIdentifier}]`;
+}
+
+export function getMigratedSettingValue<T>(configurationService: IConfigurationService, currentSettingName: string, legacySettingName: string): T {
+	const setting = configurationService.inspect<T>(currentSettingName);
+	const legacySetting = configurationService.inspect<T>(legacySettingName);
+
+	if (typeof setting.userValue !== 'undefined' || typeof setting.workspaceValue !== 'undefined' || typeof setting.workspaceFolderValue !== 'undefined') {
+		return setting.value!;
+	} else if (typeof legacySetting.userValue !== 'undefined' || typeof legacySetting.workspaceValue !== 'undefined' || typeof legacySetting.workspaceFolderValue !== 'undefined') {
+		return legacySetting.value!;
+	} else {
+		return setting.defaultValue!;
+	}
 }

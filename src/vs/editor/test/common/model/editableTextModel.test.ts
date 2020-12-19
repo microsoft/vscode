@@ -3,18 +3,17 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-'use strict';
-
 import * as assert from 'assert';
 import { Range } from 'vs/editor/common/core/range';
-import { EndOfLineSequence, IIdentifiedSingleEditOperation } from 'vs/editor/common/model';
-import { TextModel } from 'vs/editor/common/model/textModel';
+import { EndOfLinePreference, EndOfLineSequence, IIdentifiedSingleEditOperation } from 'vs/editor/common/model';
 import { MirrorTextModel } from 'vs/editor/common/model/mirrorTextModel';
-import { assertSyncedModels, testApplyEditsWithSyncedModels } from 'vs/editor/test/common/model/editableTextModelTestUtils';
+import { TextModel } from 'vs/editor/common/model/textModel';
 import { IModelContentChangedEvent } from 'vs/editor/common/model/textModelEvents';
+import { assertSyncedModels, testApplyEditsWithSyncedModels } from 'vs/editor/test/common/model/editableTextModelTestUtils';
+import { createTextModel } from 'vs/editor/test/common/editorTestUtils';
 
 function createEditableTextModelFromString(text: string): TextModel {
-	return new TextModel(text, TextModel.DEFAULT_CREATION_OPTIONS, null);
+	return createTextModel(text, TextModel.DEFAULT_CREATION_OPTIONS, null);
 }
 
 suite('EditorModel - EditableTextModel.applyEdits updates mightContainRTL', () => {
@@ -998,7 +997,7 @@ suite('EditorModel - EditableTextModel.applyEdits', () => {
 			assertMirrorModels();
 
 		}, (model) => {
-			var isFirstTime = true;
+			let isFirstTime = true;
 			model.onDidChangeRawContent(() => {
 				if (!isFirstTime) {
 					return;
@@ -1026,7 +1025,7 @@ suite('EditorModel - EditableTextModel.applyEdits', () => {
 			assertMirrorModels();
 
 		}, (model) => {
-			var isFirstTime = true;
+			let isFirstTime = true;
 			model.onDidChangeContent((e: IModelContentChangedEvent) => {
 				if (!isFirstTime) {
 					return;
@@ -1046,7 +1045,7 @@ suite('EditorModel - EditableTextModel.applyEdits', () => {
 		let model = createEditableTextModelFromString('Hello\nWorld!');
 		assert.equal(model.getEOL(), '\n');
 
-		let mirrorModel2 = new MirrorTextModel(null, model.getLinesContent(), model.getEOL(), model.getVersionId());
+		let mirrorModel2 = new MirrorTextModel(null!, model.getLinesContent(), model.getEOL(), model.getVersionId());
 		let mirrorModel2PrevVersionId = model.getVersionId();
 
 		model.onDidChangeContent((e: IModelContentChangedEvent) => {
@@ -1078,16 +1077,38 @@ suite('EditorModel - EditableTextModel.applyEdits', () => {
 			{ range: new Range(1, 2, 1, 2), text: '"' },
 		]);
 
-		// assert.equal(model.getValue(EndOfLinePreference.LF), '"\'"👁\'');
+		assert.equal(model.getValue(EndOfLinePreference.LF), '"\'"👁\'');
 
 		assert.deepEqual(model.validateRange(new Range(1, 3, 1, 4)), new Range(1, 3, 1, 4));
 
-		// model.applyEdits([
-		// 	{ range: new Range(1, 1, 1, 2), text: null },
-		// 	{ range: new Range(1, 3, 1, 4), text: null },
-		// ]);
+		model.applyEdits([
+			{ range: new Range(1, 1, 1, 2), text: null },
+			{ range: new Range(1, 3, 1, 4), text: null },
+		]);
 
-		// assert.equal(model.getValue(EndOfLinePreference.LF), '\'👁\'');
+		assert.equal(model.getValue(EndOfLinePreference.LF), '\'👁\'');
+
+		model.dispose();
+	});
+
+	test('issue #48741: Broken undo stack with move lines up with multiple cursors', () => {
+		let model = createEditableTextModelFromString([
+			'line1',
+			'line2',
+			'line3',
+			'',
+		].join('\n'));
+
+		const undoEdits = model.applyEdits([
+			{ range: new Range(4, 1, 4, 1), text: 'line3', },
+			{ range: new Range(3, 1, 3, 6), text: null, },
+			{ range: new Range(2, 1, 3, 1), text: null, },
+			{ range: new Range(3, 6, 3, 6), text: '\nline2' }
+		], true);
+
+		model.applyEdits(undoEdits);
+
+		assert.deepEqual(model.getValue(), 'line1\nline2\nline3\n');
 
 		model.dispose();
 	});

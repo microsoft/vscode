@@ -2,22 +2,25 @@
  *  Copyright (c) Microsoft Corporation. All rights reserved.
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
-'use strict';
 
 import * as nls from 'vs/nls';
 import * as types from 'vs/base/common/types';
 import * as arrays from 'vs/base/common/arrays';
 
 function exceptionToErrorMessage(exception: any, verbose: boolean): string {
-	if (exception.message) {
-		if (verbose && (exception.stack || exception.stacktrace)) {
-			return nls.localize('stackTrace.format', "{0}: {1}", detectSystemErrorMessage(exception), exception.stack || exception.stacktrace);
-		}
-
-		return detectSystemErrorMessage(exception);
+	if (verbose && (exception.stack || exception.stacktrace)) {
+		return nls.localize('stackTrace.format', "{0}: {1}", detectSystemErrorMessage(exception), stackToString(exception.stack) || stackToString(exception.stacktrace));
 	}
 
-	return nls.localize('error.defaultMessage', "An unknown error occurred. Please consult the log for more details.");
+	return detectSystemErrorMessage(exception);
+}
+
+function stackToString(stack: string[] | string | undefined): string | undefined {
+	if (Array.isArray(stack)) {
+		return stack.join('\n');
+	}
+
+	return stack;
 }
 
 function detectSystemErrorMessage(exception: any): string {
@@ -27,7 +30,7 @@ function detectSystemErrorMessage(exception: any): string {
 		return nls.localize('nodeExceptionMessage', "A system error occurred ({0})", exception.message);
 	}
 
-	return exception.message;
+	return exception.message || nls.localize('error.defaultMessage', "An unknown error occurred. Please consult the log for more details.");
 }
 
 /**

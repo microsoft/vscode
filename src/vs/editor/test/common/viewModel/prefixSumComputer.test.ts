@@ -2,18 +2,26 @@
  *  Copyright (c) Microsoft Corporation. All rights reserved.
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
-'use strict';
 
 import * as assert from 'assert';
+import { toUint32 } from 'vs/base/common/uint';
 import { PrefixSumComputer, PrefixSumIndexOfResult } from 'vs/editor/common/viewModel/prefixSumComputer';
-import { toUint32Array } from 'vs/editor/common/core/uint';
+
+function toUint32Array(arr: number[]): Uint32Array {
+	const len = arr.length;
+	const r = new Uint32Array(len);
+	for (let i = 0; i < len; i++) {
+		r[i] = toUint32(arr[i]);
+	}
+	return r;
+}
 
 suite('Editor ViewModel - PrefixSumComputer', () => {
 
 	test('PrefixSumComputer', () => {
 		let indexOfResult: PrefixSumIndexOfResult;
 
-		var psc = new PrefixSumComputer(toUint32Array([1, 1, 2, 1, 3]));
+		let psc = new PrefixSumComputer(toUint32Array([1, 1, 2, 1, 3]));
 		assert.equal(psc.getTotalValue(), 8);
 		assert.equal(psc.getAccumulatedValue(-1), 0);
 		assert.equal(psc.getAccumulatedValue(0), 1);

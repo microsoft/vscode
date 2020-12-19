@@ -3,14 +3,16 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-'use strict';
-
 import { Uri } from 'vscode';
 
 export interface GitUriParams {
 	path: string;
 	ref: string;
 	submoduleOf?: string;
+}
+
+export function isGitUri(uri: Uri): boolean {
+	return /^git$/.test(uri.scheme);
 }
 
 export function fromGitUri(uri: Uri): GitUriParams {
