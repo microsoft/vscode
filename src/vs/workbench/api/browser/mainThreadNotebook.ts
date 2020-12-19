@@ -16,8 +16,8 @@ import { URI, UriComponents } from 'vs/base/common/uri';
 import { IAccessibilityService } from 'vs/platform/accessibility/common/accessibility';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { EditorActivation, ITextEditorOptions } from 'vs/platform/editor/common/editor';
+import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { ILogService } from 'vs/platform/log/common/log';
-import { IQuickInputService } from 'vs/platform/quickinput/common/quickInput';
 import { extHostNamedCustomer } from 'vs/workbench/api/common/extHostCustomers';
 import { viewColumnToEditorGroup } from 'vs/workbench/common/editor';
 import { INotebookEditor } from 'vs/workbench/contrib/notebook/browser/notebookBrowser';
@@ -129,12 +129,12 @@ export class MainThreadNotebooks extends Disposable implements MainThreadNoteboo
 		@IEditorGroupsService private readonly editorGroupsService: IEditorGroupsService,
 		@IEditorGroupsService private readonly _editorGroupService: IEditorGroupsService,
 		@IAccessibilityService private readonly accessibilityService: IAccessibilityService,
-		@IQuickInputService private readonly quickInputService: IQuickInputService,
 		@ILogService private readonly logService: ILogService,
 		@INotebookCellStatusBarService private readonly cellStatusBarService: INotebookCellStatusBarService,
 		@IWorkingCopyService private readonly _workingCopyService: IWorkingCopyService,
 		@INotebookEditorModelResolverService private readonly _notebookModelResolverService: INotebookEditorModelResolverService,
 		@IUriIdentityService private readonly _uriIdentityService: IUriIdentityService,
+		@IInstantiationService private readonly _instantiationService: IInstantiationService,
 	) {
 		super();
 		this._proxy = extHostContext.getProxy(ExtHostContext.ExtHostNotebook);
@@ -733,7 +733,7 @@ export class MainThreadNotebooks extends Disposable implements MainThreadNoteboo
 		const input = this.editorService.createEditorInput({ resource: URI.revive(resource), options: editorOptions });
 
 		// TODO: handle options.selection
-		const editorPane = await openEditorWith(input, viewType, options, group, this.editorService, this.configurationService, this.quickInputService);
+		const editorPane = await this._instantiationService.invokeFunction(openEditorWith, input, viewType, options, group);
 		const notebookEditor = (editorPane as unknown as { isNotebookEditor?: boolean })?.isNotebookEditor ? (editorPane!.getControl() as INotebookEditor) : undefined;
 
 		if (notebookEditor) {
