@@ -52,7 +52,7 @@ export function renderMarkdown(markdown: IMarkdownString, options: MarkdownRende
 		try {
 			data = parse(decodeURIComponent(part));
 		} catch (e) {
-			// ignore
+			onUnexpectedError(e);
 		}
 		if (!data) {
 			return part;
@@ -106,7 +106,9 @@ export function renderMarkdown(markdown: IMarkdownString, options: MarkdownRende
 				if (options.baseUrl && hrefAsUri.scheme === Schemas.file) { // absolute or relative local path, or file: uri
 					href = resolvePath(options.baseUrl, href).toString();
 				}
-			} catch (err) { }
+			} catch (err) {
+				onUnexpectedError(err);
+			}
 
 			attributes.push(`src="${href}"`);
 		}
@@ -174,7 +176,7 @@ export function renderMarkdown(markdown: IMarkdownString, options: MarkdownRende
 					DOM.reset(span, values[0]);
 				}
 			}).catch(_err => {
-				// ignore
+				onUnexpectedError(_err);
 			});
 
 			if (options.asyncRenderCallback) {
