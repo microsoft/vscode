@@ -102,6 +102,7 @@ export interface IExtensionsWorkbenchService {
 
 export const ConfigurationKey = 'extensions';
 export const AutoUpdateConfigurationKey = 'extensions.autoUpdate';
+export const AutoUpdateDisabledExtensionsConfigurationKey = 'extensions.autoUpdateDisabledExtensions';
 export const AutoCheckUpdatesConfigurationKey = 'extensions.autoCheckUpdates';
 export const CloseExtensionDetailsOnViewChangeKey = 'extensions.closeExtensionDetailsOnViewChange';
 

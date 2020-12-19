@@ -22,7 +22,7 @@ import { IInstantiationService } from 'vs/platform/instantiation/common/instanti
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { IHostService } from 'vs/workbench/services/host/browser/host';
 import { URI } from 'vs/base/common/uri';
-import { IExtension, ExtensionState, IExtensionsWorkbenchService, AutoUpdateConfigurationKey, AutoCheckUpdatesConfigurationKey, HasOutdatedExtensionsContext } from 'vs/workbench/contrib/extensions/common/extensions';
+import { IExtension, ExtensionState, IExtensionsWorkbenchService, AutoUpdateConfigurationKey, AutoUpdateDisabledExtensionsConfigurationKey, AutoCheckUpdatesConfigurationKey, HasOutdatedExtensionsContext } from 'vs/workbench/contrib/extensions/common/extensions';
 import { IEditorService, SIDE_GROUP, ACTIVE_GROUP } from 'vs/workbench/services/editor/common/editorService';
 import { IURLService, IURLHandler, IOpenURLOptions } from 'vs/platform/url/common/url';
 import { ExtensionsInput } from 'vs/workbench/contrib/extensions/common/extensionsInput';
@@ -552,6 +552,11 @@ export class ExtensionsWorkbenchService extends Disposable implements IExtension
 					this.checkForUpdates();
 				}
 			}
+			if (e.affectsConfiguration(AutoUpdateDisabledExtensionsConfigurationKey)) {
+				if (this.isAutoUpdateDisabledExtensionsEnabled()) {
+					this.checkForUpdates();
+				}
+			}
 			if (e.affectsConfiguration(AutoCheckUpdatesConfigurationKey)) {
 				if (this.isAutoCheckUpdatesEnabled()) {
 					this.checkForUpdates();
@@ -836,6 +841,10 @@ export class ExtensionsWorkbenchService extends Disposable implements IExtension
 		return this.configurationService.getValue(AutoUpdateConfigurationKey);
 	}
 
+	private isAutoUpdateDisabledExtensionsEnabled(): boolean {
+		return this.configurationService.getValue(AutoUpdateDisabledExtensionsConfigurationKey);
+	}
+
 	private isAutoCheckUpdatesEnabled(): boolean {
 		return this.configurationService.getValue(AutoCheckUpdatesConfigurationKey);
 	}
@@ -882,8 +891,10 @@ export class ExtensionsWorkbenchService extends Disposable implements IExtension
 			return Promise.resolve();
 		}
 
-		const toUpdate = this.outdated.filter(e => !this.isAutoUpdateIgnored(new ExtensionIdentifierWithVersion(e.identifier, e.version)))
-			.filter(e => e.local && this.extensionEnablementService.isEnabled(e.local));
+		let toUpdate = this.outdated.filter(e => !this.isAutoUpdateIgnored(new ExtensionIdentifierWithVersion(e.identifier, e.version)));
+		if (!this.isAutoUpdateDisabledExtensionsEnabled()) {
+			toUpdate = toUpdate.filter(e => e.local && this.extensionEnablementService.isEnabled(e.local));
+		}
 
 		return Promises.settled(toUpdate.map(e => this.install(e)));
 	}

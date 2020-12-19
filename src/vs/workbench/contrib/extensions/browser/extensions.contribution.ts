@@ -130,6 +130,13 @@ Registry.as<IConfigurationRegistry>(ConfigurationExtensions.Configuration)
 				scope: ConfigurationScope.APPLICATION,
 				tags: ['usesOnlineServices']
 			},
+			'extensions.autoUpdateDisabledExtensions': {
+				type: 'boolean',
+				description: localize('autoUpdateDisabledExtensions', "When enabled, automatically installs updates for disabled extensions. The updates are fetched from a Microsoft online service."),
+				default: false,
+				scope: ConfigurationScope.APPLICATION,
+				tags: ['usesOnlineServices']
+			},
 			'extensions.autoCheckUpdates': {
 				type: 'boolean',
 				description: localize('extensionsCheckUpdates', "When enabled, automatically checks extensions for updates. If an extension has an update, it is marked as outdated in the Extensions view. The updates are fetched from a Microsoft online service."),
