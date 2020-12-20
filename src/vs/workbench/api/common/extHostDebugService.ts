@@ -793,7 +793,7 @@ export abstract class ExtHostDebugServiceBase implements IExtHostDebugService, E
 		// a "debugServer" attribute in the launch config takes precedence
 		const serverPort = session.configuration.debugServer;
 		if (typeof serverPort === 'number') {
-			return Promise.resolve(new DebugAdapterServer(serverPort));
+			return Promise.resolve(new DebugAdapterServer(serverPort, session.configuration.debugServerHost));
 		}
 
 		if (adapterDescriptorFactory) {

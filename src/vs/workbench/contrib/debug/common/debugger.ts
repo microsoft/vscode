@@ -237,8 +237,12 @@ export class Debugger implements IDebugger {
 			};
 			properties['debugServer'] = {
 				type: 'number',
-				description: nls.localize('debugServer', "For debug extension development only: if a port is specified VS Code tries to connect to a debug adapter running in server mode"),
+				description: nls.localize('debugServer', "If a port is specified VS Code tries to connect to a debug adapter running in server mode on localhost"),
 				default: 4711
+			};
+			properties['debugServerHost'] = {
+				type: 'string',
+				description: nls.localize('debugServerHost', "If a host and port are specified, VS Code tries to connect to a debug adaptor running in server mode on this host")
 			};
 			properties['preLaunchTask'] = {
 				anyOf: [taskSchema, {

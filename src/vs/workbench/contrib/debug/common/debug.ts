@@ -526,6 +526,7 @@ export interface IEnvConfig {
 	preLaunchTask?: string | TaskIdentifier;
 	postDebugTask?: string | TaskIdentifier;
 	debugServer?: number;
+	debugServerHost?: string;
 	noDebug?: boolean;
 }
 

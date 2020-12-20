@@ -11469,7 +11469,7 @@ declare module 'vscode' {
 		 * If the method is not implemented the default behavior is this:
 		 *   createDebugAdapter(session: DebugSession, executable: DebugAdapterExecutable) {
 		 *      if (typeof session.configuration.debugServer === 'number') {
-		 *         return new DebugAdapterServer(session.configuration.debugServer);
+		 *         return new DebugAdapterServer(session.configuration.debugServer, session.configuration.debugServerHost);
 		 *      }
 		 *      return executable;
 		 *   }
