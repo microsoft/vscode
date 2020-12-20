@@ -375,6 +375,12 @@
 	height: 35px;
 }
 
+.monaco-workbench .part.editor > .content .editor-group-container > .title .editor-actions.wrap {
+	/* When tabs are wrapped, position the editor actions at the end of the very last row */
+	position: absolute;
+	right: 0;
+}
+
 /* Breadcrumbs */
 
 .monaco-workbench .part.editor > .content .editor-group-container > .title .tabs-breadcrumbs .breadcrumbs-control {

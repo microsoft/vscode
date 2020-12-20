@@ -1342,7 +1342,7 @@ export class TabsTitleControl extends TitleControl {
 	}
 
 	private doLayoutTabs(activeTab: HTMLElement, activeIndex: number, dimensions: ITitleControlDimensions): void {
-		const [tabsContainer, tabsScrollbar] = assertAllDefined(this.tabsContainer, this.tabsScrollbar);
+		const [tabsContainer, tabsScrollbar, editorToolbarContainer] = assertAllDefined(this.tabsContainer, this.tabsScrollbar, this.editorToolbarContainer);
 
 		//
 		// Synopsis
@@ -1406,11 +1406,13 @@ export class TabsTitleControl extends TitleControl {
 		if (this.accessor.partOptions.experimentalWrapTabs) {
 			let tabsWrapMultiLine = tabsContainer.classList.contains('wrap');
 			let updateScrollbar = false;
+			let updateEditorActions = false;
 
 			// Tabs do not wrap multiline: add wrapping if tabs exceed the tabs container width
 			// and the height of the tabs container does not exceed the maximum
 			if (!tabsWrapMultiLine && allTabsWidth > visibleTabsContainerWidth && (tabsContainer.offsetHeight <= TabsTitleControl.MAX_WRAPPED_HEIGHT)) {
 				tabsContainer.classList.add('wrap');
+				editorToolbarContainer.classList.add('wrap');
 				tabsWrapMultiLine = true;
 			}
 
@@ -1418,8 +1420,10 @@ export class TabsTitleControl extends TitleControl {
 			// or the maximum allowed height
 			if (tabsWrapMultiLine && (tabsContainer.offsetHeight > dimensions.available.height || tabsContainer.offsetHeight > TabsTitleControl.MAX_WRAPPED_HEIGHT)) {
 				tabsContainer.classList.remove('wrap');
+				editorToolbarContainer.classList.remove('wrap');
 				tabsWrapMultiLine = false;
 				updateScrollbar = true;
+				updateEditorActions = true;
 			}
 
 			// If we do not exceed the tabs container width, we cannot simply remove
@@ -1429,8 +1433,28 @@ export class TabsTitleControl extends TitleControl {
 			// and then remove the wrap class.
 			if (tabsWrapMultiLine && allTabsWidth === visibleTabsContainerWidth && tabsContainer.offsetHeight === TabsTitleControl.TAB_HEIGHT) {
 				tabsContainer.classList.remove('wrap');
+				editorToolbarContainer.classList.remove('wrap');
 				tabsWrapMultiLine = false;
 				updateScrollbar = true;
+			}
+
+			// Move editor actions to the bottom right of the last row so that
+			// the rows above can fill the entire width
+			if (tabsWrapMultiLine || updateEditorActions) {
+
+				// Add a right margin to the last tab equal to the width of the editor actions
+				// so that the editor actions always stay on the bottom right of the last row.
+				// Also make sure to remove the right margin from the previous sibling tab that
+				// it had been applied so that no empty space is left over.
+				(tabsContainer?.lastChild?.previousSibling as HTMLElement).style.marginRight = '';
+				(tabsContainer?.lastChild as HTMLElement).style.marginRight = `${editorToolbarContainer.offsetWidth}px`;
+
+				// Adjust the position of the editor actions if breadcrumbs are visibile
+				if (this.breadcrumbsControl && !this.breadcrumbsControl.isHidden()) {
+					editorToolbarContainer.style.bottom = `${BreadcrumbsControl.HEIGHT}px`;
+				} else {
+					editorToolbarContainer.style.bottom = '0px';
+				}
 			}
 
 			// When tabs change from wrapping back to normal, we need to indicate this
@@ -1442,6 +1466,7 @@ export class TabsTitleControl extends TitleControl {
 			}
 		} else {
 			tabsContainer.classList.remove('wrap');
+			editorToolbarContainer.classList.remove('wrap');
 		}
 
 		let activeTabPosX: number | undefined;
