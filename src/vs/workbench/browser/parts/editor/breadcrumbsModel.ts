@@ -29,7 +29,7 @@ type FileInfo = { path: FileElement[], folder?: IWorkspaceFolder };
 
 export class OutlineElement2 {
 	constructor(
-		readonly element: any,
+		readonly element: IOutline<any> | any,
 		readonly outline: IOutline<any>
 	) { }
 }
@@ -108,6 +108,8 @@ export class BreadcrumbsModel {
 			for (let element of this._currentOutline.treeConfig.parentChainProvider.getBreadcrumbElements(activeEntry)) {
 				result.push(new OutlineElement2(element, this._currentOutline));
 			}
+		} else if (!this._currentOutline.isEmpty) {
+			result.push(new OutlineElement2(this._currentOutline, this._currentOutline));
 		}
 
 		return result;

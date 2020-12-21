@@ -510,10 +510,10 @@ export class BreadcrumbsOutlinePicker extends BreadcrumbsPicker {
 		// this._outlineComparator.type = this._getOutlineItemCompareType(overrideConfiguration);
 
 		tree.setInput(input.outline);
-		// if (element !== model) {
-		tree.reveal(input.element, 0.5);
-		tree.setFocus([input.element], this._fakeEvent);
-		// }
+		if (input.element !== input.outline) {
+			tree.reveal(input.element, 0.5);
+			tree.setFocus([input.element], this._fakeEvent);
+		}
 		tree.domFocus();
 
 		return Promise.resolve();

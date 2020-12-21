@@ -71,6 +71,13 @@ class OutlineItem extends BreadcrumbsItem {
 
 	render(container: HTMLElement): void {
 		const { element, outline } = this.element;
+
+		if (element === outline) {
+			const element = dom.$('span', undefined, '…');
+			container.appendChild(element);
+			return;
+		}
+
 		const templateId = outline.treeConfig.delegate.getTemplateId(element);
 		const renderer = outline.treeConfig.renderers.find(renderer => renderer.templateId === templateId);
 		if (!renderer) {
