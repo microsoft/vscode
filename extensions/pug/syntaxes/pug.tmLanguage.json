@@ -239,7 +239,7 @@
 					"name": "entity.other.attribute-name.id.pug"
 				},
 				"3": {
-					"name": "entity.other.attribute-name.class.pug"
+					"name": "entity.other.attribute-name.class.css"
 				},
 				"4": {
 					"name": "meta.tag.other entity.name.tag.pug"
@@ -632,7 +632,7 @@
 					"name": "invalid.illegal.tag.pug"
 				}
 			},
-			"name": "entity.other.attribute-name.class.pug"
+			"name": "entity.other.attribute-name.class.css"
 		},
 		"tag_attributes": {
 			"begin": "(\\(\\s*)",
