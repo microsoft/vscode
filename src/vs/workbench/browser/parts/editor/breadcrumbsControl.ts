@@ -187,6 +187,7 @@ export class BreadcrumbsControl {
 		@IQuickInputService private readonly _quickInputService: IQuickInputService,
 		@IFileService private readonly _fileService: IFileService,
 		@ITelemetryService private readonly _telemetryService: ITelemetryService,
+		@IEditorService private readonly _editorService: IEditorService,
 		@ILabelService private readonly _labelService: ILabelService,
 		@IConfigurationService configurationService: IConfigurationService,
 		@IBreadcrumbsService breadcrumbsService: IBreadcrumbsService,
@@ -458,19 +459,18 @@ export class BreadcrumbsControl {
 
 	private async _revealInEditor(event: IBreadcrumbsItemEvent, element: FileElement | OutlineElement2, group: SIDE_GROUP_TYPE | ACTIVE_GROUP_TYPE | undefined, pinned: boolean = false): Promise<void> {
 
-		//todo@jrieken
-		// const fakeParent = document.createElement('div');
-		// const picker = createBreadcrumbsPicker(this._instantiationService, fakeParent, element);
-		// await picker.show(element, 0, 0, 0, 0);
-		// const didReveal = picker._revealElement(element, { pinned }, group === SIDE_GROUP);
-		// picker.dispose();
-
 		if (element instanceof FileElement) {
-			// show next picker
-			let items = this._widget.getItems();
-			let idx = items.indexOf(event.item);
-			this._widget.setFocused(items[idx + 1]);
-			this._widget.setSelection(items[idx + 1], BreadcrumbsControl.Payload_Pick);
+			if (element.kind === FileKind.FILE) {
+				await this._editorService.openEditor({ resource: element.uri, options: { pinned } }, group);
+			} else {
+				// show next picker
+				let items = this._widget.getItems();
+				let idx = items.indexOf(event.item);
+				this._widget.setFocused(items[idx + 1]);
+				this._widget.setSelection(items[idx + 1], BreadcrumbsControl.Payload_Pick);
+			}
+		} else {
+			element.outline.revealInEditor(element, { pinned }, group === SIDE_GROUP);
 		}
 	}
 

@@ -87,7 +87,7 @@ export abstract class BreadcrumbsPicker {
 		this._previewDispoables.dispose();
 		this._onDidPickElement.dispose();
 		this._domNode.remove();
-		setTimeout(() => this._tree.dispose(), 0);
+		setTimeout(() => this._tree.dispose(), 0); // tree cannot be disposed while being opened...
 	}
 
 	async show(input: any, maxHeight: number, width: number, arrowSize: number, arrowOffset: number): Promise<void> {
@@ -111,8 +111,11 @@ export abstract class BreadcrumbsPicker {
 
 		this._disposables.add(this._tree.onDidOpen(async e => {
 			const { element, editorOptions, sideBySide } = e;
-			await this._revealElement(element, editorOptions, sideBySide);
-
+			const didReveal = await this._revealElement(element, { ...editorOptions, preserveFocus: false }, sideBySide);
+			if (!didReveal) {
+				return;
+			}
+			// tell the outside, will close this picker
 			this._onDidPickElement.fire();
 
 			// send telemetry
@@ -429,9 +432,15 @@ export class BreadcrumbsFilePicker extends BreadcrumbsPicker {
 		return Disposable.None;
 	}
 
-	async _revealElement(element: any, options: IEditorOptions, sideBySide: boolean): Promise<boolean> {
-		if (element instanceof FileElement && element.kind === FileKind.FILE) {
-			await this._editorService.openEditor({ resource: element.uri, options }, sideBySide ? SIDE_GROUP : undefined);
+	async _revealElement(element: IFileStat | IWorkspaceFolder, options: IEditorOptions, sideBySide: boolean): Promise<boolean> {
+		let resource: URI | undefined;
+		if (IWorkspaceFolder.isIWorkspaceFolder(element)) {
+			resource = element.uri;
+		} else if (!element.isDirectory) {
+			resource = element.resource;
+		}
+		if (resource) {
+			await this._editorService.openEditor({ resource, options }, sideBySide ? SIDE_GROUP : undefined);
 			return true;
 		}
 		return false;
