@@ -42,285 +42,20 @@ steps:
       echo -n $ENABLE_TERRAPIN > .build/terrapin
     displayName: Prepare yarn cache flags
 
-  - task: Cache@2
+  - task: 1ESLighthouseEng.PipelineArtifactCaching.RestoreCacheV1.RestoreCache@1
     inputs:
-      key: '$(Agent.OS) | node_modules_build_lib_watch | .build/arch, .build/terrapin, build/.cachesalt, build/lib/watch/.yarnrc, build/lib/watch/yarn.lock'
-      path: "build/lib/watch/node_modules"
-      cacheHitVar: NODE_MODULES_BUILD_LIB_WATCH_RESTORED
-    displayName: Cache /build/lib/watch/node_modules
+      keyfile: ".build/arch, .build/terrapin, build/.cachesalt, .yarnrc, remote/.yarnrc, **/yarn.lock, !**/node_modules/**/yarn.lock, !**/.*/**/yarn.lock"
+      targetfolder: "**/node_modules, !**/node_modules/**/node_modules"
+      vstsFeed: "npm-vscode"
 
   - task: Cache@2
     inputs:
-      key: '$(Agent.OS) | node_modules_build | .build/arch, .build/terrapin, build/.cachesalt, .yarnrc, build/yarn.lock'
-      path: "build/node_modules"
-      cacheHitVar: NODE_MODULES_BUILD_RESTORED
-    displayName: Cache /build/node_modules
-
-  - task: Cache@2
-    inputs:
-      key: '$(Agent.OS) | node_modules_extensions_configuration-editing | .build/arch, .build/terrapin, build/.cachesalt, .yarnrc, extensions/configuration-editing/yarn.lock'
-      path: "extensions/configuration-editing/node_modules"
-      cacheHitVar: NODE_MODULES_EXTENSIONS_CONFIGURATION_EDITING_RESTORED
-    displayName: Cache /extensions/configuration-editing/node_modules
-
-  - task: Cache@2
-    inputs:
-      key: '$(Agent.OS) | node_modules_extensions_css-language-features_server | .build/arch, .build/terrapin, build/.cachesalt, .yarnrc, extensions/css-language-features/server/yarn.lock'
-      path: "extensions/css-language-features/server/node_modules"
-      cacheHitVar: NODE_MODULES_EXTENSIONS_CSS_LANGUAGE_FEATURES_SERVER_RESTORED
-    displayName: Cache /extensions/css-language-features/server/node_modules
-
-  - task: Cache@2
-    inputs:
-      key: '$(Agent.OS) | node_modules_extensions_css-language-features | .build/arch, .build/terrapin, build/.cachesalt, .yarnrc, extensions/css-language-features/yarn.lock'
-      path: "extensions/css-language-features/node_modules"
-      cacheHitVar: NODE_MODULES_EXTENSIONS_CSS_LANGUAGE_FEATURES_RESTORED
-    displayName: Cache /extensions/css-language-features/node_modules
-
-  - task: Cache@2
-    inputs:
-      key: '$(Agent.OS) | node_modules_extensions_debug-auto-launch | .build/arch, .build/terrapin, build/.cachesalt, .yarnrc, extensions/debug-auto-launch/yarn.lock'
-      path: "extensions/debug-auto-launch/node_modules"
-      cacheHitVar: NODE_MODULES_EXTENSIONS_DEBUG_AUTO_LAUNCH_RESTORED
-    displayName: Cache /extensions/debug-auto-launch/node_modules
-
-  - task: Cache@2
-    inputs:
-      key: '$(Agent.OS) | node_modules_extensions_debug-server-ready | .build/arch, .build/terrapin, build/.cachesalt, .yarnrc, extensions/debug-server-ready/yarn.lock'
-      path: "extensions/debug-server-ready/node_modules"
-      cacheHitVar: NODE_MODULES_EXTENSIONS_DEBUG_SERVER_READY_RESTORED
-    displayName: Cache /extensions/debug-server-ready/node_modules
-
-  - task: Cache@2
-    inputs:
-      key: '$(Agent.OS) | node_modules_extensions_emmet | .build/arch, .build/terrapin, build/.cachesalt, .yarnrc, extensions/emmet/yarn.lock'
-      path: "extensions/emmet/node_modules"
-      cacheHitVar: NODE_MODULES_EXTENSIONS_EMMET_RESTORED
-    displayName: Cache /extensions/emmet/node_modules
-
-  - task: Cache@2
-    inputs:
-      key: '$(Agent.OS) | node_modules_extensions_extension-editing | .build/arch, .build/terrapin, build/.cachesalt, .yarnrc, extensions/extension-editing/yarn.lock'
-      path: "extensions/extension-editing/node_modules"
-      cacheHitVar: NODE_MODULES_EXTENSIONS_EXTENSION_EDITING_RESTORED
-    displayName: Cache /extensions/extension-editing/node_modules
-
-  - task: Cache@2
-    inputs:
-      key: '$(Agent.OS) | node_modules_extensions_git-ui | .build/arch, .build/terrapin, build/.cachesalt, .yarnrc, extensions/git-ui/yarn.lock'
-      path: "extensions/git-ui/node_modules"
-      cacheHitVar: NODE_MODULES_EXTENSIONS_GIT_UI_RESTORED
-    displayName: Cache /extensions/git-ui/node_modules
-
-  - task: Cache@2
-    inputs:
-      key: '$(Agent.OS) | node_modules_extensions_git | .build/arch, .build/terrapin, build/.cachesalt, .yarnrc, extensions/git/yarn.lock'
-      path: "extensions/git/node_modules"
-      cacheHitVar: NODE_MODULES_EXTENSIONS_GIT_RESTORED
-    displayName: Cache /extensions/git/node_modules
-
-  - task: Cache@2
-    inputs:
-      key: '$(Agent.OS) | node_modules_extensions_github-authentication | .build/arch, .build/terrapin, build/.cachesalt, .yarnrc, extensions/github-authentication/yarn.lock'
-      path: "extensions/github-authentication/node_modules"
-      cacheHitVar: NODE_MODULES_EXTENSIONS_GITHUB_AUTHENTICATION_RESTORED
-    displayName: Cache /extensions/github-authentication/node_modules
-
-  - task: Cache@2
-    inputs:
-      key: '$(Agent.OS) | node_modules_extensions_github | .build/arch, .build/terrapin, build/.cachesalt, .yarnrc, extensions/github/yarn.lock'
-      path: "extensions/github/node_modules"
-      cacheHitVar: NODE_MODULES_EXTENSIONS_GITHUB_RESTORED
-    displayName: Cache /extensions/github/node_modules
-
-  - task: Cache@2
-    inputs:
-      key: '$(Agent.OS) | node_modules_extensions_grunt | .build/arch, .build/terrapin, build/.cachesalt, .yarnrc, extensions/grunt/yarn.lock'
-      path: "extensions/grunt/node_modules"
-      cacheHitVar: NODE_MODULES_EXTENSIONS_GRUNT_RESTORED
-    displayName: Cache /extensions/grunt/node_modules
-
-  - task: Cache@2
-    inputs:
-      key: '$(Agent.OS) | node_modules_extensions_gulp | .build/arch, .build/terrapin, build/.cachesalt, .yarnrc, extensions/gulp/yarn.lock'
-      path: "extensions/gulp/node_modules"
-      cacheHitVar: NODE_MODULES_EXTENSIONS_GULP_RESTORED
-    displayName: Cache /extensions/gulp/node_modules
-
-  - task: Cache@2
-    inputs:
-      key: '$(Agent.OS) | node_modules_extensions_html-language-features_server | .build/arch, .build/terrapin, build/.cachesalt, .yarnrc, extensions/html-language-features/server/yarn.lock'
-      path: "extensions/html-language-features/server/node_modules"
-      cacheHitVar: NODE_MODULES_EXTENSIONS_HTML_LANGUAGE_FEATURES_SERVER_RESTORED
-    displayName: Cache /extensions/html-language-features/server/node_modules
-
-  - task: Cache@2
-    inputs:
-      key: '$(Agent.OS) | node_modules_extensions_html-language-features | .build/arch, .build/terrapin, build/.cachesalt, .yarnrc, extensions/html-language-features/yarn.lock'
-      path: "extensions/html-language-features/node_modules"
-      cacheHitVar: NODE_MODULES_EXTENSIONS_HTML_LANGUAGE_FEATURES_RESTORED
-    displayName: Cache /extensions/html-language-features/node_modules
-
-  - task: Cache@2
-    inputs:
-      key: '$(Agent.OS) | node_modules_extensions_image-preview | .build/arch, .build/terrapin, build/.cachesalt, .yarnrc, extensions/image-preview/yarn.lock'
-      path: "extensions/image-preview/node_modules"
-      cacheHitVar: NODE_MODULES_EXTENSIONS_IMAGE_PREVIEW_RESTORED
-    displayName: Cache /extensions/image-preview/node_modules
-
-  - task: Cache@2
-    inputs:
-      key: '$(Agent.OS) | node_modules_extensions_jake | .build/arch, .build/terrapin, build/.cachesalt, .yarnrc, extensions/jake/yarn.lock'
-      path: "extensions/jake/node_modules"
-      cacheHitVar: NODE_MODULES_EXTENSIONS_JAKE_RESTORED
-    displayName: Cache /extensions/jake/node_modules
-
-  - task: Cache@2
-    inputs:
-      key: '$(Agent.OS) | node_modules_extensions_json-language-features_server | .build/arch, .build/terrapin, build/.cachesalt, .yarnrc, extensions/json-language-features/server/yarn.lock'
-      path: "extensions/json-language-features/server/node_modules"
-      cacheHitVar: NODE_MODULES_EXTENSIONS_JSON_LANGUAGE_FEATURES_SERVER_RESTORED
-    displayName: Cache /extensions/json-language-features/server/node_modules
-
-  - task: Cache@2
-    inputs:
-      key: '$(Agent.OS) | node_modules_extensions_json-language-features | .build/arch, .build/terrapin, build/.cachesalt, .yarnrc, extensions/json-language-features/yarn.lock'
-      path: "extensions/json-language-features/node_modules"
-      cacheHitVar: NODE_MODULES_EXTENSIONS_JSON_LANGUAGE_FEATURES_RESTORED
-    displayName: Cache /extensions/json-language-features/node_modules
-
-  - task: Cache@2
-    inputs:
-      key: '$(Agent.OS) | node_modules_extensions_markdown-language-features | .build/arch, .build/terrapin, build/.cachesalt, .yarnrc, extensions/markdown-language-features/yarn.lock'
-      path: "extensions/markdown-language-features/node_modules"
-      cacheHitVar: NODE_MODULES_EXTENSIONS_MARKDOWN_LANGUAGE_FEATURES_RESTORED
-    displayName: Cache /extensions/markdown-language-features/node_modules
-
-  - task: Cache@2
-    inputs:
-      key: '$(Agent.OS) | node_modules_extensions_merge-conflict | .build/arch, .build/terrapin, build/.cachesalt, .yarnrc, extensions/merge-conflict/yarn.lock'
-      path: "extensions/merge-conflict/node_modules"
-      cacheHitVar: NODE_MODULES_EXTENSIONS_MERGE_CONFLICT_RESTORED
-    displayName: Cache /extensions/merge-conflict/node_modules
-
-  - task: Cache@2
-    inputs:
-      key: '$(Agent.OS) | node_modules_extensions_microsoft-authentication | .build/arch, .build/terrapin, build/.cachesalt, .yarnrc, extensions/microsoft-authentication/yarn.lock'
-      path: "extensions/microsoft-authentication/node_modules"
-      cacheHitVar: NODE_MODULES_EXTENSIONS_MICROSOFT_AUTHENTICATION_RESTORED
-    displayName: Cache /extensions/microsoft-authentication/node_modules
-
-  - task: Cache@2
-    inputs:
-      key: '$(Agent.OS) | node_modules_extensions_npm | .build/arch, .build/terrapin, build/.cachesalt, .yarnrc, extensions/npm/yarn.lock'
-      path: "extensions/npm/node_modules"
-      cacheHitVar: NODE_MODULES_EXTENSIONS_NPM_RESTORED
-    displayName: Cache /extensions/npm/node_modules
-
-  - task: Cache@2
-    inputs:
-      key: '$(Agent.OS) | node_modules_extensions_php-language-features | .build/arch, .build/terrapin, build/.cachesalt, .yarnrc, extensions/php-language-features/yarn.lock'
-      path: "extensions/php-language-features/node_modules"
-      cacheHitVar: NODE_MODULES_EXTENSIONS_PHP_LANGUAGE_FEATURES_RESTORED
-    displayName: Cache /extensions/php-language-features/node_modules
-
-  - task: Cache@2
-    inputs:
-      key: '$(Agent.OS) | node_modules_extensions_search-result | .build/arch, .build/terrapin, build/.cachesalt, .yarnrc, extensions/search-result/yarn.lock'
-      path: "extensions/search-result/node_modules"
-      cacheHitVar: NODE_MODULES_EXTENSIONS_SEARCH_RESULT_RESTORED
-    displayName: Cache /extensions/search-result/node_modules
-
-  - task: Cache@2
-    inputs:
-      key: '$(Agent.OS) | node_modules_extensions_typescript-language-features | .build/arch, .build/terrapin, build/.cachesalt, .yarnrc, extensions/typescript-language-features/yarn.lock'
-      path: "extensions/typescript-language-features/node_modules"
-      cacheHitVar: NODE_MODULES_EXTENSIONS_TYPESCRIPT_LANGUAGE_FEATURES_RESTORED
-    displayName: Cache /extensions/typescript-language-features/node_modules
-
-  - task: Cache@2
-    inputs:
-      key: '$(Agent.OS) | node_modules_extensions_vscode-api-tests | .build/arch, .build/terrapin, build/.cachesalt, .yarnrc, extensions/vscode-api-tests/yarn.lock'
-      path: "extensions/vscode-api-tests/node_modules"
-      cacheHitVar: NODE_MODULES_EXTENSIONS_VSCODE_API_TESTS_RESTORED
-    displayName: Cache /extensions/vscode-api-tests/node_modules
-
-  - task: Cache@2
-    inputs:
-      key: '$(Agent.OS) | node_modules_extensions_vscode-colorize-tests | .build/arch, .build/terrapin, build/.cachesalt, .yarnrc, extensions/vscode-colorize-tests/yarn.lock'
-      path: "extensions/vscode-colorize-tests/node_modules"
-      cacheHitVar: NODE_MODULES_EXTENSIONS_VSCODE_COLORIZE_TESTS_RESTORED
-    displayName: Cache /extensions/vscode-colorize-tests/node_modules
-
-  - task: Cache@2
-    inputs:
-      key: '$(Agent.OS) | node_modules_extensions_vscode-custom-editor-tests | .build/arch, .build/terrapin, build/.cachesalt, .yarnrc, extensions/vscode-custom-editor-tests/yarn.lock'
-      path: "extensions/vscode-custom-editor-tests/node_modules"
-      cacheHitVar: NODE_MODULES_EXTENSIONS_VSCODE_CUSTOM_EDITOR_TESTS_RESTORED
-    displayName: Cache /extensions/vscode-custom-editor-tests/node_modules
-
-  - task: Cache@2
-    inputs:
-      key: '$(Agent.OS) | node_modules_extensions_vscode-notebook-tests | .build/arch, .build/terrapin, build/.cachesalt, .yarnrc, extensions/vscode-notebook-tests/yarn.lock'
-      path: "extensions/vscode-notebook-tests/node_modules"
-      cacheHitVar: NODE_MODULES_EXTENSIONS_VSCODE_NOTEBOOK_TESTS_RESTORED
-    displayName: Cache /extensions/vscode-notebook-tests/node_modules
-
-  - task: Cache@2
-    inputs:
-      key: '$(Agent.OS) | node_modules_extensions_vscode-test-resolver | .build/arch, .build/terrapin, build/.cachesalt, .yarnrc, extensions/vscode-test-resolver/yarn.lock'
-      path: "extensions/vscode-test-resolver/node_modules"
-      cacheHitVar: NODE_MODULES_EXTENSIONS_VSCODE_TEST_RESOLVER_RESTORED
-    displayName: Cache /extensions/vscode-test-resolver/node_modules
-
-  - task: Cache@2
-    inputs:
-      key: '$(Agent.OS) | node_modules_extensions | .build/arch, .build/terrapin, build/.cachesalt, .yarnrc, extensions/yarn.lock'
-      path: "extensions/node_modules"
-      cacheHitVar: NODE_MODULES_EXTENSIONS_RESTORED
-    displayName: Cache /extensions/node_modules
-
-  - task: Cache@2
-    inputs:
-      key: '$(Agent.OS) | node_modules_remote_web | .build/arch, .build/terrapin, build/.cachesalt, remote/.yarnrc, remote/web/yarn.lock'
-      path: "remote/web/node_modules"
-      cacheHitVar: NODE_MODULES_REMOTE_WEB_RESTORED
-    displayName: Cache /remote/web/node_modules
-
-  - task: Cache@2
-    inputs:
-      key: '$(Agent.OS) | node_modules_remote | .build/arch, .build/terrapin, build/.cachesalt, remote/.yarnrc, remote/yarn.lock'
-      path: "remote/node_modules"
-      cacheHitVar: NODE_MODULES_REMOTE_RESTORED
-    displayName: Cache /remote/node_modules
-
-  - task: Cache@2
-    inputs:
-      key: '$(Agent.OS) | node_modules_test_automation | .build/arch, .build/terrapin, build/.cachesalt, .yarnrc, test/automation/yarn.lock'
-      path: "test/automation/node_modules"
-      cacheHitVar: NODE_MODULES_TEST_AUTOMATION_RESTORED
-    displayName: Cache /test/automation/node_modules
-
-  - task: Cache@2
-    inputs:
-      key: '$(Agent.OS) | node_modules_test_integration_browser | .build/arch, .build/terrapin, build/.cachesalt, .yarnrc, test/integration/browser/yarn.lock'
-      path: "test/integration/browser/node_modules"
-      cacheHitVar: NODE_MODULES_TEST_INTEGRATION_BROWSER_RESTORED
-    displayName: Cache /test/integration/browser/node_modules
-
-  - task: Cache@2
-    inputs:
-      key: '$(Agent.OS) | node_modules_test_smoke | .build/arch, .build/terrapin, build/.cachesalt, .yarnrc, test/smoke/yarn.lock'
-      path: "test/smoke/node_modules"
-      cacheHitVar: NODE_MODULES_TEST_SMOKE_RESTORED
-    displayName: Cache /test/smoke/node_modules
-
-  - task: Cache@2
-    inputs:
-      key: '$(Agent.OS) | node_modules_root | .build/arch, .build/terrapin, build/.cachesalt, .yarnrc, yarn.lock'
-      path: "node_modules"
-      cacheHitVar: NODE_MODULES_ROOT_RESTORED
-    displayName: Cache /node_modules
+      key: '$(Agent.OS) | yarnDownloadsCacheDir | .build/arch, .build/terrapin, build/.cachesalt | .yarnrc, remote/.yarnrc, **/yarn.lock, !**/node_modules/**, !**/.*/**/yarn.lock'
+      path: $(YARN_CACHE_FOLDER)
+      restoreKeys: '$(Agent.OS) | yarnDownloadsCacheDir | .build/arch, .build/terrapin, build/.cachesalt'
+      cacheHitVar: YARN_CACHE_DIR_RESTORED
+    displayName: Cache yarn downloads directory
+    condition: and(succeeded(), ne(variables['CacheRestored'], 'true'))
 
   - script: |
       set -e
@@ -349,7 +84,14 @@ steps:
       ELECTRON_SKIP_BINARY_DOWNLOAD: 1
       PLAYWRIGHT_SKIP_BROWSER_DOWNLOAD: 1
     displayName: Install dependencies
-    condition: and(succeeded(), or(ne(variables.NODE_MODULES_BUILD_LIB_WATCH_RESTORED, 'true'), ne(variables.NODE_MODULES_BUILD_RESTORED, 'true'), ne(variables.NODE_MODULES_EXTENSIONS_CONFIGURATION_EDITING_RESTORED, 'true'), ne(variables.NODE_MODULES_EXTENSIONS_CSS_LANGUAGE_FEATURES_SERVER_RESTORED, 'true'), ne(variables.NODE_MODULES_EXTENSIONS_CSS_LANGUAGE_FEATURES_RESTORED, 'true'), ne(variables.NODE_MODULES_EXTENSIONS_DEBUG_AUTO_LAUNCH_RESTORED, 'true'), ne(variables.NODE_MODULES_EXTENSIONS_DEBUG_SERVER_READY_RESTORED, 'true'), ne(variables.NODE_MODULES_EXTENSIONS_EMMET_RESTORED, 'true'), ne(variables.NODE_MODULES_EXTENSIONS_EXTENSION_EDITING_RESTORED, 'true'), ne(variables.NODE_MODULES_EXTENSIONS_GIT_UI_RESTORED, 'true'), ne(variables.NODE_MODULES_EXTENSIONS_GIT_RESTORED, 'true'), ne(variables.NODE_MODULES_EXTENSIONS_GITHUB_AUTHENTICATION_RESTORED, 'true'), ne(variables.NODE_MODULES_EXTENSIONS_GITHUB_RESTORED, 'true'), ne(variables.NODE_MODULES_EXTENSIONS_GRUNT_RESTORED, 'true'), ne(variables.NODE_MODULES_EXTENSIONS_GULP_RESTORED, 'true'), ne(variables.NODE_MODULES_EXTENSIONS_HTML_LANGUAGE_FEATURES_SERVER_RESTORED, 'true'), ne(variables.NODE_MODULES_EXTENSIONS_HTML_LANGUAGE_FEATURES_RESTORED, 'true'), ne(variables.NODE_MODULES_EXTENSIONS_IMAGE_PREVIEW_RESTORED, 'true'), ne(variables.NODE_MODULES_EXTENSIONS_JAKE_RESTORED, 'true'), ne(variables.NODE_MODULES_EXTENSIONS_JSON_LANGUAGE_FEATURES_SERVER_RESTORED, 'true'), ne(variables.NODE_MODULES_EXTENSIONS_JSON_LANGUAGE_FEATURES_RESTORED, 'true'), ne(variables.NODE_MODULES_EXTENSIONS_MARKDOWN_LANGUAGE_FEATURES_RESTORED, 'true'), ne(variables.NODE_MODULES_EXTENSIONS_MERGE_CONFLICT_RESTORED, 'true'), ne(variables.NODE_MODULES_EXTENSIONS_MICROSOFT_AUTHENTICATION_RESTORED, 'true'), ne(variables.NODE_MODULES_EXTENSIONS_NPM_RESTORED, 'true'), ne(variables.NODE_MODULES_EXTENSIONS_PHP_LANGUAGE_FEATURES_RESTORED, 'true'), ne(variables.NODE_MODULES_EXTENSIONS_SEARCH_RESULT_RESTORED, 'true'), ne(variables.NODE_MODULES_EXTENSIONS_TYPESCRIPT_LANGUAGE_FEATURES_RESTORED, 'true'), ne(variables.NODE_MODULES_EXTENSIONS_VSCODE_API_TESTS_RESTORED, 'true'), ne(variables.NODE_MODULES_EXTENSIONS_VSCODE_COLORIZE_TESTS_RESTORED, 'true'), ne(variables.NODE_MODULES_EXTENSIONS_VSCODE_CUSTOM_EDITOR_TESTS_RESTORED, 'true'), ne(variables.NODE_MODULES_EXTENSIONS_VSCODE_NOTEBOOK_TESTS_RESTORED, 'true'), ne(variables.NODE_MODULES_EXTENSIONS_VSCODE_TEST_RESOLVER_RESTORED, 'true'), ne(variables.NODE_MODULES_EXTENSIONS_RESTORED, 'true'), ne(variables.NODE_MODULES_REMOTE_WEB_RESTORED, 'true'), ne(variables.NODE_MODULES_REMOTE_RESTORED, 'true'), ne(variables.NODE_MODULES_TEST_AUTOMATION_RESTORED, 'true'), ne(variables.NODE_MODULES_TEST_INTEGRATION_BROWSER_RESTORED, 'true'), ne(variables.NODE_MODULES_TEST_SMOKE_RESTORED, 'true'), ne(variables.NODE_MODULES_ROOT_RESTORED, 'true')))
+    condition: and(succeeded(), ne(variables['CacheRestored'], 'true'))
+
+  - task: 1ESLighthouseEng.PipelineArtifactCaching.SaveCacheV1.SaveCache@1
+    inputs:
+      keyfile: ".build/arch, .build/terrapin, build/.cachesalt, .yarnrc, remote/.yarnrc, **/yarn.lock, !**/node_modules/**/yarn.lock, !**/.*/**/yarn.lock"
+      targetfolder: "**/node_modules, !**/node_modules/**/node_modules"
+      vstsFeed: "npm-vscode"
+    condition: and(succeeded(), ne(variables['CacheRestored'], 'true'))
 
   # Mixin must run before optimize, because the CSS loader will inline small SVGs
   - script: |
