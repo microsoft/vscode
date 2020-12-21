@@ -27,7 +27,6 @@
     "@types/node": "^12.19.9",
     "@types/rimraf": "^2.0.4",
     "@types/semver": "^5.5.0",
-    "terser": "^4.8.0",
     "typescript-web": "npm:typescript@^4.2.0-dev.20201209"
   },
   "scripts": {

@@ -36,7 +36,7 @@ var AMDLoader;
                 this._detect();
                 return this._isWindows;
             },
-            enumerable: true,
+            enumerable: false,
             configurable: true
         });
         Object.defineProperty(Environment.prototype, "isNode", {
@@ -44,7 +44,7 @@ var AMDLoader;
                 this._detect();
                 return this._isNode;
             },
-            enumerable: true,
+            enumerable: false,
             configurable: true
         });
         Object.defineProperty(Environment.prototype, "isElectronRenderer", {
@@ -52,7 +52,7 @@ var AMDLoader;
                 this._detect();
                 return this._isElectronRenderer;
             },
-            enumerable: true,
+            enumerable: false,
             configurable: true
         });
         Object.defineProperty(Environment.prototype, "isWebWorker", {
@@ -60,7 +60,7 @@ var AMDLoader;
                 this._detect();
                 return this._isWebWorker;
             },
-            enumerable: true,
+            enumerable: false,
             configurable: true
         });
         Environment.prototype._detect = function () {
@@ -199,6 +199,7 @@ var AMDLoader;
                 return obj;
             }
             if (!Array.isArray(obj) && Object.getPrototypeOf(obj) !== Object.prototype) {
+                // only clone "simple" objects
                 return obj;
             }
             var result = Array.isArray(obj) ? [] : {};
@@ -1217,6 +1218,7 @@ var AMDLoader;
             this._requireFunc = requireFunc;
             this._moduleIdProvider = new ModuleIdProvider();
             this._config = new AMDLoader.Configuration(this._env);
+            this._hasDependencyCycle = false;
             this._modules2 = [];
             this._knownModules2 = [];
             this._inverseDependencies2 = [];
@@ -1561,6 +1563,9 @@ var AMDLoader;
             result.getStats = function () {
                 return _this.getLoaderEvents();
             };
+            result.hasDependencyCycle = function () {
+                return _this._hasDependencyCycle;
+            };
             result.config = function (params, shouldOverwrite) {
                 if (shouldOverwrite === void 0) { shouldOverwrite = false; }
                 _this.configure(params, shouldOverwrite);
@@ -1666,6 +1671,7 @@ var AMDLoader;
                         continue;
                     }
                     if (this._hasDependencyPath(dependency.id, module.id)) {
+                        this._hasDependencyCycle = true;
                         console.warn('There is a dependency cycle between \'' + this._moduleIdProvider.getStrModuleId(dependency.id) + '\' and \'' + this._moduleIdProvider.getStrModuleId(module.id) + '\'. The cyclic path follows:');
                         var cyclePath = this._findCyclePath(dependency.id, module.id, 0) || [];
                         cyclePath.reverse();

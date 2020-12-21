@@ -458,10 +458,9 @@ class HelpPanelDescriptor implements IViewDescriptor {
 }
 
 export class RemoteViewPaneContainer extends FilterViewPaneContainer implements IViewModel {
-	private switchRemoteInstance: SwitchRemoteViewItem | undefined;
-
 	private helpPanelDescriptor = new HelpPanelDescriptor(this);
 	helpInformation: HelpInformation[] = [];
+	private hasSetSwitchForConnection: boolean = false;
 
 	constructor(
 		@IWorkbenchLayoutService layoutService: IWorkbenchLayoutService,
@@ -522,11 +521,14 @@ export class RemoteViewPaneContainer extends FilterViewPaneContainer implements 
 
 	public getActionViewItem(action: Action): IActionViewItem | undefined {
 		if (action.id === SwitchRemoteAction.ID) {
-			if (this.switchRemoteInstance === undefined) {
-				this.switchRemoteInstance = this.instantiationService.createInstance(SwitchRemoteViewItem, action, SwitchRemoteViewItem.createOptionItems(Registry.as<IViewsRegistry>(Extensions.ViewsRegistry).getViews(this.viewContainer), this.contextKeyService));
+			const optionItems = SwitchRemoteViewItem.createOptionItems(Registry.as<IViewsRegistry>(Extensions.ViewsRegistry).getViews(this.viewContainer), this.contextKeyService);
+			const item = this.instantiationService.createInstance(SwitchRemoteViewItem, action, optionItems);
+			if (!this.hasSetSwitchForConnection) {
+				this.hasSetSwitchForConnection = item.setSelectionForConnection();
+			} else {
+				item.setSelection();
 			}
-
-			return this.switchRemoteInstance;
+			return item;
 		}
 
 		return super.getActionViewItem(action);
