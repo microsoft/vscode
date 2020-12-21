@@ -42,8 +42,8 @@ export abstract class AbstractLineHighlightOverlay extends DynamicViewOverlay {
 		this._contentWidth = layoutInfo.contentWidth;
 		this._selectionIsEmpty = true;
 		this._focused = false;
-		this._cursorLineNumbers = [];
-		this._selections = [];
+		this._cursorLineNumbers = [1];
+		this._selections = [new Selection(1, 1, 1, 1)];
 		this._renderData = null;
 
 		this._context.addEventHandler(this);

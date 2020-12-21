@@ -31,6 +31,12 @@ steps:
     displayName: Merge distro
 
   - script: |
+      npx https://aka.ms/enablesecurefeed standAlone
+    displayName: Switch to Terrapin packages
+    timeoutInMinutes: 5
+    condition: and(succeeded(), eq(variables['ENABLE_TERRAPIN'], 'true'))
+
+  - script: |
       mkdir -p .build
       echo -n $(VSCODE_ARCH) > .build/arch
       echo -n $ENABLE_TERRAPIN > .build/terrapin

@@ -141,8 +141,7 @@ suite('SkipList', function () {
 	}
 
 
-	test('perf', function () {
-		this.skip();
+	test.skip('perf', function () {
 
 		// data
 		const max = 2 ** 16;

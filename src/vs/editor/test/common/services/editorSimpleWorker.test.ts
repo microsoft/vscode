@@ -165,7 +165,6 @@ suite('EditorSimpleWorker', () => {
 		return worker.textualSuggest([model.uri.toString()], 'f', '[a-z]+', 'img').then((result) => {
 			if (!result) {
 				assert.ok(false);
-				return;
 			}
 			assert.equal(result.words.length, 1);
 			assert.equal(typeof result.duration, 'number');

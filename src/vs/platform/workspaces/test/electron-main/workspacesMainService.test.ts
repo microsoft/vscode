@@ -422,8 +422,6 @@ suite('WorkspacesMainService', () => {
 	});
 
 	test('getUntitledWorkspaceSync', async function () {
-		this.retries(3);
-
 		let untitled = service.getUntitledWorkspacesSync();
 		assert.equal(untitled.length, 0);
 
