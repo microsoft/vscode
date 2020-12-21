@@ -20,6 +20,15 @@ class OutlineService implements IOutlineService {
 	private readonly _onDidChange = new Emitter<void>();
 	readonly onDidChange: Event<void> = this._onDidChange.event;
 
+	canCreateOutline(pane: IEditorPane): boolean {
+		for (let factory of this._factories) {
+			if (factory.matches(pane)) {
+				return true;
+			}
+		}
+		return false;
+	}
+
 	async createOutline(pane: IEditorPane, token: CancellationToken): Promise<IOutline<any> | undefined> {
 		for (let factory of this._factories) {
 			if (factory.matches(pane)) {

@@ -133,6 +133,7 @@ class NotebookCellOutline implements IOutline<OutlineEntry> {
 
 		this.treeConfig = new OutlineTreeConfiguration<OutlineEntry>(
 			{ getBreadcrumbElements: (element) => Iterable.single(element) },
+			{ getQuickPickElements: () => this._entries.map(entry => ({ element: entry, label: `$(${entry.icon.id}) ${entry.label}`, ariaLabel: entry.label })) },
 			{ getChildren: parent => parent === this ? this._entries : [] },
 			new NotebookOutlineVirtualDelegate(),
 			[new NotebookOutlineRenderer()],

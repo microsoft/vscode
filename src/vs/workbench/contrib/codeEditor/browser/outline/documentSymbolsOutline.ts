@@ -61,6 +61,9 @@ class DocumentSymbolsOutline implements IOutline<DocumentSymbolItem> {
 				getBreadcrumbElements: () => <DocumentSymbolItem[]>this._outlineElementChain.filter(element => !(element instanceof OutlineModel))
 			},
 			{
+				getQuickPickElements: () => { throw new Error('not implemented'); }
+			},
+			{
 				getChildren: (parent) => {
 					if (parent instanceof OutlineElement || parent instanceof OutlineGroup) {
 						return parent.children.values();

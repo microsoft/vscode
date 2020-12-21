@@ -445,4 +445,38 @@ export class OutlineModel extends TreeElement {
 			group.updateMarker(marker.slice(0));
 		}
 	}
+
+	asListOfDocumentSymbols(): DocumentSymbol[] {
+		const roots: DocumentSymbol[] = [];
+		for (const child of this.children.values()) {
+			if (child instanceof OutlineElement) {
+				roots.push(child.symbol);
+			} else {
+				roots.push(...Iterable.map(child.children.values(), child => child.symbol));
+			}
+		}
+		const bucket: DocumentSymbol[] = [];
+		OutlineModel._flattenDocumentSymbols(bucket, roots, '');
+		return bucket;
+	}
+
+	private static _flattenDocumentSymbols(bucket: DocumentSymbol[], entries: DocumentSymbol[], overrideContainerLabel: string): void {
+		for (const entry of entries) {
+			bucket.push({
+				kind: entry.kind,
+				tags: entry.tags,
+				name: entry.name,
+				detail: entry.detail,
+				containerName: entry.containerName || overrideContainerLabel,
+				range: entry.range,
+				selectionRange: entry.selectionRange,
+				children: undefined, // we flatten it...
+			});
+
+			// Recurse over children
+			if (entry.children) {
+				OutlineModel._flattenDocumentSymbols(bucket, entry.children, entry.name);
+			}
+		}
+	}
 }
