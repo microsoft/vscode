@@ -160,6 +160,7 @@ export class GotoSymbolQuickAccessProvider extends AbstractGotoSymbolQuickAccess
 					label: entry.label,
 					description: entry.description,
 					ariaLabel: entry.ariaLabel,
+					iconClasses: entry.iconClasses
 				};
 			});
 

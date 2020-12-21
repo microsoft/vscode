@@ -41,7 +41,7 @@ export interface IBreadcrumbsDataSource<E> {
 }
 
 export interface IQuickPickDataSource<E> {
-	getQuickPickElements(): Iterable<{ element: E, kind?: SymbolKind, label: string, ariaLabel?: string, description?: string }>;
+	getQuickPickElements(): Iterable<{ element: E, kind?: SymbolKind, label: string, iconClasses?: string[], ariaLabel?: string, description?: string }>;
 }
 
 export class OutlineTreeConfiguration<E> {
