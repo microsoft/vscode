@@ -9,6 +9,7 @@ import { CancellationToken } from 'vs/base/common/cancellation';
 import { Event } from 'vs/base/common/event';
 import { FuzzyScore } from 'vs/base/common/filters';
 import { IDisposable } from 'vs/base/common/lifecycle';
+import { IEditorOptions } from 'vs/platform/editor/common/editor';
 import { createDecorator } from 'vs/platform/instantiation/common/instantiation';
 import { IWorkbenchDataTreeOptions } from 'vs/platform/list/browser/listService';
 import { IEditorPane } from 'vs/workbench/common/editor';
@@ -54,6 +55,6 @@ export interface IOutline<E> {
 	readonly activeEntry: E | undefined;
 	readonly onDidChangeActiveEntry: Event<this>
 
-	revealInEditor(entry: E): Promise<void> | void;
-	//todo@jrieken preview
+	revealInEditor(entry: E, options: IEditorOptions, sideBySide: boolean): Promise<void> | void;
+	previewInEditor(entry: E): IDisposable;
 }

@@ -15,7 +15,7 @@ import { URI } from 'vs/base/common/uri';
 import 'vs/css!./media/breadcrumbscontrol';
 import { ICodeEditor, isCodeEditor, isDiffEditor } from 'vs/editor/browser/editorBrowser';
 import { Range } from 'vs/editor/common/core/range';
-import { ICodeEditorViewState, ScrollType } from 'vs/editor/common/editorCommon';
+import { ICodeEditorViewState } from 'vs/editor/common/editorCommon';
 import { OutlineElement, OutlineModel, TreeElement } from 'vs/editor/contrib/documentSymbols/outlineModel';
 import { localize } from 'vs/nls';
 import { MenuId, MenuRegistry } from 'vs/platform/actions/common/actions';
@@ -41,7 +41,6 @@ import { IEditorGroupsService } from 'vs/workbench/services/editor/common/editor
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
 import { IEditorGroupView } from 'vs/workbench/browser/parts/editor/editor';
 import { onDidChangeZoomLevel } from 'vs/base/browser/browser';
-import { withNullAsUndefined } from 'vs/base/common/types';
 import { ILabelService } from 'vs/platform/label/common/label';
 import { CATEGORIES } from 'vs/workbench/common/actions';
 import { ITreeNode } from 'vs/base/browser/ui/tree/tree';
@@ -183,7 +182,6 @@ export class BreadcrumbsControl {
 		private readonly _editorGroup: IEditorGroupView,
 		@IContextKeyService private readonly _contextKeyService: IContextKeyService,
 		@IContextViewService private readonly _contextViewService: IContextViewService,
-		@IEditorService private readonly _editorService: IEditorService,
 		@IInstantiationService private readonly _instantiationService: IInstantiationService,
 		@IThemeService private readonly _themeService: IThemeService,
 		@IQuickInputService private readonly _quickInputService: IQuickInputService,
@@ -381,45 +379,9 @@ export class BreadcrumbsControl {
 		this._contextViewService.showContextView({
 			render: (parent: HTMLElement) => {
 				picker = createBreadcrumbsPicker(this._instantiationService, parent, element);
-				let selectListener = picker.onDidPickElement(data => {
-					if (data.target) {
-						editorViewState = undefined;
-					}
-					this._contextViewService.hideContextView(this);
+				let selectListener = picker.onDidPickElement(() => this._contextViewService.hideContextView(this));
 
-					const group = (picker.useAltAsMultipleSelectionModifier && (data.browserEvent as MouseEvent).metaKey) || (!picker.useAltAsMultipleSelectionModifier && (data.browserEvent as MouseEvent).altKey)
-						? SIDE_GROUP
-						: ACTIVE_GROUP;
-
-					this._revealInEditor(event, data.target, group, (data.browserEvent as MouseEvent).button === 1);
-					/* __GDPR__
-						"breadcrumbs/open" : {
-							"type": { "classification": "SystemMetaData", "purpose": "FeatureInsight" }
-						}
-					*/
-					this._telemetryService.publicLog('breadcrumbs/open', { type: !data ? 'nothing' : data.target instanceof TreeElement ? 'symbol' : 'file' });
-				});
-				let focusListener = picker.onDidFocusElement(data => {
-					if (!editor || !(data.target instanceof OutlineElement)) {
-						return;
-					}
-					if (!editorViewState) {
-						editorViewState = withNullAsUndefined(editor.saveViewState());
-					}
-					const { symbol } = data.target;
-					editor.revealRangeInCenterIfOutsideViewport(symbol.range, ScrollType.Smooth);
-					editorDecorations = editor.deltaDecorations(editorDecorations, [{
-						range: symbol.range,
-						options: {
-							className: 'rangeHighlight',
-							isWholeLine: true
-						}
-					}]);
-				});
-
-				let zoomListener = onDidChangeZoomLevel(() => {
-					this._contextViewService.hideContextView(this);
-				});
+				let zoomListener = onDidChangeZoomLevel(() => this._contextViewService.hideContextView(this));
 
 				let focusTracker = dom.trackFocus(parent);
 				let blurListener = focusTracker.onDidBlur(() => {
@@ -433,7 +395,6 @@ export class BreadcrumbsControl {
 				return combinedDisposable(
 					picker,
 					selectListener,
-					focusListener,
 					zoomListener,
 					focusTracker,
 					blurListener
@@ -485,6 +446,7 @@ export class BreadcrumbsControl {
 					this._widget.setFocused(undefined);
 					this._widget.setSelection(undefined);
 				}
+				picker.dispose();
 			}
 		});
 	}
@@ -494,37 +456,21 @@ export class BreadcrumbsControl {
 		this._ckBreadcrumbsActive.set(value);
 	}
 
-	private _revealInEditor(event: IBreadcrumbsItemEvent, element: FileElement | OutlineElement2, group: SIDE_GROUP_TYPE | ACTIVE_GROUP_TYPE | undefined, pinned: boolean = false): void {
+	private async _revealInEditor(event: IBreadcrumbsItemEvent, element: FileElement | OutlineElement2, group: SIDE_GROUP_TYPE | ACTIVE_GROUP_TYPE | undefined, pinned: boolean = false): Promise<void> {
+
+		//todo@jrieken
+		// const fakeParent = document.createElement('div');
+		// const picker = createBreadcrumbsPicker(this._instantiationService, fakeParent, element);
+		// await picker.show(element, 0, 0, 0, 0);
+		// const didReveal = picker._revealElement(element, { pinned }, group === SIDE_GROUP);
+		// picker.dispose();
+
 		if (element instanceof FileElement) {
-			if (element.kind === FileKind.FILE) {
-				// open file in any editor
-				this._editorService.openEditor({ resource: element.uri, options: { pinned } }, group);
-			} else {
-				// show next picker
-				let items = this._widget.getItems();
-				let idx = items.indexOf(event.item);
-				this._widget.setFocused(items[idx + 1]);
-				this._widget.setSelection(items[idx + 1], BreadcrumbsControl.Payload_Pick);
-			}
-
-		} else if (element instanceof OutlineElement2) {
-
-			element.outline.revealInEditor(element.element);
-
-			// todo@jrieken
-			// } else if (element instanceof OutlineElement) {
-			// 	// open symbol in code editor
-			// 	const model = OutlineModel.get(element);
-			// 	if (model) {
-			// 		this._codeEditorService.openCodeEditor({
-			// 			resource: model.uri,
-			// 			options: {
-			// 				selection: Range.collapseToStart(element.symbol.selectionRange),
-			// 				selectionRevealType: TextEditorSelectionRevealType.CenterIfOutsideViewport,
-			// 				pinned
-			// 			}
-			// 		}, withUndefinedAsNull(this._getActiveCodeEditor()), group === SIDE_GROUP);
-			// 	}
+			// show next picker
+			let items = this._widget.getItems();
+			let idx = items.indexOf(event.item);
+			this._widget.setFocused(items[idx + 1]);
+			this._widget.setSelection(items[idx + 1], BreadcrumbsControl.Payload_Pick);
 		}
 	}
 

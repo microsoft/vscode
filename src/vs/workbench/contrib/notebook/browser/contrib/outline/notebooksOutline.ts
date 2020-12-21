@@ -6,7 +6,7 @@
 import * as dom from 'vs/base/browser/dom';
 import { Codicon } from 'vs/base/common/codicons';
 import { Emitter, Event } from 'vs/base/common/event';
-import { combinedDisposable, DisposableStore, MutableDisposable } from 'vs/base/common/lifecycle';
+import { combinedDisposable, IDisposable, Disposable, DisposableStore, MutableDisposable, toDisposable } from 'vs/base/common/lifecycle';
 import { ThemeIcon } from 'vs/platform/theme/common/themeService';
 import { ICellViewModel } from 'vs/workbench/contrib/notebook/browser/notebookBrowser';
 import { NotebookEditor } from 'vs/workbench/contrib/notebook/browser/notebookEditor';
@@ -22,6 +22,9 @@ import { FuzzyScore } from 'vs/base/common/filters';
 import { IconLabel } from 'vs/base/browser/ui/iconLabel/iconLabel';
 import { IListAccessibilityProvider } from 'vs/base/browser/ui/list/listWidget';
 import { Iterable } from 'vs/base/common/iterator';
+import { IEditorOptions } from 'vs/platform/editor/common/editor';
+import { IEditorService, SIDE_GROUP } from 'vs/workbench/services/editor/common/editorService';
+import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 
 export class OutlineEntry {
 	constructor(
@@ -47,7 +50,7 @@ class NotebookOutlineRenderer implements ITreeRenderer<OutlineEntry, FuzzyScore,
 
 	renderTemplate(container: HTMLElement): NotebookOutlineTemplate {
 		const iconClass = dom.$('span.outline-element-icon');
-		container.append(iconClass);
+		// container.append(iconClass); todo@jrieken find a better way for icons
 		const iconLabel = new IconLabel(container);
 
 		return new NotebookOutlineTemplate(iconLabel, iconClass);
@@ -55,7 +58,7 @@ class NotebookOutlineRenderer implements ITreeRenderer<OutlineEntry, FuzzyScore,
 
 	renderElement(element: ITreeNode<OutlineEntry, FuzzyScore>, _index: number, templateData: NotebookOutlineTemplate, _height: number | undefined): void {
 		templateData.iconClass.classList.add(...ThemeIcon.asClassNameArray(element.element.icon));
-		templateData.iconLabel.setLabel(element.element.label, undefined, { extraClasses: [] });
+		templateData.iconLabel.setLabel(element.element.label);
 	}
 
 	disposeTemplate(templateData: NotebookOutlineTemplate): void {
@@ -100,7 +103,8 @@ class NotebookCellOutline implements IOutline<OutlineEntry> {
 	readonly treeConfig: OutlineTreeConfiguration<OutlineEntry>;
 
 	constructor(
-		private readonly _editor: NotebookEditor
+		private readonly _editor: NotebookEditor,
+		@IEditorService private readonly _editorService: IEditorService,
 	) {
 		const selectionListener = new MutableDisposable();
 		this._dispoables.add(selectionListener);
@@ -133,7 +137,12 @@ class NotebookCellOutline implements IOutline<OutlineEntry> {
 			new NotebookOutlineVirtualDelegate(),
 			[new NotebookOutlineRenderer()],
 			{ getId: element => element.cell.handle },
-			{ accessibilityProvider: new NotebookOutlineAccessibility() }
+			{
+				collapseByDefault: true,
+				expandOnlyOnTwistieClick: true,
+				multipleSelectionSupport: false,
+				accessibilityProvider: new NotebookOutlineAccessibility()
+			}
 		);
 	}
 
@@ -161,7 +170,7 @@ class NotebookCellOutline implements IOutline<OutlineEntry> {
 				for (let j = 0; j < matches.length; j++) {
 					this._entries.push(new OutlineEntry(
 						cell,
-						matches[j].replace(/^[ \t]*(\#+)/, ''),
+						matches[j].replace(/^[ \t]*(\#+)/, '').trim(),
 						cell.cellKind === CellKind.Markdown ? Codicon.markdown : Codicon.code
 					));
 				}
@@ -199,12 +208,34 @@ class NotebookCellOutline implements IOutline<OutlineEntry> {
 		return this._activeEntry;
 	}
 
-	revealInEditor(entry: OutlineEntry): void | Promise<void> {
+	async revealInEditor(entry: OutlineEntry, options: IEditorOptions, sideBySide: boolean): Promise<void> {
+		//todo@jrieken focus cell
+		// const widget = this._editor.getControl();
+		// if (widget) {
+		// 	widget.revealInCenterIfOutsideViewport(entry.cell);
+		// 	widget.selectElement(entry.cell);
+		// 	widget.focusNotebookCell(entry.cell, entry.cell.cellKind === CellKind.Markdown ? 'container' : 'editor');
+		// }
+
+		await this._editorService.openEditor({
+			resource: entry.cell.uri,
+			options: { ...options }
+		}, sideBySide ? SIDE_GROUP : undefined);
+	}
+
+	previewInEditor(entry: OutlineEntry): IDisposable {
 		const widget = this._editor.getControl();
-		if (widget) {
-			widget.revealInCenterIfOutsideViewport(entry.cell);
-			widget.selectElement(entry.cell);
+		if (!widget) {
+			return Disposable.None;
 		}
+		widget.revealInCenterIfOutsideViewport(entry.cell);
+		widget.selectElement(entry.cell);
+		const ids = widget.deltaCellDecorations([], [{
+			handle: entry.cell.handle,
+			options: { className: 'nb-symbolHighlight', outputClassName: 'nb-symbolHighlight' }
+		}]);
+		return toDisposable(() => { widget.deltaCellDecorations(ids, []); });
+
 	}
 
 	getParent(_entry: OutlineEntry): OutlineEntry | undefined {
@@ -216,7 +247,10 @@ class NotebookOutlineCreator implements IOutlineCreator<NotebookEditor, OutlineE
 
 	readonly dispose: () => void;
 
-	constructor(@IOutlineService outlineService: IOutlineService) {
+	constructor(
+		@IOutlineService outlineService: IOutlineService,
+		@IInstantiationService private readonly _instantiationService: IInstantiationService,
+	) {
 		const reg = outlineService.registerOutlineCreator(this);
 		this.dispose = () => reg.dispose();
 	}
@@ -226,7 +260,7 @@ class NotebookOutlineCreator implements IOutlineCreator<NotebookEditor, OutlineE
 	}
 
 	async createOutline(editor: NotebookEditor): Promise<IOutline<OutlineEntry> | undefined> {
-		return new NotebookCellOutline(editor);
+		return this._instantiationService.createInstance(NotebookCellOutline, editor);
 	}
 }
 

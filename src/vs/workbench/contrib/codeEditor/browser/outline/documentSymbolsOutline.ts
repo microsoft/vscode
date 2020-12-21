@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { Emitter, Event } from 'vs/base/common/event';
-import { DisposableStore } from 'vs/base/common/lifecycle';
+import { Disposable, DisposableStore, IDisposable, toDisposable } from 'vs/base/common/lifecycle';
 import { IOutline, IOutlineCreator, IOutlineService, OutlineTreeConfiguration } from 'vs/workbench/services/outline/browser/outline';
 import { IWorkbenchContributionsRegistry, Extensions as WorkbenchExtensions } from 'vs/workbench/common/contributions';
 import { Registry } from 'vs/platform/registry/common/platform';
@@ -26,6 +26,8 @@ import { IPosition } from 'vs/editor/common/core/position';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { ScrollType } from 'vs/editor/common/editorCommon';
 import { Range } from 'vs/editor/common/core/range';
+import { IEditorOptions, TextEditorSelectionRevealType } from 'vs/platform/editor/common/editor';
+import { ICodeEditorService } from 'vs/editor/browser/services/codeEditorService';
 
 
 type DocumentSymbolItem = OutlineGroup | OutlineElement;
@@ -48,6 +50,7 @@ class DocumentSymbolsOutline implements IOutline<DocumentSymbolItem> {
 
 	constructor(
 		private readonly _editor: ICodeEditor,
+		@ICodeEditorService private readonly _codeEditorService: ICodeEditorService,
 		@IConfigurationService private readonly _configurationService: IConfigurationService,
 		@ITextResourceConfigurationService private readonly _textResourceConfigurationService: ITextResourceConfigurationService,
 		@IInstantiationService instantiationService: IInstantiationService,
@@ -133,13 +136,46 @@ class DocumentSymbolsOutline implements IOutline<DocumentSymbolItem> {
 		return candidate instanceof OutlineModel ? undefined : candidate;
 	}
 
-	revealInEditor(entry: DocumentSymbolItem): void | Promise<void> {
+	async revealInEditor(entry: DocumentSymbolItem, options: IEditorOptions, sideBySide: boolean): Promise<void> {
 		if (entry instanceof OutlineElement) {
 			const position = Range.getStartPosition(entry.symbol.selectionRange);
 			this._editor.revealPositionInCenterIfOutsideViewport(position, ScrollType.Immediate);
 			this._editor.setPosition(position);
 		}
 		this._editor.focus();
+
+		const model = OutlineModel.get(entry);
+		if (!model || !(entry instanceof OutlineElement)) {
+			return;
+		}
+		await this._codeEditorService.openCodeEditor({
+			resource: model.uri,
+			options: {
+				...options,
+				selection: Range.collapseToStart(entry.symbol.selectionRange),
+				selectionRevealType: TextEditorSelectionRevealType.CenterIfOutsideViewport,
+			}
+		}, this._editor, sideBySide);
+	}
+
+	previewInEditor(entry: DocumentSymbolItem): IDisposable {
+		if (!(entry instanceof OutlineElement)) {
+			return Disposable.None;
+		}
+		// todo@jrieken
+		// if (!editorViewState) {
+		// 	editorViewState = withNullAsUndefined(editor.saveViewState());
+		// }
+		const { symbol } = entry;
+		this._editor.revealRangeInCenterIfOutsideViewport(symbol.range, ScrollType.Smooth);
+		const ids = this._editor.deltaDecorations([], [{
+			range: symbol.range,
+			options: {
+				className: 'rangeHighlight',
+				isWholeLine: true
+			}
+		}]);
+		return toDisposable(() => this._editor.deltaDecorations(ids, []));
 	}
 
 	private _updateOutline(didChangeContent?: boolean): void {
