@@ -9,7 +9,7 @@ import {
 	commands, Event, EventEmitter, ExtensionContext,
 	Range,
 	Selection, Task,
-	TaskGroup, tasks, TextDocument, TextDocumentShowOptions, ThemeIcon, TreeDataProvider, TreeItem, TreeItemCollapsibleState, Uri,
+	TaskGroup, tasks, TextDocument, TextDocumentShowOptions, ThemeIcon, TreeDataProvider, TreeItem, TreeItemLabel, TreeItemCollapsibleState, Uri,
 	window, workspace, WorkspaceFolder
 } from 'vscode';
 import * as nls from 'vscode-nls';
@@ -279,10 +279,22 @@ export class NpmScriptsTreeDataProvider implements TreeDataProvider<TreeItem> {
 		return fullName === task.name;
 	}
 
+	private getTaskTreeItemLabel(taskTreeLabel: string | TreeItemLabel | undefined): string {
+		if (typeof taskTreeLabel === 'undefined') {
+			return '';
+		}
+
+		if (typeof taskTreeLabel === 'string') {
+			return taskTreeLabel;
+		}
+
+		return taskTreeLabel.label;
+	}
+
 	private sortTaskTree(taskTree: TaskTree) {
-		return taskTree.sort((first, second) => {
-			const firstLabel = first.label?.toString() || '';
-			const secondLabel = second.label?.toString() || '';
+		return taskTree.sort((first: TreeItem, second: TreeItem) => {
+			const firstLabel = this.getTaskTreeItemLabel(first.label);
+			const secondLabel = this.getTaskTreeItemLabel(second.label);
 			return firstLabel.localeCompare(secondLabel);
 		});
 	}
