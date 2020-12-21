@@ -159,7 +159,7 @@ registerAction2(class extends Action2 {
 		super({
 			id: `workbench.output.action.toggleAutoScroll`,
 			title: { value: nls.localize('toggleAutoScroll', "Toggle Auto Scrolling"), original: 'Toggle Auto Scrolling' },
-			tooltip: { value: nls.localize('outputScrollOff', "Turn Auto Scrolling Off"), original: 'Turn Auto Scrolling Off' },
+			tooltip: nls.localize('outputScrollOff', "Turn Auto Scrolling Off"),
 			menu: {
 				id: MenuId.ViewTitle,
 				when: ContextKeyExpr.and(ContextKeyEqualsExpr.create('view', OUTPUT_VIEW_ID)),
@@ -170,7 +170,7 @@ registerAction2(class extends Action2 {
 			toggled: {
 				condition: CONTEXT_OUTPUT_SCROLL_LOCK,
 				icon: Codicon.lock,
-				tooltip: { value: nls.localize('outputScrollOn', "Turn Auto Scrolling On"), original: 'Turn Auto Scrolling On' }
+				tooltip: nls.localize('outputScrollOn', "Turn Auto Scrolling On")
 			}
 		});
 	}

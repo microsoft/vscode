@@ -1,9 +1,4 @@
 steps:
-  - script: |
-      mkdir -p .build
-      echo -n $ENABLE_TERRAPIN > .build/terrapin
-    displayName: Prepare compilation cache flag
-
   - task: NodeTool@0
     inputs:
       versionSpec: "12.18.3"
@@ -36,7 +31,15 @@ steps:
     displayName: Merge distro
 
   - script: |
+      npx https://aka.ms/enablesecurefeed standAlone
+    displayName: Switch to Terrapin packages
+    timeoutInMinutes: 5
+    condition: and(succeeded(), eq(variables['ENABLE_TERRAPIN'], 'true'))
+
+  - script: |
+      mkdir -p .build
       echo -n $(VSCODE_ARCH) > .build/arch
+      echo -n $ENABLE_TERRAPIN > .build/terrapin
     displayName: Prepare yarn cache flags
 
   - task: 1ESLighthouseEng.PipelineArtifactCaching.RestoreCacheV1.RestoreCache@1

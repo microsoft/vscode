@@ -100,6 +100,10 @@ export const DEFAULT_LABELS_CONTAINER: IResourceLabelsContainer = {
 };
 
 export class ResourceLabels extends Disposable {
+
+	private _onDidChangeDecorations = this._register(new Emitter<void>());
+	readonly onDidChangeDecorations = this._onDidChangeDecorations.event;
+
 	private widgets: ResourceLabelWidget[] = [];
 	private labels: IResourceLabel[] = [];
 
@@ -148,7 +152,18 @@ export class ResourceLabels extends Disposable {
 		}));
 
 		// notify when file decoration changes
-		this._register(this.decorationsService.onDidChangeDecorations(e => this.widgets.forEach(widget => widget.notifyFileDecorationsChanges(e))));
+		this._register(this.decorationsService.onDidChangeDecorations(e => {
+			let notifyDidChangeDecorations = false;
+			this.widgets.forEach(widget => {
+				if (widget.notifyFileDecorationsChanges(e)) {
+					notifyDidChangeDecorations = true;
+				}
+			});
+
+			if (notifyDidChangeDecorations) {
+				this._onDidChangeDecorations.fire();
+			}
+		}));
 
 		// notify when theme changes
 		this._register(this.themeService.onDidColorThemeChange(() => this.widgets.forEach(widget => widget.notifyThemeChange())));
@@ -311,19 +326,21 @@ class ResourceLabelWidget extends IconLabel {
 		}
 	}
 
-	notifyFileDecorationsChanges(e: IResourceDecorationChangeEvent): void {
+	notifyFileDecorationsChanges(e: IResourceDecorationChangeEvent): boolean {
 		if (!this.options) {
-			return;
+			return false;
 		}
 
 		const resource = toResource(this.label);
 		if (!resource) {
-			return;
+			return false;
 		}
 
 		if (this.options.fileDecorations && e.affectsResource(resource)) {
-			this.render(false);
+			return this.render(false);
 		}
+
+		return false;
 	}
 
 	notifyExtensionsRegistered(): void {
@@ -465,7 +482,7 @@ class ResourceLabelWidget extends IconLabel {
 		this.setLabel('');
 	}
 
-	private render(clearIconCache: boolean): void {
+	private render(clearIconCache: boolean): boolean {
 		if (this.isHidden) {
 			if (!this.needsRedraw) {
 				this.needsRedraw = clearIconCache ? Redraw.Full : Redraw.Basic;
@@ -475,7 +492,7 @@ class ResourceLabelWidget extends IconLabel {
 				this.needsRedraw = Redraw.Full;
 			}
 
-			return;
+			return false;
 		}
 
 		if (this.label) {
@@ -492,7 +509,7 @@ class ResourceLabelWidget extends IconLabel {
 		}
 
 		if (!this.label) {
-			return;
+			return false;
 		}
 
 		this.renderDisposables.clear();
@@ -558,6 +575,8 @@ class ResourceLabelWidget extends IconLabel {
 		this.setLabel(label || '', this.label.description, iconLabelOptions);
 
 		this._onDidRender.fire();
+
+		return true;
 	}
 
 	dispose(): void {

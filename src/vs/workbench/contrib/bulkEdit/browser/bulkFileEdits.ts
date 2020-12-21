@@ -8,7 +8,7 @@ import { WorkspaceFileEditOptions } from 'vs/editor/common/modes';
 import { IFileService, FileSystemProviderCapabilities, IFileContent } from 'vs/platform/files/common/files';
 import { IProgress } from 'vs/platform/progress/common/progress';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
-import { IWorkingCopyFileService } from 'vs/workbench/services/workingCopy/common/workingCopyFileService';
+import { IWorkingCopyFileService, IFileOperationUndoRedoInfo } from 'vs/workbench/services/workingCopy/common/workingCopyFileService';
 import { IWorkspaceUndoRedoElement, UndoRedoElementType, IUndoRedoService, UndoRedoGroup, UndoRedoSource } from 'vs/platform/undoRedo/common/undoRedo';
 import { URI } from 'vs/base/common/uri';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
@@ -17,11 +17,6 @@ import { VSBuffer } from 'vs/base/common/buffer';
 import { ResourceFileEdit } from 'vs/editor/browser/services/bulkEditService';
 import * as resources from 'vs/base/common/resources';
 import { CancellationToken } from 'vs/base/common/cancellation';
-
-interface IFileOperationUndoRedoInfo {
-	undoRedoGroupId?: number;
-	isUndoing?: boolean;
-}
 
 interface IFileOperation {
 	uris: URI[];
@@ -57,7 +52,7 @@ class RenameOperation implements IFileOperation {
 			return new Noop(); // not overwriting, but ignoring, and the target file exists
 		}
 
-		await this._workingCopyFileService.move([{ source: this.oldUri, target: this.newUri }], { overwrite: this.options.overwrite, ...this.undoRedoInfo }, token);
+		await this._workingCopyFileService.move([{ file: { source: this.oldUri, target: this.newUri }, overwrite: this.options.overwrite }], this.undoRedoInfo, token);
 		return new RenameOperation(this.oldUri, this.newUri, this.options, { isUndoing: true }, this._workingCopyFileService, this._fileService);
 	}
 
@@ -93,7 +88,7 @@ class CopyOperation implements IFileOperation {
 			return new Noop(); // not overwriting, but ignoring, and the target file exists
 		}
 
-		const stat = await this._workingCopyFileService.copy([{ source: this.oldUri, target: this.newUri }], { overwrite: this.options.overwrite, ...this.undoRedoInfo }, token);
+		const stat = await this._workingCopyFileService.copy([{ file: { source: this.oldUri, target: this.newUri }, overwrite: this.options.overwrite }], this.undoRedoInfo, token);
 		const folder = this.options.folder || (stat.length === 1 && stat[0].isDirectory);
 		return this._instaService.createInstance(DeleteOperation, this.newUri, { recursive: true, folder, ...this.options }, { isUndoing: true }, false);
 	}
@@ -125,9 +120,9 @@ class CreateOperation implements IFileOperation {
 			return new Noop(); // not overwriting, but ignoring, and the target file exists
 		}
 		if (this.options.folder) {
-			await this._workingCopyFileService.createFolder(this.newUri, { ...this.undoRedoInfo }, token);
+			await this._workingCopyFileService.createFolder({ resource: this.newUri }, this.undoRedoInfo, token);
 		} else {
-			await this._workingCopyFileService.create(this.newUri, this.contents, { overwrite: this.options.overwrite, ...this.undoRedoInfo }, token);
+			await this._workingCopyFileService.create({ resource: this.newUri, contents: this.contents, overwrite: this.options.overwrite }, this.undoRedoInfo, token);
 		}
 		return this._instaService.createInstance(DeleteOperation, this.newUri, this.options, { isUndoing: true }, !this.options.folder && !this.contents);
 	}
@@ -175,7 +170,7 @@ class DeleteOperation implements IFileOperation {
 		}
 
 		const useTrash = !this.options.skipTrashBin && this._fileService.hasCapability(this.oldUri, FileSystemProviderCapabilities.Trash) && this._configurationService.getValue<boolean>('files.enableTrash');
-		await this._workingCopyFileService.delete([this.oldUri], { useTrash, recursive: this.options.recursive, ...this.undoRedoInfo }, token);
+		await this._workingCopyFileService.delete([{ resource: this.oldUri, useTrash, recursive: this.options.recursive }], this.undoRedoInfo, token);
 
 		if (typeof this.options.maxSize === 'number' && fileContent && (fileContent?.size > this.options.maxSize)) {
 			return new Noop();

@@ -1,25 +1,4 @@
 steps:
-  - powershell: |
-      mkdir .build -ea 0
-      "$env:BUILD_SOURCEVERSION" | Out-File -Encoding ascii -NoNewLine .build\commit
-      "$env:VSCODE_QUALITY" | Out-File -Encoding ascii -NoNewLine .build\quality
-      "$env:ENABLE_TERRAPIN" | Out-File -Encoding ascii -NoNewLine .build\terrapin
-    displayName: Prepare compilation cache flags
-
-  - task: 1ESLighthouseEng.PipelineArtifactCaching.RestoreCacheV1.RestoreCache@1
-    inputs:
-      keyfile: "build/.cachesalt, .build/commit, .build/quality, .build/terrapin"
-      targetfolder: ".build, out-build, out-vscode-min, out-vscode-reh-min, out-vscode-reh-web-min"
-      vstsFeed: "npm-vscode"
-      platformIndependent: true
-      alias: "Compilation"
-
-  - powershell: |
-      $ErrorActionPreference = "Stop"
-      exit 1
-    displayName: Check RestoreCache
-    condition: and(succeeded(), ne(variables['CacheRestored-Compilation'], 'true'))
-
   - task: NodeTool@0
     inputs:
       versionSpec: "12.18.3"
@@ -38,6 +17,18 @@ steps:
     inputs:
       azureSubscription: "vscode-builds-subscription"
       KeyVaultName: vscode
+
+  - task: DownloadPipelineArtifact@2
+    inputs:
+      artifact: Compilation
+      path: $(Build.ArtifactStagingDirectory)
+    displayName: Download compilation output
+
+  - powershell: |
+      . build/azure-pipelines/win32/exec.ps1
+      $ErrorActionPreference = "Stop"
+      exec { tar --force-local -xzf $(Build.ArtifactStagingDirectory)/compilation.tar.gz }
+    displayName: Extract compilation output
 
   - powershell: |
       . build/azure-pipelines/win32/exec.ps1
@@ -62,6 +53,7 @@ steps:
 
   - powershell: |
       "$(VSCODE_ARCH)" | Out-File -Encoding ascii -NoNewLine .build\arch
+      "$env:ENABLE_TERRAPIN" | Out-File -Encoding ascii -NoNewLine .build\terrapin
     displayName: Prepare yarn cache flags
 
   - task: 1ESLighthouseEng.PipelineArtifactCaching.RestoreCacheV1.RestoreCache@1

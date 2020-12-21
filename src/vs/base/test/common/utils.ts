@@ -60,7 +60,7 @@ export function suiteRepeat(n: number, description: string, callback: (this: any
 	}
 }
 
-export function testRepeat(n: number, description: string, callback: (this: any, done: MochaDone) => any): void {
+export function testRepeat(n: number, description: string, callback: (this: any) => any): void {
 	for (let i = 0; i < n; i++) {
 		test(`${description} (iteration ${i})`, callback);
 	}

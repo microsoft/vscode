@@ -128,7 +128,7 @@ class InsertSnippetAction extends EditorAction {
 
 			if (name) {
 				// take selected snippet
-				const snippet = (await snippetService.getSnippets(languageId)).find(snippet => snippet.name === name);
+				const snippet = (await snippetService.getSnippets(languageId, { includeNoPrefixSnippets: true })).find(snippet => snippet.name === name);
 				resolve(snippet);
 
 			} else {

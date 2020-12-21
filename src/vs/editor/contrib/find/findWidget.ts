@@ -1044,7 +1044,7 @@ export class FindWidget extends Widget implements IOverlayWidget, IVerticalSashL
 
 		// Toggle selection button
 		this._toggleSelectionFind = this._register(new Checkbox({
-			icon: ThemeIcon.asCSSIcon(findSelectionIcon),
+			icon: findSelectionIcon,
 			title: NLS_TOGGLE_SELECTION_FIND_TITLE + this._keybindingLabelFor(FIND_IDS.ToggleSearchScopeCommand),
 			isChecked: false
 		}));

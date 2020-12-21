@@ -68,7 +68,35 @@ export function getClassNamesArray(id: string, modifier?: string) {
 }
 
 export interface CSSIcon {
-	readonly classNames: string;
+	readonly id: string;
+}
+
+export namespace CSSIcon {
+	export const iconIdRegex = /^(codicon\/)?([a-z\-]+)(?:~([a-z\-]+))?$/i;
+
+	export function asClassNameArray(icon: CSSIcon): string[] {
+		if (icon instanceof Codicon) {
+			return ['codicon', 'codicon-' + icon.id];
+		}
+		const match = iconIdRegex.exec(icon.id);
+		if (!match) {
+			return asClassNameArray(Codicon.error);
+		}
+		let [, , id, modifier] = match;
+		const classNames = ['codicon', 'codicon-' + id];
+		if (modifier) {
+			classNames.push('codicon-modifier-' + modifier);
+		}
+		return classNames;
+	}
+
+	export function asClassName(icon: CSSIcon): string {
+		return asClassNameArray(icon).join(' ');
+	}
+
+	export function asCSSSelector(icon: CSSIcon): string {
+		return '.' + asClassNameArray(icon).join('.');
+	}
 }
 
 
