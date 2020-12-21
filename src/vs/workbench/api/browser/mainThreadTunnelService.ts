@@ -61,6 +61,9 @@ export class MainThreadTunnelService extends Disposable implements MainThreadTun
 				const forward = this._proxy.$forwardPort(tunnelOptions, tunnelCreationOptions);
 				if (forward) {
 					return forward.then(tunnel => {
+						if (!tunnel) {
+							return undefined;
+						}
 						return {
 							tunnelRemotePort: tunnel.remoteAddress.port,
 							tunnelRemoteHost: tunnel.remoteAddress.host,
