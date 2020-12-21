@@ -18,7 +18,7 @@ import { LifecyclePhase } from 'vs/workbench/services/lifecycle/common/lifecycle
 import { IEditorPane } from 'vs/workbench/common/editor';
 import { IKeyboardNavigationLabelProvider, IListVirtualDelegate } from 'vs/base/browser/ui/list/list';
 import { ITreeNode, ITreeRenderer } from 'vs/base/browser/ui/tree/tree';
-import { FuzzyScore } from 'vs/base/common/filters';
+import { createMatches, FuzzyScore } from 'vs/base/common/filters';
 import { IconLabel } from 'vs/base/browser/ui/iconLabel/iconLabel';
 import { IListAccessibilityProvider } from 'vs/base/browser/ui/list/listWidget';
 import { Iterable } from 'vs/base/common/iterator';
@@ -51,14 +51,14 @@ class NotebookOutlineRenderer implements ITreeRenderer<OutlineEntry, FuzzyScore,
 	renderTemplate(container: HTMLElement): NotebookOutlineTemplate {
 		const iconClass = dom.$('span.outline-element-icon');
 		// container.append(iconClass); todo@jrieken find a better way for icons
-		const iconLabel = new IconLabel(container);
+		const iconLabel = new IconLabel(container, { supportHighlights: true });
 
 		return new NotebookOutlineTemplate(iconLabel, iconClass);
 	}
 
 	renderElement(element: ITreeNode<OutlineEntry, FuzzyScore>, _index: number, templateData: NotebookOutlineTemplate, _height: number | undefined): void {
 		templateData.iconClass.classList.add(...ThemeIcon.asClassNameArray(element.element.icon));
-		templateData.iconLabel.setLabel(element.element.label);
+		templateData.iconLabel.setLabel(element.element.label, undefined, { matches: createMatches(element.filterData) });
 	}
 
 	disposeTemplate(templateData: NotebookOutlineTemplate): void {
