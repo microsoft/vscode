@@ -38,9 +38,6 @@ class DocumentSymbolsOutline implements IOutline<DocumentSymbolItem> {
 	private readonly _onDidChange = new Emitter<this>();
 	readonly onDidChange: Event<this> = this._onDidChange.event;
 
-	private readonly _onDidChangeActiveEntry = new Emitter<this>();
-	readonly onDidChangeActiveEntry: Event<this> = this._onDidChangeActiveEntry.event;
-
 	private _outlineModel?: OutlineModel;
 	private _outlineElementChain: Array<OutlineModel | OutlineGroup | OutlineElement> = [];
 	private _outlineDisposables = new DisposableStore();

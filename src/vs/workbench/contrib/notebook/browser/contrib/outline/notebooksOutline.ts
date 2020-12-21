@@ -99,11 +99,8 @@ class NotebookCellOutline implements IOutline<OutlineEntry> {
 	private readonly _onDidChange = new Emitter<this>();
 	readonly onDidChange: Event<this> = this._onDidChange.event;
 
-	private readonly _onDidChangeActiveEntry = new Emitter<this>();
-	readonly onDidChangeActiveEntry: Event<this> = this._onDidChangeActiveEntry.event;
-
-	private _activeEntry?: OutlineEntry;
 	private _entries: OutlineEntry[] = [];
+	private _activeEntry: number = -1;
 	private readonly _entriesDisposables = new DisposableStore();
 
 	readonly config: OutlineTreeConfiguration<OutlineEntry>;
@@ -119,26 +116,23 @@ class NotebookCellOutline implements IOutline<OutlineEntry> {
 				selectionListener.clear();
 			} else {
 				selectionListener.value = combinedDisposable(
-					_editor.viewModel.onDidChangeSelection(() => this._computeActive()),
+					_editor.viewModel.onDidChangeSelection(() => this._recomputeActive()),
 					_editor.viewModel.onDidChangeViewCells(() => {
-						this._computeEntries();
-						this._computeActive();
+						this._recomputeState();
 					}));
 			}
 		};
 
 		this._dispoables.add(_editor.onDidChangeModel(() => {
-			this._computeEntries();
-			this._computeActive();
+			this._recomputeState();
 			installSelectionListener();
 		}));
 
-		this._computeEntries();
-		this._computeActive();
+		this._recomputeState();
 		installSelectionListener();
 
 		this.config = new OutlineTreeConfiguration<OutlineEntry>(
-			{ getBreadcrumbElements: () => this._activeEntry ? Iterable.single(this._activeEntry) : Iterable.empty() },
+			{ getBreadcrumbElements: () => this._activeEntry >= 0 ? Iterable.single(this._entries[this._activeEntry]) : Iterable.empty() },
 			{ getQuickPickElements: () => this._entries.map(entry => ({ element: entry, label: `$(${entry.icon.id}) ${entry.label}`, ariaLabel: entry.label })) },
 			{ getChildren: parent => parent === this ? this._entries : [] },
 			new NotebookOutlineVirtualDelegate(),
@@ -158,15 +152,18 @@ class NotebookCellOutline implements IOutline<OutlineEntry> {
 		this._dispoables.dispose();
 	}
 
-	// TODO@jrieken recompute entries on demand, not eagerly
-	private _computeEntries(): void {
+	private _recomputeState(): void {
 		this._entriesDisposables.clear();
+		this._activeEntry = -1;
 		this._entries.length = 0;
 
 		const { viewModel } = this._editor;
 		if (!viewModel) {
 			return;
 		}
+
+		const [selected] = viewModel.selectionHandles;
+
 		for (const cell of viewModel.viewCells) {
 			const content = cell.getText();
 			const regexp = cell.cellKind === CellKind.Markdown
@@ -176,35 +173,36 @@ class NotebookCellOutline implements IOutline<OutlineEntry> {
 			const matches = content.match(regexp);
 			if (matches && matches.length) {
 				for (let j = 0; j < matches.length; j++) {
-					this._entries.push(new OutlineEntry(
+					const newLen = this._entries.push(new OutlineEntry(
 						cell,
 						matches[j].replace(/^[ \t]*(\#+)/, '').trim(),
 						cell.cellKind === CellKind.Markdown ? Codicon.markdown : Codicon.code
 					));
+					if (cell.handle === selected) {
+						this._activeEntry = newLen - 1;
+					}
 				}
 			}
 
 			// send an event whenever any of the cells change
 			this._entriesDisposables.add(cell.model.onDidChangeContent(() => {
-				this._computeEntries();
-				this._computeActive();
+				this._recomputeState();
 				this._onDidChange.fire(this);
 			}));
 		}
 		this._onDidChange.fire(this);
 	}
 
-	private _computeActive(): void {
-		let newActive: OutlineEntry | undefined;
-		if (this._editor.viewModel) {
-			const [first] = this._editor.viewModel.selectionHandles;
-			newActive = typeof first === 'number'
-				? this._entries.find(candidate => candidate.cell.handle === first)
-				: undefined;
+	private _recomputeActive(): void {
+		let newIdx = -1;
+		const { viewModel } = this._editor;
+		if (viewModel) {
+			const [selected] = viewModel.selectionHandles;
+			newIdx = this._entries.findIndex(entry => entry.cell.handle === selected);
 		}
-		if (this._activeEntry !== newActive) {
-			this._activeEntry = newActive;
-			this._onDidChangeActiveEntry.fire(this);
+		if (newIdx !== this._activeEntry) {
+			this._activeEntry = newIdx;
+			this._onDidChange.fire(this);
 		}
 	}
 

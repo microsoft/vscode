@@ -165,7 +165,6 @@ export class BreadcrumbsModel {
 			if (outline) {
 				this._outlineDisposables.add(outline);
 				this._outlineDisposables.add(outline.onDidChange(() => this._onDidUpdate.fire(this)));
-				this._outlineDisposables.add(outline.onDidChangeActiveEntry(() => this._onDidUpdate.fire(this)));
 			}
 
 		}).catch(err => {

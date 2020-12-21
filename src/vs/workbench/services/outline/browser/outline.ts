@@ -62,7 +62,6 @@ export interface IOutline<E> {
 	readonly config: OutlineTreeConfiguration<E>
 
 	readonly onDidChange: Event<this>;
-	readonly onDidChangeActiveEntry: Event<this>
 
 	readonly isEmpty: boolean;
 
