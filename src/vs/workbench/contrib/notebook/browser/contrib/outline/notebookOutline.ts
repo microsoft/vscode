@@ -49,10 +49,10 @@ class NotebookOutlineRenderer implements ITreeRenderer<OutlineEntry, FuzzyScore,
 	templateId: string = NotebookOutlineTemplate.templateId;
 
 	renderTemplate(container: HTMLElement): NotebookOutlineTemplate {
-		const iconClass = dom.$('span.outline-element-icon');
-		// container.append(iconClass); todo@jrieken find a better way for icons
+		container.classList.add('outline-element');
+		const iconClass = dom.$('.outline-element-icon');
+		container.append(iconClass);
 		const iconLabel = new IconLabel(container, { supportHighlights: true });
-
 		return new NotebookOutlineTemplate(iconLabel, iconClass);
 	}
 
