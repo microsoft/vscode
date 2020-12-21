@@ -264,11 +264,23 @@ function connectToRenderer(protocol: IMessagePassingProtocol): Promise<IRenderer
 			});
 
 			// Kill oneself if one's parent dies. Much drama.
+			let epermErrors = 0;
 			setInterval(function () {
 				try {
 					process.kill(initData.parentPid, 0); // throws an exception if the main process doesn't exist anymore.
+					epermErrors = 0;
 				} catch (e) {
-					onTerminate(`parent process ${initData.parentPid} does not exist anymore: ${e.message} (code: ${e.code}) (errno: ${e.errno})`);
+					if (e && e.code === 'EPERM') {
+						// Even if the parent process is still alive,
+						// some antivirus software can lead to an EPERM error to be thrown here.
+						// Let's terminate only if we get 3 consecutive EPERM errors.
+						epermErrors++;
+						if (epermErrors >= 3) {
+							onTerminate(`parent process ${initData.parentPid} does not exist anymore (3 x EPERM): ${e.message} (code: ${e.code}) (errno: ${e.errno})`);
+						}
+					} else {
+						onTerminate(`parent process ${initData.parentPid} does not exist anymore: ${e.message} (code: ${e.code}) (errno: ${e.errno})`);
+					}
 				}
 			}, 1000);
 
