@@ -501,7 +501,8 @@ class ViewsExtensionHandler implements IWorkbenchContribution {
 						originalContainerId: entry.key,
 						group: item.group,
 						remoteAuthority: item.remoteName || (<any>item).remoteAuthority, // TODO@roblou - delete after remote extensions are updated
-						hideByDefault: initialVisibility === InitialVisibility.Hidden
+						hideByDefault: initialVisibility === InitialVisibility.Hidden,
+						workspace: viewContainer?.id === REMOTE ? true : undefined
 					};
 
 
