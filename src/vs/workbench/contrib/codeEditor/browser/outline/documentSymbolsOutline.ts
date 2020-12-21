@@ -5,12 +5,12 @@
 
 import { Emitter, Event } from 'vs/base/common/event';
 import { Disposable, DisposableStore, IDisposable, toDisposable } from 'vs/base/common/lifecycle';
-import { IOutline, IOutlineCreator, IOutlineService, OutlineTreeConfiguration } from 'vs/workbench/services/outline/browser/outline';
+import { IOutline, IOutlineCreator, IOutlineService, OutlineTarget, OutlineTreeConfiguration } from 'vs/workbench/services/outline/browser/outline';
 import { IWorkbenchContributionsRegistry, Extensions as WorkbenchExtensions } from 'vs/workbench/common/contributions';
 import { Registry } from 'vs/platform/registry/common/platform';
 import { LifecyclePhase } from 'vs/workbench/services/lifecycle/common/lifecycle';
 import { IEditorPane } from 'vs/workbench/common/editor';
-import { OutlineAccessibilityProvider, OutlineElementRenderer, OutlineFilter, OutlineGroupRenderer, OutlineIdentityProvider, OutlineNavigationLabelProvider, OutlineVirtualDelegate } from 'vs/editor/contrib/documentSymbols/outlineTree';
+import { OutlineAccessibilityProvider, OutlineElementRenderer, OutlineFilter, OutlineGroupRenderer, OutlineIdentityProvider, OutlineItemComparator, OutlineNavigationLabelProvider, OutlineSortOrder, OutlineVirtualDelegate } from 'vs/editor/contrib/documentSymbols/outlineTree';
 import { ICodeEditor, isCodeEditor, isDiffEditor } from 'vs/editor/browser/editorBrowser';
 import { OutlineGroup, OutlineElement, OutlineModel, TreeElement } from 'vs/editor/contrib/documentSymbols/outlineModel';
 import { DocumentSymbolProviderRegistry } from 'vs/editor/common/modes';
@@ -28,7 +28,6 @@ import { ScrollType } from 'vs/editor/common/editorCommon';
 import { Range } from 'vs/editor/common/core/range';
 import { IEditorOptions, TextEditorSelectionRevealType } from 'vs/platform/editor/common/editor';
 import { ICodeEditorService } from 'vs/editor/browser/services/codeEditorService';
-
 
 type DocumentSymbolItem = OutlineGroup | OutlineElement;
 
@@ -50,19 +49,17 @@ class DocumentSymbolsOutline implements IOutline<DocumentSymbolItem> {
 
 	constructor(
 		private readonly _editor: ICodeEditor,
+		target: OutlineTarget,
 		@ICodeEditorService private readonly _codeEditorService: ICodeEditorService,
 		@IConfigurationService private readonly _configurationService: IConfigurationService,
 		@ITextResourceConfigurationService private readonly _textResourceConfigurationService: ITextResourceConfigurationService,
 		@IInstantiationService instantiationService: IInstantiationService,
 	) {
 
+		const sorter = new OutlineItemComparator();
 		this.config = new OutlineTreeConfiguration(
-			{
-				getBreadcrumbElements: () => <DocumentSymbolItem[]>this._outlineElementChain.filter(element => !(element instanceof OutlineModel))
-			},
-			{
-				getQuickPickElements: () => { throw new Error('not implemented'); }
-			},
+			{ getBreadcrumbElements: () => <DocumentSymbolItem[]>this._outlineElementChain.filter(element => !(element instanceof OutlineModel)) },
+			{ getQuickPickElements: () => { throw new Error('not implemented'); } },
 			{
 				getChildren: (parent) => {
 					if (parent instanceof OutlineElement || parent instanceof OutlineGroup) {
@@ -81,13 +78,30 @@ class DocumentSymbolsOutline implements IOutline<DocumentSymbolItem> {
 				collapseByDefault: true,
 				expandOnlyOnTwistieClick: true,
 				multipleSelectionSupport: false,
-				// sorter: this._outlineComparator,
-				identityProvider: new OutlineIdentityProvider(),
 				keyboardNavigationLabelProvider: new OutlineNavigationLabelProvider(),
-				accessibilityProvider: new OutlineAccessibilityProvider(''),
-				filter: instantiationService.createInstance(OutlineFilter, 'breadcrumbs')
+				accessibilityProvider: new OutlineAccessibilityProvider(target === OutlineTarget.Breadcrumbs ? 'breadcrumbs' : 'outline'),
+				filter: instantiationService.createInstance(OutlineFilter, target === OutlineTarget.Breadcrumbs ? 'breadcrumbs' : 'outline'),
+				sorter
 			}
 		);
+
+		// special sorting for breadcrumbs
+		if (target === OutlineTarget.Breadcrumbs) {
+			const updateSort = () => {
+				const uri = this._outlineModel?.uri;
+				const value = _textResourceConfigurationService.getValue(uri, `breadcrumbs.symbolSortOrder`);
+				if (value === 'name') {
+					sorter.type = OutlineSortOrder.ByName;
+				} else if (value === 'type') {
+					sorter.type = OutlineSortOrder.ByKind;
+				} else {
+					sorter.type = OutlineSortOrder.ByPosition;
+				}
+			};
+			this._disposables.add(_textResourceConfigurationService.onDidChangeConfiguration(() => updateSort()));
+			updateSort();
+		}
+
 
 		// update as language, model, providers changes
 		this._disposables.add(DocumentSymbolProviderRegistry.onDidChange(_ => this._updateOutline()));
@@ -333,7 +347,7 @@ class DocumentSymbolsOutlineCreator implements IOutlineCreator<IEditorPane, Docu
 		return isCodeEditor(ctrl) || isDiffEditor(ctrl);
 	}
 
-	async createOutline(pane: IEditorPane, token: CancellationToken): Promise<IOutline<DocumentSymbolItem> | undefined> {
+	async createOutline(pane: IEditorPane, target: OutlineTarget, token: CancellationToken): Promise<IOutline<DocumentSymbolItem> | undefined> {
 		const control = pane.getControl();
 		let editor: ICodeEditor | undefined;
 		if (isCodeEditor(control)) {
@@ -344,7 +358,7 @@ class DocumentSymbolsOutlineCreator implements IOutlineCreator<IEditorPane, Docu
 		if (!editor) {
 			return undefined;
 		}
-		return this._instantiationService.createInstance(DocumentSymbolsOutline, editor);
+		return this._instantiationService.createInstance(DocumentSymbolsOutline, editor, target);
 	}
 }
 

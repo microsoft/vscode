@@ -17,17 +17,23 @@ import { IEditorPane } from 'vs/workbench/common/editor';
 
 export const IOutlineService = createDecorator<IOutlineService>('IOutlineService');
 
+export const enum OutlineTarget {
+	OutlinePane,
+	Breadcrumbs,
+	QuickPick
+}
+
 export interface IOutlineService {
 	_serviceBrand: undefined;
 	onDidChange: Event<void>;
 	canCreateOutline(editor: IEditorPane): boolean;
-	createOutline(editor: IEditorPane, token: CancellationToken): Promise<IOutline<any> | undefined>;
+	createOutline(editor: IEditorPane, target: OutlineTarget, token: CancellationToken): Promise<IOutline<any> | undefined>;
 	registerOutlineCreator(creator: IOutlineCreator<any, any>): IDisposable;
 }
 
 export interface IOutlineCreator<P extends IEditorPane, E> {
 	matches(candidate: IEditorPane): candidate is P;
-	createOutline(editor: P, token: CancellationToken): Promise<IOutline<E> | undefined>;
+	createOutline(editor: P, target: OutlineTarget, token: CancellationToken): Promise<IOutline<E> | undefined>;
 }
 
 export interface IBreadcrumbsDataSource<E> {
