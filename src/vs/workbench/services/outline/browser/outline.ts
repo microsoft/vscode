@@ -3,7 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { IIdentityProvider, IListVirtualDelegate } from 'vs/base/browser/ui/list/list';
+import { IListVirtualDelegate } from 'vs/base/browser/ui/list/list';
 import { IDataSource, ITreeRenderer } from 'vs/base/browser/ui/tree/tree';
 import { CancellationToken } from 'vs/base/common/cancellation';
 import { Event } from 'vs/base/common/event';
@@ -37,7 +37,7 @@ export interface IOutlineCreator<P extends IEditorPane, E> {
 }
 
 export interface IBreadcrumbsDataSource<E> {
-	getBreadcrumbElements(element: E): Iterable<E>;
+	getBreadcrumbElements(): Iterable<E>;
 }
 
 export interface IQuickPickDataSource<E> {
@@ -51,7 +51,6 @@ export class OutlineTreeConfiguration<E> {
 		readonly treeDataSource: IDataSource<IOutline<E>, E>,
 		readonly delegate: IListVirtualDelegate<E>,
 		readonly renderers: ITreeRenderer<E, FuzzyScore, any>[],
-		readonly identityProvider: IIdentityProvider<E>,
 		readonly options: IWorkbenchDataTreeOptions<E, FuzzyScore>,
 	) { }
 }
@@ -63,10 +62,9 @@ export interface IOutline<E> {
 	readonly config: OutlineTreeConfiguration<E>
 
 	readonly onDidChange: Event<this>;
+	readonly onDidChangeActiveEntry: Event<this>
 
 	readonly isEmpty: boolean;
-	readonly activeEntry: E | undefined;
-	readonly onDidChangeActiveEntry: Event<this>
 
 	reveal(entry: E, options: IEditorOptions, sideBySide: boolean): Promise<void> | void;
 	preview(entry: E): IDisposable;

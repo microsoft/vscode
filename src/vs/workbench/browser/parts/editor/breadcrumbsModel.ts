@@ -103,12 +103,12 @@ export class BreadcrumbsModel {
 			return result;
 		}
 
-		const { activeEntry } = this._currentOutline;
-		if (activeEntry) {
-			for (let element of this._currentOutline.config.breadcrumbsDataSource.getBreadcrumbElements(activeEntry)) {
-				result.push(new OutlineElement2(element, this._currentOutline));
-			}
-		} else if (!this._currentOutline.isEmpty) {
+		let didAddOutlineElement = false;
+		for (let element of this._currentOutline.config.breadcrumbsDataSource.getBreadcrumbElements()) {
+			result.push(new OutlineElement2(element, this._currentOutline));
+			didAddOutlineElement = true;
+		}
+		if (!didAddOutlineElement && !this._currentOutline.isEmpty) {
 			result.push(new OutlineElement2(this._currentOutline, this._currentOutline));
 		}
 

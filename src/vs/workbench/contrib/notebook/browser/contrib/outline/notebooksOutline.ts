@@ -16,7 +16,7 @@ import { IWorkbenchContributionsRegistry, Extensions as WorkbenchExtensions } fr
 import { Registry } from 'vs/platform/registry/common/platform';
 import { LifecyclePhase } from 'vs/workbench/services/lifecycle/common/lifecycle';
 import { IEditorPane } from 'vs/workbench/common/editor';
-import { IListVirtualDelegate } from 'vs/base/browser/ui/list/list';
+import { IKeyboardNavigationLabelProvider, IListVirtualDelegate } from 'vs/base/browser/ui/list/list';
 import { ITreeNode, ITreeRenderer } from 'vs/base/browser/ui/tree/tree';
 import { FuzzyScore } from 'vs/base/common/filters';
 import { IconLabel } from 'vs/base/browser/ui/iconLabel/iconLabel';
@@ -72,6 +72,12 @@ class NotebookOutlineAccessibility implements IListAccessibilityProvider<Outline
 	}
 	getWidgetAriaLabel(): string {
 		return '';
+	}
+}
+
+class NotebookNavigationLabelProvider implements IKeyboardNavigationLabelProvider<OutlineEntry> {
+	getKeyboardNavigationLabel(element: OutlineEntry): { toString(): string | undefined; } | { toString(): string | undefined; }[] | undefined {
+		return element.label;
 	}
 }
 
@@ -132,17 +138,18 @@ class NotebookCellOutline implements IOutline<OutlineEntry> {
 		installSelectionListener();
 
 		this.config = new OutlineTreeConfiguration<OutlineEntry>(
-			{ getBreadcrumbElements: (element) => Iterable.single(element) },
+			{ getBreadcrumbElements: () => this._activeEntry ? Iterable.single(this._activeEntry) : Iterable.empty() },
 			{ getQuickPickElements: () => this._entries.map(entry => ({ element: entry, label: `$(${entry.icon.id}) ${entry.label}`, ariaLabel: entry.label })) },
 			{ getChildren: parent => parent === this ? this._entries : [] },
 			new NotebookOutlineVirtualDelegate(),
 			[new NotebookOutlineRenderer()],
-			{ getId: element => element.cell.handle },
 			{
 				collapseByDefault: true,
 				expandOnlyOnTwistieClick: true,
 				multipleSelectionSupport: false,
-				accessibilityProvider: new NotebookOutlineAccessibility()
+				accessibilityProvider: new NotebookOutlineAccessibility(),
+				identityProvider: { getId: element => element.cell.handle },
+				keyboardNavigationLabelProvider: new NotebookNavigationLabelProvider()
 			}
 		);
 	}
@@ -203,10 +210,6 @@ class NotebookCellOutline implements IOutline<OutlineEntry> {
 
 	get isEmpty(): boolean {
 		return this._entries.length === 0;
-	}
-
-	get activeEntry(): OutlineEntry | undefined {
-		return this._activeEntry;
 	}
 
 	async reveal(entry: OutlineEntry, options: IEditorOptions, sideBySide: boolean): Promise<void> {

@@ -64,10 +64,9 @@ class OutlineItem extends BreadcrumbsItem {
 		if (!(other instanceof OutlineItem)) {
 			return false;
 		}
-		return this.element.outline.config.identityProvider.getId(this.element.element) === other.element.outline.config.identityProvider.getId(other.element.element);
-		// return this.element === other.element &&
-		// 	this.options.showFileIcons === other.options.showFileIcons &&
-		// 	this.options.showSymbolIcons === other.options.showSymbolIcons;
+		return this.element === other.element &&
+			this.options.showFileIcons === other.options.showFileIcons &&
+			this.options.showSymbolIcons === other.options.showSymbolIcons;
 	}
 
 	render(container: HTMLElement): void {

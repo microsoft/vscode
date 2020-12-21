@@ -73,13 +73,13 @@ class DocumentSymbolsOutline implements IOutline<DocumentSymbolItem> {
 			},
 			new OutlineVirtualDelegate(),
 			[new OutlineGroupRenderer(), instantiationService.createInstance(OutlineElementRenderer)],
-			new OutlineIdentityProvider(),
 			{
 				collapseByDefault: true,
 				expandOnlyOnTwistieClick: true,
 				multipleSelectionSupport: false,
-				keyboardNavigationLabelProvider: new OutlineNavigationLabelProvider(),
 				accessibilityProvider: new OutlineAccessibilityProvider(target === OutlineTarget.Breadcrumbs ? 'breadcrumbs' : 'outline'),
+				identityProvider: new OutlineIdentityProvider(),
+				keyboardNavigationLabelProvider: new OutlineNavigationLabelProvider(),
 				filter: instantiationService.createInstance(OutlineFilter, target === OutlineTarget.Breadcrumbs ? 'breadcrumbs' : 'outline'),
 				sorter
 			}
@@ -146,11 +146,6 @@ class DocumentSymbolsOutline implements IOutline<DocumentSymbolItem> {
 
 	get isEmpty(): boolean {
 		return this._outlineElementChain.length === 0;
-	}
-
-	get activeEntry(): DocumentSymbolItem | undefined {
-		const candidate = this._outlineElementChain[this._outlineElementChain.length - 1];
-		return candidate instanceof OutlineModel ? undefined : candidate;
 	}
 
 	async reveal(entry: DocumentSymbolItem, options: IEditorOptions, sideBySide: boolean): Promise<void> {
