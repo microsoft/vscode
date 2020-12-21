@@ -6,7 +6,7 @@
 import * as dom from 'vs/base/browser/dom';
 import { Codicon } from 'vs/base/common/codicons';
 import { Emitter, Event } from 'vs/base/common/event';
-import { DisposableStore, MutableDisposable } from 'vs/base/common/lifecycle';
+import { combinedDisposable, DisposableStore, MutableDisposable } from 'vs/base/common/lifecycle';
 import { ThemeIcon } from 'vs/platform/theme/common/themeService';
 import { ICellViewModel } from 'vs/workbench/contrib/notebook/browser/notebookBrowser';
 import { NotebookEditor } from 'vs/workbench/contrib/notebook/browser/notebookEditor';
@@ -95,20 +95,28 @@ class NotebookCellOutline implements IOutline<OutlineEntry> {
 
 	private _activeEntry?: OutlineEntry;
 	private _entries: OutlineEntry[] = [];
+	private readonly _entriesDisposables = new DisposableStore();
 
 	readonly treeConfig: OutlineTreeConfiguration<OutlineEntry>;
 
 	constructor(
 		private readonly _editor: NotebookEditor
 	) {
-
-
 		const selectionListener = new MutableDisposable();
+		this._dispoables.add(selectionListener);
 		const installSelectionListener = () => {
-			selectionListener.value = _editor.viewModel?.onDidChangeSelection(() => this._computeActive());
+			if (!_editor.viewModel) {
+				selectionListener.clear();
+			} else {
+				selectionListener.value = combinedDisposable(
+					_editor.viewModel.onDidChangeSelection(() => this._computeActive()),
+					_editor.viewModel.onDidChangeViewCells(() => {
+						this._computeEntries();
+						this._computeActive();
+					}));
+			}
 		};
 
-		this._dispoables.add(selectionListener);
 		this._dispoables.add(_editor.onDidChangeModel(() => {
 			this._computeEntries();
 			this._computeActive();
@@ -133,7 +141,9 @@ class NotebookCellOutline implements IOutline<OutlineEntry> {
 		this._dispoables.dispose();
 	}
 
+	// TODO@jrieken recompute entries on demand, not eagerly
 	private _computeEntries(): void {
+		this._entriesDisposables.clear();
 		this._entries.length = 0;
 
 		const { viewModel } = this._editor;
@@ -156,6 +166,13 @@ class NotebookCellOutline implements IOutline<OutlineEntry> {
 					));
 				}
 			}
+
+			// send an event whenever any of the cells change
+			this._entriesDisposables.add(cell.model.onDidChangeContent(() => {
+				this._computeEntries();
+				this._computeActive();
+				this._onDidChange.fire(this);
+			}));
 		}
 		this._onDidChange.fire(this);
 	}
