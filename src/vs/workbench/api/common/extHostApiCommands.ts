@@ -275,9 +275,9 @@ const newCommands: ApiCommand[] = [
 	new ApiCommand(
 		'vscode.resolveNotebookContentProviders', '_resolveNotebookContentProvider', 'Resolve Notebook Content Providers',
 		[
-			new ApiCommandArgument<string, string>('viewType', '', v => typeof v === 'string', v => v),
-			new ApiCommandArgument<string, string>('displayName', '', v => typeof v === 'string', v => v),
-			new ApiCommandArgument<object, object>('options', '', v => typeof v === 'object', v => v),
+			// new ApiCommandArgument<string, string>('viewType', '', v => typeof v === 'string', v => v),
+			// new ApiCommandArgument<string, string>('displayName', '', v => typeof v === 'string', v => v),
+			// new ApiCommandArgument<object, object>('options', '', v => typeof v === 'object', v => v),
 		],
 		new ApiCommandResult<{
 			viewType: string;
