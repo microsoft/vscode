@@ -10,7 +10,6 @@ import { isWeb } from 'vs/base/common/platform';
 import { URI } from 'vs/base/common/uri';
 import * as UUID from 'vs/base/common/uuid';
 import { IOpenerService, matchesScheme } from 'vs/platform/opener/common/opener';
-import { CELL_OUTPUT_PADDING } from 'vs/workbench/contrib/notebook/browser/constants';
 import { ICommonCellInfo, ICommonNotebookEditor, IDisplayOutputLayoutUpdateRequest, IDisplayOutputViewModel, IGenericCellViewModel, IInsetRenderOutput, RenderOutputType } from 'vs/workbench/contrib/notebook/browser/notebookBrowser';
 import { CellOutputKind, IDisplayOutput, INotebookRendererInfo } from 'vs/workbench/contrib/notebook/common/notebookCommon';
 import { INotebookService } from 'vs/workbench/contrib/notebook/common/notebookService';
@@ -237,6 +236,10 @@ export class BackLayerWebView<T extends ICommonCellInfo> extends Disposable {
 		public notebookEditor: ICommonNotebookEditor,
 		public id: string,
 		public documentUri: URI,
+		public options: {
+			outputNodePadding: number,
+			outputNodeLeftPadding: number
+		},
 		@IWebviewService readonly webviewService: IWebviewService,
 		@IOpenerService readonly openerService: IOpenerService,
 		@INotebookService private readonly notebookService: INotebookService,
@@ -252,7 +255,7 @@ export class BackLayerWebView<T extends ICommonCellInfo> extends Disposable {
 		this.element.style.height = '1400px';
 		this.element.style.position = 'absolute';
 	}
-	generateContent(outputNodePadding: number, coreDependencies: string, baseUrl: string) {
+	generateContent(coreDependencies: string, baseUrl: string) {
 		return html`
 		<html lang="en">
 			<head>
@@ -261,7 +264,7 @@ export class BackLayerWebView<T extends ICommonCellInfo> extends Disposable {
 				<style>
 					#container > div > div {
 						width: 100%;
-						padding: ${outputNodePadding}px;
+						padding: ${this.options.outputNodePadding}px ${this.options.outputNodePadding}px ${this.options.outputNodePadding}px ${this.options.outputNodeLeftPadding}px;
 						box-sizing: border-box;
 						background-color: var(--vscode-notebook-outputContainerBackgroundColor);
 					}
@@ -328,7 +331,7 @@ export class BackLayerWebView<T extends ICommonCellInfo> extends Disposable {
 				</script>
 				${coreDependencies}
 				<div id='container' class="widgetarea" style="position: absolute;width:100%;top: 0px"></div>
-				<script>${preloadsScriptStr(outputNodePadding)}</script>
+				<script>${preloadsScriptStr(this.options.outputNodePadding, this.options.outputNodeLeftPadding)}</script>
 			</body>
 		</html>`;
 	}
@@ -371,7 +374,7 @@ export class BackLayerWebView<T extends ICommonCellInfo> extends Disposable {
 				return require;
 			}());
 			</script>`;
-			const htmlContent = this.generateContent(CELL_OUTPUT_PADDING, coreDependencies, baseUrl.toString());
+			const htmlContent = this.generateContent(coreDependencies, baseUrl.toString());
 			this._initialize(htmlContent);
 			resolveFunc!();
 		} else {
@@ -395,7 +398,7 @@ var requirejs = (function() {
 </script>
 `;
 
-				const htmlContent = this.generateContent(CELL_OUTPUT_PADDING, coreDependencies, baseUrl.toString());
+				const htmlContent = this.generateContent(coreDependencies, baseUrl.toString());
 				this._initialize(htmlContent);
 				resolveFunc!();
 			});

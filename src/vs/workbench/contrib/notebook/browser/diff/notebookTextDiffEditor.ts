@@ -42,6 +42,7 @@ import { generateUuid } from 'vs/base/common/uuid';
 import { IMouseWheelEvent, StandardMouseEvent } from 'vs/base/browser/mouseEvent';
 import { DiffNestedCellViewModel } from 'vs/workbench/contrib/notebook/browser/diff/diffNestedCellViewModel';
 import { BackLayerWebView } from 'vs/workbench/contrib/notebook/browser/view/renderers/backLayerWebView';
+import { CELL_OUTPUT_PADDING } from 'vs/workbench/contrib/notebook/browser/constants';
 
 const $ = DOM.$;
 
@@ -374,7 +375,7 @@ export class NotebookTextDiffEditor extends EditorPane implements INotebookTextD
 	}
 
 	private async _createModifiedWebview(id: string, resource: URI): Promise<void> {
-		this._modifiedWebview = this.instantiationService.createInstance(BackLayerWebView, this, id, resource) as BackLayerWebView<IDiffCellInfo>;
+		this._modifiedWebview = this.instantiationService.createInstance(BackLayerWebView, this, id, resource, { outputNodePadding: CELL_OUTPUT_PADDING, outputNodeLeftPadding: 24 }) as BackLayerWebView<IDiffCellInfo>;
 		// attach the webview container to the DOM tree first
 		this._list.rowsContainer.insertAdjacentElement('afterbegin', this._modifiedWebview.element);
 		await this._modifiedWebview.createWebview();
@@ -383,7 +384,7 @@ export class NotebookTextDiffEditor extends EditorPane implements INotebookTextD
 	}
 
 	private async _createOriginalWebview(id: string, resource: URI): Promise<void> {
-		this._originalWebview = this.instantiationService.createInstance(BackLayerWebView, this, id, resource) as BackLayerWebView<IDiffCellInfo>;
+		this._originalWebview = this.instantiationService.createInstance(BackLayerWebView, this, id, resource, { outputNodePadding: CELL_OUTPUT_PADDING, outputNodeLeftPadding: 24 }) as BackLayerWebView<IDiffCellInfo>;
 		// attach the webview container to the DOM tree first
 		this._list.rowsContainer.insertAdjacentElement('afterbegin', this._originalWebview.element);
 		await this._originalWebview.createWebview();
@@ -578,8 +579,19 @@ export class NotebookTextDiffEditor extends EditorPane implements INotebookTextD
 		return cellInfo.diffElement.getCellByUri(cellInfo.cellUri);
 	}
 
-	removeInset(cellDiffViewModel: DiffElementViewModelBase, cellViewModel: DiffNestedCellViewModel, output: IInsetRenderOutput) {
+	removeInset(cellDiffViewModel: DiffElementViewModelBase, cellViewModel: DiffNestedCellViewModel, displayOutput: IDisplayOutputViewModel, diffSide: DiffSide) {
+		this._insetModifyQueueByOutputId.queue(displayOutput.model.outputId + (diffSide === DiffSide.Modified ? '-right' : 'left'), async () => {
+			const activeWebview = diffSide === DiffSide.Modified ? this._modifiedWebview : this._originalWebview;
+			if (!activeWebview) {
+				return;
+			}
 
+			if (!activeWebview.insetMapping.has(displayOutput)) {
+				return;
+			}
+
+			activeWebview.removeInset(displayOutput);
+		});
 	}
 
 	showInset(cellDiffViewModel: DiffElementViewModelBase, cellViewModel: DiffNestedCellViewModel, displayOutput: IDisplayOutputViewModel, diffSide: DiffSide) {
@@ -778,6 +790,7 @@ registerThemingParticipant((theme, collector) => {
 		collector.addRule(
 			`
 			.monaco-workbench .notebook-text-diff-editor .cell-body.full .output-info-container.modified .output-view-container .output-view-container-right div.foreground { background-color: ${added}; }
+			.monaco-workbench .notebook-text-diff-editor .cell-body.right .output-info-container .output-view-container div.foreground { background-color: ${added}; }
 			`
 		);
 		collector.addRule(`
@@ -798,7 +811,6 @@ registerThemingParticipant((theme, collector) => {
 		);
 		collector.addRule(`
 			.notebook-text-diff-editor .cell-body .cell-diff-editor-container.inserted .output-editor-container { background-color: ${added}; }
-			.notebook-text-diff-editor .cell-body .cell-diff-editor-container.inserted .output-inner-container { background-color: ${added}; }
 			.notebook-text-diff-editor .cell-body .cell-diff-editor-container.inserted .output-editor-container .monaco-editor .margin,
 			.notebook-text-diff-editor .cell-body .cell-diff-editor-container.inserted .output-editor-container .monaco-editor .monaco-editor-background {
 					background-color: ${added};
@@ -816,6 +828,8 @@ registerThemingParticipant((theme, collector) => {
 		collector.addRule(
 			`
 			.monaco-workbench .notebook-text-diff-editor .cell-body.full .output-info-container.modified .output-view-container .output-view-container-left div.foreground { background-color: ${removed}; }
+			.monaco-workbench .notebook-text-diff-editor .cell-body.left .output-info-container .output-view-container div.foreground { background-color: ${removed}; }
+
 			`
 		);
 		collector.addRule(`

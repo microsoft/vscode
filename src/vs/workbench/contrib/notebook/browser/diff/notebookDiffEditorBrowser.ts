@@ -35,6 +35,7 @@ export interface INotebookTextDiffEditor extends ICommonNotebookEditor {
 	getOutputRenderer(): OutputRenderer;
 	createInset(cellDiffViewModel: DiffElementViewModelBase, cellViewModel: IDiffNestedCellViewModel, output: IInsetRenderOutput, getOffset: () => number, diffSide: DiffSide): void;
 	showInset(cellDiffViewModel: DiffElementViewModelBase, cellViewModel: IDiffNestedCellViewModel, displayOutput: IDisplayOutputViewModel, diffSide: DiffSide): void;
+	removeInset(cellDiffViewModel: DiffElementViewModelBase, cellViewModel: IDiffNestedCellViewModel, output: IDisplayOutputViewModel, diffSide: DiffSide): void;
 	hideInset(cellDiffViewModel: DiffElementViewModelBase, cellViewModel: IDiffNestedCellViewModel, output: IDisplayOutputViewModel): void;
 	/**
 	 * Trigger the editor to scroll from scroll event programmatically

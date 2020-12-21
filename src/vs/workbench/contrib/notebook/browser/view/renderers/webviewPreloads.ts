@@ -33,6 +33,7 @@ declare class ResizeObserver {
 }
 
 declare const __outputNodePadding__: number;
+declare const __outputNodeLeftPadding__: number;
 
 type Listener<T> = { fn: (evt: T) => void; thisArg: unknown; };
 
@@ -145,7 +146,7 @@ function webviewPreloads() {
 
 				if (entry.target.id === id && entry.contentRect) {
 					if (entry.contentRect.height !== 0) {
-						entry.target.style.padding = `${__outputNodePadding__}px`;
+						entry.target.style.padding = `${__outputNodePadding__}px ${__outputNodePadding__}px ${__outputNodePadding__}px ${__outputNodeLeftPadding__}px`;
 						vscode.postMessage({
 							__vscode_notebook_message: true,
 							type: 'dimension',
@@ -591,4 +592,4 @@ function webviewPreloads() {
 	});
 }
 
-export const preloadsScriptStr = (outputNodePadding: number) => `(${webviewPreloads})()`.replace(/__outputNodePadding__/g, `${outputNodePadding}`);
+export const preloadsScriptStr = (outputNodePadding: number, outputNodeLeftPadding: number) => `(${webviewPreloads})()`.replace(/__outputNodePadding__/g, `${outputNodePadding}`).replace(/__outputNodeLeftPadding__/g, `${outputNodeLeftPadding}`);
