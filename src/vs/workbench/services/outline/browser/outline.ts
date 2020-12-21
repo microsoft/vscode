@@ -45,7 +45,7 @@ export class OutlineTreeConfiguration<E> {
 		readonly treeDataSource: IDataSource<IOutline<E>, E>,
 		readonly delegate: IListVirtualDelegate<E>,
 		readonly renderers: ITreeRenderer<E, FuzzyScore, any>[],
-		readonly identProvider: IIdentityProvider<E>,
+		readonly identityProvider: IIdentityProvider<E>,
 		readonly options: IWorkbenchDataTreeOptions<E, FuzzyScore>,
 	) { }
 }
@@ -54,7 +54,7 @@ export interface IOutline<E> {
 
 	dispose(): void;
 
-	readonly treeConfig: OutlineTreeConfiguration<E>
+	readonly config: OutlineTreeConfiguration<E>
 
 	readonly onDidChange: Event<this>;
 
@@ -62,6 +62,6 @@ export interface IOutline<E> {
 	readonly activeEntry: E | undefined;
 	readonly onDidChangeActiveEntry: Event<this>
 
-	revealInEditor(entry: E, options: IEditorOptions, sideBySide: boolean): Promise<void> | void;
-	previewInEditor(entry: E): IDisposable;
+	reveal(entry: E, options: IEditorOptions, sideBySide: boolean): Promise<void> | void;
+	preview(entry: E): IDisposable;
 }

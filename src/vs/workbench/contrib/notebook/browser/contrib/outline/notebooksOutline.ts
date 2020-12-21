@@ -100,7 +100,7 @@ class NotebookCellOutline implements IOutline<OutlineEntry> {
 	private _entries: OutlineEntry[] = [];
 	private readonly _entriesDisposables = new DisposableStore();
 
-	readonly treeConfig: OutlineTreeConfiguration<OutlineEntry>;
+	readonly config: OutlineTreeConfiguration<OutlineEntry>;
 
 	constructor(
 		private readonly _editor: NotebookEditor,
@@ -131,7 +131,7 @@ class NotebookCellOutline implements IOutline<OutlineEntry> {
 		this._computeActive();
 		installSelectionListener();
 
-		this.treeConfig = new OutlineTreeConfiguration<OutlineEntry>(
+		this.config = new OutlineTreeConfiguration<OutlineEntry>(
 			{ getBreadcrumbElements: (element) => Iterable.single(element) },
 			{ getQuickPickElements: () => this._entries.map(entry => ({ element: entry, label: `$(${entry.icon.id}) ${entry.label}`, ariaLabel: entry.label })) },
 			{ getChildren: parent => parent === this ? this._entries : [] },
@@ -209,14 +209,7 @@ class NotebookCellOutline implements IOutline<OutlineEntry> {
 		return this._activeEntry;
 	}
 
-	async revealInEditor(entry: OutlineEntry, options: IEditorOptions, sideBySide: boolean): Promise<void> {
-		//todo@jrieken focus cell
-		// const widget = this._editor.getControl();
-		// if (widget) {
-		// 	widget.revealInCenterIfOutsideViewport(entry.cell);
-		// 	widget.selectElement(entry.cell);
-		// 	widget.focusNotebookCell(entry.cell, entry.cell.cellKind === CellKind.Markdown ? 'container' : 'editor');
-		// }
+	async reveal(entry: OutlineEntry, options: IEditorOptions, sideBySide: boolean): Promise<void> {
 
 		await this._editorService.openEditor({
 			resource: entry.cell.uri,
@@ -224,7 +217,7 @@ class NotebookCellOutline implements IOutline<OutlineEntry> {
 		}, sideBySide ? SIDE_GROUP : undefined);
 	}
 
-	previewInEditor(entry: OutlineEntry): IDisposable {
+	preview(entry: OutlineEntry): IDisposable {
 		const widget = this._editor.getControl();
 		if (!widget) {
 			return Disposable.None;

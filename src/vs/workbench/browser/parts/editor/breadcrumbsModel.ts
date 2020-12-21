@@ -105,7 +105,7 @@ export class BreadcrumbsModel {
 
 		const { activeEntry } = this._currentOutline;
 		if (activeEntry) {
-			for (let element of this._currentOutline.treeConfig.breadcrumbsDataSource.getBreadcrumbElements(activeEntry)) {
+			for (let element of this._currentOutline.config.breadcrumbsDataSource.getBreadcrumbElements(activeEntry)) {
 				result.push(new OutlineElement2(element, this._currentOutline));
 			}
 		} else if (!this._currentOutline.isEmpty) {

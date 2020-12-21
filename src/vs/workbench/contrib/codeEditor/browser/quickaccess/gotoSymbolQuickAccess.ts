@@ -150,7 +150,7 @@ export class GotoSymbolQuickAccessProvider extends AbstractGotoSymbolQuickAccess
 
 			disposables.add(outline);
 
-			const entries = Array.from(outline.treeConfig.quickPickDataSource.getQuickPickElements());
+			const entries = Array.from(outline.config.quickPickDataSource.getQuickPickElements());
 
 			const items: IGotoSymbolQuickPickItem[] = entries.map((entry, idx) => {
 				return {
@@ -167,7 +167,7 @@ export class GotoSymbolQuickAccessProvider extends AbstractGotoSymbolQuickAccess
 				picker.hide();
 				const [entry] = picker.selectedItems;
 				if (entry && entries[entry.index]) {
-					outline.revealInEditor(entries[entry.index].element, {}, false);
+					outline.reveal(entries[entry.index].element, {}, false);
 				}
 			}));
 
@@ -204,7 +204,7 @@ export class GotoSymbolQuickAccessProvider extends AbstractGotoSymbolQuickAccess
 			disposables.add(picker.onDidChangeActive(() => {
 				const [entry] = picker.activeItems;
 				if (entry && entries[entry.index]) {
-					previewDisposable.value = outline.previewInEditor(entries[entry.index].element);
+					previewDisposable.value = outline.preview(entries[entry.index].element);
 				} else {
 					previewDisposable.clear();
 				}

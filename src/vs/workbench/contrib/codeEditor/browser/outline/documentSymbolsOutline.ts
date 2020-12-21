@@ -46,7 +46,7 @@ class DocumentSymbolsOutline implements IOutline<DocumentSymbolItem> {
 	private _outlineElementChain: Array<OutlineModel | OutlineGroup | OutlineElement> = [];
 	private _outlineDisposables = new DisposableStore();
 
-	readonly treeConfig: OutlineTreeConfiguration<DocumentSymbolItem>;
+	readonly config: OutlineTreeConfiguration<DocumentSymbolItem>;
 
 	constructor(
 		private readonly _editor: ICodeEditor,
@@ -56,7 +56,7 @@ class DocumentSymbolsOutline implements IOutline<DocumentSymbolItem> {
 		@IInstantiationService instantiationService: IInstantiationService,
 	) {
 
-		this.treeConfig = new OutlineTreeConfiguration(
+		this.config = new OutlineTreeConfiguration(
 			{
 				getBreadcrumbElements: () => <DocumentSymbolItem[]>this._outlineElementChain.filter(element => !(element instanceof OutlineModel))
 			},
@@ -139,7 +139,7 @@ class DocumentSymbolsOutline implements IOutline<DocumentSymbolItem> {
 		return candidate instanceof OutlineModel ? undefined : candidate;
 	}
 
-	async revealInEditor(entry: DocumentSymbolItem, options: IEditorOptions, sideBySide: boolean): Promise<void> {
+	async reveal(entry: DocumentSymbolItem, options: IEditorOptions, sideBySide: boolean): Promise<void> {
 		if (entry instanceof OutlineElement) {
 			const position = Range.getStartPosition(entry.symbol.selectionRange);
 			this._editor.revealPositionInCenterIfOutsideViewport(position, ScrollType.Immediate);
@@ -161,7 +161,7 @@ class DocumentSymbolsOutline implements IOutline<DocumentSymbolItem> {
 		}, this._editor, sideBySide);
 	}
 
-	previewInEditor(entry: DocumentSymbolItem): IDisposable {
+	preview(entry: DocumentSymbolItem): IDisposable {
 		if (!(entry instanceof OutlineElement)) {
 			return Disposable.None;
 		}

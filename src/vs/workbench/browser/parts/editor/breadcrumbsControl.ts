@@ -64,9 +64,10 @@ class OutlineItem extends BreadcrumbsItem {
 		if (!(other instanceof OutlineItem)) {
 			return false;
 		}
-		return this.element === other.element &&
-			this.options.showFileIcons === other.options.showFileIcons &&
-			this.options.showSymbolIcons === other.options.showSymbolIcons;
+		return this.element.outline.config.identityProvider.getId(this.element.element) === other.element.outline.config.identityProvider.getId(other.element.element);
+		// return this.element === other.element &&
+		// 	this.options.showFileIcons === other.options.showFileIcons &&
+		// 	this.options.showSymbolIcons === other.options.showSymbolIcons;
 	}
 
 	render(container: HTMLElement): void {
@@ -78,8 +79,8 @@ class OutlineItem extends BreadcrumbsItem {
 			return;
 		}
 
-		const templateId = outline.treeConfig.delegate.getTemplateId(element);
-		const renderer = outline.treeConfig.renderers.find(renderer => renderer.templateId === templateId);
+		const templateId = outline.config.delegate.getTemplateId(element);
+		const renderer = outline.config.renderers.find(renderer => renderer.templateId === templateId);
 		if (!renderer) {
 			container.innerText = '<<NO RENDERER>>';
 			return;
@@ -477,7 +478,7 @@ export class BreadcrumbsControl {
 				this._widget.setSelection(items[idx + 1], BreadcrumbsControl.Payload_Pick);
 			}
 		} else {
-			element.outline.revealInEditor(element, { pinned }, group === SIDE_GROUP);
+			element.outline.reveal(element, { pinned }, group === SIDE_GROUP);
 		}
 	}
 

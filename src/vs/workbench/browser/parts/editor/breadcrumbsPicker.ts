@@ -470,23 +470,23 @@ export class BreadcrumbsOutlinePicker extends BreadcrumbsPicker {
 
 	protected _createTree(container: HTMLElement, input: OutlineElement2) {
 
-		const { treeConfig } = input.outline;
+		const { config } = input.outline;
 
 		return <WorkbenchDataTree<IOutline<any>, any, FuzzyScore>>this._instantiationService.createInstance(
 			WorkbenchDataTree,
 			'BreadcrumbsOutlinePicker',
 			container,
-			treeConfig.delegate,
-			treeConfig.renderers,
-			treeConfig.treeDataSource,
+			config.delegate,
+			config.renderers,
+			config.treeDataSource,
 			{
 				collapseByDefault: true,
 				expandOnlyOnTwistieClick: true,
 				multipleSelectionSupport: false,
 				sorter: this._outlineComparator,
-				identityProvider: treeConfig.identProvider,
+				identityProvider: config.identityProvider,
 				keyboardNavigationLabelProvider: new OutlineNavigationLabelProvider(),
-				accessibilityProvider: treeConfig.options.accessibilityProvider,
+				accessibilityProvider: config.options.accessibilityProvider,
 				filter: this._instantiationService.createInstance(OutlineFilter, 'breadcrumbs')
 			}
 		);
@@ -521,12 +521,12 @@ export class BreadcrumbsOutlinePicker extends BreadcrumbsPicker {
 
 	protected _previewElement(element: any): IDisposable {
 		const outline: IOutline<any> = this._tree.getInput();
-		return outline.previewInEditor(element);
+		return outline.preview(element);
 	}
 
 	async _revealElement(element: any, options: IEditorOptions, sideBySide: boolean): Promise<boolean> {
 		const outline: IOutline<any> = this._tree.getInput();
-		await outline.revealInEditor(element, options, sideBySide);
+		await outline.reveal(element, options, sideBySide);
 		return true;
 	}
 
