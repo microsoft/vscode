@@ -3,11 +3,12 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
+import 'vs/css!./notebookOutline';
 import * as dom from 'vs/base/browser/dom';
 import { Codicon } from 'vs/base/common/codicons';
 import { Emitter, Event } from 'vs/base/common/event';
 import { combinedDisposable, IDisposable, Disposable, DisposableStore, MutableDisposable, toDisposable } from 'vs/base/common/lifecycle';
-import { ThemeIcon } from 'vs/platform/theme/common/themeService';
+import { IThemeService, ThemeIcon } from 'vs/platform/theme/common/themeService';
 import { ICellViewModel } from 'vs/workbench/contrib/notebook/browser/notebookBrowser';
 import { NotebookEditor } from 'vs/workbench/contrib/notebook/browser/notebookEditor';
 import { CellKind } from 'vs/workbench/contrib/notebook/common/notebookCommon';
@@ -25,6 +26,7 @@ import { Iterable } from 'vs/base/common/iterator';
 import { IEditorOptions } from 'vs/platform/editor/common/editor';
 import { IEditorService, SIDE_GROUP } from 'vs/workbench/services/editor/common/editorService';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
+import { getIconClassesForModeId } from 'vs/editor/common/services/getIconClasses';
 
 export class OutlineEntry {
 	constructor(
@@ -48,17 +50,24 @@ class NotebookOutlineRenderer implements ITreeRenderer<OutlineEntry, FuzzyScore,
 
 	templateId: string = NotebookOutlineTemplate.templateId;
 
+	constructor(@IThemeService private readonly _themeService: IThemeService) { }
+
 	renderTemplate(container: HTMLElement): NotebookOutlineTemplate {
-		container.classList.add('outline-element');
-		const iconClass = dom.$('.outline-element-icon');
+		container.classList.add('notebook-outline-element', 'show-file-icons');
+		const iconClass = dom.$('.element-icon');
 		container.append(iconClass);
 		const iconLabel = new IconLabel(container, { supportHighlights: true });
 		return new NotebookOutlineTemplate(iconLabel, iconClass);
 	}
 
 	renderElement(element: ITreeNode<OutlineEntry, FuzzyScore>, _index: number, templateData: NotebookOutlineTemplate, _height: number | undefined): void {
-		templateData.iconClass.classList.add(...ThemeIcon.asClassNameArray(element.element.icon));
 		templateData.iconLabel.setLabel(element.element.label, undefined, { matches: createMatches(element.filterData) });
+		if (this._themeService.getFileIconTheme().hasFileIcons) {
+			templateData.iconClass.classList.add(...getIconClassesForModeId(element.element.cell.language));
+		} else {
+			templateData.iconClass.classList.add(...ThemeIcon.asClassNameArray(element.element.icon));
+		}
+
 	}
 
 	disposeTemplate(templateData: NotebookOutlineTemplate): void {
@@ -107,6 +116,7 @@ class NotebookCellOutline implements IOutline<OutlineEntry> {
 
 	constructor(
 		private readonly _editor: NotebookEditor,
+		@IInstantiationService instantiationService: IInstantiationService,
 		@IEditorService private readonly _editorService: IEditorService,
 	) {
 		const selectionListener = new MutableDisposable();
@@ -136,7 +146,7 @@ class NotebookCellOutline implements IOutline<OutlineEntry> {
 			{ getQuickPickElements: () => this._entries.map(entry => ({ element: entry, label: `$(${entry.icon.id}) ${entry.label}`, ariaLabel: entry.label })) },
 			{ getChildren: parent => parent === this ? this._entries : [] },
 			new NotebookOutlineVirtualDelegate(),
-			[new NotebookOutlineRenderer()],
+			[instantiationService.createInstance(NotebookOutlineRenderer)],
 			{
 				collapseByDefault: true,
 				expandOnlyOnTwistieClick: true,
