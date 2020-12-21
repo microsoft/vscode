@@ -120,7 +120,8 @@ function _createExtHostProtocol(): Promise<PersistentProtocol> {
 					if (msg.skipWebSocketFrames) {
 						socket = new NodeSocket(handle);
 					} else {
-						socket = new WebSocketNodeSocket(new NodeSocket(handle));
+						const inflateBytes = VSBuffer.wrap(Buffer.from(msg.inflateBytes, 'base64'));
+						socket = new WebSocketNodeSocket(new NodeSocket(handle), msg.permessageDeflate, inflateBytes, false);
 					}
 					if (protocol) {
 						// reconnection case
