@@ -123,6 +123,8 @@ export class OutlinePane extends ViewPane {
 			if (!visible) {
 				// stop everything when not visible
 				this._editorListener.clear();
+				this._editorDisposables.clear();
+
 			} else if (!this._editorListener.value) {
 				this._editorListener.value = Event.any(this._editorService.onDidActiveEditorChange, this._outlineService.onDidChange)(() => {
 					this._handleEditorChanged(this._editorService.activeEditorPane);
@@ -201,6 +203,7 @@ export class OutlinePane extends ViewPane {
 			return;
 		}
 
+		this._editorDisposables.add(newOutline);
 		this._progressBar.stop().hide();
 
 		const tree = <WorkbenchDataTree<IOutline<any>, any, FuzzyScore>>this._instantiationService.createInstance(
