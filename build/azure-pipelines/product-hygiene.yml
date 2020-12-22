@@ -45,6 +45,13 @@ steps:
       cacheHitVar: NODE_MODULES_RESTORED
     displayName: Cache yarn download folder
 
+  - script: |
+      set -e
+      tar --use-compress-program zstd -d -xf .build/node_modules_cache/cache.tzst -P -C $BUILD_SOURCESDIRECTORY
+      ls -al build/node_modules
+    condition: and(succeeded(), eq(variables.NODE_MODULES_RESTORED, 'true'))
+
+
   # - task: 1ESLighthouseEng.PipelineArtifactCaching.RestoreCacheV1.RestoreCache@1
   #   inputs:
   #     keyfile: ".build/arch, .build/terrapin, build/.cachesalt, .yarnrc, remote/.yarnrc, **/yarn.lock, !**/node_modules/**/yarn.lock, !**/.*/**/yarn.lock"
