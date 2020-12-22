@@ -9,7 +9,7 @@ import {
 	commands, Event, EventEmitter, ExtensionContext,
 	Range,
 	Selection, Task,
-	TaskGroup, tasks, TextDocument, TextDocumentShowOptions, ThemeIcon, TreeDataProvider, TreeItem, TreeItemCollapsibleState, Uri,
+	TaskGroup, tasks, TextDocument, TextDocumentShowOptions, ThemeIcon, TreeDataProvider, TreeItem, TreeItemLabel, TreeItemCollapsibleState, Uri,
 	window, workspace, WorkspaceFolder
 } from 'vscode';
 import * as nls from 'vscode-nls';
@@ -126,8 +126,10 @@ class NoScripts extends TreeItem {
 	}
 }
 
+type TaskTree = Folder[] | PackageJSON[] | NoScripts[];
+
 export class NpmScriptsTreeDataProvider implements TreeDataProvider<TreeItem> {
-	private taskTree: Folder[] | PackageJSON[] | NoScripts[] | null = null;
+	private taskTree: TaskTree | null = null;
 	private extensionContext: ExtensionContext;
 	private _onDidChangeTreeData: EventEmitter<TreeItem | null> = new EventEmitter<TreeItem | null>();
 	readonly onDidChangeTreeData: Event<TreeItem | null> = this._onDidChangeTreeData.event;
@@ -241,7 +243,8 @@ export class NpmScriptsTreeDataProvider implements TreeDataProvider<TreeItem> {
 		if (!this.taskTree) {
 			const taskItems = await this.taskProvider.tasksWithLocation;
 			if (taskItems) {
-				this.taskTree = this.buildTaskTree(taskItems);
+				const taskTree = this.buildTaskTree(taskItems);
+				this.taskTree = this.sortTaskTree(taskTree);
 				if (this.taskTree.length === 0) {
 					let message = localize('noScripts', 'No scripts found.');
 					if (!isAutoDetectionEnabled()) {
@@ -276,7 +279,27 @@ export class NpmScriptsTreeDataProvider implements TreeDataProvider<TreeItem> {
 		return fullName === task.name;
 	}
 
-	private buildTaskTree(tasks: TaskWithLocation[]): Folder[] | PackageJSON[] | NoScripts[] {
+	private getTaskTreeItemLabel(taskTreeLabel: string | TreeItemLabel | undefined): string {
+		if (taskTreeLabel === undefined) {
+			return '';
+		}
+
+		if (typeof taskTreeLabel === 'string') {
+			return taskTreeLabel;
+		}
+
+		return taskTreeLabel.label;
+	}
+
+	private sortTaskTree(taskTree: TaskTree) {
+		return taskTree.sort((first: TreeItem, second: TreeItem) => {
+			const firstLabel = this.getTaskTreeItemLabel(first.label);
+			const secondLabel = this.getTaskTreeItemLabel(second.label);
+			return firstLabel.localeCompare(secondLabel);
+		});
+	}
+
+	private buildTaskTree(tasks: TaskWithLocation[]): TaskTree {
 		let folders: Map<String, Folder> = new Map();
 		let packages: Map<String, PackageJSON> = new Map();
 
