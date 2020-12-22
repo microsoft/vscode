@@ -47,7 +47,7 @@ steps:
 
   - script: |
       set -e
-      tar --use-compress-program zstd -xf .build/node_modules_cache/cache.tzst -C $BUILD_SOURCESDIRECTORY
+      tar --verbose --use-compress-program zstd -xf .build/node_modules_cache/cache.tzst -C $BUILD_SOURCESDIRECTORY
       ls -al build/node_modules
     condition: and(succeeded(), eq(variables.NODE_MODULES_RESTORED, 'true'))
 
