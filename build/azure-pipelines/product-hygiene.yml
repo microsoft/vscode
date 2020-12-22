@@ -67,31 +67,32 @@ steps:
       cat .build/node_modules_list.txt
       mkdir -p .build/node_modules_cache
       tar --posix --use-compress-program zstd -cf .build/node_modules_cache/cache.tzst -P -C $BUILD_SOURCESDIRECTORY --verbatim-files-from .build/node_modules_list.txt
+      ls -al .build/node_modules_cache
     condition: and(succeeded(), ne(variables.NODE_MODULES_RESTORED, 'true'))
 
-  # Mixin must run before optimize, because the CSS loader will inline small SVGs
-  - script: |
-      set -e
-      node build/azure-pipelines/mixin
-    displayName: Mix in quality
+  # # Mixin must run before optimize, because the CSS loader will inline small SVGs
+  # - script: |
+  #     set -e
+  #     node build/azure-pipelines/mixin
+  #   displayName: Mix in quality
 
-  - script: |
-      set -e
-      yarn gulp hygiene
-    # yarn monaco-compile-check
-    # yarn valid-layers-check
-    displayName: Run hygiene, monaco compile & valid layers checks
-    condition: and(succeeded(), eq(variables['VSCODE_STEP_ON_IT'], 'false'))
+  # - script: |
+  #     set -e
+  #     yarn gulp hygiene
+  #   # yarn monaco-compile-check
+  #   # yarn valid-layers-check
+  #   displayName: Run hygiene, monaco compile & valid layers checks
+  #   condition: and(succeeded(), eq(variables['VSCODE_STEP_ON_IT'], 'false'))
 
-  - script: |
-      set -
-      ./build/azure-pipelines/common/extract-telemetry.sh
-    displayName: Extract Telemetry
-    condition: and(succeeded(), ne(variables['VSCODE_PUBLISH'], 'false'))
+  # - script: |
+  #     set -
+  #     ./build/azure-pipelines/common/extract-telemetry.sh
+  #   displayName: Extract Telemetry
+  #   condition: and(succeeded(), ne(variables['VSCODE_PUBLISH'], 'false'))
 
-  - script: |
-      set -e
-      AZURE_WEBVIEW_STORAGE_ACCESS_KEY="$(vscode-webview-storage-key)" \
-      ./build/azure-pipelines/common/publish-webview.sh
-    displayName: Publish Webview
-    condition: and(succeeded(), ne(variables['VSCODE_PUBLISH'], 'false'))
+  # - script: |
+  #     set -e
+  #     AZURE_WEBVIEW_STORAGE_ACCESS_KEY="$(vscode-webview-storage-key)" \
+  #     ./build/azure-pipelines/common/publish-webview.sh
+  #   displayName: Publish Webview
+  #   condition: and(succeeded(), ne(variables['VSCODE_PUBLISH'], 'false'))
