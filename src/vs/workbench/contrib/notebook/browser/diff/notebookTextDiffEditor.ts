@@ -375,7 +375,7 @@ export class NotebookTextDiffEditor extends EditorPane implements INotebookTextD
 	}
 
 	private async _createModifiedWebview(id: string, resource: URI): Promise<void> {
-		this._modifiedWebview = this.instantiationService.createInstance(BackLayerWebView, this, id, resource, { outputNodePadding: CELL_OUTPUT_PADDING, outputNodeLeftPadding: 24 }) as BackLayerWebView<IDiffCellInfo>;
+		this._modifiedWebview = this.instantiationService.createInstance(BackLayerWebView, this, id, resource, { outputNodePadding: CELL_OUTPUT_PADDING, outputNodeLeftPadding: 32 }) as BackLayerWebView<IDiffCellInfo>;
 		// attach the webview container to the DOM tree first
 		this._list.rowsContainer.insertAdjacentElement('afterbegin', this._modifiedWebview.element);
 		await this._modifiedWebview.createWebview();
@@ -384,7 +384,7 @@ export class NotebookTextDiffEditor extends EditorPane implements INotebookTextD
 	}
 
 	private async _createOriginalWebview(id: string, resource: URI): Promise<void> {
-		this._originalWebview = this.instantiationService.createInstance(BackLayerWebView, this, id, resource, { outputNodePadding: CELL_OUTPUT_PADDING, outputNodeLeftPadding: 24 }) as BackLayerWebView<IDiffCellInfo>;
+		this._originalWebview = this.instantiationService.createInstance(BackLayerWebView, this, id, resource, { outputNodePadding: CELL_OUTPUT_PADDING, outputNodeLeftPadding: 32 }) as BackLayerWebView<IDiffCellInfo>;
 		// attach the webview container to the DOM tree first
 		this._list.rowsContainer.insertAdjacentElement('afterbegin', this._originalWebview.element);
 		await this._originalWebview.createWebview();

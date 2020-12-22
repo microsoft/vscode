@@ -178,16 +178,16 @@
 }
 
 .monaco-workbench .notebook-text-diff-editor .cell-body.left .output-view-container .output-inner-container {
-	padding: 0px 8px 0px 24px;
+	padding: 0px 8px 0px 32px;
 }
 
 .monaco-workbench .notebook-text-diff-editor .cell-body.right .output-view-container .output-inner-container {
-	padding: 0px 8px 0px 24px;
+	padding: 0px 8px 0px 32px;
 }
 
 .monaco-workbench .notebook-text-diff-editor .cell-body.full .output-view-container .output-inner-container {
 	width: 100%;
-	padding: 4px 8px 4px 24px;
+	padding: 4px 8px 4px 32px;
 	box-sizing: border-box;
 	overflow-x: hidden;
 }
@@ -246,9 +246,9 @@
 .monaco-workbench .notebook-text-diff-editor .output-view-container .multi-mimetype-output {
 	position: absolute;
 	/* top: 4px; */
-	left: 0px;
+	left: 8px;
 	width: 16px;
 	height: 16px;
 	cursor: pointer;
-	padding: 4px;
+	padding: 2px 4px 4px 2px;
 }
