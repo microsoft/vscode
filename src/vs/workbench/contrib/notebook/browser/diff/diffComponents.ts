@@ -567,6 +567,12 @@ abstract class AbstractElementRenderer extends Disposable {
 			const originalOutputsSource = this._getFormatedOutputJSON(this.cell.original?.outputs || []);
 			const modifiedOutputsSource = this._getFormatedOutputJSON(this.cell.modified?.outputs || []);
 			if (originalOutputsSource !== modifiedOutputsSource) {
+				const mode = this.modeService.create('json');
+				const originalModel = this.modelService.createModel(originalOutputsSource, mode, undefined, true);
+				const modifiedModel = this.modelService.createModel(modifiedOutputsSource, mode, undefined, true);
+
+				const lineHeight = this.notebookEditor.getLayoutInfo().fontInfo.lineHeight || 17;
+				const lineCount = Math.max(originalModel.getLineCount(), modifiedModel.getLineCount());
 				this._outputEditor = this.instantiationService.createInstance(DiffEditorWidget, this._outputEditorContainer!, {
 					...fixedDiffEditorOptions,
 					overflowWidgetsDomNode: this.notebookEditor.getOverflowContainerDomNode(),
@@ -574,7 +580,7 @@ abstract class AbstractElementRenderer extends Disposable {
 					ignoreTrimWhitespace: false,
 					automaticLayout: false,
 					dimension: {
-						height: this.cell.layoutInfo.rawOutputHeight,
+						height: this.cell.layoutInfo.rawOutputHeight || lineHeight * lineCount,
 						width: this.cell.getComputedCellContainerWidth(this.notebookEditor.getLayoutInfo(), false, true)
 					}
 				}, {
@@ -585,9 +591,6 @@ abstract class AbstractElementRenderer extends Disposable {
 
 				this._outputEditorContainer?.classList.add('diff');
 
-				const mode = this.modeService.create('json');
-				const originalModel = this.modelService.createModel(originalOutputsSource, mode, undefined, true);
-				const modifiedModel = this.modelService.createModel(modifiedOutputsSource, mode, undefined, true);
 				this._outputEditor.setModel({
 					original: originalModel,
 					modified: modifiedModel
