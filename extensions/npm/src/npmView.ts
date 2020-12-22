@@ -280,7 +280,7 @@ export class NpmScriptsTreeDataProvider implements TreeDataProvider<TreeItem> {
 	}
 
 	private getTaskTreeItemLabel(taskTreeLabel: string | TreeItemLabel | undefined): string {
-		if (typeof taskTreeLabel === 'undefined') {
+		if (taskTreeLabel === undefined) {
 			return '';
 		}
 
