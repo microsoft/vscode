@@ -463,7 +463,6 @@ export class BreadcrumbsOutlinePicker extends BreadcrumbsPicker {
 			config.treeDataSource,
 			{
 				...config.options,
-				identityProvider: config.identityProvider,
 				collapseByDefault: true,
 				expandOnlyOnTwistieClick: true,
 				multipleSelectionSupport: false,
