@@ -930,8 +930,8 @@ export class DiffEditorWidget extends Disposable implements editorBrowser.IDiffE
 		};
 	}
 
-	public restoreViewState(s: editorCommon.IDiffEditorViewState): void {
-		if (s.original && s.modified) {
+	public restoreViewState(s: editorCommon.IDiffEditorViewState | null): void {
+		if (s && s.original && s.modified) {
 			const diffEditorState = <editorCommon.IDiffEditorViewState>s;
 			this._originalEditor.restoreViewState(diffEditorState.original);
 			this._modifiedEditor.restoreViewState(diffEditorState.modified);
