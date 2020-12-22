@@ -14,10 +14,18 @@ function findNodeModulesFiles(location: string, inNodeModules: boolean, result: 
 	const entries = fs.readdirSync(path.join(ROOT, location));
 	for (const entry of entries) {
 		const entryPath = `${location}/${entry}`;
+
 		if (/(^\/out)|(^\/src$)|(^\/.git$)|(^\/.build$)/.test(entryPath)) {
 			continue;
 		}
-		const stat = fs.statSync(path.join(ROOT, entryPath));
+
+		let stat: fs.Stats;
+		try {
+			stat = fs.statSync(path.join(ROOT, entryPath));
+		} catch (err) {
+			continue;
+		}
+
 		if (stat.isDirectory()) {
 			findNodeModulesFiles(entryPath, inNodeModules || (entry === 'node_modules'), result);
 		} else {

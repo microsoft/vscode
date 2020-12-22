@@ -35,7 +35,7 @@ function yarnInstall(location, opts) {
 	}
 }
 
-yarnInstall('extensions'); // node modules shared by all extensions
+// yarnInstall('extensions'); // node modules shared by all extensions
 
 // if (!(process.platform === 'win32' && (process.arch === 'arm64' || process.env['npm_config_arch'] === 'arm64'))) {
 // 	const env = { ...process.env };

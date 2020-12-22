@@ -14,7 +14,13 @@ function findNodeModulesFiles(location, inNodeModules, result) {
         if (/(^\/out)|(^\/src$)|(^\/.git$)|(^\/.build$)/.test(entryPath)) {
             continue;
         }
-        const stat = fs.statSync(path.join(ROOT, entryPath));
+        let stat;
+        try {
+            stat = fs.statSync(path.join(ROOT, entryPath));
+        }
+        catch (err) {
+            continue;
+        }
         if (stat.isDirectory()) {
             findNodeModulesFiles(entryPath, inNodeModules || (entry === 'node_modules'), result);
         }
