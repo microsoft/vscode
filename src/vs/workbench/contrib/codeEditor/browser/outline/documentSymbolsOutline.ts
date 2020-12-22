@@ -10,7 +10,7 @@ import { IWorkbenchContributionsRegistry, Extensions as WorkbenchExtensions } fr
 import { Registry } from 'vs/platform/registry/common/platform';
 import { LifecyclePhase } from 'vs/workbench/services/lifecycle/common/lifecycle';
 import { IEditorPane } from 'vs/workbench/common/editor';
-import { OutlineAccessibilityProvider, OutlineElementRenderer, OutlineFilter, OutlineGroupRenderer, OutlineIdentityProvider, OutlineItemComparator, OutlineNavigationLabelProvider, OutlineSortOrder, OutlineVirtualDelegate } from 'vs/editor/contrib/documentSymbols/outlineTree';
+import { OutlineAccessibilityProvider, OutlineElementRenderer, OutlineFilter, OutlineGroupRenderer, OutlineIdentityProvider, OutlineItemComparator, OutlineNavigationLabelProvider, OutlineVirtualDelegate } from 'vs/editor/contrib/documentSymbols/outlineTree';
 import { ICodeEditor, isCodeEditor, isDiffEditor } from 'vs/editor/browser/editorBrowser';
 import { OutlineGroup, OutlineElement, OutlineModel, TreeElement, IOutlineMarker } from 'vs/editor/contrib/documentSymbols/outlineModel';
 import { DocumentSymbolProviderRegistry } from 'vs/editor/common/modes';
@@ -31,7 +31,7 @@ import { IModelContentChangedEvent } from 'vs/editor/common/model/textModelEvent
 import { IDataSource } from 'vs/base/browser/ui/tree/tree';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { localize } from 'vs/nls';
-import { OutlineConfigKeys } from 'vs/editor/contrib/documentSymbols/outline';
+import { OutlineConfigKeys, OutlineSortOrder } from 'vs/editor/contrib/documentSymbols/outline';
 import { IMarkerDecorationsService } from 'vs/editor/common/services/markersDecorationService';
 import { MarkerSeverity } from 'vs/platform/markers/common/markers';
 

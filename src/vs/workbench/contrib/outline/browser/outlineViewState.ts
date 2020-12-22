@@ -5,7 +5,7 @@
 
 import { Emitter } from 'vs/base/common/event';
 import { IStorageService, StorageScope, StorageTarget } from 'vs/platform/storage/common/storage';
-import { OutlineSortOrder } from 'vs/editor/contrib/documentSymbols/outlineTree';
+import { OutlineSortOrder } from 'vs/editor/contrib/documentSymbols/outline';
 
 export class OutlineViewState {
 

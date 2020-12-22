@@ -16,7 +16,7 @@ import { OutlineElement, OutlineGroup, OutlineModel } from 'vs/editor/contrib/do
 import { localize } from 'vs/nls';
 import { IconLabel } from 'vs/base/browser/ui/iconLabel/iconLabel';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
-import { OutlineConfigKeys } from 'vs/editor/contrib/documentSymbols/outline';
+import { OutlineConfigKeys, OutlineSortOrder } from 'vs/editor/contrib/documentSymbols/outline';
 import { MarkerSeverity } from 'vs/platform/markers/common/markers';
 import { IThemeService, registerThemingParticipant, IColorTheme, ICssStyleCollector } from 'vs/platform/theme/common/themeService';
 import { registerColor, listErrorForeground, listWarningForeground, foreground } from 'vs/platform/theme/common/colorRegistry';
@@ -234,12 +234,6 @@ export class OutlineElementRenderer implements ITreeRenderer<OutlineElement, Fuz
 	disposeTemplate(_template: OutlineElementTemplate): void {
 		_template.iconLabel.dispose();
 	}
-}
-
-export const enum OutlineSortOrder {
-	ByPosition,
-	ByName,
-	ByKind
 }
 
 export class OutlineFilter implements ITreeFilter<OutlineItem> {
