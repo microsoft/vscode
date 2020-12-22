@@ -5,7 +5,7 @@
 
 import { Emitter, Event } from 'vs/base/common/event';
 import { Disposable, DisposableStore, IDisposable, toDisposable } from 'vs/base/common/lifecycle';
-import { IOutline, IOutlineCreator, IOutlineService, OutlineTarget, OutlineTreeConfiguration } from 'vs/workbench/services/outline/browser/outline';
+import { IBreadcrumbsDataSource, IOutline, IOutlineCreator, IOutlineService, OutlineTarget, OutlineTreeConfiguration } from 'vs/workbench/services/outline/browser/outline';
 import { IWorkbenchContributionsRegistry, Extensions as WorkbenchExtensions } from 'vs/workbench/common/contributions';
 import { Registry } from 'vs/platform/registry/common/platform';
 import { LifecyclePhase } from 'vs/workbench/services/lifecycle/common/lifecycle';
@@ -31,31 +31,120 @@ import { ICodeEditorService } from 'vs/editor/browser/services/codeEditorService
 
 type DocumentSymbolItem = OutlineGroup | OutlineElement;
 
+class DocumentSymbolBreadcrumbsSource implements IBreadcrumbsDataSource<DocumentSymbolItem>{
+
+	private _breadcrumbs: (OutlineGroup | OutlineElement)[] = [];
+
+	constructor(
+		private readonly _editor: ICodeEditor,
+		@ITextResourceConfigurationService private readonly _textResourceConfigurationService: ITextResourceConfigurationService,
+	) { }
+
+	getBreadcrumbElements(): Iterable<DocumentSymbolItem> {
+		return this._breadcrumbs;
+	}
+
+	clear(): boolean {
+		return this._updateBreadcrumbs([]);
+	}
+
+	update(model: OutlineModel, position: IPosition): boolean {
+		const newElements = this._computeBreadcrumbs(model, position);
+		return this._updateBreadcrumbs(newElements);
+	}
+
+	private _updateBreadcrumbs(newElements: (OutlineGroup | OutlineElement)[]): boolean {
+		if (!equals(newElements, this._breadcrumbs, DocumentSymbolBreadcrumbsSource._outlineElementEquals)) {
+			this._breadcrumbs = newElements;
+			return true;
+		}
+		return false;
+	}
+
+	private _computeBreadcrumbs(model: OutlineModel, position: IPosition): Array<OutlineGroup | OutlineElement> {
+		let item: OutlineGroup | OutlineElement | undefined = model.getItemEnclosingPosition(position);
+		if (!item) {
+			return [];
+		}
+		let chain: Array<OutlineGroup | OutlineElement> = [];
+		while (item) {
+			chain.push(item);
+			let parent: any = item.parent;
+			if (parent instanceof OutlineModel) {
+				break;
+			}
+			if (parent instanceof OutlineGroup && parent.parent && parent.parent.children.size === 1) {
+				break;
+			}
+			item = parent;
+		}
+		let result: Array<OutlineGroup | OutlineElement> = [];
+		for (let i = chain.length - 1; i >= 0; i--) {
+			let element = chain[i];
+			if (this._isFiltered(element)) {
+				break;
+			}
+			result.push(element);
+		}
+		if (result.length === 0) {
+			return [];
+		}
+		return result;
+	}
+
+	private _isFiltered(element: TreeElement): boolean {
+		if (!(element instanceof OutlineElement)) {
+			return false;
+		}
+		const key = `breadcrumbs.${OutlineFilter.kindToConfigName[element.symbol.kind]}`;
+		let uri: URI | undefined;
+		if (this._editor && this._editor.getModel()) {
+			const model = this._editor.getModel() as ITextModel;
+			uri = model.uri;
+		}
+		return !this._textResourceConfigurationService.getValue<boolean>(uri, key);
+	}
+
+	private static _outlineElementEquals(a: OutlineGroup | OutlineElement, b: OutlineGroup | OutlineElement): boolean {
+		if (a === b) {
+			return true;
+		} else if (!a || !b) {
+			return false;
+		} else {
+			return a.id === b.id;
+		}
+	}
+}
+
 class DocumentSymbolsOutline implements IOutline<DocumentSymbolItem> {
 
 	private readonly _disposables = new DisposableStore();
-
 	private readonly _onDidChange = new Emitter<this>();
+	private readonly _onDidChangeActive = new Emitter<void>();
+
 	readonly onDidChange: Event<this> = this._onDidChange.event;
+	readonly onDidChangeActive: Event<void> = this._onDidChangeActive.event;
+	readonly config: OutlineTreeConfiguration<DocumentSymbolItem>;
 
 	private _outlineModel?: OutlineModel;
-	private _outlineElementChain: Array<OutlineModel | OutlineGroup | OutlineElement> = [];
 	private _outlineDisposables = new DisposableStore();
 
-	readonly config: OutlineTreeConfiguration<DocumentSymbolItem>;
+	private readonly _breadcrumbsDataSource: DocumentSymbolBreadcrumbsSource;
 
 	constructor(
 		private readonly _editor: ICodeEditor,
 		target: OutlineTarget,
 		@ICodeEditorService private readonly _codeEditorService: ICodeEditorService,
 		@IConfigurationService private readonly _configurationService: IConfigurationService,
-		@ITextResourceConfigurationService private readonly _textResourceConfigurationService: ITextResourceConfigurationService,
+		@ITextResourceConfigurationService textResourceConfigurationService: ITextResourceConfigurationService,
 		@IInstantiationService instantiationService: IInstantiationService,
 	) {
 
+		this._breadcrumbsDataSource = new DocumentSymbolBreadcrumbsSource(_editor, textResourceConfigurationService);
+
 		const sorter = new OutlineItemComparator();
 		this.config = new OutlineTreeConfiguration(
-			{ getBreadcrumbElements: () => <DocumentSymbolItem[]>this._outlineElementChain.filter(element => !(element instanceof OutlineModel)) },
+			this._breadcrumbsDataSource,
 			{ getQuickPickElements: () => { throw new Error('not implemented'); } },
 			{
 				getChildren: (parent) => {
@@ -86,7 +175,7 @@ class DocumentSymbolsOutline implements IOutline<DocumentSymbolItem> {
 		if (target === OutlineTarget.Breadcrumbs) {
 			const updateSort = () => {
 				const uri = this._outlineModel?.uri;
-				const value = _textResourceConfigurationService.getValue(uri, `breadcrumbs.symbolSortOrder`);
+				const value = textResourceConfigurationService.getValue(uri, `breadcrumbs.symbolSortOrder`);
 				if (value === 'name') {
 					sorter.type = OutlineSortOrder.ByName;
 				} else if (value === 'type') {
@@ -95,7 +184,7 @@ class DocumentSymbolsOutline implements IOutline<DocumentSymbolItem> {
 					sorter.type = OutlineSortOrder.ByPosition;
 				}
 			};
-			this._disposables.add(_textResourceConfigurationService.onDidChangeConfiguration(() => updateSort()));
+			this._disposables.add(textResourceConfigurationService.onDidChangeConfiguration(() => updateSort()));
 			updateSort();
 		}
 
@@ -142,7 +231,7 @@ class DocumentSymbolsOutline implements IOutline<DocumentSymbolItem> {
 	}
 
 	get isEmpty(): boolean {
-		return this._outlineElementChain.length === 0;
+		return !this._outlineModel;
 	}
 
 	async reveal(entry: DocumentSymbolItem, options: IEditorOptions, sideBySide: boolean): Promise<void> {
@@ -191,13 +280,14 @@ class DocumentSymbolsOutline implements IOutline<DocumentSymbolItem> {
 
 		this._outlineDisposables.clear();
 		if (!didChangeContent) {
-			this._updateOutlineElements(undefined, []);
+			this._updateOutlineModel(undefined);
 		}
 
-		const editor = this._editor!;
-
-		const buffer = editor.getModel();
-		if (!buffer || !DocumentSymbolProviderRegistry.has(buffer)) {
+		if (!this._editor.hasModel()) {
+			return;
+		}
+		const buffer = this._editor.getModel();
+		if (!DocumentSymbolProviderRegistry.has(buffer)) {
 			return;
 		}
 
@@ -217,108 +307,40 @@ class DocumentSymbolsOutline implements IOutline<DocumentSymbolItem> {
 				// cancelled -> do nothing
 				return;
 			}
-			if (TreeElement.empty(model)) {
+			if (TreeElement.empty(model) || !this._editor.hasModel()) {
 				// empty -> no outline elements
-				this._updateOutlineElements(model, []);
+				this._updateOutlineModel(model);
 
 			} else {
 				// copy the model
 				model = model.adopt();
 
-				this._updateOutlineElements(model, this._getOutlineElements(model, editor.getPosition()));
-				this._outlineDisposables.add(editor.onDidChangeCursorPosition(_ => {
+				this._updateOutlineModel(model);
+				this._outlineDisposables.add(this._editor.onDidChangeCursorPosition(_ => {
 					timeout.cancelAndSet(() => {
-						if (!buffer.isDisposed() && versionIdThen === buffer.getVersionId() && editor.getModel()) {
-							this._updateOutlineElements(model, this._getOutlineElements(model, editor.getPosition()));
+						if (!buffer.isDisposed() && versionIdThen === buffer.getVersionId() && this._editor.hasModel()) {
+							this._breadcrumbsDataSource.update(model, this._editor.getPosition());
+							this._onDidChangeActive.fire();
 						}
 					}, 150);
 				}));
 			}
 		}).catch(err => {
-			this._updateOutlineElements(undefined, []);
+			this._updateOutlineModel(undefined);
 			onUnexpectedError(err);
 		});
 	}
 
-	private _getOutlineElements(model: OutlineModel, position: IPosition | null): Array<OutlineModel | OutlineGroup | OutlineElement> {
-		if (!model || !position) {
-			return [];
-		}
-		let item: OutlineGroup | OutlineElement | undefined = model.getItemEnclosingPosition(position);
-		if (!item) {
-			return this._getOutlineElementsRoot(model);
-		}
-		let chain: Array<OutlineGroup | OutlineElement> = [];
-		while (item) {
-			chain.push(item);
-			let parent: any = item.parent;
-			if (parent instanceof OutlineModel) {
-				break;
-			}
-			if (parent instanceof OutlineGroup && parent.parent && parent.parent.children.size === 1) {
-				break;
-			}
-			item = parent;
-		}
-		let result: Array<OutlineGroup | OutlineElement> = [];
-		for (let i = chain.length - 1; i >= 0; i--) {
-			let element = chain[i];
-			if (this._isFiltered(element)) {
-				break;
-			}
-			result.push(element);
-		}
-		if (result.length === 0) {
-			return this._getOutlineElementsRoot(model);
-		}
-		return result;
-	}
-
-	private _getOutlineElementsRoot(model: OutlineModel): (OutlineModel | OutlineGroup | OutlineElement)[] {
-		for (const child of model.children.values()) {
-			if (!this._isFiltered(child)) {
-				return [model];
-			}
-		}
-		return [];
-	}
-
-	private _isFiltered(element: TreeElement): boolean {
-		if (element instanceof OutlineElement) {
-			const key = `breadcrumbs.${OutlineFilter.kindToConfigName[element.symbol.kind]}`;
-			let uri: URI | undefined;
-			if (this._editor && this._editor.getModel()) {
-				const model = this._editor.getModel() as ITextModel;
-				uri = model.uri;
-			}
-			return !this._textResourceConfigurationService.getValue<boolean>(uri, key);
-		}
-		return false;
-	}
-
-	private _updateOutlineElements(model: OutlineModel | undefined, elements: Array<OutlineModel | OutlineGroup | OutlineElement>): void {
-		let fire = false;
-		if (this._outlineModel !== model) {
-			this._outlineModel = model;
-			fire = true;
-		}
-		if (!equals(elements, this._outlineElementChain, DocumentSymbolsOutline._outlineElementEquals)) {
-			this._outlineElementChain = elements;
-			fire = true;
-		}
-		if (fire) {
-			this._onDidChange.fire(this);
-		}
-	}
-
-	private static _outlineElementEquals(a: OutlineModel | OutlineGroup | OutlineElement, b: OutlineModel | OutlineGroup | OutlineElement): boolean {
-		if (a === b) {
-			return true;
-		} else if (!a || !b) {
-			return false;
+	private _updateOutlineModel(model: OutlineModel | undefined) {
+		const position = this._editor.getPosition();
+		if (!position || !model) {
+			this._outlineModel = undefined;
+			this._breadcrumbsDataSource.clear();
 		} else {
-			return a.id === b.id;
+			this._outlineModel = model;
+			this._breadcrumbsDataSource.update(model, position);
 		}
+		this._onDidChange.fire(this);
 	}
 }
 

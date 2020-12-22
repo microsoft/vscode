@@ -125,7 +125,10 @@ class NotebookCellOutline implements IOutline<OutlineEntry> {
 
 	private readonly _dispoables = new DisposableStore();
 
+	private readonly _onDidChangeActive = new Emitter<void>();
 	private readonly _onDidChange = new Emitter<this>();
+
+	readonly onDidChangeActive: Event<void> = this._onDidChangeActive.event;
 	readonly onDidChange: Event<this> = this._onDidChange.event;
 
 	private _entries: OutlineEntry[] = [];
@@ -232,7 +235,7 @@ class NotebookCellOutline implements IOutline<OutlineEntry> {
 		}
 		if (newIdx !== this._activeEntry) {
 			this._activeEntry = newIdx;
-			this._onDidChange.fire(this);
+			this._onDidChangeActive.fire();
 		}
 	}
 
