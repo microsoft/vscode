@@ -5656,7 +5656,7 @@ declare namespace monaco.languages {
 		 */
 		command?: Command;
 		/**
-		* Custom icon to be used (instead of those ones that depend on the completionItem kind)
+		* Custom icon (optional)
 		*/
 		customIcon?: HTMLElement
 	}
