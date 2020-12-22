@@ -1669,6 +1669,7 @@ export interface SignatureArgumentsSignature {
 
 export interface SignatureArgumentsLabelList {
 	signatures: SignatureArgumentsSignature[]
+	dispose(): void;
 }
 
 export interface SignatureArgumentsLabelProvider {

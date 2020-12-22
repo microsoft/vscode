@@ -3759,6 +3759,7 @@ export const enum EditorOption {
 	wrappingIndent,
 	wrappingStrategy,
 	showDeprecated,
+	signatureArgumentsLabel,
 
 	// Leave these at the end (because they have dependencies!)
 	editorClassName,
