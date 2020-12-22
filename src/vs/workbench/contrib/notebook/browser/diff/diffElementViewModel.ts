@@ -206,6 +206,10 @@ export abstract class DiffElementViewModelBase extends Disposable {
 		}
 
 		if (this.renderOutput) {
+			if (this.isOutputEmpty()) {
+				// single line;
+				return 24;
+			}
 			return this.getRichOutputTotalHeight();
 		} else {
 			return rawOutputHeight;
@@ -218,6 +222,7 @@ export abstract class DiffElementViewModelBase extends Disposable {
 
 	abstract checkIfOutputsModified(): boolean;
 	abstract checkMetadataIfModified(): boolean;
+	abstract isOutputEmpty(): boolean;
 	abstract getRichOutputTotalHeight(): number;
 	abstract getCellByUri(cellUri: URI): IGenericCellViewModel;
 	abstract getOutputOffsetInCell(diffSide: DiffSide, index: number): number;
@@ -305,6 +310,20 @@ export class SideBySideDiffElementViewModel extends DiffElementViewModelBase {
 			+ offsetInOutputsContainer;
 	}
 
+	isOutputEmpty() {
+		if (this.documentTextModel.transientOptions.transientOutputs) {
+			return true;
+		}
+
+		if (this.checkIfOutputsModified()) {
+			return false;
+		}
+
+		// outputs are not changed
+
+		return (this.original?.outputs || []).length === 0;
+	}
+
 	getRichOutputTotalHeight() {
 		return Math.max(this.original.getOutputTotalHeight(), this.modified.getOutputTotalHeight());
 	}
@@ -371,6 +390,16 @@ export class SingleSideDiffElementViewModel extends DiffElementViewModelBase {
 			+ this._layoutInfo.outputStatusHeight
 			+ this._layoutInfo.bodyMargin / 2
 			+ offsetInOutputsContainer;
+	}
+
+	isOutputEmpty() {
+		if (this.documentTextModel.transientOptions.transientOutputs) {
+			return true;
+		}
+
+		// outputs are not changed
+
+		return (this.original?.outputs || this.modified?.outputs || []).length === 0;
 	}
 
 	getRichOutputTotalHeight() {

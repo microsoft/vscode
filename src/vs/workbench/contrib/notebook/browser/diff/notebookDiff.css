@@ -252,3 +252,11 @@
 	cursor: pointer;
 	padding: 2px 4px 4px 2px;
 }
+
+.monaco-workbench .notebook-text-diff-editor .output-view-container .output-empty-view {
+	height: 24px;
+	margin: auto;
+	padding-left: 10px;
+	font-style: italic;
+	opacity: 0.7;
+}

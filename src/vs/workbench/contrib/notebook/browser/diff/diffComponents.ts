@@ -260,6 +260,7 @@ abstract class AbstractElementRenderer extends Disposable {
 	protected _outputViewContainer?: HTMLElement;
 	protected _outputLeftContainer?: HTMLElement;
 	protected _outputRightContainer?: HTMLElement;
+	protected _outputEmptyElement?: HTMLElement;
 	protected _outputLeftView?: OutputContainer;
 	protected _outputRightView?: OutputContainer;
 	protected _outputEditorDisposeStore!: DisposableStore;
@@ -875,6 +876,14 @@ export class DeletedElement extends SingleSideDiffElement {
 	_buildOutputRendererContainer() {
 		if (!this._outputViewContainer) {
 			this._outputViewContainer = DOM.append(this._outputInfoContainer, DOM.$('.output-view-container'));
+			this._outputEmptyElement = DOM.append(this._outputViewContainer, DOM.$('.output-empty-view'));
+			this._outputEmptyElement.innerText = 'No outputs';
+
+			if (this.cell.original!.outputs.length === 0) {
+				this._outputEmptyElement.style.display = 'block';
+			} else {
+				this._outputEmptyElement.style.display = 'none';
+			}
 
 			this._outputLeftView = this.instantiationService.createInstance(OutputContainer, this.notebookEditor, this.notebookEditor.textModel!, this.cell, this.cell.original!, DiffSide.Original, this._outputViewContainer!);
 			this._register(this._outputLeftView);
@@ -976,6 +985,15 @@ export class InsertElement extends SingleSideDiffElement {
 	_buildOutputRendererContainer() {
 		if (!this._outputViewContainer) {
 			this._outputViewContainer = DOM.append(this._outputInfoContainer, DOM.$('.output-view-container'));
+			this._outputEmptyElement = DOM.append(this._outputViewContainer, DOM.$('.output-empty-view'));
+			this._outputEmptyElement.innerText = 'No outputs';
+
+			if (this.cell.modified!.outputs.length === 0) {
+				this._outputEmptyElement.style.display = 'block';
+			} else {
+				this._outputEmptyElement.style.display = 'none';
+			}
+
 			this._outputRightView = this.instantiationService.createInstance(OutputContainer, this.notebookEditor, this.notebookEditor.textModel!, this.cell, this.cell.modified!, DiffSide.Modified, this._outputViewContainer!);
 			this._register(this._outputRightView);
 			this._outputRightView.render();
@@ -1166,6 +1184,24 @@ export class ModifiedElement extends AbstractElementRenderer {
 	_buildOutputRendererContainer() {
 		if (!this._outputViewContainer) {
 			this._outputViewContainer = DOM.append(this._outputInfoContainer, DOM.$('.output-view-container'));
+			this._outputEmptyElement = DOM.append(this._outputViewContainer, DOM.$('.output-empty-view'));
+			this._outputEmptyElement.innerText = 'No outputs';
+
+			if (!this.cell.checkIfOutputsModified() && this.cell.modified.outputs.length === 0) {
+				this._outputEmptyElement.style.display = 'block';
+			} else {
+				this._outputEmptyElement.style.display = 'none';
+			}
+
+			this._register(this.cell.modified.textModel.onDidChangeOutputs(() => {
+				// currently we only allow outputs change to the modified cell
+				if (!this.cell.checkIfOutputsModified() && this.cell.modified.outputs.length === 0) {
+					this._outputEmptyElement!.style.display = 'block';
+				} else {
+					this._outputEmptyElement!.style.display = 'none';
+				}
+			}));
+
 			this._outputLeftContainer = DOM.append(this._outputViewContainer!, DOM.$('.output-view-container-left'));
 			this._outputRightContainer = DOM.append(this._outputViewContainer!, DOM.$('.output-view-container-right'));
 			// We should use the original text model here
