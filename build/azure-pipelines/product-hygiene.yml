@@ -66,7 +66,7 @@ steps:
       node build/azure-pipelines/common/listNodeModules.js > .build/node_modules_list.txt
       cat .build/node_modules_list.txt
       mkdir -p .build/node_modules_cache
-      tar -v --posix --use-compress-program zstd -T0 -cf .build/node_modules_cache/cache.tzst -P -C $BUILD_SOURCESDIRECTORY --files-from .build/node_modules_list.txt
+      tar --posix --use-compress-program zstd -T0 -cf .build/node_modules_cache/cache.tzst -P -C $BUILD_SOURCESDIRECTORY --files-from .build/node_modules_list.txt
     condition: and(succeeded(), ne(variables.NODE_MODULES_RESTORED, 'true'))
 
   # Mixin must run before optimize, because the CSS loader will inline small SVGs

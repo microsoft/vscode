@@ -8,6 +8,7 @@ schedules:
         - master
 
 variables:
+  System.Debug: true
   YARN_CACHE_FOLDER: $(Pipeline.Workspace)/.yarn
   ${{ if and(eq(variables['VSCODE_PUBLISH'], ''), or(eq(variables['Build.Reason'], 'IndividualCI'), eq(variables['Build.Reason'], 'BatchedCI'))) }}:
     VSCODE_PUBLISH: "false"
