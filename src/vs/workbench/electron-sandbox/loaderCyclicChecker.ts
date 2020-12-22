@@ -9,6 +9,7 @@ import { Disposable } from 'vs/base/common/lifecycle';
 import { IDialogService } from 'vs/platform/dialogs/common/dialogs';
 import { Severity } from 'vs/platform/notification/common/notification';
 import { INativeHostService } from 'vs/platform/native/electron-sandbox/native';
+import { env } from 'vs/base/common/process';
 
 export class LoaderCyclicChecker extends Disposable implements IWorkbenchContribution {
 
@@ -19,7 +20,7 @@ export class LoaderCyclicChecker extends Disposable implements IWorkbenchContrib
 		super();
 
 		if (require.hasDependencyCycle()) {
-			if (process.env.CI || process.env.BUILD_ARTIFACTSTAGINGDIRECTORY) {
+			if (env.CI || env.BUILD_ARTIFACTSTAGINGDIRECTORY) {
 				// running on a build machine, just exit
 				console.log('There is a dependency cycle in the AMD modules');
 				nativeHostService.exit(37);
