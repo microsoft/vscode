@@ -183,7 +183,6 @@ export class ExtHostTunnelService extends Disposable implements IExtHostTunnelSe
 		} else {
 			this._forwardPortProvider = undefined;
 		}
-		await this._proxy.$tunnelServiceReady();
 		return toDisposable(() => {
 			this._forwardPortProvider = undefined;
 		});
