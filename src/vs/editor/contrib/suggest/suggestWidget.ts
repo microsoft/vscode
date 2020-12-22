@@ -5,7 +5,6 @@
 
 import 'vs/css!./media/suggest';
 import 'vs/base/browser/ui/codicons/codiconStyles'; // The codicon symbol styles are defined here and must be loaded
-import 'vs/editor/contrib/documentSymbols/outlineTree'; // The codicon symbol colors are defined here and must be loaded
 import * as nls from 'vs/nls';
 import * as strings from 'vs/base/common/strings';
 import * as dom from 'vs/base/browser/dom';

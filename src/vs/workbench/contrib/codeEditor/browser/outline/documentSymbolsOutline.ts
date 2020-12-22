@@ -10,7 +10,7 @@ import { IWorkbenchContributionsRegistry, Extensions as WorkbenchExtensions } fr
 import { Registry } from 'vs/platform/registry/common/platform';
 import { LifecyclePhase } from 'vs/workbench/services/lifecycle/common/lifecycle';
 import { IEditorPane } from 'vs/workbench/common/editor';
-import { OutlineAccessibilityProvider, OutlineElementRenderer, OutlineFilter, OutlineGroupRenderer, OutlineIdentityProvider, OutlineItemComparator, OutlineNavigationLabelProvider, OutlineVirtualDelegate } from 'vs/editor/contrib/documentSymbols/outlineTree';
+import { OutlineAccessibilityProvider, OutlineElementRenderer, OutlineFilter, OutlineGroupRenderer, OutlineIdentityProvider, OutlineItemComparator, OutlineNavigationLabelProvider, OutlineVirtualDelegate } from 'vs/workbench/contrib/codeEditor/browser/outline/documentSymbolsTree';
 import { ICodeEditor, isCodeEditor, isDiffEditor } from 'vs/editor/browser/editorBrowser';
 import { OutlineGroup, OutlineElement, OutlineModel, TreeElement, IOutlineMarker } from 'vs/editor/contrib/documentSymbols/outlineModel';
 import { DocumentSymbolProviderRegistry } from 'vs/editor/common/modes';
