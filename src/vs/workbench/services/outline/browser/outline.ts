@@ -17,31 +17,44 @@ import { IEditorPane } from 'vs/workbench/common/editor';
 
 export const IOutlineService = createDecorator<IOutlineService>('IOutlineService');
 
-export const enum OutlineTarget {
-	OutlinePane,
-	Breadcrumbs,
-	QuickPick
-}
-
 export interface IOutlineService {
 	_serviceBrand: undefined;
 	onDidChange: Event<void>;
 	canCreateOutline(editor: IEditorPane): boolean;
-	createOutline(editor: IEditorPane, target: OutlineTarget, token: CancellationToken): Promise<IOutline<any> | undefined>;
+	createOutline(editor: IEditorPane, token: CancellationToken): Promise<IOutline<any> | undefined>;
 	registerOutlineCreator(creator: IOutlineCreator<any, any>): IDisposable;
 }
 
 export interface IOutlineCreator<P extends IEditorPane, E> {
 	matches(candidate: IEditorPane): candidate is P;
-	createOutline(editor: P, target: OutlineTarget, token: CancellationToken): Promise<IOutline<E> | undefined>;
+	createOutline(editor: P, token: CancellationToken): Promise<IOutline<E> | undefined>;
 }
 
 export interface IBreadcrumbsDataSource<E> {
 	getBreadcrumbElements(): Iterable<E>;
 }
 
+export interface IOutlineBreadcrumbsConfig<E> {
+	readonly breadcrumbsDataSource: IBreadcrumbsDataSource<E>;
+	readonly treeDataSource: IDataSource<IOutline<E>, E>;
+	readonly delegate: IListVirtualDelegate<E>;
+	readonly renderers: ITreeRenderer<E, FuzzyScore, any>[];
+	readonly options: IWorkbenchDataTreeOptions<E, FuzzyScore>;
+}
+
+export interface IOutlineTreeConfig<E> {
+	readonly treeDataSource: IDataSource<IOutline<E>, E>;
+	readonly delegate: IListVirtualDelegate<E>;
+	readonly renderers: ITreeRenderer<E, FuzzyScore, any>[];
+	readonly options: IWorkbenchDataTreeOptions<E, FuzzyScore>;
+}
+
 export interface IQuickPickDataSource<E> {
 	getQuickPickElements(): Iterable<{ element: E, kind?: SymbolKind, label: string, iconClasses?: string[], ariaLabel?: string, description?: string }>;
+}
+
+export interface IOutlineQuickPickConfig<E> {
+	readonly quickPickDataSource: IQuickPickDataSource<E>,
 }
 
 export class OutlineTreeConfiguration<E> {
@@ -59,7 +72,9 @@ export interface IOutline<E> {
 
 	dispose(): void;
 
-	readonly config: OutlineTreeConfiguration<E>
+	readonly breadcrumbsConfig: IOutlineBreadcrumbsConfig<E>;
+	readonly treeConfig: IOutlineTreeConfig<E>;
+	readonly quickPickConfig: IOutlineQuickPickConfig<E>;
 
 	readonly onDidChange: Event<this>;
 	readonly onDidChangeActive: Event<void>;

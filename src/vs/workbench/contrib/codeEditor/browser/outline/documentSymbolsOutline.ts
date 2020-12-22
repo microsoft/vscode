@@ -5,7 +5,7 @@
 
 import { Emitter, Event } from 'vs/base/common/event';
 import { Disposable, DisposableStore, IDisposable, toDisposable } from 'vs/base/common/lifecycle';
-import { IBreadcrumbsDataSource, IOutline, IOutlineCreator, IOutlineService, OutlineTarget, OutlineTreeConfiguration } from 'vs/workbench/services/outline/browser/outline';
+import { IBreadcrumbsDataSource, IOutline, IOutlineBreadcrumbsConfig, IOutlineCreator, IOutlineQuickPickConfig, IOutlineService, IOutlineTreeConfig, } from 'vs/workbench/services/outline/browser/outline';
 import { IWorkbenchContributionsRegistry, Extensions as WorkbenchExtensions } from 'vs/workbench/common/contributions';
 import { Registry } from 'vs/platform/registry/common/platform';
 import { LifecyclePhase } from 'vs/workbench/services/lifecycle/common/lifecycle';
@@ -28,6 +28,8 @@ import { Range } from 'vs/editor/common/core/range';
 import { IEditorOptions, TextEditorSelectionRevealType } from 'vs/platform/editor/common/editor';
 import { ICodeEditorService } from 'vs/editor/browser/services/codeEditorService';
 import { IModelContentChangedEvent } from 'vs/editor/common/model/textModelEvents';
+import { IDataSource } from 'vs/base/browser/ui/tree/tree';
+import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 
 type DocumentSymbolItem = OutlineGroup | OutlineElement;
 
@@ -124,69 +126,92 @@ class DocumentSymbolsOutline implements IOutline<DocumentSymbolItem> {
 
 	readonly onDidChange: Event<this> = this._onDidChange.event;
 	readonly onDidChangeActive: Event<void> = this._onDidChangeActive.event;
-	readonly config: OutlineTreeConfiguration<DocumentSymbolItem>;
 
 	private _outlineModel?: OutlineModel;
 	private _outlineDisposables = new DisposableStore();
 
 	private readonly _breadcrumbsDataSource: DocumentSymbolBreadcrumbsSource;
 
+	readonly breadcrumbsConfig: IOutlineBreadcrumbsConfig<DocumentSymbolItem>;
+	readonly treeConfig: IOutlineTreeConfig<DocumentSymbolItem>;
+	readonly quickPickConfig: IOutlineQuickPickConfig<DocumentSymbolItem>;
+
 	constructor(
 		private readonly _editor: ICodeEditor,
-		target: OutlineTarget,
 		@ICodeEditorService private readonly _codeEditorService: ICodeEditorService,
-		// @IConfigurationService private readonly _configurationService: IConfigurationService,
+		@IConfigurationService private readonly _configurationService: IConfigurationService,
 		@ITextResourceConfigurationService textResourceConfigurationService: ITextResourceConfigurationService,
 		@IInstantiationService instantiationService: IInstantiationService,
 	) {
 
 		this._breadcrumbsDataSource = new DocumentSymbolBreadcrumbsSource(_editor, textResourceConfigurationService);
-
-		const sorter = new OutlineItemComparator();
-		this.config = new OutlineTreeConfiguration(
-			this._breadcrumbsDataSource,
-			{ getQuickPickElements: () => { throw new Error('not implemented'); } },
-			{
-				getChildren: (parent) => {
-					if (parent instanceof OutlineElement || parent instanceof OutlineGroup) {
-						return parent.children.values();
-					}
-					if (parent === this && this._outlineModel) {
-						return this._outlineModel.children.values();
-					}
-					return [];
+		const delegate = new OutlineVirtualDelegate();
+		const renderers = [new OutlineGroupRenderer(), instantiationService.createInstance(OutlineElementRenderer)];
+		const treeDataSource: IDataSource<this, DocumentSymbolItem> = {
+			getChildren: (parent) => {
+				if (parent instanceof OutlineElement || parent instanceof OutlineGroup) {
+					return parent.children.values();
 				}
-			},
-			new OutlineVirtualDelegate(),
-			[new OutlineGroupRenderer(), instantiationService.createInstance(OutlineElementRenderer)],
-			{
-				collapseByDefault: true,
-				expandOnlyOnTwistieClick: true,
-				multipleSelectionSupport: false,
-				accessibilityProvider: new OutlineAccessibilityProvider(target === OutlineTarget.Breadcrumbs ? 'breadcrumbs' : 'outline'),
-				identityProvider: new OutlineIdentityProvider(),
-				keyboardNavigationLabelProvider: new OutlineNavigationLabelProvider(),
-				filter: instantiationService.createInstance(OutlineFilter, target === OutlineTarget.Breadcrumbs ? 'breadcrumbs' : 'outline'),
-				sorter
+				if (parent === this && this._outlineModel) {
+					return this._outlineModel.children.values();
+				}
+				return [];
 			}
-		);
+		};
+
+		const options = {
+			collapseByDefault: true,
+			expandOnlyOnTwistieClick: true,
+			multipleSelectionSupport: false,
+			identityProvider: new OutlineIdentityProvider(),
+			keyboardNavigationLabelProvider: new OutlineNavigationLabelProvider(),
+		};
+
+		const breadcrumbsSorter = new OutlineItemComparator();
+
+		this.breadcrumbsConfig = {
+			breadcrumbsDataSource: this._breadcrumbsDataSource,
+			delegate,
+			renderers,
+			treeDataSource,
+			options: {
+				...options,
+				sorter: breadcrumbsSorter,
+				filter: instantiationService.createInstance(OutlineFilter, 'breadcrumbs'),
+				accessibilityProvider: new OutlineAccessibilityProvider('breadcrumbs'),
+			}
+		};
+
+		this.treeConfig = {
+			delegate,
+			renderers,
+			treeDataSource,
+			options: {
+				...options,
+				// sorter: breadcrumbsSorter, //todo@jrieken
+				filter: instantiationService.createInstance(OutlineFilter, 'outline'),
+				accessibilityProvider: new OutlineAccessibilityProvider('outline'),
+			}
+		};
+
+		this.quickPickConfig = {
+			quickPickDataSource: { getQuickPickElements: () => { throw new Error('not implemented'); } }
+		};
 
 		// special sorting for breadcrumbs
-		if (target === OutlineTarget.Breadcrumbs) {
-			const updateSort = () => {
-				const uri = this._outlineModel?.uri;
-				const value = textResourceConfigurationService.getValue(uri, `breadcrumbs.symbolSortOrder`);
-				if (value === 'name') {
-					sorter.type = OutlineSortOrder.ByName;
-				} else if (value === 'type') {
-					sorter.type = OutlineSortOrder.ByKind;
-				} else {
-					sorter.type = OutlineSortOrder.ByPosition;
-				}
-			};
-			this._disposables.add(textResourceConfigurationService.onDidChangeConfiguration(() => updateSort()));
-			updateSort();
-		}
+		const updateSort = () => {
+			const uri = this._outlineModel?.uri;
+			const value = textResourceConfigurationService.getValue(uri, `breadcrumbs.symbolSortOrder`);
+			if (value === 'name') {
+				breadcrumbsSorter.type = OutlineSortOrder.ByName;
+			} else if (value === 'type') {
+				breadcrumbsSorter.type = OutlineSortOrder.ByKind;
+			} else {
+				breadcrumbsSorter.type = OutlineSortOrder.ByPosition;
+			}
+		};
+		this._disposables.add(textResourceConfigurationService.onDidChangeConfiguration(() => updateSort()));
+		updateSort();
 
 
 		// update as language, model, providers changes
@@ -196,22 +221,22 @@ class DocumentSymbolsOutline implements IOutline<DocumentSymbolItem> {
 
 		// TODO@jrieken
 		// update when config changes (re-render)
-		// this._disposables.add(this._configurationService.onDidChangeConfiguration(e => {
-		// 	if (e.affectsConfiguration('breadcrumbs')) {
-		// 		this._createOutline(true);
-		// 		return;
-		// 	}
-		// 	if (this._editor && this._editor.getModel()) {
-		// 		const editorModel = this._editor.getModel() as ITextModel;
-		// 		const languageName = editorModel.getLanguageIdentifier().language;
+		this._disposables.add(this._configurationService.onDidChangeConfiguration(e => {
+			if (e.affectsConfiguration('breadcrumbs')) {
+				this._updateOutlineModel(this._outlineModel);
+				return;
+			}
+			if (this._editor && this._editor.getModel()) {
+				const editorModel = this._editor.getModel() as ITextModel;
+				const languageName = editorModel.getLanguageIdentifier().language;
 
-		// 		// Checking for changes in the current language override config.
-		// 		// We can't be more specific than this because the ConfigurationChangeEvent(e) only includes the first part of the root path
-		// 		if (e.affectsConfiguration(`[${languageName}]`)) {
-		// 			this._createOutline(true);
-		// 		}
-		// 	}
-		// }));
+				// Checking for changes in the current language override config.
+				// We can't be more specific than this because the ConfigurationChangeEvent(e) only includes the first part of the root path
+				if (e.affectsConfiguration(`[${languageName}]`)) {
+					this._updateOutlineModel(this._outlineModel);
+				}
+			}
+		}));
 
 		// update soon'ish as model content change
 		const updateSoon = new TimeoutTimer();
@@ -385,7 +410,7 @@ class DocumentSymbolsOutlineCreator implements IOutlineCreator<IEditorPane, Docu
 		return isCodeEditor(ctrl) || isDiffEditor(ctrl);
 	}
 
-	async createOutline(pane: IEditorPane, target: OutlineTarget, token: CancellationToken): Promise<IOutline<DocumentSymbolItem> | undefined> {
+	async createOutline(pane: IEditorPane, token: CancellationToken): Promise<IOutline<DocumentSymbolItem> | undefined> {
 		const control = pane.getControl();
 		let editor: ICodeEditor | undefined;
 		if (isCodeEditor(control)) {
@@ -396,7 +421,7 @@ class DocumentSymbolsOutlineCreator implements IOutlineCreator<IEditorPane, Docu
 		if (!editor) {
 			return undefined;
 		}
-		return this._instantiationService.createInstance(DocumentSymbolsOutline, editor, target);
+		return this._instantiationService.createInstance(DocumentSymbolsOutline, editor);
 	}
 }
 

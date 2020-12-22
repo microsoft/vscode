@@ -12,13 +12,13 @@ import { IThemeService, ThemeIcon } from 'vs/platform/theme/common/themeService'
 import { ICellViewModel } from 'vs/workbench/contrib/notebook/browser/notebookBrowser';
 import { NotebookEditor } from 'vs/workbench/contrib/notebook/browser/notebookEditor';
 import { CellKind } from 'vs/workbench/contrib/notebook/common/notebookCommon';
-import { IOutline, IOutlineCreator, IOutlineService, IQuickPickDataSource, OutlineTreeConfiguration } from 'vs/workbench/services/outline/browser/outline';
+import { IOutline, IOutlineBreadcrumbsConfig, IOutlineCreator, IOutlineQuickPickConfig, IOutlineService, IOutlineTreeConfig, IQuickPickDataSource } from 'vs/workbench/services/outline/browser/outline';
 import { IWorkbenchContributionsRegistry, Extensions as WorkbenchExtensions } from 'vs/workbench/common/contributions';
 import { Registry } from 'vs/platform/registry/common/platform';
 import { LifecyclePhase } from 'vs/workbench/services/lifecycle/common/lifecycle';
 import { IEditorPane } from 'vs/workbench/common/editor';
 import { IKeyboardNavigationLabelProvider, IListVirtualDelegate } from 'vs/base/browser/ui/list/list';
-import { ITreeNode, ITreeRenderer } from 'vs/base/browser/ui/tree/tree';
+import { IDataSource, ITreeNode, ITreeRenderer } from 'vs/base/browser/ui/tree/tree';
 import { createMatches, FuzzyScore } from 'vs/base/common/filters';
 import { IconLabel } from 'vs/base/browser/ui/iconLabel/iconLabel';
 import { IListAccessibilityProvider } from 'vs/base/browser/ui/list/listWidget';
@@ -28,6 +28,7 @@ import { IEditorService, SIDE_GROUP } from 'vs/workbench/services/editor/common/
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { getIconClassesForModeId } from 'vs/editor/common/services/getIconClasses';
 import { SymbolKind } from 'vs/editor/common/modes';
+import { IWorkbenchDataTreeOptions } from 'vs/platform/list/browser/listService';
 
 export class OutlineEntry {
 	constructor(
@@ -135,7 +136,9 @@ class NotebookCellOutline implements IOutline<OutlineEntry> {
 	private _activeEntry: number = -1;
 	private readonly _entriesDisposables = new DisposableStore();
 
-	readonly config: OutlineTreeConfiguration<OutlineEntry>;
+	readonly breadcrumbsConfig: IOutlineBreadcrumbsConfig<OutlineEntry>;
+	readonly treeConfig: IOutlineTreeConfig<OutlineEntry>;
+	readonly quickPickConfig: IOutlineQuickPickConfig<OutlineEntry>;
 
 	constructor(
 		private readonly _editor: NotebookEditor,
@@ -164,21 +167,37 @@ class NotebookCellOutline implements IOutline<OutlineEntry> {
 		this._recomputeState();
 		installSelectionListener();
 
-		this.config = new OutlineTreeConfiguration<OutlineEntry>(
-			{ getBreadcrumbElements: () => this._activeEntry >= 0 ? Iterable.single(this._entries[this._activeEntry]) : Iterable.empty() },
-			instantiationService.createInstance(NotebookQuickPickProvider, () => this._entries),
-			{ getChildren: parent => parent === this ? this._entries : [] },
-			new NotebookOutlineVirtualDelegate(),
-			[instantiationService.createInstance(NotebookOutlineRenderer)],
-			{
-				collapseByDefault: true,
-				expandOnlyOnTwistieClick: true,
-				multipleSelectionSupport: false,
-				accessibilityProvider: new NotebookOutlineAccessibility(),
-				identityProvider: { getId: element => element.cell.handle },
-				keyboardNavigationLabelProvider: new NotebookNavigationLabelProvider()
-			}
-		);
+		const options: IWorkbenchDataTreeOptions<OutlineEntry, FuzzyScore> = {
+			collapseByDefault: true,
+			expandOnlyOnTwistieClick: true,
+			multipleSelectionSupport: false,
+			accessibilityProvider: new NotebookOutlineAccessibility(),
+			identityProvider: { getId: element => element.cell.handle },
+			keyboardNavigationLabelProvider: new NotebookNavigationLabelProvider()
+		};
+
+		const treeDataSource: IDataSource<this, OutlineEntry> = { getChildren: parent => parent === this ? this._entries : [] };
+		const delegate = new NotebookOutlineVirtualDelegate();
+		const renderers = [instantiationService.createInstance(NotebookOutlineRenderer)];
+
+		this.breadcrumbsConfig = {
+			breadcrumbsDataSource: { getBreadcrumbElements: () => this._activeEntry >= 0 ? Iterable.single(this._entries[this._activeEntry]) : Iterable.empty() },
+			treeDataSource,
+			delegate,
+			renderers,
+			options
+		};
+
+		this.treeConfig = {
+			treeDataSource,
+			delegate,
+			renderers,
+			options
+		};
+
+		this.quickPickConfig = {
+			quickPickDataSource: instantiationService.createInstance(NotebookQuickPickProvider, () => this._entries),
+		};
 	}
 
 	dispose(): void {

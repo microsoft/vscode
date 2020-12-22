@@ -299,7 +299,7 @@ export class OutlineFilter implements ITreeFilter<OutlineItem> {
 	});
 
 	constructor(
-		private readonly _prefix: string,
+		private readonly _prefix: 'breadcrumbs' | 'outline',
 		@ITextResourceConfigurationService private readonly _textResourceConfigService: ITextResourceConfigurationService,
 	) { }
 
