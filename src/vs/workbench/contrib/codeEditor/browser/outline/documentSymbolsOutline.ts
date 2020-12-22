@@ -138,9 +138,7 @@ class DocumentSymbolsOutline implements IOutline<DocumentSymbolItem> {
 	readonly treeConfig: IOutlineTreeConfig<DocumentSymbolItem>;
 	readonly quickPickConfig: IOutlineQuickPickConfig<DocumentSymbolItem>;
 
-	get resource(): URI {
-		return this._outlineModel?.textModel.uri ?? URI.from({ scheme: 'empty' });
-	}
+	readonly outlineKind = 'documentSymbols';
 
 	get activeElement(): DocumentSymbolItem | undefined {
 		const posistion = this._editor.getPosition();

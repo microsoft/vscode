@@ -9,7 +9,6 @@ import { CancellationToken } from 'vs/base/common/cancellation';
 import { Event } from 'vs/base/common/event';
 import { FuzzyScore } from 'vs/base/common/filters';
 import { IDisposable } from 'vs/base/common/lifecycle';
-import { URI } from 'vs/base/common/uri';
 import { SymbolKind } from 'vs/editor/common/modes';
 import { IEditorOptions } from 'vs/platform/editor/common/editor';
 import { createDecorator } from 'vs/platform/instantiation/common/instantiation';
@@ -64,18 +63,16 @@ export interface OutlineChangeEvent {
 
 export interface IOutline<E> {
 
-	dispose(): void;
-
 	readonly breadcrumbsConfig: IOutlineBreadcrumbsConfig<E>;
 	readonly treeConfig: IOutlineTreeConfig<E>;
 	readonly quickPickConfig: IOutlineQuickPickConfig<E>;
+	readonly outlineKind: string;
 
-	readonly onDidChange: Event<OutlineChangeEvent>;
-
-	readonly activeElement: E | undefined;
-	readonly resource: URI;
 	readonly isEmpty: boolean;
+	readonly activeElement: E | undefined;
+	readonly onDidChange: Event<OutlineChangeEvent>;
 
 	reveal(entry: E, options: IEditorOptions, sideBySide: boolean): Promise<void> | void;
 	preview(entry: E): IDisposable;
+	dispose(): void;
 }

@@ -175,7 +175,7 @@ export class OutlinePane extends ViewPane {
 
 		// persist state
 		if (oldOutline) {
-			this._treeStates.set(oldOutline.resource.toString(), this._tree!.getViewState());
+			this._treeStates.set(`${oldOutline.outlineKind}/${resource}`, this._tree!.getViewState());
 		}
 
 		if (!pane || !this._outlineService.canCreateOutline(pane) || !resource) {
@@ -230,7 +230,7 @@ export class OutlinePane extends ViewPane {
 			} else if (!tree.getInput()) {
 				// first: init tree
 				this._domNode.classList.remove('message');
-				const state = this._treeStates.get(newOutline.resource.toString());
+				const state = this._treeStates.get(`${newOutline.outlineKind}/${resource}`);
 				tree.setInput(newOutline, state);
 				tree.expandAll();
 

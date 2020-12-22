@@ -29,7 +29,6 @@ import { IInstantiationService } from 'vs/platform/instantiation/common/instanti
 import { getIconClassesForModeId } from 'vs/editor/common/services/getIconClasses';
 import { SymbolKind } from 'vs/editor/common/modes';
 import { IWorkbenchDataTreeOptions } from 'vs/platform/list/browser/listService';
-import { URI } from 'vs/base/common/uri';
 
 export class OutlineEntry {
 	constructor(
@@ -139,9 +138,7 @@ class NotebookCellOutline implements IOutline<OutlineEntry> {
 	readonly treeConfig: IOutlineTreeConfig<OutlineEntry>;
 	readonly quickPickConfig: IOutlineQuickPickConfig<OutlineEntry>;
 
-	get resource(): URI {
-		return this._editor.viewModel?.uri || URI.from({ scheme: 'empty' });
-	}
+	readonly outlineKind = 'notebookCells';
 
 	get activeElement(): OutlineEntry | undefined {
 		return this._entries[this._activeEntry];
