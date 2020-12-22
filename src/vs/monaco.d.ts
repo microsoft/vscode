@@ -5658,7 +5658,7 @@ declare namespace monaco.languages {
 		/**
 		* Custom icon (optional)
 		*/
-		customIcon?: HTMLElement
+		customIcon?: HTMLElement;
 	}
 
 	export interface CompletionList {

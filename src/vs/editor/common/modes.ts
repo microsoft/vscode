@@ -545,7 +545,7 @@ export interface CompletionItem {
 	/**
 	* Custom icon (optional)
 	*/
-	customIcon?: HTMLElement
+	customIcon?: HTMLElement;
 
 	/**
 	 * @internal
