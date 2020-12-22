@@ -14,7 +14,6 @@ import { ITextModel } from 'vs/editor/common/model';
 import { DocumentSymbol, DocumentSymbolProvider, DocumentSymbolProviderRegistry } from 'vs/editor/common/modes';
 import { MarkerSeverity } from 'vs/platform/markers/common/markers';
 import { Iterable } from 'vs/base/common/iterator';
-import { URI } from 'vs/base/common/uri';
 import { LanguageFeatureRequestDelays } from 'vs/editor/common/modes/languageFeatureRegistry';
 
 export abstract class TreeElement {
@@ -204,8 +203,6 @@ export class OutlineGroup extends TreeElement {
 	}
 }
 
-
-
 export class OutlineModel extends TreeElement {
 
 	private static readonly _requestDurations = new LanguageFeatureRequestDelays(DocumentSymbolProviderRegistry, 350);
@@ -290,7 +287,7 @@ export class OutlineModel extends TreeElement {
 	private static _create(textModel: ITextModel, token: CancellationToken): Promise<OutlineModel> {
 
 		const cts = new CancellationTokenSource(token);
-		const result = new OutlineModel(textModel.uri);
+		const result = new OutlineModel(textModel);
 		const provider = DocumentSymbolProviderRegistry.ordered(textModel);
 		const promises = provider.map((provider, index) => {
 
@@ -359,7 +356,7 @@ export class OutlineModel extends TreeElement {
 	protected _groups = new Map<string, OutlineGroup>();
 	children = new Map<string, OutlineGroup | OutlineElement>();
 
-	protected constructor(readonly uri: URI) {
+	protected constructor(readonly textModel: ITextModel) {
 		super();
 
 		this.id = 'root';
@@ -367,7 +364,7 @@ export class OutlineModel extends TreeElement {
 	}
 
 	adopt(): OutlineModel {
-		let res = new OutlineModel(this.uri);
+		let res = new OutlineModel(this.textModel);
 		for (const [key, value] of this._groups) {
 			res._groups.set(key, value.adopt(res));
 		}
@@ -398,7 +395,7 @@ export class OutlineModel extends TreeElement {
 	}
 
 	merge(other: OutlineModel): boolean {
-		if (this.uri.toString() !== other.uri.toString()) {
+		if (this.textModel.uri.toString() !== other.textModel.uri.toString()) {
 			return false;
 		}
 		if (this._groups.size !== other._groups.size) {

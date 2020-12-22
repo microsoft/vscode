@@ -25,6 +25,7 @@
 	white-space: nowrap;
 }
 
+.monaco-breadcrumbs .outline-element .outline-element-decoration,
 .monaco-list .outline-element .outline-element-decoration {
 	opacity: 0.75;
 	font-size: 90%;
@@ -33,6 +34,11 @@
 	margin-left: auto;
 	text-align: center;
 	color: var(--outline-element-color);
+}
+
+.monaco-breadcrumbs .outline-element .outline-element-decoration {
+	/* Don't show markers inline with breadcrumbs */
+	display: none;
 }
 
 .monaco-list .outline-element .outline-element-decoration.bubble {

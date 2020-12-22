@@ -9,6 +9,7 @@ import { CancellationToken } from 'vs/base/common/cancellation';
 import { Event } from 'vs/base/common/event';
 import { FuzzyScore } from 'vs/base/common/filters';
 import { IDisposable } from 'vs/base/common/lifecycle';
+import { URI } from 'vs/base/common/uri';
 import { SymbolKind } from 'vs/editor/common/modes';
 import { IEditorOptions } from 'vs/platform/editor/common/editor';
 import { createDecorator } from 'vs/platform/instantiation/common/instantiation';
@@ -57,15 +58,8 @@ export interface IOutlineQuickPickConfig<E> {
 	readonly quickPickDataSource: IQuickPickDataSource<E>,
 }
 
-export class OutlineTreeConfiguration<E> {
-	constructor(
-		readonly breadcrumbsDataSource: IBreadcrumbsDataSource<E>,
-		readonly quickPickDataSource: IQuickPickDataSource<E>,
-		readonly treeDataSource: IDataSource<IOutline<E>, E>,
-		readonly delegate: IListVirtualDelegate<E>,
-		readonly renderers: ITreeRenderer<E, FuzzyScore, any>[],
-		readonly options: IWorkbenchDataTreeOptions<E, FuzzyScore>,
-	) { }
+export interface OutlineChangeEvent {
+	affectOnlyActiveElement?: true
 }
 
 export interface IOutline<E> {
@@ -76,9 +70,10 @@ export interface IOutline<E> {
 	readonly treeConfig: IOutlineTreeConfig<E>;
 	readonly quickPickConfig: IOutlineQuickPickConfig<E>;
 
-	readonly onDidChange: Event<this>;
-	readonly onDidChangeActive: Event<void>;
+	readonly onDidChange: Event<OutlineChangeEvent>;
 
+	readonly activeElement: E | undefined;
+	readonly resource: URI;
 	readonly isEmpty: boolean;
 
 	reveal(entry: E, options: IEditorOptions, sideBySide: boolean): Promise<void> | void;

@@ -124,6 +124,7 @@ export class OutlineElementRenderer implements ITreeRenderer<OutlineElement, Fuz
 	readonly templateId: string = OutlineElementTemplate.id;
 
 	constructor(
+		private _renderMarker: boolean,
 		@IConfigurationService private readonly _configurationService: IConfigurationService,
 		@IThemeService private readonly _themeService: IThemeService,
 	) { }
@@ -156,7 +157,10 @@ export class OutlineElementRenderer implements ITreeRenderer<OutlineElement, Fuz
 			options.matches = [];
 		}
 		template.iconLabel.setLabel(element.symbol.name, element.symbol.detail, options);
-		this._renderMarkerInfo(element, template);
+
+		if (this._renderMarker) {
+			this._renderMarkerInfo(element, template);
+		}
 	}
 
 	private _renderMarkerInfo(element: OutlineElement, template: OutlineElementTemplate): void {
@@ -308,7 +312,7 @@ export class OutlineFilter implements ITreeFilter<OutlineItem> {
 		let uri: URI | undefined;
 
 		if (outline) {
-			uri = outline.uri;
+			uri = outline.textModel.uri;
 		}
 
 		if (!(element instanceof OutlineElement)) {

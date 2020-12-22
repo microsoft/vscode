@@ -12,7 +12,7 @@ import { IThemeService, ThemeIcon } from 'vs/platform/theme/common/themeService'
 import { ICellViewModel } from 'vs/workbench/contrib/notebook/browser/notebookBrowser';
 import { NotebookEditor } from 'vs/workbench/contrib/notebook/browser/notebookEditor';
 import { CellKind } from 'vs/workbench/contrib/notebook/common/notebookCommon';
-import { IOutline, IOutlineBreadcrumbsConfig, IOutlineCreator, IOutlineQuickPickConfig, IOutlineService, IOutlineTreeConfig, IQuickPickDataSource } from 'vs/workbench/services/outline/browser/outline';
+import { IOutline, IOutlineBreadcrumbsConfig, IOutlineCreator, IOutlineQuickPickConfig, IOutlineService, IOutlineTreeConfig, IQuickPickDataSource, OutlineChangeEvent } from 'vs/workbench/services/outline/browser/outline';
 import { IWorkbenchContributionsRegistry, Extensions as WorkbenchExtensions } from 'vs/workbench/common/contributions';
 import { Registry } from 'vs/platform/registry/common/platform';
 import { LifecyclePhase } from 'vs/workbench/services/lifecycle/common/lifecycle';
@@ -29,6 +29,7 @@ import { IInstantiationService } from 'vs/platform/instantiation/common/instanti
 import { getIconClassesForModeId } from 'vs/editor/common/services/getIconClasses';
 import { SymbolKind } from 'vs/editor/common/modes';
 import { IWorkbenchDataTreeOptions } from 'vs/platform/list/browser/listService';
+import { URI } from 'vs/base/common/uri';
 
 export class OutlineEntry {
 	constructor(
@@ -126,11 +127,9 @@ class NotebookCellOutline implements IOutline<OutlineEntry> {
 
 	private readonly _dispoables = new DisposableStore();
 
-	private readonly _onDidChangeActive = new Emitter<void>();
-	private readonly _onDidChange = new Emitter<this>();
+	private readonly _onDidChange = new Emitter<OutlineChangeEvent>();
 
-	readonly onDidChangeActive: Event<void> = this._onDidChangeActive.event;
-	readonly onDidChange: Event<this> = this._onDidChange.event;
+	readonly onDidChange: Event<OutlineChangeEvent> = this._onDidChange.event;
 
 	private _entries: OutlineEntry[] = [];
 	private _activeEntry: number = -1;
@@ -139,6 +138,14 @@ class NotebookCellOutline implements IOutline<OutlineEntry> {
 	readonly breadcrumbsConfig: IOutlineBreadcrumbsConfig<OutlineEntry>;
 	readonly treeConfig: IOutlineTreeConfig<OutlineEntry>;
 	readonly quickPickConfig: IOutlineQuickPickConfig<OutlineEntry>;
+
+	get resource(): URI {
+		return this._editor.viewModel?.uri || URI.from({ scheme: 'empty' });
+	}
+
+	get activeElement(): OutlineEntry | undefined {
+		return this._entries[this._activeEntry];
+	}
 
 	constructor(
 		private readonly _editor: NotebookEditor,
@@ -239,11 +246,10 @@ class NotebookCellOutline implements IOutline<OutlineEntry> {
 			// send an event whenever any of the cells change
 			this._entriesDisposables.add(cell.model.onDidChangeContent(() => {
 				this._recomputeState();
-				this._onDidChange.fire(this);
+				this._onDidChange.fire({});
 			}));
 		}
-		this._onDidChange.fire(this);
-		this._onDidChangeActive.fire();
+		this._onDidChange.fire({});
 	}
 
 	private _recomputeActive(): void {
@@ -255,7 +261,7 @@ class NotebookCellOutline implements IOutline<OutlineEntry> {
 		}
 		if (newIdx !== this._activeEntry) {
 			this._activeEntry = newIdx;
-			this._onDidChangeActive.fire();
+			this._onDidChange.fire({ affectOnlyActiveElement: true });
 		}
 	}
 
