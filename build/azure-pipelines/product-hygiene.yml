@@ -53,14 +53,8 @@ steps:
 
   - script: |
       set -e
-      for i in {1..3}; do # try 3 times, for Terrapin
-        yarn --frozen-lockfile && break
-        if [ $i -eq 3 ]; then
-          echo "Yarn failed too many times" >&2
-          exit 1
-        fi
-        echo "Yarn failed $i, trying again..."
-      done
+      cd build
+      yarn --frozen-lockfile && break
     env:
       ELECTRON_SKIP_BINARY_DOWNLOAD: 1
       PLAYWRIGHT_SKIP_BROWSER_DOWNLOAD: 1
@@ -70,6 +64,7 @@ steps:
   - script: |
       set -e
       node build/azure-pipelines/common/listNodeModules.js > .build/node_modules_list.txt
+      cat .build/node_modules_list.txt
       mkdir -p .build/node_modules_cache
       tar -v --posix --use-compress-program zstd -T0 -cf .build/node_modules_cache/cache.tzst -P -C $BUILD_SOURCESDIRECTORY --files-from .build/node_modules_list.txt
     condition: and(succeeded(), ne(variables.NODE_MODULES_RESTORED, 'true'))
