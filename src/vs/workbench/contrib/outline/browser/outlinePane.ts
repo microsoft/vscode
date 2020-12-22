@@ -8,7 +8,7 @@ import * as dom from 'vs/base/browser/dom';
 import { ProgressBar } from 'vs/base/browser/ui/progressbar/progressbar';
 import { createCancelablePromise, TimeoutTimer } from 'vs/base/common/async';
 import { isPromiseCanceledError } from 'vs/base/common/errors';
-import { Emitter, Event } from 'vs/base/common/event';
+import { Event } from 'vs/base/common/event';
 import { IDisposable, toDisposable, DisposableStore, MutableDisposable } from 'vs/base/common/lifecycle';
 import { LRUCache } from 'vs/base/common/map';
 import { ICodeEditor, isCodeEditor, isDiffEditor } from 'vs/editor/browser/editorBrowser';
@@ -27,7 +27,7 @@ import { TextEditorSelectionRevealType } from 'vs/platform/editor/common/editor'
 import { IInstantiationService, ServicesAccessor } from 'vs/platform/instantiation/common/instantiation';
 import { IKeybindingService } from 'vs/platform/keybinding/common/keybinding';
 import { WorkbenchDataTree } from 'vs/platform/list/browser/listService';
-import { IStorageService, StorageScope, StorageTarget } from 'vs/platform/storage/common/storage';
+import { IStorageService } from 'vs/platform/storage/common/storage';
 import { attachProgressBarStyler } from 'vs/platform/theme/common/styler';
 import { IThemeService } from 'vs/platform/theme/common/themeService';
 import { ViewAction, ViewPane } from 'vs/workbench/browser/parts/views/viewPane';
@@ -47,6 +47,7 @@ import { ICodeEditorService } from 'vs/editor/browser/services/codeEditorService
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
 import { Codicon } from 'vs/base/common/codicons';
 import { MenuId, registerAction2 } from 'vs/platform/actions/common/actions';
+import { OutlineViewState } from './outlineViewState';
 
 class RequestState {
 
@@ -142,75 +143,6 @@ class RequestOracle {
 	}
 }
 
-
-class OutlineViewState {
-
-	private _followCursor = false;
-	private _filterOnType = true;
-	private _sortBy = OutlineSortOrder.ByKind;
-
-	private readonly _onDidChange = new Emitter<{ followCursor?: boolean, sortBy?: boolean, filterOnType?: boolean }>();
-	readonly onDidChange = this._onDidChange.event;
-
-	set followCursor(value: boolean) {
-		if (value !== this._followCursor) {
-			this._followCursor = value;
-			this._onDidChange.fire({ followCursor: true });
-		}
-	}
-
-	get followCursor(): boolean {
-		return this._followCursor;
-	}
-
-	get filterOnType() {
-		return this._filterOnType;
-	}
-
-	set filterOnType(value) {
-		if (value !== this._filterOnType) {
-			this._filterOnType = value;
-			this._onDidChange.fire({ filterOnType: true });
-		}
-	}
-
-	set sortBy(value: OutlineSortOrder) {
-		if (value !== this._sortBy) {
-			this._sortBy = value;
-			this._onDidChange.fire({ sortBy: true });
-		}
-	}
-
-	get sortBy(): OutlineSortOrder {
-		return this._sortBy;
-	}
-
-	persist(storageService: IStorageService): void {
-		storageService.store('outline/state', JSON.stringify({
-			followCursor: this.followCursor,
-			sortBy: this.sortBy,
-			filterOnType: this.filterOnType,
-		}), StorageScope.WORKSPACE, StorageTarget.USER);
-	}
-
-	restore(storageService: IStorageService): void {
-		let raw = storageService.get('outline/state', StorageScope.WORKSPACE);
-		if (!raw) {
-			return;
-		}
-		let data: any;
-		try {
-			data = JSON.parse(raw);
-		} catch (e) {
-			return;
-		}
-		this.followCursor = data.followCursor;
-		this.sortBy = data.sortBy;
-		if (typeof data.filterOnType === 'boolean') {
-			this.filterOnType = data.filterOnType;
-		}
-	}
-}
 
 export class OutlinePane extends ViewPane {
 
