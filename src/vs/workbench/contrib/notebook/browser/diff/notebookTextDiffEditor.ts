@@ -263,9 +263,6 @@ export class NotebookTextDiffEditor extends EditorPane implements INotebookTextD
 							cellTop: cellTop,
 							outputOffset: outputOffset
 						});
-
-						console.log(outputIndex, cellTop, outputOffset);
-
 					}
 				}
 
@@ -619,7 +616,6 @@ export class NotebookTextDiffEditor extends EditorPane implements INotebookTextD
 			const scrollTop = this._list.scrollTop;
 			const outputIndex = cellViewModel.outputsViewModels.findIndex(viewModel => viewModel.model === displayOutput.model);
 			const outputOffset = cellTop + cellDiffViewModel.getOutputOffsetInCell(diffSide, outputIndex);
-			console.log(cellTop, outputOffset);
 			activeWebview.updateViewScrollTop(-scrollTop, true, [{ output: displayOutput, cellTop, outputOffset }]);
 		});
 	}
