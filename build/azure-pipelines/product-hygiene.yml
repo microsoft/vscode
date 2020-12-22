@@ -40,10 +40,9 @@ steps:
 
   - task: Cache@2
     inputs:
-      key: 'yarnDownloadFolder | $(Agent.OS) | .build/arch, .build/terrapin, build/.cachesalt, .yarnrc, remote/.yarnrc, **/yarn.lock, !**/node_modules/**/yarn.lock, !**/.*/**/yarn.lock'
-      path: $(YARN_CACHE_FOLDER)
-      restoreKeys: 'yarnDownloadFolder | $(Agent.OS)'
-      cacheHitVar: YARN_DOWNLOAD_FOLDER_RESTORED
+      key: 'nodeModules | $(Agent.OS) | .build/arch, .build/terrapin, build/.cachesalt, .yarnrc, remote/.yarnrc, **/yarn.lock, !**/node_modules/**/yarn.lock, !**/.*/**/yarn.lock'
+      path: .build/node_modules_cache
+      cacheHitVar: NODE_MODULES_RESTORED
     displayName: Cache yarn download folder
 
   # - task: 1ESLighthouseEng.PipelineArtifactCaching.RestoreCacheV1.RestoreCache@1
@@ -66,7 +65,14 @@ steps:
       ELECTRON_SKIP_BINARY_DOWNLOAD: 1
       PLAYWRIGHT_SKIP_BROWSER_DOWNLOAD: 1
     displayName: Install dependencies
-    condition: and(succeeded(), ne(variables['CacheRestored'], 'true'))
+    condition: and(succeeded(), ne(variables.NODE_MODULES_RESTORED, 'true'))
+
+  - script: |
+      set -e
+      node build/azure-pipelines/common/listNodeModules.js > .build/node_modules_list.txt
+      mkdir -p .build/node_modules_cache
+      tar --posix --use-compress-program zstd -T0 -cf .build/node_modules_cache/cache.tzst -P --files-from .build/node_modules_list.txt
+    condition: and(succeeded(), ne(variables.NODE_MODULES_RESTORED, 'true'))
 
   # Mixin must run before optimize, because the CSS loader will inline small SVGs
   - script: |
@@ -77,8 +83,8 @@ steps:
   - script: |
       set -e
       yarn gulp hygiene
-      yarn monaco-compile-check
-      yarn valid-layers-check
+    # yarn monaco-compile-check
+    # yarn valid-layers-check
     displayName: Run hygiene, monaco compile & valid layers checks
     condition: and(succeeded(), eq(variables['VSCODE_STEP_ON_IT'], 'false'))
 
