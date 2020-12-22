@@ -6,7 +6,7 @@
 import { IRemoteAgentService } from 'vs/workbench/services/remote/common/remoteAgentService';
 import { IRemoteAuthorityResolverService, RemoteAuthorityResolverError } from 'vs/platform/remote/common/remoteAuthorityResolver';
 import { IProductService } from 'vs/platform/product/common/productService';
-import { nodeSocketFactory } from 'vs/platform/remote/node/nodeSocketFactory';
+import { BrowserSocketFactory } from 'vs/platform/remote/browser/browserSocketFactory';
 import { AbstractRemoteAgentService } from 'vs/workbench/services/remote/common/abstractRemoteAgentService';
 import { ISignService } from 'vs/platform/sign/common/sign';
 import { ILogService } from 'vs/platform/log/common/log';
@@ -27,7 +27,7 @@ export class RemoteAgentService extends AbstractRemoteAgentService implements IR
 		@ISignService signService: ISignService,
 		@ILogService logService: ILogService,
 	) {
-		super(nodeSocketFactory, environmentService, productService, remoteAuthorityResolverService, signService, logService);
+		super(new BrowserSocketFactory(null), environmentService, productService, remoteAuthorityResolverService, signService, logService);
 	}
 }
 
