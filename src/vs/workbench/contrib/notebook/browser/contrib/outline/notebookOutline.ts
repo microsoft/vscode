@@ -224,6 +224,7 @@ class NotebookCellOutline implements IOutline<OutlineEntry> {
 			}));
 		}
 		this._onDidChange.fire(this);
+		this._onDidChangeActive.fire();
 	}
 
 	private _recomputeActive(): void {

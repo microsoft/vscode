@@ -15,7 +15,7 @@ import { ICodeEditor, isCodeEditor, isDiffEditor } from 'vs/editor/browser/edito
 import { OutlineGroup, OutlineElement, OutlineModel, TreeElement } from 'vs/editor/contrib/documentSymbols/outlineModel';
 import { DocumentSymbolProviderRegistry } from 'vs/editor/common/modes';
 import { CancellationToken, CancellationTokenSource } from 'vs/base/common/cancellation';
-import { TimeoutTimer } from 'vs/base/common/async';
+import { raceCancellation, TimeoutTimer, timeout } from 'vs/base/common/async';
 import { equals } from 'vs/base/common/arrays';
 import { onUnexpectedError } from 'vs/base/common/errors';
 import { URI } from 'vs/base/common/uri';
@@ -23,11 +23,11 @@ import { ITextModel } from 'vs/editor/common/model';
 import { ITextResourceConfigurationService } from 'vs/editor/common/services/textResourceConfigurationService';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { IPosition } from 'vs/editor/common/core/position';
-import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { ScrollType } from 'vs/editor/common/editorCommon';
 import { Range } from 'vs/editor/common/core/range';
 import { IEditorOptions, TextEditorSelectionRevealType } from 'vs/platform/editor/common/editor';
 import { ICodeEditorService } from 'vs/editor/browser/services/codeEditorService';
+import { IModelContentChangedEvent } from 'vs/editor/common/model/textModelEvents';
 
 type DocumentSymbolItem = OutlineGroup | OutlineElement;
 
@@ -135,7 +135,7 @@ class DocumentSymbolsOutline implements IOutline<DocumentSymbolItem> {
 		private readonly _editor: ICodeEditor,
 		target: OutlineTarget,
 		@ICodeEditorService private readonly _codeEditorService: ICodeEditorService,
-		@IConfigurationService private readonly _configurationService: IConfigurationService,
+		// @IConfigurationService private readonly _configurationService: IConfigurationService,
 		@ITextResourceConfigurationService textResourceConfigurationService: ITextResourceConfigurationService,
 		@IInstantiationService instantiationService: IInstantiationService,
 	) {
@@ -190,36 +190,37 @@ class DocumentSymbolsOutline implements IOutline<DocumentSymbolItem> {
 
 
 		// update as language, model, providers changes
-		this._disposables.add(DocumentSymbolProviderRegistry.onDidChange(_ => this._updateOutline()));
-		this._disposables.add(this._editor.onDidChangeModel(_ => this._updateOutline()));
-		this._disposables.add(this._editor.onDidChangeModelLanguage(_ => this._updateOutline()));
+		this._disposables.add(DocumentSymbolProviderRegistry.onDidChange(_ => this._createOutline()));
+		this._disposables.add(this._editor.onDidChangeModel(_ => this._createOutline()));
+		this._disposables.add(this._editor.onDidChangeModelLanguage(_ => this._createOutline()));
 
+		// TODO@jrieken
 		// update when config changes (re-render)
-		this._disposables.add(this._configurationService.onDidChangeConfiguration(e => {
-			if (e.affectsConfiguration('breadcrumbs')) {
-				this._updateOutline(true);
-				return;
-			}
-			if (this._editor && this._editor.getModel()) {
-				const editorModel = this._editor.getModel() as ITextModel;
-				const languageName = editorModel.getLanguageIdentifier().language;
+		// this._disposables.add(this._configurationService.onDidChangeConfiguration(e => {
+		// 	if (e.affectsConfiguration('breadcrumbs')) {
+		// 		this._createOutline(true);
+		// 		return;
+		// 	}
+		// 	if (this._editor && this._editor.getModel()) {
+		// 		const editorModel = this._editor.getModel() as ITextModel;
+		// 		const languageName = editorModel.getLanguageIdentifier().language;
 
-				// Checking for changes in the current language override config.
-				// We can't be more specific than this because the ConfigurationChangeEvent(e) only includes the first part of the root path
-				if (e.affectsConfiguration(`[${languageName}]`)) {
-					this._updateOutline(true);
-				}
-			}
-		}));
+		// 		// Checking for changes in the current language override config.
+		// 		// We can't be more specific than this because the ConfigurationChangeEvent(e) only includes the first part of the root path
+		// 		if (e.affectsConfiguration(`[${languageName}]`)) {
+		// 			this._createOutline(true);
+		// 		}
+		// 	}
+		// }));
 
 		// update soon'ish as model content change
 		const updateSoon = new TimeoutTimer();
 		this._disposables.add(updateSoon);
-		this._disposables.add(this._editor.onDidChangeModelContent(_ => {
+		this._disposables.add(this._editor.onDidChangeModelContent(event => {
 			const timeout = OutlineModel.getRequestDelay(this._editor!.getModel());
-			updateSoon.cancelAndSet(() => this._updateOutline(true), timeout);
+			updateSoon.cancelAndSet(() => this._createOutline(event), timeout);
 		}));
-		this._updateOutline();
+		this._createOutline();
 
 		// stop when editor dies
 		this._disposables.add(this._editor.onDidDispose(() => this._outlineDisposables.clear()));
@@ -276,10 +277,10 @@ class DocumentSymbolsOutline implements IOutline<DocumentSymbolItem> {
 		return toDisposable(() => this._editor.deltaDecorations(ids, []));
 	}
 
-	private _updateOutline(didChangeContent?: boolean): void {
+	private async _createOutline(contentChangeEvent?: IModelContentChangedEvent): Promise<void> {
 
 		this._outlineDisposables.clear();
-		if (!didChangeContent) {
+		if (!contentChangeEvent) {
 			this._updateOutlineModel(undefined);
 		}
 
@@ -291,44 +292,67 @@ class DocumentSymbolsOutline implements IOutline<DocumentSymbolItem> {
 			return;
 		}
 
-		const source = new CancellationTokenSource();
+		const cts = new CancellationTokenSource();
 		const versionIdThen = buffer.getVersionId();
-		const timeout = new TimeoutTimer();
+		const timeoutTimer = new TimeoutTimer();
 
 		this._outlineDisposables.add({
 			dispose: () => {
-				source.dispose(true);
-				timeout.dispose();
+				cts.dispose(true);
+				timeoutTimer.dispose();
 			}
 		});
 
-		OutlineModel.create(buffer, source.token).then(model => {
-			if (source.token.isCancellationRequested) {
+		try {
+			let model = await OutlineModel.create(buffer, cts.token);
+			if (cts.token.isCancellationRequested) {
 				// cancelled -> do nothing
 				return;
 			}
+
 			if (TreeElement.empty(model) || !this._editor.hasModel()) {
 				// empty -> no outline elements
 				this._updateOutlineModel(model);
-
-			} else {
-				// copy the model
-				model = model.adopt();
-
-				this._updateOutlineModel(model);
-				this._outlineDisposables.add(this._editor.onDidChangeCursorPosition(_ => {
-					timeout.cancelAndSet(() => {
-						if (!buffer.isDisposed() && versionIdThen === buffer.getVersionId() && this._editor.hasModel()) {
-							this._breadcrumbsDataSource.update(model, this._editor.getPosition());
-							this._onDidChangeActive.fire();
-						}
-					}, 150);
-				}));
+				return;
 			}
-		}).catch(err => {
+
+			// heuristic: when the symbols-to-lines ratio changes by 50% between edits
+			// wait a little (and hope that the next change isn't as drastic).
+			if (contentChangeEvent && this._outlineModel && buffer.getLineCount() >= 25) {
+				const newSize = TreeElement.size(model);
+				const newLength = buffer.getValueLength();
+				const newRatio = newSize / newLength;
+				const oldSize = TreeElement.size(this._outlineModel);
+				const oldLength = newLength - contentChangeEvent.changes.reduce((prev, value) => prev + value.rangeLength, 0);
+				const oldRatio = oldSize / oldLength;
+				if (newRatio <= oldRatio * 0.5 || newRatio >= oldRatio * 1.5) {
+					// wait for a better state and ignore current model when more
+					// typing has happened
+					const value = await raceCancellation(timeout(2000).then(() => true), cts.token, false);
+					if (!value) {
+						return;
+					}
+				}
+			}
+
+			// copy the model
+			model = model.adopt();
+
+			this._updateOutlineModel(model);
+			this._outlineDisposables.add(this._editor.onDidChangeCursorPosition(_ => {
+				timeoutTimer.cancelAndSet(() => {
+					if (!buffer.isDisposed() && versionIdThen === buffer.getVersionId() && this._editor.hasModel()) {
+						this._breadcrumbsDataSource.update(model, this._editor.getPosition());
+						this._onDidChangeActive.fire();
+					}
+				}, 150);
+			}));
+
+
+		} catch (err) {
 			this._updateOutlineModel(undefined);
 			onUnexpectedError(err);
-		});
+		}
 	}
 
 	private _updateOutlineModel(model: OutlineModel | undefined) {
