@@ -19,6 +19,11 @@ export class LoaderCyclicChecker extends Disposable implements IWorkbenchContrib
 		super();
 
 		if (require.hasDependencyCycle()) {
+			if (process.env.CI || process.env.BUILD_ARTIFACTSTAGINGDIRECTORY) {
+				// running on a build machine, just exit
+				console.log('There is a dependency cycle in the AMD modules');
+				nativeHostService.exit(37);
+			}
 			dialogService.show(Severity.Error, nls.localize('loaderCycle', "There is a dependency cycle in the AMD modules"), [nls.localize('ok', "OK")]);
 			nativeHostService.openDevTools();
 		}
