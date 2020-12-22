@@ -245,7 +245,7 @@
 
 .monaco-workbench .notebook-text-diff-editor .output-view-container .multi-mimetype-output {
 	position: absolute;
-	/* top: 4px; */
+	top: 4px;
 	left: 8px;
 	width: 16px;
 	height: 16px;
@@ -259,4 +259,8 @@
 	padding-left: 12px;
 	font-style: italic;
 	opacity: 0.7;
+}
+
+.monaco-workbench .notebook-text-diff-editor .output-view-container pre {
+	margin: 4px 0;
 }
