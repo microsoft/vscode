@@ -105,7 +105,6 @@ export class NotebookTextDiffEditor extends EditorPane implements INotebookTextD
 		this._revealFirst = true;
 
 		this._register(this._modifiedResourceDisposableStore);
-		// TODO
 		this._outputRenderer = new OutputRenderer(this, this.instantiationService);
 	}
 
@@ -120,7 +119,7 @@ export class NotebookTextDiffEditor extends EditorPane implements INotebookTextD
 	updateOutputHeight(cellInfo: IDiffCellInfo, output: IDisplayOutputViewModel, outputHeight: number, isInit: boolean): void {
 		const diffElement = cellInfo.diffElement;
 		const cell = this.getCellByInfo(cellInfo);
-		const outputIndex = cell.outputsViewModels.findIndex(viewModel => viewModel.model === output.model);
+		const outputIndex = cell.outputsViewModels.indexOf(output);
 
 		if (diffElement instanceof SideBySideDiffElementViewModel) {
 			const info = CellUri.parse(cellInfo.cellUri);
@@ -248,14 +247,13 @@ export class NotebookTextDiffEditor extends EditorPane implements INotebookTextD
 					return;
 				}
 
-				if (cell.outputsViewModels.findIndex(viewModel => viewModel.model === key.model) < 0) {
+				if (cell.outputsViewModels.indexOf(key) < 0) {
 					// output is already gone
 					removedItems.push(key);
 				} else {
 					const cellTop = this._list.getAbsoluteTopOfElement(value.cellInfo.diffElement);
 					if (activeWebview.shouldUpdateInset(cell, key, cellTop)) {
-						// TODO: why? does it mean, we create new output view model every time?
-						const outputIndex = cell.outputsViewModels.findIndex(viewModel => viewModel.model === key.model);
+						const outputIndex = cell.outputsViewModels.indexOf(key);
 						const outputOffset = cellTop + value.cellInfo.diffElement.getOutputOffsetInCell(diffSide, outputIndex);
 
 						updateItems.push({
@@ -575,7 +573,7 @@ export class NotebookTextDiffEditor extends EditorPane implements INotebookTextD
 			} else {
 				const cellTop = this._list.getAbsoluteTopOfElement(cellDiffViewModel);
 				const scrollTop = this._list.scrollTop;
-				const outputIndex = cellViewModel.outputsViewModels.findIndex(viewModel => viewModel.model === output.source.model);
+				const outputIndex = cellViewModel.outputsViewModels.indexOf(output.source);
 				const outputOffset = cellTop + cellDiffViewModel.getOutputOffsetInCell(diffSide, outputIndex);
 				activeWebview.updateViewScrollTop(-scrollTop, true, [{ output: output.source, cellTop, outputOffset }]);
 			}
@@ -614,7 +612,7 @@ export class NotebookTextDiffEditor extends EditorPane implements INotebookTextD
 
 			const cellTop = this._list.getAbsoluteTopOfElement(cellDiffViewModel);
 			const scrollTop = this._list.scrollTop;
-			const outputIndex = cellViewModel.outputsViewModels.findIndex(viewModel => viewModel.model === displayOutput.model);
+			const outputIndex = cellViewModel.outputsViewModels.indexOf(displayOutput);
 			const outputOffset = cellTop + cellDiffViewModel.getOutputOffsetInCell(diffSide, outputIndex);
 			activeWebview.updateViewScrollTop(-scrollTop, true, [{ output: displayOutput, cellTop, outputOffset }]);
 		});

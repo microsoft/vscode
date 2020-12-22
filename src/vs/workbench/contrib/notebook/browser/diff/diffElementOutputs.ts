@@ -266,12 +266,6 @@ export class OutputContainer extends Disposable {
 
 	) {
 		super();
-
-		// TODO, onDidChangeOutputs
-
-		// viewCell.onDidChangeLayout
-		// say the height of the cell editor changes
-
 		this._register(this._diffElementViewModel.onDidLayoutChange(() => {
 			this._outputEntries.forEach((value, key) => {
 				const index = _nestedCellViewModel.outputs.indexOf(key.model);
