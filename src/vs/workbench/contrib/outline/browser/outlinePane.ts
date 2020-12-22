@@ -52,6 +52,7 @@ export class OutlinePane extends ViewPane {
 	private _progressBar!: ProgressBar;
 	private _treeContainer!: HTMLElement;
 	private _tree?: WorkbenchDataTree<IOutline<any>, any, FuzzyScore>;
+	private _treeDimensions?: dom.Dimension;
 	private _treeStates = new LRUCache<string, IDataTreeViewState>(10);
 
 	private readonly _ctxFocused: IContextKey<boolean>;
@@ -137,6 +138,7 @@ export class OutlinePane extends ViewPane {
 	protected layoutBody(height: number, width: number): void {
 		super.layoutBody(height, width);
 		this._tree?.layout(height, width);
+		this._treeDimensions = new dom.Dimension(width, height);
 	}
 
 	collapseAll(): void {
@@ -294,6 +296,7 @@ export class OutlinePane extends ViewPane {
 		}));
 
 		// last: set tree property
+		tree.layout(this._treeDimensions?.height, this._treeDimensions?.width);
 		this._tree = tree;
 		this._editorDisposables.add(toDisposable(() => {
 			tree.dispose();
