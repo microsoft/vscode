@@ -324,23 +324,36 @@ export class OutlineItemComparator implements ITreeSorter<OutlineItem> {
 	private readonly _collator = new IdleValue<Intl.Collator>(() => new Intl.Collator(undefined, { numeric: true }));
 
 	constructor(
-		public type: OutlineSortOrder = OutlineSortOrder.ByPosition
+		private readonly _prefix: 'breadcrumbs' | 'outline',
+		@ITextResourceConfigurationService private readonly _textResourceConfigService: ITextResourceConfigurationService,
 	) { }
 
 	compare(a: OutlineItem, b: OutlineItem): number {
 		if (a instanceof OutlineGroup && b instanceof OutlineGroup) {
 			return a.order - b.order;
-
 		} else if (a instanceof OutlineElement && b instanceof OutlineElement) {
-			if (this.type === OutlineSortOrder.ByKind) {
+			const type = this._getSortOrder(OutlineModel.get(a));
+			if (type === OutlineSortOrder.ByKind) {
 				return a.symbol.kind - b.symbol.kind || this._collator.value.compare(a.symbol.name, b.symbol.name);
-			} else if (this.type === OutlineSortOrder.ByName) {
+			} else if (type === OutlineSortOrder.ByName) {
 				return this._collator.value.compare(a.symbol.name, b.symbol.name) || Range.compareRangesUsingStarts(a.symbol.range, b.symbol.range);
-			} else if (this.type === OutlineSortOrder.ByPosition) {
+			} else if (type === OutlineSortOrder.ByPosition) {
 				return Range.compareRangesUsingStarts(a.symbol.range, b.symbol.range) || this._collator.value.compare(a.symbol.name, b.symbol.name);
 			}
 		}
 		return 0;
+	}
+
+	private _getSortOrder(model: OutlineModel | undefined): OutlineSortOrder {
+		const uri = model?.textModel.uri;
+		const value = this._textResourceConfigService.getValue(uri, `${this._prefix}.symbolSortOrder`);
+		if (value === 'name') {
+			return OutlineSortOrder.ByName;
+		} else if (value === 'type') {
+			return OutlineSortOrder.ByKind;
+		} else {
+			return OutlineSortOrder.ByPosition;
+		}
 	}
 }
 

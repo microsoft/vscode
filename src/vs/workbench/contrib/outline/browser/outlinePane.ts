@@ -11,7 +11,7 @@ import { IDisposable, toDisposable, DisposableStore, MutableDisposable } from 'v
 import { LRUCache } from 'vs/base/common/map';
 import { localize } from 'vs/nls';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
-import { ContextKeyEqualsExpr, IContextKey, IContextKeyService, RawContextKey } from 'vs/platform/contextkey/common/contextkey';
+import { ContextKeyEqualsExpr, ContextKeyExpr, IContextKey, IContextKeyService, RawContextKey } from 'vs/platform/contextkey/common/contextkey';
 import { IContextMenuService } from 'vs/platform/contextview/browser/contextView';
 import { IInstantiationService, ServicesAccessor } from 'vs/platform/instantiation/common/instantiation';
 import { IKeybindingService } from 'vs/platform/keybinding/common/keybinding';
@@ -22,7 +22,7 @@ import { IThemeService } from 'vs/platform/theme/common/themeService';
 import { ViewAction, ViewPane } from 'vs/workbench/browser/parts/views/viewPane';
 import { IViewletViewOptions } from 'vs/workbench/browser/parts/views/viewsViewlet';
 import { IEditorService } from 'vs/workbench/services/editor/common/editorService';
-import { OutlineViewFocused, OutlineViewFiltered, OutlineViewId, OutlineSortOrder } from 'vs/editor/contrib/documentSymbols/outline';
+import { OutlineViewFocused, OutlineViewFiltered, OutlineViewId } from 'vs/editor/contrib/documentSymbols/outline';
 import { FuzzyScore } from 'vs/base/common/filters';
 import { IDataTreeViewState } from 'vs/base/browser/ui/tree/dataTree';
 import { basename } from 'vs/base/common/resources';
@@ -58,7 +58,6 @@ export class OutlinePane extends ViewPane {
 	private readonly _ctxFiltered: IContextKey<boolean>;
 	private readonly _ctxFollowsCursor: IContextKey<boolean>;
 	private readonly _ctxFilterOnType: IContextKey<boolean>;
-	private readonly _ctxSortMode: IContextKey<OutlineSortOrder>;
 
 	constructor(
 		options: IViewletViewOptions,
@@ -78,21 +77,19 @@ export class OutlinePane extends ViewPane {
 	) {
 		super(options, keybindingService, contextMenuService, configurationService, contextKeyService, viewDescriptorService, _instantiationService, openerService, themeService, telemetryService);
 		this._outlineViewState.restore(this._storageService);
+
 		this._ctxFocused = OutlineViewFocused.bindTo(contextKeyService);
 		this._ctxFiltered = OutlineViewFiltered.bindTo(contextKeyService);
+		this._ctxFollowsCursor = _ctxFollowsCursor.bindTo(contextKeyService);
+		this._ctxFilterOnType = _ctxFilterOnType.bindTo(contextKeyService);
 		this._disposables.add(this.onDidFocus(_ => this._ctxFocused.set(true)));
 		this._disposables.add(this.onDidBlur(_ => this._ctxFocused.set(false)));
 
-		this._ctxFollowsCursor = _ctxFollowsCursor.bindTo(contextKeyService);
-		this._ctxFilterOnType = _ctxFilterOnType.bindTo(contextKeyService);
-		this._ctxSortMode = _ctxSortMode.bindTo(contextKeyService);
-		const viewStateToContext = () => {
-			this._ctxFollowsCursor.set(this._outlineViewState.followCursor);
-			this._ctxFilterOnType.set(this._outlineViewState.filterOnType);
-			this._ctxSortMode.set(this._outlineViewState.sortBy);
-		};
-		viewStateToContext();
-		this._outlineViewState.onDidChange(viewStateToContext, this);
+		this._disposables.add(configurationService.onDidChangeConfiguration(e => {
+			if (e.affectsConfiguration('outline.symbolSortOrder')) {
+				this._tree?.resort();
+			}
+		}));
 	}
 
 	dispose(): void {
@@ -149,17 +146,18 @@ export class OutlinePane extends ViewPane {
 	}
 
 	private _onDidChangeUserState(e: { followCursor?: boolean, sortBy?: boolean, filterOnType?: boolean }) {
-		this._outlineViewState.persist(this._storageService);
 
-		if (e.sortBy) {
-			// todo@jrieken
-			// this._treeComparator.type = this._outlineViewState.sortBy;
-			this._tree?.resort();
-		}
+		this._ctxFollowsCursor.set(this._outlineViewState.followCursor);
+		this._ctxFilterOnType.set(this._outlineViewState.filterOnType);
+
+		this._outlineViewState.persist(this._storageService);
 		if (e.filterOnType) {
 			this._tree?.updateOptions({
 				filterOnType: this._outlineViewState.filterOnType
 			});
+		}
+		if (e.followCursor) {
+
 		}
 	}
 
@@ -306,7 +304,6 @@ export class OutlinePane extends ViewPane {
 
 const _ctxFollowsCursor = new RawContextKey('outlineFollowsCursor', false);
 const _ctxFilterOnType = new RawContextKey('outlineFiltersOnType', false);
-const _ctxSortMode = new RawContextKey<OutlineSortOrder>('outlineSortMode', OutlineSortOrder.ByPosition);
 
 // --- commands
 
@@ -379,7 +376,7 @@ registerAction2(class SortByPosition extends ViewAction<OutlinePane> {
 			id: 'outline.sortByPosition',
 			title: localize('sortByPosition', "Sort By: Position"),
 			f1: false,
-			toggled: _ctxSortMode.isEqualTo(OutlineSortOrder.ByPosition),
+			toggled: ContextKeyExpr.equals('config.outline.symbolSortOrder', 'position'),
 			menu: {
 				id: MenuId.ViewTitle,
 				group: 'sort',
@@ -388,8 +385,8 @@ registerAction2(class SortByPosition extends ViewAction<OutlinePane> {
 			}
 		});
 	}
-	runInView(_accessor: ServicesAccessor, view: OutlinePane) {
-		view.outlineViewState.sortBy = OutlineSortOrder.ByPosition;
+	runInView(accessor: ServicesAccessor) {
+		accessor.get(IConfigurationService).updateValue('outline.symbolSortOrder', 'position');
 	}
 });
 
@@ -400,7 +397,7 @@ registerAction2(class SortByName extends ViewAction<OutlinePane> {
 			id: 'outline.sortByName',
 			title: localize('sortByName', "Sort By: Name"),
 			f1: false,
-			toggled: _ctxSortMode.isEqualTo(OutlineSortOrder.ByName),
+			toggled: ContextKeyExpr.equals('config.outline.symbolSortOrder', 'name'),
 			menu: {
 				id: MenuId.ViewTitle,
 				group: 'sort',
@@ -409,8 +406,8 @@ registerAction2(class SortByName extends ViewAction<OutlinePane> {
 			}
 		});
 	}
-	runInView(_accessor: ServicesAccessor, view: OutlinePane) {
-		view.outlineViewState.sortBy = OutlineSortOrder.ByName;
+	runInView(accessor: ServicesAccessor) {
+		accessor.get(IConfigurationService).updateValue('outline.symbolSortOrder', 'name');
 	}
 });
 
@@ -421,7 +418,7 @@ registerAction2(class SortByKind extends ViewAction<OutlinePane> {
 			id: 'outline.sortByKind',
 			title: localize('sortByKind', "Sort By: Category"),
 			f1: false,
-			toggled: _ctxSortMode.isEqualTo(OutlineSortOrder.ByKind),
+			toggled: ContextKeyExpr.equals('config.outline.symbolSortOrder', 'type'),
 			menu: {
 				id: MenuId.ViewTitle,
 				group: 'sort',
@@ -430,7 +427,7 @@ registerAction2(class SortByKind extends ViewAction<OutlinePane> {
 			}
 		});
 	}
-	runInView(_accessor: ServicesAccessor, view: OutlinePane) {
-		view.outlineViewState.sortBy = OutlineSortOrder.ByKind;
+	runInView(accessor: ServicesAccessor) {
+		accessor.get(IConfigurationService).updateValue('outline.symbolSortOrder', 'type');
 	}
 });

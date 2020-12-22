@@ -44,6 +44,18 @@ Registry.as<IConfigurationRegistry>(ConfigurationExtensions.Configuration).regis
 			'type': 'boolean',
 			'default': true
 		},
+		'outline.symbolSortOrder': {
+			description: localize('symbolSortOrder', "Controls how symbols are sorted in the outline view."),
+			type: 'string',
+			default: 'position',
+			// scope: ConfigurationScope.LANGUAGE_OVERRIDABLE,
+			enum: ['position', 'name', 'type'],
+			enumDescriptions: [
+				localize('symbolSortOrder.position', "Show symbol outline in file position order."),
+				localize('symbolSortOrder.name', "Show symbol outline in alphabetical order."),
+				localize('symbolSortOrder.type', "Show symbol outline in symbol type order."),
+			]
+		},
 		[OutlineConfigKeys.problemsEnabled]: {
 			'description': localize('outline.showProblem', "Show Errors & Warnings on Outline Elements."),
 			'type': 'boolean',

@@ -31,7 +31,7 @@ import { IModelContentChangedEvent } from 'vs/editor/common/model/textModelEvent
 import { IDataSource } from 'vs/base/browser/ui/tree/tree';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { localize } from 'vs/nls';
-import { OutlineConfigKeys, OutlineSortOrder } from 'vs/editor/contrib/documentSymbols/outline';
+import { OutlineConfigKeys } from 'vs/editor/contrib/documentSymbols/outline';
 import { IMarkerDecorationsService } from 'vs/editor/common/services/markersDecorationService';
 import { MarkerSeverity } from 'vs/platform/markers/common/markers';
 
@@ -184,8 +184,6 @@ class DocumentSymbolsOutline implements IOutline<DocumentSymbolItem> {
 			keyboardNavigationLabelProvider: new OutlineNavigationLabelProvider(),
 		};
 
-		const breadcrumbsSorter = new OutlineItemComparator();
-
 		this.breadcrumbsConfig = {
 			breadcrumbsDataSource: this._breadcrumbsDataSource,
 			delegate,
@@ -193,7 +191,7 @@ class DocumentSymbolsOutline implements IOutline<DocumentSymbolItem> {
 			treeDataSource,
 			options: {
 				...options,
-				sorter: breadcrumbsSorter,
+				sorter: instantiationService.createInstance(OutlineItemComparator, 'breadcrumbs'),
 				filter: instantiationService.createInstance(OutlineFilter, 'breadcrumbs'),
 				accessibilityProvider: new OutlineAccessibilityProvider(localize('breadcrumbs', "Breadcrumbs")),
 			}
@@ -205,7 +203,7 @@ class DocumentSymbolsOutline implements IOutline<DocumentSymbolItem> {
 			treeDataSource,
 			options: {
 				...options,
-				sorter: new OutlineItemComparator(), //todo@jrieken
+				sorter: instantiationService.createInstance(OutlineItemComparator, 'outline'),
 				filter: instantiationService.createInstance(OutlineFilter, 'outline'),
 				accessibilityProvider: new OutlineAccessibilityProvider(localize('outline', "Outline")),
 			}
@@ -214,22 +212,6 @@ class DocumentSymbolsOutline implements IOutline<DocumentSymbolItem> {
 		this.quickPickConfig = {
 			quickPickDataSource: { getQuickPickElements: () => { throw new Error('not implemented'); } }
 		};
-
-		// special sorting for breadcrumbs
-		const updateSort = () => {
-			const uri = this._outlineModel?.textModel.uri;
-			const value = textResourceConfigurationService.getValue(uri, `breadcrumbs.symbolSortOrder`);
-			if (value === 'name') {
-				breadcrumbsSorter.type = OutlineSortOrder.ByName;
-			} else if (value === 'type') {
-				breadcrumbsSorter.type = OutlineSortOrder.ByKind;
-			} else {
-				breadcrumbsSorter.type = OutlineSortOrder.ByPosition;
-			}
-		};
-		this._disposables.add(textResourceConfigurationService.onDidChangeConfiguration(() => updateSort()));
-		updateSort();
-
 
 		// update as language, model, providers changes
 		this._disposables.add(DocumentSymbolProviderRegistry.onDidChange(_ => this._createOutline()));
