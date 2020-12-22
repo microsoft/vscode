@@ -222,22 +222,28 @@ export class OutlinePane extends ViewPane {
 			}
 		);
 
-		const state = this._treeStates.get(newOutline.resource.toString());
-		tree.setInput(newOutline, state);
-
 		// update tree, listen to changes
-		const update = () => {
+		const updateTree = () => {
 			if (newOutline.isEmpty) {
+				// no more elements
 				this._showMessage(localize('no-symbols', "No symbols found in document '{0}'", basename(resource)));
-			} else {
+
+			} else if (!tree.getInput()) {
+				// first: init tree
 				this._domNode.classList.remove('message');
+				const state = this._treeStates.get(newOutline.resource.toString());
+				tree.setInput(newOutline, state);
+				tree.expandAll();
+
+			} else {
+				// update: refresh tree
+				this._domNode.classList.remove('message');
+				tree.updateChildren();
+				tree.expandAll();
 			}
 		};
-		this._editorDisposables.add(newOutline.onDidChange(() => {
-			tree.updateChildren();
-			update();
-		}));
-		update();
+		updateTree();
+		this._editorDisposables.add(newOutline.onDidChange(updateTree));
 
 		// feature: apply panel background to tree
 		this._editorDisposables.add(this.viewDescriptorService.onDidChangeLocation(({ views }) => {
