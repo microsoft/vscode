@@ -40,14 +40,14 @@ steps:
 
   - task: Cache@2
     inputs:
-      key: 'nodeModules | $(Agent.OS) | .build/arch, .build/terrapin, build/.cachesalt, .yarnrc, remote/.yarnrc, **/yarn.lock, !**/node_modules/**/yarn.lock, !**/.*/**/yarn.lock'
+      key: 'nodeModules2 | $(Agent.OS) | .build/arch, .build/terrapin, build/.cachesalt, .yarnrc, remote/.yarnrc, **/yarn.lock, !**/node_modules/**/yarn.lock, !**/.*/**/yarn.lock'
       path: .build/node_modules_cache
       cacheHitVar: NODE_MODULES_RESTORED
     displayName: Cache yarn download folder
 
   - script: |
       set -e
-      tar --verbose --use-compress-program zstd -xf .build/node_modules_cache/cache.tzst -C $BUILD_SOURCESDIRECTORY
+      tar --verbose --use-compress-program zstd -xf .build/node_modules_cache/cache.tzst -P -C $BUILD_SOURCESDIRECTORY
       ls -al build/node_modules
     condition: and(succeeded(), eq(variables.NODE_MODULES_RESTORED, 'true'))
 
