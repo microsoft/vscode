@@ -9,10 +9,8 @@ const fs = require("fs");
 const path = require("path");
 const vfs = require("vinyl-fs");
 const filter = require("gulp-filter");
-const json = require("gulp-json-editor");
 const _ = require("underscore");
 const util = require("./util");
-const electron = require('gulp-atom-electron');
 const root = path.dirname(path.dirname(__dirname));
 const product = JSON.parse(fs.readFileSync(path.join(root, 'product.json'), 'utf8'));
 const commit = util.getVersion(root);
@@ -80,6 +78,8 @@ exports.config = {
 };
 function getElectron(arch) {
     return () => {
+        const electron = require('gulp-atom-electron');
+        const json = require('gulp-json-editor');
         const electronOpts = _.extend({}, exports.config, {
             platform: process.platform,
             arch: arch === 'armhf' ? 'arm' : arch,
