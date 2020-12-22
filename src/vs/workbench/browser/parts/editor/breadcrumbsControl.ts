@@ -16,7 +16,7 @@ import 'vs/css!./media/breadcrumbscontrol';
 import { ICodeEditor, isCodeEditor, isDiffEditor } from 'vs/editor/browser/editorBrowser';
 import { Range } from 'vs/editor/common/core/range';
 import { ICodeEditorViewState } from 'vs/editor/common/editorCommon';
-import { OutlineElement, OutlineModel, TreeElement } from 'vs/editor/contrib/documentSymbols/outlineModel';
+import { OutlineElement, OutlineModel } from 'vs/editor/contrib/documentSymbols/outlineModel';
 import { localize } from 'vs/nls';
 import { MenuId, MenuRegistry } from 'vs/platform/actions/common/actions';
 import { CommandsRegistry } from 'vs/platform/commands/common/commands';
@@ -355,10 +355,9 @@ export class BreadcrumbsControl {
 		const { element } = event.item as FileItem | OutlineItem;
 		this._editorGroup.focus();
 
-		type BreadcrumbSelectClassification = {
-			type: { classification: 'SystemMetaData', purpose: 'FeatureInsight' };
-		};
-		this._telemetryService.publicLog2<{ type: string }, BreadcrumbSelectClassification>('breadcrumbs/select', { type: element instanceof TreeElement ? 'symbol' : 'file' });
+		type BreadcrumbSelect = { type: string };
+		type BreadcrumbSelectClassification = { type: { classification: 'SystemMetaData', purpose: 'FeatureInsight' }; };
+		this._telemetryService.publicLog2<BreadcrumbSelect, BreadcrumbSelectClassification>('breadcrumbs/select', { type: event.item instanceof OutlineItem ? 'symbol' : 'file' });
 
 		const group = this._getEditorGroup(event.payload);
 		if (group !== undefined) {
@@ -711,6 +710,7 @@ KeybindingsRegistry.registerCommandAndKeybindingRule({
 		const lists = accessor.get(IListService);
 		const element = lists.lastFocusedList ? <OutlineElement | IFileStat>lists.lastFocusedList.getFocus()[0] : undefined;
 		if (element instanceof OutlineElement) {
+			// TODO@jrieken this isn't OK
 			const outlineElement = OutlineModel.get(element);
 			if (!outlineElement) {
 				return undefined;
@@ -718,7 +718,7 @@ KeybindingsRegistry.registerCommandAndKeybindingRule({
 
 			// open symbol in editor
 			return editors.openEditor({
-				resource: outlineElement.uri,
+				resource: outlineElement.textModel.uri,
 				options: { selection: Range.collapseToStart(element.symbol.selectionRange), pinned: true }
 			}, SIDE_GROUP);
 
