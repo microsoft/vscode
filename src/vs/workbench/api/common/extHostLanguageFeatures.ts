@@ -1062,6 +1062,26 @@ class SignatureHelpAdapter {
 	}
 }
 
+class SignatureArgumentsLabelAdapter {
+	private readonly _cache = new Cache<vscode.SignatureArgumentsLabelList>('SignatureArgumentsLabel');
+
+	constructor(
+		private readonly _documents: ExtHostDocuments,
+		private readonly _provider: vscode.SignatureArgumentsLabelProvider,
+	) { }
+
+	provideSignatureArgumentsLabels(resource: URI, token: CancellationToken): Promise<extHostProtocol.ISignatureArgumentsLabelDto | undefined> {
+		const doc = this._documents.getDocument(resource);
+		return asPromise(() => this._provider.provideSignatureArgumentsLabels(doc, token)).then(value => {
+			if (value) {
+				const id = this._cache.add([value]);
+				return { ...typeConvert.SignatrueArgumentsLabelList.from(value), id };
+			}
+			return undefined;
+		});
+	}
+}
+
 class LinkProviderAdapter {
 
 	private _cache = new Cache<vscode.DocumentLink>('DocumentLink');
@@ -1768,6 +1788,11 @@ export class ExtHostLanguageFeatures implements extHostProtocol.ExtHostLanguageF
 
 	$releaseSignatureHelp(handle: number, id: number): void {
 		this._withAdapter(handle, SignatureHelpAdapter, adapter => adapter.releaseSignatureHelp(id), undefined);
+	}
+
+	// --- arguments labels
+	$provideSignatureArgumentsLabel(handle: number, resource: UriComponents, token: CancellationToken): Promise<extHostProtocol.ISignatureArgumentsLabelDto | undefined> {
+		return this._withAdapter(handle, SignatureArgumentsLabelAdapter, adapter => adapter.provideSignatureArgumentsLabels(URI.revive(resource), token), undefined);
 	}
 
 	// --- links

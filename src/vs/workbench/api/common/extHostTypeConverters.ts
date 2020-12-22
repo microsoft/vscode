@@ -1015,6 +1015,16 @@ export namespace SignatureHelp {
 	}
 }
 
+export namespace SignatrueArgumentsLabelList {
+	export function from(labels: vscode.SignatureArgumentsLabelList): modes.SignatureArgumentsLabelList {
+
+	}
+
+	export function to(labels: modes.SignatureArgumentsLabelList): vscode.SignatureArgumentsLabelList {
+
+	}
+}
+
 export namespace DocumentLink {
 
 	export function from(link: vscode.DocumentLink): modes.ILink {

@@ -1269,6 +1269,18 @@ export interface ISignatureHelpContextDto {
 	readonly activeSignatureHelp?: ISignatureHelpDto;
 }
 
+export interface ISignautreArgumentsDto {
+	name: string
+	positions: IPosition[]
+}
+export interface ISignatureArgumentsSignatureDto {
+	arguments: ISignautreArgumentsDto[]
+}
+
+export interface ISignatureArgumentsLabelDto {
+	signatures: ISignatureArgumentsSignatureDto[]
+}
+
 export interface ILocationDto {
 	uri: UriComponents;
 	range: IRange;
@@ -1458,6 +1470,7 @@ export interface ExtHostLanguageFeaturesShape {
 	$releaseCompletionItems(handle: number, id: number): void;
 	$provideSignatureHelp(handle: number, resource: UriComponents, position: IPosition, context: modes.SignatureHelpContext, token: CancellationToken): Promise<ISignatureHelpDto | undefined>;
 	$releaseSignatureHelp(handle: number, id: number): void;
+	$provideSignatureArgumentsLabel(handle: number, resource: UriComponents, token: CancellationToken): Promise<ISignatureArgumentsLabelDto | undefined>
 	$provideDocumentLinks(handle: number, resource: UriComponents, token: CancellationToken): Promise<ILinksListDto | undefined>;
 	$resolveDocumentLink(handle: number, id: ChainedCacheId, token: CancellationToken): Promise<ILinkDto | undefined>;
 	$releaseDocumentLinks(handle: number, id: number): void;

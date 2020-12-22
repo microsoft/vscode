@@ -1373,6 +1373,34 @@ export enum SignatureHelpTriggerKind {
 	ContentChange = 3,
 }
 
+@es5ClassCompat
+export class SignautreArguments {
+	name: string;
+	positions: Position[];
+
+	constructor(name: string, positions: Position[]) {
+		this.name = name;
+		this.positions = positions;
+	}
+}
+
+@es5ClassCompat
+export class SignatureArgumentsSignature {
+	arguments: SignautreArguments[];
+
+	constructor() {
+		this.arguments = [];
+	}
+}
+
+@es5ClassCompat
+export class SignatureArgumentsLabelList {
+	signatures: SignatureArgumentsSignature[];
+	constructor() {
+		this.signatures = [];
+	}
+}
+
 export enum CompletionTriggerKind {
 	Invoke = 0,
 	TriggerCharacter = 1,

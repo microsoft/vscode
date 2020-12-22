@@ -9,7 +9,7 @@ import { Event } from 'vs/base/common/event';
 import { IMarkdownString } from 'vs/base/common/htmlContent';
 import { IDisposable } from 'vs/base/common/lifecycle';
 import { URI, UriComponents } from 'vs/base/common/uri';
-import { Position } from 'vs/editor/common/core/position';
+import { IPosition, Position } from 'vs/editor/common/core/position';
 import { IRange, Range } from 'vs/editor/common/core/range';
 import { Selection } from 'vs/editor/common/core/selection';
 import { TokenizationResult, TokenizationResult2 } from 'vs/editor/common/core/token';
@@ -1659,6 +1659,22 @@ export interface CodeLensProvider {
 	resolveCodeLens?(model: model.ITextModel, codeLens: CodeLens, token: CancellationToken): ProviderResult<CodeLens>;
 }
 
+export interface SignautreArguments {
+	name: string
+	positions: IPosition[]
+}
+export interface SignatureArgumentsSignature {
+	arguments: SignautreArguments[]
+}
+
+export interface SignatureArgumentsLabelList {
+	signatures: SignatureArgumentsSignature[]
+}
+
+export interface SignatureArgumentsLabelProvider {
+	provideSignatureArgumentsLabels(model: model.ITextModel, token: CancellationToken): ProviderResult<SignatureArgumentsLabelList>;
+}
+
 export interface SemanticTokensLegend {
 	readonly tokenTypes: string[];
 	readonly tokenModifiers: string[];
@@ -1763,6 +1779,10 @@ export const TypeDefinitionProviderRegistry = new LanguageFeatureRegistry<TypeDe
  * @internal
  */
 export const CodeLensProviderRegistry = new LanguageFeatureRegistry<CodeLensProvider>();
+/**
+ * @internal
+ */
+export const SignatureArgumentsLabelProviderRegistry = new LanguageFeatureRegistry<SignatureArgumentsLabelProvider>();
 
 /**
  * @internal

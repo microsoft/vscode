@@ -1834,6 +1834,7 @@ export class EditorModeContext extends Disposable {
 	private readonly _hasMultipleDocumentFormattingProvider: IContextKey<boolean>;
 	private readonly _hasMultipleDocumentSelectionFormattingProvider: IContextKey<boolean>;
 	private readonly _hasSignatureHelpProvider: IContextKey<boolean>;
+	private readonly _hasSignatureArgumentsLabelProvider: IContextKey<boolean>;
 	private readonly _isInWalkThrough: IContextKey<boolean>;
 
 	constructor(
@@ -1856,6 +1857,7 @@ export class EditorModeContext extends Disposable {
 		this._hasReferenceProvider = EditorContextKeys.hasReferenceProvider.bindTo(_contextKeyService);
 		this._hasRenameProvider = EditorContextKeys.hasRenameProvider.bindTo(_contextKeyService);
 		this._hasSignatureHelpProvider = EditorContextKeys.hasSignatureHelpProvider.bindTo(_contextKeyService);
+		this._hasSignatureArgumentsLabelProvider = EditorContextKeys.hasSignatureArgumentsLabelProvider.bindTo(_contextKeyService);
 		this._hasDocumentFormattingProvider = EditorContextKeys.hasDocumentFormattingProvider.bindTo(_contextKeyService);
 		this._hasDocumentSelectionFormattingProvider = EditorContextKeys.hasDocumentSelectionFormattingProvider.bindTo(_contextKeyService);
 		this._hasMultipleDocumentFormattingProvider = EditorContextKeys.hasMultipleDocumentFormattingProvider.bindTo(_contextKeyService);
@@ -1884,6 +1886,7 @@ export class EditorModeContext extends Disposable {
 		this._register(modes.DocumentFormattingEditProviderRegistry.onDidChange(update));
 		this._register(modes.DocumentRangeFormattingEditProviderRegistry.onDidChange(update));
 		this._register(modes.SignatureHelpProviderRegistry.onDidChange(update));
+		this._register(modes.SignatureArgumentsLabelProviderRegistry.onDidChange(update));
 
 		update();
 	}
@@ -1935,6 +1938,7 @@ export class EditorModeContext extends Disposable {
 			this._hasReferenceProvider.set(modes.ReferenceProviderRegistry.has(model));
 			this._hasRenameProvider.set(modes.RenameProviderRegistry.has(model));
 			this._hasSignatureHelpProvider.set(modes.SignatureHelpProviderRegistry.has(model));
+			this._hasSignatureArgumentsLabelProvider.set(modes.SignatureArgumentsLabelProviderRegistry.has(model));
 			this._hasDocumentFormattingProvider.set(modes.DocumentFormattingEditProviderRegistry.has(model) || modes.DocumentRangeFormattingEditProviderRegistry.has(model));
 			this._hasDocumentSelectionFormattingProvider.set(modes.DocumentRangeFormattingEditProviderRegistry.has(model));
 			this._hasMultipleDocumentFormattingProvider.set(modes.DocumentFormattingEditProviderRegistry.all(model).length + modes.DocumentRangeFormattingEditProviderRegistry.all(model).length > 1);

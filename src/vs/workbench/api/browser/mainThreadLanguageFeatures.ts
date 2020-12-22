@@ -497,6 +497,16 @@ export class MainThreadLanguageFeatures implements MainThreadLanguageFeaturesSha
 		}));
 	}
 
+	// --- parameter labels
+
+	$registerSignatureArgumentsLabelSupport(handle: number, selector: IDocumentFilterDto[]): void {
+		this._registrations.set(handle, modes.SignatureArgumentsLabelProviderRegistry.register(selector, <modes.SignatureArgumentsLabelProvider>{
+			provideSignatureArgumentsLabels: async (model: ITextModel, token: CancellationToken): Promise<modes.SignatureArgumentsLabelList | undefined> => {
+				return this._proxy.$provideSignatureArgumentsLabel(handle, model.uri, token);
+			}
+		}));
+	}
+
 	// --- links
 
 	$registerDocumentLinkProvider(handle: number, selector: IDocumentFilterDto[], supportsResolve: boolean): void {

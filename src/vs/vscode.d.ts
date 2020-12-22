@@ -3755,6 +3755,24 @@ declare module 'vscode' {
 		provideSignatureHelp(document: TextDocument, position: Position, token: CancellationToken, context: SignatureHelpContext): ProviderResult<SignatureHelp>;
 	}
 
+	export interface SignautreArguments {
+		name: string
+		positions: Position[]
+	}
+	export interface SignatureArgumentsSignature {
+		arguments: SignautreArguments[]
+	}
+
+	export interface SignatureArgumentsLabelList {
+		signatures: SignatureArgumentsSignature[]
+		dispose(): void;
+	}
+
+
+	export interface SignatureArgumentsLabelProvider {
+		provideSignatureArgumentsLabels(model: TextDocument, token: CancellationToken): ProviderResult<SignatureArgumentsLabelList>;
+	}
+
 	/**
 	 * Metadata about a registered [`SignatureHelpProvider`](#SignatureHelpProvider).
 	 */
