@@ -842,6 +842,14 @@ class ModelSemanticColoring extends Disposable {
 
 	private _setDocumentSemanticTokens(provider: DocumentSemanticTokensProvider | null, tokens: SemanticTokens | SemanticTokensEdits | null, styling: SemanticTokensProviderStyling | null, pendingChanges: IModelContentChangedEvent[]): void {
 		const currentResponse = this._currentDocumentResponse;
+		const rescheduleIfNeeded = () => {
+			if (pendingChanges.length > 0 && !this._fetchDocumentSemanticTokens.isScheduled()) {
+				this._fetchDocumentSemanticTokens.schedule();
+				return true;
+			}
+			return false;
+		};
+
 		if (this._currentDocumentResponse) {
 			this._currentDocumentResponse.dispose();
 			this._currentDocumentResponse = null;
@@ -858,7 +866,10 @@ class ModelSemanticColoring extends Disposable {
 			return;
 		}
 		if (!tokens) {
-			this._model.setSemanticTokens(null, true);
+			// Only reset semantic tokens if we did not reschedule to avoid "blinking" tokens
+			if (!rescheduleIfNeeded()) {
+				this._model.setSemanticTokens(null, true);
+			}
 			return;
 		}
 
@@ -932,17 +943,15 @@ class ModelSemanticColoring extends Disposable {
 						}
 					}
 				}
-
-				if (!this._fetchDocumentSemanticTokens.isScheduled()) {
-					this._fetchDocumentSemanticTokens.schedule();
-				}
 			}
 
 			this._model.setSemanticTokens(result, true);
-			return;
+		}
+		else {
+			this._model.setSemanticTokens(null, true);
 		}
 
-		this._model.setSemanticTokens(null, true);
+		rescheduleIfNeeded();
 	}
 
 	private _getSemanticColoringProvider(): DocumentSemanticTokensProvider | null {
