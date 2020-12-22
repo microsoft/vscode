@@ -16,6 +16,7 @@ import { NotebookCellMetadata } from 'vs/workbench/contrib/notebook/common/noteb
 import { DiffNestedCellViewModel } from 'vs/workbench/contrib/notebook/browser/diff/diffNestedCellViewModel';
 import { URI } from 'vs/base/common/uri';
 import { NotebookDiffEditorEventDispatcher, NotebookDiffViewEventType } from 'vs/workbench/contrib/notebook/browser/diff/eventDispatcher';
+import * as editorCommon from 'vs/editor/common/editorCommon';
 
 export enum PropertyFoldingState {
 	Expanded,
@@ -92,6 +93,10 @@ export abstract class DiffElementViewModelBase extends Disposable {
 	get layoutInfo(): IDiffElementLayoutInfo {
 		return this._layoutInfo;
 	}
+
+	private _sourceEditorViewState: editorCommon.ICodeEditorViewState | editorCommon.IDiffEditorViewState | null = null;
+	private _outputEditorViewState: editorCommon.ICodeEditorViewState | editorCommon.IDiffEditorViewState | null = null;
+	private _metadataEditorViewState: editorCommon.ICodeEditorViewState | editorCommon.IDiffEditorViewState | null = null;
 
 	constructor(
 		readonly documentTextModel: NotebookTextModel,
@@ -237,6 +242,30 @@ export abstract class DiffElementViewModelBase extends Disposable {
 		}
 
 		return (layoutInfo.width - 2 * DIFF_CELL_MARGIN + (diffEditor ? DiffEditorWidget.ENTIRE_DIFF_OVERVIEW_WIDTH : 0)) / 2 - 18 - 2;
+	}
+
+	getOutputEditorViewState(): editorCommon.ICodeEditorViewState | editorCommon.IDiffEditorViewState | null {
+		return this._outputEditorViewState;
+	}
+
+	saveOutputEditorViewState(viewState: editorCommon.ICodeEditorViewState | editorCommon.IDiffEditorViewState | null) {
+		this._outputEditorViewState = viewState;
+	}
+
+	getMetadataEditorViewState(): editorCommon.ICodeEditorViewState | editorCommon.IDiffEditorViewState | null {
+		return this._metadataEditorViewState;
+	}
+
+	saveMetadataEditorViewState(viewState: editorCommon.ICodeEditorViewState | editorCommon.IDiffEditorViewState | null) {
+		this._metadataEditorViewState = viewState;
+	}
+
+	getSourceEditorViewState(): editorCommon.ICodeEditorViewState | editorCommon.IDiffEditorViewState | null {
+		return this._sourceEditorViewState;
+	}
+
+	saveSpirceEditorViewState(viewState: editorCommon.ICodeEditorViewState | editorCommon.IDiffEditorViewState | null) {
+		this._sourceEditorViewState = viewState;
 	}
 }
 

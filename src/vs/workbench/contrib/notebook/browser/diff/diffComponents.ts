@@ -39,6 +39,7 @@ import { MenuPreventer } from 'vs/workbench/contrib/codeEditor/browser/menuPreve
 import { SelectionClipboardContributionID } from 'vs/workbench/contrib/codeEditor/browser/selectionClipboard';
 import { TabCompletionController } from 'vs/workbench/contrib/snippets/browser/tabCompletion';
 import { renderIcon } from 'vs/base/browser/ui/iconLabel/iconLabels';
+import * as editorCommon from 'vs/editor/common/editorCommon';
 
 export const fixedEditorOptions: IEditorOptions = {
 	padding: {
@@ -573,8 +574,8 @@ abstract class AbstractElementRenderer extends Disposable {
 					ignoreTrimWhitespace: false,
 					automaticLayout: false,
 					dimension: {
-						height: 0,
-						width: 0
+						height: this.cell.layoutInfo.rawOutputHeight,
+						width: this.cell.getComputedCellContainerWidth(this.notebookEditor.getLayoutInfo(), false, true)
 					}
 				}, {
 					originalEditor: getOptimizedNestedCodeEditorWidgetOptions(),
@@ -591,6 +592,7 @@ abstract class AbstractElementRenderer extends Disposable {
 					original: originalModel,
 					modified: modifiedModel
 				});
+				this._outputEditor.restoreViewState(this.cell.getOutputEditorViewState() as editorCommon.IDiffEditorViewState);
 
 				this.cell.rawOutputHeight = this._outputEditor.getContentHeight();
 
@@ -629,6 +631,7 @@ abstract class AbstractElementRenderer extends Disposable {
 					: this.cell.original!.outputs || []);
 		const outputModel = this.modelService.createModel(originaloutputSource, mode, undefined, true);
 		this._outputEditor.setModel(outputModel);
+		this._outputEditor.restoreViewState(this.cell.getOutputEditorViewState());
 
 		this.cell.rawOutputHeight = this._outputEditor.getContentHeight();
 
@@ -653,6 +656,14 @@ abstract class AbstractElementRenderer extends Disposable {
 	}
 
 	dispose() {
+		if (this._outputEditor) {
+			this.cell.saveOutputEditorViewState(this._outputEditor.saveViewState());
+		}
+
+		if (this._metadataEditor) {
+			this.cell.saveMetadataEditorViewState(this._metadataEditor.saveViewState());
+		}
+
 		this._isDisposed = true;
 		super.dispose();
 	}
@@ -922,6 +933,14 @@ export class DeletedElement extends SingleSideDiffElement {
 			this._outputLeftView?.hideOutputs();
 		}
 	}
+
+	dispose() {
+		if (this._editor) {
+			this.cell.saveSpirceEditorViewState(this._editor.saveViewState());
+		}
+
+		super.dispose();
+	}
 }
 
 export class InsertElement extends SingleSideDiffElement {
@@ -978,6 +997,7 @@ export class InsertElement extends SingleSideDiffElement {
 
 			const textModel = ref.object.textEditorModel;
 			this._editor.setModel(textModel);
+			this._editor.restoreViewState(this.cell.getSourceEditorViewState() as editorCommon.ICodeEditorViewState);
 			this.cell.editorHeight = this._editor.getContentHeight();
 		});
 	}
@@ -1058,6 +1078,14 @@ export class InsertElement extends SingleSideDiffElement {
 				this._diagonalFill.style.height = `${this.cell.layoutInfo.editorHeight + this.cell.layoutInfo.editorMargin + this.cell.layoutInfo.metadataStatusHeight + this.cell.layoutInfo.metadataHeight + this.cell.layoutInfo.outputTotalHeight + this.cell.layoutInfo.outputStatusHeight}px`;
 			}
 		});
+	}
+
+	dispose() {
+		if (this._editor) {
+			this.cell.saveSpirceEditorViewState(this._editor.saveViewState());
+		}
+
+		super.dispose();
 	}
 }
 
@@ -1349,6 +1377,8 @@ export class ModifiedElement extends AbstractElementRenderer {
 			modified: modifiedTextModel
 		});
 
+		this._editor!.restoreViewState(this.cell.getSourceEditorViewState() as editorCommon.IDiffEditorViewState);
+
 		const contentHeight = this._editor!.getContentHeight();
 		this.cell.editorHeight = contentHeight;
 	}
@@ -1385,5 +1415,13 @@ export class ModifiedElement extends AbstractElementRenderer {
 
 			this.layoutNotebookCell();
 		});
+	}
+
+	dispose() {
+		if (this._editor) {
+			this.cell.saveSpirceEditorViewState(this._editor.saveViewState());
+		}
+
+		super.dispose();
 	}
 }
