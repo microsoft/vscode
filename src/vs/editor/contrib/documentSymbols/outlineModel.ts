@@ -443,7 +443,7 @@ export class OutlineModel extends TreeElement {
 		}
 	}
 
-	asListOfDocumentSymbols(): DocumentSymbol[] {
+	getTopLevelSymbols(): DocumentSymbol[] {
 		const roots: DocumentSymbol[] = [];
 		for (const child of this.children.values()) {
 			if (child instanceof OutlineElement) {
@@ -452,9 +452,14 @@ export class OutlineModel extends TreeElement {
 				roots.push(...Iterable.map(child.children.values(), child => child.symbol));
 			}
 		}
+		return roots.sort((a, b) => Range.compareRangesUsingStarts(a.range, b.range));
+	}
+
+	asListOfDocumentSymbols(): DocumentSymbol[] {
+		const roots = this.getTopLevelSymbols();
 		const bucket: DocumentSymbol[] = [];
 		OutlineModel._flattenDocumentSymbols(bucket, roots, '');
-		return bucket;
+		return bucket.sort((a, b) => Range.compareRangesUsingStarts(a.range, b.range));
 	}
 
 	private static _flattenDocumentSymbols(bucket: DocumentSymbol[], entries: DocumentSymbol[], overrideContainerLabel: string): void {

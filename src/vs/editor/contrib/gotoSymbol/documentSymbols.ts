@@ -15,7 +15,9 @@ import { assertType } from 'vs/base/common/types';
 
 export async function getDocumentSymbols(document: ITextModel, flat: boolean, token: CancellationToken): Promise<DocumentSymbol[]> {
 	const model = await OutlineModel.create(document, token);
-	return model.asListOfDocumentSymbols();
+	return flat
+		? model.asListOfDocumentSymbols()
+		: model.getTopLevelSymbols();
 }
 
 CommandsRegistry.registerCommand('_executeDocumentSymbolProvider', async function (accessor, ...args) {
