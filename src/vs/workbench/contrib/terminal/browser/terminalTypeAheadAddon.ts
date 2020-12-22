@@ -201,8 +201,10 @@ export interface IPrediction {
 
 	/**
 	 * Returns whether the given input is one expected by this prediction.
+	 * @param input reader for the input the PTY is giving
+	 * @param lookBehind the last successfully-made prediction, if any
 	 */
-	matches(input: StringReader): MatchResult;
+	matches(input: StringReader, lookBehind?: IPrediction): MatchResult;
 }
 
 class StringReader {
@@ -390,7 +392,7 @@ class CharacterPrediction implements IPrediction {
 		return cursor.clone().moveTo(this.appliedAt.pos) + input;
 	}
 
-	public matches(input: StringReader) {
+	public matches(input: StringReader, lookBehind?: IPrediction) {
 		let startIndex = input.index;
 
 		// remove any styling CSI before checking the char
@@ -402,6 +404,14 @@ class CharacterPrediction implements IPrediction {
 
 		if (input.eatChar(this.char)) {
 			return MatchResult.Success;
+		}
+
+		if (lookBehind instanceof CharacterPrediction) {
+			// see #112842
+			const sillyZshOutcome = input.eatGradually(`\b${lookBehind.char}${this.char}`);
+			if (sillyZshOutcome !== MatchResult.Failure) {
+				return sillyZshOutcome;
+			}
 		}
 
 		input.index = startIndex;
@@ -704,6 +714,11 @@ export class PredictionTimeline {
 	 */
 	private showPredictions = false;
 
+	/**
+	 * The last successfully-made prediction.
+	 */
+	private lookBehind?: IPrediction;
+
 	private readonly addedEmitter = new Emitter<IPrediction>();
 	public readonly onPredictionAdded = this.addedEmitter.event;
 	private readonly failedEmitter = new Emitter<IPrediction>();
@@ -772,13 +787,13 @@ export class PredictionTimeline {
 		}
 
 		if (!this.expected.length) {
-			this.cursor = undefined;
+			this.clearPredictionState();
 			return input;
 		}
 
 		const buffer = this.getActiveBuffer();
 		if (!buffer) {
-			this.cursor = undefined;
+			this.clearPredictionState();
 			return input;
 		}
 
@@ -799,7 +814,7 @@ export class PredictionTimeline {
 			const { p: prediction, gen } = this.expected[0];
 			const cursor = this.getCursor(buffer);
 			let beforeTestReaderIndex = reader.index;
-			switch (prediction.matches(reader)) {
+			switch (prediction.matches(reader, this.lookBehind)) {
 				case MatchResult.Success:
 					// if the input character matches what the next prediction expected, undo
 					// the prediction and write the real character out.
@@ -812,6 +827,7 @@ export class PredictionTimeline {
 					}
 
 					this.succeededEmitter.fire(prediction);
+					this.lookBehind = prediction;
 					this.expected.shift();
 					break;
 				case MatchResult.Buffer:
@@ -830,8 +846,7 @@ export class PredictionTimeline {
 						// always restore the style if they modify it.
 						output += attributesToSeq(core(this.terminal)._inputHandler._curAttrData);
 					}
-					this.expected = [];
-					this.cursor = undefined;
+					this.clearPredictionState();
 					this.failedEmitter.fire(prediction);
 					break ReadLoop;
 			}
@@ -843,8 +858,7 @@ export class PredictionTimeline {
 		// reset the cursor
 		if (!reader.eof) {
 			output += reader.rest;
-			this.expected = [];
-			this.cursor = undefined;
+			this.clearPredictionState();
 		}
 
 		// If we passed a generation boundary, apply the current generation's predictions
@@ -877,6 +891,16 @@ export class PredictionTimeline {
 		output = HIDE_CURSOR + output + SHOW_CURSOR;
 
 		return output;
+	}
+
+	/**
+	 * Clears any expected predictions and stored state. Should be called when
+	 * the pty gives us something we don't recognize.
+	 */
+	private clearPredictionState() {
+		this.expected = [];
+		this.cursor = undefined;
+		this.lookBehind = undefined;
 	}
 
 	/**

@@ -28,8 +28,8 @@ jobs:
         uses: actions/cache@v2
         with:
           path: "**/node_modules"
-          key: ${{ runner.os }}-cacheNodeModules4-${{ hashFiles('.yarnrc', 'remote/.yarnrc', '**/yarn.lock', '!**/node_modules/**/yarn.lock', '!**/.*/**/yarn.lock') }}
-          restore-keys: ${{ runner.os }}-cacheNodeModules4-
+          key: ${{ runner.os }}-cacheNodeModules6-${{ hashFiles('.yarnrc', 'remote/.yarnrc', '**/yarn.lock', '!**/node_modules/**/yarn.lock', '!**/.*/**/yarn.lock') }}
+          restore-keys: ${{ runner.os }}-cacheNodeModules6-
       - name: Get yarn cache directory path
         id: yarnCacheDirPath
         if: ${{ steps.cacheNodeModules.outputs.cache-hit != 'true' }}
@@ -71,8 +71,8 @@ jobs:
   #       uses: actions/cache@v2
   #       with:
   #         path: '**/node_modules'
-  #         key: ${{ runner.os }}-cacheNodeModules4-${{ hashFiles('.yarnrc', 'remote/.yarnrc', '**/yarn.lock', '!**/node_modules/**/yarn.lock', '!**/.*/**/yarn.lock') }}
-  #         restore-keys: ${{ runner.os }}-cacheNodeModules4-
+  #         key: ${{ runner.os }}-cacheNodeModules6-${{ hashFiles('.yarnrc', 'remote/.yarnrc', '**/yarn.lock', '!**/node_modules/**/yarn.lock', '!**/.*/**/yarn.lock') }}
+  #         restore-keys: ${{ runner.os }}-cacheNodeModules6-
   #     - name: Get yarn cache directory path
   #       id: yarnCacheDirPath
   #       if: ${{ steps.cacheNodeModules.outputs.cache-hit != 'true' }}
@@ -125,8 +125,8 @@ jobs:
   #       uses: actions/cache@v2
   #       with:
   #         path: '**/node_modules'
-  #         key: ${{ runner.os }}-cacheNodeModules4-${{ hashFiles('.yarnrc', 'remote/.yarnrc', '**/yarn.lock', '!**/node_modules/**/yarn.lock', '!**/.*/**/yarn.lock') }}
-  #         restore-keys: ${{ runner.os }}-cacheNodeModules4-
+  #         key: ${{ runner.os }}-cacheNodeModules6-${{ hashFiles('.yarnrc', 'remote/.yarnrc', '**/yarn.lock', '!**/node_modules/**/yarn.lock', '!**/.*/**/yarn.lock') }}
+  #         restore-keys: ${{ runner.os }}-cacheNodeModules6-
   #     - name: Get yarn cache directory path
   #       id: yarnCacheDirPath
   #       if: ${{ steps.cacheNodeModules.outputs.cache-hit != 'true' }}
@@ -184,8 +184,8 @@ jobs:
   #       uses: actions/cache@v2
   #       with:
   #         path: '**/node_modules'
-  #         key: ${{ runner.os }}-cacheNodeModules4-${{ hashFiles('.yarnrc', 'remote/.yarnrc', '**/yarn.lock', '!**/node_modules/**/yarn.lock', '!**/.*/**/yarn.lock') }}
-  #         restore-keys: ${{ runner.os }}-cacheNodeModules4-
+  #         key: ${{ runner.os }}-cacheNodeModules6-${{ hashFiles('.yarnrc', 'remote/.yarnrc', '**/yarn.lock', '!**/node_modules/**/yarn.lock', '!**/.*/**/yarn.lock') }}
+  #         restore-keys: ${{ runner.os }}-cacheNodeModules6-
 
   #     - name: Restore compiled core code
   #       id: cacheCompiledCoreCode
@@ -246,8 +246,8 @@ jobs:
   #       uses: actions/cache@v2
   #       with:
   #         path: '**/node_modules'
-  #         key: ${{ runner.os }}-cacheNodeModules4-${{ hashFiles('.yarnrc', 'remote/.yarnrc', '**/yarn.lock', '!**/node_modules/**/yarn.lock', '!**/.*/**/yarn.lock') }}
-  #         restore-keys: ${{ runner.os }}-cacheNodeModules4-
+  #         key: ${{ runner.os }}-cacheNodeModules6-${{ hashFiles('.yarnrc', 'remote/.yarnrc', '**/yarn.lock', '!**/node_modules/**/yarn.lock', '!**/.*/**/yarn.lock') }}
+  #         restore-keys: ${{ runner.os }}-cacheNodeModules6-
 
   #     - name: Restore compiled core code
   #       id: cacheCompiledCoreCode
@@ -291,8 +291,8 @@ jobs:
   #       uses: actions/cache@v2
   #       with:
   #         path: '**/node_modules'
-  #         key: ${{ runner.os }}-cacheNodeModules4-${{ hashFiles('.yarnrc', 'remote/.yarnrc', '**/yarn.lock', '!**/node_modules/**/yarn.lock', '!**/.*/**/yarn.lock') }}
-  #         restore-keys: ${{ runner.os }}-cacheNodeModules4-
+  #         key: ${{ runner.os }}-cacheNodeModules6-${{ hashFiles('.yarnrc', 'remote/.yarnrc', '**/yarn.lock', '!**/node_modules/**/yarn.lock', '!**/.*/**/yarn.lock') }}
+  #         restore-keys: ${{ runner.os }}-cacheNodeModules6-
   #     - name: Get yarn cache directory path
   #       id: yarnCacheDirPath
   #       if: ${{ steps.cacheNodeModules.outputs.cache-hit != 'true' }}
@@ -329,8 +329,8 @@ jobs:
   #       uses: actions/cache@v2
   #       with:
   #         path: '**/node_modules'
-  #         key: ${{ runner.os }}-cacheNodeModules4-${{ hashFiles('.yarnrc', 'remote/.yarnrc', '**/yarn.lock', '!**/node_modules/**/yarn.lock', '!**/.*/**/yarn.lock') }}
-  #         restore-keys: ${{ runner.os }}-cacheNodeModules4-
+  #         key: ${{ runner.os }}-cacheNodeModules6-${{ hashFiles('.yarnrc', 'remote/.yarnrc', '**/yarn.lock', '!**/node_modules/**/yarn.lock', '!**/.*/**/yarn.lock') }}
+  #         restore-keys: ${{ runner.os }}-cacheNodeModules6-
 
   #     - name: Restore compiled core code
   #       id: cacheCompiledCoreCode
@@ -381,8 +381,8 @@ jobs:
   #       uses: actions/cache@v2
   #       with:
   #         path: '**/node_modules'
-  #         key: ${{ runner.os }}-cacheNodeModules4-${{ hashFiles('.yarnrc', 'remote/.yarnrc', '**/yarn.lock', '!**/node_modules/**/yarn.lock', '!**/.*/**/yarn.lock') }}
-  #         restore-keys: ${{ runner.os }}-cacheNodeModules4-
+  #         key: ${{ runner.os }}-cacheNodeModules6-${{ hashFiles('.yarnrc', 'remote/.yarnrc', '**/yarn.lock', '!**/node_modules/**/yarn.lock', '!**/.*/**/yarn.lock') }}
+  #         restore-keys: ${{ runner.os }}-cacheNodeModules6-
 
   #     - name: Restore compiled core code
   #       id: cacheCompiledCoreCode
@@ -427,8 +427,8 @@ jobs:
   #       uses: actions/cache@v2
   #       with:
   #         path: '**/node_modules'
-  #         key: ${{ runner.os }}-cacheNodeModules4-${{ hashFiles('.yarnrc', 'remote/.yarnrc', '**/yarn.lock', '!**/node_modules/**/yarn.lock', '!**/.*/**/yarn.lock') }}
-  #         restore-keys: ${{ runner.os }}-cacheNodeModules4-
+  #         key: ${{ runner.os }}-cacheNodeModules6-${{ hashFiles('.yarnrc', 'remote/.yarnrc', '**/yarn.lock', '!**/node_modules/**/yarn.lock', '!**/.*/**/yarn.lock') }}
+  #         restore-keys: ${{ runner.os }}-cacheNodeModules6-
 
   #     - name: Restore compiled core code
   #       id: cacheCompiledCoreCode
@@ -484,8 +484,8 @@ jobs:
         uses: actions/cache@v2
         with:
           path: "**/node_modules"
-          key: ${{ runner.os }}-cacheNodeModules4-${{ hashFiles('.yarnrc', 'remote/.yarnrc', '**/yarn.lock', '!**/node_modules/**/yarn.lock', '!**/.*/**/yarn.lock') }}
-          restore-keys: ${{ runner.os }}-cacheNodeModules4-
+          key: ${{ runner.os }}-cacheNodeModules6-${{ hashFiles('.yarnrc', 'remote/.yarnrc', '**/yarn.lock', '!**/node_modules/**/yarn.lock', '!**/.*/**/yarn.lock') }}
+          restore-keys: ${{ runner.os }}-cacheNodeModules6-
       - name: Get yarn cache directory path
         id: yarnCacheDirPath
         if: ${{ steps.cacheNodeModules.outputs.cache-hit != 'true' }}
@@ -542,11 +542,12 @@ jobs:
         with:
           path: |
             **/node_modules
-            !**/Release/*.pdb
-            !**/Release/*.ilk
-            !**/Release/obj/**
-          key: ${{ runner.os }}-cacheNodeModules4-${{ hashFiles('.yarnrc', 'remote/.yarnrc', '**/yarn.lock', '!**/node_modules/**/yarn.lock', '!**/.*/**/yarn.lock') }}
-          restore-keys: ${{ runner.os }}-cacheNodeModules4-
+            !**/Release/**/*.pdb
+            !**/Release/**/*.ilk
+            !**/Release/**/*.obj
+            !**/Release/**/*.tlog
+          key: ${{ runner.os }}-cacheNodeModules6-${{ hashFiles('.yarnrc', 'remote/.yarnrc', '**/yarn.lock', '!**/node_modules/**/yarn.lock', '!**/.*/**/yarn.lock') }}
+          restore-keys: ${{ runner.os }}-cacheNodeModules6-
       - name: Get yarn cache directory path
         id: yarnCacheDirPath
         if: ${{ steps.cacheNodeModules.outputs.cache-hit != 'true' }}
@@ -594,8 +595,8 @@ jobs:
         uses: actions/cache@v2
         with:
           path: "**/node_modules"
-          key: ${{ runner.os }}-cacheNodeModules4-${{ hashFiles('.yarnrc', 'remote/.yarnrc', '**/yarn.lock', '!**/node_modules/**/yarn.lock', '!**/.*/**/yarn.lock') }}
-          restore-keys: ${{ runner.os }}-cacheNodeModules4-
+          key: ${{ runner.os }}-cacheNodeModules6-${{ hashFiles('.yarnrc', 'remote/.yarnrc', '**/yarn.lock', '!**/node_modules/**/yarn.lock', '!**/.*/**/yarn.lock') }}
+          restore-keys: ${{ runner.os }}-cacheNodeModules6-
       - name: Get yarn cache directory path
         id: yarnCacheDirPath
         if: ${{ steps.cacheNodeModules.outputs.cache-hit != 'true' }}
@@ -643,8 +644,8 @@ jobs:
         uses: actions/cache@v2
         with:
           path: "**/node_modules"
-          key: ${{ runner.os }}-cacheNodeModules4-${{ hashFiles('.yarnrc', 'remote/.yarnrc', '**/yarn.lock', '!**/node_modules/**/yarn.lock', '!**/.*/**/yarn.lock') }}
-          restore-keys: ${{ runner.os }}-cacheNodeModules4-
+          key: ${{ runner.os }}-cacheNodeModules6-${{ hashFiles('.yarnrc', 'remote/.yarnrc', '**/yarn.lock', '!**/node_modules/**/yarn.lock', '!**/.*/**/yarn.lock') }}
+          restore-keys: ${{ runner.os }}-cacheNodeModules6-
       - name: Execute yarn
         if: ${{ steps.cacheNodeModules.outputs.cache-hit != 'true' }}
         env:

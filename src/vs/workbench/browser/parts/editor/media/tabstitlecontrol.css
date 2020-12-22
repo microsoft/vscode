@@ -388,11 +388,11 @@
 	line-height: 22px;
 }
 
-.monaco-workbench .part.editor > .content .editor-group-container > .title .tabs-breadcrumbs  .breadcrumbs-control .monaco-breadcrumb-item {
+.monaco-workbench .part.editor > .content .editor-group-container > .title .tabs-breadcrumbs .breadcrumbs-control .monaco-breadcrumb-item {
 	max-width: 80%;
 }
 
-.monaco-workbench .part.editor > .content .editor-group-container > .title .tabs-breadcrumbs  .breadcrumbs-control .monaco-breadcrumb-item::before {
+.monaco-workbench .part.editor > .content .editor-group-container > .title .tabs-breadcrumbs .breadcrumbs-control .monaco-breadcrumb-item::before {
 	width: 16px;
 	height: 22px;
 	display: flex;
@@ -400,6 +400,6 @@
 	justify-content: center;
 }
 
-.monaco-workbench .part.editor > .content .editor-group-container > .title .tabs-breadcrumbs  .breadcrumbs-control .monaco-breadcrumb-item:last-child {
+.monaco-workbench .part.editor > .content .editor-group-container > .title .tabs-breadcrumbs .breadcrumbs-control .monaco-breadcrumb-item:last-child {
 	padding-right: 8px;
 }

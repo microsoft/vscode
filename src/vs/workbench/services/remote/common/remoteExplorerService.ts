@@ -183,7 +183,9 @@ export class TunnelModel extends Disposable {
 		if (this.configurationService.getValue('remote.restoreForwardedPorts')) {
 			if (this.tunnelRestoreValue) {
 				(<Tunnel[] | undefined>JSON.parse(this.tunnelRestoreValue))?.forEach(tunnel => {
-					this.forward({ host: tunnel.remoteHost, port: tunnel.remotePort }, tunnel.localPort, tunnel.name);
+					if (!mapHasAddressLocalhostOrAllInterfaces(this.detected, tunnel.remoteHost, tunnel.remotePort)) {
+						this.forward({ host: tunnel.remoteHost, port: tunnel.remotePort }, tunnel.localPort, tunnel.name);
+					}
 				});
 			}
 		}

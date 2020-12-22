@@ -28,6 +28,7 @@ import { IActivityService, NumberBadge } from 'vs/workbench/services/activity/co
 import { ITASExperimentService } from 'vs/workbench/services/experiment/common/experimentService';
 import { optional } from 'vs/platform/instantiation/common/instantiation';
 import { portsViewIcon } from 'vs/workbench/contrib/remote/browser/remoteIcons';
+import { Event } from 'vs/base/common/event';
 
 export const VIEWLET_ID = 'workbench.view.remote';
 
@@ -166,6 +167,24 @@ export class ForwardedPortsView extends Disposable implements IWorkbenchContribu
 			tooltip,
 			command: `${TUNNEL_VIEW_ID}.focus`
 		};
+	}
+}
+
+export class PortRestore implements IWorkbenchContribution {
+	constructor(
+		@IRemoteExplorerService readonly remoteExplorerService: IRemoteExplorerService,
+	) {
+		if (!this.remoteExplorerService.tunnelModel.environmentTunnelsSet) {
+			Event.once(this.remoteExplorerService.tunnelModel.onEnvironmentTunnelsSet)(async () => {
+				await this.restore();
+			});
+		} else {
+			this.restore();
+		}
+	}
+
+	private async restore() {
+		return this.remoteExplorerService.restore();
 	}
 }
 

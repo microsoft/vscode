@@ -128,6 +128,41 @@ suite('Workbench - Terminal Typeahead', () => {
 			assert.strictEqual(addon.stats?.accuracy, 1);
 		});
 
+		test('validates zsh prediction (#112842)', () => {
+			const t = createMockTerminal({ lines: ['hello|'] });
+			addon.activate(t.terminal);
+			t.onData('o');
+			expectProcessed('o', predictedHelloo);
+
+			t.onData('x');
+			expectProcessed('\box', [
+				`${CSI}?25l`, // hide cursor
+				`${CSI}2;8H`, // move cursor
+				'\box', // new data
+				`${CSI}2;9H`, // place cursor back at end of line
+				`${CSI}?25h`, // show cursor
+			].join(''));
+			assert.strictEqual(addon.stats?.accuracy, 1);
+		});
+
+		test('does not validate zsh prediction on differing lookbehindn (#112842)', () => {
+			const t = createMockTerminal({ lines: ['hello|'] });
+			addon.activate(t.terminal);
+			t.onData('o');
+			expectProcessed('o', predictedHelloo);
+
+			t.onData('x');
+			expectProcessed('\bqx', [
+				`${CSI}?25l`, // hide cursor
+				`${CSI}2;8H`, // move cursor cursor
+				`${CSI}X`, // delete character
+				`${CSI}0m`, // reset style
+				'\bqx', // new data
+				`${CSI}?25h`, // show cursor
+			].join(''));
+			assert.strictEqual(addon.stats?.accuracy, 0.5);
+		});
+
 		test('rolls back character prediction', () => {
 			const t = createMockTerminal({ lines: ['hello|'] });
 			addon.activate(t.terminal);

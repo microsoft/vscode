@@ -16,8 +16,7 @@ suite('StateService', () => {
 
 	test('Basics', async function () {
 
-		// Given issues such as https://github.com/microsoft/vscode/issues/112447
-		// we see random test failures when accessing the native file system.
+		// https://github.com/microsoft/vscode/issues/112447
 		this.retries(3);
 		this.timeout(1000 * 20);
 
