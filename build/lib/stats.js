@@ -8,7 +8,6 @@ exports.submitAllStats = exports.createStatsStream = void 0;
 const es = require("event-stream");
 const fancyLog = require("fancy-log");
 const ansiColors = require("ansi-colors");
-const appInsights = require("applicationinsights");
 class Entry {
     constructor(name, totalCount, totalSize) {
         this.name = name;
@@ -73,6 +72,7 @@ function createStatsStream(group, log) {
 }
 exports.createStatsStream = createStatsStream;
 function submitAllStats(productJson, commit) {
+    const appInsights = require('applicationinsights');
     const sorted = [];
     // move entries for single files to the front
     _entries.forEach(value => {

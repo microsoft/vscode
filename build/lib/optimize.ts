@@ -8,17 +8,12 @@
 import * as es from 'event-stream';
 import * as gulp from 'gulp';
 import * as concat from 'gulp-concat';
-import * as minifyCSS from 'gulp-cssnano';
 import * as filter from 'gulp-filter';
 import * as flatmap from 'gulp-flatmap';
-import * as sourcemaps from 'gulp-sourcemaps';
-import * as uglify from 'gulp-uglify';
-import * as composer from 'gulp-uglify/composer';
 import * as fancyLog from 'fancy-log';
 import * as ansiColors from 'ansi-colors';
 import * as path from 'path';
 import * as pump from 'pump';
-import * as terser from 'terser';
 import * as VinylFile from 'vinyl';
 import * as bundle from './bundle';
 import { Language, processNlsFiles } from './i18n';
@@ -184,6 +179,8 @@ export function optimizeTask(opts: IOptimizeTaskOpts): () => NodeJS.ReadWriteStr
 	const fileContentMapper = opts.fileContentMapper || ((contents: string, _path: string) => contents);
 
 	return function () {
+		const sourcemaps = <typeof import('gulp-sourcemaps')>require('gulp-sourcemaps');
+
 		const bundlesStream = es.through(); // this stream will contain the bundled files
 		const resourcesStream = es.through(); // this stream will contain the resources
 		const bundleInfoStream = es.through(); // this stream will contain bundleInfo.json
@@ -243,6 +240,9 @@ declare class FileWithCopyright extends VinylFile {
  * to have a file "context" to include our copyright only once per file.
  */
 function uglifyWithCopyrights(): NodeJS.ReadWriteStream {
+	const composer = <typeof import('gulp-uglify/composer')>require('gulp-uglify/composer');
+	const terser = <typeof import('terser')>require('terser');
+
 	const preserveComments = (f: FileWithCopyright) => {
 		return (_node: any, comment: { value: string; type: string; }) => {
 			const text = comment.value;
@@ -291,6 +291,10 @@ export function minifyTask(src: string, sourceMapBaseUrl?: string): (cb: any) =>
 	const sourceMappingURL = sourceMapBaseUrl ? ((f: any) => `${sourceMapBaseUrl}/${f.relative}.map`) : undefined;
 
 	return cb => {
+		const minifyCSS = <typeof import('gulp-cssnano')>require('gulp-cssnano');
+		const uglify = <typeof import('gulp-uglify')>require('gulp-uglify');
+		const sourcemaps = <typeof import('gulp-sourcemaps')>require('gulp-sourcemaps');
+
 		const jsFilter = filter('**/*.js', { restore: true });
 		const cssFilter = filter('**/*.css', { restore: true });
 
