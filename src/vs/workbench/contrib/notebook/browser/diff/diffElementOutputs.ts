@@ -12,7 +12,7 @@ import { DiffSide, INotebookTextDiffEditor } from 'vs/workbench/contrib/notebook
 import { ICellOutputViewModel, IDisplayOutputViewModel, IRenderOutput, outputHasDynamicHeight, RenderOutputType } from 'vs/workbench/contrib/notebook/browser/notebookBrowser';
 import { getResizesObserver } from 'vs/workbench/contrib/notebook/browser/view/renderers/cellWidgets';
 import { NotebookTextModel } from 'vs/workbench/contrib/notebook/common/model/notebookTextModel';
-import { BUILTIN_RENDERER_ID } from 'vs/workbench/contrib/notebook/common/notebookCommon';
+import { BUILTIN_RENDERER_ID, NotebookCellOutputsSplice } from 'vs/workbench/contrib/notebook/common/notebookCommon';
 import { INotebookService } from 'vs/workbench/contrib/notebook/common/notebookService';
 import { ITextFileService } from 'vs/workbench/services/textfile/common/textfiles';
 import { DiffNestedCellViewModel } from 'vs/workbench/contrib/notebook/browser/diff/diffNestedCellViewModel';
@@ -281,8 +281,52 @@ export class OutputContainer extends Disposable {
 				}
 			});
 		}));
+
+		this._register(this._nestedCellViewModel.textModel.onDidChangeOutputs(splices => {
+			this._updateOutputs(splices);
+		}));
 	}
 
+	private _updateOutputs(splices: NotebookCellOutputsSplice[]) {
+		if (!splices.length) {
+			return;
+		}
+
+		const removedKeys: ICellOutputViewModel[] = [];
+
+		this._outputEntries.forEach((value, key) => {
+			if (this._nestedCellViewModel.outputsViewModels.indexOf(key) < 0) {
+				// already removed
+				removedKeys.push(key);
+				// remove element from DOM
+				this._outputContainer.removeChild(value.domNode);
+				if (key.isDisplayOutput()) {
+					this._editor.removeInset(this._diffElementViewModel, this._nestedCellViewModel, key, this._diffSide);
+				}
+			}
+		});
+
+		removedKeys.forEach(key => {
+			this._outputEntries.get(key)?.dispose();
+			this._outputEntries.delete(key);
+		});
+
+		let prevElement: HTMLElement | undefined = undefined;
+		const outputsToRender = this._nestedCellViewModel.outputsViewModels;
+
+		outputsToRender.reverse().forEach(output => {
+			if (this._outputEntries.has(output)) {
+				// already exist
+				prevElement = this._outputEntries.get(output)!.domNode;
+				return;
+			}
+
+			// newly added element
+			const currIndex = this._nestedCellViewModel.outputsViewModels.indexOf(output);
+			this._renderOutput(output, currIndex, prevElement);
+			prevElement = this._outputEntries.get(output)?.domNode;
+		});
+	}
 	render() {
 		// TODO, outputs to render (should have a limit)
 		for (let index = 0; index < this._nestedCellViewModel.outputsViewModels.length; index++) {
