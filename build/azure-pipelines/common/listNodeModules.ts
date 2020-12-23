@@ -8,6 +8,11 @@
 import * as fs from 'fs';
 import * as path from 'path';
 
+if (process.argv.length !== 3) {
+	console.error('Usage: node listNodeModules.js OUTPUT_FILE');
+	process.exit(-1);
+}
+
 const ROOT = path.join(__dirname, '../../../');
 
 function findNodeModulesFiles(location: string, inNodeModules: boolean, result: string[]) {
@@ -38,4 +43,4 @@ function findNodeModulesFiles(location: string, inNodeModules: boolean, result: 
 
 const result: string[] = [];
 findNodeModulesFiles('', false, result);
-console.log(result.map(entry => path.join(ROOT, entry)).join('\n'));
+fs.writeFileSync(process.argv[2], result.map(entry => path.join(ROOT, entry)).join('\n') + '\n');

@@ -68,7 +68,7 @@ steps:
 
   - script: |
       set -e
-      node build/azure-pipelines/common/listNodeModules.js > .build/node_modules_list.txt
+      node build/azure-pipelines/common/listNodeModules.js .build/node_modules_list.txt
       mkdir -p .build/node_modules_cache
       tar --posix --zstd -cf .build/node_modules_cache/cache.tzst -P -C $BUILD_SOURCESDIRECTORY --files-from .build/node_modules_list.txt
     condition: and(succeeded(), ne(variables.NODE_MODULES_RESTORED, 'true'))
