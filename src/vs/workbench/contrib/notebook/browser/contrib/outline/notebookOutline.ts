@@ -360,7 +360,7 @@ class NotebookCellOutline implements IOutline<OutlineEntry> {
 
 			// find first none empty line or use default text
 			const lineMatch = content.match(/^.*\w+.*\w*$/m);
-			const preview = lineMatch ? lineMatch[0].trim() : localize('empty', "empty cell");
+			const preview = lineMatch ? lineMatch[0].trim().replace(/^[ \t]*(\#+)/, '') : localize('empty', "empty cell");
 
 			let level = 7;
 			if (isMarkdown) {
