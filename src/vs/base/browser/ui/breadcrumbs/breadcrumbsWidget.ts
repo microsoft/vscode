@@ -312,7 +312,12 @@ export class BreadcrumbsWidget {
 	private _renderItem(item: BreadcrumbsItem, container: HTMLDivElement): void {
 		dom.clearNode(container);
 		container.className = '';
-		item.render(container);
+		try {
+			item.render(container);
+		} catch (err) {
+			container.innerText = '<<RENDER ERROR>>';
+			console.error(err);
+		}
 		container.tabIndex = -1;
 		container.setAttribute('role', 'listitem');
 		container.classList.add('monaco-breadcrumb-item');
