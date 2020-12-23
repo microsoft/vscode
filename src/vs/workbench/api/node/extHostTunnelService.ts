@@ -138,7 +138,7 @@ export class ExtHostTunnelService extends Disposable implements IExtHostTunnelSe
 	) {
 		super();
 		this._proxy = extHostRpc.getProxy(MainContext.MainThreadTunnelService);
-		if (initData.remote.isRemote && initData.remote.authority && !process.env['VSCODE_DISABLE_PROC_READING']) {
+		if (initData.remote.isRemote && initData.remote.authority) {
 			this.registerCandidateFinder();
 		}
 	}
