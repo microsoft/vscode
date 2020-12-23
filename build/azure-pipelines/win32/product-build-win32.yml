@@ -90,7 +90,7 @@ steps:
       . build/azure-pipelines/win32/exec.ps1
       $ErrorActionPreference = "Stop"
       exec { mkdir -Force build/node_modules }
-      exec { "hello" | Out-File -Encoding ascii -NoNewLine build\node_modules\test.txt }
+      exec { echo "hello" > build/node_modules/test.txt }
       exec { node build/azure-pipelines/common/listNodeModules.js > .build/node_modules_list.txt }
       exec { mkdir -Force .build/node_modules_cache }
       exec { cat .build/node_modules_list.txt }
