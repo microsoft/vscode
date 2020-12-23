@@ -88,9 +88,7 @@ export class OutlineEntry {
 					topChild = !topChild ? child.markerInfo.topSev : Math.max(child.markerInfo.topSev, topChild);
 				}
 			}
-			if (topChild) {
-				this._markerInfo = { topSev: topChild, count: 0 };
-			}
+			this._markerInfo = topChild && { topSev: topChild, count: 0 };
 		}
 	}
 
@@ -426,7 +424,7 @@ class NotebookCellOutline implements IOutline<OutlineEntry> {
 			}
 		};
 		this._entriesDisposables.add(this._markerService.onMarkerChanged(e => {
-			if (e.find(uri => isEqual(uri, viewModel.uri, true))) {
+			if (e.some(uri => viewModel.viewCells.some(cell => isEqual(cell.uri, uri)))) {
 				updateMarker();
 				this._onDidChange.fire({});
 			}
