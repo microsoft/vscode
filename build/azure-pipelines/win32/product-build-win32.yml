@@ -60,7 +60,7 @@ steps:
 
   - task: Cache@2
     inputs:
-      key: 'nodeModules3 | $(Agent.OS) | .build/arch, .build/terrapin, .build/yarnlockhash'
+      key: 'nodeModules4 | $(Agent.OS) | .build/arch, .build/terrapin, .build/yarnlockhash'
       path: .build/node_modules_cache
       cacheHitVar: NODE_MODULES_RESTORED
     displayName: Cache node_modules archive
@@ -91,29 +91,13 @@ steps:
       "hello" | Out-File -Encoding ascii -NoNewLine build\node_modules\test.txt
 
   - powershell: |
-      node build/azure-pipelines/common/listNodeModules.js .build/node_modules_list.txt
-
-  - powershell: |
-      mkdir -Force .build/node_modules_cache
-
-  # - powershell: |
-  #     . build/azure-pipelines/win32/exec.ps1
-  #     $ErrorActionPreference = "Stop"
-  #     exec { cat .build/node_modules_list.txt }
-      # exec { tar --version }
-
-  - powershell: |
       . build/azure-pipelines/win32/exec.ps1
       $ErrorActionPreference = "Stop"
-      exec { tar --posix -z -cvf .build/node_modules_cache/cache.tgz -C $env:BUILD_SOURCESDIRECTORY --files-from .build/node_modules_list.txt }
+      exec { node build/azure-pipelines/common/listNodeModules.js .build/node_modules_list.txt }
+      exec { mkdir -Force .build/node_modules_cache }
+      exec { tar --posix -z -cvf .build/node_modules_cache/cache.tgz --files-from .build/node_modules_list.txt }
     condition: and(succeeded(), ne(variables.NODE_MODULES_RESTORED, 'true'))
     displayName: Create node_modules archive
-
-  - task: PublishPipelineArtifact@1
-    inputs:
-      targetPath: .build/node_modules_cache/cache.tgz
-      artifactName: DebugCache
-    displayName: Publish compilation artifact
 
   # - powershell: |
   #     . build/azure-pipelines/win32/exec.ps1
