@@ -18,3 +18,25 @@
 .monaco-breadcrumbs > .notebook-outline-element > .element-icon.file-icon {
 	height: 18px;
 }
+
+.monaco-breadcrumbs .notebook-outline-element .element-decoration,
+.monaco-list .notebook-outline-element > .element-decoration {
+	opacity: 0.75;
+	font-size: 90%;
+	font-weight: 600;
+	padding: 0 12px 0 5px;
+	margin-left: auto;
+	text-align: center;
+	color: var(--outline-element-color);
+}
+
+.monaco-list .notebook-outline-element > .element-decoration.bubble {
+	font-family: codicon;
+	font-size: 14px;
+	opacity: 0.4;
+}
+
+.monaco-breadcrumbs .notebook-outline-element .element-decoration {
+	/* Don't show markers inline with breadcrumbs */
+	display: none;
+}

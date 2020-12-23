@@ -28,11 +28,20 @@ import { getIconClassesForModeId } from 'vs/editor/common/services/getIconClasse
 import { SymbolKind } from 'vs/editor/common/modes';
 import { IWorkbenchDataTreeOptions } from 'vs/platform/list/browser/listService';
 import { localize } from 'vs/nls';
+import { IMarkerService, MarkerSeverity } from 'vs/platform/markers/common/markers';
+import { listErrorForeground, listWarningForeground } from 'vs/platform/theme/common/colorRegistry';
+import { isEqual } from 'vs/base/common/resources';
+
+export interface IOutlineMarkerInfo {
+	readonly count: number;
+	readonly topSev: MarkerSeverity;
+}
 
 export class OutlineEntry {
 
 	private _children: OutlineEntry[] = [];
 	private _parent: OutlineEntry | undefined;
+	private _markerInfo: IOutlineMarkerInfo | undefined;
 
 	constructor(
 		readonly index: number,
@@ -53,6 +62,35 @@ export class OutlineEntry {
 
 	get children(): Iterable<OutlineEntry> {
 		return this._children;
+	}
+
+	get markerInfo(): IOutlineMarkerInfo | undefined {
+		return this._markerInfo;
+	}
+
+	updateMarkers(markerService: IMarkerService): void {
+		if (this.cell.cellKind === CellKind.Code) {
+			// a code cell can have marker
+			const marker = markerService.read({ resource: this.cell.uri, severities: MarkerSeverity.Error | MarkerSeverity.Warning });
+			if (marker.length === 0) {
+				this._markerInfo = undefined;
+			} else {
+				const topSev = marker.find(a => a.severity === MarkerSeverity.Error)?.severity ?? MarkerSeverity.Warning;
+				this._markerInfo = { topSev, count: marker.length };
+			}
+		} else {
+			// a markdown cell can inherit markers from its children
+			let topChild: MarkerSeverity | undefined;
+			for (let child of this.children) {
+				child.updateMarkers(markerService);
+				if (child.markerInfo) {
+					topChild = !topChild ? child.markerInfo.topSev : Math.max(child.markerInfo.topSev, topChild);
+				}
+			}
+			if (topChild) {
+				this._markerInfo = { topSev: topChild, count: 0 };
+			}
+		}
 	}
 
 	find(cell: ICellViewModel, parents: OutlineEntry[]): OutlineEntry | undefined {
@@ -83,8 +121,9 @@ class NotebookOutlineTemplate {
 	static readonly templateId = 'NotebookOutlineRenderer';
 
 	constructor(
-		readonly iconLabel: IconLabel,
 		readonly iconClass: HTMLElement,
+		readonly iconLabel: IconLabel,
+		readonly decoration: HTMLElement
 	) { }
 }
 
@@ -99,15 +138,34 @@ class NotebookOutlineRenderer implements ITreeRenderer<OutlineEntry, FuzzyScore,
 		const iconClass = document.createElement('div');
 		container.append(iconClass);
 		const iconLabel = new IconLabel(container, { supportHighlights: true });
-		return new NotebookOutlineTemplate(iconLabel, iconClass);
+		const decoration = document.createElement('div');
+		decoration.className = 'element-decoration';
+		container.append(decoration);
+		return new NotebookOutlineTemplate(iconClass, iconLabel, decoration);
 	}
 
-	renderElement(element: ITreeNode<OutlineEntry, FuzzyScore>, _index: number, templateData: NotebookOutlineTemplate, _height: number | undefined): void {
-		templateData.iconLabel.setLabel(element.element.label, undefined, { matches: createMatches(element.filterData) });
+	renderElement(element: ITreeNode<OutlineEntry, FuzzyScore>, _index: number, template: NotebookOutlineTemplate, _height: number | undefined): void {
+		template.iconLabel.setLabel(element.element.label, undefined, { matches: createMatches(element.filterData) });
 		if (this._themeService.getFileIconTheme().hasFileIcons) {
-			templateData.iconClass.className = 'element-icon ' + getIconClassesForModeId(element.element.cell.language ?? '').join(' ');
+			template.iconClass.className = 'element-icon ' + getIconClassesForModeId(element.element.cell.language ?? '').join(' ');
 		} else {
-			templateData.iconClass.className = 'element-icon ' + ThemeIcon.asClassNameArray(element.element.icon).join(' ');
+			template.iconClass.className = 'element-icon ' + ThemeIcon.asClassNameArray(element.element.icon).join(' ');
+		}
+
+		const { markerInfo } = element.element;
+		if (!markerInfo) {
+			template.decoration.style.removeProperty('--outline-element-color');
+			template.decoration.textContent = '';
+		} else {
+			if (markerInfo.count === 0) {
+				template.decoration.classList.add('bubble');
+				template.decoration.innerText = '\uea71';
+			} else {
+				template.decoration.classList.remove('bubble');
+				template.decoration.textContent = markerInfo.count > 9 ? '9+' : String(markerInfo.count);
+			}
+			const color = this._themeService.getColorTheme().getColor(markerInfo.topSev === MarkerSeverity.Error ? listErrorForeground : listWarningForeground);
+			template.decoration.style.setProperty('--outline-element-color', color?.toString() ?? 'inherit');
 		}
 	}
 
@@ -193,6 +251,7 @@ class NotebookCellOutline implements IOutline<OutlineEntry> {
 		private readonly _editor: NotebookEditor,
 		@IInstantiationService instantiationService: IInstantiationService,
 		@IEditorService private readonly _editorService: IEditorService,
+		@IMarkerService private readonly _markerService: IMarkerService,
 	) {
 		const selectionListener = new MutableDisposable();
 		this._dispoables.add(selectionListener);
@@ -339,6 +398,20 @@ class NotebookCellOutline implements IOutline<OutlineEntry> {
 
 			this._entries = result;
 		}
+
+		// feature: show markers with each cell
+		const updateMarker = () => {
+			for (let entry of this._entries) {
+				entry.updateMarkers(this._markerService);
+			}
+		};
+		this._entriesDisposables.add(this._markerService.onMarkerChanged(e => {
+			if (e.find(uri => isEqual(uri, viewModel.uri, true))) {
+				updateMarker();
+				this._onDidChange.fire({});
+			}
+		}));
+		updateMarker();
 
 		this._onDidChange.fire({});
 	}
