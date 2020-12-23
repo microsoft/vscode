@@ -104,7 +104,7 @@ class NotebookOutlineRenderer implements ITreeRenderer<OutlineEntry, FuzzyScore,
 	renderElement(element: ITreeNode<OutlineEntry, FuzzyScore>, _index: number, templateData: NotebookOutlineTemplate, _height: number | undefined): void {
 		templateData.iconLabel.setLabel(element.element.label, undefined, { matches: createMatches(element.filterData) });
 		if (this._themeService.getFileIconTheme().hasFileIcons) {
-			templateData.iconClass.className = 'element-icon ' + getIconClassesForModeId(element.element.cell.language).join(' ');
+			templateData.iconClass.className = 'element-icon ' + getIconClassesForModeId(element.element.cell.language ?? '').join(' ');
 		} else {
 			templateData.iconClass.className = 'element-icon ' + ThemeIcon.asClassNameArray(element.element.icon).join(' ');
 		}
@@ -158,7 +158,7 @@ class NotebookQuickPickProvider implements IQuickPickDataSource<OutlineEntry> {
 		return bucket.map(entry => {
 			return {
 				element: entry,
-				iconClasses: this._themeService.getFileIconTheme().hasFileIcons ? getIconClassesForModeId(entry.cell.language) : ThemeIcon.asClassNameArray(entry.icon),
+				iconClasses: this._themeService.getFileIconTheme().hasFileIcons ? getIconClassesForModeId(entry.cell.language ?? '') : ThemeIcon.asClassNameArray(entry.icon),
 				label: entry.label,
 				ariaLabel: entry.label
 			};
