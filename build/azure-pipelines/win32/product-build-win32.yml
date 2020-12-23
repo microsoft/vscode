@@ -60,7 +60,7 @@ steps:
 
   - task: Cache@2
     inputs:
-      key: 'nodeModules | $(Agent.OS) | .build/arch, .build/terrapin, .build/yarnlockhash'
+      key: 'nodeModules2 | $(Agent.OS) | .build/arch, .build/terrapin, .build/yarnlockhash'
       path: .build/node_modules_cache
       cacheHitVar: NODE_MODULES_RESTORED
     displayName: Cache node_modules archive
@@ -105,7 +105,7 @@ steps:
   - powershell: |
       . build/azure-pipelines/win32/exec.ps1
       $ErrorActionPreference = "Stop"
-      exec { tar --posix -z -cvf .build/node_modules_cache/cache.tgz -P -C $env:BUILD_SOURCESDIRECTORY --files-from .build/node_modules_list.txt }
+      exec { tar --posix -z -cvf .build/node_modules_cache/cache.tgz -C $env:BUILD_SOURCESDIRECTORY --files-from .build/node_modules_list.txt }
     condition: and(succeeded(), ne(variables.NODE_MODULES_RESTORED, 'true'))
     displayName: Create node_modules archive
 
