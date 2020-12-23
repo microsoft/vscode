@@ -8,7 +8,6 @@ schedules:
         - master
 
 variables:
-  System.Debug: true
   ${{ if and(eq(variables['VSCODE_PUBLISH'], ''), or(eq(variables['Build.Reason'], 'IndividualCI'), eq(variables['Build.Reason'], 'BatchedCI'))) }}:
     VSCODE_PUBLISH: "false"
 
@@ -40,8 +39,8 @@ stages:
           - template: product-compile.yml
       - job: Hygiene
         pool:
-          vmImage: ubuntu-20.04
-        # container: vscode-x64
+          vmImage: "Ubuntu-18.04"
+        container: vscode-x64
         variables:
           VSCODE_ARCH: x64
         steps:

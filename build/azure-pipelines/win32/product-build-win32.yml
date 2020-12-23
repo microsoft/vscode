@@ -59,7 +59,7 @@ steps:
 
   - task: Cache@2
     inputs:
-      key: 'nodeModules6 | $(Agent.OS) | .build/arch, .build/terrapin, .build/yarnlockhash'
+      key: 'nodeModules | $(Agent.OS) | .build/arch, .build/terrapin, .build/yarnlockhash'
       path: .build/node_modules_cache
       cacheHitVar: NODE_MODULES_RESTORED
     displayName: Cache node_modules archive
@@ -155,7 +155,7 @@ steps:
       $ErrorActionPreference = "Stop"
       exec { yarn --cwd test/integration/browser compile }
     displayName: Compile integration tests
-    condition: and(succeeded(), eq(variables['CacheRestored'], 'true'), eq(variables['VSCODE_STEP_ON_IT'], 'false'), ne(variables['VSCODE_ARCH'], 'arm64'))
+    condition: and(succeeded(), eq(variables.NODE_MODULES_RESTORED, 'true'), eq(variables['VSCODE_STEP_ON_IT'], 'false'), ne(variables['VSCODE_ARCH'], 'arm64'))
 
   - powershell: |
       # Figure out the full absolute path of the product we just built

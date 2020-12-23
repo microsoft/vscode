@@ -1,7 +1,11 @@
 steps:
   - task: NodeTool@0
     inputs:
-      versionSpec: "12.x"
+      versionSpec: "12.18.3"
+
+  - task: geeklearningio.gl-vsts-tasks-yarn.yarn-installer-task.YarnInstaller@2
+    inputs:
+      versionSpec: "1.x"
 
   - task: AzureKeyVault@1
     displayName: "Azure Key Vault: Get Secrets"
@@ -39,7 +43,7 @@ steps:
 
   - task: Cache@2
     inputs:
-      key: 'genericNodeModules5 | $(Agent.OS) | .build/yarnlockhash'
+      key: 'nodeModules | $(Agent.OS) | .build/yarnlockhash'
       path: .build/node_modules_cache
       cacheHitVar: NODE_MODULES_RESTORED
     displayName: Cache node_modules archive
