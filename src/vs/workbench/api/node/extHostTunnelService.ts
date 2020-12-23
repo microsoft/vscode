@@ -159,28 +159,30 @@ export class ExtHostTunnelService extends Disposable implements IExtHostTunnelSe
 		return this._proxy.$getTunnels();
 	}
 
+	private calculateDelay(movingAverage: number) {
+		// Some local testing indicated that the moving average might be between 50-100 ms.
+		const delay = Math.max(movingAverage * 20, 2000);
+		console.log(delay);
+		return delay;
+	}
+
 	async registerCandidateFinder(): Promise<void> {
-		// Every two seconds, scan to see if the candidate ports have changed;
+		// Regularly scan to see if the candidate ports have changed.
 		if (!isLinux) {
 			return;
 		}
 		let movingAverage = new MovingAverage();
 		let oldPorts: { host: string, port: number, detail: string }[] | undefined = undefined;
 		while (1) {
-			const start = new Date().getTime();
+			const startTime = new Date().getTime();
 			const newPorts = await this.findCandidatePorts();
+			const timeTaken = new Date().getTime() - startTime;
+			movingAverage.update(timeTaken);
 			if (!oldPorts || (JSON.stringify(oldPorts) !== JSON.stringify(newPorts))) {
 				oldPorts = newPorts;
 				await this._proxy.$onFoundNewCandidates(oldPorts.filter(async (candidate) => await this._showCandidatePort(candidate.host, candidate.port, candidate.detail)));
-				return;
 			}
-			const timeTaken = new Date().getTime() - start;
-			console.log('Time taken: ');
-			console.log(timeTaken);
-			movingAverage.update(timeTaken);
-			console.log(movingAverage.value);
-
-			await (new Promise<void>(resolve => setTimeout(() => resolve(), movingAverage.value * 4)));
+			await (new Promise<void>(resolve => setTimeout(() => resolve(), this.calculateDelay(movingAverage.value))));
 		}
 	}
 
