@@ -38,13 +38,12 @@ steps:
 
   - script: |
       mkdir -p .build
-      echo -n $(VSCODE_ARCH) > .build/arch
-      echo -n $ENABLE_TERRAPIN > .build/terrapin
+      node build/azure-pipelines/common/computeNodeModulesCacheKey.js $VSCODE_ARCH $ENABLE_TERRAPIN > .build/yarnlockhash
     displayName: Prepare yarn cache flags
 
   - task: 1ESLighthouseEng.PipelineArtifactCaching.RestoreCacheV1.RestoreCache@1
     inputs:
-      keyfile: ".build/arch, .build/terrapin, build/.cachesalt, .yarnrc, remote/.yarnrc, **/yarn.lock, !**/node_modules/**/yarn.lock, !**/.*/**/yarn.lock"
+      keyfile: ".build/yarnlockhash"
       targetfolder: "**/node_modules, !**/node_modules/**/node_modules"
       vstsFeed: "npm-vscode"
 
