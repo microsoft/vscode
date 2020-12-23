@@ -53,7 +53,7 @@ export class BreadcrumbsModel {
 		fileInfoUri: URI,
 		editor: IEditorPane | undefined,
 		@IConfigurationService configurationService: IConfigurationService,
-		@IWorkspaceContextService workspaceService: IWorkspaceContextService,
+		@IWorkspaceContextService private readonly _workspaceService: IWorkspaceContextService,
 		@IOutlineService private readonly _outlineService: IOutlineService,
 	) {
 		this._cfgEnabled = BreadcrumbsConfig.IsEnabled.bindTo(configurationService);
@@ -62,7 +62,7 @@ export class BreadcrumbsModel {
 
 		this._disposables.add(this._cfgFilePath.onDidChange(_ => this._onDidUpdate.fire(this)));
 		this._disposables.add(this._cfgSymbolPath.onDidChange(_ => this._onDidUpdate.fire(this)));
-		this._fileInfo = BreadcrumbsModel._initFilePathInfo(fileInfoUri, workspaceService);
+		this._fileInfo = this._initFilePathInfo(fileInfoUri);
 
 		if (editor) {
 			this._bindToEditor(editor);
@@ -115,7 +115,7 @@ export class BreadcrumbsModel {
 		return result;
 	}
 
-	private static _initFilePathInfo(uri: URI, workspaceService: IWorkspaceContextService): FileInfo {
+	private _initFilePathInfo(uri: URI): FileInfo {
 
 		if (uri.scheme === Schemas.untitled) {
 			return {
@@ -125,7 +125,7 @@ export class BreadcrumbsModel {
 		}
 
 		let info: FileInfo = {
-			folder: withNullAsUndefined(workspaceService.getWorkspaceFolder(uri)),
+			folder: withNullAsUndefined(this._workspaceService.getWorkspaceFolder(uri)),
 			path: []
 		};
 
@@ -142,7 +142,7 @@ export class BreadcrumbsModel {
 			}
 		}
 
-		if (info.folder && workspaceService.getWorkbenchState() === WorkbenchState.WORKSPACE) {
+		if (info.folder && this._workspaceService.getWorkbenchState() === WorkbenchState.WORKSPACE) {
 			info.path.unshift(new FileElement(info.folder.uri, FileKind.ROOT_FOLDER));
 		}
 		return info;
