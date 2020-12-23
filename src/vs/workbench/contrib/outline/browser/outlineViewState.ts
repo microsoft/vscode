@@ -4,8 +4,14 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { Emitter } from 'vs/base/common/event';
-import { OutlineSortOrder } from 'vs/editor/contrib/documentSymbols/outline';
 import { IStorageService, StorageScope, StorageTarget } from 'vs/platform/storage/common/storage';
+
+
+export const enum OutlineSortOrder {
+	ByPosition,
+	ByName,
+	ByKind
+}
 
 export class OutlineViewState {
 
@@ -15,6 +21,10 @@ export class OutlineViewState {
 
 	private readonly _onDidChange = new Emitter<{ followCursor?: boolean, sortBy?: boolean, filterOnType?: boolean }>();
 	readonly onDidChange = this._onDidChange.event;
+
+	dispose(): void {
+		this._onDidChange.dispose();
+	}
 
 	set followCursor(value: boolean) {
 		if (value !== this._followCursor) {

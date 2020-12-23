@@ -8,7 +8,7 @@ import { IViewsRegistry, IViewDescriptor, Extensions as ViewExtensions } from 'v
 import { OutlinePane } from './outlinePane';
 import { Registry } from 'vs/platform/registry/common/platform';
 import { IConfigurationRegistry, Extensions as ConfigurationExtensions, ConfigurationScope } from 'vs/platform/configuration/common/configurationRegistry';
-import { OutlineConfigKeys, OutlineViewId } from 'vs/editor/contrib/documentSymbols/outline';
+import { OutlineConfigKeys } from 'vs/editor/contrib/documentSymbols/outline';
 import { VIEW_CONTAINER } from 'vs/workbench/contrib/files/browser/explorerViewlet';
 import { SyncDescriptor } from 'vs/platform/instantiation/common/descriptors';
 import { Codicon } from 'vs/base/common/codicons';
@@ -18,7 +18,7 @@ import { registerIcon } from 'vs/platform/theme/common/iconRegistry';
 const outlineViewIcon = registerIcon('outline-view-icon', Codicon.symbolClass, localize('outlineViewIcon', 'View icon of the outline view.'));
 
 const _outlineDesc = <IViewDescriptor>{
-	id: OutlineViewId,
+	id: OutlinePane.Id,
 	name: localize('name', "Outline"),
 	containerIcon: outlineViewIcon,
 	ctorDescriptor: new SyncDescriptor(OutlinePane),

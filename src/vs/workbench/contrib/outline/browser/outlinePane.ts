@@ -22,7 +22,6 @@ import { IThemeService } from 'vs/platform/theme/common/themeService';
 import { ViewAction, ViewPane } from 'vs/workbench/browser/parts/views/viewPane';
 import { IViewletViewOptions } from 'vs/workbench/browser/parts/views/viewsViewlet';
 import { IEditorService } from 'vs/workbench/services/editor/common/editorService';
-import { OutlineViewFocused, OutlineViewFiltered, OutlineViewId, OutlineSortOrder } from 'vs/editor/contrib/documentSymbols/outline';
 import { FuzzyScore } from 'vs/base/common/filters';
 import { IDataTreeViewState } from 'vs/base/browser/ui/tree/dataTree';
 import { basename } from 'vs/base/common/resources';
@@ -31,12 +30,19 @@ import { IOpenerService } from 'vs/platform/opener/common/opener';
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
 import { Codicon } from 'vs/base/common/codicons';
 import { MenuId, registerAction2 } from 'vs/platform/actions/common/actions';
-import { OutlineViewState } from './outlineViewState';
+import { OutlineSortOrder, OutlineViewState } from './outlineViewState';
 import { IOutline, IOutlineComparator, IOutlineService } from 'vs/workbench/services/outline/browser/outline';
 import { EditorResourceAccessor, IEditorPane } from 'vs/workbench/common/editor';
 import { CancellationTokenSource } from 'vs/base/common/cancellation';
 import { Event } from 'vs/base/common/event';
 import { ITreeSorter } from 'vs/base/browser/ui/tree/tree';
+
+
+const _ctxViewFiltered = new RawContextKey('outlineFiltered', false); // todo@jrieken remove?
+const _ctxViewFocused = new RawContextKey('outlineFocused', false); // todo@jrieken remove ?
+const _ctxFollowsCursor = new RawContextKey('outlineFollowsCursor', false);
+const _ctxFilterOnType = new RawContextKey('outlineFiltersOnType', false);
+const _ctxSortMode = new RawContextKey<OutlineSortOrder>('outlineSortMode', OutlineSortOrder.ByPosition);
 
 class OutlineTreeSorter<E> implements ITreeSorter<E> {
 
@@ -57,6 +63,8 @@ class OutlineTreeSorter<E> implements ITreeSorter<E> {
 }
 
 export class OutlinePane extends ViewPane {
+
+	static readonly Id = 'outline';
 
 	private readonly _disposables = new DisposableStore();
 
@@ -97,10 +105,11 @@ export class OutlinePane extends ViewPane {
 	) {
 		super(options, keybindingService, contextMenuService, configurationService, contextKeyService, viewDescriptorService, _instantiationService, openerService, themeService, telemetryService);
 		this._outlineViewState.restore(this._storageService);
+		this._disposables.add(this._outlineViewState);
 
 		contextKeyService.bufferChangeEvents(() => {
-			this._ctxFocused = OutlineViewFocused.bindTo(contextKeyService);
-			this._ctxFiltered = OutlineViewFiltered.bindTo(contextKeyService);
+			this._ctxFocused = _ctxViewFocused.bindTo(contextKeyService);
+			this._ctxFiltered = _ctxViewFiltered.bindTo(contextKeyService);
 			this._ctxFollowsCursor = _ctxFollowsCursor.bindTo(contextKeyService);
 			this._ctxFilterOnType = _ctxFilterOnType.bindTo(contextKeyService);
 			this._ctxSortMode = _ctxSortMode.bindTo(contextKeyService);
@@ -330,16 +339,13 @@ export class OutlinePane extends ViewPane {
 	}
 }
 
-const _ctxFollowsCursor = new RawContextKey('outlineFollowsCursor', false);
-const _ctxFilterOnType = new RawContextKey('outlineFiltersOnType', false);
-const _ctxSortMode = new RawContextKey<OutlineSortOrder>('outlineSortMode', OutlineSortOrder.ByPosition);
 
 // --- commands
 
 registerAction2(class Collapse extends ViewAction<OutlinePane> {
 	constructor() {
 		super({
-			viewId: OutlineViewId,
+			viewId: OutlinePane.Id,
 			id: 'outline.collapse',
 			title: localize('collapse', "Collapse All"),
 			f1: false,
@@ -347,7 +353,7 @@ registerAction2(class Collapse extends ViewAction<OutlinePane> {
 			menu: {
 				id: MenuId.ViewTitle,
 				group: 'navigation',
-				when: ContextKeyEqualsExpr.create('view', OutlineViewId)
+				when: ContextKeyEqualsExpr.create('view', OutlinePane.Id)
 			}
 		});
 	}
@@ -359,7 +365,7 @@ registerAction2(class Collapse extends ViewAction<OutlinePane> {
 registerAction2(class FollowCursor extends ViewAction<OutlinePane> {
 	constructor() {
 		super({
-			viewId: OutlineViewId,
+			viewId: OutlinePane.Id,
 			id: 'outline.followCursor',
 			title: localize('followCur', "Follow Cursor"),
 			f1: false,
@@ -368,7 +374,7 @@ registerAction2(class FollowCursor extends ViewAction<OutlinePane> {
 				id: MenuId.ViewTitle,
 				group: 'config',
 				order: 1,
-				when: ContextKeyEqualsExpr.create('view', OutlineViewId)
+				when: ContextKeyEqualsExpr.create('view', OutlinePane.Id)
 			}
 		});
 	}
@@ -380,7 +386,7 @@ registerAction2(class FollowCursor extends ViewAction<OutlinePane> {
 registerAction2(class FilterOnType extends ViewAction<OutlinePane> {
 	constructor() {
 		super({
-			viewId: OutlineViewId,
+			viewId: OutlinePane.Id,
 			id: 'outline.filterOnType',
 			title: localize('filterOnType', "Filter on Type"),
 			f1: false,
@@ -389,7 +395,7 @@ registerAction2(class FilterOnType extends ViewAction<OutlinePane> {
 				id: MenuId.ViewTitle,
 				group: 'config',
 				order: 2,
-				when: ContextKeyEqualsExpr.create('view', OutlineViewId)
+				when: ContextKeyEqualsExpr.create('view', OutlinePane.Id)
 			}
 		});
 	}
@@ -402,7 +408,7 @@ registerAction2(class FilterOnType extends ViewAction<OutlinePane> {
 registerAction2(class SortByPosition extends ViewAction<OutlinePane> {
 	constructor() {
 		super({
-			viewId: OutlineViewId,
+			viewId: OutlinePane.Id,
 			id: 'outline.sortByPosition',
 			title: localize('sortByPosition', "Sort By: Position"),
 			f1: false,
@@ -411,7 +417,7 @@ registerAction2(class SortByPosition extends ViewAction<OutlinePane> {
 				id: MenuId.ViewTitle,
 				group: 'sort',
 				order: 1,
-				when: ContextKeyEqualsExpr.create('view', OutlineViewId)
+				when: ContextKeyEqualsExpr.create('view', OutlinePane.Id)
 			}
 		});
 	}
@@ -423,7 +429,7 @@ registerAction2(class SortByPosition extends ViewAction<OutlinePane> {
 registerAction2(class SortByName extends ViewAction<OutlinePane> {
 	constructor() {
 		super({
-			viewId: OutlineViewId,
+			viewId: OutlinePane.Id,
 			id: 'outline.sortByName',
 			title: localize('sortByName', "Sort By: Name"),
 			f1: false,
@@ -432,7 +438,7 @@ registerAction2(class SortByName extends ViewAction<OutlinePane> {
 				id: MenuId.ViewTitle,
 				group: 'sort',
 				order: 2,
-				when: ContextKeyEqualsExpr.create('view', OutlineViewId)
+				when: ContextKeyEqualsExpr.create('view', OutlinePane.Id)
 			}
 		});
 	}
@@ -444,7 +450,7 @@ registerAction2(class SortByName extends ViewAction<OutlinePane> {
 registerAction2(class SortByKind extends ViewAction<OutlinePane> {
 	constructor() {
 		super({
-			viewId: OutlineViewId,
+			viewId: OutlinePane.Id,
 			id: 'outline.sortByKind',
 			title: localize('sortByKind', "Sort By: Category"),
 			f1: false,
@@ -453,7 +459,7 @@ registerAction2(class SortByKind extends ViewAction<OutlinePane> {
 				id: MenuId.ViewTitle,
 				group: 'sort',
 				order: 3,
-				when: ContextKeyEqualsExpr.create('view', OutlineViewId)
+				when: ContextKeyEqualsExpr.create('view', OutlinePane.Id)
 			}
 		});
 	}

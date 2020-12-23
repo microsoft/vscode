@@ -3,19 +3,6 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { RawContextKey } from 'vs/platform/contextkey/common/contextkey';
-
-export const OutlineViewId = 'outline';
-
-export const enum OutlineSortOrder {
-	ByPosition,
-	ByName,
-	ByKind
-}
-
-export const OutlineViewFiltered = new RawContextKey('outlineFiltered', false);
-export const OutlineViewFocused = new RawContextKey('outlineFocused', false);
-
 export const enum OutlineConfigKeys {
 	'icons' = 'outline.icons',
 	'problemsEnabled' = 'outline.problems.enabled',
