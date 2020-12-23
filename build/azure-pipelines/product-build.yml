@@ -47,37 +47,44 @@ stages:
           VSCODE_ARCH: x64
         steps:
           - template: product-hygiene.yml
-
-  - stage: Windows
-    # dependsOn:
-    #   - Compile
-    condition: and(succeeded(), eq(variables['VSCODE_COMPILE_ONLY'], 'false'))
-    pool:
-      vmImage: VS2017-Win2016
-    jobs:
       - job: Windows
-        condition: and(succeeded(), eq(variables['VSCODE_BUILD_WIN32'], 'true'))
+        pool:
+          vmImage: VS2017-Win2016
         timeoutInMinutes: 90
         variables:
           VSCODE_ARCH: x64
         steps:
           - template: win32/product-build-win32.yml
+  # - stage: Windows
+  #   # dependsOn:
+  #   #   - Compile
+  #   condition: and(succeeded(), eq(variables['VSCODE_COMPILE_ONLY'], 'false'))
+  #   pool:
+  #     vmImage: VS2017-Win2016
+  #   jobs:
+  #     - job: Windows
+  #       condition: and(succeeded(), eq(variables['VSCODE_BUILD_WIN32'], 'true'))
+  #       timeoutInMinutes: 90
+  #       variables:
+  #         VSCODE_ARCH: x64
+  #       steps:
+  #         - template: win32/product-build-win32.yml
 
-      - job: Windows32
-        condition: and(succeeded(), eq(variables['VSCODE_BUILD_WIN32_32BIT'], 'true'), ne(variables['VSCODE_PUBLISH'], 'false'))
-        timeoutInMinutes: 90
-        variables:
-          VSCODE_ARCH: ia32
-        steps:
-          - template: win32/product-build-win32.yml
+  #     - job: Windows32
+  #       condition: and(succeeded(), eq(variables['VSCODE_BUILD_WIN32_32BIT'], 'true'), ne(variables['VSCODE_PUBLISH'], 'false'))
+  #       timeoutInMinutes: 90
+  #       variables:
+  #         VSCODE_ARCH: ia32
+  #       steps:
+  #         - template: win32/product-build-win32.yml
 
-      - job: WindowsARM64
-        condition: and(succeeded(), eq(variables['VSCODE_BUILD_WIN32_ARM64'], 'true'), ne(variables['VSCODE_PUBLISH'], 'false'))
-        timeoutInMinutes: 90
-        variables:
-          VSCODE_ARCH: arm64
-        steps:
-          - template: win32/product-build-win32.yml
+  #     - job: WindowsARM64
+  #       condition: and(succeeded(), eq(variables['VSCODE_BUILD_WIN32_ARM64'], 'true'), ne(variables['VSCODE_PUBLISH'], 'false'))
+  #       timeoutInMinutes: 90
+  #       variables:
+  #         VSCODE_ARCH: arm64
+  #       steps:
+  #         - template: win32/product-build-win32.yml
 
   # - stage: Linux
   #   dependsOn:
