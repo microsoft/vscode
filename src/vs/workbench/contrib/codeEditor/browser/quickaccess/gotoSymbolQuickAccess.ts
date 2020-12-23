@@ -150,6 +150,13 @@ export class GotoSymbolQuickAccessProvider extends AbstractGotoSymbolQuickAccess
 
 			disposables.add(outline);
 
+			const viewState = outline.captureViewState();
+			disposables.add(toDisposable(() => {
+				if (picker.selectedItems.length === 0) {
+					viewState.dispose();
+				}
+			}));
+
 			const entries = Array.from(outline.quickPickConfig.quickPickDataSource.getQuickPickElements());
 
 			const items: IGotoSymbolQuickPickItem[] = entries.map((entry, idx) => {
