@@ -161,9 +161,7 @@ export class ExtHostTunnelService extends Disposable implements IExtHostTunnelSe
 
 	private calculateDelay(movingAverage: number) {
 		// Some local testing indicated that the moving average might be between 50-100 ms.
-		const delay = Math.max(movingAverage * 20, 2000);
-		console.log(delay);
-		return delay;
+		return Math.max(movingAverage * 20, 2000);
 	}
 
 	async registerCandidateFinder(): Promise<void> {
