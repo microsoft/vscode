@@ -65,10 +65,6 @@ export class LanguageFeatureRegistry<T> {
 		});
 	}
 
-	entries(): T[] {
-		return this._entries.map(entry => entry.provider);
-	}
-
 	has(model: ITextModel): boolean {
 		return this.all(model).length > 0;
 	}
