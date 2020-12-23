@@ -43,4 +43,4 @@ function findNodeModulesFiles(location: string, inNodeModules: boolean, result: 
 
 const result: string[] = [];
 findNodeModulesFiles('', false, result);
-fs.writeFileSync(process.argv[2], result.map(entry => path.join(ROOT, entry)).join('\n') + '\n');
+fs.writeFileSync(process.argv[2], result.join('\n') + '\n');
