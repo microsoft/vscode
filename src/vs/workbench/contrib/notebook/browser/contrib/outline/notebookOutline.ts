@@ -68,6 +68,13 @@ export class OutlineEntry {
 		parents.pop();
 		return undefined;
 	}
+
+	asFlatList(bucket: OutlineEntry[]): void {
+		bucket.push(this);
+		for (let child of this.children) {
+			child.asFlatList(bucket);
+		}
+	}
 }
 
 class NotebookOutlineTemplate {
@@ -142,7 +149,13 @@ class NotebookQuickPickProvider implements IQuickPickDataSource<OutlineEntry> {
 	) { }
 
 	getQuickPickElements(): Iterable<{ element: OutlineEntry; kind?: SymbolKind | undefined; label: string; iconClasses?: string[] | undefined; ariaLabel?: string | undefined; description?: string | undefined; }> {
-		return this._getEntries().map(entry => {
+
+		let bucket: OutlineEntry[] = [];
+		for (let entry of this._getEntries()) {
+			entry.asFlatList(bucket);
+		}
+
+		return bucket.map(entry => {
 			return {
 				element: entry,
 				iconClasses: this._themeService.getFileIconTheme().hasFileIcons ? getIconClassesForModeId(entry.cell.language) : ThemeIcon.asClassNameArray(entry.icon),
@@ -372,7 +385,6 @@ class NotebookCellOutline implements IOutline<OutlineEntry> {
 			return Disposable.None;
 		}
 		widget.revealInCenterIfOutsideViewport(entry.cell);
-		widget.selectElement(entry.cell);
 		const ids = widget.deltaCellDecorations([], [{
 			handle: entry.cell.handle,
 			options: { className: 'nb-symbolHighlight', outputClassName: 'nb-symbolHighlight' }
