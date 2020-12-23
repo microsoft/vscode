@@ -1008,7 +1008,7 @@ export class TimelineElementTemplate implements IDisposable {
 		container.classList.add('custom-view-tree-node-item');
 		this.icon = DOM.append(container, DOM.$('.custom-view-tree-node-item-icon'));
 
-		this.iconLabel = new IconLabel(container, { supportHighlights: true, supportCodicons: true });
+		this.iconLabel = new IconLabel(container, { supportHighlights: true, supportIcons: true });
 
 		const timestampContainer = DOM.append(this.iconLabel.element, DOM.$('.timeline-timestamp-container'));
 		this.timestamp = DOM.append(timestampContainer, DOM.$('span.timeline-timestamp'));

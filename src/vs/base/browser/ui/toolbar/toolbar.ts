@@ -73,7 +73,7 @@ export class ToolBar extends Disposable {
 							actionViewItemProvider: this.options.actionViewItemProvider,
 							actionRunner: this.actionRunner,
 							keybindingProvider: this.options.getKeyBinding,
-							classNames: (options.moreIcon ?? toolBarMoreIcon).classNames,
+							classNames: CSSIcon.asClassNameArray(options.moreIcon ?? toolBarMoreIcon),
 							anchorAlignmentProvider: this.options.anchorAlignmentProvider,
 							menuAsChild: !!this.options.renderDropdownAsChildElement
 						}

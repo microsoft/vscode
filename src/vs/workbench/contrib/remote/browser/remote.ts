@@ -17,7 +17,7 @@ import { IThemeService, ThemeIcon } from 'vs/platform/theme/common/themeService'
 import { IContextMenuService } from 'vs/platform/contextview/browser/contextView';
 import { IExtensionService } from 'vs/workbench/services/extensions/common/extensions';
 import { FilterViewPaneContainer } from 'vs/workbench/browser/parts/views/viewsViewlet';
-import { AutomaticPortForwarding, ForwardedPortsView, VIEWLET_ID } from 'vs/workbench/contrib/remote/browser/remoteExplorer';
+import { AutomaticPortForwarding, ForwardedPortsView, PortRestore, VIEWLET_ID } from 'vs/workbench/contrib/remote/browser/remoteExplorer';
 import { IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
 import { IViewDescriptor, IViewsRegistry, Extensions, ViewContainerLocation, IViewContainersRegistry, IViewDescriptorService } from 'vs/workbench/common/views';
 import { Registry } from 'vs/platform/registry/common/platform';
@@ -54,8 +54,8 @@ import { ExtensionsRegistry, IExtensionPointUser } from 'vs/workbench/services/e
 import { SyncDescriptor } from 'vs/platform/instantiation/common/descriptors';
 import { RemoteStatusIndicator } from 'vs/workbench/contrib/remote/browser/remoteIndicator';
 import { inQuickPickContextKeyValue } from 'vs/workbench/browser/quickaccess';
-import { Codicon } from 'vs/base/common/codicons';
-import { registerIcon } from 'vs/platform/theme/common/iconRegistry';
+import * as icons from 'vs/workbench/contrib/remote/browser/remoteIcons';
+
 
 export interface HelpInformation {
 	extensionDescription: IExtensionDescription;
@@ -149,14 +149,6 @@ class HelpDataSource implements IAsyncDataSource<HelpModel, IHelpItem> {
 		return [];
 	}
 }
-
-const getStartedIcon = registerIcon('remote-explorer-get-started', Codicon.star, nls.localize('getStartedIcon', 'Getting started icon in the remote explorer view.'));
-const documentationIcon = registerIcon('remote-explorer-documentation', Codicon.book, nls.localize('documentationIcon', 'Documentation icon in the remote explorer view.'));
-const feedbackIcon = registerIcon('remote-explorer-feedback', Codicon.twitter, nls.localize('feedbackIcon', 'Feedback icon in the remote explorer view.'));
-const reviewIssuesIcon = registerIcon('remote-explorer-review-issues', Codicon.issues, nls.localize('reviewIssuesIcon', 'Review issue icon in the remote explorer view.'));
-const reportIssuesIcon = registerIcon('remote-explorer-report-issues', Codicon.comment, nls.localize('reportIssuesIcon', 'Report issue icon in the remote explorer view.'));
-const remoteExplorerViewIcon = registerIcon('remote-explorer-view-icon', Codicon.remoteExplorer, nls.localize('remoteExplorerViewIcon', 'View icon of the remote explorer view.'));
-
 interface IHelpItem {
 	icon: ThemeIcon,
 	iconClasses: string[];
@@ -180,7 +172,7 @@ class HelpModel {
 
 		if (getStarted.length) {
 			helpItems.push(new HelpItem(
-				getStartedIcon,
+				icons.getStartedIcon,
 				nls.localize('remote.help.getStarted', "Get Started"),
 				getStarted.map((info: HelpInformation) => (new HelpItemValue(commandService,
 					info.extensionDescription,
@@ -198,7 +190,7 @@ class HelpModel {
 
 		if (documentation.length) {
 			helpItems.push(new HelpItem(
-				documentationIcon,
+				icons.documentationIcon,
 				nls.localize('remote.help.documentation', "Read Documentation"),
 				documentation.map((info: HelpInformation) => (new HelpItemValue(commandService,
 					info.extensionDescription,
@@ -216,7 +208,7 @@ class HelpModel {
 
 		if (feedback.length) {
 			helpItems.push(new HelpItem(
-				feedbackIcon,
+				icons.feedbackIcon,
 				nls.localize('remote.help.feedback', "Provide Feedback"),
 				feedback.map((info: HelpInformation) => (new HelpItemValue(commandService,
 					info.extensionDescription,
@@ -234,7 +226,7 @@ class HelpModel {
 
 		if (issues.length) {
 			helpItems.push(new HelpItem(
-				reviewIssuesIcon,
+				icons.reviewIssuesIcon,
 				nls.localize('remote.help.issues', "Review Issues"),
 				issues.map((info: HelpInformation) => (new HelpItemValue(commandService,
 					info.extensionDescription,
@@ -250,7 +242,7 @@ class HelpModel {
 
 		if (helpItems.length) {
 			helpItems.push(new IssueReporterItem(
-				reportIssuesIcon,
+				icons.reportIssuesIcon,
 				nls.localize('remote.help.report', "Report Issue"),
 				viewModel.helpInformation.map(info => (new HelpItemValue(commandService,
 					info.extensionDescription,
@@ -458,6 +450,7 @@ class HelpPanelDescriptor implements IViewDescriptor {
 	readonly canToggleVisibility = true;
 	readonly hideByDefault = false;
 	readonly group = 'help@50';
+	readonly order = -10;
 
 	constructor(viewModel: IViewModel) {
 		this.ctorDescriptor = new SyncDescriptor(HelpPanel, [viewModel]);
@@ -467,6 +460,7 @@ class HelpPanelDescriptor implements IViewDescriptor {
 export class RemoteViewPaneContainer extends FilterViewPaneContainer implements IViewModel {
 	private helpPanelDescriptor = new HelpPanelDescriptor(this);
 	helpInformation: HelpInformation[] = [];
+	private hasSetSwitchForConnection: boolean = false;
 
 	constructor(
 		@IWorkbenchLayoutService layoutService: IWorkbenchLayoutService,
@@ -527,7 +521,14 @@ export class RemoteViewPaneContainer extends FilterViewPaneContainer implements 
 
 	public getActionViewItem(action: Action): IActionViewItem | undefined {
 		if (action.id === SwitchRemoteAction.ID) {
-			return this.instantiationService.createInstance(SwitchRemoteViewItem, action, SwitchRemoteViewItem.createOptionItems(Registry.as<IViewsRegistry>(Extensions.ViewsRegistry).getViews(this.viewContainer), this.contextKeyService));
+			const optionItems = SwitchRemoteViewItem.createOptionItems(Registry.as<IViewsRegistry>(Extensions.ViewsRegistry).getViews(this.viewContainer), this.contextKeyService);
+			const item = this.instantiationService.createInstance(SwitchRemoteViewItem, action, optionItems);
+			if (!this.hasSetSwitchForConnection) {
+				this.hasSetSwitchForConnection = item.setSelectionForConnection();
+			} else {
+				item.setSelection();
+			}
+			return item;
 		}
 
 		return super.getActionViewItem(action);
@@ -572,7 +573,7 @@ Registry.as<IViewContainersRegistry>(Extensions.ViewContainersRegistry).register
 				return;
 			}
 		},
-		icon: remoteExplorerViewIcon,
+		icon: icons.remoteExplorerViewIcon,
 		order: 4
 	}, ViewContainerLocation.Sidebar);
 
@@ -816,4 +817,5 @@ const workbenchContributionsRegistry = Registry.as<IWorkbenchContributionsRegist
 workbenchContributionsRegistry.registerWorkbenchContribution(RemoteAgentConnectionStatusListener, LifecyclePhase.Eventually);
 workbenchContributionsRegistry.registerWorkbenchContribution(RemoteStatusIndicator, LifecyclePhase.Starting);
 workbenchContributionsRegistry.registerWorkbenchContribution(ForwardedPortsView, LifecyclePhase.Eventually);
+workbenchContributionsRegistry.registerWorkbenchContribution(PortRestore, LifecyclePhase.Eventually);
 workbenchContributionsRegistry.registerWorkbenchContribution(AutomaticPortForwarding, LifecyclePhase.Eventually);

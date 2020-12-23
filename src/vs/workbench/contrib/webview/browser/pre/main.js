@@ -319,7 +319,7 @@
 		 */
 		function isCopyPasteOrCut(e) {
 			const hasMeta = e.ctrlKey || e.metaKey;
-			return hasMeta && ['c', 'v', 'x'].includes(e.key);
+			return hasMeta && ['c', 'v', 'x'].includes(e.key.toLowerCase());
 		}
 
 		/**
@@ -328,7 +328,7 @@
 		 */
 		function isUndoRedo(e) {
 			const hasMeta = e.ctrlKey || e.metaKey;
-			return hasMeta && ['z', 'y'].includes(e.key);
+			return hasMeta && ['z', 'y'].includes(e.key.toLowerCase());
 		}
 
 		let isHandlingScroll = false;

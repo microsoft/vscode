@@ -6,6 +6,9 @@
 //@ts-check
 'use strict';
 
+const performance = require('./vs/base/common/performance');
+performance.mark('fork/start');
+
 const bootstrap = require('./bootstrap');
 const bootstrapNode = require('./bootstrap-node');
 
@@ -210,7 +213,7 @@ function configureCrashReporter() {
 	if (typeof crashReporterOptionsRaw === 'string') {
 		try {
 			const crashReporterOptions = JSON.parse(crashReporterOptionsRaw);
-			if (crashReporterOptions) {
+			if (crashReporterOptions && process['crashReporter'] /* Electron only */) {
 				process['crashReporter'].start(crashReporterOptions);
 			}
 		} catch (error) {

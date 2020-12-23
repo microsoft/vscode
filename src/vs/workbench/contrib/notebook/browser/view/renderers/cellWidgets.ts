@@ -5,9 +5,9 @@
 
 import * as DOM from 'vs/base/browser/dom';
 import { StandardKeyboardEvent } from 'vs/base/browser/keyboardEvent';
-import { CodiconLabel } from 'vs/base/browser/ui/codicons/codiconLabel';
+import { SimpleIconLabel } from 'vs/base/browser/ui/iconLabel/simpleIconLabel';
 import { WorkbenchActionExecutedClassification, WorkbenchActionExecutedEvent } from 'vs/base/common/actions';
-import { stripCodicons } from 'vs/base/common/codicons';
+import { stripIcons } from 'vs/base/common/iconLabels';
 import { toErrorMessage } from 'vs/base/common/errorMessage';
 import { Emitter, Event } from 'vs/base/common/event';
 import { KeyCode } from 'vs/base/common/keyCodes';
@@ -160,7 +160,7 @@ class CellStatusBarItem extends Disposable {
 		@INotificationService private readonly notificationService: INotificationService
 	) {
 		super();
-		new CodiconLabel(this.container).text = this._itemModel.text;
+		new SimpleIconLabel(this.container).text = this._itemModel.text;
 
 		if (this._itemModel.opacity) {
 			this.container.style.opacity = this._itemModel.opacity;
@@ -172,7 +172,7 @@ class CellStatusBarItem extends Disposable {
 			ariaLabel = this._itemModel.accessibilityInformation.label;
 			role = this._itemModel.accessibilityInformation.role;
 		} else {
-			ariaLabel = this._itemModel.text ? stripCodicons(this._itemModel.text).trim() : '';
+			ariaLabel = this._itemModel.text ? stripIcons(this._itemModel.text).trim() : '';
 		}
 
 		if (ariaLabel) {

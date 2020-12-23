@@ -12,6 +12,7 @@ import { ExtensionHostMain } from 'vs/workbench/services/extensions/common/exten
 import { IHostUtils } from 'vs/workbench/api/common/extHostExtensionService';
 import { NestedWorker } from 'vs/workbench/services/extensions/worker/polyfillNestedWorker';
 import * as path from 'vs/base/common/path';
+import * as performance from 'vs/base/common/performance';
 
 import 'vs/workbench/api/common/extHost.common.services';
 import 'vs/workbench/api/worker/extHost.worker.services';
@@ -110,7 +111,7 @@ class ExtensionWorker {
 			if (isMessageOfType(msg, MessageType.Terminate)) {
 				// handle terminate-message right here
 				terminating = true;
-				onTerminate();
+				onTerminate('received terminate message from renderer');
 				return;
 			}
 
@@ -146,13 +147,13 @@ function connectToRenderer(protocol: IMessagePassingProtocol): Promise<IRenderer
 	});
 }
 
-let onTerminate = nativeClose;
+let onTerminate = (reason: string) => nativeClose();
 
 (function create(): void {
 	const res = new ExtensionWorker();
-
+	performance.mark(`extHost/willConnectToRenderer`);
 	connectToRenderer(res.protocol).then(data => {
-
+		performance.mark(`extHost/didWaitForInitData`);
 		const extHostMain = new ExtensionHostMain(
 			data.protocol,
 			data.initData,
@@ -160,6 +161,6 @@ let onTerminate = nativeClose;
 			null,
 		);
 
-		onTerminate = () => extHostMain.terminate();
+		onTerminate = (reason: string) => extHostMain.terminate(reason);
 	});
 })();

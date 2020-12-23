@@ -365,8 +365,8 @@ export class Protocol extends Disposable implements IMessagePassingProtocol {
 	private readonly _onMessage = new Emitter<VSBuffer>();
 	readonly onMessage: Event<VSBuffer> = this._onMessage.event;
 
-	private readonly _onClose = new Emitter<void>();
-	readonly onClose: Event<void> = this._onClose.event;
+	private readonly _onDidDispose = new Emitter<void>();
+	readonly onDidDispose: Event<void> = this._onDidDispose.event;
 
 	constructor(socket: ISocket) {
 		super();
@@ -380,7 +380,7 @@ export class Protocol extends Disposable implements IMessagePassingProtocol {
 			}
 		}));
 
-		this._register(this._socket.onClose(() => this._onClose.fire()));
+		this._register(this._socket.onClose(() => this._onDidDispose.fire()));
 	}
 
 	drain(): Promise<void> {
@@ -406,7 +406,7 @@ export class Client<TContext = string> extends IPCClient<TContext> {
 		return new Client(new Protocol(socket), id);
 	}
 
-	get onClose(): Event<void> { return this.protocol.onClose; }
+	get onDidDispose(): Event<void> { return this.protocol.onDidDispose; }
 
 	constructor(private protocol: Protocol | PersistentProtocol, id: TContext, ipcLogger: IIPCLogger | null = null) {
 		super(protocol, id, ipcLogger);
@@ -621,8 +621,8 @@ export class PersistentProtocol implements IMessagePassingProtocol {
 	private readonly _onMessage = new BufferedEmitter<VSBuffer>();
 	readonly onMessage: Event<VSBuffer> = this._onMessage.event;
 
-	private readonly _onClose = new BufferedEmitter<void>();
-	readonly onClose: Event<void> = this._onClose.event;
+	private readonly _onDidDispose = new BufferedEmitter<void>();
+	readonly onDidDispose: Event<void> = this._onDidDispose.event;
 
 	private readonly _onSocketClose = new BufferedEmitter<void>();
 	readonly onSocketClose: Event<void> = this._onSocketClose.event;
@@ -783,7 +783,7 @@ export class PersistentProtocol implements IMessagePassingProtocol {
 	}
 
 	public acceptDisconnect(): void {
-		this._onClose.fire();
+		this._onDidDispose.fire();
 	}
 
 	private _receiveMessage(msg: ProtocolMessage): void {
@@ -820,7 +820,7 @@ export class PersistentProtocol implements IMessagePassingProtocol {
 		} else if (msg.type === ProtocolMessageType.Control) {
 			this._onControlMessage.fire(msg.data);
 		} else if (msg.type === ProtocolMessageType.Disconnect) {
-			this._onClose.fire();
+			this._onDidDispose.fire();
 		} else if (msg.type === ProtocolMessageType.ReplayRequest) {
 			// Send again all unacknowledged messages
 			const toSend = this._outgoingUnackMsg.toArray();

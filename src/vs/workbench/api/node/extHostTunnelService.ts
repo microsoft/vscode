@@ -135,7 +135,7 @@ export class ExtHostTunnelService extends Disposable implements IExtHostTunnelSe
 	) {
 		super();
 		this._proxy = extHostRpc.getProxy(MainContext.MainThreadTunnelService);
-		if (initData.remote.isRemote && initData.remote.authority) {
+		if (initData.remote.isRemote && initData.remote.authority && !process.env['VSCODE_DISABLE_PROC_READING']) {
 			this.registerCandidateFinder();
 		}
 	}
@@ -183,7 +183,6 @@ export class ExtHostTunnelService extends Disposable implements IExtHostTunnelSe
 		} else {
 			this._forwardPortProvider = undefined;
 		}
-		await this._proxy.$tunnelServiceReady();
 		return toDisposable(() => {
 			this._forwardPortProvider = undefined;
 		});

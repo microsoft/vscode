@@ -22,12 +22,13 @@ import { IDebugService } from 'vs/workbench/contrib/debug/common/debug';
 import { IRemoteAgentService } from 'vs/workbench/services/remote/common/remoteAgentService';
 import { OperatingSystem } from 'vs/base/common/platform';
 import { RemoteTunnel } from 'vs/platform/remote/common/tunnel';
-import { Codicon } from 'vs/base/common/codicons';
 import { SyncDescriptor } from 'vs/platform/instantiation/common/descriptors';
 import { ViewPaneContainer } from 'vs/workbench/browser/parts/views/viewPaneContainer';
 import { IActivityService, NumberBadge } from 'vs/workbench/services/activity/common/activity';
 import { ITASExperimentService } from 'vs/workbench/services/experiment/common/experimentService';
 import { optional } from 'vs/platform/instantiation/common/instantiation';
+import { portsViewIcon } from 'vs/workbench/contrib/remote/browser/remoteIcons';
+import { Event } from 'vs/base/common/event';
 
 export const VIEWLET_ID = 'workbench.view.remote';
 
@@ -68,7 +69,7 @@ export class ForwardedPortsView extends Disposable implements IWorkbenchContribu
 			return Registry.as<IViewContainersRegistry>(Extensions.ViewContainersRegistry).registerViewContainer({
 				id: TunnelPanel.ID,
 				name: nls.localize('ports', "Ports"),
-				icon: Codicon.plug,
+				icon: portsViewIcon,
 				ctorDescriptor: new SyncDescriptor(ViewPaneContainer, [TunnelPanel.ID, { mergeViewWithContainerWhenSingleView: true, donotShowContainerTitleWhenMergedWithContainer: true }]),
 				storageId: TunnelPanel.ID,
 				hideIfEmpty: true,
@@ -123,11 +124,11 @@ export class ForwardedPortsView extends Disposable implements IWorkbenchContribu
 	}
 
 	private async updateActivityBadge() {
-		if (this._activityBadge) {
-			this._activityBadge.dispose();
-		}
 		if (!(await this.usePanelTreatment())) {
 			return;
+		}
+		if (this._activityBadge) {
+			this._activityBadge.dispose();
 		}
 		if (this.remoteExplorerService.tunnelModel.forwarded.size > 0) {
 			const viewContainer = this.viewDescriptorService.getViewContainerByViewId(TUNNEL_VIEW_ID);
@@ -166,6 +167,24 @@ export class ForwardedPortsView extends Disposable implements IWorkbenchContribu
 			tooltip,
 			command: `${TUNNEL_VIEW_ID}.focus`
 		};
+	}
+}
+
+export class PortRestore implements IWorkbenchContribution {
+	constructor(
+		@IRemoteExplorerService readonly remoteExplorerService: IRemoteExplorerService,
+	) {
+		if (!this.remoteExplorerService.tunnelModel.environmentTunnelsSet) {
+			Event.once(this.remoteExplorerService.tunnelModel.onEnvironmentTunnelsSet)(async () => {
+				await this.restore();
+			});
+		} else {
+			this.restore();
+		}
+	}
+
+	private async restore() {
+		return this.remoteExplorerService.restore();
 	}
 }
 

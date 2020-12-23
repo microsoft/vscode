@@ -15,7 +15,6 @@ import { IModelDecorationOptions, IModelDeltaDecoration, TrackedRangeStickiness,
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { IContextKeyService, IContextKey } from 'vs/platform/contextkey/common/contextkey';
 import { IContextMenuService } from 'vs/platform/contextview/browser/contextView';
-import { RemoveBreakpointAction } from 'vs/workbench/contrib/debug/browser/debugActions';
 import { IDebugService, IBreakpoint, CONTEXT_BREAKPOINT_WIDGET_VISIBLE, BreakpointWidgetContext, IBreakpointEditorContribution, IBreakpointUpdateData, IDebugConfiguration, State, IDebugSession } from 'vs/workbench/contrib/debug/common/debug';
 import { IMarginData } from 'vs/editor/browser/controller/mouseTarget';
 import { IDialogService } from 'vs/platform/dialogs/common/dialogs';
@@ -301,7 +300,9 @@ export class BreakpointEditorContribution implements IBreakpointEditorContributi
 		const actions: IAction[] = [];
 		if (breakpoints.length === 1) {
 			const breakpointType = breakpoints[0].logMessage ? nls.localize('logPoint', "Logpoint") : nls.localize('breakpoint', "Breakpoint");
-			actions.push(new RemoveBreakpointAction(RemoveBreakpointAction.ID, nls.localize('removeBreakpoint', "Remove {0}", breakpointType), this.debugService));
+			actions.push(new Action('debug.removeBreakpoint', nls.localize('removeBreakpoint', "Remove {0}", breakpointType), undefined, true, async () => {
+				await this.debugService.removeBreakpoints(breakpoints[0].getId());
+			}));
 			actions.push(new Action(
 				'workbench.debug.action.editBreakpointAction',
 				nls.localize('editBreakpoint', "Edit {0}...", breakpointType),

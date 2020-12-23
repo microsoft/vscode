@@ -8,7 +8,7 @@ import { IRelativePattern, parse } from 'vs/base/common/glob';
 import { URI } from 'vs/base/common/uri';
 import { ExtHostDocumentsAndEditors } from 'vs/workbench/api/common/extHostDocumentsAndEditors';
 import type * as vscode from 'vscode';
-import { ExtHostFileSystemEventServiceShape, FileSystemEvents, IMainContext, SourceTargetPair, IWorkspaceEditDto } from './extHost.protocol';
+import { ExtHostFileSystemEventServiceShape, FileSystemEvents, IMainContext, SourceTargetPair, IWorkspaceEditDto, IWillRunFileOperationParticipation } from './extHost.protocol';
 import * as typeConverter from './extHostTypeConverters';
 import { Disposable, WorkspaceEdit } from './extHostTypes';
 import { IExtensionDescription } from 'vs/platform/extensions/common/extensions';
@@ -177,7 +177,7 @@ export class ExtHostFileSystemEventService implements ExtHostFileSystemEventServ
 		};
 	}
 
-	async $onWillRunFileOperation(operation: FileOperation, files: SourceTargetPair[], timeout: number, token: CancellationToken): Promise<IWorkspaceEditDto | undefined> {
+	async $onWillRunFileOperation(operation: FileOperation, files: SourceTargetPair[], timeout: number, token: CancellationToken): Promise<IWillRunFileOperationParticipation | undefined> {
 		switch (operation) {
 			case FileOperation.MOVE:
 				return await this._fireWillEvent(this._onWillRenameFile, { files: files.map(f => ({ oldUri: URI.revive(f.source!), newUri: URI.revive(f.target) })) }, timeout, token);
@@ -189,8 +189,9 @@ export class ExtHostFileSystemEventService implements ExtHostFileSystemEventServ
 		return undefined;
 	}
 
-	private async _fireWillEvent<E extends IWaitUntil>(emitter: AsyncEmitter<E>, data: Omit<E, 'waitUntil'>, timeout: number, token: CancellationToken): Promise<IWorkspaceEditDto | undefined> {
+	private async _fireWillEvent<E extends IWaitUntil>(emitter: AsyncEmitter<E>, data: Omit<E, 'waitUntil'>, timeout: number, token: CancellationToken): Promise<IWillRunFileOperationParticipation | undefined> {
 
+		const extensionNames = new Set<string>();
 		const edits: WorkspaceEdit[] = [];
 
 		await emitter.fireAsync(data, token, async (thenable, listener) => {
@@ -199,10 +200,11 @@ export class ExtHostFileSystemEventService implements ExtHostFileSystemEventServ
 			const result = await Promise.resolve(thenable);
 			if (result instanceof WorkspaceEdit) {
 				edits.push(result);
+				extensionNames.add((<IExtensionListener<E>>listener).extension.displayName ?? (<IExtensionListener<E>>listener).extension.identifier.value);
 			}
 
 			if (Date.now() - now > timeout) {
-				this._logService.warn('SLOW file-participant', (<IExtensionListener<E>>listener).extension?.identifier);
+				this._logService.warn('SLOW file-participant', (<IExtensionListener<E>>listener).extension.identifier);
 			}
 		});
 
@@ -220,6 +222,6 @@ export class ExtHostFileSystemEventService implements ExtHostFileSystemEventServ
 			let { edits } = typeConverter.WorkspaceEdit.from(edit, this._extHostDocumentsAndEditors);
 			dto.edits = dto.edits.concat(edits);
 		}
-		return dto;
+		return { edit: dto, extensionNames: Array.from(extensionNames) };
 	}
 }

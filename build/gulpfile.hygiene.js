@@ -6,13 +6,13 @@
 const gulp = require('gulp');
 const filter = require('gulp-filter');
 const es = require('event-stream');
-const gulpeslint = require('gulp-eslint');
 const vfs = require('vinyl-fs');
 const path = require('path');
 const task = require('./lib/task');
 const { all, jsHygieneFilter, tsHygieneFilter, hygiene } = require('./hygiene');
 
 gulp.task('eslint', () => {
+	const gulpeslint = require('gulp-eslint');
 	return vfs
 		.src(all, { base: '.', follow: true, allowEmpty: true })
 		.pipe(filter(jsHygieneFilter.concat(tsHygieneFilter)))

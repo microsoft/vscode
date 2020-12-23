@@ -51,10 +51,6 @@ export class MainThreadTunnelService extends Disposable implements MainThreadTun
 		this.remoteExplorerService.onFoundNewCandidates(candidates);
 	}
 
-	async $tunnelServiceReady(): Promise<void> {
-		return this.remoteExplorerService.restore();
-	}
-
 	async $setTunnelProvider(): Promise<void> {
 		const tunnelProvider: ITunnelProvider = {
 			forwardPort: (tunnelOptions: TunnelOptions, tunnelCreationOptions: TunnelCreationOptions) => {

@@ -208,7 +208,7 @@ export class ExplorerViewPaneContainer extends ViewPaneContainer {
 					let delay = 0;
 
 					const config = this.configurationService.getValue<IFilesConfiguration>();
-					const delayEditorOpeningInOpenedEditors = !!config.workbench.editor.enablePreview; // No need to delay if preview is disabled
+					const delayEditorOpeningInOpenedEditors = !!config.workbench?.editor?.enablePreview; // No need to delay if preview is disabled
 
 					const activeGroup = this.editorGroupService.activeGroup;
 					if (delayEditorOpeningInOpenedEditors && group === activeGroup && !activeGroup.previewEditor) {

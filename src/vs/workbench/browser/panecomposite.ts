@@ -67,11 +67,13 @@ export class PaneComposite extends Composite implements IPaneComposite {
 		const result = [];
 		result.push(...this.viewPaneContainer.getContextMenuActions2());
 
-		if (result.length) {
+		const otherActions = this.viewPaneContainer.getContextMenuActions();
+
+		if (otherActions.length) {
 			result.push(new Separator());
+			result.push(...otherActions);
 		}
 
-		result.push(...this.viewPaneContainer.getContextMenuActions());
 		return result;
 	}
 

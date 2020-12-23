@@ -1257,9 +1257,9 @@ export interface IEditorCloseEvent extends IEditorIdentifier {
 export type GroupIdentifier = number;
 
 export interface IWorkbenchEditorConfiguration {
-	workbench: {
-		editor: IEditorPartConfiguration,
-		iconTheme: string;
+	workbench?: {
+		editor?: IEditorPartConfiguration,
+		iconTheme?: string;
 	};
 }
 
@@ -1275,6 +1275,7 @@ interface IEditorPartConfiguration {
 	showIcons?: boolean;
 	enablePreview?: boolean;
 	enablePreviewFromQuickOpen?: boolean;
+	enablePreviewFromCodeNavigation?: boolean;
 	closeOnFileDelete?: boolean;
 	openPositioning?: 'left' | 'right' | 'first' | 'last';
 	openSideBySideDirection?: 'right' | 'down';
@@ -1290,6 +1291,10 @@ interface IEditorPartConfiguration {
 		value?: number;
 		perEditorGroup?: boolean;
 	};
+	decorations?: {
+		badges?: boolean;
+		colors?: boolean;
+	}
 }
 
 export interface IEditorPartOptions extends IEditorPartConfiguration {

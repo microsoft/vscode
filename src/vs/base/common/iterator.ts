@@ -22,6 +22,10 @@ export namespace Iterable {
 		return iterable || _empty;
 	}
 
+	export function isEmpty<T>(iterable: Iterable<T>): boolean {
+		return iterable[Symbol.iterator]().next().done === true;
+	}
+
 	export function first<T>(iterable: Iterable<T>): T | undefined {
 		return iterable[Symbol.iterator]().next().value;
 	}

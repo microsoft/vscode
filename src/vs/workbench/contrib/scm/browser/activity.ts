@@ -164,8 +164,6 @@ export class SCMStatusController implements IWorkbenchContribution {
 	}
 
 	private renderActivityCount(): void {
-		this.badgeDisposable.clear();
-
 		const countBadgeType = this.configurationService.getValue<'all' | 'focused' | 'off'>('scm.countBadge');
 
 		let count = 0;
@@ -180,7 +178,7 @@ export class SCMStatusController implements IWorkbenchContribution {
 			const badge = new NumberBadge(count, num => localize('scmPendingChangesBadge', '{0} pending changes', num));
 			this.badgeDisposable.value = this.activityService.showViewActivity(VIEW_PANE_ID, { badge, clazz: 'scm-viewlet-label' });
 		} else {
-			this.badgeDisposable.clear();
+			this.badgeDisposable.value = undefined;
 		}
 	}
 

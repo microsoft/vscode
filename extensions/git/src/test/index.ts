@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 const path = require('path');
-const testRunner = require('vscode/lib/testrunner');
+const testRunner = require('../../../../test/integration/electron/testrunner');
 
 const options: any = {
 	ui: 'tdd',

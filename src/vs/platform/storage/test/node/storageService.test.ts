@@ -26,8 +26,7 @@ suite('NativeStorageService', function () {
 
 	test('Migrate Data', async function () {
 
-		// Given issues such as https://github.com/microsoft/vscode/issues/108113
-		// we see random test failures when accessing the native file system.
+		// https://github.com/microsoft/vscode/issues/108113
 		this.retries(3);
 		this.timeout(1000 * 20);
 

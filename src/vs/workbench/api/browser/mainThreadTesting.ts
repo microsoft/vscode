@@ -9,6 +9,7 @@ import { ITestService } from 'vs/workbench/contrib/testing/common/testService';
 import { extHostNamedCustomer } from 'vs/workbench/api/common/extHostCustomers';
 import { ExtHostContext, ExtHostTestingResource, ExtHostTestingShape, IExtHostContext, MainContext, MainThreadTestingShape } from '../common/extHost.protocol';
 import { URI, UriComponents } from 'vs/base/common/uri';
+import { CancellationToken } from 'vs/base/common/cancellation';
 
 @extHostNamedCustomer(MainContext.MainThreadTesting)
 export class MainThreadTesting extends Disposable implements MainThreadTestingShape {
@@ -34,7 +35,7 @@ export class MainThreadTesting extends Disposable implements MainThreadTestingSh
 	 */
 	public $registerTestProvider(id: string) {
 		this.testService.registerTestController(id, {
-			runTests: req => this.proxy.$runTestsForProvider(req),
+			runTests: (req, token) => this.proxy.$runTestsForProvider(req, token),
 		});
 	}
 
@@ -71,8 +72,8 @@ export class MainThreadTesting extends Disposable implements MainThreadTestingSh
 		this.testService.publishDiff(resource, URI.revive(uri), diff);
 	}
 
-	public $runTests(req: RunTestsRequest): Promise<RunTestsResult> {
-		return this.testService.runTests(req);
+	public $runTests(req: RunTestsRequest, token: CancellationToken): Promise<RunTestsResult> {
+		return this.testService.runTests(req, token);
 	}
 
 	public dispose() {

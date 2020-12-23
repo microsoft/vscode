@@ -948,7 +948,7 @@ export class ActivitybarPart extends Part implements IActivityBarService {
 				const cachedViewContainer = this._cachedViewContainers.filter(cached => cached.id === placeholderViewContainer.id)[0];
 				if (cachedViewContainer) {
 					cachedViewContainer.name = placeholderViewContainer.name;
-					cachedViewContainer.icon = placeholderViewContainer.themeIcon ? ThemeIcon.revive(placeholderViewContainer.themeIcon) :
+					cachedViewContainer.icon = placeholderViewContainer.themeIcon ? placeholderViewContainer.themeIcon :
 						placeholderViewContainer.iconUrl ? URI.revive(placeholderViewContainer.iconUrl) : undefined;
 					cachedViewContainer.views = placeholderViewContainer.views;
 				}

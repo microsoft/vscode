@@ -8,17 +8,12 @@ exports.minifyTask = exports.optimizeTask = exports.loaderConfig = void 0;
 const es = require("event-stream");
 const gulp = require("gulp");
 const concat = require("gulp-concat");
-const minifyCSS = require("gulp-cssnano");
 const filter = require("gulp-filter");
 const flatmap = require("gulp-flatmap");
-const sourcemaps = require("gulp-sourcemaps");
-const uglify = require("gulp-uglify");
-const composer = require("gulp-uglify/composer");
 const fancyLog = require("fancy-log");
 const ansiColors = require("ansi-colors");
 const path = require("path");
 const pump = require("pump");
-const terser = require("terser");
 const VinylFile = require("vinyl");
 const bundle = require("./bundle");
 const i18n_1 = require("./i18n");
@@ -124,6 +119,7 @@ function optimizeTask(opts) {
     const out = opts.out;
     const fileContentMapper = opts.fileContentMapper || ((contents, _path) => contents);
     return function () {
+        const sourcemaps = require('gulp-sourcemaps');
         const bundlesStream = es.through(); // this stream will contain the bundled files
         const resourcesStream = es.through(); // this stream will contain the resources
         const bundleInfoStream = es.through(); // this stream will contain bundleInfo.json
@@ -171,6 +167,8 @@ exports.optimizeTask = optimizeTask;
  * to have a file "context" to include our copyright only once per file.
  */
 function uglifyWithCopyrights() {
+    const composer = require('gulp-uglify/composer');
+    const terser = require('terser');
     const preserveComments = (f) => {
         return (_node, comment) => {
             const text = comment.value;
@@ -212,6 +210,9 @@ function uglifyWithCopyrights() {
 function minifyTask(src, sourceMapBaseUrl) {
     const sourceMappingURL = sourceMapBaseUrl ? ((f) => `${sourceMapBaseUrl}/${f.relative}.map`) : undefined;
     return cb => {
+        const minifyCSS = require('gulp-cssnano');
+        const uglify = require('gulp-uglify');
+        const sourcemaps = require('gulp-sourcemaps');
         const jsFilter = filter('**/*.js', { restore: true });
         const cssFilter = filter('**/*.css', { restore: true });
         pump(gulp.src([src + '/**', '!' + src + '/**/*.map']), jsFilter, sourcemaps.init({ loadMaps: true }), uglifyWithCopyrights(), jsFilter.restore, cssFilter, minifyCSS({ reduceIdents: false }), cssFilter.restore, sourcemaps.mapSources((sourcePath) => {

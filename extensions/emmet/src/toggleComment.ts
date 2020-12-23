@@ -9,15 +9,17 @@ import { Node, Stylesheet, Rule } from 'EmmetNode';
 import parseStylesheet from '@emmetio/css-parser';
 import { DocumentStreamReader } from './bufferStream';
 
-const startCommentStylesheet = '/*';
-const endCommentStylesheet = '*/';
-const startCommentHTML = '<!--';
-const endCommentHTML = '-->';
+let startCommentStylesheet: string;
+let endCommentStylesheet: string;
+let startCommentHTML: string;
+let endCommentHTML: string;
 
 export function toggleComment(): Thenable<boolean> | undefined {
 	if (!validate() || !vscode.window.activeTextEditor) {
 		return;
 	}
+	setupCommentSpacing();
+
 	const editor = vscode.window.activeTextEditor;
 	let rootNode = parseDocument(editor.document);
 	if (!rootNode) {
@@ -145,8 +147,21 @@ function toggleCommentStylesheet(selection: vscode.Selection, rootNode: Styleshe
 		new vscode.TextEdit(new vscode.Range(selection.start, selection.start), startCommentStylesheet),
 		new vscode.TextEdit(new vscode.Range(selection.end, selection.end), endCommentStylesheet)
 	];
+}
 
-
+function setupCommentSpacing() {
+	const config: boolean | undefined = vscode.workspace.getConfiguration('editor.comments').get('insertSpace');
+	if (config) {
+		startCommentStylesheet = '/* ';
+		endCommentStylesheet = ' */';
+		startCommentHTML = '<!-- ';
+		endCommentHTML = ' -->';
+	} else {
+		startCommentStylesheet = '/*';
+		endCommentStylesheet = '*/';
+		startCommentHTML = '<!--';
+		endCommentHTML = '-->';
+	}
 }
 
 function adjustStartNodeCss(node: Node | null, pos: vscode.Position, rootNode: Stylesheet): vscode.Position {
