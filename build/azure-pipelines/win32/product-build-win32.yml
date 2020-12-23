@@ -68,7 +68,7 @@ steps:
   - powershell: |
       . build/azure-pipelines/win32/exec.ps1
       $ErrorActionPreference = "Stop"
-      exec { tar -z -xf .build/node_modules_cache/cache.tgz -P -C $BUILD_SOURCESDIRECTORY }
+      exec { tar -z -xf .build/node_modules_cache/cache.tgz -P -C $env:BUILD_SOURCESDIRECTORY }
       exec { ls build\node_modules }
     condition: and(succeeded(), eq(variables.NODE_MODULES_RESTORED, 'true'))
     displayName: Extract node_modules archive
@@ -105,7 +105,7 @@ steps:
   - powershell: |
       . build/azure-pipelines/win32/exec.ps1
       $ErrorActionPreference = "Stop"
-      exec { tar --posix -z -cvf "$BUILD_SOURCESDIRECTORY/.build/node_modules_cache/cache.tgz" -T "$BUILD_SOURCESDIRECTORY/.build/node_modules_list.txt" -C "$BUILD_SOURCESDIRECTORY" }
+      exec { tar --posix -z -cvf .build/node_modules_cache/cache.tgz -T .build/node_modules_list.txt -C $env:BUILD_SOURCESDIRECTORY }
     condition: and(succeeded(), ne(variables.NODE_MODULES_RESTORED, 'true'))
     displayName: Create node_modules archive
 
