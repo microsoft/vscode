@@ -13,6 +13,25 @@ import { TypeScriptServiceConfiguration } from './utils/configuration';
 import { PluginManager } from './utils/plugins';
 import { TelemetryReporter } from './utils/telemetry';
 
+export namespace Experimental {
+	export const enum CommandTypes {
+		ProvideSignatureArgumentsLabel = 'provideSignatureArgumentsLabel'
+	}
+
+	export interface ProvideSignatureArgumentsLabelRequest extends Proto.FileRequest {
+		command: CommandTypes.ProvideSignatureArgumentsLabel;
+	}
+
+	interface LabelItem {
+		name: string
+		position: Proto.Location
+	}
+
+	export interface ProvideSignatureArgumentsLabelResponse extends Proto.Response {
+		body?: LabelItem[];
+	}
+}
+
 export enum ServerType {
 	Syntax = 'syntax',
 	Semantic = 'semantic',
@@ -68,6 +87,7 @@ interface StandardTsServerRequests {
 	'prepareCallHierarchy': [Proto.FileLocationRequestArgs, Proto.PrepareCallHierarchyResponse];
 	'provideCallHierarchyIncomingCalls': [Proto.FileLocationRequestArgs, Proto.ProvideCallHierarchyIncomingCallsResponse];
 	'provideCallHierarchyOutgoingCalls': [Proto.FileLocationRequestArgs, Proto.ProvideCallHierarchyOutgoingCallsResponse];
+	'provideSignatureArgumentsLabel': [Proto.FileRequestArgs, Experimental.ProvideSignatureArgumentsLabelResponse];
 }
 
 interface NoResponseTsServerRequests {

@@ -13,16 +13,15 @@ import { ICodeEditorService } from 'vs/editor/browser/services/codeEditorService
 import { IEditorContribution } from 'vs/editor/common/editorCommon';
 import { IModelDeltaDecoration, ITextModel } from 'vs/editor/common/model';
 import { ModelDecorationOptions } from 'vs/editor/common/model/textModel';
-import { SignatureArgumentsLabelProvider, SignatureArgumentsLabelProviderRegistry, SignautreArguments } from 'vs/editor/common/modes';
+import { SignatureArgumentsLabelProvider, SignatureArgumentsLabelProviderRegistry, SignautreArgumentsLabel } from 'vs/editor/common/modes';
 import { EditorOption } from 'vs/editor/common/config/editorOptions';
 import { CancellationToken } from 'vscode';
 import { flatten } from 'vs/base/common/arrays';;
-import { INotificationService } from 'vs/platform/notification/common/notification';
 
 const MAX_DECORATORS = 500;
 
 export interface SignatureArgumentsLabelData {
-	arguments: SignautreArguments[];
+	list: SignautreArgumentsLabel[];
 	provider: SignatureArgumentsLabelProvider;
 }
 
@@ -31,9 +30,8 @@ export function getSignatures(model: ITextModel, token: CancellationToken): Prom
 	const providers = SignatureArgumentsLabelProviderRegistry.ordered(model).reverse();
 	const promises = providers.map(provider => Promise.resolve(provider.provideSignatureArgumentsLabels(model, token)).then(result => {
 		if (result) {
-			for (let signature of result.signatures) {
-				datas.push({ arguments: signature.arguments, provider });
-			}
+			datas.push({ list: result, provider });
+
 		}
 	}));
 
@@ -59,11 +57,9 @@ export class SignatureArgumentsLabelDetector extends Disposable implements IEdit
 	private _isEnabled: boolean;
 
 	constructor(private readonly _editor: ICodeEditor,
-		@ICodeEditorService private readonly _codeEditorService: ICodeEditorService,
-		@INotificationService private readonly _notificationService: INotificationService,
+		@ICodeEditorService private readonly _codeEditorService: ICodeEditorService
 	) {
 		super();
-		this._notificationService.info("wtf");
 		this._register(_editor.onDidChangeModel(() => {
 			this._isEnabled = this.isEnabled();
 			this.onModelChanged();
@@ -94,7 +90,7 @@ export class SignatureArgumentsLabelDetector extends Disposable implements IEdit
 			return false;
 		}
 
-		return this._editor.getOption(EditorOption.colorDecorators);
+		return this._editor.getOption(EditorOption.showSignatureArgumentsLabel);
 	}
 
 	static get(editor: ICodeEditor): SignatureArgumentsLabelDetector {
@@ -160,22 +156,17 @@ export class SignatureArgumentsLabelDetector extends Disposable implements IEdit
 	}
 
 	private updateDecorations(labelData: SignatureArgumentsLabelData[]): void {
-
-		this._notificationService.info("updateDecorations");
-
-		const decorations = flatten(flatten(labelData.map(args => args.arguments.map(arg => {
-			return arg.positions.map(pos => {
-				return {
-					range: {
-						startLineNumber: pos.lineNumber,
-						startColumn: pos.column,
-						endLineNumber: pos.lineNumber,
-						endColumn: pos.column
-					},
-					options: ModelDecorationOptions.EMPTY
-				}
-			})
-		}))));
+		const decorations = flatten(labelData.map(labels => labels.list.map(label => {
+			return {
+				range: {
+					startLineNumber: label.position.lineNumber,
+					startColumn: label.position.column,
+					endLineNumber: label.position.lineNumber,
+					endColumn: label.position.column
+				},
+				options: ModelDecorationOptions.EMPTY
+			}
+		})));
 
 		this._decorationsIds = this._editor.deltaDecorations(this._decorationsIds, decorations);
 
@@ -183,17 +174,14 @@ export class SignatureArgumentsLabelDetector extends Disposable implements IEdit
 		this._decorationsIds.forEach((id, i) => this._labelDatas.set(id, labelData[i]));
 	}
 
-	private updateLabelDecorators(signatures: SignatureArgumentsLabelData[]): void {
-
-		this._notificationService.info("updateLabelDecorators");
-
+	private updateLabelDecorators(labelData: SignatureArgumentsLabelData[]): void {
 		let decorations: IModelDeltaDecoration[] = [];
 		let newDecorationsTypes: { [key: string]: boolean } = {};
 
-		for (let i = 0; i < signatures.length; i++) {
-			const args = signatures[i].arguments;
-			for (let j = 0; j < args.length && decorations.length < MAX_DECORATORS; j++) {
-				const { name, positions } = args[j]
+		for (let i = 0; i < labelData.length; i++) {
+			const label = labelData[i].list;
+			for (let j = 0; j < label.length && decorations.length < MAX_DECORATORS; j++) {
+				const { name, position } = label[j]
 
 				const subKey = hash(name).toString(16);
 				let key = 'signatureArgumentsLabel-' + subKey;
@@ -211,25 +199,17 @@ export class SignatureArgumentsLabelDetector extends Disposable implements IEdit
 				}
 
 				newDecorationsTypes[key] = true;
-
-
-				for (let k = 0; k < positions.length && decorations.length < MAX_DECORATORS; ++k) {
-					const pos = positions[k]
-					decorations.push({
-						range: {
-							startLineNumber: pos.lineNumber,
-							startColumn: pos.column,
-							endLineNumber: pos.lineNumber,
-							endColumn: pos.column
-						},
-						options: this._codeEditorService.resolveDecorationOptions(key, true)
-					});
-				}
+				decorations.push({
+					range: {
+						startLineNumber: position.lineNumber,
+						startColumn: position.column,
+						endLineNumber: position.lineNumber,
+						endColumn: position.column
+					},
+					options: this._codeEditorService.resolveDecorationOptions(key, true)
+				});
 			}
 		}
-
-
-		this._notificationService.info(`${decorations.length} length`)
 
 		this._decorationsTypes.forEach(subType => {
 			if (!newDecorationsTypes[subType]) {

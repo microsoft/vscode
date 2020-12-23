@@ -2,56 +2,47 @@ import * as vscode from 'vscode';
 import { DocumentSelector } from '../utils/documentSelector';
 import { ClientCapability, ITypeScriptServiceClient } from '../typescriptService';
 import { conditionalRegistration, requireSomeCapability } from '../utils/dependentRegistration';
-import FileConfigurationManager from './fileConfigurationManager';
 import { Position } from 'vscode';
+
+const dummy = [new vscode.SignautreArgumentsLabel('foo', new Position(1, 1))];
 
 class TypeScriptSginatureArgumentsLabelProvider implements vscode.SignatureArgumentsLabelProvider {
 	constructor(
-		private readonly client: ITypeScriptServiceClient,
-		private readonly fileConfigurationManager: FileConfigurationManager
-	) {
-		if (this.client && this.fileConfigurationManager) {
-			// nothing
-		}
-		vscode.window.showInformationMessage("Loaded")
-	}
+		private readonly client: ITypeScriptServiceClient
+	) { }
 
-	provideSignatureArgumentsLabels(model: vscode.TextDocument, token: vscode.CancellationToken): vscode.ProviderResult<vscode.SignatureArgumentsLabelList> {
-		if (model && token) {
-			// void
+	async provideSignatureArgumentsLabels(model: vscode.TextDocument, token: vscode.CancellationToken): Promise<vscode.SignautreArgumentsLabel[]> {
+		const filepath = this.client.toOpenedFilePath(model);
+		if (!filepath) {
+			return [];
 		}
 
-		vscode.window.showInformationMessage("Provided")
-		return {
-			signatures: [
-				{
-					arguments: [
-						{
-							name: 'foo',
-							positions: [
-								new Position(1, 1)
-							]
-						}
-					]
-				}
-			],
-			dispose() {
-				// nothing
+		try {
+			const response = await this.client.execute('provideSignatureArgumentsLabel', { file: filepath }, token);
+			if (response.type !== 'response' || !response.success || !response.body) {
+				return dummy;
 			}
+
+			const labels = response.body.map(label => {
+				return new vscode.SignautreArgumentsLabel(label.name, new vscode.Position(
+					label.position.line, label.position.offset
+				))
+			});
+			return labels
+		} catch {
+			return dummy
 		}
 	}
-
 }
 
 export function register(
 	selector: DocumentSelector,
-	client: ITypeScriptServiceClient,
-	fileConfigurationManager: FileConfigurationManager,
+	client: ITypeScriptServiceClient
 ) {
 	return conditionalRegistration([
 		requireSomeCapability(client, ClientCapability.Semantic),
 	], () => {
 		return vscode.languages.registerSignatureArgumentsLabelProvider(selector.semantic,
-			new TypeScriptSginatureArgumentsLabelProvider(client, fileConfigurationManager));
+			new TypeScriptSginatureArgumentsLabelProvider(client));
 	});
 }

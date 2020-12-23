@@ -1374,30 +1374,13 @@ export enum SignatureHelpTriggerKind {
 }
 
 @es5ClassCompat
-export class SignautreArguments {
+export class SignautreArgumentsLabel {
 	name: string;
-	positions: Position[];
+	position: Position;
 
-	constructor(name: string, positions: Position[]) {
+	constructor(name: string, position: Position) {
 		this.name = name;
-		this.positions = positions;
-	}
-}
-
-@es5ClassCompat
-export class SignatureArgumentsSignature {
-	arguments: SignautreArguments[];
-
-	constructor() {
-		this.arguments = [];
-	}
-}
-
-@es5ClassCompat
-export class SignatureArgumentsLabelList {
-	signatures: SignatureArgumentsSignature[];
-	constructor() {
-		this.signatures = [];
+		this.position = position;
 	}
 }
 

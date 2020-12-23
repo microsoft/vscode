@@ -1063,7 +1063,7 @@ class SignatureHelpAdapter {
 }
 
 class SignatureArgumentsLabelAdapter {
-	private readonly _cache = new Cache<vscode.SignatureArgumentsLabelList>('SignatureArgumentsLabel');
+	private readonly _cache = new Cache<vscode.SignautreArgumentsLabel[]>('SignatureArgumentsLabel');
 
 	constructor(
 		private readonly _documents: ExtHostDocuments,
@@ -1075,7 +1075,7 @@ class SignatureArgumentsLabelAdapter {
 		return asPromise(() => this._provider.provideSignatureArgumentsLabels(doc, token)).then(value => {
 			if (value) {
 				const id = this._cache.add([value]);
-				return { signatures: value.signatures.map(typeConvert.SignatureArgumentsSignature.from), id };
+				return { labels: value.map(typeConvert.SignatureArgumentsLabelList.from), id };
 			}
 			return undefined;
 		});

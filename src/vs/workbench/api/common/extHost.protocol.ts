@@ -1270,16 +1270,13 @@ export interface ISignatureHelpContextDto {
 	readonly activeSignatureHelp?: ISignatureHelpDto;
 }
 
-export interface ISignautreArgumentsDto {
+export interface ISignautreArgumentsLabelDto {
 	name: string
-	positions: IPosition[]
-}
-export interface ISignatureArgumentsSignatureDto {
-	arguments: ISignautreArgumentsDto[]
+	position: IPosition
 }
 
 export interface ISignatureArgumentsLabelDto {
-	signatures: ISignatureArgumentsSignatureDto[]
+	labels: ISignautreArgumentsLabelDto[]
 }
 
 export interface ILocationDto {

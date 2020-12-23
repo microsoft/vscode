@@ -1659,21 +1659,13 @@ export interface CodeLensProvider {
 	resolveCodeLens?(model: model.ITextModel, codeLens: CodeLens, token: CancellationToken): ProviderResult<CodeLens>;
 }
 
-export interface SignautreArguments {
+export interface SignautreArgumentsLabel {
 	name: string
-	positions: IPosition[]
-}
-export interface SignatureArgumentsSignature {
-	arguments: SignautreArguments[]
-}
-
-export interface SignatureArgumentsLabelList {
-	signatures: SignatureArgumentsSignature[]
-	dispose(): void;
+	position: IPosition
 }
 
 export interface SignatureArgumentsLabelProvider {
-	provideSignatureArgumentsLabels(model: model.ITextModel, token: CancellationToken): ProviderResult<SignatureArgumentsLabelList>;
+	provideSignatureArgumentsLabels(model: model.ITextModel, token: CancellationToken): ProviderResult<SignautreArgumentsLabel[]>;
 }
 
 export interface SemanticTokensLegend {

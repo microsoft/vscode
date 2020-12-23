@@ -1015,13 +1015,11 @@ export namespace SignatureHelp {
 	}
 }
 
-export namespace SignatureArgumentsSignature {
-	export function from(signature: vscode.SignatureArgumentsSignature): modes.SignatureArgumentsSignature {
+export namespace SignatureArgumentsLabelList {
+	export function from(label: vscode.SignautreArgumentsLabel): modes.SignautreArgumentsLabel {
 		return {
-			arguments: signature.arguments.map(arg => ({
-				name: arg.name,
-				positions: arg.positions.map(pos => Position.from(pos))
-			}))
+			name: label.name,
+			position: Position.from(label.position)
 		}
 	}
 }

@@ -3176,6 +3176,7 @@ declare namespace monaco.editor {
 		 * Controls strikethrough deprecated variables.
 		 */
 		showDeprecated?: boolean;
+		showSignatureArgumentsLabel?: boolean;
 	}
 
 	/**
@@ -4028,11 +4029,12 @@ declare namespace monaco.editor {
 		wrappingIndent = 117,
 		wrappingStrategy = 118,
 		showDeprecated = 119,
-		editorClassName = 120,
-		pixelRatio = 121,
-		tabFocusMode = 122,
-		layoutInfo = 123,
-		wrappingInfo = 124
+		showSignatureArgumentsLabel = 120,
+		editorClassName = 121,
+		pixelRatio = 122,
+		tabFocusMode = 123,
+		layoutInfo = 124,
+		wrappingInfo = 125
 	}
 	export const EditorOptions: {
 		acceptSuggestionOnCommitCharacter: IEditorOption<EditorOption.acceptSuggestionOnCommitCharacter, boolean>;
@@ -4133,6 +4135,7 @@ declare namespace monaco.editor {
 		showFoldingControls: IEditorOption<EditorOption.showFoldingControls, 'always' | 'mouseover'>;
 		showUnused: IEditorOption<EditorOption.showUnused, boolean>;
 		showDeprecated: IEditorOption<EditorOption.showDeprecated, boolean>;
+		showSignatureArgumentsLabel: IEditorOption<EditorOption.showSignatureArgumentsLabel, boolean>;
 		snippetSuggestions: IEditorOption<EditorOption.snippetSuggestions, 'none' | 'top' | 'bottom' | 'inline'>;
 		smartSelect: IEditorOption<EditorOption.smartSelect, any>;
 		smoothScrolling: IEditorOption<EditorOption.smoothScrolling, boolean>;
@@ -6361,22 +6364,13 @@ declare namespace monaco.languages {
 		resolveCodeLens?(model: editor.ITextModel, codeLens: CodeLens, token: CancellationToken): ProviderResult<CodeLens>;
 	}
 
-	export interface SignautreArguments {
+	export interface SignautreArgumentsLabel {
 		name: string;
-		positions: IPosition[];
-	}
-
-	export interface SignatureArgumentsSignature {
-		arguments: SignautreArguments[];
-	}
-
-	export interface SignatureArgumentsLabelList {
-		signatures: SignatureArgumentsSignature[];
-		dispose(): void;
+		position: IPosition;
 	}
 
 	export interface SignatureArgumentsLabelProvider {
-		provideSignatureArgumentsLabels(model: editor.ITextModel, token: CancellationToken): ProviderResult<SignatureArgumentsLabelList>;
+		provideSignatureArgumentsLabels(model: editor.ITextModel, token: CancellationToken): ProviderResult<SignautreArgumentsLabel[]>;
 	}
 
 	export interface SemanticTokensLegend {
