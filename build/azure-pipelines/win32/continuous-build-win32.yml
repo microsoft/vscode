@@ -13,7 +13,7 @@ steps:
       addToPath: true
 
   - powershell: |
-      mkdir -p .build
+      mkdir -Force .build
       node build/azure-pipelines/common/computeNodeModulesCacheKey.js > .build/yarnlockhash
     displayName: Prepare yarn cache flags
 

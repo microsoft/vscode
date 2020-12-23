@@ -52,7 +52,7 @@ steps:
     condition: and(succeeded(), eq(variables['ENABLE_TERRAPIN'], 'true'))
 
   - powershell: |
-      mkdir -p .build
+      mkdir -Force .build
       node build/azure-pipelines/common/computeNodeModulesCacheKey.js $VSCODE_ARCH $ENABLE_TERRAPIN > .build/yarnlockhash
     displayName: Prepare yarn cache flags
 
