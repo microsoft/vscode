@@ -2,20 +2,24 @@
  *  Copyright (c) Microsoft Corporation. All rights reserved.
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
-'use strict';
 
+import { JSONVisitor, visit } from 'jsonc-parser';
 import * as path from 'path';
 import {
-	DebugConfiguration, Event, EventEmitter, ExtensionContext, Task,
-	TextDocument, ThemeIcon, TreeDataProvider, TreeItem, TreeItemCollapsibleState, Uri,
-	WorkspaceFolder, commands, debug, window, workspace, tasks, Selection, TaskGroup
+	commands, Event, EventEmitter, ExtensionContext,
+	Range,
+	Selection, Task,
+	TaskGroup, tasks, TextDocument, TextDocumentShowOptions, ThemeIcon, TreeDataProvider, TreeItem, TreeItemLabel, TreeItemCollapsibleState, Uri,
+	window, workspace, WorkspaceFolder
 } from 'vscode';
-import { visit, JSONVisitor } from 'jsonc-parser';
-import {
-	NpmTaskDefinition, getPackageJsonUriFromTask, getScripts,
-	isWorkspaceFolder, getPackageManager, getTaskName, createTask
-} from './tasks';
 import * as nls from 'vscode-nls';
+import {
+	createTask, getPackageManager, getTaskName, isAutoDetectionEnabled, isWorkspaceFolder, NpmTaskDefinition,
+	NpmTaskProvider,
+	startDebugging,
+	TaskLocation,
+	TaskWithLocation
+} from './tasks';
 
 const localize = nls.loadMessageBundle();
 
@@ -43,15 +47,15 @@ class PackageJSON extends TreeItem {
 	folder: Folder;
 	scripts: NpmScript[] = [];
 
-	static getLabel(folderName: string, relativePath: string): string {
+	static getLabel(relativePath: string): string {
 		if (relativePath.length > 0) {
 			return path.join(relativePath, packageName);
 		}
-		return path.join(folderName, packageName);
+		return packageName;
 	}
 
 	constructor(folder: Folder, relativePath: string) {
-		super(PackageJSON.getLabel(folder.label!, relativePath), TreeItemCollapsibleState.Expanded);
+		super(PackageJSON.getLabel(relativePath), TreeItemCollapsibleState.Expanded);
 		this.folder = folder;
 		this.path = relativePath;
 		this.contextValue = 'packageJSON';
@@ -74,15 +78,20 @@ class NpmScript extends TreeItem {
 	task: Task;
 	package: PackageJSON;
 
-	constructor(context: ExtensionContext, packageJson: PackageJSON, task: Task) {
+	constructor(_context: ExtensionContext, packageJson: PackageJSON, task: Task, public taskLocation?: TaskLocation) {
 		super(task.name, TreeItemCollapsibleState.None);
 		const command: ExplorerCommands = workspace.getConfiguration('npm').get<ExplorerCommands>('scriptExplorerAction') || 'open';
 
 		const commandList = {
 			'open': {
 				title: 'Edit Script',
-				command: 'npm.openScript',
-				arguments: [this]
+				command: 'vscode.open',
+				arguments: [
+					taskLocation?.document,
+					taskLocation ? <TextDocumentShowOptions>{
+						selection: new Range(taskLocation.line, taskLocation.line)
+					} : undefined
+				]
 			},
 			'run': {
 				title: 'Run Script',
@@ -91,23 +100,17 @@ class NpmScript extends TreeItem {
 			}
 		};
 		this.contextValue = 'script';
-		if (task.group && task.group === TaskGroup.Rebuild) {
-			this.contextValue = 'debugScript';
-		}
 		this.package = packageJson;
 		this.task = task;
 		this.command = commandList[command];
 
 		if (task.group && task.group === TaskGroup.Clean) {
-			this.iconPath = {
-				light: context.asAbsolutePath(path.join('resources', 'light', 'prepostscript.svg')),
-				dark: context.asAbsolutePath(path.join('resources', 'dark', 'prepostscript.svg'))
-			};
+			this.iconPath = new ThemeIcon('wrench-subaction');
 		} else {
-			this.iconPath = {
-				light: context.asAbsolutePath(path.join('resources', 'light', 'script.svg')),
-				dark: context.asAbsolutePath(path.join('resources', 'dark', 'script.svg'))
-			};
+			this.iconPath = new ThemeIcon('wrench');
+		}
+		if (task.detail) {
+			this.tooltip = task.detail;
 		}
 	}
 
@@ -117,117 +120,37 @@ class NpmScript extends TreeItem {
 }
 
 class NoScripts extends TreeItem {
-	constructor() {
-		super(localize('noScripts', 'No scripts found'), TreeItemCollapsibleState.None);
+	constructor(message: string) {
+		super(message, TreeItemCollapsibleState.None);
 		this.contextValue = 'noscripts';
 	}
 }
 
+type TaskTree = Folder[] | PackageJSON[] | NoScripts[];
+
 export class NpmScriptsTreeDataProvider implements TreeDataProvider<TreeItem> {
-	private taskTree: Folder[] | PackageJSON[] | NoScripts[] | null = null;
+	private taskTree: TaskTree | null = null;
 	private extensionContext: ExtensionContext;
 	private _onDidChangeTreeData: EventEmitter<TreeItem | null> = new EventEmitter<TreeItem | null>();
 	readonly onDidChangeTreeData: Event<TreeItem | null> = this._onDidChangeTreeData.event;
 
-	constructor(context: ExtensionContext) {
+	constructor(private context: ExtensionContext, public taskProvider: NpmTaskProvider) {
 		const subscriptions = context.subscriptions;
 		this.extensionContext = context;
 		subscriptions.push(commands.registerCommand('npm.runScript', this.runScript, this));
 		subscriptions.push(commands.registerCommand('npm.debugScript', this.debugScript, this));
 		subscriptions.push(commands.registerCommand('npm.openScript', this.openScript, this));
-		subscriptions.push(commands.registerCommand('npm.refresh', this.refresh, this));
 		subscriptions.push(commands.registerCommand('npm.runInstall', this.runInstall, this));
 	}
 
-	private scriptIsValid(scripts: any, task: Task): boolean {
-		for (const script in scripts) {
-			let label = getTaskName(script, task.definition.path);
-			if (task.name === label) {
-				return true;
-			}
-		}
-		return false;
-	}
-
 	private async runScript(script: NpmScript) {
-		let task = script.task;
-		let uri = getPackageJsonUriFromTask(task);
-		let scripts = await getScripts(uri!);
-
-		if (!this.scriptIsValid(scripts, task)) {
-			this.scriptNotValid(task);
-			return;
-		}
+		// Call getPackageManager to trigger the multiple lock files warning.
+		await getPackageManager(this.context, script.getFolder().uri);
 		tasks.executeTask(script.task);
 	}
 
-	private extractDebugArg(scripts: any, task: Task): [string, number] | undefined {
-		let script: string = scripts[task.name];
-
-		let match = script.match(/--(inspect|debug)(-brk)?(=(\d*))?/);
-		if (match) {
-			if (match[4]) {
-				return [match[1], parseInt(match[4])];
-			}
-			if (match[1] === 'inspect') {
-				return [match[1], 9229];
-			}
-			if (match[1] === 'debug') {
-				return [match[1], 5858];
-			}
-		}
-		return undefined;
-	}
-
 	private async debugScript(script: NpmScript) {
-		let task = script.task;
-		let uri = getPackageJsonUriFromTask(task);
-		let scripts = await getScripts(uri!);
-
-		if (!this.scriptIsValid(scripts, task)) {
-			this.scriptNotValid(task);
-			return;
-		}
-
-		let debugArg = await this.extractDebugArg(scripts, task);
-		if (!debugArg) {
-			let message = localize('noDebugOptions', 'Could not launch "{0}" for debugging because the scripts lacks a node debug option, e.g. "--inspect-brk".', task.name);
-			let learnMore = localize('learnMore', 'Learn More');
-			let ok = localize('ok', 'OK');
-			let result = await window.showErrorMessage(message, { modal: true }, ok, learnMore);
-			if (result === learnMore) {
-				commands.executeCommand('vscode.open', Uri.parse('https://code.visualstudio.com/docs/nodejs/nodejs-debugging#_launch-configuration-support-for-npm-and-other-tools'));
-			}
-			return;
-		}
-
-		let protocol = 'inspector';
-		if (debugArg[0] === 'debug') {
-			protocol = 'legacy';
-		}
-
-		let packageManager = getPackageManager(script.getFolder());
-		const config: DebugConfiguration = {
-			type: 'node',
-			request: 'launch',
-			name: `Debug ${task.name}`,
-			runtimeExecutable: packageManager,
-			runtimeArgs: [
-				'run-script',
-				task.name,
-			],
-			port: debugArg[1],
-			protocol: protocol
-		};
-
-		if (isWorkspaceFolder(task.scope)) {
-			debug.startDebugging(task.scope, config);
-		}
-	}
-
-	private scriptNotValid(task: Task) {
-		let message = localize('scriptInvalid', 'Could not find the script "{0}". Try to refresh the view.', task.name);
-		window.showErrorMessage(message);
+		startDebugging(this.extensionContext, script.task.definition.script, path.dirname(script.package.resourceUri!.fsPath), script.getFolder());
 	}
 
 	private findScript(document: TextDocument, script?: NpmScript): number {
@@ -271,7 +194,7 @@ export class NpmScriptsTreeDataProvider implements TreeDataProvider<TreeItem> {
 		if (!uri) {
 			return;
 		}
-		let task = createTask('install', 'install', selection.folder.workspaceFolder, uri, []);
+		let task = await createTask(this.extensionContext, 'install', 'install', selection.folder.workspaceFolder, uri, true, undefined, []);
 		tasks.executeTask(task);
 	}
 
@@ -288,12 +211,12 @@ export class NpmScriptsTreeDataProvider implements TreeDataProvider<TreeItem> {
 		let document: TextDocument = await workspace.openTextDocument(uri);
 		let offset = this.findScript(document, selection instanceof NpmScript ? selection : undefined);
 		let position = document.positionAt(offset);
-		await window.showTextDocument(document, { selection: new Selection(position, position) });
+		await window.showTextDocument(document, { preserveFocus: true, selection: new Selection(position, position) });
 	}
 
 	public refresh() {
 		this.taskTree = null;
-		this._onDidChangeTreeData.fire();
+		this._onDidChangeTreeData.fire(null);
 	}
 
 	getTreeItem(element: TreeItem): TreeItem {
@@ -318,11 +241,16 @@ export class NpmScriptsTreeDataProvider implements TreeDataProvider<TreeItem> {
 
 	async getChildren(element?: TreeItem): Promise<TreeItem[]> {
 		if (!this.taskTree) {
-			let taskItems = await tasks.fetchTasks({ type: 'npm' });
+			const taskItems = await this.taskProvider.tasksWithLocation;
 			if (taskItems) {
-				this.taskTree = this.buildTaskTree(taskItems);
+				const taskTree = this.buildTaskTree(taskItems);
+				this.taskTree = this.sortTaskTree(taskTree);
 				if (this.taskTree.length === 0) {
-					this.taskTree = [new NoScripts()];
+					let message = localize('noScripts', 'No scripts found.');
+					if (!isAutoDetectionEnabled()) {
+						message = localize('autoDetectIsOff', 'The setting "npm.autoDetect" is "off".');
+					}
+					this.taskTree = [new NoScripts(message)];
 				}
 			}
 		}
@@ -351,36 +279,51 @@ export class NpmScriptsTreeDataProvider implements TreeDataProvider<TreeItem> {
 		return fullName === task.name;
 	}
 
-	private buildTaskTree(tasks: Task[]): Folder[] | PackageJSON[] | NoScripts[] {
+	private getTaskTreeItemLabel(taskTreeLabel: string | TreeItemLabel | undefined): string {
+		if (taskTreeLabel === undefined) {
+			return '';
+		}
+
+		if (typeof taskTreeLabel === 'string') {
+			return taskTreeLabel;
+		}
+
+		return taskTreeLabel.label;
+	}
+
+	private sortTaskTree(taskTree: TaskTree) {
+		return taskTree.sort((first: TreeItem, second: TreeItem) => {
+			const firstLabel = this.getTaskTreeItemLabel(first.label);
+			const secondLabel = this.getTaskTreeItemLabel(second.label);
+			return firstLabel.localeCompare(secondLabel);
+		});
+	}
+
+	private buildTaskTree(tasks: TaskWithLocation[]): TaskTree {
 		let folders: Map<String, Folder> = new Map();
 		let packages: Map<String, PackageJSON> = new Map();
-		let scripts: Map<String, NpmScript> = new Map();
 
 		let folder = null;
 		let packageJson = null;
 
 		tasks.forEach(each => {
-			if (isWorkspaceFolder(each.scope) && !this.isInstallTask(each)) {
-				folder = folders.get(each.scope.name);
+			if (isWorkspaceFolder(each.task.scope) && !this.isInstallTask(each.task)) {
+				folder = folders.get(each.task.scope.name);
 				if (!folder) {
-					folder = new Folder(each.scope);
-					folders.set(each.scope.name, folder);
+					folder = new Folder(each.task.scope);
+					folders.set(each.task.scope.name, folder);
 				}
-				let definition: NpmTaskDefinition = <NpmTaskDefinition>each.definition;
+				let definition: NpmTaskDefinition = <NpmTaskDefinition>each.task.definition;
 				let relativePath = definition.path ? definition.path : '';
-				let fullPath = path.join(each.scope.name, relativePath);
+				let fullPath = path.join(each.task.scope.name, relativePath);
 				packageJson = packages.get(fullPath);
 				if (!packageJson) {
 					packageJson = new PackageJSON(folder, relativePath);
 					folder.addPackage(packageJson);
 					packages.set(fullPath, packageJson);
 				}
-				let fullScriptPath = path.join(packageJson.path, each.name);
-				if (!scripts.get(fullScriptPath)) {
-					let script = new NpmScript(this.extensionContext, packageJson, each);
-					packageJson.addScript(script);
-					scripts.set(fullScriptPath, script);
-				}
+				let script = new NpmScript(this.extensionContext, packageJson, each.task, each.location);
+				packageJson.addScript(script);
 			}
 		});
 		if (folders.size === 1) {

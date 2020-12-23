@@ -240,7 +240,7 @@ export class HSVA {
 		} else if (h < 300) {
 			r = x;
 			b = c;
-		} else if (h < 360) {
+		} else if (h <= 360) {
 			r = c;
 			b = x;
 		}
@@ -260,7 +260,7 @@ export class Color {
 	}
 
 	readonly rgba: RGBA;
-	private _hsla: HSLA;
+	private _hsla?: HSLA;
 	get hsla(): HSLA {
 		if (this._hsla) {
 			return this._hsla;
@@ -269,7 +269,7 @@ export class Color {
 		}
 	}
 
-	private _hsva: HSVA;
+	private _hsva?: HSVA;
 	get hsva(): HSVA {
 		if (this._hsva) {
 			return this._hsva;
@@ -293,7 +293,7 @@ export class Color {
 		}
 	}
 
-	equals(other: Color): boolean {
+	equals(other: Color | null): boolean {
 		return !!other && RGBA.equals(this.rgba, other.rgba) && HSLA.equals(this.hsla, other.hsla) && HSVA.equals(this.hsva, other.hsva);
 	}
 
@@ -387,8 +387,8 @@ export class Color {
 		const thisA = this.rgba.a;
 		const colorA = rgba.a;
 
-		let a = thisA + colorA * (1 - thisA);
-		if (a < 1.0e-6) {
+		const a = thisA + colorA * (1 - thisA);
+		if (a < 1e-6) {
 			return Color.transparent;
 		}
 
@@ -397,6 +397,23 @@ export class Color {
 		const b = this.rgba.b * thisA / a + rgba.b * colorA * (1 - thisA) / a;
 
 		return new Color(new RGBA(r, g, b, a));
+	}
+
+	makeOpaque(opaqueBackground: Color): Color {
+		if (this.isOpaque() || opaqueBackground.rgba.a !== 1) {
+			// only allow to blend onto a non-opaque color onto a opaque color
+			return this;
+		}
+
+		const { r, g, b, a } = this.rgba;
+
+		// https://stackoverflow.com/questions/12228548/finding-equivalent-color-with-opacity
+		return new Color(new RGBA(
+			opaqueBackground.rgba.r - a * (opaqueBackground.rgba.r - r),
+			opaqueBackground.rgba.g - a * (opaqueBackground.rgba.g - g),
+			opaqueBackground.rgba.b - a * (opaqueBackground.rgba.b - b),
+			1
+		));
 	}
 
 	flatten(...backgrounds: Color[]): Color {
@@ -416,7 +433,7 @@ export class Color {
 	}
 
 	toString(): string {
-		return Color.Format.CSS.format(this);
+		return '' + Color.Format.CSS.format(this);
 	}
 
 	static getLighterColor(of: Color, relative: Color, factor?: number): Color {
@@ -507,10 +524,6 @@ export namespace Color {
 			 * The default format will use HEX if opaque and RGBA otherwise.
 			 */
 			export function format(color: Color): string | null {
-				if (!color) {
-					return null;
-				}
-
 				if (color.isOpaque()) {
 					return Color.Format.CSS.formatHex(color);
 				}
@@ -524,11 +537,6 @@ export namespace Color {
 			 * @param hex string (#RGB, #RGBA, #RRGGBB or #RRGGBBAA).
 			 */
 			export function parseHex(hex: string): Color | null {
-				if (!hex) {
-					// Invalid color
-					return null;
-				}
-
 				const length = hex.length;
 
 				if (length === 0) {

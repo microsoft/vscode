@@ -1,0 +1,27 @@
+{
+	"compilerOptions": {
+		"module": "amd",
+		"moduleResolution": "node",
+		"experimentalDecorators": true,
+		"noImplicitReturns": true,
+		"noUnusedLocals": true,
+		"allowUnreachableCode": false,
+		"strict": true,
+		"forceConsistentCasingInFileNames": true,
+		"baseUrl": ".",
+		"paths": {
+			"vs/*": [
+				"./vs/*"
+			]
+		},
+		"lib": [
+			"ES2015",
+			"ES2016.Array.Include",
+			"ES2017.String",
+			"ES2018.Promise",
+			"DOM",
+			"DOM.Iterable",
+			"WebWorker.ImportScripts"
+		]
+	}
+}

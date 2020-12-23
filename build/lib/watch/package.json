@@ -4,8 +4,9 @@
   "description": "",
   "author": "Microsoft ",
   "private": true,
-  "devDependencies": {
-    "gulp-watch": "^4.3.9",
-    "nsfw": "^1.0.15"
+  "license": "MIT",
+  "devDependencies": {},
+  "dependencies": {
+    "vscode-gulp-watch": "^5.0.2"
   }
 }

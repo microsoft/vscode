@@ -1,7 +1,7 @@
 [
 	{
 		"c": "from",
-		"t": "source.python keyword.control.flow.python",
+		"t": "source.python keyword.control.import.python",
 		"r": {
 			"dark_plus": "keyword.control: #C586C0",
 			"light_plus": "keyword.control: #AF00DB",
@@ -113,9 +113,9 @@
 		"c": "#",
 		"t": "source.python comment.line.number-sign.python punctuation.definition.comment.python",
 		"r": {
-			"dark_plus": "comment: #608B4E",
+			"dark_plus": "comment: #6A9955",
 			"light_plus": "comment: #008000",
-			"dark_vs": "comment: #608B4E",
+			"dark_vs": "comment: #6A9955",
 			"light_vs": "comment: #008000",
 			"hc_black": "comment: #7CA668"
 		}
@@ -124,9 +124,9 @@
 		"c": " Bananas the monkey can eat.",
 		"t": "source.python comment.line.number-sign.python",
 		"r": {
-			"dark_plus": "comment: #608B4E",
+			"dark_plus": "comment: #6A9955",
 			"light_plus": "comment: #008000",
-			"dark_vs": "comment: #608B4E",
+			"dark_vs": "comment: #6A9955",
 			"light_vs": "comment: #008000",
 			"hc_black": "comment: #7CA668"
 		}
@@ -169,9 +169,9 @@
 		"t": "source.python constant.numeric.dec.python",
 		"r": {
 			"dark_plus": "constant.numeric: #B5CEA8",
-			"light_plus": "constant.numeric: #09885A",
+			"light_plus": "constant.numeric: #098658",
 			"dark_vs": "constant.numeric: #B5CEA8",
-			"light_vs": "constant.numeric: #09885A",
+			"light_vs": "constant.numeric: #098658",
 			"hc_black": "constant.numeric: #B5CEA8"
 		}
 	},
@@ -419,7 +419,7 @@
 	},
 	{
 		"c": ".",
-		"t": "source.python punctuation.separator.period.python",
+		"t": "source.python meta.member.access.python punctuation.separator.period.python",
 		"r": {
 			"dark_plus": "default: #D4D4D4",
 			"light_plus": "default: #000000",
@@ -430,7 +430,7 @@
 	},
 	{
 		"c": "size",
-		"t": "source.python",
+		"t": "source.python meta.member.access.python meta.attribute.python",
 		"r": {
 			"dark_plus": "default: #D4D4D4",
 			"light_plus": "default: #000000",
@@ -565,9 +565,9 @@
 		"t": "source.python meta.function-call.python meta.function-call.arguments.python constant.numeric.float.python",
 		"r": {
 			"dark_plus": "constant.numeric: #B5CEA8",
-			"light_plus": "constant.numeric: #09885A",
+			"light_plus": "constant.numeric: #098658",
 			"dark_vs": "constant.numeric: #B5CEA8",
-			"light_vs": "constant.numeric: #09885A",
+			"light_vs": "constant.numeric: #098658",
 			"hc_black": "constant.numeric: #B5CEA8"
 		}
 	},
@@ -914,13 +914,13 @@
 	},
 	{
 		"c": "in",
-		"t": "source.python meta.function.python meta.function.parameters.python keyword.operator.logical.python",
+		"t": "source.python meta.function.python meta.function.parameters.python keyword.control.flow.python",
 		"r": {
-			"dark_plus": "keyword.operator.logical.python: #569CD6",
-			"light_plus": "keyword.operator.logical.python: #0000FF",
-			"dark_vs": "keyword.operator.logical.python: #569CD6",
-			"light_vs": "keyword.operator.logical.python: #0000FF",
-			"hc_black": "keyword.operator.logical.python: #569CD6"
+			"dark_plus": "keyword.control: #C586C0",
+			"light_plus": "keyword.control: #AF00DB",
+			"dark_vs": "keyword.control: #569CD6",
+			"light_vs": "keyword.control: #0000FF",
+			"hc_black": "keyword.control: #C586C0"
 		}
 	},
 	{
@@ -1137,9 +1137,9 @@
 		"t": "source.python meta.function.python meta.function.parameters.python constant.numeric.dec.python",
 		"r": {
 			"dark_plus": "constant.numeric: #B5CEA8",
-			"light_plus": "constant.numeric: #09885A",
+			"light_plus": "constant.numeric: #098658",
 			"dark_vs": "constant.numeric: #B5CEA8",
-			"light_vs": "constant.numeric: #09885A",
+			"light_vs": "constant.numeric: #098658",
 			"hc_black": "constant.numeric: #B5CEA8"
 		}
 	},
@@ -1214,9 +1214,9 @@
 		"t": "source.python constant.numeric.dec.python",
 		"r": {
 			"dark_plus": "constant.numeric: #B5CEA8",
-			"light_plus": "constant.numeric: #09885A",
+			"light_plus": "constant.numeric: #098658",
 			"dark_vs": "constant.numeric: #B5CEA8",
-			"light_vs": "constant.numeric: #09885A",
+			"light_vs": "constant.numeric: #098658",
 			"hc_black": "constant.numeric: #B5CEA8"
 		}
 	},
@@ -1280,9 +1280,9 @@
 		"t": "source.python constant.numeric.dec.python",
 		"r": {
 			"dark_plus": "constant.numeric: #B5CEA8",
-			"light_plus": "constant.numeric: #09885A",
+			"light_plus": "constant.numeric: #098658",
 			"dark_vs": "constant.numeric: #B5CEA8",
-			"light_vs": "constant.numeric: #09885A",
+			"light_vs": "constant.numeric: #098658",
 			"hc_black": "constant.numeric: #B5CEA8"
 		}
 	},
@@ -1324,9 +1324,9 @@
 		"t": "source.python constant.numeric.dec.python",
 		"r": {
 			"dark_plus": "constant.numeric: #B5CEA8",
-			"light_plus": "constant.numeric: #09885A",
+			"light_plus": "constant.numeric: #098658",
 			"dark_vs": "constant.numeric: #B5CEA8",
-			"light_vs": "constant.numeric: #09885A",
+			"light_vs": "constant.numeric: #098658",
 			"hc_black": "constant.numeric: #B5CEA8"
 		}
 	},
@@ -1390,9 +1390,9 @@
 		"t": "source.python constant.numeric.dec.python",
 		"r": {
 			"dark_plus": "constant.numeric: #B5CEA8",
-			"light_plus": "constant.numeric: #09885A",
+			"light_plus": "constant.numeric: #098658",
 			"dark_vs": "constant.numeric: #B5CEA8",
-			"light_vs": "constant.numeric: #09885A",
+			"light_vs": "constant.numeric: #098658",
 			"hc_black": "constant.numeric: #B5CEA8"
 		}
 	},
@@ -1456,9 +1456,9 @@
 		"t": "source.python constant.numeric.dec.python",
 		"r": {
 			"dark_plus": "constant.numeric: #B5CEA8",
-			"light_plus": "constant.numeric: #09885A",
+			"light_plus": "constant.numeric: #098658",
 			"dark_vs": "constant.numeric: #B5CEA8",
-			"light_vs": "constant.numeric: #09885A",
+			"light_vs": "constant.numeric: #098658",
 			"hc_black": "constant.numeric: #B5CEA8"
 		}
 	},
@@ -1522,9 +1522,9 @@
 		"t": "source.python constant.numeric.dec.python",
 		"r": {
 			"dark_plus": "constant.numeric: #B5CEA8",
-			"light_plus": "constant.numeric: #09885A",
+			"light_plus": "constant.numeric: #098658",
 			"dark_vs": "constant.numeric: #B5CEA8",
-			"light_vs": "constant.numeric: #09885A",
+			"light_vs": "constant.numeric: #098658",
 			"hc_black": "constant.numeric: #B5CEA8"
 		}
 	},
@@ -1566,9 +1566,9 @@
 		"t": "source.python constant.numeric.dec.python",
 		"r": {
 			"dark_plus": "constant.numeric: #B5CEA8",
-			"light_plus": "constant.numeric: #09885A",
+			"light_plus": "constant.numeric: #098658",
 			"dark_vs": "constant.numeric: #B5CEA8",
-			"light_vs": "constant.numeric: #09885A",
+			"light_vs": "constant.numeric: #098658",
 			"hc_black": "constant.numeric: #B5CEA8"
 		}
 	},
@@ -1632,9 +1632,9 @@
 		"t": "source.python constant.numeric.dec.python",
 		"r": {
 			"dark_plus": "constant.numeric: #B5CEA8",
-			"light_plus": "constant.numeric: #09885A",
+			"light_plus": "constant.numeric: #098658",
 			"dark_vs": "constant.numeric: #B5CEA8",
-			"light_vs": "constant.numeric: #09885A",
+			"light_vs": "constant.numeric: #098658",
 			"hc_black": "constant.numeric: #B5CEA8"
 		}
 	},
@@ -1698,9 +1698,9 @@
 		"t": "source.python constant.numeric.dec.python",
 		"r": {
 			"dark_plus": "constant.numeric: #B5CEA8",
-			"light_plus": "constant.numeric: #09885A",
+			"light_plus": "constant.numeric: #098658",
 			"dark_vs": "constant.numeric: #B5CEA8",
-			"light_vs": "constant.numeric: #09885A",
+			"light_vs": "constant.numeric: #098658",
 			"hc_black": "constant.numeric: #B5CEA8"
 		}
 	},
@@ -1764,9 +1764,9 @@
 		"t": "source.python constant.numeric.dec.python",
 		"r": {
 			"dark_plus": "constant.numeric: #B5CEA8",
-			"light_plus": "constant.numeric: #09885A",
+			"light_plus": "constant.numeric: #098658",
 			"dark_vs": "constant.numeric: #B5CEA8",
-			"light_vs": "constant.numeric: #09885A",
+			"light_vs": "constant.numeric: #098658",
 			"hc_black": "constant.numeric: #B5CEA8"
 		}
 	},
@@ -1808,9 +1808,9 @@
 		"t": "source.python constant.numeric.dec.python",
 		"r": {
 			"dark_plus": "constant.numeric: #B5CEA8",
-			"light_plus": "constant.numeric: #09885A",
+			"light_plus": "constant.numeric: #098658",
 			"dark_vs": "constant.numeric: #B5CEA8",
-			"light_vs": "constant.numeric: #09885A",
+			"light_vs": "constant.numeric: #098658",
 			"hc_black": "constant.numeric: #B5CEA8"
 		}
 	},
@@ -1874,9 +1874,9 @@
 		"t": "source.python constant.numeric.dec.python",
 		"r": {
 			"dark_plus": "constant.numeric: #B5CEA8",
-			"light_plus": "constant.numeric: #09885A",
+			"light_plus": "constant.numeric: #098658",
 			"dark_vs": "constant.numeric: #B5CEA8",
-			"light_vs": "constant.numeric: #09885A",
+			"light_vs": "constant.numeric: #098658",
 			"hc_black": "constant.numeric: #B5CEA8"
 		}
 	},
@@ -1906,9 +1906,9 @@
 		"c": "#",
 		"t": "source.python comment.line.number-sign.python punctuation.definition.comment.python",
 		"r": {
-			"dark_plus": "comment: #608B4E",
+			"dark_plus": "comment: #6A9955",
 			"light_plus": "comment: #008000",
-			"dark_vs": "comment: #608B4E",
+			"dark_vs": "comment: #6A9955",
 			"light_vs": "comment: #008000",
 			"hc_black": "comment: #7CA668"
 		}
@@ -1917,9 +1917,9 @@
 		"c": " Looks like a valid date",
 		"t": "source.python comment.line.number-sign.python",
 		"r": {
-			"dark_plus": "comment: #608B4E",
+			"dark_plus": "comment: #6A9955",
 			"light_plus": "comment: #008000",
-			"dark_vs": "comment: #608B4E",
+			"dark_vs": "comment: #6A9955",
 			"light_vs": "comment: #008000",
 			"hc_black": "comment: #7CA668"
 		}
@@ -1962,9 +1962,9 @@
 		"t": "source.python constant.numeric.dec.python",
 		"r": {
 			"dark_plus": "constant.numeric: #B5CEA8",
-			"light_plus": "constant.numeric: #09885A",
+			"light_plus": "constant.numeric: #098658",
 			"dark_vs": "constant.numeric: #B5CEA8",
-			"light_vs": "constant.numeric: #09885A",
+			"light_vs": "constant.numeric: #098658",
 			"hc_black": "constant.numeric: #B5CEA8"
 		}
 	},
@@ -2113,13 +2113,13 @@
 	},
 	{
 		"c": "in",
-		"t": "source.python keyword.operator.logical.python",
+		"t": "source.python keyword.control.flow.python",
 		"r": {
-			"dark_plus": "keyword.operator.logical.python: #569CD6",
-			"light_plus": "keyword.operator.logical.python: #0000FF",
-			"dark_vs": "keyword.operator.logical.python: #569CD6",
-			"light_vs": "keyword.operator.logical.python: #0000FF",
-			"hc_black": "keyword.operator.logical.python: #569CD6"
+			"dark_plus": "keyword.control: #C586C0",
+			"light_plus": "keyword.control: #AF00DB",
+			"dark_vs": "keyword.control: #569CD6",
+			"light_vs": "keyword.control: #0000FF",
+			"hc_black": "keyword.control: #C586C0"
 		}
 	},
 	{
@@ -2223,7 +2223,7 @@
 	},
 	{
 		"c": ".",
-		"t": "source.python punctuation.separator.period.python",
+		"t": "source.python meta.member.access.python punctuation.separator.period.python",
 		"r": {
 			"dark_plus": "default: #D4D4D4",
 			"light_plus": "default: #000000",
@@ -2234,7 +2234,7 @@
 	},
 	{
 		"c": "next",
-		"t": "source.python meta.function-call.python meta.function-call.generic.python",
+		"t": "source.python meta.member.access.python meta.function-call.python meta.function-call.generic.python",
 		"r": {
 			"dark_plus": "default: #D4D4D4",
 			"light_plus": "default: #000000",
@@ -2245,7 +2245,7 @@
 	},
 	{
 		"c": "(",
-		"t": "source.python meta.function-call.python punctuation.definition.arguments.begin.python",
+		"t": "source.python meta.member.access.python meta.function-call.python punctuation.definition.arguments.begin.python",
 		"r": {
 			"dark_plus": "default: #D4D4D4",
 			"light_plus": "default: #000000",
@@ -2256,7 +2256,7 @@
 	},
 	{
 		"c": ")",
-		"t": "source.python meta.function-call.python punctuation.definition.arguments.end.python",
+		"t": "source.python meta.member.access.python meta.function-call.python punctuation.definition.arguments.end.python",
 		"r": {
 			"dark_plus": "default: #D4D4D4",
 			"light_plus": "default: #000000",
@@ -2424,9 +2424,9 @@
 		"t": "source.python meta.function-call.python meta.function-call.arguments.python constant.numeric.dec.python",
 		"r": {
 			"dark_plus": "constant.numeric: #B5CEA8",
-			"light_plus": "constant.numeric: #09885A",
+			"light_plus": "constant.numeric: #098658",
 			"dark_vs": "constant.numeric: #B5CEA8",
-			"light_vs": "constant.numeric: #09885A",
+			"light_vs": "constant.numeric: #098658",
 			"hc_black": "constant.numeric: #B5CEA8"
 		}
 	},
@@ -2446,9 +2446,9 @@
 		"t": "source.python meta.function-call.python meta.function-call.arguments.python constant.numeric.dec.python",
 		"r": {
 			"dark_plus": "constant.numeric: #B5CEA8",
-			"light_plus": "constant.numeric: #09885A",
+			"light_plus": "constant.numeric: #098658",
 			"dark_vs": "constant.numeric: #B5CEA8",
-			"light_vs": "constant.numeric: #09885A",
+			"light_vs": "constant.numeric: #098658",
 			"hc_black": "constant.numeric: #B5CEA8"
 		}
 	},
@@ -2468,9 +2468,9 @@
 		"t": "source.python meta.function-call.python meta.function-call.arguments.python constant.numeric.dec.python",
 		"r": {
 			"dark_plus": "constant.numeric: #B5CEA8",
-			"light_plus": "constant.numeric: #09885A",
+			"light_plus": "constant.numeric: #098658",
 			"dark_vs": "constant.numeric: #B5CEA8",
-			"light_vs": "constant.numeric: #09885A",
+			"light_vs": "constant.numeric: #098658",
 			"hc_black": "constant.numeric: #B5CEA8"
 		}
 	},
@@ -2490,9 +2490,9 @@
 		"t": "source.python meta.function-call.python meta.function-call.arguments.python constant.numeric.dec.python",
 		"r": {
 			"dark_plus": "constant.numeric: #B5CEA8",
-			"light_plus": "constant.numeric: #09885A",
+			"light_plus": "constant.numeric: #098658",
 			"dark_vs": "constant.numeric: #B5CEA8",
-			"light_vs": "constant.numeric: #09885A",
+			"light_vs": "constant.numeric: #098658",
 			"hc_black": "constant.numeric: #B5CEA8"
 		}
 	},
@@ -2985,9 +2985,9 @@
 		"t": "source.python constant.numeric.dec.python",
 		"r": {
 			"dark_plus": "constant.numeric: #B5CEA8",
-			"light_plus": "constant.numeric: #09885A",
+			"light_plus": "constant.numeric: #098658",
 			"dark_vs": "constant.numeric: #B5CEA8",
-			"light_vs": "constant.numeric: #09885A",
+			"light_vs": "constant.numeric: #098658",
 			"hc_black": "constant.numeric: #B5CEA8"
 		}
 	},
@@ -3017,9 +3017,9 @@
 		"c": "#",
 		"t": "source.python comment.line.number-sign.python punctuation.definition.comment.python",
 		"r": {
-			"dark_plus": "comment: #608B4E",
+			"dark_plus": "comment: #6A9955",
 			"light_plus": "comment: #008000",
-			"dark_vs": "comment: #608B4E",
+			"dark_vs": "comment: #6A9955",
 			"light_vs": "comment: #008000",
 			"hc_black": "comment: #7CA668"
 		}
@@ -3028,9 +3028,9 @@
 		"c": "comment",
 		"t": "source.python comment.line.number-sign.python",
 		"r": {
-			"dark_plus": "comment: #608B4E",
+			"dark_plus": "comment: #6A9955",
 			"light_plus": "comment: #008000",
-			"dark_vs": "comment: #608B4E",
+			"dark_vs": "comment: #6A9955",
 			"light_vs": "comment: #008000",
 			"hc_black": "comment: #7CA668"
 		}
@@ -3149,9 +3149,9 @@
 		"c": "#",
 		"t": "source.python comment.line.number-sign.python punctuation.definition.comment.python",
 		"r": {
-			"dark_plus": "comment: #608B4E",
+			"dark_plus": "comment: #6A9955",
 			"light_plus": "comment: #008000",
-			"dark_vs": "comment: #608B4E",
+			"dark_vs": "comment: #6A9955",
 			"light_vs": "comment: #008000",
 			"hc_black": "comment: #7CA668"
 		}
@@ -3160,9 +3160,9 @@
 		"c": "sqadsad",
 		"t": "source.python comment.line.number-sign.python",
 		"r": {
-			"dark_plus": "comment: #608B4E",
+			"dark_plus": "comment: #6A9955",
 			"light_plus": "comment: #008000",
-			"dark_vs": "comment: #608B4E",
+			"dark_vs": "comment: #6A9955",
 			"light_vs": "comment: #008000",
 			"hc_black": "comment: #7CA668"
 		}
@@ -3359,9 +3359,9 @@
 		"t": "source.python constant.numeric.dec.python",
 		"r": {
 			"dark_plus": "constant.numeric: #B5CEA8",
-			"light_plus": "constant.numeric: #09885A",
+			"light_plus": "constant.numeric: #098658",
 			"dark_vs": "constant.numeric: #B5CEA8",
-			"light_vs": "constant.numeric: #09885A",
+			"light_vs": "constant.numeric: #098658",
 			"hc_black": "constant.numeric: #B5CEA8"
 		}
 	},
@@ -3414,9 +3414,9 @@
 		"t": "source.python constant.numeric.dec.python",
 		"r": {
 			"dark_plus": "constant.numeric: #B5CEA8",
-			"light_plus": "constant.numeric: #09885A",
+			"light_plus": "constant.numeric: #098658",
 			"dark_vs": "constant.numeric: #B5CEA8",
-			"light_vs": "constant.numeric: #09885A",
+			"light_vs": "constant.numeric: #098658",
 			"hc_black": "constant.numeric: #B5CEA8"
 		}
 	},
@@ -3480,9 +3480,9 @@
 		"t": "source.python constant.numeric.dec.python",
 		"r": {
 			"dark_plus": "constant.numeric: #B5CEA8",
-			"light_plus": "constant.numeric: #09885A",
+			"light_plus": "constant.numeric: #098658",
 			"dark_vs": "constant.numeric: #B5CEA8",
-			"light_vs": "constant.numeric: #09885A",
+			"light_vs": "constant.numeric: #098658",
 			"hc_black": "constant.numeric: #B5CEA8"
 		}
 	},
@@ -3568,9 +3568,9 @@
 		"t": "source.python constant.numeric.float.python",
 		"r": {
 			"dark_plus": "constant.numeric: #B5CEA8",
-			"light_plus": "constant.numeric: #09885A",
+			"light_plus": "constant.numeric: #098658",
 			"dark_vs": "constant.numeric: #B5CEA8",
-			"light_vs": "constant.numeric: #09885A",
+			"light_vs": "constant.numeric: #098658",
 			"hc_black": "constant.numeric: #B5CEA8"
 		}
 	},
@@ -3601,9 +3601,9 @@
 		"t": "source.python constant.numeric.float.python",
 		"r": {
 			"dark_plus": "constant.numeric: #B5CEA8",
-			"light_plus": "constant.numeric: #09885A",
+			"light_plus": "constant.numeric: #098658",
 			"dark_vs": "constant.numeric: #B5CEA8",
-			"light_vs": "constant.numeric: #09885A",
+			"light_vs": "constant.numeric: #098658",
 			"hc_black": "constant.numeric: #B5CEA8"
 		}
 	},
@@ -3656,9 +3656,9 @@
 		"t": "source.python constant.numeric.float.python",
 		"r": {
 			"dark_plus": "constant.numeric: #B5CEA8",
-			"light_plus": "constant.numeric: #09885A",
+			"light_plus": "constant.numeric: #098658",
 			"dark_vs": "constant.numeric: #B5CEA8",
-			"light_vs": "constant.numeric: #09885A",
+			"light_vs": "constant.numeric: #098658",
 			"hc_black": "constant.numeric: #B5CEA8"
 		}
 	},
@@ -3722,9 +3722,9 @@
 		"t": "source.python constant.numeric.dec.python",
 		"r": {
 			"dark_plus": "constant.numeric: #B5CEA8",
-			"light_plus": "constant.numeric: #09885A",
+			"light_plus": "constant.numeric: #098658",
 			"dark_vs": "constant.numeric: #B5CEA8",
-			"light_vs": "constant.numeric: #09885A",
+			"light_vs": "constant.numeric: #098658",
 			"hc_black": "constant.numeric: #B5CEA8"
 		}
 	},
@@ -3854,9 +3854,9 @@
 		"t": "source.python constant.numeric.float.python",
 		"r": {
 			"dark_plus": "constant.numeric: #B5CEA8",
-			"light_plus": "constant.numeric: #09885A",
+			"light_plus": "constant.numeric: #098658",
 			"dark_vs": "constant.numeric: #B5CEA8",
-			"light_vs": "constant.numeric: #09885A",
+			"light_vs": "constant.numeric: #098658",
 			"hc_black": "constant.numeric: #B5CEA8"
 		}
 	},
@@ -3898,9 +3898,9 @@
 		"t": "source.python constant.numeric.dec.python",
 		"r": {
 			"dark_plus": "constant.numeric: #B5CEA8",
-			"light_plus": "constant.numeric: #09885A",
+			"light_plus": "constant.numeric: #098658",
 			"dark_vs": "constant.numeric: #B5CEA8",
-			"light_vs": "constant.numeric: #09885A",
+			"light_vs": "constant.numeric: #098658",
 			"hc_black": "constant.numeric: #B5CEA8"
 		}
 	},
@@ -4533,7 +4533,7 @@
 	},
 	{
 		"c": ".",
-		"t": "source.python punctuation.separator.period.python",
+		"t": "source.python meta.member.access.python punctuation.separator.period.python",
 		"r": {
 			"dark_plus": "default: #D4D4D4",
 			"light_plus": "default: #000000",
@@ -4543,7 +4543,18 @@
 		}
 	},
 	{
-		"c": "fn ",
+		"c": "fn",
+		"t": "source.python meta.member.access.python meta.attribute.python",
+		"r": {
+			"dark_plus": "default: #D4D4D4",
+			"light_plus": "default: #000000",
+			"dark_vs": "default: #D4D4D4",
+			"light_vs": "default: #000000",
+			"hc_black": "default: #FFFFFF"
+		}
+	},
+	{
+		"c": " ",
 		"t": "source.python",
 		"r": {
 			"dark_plus": "default: #D4D4D4",
@@ -4599,7 +4610,7 @@
 	},
 	{
 		"c": ".",
-		"t": "source.python punctuation.separator.period.python",
+		"t": "source.python meta.member.access.python punctuation.separator.period.python",
 		"r": {
 			"dark_plus": "default: #D4D4D4",
 			"light_plus": "default: #000000",
@@ -4609,7 +4620,18 @@
 		}
 	},
 	{
-		"c": "memo ",
+		"c": "memo",
+		"t": "source.python meta.member.access.python meta.attribute.python",
+		"r": {
+			"dark_plus": "default: #D4D4D4",
+			"light_plus": "default: #000000",
+			"dark_vs": "default: #D4D4D4",
+			"light_vs": "default: #000000",
+			"hc_black": "default: #FFFFFF"
+		}
+	},
+	{
+		"c": " ",
 		"t": "source.python",
 		"r": {
 			"dark_plus": "default: #D4D4D4",
@@ -4885,7 +4907,7 @@
 	},
 	{
 		"c": ".",
-		"t": "source.python punctuation.separator.period.python",
+		"t": "source.python meta.member.access.python punctuation.separator.period.python",
 		"r": {
 			"dark_plus": "default: #D4D4D4",
 			"light_plus": "default: #000000",
@@ -4896,7 +4918,7 @@
 	},
 	{
 		"c": "memo",
-		"t": "source.python",
+		"t": "source.python meta.member.access.python meta.attribute.python",
 		"r": {
 			"dark_plus": "default: #D4D4D4",
 			"light_plus": "default: #000000",
@@ -4940,7 +4962,7 @@
 	},
 	{
 		"c": ".",
-		"t": "source.python punctuation.separator.period.python",
+		"t": "source.python meta.member.access.python punctuation.separator.period.python",
 		"r": {
 			"dark_plus": "default: #D4D4D4",
 			"light_plus": "default: #000000",
@@ -4951,7 +4973,7 @@
 	},
 	{
 		"c": "memo",
-		"t": "source.python meta.item-access.python",
+		"t": "source.python meta.member.access.python meta.item-access.python meta.indexed-name.python",
 		"r": {
 			"dark_plus": "default: #D4D4D4",
 			"light_plus": "default: #000000",
@@ -4962,7 +4984,7 @@
 	},
 	{
 		"c": "[",
-		"t": "source.python meta.item-access.python punctuation.definition.arguments.begin.python",
+		"t": "source.python meta.member.access.python meta.item-access.python punctuation.definition.arguments.begin.python",
 		"r": {
 			"dark_plus": "default: #D4D4D4",
 			"light_plus": "default: #000000",
@@ -4973,7 +4995,7 @@
 	},
 	{
 		"c": "args",
-		"t": "source.python meta.item-access.python meta.item-access.arguments.python",
+		"t": "source.python meta.member.access.python meta.item-access.python meta.item-access.arguments.python",
 		"r": {
 			"dark_plus": "default: #D4D4D4",
 			"light_plus": "default: #000000",
@@ -4984,7 +5006,7 @@
 	},
 	{
 		"c": "]",
-		"t": "source.python meta.item-access.python punctuation.definition.arguments.end.python",
+		"t": "source.python meta.member.access.python meta.item-access.python punctuation.definition.arguments.end.python",
 		"r": {
 			"dark_plus": "default: #D4D4D4",
 			"light_plus": "default: #000000",
@@ -5039,7 +5061,7 @@
 	},
 	{
 		"c": ".",
-		"t": "source.python punctuation.separator.period.python",
+		"t": "source.python meta.member.access.python punctuation.separator.period.python",
 		"r": {
 			"dark_plus": "default: #D4D4D4",
 			"light_plus": "default: #000000",
@@ -5050,7 +5072,7 @@
 	},
 	{
 		"c": "fn",
-		"t": "source.python meta.function-call.python meta.function-call.generic.python",
+		"t": "source.python meta.member.access.python meta.function-call.python meta.function-call.generic.python",
 		"r": {
 			"dark_plus": "default: #D4D4D4",
 			"light_plus": "default: #000000",
@@ -5061,7 +5083,7 @@
 	},
 	{
 		"c": "(",
-		"t": "source.python meta.function-call.python punctuation.definition.arguments.begin.python",
+		"t": "source.python meta.member.access.python meta.function-call.python punctuation.definition.arguments.begin.python",
 		"r": {
 			"dark_plus": "default: #D4D4D4",
 			"light_plus": "default: #000000",
@@ -5072,7 +5094,7 @@
 	},
 	{
 		"c": "*",
-		"t": "source.python meta.function-call.python keyword.operator.unpacking.arguments.python",
+		"t": "source.python meta.member.access.python meta.function-call.python meta.function-call.arguments.python keyword.operator.unpacking.arguments.python",
 		"r": {
 			"dark_plus": "keyword.operator: #D4D4D4",
 			"light_plus": "keyword.operator: #000000",
@@ -5083,7 +5105,7 @@
 	},
 	{
 		"c": "args",
-		"t": "source.python meta.function-call.python meta.function-call.arguments.python",
+		"t": "source.python meta.member.access.python meta.function-call.python meta.function-call.arguments.python",
 		"r": {
 			"dark_plus": "default: #D4D4D4",
 			"light_plus": "default: #000000",
@@ -5094,7 +5116,7 @@
 	},
 	{
 		"c": ")",
-		"t": "source.python meta.function-call.python punctuation.definition.arguments.end.python",
+		"t": "source.python meta.member.access.python meta.function-call.python punctuation.definition.arguments.end.python",
 		"r": {
 			"dark_plus": "default: #D4D4D4",
 			"light_plus": "default: #000000",
@@ -5149,7 +5171,7 @@
 	},
 	{
 		"c": ".",
-		"t": "source.python punctuation.separator.period.python",
+		"t": "source.python meta.member.access.python punctuation.separator.period.python",
 		"r": {
 			"dark_plus": "default: #D4D4D4",
 			"light_plus": "default: #000000",
@@ -5160,7 +5182,7 @@
 	},
 	{
 		"c": "memo",
-		"t": "source.python meta.item-access.python",
+		"t": "source.python meta.member.access.python meta.item-access.python meta.indexed-name.python",
 		"r": {
 			"dark_plus": "default: #D4D4D4",
 			"light_plus": "default: #000000",
@@ -5171,7 +5193,7 @@
 	},
 	{
 		"c": "[",
-		"t": "source.python meta.item-access.python punctuation.definition.arguments.begin.python",
+		"t": "source.python meta.member.access.python meta.item-access.python punctuation.definition.arguments.begin.python",
 		"r": {
 			"dark_plus": "default: #D4D4D4",
 			"light_plus": "default: #000000",
@@ -5182,7 +5204,7 @@
 	},
 	{
 		"c": "args",
-		"t": "source.python meta.item-access.python meta.item-access.arguments.python",
+		"t": "source.python meta.member.access.python meta.item-access.python meta.item-access.arguments.python",
 		"r": {
 			"dark_plus": "default: #D4D4D4",
 			"light_plus": "default: #000000",
@@ -5193,7 +5215,7 @@
 	},
 	{
 		"c": "]",
-		"t": "source.python meta.item-access.python punctuation.definition.arguments.end.python",
+		"t": "source.python meta.member.access.python meta.item-access.python punctuation.definition.arguments.end.python",
 		"r": {
 			"dark_plus": "default: #D4D4D4",
 			"light_plus": "default: #000000",
@@ -5237,7 +5259,7 @@
 	},
 	{
 		"c": ".",
-		"t": "source.python punctuation.separator.period.python",
+		"t": "source.python meta.member.access.python punctuation.separator.period.python",
 		"r": {
 			"dark_plus": "default: #D4D4D4",
 			"light_plus": "default: #000000",
@@ -5248,7 +5270,7 @@
 	},
 	{
 		"c": "search",
-		"t": "source.python meta.function-call.python meta.function-call.generic.python",
+		"t": "source.python meta.member.access.python meta.function-call.python meta.function-call.generic.python",
 		"r": {
 			"dark_plus": "default: #D4D4D4",
 			"light_plus": "default: #000000",
@@ -5259,7 +5281,7 @@
 	},
 	{
 		"c": "(",
-		"t": "source.python meta.function-call.python punctuation.definition.arguments.begin.python",
+		"t": "source.python meta.member.access.python meta.function-call.python punctuation.definition.arguments.begin.python",
 		"r": {
 			"dark_plus": "default: #D4D4D4",
 			"light_plus": "default: #000000",
@@ -5270,7 +5292,7 @@
 	},
 	{
 		"c": "r",
-		"t": "source.python meta.function-call.python meta.function-call.arguments.python string.regexp.quoted.single.python storage.type.string.python",
+		"t": "source.python meta.member.access.python meta.function-call.python meta.function-call.arguments.python string.regexp.quoted.single.python storage.type.string.python",
 		"r": {
 			"dark_plus": "storage.type: #569CD6",
 			"light_plus": "storage.type: #0000FF",
@@ -5281,7 +5303,7 @@
 	},
 	{
 		"c": "\"",
-		"t": "source.python meta.function-call.python meta.function-call.arguments.python string.regexp.quoted.single.python punctuation.definition.string.begin.python",
+		"t": "source.python meta.member.access.python meta.function-call.python meta.function-call.arguments.python string.regexp.quoted.single.python punctuation.definition.string.begin.python",
 		"r": {
 			"dark_plus": "string.regexp: #D16969",
 			"light_plus": "string.regexp: #811F3F",
@@ -5292,7 +5314,7 @@
 	},
 	{
 		"c": "(",
-		"t": "source.python meta.function-call.python meta.function-call.arguments.python string.regexp.quoted.single.python support.other.parenthesis.regexp punctuation.parenthesis.begin.regexp",
+		"t": "source.python meta.member.access.python meta.function-call.python meta.function-call.arguments.python string.regexp.quoted.single.python support.other.parenthesis.regexp punctuation.parenthesis.begin.regexp",
 		"r": {
 			"dark_plus": "support.other.parenthesis.regexp: #CE9178",
 			"light_plus": "support.other.parenthesis.regexp: #D16969",
@@ -5303,7 +5325,7 @@
 	},
 	{
 		"c": "[",
-		"t": "source.python meta.function-call.python meta.function-call.arguments.python string.regexp.quoted.single.python meta.character.set.regexp punctuation.character.set.begin.regexp constant.other.set.regexp",
+		"t": "source.python meta.member.access.python meta.function-call.python meta.function-call.arguments.python string.regexp.quoted.single.python meta.character.set.regexp punctuation.character.set.begin.regexp constant.other.set.regexp",
 		"r": {
 			"dark_plus": "punctuation.character.set.begin.regexp: #CE9178",
 			"light_plus": "punctuation.character.set.begin.regexp: #D16969",
@@ -5314,7 +5336,7 @@
 	},
 	{
 		"c": "0-9-",
-		"t": "source.python meta.function-call.python meta.function-call.arguments.python string.regexp.quoted.single.python meta.character.set.regexp constant.character.set.regexp",
+		"t": "source.python meta.member.access.python meta.function-call.python meta.function-call.arguments.python string.regexp.quoted.single.python meta.character.set.regexp constant.character.set.regexp",
 		"r": {
 			"dark_plus": "constant.character.set.regexp: #D16969",
 			"light_plus": "constant.character.set.regexp: #811F3F",
@@ -5325,7 +5347,7 @@
 	},
 	{
 		"c": "]",
-		"t": "source.python meta.function-call.python meta.function-call.arguments.python string.regexp.quoted.single.python meta.character.set.regexp punctuation.character.set.end.regexp constant.other.set.regexp",
+		"t": "source.python meta.member.access.python meta.function-call.python meta.function-call.arguments.python string.regexp.quoted.single.python meta.character.set.regexp punctuation.character.set.end.regexp constant.other.set.regexp",
 		"r": {
 			"dark_plus": "punctuation.character.set.end.regexp: #CE9178",
 			"light_plus": "punctuation.character.set.end.regexp: #D16969",
@@ -5336,7 +5358,7 @@
 	},
 	{
 		"c": "*",
-		"t": "source.python meta.function-call.python meta.function-call.arguments.python string.regexp.quoted.single.python keyword.operator.quantifier.regexp",
+		"t": "source.python meta.member.access.python meta.function-call.python meta.function-call.arguments.python string.regexp.quoted.single.python keyword.operator.quantifier.regexp",
 		"r": {
 			"dark_plus": "keyword.operator.quantifier.regexp: #D7BA7D",
 			"light_plus": "keyword.operator.quantifier.regexp: #000000",
@@ -5347,7 +5369,7 @@
 	},
 	{
 		"c": ")",
-		"t": "source.python meta.function-call.python meta.function-call.arguments.python string.regexp.quoted.single.python support.other.parenthesis.regexp punctuation.parenthesis.end.regexp",
+		"t": "source.python meta.member.access.python meta.function-call.python meta.function-call.arguments.python string.regexp.quoted.single.python support.other.parenthesis.regexp punctuation.parenthesis.end.regexp",
 		"r": {
 			"dark_plus": "support.other.parenthesis.regexp: #CE9178",
 			"light_plus": "support.other.parenthesis.regexp: #D16969",
@@ -5358,7 +5380,7 @@
 	},
 	{
 		"c": "\\s",
-		"t": "source.python meta.function-call.python meta.function-call.arguments.python string.regexp.quoted.single.python support.other.escape.special.regexp",
+		"t": "source.python meta.member.access.python meta.function-call.python meta.function-call.arguments.python string.regexp.quoted.single.python support.other.escape.special.regexp",
 		"r": {
 			"dark_plus": "string.regexp: #D16969",
 			"light_plus": "string.regexp: #811F3F",
@@ -5369,7 +5391,7 @@
 	},
 	{
 		"c": "*",
-		"t": "source.python meta.function-call.python meta.function-call.arguments.python string.regexp.quoted.single.python keyword.operator.quantifier.regexp",
+		"t": "source.python meta.member.access.python meta.function-call.python meta.function-call.arguments.python string.regexp.quoted.single.python keyword.operator.quantifier.regexp",
 		"r": {
 			"dark_plus": "keyword.operator.quantifier.regexp: #D7BA7D",
 			"light_plus": "keyword.operator.quantifier.regexp: #000000",
@@ -5380,7 +5402,7 @@
 	},
 	{
 		"c": "(",
-		"t": "source.python meta.function-call.python meta.function-call.arguments.python string.regexp.quoted.single.python support.other.parenthesis.regexp punctuation.parenthesis.begin.regexp",
+		"t": "source.python meta.member.access.python meta.function-call.python meta.function-call.arguments.python string.regexp.quoted.single.python support.other.parenthesis.regexp punctuation.parenthesis.begin.regexp",
 		"r": {
 			"dark_plus": "support.other.parenthesis.regexp: #CE9178",
 			"light_plus": "support.other.parenthesis.regexp: #D16969",
@@ -5391,7 +5413,7 @@
 	},
 	{
 		"c": "[",
-		"t": "source.python meta.function-call.python meta.function-call.arguments.python string.regexp.quoted.single.python meta.character.set.regexp punctuation.character.set.begin.regexp constant.other.set.regexp",
+		"t": "source.python meta.member.access.python meta.function-call.python meta.function-call.arguments.python string.regexp.quoted.single.python meta.character.set.regexp punctuation.character.set.begin.regexp constant.other.set.regexp",
 		"r": {
 			"dark_plus": "punctuation.character.set.begin.regexp: #CE9178",
 			"light_plus": "punctuation.character.set.begin.regexp: #D16969",
@@ -5402,7 +5424,7 @@
 	},
 	{
 		"c": "A-Za-z",
-		"t": "source.python meta.function-call.python meta.function-call.arguments.python string.regexp.quoted.single.python meta.character.set.regexp constant.character.set.regexp",
+		"t": "source.python meta.member.access.python meta.function-call.python meta.function-call.arguments.python string.regexp.quoted.single.python meta.character.set.regexp constant.character.set.regexp",
 		"r": {
 			"dark_plus": "constant.character.set.regexp: #D16969",
 			"light_plus": "constant.character.set.regexp: #811F3F",
@@ -5413,7 +5435,7 @@
 	},
 	{
 		"c": "]",
-		"t": "source.python meta.function-call.python meta.function-call.arguments.python string.regexp.quoted.single.python meta.character.set.regexp punctuation.character.set.end.regexp constant.other.set.regexp",
+		"t": "source.python meta.member.access.python meta.function-call.python meta.function-call.arguments.python string.regexp.quoted.single.python meta.character.set.regexp punctuation.character.set.end.regexp constant.other.set.regexp",
 		"r": {
 			"dark_plus": "punctuation.character.set.end.regexp: #CE9178",
 			"light_plus": "punctuation.character.set.end.regexp: #D16969",
@@ -5424,7 +5446,7 @@
 	},
 	{
 		"c": "+",
-		"t": "source.python meta.function-call.python meta.function-call.arguments.python string.regexp.quoted.single.python keyword.operator.quantifier.regexp",
+		"t": "source.python meta.member.access.python meta.function-call.python meta.function-call.arguments.python string.regexp.quoted.single.python keyword.operator.quantifier.regexp",
 		"r": {
 			"dark_plus": "keyword.operator.quantifier.regexp: #D7BA7D",
 			"light_plus": "keyword.operator.quantifier.regexp: #000000",
@@ -5435,7 +5457,7 @@
 	},
 	{
 		"c": ")",
-		"t": "source.python meta.function-call.python meta.function-call.arguments.python string.regexp.quoted.single.python support.other.parenthesis.regexp punctuation.parenthesis.end.regexp",
+		"t": "source.python meta.member.access.python meta.function-call.python meta.function-call.arguments.python string.regexp.quoted.single.python support.other.parenthesis.regexp punctuation.parenthesis.end.regexp",
 		"r": {
 			"dark_plus": "support.other.parenthesis.regexp: #CE9178",
 			"light_plus": "support.other.parenthesis.regexp: #D16969",
@@ -5446,7 +5468,7 @@
 	},
 	{
 		"c": ",",
-		"t": "source.python meta.function-call.python meta.function-call.arguments.python string.regexp.quoted.single.python",
+		"t": "source.python meta.member.access.python meta.function-call.python meta.function-call.arguments.python string.regexp.quoted.single.python",
 		"r": {
 			"dark_plus": "string.regexp: #D16969",
 			"light_plus": "string.regexp: #811F3F",
@@ -5457,7 +5479,7 @@
 	},
 	{
 		"c": "\\s",
-		"t": "source.python meta.function-call.python meta.function-call.arguments.python string.regexp.quoted.single.python support.other.escape.special.regexp",
+		"t": "source.python meta.member.access.python meta.function-call.python meta.function-call.arguments.python string.regexp.quoted.single.python support.other.escape.special.regexp",
 		"r": {
 			"dark_plus": "string.regexp: #D16969",
 			"light_plus": "string.regexp: #811F3F",
@@ -5468,7 +5490,7 @@
 	},
 	{
 		"c": "+",
-		"t": "source.python meta.function-call.python meta.function-call.arguments.python string.regexp.quoted.single.python keyword.operator.quantifier.regexp",
+		"t": "source.python meta.member.access.python meta.function-call.python meta.function-call.arguments.python string.regexp.quoted.single.python keyword.operator.quantifier.regexp",
 		"r": {
 			"dark_plus": "keyword.operator.quantifier.regexp: #D7BA7D",
 			"light_plus": "keyword.operator.quantifier.regexp: #000000",
@@ -5479,7 +5501,7 @@
 	},
 	{
 		"c": "(",
-		"t": "source.python meta.function-call.python meta.function-call.arguments.python string.regexp.quoted.single.python support.other.parenthesis.regexp punctuation.parenthesis.begin.regexp",
+		"t": "source.python meta.member.access.python meta.function-call.python meta.function-call.arguments.python string.regexp.quoted.single.python support.other.parenthesis.regexp punctuation.parenthesis.begin.regexp",
 		"r": {
 			"dark_plus": "support.other.parenthesis.regexp: #CE9178",
 			"light_plus": "support.other.parenthesis.regexp: #D16969",
@@ -5490,7 +5512,7 @@
 	},
 	{
 		"c": ".",
-		"t": "source.python meta.function-call.python meta.function-call.arguments.python string.regexp.quoted.single.python support.other.match.any.regexp",
+		"t": "source.python meta.member.access.python meta.function-call.python meta.function-call.arguments.python string.regexp.quoted.single.python support.other.match.any.regexp",
 		"r": {
 			"dark_plus": "string.regexp: #D16969",
 			"light_plus": "string.regexp: #811F3F",
@@ -5501,7 +5523,7 @@
 	},
 	{
 		"c": "*",
-		"t": "source.python meta.function-call.python meta.function-call.arguments.python string.regexp.quoted.single.python keyword.operator.quantifier.regexp",
+		"t": "source.python meta.member.access.python meta.function-call.python meta.function-call.arguments.python string.regexp.quoted.single.python keyword.operator.quantifier.regexp",
 		"r": {
 			"dark_plus": "keyword.operator.quantifier.regexp: #D7BA7D",
 			"light_plus": "keyword.operator.quantifier.regexp: #000000",
@@ -5512,7 +5534,7 @@
 	},
 	{
 		"c": ")",
-		"t": "source.python meta.function-call.python meta.function-call.arguments.python string.regexp.quoted.single.python support.other.parenthesis.regexp punctuation.parenthesis.end.regexp",
+		"t": "source.python meta.member.access.python meta.function-call.python meta.function-call.arguments.python string.regexp.quoted.single.python support.other.parenthesis.regexp punctuation.parenthesis.end.regexp",
 		"r": {
 			"dark_plus": "support.other.parenthesis.regexp: #CE9178",
 			"light_plus": "support.other.parenthesis.regexp: #D16969",
@@ -5523,7 +5545,7 @@
 	},
 	{
 		"c": "\"",
-		"t": "source.python meta.function-call.python meta.function-call.arguments.python string.regexp.quoted.single.python punctuation.definition.string.end.python",
+		"t": "source.python meta.member.access.python meta.function-call.python meta.function-call.arguments.python string.regexp.quoted.single.python punctuation.definition.string.end.python",
 		"r": {
 			"dark_plus": "string.regexp: #D16969",
 			"light_plus": "string.regexp: #811F3F",
@@ -5534,7 +5556,7 @@
 	},
 	{
 		"c": ",",
-		"t": "source.python meta.function-call.python meta.function-call.arguments.python punctuation.separator.arguments.python",
+		"t": "source.python meta.member.access.python meta.function-call.python meta.function-call.arguments.python punctuation.separator.arguments.python",
 		"r": {
 			"dark_plus": "default: #D4D4D4",
 			"light_plus": "default: #000000",
@@ -5545,7 +5567,7 @@
 	},
 	{
 		"c": " i",
-		"t": "source.python meta.function-call.python meta.function-call.arguments.python",
+		"t": "source.python meta.member.access.python meta.function-call.python meta.function-call.arguments.python",
 		"r": {
 			"dark_plus": "default: #D4D4D4",
 			"light_plus": "default: #000000",
@@ -5556,7 +5578,7 @@
 	},
 	{
 		"c": ")",
-		"t": "source.python meta.function-call.python punctuation.definition.arguments.end.python",
+		"t": "source.python meta.member.access.python meta.function-call.python punctuation.definition.arguments.end.python",
 		"r": {
 			"dark_plus": "default: #D4D4D4",
 			"light_plus": "default: #000000",
@@ -6108,9 +6130,9 @@
 		"c": "#",
 		"t": "source.python comment.line.number-sign.python punctuation.definition.comment.python",
 		"r": {
-			"dark_plus": "comment: #608B4E",
+			"dark_plus": "comment: #6A9955",
 			"light_plus": "comment: #008000",
-			"dark_vs": "comment: #608B4E",
+			"dark_vs": "comment: #6A9955",
 			"light_vs": "comment: #008000",
 			"hc_black": "comment: #7CA668"
 		}
@@ -6119,9 +6141,9 @@
 		"c": " Comments in dictionary items should be colorized accordingly",
 		"t": "source.python comment.line.number-sign.python",
 		"r": {
-			"dark_plus": "comment: #608B4E",
+			"dark_plus": "comment: #6A9955",
 			"light_plus": "comment: #008000",
-			"dark_vs": "comment: #608B4E",
+			"dark_vs": "comment: #6A9955",
 			"light_vs": "comment: #008000",
 			"hc_black": "comment: #7CA668"
 		}
@@ -6230,9 +6252,9 @@
 		"t": "source.python constant.numeric.dec.python",
 		"r": {
 			"dark_plus": "constant.numeric: #B5CEA8",
-			"light_plus": "constant.numeric: #09885A",
+			"light_plus": "constant.numeric: #098658",
 			"dark_vs": "constant.numeric: #B5CEA8",
-			"light_vs": "constant.numeric: #09885A",
+			"light_vs": "constant.numeric: #098658",
 			"hc_black": "constant.numeric: #B5CEA8"
 		}
 	},
@@ -6262,9 +6284,9 @@
 		"c": "#",
 		"t": "source.python comment.line.number-sign.python punctuation.definition.comment.python",
 		"r": {
-			"dark_plus": "comment: #608B4E",
+			"dark_plus": "comment: #6A9955",
 			"light_plus": "comment: #008000",
-			"dark_vs": "comment: #608B4E",
+			"dark_vs": "comment: #6A9955",
 			"light_vs": "comment: #008000",
 			"hc_black": "comment: #7CA668"
 		}
@@ -6273,9 +6295,9 @@
 		"c": " this should be colorized as comment",
 		"t": "source.python comment.line.number-sign.python",
 		"r": {
-			"dark_plus": "comment: #608B4E",
+			"dark_plus": "comment: #6A9955",
 			"light_plus": "comment: #008000",
-			"dark_vs": "comment: #608B4E",
+			"dark_vs": "comment: #6A9955",
 			"light_vs": "comment: #008000",
 			"hc_black": "comment: #7CA668"
 		}
@@ -6383,9 +6405,9 @@
 		"c": "#",
 		"t": "source.python comment.line.number-sign.python punctuation.definition.comment.python",
 		"r": {
-			"dark_plus": "comment: #608B4E",
+			"dark_plus": "comment: #6A9955",
 			"light_plus": "comment: #008000",
-			"dark_vs": "comment: #608B4E",
+			"dark_vs": "comment: #6A9955",
 			"light_vs": "comment: #008000",
 			"hc_black": "comment: #7CA668"
 		}
@@ -6394,9 +6416,9 @@
 		"c": "this should be colorized as comment",
 		"t": "source.python comment.line.number-sign.python",
 		"r": {
-			"dark_plus": "comment: #608B4E",
+			"dark_plus": "comment: #6A9955",
 			"light_plus": "comment: #008000",
-			"dark_vs": "comment: #608B4E",
+			"dark_vs": "comment: #6A9955",
 			"light_vs": "comment: #008000",
 			"hc_black": "comment: #7CA668"
 		}
@@ -6416,9 +6438,9 @@
 		"c": "#",
 		"t": "source.python comment.line.number-sign.python punctuation.definition.comment.python",
 		"r": {
-			"dark_plus": "comment: #608B4E",
+			"dark_plus": "comment: #6A9955",
 			"light_plus": "comment: #008000",
-			"dark_vs": "comment: #608B4E",
+			"dark_vs": "comment: #6A9955",
 			"light_vs": "comment: #008000",
 			"hc_black": "comment: #7CA668"
 		}
@@ -6427,9 +6449,9 @@
 		"c": " test raw strings",
 		"t": "source.python comment.line.number-sign.python",
 		"r": {
-			"dark_plus": "comment: #608B4E",
+			"dark_plus": "comment: #6A9955",
 			"light_plus": "comment: #008000",
-			"dark_vs": "comment: #608B4E",
+			"dark_vs": "comment: #6A9955",
 			"light_vs": "comment: #008000",
 			"hc_black": "comment: #7CA668"
 		}
@@ -6581,9 +6603,9 @@
 		"c": "#",
 		"t": "source.python comment.line.number-sign.python punctuation.definition.comment.python",
 		"r": {
-			"dark_plus": "comment: #608B4E",
+			"dark_plus": "comment: #6A9955",
 			"light_plus": "comment: #008000",
-			"dark_vs": "comment: #608B4E",
+			"dark_vs": "comment: #6A9955",
 			"light_vs": "comment: #008000",
 			"hc_black": "comment: #7CA668"
 		}
@@ -6592,9 +6614,9 @@
 		"c": " highlight doctests",
 		"t": "source.python comment.line.number-sign.python",
 		"r": {
-			"dark_plus": "comment: #608B4E",
+			"dark_plus": "comment: #6A9955",
 			"light_plus": "comment: #008000",
-			"dark_vs": "comment: #608B4E",
+			"dark_vs": "comment: #6A9955",
 			"light_vs": "comment: #008000",
 			"hc_black": "comment: #7CA668"
 		}

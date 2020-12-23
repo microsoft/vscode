@@ -2,8 +2,6 @@
  *  Copyright (c) Microsoft Corporation. All rights reserved.
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
-'use strict';
-
 import * as assert from 'assert';
 import { ILink } from 'vs/editor/common/modes';
 import { ILinkComputerTarget, computeLinks } from 'vs/editor/common/modes/linkComputer';
@@ -195,6 +193,41 @@ suite('Editor Modes - Link Computer', () => {
 		assertLink(
 			'7. At this point, ServiceMain has been called.  There is no functionality presently in ServiceMain, but you can consult the [MSDN documentation](https://msdn.microsoft.com/en-us/library/windows/desktop/ms687414(v=vs.85).aspx) to add functionality as desired!',
 			'                                                                                                                                                 https://msdn.microsoft.com/en-us/library/windows/desktop/ms687414(v=vs.85).aspx                                  '
+		);
+	});
+
+	test('issue #62278: "Ctrl + click to follow link" for IPv6 URLs', () => {
+		assertLink(
+			'let x = "http://[::1]:5000/connect/token"',
+			'         http://[::1]:5000/connect/token  '
+		);
+	});
+
+	test('issue #70254: bold links dont open in markdown file using editor mode with ctrl + click', () => {
+		assertLink(
+			'2. Navigate to **https://portal.azure.com**',
+			'                 https://portal.azure.com  '
+		);
+	});
+
+	test('issue #86358: URL wrong recognition pattern', () => {
+		assertLink(
+			'POST|https://portal.azure.com|2019-12-05|',
+			'     https://portal.azure.com            '
+		);
+	});
+
+	test('issue #67022: Space as end of hyperlink isn\'t always good idea', () => {
+		assertLink(
+			'aa  https://foo.bar/[this is foo site]  aa',
+			'    https://foo.bar/[this is foo site]    '
+		);
+	});
+
+	test('issue #100353: Link detection stops at ＆(double-byte)', () => {
+		assertLink(
+			'aa  http://tree-mark.chips.jp/レーズン＆ベリーミックス  aa',
+			'    http://tree-mark.chips.jp/レーズン＆ベリーミックス    '
 		);
 	});
 });

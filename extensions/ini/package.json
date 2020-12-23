@@ -4,6 +4,7 @@
 	"description": "%description%",
 	"version": "1.0.0",
 	"publisher": "vscode",
+	"license": "MIT",
 	"engines": { "vscode": "*" },
 	"scripts": {
 		"update-grammar": "node ../../build/npm/update-grammar.js textmate/ini.tmbundle Syntaxes/Ini.plist ./syntaxes/ini.tmLanguage.json"
@@ -17,8 +18,9 @@
 		},
 		{
 			"id": "properties",
-			"extensions": [ ".properties", ".cfg", ".conf", ".desktop", ".directory" ],
-			"filenames": [ "config", ".gitattributes", ".gitconfig", "gitconfig", ".editorconfig" ],
+			"extensions": [ ".properties", ".cfg", ".conf", ".directory", ".gitattributes", ".gitconfig", ".gitmodules", ".editorconfig" ],
+			"filenames": [ "gitconfig" ],
+			"filenamePatterns": [ "**/.config/git/config", "**/.git/config" ],
 			"aliases": [ "Properties", "properties" ],
 			"configuration": "./properties.language-configuration.json"
 		}],

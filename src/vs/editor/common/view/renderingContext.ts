@@ -2,16 +2,15 @@
  *  Copyright (c) Microsoft Corporation. All rights reserved.
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
-'use strict';
 
-import { IViewLayout, ViewModelDecoration } from 'vs/editor/common/viewModel/viewModel';
-import { ViewportData } from 'vs/editor/common/viewLayout/viewLinesViewportData';
-import { Range } from 'vs/editor/common/core/range';
 import { Position } from 'vs/editor/common/core/position';
+import { Range } from 'vs/editor/common/core/range';
+import { ViewportData } from 'vs/editor/common/viewLayout/viewLinesViewportData';
+import { IViewLayout, ViewModelDecoration } from 'vs/editor/common/viewModel/viewModel';
 
 export interface IViewLines {
-	linesVisibleRangesForRange(range: Range, includeNewLines: boolean): LineVisibleRanges[];
-	visibleRangesForRange2(range: Range): HorizontalRange[];
+	linesVisibleRangesForRange(range: Range, includeNewLines: boolean): LineVisibleRanges[] | null;
+	visibleRangeForPosition(position: Position): HorizontalPosition | null;
 }
 
 export abstract class RestrictedRenderingContext {
@@ -74,36 +73,24 @@ export class RenderingContext extends RestrictedRenderingContext {
 		this._viewLines = viewLines;
 	}
 
-	public linesVisibleRangesForRange(range: Range, includeNewLines: boolean): LineVisibleRanges[] {
+	public linesVisibleRangesForRange(range: Range, includeNewLines: boolean): LineVisibleRanges[] | null {
 		return this._viewLines.linesVisibleRangesForRange(range, includeNewLines);
 	}
 
-	public visibleRangeForPosition(position: Position): HorizontalRange {
-		const visibleRanges = this._viewLines.visibleRangesForRange2(
-			new Range(position.lineNumber, position.column, position.lineNumber, position.column)
-		);
-		if (!visibleRanges) {
-			return null;
-		}
-		return visibleRanges[0];
+	public visibleRangeForPosition(position: Position): HorizontalPosition | null {
+		return this._viewLines.visibleRangeForPosition(position);
 	}
 }
 
 export class LineVisibleRanges {
-	_lineVisibleRangesBrand: void;
-
-	public lineNumber: number;
-	public ranges: HorizontalRange[];
-
-	constructor(lineNumber: number, ranges: HorizontalRange[]) {
-		this.lineNumber = lineNumber;
-		this.ranges = ranges;
-	}
+	constructor(
+		public readonly outsideRenderedLine: boolean,
+		public readonly lineNumber: number,
+		public readonly ranges: HorizontalRange[]
+	) { }
 }
 
 export class HorizontalRange {
-	_horizontalRangeBrand: void;
-
 	public left: number;
 	public width: number;
 
@@ -114,5 +101,23 @@ export class HorizontalRange {
 
 	public toString(): string {
 		return `[${this.left},${this.width}]`;
+	}
+}
+
+export class HorizontalPosition {
+	public outsideRenderedLine: boolean;
+	public left: number;
+
+	constructor(outsideRenderedLine: boolean, left: number) {
+		this.outsideRenderedLine = outsideRenderedLine;
+		this.left = Math.round(left);
+	}
+}
+
+export class VisibleRanges {
+	constructor(
+		public readonly outsideRenderedLine: boolean,
+		public readonly ranges: HorizontalRange[]
+	) {
 	}
 }

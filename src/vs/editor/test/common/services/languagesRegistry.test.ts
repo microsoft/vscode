@@ -2,11 +2,10 @@
  *  Copyright (c) Microsoft Corporation. All rights reserved.
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
-'use strict';
 
 import * as assert from 'assert';
+import { URI } from 'vs/base/common/uri';
 import { LanguagesRegistry } from 'vs/editor/common/services/languagesRegistry';
-import URI from 'vs/base/common/uri';
 
 suite('LanguagesRegistry', () => {
 
@@ -16,7 +15,7 @@ suite('LanguagesRegistry', () => {
 		registry._registerLanguages([{
 			id: 'outputModeId',
 			extensions: [],
-			aliases: [null],
+			aliases: [],
 			mimetypes: ['outputModeMimeType'],
 		}]);
 
@@ -220,6 +219,32 @@ suite('LanguagesRegistry', () => {
 		assert.deepEqual(registry.getExtensions('a'), []);
 		assert.deepEqual(registry.getExtensions('aname'), []);
 		assert.deepEqual(registry.getExtensions('aName'), ['aExt', 'aExt2']);
+	});
+
+	test('extensions of primary language registration come first', () => {
+		let registry = new LanguagesRegistry(false);
+
+		registry._registerLanguages([{
+			id: 'a',
+			extensions: ['aExt3']
+		}]);
+
+		assert.deepEqual(registry.getExtensions('a')[0], 'aExt3');
+
+		registry._registerLanguages([{
+			id: 'a',
+			configuration: URI.file('conf.json'),
+			extensions: ['aExt']
+		}]);
+
+		assert.deepEqual(registry.getExtensions('a')[0], 'aExt');
+
+		registry._registerLanguages([{
+			id: 'a',
+			extensions: ['aExt2']
+		}]);
+
+		assert.deepEqual(registry.getExtensions('a')[0], 'aExt');
 	});
 
 	test('filenames', () => {

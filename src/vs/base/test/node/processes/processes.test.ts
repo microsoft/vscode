@@ -3,14 +3,12 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-'use strict';
-
 import * as assert from 'assert';
 import * as cp from 'child_process';
 import * as objects from 'vs/base/common/objects';
 import * as platform from 'vs/base/common/platform';
-import URI from 'vs/base/common/uri';
 import * as processes from 'vs/base/node/processes';
+import { getPathFromAmdModule } from 'vs/base/common/amd';
 
 function fork(id: string): cp.ChildProcess {
 	const opts: any = {
@@ -21,7 +19,7 @@ function fork(id: string): cp.ChildProcess {
 		})
 	};
 
-	return cp.fork(URI.parse(require.toUrl('bootstrap')).fsPath, ['--type=processTests'], opts);
+	return cp.fork(getPathFromAmdModule(require, 'bootstrap-fork'), ['--type=processTests'], opts);
 }
 
 suite('Processes', () => {

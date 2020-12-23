@@ -2,31 +2,38 @@
  *  Copyright (c) Microsoft Corporation. All rights reserved.
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
-'use strict';
 
 import * as assert from 'assert';
-import { Range } from 'vs/editor/common/core/range';
-import { Selection } from 'vs/editor/common/core/selection';
-import * as editorCommon from 'vs/editor/common/editorCommon';
-import { TextModel } from 'vs/editor/common/model/textModel';
+import { IRange } from 'vs/editor/common/core/range';
+import { Selection, ISelection } from 'vs/editor/common/core/selection';
+import { ICommand, IEditOperationBuilder } from 'vs/editor/common/editorCommon';
+import { IIdentifiedSingleEditOperation, ITextModel } from 'vs/editor/common/model';
+import { createTextModel } from 'vs/editor/test/common/editorTestUtils';
 import { LanguageIdentifier } from 'vs/editor/common/modes';
 import { withTestCodeEditor } from 'vs/editor/test/browser/testCodeEditor';
-import { ITextModel, IIdentifiedSingleEditOperation } from 'vs/editor/common/model';
 
 export function testCommand(
 	lines: string[],
-	languageIdentifier: LanguageIdentifier,
+	languageIdentifier: LanguageIdentifier | null,
 	selection: Selection,
-	commandFactory: (selection: Selection) => editorCommon.ICommand,
+	commandFactory: (selection: Selection) => ICommand,
 	expectedLines: string[],
-	expectedSelection: Selection
+	expectedSelection: Selection,
+	forceTokenization?: boolean
 ): void {
-	let model = TextModel.createFromString(lines.join('\n'), undefined, languageIdentifier);
-	withTestCodeEditor(null, { model: model }, (editor, cursor) => {
+	let model = createTextModel(lines.join('\n'), undefined, languageIdentifier);
+	withTestCodeEditor('', { model: model }, (_editor, cursor) => {
+		if (!cursor) {
+			return;
+		}
+
+		if (forceTokenization) {
+			model.forceTokenization(model.getLineCount());
+		}
 
 		cursor.setSelections('tests', [selection]);
 
-		cursor.trigger('tests', editorCommon.Handler.ExecuteCommand, commandFactory(cursor.getSelection()));
+		cursor.executeCommand(commandFactory(cursor.getSelection()), 'tests');
 
 		assert.deepEqual(model.getLinesContent(), expectedLines);
 
@@ -40,26 +47,28 @@ export function testCommand(
 /**
  * Extract edit operations if command `command` were to execute on model `model`
  */
-export function getEditOperation(model: ITextModel, command: editorCommon.ICommand): IIdentifiedSingleEditOperation[] {
+export function getEditOperation(model: ITextModel, command: ICommand): IIdentifiedSingleEditOperation[] {
 	let operations: IIdentifiedSingleEditOperation[] = [];
-	let editOperationBuilder: editorCommon.IEditOperationBuilder = {
-		addEditOperation: (range: Range, text: string) => {
+	let editOperationBuilder: IEditOperationBuilder = {
+		addEditOperation: (range: IRange, text: string, forceMoveMarkers: boolean = false) => {
 			operations.push({
 				range: range,
-				text: text
+				text: text,
+				forceMoveMarkers: forceMoveMarkers
 			});
 		},
 
-		addTrackedEditOperation: (range: Range, text: string) => {
+		addTrackedEditOperation: (range: IRange, text: string, forceMoveMarkers: boolean = false) => {
 			operations.push({
 				range: range,
-				text: text
+				text: text,
+				forceMoveMarkers: forceMoveMarkers
 			});
 		},
 
 
-		trackSelection: (selection: Selection) => {
-			return null;
+		trackSelection: (selection: ISelection) => {
+			return '';
 		}
 	};
 	command.getEditOperations(model, editOperationBuilder);

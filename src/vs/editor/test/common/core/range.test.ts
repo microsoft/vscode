@@ -2,11 +2,9 @@
  *  Copyright (c) Microsoft Corporation. All rights reserved.
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
-'use strict';
-
 import * as assert from 'assert';
-import { Range } from 'vs/editor/common/core/range';
 import { Position } from 'vs/editor/common/core/position';
+import { Range } from 'vs/editor/common/core/range';
 
 suite('Editor Core - Range', () => {
 	test('empty range', () => {
@@ -89,9 +87,9 @@ suite('Editor Core - Range', () => {
 		b = new Range(1, 1, 1, 4);
 		assert.ok(Range.compareRangesUsingEnds(a, b) > 0, 'a.start = b.start, a.end > b.end');
 
-		a = new Range(1, 1, 5, 1);
+		a = new Range(1, 2, 5, 1);
 		b = new Range(1, 1, 1, 4);
-		assert.ok(Range.compareRangesUsingEnds(a, b) > 0, 'a.start = b.start, a.end > b.end');
+		assert.ok(Range.compareRangesUsingEnds(a, b) > 0, 'a.start > b.start, a.end > b.end');
 	});
 
 	test('containsPosition', () => {

@@ -2,7 +2,6 @@
  *  Copyright (c) Microsoft Corporation. All rights reserved.
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
-'use strict';
 
 import { ScrollbarVisibility } from 'vs/base/common/scrollable';
 
@@ -51,6 +50,18 @@ export interface ScrollableElementCreationOptions {
 	 * Defaults to 1.
 	 */
 	mouseWheelScrollSensitivity?: number;
+	/**
+	 * FastScrolling mulitplier speed when pressing `Alt`
+	 * Defaults to 5.
+	 */
+	fastScrollSensitivity?: number;
+	/**
+	 * Whether the scrollable will only scroll along the predominant axis when scrolling both
+	 * vertically and horizontally at the same time.
+	 * Prevents horizontal drift when scrolling vertically on a trackpad.
+	 * Defaults to true.
+	 */
+	scrollPredominantAxis?: boolean;
 	/**
 	 * Height for vertical arrows (top/bottom) and width for horizontal arrows (left/right).
 	 * Defaults to 11.
@@ -103,11 +114,19 @@ export interface ScrollableElementCreationOptions {
 	 * Defaults to false.
 	 */
 	verticalHasArrows?: boolean;
+	/**
+	 * Scroll gutter clicks move by page vs. jump to position.
+	 * Defaults to false.
+	 */
+	scrollByPage?: boolean;
 }
 
 export interface ScrollableElementChangeOptions {
 	handleMouseWheel?: boolean;
 	mouseWheelScrollSensitivity?: number;
+	fastScrollSensitivity?: number;
+	scrollPredominantAxis?: boolean;
+	horizontalScrollbarSize?: number;
 }
 
 export interface ScrollableElementResolvedOptions {
@@ -119,9 +138,11 @@ export interface ScrollableElementResolvedOptions {
 	scrollYToX: boolean;
 	alwaysConsumeMouseWheel: boolean;
 	mouseWheelScrollSensitivity: number;
+	fastScrollSensitivity: number;
+	scrollPredominantAxis: boolean;
 	mouseWheelSmoothScroll: boolean;
 	arrowSize: number;
-	listenOnDomNode: HTMLElement;
+	listenOnDomNode: HTMLElement | null;
 	horizontal: ScrollbarVisibility;
 	horizontalScrollbarSize: number;
 	horizontalSliderSize: number;
@@ -130,4 +151,5 @@ export interface ScrollableElementResolvedOptions {
 	verticalScrollbarSize: number;
 	verticalSliderSize: number;
 	verticalHasArrows: boolean;
+	scrollByPage: boolean;
 }

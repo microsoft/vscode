@@ -3,13 +3,13 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import URI from 'vs/base/common/uri';
-import { TPromise } from 'vs/base/common/winjs.base';
-import { createDecorator, ServiceIdentifier } from 'vs/platform/instantiation/common/instantiation';
+import { URI } from 'vs/base/common/uri';
+import { createDecorator } from 'vs/platform/instantiation/common/instantiation';
+import { JSONPath } from 'vs/base/common/json';
 
 export const IJSONEditingService = createDecorator<IJSONEditingService>('jsonEditingService');
 
-export enum JSONEditingErrorCode {
+export const enum JSONEditingErrorCode {
 
 	/**
 	 * Error when trying to write and save to the file while it is dirty in the editor.
@@ -29,13 +29,13 @@ export class JSONEditingError extends Error {
 }
 
 export interface IJSONValue {
-	key: string;
+	path: JSONPath;
 	value: any;
 }
 
 export interface IJSONEditingService {
 
-	_serviceBrand: ServiceIdentifier<any>;
+	readonly _serviceBrand: undefined;
 
-	write(resource: URI, value: IJSONValue, save: boolean): TPromise<void>;
+	write(resource: URI, values: IJSONValue[], save: boolean): Promise<void>;
 }

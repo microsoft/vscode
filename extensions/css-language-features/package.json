@@ -4,8 +4,9 @@
   "description": "%description%",
   "version": "1.0.0",
   "publisher": "vscode",
+  "license": "MIT",
   "engines": {
-    "vscode": "0.10.x"
+    "vscode": "^1.29.0"
   },
   "icon": "icons/css.png",
   "activationEvents": [
@@ -14,12 +15,13 @@
     "onLanguage:scss",
     "onCommand:_css.applyCodeAction"
   ],
+  "main": "./client/out/node/cssClientMain",
+  "browser": "./client/dist/browser/cssClientMain",
   "enableProposedApi": true,
-  "main": "./client/out/cssMain",
   "scripts": {
     "compile": "gulp compile-extension:css-language-features-client compile-extension:css-language-features-server",
     "watch": "gulp watch-extension:css-language-features-client watch-extension:css-language-features-server",
-    "postinstall": "cd server && yarn install",
+    "test": "node ../../node_modules/mocha/bin/mocha",
     "install-client-next": "yarn add vscode-languageclient@next"
   },
   "categories": [
@@ -32,18 +34,32 @@
         "id": "css",
         "title": "%css.title%",
         "properties": {
+          "css.customData": {
+            "type": "array",
+            "markdownDescription": "%css.customData.desc%",
+            "default": [],
+            "items": {
+              "type": "string"
+            },
+            "scope": "resource"
+          },
+          "css.completion.triggerPropertyValueCompletion": {
+            "type": "boolean",
+            "scope": "resource",
+            "default": true,
+            "description": "%css.completion.triggerPropertyValueCompletion.desc%"
+          },
+          "css.completion.completePropertyWithSemicolon": {
+            "type": "boolean",
+            "scope": "resource",
+            "default": true,
+            "description": "%css.completion.completePropertyWithSemicolon.desc%"
+          },
           "css.validate": {
             "type": "boolean",
             "scope": "resource",
             "default": true,
             "description": "%css.validate.desc%"
-          },
-          "css.colorDecorators.enable": {
-            "type": "boolean",
-            "scope": "window",
-            "default": true,
-            "description": "%css.colorDecorators.enable.desc%",
-            "deprecationMessage": "%css.colorDecorators.enable.deprecationMessage%"
           },
           "css.lint.compatibleVendorPrefixes": {
             "type": "string",
@@ -109,7 +125,7 @@
               "error"
             ],
             "default": "ignore",
-            "description": "%css.lint.boxModel.desc%"
+            "markdownDescription": "%css.lint.boxModel.desc%"
           },
           "css.lint.universalSelector": {
             "type": "string",
@@ -120,7 +136,7 @@
               "error"
             ],
             "default": "ignore",
-            "description": "%css.lint.universalSelector.desc%"
+            "markdownDescription": "%css.lint.universalSelector.desc%"
           },
           "css.lint.zeroUnits": {
             "type": "string",
@@ -142,7 +158,7 @@
               "error"
             ],
             "default": "warning",
-            "description": "%css.lint.fontFaceProperties.desc%"
+            "markdownDescription": "%css.lint.fontFaceProperties.desc%"
           },
           "css.lint.hexColorLength": {
             "type": "string",
@@ -177,6 +193,16 @@
             "default": "warning",
             "description": "%css.lint.unknownProperties.desc%"
           },
+          "css.lint.validProperties": {
+            "type": "array",
+            "uniqueItems": true,
+            "items": {
+              "type": "string"
+            },
+            "scope": "resource",
+            "default": [],
+            "description": "%css.lint.validProperties.desc%"
+          },
           "css.lint.ieHack": {
             "type": "string",
             "scope": "resource",
@@ -208,7 +234,7 @@
               "error"
             ],
             "default": "warning",
-            "description": "%css.lint.propertyIgnoredDueToDisplay.desc%"
+            "markdownDescription": "%css.lint.propertyIgnoredDueToDisplay.desc%"
           },
           "css.lint.important": {
             "type": "string",
@@ -219,7 +245,7 @@
               "error"
             ],
             "default": "ignore",
-            "description": "%css.lint.important.desc%"
+            "markdownDescription": "%css.lint.important.desc%"
           },
           "css.lint.float": {
             "type": "string",
@@ -230,7 +256,7 @@
               "error"
             ],
             "default": "ignore",
-            "description": "%css.lint.float.desc%"
+            "markdownDescription": "%css.lint.float.desc%"
           },
           "css.lint.idSelector": {
             "type": "string",
@@ -272,18 +298,23 @@
         "order": 24,
         "title": "%scss.title%",
         "properties": {
+          "scss.completion.triggerPropertyValueCompletion": {
+            "type": "boolean",
+            "scope": "resource",
+            "default": true,
+            "description": "%scss.completion.triggerPropertyValueCompletion.desc%"
+          },
+          "scss.completion.completePropertyWithSemicolon": {
+            "type": "boolean",
+            "scope": "resource",
+            "default": true,
+            "description": "%scss.completion.completePropertyWithSemicolon.desc%"
+          },
           "scss.validate": {
             "type": "boolean",
             "scope": "resource",
             "default": true,
             "description": "%scss.validate.desc%"
-          },
-          "scss.colorDecorators.enable": {
-            "type": "boolean",
-            "scope": "window",
-            "default": true,
-            "description": "%scss.colorDecorators.enable.desc%",
-            "deprecationMessage": "%scss.colorDecorators.enable.deprecationMessage%"
           },
           "scss.lint.compatibleVendorPrefixes": {
             "type": "string",
@@ -349,7 +380,7 @@
               "error"
             ],
             "default": "ignore",
-            "description": "%scss.lint.boxModel.desc%"
+            "markdownDescription": "%scss.lint.boxModel.desc%"
           },
           "scss.lint.universalSelector": {
             "type": "string",
@@ -360,7 +391,7 @@
               "error"
             ],
             "default": "ignore",
-            "description": "%scss.lint.universalSelector.desc%"
+            "markdownDescription": "%scss.lint.universalSelector.desc%"
           },
           "scss.lint.zeroUnits": {
             "type": "string",
@@ -382,7 +413,7 @@
               "error"
             ],
             "default": "warning",
-            "description": "%scss.lint.fontFaceProperties.desc%"
+            "markdownDescription": "%scss.lint.fontFaceProperties.desc%"
           },
           "scss.lint.hexColorLength": {
             "type": "string",
@@ -417,6 +448,16 @@
             "default": "warning",
             "description": "%scss.lint.unknownProperties.desc%"
           },
+          "scss.lint.validProperties": {
+            "type": "array",
+            "uniqueItems": true,
+            "items": {
+              "type": "string"
+            },
+            "scope": "resource",
+            "default": [],
+            "description": "%scss.lint.validProperties.desc%"
+          },
           "scss.lint.ieHack": {
             "type": "string",
             "scope": "resource",
@@ -448,7 +489,7 @@
               "error"
             ],
             "default": "warning",
-            "description": "%scss.lint.propertyIgnoredDueToDisplay.desc%"
+            "markdownDescription": "%scss.lint.propertyIgnoredDueToDisplay.desc%"
           },
           "scss.lint.important": {
             "type": "string",
@@ -459,7 +500,7 @@
               "error"
             ],
             "default": "ignore",
-            "description": "%scss.lint.important.desc%"
+            "markdownDescription": "%scss.lint.important.desc%"
           },
           "scss.lint.float": {
             "type": "string",
@@ -470,7 +511,7 @@
               "error"
             ],
             "default": "ignore",
-            "description": "%scss.lint.float.desc%"
+            "markdownDescription": "%scss.lint.float.desc%"
           },
           "scss.lint.idSelector": {
             "type": "string",
@@ -482,6 +523,17 @@
             ],
             "default": "ignore",
             "description": "%scss.lint.idSelector.desc%"
+          },
+          "scss.lint.unknownAtRules": {
+            "type": "string",
+            "scope": "resource",
+            "enum": [
+              "ignore",
+              "warning",
+              "error"
+            ],
+            "default": "warning",
+            "description": "%scss.lint.unknownAtRules.desc%"
           }
         }
       },
@@ -491,18 +543,23 @@
         "type": "object",
         "title": "%less.title%",
         "properties": {
+          "less.completion.triggerPropertyValueCompletion": {
+            "type": "boolean",
+            "scope": "resource",
+            "default": true,
+            "description": "%less.completion.triggerPropertyValueCompletion.desc%"
+          },
+          "less.completion.completePropertyWithSemicolon": {
+            "type": "boolean",
+            "scope": "resource",
+            "default": true,
+            "description": "%less.completion.completePropertyWithSemicolon.desc%"
+          },
           "less.validate": {
             "type": "boolean",
             "scope": "resource",
             "default": true,
             "description": "%less.validate.desc%"
-          },
-          "less.colorDecorators.enable": {
-            "type": "boolean",
-            "scope": "window",
-            "default": true,
-            "description": "%less.colorDecorators.enable.desc%",
-            "deprecationMessage": "%less.colorDecorators.enable.deprecationMessage%"
           },
           "less.lint.compatibleVendorPrefixes": {
             "type": "string",
@@ -568,7 +625,7 @@
               "error"
             ],
             "default": "ignore",
-            "description": "%less.lint.boxModel.desc%"
+            "markdownDescription": "%less.lint.boxModel.desc%"
           },
           "less.lint.universalSelector": {
             "type": "string",
@@ -579,7 +636,7 @@
               "error"
             ],
             "default": "ignore",
-            "description": "%less.lint.universalSelector.desc%"
+            "markdownDescription": "%less.lint.universalSelector.desc%"
           },
           "less.lint.zeroUnits": {
             "type": "string",
@@ -601,7 +658,7 @@
               "error"
             ],
             "default": "warning",
-            "description": "%less.lint.fontFaceProperties.desc%"
+            "markdownDescription": "%less.lint.fontFaceProperties.desc%"
           },
           "less.lint.hexColorLength": {
             "type": "string",
@@ -636,6 +693,16 @@
             "default": "warning",
             "description": "%less.lint.unknownProperties.desc%"
           },
+          "less.lint.validProperties": {
+            "type": "array",
+            "uniqueItems": true,
+            "items": {
+              "type": "string"
+            },
+            "scope": "resource",
+            "default": [],
+            "description": "%less.lint.validProperties.desc%"
+          },
           "less.lint.ieHack": {
             "type": "string",
             "scope": "resource",
@@ -667,7 +734,7 @@
               "error"
             ],
             "default": "warning",
-            "description": "%less.lint.propertyIgnoredDueToDisplay.desc%"
+            "markdownDescription": "%less.lint.propertyIgnoredDueToDisplay.desc%"
           },
           "less.lint.important": {
             "type": "string",
@@ -678,7 +745,7 @@
               "error"
             ],
             "default": "ignore",
-            "description": "%less.lint.important.desc%"
+            "markdownDescription": "%less.lint.important.desc%"
           },
           "less.lint.float": {
             "type": "string",
@@ -689,7 +756,7 @@
               "error"
             ],
             "default": "ignore",
-            "description": "%less.lint.float.desc%"
+            "markdownDescription": "%less.lint.float.desc%"
           },
           "less.lint.idSelector": {
             "type": "string",
@@ -701,18 +768,49 @@
             ],
             "default": "ignore",
             "description": "%less.lint.idSelector.desc%"
+          },
+          "less.lint.unknownAtRules": {
+            "type": "string",
+            "scope": "resource",
+            "enum": [
+              "ignore",
+              "warning",
+              "error"
+            ],
+            "default": "warning",
+            "description": "%less.lint.unknownAtRules.desc%"
           }
         }
+      }
+    ],
+    "configurationDefaults": {
+      "[css]": {
+        "editor.suggest.insertMode": "replace"
+      },
+      "[scss]": {
+        "editor.suggest.insertMode": "replace"
+      },
+      "[less]": {
+        "editor.suggest.insertMode": "replace"
+      }
+    },
+    "jsonValidation": [
+      {
+        "fileMatch": "*.css-data.json",
+        "url": "https://raw.githubusercontent.com/microsoft/vscode-css-languageservice/master/docs/customData.schema.json"
+      },
+      {
+        "fileMatch": "package.json",
+        "url": "./schemas/package.schema.json"
       }
     ]
   },
   "dependencies": {
-    "vscode-languageclient": "^4.1.4",
-    "vscode-languageserver-protocol-foldingprovider": "^2.0.1",
-    "vscode-nls": "^3.2.2"
+    "vscode-languageclient": "^7.0.0",
+    "vscode-nls": "^4.1.2",
+    "vscode-uri": "^3.0.1"
   },
   "devDependencies": {
-    "@types/node": "7.0.43",
-    "mocha": "^5.2.0"
+    "@types/node": "^12.19.9"
   }
 }

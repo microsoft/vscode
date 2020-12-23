@@ -4,47 +4,48 @@
  *--------------------------------------------------------------------------------------------*/
 'use strict';
 Object.defineProperty(exports, "__esModule", { value: true });
-var path = require("path");
-var fs = require("fs");
+exports.getVersion = void 0;
+const path = require("path");
+const fs = require("fs");
 /**
  * Returns the sha1 commit version of a repository or undefined in case of failure.
  */
 function getVersion(repo) {
-    var git = path.join(repo, '.git');
-    var headPath = path.join(git, 'HEAD');
-    var head;
+    const git = path.join(repo, '.git');
+    const headPath = path.join(git, 'HEAD');
+    let head;
     try {
         head = fs.readFileSync(headPath, 'utf8').trim();
     }
     catch (e) {
-        return void 0;
+        return undefined;
     }
     if (/^[0-9a-f]{40}$/i.test(head)) {
         return head;
     }
-    var refMatch = /^ref: (.*)$/.exec(head);
+    const refMatch = /^ref: (.*)$/.exec(head);
     if (!refMatch) {
-        return void 0;
+        return undefined;
     }
-    var ref = refMatch[1];
-    var refPath = path.join(git, ref);
+    const ref = refMatch[1];
+    const refPath = path.join(git, ref);
     try {
         return fs.readFileSync(refPath, 'utf8').trim();
     }
     catch (e) {
         // noop
     }
-    var packedRefsPath = path.join(git, 'packed-refs');
-    var refsRaw;
+    const packedRefsPath = path.join(git, 'packed-refs');
+    let refsRaw;
     try {
         refsRaw = fs.readFileSync(packedRefsPath, 'utf8').trim();
     }
     catch (e) {
-        return void 0;
+        return undefined;
     }
-    var refsRegex = /^([0-9a-f]{40})\s+(.+)$/gm;
-    var refsMatch;
-    var refs = {};
+    const refsRegex = /^([0-9a-f]{40})\s+(.+)$/gm;
+    let refsMatch;
+    let refs = {};
     while (refsMatch = refsRegex.exec(refsRaw)) {
         refs[refsMatch[2]] = refsMatch[1];
     }

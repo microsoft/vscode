@@ -4,11 +4,13 @@
 	"description": "%description%",
 	"version": "1.0.0",
 	"publisher": "vscode",
+	"license": "MIT",
 	"engines": { "vscode": "*" },
 	"contributes": {
 		"themes": [
 			{
-				"label": "Solarized Light",
+				"id": "Solarized Light",
+				"label": "%themeLabel%",
 				"uiTheme": "vs",
 				"path": "./themes/solarized-light-color-theme.json"
 			}

@@ -2,18 +2,18 @@
  *  Copyright (c) Microsoft Corporation. All rights reserved.
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
-'use strict';
 
 import * as assert from 'assert';
-import { TokenizationSupport2Adapter, TokensProvider, ILineTokens, IToken } from 'vs/editor/standalone/browser/standaloneLanguages';
-import { IStandaloneThemeService, IStandaloneThemeData, IStandaloneTheme } from 'vs/editor/standalone/common/standaloneThemeService';
-import { Event } from 'vs/base/common/event';
-import { ITheme, LIGHT } from 'vs/platform/theme/common/themeService';
-import { LanguageIdentifier, LanguageId, IState, MetadataConsts } from 'vs/editor/common/modes';
-import { Token } from 'vs/editor/common/core/token';
-import { TokenTheme } from 'vs/editor/common/modes/supports/tokenization';
-import { ColorIdentifier } from 'vs/platform/theme/common/colorRegistry';
 import { Color } from 'vs/base/common/color';
+import { Emitter } from 'vs/base/common/event';
+import { Token } from 'vs/editor/common/core/token';
+import { IState, LanguageId, LanguageIdentifier, MetadataConsts } from 'vs/editor/common/modes';
+import { TokenTheme } from 'vs/editor/common/modes/supports/tokenization';
+import { ILineTokens, IToken, TokenizationSupport2Adapter, TokensProvider } from 'vs/editor/standalone/browser/standaloneLanguages';
+import { IStandaloneTheme, IStandaloneThemeData, IStandaloneThemeService } from 'vs/editor/standalone/common/standaloneThemeService';
+import { ColorIdentifier } from 'vs/platform/theme/common/colorRegistry';
+import { ColorScheme } from 'vs/platform/theme/common/theme';
+import { IFileIconTheme, IColorTheme, ITokenStyle } from 'vs/platform/theme/common/themeService';
 
 suite('TokenizationSupport2Adapter', () => {
 
@@ -23,7 +23,7 @@ suite('TokenizationSupport2Adapter', () => {
 	class MockTokenTheme extends TokenTheme {
 		private counter = 0;
 		constructor() {
-			super(null, null);
+			super(null!, null!);
 		}
 		public match(languageId: LanguageId, token: string): number {
 			return (
@@ -34,20 +34,22 @@ suite('TokenizationSupport2Adapter', () => {
 	}
 
 	class MockThemeService implements IStandaloneThemeService {
-		_serviceBrand = <any>null;
+		declare readonly _serviceBrand: undefined;
 		public setTheme(themeName: string): string {
 			throw new Error('Not implemented');
 		}
 		public defineTheme(themeName: string, themeData: IStandaloneThemeData): void {
 			throw new Error('Not implemented');
 		}
-		public getTheme(): IStandaloneTheme {
+		public getColorTheme(): IStandaloneTheme {
 			return {
+				label: 'mock',
+
 				tokenTheme: new MockTokenTheme(),
 
-				themeName: LIGHT,
+				themeName: ColorScheme.LIGHT,
 
-				type: LIGHT,
+				type: ColorScheme.LIGHT,
 
 				getColor: (color: ColorIdentifier, useDefault?: boolean): Color => {
 					throw new Error('Not implemented');
@@ -55,10 +57,27 @@ suite('TokenizationSupport2Adapter', () => {
 
 				defines: (color: ColorIdentifier): boolean => {
 					throw new Error('Not implemented');
-				}
+				},
+
+				getTokenStyleMetadata: (type: string, modifiers: string[], modelLanguage: string): ITokenStyle | undefined => {
+					return undefined;
+				},
+
+				semanticHighlighting: false,
+
+				tokenColorMap: []
 			};
 		}
-		public readonly onThemeChange: Event<ITheme> = null;
+
+		public getFileIconTheme(): IFileIconTheme {
+			return {
+				hasFileIcons: false,
+				hasFolderIcons: false,
+				hidesExplorerArrows: false
+			};
+		}
+		public readonly onDidColorThemeChange = new Emitter<IColorTheme>().event;
+		public readonly onDidFileIconThemeChange = new Emitter<IFileIconTheme>().event;
 	}
 
 	class MockState implements IState {

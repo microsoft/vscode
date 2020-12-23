@@ -3,33 +3,23 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-'use strict';
+import { IURLService, IURLHandler, IOpenURLOptions } from 'vs/platform/url/common/url';
+import { URI, UriComponents } from 'vs/base/common/uri';
+import { first } from 'vs/base/common/async';
+import { toDisposable, IDisposable, Disposable } from 'vs/base/common/lifecycle';
+import product from 'vs/platform/product/common/product';
 
-import { IURLService, IURLHandler } from 'vs/platform/url/common/url';
-import URI from 'vs/base/common/uri';
-import { IDisposable, toDisposable } from 'vs/base/common/lifecycle';
-import { TPromise } from 'vs/base/common/winjs.base';
+export abstract class AbstractURLService extends Disposable implements IURLService {
 
-declare module Array {
-	function from<T>(set: Set<T>): T[];
-}
-
-export class URLService implements IURLService {
-
-	_serviceBrand: any;
+	declare readonly _serviceBrand: undefined;
 
 	private handlers = new Set<IURLHandler>();
 
-	async open(uri: URI): TPromise<boolean> {
-		const handlers = Array.from(this.handlers);
+	abstract create(options?: Partial<UriComponents>): URI;
 
-		for (const handler of handlers) {
-			if (await handler.handleURL(uri)) {
-				return true;
-			}
-		}
-
-		return false;
+	open(uri: URI, options?: IOpenURLOptions): Promise<boolean> {
+		const handlers = [...this.handlers.values()];
+		return first(handlers.map(h => () => h.handleURL(uri, options)), undefined, false).then(val => val || false);
 	}
 
 	registerHandler(handler: IURLHandler): IDisposable {
@@ -38,17 +28,15 @@ export class URLService implements IURLService {
 	}
 }
 
-export class RelayURLService extends URLService implements IURLHandler {
+export class NativeURLService extends AbstractURLService {
 
-	constructor(private urlService: IURLService) {
-		super();
-	}
+	create(options?: Partial<UriComponents>): URI {
+		let { authority, path, query, fragment } = options ? options : { authority: undefined, path: undefined, query: undefined, fragment: undefined };
 
-	async open(uri: URI): TPromise<boolean> {
-		return this.urlService.open(uri);
-	}
+		if (authority && path && path.indexOf('/') !== 0) {
+			path = `/${path}`; // URI validation requires a path if there is an authority
+		}
 
-	handleURL(uri: URI): TPromise<boolean> {
-		return super.open(uri);
+		return URI.from({ scheme: product.urlProtocol, authority, path, query, fragment });
 	}
 }

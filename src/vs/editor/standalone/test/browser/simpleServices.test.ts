@@ -2,26 +2,25 @@
  *  Copyright (c) Microsoft Corporation. All rights reserved.
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
-'use strict';
-
 import * as assert from 'assert';
+import { KeyCode } from 'vs/base/common/keyCodes';
+import { SimpleConfigurationService, SimpleNotificationService, StandaloneCommandService, StandaloneKeybindingService } from 'vs/editor/standalone/browser/simpleServices';
 import { ContextKeyService } from 'vs/platform/contextkey/browser/contextKeyService';
-import { SimpleConfigurationService, StandaloneKeybindingService, StandaloneCommandService, SimpleNotificationService } from 'vs/editor/standalone/browser/simpleServices';
 import { InstantiationService } from 'vs/platform/instantiation/common/instantiationService';
 import { ServiceCollection } from 'vs/platform/instantiation/common/serviceCollection';
-import { KeyCode } from 'vs/base/common/keyCodes';
 import { IKeyboardEvent } from 'vs/platform/keybinding/common/keybinding';
+import { NullLogService } from 'vs/platform/log/common/log';
 import { NullTelemetryService } from 'vs/platform/telemetry/common/telemetryUtils';
 
 suite('StandaloneKeybindingService', () => {
 
 	class TestStandaloneKeybindingService extends StandaloneKeybindingService {
 		public testDispatch(e: IKeyboardEvent): void {
-			super._dispatch(e, null);
+			super._dispatch(e, null!);
 		}
 	}
 
-	test('issue Microsoft/monaco-editor#167', () => {
+	test('issue microsoft/monaco-editor#167', () => {
 
 		let serviceCollection = new ServiceCollection();
 		const instantiationService = new InstantiationService(serviceCollection, true);
@@ -36,20 +35,21 @@ suite('StandaloneKeybindingService', () => {
 
 		let domElement = document.createElement('div');
 
-		let keybindingService = new TestStandaloneKeybindingService(contextKeyService, commandService, NullTelemetryService, notificationService, domElement);
+		let keybindingService = new TestStandaloneKeybindingService(contextKeyService, commandService, NullTelemetryService, notificationService, new NullLogService(), domElement);
 
 		let commandInvoked = false;
 		keybindingService.addDynamicKeybinding('testCommand', KeyCode.F9, () => {
 			commandInvoked = true;
-		}, null);
+		}, undefined);
 
 		keybindingService.testDispatch({
+			_standardKeyboardEventBrand: true,
 			ctrlKey: false,
 			shiftKey: false,
 			altKey: false,
 			metaKey: false,
 			keyCode: KeyCode.F9,
-			code: null
+			code: null!
 		});
 
 		assert.ok(commandInvoked, 'command invoked');

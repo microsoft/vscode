@@ -3,170 +3,263 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-//#region Add support for using node_modules.asar
-(function () {
-	const path = require('path');
-	const Module = require('module');
-	const NODE_MODULES_PATH = path.join(__dirname, '../node_modules');
-	const NODE_MODULES_ASAR_PATH = NODE_MODULES_PATH + '.asar';
+//@ts-check
+'use strict';
 
-	const originalResolveLookupPaths = Module._resolveLookupPaths;
-	Module._resolveLookupPaths = function (request, parent, newReturn) {
-		const result = originalResolveLookupPaths(request, parent, newReturn);
+// Simple module style to support node.js and browser environments
+(function (globalThis, factory) {
 
-		const paths = newReturn ? result : result[1];
-		for (let i = 0, len = paths.length; i < len; i++) {
-			if (paths[i] === NODE_MODULES_PATH) {
-				paths.splice(i, 0, NODE_MODULES_ASAR_PATH);
-				break;
+	// Node.js
+	if (typeof exports === 'object') {
+		module.exports = factory();
+	}
+
+	// Browser
+	else {
+		globalThis.MonacoBootstrap = factory();
+	}
+}(this, function () {
+	const Module = typeof require === 'function' ? require('module') : undefined;
+	const path = typeof require === 'function' ? require('path') : undefined;
+	const fs = typeof require === 'function' ? require('fs') : undefined;
+
+	//#region global bootstrapping
+
+	// increase number of stack frames(from 10, https://github.com/v8/v8/wiki/Stack-Trace-API)
+	Error.stackTraceLimit = 100;
+
+	// Workaround for Electron not installing a handler to ignore SIGPIPE
+	// (https://github.com/electron/electron/issues/13254)
+	if (typeof process !== 'undefined') {
+		process.on('SIGPIPE', () => {
+			console.error(new Error('Unexpected SIGPIPE'));
+		});
+	}
+
+	//#endregion
+
+
+	//#region Add support for using node_modules.asar
+
+	/**
+	 * @param {string | undefined} appRoot
+	 */
+	function enableASARSupport(appRoot) {
+		if (!path || !Module || typeof process === 'undefined') {
+			console.warn('enableASARSupport() is only available in node.js environments'); // TODO@sandbox ASAR is currently non-sandboxed only
+			return;
+		}
+
+		let NODE_MODULES_PATH = appRoot ? path.join(appRoot, 'node_modules') : undefined;
+		if (!NODE_MODULES_PATH) {
+			NODE_MODULES_PATH = path.join(__dirname, '../node_modules');
+		} else {
+			// use the drive letter casing of __dirname
+			if (process.platform === 'win32') {
+				NODE_MODULES_PATH = __dirname.substr(0, 1) + NODE_MODULES_PATH.substr(1);
 			}
 		}
 
-		return result;
-	};
-})();
-//#endregion
+		const NODE_MODULES_ASAR_PATH = `${NODE_MODULES_PATH}.asar`;
 
-// Will be defined if we got forked from another node process
-// In that case we override console.log/warn/error to be able
-// to send loading issues to the main side for logging.
-if (!!process.send && process.env.PIPE_LOGGING === 'true') {
-	var MAX_LENGTH = 100000;
+		// @ts-ignore
+		const originalResolveLookupPaths = Module._resolveLookupPaths;
 
-	// Prevent circular stringify and convert arguments to real array
-	function safeToArray(args) {
-		var seen = [];
-		var res;
-		var argsArray = [];
-
-		// Massage some arguments with special treatment
-		if (args.length) {
-			for (var i = 0; i < args.length; i++) {
-
-				// Any argument of type 'undefined' needs to be specially treated because
-				// JSON.stringify will simply ignore those. We replace them with the string
-				// 'undefined' which is not 100% right, but good enough to be logged to console
-				if (typeof args[i] === 'undefined') {
-					args[i] = 'undefined';
-				}
-
-				// Any argument that is an Error will be changed to be just the error stack/message
-				// itself because currently cannot serialize the error over entirely.
-				else if (args[i] instanceof Error) {
-					var errorObj = args[i];
-					if (errorObj.stack) {
-						args[i] = errorObj.stack;
-					} else {
-						args[i] = errorObj.toString();
+		// @ts-ignore
+		Module._resolveLookupPaths = function (request, parent) {
+			const paths = originalResolveLookupPaths(request, parent);
+			if (Array.isArray(paths)) {
+				for (let i = 0, len = paths.length; i < len; i++) {
+					if (paths[i] === NODE_MODULES_PATH) {
+						paths.splice(i, 0, NODE_MODULES_ASAR_PATH);
+						break;
 					}
 				}
-
-				argsArray.push(args[i]);
 			}
-		}
 
-		// Add the stack trace as payload if we are told so. We remove the message and the 2 top frames
-		// to start the stacktrace where the console message was being written
-		if (process.env.VSCODE_LOG_STACK === 'true') {
-			const stack = new Error().stack;
-			argsArray.push({ __$stack: stack.split('\n').slice(3).join('\n') });
-		}
-
-		try {
-			res = JSON.stringify(argsArray, function (key, value) {
-
-				// Objects get special treatment to prevent circles
-				if (value && Object.prototype.toString.call(value) === '[object Object]') {
-					if (seen.indexOf(value) !== -1) {
-						return Object.create(null); // prevent circular references!
-					}
-
-					seen.push(value);
-				}
-
-				return value;
-			});
-		} catch (error) {
-			return 'Output omitted for an object that cannot be inspected (' + error.toString() + ')';
-		}
-
-		if (res && res.length > MAX_LENGTH) {
-			return 'Output omitted for a large object that exceeds the limits';
-		}
-
-		return res;
+			return paths;
+		};
 	}
 
-	function safeSend(arg) {
-		try {
-			process.send(arg);
-		} catch (error) {
-			// Can happen if the parent channel is closed meanwhile
+	//#endregion
+
+
+	//#region URI helpers
+
+	/**
+	 * @param {string} path
+	 * @param {{ isWindows?: boolean, scheme?: string, fallbackAuthority?: string }} config
+	 * @returns {string}
+	 */
+	function fileUriFromPath(path, config) {
+
+		// Since we are building a URI, we normalize any backlsash
+		// to slashes and we ensure that the path begins with a '/'.
+		let pathName = path.replace(/\\/g, '/');
+		if (pathName.length > 0 && pathName.charAt(0) !== '/') {
+			pathName = `/${pathName}`;
 		}
+
+		/** @type {string} */
+		let uri;
+
+		// Windows: in order to support UNC paths (which start with '//')
+		// that have their own authority, we do not use the provided authority
+		// but rather preserve it.
+		if (config.isWindows && pathName.startsWith('//')) {
+			uri = encodeURI(`${config.scheme || 'file'}:${pathName}`);
+		}
+
+		// Otherwise we optionally add the provided authority if specified
+		else {
+			uri = encodeURI(`${config.scheme || 'file'}://${config.fallbackAuthority || ''}${pathName}`);
+		}
+
+		return uri.replace(/#/g, '%23');
 	}
 
-	// Pass console logging to the outside so that we have it in the main side if told so
-	if (process.env.VERBOSE_LOGGING === 'true') {
-		console.log = function () { safeSend({ type: '__$console', severity: 'log', arguments: safeToArray(arguments) }); };
-		console.info = function () { safeSend({ type: '__$console', severity: 'log', arguments: safeToArray(arguments) }); };
-		console.warn = function () { safeSend({ type: '__$console', severity: 'warn', arguments: safeToArray(arguments) }); };
-	} else {
-		console.log = function () { /* ignore */ };
-		console.warn = function () { /* ignore */ };
-		console.info = function () { /* ignore */ };
-	}
+	//#endregion
 
-	console.error = function () { safeSend({ type: '__$console', severity: 'error', arguments: safeToArray(arguments) }); };
-}
 
-if (!process.env['VSCODE_ALLOW_IO']) {
-	// Let stdout, stderr and stdin be no-op streams. This prevents an issue where we would get an EBADF
-	// error when we are inside a forked process and this process tries to access those channels.
-	var stream = require('stream');
-	var writable = new stream.Writable({
-		write: function () { /* No OP */ }
-	});
+	//#region NLS helpers
 
-	process.__defineGetter__('stdout', function () { return writable; });
-	process.__defineGetter__('stderr', function () { return writable; });
-	process.__defineGetter__('stdin', function () { return writable; });
-}
+	/**
+	 * @returns {{locale?: string, availableLanguages: {[lang: string]: string;}, pseudo?: boolean } | undefined}
+	 */
+	function setupNLS() {
 
-if (!process.env['VSCODE_HANDLES_UNCAUGHT_ERRORS']) {
-	// Handle uncaught exceptions
-	process.on('uncaughtException', function (err) {
-		console.error('Uncaught Exception: ', err.toString());
-		if (err.stack) {
-			console.error(err.stack);
-		}
-	});
-}
-
-// Kill oneself if one's parent dies. Much drama.
-if (process.env['VSCODE_PARENT_PID']) {
-	const parentPid = Number(process.env['VSCODE_PARENT_PID']);
-
-	if (typeof parentPid === 'number' && !isNaN(parentPid)) {
-		setInterval(function () {
+		// Get the nls configuration as early as possible.
+		const process = safeProcess();
+		let nlsConfig = { availableLanguages: {} };
+		if (process && process.env['VSCODE_NLS_CONFIG']) {
 			try {
-				process.kill(parentPid, 0); // throws an exception if the main process doesn't exist anymore.
+				nlsConfig = JSON.parse(process.env['VSCODE_NLS_CONFIG']);
 			} catch (e) {
-				process.exit();
+				// Ignore
 			}
-		}, 5000);
-	}
-}
-
-const crashReporterOptionsRaw = process.env['CRASH_REPORTER_START_OPTIONS'];
-if (typeof crashReporterOptionsRaw === 'string') {
-	try {
-		const crashReporterOptions = JSON.parse(crashReporterOptionsRaw);
-		if (crashReporterOptions) {
-			process.crashReporter.start(crashReporterOptions);
 		}
-	} catch (error) {
-		console.error(error);
-	}
-}
 
-require('./bootstrap-amd').bootstrap(process.env['AMD_ENTRYPOINT']);
+		if (nlsConfig._resolvedLanguagePackCoreLocation) {
+			const bundles = Object.create(null);
+
+			nlsConfig.loadBundle = function (bundle, language, cb) {
+				const result = bundles[bundle];
+				if (result) {
+					cb(undefined, result);
+
+					return;
+				}
+
+				safeReadNlsFile(nlsConfig._resolvedLanguagePackCoreLocation, `${bundle.replace(/\//g, '!')}.nls.json`).then(function (content) {
+					const json = JSON.parse(content);
+					bundles[bundle] = json;
+
+					cb(undefined, json);
+				}).catch((error) => {
+					try {
+						if (nlsConfig._corruptedFile) {
+							safeWriteNlsFile(nlsConfig._corruptedFile, 'corrupted').catch(function (error) { console.error(error); });
+						}
+					} finally {
+						cb(error, undefined);
+					}
+				});
+			};
+		}
+
+		return nlsConfig;
+	}
+
+	function safeGlobals() {
+		const globals = (typeof self === 'object' ? self : typeof global === 'object' ? global : {});
+
+		return globals.vscode;
+	}
+
+	/**
+	 * @returns {NodeJS.Process | undefined}
+	 */
+	function safeProcess() {
+		if (typeof process !== 'undefined') {
+			return process; // Native environment (non-sandboxed)
+		}
+
+		const globals = safeGlobals();
+		if (globals) {
+			return globals.process; // Native environment (sandboxed)
+		}
+	}
+
+	/**
+	 * @returns {Electron.IpcRenderer | undefined}
+	 */
+	function safeIpcRenderer() {
+		const globals = safeGlobals();
+		if (globals) {
+			return globals.ipcRenderer;
+		}
+	}
+
+	/**
+	 * @param {string[]} pathSegments
+	 * @returns {Promise<string>}
+	 */
+	async function safeReadNlsFile(...pathSegments) {
+		const ipcRenderer = safeIpcRenderer();
+		if (ipcRenderer) {
+			return ipcRenderer.invoke('vscode:readNlsFile', ...pathSegments);
+		}
+
+		if (fs && path) {
+			return (await fs.promises.readFile(path.join(...pathSegments))).toString();
+		}
+
+		throw new Error('Unsupported operation (read NLS files)');
+	}
+
+	/**
+	 * @param {string} path
+	 * @param {string} content
+	 * @returns {Promise<void>}
+	 */
+	function safeWriteNlsFile(path, content) {
+		const ipcRenderer = safeIpcRenderer();
+		if (ipcRenderer) {
+			return ipcRenderer.invoke('vscode:writeNlsFile', path, content);
+		}
+
+		if (fs) {
+			return fs.promises.writeFile(path, content);
+		}
+
+		throw new Error('Unsupported operation (write NLS files)');
+	}
+
+	//#endregion
+	
+
+	//#region ApplicationInsights
+
+	// Prevents appinsights from monkey patching modules.
+	// This should be called before importing the applicationinsights module
+	function avoidMonkeyPatchFromAppInsights() {
+		if (typeof process === 'undefined') {
+			console.warn('avoidMonkeyPatchFromAppInsights() is only available in node.js environments');
+			return;
+		}
+
+		// @ts-ignore
+		process.env['APPLICATION_INSIGHTS_NO_DIAGNOSTIC_CHANNEL'] = true; // Skip monkey patching of 3rd party modules by appinsights
+		global['diagnosticsSource'] = {}; // Prevents diagnostic channel (which patches "require") from initializing entirely
+	}
+
+	//#endregion
+
+
+	return {
+		enableASARSupport,
+		avoidMonkeyPatchFromAppInsights,
+		setupNLS,
+		fileUriFromPath
+	};
+}));

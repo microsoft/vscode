@@ -18,21 +18,23 @@ function code() {
 		CODE=".build/electron/$NAME"
 	fi
 
-	# Node modules
-	test -d node_modules || yarn
+	# Get electron, compile, built-in extensions
+	if [[ -z "${VSCODE_SKIP_PRELAUNCH}" ]]; then
+		node build/lib/preLaunch.js
+	fi
 
-	# Get electron
-	node build/lib/electron.js || ./node_modules/.bin/gulp electron
-
-	# Build
-	test -d out || ./node_modules/.bin/gulp compile
+	# Manage built-in extensions
+	if [[ "$1" == "--builtin" ]]; then
+		exec "$CODE" build/builtin
+		return
+	fi
 
 	ELECTRON_RUN_AS_NODE=1 \
 	NODE_ENV=development \
 	VSCODE_DEV=1 \
 	ELECTRON_ENABLE_LOGGING=1 \
 	ELECTRON_ENABLE_STACK_DUMPING=1 \
-	"$CODE" --debug=5874 "$ROOT/out/cli.js" . "$@"
+	"$CODE" --inspect=5874 "$ROOT/out/cli.js" . "$@"
 }
 
 code "$@"

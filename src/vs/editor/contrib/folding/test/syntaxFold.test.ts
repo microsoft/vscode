@@ -2,12 +2,10 @@
  *  Copyright (c) Microsoft Corporation. All rights reserved.
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
-'use strict';
-
 import * as assert from 'assert';
-import { TextModel } from 'vs/editor/common/model/textModel';
+import { createTextModel } from 'vs/editor/test/common/editorTestUtils';
 import { SyntaxRangeProvider } from 'vs/editor/contrib/folding/syntaxRangeProvider';
-import { FoldingRangeProvider, FoldingRange, FoldingContext } from 'vs/editor/common/modes';
+import { FoldingRangeProvider, FoldingRange, FoldingContext, ProviderResult } from 'vs/editor/common/modes';
 import { ITextModel } from 'vs/editor/common/model';
 import { CancellationToken } from 'vs/base/common/cancellation';
 
@@ -22,7 +20,7 @@ class TestFoldingRangeProvider implements FoldingRangeProvider {
 	constructor(private model: ITextModel, private ranges: IndentRange[]) {
 	}
 
-	provideFoldingRanges(model: ITextModel, context: FoldingContext, token: CancellationToken): FoldingRange[] {
+	provideFoldingRanges(model: ITextModel, context: FoldingContext, token: CancellationToken): ProviderResult<FoldingRange[]> {
 		if (model === this.model) {
 			return this.ranges;
 		}
@@ -73,15 +71,17 @@ suite('Syntax folding', () => {
 		let r8 = r(14, 15); //6
 		let r9 = r(22, 23); //0
 
-		let model = TextModel.createFromString(lines.join('\n'));
+		let model = createTextModel(lines.join('\n'));
 		let ranges = [r1, r2, r3, r4, r5, r6, r7, r8, r9];
 		let providers = [new TestFoldingRangeProvider(model, ranges)];
 
 		async function assertLimit(maxEntries: number, expectedRanges: IndentRange[], message: string) {
-			let indentRanges = await new SyntaxRangeProvider(model, providers, maxEntries).compute(CancellationToken.None);
-			let actual = [];
-			for (let i = 0; i < indentRanges.length; i++) {
-				actual.push({ start: indentRanges.getStartLineNumber(i), end: indentRanges.getEndLineNumber(i) });
+			let indentRanges = await new SyntaxRangeProvider(model, providers, () => { }, maxEntries).compute(CancellationToken.None);
+			let actual: IndentRange[] = [];
+			if (indentRanges) {
+				for (let i = 0; i < indentRanges.length; i++) {
+					actual.push({ start: indentRanges.getStartLineNumber(i), end: indentRanges.getEndLineNumber(i) });
+				}
 			}
 			assert.deepEqual(actual, expectedRanges, message);
 		}

@@ -2,34 +2,33 @@
  *  Copyright (c) Microsoft Corporation. All rights reserved.
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
-'use strict';
-
 import * as assert from 'assert';
-import { Selection } from 'vs/editor/common/core/selection';
-import { Range } from 'vs/editor/common/core/range';
+import { IActiveCodeEditor } from 'vs/editor/browser/editorBrowser';
 import { IPosition, Position } from 'vs/editor/common/core/position';
+import { Range } from 'vs/editor/common/core/range';
+import { Selection } from 'vs/editor/common/core/selection';
+import { TextModel } from 'vs/editor/common/model/textModel';
+import { SnippetParser } from 'vs/editor/contrib/snippet/snippetParser';
 import { SnippetSession } from 'vs/editor/contrib/snippet/snippetSession';
 import { createTestCodeEditor } from 'vs/editor/test/browser/testCodeEditor';
-import { TextModel } from 'vs/editor/common/model/textModel';
-import { ICodeEditor } from 'vs/editor/browser/editorBrowser';
-import { SnippetParser } from 'vs/editor/contrib/snippet/snippetParser';
+import { createTextModel } from 'vs/editor/test/common/editorTestUtils';
 
 suite('SnippetSession', function () {
 
-	let editor: ICodeEditor;
+	let editor: IActiveCodeEditor;
 	let model: TextModel;
 
-	function assertSelections(editor: ICodeEditor, ...s: Selection[]) {
+	function assertSelections(editor: IActiveCodeEditor, ...s: Selection[]) {
 		for (const selection of editor.getSelections()) {
-			const actual = s.shift();
+			const actual = s.shift()!;
 			assert.ok(selection.equalsSelection(actual), `actual=${selection.toString()} <> expected=${actual.toString()}`);
 		}
 		assert.equal(s.length, 0);
 	}
 
 	setup(function () {
-		model = TextModel.createFromString('function foo() {\n    console.log(a);\n}');
-		editor = createTestCodeEditor({ model: model });
+		model = createTextModel('function foo() {\n    console.log(a);\n}');
+		editor = createTestCodeEditor({ model: model }) as IActiveCodeEditor;
 		editor.setSelections([new Selection(1, 1, 1, 1), new Selection(2, 5, 2, 5)]);
 		assert.equal(model.getEOL(), '\n');
 	});
@@ -43,7 +42,7 @@ suite('SnippetSession', function () {
 
 		function assertNormalized(position: IPosition, input: string, expected: string): void {
 			const snippet = new SnippetParser().parse(input);
-			SnippetSession.adjustWhitespace2(model, position, snippet);
+			SnippetSession.adjustWhitespace(model, position, snippet, true, true);
 			assert.equal(snippet.toTextmateString(), expected);
 		}
 
@@ -74,7 +73,7 @@ suite('SnippetSession', function () {
 	test('text edits & selection', function () {
 		const session = new SnippetSession(editor, 'foo${1:bar}foo$0');
 		session.insert();
-		assert.equal(editor.getModel().getValue(), 'foobarfoofunction foo() {\n    foobarfooconsole.log(a);\n}');
+		assert.equal(editor.getModel()!.getValue(), 'foobarfoofunction foo() {\n    foobarfooconsole.log(a);\n}');
 
 		assertSelections(editor, new Selection(1, 4, 1, 7), new Selection(2, 8, 2, 11));
 		session.next();
@@ -117,12 +116,20 @@ suite('SnippetSession', function () {
 		const session = new SnippetSession(editor, 'foo\n\t${1:bar}\n$0');
 		session.insert();
 
-		assert.equal(editor.getModel().getValue(), 'foo\n    bar\nfunction foo() {\n    foo\n        bar\n    console.log(a);\n}');
+		assert.equal(editor.getModel()!.getValue(), 'foo\n    bar\nfunction foo() {\n    foo\n        bar\n    console.log(a);\n}');
 
 		assertSelections(editor, new Selection(2, 5, 2, 8), new Selection(5, 9, 5, 12));
 
 		session.next();
 		assertSelections(editor, new Selection(3, 1, 3, 1), new Selection(6, 5, 6, 5));
+	});
+
+	test('snippets, newline NO whitespace adjust', () => {
+
+		editor.setSelection(new Selection(2, 5, 2, 5));
+		const session = new SnippetSession(editor, 'abc\n    foo\n        bar\n$0', { overwriteBefore: 0, overwriteAfter: 0, adjustWhitespace: false, clipboardText: undefined, overtypingCapturer: undefined });
+		session.insert();
+		assert.equal(editor.getModel()!.getValue(), 'function foo() {\n    abc\n    foo\n        bar\nconsole.log(a);\n}');
 	});
 
 	test('snippets, selections -> next/prev', () => {
@@ -440,7 +447,7 @@ suite('SnippetSession', function () {
 	});
 
 	test('snippets, transform', function () {
-		editor.getModel().setValue('');
+		editor.getModel()!.setValue('');
 		editor.setSelection(new Selection(1, 1, 1, 1));
 		const session = new SnippetSession(editor, '${1/foo/bar/}$0');
 		session.insert();
@@ -455,7 +462,7 @@ suite('SnippetSession', function () {
 	});
 
 	test('snippets, multi placeholder same index one transform', function () {
-		editor.getModel().setValue('');
+		editor.getModel()!.setValue('');
 		editor.setSelection(new Selection(1, 1, 1, 1));
 		const session = new SnippetSession(editor, '$1 baz ${1/foo/bar/}$0');
 		session.insert();
@@ -470,7 +477,7 @@ suite('SnippetSession', function () {
 	});
 
 	test('snippets, transform example', function () {
-		editor.getModel().setValue('');
+		editor.getModel()!.setValue('');
 		editor.setSelection(new Selection(1, 1, 1, 1));
 		const session = new SnippetSession(editor, '${1:name} : ${2:type}${3/\\s:=(.*)/${1:+ :=}${1}/};\n$0');
 		session.insert();
@@ -510,8 +517,8 @@ suite('SnippetSession', function () {
 			'}'
 		].join('\n');
 
-		editor.getModel().setValue(base);
-		editor.getModel().updateOptions({ insertSpaces: false });
+		editor.getModel()!.setValue(base);
+		editor.getModel()!.updateOptions({ insertSpaces: false });
 		editor.setSelection(new Selection(2, 2, 2, 2));
 
 		const session = new SnippetSession(editor, snippet);
@@ -532,7 +539,7 @@ suite('SnippetSession', function () {
 	});
 
 	test('snippets, transform example hit if', function () {
-		editor.getModel().setValue('');
+		editor.getModel()!.setValue('');
 		editor.setSelection(new Selection(1, 1, 1, 1));
 		const session = new SnippetSession(editor, '${1:name} : ${2:type}${3/\\s:=(.*)/${1:+ :=}${1}/};\n$0');
 		session.insert();
@@ -554,44 +561,74 @@ suite('SnippetSession', function () {
 		assertSelections(editor, new Selection(2, 1, 2, 1));
 	});
 
-	test('Snippet placeholder index incorrect after using 2+ snippets in a row that each end with a placeholder, #30769', function () {
+	test('Snippet tab stop selection issue #96545, snippets, transform adjacent to previous placeholder', function () {
+		editor.getModel()!.setValue('');
+		editor.setSelection(new Selection(1, 1, 1, 1));
+		const session = new SnippetSession(editor, '${1:{}${2:fff}${1/{/}/}');
+		session.insert();
+
+		assertSelections(editor, new Selection(1, 1, 1, 2), new Selection(1, 5, 1, 6));
+		session.next();
+
+		assert.equal(model.getValue(), '{fff}');
+		assertSelections(editor, new Selection(1, 2, 1, 5));
+		editor.trigger('test', 'type', { text: 'ggg' });
+		session.next();
+
+		assert.equal(model.getValue(), '{ggg}');
+		assert.equal(session.isAtLastPlaceholder, true);
+		assertSelections(editor, new Selection(1, 6, 1, 6));
+	});
+
+	test('Snippet tab stop selection issue #96545', function () {
 		editor.getModel().setValue('');
+		const session = new SnippetSession(editor, '${1:{}${2:fff}${1/[\\{]/}/}$0');
+		session.insert();
+		assert.equal(editor.getModel().getValue(), '{fff{');
+
+		assertSelections(editor, new Selection(1, 1, 1, 2), new Selection(1, 5, 1, 6));
+		session.next();
+		assertSelections(editor, new Selection(1, 2, 1, 5));
+	});
+
+	test('Snippet placeholder index incorrect after using 2+ snippets in a row that each end with a placeholder, #30769', function () {
+		editor.getModel()!.setValue('');
 		editor.setSelection(new Selection(1, 1, 1, 1));
 		const session = new SnippetSession(editor, 'test ${1:replaceme}');
 		session.insert();
 
 		editor.trigger('test', 'type', { text: '1' });
 		editor.trigger('test', 'type', { text: '\n' });
-		assert.equal(editor.getModel().getValue(), 'test 1\n');
+		assert.equal(editor.getModel()!.getValue(), 'test 1\n');
 
 		session.merge('test ${1:replaceme}');
 		editor.trigger('test', 'type', { text: '2' });
 		editor.trigger('test', 'type', { text: '\n' });
 
-		assert.equal(editor.getModel().getValue(), 'test 1\ntest 2\n');
+		assert.equal(editor.getModel()!.getValue(), 'test 1\ntest 2\n');
 
 		session.merge('test ${1:replaceme}');
 		editor.trigger('test', 'type', { text: '3' });
 		editor.trigger('test', 'type', { text: '\n' });
 
-		assert.equal(editor.getModel().getValue(), 'test 1\ntest 2\ntest 3\n');
+		assert.equal(editor.getModel()!.getValue(), 'test 1\ntest 2\ntest 3\n');
 
 		session.merge('test ${1:replaceme}');
 		editor.trigger('test', 'type', { text: '4' });
 		editor.trigger('test', 'type', { text: '\n' });
 
-		assert.equal(editor.getModel().getValue(), 'test 1\ntest 2\ntest 3\ntest 4\n');
+		assert.equal(editor.getModel()!.getValue(), 'test 1\ntest 2\ntest 3\ntest 4\n');
 	});
 
 	test('Snippet variable text isn\'t whitespace normalised, #31124', function () {
-		editor.getModel().setValue([
+		editor.getModel()!.setValue([
 			'start',
 			'\t\t-one',
 			'\t\t-two',
 			'end'
 		].join('\n'));
 
-		editor.getModel().updateOptions({ insertSpaces: false });
+		editor.getModel()!.updateOptions({ insertSpaces: false });
 		editor.setSelection(new Selection(2, 2, 3, 7));
 
 		new SnippetSession(editor, '<div>\n\t$TM_SELECTED_TEXT\n</div>$0').insert();
@@ -605,16 +642,16 @@ suite('SnippetSession', function () {
 			'end'
 		].join('\n');
 
-		assert.equal(editor.getModel().getValue(), expected);
+		assert.equal(editor.getModel()!.getValue(), expected);
 
-		editor.getModel().setValue([
+		editor.getModel()!.setValue([
 			'start',
 			'\t\t-one',
 			'\t-two',
 			'end'
 		].join('\n'));
 
-		editor.getModel().updateOptions({ insertSpaces: false });
+		editor.getModel()!.updateOptions({ insertSpaces: false });
 		editor.setSelection(new Selection(2, 2, 3, 7));
 
 		new SnippetSession(editor, '<div>\n\t$TM_SELECTED_TEXT\n</div>$0').insert();
@@ -628,11 +665,11 @@ suite('SnippetSession', function () {
 			'end'
 		].join('\n');
 
-		assert.equal(editor.getModel().getValue(), expected);
+		assert.equal(editor.getModel()!.getValue(), expected);
 	});
 
 	test('Selecting text from left to right, and choosing item messes up code, #31199', function () {
-		const model = editor.getModel();
+		const model = editor.getModel()!;
 		model.setValue('console.log');
 
 		let actual = SnippetSession.adjustSelection(model, new Selection(1, 12, 1, 9), 3, 0);
@@ -642,7 +679,55 @@ suite('SnippetSession', function () {
 		assert.ok(actual.equalsSelection(new Selection(1, 9, 1, 12)));
 
 		editor.setSelections([new Selection(1, 9, 1, 12)]);
-		new SnippetSession(editor, 'far', 3, 0).insert();
+		new SnippetSession(editor, 'far', { overwriteBefore: 3, overwriteAfter: 0, adjustWhitespace: true, clipboardText: undefined, overtypingCapturer: undefined }).insert();
 		assert.equal(model.getValue(), 'console.far');
+	});
+
+	test('Tabs don\'t get replaced with spaces in snippet transformations #103818', function () {
+		const model = editor.getModel()!;
+		model.setValue('\n{\n  \n}');
+		model.updateOptions({ insertSpaces: true, tabSize: 2 });
+		editor.setSelections([new Selection(1, 1, 1, 1), new Selection(3, 6, 3, 6)]);
+		const session = new SnippetSession(editor, [
+			'function animate () {',
+			'\tvar ${1:a} = 12;',
+			'\tconsole.log(${1/(.*)/\n\t\t$1\n\t/})',
+			'}'
+		].join('\n'));
+
+		session.insert();
+
+		assert.strictEqual(model.getValue(), [
+			'function animate () {',
+			'  var a = 12;',
+			'  console.log(a)',
+			'}',
+			'{',
+			'  function animate () {',
+			'    var a = 12;',
+			'    console.log(a)',
+			'  }',
+			'}',
+		].join('\n'));
+
+		editor.trigger('test', 'type', { text: 'bbb' });
+		session.next();
+
+		assert.strictEqual(model.getValue(), [
+			'function animate () {',
+			'  var bbb = 12;',
+			'  console.log(',
+			'    bbb',
+			'  )',
+			'}',
+			'{',
+			'  function animate () {',
+			'    var bbb = 12;',
+			'    console.log(',
+			'      bbb',
+			'    )',
+			'  }',
+			'}',
+		].join('\n'));
 	});
 });

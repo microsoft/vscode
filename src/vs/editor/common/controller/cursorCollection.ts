@@ -2,12 +2,11 @@
  *  Copyright (c) Microsoft Corporation. All rights reserved.
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
-'use strict';
 
+import { CursorContext, CursorState, PartialCursorState } from 'vs/editor/common/controller/cursorCommon';
 import { OneCursor } from 'vs/editor/common/controller/oneCursor';
-import { Selection, ISelection } from 'vs/editor/common/core/selection';
 import { Position } from 'vs/editor/common/core/position';
-import { CursorState, CursorContext } from 'vs/editor/common/controller/cursorCommon';
+import { ISelection, Selection } from 'vs/editor/common/core/selection';
 
 export class CursorCollection {
 
@@ -83,6 +82,28 @@ export class CursorCollection {
 		return result;
 	}
 
+	public getTopMostViewPosition(): Position {
+		let result = this.primaryCursor.viewState.position;
+		for (let i = 0, len = this.secondaryCursors.length; i < len; i++) {
+			const viewPosition = this.secondaryCursors[i].viewState.position;
+			if (viewPosition.isBefore(result)) {
+				result = viewPosition;
+			}
+		}
+		return result;
+	}
+
+	public getBottomMostViewPosition(): Position {
+		let result = this.primaryCursor.viewState.position;
+		for (let i = 0, len = this.secondaryCursors.length; i < len; i++) {
+			const viewPosition = this.secondaryCursors[i].viewState.position;
+			if (result.isBeforeOrEqual(viewPosition)) {
+				result = viewPosition;
+			}
+		}
+		return result;
+	}
+
 	public getSelections(): Selection[] {
 		let result: Selection[] = [];
 		result[0] = this.primaryCursor.modelState.selection;
@@ -109,7 +130,7 @@ export class CursorCollection {
 		return this.primaryCursor.asCursorState();
 	}
 
-	public setStates(states: CursorState[]): void {
+	public setStates(states: PartialCursorState[] | null): void {
 		if (states === null) {
 			return;
 		}
@@ -120,7 +141,7 @@ export class CursorCollection {
 	/**
 	 * Creates or disposes secondary cursors as necessary to match the number of `secondarySelections`.
 	 */
-	private _setSecondaryStates(secondaryStates: CursorState[]): void {
+	private _setSecondaryStates(secondaryStates: PartialCursorState[]): void {
 		const secondaryCursorsLength = this.secondaryCursors.length;
 		const secondaryStatesLength = secondaryStates.length;
 
@@ -205,7 +226,7 @@ export class CursorCollection {
 			const currentSelection = current.selection;
 			const nextSelection = next.selection;
 
-			if (!this.context.config.multiCursorMergeOverlapping) {
+			if (!this.context.cursorConfig.multiCursorMergeOverlapping) {
 				continue;
 			}
 
@@ -255,9 +276,9 @@ export class CursorCollection {
 					cursors[winnerIndex].setState(this.context, resultingState.modelState, resultingState.viewState);
 				}
 
-				for (let j = 0; j < sortedCursors.length; j++) {
-					if (sortedCursors[j].index > looserIndex) {
-						sortedCursors[j].index--;
+				for (const sortedCursor of sortedCursors) {
+					if (sortedCursor.index > looserIndex) {
+						sortedCursor.index--;
 					}
 				}
 

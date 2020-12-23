@@ -1,17 +1,7 @@
 {
+	"extends": "../shared.tsconfig.json",
 	"compilerOptions": {
-		"target": "es6",
-		"lib": [
-			"es2016"
-		],
-		"module": "commonjs",
-		"outDir": "./out",
-		"noImplicitAny": true,
-		"noImplicitReturns": true,
-		"noUnusedLocals": true,
-		"noUnusedParameters": true,
-		"strict": true,
-		"experimentalDecorators": true
+		"outDir": "./out"
 	},
 	"include": [
 		"src/**/*"

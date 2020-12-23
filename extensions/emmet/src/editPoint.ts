@@ -46,7 +46,7 @@ function findEditPoint(lineNum: number, editor: vscode.TextEditor, position: vsc
 	let line = editor.document.lineAt(lineNum);
 	let lineContent = line.text;
 
-	if (lineNum !== position.line && line.isEmptyOrWhitespace) {
+	if (lineNum !== position.line && line.isEmptyOrWhitespace && lineContent.length) {
 		return new vscode.Selection(lineNum, lineContent.length, lineNum, lineContent.length);
 	}
 
@@ -69,4 +69,5 @@ function findEditPoint(lineNum: number, editor: vscode.TextEditor, position: vsc
 	if (winner > -1) {
 		return new vscode.Selection(lineNum, winner + 1, lineNum, winner + 1);
 	}
+	return;
 }

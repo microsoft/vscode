@@ -2,24 +2,16 @@
  *  Copyright (c) Microsoft Corporation. All rights reserved.
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
-'use strict';
 
 import { SyncDescriptor } from './descriptors';
-import { ServiceIdentifier, IConstructorSignature0 } from './instantiation';
+import { ServiceIdentifier, BrandedService } from './instantiation';
 
-export const Services = 'di.services';
+const _registry: [ServiceIdentifier<any>, SyncDescriptor<any>][] = [];
 
-export interface IServiceContribution<T> {
-	id: ServiceIdentifier<T>;
-	descriptor: SyncDescriptor<T>;
+export function registerSingleton<T, Services extends BrandedService[]>(id: ServiceIdentifier<T>, ctor: new (...services: Services) => T, supportsDelayedInstantiation?: boolean): void {
+	_registry.push([id, new SyncDescriptor<T>(ctor as new (...args: any[]) => T, [], supportsDelayedInstantiation)]);
 }
 
-const _registry: IServiceContribution<any>[] = [];
-
-export function registerSingleton<T>(id: ServiceIdentifier<T>, ctor: IConstructorSignature0<T>): void {
-	_registry.push({ id, descriptor: new SyncDescriptor<T>(ctor) });
-}
-
-export function getServices(): IServiceContribution<any>[] {
+export function getSingletonServiceDescriptors(): [ServiceIdentifier<any>, SyncDescriptor<any>][] {
 	return _registry;
 }

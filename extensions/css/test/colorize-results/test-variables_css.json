@@ -92,9 +92,9 @@
 		"t": "source.css meta.property-list.css meta.property-value.css constant.numeric.css",
 		"r": {
 			"dark_plus": "constant.numeric: #B5CEA8",
-			"light_plus": "constant.numeric: #09885A",
+			"light_plus": "constant.numeric: #098658",
 			"dark_vs": "constant.numeric: #B5CEA8",
-			"light_vs": "constant.numeric: #09885A",
+			"light_vs": "constant.numeric: #098658",
 			"hc_black": "constant.numeric: #B5CEA8"
 		}
 	},
@@ -103,9 +103,9 @@
 		"t": "source.css meta.property-list.css meta.property-value.css constant.numeric.css keyword.other.unit.px.css",
 		"r": {
 			"dark_plus": "keyword.other.unit: #B5CEA8",
-			"light_plus": "keyword.other.unit: #09885A",
+			"light_plus": "keyword.other.unit: #098658",
 			"dark_vs": "keyword.other.unit: #B5CEA8",
-			"light_vs": "keyword.other.unit: #09885A",
+			"light_vs": "keyword.other.unit: #098658",
 			"hc_black": "keyword.other.unit: #B5CEA8"
 		}
 	},
@@ -180,9 +180,9 @@
 		"t": "source.css meta.property-list.css meta.property-value.css constant.numeric.css",
 		"r": {
 			"dark_plus": "constant.numeric: #B5CEA8",
-			"light_plus": "constant.numeric: #09885A",
+			"light_plus": "constant.numeric: #098658",
 			"dark_vs": "constant.numeric: #B5CEA8",
-			"light_vs": "constant.numeric: #09885A",
+			"light_vs": "constant.numeric: #098658",
 			"hc_black": "constant.numeric: #B5CEA8"
 		}
 	},
@@ -378,9 +378,9 @@
 		"t": "source.css meta.property-list.css meta.property-value.css meta.function.calc.css constant.numeric.css",
 		"r": {
 			"dark_plus": "constant.numeric: #B5CEA8",
-			"light_plus": "constant.numeric: #09885A",
+			"light_plus": "constant.numeric: #098658",
 			"dark_vs": "constant.numeric: #B5CEA8",
-			"light_vs": "constant.numeric: #09885A",
+			"light_vs": "constant.numeric: #098658",
 			"hc_black": "constant.numeric: #B5CEA8"
 		}
 	},
@@ -477,9 +477,9 @@
 		"t": "source.css meta.property-list.css meta.property-value.css meta.function.calc.css meta.function.variable.css constant.numeric.css",
 		"r": {
 			"dark_plus": "constant.numeric: #B5CEA8",
-			"light_plus": "constant.numeric: #09885A",
+			"light_plus": "constant.numeric: #098658",
 			"dark_vs": "constant.numeric: #B5CEA8",
-			"light_vs": "constant.numeric: #09885A",
+			"light_vs": "constant.numeric: #098658",
 			"hc_black": "constant.numeric: #B5CEA8"
 		}
 	},
@@ -488,9 +488,9 @@
 		"t": "source.css meta.property-list.css meta.property-value.css meta.function.calc.css meta.function.variable.css constant.numeric.css keyword.other.unit.px.css",
 		"r": {
 			"dark_plus": "keyword.other.unit: #B5CEA8",
-			"light_plus": "keyword.other.unit: #09885A",
+			"light_plus": "keyword.other.unit: #098658",
 			"dark_vs": "keyword.other.unit: #B5CEA8",
-			"light_vs": "keyword.other.unit: #09885A",
+			"light_vs": "keyword.other.unit: #098658",
 			"hc_black": "keyword.other.unit: #B5CEA8"
 		}
 	},

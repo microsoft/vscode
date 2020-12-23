@@ -2,12 +2,12 @@
  *  Copyright (c) Microsoft Corporation. All rights reserved.
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
-'use strict';
 
 import * as assert from 'assert';
+import { StandardTokenType } from 'vs/editor/common/modes';
 import { CharacterPairSupport } from 'vs/editor/common/modes/supports/characterPair';
 import { TokenText, createFakeScopedLineTokens } from 'vs/editor/test/common/modesTestUtils';
-import { StandardTokenType } from 'vs/editor/common/modes';
+import { StandardAutoClosingPairConditional } from 'vs/editor/common/modes/languageConfiguration';
 
 suite('CharacterPairSupport', () => {
 
@@ -53,8 +53,16 @@ suite('CharacterPairSupport', () => {
 		assert.deepEqual(characaterPairSupport.getSurroundingPairs(), []);
 	});
 
+	function findAutoClosingPair(characterPairSupport: CharacterPairSupport, character: string): StandardAutoClosingPairConditional | undefined {
+		return characterPairSupport.getAutoClosingPairs().find(autoClosingPair => autoClosingPair.open === character);
+	}
+
 	function testShouldAutoClose(characterPairSupport: CharacterPairSupport, line: TokenText[], character: string, column: number): boolean {
-		return characterPairSupport.shouldAutoClosePair(character, createFakeScopedLineTokens(line), column);
+		const autoClosingPair = findAutoClosingPair(characterPairSupport, character);
+		if (!autoClosingPair) {
+			return false;
+		}
+		return CharacterPairSupport.shouldAutoClosePair(autoClosingPair, createFakeScopedLineTokens(line), column);
 	}
 
 	test('shouldAutoClosePair in empty line', () => {

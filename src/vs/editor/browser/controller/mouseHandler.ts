@@ -2,32 +2,30 @@
  *  Copyright (c) Microsoft Corporation. All rights reserved.
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
-'use strict';
 
+import * as dom from 'vs/base/browser/dom';
+import { StandardWheelEvent, IMouseWheelEvent } from 'vs/base/browser/mouseEvent';
+import { TimeoutTimer } from 'vs/base/common/async';
 import { Disposable } from 'vs/base/common/lifecycle';
 import * as platform from 'vs/base/common/platform';
-import * as browser from 'vs/base/browser/browser';
-import * as dom from 'vs/base/browser/dom';
+import { HitTestContext, IViewZoneData, MouseTarget, MouseTargetFactory, PointerHandlerLastRenderData } from 'vs/editor/browser/controller/mouseTarget';
+import { IMouseTarget, MouseTargetType } from 'vs/editor/browser/editorBrowser';
+import { ClientCoordinates, EditorMouseEvent, EditorMouseEventFactory, GlobalEditorMouseMoveMonitor, createEditorPagePosition } from 'vs/editor/browser/editorDom';
+import { ViewController } from 'vs/editor/browser/view/viewController';
+import { EditorZoom } from 'vs/editor/common/config/editorZoom';
 import { Position } from 'vs/editor/common/core/position';
 import { Selection } from 'vs/editor/common/core/selection';
-import { ViewEventHandler } from 'vs/editor/common/viewModel/viewEventHandler';
-import { MouseTarget, MouseTargetFactory, IViewZoneData, HitTestContext } from 'vs/editor/browser/controller/mouseTarget';
-import * as editorBrowser from 'vs/editor/browser/editorBrowser';
-import { TimeoutTimer, RunOnceScheduler } from 'vs/base/common/async';
+import { HorizontalPosition } from 'vs/editor/common/view/renderingContext';
 import { ViewContext } from 'vs/editor/common/view/viewContext';
-import { HorizontalRange } from 'vs/editor/common/view/renderingContext';
-import { EditorMouseEventFactory, GlobalEditorMouseMoveMonitor, EditorMouseEvent, createEditorPagePosition, ClientCoordinates } from 'vs/editor/browser/editorDom';
-import { StandardMouseWheelEvent } from 'vs/base/browser/mouseEvent';
-import { EditorZoom } from 'vs/editor/common/config/editorZoom';
-import { IViewCursorRenderData } from 'vs/editor/browser/viewParts/viewCursors/viewCursor';
 import * as viewEvents from 'vs/editor/common/view/viewEvents';
-import { ViewController } from 'vs/editor/browser/view/viewController';
+import { ViewEventHandler } from 'vs/editor/common/viewModel/viewEventHandler';
+import { EditorOption } from 'vs/editor/common/config/editorOptions';
 
 /**
  * Merges mouse events when mouse move events are throttled
  */
-function createMouseMoveEventMerger(mouseTargetFactory: MouseTargetFactory) {
-	return function (lastEvent: EditorMouseEvent, currentEvent: EditorMouseEvent): EditorMouseEvent {
+export function createMouseMoveEventMerger(mouseTargetFactory: MouseTargetFactory | null) {
+	return function (lastEvent: EditorMouseEvent | null, currentEvent: EditorMouseEvent): EditorMouseEvent {
 		let targetIsWidget = false;
 		if (mouseTargetFactory) {
 			targetIsWidget = mouseTargetFactory.mouseTargetIsWidget(currentEvent);
@@ -46,33 +44,31 @@ export interface IPointerHandlerHelper {
 	focusTextArea(): void;
 
 	/**
-	 * Get the last rendered information of the cursors.
+	 * Get the last rendered information for cursors & textarea.
 	 */
-	getLastViewCursorsRenderData(): IViewCursorRenderData[];
+	getLastRenderData(): PointerHandlerLastRenderData;
 
-	shouldSuppressMouseDownOnViewZone(viewZoneId: number): boolean;
+	shouldSuppressMouseDownOnViewZone(viewZoneId: string): boolean;
 	shouldSuppressMouseDownOnWidget(widgetId: string): boolean;
 
 	/**
 	 * Decode a position from a rendered dom node
 	 */
-	getPositionFromDOMInfo(spanNode: HTMLElement, offset: number): Position;
+	getPositionFromDOMInfo(spanNode: HTMLElement, offset: number): Position | null;
 
-	visibleRangeForPosition2(lineNumber: number, column: number): HorizontalRange;
+	visibleRangeForPosition(lineNumber: number, column: number): HorizontalPosition | null;
 	getLineWidth(lineNumber: number): number;
 }
 
 export class MouseHandler extends ViewEventHandler {
 
-	static MOUSE_MOVE_MINIMUM_TIME = 100; // ms
+	static readonly MOUSE_MOVE_MINIMUM_TIME = 100; // ms
 
 	protected _context: ViewContext;
 	protected viewController: ViewController;
 	protected viewHelper: IPointerHandlerHelper;
 	protected mouseTargetFactory: MouseTargetFactory;
-	private _asyncFocus: RunOnceScheduler;
-
-	private _mouseDownOperation: MouseDownOperation;
+	protected readonly _mouseDownOperation: MouseDownOperation;
 	private lastMouseLeaveTime: number;
 
 	constructor(context: ViewContext, viewController: ViewController, viewHelper: IPointerHandlerHelper) {
@@ -91,11 +87,9 @@ export class MouseHandler extends ViewEventHandler {
 			(e) => this._getMouseColumn(e)
 		));
 
-		this._asyncFocus = this._register(new RunOnceScheduler(() => this.viewHelper.focusTextArea(), 0));
-
 		this.lastMouseLeaveTime = -1;
 
-		let mouseEvents = new EditorMouseEventFactory(this.viewHelper.viewDomNode);
+		const mouseEvents = new EditorMouseEventFactory(this.viewHelper.viewDomNode);
 
 		this._register(mouseEvents.onContextMenu(this.viewHelper.viewDomNode, (e) => this._onContextMenu(e, true)));
 
@@ -109,21 +103,27 @@ export class MouseHandler extends ViewEventHandler {
 
 		this._register(mouseEvents.onMouseDown(this.viewHelper.viewDomNode, (e) => this._onMouseDown(e)));
 
-		let onMouseWheel = (browserEvent: MouseWheelEvent) => {
-			if (!this._context.configuration.editor.viewInfo.mouseWheelZoom) {
+		const onMouseWheel = (browserEvent: IMouseWheelEvent) => {
+			this.viewController.emitMouseWheel(browserEvent);
+
+			if (!this._context.configuration.options.get(EditorOption.mouseWheelZoom)) {
 				return;
 			}
-			let e = new StandardMouseWheelEvent(browserEvent);
-			if (e.browserEvent.ctrlKey || e.browserEvent.metaKey) {
-				let zoomLevel: number = EditorZoom.getZoomLevel();
-				let delta = e.deltaY > 0 ? 1 : -1;
+			const e = new StandardWheelEvent(browserEvent);
+			const doMouseWheelZoom = (
+				platform.isMacintosh
+					? (browserEvent.metaKey && !browserEvent.ctrlKey && !browserEvent.shiftKey && !browserEvent.altKey)
+					: (browserEvent.ctrlKey && !browserEvent.metaKey && !browserEvent.shiftKey && !browserEvent.altKey)
+			);
+			if (doMouseWheelZoom) {
+				const zoomLevel: number = EditorZoom.getZoomLevel();
+				const delta = e.deltaY > 0 ? 1 : -1;
 				EditorZoom.setZoomLevel(zoomLevel + delta);
 				e.preventDefault();
 				e.stopPropagation();
 			}
 		};
-		this._register(dom.addDisposableListener(this.viewHelper.viewDomNode, 'mousewheel', onMouseWheel, true));
-		this._register(dom.addDisposableListener(this.viewHelper.viewDomNode, 'DOMMouseScroll', onMouseWheel, true));
+		this._register(dom.addDisposableListener(this.viewHelper.viewDomNode, dom.EventType.MOUSE_WHEEL, onMouseWheel, { capture: true, passive: false }));
 
 		this._context.addEventHandler(this);
 	}
@@ -138,9 +138,7 @@ export class MouseHandler extends ViewEventHandler {
 		this._mouseDownOperation.onCursorStateChanged(e);
 		return false;
 	}
-	private _isFocused = false;
 	public onFocusChanged(e: viewEvents.ViewFocusChangedEvent): boolean {
-		this._isFocused = e.isFocused;
 		return false;
 	}
 	public onScrollChanged(e: viewEvents.ViewScrollChangedEvent): boolean {
@@ -149,22 +147,20 @@ export class MouseHandler extends ViewEventHandler {
 	}
 	// --- end event handlers
 
-	public getTargetAtClientPoint(clientX: number, clientY: number): editorBrowser.IMouseTarget {
-		let clientPos = new ClientCoordinates(clientX, clientY);
-		let pos = clientPos.toPageCoordinates();
-		let editorPos = createEditorPagePosition(this.viewHelper.viewDomNode);
+	public getTargetAtClientPoint(clientX: number, clientY: number): IMouseTarget | null {
+		const clientPos = new ClientCoordinates(clientX, clientY);
+		const pos = clientPos.toPageCoordinates();
+		const editorPos = createEditorPagePosition(this.viewHelper.viewDomNode);
 
 		if (pos.y < editorPos.y || pos.y > editorPos.y + editorPos.height || pos.x < editorPos.x || pos.x > editorPos.x + editorPos.width) {
 			return null;
 		}
 
-		let lastViewCursorsRenderData = this.viewHelper.getLastViewCursorsRenderData();
-		return this.mouseTargetFactory.createMouseTarget(lastViewCursorsRenderData, editorPos, pos, null);
+		return this.mouseTargetFactory.createMouseTarget(this.viewHelper.getLastRenderData(), editorPos, pos, null);
 	}
 
-	protected _createMouseTarget(e: EditorMouseEvent, testEventTarget: boolean): editorBrowser.IMouseTarget {
-		let lastViewCursorsRenderData = this.viewHelper.getLastViewCursorsRenderData();
-		return this.mouseTargetFactory.createMouseTarget(lastViewCursorsRenderData, e.editorPos, e.pos, testEventTarget ? e.target : null);
+	protected _createMouseTarget(e: EditorMouseEvent, testEventTarget: boolean): IMouseTarget {
+		return this.mouseTargetFactory.createMouseTarget(this.viewHelper.getLastRenderData(), e.editorPos, e.pos, testEventTarget ? e.target : null);
 	}
 
 	private _getMouseColumn(e: EditorMouseEvent): number {
@@ -178,12 +174,12 @@ export class MouseHandler extends ViewEventHandler {
 		});
 	}
 
-	private _onMouseMove(e: EditorMouseEvent): void {
+	public _onMouseMove(e: EditorMouseEvent): void {
 		if (this._mouseDownOperation.isActive()) {
 			// In selection/drag operation
 			return;
 		}
-		let actualMouseMoveTime = e.timestamp;
+		const actualMouseMoveTime = e.timestamp;
 		if (actualMouseMoveTime < this.lastMouseLeaveTime) {
 			// Due to throttling, this event occurred before the mouse left the editor, therefore ignore it.
 			return;
@@ -195,7 +191,7 @@ export class MouseHandler extends ViewEventHandler {
 		});
 	}
 
-	private _onMouseLeave(e: EditorMouseEvent): void {
+	public _onMouseLeave(e: EditorMouseEvent): void {
 		this.lastMouseLeaveTime = (new Date()).getTime();
 		this.viewController.emitMouseLeave({
 			event: e,
@@ -211,30 +207,23 @@ export class MouseHandler extends ViewEventHandler {
 	}
 
 	public _onMouseDown(e: EditorMouseEvent): void {
-		let t = this._createMouseTarget(e, true);
+		const t = this._createMouseTarget(e, true);
 
-		let targetIsContent = (t.type === editorBrowser.MouseTargetType.CONTENT_TEXT || t.type === editorBrowser.MouseTargetType.CONTENT_EMPTY);
-		let targetIsGutter = (t.type === editorBrowser.MouseTargetType.GUTTER_GLYPH_MARGIN || t.type === editorBrowser.MouseTargetType.GUTTER_LINE_NUMBERS || t.type === editorBrowser.MouseTargetType.GUTTER_LINE_DECORATIONS);
-		let targetIsLineNumbers = (t.type === editorBrowser.MouseTargetType.GUTTER_LINE_NUMBERS);
-		let selectOnLineNumbers = this._context.configuration.editor.viewInfo.selectOnLineNumbers;
-		let targetIsViewZone = (t.type === editorBrowser.MouseTargetType.CONTENT_VIEW_ZONE || t.type === editorBrowser.MouseTargetType.GUTTER_VIEW_ZONE);
-		let targetIsWidget = (t.type === editorBrowser.MouseTargetType.CONTENT_WIDGET);
+		const targetIsContent = (t.type === MouseTargetType.CONTENT_TEXT || t.type === MouseTargetType.CONTENT_EMPTY);
+		const targetIsGutter = (t.type === MouseTargetType.GUTTER_GLYPH_MARGIN || t.type === MouseTargetType.GUTTER_LINE_NUMBERS || t.type === MouseTargetType.GUTTER_LINE_DECORATIONS);
+		const targetIsLineNumbers = (t.type === MouseTargetType.GUTTER_LINE_NUMBERS);
+		const selectOnLineNumbers = this._context.configuration.options.get(EditorOption.selectOnLineNumbers);
+		const targetIsViewZone = (t.type === MouseTargetType.CONTENT_VIEW_ZONE || t.type === MouseTargetType.GUTTER_VIEW_ZONE);
+		const targetIsWidget = (t.type === MouseTargetType.CONTENT_WIDGET);
 
 		let shouldHandle = e.leftButton || e.middleButton;
 		if (platform.isMacintosh && e.leftButton && e.ctrlKey) {
 			shouldHandle = false;
 		}
 
-		let focus = () => {
-			// In IE11, if the focus is in the browser's address bar and
-			// then you click in the editor, calling preventDefault()
-			// will not move focus properly (focus remains the address bar)
-			if (browser.isIE && !this._isFocused) {
-				this._asyncFocus.schedule();
-			} else {
-				e.preventDefault();
-				this.viewHelper.focusTextArea();
-			}
+		const focus = () => {
+			e.preventDefault();
+			this.viewHelper.focusTextArea();
 		};
 
 		if (shouldHandle && (targetIsContent || (targetIsLineNumbers && selectOnLineNumbers))) {
@@ -245,7 +234,7 @@ export class MouseHandler extends ViewEventHandler {
 			// Do not steal focus
 			e.preventDefault();
 		} else if (targetIsViewZone) {
-			let viewZoneData = <IViewZoneData>t.detail;
+			const viewZoneData = <IViewZoneData>t.detail;
 			if (this.viewHelper.shouldSuppressMouseDownOnViewZone(viewZoneData.viewZoneId)) {
 				focus();
 				this._mouseDownOperation.start(t.type, e);
@@ -261,6 +250,10 @@ export class MouseHandler extends ViewEventHandler {
 			target: t
 		});
 	}
+
+	public _onMouseWheel(e: IMouseWheelEvent): void {
+		this.viewController.emitMouseWheel(e);
+	}
 }
 
 class MouseDownOperation extends Disposable {
@@ -268,7 +261,7 @@ class MouseDownOperation extends Disposable {
 	private readonly _context: ViewContext;
 	private readonly _viewController: ViewController;
 	private readonly _viewHelper: IPointerHandlerHelper;
-	private readonly _createMouseTarget: (e: EditorMouseEvent, testEventTarget: boolean) => editorBrowser.IMouseTarget;
+	private readonly _createMouseTarget: (e: EditorMouseEvent, testEventTarget: boolean) => IMouseTarget;
 	private readonly _getMouseColumn: (e: EditorMouseEvent) => number;
 
 	private readonly _mouseMoveMonitor: GlobalEditorMouseMoveMonitor;
@@ -277,13 +270,13 @@ class MouseDownOperation extends Disposable {
 
 	private _currentSelection: Selection;
 	private _isActive: boolean;
-	private _lastMouseEvent: EditorMouseEvent;
+	private _lastMouseEvent: EditorMouseEvent | null;
 
 	constructor(
 		context: ViewContext,
 		viewController: ViewController,
 		viewHelper: IPointerHandlerHelper,
-		createMouseTarget: (e: EditorMouseEvent, testEventTarget: boolean) => editorBrowser.IMouseTarget,
+		createMouseTarget: (e: EditorMouseEvent, testEventTarget: boolean) => IMouseTarget,
 		getMouseColumn: (e: EditorMouseEvent) => number
 	) {
 		super();
@@ -314,7 +307,7 @@ class MouseDownOperation extends Disposable {
 		this._lastMouseEvent = e;
 		this._mouseState.setModifiers(e);
 
-		let position = this._findMousePosition(e, true);
+		const position = this._findMousePosition(e, true);
 		if (!position) {
 			// Ignoring because position is unknown
 			return;
@@ -330,14 +323,14 @@ class MouseDownOperation extends Disposable {
 		}
 	}
 
-	public start(targetType: editorBrowser.MouseTargetType, e: EditorMouseEvent): void {
+	public start(targetType: MouseTargetType, e: EditorMouseEvent): void {
 		this._lastMouseEvent = e;
 
-		this._mouseState.setStartedOnLineNumbers(targetType === editorBrowser.MouseTargetType.GUTTER_LINE_NUMBERS);
+		this._mouseState.setStartedOnLineNumbers(targetType === MouseTargetType.GUTTER_LINE_NUMBERS);
 		this._mouseState.setStartButtons(e);
 		this._mouseState.setModifiers(e);
-		let position = this._findMousePosition(e, true);
-		if (!position) {
+		const position = this._findMousePosition(e, true);
+		if (!position || !position.position) {
 			// Ignoring because position is unknown
 			return;
 		}
@@ -347,27 +340,38 @@ class MouseDownOperation extends Disposable {
 		// Overwrite the detail of the MouseEvent, as it will be sent out in an event and contributions might rely on it.
 		e.detail = this._mouseState.count;
 
-		if (!this._context.configuration.editor.readOnly
-			&& this._context.configuration.editor.dragAndDrop
+		const options = this._context.configuration.options;
+
+		if (!options.get(EditorOption.readOnly)
+			&& options.get(EditorOption.dragAndDrop)
+			&& !options.get(EditorOption.columnSelection)
 			&& !this._mouseState.altKey // we don't support multiple mouse
 			&& e.detail < 2 // only single click on a selection can work
 			&& !this._isActive // the mouse is not down yet
 			&& !this._currentSelection.isEmpty() // we don't drag single cursor
-			&& this._currentSelection.containsPosition(position.position) // single click on a selection
+			&& (position.type === MouseTargetType.CONTENT_TEXT) // single click on text
+			&& position.position && this._currentSelection.containsPosition(position.position) // single click on a selection
 		) {
 			this._mouseState.isDragAndDrop = true;
 			this._isActive = true;
 
 			this._mouseMoveMonitor.startMonitoring(
+				e.target,
+				e.buttons,
 				createMouseMoveEventMerger(null),
 				(e) => this._onMouseDownThenMove(e),
-				() => {
-					let position = this._findMousePosition(this._lastMouseEvent, true);
+				(browserEvent?: MouseEvent | KeyboardEvent) => {
+					const position = this._findMousePosition(this._lastMouseEvent!, true);
 
-					this._viewController.emitMouseDrop({
-						event: this._lastMouseEvent,
-						target: position ? this._createMouseTarget(this._lastMouseEvent, true) : null // Ignoring because position is unknown, e.g., Content View Zone
-					});
+					if (browserEvent && browserEvent instanceof KeyboardEvent) {
+						// cancel
+						this._viewController.emitMouseDropCanceled();
+					} else {
+						this._viewController.emitMouseDrop({
+							event: this._lastMouseEvent!,
+							target: (position ? this._createMouseTarget(this._lastMouseEvent!, true) : null) // Ignoring because position is unknown, e.g., Content View Zone
+						});
+					}
 
 					this._stop();
 				}
@@ -382,6 +386,8 @@ class MouseDownOperation extends Disposable {
 		if (!this._isActive) {
 			this._isActive = true;
 			this._mouseMoveMonitor.startMonitoring(
+				e.target,
+				e.buttons,
 				createMouseMoveEventMerger(null),
 				(e) => this._onMouseDownThenMove(e),
 				() => this._stop()
@@ -399,7 +405,10 @@ class MouseDownOperation extends Disposable {
 			return;
 		}
 		this._onScrollTimeout.setIfNotSet(() => {
-			let position = this._findMousePosition(this._lastMouseEvent, false);
+			if (!this._lastMouseEvent) {
+				return;
+			}
+			const position = this._findMousePosition(this._lastMouseEvent, false);
 			if (!position) {
 				// Ignoring because position is unknown
 				return;
@@ -416,7 +425,7 @@ class MouseDownOperation extends Disposable {
 		this._currentSelection = e.selections[0];
 	}
 
-	private _getPositionOutsideEditor(e: EditorMouseEvent): MouseTarget {
+	private _getPositionOutsideEditor(e: EditorMouseEvent): MouseTarget | null {
 		const editorContent = e.editorPos;
 		const model = this._context.model;
 		const viewLayout = this._context.viewLayout;
@@ -429,12 +438,12 @@ class MouseDownOperation extends Disposable {
 			if (viewZoneData) {
 				const newPosition = this._helpPositionJumpOverViewZone(viewZoneData);
 				if (newPosition) {
-					return new MouseTarget(null, editorBrowser.MouseTargetType.OUTSIDE_EDITOR, mouseColumn, newPosition);
+					return new MouseTarget(null, MouseTargetType.OUTSIDE_EDITOR, mouseColumn, newPosition);
 				}
 			}
 
-			let aboveLineNumber = viewLayout.getLineNumberAtVerticalOffset(verticalOffset);
-			return new MouseTarget(null, editorBrowser.MouseTargetType.OUTSIDE_EDITOR, mouseColumn, new Position(aboveLineNumber, 1));
+			const aboveLineNumber = viewLayout.getLineNumberAtVerticalOffset(verticalOffset);
+			return new MouseTarget(null, MouseTargetType.OUTSIDE_EDITOR, mouseColumn, new Position(aboveLineNumber, 1));
 		}
 
 		if (e.posy > editorContent.y + editorContent.height) {
@@ -443,40 +452,40 @@ class MouseDownOperation extends Disposable {
 			if (viewZoneData) {
 				const newPosition = this._helpPositionJumpOverViewZone(viewZoneData);
 				if (newPosition) {
-					return new MouseTarget(null, editorBrowser.MouseTargetType.OUTSIDE_EDITOR, mouseColumn, newPosition);
+					return new MouseTarget(null, MouseTargetType.OUTSIDE_EDITOR, mouseColumn, newPosition);
 				}
 			}
 
-			let belowLineNumber = viewLayout.getLineNumberAtVerticalOffset(verticalOffset);
-			return new MouseTarget(null, editorBrowser.MouseTargetType.OUTSIDE_EDITOR, mouseColumn, new Position(belowLineNumber, model.getLineMaxColumn(belowLineNumber)));
+			const belowLineNumber = viewLayout.getLineNumberAtVerticalOffset(verticalOffset);
+			return new MouseTarget(null, MouseTargetType.OUTSIDE_EDITOR, mouseColumn, new Position(belowLineNumber, model.getLineMaxColumn(belowLineNumber)));
 		}
 
-		let possibleLineNumber = viewLayout.getLineNumberAtVerticalOffset(viewLayout.getCurrentScrollTop() + (e.posy - editorContent.y));
+		const possibleLineNumber = viewLayout.getLineNumberAtVerticalOffset(viewLayout.getCurrentScrollTop() + (e.posy - editorContent.y));
 
 		if (e.posx < editorContent.x) {
-			return new MouseTarget(null, editorBrowser.MouseTargetType.OUTSIDE_EDITOR, mouseColumn, new Position(possibleLineNumber, 1));
+			return new MouseTarget(null, MouseTargetType.OUTSIDE_EDITOR, mouseColumn, new Position(possibleLineNumber, 1));
 		}
 
 		if (e.posx > editorContent.x + editorContent.width) {
-			return new MouseTarget(null, editorBrowser.MouseTargetType.OUTSIDE_EDITOR, mouseColumn, new Position(possibleLineNumber, model.getLineMaxColumn(possibleLineNumber)));
+			return new MouseTarget(null, MouseTargetType.OUTSIDE_EDITOR, mouseColumn, new Position(possibleLineNumber, model.getLineMaxColumn(possibleLineNumber)));
 		}
 
 		return null;
 	}
 
-	private _findMousePosition(e: EditorMouseEvent, testEventTarget: boolean): MouseTarget {
-		let positionOutsideEditor = this._getPositionOutsideEditor(e);
+	private _findMousePosition(e: EditorMouseEvent, testEventTarget: boolean): MouseTarget | null {
+		const positionOutsideEditor = this._getPositionOutsideEditor(e);
 		if (positionOutsideEditor) {
 			return positionOutsideEditor;
 		}
 
-		let t = this._createMouseTarget(e, testEventTarget);
-		let hintedPosition = t.position;
+		const t = this._createMouseTarget(e, testEventTarget);
+		const hintedPosition = t.position;
 		if (!hintedPosition) {
 			return null;
 		}
 
-		if (t.type === editorBrowser.MouseTargetType.CONTENT_VIEW_ZONE || t.type === editorBrowser.MouseTargetType.GUTTER_VIEW_ZONE) {
+		if (t.type === MouseTargetType.CONTENT_VIEW_ZONE || t.type === MouseTargetType.GUTTER_VIEW_ZONE) {
 			const newPosition = this._helpPositionJumpOverViewZone(<IViewZoneData>t.detail);
 			if (newPosition) {
 				return new MouseTarget(t.element, t.type, t.mouseColumn, newPosition, null, t.detail);
@@ -486,11 +495,11 @@ class MouseDownOperation extends Disposable {
 		return t;
 	}
 
-	private _helpPositionJumpOverViewZone(viewZoneData: IViewZoneData): Position {
+	private _helpPositionJumpOverViewZone(viewZoneData: IViewZoneData): Position | null {
 		// Force position on view zones to go above or below depending on where selection started from
-		let selectionStart = new Position(this._currentSelection.selectionStartLineNumber, this._currentSelection.selectionStartColumn);
-		let positionBefore = viewZoneData.positionBefore;
-		let positionAfter = viewZoneData.positionAfter;
+		const selectionStart = new Position(this._currentSelection.selectionStartLineNumber, this._currentSelection.selectionStartColumn);
+		const positionBefore = viewZoneData.positionBefore;
+		const positionAfter = viewZoneData.positionAfter;
 
 		if (positionBefore && positionAfter) {
 			if (positionBefore.isBefore(selectionStart)) {
@@ -503,6 +512,9 @@ class MouseDownOperation extends Disposable {
 	}
 
 	private _dispatchMouse(position: MouseTarget, inSelectionMode: boolean): void {
+		if (!position.position) {
+			return;
+		}
 		this._viewController.dispatchMouse({
 			position: position.position,
 			mouseColumn: position.mouseColumn,
@@ -546,7 +558,7 @@ class MouseDownState {
 	private _startedOnLineNumbers: boolean;
 	public get startedOnLineNumbers(): boolean { return this._startedOnLineNumbers; }
 
-	private _lastMouseDownPosition: Position;
+	private _lastMouseDownPosition: Position | null;
 	private _lastMouseDownPositionEqualCount: number;
 	private _lastMouseDownCount: number;
 	private _lastSetMouseDownCountTime: number;
@@ -589,7 +601,7 @@ class MouseDownState {
 
 	public trySetCount(setMouseDownCount: number, newMouseDownPosition: Position): void {
 		// a. Invalidate multiple clicking if too much time has passed (will be hit by IE because the detail field of mouse events contains garbage in IE10)
-		let currentTime = (new Date()).getTime();
+		const currentTime = (new Date()).getTime();
 		if (currentTime - this._lastSetMouseDownCountTime > MouseDownState.CLEAR_MOUSE_DOWN_COUNT_TIME) {
 			setMouseDownCount = 1;
 		}

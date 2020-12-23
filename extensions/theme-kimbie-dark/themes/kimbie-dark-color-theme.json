@@ -3,6 +3,7 @@
 	"type": "dark",
 	"colors": {
 		"input.background": "#51412c",
+		"dropdown.background": "#51412c",
 		"editor.background": "#221a0f",
 		"editor.foreground": "#d3af86",
 		"focusBorder": "#a57a4c",
@@ -16,18 +17,23 @@
 		"inputOption.activeBorder": "#a57a4c",
 		"selection.background": "#84613daa",
 		"editor.selectionBackground": "#84613daa",
+		"minimap.selectionHighlight": "#84613daa",
 		"editorWidget.background": "#131510",
 		"editorHoverWidget.background": "#221a14",
 		"editorGroupHeader.tabsBackground": "#131510",
 		"editorLineNumber.activeForeground": "#adadad",
 		"tab.inactiveBackground": "#131510",
+		"tab.lastPinnedBorder": "#51412c",
 		"titleBar.activeBackground": "#423523",
 		"statusBar.background": "#423523",
 		"statusBar.debuggingBackground": "#423523",
 		"statusBar.noFolderBackground": "#423523",
+		"statusBarItem.remoteBackground": "#6e583b",
 		"activityBar.background": "#221a0f",
 		"activityBar.foreground": "#d3af86",
 		"sideBar.background": "#362712",
+		"menu.background": "#362712",
+		"menu.foreground": "#CCCCCC",
 		"editor.lineHighlightBackground": "#5e452b",
 		"editorCursor.foreground": "#d3af86",
 		"editorWhitespace.foreground": "#a57a4c",
@@ -49,14 +55,12 @@
 	"tokenColors": [
 		{
 			"settings": {
-				"background": "#221a0f",
 				"foreground": "#d3af86"
 			}
 		},
 		{
 			"scope": ["meta.embedded", "source.groovy.embedded"],
 			"settings": {
-				"background": "#221a0f",
 				"foreground": "#d3af86"
 			}
 		},
@@ -109,7 +113,11 @@
 			"name": "Keywords",
 			"scope": [
 				"keyword",
-				"keyword.control"
+				"keyword.control",
+				"keyword.operator.new.cpp",
+				"keyword.operator.delete.cpp",
+				"keyword.other.using",
+				"keyword.other.operator"
 			],
 			"settings": {
 				"foreground": "#98676a"
@@ -138,7 +146,9 @@
 			"scope": [
 				"support.class",
 				"entity.name.class",
-				"entity.name.type"
+				"entity.name.type",
+				"entity.name.namespace",
+				"entity.name.scope-resolution"
 			],
 			"settings": {
 				"foreground": "#f06431"
@@ -251,7 +261,7 @@
 				"entity.name.section"
 			],
 			"settings": {
-				"fontStyle": "",
+				"fontStyle": "bold",
 				"foreground": "#8ab1b0"
 			}
 		},
@@ -323,7 +333,6 @@
 			"name": "Separator",
 			"scope": "meta.separator",
 			"settings": {
-				"background": "#84613d",
 				"foreground": "#d3af86"
 			}
 		},
@@ -381,10 +390,11 @@
 		},
 		{
 			"name": "Invalid",
-			"scope": "invalid.illegal",
+			"scope": "invalid",
 			"settings": {
 				"foreground": "#dc3958"
 			}
 		}
-	]
+	],
+	"semanticHighlighting": true
 }

@@ -3,11 +3,46 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-.vs .monaco-workbench .flip-editor-layout {
-	background-image: url('editor-layout.svg');
+.monaco-workbench .quick-input-list .quick-input-list-entry.has-actions:hover .quick-input-list-entry-action-bar .action-label.dirty-workspace::before {
+	content: "\ea76"; /* Close icon flips between black dot and "X" for dirty workspaces */
 }
 
-.vs-dark .monaco-workbench .flip-editor-layout,
-.hc-black .monaco-workbench .flip-editor-layout {
-	background-image: url('editor-layout-inverse.svg') !important;
+.monaco-workbench .screencast-mouse {
+	position: absolute;
+	border-width: 2px;
+	border-style: solid;
+	border-radius: 50%;
+	z-index: 100000;
+	content: ' ';
+	pointer-events: none;
+	display: none;
+}
+
+.monaco-workbench .screencast-keyboard {
+	position: absolute;
+	background-color: rgba(0, 0, 0 ,0.5);
+	width: 100%;
+	left: 0;
+	z-index: 100000;
+	pointer-events: none;
+	color: #eee;
+	line-height: 1.75em;
+	text-align: center;
+	transition: opacity 0.3s ease-out;
+	white-space: nowrap;
+	overflow: hidden;
+	text-overflow: ellipsis;
+}
+
+.monaco-workbench .screencast-keyboard:empty {
+	opacity: 0;
+}
+
+.monaco-workbench .screencast-keyboard > .key {
+	padding: 0 8px;
+	box-shadow: inset 0 -3px 0 hsla(0,0%,73%,.4);
+	margin-right: 6px;
+	border: 1px solid hsla(0,0%,80%,.4);
+	border-radius: 5px;
+	background-color: rgba(255, 255, 255, 0.05);
 }

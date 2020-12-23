@@ -3,38 +3,20 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { Application } from '../../application';
+import { Application } from '../../../../automation';
 
 export function setup() {
 	describe('Editor', () => {
 		it('shows correct quick outline', async function () {
 			const app = this.app as Application;
-			await app.workbench.quickopen.openFile('www');
+			await app.workbench.quickaccess.openFile('www');
 
-			await app.workbench.quickopen.openQuickOutline();
-			await app.workbench.quickopen.waitForQuickOpenElements(names => names.length >= 6);
-		});
-
-		it(`finds 'All References' to 'app'`, async function () {
-			const app = this.app as Application;
-			await app.workbench.quickopen.openFile('www');
-
-			const references = await app.workbench.editor.findReferences('www', 'app', 7);
-
-			await references.waitForReferencesCountInTitle(3);
-			await references.waitForReferencesCount(3);
-			await references.close();
-		});
-
-		it(`renames local 'app' variable`, async function () {
-			const app = this.app as Application;
-			await app.workbench.quickopen.openFile('www');
-			await app.workbench.editor.rename('www', 7, 'app', 'newApp');
-			await app.workbench.editor.waitForEditorContents('www', contents => contents.indexOf('newApp') > -1);
+			await app.workbench.quickaccess.openQuickOutline();
+			await app.workbench.quickinput.waitForQuickInputElements(names => names.length >= 6);
 		});
 
 		// it('folds/unfolds the code correctly', async function () {
-		// 	await app.workbench.quickopen.openFile('www');
+		// 	await app.workbench.quickaccess.openFile('www');
 
 		// 	// Fold
 		// 	await app.workbench.editor.foldAtLine(3);
@@ -48,23 +30,5 @@ export function setup() {
 		// 	await app.workbench.editor.waitUntilShown(4);
 		// 	await app.workbench.editor.waitUntilShown(5);
 		// });
-
-		it(`verifies that 'Go To Definition' works`, async function () {
-			const app = this.app as Application;
-			await app.workbench.quickopen.openFile('app.js');
-
-			await app.workbench.editor.gotoDefinition('app.js', 'app', 14);
-
-			await app.workbench.editor.waitForHighlightingLine('app.js', 11);
-		});
-
-		it(`verifies that 'Peek Definition' works`, async function () {
-			const app = this.app as Application;
-			await app.workbench.quickopen.openFile('app.js');
-
-			const peek = await app.workbench.editor.peekDefinition('app.js', 'app', 14);
-
-			await peek.waitForFile('app.js');
-		});
 	});
 }

@@ -2,12 +2,13 @@
  *  Copyright (c) Microsoft Corporation. All rights reserved.
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
-'use strict';
 
 import * as assert from 'assert';
 import { Range } from 'vs/editor/common/core/range';
-import { testViewModel } from 'vs/editor/test/common/viewModel/testViewModel';
 import { EndOfLineSequence } from 'vs/editor/common/model';
+import { testViewModel } from 'vs/editor/test/common/viewModel/testViewModel';
+import { ViewEventHandler } from 'vs/editor/common/viewModel/viewEventHandler';
+import { ViewEvent } from 'vs/editor/common/view/viewEvents';
 
 suite('ViewModel', () => {
 
@@ -64,14 +65,16 @@ suite('ViewModel', () => {
 			let viewLineCount: number[] = [];
 
 			viewLineCount.push(viewModel.getLineCount());
-			viewModel.addEventListener((events) => {
-				// Access the view model
-				viewLineCount.push(viewModel.getLineCount());
+			viewModel.addViewEventHandler(new class extends ViewEventHandler {
+				handleEvents(events: ViewEvent[]): void {
+					// Access the view model
+					viewLineCount.push(viewModel.getLineCount());
+				}
 			});
 			model.undo();
 			viewLineCount.push(viewModel.getLineCount());
 
-			assert.deepEqual(viewLineCount, [4, 1, 1, 1]);
+			assert.deepEqual(viewLineCount, [4, 1, 1, 1, 1]);
 		});
 	});
 
@@ -211,7 +214,7 @@ suite('ViewModel', () => {
 				new Range(3, 2, 3, 2),
 			],
 			true,
-			'ine2'
+			['ine2', 'line3']
 		);
 	});
 

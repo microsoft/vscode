@@ -7,11 +7,13 @@ import * as nls from 'vs/nls';
 import { Registry } from 'vs/platform/registry/common/platform';
 import { Extensions as JSONExtensions, IJSONContributionRegistry } from 'vs/platform/jsonschemas/common/jsonContributionRegistry';
 import { IJSONSchema } from 'vs/base/common/jsonSchema';
+import { fontWeightRegex, fontStyleRegex, fontSizeRegex, fontIdRegex } from 'vs/workbench/services/themes/common/productIconThemeSchema';
 
 const schemaId = 'vscode://schemas/icon-theme';
 const schema: IJSONSchema = {
 	type: 'object',
 	allowComments: true,
+	allowTrailingCommas: true,
 	definitions: {
 		folderExpanded: {
 			type: 'string',
@@ -29,7 +31,7 @@ const schema: IJSONSchema = {
 		},
 		folderNames: {
 			type: 'object',
-			description: nls.localize('schema.folderNames', 'Associates folder names to icons. The object key is is the folder name, not including any path segments. No patterns or wildcards are allowed. Folder name matching is case insensitive.'),
+			description: nls.localize('schema.folderNames', 'Associates folder names to icons. The object key is the folder name, not including any path segments. No patterns or wildcards are allowed. Folder name matching is case insensitive.'),
 			additionalProperties: {
 				type: 'string',
 				description: nls.localize('schema.folderName', 'The ID of the icon definition for the association.')
@@ -37,7 +39,7 @@ const schema: IJSONSchema = {
 		},
 		folderNamesExpanded: {
 			type: 'object',
-			description: nls.localize('schema.folderNamesExpanded', 'Associates folder names to icons for expanded folders. The object key is is the folder name, not including any path segments. No patterns or wildcards are allowed. Folder name matching is case insensitive.'),
+			description: nls.localize('schema.folderNamesExpanded', 'Associates folder names to icons for expanded folders. The object key is the folder name, not including any path segments. No patterns or wildcards are allowed. Folder name matching is case insensitive.'),
 			additionalProperties: {
 				type: 'string',
 				description: nls.localize('schema.folderNameExpanded', 'The ID of the icon definition for the association.')
@@ -45,7 +47,7 @@ const schema: IJSONSchema = {
 		},
 		fileExtensions: {
 			type: 'object',
-			description: nls.localize('schema.fileExtensions', 'Associates file extensions to icons. The object key is is the file extension name. The extension name is the last segment of a file name after the last dot (not including the dot). Extensions are compared case insensitive.'),
+			description: nls.localize('schema.fileExtensions', 'Associates file extensions to icons. The object key is the file extension name. The extension name is the last segment of a file name after the last dot (not including the dot). Extensions are compared case insensitive.'),
 
 			additionalProperties: {
 				type: 'string',
@@ -54,7 +56,7 @@ const schema: IJSONSchema = {
 		},
 		fileNames: {
 			type: 'object',
-			description: nls.localize('schema.fileNames', 'Associates file names to icons. The object key is is the full file name, but not including any path segments. File name can include dots and a possible file extension. No patterns or wildcards are allowed. File name matching is case insensitive.'),
+			description: nls.localize('schema.fileNames', 'Associates file names to icons. The object key is the full file name, but not including any path segments. File name can include dots and a possible file extension. No patterns or wildcards are allowed. File name matching is case insensitive.'),
 
 			additionalProperties: {
 				type: 'string',
@@ -109,7 +111,9 @@ const schema: IJSONSchema = {
 				properties: {
 					id: {
 						type: 'string',
-						description: nls.localize('schema.id', 'The ID of the font.')
+						description: nls.localize('schema.id', 'The ID of the font.'),
+						pattern: fontIdRegex,
+						patternErrorMessage: nls.localize('schema.id.formatError', 'The ID must only contain letter, numbers, underscore and minus.')
 					},
 					src: {
 						type: 'array',
@@ -119,11 +123,12 @@ const schema: IJSONSchema = {
 							properties: {
 								path: {
 									type: 'string',
-									description: nls.localize('schema.font-path', 'The font path, relative to the current icon theme file.'),
+									description: nls.localize('schema.font-path', 'The font path, relative to the current file icon theme file.'),
 								},
 								format: {
 									type: 'string',
-									description: nls.localize('schema.font-format', 'The format of the font.')
+									description: nls.localize('schema.font-format', 'The format of the font.'),
+									enum: ['woff', 'woff2', 'truetype', 'opentype', 'embedded-opentype', 'svg']
 								}
 							},
 							required: [
@@ -134,15 +139,18 @@ const schema: IJSONSchema = {
 					},
 					weight: {
 						type: 'string',
-						description: nls.localize('schema.font-weight', 'The weight of the font.')
+						description: nls.localize('schema.font-weight', 'The weight of the font. See https://developer.mozilla.org/en-US/docs/Web/CSS/font-weight for valid values.'),
+						pattern: fontWeightRegex
 					},
 					style: {
 						type: 'string',
-						description: nls.localize('schema.font-sstyle', 'The style of the font.')
+						description: nls.localize('schema.font-style', 'The style of the font. See https://developer.mozilla.org/en-US/docs/Web/CSS/font-style for valid values.'),
+						pattern: fontStyleRegex
 					},
 					size: {
 						type: 'string',
-						description: nls.localize('schema.font-size', 'The default size of the font.')
+						description: nls.localize('schema.font-size', 'The default size of the font. See https://developer.mozilla.org/en-US/docs/Web/CSS/font-size for valid values.'),
+						pattern: fontSizeRegex
 					}
 				},
 				required: [
@@ -173,7 +181,8 @@ const schema: IJSONSchema = {
 					},
 					fontSize: {
 						type: 'string',
-						description: nls.localize('schema.fontSize', 'When using a font: The font size in percentage to the text font. If not set, defaults to the size in the font definition.')
+						description: nls.localize('schema.fontSize', 'When using a font: The font size in percentage to the text font. If not set, defaults to the size in the font definition.'),
+						pattern: fontSizeRegex
 					},
 					fontId: {
 						type: 'string',
@@ -218,7 +227,7 @@ const schema: IJSONSchema = {
 	}
 };
 
-export function register() {
+export function registerFileIconThemeSchemas() {
 	let schemaRegistry = Registry.as<IJSONContributionRegistry>(JSONExtensions.JSONContribution);
 	schemaRegistry.registerSchema(schemaId, schema);
 }

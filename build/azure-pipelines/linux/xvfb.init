@@ -1,0 +1,53 @@
+#!/bin/bash
+#
+# /etc/rc.d/init.d/xvfbd
+#
+# chkconfig: 345 95 28
+# description: Starts/Stops X Virtual Framebuffer server
+# processname: Xvfb
+#
+### BEGIN INIT INFO
+# Provides:          xvfb
+# Required-Start:    $remote_fs $syslog
+# Required-Stop:     $remote_fs $syslog
+# Default-Start:     2 3 4 5
+# Default-Stop:      0 1 6
+# Short-Description: Start xvfb at boot time
+# Description:       Enable xvfb provided by daemon.
+### END INIT INFO
+
+[ "${NETWORKING}" = "no" ] && exit 0
+
+PROG="/usr/bin/Xvfb"
+PROG_OPTIONS=":10 -ac -screen 0 1024x768x24"
+PROG_OUTPUT="/tmp/Xvfb.out"
+
+case "$1" in
+	start)
+		echo "Starting : X Virtual Frame Buffer "
+		$PROG $PROG_OPTIONS>>$PROG_OUTPUT 2>&1 &
+		disown -ar
+	;;
+	stop)
+		echo "Shutting down : X Virtual Frame Buffer"
+		killproc $PROG
+		RETVAL=$?
+		[ $RETVAL -eq 0 ] && /bin/rm -f /var/lock/subsys/Xvfb
+		/var/run/Xvfb.pid
+		echo
+	;;
+	restart|reload)
+		$0 stop
+		$0 start
+		RETVAL=$?
+	;;
+	status)
+		status Xvfb
+		RETVAL=$?
+	;;
+	*)
+		echo $"Usage: $0 (start|stop|restart|reload|status)"
+		exit 1
+esac
+
+exit $RETVAL

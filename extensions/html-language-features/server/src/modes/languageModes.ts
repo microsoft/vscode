@@ -2,23 +2,24 @@
  *  Copyright (c) Microsoft Corporation. All rights reserved.
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
-'use strict';
 
-import { getLanguageService as getHTMLLanguageService, DocumentContext } from 'vscode-html-languageservice';
+import { getCSSLanguageService } from 'vscode-css-languageservice';
 import {
-	CompletionItem, Location, SignatureHelp, Definition, TextEdit, TextDocument, Diagnostic, DocumentLink, Range,
-	Hover, DocumentHighlight, CompletionList, Position, FormattingOptions, SymbolInformation
-} from 'vscode-languageserver-types';
-import { ColorInformation, ColorPresentation, Color, WorkspaceFolder } from 'vscode-languageserver';
-import { FoldingRange } from 'vscode-languageserver-protocol-foldingprovider';
-
+	ClientCapabilities, DocumentContext, getLanguageService as getHTMLLanguageService, IHTMLDataProvider, SelectionRange,
+	CompletionItem, CompletionList, Definition, Diagnostic, DocumentHighlight, DocumentLink, FoldingRange, FormattingOptions,
+	Hover, Location, Position, Range, SignatureHelp, SymbolInformation, TextDocument, TextEdit,
+	Color, ColorInformation, ColorPresentation, WorkspaceEdit
+} from 'vscode-html-languageservice';
+import { WorkspaceFolder } from 'vscode-languageserver';
 import { getLanguageModelCache, LanguageModelCache } from '../languageModelCache';
-import { getDocumentRegions, HTMLDocumentRegions } from './embeddedSupport';
 import { getCSSMode } from './cssMode';
-import { getJavaScriptMode } from './javascriptMode';
+import { getDocumentRegions, HTMLDocumentRegions } from './embeddedSupport';
 import { getHTMLMode } from './htmlMode';
+import { getJavaScriptMode } from './javascriptMode';
+import { RequestService } from '../requests';
 
-export { ColorInformation, ColorPresentation, Color };
+export * from 'vscode-html-languageservice';
+export { WorkspaceFolder } from 'vscode-languageserver';
 
 export interface Settings {
 	css?: any;
@@ -31,28 +32,42 @@ export interface Workspace {
 	readonly folders: WorkspaceFolder[];
 }
 
+export interface SemanticTokenData {
+	start: Position;
+	length: number;
+	typeIdx: number;
+	modifierSet: number;
+}
+
 export interface LanguageMode {
 	getId(): string;
-	doValidation?: (document: TextDocument, settings?: Settings) => Diagnostic[];
-	doComplete?: (document: TextDocument, position: Position, settings?: Settings) => CompletionList;
-	doResolve?: (document: TextDocument, item: CompletionItem) => CompletionItem;
-	doHover?: (document: TextDocument, position: Position) => Hover | null;
-	doSignatureHelp?: (document: TextDocument, position: Position) => SignatureHelp | null;
-	findDocumentHighlight?: (document: TextDocument, position: Position) => DocumentHighlight[];
-	findDocumentSymbols?: (document: TextDocument) => SymbolInformation[];
-	findDocumentLinks?: (document: TextDocument, documentContext: DocumentContext) => DocumentLink[];
-	findDefinition?: (document: TextDocument, position: Position) => Definition | null;
-	findReferences?: (document: TextDocument, position: Position) => Location[];
-	format?: (document: TextDocument, range: Range, options: FormattingOptions, settings?: Settings) => TextEdit[];
-	findDocumentColors?: (document: TextDocument) => ColorInformation[];
-	getColorPresentations?: (document: TextDocument, color: Color, range: Range) => ColorPresentation[];
-	doAutoClose?: (document: TextDocument, position: Position) => string | null;
-	getFoldingRanges?: (document: TextDocument, range: Range) => FoldingRange[];
+	getSelectionRange?: (document: TextDocument, position: Position) => Promise<SelectionRange>;
+	doValidation?: (document: TextDocument, settings?: Settings) => Promise<Diagnostic[]>;
+	doComplete?: (document: TextDocument, position: Position, documentContext: DocumentContext, settings?: Settings) => Promise<CompletionList>;
+	doResolve?: (document: TextDocument, item: CompletionItem) => Promise<CompletionItem>;
+	doHover?: (document: TextDocument, position: Position, settings?: Settings) => Promise<Hover | null>;
+	doSignatureHelp?: (document: TextDocument, position: Position) => Promise<SignatureHelp | null>;
+	doRename?: (document: TextDocument, position: Position, newName: string) => Promise<WorkspaceEdit | null>;
+	doLinkedEditing?: (document: TextDocument, position: Position) => Promise<Range[] | null>;
+	findDocumentHighlight?: (document: TextDocument, position: Position) => Promise<DocumentHighlight[]>;
+	findDocumentSymbols?: (document: TextDocument) => Promise<SymbolInformation[]>;
+	findDocumentLinks?: (document: TextDocument, documentContext: DocumentContext) => Promise<DocumentLink[]>;
+	findDefinition?: (document: TextDocument, position: Position) => Promise<Definition | null>;
+	findReferences?: (document: TextDocument, position: Position) => Promise<Location[]>;
+	format?: (document: TextDocument, range: Range, options: FormattingOptions, settings?: Settings) => Promise<TextEdit[]>;
+	findDocumentColors?: (document: TextDocument) => Promise<ColorInformation[]>;
+	getColorPresentations?: (document: TextDocument, color: Color, range: Range) => Promise<ColorPresentation[]>;
+	doAutoClose?: (document: TextDocument, position: Position) => Promise<string | null>;
+	findMatchingTagPosition?: (document: TextDocument, position: Position) => Promise<Position | null>;
+	getFoldingRanges?: (document: TextDocument) => Promise<FoldingRange[]>;
 	onDocumentRemoved(document: TextDocument): void;
+	getSemanticTokens?(document: TextDocument): Promise<SemanticTokenData[]>;
+	getSemanticTokenLegend?(): { types: string[], modifiers: string[] };
 	dispose(): void;
 }
 
 export interface LanguageModes {
+	updateDataProviders(dataProviders: IHTMLDataProvider[]): void;
 	getModeAtPosition(document: TextDocument, position: Position): LanguageMode | undefined;
 	getModesInRange(document: TextDocument, range: Range): LanguageModeRange[];
 	getAllModes(): LanguageMode[];
@@ -67,9 +82,10 @@ export interface LanguageModeRange extends Range {
 	attributeValue?: boolean;
 }
 
-export function getLanguageModes(supportedLanguages: { [languageId: string]: boolean; }, workspace: Workspace): LanguageModes {
+export function getLanguageModes(supportedLanguages: { [languageId: string]: boolean; }, workspace: Workspace, clientCapabilities: ClientCapabilities, requestService: RequestService): LanguageModes {
+	const htmlLanguageService = getHTMLLanguageService({ clientCapabilities, fileSystemProvider: requestService });
+	const cssLanguageService = getCSSLanguageService({ clientCapabilities, fileSystemProvider: requestService });
 
-	var htmlLanguageService = getHTMLLanguageService();
 	let documentRegions = getLanguageModelCache<HTMLDocumentRegions>(10, 60, document => getDocumentRegions(htmlLanguageService, document));
 
 	let modelCaches: LanguageModelCache<any>[] = [];
@@ -78,18 +94,22 @@ export function getLanguageModes(supportedLanguages: { [languageId: string]: boo
 	let modes = Object.create(null);
 	modes['html'] = getHTMLMode(htmlLanguageService, workspace);
 	if (supportedLanguages['css']) {
-		modes['css'] = getCSSMode(documentRegions, workspace);
+		modes['css'] = getCSSMode(cssLanguageService, documentRegions, workspace);
 	}
 	if (supportedLanguages['javascript']) {
-		modes['javascript'] = getJavaScriptMode(documentRegions, workspace);
+		modes['javascript'] = getJavaScriptMode(documentRegions, 'javascript', workspace);
+		modes['typescript'] = getJavaScriptMode(documentRegions, 'typescript', workspace);
 	}
 	return {
+		async updateDataProviders(dataProviders: IHTMLDataProvider[]): Promise<void> {
+			htmlLanguageService.setDataProviders(true, dataProviders);
+		},
 		getModeAtPosition(document: TextDocument, position: Position): LanguageMode | undefined {
 			let languageId = documentRegions.get(document).getLanguageAtPosition(position);
 			if (languageId) {
 				return modes[languageId];
 			}
-			return void 0;
+			return undefined;
 		},
 		getModesInRange(document: TextDocument, range: Range): LanguageModeRange[] {
 			return documentRegions.get(document).getLanguageRanges(range).map(r => {

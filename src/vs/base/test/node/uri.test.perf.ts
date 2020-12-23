@@ -2,18 +2,18 @@
  *  Copyright (c) Microsoft Corporation. All rights reserved.
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
-'use strict';
 
 import * as assert from 'assert';
-import URI from 'vs/base/common/uri';
+import { URI } from 'vs/base/common/uri';
 import { readFileSync } from 'fs';
+import { getPathFromAmdModule } from 'vs/base/common/amd';
 
 suite('URI - perf', function () {
 
 	let manyFileUris: URI[];
 	setup(function () {
 		manyFileUris = [];
-		let data = readFileSync(URI.parse(require.toUrl('./uri.test.data.txt')).fsPath).toString();
+		let data = readFileSync(getPathFromAmdModule(require, './uri.test.data.txt')).toString();
 		let lines = data.split('\n');
 		for (let line of lines) {
 			manyFileUris.push(URI.file(line));

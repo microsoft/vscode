@@ -7,13 +7,20 @@
  *---------------------------------------------------------------------------------------------
  *---------------------------------------------------------------------------------------------
  *---------------------------------------------------------------------------------------------
- * Please make sure to make edits in the .ts file at https://github.com/Microsoft/vscode-loader/
+ * Please make sure to make edits in the .ts file at https://github.com/microsoft/vscode-loader/
  *---------------------------------------------------------------------------------------------
  *---------------------------------------------------------------------------------------------
  *---------------------------------------------------------------------------------------------
  *---------------------------------------------------------------------------------------------
  *--------------------------------------------------------------------------------------------*/
 'use strict';
+var __spreadArrays = (this && this.__spreadArrays) || function () {
+    for (var s = 0, i = 0, il = arguments.length; i < il; i++) s += arguments[i].length;
+    for (var r = Array(s), k = 0, i = 0; i < il; i++)
+        for (var a = arguments[i], j = 0, jl = a.length; j < jl; j++, k++)
+            r[k] = a[j];
+    return r;
+};
 var NLSLoaderPlugin;
 (function (NLSLoaderPlugin) {
     var Environment = /** @class */ (function () {
@@ -46,7 +53,15 @@ var NLSLoaderPlugin;
         else {
             result = message.replace(/\{(\d+)\}/g, function (match, rest) {
                 var index = rest[0];
-                return typeof args[index] !== 'undefined' ? args[index] : match;
+                var arg = args[index];
+                var result = match;
+                if (typeof arg === 'string') {
+                    result = arg;
+                }
+                else if (typeof arg === 'number' || typeof arg === 'boolean' || arg === void 0 || arg === null) {
+                    result = String(arg);
+                }
+                return result;
             });
         }
         if (env.isPseudo) {
@@ -86,7 +101,7 @@ var NLSLoaderPlugin;
                 for (var _i = 2; _i < arguments.length; _i++) {
                     args[_i - 2] = arguments[_i];
                 }
-                return localize.apply(void 0, [_this._env, data, message].concat(args));
+                return localize.apply(void 0, __spreadArrays([_this._env, data, message], args));
             };
         }
         NLSPlugin.prototype.setPseudoTranslation = function (value) {

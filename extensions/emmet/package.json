@@ -4,6 +4,7 @@
     "description": "%description%",
     "version": "1.0.0",
     "publisher": "vscode",
+    "license": "MIT",
     "engines": {
         "vscode": "^1.13.0"
     },
@@ -13,7 +14,7 @@
     ],
     "repository": {
         "type": "git",
-        "url": "https://github.com/Microsoft/vscode-emmet"
+        "url": "https://github.com/microsoft/vscode-emmet"
     },
     "activationEvents": [
         "*",
@@ -23,7 +24,8 @@
         "onLanguage:scss",
         "onLanguage:less"
     ],
-    "main": "./out/extension",
+    "main": "./out/node/emmetNodeMain",
+    "browser": "./dist/browser/emmetBrowserMain",
     "contributes": {
         "configuration": {
             "type": "object",
@@ -39,17 +41,20 @@
                         "inMarkupAndStylesheetFilesOnly"
                     ],
                     "default": "always",
-                    "description": "%emmetShowExpandedAbbreviation%"
+                    "markdownDescription": "%emmetShowExpandedAbbreviation%"
                 },
                 "emmet.showAbbreviationSuggestions": {
                     "type": "boolean",
                     "default": true,
-                    "description": "%emmetShowAbbreviationSuggestions%"
+                    "markdownDescription": "%emmetShowAbbreviationSuggestions%"
                 },
                 "emmet.includeLanguages": {
                     "type": "object",
+                    "additionalProperties": {
+                        "type": "string"
+                    },
                     "default": {},
-                    "description": "%emmetIncludeLanguages%"
+                    "markdownDescription": "%emmetIncludeLanguages%"
                 },
                 "emmet.variables": {
                     "type": "object",
@@ -79,7 +84,10 @@
                     "description": "%emmetExclude%"
                 },
                 "emmet.extensionsPath": {
-                    "type": "string",
+                    "type": [
+                        "string",
+                        "null"
+                    ],
                     "default": null,
                     "description": "%emmetExtensionsPath%"
                 },
@@ -183,22 +191,22 @@
                         "css.webkitProperties": {
                             "type": "string",
                             "default": null,
-                            "description": "%emmetPreferencesCssWebkitProperties%"
+                            "markdownDescription": "%emmetPreferencesCssWebkitProperties%"
                         },
                         "css.mozProperties": {
                             "type": "string",
                             "default": null,
-                            "description": "%emmetPreferencesCssMozProperties%"
+                            "markdownDescription": "%emmetPreferencesCssMozProperties%"
                         },
                         "css.oProperties": {
                             "type": "string",
                             "default": null,
-                            "description": "%emmetPreferencesCssOProperties%"
+                            "markdownDescription": "%emmetPreferencesCssOProperties%"
                         },
                         "css.msProperties": {
                             "type": "string",
                             "default": null,
-                            "description": "%emmetPreferencesCssMsProperties%"
+                            "markdownDescription": "%emmetPreferencesCssMsProperties%"
                         },
                         "css.fuzzySearchMinScore": {
                             "type": "number",
@@ -210,12 +218,12 @@
                 "emmet.showSuggestionsAsSnippets": {
                     "type": "boolean",
                     "default": false,
-                    "description": "%emmetShowSuggestionsAsSnippets%"
+                    "markdownDescription": "%emmetShowSuggestionsAsSnippets%"
                 },
                 "emmet.optimizeStylesheetParsing": {
                     "type": "boolean",
                     "default": true,
-                    "description": "%emmetOptimizeStylesheetParsing%"
+                    "markdownDescription": "%emmetOptimizeStylesheetParsing%"
                 }
             }
         },
@@ -334,121 +342,102 @@
                 "command": "editor.emmet.action.reflectCSSValue",
                 "title": "%command.reflectCSSValue%",
                 "category": "Emmet"
+            },
+            {
+                "command": "workbench.action.showEmmetCommands",
+                "title": "%command.showEmmetCommands%",
+                "category": ""
             }
         ],
         "menus": {
             "commandPalette": [
                 {
-                    "command": "editor.emmet.action.wrapIndividualLinesWithAbbreviation",
-                    "when": "resourceScheme =~ /^untitled$|^file$/"
+                    "command": "editor.emmet.action.wrapIndividualLinesWithAbbreviation"
                 },
                 {
-                    "command": "editor.emmet.action.wrapWithAbbreviation",
-                    "when": "resourceScheme =~ /^untitled$|^file$/"
+                    "command": "editor.emmet.action.wrapWithAbbreviation"
                 },
                 {
-                    "command": "editor.emmet.action.removeTag",
-                    "when": "resourceScheme =~ /^untitled$|^file$/"
+                    "command": "editor.emmet.action.removeTag"
                 },
                 {
-                    "command": "editor.emmet.action.updateTag",
-                    "when": "resourceScheme =~ /^untitled$|^file$/"
+                    "command": "editor.emmet.action.updateTag"
                 },
                 {
-                    "command": "editor.emmet.action.matchTag",
-                    "when": "resourceScheme =~ /^untitled$|^file$/"
+                    "command": "editor.emmet.action.matchTag"
                 },
                 {
-                    "command": "editor.emmet.action.balanceIn",
-                    "when": "resourceScheme =~ /^untitled$|^file$/"
+                    "command": "editor.emmet.action.balanceIn"
                 },
                 {
-                    "command": "editor.emmet.action.balanceOut",
-                    "when": "resourceScheme =~ /^untitled$|^file$/"
+                    "command": "editor.emmet.action.balanceOut"
                 },
                 {
-                    "command": "editor.emmet.action.prevEditPoint",
-                    "when": "resourceScheme =~ /^untitled$|^file$/"
+                    "command": "editor.emmet.action.prevEditPoint"
                 },
                 {
-                    "command": "editor.emmet.action.nextEditPoint",
-                    "when": "resourceScheme =~ /^untitled$|^file$/"
+                    "command": "editor.emmet.action.nextEditPoint"
                 },
                 {
-                    "command": "editor.emmet.action.mergeLines",
-                    "when": "resourceScheme =~ /^untitled$|^file$/"
+                    "command": "editor.emmet.action.mergeLines"
                 },
                 {
-                    "command": "editor.emmet.action.selectPrevItem",
-                    "when": "resourceScheme =~ /^untitled$|^file$/"
+                    "command": "editor.emmet.action.selectPrevItem"
                 },
                 {
-                    "command": "editor.emmet.action.selectNextItem",
-                    "when": "resourceScheme =~ /^untitled$|^file$/"
+                    "command": "editor.emmet.action.selectNextItem"
                 },
                 {
-                    "command": "editor.emmet.action.splitJoinTag",
-                    "when": "resourceScheme =~ /^untitled$|^file$/"
+                    "command": "editor.emmet.action.splitJoinTag"
                 },
                 {
-                    "command": "editor.emmet.action.toggleComment",
-                    "when": "resourceScheme =~ /^untitled$|^file$/"
+                    "command": "editor.emmet.action.toggleComment"
                 },
                 {
-                    "command": "editor.emmet.action.evaluateMathExpression",
-                    "when": "resourceScheme =~ /^untitled$|^file$/"
+                    "command": "editor.emmet.action.evaluateMathExpression"
                 },
                 {
                     "command": "editor.emmet.action.updateImageSize",
-                    "when": "resourceScheme =~ /^untitled$|^file$/"
+                    "when": "resourceScheme =~ /^file$/"
                 },
                 {
-                    "command": "editor.emmet.action.incrementNumberByOneTenth",
-                    "when": "resourceScheme =~ /^untitled$|^file$/"
+                    "command": "editor.emmet.action.incrementNumberByOneTenth"
                 },
                 {
-                    "command": "editor.emmet.action.incrementNumberByOne",
-                    "when": "resourceScheme =~ /^untitled$|^file$/"
+                    "command": "editor.emmet.action.incrementNumberByOne"
                 },
                 {
-                    "command": "editor.emmet.action.incrementNumberByTen",
-                    "when": "resourceScheme =~ /^untitled$|^file$/"
+                    "command": "editor.emmet.action.incrementNumberByTen"
                 },
                 {
-                    "command": "editor.emmet.action.decrementNumberByOneTenth",
-                    "when": "resourceScheme =~ /^untitled$|^file$/"
+                    "command": "editor.emmet.action.decrementNumberByOneTenth"
                 },
                 {
-                    "command": "editor.emmet.action.decrementNumberByOne",
-                    "when": "resourceScheme =~ /^untitled$|^file$/"
+                    "command": "editor.emmet.action.decrementNumberByOne"
                 },
                 {
-                    "command": "editor.emmet.action.decrementNumberByTen",
-                    "when": "resourceScheme =~ /^untitled$|^file$/"
+                    "command": "editor.emmet.action.decrementNumberByTen"
                 },
                 {
-                    "command": "editor.emmet.action.reflectCSSValue",
-                    "when": "resourceScheme =~ /^untitled$|^file$/"
+                    "command": "editor.emmet.action.reflectCSSValue"
                 }
             ]
         }
     },
     "scripts": {
-        "compile": "gulp compile-extension:emmet"
+        "watch": "gulp watch-extension:emmet",
+        "compile": "gulp compile-extension:emmet",
+        "deps": "yarn add vscode-emmet-helper"
     },
     "devDependencies": {
-        "@types/node": "8.0.33",
-        "mocha-junit-reporter": "^1.17.0",
-        "mocha-multi-reporters": "^1.1.7",
-        "vscode": "1.0.1"
+        "@types/node": "^12.19.9"
     },
     "dependencies": {
         "@emmetio/css-parser": "ramya-rao-a/css-parser#vscode",
         "@emmetio/html-matcher": "^0.3.3",
-        "@emmetio/math-expression": "^0.1.1",
+        "@emmetio/math-expression": "^1.0.4",
         "image-size": "^0.5.2",
-        "vscode-emmet-helper": "^1.2.10",
-        "vscode-languageserver-types": "^3.5.0",
-        "vscode-nls": "3.2.1"
+        "vscode-emmet-helper": "~2.0.0",
+        "vscode-html-languageservice": "^3.0.3"
     }
 }

@@ -2,10 +2,9 @@
  *  Copyright (c) Microsoft Corporation. All rights reserved.
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
-'use strict';
 
-import * as viewEvents from 'vs/editor/common/view/viewEvents';
 import { Disposable } from 'vs/base/common/lifecycle';
+import * as viewEvents from 'vs/editor/common/view/viewEvents';
 
 export class ViewEventHandler extends Disposable {
 
@@ -34,6 +33,12 @@ export class ViewEventHandler extends Disposable {
 
 	// --- begin event handlers
 
+	public onCompositionStart(e: viewEvents.ViewCompositionStartEvent): boolean {
+		return false;
+	}
+	public onCompositionEnd(e: viewEvents.ViewCompositionEndEvent): boolean {
+		return false;
+	}
 	public onConfigurationChanged(e: viewEvents.ViewConfigurationChangedEvent): boolean {
 		return false;
 	}
@@ -70,6 +75,9 @@ export class ViewEventHandler extends Disposable {
 	public onScrollChanged(e: viewEvents.ViewScrollChangedEvent): boolean {
 		return false;
 	}
+	public onThemeChanged(e: viewEvents.ViewThemeChangedEvent): boolean {
+		return false;
+	}
 	public onTokensChanged(e: viewEvents.ViewTokensChangedEvent): boolean {
 		return false;
 	}
@@ -77,9 +85,6 @@ export class ViewEventHandler extends Disposable {
 		return false;
 	}
 	public onZonesChanged(e: viewEvents.ViewZonesChangedEvent): boolean {
-		return false;
-	}
-	public onThemeChanged(e: viewEvents.ViewThemeChangedEvent): boolean {
 		return false;
 	}
 
@@ -93,6 +98,18 @@ export class ViewEventHandler extends Disposable {
 			let e = events[i];
 
 			switch (e.type) {
+
+				case viewEvents.ViewEventType.ViewCompositionStart:
+					if (this.onCompositionStart(e)) {
+						shouldRender = true;
+					}
+					break;
+
+				case viewEvents.ViewEventType.ViewCompositionEnd:
+					if (this.onCompositionEnd(e)) {
+						shouldRender = true;
+					}
+					break;
 
 				case viewEvents.ViewEventType.ViewConfigurationChanged:
 					if (this.onConfigurationChanged(e)) {
@@ -172,6 +189,12 @@ export class ViewEventHandler extends Disposable {
 					}
 					break;
 
+				case viewEvents.ViewEventType.ViewThemeChanged:
+					if (this.onThemeChanged(e)) {
+						shouldRender = true;
+					}
+					break;
+
 				case viewEvents.ViewEventType.ViewTokensColorsChanged:
 					if (this.onTokensColorsChanged(e)) {
 						shouldRender = true;
@@ -180,12 +203,6 @@ export class ViewEventHandler extends Disposable {
 
 				case viewEvents.ViewEventType.ViewZonesChanged:
 					if (this.onZonesChanged(e)) {
-						shouldRender = true;
-					}
-					break;
-
-				case viewEvents.ViewEventType.ViewThemeChanged:
-					if (this.onThemeChanged(e)) {
 						shouldRender = true;
 					}
 					break;

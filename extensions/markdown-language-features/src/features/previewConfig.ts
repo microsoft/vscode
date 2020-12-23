@@ -4,6 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import * as vscode from 'vscode';
+import { equals } from '../util/arrays';
 
 export class MarkdownPreviewConfiguration {
 	public static getForResource(resource: vscode.Uri) {
@@ -12,7 +13,6 @@ export class MarkdownPreviewConfiguration {
 
 	public readonly scrollBeyondLastLine: boolean;
 	public readonly wordWrap: boolean;
-	public readonly previewFrontMatter: string;
 	public readonly lineBreaks: boolean;
 	public readonly doubleClickToSwitchToEditor: boolean;
 	public readonly scrollEditorWithPreview: boolean;
@@ -22,7 +22,7 @@ export class MarkdownPreviewConfiguration {
 	public readonly lineHeight: number;
 	public readonly fontSize: number;
 	public readonly fontFamily: string | undefined;
-	public readonly styles: string[];
+	public readonly styles: readonly string[];
 
 	private constructor(resource: vscode.Uri) {
 		const editorConfig = vscode.workspace.getConfiguration('editor', resource);
@@ -36,7 +36,6 @@ export class MarkdownPreviewConfiguration {
 			this.wordWrap = markdownEditorConfig['editor.wordWrap'] !== 'off';
 		}
 
-		this.previewFrontMatter = markdownConfig.get<string>('previewFrontMatter', 'hide');
 		this.scrollPreviewWithEditor = !!markdownConfig.get<boolean>('preview.scrollPreviewWithEditor', true);
 		this.scrollEditorWithPreview = !!markdownConfig.get<boolean>('preview.scrollEditorWithPreview', true);
 		this.lineBreaks = !!markdownConfig.get<boolean>('preview.breaks', false);
@@ -51,7 +50,7 @@ export class MarkdownPreviewConfiguration {
 	}
 
 	public isEqualTo(otherConfig: MarkdownPreviewConfiguration) {
-		for (let key in this) {
+		for (const key in this) {
 			if (this.hasOwnProperty(key) && key !== 'styles') {
 				if (this[key] !== otherConfig[key]) {
 					return false;
@@ -59,17 +58,7 @@ export class MarkdownPreviewConfiguration {
 			}
 		}
 
-		// Check styles
-		if (this.styles.length !== otherConfig.styles.length) {
-			return false;
-		}
-		for (let i = 0; i < this.styles.length; ++i) {
-			if (this.styles[i] !== otherConfig.styles[i]) {
-				return false;
-			}
-		}
-
-		return true;
+		return equals(this.styles, otherConfig.styles);
 	}
 
 	[key: string]: any;

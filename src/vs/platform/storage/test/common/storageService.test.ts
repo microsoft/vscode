@@ -3,97 +3,196 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-'use strict';
+import { strictEqual, ok, equal } from 'assert';
+import { StorageScope, InMemoryStorageService, StorageTarget, IStorageValueChangeEvent, IStorageTargetChangeEvent } from 'vs/platform/storage/common/storage';
 
-import * as assert from 'assert';
-import { TestInstantiationService } from 'vs/platform/instantiation/test/common/instantiationServiceMock';
-import { StorageScope } from 'vs/platform/storage/common/storage';
-import { IWorkspaceContextService, IWorkspace, WorkbenchState } from 'vs/platform/workspace/common/workspace';
-import { StorageService, InMemoryLocalStorage } from 'vs/platform/storage/common/storageService';
-import { TestWorkspace } from 'vs/platform/workspace/test/common/testWorkspace';
+suite('StorageService', function () {
 
-suite('Workbench StorageSevice', () => {
-	let contextService: IWorkspaceContextService;
-	let instantiationService: TestInstantiationService;
+	test('Get Data, Integer, Boolean (global, in-memory)', () => {
+		storeData(StorageScope.GLOBAL);
+	});
 
-	setup(() => {
-		instantiationService = new TestInstantiationService();
-		contextService = instantiationService.stub(IWorkspaceContextService, <IWorkspaceContextService>{
-			getWorkbenchState: () => WorkbenchState.FOLDER,
-			getWorkspace: () => {
-				return <IWorkspace>TestWorkspace;
+	test('Get Data, Integer, Boolean (workspace, in-memory)', () => {
+		storeData(StorageScope.WORKSPACE);
+	});
+
+	function storeData(scope: StorageScope): void {
+		const storage = new InMemoryStorageService();
+
+		let storageValueChangeEvents: IStorageValueChangeEvent[] = [];
+		storage.onDidChangeValue(e => storageValueChangeEvents.push(e));
+
+		strictEqual(storage.get('test.get', scope, 'foobar'), 'foobar');
+		strictEqual(storage.get('test.get', scope, ''), '');
+		strictEqual(storage.getNumber('test.getNumber', scope, 5), 5);
+		strictEqual(storage.getNumber('test.getNumber', scope, 0), 0);
+		strictEqual(storage.getBoolean('test.getBoolean', scope, true), true);
+		strictEqual(storage.getBoolean('test.getBoolean', scope, false), false);
+
+		storage.store('test.get', 'foobar', scope, StorageTarget.MACHINE);
+		strictEqual(storage.get('test.get', scope, (undefined)!), 'foobar');
+		let storageValueChangeEvent = storageValueChangeEvents.find(e => e.key === 'test.get');
+		equal(storageValueChangeEvent?.scope, scope);
+		equal(storageValueChangeEvent?.key, 'test.get');
+		storageValueChangeEvents = [];
+
+		storage.store('test.get', '', scope, StorageTarget.MACHINE);
+		strictEqual(storage.get('test.get', scope, (undefined)!), '');
+		storageValueChangeEvent = storageValueChangeEvents.find(e => e.key === 'test.get');
+		equal(storageValueChangeEvent!.scope, scope);
+		equal(storageValueChangeEvent!.key, 'test.get');
+
+		storage.store('test.getNumber', 5, scope, StorageTarget.MACHINE);
+		strictEqual(storage.getNumber('test.getNumber', scope, (undefined)!), 5);
+
+		storage.store('test.getNumber', 0, scope, StorageTarget.MACHINE);
+		strictEqual(storage.getNumber('test.getNumber', scope, (undefined)!), 0);
+
+		storage.store('test.getBoolean', true, scope, StorageTarget.MACHINE);
+		strictEqual(storage.getBoolean('test.getBoolean', scope, (undefined)!), true);
+
+		storage.store('test.getBoolean', false, scope, StorageTarget.MACHINE);
+		strictEqual(storage.getBoolean('test.getBoolean', scope, (undefined)!), false);
+
+		strictEqual(storage.get('test.getDefault', scope, 'getDefault'), 'getDefault');
+		strictEqual(storage.getNumber('test.getNumberDefault', scope, 5), 5);
+		strictEqual(storage.getBoolean('test.getBooleanDefault', scope, true), true);
+	}
+
+	test('Remove Data (global, in-memory)', () => {
+		removeData(StorageScope.GLOBAL);
+	});
+
+	test('Remove Data (workspace, in-memory)', () => {
+		removeData(StorageScope.WORKSPACE);
+	});
+
+	function removeData(scope: StorageScope): void {
+		const storage = new InMemoryStorageService();
+
+		let storageValueChangeEvents: IStorageValueChangeEvent[] = [];
+		storage.onDidChangeValue(e => storageValueChangeEvents.push(e));
+
+		storage.store('test.remove', 'foobar', scope, StorageTarget.MACHINE);
+		strictEqual('foobar', storage.get('test.remove', scope, (undefined)!));
+
+		storage.remove('test.remove', scope);
+		ok(!storage.get('test.remove', scope, (undefined)!));
+		let storageValueChangeEvent = storageValueChangeEvents.find(e => e.key === 'test.remove');
+		equal(storageValueChangeEvent?.scope, scope);
+		equal(storageValueChangeEvent?.key, 'test.remove');
+	}
+
+	test('Keys (in-memory)', () => {
+		const storage = new InMemoryStorageService();
+
+		let storageTargetEvent: IStorageTargetChangeEvent | undefined = undefined;
+		storage.onDidChangeTarget(e => storageTargetEvent = e);
+
+		let storageValueChangeEvent: IStorageValueChangeEvent | undefined = undefined;
+		storage.onDidChangeValue(e => storageValueChangeEvent = e);
+
+		// Empty
+		for (const scope of [StorageScope.WORKSPACE, StorageScope.GLOBAL]) {
+			for (const target of [StorageTarget.MACHINE, StorageTarget.USER]) {
+				strictEqual(storage.keys(scope, target).length, 0);
 			}
-		});
-	});
+		}
 
-	test('Remove Data', () => {
-		let s = new StorageService(new InMemoryLocalStorage(), null, contextService.getWorkspace().id);
-		s.store('Monaco.IDE.Core.Storage.Test.remove', 'foobar');
-		assert.strictEqual('foobar', s.get('Monaco.IDE.Core.Storage.Test.remove'));
+		// Add values
+		for (const scope of [StorageScope.WORKSPACE, StorageScope.GLOBAL]) {
+			for (const target of [StorageTarget.MACHINE, StorageTarget.USER]) {
+				storageTargetEvent = Object.create(null);
+				storageValueChangeEvent = Object.create(null);
 
-		s.remove('Monaco.IDE.Core.Storage.Test.remove');
-		assert.ok(!s.get('Monaco.IDE.Core.Storage.Test.remove'));
-	});
+				storage.store('test.target1', 'value1', scope, target);
+				strictEqual(storage.keys(scope, target).length, 1);
+				equal(storageTargetEvent?.scope, scope);
+				equal(storageValueChangeEvent?.key, 'test.target1');
+				equal(storageValueChangeEvent?.scope, scope);
+				equal(storageValueChangeEvent?.target, target);
 
-	test('Get Data, Integer, Boolean', () => {
-		let s = new StorageService(new InMemoryLocalStorage(), null, contextService.getWorkspace().id);
+				storageTargetEvent = undefined;
+				storageValueChangeEvent = Object.create(null);
 
-		assert.strictEqual(s.get('Monaco.IDE.Core.Storage.Test.get', StorageScope.GLOBAL, 'foobar'), 'foobar');
-		assert.strictEqual(s.get('Monaco.IDE.Core.Storage.Test.get', StorageScope.GLOBAL, ''), '');
-		assert.strictEqual(s.get('Monaco.IDE.Core.Storage.Test.getInteger', StorageScope.GLOBAL, 5), 5);
-		assert.strictEqual(s.get('Monaco.IDE.Core.Storage.Test.getInteger', StorageScope.GLOBAL, 0), 0);
-		assert.strictEqual(s.get('Monaco.IDE.Core.Storage.Test.getBoolean', StorageScope.GLOBAL, true), true);
-		assert.strictEqual(s.get('Monaco.IDE.Core.Storage.Test.getBoolean', StorageScope.GLOBAL, false), false);
+				storage.store('test.target1', 'otherValue1', scope, target);
+				strictEqual(storage.keys(scope, target).length, 1);
+				equal(storageTargetEvent, undefined);
+				equal(storageValueChangeEvent?.key, 'test.target1');
+				equal(storageValueChangeEvent?.scope, scope);
+				equal(storageValueChangeEvent?.target, target);
 
-		s.store('Monaco.IDE.Core.Storage.Test.get', 'foobar');
-		assert.strictEqual(s.get('Monaco.IDE.Core.Storage.Test.get'), 'foobar');
+				storage.store('test.target2', 'value2', scope, target);
+				storage.store('test.target3', 'value3', scope, target);
 
-		s.store('Monaco.IDE.Core.Storage.Test.get', '');
-		assert.strictEqual(s.get('Monaco.IDE.Core.Storage.Test.get'), '');
+				strictEqual(storage.keys(scope, target).length, 3);
+			}
+		}
 
-		s.store('Monaco.IDE.Core.Storage.Test.getInteger', 5);
-		assert.strictEqual(s.getInteger('Monaco.IDE.Core.Storage.Test.getInteger'), 5);
+		// Remove values
+		for (const scope of [StorageScope.WORKSPACE, StorageScope.GLOBAL]) {
+			for (const target of [StorageTarget.MACHINE, StorageTarget.USER]) {
+				const keysLength = storage.keys(scope, target).length;
 
-		s.store('Monaco.IDE.Core.Storage.Test.getInteger', 0);
-		assert.strictEqual(s.getInteger('Monaco.IDE.Core.Storage.Test.getInteger'), 0);
+				storage.store('test.target4', 'value1', scope, target);
+				strictEqual(storage.keys(scope, target).length, keysLength + 1);
 
-		s.store('Monaco.IDE.Core.Storage.Test.getBoolean', true);
-		assert.strictEqual(s.getBoolean('Monaco.IDE.Core.Storage.Test.getBoolean'), true);
+				storageTargetEvent = Object.create(null);
+				storageValueChangeEvent = Object.create(null);
 
-		s.store('Monaco.IDE.Core.Storage.Test.getBoolean', false);
-		assert.strictEqual(s.getBoolean('Monaco.IDE.Core.Storage.Test.getBoolean'), false);
+				storage.remove('test.target4', scope);
+				strictEqual(storage.keys(scope, target).length, keysLength);
+				equal(storageTargetEvent?.scope, scope);
+				equal(storageValueChangeEvent?.key, 'test.target4');
+				equal(storageValueChangeEvent?.scope, scope);
+			}
+		}
 
-		assert.strictEqual(s.get('Monaco.IDE.Core.Storage.Test.getDefault', StorageScope.GLOBAL, 'getDefault'), 'getDefault');
-		assert.strictEqual(s.getInteger('Monaco.IDE.Core.Storage.Test.getIntegerDefault', StorageScope.GLOBAL, 5), 5);
-		assert.strictEqual(s.getBoolean('Monaco.IDE.Core.Storage.Test.getBooleanDefault', StorageScope.GLOBAL, true), true);
-	});
+		// Remove all
+		for (const scope of [StorageScope.WORKSPACE, StorageScope.GLOBAL]) {
+			for (const target of [StorageTarget.MACHINE, StorageTarget.USER]) {
+				const keys = storage.keys(scope, target);
 
-	test('StorageSevice cleans up when workspace changes', () => {
-		let storageImpl = new InMemoryLocalStorage();
-		let time = new Date().getTime();
-		let s = new StorageService(storageImpl, null, contextService.getWorkspace().id, time);
+				for (const key of keys) {
+					storage.remove(key, scope);
+				}
 
-		s.store('key1', 'foobar');
-		s.store('key2', 'something');
-		s.store('wkey1', 'foo', StorageScope.WORKSPACE);
-		s.store('wkey2', 'foo2', StorageScope.WORKSPACE);
+				strictEqual(storage.keys(scope, target).length, 0);
+			}
+		}
 
-		s = new StorageService(storageImpl, null, contextService.getWorkspace().id, time);
+		// Adding undefined or null removes value
+		for (const scope of [StorageScope.WORKSPACE, StorageScope.GLOBAL]) {
+			for (const target of [StorageTarget.MACHINE, StorageTarget.USER]) {
+				storage.store('test.target1', 'value1', scope, target);
+				strictEqual(storage.keys(scope, target).length, 1);
 
-		assert.strictEqual(s.get('key1', StorageScope.GLOBAL), 'foobar');
-		assert.strictEqual(s.get('key1', StorageScope.WORKSPACE, null), null);
+				storageTargetEvent = Object.create(null);
 
-		assert.strictEqual(s.get('key2', StorageScope.GLOBAL), 'something');
-		assert.strictEqual(s.get('wkey1', StorageScope.WORKSPACE), 'foo');
-		assert.strictEqual(s.get('wkey2', StorageScope.WORKSPACE), 'foo2');
+				storage.store('test.target1', undefined, scope, target);
+				strictEqual(storage.keys(scope, target).length, 0);
+				equal(storageTargetEvent?.scope, scope);
 
-		s = new StorageService(storageImpl, null, contextService.getWorkspace().id, time + 100);
+				storage.store('test.target1', '', scope, target);
+				strictEqual(storage.keys(scope, target).length, 1);
 
-		assert.strictEqual(s.get('key1', StorageScope.GLOBAL), 'foobar');
-		assert.strictEqual(s.get('key1', StorageScope.WORKSPACE, null), null);
+				storage.store('test.target1', null, scope, target);
+				strictEqual(storage.keys(scope, target).length, 0);
+			}
+		}
 
-		assert.strictEqual(s.get('key2', StorageScope.GLOBAL), 'something');
-		assert(!s.get('wkey1', StorageScope.WORKSPACE));
-		assert(!s.get('wkey2', StorageScope.WORKSPACE));
+		// Target change
+		storageTargetEvent = undefined;
+		storage.store('test.target5', 'value1', StorageScope.GLOBAL, StorageTarget.MACHINE);
+		ok(storageTargetEvent);
+		storageTargetEvent = undefined;
+		storage.store('test.target5', 'value1', StorageScope.GLOBAL, StorageTarget.USER);
+		ok(storageTargetEvent);
+		storageTargetEvent = undefined;
+		storage.store('test.target5', 'value1', StorageScope.GLOBAL, StorageTarget.MACHINE);
+		ok(storageTargetEvent);
+		storageTargetEvent = undefined;
+		storage.store('test.target5', 'value1', StorageScope.GLOBAL, StorageTarget.MACHINE);
+		ok(!storageTargetEvent); // no change in target
 	});
 });

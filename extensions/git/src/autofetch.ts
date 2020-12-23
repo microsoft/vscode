@@ -3,13 +3,11 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-'use strict';
-
-import { workspace, Disposable, EventEmitter, Memento, window, MessageItem, ConfigurationTarget } from 'vscode';
-import { GitErrorCodes } from './git';
+import { workspace, Disposable, EventEmitter, Memento, window, MessageItem, ConfigurationTarget, Uri, ConfigurationChangeEvent } from 'vscode';
 import { Repository, Operation } from './repository';
 import { eventToPromise, filterEvent, onceEvent } from './util';
 import * as nls from 'vscode-nls';
+import { GitErrorCodes } from './api/git';
 
 const localize = nls.loadMessageBundle();
 
@@ -19,13 +17,13 @@ function isRemoteOperation(operation: Operation): boolean {
 
 export class AutoFetcher {
 
-	private static readonly Period = 3 * 60 * 1000 /* three minutes */;
 	private static DidInformUser = 'autofetch.didInformUser';
 
 	private _onDidChange = new EventEmitter<boolean>();
 	private onDidChange = this._onDidChange.event;
 
 	private _enabled: boolean = false;
+	private _fetchAll: boolean = false;
 	get enabled(): boolean { return this._enabled; }
 	set enabled(enabled: boolean) { this._enabled = enabled; this._onDidChange.fire(enabled); }
 
@@ -63,20 +61,33 @@ export class AutoFetcher {
 		}
 
 		if (result === yes) {
-			const gitConfig = workspace.getConfiguration('git');
+			const gitConfig = workspace.getConfiguration('git', Uri.file(this.repository.root));
 			gitConfig.update('autofetch', true, ConfigurationTarget.Global);
 		}
 
 		this.globalState.update(AutoFetcher.DidInformUser, true);
 	}
 
-	private onConfiguration(): void {
-		const gitConfig = workspace.getConfiguration('git');
+	private onConfiguration(e?: ConfigurationChangeEvent): void {
+		if (e !== undefined && !e.affectsConfiguration('git.autofetch')) {
+			return;
+		}
 
-		if (gitConfig.get<boolean>('autofetch') === false) {
-			this.disable();
-		} else {
-			this.enable();
+		const gitConfig = workspace.getConfiguration('git', Uri.file(this.repository.root));
+		switch (gitConfig.get<boolean | 'all'>('autofetch')) {
+			case true:
+				this._fetchAll = false;
+				this.enable();
+				break;
+			case 'all':
+				this._fetchAll = true;
+				this.enable();
+				break;
+			case false:
+			default:
+				this._fetchAll = false;
+				this.disable();
+				break;
 		}
 	}
 
@@ -102,7 +113,11 @@ export class AutoFetcher {
 			}
 
 			try {
-				await this.repository.fetch();
+				if (this._fetchAll) {
+					await this.repository.fetchAll();
+				} else {
+					await this.repository.fetchDefault({ silent: true });
+				}
 			} catch (err) {
 				if (err.gitErrorCode === GitErrorCodes.AuthenticationFailed) {
 					this.disable();
@@ -113,8 +128,10 @@ export class AutoFetcher {
 				return;
 			}
 
-			const timeout = new Promise(c => setTimeout(c, AutoFetcher.Period));
+			const period = workspace.getConfiguration('git', Uri.file(this.repository.root)).get<number>('autofetchPeriod', 180) * 1000;
+			const timeout = new Promise(c => setTimeout(c, period));
 			const whenDisabled = eventToPromise(filterEvent(this.onDidChange, enabled => !enabled));
+
 			await Promise.race([timeout, whenDisabled]);
 		}
 	}

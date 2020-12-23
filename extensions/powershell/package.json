@@ -4,6 +4,7 @@
 	"description": "%description%",
 	"version": "1.0.0",
 	"publisher": "vscode",
+	"license": "MIT",
 	"engines": { "vscode": "*" },
 	"contributes": {
 		"languages": [{
@@ -20,7 +21,7 @@
 		}],
 		"snippets": [{
 			"language": "powershell",
-			"path": "./snippets/powershell.json"
+			"path": "./snippets/powershell.code-snippets"
 		}]
 	},
 	"scripts": {

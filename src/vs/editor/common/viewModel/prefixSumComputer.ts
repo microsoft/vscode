@@ -2,9 +2,8 @@
  *  Copyright (c) Microsoft Corporation. All rights reserved.
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
-'use strict';
 
-import { toUint32 } from 'vs/editor/common/core/uint';
+import { toUint32 } from 'vs/base/common/uint';
 
 export class PrefixSumIndexOfResult {
 	_prefixSumIndexOfResultBrand: void;
@@ -33,7 +32,7 @@ export class PrefixSumComputer {
 	/**
 	 * prefixSum[i], 0 <= i <= prefixSumValidIndex can be trusted
 	 */
-	private prefixSumValidIndex: Int32Array;
+	private readonly prefixSumValidIndex: Int32Array;
 
 	constructor(values: Uint32Array) {
 		this.values = values;
@@ -166,9 +165,9 @@ export class PrefixSumComputer {
 
 		let low = 0;
 		let high = this.values.length - 1;
-		let mid: number;
-		let midStop: number;
-		let midStart: number;
+		let mid = 0;
+		let midStop = 0;
+		let midStart = 0;
 
 		while (low <= high) {
 			mid = low + ((high - low) / 2) | 0;
@@ -186,75 +185,5 @@ export class PrefixSumComputer {
 		}
 
 		return new PrefixSumIndexOfResult(mid, accumulatedValue - midStart);
-	}
-}
-
-export class PrefixSumComputerWithCache {
-
-	private readonly _actual: PrefixSumComputer;
-	private _cacheAccumulatedValueStart: number = 0;
-	private _cache: PrefixSumIndexOfResult[] = null;
-
-	constructor(values: Uint32Array) {
-		this._actual = new PrefixSumComputer(values);
-		this._bustCache();
-	}
-
-	private _bustCache(): void {
-		this._cacheAccumulatedValueStart = 0;
-		this._cache = null;
-	}
-
-	public insertValues(insertIndex: number, insertValues: Uint32Array): void {
-		if (this._actual.insertValues(insertIndex, insertValues)) {
-			this._bustCache();
-		}
-	}
-
-	public changeValue(index: number, value: number): void {
-		if (this._actual.changeValue(index, value)) {
-			this._bustCache();
-		}
-	}
-
-	public removeValues(startIndex: number, cnt: number): void {
-		if (this._actual.removeValues(startIndex, cnt)) {
-			this._bustCache();
-		}
-	}
-
-	public getTotalValue(): number {
-		return this._actual.getTotalValue();
-	}
-
-	public getAccumulatedValue(index: number): number {
-		return this._actual.getAccumulatedValue(index);
-	}
-
-	public getIndexOf(accumulatedValue: number): PrefixSumIndexOfResult {
-		accumulatedValue = Math.floor(accumulatedValue); //@perf
-
-		if (this._cache !== null) {
-			let cacheIndex = accumulatedValue - this._cacheAccumulatedValueStart;
-			if (cacheIndex >= 0 && cacheIndex < this._cache.length) {
-				// Cache hit!
-				return this._cache[cacheIndex];
-			}
-		}
-
-		// Cache miss!
-		return this._actual.getIndexOf(accumulatedValue);
-	}
-
-	/**
-	 * Gives a hint that a lot of requests are about to come in for these accumulated values.
-	 */
-	public warmUpCache(accumulatedValueStart: number, accumulatedValueEnd: number): void {
-		let newCache: PrefixSumIndexOfResult[] = [];
-		for (let accumulatedValue = accumulatedValueStart; accumulatedValue <= accumulatedValueEnd; accumulatedValue++) {
-			newCache[accumulatedValue - accumulatedValueStart] = this.getIndexOf(accumulatedValue);
-		}
-		this._cache = newCache;
-		this._cacheAccumulatedValueStart = accumulatedValueStart;
 	}
 }

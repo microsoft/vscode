@@ -4,59 +4,71 @@
  *--------------------------------------------------------------------------------------------*/
 
 import * as assert from 'assert';
-import { dispose, IDisposable } from 'vs/base/common/lifecycle';
-import URI from 'vs/base/common/uri';
+import { DisposableStore } from 'vs/base/common/lifecycle';
+import { assertType } from 'vs/base/common/types';
+import { URI } from 'vs/base/common/uri';
 import { ICodeEditor } from 'vs/editor/browser/editorBrowser';
 import { Selection } from 'vs/editor/common/core/selection';
 import { TextModel } from 'vs/editor/common/model/textModel';
-import { CodeActionProviderRegistry, LanguageIdentifier } from 'vs/editor/common/modes';
-import { CodeActionOracle } from 'vs/editor/contrib/codeAction/codeActionModel';
+import * as modes from 'vs/editor/common/modes';
+import { CodeActionModel, CodeActionsState } from 'vs/editor/contrib/codeAction/codeActionModel';
 import { createTestCodeEditor } from 'vs/editor/test/browser/testCodeEditor';
+import { MockContextKeyService } from 'vs/platform/keybinding/test/common/mockKeybindingService';
 import { MarkerService } from 'vs/platform/markers/common/markerService';
+import { createTextModel } from 'vs/editor/test/common/editorTestUtils';
 
 const testProvider = {
-	provideCodeActions() {
-		return [{ id: 'test-command', title: 'test', arguments: [] }];
+	provideCodeActions(): modes.CodeActionList {
+		return {
+			actions: [
+				{ title: 'test', command: { id: 'test-command', title: 'test', arguments: [] } }
+			],
+			dispose() { /* noop*/ }
+		};
 	}
 };
-suite('CodeAction', () => {
+suite('CodeActionModel', () => {
 
-	const languageIdentifier = new LanguageIdentifier('foo-lang', 3);
+	const languageIdentifier = new modes.LanguageIdentifier('foo-lang', 3);
 	let uri = URI.parse('untitled:path');
 	let model: TextModel;
 	let markerService: MarkerService;
 	let editor: ICodeEditor;
-	let disposables: IDisposable[];
+	const disposables = new DisposableStore();
 
 	setup(() => {
-		disposables = [];
+		disposables.clear();
 		markerService = new MarkerService();
-		model = TextModel.createFromString('foobar  foo bar\nfarboo far boo', undefined, languageIdentifier, uri);
+		model = createTextModel('foobar  foo bar\nfarboo far boo', undefined, languageIdentifier, uri);
 		editor = createTestCodeEditor({ model: model });
 		editor.setPosition({ lineNumber: 1, column: 1 });
 	});
 
 	teardown(() => {
-		dispose(disposables);
+		disposables.clear();
 		editor.dispose();
 		model.dispose();
 		markerService.dispose();
 	});
 
 	test('Orcale -> marker added', done => {
-		const reg = CodeActionProviderRegistry.register(languageIdentifier.language, testProvider);
-		disposables.push(reg);
+		const reg = modes.CodeActionProviderRegistry.register(languageIdentifier.language, testProvider);
+		disposables.add(reg);
 
-		const oracle = new CodeActionOracle(editor, markerService, e => {
-			assert.equal(e.trigger.type, 'auto');
+		const contextKeys = new MockContextKeyService();
+		const model = disposables.add(new CodeActionModel(editor, markerService, contextKeys, undefined));
+		disposables.add(model.onDidChangeState((e: CodeActionsState.State) => {
+			assertType(e.type === CodeActionsState.Type.Triggered);
+
+			assert.strictEqual(e.trigger.type, modes.CodeActionTriggerType.Auto);
 			assert.ok(e.actions);
 
 			e.actions.then(fixes => {
-				oracle.dispose();
-				assert.equal(fixes.length, 1);
+				model.dispose();
+				assert.equal(fixes.validActions.length, 1);
 				done();
 			}, done);
-		});
+		}));
 
 		// start here
 		markerService.changeOne('fake', uri, [{
@@ -70,8 +82,8 @@ suite('CodeAction', () => {
 	});
 
 	test('Orcale -> position changed', () => {
-		const reg = CodeActionProviderRegistry.register(languageIdentifier.language, testProvider);
-		disposables.push(reg);
+		const reg = modes.CodeActionProviderRegistry.register(languageIdentifier.language, testProvider);
+		disposables.add(reg);
 
 		markerService.changeOne('fake', uri, [{
 			startLineNumber: 1, startColumn: 1, endLineNumber: 1, endColumn: 6,
@@ -84,30 +96,33 @@ suite('CodeAction', () => {
 		editor.setPosition({ lineNumber: 2, column: 1 });
 
 		return new Promise((resolve, reject) => {
+			const contextKeys = new MockContextKeyService();
+			const model = disposables.add(new CodeActionModel(editor, markerService, contextKeys, undefined));
+			disposables.add(model.onDidChangeState((e: CodeActionsState.State) => {
+				assertType(e.type === CodeActionsState.Type.Triggered);
 
-			const oracle = new CodeActionOracle(editor, markerService, e => {
-				assert.equal(e.trigger.type, 'auto');
+				assert.equal(e.trigger.type, modes.CodeActionTriggerType.Auto);
 				assert.ok(e.actions);
 				e.actions.then(fixes => {
-					oracle.dispose();
-					assert.equal(fixes.length, 1);
+					model.dispose();
+					assert.equal(fixes.validActions.length, 1);
 					resolve(undefined);
 				}, reject);
-			});
+			}));
 			// start here
 			editor.setPosition({ lineNumber: 1, column: 1 });
 		});
 	});
 
 	test('Lightbulb is in the wrong place, #29933', async function () {
-		const reg = CodeActionProviderRegistry.register(languageIdentifier.language, {
-			provideCodeActions(_doc, _range) {
-				return [];
+		const reg = modes.CodeActionProviderRegistry.register(languageIdentifier.language, {
+			provideCodeActions(_doc, _range): modes.CodeActionList {
+				return { actions: [], dispose() { /* noop*/ } };
 			}
 		});
-		disposables.push(reg);
+		disposables.add(reg);
 
-		editor.getModel().setValue('// @ts-check\n2\ncon\n');
+		editor.getModel()!.setValue('// @ts-check\n2\ncon\n');
 
 		markerService.changeOne('fake', uri, [{
 			startLineNumber: 3, startColumn: 1, endLineNumber: 3, endColumn: 4,
@@ -119,37 +134,55 @@ suite('CodeAction', () => {
 
 		// case 1 - drag selection over multiple lines -> range of enclosed marker, position or marker
 		await new Promise(resolve => {
+			const contextKeys = new MockContextKeyService();
+			const model = disposables.add(new CodeActionModel(editor, markerService, contextKeys, undefined));
+			disposables.add(model.onDidChangeState((e: CodeActionsState.State) => {
+				assertType(e.type === CodeActionsState.Type.Triggered);
 
-			let oracle = new CodeActionOracle(editor, markerService, e => {
-				assert.equal(e.trigger.type, 'auto');
+				assert.equal(e.trigger.type, modes.CodeActionTriggerType.Auto);
 				const selection = <Selection>e.rangeOrSelection;
 				assert.deepEqual(selection.selectionStartLineNumber, 1);
 				assert.deepEqual(selection.selectionStartColumn, 1);
 				assert.deepEqual(selection.endLineNumber, 4);
 				assert.deepEqual(selection.endColumn, 1);
 				assert.deepEqual(e.position, { lineNumber: 3, column: 1 });
-
-				oracle.dispose();
-				resolve(null);
-			}, 5);
+				model.dispose();
+				resolve(undefined);
+			}, 5));
 
 			editor.setSelection({ startLineNumber: 1, startColumn: 1, endLineNumber: 4, endColumn: 1 });
 		});
+	});
 
-		// // case 2 - selection over multiple lines & manual trigger -> lightbulb
-		// await new TPromise(resolve => {
+	test('Orcale -> should only auto trigger once for cursor and marker update right after each other', done => {
+		const reg = modes.CodeActionProviderRegistry.register(languageIdentifier.language, testProvider);
+		disposables.add(reg);
 
-		// 	editor.setSelection({ startLineNumber: 1, startColumn: 1, endLineNumber: 4, endColumn: 1 });
+		let triggerCount = 0;
+		const contextKeys = new MockContextKeyService();
+		const model = disposables.add(new CodeActionModel(editor, markerService, contextKeys, undefined));
+		disposables.add(model.onDidChangeState((e: CodeActionsState.State) => {
+			assertType(e.type === CodeActionsState.Type.Triggered);
 
-		// 	let oracle = new QuickFixOracle(editor, markerService, e => {
-		// 		assert.equal(e.type, 'manual');
-		// 		assert.ok(e.range.equalsRange({ startLineNumber: 1, startColumn: 1, endLineNumber: 4, endColumn: 1 }));
+			assert.equal(e.trigger.type, modes.CodeActionTriggerType.Auto);
+			++triggerCount;
 
-		// 		oracle.dispose();
-		// 		resolve(null);
-		// 	}, 5);
+			// give time for second trigger before completing test
+			setTimeout(() => {
+				model.dispose();
+				assert.strictEqual(triggerCount, 1);
+				done();
+			}, 50);
+		}, 5 /*delay*/));
 
-		// 	oracle.trigger('manual');
-		// });
+		markerService.changeOne('fake', uri, [{
+			startLineNumber: 1, startColumn: 1, endLineNumber: 1, endColumn: 6,
+			message: 'error',
+			severity: 1,
+			code: '',
+			source: ''
+		}]);
+
+		editor.setSelection({ startLineNumber: 1, startColumn: 1, endLineNumber: 4, endColumn: 1 });
 	});
 });

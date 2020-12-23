@@ -2,15 +2,15 @@
  *  Copyright (c) Microsoft Corporation. All rights reserved.
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
-'use strict';
 
-import { MarkedString, CompletionItemKind, CompletionItem, DocumentSelector, SnippetString } from 'vscode';
+import { MarkedString, CompletionItemKind, CompletionItem, DocumentSelector, SnippetString, workspace, MarkdownString, Uri } from 'vscode';
 import { IJSONContribution, ISuggestionsCollector } from './jsonContributions';
 import { XHRRequest } from 'request-light';
 import { Location } from 'jsonc-parser';
-import { textToMarkedString } from './markedTextUtil';
 
+import * as cp from 'child_process';
 import * as nls from 'vscode-nls';
+import { dirname } from 'path';
 const localize = nls.loadMessageBundle();
 
 const LIMIT = 40;
@@ -27,16 +27,16 @@ export class PackageJSONContribution implements IJSONContribution {
 		'shelljs', 'gulp', 'yargs', 'browserify', 'minimatch', 'react', 'less', 'prompt', 'inquirer', 'ws', 'event-stream', 'inherits', 'mysql', 'esprima',
 		'jsdom', 'stylus', 'when', 'readable-stream', 'aws-sdk', 'concat-stream', 'chai', 'Thenable', 'wrench'];
 
-	private knownScopes = ['@types', '@angular'];
+	private knownScopes = ['@types', '@angular', '@babel', '@nuxtjs', '@vue', '@bazel'];
 
 	public getDocumentSelector(): DocumentSelector {
 		return [{ language: 'json', scheme: '*', pattern: '**/package.json' }];
 	}
 
-	public constructor(private xhr: XHRRequest) {
+	public constructor(private xhr: XHRRequest, private canRunNPM: boolean) {
 	}
 
-	public collectDefaultSuggestions(_fileName: string, result: ISuggestionsCollector): Thenable<any> {
+	public collectDefaultSuggestions(_resource: Uri, result: ISuggestionsCollector): Thenable<any> {
 		const defaultValue = {
 			'name': '${1:name}',
 			'description': '${2:description}',
@@ -52,23 +52,49 @@ export class PackageJSONContribution implements IJSONContribution {
 		return Promise.resolve(null);
 	}
 
+	private isEnabled() {
+		return this.canRunNPM || this.onlineEnabled();
+	}
+
+	private onlineEnabled() {
+		return !!workspace.getConfiguration('npm').get('fetchOnlinePackageInfo');
+	}
+
 	public collectPropertySuggestions(
-		_resource: string,
+		_resource: Uri,
 		location: Location,
 		currentWord: string,
 		addValue: boolean,
 		isLast: boolean,
 		collector: ISuggestionsCollector
 	): Thenable<any> | null {
+		if (!this.isEnabled()) {
+			return null;
+		}
+
 		if ((location.matches(['dependencies']) || location.matches(['devDependencies']) || location.matches(['optionalDependencies']) || location.matches(['peerDependencies']))) {
 			let queryUrl: string;
 			if (currentWord.length > 0) {
 				if (currentWord[0] === '@') {
-					return this.collectScopedPackages(currentWord, addValue, isLast, collector);
+					if (currentWord.indexOf('/') !== -1) {
+						return this.collectScopedPackages(currentWord, addValue, isLast, collector);
+					}
+					for (let scope of this.knownScopes) {
+						const proposal = new CompletionItem(scope);
+						proposal.kind = CompletionItemKind.Property;
+						proposal.insertText = new SnippetString().appendText(`"${scope}/`).appendTabstop().appendText('"');
+						proposal.filterText = JSON.stringify(scope);
+						proposal.documentation = '';
+						proposal.command = {
+							title: '',
+							command: 'editor.action.triggerSuggest'
+						};
+						collector.add(proposal);
+					}
+					collector.setAsIncomplete();
 				}
 
-				queryUrl = 'https://skimdb.npmjs.com/registry/_design/app/_view/browseAll?group_level=2&limit=' + LIMIT + '&start_key=%5B%22' + encodeURIComponent(currentWord) + '%22%5D&end_key=%5B%22' + encodeURIComponent(currentWord + 'z') + '%22,%7B%7D%5D';
-
+				queryUrl = `https://api.npms.io/v2/search/suggestions?size=${LIMIT}&q=${encodeURIComponent(currentWord)}`;
 				return this.xhr({
 					url: queryUrl,
 					agent: USER_AGENT
@@ -76,26 +102,10 @@ export class PackageJSONContribution implements IJSONContribution {
 					if (success.status === 200) {
 						try {
 							const obj = JSON.parse(success.responseText);
-							if (obj && Array.isArray(obj.rows)) {
-								const results = <{ key: string[]; }[]>obj.rows;
-								for (let i = 0; i < results.length; i++) {
-									const keys = results[i].key;
-									if (Array.isArray(keys) && keys.length > 0) {
-										const name = keys[0];
-										const insertText = new SnippetString().appendText(JSON.stringify(name));
-										if (addValue) {
-											insertText.appendText(': "').appendTabstop().appendText('"');
-											if (!isLast) {
-												insertText.appendText(',');
-											}
-										}
-										const proposal = new CompletionItem(name);
-										proposal.kind = CompletionItemKind.Property;
-										proposal.insertText = insertText;
-										proposal.filterText = JSON.stringify(name);
-										proposal.documentation = keys[1];
-										collector.add(proposal);
-									}
+							if (obj && Array.isArray(obj)) {
+								const results = <{ package: SearchPackageInfo; }[]>obj;
+								for (const result of results) {
+									this.processPackage(result.package, addValue, isLast, collector);
 								}
 								if (results.length === LIMIT) {
 									collector.setAsIncomplete();
@@ -139,22 +149,13 @@ export class PackageJSONContribution implements IJSONContribution {
 
 	private collectScopedPackages(currentWord: string, addValue: boolean, isLast: boolean, collector: ISuggestionsCollector): Thenable<any> {
 		let segments = currentWord.split('/');
-		if (segments.length === 1) {
-			for (let scope of this.knownScopes) {
-				const proposal = new CompletionItem(scope);
-				proposal.kind = CompletionItemKind.Property;
-				proposal.insertText = new SnippetString().appendText(`"${scope}/`).appendTabstop().appendText('"');
-				proposal.filterText = JSON.stringify(scope);
-				proposal.documentation = '';
-				proposal.command = {
-					title: '',
-					command: 'editor.action.triggerSuggest'
-				};
-				collector.add(proposal);
-			}
-		} else if (segments.length === 2 && segments[0].length > 1) {
+		if (segments.length === 2 && segments[0].length > 1) {
 			let scope = segments[0].substr(1);
-			let queryUrl = `https://registry.npmjs.org/-/v1/search?text=scope:${scope}%20${segments[1]}&size=${SCOPED_LIMIT}&popularity=1.0`;
+			let name = segments[1];
+			if (name.length < 4) {
+				name = '';
+			}
+			let queryUrl = `https://api.npms.io/v2/search?q=scope:${scope}%20${name}&size=250`;
 			return this.xhr({
 				url: queryUrl,
 				agent: USER_AGENT
@@ -162,31 +163,10 @@ export class PackageJSONContribution implements IJSONContribution {
 				if (success.status === 200) {
 					try {
 						const obj = JSON.parse(success.responseText);
-						if (obj && Array.isArray(obj.objects)) {
-							const objects = <{ package: { name: string; version: string, description: string; } }[]>obj.objects;
+						if (obj && Array.isArray(obj.results)) {
+							const objects = <{ package: SearchPackageInfo }[]>obj.results;
 							for (let object of objects) {
-								if (object.package && object.package.name) {
-									const name = object.package.name;
-									const insertText = new SnippetString().appendText(JSON.stringify(name));
-									if (addValue) {
-										insertText.appendText(': "');
-										if (object.package.version) {
-											insertText.appendVariable('version', object.package.version);
-										} else {
-											insertText.appendTabstop();
-										}
-										insertText.appendText('"');
-										if (!isLast) {
-											insertText.appendText(',');
-										}
-									}
-									const proposal = new CompletionItem(name);
-									proposal.kind = CompletionItemKind.Property;
-									proposal.insertText = insertText;
-									proposal.filterText = JSON.stringify(name);
-									proposal.documentation = object.package.description || '';
-									collector.add(proposal);
-								}
+								this.processPackage(object.package, addValue, isLast, collector);
 							}
 							if (objects.length === SCOPED_LIMIT) {
 								collector.setAsIncomplete();
@@ -204,64 +184,64 @@ export class PackageJSONContribution implements IJSONContribution {
 		return Promise.resolve(null);
 	}
 
-	public collectValueSuggestions(
-		_fileName: string,
-		location: Location,
-		result: ISuggestionsCollector
-	): Thenable<any> | null {
+	public async collectValueSuggestions(resource: Uri, location: Location, result: ISuggestionsCollector): Promise<any> {
+		if (!this.isEnabled()) {
+			return null;
+		}
+
 		if ((location.matches(['dependencies', '*']) || location.matches(['devDependencies', '*']) || location.matches(['optionalDependencies', '*']) || location.matches(['peerDependencies', '*']))) {
 			const currentKey = location.path[location.path.length - 1];
 			if (typeof currentKey === 'string') {
-				const queryUrl = 'https://registry.npmjs.org/' + encodeURIComponent(currentKey).replace('%40', '@');
-				return this.xhr({
-					url: queryUrl,
-					agent: USER_AGENT
-				}).then((success) => {
-					try {
-						const obj = JSON.parse(success.responseText);
-						const latest = obj && obj['dist-tags'] && obj['dist-tags']['latest'];
-						if (latest) {
-							let name = JSON.stringify(latest);
-							let proposal = new CompletionItem(name);
-							proposal.kind = CompletionItemKind.Property;
-							proposal.insertText = name;
-							proposal.documentation = localize('json.npm.latestversion', 'The currently latest version of the package');
-							result.add(proposal);
+				const info = await this.fetchPackageInfo(currentKey, resource);
+				if (info && info.version) {
 
-							name = JSON.stringify('^' + latest);
-							proposal = new CompletionItem(name);
-							proposal.kind = CompletionItemKind.Property;
-							proposal.insertText = name;
-							proposal.documentation = localize('json.npm.majorversion', 'Matches the most recent major version (1.x.x)');
-							result.add(proposal);
+					let name = JSON.stringify(info.version);
+					let proposal = new CompletionItem(name);
+					proposal.kind = CompletionItemKind.Property;
+					proposal.insertText = name;
+					proposal.documentation = localize('json.npm.latestversion', 'The currently latest version of the package');
+					result.add(proposal);
 
-							name = JSON.stringify('~' + latest);
-							proposal = new CompletionItem(name);
-							proposal.kind = CompletionItemKind.Property;
-							proposal.insertText = name;
-							proposal.documentation = localize('json.npm.minorversion', 'Matches the most recent minor version (1.2.x)');
-							result.add(proposal);
-						}
-					} catch (e) {
-						// ignore
-					}
-					return 0;
-				}, () => {
-					return 0;
-				});
+					name = JSON.stringify('^' + info.version);
+					proposal = new CompletionItem(name);
+					proposal.kind = CompletionItemKind.Property;
+					proposal.insertText = name;
+					proposal.documentation = localize('json.npm.majorversion', 'Matches the most recent major version (1.x.x)');
+					result.add(proposal);
+
+					name = JSON.stringify('~' + info.version);
+					proposal = new CompletionItem(name);
+					proposal.kind = CompletionItemKind.Property;
+					proposal.insertText = name;
+					proposal.documentation = localize('json.npm.minorversion', 'Matches the most recent minor version (1.2.x)');
+					result.add(proposal);
+				}
 			}
 		}
 		return null;
 	}
 
-	public resolveSuggestion(item: CompletionItem): Thenable<CompletionItem | null> | null {
-		if (item.kind === CompletionItemKind.Property && item.documentation === '') {
-			return this.getInfo(item.label).then(infos => {
-				if (infos.length > 0) {
-					item.documentation = infos[0];
-					if (infos.length > 1) {
-						item.detail = infos[1];
-					}
+	private getDocumentation(description: string | undefined, version: string | undefined, homepage: string | undefined): MarkdownString {
+		const str = new MarkdownString();
+		if (description) {
+			str.appendText(description);
+		}
+		if (version) {
+			str.appendText('\n\n');
+			str.appendText(localize('json.npm.version.hover', 'Latest version: {0}', version));
+		}
+		if (homepage) {
+			str.appendText('\n\n');
+			str.appendText(homepage);
+		}
+		return str;
+	}
+
+	public resolveSuggestion(resource: Uri | undefined, item: CompletionItem): Thenable<CompletionItem | null> | null {
+		if (item.kind === CompletionItemKind.Property && !item.documentation) {
+			return this.fetchPackageInfo(item.label, resource).then(info => {
+				if (info) {
+					item.documentation = this.getDocumentation(info.description, info.version, info.homepage);
 					return item;
 				}
 				return null;
@@ -270,45 +250,93 @@ export class PackageJSONContribution implements IJSONContribution {
 		return null;
 	}
 
-	private getInfo(pack: string): Thenable<string[]> {
-
-		const queryUrl = 'https://registry.npmjs.org/' + encodeURIComponent(pack).replace('%40', '@');
-		return this.xhr({
-			url: queryUrl,
-			agent: USER_AGENT
-		}).then((success) => {
-			try {
-				const obj = JSON.parse(success.responseText);
-				if (obj) {
-					const result: string[] = [];
-					if (obj.description) {
-						result.push(obj.description);
-					}
-					const latest = obj && obj['dist-tags'] && obj['dist-tags']['latest'];
-					if (latest) {
-						result.push(localize('json.npm.version.hover', 'Latest version: {0}', latest));
-					}
-					if (obj.homepage) {
-						result.push(obj.homepage);
-					}
-					return result;
-				}
-			} catch (e) {
-				// ignore
+	private isValidNPMName(name: string): boolean {
+		// following rules from https://github.com/npm/validate-npm-package-name
+		if (!name || name.length > 214 || name.match(/^[_.]/)) {
+			return false;
+		}
+		const match = name.match(/^(?:@([^/]+?)[/])?([^/]+?)$/);
+		if (match) {
+			const scope = match[1];
+			if (scope && encodeURIComponent(scope) !== scope) {
+				return false;
 			}
-			return [];
-		}, () => {
-			return [];
+			const name = match[2];
+			return encodeURIComponent(name) === name;
+		}
+		return false;
+	}
+
+	private async fetchPackageInfo(pack: string, resource: Uri | undefined): Promise<ViewPackageInfo | undefined> {
+		if (!this.isValidNPMName(pack)) {
+			return undefined; // avoid unnecessary lookups
+		}
+		let info: ViewPackageInfo | undefined;
+		if (this.canRunNPM) {
+			info = await this.npmView(pack, resource);
+		}
+		if (!info && this.onlineEnabled()) {
+			info = await this.npmjsView(pack);
+		}
+		return info;
+	}
+
+	private npmView(pack: string, resource: Uri | undefined): Promise<ViewPackageInfo | undefined> {
+		return new Promise((resolve, _reject) => {
+			const args = ['view', '--json', pack, 'description', 'dist-tags.latest', 'homepage', 'version'];
+			let cwd = resource && resource.scheme === 'file' ? dirname(resource.fsPath) : undefined;
+			cp.execFile(process.platform === 'win32' ? 'npm.cmd' : 'npm', args, { cwd }, (error, stdout) => {
+				if (!error) {
+					try {
+						const content = JSON.parse(stdout);
+						resolve({
+							description: content['description'],
+							version: content['dist-tags.latest'] || content['version'],
+							homepage: content['homepage']
+						});
+						return;
+					} catch (e) {
+						// ignore
+					}
+				}
+				resolve(undefined);
+			});
 		});
 	}
 
-	public getInfoContribution(_fileName: string, location: Location): Thenable<MarkedString[] | null> | null {
+	private async npmjsView(pack: string): Promise<ViewPackageInfo | undefined> {
+		const queryUrl = 'https://api.npms.io/v2/package/' + encodeURIComponent(pack);
+		try {
+			const success = await this.xhr({
+				url: queryUrl,
+				agent: USER_AGENT
+			});
+			const obj = JSON.parse(success.responseText);
+			const metadata = obj?.collected?.metadata;
+			if (metadata) {
+				return {
+					description: metadata.description || '',
+					version: metadata.version,
+					homepage: metadata.links?.homepage || ''
+				};
+			}
+		}
+		catch (e) {
+			//ignore
+		}
+		return undefined;
+	}
+
+	public getInfoContribution(resource: Uri, location: Location): Thenable<MarkedString[] | null> | null {
+		if (!this.isEnabled()) {
+			return null;
+		}
 		if ((location.matches(['dependencies', '*']) || location.matches(['devDependencies', '*']) || location.matches(['optionalDependencies', '*']) || location.matches(['peerDependencies', '*']))) {
 			const pack = location.path[location.path.length - 1];
 			if (typeof pack === 'string') {
-				return this.getInfo(pack).then(infos => {
-					if (infos.length) {
-						return [infos.map(textToMarkedString).join('\n\n')];
+				return this.fetchPackageInfo(pack, resource).then(info => {
+					if (info) {
+						return [this.getDocumentation(info.description, info.version, info.homepage)];
 					}
 					return null;
 				});
@@ -316,4 +344,42 @@ export class PackageJSONContribution implements IJSONContribution {
 		}
 		return null;
 	}
+
+	private processPackage(pack: SearchPackageInfo, addValue: boolean, isLast: boolean, collector: ISuggestionsCollector) {
+		if (pack && pack.name) {
+			const name = pack.name;
+			const insertText = new SnippetString().appendText(JSON.stringify(name));
+			if (addValue) {
+				insertText.appendText(': "');
+				if (pack.version) {
+					insertText.appendVariable('version', pack.version);
+				} else {
+					insertText.appendTabstop();
+				}
+				insertText.appendText('"');
+				if (!isLast) {
+					insertText.appendText(',');
+				}
+			}
+			const proposal = new CompletionItem(name);
+			proposal.kind = CompletionItemKind.Property;
+			proposal.insertText = insertText;
+			proposal.filterText = JSON.stringify(name);
+			proposal.documentation = this.getDocumentation(pack.description, pack.version, pack?.links?.homepage);
+			collector.add(proposal);
+		}
+	}
+}
+
+interface SearchPackageInfo {
+	name: string;
+	description?: string;
+	version?: string;
+	links?: { homepage?: string; };
+}
+
+interface ViewPackageInfo {
+	description: string;
+	version?: string;
+	homepage?: string;
 }

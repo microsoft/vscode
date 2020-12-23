@@ -7,14 +7,14 @@
 	overflow: hidden;
 	display: inline-block;
 	text-overflow: ellipsis;
+	white-space: nowrap;
 }
 
 .monaco-editor .codelens-decoration > span,
 .monaco-editor .codelens-decoration > a {
-	-moz-user-select: none;
+	user-select: none;
 	-webkit-user-select: none;
 	-ms-user-select: none;
-	user-select: none;
 	white-space: nowrap;
 	vertical-align: sub;
 }
@@ -24,22 +24,23 @@
 }
 
 .monaco-editor .codelens-decoration > a:hover {
-	text-decoration: underline;
 	cursor: pointer;
 }
 
-.monaco-editor .codelens-decoration.invisible-cl {
-	opacity: 0;
+.monaco-editor .codelens-decoration .codicon {
+	vertical-align: middle;
+	color: currentColor !important;
 }
 
-@keyframes fadein { 0% { opacity:0; visibility:visible;} 100% { opacity:1; } }
-@-moz-keyframes fadein { 0% { opacity:0; visibility:visible;} 100% { opacity:1; } }
-@-o-keyframes fadein { 0% { opacity:0; visibility:visible;} 100% { opacity:1; } }
-@-webkit-keyframes fadein { 0% { opacity:0; visibility:visible;} 100% { opacity:1; } }
+.monaco-editor .codelens-decoration > a:hover .codicon::before {
+	cursor: pointer;
+}
+
+@keyframes fadein {
+	0% { opacity: 0; visibility: visible;}
+	100% { opacity: 1; }
+}
 
 .monaco-editor .codelens-decoration.fadein {
-	-webkit-animation: fadein 0.5s linear;
-	-moz-animation: fadein 0.5s linear;
-	-o-animation: fadein 0.5s linear;
-	animation: fadein 0.5s linear;
+	animation: fadein 0.1s linear;
 }

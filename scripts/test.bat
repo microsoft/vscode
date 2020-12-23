@@ -16,14 +16,15 @@ node build\lib\electron.js
 if %errorlevel% neq 0 node .\node_modules\gulp\bin\gulp.js electron
 
 :: Run tests
-%CODE% .\test\electron\index.js %*
+set ELECTRON_ENABLE_LOGGING=1
+%CODE% .\test\unit\electron\index.js %*
 
 popd
 
 endlocal
 
 :: app.exit(0) is exiting with code 255 in Electron 1.7.4.
-:: See https://github.com/Microsoft/vscode/issues/28582
+:: See https://github.com/microsoft/vscode/issues/28582
 echo errorlevel: %errorlevel%
 if %errorlevel% == 255 set errorlevel=0
 

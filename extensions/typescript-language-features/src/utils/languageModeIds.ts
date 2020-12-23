@@ -15,3 +15,7 @@ export const jsxTags = 'jsx-tags';
 export function isSupportedLanguageMode(doc: vscode.TextDocument) {
 	return vscode.languages.match([typescript, typescriptreact, javascript, javascriptreact], doc) > 0;
 }
+
+export function isTypeScriptDocument(doc: vscode.TextDocument) {
+	return vscode.languages.match([typescript, typescriptreact], doc) > 0;
+}

@@ -2,11 +2,10 @@
  *  Copyright (c) Microsoft Corporation. All rights reserved.
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
-'use strict';
 
 import * as assert from 'assert';
-import { strcmp, parseTokenTheme, TokenTheme, ParsedTokenThemeRule, ColorMap, ExternalThemeTrieElement, ThemeTrieElementRule } from 'vs/editor/common/modes/supports/tokenization';
 import { FontStyle } from 'vs/editor/common/modes';
+import { ColorMap, ExternalThemeTrieElement, ParsedTokenThemeRule, ThemeTrieElementRule, TokenTheme, parseTokenTheme, strcmp } from 'vs/editor/common/modes/supports/tokenization';
 
 suite('Token theme matching', () => {
 
@@ -335,8 +334,8 @@ suite('Token theme resolving', () => {
 		let actual = TokenTheme.createFromParsedTokenTheme([
 			new ParsedTokenThemeRule('var', -1, FontStyle.NotSet, 'F8F8F2', null)
 		], [
-				'000000', 'FFFFFF', '0F0F0F'
-			]);
+			'000000', 'FFFFFF', '0F0F0F'
+		]);
 		let colorMap = new ColorMap();
 		colorMap.getId('000000');
 		colorMap.getId('FFFFFF');

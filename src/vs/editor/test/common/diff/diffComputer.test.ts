@@ -2,13 +2,11 @@
  *  Copyright (c) Microsoft Corporation. All rights reserved.
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
-'use strict';
-
 import * as assert from 'assert';
 import { DiffComputer } from 'vs/editor/common/diff/diffComputer';
 import { IChange, ICharChange, ILineChange } from 'vs/editor/common/editorCommon';
 
-function extractCharChangeRepresentation(change: ICharChange, expectedChange: ICharChange): ICharChange {
+function extractCharChangeRepresentation(change: ICharChange, expectedChange: ICharChange | null): ICharChange {
 	let hasOriginal = expectedChange && expectedChange.originalStartLineNumber > 0;
 	let hasModified = expectedChange && expectedChange.modifiedStartLineNumber > 0;
 	return {
@@ -25,9 +23,8 @@ function extractCharChangeRepresentation(change: ICharChange, expectedChange: IC
 }
 
 function extractLineChangeRepresentation(change: ILineChange, expectedChange: ILineChange): IChange | ILineChange {
-	let charChanges: ICharChange[];
 	if (change.charChanges) {
-		charChanges = [];
+		let charChanges: ICharChange[] = [];
 		for (let i = 0; i < change.charChanges.length; i++) {
 			charChanges.push(
 				extractCharChangeRepresentation(
@@ -36,13 +33,20 @@ function extractLineChangeRepresentation(change: ILineChange, expectedChange: IL
 				)
 			);
 		}
+		return {
+			originalStartLineNumber: change.originalStartLineNumber,
+			originalEndLineNumber: change.originalEndLineNumber,
+			modifiedStartLineNumber: change.modifiedStartLineNumber,
+			modifiedEndLineNumber: change.modifiedEndLineNumber,
+			charChanges: charChanges
+		};
 	}
 	return {
 		originalStartLineNumber: change.originalStartLineNumber,
 		originalEndLineNumber: change.originalEndLineNumber,
 		modifiedStartLineNumber: change.modifiedStartLineNumber,
 		modifiedEndLineNumber: change.modifiedEndLineNumber,
-		charChanges: charChanges
+		charChanges: undefined
 	};
 }
 
@@ -51,11 +55,12 @@ function assertDiff(originalLines: string[], modifiedLines: string[], expectedCh
 		shouldComputeCharChanges,
 		shouldPostProcessCharChanges,
 		shouldIgnoreTrimWhitespace,
-		shouldMakePrettyDiff: true
+		shouldMakePrettyDiff: true,
+		maxComputationTime: 0
 	});
-	let changes = diffComputer.computeDiff();
+	let changes = diffComputer.computeDiff().changes;
 
-	let extracted = [];
+	let extracted: IChange[] = [];
 	for (let i = 0; i < changes.length; i++) {
 		extracted.push(extractLineChangeRepresentation(changes[i], <ILineChange>(i < expectedChanges.length ? expectedChanges[i] : null)));
 	}
@@ -725,6 +730,151 @@ suite('Editor Diff - DiffComputer', () => {
 		let expected = [
 			createLineChange(
 				2, 3, 2, 3
+			)
+		];
+		assertDiff(original, modified, expected, false, false, false);
+	});
+
+	test('issue #44422: Less than ideal diff results', () => {
+		let original = [
+			'export class C {',
+			'',
+			'	public m1(): void {',
+			'		{',
+			'		//2',
+			'		//3',
+			'		//4',
+			'		//5',
+			'		//6',
+			'		//7',
+			'		//8',
+			'		//9',
+			'		//10',
+			'		//11',
+			'		//12',
+			'		//13',
+			'		//14',
+			'		//15',
+			'		//16',
+			'		//17',
+			'		//18',
+			'		}',
+			'	}',
+			'',
+			'	public m2(): void {',
+			'		if (a) {',
+			'			if (b) {',
+			'				//A1',
+			'				//A2',
+			'				//A3',
+			'				//A4',
+			'				//A5',
+			'				//A6',
+			'				//A7',
+			'				//A8',
+			'			}',
+			'		}',
+			'',
+			'		//A9',
+			'		//A10',
+			'		//A11',
+			'		//A12',
+			'		//A13',
+			'		//A14',
+			'		//A15',
+			'	}',
+			'',
+			'	public m3(): void {',
+			'		if (a) {',
+			'			//B1',
+			'		}',
+			'		//B2',
+			'		//B3',
+			'	}',
+			'',
+			'	public m4(): boolean {',
+			'		//1',
+			'		//2',
+			'		//3',
+			'		//4',
+			'	}',
+			'',
+			'}',
+		];
+		let modified = [
+			'export class C {',
+			'',
+			'	constructor() {',
+			'',
+			'',
+			'',
+			'',
+			'	}',
+			'',
+			'	public m1(): void {',
+			'		{',
+			'		//2',
+			'		//3',
+			'		//4',
+			'		//5',
+			'		//6',
+			'		//7',
+			'		//8',
+			'		//9',
+			'		//10',
+			'		//11',
+			'		//12',
+			'		//13',
+			'		//14',
+			'		//15',
+			'		//16',
+			'		//17',
+			'		//18',
+			'		}',
+			'	}',
+			'',
+			'	public m4(): boolean {',
+			'		//1',
+			'		//2',
+			'		//3',
+			'		//4',
+			'	}',
+			'',
+			'}',
+		];
+		let expected = [
+			createLineChange(
+				2, 0, 3, 9
+			),
+			createLineChange(
+				25, 55, 31, 0
+			)
+		];
+		assertDiff(original, modified, expected, false, false, false);
+	});
+
+	test('gives preference to matching longer lines', () => {
+		let original = [
+			'A',
+			'A',
+			'BB',
+			'C',
+		];
+		let modified = [
+			'A',
+			'BB',
+			'A',
+			'D',
+			'E',
+			'A',
+			'C',
+		];
+		let expected = [
+			createLineChange(
+				2, 2, 1, 0
+			),
+			createLineChange(
+				3, 0, 3, 6
 			)
 		];
 		assertDiff(original, modified, expected, false, false, false);

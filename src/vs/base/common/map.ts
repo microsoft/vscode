@@ -3,30 +3,13 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-'use strict';
-
-import URI from 'vs/base/common/uri';
+import { URI } from 'vs/base/common/uri';
 import { CharCode } from 'vs/base/common/charCode';
-import { IIterator } from './iterator';
-
-export function values<V = any>(set: Set<V>): V[];
-export function values<K = any, V = any>(map: Map<K, V>): V[];
-export function values<V>(forEachable: { forEach(callback: (value: V, ...more: any[]) => any) }): V[] {
-	const result: V[] = [];
-	forEachable.forEach(value => result.push(value));
-	return result;
-}
-
-export function keys<K, V>(map: Map<K, V>): K[] {
-	const result: K[] = [];
-	map.forEach((value, key) => result.push(key));
-
-	return result;
-}
+import { compareSubstringIgnoreCase, compare, compareSubstring, compareIgnoreCase } from 'vs/base/common/strings';
 
 export function getOrSet<K, V>(map: Map<K, V>, key: K, value: V): V {
 	let result = map.get(key);
-	if (result === void 0) {
+	if (result === undefined) {
 		result = value;
 		map.set(key, result);
 	}
@@ -34,8 +17,26 @@ export function getOrSet<K, V>(map: Map<K, V>, key: K, value: V): V {
 	return result;
 }
 
-export interface IKeyIterator {
-	reset(key: string): this;
+export function mapToString<K, V>(map: Map<K, V>): string {
+	const entries: string[] = [];
+	map.forEach((value, key) => {
+		entries.push(`${key} => ${value}`);
+	});
+
+	return `Map(${map.size}) {${entries.join(', ')}}`;
+}
+
+export function setToString<K>(set: Set<K>): string {
+	const entries: K[] = [];
+	set.forEach(value => {
+		entries.push(value);
+	});
+
+	return `Set(${set.size}) {${entries.join(', ')}}`;
+}
+
+export interface IKeyIterator<K> {
+	reset(key: K): this;
 	next(): this;
 
 	hasNext(): boolean;
@@ -43,7 +44,7 @@ export interface IKeyIterator {
 	value(): string;
 }
 
-export class StringIterator implements IKeyIterator {
+export class StringIterator implements IKeyIterator<string> {
 
 	private _value: string = '';
 	private _pos: number = 0;
@@ -64,8 +65,8 @@ export class StringIterator implements IKeyIterator {
 	}
 
 	cmp(a: string): number {
-		let aCode = a.charCodeAt(0);
-		let thisCode = this._value.charCodeAt(this._pos);
+		const aCode = a.charCodeAt(0);
+		const thisCode = this._value.charCodeAt(this._pos);
 		return aCode - thisCode;
 	}
 
@@ -74,11 +75,67 @@ export class StringIterator implements IKeyIterator {
 	}
 }
 
-export class PathIterator implements IKeyIterator {
+export class ConfigKeysIterator implements IKeyIterator<string> {
 
-	private _value: string;
-	private _from: number;
-	private _to: number;
+	private _value!: string;
+	private _from!: number;
+	private _to!: number;
+
+	constructor(
+		private readonly _caseSensitive: boolean = true
+	) { }
+
+	reset(key: string): this {
+		this._value = key;
+		this._from = 0;
+		this._to = 0;
+		return this.next();
+	}
+
+	hasNext(): boolean {
+		return this._to < this._value.length;
+	}
+
+	next(): this {
+		// this._data = key.split(/[\\/]/).filter(s => !!s);
+		this._from = this._to;
+		let justSeps = true;
+		for (; this._to < this._value.length; this._to++) {
+			const ch = this._value.charCodeAt(this._to);
+			if (ch === CharCode.Period) {
+				if (justSeps) {
+					this._from++;
+				} else {
+					break;
+				}
+			} else {
+				justSeps = false;
+			}
+		}
+		return this;
+	}
+
+	cmp(a: string): number {
+		return this._caseSensitive
+			? compareSubstring(a, this._value, 0, a.length, this._from, this._to)
+			: compareSubstringIgnoreCase(a, this._value, 0, a.length, this._from, this._to);
+	}
+
+	value(): string {
+		return this._value.substring(this._from, this._to);
+	}
+}
+
+export class PathIterator implements IKeyIterator<string> {
+
+	private _value!: string;
+	private _from!: number;
+	private _to!: number;
+
+	constructor(
+		private readonly _splitOnBackslash: boolean = true,
+		private readonly _caseSensitive: boolean = true
+	) { }
 
 	reset(key: string): this {
 		this._value = key.replace(/\\$|\/$/, '');
@@ -97,7 +154,7 @@ export class PathIterator implements IKeyIterator {
 		let justSeps = true;
 		for (; this._to < this._value.length; this._to++) {
 			const ch = this._value.charCodeAt(this._to);
-			if (ch === CharCode.Slash || ch === CharCode.Backslash) {
+			if (ch === CharCode.Slash || this._splitOnBackslash && ch === CharCode.Backslash) {
 				if (justSeps) {
 					this._from++;
 				} else {
@@ -111,27 +168,9 @@ export class PathIterator implements IKeyIterator {
 	}
 
 	cmp(a: string): number {
-
-		let aPos = 0;
-		let aLen = a.length;
-		let thisPos = this._from;
-
-		while (aPos < aLen && thisPos < this._to) {
-			let cmp = a.charCodeAt(aPos) - this._value.charCodeAt(thisPos);
-			if (cmp !== 0) {
-				return cmp;
-			}
-			aPos += 1;
-			thisPos += 1;
-		}
-
-		if (aLen === this._to - this._from) {
-			return 0;
-		} else if (aPos < aLen) {
-			return -1;
-		} else {
-			return 1;
-		}
+		return this._caseSensitive
+			? compareSubstring(a, this._value, 0, a.length, this._from, this._to)
+			: compareSubstringIgnoreCase(a, this._value, 0, a.length, this._from, this._to);
 	}
 
 	value(): string {
@@ -139,33 +178,125 @@ export class PathIterator implements IKeyIterator {
 	}
 }
 
-class TernarySearchTreeNode<E> {
-	segment: string;
-	value: E;
-	key: string;
-	left: TernarySearchTreeNode<E>;
-	mid: TernarySearchTreeNode<E>;
-	right: TernarySearchTreeNode<E>;
+const enum UriIteratorState {
+	Scheme = 1, Authority = 2, Path = 3, Query = 4, Fragment = 5
+}
+
+export class UriIterator implements IKeyIterator<URI> {
+
+	private _pathIterator!: PathIterator;
+	private _value!: URI;
+	private _states: UriIteratorState[] = [];
+	private _stateIdx: number = 0;
+
+	constructor(private readonly _ignorePathCasing: (uri: URI) => boolean) { }
+
+	reset(key: URI): this {
+		this._value = key;
+		this._states = [];
+		if (this._value.scheme) {
+			this._states.push(UriIteratorState.Scheme);
+		}
+		if (this._value.authority) {
+			this._states.push(UriIteratorState.Authority);
+		}
+		if (this._value.path) {
+			this._pathIterator = new PathIterator(false, !this._ignorePathCasing(key));
+			this._pathIterator.reset(key.path);
+			if (this._pathIterator.value()) {
+				this._states.push(UriIteratorState.Path);
+			}
+		}
+		if (this._value.query) {
+			this._states.push(UriIteratorState.Query);
+		}
+		if (this._value.fragment) {
+			this._states.push(UriIteratorState.Fragment);
+		}
+		this._stateIdx = 0;
+		return this;
+	}
+
+	next(): this {
+		if (this._states[this._stateIdx] === UriIteratorState.Path && this._pathIterator.hasNext()) {
+			this._pathIterator.next();
+		} else {
+			this._stateIdx += 1;
+		}
+		return this;
+	}
+
+	hasNext(): boolean {
+		return (this._states[this._stateIdx] === UriIteratorState.Path && this._pathIterator.hasNext())
+			|| this._stateIdx < this._states.length - 1;
+	}
+
+	cmp(a: string): number {
+		if (this._states[this._stateIdx] === UriIteratorState.Scheme) {
+			return compareIgnoreCase(a, this._value.scheme);
+		} else if (this._states[this._stateIdx] === UriIteratorState.Authority) {
+			return compareIgnoreCase(a, this._value.authority);
+		} else if (this._states[this._stateIdx] === UriIteratorState.Path) {
+			return this._pathIterator.cmp(a);
+		} else if (this._states[this._stateIdx] === UriIteratorState.Query) {
+			return compare(a, this._value.query);
+		} else if (this._states[this._stateIdx] === UriIteratorState.Fragment) {
+			return compare(a, this._value.fragment);
+		}
+		throw new Error();
+	}
+
+	value(): string {
+		if (this._states[this._stateIdx] === UriIteratorState.Scheme) {
+			return this._value.scheme;
+		} else if (this._states[this._stateIdx] === UriIteratorState.Authority) {
+			return this._value.authority;
+		} else if (this._states[this._stateIdx] === UriIteratorState.Path) {
+			return this._pathIterator.value();
+		} else if (this._states[this._stateIdx] === UriIteratorState.Query) {
+			return this._value.query;
+		} else if (this._states[this._stateIdx] === UriIteratorState.Fragment) {
+			return this._value.fragment;
+		}
+		throw new Error();
+	}
+}
+
+class TernarySearchTreeNode<K, V> {
+	segment!: string;
+	value: V | undefined;
+	key!: K;
+	left: TernarySearchTreeNode<K, V> | undefined;
+	mid: TernarySearchTreeNode<K, V> | undefined;
+	right: TernarySearchTreeNode<K, V> | undefined;
 
 	isEmpty(): boolean {
 		return !this.left && !this.mid && !this.right && !this.value;
 	}
 }
 
-export class TernarySearchTree<E> {
+export class TernarySearchTree<K, V> {
 
-	static forPaths<E>(): TernarySearchTree<E> {
-		return new TernarySearchTree<E>(new PathIterator());
+	static forUris<E>(ignorePathCasing: (key: URI) => boolean = () => false): TernarySearchTree<URI, E> {
+		return new TernarySearchTree<URI, E>(new UriIterator(ignorePathCasing));
 	}
 
-	static forStrings<E>(): TernarySearchTree<E> {
-		return new TernarySearchTree<E>(new StringIterator());
+	static forPaths<E>(): TernarySearchTree<string, E> {
+		return new TernarySearchTree<string, E>(new PathIterator());
 	}
 
-	private _iter: IKeyIterator;
-	private _root: TernarySearchTreeNode<E>;
+	static forStrings<E>(): TernarySearchTree<string, E> {
+		return new TernarySearchTree<string, E>(new StringIterator());
+	}
 
-	constructor(segments: IKeyIterator) {
+	static forConfigKeys<E>(): TernarySearchTree<string, E> {
+		return new TernarySearchTree<string, E>(new ConfigKeysIterator());
+	}
+
+	private _iter: IKeyIterator<K>;
+	private _root: TernarySearchTreeNode<K, V> | undefined;
+
+	constructor(segments: IKeyIterator<K>) {
 		this._iter = segments;
 	}
 
@@ -173,22 +304,22 @@ export class TernarySearchTree<E> {
 		this._root = undefined;
 	}
 
-	set(key: string, element: E): E {
-		let iter = this._iter.reset(key);
-		let node: TernarySearchTreeNode<E>;
+	set(key: K, element: V): V | undefined {
+		const iter = this._iter.reset(key);
+		let node: TernarySearchTreeNode<K, V>;
 
 		if (!this._root) {
-			this._root = new TernarySearchTreeNode<E>();
+			this._root = new TernarySearchTreeNode<K, V>();
 			this._root.segment = iter.value();
 		}
 
 		node = this._root;
 		while (true) {
-			let val = iter.cmp(node.segment);
+			const val = iter.cmp(node.segment);
 			if (val > 0) {
 				// left
 				if (!node.left) {
-					node.left = new TernarySearchTreeNode<E>();
+					node.left = new TernarySearchTreeNode<K, V>();
 					node.left.segment = iter.value();
 				}
 				node = node.left;
@@ -196,7 +327,7 @@ export class TernarySearchTree<E> {
 			} else if (val < 0) {
 				// right
 				if (!node.right) {
-					node.right = new TernarySearchTreeNode<E>();
+					node.right = new TernarySearchTreeNode<K, V>();
 					node.right.segment = iter.value();
 				}
 				node = node.right;
@@ -205,7 +336,7 @@ export class TernarySearchTree<E> {
 				// mid
 				iter.next();
 				if (!node.mid) {
-					node.mid = new TernarySearchTreeNode<E>();
+					node.mid = new TernarySearchTreeNode<K, V>();
 					node.mid.segment = iter.value();
 				}
 				node = node.mid;
@@ -219,11 +350,15 @@ export class TernarySearchTree<E> {
 		return oldElement;
 	}
 
-	get(key: string): E {
-		let iter = this._iter.reset(key);
+	get(key: K): V | undefined {
+		return this._getNode(key)?.value;
+	}
+
+	private _getNode(key: K) {
+		const iter = this._iter.reset(key);
 		let node = this._root;
 		while (node) {
-			let val = iter.cmp(node.segment);
+			const val = iter.cmp(node.segment);
 			if (val > 0) {
 				// left
 				node = node.left;
@@ -238,18 +373,30 @@ export class TernarySearchTree<E> {
 				break;
 			}
 		}
-		return node ? node.value : undefined;
+		return node;
 	}
 
-	delete(key: string): void {
+	has(key: K): boolean {
+		const node = this._getNode(key);
+		return !(node?.value === undefined && node?.mid === undefined);
+	}
 
-		let iter = this._iter.reset(key);
-		let stack: [-1 | 0 | 1, TernarySearchTreeNode<E>][] = [];
+	delete(key: K): void {
+		return this._delete(key, false);
+	}
+
+	deleteSuperstr(key: K): void {
+		return this._delete(key, true);
+	}
+
+	private _delete(key: K, superStr: boolean): void {
+		const iter = this._iter.reset(key);
+		const stack: [-1 | 0 | 1, TernarySearchTreeNode<K, V>][] = [];
 		let node = this._root;
 
 		// find and unset node
 		while (node) {
-			let val = iter.cmp(node.segment);
+			const val = iter.cmp(node.segment);
 			if (val > 0) {
 				// left
 				stack.push([1, node]);
@@ -264,12 +411,19 @@ export class TernarySearchTree<E> {
 				stack.push([0, node]);
 				node = node.mid;
 			} else {
-				// remove element
-				node.value = undefined;
+				if (superStr) {
+					// remove children
+					node.left = undefined;
+					node.mid = undefined;
+					node.right = undefined;
+				} else {
+					// remove element
+					node.value = undefined;
+				}
 
 				// clean up empty nodes
 				while (stack.length > 0 && node.isEmpty()) {
-					let [dir, parent] = stack.pop();
+					let [dir, parent] = stack.pop()!;
 					switch (dir) {
 						case 1: parent.left = undefined; break;
 						case 0: parent.mid = undefined; break;
@@ -282,12 +436,12 @@ export class TernarySearchTree<E> {
 		}
 	}
 
-	findSubstr(key: string): E {
-		let iter = this._iter.reset(key);
+	findSubstr(key: K): V | undefined {
+		const iter = this._iter.reset(key);
 		let node = this._root;
-		let candidate: E;
+		let candidate: V | undefined = undefined;
 		while (node) {
-			let val = iter.cmp(node.segment);
+			const val = iter.cmp(node.segment);
 			if (val > 0) {
 				// left
 				node = node.left;
@@ -306,11 +460,11 @@ export class TernarySearchTree<E> {
 		return node && node.value || candidate;
 	}
 
-	findSuperstr(key: string): IIterator<E> {
-		let iter = this._iter.reset(key);
+	findSuperstr(key: K): IterableIterator<[K, V]> | undefined {
+		const iter = this._iter.reset(key);
 		let node = this._root;
 		while (node) {
-			let val = iter.cmp(node.segment);
+			const val = iter.cmp(node.segment);
 			if (val > 0) {
 				// left
 				node = node.left;
@@ -326,127 +480,134 @@ export class TernarySearchTree<E> {
 				if (!node.mid) {
 					return undefined;
 				} else {
-					return this._nodeIterator(node.mid);
+					return this._entries(node.mid);
 				}
 			}
 		}
 		return undefined;
 	}
 
-	private _nodeIterator(node: TernarySearchTreeNode<E>): IIterator<E> {
-		let res = {
-			done: false,
-			value: undefined
-		};
-		let idx: number;
-		let data: E[];
-		let next = () => {
-			if (!data) {
-				// lazy till first invocation
-				data = [];
-				idx = 0;
-				this._forEach(node, value => data.push(value));
-			}
-			if (idx >= data.length) {
-				res.done = true;
-				res.value = undefined;
-			} else {
-				res.done = false;
-				res.value = data[idx++];
-			}
-			return res;
-		};
-		return { next };
+	forEach(callback: (value: V, index: K) => any): void {
+		for (const [key, value] of this) {
+			callback(value, key);
+		}
 	}
 
-	forEach(callback: (value: E, index: string) => any) {
-		this._forEach(this._root, callback);
+	*[Symbol.iterator](): IterableIterator<[K, V]> {
+		yield* this._entries(this._root);
 	}
 
-	private _forEach(node: TernarySearchTreeNode<E>, callback: (value: E, index: string) => any) {
+	private *_entries(node: TernarySearchTreeNode<K, V> | undefined): IterableIterator<[K, V]> {
 		if (node) {
 			// left
-			this._forEach(node.left, callback);
+			yield* this._entries(node.left);
 
 			// node
 			if (node.value) {
 				// callback(node.value, this._iter.join(parts));
-				callback(node.value, node.key);
+				yield [node.key, node.value];
 			}
 			// mid
-			this._forEach(node.mid, callback);
+			yield* this._entries(node.mid);
 
 			// right
-			this._forEach(node.right, callback);
+			yield* this._entries(node.right);
 		}
 	}
 }
 
-export class ResourceMap<T> {
+interface ResourceMapKeyFn {
+	(resource: URI): string;
+}
 
-	protected readonly map: Map<string, T>;
-	protected readonly ignoreCase?: boolean;
+export class ResourceMap<T> implements Map<URI, T> {
 
-	constructor() {
-		this.map = new Map<string, T>();
-		this.ignoreCase = false; // in the future this should be an uri-comparator
+	private static readonly defaultToKey = (resource: URI) => resource.toString();
+
+	readonly [Symbol.toStringTag] = 'ResourceMap';
+
+	private readonly map: Map<string, T>;
+	private readonly toKey: ResourceMapKeyFn;
+
+	/**
+	 *
+	 * @param toKey Custom uri identity function, e.g use an existing `IExtUri#getComparison`-util
+	 */
+	constructor(toKey?: ResourceMapKeyFn);
+
+	/**
+	 *
+	 * @param other Another resource which this maps is created from
+	 * @param toKey Custom uri identity function, e.g use an existing `IExtUri#getComparison`-util
+	 */
+	constructor(other?: ResourceMap<T>, toKey?: ResourceMapKeyFn);
+
+	constructor(mapOrKeyFn?: ResourceMap<T> | ResourceMapKeyFn, toKey?: ResourceMapKeyFn) {
+		if (mapOrKeyFn instanceof ResourceMap) {
+			this.map = new Map(mapOrKeyFn.map);
+			this.toKey = toKey ?? ResourceMap.defaultToKey;
+		} else {
+			this.map = new Map();
+			this.toKey = mapOrKeyFn ?? ResourceMap.defaultToKey;
+		}
 	}
 
-	public set(resource: URI, value: T): void {
+	set(resource: URI, value: T): this {
 		this.map.set(this.toKey(resource), value);
+		return this;
 	}
 
-	public get(resource: URI): T {
+	get(resource: URI): T | undefined {
 		return this.map.get(this.toKey(resource));
 	}
 
-	public has(resource: URI): boolean {
+	has(resource: URI): boolean {
 		return this.map.has(this.toKey(resource));
 	}
 
-	public get size(): number {
+	get size(): number {
 		return this.map.size;
 	}
 
-	public clear(): void {
+	clear(): void {
 		this.map.clear();
 	}
 
-	public delete(resource: URI): boolean {
+	delete(resource: URI): boolean {
 		return this.map.delete(this.toKey(resource));
 	}
 
-	public forEach(clb: (value: T) => void): void {
-		this.map.forEach(clb);
-	}
-
-	public values(): T[] {
-		return values(this.map);
-	}
-
-	private toKey(resource: URI): string {
-		let key = resource.toString();
-		if (this.ignoreCase) {
-			key = key.toLowerCase();
+	forEach(clb: (value: T, key: URI, map: Map<URI, T>) => void, thisArg?: any): void {
+		if (typeof thisArg !== 'undefined') {
+			clb = clb.bind(thisArg);
 		}
-
-		return key;
+		for (let [index, value] of this.map) {
+			clb(value, URI.parse(index), <any>this);
+		}
 	}
 
-	public keys(): URI[] {
-		return keys(this.map).map(URI.parse);
+	values(): IterableIterator<T> {
+		return this.map.values();
 	}
 
-	public clone(): ResourceMap<T> {
-		const resourceMap = new ResourceMap<T>();
+	*keys(): IterableIterator<URI> {
+		for (let key of this.map.keys()) {
+			yield URI.parse(key);
+		}
+	}
 
-		this.map.forEach((value, key) => resourceMap.map.set(key, value));
+	*entries(): IterableIterator<[URI, T]> {
+		for (let tuple of this.map.entries()) {
+			yield [URI.parse(tuple[0]), tuple[1]];
+		}
+	}
 
-		return resourceMap;
+	*[Symbol.iterator](): IterableIterator<[URI, T]> {
+		for (let item of this.map) {
+			yield [URI.parse(item[0]), item[1]];
+		}
 	}
 }
-
-// We should fold BoundedMap and LinkedMap. See https://github.com/Microsoft/vscode/issues/28496
 
 interface Item<K, V> {
 	previous: Item<K, V> | undefined;
@@ -455,46 +616,60 @@ interface Item<K, V> {
 	value: V;
 }
 
-export enum Touch {
+export const enum Touch {
 	None = 0,
 	AsOld = 1,
 	AsNew = 2
 }
 
-export class LinkedMap<K, V> {
+export class LinkedMap<K, V> implements Map<K, V> {
+
+	readonly [Symbol.toStringTag] = 'LinkedMap';
 
 	private _map: Map<K, Item<K, V>>;
 	private _head: Item<K, V> | undefined;
 	private _tail: Item<K, V> | undefined;
 	private _size: number;
 
+	private _state: number;
+
 	constructor() {
 		this._map = new Map<K, Item<K, V>>();
 		this._head = undefined;
 		this._tail = undefined;
 		this._size = 0;
+		this._state = 0;
 	}
 
-	public clear(): void {
+	clear(): void {
 		this._map.clear();
 		this._head = undefined;
 		this._tail = undefined;
 		this._size = 0;
+		this._state++;
 	}
 
-	public isEmpty(): boolean {
+	isEmpty(): boolean {
 		return !this._head && !this._tail;
 	}
 
-	public get size(): number {
+	get size(): number {
 		return this._size;
 	}
 
-	public has(key: K): boolean {
+	get first(): V | undefined {
+		return this._head?.value;
+	}
+
+	get last(): V | undefined {
+		return this._tail?.value;
+	}
+
+	has(key: K): boolean {
 		return this._map.has(key);
 	}
 
-	public get(key: K, touch: Touch = Touch.None): V | undefined {
+	get(key: K, touch: Touch = Touch.None): V | undefined {
 		const item = this._map.get(key);
 		if (!item) {
 			return undefined;
@@ -505,7 +680,7 @@ export class LinkedMap<K, V> {
 		return item.value;
 	}
 
-	public set(key: K, value: V, touch: Touch = Touch.None): void {
+	set(key: K, value: V, touch: Touch = Touch.None): this {
 		let item = this._map.get(key);
 		if (item) {
 			item.value = value;
@@ -531,13 +706,14 @@ export class LinkedMap<K, V> {
 			this._map.set(key, item);
 			this._size++;
 		}
+		return this;
 	}
 
-	public delete(key: K): boolean {
+	delete(key: K): boolean {
 		return !!this.remove(key);
 	}
 
-	public remove(key: K): V | undefined {
+	remove(key: K): V | undefined {
 		const item = this._map.get(key);
 		if (!item) {
 			return undefined;
@@ -548,7 +724,7 @@ export class LinkedMap<K, V> {
 		return item.value;
 	}
 
-	public shift(): V | undefined {
+	shift(): V | undefined {
 		if (!this._head && !this._tail) {
 			return undefined;
 		}
@@ -562,7 +738,8 @@ export class LinkedMap<K, V> {
 		return item.value;
 	}
 
-	public forEach(callbackfn: (value: V, key: K, map: LinkedMap<K, V>) => void, thisArg?: any): void {
+	forEach(callbackfn: (value: V, key: K, map: LinkedMap<K, V>) => void, thisArg?: any): void {
+		const state = this._state;
 		let current = this._head;
 		while (current) {
 			if (thisArg) {
@@ -570,40 +747,27 @@ export class LinkedMap<K, V> {
 			} else {
 				callbackfn(current.value, current.key, this);
 			}
+			if (this._state !== state) {
+				throw new Error(`LinkedMap got modified during iteration.`);
+			}
 			current = current.next;
 		}
 	}
 
-	public values(): V[] {
-		let result: V[] = [];
+	keys(): IterableIterator<K> {
+		const map = this;
+		const state = this._state;
 		let current = this._head;
-		while (current) {
-			result.push(current.value);
-			current = current.next;
-		}
-		return result;
-	}
-
-	public keys(): K[] {
-		let result: K[] = [];
-		let current = this._head;
-		while (current) {
-			result.push(current.key);
-			current = current.next;
-		}
-		return result;
-	}
-
-	/* VS Code / Monaco editor runs on es5 which has no Symbol.iterator
-	public keys(): IterableIterator<K> {
-		let current = this._head;
-		let iterator: IterableIterator<K> = {
+		const iterator: IterableIterator<K> = {
 			[Symbol.iterator]() {
 				return iterator;
 			},
-			next():IteratorResult<K> {
+			next(): IteratorResult<K> {
+				if (map._state !== state) {
+					throw new Error(`LinkedMap got modified during iteration.`);
+				}
 				if (current) {
-					let result = { value: current.key, done: false };
+					const result = { value: current.key, done: false };
 					current = current.next;
 					return result;
 				} else {
@@ -614,15 +778,20 @@ export class LinkedMap<K, V> {
 		return iterator;
 	}
 
-	public values(): IterableIterator<V> {
+	values(): IterableIterator<V> {
+		const map = this;
+		const state = this._state;
 		let current = this._head;
-		let iterator: IterableIterator<V> = {
+		const iterator: IterableIterator<V> = {
 			[Symbol.iterator]() {
 				return iterator;
 			},
-			next():IteratorResult<V> {
+			next(): IteratorResult<V> {
+				if (map._state !== state) {
+					throw new Error(`LinkedMap got modified during iteration.`);
+				}
 				if (current) {
-					let result = { value: current.value, done: false };
+					const result = { value: current.value, done: false };
 					current = current.next;
 					return result;
 				} else {
@@ -632,7 +801,34 @@ export class LinkedMap<K, V> {
 		};
 		return iterator;
 	}
-	*/
+
+	entries(): IterableIterator<[K, V]> {
+		const map = this;
+		const state = this._state;
+		let current = this._head;
+		const iterator: IterableIterator<[K, V]> = {
+			[Symbol.iterator]() {
+				return iterator;
+			},
+			next(): IteratorResult<[K, V]> {
+				if (map._state !== state) {
+					throw new Error(`LinkedMap got modified during iteration.`);
+				}
+				if (current) {
+					const result: IteratorResult<[K, V]> = { value: [current.key, current.value], done: false };
+					current = current.next;
+					return result;
+				} else {
+					return { value: undefined, done: true };
+				}
+			}
+		};
+		return iterator;
+	}
+
+	[Symbol.iterator](): IterableIterator<[K, V]> {
+		return this.entries();
+	}
 
 	protected trimOld(newSize: number) {
 		if (newSize >= this.size) {
@@ -651,7 +847,10 @@ export class LinkedMap<K, V> {
 		}
 		this._head = current;
 		this._size = currentSize;
-		current.previous = void 0;
+		if (current) {
+			current.previous = undefined;
+		}
+		this._state++;
 	}
 
 	private addItemFirst(item: Item<K, V>): void {
@@ -665,6 +864,7 @@ export class LinkedMap<K, V> {
 			this._head.previous = item;
 		}
 		this._head = item;
+		this._state++;
 	}
 
 	private addItemLast(item: Item<K, V>): void {
@@ -678,17 +878,30 @@ export class LinkedMap<K, V> {
 			this._tail.next = item;
 		}
 		this._tail = item;
+		this._state++;
 	}
 
 	private removeItem(item: Item<K, V>): void {
 		if (item === this._head && item === this._tail) {
-			this._head = void 0;
-			this._tail = void 0;
+			this._head = undefined;
+			this._tail = undefined;
 		}
 		else if (item === this._head) {
+			// This can only happend if size === 1 which is handle
+			// by the case above.
+			if (!item.next) {
+				throw new Error('Invalid list');
+			}
+			item.next.previous = undefined;
 			this._head = item.next;
 		}
 		else if (item === this._tail) {
+			// This can only happend if size === 1 which is handle
+			// by the case above.
+			if (!item.previous) {
+				throw new Error('Invalid list');
+			}
+			item.previous.next = undefined;
 			this._tail = item.previous;
 		}
 		else {
@@ -700,6 +913,9 @@ export class LinkedMap<K, V> {
 			next.previous = previous;
 			previous.next = next;
 		}
+		item.next = undefined;
+		item.previous = undefined;
+		this._state++;
 	}
 
 	private touch(item: Item<K, V>, touch: Touch): void {
@@ -722,7 +938,7 @@ export class LinkedMap<K, V> {
 			if (item === this._tail) {
 				// previous must be defined since item was not head but is tail
 				// So there are more than on item in the map
-				previous!.next = void 0;
+				previous!.next = undefined;
 				this._tail = previous;
 			}
 			else {
@@ -732,10 +948,11 @@ export class LinkedMap<K, V> {
 			}
 
 			// Insert the node at head
-			item.previous = void 0;
+			item.previous = undefined;
 			item.next = this._head;
 			this._head.previous = item;
 			this._head = item;
+			this._state++;
 		} else if (touch === Touch.AsNew) {
 			if (item === this._tail) {
 				return;
@@ -748,21 +965,22 @@ export class LinkedMap<K, V> {
 			if (item === this._head) {
 				// next must be defined since item was not tail but is head
 				// So there are more than on item in the map
-				next!.previous = void 0;
+				next!.previous = undefined;
 				this._head = next;
 			} else {
 				// Both next and previous are not undefined since item was neither head nor tail.
 				next!.previous = previous;
 				previous!.next = next;
 			}
-			item.next = void 0;
+			item.next = undefined;
 			item.previous = this._tail;
 			this._tail.next = item;
 			this._tail = item;
+			this._state++;
 		}
 	}
 
-	public toJSON(): [K, V][] {
+	toJSON(): [K, V][] {
 		const data: [K, V][] = [];
 
 		this.forEach((value, key) => {
@@ -772,7 +990,7 @@ export class LinkedMap<K, V> {
 		return data;
 	}
 
-	public fromJSON(data: [K, V][]): void {
+	fromJSON(data: [K, V][]): void {
 		this.clear();
 
 		for (const [key, value] of data) {
@@ -792,35 +1010,36 @@ export class LRUCache<K, V> extends LinkedMap<K, V> {
 		this._ratio = Math.min(Math.max(0, ratio), 1);
 	}
 
-	public get limit(): number {
+	get limit(): number {
 		return this._limit;
 	}
 
-	public set limit(limit: number) {
+	set limit(limit: number) {
 		this._limit = limit;
 		this.checkTrim();
 	}
 
-	public get ratio(): number {
+	get ratio(): number {
 		return this._ratio;
 	}
 
-	public set ratio(ratio: number) {
+	set ratio(ratio: number) {
 		this._ratio = Math.min(Math.max(0, ratio), 1);
 		this.checkTrim();
 	}
 
-	public get(key: K): V | undefined {
-		return super.get(key, Touch.AsNew);
+	get(key: K, touch: Touch = Touch.AsNew): V | undefined {
+		return super.get(key, touch);
 	}
 
-	public peek(key: K): V | undefined {
+	peek(key: K): V | undefined {
 		return super.get(key, Touch.None);
 	}
 
-	public set(key: K, value: V): void {
+	set(key: K, value: V): this {
 		super.set(key, value, Touch.AsNew);
 		this.checkTrim();
+		return this;
 	}
 
 	private checkTrim() {

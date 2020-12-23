@@ -3,40 +3,34 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-'use strict';
-
 import 'vs/css!./media/editorgroupview';
-import { TPromise } from 'vs/base/common/winjs.base';
 import { EditorGroup, IEditorOpenOptions, EditorCloseEvent, ISerializedEditorGroup, isSerializedEditorGroup } from 'vs/workbench/common/editor/editorGroup';
-import { EditorInput, EditorOptions, GroupIdentifier, ConfirmResult, SideBySideEditorInput, CloseDirection, IEditorCloseEvent, EditorGroupActiveEditorDirtyContext } from 'vs/workbench/common/editor';
-import { Event, Emitter, once, Relay } from 'vs/base/common/event';
-import { IInstantiationService, ServicesAccessor } from 'vs/platform/instantiation/common/instantiation';
-import { addClass, addClasses, Dimension, trackFocus, toggleClass, removeClass, addDisposableListener, EventType, EventHelper, findParentWithClass, clearNode, isAncestor } from 'vs/base/browser/dom';
+import { EditorInput, EditorOptions, GroupIdentifier, SideBySideEditorInput, CloseDirection, IEditorCloseEvent, ActiveEditorDirtyContext, IEditorPane, EditorGroupEditorsCountContext, SaveReason, IEditorPartOptionsChangeEvent, EditorsOrder, IVisibleEditorPane, ActiveEditorStickyContext, ActiveEditorPinnedContext, EditorResourceAccessor } from 'vs/workbench/common/editor';
+import { Event, Emitter, Relay } from 'vs/base/common/event';
+import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
+import { Dimension, trackFocus, addDisposableListener, EventType, EventHelper, findParentWithClass, clearNode, isAncestor, asCSSUrl } from 'vs/base/browser/dom';
 import { ServiceCollection } from 'vs/platform/instantiation/common/serviceCollection';
 import { IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
 import { ProgressBar } from 'vs/base/browser/ui/progressbar/progressbar';
 import { attachProgressBarStyler } from 'vs/platform/theme/common/styler';
-import { IThemeService, registerThemingParticipant } from 'vs/platform/theme/common/themeService';
+import { IThemeService, registerThemingParticipant, Themable } from 'vs/platform/theme/common/themeService';
 import { editorBackground, contrastBorder } from 'vs/platform/theme/common/colorRegistry';
-import { Themable, EDITOR_GROUP_HEADER_TABS_BORDER, EDITOR_GROUP_HEADER_TABS_BACKGROUND, EDITOR_GROUP_HEADER_NO_TABS_BACKGROUND, EDITOR_GROUP_EMPTY_BACKGROUND, EDITOR_GROUP_FOCUSED_EMPTY_BORDER } from 'vs/workbench/common/theme';
-import { IMoveEditorOptions, ICopyEditorOptions, ICloseEditorsFilter, IGroupChangeEvent, GroupChangeKind, EditorsOrder, GroupsOrder } from 'vs/workbench/services/group/common/editorGroupsService';
+import { EDITOR_GROUP_HEADER_TABS_BACKGROUND, EDITOR_GROUP_HEADER_NO_TABS_BACKGROUND, EDITOR_GROUP_EMPTY_BACKGROUND, EDITOR_GROUP_FOCUSED_EMPTY_BORDER, EDITOR_GROUP_HEADER_BORDER } from 'vs/workbench/common/theme';
+import { IMoveEditorOptions, ICopyEditorOptions, ICloseEditorsFilter, IGroupChangeEvent, GroupChangeKind, GroupsOrder, ICloseEditorOptions, ICloseAllEditorsOptions, OpenEditorContext } from 'vs/workbench/services/editor/common/editorGroupsService';
 import { TabsTitleControl } from 'vs/workbench/browser/parts/editor/tabsTitleControl';
 import { EditorControl } from 'vs/workbench/browser/parts/editor/editorControl';
-import { IProgressService } from 'vs/platform/progress/common/progress';
-import { ProgressService } from 'vs/workbench/services/progress/browser/progressService';
-import { BaseEditor } from 'vs/workbench/browser/parts/editor/baseEditor';
+import { IEditorProgressService } from 'vs/platform/progress/common/progress';
+import { EditorProgressIndicator } from 'vs/workbench/services/progress/browser/progressIndicator';
 import { localize } from 'vs/nls';
-import { isPromiseCanceledError, isErrorWithActions, IErrorWithActions } from 'vs/base/common/errors';
-import { dispose, IDisposable } from 'vs/base/common/lifecycle';
-import { Severity, INotificationService, INotificationActions } from 'vs/platform/notification/common/notification';
+import { isPromiseCanceledError } from 'vs/base/common/errors';
+import { dispose, MutableDisposable } from 'vs/base/common/lifecycle';
+import { Severity, INotificationService } from 'vs/platform/notification/common/notification';
 import { toErrorMessage } from 'vs/base/common/errorMessage';
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
 import { RunOnceWorker } from 'vs/base/common/async';
 import { EventType as TouchEventType, GestureEvent } from 'vs/base/browser/touch';
 import { TitleControl } from 'vs/workbench/browser/parts/editor/titleControl';
-import { IEditorGroupsAccessor, IEditorGroupView, IEditorPartOptionsChangeEvent, EDITOR_TITLE_HEIGHT, getActiveTextEditorOptions, IEditorOpeningEvent } from 'vs/workbench/browser/parts/editor/editor';
-import { IUntitledEditorService } from 'vs/workbench/services/untitled/common/untitledEditorService';
-import { join } from 'vs/base/common/paths';
+import { IEditorGroupsAccessor, IEditorGroupView, getActiveTextEditorOptions, IEditorOpeningEvent, EditorServiceImpl, IEditorGroupTitleDimensions } from 'vs/workbench/browser/parts/editor/editor';
 import { ActionBar } from 'vs/base/browser/ui/actionbar/actionbar';
 import { IKeybindingService } from 'vs/platform/keybinding/common/keybinding';
 import { ActionRunner, IAction, Action } from 'vs/base/common/actions';
@@ -44,89 +38,108 @@ import { CLOSE_EDITOR_GROUP_COMMAND_ID } from 'vs/workbench/browser/parts/editor
 import { NoTabsTitleControl } from 'vs/workbench/browser/parts/editor/noTabsTitleControl';
 import { IMenuService, MenuId, IMenu } from 'vs/platform/actions/common/actions';
 import { StandardMouseEvent } from 'vs/base/browser/mouseEvent';
-import { fillInContextMenuActions } from 'vs/platform/actions/browser/menuItemActionItem';
+import { createAndFillInContextMenuActions } from 'vs/platform/actions/browser/menuEntryActionViewItem';
 import { IContextMenuService } from 'vs/platform/contextview/browser/contextView';
+import { isErrorWithActions, IErrorWithActions } from 'vs/base/common/errorsWithActions';
+import { IEditorService } from 'vs/workbench/services/editor/common/editorService';
+import { withNullAsUndefined, withUndefinedAsNull } from 'vs/base/common/types';
+import { hash } from 'vs/base/common/hash';
+import { guessMimeTypes } from 'vs/base/common/mime';
+import { extname } from 'vs/base/common/resources';
+import { FileAccess, Schemas } from 'vs/base/common/network';
+import { EditorActivation, EditorOpenContext } from 'vs/platform/editor/common/editor';
+import { IDialogService, IFileDialogService, ConfirmResult } from 'vs/platform/dialogs/common/dialogs';
+import { ILogService } from 'vs/platform/log/common/log';
+import { Codicon } from 'vs/base/common/codicons';
+import { IFilesConfigurationService, AutoSaveMode } from 'vs/workbench/services/filesConfiguration/common/filesConfigurationService';
 
 export class EditorGroupView extends Themable implements IEditorGroupView {
 
 	//#region factory
 
-	static createNew(accessor: IEditorGroupsAccessor, label: string, instantiationService: IInstantiationService): IEditorGroupView {
-		return instantiationService.createInstance(EditorGroupView, accessor, null, label);
+	static createNew(accessor: IEditorGroupsAccessor, index: number, instantiationService: IInstantiationService): IEditorGroupView {
+		return instantiationService.createInstance(EditorGroupView, accessor, null, index);
 	}
 
-	static createFromSerialized(serialized: ISerializedEditorGroup, accessor: IEditorGroupsAccessor, label: string, instantiationService: IInstantiationService): IEditorGroupView {
-		return instantiationService.createInstance(EditorGroupView, accessor, serialized, label);
+	static createFromSerialized(serialized: ISerializedEditorGroup, accessor: IEditorGroupsAccessor, index: number, instantiationService: IInstantiationService): IEditorGroupView {
+		return instantiationService.createInstance(EditorGroupView, accessor, serialized, index);
 	}
 
-	static createCopy(copyFrom: IEditorGroupView, accessor: IEditorGroupsAccessor, label: string, instantiationService: IInstantiationService): IEditorGroupView {
-		return instantiationService.createInstance(EditorGroupView, accessor, copyFrom, label);
+	static createCopy(copyFrom: IEditorGroupView, accessor: IEditorGroupsAccessor, index: number, instantiationService: IInstantiationService): IEditorGroupView {
+		return instantiationService.createInstance(EditorGroupView, accessor, copyFrom, index);
 	}
 
 	//#endregion
+
+	/**
+	 * Access to the context key service scoped to this editor group.
+	 */
+	readonly scopedContextKeyService: IContextKeyService;
 
 	//#region events
 
-	private _onDidFocus: Emitter<void> = this._register(new Emitter<void>());
-	get onDidFocus(): Event<void> { return this._onDidFocus.event; }
+	private readonly _onDidFocus = this._register(new Emitter<void>());
+	readonly onDidFocus = this._onDidFocus.event;
 
-	private _onWillDispose: Emitter<void> = this._register(new Emitter<void>());
-	get onWillDispose(): Event<void> { return this._onWillDispose.event; }
+	private readonly _onWillDispose = this._register(new Emitter<void>());
+	readonly onWillDispose = this._onWillDispose.event;
 
-	private _onDidGroupChange: Emitter<IGroupChangeEvent> = this._register(new Emitter<IGroupChangeEvent>());
-	get onDidGroupChange(): Event<IGroupChangeEvent> { return this._onDidGroupChange.event; }
+	private readonly _onDidGroupChange = this._register(new Emitter<IGroupChangeEvent>());
+	readonly onDidGroupChange = this._onDidGroupChange.event;
 
-	private _onWillOpenEditor: Emitter<IEditorOpeningEvent> = this._register(new Emitter<IEditorOpeningEvent>());
-	get onWillOpenEditor(): Event<IEditorOpeningEvent> { return this._onWillOpenEditor.event; }
+	private readonly _onWillOpenEditor = this._register(new Emitter<IEditorOpeningEvent>());
+	readonly onWillOpenEditor = this._onWillOpenEditor.event;
 
-	private _onDidOpenEditorFail: Emitter<EditorInput> = this._register(new Emitter<EditorInput>());
-	get onDidOpenEditorFail(): Event<EditorInput> { return this._onDidOpenEditorFail.event; }
+	private readonly _onDidOpenEditorFail = this._register(new Emitter<EditorInput>());
+	readonly onDidOpenEditorFail = this._onDidOpenEditorFail.event;
 
-	private _onWillCloseEditor: Emitter<IEditorCloseEvent> = this._register(new Emitter<IEditorCloseEvent>());
-	get onWillCloseEditor(): Event<IEditorCloseEvent> { return this._onWillCloseEditor.event; }
+	private readonly _onWillCloseEditor = this._register(new Emitter<IEditorCloseEvent>());
+	readonly onWillCloseEditor = this._onWillCloseEditor.event;
 
-	private _onDidCloseEditor: Emitter<IEditorCloseEvent> = this._register(new Emitter<IEditorCloseEvent>());
-	get onDidCloseEditor(): Event<IEditorCloseEvent> { return this._onDidCloseEditor.event; }
+	private readonly _onDidCloseEditor = this._register(new Emitter<IEditorCloseEvent>());
+	readonly onDidCloseEditor = this._onDidCloseEditor.event;
 
 	//#endregion
 
-	private _group: EditorGroup;
-	private _disposed: boolean;
+	private readonly _group: EditorGroup;
 
-	private active: boolean;
-	private dimension: Dimension;
+	private active: boolean | undefined;
+	private dimension: Dimension | undefined;
 
-	private _whenRestored: TPromise<void>;
-	private isRestored: boolean;
+	private readonly _whenRestored: Promise<void>;
+	private isRestored = false;
 
-	private scopedInstantiationService: IInstantiationService;
+	private readonly scopedInstantiationService: IInstantiationService;
 
-	private titleContainer: HTMLElement;
+	private readonly titleContainer: HTMLElement;
 	private titleAreaControl: TitleControl;
 
-	private progressBar: ProgressBar;
+	private readonly progressBar: ProgressBar;
 
-	private editorContainer: HTMLElement;
-	private editorControl: EditorControl;
+	private readonly editorContainer: HTMLElement;
+	private readonly editorControl: EditorControl;
 
-	private ignoreOpenEditorErrors: boolean;
-	private disposedEditorsWorker: RunOnceWorker<EditorInput>;
+	private readonly disposedEditorsWorker = this._register(new RunOnceWorker<EditorInput>(editors => this.handleDisposedEditors(editors), 0));
 
-	private mapEditorToPendingConfirmation: Map<EditorInput, TPromise<boolean>> = new Map<EditorInput, TPromise<boolean>>();
+	private readonly mapEditorToPendingConfirmation = new Map<EditorInput, Promise<boolean>>();
 
 	constructor(
 		private accessor: IEditorGroupsAccessor,
-		from: IEditorGroupView | ISerializedEditorGroup,
-		private _label: string,
-		@IInstantiationService private instantiationService: IInstantiationService,
-		@IContextKeyService private contextKeyService: IContextKeyService,
+		from: IEditorGroupView | ISerializedEditorGroup | null,
+		private _index: number,
+		@IInstantiationService private readonly instantiationService: IInstantiationService,
+		@IContextKeyService private readonly contextKeyService: IContextKeyService,
 		@IThemeService themeService: IThemeService,
-		@INotificationService private notificationService: INotificationService,
-		@ITelemetryService private telemetryService: ITelemetryService,
-		@IUntitledEditorService private untitledEditorService: IUntitledEditorService,
-		@IKeybindingService private keybindingService: IKeybindingService,
-		@IMenuService private menuService: IMenuService,
-		@IContextMenuService private contextMenuService: IContextMenuService
+		@INotificationService private readonly notificationService: INotificationService,
+		@IDialogService private readonly dialogService: IDialogService,
+		@ITelemetryService private readonly telemetryService: ITelemetryService,
+		@IKeybindingService private readonly keybindingService: IKeybindingService,
+		@IMenuService private readonly menuService: IMenuService,
+		@IContextMenuService private readonly contextMenuService: IContextMenuService,
+		@IFileDialogService private readonly fileDialogService: IFileDialogService,
+		@ILogService private readonly logService: ILogService,
+		@IEditorService private readonly editorService: EditorServiceImpl,
+		@IFilesConfigurationService private readonly filesConfigurationService: IFilesConfigurationService
 	) {
 		super(themeService);
 
@@ -135,12 +148,71 @@ export class EditorGroupView extends Themable implements IEditorGroupView {
 		} else if (isSerializedEditorGroup(from)) {
 			this._group = this._register(instantiationService.createInstance(EditorGroup, from));
 		} else {
-			this._group = this._register(instantiationService.createInstance(EditorGroup, void 0));
+			this._group = this._register(instantiationService.createInstance(EditorGroup, undefined));
 		}
 
-		this.disposedEditorsWorker = this._register(new RunOnceWorker(editors => this.handleDisposedEditors(editors), 0));
+		//#region create()
+		{
+			// Container
+			this.element.classList.add('editor-group-container');
 
-		this.create();
+			// Container listeners
+			this.registerContainerListeners();
+
+			// Container toolbar
+			this.createContainerToolbar();
+
+			// Container context menu
+			this.createContainerContextMenu();
+
+			// Letterpress container
+			const letterpressContainer = document.createElement('div');
+			letterpressContainer.classList.add('editor-group-letterpress');
+			this.element.appendChild(letterpressContainer);
+
+			// Progress bar
+			this.progressBar = this._register(new ProgressBar(this.element));
+			this._register(attachProgressBarStyler(this.progressBar, this.themeService));
+			this.progressBar.hide();
+
+			// Scoped services
+			this.scopedContextKeyService = this._register(this.contextKeyService.createScoped(this.element));
+			this.scopedInstantiationService = this.instantiationService.createChild(new ServiceCollection(
+				[IContextKeyService, this.scopedContextKeyService],
+				[IEditorProgressService, this._register(new EditorProgressIndicator(this.progressBar, this))]
+			));
+
+			// Context keys
+			this.handleGroupContextKeys();
+
+			// Title container
+			this.titleContainer = document.createElement('div');
+			this.titleContainer.classList.add('title');
+			this.element.appendChild(this.titleContainer);
+
+			// Title control
+			this.titleAreaControl = this.createTitleAreaControl();
+
+			// Editor container
+			this.editorContainer = document.createElement('div');
+			this.editorContainer.classList.add('editor-container');
+			this.element.appendChild(this.editorContainer);
+
+			// Editor control
+			this.editorControl = this._register(this.scopedInstantiationService.createInstance(EditorControl, this.editorContainer, this));
+			this._onDidChange.input = this.editorControl.onDidSizeConstraintsChange;
+
+			// Track Focus
+			this.doTrackFocus();
+
+			// Update containers
+			this.updateTitleContainer();
+			this.updateContainer();
+
+			// Update styles
+			this.updateStyles();
+		}
+		//#endregion
 
 		this._whenRestored = this.restoreEditors(from);
 		this._whenRestored.then(() => this.isRestored = true);
@@ -148,91 +220,50 @@ export class EditorGroupView extends Themable implements IEditorGroupView {
 		this.registerListeners();
 	}
 
-	private create(): void {
+	private handleGroupContextKeys(): void {
+		const groupActiveEditorDirtyContext = ActiveEditorDirtyContext.bindTo(this.scopedContextKeyService);
+		const groupActiveEditorPinnedContext = ActiveEditorPinnedContext.bindTo(this.scopedContextKeyService);
+		const groupActiveEditorStickyContext = ActiveEditorStickyContext.bindTo(this.scopedContextKeyService);
+		const groupEditorsCountContext = EditorGroupEditorsCountContext.bindTo(this.scopedContextKeyService);
 
-		// Container
-		addClasses(this.element, 'editor-group-container');
-
-		// Container listeners
-		this.registerContainerListeners();
-
-		// Container toolbar
-		this.createContainerToolbar();
-
-		// Container context menu
-		this.createContainerContextMenu();
-
-		// Letterpress container
-		const letterpressContainer = document.createElement('div');
-		addClass(letterpressContainer, 'editor-group-letterpress');
-		this.element.appendChild(letterpressContainer);
-
-		// Progress bar
-		this.progressBar = this._register(new ProgressBar(this.element));
-		this._register(attachProgressBarStyler(this.progressBar, this.themeService));
-		this.progressBar.hide();
-
-		// Scoped services
-		const scopedContextKeyService = this._register(this.contextKeyService.createScoped(this.element));
-		this.scopedInstantiationService = this.instantiationService.createChild(new ServiceCollection(
-			[IContextKeyService, scopedContextKeyService],
-			[IProgressService, new ProgressService(this.progressBar)]
-		));
-
-		// Context keys
-		this.handleGroupContextKeys(scopedContextKeyService);
-
-		// Title container
-		this.titleContainer = document.createElement('div');
-		addClass(this.titleContainer, 'title');
-		this.element.appendChild(this.titleContainer);
-
-		// Title control
-		this.createTitleAreaControl();
-
-		// Editor container
-		this.editorContainer = document.createElement('div');
-		addClass(this.editorContainer, 'editor-container');
-		this.element.appendChild(this.editorContainer);
-
-		// Editor control
-		this.editorControl = this._register(this.scopedInstantiationService.createInstance(EditorControl, this.editorContainer, this));
-		this._onDidChange.input = this.editorControl.onDidSizeConstraintsChange;
-
-		// Track Focus
-		this.doTrackFocus();
-
-		// Update containers
-		this.updateTitleContainer();
-		this.updateContainer();
-
-		// Update styles
-		this.updateStyles();
-	}
-
-	private handleGroupContextKeys(contextKeyServcie: IContextKeyService): void {
-		const groupActiveEditorDirtyContextKey = EditorGroupActiveEditorDirtyContext.bindTo(contextKeyServcie);
-
-		let activeEditorListener: IDisposable;
+		const activeEditorListener = new MutableDisposable();
 
 		const observeActiveEditor = () => {
-			activeEditorListener = dispose(activeEditorListener);
+			activeEditorListener.clear();
 
 			const activeEditor = this._group.activeEditor;
 			if (activeEditor) {
-				groupActiveEditorDirtyContextKey.set(activeEditor.isDirty());
-				activeEditorListener = activeEditor.onDidChangeDirty(() => groupActiveEditorDirtyContextKey.set(activeEditor.isDirty()));
+				groupActiveEditorDirtyContext.set(activeEditor.isDirty() && !activeEditor.isSaving());
+				activeEditorListener.value = activeEditor.onDidChangeDirty(() => {
+					groupActiveEditorDirtyContext.set(activeEditor.isDirty() && !activeEditor.isSaving());
+				});
 			} else {
-				groupActiveEditorDirtyContextKey.set(false);
+				groupActiveEditorDirtyContext.set(false);
 			}
 		};
 
-		// Track the active editor and update context key that reflects
-		// the dirty state of this editor
+		// Update group contexts based on group changes
 		this._register(this.onDidGroupChange(e => {
-			if (e.kind === GroupChangeKind.EDITOR_ACTIVE) {
-				observeActiveEditor();
+			switch (e.kind) {
+				case GroupChangeKind.EDITOR_ACTIVE:
+					// Track the active editor and update context key that reflects
+					// the dirty state of this editor
+					observeActiveEditor();
+					break;
+				case GroupChangeKind.EDITOR_PIN:
+					if (e.editor && e.editor === this._group.activeEditor) {
+						groupActiveEditorPinnedContext.set(this._group.isPinned(this._group.activeEditor));
+					}
+					break;
+				case GroupChangeKind.EDITOR_STICKY:
+					if (e.editor && e.editor === this._group.activeEditor) {
+						groupActiveEditorStickyContext.set(this._group.isSticky(this._group.activeEditor));
+					}
+					break;
 			}
+
+			// Group editors count context
+			groupEditorsCountContext.set(this.count);
 		}));
 
 		observeActiveEditor();
@@ -242,17 +273,17 @@ export class EditorGroupView extends Themable implements IEditorGroupView {
 
 		// Open new file via doubleclick on empty container
 		this._register(addDisposableListener(this.element, EventType.DBLCLICK, e => {
-			if (this.isEmpty()) {
+			if (this.isEmpty) {
 				EventHelper.stop(e);
 
-				this.openEditor(this.untitledEditorService.createOrGet(), EditorOptions.create({ pinned: true }));
+				this.openEditor(this.editorService.createEditorInput({ forceUntitled: true }), EditorOptions.create({ pinned: true }));
 			}
 		}));
 
 		// Close empty editor group via middle mouse click
-		this._register(addDisposableListener(this.element, EventType.MOUSE_UP, e => {
-			if (this.isEmpty() && e.button === 1 /* Middle Button */) {
-				EventHelper.stop(e);
+		this._register(addDisposableListener(this.element, EventType.AUXCLICK, e => {
+			if (this.isEmpty && e.button === 1 /* Middle Button */) {
+				EventHelper.stop(e, true);
 
 				this.accessor.removeGroup(this);
 			}
@@ -263,23 +294,29 @@ export class EditorGroupView extends Themable implements IEditorGroupView {
 
 		// Toolbar Container
 		const toolbarContainer = document.createElement('div');
-		addClass(toolbarContainer, 'editor-group-container-toolbar');
+		toolbarContainer.classList.add('editor-group-container-toolbar');
 		this.element.appendChild(toolbarContainer);
 
 		// Toolbar
 		const groupId = this._group.id;
-		const containerToolbar = new ActionBar(toolbarContainer, {
-			ariaLabel: localize('araLabelGroupActions', "Editor group actions"), actionRunner: this._register(new class extends ActionRunner {
+		const containerToolbar = this._register(new ActionBar(toolbarContainer, {
+			ariaLabel: localize('ariaLabelGroupActions', "Editor group actions"), actionRunner: this._register(new class extends ActionRunner {
 				run(action: IAction) {
 					return action.run(groupId);
 				}
 			})
-		});
+		}));
 
 		// Toolbar actions
-		const removeGroupAction = this._register(new Action(CLOSE_EDITOR_GROUP_COMMAND_ID, localize('closeGroupAction', "Close"), 'close-editor-group', true, () => { this.accessor.removeGroup(this); return TPromise.as(true); }));
+		const removeGroupAction = this._register(new Action(
+			CLOSE_EDITOR_GROUP_COMMAND_ID,
+			localize('closeGroupAction', "Close"),
+			Codicon.close.classNames,
+			true,
+			async () => this.accessor.removeGroup(this)));
+
 		const keybinding = this.keybindingService.lookupKeybinding(removeGroupAction.id);
-		containerToolbar.push(removeGroupAction, { icon: true, label: false, keybinding: keybinding ? keybinding.getLabel() : void 0 });
+		containerToolbar.push(removeGroupAction, { icon: true, label: false, keybinding: keybinding ? keybinding.getLabel() : undefined });
 	}
 
 	private createContainerContextMenu(): void {
@@ -290,7 +327,7 @@ export class EditorGroupView extends Themable implements IEditorGroupView {
 	}
 
 	private onShowContainerContextMenu(menu: IMenu, e?: MouseEvent): void {
-		if (!this.isEmpty()) {
+		if (!this.isEmpty) {
 			return; // only for empty editor groups
 		}
 
@@ -303,14 +340,16 @@ export class EditorGroupView extends Themable implements IEditorGroupView {
 
 		// Fill in contributed actions
 		const actions: IAction[] = [];
-		fillInContextMenuActions(menu, void 0, actions, this.contextMenuService);
+		const actionsDisposable = createAndFillInContextMenuActions(menu, undefined, actions);
 
 		// Show it
 		this.contextMenuService.showContextMenu({
 			getAnchor: () => anchor,
-			getActions: () => TPromise.as(actions),
-			getKeyBinding: action => this.keybindingService.lookupKeybinding(action.id),
-			onHide: () => this.focus()
+			getActions: () => actions,
+			onHide: () => {
+				this.focus();
+				dispose(actionsDisposable);
+			}
 		});
 	}
 
@@ -319,7 +358,7 @@ export class EditorGroupView extends Themable implements IEditorGroupView {
 		// Container
 		const containerFocusTracker = this._register(trackFocus(this.element));
 		this._register(containerFocusTracker.onDidFocus(() => {
-			if (this.isEmpty()) {
+			if (this.isEmpty) {
 				this._onDidFocus.fire(); // only when empty to prevent accident focus
 			}
 		}));
@@ -329,7 +368,7 @@ export class EditorGroupView extends Themable implements IEditorGroupView {
 			let target: HTMLElement;
 			if (e instanceof MouseEvent) {
 				if (e.button !== 0) {
-					return void 0; // only for left mouse click
+					return undefined; // only for left mouse click
 				}
 
 				target = e.target as HTMLElement;
@@ -337,8 +376,10 @@ export class EditorGroupView extends Themable implements IEditorGroupView {
 				target = (e as GestureEvent).initialTarget as HTMLElement;
 			}
 
-			if (findParentWithClass(target, 'monaco-action-bar', this.titleContainer)) {
-				return; // not when clicking on actions
+			if (findParentWithClass(target, 'monaco-action-bar', this.titleContainer) ||
+				findParentWithClass(target, 'monaco-breadcrumb-item', this.titleContainer)
+			) {
+				return; // not when clicking on actions or breadcrumbs
 			}
 
 			// timeout to keep focus in editor after mouse up
@@ -359,15 +400,15 @@ export class EditorGroupView extends Themable implements IEditorGroupView {
 	private updateContainer(): void {
 
 		// Empty Container: add some empty container attributes
-		if (this.isEmpty()) {
-			addClass(this.element, 'empty');
+		if (this.isEmpty) {
+			this.element.classList.add('empty');
 			this.element.tabIndex = 0;
 			this.element.setAttribute('aria-label', localize('emptyEditorGroup', "{0} (empty)", this.label));
 		}
 
 		// Non-Empty Container: revert empty container attributes
 		else {
-			removeClass(this.element, 'empty');
+			this.element.classList.remove('empty');
 			this.element.removeAttribute('tabIndex');
 			this.element.removeAttribute('aria-label');
 		}
@@ -377,11 +418,11 @@ export class EditorGroupView extends Themable implements IEditorGroupView {
 	}
 
 	private updateTitleContainer(): void {
-		toggleClass(this.titleContainer, 'tabs', this.accessor.partOptions.showTabs);
-		toggleClass(this.titleContainer, 'show-file-icons', this.accessor.partOptions.showIcons);
+		this.titleContainer.classList.toggle('tabs', this.accessor.partOptions.showTabs);
+		this.titleContainer.classList.toggle('show-file-icons', this.accessor.partOptions.showIcons);
 	}
 
-	private createTitleAreaControl(): void {
+	private createTitleAreaControl(): TitleControl {
 
 		// Clear old if existing
 		if (this.titleAreaControl) {
@@ -395,11 +436,13 @@ export class EditorGroupView extends Themable implements IEditorGroupView {
 		} else {
 			this.titleAreaControl = this.scopedInstantiationService.createInstance(NoTabsTitleControl, this.titleContainer, this.accessor, this);
 		}
+
+		return this.titleAreaControl;
 	}
 
-	private restoreEditors(from: IEditorGroupView | ISerializedEditorGroup): TPromise<void> {
+	private async restoreEditors(from: IEditorGroupView | ISerializedEditorGroup | null): Promise<void> {
 		if (this._group.count === 0) {
-			return TPromise.as(void 0); // nothing to show
+			return; // nothing to show
 		}
 
 		// Determine editor options
@@ -411,17 +454,26 @@ export class EditorGroupView extends Themable implements IEditorGroupView {
 		}
 
 		const activeEditor = this._group.activeEditor;
+		if (!activeEditor) {
+			return;
+		}
+
 		options.pinned = this._group.isPinned(activeEditor);	// preserve pinned state
+		options.sticky = this._group.isSticky(activeEditor);	// preserve sticky state
 		options.preserveFocus = true;							// handle focus after editor is opened
 
-		// Show active editor
-		return this.doShowEditor(activeEditor, true, options).then(() => {
+		const activeElement = document.activeElement;
 
-			// Set focused now if this is the active group
-			if (this.accessor.activeGroup === this) {
-				this.focus();
-			}
-		});
+		// Show active editor
+		await this.doShowEditor(activeEditor, { active: true, isNew: false /* restored */ }, options);
+
+		// Set focused now if this is the active group and focus has
+		// not changed meanwhile. This prevents focus from being
+		// stolen accidentally on startup when the user already
+		// clicked somewhere.
+		if (this.accessor.activeGroup === this && activeElement === document.activeElement) {
+			this.focus();
+		}
 	}
 
 	//#region event handling
@@ -429,24 +481,31 @@ export class EditorGroupView extends Themable implements IEditorGroupView {
 	private registerListeners(): void {
 
 		// Model Events
-		this._register(this._group.onDidEditorPin(editor => this.onDidEditorPin(editor)));
-		this._register(this._group.onDidEditorOpen(editor => this.onDidEditorOpen(editor)));
-		this._register(this._group.onDidEditorClose(editor => this.onDidEditorClose(editor)));
-		this._register(this._group.onDidEditorDispose(editor => this.onDidEditorDispose(editor)));
-		this._register(this._group.onDidEditorBecomeDirty(editor => this.onDidEditorBecomeDirty(editor)));
+		this._register(this._group.onDidChangeEditorPinned(editor => this.onDidChangeEditorPinned(editor)));
+		this._register(this._group.onDidChangeEditorSticky(editor => this.onDidChangeEditorSticky(editor)));
+		this._register(this._group.onDidOpenEditor(editor => this.onDidOpenEditor(editor)));
+		this._register(this._group.onDidCloseEditor(editor => this.handleOnDidCloseEditor(editor)));
+		this._register(this._group.onDidDisposeEditor(editor => this.onDidDisposeEditor(editor)));
+		this._register(this._group.onDidChangeEditorDirty(editor => this.onDidChangeEditorDirty(editor)));
 		this._register(this._group.onDidEditorLabelChange(editor => this.onDidEditorLabelChange(editor)));
 
 		// Option Changes
 		this._register(this.accessor.onDidEditorPartOptionsChange(e => this.onDidEditorPartOptionsChange(e)));
+
+		// Visibility
+		this._register(this.accessor.onDidVisibilityChange(e => this.onDidVisibilityChange(e)));
 	}
 
-	private onDidEditorPin(editor: EditorInput): void {
-
-		// Event
+	private onDidChangeEditorPinned(editor: EditorInput): void {
 		this._onDidGroupChange.fire({ kind: GroupChangeKind.EDITOR_PIN, editor });
 	}
 
-	private onDidEditorOpen(editor: EditorInput): void {
+	private onDidChangeEditorSticky(editor: EditorInput): void {
+		this._onDidGroupChange.fire({ kind: GroupChangeKind.EDITOR_STICKY, editor });
+	}
+
+	private onDidOpenEditor(editor: EditorInput): void {
+
 		/* __GDPR__
 			"editorOpened" : {
 				"${include}": [
@@ -454,7 +513,7 @@ export class EditorGroupView extends Themable implements IEditorGroupView {
 				]
 			}
 		*/
-		this.telemetryService.publicLog('editorOpened', editor.getTelemetryDescriptor());
+		this.telemetryService.publicLog('editorOpened', this.toEditorTelemetryDescriptor(editor));
 
 		// Update container
 		this.updateContainer();
@@ -463,7 +522,7 @@ export class EditorGroupView extends Themable implements IEditorGroupView {
 		this._onDidGroupChange.fire({ kind: GroupChangeKind.EDITOR_OPEN, editor });
 	}
 
-	private onDidEditorClose(event: EditorCloseEvent): void {
+	private handleOnDidCloseEditor(event: EditorCloseEvent): void {
 
 		// Before close
 		this._onWillCloseEditor.fire(event);
@@ -472,18 +531,23 @@ export class EditorGroupView extends Themable implements IEditorGroupView {
 		const editor = event.editor;
 		const editorsToClose = [editor];
 
-		// Include both sides of side by side editors when being closed and not opened multiple times
-		if (editor instanceof SideBySideEditorInput && !this.accessor.groups.some(groupView => groupView.group.contains(editor))) {
-			editorsToClose.push(editor.master, editor.details);
+		// Include both sides of side by side editors when being closed
+		if (editor instanceof SideBySideEditorInput) {
+			editorsToClose.push(editor.primary, editor.secondary);
 		}
 
-		// Close the editor when it is no longer open in any group including diff editors
-		editorsToClose.forEach(editorToClose => {
-			const resource = editorToClose ? editorToClose.getResource() : void 0; // prefer resource to not close right-hand side editors of a diff editor
-			if (!this.accessor.groups.some(groupView => groupView.group.contains(resource || editorToClose))) {
-				editorToClose.close();
+		// For each editor to close, we call dispose() to free up any resources.
+		// However, certain editors might be shared across multiple editor groups
+		// (including being visible in side by side / diff editors) and as such we
+		// only dispose when they are not opened elsewhere.
+		for (const editor of editorsToClose) {
+			if (!this.accessor.groups.some(groupView => groupView.group.contains(editor, {
+				strictEquals: true,		// only if this input is not shared across editor groups
+				supportSideBySide: true // include side by side editor primary & secondary
+			}))) {
+				editor.dispose();
 			}
-		});
+		}
 
 		/* __GDPR__
 			"editorClosed" : {
@@ -492,7 +556,7 @@ export class EditorGroupView extends Themable implements IEditorGroupView {
 				]
 			}
 		*/
-		this.telemetryService.publicLog('editorClosed', event.editor.getTelemetryDescriptor());
+		this.telemetryService.publicLog('editorClosed', this.toEditorTelemetryDescriptor(event.editor));
 
 		// Update container
 		this.updateContainer();
@@ -502,7 +566,26 @@ export class EditorGroupView extends Themable implements IEditorGroupView {
 		this._onDidGroupChange.fire({ kind: GroupChangeKind.EDITOR_CLOSE, editor, editorIndex: event.index });
 	}
 
-	private onDidEditorDispose(editor: EditorInput): void {
+	private toEditorTelemetryDescriptor(editor: EditorInput): object {
+		const descriptor = editor.getTelemetryDescriptor();
+
+		const resource = EditorResourceAccessor.getOriginalUri(editor);
+		const path = resource ? resource.scheme === Schemas.file ? resource.fsPath : resource.path : undefined;
+		if (resource && path) {
+			descriptor['resource'] = { mimeType: guessMimeTypes(resource).join(', '), scheme: resource.scheme, ext: extname(resource), path: hash(path) };
+
+			/* __GDPR__FRAGMENT__
+				"EditorTelemetryDescriptor" : {
+					"resource": { "${inline}": [ "${URIDescriptor}" ] }
+				}
+			*/
+			return descriptor;
+		}
+
+		return descriptor;
+	}
+
+	private onDidDisposeEditor(editor: EditorInput): void {
 
 		// To prevent race conditions, we handle disposed editors in our worker with a timeout
 		// because it can happen that an input is being disposed with the intent to replace
@@ -513,7 +596,7 @@ export class EditorGroupView extends Themable implements IEditorGroupView {
 	private handleDisposedEditors(editors: EditorInput[]): void {
 
 		// Split between visible and hidden editors
-		let activeEditor: EditorInput;
+		let activeEditor: EditorInput | undefined;
 		const inactiveEditors: EditorInput[] = [];
 		editors.forEach(editor => {
 			if (this._group.isActive(editor)) {
@@ -539,8 +622,14 @@ export class EditorGroupView extends Themable implements IEditorGroupView {
 
 		// Title control Switch between showing tabs <=> not showing tabs
 		if (event.oldPartOptions.showTabs !== event.newPartOptions.showTabs) {
+
+			// Recreate title control
 			this.createTitleAreaControl();
 
+			// Re-layout
+			this.relayout();
+
+			// Ensure to show active editor if any
 			if (this._group.activeEditor) {
 				this.titleAreaControl.openEditor(this._group.activeEditor);
 			}
@@ -556,11 +645,13 @@ export class EditorGroupView extends Themable implements IEditorGroupView {
 
 		// Pin preview editor once user disables preview
 		if (event.oldPartOptions.enablePreview && !event.newPartOptions.enablePreview) {
-			this.pinEditor(this._group.previewEditor);
+			if (this._group.previewEditor) {
+				this.pinEditor(this._group.previewEditor);
+			}
 		}
 	}
 
-	private onDidEditorBecomeDirty(editor: EditorInput): void {
+	private onDidChangeEditorDirty(editor: EditorInput): void {
 
 		// Always show dirty editors pinned
 		this.pinEditor(editor);
@@ -581,6 +672,12 @@ export class EditorGroupView extends Themable implements IEditorGroupView {
 		this._onDidGroupChange.fire({ kind: GroupChangeKind.EDITOR_LABEL, editor });
 	}
 
+	private onDidVisibilityChange(visible: boolean): void {
+
+		// Forward to editor control
+		this.editorControl.setVisible(visible);
+	}
+
 	//#endregion
 
 	//region IEditorGroupView
@@ -589,22 +686,47 @@ export class EditorGroupView extends Themable implements IEditorGroupView {
 		return this._group;
 	}
 
-	get label(): string {
-		return this._label;
+	get index(): number {
+		return this._index;
 	}
 
+	get label(): string {
+		return localize('groupLabel', "Group {0}", this._index + 1);
+	}
+
+	get ariaLabel(): string {
+		return localize('groupAriaLabel', "Editor Group {0}", this._index + 1);
+	}
+
+	private _disposed = false;
 	get disposed(): boolean {
 		return this._disposed;
 	}
 
-	get whenRestored(): TPromise<void> {
+	get whenRestored(): Promise<void> {
 		return this._whenRestored;
 	}
 
-	setLabel(label: string): void {
-		if (this._label !== label) {
-			this._label = label;
-			this._onDidGroupChange.fire({ kind: GroupChangeKind.GROUP_LABEL });
+	get isEmpty(): boolean {
+		return this._group.count === 0;
+	}
+
+	get titleDimensions(): IEditorGroupTitleDimensions {
+		return this.titleAreaControl.getDimensions();
+	}
+
+	get isMinimized(): boolean {
+		if (!this.dimension) {
+			return false;
+		}
+
+		return this.dimension.width === this.minimumWidth || this.dimension.height === this.minimumHeight;
+	}
+
+	notifyIndexChanged(newIndex: number): void {
+		if (this._index !== newIndex) {
+			this._index = newIndex;
+			this._onDidGroupChange.fire({ kind: GroupChangeKind.GROUP_INDEX });
 		}
 	}
 
@@ -612,8 +734,8 @@ export class EditorGroupView extends Themable implements IEditorGroupView {
 		this.active = isActive;
 
 		// Update container
-		toggleClass(this.element, 'active', isActive);
-		toggleClass(this.element, 'inactive', !isActive);
+		this.element.classList.toggle('active', isActive);
+		this.element.classList.toggle('inactive', !isActive);
 
 		// Update title control
 		this.titleAreaControl.setActive(isActive);
@@ -623,10 +745,6 @@ export class EditorGroupView extends Themable implements IEditorGroupView {
 
 		// Event
 		this._onDidGroupChange.fire({ kind: GroupChangeKind.GROUP_ACTIVE });
-	}
-
-	isEmpty(): boolean {
-		return this._group.count === 0;
 	}
 
 	//#endregion
@@ -640,22 +758,26 @@ export class EditorGroupView extends Themable implements IEditorGroupView {
 	}
 
 	get editors(): EditorInput[] {
-		return this._group.getEditors();
+		return this._group.getEditors(EditorsOrder.SEQUENTIAL);
 	}
 
 	get count(): number {
 		return this._group.count;
 	}
 
-	get activeControl(): BaseEditor {
-		return this.editorControl ? this.editorControl.activeControl : void 0;
+	get stickyCount(): number {
+		return this._group.stickyCount;
 	}
 
-	get activeEditor(): EditorInput {
+	get activeEditorPane(): IVisibleEditorPane | undefined {
+		return this.editorControl ? withNullAsUndefined(this.editorControl.activeEditorPane) : undefined;
+	}
+
+	get activeEditor(): EditorInput | null {
 		return this._group.activeEditor;
 	}
 
-	get previewEditor(): EditorInput {
+	get previewEditor(): EditorInput | null {
 		return this._group.previewEditor;
 	}
 
@@ -663,20 +785,20 @@ export class EditorGroupView extends Themable implements IEditorGroupView {
 		return this._group.isPinned(editor);
 	}
 
+	isSticky(editorOrIndex: EditorInput | number): boolean {
+		return this._group.isSticky(editorOrIndex);
+	}
+
 	isActive(editor: EditorInput): boolean {
 		return this._group.isActive(editor);
 	}
 
-	getEditors(order?: EditorsOrder): EditorInput[] {
-		if (order === EditorsOrder.MOST_RECENTLY_ACTIVE) {
-			return this._group.getEditors(true);
-		}
-
-		return this.editors;
+	getEditors(order: EditorsOrder, options?: { excludeSticky?: boolean }): EditorInput[] {
+		return this._group.getEditors(order, options);
 	}
 
-	getEditor(index: number): EditorInput {
-		return this._group.getEditor(index);
+	getEditorByIndex(index: number): EditorInput | undefined {
+		return this._group.getEditorByIndex(index);
 	}
 
 	getIndexOfEditor(editor: EditorInput): number {
@@ -689,9 +811,9 @@ export class EditorGroupView extends Themable implements IEditorGroupView {
 
 	focus(): void {
 
-		// Pass focus to widgets
-		if (this.activeControl) {
-			this.activeControl.focus();
+		// Pass focus to editor panes
+		if (this.activeEditorPane) {
+			this.activeEditorPane.focus();
 		} else {
 			this.element.focus();
 		}
@@ -700,90 +822,185 @@ export class EditorGroupView extends Themable implements IEditorGroupView {
 		this._onDidFocus.fire();
 	}
 
-	pinEditor(editor: EditorInput = this.activeEditor): void {
-		if (editor && !this._group.isPinned(editor)) {
+	pinEditor(candidate: EditorInput | undefined = this.activeEditor || undefined): void {
+		if (candidate && !this._group.isPinned(candidate)) {
 
 			// Update model
-			this._group.pin(editor);
+			const editor = this._group.pin(candidate);
 
 			// Forward to title control
-			this.titleAreaControl.pinEditor(editor);
+			if (editor) {
+				this.titleAreaControl.pinEditor(editor);
+			}
 		}
 	}
 
-	invokeWithinContext<T>(fn: (accessor: ServicesAccessor) => T): T {
-		return this.scopedInstantiationService.invokeFunction(fn);
+	stickEditor(candidate: EditorInput | undefined = this.activeEditor || undefined): void {
+		this.doStickEditor(candidate, true);
+	}
+
+	unstickEditor(candidate: EditorInput | undefined = this.activeEditor || undefined): void {
+		this.doStickEditor(candidate, false);
+	}
+
+	private doStickEditor(candidate: EditorInput | undefined, sticky: boolean): void {
+		if (candidate && this._group.isSticky(candidate) !== sticky) {
+			const oldIndexOfEditor = this.getIndexOfEditor(candidate);
+
+			// Update model
+			const editor = sticky ? this._group.stick(candidate) : this._group.unstick(candidate);
+			if (!editor) {
+				return;
+			}
+
+			// If the index of the editor changed, we need to forward this to
+			// title control and also make sure to emit this as an event
+			const newIndexOfEditor = this.getIndexOfEditor(editor);
+			if (newIndexOfEditor !== oldIndexOfEditor) {
+				this.titleAreaControl.moveEditor(editor, oldIndexOfEditor, newIndexOfEditor);
+
+				// Event
+				this._onDidGroupChange.fire({ kind: GroupChangeKind.EDITOR_MOVE, editor });
+			}
+
+			// Forward sticky state to title control
+			if (sticky) {
+				this.titleAreaControl.stickEditor(editor);
+			} else {
+				this.titleAreaControl.unstickEditor(editor);
+			}
+		}
 	}
 
 	//#endregion
 
 	//#region openEditor()
 
-	openEditor(editor: EditorInput, options?: EditorOptions): TPromise<void> {
+	async openEditor(editor: EditorInput, options?: EditorOptions, context?: OpenEditorContext): Promise<IEditorPane | null> {
+
+		// Guard against invalid inputs
+		if (!editor) {
+			return null;
+		}
 
 		// Editor opening event allows for prevention
-		const event = new EditorOpeningEvent(this._group.id, editor, options);
+		const event = new EditorOpeningEvent(this._group.id, editor, options, context);
 		this._onWillOpenEditor.fire(event);
 		const prevented = event.isPrevented();
 		if (prevented) {
-			return prevented();
+			return withUndefinedAsNull(await prevented());
 		}
 
 		// Proceed with opening
-		return this.doOpenEditor(editor, options);
+		return withUndefinedAsNull(await this.doOpenEditor(editor, options));
 	}
 
-	private doOpenEditor(editor: EditorInput, options?: EditorOptions): TPromise<void> {
+	private async doOpenEditor(editor: EditorInput, options?: EditorOptions): Promise<IEditorPane | undefined> {
+
+		// Guard against invalid inputs. Disposed inputs
+		// should never open because they emit no events
+		// e.g. to indicate dirty changes.
+		if (editor.isDisposed()) {
+			return;
+		}
 
 		// Determine options
 		const openEditorOptions: IEditorOpenOptions = {
-			index: options ? options.index : void 0,
-			pinned: !this.accessor.partOptions.enablePreview || editor.isDirty() || (options && options.pinned) || (options && typeof options.index === 'number'),
+			index: options ? options.index : undefined,
+			pinned: options?.sticky || !this.accessor.partOptions.enablePreview || editor.isDirty() || (options?.pinned ?? typeof options?.index === 'number' /* unless specified, prefer to pin when opening with index */) || (typeof options?.index === 'number' && this._group.isSticky(options.index)),
+			sticky: options?.sticky || (typeof options?.index === 'number' && this._group.isSticky(options.index)),
 			active: this._group.count === 0 || !options || !options.inactive
 		};
 
-		if (!openEditorOptions.active && !openEditorOptions.pinned && this._group.isPreview(this._group.activeEditor)) {
+		if (options?.sticky && typeof options?.index === 'number' && !this._group.isSticky(options.index)) {
+			// Special case: we are to open an editor sticky but at an index that is not sticky
+			// In that case we prefer to open the editor at the index but not sticky. This enables
+			// to drag a sticky editor to an index that is not sticky to unstick it.
+			openEditorOptions.sticky = false;
+		}
+
+		if (!openEditorOptions.active && !openEditorOptions.pinned && this._group.activeEditor && !this._group.isPinned(this._group.activeEditor)) {
 			// Special case: we are to open an editor inactive and not pinned, but the current active
 			// editor is also not pinned, which means it will get replaced with this one. As such,
 			// the editor can only be active.
 			openEditorOptions.active = true;
 		}
 
-		// Set group active unless we open inactive or preserve focus
-		// Do this before we open the editor in the group to prevent a false
-		// active editor change event before the editor is loaded
-		// (see https://github.com/Microsoft/vscode/issues/51679)
-		if (openEditorOptions.active && (!options || !options.preserveFocus)) {
-			this.accessor.activateGroup(this);
+		let activateGroup = false;
+		let restoreGroup = false;
+
+		if (options?.activation === EditorActivation.ACTIVATE) {
+			// Respect option to force activate an editor group.
+			activateGroup = true;
+		} else if (options?.activation === EditorActivation.RESTORE) {
+			// Respect option to force restore an editor group.
+			restoreGroup = true;
+		} else if (options?.activation === EditorActivation.PRESERVE) {
+			// Respect option to preserve active editor group.
+			activateGroup = false;
+			restoreGroup = false;
+		} else if (openEditorOptions.active) {
+			// Finally, we only activate/restore an editor which is
+			// opening as active editor.
+			// If preserveFocus is enabled, we only restore but never
+			// activate the group.
+			activateGroup = !options || !options.preserveFocus;
+			restoreGroup = !activateGroup;
 		}
 
-		// Update model
-		this._group.openEditor(editor, openEditorOptions);
+		// Actually move the editor if a specific index is provided and we figure
+		// out that the editor is already opened at a different index. This
+		// ensures the right set of events are fired to the outside.
+		if (typeof openEditorOptions.index === 'number') {
+			const indexOfEditor = this._group.indexOf(editor);
+			if (indexOfEditor !== -1 && indexOfEditor !== openEditorOptions.index) {
+				this.doMoveEditorInsideGroup(editor, openEditorOptions);
+			}
+		}
+
+		// Update model and make sure to continue to use the editor we get from
+		// the model. It is possible that the editor was already opened and we
+		// want to ensure that we use the existing instance in that case.
+		const { editor: openedEditor, isNew } = this._group.openEditor(editor, openEditorOptions);
 
 		// Show editor
-		const showEditorResult = this.doShowEditor(editor, openEditorOptions.active, options);
+		const showEditorResult = this.doShowEditor(openedEditor, { active: !!openEditorOptions.active, isNew }, options);
+
+		// Finally make sure the group is active or restored as instructed
+		if (activateGroup) {
+			this.accessor.activateGroup(this);
+		} else if (restoreGroup) {
+			this.accessor.restoreGroup(this);
+		}
 
 		return showEditorResult;
 	}
 
-	private doShowEditor(editor: EditorInput, active: boolean, options?: EditorOptions): TPromise<void> {
+	private async doShowEditor(editor: EditorInput, context: { active: boolean, isNew: boolean }, options?: EditorOptions): Promise<IEditorPane | undefined> {
 
 		// Show in editor control if the active editor changed
-		let openEditorPromise: TPromise<void>;
-		if (active) {
-			openEditorPromise = this.editorControl.openEditor(editor, options).then(result => {
+		let openEditorPromise: Promise<IEditorPane | undefined> | undefined;
+		if (context.active) {
+			openEditorPromise = (async () => {
+				try {
+					const result = await this.editorControl.openEditor(editor, options, { newInGroup: context.isNew });
 
-				// Editor change event
-				if (result.editorChanged) {
-					this._onDidGroupChange.fire({ kind: GroupChangeKind.EDITOR_ACTIVE, editor });
+					// Editor change event
+					if (result.editorChanged) {
+						this._onDidGroupChange.fire({ kind: GroupChangeKind.EDITOR_ACTIVE, editor });
+					}
+
+					return result.editorPane;
+				} catch (error) {
+
+					// Handle errors but do not bubble them up
+					this.doHandleOpenEditorError(error, editor, options);
+
+					return undefined; // error: return undefined as result to signal this
 				}
-			}, error => {
-
-				// Handle errors but do not bubble them up
-				this.doHandleOpenEditorError(error, editor, options);
-			});
+			})();
 		} else {
-			openEditorPromise = TPromise.as(void 0);
+			openEditorPromise = undefined; // inactive: return undefined as result to signal this
 		}
 
 		// Show in title control after editor control because some actions depend on it
@@ -792,23 +1009,77 @@ export class EditorGroupView extends Themable implements IEditorGroupView {
 		return openEditorPromise;
 	}
 
-	private doHandleOpenEditorError(error: Error, editor: EditorInput, options?: EditorOptions): void {
+	private async doHandleOpenEditorError(error: Error, editor: EditorInput, options?: EditorOptions): Promise<void> {
 
-		// Report error only if this was not us restoring previous error state or
-		// we are told to ignore errors that occur from opening an editor
-		if (this.isRestored && !isPromiseCanceledError(error) && !this.ignoreOpenEditorErrors) {
-			const actions: INotificationActions = { primary: [] };
-			if (isErrorWithActions(error)) {
-				actions.primary = (error as IErrorWithActions).actions;
+		// Report error only if we are not told to ignore errors that occur from opening an editor
+		if (!isPromiseCanceledError(error) && (!options || !options.ignoreError)) {
+
+			// Since it is more likely that errors fail to open when restoring them e.g.
+			// because files got deleted or moved meanwhile, we do not show any notifications
+			// if we are still restoring editors.
+			if (this.isRestored) {
+
+				// Extract possible error actions from the error
+				let errorActions: ReadonlyArray<IAction> | undefined = undefined;
+				if (isErrorWithActions(error)) {
+					errorActions = (error as IErrorWithActions).actions;
+				}
+
+				// If the context is USER, we try to show a modal dialog instead of a background notification
+				if (options?.context === EditorOpenContext.USER) {
+					const buttons: string[] = [];
+					if (Array.isArray(errorActions) && errorActions.length > 0) {
+						errorActions.forEach(action => buttons.push(action.label));
+					} else {
+						buttons.push(localize('ok', 'OK'));
+					}
+
+					let cancelId: number | undefined = undefined;
+					if (buttons.length === 1) {
+						buttons.push(localize('cancel', "Cancel"));
+						cancelId = 1;
+					}
+
+					const result = await this.dialogService.show(
+						Severity.Error,
+						localize('editorOpenErrorDialog', "Unable to open '{0}'", editor.getName()),
+						buttons,
+						{
+							detail: toErrorMessage(error),
+							cancelId
+						}
+					);
+
+					// Make sure to run any error action if present
+					if (result.choice !== cancelId && Array.isArray(errorActions)) {
+						const errorAction = errorActions[result.choice];
+						if (errorAction) {
+							errorAction.run();
+						}
+					}
+				}
+
+				// Otherwise, show a background notification.
+				else {
+					const actions = { primary: [] as readonly IAction[] };
+					if (Array.isArray(errorActions)) {
+						actions.primary = errorActions;
+					}
+
+					const handle = this.notificationService.notify({
+						severity: Severity.Error,
+						message: localize('editorOpenError', "Unable to open '{0}': {1}.", editor.getName(), toErrorMessage(error)),
+						actions
+					});
+
+					Event.once(handle.onDidClose)(() => actions.primary && dispose(actions.primary));
+				}
 			}
 
-			const handle = this.notificationService.notify({
-				severity: Severity.Error,
-				message: localize('editorOpenError', "Unable to open '{0}': {1}.", editor.getName(), toErrorMessage(error)),
-				actions
-			});
-
-			once(handle.onDidClose)(() => dispose(actions.primary));
+			// Restoring: just log errors to console
+			else {
+				this.logService.error(error);
+			}
 		}
 
 		// Event
@@ -825,29 +1096,33 @@ export class EditorGroupView extends Themable implements IEditorGroupView {
 
 	//#region openEditors()
 
-	openEditors(editors: { editor: EditorInput, options?: EditorOptions }[]): TPromise<void> {
+	async openEditors(editors: { editor: EditorInput, options?: EditorOptions }[]): Promise<IEditorPane | null> {
 		if (!editors.length) {
-			return TPromise.as(void 0);
+			return null;
 		}
 
 		// Do not modify original array
 		editors = editors.slice(0);
 
 		// Use the first editor as active editor
-		const { editor, options } = editors.shift();
-		return this.openEditor(editor, options).then(() => {
-			const startingIndex = this.getIndexOfEditor(editor) + 1;
+		const { editor, options } = editors.shift()!;
+		await this.openEditor(editor, options);
 
-			// Open the other ones inactive
-			return TPromise.join(editors.map(({ editor, options }, index) => {
-				const adjustedEditorOptions = options || new EditorOptions();
-				adjustedEditorOptions.inactive = true;
-				adjustedEditorOptions.pinned = true;
-				adjustedEditorOptions.index = startingIndex + index;
+		// Open the other ones inactive
+		const startingIndex = this.getIndexOfEditor(editor) + 1;
+		await Promise.all(editors.map(async ({ editor, options }, index) => {
+			const adjustedEditorOptions = options || new EditorOptions();
+			adjustedEditorOptions.inactive = true;
+			adjustedEditorOptions.pinned = true;
+			adjustedEditorOptions.index = startingIndex + index;
 
-				return this.openEditor(editor, adjustedEditorOptions);
-			})).then(() => void 0);
-		});
+			await this.openEditor(editor, adjustedEditorOptions);
+		}));
+
+		// Opening many editors at once can put any editor to be
+		// the active one depending on options. As such, we simply
+		// return the active control after this operation.
+		return this.editorControl.activeEditorPane;
 	}
 
 	//#endregion
@@ -863,19 +1138,27 @@ export class EditorGroupView extends Themable implements IEditorGroupView {
 
 		// Move across groups
 		else {
-			this.doMoveOrCopyEditorAcrossGroups(editor, target, options);
+			this.doMoveOrCopyEditorAcrossGroups(editor, target, options, false);
 		}
 	}
 
-	private doMoveEditorInsideGroup(editor: EditorInput, moveOptions?: IMoveEditorOptions): void {
-		const moveToIndex = moveOptions ? moveOptions.index : void 0;
+	private doMoveEditorInsideGroup(candidate: EditorInput, moveOptions?: IMoveEditorOptions): void {
+		const moveToIndex = moveOptions ? moveOptions.index : undefined;
 		if (typeof moveToIndex !== 'number') {
 			return; // do nothing if we move into same group without index
 		}
 
-		const currentIndex = this._group.indexOf(editor);
-		if (currentIndex === moveToIndex) {
-			return; // do nothing if editor is already at the given index
+		const currentIndex = this._group.indexOf(candidate);
+		if (currentIndex === -1 || currentIndex === moveToIndex) {
+			return; // do nothing if editor unknown in model or is already at the given index
+		}
+
+		// Update model and make sure to continue to use the editor we get from
+		// the model. It is possible that the editor was already opened and we
+		// want to ensure that we use the existing instance in that case.
+		const editor = this._group.getEditorByIndex(currentIndex);
+		if (!editor) {
+			return;
 		}
 
 		// Update model
@@ -892,13 +1175,17 @@ export class EditorGroupView extends Themable implements IEditorGroupView {
 
 	private doMoveOrCopyEditorAcrossGroups(editor: EditorInput, target: IEditorGroupView, moveOptions: IMoveEditorOptions = Object.create(null), keepCopy?: boolean): void {
 
-		// When moving an editor, try to preserve as much view state as possible by checking
-		// for the editor to be a text editor and creating the options accordingly if so
-		const options = getActiveTextEditorOptions(this, editor, EditorOptions.create(moveOptions));
-		options.pinned = true; // always pin moved editor
+		// When moving/copying an editor, try to preserve as much view state as possible
+		// by checking for the editor to be a text editor and creating the options accordingly
+		// if so
+		const options = getActiveTextEditorOptions(this, editor, EditorOptions.create({
+			...moveOptions,
+			pinned: true, 										// always pin moved editor
+			sticky: !keepCopy && this._group.isSticky(editor)	// preserve sticky state only if editor is moved (https://github.com/microsoft/vscode/issues/99035)
+		}));
 
 		// A move to another group is an open first...
-		target.openEditor(editor, options);
+		target.openEditor(editor, options, keepCopy ? OpenEditorContext.COPY_EDITOR : OpenEditorContext.MOVE_EDITOR);
 
 		// ...and a close afterwards (unless we copy)
 		if (!keepCopy) {
@@ -928,23 +1215,22 @@ export class EditorGroupView extends Themable implements IEditorGroupView {
 
 	//#region closeEditor()
 
-	closeEditor(editor: EditorInput = this.activeEditor): TPromise<void> {
+	async closeEditor(editor: EditorInput | undefined = this.activeEditor || undefined, options?: ICloseEditorOptions): Promise<void> {
 		if (!editor) {
-			return TPromise.as(void 0);
+			return;
 		}
 
 		// Check for dirty and veto
-		return this.handleDirty([editor]).then(veto => {
-			if (veto) {
-				return;
-			}
+		const veto = await this.handleDirtyClosing([editor]);
+		if (veto) {
+			return;
+		}
 
-			// Do close
-			this.doCloseEditor(editor);
-		});
+		// Do close
+		this.doCloseEditor(editor, options?.preserveFocus ? false : undefined);
 	}
 
-	private doCloseEditor(editor: EditorInput, focusNext = this.accessor.activeGroup === this, fromError?: boolean): void {
+	private doCloseEditor(editor: EditorInput, focusNext = (this.accessor.activeGroup === this), fromError?: boolean): void {
 
 		// Closing the active editor of the group is a bit more work
 		if (this._group.isActive(editor)) {
@@ -960,9 +1246,9 @@ export class EditorGroupView extends Themable implements IEditorGroupView {
 		this.titleAreaControl.closeEditor(editor);
 	}
 
-	private doCloseActiveEditor(focusNext = this.accessor.activeGroup === this, fromError?: boolean): void {
+	private doCloseActiveEditor(focusNext = (this.accessor.activeGroup === this), fromError?: boolean): void {
 		const editorToClose = this.activeEditor;
-		const editorHasFocus = isAncestor(document.activeElement, this.element);
+		const restoreFocus = this.shouldRestoreFocus(this.element);
 
 		// Optimization: if we are about to close the last editor in this group and settings
 		// are configured to close the group since it will be empty, we first set the last
@@ -976,7 +1262,7 @@ export class EditorGroupView extends Themable implements IEditorGroupView {
 			const mostRecentlyActiveGroups = this.accessor.getGroups(GroupsOrder.MOST_RECENTLY_ACTIVE);
 			const nextActiveGroup = mostRecentlyActiveGroups[1]; // [0] will be the current one, so take [1]
 			if (nextActiveGroup) {
-				if (editorHasFocus) {
+				if (restoreFocus) {
 					nextActiveGroup.focus();
 				} else {
 					this.accessor.activateGroup(nextActiveGroup);
@@ -985,35 +1271,37 @@ export class EditorGroupView extends Themable implements IEditorGroupView {
 		}
 
 		// Update model
-		this._group.closeEditor(editorToClose);
+		if (editorToClose) {
+			this._group.closeEditor(editorToClose);
+		}
 
 		// Open next active if there are more to show
 		const nextActiveEditor = this._group.activeEditor;
 		if (nextActiveEditor) {
+			const options = EditorOptions.create({ preserveFocus: !focusNext });
 
 			// When closing an editor due to an error we can end up in a loop where we continue closing
 			// editors that fail to open (e.g. when the file no longer exists). We do not want to show
 			// repeated errors in this case to the user. As such, if we open the next editor and we are
 			// in a scope of a previous editor failing, we silence the input errors until the editor is
-			// opened.
+			// opened by setting ignoreError: true.
 			if (fromError) {
-				this.ignoreOpenEditorErrors = true;
+				options.ignoreError = true;
 			}
 
-			const options = !focusNext ? EditorOptions.create({ preserveFocus: true }) : void 0;
-			this.openEditor(nextActiveEditor, options).then(() => {
-				this.ignoreOpenEditorErrors = false;
-			});
+			this.openEditor(nextActiveEditor, options);
 		}
 
 		// Otherwise we are empty, so clear from editor control and send event
 		else {
 
 			// Forward to editor control
-			this.editorControl.closeEditor(editorToClose);
+			if (editorToClose) {
+				this.editorControl.closeEditor(editorToClose);
+			}
 
 			// Restore focus to group container as needed unless group gets closed
-			if (editorHasFocus && !closeEmptyGroup) {
+			if (restoreFocus && !closeEmptyGroup) {
 				this.focus();
 			}
 
@@ -1027,138 +1315,209 @@ export class EditorGroupView extends Themable implements IEditorGroupView {
 		}
 	}
 
+	private shouldRestoreFocus(target: Element): boolean {
+		const activeElement = document.activeElement;
+
+		if (activeElement === document.body) {
+			return true; // always restore focus if nothing is focused currently
+		}
+
+		// otherwise check for the active element being an ancestor of the target
+		return isAncestor(activeElement, target);
+	}
+
 	private doCloseInactiveEditor(editor: EditorInput) {
 
 		// Update model
 		this._group.closeEditor(editor);
 	}
 
-	private handleDirty(editors: EditorInput[]): TPromise<boolean /* veto */> {
+	private async handleDirtyClosing(editors: EditorInput[]): Promise<boolean /* veto */> {
 		if (!editors.length) {
-			return TPromise.as(false); // no veto
+			return false; // no veto
 		}
 
-		const editor = editors.shift();
+		const editor = editors.shift()!;
 
 		// To prevent multiple confirmation dialogs from showing up one after the other
 		// we check if a pending confirmation is currently showing and if so, join that
-		let handleDirtyPromise = this.mapEditorToPendingConfirmation.get(editor);
-		if (!handleDirtyPromise) {
-			handleDirtyPromise = this.doHandleDirty(editor);
-			this.mapEditorToPendingConfirmation.set(editor, handleDirtyPromise);
+		let handleDirtyClosingPromise = this.mapEditorToPendingConfirmation.get(editor);
+		if (!handleDirtyClosingPromise) {
+			handleDirtyClosingPromise = this.doHandleDirtyClosing(editor);
+			this.mapEditorToPendingConfirmation.set(editor, handleDirtyClosingPromise);
 		}
 
-		return handleDirtyPromise.then(veto => {
+		const veto = await handleDirtyClosingPromise;
 
-			// Make sure to remove from our map of cached pending confirmations
-			this.mapEditorToPendingConfirmation.delete(editor);
+		// Make sure to remove from our map of cached pending confirmations
+		this.mapEditorToPendingConfirmation.delete(editor);
 
-			// Return for the first veto we got
-			if (veto) {
-				return veto;
-			}
+		// Return for the first veto we got
+		if (veto) {
+			return veto;
+		}
 
-			// Otherwise continue with the remainders
-			return this.handleDirty(editors);
-		});
+		// Otherwise continue with the remainders
+		return this.handleDirtyClosing(editors);
 	}
 
-	private doHandleDirty(editor: EditorInput): TPromise<boolean /* veto */> {
-		if (
-			!editor.isDirty() || // editor must be dirty
-			this.accessor.groups.some(groupView => groupView !== this && groupView.group.contains(editor, true /* support side by side */)) ||  // editor is opened in other group
-			editor instanceof SideBySideEditorInput && this.isOpened(editor.master) // side by side editor master is still opened
-		) {
-			return TPromise.as(false);
+	private async doHandleDirtyClosing(editor: EditorInput, options?: { skipAutoSave: boolean }): Promise<boolean /* veto */> {
+		if (!editor.isDirty() || editor.isSaving()) {
+			return false; // editor must be dirty and not saving
 		}
 
-		// Switch to editor that we want to handle and confirm to save/revert
-		return this.openEditor(editor).then(() => editor.confirmSave().then(res => {
+		if (editor instanceof SideBySideEditorInput && this._group.contains(editor.primary)) {
+			return false; // primary-side of editor is still opened somewhere else
+		}
 
-			// It could be that the editor saved meanwhile, so we check again
-			// to see if anything needs to happen before closing for good.
-			// This can happen for example if autoSave: onFocusChange is configured
-			// so that the save happens when the dialog opens.
-			if (!editor.isDirty()) {
-				return res === ConfirmResult.CANCEL ? true : false;
+		// Note: we explicitly decide to ask for confirm if closing a normal editor even
+		// if it is opened in a side-by-side editor in the group. This decision is made
+		// because it may be less obvious that one side of a side by side editor is dirty
+		// and can still be changed.
+
+		if (this.accessor.groups.some(groupView => {
+			if (groupView === this) {
+				return false; // skip this group to avoid false assumptions about the editor being opened still
 			}
 
-			// Otherwise, handle accordingly
-			switch (res) {
-				case ConfirmResult.SAVE:
-					return editor.save().then(ok => !ok);
+			const otherGroup = groupView.group;
+			if (otherGroup.contains(editor)) {
+				return true; // exact editor still opened
+			}
 
-				case ConfirmResult.DONT_SAVE:
+			if (editor instanceof SideBySideEditorInput && otherGroup.contains(editor.primary)) {
+				return true; // primary side of side by side editor still opened
+			}
+
+			return false;
+		})) {
+			return false; // editor is still editable somewhere else
+		}
+
+		// Auto-save on focus change: assume to Save unless the editor is untitled
+		// because bringing up a dialog would save in this case anyway.
+		// However, make sure to respect `skipAutoSave` option in case the automated
+		// save fails which would result in the editor never closing
+		// (see https://github.com/microsoft/vscode/issues/108752)
+		let confirmation: ConfirmResult;
+		let saveReason = SaveReason.EXPLICIT;
+		let autoSave = false;
+		if (this.filesConfigurationService.getAutoSaveMode() === AutoSaveMode.ON_FOCUS_CHANGE && !editor.isUntitled() && !options?.skipAutoSave) {
+			autoSave = true;
+			confirmation = ConfirmResult.SAVE;
+			saveReason = SaveReason.FOCUS_CHANGE;
+		}
+
+		// No auto-save on focus change: ask user
+		else {
+
+			// Switch to editor that we want to handle and confirm to save/revert
+			await this.openEditor(editor);
+
+			let name: string;
+			if (editor instanceof SideBySideEditorInput) {
+				name = editor.primary.getName(); // prefer shorter names by using primary's name in this case
+			} else {
+				name = editor.getName();
+			}
+
+			confirmation = await this.fileDialogService.showSaveConfirm([name]);
+		}
+
+		// It could be that the editor saved meanwhile or is saving, so we check
+		// again to see if anything needs to happen before closing for good.
+		// This can happen for example if autoSave: onFocusChange is configured
+		// so that the save happens when the dialog opens.
+		if (!editor.isDirty() || editor.isSaving()) {
+			return confirmation === ConfirmResult.CANCEL ? true : false;
+		}
+
+		// Otherwise, handle accordingly
+		switch (confirmation) {
+			case ConfirmResult.SAVE:
+				const result = await editor.save(this.id, { reason: saveReason });
+				if (!result && autoSave) {
+					// Save failed and we need to signal this back to the user, so
+					// we handle the dirty editor again but this time ensuring to
+					// show the confirm dialog
+					// (see https://github.com/microsoft/vscode/issues/108752)
+					return this.doHandleDirtyClosing(editor, { skipAutoSave: true });
+				}
+
+				return editor.isDirty(); // veto if still dirty
+			case ConfirmResult.DONT_SAVE:
+				try {
 
 					// first try a normal revert where the contents of the editor are restored
-					return editor.revert().then(ok => !ok, error => {
+					await editor.revert(this.id);
 
-						// if that fails, since we are about to close the editor, we accept that
-						// the editor cannot be reverted and instead do a soft revert that just
-						// enables us to close the editor. With this, a user can always close a
-						// dirty editor even when reverting fails.
-						return editor.revert({ soft: true }).then(ok => !ok);
-					});
+					return editor.isDirty(); // veto if still dirty
+				} catch (error) {
+					// if that fails, since we are about to close the editor, we accept that
+					// the editor cannot be reverted and instead do a soft revert that just
+					// enables us to close the editor. With this, a user can always close a
+					// dirty editor even when reverting fails.
+					await editor.revert(this.id, { soft: true });
 
-				case ConfirmResult.CANCEL:
-					return true; // veto
-			}
-		}));
+					return editor.isDirty(); // veto if still dirty
+				}
+			case ConfirmResult.CANCEL:
+				return true; // veto
+		}
 	}
 
 	//#endregion
 
 	//#region closeEditors()
 
-	closeEditors(args: EditorInput[] | ICloseEditorsFilter): TPromise<void> {
-		if (this.isEmpty()) {
-			return TPromise.as(void 0);
+	async closeEditors(args: EditorInput[] | ICloseEditorsFilter, options?: ICloseEditorOptions): Promise<void> {
+		if (this.isEmpty) {
+			return;
 		}
 
-		const editors = this.getEditorsToClose(args);
+		const editors = this.doGetEditorsToClose(args);
 
 		// Check for dirty and veto
-		return this.handleDirty(editors.slice(0)).then(veto => {
-			if (veto) {
-				return;
-			}
-
-			// Do close
-			this.doCloseEditors(editors);
-		});
-	}
-
-	private getEditorsToClose(editors: EditorInput[] | ICloseEditorsFilter): EditorInput[] {
-		if (Array.isArray(editors)) {
-			return editors;
+		const veto = await this.handleDirtyClosing(editors.slice(0));
+		if (veto) {
+			return;
 		}
 
-		const filter = editors;
+		// Do close
+		this.doCloseEditors(editors, options);
+	}
+
+	private doGetEditorsToClose(args: EditorInput[] | ICloseEditorsFilter): EditorInput[] {
+		if (Array.isArray(args)) {
+			return args;
+		}
+
+		const filter = args;
 		const hasDirection = typeof filter.direction === 'number';
 
-		let editorsToClose = this._group.getEditors(!hasDirection /* in MRU order only if direction is not specified */);
+		let editorsToClose = this._group.getEditors(hasDirection ? EditorsOrder.SEQUENTIAL : EditorsOrder.MOST_RECENTLY_ACTIVE, filter); // in MRU order only if direction is not specified
 
-		// Filter: saved only
+		// Filter: saved or saving only
 		if (filter.savedOnly) {
-			editorsToClose = editorsToClose.filter(e => !e.isDirty());
+			editorsToClose = editorsToClose.filter(editor => !editor.isDirty() || editor.isSaving());
 		}
 
 		// Filter: direction (left / right)
-		else if (hasDirection) {
+		else if (hasDirection && filter.except) {
 			editorsToClose = (filter.direction === CloseDirection.LEFT) ?
-				editorsToClose.slice(0, this._group.indexOf(filter.except as EditorInput)) :
-				editorsToClose.slice(this._group.indexOf(filter.except as EditorInput) + 1);
+				editorsToClose.slice(0, this._group.indexOf(filter.except, editorsToClose)) :
+				editorsToClose.slice(this._group.indexOf(filter.except, editorsToClose) + 1);
 		}
 
 		// Filter: except
 		else if (filter.except) {
-			editorsToClose = editorsToClose.filter(e => !e.matches(filter.except));
+			editorsToClose = editorsToClose.filter(editor => !editor.matches(filter.except));
 		}
 
 		return editorsToClose;
 	}
 
-	private doCloseEditors(editors: EditorInput[]): void {
+	private doCloseEditors(editors: EditorInput[], options?: ICloseEditorOptions): void {
 
 		// Close all inactive editors first
 		let closeActiveEditor = false;
@@ -1172,69 +1531,76 @@ export class EditorGroupView extends Themable implements IEditorGroupView {
 
 		// Close active editor last if contained in editors list to close
 		if (closeActiveEditor) {
-			this.doCloseActiveEditor();
+			this.doCloseActiveEditor(options?.preserveFocus ? false : undefined);
 		}
 
 		// Forward to title control
-		this.titleAreaControl.closeEditors(editors);
+		if (editors.length) {
+			this.titleAreaControl.closeEditors(editors);
+		}
 	}
 
 	//#endregion
 
 	//#region closeAllEditors()
 
-	closeAllEditors(): TPromise<void> {
-		if (this.isEmpty()) {
+	async closeAllEditors(options?: ICloseAllEditorsOptions): Promise<void> {
+		if (this.isEmpty) {
 
 			// If the group is empty and the request is to close all editors, we still close
 			// the editor group is the related setting to close empty groups is enabled for
-			// a convinient way of removing empty editor groups for the user.
+			// a convenient way of removing empty editor groups for the user.
 			if (this.accessor.partOptions.closeEmptyGroups) {
 				this.accessor.removeGroup(this);
 			}
 
-			return TPromise.as(void 0);
+			return;
 		}
 
 		// Check for dirty and veto
-		const editors = this._group.getEditors(true);
-		return this.handleDirty(editors.slice(0)).then(veto => {
-			if (veto) {
-				return;
-			}
+		const veto = await this.handleDirtyClosing(this._group.getEditors(EditorsOrder.MOST_RECENTLY_ACTIVE, options));
+		if (veto) {
+			return;
+		}
 
-			// Do close
-			this.doCloseAllEditors();
-		});
+		// Do close
+		this.doCloseAllEditors(options);
 	}
 
-	private doCloseAllEditors(): void {
+	private doCloseAllEditors(options?: ICloseAllEditorsOptions): void {
 
 		// Close all inactive editors first
-		this.editors.forEach(editor => {
+		const editorsToClose: EditorInput[] = [];
+		this._group.getEditors(EditorsOrder.SEQUENTIAL, options).forEach(editor => {
 			if (!this.isActive(editor)) {
 				this.doCloseInactiveEditor(editor);
 			}
+
+			editorsToClose.push(editor);
 		});
 
-		// Close active editor last
-		this.doCloseActiveEditor();
+		// Close active editor last (unless we skip it, e.g. because it is sticky)
+		if (this.activeEditor && editorsToClose.includes(this.activeEditor)) {
+			this.doCloseActiveEditor();
+		}
 
 		// Forward to title control
-		this.titleAreaControl.closeAllEditors();
+		if (editorsToClose.length) {
+			this.titleAreaControl.closeEditors(editorsToClose);
+		}
 	}
 
 	//#endregion
 
 	//#region replaceEditors()
 
-	replaceEditors(editors: EditorReplacement[]): TPromise<void> {
+	async replaceEditors(editors: EditorReplacement[]): Promise<void> {
 
 		// Extract active vs. inactive replacements
-		let activeReplacement: EditorReplacement;
+		let activeReplacement: EditorReplacement | undefined;
 		const inactiveReplacements: EditorReplacement[] = [];
 		editors.forEach(({ editor, replacement, options }) => {
-			if (editor.isDirty()) {
+			if (editor.isDirty() && !editor.isSaving()) {
 				return; // we do not handle dirty in this method, so ignore all dirty
 			}
 
@@ -1250,7 +1616,7 @@ export class EditorGroupView extends Themable implements IEditorGroupView {
 				}
 
 				options.inactive = !isActiveEditor;
-				options.pinned = true;
+				options.pinned = options.pinned ?? true; // unless specified, prefer to pin upon replace
 
 				const editorToReplace = { editor, replacement, options };
 				if (isActiveEditor) {
@@ -1262,16 +1628,16 @@ export class EditorGroupView extends Themable implements IEditorGroupView {
 		});
 
 		// Handle inactive first
-		inactiveReplacements.forEach(({ editor, replacement, options }) => {
+		inactiveReplacements.forEach(async ({ editor, replacement, options }) => {
 
 			// Open inactive editor
-			this.doOpenEditor(replacement, options);
+			await this.doOpenEditor(replacement, options);
 
-			// Close replaced inactive edior
-			this.doCloseInactiveEditor(editor);
-
-			// Forward to title control
-			this.titleAreaControl.closeEditor(editor);
+			// Close replaced inactive editor unless they match
+			if (!editor.matches(replacement)) {
+				this.doCloseInactiveEditor(editor);
+				this.titleAreaControl.closeEditor(editor);
+			}
 		});
 
 		// Handle active last
@@ -1280,50 +1646,45 @@ export class EditorGroupView extends Themable implements IEditorGroupView {
 			// Open replacement as active editor
 			const openEditorResult = this.doOpenEditor(activeReplacement.replacement, activeReplacement.options);
 
-			// Close previous active editor
-			this.doCloseInactiveEditor(activeReplacement.editor);
+			// Close replaced active editor unless they match
+			if (!activeReplacement.editor.matches(activeReplacement.replacement)) {
+				this.doCloseInactiveEditor(activeReplacement.editor);
+				this.titleAreaControl.closeEditor(activeReplacement.editor);
+			}
 
-			// Forward to title control
-			this.titleAreaControl.closeEditor(activeReplacement.editor);
-
-			return openEditorResult;
+			await openEditorResult;
 		}
-
-		return TPromise.as(void 0);
 	}
-
-	//#endregion
 
 	//#endregion
 
 	//#region Themable
 
 	protected updateStyles(): void {
-		const isEmpty = this.isEmpty();
+		const isEmpty = this.isEmpty;
 
 		// Container
 		if (isEmpty) {
-			this.element.style.backgroundColor = this.getColor(EDITOR_GROUP_EMPTY_BACKGROUND);
+			this.element.style.backgroundColor = this.getColor(EDITOR_GROUP_EMPTY_BACKGROUND) || '';
 		} else {
-			this.element.style.backgroundColor = null;
+			this.element.style.backgroundColor = '';
 		}
 
 		// Title control
-		const { showTabs } = this.accessor.partOptions;
-		const borderColor = this.getColor(EDITOR_GROUP_HEADER_TABS_BORDER) || this.getColor(contrastBorder);
-
-		if (!isEmpty && showTabs && borderColor) {
-			addClass(this.titleContainer, 'title-border-bottom');
+		const borderColor = this.getColor(EDITOR_GROUP_HEADER_BORDER) || this.getColor(contrastBorder);
+		if (!isEmpty && borderColor) {
+			this.titleContainer.classList.add('title-border-bottom');
 			this.titleContainer.style.setProperty('--title-border-bottom-color', borderColor.toString());
 		} else {
-			removeClass(this.titleContainer, 'title-border-bottom');
+			this.titleContainer.classList.remove('title-border-bottom');
 			this.titleContainer.style.removeProperty('--title-border-bottom-color');
 		}
 
-		this.titleContainer.style.backgroundColor = this.getColor(showTabs ? EDITOR_GROUP_HEADER_TABS_BACKGROUND : EDITOR_GROUP_HEADER_NO_TABS_BACKGROUND);
+		const { showTabs } = this.accessor.partOptions;
+		this.titleContainer.style.backgroundColor = this.getColor(showTabs ? EDITOR_GROUP_HEADER_TABS_BACKGROUND : EDITOR_GROUP_HEADER_NO_TABS_BACKGROUND) || '';
 
 		// Editor container
-		this.editorContainer.style.backgroundColor = this.getColor(editorBackground);
+		this.editorContainer.style.backgroundColor = this.getColor(editorBackground) || '';
 	}
 
 	//#endregion
@@ -1337,15 +1698,29 @@ export class EditorGroupView extends Themable implements IEditorGroupView {
 	get maximumWidth(): number { return this.editorControl.maximumWidth; }
 	get maximumHeight(): number { return this.editorControl.maximumHeight; }
 
-	private _onDidChange = this._register(new Relay<{ width: number; height: number; }>());
-	readonly onDidChange: Event<{ width: number; height: number; }> = this._onDidChange.event;
+	private _onDidChange = this._register(new Relay<{ width: number; height: number; } | undefined>());
+	readonly onDidChange = this._onDidChange.event;
 
 	layout(width: number, height: number): void {
 		this.dimension = new Dimension(width, height);
 
-		// Forward to controls
-		this.titleAreaControl.layout(new Dimension(this.dimension.width, EDITOR_TITLE_HEIGHT));
-		this.editorControl.layout(new Dimension(this.dimension.width, this.dimension.height - EDITOR_TITLE_HEIGHT));
+		// Layout the title area first to receive the size it occupies
+		const titleAreaSize = this.titleAreaControl.layout({
+			container: this.dimension,
+			available: new Dimension(width, height - this.editorControl.minimumHeight)
+		});
+
+		// Pass the container width and remaining height to the editor layout
+		const editorHeight = Math.max(0, height - titleAreaSize.height);
+		this.editorContainer.style.height = `${editorHeight}px`;
+		this.editorControl.layout(new Dimension(width, editorHeight));
+	}
+
+	relayout(): void {
+		if (this.dimension) {
+			const { width, height } = this.dimension;
+			this.layout(width, height);
+		}
 	}
 
 	toJSON(): ISerializedEditorGroup {
@@ -1353,10 +1728,6 @@ export class EditorGroupView extends Themable implements IEditorGroupView {
 	}
 
 	//#endregion
-
-	shutdown(): void {
-		this.editorControl.shutdown();
-	}
 
 	dispose(): void {
 		this._disposed = true;
@@ -1370,49 +1741,43 @@ export class EditorGroupView extends Themable implements IEditorGroupView {
 }
 
 class EditorOpeningEvent implements IEditorOpeningEvent {
-	private override: () => TPromise<any>;
+	private override: (() => Promise<IEditorPane | undefined>) | undefined = undefined;
 
 	constructor(
-		private _group: GroupIdentifier,
-		private _editor: EditorInput,
-		private _options: EditorOptions
+		public readonly groupId: GroupIdentifier,
+		public readonly editor: EditorInput,
+		private _options: EditorOptions | undefined,
+		public readonly context: OpenEditorContext | undefined
 	) {
 	}
 
-	get groupId(): GroupIdentifier {
-		return this._group;
-	}
-
-	get editor(): EditorInput {
-		return this._editor;
-	}
-
-	get options(): EditorOptions {
+	get options(): EditorOptions | undefined {
 		return this._options;
 	}
 
-	prevent(callback: () => TPromise<any>): void {
+
+	prevent(callback: () => Promise<IEditorPane | undefined>): void {
 		this.override = callback;
 	}
 
-	isPrevented(): () => TPromise<any> {
+	isPrevented(): (() => Promise<IEditorPane | undefined>) | undefined {
 		return this.override;
 	}
 }
 
 export interface EditorReplacement {
-	editor: EditorInput;
-	replacement: EditorInput;
-	options?: EditorOptions;
+	readonly editor: EditorInput;
+	readonly replacement: EditorInput;
+	readonly options?: EditorOptions;
 }
 
 registerThemingParticipant((theme, collector, environment) => {
 
 	// Letterpress
-	const letterpress = `resources/letterpress${theme.type === 'dark' ? '-dark' : theme.type === 'hc' ? '-hc' : ''}.svg`;
+	const letterpress = `./media/letterpress${theme.type === 'dark' ? '-dark' : theme.type === 'hc' ? '-hc' : ''}.svg`;
 	collector.addRule(`
-		.monaco-workbench > .part.editor > .content .editor-group-container.empty .editor-group-letterpress {
-			background-image: url('${join(environment.appRoot, letterpress)}')
+		.monaco-workbench .part.editor > .content .editor-group-container.empty .editor-group-letterpress {
+			background-image: ${asCSSUrl(FileAccess.asBrowserUri(letterpress, require))}
 		}
 	`);
 
@@ -1420,20 +1785,20 @@ registerThemingParticipant((theme, collector, environment) => {
 	const focusedEmptyGroupBorder = theme.getColor(EDITOR_GROUP_FOCUSED_EMPTY_BORDER);
 	if (focusedEmptyGroupBorder) {
 		collector.addRule(`
-			.monaco-workbench > .part.editor > .content:not(.empty) .editor-group-container.empty.active:focus {
+			.monaco-workbench .part.editor > .content:not(.empty) .editor-group-container.empty.active:focus {
 				outline-width: 1px;
 				outline-color: ${focusedEmptyGroupBorder};
 				outline-offset: -2px;
 				outline-style: solid;
 			}
 
-			.monaco-workbench > .part.editor > .content.empty .editor-group-container.empty.active:focus {
+			.monaco-workbench .part.editor > .content.empty .editor-group-container.empty.active:focus {
 				outline: none; /* never show outline for empty group if it is the last */
 			}
 		`);
 	} else {
 		collector.addRule(`
-			.monaco-workbench > .part.editor > .content .editor-group-container.empty.active:focus {
+			.monaco-workbench .part.editor > .content .editor-group-container.empty.active:focus {
 				outline: none; /* disable focus outline unless active empty group border is defined */
 			}
 		`);

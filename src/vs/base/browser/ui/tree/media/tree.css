@@ -1,0 +1,66 @@
+/*---------------------------------------------------------------------------------------------
+ *  Copyright (c) Microsoft Corporation. All rights reserved.
+ *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *--------------------------------------------------------------------------------------------*/
+
+.monaco-tl-row {
+	display: flex;
+	height: 100%;
+	align-items: center;
+	position: relative;
+}
+
+.monaco-tl-indent {
+	height: 100%;
+	position: absolute;
+	top: 0;
+	left: 16px;
+	pointer-events: none;
+}
+
+.hide-arrows .monaco-tl-indent {
+	left: 12px;
+}
+
+.monaco-tl-indent > .indent-guide {
+	display: inline-block;
+	box-sizing: border-box;
+	height: 100%;
+	border-left: 1px solid transparent;
+}
+
+.monaco-tl-indent > .indent-guide {
+	transition: border-color 0.1s linear;
+}
+
+.monaco-tl-twistie,
+.monaco-tl-contents {
+	height: 100%;
+}
+
+.monaco-tl-twistie {
+	font-size: 10px;
+	text-align: right;
+	padding-right: 6px;
+	flex-shrink: 0;
+	width: 16px;
+	display: flex !important;
+	align-items: center;
+	justify-content: center;
+	color: inherit !important;
+	transform: translateX(3px);
+}
+
+.monaco-tl-contents {
+	flex: 1;
+	overflow: hidden;
+}
+
+.monaco-tl-twistie.collapsed::before {
+	transform: rotate(-90deg);
+}
+
+.monaco-tl-twistie.codicon-tree-item-loading::before {
+	/* Use steps to throttle FPS to reduce CPU usage */
+	animation: codicon-spin 1.25s steps(30) infinite;
+}
