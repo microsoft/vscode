@@ -45,6 +45,7 @@
 	font-family: codicon;
 	font-size: 14px;
 	opacity: 0.4;
+	padding-right: 8px;
 }
 
 .monaco-list .outline-element .outline-element-icon {
