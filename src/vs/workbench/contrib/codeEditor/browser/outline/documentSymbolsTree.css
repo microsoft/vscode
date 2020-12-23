@@ -36,8 +36,9 @@
 	color: var(--outline-element-color);
 }
 
+/* when showing in breadcrumbs than hide a few things, like markers or descriptions */
+.monaco-breadcrumbs .outline-element .monaco-icon-label-container .monaco-icon-description-container,
 .monaco-breadcrumbs .outline-element .outline-element-decoration {
-	/* Don't show markers inline with breadcrumbs */
 	display: none;
 }
 
