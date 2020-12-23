@@ -93,7 +93,7 @@ steps:
       exec { cat .build/node_modules_list.txt }
       exec { echo $BUILD_SOURCESDIRECTORY }
       exec { tar --version }
-      exec { tar --posix -z -cf "$BUILD_SOURCESDIRECTORY/.build/node_modules_cache/cache.tgz" -P -C "$BUILD_SOURCESDIRECTORY" --files-from "$BUILD_SOURCESDIRECTORY/.build/node_modules_list.txt" }
+      exec { tar --posix -z -cvf "$BUILD_SOURCESDIRECTORY/.build/node_modules_cache/cache.tgz" -T "$BUILD_SOURCESDIRECTORY/.build/node_modules_list.txt" }
     condition: and(succeeded(), ne(variables.NODE_MODULES_RESTORED, 'true'))
     displayName: Create node_modules archive
 
