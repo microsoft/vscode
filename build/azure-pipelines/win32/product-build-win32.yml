@@ -53,12 +53,14 @@ steps:
 
   - powershell: |
       mkdir -Force .build
+      "$(VSCODE_ARCH)" | Out-File -Encoding ascii -NoNewLine .build\arch
+      "$env:ENABLE_TERRAPIN" | Out-File -Encoding ascii -NoNewLine .build\terrapin
       node build/azure-pipelines/common/computeNodeModulesCacheKey.js $VSCODE_ARCH $ENABLE_TERRAPIN > .build/yarnlockhash
     displayName: Prepare yarn cache flags
 
   - task: 1ESLighthouseEng.PipelineArtifactCaching.RestoreCacheV1.RestoreCache@1
     inputs:
-      keyfile: ".build/yarnlockhash"
+      keyfile: ".build/arch, .build/terrapin, .build/yarnlockhash"
       targetfolder: "**/node_modules, !**/node_modules/**/node_modules"
       vstsFeed: "npm-vscode"
 
@@ -77,7 +79,7 @@ steps:
 
   - task: 1ESLighthouseEng.PipelineArtifactCaching.SaveCacheV1.SaveCache@1
     inputs:
-      keyfile: ".build/yarnlockhash"
+      keyfile: ".build/arch, .build/terrapin, .build/yarnlockhash"
       targetfolder: "**/node_modules, !**/node_modules/**/node_modules"
       vstsFeed: "npm-vscode"
     condition: and(succeeded(), ne(variables['CacheRestored'], 'true'))
