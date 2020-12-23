@@ -29,8 +29,8 @@ resources:
       image: snapcore/snapcraft:stable
 
 stages:
-  # - stage: Compile
-  #   jobs:
+  - stage: Compile
+    jobs:
   #     - job: Compile
   #       pool:
   #         vmImage: "Ubuntu-18.04"
@@ -39,14 +39,14 @@ stages:
   #         VSCODE_ARCH: x64
   #       steps:
   #         - template: product-compile.yml
-  #     - job: Hygiene
-  #       pool:
-  #         vmImage: ubuntu-20.04
-  #       # container: vscode-x64
-  #       variables:
-  #         VSCODE_ARCH: x64
-  #       steps:
-  #         - template: product-hygiene.yml
+      - job: Hygiene
+        pool:
+          vmImage: ubuntu-20.04
+        # container: vscode-x64
+        variables:
+          VSCODE_ARCH: x64
+        steps:
+          - template: product-hygiene.yml
 
   - stage: Windows
     # dependsOn:

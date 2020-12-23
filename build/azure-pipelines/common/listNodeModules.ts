@@ -38,4 +38,4 @@ function findNodeModulesFiles(location: string, inNodeModules: boolean, result: 
 
 const result: string[] = [];
 findNodeModulesFiles('', false, result);
-console.log(result.map(entry => path.join(ROOT, entry)).join('\n'));
+console.log(result.join('\n'));

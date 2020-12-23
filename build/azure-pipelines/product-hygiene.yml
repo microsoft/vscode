@@ -39,7 +39,7 @@ steps:
 
   - task: Cache@2
     inputs:
-      key: 'genericNodeModules1 | $(Agent.OS) | .build/yarnlockhash'
+      key: 'genericNodeModules2 | $(Agent.OS) | .build/yarnlockhash'
       path: .build/node_modules_cache
       cacheHitVar: NODE_MODULES_RESTORED
     displayName: Cache node_modules archive
