@@ -7,7 +7,7 @@ import 'vs/css!./documentSymbolsTree';
 import * as dom from 'vs/base/browser/dom';
 import { HighlightedLabel } from 'vs/base/browser/ui/highlightedlabel/highlightedLabel';
 import { IIdentityProvider, IKeyboardNavigationLabelProvider, IListVirtualDelegate } from 'vs/base/browser/ui/list/list';
-import { IDataSource, ITreeNode, ITreeRenderer, ITreeSorter, ITreeFilter } from 'vs/base/browser/ui/tree/tree';
+import { IDataSource, ITreeNode, ITreeRenderer, ITreeFilter } from 'vs/base/browser/ui/tree/tree';
 import { createMatches, FuzzyScore } from 'vs/base/common/filters';
 import { Range } from 'vs/editor/common/core/range';
 import { SymbolKind, SymbolKinds, SymbolTag } from 'vs/editor/common/modes';
@@ -15,7 +15,7 @@ import { OutlineElement, OutlineGroup, OutlineModel } from 'vs/editor/contrib/do
 import { localize } from 'vs/nls';
 import { IconLabel } from 'vs/base/browser/ui/iconLabel/iconLabel';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
-import { OutlineConfigKeys, OutlineSortOrder } from 'vs/editor/contrib/documentSymbols/outline';
+import { OutlineConfigKeys } from 'vs/editor/contrib/documentSymbols/outline';
 import { MarkerSeverity } from 'vs/platform/markers/common/markers';
 import { IThemeService, registerThemingParticipant, IColorTheme, ICssStyleCollector } from 'vs/platform/theme/common/themeService';
 import { registerColor, listErrorForeground, listWarningForeground, foreground } from 'vs/platform/theme/common/colorRegistry';
@@ -25,8 +25,10 @@ import { URI } from 'vs/base/common/uri';
 import { IListAccessibilityProvider } from 'vs/base/browser/ui/list/listWidget';
 import { Iterable } from 'vs/base/common/iterator';
 import { Codicon } from 'vs/base/common/codicons';
+import { IOutlineComparator } from 'vs/workbench/services/outline/browser/outline';
 
 export type OutlineItem = OutlineGroup | OutlineElement;
+
 
 export class OutlineNavigationLabelProvider implements IKeyboardNavigationLabelProvider<OutlineItem> {
 
@@ -318,41 +320,33 @@ export class OutlineFilter implements ITreeFilter<OutlineItem> {
 	}
 }
 
-export class OutlineItemComparator implements ITreeSorter<OutlineItem> {
+export class DocumentSymbolComparator implements IOutlineComparator<OutlineItem> {
 
 	private readonly _collator = new IdleValue<Intl.Collator>(() => new Intl.Collator(undefined, { numeric: true }));
 
-	constructor(
-		private readonly _prefix: 'breadcrumbs' | 'outline',
-		@ITextResourceConfigurationService private readonly _textResourceConfigService: ITextResourceConfigurationService,
-	) { }
-
-	compare(a: OutlineItem, b: OutlineItem): number {
+	compareByPosition(a: OutlineItem, b: OutlineItem): number {
 		if (a instanceof OutlineGroup && b instanceof OutlineGroup) {
 			return a.order - b.order;
 		} else if (a instanceof OutlineElement && b instanceof OutlineElement) {
-			const type = this._getSortOrder(OutlineModel.get(a));
-			if (type === OutlineSortOrder.ByKind) {
-				return a.symbol.kind - b.symbol.kind || this._collator.value.compare(a.symbol.name, b.symbol.name);
-			} else if (type === OutlineSortOrder.ByName) {
-				return this._collator.value.compare(a.symbol.name, b.symbol.name) || Range.compareRangesUsingStarts(a.symbol.range, b.symbol.range);
-			} else if (type === OutlineSortOrder.ByPosition) {
-				return Range.compareRangesUsingStarts(a.symbol.range, b.symbol.range) || this._collator.value.compare(a.symbol.name, b.symbol.name);
-			}
+			return Range.compareRangesUsingStarts(a.symbol.range, b.symbol.range) || this._collator.value.compare(a.symbol.name, b.symbol.name);
 		}
 		return 0;
 	}
-
-	private _getSortOrder(model: OutlineModel | undefined): OutlineSortOrder {
-		const uri = model?.textModel.uri;
-		const value = this._textResourceConfigService.getValue(uri, `${this._prefix}.symbolSortOrder`);
-		if (value === 'name') {
-			return OutlineSortOrder.ByName;
-		} else if (value === 'type') {
-			return OutlineSortOrder.ByKind;
-		} else {
-			return OutlineSortOrder.ByPosition;
+	compareByType(a: OutlineItem, b: OutlineItem): number {
+		if (a instanceof OutlineGroup && b instanceof OutlineGroup) {
+			return a.order - b.order;
+		} else if (a instanceof OutlineElement && b instanceof OutlineElement) {
+			return a.symbol.kind - b.symbol.kind || this._collator.value.compare(a.symbol.name, b.symbol.name);
 		}
+		return 0;
+	}
+	compareByName(a: OutlineItem, b: OutlineItem): number {
+		if (a instanceof OutlineGroup && b instanceof OutlineGroup) {
+			return a.order - b.order;
+		} else if (a instanceof OutlineElement && b instanceof OutlineElement) {
+			return this._collator.value.compare(a.symbol.name, b.symbol.name) || Range.compareRangesUsingStarts(a.symbol.range, b.symbol.range);
+		}
+		return 0;
 	}
 }
 

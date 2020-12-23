@@ -11,7 +11,7 @@ import { IDisposable, toDisposable, DisposableStore, MutableDisposable } from 'v
 import { LRUCache } from 'vs/base/common/map';
 import { localize } from 'vs/nls';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
-import { ContextKeyEqualsExpr, ContextKeyExpr, IContextKey, IContextKeyService, RawContextKey } from 'vs/platform/contextkey/common/contextkey';
+import { ContextKeyEqualsExpr, IContextKey, IContextKeyService, RawContextKey } from 'vs/platform/contextkey/common/contextkey';
 import { IContextMenuService } from 'vs/platform/contextview/browser/contextView';
 import { IInstantiationService, ServicesAccessor } from 'vs/platform/instantiation/common/instantiation';
 import { IKeybindingService } from 'vs/platform/keybinding/common/keybinding';
@@ -22,7 +22,7 @@ import { IThemeService } from 'vs/platform/theme/common/themeService';
 import { ViewAction, ViewPane } from 'vs/workbench/browser/parts/views/viewPane';
 import { IViewletViewOptions } from 'vs/workbench/browser/parts/views/viewsViewlet';
 import { IEditorService } from 'vs/workbench/services/editor/common/editorService';
-import { OutlineViewFocused, OutlineViewFiltered, OutlineViewId } from 'vs/editor/contrib/documentSymbols/outline';
+import { OutlineViewFocused, OutlineViewFiltered, OutlineViewId, OutlineSortOrder } from 'vs/editor/contrib/documentSymbols/outline';
 import { FuzzyScore } from 'vs/base/common/filters';
 import { IDataTreeViewState } from 'vs/base/browser/ui/tree/dataTree';
 import { basename } from 'vs/base/common/resources';
@@ -32,10 +32,29 @@ import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
 import { Codicon } from 'vs/base/common/codicons';
 import { MenuId, registerAction2 } from 'vs/platform/actions/common/actions';
 import { OutlineViewState } from './outlineViewState';
-import { IOutline, IOutlineService } from 'vs/workbench/services/outline/browser/outline';
+import { IOutline, IOutlineComparator, IOutlineService } from 'vs/workbench/services/outline/browser/outline';
 import { EditorResourceAccessor, IEditorPane } from 'vs/workbench/common/editor';
 import { CancellationTokenSource } from 'vs/base/common/cancellation';
 import { Event } from 'vs/base/common/event';
+import { ITreeSorter } from 'vs/base/browser/ui/tree/tree';
+
+class OutlineTreeSorter<E> implements ITreeSorter<E> {
+
+	constructor(
+		private _comparator: IOutlineComparator<E>,
+		public order: OutlineSortOrder
+	) { }
+
+	compare(a: E, b: E): number {
+		if (this.order === OutlineSortOrder.ByKind) {
+			return this._comparator.compareByType(a, b);
+		} else if (this.order === OutlineSortOrder.ByName) {
+			return this._comparator.compareByName(a, b);
+		} else {
+			return this._comparator.compareByPosition(a, b);
+		}
+	}
+}
 
 export class OutlinePane extends ViewPane {
 
@@ -54,10 +73,11 @@ export class OutlinePane extends ViewPane {
 	private _treeDimensions?: dom.Dimension;
 	private _treeStates = new LRUCache<string, IDataTreeViewState>(10);
 
-	private readonly _ctxFocused: IContextKey<boolean>;
-	private readonly _ctxFiltered: IContextKey<boolean>;
-	private readonly _ctxFollowsCursor: IContextKey<boolean>;
-	private readonly _ctxFilterOnType: IContextKey<boolean>;
+	private _ctxFocused!: IContextKey<boolean>;
+	private _ctxFiltered!: IContextKey<boolean>;
+	private _ctxFollowsCursor!: IContextKey<boolean>;
+	private _ctxFilterOnType!: IContextKey<boolean>;
+	private _ctxSortMode!: IContextKey<OutlineSortOrder>;
 
 	constructor(
 		options: IViewletViewOptions,
@@ -78,25 +98,23 @@ export class OutlinePane extends ViewPane {
 		super(options, keybindingService, contextMenuService, configurationService, contextKeyService, viewDescriptorService, _instantiationService, openerService, themeService, telemetryService);
 		this._outlineViewState.restore(this._storageService);
 
-		this._ctxFocused = OutlineViewFocused.bindTo(contextKeyService);
-		this._ctxFiltered = OutlineViewFiltered.bindTo(contextKeyService);
-		this._ctxFollowsCursor = _ctxFollowsCursor.bindTo(contextKeyService);
-		this._ctxFilterOnType = _ctxFilterOnType.bindTo(contextKeyService);
-		this._disposables.add(this.onDidFocus(_ => this._ctxFocused.set(true)));
-		this._disposables.add(this.onDidBlur(_ => this._ctxFocused.set(false)));
-
-		this._disposables.add(configurationService.onDidChangeConfiguration(e => {
-			if (e.affectsConfiguration('outline.symbolSortOrder')) {
-				this._tree?.resort();
-			}
-		}));
+		contextKeyService.bufferChangeEvents(() => {
+			this._ctxFocused = OutlineViewFocused.bindTo(contextKeyService);
+			this._ctxFiltered = OutlineViewFiltered.bindTo(contextKeyService);
+			this._ctxFollowsCursor = _ctxFollowsCursor.bindTo(contextKeyService);
+			this._ctxFilterOnType = _ctxFilterOnType.bindTo(contextKeyService);
+			this._ctxSortMode = _ctxSortMode.bindTo(contextKeyService);
+		});
 
 		const updateContext = () => {
 			this._ctxFollowsCursor.set(this._outlineViewState.followCursor);
 			this._ctxFilterOnType.set(this._outlineViewState.filterOnType);
+			this._ctxSortMode.set(this._outlineViewState.sortBy);
 		};
-		this._disposables.add(this._outlineViewState.onDidChange(updateContext));
 		updateContext();
+		this._disposables.add(this._outlineViewState.onDidChange(updateContext));
+		this._disposables.add(this.onDidFocus(_ => this._ctxFocused.set(true)));
+		this._disposables.add(this.onDidBlur(_ => this._ctxFocused.set(false)));
 	}
 
 	dispose(): void {
@@ -195,6 +213,8 @@ export class OutlinePane extends ViewPane {
 		this._editorDisposables.add(newOutline);
 		this._progressBar.stop().hide();
 
+		const sorter = new OutlineTreeSorter(newOutline.treeConfig.comparator, this._outlineViewState.sortBy);
+
 		const tree = <WorkbenchDataTree<IOutline<any>, any, FuzzyScore>>this._instantiationService.createInstance(
 			WorkbenchDataTree,
 			'OutlinePane',
@@ -204,6 +224,7 @@ export class OutlinePane extends ViewPane {
 			newOutline.treeConfig.treeDataSource,
 			{
 				...newOutline.treeConfig.options,
+				sorter,
 				openOnSingleClick: true,
 				expandOnlyOnTwistieClick: true,
 				multipleSelectionSupport: false,
@@ -278,6 +299,10 @@ export class OutlinePane extends ViewPane {
 			if (e.followCursor) {
 				revealActiveElement();
 			}
+			if (e.sortBy) {
+				sorter.order = this._outlineViewState.sortBy;
+				tree.resort();
+			}
 		}));
 
 		// feature: expand all nodes when filtering (not when finding)
@@ -307,6 +332,7 @@ export class OutlinePane extends ViewPane {
 
 const _ctxFollowsCursor = new RawContextKey('outlineFollowsCursor', false);
 const _ctxFilterOnType = new RawContextKey('outlineFiltersOnType', false);
+const _ctxSortMode = new RawContextKey<OutlineSortOrder>('outlineSortMode', OutlineSortOrder.ByPosition);
 
 // --- commands
 
@@ -372,6 +398,7 @@ registerAction2(class FilterOnType extends ViewAction<OutlinePane> {
 	}
 });
 
+
 registerAction2(class SortByPosition extends ViewAction<OutlinePane> {
 	constructor() {
 		super({
@@ -379,7 +406,7 @@ registerAction2(class SortByPosition extends ViewAction<OutlinePane> {
 			id: 'outline.sortByPosition',
 			title: localize('sortByPosition', "Sort By: Position"),
 			f1: false,
-			toggled: ContextKeyExpr.equals('config.outline.symbolSortOrder', 'position'),
+			toggled: _ctxSortMode.isEqualTo(OutlineSortOrder.ByPosition),
 			menu: {
 				id: MenuId.ViewTitle,
 				group: 'sort',
@@ -388,8 +415,8 @@ registerAction2(class SortByPosition extends ViewAction<OutlinePane> {
 			}
 		});
 	}
-	runInView(accessor: ServicesAccessor) {
-		accessor.get(IConfigurationService).updateValue('outline.symbolSortOrder', 'position');
+	runInView(_accessor: ServicesAccessor, view: OutlinePane) {
+		view.outlineViewState.sortBy = OutlineSortOrder.ByPosition;
 	}
 });
 
@@ -400,7 +427,7 @@ registerAction2(class SortByName extends ViewAction<OutlinePane> {
 			id: 'outline.sortByName',
 			title: localize('sortByName', "Sort By: Name"),
 			f1: false,
-			toggled: ContextKeyExpr.equals('config.outline.symbolSortOrder', 'name'),
+			toggled: _ctxSortMode.isEqualTo(OutlineSortOrder.ByName),
 			menu: {
 				id: MenuId.ViewTitle,
 				group: 'sort',
@@ -409,8 +436,8 @@ registerAction2(class SortByName extends ViewAction<OutlinePane> {
 			}
 		});
 	}
-	runInView(accessor: ServicesAccessor) {
-		accessor.get(IConfigurationService).updateValue('outline.symbolSortOrder', 'name');
+	runInView(_accessor: ServicesAccessor, view: OutlinePane) {
+		view.outlineViewState.sortBy = OutlineSortOrder.ByName;
 	}
 });
 
@@ -421,7 +448,7 @@ registerAction2(class SortByKind extends ViewAction<OutlinePane> {
 			id: 'outline.sortByKind',
 			title: localize('sortByKind', "Sort By: Category"),
 			f1: false,
-			toggled: ContextKeyExpr.equals('config.outline.symbolSortOrder', 'type'),
+			toggled: _ctxSortMode.isEqualTo(OutlineSortOrder.ByKind),
 			menu: {
 				id: MenuId.ViewTitle,
 				group: 'sort',
@@ -430,7 +457,7 @@ registerAction2(class SortByKind extends ViewAction<OutlinePane> {
 			}
 		});
 	}
-	runInView(accessor: ServicesAccessor) {
-		accessor.get(IConfigurationService).updateValue('outline.symbolSortOrder', 'type');
+	runInView(_accessor: ServicesAccessor, view: OutlinePane) {
+		view.outlineViewState.sortBy = OutlineSortOrder.ByKind;
 	}
 });

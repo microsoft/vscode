@@ -50,7 +50,7 @@ export class BreadcrumbsModel {
 	readonly onDidUpdate: Event<this> = this._onDidUpdate.event;
 
 	constructor(
-		fileInfoUri: URI,
+		readonly resource: URI,
 		editor: IEditorPane | undefined,
 		@IConfigurationService configurationService: IConfigurationService,
 		@IWorkspaceContextService private readonly _workspaceService: IWorkspaceContextService,
@@ -62,7 +62,7 @@ export class BreadcrumbsModel {
 
 		this._disposables.add(this._cfgFilePath.onDidChange(_ => this._onDidUpdate.fire(this)));
 		this._disposables.add(this._cfgSymbolPath.onDidChange(_ => this._onDidUpdate.fire(this)));
-		this._fileInfo = this._initFilePathInfo(fileInfoUri);
+		this._fileInfo = this._initFilePathInfo(resource);
 
 		if (editor) {
 			this._bindToEditor(editor);

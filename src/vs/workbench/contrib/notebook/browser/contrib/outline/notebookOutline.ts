@@ -11,7 +11,7 @@ import { IThemeService, ThemeIcon } from 'vs/platform/theme/common/themeService'
 import { ICellViewModel } from 'vs/workbench/contrib/notebook/browser/notebookBrowser';
 import { NotebookEditor } from 'vs/workbench/contrib/notebook/browser/notebookEditor';
 import { CellKind } from 'vs/workbench/contrib/notebook/common/notebookCommon';
-import { IOutline, IOutlineBreadcrumbsConfig, IOutlineCreator, IOutlineQuickPickConfig, IOutlineService, IOutlineTreeConfig, IQuickPickDataSource, OutlineChangeEvent } from 'vs/workbench/services/outline/browser/outline';
+import { IOutline, IOutlineBreadcrumbsConfig, IOutlineComparator, IOutlineCreator, IOutlineQuickPickConfig, IOutlineService, IOutlineTreeConfig, IQuickPickDataSource, OutlineChangeEvent } from 'vs/workbench/services/outline/browser/outline';
 import { IWorkbenchContributionsRegistry, Extensions as WorkbenchExtensions } from 'vs/workbench/common/contributions';
 import { Registry } from 'vs/platform/registry/common/platform';
 import { LifecyclePhase } from 'vs/workbench/services/lifecycle/common/lifecycle';
@@ -225,6 +225,18 @@ class NotebookQuickPickProvider implements IQuickPickDataSource<OutlineEntry> {
 	}
 }
 
+class NotebookComparator implements IOutlineComparator<OutlineEntry> {
+	compareByPosition(a: OutlineEntry, b: OutlineEntry): number {
+		return a.index - b.index;
+	}
+	compareByType(a: OutlineEntry, b: OutlineEntry): number {
+		return a.cell.cellKind - b.cell.cellKind;
+	}
+	compareByName(a: OutlineEntry, b: OutlineEntry): number {
+		return a.label.localeCompare(b.label);
+	}
+}
+
 class NotebookCellOutline implements IOutline<OutlineEntry> {
 
 	private readonly _dispoables = new DisposableStore();
@@ -286,6 +298,7 @@ class NotebookCellOutline implements IOutline<OutlineEntry> {
 		const treeDataSource: IDataSource<this, OutlineEntry> = { getChildren: parent => parent instanceof NotebookCellOutline ? this._entries : parent.children };
 		const delegate = new NotebookOutlineVirtualDelegate();
 		const renderers = [instantiationService.createInstance(NotebookOutlineRenderer)];
+		const comparator = new NotebookComparator();
 
 		this.breadcrumbsConfig = {
 			breadcrumbsDataSource: {
@@ -302,6 +315,7 @@ class NotebookCellOutline implements IOutline<OutlineEntry> {
 			treeDataSource,
 			delegate,
 			renderers,
+			comparator,
 			options
 		};
 
@@ -309,6 +323,7 @@ class NotebookCellOutline implements IOutline<OutlineEntry> {
 			treeDataSource,
 			delegate,
 			renderers,
+			comparator,
 			options
 		};
 

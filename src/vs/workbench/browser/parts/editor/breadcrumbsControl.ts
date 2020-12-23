@@ -34,7 +34,7 @@ import { IThemeService } from 'vs/platform/theme/common/themeService';
 import { ResourceLabel } from 'vs/workbench/browser/labels';
 import { BreadcrumbsConfig, IBreadcrumbsService } from 'vs/workbench/browser/parts/editor/breadcrumbs';
 import { BreadcrumbsModel, FileElement, OutlineElement2 } from 'vs/workbench/browser/parts/editor/breadcrumbsModel';
-import { BreadcrumbsPicker, createBreadcrumbsPicker } from 'vs/workbench/browser/parts/editor/breadcrumbsPicker';
+import { BreadcrumbsFilePicker, BreadcrumbsOutlinePicker, BreadcrumbsPicker } from 'vs/workbench/browser/parts/editor/breadcrumbsPicker';
 import { IEditorPartOptions, EditorResourceAccessor, SideBySideEditor } from 'vs/workbench/common/editor';
 import { ACTIVE_GROUP, ACTIVE_GROUP_TYPE, IEditorService, SIDE_GROUP, SIDE_GROUP_TYPE } from 'vs/workbench/services/editor/common/editorService';
 import { IEditorGroupsService } from 'vs/workbench/services/editor/common/editorGroupsService';
@@ -50,6 +50,7 @@ class OutlineItem extends BreadcrumbsItem {
 	private readonly _disposables = new DisposableStore();
 
 	constructor(
+		readonly model: BreadcrumbsModel,
 		readonly element: OutlineElement2,
 		readonly options: IBreadcrumbsControlOptions
 	) {
@@ -108,6 +109,7 @@ class FileItem extends BreadcrumbsItem {
 	private readonly _disposables = new DisposableStore();
 
 	constructor(
+		readonly model: BreadcrumbsModel,
 		readonly element: FileElement,
 		readonly options: IBreadcrumbsControlOptions,
 		@IInstantiationService private readonly _instantiationService: IInstantiationService
@@ -287,7 +289,7 @@ export class BreadcrumbsControl {
 				showFileIcons: this._options.showFileIcons && showIcons,
 				showSymbolIcons: this._options.showSymbolIcons && showIcons
 			};
-			const items = model.getElements().map(element => element instanceof FileElement ? new FileItem(element, options, this._instantiationService) : new OutlineItem(element, options));
+			const items = model.getElements().map(element => element instanceof FileElement ? new FileItem(model, element, options, this._instantiationService) : new OutlineItem(model, element, options));
 			this._widget.setItems(items);
 			this._widget.reveal(items[items.length - 1]);
 		};
@@ -385,9 +387,13 @@ export class BreadcrumbsControl {
 
 		this._contextViewService.showContextView({
 			render: (parent: HTMLElement) => {
-				picker = createBreadcrumbsPicker(this._instantiationService, parent, element);
-				let selectListener = picker.onDidPickElement(() => this._contextViewService.hideContextView(this));
+				if (event.item instanceof FileItem) {
+					picker = this._instantiationService.createInstance(BreadcrumbsFilePicker, parent, event.item.model.resource);
+				} else if (event.item instanceof OutlineItem) {
+					picker = this._instantiationService.createInstance(BreadcrumbsOutlinePicker, parent, event.item.model.resource);
+				}
 
+				let selectListener = picker.onDidPickElement(() => this._contextViewService.hideContextView(this));
 				let zoomListener = onDidChangeZoomLevel(() => this._contextViewService.hideContextView(this));
 
 				let focusTracker = dom.trackFocus(parent);

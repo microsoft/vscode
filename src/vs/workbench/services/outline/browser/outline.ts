@@ -34,11 +34,18 @@ export interface IBreadcrumbsDataSource<E> {
 	getBreadcrumbElements(): Iterable<E>;
 }
 
+export interface IOutlineComparator<E> {
+	compareByPosition(a: E, b: E): number;
+	compareByType(a: E, b: E): number;
+	compareByName(a: E, b: E): number;
+}
+
 export interface IOutlineBreadcrumbsConfig<E> {
 	readonly breadcrumbsDataSource: IBreadcrumbsDataSource<E>;
 	readonly treeDataSource: IDataSource<IOutline<E>, E>;
 	readonly delegate: IListVirtualDelegate<E>;
 	readonly renderers: ITreeRenderer<E, FuzzyScore, any>[];
+	readonly comparator: IOutlineComparator<E>;
 	readonly options: IWorkbenchDataTreeOptions<E, FuzzyScore>;
 }
 
@@ -46,6 +53,7 @@ export interface IOutlineTreeConfig<E> {
 	readonly treeDataSource: IDataSource<IOutline<E>, E>;
 	readonly delegate: IListVirtualDelegate<E>;
 	readonly renderers: ITreeRenderer<E, FuzzyScore, any>[];
+	readonly comparator: IOutlineComparator<E>;
 	readonly options: IWorkbenchDataTreeOptions<E, FuzzyScore>;
 }
 

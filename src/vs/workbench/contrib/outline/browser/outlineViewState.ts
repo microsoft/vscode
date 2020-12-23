@@ -4,14 +4,16 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { Emitter } from 'vs/base/common/event';
+import { OutlineSortOrder } from 'vs/editor/contrib/documentSymbols/outline';
 import { IStorageService, StorageScope, StorageTarget } from 'vs/platform/storage/common/storage';
 
 export class OutlineViewState {
 
 	private _followCursor = false;
 	private _filterOnType = true;
+	private _sortBy = OutlineSortOrder.ByKind;
 
-	private readonly _onDidChange = new Emitter<{ followCursor?: boolean; sortBy?: boolean; filterOnType?: boolean; }>();
+	private readonly _onDidChange = new Emitter<{ followCursor?: boolean, sortBy?: boolean, filterOnType?: boolean }>();
 	readonly onDidChange = this._onDidChange.event;
 
 	set followCursor(value: boolean) {
@@ -36,9 +38,21 @@ export class OutlineViewState {
 		}
 	}
 
+	set sortBy(value: OutlineSortOrder) {
+		if (value !== this._sortBy) {
+			this._sortBy = value;
+			this._onDidChange.fire({ sortBy: true });
+		}
+	}
+
+	get sortBy(): OutlineSortOrder {
+		return this._sortBy;
+	}
+
 	persist(storageService: IStorageService): void {
 		storageService.store('outline/state', JSON.stringify({
 			followCursor: this.followCursor,
+			sortBy: this.sortBy,
 			filterOnType: this.filterOnType,
 		}), StorageScope.WORKSPACE, StorageTarget.USER);
 	}
@@ -55,6 +69,7 @@ export class OutlineViewState {
 			return;
 		}
 		this.followCursor = data.followCursor;
+		this.sortBy = data.sortBy ?? OutlineSortOrder.ByPosition;
 		if (typeof data.filterOnType === 'boolean') {
 			this.filterOnType = data.filterOnType;
 		}

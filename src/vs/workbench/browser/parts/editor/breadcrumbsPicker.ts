@@ -27,16 +27,11 @@ import { IIdentityProvider, IListVirtualDelegate, IKeyboardNavigationLabelProvid
 import { IFileIconTheme, IThemeService } from 'vs/platform/theme/common/themeService';
 import { IListAccessibilityProvider } from 'vs/base/browser/ui/list/listWidget';
 import { localize } from 'vs/nls';
-import { IOutline } from 'vs/workbench/services/outline/browser/outline';
+import { IOutline, IOutlineComparator } from 'vs/workbench/services/outline/browser/outline';
 import { IEditorOptions } from 'vs/platform/editor/common/editor';
 import { IEditorService, SIDE_GROUP } from 'vs/workbench/services/editor/common/editorService';
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
-
-export function createBreadcrumbsPicker(instantiationService: IInstantiationService, parent: HTMLElement, element: FileElement | OutlineElement2): BreadcrumbsPicker {
-	return element instanceof FileElement
-		? instantiationService.createInstance(BreadcrumbsFilePicker, parent)
-		: instantiationService.createInstance(BreadcrumbsOutlinePicker, parent);
-}
+import { ITextResourceConfigurationService } from 'vs/editor/common/services/textResourceConfigurationService';
 
 interface ILayoutInfo {
 	maxHeight: number;
@@ -70,6 +65,7 @@ export abstract class BreadcrumbsPicker {
 
 	constructor(
 		parent: HTMLElement,
+		protected resource: URI,
 		@IInstantiationService protected readonly _instantiationService: IInstantiationService,
 		@IThemeService protected readonly _themeService: IThemeService,
 		@IConfigurationService protected readonly _configurationService: IConfigurationService,
@@ -353,6 +349,7 @@ export class BreadcrumbsFilePicker extends BreadcrumbsPicker {
 
 	constructor(
 		parent: HTMLElement,
+		protected resource: URI,
 		@IInstantiationService instantiationService: IInstantiationService,
 		@IThemeService themeService: IThemeService,
 		@IConfigurationService configService: IConfigurationService,
@@ -360,7 +357,7 @@ export class BreadcrumbsFilePicker extends BreadcrumbsPicker {
 		@IEditorService private readonly _editorService: IEditorService,
 		@ITelemetryService telemetryService: ITelemetryService,
 	) {
-		super(parent, instantiationService, themeService, configService, telemetryService);
+		super(parent, resource, instantiationService, themeService, configService, telemetryService);
 	}
 
 	_createTree(container: HTMLElement) {
@@ -448,6 +445,29 @@ export class BreadcrumbsFilePicker extends BreadcrumbsPicker {
 
 //#region - Outline
 
+class OutlineTreeSorter<E> implements ITreeSorter<E> {
+
+	private _order: 'name' | 'type' | 'position';
+
+	constructor(
+		private comparator: IOutlineComparator<E>,
+		uri: URI | undefined,
+		@ITextResourceConfigurationService configService: ITextResourceConfigurationService,
+	) {
+		this._order = configService.getValue(uri, 'breadcrumbs.symbolSortOrder');
+	}
+
+	compare(a: E, b: E): number {
+		if (this._order === 'name') {
+			return this.comparator.compareByType(a, b);
+		} else if (this._order === 'type') {
+			return this.comparator.compareByName(a, b);
+		} else {
+			return this.comparator.compareByPosition(a, b);
+		}
+	}
+}
+
 export class BreadcrumbsOutlinePicker extends BreadcrumbsPicker {
 
 	protected _createTree(container: HTMLElement, input: OutlineElement2) {
@@ -463,6 +483,7 @@ export class BreadcrumbsOutlinePicker extends BreadcrumbsPicker {
 			config.treeDataSource,
 			{
 				...config.options,
+				sorter: this._instantiationService.createInstance(OutlineTreeSorter, config.comparator, undefined),
 				collapseByDefault: true,
 				expandOnlyOnTwistieClick: true,
 				multipleSelectionSupport: false,
@@ -471,7 +492,6 @@ export class BreadcrumbsOutlinePicker extends BreadcrumbsPicker {
 	}
 
 	protected _setInput(input: OutlineElement2): Promise<void> {
-
 
 		const tree = this._tree as WorkbenchDataTree<IOutline<any>, any, FuzzyScore>;
 

@@ -13,7 +13,6 @@ export const enum OutlineSortOrder {
 	ByKind
 }
 
-
 export const OutlineViewFiltered = new RawContextKey('outlineFiltered', false);
 export const OutlineViewFocused = new RawContextKey('outlineFocused', false);
 
