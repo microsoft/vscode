@@ -149,9 +149,9 @@ export class OutlinePane extends ViewPane {
 				this._editorDisposables.clear();
 
 			} else if (!this._editorListener.value) {
-				this._editorListener.value = Event.any(this._editorService.onDidActiveEditorChange, this._outlineService.onDidChange)(() => {
-					this._handleEditorChanged(this._editorService.activeEditorPane);
-				});
+				const event = Event.any(this._editorService.onDidActiveEditorChange, this._outlineService.onDidChange);
+				this._editorListener.value = event(() => this._handleEditorChanged(this._editorService.activeEditorPane));
+				this._handleEditorChanged(this._editorService.activeEditorPane);
 			}
 		}));
 	}
