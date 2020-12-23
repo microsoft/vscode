@@ -134,13 +134,10 @@ export class ExtHostTunnelService extends Disposable implements IExtHostTunnelSe
 
 	constructor(
 		@IExtHostRpcService extHostRpc: IExtHostRpcService,
-		@IExtHostInitDataService initData: IExtHostInitDataService
+		@IExtHostInitDataService private initData: IExtHostInitDataService
 	) {
 		super();
 		this._proxy = extHostRpc.getProxy(MainContext.MainThreadTunnelService);
-		if (initData.remote.isRemote && initData.remote.authority) {
-			this.registerCandidateFinder();
-		}
 	}
 
 	async openTunnel(extension: IExtensionDescription, forward: TunnelOptions): Promise<vscode.Tunnel | undefined> {
@@ -164,11 +161,11 @@ export class ExtHostTunnelService extends Disposable implements IExtHostTunnelSe
 		return Math.max(movingAverage * 20, 2000);
 	}
 
-	async registerCandidateFinder(): Promise<void> {
-		// Regularly scan to see if the candidate ports have changed.
-		if (!isLinux) {
+	async $registerCandidateFinder(): Promise<void> {
+		if (!isLinux || !this.initData.remote.isRemote || !this.initData.remote.authority) {
 			return;
 		}
+		// Regularly scan to see if the candidate ports have changed.
 		let movingAverage = new MovingAverage();
 		let oldPorts: { host: string, port: number, detail: string }[] | undefined = undefined;
 		while (1) {

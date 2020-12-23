@@ -24,6 +24,7 @@ export class MainThreadTunnelService extends Disposable implements MainThreadTun
 		this._proxy = extHostContext.getProxy(ExtHostContext.ExtHostTunnelService);
 		this._register(tunnelService.onTunnelOpened(() => this._proxy.$onDidTunnelsChange()));
 		this._register(tunnelService.onTunnelClosed(() => this._proxy.$onDidTunnelsChange()));
+		this._register(remoteExplorerService.onEnabledPortsFeatures(() => this._proxy.$registerCandidateFinder()));
 	}
 
 	async $openTunnel(tunnelOptions: TunnelOptions, source: string): Promise<TunnelDto | undefined> {
