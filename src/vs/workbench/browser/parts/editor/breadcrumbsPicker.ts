@@ -459,9 +459,9 @@ class OutlineTreeSorter<E> implements ITreeSorter<E> {
 
 	compare(a: E, b: E): number {
 		if (this._order === 'name') {
-			return this.comparator.compareByType(a, b);
-		} else if (this._order === 'type') {
 			return this.comparator.compareByName(a, b);
+		} else if (this._order === 'type') {
+			return this.comparator.compareByType(a, b);
 		} else {
 			return this.comparator.compareByPosition(a, b);
 		}

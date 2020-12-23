@@ -31,6 +31,7 @@ import { localize } from 'vs/nls';
 import { IMarkerService, MarkerSeverity } from 'vs/platform/markers/common/markers';
 import { listErrorForeground, listWarningForeground } from 'vs/platform/theme/common/colorRegistry';
 import { isEqual } from 'vs/base/common/resources';
+import { IdleValue } from 'vs/base/common/async';
 
 export interface IOutlineMarkerInfo {
 	readonly count: number;
@@ -226,14 +227,18 @@ class NotebookQuickPickProvider implements IQuickPickDataSource<OutlineEntry> {
 }
 
 class NotebookComparator implements IOutlineComparator<OutlineEntry> {
+
+	private readonly _collator = new IdleValue<Intl.Collator>(() => new Intl.Collator(undefined, { numeric: true }));
+
+
 	compareByPosition(a: OutlineEntry, b: OutlineEntry): number {
 		return a.index - b.index;
 	}
 	compareByType(a: OutlineEntry, b: OutlineEntry): number {
-		return a.cell.cellKind - b.cell.cellKind;
+		return a.cell.cellKind - b.cell.cellKind || this._collator.value.compare(a.label, b.label);
 	}
 	compareByName(a: OutlineEntry, b: OutlineEntry): number {
-		return a.label.localeCompare(b.label);
+		return this._collator.value.compare(a.label, b.label);
 	}
 }
 
