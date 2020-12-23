@@ -90,6 +90,13 @@ export class OutlinePane extends ViewPane {
 				this._tree?.resort();
 			}
 		}));
+
+		const updateContext = () => {
+			this._ctxFollowsCursor.set(this._outlineViewState.followCursor);
+			this._ctxFilterOnType.set(this._outlineViewState.filterOnType);
+		};
+		this._disposables.add(this._outlineViewState.onDidChange(updateContext));
+		updateContext();
 	}
 
 	dispose(): void {
@@ -117,8 +124,6 @@ export class OutlinePane extends ViewPane {
 		this._treeContainer = dom.$('.outline-tree');
 		dom.append(container, progressContainer, this._message, this._treeContainer);
 
-		this._disposables.add(this._outlineViewState.onDidChange(this._onDidChangeUserState, this));
-
 		this._disposables.add(this.onDidChangeBodyVisibility(visible => {
 			if (!visible) {
 				// stop everything when not visible
@@ -145,22 +150,6 @@ export class OutlinePane extends ViewPane {
 
 	get outlineViewState() {
 		return this._outlineViewState;
-	}
-
-	private _onDidChangeUserState(e: { followCursor?: boolean, sortBy?: boolean, filterOnType?: boolean }) {
-
-		this._ctxFollowsCursor.set(this._outlineViewState.followCursor);
-		this._ctxFilterOnType.set(this._outlineViewState.filterOnType);
-
-		this._outlineViewState.persist(this._storageService);
-		if (e.filterOnType) {
-			this._tree?.updateOptions({
-				filterOnType: this._outlineViewState.filterOnType
-			});
-		}
-		if (e.followCursor) {
-
-		}
 	}
 
 	private _showMessage(message: string) {
@@ -279,6 +268,17 @@ export class OutlinePane extends ViewPane {
 		};
 		revealActiveElement();
 		this._editorDisposables.add(newOutline.onDidChange(revealActiveElement));
+
+		// feature: update view when user state changes
+		this._editorDisposables.add(this._outlineViewState.onDidChange((e: { followCursor?: boolean, sortBy?: boolean, filterOnType?: boolean }) => {
+			this._outlineViewState.persist(this._storageService);
+			if (e.filterOnType) {
+				tree.updateOptions({ filterOnType: this._outlineViewState.filterOnType });
+			}
+			if (e.followCursor) {
+				revealActiveElement();
+			}
+		}));
 
 		// feature: expand all nodes when filtering (not when finding)
 		let viewState: IDataTreeViewState | undefined;
