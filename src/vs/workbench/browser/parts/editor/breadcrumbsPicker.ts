@@ -149,6 +149,8 @@ export abstract class BreadcrumbsPicker {
 		this._tree.layout(treeHeight, this._layoutInfo.width);
 	}
 
+	restoreViewState(): void { }
+
 	protected abstract _setInput(element: FileElement | OutlineElement2): Promise<void>;
 	protected abstract _createTree(container: HTMLElement, input: any): Tree<any, any>;
 	protected abstract _previewElement(element: any): IDisposable;
@@ -492,6 +494,9 @@ export class BreadcrumbsOutlinePicker extends BreadcrumbsPicker {
 	}
 
 	protected _setInput(input: OutlineElement2): Promise<void> {
+
+		const viewState = input.outline.captureViewState();
+		this.restoreViewState = () => { viewState.dispose(); };
 
 		const tree = this._tree as WorkbenchDataTree<IOutline<any>, any, FuzzyScore>;
 

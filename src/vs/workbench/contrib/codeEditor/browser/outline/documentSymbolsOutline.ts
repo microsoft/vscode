@@ -265,10 +265,7 @@ class DocumentSymbolsOutline implements IOutline<DocumentSymbolItem> {
 		if (!(entry instanceof OutlineElement)) {
 			return Disposable.None;
 		}
-		// todo@jrieken
-		// if (!editorViewState) {
-		// 	editorViewState = withNullAsUndefined(editor.saveViewState());
-		// }
+
 		const { symbol } = entry;
 		this._editor.revealRangeInCenterIfOutsideViewport(symbol.range, ScrollType.Smooth);
 		const ids = this._editor.deltaDecorations([], [{
@@ -279,6 +276,15 @@ class DocumentSymbolsOutline implements IOutline<DocumentSymbolItem> {
 			}
 		}]);
 		return toDisposable(() => this._editor.deltaDecorations(ids, []));
+	}
+
+	captureViewState(): IDisposable {
+		const viewState = this._editor.saveViewState();
+		return toDisposable(() => {
+			if (viewState) {
+				this._editor.restoreViewState(viewState);
+			}
+		});
 	}
 
 	private async _createOutline(contentChangeEvent?: IModelContentChangedEvent): Promise<void> {

@@ -82,5 +82,6 @@ export interface IOutline<E> {
 
 	reveal(entry: E, options: IEditorOptions, sideBySide: boolean): Promise<void> | void;
 	preview(entry: E): IDisposable;
+	captureViewState(): IDisposable;
 	dispose(): void;
 }

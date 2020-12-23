@@ -482,9 +482,17 @@ class NotebookCellOutline implements IOutline<OutlineEntry> {
 
 	}
 
-	getParent(_entry: OutlineEntry): OutlineEntry | undefined {
-		return undefined;
+	captureViewState(): IDisposable {
+		const widget = this._editor.getControl();
+		let viewState = widget?.getEditorViewState();
+		return toDisposable(() => {
+			if (viewState) {
+				widget?.restoreListViewState(viewState);
+
+			}
+		});
 	}
+
 }
 
 class NotebookOutlineCreator implements IOutlineCreator<NotebookEditor, OutlineEntry> {

@@ -13,9 +13,7 @@ import { combinedDisposable, DisposableStore, toDisposable } from 'vs/base/commo
 import { extUri } from 'vs/base/common/resources';
 import { URI } from 'vs/base/common/uri';
 import 'vs/css!./media/breadcrumbscontrol';
-import { ICodeEditor, isCodeEditor, isDiffEditor } from 'vs/editor/browser/editorBrowser';
 import { Range } from 'vs/editor/common/core/range';
-import { ICodeEditorViewState } from 'vs/editor/common/editorCommon';
 import { OutlineElement, OutlineModel } from 'vs/editor/contrib/documentSymbols/outlineModel';
 import { localize } from 'vs/nls';
 import { MenuId, MenuRegistry } from 'vs/platform/actions/common/actions';
@@ -313,26 +311,12 @@ export class BreadcrumbsControl {
 		this._breadcrumbsDisposables.add({
 			dispose: () => {
 				if (this._breadcrumbsPickerShowing) {
-					this._contextViewService.hideContextView(this);
+					this._contextViewService.hideContextView({ source: this });
 				}
 			}
 		});
 
 		return true;
-	}
-
-	private _getActiveCodeEditor(): ICodeEditor | undefined {
-		if (!this._editorGroup.activeEditorPane) {
-			return undefined;
-		}
-		let control = this._editorGroup.activeEditorPane.getControl();
-		let editor: ICodeEditor | undefined;
-		if (isCodeEditor(control)) {
-			editor = control as ICodeEditor;
-		} else if (isDiffEditor(control)) {
-			editor = control.getModifiedEditor();
-		}
-		return editor;
 	}
 
 	private _onFocusEvent(event: IBreadcrumbsItemEvent): void {
@@ -381,9 +365,8 @@ export class BreadcrumbsControl {
 		// show picker
 		let picker: BreadcrumbsPicker;
 		let pickerAnchor: { x: number; y: number };
-		let editor = this._getActiveCodeEditor();
-		let editorDecorations: string[] = [];
-		let editorViewState: ICodeEditorViewState | undefined;
+
+		interface IHideData { didPick?: boolean, source?: BreadcrumbsControl }
 
 		this._contextViewService.showContextView({
 			render: (parent: HTMLElement) => {
@@ -393,13 +376,13 @@ export class BreadcrumbsControl {
 					picker = this._instantiationService.createInstance(BreadcrumbsOutlinePicker, parent, event.item.model.resource);
 				}
 
-				let selectListener = picker.onDidPickElement(() => this._contextViewService.hideContextView(this));
-				let zoomListener = onDidChangeZoomLevel(() => this._contextViewService.hideContextView(this));
+				let selectListener = picker.onDidPickElement(() => this._contextViewService.hideContextView({ source: this, didPick: true }));
+				let zoomListener = onDidChangeZoomLevel(() => this._contextViewService.hideContextView({ source: this }));
 
 				let focusTracker = dom.trackFocus(parent);
 				let blurListener = focusTracker.onDidBlur(() => {
 					this._breadcrumbsPickerIgnoreOnceItem = this._widget.isDOMFocused() ? event.item : undefined;
-					this._contextViewService.hideContextView(this);
+					this._contextViewService.hideContextView({ source: this });
 				});
 
 				this._breadcrumbsPickerShowing = true;
@@ -446,16 +429,13 @@ export class BreadcrumbsControl {
 				}
 				return pickerAnchor;
 			},
-			onHide: (data) => {
-				if (editor) {
-					editor.deltaDecorations(editorDecorations, []);
-					if (editorViewState) {
-						editor.restoreViewState(editorViewState);
-					}
+			onHide: (data?: IHideData) => {
+				if (!data?.didPick) {
+					picker.restoreViewState();
 				}
 				this._breadcrumbsPickerShowing = false;
 				this._updateCkBreadcrumbsActive();
-				if (data === this) {
+				if (data?.source === this) {
 					this._widget.setFocused(undefined);
 					this._widget.setSelection(undefined);
 				}
