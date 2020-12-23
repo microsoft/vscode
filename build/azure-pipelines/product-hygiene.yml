@@ -39,14 +39,14 @@ steps:
 
   - task: Cache@2
     inputs:
-      key: 'genericNodeModules3 | $(Agent.OS) | .build/yarnlockhash'
+      key: 'genericNodeModules4 | $(Agent.OS) | .build/yarnlockhash'
       path: .build/node_modules_cache
       cacheHitVar: NODE_MODULES_RESTORED
     displayName: Cache node_modules archive
 
   - script: |
       set -e
-      tar --zstd -xf .build/node_modules_cache/cache.tzst -P -C $BUILD_SOURCESDIRECTORY
+      tar --zstd -xf .build/node_modules_cache/cache.tzst
       ls build/node_modules
     condition: and(succeeded(), eq(variables.NODE_MODULES_RESTORED, 'true'))
     displayName: Extract node_modules archive
@@ -76,7 +76,7 @@ steps:
       set -e
       node build/azure-pipelines/common/listNodeModules.js .build/node_modules_list.txt
       mkdir -p .build/node_modules_cache
-      tar --posix --zstd -cf .build/node_modules_cache/cache.tzst -P -C $BUILD_SOURCESDIRECTORY --files-from .build/node_modules_list.txt
+      tar --zstd -cf .build/node_modules_cache/cache.tzst --files-from .build/node_modules_list.txt
     condition: and(succeeded(), ne(variables.NODE_MODULES_RESTORED, 'true'))
     displayName: Create node_modules archive
 
