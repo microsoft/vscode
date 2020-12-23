@@ -27,6 +27,7 @@ import { IInstantiationService } from 'vs/platform/instantiation/common/instanti
 import { getIconClassesForModeId } from 'vs/editor/common/services/getIconClasses';
 import { SymbolKind } from 'vs/editor/common/modes';
 import { IWorkbenchDataTreeOptions } from 'vs/platform/list/browser/listService';
+import { localize } from 'vs/nls';
 
 export class OutlineEntry {
 
@@ -201,9 +202,8 @@ class NotebookCellOutline implements IOutline<OutlineEntry> {
 			} else {
 				selectionListener.value = combinedDisposable(
 					_editor.viewModel.onDidChangeSelection(() => this._recomputeActive()),
-					_editor.viewModel.onDidChangeViewCells(() => {
-						this._recomputeState();
-					}));
+					_editor.viewModel.onDidChangeViewCells(() => this._recomputeState())
+				);
 			}
 		};
 
@@ -220,7 +220,7 @@ class NotebookCellOutline implements IOutline<OutlineEntry> {
 			expandOnlyOnTwistieClick: true,
 			multipleSelectionSupport: false,
 			accessibilityProvider: new NotebookOutlineAccessibility(),
-			identityProvider: { getId: element => element.cell.handle },
+			identityProvider: { getId: element => element.cell.id },
 			keyboardNavigationLabelProvider: new NotebookNavigationLabelProvider()
 		};
 
@@ -281,11 +281,9 @@ class NotebookCellOutline implements IOutline<OutlineEntry> {
 			const content = cell.getText();
 			const isMarkdown = cell.cellKind === CellKind.Markdown;
 
-			// find first none empty line
-			const preview = content.match(/^.*\w+.*\w*$/m);
-			if (!preview) {
-				continue;
-			}
+			// find first none empty line or use default text
+			const lineMatch = content.match(/^.*\w+.*\w*$/m);
+			const preview = lineMatch ? lineMatch[0].trim() : localize('empty', "empty cell");
 
 			let level = 7;
 			if (isMarkdown) {
@@ -297,7 +295,7 @@ class NotebookCellOutline implements IOutline<OutlineEntry> {
 				}
 			}
 
-			const entry = new OutlineEntry(i, level, cell, preview[0].trim(), isMarkdown ? Codicon.markdown : Codicon.code);
+			const entry = new OutlineEntry(i, level, cell, preview, isMarkdown ? Codicon.markdown : Codicon.code);
 			entries.push(entry);
 			if (cell.handle === selected) {
 				this._activeEntry = entry;
