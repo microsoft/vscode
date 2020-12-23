@@ -38,8 +38,6 @@ function yarnInstall(location, opts) {
 
 for (let dir of dirs) {
 
-	continue;
-
 	if (dir === '') {
 		// `yarn` already executed in root
 		continue;
