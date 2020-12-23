@@ -40,14 +40,14 @@ steps:
 
   - task: Cache@2
     inputs:
-      key: 'nodeModules2 | $(Agent.OS) | .build/arch, .build/terrapin, build/.cachesalt, .yarnrc, remote/.yarnrc, **/yarn.lock, !**/node_modules/**/yarn.lock, !**/.*/**/yarn.lock'
+      key: 'nodeModules3 | $(Agent.OS) | .build/arch, .build/terrapin, build/.cachesalt, .yarnrc, remote/.yarnrc, **/yarn.lock, !**/node_modules/**/yarn.lock, !**/.*/**/yarn.lock'
       path: .build/node_modules_cache
       cacheHitVar: NODE_MODULES_RESTORED
     displayName: Cache yarn download folder
 
   - script: |
       set -e
-      tar --verbose --use-compress-program zstd -xf .build/node_modules_cache/cache.tzst -P -C $BUILD_SOURCESDIRECTORY
+      tar --zstd -xf .build/node_modules_cache/cache.tzst -P -C $BUILD_SOURCESDIRECTORY
       ls -al build/node_modules
     condition: and(succeeded(), eq(variables.NODE_MODULES_RESTORED, 'true'))
 
@@ -71,10 +71,8 @@ steps:
   - script: |
       set -e
       node build/azure-pipelines/common/listNodeModules.js > .build/node_modules_list.txt
-      cat .build/node_modules_list.txt
       mkdir -p .build/node_modules_cache
-      tar --posix --use-compress-program zstd -cf .build/node_modules_cache/cache.tzst -P -C $BUILD_SOURCESDIRECTORY --verbatim-files-from .build/node_modules_list.txt
-      ls -al .build/node_modules_cache
+      tar --posix --zstd -cf .build/node_modules_cache/cache.tzst -P -C $BUILD_SOURCESDIRECTORY --files-from .build/node_modules_list.txt
     condition: and(succeeded(), ne(variables.NODE_MODULES_RESTORED, 'true'))
 
   # # Mixin must run before optimize, because the CSS loader will inline small SVGs
