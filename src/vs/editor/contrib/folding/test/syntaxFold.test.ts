@@ -15,8 +15,6 @@ interface IndentRange {
 }
 
 class TestFoldingRangeProvider implements FoldingRangeProvider {
-	readonly id: null;
-
 	constructor(private model: ITextModel, private ranges: IndentRange[]) {
 	}
 
