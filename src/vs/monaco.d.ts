@@ -6361,6 +6361,24 @@ declare namespace monaco.languages {
 		resolveCodeLens?(model: editor.ITextModel, codeLens: CodeLens, token: CancellationToken): ProviderResult<CodeLens>;
 	}
 
+	export interface SignautreArguments {
+		name: string;
+		positions: IPosition[];
+	}
+
+	export interface SignatureArgumentsSignature {
+		arguments: SignautreArguments[];
+	}
+
+	export interface SignatureArgumentsLabelList {
+		signatures: SignatureArgumentsSignature[];
+		dispose(): void;
+	}
+
+	export interface SignatureArgumentsLabelProvider {
+		provideSignatureArgumentsLabels(model: editor.ITextModel, token: CancellationToken): ProviderResult<SignatureArgumentsLabelList>;
+	}
+
 	export interface SemanticTokensLegend {
 		readonly tokenTypes: string[];
 		readonly tokenModifiers: string[];

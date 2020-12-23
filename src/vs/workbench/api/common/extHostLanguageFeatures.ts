@@ -1075,7 +1075,7 @@ class SignatureArgumentsLabelAdapter {
 		return asPromise(() => this._provider.provideSignatureArgumentsLabels(doc, token)).then(value => {
 			if (value) {
 				const id = this._cache.add([value]);
-				return { ...typeConvert.SignatrueArgumentsLabelList.from(value), id };
+				return { signatures: value.signatures.map(typeConvert.SignatureArgumentsSignature.from), id };
 			}
 			return undefined;
 		});
@@ -1340,7 +1340,7 @@ type Adapter = DocumentSymbolAdapter | CodeLensAdapter | DefinitionAdapter | Hov
 	| SuggestAdapter | SignatureHelpAdapter | LinkProviderAdapter | ImplementationAdapter
 	| TypeDefinitionAdapter | ColorProviderAdapter | FoldingProviderAdapter | DeclarationAdapter
 	| SelectionRangeAdapter | CallHierarchyAdapter | DocumentSemanticTokensAdapter | DocumentRangeSemanticTokensAdapter | EvaluatableExpressionAdapter
-	| LinkedEditingRangeAdapter;
+	| LinkedEditingRangeAdapter | SignatureArgumentsLabelAdapter;
 
 class AdapterData {
 	constructor(
@@ -1779,6 +1779,12 @@ export class ExtHostLanguageFeatures implements extHostProtocol.ExtHostLanguageF
 
 		const handle = this._addNewAdapter(new SignatureHelpAdapter(this._documents, provider), extension);
 		this._proxy.$registerSignatureHelpProvider(handle, this._transformDocumentSelector(selector), metadata);
+		return this._createDisposable(handle);
+	}
+
+	registerSignatureArgumentsLabelProvider(extension: IExtensionDescription, selector: vscode.DocumentSelector, provider: vscode.SignatureArgumentsLabelProvider): vscode.Disposable {
+		const handle = this._addNewAdapter(new SignatureArgumentsLabelAdapter(this._documents, provider), extension);
+		this._proxy.$registerSignatureArgumentsLabelProvider(handle, this._transformDocumentSelector(selector));
 		return this._createDisposable(handle);
 	}
 

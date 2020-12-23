@@ -482,6 +482,9 @@ export function createApiFactoryAndRegisterActors(accessor: ServicesAccessor): I
 			getTokenInformationAtPosition(doc: vscode.TextDocument, pos: vscode.Position) {
 				checkProposedApiEnabled(extension);
 				return extHostLanguages.tokenAtPosition(doc, pos);
+			},
+			registerSignatureArgumentsLabelProvider(selector: vscode.DocumentSelector, provider: vscode.SignatureArgumentsLabelProvider): vscode.Disposable {
+				return extHostLanguageFeatures.registerSignatureArgumentsLabelProvider(extension, selector, provider)
 			}
 		};
 

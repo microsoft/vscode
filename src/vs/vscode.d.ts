@@ -10853,6 +10853,8 @@ declare module 'vscode' {
 		export function registerSignatureHelpProvider(selector: DocumentSelector, provider: SignatureHelpProvider, ...triggerCharacters: string[]): Disposable;
 		export function registerSignatureHelpProvider(selector: DocumentSelector, provider: SignatureHelpProvider, metadata: SignatureHelpProviderMetadata): Disposable;
 
+		export function registerSignatureArgumentsLabelProvider(selector: DocumentSelector, provider: SignatureArgumentsLabelProvider): Disposable;
+
 		/**
 		 * Register a document link provider.
 		 *

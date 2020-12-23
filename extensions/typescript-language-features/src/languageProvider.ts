@@ -82,6 +82,7 @@ export default class LanguageProvider extends Disposable {
 			import('./languageFeatures/typeDefinitions').then(provider => this._register(provider.register(selector, this.client))),
 			import('./languageFeatures/semanticTokens').then(provider => this._register(provider.register(selector, this.client))),
 			import('./languageFeatures/callHierarchy').then(provider => this._register(provider.register(selector, this.client))),
+			import('./languageFeatures/signatureArgumentsLabel').then(provider => this._register(provider.register(selector, this.client, this.fileConfigurationManager))),
 		]);
 	}
 

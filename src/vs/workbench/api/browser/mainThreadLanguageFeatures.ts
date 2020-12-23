@@ -499,10 +499,20 @@ export class MainThreadLanguageFeatures implements MainThreadLanguageFeaturesSha
 
 	// --- parameter labels
 
-	$registerSignatureArgumentsLabelSupport(handle: number, selector: IDocumentFilterDto[]): void {
+	$registerSignatureArgumentsLabelProvider(handle: number, selector: IDocumentFilterDto[]): void {
 		this._registrations.set(handle, modes.SignatureArgumentsLabelProviderRegistry.register(selector, <modes.SignatureArgumentsLabelProvider>{
 			provideSignatureArgumentsLabels: async (model: ITextModel, token: CancellationToken): Promise<modes.SignatureArgumentsLabelList | undefined> => {
-				return this._proxy.$provideSignatureArgumentsLabel(handle, model.uri, token);
+				const result = await this._proxy.$provideSignatureArgumentsLabel(handle, model.uri, token);
+
+				if (!result) {
+					return undefined
+				}
+				return {
+					signatures: result.signatures,
+					dispose: () => {
+
+					}
+				}
 			}
 		}));
 	}
