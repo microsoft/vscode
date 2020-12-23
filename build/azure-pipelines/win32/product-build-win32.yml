@@ -68,7 +68,7 @@ steps:
   - powershell: |
       . build/azure-pipelines/win32/exec.ps1
       $ErrorActionPreference = "Stop"
-      exec { tar --force-local -z -xf .build/node_modules_cache/cache.tgz -C $env:BUILD_SOURCESDIRECTORY }
+      exec { tar --force-local -z -xf .build/node_modules_cache/cache.tgz }
       exec { ls build\node_modules }
     condition: and(succeeded(), eq(variables.NODE_MODULES_RESTORED, 'true'))
     displayName: Extract node_modules archive
