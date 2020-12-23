@@ -4,7 +4,6 @@
  *--------------------------------------------------------------------------------------------*/
 
 import 'vs/css!./notebookOutline';
-import * as dom from 'vs/base/browser/dom';
 import { Codicon } from 'vs/base/common/codicons';
 import { Emitter, Event } from 'vs/base/common/event';
 import { combinedDisposable, IDisposable, Disposable, DisposableStore, MutableDisposable, toDisposable } from 'vs/base/common/lifecycle';
@@ -22,7 +21,6 @@ import { IDataSource, ITreeNode, ITreeRenderer } from 'vs/base/browser/ui/tree/t
 import { createMatches, FuzzyScore } from 'vs/base/common/filters';
 import { IconLabel } from 'vs/base/browser/ui/iconLabel/iconLabel';
 import { IListAccessibilityProvider } from 'vs/base/browser/ui/list/listWidget';
-import { Iterable } from 'vs/base/common/iterator';
 import { IEditorOptions } from 'vs/platform/editor/common/editor';
 import { IEditorService, SIDE_GROUP } from 'vs/workbench/services/editor/common/editorService';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
@@ -31,11 +29,45 @@ import { SymbolKind } from 'vs/editor/common/modes';
 import { IWorkbenchDataTreeOptions } from 'vs/platform/list/browser/listService';
 
 export class OutlineEntry {
+
+	private _children: OutlineEntry[] = [];
+	private _parent: OutlineEntry | undefined;
+
 	constructor(
+		readonly index: number,
+		readonly level: number,
 		readonly cell: ICellViewModel,
 		readonly label: string,
 		readonly icon: ThemeIcon
 	) { }
+
+	addChild(entry: OutlineEntry) {
+		this._children.push(entry);
+		entry._parent = this;
+	}
+
+	get parent(): OutlineEntry | undefined {
+		return this._parent;
+	}
+
+	get children(): Iterable<OutlineEntry> {
+		return this._children;
+	}
+
+	find(cell: ICellViewModel, parents: OutlineEntry[]): OutlineEntry | undefined {
+		if (cell.id === this.cell.id) {
+			return this;
+		}
+		parents.push(this);
+		for (let child of this.children) {
+			const result = child.find(cell, parents);
+			if (result) {
+				return result;
+			}
+		}
+		parents.pop();
+		return undefined;
+	}
 }
 
 class NotebookOutlineTemplate {
@@ -56,7 +88,7 @@ class NotebookOutlineRenderer implements ITreeRenderer<OutlineEntry, FuzzyScore,
 
 	renderTemplate(container: HTMLElement): NotebookOutlineTemplate {
 		container.classList.add('notebook-outline-element', 'show-file-icons');
-		const iconClass = dom.$('.element-icon');
+		const iconClass = document.createElement('div');
 		container.append(iconClass);
 		const iconLabel = new IconLabel(container, { supportHighlights: true });
 		return new NotebookOutlineTemplate(iconLabel, iconClass);
@@ -65,11 +97,10 @@ class NotebookOutlineRenderer implements ITreeRenderer<OutlineEntry, FuzzyScore,
 	renderElement(element: ITreeNode<OutlineEntry, FuzzyScore>, _index: number, templateData: NotebookOutlineTemplate, _height: number | undefined): void {
 		templateData.iconLabel.setLabel(element.element.label, undefined, { matches: createMatches(element.filterData) });
 		if (this._themeService.getFileIconTheme().hasFileIcons) {
-			templateData.iconClass.classList.add(...getIconClassesForModeId(element.element.cell.language));
+			templateData.iconClass.className = 'element-icon ' + getIconClassesForModeId(element.element.cell.language).join(' ');
 		} else {
-			templateData.iconClass.classList.add(...ThemeIcon.asClassNameArray(element.element.icon));
+			templateData.iconClass.className = 'element-icon ' + ThemeIcon.asClassNameArray(element.element.icon).join(' ');
 		}
-
 	}
 
 	disposeTemplate(templateData: NotebookOutlineTemplate): void {
@@ -131,7 +162,7 @@ class NotebookCellOutline implements IOutline<OutlineEntry> {
 	readonly onDidChange: Event<OutlineChangeEvent> = this._onDidChange.event;
 
 	private _entries: OutlineEntry[] = [];
-	private _activeEntry: number = -1;
+	private _activeEntry?: OutlineEntry;
 	private readonly _entriesDisposables = new DisposableStore();
 
 	readonly breadcrumbsConfig: IOutlineBreadcrumbsConfig<OutlineEntry>;
@@ -141,7 +172,7 @@ class NotebookCellOutline implements IOutline<OutlineEntry> {
 	readonly outlineKind = 'notebookCells';
 
 	get activeElement(): OutlineEntry | undefined {
-		return this._entries[this._activeEntry];
+		return this._activeEntry;
 	}
 
 	constructor(
@@ -180,12 +211,22 @@ class NotebookCellOutline implements IOutline<OutlineEntry> {
 			keyboardNavigationLabelProvider: new NotebookNavigationLabelProvider()
 		};
 
-		const treeDataSource: IDataSource<this, OutlineEntry> = { getChildren: parent => parent === this ? this._entries : [] };
+		const treeDataSource: IDataSource<this, OutlineEntry> = { getChildren: parent => parent instanceof NotebookCellOutline ? this._entries : parent.children };
 		const delegate = new NotebookOutlineVirtualDelegate();
 		const renderers = [instantiationService.createInstance(NotebookOutlineRenderer)];
 
 		this.breadcrumbsConfig = {
-			breadcrumbsDataSource: { getBreadcrumbElements: () => this._activeEntry >= 0 ? Iterable.single(this._entries[this._activeEntry]) : Iterable.empty() },
+			breadcrumbsDataSource: {
+				getBreadcrumbElements: () => {
+					let result: OutlineEntry[] = [];
+					let candidate = this._activeEntry;
+					while (candidate) {
+						result.unshift(candidate);
+						candidate = candidate.parent;
+					}
+					return result;
+				}
+			},
 			treeDataSource,
 			delegate,
 			renderers,
@@ -211,7 +252,7 @@ class NotebookCellOutline implements IOutline<OutlineEntry> {
 
 	private _recomputeState(): void {
 		this._entriesDisposables.clear();
-		this._activeEntry = -1;
+		this._activeEntry = undefined;
 		this._entries.length = 0;
 
 		const { viewModel } = this._editor;
@@ -220,25 +261,33 @@ class NotebookCellOutline implements IOutline<OutlineEntry> {
 		}
 
 		const [selected] = viewModel.selectionHandles;
+		const entries: OutlineEntry[] = [];
 
-		for (const cell of viewModel.viewCells) {
+		for (let i = 0; i < viewModel.viewCells.length; i++) {
+			const cell = viewModel.viewCells[i];
 			const content = cell.getText();
-			const regexp = cell.cellKind === CellKind.Markdown
-				? /^[ \t]*(\#+)(.+)$/gm // md: header
-				: /^.*\w+.*\w*$/m;		// code: none empty line
+			const isMarkdown = cell.cellKind === CellKind.Markdown;
 
-			const matches = content.match(regexp);
-			if (matches && matches.length) {
-				for (let j = 0; j < matches.length; j++) {
-					const newLen = this._entries.push(new OutlineEntry(
-						cell,
-						matches[j].replace(/^[ \t]*(\#+)/, '').trim(),
-						cell.cellKind === CellKind.Markdown ? Codicon.markdown : Codicon.code
-					));
-					if (cell.handle === selected) {
-						this._activeEntry = newLen - 1;
+			// find first none empty line
+			const preview = content.match(/^.*\w+.*\w*$/m);
+			if (!preview) {
+				continue;
+			}
+
+			let level = 7;
+			if (isMarkdown) {
+				const headers = content.match(/^[ \t]*(\#+)/gm);
+				if (headers) {
+					for (let j = 0; j < headers.length; j++) {
+						level = Math.min(level, headers[j].length);
 					}
 				}
+			}
+
+			const entry = new OutlineEntry(i, level, cell, preview[0].trim(), isMarkdown ? Codicon.markdown : Codicon.code);
+			entries.push(entry);
+			if (cell.handle === selected) {
+				this._activeEntry = entry;
 			}
 
 			// send an event whenever any of the cells change
@@ -247,18 +296,60 @@ class NotebookCellOutline implements IOutline<OutlineEntry> {
 				this._onDidChange.fire({});
 			}));
 		}
+
+		// build a tree from the list of entries
+		if (entries.length > 0) {
+			let result: OutlineEntry[] = [entries[0]];
+			let parentStack: OutlineEntry[] = [entries[0]];
+
+			for (let i = 1; i < entries.length; i++) {
+				let entry = entries[i];
+
+				while (true) {
+					const len = parentStack.length;
+					if (len === 0) {
+						// root node
+						result.push(entry);
+						parentStack.push(entry);
+						break;
+
+					} else {
+						let parentCandidate = parentStack[len - 1];
+						if (parentCandidate.level < entry.level) {
+							parentCandidate.addChild(entry);
+							parentStack.push(entry);
+							break;
+						} else {
+							parentStack.pop();
+						}
+					}
+				}
+			}
+
+			this._entries = result;
+		}
+
 		this._onDidChange.fire({});
 	}
 
 	private _recomputeActive(): void {
-		let newIdx = -1;
+		let newActive: OutlineEntry | undefined;
 		const { viewModel } = this._editor;
+
 		if (viewModel) {
 			const [selected] = viewModel.selectionHandles;
-			newIdx = this._entries.findIndex(entry => entry.cell.handle === selected);
+			const cell = viewModel.getCellByHandle(selected);
+			if (cell) {
+				for (let entry of this._entries) {
+					newActive = entry.find(cell, []);
+					if (newActive) {
+						break;
+					}
+				}
+			}
 		}
-		if (newIdx !== this._activeEntry) {
-			this._activeEntry = newIdx;
+		if (newActive !== this._activeEntry) {
+			this._activeEntry = newActive;
 			this._onDidChange.fire({ affectOnlyActiveElement: true });
 		}
 	}
