@@ -96,15 +96,15 @@ steps:
   - powershell: |
       mkdir -Force .build/node_modules_cache
 
-  - powershell: |
-      . build/azure-pipelines/win32/exec.ps1
-      $ErrorActionPreference = "Stop"
-      exec { cat .build/node_modules_list.txt }
+  # - powershell: |
+  #     . build/azure-pipelines/win32/exec.ps1
+  #     $ErrorActionPreference = "Stop"
+  #     exec { cat .build/node_modules_list.txt }
+      # exec { tar --version }
 
   - powershell: |
       . build/azure-pipelines/win32/exec.ps1
       $ErrorActionPreference = "Stop"
-      exec { tar --version }
       exec { tar --posix -z -cvf "$BUILD_SOURCESDIRECTORY/.build/node_modules_cache/cache.tgz" -T "$BUILD_SOURCESDIRECTORY/.build/node_modules_list.txt" }
     condition: and(succeeded(), ne(variables.NODE_MODULES_RESTORED, 'true'))
     displayName: Create node_modules archive
