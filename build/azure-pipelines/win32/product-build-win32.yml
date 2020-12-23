@@ -90,7 +90,8 @@ steps:
       $ErrorActionPreference = "Stop"
       exec { node build/azure-pipelines/common/listNodeModules.js > .build/node_modules_list.txt }
       exec { mkdir -Force .build/node_modules_cache }
-      exec { tar -z -cf .build/node_modules_cache/cache.tgz -P -C $BUILD_SOURCESDIRECTORY -T .build/node_modules_list.txt }
+      exec { tar --version }
+      exec { tar -czf .build/node_modules_cache/cache.tgz -P -C $BUILD_SOURCESDIRECTORY -T.build/node_modules_list.txt }
     condition: and(succeeded(), ne(variables.NODE_MODULES_RESTORED, 'true'))
     displayName: Create node_modules archive
 
