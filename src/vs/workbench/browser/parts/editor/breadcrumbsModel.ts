@@ -6,7 +6,7 @@
 import { CancellationTokenSource } from 'vs/base/common/cancellation';
 import { onUnexpectedError } from 'vs/base/common/errors';
 import { Emitter, Event } from 'vs/base/common/event';
-import { DisposableStore, toDisposable } from 'vs/base/common/lifecycle';
+import { DisposableStore, MutableDisposable, toDisposable } from 'vs/base/common/lifecycle';
 import { isEqual, dirname } from 'vs/base/common/resources';
 import { URI } from 'vs/base/common/uri';
 import { IWorkspaceContextService, IWorkspaceFolder, WorkbenchState } from 'vs/platform/workspace/common/workspace';
@@ -43,9 +43,8 @@ export class BreadcrumbsModel {
 	private readonly _cfgFilePath: BreadcrumbsConfig<'on' | 'off' | 'last'>;
 	private readonly _cfgSymbolPath: BreadcrumbsConfig<'on' | 'off' | 'last'>;
 
-	private _currentOutline?: IOutline<any>;
+	private readonly _currentOutline = new MutableDisposable<IOutline<any>>();
 	private readonly _outlineDisposables = new DisposableStore();
-
 
 	private readonly _onDidUpdate = new Emitter<this>();
 	readonly onDidUpdate: Event<this> = this._onDidUpdate.event;
@@ -76,6 +75,7 @@ export class BreadcrumbsModel {
 		this._cfgEnabled.dispose();
 		this._cfgFilePath.dispose();
 		this._cfgSymbolPath.dispose();
+		this._currentOutline.dispose();
 		this._outlineDisposables.dispose();
 		this._disposables.dispose();
 		this._onDidUpdate.dispose();
@@ -99,17 +99,17 @@ export class BreadcrumbsModel {
 			return result;
 		}
 
-		if (!this._currentOutline) {
+		if (!this._currentOutline.value) {
 			return result;
 		}
 
 		let didAddOutlineElement = false;
-		for (let element of this._currentOutline.breadcrumbsConfig.breadcrumbsDataSource.getBreadcrumbElements()) {
-			result.push(new OutlineElement2(element, this._currentOutline));
+		for (let element of this._currentOutline.value.breadcrumbsConfig.breadcrumbsDataSource.getBreadcrumbElements()) {
+			result.push(new OutlineElement2(element, this._currentOutline.value));
 			didAddOutlineElement = true;
 		}
-		if (!didAddOutlineElement && !this._currentOutline.isEmpty) {
-			result.push(new OutlineElement2(this._currentOutline, this._currentOutline));
+		if (!didAddOutlineElement && !this._currentOutline.value.isEmpty) {
+			result.push(new OutlineElement2(this._currentOutline.value, this._currentOutline.value));
 		}
 
 		return result;
@@ -150,7 +150,7 @@ export class BreadcrumbsModel {
 
 	private _bindToEditor(editor: IEditorPane): void {
 		const newCts = new CancellationTokenSource();
-
+		this._currentOutline.clear();
 		this._outlineDisposables.clear();
 		this._outlineDisposables.add(toDisposable(() => newCts.dispose(true)));
 
@@ -160,18 +160,15 @@ export class BreadcrumbsModel {
 				outline?.dispose();
 				outline = undefined;
 			}
-			this._currentOutline = outline;
+			this._currentOutline.value = outline;
 			this._onDidUpdate.fire(this);
 			if (outline) {
-				this._outlineDisposables.add(outline);
 				this._outlineDisposables.add(outline.onDidChange(() => this._onDidUpdate.fire(this)));
 			}
 
 		}).catch(err => {
-			this._currentOutline = undefined;
 			this._onDidUpdate.fire(this);
 			onUnexpectedError(err);
 		});
 	}
-
 }
