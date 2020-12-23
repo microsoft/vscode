@@ -52,10 +52,9 @@ steps:
     condition: and(succeeded(), eq(variables['ENABLE_TERRAPIN'], 'true'))
 
   - powershell: |
-      mkdir -Force .build
       "$(VSCODE_ARCH)" | Out-File -Encoding ascii -NoNewLine .build\arch
       "$env:ENABLE_TERRAPIN" | Out-File -Encoding ascii -NoNewLine .build\terrapin
-      node build/azure-pipelines/common/computeNodeModulesCacheKey.js $VSCODE_ARCH $ENABLE_TERRAPIN > .build/yarnlockhash
+      node build/azure-pipelines/common/computeNodeModulesCacheKey.js > .build/yarnlockhash
     displayName: Prepare yarn cache flags
 
   - task: 1ESLighthouseEng.PipelineArtifactCaching.RestoreCacheV1.RestoreCache@1
