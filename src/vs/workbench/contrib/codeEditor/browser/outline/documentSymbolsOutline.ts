@@ -16,7 +16,6 @@ import { OutlineGroup, OutlineElement, OutlineModel, TreeElement, IOutlineMarker
 import { DocumentSymbolProviderRegistry } from 'vs/editor/common/modes';
 import { CancellationToken, CancellationTokenSource } from 'vs/base/common/cancellation';
 import { raceCancellation, TimeoutTimer, timeout, Barrier } from 'vs/base/common/async';
-import { equals } from 'vs/base/common/arrays';
 import { onUnexpectedError } from 'vs/base/common/errors';
 import { URI } from 'vs/base/common/uri';
 import { ITextModel } from 'vs/editor/common/model';
@@ -50,21 +49,13 @@ class DocumentSymbolBreadcrumbsSource implements IBreadcrumbsDataSource<Document
 		return this._breadcrumbs;
 	}
 
-	clear(): boolean {
-		return this._updateBreadcrumbs([]);
+	clear(): void {
+		this._breadcrumbs = [];
 	}
 
-	update(model: OutlineModel, position: IPosition): boolean {
+	update(model: OutlineModel, position: IPosition): void {
 		const newElements = this._computeBreadcrumbs(model, position);
-		return this._updateBreadcrumbs(newElements);
-	}
-
-	private _updateBreadcrumbs(newElements: (OutlineGroup | OutlineElement)[]): boolean {
-		if (!equals(newElements, this._breadcrumbs, DocumentSymbolBreadcrumbsSource._outlineElementEquals)) {
-			this._breadcrumbs = newElements;
-			return true;
-		}
-		return false;
+		this._breadcrumbs = newElements;
 	}
 
 	private _computeBreadcrumbs(model: OutlineModel, position: IPosition): Array<OutlineGroup | OutlineElement> {
@@ -109,16 +100,6 @@ class DocumentSymbolBreadcrumbsSource implements IBreadcrumbsDataSource<Document
 			uri = model.uri;
 		}
 		return !this._textResourceConfigurationService.getValue<boolean>(uri, key);
-	}
-
-	private static _outlineElementEquals(a: OutlineGroup | OutlineElement, b: OutlineGroup | OutlineElement): boolean {
-		if (a === b) {
-			return true;
-		} else if (!a || !b) {
-			return false;
-		} else {
-			return a.id === b.id;
-		}
 	}
 }
 
