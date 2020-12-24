@@ -37,9 +37,6 @@ import { CancellationTokenSource } from 'vs/base/common/cancellation';
 import { Event } from 'vs/base/common/event';
 import { ITreeSorter } from 'vs/base/browser/ui/tree/tree';
 
-
-const _ctxViewFiltered = new RawContextKey('outlineFiltered', false); // todo@jrieken remove?
-const _ctxViewFocused = new RawContextKey('outlineFocused', false); // todo@jrieken remove ?
 const _ctxFollowsCursor = new RawContextKey('outlineFollowsCursor', false);
 const _ctxFilterOnType = new RawContextKey('outlineFiltersOnType', false);
 const _ctxSortMode = new RawContextKey<OutlineSortOrder>('outlineSortMode', OutlineSortOrder.ByPosition);
@@ -81,8 +78,6 @@ export class OutlinePane extends ViewPane {
 	private _treeDimensions?: dom.Dimension;
 	private _treeStates = new LRUCache<string, IDataTreeViewState>(10);
 
-	private _ctxFocused!: IContextKey<boolean>;
-	private _ctxFiltered!: IContextKey<boolean>;
 	private _ctxFollowsCursor!: IContextKey<boolean>;
 	private _ctxFilterOnType!: IContextKey<boolean>;
 	private _ctxSortMode!: IContextKey<OutlineSortOrder>;
@@ -108,8 +103,6 @@ export class OutlinePane extends ViewPane {
 		this._disposables.add(this._outlineViewState);
 
 		contextKeyService.bufferChangeEvents(() => {
-			this._ctxFocused = _ctxViewFocused.bindTo(contextKeyService);
-			this._ctxFiltered = _ctxViewFiltered.bindTo(contextKeyService);
 			this._ctxFollowsCursor = _ctxFollowsCursor.bindTo(contextKeyService);
 			this._ctxFilterOnType = _ctxFilterOnType.bindTo(contextKeyService);
 			this._ctxSortMode = _ctxSortMode.bindTo(contextKeyService);
@@ -122,8 +115,6 @@ export class OutlinePane extends ViewPane {
 		};
 		updateContext();
 		this._disposables.add(this._outlineViewState.onDidChange(updateContext));
-		this._disposables.add(this.onDidFocus(_ => this._ctxFocused.set(true)));
-		this._disposables.add(this.onDidBlur(_ => this._ctxFocused.set(false)));
 	}
 
 	dispose(): void {
@@ -275,9 +266,6 @@ export class OutlinePane extends ViewPane {
 
 		// feature: filter on type - keep tree and menu in sync
 		this._editorDisposables.add(tree.onDidUpdateOptions(e => this._outlineViewState.filterOnType = Boolean(e.filterOnType)));
-
-		// feature: reset filter command when disposing
-		this._editorDisposables.add(toDisposable(() => this._ctxFiltered.reset()));
 
 		// feature: reveal outline selection in editor
 		// on change -> reveal/select defining range
