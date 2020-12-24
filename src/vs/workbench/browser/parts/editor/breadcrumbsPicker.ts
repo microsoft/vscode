@@ -58,8 +58,8 @@ export abstract class BreadcrumbsPicker {
 	protected _fakeEvent = new UIEvent('fakeEvent');
 	protected _layoutInfo!: ILayoutInfo;
 
-	private readonly _onDidPickElement = new Emitter<void>();
-	readonly onDidPickElement: Event<void> = this._onDidPickElement.event;
+	protected readonly _onWillPickElement = new Emitter<void>();
+	readonly onWillPickElement: Event<void> = this._onWillPickElement.event;
 
 	private readonly _previewDispoables = new MutableDisposable();
 
@@ -79,7 +79,7 @@ export abstract class BreadcrumbsPicker {
 	dispose(): void {
 		this._disposables.dispose();
 		this._previewDispoables.dispose();
-		this._onDidPickElement.dispose();
+		this._onWillPickElement.dispose();
 		this._domNode.remove();
 		setTimeout(() => this._tree.dispose(), 0); // tree cannot be disposed while being opened...
 	}
@@ -109,9 +109,6 @@ export abstract class BreadcrumbsPicker {
 			if (!didReveal) {
 				return;
 			}
-			// tell the outside, will close this picker
-			this._onDidPickElement.fire();
-
 			// send telemetry
 			interface OpenEvent { type: string }
 			interface OpenEventGDPR { type: { classification: 'SystemMetaData', purpose: 'FeatureInsight' } }
@@ -437,6 +434,7 @@ export class BreadcrumbsFilePicker extends BreadcrumbsPicker {
 			resource = element.resource;
 		}
 		if (resource) {
+			this._onWillPickElement.fire();
 			await this._editorService.openEditor({ resource, options }, sideBySide ? SIDE_GROUP : undefined);
 			return true;
 		}
@@ -516,6 +514,7 @@ export class BreadcrumbsOutlinePicker extends BreadcrumbsPicker {
 	}
 
 	async _revealElement(element: any, options: IEditorOptions, sideBySide: boolean): Promise<boolean> {
+		this._onWillPickElement.fire();
 		const outline: IOutline<any> = this._tree.getInput();
 		await outline.reveal(element, options, sideBySide);
 		return true;

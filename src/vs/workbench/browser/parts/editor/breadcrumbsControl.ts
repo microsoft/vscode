@@ -375,7 +375,7 @@ export class BreadcrumbsControl {
 					picker = this._instantiationService.createInstance(BreadcrumbsOutlinePicker, parent, event.item.model.resource);
 				}
 
-				let selectListener = picker.onDidPickElement(() => this._contextViewService.hideContextView({ source: this, didPick: true }));
+				let selectListener = picker.onWillPickElement(() => this._contextViewService.hideContextView({ source: this, didPick: true }));
 				let zoomListener = onDidChangeZoomLevel(() => this._contextViewService.hideContextView({ source: this }));
 
 				let focusTracker = dom.trackFocus(parent);
