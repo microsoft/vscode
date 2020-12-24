@@ -69,7 +69,7 @@ steps:
     displayName: Run Unit Tests (Electron)
 
   - script: |
-      DEBUG=pw:api yarn test-browser --browser chromium --browser webkit --browser firefox --tfs "Browser Unit Tests"
+      yarn test-browser --browser chromium --browser webkit --browser firefox --tfs "Browser Unit Tests"
     displayName: Run Unit Tests (Browser)
 
   - script: |
