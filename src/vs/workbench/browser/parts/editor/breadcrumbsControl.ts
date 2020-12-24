@@ -13,8 +13,6 @@ import { combinedDisposable, DisposableStore, toDisposable } from 'vs/base/commo
 import { extUri } from 'vs/base/common/resources';
 import { URI } from 'vs/base/common/uri';
 import 'vs/css!./media/breadcrumbscontrol';
-import { Range } from 'vs/editor/common/core/range';
-import { OutlineElement, OutlineModel } from 'vs/editor/contrib/documentSymbols/outlineModel';
 import { localize } from 'vs/nls';
 import { MenuId, MenuRegistry } from 'vs/platform/actions/common/actions';
 import { CommandsRegistry } from 'vs/platform/commands/common/commands';
@@ -24,7 +22,7 @@ import { IContextViewService } from 'vs/platform/contextview/browser/contextView
 import { FileKind, IFileService, IFileStat } from 'vs/platform/files/common/files';
 import { IInstantiationService, ServicesAccessor } from 'vs/platform/instantiation/common/instantiation';
 import { KeybindingsRegistry, KeybindingWeight } from 'vs/platform/keybinding/common/keybindingsRegistry';
-import { IListService, WorkbenchListFocusContextKey } from 'vs/platform/list/browser/listService';
+import { IListService, WorkbenchDataTree, WorkbenchListFocusContextKey } from 'vs/platform/list/browser/listService';
 import { IQuickInputService } from 'vs/platform/quickinput/common/quickInput';
 import { ColorIdentifier, ColorFunction } from 'vs/platform/theme/common/colorRegistry';
 import { attachBreadcrumbsStyler } from 'vs/platform/theme/common/styler';
@@ -42,6 +40,7 @@ import { onDidChangeZoomLevel } from 'vs/base/browser/browser';
 import { ILabelService } from 'vs/platform/label/common/label';
 import { CATEGORIES } from 'vs/workbench/common/actions';
 import { ITreeNode } from 'vs/base/browser/ui/tree/tree';
+import { IOutline } from 'vs/workbench/services/outline/browser/outline';
 
 class OutlineItem extends BreadcrumbsItem {
 
@@ -694,30 +693,29 @@ KeybindingsRegistry.registerCommandAndKeybindingRule({
 	handler(accessor) {
 		const editors = accessor.get(IEditorService);
 		const lists = accessor.get(IListService);
-		const element = lists.lastFocusedList ? <OutlineElement | IFileStat>lists.lastFocusedList.getFocus()[0] : undefined;
-		if (element instanceof OutlineElement) {
-			// TODO@jrieken this isn't OK
-			const outlineElement = OutlineModel.get(element);
-			if (!outlineElement) {
-				return undefined;
-			}
 
-			// open symbol in editor
-			return editors.openEditor({
-				resource: outlineElement.textModel.uri,
-				options: { selection: Range.collapseToStart(element.symbol.selectionRange), pinned: true }
-			}, SIDE_GROUP);
+		const tree = lists.lastFocusedList;
+		if (!(tree instanceof WorkbenchDataTree)) {
+			return;
+		}
 
-		} else if (element && URI.isUri(element.resource)) {
-			// open file in editor
+		const element = <IFileStat | unknown>tree.getFocus()[0];
+
+		if (URI.isUri((<IFileStat>element)?.resource)) {
+			// IFileStat: open file in editor
 			return editors.openEditor({
-				resource: element.resource,
+				resource: (<IFileStat>element).resource,
 				options: { pinned: true }
 			}, SIDE_GROUP);
+		}
 
-		} else {
-			// ignore
-			return undefined;
+		// IOutline: check if this the outline and iff so reveal element
+		const input = tree.getInput();
+		if (input && typeof (<IOutline<any>>input).outlineKind === 'string') {
+			return (<IOutline<any>>input).reveal(element, {
+				pinned: true,
+				preserveFocus: false
+			}, true);
 		}
 	}
 });
