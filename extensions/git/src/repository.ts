@@ -80,7 +80,7 @@ export class Resource implements SourceControlResourceState {
 	}
 
 	get rightUri(): Uri {
-		return this.resources[1];
+		return this.resources[1] as Uri;
 	}
 
 	get command(): Command {
@@ -88,7 +88,7 @@ export class Resource implements SourceControlResourceState {
 	}
 
 	@memoize
-	private get resources(): [Uri | undefined, Uri] {
+	private get resources(): [Uri | undefined, Uri | undefined] {
 		return this._commandResolver.getResources(this);
 	}
 
