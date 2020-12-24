@@ -114,7 +114,7 @@ export class TunnelModel extends Disposable {
 	public onClosePort: Event<{ host: string, port: number }> = this._onClosePort.event;
 	private _onPortName: Emitter<{ host: string, port: number }> = new Emitter();
 	public onPortName: Event<{ host: string, port: number }> = this._onPortName.event;
-	private _candidates: Map<string, { host: string, port: number, detail: string }>;
+	private _candidates: Map<string, { host: string, port: number, detail: string }> | undefined;
 	private _onCandidatesChanged: Emitter<Map<string, { host: string, port: number }>> = new Emitter();
 	// onCandidateChanged returns the removed candidates
 	public onCandidatesChanged: Event<Map<string, { host: string, port: number }>> = this._onCandidatesChanged.event;
@@ -133,7 +133,6 @@ export class TunnelModel extends Disposable {
 	) {
 		super();
 		this.tunnelRestoreValue = this.storageService.get(TUNNELS_TO_RESTORE, StorageScope.WORKSPACE);
-		this._candidates = new Map();
 		this.forwarded = new Map();
 		this.remoteTunnels = new Map();
 		this.tunnelService.tunnels.then(tunnels => {
@@ -145,7 +144,7 @@ export class TunnelModel extends Disposable {
 						remoteHost: tunnel.tunnelRemoteHost,
 						localAddress: tunnel.localAddress,
 						localPort: tunnel.tunnelLocalPort,
-						runningProcess: mapHasAddressLocalhostOrAllInterfaces(this._candidates, tunnel.tunnelRemoteHost, tunnel.tunnelRemotePort)?.detail
+						runningProcess: mapHasAddressLocalhostOrAllInterfaces(this._candidates ?? new Map(), tunnel.tunnelRemoteHost, tunnel.tunnelRemotePort)?.detail
 					});
 					this.remoteTunnels.set(key, tunnel);
 				}
@@ -162,7 +161,7 @@ export class TunnelModel extends Disposable {
 					localAddress: tunnel.localAddress,
 					localPort: tunnel.tunnelLocalPort,
 					closeable: true,
-					runningProcess: mapHasAddressLocalhostOrAllInterfaces(this._candidates, tunnel.tunnelRemoteHost, tunnel.tunnelRemotePort)?.detail
+					runningProcess: mapHasAddressLocalhostOrAllInterfaces(this._candidates ?? new Map(), tunnel.tunnelRemoteHost, tunnel.tunnelRemotePort)?.detail
 				});
 			}
 			this.storeForwarded();
@@ -214,7 +213,7 @@ export class TunnelModel extends Disposable {
 					name: name,
 					closeable: true,
 					localAddress: tunnel.localAddress,
-					runningProcess: mapHasAddressLocalhostOrAllInterfaces(this._candidates, remote.host, remote.port)?.detail,
+					runningProcess: mapHasAddressLocalhostOrAllInterfaces(this._candidates ?? new Map(), remote.host, remote.port)?.detail,
 					source
 				};
 				const key = makeAddress(remote.host, remote.port);
@@ -265,7 +264,7 @@ export class TunnelModel extends Disposable {
 					remotePort: tunnel.remoteAddress.port,
 					localAddress: typeof tunnel.localAddress === 'string' ? tunnel.localAddress : makeAddress(tunnel.localAddress.host, tunnel.localAddress.port),
 					closeable: false,
-					runningProcess: mapHasAddressLocalhostOrAllInterfaces(this._candidates, tunnel.remoteAddress.host, tunnel.remoteAddress.port)?.detail
+					runningProcess: mapHasAddressLocalhostOrAllInterfaces(this._candidates ?? new Map(), tunnel.remoteAddress.host, tunnel.remoteAddress.port)?.detail
 				});
 			});
 		}
@@ -296,12 +295,13 @@ export class TunnelModel extends Disposable {
 
 	// Returns removed candidates
 	private updateInResponseToCandidates(candidates: { host: string, port: number, detail: string }[]): Map<string, { host: string, port: number }> {
-		const removedCandidates = this._candidates;
-		this._candidates = new Map();
+		const removedCandidates = this._candidates ?? new Map();
+		const candidatesMap = new Map();
+		this._candidates = candidatesMap;
 		candidates.forEach(value => {
 			const detail = this.polishProcessDetail(value.detail);
 			const addressKey = makeAddress(value.host, value.port);
-			this._candidates.set(addressKey, {
+			candidatesMap.set(addressKey, {
 				host: value.host,
 				port: value.port,
 				detail
@@ -332,7 +332,11 @@ export class TunnelModel extends Disposable {
 	}
 
 	get candidates(): { host: string, port: number, detail: string }[] {
-		return Array.from(this._candidates.values());
+		return this._candidates ? Array.from(this._candidates.values()) : [];
+	}
+
+	get candidatesOrUndefined(): { host: string, port: number, detail: string }[] | undefined {
+		return this._candidates ? this.candidates : undefined;
 	}
 }
 
@@ -350,6 +354,9 @@ export interface IRemoteExplorerService {
 	setCandidateFilter(filter: ((candidates: { host: string, port: number, detail: string }[]) => Promise<{ host: string, port: number, detail: string }[]>) | undefined): IDisposable;
 	onFoundNewCandidates(candidates: { host: string, port: number, detail: string }[]): void;
 	restore(): Promise<void>;
+	enablePortsFeatures(): void;
+	onEnabledPortsFeatures: Event<void>;
+	portsFeaturesEnabled: boolean;
 }
 
 class RemoteExplorerService implements IRemoteExplorerService {
@@ -361,6 +368,9 @@ class RemoteExplorerService implements IRemoteExplorerService {
 	private _editable: { tunnelItem: ITunnelItem | undefined, data: IEditableData } | undefined;
 	private readonly _onDidChangeEditable: Emitter<ITunnelItem | undefined> = new Emitter();
 	public readonly onDidChangeEditable: Event<ITunnelItem | undefined> = this._onDidChangeEditable.event;
+	private readonly _onEnabledPortsFeatures: Emitter<void> = new Emitter();
+	public readonly onEnabledPortsFeatures: Event<void> = this._onEnabledPortsFeatures.event;
+	private _portsFeaturesEnabled: boolean = false;
 
 	constructor(
 		@IStorageService private readonly storageService: IStorageService,
@@ -439,6 +449,15 @@ class RemoteExplorerService implements IRemoteExplorerService {
 
 	restore(): Promise<void> {
 		return this.tunnelModel.restoreForwarded();
+	}
+
+	enablePortsFeatures(): void {
+		this._portsFeaturesEnabled = true;
+		this._onEnabledPortsFeatures.fire();
+	}
+
+	get portsFeaturesEnabled(): boolean {
+		return this._portsFeaturesEnabled;
 	}
 }
 

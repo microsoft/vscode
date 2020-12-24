@@ -100,6 +100,12 @@ export function loadConnectionTable(stdout: string): Record<string, string>[] {
 	return table;
 }
 
+function knownExcludeCmdline(command: string): boolean {
+	return !!command.match(/.*\.vscode-server-[a-zA-Z]+\/bin.*/)
+		|| (command.indexOf('out/vs/server/main.js') !== -1)
+		|| (command.indexOf('_productName=VSCode') !== -1);
+}
+
 export async function findPorts(tcp: string, tcp6: string, procSockets: string, processes: { pid: number, cwd: string, cmd: string }[]) {
 	const connections: { socket: number, ip: string, port: number }[] = loadListeningPorts(tcp, tcp6);
 	const sockets = getSockets(procSockets);
@@ -116,7 +122,7 @@ export async function findPorts(tcp: string, tcp6: string, procSockets: string, 
 	const ports: { host: string, port: number, detail: string }[] = [];
 	connections.filter((connection => socketMap[connection.socket])).forEach(({ socket, ip, port }) => {
 		const command = processMap[socketMap[socket].pid].cmd;
-		if (!command.match(/.*\.vscode-server-[a-zA-Z]+\/bin.*/) && (command.indexOf('out/vs/server/main.js') === -1)) {
+		if (!knownExcludeCmdline(command)) {
 			ports.push({ host: ip, port, detail: processMap[socketMap[socket].pid].cmd });
 		}
 	});
@@ -134,13 +140,10 @@ export class ExtHostTunnelService extends Disposable implements IExtHostTunnelSe
 
 	constructor(
 		@IExtHostRpcService extHostRpc: IExtHostRpcService,
-		@IExtHostInitDataService initData: IExtHostInitDataService
+		@IExtHostInitDataService private initData: IExtHostInitDataService
 	) {
 		super();
 		this._proxy = extHostRpc.getProxy(MainContext.MainThreadTunnelService);
-		if (initData.remote.isRemote && initData.remote.authority) {
-			this.registerCandidateFinder();
-		}
 	}
 
 	async openTunnel(extension: IExtensionDescription, forward: TunnelOptions): Promise<vscode.Tunnel | undefined> {
@@ -164,11 +167,11 @@ export class ExtHostTunnelService extends Disposable implements IExtHostTunnelSe
 		return Math.max(movingAverage * 20, 2000);
 	}
 
-	async registerCandidateFinder(): Promise<void> {
-		// Regularly scan to see if the candidate ports have changed.
-		if (!isLinux) {
+	async $registerCandidateFinder(): Promise<void> {
+		if (!isLinux || !this.initData.remote.isRemote || !this.initData.remote.authority) {
 			return;
 		}
+		// Regularly scan to see if the candidate ports have changed.
 		let movingAverage = new MovingAverage();
 		let oldPorts: { host: string, port: number, detail: string }[] | undefined = undefined;
 		while (1) {
