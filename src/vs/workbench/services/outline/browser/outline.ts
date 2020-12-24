@@ -9,7 +9,6 @@ import { CancellationToken } from 'vs/base/common/cancellation';
 import { Event } from 'vs/base/common/event';
 import { FuzzyScore } from 'vs/base/common/filters';
 import { IDisposable } from 'vs/base/common/lifecycle';
-import { SymbolKind } from 'vs/editor/common/modes';
 import { IEditorOptions } from 'vs/platform/editor/common/editor';
 import { createDecorator } from 'vs/platform/instantiation/common/instantiation';
 import { IWorkbenchDataTreeOptions } from 'vs/platform/list/browser/listService';
@@ -57,8 +56,16 @@ export interface IOutlineTreeConfig<E> {
 	readonly options: IWorkbenchDataTreeOptions<E, FuzzyScore>;
 }
 
+export interface IQuickPickOutlineElement<E> {
+	readonly element: E;
+	readonly label: string;
+	readonly iconClasses?: string[];
+	readonly ariaLabel?: string;
+	readonly description?: string;
+}
+
 export interface IQuickPickDataSource<E> {
-	getQuickPickElements(): Iterable<{ element: E, kind?: SymbolKind, label: string, iconClasses?: string[], ariaLabel?: string, description?: string }>;
+	getQuickPickElements(): Iterable<IQuickPickOutlineElement<E>>;
 }
 
 export interface IOutlineQuickPickConfig<E> {

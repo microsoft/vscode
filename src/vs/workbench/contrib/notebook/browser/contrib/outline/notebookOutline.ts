@@ -11,7 +11,7 @@ import { IThemeService, ThemeIcon } from 'vs/platform/theme/common/themeService'
 import { ICellViewModel } from 'vs/workbench/contrib/notebook/browser/notebookBrowser';
 import { NotebookEditor } from 'vs/workbench/contrib/notebook/browser/notebookEditor';
 import { CellKind } from 'vs/workbench/contrib/notebook/common/notebookCommon';
-import { IOutline, IOutlineBreadcrumbsConfig, IOutlineComparator, IOutlineCreator, IOutlineQuickPickConfig, IOutlineService, IOutlineTreeConfig, IQuickPickDataSource, OutlineChangeEvent } from 'vs/workbench/services/outline/browser/outline';
+import { IOutline, IOutlineBreadcrumbsConfig, IOutlineComparator, IOutlineCreator, IOutlineQuickPickConfig, IOutlineService, IOutlineTreeConfig, IQuickPickDataSource, IQuickPickOutlineElement, OutlineChangeEvent } from 'vs/workbench/services/outline/browser/outline';
 import { IWorkbenchContributionsRegistry, Extensions as WorkbenchExtensions } from 'vs/workbench/common/contributions';
 import { Registry } from 'vs/platform/registry/common/platform';
 import { LifecyclePhase } from 'vs/workbench/services/lifecycle/common/lifecycle';
@@ -25,7 +25,6 @@ import { IEditorOptions } from 'vs/platform/editor/common/editor';
 import { IEditorService, SIDE_GROUP } from 'vs/workbench/services/editor/common/editorService';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { getIconClassesForModeId } from 'vs/editor/common/services/getIconClasses';
-import { SymbolKind } from 'vs/editor/common/modes';
 import { IWorkbenchDataTreeOptions } from 'vs/platform/list/browser/listService';
 import { localize } from 'vs/nls';
 import { IMarkerService, MarkerSeverity } from 'vs/platform/markers/common/markers';
@@ -229,21 +228,24 @@ class NotebookQuickPickProvider implements IQuickPickDataSource<OutlineEntry> {
 		@IThemeService private readonly _themeService: IThemeService
 	) { }
 
-	getQuickPickElements(): Iterable<{ element: OutlineEntry; kind?: SymbolKind | undefined; label: string; iconClasses?: string[] | undefined; ariaLabel?: string | undefined; description?: string | undefined; }> {
-
-		let bucket: OutlineEntry[] = [];
+	getQuickPickElements(): Iterable<IQuickPickOutlineElement<OutlineEntry>> {
+		const bucket: OutlineEntry[] = [];
 		for (let entry of this._getEntries()) {
 			entry.asFlatList(bucket);
 		}
-
-		return bucket.map(entry => {
-			return {
-				element: entry,
-				iconClasses: this._themeService.getFileIconTheme().hasFileIcons ? getIconClassesForModeId(entry.cell.language ?? '') : ThemeIcon.asClassNameArray(entry.icon),
-				label: entry.label,
-				ariaLabel: entry.label
-			};
-		});
+		const result: IQuickPickOutlineElement<OutlineEntry>[] = [];
+		const { hasFileIcons } = this._themeService.getFileIconTheme();
+		for (let element of bucket) {
+			// todo@jrieken it is fishy that codicons cannot be used with iconClasses
+			// but file icons can...
+			result.push({
+				element,
+				label: hasFileIcons ? element.label : `$(${element.icon.id}) ${element.label}`,
+				ariaLabel: element.label,
+				iconClasses: hasFileIcons ? getIconClassesForModeId(element.cell.language ?? '') : undefined,
+			});
+		}
+		return result;
 	}
 }
 
