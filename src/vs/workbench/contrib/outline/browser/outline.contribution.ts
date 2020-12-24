@@ -170,41 +170,49 @@ Registry.as<IConfigurationRegistry>(ConfigurationExtensions.Configuration).regis
 		'outline.showObjects': {
 			type: 'boolean',
 			default: true,
+			scope: ConfigurationScope.LANGUAGE_OVERRIDABLE,
 			markdownDescription: localize('filteredTypes.object', "When enabled outline shows `object`-symbols.")
 		},
 		'outline.showKeys': {
 			type: 'boolean',
 			default: true,
+			scope: ConfigurationScope.LANGUAGE_OVERRIDABLE,
 			markdownDescription: localize('filteredTypes.key', "When enabled outline shows `key`-symbols.")
 		},
 		'outline.showNull': {
 			type: 'boolean',
 			default: true,
+			scope: ConfigurationScope.LANGUAGE_OVERRIDABLE,
 			markdownDescription: localize('filteredTypes.null', "When enabled outline shows `null`-symbols.")
 		},
 		'outline.showEnumMembers': {
 			type: 'boolean',
 			default: true,
+			scope: ConfigurationScope.LANGUAGE_OVERRIDABLE,
 			markdownDescription: localize('filteredTypes.enumMember', "When enabled outline shows `enumMember`-symbols.")
 		},
 		'outline.showStructs': {
 			type: 'boolean',
 			default: true,
+			scope: ConfigurationScope.LANGUAGE_OVERRIDABLE,
 			markdownDescription: localize('filteredTypes.struct', "When enabled outline shows `struct`-symbols.")
 		},
 		'outline.showEvents': {
 			type: 'boolean',
 			default: true,
+			scope: ConfigurationScope.LANGUAGE_OVERRIDABLE,
 			markdownDescription: localize('filteredTypes.event', "When enabled outline shows `event`-symbols.")
 		},
 		'outline.showOperators': {
 			type: 'boolean',
 			default: true,
+			scope: ConfigurationScope.LANGUAGE_OVERRIDABLE,
 			markdownDescription: localize('filteredTypes.operator', "When enabled outline shows `operator`-symbols.")
 		},
 		'outline.showTypeParameters': {
 			type: 'boolean',
 			default: true,
+			scope: ConfigurationScope.LANGUAGE_OVERRIDABLE,
 			markdownDescription: localize('filteredTypes.typeParameter', "When enabled outline shows `typeParameter`-symbols.")
 		}
 	}
