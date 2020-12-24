@@ -10,7 +10,7 @@ import { IWorkbenchContributionsRegistry, Extensions as WorkbenchExtensions } fr
 import { Registry } from 'vs/platform/registry/common/platform';
 import { LifecyclePhase } from 'vs/workbench/services/lifecycle/common/lifecycle';
 import { IEditorPane } from 'vs/workbench/common/editor';
-import { DocumentSymbolComparator, OutlineAccessibilityProvider, OutlineElementRenderer, OutlineFilter, OutlineGroupRenderer, OutlineIdentityProvider, OutlineNavigationLabelProvider, OutlineVirtualDelegate } from 'vs/workbench/contrib/codeEditor/browser/outline/documentSymbolsTree';
+import { DocumentSymbolComparator, DocumentSymbolAccessibilityProvider, DocumentSymbolRenderer, DocumentSymbolFilter, DocumentSymbolGroupRenderer, DocumentSymbolIdentityProvider, DocumentSymbolNavigationLabelProvider, DocumentSymbolVirtualDelegate } from 'vs/workbench/contrib/codeEditor/browser/outline/documentSymbolsTree';
 import { ICodeEditor, isCodeEditor, isDiffEditor } from 'vs/editor/browser/editorBrowser';
 import { OutlineGroup, OutlineElement, OutlineModel, TreeElement, IOutlineMarker } from 'vs/editor/contrib/documentSymbols/outlineModel';
 import { DocumentSymbolProviderRegistry } from 'vs/editor/common/modes';
@@ -93,7 +93,7 @@ class DocumentSymbolBreadcrumbsSource implements IBreadcrumbsDataSource<Document
 		if (!(element instanceof OutlineElement)) {
 			return false;
 		}
-		const key = `breadcrumbs.${OutlineFilter.kindToConfigName[element.symbol.kind]}`;
+		const key = `breadcrumbs.${DocumentSymbolFilter.kindToConfigName[element.symbol.kind]}`;
 		let uri: URI | undefined;
 		if (this._editor && this._editor.getModel()) {
 			const model = this._editor.getModel() as ITextModel;
@@ -141,8 +141,8 @@ class DocumentSymbolsOutline implements IOutline<DocumentSymbolItem> {
 	) {
 
 		this._breadcrumbsDataSource = new DocumentSymbolBreadcrumbsSource(_editor, textResourceConfigurationService);
-		const delegate = new OutlineVirtualDelegate();
-		const renderers = [new OutlineGroupRenderer(), instantiationService.createInstance(OutlineElementRenderer, true)];
+		const delegate = new DocumentSymbolVirtualDelegate();
+		const renderers = [new DocumentSymbolGroupRenderer(), instantiationService.createInstance(DocumentSymbolRenderer, true)];
 		const treeDataSource: IDataSource<this, DocumentSymbolItem> = {
 			getChildren: (parent) => {
 				if (parent instanceof OutlineElement || parent instanceof OutlineGroup) {
@@ -159,8 +159,8 @@ class DocumentSymbolsOutline implements IOutline<DocumentSymbolItem> {
 			collapseByDefault: true,
 			expandOnlyOnTwistieClick: true,
 			multipleSelectionSupport: false,
-			identityProvider: new OutlineIdentityProvider(),
-			keyboardNavigationLabelProvider: new OutlineNavigationLabelProvider(),
+			identityProvider: new DocumentSymbolIdentityProvider(),
+			keyboardNavigationLabelProvider: new DocumentSymbolNavigationLabelProvider(),
 		};
 
 		this.breadcrumbsConfig = {
@@ -171,8 +171,8 @@ class DocumentSymbolsOutline implements IOutline<DocumentSymbolItem> {
 			comparator,
 			options: {
 				...options,
-				filter: instantiationService.createInstance(OutlineFilter, 'breadcrumbs'),
-				accessibilityProvider: new OutlineAccessibilityProvider(localize('breadcrumbs', "Breadcrumbs")),
+				filter: instantiationService.createInstance(DocumentSymbolFilter, 'breadcrumbs'),
+				accessibilityProvider: new DocumentSymbolAccessibilityProvider(localize('breadcrumbs', "Breadcrumbs")),
 			}
 		};
 
@@ -183,8 +183,8 @@ class DocumentSymbolsOutline implements IOutline<DocumentSymbolItem> {
 			comparator,
 			options: {
 				...options,
-				filter: instantiationService.createInstance(OutlineFilter, 'outline'),
-				accessibilityProvider: new OutlineAccessibilityProvider(localize('outline', "Outline")),
+				filter: instantiationService.createInstance(DocumentSymbolFilter, 'outline'),
+				accessibilityProvider: new DocumentSymbolAccessibilityProvider(localize('outline', "Outline")),
 			}
 		};
 

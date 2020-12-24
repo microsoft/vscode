@@ -7,7 +7,7 @@ import 'vs/css!./documentSymbolsTree';
 import * as dom from 'vs/base/browser/dom';
 import { HighlightedLabel } from 'vs/base/browser/ui/highlightedlabel/highlightedLabel';
 import { IIdentityProvider, IKeyboardNavigationLabelProvider, IListVirtualDelegate } from 'vs/base/browser/ui/list/list';
-import { IDataSource, ITreeNode, ITreeRenderer, ITreeFilter } from 'vs/base/browser/ui/tree/tree';
+import { ITreeNode, ITreeRenderer, ITreeFilter } from 'vs/base/browser/ui/tree/tree';
 import { createMatches, FuzzyScore } from 'vs/base/common/filters';
 import { Range } from 'vs/editor/common/core/range';
 import { SymbolKind, SymbolKinds, SymbolTag } from 'vs/editor/common/modes';
@@ -23,16 +23,14 @@ import { IdleValue } from 'vs/base/common/async';
 import { ITextResourceConfigurationService } from 'vs/editor/common/services/textResourceConfigurationService';
 import { URI } from 'vs/base/common/uri';
 import { IListAccessibilityProvider } from 'vs/base/browser/ui/list/listWidget';
-import { Iterable } from 'vs/base/common/iterator';
 import { Codicon } from 'vs/base/common/codicons';
 import { IOutlineComparator } from 'vs/workbench/services/outline/browser/outline';
 
-export type OutlineItem = OutlineGroup | OutlineElement;
+export type DocumentSymbolItem = OutlineGroup | OutlineElement;
 
+export class DocumentSymbolNavigationLabelProvider implements IKeyboardNavigationLabelProvider<DocumentSymbolItem> {
 
-export class OutlineNavigationLabelProvider implements IKeyboardNavigationLabelProvider<OutlineItem> {
-
-	getKeyboardNavigationLabel(element: OutlineItem): { toString(): string; } {
+	getKeyboardNavigationLabel(element: DocumentSymbolItem): { toString(): string; } {
 		if (element instanceof OutlineGroup) {
 			return element.label;
 		} else {
@@ -41,15 +39,14 @@ export class OutlineNavigationLabelProvider implements IKeyboardNavigationLabelP
 	}
 }
 
-export class OutlineAccessibilityProvider implements IListAccessibilityProvider<OutlineItem> {
+export class DocumentSymbolAccessibilityProvider implements IListAccessibilityProvider<DocumentSymbolItem> {
 
-	constructor(private readonly ariaLabel: string) { }
+	constructor(private readonly _ariaLabel: string) { }
 
 	getWidgetAriaLabel(): string {
-		return this.ariaLabel;
+		return this._ariaLabel;
 	}
-
-	getAriaLabel(element: OutlineItem): string | null {
+	getAriaLabel(element: DocumentSymbolItem): string | null {
 		if (element instanceof OutlineGroup) {
 			return element.label;
 		} else {
@@ -58,22 +55,22 @@ export class OutlineAccessibilityProvider implements IListAccessibilityProvider<
 	}
 }
 
-export class OutlineIdentityProvider implements IIdentityProvider<OutlineItem> {
-	getId(element: OutlineItem): { toString(): string; } {
+export class DocumentSymbolIdentityProvider implements IIdentityProvider<DocumentSymbolItem> {
+	getId(element: DocumentSymbolItem): { toString(): string; } {
 		return element.id;
 	}
 }
 
-export class OutlineGroupTemplate {
-	static readonly id = 'OutlineGroupTemplate';
+class DocumentSymbolGroupTemplate {
+	static readonly id = 'DocumentSymbolGroupTemplate';
 	constructor(
 		readonly labelContainer: HTMLElement,
 		readonly label: HighlightedLabel,
 	) { }
 }
 
-export class OutlineElementTemplate {
-	static readonly id = 'OutlineElementTemplate';
+class DocumentSymbolTemplate {
+	static readonly id = 'DocumentSymbolTemplate';
 	constructor(
 		readonly container: HTMLElement,
 		readonly iconLabel: IconLabel,
@@ -82,47 +79,42 @@ export class OutlineElementTemplate {
 	) { }
 }
 
-export class OutlineVirtualDelegate implements IListVirtualDelegate<OutlineItem> {
+export class DocumentSymbolVirtualDelegate implements IListVirtualDelegate<DocumentSymbolItem> {
 
-	getHeight(_element: OutlineItem): number {
+	getHeight(_element: DocumentSymbolItem): number {
 		return 22;
 	}
 
-	getTemplateId(element: OutlineItem): string {
-		if (element instanceof OutlineGroup) {
-			return OutlineGroupTemplate.id;
-		} else {
-			return OutlineElementTemplate.id;
-		}
+	getTemplateId(element: DocumentSymbolItem): string {
+		return element instanceof OutlineGroup
+			? DocumentSymbolGroupTemplate.id
+			: DocumentSymbolTemplate.id;
 	}
 }
 
-export class OutlineGroupRenderer implements ITreeRenderer<OutlineGroup, FuzzyScore, OutlineGroupTemplate> {
+export class DocumentSymbolGroupRenderer implements ITreeRenderer<OutlineGroup, FuzzyScore, DocumentSymbolGroupTemplate> {
 
-	readonly templateId: string = OutlineGroupTemplate.id;
+	readonly templateId: string = DocumentSymbolGroupTemplate.id;
 
-	renderTemplate(container: HTMLElement): OutlineGroupTemplate {
+	renderTemplate(container: HTMLElement): DocumentSymbolGroupTemplate {
 		const labelContainer = dom.$('.outline-element-label');
 		container.classList.add('outline-element');
 		dom.append(container, labelContainer);
-		return new OutlineGroupTemplate(labelContainer, new HighlightedLabel(labelContainer, true));
+		return new DocumentSymbolGroupTemplate(labelContainer, new HighlightedLabel(labelContainer, true));
 	}
 
-	renderElement(node: ITreeNode<OutlineGroup, FuzzyScore>, index: number, template: OutlineGroupTemplate): void {
-		template.label.set(
-			node.element.label,
-			createMatches(node.filterData)
-		);
+	renderElement(node: ITreeNode<OutlineGroup, FuzzyScore>, _index: number, template: DocumentSymbolGroupTemplate): void {
+		template.label.set(node.element.label, createMatches(node.filterData));
 	}
 
-	disposeTemplate(_template: OutlineGroupTemplate): void {
+	disposeTemplate(_template: DocumentSymbolGroupTemplate): void {
 		// nothing
 	}
 }
 
-export class OutlineElementRenderer implements ITreeRenderer<OutlineElement, FuzzyScore, OutlineElementTemplate> {
+export class DocumentSymbolRenderer implements ITreeRenderer<OutlineElement, FuzzyScore, DocumentSymbolTemplate> {
 
-	readonly templateId: string = OutlineElementTemplate.id;
+	readonly templateId: string = DocumentSymbolTemplate.id;
 
 	constructor(
 		private _renderMarker: boolean,
@@ -130,23 +122,23 @@ export class OutlineElementRenderer implements ITreeRenderer<OutlineElement, Fuz
 		@IThemeService private readonly _themeService: IThemeService,
 	) { }
 
-	renderTemplate(container: HTMLElement): OutlineElementTemplate {
+	renderTemplate(container: HTMLElement): DocumentSymbolTemplate {
 		container.classList.add('outline-element');
 		const iconLabel = new IconLabel(container, { supportHighlights: true });
 		const iconClass = dom.$('.outline-element-icon');
 		const decoration = dom.$('.outline-element-decoration');
 		container.prepend(iconClass);
 		container.appendChild(decoration);
-		return new OutlineElementTemplate(container, iconLabel, iconClass, decoration);
+		return new DocumentSymbolTemplate(container, iconLabel, iconClass, decoration);
 	}
 
-	renderElement(node: ITreeNode<OutlineElement, FuzzyScore>, index: number, template: OutlineElementTemplate): void {
+	renderElement(node: ITreeNode<OutlineElement, FuzzyScore>, _index: number, template: DocumentSymbolTemplate): void {
 		const { element } = node;
 		const options = {
 			matches: createMatches(node.filterData),
 			labelEscapeNewLines: true,
 			extraClasses: <string[]>[],
-			title: localize('title.template', "{0} ({1})", element.symbol.name, OutlineElementRenderer._symbolKindNames[element.symbol.kind])
+			title: localize('title.template', "{0} ({1})", element.symbol.name, DocumentSymbolRenderer._symbolKindNames[element.symbol.kind])
 		};
 		if (this._configurationService.getValue(OutlineConfigKeys.icons)) {
 			// add styles for the icons
@@ -164,7 +156,7 @@ export class OutlineElementRenderer implements ITreeRenderer<OutlineElement, Fuz
 		}
 	}
 
-	private _renderMarkerInfo(element: OutlineElement, template: OutlineElementTemplate): void {
+	private _renderMarkerInfo(element: OutlineElement, template: DocumentSymbolTemplate): void {
 
 		if (!element.marker) {
 			dom.hide(template.decoration);
@@ -232,41 +224,12 @@ export class OutlineElementRenderer implements ITreeRenderer<OutlineElement, Fuz
 		[SymbolKind.Variable]: localize('Variable', "variable"),
 	};
 
-	disposeTemplate(_template: OutlineElementTemplate): void {
+	disposeTemplate(_template: DocumentSymbolTemplate): void {
 		_template.iconLabel.dispose();
 	}
 }
 
-export class OutlineFilter implements ITreeFilter<OutlineItem> {
-
-	static readonly configNameToKind = Object.freeze({
-		['showFiles']: SymbolKind.File,
-		['showModules']: SymbolKind.Module,
-		['showNamespaces']: SymbolKind.Namespace,
-		['showPackages']: SymbolKind.Package,
-		['showClasses']: SymbolKind.Class,
-		['showMethods']: SymbolKind.Method,
-		['showProperties']: SymbolKind.Property,
-		['showFields']: SymbolKind.Field,
-		['showConstructors']: SymbolKind.Constructor,
-		['showEnums']: SymbolKind.Enum,
-		['showInterfaces']: SymbolKind.Interface,
-		['showFunctions']: SymbolKind.Function,
-		['showVariables']: SymbolKind.Variable,
-		['showConstants']: SymbolKind.Constant,
-		['showStrings']: SymbolKind.String,
-		['showNumbers']: SymbolKind.Number,
-		['showBooleans']: SymbolKind.Boolean,
-		['showArrays']: SymbolKind.Array,
-		['showObjects']: SymbolKind.Object,
-		['showKeys']: SymbolKind.Key,
-		['showNull']: SymbolKind.Null,
-		['showEnumMembers']: SymbolKind.EnumMember,
-		['showStructs']: SymbolKind.Struct,
-		['showEvents']: SymbolKind.Event,
-		['showOperators']: SymbolKind.Operator,
-		['showTypeParameters']: SymbolKind.TypeParameter,
-	});
+export class DocumentSymbolFilter implements ITreeFilter<DocumentSymbolItem> {
 
 	static readonly kindToConfigName = Object.freeze({
 		[SymbolKind.File]: 'showFiles',
@@ -302,7 +265,7 @@ export class OutlineFilter implements ITreeFilter<OutlineItem> {
 		@ITextResourceConfigurationService private readonly _textResourceConfigService: ITextResourceConfigurationService,
 	) { }
 
-	filter(element: OutlineItem): boolean {
+	filter(element: DocumentSymbolItem): boolean {
 		const outline = OutlineModel.get(element);
 		let uri: URI | undefined;
 
@@ -314,17 +277,17 @@ export class OutlineFilter implements ITreeFilter<OutlineItem> {
 			return true;
 		}
 
-		const configName = OutlineFilter.kindToConfigName[element.symbol.kind];
+		const configName = DocumentSymbolFilter.kindToConfigName[element.symbol.kind];
 		const configKey = `${this._prefix}.${configName}`;
 		return this._textResourceConfigService.getValue(uri, configKey);
 	}
 }
 
-export class DocumentSymbolComparator implements IOutlineComparator<OutlineItem> {
+export class DocumentSymbolComparator implements IOutlineComparator<DocumentSymbolItem> {
 
 	private readonly _collator = new IdleValue<Intl.Collator>(() => new Intl.Collator(undefined, { numeric: true }));
 
-	compareByPosition(a: OutlineItem, b: OutlineItem): number {
+	compareByPosition(a: DocumentSymbolItem, b: DocumentSymbolItem): number {
 		if (a instanceof OutlineGroup && b instanceof OutlineGroup) {
 			return a.order - b.order;
 		} else if (a instanceof OutlineElement && b instanceof OutlineElement) {
@@ -332,7 +295,7 @@ export class DocumentSymbolComparator implements IOutlineComparator<OutlineItem>
 		}
 		return 0;
 	}
-	compareByType(a: OutlineItem, b: OutlineItem): number {
+	compareByType(a: DocumentSymbolItem, b: DocumentSymbolItem): number {
 		if (a instanceof OutlineGroup && b instanceof OutlineGroup) {
 			return a.order - b.order;
 		} else if (a instanceof OutlineElement && b instanceof OutlineElement) {
@@ -340,23 +303,13 @@ export class DocumentSymbolComparator implements IOutlineComparator<OutlineItem>
 		}
 		return 0;
 	}
-	compareByName(a: OutlineItem, b: OutlineItem): number {
+	compareByName(a: DocumentSymbolItem, b: DocumentSymbolItem): number {
 		if (a instanceof OutlineGroup && b instanceof OutlineGroup) {
 			return a.order - b.order;
 		} else if (a instanceof OutlineElement && b instanceof OutlineElement) {
 			return this._collator.value.compare(a.symbol.name, b.symbol.name) || Range.compareRangesUsingStarts(a.symbol.range, b.symbol.range);
 		}
 		return 0;
-	}
-}
-
-export class OutlineDataSource implements IDataSource<OutlineModel, OutlineItem> {
-
-	getChildren(element: undefined | OutlineModel | OutlineGroup | OutlineElement) {
-		if (!element) {
-			return Iterable.empty();
-		}
-		return element.children.values();
 	}
 }
 
@@ -725,5 +678,4 @@ registerThemingParticipant((theme: IColorTheme, collector: ICssStyleCollector) =
 	if (symbolIconVariableColor) {
 		collector.addRule(`${Codicon.symbolVariable.cssSelector} { color: ${symbolIconVariableColor}; }`);
 	}
-
 });
