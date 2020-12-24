@@ -6,7 +6,7 @@
 import { MainThreadTunnelServiceShape, IExtHostContext, MainContext, ExtHostContext, ExtHostTunnelServiceShape } from 'vs/workbench/api/common/extHost.protocol';
 import { TunnelDto } from 'vs/workbench/api/common/extHostTunnelService';
 import { extHostNamedCustomer } from 'vs/workbench/api/common/extHostCustomers';
-import { IRemoteExplorerService, makeAddress } from 'vs/workbench/services/remote/common/remoteExplorerService';
+import { CandidatePort, IRemoteExplorerService, makeAddress } from 'vs/workbench/services/remote/common/remoteExplorerService';
 import { ITunnelProvider, ITunnelService, TunnelCreationOptions, TunnelOptions } from 'vs/platform/remote/common/tunnel';
 import { Disposable } from 'vs/base/common/lifecycle';
 import type { TunnelDescription } from 'vs/platform/remote/common/remoteAuthorityResolver';
@@ -48,7 +48,7 @@ export class MainThreadTunnelService extends Disposable implements MainThreadTun
 		});
 	}
 
-	async $onFoundNewCandidates(candidates: { host: string, port: number, detail: string }[]): Promise<void> {
+	async $onFoundNewCandidates(candidates: CandidatePort[]): Promise<void> {
 		this.remoteExplorerService.onFoundNewCandidates(candidates);
 	}
 
