@@ -1659,13 +1659,13 @@ export interface CodeLensProvider {
 	resolveCodeLens?(model: model.ITextModel, codeLens: CodeLens, token: CancellationToken): ProviderResult<CodeLens>;
 }
 
-export interface SignautreArgumentsLabel {
-	name: string
+export interface InlineHint {
+	text: string
 	position: IPosition
 }
 
-export interface SignatureArgumentsLabelProvider {
-	provideSignatureArgumentsLabels(model: model.ITextModel, token: CancellationToken): ProviderResult<SignautreArgumentsLabel[]>;
+export interface InlineHintsProvider {
+	provideInlineHints(model: model.ITextModel, token: CancellationToken): ProviderResult<InlineHint[]>;
 }
 
 export interface SemanticTokensLegend {
@@ -1775,7 +1775,7 @@ export const CodeLensProviderRegistry = new LanguageFeatureRegistry<CodeLensProv
 /**
  * @internal
  */
-export const SignatureArgumentsLabelProviderRegistry = new LanguageFeatureRegistry<SignatureArgumentsLabelProvider>();
+export const InlineHintsProviderRegistry = new LanguageFeatureRegistry<InlineHintsProvider>();
 
 /**
  * @internal

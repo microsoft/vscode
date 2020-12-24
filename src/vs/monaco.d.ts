@@ -3177,9 +3177,9 @@ declare namespace monaco.editor {
 		 */
 		showDeprecated?: boolean;
 		/**
-		 * Controls show signature arguments label.
+		 * Controls show inline hints.
 		 */
-		showSignatureArgumentsLabel?: boolean;
+		showInlineHints?: boolean;
 	}
 
 	/**
@@ -4032,7 +4032,7 @@ declare namespace monaco.editor {
 		wrappingIndent = 117,
 		wrappingStrategy = 118,
 		showDeprecated = 119,
-		showSignatureArgumentsLabel = 120,
+		showInlineHints = 120,
 		editorClassName = 121,
 		pixelRatio = 122,
 		tabFocusMode = 123,
@@ -4138,7 +4138,7 @@ declare namespace monaco.editor {
 		showFoldingControls: IEditorOption<EditorOption.showFoldingControls, 'always' | 'mouseover'>;
 		showUnused: IEditorOption<EditorOption.showUnused, boolean>;
 		showDeprecated: IEditorOption<EditorOption.showDeprecated, boolean>;
-		showSignatureArgumentsLabel: IEditorOption<EditorOption.showSignatureArgumentsLabel, boolean>;
+		showInlineHints: IEditorOption<EditorOption.showInlineHints, boolean>;
 		snippetSuggestions: IEditorOption<EditorOption.snippetSuggestions, 'none' | 'top' | 'bottom' | 'inline'>;
 		smartSelect: IEditorOption<EditorOption.smartSelect, any>;
 		smoothScrolling: IEditorOption<EditorOption.smoothScrolling, boolean>;
@@ -6367,13 +6367,13 @@ declare namespace monaco.languages {
 		resolveCodeLens?(model: editor.ITextModel, codeLens: CodeLens, token: CancellationToken): ProviderResult<CodeLens>;
 	}
 
-	export interface SignautreArgumentsLabel {
-		name: string;
+	export interface InlineHint {
+		text: string;
 		position: IPosition;
 	}
 
-	export interface SignatureArgumentsLabelProvider {
-		provideSignatureArgumentsLabels(model: editor.ITextModel, token: CancellationToken): ProviderResult<SignautreArgumentsLabel[]>;
+	export interface InlineHintsProvider {
+		provideInlineHints(model: editor.ITextModel, token: CancellationToken): ProviderResult<InlineHint[]>;
 	}
 
 	export interface SemanticTokensLegend {

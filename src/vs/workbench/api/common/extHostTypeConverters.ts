@@ -1017,10 +1017,10 @@ export namespace SignatureHelp {
 	}
 }
 
-export namespace SignatureArgumentsLabelList {
-	export function from(label: vscode.SignautreArgumentsLabel): modes.SignautreArgumentsLabel {
+export namespace InlineHint {
+	export function from(label: vscode.InlineHint): modes.InlineHint {
 		return {
-			name: label.name,
+			text: label.text,
 			position: Position.from(label.position)
 		};
 	}

@@ -15,20 +15,20 @@ import { TelemetryReporter } from './utils/telemetry';
 
 export namespace Experimental {
 	export const enum CommandTypes {
-		ProvideSignatureArgumentsLabel = 'provideSignatureArgumentsLabel'
+		ProvideInlineHints = 'ProvideInlineHints'
 	}
 
-	export interface ProvideSignatureArgumentsLabelRequest extends Proto.FileRequest {
-		command: CommandTypes.ProvideSignatureArgumentsLabel;
+	export interface ProvideInlineHintsRequest extends Proto.FileRequest {
+		command: CommandTypes.ProvideInlineHints;
 	}
 
-	interface LabelItem {
-		name: string
+	interface HintItem {
+		text: string
 		position: Proto.Location
 	}
 
-	export interface ProvideSignatureArgumentsLabelResponse extends Proto.Response {
-		body?: LabelItem[];
+	export interface ProvideInlineHintsResponse extends Proto.Response {
+		body?: HintItem[];
 	}
 }
 
@@ -87,7 +87,7 @@ interface StandardTsServerRequests {
 	'prepareCallHierarchy': [Proto.FileLocationRequestArgs, Proto.PrepareCallHierarchyResponse];
 	'provideCallHierarchyIncomingCalls': [Proto.FileLocationRequestArgs, Proto.ProvideCallHierarchyIncomingCallsResponse];
 	'provideCallHierarchyOutgoingCalls': [Proto.FileLocationRequestArgs, Proto.ProvideCallHierarchyOutgoingCallsResponse];
-	'provideSignatureArgumentsLabel': [Proto.FileRequestArgs, Experimental.ProvideSignatureArgumentsLabelResponse];
+	'provideInlineHints': [Proto.FileRequestArgs, Experimental.ProvideInlineHintsResponse];
 }
 
 interface NoResponseTsServerRequests {

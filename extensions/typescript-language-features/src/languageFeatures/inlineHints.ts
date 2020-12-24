@@ -9,25 +9,25 @@ import { ClientCapability, ITypeScriptServiceClient } from '../typescriptService
 import { conditionalRegistration, requireSomeCapability } from '../utils/dependentRegistration';
 import { Position } from '../utils/typeConverters';
 
-class TypeScriptSginatureArgumentsLabelProvider implements vscode.SignatureArgumentsLabelProvider {
+class TypeScriptInlineHintsProvider implements vscode.InlineHintsProvider {
 	constructor(
 		private readonly client: ITypeScriptServiceClient
 	) { }
 
-	async provideSignatureArgumentsLabels(model: vscode.TextDocument, token: vscode.CancellationToken): Promise<vscode.SignautreArgumentsLabel[]> {
+	async provideInlineHints(model: vscode.TextDocument, token: vscode.CancellationToken): Promise<vscode.InlineHint[]> {
 		const filepath = this.client.toOpenedFilePath(model);
 		if (!filepath) {
 			return [];
 		}
 
 		try {
-			const response = await this.client.execute('provideSignatureArgumentsLabel', { file: filepath }, token);
+			const response = await this.client.execute('provideInlineHints', { file: filepath }, token);
 			if (response.type !== 'response' || !response.success || !response.body) {
 				return [];
 			}
 
 			const labels = response.body.map(label => {
-				return new vscode.SignautreArgumentsLabel(label.name, Position.fromLocation(label.position));
+				return new vscode.InlineHint(label.text, Position.fromLocation(label.position));
 			});
 			return labels;
 		} catch (e) {
@@ -43,7 +43,7 @@ export function register(
 	return conditionalRegistration([
 		requireSomeCapability(client, ClientCapability.Semantic),
 	], () => {
-		return vscode.languages.registerSignatureArgumentsLabelProvider(selector.semantic,
-			new TypeScriptSginatureArgumentsLabelProvider(client));
+		return vscode.languages.registerInlineHintsProvider(selector.semantic,
+			new TypeScriptInlineHintsProvider(client));
 	});
 }

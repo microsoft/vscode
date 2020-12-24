@@ -13,7 +13,7 @@ import { ICodeEditorService } from 'vs/editor/browser/services/codeEditorService
 import { IEditorContribution } from 'vs/editor/common/editorCommon';
 import { IModelDeltaDecoration, ITextModel } from 'vs/editor/common/model';
 import { ModelDecorationOptions } from 'vs/editor/common/model/textModel';
-import { SignatureArgumentsLabelProvider, SignatureArgumentsLabelProviderRegistry, SignautreArgumentsLabel } from 'vs/editor/common/modes';
+import { InlineHintsProvider, InlineHintsProviderRegistry, InlineHint } from 'vs/editor/common/modes';
 import { EditorOption } from 'vs/editor/common/config/editorOptions';
 import { flatten } from 'vs/base/common/arrays';
 import { inlineHintForeground, inlineHintBackground } from 'vs/platform/theme/common/colorRegistry';
@@ -22,15 +22,15 @@ import { IThemeService } from 'vs/platform/theme/common/themeService';
 
 const MAX_DECORATORS = 500;
 
-export interface SignatureArgumentsLabelData {
-	list: SignautreArgumentsLabel[];
-	provider: SignatureArgumentsLabelProvider;
+export interface InlineHintsData {
+	list: InlineHint[];
+	provider: InlineHintsProvider;
 }
 
-export function getSignatures(model: ITextModel, token: CancellationToken): Promise<SignatureArgumentsLabelData[]> {
-	const datas: SignatureArgumentsLabelData[] = [];
-	const providers = SignatureArgumentsLabelProviderRegistry.ordered(model).reverse();
-	const promises = providers.map(provider => Promise.resolve(provider.provideSignatureArgumentsLabels(model, token)).then(result => {
+export function getSignatures(model: ITextModel, token: CancellationToken): Promise<InlineHintsData[]> {
+	const datas: InlineHintsData[] = [];
+	const providers = InlineHintsProviderRegistry.ordered(model).reverse();
+	const promises = providers.map(provider => Promise.resolve(provider.provideInlineHints(model, token)).then(result => {
 		if (result) {
 			datas.push({ list: result, provider });
 
@@ -40,18 +40,18 @@ export function getSignatures(model: ITextModel, token: CancellationToken): Prom
 	return Promise.all(promises).then(() => datas);
 }
 
-export class SignatureArgumentsLabelDetector extends Disposable implements IEditorContribution {
+export class InlineHintsDetector extends Disposable implements IEditorContribution {
 
-	static readonly ID: string = 'editor.contrib.signatureArgumentsLabel';
+	static readonly ID: string = 'editor.contrib.InlineHints';
 
 	static readonly RECOMPUTE_TIME = 1000; // ms
 
 	private readonly _localToDispose = this._register(new DisposableStore());
-	private _computePromise: CancelablePromise<SignatureArgumentsLabelData[]> | null;
+	private _computePromise: CancelablePromise<InlineHintsData[]> | null;
 	private _timeoutTimer: TimeoutTimer | null;
 
 	private _decorationsIds: string[] = [];
-	private _labelDatas = new Map<string, SignatureArgumentsLabelData>();
+	private _labelDatas = new Map<string, InlineHintsData>();
 
 	private _labelDecoratorIds: string[] = [];
 	private readonly _decorationsTypes = new Set<string>();
@@ -68,7 +68,7 @@ export class SignatureArgumentsLabelDetector extends Disposable implements IEdit
 			this._onModelChanged();
 		}));
 		this._register(_editor.onDidChangeModelLanguage(() => this._onModelChanged()));
-		this._register(SignatureArgumentsLabelProviderRegistry.onDidChange(() => this._onModelChanged()));
+		this._register(InlineHintsProviderRegistry.onDidChange(() => this._onModelChanged()));
 		this._register(_editor.onDidChangeConfiguration(() => {
 			let prevIsEnabled = this._isEnabled;
 			this._isEnabled = this.isEnabled();
@@ -93,11 +93,11 @@ export class SignatureArgumentsLabelDetector extends Disposable implements IEdit
 			return false;
 		}
 
-		return this._editor.getOption(EditorOption.showSignatureArgumentsLabel);
+		return this._editor.getOption(EditorOption.showInlineHints);
 	}
 
-	static get(editor: ICodeEditor): SignatureArgumentsLabelDetector {
-		return editor.getContribution<SignatureArgumentsLabelDetector>(this.ID);
+	static get(editor: ICodeEditor): InlineHintsDetector {
+		return editor.getContribution<InlineHintsDetector>(this.ID);
 	}
 
 	dispose(): void {
@@ -114,7 +114,7 @@ export class SignatureArgumentsLabelDetector extends Disposable implements IEdit
 		}
 		const model = this._editor.getModel();
 
-		if (!model || !SignatureArgumentsLabelProviderRegistry.has(model)) {
+		if (!model || !InlineHintsProviderRegistry.has(model)) {
 			return;
 		}
 
@@ -125,7 +125,7 @@ export class SignatureArgumentsLabelDetector extends Disposable implements IEdit
 					this._timeoutTimer = null;
 
 					this._beginCompute();
-				}, SignatureArgumentsLabelDetector.RECOMPUTE_TIME);
+				}, InlineHintsDetector.RECOMPUTE_TIME);
 			}
 		}));
 		this._beginCompute();
@@ -158,7 +158,7 @@ export class SignatureArgumentsLabelDetector extends Disposable implements IEdit
 		this._localToDispose.clear();
 	}
 
-	private _updateDecorations(labelData: SignatureArgumentsLabelData[]): void {
+	private _updateDecorations(labelData: InlineHintsData[]): void {
 		const decorations = flatten(labelData.map(labels => labels.list.map(label => {
 			return {
 				range: {
@@ -173,11 +173,11 @@ export class SignatureArgumentsLabelDetector extends Disposable implements IEdit
 
 		this._decorationsIds = this._editor.deltaDecorations(this._decorationsIds, decorations);
 
-		this._labelDatas = new Map<string, SignatureArgumentsLabelData>();
+		this._labelDatas = new Map<string, InlineHintsData>();
 		this._decorationsIds.forEach((id, i) => this._labelDatas.set(id, labelData[i]));
 	}
 
-	private _updateLabelDecorators(labelData: SignatureArgumentsLabelData[]): void {
+	private _updateLabelDecorators(labelData: InlineHintsData[]): void {
 		let decorations: IModelDeltaDecoration[] = [];
 		let newDecorationsTypes: { [key: string]: boolean } = {};
 		const { fontSize } = this._getLayoutInfo();
@@ -187,15 +187,15 @@ export class SignatureArgumentsLabelDetector extends Disposable implements IEdit
 		for (let i = 0; i < labelData.length; i++) {
 			const label = labelData[i].list;
 			for (let j = 0; j < label.length && decorations.length < MAX_DECORATORS; j++) {
-				const { name, position } = label[j];
+				const { text, position } = label[j];
 
-				const subKey = hash(name).toString(16);
-				let key = 'signatureArgumentsLabel-' + subKey;
+				const subKey = hash(text).toString(16);
+				let key = 'inlineHints-' + subKey;
 
 				if (!this._decorationsTypes.has(key) && !newDecorationsTypes[key]) {
 					this._codeEditorService.registerDecorationType(key, {
 						before: {
-							contentText: name,
+							contentText: text,
 							backgroundColor: `${backgroundColor}`,
 							color: `${fontColor}`,
 							margin: '0px 5px 0px 0px',
@@ -242,4 +242,4 @@ export class SignatureArgumentsLabelDetector extends Disposable implements IEdit
 	}
 }
 
-registerEditorContribution(SignatureArgumentsLabelDetector.ID, SignatureArgumentsLabelDetector);
+registerEditorContribution(InlineHintsDetector.ID, InlineHintsDetector);

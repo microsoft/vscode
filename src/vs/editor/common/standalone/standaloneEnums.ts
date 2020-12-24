@@ -287,7 +287,7 @@ export enum EditorOption {
 	wrappingIndent = 117,
 	wrappingStrategy = 118,
 	showDeprecated = 119,
-	showSignatureArgumentsLabel = 120,
+	showInlineHints = 120,
 	editorClassName = 121,
 	pixelRatio = 122,
 	tabFocusMode = 123,

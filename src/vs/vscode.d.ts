@@ -3764,39 +3764,39 @@ declare module 'vscode' {
 	}
 
 	/**
-	 * Argument label information of signature.
+	 * Inline hint information.
 	 */
-	export class SignautreArgumentsLabel {
+	export class InlineHint {
 		/**
-		 * The name of the parameter.
+		 * The text of the hint.
 		 */
-		name: string;
+		text: string;
 		/**
-		 * The position of the argument.
+		 * The position of the hint.
 		 */
 		position: Position;
 
 		/**
-		 * Creates a new signature arguments label information object.
+		 * Creates a new inline hint information object.
 		 *
-		 * @param name A name of the parameter.
+		 * @param text The text of the parameter.
 		 * @param position The position of the argument.
 		 */
-		constructor(name: string, position: Position);
+		constructor(text: string, position: Position);
 	}
 
 	/**
 	 * The document formatting provider interface defines the contract between extensions and
-	 * the arguments label feature.
+	 * the inline hints feature.
 	 */
-	export interface SignatureArgumentsLabelProvider {
+	export interface InlineHintsProvider {
 		/**
 		 * @param model The document in which the command was invoked.
 		 * @param token A cancellation token.
 		 *
 		 * @return A list of arguments labels or a thenable that resolves to such.
 		 */
-		provideSignatureArgumentsLabels(model: TextDocument, token: CancellationToken): ProviderResult<SignautreArgumentsLabel[]>;
+		provideInlineHints(model: TextDocument, token: CancellationToken): ProviderResult<InlineHint[]>;
 	}
 
 	/**
@@ -10880,17 +10880,17 @@ declare module 'vscode' {
 		export function registerSignatureHelpProvider(selector: DocumentSelector, provider: SignatureHelpProvider, metadata: SignatureHelpProviderMetadata): Disposable;
 
 		/**
-		 * Register a signature arguments label provider.
+		 * Register a inline hints provider.
 		 *
 		 * Multiple providers can be registered for a language. In that case providers are sorted
 		 * by their [score](#languages.match) and the best-matching provider is used. Failure
 		 * of the selected provider will cause a failure of the whole operation.
 		 *
 		 * @param selector A selector that defines the documents this provider is applicable to.
-		 * @param provider An on type signature arguments label provider.
+		 * @param provider An on type inline hints provider.
 		 * @return A [disposable](#Disposable) that unregisters this provider when being disposed.
 		 */
-		export function registerSignatureArgumentsLabelProvider(selector: DocumentSelector, provider: SignatureArgumentsLabelProvider): Disposable;
+		export function registerInlineHintsProvider(selector: DocumentSelector, provider: InlineHintsProvider): Disposable;
 
 		/**
 		 * Register a document link provider.

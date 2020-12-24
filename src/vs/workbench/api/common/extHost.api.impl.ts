@@ -483,8 +483,8 @@ export function createApiFactoryAndRegisterActors(accessor: ServicesAccessor): I
 				checkProposedApiEnabled(extension);
 				return extHostLanguages.tokenAtPosition(doc, pos);
 			},
-			registerSignatureArgumentsLabelProvider(selector: vscode.DocumentSelector, provider: vscode.SignatureArgumentsLabelProvider): vscode.Disposable {
-				return extHostLanguageFeatures.registerSignatureArgumentsLabelProvider(extension, selector, provider);
+			registerInlineHintsProvider(selector: vscode.DocumentSelector, provider: vscode.InlineHintsProvider): vscode.Disposable {
+				return extHostLanguageFeatures.registerInlineHintsProvider(extension, selector, provider);
 			}
 		};
 
@@ -1166,6 +1166,7 @@ export function createApiFactoryAndRegisterActors(accessor: ServicesAccessor): I
 			FunctionBreakpoint: extHostTypes.FunctionBreakpoint,
 			Hover: extHostTypes.Hover,
 			IndentAction: languageConfiguration.IndentAction,
+			InlineHint: extHostTypes.InlineHint,
 			Location: extHostTypes.Location,
 			MarkdownString: extHostTypes.MarkdownString,
 			OverviewRulerLane: OverviewRulerLane,
@@ -1188,7 +1189,6 @@ export function createApiFactoryAndRegisterActors(accessor: ServicesAccessor): I
 			SignatureHelp: extHostTypes.SignatureHelp,
 			SignatureHelpTriggerKind: extHostTypes.SignatureHelpTriggerKind,
 			SignatureInformation: extHostTypes.SignatureInformation,
-			SignautreArgumentsLabel: extHostTypes.SignautreArgumentsLabel,
 			SnippetString: extHostTypes.SnippetString,
 			SourceBreakpoint: extHostTypes.SourceBreakpoint,
 			StandardTokenType: extHostTypes.StandardTokenType,

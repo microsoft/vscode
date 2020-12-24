@@ -1062,20 +1062,20 @@ class SignatureHelpAdapter {
 	}
 }
 
-class SignatureArgumentsLabelAdapter {
-	private readonly _cache = new Cache<vscode.SignautreArgumentsLabel[]>('SignatureArgumentsLabel');
+class InlineHintsAdapter {
+	private readonly _cache = new Cache<vscode.InlineHint[]>('InlineHints');
 
 	constructor(
 		private readonly _documents: ExtHostDocuments,
-		private readonly _provider: vscode.SignatureArgumentsLabelProvider,
+		private readonly _provider: vscode.InlineHintsProvider,
 	) { }
 
-	provideSignatureArgumentsLabels(resource: URI, token: CancellationToken): Promise<extHostProtocol.ISignatureArgumentsLabelDto | undefined> {
+	provideInlineHints(resource: URI, token: CancellationToken): Promise<extHostProtocol.IInlineHintsDto | undefined> {
 		const doc = this._documents.getDocument(resource);
-		return asPromise(() => this._provider.provideSignatureArgumentsLabels(doc, token)).then(value => {
+		return asPromise(() => this._provider.provideInlineHints(doc, token)).then(value => {
 			if (value) {
 				const id = this._cache.add([value]);
-				return { labels: value.map(typeConvert.SignatureArgumentsLabelList.from), id };
+				return { hints: value.map(typeConvert.InlineHint.from), id };
 			}
 			return undefined;
 		});
@@ -1340,7 +1340,7 @@ type Adapter = DocumentSymbolAdapter | CodeLensAdapter | DefinitionAdapter | Hov
 	| SuggestAdapter | SignatureHelpAdapter | LinkProviderAdapter | ImplementationAdapter
 	| TypeDefinitionAdapter | ColorProviderAdapter | FoldingProviderAdapter | DeclarationAdapter
 	| SelectionRangeAdapter | CallHierarchyAdapter | DocumentSemanticTokensAdapter | DocumentRangeSemanticTokensAdapter | EvaluatableExpressionAdapter
-	| LinkedEditingRangeAdapter | SignatureArgumentsLabelAdapter;
+	| LinkedEditingRangeAdapter | InlineHintsAdapter;
 
 class AdapterData {
 	constructor(
@@ -1782,9 +1782,9 @@ export class ExtHostLanguageFeatures implements extHostProtocol.ExtHostLanguageF
 		return this._createDisposable(handle);
 	}
 
-	registerSignatureArgumentsLabelProvider(extension: IExtensionDescription, selector: vscode.DocumentSelector, provider: vscode.SignatureArgumentsLabelProvider): vscode.Disposable {
-		const handle = this._addNewAdapter(new SignatureArgumentsLabelAdapter(this._documents, provider), extension);
-		this._proxy.$registerSignatureArgumentsLabelProvider(handle, this._transformDocumentSelector(selector));
+	registerInlineHintsProvider(extension: IExtensionDescription, selector: vscode.DocumentSelector, provider: vscode.InlineHintsProvider): vscode.Disposable {
+		const handle = this._addNewAdapter(new InlineHintsAdapter(this._documents, provider), extension);
+		this._proxy.$registerInlineHintsProvider(handle, this._transformDocumentSelector(selector));
 		return this._createDisposable(handle);
 	}
 
@@ -1796,10 +1796,10 @@ export class ExtHostLanguageFeatures implements extHostProtocol.ExtHostLanguageF
 		this._withAdapter(handle, SignatureHelpAdapter, adapter => adapter.releaseSignatureHelp(id), undefined);
 	}
 
-	// --- signature arguments labels
+	// --- inline hints
 
-	$provideSignatureArgumentsLabel(handle: number, resource: UriComponents, token: CancellationToken): Promise<extHostProtocol.ISignatureArgumentsLabelDto | undefined> {
-		return this._withAdapter(handle, SignatureArgumentsLabelAdapter, adapter => adapter.provideSignatureArgumentsLabels(URI.revive(resource), token), undefined);
+	$provideInlineHints(handle: number, resource: UriComponents, token: CancellationToken): Promise<extHostProtocol.IInlineHintsDto | undefined> {
+		return this._withAdapter(handle, InlineHintsAdapter, adapter => adapter.provideInlineHints(URI.revive(resource), token), undefined);
 	}
 
 	// --- links

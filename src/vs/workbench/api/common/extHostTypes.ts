@@ -1374,12 +1374,12 @@ export enum SignatureHelpTriggerKind {
 }
 
 @es5ClassCompat
-export class SignautreArgumentsLabel {
-	name: string;
+export class InlineHint {
+	text: string;
 	position: Position;
 
-	constructor(name: string, position: Position) {
-		this.name = name;
+	constructor(text: string, position: Position) {
+		this.text = text;
 		this.position = position;
 	}
 }

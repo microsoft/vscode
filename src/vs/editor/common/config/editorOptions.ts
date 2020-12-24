@@ -626,9 +626,9 @@ export interface IEditorOptions {
 	 */
 	showDeprecated?: boolean;
 	/**
-	 * Controls show signature arguments label.
+	 * Controls show inline hints.
 	 */
-	showSignatureArgumentsLabel?: boolean
+	showInlineHints?: boolean
 }
 
 /**
@@ -3763,7 +3763,7 @@ export const enum EditorOption {
 	wrappingIndent,
 	wrappingStrategy,
 	showDeprecated,
-	showSignatureArgumentsLabel,
+	showInlineHints,
 	// Leave these at the end (because they have dependencies!)
 	editorClassName,
 	pixelRatio,
@@ -4267,9 +4267,9 @@ export const EditorOptions = {
 		EditorOption.showDeprecated, 'showDeprecated', true,
 		{ description: nls.localize('showDeprecated', "Controls strikethrough deprecated variables.") }
 	)),
-	showSignatureArgumentsLabel: register(new EditorBooleanOption(
-		EditorOption.showSignatureArgumentsLabel, 'showSignatureArgumentsLabel', true,
-		{ description: nls.localize('showSignatureArgumentsLabel', "Controls show signature arguments label.") }
+	showInlineHints: register(new EditorBooleanOption(
+		EditorOption.showInlineHints, 'showInlineHints', true,
+		{ description: nls.localize('showInlineHints', "Controls show inline hints.") }
 	)),
 	snippetSuggestions: register(new EditorStringEnumOption(
 		EditorOption.snippetSuggestions, 'snippetSuggestions',

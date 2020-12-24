@@ -399,7 +399,7 @@ export interface MainThreadLanguageFeaturesShape extends IDisposable {
 	$registerDocumentRangeSemanticTokensProvider(handle: number, selector: IDocumentFilterDto[], legend: modes.SemanticTokensLegend): void;
 	$registerSuggestSupport(handle: number, selector: IDocumentFilterDto[], triggerCharacters: string[], supportsResolveDetails: boolean, displayName: string): void;
 	$registerSignatureHelpProvider(handle: number, selector: IDocumentFilterDto[], metadata: ISignatureHelpProviderMetadataDto): void;
-	$registerSignatureArgumentsLabelProvider(handle: number, selector: IDocumentFilterDto[]): void;
+	$registerInlineHintsProvider(handle: number, selector: IDocumentFilterDto[]): void;
 	$registerDocumentLinkProvider(handle: number, selector: IDocumentFilterDto[], supportsResolve: boolean): void;
 	$registerDocumentColorProvider(handle: number, selector: IDocumentFilterDto[]): void;
 	$registerFoldingRangeProvider(handle: number, selector: IDocumentFilterDto[], eventHandle: number | undefined): void;
@@ -1270,13 +1270,13 @@ export interface ISignatureHelpContextDto {
 	readonly activeSignatureHelp?: ISignatureHelpDto;
 }
 
-export interface ISignautreArgumentsLabelDto {
-	name: string
+export interface IInlineHintDto {
+	text: string
 	position: IPosition
 }
 
-export interface ISignatureArgumentsLabelDto {
-	labels: ISignautreArgumentsLabelDto[]
+export interface IInlineHintsDto {
+	hints: IInlineHintDto[]
 }
 
 export interface ILocationDto {
@@ -1468,7 +1468,7 @@ export interface ExtHostLanguageFeaturesShape {
 	$releaseCompletionItems(handle: number, id: number): void;
 	$provideSignatureHelp(handle: number, resource: UriComponents, position: IPosition, context: modes.SignatureHelpContext, token: CancellationToken): Promise<ISignatureHelpDto | undefined>;
 	$releaseSignatureHelp(handle: number, id: number): void;
-	$provideSignatureArgumentsLabel(handle: number, resource: UriComponents, token: CancellationToken): Promise<ISignatureArgumentsLabelDto | undefined>
+	$provideInlineHints(handle: number, resource: UriComponents, token: CancellationToken): Promise<IInlineHintsDto | undefined>
 	$provideDocumentLinks(handle: number, resource: UriComponents, token: CancellationToken): Promise<ILinksListDto | undefined>;
 	$resolveDocumentLink(handle: number, id: ChainedCacheId, token: CancellationToken): Promise<ILinkDto | undefined>;
 	$releaseDocumentLinks(handle: number, id: number): void;

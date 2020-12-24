@@ -497,13 +497,13 @@ export class MainThreadLanguageFeatures implements MainThreadLanguageFeaturesSha
 		}));
 	}
 
-	// --- signature arguments labels
+	// --- inline hints
 
-	$registerSignatureArgumentsLabelProvider(handle: number, selector: IDocumentFilterDto[]): void {
-		this._registrations.set(handle, modes.SignatureArgumentsLabelProviderRegistry.register(selector, <modes.SignatureArgumentsLabelProvider>{
-			provideSignatureArgumentsLabels: async (model: ITextModel, token: CancellationToken): Promise<modes.SignautreArgumentsLabel[] | undefined> => {
-				const result = await this._proxy.$provideSignatureArgumentsLabel(handle, model.uri, token);
-				return result?.labels;
+	$registerInlineHintsProvider(handle: number, selector: IDocumentFilterDto[]): void {
+		this._registrations.set(handle, modes.InlineHintsProviderRegistry.register(selector, <modes.InlineHintsProvider>{
+			provideInlineHints: async (model: ITextModel, token: CancellationToken): Promise<modes.InlineHint[] | undefined> => {
+				const result = await this._proxy.$provideInlineHints(handle, model.uri, token);
+				return result?.hints;
 			}
 		}));
 	}
