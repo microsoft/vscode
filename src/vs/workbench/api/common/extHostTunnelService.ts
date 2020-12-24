@@ -62,4 +62,5 @@ export class ExtHostTunnelService implements IExtHostTunnelService {
 	$forwardPort(tunnelOptions: TunnelOptions, tunnelCreationOptions: TunnelCreationOptions): Promise<TunnelDto> | undefined { return undefined; }
 	async $closeTunnel(remote: { host: string, port: number }): Promise<void> { }
 	async $onDidTunnelsChange(): Promise<void> { }
+	async $registerCandidateFinder(): Promise<void> { }
 }
