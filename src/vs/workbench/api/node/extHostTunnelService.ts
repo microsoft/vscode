@@ -12,12 +12,15 @@ import { URI } from 'vs/base/common/uri';
 import { exec } from 'child_process';
 import * as resources from 'vs/base/common/resources';
 import * as fs from 'fs';
+import * as pfs from 'vs/base/node/pfs';
 import { isLinux } from 'vs/base/common/platform';
 import { IExtHostTunnelService, TunnelDto } from 'vs/workbench/api/common/extHostTunnelService';
 import { asPromise } from 'vs/base/common/async';
 import { Event, Emitter } from 'vs/base/common/event';
 import { TunnelOptions, TunnelCreationOptions } from 'vs/platform/remote/common/tunnel';
 import { IExtensionDescription } from 'vs/platform/extensions/common/extensions';
+import { promisify } from 'util';
+import { MovingAverage } from 'vs/base/common/numbers';
 
 class ExtensionTunnel implements vscode.Tunnel {
 	private _onDispose: Emitter<void> = new Emitter();
@@ -135,7 +138,7 @@ export class ExtHostTunnelService extends Disposable implements IExtHostTunnelSe
 	) {
 		super();
 		this._proxy = extHostRpc.getProxy(MainContext.MainThreadTunnelService);
-		if (initData.remote.isRemote && initData.remote.authority && !process.env['VSCODE_DISABLE_PROC_READING']) {
+		if (initData.remote.isRemote && initData.remote.authority) {
 			this.registerCandidateFinder();
 		}
 	}
@@ -156,18 +159,28 @@ export class ExtHostTunnelService extends Disposable implements IExtHostTunnelSe
 		return this._proxy.$getTunnels();
 	}
 
-	registerCandidateFinder(): void {
-		// Every two seconds, scan to see if the candidate ports have changed;
-		if (isLinux) {
-			let oldPorts: { host: string, port: number, detail: string }[] | undefined = undefined;
-			setInterval(async () => {
-				const newPorts = await this.findCandidatePorts();
-				if (!oldPorts || (JSON.stringify(oldPorts) !== JSON.stringify(newPorts))) {
-					oldPorts = newPorts;
-					this._proxy.$onFoundNewCandidates(oldPorts.filter(async (candidate) => await this._showCandidatePort(candidate.host, candidate.port, candidate.detail)));
-					return;
-				}
-			}, 2000);
+	private calculateDelay(movingAverage: number) {
+		// Some local testing indicated that the moving average might be between 50-100 ms.
+		return Math.max(movingAverage * 20, 2000);
+	}
+
+	async registerCandidateFinder(): Promise<void> {
+		// Regularly scan to see if the candidate ports have changed.
+		if (!isLinux) {
+			return;
+		}
+		let movingAverage = new MovingAverage();
+		let oldPorts: { host: string, port: number, detail: string }[] | undefined = undefined;
+		while (1) {
+			const startTime = new Date().getTime();
+			const newPorts = await this.findCandidatePorts();
+			const timeTaken = new Date().getTime() - startTime;
+			movingAverage.update(timeTaken);
+			if (!oldPorts || (JSON.stringify(oldPorts) !== JSON.stringify(newPorts))) {
+				oldPorts = newPorts;
+				await this._proxy.$onFoundNewCandidates(oldPorts.filter(async (candidate) => await this._showCandidatePort(candidate.host, candidate.port, candidate.detail)));
+			}
+			await (new Promise<void>(resolve => setTimeout(() => resolve(), this.calculateDelay(movingAverage.value))));
 		}
 	}
 
@@ -226,8 +239,8 @@ export class ExtHostTunnelService extends Disposable implements IExtHostTunnelSe
 		let tcp: string = '';
 		let tcp6: string = '';
 		try {
-			tcp = fs.readFileSync('/proc/net/tcp', 'utf8');
-			tcp6 = fs.readFileSync('/proc/net/tcp6', 'utf8');
+			tcp = await pfs.readFile('/proc/net/tcp', 'utf8');
+			tcp6 = await pfs.readFile('/proc/net/tcp6', 'utf8');
 		} catch (e) {
 			// File reading error. No additional handling needed.
 		}
@@ -237,16 +250,18 @@ export class ExtHostTunnelService extends Disposable implements IExtHostTunnelSe
 			});
 		}));
 
-		const procChildren = fs.readdirSync('/proc');
-		const processes: { pid: number, cwd: string, cmd: string }[] = [];
+		const procChildren = await pfs.readdir('/proc');
+		const processes: {
+			pid: number, cwd: string, cmd: string
+		}[] = [];
 		for (let childName of procChildren) {
 			try {
 				const pid: number = Number(childName);
 				const childUri = resources.joinPath(URI.file('/proc'), childName);
-				const childStat = fs.statSync(childUri.fsPath);
+				const childStat = await pfs.stat(childUri.fsPath);
 				if (childStat.isDirectory() && !isNaN(pid)) {
-					const cwd = fs.readlinkSync(resources.joinPath(childUri, 'cwd').fsPath);
-					const cmd = fs.readFileSync(resources.joinPath(childUri, 'cmdline').fsPath, 'utf8');
+					const cwd = await promisify(fs.readlink)(resources.joinPath(childUri, 'cwd').fsPath);
+					const cmd = await pfs.readFile(resources.joinPath(childUri, 'cmdline').fsPath, 'utf8');
 					processes.push({ pid, cwd, cmd });
 				}
 			} catch (e) {
