@@ -1,10 +1,13 @@
+/*---------------------------------------------------------------------------------------------
+ *  Copyright (c) Microsoft Corporation. All rights reserved.
+ *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *--------------------------------------------------------------------------------------------*/
+
 import * as vscode from 'vscode';
 import { DocumentSelector } from '../utils/documentSelector';
 import { ClientCapability, ITypeScriptServiceClient } from '../typescriptService';
 import { conditionalRegistration, requireSomeCapability } from '../utils/dependentRegistration';
-import { Position } from 'vscode';
-
-const dummy = [new vscode.SignautreArgumentsLabel('foo', new Position(1, 1))];
+import { Position } from '../utils/typeConverters';
 
 class TypeScriptSginatureArgumentsLabelProvider implements vscode.SignatureArgumentsLabelProvider {
 	constructor(
@@ -20,17 +23,15 @@ class TypeScriptSginatureArgumentsLabelProvider implements vscode.SignatureArgum
 		try {
 			const response = await this.client.execute('provideSignatureArgumentsLabel', { file: filepath }, token);
 			if (response.type !== 'response' || !response.success || !response.body) {
-				return dummy;
+				return [];
 			}
 
 			const labels = response.body.map(label => {
-				return new vscode.SignautreArgumentsLabel(label.name, new vscode.Position(
-					label.position.line, label.position.offset
-				))
+				return new vscode.SignautreArgumentsLabel(label.name, Position.fromLocation(label.position));
 			});
-			return labels
-		} catch {
-			return dummy
+			return labels;
+		} catch (e) {
+			return [];
 		}
 	}
 }
