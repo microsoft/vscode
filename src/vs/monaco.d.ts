@@ -6373,7 +6373,7 @@ declare namespace monaco.languages {
 	}
 
 	export interface InlineHintsProvider {
-		provideInlineHints(model: editor.ITextModel, token: CancellationToken): ProviderResult<InlineHint[]>;
+		provideInlineHints(model: editor.ITextModel, range: Range, token: CancellationToken): ProviderResult<InlineHint[]>;
 	}
 
 	export interface SemanticTokensLegend {

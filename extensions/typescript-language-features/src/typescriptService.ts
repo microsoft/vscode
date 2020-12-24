@@ -18,8 +18,20 @@ export namespace Experimental {
 		ProvideInlineHints = 'ProvideInlineHints'
 	}
 
-	export interface ProvideInlineHintsRequest extends Proto.FileRequest {
+	export interface ProvideInlineHintsArgs extends Proto.FileRequestArgs {
+		/**
+		 * Start position of the span.
+		 */
+		start: number;
+		/**
+		 * Length of the span.
+		 */
+		length: number;
+	}
+
+	export interface ProvideInlineHintsRequest extends Proto.Request {
 		command: CommandTypes.ProvideInlineHints;
+		arguments: ProvideInlineHintsArgs;
 	}
 
 	interface HintItem {
@@ -87,7 +99,7 @@ interface StandardTsServerRequests {
 	'prepareCallHierarchy': [Proto.FileLocationRequestArgs, Proto.PrepareCallHierarchyResponse];
 	'provideCallHierarchyIncomingCalls': [Proto.FileLocationRequestArgs, Proto.ProvideCallHierarchyIncomingCallsResponse];
 	'provideCallHierarchyOutgoingCalls': [Proto.FileLocationRequestArgs, Proto.ProvideCallHierarchyOutgoingCallsResponse];
-	'provideInlineHints': [Proto.FileRequestArgs, Experimental.ProvideInlineHintsResponse];
+	'provideInlineHints': [Experimental.ProvideInlineHintsArgs, Experimental.ProvideInlineHintsResponse];
 }
 
 interface NoResponseTsServerRequests {

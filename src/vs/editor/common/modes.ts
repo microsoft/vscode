@@ -1665,7 +1665,7 @@ export interface InlineHint {
 }
 
 export interface InlineHintsProvider {
-	provideInlineHints(model: model.ITextModel, token: CancellationToken): ProviderResult<InlineHint[]>;
+	provideInlineHints(model: model.ITextModel, range: Range, token: CancellationToken): ProviderResult<InlineHint[]>;
 }
 
 export interface SemanticTokensLegend {

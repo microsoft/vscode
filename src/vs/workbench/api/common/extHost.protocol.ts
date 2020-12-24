@@ -1468,7 +1468,7 @@ export interface ExtHostLanguageFeaturesShape {
 	$releaseCompletionItems(handle: number, id: number): void;
 	$provideSignatureHelp(handle: number, resource: UriComponents, position: IPosition, context: modes.SignatureHelpContext, token: CancellationToken): Promise<ISignatureHelpDto | undefined>;
 	$releaseSignatureHelp(handle: number, id: number): void;
-	$provideInlineHints(handle: number, resource: UriComponents, token: CancellationToken): Promise<IInlineHintsDto | undefined>
+	$provideInlineHints(handle: number, resource: UriComponents, range: IRange, token: CancellationToken): Promise<IInlineHintsDto | undefined>
 	$provideDocumentLinks(handle: number, resource: UriComponents, token: CancellationToken): Promise<ILinksListDto | undefined>;
 	$resolveDocumentLink(handle: number, id: ChainedCacheId, token: CancellationToken): Promise<ILinkDto | undefined>;
 	$releaseDocumentLinks(handle: number, id: number): void;

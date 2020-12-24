@@ -14,14 +14,17 @@ class TypeScriptInlineHintsProvider implements vscode.InlineHintsProvider {
 		private readonly client: ITypeScriptServiceClient
 	) { }
 
-	async provideInlineHints(model: vscode.TextDocument, token: vscode.CancellationToken): Promise<vscode.InlineHint[]> {
+	async provideInlineHints(model: vscode.TextDocument, range: vscode.Range, token: vscode.CancellationToken): Promise<vscode.InlineHint[]> {
 		const filepath = this.client.toOpenedFilePath(model);
 		if (!filepath) {
 			return [];
 		}
 
+		const start = model.offsetAt(range.start);
+		const length = model.offsetAt(range.end) - start;
+
 		try {
-			const response = await this.client.execute('provideInlineHints', { file: filepath }, token);
+			const response = await this.client.execute('provideInlineHints', { file: filepath, start, length }, token);
 			if (response.type !== 'response' || !response.success || !response.body) {
 				return [];
 			}

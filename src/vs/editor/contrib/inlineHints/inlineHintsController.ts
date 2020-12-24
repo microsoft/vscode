@@ -19,6 +19,7 @@ import { flatten } from 'vs/base/common/arrays';
 import { inlineHintForeground, inlineHintBackground } from 'vs/platform/theme/common/colorRegistry';
 import { CancellationToken } from 'vs/base/common/cancellation';
 import { IThemeService } from 'vs/platform/theme/common/themeService';
+import { Range } from 'vs/editor/common/core/range';
 
 const MAX_DECORATORS = 500;
 
@@ -27,15 +28,14 @@ export interface InlineHintsData {
 	provider: InlineHintsProvider;
 }
 
-export function getSignatures(model: ITextModel, token: CancellationToken): Promise<InlineHintsData[]> {
+export function getSignatures(model: ITextModel, ranges: Range[], token: CancellationToken): Promise<InlineHintsData[]> {
 	const datas: InlineHintsData[] = [];
 	const providers = InlineHintsProviderRegistry.ordered(model).reverse();
-	const promises = providers.map(provider => Promise.resolve(provider.provideInlineHints(model, token)).then(result => {
+	const promises = flatten(providers.map(provider => ranges.map(range => Promise.resolve(provider.provideInlineHints(model, range, token)).then(result => {
 		if (result) {
 			datas.push({ list: result, provider });
-
 		}
-	}));
+	}))));
 
 	return Promise.all(promises).then(() => datas);
 }
@@ -51,9 +51,9 @@ export class InlineHintsDetector extends Disposable implements IEditorContributi
 	private _timeoutTimer: TimeoutTimer | null;
 
 	private _decorationsIds: string[] = [];
-	private _labelDatas = new Map<string, InlineHintsData>();
+	private _hintsDatas = new Map<string, InlineHintsData>();
 
-	private _labelDecoratorIds: string[] = [];
+	private _hintsDecoratorIds: string[] = [];
 	private readonly _decorationsTypes = new Set<string>();
 
 	private _isEnabled: boolean;
@@ -80,6 +80,9 @@ export class InlineHintsDetector extends Disposable implements IEditorContributi
 				}
 			}
 		}));
+		this._register(_editor.onDidScrollChange(() => {
+			this._onModelChanged();
+		}))
 
 		this._timeoutTimer = null;
 		this._computePromise = null;
@@ -137,11 +140,13 @@ export class InlineHintsDetector extends Disposable implements IEditorContributi
 			if (!model) {
 				return Promise.resolve([]);
 			}
-			return getSignatures(model, token);
+
+			const visibleRanges = this._editor.getVisibleRangesPlusViewportAboveBelow();
+			return getSignatures(model, visibleRanges, token);
 		});
-		this._computePromise.then((labelData) => {
-			this._updateDecorations(labelData);
-			this._updateLabelDecorators(labelData);
+		this._computePromise.then((hintsData) => {
+			this._updateDecorations(hintsData);
+			this._updateHintsDecorators(hintsData);
 			this._computePromise = null;
 		}, onUnexpectedError);
 	}
@@ -158,14 +163,14 @@ export class InlineHintsDetector extends Disposable implements IEditorContributi
 		this._localToDispose.clear();
 	}
 
-	private _updateDecorations(labelData: InlineHintsData[]): void {
-		const decorations = flatten(labelData.map(labels => labels.list.map(label => {
+	private _updateDecorations(hintsData: InlineHintsData[]): void {
+		const decorations = flatten(hintsData.map(hints => hints.list.map(hint => {
 			return {
 				range: {
-					startLineNumber: label.position.lineNumber,
-					startColumn: label.position.column,
-					endLineNumber: label.position.lineNumber,
-					endColumn: label.position.column
+					startLineNumber: hint.position.lineNumber,
+					startColumn: hint.position.column,
+					endLineNumber: hint.position.lineNumber,
+					endColumn: hint.position.column
 				},
 				options: ModelDecorationOptions.EMPTY
 			};
@@ -173,21 +178,21 @@ export class InlineHintsDetector extends Disposable implements IEditorContributi
 
 		this._decorationsIds = this._editor.deltaDecorations(this._decorationsIds, decorations);
 
-		this._labelDatas = new Map<string, InlineHintsData>();
-		this._decorationsIds.forEach((id, i) => this._labelDatas.set(id, labelData[i]));
+		this._hintsDatas = new Map<string, InlineHintsData>();
+		this._decorationsIds.forEach((id, i) => this._hintsDatas.set(id, hintsData[i]));
 	}
 
-	private _updateLabelDecorators(labelData: InlineHintsData[]): void {
+	private _updateHintsDecorators(hintsData: InlineHintsData[]): void {
 		let decorations: IModelDeltaDecoration[] = [];
 		let newDecorationsTypes: { [key: string]: boolean } = {};
 		const { fontSize } = this._getLayoutInfo();
 		const backgroundColor = this._themeService.getColorTheme().getColor(inlineHintBackground);
 		const fontColor = this._themeService.getColorTheme().getColor(inlineHintForeground);
 
-		for (let i = 0; i < labelData.length; i++) {
-			const label = labelData[i].list;
-			for (let j = 0; j < label.length && decorations.length < MAX_DECORATORS; j++) {
-				const { text, position } = label[j];
+		for (let i = 0; i < hintsData.length; i++) {
+			const hint = hintsData[i].list;
+			for (let j = 0; j < hint.length && decorations.length < MAX_DECORATORS; j++) {
+				const { text, position } = hint[j];
 
 				const subKey = hash(text).toString(16);
 				let key = 'inlineHints-' + subKey;
@@ -224,7 +229,7 @@ export class InlineHintsDetector extends Disposable implements IEditorContributi
 			}
 		});
 
-		this._labelDecoratorIds = this._editor.deltaDecorations(this._labelDecoratorIds, decorations);
+		this._hintsDecoratorIds = this._editor.deltaDecorations(this._hintsDecoratorIds, decorations);
 	}
 
 	private _getLayoutInfo() {
@@ -234,7 +239,7 @@ export class InlineHintsDetector extends Disposable implements IEditorContributi
 
 	private _removeAllDecorations(): void {
 		this._decorationsIds = this._editor.deltaDecorations(this._decorationsIds, []);
-		this._labelDecoratorIds = this._editor.deltaDecorations(this._labelDecoratorIds, []);
+		this._hintsDecoratorIds = this._editor.deltaDecorations(this._hintsDecoratorIds, []);
 
 		this._decorationsTypes.forEach(subType => {
 			this._codeEditorService.removeDecorationType(subType);

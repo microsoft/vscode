@@ -501,8 +501,8 @@ export class MainThreadLanguageFeatures implements MainThreadLanguageFeaturesSha
 
 	$registerInlineHintsProvider(handle: number, selector: IDocumentFilterDto[]): void {
 		this._registrations.set(handle, modes.InlineHintsProviderRegistry.register(selector, <modes.InlineHintsProvider>{
-			provideInlineHints: async (model: ITextModel, token: CancellationToken): Promise<modes.InlineHint[] | undefined> => {
-				const result = await this._proxy.$provideInlineHints(handle, model.uri, token);
+			provideInlineHints: async (model: ITextModel, range: EditorRange, token: CancellationToken): Promise<modes.InlineHint[] | undefined> => {
+				const result = await this._proxy.$provideInlineHints(handle, model.uri, range, token);
 				return result?.hints;
 			}
 		}));

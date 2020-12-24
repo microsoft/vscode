@@ -3796,7 +3796,7 @@ declare module 'vscode' {
 		 *
 		 * @return A list of arguments labels or a thenable that resolves to such.
 		 */
-		provideInlineHints(model: TextDocument, token: CancellationToken): ProviderResult<InlineHint[]>;
+		provideInlineHints(model: TextDocument, range: Range, token: CancellationToken): ProviderResult<InlineHint[]>;
 	}
 
 	/**
