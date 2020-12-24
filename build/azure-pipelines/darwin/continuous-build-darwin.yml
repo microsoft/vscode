@@ -69,6 +69,11 @@ steps:
     displayName: Run Unit Tests (Electron)
 
   - script: |
+      set -e
+      yarn playwright-install
+    displayName: Download Playwright
+
+  - script: |
       yarn test-browser --browser chromium --browser webkit --browser firefox --tfs "Browser Unit Tests"
     displayName: Run Unit Tests (Browser)
 
