@@ -67,7 +67,7 @@ steps:
   - powershell: |
       . build/azure-pipelines/win32/exec.ps1
       $ErrorActionPreference = "Stop"
-      exec { 7z.exe x .build/node_modules_cache/cache.7z }
+      exec { 7z.exe x .build/node_modules_cache/cache.7z -aos }
     condition: and(succeeded(), eq(variables.NODE_MODULES_RESTORED, 'true'))
     displayName: Extract node_modules archive
 
