@@ -197,25 +197,6 @@ class DocumentSymbolsOutline implements IOutline<DocumentSymbolItem> {
 		this._disposables.add(this._editor.onDidChangeModel(_ => this._createOutline()));
 		this._disposables.add(this._editor.onDidChangeModelLanguage(_ => this._createOutline()));
 
-		// TODO@jrieken
-		// update when config changes (re-render)
-		this._disposables.add(this._configurationService.onDidChangeConfiguration(e => {
-			if (e.affectsConfiguration('breadcrumbs')) {
-				this._setOutlineModel(this._outlineModel);
-				return;
-			}
-			if (this._editor && this._editor.getModel()) {
-				const editorModel = this._editor.getModel() as ITextModel;
-				const languageName = editorModel.getLanguageIdentifier().language;
-
-				// Checking for changes in the current language override config.
-				// We can't be more specific than this because the ConfigurationChangeEvent(e) only includes the first part of the root path
-				if (e.affectsConfiguration(`[${languageName}]`)) {
-					this._setOutlineModel(this._outlineModel);
-				}
-			}
-		}));
-
 		// update soon'ish as model content change
 		const updateSoon = new TimeoutTimer();
 		this._disposables.add(updateSoon);
@@ -223,7 +204,6 @@ class DocumentSymbolsOutline implements IOutline<DocumentSymbolItem> {
 			const timeout = OutlineModel.getRequestDelay(this._editor!.getModel());
 			updateSoon.cancelAndSet(() => this._createOutline(event), timeout);
 		}));
-
 
 		// stop when editor dies
 		this._disposables.add(this._editor.onDidDispose(() => this._outlineDisposables.clear()));
@@ -353,15 +333,21 @@ class DocumentSymbolsOutline implements IOutline<DocumentSymbolItem> {
 				}
 			}));
 			this._outlineDisposables.add(this._configurationService.onDidChangeConfiguration(e => {
-				if (e.affectsConfiguration(OutlineConfigKeys.problemsBadges) || e.affectsConfiguration(OutlineConfigKeys.problemsColors)) {
-					this._onDidChange.fire({});
-				}
 				if (e.affectsConfiguration(OutlineConfigKeys.problemsEnabled)) {
 					if (this._configurationService.getValue(OutlineConfigKeys.problemsEnabled)) {
 						this._applyMarkersToOutline(model);
 					} else {
 						model.updateMarker([]);
 					}
+					this._onDidChange.fire({});
+				}
+				if (e.affectsConfiguration('outline')) {
+					// outline filtering, problems on/off
+					this._onDidChange.fire({});
+				}
+				if (e.affectsConfiguration('breadcrumbs') && this._editor.hasModel()) {
+					// breadcrumbs filtering
+					this._breadcrumbsDataSource.update(model, this._editor.getPosition());
 					this._onDidChange.fire({});
 				}
 			}));
