@@ -17,42 +17,32 @@ steps:
       node build/azure-pipelines/common/computeNodeModulesCacheKey.js > .build/yarnlockhash
     displayName: Prepare yarn cache flags
 
-  - task: Cache@2
+  - task: 1ESLighthouseEng.PipelineArtifactCaching.RestoreCacheV1.RestoreCache@1
     inputs:
-      key: 'continuousNodeModules | $(Agent.OS) | .build/arch, .build/terrapin, .build/yarnlockhash'
-      path: .build/node_modules_cache
-      cacheHitVar: NODE_MODULES_RESTORED
-    displayName: Cache node_modules archive
-
-  - powershell: |
-      . build/azure-pipelines/win32/exec.ps1
-      $ErrorActionPreference = "Stop"
-      exec { 7z.exe x .build/node_modules_cache/cache.7z -aos }
-    condition: and(succeeded(), eq(variables.NODE_MODULES_RESTORED, 'true'))
-    displayName: Extract node_modules archive
+      keyfile: ".build/yarnlockhash"
+      targetfolder: "**/node_modules, !**/node_modules/**/node_modules"
+      vstsFeed: "vscode-build-cache"
 
   - powershell: |
       yarn --frozen-lockfile
     env:
       CHILD_CONCURRENCY: "1"
     displayName: Install Dependencies
-    condition: and(succeeded(), ne(variables.NODE_MODULES_RESTORED, 'true'))
+    condition: and(succeeded(), ne(variables['CacheRestored'], 'true'))
 
-  - powershell: |
-      . build/azure-pipelines/win32/exec.ps1
-      $ErrorActionPreference = "Stop"
-      exec { node build/azure-pipelines/common/listNodeModules.js .build/node_modules_list.txt }
-      exec { mkdir -Force .build/node_modules_cache }
-      exec { 7z.exe a .build/node_modules_cache/cache.7z -mx3 `@.build/node_modules_list.txt }
-    condition: and(succeeded(), ne(variables.NODE_MODULES_RESTORED, 'true'))
-    displayName: Create node_modules archive
+  - task: 1ESLighthouseEng.PipelineArtifactCaching.SaveCacheV1.SaveCache@1
+    inputs:
+      keyfile: ".build/yarnlockhash"
+      targetfolder: "**/node_modules, !**/node_modules/**/node_modules"
+      vstsFeed: "vscode-build-cache"
+    condition: and(succeeded(), ne(variables['CacheRestored'], 'true'))
 
   - powershell: |
       . build/azure-pipelines/win32/exec.ps1
       $ErrorActionPreference = "Stop"
       exec { yarn postinstall }
     displayName: Run postinstall scripts
-    condition: and(succeeded(), eq(variables.NODE_MODULES_RESTORED, 'true'))
+    condition: and(succeeded(), eq(variables['CacheRestored'], 'true'))
 
   - powershell: |
       yarn electron
