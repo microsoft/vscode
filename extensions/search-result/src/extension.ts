@@ -98,7 +98,7 @@ export function activate(context: vscode.ExtensionContext) {
 		}),
 
 		vscode.languages.registerDocumentLinkProvider(SEARCH_RESULT_SELECTOR, {
-			async provideDocumentLinks(document: vscode.TextDocument, token: vscode.CancellationToken): Promise<any[]> {
+			async provideDocumentLinks(document: vscode.TextDocument, token: vscode.CancellationToken): Promise<vscode.DocumentLink[]> {
 				return parseSearchResults(document, token)
 					.filter(isFileLine)
 					.map(({ location }) => ({ range: location.originSelectionRange!, target: location.targetUri }));
@@ -141,7 +141,7 @@ function relativePathToUri(path: string, resultsUri: vscode.Uri): vscode.Uri | u
 	}
 
 	const uriFromFolderWithPath = (folder: vscode.WorkspaceFolder, path: string): vscode.Uri =>
-		(vscode.Uri as any).joinPath(folder.uri, path);
+		vscode.Uri.joinPath(folder.uri, path);
 
 	if (vscode.workspace.workspaceFolders) {
 		const multiRootFormattedPath = /^(.*) • (.*)$/.exec(path);
