@@ -986,6 +986,10 @@ declare module 'vscode' {
 		/**
 		 * CSS styling property that will be applied to the decoration attachment.
 		 */
+		fontSize?: string;
+		/**
+		 * CSS styling property that will be applied to the decoration attachment.
+		 */
 		textDecoration?: string;
 		/**
 		 * CSS styling property that will be applied to the decoration attachment.
@@ -999,6 +1003,10 @@ declare module 'vscode' {
 		 * CSS styling property that will be applied to the decoration attachment.
 		 */
 		margin?: string;
+		/**
+		 * CSS styling property that will be applied to the decoration attachment.
+		 */
+		padding?: string;
 		/**
 		 * CSS styling property that will be applied to the decoration attachment.
 		 */

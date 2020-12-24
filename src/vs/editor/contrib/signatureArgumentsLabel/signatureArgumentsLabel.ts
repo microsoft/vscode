@@ -16,7 +16,9 @@ import { ModelDecorationOptions } from 'vs/editor/common/model/textModel';
 import { SignatureArgumentsLabelProvider, SignatureArgumentsLabelProviderRegistry, SignautreArgumentsLabel } from 'vs/editor/common/modes';
 import { EditorOption } from 'vs/editor/common/config/editorOptions';
 import { flatten } from 'vs/base/common/arrays';
+import { inlineHintForeground, inlineHintBackground } from 'vs/platform/theme/common/colorRegistry';
 import { CancellationToken } from 'vs/base/common/cancellation';
+import { IThemeService } from 'vs/platform/theme/common/themeService';
 
 const MAX_DECORATORS = 500;
 
@@ -40,7 +42,7 @@ export function getSignatures(model: ITextModel, token: CancellationToken): Prom
 
 export class SignatureArgumentsLabelDetector extends Disposable implements IEditorContribution {
 
-	public static readonly ID: string = 'editor.contrib.signatureArgumentsLabel';
+	static readonly ID: string = 'editor.contrib.signatureArgumentsLabel';
 
 	static readonly RECOMPUTE_TIME = 1000; // ms
 
@@ -57,23 +59,24 @@ export class SignatureArgumentsLabelDetector extends Disposable implements IEdit
 	private _isEnabled: boolean;
 
 	constructor(private readonly _editor: ICodeEditor,
-		@ICodeEditorService private readonly _codeEditorService: ICodeEditorService
+		@ICodeEditorService private readonly _codeEditorService: ICodeEditorService,
+		@IThemeService private readonly _themeService: IThemeService,
 	) {
 		super();
 		this._register(_editor.onDidChangeModel(() => {
 			this._isEnabled = this.isEnabled();
-			this.onModelChanged();
+			this._onModelChanged();
 		}));
-		this._register(_editor.onDidChangeModelLanguage(() => this.onModelChanged()));
-		this._register(SignatureArgumentsLabelProviderRegistry.onDidChange(() => this.onModelChanged()));
+		this._register(_editor.onDidChangeModelLanguage(() => this._onModelChanged()));
+		this._register(SignatureArgumentsLabelProviderRegistry.onDidChange(() => this._onModelChanged()));
 		this._register(_editor.onDidChangeConfiguration(() => {
 			let prevIsEnabled = this._isEnabled;
 			this._isEnabled = this.isEnabled();
 			if (prevIsEnabled !== this._isEnabled) {
 				if (this._isEnabled) {
-					this.onModelChanged();
+					this._onModelChanged();
 				} else {
-					this.removeAllDecorations();
+					this._removeAllDecorations();
 				}
 			}
 		}));
@@ -81,7 +84,7 @@ export class SignatureArgumentsLabelDetector extends Disposable implements IEdit
 		this._timeoutTimer = null;
 		this._computePromise = null;
 		this._isEnabled = this.isEnabled();
-		this.onModelChanged();
+		this._onModelChanged();
 	}
 
 	isEnabled(): boolean {
@@ -98,13 +101,13 @@ export class SignatureArgumentsLabelDetector extends Disposable implements IEdit
 	}
 
 	dispose(): void {
-		this.stop();
-		this.removeAllDecorations();
+		this._stop();
+		this._removeAllDecorations();
 		super.dispose();
 	}
 
-	private onModelChanged(): void {
-		this.stop();
+	private _onModelChanged(): void {
+		this._stop();
 
 		if (!this._isEnabled) {
 			return;
@@ -121,14 +124,14 @@ export class SignatureArgumentsLabelDetector extends Disposable implements IEdit
 				this._timeoutTimer.cancelAndSet(() => {
 					this._timeoutTimer = null;
 
-					this.beginCompute();
+					this._beginCompute();
 				}, SignatureArgumentsLabelDetector.RECOMPUTE_TIME);
 			}
 		}));
-		this.beginCompute();
+		this._beginCompute();
 	}
 
-	private beginCompute(): void {
+	private _beginCompute(): void {
 		this._computePromise = createCancelablePromise(token => {
 			const model = this._editor.getModel();
 			if (!model) {
@@ -137,13 +140,13 @@ export class SignatureArgumentsLabelDetector extends Disposable implements IEdit
 			return getSignatures(model, token);
 		});
 		this._computePromise.then((labelData) => {
-			this.updateDecorations(labelData);
-			this.updateLabelDecorators(labelData);
+			this._updateDecorations(labelData);
+			this._updateLabelDecorators(labelData);
 			this._computePromise = null;
 		}, onUnexpectedError);
 	}
 
-	private stop(): void {
+	private _stop(): void {
 		if (this._timeoutTimer) {
 			this._timeoutTimer.cancel();
 			this._timeoutTimer = null;
@@ -155,7 +158,7 @@ export class SignatureArgumentsLabelDetector extends Disposable implements IEdit
 		this._localToDispose.clear();
 	}
 
-	private updateDecorations(labelData: SignatureArgumentsLabelData[]): void {
+	private _updateDecorations(labelData: SignatureArgumentsLabelData[]): void {
 		const decorations = flatten(labelData.map(labels => labels.list.map(label => {
 			return {
 				range: {
@@ -174,9 +177,12 @@ export class SignatureArgumentsLabelDetector extends Disposable implements IEdit
 		this._decorationsIds.forEach((id, i) => this._labelDatas.set(id, labelData[i]));
 	}
 
-	private updateLabelDecorators(labelData: SignatureArgumentsLabelData[]): void {
+	private _updateLabelDecorators(labelData: SignatureArgumentsLabelData[]): void {
 		let decorations: IModelDeltaDecoration[] = [];
 		let newDecorationsTypes: { [key: string]: boolean } = {};
+		const { fontSize } = this._getLayoutInfo();
+		const backgroundColor = this._themeService.getColorTheme().getColor(inlineHintBackground);
+		const fontColor = this._themeService.getColorTheme().getColor(inlineHintForeground);
 
 		for (let i = 0; i < labelData.length; i++) {
 			const label = labelData[i].list;
@@ -189,11 +195,12 @@ export class SignatureArgumentsLabelDetector extends Disposable implements IEdit
 				if (!this._decorationsTypes.has(key) && !newDecorationsTypes[key]) {
 					this._codeEditorService.registerDecorationType(key, {
 						before: {
-							contentText: `${name}:`,
-							border: 'solid 1px gray',
-							backgroundColor: '#333',
-							margin: '1px',
-							color: 'white'
+							contentText: name,
+							backgroundColor: `${backgroundColor}`,
+							color: `${fontColor}`,
+							margin: '0px 5px 0px 0px',
+							fontSize: `${fontSize}px`,
+							padding: '0px 2px'
 						}
 					}, undefined, this._editor);
 				}
@@ -220,7 +227,12 @@ export class SignatureArgumentsLabelDetector extends Disposable implements IEdit
 		this._labelDecoratorIds = this._editor.deltaDecorations(this._labelDecoratorIds, decorations);
 	}
 
-	private removeAllDecorations(): void {
+	private _getLayoutInfo() {
+		const fontSize = (this._editor.getOption(EditorOption.fontSize) * .9) | 0;
+		return { fontSize };
+	}
+
+	private _removeAllDecorations(): void {
 		this._decorationsIds = this._editor.deltaDecorations(this._decorationsIds, []);
 		this._labelDecoratorIds = this._editor.deltaDecorations(this._labelDecoratorIds, []);
 
