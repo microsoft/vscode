@@ -100,14 +100,13 @@ export function loadConnectionTable(stdout: string): Record<string, string>[] {
 	return table;
 }
 
-function knownExcludeCmdline(command: string, additionalIgnore: string): boolean {
+function knownExcludeCmdline(command: string): boolean {
 	return !!command.match(/.*\.vscode-server-[a-zA-Z]+\/bin.*/)
 		|| (command.indexOf('out/vs/server/main.js') !== -1)
-		|| (command === additionalIgnore);
+		|| (command.indexOf('_productName=VSCode') !== -1);
 }
 
-export async function findPorts(tcp: string, tcp6: string, procSockets: string,
-	processes: { pid: number, cwd: string, cmd: string }[], ignoreCommandLine: string) {
+export async function findPorts(tcp: string, tcp6: string, procSockets: string, processes: { pid: number, cwd: string, cmd: string }[]) {
 	const connections: { socket: number, ip: string, port: number }[] = loadListeningPorts(tcp, tcp6);
 	const sockets = getSockets(procSockets);
 
@@ -123,7 +122,7 @@ export async function findPorts(tcp: string, tcp6: string, procSockets: string,
 	const ports: { host: string, port: number, detail: string }[] = [];
 	connections.filter((connection => socketMap[connection.socket])).forEach(({ socket, ip, port }) => {
 		const command = processMap[socketMap[socket].pid].cmd;
-		if (!knownExcludeCmdline(command, ignoreCommandLine)) {
+		if (!knownExcludeCmdline(command)) {
 			ports.push({ host: ip, port, detail: processMap[socketMap[socket].pid].cmd });
 		}
 	});
@@ -168,7 +167,7 @@ export class ExtHostTunnelService extends Disposable implements IExtHostTunnelSe
 		return Math.max(movingAverage * 20, 2000);
 	}
 
-	async $registerCandidateFinder(rendererCommandLine: string): Promise<void> {
+	async $registerCandidateFinder(): Promise<void> {
 		if (!isLinux || !this.initData.remote.isRemote || !this.initData.remote.authority) {
 			return;
 		}
@@ -177,7 +176,7 @@ export class ExtHostTunnelService extends Disposable implements IExtHostTunnelSe
 		let oldPorts: { host: string, port: number, detail: string }[] | undefined = undefined;
 		while (1) {
 			const startTime = new Date().getTime();
-			const newPorts = await this.findCandidatePorts(rendererCommandLine);
+			const newPorts = await this.findCandidatePorts();
 			const timeTaken = new Date().getTime() - startTime;
 			movingAverage.update(timeTaken);
 			if (!oldPorts || (JSON.stringify(oldPorts) !== JSON.stringify(newPorts))) {
@@ -239,7 +238,7 @@ export class ExtHostTunnelService extends Disposable implements IExtHostTunnelSe
 		return undefined;
 	}
 
-	async findCandidatePorts(ignoreCommandLine: string): Promise<{ host: string, port: number, detail: string }[]> {
+	async findCandidatePorts(): Promise<{ host: string, port: number, detail: string }[]> {
 		let tcp: string = '';
 		let tcp6: string = '';
 		try {
@@ -272,6 +271,6 @@ export class ExtHostTunnelService extends Disposable implements IExtHostTunnelSe
 				//
 			}
 		}
-		return findPorts(tcp, tcp6, procSockets, processes, ignoreCommandLine);
+		return findPorts(tcp, tcp6, procSockets, processes);
 	}
 }

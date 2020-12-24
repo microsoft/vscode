@@ -256,7 +256,7 @@ if (platform.isLinux) {
 		});
 
 		test('findPorts', async function () {
-			const result = await findPorts(tcp, tcp6, procSockets, processes, 'test command line');
+			const result = await findPorts(tcp, tcp6, procSockets, processes);
 			assert.equal(result.length, 1);
 			assert.equal(result[0].host, '0.0.0.0');
 			assert.equal(result[0].port, 3002);
