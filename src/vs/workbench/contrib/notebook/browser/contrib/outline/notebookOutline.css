@@ -18,6 +18,9 @@
 .monaco-breadcrumbs > .notebook-outline-element > .element-icon.file-icon {
 	height: 18px;
 }
+.monaco-list .notebook-outline-element .monaco-highlighted-label {
+	color: var(--outline-element-color);
+}
 
 .monaco-breadcrumbs .notebook-outline-element .element-decoration,
 .monaco-list .notebook-outline-element > .element-decoration {

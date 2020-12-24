@@ -32,6 +32,8 @@ import { IMarkerService, MarkerSeverity } from 'vs/platform/markers/common/marke
 import { listErrorForeground, listWarningForeground } from 'vs/platform/theme/common/colorRegistry';
 import { isEqual } from 'vs/base/common/resources';
 import { IdleValue } from 'vs/base/common/async';
+import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
+import { OutlineConfigKeys } from 'vs/editor/contrib/documentSymbols/outline';
 
 export interface IOutlineMarkerInfo {
 	readonly count: number;
@@ -92,6 +94,13 @@ export class OutlineEntry {
 		}
 	}
 
+	clearMarkers(): void {
+		this._markerInfo = undefined;
+		for (let child of this.children) {
+			child.clearMarkers();
+		}
+	}
+
 	find(cell: ICellViewModel, parents: OutlineEntry[]): OutlineEntry | undefined {
 		if (cell.id === this.cell.id) {
 			return this;
@@ -120,6 +129,7 @@ class NotebookOutlineTemplate {
 	static readonly templateId = 'NotebookOutlineRenderer';
 
 	constructor(
+		readonly container: HTMLElement,
 		readonly iconClass: HTMLElement,
 		readonly iconLabel: IconLabel,
 		readonly decoration: HTMLElement
@@ -130,7 +140,10 @@ class NotebookOutlineRenderer implements ITreeRenderer<OutlineEntry, FuzzyScore,
 
 	templateId: string = NotebookOutlineTemplate.templateId;
 
-	constructor(@IThemeService private readonly _themeService: IThemeService) { }
+	constructor(
+		@IThemeService private readonly _themeService: IThemeService,
+		@IConfigurationService private readonly _configurationService: IConfigurationService,
+	) { }
 
 	renderTemplate(container: HTMLElement): NotebookOutlineTemplate {
 		container.classList.add('notebook-outline-element', 'show-file-icons');
@@ -140,7 +153,7 @@ class NotebookOutlineRenderer implements ITreeRenderer<OutlineEntry, FuzzyScore,
 		const decoration = document.createElement('div');
 		decoration.className = 'element-decoration';
 		container.append(decoration);
-		return new NotebookOutlineTemplate(iconClass, iconLabel, decoration);
+		return new NotebookOutlineTemplate(container, iconClass, iconLabel, decoration);
 	}
 
 	renderElement(element: ITreeNode<OutlineEntry, FuzzyScore>, _index: number, template: NotebookOutlineTemplate, _height: number | undefined): void {
@@ -152,19 +165,29 @@ class NotebookOutlineRenderer implements ITreeRenderer<OutlineEntry, FuzzyScore,
 		}
 
 		const { markerInfo } = element.element;
-		if (!markerInfo) {
-			template.decoration.style.removeProperty('--outline-element-color');
-			template.decoration.textContent = '';
-		} else {
-			if (markerInfo.count === 0) {
+
+		template.container.style.removeProperty('--outline-element-color');
+		template.decoration.innerText = '';
+		if (markerInfo) {
+			const useBadges = this._configurationService.getValue<boolean>(OutlineConfigKeys.problemsBadges);
+			if (!useBadges) {
+				template.decoration.classList.remove('bubble');
+				template.decoration.innerText = '';
+			} else if (markerInfo.count === 0) {
 				template.decoration.classList.add('bubble');
 				template.decoration.innerText = '\uea71';
 			} else {
 				template.decoration.classList.remove('bubble');
-				template.decoration.textContent = markerInfo.count > 9 ? '9+' : String(markerInfo.count);
+				template.decoration.innerText = markerInfo.count > 9 ? '9+' : String(markerInfo.count);
 			}
 			const color = this._themeService.getColorTheme().getColor(markerInfo.topSev === MarkerSeverity.Error ? listErrorForeground : listWarningForeground);
-			template.decoration.style.setProperty('--outline-element-color', color?.toString() ?? 'inherit');
+			const useColors = this._configurationService.getValue<boolean>(OutlineConfigKeys.problemsColors);
+			if (!useColors) {
+				template.container.style.removeProperty('--outline-element-color');
+				template.decoration.style.setProperty('--outline-element-color', color?.toString() ?? 'inherit');
+			} else {
+				template.container.style.setProperty('--outline-element-color', color?.toString() ?? 'inherit');
+			}
 		}
 	}
 
@@ -267,6 +290,7 @@ class NotebookCellOutline implements IOutline<OutlineEntry> {
 		@IInstantiationService instantiationService: IInstantiationService,
 		@IEditorService private readonly _editorService: IEditorService,
 		@IMarkerService private readonly _markerService: IMarkerService,
+		@IConfigurationService private readonly _configurationService: IConfigurationService,
 	) {
 		const selectionListener = new MutableDisposable();
 		this._dispoables.add(selectionListener);
@@ -413,23 +437,42 @@ class NotebookCellOutline implements IOutline<OutlineEntry> {
 					}
 				}
 			}
-
 			this._entries = result;
 		}
 
 		// feature: show markers with each cell
-		const updateMarker = () => {
-			for (let entry of this._entries) {
-				entry.updateMarkers(this._markerService);
+		const markerServiceListener = new MutableDisposable();
+		this._entriesDisposables.add(markerServiceListener);
+		const updateMarkerUpdater = () => {
+			const doUpdateMarker = (clear: boolean) => {
+				for (let entry of this._entries) {
+					if (clear) {
+						entry.clearMarkers();
+					} else {
+						entry.updateMarkers(this._markerService);
+					}
+				}
+			};
+			if (this._configurationService.getValue(OutlineConfigKeys.problemsEnabled)) {
+				markerServiceListener.value = this._markerService.onMarkerChanged(e => {
+					if (e.some(uri => viewModel.viewCells.some(cell => isEqual(cell.uri, uri)))) {
+						doUpdateMarker(false);
+						this._onDidChange.fire({});
+					}
+				});
+				doUpdateMarker(false);
+			} else {
+				markerServiceListener.clear();
+				doUpdateMarker(true);
 			}
 		};
-		this._entriesDisposables.add(this._markerService.onMarkerChanged(e => {
-			if (e.some(uri => viewModel.viewCells.some(cell => isEqual(cell.uri, uri)))) {
-				updateMarker();
+		updateMarkerUpdater();
+		this._entriesDisposables.add(this._configurationService.onDidChangeConfiguration(e => {
+			if (e.affectsConfiguration(OutlineConfigKeys.problemsEnabled)) {
+				updateMarkerUpdater();
 				this._onDidChange.fire({});
 			}
 		}));
-		updateMarker();
 
 		this._onDidChange.fire({});
 	}
@@ -488,11 +531,9 @@ class NotebookCellOutline implements IOutline<OutlineEntry> {
 		return toDisposable(() => {
 			if (viewState) {
 				widget?.restoreListViewState(viewState);
-
 			}
 		});
 	}
-
 }
 
 class NotebookOutlineCreator implements IOutlineCreator<NotebookEditor, OutlineEntry> {
