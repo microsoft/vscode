@@ -503,10 +503,7 @@ export class MainThreadLanguageFeatures implements MainThreadLanguageFeaturesSha
 		this._registrations.set(handle, modes.SignatureArgumentsLabelProviderRegistry.register(selector, <modes.SignatureArgumentsLabelProvider>{
 			provideSignatureArgumentsLabels: async (model: ITextModel, token: CancellationToken): Promise<modes.SignautreArgumentsLabel[] | undefined> => {
 				const result = await this._proxy.$provideSignatureArgumentsLabel(handle, model.uri, token);
-				if (!result) {
-					return undefined
-				}
-				return result.labels
+				return result?.labels;
 			}
 		}));
 	}

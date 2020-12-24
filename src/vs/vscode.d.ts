@@ -3755,14 +3755,39 @@ declare module 'vscode' {
 		provideSignatureHelp(document: TextDocument, position: Position, token: CancellationToken, context: SignatureHelpContext): ProviderResult<SignatureHelp>;
 	}
 
+	/**
+	 * Argument label information of signature.
+	 */
 	export class SignautreArgumentsLabel {
-		name: string
-		position: Position
+		/**
+		 * The name of the parameter.
+		 */
+		name: string;
+		/**
+		 * The position of the argument.
+		 */
+		position: Position;
 
-		constructor(name: string, position: Position)
+		/**
+		 * Creates a new signature arguments label information object.
+		 *
+		 * @param name A name of the parameter.
+		 * @param position The position of the argument.
+		 */
+		constructor(name: string, position: Position);
 	}
 
+	/**
+	 * The document formatting provider interface defines the contract between extensions and
+	 * the arguments label feature.
+	 */
 	export interface SignatureArgumentsLabelProvider {
+		/**
+		 * @param model The document in which the command was invoked.
+		 * @param token A cancellation token.
+		 *
+		 * @return A list of arguments labels or a thenable that resolves to such.
+		 */
 		provideSignatureArgumentsLabels(model: TextDocument, token: CancellationToken): ProviderResult<SignautreArgumentsLabel[]>;
 	}
 
@@ -10846,6 +10871,17 @@ declare module 'vscode' {
 		export function registerSignatureHelpProvider(selector: DocumentSelector, provider: SignatureHelpProvider, ...triggerCharacters: string[]): Disposable;
 		export function registerSignatureHelpProvider(selector: DocumentSelector, provider: SignatureHelpProvider, metadata: SignatureHelpProviderMetadata): Disposable;
 
+		/**
+		 * Register a signature arguments label provider.
+		 *
+		 * Multiple providers can be registered for a language. In that case providers are sorted
+		 * by their [score](#languages.match) and the best-matching provider is used. Failure
+		 * of the selected provider will cause a failure of the whole operation.
+		 *
+		 * @param selector A selector that defines the documents this provider is applicable to.
+		 * @param provider An on type signature arguments label provider.
+		 * @return A [disposable](#Disposable) that unregisters this provider when being disposed.
+		 */
 		export function registerSignatureArgumentsLabelProvider(selector: DocumentSelector, provider: SignatureArgumentsLabelProvider): Disposable;
 
 		/**

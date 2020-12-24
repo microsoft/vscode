@@ -15,8 +15,8 @@ import { IModelDeltaDecoration, ITextModel } from 'vs/editor/common/model';
 import { ModelDecorationOptions } from 'vs/editor/common/model/textModel';
 import { SignatureArgumentsLabelProvider, SignatureArgumentsLabelProviderRegistry, SignautreArgumentsLabel } from 'vs/editor/common/modes';
 import { EditorOption } from 'vs/editor/common/config/editorOptions';
-import { CancellationToken } from 'vscode';
-import { flatten } from 'vs/base/common/arrays';;
+import { flatten } from 'vs/base/common/arrays';
+import { CancellationToken } from 'vs/base/common/cancellation';
 
 const MAX_DECORATORS = 500;
 
@@ -165,7 +165,7 @@ export class SignatureArgumentsLabelDetector extends Disposable implements IEdit
 					endColumn: label.position.column
 				},
 				options: ModelDecorationOptions.EMPTY
-			}
+			};
 		})));
 
 		this._decorationsIds = this._editor.deltaDecorations(this._decorationsIds, decorations);
@@ -181,7 +181,7 @@ export class SignatureArgumentsLabelDetector extends Disposable implements IEdit
 		for (let i = 0; i < labelData.length; i++) {
 			const label = labelData[i].list;
 			for (let j = 0; j < label.length && decorations.length < MAX_DECORATORS; j++) {
-				const { name, position } = label[j]
+				const { name, position } = label[j];
 
 				const subKey = hash(name).toString(16);
 				let key = 'signatureArgumentsLabel-' + subKey;

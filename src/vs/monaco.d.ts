@@ -3176,6 +3176,9 @@ declare namespace monaco.editor {
 		 * Controls strikethrough deprecated variables.
 		 */
 		showDeprecated?: boolean;
+		/**
+		 * Controls show signature arguments label.
+		 */
 		showSignatureArgumentsLabel?: boolean;
 	}
 

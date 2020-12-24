@@ -1796,7 +1796,8 @@ export class ExtHostLanguageFeatures implements extHostProtocol.ExtHostLanguageF
 		this._withAdapter(handle, SignatureHelpAdapter, adapter => adapter.releaseSignatureHelp(id), undefined);
 	}
 
-	// --- arguments labels
+	// --- signature arguments labels
+
 	$provideSignatureArgumentsLabel(handle: number, resource: UriComponents, token: CancellationToken): Promise<extHostProtocol.ISignatureArgumentsLabelDto | undefined> {
 		return this._withAdapter(handle, SignatureArgumentsLabelAdapter, adapter => adapter.provideSignatureArgumentsLabels(URI.revive(resource), token), undefined);
 	}

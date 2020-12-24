@@ -1020,7 +1020,7 @@ export namespace SignatureArgumentsLabelList {
 		return {
 			name: label.name,
 			position: Position.from(label.position)
-		}
+		};
 	}
 }
 
