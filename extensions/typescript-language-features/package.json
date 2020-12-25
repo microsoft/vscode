@@ -258,6 +258,24 @@
           "description": "%configuration.suggest.includeAutomaticOptionalChainCompletions%",
           "scope": "resource"
         },
+        "typescript.inlineHints.includeInlineParameterName": {
+          "type": "boolean",
+          "default": true,
+          "description": "%configuration.inlineHints.includeInlineParameterName%",
+          "scope": "resource"
+        },
+        "typescript.inlineHints.includeInlineFunctionParameterType": {
+          "type": "boolean",
+          "default": true,
+          "description": "%configuration.inlineHints.includeInlineFunctionParameterType%",
+          "scope": "resource"
+        },
+        "typescript.inlineHints.includeInlineVariableType": {
+          "type": "boolean",
+          "default": true,
+          "description": "%configuration.inlineHints.includeInlineVariableType%",
+          "scope": "resource"
+        },
         "typescript.reportStyleChecksAsWarnings": {
           "type": "boolean",
           "default": true,

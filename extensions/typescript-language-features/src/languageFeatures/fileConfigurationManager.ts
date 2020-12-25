@@ -13,6 +13,14 @@ import { isTypeScriptDocument } from '../utils/languageModeIds';
 import { equals } from '../utils/objects';
 import { ResourceMap } from '../utils/resourceMap';
 
+namespace ExperimentalProto {
+	export interface UserPreferences extends Proto.UserPreferences {
+		includeInlineParameterName?: boolean;
+		includeInlineFunctionParameterType?: boolean;
+		includeInlineVariableType?: boolean;
+	}
+}
+
 interface FileConfiguration {
 	readonly formatOptions: Proto.FormatCodeSettings;
 	readonly preferences: Proto.UserPreferences;
@@ -173,7 +181,7 @@ export default class FileConfigurationManager extends Disposable {
 			isTypeScriptDocument(document) ? 'typescript.preferences' : 'javascript.preferences',
 			document.uri);
 
-		const preferences: Proto.UserPreferences = {
+		const preferences: ExperimentalProto.UserPreferences = {
 			quotePreference: this.getQuoteStylePreference(preferencesConfig),
 			// @ts-expect-error until TypeScript 4.2 API
 			importModuleSpecifierPreference: getImportModuleSpecifierPreference(preferencesConfig),
@@ -183,6 +191,9 @@ export default class FileConfigurationManager extends Disposable {
 			allowRenameOfImportPath: true,
 			includeAutomaticOptionalChainCompletions: config.get<boolean>('suggest.includeAutomaticOptionalChainCompletions', true),
 			provideRefactorNotApplicableReason: true,
+			includeInlineParameterName: config.get<boolean>('inlineHints.includeInlineParameterName', true),
+			includeInlineFunctionParameterType: config.get<boolean>('inlineHints.includeInlineFunctionParameterType', true),
+			includeInlineVariableType: config.get<boolean>('inlineHints.includeInlineVariableType', true),
 		};
 
 		return preferences;

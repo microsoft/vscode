@@ -103,6 +103,9 @@ export class TypeScriptServiceConfiguration {
 	public readonly watchOptions: protocol.WatchOptions | undefined;
 	public readonly includePackageJsonAutoImports: 'auto' | 'on' | 'off' | undefined;
 	public readonly enableTsServerTracing: boolean;
+	public readonly includeInlineParameterName: boolean | undefined;
+	public readonly includeInlineFunctionParameterType: boolean | undefined;
+	public readonly includeInlineVariableType: boolean | undefined;
 
 	public static loadFromWorkspace(): TypeScriptServiceConfiguration {
 		return new TypeScriptServiceConfiguration();
@@ -126,6 +129,9 @@ export class TypeScriptServiceConfiguration {
 		this.watchOptions = TypeScriptServiceConfiguration.readWatchOptions(configuration);
 		this.includePackageJsonAutoImports = TypeScriptServiceConfiguration.readIncludePackageJsonAutoImports(configuration);
 		this.enableTsServerTracing = TypeScriptServiceConfiguration.readEnableTsServerTracing(configuration);
+		this.includeInlineParameterName = TypeScriptServiceConfiguration.readIncludeInlineParameterName(configuration);
+		this.includeInlineFunctionParameterType = TypeScriptServiceConfiguration.readIncludeInlineFunctionParameterType(configuration);
+		this.includeInlineVariableType = TypeScriptServiceConfiguration.readIncludeInlineVariableType(configuration);
 	}
 
 	public isEqualTo(other: TypeScriptServiceConfiguration): boolean {
@@ -215,5 +221,17 @@ export class TypeScriptServiceConfiguration {
 
 	private static readEnableTsServerTracing(configuration: vscode.WorkspaceConfiguration): boolean {
 		return configuration.get<boolean>('typescript.tsserver.enableTracing', false);
+	}
+
+	private static readIncludeInlineParameterName(configuration: vscode.WorkspaceConfiguration): boolean {
+		return configuration.get<boolean>('typescript.inlineHints.includeInlineParameterName', true);
+	}
+
+	private static readIncludeInlineFunctionParameterType(configuration: vscode.WorkspaceConfiguration): boolean {
+		return configuration.get<boolean>('typescript.inlineHints.includeInlineFunctionParameterType', true);
+	}
+
+	private static readIncludeInlineVariableType(configuration: vscode.WorkspaceConfiguration): boolean {
+		return configuration.get<boolean>('typescript.inlineHints.includeInlineVariableType', true);
 	}
 }

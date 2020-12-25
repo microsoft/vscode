@@ -30,6 +30,18 @@ import { TelemetryProperties, TelemetryReporter, VSCodeTelemetryReporter } from 
 import Tracer from './utils/tracer';
 import { inferredProjectCompilerOptions, ProjectType } from './utils/tsconfig';
 
+namespace ExperimentalProto {
+	export interface UserPreferences extends Proto.UserPreferences {
+		includeInlineParameterName?: boolean;
+		includeInlineFunctionParameterType?: boolean;
+		includeInlineVariableType?: boolean;
+	}
+
+	export interface ConfigureRequestArguments extends Proto.ConfigureRequestArguments {
+		preferences?: UserPreferences;
+	}
+}
+
 const localize = nls.loadMessageBundle();
 
 export interface TsDiagnostics {
@@ -529,12 +541,15 @@ export default class TypeScriptServiceClient extends Disposable implements IType
 			? this.configuration.watchOptions
 			: undefined;
 
-		const configureOptions: Proto.ConfigureRequestArguments = {
+		const configureOptions: ExperimentalProto.ConfigureRequestArguments = {
 			hostInfo: 'vscode',
 			preferences: {
 				providePrefixAndSuffixTextForRename: true,
 				allowRenameOfImportPath: true,
 				includePackageJsonAutoImports: this._configuration.includePackageJsonAutoImports,
+				includeInlineParameterName: this._configuration.includeInlineParameterName,
+				includeInlineFunctionParameterType: this._configuration.includeInlineFunctionParameterType,
+				includeInlineVariableType: this._configuration.includeInlineVariableType
 			},
 			watchOptions
 		};

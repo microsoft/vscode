@@ -10,7 +10,7 @@ import { ClientCapability, ITypeScriptServiceClient, ServerResponse, ExecConfig 
 import { conditionalRegistration, requireSomeCapability } from '../utils/dependentRegistration';
 import { Position } from '../utils/typeConverters';
 
-export namespace ExperimentalProto {
+namespace ExperimentalProto {
 	export const enum CommandTypes {
 		ProvideInlineHints = 'ProvideInlineHints'
 	}
