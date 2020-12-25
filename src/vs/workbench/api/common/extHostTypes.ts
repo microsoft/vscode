@@ -1261,11 +1261,11 @@ export class CallHierarchyOutgoingCall {
 @es5ClassCompat
 export class CodeLens {
 
-	range: vscode.Range;
+	range: Range;
 
 	command: vscode.Command | undefined;
 
-	constructor(range: vscode.Range, command?: vscode.Command) {
+	constructor(range: Range, command?: vscode.Command) {
 		this.range = range;
 		this.command = command;
 	}
