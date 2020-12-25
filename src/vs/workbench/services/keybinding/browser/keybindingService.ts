@@ -362,7 +362,7 @@ export class WorkbenchKeybindingService extends AbstractKeybindingService {
 		// it is possible that the document has lost focus, but the
 		// window is still focused, e.g. when a <webview> element
 		// has focus
-		return this.hostService.hasFocus;
+		return this.hostService.hasFocus || !!this.hostService.isWebviewFocused;
 	}
 
 	private _resolveKeybindingItems(items: IKeybindingItem[], isDefault: boolean): ResolvedKeybindingItem[] {

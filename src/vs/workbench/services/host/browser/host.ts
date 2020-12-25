@@ -33,6 +33,11 @@ export interface IHostService {
 	readonly hasFocus: boolean;
 
 	/**
+	 * Flag for focus or blur status of webview
+	 */
+	isWebviewFocused?: boolean;
+
+	/**
 	 * Find out if the window had the last focus.
 	 */
 	hadLastFocus(): Promise<boolean>;
