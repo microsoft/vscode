@@ -126,6 +126,8 @@ suite('git smoke test', function () {
 	});
 		
 	test('rename/delete conflict', async function () {
+		await commands.executeCommand('workbench.scm.focus');
+
 		cp.execSync('git branch test', { cwd });
 		cp.execSync('git checkout test', { cwd });
 
@@ -141,10 +143,10 @@ suite('git smoke test', function () {
 
 		try {
 			cp.execSync('git merge test', { cwd });
-		} catch (e) {}
-		await new Promise(resolve => setTimeout(resolve, 5e3));
+		} catch (e) { }
 
-		await commands.executeCommand('workbench.scm.focus');
-		await new Promise(resolve => setTimeout(resolve, 5e3));
+		await new Promise(resolve => {
+			setTimeout(resolve, 5e3);
+		});
 	});
 });
