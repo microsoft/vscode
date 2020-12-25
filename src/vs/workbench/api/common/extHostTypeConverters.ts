@@ -1023,8 +1023,8 @@ export namespace InlineHint {
 		return {
 			text: hint.text,
 			position: Position.from(hint.position),
-			whiteSpaceBefore: hint.whitespaceBefore,
-			whiteSpaceAfter: hint.whitespaceAfter
+			whitespaceBefore: hint.whitespaceBefore,
+			whitespaceAfter: hint.whitespaceAfter
 		};
 	}
 }

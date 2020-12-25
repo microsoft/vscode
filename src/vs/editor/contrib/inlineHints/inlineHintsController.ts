@@ -179,9 +179,9 @@ export class InlineHintsDetector extends Disposable implements IEditorContributi
 		for (let i = 0; i < hintsData.length; i++) {
 			const hint = hintsData[i].list;
 			for (let j = 0; j < hint.length && decorations.length < MAX_DECORATORS; j++) {
-				const { text, position, whiteSpaceBefore, whiteSpaceAfter } = hint[j];
-				const marginBefore = whiteSpaceBefore ? 5 : 0;
-				const marginAfter = whiteSpaceAfter ? 5 : 0;
+				const { text, position, whitespaceBefore, whitespaceAfter } = hint[j];
+				const marginBefore = whitespaceBefore ? 5 : 0;
+				const marginAfter = whitespaceAfter ? 5 : 0;
 
 				const subKey = hash(text).toString(16);
 				let key = 'inlineHints-' + subKey;
