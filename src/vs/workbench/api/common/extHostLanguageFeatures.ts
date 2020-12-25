@@ -1070,9 +1070,9 @@ class InlineHintsAdapter {
 		private readonly _provider: vscode.InlineHintsProvider,
 	) { }
 
-	provideInlineHints(resource: URI, range: Range, token: CancellationToken): Promise<extHostProtocol.IInlineHintsDto | undefined> {
+	provideInlineHints(resource: URI, range: IRange, token: CancellationToken): Promise<extHostProtocol.IInlineHintsDto | undefined> {
 		const doc = this._documents.getDocument(resource);
-		return asPromise(() => this._provider.provideInlineHints(doc, range, token)).then(value => {
+		return asPromise(() => this._provider.provideInlineHints(doc, typeConvert.Range.to(range), token)).then(value => {
 			if (value) {
 				const id = this._cache.add([value]);
 				return { hints: value.map(typeConvert.InlineHint.from), id };
@@ -1798,7 +1798,7 @@ export class ExtHostLanguageFeatures implements extHostProtocol.ExtHostLanguageF
 
 	// --- inline hints
 
-	$provideInlineHints(handle: number, resource: UriComponents, range: Range, token: CancellationToken): Promise<extHostProtocol.IInlineHintsDto | undefined> {
+	$provideInlineHints(handle: number, resource: UriComponents, range: IRange, token: CancellationToken): Promise<extHostProtocol.IInlineHintsDto | undefined> {
 		return this._withAdapter(handle, InlineHintsAdapter, adapter => adapter.provideInlineHints(URI.revive(resource), range, token), undefined);
 	}
 

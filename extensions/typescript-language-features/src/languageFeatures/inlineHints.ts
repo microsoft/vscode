@@ -29,10 +29,9 @@ class TypeScriptInlineHintsProvider implements vscode.InlineHintsProvider {
 				return [];
 			}
 
-			const labels = response.body.map(label => {
+			return response.body.map(label => {
 				return new vscode.InlineHint(label.text, Position.fromLocation(label.position));
 			});
-			return labels;
 		} catch (e) {
 			return [];
 		}

@@ -3,7 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { CancelablePromise, TimeoutTimer, createCancelablePromise } from 'vs/base/common/async';
+import { CancelablePromise, createCancelablePromise, RunOnceScheduler } from 'vs/base/common/async';
 import { onUnexpectedError } from 'vs/base/common/errors';
 import { hash } from 'vs/base/common/hash';
 import { Disposable, DisposableStore } from 'vs/base/common/lifecycle';
@@ -20,6 +20,7 @@ import { inlineHintForeground, inlineHintBackground } from 'vs/platform/theme/co
 import { CancellationToken } from 'vs/base/common/cancellation';
 import { IThemeService } from 'vs/platform/theme/common/themeService';
 import { Range } from 'vs/editor/common/core/range';
+import { LanguageFeatureRequestDelays } from 'vs/editor/common/modes/languageFeatureRegistry';
 
 const MAX_DECORATORS = 500;
 
@@ -28,7 +29,7 @@ export interface InlineHintsData {
 	provider: InlineHintsProvider;
 }
 
-export function getSignatures(model: ITextModel, ranges: Range[], token: CancellationToken): Promise<InlineHintsData[]> {
+export function getInlineHints(model: ITextModel, ranges: Range[], token: CancellationToken): Promise<InlineHintsData[]> {
 	const datas: InlineHintsData[] = [];
 	const providers = InlineHintsProviderRegistry.ordered(model).reverse();
 	const promises = flatten(providers.map(provider => ranges.map(range => Promise.resolve(provider.provideInlineHints(model, range, token)).then(result => {
@@ -43,20 +44,14 @@ export function getSignatures(model: ITextModel, ranges: Range[], token: Cancell
 export class InlineHintsDetector extends Disposable implements IEditorContribution {
 
 	static readonly ID: string = 'editor.contrib.InlineHints';
-
-	static readonly RECOMPUTE_TIME = 1000; // ms
-
 	private readonly _localToDispose = this._register(new DisposableStore());
-	private _computePromise: CancelablePromise<InlineHintsData[]> | null;
-	private _timeoutTimer: TimeoutTimer | null;
-
 	private _decorationsIds: string[] = [];
 	private _hintsDatas = new Map<string, InlineHintsData>();
-
 	private _hintsDecoratorIds: string[] = [];
 	private readonly _decorationsTypes = new Set<string>();
-
 	private _isEnabled: boolean;
+	private _getInlineHintsPromise: CancelablePromise<InlineHintsData[]> | undefined;
+	private readonly _getInlineHintsDelays = new LanguageFeatureRequestDelays(InlineHintsProviderRegistry, 250, 2500);
 
 	constructor(private readonly _editor: ICodeEditor,
 		@ICodeEditorService private readonly _codeEditorService: ICodeEditorService,
@@ -82,10 +77,8 @@ export class InlineHintsDetector extends Disposable implements IEditorContributi
 		}));
 		this._register(_editor.onDidScrollChange(() => {
 			this._onModelChanged();
-		}))
+		}));
 
-		this._timeoutTimer = null;
-		this._computePromise = null;
 		this._isEnabled = this.isEnabled();
 		this._onModelChanged();
 	}
@@ -121,44 +114,38 @@ export class InlineHintsDetector extends Disposable implements IEditorContributi
 			return;
 		}
 
+		const scheduler = new RunOnceScheduler(() => {
+			const t1 = Date.now();
+
+			this._getInlineHintsPromise?.cancel();
+			this._getInlineHintsPromise = createCancelablePromise(token => {
+				const visibleRanges = this._editor.getVisibleRangesPlusViewportAboveBelow();
+				return getInlineHints(model, visibleRanges, token);
+			});
+
+			this._getInlineHintsPromise.then(result => {
+				// update moving average
+				const newDelay = this._getInlineHintsDelays.update(model, Date.now() - t1);
+				scheduler.delay = newDelay;
+
+				// render lenses
+				this._updateDecorations(result);
+				this._updateHintsDecorators(result);
+			}, onUnexpectedError);
+
+		}, this._getInlineHintsDelays.get(model));
+
+		this._localToDispose.add(scheduler);
 		this._localToDispose.add(this._editor.onDidChangeModelContent(() => {
-			if (!this._timeoutTimer) {
-				this._timeoutTimer = new TimeoutTimer();
-				this._timeoutTimer.cancelAndSet(() => {
-					this._timeoutTimer = null;
-
-					this._beginCompute();
-				}, InlineHintsDetector.RECOMPUTE_TIME);
-			}
+			scheduler.schedule();
 		}));
-		this._beginCompute();
-	}
-
-	private _beginCompute(): void {
-		this._computePromise = createCancelablePromise(token => {
-			const model = this._editor.getModel();
-			if (!model) {
-				return Promise.resolve([]);
-			}
-
-			const visibleRanges = this._editor.getVisibleRangesPlusViewportAboveBelow();
-			return getSignatures(model, visibleRanges, token);
-		});
-		this._computePromise.then((hintsData) => {
-			this._updateDecorations(hintsData);
-			this._updateHintsDecorators(hintsData);
-			this._computePromise = null;
-		}, onUnexpectedError);
+		scheduler.schedule();
 	}
 
 	private _stop(): void {
-		if (this._timeoutTimer) {
-			this._timeoutTimer.cancel();
-			this._timeoutTimer = null;
-		}
-		if (this._computePromise) {
-			this._computePromise.cancel();
-			this._computePromise = null;
+		if (this._getInlineHintsPromise) {
+			this._getInlineHintsPromise.cancel();
+			this._getInlineHintsPromise = undefined;
 		}
 		this._localToDispose.clear();
 	}
