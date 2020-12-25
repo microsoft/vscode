@@ -3180,6 +3180,14 @@ declare namespace monaco.editor {
 		 * Controls show inline hints.
 		 */
 		showInlineHints?: boolean;
+		/**
+		 * Inline hints font size. Default to 90% of the editor font size.
+		 */
+		inlineHintsFontSize?: number;
+		/**
+		 * Inline hints font family. Defaults to editor font family.
+		 */
+		inlineHintsFontFamily?: string;
 	}
 
 	/**
@@ -4033,11 +4041,13 @@ declare namespace monaco.editor {
 		wrappingStrategy = 118,
 		showDeprecated = 119,
 		showInlineHints = 120,
-		editorClassName = 121,
-		pixelRatio = 122,
-		tabFocusMode = 123,
-		layoutInfo = 124,
-		wrappingInfo = 125
+		inlineHintsFontSize = 121,
+		inlineHintsFontFamily = 122,
+		editorClassName = 123,
+		pixelRatio = 124,
+		tabFocusMode = 125,
+		layoutInfo = 126,
+		wrappingInfo = 127
 	}
 	export const EditorOptions: {
 		acceptSuggestionOnCommitCharacter: IEditorOption<EditorOption.acceptSuggestionOnCommitCharacter, boolean>;
@@ -4139,6 +4149,8 @@ declare namespace monaco.editor {
 		showUnused: IEditorOption<EditorOption.showUnused, boolean>;
 		showDeprecated: IEditorOption<EditorOption.showDeprecated, boolean>;
 		showInlineHints: IEditorOption<EditorOption.showInlineHints, boolean>;
+		inlineHintsFontSize: IEditorOption<EditorOption.inlineHintsFontSize, number>;
+		inlineHintsFontFamily: IEditorOption<EditorOption.inlineHintsFontFamily, string>;
 		snippetSuggestions: IEditorOption<EditorOption.snippetSuggestions, 'none' | 'top' | 'bottom' | 'inline'>;
 		smartSelect: IEditorOption<EditorOption.smartSelect, any>;
 		smoothScrolling: IEditorOption<EditorOption.smoothScrolling, boolean>;

@@ -128,7 +128,7 @@ export class InlineHintsDetector extends Disposable implements IEditorContributi
 				const newDelay = this._getInlineHintsDelays.update(model, Date.now() - t1);
 				scheduler.delay = newDelay;
 
-				// render lenses
+				// render hints
 				this._updateDecorations(result);
 				this._updateHintsDecorators(result);
 			}, onUnexpectedError);
@@ -172,7 +172,7 @@ export class InlineHintsDetector extends Disposable implements IEditorContributi
 	private _updateHintsDecorators(hintsData: InlineHintsData[]): void {
 		let decorations: IModelDeltaDecoration[] = [];
 		let newDecorationsTypes: { [key: string]: boolean } = {};
-		const { fontSize } = this._getLayoutInfo();
+		const { fontSize, fontFamily } = this._getLayoutInfo();
 		const backgroundColor = this._themeService.getColorTheme().getColor(inlineHintBackground);
 		const fontColor = this._themeService.getColorTheme().getColor(inlineHintForeground);
 
@@ -192,6 +192,7 @@ export class InlineHintsDetector extends Disposable implements IEditorContributi
 							color: `${fontColor}`,
 							margin: '0px 5px 0px 0px',
 							fontSize: `${fontSize}px`,
+							fontFamily: fontFamily,
 							padding: '0px 2px'
 						}
 					}, undefined, this._editor);
@@ -220,8 +221,12 @@ export class InlineHintsDetector extends Disposable implements IEditorContributi
 	}
 
 	private _getLayoutInfo() {
-		const fontSize = (this._editor.getOption(EditorOption.fontSize) * .9) | 0;
-		return { fontSize };
+		let fontSize = this._editor.getOption(EditorOption.inlineHintsFontSize);
+		if (!fontSize || fontSize < 5) {
+			fontSize = (this._editor.getOption(EditorOption.fontSize) * .9) | 0;
+		}
+		const fontFamily = this._editor.getOption(EditorOption.inlineHintsFontFamily);
+		return { fontSize, fontFamily };
 	}
 
 	private _removeAllDecorations(): void {

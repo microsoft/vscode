@@ -288,11 +288,13 @@ export enum EditorOption {
 	wrappingStrategy = 118,
 	showDeprecated = 119,
 	showInlineHints = 120,
-	editorClassName = 121,
-	pixelRatio = 122,
-	tabFocusMode = 123,
-	layoutInfo = 124,
-	wrappingInfo = 125
+	inlineHintsFontSize = 121,
+	inlineHintsFontFamily = 122,
+	editorClassName = 123,
+	pixelRatio = 124,
+	tabFocusMode = 125,
+	layoutInfo = 126,
+	wrappingInfo = 127
 }
 
 /**

@@ -628,7 +628,15 @@ export interface IEditorOptions {
 	/**
 	 * Controls show inline hints.
 	 */
-	showInlineHints?: boolean
+	showInlineHints?: boolean;
+	/**
+	 * Inline hints font size. Default to 90% of the editor font size.
+	 */
+	inlineHintsFontSize?: number;
+	/**
+	 * Inline hints font family. Defaults to editor font family.
+	 */
+	inlineHintsFontFamily?: string
 }
 
 /**
@@ -3764,6 +3772,8 @@ export const enum EditorOption {
 	wrappingStrategy,
 	showDeprecated,
 	showInlineHints,
+	inlineHintsFontSize,
+	inlineHintsFontFamily,
 	// Leave these at the end (because they have dependencies!)
 	editorClassName,
 	pixelRatio,
@@ -4270,6 +4280,15 @@ export const EditorOptions = {
 	showInlineHints: register(new EditorBooleanOption(
 		EditorOption.showInlineHints, 'showInlineHints', true,
 		{ description: nls.localize('showInlineHints', "Controls show inline hints.") }
+	)),
+	inlineHintsFontSize: register(new EditorIntOption(
+		EditorOption.inlineHintsFontSize, 'inlineHintsFontSize',
+		0, 0, 1000,
+		{ markdownDescription: nls.localize('inlineHintsFontSize', "Font size for the inline hints. When set to `0`, the value of `#editor.fontSize#` is used.") }
+	)),
+	inlineHintsFontFamily: register(new EditorStringOption(
+		EditorOption.inlineHintsFontFamily, 'inlineHintsFontFamily', EDITOR_FONT_DEFAULTS.fontFamily,
+		{ description: nls.localize('inlineHintsFontFamily', "Controls inline hints font family.") }
 	)),
 	snippetSuggestions: register(new EditorStringEnumOption(
 		EditorOption.snippetSuggestions, 'snippetSuggestions',
