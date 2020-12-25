@@ -139,7 +139,9 @@ suite('git smoke test', function () {
 		cp.execSync('git add .', { cwd });
 		await repository.commit('commit on master');
 
-		cp.execSync('git merge test', { cwd });
+		try {
+			cp.execSync('git merge test', { cwd });
+		} catch (e) {}
 		await new Promise(resolve => setTimeout(resolve, 5e3));
 
 		await commands.executeCommand('workbench.scm.focus');
