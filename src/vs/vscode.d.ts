@@ -986,10 +986,6 @@ declare module 'vscode' {
 		/**
 		 * CSS styling property that will be applied to the decoration attachment.
 		 */
-		fontSize?: string;
-		/**
-		 * CSS styling property that will be applied to the decoration attachment.
-		 */
 		textDecoration?: string;
 		/**
 		 * CSS styling property that will be applied to the decoration attachment.
@@ -1003,10 +999,6 @@ declare module 'vscode' {
 		 * CSS styling property that will be applied to the decoration attachment.
 		 */
 		margin?: string;
-		/**
-		 * CSS styling property that will be applied to the decoration attachment.
-		 */
-		padding?: string;
 		/**
 		 * CSS styling property that will be applied to the decoration attachment.
 		 */
@@ -3761,42 +3753,6 @@ declare module 'vscode' {
 		 * signaled by returning `undefined` or `null`.
 		 */
 		provideSignatureHelp(document: TextDocument, position: Position, token: CancellationToken, context: SignatureHelpContext): ProviderResult<SignatureHelp>;
-	}
-
-	/**
-	 * Inline hint information.
-	 */
-	export class InlineHint {
-		/**
-		 * The text of the hint.
-		 */
-		text: string;
-		/**
-		 * The position of the hint.
-		 */
-		position: Position;
-
-		/**
-		 * Creates a new inline hint information object.
-		 *
-		 * @param text The text of the parameter.
-		 * @param position The position of the argument.
-		 */
-		constructor(text: string, position: Position);
-	}
-
-	/**
-	 * The document formatting provider interface defines the contract between extensions and
-	 * the inline hints feature.
-	 */
-	export interface InlineHintsProvider {
-		/**
-		 * @param model The document in which the command was invoked.
-		 * @param token A cancellation token.
-		 *
-		 * @return A list of arguments labels or a thenable that resolves to such.
-		 */
-		provideInlineHints(model: TextDocument, range: Range, token: CancellationToken): ProviderResult<InlineHint[]>;
 	}
 
 	/**
@@ -10878,19 +10834,6 @@ declare module 'vscode' {
 		 */
 		export function registerSignatureHelpProvider(selector: DocumentSelector, provider: SignatureHelpProvider, ...triggerCharacters: string[]): Disposable;
 		export function registerSignatureHelpProvider(selector: DocumentSelector, provider: SignatureHelpProvider, metadata: SignatureHelpProviderMetadata): Disposable;
-
-		/**
-		 * Register a inline hints provider.
-		 *
-		 * Multiple providers can be registered for a language. In that case providers are sorted
-		 * by their [score](#languages.match) and the best-matching provider is used. Failure
-		 * of the selected provider will cause a failure of the whole operation.
-		 *
-		 * @param selector A selector that defines the documents this provider is applicable to.
-		 * @param provider An on type inline hints provider.
-		 * @return A [disposable](#Disposable) that unregisters this provider when being disposed.
-		 */
-		export function registerInlineHintsProvider(selector: DocumentSelector, provider: InlineHintsProvider): Disposable;
 
 		/**
 		 * Register a document link provider.

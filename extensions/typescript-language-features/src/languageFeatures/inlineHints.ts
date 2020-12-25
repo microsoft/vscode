@@ -4,10 +4,55 @@
  *--------------------------------------------------------------------------------------------*/
 
 import * as vscode from 'vscode';
+import * as Proto from '../protocol';
 import { DocumentSelector } from '../utils/documentSelector';
-import { ClientCapability, ITypeScriptServiceClient } from '../typescriptService';
+import { ClientCapability, ITypeScriptServiceClient, ServerResponse, ExecConfig } from '../typescriptService';
 import { conditionalRegistration, requireSomeCapability } from '../utils/dependentRegistration';
 import { Position } from '../utils/typeConverters';
+
+export namespace ExperimentalProto {
+	export const enum CommandTypes {
+		ProvideInlineHints = 'ProvideInlineHints'
+	}
+
+	export interface ProvideInlineHintsArgs extends Proto.FileRequestArgs {
+		/**
+		 * Start position of the span.
+		 */
+		start: number;
+		/**
+		 * Length of the span.
+		 */
+		length: number;
+	}
+
+	export interface ProvideInlineHintsRequest extends Proto.Request {
+		command: CommandTypes.ProvideInlineHints;
+		arguments: ProvideInlineHintsArgs;
+	}
+
+	interface HintItem {
+		text: string
+		position: Proto.Location
+	}
+
+	export interface ProvideInlineHintsResponse extends Proto.Response {
+		body?: HintItem[];
+	}
+
+	export interface IExtendedTypeScriptServiceClient {
+		execute<K extends keyof ExtendedTsServerRequests>(
+			command: K,
+			args: ExtendedTsServerRequests[K][0],
+			token: vscode.CancellationToken,
+			config?: ExecConfig
+		): Promise<ServerResponse.Response<ExtendedTsServerRequests[K][1]>>;
+	}
+
+	export interface ExtendedTsServerRequests {
+		'provideInlineHints': [ProvideInlineHintsArgs, ProvideInlineHintsResponse];
+	}
+}
 
 class TypeScriptInlineHintsProvider implements vscode.InlineHintsProvider {
 	constructor(
@@ -24,13 +69,13 @@ class TypeScriptInlineHintsProvider implements vscode.InlineHintsProvider {
 		const length = model.offsetAt(range.end) - start;
 
 		try {
-			const response = await this.client.execute('provideInlineHints', { file: filepath, start, length }, token);
+			const response = await (this.client as ExperimentalProto.IExtendedTypeScriptServiceClient).execute('provideInlineHints', { file: filepath, start, length }, token);
 			if (response.type !== 'response' || !response.success || !response.body) {
 				return [];
 			}
 
-			return response.body.map(label => {
-				return new vscode.InlineHint(label.text, Position.fromLocation(label.position));
+			return response.body.map(hint => {
+				return new vscode.InlineHint(hint.text, Position.fromLocation(hint.position));
 			});
 		} catch (e) {
 			return [];
