@@ -58,6 +58,7 @@ export class ModesHoverController implements IEditorContribution {
 	private _isHoverSticky!: boolean;
 
 	private _hoverVisibleKey: IContextKey<boolean>;
+	private _isOnHover = false;
 
 	static get(editor: ICodeEditor): ModesHoverController {
 		return editor.getContribution<ModesHoverController>(ModesHoverController.ID);
@@ -118,7 +119,7 @@ export class ModesHoverController implements IEditorContribution {
 	}
 
 	private _onEditorScrollChanged(e: IScrollEvent): void {
-		if (e.scrollTopChanged || e.scrollLeftChanged) {
+		if (!this._isOnHover && (e.scrollTopChanged || e.scrollLeftChanged)) {
 			this._hideWidgets();
 		}
 	}
@@ -159,6 +160,7 @@ export class ModesHoverController implements IEditorContribution {
 
 		if (this._isHoverSticky && targetType === MouseTargetType.CONTENT_WIDGET && mouseEvent.target.detail === ModesContentHoverWidget.ID) {
 			// mouse moved on top of content hover widget
+			this._isOnHover = true;
 			return;
 		}
 
@@ -177,6 +179,7 @@ export class ModesHoverController implements IEditorContribution {
 
 		if (this._isHoverSticky && targetType === MouseTargetType.OVERLAY_WIDGET && mouseEvent.target.detail === ModesGlyphHoverWidget.ID) {
 			// mouse moved on top of overlay hover widget
+			this._isOnHover = true;
 			return;
 		}
 
@@ -204,12 +207,16 @@ export class ModesHoverController implements IEditorContribution {
 					this.contentWidget.startShowingAt(mouseEvent.target.range, HoverStartMode.Delayed, false);
 				}
 
+			} else {
+				this._isOnHover = false;
 			}
 		} else if (targetType === MouseTargetType.GUTTER_GLYPH_MARGIN) {
 			this.contentWidget.hide();
 
 			if (this._isHoverEnabled && mouseEvent.target.position) {
 				this.glyphWidget.startShowingAt(mouseEvent.target.position.lineNumber);
+			} else {
+				this._isOnHover = false;
 			}
 		} else {
 			this._hideWidgets();
@@ -227,6 +234,7 @@ export class ModesHoverController implements IEditorContribution {
 		if (!this._glyphWidget.value || !this._contentWidget.value || (this._isMouseDown && this._hoverClicked && this._contentWidget.value.isColorPickerVisible())) {
 			return;
 		}
+		this._isOnHover = false;
 
 		this._glyphWidget.value.hide();
 		this._contentWidget.value.hide();
