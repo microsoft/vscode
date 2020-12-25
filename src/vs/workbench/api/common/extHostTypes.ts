@@ -1377,10 +1377,14 @@ export enum SignatureHelpTriggerKind {
 export class InlineHint {
 	text: string;
 	position: Position;
+	whitespaceBefore?: boolean;
+	whitespaceAfter?: boolean;
 
-	constructor(text: string, position: Position) {
+	constructor(text: string, position: Position, whitespaceBefore?: boolean, whitespaceAfter?: boolean) {
 		this.text = text;
 		this.position = position;
+		this.whitespaceBefore = whitespaceBefore;
+		this.whitespaceAfter = whitespaceAfter;
 	}
 }
 

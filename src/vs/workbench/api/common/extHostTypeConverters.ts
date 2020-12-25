@@ -1019,10 +1019,12 @@ export namespace SignatureHelp {
 }
 
 export namespace InlineHint {
-	export function from(label: vscode.InlineHint): modes.InlineHint {
+	export function from(hint: vscode.InlineHint): modes.InlineHint {
 		return {
-			text: label.text,
-			position: Position.from(label.position)
+			text: hint.text,
+			position: Position.from(hint.position),
+			whiteSpaceBefore: hint.whitespaceBefore,
+			whiteSpaceAfter: hint.whitespaceAfter
 		};
 	}
 }

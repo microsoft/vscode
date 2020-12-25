@@ -2402,14 +2402,24 @@ declare module 'vscode' {
 		 * The position of the hint.
 		 */
 		position: Position;
+		/**
+		 * Whitespace before the hint.
+		 */
+		whitespaceBefore?: boolean;
+		/**
+		 * Whitespace after the hint.
+		 */
+		whitespaceAfter?: boolean;
 
 		/**
 		 * Creates a new inline hint information object.
 		 *
 		 * @param text The text of the parameter.
 		 * @param position The position of the argument.
+		 * @param whitespaceBefore Whitespace before the hint.
+		 * @param whitespaceAfter TWhitespace after the hint.
 		 */
-		constructor(text: string, position: Position);
+		constructor(text: string, position: Position, whitespaceBefore?: boolean, whitespaceAfter?: boolean);
 	}
 
 	/**

@@ -179,7 +179,9 @@ export class InlineHintsDetector extends Disposable implements IEditorContributi
 		for (let i = 0; i < hintsData.length; i++) {
 			const hint = hintsData[i].list;
 			for (let j = 0; j < hint.length && decorations.length < MAX_DECORATORS; j++) {
-				const { text, position } = hint[j];
+				const { text, position, whiteSpaceBefore, whiteSpaceAfter } = hint[j];
+				const marginBefore = whiteSpaceBefore ? 5 : 0;
+				const marginAfter = whiteSpaceAfter ? 5 : 0;
 
 				const subKey = hash(text).toString(16);
 				let key = 'inlineHints-' + subKey;
@@ -190,7 +192,7 @@ export class InlineHintsDetector extends Disposable implements IEditorContributi
 							contentText: text,
 							backgroundColor: `${backgroundColor}`,
 							color: `${fontColor}`,
-							margin: '0px 5px 0px 0px',
+							margin: `0px ${marginAfter}px 0px ${marginBefore}px`,
 							fontSize: `${fontSize}px`,
 							fontFamily: fontFamily,
 							padding: '0px 2px'

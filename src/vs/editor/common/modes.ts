@@ -1660,8 +1660,10 @@ export interface CodeLensProvider {
 }
 
 export interface InlineHint {
-	text: string
-	position: IPosition
+	text: string;
+	position: IPosition;
+	whiteSpaceBefore?: boolean;
+	whiteSpaceAfter?: boolean;
 }
 
 export interface InlineHintsProvider {

@@ -32,8 +32,10 @@ export namespace ExperimentalProto {
 	}
 
 	interface HintItem {
-		text: string
-		position: Proto.Location
+		text: string;
+		position: Proto.Location;
+		whitespaceBefore?: boolean;
+		whitespaceAfter?: boolean;
 	}
 
 	export interface ProvideInlineHintsResponse extends Proto.Response {
@@ -75,7 +77,7 @@ class TypeScriptInlineHintsProvider implements vscode.InlineHintsProvider {
 			}
 
 			return response.body.map(hint => {
-				return new vscode.InlineHint(hint.text, Position.fromLocation(hint.position));
+				return new vscode.InlineHint(hint.text, Position.fromLocation(hint.position), hint.whitespaceBefore, hint.whitespaceAfter);
 			});
 		} catch (e) {
 			return [];
