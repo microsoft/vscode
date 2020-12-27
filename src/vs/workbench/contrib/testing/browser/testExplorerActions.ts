@@ -49,7 +49,7 @@ export class DebugAction extends Action {
 	public run(): Promise<any> {
 		return this.testService.runTests({
 			tests: [{ testId: this.test.id, providerId: this.test.providerId }],
-			debug: false,
+			debug: true,
 		});
 	}
 }
@@ -102,7 +102,7 @@ abstract class RunOrDebugAction extends FilterableAction {
 			return Promise.resolve(EMPTY_TEST_RESULT);
 		}
 
-		return this.testService.runTests({ tests, debug: false });
+		return this.testService.runTests({ tests, debug: this.debug() });
 	}
 
 	private updateVisibility() {

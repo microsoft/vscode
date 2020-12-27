@@ -1,6 +1,7 @@
 {
   "name": "code-oss-dev-smoke-test",
   "version": "0.1.0",
+  "license": "MIT",
   "main": "./src/main.js",
   "scripts": {
     "postinstall": "npm run compile",
@@ -13,10 +14,10 @@
   "devDependencies": {
     "@types/htmlparser2": "3.7.29",
     "@types/mkdirp": "0.5.1",
-    "@types/mocha": "2.2.41",
+    "@types/mocha": "^8.2.0",
     "@types/ncp": "2.0.1",
-    "@types/node": "^12.11.7",
-    "@types/rimraf": "2.0.2",
+    "@types/node": "^12.19.9",
+    "@types/rimraf": "^2.0.4",
     "cpx": "^1.5.0",
     "htmlparser2": "^3.9.2",
     "mkdirp": "^0.5.1",

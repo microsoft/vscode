@@ -16,6 +16,7 @@ import { AnchorPosition } from 'vs/base/browser/ui/contextview/contextview';
 import { IMarkdownString } from 'vs/base/common/htmlContent';
 import { isFunction, isString } from 'vs/base/common/types';
 import { domEvent } from 'vs/base/browser/event';
+import { localize } from 'vs/nls';
 
 export interface IIconLabelCreationOptions {
 	supportHighlights?: boolean;
@@ -190,18 +191,31 @@ export class IconLabel extends Disposable {
 		}
 	}
 
+	private static adjustXAndShowCustomHover(hoverOptions: IHoverDelegateOptions | undefined, mouseX: number | undefined, hoverDelegate: IHoverDelegate, isHovering: boolean) {
+		if (hoverOptions && isHovering) {
+			if (mouseX !== undefined) {
+				(<IHoverDelegateTarget>hoverOptions.target).x = mouseX + 10;
+			}
+			hoverDelegate.showHover(hoverOptions);
+		}
+	}
+
+	private getTooltipForCustom(markdownTooltip: string | IIconLabelMarkdownString): () => Promise<string | IMarkdownString | undefined> {
+		if (isString(markdownTooltip)) {
+			return async () => markdownTooltip;
+		} else if (isFunction(markdownTooltip.markdown)) {
+			return markdownTooltip.markdown;
+		} else {
+			const markdown = markdownTooltip.markdown;
+			return async () => markdown;
+		}
+	}
+
 	private setupCustomHover(hoverDelegate: IHoverDelegate, htmlElement: HTMLElement, markdownTooltip: string | IIconLabelMarkdownString): void {
 		htmlElement.setAttribute('title', '');
 		htmlElement.removeAttribute('title');
-		let tooltip: () => Promise<string | IMarkdownString | undefined>;
-		if (isString(markdownTooltip)) {
-			tooltip = async () => markdownTooltip;
-		} else if (isFunction(markdownTooltip.markdown)) {
-			tooltip = markdownTooltip.markdown;
-		} else {
-			const markdown = markdownTooltip.markdown;
-			tooltip = async () => markdown;
-		}
+		let tooltip = this.getTooltipForCustom(markdownTooltip);
+
 		// Testing has indicated that on Windows and Linux 500 ms matches the native hovers most closely.
 		// On Mac, the delay is 1500.
 		const hoverDelay = isMacintosh ? 1500 : 500;
@@ -233,6 +247,13 @@ export class IconLabel extends Disposable {
 							targetElements: [this],
 							dispose: () => { }
 						};
+						hoverOptions = {
+							text: localize('iconLabel.loading', "Loading..."),
+							target,
+							anchorPosition: AnchorPosition.BELOW
+						};
+						IconLabel.adjustXAndShowCustomHover(hoverOptions, mouseX, hoverDelegate, isHovering);
+
 						const resolvedTooltip = await tooltip();
 						if (resolvedTooltip) {
 							hoverOptions = {
@@ -243,12 +264,7 @@ export class IconLabel extends Disposable {
 						}
 					}
 					// awaiting the tooltip could take a while. Make sure we're still hovering.
-					if (hoverOptions && isHovering) {
-						if (mouseX !== undefined) {
-							(<IHoverDelegateTarget>hoverOptions.target).x = mouseX + 10;
-						}
-						hoverDelegate.showHover(hoverOptions);
-					}
+					IconLabel.adjustXAndShowCustomHover(hoverOptions, mouseX, hoverDelegate, isHovering);
 				}
 				mouseMoveDisposable.dispose();
 			}, hoverDelay);

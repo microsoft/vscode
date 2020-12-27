@@ -10,7 +10,7 @@ suite('Keytar', () => {
 	test('loads and is functional', function (done) {
 		if (platform.isLinux) {
 			// Skip test due to set up issue with Travis.
-			this.skip();
+			done();
 			return;
 		}
 		(async () => {

@@ -3,6 +3,7 @@
 	"description": "Test resolver for VS Code",
 	"version": "0.0.1",
 	"publisher": "vscode",
+	"license": "MIT",
 	"enableProposedApi": true,
 	"private": true,
 	"engines": {
@@ -21,7 +22,7 @@
 	],
 	"main": "./out/extension",
 	"devDependencies": {
-		"@types/node": "^12.11.7"
+		"@types/node": "^12.19.9"
 	},
 	"contributes": {
 		"resourceLabelFormatters": [

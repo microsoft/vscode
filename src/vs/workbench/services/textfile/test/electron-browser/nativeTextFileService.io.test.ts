@@ -33,13 +33,10 @@ suite('Files - NativeTextFileService i/o', function () {
 	let service: ITextFileService;
 	let testDir: string;
 
-	// Given issues such as https://github.com/microsoft/vscode/issues/78602
-	// and https://github.com/microsoft/vscode/issues/92334 we see random test
-	// failures when accessing the native file system. To diagnose further, we
-	// retry node.js file access tests up to 3 times to rule out any random disk
-	// issue and increase the timeout.
+	// https://github.com/microsoft/vscode/issues/78602
+	// https://github.com/microsoft/vscode/issues/92334
 	this.retries(3);
-	this.timeout(1000 * 10);
+	this.timeout(1000 * 20);
 
 	createSuite({
 		setup: async () => {

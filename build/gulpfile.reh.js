@@ -14,10 +14,8 @@ const task = require('./lib/task');
 const vfs = require('vinyl-fs');
 const flatmap = require('gulp-flatmap');
 const gunzip = require('gulp-gunzip');
-const untar = require('gulp-untar');
 const File = require('vinyl');
 const fs = require('fs');
-const remote = require('gulp-remote-retry-src');
 const rename = require('gulp-rename');
 const filter = require('gulp-filter');
 const cp = require('child_process');
@@ -77,6 +75,9 @@ if (defaultNodeTask) {
 }
 
 function nodejs(platform, arch) {
+	const remote = require('gulp-remote-retry-src');
+	const untar = require('gulp-untar');
+
 	if (arch === 'ia32') {
 		arch = 'x86';
 	}

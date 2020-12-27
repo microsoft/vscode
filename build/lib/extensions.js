@@ -11,20 +11,15 @@ const glob = require("glob");
 const gulp = require("gulp");
 const path = require("path");
 const File = require("vinyl");
-const vsce = require("vsce");
 const stats_1 = require("./stats");
 const util2 = require("./util");
-const remote = require("gulp-remote-retry-src");
 const vzip = require('gulp-vinyl-zip');
 const filter = require("gulp-filter");
 const rename = require("gulp-rename");
 const fancyLog = require("fancy-log");
 const ansiColors = require("ansi-colors");
 const buffer = require('gulp-buffer');
-const json = require("gulp-json-editor");
 const jsoncParser = require("jsonc-parser");
-const webpack = require('webpack');
-const webpackGulp = require('webpack-stream');
 const util = require('./util');
 const root = path.dirname(path.dirname(__dirname));
 const commit = util.getVersion(root);
@@ -88,6 +83,9 @@ function fromLocalWebpack(extensionPath, webpackConfigFileName) {
             }
         }
     }
+    const vsce = require('vsce');
+    const webpack = require('webpack');
+    const webpackGulp = require('webpack-stream');
     vsce.listFiles({ cwd: extensionPath, packageManager: vsce.PackageManager.Yarn, packagedDependencies }).then(fileNames => {
         const files = fileNames
             .map(fileName => path.join(extensionPath, fileName))
@@ -149,6 +147,7 @@ function fromLocalWebpack(extensionPath, webpackConfigFileName) {
 }
 function fromLocalNormal(extensionPath) {
     const result = es.through();
+    const vsce = require('vsce');
     vsce.listFiles({ cwd: extensionPath, packageManager: vsce.PackageManager.Yarn })
         .then(fileNames => {
         const files = fileNames
@@ -170,6 +169,8 @@ const baseHeaders = {
     'X-Market-User-Id': '291C1CD0-051A-4123-9B4B-30D60EF52EE2',
 };
 function fromMarketplace(extensionName, version, metadata) {
+    const remote = require('gulp-remote-retry-src');
+    const json = require('gulp-json-editor');
     const [publisher, name] = extensionName.split('.');
     const url = `https://marketplace.visualstudio.com/_apis/public/gallery/publishers/${publisher}/vsextensions/${name}/${version}/vspackage`;
     fancyLog('Downloading extension:', ansiColors.yellow(`${extensionName}@${version}`), '...');

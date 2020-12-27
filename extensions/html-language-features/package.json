@@ -20,7 +20,6 @@
   "scripts": {
     "compile": "npx gulp compile-extension:html-language-features-client compile-extension:html-language-features-server",
     "watch": "npx gulp watch-extension:html-language-features-client watch-extension:html-language-features-server",
-    "postinstall": "cd server && yarn install",
     "install-client-next": "yarn add vscode-languageclient@next"
   },
   "categories": [
@@ -244,6 +243,6 @@
     "vscode-nls": "^5.0.0"
   },
   "devDependencies": {
-    "@types/node": "^12.11.7"
+    "@types/node": "^12.19.9"
   }
 }

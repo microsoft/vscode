@@ -42,6 +42,7 @@ import { Constants } from 'vs/base/common/uint';
 import { textLinkForeground } from 'vs/platform/theme/common/colorRegistry';
 import { Progress } from 'vs/platform/progress/common/progress';
 import { IContextKey } from 'vs/platform/contextkey/common/contextkey';
+import { ITextEditorOptions } from 'vs/platform/editor/common/editor';
 
 const $ = dom.$;
 
@@ -566,7 +567,10 @@ export class ModesContentHoverWidget extends ContentHoverWidget {
 					e.stopPropagation();
 					e.preventDefault();
 					if (this._openerService) {
-						this._openerService.open(resource.with({ fragment: `${startLineNumber},${startColumn}` }), { fromUserGesture: true }).catch(onUnexpectedError);
+						this._openerService.open(resource, {
+							fromUserGesture: true,
+							editorOptions: <ITextEditorOptions>{ selection: { startLineNumber, startColumn } }
+						}).catch(onUnexpectedError);
 					}
 				};
 				const messageElement = dom.append<HTMLAnchorElement>(relatedInfoContainer, $('span'));
@@ -607,6 +611,10 @@ export class ModesContentHoverWidget extends ContentHoverWidget {
 				}
 			}
 			const updatePlaceholderDisposable = this.recentMarkerCodeActionsInfo && !this.recentMarkerCodeActionsInfo.hasCodeActions ? Disposable.None : disposables.add(disposableTimeout(() => quickfixPlaceholderElement.textContent = nls.localize('checkingForQuickFixes', "Checking for quick fixes..."), 200));
+			if (!quickfixPlaceholderElement.textContent) {
+				// Have some content in here to avoid flickering
+				quickfixPlaceholderElement.textContent = String.fromCharCode(0xA0); // &nbsp;
+			}
 			const codeActionsPromise = this.getCodeActions(markerHover.marker);
 			disposables.add(toDisposable(() => codeActionsPromise.cancel()));
 			codeActionsPromise.then(actions => {

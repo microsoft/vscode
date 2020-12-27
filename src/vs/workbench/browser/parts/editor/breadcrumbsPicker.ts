@@ -186,8 +186,6 @@ class FileIdentityProvider implements IIdentityProvider<IWorkspace | IWorkspaceF
 
 class FileDataSource implements IAsyncDataSource<IWorkspace | URI, IWorkspaceFolder | IFileStat> {
 
-	private readonly _parents = new WeakMap<object, IWorkspaceFolder | IFileStat>();
-
 	constructor(
 		@IFileService private readonly _fileService: IFileService,
 	) { }
@@ -200,13 +198,8 @@ class FileDataSource implements IAsyncDataSource<IWorkspace | URI, IWorkspaceFol
 	}
 
 	async getChildren(element: IWorkspace | URI | IWorkspaceFolder | IFileStat): Promise<(IWorkspaceFolder | IFileStat)[]> {
-
 		if (IWorkspace.isIWorkspace(element)) {
-			const folders = element.folders;
-			for (let child of folders) {
-				this._parents.set(element, child);
-			}
-			return folders;
+			return element.folders;
 		}
 		let uri: URI;
 		if (IWorkspaceFolder.isIWorkspaceFolder(element)) {
@@ -217,10 +210,7 @@ class FileDataSource implements IAsyncDataSource<IWorkspace | URI, IWorkspaceFol
 			uri = element.resource;
 		}
 		const stat = await this._fileService.resolve(uri);
-		for (const child of stat.children || []) {
-			this._parents.set(stat, child);
-		}
-		return stat.children || [];
+		return stat.children ?? [];
 	}
 }
 
