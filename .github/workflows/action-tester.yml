@@ -11,7 +11,7 @@ jobs:
     steps:
       - uses: actions/checkout@v2
 
-      - name: Clone apisix's docs from repo & update image's link
+      - name: make files
         run: |
           mkdir -p tester
           echo -e "hello\nworld" >> tester/helloworld.txt
