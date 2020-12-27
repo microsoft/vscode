@@ -1634,11 +1634,23 @@ registerThemingParticipant((theme: IColorTheme, collector: ICssStyleCollector) =
 	// Add border between tabs and breadcrumbs in high contrast mode.
 	if (theme.type === ColorScheme.HIGH_CONTRAST) {
 		const borderColor = (theme.getColor(TAB_BORDER) || theme.getColor(contrastBorder));
+		if (borderColor) {
+			collector.addRule(`
+				.monaco-workbench .part.editor > .content .editor-group-container > .title > .tabs-and-actions-container {
+					border-bottom: 1px solid ${borderColor};
+				}
+			`);
+		}
+	}
+
+	// Add bottom border to tabs when wrapping
+	const borderColor = theme.getColor(TAB_BORDER);
+	if (borderColor) {
 		collector.addRule(`
-			.monaco-workbench .part.editor > .content .editor-group-container > .title.tabs > .tabs-and-actions-container {
-				border-bottom: 1px solid ${borderColor};
-			}
-		`);
+				.monaco-workbench .part.editor > .content .editor-group-container > .title > .tabs-and-actions-container.wrapping .tabs-container > .tab {
+					border-bottom: 1px solid ${borderColor};
+				}
+			`);
 	}
 
 	// Styling with Outline color (e.g. high contrast theme)
