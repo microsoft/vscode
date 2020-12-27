@@ -1404,9 +1404,7 @@ export class TabsTitleControl extends TitleControl {
 		// - disabled: remove class
 		if (this.accessor.partOptions.experimentalWrapTabs) {
 			let tabsWrapMultiLine = tabsAndActionsContainer.classList.contains('wrapping');
-
 			let updateScrollbar = false;
-			let updateEditorActions = false;
 
 			// Tabs do not wrap multiline: add wrapping if tabs exceed the tabs container width
 			// and the height of the tabs container does not exceed the maximum
@@ -1421,7 +1419,6 @@ export class TabsTitleControl extends TitleControl {
 				tabsAndActionsContainer.classList.remove('wrapping');
 				tabsWrapMultiLine = false;
 				updateScrollbar = true;
-				updateEditorActions = true;
 			}
 
 			// If we do not exceed the tabs container width, we cannot simply remove
@@ -1435,17 +1432,10 @@ export class TabsTitleControl extends TitleControl {
 				updateScrollbar = true;
 			}
 
-			// Move editor actions to the bottom right of the last row so that
-			// the rows above can fill the entire width
-			if (tabsWrapMultiLine || updateEditorActions) {
-
-				// Add a right margin to the last tab equal to the width of the editor actions
-				// so that the editor actions always stay on the bottom right of the last row.
-				// Also make sure to remove the right margin from the previous sibling tab that
-				// it had been applied so that no empty space is left over.
-				(tabsContainer.lastChild?.previousSibling as HTMLElement).style.marginRight = '';
-				(tabsContainer.lastChild as HTMLElement).style.marginRight = `${editorToolbarContainer.offsetWidth}px`;
-			}
+			// Update `last-tab-margin-right` CSS variable to account for the absolute
+			// positioned editor actions container when tabs wrap. The margin needs to
+			// be the width of the editor actions container to avoid screen cheese.
+			tabsContainer.style.setProperty('--last-tab-margin-right', tabsWrapMultiLine ? `${editorToolbarContainer.offsetWidth}px` : '0');
 
 			// When tabs change from wrapping back to normal, we need to indicate this
 			// to the scrollbar so that revealing the active tab functions properly.
