@@ -75,8 +75,10 @@
 }
 
 .monaco-workbench .part.editor > .content .editor-group-container > .title > .tabs-and-actions-container.wrapping .tabs-container {
+
+	/* Enable wrapping via flex layout and dynamic height */
 	height: auto;
-	flex-wrap: wrap; /* wrapping enabled */
+	flex-wrap: wrap;
 }
 
 .monaco-workbench .part.editor > .content .editor-group-container > .title .tabs-container::-webkit-scrollbar {
