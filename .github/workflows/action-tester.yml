@@ -1,0 +1,25 @@
+name: Action Tester
+
+on:
+  push:
+    branches: [main]
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+
+    steps:
+      - uses: actions/checkout@v2
+
+      - name: Clone apisix's docs from repo & update image's link
+        run: |
+          mkdir -p tester
+          echo -e "hello\nworld" >> tester/helloworld.txt
+      - name: GitHub Pages
+        uses: crazy-max/ghaction-github-pages@v2.0.1
+        with:
+          build_dir: tester
+          target_branch: main
+          keep_history: true
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
