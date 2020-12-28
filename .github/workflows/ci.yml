@@ -146,12 +146,7 @@ jobs:
         id: cacheNodeModules
         uses: actions/cache@v2
         with:
-          path: |
-            **/node_modules
-            !**/Release/**/*.pdb
-            !**/Release/**/*.ilk
-            !**/Release/**/*.obj
-            !**/Release/**/*.tlog
+          path: "**/node_modules"
           key: ${{ runner.os }}-cacheNodeModules7-${{ steps.nodeModulesCacheKey.outputs.value }}
           restore-keys: ${{ runner.os }}-cacheNodeModules7-
       - name: Get yarn cache directory path
@@ -258,6 +253,17 @@ jobs:
           path: "**/node_modules"
           key: ${{ runner.os }}-cacheNodeModules7-${{ steps.nodeModulesCacheKey.outputs.value }}
           restore-keys: ${{ runner.os }}-cacheNodeModules7-
+      - name: Get yarn cache directory path
+        id: yarnCacheDirPath
+        if: ${{ steps.cacheNodeModules.outputs.cache-hit != 'true' }}
+        run: echo "::set-output name=dir::$(yarn cache dir)"
+      - name: Cache yarn directory
+        if: ${{ steps.cacheNodeModules.outputs.cache-hit != 'true' }}
+        uses: actions/cache@v2
+        with:
+          path: ${{ steps.yarnCacheDirPath.outputs.dir }}
+          key: ${{ runner.os }}-yarnCacheDir-${{ steps.nodeModulesCacheKey.outputs.value }}
+          restore-keys: ${{ runner.os }}-yarnCacheDir-
       - name: Execute yarn
         if: ${{ steps.cacheNodeModules.outputs.cache-hit != 'true' }}
         env:
