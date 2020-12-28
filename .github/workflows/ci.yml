@@ -288,3 +288,18 @@ jobs:
           ../node_modules/.bin/tsc --init
           echo "import '../out-monaco-editor-core';" > a.ts
           ../node_modules/.bin/tsc --noEmit
+
+      - name: Webpack Editor
+        working-directory: ./test/monaco
+        run: yarn run bundle
+
+      - name: Compile Editor Tests
+        working-directory: ./test/monaco
+        run: yarn run compile
+
+      - name: Download Playwright
+        run: yarn playwright-install
+
+      - name: Run Editor Tests
+        working-directory: ./test/monaco
+        run: yarn test
