@@ -25,7 +25,7 @@ function balance(out: boolean) {
 	}
 	const editor = vscode.window.activeTextEditor;
 	const document = editor.document;
-	const rootNode = getRootNode(document);
+	const rootNode = getRootNode(document, true);
 
 	const rangeFn = out ? getRangeToBalanceOut : getRangeToBalanceIn;
 	let newSelections: vscode.Selection[] = [];

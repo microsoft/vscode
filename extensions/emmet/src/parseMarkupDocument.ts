@@ -15,7 +15,7 @@ type Pair<K, V> = {
 // Map(filename, Pair(fileVersion, rootNodeOfParsedContent))
 const _parseCache = new Map<string, Pair<number, HtmlFlatNode> | undefined>();
 
-export function getRootNode(document: TextDocument, useCache: boolean = true): HtmlFlatNode {
+export function getRootNode(document: TextDocument, useCache: boolean): HtmlFlatNode {
 	const key = document.uri.toString();
 	const result = _parseCache.get(key);
 	const documentVersion = document.version;
