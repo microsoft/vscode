@@ -7,13 +7,12 @@ import * as vscode from 'vscode';
 import parse from '@emmetio/html-matcher';
 import parseStylesheet from '@emmetio/css-parser';
 import { Node, HtmlNode, CssToken, Property, Rule, Stylesheet } from 'EmmetNode';
+import { Node as FlatNode, HtmlNode as HtmlFlatNode } from 'EmmetFlatNode';
 import { DocumentStreamReader } from './bufferStream';
 import * as EmmetHelper from 'vscode-emmet-helper';
-import { Position as LSPosition, getLanguageService as getLanguageServiceInternal, LanguageService, LanguageServiceOptions, TextDocument as LSTextDocument, Node as LSNode } from 'vscode-html-languageservice';
-import { parseMarkupDocument } from './parseMarkupDocument';
+import { TextDocument as LSTextDocument } from 'vscode-languageserver-textdocument';
 
 let _emmetHelper: typeof EmmetHelper;
-let _languageService: LanguageService;
 let _currentExtensionsPath: string | undefined = undefined;
 
 let _homeDir: vscode.Uri | undefined;
@@ -31,16 +30,6 @@ export function getEmmetHelper() {
 	}
 	updateEmmetExtensionsPath();
 	return _emmetHelper;
-}
-
-export function getLanguageService(options?: LanguageServiceOptions): LanguageService {
-	if (!options) {
-		if (!_languageService) {
-			_languageService = getLanguageServiceInternal();
-		}
-		return _languageService;
-	}
-	return getLanguageServiceInternal(options);
 }
 
 /**
@@ -323,7 +312,7 @@ export function parsePartialStylesheet(document: vscode.TextDocument, position: 
 /**
  * Returns node corresponding to given position in the given root node
  */
-export function getNode(root: Node | undefined, position: vscode.Position, includeNodeBoundary: boolean) {
+export function getNode(root: Node | undefined, position: vscode.Position, includeNodeBoundary: boolean): Node | null {
 	if (!root) {
 		return null;
 	}
@@ -346,6 +335,46 @@ export function getNode(root: Node | undefined, position: vscode.Position, inclu
 	}
 
 	return foundNode;
+}
+
+export function getFlatNode(root: FlatNode | undefined, offset: number, includeNodeBoundary: boolean): FlatNode | undefined {
+	if (!root) {
+		return;
+	}
+
+	function getFlatNodeChild(child: FlatNode | undefined): FlatNode | undefined {
+		if (!child) {
+			return;
+		}
+		const nodeStart = child.start;
+		const nodeEnd = child.end;
+		if ((nodeStart < offset && nodeEnd > offset)
+			|| (includeNodeBoundary && nodeStart <= offset && nodeEnd >= offset)) {
+			return getFlatNodeChildren(child.children) ?? child;
+		}
+		else if ('close' in <any>child) {
+			// We have an HTML node in this case.
+			// In case this node is an invalid unpaired HTML node,
+			// we still want to search its children
+			const htmlChild = <HtmlFlatNode>child;
+			if (htmlChild.open && !htmlChild.close) {
+				return getFlatNodeChildren(htmlChild.children);
+			}
+		}
+		return;
+	}
+
+	function getFlatNodeChildren(children: FlatNode[]): FlatNode | undefined {
+		for (let i = 0; i < children.length; i++) {
+			const foundChild = getFlatNodeChild(children[i]);
+			if (foundChild) {
+				return foundChild;
+			}
+		}
+		return;
+	}
+
+	return getFlatNodeChildren(root.children);
 }
 
 export const allowedMimeTypesInScriptTag = ['text/html', 'text/plain', 'text/x-template', 'text/template', 'text/ng-template'];
@@ -380,37 +409,24 @@ export function getHtmlNode(document: vscode.TextDocument, root: Node | undefine
 /**
  * Finds the HTML node within an HTML document at a given position
  */
-export function getHtmlNodeLS(document: LSTextDocument, position: vscode.Position, includeNodeBoundary: boolean): LSNode | undefined {
-	const documentText = document.getText();
-	const offset = document.offsetAt(position);
-	let selectionStartOffset = offset;
-	if (includeNodeBoundary && documentText.charAt(offset) === '<') {
-		selectionStartOffset++;
-	}
-	else if (includeNodeBoundary && documentText.charAt(offset) === '>') {
-		selectionStartOffset--;
-	}
-	return getHtmlNodeLSInternal(document, selectionStartOffset);
-}
+export function getHtmlFlatNode(documentText: string, root: FlatNode | undefined, offset: number, includeNodeBoundary: boolean): HtmlFlatNode | undefined {
+	const currentNode: HtmlFlatNode | undefined = <HtmlFlatNode | undefined>getFlatNode(root, offset, includeNodeBoundary);
+	if (!currentNode) { return; }
 
-function getHtmlNodeLSInternal(document: LSTextDocument, offset: number, isInTemplateNode: boolean = false): LSNode | undefined {
-	const useCache = !isInTemplateNode;
-	const parsedDocument = parseMarkupDocument(document, useCache);
-
-	const currentNode: LSNode = parsedDocument.findNodeAt(offset);
-	if (!currentNode.tag) { return; }
-
-	const isTemplateScript = isNodeTemplateScriptLS(currentNode);
+	const isTemplateScript = currentNode.name === 'script' &&
+		(currentNode.attributes &&
+			currentNode.attributes.some(x => x.name.toString() === 'type'
+				&& allowedMimeTypesInScriptTag.includes(x.value.toString())));
 	if (isTemplateScript
-		&& currentNode.startTagEnd
-		&& offset > currentNode.startTagEnd
-		&& (!currentNode.endTagStart || offset < currentNode.endTagStart)) {
+		&& currentNode.open
+		&& offset > currentNode.open.end
+		&& (!currentNode.close || offset < currentNode.close.start)) {
 		// blank out the rest of the document and search for the node within
-		const documentText = document.getText();
-		const beforePadding = ' '.repeat(currentNode.startTagEnd);
-		const scriptBodyText = beforePadding + documentText.substring(currentNode.startTagEnd, currentNode.endTagStart ?? currentNode.end);
-		const scriptBodyDocument = LSTextDocument.create(document.uri, document.languageId, document.version, scriptBodyText);
-		const scriptBodyNode = getHtmlNodeLSInternal(scriptBodyDocument, offset, true);
+		const beforePadding = ' '.repeat(currentNode.open.end);
+		const endToUse = currentNode.close ? currentNode.close.start : currentNode.end;
+		const scriptBodyText = beforePadding + documentText.substring(currentNode.open.end, endToUse);
+		const innerRoot: HtmlFlatNode = parse(scriptBodyText);
+		const scriptBodyNode = getHtmlFlatNode(scriptBodyText, innerRoot, offset, includeNodeBoundary);
 		if (scriptBodyNode) {
 			scriptBodyNode.parent = currentNode;
 			currentNode.children.push(scriptBodyNode);
@@ -420,33 +436,16 @@ function getHtmlNodeLSInternal(document: LSTextDocument, offset: number, isInTem
 	return currentNode;
 }
 
-/**
- * Returns whether the node is a <script> node
- * that we want to search through and parse for more potential HTML nodes
- */
-function isNodeTemplateScriptLS(node: LSNode): boolean {
-	if (node.tag === 'script' && node.attributes && node.attributes['type']) {
-		let scriptType = node.attributes['type'];
-		scriptType = scriptType.substring(1, scriptType.length - 1);
-		return allowedMimeTypesInScriptTag.includes(scriptType);
-	}
-	return false;
-}
-
-function toVsPosition(position: LSPosition): vscode.Position {
-	return new vscode.Position(position.line, position.character);
-}
-
-export function offsetRangeToSelection(document: LSTextDocument, start: number, end: number): vscode.Selection {
+export function offsetRangeToSelection(document: vscode.TextDocument, start: number, end: number): vscode.Selection {
 	const startPos = document.positionAt(start);
 	const endPos = document.positionAt(end);
-	return new vscode.Selection(toVsPosition(startPos), toVsPosition(endPos));
+	return new vscode.Selection(startPos, endPos);
 }
 
-export function offsetRangeToVsRange(document: LSTextDocument, start: number, end: number): vscode.Range {
+export function offsetRangeToVsRange(document: vscode.TextDocument, start: number, end: number): vscode.Range {
 	const startPos = document.positionAt(start);
 	const endPos = document.positionAt(end);
-	return new vscode.Range(toVsPosition(startPos), toVsPosition(endPos));
+	return new vscode.Range(startPos, endPos);
 }
 
 /**
