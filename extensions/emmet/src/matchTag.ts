@@ -37,8 +37,9 @@ function getUpdatedSelections(document: vscode.TextDocument, rootNode: HtmlFlatN
 		return;
 	}
 
-	// If no closing tag or cursor is between open and close tag, then no-op
-	if (currentNode.close === undefined
+	// If no opening/closing tag or cursor is between open and close tag, then no-op
+	if (!currentNode.open
+		|| !currentNode.close
 		|| (offset > currentNode.open.end && offset < currentNode.close.start)) {
 		return;
 	}

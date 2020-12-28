@@ -27,11 +27,9 @@ export function updateTag(tagName: string): Thenable<boolean> | undefined {
 }
 
 function getRangesFromNode(node: HtmlFlatNode, document: vscode.TextDocument): vscode.Range[] {
-	const start = document.positionAt(node.open.start);
-	const startTagEnd = document.positionAt(node.open.end);
-
 	let ranges: vscode.Range[] = [];
-	if (startTagEnd) {
+	if (node.open) {
+		const start = document.positionAt(node.open.start);
 		ranges.push(new vscode.Range(start.translate(0, 1),
 			start.translate(0, 1).translate(0, node.name.length)));
 	}

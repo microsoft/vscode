@@ -38,19 +38,25 @@ function getRangesToRemove(document: vscode.TextDocument, rootNode: HtmlFlatNode
 		return [];
 	}
 
-	const openTagRange = offsetRangeToVsRange(document, nodeToUpdate.open.start, nodeToUpdate.open.end);
+	let openTagRange: vscode.Range | undefined;
+	if (nodeToUpdate.open) {
+		openTagRange = offsetRangeToVsRange(document, nodeToUpdate.open.start, nodeToUpdate.open.end);
+	}
 	let closeTagRange: vscode.Range | undefined;
-	if (nodeToUpdate.close !== undefined) {
+	if (nodeToUpdate.close) {
 		closeTagRange = offsetRangeToVsRange(document, nodeToUpdate.close.start, nodeToUpdate.close.end);
 	}
 
-	let rangesToRemove = [openTagRange];
-	if (closeTagRange) {
-		const indentAmountToRemove = calculateIndentAmountToRemove(document, openTagRange, closeTagRange);
-		for (let i = openTagRange.start.line + 1; i < closeTagRange.start.line; i++) {
-			rangesToRemove.push(new vscode.Range(i, 0, i, indentAmountToRemove));
+	let rangesToRemove = [];
+	if (openTagRange) {
+		rangesToRemove.push(openTagRange);
+		if (closeTagRange) {
+			const indentAmountToRemove = calculateIndentAmountToRemove(document, openTagRange, closeTagRange);
+			for (let i = openTagRange.start.line + 1; i < closeTagRange.start.line; i++) {
+				rangesToRemove.push(new vscode.Range(i, 0, i, indentAmountToRemove));
+			}
+			rangesToRemove.push(closeTagRange);
 		}
-		rangesToRemove.push(closeTagRange);
 	}
 	return rangesToRemove;
 }

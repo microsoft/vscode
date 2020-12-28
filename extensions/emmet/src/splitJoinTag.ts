@@ -35,7 +35,7 @@ function getRangesToReplace(document: vscode.TextDocument, nodeToUpdate: HtmlFla
 	let rangeToReplace: vscode.Range;
 	let textToReplaceWith: string;
 
-	if (nodeToUpdate.close === undefined) {
+	if (!nodeToUpdate.open || !nodeToUpdate.close) {
 		// Split Tag
 		const nodeText = document.getText().substring(nodeToUpdate.start, nodeToUpdate.end);
 		const m = nodeText.match(/(\s*\/)?>$/);

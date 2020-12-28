@@ -39,7 +39,7 @@ declare module 'EmmetFlatNode' {
 
     export interface HtmlNode extends Node {
         name: string
-        open: Token
+        open: Token | undefined
         close: Token | undefined
         parent: HtmlNode
         firstChild: HtmlNode

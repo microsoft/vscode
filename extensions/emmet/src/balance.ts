@@ -60,7 +60,7 @@ function getRangeToBalanceOut(document: vscode.TextDocument, rootNode: HtmlFlatN
 	if (!nodeToBalance) {
 		return selection;
 	}
-	if (!nodeToBalance.close) {
+	if (!nodeToBalance.open || !nodeToBalance.close) {
 		return offsetRangeToSelection(document, nodeToBalance.start, nodeToBalance.end);
 	}
 
@@ -85,7 +85,7 @@ function getRangeToBalanceIn(document: vscode.TextDocument, rootNode: HtmlFlatNo
 
 	const selectionStart = document.offsetAt(selection.start);
 	const selectionEnd = document.offsetAt(selection.end);
-	if (nodeToBalance.close) {
+	if (nodeToBalance.open && nodeToBalance.close) {
 		const entireNodeSelected = selectionStart === nodeToBalance.start && selectionEnd === nodeToBalance.end;
 		const startInOpenTag = selectionStart > nodeToBalance.open.start && selectionStart < nodeToBalance.open.end;
 		const startInCloseTag = selectionStart > nodeToBalance.close.start && selectionStart < nodeToBalance.close.end;
@@ -102,6 +102,7 @@ function getRangeToBalanceIn(document: vscode.TextDocument, rootNode: HtmlFlatNo
 	const firstChild = nodeToBalance.children[0];
 	if (selectionStart === firstChild.start
 		&& selectionEnd === firstChild.end
+		&& firstChild.open
 		&& firstChild.close) {
 		return offsetRangeToSelection(document, firstChild.open.end, firstChild.close.start);
 	}

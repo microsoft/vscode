@@ -352,11 +352,16 @@ export function getFlatNode(root: FlatNode | undefined, offset: number, includeN
 			|| (includeNodeBoundary && nodeStart <= offset && nodeEnd >= offset)) {
 			return getFlatNodeChildren(child.children) ?? child;
 		}
-		else if ('close' in <any>child && !(<HtmlFlatNode>child).close) {
-			// in the case of invalid unpaired HTML nodes
-			// we still want to search the children of that node
-			return getFlatNodeChildren(child.children);
+		else if ('close' in <any>child) {
+			// We have an HTML node in this case.
+			// In case this node is an invalid unpaired HTML node,
+			// we still want to search its children
+			const htmlChild = <HtmlFlatNode>child;
+			if (htmlChild.open && !htmlChild.close) {
+				return getFlatNodeChildren(htmlChild.children);
+			}
 		}
+		return;
 	}
 
 	function getFlatNodeChildren(children: FlatNode[]): FlatNode | undefined {
@@ -413,6 +418,7 @@ export function getHtmlFlatNode(documentText: string, root: FlatNode | undefined
 			currentNode.attributes.some(x => x.name.toString() === 'type'
 				&& allowedMimeTypesInScriptTag.includes(x.value.toString())));
 	if (isTemplateScript
+		&& currentNode.open
 		&& offset > currentNode.open.end
 		&& (!currentNode.close || offset < currentNode.close.start)) {
 		// blank out the rest of the document and search for the node within
