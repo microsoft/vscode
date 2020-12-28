@@ -285,7 +285,6 @@ jobs:
         working-directory: ./typings-test
         run: |
           yarn init -yp
-          yarn add typescript
-          yarn tsc --init
+          ../node_modules/.bin/tsc --init
           echo "import '../out-monaco-editor-core';" > a.ts
-          yarn tsc --noEmit
+          ../node_modules/.bin/tsc --noEmit
