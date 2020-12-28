@@ -3,20 +3,20 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { HTMLDocument, TextDocument as LSTextDocument } from 'vscode-html-languageservice';
-import { getLanguageService } from './util';
+import { TextDocument } from 'vscode';
+import { HtmlNode as HtmlFlatNode } from 'EmmetFlatNode';
+import parse from '@emmetio/html-matcher';
 
 type Pair<K, V> = {
 	key: K;
 	value: V;
 };
 
-// Map(filename, Pair(fileVersion, parsedContent))
-const _parseCache = new Map<string, Pair<number, HTMLDocument> | undefined>();
+// Map(filename, Pair(fileVersion, rootNodeOfParsedContent))
+const _parseCache = new Map<string, Pair<number, HtmlFlatNode> | undefined>();
 
-export function parseMarkupDocument(document: LSTextDocument, useCache: boolean = true): HTMLDocument {
-	const languageService = getLanguageService();
-	const key = document.uri;
+export function getRootNode(document: TextDocument, useCache: boolean = true): HtmlFlatNode {
+	const key = document.uri.toString();
 	const result = _parseCache.get(key);
 	const documentVersion = document.version;
 	if (useCache && result) {
@@ -25,19 +25,19 @@ export function parseMarkupDocument(document: LSTextDocument, useCache: boolean 
 		}
 	}
 
-	const parsedDocument = languageService.parseHTMLDocument(document);
+	const rootNode = parse(document.getText());
 	if (useCache) {
-		_parseCache.set(key, { key: documentVersion, value: parsedDocument });
+		_parseCache.set(key, { key: documentVersion, value: rootNode });
 	}
-	return parsedDocument;
+	return rootNode;
 }
 
-export function addFileToMarkupParseCache(document: LSTextDocument) {
-	const filename = document.uri;
+export function addFileToMarkupParseCache(document: TextDocument) {
+	const filename = document.uri.toString();
 	_parseCache.set(filename, undefined);
 }
 
-export function removeFileFromMarkupParseCache(document: LSTextDocument) {
-	const filename = document.uri;
+export function removeFileFromMarkupParseCache(document: TextDocument) {
+	const filename = document.uri.toString();
 	_parseCache.delete(filename);
 }
