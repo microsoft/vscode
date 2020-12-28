@@ -241,7 +241,7 @@ export class CodeEditorWidget extends Disposable implements editorBrowser.ICodeE
 
 	constructor(
 		domElement: HTMLElement,
-		options: editorBrowser.IEditorConstructionOptions,
+		_options: Readonly<editorBrowser.IEditorConstructionOptions>,
 		codeEditorWidgetOptions: ICodeEditorWidgetOptions,
 		@IInstantiationService instantiationService: IInstantiationService,
 		@ICodeEditorService codeEditorService: ICodeEditorService,
@@ -253,10 +253,11 @@ export class CodeEditorWidget extends Disposable implements editorBrowser.ICodeE
 	) {
 		super();
 
-		options = options || {};
+		const options = { ..._options };
 
 		this._domElement = domElement;
 		this._overflowWidgetsDomNode = options.overflowWidgetsDomNode;
+		delete options.overflowWidgetsDomNode;
 		this._id = (++EDITOR_ID);
 		this._decorationTypeKeysToIds = {};
 		this._decorationTypeSubtypes = {};
@@ -331,7 +332,7 @@ export class CodeEditorWidget extends Disposable implements editorBrowser.ICodeE
 		this._codeEditorService.addCodeEditor(this);
 	}
 
-	protected _createConfiguration(options: editorBrowser.IEditorConstructionOptions, accessibilityService: IAccessibilityService): editorCommon.IConfiguration {
+	protected _createConfiguration(options: Readonly<editorBrowser.IEditorConstructionOptions>, accessibilityService: IAccessibilityService): editorCommon.IConfiguration {
 		return new Configuration(this.isSimpleWidget, options, this._domElement, accessibilityService);
 	}
 
@@ -366,7 +367,7 @@ export class CodeEditorWidget extends Disposable implements editorBrowser.ICodeE
 		return this._instantiationService.invokeFunction(fn);
 	}
 
-	public updateOptions(newOptions: IEditorOptions): void {
+	public updateOptions(newOptions: Readonly<IEditorOptions>): void {
 		this._configuration.updateOptions(newOptions);
 	}
 
