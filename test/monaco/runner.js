@@ -30,7 +30,7 @@ function runTests() {
 	return (
 		runTest('chromium')
 			.then(() => runTest('firefox'))
-			.then(() => runTest('webkit'))
+			// .then(() => runTest('webkit'))
 	);
 }
 
