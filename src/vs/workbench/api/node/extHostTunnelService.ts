@@ -222,7 +222,7 @@ export class ExtHostTunnelService extends Disposable implements IExtHostTunnelSe
 		this._onDidChangeTunnels.fire();
 	}
 
-	$forwardPort(tunnelOptions: TunnelOptions, tunnelCreationOptions: TunnelCreationOptions): Promise<TunnelDto> | undefined {
+	async $forwardPort(tunnelOptions: TunnelOptions, tunnelCreationOptions: TunnelCreationOptions): Promise<TunnelDto | undefined> {
 		if (this._forwardPortProvider) {
 			const providedPort = this._forwardPortProvider(tunnelOptions, tunnelCreationOptions);
 			if (providedPort !== undefined) {

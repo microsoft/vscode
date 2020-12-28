@@ -11,17 +11,22 @@ on:
       - release/*
 
 jobs:
-  hygiene:
-    name: Hygiene and Layering
-    runs-on: ubuntu-latest
+  windows:
+    name: Windows
+    runs-on: windows-latest
     env:
+      CHILD_CONCURRENCY: "1"
       GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
     steps:
       - uses: actions/checkout@v2
 
-      - uses: actions/setup-node@v2-beta
+      - uses: actions/setup-node@v2
         with:
           node-version: 12
+
+      - uses: actions/setup-python@v2
+        with:
+          python-version: "2.x"
 
       - name: Compute node modules cache key
         id: nodeModulesCacheKey
@@ -51,11 +56,17 @@ jobs:
           ELECTRON_SKIP_BINARY_DOWNLOAD: 1
         run: yarn --frozen-lockfile --network-timeout 180000
 
-      - name: Run Hygiene Checks
-        run: yarn gulp hygiene
+      - name: Compile and Download
+        run: yarn npm-run-all --max_old_space_size=4095 -lp compile "electron x64" playwright-install download-builtin-extensions
 
-      - name: Run Valid Layers Checks
-        run: yarn valid-layers-check
+      - name: Run Unit Tests (Electron)
+        run: .\scripts\test.bat
+
+      - name: Run Unit Tests (Browser)
+        run: yarn test-browser --browser chromium
+
+      - name: Run Integration Tests (Electron)
+        run: .\scripts\test-integration.bat
 
   linux:
     name: Linux
@@ -75,7 +86,7 @@ jobs:
           sudo update-rc.d xvfb defaults
           sudo service xvfb start
 
-      - uses: actions/setup-node@v2-beta
+      - uses: actions/setup-node@v2
         with:
           node-version: 12
 
@@ -122,68 +133,6 @@ jobs:
         id: electron-integration-tests
         run: DISPLAY=:10 ./scripts/test-integration.sh
 
-  windows:
-    name: Windows
-    runs-on: windows-latest
-    env:
-      CHILD_CONCURRENCY: "1"
-      GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-    steps:
-      - uses: actions/checkout@v2
-
-      - uses: actions/setup-node@v2-beta
-        with:
-          node-version: 12
-
-      - uses: actions/setup-python@v2
-        with:
-          python-version: "2.x"
-
-      - name: Compute node modules cache key
-        id: nodeModulesCacheKey
-        run: echo "::set-output name=value::$(node build/azure-pipelines/common/computeNodeModulesCacheKey.js)"
-      - name: Cache node modules
-        id: cacheNodeModules
-        uses: actions/cache@v2
-        with:
-          path: |
-            **/node_modules
-            !**/Release/**/*.pdb
-            !**/Release/**/*.ilk
-            !**/Release/**/*.obj
-            !**/Release/**/*.tlog
-          key: ${{ runner.os }}-cacheNodeModules7-${{ steps.nodeModulesCacheKey.outputs.value }}
-          restore-keys: ${{ runner.os }}-cacheNodeModules7-
-      - name: Get yarn cache directory path
-        id: yarnCacheDirPath
-        if: ${{ steps.cacheNodeModules.outputs.cache-hit != 'true' }}
-        run: echo "::set-output name=dir::$(yarn cache dir)"
-      - name: Cache yarn directory
-        if: ${{ steps.cacheNodeModules.outputs.cache-hit != 'true' }}
-        uses: actions/cache@v2
-        with:
-          path: ${{ steps.yarnCacheDirPath.outputs.dir }}
-          key: ${{ runner.os }}-yarnCacheDir-${{ steps.nodeModulesCacheKey.outputs.value }}
-          restore-keys: ${{ runner.os }}-yarnCacheDir-
-      - name: Execute yarn
-        if: ${{ steps.cacheNodeModules.outputs.cache-hit != 'true' }}
-        env:
-          PLAYWRIGHT_SKIP_BROWSER_DOWNLOAD: 1
-          ELECTRON_SKIP_BINARY_DOWNLOAD: 1
-        run: yarn --frozen-lockfile --network-timeout 180000
-
-      - name: Compile and Download
-        run: yarn npm-run-all --max_old_space_size=4095 -lp compile "electron x64" playwright-install download-builtin-extensions
-
-      - name: Run Unit Tests (Electron)
-        run: .\scripts\test.bat
-
-      - name: Run Unit Tests (Browser)
-        run: yarn test-browser --browser chromium
-
-      - name: Run Integration Tests (Electron)
-        run: .\scripts\test-integration.bat
-
   darwin:
     name: macOS
     runs-on: macos-latest
@@ -192,7 +141,7 @@ jobs:
     steps:
       - uses: actions/checkout@v2
 
-      - uses: actions/setup-node@v2-beta
+      - uses: actions/setup-node@v2
         with:
           node-version: 12
 
@@ -236,15 +185,15 @@ jobs:
       - name: Run Integration Tests (Electron)
         run: DISPLAY=:10 ./scripts/test-integration.sh
 
-  monaco:
-    name: Monaco Editor
+  hygiene:
+    name: Hygiene and Layering
     runs-on: ubuntu-latest
     env:
       GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
     steps:
       - uses: actions/checkout@v2
 
-      - uses: actions/setup-node@v2-beta
+      - uses: actions/setup-node@v2
         with:
           node-version: 12
 
@@ -258,6 +207,63 @@ jobs:
           path: "**/node_modules"
           key: ${{ runner.os }}-cacheNodeModules7-${{ steps.nodeModulesCacheKey.outputs.value }}
           restore-keys: ${{ runner.os }}-cacheNodeModules7-
+      - name: Get yarn cache directory path
+        id: yarnCacheDirPath
+        if: ${{ steps.cacheNodeModules.outputs.cache-hit != 'true' }}
+        run: echo "::set-output name=dir::$(yarn cache dir)"
+      - name: Cache yarn directory
+        if: ${{ steps.cacheNodeModules.outputs.cache-hit != 'true' }}
+        uses: actions/cache@v2
+        with:
+          path: ${{ steps.yarnCacheDirPath.outputs.dir }}
+          key: ${{ runner.os }}-yarnCacheDir-${{ steps.nodeModulesCacheKey.outputs.value }}
+          restore-keys: ${{ runner.os }}-yarnCacheDir-
+      - name: Execute yarn
+        if: ${{ steps.cacheNodeModules.outputs.cache-hit != 'true' }}
+        env:
+          PLAYWRIGHT_SKIP_BROWSER_DOWNLOAD: 1
+          ELECTRON_SKIP_BINARY_DOWNLOAD: 1
+        run: yarn --frozen-lockfile --network-timeout 180000
+
+      - name: Run Hygiene Checks
+        run: yarn gulp hygiene
+
+      - name: Run Valid Layers Checks
+        run: yarn valid-layers-check
+
+  monaco:
+    name: Monaco Editor
+    runs-on: ubuntu-latest
+    env:
+      GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+    steps:
+      - uses: actions/checkout@v2
+
+      - uses: actions/setup-node@v2
+        with:
+          node-version: 12
+
+      - name: Compute node modules cache key
+        id: nodeModulesCacheKey
+        run: echo "::set-output name=value::$(node build/azure-pipelines/common/computeNodeModulesCacheKey.js)"
+      - name: Cache node modules
+        id: cacheNodeModules
+        uses: actions/cache@v2
+        with:
+          path: "**/node_modules"
+          key: ${{ runner.os }}-cacheNodeModules7-${{ steps.nodeModulesCacheKey.outputs.value }}
+          restore-keys: ${{ runner.os }}-cacheNodeModules7-
+      - name: Get yarn cache directory path
+        id: yarnCacheDirPath
+        if: ${{ steps.cacheNodeModules.outputs.cache-hit != 'true' }}
+        run: echo "::set-output name=dir::$(yarn cache dir)"
+      - name: Cache yarn directory
+        if: ${{ steps.cacheNodeModules.outputs.cache-hit != 'true' }}
+        uses: actions/cache@v2
+        with:
+          path: ${{ steps.yarnCacheDirPath.outputs.dir }}
+          key: ${{ runner.os }}-yarnCacheDir-${{ steps.nodeModulesCacheKey.outputs.value }}
+          restore-keys: ${{ runner.os }}-yarnCacheDir-
       - name: Execute yarn
         if: ${{ steps.cacheNodeModules.outputs.cache-hit != 'true' }}
         env:
@@ -270,3 +276,15 @@ jobs:
 
       - name: Editor Distro & ESM Bundle
         run: yarn gulp editor-esm-bundle
+
+      - name: Typings validation prep
+        run: |
+          mkdir typings-test
+
+      - name: Typings validation
+        working-directory: ./typings-test
+        run: |
+          yarn init -yp
+          ../node_modules/.bin/tsc --init
+          echo "import '../out-monaco-editor-core';" > a.ts
+          ../node_modules/.bin/tsc --noEmit

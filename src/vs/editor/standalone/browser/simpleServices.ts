@@ -643,7 +643,7 @@ export class SimpleWorkspaceContextService implements IWorkspaceContextService {
 	}
 }
 
-export function applyConfigurationValues(configurationService: IConfigurationService, source: any, isDiffEditor: boolean): void {
+export function updateConfigurationService(configurationService: IConfigurationService, source: any, isDiffEditor: boolean): void {
 	if (!source) {
 		return;
 	}
