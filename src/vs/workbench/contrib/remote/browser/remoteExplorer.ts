@@ -224,6 +224,7 @@ class ForwardedPortNotifier extends Disposable {
 	private lastNotifyTime: Date;
 	private static COOL_DOWN = 5000; // milliseconds
 	private lastNotification: INotificationHandle | undefined;
+	private lastShownPort: number | undefined;
 
 	constructor(private readonly notificationService: INotificationService,
 		private readonly remoteExplorerService: IRemoteExplorerService,
@@ -239,6 +240,12 @@ class ForwardedPortNotifier extends Disposable {
 			if (Date.now() - this.lastNotifyTime.getTime() > ForwardedPortNotifier.COOL_DOWN) {
 				this.showNotification(tunnel);
 			}
+		}
+	}
+
+	public async hide(removedPorts: number[]) {
+		if (this.lastShownPort && removedPorts.indexOf(this.lastShownPort) >= 0) {
+			this.lastNotification?.close();
 		}
 	}
 
@@ -272,6 +279,9 @@ class ForwardedPortNotifier extends Disposable {
 	}
 
 	private showNotification(tunnel: RemoteTunnel) {
+		if (this.lastNotification) {
+			this.lastNotification.close();
+		}
 		const address = makeAddress(tunnel.tunnelRemoteHost, tunnel.tunnelRemotePort);
 		const message = nls.localize('remote.tunnelsView.automaticForward', "Your service running on port {0} is available. [See all forwarded ports](command:{1}.focus)",
 			tunnel.tunnelRemotePort, TunnelPanel.ID);
@@ -280,9 +290,11 @@ class ForwardedPortNotifier extends Disposable {
 			run: () => OpenPortInBrowserAction.run(this.remoteExplorerService.tunnelModel, this.openerService, address)
 		};
 		this.lastNotification = this.notificationService.prompt(Severity.Info, message, [browserChoice], { neverShowAgain: { id: 'remote.tunnelsView.autoForwardNeverShow', isSecondary: true } });
+		this.lastShownPort = tunnel.tunnelRemotePort;
 		this.lastNotifyTime = new Date();
 		this.lastNotification.onDidClose(() => {
 			this.lastNotification = undefined;
+			this.lastShownPort = undefined;
 		});
 	}
 }
@@ -447,18 +459,24 @@ class LinuxAutomaticPortForwarding extends Disposable {
 	}
 
 	private async handleCandidateUpdate(removed: Map<string, { host: string, port: number }>) {
+		const removedPorts: number[] = [];
 		removed.forEach((value, key) => {
 			if (this.autoForwarded.has(key)) {
 				this.remoteExplorerService.close(value);
 				this.autoForwarded.delete(key);
+				removedPorts.push(value.port);
 			} else if (this.initialCandidates.has(key)) {
 				this.initialCandidates.delete(key);
 			}
 		});
 
+		if (removedPorts.length > 0) {
+			await this.notifier.hide(removedPorts);
+		}
+
 		const tunnels = await this.forwardCandidates();
 		if (tunnels) {
-			this.notifier.notify(tunnels);
+			await this.notifier.notify(tunnels);
 		}
 	}
 }
