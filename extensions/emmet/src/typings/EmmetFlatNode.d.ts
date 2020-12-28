@@ -8,10 +8,10 @@ declare module 'EmmetFlatNode' {
         start: number
         end: number
         type: string
-        parent: Node
-        firstChild: Node
-        nextSibling: Node
-        previousSibling: Node
+        parent: Node | undefined
+        firstChild: Node | undefined
+        nextSibling: Node | undefined
+        previousSibling: Node | undefined
         children: Node[]
     }
 
@@ -41,20 +41,20 @@ declare module 'EmmetFlatNode' {
         name: string
         open: Token | undefined
         close: Token | undefined
-        parent: HtmlNode
-        firstChild: HtmlNode
-        nextSibling: HtmlNode
-        previousSibling: HtmlNode
+        parent: HtmlNode | undefined
+        firstChild: HtmlNode | undefined
+        nextSibling: HtmlNode | undefined
+        previousSibling: HtmlNode | undefined
         children: HtmlNode[]
         attributes: Attribute[]
     }
 
     export interface CssNode extends Node {
         name: string
-        parent: CssNode
-        firstChild: CssNode
-        nextSibling: CssNode
-        previousSibling: CssNode
+        parent: CssNode | undefined
+        firstChild: CssNode | undefined
+        nextSibling: CssNode | undefined
+        previousSibling: CssNode | undefined
         children: CssNode[]
     }
 

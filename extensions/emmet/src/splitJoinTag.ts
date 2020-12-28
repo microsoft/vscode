@@ -6,7 +6,7 @@
 import * as vscode from 'vscode';
 import { validate, getEmmetMode, getEmmetConfiguration, getHtmlFlatNode, offsetRangeToVsRange } from './util';
 import { HtmlNode as HtmlFlatNode } from 'EmmetFlatNode';
-import { getRootNode } from './parseMarkupDocument';
+import { getRootNode } from './parseDocument';
 
 export function splitJoinTag() {
 	if (!validate(false) || !vscode.window.activeTextEditor) {
@@ -15,7 +15,11 @@ export function splitJoinTag() {
 
 	const editor = vscode.window.activeTextEditor;
 	const document = editor.document;
-	const rootNode = getRootNode(editor.document, true);
+	const rootNode = <HtmlFlatNode>getRootNode(editor.document, true);
+	if (!rootNode) {
+		return;
+	}
+
 	return editor.edit(editBuilder => {
 		editor.selections.reverse().forEach(selection => {
 			const documentText = document.getText();
@@ -23,15 +27,13 @@ export function splitJoinTag() {
 			const nodeToUpdate = getHtmlFlatNode(documentText, rootNode, offset, true);
 			if (nodeToUpdate) {
 				const textEdit = getRangesToReplace(document, nodeToUpdate);
-				if (textEdit) {
-					editBuilder.replace(textEdit.range, textEdit.newText);
-				}
+				editBuilder.replace(textEdit.range, textEdit.newText);
 			}
 		});
 	});
 }
 
-function getRangesToReplace(document: vscode.TextDocument, nodeToUpdate: HtmlFlatNode): vscode.TextEdit | undefined {
+function getRangesToReplace(document: vscode.TextDocument, nodeToUpdate: HtmlFlatNode): vscode.TextEdit {
 	let rangeToReplace: vscode.Range;
 	let textToReplaceWith: string;
 

@@ -5,7 +5,7 @@
 
 import * as vscode from 'vscode';
 import { getHtmlFlatNode, offsetRangeToSelection, validate } from './util';
-import { getRootNode } from './parseMarkupDocument';
+import { getRootNode } from './parseDocument';
 import { HtmlNode as HtmlFlatNode } from 'EmmetFlatNode';
 
 let balanceOutStack: Array<vscode.Selection[]> = [];
@@ -25,7 +25,10 @@ function balance(out: boolean) {
 	}
 	const editor = vscode.window.activeTextEditor;
 	const document = editor.document;
-	const rootNode = getRootNode(document, true);
+	const rootNode = <HtmlFlatNode>getRootNode(document, true);
+	if (!rootNode) {
+		return;
+	}
 
 	const rangeFn = out ? getRangeToBalanceOut : getRangeToBalanceIn;
 	let newSelections: vscode.Selection[] = [];
@@ -95,11 +98,11 @@ function getRangeToBalanceIn(document: vscode.TextDocument, rootNode: HtmlFlatNo
 		}
 	}
 
-	if (!nodeToBalance.children.length) {
+	if (!nodeToBalance.firstChild) {
 		return selection;
 	}
 
-	const firstChild = nodeToBalance.children[0];
+	const firstChild = nodeToBalance.firstChild;
 	if (selectionStart === firstChild.start
 		&& selectionEnd === firstChild.end
 		&& firstChild.open

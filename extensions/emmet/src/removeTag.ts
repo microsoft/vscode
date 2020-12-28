@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import * as vscode from 'vscode';
-import { getRootNode } from './parseMarkupDocument';
+import { getRootNode } from './parseDocument';
 import { validate, getHtmlFlatNode, offsetRangeToVsRange } from './util';
 import { HtmlNode as HtmlFlatNode } from 'EmmetFlatNode';
 
@@ -14,7 +14,11 @@ export function removeTag() {
 	}
 	const editor = vscode.window.activeTextEditor;
 	const document = editor.document;
-	const rootNode = getRootNode(document, true);
+	const rootNode = <HtmlFlatNode>getRootNode(document, true);
+	if (!rootNode) {
+		return;
+	}
+
 	let finalRangesToRemove = editor.selections.reverse()
 		.reduce<vscode.Range[]>((prev, selection) =>
 			prev.concat(getRangesToRemove(editor.document, rootNode, selection)), []);

@@ -6,7 +6,7 @@
 import * as vscode from 'vscode';
 import { getHtmlFlatNode, validate } from './util';
 import { HtmlNode as HtmlFlatNode } from 'EmmetFlatNode';
-import { getRootNode } from './parseMarkupDocument';
+import { getRootNode } from './parseDocument';
 
 export function updateTag(tagName: string): Thenable<boolean> | undefined {
 	if (!validate(false) || !vscode.window.activeTextEditor) {
@@ -15,9 +15,14 @@ export function updateTag(tagName: string): Thenable<boolean> | undefined {
 
 	const editor = vscode.window.activeTextEditor;
 	const document = editor.document;
+	const rootNode = <HtmlFlatNode>getRootNode(document, true);
+	if (!rootNode) {
+		return;
+	}
+
 	const rangesToUpdate = editor.selections.reverse()
 		.reduce<vscode.Range[]>((prev, selection) =>
-			prev.concat(getRangesToUpdate(document, selection)), []);
+			prev.concat(getRangesToUpdate(document, selection, rootNode)), []);
 
 	return editor.edit(editBuilder => {
 		rangesToUpdate.forEach(range => {
@@ -41,9 +46,8 @@ function getRangesFromNode(node: HtmlFlatNode, document: vscode.TextDocument): v
 	return ranges;
 }
 
-function getRangesToUpdate(document: vscode.TextDocument, selection: vscode.Selection): vscode.Range[] {
+function getRangesToUpdate(document: vscode.TextDocument, selection: vscode.Selection, rootNode: HtmlFlatNode): vscode.Range[] {
 	const documentText = document.getText();
-	const rootNode = getRootNode(document, true);
 	const offset = document.offsetAt(selection.start);
 	const nodeToUpdate = getHtmlFlatNode(documentText, rootNode, offset, true);
 	if (!nodeToUpdate) {

@@ -5,7 +5,7 @@
 
 import * as vscode from 'vscode';
 import { validate, getHtmlFlatNode, offsetRangeToSelection } from './util';
-import { getRootNode } from './parseMarkupDocument';
+import { getRootNode } from './parseDocument';
 import { HtmlNode as HtmlFlatNode } from 'EmmetFlatNode';
 
 export function matchTag() {
@@ -15,7 +15,10 @@ export function matchTag() {
 
 	const editor = vscode.window.activeTextEditor;
 	const document = editor.document;
-	const rootNode = getRootNode(document, true);
+	const rootNode = <HtmlFlatNode>getRootNode(document, true);
+	if (!rootNode) {
+		return;
+	}
 
 	let updatedSelections: vscode.Selection[] = [];
 	editor.selections.forEach(selection => {
