@@ -471,6 +471,7 @@ abstract class AbstractElementRenderer extends Disposable {
 				originalEditor: getOptimizedNestedCodeEditorWidgetOptions(),
 				modifiedEditor: getOptimizedNestedCodeEditorWidgetOptions()
 			});
+			this.layout({ metadataHeight: true });
 			this._register(this._metadataEditor);
 
 			this._metadataEditorContainer?.classList.add('diff');
@@ -524,6 +525,7 @@ abstract class AbstractElementRenderer extends Disposable {
 				overflowWidgetsDomNode: this.notebookEditor.getOverflowContainerDomNode(),
 				readOnly: false
 			}, {});
+			this.layout({ metadataHeight: true });
 			this._register(this._metadataEditor);
 
 			const mode = this.modeService.create('jsonc');
@@ -673,7 +675,7 @@ abstract class AbstractElementRenderer extends Disposable {
 
 	abstract styleContainer(container: HTMLElement): void;
 	abstract updateSourceEditor(): void;
-	abstract layout(state: { outerWidth?: boolean, editorHeight?: boolean, metadataEditor?: boolean, outputEditor?: boolean, outputView?: boolean }): void;
+	abstract layout(state: { outerWidth?: boolean, editorHeight?: boolean, metadataEditor?: boolean, metadataHeight?: boolean, outputEditor?: boolean, outputView?: boolean }): void;
 }
 
 abstract class SingleSideDiffElement extends AbstractElementRenderer {
