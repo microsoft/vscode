@@ -276,3 +276,16 @@ jobs:
 
       - name: Editor Distro & ESM Bundle
         run: yarn gulp editor-esm-bundle
+
+      - name: Typings validation prep
+        run: |
+          mkdir typings-test
+
+      - name: Typings validation
+        working-directory: ./typings-test
+        run: |
+          yarn init -yp
+          yarn add typescript
+          yarn tsc --init
+          echo "import '../out-monaco-editor-core';" > a.ts
+          yarn tsc --noEmit
