@@ -253,12 +253,15 @@
 	padding: 2px 4px 4px 2px;
 }
 
+.monaco-workbench .notebook-text-diff-editor .output-view-container .output-empty-view span {
+	opacity: 0.7;
+}
+
 .monaco-workbench .notebook-text-diff-editor .output-view-container .output-empty-view {
+	font-style: italic;
 	height: 24px;
 	margin: auto;
 	padding-left: 12px;
-	font-style: italic;
-	opacity: 0.7;
 }
 
 .monaco-workbench .notebook-text-diff-editor .output-view-container pre {

@@ -332,7 +332,7 @@ abstract class AbstractElementRenderer extends Disposable {
 				this._hideOutputsRaw();
 				this._buildOutputRendererContainer();
 				this._showOutputsRenderer();
-
+				this._showOutputsEmptyView();
 			} else {
 				this._hideOutputsRenderer();
 				this._buildOutputRawContainer();
@@ -343,6 +343,7 @@ abstract class AbstractElementRenderer extends Disposable {
 
 			this._hideOutputsRaw();
 			this._hideOutputsRenderer();
+			this._hideOutputsEmptyView();
 		}
 	}
 
@@ -360,11 +361,19 @@ abstract class AbstractElementRenderer extends Disposable {
 		}
 	}
 
+	private _showOutputsEmptyView() {
+		this.cell.layoutChange();
+	}
+
 	private _hideOutputsRaw() {
 		if (this._outputEditorContainer) {
 			this._outputEditorContainer.style.display = 'none';
 			this.cell.rawOutputHeight = 0;
 		}
+	}
+
+	private _hideOutputsEmptyView() {
+		this.cell.layoutChange();
 	}
 
 	abstract _buildOutputRendererContainer(): void;
@@ -893,13 +902,16 @@ export class DeletedElement extends SingleSideDiffElement {
 		if (!this._outputViewContainer) {
 			this._outputViewContainer = DOM.append(this._outputInfoContainer, DOM.$('.output-view-container'));
 			this._outputEmptyElement = DOM.append(this._outputViewContainer, DOM.$('.output-empty-view'));
-			this._outputEmptyElement.innerText = 'No outputs to render';
+			const span = DOM.append(this._outputEmptyElement, DOM.$('span'));
+			span.innerText = 'No outputs to render';
 
 			if (this.cell.original!.outputs.length === 0) {
 				this._outputEmptyElement.style.display = 'block';
 			} else {
 				this._outputEmptyElement.style.display = 'none';
 			}
+
+			this.cell.layoutChange();
 
 			this._outputLeftView = this.instantiationService.createInstance(OutputContainer, this.notebookEditor, this.notebookEditor.textModel!, this.cell, this.cell.original!, DiffSide.Original, this._outputViewContainer!);
 			this._register(this._outputLeftView);
@@ -1018,6 +1030,8 @@ export class InsertElement extends SingleSideDiffElement {
 			} else {
 				this._outputEmptyElement.style.display = 'none';
 			}
+
+			this.cell.layoutChange();
 
 			this._outputRightView = this.instantiationService.createInstance(OutputContainer, this.notebookEditor, this.notebookEditor.textModel!, this.cell, this.cell.modified!, DiffSide.Modified, this._outputViewContainer!);
 			this._register(this._outputRightView);
@@ -1225,6 +1239,8 @@ export class ModifiedElement extends AbstractElementRenderer {
 			} else {
 				this._outputEmptyElement.style.display = 'none';
 			}
+
+			this.cell.layoutChange();
 
 			this._register(this.cell.modified.textModel.onDidChangeOutputs(() => {
 				// currently we only allow outputs change to the modified cell
