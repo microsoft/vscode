@@ -8867,7 +8867,8 @@ declare module 'vscode' {
 		getParent?(element: T): ProviderResult<T>;
 
 		/**
-		 * Called only on hover to resolve the [TreeItem](#TreeItem.tooltip) property if it is undefined.
+		 * Called on hover to resolve the [TreeItem](#TreeItem.tooltip) property if it is undefined.
+		 * Called on tree item click/open to resolve the [TreeItem](#TreeItem.command) property if it is undefined.
 		 * Only properties that were undefined can be resolved in `resolveTreeItem`.
 		 * Functionality may be expanded later to include being called to resolve other missing
 		 * properties on selection and/or on open.
@@ -8877,7 +8878,7 @@ declare module 'vscode' {
 		 * onDidChangeTreeData should not be triggered from within resolveTreeItem.
 		 *
 		 * *Note* that this function is called when tree items are already showing in the UI.
-		 * Because of that, no property that changes the presentation (label, description, command, etc.)
+		 * Because of that, no property that changes the presentation (label, description, etc.)
 		 * can be changed.
 		 *
 		 * @param element The object associated with the TreeItem
