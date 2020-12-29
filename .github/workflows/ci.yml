@@ -301,5 +301,6 @@ jobs:
         run: yarn playwright-install
 
       - name: Run Editor Tests
+        timeout-minutes: 5
         working-directory: ./test/monaco
         run: yarn test
