@@ -31,7 +31,7 @@ stages:
     jobs:
       - job: Compile
         pool:
-          vmImage: "Ubuntu-18.04"
+          vmImage: "Ubuntu-20.04"
         variables:
           VSCODE_ARCH: x64
         steps:
