@@ -18,7 +18,7 @@ declare module 'EmmetFlatNode' {
     export interface Token {
         start: number
         end: number
-        stream: string
+        stream: BufferStream
         toString(): string
     }
 
@@ -75,5 +75,15 @@ declare module 'EmmetFlatNode' {
 
     export interface Stylesheet extends Node {
         comments: Token[]
+    }
+
+    export interface BufferStream {
+        peek(): number
+        next(): number
+        backUp(n: number): number
+        current(): string
+        substring(from: number, to: number): string
+        eat(match: any): boolean
+        eatWhile(match: any): boolean
     }
 }
