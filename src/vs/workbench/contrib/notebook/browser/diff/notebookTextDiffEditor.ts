@@ -284,7 +284,7 @@ export class NotebookTextDiffEditor extends EditorPane implements INotebookTextD
 			this._attachModel();
 		}
 
-		this._model = await input.resolve();
+		this._model = model;
 		if (this._model === null) {
 			return;
 		}
