@@ -473,6 +473,21 @@ export function getDeepestNode(node: Node | undefined): Node | undefined {
 	return undefined;
 }
 
+/**
+ * Returns the deepest non comment node under given node
+ */
+export function getDeepestFlatNode(node: FlatNode | undefined): FlatNode | undefined {
+	if (!node || !node.children || node.children.length === 0 || !node.children.find(x => x.type !== 'comment')) {
+		return node;
+	}
+	for (let i = node.children.length - 1; i >= 0; i--) {
+		if (node.children[i].type !== 'comment') {
+			return getDeepestFlatNode(node.children[i]);
+		}
+	}
+	return undefined;
+}
+
 export function findNextWord(propertyValue: string, pos: number): [number | undefined, number | undefined] {
 
 	let foundSpace = pos === -1;
