@@ -604,17 +604,16 @@ export function getNodesInBetween(node1: FlatNode, node2: FlatNode): FlatNode[] 
 	return siblings;
 }
 
-function sameOffsets(pos1: number | undefined, pos2: number | undefined): boolean {
-	if (!pos1 && !pos2) {
-		return true;
-	} else if (pos1 && pos2 && pos1 === pos2) {
+export function sameNodes(node1: FlatNode | undefined, node2: FlatNode | undefined): boolean {
+	// return true if they're both undefined
+	if (!node1 && !node2) {
 		return true;
 	}
-	return false;
-}
-
-export function sameNodes(node1: FlatNode | undefined, node2: FlatNode | undefined): boolean {
-	return sameOffsets(node1?.start, node2?.start) && sameOffsets(node1?.end, node2?.end);
+	// return false if only one of them is undefined
+	if (!node1 || !node2) {
+		return false;
+	}
+	return node1.start === node2.start && node1.end === node2.end;
 }
 
 export function getEmmetConfiguration(syntax: string) {
