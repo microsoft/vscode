@@ -531,9 +531,7 @@ export class NotebookTextDiffEditor extends EditorPane implements INotebookTextD
 
 	layoutNotebookCell(cell: DiffElementViewModelBase, height: number) {
 		const relayout = (cell: DiffElementViewModelBase, height: number) => {
-			const viewIndex = this._list.indexOf(cell);
-
-			this._list?.updateElementHeight(viewIndex, height);
+			this._list.updateElementHeight2(cell, height);
 		};
 
 		if (this.pendingLayouts.has(cell)) {

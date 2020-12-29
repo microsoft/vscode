@@ -313,6 +313,14 @@ export class NotebookTextDiffList extends WorkbenchList<DiffElementViewModelBase
 		super.splice(0, this.length);
 	}
 
+
+	updateElementHeight2(element: DiffElementViewModelBase, size: number) {
+		const viewIndex = this.indexOf(element);
+		const focused = this.getFocus();
+
+		this.view.updateElementHeight(viewIndex, size, focused.length ? focused[0] : null);
+	}
+
 	style(styles: IListStyles) {
 		const selectorSuffix = this.view.domId;
 		if (!this.styleElement) {
