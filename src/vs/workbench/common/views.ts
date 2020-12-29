@@ -704,8 +704,9 @@ export class ResolvableTreeItem implements ITreeItem {
 			if (resolve && !this.resolved) {
 				const resolvedItem = await resolve(token);
 				if (resolvedItem) {
-					// Resolvable elements. Currently only tooltip.
-					this.tooltip = resolvedItem.tooltip;
+					// Resolvable elements. Currently tooltip and command.
+					this.tooltip = this.tooltip ?? resolvedItem.tooltip;
+					this.command = this.command ?? resolvedItem.command;
 				}
 			}
 			if (!token.isCancellationRequested) {
