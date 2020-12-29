@@ -82,8 +82,8 @@ function updateImageSizeStyleTag(editor: TextEditor, position: Position): Promis
 			const buffer = ' '.repeat(currentNode.open.end) +
 				document.getText().substring(currentNode.open.end, currentNode.close.start);
 			const innerRootNode = parseStylesheet(buffer);
-			const node = getFlatNode(innerRootNode, offset, true);
-			return (node && node.type === 'property') ? <Property>node : null;
+			const innerNode = getFlatNode(innerRootNode, offset, true);
+			return (innerNode && innerNode.type === 'property') ? <Property>innerNode : null;
 		}
 		return null;
 	};
@@ -265,8 +265,7 @@ function getAttribute(node: HtmlNode, attrName: string): Attribute | undefined {
 function getAttributeQuote(editor: TextEditor, attr: Attribute): string {
 	const begin = attr.value ? attr.value.end : attr.end;
 	const end = attr.end;
-	const range = offsetRangeToVsRange(editor.document, begin, end);
-	return range.isEmpty ? '' : editor.document.getText(range);
+	return begin === end ? '' : editor.document.getText().substring(begin, end);
 }
 
 /**
