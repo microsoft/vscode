@@ -3,6 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
+import { Color } from 'vs/base/common/color';
 import { ITokenThemeRule, TokenTheme } from 'vs/editor/common/modes/supports/tokenization';
 import { createDecorator } from 'vs/platform/instantiation/common/instantiation';
 import { IColorTheme, IThemeService } from 'vs/platform/theme/common/themeService';
@@ -33,4 +34,7 @@ export interface IStandaloneThemeService extends IThemeService {
 	defineTheme(themeName: string, themeData: IStandaloneThemeData): void;
 
 	getColorTheme(): IStandaloneTheme;
+
+	setColorMapOverride(colorMapOverride: Color[] | null): void;
+
 }

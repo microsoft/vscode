@@ -5090,6 +5090,12 @@ declare namespace monaco.languages {
 	}
 
 	/**
+	 * Change the color map that is used for token colors.
+	 * Supported formats (hex): #RRGGBB, $RRGGBBAA, #RGB, #RGBA
+	 */
+	export function setColorMap(colorMap: string[] | null): void;
+
+	/**
 	 * Set the tokens provider for a language (manual implementation).
 	 */
 	export function setTokensProvider(languageId: string, provider: TokensProvider | EncodedTokensProvider | Thenable<TokensProvider | EncodedTokensProvider>): IDisposable;
