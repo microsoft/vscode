@@ -565,7 +565,7 @@ export function findPrevWord(propertyValue: string, pos: number): [number | unde
 	return [newSelectionStart, newSelectionEnd];
 }
 
-export function getNodesInBetween(node1: Node, node2: Node): Node[] {
+export function getNodesInBetween(node1: FlatNode, node2: FlatNode): FlatNode[] {
 	// Same node
 	if (sameNodes(node1, node2)) {
 		return [node1];
@@ -574,50 +574,46 @@ export function getNodesInBetween(node1: Node, node2: Node): Node[] {
 	// Not siblings
 	if (!sameNodes(node1.parent, node2.parent)) {
 		// node2 is ancestor of node1
-		if (node2.start.isBefore(node1.start)) {
+		if (node2.start < node1.start) {
 			return [node2];
 		}
 
 		// node1 is ancestor of node2
-		if (node2.start.isBefore(node1.end)) {
+		if (node2.start < node1.end) {
 			return [node1];
 		}
 
 		// Get the highest ancestor of node1 that should be commented
-		while (node1.parent && node1.parent.end.isBefore(node2.start)) {
+		while (node1.parent && node1.parent.end < node2.start) {
 			node1 = node1.parent;
 		}
 
 		// Get the highest ancestor of node2 that should be commented
-		while (node2.parent && node2.parent.start.isAfter(node1.start)) {
+		while (node2.parent && node2.parent.start > node1.start) {
 			node2 = node2.parent;
 		}
 	}
 
-	const siblings: Node[] = [];
-	let currentNode = node1;
+	const siblings: FlatNode[] = [];
+	let currentNode: FlatNode | undefined = node1;
 	const position = node2.end;
-	while (currentNode && position.isAfter(currentNode.start)) {
+	while (currentNode && position > currentNode.start) {
 		siblings.push(currentNode);
 		currentNode = currentNode.nextSibling;
 	}
 	return siblings;
 }
 
-function samePositions(pos1: vscode.Position | undefined, pos2: vscode.Position | undefined): boolean {
-	if (!pos1 && !pos2) {
-		return true;
-	} else if (pos1 && pos2 && pos1.isEqual(pos2)) {
+export function sameNodes(node1: FlatNode | undefined, node2: FlatNode | undefined): boolean {
+	// return true if they're both undefined
+	if (!node1 && !node2) {
 		return true;
 	}
-	return false;
-}
-
-export function sameNodes(node1: Node, node2: Node): boolean {
+	// return false if only one of them is undefined
 	if (!node1 || !node2) {
 		return false;
 	}
-	return samePositions(node1.start, node2.start) && samePositions(node1.end, node2.end);
+	return node1.start === node2.start && node1.end === node2.end;
 }
 
 export function getEmmetConfiguration(syntax: string) {
