@@ -203,8 +203,8 @@ export class StandaloneThemeServiceImpl extends Disposable implements IStandalon
 	private _allCSS: string;
 	private _globalStyleElement: HTMLStyleElement | null;
 	private _styleElements: HTMLStyleElement[];
-	private _theme!: IStandaloneTheme;
 	private _colorMapOverride: Color[] | null;
+	private _theme!: IStandaloneTheme;
 
 	constructor() {
 		super();
@@ -221,8 +221,8 @@ export class StandaloneThemeServiceImpl extends Disposable implements IStandalon
 		this._allCSS = `${this._codiconCSS}\n${this._themeCSS}`;
 		this._globalStyleElement = null;
 		this._styleElements = [];
-		this.setTheme(VS_THEME_NAME);
 		this._colorMapOverride = null;
+		this.setTheme(VS_THEME_NAME);
 
 		iconRegistry.onDidChange(() => {
 			this._codiconCSS = iconRegistry.getCSS();
@@ -324,7 +324,7 @@ export class StandaloneThemeServiceImpl extends Disposable implements IStandalon
 		};
 		themingRegistry.getThemingParticipants().forEach(p => p(this._theme, ruleCollector, this._environment));
 
-		const colorMap = this._colorMapOverride !== null ? this._colorMapOverride : this._theme.tokenTheme.getColorMap();
+		const colorMap = this._colorMapOverride || this._theme.tokenTheme.getColorMap();
 		ruleCollector.addRule(generateTokensCSSForColorMap(colorMap));
 
 		this._themeCSS = cssRules.join('\n');
