@@ -4,16 +4,24 @@
  *--------------------------------------------------------------------------------------------*/
 
 import * as vscode from 'vscode';
-import { validate, getHtmlNodeLS, toLSTextDocument, offsetRangeToVsRange } from './util';
+import { getRootNode } from './parseDocument';
+import { validate, getHtmlFlatNode, offsetRangeToVsRange } from './util';
+import { HtmlNode as HtmlFlatNode } from 'EmmetFlatNode';
 
 export function removeTag() {
 	if (!validate(false) || !vscode.window.activeTextEditor) {
 		return;
 	}
 	const editor = vscode.window.activeTextEditor;
+	const document = editor.document;
+	const rootNode = <HtmlFlatNode>getRootNode(document, true);
+	if (!rootNode) {
+		return;
+	}
+
 	let finalRangesToRemove = editor.selections.reverse()
 		.reduce<vscode.Range[]>((prev, selection) =>
-			prev.concat(getRangesToRemove(editor.document, selection)), []);
+			prev.concat(getRangesToRemove(editor.document, rootNode, selection)), []);
 
 	return editor.edit(editBuilder => {
 		finalRangesToRemove.forEach(range => {
@@ -27,26 +35,32 @@ export function removeTag() {
  * It finds the node to remove based on the selection's start position
  * and then removes that node, reindenting the content in between.
  */
-function getRangesToRemove(document: vscode.TextDocument, selection: vscode.Selection): vscode.Range[] {
-	const lsDocument = toLSTextDocument(document);
-	const nodeToUpdate = getHtmlNodeLS(lsDocument, selection.start, true);
+function getRangesToRemove(document: vscode.TextDocument, rootNode: HtmlFlatNode, selection: vscode.Selection): vscode.Range[] {
+	const offset = document.offsetAt(selection.start);
+	const nodeToUpdate = getHtmlFlatNode(document.getText(), rootNode, offset, true);
 	if (!nodeToUpdate) {
 		return [];
 	}
 
-	const openTagRange = offsetRangeToVsRange(lsDocument, nodeToUpdate.start, nodeToUpdate.startTagEnd ?? nodeToUpdate.end);
+	let openTagRange: vscode.Range | undefined;
+	if (nodeToUpdate.open) {
+		openTagRange = offsetRangeToVsRange(document, nodeToUpdate.open.start, nodeToUpdate.open.end);
+	}
 	let closeTagRange: vscode.Range | undefined;
-	if (nodeToUpdate.endTagStart !== undefined) {
-		closeTagRange = offsetRangeToVsRange(lsDocument, nodeToUpdate.endTagStart, nodeToUpdate.end);
+	if (nodeToUpdate.close) {
+		closeTagRange = offsetRangeToVsRange(document, nodeToUpdate.close.start, nodeToUpdate.close.end);
 	}
 
-	let rangesToRemove = [openTagRange];
-	if (closeTagRange) {
-		const indentAmountToRemove = calculateIndentAmountToRemove(document, openTagRange, closeTagRange);
-		for (let i = openTagRange.start.line + 1; i < closeTagRange.start.line; i++) {
-			rangesToRemove.push(new vscode.Range(i, 0, i, indentAmountToRemove));
+	let rangesToRemove = [];
+	if (openTagRange) {
+		rangesToRemove.push(openTagRange);
+		if (closeTagRange) {
+			const indentAmountToRemove = calculateIndentAmountToRemove(document, openTagRange, closeTagRange);
+			for (let i = openTagRange.start.line + 1; i < closeTagRange.start.line; i++) {
+				rangesToRemove.push(new vscode.Range(i, 0, i, indentAmountToRemove));
+			}
+			rangesToRemove.push(closeTagRange);
 		}
-		rangesToRemove.push(closeTagRange);
 	}
 	return rangesToRemove;
 }
