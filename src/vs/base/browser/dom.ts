@@ -20,18 +20,12 @@ import { KeyCode } from 'vs/base/common/keyCodes';
 
 export function clearNode(node: HTMLElement): void {
 	while (node.firstChild) {
-		node.removeChild(node.firstChild);
+		node.firstChild.remove();
 	}
 }
 
 export function isInDOM(node: Node | null): boolean {
-	while (node) {
-		if (node === document.body) {
-			return true;
-		}
-		node = node.parentNode || (node as ShadowRoot).host;
-	}
-	return false;
+	return node?.isConnected ?? false;
 }
 
 class DomListener implements IDisposable {
@@ -1005,7 +999,7 @@ export function after<T extends Node>(sibling: HTMLElement, child: T): T {
 }
 
 export function append<T extends Node>(parent: HTMLElement, ...children: T[]): T {
-	children.forEach(child => parent.appendChild(child));
+	parent.append(...children);
 	return children[children.length - 1];
 }
 
@@ -1027,13 +1021,7 @@ export function reset(parent: HTMLElement, ...children: Array<Node | string>): v
  * Appends `children` to `parent`
  */
 export function appendChildren(parent: HTMLElement, ...children: Array<Node | string>): void {
-	for (const child of children) {
-		if (child instanceof Node) {
-			parent.appendChild(child);
-		} else if (typeof child === 'string') {
-			parent.appendChild(document.createTextNode(child));
-		}
-	}
+	parent.append(...children);
 }
 
 const SELECTOR_REGEX = /([\w\-]+)?(#([\w\-]+))?((\.([\w\-]+))*)/;
@@ -1087,13 +1075,7 @@ function _$<T extends Element>(namespace: Namespace, description: string, attrs?
 		}
 	});
 
-	for (const child of children) {
-		if (child instanceof Node) {
-			result.appendChild(child);
-		} else if (typeof child === 'string') {
-			result.appendChild(document.createTextNode(child));
-		}
-	}
+	result.append(...children);
 
 	return result as T;
 }
@@ -1251,7 +1233,7 @@ export function asCSSUrl(uri: URI): string {
 export function triggerDownload(dataOrUri: Uint8Array | URI, name: string): void {
 
 	// If the data is provided as Buffer, we create a
-	// blog URL out of it to produce a valid link
+	// blob URL out of it to produce a valid link
 	let url: string;
 	if (URI.isUri(dataOrUri)) {
 		url = dataOrUri.toString(true);
