@@ -132,12 +132,12 @@ export class ExtHostTreeViews implements ExtHostTreeViewsShape {
 		return treeView.hasResolve;
 	}
 
-	$resolve(treeViewId: string, treeItemHandle: string): Promise<ITreeItem | undefined> {
+	$resolve(treeViewId: string, treeItemHandle: string, token: vscode.CancellationToken): Promise<ITreeItem | undefined> {
 		const treeView = this.treeViews.get(treeViewId);
 		if (!treeView) {
 			throw new Error(localize('treeView.notRegistered', 'No tree view with id \'{0}\' registered.', treeViewId));
 		}
-		return treeView.resolveTreeItem(treeItemHandle);
+		return treeView.resolveTreeItem(treeItemHandle, token);
 	}
 
 	$setExpanded(treeViewId: string, treeItemHandle: string, expanded: boolean): void {
@@ -370,7 +370,7 @@ class ExtHostTreeView<T> extends Disposable {
 		return !!this.dataProvider.resolveTreeItem;
 	}
 
-	async resolveTreeItem(treeItemHandle: string): Promise<ITreeItem | undefined> {
+	async resolveTreeItem(treeItemHandle: string, token: vscode.CancellationToken): Promise<ITreeItem | undefined> {
 		if (!this.dataProvider.resolveTreeItem) {
 			return;
 		}
@@ -378,7 +378,7 @@ class ExtHostTreeView<T> extends Disposable {
 		if (element) {
 			const node = this.nodes.get(element);
 			if (node) {
-				const resolve = await this.dataProvider.resolveTreeItem(node.extensionItem, element) ?? node.extensionItem;
+				const resolve = await this.dataProvider.resolveTreeItem(node.extensionItem, element, token) ?? node.extensionItem;
 				// Resolvable elements. Currently only tooltip.
 				node.item.tooltip = this.getTooltip(resolve.tooltip);
 				return node.item;

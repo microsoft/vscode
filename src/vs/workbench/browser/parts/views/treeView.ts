@@ -52,6 +52,7 @@ import { IIconLabelMarkdownString } from 'vs/base/browser/ui/iconLabel/iconLabel
 import { renderMarkdownAsPlaintext } from 'vs/base/browser/markdownRenderer';
 import { API_OPEN_DIFF_EDITOR_COMMAND_ID, API_OPEN_EDITOR_COMMAND_ID } from 'vs/workbench/browser/parts/editor/editorCommands';
 import { Codicon } from 'vs/base/common/codicons';
+import { CancellationToken } from 'vs/base/common/cancellation';
 
 export class TreeViewPane extends ViewPane {
 
@@ -887,9 +888,9 @@ class TreeRenderer extends Disposable implements ITreeRenderer<ITreeItem, FuzzyS
 		}
 
 		return {
-			markdown: (): Promise<IMarkdownString | string | undefined> => {
+			markdown: (token: CancellationToken): Promise<IMarkdownString | string | undefined> => {
 				return new Promise<IMarkdownString | string | undefined>(async (resolve) => {
-					await node.resolve();
+					await node.resolve(token);
 					resolve(node.tooltip);
 				});
 			},
