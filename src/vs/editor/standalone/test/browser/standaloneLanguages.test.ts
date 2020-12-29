@@ -68,7 +68,8 @@ suite('TokenizationSupport2Adapter', () => {
 				tokenColorMap: []
 			};
 		}
-
+		setColorMapOverride(colorMapOverride: Color[] | null): void {
+		}
 		public getFileIconTheme(): IFileIconTheme {
 			return {
 				hasFileIcons: false,

@@ -204,6 +204,7 @@ export class StandaloneThemeServiceImpl extends Disposable implements IStandalon
 	private _globalStyleElement: HTMLStyleElement | null;
 	private _styleElements: HTMLStyleElement[];
 	private _theme!: IStandaloneTheme;
+	private _colorMapOverride: Color[] | null;
 
 	constructor() {
 		super();
@@ -221,6 +222,7 @@ export class StandaloneThemeServiceImpl extends Disposable implements IStandalon
 		this._globalStyleElement = null;
 		this._styleElements = [];
 		this.setTheme(VS_THEME_NAME);
+		this._colorMapOverride = null;
 
 		iconRegistry.onDidChange(() => {
 			this._codiconCSS = iconRegistry.getCSS();
@@ -288,6 +290,11 @@ export class StandaloneThemeServiceImpl extends Disposable implements IStandalon
 		return this._theme;
 	}
 
+	public setColorMapOverride(colorMapOverride: Color[] | null): void {
+		this._colorMapOverride = colorMapOverride;
+		this._updateThemeOrColorMap();
+	}
+
 	public setTheme(themeName: string): string {
 		let theme: StandaloneTheme;
 		if (this._knownThemes.has(themeName)) {
@@ -300,7 +307,11 @@ export class StandaloneThemeServiceImpl extends Disposable implements IStandalon
 			return theme.id;
 		}
 		this._theme = theme;
+		this._updateThemeOrColorMap();
+		return theme.id;
+	}
 
+	private _updateThemeOrColorMap(): void {
 		let cssRules: string[] = [];
 		let hasRule: { [rule: string]: boolean; } = {};
 		let ruleCollector: ICssStyleCollector = {
@@ -311,19 +322,16 @@ export class StandaloneThemeServiceImpl extends Disposable implements IStandalon
 				}
 			}
 		};
-		themingRegistry.getThemingParticipants().forEach(p => p(theme, ruleCollector, this._environment));
+		themingRegistry.getThemingParticipants().forEach(p => p(this._theme, ruleCollector, this._environment));
 
-		let tokenTheme = theme.tokenTheme;
-		let colorMap = tokenTheme.getColorMap();
+		const colorMap = this._colorMapOverride !== null ? this._colorMapOverride : this._theme.tokenTheme.getColorMap();
 		ruleCollector.addRule(generateTokensCSSForColorMap(colorMap));
 
 		this._themeCSS = cssRules.join('\n');
 		this._updateCSS();
 
 		TokenizationRegistry.setColorMap(colorMap);
-		this._onColorThemeChange.fire(theme);
-
-		return theme.id;
+		this._onColorThemeChange.fire(this._theme);
 	}
 
 	private _updateCSS(): void {

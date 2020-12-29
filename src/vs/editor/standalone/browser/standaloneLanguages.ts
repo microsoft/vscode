@@ -4,6 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { CancellationToken } from 'vs/base/common/cancellation';
+import { Color } from 'vs/base/common/color';
 import { IDisposable } from 'vs/base/common/lifecycle';
 import { Position } from 'vs/editor/common/core/position';
 import { Range } from 'vs/editor/common/core/range';
@@ -311,6 +312,22 @@ function isThenable<T>(obj: any): obj is Thenable<T> {
 }
 
 /**
+ * Change the color map that is used for token colors.
+ * Supported formats (hex): #RRGGBB, $RRGGBBAA, #RGB, #RGBA
+ */
+export function setColorMap(colorMap: string[] | null): void {
+	if (colorMap) {
+		const result: Color[] = [null!];
+		for (let i = 1, len = colorMap.length; i < len; i++) {
+			result[i] = Color.fromHex(colorMap[i]);
+		}
+		StaticServices.standaloneThemeService.get().setColorMapOverride(result);
+	} else {
+		StaticServices.standaloneThemeService.get().setColorMapOverride(null);
+	}
+}
+
+/**
  * Set the tokens provider for a language (manual implementation).
  */
 export function setTokensProvider(languageId: string, provider: TokensProvider | EncodedTokensProvider | Thenable<TokensProvider | EncodedTokensProvider>): IDisposable {
@@ -570,6 +587,7 @@ export function createMonacoLanguagesAPI(): typeof monaco.languages {
 
 		// provider methods
 		setLanguageConfiguration: <any>setLanguageConfiguration,
+		setColorMap: setColorMap,
 		setTokensProvider: <any>setTokensProvider,
 		setMonarchTokensProvider: <any>setMonarchTokensProvider,
 		registerReferenceProvider: <any>registerReferenceProvider,
