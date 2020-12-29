@@ -31,16 +31,14 @@ stages:
     jobs:
       - job: Compile
         pool:
-          vmImage: "Ubuntu-18.04"
-        container: vscode-x64
+          vmImage: "Ubuntu-20.04"
         variables:
           VSCODE_ARCH: x64
         steps:
           - template: product-compile.yml
       - job: Hygiene
         pool:
-          vmImage: "Ubuntu-18.04"
-        container: vscode-x64
+          vmImage: "Ubuntu-20.04"
         variables:
           VSCODE_ARCH: x64
         steps:
