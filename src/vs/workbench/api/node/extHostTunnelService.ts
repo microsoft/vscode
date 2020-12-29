@@ -21,6 +21,7 @@ import { TunnelOptions, TunnelCreationOptions } from 'vs/platform/remote/common/
 import { IExtensionDescription } from 'vs/platform/extensions/common/extensions';
 import { promisify } from 'util';
 import { MovingAverage } from 'vs/base/common/numbers';
+import { CandidatePort } from 'vs/workbench/services/remote/common/remoteExplorerService';
 
 class ExtensionTunnel implements vscode.Tunnel {
 	private _onDispose: Emitter<void> = new Emitter();
@@ -100,7 +101,13 @@ export function loadConnectionTable(stdout: string): Record<string, string>[] {
 	return table;
 }
 
-export async function findPorts(tcp: string, tcp6: string, procSockets: string, processes: { pid: number, cwd: string, cmd: string }[]) {
+function knownExcludeCmdline(command: string): boolean {
+	return !!command.match(/.*\.vscode-server-[a-zA-Z]+\/bin.*/)
+		|| (command.indexOf('out/vs/server/main.js') !== -1)
+		|| (command.indexOf('_productName=VSCode') !== -1);
+}
+
+export async function findPorts(tcp: string, tcp6: string, procSockets: string, processes: { pid: number, cwd: string, cmd: string }[]): Promise<CandidatePort[]> {
 	const connections: { socket: number, ip: string, port: number }[] = loadListeningPorts(tcp, tcp6);
 	const sockets = getSockets(procSockets);
 
@@ -113,11 +120,11 @@ export async function findPorts(tcp: string, tcp6: string, procSockets: string, 
 		return m;
 	}, {} as Record<string, typeof processes[0]>);
 
-	const ports: { host: string, port: number, detail: string }[] = [];
+	const ports: CandidatePort[] = [];
 	connections.filter((connection => socketMap[connection.socket])).forEach(({ socket, ip, port }) => {
 		const command = processMap[socketMap[socket].pid].cmd;
-		if (!command.match(/.*\.vscode-server-[a-zA-Z]+\/bin.*/) && (command.indexOf('out/vs/server/main.js') === -1)) {
-			ports.push({ host: ip, port, detail: processMap[socketMap[socket].pid].cmd });
+		if (!knownExcludeCmdline(command)) {
+			ports.push({ host: ip, port, detail: processMap[socketMap[socket].pid].cmd, pid: socketMap[socket].pid });
 		}
 	});
 	return ports;
@@ -134,13 +141,10 @@ export class ExtHostTunnelService extends Disposable implements IExtHostTunnelSe
 
 	constructor(
 		@IExtHostRpcService extHostRpc: IExtHostRpcService,
-		@IExtHostInitDataService initData: IExtHostInitDataService
+		@IExtHostInitDataService private initData: IExtHostInitDataService
 	) {
 		super();
 		this._proxy = extHostRpc.getProxy(MainContext.MainThreadTunnelService);
-		if (initData.remote.isRemote && initData.remote.authority) {
-			this.registerCandidateFinder();
-		}
 	}
 
 	async openTunnel(extension: IExtensionDescription, forward: TunnelOptions): Promise<vscode.Tunnel | undefined> {
@@ -164,11 +168,11 @@ export class ExtHostTunnelService extends Disposable implements IExtHostTunnelSe
 		return Math.max(movingAverage * 20, 2000);
 	}
 
-	async registerCandidateFinder(): Promise<void> {
-		// Regularly scan to see if the candidate ports have changed.
-		if (!isLinux) {
+	async $registerCandidateFinder(): Promise<void> {
+		if (!isLinux || !this.initData.remote.isRemote || !this.initData.remote.authority) {
 			return;
 		}
+		// Regularly scan to see if the candidate ports have changed.
 		let movingAverage = new MovingAverage();
 		let oldPorts: { host: string, port: number, detail: string }[] | undefined = undefined;
 		while (1) {
@@ -218,7 +222,7 @@ export class ExtHostTunnelService extends Disposable implements IExtHostTunnelSe
 		this._onDidChangeTunnels.fire();
 	}
 
-	$forwardPort(tunnelOptions: TunnelOptions, tunnelCreationOptions: TunnelCreationOptions): Promise<TunnelDto> | undefined {
+	async $forwardPort(tunnelOptions: TunnelOptions, tunnelCreationOptions: TunnelCreationOptions): Promise<TunnelDto | undefined> {
 		if (this._forwardPortProvider) {
 			const providedPort = this._forwardPortProvider(tunnelOptions, tunnelCreationOptions);
 			if (providedPort !== undefined) {
@@ -235,7 +239,7 @@ export class ExtHostTunnelService extends Disposable implements IExtHostTunnelSe
 		return undefined;
 	}
 
-	async findCandidatePorts(): Promise<{ host: string, port: number, detail: string }[]> {
+	async findCandidatePorts(): Promise<CandidatePort[]> {
 		let tcp: string = '';
 		let tcp6: string = '';
 		try {

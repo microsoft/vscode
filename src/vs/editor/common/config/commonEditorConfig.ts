@@ -272,7 +272,7 @@ function migrateOptions(options: IEditorOptions): void {
 	}
 }
 
-function deepCloneAndMigrateOptions(_options: IEditorOptions): IEditorOptions {
+function deepCloneAndMigrateOptions(_options: Readonly<IEditorOptions>): IEditorOptions {
 	const options = objects.deepClone(_options);
 	migrateOptions(options);
 	return options;
@@ -298,7 +298,7 @@ export abstract class CommonEditorConfiguration extends Disposable implements IC
 	private _readOptions: RawEditorOptions;
 	protected _validatedOptions: ValidatedEditorOptions;
 
-	constructor(isSimpleWidget: boolean, _options: IEditorOptions) {
+	constructor(isSimpleWidget: boolean, _options: Readonly<IEditorOptions>) {
 		super();
 		this.isSimpleWidget = isSimpleWidget;
 
@@ -394,7 +394,7 @@ export abstract class CommonEditorConfiguration extends Disposable implements IC
 		return true;
 	}
 
-	public updateOptions(_newOptions: IEditorOptions): void {
+	public updateOptions(_newOptions: Readonly<IEditorOptions>): void {
 		if (typeof _newOptions === 'undefined') {
 			return;
 		}

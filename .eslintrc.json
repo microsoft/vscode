@@ -899,6 +899,13 @@
                 ]
             },
             {
+                "target": "**/test/monaco/**",
+                "restrictions": [
+                    "**/test/monaco/**",
+                    "*" // node modules
+                ]
+            },
+            {
                 "target": "**/api/**.test.ts",
                 "restrictions": [
                     "**/vs/**",

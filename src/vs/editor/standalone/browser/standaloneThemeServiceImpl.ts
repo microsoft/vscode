@@ -39,7 +39,11 @@ class StandaloneTheme implements IStandaloneTheme {
 		this.themeData = standaloneThemeData;
 		let base = standaloneThemeData.base;
 		if (name.length > 0) {
-			this.id = base + ' ' + name;
+			if (isBuiltinTheme(name)) {
+				this.id = name;
+			} else {
+				this.id = base + ' ' + name;
+			}
 			this.themeName = name;
 		} else {
 			this.id = base;

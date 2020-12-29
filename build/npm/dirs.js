@@ -44,5 +44,6 @@ exports.dirs = [
 	'remote/web',
 	'test/automation',
 	'test/integration/browser',
+	'test/monaco',
 	'test/smoke',
 ];

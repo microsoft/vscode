@@ -329,7 +329,7 @@ export class Configuration extends CommonEditorConfiguration {
 
 	constructor(
 		isSimpleWidget: boolean,
-		options: IEditorConstructionOptions,
+		options: Readonly<IEditorConstructionOptions>,
 		referenceDomElement: HTMLElement | null = null,
 		private readonly accessibilityService: IAccessibilityService
 	) {

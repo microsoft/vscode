@@ -59,7 +59,7 @@ steps:
 
   - task: Cache@2
     inputs:
-      key: 'nodeModules2 | $(Agent.OS) | .build/arch, .build/terrapin, .build/yarnlockhash'
+      key: 'nodeModules | $(Agent.OS) | .build/arch, .build/terrapin, .build/yarnlockhash'
       path: .build/node_modules_cache
       cacheHitVar: NODE_MODULES_RESTORED
     displayName: Cache node_modules archive
@@ -89,7 +89,7 @@ steps:
       $ErrorActionPreference = "Stop"
       exec { node build/azure-pipelines/common/listNodeModules.js .build/node_modules_list.txt }
       exec { mkdir -Force .build/node_modules_cache }
-      exec { 7z.exe a .build/node_modules_cache/cache.7z `@.build/node_modules_list.txt }
+      exec { 7z.exe a .build/node_modules_cache/cache.7z -mx3 `@.build/node_modules_list.txt }
     condition: and(succeeded(), ne(variables.NODE_MODULES_RESTORED, 'true'))
     displayName: Create node_modules archive
 

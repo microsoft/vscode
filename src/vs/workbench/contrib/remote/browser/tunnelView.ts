@@ -26,7 +26,7 @@ import { IconLabel } from 'vs/base/browser/ui/iconLabel/iconLabel';
 import { ActionRunner, IAction } from 'vs/base/common/actions';
 import { IMenuService, MenuId, IMenu, MenuRegistry, MenuItemAction, ILocalizedString, SubmenuItemAction, Action2, registerAction2 } from 'vs/platform/actions/common/actions';
 import { createAndFillInContextMenuActions, createAndFillInActionBarActions, MenuEntryActionViewItem, SubmenuEntryActionViewItem } from 'vs/platform/actions/browser/menuEntryActionViewItem';
-import { IRemoteExplorerService, TunnelModel, makeAddress, TunnelType, ITunnelItem, Tunnel, mapHasAddressLocalhostOrAllInterfaces, TUNNEL_VIEW_ID, parseAddress } from 'vs/workbench/services/remote/common/remoteExplorerService';
+import { IRemoteExplorerService, TunnelModel, makeAddress, TunnelType, ITunnelItem, Tunnel, mapHasAddressLocalhostOrAllInterfaces, TUNNEL_VIEW_ID, parseAddress, CandidatePort } from 'vs/workbench/services/remote/common/remoteExplorerService';
 import { IClipboardService } from 'vs/platform/clipboard/common/clipboardService';
 import { INotificationService, Severity } from 'vs/platform/notification/common/notification';
 import { InputBox, MessageType } from 'vs/base/browser/ui/inputbox/inputBox';
@@ -71,7 +71,7 @@ export class TunnelViewModel extends Disposable implements ITunnelViewModel {
 	public onForwardedPortsChanged: Event<void> = this._onForwardedPortsChanged.event;
 	private model: TunnelModel;
 	private _input: TunnelItem;
-	private _candidates: Map<string, { host: string, port: number, detail: string }> = new Map();
+	private _candidates: Map<string, CandidatePort> = new Map();
 
 	constructor(
 		@IRemoteExplorerService private readonly remoteExplorerService: IRemoteExplorerService,
@@ -88,6 +88,7 @@ export class TunnelViewModel extends Disposable implements ITunnelViewModel {
 			remoteHost: 'localhost',
 			remotePort: 0,
 			description: '',
+			wideDescription: '',
 			icon: undefined
 		};
 	}
@@ -162,7 +163,7 @@ export class TunnelViewModel extends Disposable implements ITunnelViewModel {
 		this._candidates.forEach(value => {
 			if (!mapHasAddressLocalhostOrAllInterfaces(this.model.forwarded, value.host, value.port) &&
 				!mapHasAddressLocalhostOrAllInterfaces(this.model.detected, value.host, value.port)) {
-				candidates.push(new TunnelItem(TunnelType.Candidate, value.host, value.port, undefined, undefined, false, undefined, value.detail));
+				candidates.push(new TunnelItem(TunnelType.Candidate, value.host, value.port, undefined, undefined, false, undefined, value.detail, undefined, value.pid));
 			}
 		});
 		return candidates;
@@ -266,8 +267,10 @@ class TunnelTreeRenderer extends Disposable implements ITreeRenderer<ITunnelGrou
 	}
 
 	private renderTunnel(node: ITunnelItem, templateData: ITunnelTemplateData) {
-		const label = node.label + (node.description ? (' - ' + node.description) : '');
-		templateData.iconLabel.setLabel(node.label, node.description, { title: label, extraClasses: ['tunnel-view-label'] });
+		const isWide = templateData.container.parentElement?.parentElement?.parentElement?.parentElement?.parentElement?.parentElement?.parentElement?.parentElement?.classList.contains('wide');
+		const description = isWide ? node.wideDescription : node.description;
+		const label = node.label + (description ? (' - ' + description) : '');
+		templateData.iconLabel.setLabel(node.label, description, { title: label, extraClasses: ['tunnel-view-label'] });
 
 		templateData.actionBar.context = node;
 		const contextKeyService = this._register(this.contextKeyService.createScoped());
@@ -405,7 +408,7 @@ interface ITunnelGroup {
 
 class TunnelItem implements ITunnelItem {
 	static createFromTunnel(tunnel: Tunnel, type: TunnelType = TunnelType.Forwarded, closeable?: boolean) {
-		return new TunnelItem(type, tunnel.remoteHost, tunnel.remotePort, tunnel.localAddress, tunnel.localPort, closeable === undefined ? tunnel.closeable : closeable, tunnel.name, tunnel.description ?? tunnel.runningProcess, tunnel.source);
+		return new TunnelItem(type, tunnel.remoteHost, tunnel.remotePort, tunnel.localAddress, tunnel.localPort, closeable === undefined ? tunnel.closeable : closeable, tunnel.name, tunnel.runningProcess, tunnel.source, tunnel.pid);
 	}
 
 	constructor(
@@ -416,8 +419,9 @@ class TunnelItem implements ITunnelItem {
 		public localPort?: number,
 		public closeable?: boolean,
 		public name?: string,
-		private _description?: string,
-		private source?: string
+		private runningProcess?: string,
+		private source?: string,
+		private pid?: number
 	) { }
 	get label(): string {
 		if (this.name) {
@@ -453,22 +457,34 @@ class TunnelItem implements ITunnelItem {
 	}
 
 	set description(description: string | undefined) {
-		this._description = description;
+		this.runningProcess = description;
 	}
 
-	get description(): string | undefined {
+	private static getDescription(item: TunnelItem, isWide: boolean) {
 		const description: string[] = [];
 
-		if (this.name && this.localAddress) {
-			description.push(nls.localize('remote.tunnelsView.forwardedPortDescription0', "{0} \u2192 {1}", this.remotePort, TunnelItem.compactLongAddress(this.localAddress)));
+		if (item.name && item.localAddress) {
+			description.push(nls.localize('remote.tunnelsView.forwardedPortDescription0', "{0} \u2192 {1}", item.remotePort, TunnelItem.compactLongAddress(item.localAddress)));
 		}
 
-		if (this._description) {
-			description.push(this._description);
+		if (item.runningProcess) {
+			let processPid: string;
+			if (isWide) {
+				processPid = item.runningProcess.replace(/\0/g, ' ').trim();
+			} else {
+				const nullIndex = item.runningProcess.indexOf('\0');
+				processPid = item.runningProcess.substr(0, nullIndex > 0 ? nullIndex : item.runningProcess.length).trim();
+				const spaceIndex = processPid.indexOf(' ', 110);
+				processPid = processPid.substr(0, spaceIndex > 0 ? spaceIndex : processPid.length);
+			}
+			if (item.pid) {
+				processPid += ` (${item.pid})`;
+			}
+			description.push(processPid);
 		}
 
-		if (this.source) {
-			description.push(this.source);
+		if (item.source) {
+			description.push(item.source);
 		}
 
 		if (description.length > 0) {
@@ -476,6 +492,14 @@ class TunnelItem implements ITunnelItem {
 		}
 
 		return undefined;
+	}
+
+	get description(): string | undefined {
+		return TunnelItem.getDescription(this, false);
+	}
+
+	get wideDescription(): string | undefined {
+		return TunnelItem.getDescription(this, true);
 	}
 
 	get icon(): ThemeIcon | undefined {

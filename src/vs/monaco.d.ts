@@ -969,6 +969,11 @@ declare namespace monaco.editor {
 	 */
 	export function remeasureFonts(): void;
 
+	/**
+	 * Register a command.
+	 */
+	export function registerCommand(id: string, handler: (accessor: any, ...args: any[]) => void): IDisposable;
+
 	export type BuiltinTheme = 'vs' | 'vs-dark' | 'hc-black';
 
 	export interface IStandaloneThemeData {
