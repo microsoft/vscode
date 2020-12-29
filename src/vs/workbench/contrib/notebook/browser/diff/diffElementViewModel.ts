@@ -78,7 +78,7 @@ export abstract class DiffElementViewModelBase extends Disposable {
 		throw new Error('Use Cell.layoutInfo.metadataHeight');
 	}
 
-	private _renderOutput = false;
+	private _renderOutput = true;
 
 	set renderOutput(value: boolean) {
 		this._renderOutput = value;
