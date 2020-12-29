@@ -6,11 +6,12 @@
 import * as vscode from 'vscode';
 import parse from '@emmetio/html-matcher';
 import parseStylesheet from '@emmetio/css-parser';
-import { Node, HtmlNode, CssToken, Property, Rule, Stylesheet } from 'EmmetNode';
-import { Node as FlatNode, HtmlNode as HtmlFlatNode } from 'EmmetFlatNode';
+import { Node, HtmlNode, Stylesheet } from 'EmmetNode';
+import { Node as FlatNode, HtmlNode as HtmlFlatNode, Property as FlatProperty, Rule as FlatRule, CssToken as FlatCssToken } from 'EmmetFlatNode';
 import { DocumentStreamReader } from './bufferStream';
 import * as EmmetHelper from 'vscode-emmet-helper';
 import { TextDocument as LSTextDocument } from 'vscode-languageserver-textdocument';
+import { getRootNode } from './parseDocument';
 
 let _emmetHelper: typeof EmmetHelper;
 let _currentExtensionsPath: string | undefined = undefined;
@@ -652,7 +653,7 @@ export function getEmmetConfiguration(syntax: string) {
  * Itereates by each child, as well as nested child's children, in their order
  * and invokes `fn` for each. If `fn` function returns `false`, iteration stops
  */
-export function iterateCSSToken(token: CssToken, fn: (x: any) => any): boolean {
+export function iterateCSSToken(token: FlatCssToken, fn: (x: any) => any): boolean {
 	for (let i = 0, il = token.size; i < il; i++) {
 		if (fn(token.item(i)) === false || iterateCSSToken(token.item(i), fn) === false) {
 			return false;
@@ -664,31 +665,35 @@ export function iterateCSSToken(token: CssToken, fn: (x: any) => any): boolean {
 /**
  * Returns `name` CSS property from given `rule`
  */
-export function getCssPropertyFromRule(rule: Rule, name: string): Property | undefined {
-	return rule.children.find(node => node.type === 'property' && node.name === name) as Property;
+export function getCssPropertyFromRule(rule: FlatRule, name: string): FlatProperty | undefined {
+	return rule.children.find(node => node.type === 'property' && node.name === name) as FlatProperty;
 }
 
 /**
  * Returns css property under caret in given editor or `null` if such node cannot
  * be found
  */
-export function getCssPropertyFromDocument(editor: vscode.TextEditor, position: vscode.Position): Property | null {
-	const rootNode = parseDocument(editor.document);
-	const node = getNode(rootNode, position, true);
+export function getCssPropertyFromDocument(editor: vscode.TextEditor, position: vscode.Position): FlatProperty | null {
+	const document = editor.document;
+	const rootNode = getRootNode(document, true);
+	const offset = document.offsetAt(position);
+	const node = getFlatNode(rootNode, offset, true);
 
 	if (isStyleSheet(editor.document.languageId)) {
-		return node && node.type === 'property' ? <Property>node : null;
+		return node && node.type === 'property' ? <FlatProperty>node : null;
 	}
 
-	let htmlNode = <HtmlNode>node;
+	const htmlNode = <HtmlFlatNode>node;
 	if (htmlNode
 		&& htmlNode.name === 'style'
-		&& htmlNode.open.end.isBefore(position)
-		&& htmlNode.close.start.isAfter(position)) {
-		let buffer = new DocumentStreamReader(editor.document, htmlNode.start, new vscode.Range(htmlNode.start, htmlNode.end));
-		let rootNode = parseStylesheet(buffer);
-		const node = getNode(rootNode, position, true);
-		return (node && node.type === 'property') ? <Property>node : null;
+		&& htmlNode.open && htmlNode.close
+		&& htmlNode.open.end < offset
+		&& htmlNode.close.start > offset) {
+		const buffer = ' '.repeat(htmlNode.start) +
+			document.getText().substring(htmlNode.start, htmlNode.end);
+		const innerRootNode = parseStylesheet(buffer);
+		const innerNode = getFlatNode(innerRootNode, offset, true);
+		return (innerNode && innerNode.type === 'property') ? <FlatProperty>innerNode : null;
 	}
 
 	return null;
@@ -705,9 +710,7 @@ export function getEmbeddedCssNodeIfAny(document: vscode.TextDocument, currentNo
 		if (innerRange && innerRange.contains(position)) {
 			if (currentHtmlNode.name === 'style'
 				&& currentHtmlNode.open.end.isBefore(position)
-				&& currentHtmlNode.close.start.isAfter(position)
-
-			) {
+				&& currentHtmlNode.close.start.isAfter(position)) {
 				let buffer = new DocumentStreamReader(document, currentHtmlNode.open.end, new vscode.Range(currentHtmlNode.open.end, currentHtmlNode.close.start));
 				return parseStylesheet(buffer);
 			}
