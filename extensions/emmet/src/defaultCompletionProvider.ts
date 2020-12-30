@@ -4,10 +4,11 @@
  *--------------------------------------------------------------------------------------------*/
 
 import * as vscode from 'vscode';
-import { Node, Stylesheet } from 'EmmetNode';
+import { Node, Stylesheet } from 'EmmetFlatNode';
 import { isValidLocationForEmmetAbbreviation, getSyntaxFromArgs } from './abbreviationActions';
-import { getEmmetHelper, getMappingForIncludedLanguages, parsePartialStylesheet, getEmmetConfiguration, getEmmetMode, isStyleSheet, parseDocument, getNode, allowedMimeTypesInScriptTag, trimQuotes, toLSTextDocument } from './util';
+import { getEmmetHelper, getMappingForIncludedLanguages, parsePartialStylesheet, getEmmetConfiguration, getEmmetMode, isStyleSheet, getFlatNode, allowedMimeTypesInScriptTag, trimQuotes, toLSTextDocument } from './util';
 import { getLanguageService, TokenType, Range as LSRange } from 'vscode-html-languageservice';
+import { getRootNode } from './parseDocument';
 
 export class DefaultCompletionItemProvider implements vscode.CompletionItemProvider {
 
@@ -62,8 +63,8 @@ export class DefaultCompletionItemProvider implements vscode.CompletionItemProvi
 
 		const helper = getEmmetHelper();
 		let validateLocation = syntax === 'html' || syntax === 'jsx' || syntax === 'xml';
-		let rootNode: Node | undefined = undefined;
-		let currentNode: Node | null = null;
+		let rootNode: Node | undefined;
+		let currentNode: Node | undefined;
 
 		const lsDoc = toLSTextDocument(document);
 		position = document.validatePosition(position);
@@ -145,19 +146,18 @@ export class DefaultCompletionItemProvider implements vscode.CompletionItemProvi
 			return;
 		}
 
+		const offset = document.offsetAt(position);
 		if (isStyleSheet(document.languageId) && context.triggerKind !== vscode.CompletionTriggerKind.TriggerForIncompleteCompletions) {
 			validateLocation = true;
 			let usePartialParsing = vscode.workspace.getConfiguration('emmet')['optimizeStylesheetParsing'] === true;
-			rootNode = usePartialParsing && document.lineCount > 1000 ? parsePartialStylesheet(document, position) : <Stylesheet>parseDocument(document, false);
+			rootNode = usePartialParsing && document.lineCount > 1000 ? parsePartialStylesheet(document, position) : <Stylesheet>getRootNode(document, true);
 			if (!rootNode) {
 				return;
 			}
-			currentNode = getNode(rootNode, position, true);
+			currentNode = getFlatNode(rootNode, offset, true);
 		}
 
-
-
-		if (validateLocation && !isValidLocationForEmmetAbbreviation(document, rootNode, currentNode, syntax, position, toRange(extractAbbreviationResults.abbreviationRange))) {
+		if (validateLocation && !isValidLocationForEmmetAbbreviation(document, rootNode, currentNode, syntax, offset, toRange(extractAbbreviationResults.abbreviationRange))) {
 			return;
 		}
 

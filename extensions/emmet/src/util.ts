@@ -6,8 +6,7 @@
 import * as vscode from 'vscode';
 import parse from '@emmetio/html-matcher';
 import parseStylesheet from '@emmetio/css-parser';
-import { Node, HtmlNode, Stylesheet } from 'EmmetNode';
-import { Node as FlatNode, HtmlNode as HtmlFlatNode, Property as FlatProperty, Rule as FlatRule, CssToken as FlatCssToken } from 'EmmetFlatNode';
+import { Node as FlatNode, HtmlNode as HtmlFlatNode, Property as FlatProperty, Rule as FlatRule, CssToken as FlatCssToken, Stylesheet as FlatStylesheet } from 'EmmetFlatNode';
 import { DocumentStreamReader } from './bufferStream';
 import * as EmmetHelper from 'vscode-emmet-helper';
 import { TextDocument as LSTextDocument } from 'vscode-languageserver-textdocument';
@@ -138,21 +137,6 @@ export function getEmmetMode(language: string, excludedLanguages: string[]): str
 	return;
 }
 
-/**
- * Parses the given document using emmet parsing modules
- */
-export function parseDocument(document: vscode.TextDocument, showError: boolean = true): Node | undefined {
-	let parseContent = isStyleSheet(document.languageId) ? parseStylesheet : parse;
-	try {
-		return parseContent(new DocumentStreamReader(document));
-	} catch (e) {
-		if (showError) {
-			vscode.window.showErrorMessage('Emmet: Failed to parse the file');
-		}
-	}
-	return undefined;
-}
-
 const closeBrace = 125;
 const openBrace = 123;
 const slash = 47;
@@ -164,7 +148,7 @@ const star = 42;
  * @param document vscode.TextDocument
  * @param position vscode.Position
  */
-export function parsePartialStylesheet(document: vscode.TextDocument, position: vscode.Position): Stylesheet | undefined {
+export function parsePartialStylesheet(document: vscode.TextDocument, position: vscode.Position): FlatStylesheet | undefined {
 	const isCSS = document.languageId === 'css';
 	let startPosition = new vscode.Position(0, 0);
 	let endPosition = new vscode.Position(document.lineCount - 1, document.lineAt(document.lineCount - 1).text.length);
@@ -304,7 +288,10 @@ export function parsePartialStylesheet(document: vscode.TextDocument, position: 
 	}
 
 	try {
-		return parseStylesheet(new DocumentStreamReader(document, startPosition, new vscode.Range(startPosition, endPosition)));
+		const startOffset = document.offsetAt(startPosition);
+		const endOffset = document.offsetAt(endPosition);
+		const buffer = ' '.repeat(startOffset) + document.getText().substring(startOffset, endOffset);
+		return parseStylesheet(buffer);
 	} catch (e) {
 		return;
 	}
@@ -313,31 +300,6 @@ export function parsePartialStylesheet(document: vscode.TextDocument, position: 
 /**
  * Returns node corresponding to given position in the given root node
  */
-export function getNode(root: Node | undefined, position: vscode.Position, includeNodeBoundary: boolean): Node | null {
-	if (!root) {
-		return null;
-	}
-
-	let currentNode = root.firstChild;
-	let foundNode: Node | null = null;
-
-	while (currentNode) {
-		const nodeStart: vscode.Position = currentNode.start;
-		const nodeEnd: vscode.Position = currentNode.end;
-		if ((nodeStart.isBefore(position) && nodeEnd.isAfter(position))
-			|| (includeNodeBoundary && (nodeStart.isBeforeOrEqual(position) && nodeEnd.isAfterOrEqual(position)))) {
-
-			foundNode = currentNode;
-			// Dig deeper
-			currentNode = currentNode.firstChild;
-		} else {
-			currentNode = currentNode.nextSibling;
-		}
-	}
-
-	return foundNode;
-}
-
 export function getFlatNode(root: FlatNode | undefined, offset: number, includeNodeBoundary: boolean): FlatNode | undefined {
 	if (!root) {
 		return;
@@ -381,34 +343,8 @@ export function getFlatNode(root: FlatNode | undefined, offset: number, includeN
 export const allowedMimeTypesInScriptTag = ['text/html', 'text/plain', 'text/x-template', 'text/template', 'text/ng-template'];
 
 /**
- * Returns HTML node corresponding to given position in the given root node
- * If position is inside a script tag of type template, then it will be parsed to find the inner HTML node as well
- */
-export function getHtmlNode(document: vscode.TextDocument, root: Node | undefined, position: vscode.Position, includeNodeBoundary: boolean): HtmlNode | undefined {
-	let currentNode = <HtmlNode>getNode(root, position, includeNodeBoundary);
-	if (!currentNode) { return; }
-
-	const isTemplateScript = currentNode.name === 'script' &&
-		(currentNode.attributes &&
-			currentNode.attributes.some(x => x.name.toString() === 'type'
-				&& allowedMimeTypesInScriptTag.indexOf(x.value.toString()) > -1));
-
-	if (isTemplateScript && currentNode.close &&
-		(position.isAfter(currentNode.open.end) && position.isBefore(currentNode.close.start))) {
-
-		let buffer = new DocumentStreamReader(document, currentNode.open.end, new vscode.Range(currentNode.open.end, currentNode.close.start));
-
-		try {
-			let scriptInnerNodes = parse(buffer);
-			currentNode = <HtmlNode>getNode(scriptInnerNodes, position, includeNodeBoundary) || currentNode;
-		} catch (e) { }
-	}
-
-	return currentNode;
-}
-
-/**
  * Finds the HTML node within an HTML document at a given position
+ * If position is inside a script tag of type template, then it will be parsed to find the inner HTML node as well
  */
 export function getHtmlFlatNode(documentText: string, root: FlatNode | undefined, offset: number, includeNodeBoundary: boolean): HtmlFlatNode | undefined {
 	const currentNode: HtmlFlatNode | undefined = <HtmlFlatNode | undefined>getFlatNode(root, offset, includeNodeBoundary);
@@ -447,31 +383,6 @@ export function offsetRangeToVsRange(document: vscode.TextDocument, start: numbe
 	const startPos = document.positionAt(start);
 	const endPos = document.positionAt(end);
 	return new vscode.Range(startPos, endPos);
-}
-
-/**
- * Returns inner range of an html node.
- */
-export function getInnerRange(currentNode: HtmlNode): vscode.Range | undefined {
-	if (!currentNode.close) {
-		return undefined;
-	}
-	return new vscode.Range(currentNode.open.end, currentNode.close.start);
-}
-
-/**
- * Returns the deepest non comment node under given node
- */
-export function getDeepestNode(node: Node | undefined): Node | undefined {
-	if (!node || !node.children || node.children.length === 0 || !node.children.find(x => x.type !== 'comment')) {
-		return node;
-	}
-	for (let i = node.children.length - 1; i >= 0; i--) {
-		if (node.children[i].type !== 'comment') {
-			return getDeepestNode(node.children[i]);
-		}
-	}
-	return undefined;
 }
 
 /**
@@ -696,18 +607,18 @@ export function getCssPropertyFromDocument(editor: vscode.TextEditor, position: 
 }
 
 
-export function getEmbeddedCssNodeIfAny(document: vscode.TextDocument, currentNode: Node | null, position: vscode.Position): Node | undefined {
+export function getEmbeddedCssNodeIfAny(document: vscode.TextDocument, currentNode: FlatNode | undefined, position: vscode.Position): FlatNode | undefined {
 	if (!currentNode) {
 		return;
 	}
-	const currentHtmlNode = <HtmlNode>currentNode;
-	if (currentHtmlNode && currentHtmlNode.close) {
-		const innerRange = getInnerRange(currentHtmlNode);
-		if (innerRange && innerRange.contains(position)) {
+	const currentHtmlNode = <HtmlFlatNode>currentNode;
+	if (currentHtmlNode && currentHtmlNode.open && currentHtmlNode.close) {
+		const offset = document.offsetAt(position);
+		if (currentHtmlNode.open.end <= offset && offset <= currentHtmlNode.close.start) {
 			if (currentHtmlNode.name === 'style'
-				&& currentHtmlNode.open.end.isBefore(position)
-				&& currentHtmlNode.close.start.isAfter(position)) {
-				let buffer = new DocumentStreamReader(document, currentHtmlNode.open.end, new vscode.Range(currentHtmlNode.open.end, currentHtmlNode.close.start));
+				&& currentHtmlNode.open.end < offset
+				&& currentHtmlNode.close.start > offset) {
+				const buffer = ' '.repeat(currentHtmlNode.open.end) + document.getText().substring(currentHtmlNode.open.end, currentHtmlNode.close.start);
 				return parseStylesheet(buffer);
 			}
 		}
@@ -715,17 +626,17 @@ export function getEmbeddedCssNodeIfAny(document: vscode.TextDocument, currentNo
 	return;
 }
 
-export function isStyleAttribute(currentNode: Node | null, position: vscode.Position): boolean {
+export function isStyleAttribute(currentNode: FlatNode | undefined, offset: number): boolean {
 	if (!currentNode) {
 		return false;
 	}
-	const currentHtmlNode = <HtmlNode>currentNode;
+	const currentHtmlNode = <HtmlFlatNode>currentNode;
 	const index = (currentHtmlNode.attributes || []).findIndex(x => x.name.toString() === 'style');
 	if (index === -1) {
 		return false;
 	}
 	const styleAttribute = currentHtmlNode.attributes[index];
-	return position.isAfterOrEqual(styleAttribute.value.start) && position.isBeforeOrEqual(styleAttribute.value.end);
+	return offset >= styleAttribute.value.start && offset <= styleAttribute.value.end;
 }
 
 
