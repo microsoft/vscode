@@ -1,0 +1,3 @@
+This is a PoC for my MSRC report. (No malicious intent here! This is not phishing!)
+It would be appreciated if you don't delete the commit history until the MSRC team reviewed my report. (This is 'Reliable & minimized proof-of-concept' defined here: https://www.microsoft.com/en-us/msrc/bounty-example-report-submission)
+If you are a maintainer, please send me a message on Twitter (@ryotkak) with proof of maintainer for the quick fix.
