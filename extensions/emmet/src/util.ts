@@ -150,37 +150,39 @@ const star = 42;
  */
 export function parsePartialStylesheet(document: vscode.TextDocument, position: vscode.Position): FlatStylesheet | undefined {
 	const isCSS = document.languageId === 'css';
-	let startPosition = new vscode.Position(0, 0);
-	let endPosition = new vscode.Position(document.lineCount - 1, document.lineAt(document.lineCount - 1).text.length);
-	const limitCharacter = document.offsetAt(position) - 5000;
-	const limitPosition = limitCharacter > 0 ? document.positionAt(limitCharacter) : startPosition;
-	const stream = new DocumentStreamReader(document, position);
+	const positionOffset = document.offsetAt(position);
+	let startOffset = 0;
+	let endOffset = document.getText().length;
+	const limitCharacter = positionOffset - 5000;
+	const limitOffset = limitCharacter > 0 ? limitCharacter : startOffset;
+	const stream = new DocumentStreamReader(document, positionOffset);
 
-	function findOpeningCommentBeforePosition(pos: vscode.Position): vscode.Position | undefined {
-		let text = document.getText(new vscode.Range(0, 0, pos.line, pos.character));
+	function findOpeningCommentBeforePosition(pos: number): number | undefined {
+		const text = document.getText().substring(0, pos);
 		let offset = text.lastIndexOf('/*');
 		if (offset === -1) {
 			return;
 		}
-		return document.positionAt(offset);
+		return offset;
 	}
 
-	function findClosingCommentAfterPosition(pos: vscode.Position): vscode.Position | undefined {
-		let text = document.getText(new vscode.Range(pos.line, pos.character, document.lineCount - 1, document.lineAt(document.lineCount - 1).text.length));
+	function findClosingCommentAfterPosition(pos: number): number | undefined {
+		const text = document.getText().substring(pos);
 		let offset = text.indexOf('*/');
 		if (offset === -1) {
 			return;
 		}
-		offset += 2 + document.offsetAt(pos);
-		return document.positionAt(offset);
+		offset += 2 + pos;
+		return offset;
 	}
 
 	function consumeLineCommentBackwards() {
-		if (!isCSS && currentLine !== stream.pos.line) {
-			currentLine = stream.pos.line;
-			let startLineComment = document.lineAt(currentLine).text.indexOf('//');
+		const posLineNumber = document.positionAt(stream.pos).line;
+		if (!isCSS && currentLine !== posLineNumber) {
+			currentLine = posLineNumber;
+			const startLineComment = document.lineAt(currentLine).text.indexOf('//');
 			if (startLineComment > -1) {
-				stream.pos = new vscode.Position(currentLine, startLineComment);
+				stream.pos = document.offsetAt(new vscode.Position(currentLine, startLineComment));
 			}
 		}
 	}
@@ -188,7 +190,7 @@ export function parsePartialStylesheet(document: vscode.TextDocument, position: 
 	function consumeBlockCommentBackwards() {
 		if (stream.peek() === slash) {
 			if (stream.backUp(1) === star) {
-				stream.pos = findOpeningCommentBeforePosition(stream.pos) || startPosition;
+				stream.pos = findOpeningCommentBeforePosition(stream.pos) ?? startOffset;
 			} else {
 				stream.next();
 			}
@@ -198,9 +200,10 @@ export function parsePartialStylesheet(document: vscode.TextDocument, position: 
 	function consumeCommentForwards() {
 		if (stream.eat(slash)) {
 			if (stream.eat(slash) && !isCSS) {
-				stream.pos = new vscode.Position(stream.pos.line + 1, 0);
+				const posLineNumber = document.positionAt(stream.pos).line;
+				stream.pos = document.offsetAt(new vscode.Position(posLineNumber + 1, 0));
 			} else if (stream.eat(star)) {
-				stream.pos = findClosingCommentAfterPosition(stream.pos) || endPosition;
+				stream.pos = findClosingCommentAfterPosition(stream.pos) ?? endOffset;
 			}
 		}
 	}
@@ -215,10 +218,10 @@ export function parsePartialStylesheet(document: vscode.TextDocument, position: 
 	}
 
 	if (!stream.eof()) {
-		endPosition = stream.pos;
+		endOffset = stream.pos;
 	}
 
-	stream.pos = position;
+	stream.pos = positionOffset;
 	let openBracesToFind = 1;
 	let currentLine = position.line;
 	let exit = false;
@@ -234,7 +237,7 @@ export function parsePartialStylesheet(document: vscode.TextDocument, position: 
 			case closeBrace:
 				if (isCSS) {
 					stream.next();
-					startPosition = stream.pos;
+					startOffset = stream.pos;
 					exit = true;
 				} else {
 					openBracesToFind++;
@@ -247,17 +250,17 @@ export function parsePartialStylesheet(document: vscode.TextDocument, position: 
 				break;
 		}
 
-		if (position.line - stream.pos.line > 100 || stream.pos.isBeforeOrEqual(limitPosition)) {
+		if (position.line - document.positionAt(stream.pos).line > 100
+			|| stream.pos <= limitOffset) {
 			exit = true;
 		}
 	}
 
 	// We are at an opening brace. We need to include its selector.
-	currentLine = stream.pos.line;
+	currentLine = document.positionAt(stream.pos).line;
 	openBracesToFind = 0;
 	let foundSelector = false;
 	while (!exit && !stream.sof() && !foundSelector && openBracesToFind >= 0) {
-
 		consumeLineCommentBackwards();
 
 		const ch = stream.backUp(1);
@@ -283,13 +286,11 @@ export function parsePartialStylesheet(document: vscode.TextDocument, position: 
 		}
 
 		if (!stream.sof() && foundSelector) {
-			startPosition = stream.pos;
+			startOffset = stream.pos;
 		}
 	}
 
 	try {
-		const startOffset = document.offsetAt(startPosition);
-		const endOffset = document.offsetAt(endPosition);
 		const buffer = ' '.repeat(startOffset) + document.getText().substring(startOffset, endOffset);
 		return parseStylesheet(buffer);
 	} catch (e) {
