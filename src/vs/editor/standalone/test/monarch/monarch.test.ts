@@ -103,4 +103,65 @@ suite('Monarch', () => {
 		innerModeRegistration.dispose();
 	});
 
+	test('microsoft/monaco-editor#1235: Empty Line Handling', () => {
+		const modeService = new ModeServiceImpl();
+		const tokenizer = createMonarchTokenizer(modeService, 'test', {
+			tokenizer: {
+				root: [
+					{ include: '@comments' },
+				],
+
+				comments: [
+					[/\/\/$/, 'comment'], // empty single-line comment
+					[/\/\//, 'comment', '@comment_cpp'],
+				],
+
+				comment_cpp: [
+					[/(?:[^\\]|(?:\\.))+$/, 'comment', '@pop'],
+					[/.+$/, 'comment'],
+					[/$/, 'comment', '@pop']
+					// No possible rule to detect an empty line and @pop?
+				],
+			},
+		});
+
+		const lines = [
+			`// This comment \\`,
+			`   continues on the following line`,
+			``,
+			`// This comment does NOT continue \\\\`,
+			`   because the escape char was itself escaped`,
+			``,
+			`// This comment DOES continue because \\\\\\`,
+			`   the 1st '\\' escapes the 2nd; the 3rd escapes EOL`,
+			``,
+			`// This comment continues to the following line \\`,
+			``,
+			`But the line was empty. This line should not be commented.`,
+		];
+
+		const actualTokens: Token[][] = [];
+		let state = tokenizer.getInitialState();
+		for (const line of lines) {
+			const result = tokenizer.tokenize(line, state, 0);
+			actualTokens.push(result.tokens);
+			state = result.endState;
+		}
+
+		assert.deepEqual(actualTokens, [
+			[{ 'offset': 0, 'type': 'comment.test', 'language': 'test' }],
+			[{ 'offset': 0, 'type': 'comment.test', 'language': 'test' }],
+			[],
+			[{ 'offset': 0, 'type': 'comment.test', 'language': 'test' }],
+			[{ 'offset': 0, 'type': 'source.test', 'language': 'test' }],
+			[],
+			[{ 'offset': 0, 'type': 'comment.test', 'language': 'test' }],
+			[{ 'offset': 0, 'type': 'comment.test', 'language': 'test' }],
+			[],
+			[{ 'offset': 0, 'type': 'comment.test', 'language': 'test' }],
+			[],
+			[{ 'offset': 0, 'type': 'source.test', 'language': 'test' }]
+		]);
+
+	});
 });
