@@ -639,23 +639,6 @@ export function isStyleAttribute(currentNode: FlatNode | undefined, offset: numb
 	return offset >= styleAttribute.value.start && offset <= styleAttribute.value.end;
 }
 
-
-export function trimQuotes(s: string) {
-	if (s.length <= 1) {
-		return s.replace(/['"]/, '');
-	}
-
-	if (s[0] === `'` || s[0] === `"`) {
-		s = s.slice(1);
-	}
-
-	if (s[s.length - 1] === `'` || s[s.length - 1] === `"`) {
-		s = s.slice(0, -1);
-	}
-
-	return s;
-}
-
 export function isNumber(obj: any): obj is number {
 	return typeof obj === 'number';
 }
