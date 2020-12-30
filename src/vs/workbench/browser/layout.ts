@@ -819,7 +819,7 @@ export abstract class Layout extends Disposable implements IWorkbenchLayoutServi
 	hasFocus(part: Parts): boolean {
 		const activeElement = document.activeElement;
 		if (!activeElement) {
-			return false;
+			return  this.hostService.isWebviewFocused || ;
 		}
 
 		const container = this.getContainer(part);
