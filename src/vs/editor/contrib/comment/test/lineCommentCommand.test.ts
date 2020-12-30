@@ -1083,7 +1083,7 @@ suite('Editor Contrib - Line Comment in mixed modes', () => {
 				tokenize: () => {
 					throw new Error('not implemented');
 				},
-				tokenize2: (line: string, state: modes.IState): TokenizationResult2 => {
+				tokenize2: (line: string, hasEOL: boolean, state: modes.IState): TokenizationResult2 => {
 					let languageId = (/^  /.test(line) ? INNER_LANGUAGE_ID : OUTER_LANGUAGE_ID);
 
 					let tokens = new Uint32Array(1 << 1);

@@ -68,7 +68,7 @@ suite('Monarch', () => {
 		const actualTokens: Token[][] = [];
 		let state = tokenizer.getInitialState();
 		for (const line of lines) {
-			const result = tokenizer.tokenize(line, state, 0);
+			const result = tokenizer.tokenize(line, true, state, 0);
 			actualTokens.push(result.tokens);
 			state = result.endState;
 		}
@@ -143,7 +143,7 @@ suite('Monarch', () => {
 		const actualTokens: Token[][] = [];
 		let state = tokenizer.getInitialState();
 		for (const line of lines) {
-			const result = tokenizer.tokenize(line, state, 0);
+			const result = tokenizer.tokenize(line, true, state, 0);
 			actualTokens.push(result.tokens);
 			state = result.endState;
 		}
@@ -164,4 +164,58 @@ suite('Monarch', () => {
 		]);
 
 	});
+
+	test('microsoft/monaco-editor#2265: Exit a state at end of line', () => {
+		const modeService = new ModeServiceImpl();
+		const tokenizer = createMonarchTokenizer(modeService, 'test', {
+			includeLF: true,
+			tokenizer: {
+				root: [
+					[/^\*/, '', '@inner'],
+					[/\:\*/, '', '@inner'],
+					[/[^*:]+/, 'string'],
+					[/[*:]/, 'string']
+				],
+				inner: [
+					[/\n/, '', '@pop'],
+					[/\d+/, 'number'],
+					[/[^\d]+/, '']
+				]
+			}
+		});
+
+		const lines = [
+			`PRINT 10 * 20`,
+			`*FX200, 3`,
+			`PRINT 2*3:*FX200, 3`
+		];
+
+		const actualTokens: Token[][] = [];
+		let state = tokenizer.getInitialState();
+		for (const line of lines) {
+			const result = tokenizer.tokenize(line, true, state, 0);
+			actualTokens.push(result.tokens);
+			state = result.endState;
+		}
+
+		assert.deepStrictEqual(actualTokens, [
+			[
+				new Token(0, 'string.test', 'test'),
+			],
+			[
+				new Token(0, '', 'test'),
+				new Token(3, 'number.test', 'test'),
+				new Token(6, '', 'test'),
+				new Token(8, 'number.test', 'test'),
+			],
+			[
+				new Token(0, 'string.test', 'test'),
+				new Token(9, '', 'test'),
+				new Token(13, 'number.test', 'test'),
+				new Token(16, '', 'test'),
+				new Token(18, 'number.test', 'test'),
+			]
+		]);
+	});
+
 });
