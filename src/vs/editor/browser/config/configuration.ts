@@ -335,9 +335,9 @@ export class Configuration extends CommonEditorConfiguration {
 	) {
 		super(isSimpleWidget, options);
 
-		this._elementSizeObserver = this._register(new ElementSizeObserver(referenceDomElement, options.dimension, () => this._onReferenceDomElementSizeChanged()));
+		this._elementSizeObserver = this._register(new ElementSizeObserver(referenceDomElement, options.dimension, () => this._recomputeOptions()));
 
-		this._register(CSSBasedConfiguration.INSTANCE.onDidChange(() => this._onCSSBasedConfigurationChanged()));
+		this._register(CSSBasedConfiguration.INSTANCE.onDidChange(() => this._recomputeOptions()));
 
 		if (this._validatedOptions.get(EditorOption.automaticLayout)) {
 			this._elementSizeObserver.startObserving();
@@ -349,23 +349,11 @@ export class Configuration extends CommonEditorConfiguration {
 		this._recomputeOptions();
 	}
 
-	private _onReferenceDomElementSizeChanged(): void {
-		this._recomputeOptions();
-	}
-
-	private _onCSSBasedConfigurationChanged(): void {
-		this._recomputeOptions();
-	}
-
 	public observeReferenceElement(dimension?: IDimension): void {
 		this._elementSizeObserver.observe(dimension);
 	}
 
-	public dispose(): void {
-		super.dispose();
-	}
-
-	private _getExtraEditorClassName(): string {
+	private static _getExtraEditorClassName(): string {
 		let extra = '';
 		if (!browser.isSafari && !browser.isWebkitWebView) {
 			// Use user-select: none in all browsers except Safari and native macOS WebView
@@ -383,7 +371,7 @@ export class Configuration extends CommonEditorConfiguration {
 
 	protected _getEnvConfiguration(): IEnvConfiguration {
 		return {
-			extraEditorClassName: this._getExtraEditorClassName(),
+			extraEditorClassName: Configuration._getExtraEditorClassName(),
 			outerWidth: this._elementSizeObserver.getWidth(),
 			outerHeight: this._elementSizeObserver.getHeight(),
 			emptySelectionClipboard: browser.isWebKit || browser.isFirefox,

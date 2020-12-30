@@ -318,10 +318,6 @@ export abstract class CommonEditorConfiguration extends Disposable implements IC
 	public observeReferenceElement(dimension?: IDimension): void {
 	}
 
-	public dispose(): void {
-		super.dispose();
-	}
-
 	protected _recomputeOptions(): void {
 		const oldOptions = this.options;
 		const newOptions = this._computeInternalOptions();
