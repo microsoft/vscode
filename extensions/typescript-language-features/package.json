@@ -272,10 +272,47 @@
         },
         "typescript.inlineHints.includeInlineVariableType": {
           "type": "boolean",
-          "default": true,
+          "default": false,
           "description": "%configuration.inlineHints.includeInlineVariableType%",
           "scope": "resource"
         },
+        "typescript.inlineHints.includeInlineNonLiteralParameterName": {
+          "type": "boolean",
+          "default": false,
+          "description": "%configuration.inlineHints.includeInlineNonLiteralParameterName%",
+          "scope": "resource"
+        },
+        "typescript.inlineHints.includeInlineDuplicatedParameterName": {
+          "type": "boolean",
+          "default": false,
+          "description": "%configuration.inlineHints.includeInlineDuplicatedParameterName%",
+          "scope": "resource"
+        },
+        "typescript.inlineHints.includeInlineRequireAssignedVariableType": {
+          "type": "boolean",
+          "default": false,
+          "description": "%configuration.inlineHints.includeInlineRequireAssignedVariableType%",
+          "scope": "resource"
+        },
+        "typescript.inlineHints.includeInlinePropertyDeclarationType": {
+          "type": "boolean",
+          "default": false,
+          "description": "%configuration.inlineHints.includeInlinePropertyDeclarationType%",
+          "scope": "resource"
+        },
+        "typescript.inlineHints.includeInlineFunctionLikeReturnType": {
+          "type": "boolean",
+          "default": false,
+          "description": "%configuration.inlineHints.includeInlineFunctionLikeReturnType%",
+          "scope": "resource"
+        },
+        "typescript.inlineHints.includeInlineEnumMemberValue": {
+          "type": "boolean",
+          "default": true,
+          "description": "%configuration.inlineHints.includeInlineEnumMemberValue%",
+          "scope": "resource"
+        },
+
         "typescript.reportStyleChecksAsWarnings": {
           "type": "boolean",
           "default": true,

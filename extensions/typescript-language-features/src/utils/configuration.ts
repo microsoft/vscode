@@ -106,6 +106,12 @@ export class TypeScriptServiceConfiguration {
 	public readonly includeInlineParameterName: boolean | undefined;
 	public readonly includeInlineFunctionParameterType: boolean | undefined;
 	public readonly includeInlineVariableType: boolean | undefined;
+	public readonly includeInlineNonLiteralParameterName: boolean | undefined;
+	public readonly includeInlineDuplicatedParameterName: boolean | undefined;
+	public readonly includeInlineRequireAssignedVariableType: boolean | undefined;
+	public readonly includeInlinePropertyDeclarationType: boolean | undefined;
+	public readonly includeInlineFunctionLikeReturnType: boolean | undefined;
+	public readonly includeInlineEnumMemberValue: boolean | undefined;
 
 	public static loadFromWorkspace(): TypeScriptServiceConfiguration {
 		return new TypeScriptServiceConfiguration();
@@ -132,6 +138,12 @@ export class TypeScriptServiceConfiguration {
 		this.includeInlineParameterName = TypeScriptServiceConfiguration.readIncludeInlineParameterName(configuration);
 		this.includeInlineFunctionParameterType = TypeScriptServiceConfiguration.readIncludeInlineFunctionParameterType(configuration);
 		this.includeInlineVariableType = TypeScriptServiceConfiguration.readIncludeInlineVariableType(configuration);
+		this.includeInlineNonLiteralParameterName = TypeScriptServiceConfiguration.readIncludeInlineNonLiteralParameterName(configuration);
+		this.includeInlineDuplicatedParameterName = TypeScriptServiceConfiguration.readIncludeInlineDuplicatedParameterName(configuration);
+		this.includeInlineRequireAssignedVariableType = TypeScriptServiceConfiguration.readIncludeInlineRequireAssignedVariableType(configuration);
+		this.includeInlinePropertyDeclarationType = TypeScriptServiceConfiguration.readIncludeInlinePropertyDeclarationType(configuration);
+		this.includeInlineFunctionLikeReturnType = TypeScriptServiceConfiguration.readIncludeInlineFunctionLikeReturnType(configuration);
+		this.includeInlineEnumMemberValue = TypeScriptServiceConfiguration.readIncludeInlineEnumMemberValue(configuration);
 	}
 
 	public isEqualTo(other: TypeScriptServiceConfiguration): boolean {
@@ -233,5 +245,29 @@ export class TypeScriptServiceConfiguration {
 
 	private static readIncludeInlineVariableType(configuration: vscode.WorkspaceConfiguration): boolean {
 		return configuration.get<boolean>('typescript.inlineHints.includeInlineVariableType', true);
+	}
+
+	private static readIncludeInlineNonLiteralParameterName(configuration: vscode.WorkspaceConfiguration): boolean {
+		return configuration.get<boolean>('typescript.inlineHints.includeInlineNonLiteralParameterName', true);
+	}
+
+	private static readIncludeInlineDuplicatedParameterName(configuration: vscode.WorkspaceConfiguration): boolean {
+		return configuration.get<boolean>('typescript.inlineHints.includeInlineDuplicatedParameterName', true);
+	}
+
+	private static readIncludeInlineRequireAssignedVariableType(configuration: vscode.WorkspaceConfiguration): boolean {
+		return configuration.get<boolean>('typescript.inlineHints.includeInlineRequireAssignedVariableType', true);
+	}
+
+	private static readIncludeInlinePropertyDeclarationType(configuration: vscode.WorkspaceConfiguration): boolean {
+		return configuration.get<boolean>('typescript.inlineHints.includeInlinePropertyDeclarationType', true);
+	}
+
+	private static readIncludeInlineFunctionLikeReturnType(configuration: vscode.WorkspaceConfiguration): boolean {
+		return configuration.get<boolean>('typescript.inlineHints.includeInlineFunctionLikeReturnType', true);
+	}
+
+	private static readIncludeInlineEnumMemberValue(configuration: vscode.WorkspaceConfiguration): boolean {
+		return configuration.get<boolean>('typescript.inlineHints.includeInlineEnumMemberValue', true);
 	}
 }

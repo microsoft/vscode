@@ -35,6 +35,12 @@ namespace ExperimentalProto {
 		includeInlineParameterName?: boolean;
 		includeInlineFunctionParameterType?: boolean;
 		includeInlineVariableType?: boolean;
+		includeInlineNonLiteralParameterName?: boolean;
+		includeInlineDuplicatedParameterName?: boolean;
+		includeInlineRequireAssignedVariableType?: boolean;
+		includeInlinePropertyDeclarationType?: boolean;
+		includeInlineFunctionLikeReturnType?: boolean;
+		includeInlineEnumMemberValue?: boolean;
 	}
 
 	export interface ConfigureRequestArguments extends Proto.ConfigureRequestArguments {
@@ -549,7 +555,13 @@ export default class TypeScriptServiceClient extends Disposable implements IType
 				includePackageJsonAutoImports: this._configuration.includePackageJsonAutoImports,
 				includeInlineParameterName: this._configuration.includeInlineParameterName,
 				includeInlineFunctionParameterType: this._configuration.includeInlineFunctionParameterType,
-				includeInlineVariableType: this._configuration.includeInlineVariableType
+				includeInlineVariableType: this._configuration.includeInlineVariableType,
+				includeInlineNonLiteralParameterName: this._configuration.includeInlineNonLiteralParameterName,
+				includeInlineDuplicatedParameterName: this._configuration.includeInlineDuplicatedParameterName,
+				includeInlineRequireAssignedVariableType: this._configuration.includeInlineRequireAssignedVariableType,
+				includeInlinePropertyDeclarationType: this._configuration.includeInlinePropertyDeclarationType,
+				includeInlineFunctionLikeReturnType: this._configuration.includeInlineFunctionLikeReturnType,
+				includeInlineEnumMemberValue: this._configuration.includeInlineEnumMemberValue,
 			},
 			watchOptions
 		};

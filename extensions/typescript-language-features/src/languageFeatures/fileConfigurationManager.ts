@@ -18,6 +18,12 @@ namespace ExperimentalProto {
 		includeInlineParameterName?: boolean;
 		includeInlineFunctionParameterType?: boolean;
 		includeInlineVariableType?: boolean;
+		includeInlineNonLiteralParameterName?: boolean;
+		includeInlineDuplicatedParameterName?: boolean;
+		includeInlineRequireAssignedVariableType?: boolean;
+		includeInlinePropertyDeclarationType?: boolean;
+		includeInlineFunctionLikeReturnType?: boolean;
+		includeInlineEnumMemberValue?: boolean;
 	}
 }
 
@@ -194,6 +200,12 @@ export default class FileConfigurationManager extends Disposable {
 			includeInlineParameterName: config.get<boolean>('inlineHints.includeInlineParameterName', true),
 			includeInlineFunctionParameterType: config.get<boolean>('inlineHints.includeInlineFunctionParameterType', true),
 			includeInlineVariableType: config.get<boolean>('inlineHints.includeInlineVariableType', true),
+			includeInlineNonLiteralParameterName: config.get<boolean>('inlineHints.includeInlineNonLiteralParameterName', true),
+			includeInlineDuplicatedParameterName: config.get<boolean>('inlineHints.includeInlineDuplicatedParameterName', true),
+			includeInlineRequireAssignedVariableType: config.get<boolean>('inlineHints.includeInlineRequireAssignedVariableType', true),
+			includeInlinePropertyDeclarationType: config.get<boolean>('inlineHints.includeInlinePropertyDeclarationType', true),
+			includeInlineFunctionLikeReturnType: config.get<boolean>('inlineHints.includeInlineFunctionLikeReturnType', true),
+			includeInlineEnumMemberValue: config.get<boolean>('inlineHints.includeInlineEnumMemberValue', true),
 		};
 
 		return preferences;
