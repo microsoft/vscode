@@ -32,15 +32,16 @@ import { inferredProjectCompilerOptions, ProjectType } from './utils/tsconfig';
 
 namespace ExperimentalProto {
 	export interface UserPreferences extends Proto.UserPreferences {
-		includeInlineParameterName?: boolean;
-		includeInlineFunctionParameterType?: boolean;
-		includeInlineVariableType?: boolean;
-		includeInlineNonLiteralParameterName?: boolean;
-		includeInlineDuplicatedParameterName?: boolean;
-		includeInlineRequireAssignedVariableType?: boolean;
-		includeInlinePropertyDeclarationType?: boolean;
-		includeInlineFunctionLikeReturnType?: boolean;
-		includeInlineEnumMemberValue?: boolean;
+		includeInlineParameterNameHints?: boolean;
+		includeInlineFunctionParameterTypeHints?: boolean;
+		includeInlineVariableTypeHints?: boolean;
+		includeInlineNonLiteralParameterNameHints?: boolean;
+		includeInlineDuplicatedParameterNameHints?: boolean;
+		includeInlineRequireAssignedVariableTypeHints?: boolean;
+		includeInlinePropertyDeclarationTypeHints?: boolean;
+		includeInlineFunctionLikeReturnTypeHints?: boolean;
+		includeInlineEnumMemberValueHints?: boolean;
+		includeInlineCallChainsHints?: boolean;
 	}
 
 	export interface ConfigureRequestArguments extends Proto.ConfigureRequestArguments {
@@ -553,15 +554,16 @@ export default class TypeScriptServiceClient extends Disposable implements IType
 				providePrefixAndSuffixTextForRename: true,
 				allowRenameOfImportPath: true,
 				includePackageJsonAutoImports: this._configuration.includePackageJsonAutoImports,
-				includeInlineParameterName: this._configuration.includeInlineParameterName,
-				includeInlineFunctionParameterType: this._configuration.includeInlineFunctionParameterType,
-				includeInlineVariableType: this._configuration.includeInlineVariableType,
-				includeInlineNonLiteralParameterName: this._configuration.includeInlineNonLiteralParameterName,
-				includeInlineDuplicatedParameterName: this._configuration.includeInlineDuplicatedParameterName,
-				includeInlineRequireAssignedVariableType: this._configuration.includeInlineRequireAssignedVariableType,
-				includeInlinePropertyDeclarationType: this._configuration.includeInlinePropertyDeclarationType,
-				includeInlineFunctionLikeReturnType: this._configuration.includeInlineFunctionLikeReturnType,
-				includeInlineEnumMemberValue: this._configuration.includeInlineEnumMemberValue,
+				includeInlineParameterNameHints: this._configuration.includeInlineParameterNameHints,
+				includeInlineFunctionParameterTypeHints: this._configuration.includeInlineFunctionParameterTypeHints,
+				includeInlineVariableTypeHints: this._configuration.includeInlineVariableTypeHints,
+				includeInlineNonLiteralParameterNameHints: this._configuration.includeInlineNonLiteralParameterNameHints,
+				includeInlineDuplicatedParameterNameHints: this._configuration.includeInlineDuplicatedParameterNameHints,
+				includeInlineRequireAssignedVariableTypeHints: this._configuration.includeInlineRequireAssignedVariableTypeHints,
+				includeInlinePropertyDeclarationTypeHints: this._configuration.includeInlinePropertyDeclarationTypeHints,
+				includeInlineFunctionLikeReturnTypeHints: this._configuration.includeInlineFunctionLikeReturnTypeHints,
+				includeInlineEnumMemberValueHints: this._configuration.includeInlineEnumMemberValueHints,
+				includeInlineCallChainsHints: this._configuration.includeInlineCallChainsHints
 			},
 			watchOptions
 		};

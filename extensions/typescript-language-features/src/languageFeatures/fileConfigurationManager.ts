@@ -15,15 +15,16 @@ import { ResourceMap } from '../utils/resourceMap';
 
 namespace ExperimentalProto {
 	export interface UserPreferences extends Proto.UserPreferences {
-		includeInlineParameterName?: boolean;
-		includeInlineFunctionParameterType?: boolean;
-		includeInlineVariableType?: boolean;
-		includeInlineNonLiteralParameterName?: boolean;
-		includeInlineDuplicatedParameterName?: boolean;
-		includeInlineRequireAssignedVariableType?: boolean;
-		includeInlinePropertyDeclarationType?: boolean;
-		includeInlineFunctionLikeReturnType?: boolean;
-		includeInlineEnumMemberValue?: boolean;
+		includeInlineParameterNameHints?: boolean;
+		includeInlineFunctionParameterTypeHints?: boolean;
+		includeInlineVariableTypeHints?: boolean;
+		includeInlineNonLiteralParameterNameHints?: boolean;
+		includeInlineDuplicatedParameterNameHints?: boolean;
+		includeInlineRequireAssignedVariableTypeHints?: boolean;
+		includeInlinePropertyDeclarationTypeHints?: boolean;
+		includeInlineFunctionLikeReturnTypeHints?: boolean;
+		includeInlineEnumMemberValueHints?: boolean;
+		includeInlineCallChainsHints?: boolean;
 	}
 }
 
@@ -197,15 +198,16 @@ export default class FileConfigurationManager extends Disposable {
 			allowRenameOfImportPath: true,
 			includeAutomaticOptionalChainCompletions: config.get<boolean>('suggest.includeAutomaticOptionalChainCompletions', true),
 			provideRefactorNotApplicableReason: true,
-			includeInlineParameterName: config.get<boolean>('inlineHints.includeInlineParameterName', true),
-			includeInlineFunctionParameterType: config.get<boolean>('inlineHints.includeInlineFunctionParameterType', true),
-			includeInlineVariableType: config.get<boolean>('inlineHints.includeInlineVariableType', true),
-			includeInlineNonLiteralParameterName: config.get<boolean>('inlineHints.includeInlineNonLiteralParameterName', true),
-			includeInlineDuplicatedParameterName: config.get<boolean>('inlineHints.includeInlineDuplicatedParameterName', true),
-			includeInlineRequireAssignedVariableType: config.get<boolean>('inlineHints.includeInlineRequireAssignedVariableType', true),
-			includeInlinePropertyDeclarationType: config.get<boolean>('inlineHints.includeInlinePropertyDeclarationType', true),
-			includeInlineFunctionLikeReturnType: config.get<boolean>('inlineHints.includeInlineFunctionLikeReturnType', true),
-			includeInlineEnumMemberValue: config.get<boolean>('inlineHints.includeInlineEnumMemberValue', true),
+			includeInlineParameterNameHints: config.get<boolean>('inlineHints.includeInlineParameterName', true),
+			includeInlineFunctionParameterTypeHints: config.get<boolean>('inlineHints.includeInlineFunctionParameterType', true),
+			includeInlineVariableTypeHints: config.get<boolean>('inlineHints.includeInlineVariableType', true),
+			includeInlineNonLiteralParameterNameHints: config.get<boolean>('inlineHints.includeInlineNonLiteralParameterName', true),
+			includeInlineDuplicatedParameterNameHints: config.get<boolean>('inlineHints.includeInlineDuplicatedParameterName', true),
+			includeInlineRequireAssignedVariableTypeHints: config.get<boolean>('inlineHints.includeInlineRequireAssignedVariableType', true),
+			includeInlinePropertyDeclarationTypeHints: config.get<boolean>('inlineHints.includeInlinePropertyDeclarationType', true),
+			includeInlineFunctionLikeReturnTypeHints: config.get<boolean>('inlineHints.includeInlineFunctionLikeReturnType', true),
+			includeInlineEnumMemberValueHints: config.get<boolean>('inlineHints.includeInlineEnumMemberValue', true),
+			includeInlineCallChainsHints: config.get<boolean>('inlineHints.includeInlineCallChainsHints', true)
 		};
 
 		return preferences;

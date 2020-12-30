@@ -258,58 +258,64 @@
           "description": "%configuration.suggest.includeAutomaticOptionalChainCompletions%",
           "scope": "resource"
         },
-        "typescript.inlineHints.includeInlineParameterName": {
+        "typescript.inlineHints.includeInlineParameterNameHints": {
           "type": "boolean",
           "default": true,
-          "description": "%configuration.inlineHints.includeInlineParameterName%",
+          "description": "%configuration.inlineHints.includeInlineParameterNameHints%",
           "scope": "resource"
         },
-        "typescript.inlineHints.includeInlineFunctionParameterType": {
+        "typescript.inlineHints.includeInlineFunctionParameterTypeHints": {
           "type": "boolean",
           "default": true,
-          "description": "%configuration.inlineHints.includeInlineFunctionParameterType%",
+          "description": "%configuration.inlineHints.includeInlineFunctionParameterTypeHints%",
           "scope": "resource"
         },
-        "typescript.inlineHints.includeInlineVariableType": {
+        "typescript.inlineHints.includeInlineVariableTypeHints": {
           "type": "boolean",
           "default": false,
-          "description": "%configuration.inlineHints.includeInlineVariableType%",
+          "description": "%configuration.inlineHints.includeInlineVariableTypeHints%",
           "scope": "resource"
         },
-        "typescript.inlineHints.includeInlineNonLiteralParameterName": {
+        "typescript.inlineHints.includeInlineNonLiteralParameterNameHints": {
           "type": "boolean",
           "default": false,
-          "description": "%configuration.inlineHints.includeInlineNonLiteralParameterName%",
+          "description": "%configuration.inlineHints.includeInlineNonLiteralParameterNameHints%",
           "scope": "resource"
         },
-        "typescript.inlineHints.includeInlineDuplicatedParameterName": {
+        "typescript.inlineHints.includeInlineDuplicatedParameterNameHints": {
           "type": "boolean",
           "default": false,
-          "description": "%configuration.inlineHints.includeInlineDuplicatedParameterName%",
+          "description": "%configuration.inlineHints.includeInlineDuplicatedParameterNameHints%",
           "scope": "resource"
         },
-        "typescript.inlineHints.includeInlineRequireAssignedVariableType": {
+        "typescript.inlineHints.includeInlineRequireAssignedVariableTypeHints": {
           "type": "boolean",
           "default": false,
-          "description": "%configuration.inlineHints.includeInlineRequireAssignedVariableType%",
+          "description": "%configuration.inlineHints.includeInlineRequireAssignedVariableTypeHints%",
           "scope": "resource"
         },
-        "typescript.inlineHints.includeInlinePropertyDeclarationType": {
+        "typescript.inlineHints.includeInlinePropertyDeclarationTypeHints": {
           "type": "boolean",
           "default": false,
-          "description": "%configuration.inlineHints.includeInlinePropertyDeclarationType%",
+          "description": "%configuration.inlineHints.includeInlinePropertyDeclarationTypeHints%",
           "scope": "resource"
         },
-        "typescript.inlineHints.includeInlineFunctionLikeReturnType": {
+        "typescript.inlineHints.includeInlineFunctionLikeReturnTypeHints": {
           "type": "boolean",
           "default": false,
-          "description": "%configuration.inlineHints.includeInlineFunctionLikeReturnType%",
+          "description": "%configuration.inlineHints.includeInlineFunctionLikeReturnTypeHints%",
           "scope": "resource"
         },
-        "typescript.inlineHints.includeInlineEnumMemberValue": {
+        "typescript.inlineHints.includeInlineEnumMemberValueHints": {
           "type": "boolean",
           "default": true,
-          "description": "%configuration.inlineHints.includeInlineEnumMemberValue%",
+          "description": "%configuration.inlineHints.includeInlineEnumMemberValueHints%",
+          "scope": "resource"
+        },
+        "typescript.inlineHints.includeInlineCallChainsHints": {
+          "type": "boolean",
+          "default": false,
+          "description": "%configuration.inlineHints.includeInlineCallChainsHints%",
           "scope": "resource"
         },
 
