@@ -160,6 +160,7 @@ export interface IConfiguration extends IDisposable {
 	updateOptions(newOptions: Readonly<IEditorOptions>): void;
 	getRawOptions(): IEditorOptions;
 	observeReferenceElement(dimension?: IDimension): void;
+	updatePixelRatio(): void;
 	setIsDominatedByLongLines(isDominatedByLongLines: boolean): void;
 }
 

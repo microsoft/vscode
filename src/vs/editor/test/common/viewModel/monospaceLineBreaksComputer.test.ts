@@ -47,6 +47,7 @@ function toAnnotatedText(text: string, lineBreakData: LineBreakData | null): str
 function getLineBreakData(factory: ILineBreaksComputerFactory, tabSize: number, breakAfter: number, columnsForFullWidthChar: number, wrappingIndent: WrappingIndent, text: string, previousLineBreakData: LineBreakData | null): LineBreakData | null {
 	const fontInfo = new FontInfo({
 		zoomLevel: 0,
+		pixelRatio: 1,
 		fontFamily: 'testFontFamily',
 		fontWeight: 'normal',
 		fontSize: 14,
