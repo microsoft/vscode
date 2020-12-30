@@ -5,8 +5,8 @@
 
 import type { Event } from 'vs/base/common/event';
 import type { IDisposable } from 'vs/base/common/lifecycle';
-import { RenderOutputType } from 'vs/workbench/contrib/notebook/browser/notebookBrowser';
 import { ToWebviewMessage } from 'vs/workbench/contrib/notebook/browser/view/renderers/backLayerWebView';
+import { RenderOutputType } from 'vs/workbench/contrib/notebook/browser/notebookBrowser';
 
 // !! IMPORTANT !! everything must be in-line within the webviewPreloads
 // function. Imports are not allowed. This is stringifies and injected into
@@ -19,12 +19,6 @@ declare module globalThis {
 		postMessage: (msg: unknown) => void;
 	});
 }
-
-declare let acquireVsCodeApi: () => ({
-	getState(): { [key: string]: unknown; };
-	setState(data: { [key: string]: unknown; }): void;
-	postMessage: (msg: unknown) => void;
-});
 
 declare class ResizeObserver {
 	constructor(onChange: (entries: { target: HTMLElement, contentRect?: ClientRect; }[]) => void);
@@ -43,7 +37,7 @@ interface EmitterLike<T> {
 }
 
 function webviewPreloads() {
-	// const acquireVsCodeApi = acquireVsCodeApi;
+	const acquireVsCodeApi = globalThis.acquireVsCodeApi;
 	const vscode = acquireVsCodeApi();
 	delete (globalThis as any).acquireVsCodeApi;
 
