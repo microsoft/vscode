@@ -88,14 +88,14 @@ export class EncodedTokenizationSupport2Adapter implements modes.ITokenizationSu
 		return this._actual.getInitialState();
 	}
 
-	public tokenize(line: string, state: modes.IState, offsetDelta: number): TokenizationResult {
+	public tokenize(line: string, hasEOL: boolean, state: modes.IState, offsetDelta: number): TokenizationResult {
 		if (typeof this._actual.tokenize === 'function') {
 			return TokenizationSupport2Adapter.adaptTokenize(this._languageIdentifier.language, <{ tokenize(line: string, state: modes.IState): ILineTokens; }>this._actual, line, state, offsetDelta);
 		}
 		throw new Error('Not supported!');
 	}
 
-	public tokenize2(line: string, state: modes.IState): TokenizationResult2 {
+	public tokenize2(line: string, hasEOL: boolean, state: modes.IState): TokenizationResult2 {
 		let result = this._actual.tokenizeEncoded(line, state);
 		return new TokenizationResult2(result.tokens, result.endState);
 	}
@@ -158,7 +158,7 @@ export class TokenizationSupport2Adapter implements modes.ITokenizationSupport {
 		return new TokenizationResult(tokens, endState);
 	}
 
-	public tokenize(line: string, state: modes.IState, offsetDelta: number): TokenizationResult {
+	public tokenize(line: string, hasEOL: boolean, state: modes.IState, offsetDelta: number): TokenizationResult {
 		return TokenizationSupport2Adapter.adaptTokenize(this._languageIdentifier.language, this._actual, line, state, offsetDelta);
 	}
 
@@ -200,7 +200,7 @@ export class TokenizationSupport2Adapter implements modes.ITokenizationSupport {
 		return actualResult;
 	}
 
-	public tokenize2(line: string, state: modes.IState, offsetDelta: number): TokenizationResult2 {
+	public tokenize2(line: string, hasEOL: boolean, state: modes.IState, offsetDelta: number): TokenizationResult2 {
 		let actualResult = this._actual.tokenize(line, state);
 		let tokens = this._toBinaryTokens(actualResult.tokens, offsetDelta);
 

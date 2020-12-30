@@ -276,7 +276,7 @@ function getSafeTokenizationSupport(language: string): Omit<modes.ITokenizationS
 	}
 	return {
 		getInitialState: () => NULL_STATE,
-		tokenize: (line: string, state: modes.IState, deltaOffset: number) => nullTokenize(language, line, state, deltaOffset)
+		tokenize: (line: string, hasEOL: boolean, state: modes.IState, deltaOffset: number) => nullTokenize(language, line, state, deltaOffset)
 	};
 }
 
@@ -294,7 +294,7 @@ export function tokenize(text: string, languageId: string): Token[][] {
 	let state = tokenizationSupport.getInitialState();
 	for (let i = 0, len = lines.length; i < len; i++) {
 		let line = lines[i];
-		let tokenizationResult = tokenizationSupport.tokenize(line, state, 0);
+		let tokenizationResult = tokenizationSupport.tokenize(line, true, state, 0);
 
 		result[i] = tokenizationResult.tokens;
 		state = tokenizationResult.endState;

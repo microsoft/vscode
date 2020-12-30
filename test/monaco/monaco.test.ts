@@ -18,7 +18,7 @@ type BrowserType = 'chromium' | 'firefox' | 'webkit';
 const browserType: BrowserType = process.env.BROWSER as BrowserType || 'chromium';
 
 before(async function () {
-	this.timeout(5 * 1000);
+	this.timeout(20 * 1000);
 	console.log(`Starting browser: ${browserType}`);
 	browser = await playwright[browserType].launch({
 		headless: process.argv.includes('--headless'),
@@ -26,12 +26,12 @@ before(async function () {
 });
 
 after(async function () {
-	this.timeout(5 * 1000);
+	this.timeout(20 * 1000);
 	await browser.close();
 });
 
 beforeEach(async function () {
-	this.timeout(5 * 1000);
+	this.timeout(20 * 1000);
 	page = await browser.newPage({
 		viewport: {
 			width: 800,

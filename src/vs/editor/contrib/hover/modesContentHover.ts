@@ -9,7 +9,7 @@ import { CancellationToken } from 'vs/base/common/cancellation';
 import { Color, RGBA } from 'vs/base/common/color';
 import { IMarkdownString, MarkdownString, isEmptyMarkdownString, markedStringsEquals } from 'vs/base/common/htmlContent';
 import { IDisposable, toDisposable, DisposableStore, combinedDisposable, MutableDisposable, Disposable } from 'vs/base/common/lifecycle';
-import { ICodeEditor } from 'vs/editor/browser/editorBrowser';
+import { ContentWidgetPositionPreference, ICodeEditor, IContentWidget, IContentWidgetPosition } from 'vs/editor/browser/editorBrowser';
 import { Position } from 'vs/editor/common/core/position';
 import { IRange, Range } from 'vs/editor/common/core/range';
 import { ModelDecorationOptions } from 'vs/editor/common/model/textModel';
@@ -20,7 +20,6 @@ import { ColorPickerModel } from 'vs/editor/contrib/colorPicker/colorPickerModel
 import { ColorPickerWidget } from 'vs/editor/contrib/colorPicker/colorPickerWidget';
 import { getHover } from 'vs/editor/contrib/hover/getHover';
 import { HoverOperation, HoverStartMode, IHoverComputer } from 'vs/editor/contrib/hover/hoverOperation';
-import { ContentHoverWidget } from 'vs/editor/contrib/hover/hoverWidgets';
 import { MarkdownRenderer } from 'vs/editor/browser/core/markdownRenderer';
 import { IThemeService, registerThemingParticipant } from 'vs/platform/theme/common/themeService';
 import { coalesce, isNonEmptyArray, asArray } from 'vs/base/common/arrays';
@@ -37,12 +36,16 @@ import { QuickFixAction, QuickFixController } from 'vs/editor/contrib/codeAction
 import { CodeActionKind, CodeActionTrigger } from 'vs/editor/contrib/codeAction/types';
 import { IModeService } from 'vs/editor/common/services/modeService';
 import { IIdentifiedSingleEditOperation, TrackedRangeStickiness } from 'vs/editor/common/model';
-import { EditorOption } from 'vs/editor/common/config/editorOptions';
+import { ConfigurationChangedEvent, EditorOption } from 'vs/editor/common/config/editorOptions';
 import { Constants } from 'vs/base/common/uint';
 import { textLinkForeground } from 'vs/platform/theme/common/colorRegistry';
 import { Progress } from 'vs/platform/progress/common/progress';
 import { IContextKey } from 'vs/platform/contextkey/common/contextkey';
 import { ITextEditorOptions } from 'vs/platform/editor/common/editor';
+import { IKeyboardEvent } from 'vs/base/browser/keyboardEvent';
+import { Widget } from 'vs/base/browser/ui/widget';
+import { KeyCode } from 'vs/base/common/keyCodes';
+import { renderHoverAction, HoverWidget } from 'vs/base/browser/ui/hover/hoverWidget';
 
 const $ = dom.$;
 
@@ -195,9 +198,20 @@ const markerCodeActionTrigger: CodeActionTrigger = {
 	filter: { include: CodeActionKind.QuickFix }
 };
 
-export class ModesContentHoverWidget extends ContentHoverWidget {
+export class ModesContentHoverWidget extends Widget implements IContentWidget {
 
 	static readonly ID = 'editor.contrib.modesContentHoverWidget';
+
+	protected readonly _hover: HoverWidget;
+	private readonly _id: string;
+	protected _editor: ICodeEditor;
+	private _isVisible: boolean;
+	protected _showAtPosition: Position | null;
+	protected _showAtRange: Range | null;
+	private _stoleFocus: boolean;
+
+	// Editor.IContentWidget.allowEditorOverflow
+	public allowEditorOverflow = true;
 
 	private _messages: HoverPart[];
 	private _lastRange: Range | null;
@@ -212,16 +226,51 @@ export class ModesContentHoverWidget extends ContentHoverWidget {
 
 	private readonly renderDisposable = this._register(new MutableDisposable<IDisposable>());
 
+	protected get isVisible(): boolean {
+		return this._isVisible;
+	}
+
+	protected set isVisible(value: boolean) {
+		this._isVisible = value;
+		this._hover.containerDomNode.classList.toggle('hidden', !this._isVisible);
+	}
+
 	constructor(
 		editor: ICodeEditor,
-		_hoverVisibleKey: IContextKey<boolean>,
+		private readonly _hoverVisibleKey: IContextKey<boolean>,
 		markerDecorationsService: IMarkerDecorationsService,
-		keybindingService: IKeybindingService,
+		private readonly _keybindingService: IKeybindingService,
 		private readonly _themeService: IThemeService,
 		private readonly _modeService: IModeService,
 		private readonly _openerService: IOpenerService = NullOpenerService,
 	) {
-		super(ModesContentHoverWidget.ID, editor, _hoverVisibleKey, keybindingService);
+		super();
+
+		this._hover = this._register(new HoverWidget());
+		this._id = ModesContentHoverWidget.ID;
+		this._editor = editor;
+		this._isVisible = false;
+		this._stoleFocus = false;
+
+		this.onkeydown(this._hover.containerDomNode, (e: IKeyboardEvent) => {
+			if (e.equals(KeyCode.Escape)) {
+				this.hide();
+			}
+		});
+
+		this._register(this._editor.onDidChangeConfiguration((e: ConfigurationChangedEvent) => {
+			if (e.hasChanged(EditorOption.fontInfo)) {
+				this.updateFont();
+			}
+		}));
+
+		this._editor.onDidLayoutChange(e => this.layout());
+
+		this.layout();
+		this._editor.addContentWidget(this);
+		this._showAtPosition = null;
+		this._showAtRange = null;
+		this._stoleFocus = false;
 
 		this._messages = [];
 		this._lastRange = null;
@@ -277,7 +326,77 @@ export class ModesContentHoverWidget extends ContentHoverWidget {
 
 	dispose(): void {
 		this._hoverOperation.cancel();
+		this._editor.removeContentWidget(this);
 		super.dispose();
+	}
+
+	public getId(): string {
+		return this._id;
+	}
+
+	public getDomNode(): HTMLElement {
+		return this._hover.containerDomNode;
+	}
+
+	public showAt(position: Position, range: Range | null, focus: boolean): void {
+		// Position has changed
+		this._showAtPosition = position;
+		this._showAtRange = range;
+		this._hoverVisibleKey.set(true);
+		this.isVisible = true;
+
+		this._editor.layoutContentWidget(this);
+		// Simply force a synchronous render on the editor
+		// such that the widget does not really render with left = '0px'
+		this._editor.render();
+		this._stoleFocus = focus;
+		if (focus) {
+			this._hover.containerDomNode.focus();
+		}
+	}
+
+	public getPosition(): IContentWidgetPosition | null {
+		if (this.isVisible) {
+			return {
+				position: this._showAtPosition,
+				range: this._showAtRange,
+				preference: [
+					ContentWidgetPositionPreference.ABOVE,
+					ContentWidgetPositionPreference.BELOW
+				]
+			};
+		}
+		return null;
+	}
+
+	private updateFont(): void {
+		const codeClasses: HTMLElement[] = Array.prototype.slice.call(this._hover.contentsDomNode.getElementsByClassName('code'));
+		codeClasses.forEach(node => this._editor.applyFontInfo(node));
+	}
+
+	protected updateContents(node: Node): void {
+		this._hover.contentsDomNode.textContent = '';
+		this._hover.contentsDomNode.appendChild(node);
+		this.updateFont();
+
+		this._editor.layoutContentWidget(this);
+		this._hover.onContentsChanged();
+	}
+
+	protected _renderAction(parent: HTMLElement, actionOptions: { label: string, iconClass?: string, run: (target: HTMLElement) => void, commandId: string }): IDisposable {
+		const keybinding = this._keybindingService.lookupKeybinding(actionOptions.commandId);
+		const keybindingLabel = keybinding ? keybinding.getLabel() : null;
+		return renderHoverAction(parent, actionOptions, keybindingLabel);
+	}
+
+	private layout(): void {
+		const height = Math.max(this._editor.getLayoutInfo().height / 4, 250);
+		const { fontSize, lineHeight } = this._editor.getOption(EditorOption.fontInfo);
+
+		this._hover.contentsDomNode.style.fontSize = `${fontSize}px`;
+		this._hover.contentsDomNode.style.lineHeight = `${lineHeight}px`;
+		this._hover.contentsDomNode.style.maxHeight = `${height}px`;
+		this._hover.contentsDomNode.style.maxWidth = `${Math.max(this._editor.getLayoutInfo().width * 0.66, 500)}px`;
 	}
 
 	onModelDecorationsChanged(): void {
@@ -339,7 +458,22 @@ export class ModesContentHoverWidget extends ContentHoverWidget {
 	hide(): void {
 		this._lastRange = null;
 		this._hoverOperation.cancel();
-		super.hide();
+
+		if (this.isVisible) {
+			setTimeout(() => {
+				// Give commands a chance to see the key
+				if (!this.isVisible) {
+					this._hoverVisibleKey.set(false);
+				}
+			}, 0);
+			this.isVisible = false;
+
+			this._editor.layoutContentWidget(this);
+			if (this._stoleFocus) {
+				this._editor.focus();
+			}
+		}
+
 		this._isChangingDecorations = true;
 		this._highlightDecorations = this._editor.deltaDecorations(this._highlightDecorations, []);
 		this._isChangingDecorations = false;
