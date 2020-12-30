@@ -6,15 +6,13 @@
 import * as vscode from 'vscode';
 import { Node, Stylesheet } from 'EmmetFlatNode';
 import { isValidLocationForEmmetAbbreviation, getSyntaxFromArgs } from './abbreviationActions';
-import { getEmmetHelper, getMappingForIncludedLanguages, parsePartialStylesheet, getEmmetConfiguration, getEmmetMode, isStyleSheet, getFlatNode, allowedMimeTypesInScriptTag, trimQuotes, toLSTextDocument } from './util';
-import { getLanguageService, TokenType, Range as LSRange } from 'vscode-html-languageservice';
+import { getEmmetHelper, getMappingForIncludedLanguages, parsePartialStylesheet, getEmmetConfiguration, getEmmetMode, isStyleSheet, getFlatNode, allowedMimeTypesInScriptTag, toLSTextDocument, getHtmlFlatNode } from './util';
+import { Range as LSRange } from 'vscode-languageserver-textdocument';
 import { getRootNode } from './parseDocument';
 
 export class DefaultCompletionItemProvider implements vscode.CompletionItemProvider {
 
 	private lastCompletionType: string | undefined;
-
-	private htmlLS = getLanguageService();
 
 	public provideCompletionItems(document: vscode.TextDocument, position: vscode.Position, _: vscode.CancellationToken, context: vscode.CompletionContext): Thenable<vscode.CompletionList | undefined> | undefined {
 		const completionResult = this.provideCompletionItemsInternal(document, position, context);
@@ -82,19 +80,16 @@ export class DefaultCompletionItemProvider implements vscode.CompletionItemProvi
 					default:
 						break;
 				}
-
 			}
 			if (validateLocation) {
-
-				const parsedLsDoc = this.htmlLS.parseHTMLDocument(lsDoc);
 				const positionOffset = document.offsetAt(position);
-				const node = parsedLsDoc.findNodeAt(positionOffset);
-
-				if (node.tag === 'script') {
-					if (node.attributes && 'type' in node.attributes) {
-						const rawTypeAttrValue = node.attributes['type'];
-						if (rawTypeAttrValue) {
-							const typeAttrValue = trimQuotes(rawTypeAttrValue);
+				const emmetRootNode = getRootNode(document, true);
+				const foundNode = getHtmlFlatNode(document.getText(), emmetRootNode, positionOffset, false);
+				if (foundNode) {
+					if (foundNode.name === 'script') {
+						const typeNode = foundNode.attributes.find(attr => attr.name.toString() === 'type');
+						if (typeNode) {
+							const typeAttrValue = typeNode.value.toString();
 							if (typeAttrValue === 'application/javascript' || typeAttrValue === 'text/javascript') {
 								if (!getSyntaxFromArgs({ language: 'javascript' })) {
 									return;
@@ -102,34 +97,19 @@ export class DefaultCompletionItemProvider implements vscode.CompletionItemProvi
 									validateLocation = false;
 								}
 							}
-
-							else if (allowedMimeTypesInScriptTag.indexOf(trimQuotes(rawTypeAttrValue)) > -1) {
+							else if (allowedMimeTypesInScriptTag.includes(typeAttrValue)) {
 								validateLocation = false;
 							}
+						} else {
+							return;
 						}
-					} else {
-						return;
 					}
-				}
-				else if (node.tag === 'style') {
-					syntax = 'css';
-					validateLocation = false;
-				} else {
-					if (node.attributes && node.attributes['style']) {
-						const scanner = this.htmlLS.createScanner(document.getText(), node.start);
-						let tokenType = scanner.scan();
-						let prevAttr = undefined;
-						let styleAttrValueRange: [number, number] | undefined = undefined;
-						while (tokenType !== TokenType.EOS && (scanner.getTokenEnd() <= positionOffset)) {
-							tokenType = scanner.scan();
-							if (tokenType === TokenType.AttributeName) {
-								prevAttr = scanner.getTokenText();
-							}
-							else if (tokenType === TokenType.AttributeValue && prevAttr === 'style') {
-								styleAttrValueRange = [scanner.getTokenOffset(), scanner.getTokenEnd()];
-							}
-						}
-						if (prevAttr === 'style' && styleAttrValueRange && positionOffset > styleAttrValueRange[0] && positionOffset < styleAttrValueRange[1]) {
+					else if (foundNode.name === 'style') {
+						syntax = 'css';
+						validateLocation = false;
+					} else {
+						const styleNode = foundNode.attributes.find(attr => attr.name.toString() === 'style');
+						if (styleNode && styleNode.value.start <= positionOffset && positionOffset <= styleNode.value.end) {
 							syntax = 'css';
 							validateLocation = false;
 						}
