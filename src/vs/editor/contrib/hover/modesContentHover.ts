@@ -85,16 +85,16 @@ class ModesContentComputer implements IHoverComputer<HoverPartInfo[]> {
 		this._range = null;
 	}
 
-	setRange(range: Range): void {
+	public setRange(range: Range): void {
 		this._range = range;
 		this._result = [];
 	}
 
-	clearResult(): void {
+	public clearResult(): void {
 		this._result = [];
 	}
 
-	async computeAsync(token: CancellationToken): Promise<HoverPartInfo[]> {
+	public async computeAsync(token: CancellationToken): Promise<HoverPartInfo[]> {
 		if (!this._editor.hasModel() || !this._range) {
 			return Promise.resolve([]);
 		}
@@ -121,7 +121,7 @@ class ModesContentComputer implements IHoverComputer<HoverPartInfo[]> {
 		return result;
 	}
 
-	computeSync(): HoverPartInfo[] {
+	public computeSync(): HoverPartInfo[] {
 		if (!this._editor.hasModel() || !this._range) {
 			return [];
 		}
@@ -173,7 +173,7 @@ class ModesContentComputer implements IHoverComputer<HoverPartInfo[]> {
 		return coalesce(result);
 	}
 
-	onResult(result: HoverPartInfo[], isFromSynchronousComputation: boolean): void {
+	public onResult(result: HoverPartInfo[], isFromSynchronousComputation: boolean): void {
 		// Always put synchronous messages before asynchronous ones
 		if (isFromSynchronousComputation) {
 			this._result = result.concat(this._result.sort((a, b) => {
@@ -189,11 +189,11 @@ class ModesContentComputer implements IHoverComputer<HoverPartInfo[]> {
 		}
 	}
 
-	getResult(): HoverPartInfo[] {
+	public getResult(): HoverPartInfo[] {
 		return this._result.slice(0);
 	}
 
-	getResultWithLoadingMessage(): HoverPartInfo[] {
+	public getResultWithLoadingMessage(): HoverPartInfo[] {
 		if (this._range) {
 			const loadingMessage = new HoverPartInfo(this._markdownHoverParticipant, true, this._markdownHoverParticipant.createLoadingMessage(this._range));
 			return this._result.slice(0).concat([loadingMessage]);
@@ -210,12 +210,12 @@ export class ModesContentHoverWidget extends Widget implements IContentWidget {
 	private readonly _markerHoverParticipant: IEditorHoverParticipant<MarkerHover>;
 	private readonly _markdownHoverParticipant: MarkdownHoverParticipant;
 
-	protected readonly _hover: HoverWidget;
+	private readonly _hover: HoverWidget;
 	private readonly _id: string;
-	protected _editor: ICodeEditor;
+	private _editor: ICodeEditor;
 	private _isVisible: boolean;
-	protected _showAtPosition: Position | null;
-	protected _showAtRange: Range | null;
+	private _showAtPosition: Position | null;
+	private _showAtRange: Range | null;
 	private _stoleFocus: boolean;
 
 	// IContentWidget.allowEditorOverflow
@@ -232,11 +232,11 @@ export class ModesContentHoverWidget extends Widget implements IContentWidget {
 
 	private readonly renderDisposable = this._register(new MutableDisposable<IDisposable>());
 
-	protected get isVisible(): boolean {
+	private get isVisible(): boolean {
 		return this._isVisible;
 	}
 
-	protected set isVisible(value: boolean) {
+	private set isVisible(value: boolean) {
 		this._isVisible = value;
 		this._hover.containerDomNode.classList.toggle('hidden', !this._isVisible);
 	}
@@ -266,7 +266,7 @@ export class ModesContentHoverWidget extends Widget implements IContentWidget {
 
 		this._register(this._editor.onDidChangeConfiguration((e: ConfigurationChangedEvent) => {
 			if (e.hasChanged(EditorOption.fontInfo)) {
-				this.updateFont();
+				this._updateFont();
 			}
 		}));
 
@@ -330,7 +330,7 @@ export class ModesContentHoverWidget extends Widget implements IContentWidget {
 		}));
 	}
 
-	dispose(): void {
+	public dispose(): void {
 		this._hoverOperation.cancel();
 		this._editor.removeContentWidget(this);
 		super.dispose();
@@ -375,15 +375,15 @@ export class ModesContentHoverWidget extends Widget implements IContentWidget {
 		return null;
 	}
 
-	private updateFont(): void {
+	private _updateFont(): void {
 		const codeClasses: HTMLElement[] = Array.prototype.slice.call(this._hover.contentsDomNode.getElementsByClassName('code'));
 		codeClasses.forEach(node => this._editor.applyFontInfo(node));
 	}
 
-	protected updateContents(node: Node): void {
+	private _updateContents(node: Node): void {
 		this._hover.contentsDomNode.textContent = '';
 		this._hover.contentsDomNode.appendChild(node);
-		this.updateFont();
+		this._updateFont();
 
 		this._editor.layoutContentWidget(this);
 		this._hover.onContentsChanged();
@@ -399,7 +399,7 @@ export class ModesContentHoverWidget extends Widget implements IContentWidget {
 		this._hover.contentsDomNode.style.maxWidth = `${Math.max(this._editor.getLayoutInfo().width * 0.66, 500)}px`;
 	}
 
-	onModelDecorationsChanged(): void {
+	public onModelDecorationsChanged(): void {
 		if (this._isChangingDecorations) {
 			return;
 		}
@@ -415,7 +415,7 @@ export class ModesContentHoverWidget extends Widget implements IContentWidget {
 		}
 	}
 
-	startShowingAt(range: Range, mode: HoverStartMode, focus: boolean): void {
+	public startShowingAt(range: Range, mode: HoverStartMode, focus: boolean): void {
 		if (this._lastRange && this._lastRange.equalsRange(range)) {
 			// We have to show the widget at the exact same range as before, so no work is needed
 			return;
@@ -455,7 +455,7 @@ export class ModesContentHoverWidget extends Widget implements IContentWidget {
 		this._hoverOperation.start(mode);
 	}
 
-	hide(): void {
+	public hide(): void {
 		this._lastRange = null;
 		this._hoverOperation.cancel();
 
@@ -481,14 +481,14 @@ export class ModesContentHoverWidget extends Widget implements IContentWidget {
 		this._colorPicker = null;
 	}
 
-	isColorPickerVisible(): boolean {
+	public isColorPickerVisible(): boolean {
 		if (this._colorPicker) {
 			return true;
 		}
 		return false;
 	}
 
-	onContentsChanged(): void {
+	public onContentsChanged(): void {
 		this._hover.onContentsChanged();
 	}
 
@@ -604,7 +604,7 @@ export class ModesContentHoverWidget extends Widget implements IContentWidget {
 
 					this._colorPicker = widget;
 					this.showAt(range.getStartPosition(), range, this._shouldFocus);
-					this.updateContents(fragment);
+					this._updateContents(fragment);
 					this._colorPicker.layout();
 
 					this.renderDisposable.value = combinedDisposable(colorListener, colorChangeListener, widget, disposables);
@@ -634,7 +634,7 @@ export class ModesContentHoverWidget extends Widget implements IContentWidget {
 
 		if (!containColorPicker && fragment.hasChildNodes()) {
 			this.showAt(new Position(renderRange.startLineNumber, renderColumn), highlightRange, this._shouldFocus);
-			this.updateContents(fragment);
+			this._updateContents(fragment);
 		}
 
 		this._isChangingDecorations = true;
