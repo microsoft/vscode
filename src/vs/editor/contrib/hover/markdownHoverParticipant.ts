@@ -18,7 +18,7 @@ import { IEditorHover, IEditorHoverParticipant, IHoverPart } from 'vs/editor/con
 
 const $ = dom.$;
 
-export class MarkdownHover2 implements IHoverPart {
+export class MarkdownHover implements IHoverPart {
 
 	constructor(
 		public readonly range: Range,
@@ -26,14 +26,14 @@ export class MarkdownHover2 implements IHoverPart {
 	) { }
 
 	public equals(other: IHoverPart): boolean {
-		if (other instanceof MarkdownHover2) {
+		if (other instanceof MarkdownHover) {
 			return markedStringsEquals(this.contents, other.contents);
 		}
 		return false;
 	}
 }
 
-export class MarkdownHoverParticipant implements IEditorHoverParticipant<MarkdownHover2> {
+export class MarkdownHoverParticipant implements IEditorHoverParticipant<MarkdownHover> {
 
 	constructor(
 		private readonly _editor: ICodeEditor,
@@ -42,11 +42,11 @@ export class MarkdownHoverParticipant implements IEditorHoverParticipant<Markdow
 		@IOpenerService private readonly _openerService: IOpenerService,
 	) { }
 
-	createLoadingMessage(range: Range): MarkdownHover2 {
-		return new MarkdownHover2(range, [new MarkdownString().appendText(nls.localize('modesContentHover.loading', "Loading..."))]);
+	createLoadingMessage(range: Range): MarkdownHover {
+		return new MarkdownHover(range, [new MarkdownString().appendText(nls.localize('modesContentHover.loading', "Loading..."))]);
 	}
 
-	computeHoverPart(hoverRange: Range, model: ITextModel, decoration: IModelDecoration): MarkdownHover2 | null {
+	computeHoverPart(hoverRange: Range, model: ITextModel, decoration: IModelDecoration): MarkdownHover | null {
 		const hoverMessage = decoration.options.hoverMessage;
 		if (!hoverMessage || isEmptyMarkdownString(hoverMessage)) {
 			return null;
@@ -56,10 +56,10 @@ export class MarkdownHoverParticipant implements IEditorHoverParticipant<Markdow
 		const startColumn = (decoration.range.startLineNumber === lineNumber) ? decoration.range.startColumn : 1;
 		const endColumn = (decoration.range.endLineNumber === lineNumber) ? decoration.range.endColumn : maxColumn;
 		const range = new Range(hoverRange.startLineNumber, startColumn, hoverRange.startLineNumber, endColumn);
-		return new MarkdownHover2(range, asArray(hoverMessage));
+		return new MarkdownHover(range, asArray(hoverMessage));
 	}
 
-	renderHoverParts(hoverParts: MarkdownHover2[], fragment: DocumentFragment): IDisposable {
+	renderHoverParts(hoverParts: MarkdownHover[], fragment: DocumentFragment): IDisposable {
 		const disposables = new DisposableStore();
 		for (const hoverPart of hoverParts) {
 			for (const contents of hoverPart.contents) {

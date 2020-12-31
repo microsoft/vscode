@@ -6,7 +6,7 @@
 import * as dom from 'vs/base/browser/dom';
 import { CancellationToken } from 'vs/base/common/cancellation';
 import { Color, RGBA } from 'vs/base/common/color';
-import { IDisposable, DisposableStore, combinedDisposable, MutableDisposable } from 'vs/base/common/lifecycle';
+import { IDisposable, DisposableStore, combinedDisposable } from 'vs/base/common/lifecycle';
 import { ContentWidgetPositionPreference, ICodeEditor, IContentWidget, IContentWidgetPosition } from 'vs/editor/browser/editorBrowser';
 import { Position } from 'vs/editor/common/core/position';
 import { Range } from 'vs/editor/common/core/range';
@@ -31,7 +31,7 @@ import { KeyCode } from 'vs/base/common/keyCodes';
 import { HoverWidget } from 'vs/base/browser/ui/hover/hoverWidget';
 import { MarkerHover, MarkerHoverParticipant } from 'vs/editor/contrib/hover/markerHoverParticipant';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
-import { MarkdownHover2, MarkdownHoverParticipant } from 'vs/editor/contrib/hover/markdownHoverParticipant';
+import { MarkdownHover, MarkdownHoverParticipant } from 'vs/editor/contrib/hover/markdownHoverParticipant';
 
 export interface IHoverPart {
 	readonly range: Range;
@@ -116,7 +116,7 @@ class ModesContentComputer implements IHoverComputer<HoverPartInfo[]> {
 			if (!range) {
 				continue;
 			}
-			result.push(new HoverPartInfo(this._markdownHoverParticipant, false, new MarkdownHover2(range, hover.contents)));
+			result.push(new HoverPartInfo(this._markdownHoverParticipant, false, new MarkdownHover(range, hover.contents)));
 		}
 		return result;
 	}
@@ -212,14 +212,14 @@ export class ModesContentHoverWidget extends Widget implements IContentWidget {
 
 	private readonly _hover: HoverWidget;
 	private readonly _id: string;
-	private _editor: ICodeEditor;
+	private readonly _editor: ICodeEditor;
 	private _isVisible: boolean;
 	private _showAtPosition: Position | null;
 	private _showAtRange: Range | null;
 	private _stoleFocus: boolean;
 
 	// IContentWidget.allowEditorOverflow
-	public allowEditorOverflow = true;
+	public readonly allowEditorOverflow = true;
 
 	private _messages: HoverPartInfo[];
 	private _lastRange: Range | null;
@@ -229,17 +229,7 @@ export class ModesContentHoverWidget extends Widget implements IContentWidget {
 	private _isChangingDecorations: boolean;
 	private _shouldFocus: boolean;
 	private _colorPicker: ColorPickerWidget | null;
-
-	private readonly renderDisposable = this._register(new MutableDisposable<IDisposable>());
-
-	private get isVisible(): boolean {
-		return this._isVisible;
-	}
-
-	private set isVisible(value: boolean) {
-		this._isVisible = value;
-		this._hover.containerDomNode.classList.toggle('hidden', !this._isVisible);
-	}
+	private _renderDisposable: IDisposable | null;
 
 	constructor(
 		editor: ICodeEditor,
@@ -257,6 +247,7 @@ export class ModesContentHoverWidget extends Widget implements IContentWidget {
 		this._editor = editor;
 		this._isVisible = false;
 		this._stoleFocus = false;
+		this._renderDisposable = null;
 
 		this.onkeydown(this._hover.containerDomNode, (e: IKeyboardEvent) => {
 			if (e.equals(KeyCode.Escape)) {
@@ -306,7 +297,7 @@ export class ModesContentHoverWidget extends Widget implements IContentWidget {
 			this._hoverOperation.setHoverTime(this._editor.getOption(EditorOption.hover).delay);
 		}));
 		this._register(TokenizationRegistry.onDidChange(() => {
-			if (this.isVisible && this._lastRange && this._messages.length > 0) {
+			if (this._isVisible && this._lastRange && this._messages.length > 0) {
 				this._messages = this._messages.map(msg => {
 					// If a color hover is visible, we need to update the message that
 					// created it so that the color matches the last chosen color
@@ -349,7 +340,8 @@ export class ModesContentHoverWidget extends Widget implements IContentWidget {
 		this._showAtPosition = position;
 		this._showAtRange = range;
 		this._hoverVisibleKey.set(true);
-		this.isVisible = true;
+		this._isVisible = true;
+		this._hover.containerDomNode.classList.toggle('hidden', !this._isVisible);
 
 		this._editor.layoutContentWidget(this);
 		// Simply force a synchronous render on the editor
@@ -362,7 +354,7 @@ export class ModesContentHoverWidget extends Widget implements IContentWidget {
 	}
 
 	public getPosition(): IContentWidgetPosition | null {
-		if (this.isVisible) {
+		if (this._isVisible) {
 			return {
 				position: this._showAtPosition,
 				range: this._showAtRange,
@@ -403,7 +395,7 @@ export class ModesContentHoverWidget extends Widget implements IContentWidget {
 		if (this._isChangingDecorations) {
 			return;
 		}
-		if (this.isVisible) {
+		if (this._isVisible) {
 			// The decorations have changed and the hover is visible,
 			// we need to recompute the displayed text
 			this._hoverOperation.cancel();
@@ -423,7 +415,7 @@ export class ModesContentHoverWidget extends Widget implements IContentWidget {
 
 		this._hoverOperation.cancel();
 
-		if (this.isVisible) {
+		if (this._isVisible) {
 			// The range might have changed, but the hover is visible
 			// Instead of hiding it completely, filter out messages that are still in the new range and
 			// kick off a new computation
@@ -459,14 +451,15 @@ export class ModesContentHoverWidget extends Widget implements IContentWidget {
 		this._lastRange = null;
 		this._hoverOperation.cancel();
 
-		if (this.isVisible) {
+		if (this._isVisible) {
 			setTimeout(() => {
 				// Give commands a chance to see the key
-				if (!this.isVisible) {
+				if (!this._isVisible) {
 					this._hoverVisibleKey.set(false);
 				}
 			}, 0);
-			this.isVisible = false;
+			this._isVisible = false;
+			this._hover.containerDomNode.classList.toggle('hidden', !this._isVisible);
 
 			this._editor.layoutContentWidget(this);
 			if (this._stoleFocus) {
@@ -477,7 +470,10 @@ export class ModesContentHoverWidget extends Widget implements IContentWidget {
 		this._isChangingDecorations = true;
 		this._highlightDecorations = this._editor.deltaDecorations(this._highlightDecorations, []);
 		this._isChangingDecorations = false;
-		this.renderDisposable.clear();
+		if (this._renderDisposable) {
+			this._renderDisposable.dispose();
+			this._renderDisposable = null;
+		}
 		this._colorPicker = null;
 	}
 
@@ -503,7 +499,10 @@ export class ModesContentHoverWidget extends Widget implements IContentWidget {
 	}
 
 	private _renderMessages(renderRange: Range, messages: HoverPartInfo[]): void {
-		this.renderDisposable.dispose();
+		if (this._renderDisposable) {
+			this._renderDisposable.dispose();
+			this._renderDisposable = null;
+		}
 		this._colorPicker = null;
 
 		// update column from which to show
@@ -514,7 +513,7 @@ export class ModesContentHoverWidget extends Widget implements IContentWidget {
 		let containColorPicker = false;
 		const disposables = new DisposableStore();
 		const markerMessages: MarkerHover[] = [];
-		const markdownParts: MarkdownHover2[] = [];
+		const markdownParts: MarkdownHover[] = [];
 		messages.forEach((_msg) => {
 			const msg = _msg.data;
 			if (!msg.range) {
@@ -607,13 +606,13 @@ export class ModesContentHoverWidget extends Widget implements IContentWidget {
 					this._updateContents(fragment);
 					this._colorPicker.layout();
 
-					this.renderDisposable.value = combinedDisposable(colorListener, colorChangeListener, widget, disposables);
+					this._renderDisposable = combinedDisposable(colorListener, colorChangeListener, widget, disposables);
 				});
 			} else {
 				if (msg instanceof MarkerHover) {
 					markerMessages.push(msg);
 				} else {
-					if (msg instanceof MarkdownHover2) {
+					if (msg instanceof MarkdownHover) {
 						markdownParts.push(msg);
 					}
 				}
@@ -628,7 +627,7 @@ export class ModesContentHoverWidget extends Widget implements IContentWidget {
 			disposables.add(this._markerHoverParticipant.renderHoverParts(markerMessages, fragment));
 		}
 
-		this.renderDisposable.value = disposables;
+		this._renderDisposable = disposables;
 
 		// show
 
