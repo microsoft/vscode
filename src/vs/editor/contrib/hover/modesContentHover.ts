@@ -23,10 +23,7 @@ import { HoverOperation, HoverStartMode, IHoverComputer } from 'vs/editor/contri
 import { MarkdownRenderer } from 'vs/editor/browser/core/markdownRenderer';
 import { IThemeService, registerThemingParticipant } from 'vs/platform/theme/common/themeService';
 import { coalesce, asArray } from 'vs/base/common/arrays';
-import { IMarkerData } from 'vs/platform/markers/common/markers';
-import { IMarkerDecorationsService } from 'vs/editor/common/services/markersDecorationService';
 import { IOpenerService, NullOpenerService } from 'vs/platform/opener/common/opener';
-import { IKeybindingService } from 'vs/platform/keybinding/common/keybinding';
 import { IModeService } from 'vs/editor/common/services/modeService';
 import { IIdentifiedSingleEditOperation, IModelDecoration, ITextModel, TrackedRangeStickiness } from 'vs/editor/common/model';
 import { ConfigurationChangedEvent, EditorOption } from 'vs/editor/common/config/editorOptions';
@@ -38,8 +35,14 @@ import { Widget } from 'vs/base/browser/ui/widget';
 import { KeyCode } from 'vs/base/common/keyCodes';
 import { HoverWidget } from 'vs/base/browser/ui/hover/hoverWidget';
 import { MarkerHover, MarkerHoverParticipant } from 'vs/editor/contrib/hover/markerHoverParticipant';
+import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 
 const $ = dom.$;
+
+export interface IHoverPart {
+	readonly range: Range;
+	equals(other: IHoverPart | HoverPart): boolean;
+}
 
 export interface IEditorHover {
 	hide(): void;
@@ -59,7 +62,7 @@ class ColorHover {
 	) { }
 }
 
-type HoverPart = MarkdownHover | ColorHover | MarkerHover;
+export type HoverPart = MarkdownHover | ColorHover | MarkerHover;
 
 class ModesContentComputer implements IHoverComputer<HoverPart[]> {
 
@@ -227,15 +230,14 @@ export class ModesContentHoverWidget extends Widget implements IContentWidget {
 	constructor(
 		editor: ICodeEditor,
 		private readonly _hoverVisibleKey: IContextKey<boolean>,
-		markerDecorationsService: IMarkerDecorationsService,
-		private readonly _keybindingService: IKeybindingService,
+		instantiationService: IInstantiationService,
 		private readonly _themeService: IThemeService,
 		private readonly _modeService: IModeService,
 		private readonly _openerService: IOpenerService = NullOpenerService,
 	) {
 		super();
 
-		this._markerHoverParticipant = new MarkerHoverParticipant(editor, this, markerDecorationsService, this._keybindingService, this._openerService);
+		this._markerHoverParticipant = instantiationService.createInstance(MarkerHoverParticipant, editor, this);
 
 		this._hover = this._register(new HoverWidget());
 		this._id = ModesContentHoverWidget.ID;
@@ -644,16 +646,15 @@ function hoverContentsEquals(first: HoverPart[], second: HoverPart[]): boolean {
 	for (let i = 0; i < first.length; i++) {
 		const firstElement = first[i];
 		const secondElement = second[i];
-		if (firstElement instanceof MarkerHover && secondElement instanceof MarkerHover) {
-			return IMarkerData.makeKey(firstElement.marker) === IMarkerData.makeKey(secondElement.marker);
-		}
-		if (firstElement instanceof ColorHover || secondElement instanceof ColorHover) {
+		if (firstElement instanceof MarkerHover) {
+			if (!firstElement.equals(secondElement)) {
+				return false;
+			}
+		} else if (firstElement instanceof ColorHover || secondElement instanceof ColorHover) {
 			return false;
-		}
-		if (firstElement instanceof MarkerHover || secondElement instanceof MarkerHover) {
+		} else if (firstElement instanceof MarkerHover || secondElement instanceof MarkerHover) {
 			return false;
-		}
-		if (!markedStringsEquals(firstElement.contents, secondElement.contents)) {
+		} else if (!markedStringsEquals(firstElement.contents, secondElement.contents)) {
 			return false;
 		}
 	}

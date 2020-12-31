@@ -7,14 +7,14 @@ import * as nls from 'vs/nls';
 import * as dom from 'vs/base/browser/dom';
 import { IDisposable, toDisposable, DisposableStore, Disposable } from 'vs/base/common/lifecycle';
 import { ICodeEditor } from 'vs/editor/browser/editorBrowser';
-import { IRange, Range } from 'vs/editor/common/core/range';
+import { Range } from 'vs/editor/common/core/range';
 import { CodeActionTriggerType } from 'vs/editor/common/modes';
 import { isNonEmptyArray } from 'vs/base/common/arrays';
 import { IMarker, IMarkerData, MarkerSeverity } from 'vs/platform/markers/common/markers';
 import { basename } from 'vs/base/common/resources';
 import { IMarkerDecorationsService } from 'vs/editor/common/services/markersDecorationService';
 import { onUnexpectedError } from 'vs/base/common/errors';
-import { IOpenerService, NullOpenerService } from 'vs/platform/opener/common/opener';
+import { IOpenerService } from 'vs/platform/opener/common/opener';
 import { MarkerController, NextMarkerAction } from 'vs/editor/contrib/gotoError/gotoError';
 import { IKeybindingService } from 'vs/platform/keybinding/common/keybinding';
 import { CancelablePromise, createCancelablePromise, disposableTimeout } from 'vs/base/common/async';
@@ -26,15 +26,22 @@ import { EditorOption } from 'vs/editor/common/config/editorOptions';
 import { Progress } from 'vs/platform/progress/common/progress';
 import { ITextEditorOptions } from 'vs/platform/editor/common/editor';
 import { renderHoverAction } from 'vs/base/browser/ui/hover/hoverWidget';
-import { IEditorHover, IEditorHoverParticipant } from 'vs/editor/contrib/hover/modesContentHover';
+import { HoverPart, IEditorHover, IEditorHoverParticipant, IHoverPart } from 'vs/editor/contrib/hover/modesContentHover';
 
 const $ = dom.$;
 
-export class MarkerHover {
+export class MarkerHover implements IHoverPart {
 	constructor(
-		public readonly range: IRange,
+		public readonly range: Range,
 		public readonly marker: IMarker,
 	) { }
+
+	public equals(other: IHoverPart | HoverPart): boolean {
+		if (other instanceof MarkerHover) {
+			return IMarkerData.makeKey(this.marker) === IMarkerData.makeKey(other.marker);
+		}
+		return false;
+	}
 }
 
 const markerCodeActionTrigger: CodeActionTrigger = {
@@ -49,9 +56,9 @@ export class MarkerHoverParticipant implements IEditorHoverParticipant<MarkerHov
 	constructor(
 		private readonly _editor: ICodeEditor,
 		private readonly _hover: IEditorHover,
-		private readonly _markerDecorationsService: IMarkerDecorationsService,
-		private readonly _keybindingService: IKeybindingService,
-		private readonly _openerService: IOpenerService = NullOpenerService,
+		@IMarkerDecorationsService private readonly _markerDecorationsService: IMarkerDecorationsService,
+		@IKeybindingService private readonly _keybindingService: IKeybindingService,
+		@IOpenerService private readonly _openerService: IOpenerService,
 	) {
 	}
 
