@@ -21,7 +21,7 @@ import { CancelablePromise, createCancelablePromise, disposableTimeout } from 'v
 import { getCodeActions, CodeActionSet } from 'vs/editor/contrib/codeAction/codeAction';
 import { QuickFixAction, QuickFixController } from 'vs/editor/contrib/codeAction/codeActionCommands';
 import { CodeActionKind, CodeActionTrigger } from 'vs/editor/contrib/codeAction/types';
-import { IModelDecoration, ITextModel } from 'vs/editor/common/model';
+import { IModelDecoration } from 'vs/editor/common/model';
 import { EditorOption } from 'vs/editor/common/config/editorOptions';
 import { Progress } from 'vs/platform/progress/common/progress';
 import { ITextEditorOptions } from 'vs/platform/editor/common/editor';
@@ -62,17 +62,29 @@ export class MarkerHoverParticipant implements IEditorHoverParticipant<MarkerHov
 		@IOpenerService private readonly _openerService: IOpenerService,
 	) { }
 
-	public computeSync(hoverRange: Range, model: ITextModel, decoration: IModelDecoration): MarkerHover | null {
-		const marker = this._markerDecorationsService.getMarker(model, decoration);
-		if (marker) {
-			const lineNumber = hoverRange.startLineNumber;
-			const maxColumn = model.getLineMaxColumn(lineNumber);
-			const startColumn = (decoration.range.startLineNumber === lineNumber) ? decoration.range.startColumn : 1;
-			const endColumn = (decoration.range.endLineNumber === lineNumber) ? decoration.range.endColumn : maxColumn;
-			const range = new Range(hoverRange.startLineNumber, startColumn, hoverRange.startLineNumber, endColumn);
-			return new MarkerHover(range, marker);
+	public computeSync(hoverRange: Range, lineDecorations: IModelDecoration[]): MarkerHover[] {
+		if (!this._editor.hasModel()) {
+			return [];
 		}
-		return null;
+
+		const model = this._editor.getModel();
+		const lineNumber = hoverRange.startLineNumber;
+		const maxColumn = model.getLineMaxColumn(lineNumber);
+		const result: MarkerHover[] = [];
+		for (const d of lineDecorations) {
+			const startColumn = (d.range.startLineNumber === lineNumber) ? d.range.startColumn : 1;
+			const endColumn = (d.range.endLineNumber === lineNumber) ? d.range.endColumn : maxColumn;
+
+			const marker = this._markerDecorationsService.getMarker(model, d);
+			if (!marker) {
+				continue;
+			}
+
+			const range = new Range(hoverRange.startLineNumber, startColumn, hoverRange.startLineNumber, endColumn);
+			result.push(new MarkerHover(range, marker));
+		}
+
+		return result;
 	}
 
 	public renderHoverParts(hoverParts: MarkerHover[], fragment: DocumentFragment): IDisposable {

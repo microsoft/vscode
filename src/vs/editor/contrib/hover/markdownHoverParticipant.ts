@@ -13,7 +13,7 @@ import { MarkdownRenderer } from 'vs/editor/browser/core/markdownRenderer';
 import { asArray } from 'vs/base/common/arrays';
 import { IOpenerService } from 'vs/platform/opener/common/opener';
 import { IModeService } from 'vs/editor/common/services/modeService';
-import { IModelDecoration, ITextModel } from 'vs/editor/common/model';
+import { IModelDecoration } from 'vs/editor/common/model';
 import { IEditorHover, IEditorHoverParticipant, IHoverPart } from 'vs/editor/contrib/hover/modesContentHover';
 import { HoverProviderRegistry } from 'vs/editor/common/modes';
 import { getHover } from 'vs/editor/contrib/hover/getHover';
@@ -50,17 +50,29 @@ export class MarkdownHoverParticipant implements IEditorHoverParticipant<Markdow
 		return new MarkdownHover(range, [new MarkdownString().appendText(nls.localize('modesContentHover.loading', "Loading..."))]);
 	}
 
-	public computeSync(hoverRange: Range, model: ITextModel, decoration: IModelDecoration): MarkdownHover | null {
-		const hoverMessage = decoration.options.hoverMessage;
-		if (!hoverMessage || isEmptyMarkdownString(hoverMessage)) {
-			return null;
+	public computeSync(hoverRange: Range, lineDecorations: IModelDecoration[]): MarkdownHover[] {
+		if (!this._editor.hasModel()) {
+			return [];
 		}
+
+		const model = this._editor.getModel();
 		const lineNumber = hoverRange.startLineNumber;
 		const maxColumn = model.getLineMaxColumn(lineNumber);
-		const startColumn = (decoration.range.startLineNumber === lineNumber) ? decoration.range.startColumn : 1;
-		const endColumn = (decoration.range.endLineNumber === lineNumber) ? decoration.range.endColumn : maxColumn;
-		const range = new Range(hoverRange.startLineNumber, startColumn, hoverRange.startLineNumber, endColumn);
-		return new MarkdownHover(range, asArray(hoverMessage));
+		const result: MarkdownHover[] = [];
+		for (const d of lineDecorations) {
+			const startColumn = (d.range.startLineNumber === lineNumber) ? d.range.startColumn : 1;
+			const endColumn = (d.range.endLineNumber === lineNumber) ? d.range.endColumn : maxColumn;
+
+			const hoverMessage = d.options.hoverMessage;
+			if (!hoverMessage || isEmptyMarkdownString(hoverMessage)) {
+				continue;
+			}
+
+			const range = new Range(hoverRange.startLineNumber, startColumn, hoverRange.startLineNumber, endColumn);
+			result.push(new MarkdownHover(range, asArray(hoverMessage)));
+		}
+
+		return result;
 	}
 
 	public async computeAsync(range: Range, token: CancellationToken): Promise<MarkdownHover[]> {

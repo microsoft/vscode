@@ -19,7 +19,7 @@ import { ColorPickerWidget } from 'vs/editor/contrib/colorPicker/colorPickerWidg
 import { HoverOperation, HoverStartMode, IHoverComputer } from 'vs/editor/contrib/hover/hoverOperation';
 import { IThemeService, registerThemingParticipant } from 'vs/platform/theme/common/themeService';
 import { coalesce } from 'vs/base/common/arrays';
-import { IIdentifiedSingleEditOperation, IModelDecoration, ITextModel, TrackedRangeStickiness } from 'vs/editor/common/model';
+import { IIdentifiedSingleEditOperation, IModelDecoration, TrackedRangeStickiness } from 'vs/editor/common/model';
 import { ConfigurationChangedEvent, EditorOption } from 'vs/editor/common/config/editorOptions';
 import { Constants } from 'vs/base/common/uint';
 import { textLinkForeground } from 'vs/platform/theme/common/colorRegistry';
@@ -43,7 +43,7 @@ export interface IEditorHover {
 }
 
 export interface IEditorHoverParticipant<T extends IHoverPart = IHoverPart> {
-	computeSync(hoverRange: Range, model: ITextModel, decoration: IModelDecoration): T | null;
+	computeSync(hoverRange: Range, lineDecorations: IModelDecoration[]): T[];
 	computeAsync?(range: Range, token: CancellationToken): Promise<T[]>;
 	renderHoverParts(hoverParts: T[], fragment: DocumentFragment): IDisposable;
 }
@@ -109,48 +109,42 @@ class ModesContentComputer implements IHoverComputer<HoverPartInfo[]> {
 		}
 
 		const model = this._editor.getModel();
-		const lineNumber = this._range.startLineNumber;
+		const hoverRange = this._range;
+		const lineNumber = hoverRange.startLineNumber;
 
 		if (lineNumber > this._editor.getModel().getLineCount()) {
 			// Illegal line number => no results
 			return [];
 		}
 
-		const colorDetector = ColorDetector.get(this._editor);
 		const maxColumn = model.getLineMaxColumn(lineNumber);
-		const lineDecorations = this._editor.getLineDecorations(lineNumber);
-		let didFindColor = false;
-
-		const hoverRange = this._range;
-		const result = lineDecorations.map((d): HoverPartInfo | null => {
+		const lineDecorations = this._editor.getLineDecorations(lineNumber).filter((d) => {
 			const startColumn = (d.range.startLineNumber === lineNumber) ? d.range.startColumn : 1;
 			const endColumn = (d.range.endLineNumber === lineNumber) ? d.range.endColumn : maxColumn;
-
 			if (startColumn > hoverRange.startColumn || hoverRange.endColumn > endColumn) {
-				return null;
+				return false;
 			}
-
-			const markerHover = this._markerHoverParticipant.computeSync(hoverRange, model, d);
-			if (markerHover) {
-				return new HoverPartInfo(this._markerHoverParticipant, true, markerHover);
-			}
-
-			const colorData = colorDetector.getColorData(d.range.getStartPosition());
-
-			if (!didFindColor && colorData) {
-				didFindColor = true;
-
-				const { color, range } = colorData.colorInfo;
-				return new HoverPartInfo(null, true, new ColorHover(Range.lift(range), color, colorData.provider));
-			}
-
-			const markdownHover = this._markdownHoverParticipant.computeSync(hoverRange, model, d);
-			if (markdownHover) {
-				return new HoverPartInfo(this._markdownHoverParticipant, true, markdownHover);
-			}
-
-			return null;
+			return true;
 		});
+
+		let result: HoverPartInfo[] = [];
+
+		const markdownHovers = this._markdownHoverParticipant.computeSync(this._range, lineDecorations);
+		result = result.concat(markdownHovers.map(h => new HoverPartInfo(this._markdownHoverParticipant, true, h)));
+
+		const markerHovers = this._markerHoverParticipant.computeSync(this._range, lineDecorations);
+		result = result.concat(markerHovers.map(h => new HoverPartInfo(this._markerHoverParticipant, true, h)));
+
+		const colorDetector = ColorDetector.get(this._editor);
+
+		for (const d of lineDecorations) {
+			const colorData = colorDetector.getColorData(d.range.getStartPosition());
+			if (colorData) {
+				const { color, range } = colorData.colorInfo;
+				result.push(new HoverPartInfo(null, true, new ColorHover(Range.lift(range), color, colorData.provider)));
+				break;
+			}
+		}
 
 		return coalesce(result);
 	}
@@ -185,7 +179,7 @@ class ModesContentComputer implements IHoverComputer<HoverPartInfo[]> {
 	}
 }
 
-export class ModesContentHoverWidget extends Widget implements IContentWidget {
+export class ModesContentHoverWidget extends Widget implements IContentWidget, IEditorHover {
 
 	static readonly ID = 'editor.contrib.modesContentHoverWidget';
 
