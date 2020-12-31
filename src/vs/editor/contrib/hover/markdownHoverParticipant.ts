@@ -15,6 +15,10 @@ import { IOpenerService } from 'vs/platform/opener/common/opener';
 import { IModeService } from 'vs/editor/common/services/modeService';
 import { IModelDecoration, ITextModel } from 'vs/editor/common/model';
 import { IEditorHover, IEditorHoverParticipant, IHoverPart } from 'vs/editor/contrib/hover/modesContentHover';
+import { HoverProviderRegistry } from 'vs/editor/common/modes';
+import { getHover } from 'vs/editor/contrib/hover/getHover';
+import { Position } from 'vs/editor/common/core/position';
+import { CancellationToken } from 'vs/base/common/cancellation';
 
 const $ = dom.$;
 
@@ -42,11 +46,11 @@ export class MarkdownHoverParticipant implements IEditorHoverParticipant<Markdow
 		@IOpenerService private readonly _openerService: IOpenerService,
 	) { }
 
-	createLoadingMessage(range: Range): MarkdownHover {
+	public createLoadingMessage(range: Range): MarkdownHover {
 		return new MarkdownHover(range, [new MarkdownString().appendText(nls.localize('modesContentHover.loading', "Loading..."))]);
 	}
 
-	computeHoverPart(hoverRange: Range, model: ITextModel, decoration: IModelDecoration): MarkdownHover | null {
+	public computeSync(hoverRange: Range, model: ITextModel, decoration: IModelDecoration): MarkdownHover | null {
 		const hoverMessage = decoration.options.hoverMessage;
 		if (!hoverMessage || isEmptyMarkdownString(hoverMessage)) {
 			return null;
@@ -59,7 +63,34 @@ export class MarkdownHoverParticipant implements IEditorHoverParticipant<Markdow
 		return new MarkdownHover(range, asArray(hoverMessage));
 	}
 
-	renderHoverParts(hoverParts: MarkdownHover[], fragment: DocumentFragment): IDisposable {
+	public async computeAsync(range: Range, token: CancellationToken): Promise<MarkdownHover[]> {
+		if (!this._editor.hasModel() || !range) {
+			return Promise.resolve([]);
+		}
+
+		const model = this._editor.getModel();
+
+		if (!HoverProviderRegistry.has(model)) {
+			return Promise.resolve([]);
+		}
+
+		const hovers = await getHover(model, new Position(
+			range.startLineNumber,
+			range.startColumn
+		), token);
+
+		const result: MarkdownHover[] = [];
+		for (const hover of hovers) {
+			if (isEmptyMarkdownString(hover.contents)) {
+				continue;
+			}
+			const rng = hover.range ? Range.lift(hover.range) : range;
+			result.push(new MarkdownHover(rng, hover.contents));
+		}
+		return result;
+	}
+
+	public renderHoverParts(hoverParts: MarkdownHover[], fragment: DocumentFragment): IDisposable {
 		const disposables = new DisposableStore();
 		for (const hoverPart of hoverParts) {
 			for (const contents of hoverPart.contents) {

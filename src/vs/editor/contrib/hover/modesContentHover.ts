@@ -11,12 +11,11 @@ import { ContentWidgetPositionPreference, ICodeEditor, IContentWidget, IContentW
 import { Position } from 'vs/editor/common/core/position';
 import { Range } from 'vs/editor/common/core/range';
 import { ModelDecorationOptions } from 'vs/editor/common/model/textModel';
-import { DocumentColorProvider, HoverProviderRegistry, IColor, TokenizationRegistry } from 'vs/editor/common/modes';
+import { DocumentColorProvider, IColor, TokenizationRegistry } from 'vs/editor/common/modes';
 import { getColorPresentations } from 'vs/editor/contrib/colorPicker/color';
 import { ColorDetector } from 'vs/editor/contrib/colorPicker/colorDetector';
 import { ColorPickerModel } from 'vs/editor/contrib/colorPicker/colorPickerModel';
 import { ColorPickerWidget } from 'vs/editor/contrib/colorPicker/colorPickerWidget';
-import { getHover } from 'vs/editor/contrib/hover/getHover';
 import { HoverOperation, HoverStartMode, IHoverComputer } from 'vs/editor/contrib/hover/hoverOperation';
 import { IThemeService, registerThemingParticipant } from 'vs/platform/theme/common/themeService';
 import { coalesce } from 'vs/base/common/arrays';
@@ -44,7 +43,8 @@ export interface IEditorHover {
 }
 
 export interface IEditorHoverParticipant<T extends IHoverPart = IHoverPart> {
-	computeHoverPart(hoverRange: Range, model: ITextModel, decoration: IModelDecoration): T | null;
+	computeSync(hoverRange: Range, model: ITextModel, decoration: IModelDecoration): T | null;
+	computeAsync?(range: Range, token: CancellationToken): Promise<T[]>;
 	renderHoverParts(hoverParts: T[], fragment: DocumentFragment): IDisposable;
 }
 
@@ -99,26 +99,8 @@ class ModesContentComputer implements IHoverComputer<HoverPartInfo[]> {
 			return Promise.resolve([]);
 		}
 
-		const model = this._editor.getModel();
-
-		if (!HoverProviderRegistry.has(model)) {
-			return Promise.resolve([]);
-		}
-
-		const hovers = await getHover(model, new Position(
-			this._range.startLineNumber,
-			this._range.startColumn
-		), token);
-
-		const result: HoverPartInfo[] = [];
-		for (const hover of hovers) {
-			const range = hover.range ? Range.lift(hover.range) : this._range;
-			if (!range) {
-				continue;
-			}
-			result.push(new HoverPartInfo(this._markdownHoverParticipant, false, new MarkdownHover(range, hover.contents)));
-		}
-		return result;
+		const markdownHovers = await this._markdownHoverParticipant.computeAsync(this._range, token);
+		return markdownHovers.map(h => new HoverPartInfo(this._markdownHoverParticipant, false, h));
 	}
 
 	public computeSync(): HoverPartInfo[] {
@@ -148,7 +130,7 @@ class ModesContentComputer implements IHoverComputer<HoverPartInfo[]> {
 				return null;
 			}
 
-			const markerHover = this._markerHoverParticipant.computeHoverPart(hoverRange, model, d);
+			const markerHover = this._markerHoverParticipant.computeSync(hoverRange, model, d);
 			if (markerHover) {
 				return new HoverPartInfo(this._markerHoverParticipant, true, markerHover);
 			}
@@ -162,7 +144,7 @@ class ModesContentComputer implements IHoverComputer<HoverPartInfo[]> {
 				return new HoverPartInfo(null, true, new ColorHover(Range.lift(range), color, colorData.provider));
 			}
 
-			const markdownHover = this._markdownHoverParticipant.computeHoverPart(hoverRange, model, d);
+			const markdownHover = this._markdownHoverParticipant.computeSync(hoverRange, model, d);
 			if (markdownHover) {
 				return new HoverPartInfo(this._markdownHoverParticipant, true, markdownHover);
 			}

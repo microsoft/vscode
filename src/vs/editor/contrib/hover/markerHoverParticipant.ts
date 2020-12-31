@@ -62,7 +62,7 @@ export class MarkerHoverParticipant implements IEditorHoverParticipant<MarkerHov
 		@IOpenerService private readonly _openerService: IOpenerService,
 	) { }
 
-	public computeHoverPart(hoverRange: Range, model: ITextModel, decoration: IModelDecoration): MarkerHover | null {
+	public computeSync(hoverRange: Range, model: ITextModel, decoration: IModelDecoration): MarkerHover | null {
 		const marker = this._markerDecorationsService.getMarker(model, decoration);
 		if (marker) {
 			const lineNumber = hoverRange.startLineNumber;
