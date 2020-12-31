@@ -57,7 +57,7 @@ suite('Types', () => {
 		assert(!types.isObject(/test/));
 		assert(!types.isObject(new RegExp('')));
 		assert(!types.isFunction(new Date()));
-		assert(!types.isObject(assert));
+		assert.strictEqual(types.isObject(assert), false);
 		assert(!types.isObject(function foo() { }));
 
 		assert(types.isObject({}));
@@ -75,7 +75,7 @@ suite('Types', () => {
 		assert(!types.isEmptyObject(/test/));
 		assert(!types.isEmptyObject(new RegExp('')));
 		assert(!types.isEmptyObject(new Date()));
-		assert(!types.isEmptyObject(assert));
+		assert.strictEqual(types.isEmptyObject(assert), false);
 		assert(!types.isEmptyObject(function foo() { /**/ }));
 		assert(!types.isEmptyObject({ foo: 'bar' }));
 

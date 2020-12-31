@@ -351,7 +351,7 @@ suite('TextModelWithTokens', () => {
 		const tokenizationSupport: ITokenizationSupport = {
 			getInitialState: () => NULL_STATE,
 			tokenize: undefined!,
-			tokenize2: (line, state) => {
+			tokenize2: (line, hasEOL, state) => {
 				switch (line) {
 					case 'function hello() {': {
 						const tokens = new Uint32Array([
@@ -446,7 +446,7 @@ suite('TextModelWithTokens regression tests', () => {
 		const tokenizationSupport: ITokenizationSupport = {
 			getInitialState: () => NULL_STATE,
 			tokenize: undefined!,
-			tokenize2: (line, state) => {
+			tokenize2: (line, hasEOL, state) => {
 				let myId = ++_tokenId;
 				let tokens = new Uint32Array(2);
 				tokens[0] = 0;
@@ -550,7 +550,7 @@ suite('TextModelWithTokens regression tests', () => {
 		const tokenizationSupport: ITokenizationSupport = {
 			getInitialState: () => NULL_STATE,
 			tokenize: undefined!,
-			tokenize2: (line, state) => {
+			tokenize2: (line, hasEOL, state) => {
 				let tokens = new Uint32Array(2);
 				tokens[0] = 0;
 				tokens[1] = (

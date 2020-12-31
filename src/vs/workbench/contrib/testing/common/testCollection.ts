@@ -9,11 +9,16 @@ import { Location as ModeLocation } from 'vs/editor/common/modes';
 import { ExtHostTestingResource } from 'vs/workbench/api/common/extHost.protocol';
 import { TestMessageSeverity, TestRunState } from 'vs/workbench/api/common/extHostTypes';
 
+export interface TestIdWithProvider {
+	testId: string;
+	providerId: string;
+}
+
 /**
  * Request to them main thread to run a set of tests.
  */
 export interface RunTestsRequest {
-	tests: { testId: string; providerId: string }[];
+	tests: TestIdWithProvider[];
 	debug: boolean;
 }
 
@@ -61,8 +66,8 @@ export interface ITestItem {
 	children?: never;
 	location: ModeLocation | undefined;
 	description: string | undefined;
-	runnable: boolean | undefined;
-	debuggable: boolean | undefined;
+	runnable: boolean;
+	debuggable: boolean;
 	state: ITestState;
 }
 
@@ -127,7 +132,7 @@ export class IncrementalChangeCollector<T> {
 	/**
 	 * A node was removed.
 	 */
-	public remove(node: T): void { }
+	public remove(node: T, isNestedOperation: boolean): void { }
 
 	/**
 	 * Called when the diff has been applied.
@@ -204,7 +209,7 @@ export abstract class AbstractIncrementalTestCollection<T extends IncrementalTes
 							if (existing) {
 								queue.push(existing.children);
 								this.items.delete(itemId);
-								changes.remove(existing);
+								changes.remove(existing, existing !== toRemove);
 							}
 						}
 					}

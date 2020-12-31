@@ -339,7 +339,7 @@ export class DebugEditorContribution implements IDebugEditorContribution {
 			if (this.hoverRange) {
 				this.showHover(this.hoverRange, false);
 			}
-		}, hoverOption.delay);
+		}, hoverOption.delay * 2);
 		this.toDispose.push(scheduler);
 
 		return scheduler;

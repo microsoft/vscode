@@ -4,11 +4,13 @@
  *--------------------------------------------------------------------------------------------*/
 
 import * as vscode from 'vscode';
-import { getDeepestNode, findNextWord, findPrevWord, getNode } from './util';
-import { Node, CssNode, Rule, Property } from 'EmmetNode';
+import { getDeepestFlatNode, findNextWord, findPrevWord, getFlatNode, offsetRangeToSelection } from './util';
+import { Node, CssNode, Rule, Property } from 'EmmetFlatNode';
 
-export function nextItemStylesheet(startOffset: vscode.Position, endOffset: vscode.Position, rootNode: Node): vscode.Selection | undefined {
-	let currentNode = <CssNode>getNode(rootNode, endOffset, true);
+export function nextItemStylesheet(document: vscode.TextDocument, startPosition: vscode.Position, endPosition: vscode.Position, rootNode: Node): vscode.Selection | undefined {
+	const startOffset = document.offsetAt(startPosition);
+	const endOffset = document.offsetAt(endPosition);
+	let currentNode: CssNode | undefined = <CssNode>getFlatNode(rootNode, endOffset, true);
 	if (!currentNode) {
 		currentNode = <CssNode>rootNode;
 	}
@@ -16,27 +18,31 @@ export function nextItemStylesheet(startOffset: vscode.Position, endOffset: vsco
 		return;
 	}
 	// Full property is selected, so select full property value next
-	if (currentNode.type === 'property' && startOffset.isEqual(currentNode.start) && endOffset.isEqual(currentNode.end)) {
-		return getSelectionFromProperty(currentNode, startOffset, endOffset, true, 'next');
+	if (currentNode.type === 'property' &&
+		startOffset === currentNode.start &&
+		endOffset === currentNode.end) {
+		return getSelectionFromProperty(document, currentNode, startOffset, endOffset, true, 'next');
 	}
 
 	// Part or whole of propertyValue is selected, so select the next word in the propertyValue
-	if (currentNode.type === 'property' && startOffset.isAfterOrEqual((<Property>currentNode).valueToken.start) && endOffset.isBeforeOrEqual((<Property>currentNode).valueToken.end)) {
-		let singlePropertyValue = getSelectionFromProperty(currentNode, startOffset, endOffset, false, 'next');
+	if (currentNode.type === 'property' &&
+		startOffset >= (<Property>currentNode).valueToken.start &&
+		endOffset <= (<Property>currentNode).valueToken.end) {
+		let singlePropertyValue = getSelectionFromProperty(document, currentNode, startOffset, endOffset, false, 'next');
 		if (singlePropertyValue) {
 			return singlePropertyValue;
 		}
 	}
 
 	// Cursor is in the selector or in a property
-	if ((currentNode.type === 'rule' && endOffset.isBefore((<Rule>currentNode).selectorToken.end))
-		|| (currentNode.type === 'property' && endOffset.isBefore((<Property>currentNode).valueToken.end))) {
-		return getSelectionFromNode(currentNode);
+	if ((currentNode.type === 'rule' && endOffset < (<Rule>currentNode).selectorToken.end)
+		|| (currentNode.type === 'property' && endOffset < (<Property>currentNode).valueToken.end)) {
+		return getSelectionFromNode(document, currentNode);
 	}
 
 	// Get the first child of current node which is right after the cursor
 	let nextNode = currentNode.firstChild;
-	while (nextNode && endOffset.isAfterOrEqual(nextNode.end)) {
+	while (nextNode && endOffset >= nextNode.end) {
 		nextNode = nextNode.nextSibling;
 	}
 
@@ -46,12 +52,13 @@ export function nextItemStylesheet(startOffset: vscode.Position, endOffset: vsco
 		currentNode = currentNode.parent;
 	}
 
-	return getSelectionFromNode(nextNode);
-
+	return nextNode ? getSelectionFromNode(document, nextNode) : undefined;
 }
 
-export function prevItemStylesheet(startOffset: vscode.Position, endOffset: vscode.Position, rootNode: CssNode): vscode.Selection | undefined {
-	let currentNode = <CssNode>getNode(rootNode, startOffset, false);
+export function prevItemStylesheet(document: vscode.TextDocument, startPosition: vscode.Position, endPosition: vscode.Position, rootNode: CssNode): vscode.Selection | undefined {
+	const startOffset = document.offsetAt(startPosition);
+	const endOffset = document.offsetAt(endPosition);
+	let currentNode = <CssNode>getFlatNode(rootNode, startOffset, false);
 	if (!currentNode) {
 		currentNode = rootNode;
 	}
@@ -60,70 +67,80 @@ export function prevItemStylesheet(startOffset: vscode.Position, endOffset: vsco
 	}
 
 	// Full property value is selected, so select the whole property next
-	if (currentNode.type === 'property' && startOffset.isEqual((<Property>currentNode).valueToken.start) && endOffset.isEqual((<Property>currentNode).valueToken.end)) {
-		return getSelectionFromNode(currentNode);
+	if (currentNode.type === 'property' &&
+		startOffset === (<Property>currentNode).valueToken.start &&
+		endOffset === (<Property>currentNode).valueToken.end) {
+		return getSelectionFromNode(document, currentNode);
 	}
 
 	// Part of propertyValue is selected, so select the prev word in the propertyValue
-	if (currentNode.type === 'property' && startOffset.isAfterOrEqual((<Property>currentNode).valueToken.start) && endOffset.isBeforeOrEqual((<Property>currentNode).valueToken.end)) {
-		let singlePropertyValue = getSelectionFromProperty(currentNode, startOffset, endOffset, false, 'prev');
+	if (currentNode.type === 'property' &&
+		startOffset >= (<Property>currentNode).valueToken.start &&
+		endOffset <= (<Property>currentNode).valueToken.end) {
+		let singlePropertyValue = getSelectionFromProperty(document, currentNode, startOffset, endOffset, false, 'prev');
 		if (singlePropertyValue) {
 			return singlePropertyValue;
 		}
 	}
 
-	if (currentNode.type === 'property' || !currentNode.firstChild || (currentNode.type === 'rule' && startOffset.isBeforeOrEqual(currentNode.firstChild.start))) {
-		return getSelectionFromNode(currentNode);
+	if (currentNode.type === 'property' || !currentNode.firstChild ||
+		(currentNode.type === 'rule' && startOffset <= currentNode.firstChild.start)) {
+		return getSelectionFromNode(document, currentNode);
 	}
 
 	// Select the child that appears just before the cursor
-	let prevNode = currentNode.firstChild;
-	while (prevNode.nextSibling && startOffset.isAfterOrEqual(prevNode.nextSibling.end)) {
+	let prevNode: CssNode | undefined = currentNode.firstChild;
+	while (prevNode.nextSibling && startOffset >= prevNode.nextSibling.end) {
 		prevNode = prevNode.nextSibling;
 	}
-	prevNode = <CssNode>getDeepestNode(prevNode);
+	prevNode = <CssNode | undefined>getDeepestFlatNode(prevNode);
 
-	return getSelectionFromProperty(prevNode, startOffset, endOffset, false, 'prev');
-
+	return getSelectionFromProperty(document, prevNode, startOffset, endOffset, false, 'prev');
 }
 
 
-function getSelectionFromNode(node: Node): vscode.Selection | undefined {
+function getSelectionFromNode(document: vscode.TextDocument, node: Node | undefined): vscode.Selection | undefined {
 	if (!node) {
 		return;
 	}
 
-	let nodeToSelect = node.type === 'rule' ? (<Rule>node).selectorToken : node;
-	return new vscode.Selection(nodeToSelect.start, nodeToSelect.end);
+	const nodeToSelect = node.type === 'rule' ? (<Rule>node).selectorToken : node;
+	return offsetRangeToSelection(document, nodeToSelect.start, nodeToSelect.end);
 }
 
 
-function getSelectionFromProperty(node: Node, selectionStart: vscode.Position, selectionEnd: vscode.Position, selectFullValue: boolean, direction: string): vscode.Selection | undefined {
+function getSelectionFromProperty(document: vscode.TextDocument, node: Node | undefined, selectionStart: number, selectionEnd: number, selectFullValue: boolean, direction: string): vscode.Selection | undefined {
 	if (!node || node.type !== 'property') {
 		return;
 	}
 	const propertyNode = <Property>node;
 
 	let propertyValue = propertyNode.valueToken.stream.substring(propertyNode.valueToken.start, propertyNode.valueToken.end);
-	selectFullValue = selectFullValue || (direction === 'prev' && selectionStart.isEqual(propertyNode.valueToken.start) && selectionEnd.isBefore(propertyNode.valueToken.end));
+	selectFullValue = selectFullValue ||
+		(direction === 'prev' && selectionStart === propertyNode.valueToken.start && selectionEnd < propertyNode.valueToken.end);
 
 	if (selectFullValue) {
-		return new vscode.Selection(propertyNode.valueToken.start, propertyNode.valueToken.end);
+		return offsetRangeToSelection(document, propertyNode.valueToken.start, propertyNode.valueToken.end);
 	}
 
 	let pos: number = -1;
 	if (direction === 'prev') {
-		if (selectionStart.isEqual(propertyNode.valueToken.start)) {
+		if (selectionStart === propertyNode.valueToken.start) {
 			return;
 		}
-		pos = selectionStart.isAfter(propertyNode.valueToken.end) ? propertyValue.length : selectionStart.character - propertyNode.valueToken.start.character;
-	}
-
-	if (direction === 'next') {
-		if (selectionEnd.isEqual(propertyNode.valueToken.end) && (selectionStart.isAfter(propertyNode.valueToken.start) || propertyValue.indexOf(' ') === -1)) {
+		const selectionStartChar = document.positionAt(selectionStart).character;
+		const tokenStartChar = document.positionAt(propertyNode.valueToken.start).character;
+		pos = selectionStart > propertyNode.valueToken.end ? propertyValue.length :
+			selectionStartChar - tokenStartChar;
+	} else if (direction === 'next') {
+		if (selectionEnd === propertyNode.valueToken.end &&
+			(selectionStart > propertyNode.valueToken.start || !propertyValue.includes(' '))) {
 			return;
 		}
-		pos = selectionEnd.isEqual(propertyNode.valueToken.end) ? -1 : selectionEnd.character - propertyNode.valueToken.start.character - 1;
+		const selectionEndChar = document.positionAt(selectionEnd).character;
+		const tokenStartChar = document.positionAt(propertyNode.valueToken.start).character;
+		pos = selectionEnd === propertyNode.valueToken.end ? -1 :
+			selectionEndChar - tokenStartChar - 1;
 	}
 
 
@@ -132,8 +149,9 @@ function getSelectionFromProperty(node: Node, selectionStart: vscode.Position, s
 		return;
 	}
 
-	const newSelectionStart = (<vscode.Position>propertyNode.valueToken.start).translate(0, newSelectionStartOffset);
-	const newSelectionEnd = (<vscode.Position>propertyNode.valueToken.start).translate(0, newSelectionEndOffset);
+	const tokenStart = document.positionAt(propertyNode.valueToken.start);
+	const newSelectionStart = tokenStart.translate(0, newSelectionStartOffset);
+	const newSelectionEnd = tokenStart.translate(0, newSelectionEndOffset);
 
 	return new vscode.Selection(newSelectionStart, newSelectionEnd);
 }

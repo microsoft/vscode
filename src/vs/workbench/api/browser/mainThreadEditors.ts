@@ -27,7 +27,7 @@ import { IWorkingCopyService } from 'vs/workbench/services/workingCopy/common/wo
 import { revive } from 'vs/base/common/marshalling';
 import { ResourceNotebookCellEdit } from 'vs/workbench/contrib/bulkEdit/browser/bulkCellEdits';
 
-function reviveWorkspaceEditDto2(data: IWorkspaceEditDto | undefined): ResourceEdit[] {
+export function reviveWorkspaceEditDto2(data: IWorkspaceEditDto | undefined): ResourceEdit[] {
 	if (!data?.edits) {
 		return [];
 	}

@@ -8,6 +8,7 @@ import { streamToBuffer } from 'vs/base/common/buffer';
 import { IDisposable } from 'vs/base/common/lifecycle';
 import { Schemas } from 'vs/base/common/network';
 import { URI } from 'vs/base/common/uri';
+import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { IFileService } from 'vs/platform/files/common/files';
 import { ILogService } from 'vs/platform/log/common/log';
 import { INotificationService } from 'vs/platform/notification/common/notification';
@@ -24,6 +25,7 @@ import { IWorkbenchEnvironmentService } from 'vs/workbench/services/environment/
 
 export class IFrameWebview extends BaseWebview<HTMLIFrameElement> implements Webview {
 	private readonly _portMappingManager: WebviewPortMappingManager;
+	private _confirmBeforeClose: string;
 
 	constructor(
 		id: string,
@@ -37,8 +39,9 @@ export class IFrameWebview extends BaseWebview<HTMLIFrameElement> implements Web
 		@IRequestService private readonly requestService: IRequestService,
 		@ITelemetryService telemetryService: ITelemetryService,
 		@IWorkbenchEnvironmentService environmentService: IWorkbenchEnvironmentService,
+		@IConfigurationService private readonly _configurationService: IConfigurationService,
 		@IRemoteAuthorityResolverService private readonly _remoteAuthorityResolverService: IRemoteAuthorityResolverService,
-		@ILogService logService: ILogService,
+		@ILogService private readonly logService: ILogService,
 	) {
 		super(id, options, contentOptions, extension, webviewThemeDataProvider, notificationService, logService, telemetryService, environmentService);
 
@@ -59,6 +62,15 @@ export class IFrameWebview extends BaseWebview<HTMLIFrameElement> implements Web
 			this.localLocalhost(entry.origin);
 		}));
 
+		this._confirmBeforeClose = this._configurationService.getValue<string>('window.confirmBeforeClose');
+
+		this._register(this._configurationService.onDidChangeConfiguration(e => {
+			if (e.affectsConfiguration('window.confirmBeforeClose')) {
+				this._confirmBeforeClose = this._configurationService.getValue('window.confirmBeforeClose');
+				this._send(WebviewMessageChannels.setConfirmBeforeClose, this._confirmBeforeClose);
+			}
+		}));
+
 		this.initElement(extension, options);
 	}
 
@@ -75,8 +87,19 @@ export class IFrameWebview extends BaseWebview<HTMLIFrameElement> implements Web
 	}
 
 	protected initElement(extension: WebviewExtensionDescription | undefined, options: WebviewOptions) {
-		// The extensionId and purpose in the URL are used for filtering in js-debug:
-		this.element!.setAttribute('src', `${this.externalEndpoint}/index.html?id=${this.id}&extensionId=${extension?.id.value ?? ''}&purpose=${options.purpose}`);
+		const params = {
+			id: this.id,
+
+			// The extensionId and purpose in the URL are used for filtering in js-debug:
+			extensionId: extension?.id.value ?? '',
+			purpose: options.purpose,
+		} as const;
+
+		const queryString = (Object.keys(params) as Array<keyof typeof params>)
+			.map((key) => `${key}=${params[key]}`)
+			.join('&');
+
+		this.element!.setAttribute('src', `${this.externalEndpoint}/index.html?${queryString}`);
 	}
 
 	private get externalEndpoint(): string {
@@ -116,6 +139,7 @@ export class IFrameWebview extends BaseWebview<HTMLIFrameElement> implements Web
 	protected get extraContentOptions(): any {
 		return {
 			endpoint: this.externalEndpoint,
+			confirmBeforeClose: this._confirmBeforeClose,
 		};
 	}
 
@@ -168,7 +192,7 @@ export class IFrameWebview extends BaseWebview<HTMLIFrameElement> implements Web
 				rewriteUri,
 			}, {
 				readFileStream: (resource) => this.fileService.readFileStream(resource).then(x => x.value),
-			}, this.requestService);
+			}, this.requestService, this.logService);
 
 			if (result.type === WebviewResourceResponse.Type.Success) {
 				const { buffer } = await streamToBuffer(result.stream);

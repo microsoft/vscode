@@ -854,7 +854,7 @@ export abstract class AbstractTaskService extends Disposable implements ITaskSer
 	}
 
 	private openDocumentation(): void {
-		this.openerService.open(URI.parse('https://go.microsoft.com/fwlink/?LinkId=733558'));
+		this.openerService.open(URI.parse('https://code.visualstudio.com/docs/editor/tasks#_defining-a-problem-matcher'));
 	}
 
 	public async build(): Promise<ITaskSummary> {
@@ -1977,7 +1977,7 @@ export abstract class AbstractTaskService extends Disposable implements ITaskSer
 		await this.computeTasksForSingleConfig(workspaceFolder, configuration.config, runSource, custom, customizedTasks.byIdentifier, TaskConfig.TaskConfigSource.WorkspaceFile);
 		const engine = configuration.config ? TaskConfig.ExecutionEngine.from(configuration.config) : ExecutionEngine.Terminal;
 		if (engine === ExecutionEngine.Process) {
-			this.notificationService.warn(nls.localize('TaskSystem.versionWorkspaceFile', 'Only tasks version 2.0.0 permitted in .codeworkspace.'));
+			this.notificationService.warn(nls.localize('TaskSystem.versionWorkspaceFile', 'Only tasks version 2.0.0 permitted in workspace configuration files.'));
 			return this.emptyWorkspaceTaskResults(workspaceFolder);
 		}
 		return { workspaceFolder, set: { tasks: custom }, configurations: customizedTasks, hasErrors: configuration.hasParseErrors };
@@ -2866,7 +2866,7 @@ export abstract class AbstractTaskService extends Disposable implements ITaskSer
 		}
 		if (this.isTaskEntry(selection)) {
 			this.configureTask(selection.task);
-		} else if (this.contextService.getWorkbenchState() !== WorkbenchState.EMPTY) {
+		} else if (selection.folder && (this.contextService.getWorkbenchState() !== WorkbenchState.EMPTY)) {
 			this.openTaskFile(selection.folder.toResource('.vscode/tasks.json'), TaskSourceKind.Workspace);
 		} else {
 			const resource = this.getResourceForKind(TaskSourceKind.User);

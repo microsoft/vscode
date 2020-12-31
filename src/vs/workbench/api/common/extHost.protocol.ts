@@ -3,6 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
+import * as performance from 'vs/base/common/performance';
 import { VSBuffer } from 'vs/base/common/buffer';
 import { CancellationToken } from 'vs/base/common/cancellation';
 import { IRemoteConsoleLog } from 'vs/base/common/console';
@@ -41,7 +42,7 @@ import { IRevealOptions, ITreeItem } from 'vs/workbench/common/views';
 import { IAdapterDescriptor, IConfig, IDebugSessionReplMode } from 'vs/workbench/contrib/debug/common/debug';
 import { ITextQueryBuilderOptions } from 'vs/workbench/contrib/search/common/queryBuilder';
 import { ITerminalDimensions, IShellLaunchConfig, ITerminalLaunchError } from 'vs/workbench/contrib/terminal/common/terminal';
-import { ActivationKind, ExtensionActivationError } from 'vs/workbench/services/extensions/common/extensions';
+import { ActivationKind, ExtensionActivationError, ExtensionHostKind } from 'vs/workbench/services/extensions/common/extensions';
 import { createExtHostContextProxyIdentifier as createExtId, createMainContextProxyIdentifier as createMainId, IRPCProtocol } from 'vs/workbench/services/extensions/common/proxyIdentifier';
 import * as search from 'vs/workbench/services/search/common/search';
 import { EditorGroupColumn, SaveReason } from 'vs/workbench/common/editor';
@@ -108,7 +109,8 @@ export interface IConfigurationInitData extends IConfigurationData {
 }
 
 export interface IExtHostContext extends IRPCProtocol {
-	remoteAuthority: string | null;
+	readonly remoteAuthority: string | null;
+	readonly extensionHostKind: ExtensionHostKind;
 }
 
 export interface IMainContext extends IRPCProtocol {
@@ -786,6 +788,15 @@ export interface ExtHostUrlsShape {
 	$handleExternalUri(handle: number, uri: UriComponents): Promise<void>;
 }
 
+export interface MainThreadUriOpenersShape extends IDisposable {
+	$registerUriOpener(handle: number, schemes: readonly string[]): Promise<void>;
+	$unregisterUriOpener(handle: number): Promise<void>;
+}
+
+export interface ExtHostUriOpenersShape {
+	$openUri(uri: UriComponents, token: CancellationToken): Promise<boolean>;
+}
+
 export interface ITextSearchComplete {
 	limitHit?: boolean;
 }
@@ -853,6 +864,7 @@ export interface MainThreadExtensionServiceShape extends IDisposable {
 	$onExtensionActivationError(extensionId: ExtensionIdentifier, error: ExtensionActivationError): Promise<void>;
 	$onExtensionRuntimeError(extensionId: ExtensionIdentifier, error: SerializedError): void;
 	$onExtensionHostExit(code: number): Promise<void>;
+	$setPerformanceMarks(marks: performance.PerformanceMark[]): Promise<void>;
 }
 
 export interface SCMProviderFeatures {
@@ -959,7 +971,6 @@ export interface MainThreadTunnelServiceShape extends IDisposable {
 	$closeTunnel(remote: { host: string, port: number }): Promise<void>;
 	$getTunnels(): Promise<TunnelDescription[]>;
 	$setTunnelProvider(): Promise<void>;
-	$tunnelServiceReady(): Promise<void>;
 	$onFoundNewCandidates(candidates: { host: string, port: number, detail: string }[]): Promise<void>;
 }
 
@@ -1052,7 +1063,7 @@ export interface ExtHostTreeViewsShape {
 	$setSelection(treeViewId: string, treeItemHandles: string[]): void;
 	$setVisible(treeViewId: string, visible: boolean): void;
 	$hasResolve(treeViewId: string): Promise<boolean>;
-	$resolve(treeViewId: string, treeItemHandle: string): Promise<ITreeItem | undefined>;
+	$resolve(treeViewId: string, treeItemHandle: string, token: CancellationToken): Promise<ITreeItem | undefined>;
 }
 
 export interface ExtHostWorkspaceShape {
@@ -1145,9 +1156,14 @@ export interface SourceTargetPair {
 	target: UriComponents;
 }
 
+export interface IWillRunFileOperationParticipation {
+	edit: IWorkspaceEditDto;
+	extensionNames: string[]
+}
+
 export interface ExtHostFileSystemEventServiceShape {
 	$onFileEvent(events: FileSystemEvents): void;
-	$onWillRunFileOperation(operation: files.FileOperation, files: SourceTargetPair[], undoRedoGroupId: number | undefined, timeout: number, token: CancellationToken): Promise<any>;
+	$onWillRunFileOperation(operation: files.FileOperation, files: SourceTargetPair[], timeout: number, token: CancellationToken): Promise<IWillRunFileOperationParticipation | undefined>;
 	$onDidRunFileOperation(operation: files.FileOperation, files: SourceTargetPair[]): void;
 }
 
@@ -1749,9 +1765,10 @@ export interface MainThreadThemingShape extends IDisposable {
 }
 
 export interface ExtHostTunnelServiceShape {
-	$forwardPort(tunnelOptions: TunnelOptions, tunnelCreationOptions: TunnelCreationOptions): Promise<TunnelDto> | undefined;
+	$forwardPort(tunnelOptions: TunnelOptions, tunnelCreationOptions: TunnelCreationOptions): Promise<TunnelDto | undefined>;
 	$closeTunnel(remote: { host: string, port: number }, silent?: boolean): Promise<void>;
 	$onDidTunnelsChange(): Promise<void>;
+	$registerCandidateFinder(): Promise<void>;
 }
 
 export interface ExtHostTimelineShape {
@@ -1764,7 +1781,7 @@ export const enum ExtHostTestingResource {
 }
 
 export interface ExtHostTestingShape {
-	$runTestsForProvider(req: RunTestForProviderRequest): Promise<RunTestsResult>;
+	$runTestsForProvider(req: RunTestForProviderRequest, token: CancellationToken): Promise<RunTestsResult>;
 	$subscribeToTests(resource: ExtHostTestingResource, uri: UriComponents): void;
 	$unsubscribeFromTests(resource: ExtHostTestingResource, uri: UriComponents): void;
 
@@ -1777,7 +1794,7 @@ export interface MainThreadTestingShape {
 	$subscribeToDiffs(resource: ExtHostTestingResource, uri: UriComponents): void;
 	$unsubscribeFromDiffs(resource: ExtHostTestingResource, uri: UriComponents): void;
 	$publishDiff(resource: ExtHostTestingResource, uri: UriComponents, diff: TestsDiff): void;
-	$runTests(req: RunTestsRequest): Promise<RunTestsResult>;
+	$runTests(req: RunTestsRequest, token: CancellationToken): Promise<RunTestsResult>;
 }
 
 // --- proxy identifiers
@@ -1818,6 +1835,7 @@ export const MainContext = {
 	MainThreadWebviewViews: createMainId<MainThreadWebviewViewsShape>('MainThreadWebviewViews'),
 	MainThreadCustomEditors: createMainId<MainThreadCustomEditorsShape>('MainThreadCustomEditors'),
 	MainThreadUrls: createMainId<MainThreadUrlsShape>('MainThreadUrls'),
+	MainThreadUriOpeners: createMainId<MainThreadUriOpenersShape>('MainThreadUriOpeners'),
 	MainThreadWorkspace: createMainId<MainThreadWorkspaceShape>('MainThreadWorkspace'),
 	MainThreadFileSystem: createMainId<MainThreadFileSystemShape>('MainThreadFileSystem'),
 	MainThreadExtensionService: createMainId<MainThreadExtensionServiceShape>('MainThreadExtensionService'),
@@ -1867,6 +1885,7 @@ export const ExtHostContext = {
 	ExtHostComments: createMainId<ExtHostCommentsShape>('ExtHostComments'),
 	ExtHostStorage: createMainId<ExtHostStorageShape>('ExtHostStorage'),
 	ExtHostUrls: createExtId<ExtHostUrlsShape>('ExtHostUrls'),
+	ExtHostUriOpeners: createExtId<ExtHostUriOpenersShape>('ExtHostUriOpeners'),
 	ExtHostOutputService: createMainId<ExtHostOutputServiceShape>('ExtHostOutputService'),
 	ExtHosLabelService: createMainId<ExtHostLabelServiceShape>('ExtHostLabelService'),
 	ExtHostNotebook: createMainId<ExtHostNotebookShape>('ExtHostNotebook'),

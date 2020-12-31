@@ -17,11 +17,10 @@ import { FileAccess } from 'vs/base/common/network';
 
 export class SharedProcess implements ISharedProcess {
 
-	private barrier = new Barrier();
+	private readonly barrier = new Barrier();
+	private readonly _whenReady: Promise<void>;
 
 	private window: BrowserWindow | null = null;
-
-	private readonly _whenReady: Promise<void>;
 
 	constructor(
 		private readonly machineId: string,
@@ -52,6 +51,7 @@ export class SharedProcess implements ISharedProcess {
 				disableBlinkFeatures: 'Auxclick' // do NOT change, allows us to identify this window as shared-process in the process explorer
 			}
 		});
+
 		const config = {
 			appRoot: this.environmentService.appRoot,
 			machineId: this.machineId,
@@ -110,7 +110,8 @@ export class SharedProcess implements ISharedProcess {
 			}, 0);
 		});
 
-		return new Promise<void>(c => {
+		return new Promise<void>(resolve => {
+
 			// send payload once shared process is ready to receive it
 			disposables.add(Event.once(Event.fromNodeEventEmitter(ipcMain, 'vscode:shared-process->electron-main=ready-for-payload', ({ sender }: { sender: WebContents }) => sender))(sender => {
 				sender.send('vscode:electron-main->shared-process=payload', {
@@ -125,7 +126,7 @@ export class SharedProcess implements ISharedProcess {
 				disposables.add(toDisposable(() => sender.send('vscode:electron-main->shared-process=exit')));
 
 				// complete IPC-ready promise when shared process signals this to us
-				ipcMain.once('vscode:shared-process->electron-main=ipc-ready', () => c(undefined));
+				ipcMain.once('vscode:shared-process->electron-main=ipc-ready', () => resolve(undefined));
 			}));
 		});
 	}

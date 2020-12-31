@@ -11,6 +11,7 @@ import * as crypto from 'crypto';
 import * as azure from 'azure-storage';
 import * as mime from 'mime';
 import { CosmosClient } from '@azure/cosmos';
+import { retry } from './retry';
 
 interface Asset {
 	platform: string;
@@ -93,11 +94,15 @@ async function main(): Promise<void> {
 	const blobExists = await doesAssetExist(blobService, quality, blobName);
 
 	if (blobExists) {
-		console.log(`Blob ${quality}, ${blobName} already exists, not uploading again.`);
-	} else {
-		await uploadBlob(blobService, quality, blobName, filePath, fileName);
-		console.log('Blobs successfully uploaded.');
+		console.log(`Blob ${quality}, ${blobName} already exists, not publishing again.`);
+		return;
 	}
+
+	console.log('Uploading blobs to Azure storage...');
+
+	await uploadBlob(blobService, quality, blobName, filePath, fileName);
+
+	console.log('Blobs successfully uploaded.');
 
 	const asset: Asset = {
 		platform,
@@ -117,7 +122,7 @@ async function main(): Promise<void> {
 
 	const client = new CosmosClient({ endpoint: process.env['AZURE_DOCUMENTDB_ENDPOINT']!, key: process.env['AZURE_DOCUMENTDB_MASTERKEY'] });
 	const scripts = client.database('builds').container(quality).scripts;
-	await scripts.storedProcedure('createAsset').execute('', [commit, asset, true]);
+	await retry(() => scripts.storedProcedure('createAsset').execute('', [commit, asset, true]));
 }
 
 main().then(() => {

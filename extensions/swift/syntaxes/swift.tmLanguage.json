@@ -4,7 +4,7 @@
 		"If you want to provide a fix or improvement, please create a pull request against the original repository.",
 		"Once accepted there, we are happy to receive an update request."
 	],
-	"version": "https://github.com/textmate/swift.tmbundle/commit/97d29d2073853c328e42239c5d38c96e2e2ade9c",
+	"version": "https://github.com/textmate/swift.tmbundle/commit/d31bae2e0d6a4d977187dc7f06f538d6ba56b89b",
 	"name": "Swift",
 	"scopeName": "source.swift",
 	"comment": "See swift.tmbundle/grammar-test.swift for test cases.",
@@ -755,6 +755,9 @@
 					"include": "#function-initializer"
 				},
 				{
+					"include": "#typed-variable-declaration"
+				},
+				{
 					"include": "#import"
 				},
 				{
@@ -791,6 +794,10 @@
 						{
 							"match": "\\b(?:throws|rethrows)\\b",
 							"name": "keyword.control.exception.swift"
+						},
+						{
+							"match": "\\bsome\\b",
+							"name": "keyword.operator.type.opaque.swift"
 						},
 						{
 							"match": "\\binout\\b",
@@ -2222,6 +2229,20 @@
 						}
 					},
 					"end": "(?!\\G)$|(?=;|//|/\\*|$)",
+					"patterns": [
+						{
+							"include": "#available-types"
+						}
+					]
+				},
+				"typed-variable-declaration": {
+					"begin": "(?x)\n\t\t\t\t\t\t\\b(let|var)\\b\\s+\n\t\t\t\t\t\t(?<q>`?)[\\p{L}_][\\p{L}_\\p{N}\\p{M}]*(\\k<q>)\\s*\n\t\t\t\t\t\t:\n\t\t\t\t\t",
+					"beginCaptures": {
+						"1": {
+							"name": "keyword.other.declaration-specifier.swift"
+						}
+					},
+					"end": "(?=$|[={])",
 					"patterns": [
 						{
 							"include": "#available-types"

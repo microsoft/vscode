@@ -678,6 +678,11 @@ export interface IDiffEditorOptions extends IEditorOptions {
 	 */
 	isInEmbeddedEditor?: boolean;
 	/**
+	 * Is the diff editor should render overview ruler
+	 * Defaults to true
+	 */
+	renderOverviewRuler?: boolean;
+	/**
 	 * Control the wrapping of the diff editor.
 	 */
 	diffWordWrap?: 'off' | 'on' | 'inherit';
@@ -3273,7 +3278,7 @@ class EditorSuggest extends BaseEditorOption<EditorOption.suggest, InternalSugge
 				'editor.suggest.showInlineDetails': {
 					type: 'boolean',
 					default: defaults.showInlineDetails,
-					description: nls.localize('suggest.showInlineDetails', "Controls whether sugget details show inline with the label or only in the details widget")
+					description: nls.localize('suggest.showInlineDetails', "Controls whether suggest details show inline with the label or only in the details widget")
 				},
 				'editor.suggest.maxVisibleSuggestions': {
 					type: 'number',

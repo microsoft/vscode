@@ -9,7 +9,7 @@ import * as nls from 'vs/nls';
 import * as perf from 'vs/base/common/performance';
 import { Emitter } from 'vs/base/common/event';
 import { URI } from 'vs/base/common/uri';
-import { screen, BrowserWindow, systemPreferences, app, TouchBar, nativeImage, Rectangle, Display, TouchBarSegmentedControl, NativeImage, BrowserWindowConstructorOptions, SegmentedControlSegment, nativeTheme, Event, Details } from 'electron';
+import { screen, BrowserWindow, systemPreferences, app, TouchBar, nativeImage, Rectangle, Display, TouchBarSegmentedControl, NativeImage, BrowserWindowConstructorOptions, SegmentedControlSegment, nativeTheme, Event, RenderProcessGoneDetails } from 'electron';
 import { IEnvironmentMainService } from 'vs/platform/environment/electron-main/environmentMainService';
 import { ILogService } from 'vs/platform/log/common/log';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
@@ -28,7 +28,7 @@ import { resolveMarketplaceHeaders } from 'vs/platform/extensionManagement/commo
 import { IThemeMainService } from 'vs/platform/theme/electron-main/themeMainService';
 import { RunOnceScheduler } from 'vs/base/common/async';
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
-import { IDialogMainService } from 'vs/platform/dialogs/electron-main/dialogs';
+import { IDialogMainService } from 'vs/platform/dialogs/electron-main/dialogMainService';
 import { mnemonicButtonLabel } from 'vs/base/common/labels';
 import { ThemeIcon } from 'vs/platform/theme/common/themeService';
 import { ILifecycleMainService } from 'vs/platform/lifecycle/electron-main/lifecycleMainService';
@@ -544,8 +544,8 @@ export class CodeWindow extends Disposable implements ICodeWindow {
 	}
 
 	private onWindowError(error: WindowError.UNRESPONSIVE): void;
-	private onWindowError(error: WindowError.CRASHED, details: Details): void;
-	private onWindowError(error: WindowError, details?: Details): void {
+	private onWindowError(error: WindowError.CRASHED, details: RenderProcessGoneDetails): void;
+	private onWindowError(error: WindowError, details?: RenderProcessGoneDetails): void {
 		this.logService.error(error === WindowError.CRASHED ? `[VS Code]: renderer process crashed (detail: ${details?.reason})` : '[VS Code]: detected unresponsive');
 
 		// If we run extension tests from CLI, showing a dialog is not
@@ -648,6 +648,7 @@ export class CodeWindow extends Disposable implements ICodeWindow {
 			this.currentMenuBarVisibility = newMenuBarVisibility;
 			this.setMenuBarVisibility(newMenuBarVisibility);
 		}
+
 		// Do not set to empty configuration at startup if setting is empty to not override configuration through CLI options:
 		const env = process.env;
 		let newHttpProxy = (this.configurationService.getValue<string>('http.proxy') || '').trim()
@@ -728,7 +729,7 @@ export class CodeWindow extends Disposable implements ICodeWindow {
 		}
 
 		// Load URL
-		perf.mark('main:loadWindow');
+		perf.mark('code/willOpenNewWindow');
 		this._win.loadURL(this.getUrl(configuration));
 
 		// Make window visible if it did not open in N seconds because this indicates an error
@@ -780,6 +781,7 @@ export class CodeWindow extends Disposable implements ICodeWindow {
 		windowConfiguration.windowId = this._win.id;
 		windowConfiguration.sessionId = `window:${this._win.id}`;
 		windowConfiguration.logLevel = this.logService.getLevel();
+		windowConfiguration.logsPath = this.environmentService.logsPath;
 
 		// Set zoomlevel
 		const windowConfig = this.configurationService.getValue<IWindowSettings | undefined>('window');
@@ -803,7 +805,7 @@ export class CodeWindow extends Disposable implements ICodeWindow {
 		windowConfiguration.maximized = this._win.isMaximized();
 
 		// Dump Perf Counters
-		windowConfiguration.perfEntries = perf.exportEntries();
+		windowConfiguration.perfMarks = perf.getMarks();
 
 		// Parts splash
 		windowConfiguration.partsSplashPath = path.join(this.environmentService.userDataPath, 'rapid_render.json');

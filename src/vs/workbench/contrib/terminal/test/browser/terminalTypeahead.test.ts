@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import * as assert from 'assert';
-import { Terminal } from 'xterm';
+import { IBuffer, Terminal } from 'xterm';
 import { SinonStub, stub, useFakeTimers } from 'sinon';
 import { Emitter } from 'vs/base/common/event';
 import { CharPredictState, IPrediction, PredictionStats, TypeAheadAddon } from 'vs/workbench/contrib/terminal/browser/terminalTypeAheadAddon';
@@ -13,6 +13,11 @@ import { TerminalConfigHelper } from 'vs/workbench/contrib/terminal/browser/term
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
 
 const CSI = `\x1b[`;
+
+const enum CursorMoveDirection {
+	Back = 'D',
+	Forwards = 'C',
+}
 
 suite('Workbench - Terminal Typeahead', () => {
 	suite('PredictionStats', () => {
@@ -123,6 +128,41 @@ suite('Workbench - Terminal Typeahead', () => {
 			assert.strictEqual(addon.stats?.accuracy, 1);
 		});
 
+		test('validates zsh prediction (#112842)', () => {
+			const t = createMockTerminal({ lines: ['hello|'] });
+			addon.activate(t.terminal);
+			t.onData('o');
+			expectProcessed('o', predictedHelloo);
+
+			t.onData('x');
+			expectProcessed('\box', [
+				`${CSI}?25l`, // hide cursor
+				`${CSI}2;8H`, // move cursor
+				'\box', // new data
+				`${CSI}2;9H`, // place cursor back at end of line
+				`${CSI}?25h`, // show cursor
+			].join(''));
+			assert.strictEqual(addon.stats?.accuracy, 1);
+		});
+
+		test('does not validate zsh prediction on differing lookbehindn (#112842)', () => {
+			const t = createMockTerminal({ lines: ['hello|'] });
+			addon.activate(t.terminal);
+			t.onData('o');
+			expectProcessed('o', predictedHelloo);
+
+			t.onData('x');
+			expectProcessed('\bqx', [
+				`${CSI}?25l`, // hide cursor
+				`${CSI}2;8H`, // move cursor cursor
+				`${CSI}X`, // delete character
+				`${CSI}0m`, // reset style
+				'\bqx', // new data
+				`${CSI}?25h`, // show cursor
+			].join(''));
+			assert.strictEqual(addon.stats?.accuracy, 0.5);
+		});
+
 		test('rolls back character prediction', () => {
 			const t = createMockTerminal({ lines: ['hello|'] });
 			addon.activate(t.terminal);
@@ -137,6 +177,42 @@ suite('Workbench - Terminal Typeahead', () => {
 				`${CSI}?25h`, // show cursor
 			].join(''));
 			assert.strictEqual(addon.stats?.accuracy, 0);
+		});
+
+		test('handles left arrow when we hit the boundary', () => {
+			const t = createMockTerminal({ lines: ['|'] });
+			addon.activate(t.terminal);
+			addon.unlockLeftNavigating();
+
+			const cursorXBefore = addon.getCursor(t.terminal.buffer.active)?.x!;
+			t.onData(`${CSI}${CursorMoveDirection.Back}`);
+			t.expectWritten('');
+
+			// Trigger rollback because we don't expect this data
+			onBeforeProcessData.fire({ data: 'xy' });
+
+			assert.strictEqual(
+				addon.getCursor(t.terminal.buffer.active)?.x,
+				// The cursor should not have changed because we've hit the
+				// boundary (start of prompt)
+				cursorXBefore);
+		});
+
+		test('internal cursor state is reset when all predictions are undone', () => {
+			const t = createMockTerminal({ lines: ['|'] });
+			addon.activate(t.terminal);
+			addon.unlockLeftNavigating();
+
+			const cursorXBefore = addon.getCursor(t.terminal.buffer.active)?.x!;
+			t.onData(`${CSI}${CursorMoveDirection.Back}`);
+			t.expectWritten('');
+			addon.undoAllPredictions();
+
+			assert.strictEqual(
+				addon.getCursor(t.terminal.buffer.active)?.x,
+				// The cursor should not have changed because we've hit the
+				// boundary (start of prompt)
+				cursorXBefore);
 		});
 
 		test('restores cursor graphics mode', () => {
@@ -295,6 +371,14 @@ class TestTypeAheadAddon extends TypeAheadAddon {
 
 	public get isShowing() {
 		return !!this.timeline?.isShowingPredictions;
+	}
+
+	public undoAllPredictions() {
+		this.timeline?.undoAllPredictions();
+	}
+
+	public getCursor(buffer: IBuffer) {
+		return this.timeline?.getCursor(buffer);
 	}
 }
 

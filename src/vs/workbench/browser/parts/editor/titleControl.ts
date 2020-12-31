@@ -46,6 +46,20 @@ export interface IToolbarActions {
 	secondary: IAction[];
 }
 
+export interface ITitleControlDimensions {
+
+	/**
+	 * The size of the parent container the title control is layed out in.
+	 */
+	container: Dimension;
+
+	/**
+	 * The maximum size the title control is allowed to consume based on
+	 * other controls that are positioned inside the container.
+	 */
+	available: Dimension;
+}
+
 export abstract class TitleControl extends Themable {
 
 	protected readonly groupTransfer = LocalSelectionTransfer.getInstance<DraggedEditorGroupIdentifier>();
@@ -95,7 +109,7 @@ export abstract class TitleControl extends Themable {
 		this.registerListeners();
 	}
 
-	protected registerListeners(): void {
+	private registerListeners(): void {
 
 		// Update actions toolbar when extension register that may contribute them
 		this._register(this.extensionService.onDidRegisterExtensions(() => this.updateEditorActionsToolbar()));
@@ -407,7 +421,7 @@ export abstract class TitleControl extends Themable {
 
 	abstract updateStyles(): void;
 
-	abstract layout(dimension: Dimension): void;
+	abstract layout(dimensions: ITitleControlDimensions): Dimension;
 
 	abstract getDimensions(): IEditorGroupTitleDimensions;
 

@@ -430,10 +430,7 @@
         "deps": "yarn add vscode-emmet-helper"
     },
     "devDependencies": {
-        "@types/node": "^12.11.7",
-        "mocha-junit-reporter": "^1.17.0",
-        "mocha-multi-reporters": "^1.1.7",
-        "vscode": "1.0.1"
+        "@types/node": "^12.19.9"
     },
     "dependencies": {
         "@emmetio/css-parser": "ramya-rao-a/css-parser#vscode",
@@ -441,6 +438,6 @@
         "@emmetio/math-expression": "^1.0.4",
         "image-size": "^0.5.2",
         "vscode-emmet-helper": "~2.0.0",
-        "vscode-html-languageservice": "^3.0.3"
+        "vscode-languageserver-textdocument": "^1.0.1"
     }
 }

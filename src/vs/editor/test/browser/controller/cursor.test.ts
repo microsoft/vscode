@@ -2349,6 +2349,37 @@ suite('Editor Controller - Regression tests', () => {
 		});
 	});
 
+	test('issue #112301: new stickyTabStops feature interferes with word wrap', () => {
+		withTestCodeEditor([
+			[
+				'function hello() {',
+				'        console.log(`this is a long console message`)',
+				'}',
+			].join('\n')
+		], { wordWrap: 'wordWrapColumn', wordWrapColumn: 32, stickyTabStops: true }, (editor, viewModel) => {
+			viewModel.setSelections('test', [
+				new Selection(2, 31, 2, 31)
+			]);
+			moveRight(editor, viewModel, false);
+			assertCursor(viewModel, new Position(2, 32));
+
+			moveRight(editor, viewModel, false);
+			assertCursor(viewModel, new Position(2, 33));
+
+			moveRight(editor, viewModel, false);
+			assertCursor(viewModel, new Position(2, 34));
+
+			moveLeft(editor, viewModel, false);
+			assertCursor(viewModel, new Position(2, 33));
+
+			moveLeft(editor, viewModel, false);
+			assertCursor(viewModel, new Position(2, 32));
+
+			moveLeft(editor, viewModel, false);
+			assertCursor(viewModel, new Position(2, 31));
+		});
+	});
+
 	test('issue #44805: Should not be able to undo in readonly editor', () => {
 		let model = createTextModel(
 			[
@@ -2375,7 +2406,7 @@ suite('Editor Controller - Regression tests', () => {
 		const tokenizationSupport: ITokenizationSupport = {
 			getInitialState: () => NULL_STATE,
 			tokenize: undefined!,
-			tokenize2: (line: string, state: IState): TokenizationResult2 => {
+			tokenize2: (line: string, hasEOL: boolean, state: IState): TokenizationResult2 => {
 				return new TokenizationResult2(new Uint32Array(0), state);
 			}
 		};
@@ -4168,6 +4199,18 @@ suite('Editor Controller - Indentation Rules', () => {
 
 		model.dispose();
 		mode.dispose();
+	});
+
+	test('issue #111128: Multicursor `Enter` issue with indentation', () => {
+		const model = createTextModel('    let a, b, c;', { detectIndentation: false, insertSpaces: false, tabSize: 4 }, mode.getLanguageIdentifier());
+		withTestCodeEditor(null, { model: model }, (editor, viewModel) => {
+			editor.setSelections([
+				new Selection(1, 11, 1, 11),
+				new Selection(1, 14, 1, 14),
+			]);
+			viewModel.type('\n', 'keyboard');
+			assert.equal(model.getValue(), '    let a,\n\t b,\n\t c;');
+		});
 	});
 });
 

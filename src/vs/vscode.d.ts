@@ -5173,9 +5173,9 @@ declare module 'vscode' {
 		set(uri: Uri, diagnostics: ReadonlyArray<Diagnostic> | undefined): void;
 
 		/**
-		 * Replace all entries in this collection.
+		 * Replace diagnostics for multiple resources in this collection.
 		 *
-		 * Diagnostics of multiple tuples of the same uri will be merged, e.g
+		 *  _Note_ that multiple tuples of the same uri will be merged, e.g
 		 * `[[file1, [d1]], [file1, [d2]]]` is equivalent to `[[file1, [d1, d2]]]`.
 		 * If a diagnostics item is `undefined` as in `[file1, undefined]`
 		 * all previous but not subsequent diagnostics are removed.
@@ -5418,6 +5418,18 @@ declare module 'vscode' {
 		 * The foreground color for this entry.
 		 */
 		color: string | ThemeColor | undefined;
+
+		/**
+		 * The background color for this entry.
+		 *
+		 * *Note*: only `new ThemeColor('statusBarItem.errorBackground')` is
+		 * supported for now. More background colors may be supported in the
+		 * future.
+		 *
+		 * *Note*: when a background color is set, the statusbar may override
+		 * the `color` choice to ensure the entry is readable in all themes.
+		 */
+		backgroundColor: ThemeColor | undefined;
 
 		/**
 		 * [`Command`](#Command) or identifier of a command to run on click.
@@ -8855,7 +8867,8 @@ declare module 'vscode' {
 		getParent?(element: T): ProviderResult<T>;
 
 		/**
-		 * Called only on hover to resolve the [TreeItem](#TreeItem.tooltip) property if it is undefined.
+		 * Called on hover to resolve the [TreeItem](#TreeItem.tooltip) property if it is undefined.
+		 * Called on tree item click/open to resolve the [TreeItem](#TreeItem.command) property if it is undefined.
 		 * Only properties that were undefined can be resolved in `resolveTreeItem`.
 		 * Functionality may be expanded later to include being called to resolve other missing
 		 * properties on selection and/or on open.
@@ -8865,7 +8878,7 @@ declare module 'vscode' {
 		 * onDidChangeTreeData should not be triggered from within resolveTreeItem.
 		 *
 		 * *Note* that this function is called when tree items are already showing in the UI.
-		 * Because of that, no property that changes the presentation (label, description, command, etc.)
+		 * Because of that, no property that changes the presentation (label, description, etc.)
 		 * can be changed.
 		 *
 		 * @param element The object associated with the TreeItem

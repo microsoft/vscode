@@ -18,7 +18,7 @@ import { IInstantiationService } from 'vs/platform/instantiation/common/instanti
 import { IKeybindingService } from 'vs/platform/keybinding/common/keybinding';
 import { IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
 import { IMenuService } from 'vs/platform/actions/common/actions';
-import { TitleControl } from 'vs/workbench/browser/parts/editor/titleControl';
+import { ITitleControlDimensions, TitleControl } from 'vs/workbench/browser/parts/editor/titleControl';
 import { IQuickInputService } from 'vs/platform/quickinput/common/quickInput';
 import { IDisposable, dispose, DisposableStore, combinedDisposable, MutableDisposable, toDisposable } from 'vs/base/common/lifecycle';
 import { ScrollableElement } from 'vs/base/browser/ui/scrollbar/scrollableElement';
@@ -48,6 +48,7 @@ import { IPath, win32, posix } from 'vs/base/common/path';
 import { insert } from 'vs/base/common/arrays';
 import { ColorScheme } from 'vs/platform/theme/common/theme';
 import { isSafari } from 'vs/base/browser/browser';
+import { equals } from 'vs/base/common/objects';
 
 interface IEditorInputLabel {
 	name?: string;
@@ -73,6 +74,9 @@ export class TabsTitleControl extends TitleControl {
 
 	private static readonly TAB_HEIGHT = 35;
 
+	private static readonly MOUSE_WHEEL_EVENT_THRESHOLD = 150;
+	private static readonly MOUSE_WHEEL_DISTANCE_THRESHOLD = 1.5;
+
 	private titleContainer: HTMLElement | undefined;
 	private tabsAndActionsContainer: HTMLElement | undefined;
 	private tabsContainer: HTMLElement | undefined;
@@ -87,11 +91,17 @@ export class TabsTitleControl extends TitleControl {
 	private tabActionBars: ActionBar[] = [];
 	private tabDisposables: IDisposable[] = [];
 
-	private dimension: Dimension | undefined;
+	private dimensions: ITitleControlDimensions = {
+		container: Dimension.None,
+		available: Dimension.None
+	};
+
 	private readonly layoutScheduled = this._register(new MutableDisposable());
 	private blockRevealActiveTab: boolean | undefined;
 
 	private path: IPath = isWindows ? win32 : posix;
+
+	private lastMouseWheelEventTime = 0;
 
 	constructor(
 		parent: HTMLElement,
@@ -119,6 +129,9 @@ export class TabsTitleControl extends TitleControl {
 		// If we are connected to remote, this accounts for the
 		// remote OS.
 		(async () => this.path = await this.pathService.path)();
+
+		// React to decorations changing for our resource labels
+		this._register(this.tabResourceLabels.onDidChangeDecorations(() => this.doHandleDecorationsChange()));
 	}
 
 	protected create(parent: HTMLElement): void {
@@ -151,7 +164,7 @@ export class TabsTitleControl extends TitleControl {
 		// Editor Actions Toolbar
 		this.createEditorActionsToolBar(this.editorToolbarContainer);
 
-		// Breadcrumbs (are on a separate row below tabs and actions)
+		// Breadcrumbs
 		const breadcrumbsContainer = document.createElement('div');
 		breadcrumbsContainer.classList.add('tabs-breadcrumbs');
 		this.titleContainer.appendChild(breadcrumbsContainer);
@@ -337,8 +350,27 @@ export class TabsTitleControl extends TitleControl {
 				}
 			}
 
-			// Figure out scrolling direction
-			const nextEditor = this.group.getEditorByIndex(this.group.getIndexOfEditor(activeEditor) + (e.deltaX < 0 || e.deltaY < 0 /* scrolling up */ ? -1 : 1));
+			// Ignore event if the last one happened too recently (https://github.com/microsoft/vscode/issues/96409)
+			// The restriction is relaxed according to the absolute value of `deltaX` and `deltaY`
+			// to support discrete (mouse wheel) and contiguous scrolling (touchpad) equally well
+			const now = Date.now();
+			if (now - this.lastMouseWheelEventTime < TabsTitleControl.MOUSE_WHEEL_EVENT_THRESHOLD - 2 * (Math.abs(e.deltaX) + Math.abs(e.deltaY))) {
+				return;
+			}
+
+			this.lastMouseWheelEventTime = now;
+
+			// Figure out scrolling direction but ignore it if too subtle
+			let tabSwitchDirection: number;
+			if (e.deltaX + e.deltaY < - TabsTitleControl.MOUSE_WHEEL_DISTANCE_THRESHOLD) {
+				tabSwitchDirection = -1;
+			} else if (e.deltaX + e.deltaY > TabsTitleControl.MOUSE_WHEEL_DISTANCE_THRESHOLD) {
+				tabSwitchDirection = 1;
+			} else {
+				return;
+			}
+
+			const nextEditor = this.group.getEditorByIndex(this.group.getIndexOfEditor(activeEditor) + tabSwitchDirection);
 			if (!nextEditor) {
 				return;
 			}
@@ -351,12 +383,19 @@ export class TabsTitleControl extends TitleControl {
 		}));
 	}
 
+	private doHandleDecorationsChange(): void {
+
+		// A change to decorations potentially has an impact on the size of tabs
+		// so we need to trigger a layout in that case to adjust things
+		this.layout(this.dimensions);
+	}
+
 	protected updateEditorActionsToolbar(): void {
 		super.updateEditorActionsToolbar();
 
 		// Changing the actions in the toolbar can have an impact on the size of the
 		// tab container, so we need to layout the tabs to make sure the active is visible
-		this.layout(this.dimension);
+		this.layout(this.dimensions);
 	}
 
 	openEditor(editor: IEditorInput): void {
@@ -439,7 +478,7 @@ export class TabsTitleControl extends TitleControl {
 		});
 
 		// Moving an editor requires a layout to keep the active editor visible
-		this.layout(this.dimension);
+		this.layout(this.dimensions);
 	}
 
 	pinEditor(editor: IEditorInput): void {
@@ -466,7 +505,7 @@ export class TabsTitleControl extends TitleControl {
 		});
 
 		// A change to the sticky state requires a layout to keep the active editor visible
-		this.layout(this.dimension);
+		this.layout(this.dimensions);
 	}
 
 	setActive(isGroupActive: boolean): void {
@@ -478,7 +517,7 @@ export class TabsTitleControl extends TitleControl {
 
 		// Activity has an impact on the toolbar, so we need to update and layout
 		this.updateEditorActionsToolbar();
-		this.layout(this.dimension);
+		this.layout(this.dimensions);
 	}
 
 	private updateEditorLabelAggregator = this._register(new RunOnceScheduler(() => this.updateEditorLabels(), 0));
@@ -504,7 +543,7 @@ export class TabsTitleControl extends TitleControl {
 		});
 
 		// A change to a label requires a layout to keep the active editor visible
-		this.layout(this.dimension);
+		this.layout(this.dimensions);
 	}
 
 	updateEditorDirty(editor: IEditorInput): void {
@@ -531,7 +570,8 @@ export class TabsTitleControl extends TitleControl {
 			oldOptions.pinnedTabSizing !== newOptions.pinnedTabSizing ||
 			oldOptions.showIcons !== newOptions.showIcons ||
 			oldOptions.hasIcons !== newOptions.hasIcons ||
-			oldOptions.highlightModifiedTabs !== newOptions.highlightModifiedTabs
+			oldOptions.highlightModifiedTabs !== newOptions.highlightModifiedTabs ||
+			!equals(oldOptions.decorations, newOptions.decorations)
 		) {
 			this.redraw();
 		}
@@ -1022,7 +1062,7 @@ export class TabsTitleControl extends TitleControl {
 		this.updateEditorActionsToolbar();
 
 		// Ensure the active tab is always revealed
-		this.layout(this.dimension);
+		this.layout(this.dimensions);
 	}
 
 	private redrawTab(editor: IEditorInput, index: number, tabContainer: HTMLElement, tabLabelWidget: IResourceLabel, tabLabel: IEditorInputLabel, tabActionBar: ActionBar): void {
@@ -1116,7 +1156,7 @@ export class TabsTitleControl extends TitleControl {
 		// Label
 		tabLabelWidget.setResource(
 			{ name, description, resource: EditorResourceAccessor.getOriginalUri(editor, { supportSideBySide: SideBySideEditor.BOTH }) },
-			{ title, extraClasses: ['tab-label'], italic: !this.group.isPinned(editor), forceLabel }
+			{ title, extraClasses: ['tab-label'], italic: !this.group.isPinned(editor), forceLabel, fileDecorations: { colors: Boolean(options.decorations?.colors), badges: Boolean(options.decorations?.badges) } }
 		);
 
 		// Tests helper
@@ -1236,7 +1276,7 @@ export class TabsTitleControl extends TitleControl {
 	getDimensions(): IEditorGroupTitleDimensions {
 		let height = TabsTitleControl.TAB_HEIGHT;
 		if (this.breadcrumbsControl && !this.breadcrumbsControl.isHidden()) {
-			height += BreadcrumbsControl.HEIGHT;
+			height += BreadcrumbsControl.HEIGHT; // Account for breadcrumbs if visible
 		}
 
 		return {
@@ -1245,47 +1285,40 @@ export class TabsTitleControl extends TitleControl {
 		};
 	}
 
-	layout(dimension: Dimension | undefined): void {
-		this.dimension = dimension;
-
-		const activeTabAndIndex = this.group.activeEditor ? this.getTabAndIndex(this.group.activeEditor) : undefined;
-		if (!activeTabAndIndex || !this.dimension) {
-			return;
-		}
+	layout(dimensions: ITitleControlDimensions): Dimension {
+		this.dimensions = dimensions;
 
 		// The layout of tabs can be an expensive operation because we access DOM properties
 		// that can result in the browser doing a full page layout to validate them. To buffer
 		// this a little bit we try at least to schedule this work on the next animation frame.
 		if (!this.layoutScheduled.value) {
 			this.layoutScheduled.value = scheduleAtNextAnimationFrame(() => {
-				const dimension = assertIsDefined(this.dimension);
-				this.doLayout(dimension);
+				this.doLayout(this.dimensions);
 
 				this.layoutScheduled.clear();
 			});
 		}
+
+		return new Dimension(dimensions.container.width, this.getDimensions().height);
 	}
 
-	private doLayout(dimension: Dimension): void {
+	private doLayout(dimensions: ITitleControlDimensions): void {
 		const activeTabAndIndex = this.group.activeEditor ? this.getTabAndIndex(this.group.activeEditor) : undefined;
-		if (!activeTabAndIndex) {
-			return; // nothing to do if not editor opened
+		if (!activeTabAndIndex || dimensions.container === Dimension.None || dimensions.available === Dimension.None) {
+			return; // nothing to do if not editor opened or we got no dimensions yet
 		}
 
 		// Breadcrumbs
-		this.doLayoutBreadcrumbs(dimension);
+		this.doLayoutBreadcrumbs(dimensions);
 
 		// Tabs
 		const [activeTab, activeIndex] = activeTabAndIndex;
 		this.doLayoutTabs(activeTab, activeIndex);
 	}
 
-	private doLayoutBreadcrumbs(dimension: Dimension): void {
+	private doLayoutBreadcrumbs(dimensions: ITitleControlDimensions): void {
 		if (this.breadcrumbsControl && !this.breadcrumbsControl.isHidden()) {
-			const tabsScrollbar = assertIsDefined(this.tabsScrollbar);
-
-			this.breadcrumbsControl.layout(new Dimension(dimension.width, BreadcrumbsControl.HEIGHT));
-			tabsScrollbar.getDomNode().style.height = `${dimension.height - BreadcrumbsControl.HEIGHT}px`;
+			this.breadcrumbsControl.layout(new Dimension(dimensions.container.width, BreadcrumbsControl.HEIGHT));
 		}
 	}
 
@@ -1428,8 +1461,10 @@ export class TabsTitleControl extends TitleControl {
 		const editorIndex = this.group.getIndexOfEditor(editor);
 		if (editorIndex >= 0) {
 			const tabsContainer = assertIsDefined(this.tabsContainer);
-
-			return [tabsContainer.children[editorIndex] as HTMLElement, editorIndex];
+			const tab = tabsContainer.children[editorIndex];
+			if (tab) {
+				return [tab as HTMLElement, editorIndex];
+			}
 		}
 
 		return undefined;

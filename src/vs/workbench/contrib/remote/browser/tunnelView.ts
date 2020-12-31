@@ -10,9 +10,9 @@ import { IViewDescriptor, IEditableData, IViewsService, IViewDescriptorService }
 import { WorkbenchAsyncDataTree } from 'vs/platform/list/browser/listService';
 import { IKeybindingService } from 'vs/platform/keybinding/common/keybinding';
 import { IContextMenuService, IContextViewService } from 'vs/platform/contextview/browser/contextView';
-import { IContextKeyService, IContextKey, RawContextKey, ContextKeyExpr } from 'vs/platform/contextkey/common/contextkey';
+import { IContextKeyService, IContextKey, RawContextKey, ContextKeyExpr, ContextKeyEqualsExpr } from 'vs/platform/contextkey/common/contextkey';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
-import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
+import { IInstantiationService, ServicesAccessor } from 'vs/platform/instantiation/common/instantiation';
 import { IOpenerService } from 'vs/platform/opener/common/opener';
 import { IQuickInputService, IQuickPickItem, QuickPickInput } from 'vs/platform/quickinput/common/quickInput';
 import { ICommandService, ICommandHandler, CommandsRegistry } from 'vs/platform/commands/common/commands';
@@ -24,25 +24,25 @@ import { Disposable, IDisposable, toDisposable, MutableDisposable, dispose, Disp
 import { ActionBar } from 'vs/base/browser/ui/actionbar/actionbar';
 import { IconLabel } from 'vs/base/browser/ui/iconLabel/iconLabel';
 import { ActionRunner, IAction } from 'vs/base/common/actions';
-import { IMenuService, MenuId, IMenu, MenuRegistry, MenuItemAction, ILocalizedString, SubmenuItemAction } from 'vs/platform/actions/common/actions';
+import { IMenuService, MenuId, IMenu, MenuRegistry, MenuItemAction, ILocalizedString, SubmenuItemAction, Action2, registerAction2 } from 'vs/platform/actions/common/actions';
 import { createAndFillInContextMenuActions, createAndFillInActionBarActions, MenuEntryActionViewItem, SubmenuEntryActionViewItem } from 'vs/platform/actions/browser/menuEntryActionViewItem';
-import { IRemoteExplorerService, TunnelModel, makeAddress, TunnelType, ITunnelItem, Tunnel, mapHasAddressLocalhostOrAllInterfaces, TUNNEL_VIEW_ID, parseAddress } from 'vs/workbench/services/remote/common/remoteExplorerService';
+import { IRemoteExplorerService, TunnelModel, makeAddress, TunnelType, ITunnelItem, Tunnel, mapHasAddressLocalhostOrAllInterfaces, TUNNEL_VIEW_ID, parseAddress, CandidatePort } from 'vs/workbench/services/remote/common/remoteExplorerService';
 import { IClipboardService } from 'vs/platform/clipboard/common/clipboardService';
 import { INotificationService, Severity } from 'vs/platform/notification/common/notification';
 import { InputBox, MessageType } from 'vs/base/browser/ui/inputbox/inputBox';
 import { attachInputBoxStyler } from 'vs/platform/theme/common/styler';
 import { once } from 'vs/base/common/functional';
 import { KeyCode, KeyMod } from 'vs/base/common/keyCodes';
-import { IThemeService } from 'vs/platform/theme/common/themeService';
+import { IThemeService, ThemeIcon } from 'vs/platform/theme/common/themeService';
 import { IKeyboardEvent } from 'vs/base/browser/keyboardEvent';
-import { ViewPane, IViewPaneOptions } from 'vs/workbench/browser/parts/views/viewPaneContainer';
+import { ViewPane, IViewPaneOptions } from 'vs/workbench/browser/parts/views/viewPane';
 import { URI } from 'vs/base/common/uri';
 import { RemoteTunnel } from 'vs/platform/remote/common/tunnel';
 import { SyncDescriptor } from 'vs/platform/instantiation/common/descriptors';
 import { KeybindingsRegistry, KeybindingWeight } from 'vs/platform/keybinding/common/keybindingsRegistry';
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
 import { ActionViewItem } from 'vs/base/browser/ui/actionbar/actionViewItems';
-import { Codicon } from 'vs/base/common/codicons';
+import { forwardPortIcon, openBrowserIcon, portIcon, portsViewIcon, stopForwardIcon } from 'vs/workbench/contrib/remote/browser/remoteIcons';
 
 export const forwardedPortsViewEnabled = new RawContextKey<boolean>('forwardedPortsViewEnabled', false);
 export const PORT_AUTO_FORWARD_SETTING = 'remote.autoForwardPorts';
@@ -71,7 +71,7 @@ export class TunnelViewModel extends Disposable implements ITunnelViewModel {
 	public onForwardedPortsChanged: Event<void> = this._onForwardedPortsChanged.event;
 	private model: TunnelModel;
 	private _input: TunnelItem;
-	private _candidates: Map<string, { host: string, port: number, detail: string }> = new Map();
+	private _candidates: Map<string, CandidatePort> = new Map();
 
 	constructor(
 		@IRemoteExplorerService private readonly remoteExplorerService: IRemoteExplorerService,
@@ -88,7 +88,8 @@ export class TunnelViewModel extends Disposable implements ITunnelViewModel {
 			remoteHost: 'localhost',
 			remotePort: 0,
 			description: '',
-			iconClasses: undefined
+			wideDescription: '',
+			icon: undefined
 		};
 	}
 
@@ -162,7 +163,7 @@ export class TunnelViewModel extends Disposable implements ITunnelViewModel {
 		this._candidates.forEach(value => {
 			if (!mapHasAddressLocalhostOrAllInterfaces(this.model.forwarded, value.host, value.port) &&
 				!mapHasAddressLocalhostOrAllInterfaces(this.model.detected, value.host, value.port)) {
-				candidates.push(new TunnelItem(TunnelType.Candidate, value.host, value.port, undefined, undefined, false, undefined, value.detail));
+				candidates.push(new TunnelItem(TunnelType.Candidate, value.host, value.port, undefined, undefined, false, undefined, value.detail, undefined, value.pid));
 			}
 		});
 		return candidates;
@@ -266,8 +267,10 @@ class TunnelTreeRenderer extends Disposable implements ITreeRenderer<ITunnelGrou
 	}
 
 	private renderTunnel(node: ITunnelItem, templateData: ITunnelTemplateData) {
-		const label = node.label + (node.description ? (' - ' + node.description) : '');
-		templateData.iconLabel.setLabel(node.label, node.description, { title: label, extraClasses: ['tunnel-view-label'] });
+		const isWide = templateData.container.parentElement?.parentElement?.parentElement?.parentElement?.parentElement?.parentElement?.parentElement?.parentElement?.classList.contains('wide');
+		const description = isWide ? node.wideDescription : node.description;
+		const label = node.label + (description ? (' - ' + description) : '');
+		templateData.iconLabel.setLabel(node.label, description, { title: label, extraClasses: ['tunnel-view-label'] });
 
 		templateData.actionBar.context = node;
 		const contextKeyService = this._register(this.contextKeyService.createScoped());
@@ -285,8 +288,8 @@ class TunnelTreeRenderer extends Disposable implements ITreeRenderer<ITunnelGrou
 				templateData.actionBar.actionRunner = this._actionRunner;
 			}
 		}
-		if (node.iconClasses) {
-			templateData.icon.className = `custom-view-tree-node-item-icon ${node.iconClasses}`;
+		if (node.icon) {
+			templateData.icon.className = `custom-view-tree-node-item-icon ${ThemeIcon.asClassName(node.icon)}`;
 			templateData.icon.hidden = false;
 		} else {
 			templateData.icon.className = 'custom-view-tree-node-item-icon';
@@ -405,7 +408,7 @@ interface ITunnelGroup {
 
 class TunnelItem implements ITunnelItem {
 	static createFromTunnel(tunnel: Tunnel, type: TunnelType = TunnelType.Forwarded, closeable?: boolean) {
-		return new TunnelItem(type, tunnel.remoteHost, tunnel.remotePort, tunnel.localAddress, tunnel.localPort, closeable === undefined ? tunnel.closeable : closeable, tunnel.name, tunnel.description ?? tunnel.runningProcess, tunnel.source);
+		return new TunnelItem(type, tunnel.remoteHost, tunnel.remotePort, tunnel.localAddress, tunnel.localPort, closeable === undefined ? tunnel.closeable : closeable, tunnel.name, tunnel.runningProcess, tunnel.source, tunnel.pid);
 	}
 
 	constructor(
@@ -416,8 +419,9 @@ class TunnelItem implements ITunnelItem {
 		public localPort?: number,
 		public closeable?: boolean,
 		public name?: string,
-		private _description?: string,
-		private source?: string
+		private runningProcess?: string,
+		private source?: string,
+		private pid?: number
 	) { }
 	get label(): string {
 		if (this.name) {
@@ -453,22 +457,34 @@ class TunnelItem implements ITunnelItem {
 	}
 
 	set description(description: string | undefined) {
-		this._description = description;
+		this.runningProcess = description;
 	}
 
-	get description(): string | undefined {
+	private static getDescription(item: TunnelItem, isWide: boolean) {
 		const description: string[] = [];
 
-		if (this.name && this.localAddress) {
-			description.push(nls.localize('remote.tunnelsView.forwardedPortDescription0', "{0} \u2192 {1}", this.remotePort, TunnelItem.compactLongAddress(this.localAddress)));
+		if (item.name && item.localAddress) {
+			description.push(nls.localize('remote.tunnelsView.forwardedPortDescription0', "{0} \u2192 {1}", item.remotePort, TunnelItem.compactLongAddress(item.localAddress)));
 		}
 
-		if (this._description) {
-			description.push(this._description);
+		if (item.runningProcess) {
+			let processPid: string;
+			if (isWide) {
+				processPid = item.runningProcess.replace(/\0/g, ' ').trim();
+			} else {
+				const nullIndex = item.runningProcess.indexOf('\0');
+				processPid = item.runningProcess.substr(0, nullIndex > 0 ? nullIndex : item.runningProcess.length).trim();
+				const spaceIndex = processPid.indexOf(' ', 110);
+				processPid = processPid.substr(0, spaceIndex > 0 ? spaceIndex : processPid.length);
+			}
+			if (item.pid) {
+				processPid += ` (${item.pid})`;
+			}
+			description.push(processPid);
 		}
 
-		if (this.source) {
-			description.push(this.source);
+		if (item.source) {
+			description.push(item.source);
 		}
 
 		if (description.length > 0) {
@@ -478,8 +494,16 @@ class TunnelItem implements ITunnelItem {
 		return undefined;
 	}
 
-	get iconClasses(): string | undefined {
-		return this.tunnelType === TunnelType.Detected || this.tunnelType === TunnelType.Forwarded ? Codicon.plug.classNames : undefined;
+	get description(): string | undefined {
+		return TunnelItem.getDescription(this, false);
+	}
+
+	get wideDescription(): string | undefined {
+		return TunnelItem.getDescription(this, true);
+	}
+
+	get icon(): ThemeIcon | undefined {
+		return this.tunnelType === TunnelType.Detected || this.tunnelType === TunnelType.Forwarded ? portIcon : undefined;
 	}
 }
 
@@ -637,10 +661,6 @@ export class TunnelPanel extends ViewPane {
 		return contributedContextMenu;
 	}
 
-	getActions(): IAction[] {
-		return this.titleActions;
-	}
-
 	shouldShowWelcome(): boolean {
 		return (this.viewModel.forwarded.length === 0) && (this.viewModel.candidates.length === 0) &&
 			(this.viewModel.detected.length === 0) && !this.isEditing;
@@ -735,7 +755,7 @@ export class TunnelPanelDescriptor implements IViewDescriptor {
 	readonly order = -500;
 	readonly remoteAuthority?: string | string[];
 	readonly canMoveView = true;
-	readonly containerIcon = Codicon.plug;
+	readonly containerIcon = portsViewIcon;
 
 	constructor(viewModel: ITunnelViewModel, environmentService: IWorkbenchEnvironmentService) {
 		this.ctorDescriptor = new SyncDescriptor(TunnelPanel, [viewModel]);
@@ -1120,15 +1140,25 @@ MenuRegistry.appendMenuItem(MenuId.CommandPalette, ({
 	},
 	when: forwardedPortsViewEnabled
 }));
-MenuRegistry.appendMenuItem(MenuId.TunnelTitle, ({
-	group: 'navigation',
-	order: 0,
-	command: {
-		id: ForwardPortAction.INLINE_ID,
-		title: ForwardPortAction.LABEL,
-		icon: Codicon.plus
+registerAction2(class extends Action2 {
+	constructor() {
+		super({
+			id: ForwardPortAction.INLINE_ID,
+			title: ForwardPortAction.LABEL,
+			icon: forwardPortIcon,
+			menu: [{
+				id: MenuId.ViewTitle,
+				group: 'navigation',
+				order: 0,
+				when: ContextKeyEqualsExpr.create('view', TUNNEL_VIEW_ID),
+			}]
+		});
 	}
-}));
+	run(accessor: ServicesAccessor, ...args: any[]) {
+		return ForwardPortAction.inlineHandler()(accessor, args);
+	}
+});
+
 MenuRegistry.appendMenuItem(MenuId.TunnelContext, ({
 	group: '0_manage',
 	order: 0,
@@ -1189,7 +1219,7 @@ MenuRegistry.appendMenuItem(MenuId.TunnelInline, ({
 	command: {
 		id: OpenPortInBrowserAction.ID,
 		title: OpenPortInBrowserAction.LABEL,
-		icon: Codicon.globe
+		icon: openBrowserIcon
 	},
 	when: ContextKeyExpr.or(TunnelTypeContextKey.isEqualTo(TunnelType.Forwarded), TunnelTypeContextKey.isEqualTo(TunnelType.Detected))
 }));
@@ -1198,7 +1228,7 @@ MenuRegistry.appendMenuItem(MenuId.TunnelInline, ({
 	command: {
 		id: ForwardPortAction.INLINE_ID,
 		title: ForwardPortAction.TREEITEM_LABEL,
-		icon: Codicon.plus
+		icon: forwardPortIcon
 	},
 	when: TunnelTypeContextKey.isEqualTo(TunnelType.Candidate)
 }));
@@ -1207,7 +1237,7 @@ MenuRegistry.appendMenuItem(MenuId.TunnelInline, ({
 	command: {
 		id: ClosePortAction.INLINE_ID,
 		title: ClosePortAction.LABEL,
-		icon: Codicon.x
+		icon: stopForwardIcon
 	},
 	when: TunnelCloseableContextKey
 }));

@@ -31,12 +31,12 @@ import { NotebookEditorInput } from 'vs/workbench/contrib/notebook/browser/noteb
 import { INotebookService } from 'vs/workbench/contrib/notebook/common/notebookService';
 import { NotebookService } from 'vs/workbench/contrib/notebook/browser/notebookServiceImpl';
 import { CellKind, CellToolbarLocKey, CellUri, DisplayOrderKey, getCellUndoRedoComparisonKey, NotebookDocumentBackupData, NotebookEditorPriority, NotebookTextDiffEditorPreview, ShowCellStatusBarKey } from 'vs/workbench/contrib/notebook/common/notebookCommon';
-import { IEditorGroup } from 'vs/workbench/services/editor/common/editorGroupsService';
+import { IEditorGroup, IEditorGroupsService } from 'vs/workbench/services/editor/common/editorGroupsService';
 import { IEditorService, IOpenEditorOverride } from 'vs/workbench/services/editor/common/editorService';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { CustomEditorsAssociations, customEditorsAssociationsSettingId } from 'vs/workbench/services/editor/common/editorOpenWith';
 import { CustomEditorInfo } from 'vs/workbench/contrib/customEditor/common/customEditor';
-import { INotebookEditor, NotebookEditorOptions } from 'vs/workbench/contrib/notebook/browser/notebookBrowser';
+import { INotebookEditor, NotebookEditorOptions, NOTEBOOK_EDITOR_OPEN } from 'vs/workbench/contrib/notebook/browser/notebookBrowser';
 import { IUndoRedoService } from 'vs/platform/undoRedo/common/undoRedo';
 import { INotebookEditorModelResolverService, NotebookModelResolverService } from 'vs/workbench/contrib/notebook/common/notebookEditorModelResolverService';
 import { ResourceEditorInput } from 'vs/workbench/common/editor/resourceEditorInput';
@@ -72,6 +72,7 @@ import 'vs/workbench/contrib/notebook/browser/diff/notebookDiffActions';
 import 'vs/workbench/contrib/notebook/browser/view/output/transforms/streamTransform';
 import 'vs/workbench/contrib/notebook/browser/view/output/transforms/errorTransform';
 import 'vs/workbench/contrib/notebook/browser/view/output/transforms/richTransform';
+import { IContextKey, IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
 
 /*--------------------------------------------------------------------------------------------- */
 
@@ -204,16 +205,21 @@ Registry.as<IEditorInputFactoryRegistry>(EditorInputExtensions.EditorInputFactor
 );
 
 export class NotebookContribution extends Disposable implements IWorkbenchContribution {
+	private _notebookEditorIsOpen: IContextKey<boolean>;
 
 	constructor(
+		@IContextKeyService private readonly contextKeyService: IContextKeyService,
 		@IEditorService private readonly editorService: IEditorService,
 		@INotebookService private readonly notebookService: INotebookService,
 		@IInstantiationService private readonly instantiationService: IInstantiationService,
 		@IConfigurationService private readonly configurationService: IConfigurationService,
 		@IAccessibilityService private readonly _accessibilityService: IAccessibilityService,
+		@IEditorGroupsService private readonly editorGroupService: IEditorGroupsService,
 		@IUndoRedoService undoRedoService: IUndoRedoService,
 	) {
 		super();
+
+		this._notebookEditorIsOpen = NOTEBOOK_EDITOR_OPEN.bindTo(this.contextKeyService);
 
 		this._register(undoRedoService.registerUriComparisonKeyComputer(CellUri.scheme, {
 			getComparisonKey: (uri: URI): string => {
@@ -264,6 +270,18 @@ export class NotebookContribution extends Disposable implements IWorkbenchContri
 				this.notebookService.updateActiveNotebookEditor(null);
 			}
 		}));
+
+		this.editorGroupService.whenRestored.then(() => this._updateContextKeys());
+		this._register(this.editorService.onDidActiveEditorChange(() => this._updateContextKeys()));
+		this._register(this.editorService.onDidVisibleEditorsChange(() => this._updateContextKeys()));
+
+		this._register(this.editorGroupService.onDidAddGroup(() => this._updateContextKeys()));
+		this._register(this.editorGroupService.onDidRemoveGroup(() => this._updateContextKeys()));
+	}
+
+	private _updateContextKeys() {
+		const activeEditorPane = this.editorService.activeEditorPane as { isNotebookEditor?: boolean } | undefined;
+		this._notebookEditorIsOpen.set(!!activeEditorPane?.isNotebookEditor);
 	}
 
 	getUserAssociatedEditors(resource: URI) {

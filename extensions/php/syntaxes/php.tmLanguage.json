@@ -4,9 +4,12 @@
 		"If you want to provide a fix or improvement, please create a pull request against the original repository.",
 		"Once accepted there, we are happy to receive an update request."
 	],
-	"version": "https://github.com/atom/language-php/commit/f7ebbddbbc073fe483c1d82dc89fde6004f48aca",
+	"version": "https://github.com/atom/language-php/commit/e2637e1c522c932459eb2d5cf1651c5cc38058a1",
 	"scopeName": "source.php",
 	"patterns": [
+		{
+			"include": "#attribute"
+		},
 		{
 			"include": "#comments"
 		},
@@ -230,7 +233,7 @@
 			]
 		},
 		{
-			"begin": "(?ix)\n(?:\n  (?:^|(?<=}))\\s*(?:(abstract|final)\\s+)?(class)\\s+([a-z_\\x{7f}-\\x{7fffffff}][a-z0-9_\\x{7f}-\\x{7fffffff}]*)\n  |\\b(new)\\s+(class)\\b # anonymous class\n)",
+			"begin": "(?ix)\n(?:\n  \\b(?:(abstract|final)\\s+)?(class)\\s+([a-z_\\x{7f}-\\x{7fffffff}][a-z0-9_\\x{7f}-\\x{7fffffff}]*)\n  |\\b(new)\\b\\s*(\\#\\[.*\\])?\\s*\\b(class)\\b # anonymous class\n)",
 			"beginCaptures": {
 				"1": {
 					"name": "storage.modifier.${1:/downcase}.php"
@@ -245,6 +248,13 @@
 					"name": "keyword.other.new.php"
 				},
 				"5": {
+					"patterns": [
+						{
+							"include": "#attribute"
+						}
+					]
+				},
+				"6": {
 					"name": "storage.type.class.php"
 				}
 			},
@@ -1033,10 +1043,94 @@
 		}
 	],
 	"repository": {
+		"attribute-name": {
+			"patterns": [
+				{
+					"begin": "(?i)(?=\\\\?[a-z_\\x{7f}-\\x{7fffffff}][a-z0-9_\\x{7f}-\\x{7fffffff}]*\\\\)",
+					"end": "(?xi)\n( [a-z_\\x{7f}-\\x{7fffffff}] [a-z0-9_\\x{7f}-\\x{7fffffff}]* )?\n(?![a-z0-9_\\x{7f}-\\x{7fffffff}\\\\])",
+					"endCaptures": {
+						"1": {
+							"name": "support.attribute.php"
+						}
+					},
+					"patterns": [
+						{
+							"include": "#namespace"
+						}
+					]
+				},
+				{
+					"match": "(?xi)\n(\\\\)?\\b(Attribute)\\b",
+					"name": "support.attribute.builtin.php",
+					"captures": {
+						"1": {
+							"name": "punctuation.separator.inheritance.php"
+						}
+					}
+				},
+				{
+					"begin": "(?i)(?=[\\\\a-z_\\x{7f}-\\x{7fffffff}])",
+					"end": "(?xi)\n( [a-z_\\x{7f}-\\x{7fffffff}] [a-z0-9_\\x{7f}-\\x{7fffffff}]* )?\n(?![a-z0-9_\\x{7f}-\\x{7fffffff}\\\\])",
+					"endCaptures": {
+						"1": {
+							"name": "support.attribute.php"
+						}
+					},
+					"patterns": [
+						{
+							"include": "#namespace"
+						}
+					]
+				}
+			]
+		},
+		"attribute": {
+			"begin": "\\#\\[",
+			"end": "\\]",
+			"name": "meta.attribute.php",
+			"patterns": [
+				{
+					"match": ",",
+					"name": "punctuation.separator.delimiter.php"
+				},
+				{
+					"begin": "([a-zA-Z0-9_\\x{7f}-\\x{7fffffff}\\\\]+)\\s*(\\()",
+					"beginCaptures": {
+						"1": {
+							"patterns": [
+								{
+									"include": "#attribute-name"
+								}
+							]
+						},
+						"2": {
+							"name": "punctuation.definition.arguments.begin.bracket.round.php"
+						}
+					},
+					"end": "\\)",
+					"endCaptures": {
+						"0": {
+							"name": "punctuation.definition.arguments.end.bracket.round.php"
+						}
+					},
+					"patterns": [
+						{
+							"include": "#named-arguments"
+						},
+						{
+							"include": "$self"
+						}
+					]
+				},
+				{
+					"include": "#attribute-name"
+				}
+			]
+		},
 		"class-builtin": {
 			"patterns": [
 				{
-					"match": "(?xi)\n(\\\\)?\\b\n((APC|Append)Iterator|Array(Access|Iterator|Object)\n|Bad(Function|Method)CallException\n|(Caching|CallbackFilter)Iterator|Collator|Collectable|Cond|Countable|CURLFile\n|Date(Interval|Period|Time(Interface|Immutable|Zone)?)?|Directory(Iterator)?|DomainException\n|DOM(Attr|CdataSection|CharacterData|Comment|Document(Fragment)?|Element|EntityReference\n    |Implementation|NamedNodeMap|Node(list)?|ProcessingInstruction|Text|XPath)\n|(Error)?Exception|EmptyIterator\n|finfo\n|Ev(Check|Child|Embed|Fork|Idle|Io|Loop|Periodic|Prepare|Signal|Stat|Timer|Watcher)?\n|Event(Base|Buffer(Event)?|SslContext|Http(Request|Connection)?|Config|DnsBase|Util|Listener)?\n|FANNConnection|(Filter|Filesystem)Iterator\n|Gender\\\\Gender|GlobIterator|Gmagick(Draw|Pixel)?\n|Haru(Annotation|Destination|Doc|Encoder|Font|Image|Outline|Page)\n|Http((Inflate|Deflate)?Stream|Message|Request(Pool)?|Response|QueryString)\n|HRTime\\\\(PerformanceCounter|StopWatch)\n|Intl(Calendar|((CodePoint|RuleBased)?Break|Parts)?Iterator|DateFormatter|TimeZone)\n|Imagick(Draw|Pixel(Iterator)?)?\n|InfiniteIterator|InvalidArgumentException|Iterator(Aggregate|Iterator)?\n|JsonSerializable\n|KTaglib_(MPEG_(File|AudioProperties)|Tag|ID3v2_(Tag|(AttachedPicture)?Frame))\n|Lapack|(Length|Locale|Logic)Exception|LimitIterator|Lua(Closure)?\n|Mongo(BinData|Client|Code|Collection|CommandCursor|Cursor(Exception)?|Date|DB(Ref)?|DeleteBatch\n      |Grid(FS(Cursor|File)?)|Id|InsertBatch|Int(32|64)|Log|Pool|Regex|ResultException|Timestamp\n      |UpdateBatch|Write(Batch|ConcernException))?\n|Memcache(d)?|MessageFormatter|MultipleIterator|Mutex\n|mysqli(_(driver|stmt|warning|result))?\n|MysqlndUh(Connection|PreparedStatement)\n|NoRewindIterator|Normalizer|NumberFormatter\n|OCI-(Collection|Lob)|OuterIterator|(OutOf(Bounds|Range)|Overflow)Exception\n|ParentIterator|PDO(Statement)?|Phar(Data|FileInfo)?|php_user_filter|Pool\n|QuickHash(Int(Set|StringHash)|StringIntHash)\n|Recursive(Array|Caching|Directory|Fallback|Filter|Iterator|Regex|Tree)?Iterator\n|Reflection(Class|Function(Abstract)?|Method|Object|Parameter|Property|(Zend)?Extension)?\n|RangeException|Reflector|RegexIterator|ResourceBundle|RuntimeException|RRD(Creator|Graph|Updater)\n|SAM(Connection|Message)|SCA(_(SoapProxy|LocalProxy))?\n|SDO_(DAS_(ChangeSummary|Data(Factory|Object)|Relational|Setting|XML(_Document)?)\n     |Data(Factory|Object)|Exception|List|Model_(Property|ReflectionDataObject|Type)|Sequence)\n|SeekableIterator|Serializable|SessionHandler(Interface)?|SimpleXML(Iterator|Element)|SNMP\n|Soap(Client|Fault|Header|Param|Server|Var)\n|SphinxClient|Spoofchecker\n|Spl(DoublyLinkedList|Enum|File(Info|Object)|FixedArray|(Max|Min)?Heap|Observer|ObjectStorage\n    |(Priority)?Queue|Stack|Subject|Type|TempFileObject)\n|SQLite(3(Result|Stmt)?|Database|Result|Unbuffered)\n|stdClass|streamWrapper|SVM(Model)?|Swish(Result(s)?|Search)?|Sync(Event|Mutex|ReaderWriter|Semaphore)\n|Thread(ed)?|tidy(Node)?|TokyoTyrant(Table|Iterator|Query)?|Transliterator|Traversable\n|UConverter|(Underflow|UnexpectedValue)Exception\n|V8Js(Exception)?|Varnish(Admin|Log|Stat)\n|Worker|Weak(Map|Ref)\n|XML(Diff\\\\(Base|DOM|File|Memory)|Reader|Writer)|XsltProcessor\n|Yaf_(Route_(Interface|Map|Regex|Rewrite|Simple|Supervar)\n     |Action_Abstract|Application|Config_(Simple|Ini|Abstract)|Controller_Abstract\n     |Dispatcher|Exception|Loader|Plugin_Abstract|Registry|Request_(Abstract|Simple|Http)\n     |Response_Abstract|Router|Session|View_(Simple|Interface))\n|Yar_(Client(_Exception)?|Concurrent_Client|Server(_Exception)?)\n|ZipArchive|ZMQ(Context|Device|Poll|Socket)?)\n\\b",
+					"match": "(?xi)\n(\\\\)?\\b\n(Attribute|(APC|Append)Iterator|Array(Access|Iterator|Object)\n|Bad(Function|Method)CallException\n|(Caching|CallbackFilter)Iterator|Collator|Collectable|Cond|Countable|CURLFile\n|Date(Interval|Period|Time(Interface|Immutable|Zone)?)?|Directory(Iterator)?|DomainException\n|DOM(Attr|CdataSection|CharacterData|Comment|Document(Fragment)?|Element|EntityReference\n    |Implementation|NamedNodeMap|Node(list)?|ProcessingInstruction|Text|XPath)\n|(Error)?Exception|EmptyIterator\n|finfo\n|Ev(Check|Child|Embed|Fork|Idle|Io|Loop|Periodic|Prepare|Signal|Stat|Timer|Watcher)?\n|Event(Base|Buffer(Event)?|SslContext|Http(Request|Connection)?|Config|DnsBase|Util|Listener)?\n|FANNConnection|(Filter|Filesystem)Iterator\n|Gender\\\\Gender|GlobIterator|Gmagick(Draw|Pixel)?\n|Haru(Annotation|Destination|Doc|Encoder|Font|Image|Outline|Page)\n|Http((Inflate|Deflate)?Stream|Message|Request(Pool)?|Response|QueryString)\n|HRTime\\\\(PerformanceCounter|StopWatch)\n|Intl(Calendar|((CodePoint|RuleBased)?Break|Parts)?Iterator|DateFormatter|TimeZone)\n|Imagick(Draw|Pixel(Iterator)?)?\n|InfiniteIterator|InvalidArgumentException|Iterator(Aggregate|Iterator)?\n|JsonSerializable\n|KTaglib_(MPEG_(File|AudioProperties)|Tag|ID3v2_(Tag|(AttachedPicture)?Frame))\n|Lapack|(Length|Locale|Logic)Exception|LimitIterator|Lua(Closure)?\n|Mongo(BinData|Client|Code|Collection|CommandCursor|Cursor(Exception)?|Date|DB(Ref)?|DeleteBatch\n      |Grid(FS(Cursor|File)?)|Id|InsertBatch|Int(32|64)|Log|Pool|Regex|ResultException|Timestamp\n      |UpdateBatch|Write(Batch|ConcernException))?\n|Memcache(d)?|MessageFormatter|MultipleIterator|Mutex\n|mysqli(_(driver|stmt|warning|result))?\n|MysqlndUh(Connection|PreparedStatement)\n|NoRewindIterator|Normalizer|NumberFormatter\n|OCI-(Collection|Lob)|OuterIterator|(OutOf(Bounds|Range)|Overflow)Exception\n|ParentIterator|PDO(Statement)?|Phar(Data|FileInfo)?|php_user_filter|Pool\n|QuickHash(Int(Set|StringHash)|StringIntHash)\n|Recursive(Array|Caching|Directory|Fallback|Filter|Iterator|Regex|Tree)?Iterator\n|Reflection(Class|Function(Abstract)?|Method|Object|Parameter|Property|(Zend)?Extension)?\n|RangeException|Reflector|RegexIterator|ResourceBundle|RuntimeException|RRD(Creator|Graph|Updater)\n|SAM(Connection|Message)|SCA(_(SoapProxy|LocalProxy))?\n|SDO_(DAS_(ChangeSummary|Data(Factory|Object)|Relational|Setting|XML(_Document)?)\n     |Data(Factory|Object)|Exception|List|Model_(Property|ReflectionDataObject|Type)|Sequence)\n|SeekableIterator|Serializable|SessionHandler(Interface)?|SimpleXML(Iterator|Element)|SNMP\n|Soap(Client|Fault|Header|Param|Server|Var)\n|SphinxClient|Spoofchecker\n|Spl(DoublyLinkedList|Enum|File(Info|Object)|FixedArray|(Max|Min)?Heap|Observer|ObjectStorage\n    |(Priority)?Queue|Stack|Subject|Type|TempFileObject)\n|SQLite(3(Result|Stmt)?|Database|Result|Unbuffered)\n|stdClass|streamWrapper|SVM(Model)?|Swish(Result(s)?|Search)?|Sync(Event|Mutex|ReaderWriter|Semaphore)\n|Thread(ed)?|tidy(Node)?|TokyoTyrant(Table|Iterator|Query)?|Transliterator|Traversable\n|UConverter|(Underflow|UnexpectedValue)Exception\n|V8Js(Exception)?|Varnish(Admin|Log|Stat)\n|Worker|Weak(Map|Ref)\n|XML(Diff\\\\(Base|DOM|File|Memory)|Reader|Writer)|XsltProcessor\n|Yaf_(Route_(Interface|Map|Regex|Rewrite|Simple|Supervar)\n     |Action_Abstract|Application|Config_(Simple|Ini|Abstract)|Controller_Abstract\n     |Dispatcher|Exception|Loader|Plugin_Abstract|Registry|Request_(Abstract|Simple|Http)\n     |Response_Abstract|Router|Session|View_(Simple|Interface))\n|Yar_(Client(_Exception)?|Concurrent_Client|Server(_Exception)?)\n|ZipArchive|ZMQ(Context|Device|Poll|Socket)?)\n\\b",
 					"name": "support.class.builtin.php",
 					"captures": {
 						"1": {

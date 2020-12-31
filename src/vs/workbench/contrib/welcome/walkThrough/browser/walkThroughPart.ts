@@ -210,6 +210,10 @@ export class WalkThroughPart extends EditorPane {
 				disposable.layout();
 			}
 		});
+		const walkthroughInput = this.input instanceof WalkThroughInput && this.input;
+		if (walkthroughInput && walkthroughInput.layout) {
+			walkthroughInput.layout(dimension);
+		}
 		this.scrollbar.scanDomNode();
 	}
 

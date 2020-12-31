@@ -22,7 +22,7 @@ import { INotificationService } from 'vs/platform/notification/common/notificati
 import { DefaultQuickAccessFilterValue } from 'vs/platform/quickinput/common/quickAccess';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { IWorkbenchQuickAccessConfiguration } from 'vs/workbench/browser/quickaccess';
-import { Codicon, stripCodicons } from 'vs/base/common/codicons';
+import { Codicon } from 'vs/base/common/codicons';
 import { IQuickInputService } from 'vs/platform/quickinput/common/quickInput';
 import { IStorageService } from 'vs/platform/storage/common/storage';
 import { KeybindingWeight } from 'vs/platform/keybinding/common/keybindingsRegistry';
@@ -30,6 +30,7 @@ import { KeyMod, KeyCode } from 'vs/base/common/keyCodes';
 import { IEditorGroupsService } from 'vs/workbench/services/editor/common/editorGroupsService';
 import { TriggerAction } from 'vs/platform/quickinput/browser/pickerQuickAccess';
 import { IPreferencesService } from 'vs/workbench/services/preferences/common/preferences';
+import { stripIcons } from 'vs/base/common/iconLabels';
 
 export class CommandsQuickAccessProvider extends AbstractEditorCommandsQuickAccessProvider {
 
@@ -136,7 +137,7 @@ export class CommandsQuickAccessProvider extends AbstractEditorCommandsQuickAcce
 			globalCommandPicks.push({
 				commandId: action.item.id,
 				commandAlias,
-				label: stripCodicons(label)
+				label: stripIcons(label)
 			});
 		}
 

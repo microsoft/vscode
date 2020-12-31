@@ -30,7 +30,7 @@ import { Color } from 'vs/base/common/color';
 import { registerCodicon, Codicon } from 'vs/base/common/codicons';
 import { ActionViewItem } from 'vs/base/browser/ui/actionbar/actionViewItems';
 import { escape } from 'vs/base/common/strings';
-import { renderCodicons } from 'vs/base/browser/codicons';
+import { renderLabelWithIcons } from 'vs/base/browser/ui/iconLabel/iconLabels';
 
 export interface IQuickInputOptions {
 	idPrefix: string;
@@ -72,7 +72,7 @@ const $ = dom.$;
 type Writeable<T> = { -readonly [P in keyof T]: T[P] };
 
 
-const backButtonIcon = registerCodicon('quick-input-back', Codicon.arrowLeft, localize('backButtonIcon', 'Icon for the back button in the quick input dialog.'));
+const backButtonIcon = registerCodicon('quick-input-back', Codicon.arrowLeft);
 
 const backButton = {
 	iconClass: backButtonIcon.classNames,
@@ -967,7 +967,7 @@ class QuickPick<T extends IQuickPickItem> extends QuickInput implements IQuickPi
 		const validationMessage = this.validationMessage || '';
 		if (this._lastValidationMessage !== validationMessage) {
 			this._lastValidationMessage = validationMessage;
-			dom.reset(this.ui.message, ...renderCodicons(escape(validationMessage)));
+			dom.reset(this.ui.message, ...renderLabelWithIcons(escape(validationMessage)));
 			this.showMessageDecoration(this.validationMessage ? Severity.Error : Severity.Ignore);
 		}
 		this.ui.customButton.label = this.customLabel || '';
@@ -1103,7 +1103,7 @@ class InputBox extends QuickInput implements IInputBox {
 		const validationMessage = this.validationMessage || this.noValidationMessage;
 		if (this._lastValidationMessage !== validationMessage) {
 			this._lastValidationMessage = validationMessage;
-			dom.reset(this.ui.message, ...renderCodicons(validationMessage));
+			dom.reset(this.ui.message, ...renderLabelWithIcons(validationMessage));
 			this.showMessageDecoration(this.validationMessage ? Severity.Error : Severity.Ignore);
 		}
 	}

@@ -10,7 +10,7 @@ import { IFilesConfiguration, SortOrder } from 'vs/workbench/contrib/files/commo
 import { ExplorerItem, ExplorerModel } from 'vs/workbench/contrib/files/common/explorerModel';
 import { URI } from 'vs/base/common/uri';
 import { FileOperationEvent, FileOperation, IFileService, FileChangesEvent, FileChangeType, IResolveFileOptions } from 'vs/platform/files/common/files';
-import { dirname } from 'vs/base/common/resources';
+import { dirname, basename } from 'vs/base/common/resources';
 import { IConfigurationService, IConfigurationChangeEvent } from 'vs/platform/configuration/common/configuration';
 import { IClipboardService } from 'vs/platform/clipboard/common/clipboardService';
 import { IEditorService } from 'vs/workbench/services/editor/common/editorService';
@@ -28,7 +28,7 @@ export const UNDO_REDO_SOURCE = new UndoRedoSource();
 export class ExplorerService implements IExplorerService {
 	declare readonly _serviceBrand: undefined;
 
-	private static readonly EXPLORER_FILE_CHANGES_REACT_DELAY = 1000; // delay in ms to react to file changes to give our internal events a chance to react first
+	private static readonly EXPLORER_FILE_CHANGES_REACT_DELAY = 500; // delay in ms to react to file changes to give our internal events a chance to react first
 
 	private readonly disposables = new DisposableStore();
 	private editable: { stat: ExplorerItem, data: IEditableData } | undefined;
@@ -60,15 +60,30 @@ export class ExplorerService implements IExplorerService {
 			this.fileChangeEvents = [];
 
 			// Filter to the ones we care
-			const types = [FileChangeType.ADDED, FileChangeType.DELETED];
+			const types = [FileChangeType.DELETED];
 			if (this._sortOrder === SortOrder.Modified) {
 				types.push(FileChangeType.UPDATED);
 			}
 
 			let shouldRefresh = false;
+			// For DELETED and UPDATED events go through the explorer model and check if any of the items got affected
 			this.roots.forEach(r => {
 				if (this.view && !shouldRefresh) {
 					shouldRefresh = doesFileEventAffect(r, this.view, events, types);
+				}
+			});
+			// For ADDED events we need to go through all the events and check if the explorer is already aware of some of them
+			// Or if they affect not yet resolved parts of the explorer. If that is the case we will not refresh.
+			events.forEach(e => {
+				if (!shouldRefresh) {
+					const added = e.getAdded();
+					if (added.some(a => {
+						const parent = this.model.findClosest(dirname(a.resource));
+						// Parent of the added resource is resolved and the explorer model is not aware of the added resource - we need to refresh
+						return parent && !parent.getChild(basename(a.resource));
+					})) {
+						shouldRefresh = true;
+					}
 				}
 			});
 
@@ -345,11 +360,11 @@ export class ExplorerService implements IExplorerService {
 }
 
 function doesFileEventAffect(item: ExplorerItem, view: IExplorerView, events: FileChangesEvent[], types: FileChangeType[]): boolean {
-	if (events.some(e => e.affects(item.resource, ...types))) {
-		return true;
-	}
 	for (let [_name, child] of item.children) {
 		if (view.isItemVisible(child)) {
+			if (events.some(e => e.contains(child.resource, ...types))) {
+				return true;
+			}
 			if (child.isDirectory && child.isDirectoryResolved) {
 				if (doesFileEventAffect(child, view, events, types)) {
 					return true;

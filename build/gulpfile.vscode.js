@@ -11,13 +11,10 @@ const os = require('os');
 const cp = require('child_process');
 const path = require('path');
 const es = require('event-stream');
-const azure = require('gulp-azure-storage');
-const electron = require('gulp-atom-electron');
 const vfs = require('vinyl-fs');
 const rename = require('gulp-rename');
 const replace = require('gulp-replace');
 const filter = require('gulp-filter');
-const json = require('gulp-json-editor');
 const _ = require('underscore');
 const util = require('./lib/util');
 const task = require('./lib/task');
@@ -29,14 +26,12 @@ const packageJson = require('../package.json');
 const product = require('../product.json');
 const crypto = require('crypto');
 const i18n = require('./lib/i18n');
-const deps = require('./dependencies');
+const { getProductionDependencies } = require('./dependencies');
 const { config } = require('./lib/electron');
 const createAsar = require('./lib/asar').createAsar;
 const minimist = require('minimist');
 const { compileBuildTask } = require('./gulpfile.compile');
 const { compileExtensionsBuildTask } = require('./gulpfile.extensions');
-
-const productionDependencies = deps.getProductionDependencies(path.dirname(__dirname));
 
 // Build
 const vscodeEntryPoints = _.flatten([
@@ -80,7 +75,6 @@ const vscodeResources = [
 	'out-build/vs/code/electron-browser/sharedProcess/sharedProcess.js',
 	'out-build/vs/code/electron-sandbox/issue/issueReporter.js',
 	'out-build/vs/code/electron-sandbox/processExplorer/processExplorer.js',
-	'out-build/vs/code/electron-sandbox/proxy/auth.js',
 	'!**/test/**'
 ];
 
@@ -146,6 +140,9 @@ function packageTask(platform, arch, sourceFolderName, destinationFolderName, op
 	platform = platform || process.platform;
 
 	return () => {
+		const electron = require('gulp-atom-electron');
+		const json = require('gulp-json-editor');
+
 		const out = sourceFolderName;
 
 		const checksums = computeChecksums(out, [
@@ -203,6 +200,7 @@ function packageTask(platform, arch, sourceFolderName, destinationFolderName, op
 
 		const jsFilter = util.filter(data => !data.isDirectory() && /\.js$/.test(data.path));
 		const root = path.resolve(path.join(__dirname, '..'));
+		const productionDependencies = getProductionDependencies(root);
 		const dependenciesSrc = _.flatten(productionDependencies.map(d => path.relative(root, d.path)).map(d => [`${d}/**`, `!${d}/**/{test,tests}/**`]));
 
 		const deps = gulp.src(dependenciesSrc, { base: '.', dot: true })
@@ -505,6 +503,8 @@ gulp.task(task.define(
 	task.series(
 		generateVSCodeConfigurationTask,
 		() => {
+			const azure = require('gulp-azure-storage');
+
 			if (!shouldSetupSettingsSearch()) {
 				const branch = process.env.BUILD_SOURCEBRANCH;
 				console.log(`Only runs on master and release branches, not ${branch}`);

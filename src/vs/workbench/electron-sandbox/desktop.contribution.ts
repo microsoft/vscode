@@ -22,6 +22,9 @@ import { INativeHostService } from 'vs/platform/native/electron-sandbox/native';
 import { IJSONContributionRegistry, Extensions as JSONExtensions } from 'vs/platform/jsonschemas/common/jsonContributionRegistry';
 import product from 'vs/platform/product/common/product';
 import { IJSONSchema } from 'vs/base/common/jsonSchema';
+import { Extensions as WorkbenchExtensions, IWorkbenchContributionsRegistry } from 'vs/workbench/common/contributions';
+import { LifecyclePhase } from 'vs/workbench/services/lifecycle/common/lifecycle';
+import { LoaderCyclicChecker } from 'vs/workbench/electron-sandbox/loaderCyclicChecker';
 
 // Actions
 (function registerActions(): void {
@@ -97,6 +100,9 @@ import { IJSONSchema } from 'vs/base/common/jsonSchema';
 			primary: KeyMod.CtrlCmd | KeyMod.Shift | KeyCode.KEY_I,
 			mac: { primary: KeyMod.CtrlCmd | KeyMod.Alt | KeyCode.KEY_I }
 		});
+
+		Registry.as<IWorkbenchContributionsRegistry>(WorkbenchExtensions.Workbench).registerWorkbenchContribution(LoaderCyclicChecker, LifecyclePhase.Ready);
+
 	})();
 
 	// Actions: Runtime Arguments
@@ -293,12 +299,6 @@ import { IJSONSchema } from 'vs/base/common/jsonSchema';
 				'scope': ConfigurationScope.APPLICATION,
 				'description': nls.localize('window.clickThroughInactive', "If enabled, clicking on an inactive window will both activate the window and trigger the element under the mouse if it is clickable. If disabled, clicking anywhere on an inactive window will activate it only and a second click is required on the element."),
 				'included': isMacintosh
-			},
-			'window.enableExperimentalProxyLoginDialog': {
-				'type': 'boolean',
-				'default': true,
-				'scope': ConfigurationScope.APPLICATION,
-				'description': nls.localize('window.enableExperimentalProxyLoginDialog', "Enables a new login dialog for proxy authentication. Requires a restart to take effect."),
 			}
 		}
 	});

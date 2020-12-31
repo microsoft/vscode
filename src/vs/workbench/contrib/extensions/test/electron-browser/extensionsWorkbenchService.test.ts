@@ -46,6 +46,8 @@ import { IExperimentService } from 'vs/workbench/contrib/experiments/common/expe
 import { TestExperimentService } from 'vs/workbench/contrib/experiments/test/electron-browser/experimentService.test';
 import { ExtensionTipsService } from 'vs/platform/extensionManagement/electron-sandbox/extensionTipsService';
 import { Schemas } from 'vs/base/common/network';
+import { IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
+import { MockContextKeyService } from 'vs/platform/keybinding/test/common/mockKeybindingService';
 
 suite('ExtensionsWorkbenchServiceTest', () => {
 
@@ -72,6 +74,7 @@ suite('ExtensionsWorkbenchServiceTest', () => {
 		instantiationService.stub(IExtensionGalleryService, ExtensionGalleryService);
 		instantiationService.stub(IURLService, NativeURLService);
 		instantiationService.stub(ISharedProcessService, TestSharedProcessService);
+		instantiationService.stub(IContextKeyService, new MockContextKeyService());
 
 		instantiationService.stub(IWorkspaceContextService, new TestContextService());
 		instantiationService.stub(IConfigurationService, <Partial<IConfigurationService>>{

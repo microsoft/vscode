@@ -484,7 +484,6 @@ function registerOpenEditorAPICommands(): void {
 		const editorService = accessor.get(IEditorService);
 		const editorGroupsService = accessor.get(IEditorGroupsService);
 		const configurationService = accessor.get(IConfigurationService);
-		const quickInputService = accessor.get(IQuickInputService);
 
 		const [columnArg, optionsArg] = columnAndOptions ?? [];
 		let group: IEditorGroup | undefined = undefined;
@@ -504,7 +503,7 @@ function registerOpenEditorAPICommands(): void {
 		const textOptions: ITextEditorOptions = optionsArg ? { ...optionsArg, override: false } : { override: false };
 
 		const input = editorService.createEditorInput({ resource: URI.revive(resource) });
-		return openEditorWith(input, id, textOptions, group, editorService, configurationService, quickInputService);
+		return openEditorWith(accessor, input, id, textOptions, group);
 	});
 }
 
@@ -917,7 +916,7 @@ function registerOtherEditorCommands(): void {
 					nls.localize('enablePreview', "Preview editors have been enabled in settings.") :
 					nls.localize('disablePreview', "Preview editors have been disabled in settings."),
 				[{
-					label: nls.localize('learnMode', "Learn More"), run: () => openerService.open('https://go.microsoft.com/fwlink/?linkid=2147473')
+					label: nls.localize('learnMore', "Learn More"), run: () => openerService.open('https://go.microsoft.com/fwlink/?linkid=2147473')
 				}]
 			);
 		}
