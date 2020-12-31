@@ -26,17 +26,18 @@ import { EditorOption } from 'vs/editor/common/config/editorOptions';
 import { Progress } from 'vs/platform/progress/common/progress';
 import { ITextEditorOptions } from 'vs/platform/editor/common/editor';
 import { renderHoverAction } from 'vs/base/browser/ui/hover/hoverWidget';
-import { HoverPart, IEditorHover, IEditorHoverParticipant, IHoverPart } from 'vs/editor/contrib/hover/modesContentHover';
+import { IEditorHover, IEditorHoverParticipant, IHoverPart } from 'vs/editor/contrib/hover/modesContentHover';
 
 const $ = dom.$;
 
 export class MarkerHover implements IHoverPart {
+
 	constructor(
 		public readonly range: Range,
 		public readonly marker: IMarker,
 	) { }
 
-	public equals(other: IHoverPart | HoverPart): boolean {
+	public equals(other: IHoverPart): boolean {
 		if (other instanceof MarkerHover) {
 			return IMarkerData.makeKey(this.marker) === IMarkerData.makeKey(other.marker);
 		}
@@ -59,8 +60,7 @@ export class MarkerHoverParticipant implements IEditorHoverParticipant<MarkerHov
 		@IMarkerDecorationsService private readonly _markerDecorationsService: IMarkerDecorationsService,
 		@IKeybindingService private readonly _keybindingService: IKeybindingService,
 		@IOpenerService private readonly _openerService: IOpenerService,
-	) {
-	}
+	) { }
 
 	public computeHoverPart(hoverRange: Range, model: ITextModel, decoration: IModelDecoration): MarkerHover | null {
 		const marker = this._markerDecorationsService.getMarker(model, decoration);
