@@ -47,7 +47,17 @@ function getHoverMessage(link: Link, useMetaKey: boolean): MarkdownString {
 			: nls.localize('links.navigate.kb.alt', "alt + click");
 
 	if (link.url) {
-		const hoverMessage = new MarkdownString('', true).appendMarkdown(`[${label}](${link.url.toString()}) (${kb})`);
+		let nativeLabel = '';
+		if (/^command:/i.test(link.url.toString())) {
+			// Don't show complete command arguments in the native tooltip
+			const match = link.url.toString().match(/^command:([^?#]+)/);
+			if (match) {
+				const commandId = match[1];
+				const nativeLabelText = nls.localize('tooltip.explanation', "Execute command {0}", commandId);
+				nativeLabel = ` "${nativeLabelText}"`;
+			}
+		}
+		const hoverMessage = new MarkdownString('', true).appendMarkdown(`[${label}](${link.url.toString(true)}${nativeLabel}) (${kb})`);
 		return hoverMessage;
 	} else {
 		return new MarkdownString().appendText(`${label} (${kb})`);
@@ -298,7 +308,7 @@ export class LinkDetector implements IEditorContribution {
 			// Support for relative file URIs of the shape file://./relativeFile.txt or file:///./relativeFile.txt
 			if (typeof uri === 'string' && this.editor.hasModel()) {
 				const modelUri = this.editor.getModel().uri;
-				if (modelUri.scheme === Schemas.file && uri.startsWith('file:')) {
+				if (modelUri.scheme === Schemas.file && uri.startsWith(`${Schemas.file}:`)) {
 					const parsedUri = URI.parse(uri);
 					if (parsedUri.scheme === Schemas.file) {
 						const fsPath = resources.originalFSPath(parsedUri);
@@ -364,7 +374,8 @@ export class LinkDetector implements IEditorContribution {
 	private stop(): void {
 		this.timeout.cancel();
 		if (this.activeLinksList) {
-			this.activeLinksList.dispose();
+			this.activeLinksList?.dispose();
+			this.activeLinksList = null;
 		}
 		if (this.computePromise) {
 			this.computePromise.cancel();

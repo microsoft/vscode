@@ -8,7 +8,7 @@ import { Position } from 'vs/editor/common/core/position';
 import { Selection } from 'vs/editor/common/core/selection';
 import { Handler } from 'vs/editor/common/editorCommon';
 import { ITextModel } from 'vs/editor/common/model';
-import { TitleCaseAction, DeleteAllLeftAction, DeleteAllRightAction, IndentLinesAction, InsertLineAfterAction, InsertLineBeforeAction, JoinLinesAction, LowerCaseAction, SortLinesAscendingAction, SortLinesDescendingAction, TransposeAction, UpperCaseAction, DeleteLinesAction } from 'vs/editor/contrib/linesOperations/linesOperations';
+import { TitleCaseAction, DeleteAllLeftAction, DeleteAllRightAction, IndentLinesAction, InsertLineAfterAction, InsertLineBeforeAction, JoinLinesAction, LowerCaseAction, SortLinesAscendingAction, SortLinesDescendingAction, TransposeAction, UpperCaseAction, DeleteLinesAction, SnakeCaseAction } from 'vs/editor/contrib/linesOperations/linesOperations';
 import { withTestCodeEditor } from 'vs/editor/test/browser/testCodeEditor';
 import { createTextModel } from 'vs/editor/test/common/editorTestUtils';
 import type { ICodeEditor } from 'vs/editor/browser/editorBrowser';
@@ -534,12 +534,28 @@ suite('Editor Contrib - Line Operations', () => {
 		withTestCodeEditor(
 			[
 				'hello world',
-				'öçşğü'
+				'öçşğü',
+				'parseHTMLString',
+				'getElementById',
+				'insertHTML',
+				'PascalCase',
+				'CSSSelectorsList',
+				'iD',
+				'tEST',
+				'öçşÖÇŞğüĞÜ',
+				'audioConverter.convertM4AToMP3();',
+				'snake_case',
+				'Capital_Snake_Case',
+				`function helloWorld() {
+				return someGlobalObject.printHelloWorld("en", "utf-8");
+				}
+				helloWorld();`.replace(/^\s+/gm, '')
 			], {}, (editor) => {
 				let model = editor.getModel()!;
 				let uppercaseAction = new UpperCaseAction();
 				let lowercaseAction = new LowerCaseAction();
 				let titlecaseAction = new TitleCaseAction();
+				let snakecaseAction = new SnakeCaseAction();
 
 				editor.setSelection(new Selection(1, 1, 1, 12));
 				executeAction(uppercaseAction, editor);
@@ -580,6 +596,69 @@ suite('Editor Contrib - Line Operations', () => {
 				executeAction(titlecaseAction, editor);
 				assert.equal(model.getLineContent(2), 'Öçşğü');
 				assertSelection(editor, new Selection(2, 1, 2, 6));
+
+				editor.setSelection(new Selection(3, 1, 3, 16));
+				executeAction(snakecaseAction, editor);
+				assert.equal(model.getLineContent(3), 'parse_html_string');
+				assertSelection(editor, new Selection(3, 1, 3, 18));
+
+				editor.setSelection(new Selection(4, 1, 4, 15));
+				executeAction(snakecaseAction, editor);
+				assert.equal(model.getLineContent(4), 'get_element_by_id');
+				assertSelection(editor, new Selection(4, 1, 4, 18));
+
+				editor.setSelection(new Selection(5, 1, 5, 11));
+				executeAction(snakecaseAction, editor);
+				assert.equal(model.getLineContent(5), 'insert_html');
+				assertSelection(editor, new Selection(5, 1, 5, 12));
+
+				editor.setSelection(new Selection(6, 1, 6, 11));
+				executeAction(snakecaseAction, editor);
+				assert.equal(model.getLineContent(6), 'pascal_case');
+				assertSelection(editor, new Selection(6, 1, 6, 12));
+
+				editor.setSelection(new Selection(7, 1, 7, 17));
+				executeAction(snakecaseAction, editor);
+				assert.equal(model.getLineContent(7), 'css_selectors_list');
+				assertSelection(editor, new Selection(7, 1, 7, 19));
+
+				editor.setSelection(new Selection(8, 1, 8, 3));
+				executeAction(snakecaseAction, editor);
+				assert.equal(model.getLineContent(8), 'i_d');
+				assertSelection(editor, new Selection(8, 1, 8, 4));
+
+				editor.setSelection(new Selection(9, 1, 9, 5));
+				executeAction(snakecaseAction, editor);
+				assert.equal(model.getLineContent(9), 't_est');
+				assertSelection(editor, new Selection(9, 1, 9, 6));
+
+				editor.setSelection(new Selection(10, 1, 10, 11));
+				executeAction(snakecaseAction, editor);
+				assert.equal(model.getLineContent(10), 'öçş_öç_şğü_ğü');
+				assertSelection(editor, new Selection(10, 1, 10, 14));
+
+				editor.setSelection(new Selection(11, 1, 11, 34));
+				executeAction(snakecaseAction, editor);
+				assert.equal(model.getLineContent(11), 'audio_converter.convert_m4a_to_mp3();');
+				assertSelection(editor, new Selection(11, 1, 11, 38));
+
+				editor.setSelection(new Selection(12, 1, 12, 11));
+				executeAction(snakecaseAction, editor);
+				assert.equal(model.getLineContent(12), 'snake_case');
+				assertSelection(editor, new Selection(12, 1, 12, 11));
+
+				editor.setSelection(new Selection(13, 1, 13, 19));
+				executeAction(snakecaseAction, editor);
+				assert.equal(model.getLineContent(13), 'capital_snake_case');
+				assertSelection(editor, new Selection(13, 1, 13, 19));
+
+				editor.setSelection(new Selection(14, 1, 17, 14));
+				executeAction(snakecaseAction, editor);
+				assert.equal(model.getValueInRange(new Selection(14, 1, 17, 15)), `function hello_world() {
+					return some_global_object.print_hello_world("en", "utf-8");
+				}
+				hello_world();`.replace(/^\s+/gm, ''));
+				assertSelection(editor, new Selection(14, 1, 17, 15));
 			}
 		);
 

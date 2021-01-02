@@ -16,7 +16,7 @@ export async function activate(context: vscode.ExtensionContext) {
 	context.subscriptions.push(vscode.window.registerUriHandler(uriHandler));
 	const loginService = new GitHubAuthenticationProvider();
 
-	await loginService.initialize();
+	await loginService.initialize(context);
 
 	context.subscriptions.push(vscode.commands.registerCommand('github.provide-token', () => {
 		return loginService.manuallyProvideToken();
@@ -40,6 +40,15 @@ export async function activate(context: vscode.ExtensionContext) {
 				onDidChangeSessions.fire({ added: [session.id], removed: [], changed: [] });
 				return session;
 			} catch (e) {
+				// If login was cancelled, do not notify user.
+				if (e.message === 'Cancelled') {
+					/* __GDPR__
+						"loginCancelled" : { }
+					*/
+					telemetryReporter.sendTelemetryEvent('loginCancelled');
+					throw e;
+				}
+
 				/* __GDPR__
 					"loginFailed" : { }
 				*/

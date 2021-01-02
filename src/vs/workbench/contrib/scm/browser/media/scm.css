@@ -179,6 +179,7 @@
 .scm-view .monaco-list-row .resource-group > .actions .action-label {
 	width: 16px;
 	height: 100%;
+	color: inherit;
 	background-position: 50% 50%;
 	background-repeat: no-repeat;
 }

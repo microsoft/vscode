@@ -9,7 +9,7 @@ import { ITextModelService } from 'vs/editor/common/services/resolverService';
 import { localize } from 'vs/nls';
 import { IDialogService } from 'vs/platform/dialogs/common/dialogs';
 import { INativeWorkbenchEnvironmentService } from 'vs/workbench/services/environment/electron-sandbox/environmentService';
-import { ILifecycleService, LifecyclePhase } from 'vs/platform/lifecycle/common/lifecycle';
+import { ILifecycleService, LifecyclePhase } from 'vs/workbench/services/lifecycle/common/lifecycle';
 import { IWorkbenchContribution } from 'vs/workbench/common/contributions';
 import { PerfviewInput } from 'vs/workbench/contrib/performance/browser/perfviewEditor';
 import { IExtensionService } from 'vs/workbench/services/extensions/common/extensions';
@@ -77,8 +77,8 @@ export class StartupProfiler implements IWorkbenchContribution {
 				type: 'info',
 				message: localize('prof.message', "Successfully created profiles."),
 				detail: localize('prof.detail', "Please create an issue and manually attach the following files:\n{0}", profileFiles),
-				primaryButton: localize('prof.restartAndFileIssue', "Create Issue and Restart"),
-				secondaryButton: localize('prof.restart', "Restart")
+				primaryButton: localize('prof.restartAndFileIssue', "&&Create Issue and Restart"),
+				secondaryButton: localize('prof.restart', "&&Restart")
 			}).then(res => {
 				if (res.confirmed) {
 					Promise.all<any>([
@@ -90,7 +90,7 @@ export class StartupProfiler implements IWorkbenchContribution {
 							type: 'info',
 							message: localize('prof.thanks', "Thanks for helping us."),
 							detail: localize('prof.detail.restart', "A final restart is required to continue to use '{0}'. Again, thank you for your contribution.", this._productService.nameLong),
-							primaryButton: localize('prof.restart', "Restart"),
+							primaryButton: localize('prof.restart.button', "&&Restart"),
 							secondaryButton: undefined
 						}).then(() => {
 							// now we are ready to restart

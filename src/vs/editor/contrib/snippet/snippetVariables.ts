@@ -10,7 +10,7 @@ import { ITextModel } from 'vs/editor/common/model';
 import { Selection } from 'vs/editor/common/core/selection';
 import { VariableResolver, Variable, Text } from 'vs/editor/contrib/snippet/snippetParser';
 import { LanguageConfigurationRegistry } from 'vs/editor/common/modes/languageConfigurationRegistry';
-import { getLeadingWhitespace, commonPrefixLength, isFalsyOrWhitespace } from 'vs/base/common/strings';
+import { getLeadingWhitespace, commonPrefixLength, isFalsyOrWhitespace, splitLines } from 'vs/base/common/strings';
 import { IWorkspaceContextService } from 'vs/platform/workspace/common/workspace';
 import { isSingleFolderWorkspaceIdentifier, toWorkspaceIdentifier, WORKSPACE_EXTENSION, IWorkspaceIdentifier } from 'vs/platform/workspaces/common/workspaces';
 import { ILabelService } from 'vs/platform/label/common/label';
@@ -111,7 +111,7 @@ export class SelectionBasedVariableResolver implements VariableResolver {
 						return false;
 					}
 					if (marker instanceof Text) {
-						varLeadingWhitespace = getLeadingWhitespace(marker.value.split(/\r\n|\r|\n/).pop()!);
+						varLeadingWhitespace = getLeadingWhitespace(splitLines(marker.value).pop()!);
 					}
 					return true;
 				});

@@ -4,10 +4,8 @@
  *--------------------------------------------------------------------------------------------*/
 
 import * as DOM from 'vs/base/browser/dom';
-import { getPathFromAmdModule } from 'vs/base/common/amd';
 import { Emitter, Event } from 'vs/base/common/event';
 import { Disposable } from 'vs/base/common/lifecycle';
-import * as path from 'vs/base/common/path';
 import { isWeb } from 'vs/base/common/platform';
 import { URI } from 'vs/base/common/uri';
 import * as UUID from 'vs/base/common/uuid';
@@ -23,7 +21,7 @@ import { IWorkbenchEnvironmentService } from 'vs/workbench/services/environment/
 import { dirname, joinPath } from 'vs/base/common/resources';
 import { IWorkspaceContextService } from 'vs/platform/workspace/common/workspace';
 import { preloadsScriptStr } from 'vs/workbench/contrib/notebook/browser/view/renderers/webviewPreloads';
-import { Schemas } from 'vs/base/common/network';
+import { FileAccess, Schemas } from 'vs/base/common/network';
 import { IFileDialogService } from 'vs/platform/dialogs/common/dialogs';
 import { IFileService } from 'vs/platform/files/common/files';
 import { VSBuffer } from 'vs/base/common/buffer';
@@ -148,7 +146,8 @@ export interface IFocusOutputMessage {
 }
 
 export interface IPreloadResource {
-	uri: string
+	originalUri: string;
+	uri: string;
 }
 
 export interface IUpdatePreloadResourceMessage {
@@ -322,7 +321,6 @@ export class BackLayerWebView extends Disposable {
 					self.require = {};
 				</script>
 				${coreDependencies}
-				<div id="__vscode_preloads"></div>
 				<div id='container' class="widgetarea" style="position: absolute;width:100%;top: 0px"></div>
 				<script>${preloadsScriptStr(outputNodePadding)}</script>
 			</body>
@@ -355,9 +353,6 @@ export class BackLayerWebView extends Disposable {
 	}
 
 	async createWebview(): Promise<void> {
-		const pathsPath = getPathFromAmdModule(require, 'vs/loader.js');
-		const loader = asWebviewUri(this.environmentService, this.id, URI.file(pathsPath));
-
 		let coreDependencies = '';
 		let resolveFunc: () => void;
 
@@ -368,12 +363,21 @@ export class BackLayerWebView extends Disposable {
 		const baseUrl = asWebviewUri(this.environmentService, this.id, dirname(this.documentUri));
 
 		if (!isWeb) {
-			coreDependencies = `<script src="${loader}"></script>`;
+			const loaderUri = FileAccess.asFileUri('vs/loader.js', require);
+			const loader = asWebviewUri(this.environmentService, this.id, loaderUri);
+
+			coreDependencies = `<script src="${loader}"></script><script>
+			var requirejs = (function() {
+				return require;
+			}());
+			</script>`;
 			const htmlContent = this.generateContent(CELL_OUTPUT_PADDING, coreDependencies, baseUrl.toString());
-			this.initialize(htmlContent);
+			this._initialize(htmlContent);
 			resolveFunc!();
 		} else {
-			fetch(pathsPath).then(async response => {
+			const loaderUri = FileAccess.asBrowserUri('vs/loader.js', require);
+
+			fetch(loaderUri.toString(true)).then(async response => {
 				if (response.status !== 200) {
 					throw new Error(response.statusText);
 				}
@@ -384,10 +388,15 @@ export class BackLayerWebView extends Disposable {
 <script>
 ${loaderJs}
 </script>
+<script>
+var requirejs = (function() {
+	return require;
+}());
+</script>
 `;
 
 				const htmlContent = this.generateContent(CELL_OUTPUT_PADDING, coreDependencies, baseUrl.toString());
-				this.initialize(htmlContent);
+				this._initialize(htmlContent);
 				resolveFunc!();
 			});
 		}
@@ -395,7 +404,7 @@ ${loaderJs}
 		await this._initalized;
 	}
 
-	async initialize(content: string) {
+	private async _initialize(content: string) {
 		if (!document.body.contains(this.element)) {
 			throw new Error('Element is already detached from the DOM tree');
 		}
@@ -545,7 +554,8 @@ ${loaderJs}
 	}
 
 	private _createInset(webviewService: IWebviewService, content: string) {
-		const rootPath = URI.file(path.dirname(getPathFromAmdModule(require, '')));
+		const rootPath = isWeb ? FileAccess.asBrowserUri('', require) : FileAccess.asFileUri('', require);
+
 		const workspaceFolders = this.contextService.getWorkspace().folders.map(x => x.uri);
 
 		this.localResourceRootsCache = [...this.notebookService.getNotebookProviderResourceRoots(), ...workspaceFolders, rootPath];
@@ -791,19 +801,15 @@ ${loaderJs}
 		await this._loaded;
 
 		const resources: IPreloadResource[] = [];
-		preloads = preloads.map(preload => {
-			if (this.environmentService.isExtensionDevelopment && (preload.scheme === 'http' || preload.scheme === 'https')) {
-				return preload;
-			}
-			return asWebviewUri(this.environmentService, this.id, preload);
-		});
+		for (const preload of preloads) {
+			const uri = this.environmentService.isExtensionDevelopment && (preload.scheme === 'http' || preload.scheme === 'https')
+				? preload : asWebviewUri(this.environmentService, this.id, preload);
 
-		preloads.forEach(e => {
-			if (!this._preloadsCache.has(e.toString())) {
-				resources.push({ uri: e.toString() });
-				this._preloadsCache.add(e.toString());
+			if (!this._preloadsCache.has(uri.toString())) {
+				resources.push({ uri: uri.toString(), originalUri: preload.toString() });
+				this._preloadsCache.add(uri.toString());
 			}
-		});
+		}
 
 		if (!resources.length) {
 			return;
@@ -824,19 +830,17 @@ ${loaderJs}
 		const resources: IPreloadResource[] = [];
 		const extensionLocations: URI[] = [];
 		for (const rendererInfo of renderers) {
-			const preloads = [rendererInfo.entrypoint, ...rendererInfo.preloads]
-				.map(preload => asWebviewUri(this.environmentService, this.id, preload));
 			extensionLocations.push(rendererInfo.extensionLocation);
-
-			preloads.forEach(e => {
-				const resource: IPreloadResource = { uri: e.toString() };
+			for (const preload of [rendererInfo.entrypoint, ...rendererInfo.preloads]) {
+				const uri = asWebviewUri(this.environmentService, this.id, preload);
+				const resource: IPreloadResource = { uri: uri.toString(), originalUri: preload.toString() };
 				requiredPreloads.push(resource);
 
-				if (!this._preloadsCache.has(e.toString())) {
+				if (!this._preloadsCache.has(uri.toString())) {
 					resources.push(resource);
-					this._preloadsCache.add(e.toString());
+					this._preloadsCache.add(uri.toString());
 				}
-			});
+			}
 		}
 
 		if (!resources.length) {

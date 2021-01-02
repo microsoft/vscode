@@ -8,8 +8,7 @@ import { IProcessEnvironment } from 'vs/base/common/platform';
 import { parseArgs, OPTIONS } from 'vs/platform/environment/node/argv';
 import { createServer, AddressInfo } from 'net';
 import { ExtensionHostDebugBroadcastChannel } from 'vs/platform/debug/common/extensionHostDebugIpc';
-import { IWindowsMainService } from 'vs/platform/windows/electron-main/windows';
-import { OpenContext } from 'vs/platform/windows/node/window';
+import { IWindowsMainService, OpenContext } from 'vs/platform/windows/electron-main/windows';
 
 export class ElectronExtensionHostDebugBroadcastChannel<TContext> extends ExtensionHostDebugBroadcastChannel<TContext> {
 
@@ -27,6 +26,8 @@ export class ElectronExtensionHostDebugBroadcastChannel<TContext> extends Extens
 
 	private async openExtensionDevelopmentHostWindow(args: string[], env: IProcessEnvironment, debugRenderer: boolean): Promise<IOpenExtensionWindowResult> {
 		const pargs = parseArgs(args, OPTIONS);
+		pargs.debugRenderer = debugRenderer;
+
 		const extDevPaths = pargs.extensionDevelopmentPath;
 		if (!extDevPaths) {
 			return {};

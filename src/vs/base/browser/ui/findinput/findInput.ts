@@ -228,6 +228,7 @@ export class FindInput extends Widget {
 
 					if (event.equals(KeyCode.Escape)) {
 						indexes[index].blur();
+						this.inputBox.focus();
 					} else if (newIndex >= 0) {
 						indexes[newIndex].focus();
 					}

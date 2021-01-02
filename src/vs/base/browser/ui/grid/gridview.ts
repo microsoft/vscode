@@ -170,6 +170,7 @@ class BranchNode implements ISplitView<ILayoutContext>, IDisposable {
 
 	private absoluteOffset: number = 0;
 	private absoluteOrthogonalOffset: number = 0;
+	private absoluteOrthogonalSize: number = 0;
 
 	private _styles: IGridViewStyles;
 	get styles(): IGridViewStyles { return this._styles; }
@@ -270,6 +271,24 @@ class BranchNode implements ISplitView<ILayoutContext>, IDisposable {
 		}
 	}
 
+	private _edgeSnapping = false;
+	get edgeSnapping(): boolean { return this._edgeSnapping; }
+	set edgeSnapping(edgeSnapping: boolean) {
+		if (this._edgeSnapping === edgeSnapping) {
+			return;
+		}
+
+		this._edgeSnapping = edgeSnapping;
+
+		for (const child of this.children) {
+			if (child instanceof BranchNode) {
+				child.edgeSnapping = edgeSnapping;
+			}
+		}
+
+		this.updateSplitviewEdgeSnappingEnablement();
+	}
+
 	constructor(
 		readonly orientation: Orientation,
 		readonly layoutController: ILayoutController,
@@ -277,6 +296,7 @@ class BranchNode implements ISplitView<ILayoutContext>, IDisposable {
 		readonly proportionalLayout: boolean,
 		size: number = 0,
 		orthogonalSize: number = 0,
+		edgeSnapping: boolean = false,
 		childDescriptors?: INodeDescriptor[]
 	) {
 		this._styles = styles;
@@ -355,6 +375,7 @@ class BranchNode implements ISplitView<ILayoutContext>, IDisposable {
 		this._orthogonalSize = size;
 		this.absoluteOffset = ctx.absoluteOffset + offset;
 		this.absoluteOrthogonalOffset = ctx.absoluteOrthogonalOffset;
+		this.absoluteOrthogonalSize = ctx.absoluteOrthogonalSize;
 
 		this.splitview.layout(ctx.orthogonalSize, {
 			orthogonalSize: size,
@@ -364,9 +385,7 @@ class BranchNode implements ISplitView<ILayoutContext>, IDisposable {
 			absoluteOrthogonalSize: ctx.absoluteSize
 		});
 
-		// Disable snapping on views which sit on the edges of the grid
-		this.splitview.startSnappingEnabled = this.absoluteOrthogonalOffset > 0;
-		this.splitview.endSnappingEnabled = this.absoluteOrthogonalOffset + ctx.orthogonalSize < ctx.absoluteOrthogonalSize;
+		this.updateSplitviewEdgeSnappingEnablement();
 	}
 
 	setVisible(visible: boolean): void {
@@ -607,6 +626,11 @@ class BranchNode implements ISplitView<ILayoutContext>, IDisposable {
 		});
 	}
 
+	private updateSplitviewEdgeSnappingEnablement(): void {
+		this.splitview.startSnappingEnabled = this._edgeSnapping || this.absoluteOrthogonalOffset > 0;
+		this.splitview.endSnappingEnabled = this._edgeSnapping || this.absoluteOrthogonalOffset + this._size < this.absoluteOrthogonalSize;
+	}
+
 	dispose(): void {
 		for (const child of this.children) {
 			child.dispose();
@@ -775,7 +799,7 @@ export interface INodeDescriptor {
 
 function flipNode<T extends Node>(node: T, size: number, orthogonalSize: number): T {
 	if (node instanceof BranchNode) {
-		const result = new BranchNode(orthogonal(node.orientation), node.layoutController, node.styles, node.proportionalLayout, size, orthogonalSize);
+		const result = new BranchNode(orthogonal(node.orientation), node.layoutController, node.styles, node.proportionalLayout, size, orthogonalSize, node.edgeSnapping);
 
 		let totalSize = 0;
 
@@ -863,6 +887,10 @@ export class GridView implements IDisposable {
 		this.root.boundarySashes = fromAbsoluteBoundarySashes(boundarySashes, this.orientation);
 	}
 
+	set edgeSnapping(edgeSnapping: boolean) {
+		this.root.edgeSnapping = edgeSnapping;
+	}
+
 	/**
 	 * The first layout controller makes sure layout only propagates
 	 * to the views after the very first call to gridview.layout()
@@ -932,7 +960,7 @@ export class GridView implements IDisposable {
 
 			grandParent.removeChild(parentIndex);
 
-			const newParent = new BranchNode(parent.orientation, parent.layoutController, this.styles, this.proportionalLayout, parent.size, parent.orthogonalSize);
+			const newParent = new BranchNode(parent.orientation, parent.layoutController, this.styles, this.proportionalLayout, parent.size, parent.orthogonalSize, grandParent.edgeSnapping);
 			grandParent.addChild(newParent, parent.size, parentIndex);
 
 			const newSibling = new LeafNode(parent.view, grandParent.orientation, this.layoutController, parent.size);
@@ -1205,7 +1233,7 @@ export class GridView implements IDisposable {
 				} as INodeDescriptor;
 			});
 
-			result = new BranchNode(orientation, this.layoutController, this.styles, this.proportionalLayout, node.size, orthogonalSize, children);
+			result = new BranchNode(orientation, this.layoutController, this.styles, this.proportionalLayout, node.size, orthogonalSize, undefined, children);
 		} else {
 			result = new LeafNode(deserializer.fromJSON(node.data), orientation, this.layoutController, orthogonalSize, node.size);
 		}

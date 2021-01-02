@@ -5,8 +5,6 @@
 
 const filter = require('gulp-filter');
 const es = require('event-stream');
-const gulpeslint = require('gulp-eslint');
-const tsfmt = require('typescript-formatter');
 const VinylFile = require('vinyl');
 const vfs = require('vinyl-fs');
 const path = require('path');
@@ -49,12 +47,15 @@ const indentationFilter = [
 	'!src/vs/loader.js',
 	'!src/vs/base/common/insane/insane.js',
 	'!src/vs/base/common/marked/marked.js',
+	'!src/vs/base/common/semver/semver.js',
 	'!src/vs/base/node/terminateProcess.sh',
 	'!src/vs/base/node/cpuUsage.sh',
 	'!test/unit/assert.js',
+	'!resources/linux/snap/electron-launch',
 
 	// except specific folders
 	'!test/automation/out/**',
+	'!test/monaco/out/**',
 	'!test/smoke/out/**',
 	'!extensions/typescript-language-features/test-workspace/**',
 	'!extensions/vscode-api-tests/testWorkspace/**',
@@ -71,6 +72,7 @@ const indentationFilter = [
 	'!**/codicon/**',
 	'!**/fixtures/**',
 	'!**/lib/**',
+	'!extensions/**/dist/**',
 	'!extensions/**/out/**',
 	'!extensions/**/snippets/**',
 	'!extensions/**/syntaxes/**',
@@ -81,7 +83,7 @@ const indentationFilter = [
 	'!src/vs/*/**/*.d.ts',
 	'!src/typings/**/*.d.ts',
 	'!extensions/**/*.d.ts',
-	'!**/*.{svg,exe,png,bmp,scpt,bat,cmd,cur,ttf,woff,eot,md,ps1,template,yaml,yml,d.ts.recipe,ico,icns,plist}',
+	'!**/*.{svg,exe,png,bmp,jpg,scpt,bat,cmd,cur,ttf,woff,eot,md,ps1,template,yaml,yml,d.ts.recipe,ico,icns,plist}',
 	'!build/{lib,download,darwin}/**/*.js',
 	'!build/**/*.sh',
 	'!build/azure-pipelines/**/*.js',
@@ -114,10 +116,10 @@ const copyrightFilter = [
 	'!**/*.js.map',
 	'!build/**/*.init',
 	'!resources/linux/snap/snapcraft.yaml',
-	'!resources/linux/snap/electron-launch',
 	'!resources/win32/bin/code.js',
 	'!resources/web/code-web.js',
 	'!resources/completions/**',
+	'!extensions/configuration-editing/build/inline-allOf.ts',
 	'!extensions/markdown-language-features/media/highlight.css',
 	'!extensions/html-language-features/server/src/modes/typescript/*',
 	'!extensions/*/server/bin/*',
@@ -134,6 +136,7 @@ const jsHygieneFilter = [
 	'!src/vs/nls.build.js',
 	'!src/**/insane.js',
 	'!src/**/marked.js',
+	'!src/**/semver.js',
 	'!**/test/**',
 ];
 module.exports.jsHygieneFilter = jsHygieneFilter;
@@ -161,6 +164,9 @@ const copyrightHeaderLines = [
 ];
 
 function hygiene(some) {
+	const gulpeslint = require('gulp-eslint');
+	const tsfmt = require('typescript-formatter');
+
 	let errorCount = 0;
 
 	const productJson = es.through(function (file) {

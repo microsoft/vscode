@@ -200,12 +200,10 @@ export class GlobalStorageDatabaseChannelClient extends Disposable implements IS
 		return this.channel.call('updateItems', serializableRequest);
 	}
 
-	close(): Promise<void> {
+	async close(): Promise<void> {
 
 		// when we are about to close, we start to ignore main-side changes since we close anyway
 		dispose(this.onDidChangeItemsOnMainListener);
-
-		return Promise.resolve(); // global storage is closed on the main side
 	}
 
 	dispose(): void {

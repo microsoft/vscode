@@ -10,7 +10,7 @@ import { IKeybindingService } from 'vs/platform/keybinding/common/keybinding';
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
 import { INotificationService } from 'vs/platform/notification/common/notification';
 import { ICommandService } from 'vs/platform/commands/common/commands';
-import { stripCodicons } from 'vs/base/common/codicons';
+import { stripIcons } from 'vs/base/common/iconLabels';
 
 export abstract class AbstractEditorCommandsQuickAccessProvider extends AbstractCommandsQuickAccessProvider {
 
@@ -41,7 +41,7 @@ export abstract class AbstractEditorCommandsQuickAccessProvider extends Abstract
 			editorCommandPicks.push({
 				commandId: editorAction.id,
 				commandAlias: editorAction.alias,
-				label: stripCodicons(editorAction.label) || editorAction.id,
+				label: stripIcons(editorAction.label) || editorAction.id,
 			});
 		}
 

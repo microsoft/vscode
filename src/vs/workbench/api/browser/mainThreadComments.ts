@@ -21,6 +21,8 @@ import { ViewContainer, IViewContainersRegistry, Extensions as ViewExtensions, V
 import { SyncDescriptor } from 'vs/platform/instantiation/common/descriptors';
 import { ViewPaneContainer } from 'vs/workbench/browser/parts/views/viewPaneContainer';
 import { Codicon } from 'vs/base/common/codicons';
+import { registerIcon } from 'vs/platform/theme/common/iconRegistry';
+import { localize } from 'vs/nls';
 
 
 export class MainThreadCommentThread implements modes.CommentThread {
@@ -84,6 +86,17 @@ export class MainThreadCommentThread implements modes.CommentThread {
 		return this._range;
 	}
 
+	private readonly _onDidChangeCanReply = new Emitter<boolean>();
+	get onDidChangeCanReply(): Event<boolean> { return this._onDidChangeCanReply.event; }
+	set canReply(state: boolean) {
+		this._canReply = state;
+		this._onDidChangeCanReply.fire(this._canReply);
+	}
+
+	get canReply() {
+		return this._canReply;
+	}
+
 	private readonly _onDidChangeRange = new Emitter<IRange>();
 	public onDidChangeRange = this._onDidChangeRange.event;
 
@@ -112,7 +125,8 @@ export class MainThreadCommentThread implements modes.CommentThread {
 		public extensionId: string,
 		public threadId: string,
 		public resource: string,
-		private _range: IRange
+		private _range: IRange,
+		private _canReply: boolean
 	) {
 		this._isDisposed = false;
 	}
@@ -126,6 +140,7 @@ export class MainThreadCommentThread implements modes.CommentThread {
 		if (modified('contextValue')) { this._contextValue = changes.contextValue; }
 		if (modified('comments')) { this._comments = changes.comments; }
 		if (modified('collapseState')) { this._collapsibleState = changes.collapseState; }
+		if (modified('canReply')) { this.canReply = changes.canReply!; }
 	}
 
 	dispose() {
@@ -214,7 +229,8 @@ export class MainThreadCommentController {
 			extensionId,
 			threadId,
 			URI.revive(resource).toString(),
-			range
+			range,
+			true
 		);
 
 		this._threads.set(commentThreadHandle, thread);
@@ -337,6 +353,9 @@ export class MainThreadCommentController {
 	}
 }
 
+
+const commentsViewIcon = registerIcon('comments-view-icon', Codicon.commentDiscussion, localize('commentsViewIcon', 'View icon of the comments view.'));
+
 @extHostNamedCustomer(MainContext.MainThreadComments)
 export class MainThreadComments extends Disposable implements MainThreadCommentsShape {
 	private readonly _proxy: ExtHostCommentsShape;
@@ -458,7 +477,7 @@ export class MainThreadComments extends Disposable implements MainThreadComments
 				ctorDescriptor: new SyncDescriptor(ViewPaneContainer, [COMMENTS_VIEW_ID, { mergeViewWithContainerWhenSingleView: true, donotShowContainerTitleWhenMergedWithContainer: true }]),
 				storageId: COMMENTS_VIEW_TITLE,
 				hideIfEmpty: true,
-				icon: Codicon.commentDiscussion.classNames,
+				icon: commentsViewIcon,
 				order: 10,
 			}, ViewContainerLocation.Panel);
 
@@ -468,7 +487,7 @@ export class MainThreadComments extends Disposable implements MainThreadComments
 				canToggleVisibility: false,
 				ctorDescriptor: new SyncDescriptor(CommentsPanel),
 				canMoveView: true,
-				containerIcon: Codicon.commentDiscussion.classNames,
+				containerIcon: commentsViewIcon,
 				focusCommand: {
 					id: 'workbench.action.focusCommentsPanel'
 				}

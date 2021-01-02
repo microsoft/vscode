@@ -9,14 +9,10 @@
 'use strict';
 
 (function () {
+	const bootstrapWindow = bootstrapWindowLib();
 
 	// Add a perf entry right from the top
-	const perf = perfLib();
-	perf.mark('renderer/started');
-
-	// Load environment in parallel to workbench loading to avoid waterfall
-	const bootstrapWindow = bootstrapWindowLib();
-	const whenEnvResolved = bootstrapWindow.globals().process.whenEnvResolved();
+	performance.mark('code/didStartRenderer');
 
 	// Load workbench main JS, CSS and NLS all in parallel. This is an
 	// optimization to prevent a waterfall of loading to happen, because
@@ -30,13 +26,7 @@
 		async function (workbench, configuration) {
 
 			// Mark start of workbench
-			perf.mark('didLoadWorkbenchMain');
-			performance.mark('workbench-start');
-
-			// Wait for process environment being fully resolved
-			await whenEnvResolved;
-
-			perf.mark('main/startup');
+			performance.mark('code/didLoadWorkbenchMain');
 
 			// @ts-ignore
 			return require('vs/workbench/electron-sandbox/desktop.main').main(configuration);
@@ -50,7 +40,7 @@
 				loaderConfig.recordStats = true;
 			},
 			beforeRequire: function () {
-				perf.mark('willLoadWorkbenchMain');
+				performance.mark('code/willLoadWorkbenchMain');
 			}
 		}
 	);
@@ -58,23 +48,10 @@
 
 	//region Helpers
 
-	function perfLib() {
-		globalThis.MonacoPerformanceMarks = globalThis.MonacoPerformanceMarks || [];
-
-		return {
-			/**
-			 * @param {string} name
-			 */
-			mark(name) {
-				globalThis.MonacoPerformanceMarks.push(name, Date.now());
-			}
-		};
-	}
-
 	/**
 	 * @returns {{
 	 *   load: (modules: string[], resultCallback: (result, configuration: object) => any, options: object) => unknown,
-	 *   globals: () => typeof import('../../../base/parts/sandbox/electron-sandbox/globals')
+	 *   globals: () => typeof import('../../../base/parts/sandbox/electron-sandbox/globals'),
 	 * }}
 	 */
 	function bootstrapWindowLib() {

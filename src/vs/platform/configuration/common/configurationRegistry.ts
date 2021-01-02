@@ -113,6 +113,7 @@ export interface IConfigurationPropertySchema extends IJSONSchema {
 	included?: boolean;
 	tags?: string[];
 	disallowSyncIgnore?: boolean;
+	enumItemLabels?: string[];
 }
 
 export interface IConfigurationExtensionInfo {
@@ -226,9 +227,9 @@ class ConfigurationRegistry implements IConfigurationRegistry {
 		for (const defaultConfiguration of defaultConfigurations) {
 			for (const key in defaultConfiguration) {
 				properties.push(key);
-				this.defaultValues[key] = defaultConfiguration[key];
 
 				if (OVERRIDE_PROPERTY_PATTERN.test(key)) {
+					this.defaultValues[key] = { ...(this.defaultValues[key] || {}), ...defaultConfiguration[key] };
 					const property: IConfigurationPropertySchema = {
 						type: 'object',
 						default: this.defaultValues[key],
@@ -239,6 +240,7 @@ class ConfigurationRegistry implements IConfigurationRegistry {
 					this.configurationProperties[key] = property;
 					this.defaultLanguageConfigurationOverridesNode.properties![key] = property;
 				} else {
+					this.defaultValues[key] = defaultConfiguration[key];
 					const property = this.configurationProperties[key];
 					if (property) {
 						this.updatePropertyDefaultValue(key, property);
@@ -476,6 +478,9 @@ const configurationRegistry = new ConfigurationRegistry();
 Registry.add(Extensions.Configuration, configurationRegistry);
 
 export function validateProperty(property: string): string | null {
+	if (!property.trim()) {
+		return nls.localize('config.property.empty', "Cannot register an empty property");
+	}
 	if (OVERRIDE_PROPERTY_PATTERN.test(property)) {
 		return nls.localize('config.property.languageDefault', "Cannot register '{0}'. This matches property pattern '\\\\[.*\\\\]$' for describing language specific editor settings. Use 'configurationDefaults' contribution.", property);
 	}

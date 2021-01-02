@@ -22,6 +22,13 @@ export interface IScanExtensionsArguments {
 	skipExtensions: ExtensionIdentifier[];
 }
 
+export interface IScanSingleExtensionArguments {
+	language: string;
+	remoteAuthority: string;
+	isBuiltin: boolean;
+	extensionLocation: UriComponents;
+}
+
 export interface IRemoteAgentEnvironmentDTO {
 	pid: number;
 	connectionToken: string;
@@ -60,6 +67,10 @@ export class RemoteExtensionEnvironmentChannelClient {
 		};
 	}
 
+	static async whenExtensionsReady(channel: IChannel): Promise<void> {
+		await channel.call<void>('whenExtensionsReady');
+	}
+
 	static async scanExtensions(channel: IChannel, remoteAuthority: string, extensionDevelopmentPath: URI[] | undefined, skipExtensions: ExtensionIdentifier[]): Promise<IExtensionDescription[]> {
 		const args: IScanExtensionsArguments = {
 			language: platform.language,
@@ -72,6 +83,21 @@ export class RemoteExtensionEnvironmentChannelClient {
 		extensions.forEach(ext => { (<any>ext).extensionLocation = URI.revive(ext.extensionLocation); });
 
 		return extensions;
+	}
+
+	static async scanSingleExtension(channel: IChannel, remoteAuthority: string, isBuiltin: boolean, extensionLocation: URI): Promise<IExtensionDescription | null> {
+		const args: IScanSingleExtensionArguments = {
+			language: platform.language,
+			remoteAuthority,
+			isBuiltin,
+			extensionLocation
+		};
+
+		const extension = await channel.call<IExtensionDescription | null>('scanSingleExtension', args);
+		if (extension) {
+			(<any>extension).extensionLocation = URI.revive(extension.extensionLocation);
+		}
+		return extension;
 	}
 
 	static getDiagnosticInfo(channel: IChannel, options: IDiagnosticInfoOptions): Promise<IDiagnosticInfo> {

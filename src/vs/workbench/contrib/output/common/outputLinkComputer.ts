@@ -56,7 +56,7 @@ export class OutputLinkComputer {
 		}
 
 		const links: ILink[] = [];
-		const lines = model.getValue().split(/\r\n|\r|\n/);
+		const lines = strings.splitLines(model.getValue());
 
 		// For each workspace root patterns
 		for (const [folderUri, folderPatterns] of this.patterns) {
@@ -155,7 +155,7 @@ export class OutputLinkComputer {
 				const fullMatch = strings.rtrim(match[0], '.'); // remove trailing "." that likely indicate end of sentence
 
 				const index = line.indexOf(fullMatch, offset);
-				offset += index + fullMatch.length;
+				offset = index + fullMatch.length;
 
 				const linkRange = {
 					startColumn: index + 1,

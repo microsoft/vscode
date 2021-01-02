@@ -20,7 +20,7 @@ export class NotificationsStatus extends Disposable {
 	private isNotificationsToastsVisible: boolean = false;
 
 	constructor(
-		private model: INotificationsModel,
+		private readonly model: INotificationsModel,
 		@IStatusbarService private readonly statusbarService: IStatusbarService
 	) {
 		super();

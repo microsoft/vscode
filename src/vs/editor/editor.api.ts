@@ -8,8 +8,6 @@ import { createMonacoBaseAPI } from 'vs/editor/common/standalone/standaloneBase'
 import { createMonacoEditorAPI } from 'vs/editor/standalone/browser/standaloneEditor';
 import { createMonacoLanguagesAPI } from 'vs/editor/standalone/browser/standaloneLanguages';
 
-const global: any = self;
-
 // Set defaults for standalone editor
 EditorOptions.wrappingIndent.defaultValue = WrappingIndent.None;
 EditorOptions.glyphMargin.defaultValue = false;
@@ -34,10 +32,10 @@ export const Token = api.Token;
 export const editor = api.editor;
 export const languages = api.languages;
 
-global.monaco = api;
+self.monaco = api;
 
-if (typeof global.require !== 'undefined' && typeof global.require.config === 'function') {
-	global.require.config({
+if (typeof self.require !== 'undefined' && typeof self.require.config === 'function') {
+	self.require.config({
 		ignoreDuplicateModules: [
 			'vscode-languageserver-types',
 			'vscode-languageserver-types/main',

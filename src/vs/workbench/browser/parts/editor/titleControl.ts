@@ -32,7 +32,7 @@ import { EditorPane } from 'vs/workbench/browser/parts/editor/editorPane';
 import { BreadcrumbsConfig } from 'vs/workbench/browser/parts/editor/breadcrumbs';
 import { BreadcrumbsControl, IBreadcrumbsControlOptions } from 'vs/workbench/browser/parts/editor/breadcrumbsControl';
 import { IEditorGroupsAccessor, IEditorGroupTitleDimensions, IEditorGroupView } from 'vs/workbench/browser/parts/editor/editor';
-import { EditorCommandsContextActionRunner, IEditorCommandsContext, IEditorInput, toResource, IEditorPartOptions, SideBySideEditor, ActiveEditorPinnedContext, ActiveEditorStickyContext } from 'vs/workbench/common/editor';
+import { EditorCommandsContextActionRunner, IEditorCommandsContext, IEditorInput, EditorResourceAccessor, IEditorPartOptions, SideBySideEditor, ActiveEditorPinnedContext, ActiveEditorStickyContext } from 'vs/workbench/common/editor';
 import { ResourceContextKey } from 'vs/workbench/common/resources';
 import { IExtensionService } from 'vs/workbench/services/extensions/common/extensions';
 import { AnchorAlignment } from 'vs/base/browser/ui/contextview/contextview';
@@ -44,6 +44,20 @@ import { ITextEditorOptions } from 'vs/platform/editor/common/editor';
 export interface IToolbarActions {
 	primary: IAction[];
 	secondary: IAction[];
+}
+
+export interface ITitleControlDimensions {
+
+	/**
+	 * The size of the parent container the title control is layed out in.
+	 */
+	container: Dimension;
+
+	/**
+	 * The maximum size the title control is allowed to consume based on
+	 * other controls that are positioned inside the container.
+	 */
+	available: Dimension;
 }
 
 export abstract class TitleControl extends Themable {
@@ -95,7 +109,7 @@ export abstract class TitleControl extends Themable {
 		this.registerListeners();
 	}
 
-	protected registerListeners(): void {
+	private registerListeners(): void {
 
 		// Update actions toolbar when extension register that may contribute them
 		this._register(this.extensionService.onDidRegisterExtensions(() => this.updateEditorActionsToolbar()));
@@ -229,7 +243,7 @@ export abstract class TitleControl extends Themable {
 
 		// Update contexts
 		this.contextKeyService.bufferChangeEvents(() => {
-			this.resourceContext.set(this.group.activeEditor ? withUndefinedAsNull(toResource(this.group.activeEditor, { supportSideBySide: SideBySideEditor.PRIMARY })) : null);
+			this.resourceContext.set(withUndefinedAsNull(EditorResourceAccessor.getOriginalUri(this.group.activeEditor, { supportSideBySide: SideBySideEditor.PRIMARY })));
 			this.editorPinnedContext.set(this.group.activeEditor ? this.group.isPinned(this.group.activeEditor) : false);
 			this.editorStickyContext.set(this.group.activeEditor ? this.group.isSticky(this.group.activeEditor) : false);
 		});
@@ -304,7 +318,7 @@ export abstract class TitleControl extends Themable {
 	}
 
 	protected doFillResourceDataTransfers(editor: IEditorInput, e: DragEvent): boolean {
-		const resource = toResource(editor, { supportSideBySide: SideBySideEditor.PRIMARY });
+		const resource = EditorResourceAccessor.getOriginalUri(editor, { supportSideBySide: SideBySideEditor.PRIMARY });
 		if (!resource) {
 			return false;
 		}
@@ -332,7 +346,7 @@ export abstract class TitleControl extends Themable {
 
 		// Update contexts based on editor picked and remember previous to restore
 		const currentResourceContext = this.resourceContext.get();
-		this.resourceContext.set(withUndefinedAsNull(toResource(editor, { supportSideBySide: SideBySideEditor.PRIMARY })));
+		this.resourceContext.set(withUndefinedAsNull(EditorResourceAccessor.getOriginalUri(editor, { supportSideBySide: SideBySideEditor.PRIMARY })));
 		const currentPinnedContext = !!this.editorPinnedContext.get();
 		this.editorPinnedContext.set(this.group.isPinned(editor));
 		const currentStickyContext = !!this.editorStickyContext.get();
@@ -347,7 +361,7 @@ export abstract class TitleControl extends Themable {
 
 		// Fill in contributed actions
 		const actions: IAction[] = [];
-		const actionsDisposable = createAndFillInContextMenuActions(this.contextMenu, { shouldForwardArgs: true, arg: this.resourceContext.get() }, actions, this.contextMenuService);
+		const actionsDisposable = createAndFillInContextMenuActions(this.contextMenu, { shouldForwardArgs: true, arg: this.resourceContext.get() }, actions);
 
 		// Show it
 		this.contextMenuService.showContextMenu({
@@ -407,7 +421,7 @@ export abstract class TitleControl extends Themable {
 
 	abstract updateStyles(): void;
 
-	abstract layout(dimension: Dimension): void;
+	abstract layout(dimensions: ITitleControlDimensions): Dimension;
 
 	abstract getDimensions(): IEditorGroupTitleDimensions;
 

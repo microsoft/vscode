@@ -9,10 +9,12 @@ import { Selection } from 'vs/editor/common/core/selection';
 import { SelectionBasedVariableResolver, CompositeSnippetVariableResolver, ModelBasedVariableResolver, ClipboardBasedVariableResolver, TimeBasedVariableResolver, WorkspaceBasedVariableResolver } from 'vs/editor/contrib/snippet/snippetVariables';
 import { SnippetParser, Variable, VariableResolver } from 'vs/editor/contrib/snippet/snippetParser';
 import { TextModel } from 'vs/editor/common/model/textModel';
-import { Workspace, toWorkspaceFolders, IWorkspace, IWorkspaceContextService, toWorkspaceFolder } from 'vs/platform/workspace/common/workspace';
+import { toWorkspaceFolders, IWorkspace, IWorkspaceContextService, toWorkspaceFolder } from 'vs/platform/workspace/common/workspace';
 import { ILabelService } from 'vs/platform/label/common/label';
 import { mock } from 'vs/base/test/common/mock';
 import { createTextModel } from 'vs/editor/test/common/editorTestUtils';
+import { Workspace } from 'vs/platform/workspace/test/common/testWorkspace';
+import { extUriBiasedIgnorePathCase } from 'vs/base/common/resources';
 
 suite('Snippet Variables Resolver', function () {
 
@@ -331,7 +333,7 @@ suite('Snippet Variables Resolver', function () {
 
 		// workspace with config
 		const workspaceConfigPath = URI.file('testWorkspace.code-workspace');
-		workspace = new Workspace('', toWorkspaceFolders([{ path: 'folderName' }], workspaceConfigPath), workspaceConfigPath);
+		workspace = new Workspace('', toWorkspaceFolders([{ path: 'folderName' }], workspaceConfigPath, extUriBiasedIgnorePathCase), workspaceConfigPath);
 		assertVariableResolve(resolver, 'WORKSPACE_NAME', 'testWorkspace');
 		if (!isWindows) {
 			assertVariableResolve(resolver, 'WORKSPACE_FOLDER', '/');

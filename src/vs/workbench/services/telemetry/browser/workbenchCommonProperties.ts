@@ -3,7 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { IStorageService, StorageScope } from 'vs/platform/storage/common/storage';
+import { IStorageService, StorageScope, StorageTarget } from 'vs/platform/storage/common/storage';
 import * as Platform from 'vs/base/common/platform';
 import * as uuid from 'vs/base/common/uuid';
 import { cleanRemoteAuthority } from 'vs/platform/telemetry/common/telemetryUtils';
@@ -24,7 +24,7 @@ export async function resolveWorkbenchCommonProperties(
 	let machineId = storageService.get(machineIdKey, StorageScope.GLOBAL);
 	if (!machineId) {
 		machineId = uuid.generateUuid();
-		storageService.store(machineIdKey, machineId, StorageScope.GLOBAL);
+		storageService.store(machineIdKey, machineId, StorageScope.GLOBAL, StorageTarget.MACHINE);
 	}
 
 	/**

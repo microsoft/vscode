@@ -11,6 +11,7 @@ import {
 	createTask, startDebugging, findAllScriptRanges
 } from './tasks';
 import * as nls from 'vscode-nls';
+import { dirname } from 'path';
 
 const localize = nls.loadMessageBundle();
 
@@ -29,7 +30,7 @@ export function invalidateHoverScriptsCache(document?: TextDocument) {
 
 export class NpmScriptHoverProvider implements HoverProvider {
 
-	constructor(context: ExtensionContext) {
+	constructor(private context: ExtensionContext) {
 		context.subscriptions.push(commands.registerCommand('npm.runScriptFromHover', this.runScriptFromHover, this));
 		context.subscriptions.push(commands.registerCommand('npm.debugScriptFromHover', this.debugScriptFromHover, this));
 		context.subscriptions.push(workspace.onDidChangeTextDocument((e) => {
@@ -97,22 +98,22 @@ export class NpmScriptHoverProvider implements HoverProvider {
 		return `${prefix}[${label}](command:${cmd}?${encodedArgs} "${tooltip}")`;
 	}
 
-	public runScriptFromHover(args: any) {
+	public async runScriptFromHover(args: any) {
 		let script = args.script;
 		let documentUri = args.documentUri;
 		let folder = workspace.getWorkspaceFolder(documentUri);
 		if (folder) {
-			let task = createTask(script, `run ${script}`, folder, documentUri);
-			tasks.executeTask(task);
+			let task = await createTask(this.context, script, `run ${script}`, folder, documentUri);
+			await tasks.executeTask(task);
 		}
 	}
 
-	public debugScriptFromHover(args: any) {
+	public debugScriptFromHover(args: { script: string; documentUri: Uri }) {
 		let script = args.script;
 		let documentUri = args.documentUri;
 		let folder = workspace.getWorkspaceFolder(documentUri);
 		if (folder) {
-			startDebugging(script, folder);
+			startDebugging(this.context, script, dirname(documentUri.fsPath), folder);
 		}
 	}
 }

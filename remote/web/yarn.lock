@@ -12,11 +12,6 @@ jschardet@2.2.1:
   resolved "https://registry.yarnpkg.com/jschardet/-/jschardet-2.2.1.tgz#03b0264669a90c7a5c436a68c5a7d4e4cb0c9823"
   integrity sha512-Ks2JNuUJoc7PGaZ7bVFtSEvOcr0rBq6Q1J5/7+zKWLT+g+4zziL63O0jg7y2jxhzIa1LVsHUbPXrbaWmz9iwDw==
 
-semver-umd@^5.5.7:
-  version "5.5.7"
-  resolved "https://registry.yarnpkg.com/semver-umd/-/semver-umd-5.5.7.tgz#966beb5e96c7da6fbf09c3da14c2872d6836c528"
-  integrity sha512-XgjPNlD0J6aIc8xoTN6GQGwWc2Xg0kq8NzrqMVuKG/4Arl6ab1F8+Am5Y/XKKCR+FceFr2yN/Uv5ZJBhRyRqKg==
-
 tas-client-umd@0.1.2:
   version "0.1.2"
   resolved "https://registry.yarnpkg.com/tas-client-umd/-/tas-client-umd-0.1.2.tgz#fe93ae085f65424292ac79feff4f1add3e50e624"

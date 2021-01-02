@@ -28,7 +28,7 @@ import { registerThemingParticipant, themeColorFromId, IThemeService, IColorThem
 import { IPosition } from 'vs/editor/common/core/position';
 import { IAction } from 'vs/base/common/actions';
 import { IActionBarOptions, ActionsOrientation } from 'vs/base/browser/ui/actionbar/actionbar';
-import { IStorageService, StorageScope } from 'vs/platform/storage/common/storage';
+import { IStorageService, StorageScope, StorageTarget } from 'vs/platform/storage/common/storage';
 import { Color } from 'vs/base/common/color';
 import { TreeMouseEventTarget, ITreeNode } from 'vs/base/browser/ui/tree/tree';
 import { URI } from 'vs/base/common/uri';
@@ -45,7 +45,7 @@ const enum State {
 class LayoutInfo {
 
 	static store(info: LayoutInfo, storageService: IStorageService): void {
-		storageService.store('callHierarchyPeekLayout', JSON.stringify(info), StorageScope.GLOBAL);
+		storageService.store('callHierarchyPeekLayout', JSON.stringify(info), StorageScope.GLOBAL, StorageTarget.MACHINE);
 	}
 
 	static retrieve(storageService: IStorageService): LayoutInfo {
@@ -150,7 +150,7 @@ export class CallHierarchyTreePeekWidget extends peekView.PeekViewWidget {
 	protected _fillBody(parent: HTMLElement): void {
 
 		this._layoutInfo = LayoutInfo.retrieve(this._storageService);
-		this._dim = { height: 0, width: 0 };
+		this._dim = new Dimension(0, 0);
 
 		this._parent = parent;
 		parent.classList.add('call-hierarchy');
@@ -277,7 +277,7 @@ export class CallHierarchyTreePeekWidget extends peekView.PeekViewWidget {
 				this.dispose();
 				this._editorService.openEditor({
 					resource: e.element.item.uri,
-					options: { selection: e.element.item.selectionRange }
+					options: { selection: e.element.item.selectionRange, pinned: true }
 				});
 			}
 		}));
@@ -289,7 +289,7 @@ export class CallHierarchyTreePeekWidget extends peekView.PeekViewWidget {
 				this.dispose();
 				this._editorService.openEditor({
 					resource: element.item.uri,
-					options: { selection: element.item.selectionRange }
+					options: { selection: element.item.selectionRange, pinned: true }
 				});
 			}
 		}));
@@ -427,7 +427,7 @@ export class CallHierarchyTreePeekWidget extends peekView.PeekViewWidget {
 	protected _doLayoutBody(height: number, width: number): void {
 		if (this._dim.height !== height || this._dim.width !== width) {
 			super._doLayoutBody(height, width);
-			this._dim = { height, width };
+			this._dim = new Dimension(width, height);
 			this._layoutInfo.height = this._viewZone ? this._viewZone.heightInLines : this._layoutInfo.height;
 			this._splitView.layout(width);
 			this._splitView.resizeView(0, width * this._layoutInfo.ratio);

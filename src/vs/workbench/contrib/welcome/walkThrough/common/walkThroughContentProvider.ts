@@ -6,15 +6,16 @@
 import { URI } from 'vs/base/common/uri';
 import { ITextModelService, ITextModelContentProvider } from 'vs/editor/common/services/resolverService';
 import { IModelService } from 'vs/editor/common/services/modelService';
-import { ITextModel, DefaultEndOfLine, EndOfLinePreference } from 'vs/editor/common/model';
+import { ITextModel, DefaultEndOfLine, EndOfLinePreference, ITextBufferFactory } from 'vs/editor/common/model';
 import { IModeService } from 'vs/editor/common/services/modeService';
 import { IWorkbenchContribution } from 'vs/workbench/common/contributions';
 import * as marked from 'vs/base/common/marked/marked';
 import { Schemas } from 'vs/base/common/network';
 import { Range } from 'vs/editor/common/core/range';
 import { createTextBufferFactory } from 'vs/editor/common/model/textModel';
+import { assertIsDefined } from 'vs/base/common/types';
 
-function requireToContent(resource: URI): Promise<string> {
+export function requireToContent(resource: URI): Promise<string> {
 	if (!resource.query) {
 		throw new Error('Welcome: invalid resource');
 	}
@@ -37,31 +38,8 @@ function requireToContent(resource: URI): Promise<string> {
 	return content;
 }
 
-export class WalkThroughContentProvider implements ITextModelContentProvider, IWorkbenchContribution {
-
-	constructor(
-		@ITextModelService private readonly textModelResolverService: ITextModelService,
-		@IModeService private readonly modeService: IModeService,
-		@IModelService private readonly modelService: IModelService,
-	) {
-		this.textModelResolverService.registerTextModelContentProvider(Schemas.walkThrough, this);
-	}
-
-	public async provideTextContent(resource: URI): Promise<ITextModel> {
-		const content = await requireToContent(resource);
-
-		let codeEditorModel = this.modelService.getModel(resource);
-		if (!codeEditorModel) {
-			codeEditorModel = this.modelService.createModel(content, this.modeService.createByFilepathOrFirstLine(resource), resource);
-		} else {
-			this.modelService.updateModel(codeEditorModel, content);
-		}
-
-		return codeEditorModel;
-	}
-}
-
 export class WalkThroughSnippetContentProvider implements ITextModelContentProvider, IWorkbenchContribution {
+	private loads = new Map<string, Promise<ITextBufferFactory>>();
 
 	constructor(
 		@ITextModelService private readonly textModelResolverService: ITextModelService,
@@ -71,38 +49,40 @@ export class WalkThroughSnippetContentProvider implements ITextModelContentProvi
 		this.textModelResolverService.registerTextModelContentProvider(Schemas.walkThroughSnippet, this);
 	}
 
-	public async provideTextContent(resource: URI): Promise<ITextModel> {
-		const factory = createTextBufferFactory(await requireToContent(resource));
+	private async textBufferFactoryFromResource(resource: URI): Promise<ITextBufferFactory> {
+		let ongoing = this.loads.get(resource.toString());
+		if (!ongoing) {
+			ongoing = new Promise(async c => {
+				c(createTextBufferFactory(await requireToContent(resource)));
+				this.loads.delete(resource.toString());
+			});
+			this.loads.set(resource.toString(), ongoing);
+		}
+		return ongoing;
+	}
 
+	public async provideTextContent(resource: URI): Promise<ITextModel> {
+		const factory = await this.textBufferFactoryFromResource(resource.with({ fragment: '' }));
 		let codeEditorModel = this.modelService.getModel(resource);
 		if (!codeEditorModel) {
 			const j = parseInt(resource.fragment);
-
-			let codeSnippet = '';
-			let languageName = '';
 			let i = 0;
 			const renderer = new marked.Renderer();
 			renderer.code = (code, lang) => {
-				if (i++ === j) {
-					codeSnippet = code;
-					languageName = lang;
-				}
+				i++;
+				const languageId = this.modeService.getModeIdForLanguageName(lang) || '';
+				const languageSelection = this.modeService.create(languageId);
+				// Create all models for this resource in one go... we'll need them all and we don't want to re-parse markdown each time
+				const model = this.modelService.createModel(code, languageSelection, resource.with({ fragment: `${i}.${lang}` }));
+				if (i === j) { codeEditorModel = model; }
 				return '';
 			};
-
 			const textBuffer = factory.create(DefaultEndOfLine.LF);
 			const lineCount = textBuffer.getLineCount();
 			const range = new Range(1, 1, lineCount, textBuffer.getLineLength(lineCount) + 1);
 			const markdown = textBuffer.getValueInRange(range, EndOfLinePreference.TextDefined);
 			marked(markdown, { renderer });
-
-			const languageId = this.modeService.getModeIdForLanguageName(languageName) || '';
-			const languageSelection = this.modeService.create(languageId);
-			codeEditorModel = this.modelService.createModel(codeSnippet, languageSelection, resource);
-		} else {
-			this.modelService.updateModel(codeEditorModel, factory);
 		}
-
-		return codeEditorModel;
+		return assertIsDefined(codeEditorModel);
 	}
 }

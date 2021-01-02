@@ -16,7 +16,7 @@ import { RunOnceScheduler } from 'vs/base/common/async';
 import { URI } from 'vs/base/common/uri';
 import { isEqual } from 'vs/base/common/resources';
 import { isMacintosh, isNative, isLinux } from 'vs/base/common/platform';
-import { LifecyclePhase } from 'vs/platform/lifecycle/common/lifecycle';
+import { LifecyclePhase } from 'vs/workbench/services/lifecycle/common/lifecycle';
 import { IDialogService } from 'vs/platform/dialogs/common/dialogs';
 import { IWorkbenchEnvironmentService } from 'vs/workbench/services/environment/common/environmentService';
 import { IProductService } from 'vs/platform/product/common/productService';
@@ -146,7 +146,7 @@ export class WorkspaceChangeExtHostRelauncher extends Disposable implements IWor
 				return; // no restart when in tests: see https://github.com/microsoft/vscode/issues/66936
 			}
 
-			if (environmentService.configuration.remoteAuthority) {
+			if (environmentService.remoteAuthority) {
 				hostService.reload(); // TODO@aeschli, workaround
 			} else if (isNative) {
 				extensionService.restartExtensionHost();

@@ -87,6 +87,9 @@ export class RemoteAuthorityResolverService extends Disposable implements IRemot
 		if (this._resolveAuthorityRequests.has(resolvedAuthority.authority)) {
 			const request = this._resolveAuthorityRequests.get(resolvedAuthority.authority)!;
 			RemoteAuthorities.set(resolvedAuthority.authority, resolvedAuthority.host, resolvedAuthority.port);
+			if (resolvedAuthority.connectionToken) {
+				RemoteAuthorities.setConnectionToken(resolvedAuthority.authority, resolvedAuthority.connectionToken);
+			}
 			request.resolve({ authority: resolvedAuthority, options });
 			this._onDidChangeConnectionData.fire();
 		}

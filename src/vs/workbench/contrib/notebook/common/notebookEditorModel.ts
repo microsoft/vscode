@@ -11,12 +11,14 @@ import { NotebookTextModel } from 'vs/workbench/contrib/notebook/common/model/no
 import { INotebookService } from 'vs/workbench/contrib/notebook/common/notebookService';
 import { URI } from 'vs/base/common/uri';
 import { IWorkingCopyService, IWorkingCopy, IWorkingCopyBackup, WorkingCopyCapabilities } from 'vs/workbench/services/workingCopy/common/workingCopyService';
-import { CancellationTokenSource } from 'vs/base/common/cancellation';
+import { CancellationToken, CancellationTokenSource } from 'vs/base/common/cancellation';
 import { IBackupFileService } from 'vs/workbench/services/backup/common/backup';
 import { Schemas } from 'vs/base/common/network';
 import { IFileStatWithMetadata, IFileService } from 'vs/platform/files/common/files';
 import { INotificationService, Severity } from 'vs/platform/notification/common/notification';
 import { ILabelService } from 'vs/platform/label/common/label';
+import { ILogService } from 'vs/platform/log/common/log';
+import { TaskSequentializer } from 'vs/base/common/async';
 
 
 export interface INotebookLoadOptions {
@@ -40,6 +42,7 @@ export class NotebookEditorModel extends EditorModel implements INotebookEditorM
 
 	private readonly _name: string;
 	private readonly _workingCopyResource: URI;
+	private readonly saveSequentializer = new TaskSequentializer();
 
 	private _dirty = false;
 
@@ -51,6 +54,7 @@ export class NotebookEditorModel extends EditorModel implements INotebookEditorM
 		@IBackupFileService private readonly _backupFileService: IBackupFileService,
 		@IFileService private readonly _fileService: IFileService,
 		@INotificationService private readonly _notificationService: INotificationService,
+		@ILogService private readonly _logService: ILogService,
 		@ILabelService labelService: ILabelService,
 	) {
 		super();
@@ -66,7 +70,7 @@ export class NotebookEditorModel extends EditorModel implements INotebookEditorM
 			readonly onDidChangeDirty = that.onDidChangeDirty;
 			readonly onDidChangeContent = that.onDidChangeContent;
 			isDirty(): boolean { return that.isDirty(); }
-			backup(): Promise<IWorkingCopyBackup> { return that.backup(); }
+			backup(token: CancellationToken): Promise<IWorkingCopyBackup> { return that.backup(token); }
 			save(): Promise<boolean> { return that.save(); }
 			revert(options?: IRevertOptions): Promise<void> { return that.revert(options); }
 		};
@@ -89,10 +93,13 @@ export class NotebookEditorModel extends EditorModel implements INotebookEditorM
 		}
 	}
 
-	async backup(): Promise<IWorkingCopyBackup<NotebookDocumentBackupData>> {
+	async backup(token: CancellationToken): Promise<IWorkingCopyBackup<NotebookDocumentBackupData>> {
 		if (this._notebook.supportBackup) {
-			const tokenSource = new CancellationTokenSource();
+			const tokenSource = new CancellationTokenSource(token);
 			const backupId = await this._notebookService.backup(this.viewType, this.resource, tokenSource.token);
+			if (token.isCancellationRequested) {
+				return {};
+			}
 			const stats = await this._resolveStats(this.resource);
 
 			return {
@@ -194,8 +201,14 @@ export class NotebookEditorModel extends EditorModel implements INotebookEditorM
 	}
 
 	private async _assertStat() {
+		this._logService.debug('[notebook editor model] start assert stat');
 		const stats = await this._resolveStats(this.resource);
 		if (this._lastResolvedFileStat && stats && stats.mtime > this._lastResolvedFileStat.mtime) {
+			this._logService.debug(`[notebook editor model] noteboook file on disk is newer:
+LastResolvedStat: ${this._lastResolvedFileStat ? JSON.stringify(this._lastResolvedFileStat) : undefined}.
+Current stat: ${JSON.stringify(stats)}
+`);
+			this._lastResolvedFileStat = stats;
 			return new Promise<'overwrite' | 'revert' | 'none'>(resolve => {
 				const handle = this._notificationService.prompt(
 					Severity.Info,
@@ -218,31 +231,57 @@ export class NotebookEditorModel extends EditorModel implements INotebookEditorM
 					resolve('none');
 				});
 			});
+		} else if (!this._lastResolvedFileStat && stats) {
+			// finally get a stats
+			this._lastResolvedFileStat = stats;
 		}
 
 		return 'overwrite';
 	}
 
 	async save(): Promise<boolean> {
-		const result = await this._assertStat();
-		if (result === 'none') {
-			return false;
+		let versionId = this._notebook.versionId;
+		this._logService.debug(`[notebook editor model] save(${versionId}) - enter with versionId ${versionId}`, this.resource.toString(true));
+
+		if (this.saveSequentializer.hasPending(versionId)) {
+			this._logService.debug(`[notebook editor model] save(${versionId}) - exit - found a pending save for versionId ${versionId}`, this.resource.toString(true));
+			return this.saveSequentializer.pending.then(() => {
+				return true;
+			});
 		}
 
-		if (result === 'revert') {
-			await this.revert();
+		if (this.saveSequentializer.hasPending()) {
+			return this.saveSequentializer.setNext(async () => {
+				await this.save();
+			}).then(() => {
+				return true;
+			});
+		}
+
+		return this.saveSequentializer.setPending(versionId, (async () => {
+			const result = await this._assertStat();
+			if (result === 'none') {
+				return;
+			}
+
+			if (result === 'revert') {
+				await this.revert();
+				return;
+			}
+
+			const tokenSource = new CancellationTokenSource();
+			await this._notebookService.save(this.notebook.viewType, this.notebook.uri, tokenSource.token);
+			this._logService.debug(`[notebook editor model] save(${versionId}) - document saved saved, start updating file stats`, this.resource.toString(true));
+			const newStats = await this._resolveStats(this.resource);
+			this._lastResolvedFileStat = newStats;
+			this.setDirty(false);
+		})()).then(() => {
 			return true;
-		}
-
-		const tokenSource = new CancellationTokenSource();
-		await this._notebookService.save(this.notebook.viewType, this.notebook.uri, tokenSource.token);
-		const newStats = await this._resolveStats(this.resource);
-		this._lastResolvedFileStat = newStats;
-		this.setDirty(false);
-		return true;
+		});
 	}
 
 	async saveAs(targetResource: URI): Promise<boolean> {
+		this._logService.debug(`[notebook editor model] saveAs - enter`, this.resource.toString(true));
 		const result = await this._assertStat();
 
 		if (result === 'none') {
@@ -256,6 +295,7 @@ export class NotebookEditorModel extends EditorModel implements INotebookEditorM
 
 		const tokenSource = new CancellationTokenSource();
 		await this._notebookService.saveAs(this.notebook.viewType, this.notebook.uri, targetResource, tokenSource.token);
+		this._logService.debug(`[notebook editor model] saveAs - document saved, start updating file stats`, this.resource.toString(true));
 		const newStats = await this._resolveStats(this.resource);
 		this._lastResolvedFileStat = newStats;
 		this.setDirty(false);
@@ -268,7 +308,9 @@ export class NotebookEditorModel extends EditorModel implements INotebookEditorM
 		}
 
 		try {
+			this._logService.debug(`[notebook editor model] _resolveStats`, this.resource.toString(true));
 			const newStats = await this._fileService.resolve(this.resource, { resolveMetadata: true });
+			this._logService.debug(`[notebook editor model] _resolveStats - latest file stats: ${JSON.stringify(newStats)}`, this.resource.toString(true));
 			return newStats;
 		} catch (e) {
 			return undefined;

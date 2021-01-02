@@ -26,6 +26,7 @@ import { IStorageService } from 'vs/platform/storage/common/storage';
 import { IExtensionResourceLoaderService } from 'vs/workbench/services/extensionResourceLoader/common/extensionResourceLoader';
 import { IWorkbenchEnvironmentService } from 'vs/workbench/services/environment/common/environmentService';
 import { IProgressService } from 'vs/platform/progress/common/progress';
+import { FileAccess } from 'vs/base/common/network';
 
 const RUN_TEXTMATE_IN_WORKER = false;
 
@@ -182,12 +183,9 @@ export class TextMateService extends AbstractTextMateService {
 	}
 
 	protected async _loadVSCodeOnigurumWASM(): Promise<Response | ArrayBuffer> {
-		const wasmPath = (
-			this._environmentService.isBuilt
-				? require.toUrl('../../../../../../node_modules.asar.unpacked/vscode-oniguruma/release/onig.wasm')
-				: require.toUrl('../../../../../../node_modules/vscode-oniguruma/release/onig.wasm')
-		);
-		const response = await fetch(wasmPath);
+		const response = await fetch(this._environmentService.isBuilt
+			? FileAccess.asBrowserUri('../../../../../../node_modules.asar.unpacked/vscode-oniguruma/release/onig.wasm', require).toString(true)
+			: FileAccess.asBrowserUri('../../../../../../node_modules/vscode-oniguruma/release/onig.wasm', require).toString(true));
 		return response;
 	}
 

@@ -15,20 +15,21 @@ import { IEditorService } from 'vs/workbench/services/editor/common/editorServic
 import { onUnexpectedError, isPromiseCanceledError } from 'vs/base/common/errors';
 import { IWindowOpenable } from 'vs/platform/windows/common/windows';
 import { IWorkspaceContextService, WorkbenchState } from 'vs/platform/workspace/common/workspace';
-import { IConfigurationService, ConfigurationTarget } from 'vs/platform/configuration/common/configuration';
+import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { localize } from 'vs/nls';
 import { Action, WorkbenchActionExecutedEvent, WorkbenchActionExecutedClassification } from 'vs/base/common/actions';
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
-import { Schemas } from 'vs/base/common/network';
+import { FileAccess, Schemas } from 'vs/base/common/network';
 import { IBackupFileService } from 'vs/workbench/services/backup/common/backup';
 import { getInstalledExtensions, IExtensionStatus, onExtensionChanged, isKeymapExtension } from 'vs/workbench/contrib/extensions/common/extensionsUtils';
 import { IExtensionManagementService, IExtensionGalleryService, ILocalExtension } from 'vs/platform/extensionManagement/common/extensionManagement';
-import { IWorkbenchExtensionEnablementService, EnablementState, IExtensionRecommendationsService } from 'vs/workbench/services/extensionManagement/common/extensionManagement';
-import { ILifecycleService, StartupKind } from 'vs/platform/lifecycle/common/lifecycle';
+import { IWorkbenchExtensionEnablementService, EnablementState } from 'vs/workbench/services/extensionManagement/common/extensionManagement';
+import { IExtensionRecommendationsService } from 'vs/workbench/services/extensionRecommendations/common/extensionRecommendations';
+import { ILifecycleService, StartupKind } from 'vs/workbench/services/lifecycle/common/lifecycle';
 import { Disposable } from 'vs/base/common/lifecycle';
 import { splitName } from 'vs/base/common/labels';
 import { registerThemingParticipant } from 'vs/platform/theme/common/themeService';
-import { registerColor, focusBorder, textLinkForeground, textLinkActiveForeground, foreground, descriptionForeground, contrastBorder, activeContrastBorder } from 'vs/platform/theme/common/colorRegistry';
+import { focusBorder, textLinkForeground, textLinkActiveForeground, foreground, descriptionForeground, contrastBorder, activeContrastBorder } from 'vs/platform/theme/common/colorRegistry';
 import { getExtraColor } from 'vs/workbench/contrib/welcome/walkThrough/common/walkThroughUtils';
 import { IExtensionsViewPaneContainer, IExtensionsWorkbenchService, VIEWLET_ID } from 'vs/workbench/contrib/extensions/common/extensions';
 import { IEditorInputFactory, EditorInput } from 'vs/workbench/common/editor';
@@ -37,7 +38,6 @@ import { TimeoutTimer } from 'vs/base/common/async';
 import { areSameExtensions } from 'vs/platform/extensionManagement/common/extensionManagementUtil';
 import { ILabelService } from 'vs/platform/label/common/label';
 import { IFileService } from 'vs/platform/files/common/files';
-import { ExtensionType } from 'vs/platform/extensions/common/extensions';
 import { joinPath } from 'vs/base/common/resources';
 import { IRecentlyOpened, isRecentWorkspace, IRecentWorkspace, IRecentFolder, isRecentFolder, IWorkspacesService } from 'vs/platform/workspaces/common/workspaces';
 import { CancellationToken } from 'vs/base/common/cancellation';
@@ -46,6 +46,8 @@ import { IProductService } from 'vs/platform/product/common/productService';
 import { IEditorOptions } from 'vs/platform/editor/common/editor';
 import { IWorkbenchLayoutService } from 'vs/workbench/services/layout/browser/layoutService';
 import { IViewletService } from 'vs/workbench/services/viewlet/browser/viewlet';
+import { gettingStartedInputTypeId, GettingStartedPage } from 'vs/workbench/contrib/welcome/gettingStarted/browser/gettingStarted';
+import { buttonBackground, buttonHoverBackground, welcomePageBackground } from 'vs/workbench/contrib/welcome/page/browser/welcomePageColors';
 
 const configurationKey = 'workbench.startupEditor';
 const oldConfigurationKey = 'workbench.welcome.enabled';
@@ -69,7 +71,8 @@ export class WelcomePageContribution implements IWorkbenchContribution {
 			backupFileService.hasBackups().then(hasBackups => {
 				// Open the welcome even if we opened a set of default editors
 				if ((!editorService.activeEditor || layoutService.openedDefaultEditors) && !hasBackups) {
-					const openWithReadme = configurationService.getValue(configurationKey) === 'readme';
+					const startupEditorSetting = configurationService.getValue(configurationKey) as string;
+					const openWithReadme = startupEditorSetting === 'readme';
 					if (openWithReadme) {
 						return Promise.all(contextService.getWorkspace().folders.map(folder => {
 							const folderUri = folder.uri;
@@ -101,18 +104,23 @@ export class WelcomePageContribution implements IWorkbenchContribution {
 								return undefined;
 							});
 					} else {
+						const startupEditorTypeID = startupEditorSetting === 'gettingStarted' ? gettingStartedInputTypeId : welcomeInputTypeId;
+						const launchEditor = startupEditorSetting === 'gettingStarted'
+							? instantiationService.createInstance(GettingStartedPage, {})
+							: instantiationService.createInstance(WelcomePage);
+
 						let options: IEditorOptions;
 						let editor = editorService.activeEditor;
 						if (editor) {
 							// Ensure that the welcome editor won't get opened more than once
-							if (editor.getTypeId() === welcomeInputTypeId || editorService.editors.some(e => e.getTypeId() === welcomeInputTypeId)) {
+							if (editor.getTypeId() === startupEditorTypeID || editorService.editors.some(e => e.getTypeId() === startupEditorTypeID)) {
 								return undefined;
 							}
 							options = { pinned: false, index: 0 };
 						} else {
 							options = { pinned: false };
 						}
-						return instantiationService.createInstance(WelcomePage).openEditor(options);
+						return launchEditor.openEditor(options);
 					}
 				}
 				return undefined;
@@ -129,7 +137,7 @@ function isWelcomePageEnabled(configurationService: IConfigurationService, conte
 			return welcomeEnabled.value;
 		}
 	}
-	return startupEditor.value === 'welcomePage' || startupEditor.value === 'readme' || startupEditor.value === 'welcomePageInEmptyWorkbench' && contextService.getWorkbenchState() === WorkbenchState.EMPTY;
+	return startupEditor.value === 'welcomePage' || startupEditor.value === 'gettingStarted' || startupEditor.value === 'readme' || startupEditor.value === 'welcomePageInEmptyWorkbench' && contextService.getWorkbenchState() === WorkbenchState.EMPTY;
 }
 
 export class WelcomePageAction extends Action {
@@ -298,7 +306,7 @@ class WelcomePage extends Disposable {
 
 		const recentlyOpened = this.workspacesService.getRecentlyOpened();
 		const installedExtensions = this.instantiationService.invokeFunction(getInstalledExtensions);
-		const resource = URI.parse(require.toUrl('./vs_code_welcome_page'))
+		const resource = FileAccess.asBrowserUri('./vs_code_welcome_page', require)
 			.with({
 				scheme: Schemas.walkThrough,
 				query: JSON.stringify({ moduleId: 'vs/workbench/contrib/welcome/page/browser/vs_code_welcome_page' })
@@ -323,7 +331,7 @@ class WelcomePage extends Disposable {
 			showOnStartup.setAttribute('checked', 'checked');
 		}
 		showOnStartup.addEventListener('click', e => {
-			this.configurationService.updateValue(configurationKey, showOnStartup.checked ? 'welcomePage' : 'newUntitledFile', ConfigurationTarget.USER);
+			this.configurationService.updateValue(configurationKey, showOnStartup.checked ? 'welcomePage' : 'newUntitledFile');
 		});
 
 		const prodName = container.querySelector('.welcomePage .title .caption') as HTMLElement;
@@ -486,7 +494,7 @@ class WelcomePage extends Disposable {
 						return null;
 					}
 					return this.extensionManagementService.installFromGallery(extension)
-						.then(() => this.extensionManagementService.getInstalled(ExtensionType.User))
+						.then(() => this.extensionManagementService.getInstalled())
 						.then(installed => {
 							const local = installed.filter(i => areSameExtensions(extension.identifier, i.identifier))[0];
 							// TODO: Do this as part of the install to avoid multiple events.
@@ -636,10 +644,6 @@ export class WelcomeInputFactory implements IEditorInputFactory {
 }
 
 // theming
-
-export const buttonBackground = registerColor('welcomePage.buttonBackground', { dark: null, light: null, hc: null }, localize('welcomePage.buttonBackground', 'Background color for the buttons on the Welcome page.'));
-export const buttonHoverBackground = registerColor('welcomePage.buttonHoverBackground', { dark: null, light: null, hc: null }, localize('welcomePage.buttonHoverBackground', 'Hover background color for the buttons on the Welcome page.'));
-export const welcomePageBackground = registerColor('welcomePage.background', { light: null, dark: null, hc: null }, localize('welcomePage.background', 'Background color for the Welcome page.'));
 
 registerThemingParticipant((theme, collector) => {
 	const backgroundColor = theme.getColor(welcomePageBackground);

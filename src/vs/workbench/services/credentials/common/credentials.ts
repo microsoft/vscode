@@ -3,6 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
+import { Event } from 'vs/base/common/event';
 import { createDecorator } from 'vs/platform/instantiation/common/instantiation';
 
 export const ICredentialsService = createDecorator<ICredentialsService>('credentialsService');
@@ -17,4 +18,5 @@ export interface ICredentialsProvider {
 
 export interface ICredentialsService extends ICredentialsProvider {
 	readonly _serviceBrand: undefined;
+	readonly onDidChangePassword: Event<void>;
 }

@@ -3,7 +3,6 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import * as ts from 'typescript';
 import * as fs from 'fs';
 import * as path from 'path';
 import * as tss from './treeshaking';
@@ -31,6 +30,8 @@ function writeFile(filePath: string, contents: Buffer | string): void {
 }
 
 export function extractEditor(options: tss.ITreeShakingOptions & { destRoot: string }): void {
+	const ts = <typeof import('typescript')>require('typescript');
+
 	const tsConfig = JSON.parse(fs.readFileSync(path.join(options.sourcesRoot, 'tsconfig.monaco.json')).toString());
 	let compilerOptions: { [key: string]: any };
 	if (tsConfig.extends) {
@@ -54,6 +55,13 @@ export function extractEditor(options: tss.ITreeShakingOptions & { destRoot: str
 
 	// Take the extra included .d.ts files from `tsconfig.monaco.json`
 	options.typings = (<string[]>tsConfig.include).filter(includedFile => /\.d\.ts$/.test(includedFile));
+
+	// Add extra .d.ts files from `node_modules/@types/`
+	if (Array.isArray(options.compilerOptions?.types)) {
+		options.compilerOptions.types.forEach((type: string) => {
+			options.typings.push(`../node_modules/@types/${type}/index.d.ts`);
+		});
+	}
 
 	let result = tss.shake(options);
 	for (let fileName in result) {
@@ -127,6 +135,8 @@ export interface IOptions2 {
 }
 
 export function createESMSourcesAndResources2(options: IOptions2): void {
+	const ts = <typeof import('typescript')>require('typescript');
+
 	const SRC_FOLDER = path.join(REPO_ROOT, options.srcFolder);
 	const OUT_FOLDER = path.join(REPO_ROOT, options.outFolder);
 	const OUT_RESOURCES_FOLDER = path.join(REPO_ROOT, options.outResourcesFolder);

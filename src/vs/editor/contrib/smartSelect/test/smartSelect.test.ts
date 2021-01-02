@@ -60,10 +60,10 @@ suite('SmartSelect', () => {
 		mode.dispose();
 	});
 
-	async function assertGetRangesToPosition(text: string[], lineNumber: number, column: number, ranges: Range[]): Promise<void> {
+	async function assertGetRangesToPosition(text: string[], lineNumber: number, column: number, ranges: Range[], selectLeadingAndTrailingWhitespace = true): Promise<void> {
 		let uri = URI.file('test.js');
 		let model = modelService.createModel(text.join('\n'), new StaticLanguageSelector(mode.getLanguageIdentifier()), uri);
-		let [actual] = await provideSelectionRanges(model, [new Position(lineNumber, column)], CancellationToken.None);
+		let [actual] = await provideSelectionRanges(model, [new Position(lineNumber, column)], { selectLeadingAndTrailingWhitespace }, CancellationToken.None);
 		let actualStr = actual!.map(r => new Range(r.startLineNumber, r.startColumn, r.endLineNumber, r.endColumn).toString());
 		let desiredStr = ranges.reverse().map(r => String(r));
 
@@ -95,6 +95,28 @@ suite('SmartSelect', () => {
 			new Range(3, 17, 3, 26), // () outside
 			new Range(3, 18, 3, 25), // () inside
 		]);
+	});
+
+	test('config: selectLeadingAndTrailingWhitespace', async () => {
+
+		await assertGetRangesToPosition([
+			'aaa',
+			'\tbbb',
+			''
+		], 2, 3, [
+			new Range(1, 1, 3, 1), // all
+			new Range(2, 1, 2, 5), // line w/ triva
+			new Range(2, 2, 2, 5), // bbb
+		], true);
+
+		await assertGetRangesToPosition([
+			'aaa',
+			'\tbbb',
+			''
+		], 2, 3, [
+			new Range(1, 1, 3, 1), // all
+			new Range(2, 2, 2, 5), // () inside
+		], false);
 	});
 
 	test('getRangesToPosition #56886. Skip empty lines correctly.', () => {

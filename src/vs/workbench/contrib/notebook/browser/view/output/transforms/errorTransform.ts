@@ -5,7 +5,6 @@
 
 import { IRenderOutput, CellOutputKind, IErrorOutput, RenderOutputType } from 'vs/workbench/contrib/notebook/common/notebookCommon';
 import { NotebookRegistry } from 'vs/workbench/contrib/notebook/browser/notebookRegistry';
-import * as DOM from 'vs/base/browser/dom';
 import { RGBA, Color } from 'vs/base/common/color';
 import { ansiColorIdentifiers } from 'vs/workbench/contrib/terminal/common/terminalColorRegistry';
 import { IThemeService } from 'vs/platform/theme/common/themeService';
@@ -28,14 +27,14 @@ class ErrorTransform implements IOutputTransformContribution {
 			container.appendChild(header);
 		}
 		const traceback = document.createElement('pre');
-		DOM.addClasses(traceback, 'traceback');
+		traceback.classList.add('traceback');
 		if (output.traceback) {
 			for (let j = 0; j < output.traceback.length; j++) {
 				traceback.appendChild(handleANSIOutput(output.traceback[j], this.themeService));
 			}
 		}
 		container.appendChild(traceback);
-		DOM.addClasses(container, 'error');
+		container.classList.add('error');
 		return { type: RenderOutputType.None, hasDynamicHeight: false };
 	}
 

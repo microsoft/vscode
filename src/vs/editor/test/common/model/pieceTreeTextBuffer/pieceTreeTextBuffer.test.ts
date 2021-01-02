@@ -14,6 +14,7 @@ import { PieceTreeTextBufferBuilder } from 'vs/editor/common/model/pieceTreeText
 import { NodeColor, SENTINEL, TreeNode } from 'vs/editor/common/model/pieceTreeTextBuffer/rbTreeBase';
 import { createTextModel } from 'vs/editor/test/common/editorTestUtils';
 import { SearchData } from 'vs/editor/common/model/textModelSearch';
+import { splitLines } from 'vs/base/common/strings';
 
 const alphabet = 'abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ\r\n';
 
@@ -75,7 +76,7 @@ function trimLineFeed(text: string): string {
 //#region Assertion
 
 function testLinesContent(str: string, pieceTable: PieceTreeBase) {
-	let lines = str.split(/\r\n|\r|\n/);
+	let lines = splitLines(str);
 	assert.equal(pieceTable.getLineCount(), lines.length);
 	assert.equal(pieceTable.getLinesRawContent(), str);
 	for (let i = 0; i < lines.length; i++) {
@@ -997,7 +998,7 @@ suite('CRLF', () => {
 		pieceTable.delete(2, 3);
 		str = str.substring(0, 2) + str.substring(2 + 3);
 
-		let lines = str.split(/\r\n|\r|\n/);
+		let lines = splitLines(str);
 		assert.equal(pieceTable.getLineCount(), lines.length);
 		assertTreeInvariants(pieceTable);
 	});
@@ -1012,7 +1013,7 @@ suite('CRLF', () => {
 		pieceTable.delete(4, 1);
 		str = str.substring(0, 4) + str.substring(4 + 1);
 
-		let lines = str.split(/\r\n|\r|\n/);
+		let lines = splitLines(str);
 		assert.equal(pieceTable.getLineCount(), lines.length);
 		assertTreeInvariants(pieceTable);
 	});
@@ -1033,7 +1034,7 @@ suite('CRLF', () => {
 		pieceTable.insert(3, '\r\r\r\n');
 		str = str.substring(0, 3) + '\r\r\r\n' + str.substring(3);
 
-		let lines = str.split(/\r\n|\r|\n/);
+		let lines = splitLines(str);
 		assert.equal(pieceTable.getLineCount(), lines.length);
 		assertTreeInvariants(pieceTable);
 	});
@@ -1205,7 +1206,7 @@ suite('centralized lineStarts with CRLF', () => {
 		pieceTable.delete(2, 3);
 		str = str.substring(0, 2) + str.substring(2 + 3);
 
-		let lines = str.split(/\r\n|\r|\n/);
+		let lines = splitLines(str);
 		assert.equal(pieceTable.getLineCount(), lines.length);
 		assertTreeInvariants(pieceTable);
 	});
@@ -1218,7 +1219,7 @@ suite('centralized lineStarts with CRLF', () => {
 		pieceTable.delete(4, 1);
 		str = str.substring(0, 4) + str.substring(4 + 1);
 
-		let lines = str.split(/\r\n|\r|\n/);
+		let lines = splitLines(str);
 		assert.equal(pieceTable.getLineCount(), lines.length);
 		assertTreeInvariants(pieceTable);
 	});
@@ -1238,7 +1239,7 @@ suite('centralized lineStarts with CRLF', () => {
 		pieceTable.insert(3, '\r\r\r\n');
 		str = str.substring(0, 3) + '\r\r\r\n' + str.substring(3);
 
-		let lines = str.split(/\r\n|\r|\n/);
+		let lines = splitLines(str);
 		assert.equal(pieceTable.getLineCount(), lines.length);
 		assertTreeInvariants(pieceTable);
 	});

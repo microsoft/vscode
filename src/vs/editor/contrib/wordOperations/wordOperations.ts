@@ -3,9 +3,10 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
+import * as nls from 'vs/nls';
 import { KeyCode, KeyMod } from 'vs/base/common/keyCodes';
 import { ICodeEditor } from 'vs/editor/browser/editorBrowser';
-import { EditorCommand, ICommandOptions, ServicesAccessor, registerEditorCommand } from 'vs/editor/browser/editorExtensions';
+import { EditorCommand, ICommandOptions, ServicesAccessor, registerEditorCommand, EditorAction, registerEditorAction } from 'vs/editor/browser/editorExtensions';
 import { ReplaceCommand } from 'vs/editor/common/commands/replaceCommand';
 import { CursorState } from 'vs/editor/common/controller/cursorCommon';
 import { CursorChangeReason } from 'vs/editor/common/controller/cursorEvents';
@@ -480,6 +481,36 @@ export class DeleteWordRight extends DeleteWordRightCommand {
 	}
 }
 
+export class DeleteInsideWord extends EditorAction {
+
+	constructor() {
+		super({
+			id: 'deleteInsideWord',
+			precondition: EditorContextKeys.writable,
+			label: nls.localize('deleteInsideWord', "Delete Word"),
+			alias: 'Delete Word'
+		});
+	}
+
+	public run(accessor: ServicesAccessor, editor: ICodeEditor, args: any): void {
+		if (!editor.hasModel()) {
+			return;
+		}
+		const wordSeparators = getMapForWordSeparators(editor.getOption(EditorOption.wordSeparators));
+		const model = editor.getModel();
+		const selections = editor.getSelections();
+
+		const commands = selections.map((sel) => {
+			const deleteRange = WordOperations.deleteInsideWord(wordSeparators, model, sel);
+			return new ReplaceCommand(deleteRange, '');
+		});
+
+		editor.pushUndoStop();
+		editor.executeCommands(this.id, commands);
+		editor.pushUndoStop();
+	}
+}
+
 registerEditorCommand(new CursorWordStartLeft());
 registerEditorCommand(new CursorWordEndLeft());
 registerEditorCommand(new CursorWordLeft());
@@ -502,3 +533,4 @@ registerEditorCommand(new DeleteWordLeft());
 registerEditorCommand(new DeleteWordStartRight());
 registerEditorCommand(new DeleteWordEndRight());
 registerEditorCommand(new DeleteWordRight());
+registerEditorAction(DeleteInsideWord);

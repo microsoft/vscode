@@ -8,7 +8,7 @@ import { Disposable } from 'vs/base/common/lifecycle';
 import { IContextKeyService, IContextKey, RawContextKey } from 'vs/platform/contextkey/common/contextkey';
 import { InputFocusedContext, IsMacContext, IsLinuxContext, IsWindowsContext, IsWebContext, IsMacNativeContext, IsDevelopmentContext } from 'vs/platform/contextkey/common/contextkeys';
 import { ActiveEditorContext, EditorsVisibleContext, TextCompareEditorVisibleContext, TextCompareEditorActiveContext, ActiveEditorGroupEmptyContext, MultipleEditorGroupsContext, TEXT_DIFF_EDITOR_ID, SplitEditorsVertically, InEditorZenModeContext, IsCenteredLayoutContext, ActiveEditorGroupIndexContext, ActiveEditorGroupLastContext, ActiveEditorReadonlyContext, EditorAreaVisibleContext, ActiveEditorAvailableEditorIdsContext } from 'vs/workbench/common/editor';
-import { trackFocus, addDisposableListener, EventType } from 'vs/base/browser/dom';
+import { trackFocus, addDisposableListener, EventType, WebFileSystemAccess } from 'vs/base/browser/dom';
 import { preferredSideBySideGroupDirection, GroupDirection, IEditorGroupsService } from 'vs/workbench/services/editor/common/editorGroupsService';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { IWorkbenchEnvironmentService } from 'vs/workbench/services/environment/common/environmentService';
@@ -17,7 +17,7 @@ import { WorkbenchState, IWorkspaceContextService } from 'vs/platform/workspace/
 import { SideBarVisibleContext } from 'vs/workbench/common/viewlet';
 import { IWorkbenchLayoutService, Parts, positionToString } from 'vs/workbench/services/layout/browser/layoutService';
 import { IViewletService } from 'vs/workbench/services/viewlet/browser/viewlet';
-import { PanelPositionContext } from 'vs/workbench/common/panel';
+import { PanelMaximizedContext, PanelPositionContext, PanelVisibleContext } from 'vs/workbench/common/panel';
 import { getRemoteName } from 'vs/platform/remote/common/remoteHosts';
 import { IWorkingCopyService } from 'vs/workbench/services/workingCopy/common/workingCopyService';
 import { isNative } from 'vs/base/common/platform';
@@ -31,6 +31,9 @@ export const DirtyWorkingCopiesContext = new RawContextKey<boolean>('dirtyWorkin
 export const RemoteNameContext = new RawContextKey<string>('remoteName', '');
 
 export const IsFullscreenContext = new RawContextKey<boolean>('isFullscreen', false);
+
+// Support for FileSystemAccess web APIs (https://wicg.github.io/file-system-access)
+export const HasWebFileSystemAccess = new RawContextKey<boolean>('hasWebFileSystemAccess', false);
 
 export class WorkbenchContextKeysHandler extends Disposable {
 	private inputFocusedContext: IContextKey<boolean>;
@@ -61,6 +64,8 @@ export class WorkbenchContextKeysHandler extends Disposable {
 	private sideBarVisibleContext: IContextKey<boolean>;
 	private editorAreaVisibleContext: IContextKey<boolean>;
 	private panelPositionContext: IContextKey<string>;
+	private panelVisibleContext: IContextKey<boolean>;
+	private panelMaximizedContext: IContextKey<boolean>;
 
 	constructor(
 		@IContextKeyService private readonly contextKeyService: IContextKeyService,
@@ -83,7 +88,10 @@ export class WorkbenchContextKeysHandler extends Disposable {
 		IsWebContext.bindTo(this.contextKeyService);
 		IsMacNativeContext.bindTo(this.contextKeyService);
 
-		RemoteNameContext.bindTo(this.contextKeyService).set(getRemoteName(this.environmentService.configuration.remoteAuthority) || '');
+		RemoteNameContext.bindTo(this.contextKeyService).set(getRemoteName(this.environmentService.remoteAuthority) || '');
+
+		// Capabilities
+		HasWebFileSystemAccess.bindTo(this.contextKeyService).set(WebFileSystemAccess.supported(window));
 
 		// Development
 		IsDevelopmentContext.bindTo(this.contextKeyService).set(!this.environmentService.isBuilt || this.environmentService.isExtensionDevelopment);
@@ -119,7 +127,7 @@ export class WorkbenchContextKeysHandler extends Disposable {
 		// system to operate with. We always have one when running natively or when
 		// we have a remote connection.
 		this.emptyWorkspaceSupportContext = EmptyWorkspaceSupportContext.bindTo(this.contextKeyService);
-		this.emptyWorkspaceSupportContext.set(isNative || typeof this.environmentService.configuration.remoteAuthority === 'string');
+		this.emptyWorkspaceSupportContext.set(isNative || typeof this.environmentService.remoteAuthority === 'string');
 
 		// Editor Layout
 		this.splitEditorsVerticallyContext = SplitEditorsVertically.bindTo(this.contextKeyService);
@@ -140,9 +148,13 @@ export class WorkbenchContextKeysHandler extends Disposable {
 		// Sidebar
 		this.sideBarVisibleContext = SideBarVisibleContext.bindTo(this.contextKeyService);
 
-		// Panel Position
+		// Panel
 		this.panelPositionContext = PanelPositionContext.bindTo(this.contextKeyService);
 		this.panelPositionContext.set(positionToString(this.layoutService.getPanelPosition()));
+		this.panelVisibleContext = PanelVisibleContext.bindTo(this.contextKeyService);
+		this.panelVisibleContext.set(this.layoutService.isVisible(Parts.PANEL_PART));
+		this.panelMaximizedContext = PanelMaximizedContext.bindTo(this.contextKeyService);
+		this.panelMaximizedContext.set(this.layoutService.isPanelMaximized());
 
 		this.registerListeners();
 	}
@@ -176,7 +188,11 @@ export class WorkbenchContextKeysHandler extends Disposable {
 		this._register(this.viewletService.onDidViewletClose(() => this.updateSideBarContextKeys()));
 		this._register(this.viewletService.onDidViewletOpen(() => this.updateSideBarContextKeys()));
 
-		this._register(this.layoutService.onPartVisibilityChange(() => this.editorAreaVisibleContext.set(this.layoutService.isVisible(Parts.EDITOR_PART))));
+		this._register(this.layoutService.onPartVisibilityChange(() => {
+			this.editorAreaVisibleContext.set(this.layoutService.isVisible(Parts.EDITOR_PART));
+			this.panelVisibleContext.set(this.layoutService.isVisible(Parts.PANEL_PART));
+			this.panelMaximizedContext.set(this.layoutService.isPanelMaximized());
+		}));
 
 		this._register(this.workingCopyService.onDidChangeDirty(workingCopy => this.dirtyWorkingCopiesContext.set(workingCopy.isDirty() || this.workingCopyService.hasDirty)));
 	}
@@ -215,7 +231,8 @@ export class WorkbenchContextKeysHandler extends Disposable {
 			this.activeEditorContext.set(activeEditorPane.getId());
 			this.activeEditorIsReadonly.set(activeEditorPane.input.isReadonly());
 
-			const editors = activeEditorPane.input.resource ? this.editorService.getEditorOverrides(activeEditorPane.input.resource, undefined, activeGroup) : [];
+			const activeEditorResource = activeEditorPane.input.resource;
+			const editors = activeEditorResource ? this.editorService.getEditorOverrides(activeEditorResource, undefined, activeGroup) : [];
 			this.activeEditorAvailableEditorIds.set(editors.map(([_, entry]) => entry.id).join(','));
 		} else {
 			this.activeEditorContext.reset();

@@ -111,3 +111,10 @@
 .monaco-workbench .notebook-text-diff-editor > .monaco-list > .monaco-scrollable-element > .monaco-list-rows > .monaco-list-row.focused {
 	outline: none !important;
 }
+
+.notebook-text-diff-editor .cell-diff-editor-container .editor-input-toolbar-container {
+	position: absolute;
+	right: 16px;
+	top: 16px;
+	margin: 4px 2px;
+}

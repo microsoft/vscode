@@ -8,7 +8,7 @@ import { Client } from 'vs/base/parts/ipc/node/ipc.cp';
 import { IDiskFileChange, ILogMessage } from 'vs/platform/files/node/watcher/watcher';
 import { Disposable } from 'vs/base/common/lifecycle';
 import { IWatcherRequest, IWatcherService } from 'vs/platform/files/node/watcher/nsfw/watcher';
-import { getPathFromAmdModule } from 'vs/base/common/amd';
+import { FileAccess } from 'vs/base/common/network';
 
 export class FileWatcher extends Disposable {
 
@@ -34,7 +34,7 @@ export class FileWatcher extends Disposable {
 
 	private startWatching(): void {
 		const client = this._register(new Client(
-			getPathFromAmdModule(require, 'bootstrap-fork'),
+			FileAccess.asFileUri('bootstrap-fork', require).fsPath,
 			{
 				serverName: 'File Watcher (nsfw)',
 				args: ['--type=watcherService'],

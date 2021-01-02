@@ -16,9 +16,9 @@ import { localize } from 'vs/nls';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { IFileDialogService } from 'vs/platform/dialogs/common/dialogs';
 import { IInstantiationService, ServicesAccessor } from 'vs/platform/instantiation/common/instantiation';
-import { IStorageService, StorageScope } from 'vs/platform/storage/common/storage';
+import { IStorageService, StorageScope, StorageTarget } from 'vs/platform/storage/common/storage';
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
-import { EditorInput, GroupIdentifier, IEditorInput, IMoveResult, IRevertOptions, ISaveOptions, IEditorInputFactoryRegistry, Extensions as EditorInputExtensions } from 'vs/workbench/common/editor';
+import { EditorInput, GroupIdentifier, IEditorInput, IMoveResult, IRevertOptions, ISaveOptions, IEditorInputFactoryRegistry, Extensions as EditorInputExtensions, EditorResourceAccessor } from 'vs/workbench/common/editor';
 import { Memento } from 'vs/workbench/common/memento';
 import { SearchEditorFindMatchClass, SearchEditorScheme } from 'vs/workbench/contrib/searchEditor/browser/constants';
 import { SearchEditorModel } from 'vs/workbench/contrib/searchEditor/browser/searchEditorModel';
@@ -28,16 +28,17 @@ import { IPathService } from 'vs/workbench/services/path/common/pathService';
 import { ISearchConfigurationProperties } from 'vs/workbench/services/search/common/search';
 import { ITextFileSaveOptions, ITextFileService, stringToSnapshot } from 'vs/workbench/services/textfile/common/textfiles';
 import { IWorkingCopy, IWorkingCopyBackup, IWorkingCopyService, WorkingCopyCapabilities } from 'vs/workbench/services/workingCopy/common/workingCopyService';
+import { CancellationToken } from 'vs/base/common/cancellation';
 
 export type SearchConfiguration = {
 	query: string,
-	includes: string,
-	excludes: string,
+	filesToInclude: string,
+	filesToExclude: string,
 	contextLines: number,
-	wholeWord: boolean,
-	caseSensitive: boolean,
-	regexp: boolean,
-	useIgnores: boolean,
+	matchWholeWord: boolean,
+	isCaseSensitive: boolean,
+	isRegexp: boolean,
+	useExcludeSettingsAndIgnoreFiles: boolean,
 	showIncludesExcludes: boolean,
 };
 
@@ -64,7 +65,7 @@ export class SearchEditorInput extends EditorInput {
 	public get config(): Readonly<SearchConfiguration> { return this._config; }
 	public set config(value: Readonly<SearchConfiguration>) {
 		this._config = value;
-		this.memento.getMemento(StorageScope.WORKSPACE).searchConfig = value;
+		this.memento.getMemento(StorageScope.WORKSPACE, StorageTarget.MACHINE).searchConfig = value;
 		this._onDidChangeLabel.fire();
 	}
 
@@ -113,7 +114,7 @@ export class SearchEditorInput extends EditorInput {
 			readonly onDidChangeDirty = input.onDidChangeDirty;
 			readonly onDidChangeContent = input.onDidChangeContent;
 			isDirty(): boolean { return input.isDirty(); }
-			backup(): Promise<IWorkingCopyBackup> { return input.backup(); }
+			backup(token: CancellationToken): Promise<IWorkingCopyBackup> { return input.backup(token); }
 			save(options?: ISaveOptions): Promise<boolean> { return input.save(0, options).then(editor => !!editor); }
 			revert(options?: IRevertOptions): Promise<void> { return input.revert(0, options); }
 		};
@@ -167,7 +168,8 @@ export class SearchEditorInput extends EditorInput {
 		const trimToMax = (label: string) => (label.length < maxLength ? label : `${label.slice(0, maxLength - 3)}...`);
 
 		if (this.backingUri) {
-			return localize('searchTitle.withQuery', "Search: {0}", basename(this.backingUri?.path, SEARCH_EDITOR_EXT));
+			const originalURI = EditorResourceAccessor.getOriginalUri(this);
+			return localize('searchTitle.withQuery', "Search: {0}", basename((originalURI ?? this.backingUri).path, SEARCH_EDITOR_EXT));
 		}
 
 		const query = this.config.query?.trim();
@@ -231,7 +233,7 @@ export class SearchEditorInput extends EditorInput {
 		if (other instanceof SearchEditorInput) {
 			return !!(other.modelUri.fragment && other.modelUri.fragment === this.modelUri.fragment);
 		} else if (this.fileEditorInputFactory.isFileEditorInput(other)) {
-			return other.resource?.toString() === this.backingUri?.toString();
+			return isEqual(other.resource, this.backingUri);
 		}
 		return false;
 	}
@@ -264,7 +266,7 @@ export class SearchEditorInput extends EditorInput {
 		return false;
 	}
 
-	private async backup(): Promise<IWorkingCopyBackup> {
+	private async backup(token: CancellationToken): Promise<IWorkingCopyBackup> {
 		const content = stringToSnapshot((await this.model).getValue());
 		return { content };
 	}
@@ -274,7 +276,7 @@ export class SearchEditorInput extends EditorInput {
 
 		const searchFileName = (query.replace(/[^\w \-_]+/g, '_') || 'Search') + SEARCH_EDITOR_EXT;
 
-		return joinPath(this.fileDialogService.defaultFilePath(this.pathService.defaultUriScheme) || (await this.pathService.userHome()), searchFileName);
+		return joinPath(await this.fileDialogService.defaultFilePath(this.pathService.defaultUriScheme), searchFileName);
 	}
 }
 
@@ -296,7 +298,7 @@ export const getOrMakeSearchEditorInput = (
 	const reuseOldSettings = searchEditorSettings.reusePriorSearchConfiguration;
 	const defaultNumberOfContextLines = searchEditorSettings.defaultNumberOfContextLines;
 
-	const priorConfig: SearchConfiguration = reuseOldSettings ? new Memento(SearchEditorInput.ID, storageService).getMemento(StorageScope.WORKSPACE).searchConfig : {};
+	const priorConfig: SearchConfiguration = reuseOldSettings ? new Memento(SearchEditorInput.ID, storageService).getMemento(StorageScope.WORKSPACE, StorageTarget.MACHINE).searchConfig : {};
 	const defaultConfig = defaultSearchConfig();
 
 	const config = { ...defaultConfig, ...priorConfig, ...existingData.config };

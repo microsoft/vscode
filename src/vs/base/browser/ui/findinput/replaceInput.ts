@@ -28,6 +28,7 @@ export interface IReplaceInputOptions extends IReplaceInputStyles {
 	readonly flexibleWidth?: boolean;
 	readonly flexibleMaxHeight?: number;
 
+	readonly appendPreserveCaseLabel?: string;
 	readonly history?: string[];
 }
 
@@ -128,6 +129,7 @@ export class ReplaceInput extends Widget {
 		this.inputValidationErrorBackground = options.inputValidationErrorBackground;
 		this.inputValidationErrorForeground = options.inputValidationErrorForeground;
 
+		const appendPreserveCaseLabel = options.appendPreserveCaseLabel || '';
 		const history = options.history || [];
 		const flexibleHeight = !!options.flexibleHeight;
 		const flexibleWidth = !!options.flexibleWidth;
@@ -161,7 +163,7 @@ export class ReplaceInput extends Widget {
 		}));
 
 		this.preserveCase = this._register(new PreserveCaseCheckbox({
-			appendTitle: '',
+			appendTitle: appendPreserveCaseLabel,
 			isChecked: false,
 			inputActiveOptionBorder: this.inputActiveOptionBorder,
 			inputActiveOptionForeground: this.inputActiveOptionForeground,
@@ -203,6 +205,7 @@ export class ReplaceInput extends Widget {
 
 					if (event.equals(KeyCode.Escape)) {
 						indexes[index].blur();
+						this.inputBox.focus();
 					} else if (newIndex >= 0) {
 						indexes[newIndex].focus();
 					}

@@ -5,7 +5,6 @@
 
 import { Event } from 'vs/base/common/event';
 import { createDecorator } from 'vs/platform/instantiation/common/instantiation';
-import { ColorScheme } from 'vs/platform/theme/common/theme';
 
 export const IHostColorSchemeService = createDecorator<IHostColorSchemeService>('hostColorSchemeService');
 
@@ -13,7 +12,8 @@ export interface IHostColorSchemeService {
 
 	readonly _serviceBrand: undefined;
 
-	readonly colorScheme: ColorScheme;
+	readonly dark: boolean;
+	readonly highContrast: boolean;
 	readonly onDidChangeColorScheme: Event<void>;
 
 }

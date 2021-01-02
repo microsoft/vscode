@@ -11,7 +11,7 @@ import { Schemas } from 'vs/base/common/network';
 
 export class NativePathService extends AbstractPathService {
 
-	readonly defaultUriScheme = this.environmentService.configuration.remoteAuthority ? Schemas.vscodeRemote : Schemas.file;
+	readonly defaultUriScheme = this.environmentService.remoteAuthority ? Schemas.vscodeRemote : Schemas.file;
 
 	constructor(
 		@IRemoteAgentService remoteAgentService: IRemoteAgentService,

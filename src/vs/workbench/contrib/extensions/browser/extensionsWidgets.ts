@@ -5,18 +5,22 @@
 
 import 'vs/css!./media/extensionsWidgets';
 import { Disposable, toDisposable, DisposableStore, MutableDisposable } from 'vs/base/common/lifecycle';
-import { IExtension, IExtensionsWorkbenchService, IExtensionContainer } from 'vs/workbench/contrib/extensions/common/extensions';
+import { IExtension, IExtensionsWorkbenchService, IExtensionContainer, ExtensionState } from 'vs/workbench/contrib/extensions/common/extensions';
 import { append, $ } from 'vs/base/browser/dom';
 import * as platform from 'vs/base/common/platform';
 import { localize } from 'vs/nls';
-import { IExtensionRecommendationsService, IExtensionManagementServerService } from 'vs/workbench/services/extensionManagement/common/extensionManagement';
+import { IExtensionManagementServerService } from 'vs/workbench/services/extensionManagement/common/extensionManagement';
+import { IExtensionRecommendationsService } from 'vs/workbench/services/extensionRecommendations/common/extensionRecommendations';
 import { ILabelService } from 'vs/platform/label/common/label';
 import { extensionButtonProminentBackground, extensionButtonProminentForeground, ExtensionToolTipAction } from 'vs/workbench/contrib/extensions/browser/extensionsActions';
-import { IThemeService, IColorTheme } from 'vs/platform/theme/common/themeService';
+import { IThemeService, IColorTheme, ThemeIcon } from 'vs/platform/theme/common/themeService';
 import { EXTENSION_BADGE_REMOTE_BACKGROUND, EXTENSION_BADGE_REMOTE_FOREGROUND } from 'vs/workbench/common/theme';
 import { Emitter, Event } from 'vs/base/common/event';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { CountBadge } from 'vs/base/browser/ui/countBadge/countBadge';
+import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
+import { IUserDataAutoSyncEnablementService } from 'vs/platform/userDataSync/common/userDataSync';
+import { installCountIcon, ratingIcon, remoteIcon, starEmptyIcon, starFullIcon, starHalfIcon, syncIgnoredIcon } from 'vs/workbench/contrib/extensions/browser/extensionsIcons';
 
 export abstract class ExtensionWidget extends Disposable implements IExtensionContainer {
 	private _extension: IExtension | null = null;
@@ -82,7 +86,7 @@ export class InstallCountWidget extends ExtensionWidget {
 			installLabel = installCount.toLocaleString(platform.locale);
 		}
 
-		append(this.container, $('span.codicon.codicon-cloud-download'));
+		append(this.container, $('span' + ThemeIcon.asCSSSelector(installCountIcon)));
 		const count = append(this.container, $('span.count'));
 		count.textContent = installLabel;
 	}
@@ -122,18 +126,18 @@ export class RatingsWidget extends ExtensionWidget {
 		const rating = Math.round(this.extension.rating * 2) / 2;
 
 		if (this.small) {
-			append(this.container, $('span.codicon.codicon-star-full'));
+			append(this.container, $('span' + ThemeIcon.asCSSSelector(starFullIcon)));
 
 			const count = append(this.container, $('span.count'));
 			count.textContent = String(rating);
 		} else {
 			for (let i = 1; i <= 5; i++) {
 				if (rating >= i) {
-					append(this.container, $('span.codicon.codicon-star-full'));
+					append(this.container, $('span' + ThemeIcon.asCSSSelector(starFullIcon)));
 				} else if (rating >= i - 0.5) {
-					append(this.container, $('span.codicon.codicon-star-half'));
+					append(this.container, $('span' + ThemeIcon.asCSSSelector(starHalfIcon)));
 				} else {
-					append(this.container, $('span.codicon.codicon-star-empty'));
+					append(this.container, $('span' + ThemeIcon.asCSSSelector(starEmptyIcon)));
 				}
 			}
 		}
@@ -198,7 +202,7 @@ export class RecommendationWidget extends ExtensionWidget {
 		super();
 		this.render();
 		this._register(toDisposable(() => this.clear()));
-		this._register(this.extensionRecommendationsService.onRecommendationChange(() => this.render()));
+		this._register(this.extensionRecommendationsService.onDidChangeRecommendations(() => this.render()));
 	}
 
 	private clear(): void {
@@ -219,7 +223,7 @@ export class RecommendationWidget extends ExtensionWidget {
 		if (extRecommendations[this.extension.identifier.id.toLowerCase()]) {
 			this.element = append(this.parent, $('div.extension-bookmark'));
 			const recommendation = append(this.element, $('.recommendation'));
-			append(recommendation, $('span.codicon.codicon-star'));
+			append(recommendation, $('span' + ThemeIcon.asCSSSelector(ratingIcon)));
 			const applyBookmarkStyle = (theme: IColorTheme) => {
 				const bgColor = theme.getColor(extensionButtonProminentBackground);
 				const fgColor = theme.getColor(extensionButtonProminentForeground);
@@ -285,7 +289,7 @@ class RemoteBadge extends Disposable {
 	}
 
 	private render(): void {
-		append(this.element, $('span.codicon.codicon-remote'));
+		append(this.element, $('span' + ThemeIcon.asCSSSelector(remoteIcon)));
 
 		const applyBadgeStyle = () => {
 			if (!this.element) {
@@ -337,5 +341,30 @@ export class ExtensionPackCountWidget extends ExtensionWidget {
 		this.element = append(this.parent, $('.extension-badge.extension-pack-badge'));
 		const countBadge = new CountBadge(this.element);
 		countBadge.setCount(this.extension.extensionPack.length);
+	}
+}
+
+export class SyncIgnoredWidget extends ExtensionWidget {
+
+	private element: HTMLElement;
+
+	constructor(
+		container: HTMLElement,
+		@IConfigurationService private readonly configurationService: IConfigurationService,
+		@IExtensionsWorkbenchService private readonly extensionsWorkbenchService: IExtensionsWorkbenchService,
+		@IUserDataAutoSyncEnablementService private readonly userDataAutoSyncEnablementService: IUserDataAutoSyncEnablementService,
+	) {
+		super();
+		this.element = append(container, $('span.extension-sync-ignored' + ThemeIcon.asCSSSelector(syncIgnoredIcon)));
+		this.element.title = localize('syncingore.label', "This extension is ignored during sync.");
+		this.element.classList.add(...ThemeIcon.asClassNameArray(syncIgnoredIcon));
+		this.element.classList.add('hide');
+		this._register(Event.filter(this.configurationService.onDidChangeConfiguration, e => e.affectedKeys.includes('settingsSync.ignoredExtensions'))(() => this.render()));
+		this._register(userDataAutoSyncEnablementService.onDidChangeEnablement(() => this.update()));
+		this.render();
+	}
+
+	render(): void {
+		this.element.classList.toggle('hide', !(this.extension && this.extension.state === ExtensionState.Installed && this.userDataAutoSyncEnablementService.isEnabled() && this.extensionsWorkbenchService.isExtensionIgnoredToSync(this.extension)));
 	}
 }

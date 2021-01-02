@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { memoize } from 'vs/base/common/decorators';
-import { INativeEnvironmentService } from 'vs/platform/environment/common/environment';
+import { IEnvironmentMainService } from 'vs/platform/environment/electron-main/environmentMainService';
 import { BrowserWindow, ipcMain, WebContents, Event as ElectronEvent } from 'electron';
 import { ISharedProcess } from 'vs/platform/ipc/electron-main/sharedProcessMainService';
 import { Barrier } from 'vs/base/common/async';
@@ -13,20 +13,19 @@ import { ILifecycleMainService } from 'vs/platform/lifecycle/electron-main/lifec
 import { IThemeMainService } from 'vs/platform/theme/electron-main/themeMainService';
 import { toDisposable, DisposableStore } from 'vs/base/common/lifecycle';
 import { Event } from 'vs/base/common/event';
-import { getPathFromAmdModule } from 'vs/base/common/amd';
+import { FileAccess } from 'vs/base/common/network';
 
 export class SharedProcess implements ISharedProcess {
 
-	private barrier = new Barrier();
+	private readonly barrier = new Barrier();
+	private readonly _whenReady: Promise<void>;
 
 	private window: BrowserWindow | null = null;
-
-	private readonly _whenReady: Promise<void>;
 
 	constructor(
 		private readonly machineId: string,
 		private userEnv: NodeJS.ProcessEnv,
-		@INativeEnvironmentService private readonly environmentService: INativeEnvironmentService,
+		@IEnvironmentMainService private readonly environmentService: IEnvironmentMainService,
 		@ILifecycleMainService private readonly lifecycleMainService: ILifecycleMainService,
 		@ILogService private readonly logService: ILogService,
 		@IThemeMainService private readonly themeMainService: IThemeMainService
@@ -41,7 +40,7 @@ export class SharedProcess implements ISharedProcess {
 			show: false,
 			backgroundColor: this.themeMainService.getBackgroundColor(),
 			webPreferences: {
-				preload: getPathFromAmdModule(require, 'vs/base/parts/sandbox/electron-browser/preload.js'),
+				preload: FileAccess.asFileUri('vs/base/parts/sandbox/electron-browser/preload.js', require).fsPath,
 				nodeIntegration: true,
 				enableWebSQL: false,
 				enableRemoteModule: false,
@@ -52,6 +51,7 @@ export class SharedProcess implements ISharedProcess {
 				disableBlinkFeatures: 'Auxclick' // do NOT change, allows us to identify this window as shared-process in the process explorer
 			}
 		});
+
 		const config = {
 			appRoot: this.environmentService.appRoot,
 			machineId: this.machineId,
@@ -60,8 +60,11 @@ export class SharedProcess implements ISharedProcess {
 			windowId: this.window.id
 		};
 
-		const url = `${require.toUrl('vs/code/electron-browser/sharedProcess/sharedProcess.html')}?config=${encodeURIComponent(JSON.stringify(config))}`;
-		this.window.loadURL(url);
+		const windowUrl = (this.environmentService.sandbox ?
+			FileAccess._asCodeFileUri('vs/code/electron-browser/sharedProcess/sharedProcess.html', require) :
+			FileAccess.asBrowserUri('vs/code/electron-browser/sharedProcess/sharedProcess.html', require))
+			.with({ query: `config=${encodeURIComponent(JSON.stringify(config))}` });
+		this.window.loadURL(windowUrl.toString(true));
 
 		// Prevent the window from dying
 		const onClose = (e: ElectronEvent) => {
@@ -107,20 +110,23 @@ export class SharedProcess implements ISharedProcess {
 			}, 0);
 		});
 
-		return new Promise<void>(c => {
+		return new Promise<void>(resolve => {
+
 			// send payload once shared process is ready to receive it
 			disposables.add(Event.once(Event.fromNodeEventEmitter(ipcMain, 'vscode:shared-process->electron-main=ready-for-payload', ({ sender }: { sender: WebContents }) => sender))(sender => {
 				sender.send('vscode:electron-main->shared-process=payload', {
 					sharedIPCHandle: this.environmentService.sharedIPCHandle,
 					args: this.environmentService.args,
-					logLevel: this.logService.getLevel()
+					logLevel: this.logService.getLevel(),
+					backupWorkspacesPath: this.environmentService.backupWorkspacesPath,
+					nodeCachedDataDir: this.environmentService.nodeCachedDataDir
 				});
 
 				// signal exit to shared process when we get disposed
 				disposables.add(toDisposable(() => sender.send('vscode:electron-main->shared-process=exit')));
 
 				// complete IPC-ready promise when shared process signals this to us
-				ipcMain.once('vscode:shared-process->electron-main=ipc-ready', () => c(undefined));
+				ipcMain.once('vscode:shared-process->electron-main=ipc-ready', () => resolve(undefined));
 			}));
 		});
 	}

@@ -205,10 +205,10 @@ class EchoRunner extends events.EventEmitter {
 			suites: suite.suites,
 			tests: suite.tests,
 			title: titleExtra && suite.title ? `${suite.title} - /${titleExtra}/` : suite.title,
+			titlePath: () => suite.titlePath,
 			fullTitle: () => suite.fullTitle,
 			timeout: () => suite.timeout,
 			retries: () => suite.retries,
-			enableTimeouts: () => suite.enableTimeouts,
 			slow: () => suite.slow,
 			bail: () => suite.bail
 		};

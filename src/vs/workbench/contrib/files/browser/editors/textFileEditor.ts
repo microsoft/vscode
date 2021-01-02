@@ -9,7 +9,7 @@ import { isFunction, assertIsDefined } from 'vs/base/common/types';
 import { isValidBasename } from 'vs/base/common/extpath';
 import { basename } from 'vs/base/common/resources';
 import { Action } from 'vs/base/common/actions';
-import { VIEWLET_ID, TEXT_FILE_EDITOR_ID, IExplorerService } from 'vs/workbench/contrib/files/common/files';
+import { VIEWLET_ID, TEXT_FILE_EDITOR_ID } from 'vs/workbench/contrib/files/common/files';
 import { ITextFileService, TextFileOperationError, TextFileOperationResult } from 'vs/workbench/services/textfile/common/textfiles';
 import { BaseTextEditor } from 'vs/workbench/browser/parts/editor/textEditor';
 import { EditorOptions, TextEditorOptions, IEditorInput, IEditorOpenContext } from 'vs/workbench/common/editor';
@@ -30,6 +30,7 @@ import { CancellationToken } from 'vs/base/common/cancellation';
 import { createErrorWithActions } from 'vs/base/common/errorsWithActions';
 import { EditorActivation, IEditorOptions } from 'vs/platform/editor/common/editor';
 import { IUriIdentityService } from 'vs/workbench/services/uriIdentity/common/uriIdentity';
+import { IExplorerService } from 'vs/workbench/contrib/files/browser/files';
 
 /**
  * An implementation of editor for file system resources.
@@ -60,18 +61,30 @@ export class TextFileEditor extends BaseTextEditor {
 
 		// Move view state for moved files
 		this._register(this.fileService.onDidRunOperation(e => this.onDidRunOperation(e)));
+
+		// Listen to file system provider changes
+		this._register(this.fileService.onDidChangeFileSystemProviderCapabilities(e => this.onDidFileSystemProviderChange(e.scheme)));
+		this._register(this.fileService.onDidChangeFileSystemProviderRegistrations(e => this.onDidFileSystemProviderChange(e.scheme)));
 	}
 
 	private onDidFilesChange(e: FileChangesEvent): void {
 		const deleted = e.getDeleted();
 		if (deleted?.length) {
-			this.clearTextEditorViewState(deleted.map(d => d.resource));
+			this.clearTextEditorViewState(deleted.map(({ resource }) => resource));
 		}
 	}
 
 	private onDidRunOperation(e: FileOperationEvent): void {
 		if (e.operation === FileOperation.MOVE && e.target) {
 			this.moveTextEditorViewState(e.resource, e.target.resource, this.uriIdentityService.extUri);
+		}
+	}
+
+	private onDidFileSystemProviderChange(scheme: string): void {
+		const control = this.getControl();
+		const input = this.input;
+		if (control && input?.resource.scheme === scheme) {
+			control.updateOptions({ readOnly: input.isReadonly() });
 		}
 	}
 
@@ -160,14 +173,14 @@ export class TextFileEditor extends BaseTextEditor {
 		}
 
 		// Offer to create a file from the error if we have a file not found and the name is valid
-		if ((<FileOperationError>error).fileOperationResult === FileOperationResult.FILE_NOT_FOUND && isValidBasename(basename(input.resource))) {
+		if ((<FileOperationError>error).fileOperationResult === FileOperationResult.FILE_NOT_FOUND && isValidBasename(basename(input.preferredResource))) {
 			throw createErrorWithActions(toErrorMessage(error), {
 				actions: [
 					new Action('workbench.files.action.createMissingFile', nls.localize('createFile', "Create File"), undefined, true, async () => {
-						await this.textFileService.create(input.resource);
+						await this.textFileService.create(input.preferredResource);
 
 						return this.editorService.openEditor({
-							resource: input.resource,
+							resource: input.preferredResource,
 							options: {
 								pinned: true // new file gets pinned by default
 							}
@@ -207,10 +220,10 @@ export class TextFileEditor extends BaseTextEditor {
 		await this.group.closeEditor(this.input);
 
 		// Best we can do is to reveal the folder in the explorer
-		if (this.contextService.isInsideWorkspace(input.resource)) {
+		if (this.contextService.isInsideWorkspace(input.preferredResource)) {
 			await this.viewletService.openViewlet(VIEWLET_ID);
 
-			this.explorerService.select(input.resource, true);
+			this.explorerService.select(input.preferredResource, true);
 		}
 	}
 

@@ -38,6 +38,8 @@ export class FloatingClickWidget extends Widget implements IOverlayWidget {
 		super();
 
 		this._domNode = $('.floating-click-widget');
+		this._domNode.style.padding = '10px';
+		this._domNode.style.cursor = 'pointer';
 
 		if (keyBindingAction) {
 			const keybinding = keybindingService.lookupKeybinding(keyBindingAction);

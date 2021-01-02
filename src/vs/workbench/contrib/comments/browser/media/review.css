@@ -119,18 +119,17 @@
 	white-space: pre;
 	text-align: center;
 	font-size: 12px;
+	display: flex;
 }
 
 .monaco-editor .review-widget .body .review-comment .review-comment-contents .comment-reactions .action-item .action-label .reaction-icon {
-	background-size: 12px;
+	background-size: 14px;
 	background-position: left center;
 	background-repeat: no-repeat;
-	width: 16px;
-	height: 12px;
+	width: 14px;
 	-webkit-font-smoothing: antialiased;
 	-moz-osx-font-smoothing: grayscale;
 	display: inline-block;
-	margin-top: 3px;
 	margin-right: 4px;
 }
 
@@ -165,11 +164,7 @@
 }
 
 .monaco-editor .review-widget .body .review-comment .review-comment-contents .comment-reactions .action-item a.action-label {
-	border: 1px solid transparent;
-}
-
-.monaco-editor .review-widget .body .review-comment .review-comment-contents .comment-reactions .action-item a.action-label.active {
-	border: 1px solid grey;
+	border: 1px solid;
 }
 
 .monaco-editor .review-widget .body .review-comment .review-comment-contents .comment-reactions .action-item a.action-label.disabled {

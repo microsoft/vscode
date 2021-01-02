@@ -22,6 +22,9 @@ import { INativeHostService } from 'vs/platform/native/electron-sandbox/native';
 import { IJSONContributionRegistry, Extensions as JSONExtensions } from 'vs/platform/jsonschemas/common/jsonContributionRegistry';
 import product from 'vs/platform/product/common/product';
 import { IJSONSchema } from 'vs/base/common/jsonSchema';
+import { Extensions as WorkbenchExtensions, IWorkbenchContributionsRegistry } from 'vs/workbench/common/contributions';
+import { LifecyclePhase } from 'vs/workbench/services/lifecycle/common/lifecycle';
+import { LoaderCyclicChecker } from 'vs/workbench/electron-sandbox/loaderCyclicChecker';
 
 // Actions
 (function registerActions(): void {
@@ -97,6 +100,9 @@ import { IJSONSchema } from 'vs/base/common/jsonSchema';
 			primary: KeyMod.CtrlCmd | KeyMod.Shift | KeyCode.KEY_I,
 			mac: { primary: KeyMod.CtrlCmd | KeyMod.Alt | KeyCode.KEY_I }
 		});
+
+		Registry.as<IWorkbenchContributionsRegistry>(WorkbenchExtensions.Workbench).registerWorkbenchContribution(LoaderCyclicChecker, LifecyclePhase.Ready);
+
 	})();
 
 	// Actions: Runtime Arguments
@@ -211,16 +217,17 @@ import { IJSONSchema } from 'vs/base/common/jsonSchema';
 			},
 			'window.restoreWindows': {
 				'type': 'string',
-				'enum': ['all', 'folders', 'one', 'none'],
+				'enum': ['preserve', 'all', 'folders', 'one', 'none'],
 				'enumDescriptions': [
-					nls.localize('window.reopenFolders.all', "Reopen all windows."),
-					nls.localize('window.reopenFolders.folders', "Reopen all folders. Empty workspaces will not be restored."),
-					nls.localize('window.reopenFolders.one', "Reopen the last active window."),
-					nls.localize('window.reopenFolders.none', "Never reopen a window. Always start with an empty one.")
+					nls.localize('window.reopenFolders.preserve', "Always reopen all windows. If a folder or workspace is opened (e.g. from the command line) it opens as a new window unless it was opened before. If files are opened they will open in one of the restored windows."),
+					nls.localize('window.reopenFolders.all', "Reopen all windows unless a folder, workspace or file is opened (e.g. from the command line)."),
+					nls.localize('window.reopenFolders.folders', "Reopen all windows that had folders or workspaces opened unless a folder, workspace or file is opened (e.g. from the command line)."),
+					nls.localize('window.reopenFolders.one', "Reopen the last active window unless a folder, workspace or file is opened (e.g. from the command line)."),
+					nls.localize('window.reopenFolders.none', "Never reopen a window. Unless a folder or workspace is opened (e.g. from the command line), an empty window will appear.")
 				],
 				'default': 'all',
 				'scope': ConfigurationScope.APPLICATION,
-				'description': nls.localize('restoreWindows', "Controls how windows are being reopened after a restart.")
+				'description': nls.localize('restoreWindows', "Controls how windows are being reopened after starting for the first time. This setting has no effect when the application is already running.")
 			},
 			'window.restoreFullscreen': {
 				'type': 'boolean',

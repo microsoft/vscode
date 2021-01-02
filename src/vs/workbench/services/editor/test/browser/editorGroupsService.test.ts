@@ -1071,8 +1071,8 @@ suite('EditorGroupsService', () => {
 		await group.openEditors([{ editor: input, options: { pinned: true } }, { editor: inputInactive }]);
 		assert.equal(firstOpenEditorContext, undefined);
 
-		const waitForEditorWillOpen = new Promise<OpenEditorContext | undefined>(c => {
-			Event.once(rightGroup.onWillOpenEditor)(e => c(e.context));
+		const waitForEditorWillOpen = new Promise<OpenEditorContext | undefined>(resolve => {
+			Event.once(rightGroup.onWillOpenEditor)(e => resolve(e.context));
 		});
 
 		group.moveEditor(inputInactive, rightGroup, { index: 0 });
@@ -1090,8 +1090,8 @@ suite('EditorGroupsService', () => {
 		const input = new TestFileEditorInput(URI.file('foo/bar'), TEST_EDITOR_INPUT_ID);
 		const inputInactive = new TestFileEditorInput(URI.file('foo/bar/inactive'), TEST_EDITOR_INPUT_ID);
 		await group.openEditors([{ editor: input, options: { pinned: true } }, { editor: inputInactive }]);
-		const waitForEditorWillOpen = new Promise<OpenEditorContext | undefined>(c => {
-			Event.once(rightGroup.onWillOpenEditor)(e => c(e.context));
+		const waitForEditorWillOpen = new Promise<OpenEditorContext | undefined>(resolve => {
+			Event.once(rightGroup.onWillOpenEditor)(e => resolve(e.context));
 		});
 
 		group.copyEditor(inputInactive, rightGroup, { index: 0 });

@@ -6,10 +6,10 @@
 import { Action, IAction } from 'vs/base/common/actions';
 import { EndOfLinePreference } from 'vs/editor/common/model';
 import { ICodeEditorService } from 'vs/editor/browser/services/codeEditorService';
-import { TERMINAL_VIEW_ID, ITerminalConfigHelper, TitleEventSource, TERMINAL_COMMAND_ID, KEYBINDING_CONTEXT_TERMINAL_FIND_FOCUSED, TERMINAL_ACTION_CATEGORY, KEYBINDING_CONTEXT_TERMINAL_FOCUS, KEYBINDING_CONTEXT_TERMINAL_FIND_VISIBLE, KEYBINDING_CONTEXT_TERMINAL_TEXT_SELECTED, KEYBINDING_CONTEXT_TERMINAL_FIND_NOT_VISIBLE, KEYBINDING_CONTEXT_TERMINAL_A11Y_TREE_FOCUS, KEYBINDING_CONTEXT_TERMINAL_PROCESS_SUPPORTED } from 'vs/workbench/contrib/terminal/common/terminal';
+import { TERMINAL_VIEW_ID, ITerminalConfigHelper, TitleEventSource, TERMINAL_COMMAND_ID, KEYBINDING_CONTEXT_TERMINAL_FIND_FOCUSED, TERMINAL_ACTION_CATEGORY, KEYBINDING_CONTEXT_TERMINAL_FOCUS, KEYBINDING_CONTEXT_TERMINAL_FIND_VISIBLE, KEYBINDING_CONTEXT_TERMINAL_TEXT_SELECTED, KEYBINDING_CONTEXT_TERMINAL_FIND_NOT_VISIBLE, KEYBINDING_CONTEXT_TERMINAL_A11Y_TREE_FOCUS, KEYBINDING_CONTEXT_TERMINAL_PROCESS_SUPPORTED, IRemoteTerminalAttachTarget } from 'vs/workbench/contrib/terminal/common/terminal';
 import { IWorkbenchLayoutService } from 'vs/workbench/services/layout/browser/layoutService';
 import { attachSelectBoxStyler, attachStylerCallback } from 'vs/platform/theme/common/styler';
-import { IThemeService } from 'vs/platform/theme/common/themeService';
+import { IThemeService, ThemeIcon } from 'vs/platform/theme/common/themeService';
 import { IQuickInputService, IPickOptions, IQuickPickItem } from 'vs/platform/quickinput/common/quickInput';
 import { ServicesAccessor } from 'vs/platform/instantiation/common/instantiation';
 import { IContextViewService } from 'vs/platform/contextview/browser/contextView';
@@ -24,13 +24,12 @@ import { Schemas } from 'vs/base/common/network';
 import { URI } from 'vs/base/common/uri';
 import { isWindows } from 'vs/base/common/platform';
 import { withNullAsUndefined } from 'vs/base/common/types';
-import { ITerminalInstance, ITerminalService, Direction } from 'vs/workbench/contrib/terminal/browser/terminal';
+import { ITerminalInstance, ITerminalService, Direction, IRemoteTerminalService, TerminalConnectionState } from 'vs/workbench/contrib/terminal/browser/terminal';
 import { Action2, registerAction2, ILocalizedString } from 'vs/platform/actions/common/actions';
 import { TerminalQuickAccessProvider } from 'vs/workbench/contrib/terminal/browser/terminalQuickAccess';
 import { ToggleViewAction } from 'vs/workbench/browser/actions/layoutActions';
 import { IViewsService, IViewDescriptorService } from 'vs/workbench/common/views';
 import { IContextKeyService, ContextKeyExpr } from 'vs/platform/contextkey/common/contextkey';
-import { addClass } from 'vs/base/browser/dom';
 import { selectBorder } from 'vs/platform/theme/common/colorRegistry';
 import { KeyMod, KeyCode } from 'vs/base/common/keyCodes';
 import { KeybindingWeight } from 'vs/platform/keybinding/common/keybindingsRegistry';
@@ -40,6 +39,11 @@ import { IOpenerService } from 'vs/platform/opener/common/opener';
 import { ITerminalContributionService } from 'vs/workbench/contrib/terminal/common/terminalExtensionPoints';
 import { SelectActionViewItem } from 'vs/base/browser/ui/actionbar/actionViewItems';
 import { FindInFilesCommand, IFindInFilesArgs } from 'vs/workbench/contrib/search/browser/searchActions';
+import { ILabelService } from 'vs/platform/label/common/label';
+import { RemoteNameContext } from 'vs/workbench/browser/contextkeys';
+import { IPreferencesService } from 'vs/workbench/services/preferences/common/preferences';
+import { killTerminalIcon, newTerminalIcon } from 'vs/workbench/contrib/terminal/browser/terminalIcons';
+import { Codicon } from 'vs/base/common/codicons';
 
 async function getCwdForSplit(configHelper: ITerminalConfigHelper, instance: ITerminalInstance, folders?: IWorkspaceFolder[], commandService?: ICommandService): Promise<string | URI | undefined> {
 	switch (configHelper.config.splitCwd) {
@@ -79,22 +83,8 @@ export class ToggleTerminalAction extends ToggleViewAction {
 		@IViewDescriptorService viewDescriptorService: IViewDescriptorService,
 		@IContextKeyService contextKeyService: IContextKeyService,
 		@IWorkbenchLayoutService layoutService: IWorkbenchLayoutService,
-		@ITerminalService private readonly terminalService: ITerminalService
 	) {
 		super(id, label, TERMINAL_VIEW_ID, viewsService, viewDescriptorService, contextKeyService, layoutService);
-	}
-
-	async run() {
-		if (this.terminalService.isProcessSupportRegistered && this.terminalService.terminalInstances.length === 0) {
-			// If there is not yet an instance attempt to create it here so that we can suggest a
-			// new shell on Windows (and not do so when the panel is restored on reload).
-			const newTerminalInstance = this.terminalService.createTerminal(undefined);
-			const toDispose = newTerminalInstance.onProcessIdReady(() => {
-				newTerminalInstance.focus();
-				toDispose.dispose();
-			});
-		}
-		return super.run();
 	}
 }
 
@@ -108,7 +98,7 @@ export class KillTerminalAction extends Action {
 		id: string, label: string,
 		@ITerminalService private readonly _terminalService: ITerminalService
 	) {
-		super(id, label, 'terminal-action codicon-trash');
+		super(id, label, 'terminal-action ' + ThemeIcon.asClassName(killTerminalIcon));
 	}
 
 	async run() {
@@ -188,7 +178,7 @@ export class CreateNewTerminalAction extends Action {
 		@ICommandService private readonly _commandService: ICommandService,
 		@IWorkspaceContextService private readonly _workspaceContextService: IWorkspaceContextService
 	) {
-		super(id, label, 'terminal-action codicon-add');
+		super(id, label, 'terminal-action ' + ThemeIcon.asClassName(newTerminalIcon));
 	}
 
 	async run(event?: any) {
@@ -229,8 +219,8 @@ export class SplitTerminalAction extends Action {
 	public static readonly ID = TERMINAL_COMMAND_ID.SPLIT;
 	public static readonly LABEL = localize('workbench.action.terminal.split', "Split Terminal");
 	public static readonly SHORT_LABEL = localize('workbench.action.terminal.split.short', "Split");
-	public static readonly HORIZONTAL_CLASS = 'terminal-action codicon-split-horizontal';
-	public static readonly VERTICAL_CLASS = 'terminal-action codicon-split-vertical';
+	public static readonly HORIZONTAL_CLASS = 'terminal-action ' + Codicon.splitHorizontal.classNames;
+	public static readonly VERTICAL_CLASS = 'terminal-action ' + Codicon.splitVertical.classNames;
 
 	constructor(
 		id: string, label: string,
@@ -308,6 +298,23 @@ export class SelectDefaultShellWindowsTerminalAction extends Action {
 	}
 }
 
+export class ConfigureTerminalSettingsAction extends Action {
+
+	public static readonly ID = TERMINAL_COMMAND_ID.CONFIGURE_TERMINAL_SETTINGS;
+	public static readonly LABEL = localize('workbench.action.terminal.openSettings', "Configure Terminal Settings");
+
+	constructor(
+		id: string, label: string,
+		@IPreferencesService private readonly _preferencesService: IPreferencesService
+	) {
+		super(id, label);
+	}
+
+	async run() {
+		this._preferencesService.openSettings(false, '@feature:terminal');
+	}
+}
+
 const terminalIndexRe = /^([0-9]+): /;
 
 export class SwitchTerminalAction extends Action {
@@ -320,6 +327,7 @@ export class SwitchTerminalAction extends Action {
 		@ITerminalService private readonly _terminalService: ITerminalService,
 		@ITerminalContributionService private readonly _contributions: ITerminalContributionService,
 		@ICommandService private readonly _commands: ICommandService,
+		@IPreferencesService private readonly preferencesService: IPreferencesService
 	) {
 		super(id, label, 'terminal-action switch-terminal');
 	}
@@ -336,7 +344,11 @@ export class SwitchTerminalAction extends Action {
 			this._terminalService.refreshActiveTab();
 			return this._terminalService.selectDefaultShell();
 		}
-
+		if (item === ConfigureTerminalSettingsAction.LABEL) {
+			const settingsAction = new ConfigureTerminalSettingsAction(ConfigureTerminalSettingsAction.ID, ConfigureTerminalSettingsAction.LABEL, this.preferencesService);
+			settingsAction.run();
+			this._terminalService.refreshActiveTab();
+		}
 		const indexMatches = terminalIndexRe.exec(item);
 		if (indexMatches) {
 			this._terminalService.setActiveTabByIndex(Number(indexMatches[1]) - 1);
@@ -370,12 +382,13 @@ export class SwitchTerminalActionViewItem extends SelectActionViewItem {
 		this._register(_terminalService.onActiveTabChanged(this._updateItems, this));
 		this._register(_terminalService.onInstanceTitleChanged(this._updateItems, this));
 		this._register(_terminalService.onTabDisposed(this._updateItems, this));
+		this._register(_terminalService.onDidChangeConnectionState(this._updateItems, this));
 		this._register(attachSelectBoxStyler(this.selectBox, this._themeService));
 	}
 
 	render(container: HTMLElement): void {
 		super.render(container);
-		addClass(container, 'switch-terminal');
+		container.classList.add('switch-terminal');
 		this._register(attachStylerCallback(this._themeService, { selectBorder }, colors => {
 			container.style.borderColor = colors.selectBorder ? `${colors.selectBorder}` : '';
 		}));
@@ -387,7 +400,10 @@ export class SwitchTerminalActionViewItem extends SelectActionViewItem {
 }
 
 function getTerminalSelectOpenItems(terminalService: ITerminalService, contributions: ITerminalContributionService): ISelectOptionItem[] {
-	const items = terminalService.getTabLabels().map(label => <ISelectOptionItem>{ text: label });
+	const items = terminalService.connectionState === TerminalConnectionState.Connected ?
+		terminalService.getTabLabels().map(label => <ISelectOptionItem>{ text: label }) :
+		[{ text: localize('terminalConnectingLabel', "Starting...") }];
+
 	items.push({ text: SwitchTerminalActionViewItem.SEPARATOR, isDisabled: true });
 
 	for (const contributed of contributions.terminalTypes) {
@@ -395,6 +411,7 @@ function getTerminalSelectOpenItems(terminalService: ITerminalService, contribut
 	}
 
 	items.push({ text: SelectDefaultShellWindowsTerminalAction.LABEL });
+	items.push({ text: ConfigureTerminalSettingsAction.LABEL });
 	return items;
 }
 
@@ -692,7 +709,7 @@ export function registerTerminalActions() {
 			}
 
 			const uri = editor.getModel().uri;
-			if (uri.scheme !== 'file') {
+			if (uri.scheme !== Schemas.file) {
 				notificationService.warn(localize('workbench.action.terminal.runActiveFile.noFile', 'Only files on disk can be run in the terminal'));
 				return;
 			}
@@ -981,6 +998,43 @@ export function registerTerminalActions() {
 		}
 		run(accessor: ServicesAccessor) {
 			accessor.get(ITerminalService).hideFindWidget();
+		}
+	});
+	registerAction2(class extends Action2 {
+		constructor() {
+			super({
+				id: TERMINAL_COMMAND_ID.ATTACH_TO_REMOTE_TERMINAL,
+				title: { value: localize('workbench.action.terminal.attachToRemote', "Attach to Session"), original: 'Attach to Session' },
+				f1: true,
+				category,
+				keybinding: {
+					when: RemoteNameContext.notEqualsTo(''),
+					weight: KeybindingWeight.WorkbenchContrib
+				}
+			});
+		}
+		async run(accessor: ServicesAccessor) {
+			const quickInputService = accessor.get(IQuickInputService);
+			const remoteTerminalService = accessor.get(IRemoteTerminalService);
+			const terminalService = accessor.get(ITerminalService);
+			const labelService = accessor.get(ILabelService);
+			const remoteTerms = await remoteTerminalService.listTerminals();
+			const unattachedTerms = remoteTerms.filter(term => !terminalService.isAttachedToTerminal(term));
+			const items = unattachedTerms.map(term => {
+				const cwdLabel = labelService.getUriLabel(URI.file(term.cwd));
+				return {
+					label: term.title,
+					detail: term.workspaceName ? `${term.workspaceName} ⸱ ${cwdLabel}` : cwdLabel,
+					description: term.pid ? String(term.pid) : '',
+					term
+				};
+			});
+			const selected = await quickInputService.pick<IRemoteTerminalPick>(items, { canPickMany: false });
+			if (selected) {
+				const instance = terminalService.createTerminal({ remoteAttach: selected.term });
+				terminalService.setActiveInstance(instance);
+				terminalService.showPanel(true);
+			}
 		}
 	});
 	registerAction2(class extends Action2 {
@@ -1401,4 +1455,8 @@ export function registerTerminalActions() {
 			accessor.get(ITerminalService).getActiveInstance()?.showEnvironmentInfoHover();
 		}
 	});
+}
+
+interface IRemoteTerminalPick extends IQuickPickItem {
+	term: IRemoteTerminalAttachTarget;
 }

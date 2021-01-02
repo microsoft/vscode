@@ -273,7 +273,7 @@ export class MainThreadDocuments extends Disposable implements MainThreadDocumen
 	}
 
 	private _handleUntitledScheme(uri: URI): Promise<URI> {
-		const asLocalUri = toLocalResource(uri, this._environmentService.configuration.remoteAuthority, this._pathService.defaultUriScheme);
+		const asLocalUri = toLocalResource(uri, this._environmentService.remoteAuthority, this._pathService.defaultUriScheme);
 		return this._fileService.resolve(asLocalUri).then(stats => {
 			// don't create a new file ontop of an existing file
 			return Promise.reject(new Error('file already exists'));

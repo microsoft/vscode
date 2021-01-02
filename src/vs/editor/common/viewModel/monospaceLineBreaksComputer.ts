@@ -7,8 +7,9 @@ import { CharCode } from 'vs/base/common/charCode';
 import * as strings from 'vs/base/common/strings';
 import { WrappingIndent, IComputedEditorOptions, EditorOption } from 'vs/editor/common/config/editorOptions';
 import { CharacterClassifier } from 'vs/editor/common/core/characterClassifier';
-import { ILineBreaksComputerFactory, LineBreakData, ILineBreaksComputer } from 'vs/editor/common/viewModel/splitLinesCollection';
+import { ILineBreaksComputerFactory } from 'vs/editor/common/viewModel/splitLinesCollection';
 import { FontInfo } from 'vs/editor/common/config/fontInfo';
+import { ILineBreaksComputer, LineBreakData } from 'vs/editor/common/viewModel/viewModel';
 
 const enum CharacterClass {
 	NONE = 0,
@@ -302,6 +303,19 @@ function createLineBreaksFromPreviousLineBreaks(classifier: WrappingCharacterCla
 			breakOffsetVisibleColumn = forcedBreakOffsetVisibleColumn;
 		}
 
+		if (breakOffset <= lastBreakingOffset) {
+			// Make sure that we are advancing (at least one character)
+			const charCode = lineText.charCodeAt(lastBreakingOffset);
+			if (strings.isHighSurrogate(charCode)) {
+				// A surrogate pair must always be considered as a single unit, so it is never to be broken
+				breakOffset = lastBreakingOffset + 2;
+				breakOffsetVisibleColumn = lastBreakingOffsetVisibleColumn + 2;
+			} else {
+				breakOffset = lastBreakingOffset + 1;
+				breakOffsetVisibleColumn = lastBreakingOffsetVisibleColumn + computeCharWidth(charCode, lastBreakingOffsetVisibleColumn, tabSize, columnsForFullWidthChar);
+			}
+		}
+
 		lastBreakingOffset = breakOffset;
 		breakingOffsets[breakingOffsetsCount] = breakOffset;
 		lastBreakingOffsetVisibleColumn = breakOffsetVisibleColumn;
@@ -432,6 +446,10 @@ function computeCharWidth(charCode: number, visibleColumn: number, tabSize: numb
 		return (tabSize - (visibleColumn % tabSize));
 	}
 	if (strings.isFullWidthCharacter(charCode)) {
+		return columnsForFullWidthChar;
+	}
+	if (charCode < 32) {
+		// when using `editor.renderControlCharacters`, the substitutions are often wide
 		return columnsForFullWidthChar;
 	}
 	return 1;

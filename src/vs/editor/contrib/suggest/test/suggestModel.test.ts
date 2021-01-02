@@ -35,6 +35,7 @@ import { MockKeybindingService } from 'vs/platform/keybinding/test/common/mockKe
 import { createTextModel } from 'vs/editor/test/common/editorTestUtils';
 import { IClipboardService } from 'vs/platform/clipboard/common/clipboardService';
 import { mock } from 'vs/base/test/common/mock';
+import { NullLogService } from 'vs/platform/log/common/log';
 
 
 function createMockEditor(model: TextModel): ITestCodeEditor {
@@ -70,7 +71,7 @@ suite('SuggestModel - Context', function () {
 			this._register(TokenizationRegistry.register(this.getLanguageIdentifier().language, {
 				getInitialState: (): IState => NULL_STATE,
 				tokenize: undefined!,
-				tokenize2: (line: string, state: IState): TokenizationResult2 => {
+				tokenize2: (line: string, hasEOL: boolean, state: IState): TokenizationResult2 => {
 					const tokensArr: number[] = [];
 					let prevLanguageId: LanguageIdentifier | undefined = undefined;
 					for (let i = 0; i < line.length; i++) {
@@ -201,7 +202,9 @@ suite('SuggestModel - TriggerAndCancelOracle', function () {
 					readText() {
 						return Promise.resolve('CLIPPY');
 					}
-				}
+				},
+				NullTelemetryService,
+				new NullLogService()
 			);
 			disposables.push(oracle, editor);
 

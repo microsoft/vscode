@@ -326,7 +326,7 @@ export class ViewsService extends Disposable implements IViewsService {
 		return null;
 	}
 
-	async openView<T extends IView>(id: string, focus: boolean): Promise<T | null> {
+	async openView<T extends IView>(id: string, focus?: boolean): Promise<T | null> {
 		const viewContainer = this.viewDescriptorService.getViewContainerByViewId(id);
 		if (!viewContainer) {
 			return null;
@@ -451,7 +451,6 @@ export class ViewsService extends Disposable implements IViewsService {
 			undefined,
 			viewContainer.order,
 			viewContainer.requestedIndex,
-			viewContainer.focusCommand?.id,
 		));
 	}
 

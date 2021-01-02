@@ -5,6 +5,9 @@ Make sure you are on **Node v12.x**.
 ### Run
 
 ```bash
+# Build extensions in repo (if needed)
+yarn && yarn compile
+
 # Install Dependencies and Compile
 yarn --cwd test/smoke
 
@@ -30,6 +33,7 @@ You must always run the smoketest version which matches the release you are test
 
 ```bash
 git checkout release/1.22
+yarn && yarn compile
 yarn --cwd test/smoke
 ```
 

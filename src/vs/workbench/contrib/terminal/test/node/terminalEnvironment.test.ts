@@ -187,31 +187,31 @@ suite('Workbench - TerminalEnvironment', () => {
 		}
 
 		test('should default to userHome for an empty workspace', () => {
-			assertPathsMatch(getCwd({ executable: undefined, args: [] }, '/userHome/', undefined, undefined, undefined, undefined), '/userHome/');
+			assertPathsMatch(getCwd({ executable: undefined, args: [] }, '/userHome/', undefined, undefined, undefined), '/userHome/');
 		});
 
 		test('should use to the workspace if it exists', () => {
-			assertPathsMatch(getCwd({ executable: undefined, args: [] }, '/userHome/', undefined, undefined, Uri.file('/foo'), undefined), '/foo');
+			assertPathsMatch(getCwd({ executable: undefined, args: [] }, '/userHome/', undefined, Uri.file('/foo'), undefined), '/foo');
 		});
 
 		test('should use an absolute custom cwd as is', () => {
-			assertPathsMatch(getCwd({ executable: undefined, args: [] }, '/userHome/', undefined, undefined, undefined, '/foo'), '/foo');
+			assertPathsMatch(getCwd({ executable: undefined, args: [] }, '/userHome/', undefined, undefined, '/foo'), '/foo');
 		});
 
 		test('should normalize a relative custom cwd against the workspace path', () => {
-			assertPathsMatch(getCwd({ executable: undefined, args: [] }, '/userHome/', undefined, undefined, Uri.file('/bar'), 'foo'), '/bar/foo');
-			assertPathsMatch(getCwd({ executable: undefined, args: [] }, '/userHome/', undefined, undefined, Uri.file('/bar'), './foo'), '/bar/foo');
-			assertPathsMatch(getCwd({ executable: undefined, args: [] }, '/userHome/', undefined, undefined, Uri.file('/bar'), '../foo'), '/foo');
+			assertPathsMatch(getCwd({ executable: undefined, args: [] }, '/userHome/', undefined, Uri.file('/bar'), 'foo'), '/bar/foo');
+			assertPathsMatch(getCwd({ executable: undefined, args: [] }, '/userHome/', undefined, Uri.file('/bar'), './foo'), '/bar/foo');
+			assertPathsMatch(getCwd({ executable: undefined, args: [] }, '/userHome/', undefined, Uri.file('/bar'), '../foo'), '/foo');
 		});
 
 		test('should fall back for relative a custom cwd that doesn\'t have a workspace', () => {
-			assertPathsMatch(getCwd({ executable: undefined, args: [] }, '/userHome/', undefined, undefined, undefined, 'foo'), '/userHome/');
-			assertPathsMatch(getCwd({ executable: undefined, args: [] }, '/userHome/', undefined, undefined, undefined, './foo'), '/userHome/');
-			assertPathsMatch(getCwd({ executable: undefined, args: [] }, '/userHome/', undefined, undefined, undefined, '../foo'), '/userHome/');
+			assertPathsMatch(getCwd({ executable: undefined, args: [] }, '/userHome/', undefined, undefined, 'foo'), '/userHome/');
+			assertPathsMatch(getCwd({ executable: undefined, args: [] }, '/userHome/', undefined, undefined, './foo'), '/userHome/');
+			assertPathsMatch(getCwd({ executable: undefined, args: [] }, '/userHome/', undefined, undefined, '../foo'), '/userHome/');
 		});
 
 		test('should ignore custom cwd when told to ignore', () => {
-			assertPathsMatch(getCwd({ executable: undefined, args: [], ignoreConfigurationCwd: true }, '/userHome/', undefined, undefined, Uri.file('/bar'), '/foo'), '/bar');
+			assertPathsMatch(getCwd({ executable: undefined, args: [], ignoreConfigurationCwd: true }, '/userHome/', undefined, Uri.file('/bar'), '/foo'), '/bar');
 		});
 	});
 
@@ -221,7 +221,7 @@ suite('Workbench - TerminalEnvironment', () => {
 				return ({
 					'terminal.integrated.shell.windows': { userValue: 'C:\\Windows\\Sysnative\\cmd.exe', value: undefined, defaultValue: undefined }
 				} as any)[key];
-			}, false, 'DEFAULT', false, 'C:\\Windows', undefined, undefined, {} as any, false, platform.Platform.Windows);
+			}, false, 'DEFAULT', false, 'C:\\Windows', undefined, {} as any, false, platform.Platform.Windows);
 			assert.equal(shell, 'C:\\Windows\\System32\\cmd.exe');
 		});
 
@@ -230,7 +230,7 @@ suite('Workbench - TerminalEnvironment', () => {
 				return ({
 					'terminal.integrated.shell.windows': { userValue: 'C:\\Windows\\Sysnative\\cmd.exe', value: undefined, defaultValue: undefined }
 				} as any)[key];
-			}, false, 'DEFAULT', true, 'C:\\Windows', undefined, undefined, {} as any, false, platform.Platform.Windows);
+			}, false, 'DEFAULT', true, 'C:\\Windows', undefined, {} as any, false, platform.Platform.Windows);
 			assert.equal(shell, 'C:\\Windows\\Sysnative\\cmd.exe');
 		});
 
@@ -240,21 +240,21 @@ suite('Workbench - TerminalEnvironment', () => {
 					'terminal.integrated.shell.windows': { userValue: 'shell', value: undefined, defaultValue: undefined },
 					'terminal.integrated.automationShell.windows': { userValue: undefined, value: undefined, defaultValue: undefined }
 				} as any)[key];
-			}, false, 'DEFAULT', false, 'C:\\Windows', undefined, undefined, {} as any, false, platform.Platform.Windows);
+			}, false, 'DEFAULT', false, 'C:\\Windows', undefined, {} as any, false, platform.Platform.Windows);
 			assert.equal(shell1, 'shell', 'automationShell was false');
 			const shell2 = getDefaultShell(key => {
 				return ({
 					'terminal.integrated.shell.windows': { userValue: 'shell', value: undefined, defaultValue: undefined },
 					'terminal.integrated.automationShell.windows': { userValue: undefined, value: undefined, defaultValue: undefined }
 				} as any)[key];
-			}, false, 'DEFAULT', false, 'C:\\Windows', undefined, undefined, {} as any, true, platform.Platform.Windows);
+			}, false, 'DEFAULT', false, 'C:\\Windows', undefined, {} as any, true, platform.Platform.Windows);
 			assert.equal(shell2, 'shell', 'automationShell was true');
 			const shell3 = getDefaultShell(key => {
 				return ({
 					'terminal.integrated.shell.windows': { userValue: 'shell', value: undefined, defaultValue: undefined },
 					'terminal.integrated.automationShell.windows': { userValue: 'automationShell', value: undefined, defaultValue: undefined }
 				} as any)[key];
-			}, false, 'DEFAULT', false, 'C:\\Windows', undefined, undefined, {} as any, true, platform.Platform.Windows);
+			}, false, 'DEFAULT', false, 'C:\\Windows', undefined, {} as any, true, platform.Platform.Windows);
 			assert.equal(shell3, 'automationShell', 'automationShell was true and specified in settings');
 		});
 	});

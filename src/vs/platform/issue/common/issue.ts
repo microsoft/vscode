@@ -55,6 +55,7 @@ export interface IssueReporterData extends WindowData {
 	enabledExtensions: IssueReporterExtensionData[];
 	issueType?: IssueType;
 	extensionId?: string;
+	experiments?: string;
 	readonly issueTitle?: string;
 	readonly issueBody?: string;
 }
@@ -71,7 +72,6 @@ export interface IssueReporterFeatures {
 export interface ProcessExplorerStyles extends WindowStyles {
 	hoverBackground?: string;
 	hoverForeground?: string;
-	highlightForeground?: string;
 }
 
 export interface ProcessExplorerData extends WindowData {

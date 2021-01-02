@@ -17,12 +17,14 @@ import { ExtHostWorkspace, IExtHostWorkspace } from 'vs/workbench/api/common/ext
 import { IWorkspaceFolder } from 'vs/platform/workspace/common/workspace';
 import { ExtHostVariableResolverService } from 'vs/workbench/api/common/extHostDebugService';
 import { ExtHostDocumentsAndEditors, IExtHostDocumentsAndEditors } from 'vs/workbench/api/common/extHostDocumentsAndEditors';
-import { getSystemShell, detectAvailableShells } from 'vs/workbench/contrib/terminal/node/terminal';
+import { detectAvailableShells } from 'vs/workbench/contrib/terminal/node/terminal';
 import { getMainProcessParentEnv } from 'vs/workbench/contrib/terminal/node/terminalEnvironment';
 import { BaseExtHostTerminalService, ExtHostTerminal } from 'vs/workbench/api/common/extHostTerminalService';
 import { IExtHostRpcService } from 'vs/workbench/api/common/extHostRpcService';
 import { MergedEnvironmentVariableCollection } from 'vs/workbench/contrib/terminal/common/environmentVariableCollection';
 import { IExtHostInitDataService } from 'vs/workbench/api/common/extHostInitDataService';
+import { withNullAsUndefined } from 'vs/base/common/types';
+import { getSystemShell } from 'vs/base/node/shell';
 
 export class ExtHostTerminalService extends BaseExtHostTerminalService {
 
@@ -53,10 +55,18 @@ export class ExtHostTerminalService extends BaseExtHostTerminalService {
 		return terminal;
 	}
 
-	public createTerminalFromOptions(options: vscode.TerminalOptions): vscode.Terminal {
+	public createTerminalFromOptions(options: vscode.TerminalOptions, isFeatureTerminal?: boolean): vscode.Terminal {
 		const terminal = new ExtHostTerminal(this._proxy, options, options.name);
 		this._terminals.push(terminal);
-		terminal.create(options.shellPath, options.shellArgs, options.cwd, options.env, /*options.waitOnExit*/ undefined, options.strictEnv, options.hideFromUser);
+		terminal.create(
+			withNullAsUndefined(options.shellPath),
+			withNullAsUndefined(options.shellArgs),
+			withNullAsUndefined(options.cwd),
+			withNullAsUndefined(options.env),
+			/*options.waitOnExit*/ undefined,
+			withNullAsUndefined(options.strictEnv),
+			withNullAsUndefined(options.hideFromUser),
+			withNullAsUndefined(isFeatureTerminal));
 		return terminal;
 	}
 
@@ -73,8 +83,7 @@ export class ExtHostTerminalService extends BaseExtHostTerminalService {
 			getSystemShell(platform.platform),
 			process.env.hasOwnProperty('PROCESSOR_ARCHITEW6432'),
 			process.env.windir,
-			this._lastActiveWorkspace,
-			this._variableResolver,
+			terminalEnvironment.createVariableResolver(this._lastActiveWorkspace, this._variableResolver),
 			this._logService,
 			useAutomationShell
 		);
@@ -88,7 +97,7 @@ export class ExtHostTerminalService extends BaseExtHostTerminalService {
 			return this._apiInspectConfigToPlain<string | string[]>(setting);
 		};
 
-		return terminalEnvironment.getDefaultShellArgs(fetchSetting, this._isWorkspaceShellAllowed, useAutomationShell, this._lastActiveWorkspace, this._variableResolver, this._logService);
+		return terminalEnvironment.getDefaultShellArgs(fetchSetting, this._isWorkspaceShellAllowed, useAutomationShell, terminalEnvironment.createVariableResolver(this._lastActiveWorkspace, this._variableResolver), this._logService);
 	}
 
 	private _apiInspectConfigToPlain<T>(
@@ -177,16 +186,15 @@ export class ExtHostTerminalService extends BaseExtHostTerminalService {
 		// Get the initial cwd
 		const terminalConfig = configProvider.getConfiguration('terminal.integrated');
 
-		const initialCwd = terminalEnvironment.getCwd(shellLaunchConfig, os.homedir(), lastActiveWorkspace, this._variableResolver, activeWorkspaceRootUri, terminalConfig.cwd, this._logService);
+		const initialCwd = terminalEnvironment.getCwd(shellLaunchConfig, os.homedir(), terminalEnvironment.createVariableResolver(lastActiveWorkspace, this._variableResolver), activeWorkspaceRootUri, terminalConfig.cwd, this._logService);
 		shellLaunchConfig.cwd = initialCwd;
 
 		const envFromConfig = this._apiInspectConfigToPlain(configProvider.getConfiguration('terminal.integrated').inspect<ITerminalEnvironment>(`env.${platformKey}`));
 		const baseEnv = terminalConfig.get<boolean>('inheritEnv', true) ? process.env as platform.IProcessEnvironment : await this._getNonInheritedEnv();
 		const env = terminalEnvironment.createTerminalEnvironment(
 			shellLaunchConfig,
-			lastActiveWorkspace,
 			envFromConfig,
-			this._variableResolver,
+			terminalEnvironment.createVariableResolver(lastActiveWorkspace, this._variableResolver),
 			isWorkspaceShellAllowed,
 			this._extHostInitDataService.version,
 			terminalConfig.get<'auto' | 'off' | 'on'>('detectLocale', 'auto'),
@@ -206,7 +214,7 @@ export class ExtHostTerminalService extends BaseExtHostTerminalService {
 		// TODO: When conpty is enabled, only enable it when accessibilityMode is off
 		const enableConpty = false; //terminalConfig.get('windowsEnableConpty') as boolean;
 
-		const terminalProcess = new TerminalProcess(shellLaunchConfig, initialCwd, cols, rows, env, enableConpty, this._logService);
+		const terminalProcess = new TerminalProcess(shellLaunchConfig, initialCwd, cols, rows, env, process.env as platform.IProcessEnvironment, enableConpty, this._logService);
 		this._setupExtHostProcessListeners(id, terminalProcess);
 		const error = await terminalProcess.start();
 		if (error) {

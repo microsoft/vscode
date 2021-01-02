@@ -20,11 +20,6 @@ import FormattingOptionsManager from './fileConfigurationManager';
 
 const localize = nls.loadMessageBundle();
 
-namespace Experimental {
-	export interface RefactorActionInfo extends Proto.RefactorActionInfo {
-		readonly notApplicableReason?: string;
-	}
-}
 
 interface DidApplyRefactoringCommand_Args {
 	readonly codeAction: InlinedCodeAction
@@ -58,10 +53,13 @@ class DidApplyRefactoringCommand implements Command {
 
 		const renameLocation = args.codeAction.renameLocation;
 		if (renameLocation) {
-			await vscode.commands.executeCommand('editor.action.rename', [
-				args.codeAction.document.uri,
-				typeConverters.Position.fromLocation(renameLocation)
-			]);
+			// Disable renames in interactive playground https://github.com/microsoft/vscode/issues/75137
+			if (args.codeAction.document.uri.scheme !== fileSchemes.walkThroughSnippet) {
+				await vscode.commands.executeCommand('editor.action.rename', [
+					args.codeAction.document.uri,
+					typeConverters.Position.fromLocation(renameLocation)
+				]);
+			}
 		}
 	}
 }
@@ -354,7 +352,7 @@ class TypeScriptRefactorProvider implements vscode.CodeActionProvider<TsCodeActi
 	}
 
 	private refactorActionToCodeAction(
-		action: Experimental.RefactorActionInfo,
+		action: Proto.RefactorActionInfo,
 		document: vscode.TextDocument,
 		info: Proto.ApplicableRefactorInfo,
 		rangeOrSelection: vscode.Range | vscode.Selection,
