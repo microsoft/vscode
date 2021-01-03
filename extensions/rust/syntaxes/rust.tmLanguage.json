@@ -4,7 +4,7 @@
 		"If you want to provide a fix or improvement, please create a pull request against the original repository.",
 		"Once accepted there, we are happy to receive an update request."
 	],
-	"version": "https://github.com/dustypomerleau/rust-syntax/commit/f202e7c2b0e962d78d82477b97c25a6234210c78",
+	"version": "https://github.com/dustypomerleau/rust-syntax/commit/7b924664814131ae4509a537bb07960fe65dcaac",
 	"name": "Rust",
 	"scopeName": "source.rust",
 	"patterns": [
@@ -149,6 +149,9 @@
 				},
 				{
 					"include": "#keywords"
+				},
+				{
+					"include": "#lifetimes"
 				},
 				{
 					"include": "#punctuation"

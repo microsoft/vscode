@@ -936,11 +936,17 @@ declare module 'vscode' {
 	}
 	//#endregion
 
-	//#region Tree View: https://github.com/microsoft/vscode/issues/61313
+	//#region Tree View: https://github.com/microsoft/vscode/issues/61313 @alexr00
 	export interface TreeView<T> extends Disposable {
 		reveal(element: T | undefined, options?: { select?: boolean, focus?: boolean, expand?: boolean | number }): Thenable<void>;
 	}
 	//#endregion
+
+	//#region Tree data provider: https://github.com/microsoft/vscode/issues/111614 @alexr00
+	export interface TreeDataProvider<T> {
+		resolveTreeItem?(item: TreeItem, element: T, token?: CancellationToken): ProviderResult<TreeItem>;
+	}
+	////#endregion
 
 	//#region Task presentation group: https://github.com/microsoft/vscode/issues/47265
 	export interface TaskPresentationOptions {

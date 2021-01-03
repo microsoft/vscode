@@ -63,8 +63,9 @@ body {
 
 .nameLabel{
 	text-align: left;
-	flex-grow: 1;
+	width: calc(100% - 185px);
 	overflow: hidden;
+	text-overflow: ellipsis;
 }
 
 .data {
