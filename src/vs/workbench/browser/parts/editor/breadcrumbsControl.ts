@@ -10,7 +10,7 @@ import { IconLabel } from 'vs/base/browser/ui/iconLabel/iconLabel';
 import { tail } from 'vs/base/common/arrays';
 import { timeout } from 'vs/base/common/async';
 import { KeyCode, KeyMod } from 'vs/base/common/keyCodes';
-import { combinedDisposable, DisposableStore } from 'vs/base/common/lifecycle';
+import { combinedDisposable, DisposableStore, toDisposable } from 'vs/base/common/lifecycle';
 import { extUri } from 'vs/base/common/resources';
 import { URI } from 'vs/base/common/uri';
 import 'vs/css!./media/breadcrumbscontrol';
@@ -50,6 +50,7 @@ import { ILabelService } from 'vs/platform/label/common/label';
 import { ITextResourceConfigurationService } from 'vs/editor/common/services/textResourceConfigurationService';
 import { TextEditorSelectionRevealType } from 'vs/platform/editor/common/editor';
 import { CATEGORIES } from 'vs/workbench/common/actions';
+import { domEvent } from 'vs/base/browser/event';
 
 class Item extends BreadcrumbsItem {
 
@@ -373,6 +374,19 @@ export class BreadcrumbsControl {
 
 		this._contextViewService.showContextView({
 			render: (parent: HTMLElement) => {
+				// Render invisible div to block mouse interaction in the rest of the UI
+				const blockElement = parent.appendChild(dom.$('.context-view-block'));
+				blockElement.style.position = 'fixed';
+				blockElement.style.cursor = 'initial';
+				blockElement.style.left = '0';
+				blockElement.style.top = '0';
+				blockElement.style.width = '100%';
+				blockElement.style.height = '100%';
+				blockElement.style.zIndex = '-1';
+
+				const blockMouseListener = domEvent(blockElement, dom.EventType.MOUSE_DOWN)((e: MouseEvent) => e.stopPropagation());
+				const blockMouseDisposable = toDisposable(() => blockElement.remove());
+
 				picker = createBreadcrumbsPicker(this._instantiationService, parent, element);
 				let selectListener = picker.onDidPickElement(data => {
 					if (data.target) {
@@ -424,6 +438,8 @@ export class BreadcrumbsControl {
 				this._updateCkBreadcrumbsActive();
 
 				return combinedDisposable(
+					blockMouseListener,
+					blockMouseDisposable,
 					picker,
 					selectListener,
 					focusListener,
