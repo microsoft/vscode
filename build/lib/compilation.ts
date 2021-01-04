@@ -38,8 +38,8 @@ function getTypeScriptCompilerOptions(src: string): ts.CompilerOptions {
 }
 
 function createCompile(src: string, build: boolean, emitError?: boolean) {
-	const tsb = <typeof import('gulp-tsb')>require('gulp-tsb');
-	const sourcemaps = <typeof import('gulp-sourcemaps')>require('gulp-sourcemaps');
+	const tsb = require('gulp-tsb') as typeof import('gulp-tsb');
+	const sourcemaps = require('gulp-sourcemaps') as typeof import('gulp-sourcemaps');
 
 
 	const projectPath = path.join(__dirname, '../../', src, 'tsconfig.json');
@@ -48,7 +48,7 @@ function createCompile(src: string, build: boolean, emitError?: boolean) {
 	const compilation = tsb.create(projectPath, overrideOptions, false, err => reporter(err));
 
 	function pipeline(token?: util.ICancellationToken) {
-		const bom = <typeof import('gulp-bom')>require('gulp-bom');
+		const bom = require('gulp-bom') as typeof import('gulp-bom');
 
 		const utf8Filter = util.filter(data => /(\/|\\)test(\/|\\).*utf8/.test(data.path));
 		const tsFilter = util.filter(data => /\.ts$/.test(data.path));

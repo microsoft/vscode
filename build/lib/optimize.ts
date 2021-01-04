@@ -179,7 +179,7 @@ export function optimizeTask(opts: IOptimizeTaskOpts): () => NodeJS.ReadWriteStr
 	const fileContentMapper = opts.fileContentMapper || ((contents: string, _path: string) => contents);
 
 	return function () {
-		const sourcemaps = <typeof import('gulp-sourcemaps')>require('gulp-sourcemaps');
+		const sourcemaps = require('gulp-sourcemaps') as typeof import('gulp-sourcemaps');
 
 		const bundlesStream = es.through(); // this stream will contain the bundled files
 		const resourcesStream = es.through(); // this stream will contain the resources
@@ -240,8 +240,8 @@ declare class FileWithCopyright extends VinylFile {
  * to have a file "context" to include our copyright only once per file.
  */
 function uglifyWithCopyrights(): NodeJS.ReadWriteStream {
-	const composer = <typeof import('gulp-uglify/composer')>require('gulp-uglify/composer');
-	const terser = <typeof import('terser')>require('terser');
+	const composer = require('gulp-uglify/composer') as typeof import('gulp-uglify/composer');
+	const terser = require('terser') as typeof import('terser');
 
 	const preserveComments = (f: FileWithCopyright) => {
 		return (_node: any, comment: { value: string; type: string; }) => {
@@ -291,9 +291,9 @@ export function minifyTask(src: string, sourceMapBaseUrl?: string): (cb: any) =>
 	const sourceMappingURL = sourceMapBaseUrl ? ((f: any) => `${sourceMapBaseUrl}/${f.relative}.map`) : undefined;
 
 	return cb => {
-		const minifyCSS = <typeof import('gulp-cssnano')>require('gulp-cssnano');
-		const uglify = <typeof import('gulp-uglify')>require('gulp-uglify');
-		const sourcemaps = <typeof import('gulp-sourcemaps')>require('gulp-sourcemaps');
+		const minifyCSS = require('gulp-cssnano') as typeof import('gulp-cssnano');
+		const uglify = require('gulp-uglify') as typeof import('gulp-uglify');
+		const sourcemaps = require('gulp-sourcemaps') as typeof import('gulp-sourcemaps');
 
 		const jsFilter = filter('**/*.js', { restore: true });
 		const cssFilter = filter('**/*.css', { restore: true });
