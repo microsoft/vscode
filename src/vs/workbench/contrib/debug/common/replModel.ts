@@ -30,8 +30,12 @@ export class SimpleReplElement implements IReplElement {
 	) { }
 
 	toString(): string {
+		let valueRespectCount = this.value;
+		if (this._count > 1) {
+			valueRespectCount = valueRespectCount + ('\n' + this.value).repeat(this._count - 1);
+		}
 		const sourceStr = this.sourceData ? ` ${this.sourceData.source.name}` : '';
-		return this.value + sourceStr;
+		return valueRespectCount + sourceStr;
 	}
 
 	getId(): string {

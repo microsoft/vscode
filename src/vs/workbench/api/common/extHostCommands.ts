@@ -103,7 +103,7 @@ export class ExtHostCommands implements ExtHostCommandsShape {
 
 			const internalArgs = apiCommand.args.map((arg, i) => {
 				if (!arg.validate(apiArgs[i])) {
-					throw new Error(`Invalid argument '${arg.name}' when running '${apiCommand.id}', receieved: ${apiArgs[i]}`);
+					throw new Error(`Invalid argument '${arg.name}' when running '${apiCommand.id}', received: ${apiArgs[i]}`);
 				}
 				return arg.convert(apiArgs[i]);
 			});
