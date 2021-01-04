@@ -12,13 +12,13 @@ import { IEditorModel } from 'vs/platform/editor/common/editor';
  */
 export class DiffEditorModel extends EditorModel {
 
-	protected readonly _originalModel: IEditorModel | null;
-	get originalModel(): IEditorModel | null { return this._originalModel; }
+	protected readonly _originalModel: IEditorModel | undefined;
+	get originalModel(): IEditorModel | undefined { return this._originalModel; }
 
-	protected readonly _modifiedModel: IEditorModel | null;
-	get modifiedModel(): IEditorModel | null { return this._modifiedModel; }
+	protected readonly _modifiedModel: IEditorModel | undefined;
+	get modifiedModel(): IEditorModel | undefined { return this._modifiedModel; }
 
-	constructor(originalModel: IEditorModel | null, modifiedModel: IEditorModel | null) {
+	constructor(originalModel: IEditorModel | undefined, modifiedModel: IEditorModel | undefined) {
 		super();
 
 		this._originalModel = originalModel;
@@ -28,7 +28,7 @@ export class DiffEditorModel extends EditorModel {
 	async load(): Promise<EditorModel> {
 		await Promise.all([
 			this._originalModel?.load(),
-			this._modifiedModel?.load(),
+			this._modifiedModel?.load()
 		]);
 
 		return this;

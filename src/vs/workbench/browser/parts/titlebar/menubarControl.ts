@@ -310,21 +310,7 @@ export class CustomMenubarControl extends MenubarControl {
 		@IWorkbenchLayoutService private readonly layoutService: IWorkbenchLayoutService,
 		@IHostService protected readonly hostService: IHostService
 	) {
-		super(
-			menuService,
-			workspacesService,
-			contextKeyService,
-			keybindingService,
-			configurationService,
-			labelService,
-			updateService,
-			storageService,
-			notificationService,
-			preferencesService,
-			environmentService,
-			accessibilityService,
-			hostService
-		);
+		super(menuService, workspacesService, contextKeyService, keybindingService, configurationService, labelService, updateService, storageService, notificationService, preferencesService, environmentService, accessibilityService, hostService);
 
 		this._onVisibilityChange = this._register(new Emitter<boolean>());
 		this._onFocusStateChange = this._register(new Emitter<boolean>());
@@ -356,7 +342,6 @@ export class CustomMenubarControl extends MenubarControl {
 					color: ${activityBarInactiveFgColor};
 				}
 				`);
-
 			}
 
 			const activityBarFgColor = theme.getColor(ACTIVITY_BAR_FOREGROUND);
@@ -382,7 +367,6 @@ export class CustomMenubarControl extends MenubarControl {
 					}
 				`);
 			}
-
 
 			const menubarSelectedFgColor = theme.getColor(MENUBAR_SELECTION_FOREGROUND);
 			if (menubarSelectedFgColor) {
