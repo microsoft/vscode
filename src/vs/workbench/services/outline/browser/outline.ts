@@ -92,3 +92,11 @@ export interface IOutline<E> {
 	captureViewState(): IDisposable;
 	dispose(): void;
 }
+
+
+export const enum OutlineConfigKeys {
+	'icons' = 'outline.icons',
+	'problemsEnabled' = 'outline.problems.enabled',
+	'problemsColors' = 'outline.problems.colors',
+	'problemsBadges' = 'outline.problems.badges'
+}
