@@ -91,7 +91,7 @@ export class TabsTitleControl extends TitleControl {
 	private tabActionBars: ActionBar[] = [];
 	private tabDisposables: IDisposable[] = [];
 
-	private dimensions: ITitleControlDimensions = {
+	private dimensions: ITitleControlDimensions & { used?: Dimension } = {
 		container: Dimension.None,
 		available: Dimension.None
 	};
@@ -571,6 +571,7 @@ export class TabsTitleControl extends TitleControl {
 			oldOptions.showIcons !== newOptions.showIcons ||
 			oldOptions.hasIcons !== newOptions.hasIcons ||
 			oldOptions.highlightModifiedTabs !== newOptions.highlightModifiedTabs ||
+			oldOptions.wrapTabs !== newOptions.wrapTabs ||
 			!equals(oldOptions.decorations, newOptions.decorations)
 		) {
 			this.redraw();
@@ -1274,19 +1275,30 @@ export class TabsTitleControl extends TitleControl {
 	}
 
 	getDimensions(): IEditorGroupTitleDimensions {
-		let height = TabsTitleControl.TAB_HEIGHT;
+		let height: number;
+
+		// Wrap: we need to ask `offsetHeight` to get
+		// the real height of the title area with wrapping.
+		if (this.accessor.partOptions.wrapTabs && this.tabsAndActionsContainer?.classList.contains('wrapping')) {
+			height = this.tabsAndActionsContainer.offsetHeight;
+		} else {
+			height = TabsTitleControl.TAB_HEIGHT;
+		}
+
+		const offset = height;
+
+		// Account for breadcrumbs if visible
 		if (this.breadcrumbsControl && !this.breadcrumbsControl.isHidden()) {
 			height += BreadcrumbsControl.HEIGHT; // Account for breadcrumbs if visible
 		}
 
-		return {
-			height,
-			offset: TabsTitleControl.TAB_HEIGHT
-		};
+		return { height, offset };
 	}
 
 	layout(dimensions: ITitleControlDimensions): Dimension {
-		this.dimensions = dimensions;
+
+		// Remember dimensions that we get
+		Object.assign(this.dimensions, dimensions);
 
 		// The layout of tabs can be an expensive operation because we access DOM properties
 		// that can result in the browser doing a full page layout to validate them. To buffer
@@ -1303,17 +1315,33 @@ export class TabsTitleControl extends TitleControl {
 	}
 
 	private doLayout(dimensions: ITitleControlDimensions): void {
+
+		// Only layout if we have valid tab index and dimensions
 		const activeTabAndIndex = this.group.activeEditor ? this.getTabAndIndex(this.group.activeEditor) : undefined;
-		if (!activeTabAndIndex || dimensions.container === Dimension.None || dimensions.available === Dimension.None) {
-			return; // nothing to do if not editor opened or we got no dimensions yet
+		if (activeTabAndIndex && dimensions.container !== Dimension.None && dimensions.available !== Dimension.None) {
+
+			// Breadcrumbs
+			this.doLayoutBreadcrumbs(dimensions);
+
+			// Tabs
+			const [activeTab, activeIndex] = activeTabAndIndex;
+			this.doLayoutTabs(activeTab, activeIndex, dimensions);
 		}
 
-		// Breadcrumbs
-		this.doLayoutBreadcrumbs(dimensions);
+		// Compute new dimension of tabs title control and remember it for future usages
+		const oldDimension = this.dimensions.used;
+		const newDimension = this.dimensions.used = new Dimension(dimensions.container.width, this.getDimensions().height);
 
-		// Tabs
-		const [activeTab, activeIndex] = activeTabAndIndex;
-		this.doLayoutTabs(activeTab, activeIndex);
+		// In case the height of the title control changed from before
+		// (currently only possible if tabs are set to wrap), we need
+		// to signal this to the outside via a `relayout` call so that
+		// e.g. the editor control can be adjusted accordingly.
+		if (
+			this.accessor.partOptions.wrapTabs &&
+			oldDimension && oldDimension.height !== newDimension.height
+		) {
+			this.group.relayout();
+		}
 	}
 
 	private doLayoutBreadcrumbs(dimensions: ITitleControlDimensions): void {
@@ -1322,8 +1350,8 @@ export class TabsTitleControl extends TitleControl {
 		}
 	}
 
-	private doLayoutTabs(activeTab: HTMLElement, activeIndex: number): void {
-		const [tabsContainer, tabsScrollbar] = assertAllDefined(this.tabsContainer, this.tabsScrollbar);
+	private doLayoutTabs(activeTab: HTMLElement, activeIndex: number, dimensions: ITitleControlDimensions): void {
+		const [tabsAndActionsContainer, tabsContainer, tabsScrollbar, editorToolbarContainer] = assertAllDefined(this.tabsAndActionsContainer, this.tabsContainer, this.tabsScrollbar, this.editorToolbarContainer);
 
 		//
 		// Synopsis
@@ -1379,6 +1407,55 @@ export class TabsTitleControl extends TitleControl {
 			activeTabPositionStatic = false;
 		} else {
 			tabsContainer.classList.remove('disable-sticky-tabs');
+		}
+
+		// Handle wrapping tabs according to setting:
+		// - enabled: only add class if tabs wrap and don't exceed available height
+		// - disabled: remove class
+		if (this.accessor.partOptions.wrapTabs) {
+			let tabsWrapMultiLine = tabsAndActionsContainer.classList.contains('wrapping');
+			let updateScrollbar = false;
+
+			// Tabs do not wrap multiline: add wrapping if tabs exceed the tabs container width
+			// and the height of the tabs container does not exceed the maximum
+			if (!tabsWrapMultiLine && allTabsWidth > visibleTabsContainerWidth) {
+				tabsAndActionsContainer.classList.add('wrapping');
+				tabsWrapMultiLine = true;
+			}
+
+			// Tabs wrap multiline: remove wrapping if height exceeds available height
+			// or the maximum allowed height
+			if (tabsWrapMultiLine && tabsContainer.offsetHeight > dimensions.available.height) {
+				tabsAndActionsContainer.classList.remove('wrapping');
+				tabsWrapMultiLine = false;
+				updateScrollbar = true;
+			}
+
+			// If we do not exceed the tabs container width, we cannot simply remove
+			// the wrap class because by wrapping tabs, they reduce their size
+			// and we would otherwise constantly add and remove the class. As such
+			// we need to check if the height of the tabs container is back to normal
+			// and then remove the wrap class.
+			if (tabsWrapMultiLine && allTabsWidth === visibleTabsContainerWidth && tabsContainer.offsetHeight === TabsTitleControl.TAB_HEIGHT) {
+				tabsAndActionsContainer.classList.remove('wrapping');
+				tabsWrapMultiLine = false;
+				updateScrollbar = true;
+			}
+
+			// Update `last-tab-margin-right` CSS variable to account for the absolute
+			// positioned editor actions container when tabs wrap. The margin needs to
+			// be the width of the editor actions container to avoid screen cheese.
+			tabsContainer.style.setProperty('--last-tab-margin-right', tabsWrapMultiLine ? `${editorToolbarContainer.offsetWidth}px` : '0');
+
+			// When tabs change from wrapping back to normal, we need to indicate this
+			// to the scrollbar so that revealing the active tab functions properly.
+			if (updateScrollbar) {
+				tabsScrollbar.setScrollPosition({
+					scrollLeft: tabsContainer.scrollLeft
+				});
+			}
+		} else {
+			tabsAndActionsContainer.classList.remove('wrapping');
 		}
 
 		let activeTabPosX: number | undefined;
@@ -1567,11 +1644,23 @@ registerThemingParticipant((theme: IColorTheme, collector: ICssStyleCollector) =
 	// Add border between tabs and breadcrumbs in high contrast mode.
 	if (theme.type === ColorScheme.HIGH_CONTRAST) {
 		const borderColor = (theme.getColor(TAB_BORDER) || theme.getColor(contrastBorder));
+		if (borderColor) {
+			collector.addRule(`
+				.monaco-workbench .part.editor > .content .editor-group-container > .title > .tabs-and-actions-container {
+					border-bottom: 1px solid ${borderColor};
+				}
+			`);
+		}
+	}
+
+	// Add bottom border to tabs when wrapping
+	const borderColor = theme.getColor(TAB_BORDER);
+	if (borderColor) {
 		collector.addRule(`
-			.monaco-workbench .part.editor > .content .editor-group-container > .title.tabs > .tabs-and-actions-container {
-				border-bottom: 1px solid ${borderColor};
-			}
-		`);
+				.monaco-workbench .part.editor > .content .editor-group-container > .title > .tabs-and-actions-container.wrapping .tabs-container > .tab {
+					border-bottom: 1px solid ${borderColor};
+				}
+			`);
 	}
 
 	// Styling with Outline color (e.g. high contrast theme)
