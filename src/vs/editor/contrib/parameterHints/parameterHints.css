@@ -10,7 +10,7 @@
 	line-height: 1.5em;
 }
 
-.monaco-editor .parameter-hints-widget > .wrapper {
+.monaco-editor .parameter-hints-widget > .phwrapper {
 	max-width: 440px;
 	display: flex;
 	flex-direction: row;

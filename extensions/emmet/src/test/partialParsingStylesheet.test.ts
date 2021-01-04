@@ -7,15 +7,16 @@ import 'mocha';
 import * as assert from 'assert';
 import { withRandomFileEditor } from './testUtils';
 import * as vscode from 'vscode';
-import { parsePartialStylesheet, getNode } from '../util';
+import { parsePartialStylesheet, getFlatNode } from '../util';
 import { isValidLocationForEmmetAbbreviation } from '../abbreviationActions';
 
 suite('Tests for partial parse of Stylesheets', () => {
 
 	function isValid(doc: vscode.TextDocument, range: vscode.Range, syntax: string): boolean {
 		const rootNode = parsePartialStylesheet(doc, range.end);
-		const currentNode = getNode(rootNode, range.end, true);
-		return isValidLocationForEmmetAbbreviation(doc, rootNode, currentNode, syntax, range.end, range);
+		const endOffset = doc.offsetAt(range.end);
+		const currentNode = getFlatNode(rootNode, endOffset, true);
+		return isValidLocationForEmmetAbbreviation(doc, rootNode, currentNode, syntax, endOffset, range);
 	}
 
 	test('Ignore block comment inside rule', function (): any {
