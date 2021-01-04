@@ -571,7 +571,7 @@ export class TabsTitleControl extends TitleControl {
 			oldOptions.showIcons !== newOptions.showIcons ||
 			oldOptions.hasIcons !== newOptions.hasIcons ||
 			oldOptions.highlightModifiedTabs !== newOptions.highlightModifiedTabs ||
-			oldOptions.experimentalWrapTabs !== newOptions.experimentalWrapTabs ||
+			oldOptions.wrapTabs !== newOptions.wrapTabs ||
 			!equals(oldOptions.decorations, newOptions.decorations)
 		) {
 			this.redraw();
@@ -1279,7 +1279,7 @@ export class TabsTitleControl extends TitleControl {
 		// Wrap: we need to ask `offsetHeight` to get
 		// the real height of the title area with wrapping.
 		let height: number;
-		if (this.accessor.partOptions.experimentalWrapTabs && this.tabsAndActionsContainer?.classList.contains('wrapping')) {
+		if (this.accessor.partOptions.wrapTabs && this.tabsAndActionsContainer?.classList.contains('wrapping')) {
 			height = this.tabsAndActionsContainer.offsetHeight;
 		} else {
 			height = TabsTitleControl.TAB_HEIGHT;
@@ -1317,7 +1317,7 @@ export class TabsTitleControl extends TitleControl {
 				// to signal this to the outside via a `relayout` call so that
 				// e.g. the editor control can be adjusted accordingly.
 				if (
-					this.accessor.partOptions.experimentalWrapTabs &&
+					this.accessor.partOptions.wrapTabs &&
 					oldDimension && oldDimension.height !== newDimension.height
 				) {
 					this.group.relayout();
@@ -1412,7 +1412,7 @@ export class TabsTitleControl extends TitleControl {
 		// Handle wrapping tabs according to setting:
 		// - enabled: only add class if tabs wrap and don't exceed available height
 		// - disabled: remove class
-		if (this.accessor.partOptions.experimentalWrapTabs) {
+		if (this.accessor.partOptions.wrapTabs) {
 			let tabsWrapMultiLine = tabsAndActionsContainer.classList.contains('wrapping');
 			let updateScrollbar = false;
 
