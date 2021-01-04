@@ -1275,10 +1275,10 @@ export class TabsTitleControl extends TitleControl {
 	}
 
 	getDimensions(): IEditorGroupTitleDimensions {
+		let height: number;
 
 		// Wrap: we need to ask `offsetHeight` to get
 		// the real height of the title area with wrapping.
-		let height: number;
 		if (this.accessor.partOptions.wrapTabs && this.tabsAndActionsContainer?.classList.contains('wrapping')) {
 			height = this.tabsAndActionsContainer.offsetHeight;
 		} else {
@@ -1307,22 +1307,6 @@ export class TabsTitleControl extends TitleControl {
 			this.layoutScheduled.value = scheduleAtNextAnimationFrame(() => {
 				this.doLayout(this.dimensions);
 
-				// Compute new dimension of tabs title control
-				// and remember it for future usages
-				const oldDimension = this.dimensions.used;
-				const newDimension = this.dimensions.used = new Dimension(dimensions.container.width, this.getDimensions().height);
-
-				// In case the height of the title control changed from before
-				// (currently only possible if tabs are set to wrap), we need
-				// to signal this to the outside via a `relayout` call so that
-				// e.g. the editor control can be adjusted accordingly.
-				if (
-					this.accessor.partOptions.wrapTabs &&
-					oldDimension && oldDimension.height !== newDimension.height
-				) {
-					this.group.relayout();
-				}
-
 				this.layoutScheduled.clear();
 			});
 		}
@@ -1331,17 +1315,33 @@ export class TabsTitleControl extends TitleControl {
 	}
 
 	private doLayout(dimensions: ITitleControlDimensions): void {
+
+		// Only layout if we have valid tab index and dimensions
 		const activeTabAndIndex = this.group.activeEditor ? this.getTabAndIndex(this.group.activeEditor) : undefined;
-		if (!activeTabAndIndex || dimensions.container === Dimension.None || dimensions.available === Dimension.None) {
-			return; // nothing to do if not editor opened or we got no dimensions yet
+		if (activeTabAndIndex && dimensions.container !== Dimension.None && dimensions.available !== Dimension.None) {
+
+			// Breadcrumbs
+			this.doLayoutBreadcrumbs(dimensions);
+
+			// Tabs
+			const [activeTab, activeIndex] = activeTabAndIndex;
+			this.doLayoutTabs(activeTab, activeIndex, dimensions);
 		}
 
-		// Breadcrumbs
-		this.doLayoutBreadcrumbs(dimensions);
+		// Compute new dimension of tabs title control and remember it for future usages
+		const oldDimension = this.dimensions.used;
+		const newDimension = this.dimensions.used = new Dimension(dimensions.container.width, this.getDimensions().height);
 
-		// Tabs
-		const [activeTab, activeIndex] = activeTabAndIndex;
-		this.doLayoutTabs(activeTab, activeIndex, dimensions);
+		// In case the height of the title control changed from before
+		// (currently only possible if tabs are set to wrap), we need
+		// to signal this to the outside via a `relayout` call so that
+		// e.g. the editor control can be adjusted accordingly.
+		if (
+			this.accessor.partOptions.wrapTabs &&
+			oldDimension && oldDimension.height !== newDimension.height
+		) {
+			this.group.relayout();
+		}
 	}
 
 	private doLayoutBreadcrumbs(dimensions: ITitleControlDimensions): void {
