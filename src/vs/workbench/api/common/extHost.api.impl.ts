@@ -484,6 +484,7 @@ export function createApiFactoryAndRegisterActors(accessor: ServicesAccessor): I
 				return extHostLanguages.tokenAtPosition(doc, pos);
 			},
 			registerInlineHintsProvider(selector: vscode.DocumentSelector, provider: vscode.InlineHintsProvider): vscode.Disposable {
+				checkProposedApiEnabled(extension);
 				return extHostLanguageFeatures.registerInlineHintsProvider(extension, selector, provider);
 			}
 		};

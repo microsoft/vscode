@@ -1063,8 +1063,6 @@ class SignatureHelpAdapter {
 }
 
 class InlineHintsAdapter {
-	private readonly _cache = new Cache<vscode.InlineHint[]>('InlineHints');
-
 	constructor(
 		private readonly _documents: ExtHostDocuments,
 		private readonly _provider: vscode.InlineHintsProvider,
@@ -1073,11 +1071,7 @@ class InlineHintsAdapter {
 	provideInlineHints(resource: URI, range: IRange, token: CancellationToken): Promise<extHostProtocol.IInlineHintsDto | undefined> {
 		const doc = this._documents.getDocument(resource);
 		return asPromise(() => this._provider.provideInlineHints(doc, typeConvert.Range.to(range), token)).then(value => {
-			if (value) {
-				const id = this._cache.add([value]);
-				return { hints: value.map(typeConvert.InlineHint.from), id };
-			}
-			return undefined;
+			return value ? { hints: value.map(typeConvert.InlineHint.from) } : undefined;
 		});
 	}
 }

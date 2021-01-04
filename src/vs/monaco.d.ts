@@ -3177,17 +3177,9 @@ declare namespace monaco.editor {
 		 */
 		showDeprecated?: boolean;
 		/**
-		 * Controls show inline hints.
+		 * Control the behavior and rendering of the inline hints.
 		 */
-		showInlineHints?: boolean;
-		/**
-		 * Inline hints font size. Default to 90% of the editor font size.
-		 */
-		inlineHintsFontSize?: number;
-		/**
-		 * Inline hints font family. Defaults to editor font family.
-		 */
-		inlineHintsFontFamily?: string;
+		inlineHints?: IEditorInlineHintsOptions;
 	}
 
 	/**
@@ -3538,6 +3530,29 @@ declare namespace monaco.editor {
 	}
 
 	export type EditorLightbulbOptions = Readonly<Required<IEditorLightbulbOptions>>;
+
+	/**
+	 * Configuration options for editor inlineHints
+	 */
+	export interface IEditorInlineHintsOptions {
+		/**
+		 * Enable the inline hints.
+		 * Defaults to true.
+		 */
+		enabled?: boolean;
+		/**
+		 * Font size of inline hints.
+		 * Default to 90% of the editor font size.
+		 */
+		fontSize?: number;
+		/**
+		 * Font family of inline hints.
+		 * Defaults to editor font family.
+		 */
+		fontFamily?: string;
+	}
+
+	export type EditorInlineHintsOptions = Readonly<Required<IEditorInlineHintsOptions>>;
 
 	/**
 	 * Configuration options for editor minimap
@@ -4040,14 +4055,12 @@ declare namespace monaco.editor {
 		wrappingIndent = 117,
 		wrappingStrategy = 118,
 		showDeprecated = 119,
-		showInlineHints = 120,
-		inlineHintsFontSize = 121,
-		inlineHintsFontFamily = 122,
-		editorClassName = 123,
-		pixelRatio = 124,
-		tabFocusMode = 125,
-		layoutInfo = 126,
-		wrappingInfo = 127
+		inlineHints = 120,
+		editorClassName = 121,
+		pixelRatio = 122,
+		tabFocusMode = 123,
+		layoutInfo = 124,
+		wrappingInfo = 125
 	}
 	export const EditorOptions: {
 		acceptSuggestionOnCommitCharacter: IEditorOption<EditorOption.acceptSuggestionOnCommitCharacter, boolean>;
@@ -4148,9 +4161,7 @@ declare namespace monaco.editor {
 		showFoldingControls: IEditorOption<EditorOption.showFoldingControls, 'always' | 'mouseover'>;
 		showUnused: IEditorOption<EditorOption.showUnused, boolean>;
 		showDeprecated: IEditorOption<EditorOption.showDeprecated, boolean>;
-		showInlineHints: IEditorOption<EditorOption.showInlineHints, boolean>;
-		inlineHintsFontSize: IEditorOption<EditorOption.inlineHintsFontSize, number>;
-		inlineHintsFontFamily: IEditorOption<EditorOption.inlineHintsFontFamily, string>;
+		inlineHints: IEditorOption<EditorOption.inlineHints, any>;
 		snippetSuggestions: IEditorOption<EditorOption.snippetSuggestions, 'none' | 'top' | 'bottom' | 'inline'>;
 		smartSelect: IEditorOption<EditorOption.smartSelect, any>;
 		smoothScrolling: IEditorOption<EditorOption.smoothScrolling, boolean>;

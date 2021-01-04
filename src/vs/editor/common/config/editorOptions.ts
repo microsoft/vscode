@@ -626,17 +626,9 @@ export interface IEditorOptions {
 	 */
 	showDeprecated?: boolean;
 	/**
-	 * Controls show inline hints.
+	 * Control the behavior and rendering of the inline hints.
 	 */
-	showInlineHints?: boolean;
-	/**
-	 * Inline hints font size. Default to 90% of the editor font size.
-	 */
-	inlineHintsFontSize?: number;
-	/**
-	 * Inline hints font family. Defaults to editor font family.
-	 */
-	inlineHintsFontFamily?: string
+	inlineHints?: IEditorInlineHintsOptions;
 }
 
 /**
@@ -2381,6 +2373,74 @@ class EditorLightbulb extends BaseEditorOption<EditorOption.lightbulb, EditorLig
 
 //#endregion
 
+//#region inlineHints
+
+/**
+ * Configuration options for editor inlineHints
+ */
+export interface IEditorInlineHintsOptions {
+	/**
+	 * Enable the inline hints.
+	 * Defaults to true.
+	 */
+	enabled?: boolean;
+
+	/**
+	 * Font size of inline hints.
+	 * Default to 90% of the editor font size.
+	 */
+	fontSize?: number;
+
+	/**
+	 * Font family of inline hints.
+	 * Defaults to editor font family.
+	 */
+	fontFamily?: string;
+}
+
+export type EditorInlineHintsOptions = Readonly<Required<IEditorInlineHintsOptions>>;
+
+class EditorInlineHints extends BaseEditorOption<EditorOption.inlineHints, EditorInlineHintsOptions> {
+
+	constructor() {
+		const defaults: EditorInlineHintsOptions = { enabled: true, fontSize: 0, fontFamily: EDITOR_FONT_DEFAULTS.fontFamily };
+		super(
+			EditorOption.inlineHints, 'inlineHints', defaults,
+			{
+				'editor.inlineHints.enabled': {
+					type: 'boolean',
+					default: defaults.enabled,
+					description: nls.localize('inlineHints.enable', "Enables the inline hints in the editor.")
+				},
+				'editor.inlineHints.fontSize': {
+					type: 'number',
+					default: defaults.fontSize,
+					description: nls.localize('inlineHints.fontSize', "Controls font size of inline hints in the editor. When set to `0`, the 90% of `#editor.fontSize#` is used.")
+				},
+				'editor.inlineHints.fontFamily': {
+					type: 'string',
+					default: defaults.fontFamily,
+					description: nls.localize('inlineHints.fontFamily', "Controls font family of inline hints in the editor.")
+				},
+			}
+		);
+	}
+
+	public validate(_input: any): EditorInlineHintsOptions {
+		if (!_input || typeof _input !== 'object') {
+			return this.defaultValue;
+		}
+		const input = _input as IEditorInlineHintsOptions;
+		return {
+			enabled: boolean(input.enabled, this.defaultValue.enabled),
+			fontSize: EditorIntOption.clampedInt(input.fontSize, this.defaultValue.fontSize, 0, 100),
+			fontFamily: EditorStringOption.string(input.fontFamily, this.defaultValue.fontFamily)
+		};
+	}
+}
+
+//#endregion
+
 //#region lineHeight
 
 class EditorLineHeight extends EditorIntOption<EditorOption.lineHeight> {
@@ -3771,9 +3831,7 @@ export const enum EditorOption {
 	wrappingIndent,
 	wrappingStrategy,
 	showDeprecated,
-	showInlineHints,
-	inlineHintsFontSize,
-	inlineHintsFontFamily,
+	inlineHints,
 	// Leave these at the end (because they have dependencies!)
 	editorClassName,
 	pixelRatio,
@@ -4277,19 +4335,7 @@ export const EditorOptions = {
 		EditorOption.showDeprecated, 'showDeprecated', true,
 		{ description: nls.localize('showDeprecated', "Controls strikethrough deprecated variables.") }
 	)),
-	showInlineHints: register(new EditorBooleanOption(
-		EditorOption.showInlineHints, 'showInlineHints', true,
-		{ description: nls.localize('showInlineHints', "Controls show inline hints.") }
-	)),
-	inlineHintsFontSize: register(new EditorIntOption(
-		EditorOption.inlineHintsFontSize, 'inlineHintsFontSize',
-		0, 0, 1000,
-		{ markdownDescription: nls.localize('inlineHintsFontSize', "Font size for the inline hints. When set to `0`, the value of `#editor.fontSize#` is used.") }
-	)),
-	inlineHintsFontFamily: register(new EditorStringOption(
-		EditorOption.inlineHintsFontFamily, 'inlineHintsFontFamily', EDITOR_FONT_DEFAULTS.fontFamily,
-		{ description: nls.localize('inlineHintsFontFamily', "Controls inline hints font family.") }
-	)),
+	inlineHints: register(new EditorInlineHints()),
 	snippetSuggestions: register(new EditorStringEnumOption(
 		EditorOption.snippetSuggestions, 'snippetSuggestions',
 		'inline' as 'top' | 'bottom' | 'inline' | 'none',

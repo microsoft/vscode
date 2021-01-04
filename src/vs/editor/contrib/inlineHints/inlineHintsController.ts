@@ -89,7 +89,7 @@ export class InlineHintsDetector extends Disposable implements IEditorContributi
 			return false;
 		}
 
-		return this._editor.getOption(EditorOption.showInlineHints);
+		return this._editor.getOption(EditorOption.inlineHints).enabled;
 	}
 
 	static get(editor: ICodeEditor): InlineHintsDetector {
@@ -180,8 +180,8 @@ export class InlineHintsDetector extends Disposable implements IEditorContributi
 			const hint = hintsData[i].list;
 			for (let j = 0; j < hint.length && decorations.length < MAX_DECORATORS; j++) {
 				const { text, position, whitespaceBefore, whitespaceAfter } = hint[j];
-				const marginBefore = whitespaceBefore ? 5 : 0;
-				const marginAfter = whitespaceAfter ? 5 : 0;
+				const marginBefore = whitespaceBefore ? fontSize / 3 : 0;
+				const marginAfter = whitespaceAfter ? fontSize / 3 : 0;
 
 				const subKey = hash(text).toString(16);
 				let key = 'inlineHints-' + subKey;
@@ -223,11 +223,13 @@ export class InlineHintsDetector extends Disposable implements IEditorContributi
 	}
 
 	private _getLayoutInfo() {
-		let fontSize = this._editor.getOption(EditorOption.inlineHintsFontSize);
+		const options = this._editor.getOption(EditorOption.inlineHints);
+		let fontSize = options.fontSize;
 		if (!fontSize || fontSize < 5) {
 			fontSize = (this._editor.getOption(EditorOption.fontSize) * .9) | 0;
 		}
-		const fontFamily = this._editor.getOption(EditorOption.inlineHintsFontFamily);
+
+		const fontFamily = options.fontFamily;
 		return { fontSize, fontFamily };
 	}
 
