@@ -178,10 +178,10 @@ export class ItemRenderer implements IListRenderer<CompletionItem, ISuggestionTe
 
 		let color: string[] = [];
 
-		if (completion.customIcon) {
+		if (completion.customIconSrc) {
 			data.icon.className = 'icon hide';
 			data.iconContainer.className = 'suggest-icon custom-icon';
-			append(data.iconContainer, completion.customIcon);
+			$('img.suggestion-icon-img', { src: completion.customIconSrc });
 		}
 		else if (completion.kind === CompletionItemKind.Color && _completionItemColor.extract(element, color)) {
 			// special logic for 'color' completion items

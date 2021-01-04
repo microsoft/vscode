@@ -543,9 +543,9 @@ export interface CompletionItem {
 	 */
 	command?: Command;
 	/**
-	* Custom icon (optional)
+	* The source to the custom icon (optional)
 	*/
-	customIcon?: HTMLElement;
+	customIconSrc?: string;
 
 	/**
 	 * @internal
