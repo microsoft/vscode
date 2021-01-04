@@ -64,7 +64,7 @@ export async function resolveCommonProperties(
 		}
 	});
 
-	if (process.platform === 'linux' && process.env.SNAP && process.env.SNAP_REVISION) {
+	if (Platform.isLinuxSnap) {
 		// __GDPR__COMMON__ "common.snap" : { "classification": "SystemMetaData", "purpose": "FeatureInsight" }
 		result['common.snap'] = 'true';
 	}

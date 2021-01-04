@@ -456,12 +456,11 @@ interface IPerformanceMark {
 
 interface IWorkbench {
 	commands: {
-
 		/**
 		 * Allows to execute a command, either built-in or from extensions.
 		 */
 		executeCommand(command: string, ...args: any[]): Promise<unknown>;
-	},
+	}
 
 	env: {
 		/**
