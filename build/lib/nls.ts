@@ -438,7 +438,7 @@ module _nls {
 	}
 
 	export function patchFiles(javascriptFile: File, typescript: string): File[] {
-		const ts = <typeof import('typescript')>require('typescript');
+		const ts = require('typescript') as typeof import('typescript');
 		// hack?
 		const moduleId = javascriptFile.relative
 			.replace(/\.js$/, '')
