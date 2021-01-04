@@ -643,32 +643,32 @@ export class CodeWindow extends Disposable implements ICodeWindow {
 	}
 
 	private onConfigurationUpdated(): void {
+
+		// Menubar
 		const newMenuBarVisibility = this.getMenuBarVisibility();
 		if (newMenuBarVisibility !== this.currentMenuBarVisibility) {
 			this.currentMenuBarVisibility = newMenuBarVisibility;
 			this.setMenuBarVisibility(newMenuBarVisibility);
 		}
 
-		// Do not set to empty configuration at startup if setting is empty to not override configuration through CLI options:
-		const env = process.env;
+		// Proxy
 		let newHttpProxy = (this.configurationService.getValue<string>('http.proxy') || '').trim()
-			|| (env.https_proxy || process.env.HTTPS_PROXY || process.env.http_proxy || process.env.HTTP_PROXY || '').trim() // Not standardized.
+			|| (process.env['https_proxy'] || process.env['HTTPS_PROXY'] || process.env['http_proxy'] || process.env['HTTP_PROXY'] || '').trim() // Not standardized.
 			|| undefined;
+
 		if (newHttpProxy?.endsWith('/')) {
 			newHttpProxy = newHttpProxy.substr(0, newHttpProxy.length - 1);
 		}
-		const newNoProxy = (env.no_proxy || env.NO_PROXY || '').trim() || undefined; // Not standardized.
+
+		const newNoProxy = (process.env['no_proxy'] || process.env['NO_PROXY'] || '').trim() || undefined; // Not standardized.
 		if ((newHttpProxy || '').indexOf('@') === -1 && (newHttpProxy !== this.currentHttpProxy || newNoProxy !== this.currentNoProxy)) {
 			this.currentHttpProxy = newHttpProxy;
 			this.currentNoProxy = newNoProxy;
+
 			const proxyRules = newHttpProxy || '';
 			const proxyBypassRules = newNoProxy ? `${newNoProxy},<local>` : '<local>';
 			this.logService.trace(`Setting proxy to '${proxyRules}', bypassing '${proxyBypassRules}'`);
-			this._win.webContents.session.setProxy({
-				proxyRules,
-				proxyBypassRules,
-				pacScript: '',
-			});
+			this._win.webContents.session.setProxy({ proxyRules, proxyBypassRules, pacScript: '' });
 		}
 	}
 

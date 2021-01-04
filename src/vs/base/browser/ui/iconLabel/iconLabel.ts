@@ -16,6 +16,8 @@ import { AnchorPosition } from 'vs/base/browser/ui/contextview/contextview';
 import { IMarkdownString } from 'vs/base/common/htmlContent';
 import { isFunction, isString } from 'vs/base/common/types';
 import { domEvent } from 'vs/base/browser/event';
+import { localize } from 'vs/nls';
+import { CancellationToken, CancellationTokenSource } from 'vs/base/common/cancellation';
 
 export interface IIconLabelCreationOptions {
 	supportHighlights?: boolean;
@@ -25,7 +27,7 @@ export interface IIconLabelCreationOptions {
 }
 
 export interface IIconLabelMarkdownString {
-	markdown: IMarkdownString | string | undefined | (() => Promise<IMarkdownString | string | undefined>);
+	markdown: IMarkdownString | string | undefined | ((token: CancellationToken) => Promise<IMarkdownString | string | undefined>);
 	markdownNotSupportedFallback: string | undefined;
 }
 
@@ -190,30 +192,47 @@ export class IconLabel extends Disposable {
 		}
 	}
 
+	private static adjustXAndShowCustomHover(hoverOptions: IHoverDelegateOptions | undefined, mouseX: number | undefined, hoverDelegate: IHoverDelegate, isHovering: boolean) {
+		if (hoverOptions && isHovering) {
+			if (mouseX !== undefined) {
+				(<IHoverDelegateTarget>hoverOptions.target).x = mouseX + 10;
+			}
+			hoverDelegate.showHover(hoverOptions);
+		}
+	}
+
+	private getTooltipForCustom(markdownTooltip: string | IIconLabelMarkdownString): (token: CancellationToken) => Promise<string | IMarkdownString | undefined> {
+		if (isString(markdownTooltip)) {
+			return async () => markdownTooltip;
+		} else if (isFunction(markdownTooltip.markdown)) {
+			return markdownTooltip.markdown;
+		} else {
+			const markdown = markdownTooltip.markdown;
+			return async () => markdown;
+		}
+	}
+
 	private setupCustomHover(hoverDelegate: IHoverDelegate, htmlElement: HTMLElement, markdownTooltip: string | IIconLabelMarkdownString): void {
 		htmlElement.setAttribute('title', '');
 		htmlElement.removeAttribute('title');
-		let tooltip: () => Promise<string | IMarkdownString | undefined>;
-		if (isString(markdownTooltip)) {
-			tooltip = async () => markdownTooltip;
-		} else if (isFunction(markdownTooltip.markdown)) {
-			tooltip = markdownTooltip.markdown;
-		} else {
-			const markdown = markdownTooltip.markdown;
-			tooltip = async () => markdown;
-		}
+		let tooltip = this.getTooltipForCustom(markdownTooltip);
+
 		// Testing has indicated that on Windows and Linux 500 ms matches the native hovers most closely.
 		// On Mac, the delay is 1500.
 		const hoverDelay = isMacintosh ? 1500 : 500;
 		let hoverOptions: IHoverDelegateOptions | undefined;
 		let mouseX: number | undefined;
 		let isHovering = false;
+		let tokenSource: CancellationTokenSource;
 		function mouseOver(this: HTMLElement, e: MouseEvent): any {
 			if (isHovering) {
 				return;
 			}
+			tokenSource = new CancellationTokenSource();
 			function mouseLeaveOrDown(this: HTMLElement, e: MouseEvent): any {
 				isHovering = false;
+				hoverOptions = undefined;
+				tokenSource.dispose(true);
 				mouseLeaveDisposable.dispose();
 				mouseDownDisposable.dispose();
 			}
@@ -233,7 +252,14 @@ export class IconLabel extends Disposable {
 							targetElements: [this],
 							dispose: () => { }
 						};
-						const resolvedTooltip = await tooltip();
+						hoverOptions = {
+							text: localize('iconLabel.loading', "Loading..."),
+							target,
+							anchorPosition: AnchorPosition.BELOW
+						};
+						IconLabel.adjustXAndShowCustomHover(hoverOptions, mouseX, hoverDelegate, isHovering);
+
+						const resolvedTooltip = await tooltip(tokenSource.token);
 						if (resolvedTooltip) {
 							hoverOptions = {
 								text: resolvedTooltip,
@@ -243,12 +269,7 @@ export class IconLabel extends Disposable {
 						}
 					}
 					// awaiting the tooltip could take a while. Make sure we're still hovering.
-					if (hoverOptions && isHovering) {
-						if (mouseX !== undefined) {
-							(<IHoverDelegateTarget>hoverOptions.target).x = mouseX + 10;
-						}
-						hoverDelegate.showHover(hoverOptions);
-					}
+					IconLabel.adjustXAndShowCustomHover(hoverOptions, mouseX, hoverDelegate, isHovering);
 				}
 				mouseMoveDisposable.dispose();
 			}, hoverDelay);

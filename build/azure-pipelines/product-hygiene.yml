@@ -1,11 +1,7 @@
 steps:
   - task: NodeTool@0
     inputs:
-      versionSpec: "12.18.3"
-
-  - task: geeklearningio.gl-vsts-tasks-yarn.yarn-installer-task.YarnInstaller@2
-    inputs:
-      versionSpec: "1.x"
+      versionSpec: "12.x"
 
   - task: AzureKeyVault@1
     displayName: "Azure Key Vault: Get Secrets"
@@ -38,15 +34,22 @@ steps:
 
   - script: |
       mkdir -p .build
-      echo -n $(VSCODE_ARCH) > .build/arch
-      echo -n $ENABLE_TERRAPIN > .build/terrapin
+      node build/azure-pipelines/common/computeNodeModulesCacheKey.js $VSCODE_ARCH $ENABLE_TERRAPIN > .build/yarnlockhash
     displayName: Prepare yarn cache flags
 
-  - task: 1ESLighthouseEng.PipelineArtifactCaching.RestoreCacheV1.RestoreCache@1
+  # using `genericNodeModules` instead of `nodeModules` here to avoid sharing the cache with builds running inside containers
+  - task: Cache@2
     inputs:
-      keyfile: ".build/arch, .build/terrapin, build/.cachesalt, .yarnrc, remote/.yarnrc, **/yarn.lock, !**/node_modules/**/yarn.lock, !**/.*/**/yarn.lock"
-      targetfolder: "**/node_modules, !**/node_modules/**/node_modules"
-      vstsFeed: "npm-vscode"
+      key: 'genericNodeModules | $(Agent.OS) | .build/yarnlockhash'
+      path: .build/node_modules_cache
+      cacheHitVar: NODE_MODULES_RESTORED
+    displayName: Cache node_modules archive
+
+  - script: |
+      set -e
+      tar -xzf .build/node_modules_cache/cache.tgz
+    condition: and(succeeded(), eq(variables.NODE_MODULES_RESTORED, 'true'))
+    displayName: Extract node_modules archive
 
   - script: |
       set -e
@@ -62,7 +65,15 @@ steps:
       ELECTRON_SKIP_BINARY_DOWNLOAD: 1
       PLAYWRIGHT_SKIP_BROWSER_DOWNLOAD: 1
     displayName: Install dependencies
-    condition: and(succeeded(), ne(variables['CacheRestored'], 'true'))
+    condition: and(succeeded(), ne(variables.NODE_MODULES_RESTORED, 'true'))
+
+  - script: |
+      set -e
+      node build/azure-pipelines/common/listNodeModules.js .build/node_modules_list.txt
+      mkdir -p .build/node_modules_cache
+      tar -czf .build/node_modules_cache/cache.tgz --files-from .build/node_modules_list.txt
+    condition: and(succeeded(), ne(variables.NODE_MODULES_RESTORED, 'true'))
+    displayName: Create node_modules archive
 
   # Mixin must run before optimize, because the CSS loader will inline small SVGs
   - script: |

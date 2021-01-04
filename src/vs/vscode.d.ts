@@ -7744,7 +7744,7 @@ declare module 'vscode' {
 		 * your extension should first check to see if any backups exist for the resource. If there is a backup, your
 		 * extension should load the file contents from there instead of from the resource in the workspace.
 		 *
-		 * `backup` is triggered approximately one second after the the user stops editing the document. If the user
+		 * `backup` is triggered approximately one second after the user stops editing the document. If the user
 		 * rapidly edits the document, `backup` will not be invoked until the editing stops.
 		 *
 		 * `backup` is not invoked when `auto save` is enabled (since auto save already persists the resource).
@@ -8867,7 +8867,8 @@ declare module 'vscode' {
 		getParent?(element: T): ProviderResult<T>;
 
 		/**
-		 * Called only on hover to resolve the [TreeItem](#TreeItem.tooltip) property if it is undefined.
+		 * Called on hover to resolve the [TreeItem](#TreeItem.tooltip) property if it is undefined.
+		 * Called on tree item click/open to resolve the [TreeItem](#TreeItem.command) property if it is undefined.
 		 * Only properties that were undefined can be resolved in `resolveTreeItem`.
 		 * Functionality may be expanded later to include being called to resolve other missing
 		 * properties on selection and/or on open.
@@ -8877,7 +8878,7 @@ declare module 'vscode' {
 		 * onDidChangeTreeData should not be triggered from within resolveTreeItem.
 		 *
 		 * *Note* that this function is called when tree items are already showing in the UI.
-		 * Because of that, no property that changes the presentation (label, description, command, etc.)
+		 * Because of that, no property that changes the presentation (label, description, etc.)
 		 * can be changed.
 		 *
 		 * @param element The object associated with the TreeItem

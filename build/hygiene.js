@@ -5,8 +5,6 @@
 
 const filter = require('gulp-filter');
 const es = require('event-stream');
-const gulpeslint = require('gulp-eslint');
-const tsfmt = require('typescript-formatter');
 const VinylFile = require('vinyl');
 const vfs = require('vinyl-fs');
 const path = require('path');
@@ -57,6 +55,7 @@ const indentationFilter = [
 
 	// except specific folders
 	'!test/automation/out/**',
+	'!test/monaco/out/**',
 	'!test/smoke/out/**',
 	'!extensions/typescript-language-features/test-workspace/**',
 	'!extensions/vscode-api-tests/testWorkspace/**',
@@ -165,6 +164,9 @@ const copyrightHeaderLines = [
 ];
 
 function hygiene(some) {
+	const gulpeslint = require('gulp-eslint');
+	const tsfmt = require('typescript-formatter');
+
 	let errorCount = 0;
 
 	const productJson = es.through(function (file) {
