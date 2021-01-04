@@ -30,13 +30,13 @@ stages:
   - stage: Compile
     jobs:
       - job: Compile
-        pool: vscode
+        pool: tryout
         variables:
           VSCODE_ARCH: x64
         steps:
           - template: product-compile.yml
       - job: Hygiene
-        pool: vscode
+        pool: tryout
         variables:
           VSCODE_ARCH: x64
         steps:
