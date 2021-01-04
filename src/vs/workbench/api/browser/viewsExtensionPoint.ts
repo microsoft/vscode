@@ -110,7 +110,7 @@ const viewDescriptor: IJSONSchema = {
 	defaultSnippets: [{ body: { id: '${1:id}', name: '${2:name}' } }],
 	properties: {
 		type: {
-			markdownDescription: localize('vscode.extension.contributes.view.type', "Type of the the view. This can either be `tree` for a tree view based view or `webview` for a webview based view. The default is `tree`."),
+			markdownDescription: localize('vscode.extension.contributes.view.type', "Type of the view. This can either be `tree` for a tree view based view or `webview` for a webview based view. The default is `tree`."),
 			type: 'string',
 			enum: [
 				'tree',
