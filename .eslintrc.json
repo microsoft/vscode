@@ -976,6 +976,18 @@
                 "vscode-dts-create-func": "warn",
                 "vscode-dts-literal-or-types": "warn",
                 "vscode-dts-interface-naming": "warn",
+                "vscode-dts-provider-naming": [
+                    "warn",
+                    {
+                        "allowed": [
+                            "FileSystemProvider",
+                            "TreeDataProvider",
+                            "CustomEditorProvider",
+                            "CustomReadonlyEditorProvider",
+                            "TerminalLinkProvider"
+                        ]
+                    }
+                ],
                 "vscode-dts-event-naming": [
                     "warn",
                     {
