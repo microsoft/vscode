@@ -33,6 +33,7 @@ import { localize } from 'vs/nls';
 import { OutlineConfigKeys } from 'vs/editor/contrib/documentSymbols/outline';
 import { IMarkerDecorationsService } from 'vs/editor/common/services/markersDecorationService';
 import { MarkerSeverity } from 'vs/platform/markers/common/markers';
+import { isEqual } from 'vs/base/common/resources';
 
 type DocumentSymbolItem = OutlineGroup | OutlineElement;
 
@@ -232,7 +233,7 @@ class DocumentSymbolsOutline implements IOutline<DocumentSymbolItem> {
 			return;
 		}
 		await this._codeEditorService.openCodeEditor({
-			resource: model.textModel.uri,
+			resource: model.uri,
 			options: {
 				...options,
 				selection: Range.collapseToStart(entry.symbol.selectionRange),
@@ -327,7 +328,7 @@ class DocumentSymbolsOutline implements IOutline<DocumentSymbolItem> {
 			// feature: show markers with outline element
 			this._applyMarkersToOutline(model);
 			this._outlineDisposables.add(this._markerDecorationsService.onDidChangeMarker(textModel => {
-				if (model?.textModel === textModel) {
+				if (isEqual(model.uri, textModel.uri)) {
 					this._applyMarkersToOutline(model);
 					this._onDidChange.fire({});
 				}
@@ -386,7 +387,7 @@ class DocumentSymbolsOutline implements IOutline<DocumentSymbolItem> {
 			return;
 		}
 		const markers: IOutlineMarker[] = [];
-		for (const [range, marker] of this._markerDecorationsService.getLiveMarkers(model.textModel)) {
+		for (const [range, marker] of this._markerDecorationsService.getLiveMarkers(model.uri)) {
 			if (marker.severity === MarkerSeverity.Error || marker.severity === MarkerSeverity.Warning) {
 				markers.push({ ...range, severity: marker.severity });
 			}

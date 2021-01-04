@@ -21,7 +21,6 @@ import { IThemeService, registerThemingParticipant, IColorTheme, ICssStyleCollec
 import { registerColor, listErrorForeground, listWarningForeground, foreground } from 'vs/platform/theme/common/colorRegistry';
 import { IdleValue } from 'vs/base/common/async';
 import { ITextResourceConfigurationService } from 'vs/editor/common/services/textResourceConfigurationService';
-import { URI } from 'vs/base/common/uri';
 import { IListAccessibilityProvider } from 'vs/base/browser/ui/list/listWidget';
 import { Codicon } from 'vs/base/common/codicons';
 import { IOutlineComparator } from 'vs/workbench/services/outline/browser/outline';
@@ -267,19 +266,12 @@ export class DocumentSymbolFilter implements ITreeFilter<DocumentSymbolItem> {
 
 	filter(element: DocumentSymbolItem): boolean {
 		const outline = OutlineModel.get(element);
-		let uri: URI | undefined;
-
-		if (outline) {
-			uri = outline.textModel.uri;
-		}
-
 		if (!(element instanceof OutlineElement)) {
 			return true;
 		}
-
 		const configName = DocumentSymbolFilter.kindToConfigName[element.symbol.kind];
 		const configKey = `${this._prefix}.${configName}`;
-		return this._textResourceConfigService.getValue(uri, configKey);
+		return this._textResourceConfigService.getValue(outline?.uri, configKey);
 	}
 }
 
