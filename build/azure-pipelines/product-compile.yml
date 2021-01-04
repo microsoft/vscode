@@ -87,11 +87,8 @@ steps:
 
   - script: |
       set -e
-      yarn gulp compile-build
-      yarn gulp compile-extensions-build
-      yarn gulp minify-vscode
-      yarn gulp minify-vscode-reh
-      yarn gulp minify-vscode-reh-web
+      yarn npm-run-all -lp compile-build compile-extensions-build
+      yarn npm-run-all -lp minify-vscode minify-vscode-reh minify-vscode-reh-web
     displayName: Compile
 
   - script: |
