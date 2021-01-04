@@ -36,12 +36,12 @@
 
 /* Title Container */
 
-.monaco-workbench .part.editor > .content .editor-group-container > .title.tabs > .tabs-and-actions-container {
+.monaco-workbench .part.editor > .content .editor-group-container > .title > .tabs-and-actions-container {
 	display: flex;
 	position: relative; /* position tabs border bottom or editor actions (when tabs wrap) relative to this container */
 }
 
-.monaco-workbench .part.editor > .content .editor-group-container > .title.tabs > .tabs-and-actions-container.tabs-border-bottom::after {
+.monaco-workbench .part.editor > .content .editor-group-container > .title > .tabs-and-actions-container.tabs-border-bottom::after {
 	content: '';
 	position: absolute;
 	bottom: 0;
@@ -53,11 +53,11 @@
 	height: 1px;
 }
 
-.monaco-workbench .part.editor > .content .editor-group-container > .title.tabs > .tabs-and-actions-container > .monaco-scrollable-element {
+.monaco-workbench .part.editor > .content .editor-group-container > .title > .tabs-and-actions-container > .monaco-scrollable-element {
 	flex: 1;
 }
 
-.monaco-workbench .part.editor > .content .editor-group-container > .title.tabs > .tabs-and-actions-container > .monaco-scrollable-element .scrollbar {
+.monaco-workbench .part.editor > .content .editor-group-container > .title > .tabs-and-actions-container > .monaco-scrollable-element .scrollbar {
 	z-index: 7;
 	cursor: default;
 }
@@ -400,6 +400,7 @@
 .monaco-workbench .part.editor > .content .editor-group-container > .title .tabs-breadcrumbs .breadcrumbs-control .monaco-icon-label::before {
 	height: 22px; /* tweak the icon size of the editor labels when icons are enabled */
 }
+
 .monaco-workbench .part.editor > .content .editor-group-container > .title .tabs-breadcrumbs .breadcrumbs-control .outline-element-icon {
 	padding-right: 3px;
 	height: 22px; /* tweak the icon size of the editor labels when icons are enabled */
@@ -420,4 +421,8 @@
 
 .monaco-workbench .part.editor > .content .editor-group-container > .title .tabs-breadcrumbs .breadcrumbs-control .monaco-breadcrumb-item:last-child {
 	padding-right: 8px;
+}
+
+.monaco-workbench .part.editor > .content .editor-group-container > .title .tabs-breadcrumbs .breadcrumbs-control .monaco-breadcrumb-item:last-child .codicon:last-child {
+	display: none; /* hides chevrons when last item */
 }

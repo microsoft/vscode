@@ -66,13 +66,11 @@
 .monaco-workbench .part.editor > .content .editor-group-container > .title.breadcrumbs .breadcrumbs-control .monaco-breadcrumb-item.root_folder + .monaco-breadcrumb-item::before,
 .monaco-workbench .part.editor > .content .editor-group-container > .title.breadcrumbs .breadcrumbs-control.relative-path .monaco-breadcrumb-item:nth-child(2)::before,
 .monaco-workbench.windows .part.editor > .content .editor-group-container > .title.breadcrumbs .breadcrumbs-control .monaco-breadcrumb-item:nth-child(2)::before {
-	/* workspace folder, item following workspace folder, or relative path -> hide first seperator */
-	display: none;
+	display: none; /* workspace folder, item following workspace folder, or relative path -> hide first seperator */
 }
 
 .monaco-workbench .part.editor > .content .editor-group-container > .title.breadcrumbs .breadcrumbs-control .monaco-breadcrumb-item.root_folder::after {
-	/* use dot separator for workspace folder */
-	content: '\00a0•\00a0';
+	content: '\00a0•\00a0'; /* use dot separator for workspace folder */
 	padding: 0;
 }
 
@@ -84,12 +82,12 @@
 	padding: 0 1px;
 }
 
-.monaco-workbench .part.editor > .content .editor-group-container > .title.breadcrumbs .breadcrumbs-control .monaco-breadcrumb-item .codicon:last-child,
-.monaco-workbench .part.editor > .content .editor-group-container > .title .tabs-breadcrumbs .breadcrumbs-control .monaco-breadcrumb-item:last-child .codicon:last-child {
-	display: none; /* hides chevrons when no tabs visible and when last items */
+.monaco-workbench .part.editor > .content .editor-group-container > .title.breadcrumbs .breadcrumbs-control .monaco-breadcrumb-item .codicon:last-child {
+	display: none; /* hides chevrons when no tabs visible */
 }
 
 /* Title Actions */
+
 .monaco-workbench .part.editor > .content .editor-group-container > .title .title-actions {
 	display: flex;
 	flex: initial;

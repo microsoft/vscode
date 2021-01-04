@@ -28,7 +28,7 @@
 
 .monaco-workbench .part.editor > .content .editor-group-container > .title.breadcrumbs .monaco-icon-label::after,
 .monaco-workbench .part.editor > .content .editor-group-container > .title.tabs .monaco-icon-label::after {
-	padding-right: 0; /* By default the icon label has a padding right and this isn't wanted when not showing tabs and not showing breadcrumbs */
+	padding-right: 0; /* by default the icon label has a padding right and this isn't wanted when not showing tabs and not showing breadcrumbs */
 }
 
 /* Title Actions */
@@ -65,6 +65,7 @@
 }
 
 /* Drag Cursor */
+
 .monaco-workbench .part.editor > .content .editor-group-container > .title {
 	cursor: grab;
 }
