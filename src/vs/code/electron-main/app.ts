@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { app, ipcMain, systemPreferences, contentTracing, protocol, BrowserWindow, dialog, session } from 'electron';
-import { IProcessEnvironment, isWindows, isMacintosh, isLinux } from 'vs/base/common/platform';
+import { IProcessEnvironment, isWindows, isMacintosh, isLinux, isLinuxSnap } from 'vs/base/common/platform';
 import { WindowsMainService } from 'vs/platform/windows/electron-main/windowsMainService';
 import { IWindowOpenable } from 'vs/platform/windows/common/windows';
 import { ILifecycleMainService, LifecycleMainPhase } from 'vs/platform/lifecycle/electron-main/lifecycleMainService';
@@ -294,7 +294,7 @@ export class CodeApplication extends Disposable {
 			// - an error after 10s and stop trying to resolve
 			const cts = new CancellationTokenSource();
 			const shellEnvSlowWarningHandle = setTimeout(() => window?.sendWhenReady('vscode:showShellEnvSlowWarning', cts.token), 3000);
-			const shellEnvTimeoutErrorHandle = setTimeout(function () {
+			const shellEnvTimeoutErrorHandle = setTimeout(() => {
 				cts.dispose(true);
 				window?.sendWhenReady('vscode:showShellEnvTimeoutError', CancellationToken.None);
 				acceptShellEnv({});
@@ -491,8 +491,8 @@ export class CodeApplication extends Disposable {
 				break;
 
 			case 'linux':
-				if (process.env.SNAP && process.env.SNAP_REVISION) {
-					services.set(IUpdateService, new SyncDescriptor(SnapUpdateService, [process.env.SNAP, process.env.SNAP_REVISION]));
+				if (isLinuxSnap) {
+					services.set(IUpdateService, new SyncDescriptor(SnapUpdateService, [process.env['SNAP'], process.env['SNAP_REVISION']]));
 				} else {
 					services.set(IUpdateService, new SyncDescriptor(LinuxUpdateService));
 				}

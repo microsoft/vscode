@@ -41,7 +41,7 @@ import 'vs/editor/contrib/codelens/codelens';
 import 'vs/editor/contrib/colorPicker/color';
 import 'vs/editor/contrib/format/format';
 import 'vs/editor/contrib/gotoSymbol/goToCommands';
-import 'vs/editor/contrib/gotoSymbol/documentSymbols';
+import 'vs/editor/contrib/documentSymbols/documentSymbols';
 import 'vs/editor/contrib/hover/getHover';
 import 'vs/editor/contrib/links/getLinks';
 import 'vs/editor/contrib/parameterHints/provideSignatureHelp';

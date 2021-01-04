@@ -262,4 +262,36 @@ suite('ViewModel', () => {
 			assert.deepEqual(actual, 'line2\r\nline3\r\nline4\r\n');
 		});
 	});
+
+	test('issue #40926: Incorrect spacing when inserting new line after multiple folded blocks of code', () => {
+		testViewModel(
+			[
+				'foo = {',
+				'    foobar: function() {',
+				'        this.foobar();',
+				'    },',
+				'    foobar: function() {',
+				'        this.foobar();',
+				'    },',
+				'    foobar: function() {',
+				'        this.foobar();',
+				'    },',
+				'}',
+			], {}, (viewModel, model) => {
+				viewModel.setHiddenAreas([
+					new Range(3, 1, 3, 1),
+					new Range(6, 1, 6, 1),
+					new Range(9, 1, 9, 1),
+				]);
+
+				model.applyEdits([
+					{ range: new Range(4, 7, 4, 7), text: '\n    ' },
+					{ range: new Range(7, 7, 7, 7), text: '\n    ' },
+					{ range: new Range(10, 7, 10, 7), text: '\n    ' }
+				]);
+
+				assert.strictEqual(viewModel.getLineCount(), 11);
+			}
+		);
+	});
 });

@@ -464,4 +464,55 @@ suite('ViewContainerModel', () => {
 		assert.equal(target.elements.length, 0);
 	});
 
+	test('added view descriptors are in ascending order in the event', async function () {
+		container = ViewContainerRegistry.registerViewContainer({ id: 'test', name: 'test', ctorDescriptor: new SyncDescriptor(<any>{}) }, ViewContainerLocation.Sidebar);
+		const testObject = viewDescriptorService.getViewContainerModel(container);
+		const target = disposableStore.add(new ViewDescriptorSequence(testObject));
+
+		ViewsRegistry.registerViews([{
+			id: 'view5',
+			ctorDescriptor: null!,
+			name: 'Test View 5',
+			canToggleVisibility: true,
+			order: 5
+		}, {
+			id: 'view2',
+			ctorDescriptor: null!,
+			name: 'Test View 2',
+			canToggleVisibility: true,
+			order: 2
+		}], container);
+
+		assert.equal(target.elements.length, 2);
+		assert.equal(target.elements[0].id, 'view2');
+		assert.equal(target.elements[1].id, 'view5');
+
+		ViewsRegistry.registerViews([{
+			id: 'view4',
+			ctorDescriptor: null!,
+			name: 'Test View 4',
+			canToggleVisibility: true,
+			order: 4
+		}, {
+			id: 'view3',
+			ctorDescriptor: null!,
+			name: 'Test View 3',
+			canToggleVisibility: true,
+			order: 3
+		}, {
+			id: 'view1',
+			ctorDescriptor: null!,
+			name: 'Test View 1',
+			canToggleVisibility: true,
+			order: 1
+		}], container);
+
+		assert.equal(target.elements.length, 5);
+		assert.equal(target.elements[0].id, 'view1');
+		assert.equal(target.elements[1].id, 'view2');
+		assert.equal(target.elements[2].id, 'view3');
+		assert.equal(target.elements[3].id, 'view4');
+		assert.equal(target.elements[4].id, 'view5');
+	});
+
 });

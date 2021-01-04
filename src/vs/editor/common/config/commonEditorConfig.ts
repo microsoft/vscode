@@ -318,8 +318,7 @@ export abstract class CommonEditorConfiguration extends Disposable implements IC
 	public observeReferenceElement(dimension?: IDimension): void {
 	}
 
-	public dispose(): void {
-		super.dispose();
+	public updatePixelRatio(): void {
 	}
 
 	protected _recomputeOptions(): void {
@@ -348,7 +347,7 @@ export abstract class CommonEditorConfiguration extends Disposable implements IC
 
 	private _computeInternalOptions(): ComputedEditorOptions {
 		const partialEnv = this._getEnvConfiguration();
-		const bareFontInfo = BareFontInfo.createFromValidatedSettings(this._validatedOptions, partialEnv.zoomLevel, this.isSimpleWidget);
+		const bareFontInfo = BareFontInfo.createFromValidatedSettings(this._validatedOptions, partialEnv.zoomLevel, partialEnv.pixelRatio, this.isSimpleWidget);
 		const env: IEnvironmentalOptions = {
 			memory: this._computeOptionsMemory,
 			outerWidth: partialEnv.outerWidth,
