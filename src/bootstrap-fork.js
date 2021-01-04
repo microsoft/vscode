@@ -23,7 +23,7 @@ if (process.env['VSCODE_INJECT_NODE_MODULE_LOOKUP_PATH']) {
 }
 
 // Configure: pipe logging to parent process
-if (!!process.send && process.env.PIPE_LOGGING === 'true') {
+if (!!process.send && process.env['VSCODE_PIPE_LOGGING'] === 'true') {
 	pipeLoggingToParent();
 }
 
@@ -41,7 +41,7 @@ if (process.env['VSCODE_PARENT_PID']) {
 configureCrashReporter();
 
 // Load AMD entry point
-require('./bootstrap-amd').load(process.env['AMD_ENTRYPOINT']);
+require('./bootstrap-amd').load(process.env['VSCODE_AMD_ENTRYPOINT']);
 
 
 //#region Helpers
@@ -82,7 +82,7 @@ function pipeLoggingToParent() {
 
 		// Add the stack trace as payload if we are told so. We remove the message and the 2 top frames
 		// to start the stacktrace where the console message was being written
-		if (process.env.VSCODE_LOG_STACK === 'true') {
+		if (process.env['VSCODE_LOG_STACK'] === 'true') {
 			const stack = new Error().stack;
 			if (stack) {
 				argsArray.push({ __$stack: stack.split('\n').slice(3).join('\n') });
@@ -152,7 +152,7 @@ function pipeLoggingToParent() {
 	 * @param {'log' | 'warn' | 'error'} severity
 	 */
 	function wrapConsoleMethod(method, severity) {
-		if (process.env.VSCODE_LOG_NATIVE === 'true') {
+		if (process.env['VSCODE_LOG_NATIVE'] === 'true') {
 			const original = console[method];
 			console[method] = function () {
 				safeSendConsoleMessage(severity, safeToArray(arguments));
@@ -168,12 +168,12 @@ function pipeLoggingToParent() {
 	}
 
 	// Pass console logging to the outside so that we have it in the main side if told so
-	if (process.env.VERBOSE_LOGGING === 'true') {
+	if (process.env['VSCODE_VERBOSE_LOGGING'] === 'true') {
 		wrapConsoleMethod('info', 'log');
 		wrapConsoleMethod('log', 'log');
 		wrapConsoleMethod('warn', 'warn');
 		wrapConsoleMethod('error', 'error');
-	} else if (process.env.VSCODE_LOG_NATIVE !== 'true') {
+	} else if (process.env['VSCODE_LOG_NATIVE'] !== 'true') {
 		console.log = function () { /* ignore */ };
 		console.warn = function () { /* ignore */ };
 		console.info = function () { /* ignore */ };
@@ -209,7 +209,7 @@ function terminateWhenParentTerminates() {
 }
 
 function configureCrashReporter() {
-	const crashReporterOptionsRaw = process.env['CRASH_REPORTER_START_OPTIONS'];
+	const crashReporterOptionsRaw = process.env['VSCODE_CRASH_REPORTER_START_OPTIONS'];
 	if (typeof crashReporterOptionsRaw === 'string') {
 		try {
 			const crashReporterOptions = JSON.parse(crashReporterOptionsRaw);

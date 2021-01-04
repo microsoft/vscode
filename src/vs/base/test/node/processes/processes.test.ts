@@ -13,9 +13,9 @@ import { getPathFromAmdModule } from 'vs/base/common/amd';
 function fork(id: string): cp.ChildProcess {
 	const opts: any = {
 		env: objects.mixin(objects.deepClone(process.env), {
-			AMD_ENTRYPOINT: id,
-			PIPE_LOGGING: 'true',
-			VERBOSE_LOGGING: true
+			VSCODE_AMD_ENTRYPOINT: id,
+			VSCODE_PIPE_LOGGING: 'true',
+			VSCODE_VERBOSE_LOGGING: true
 		})
 	};
 
