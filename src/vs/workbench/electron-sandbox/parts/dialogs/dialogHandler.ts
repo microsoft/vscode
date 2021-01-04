@@ -206,4 +206,3 @@ export class NativeDialogHandler implements IDialogHandler {
 		}
 	}
 }
-
