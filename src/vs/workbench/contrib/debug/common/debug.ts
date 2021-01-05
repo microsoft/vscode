@@ -636,7 +636,6 @@ export interface IDebuggerContribution extends IPlatformSpecificAdapterContribut
 
 	// supported languages
 	languages?: string[];
-	enableBreakpointsFor?: { languageIds?: string[] };
 
 	// debug configuration support
 	configurationAttributes?: any;
