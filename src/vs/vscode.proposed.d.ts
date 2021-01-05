@@ -153,31 +153,6 @@ declare module 'vscode' {
 		* provider
 		*/
 		export function logout(providerId: string, sessionId: string): Thenable<void>;
-
-		/**
-		 * Retrieve a password that was stored with key. Returns undefined if there
-		 * is no password matching that key.
-		 * @param key The key the password was stored under.
-		 */
-		export function getPassword(key: string): Thenable<string | undefined>;
-
-		/**
-		 * Store a password under a given key.
-		 * @param key The key to store the password under
-		 * @param value The password
-		 */
-		export function setPassword(key: string, value: string): Thenable<void>;
-
-		/**
-		 * Remove a password from storage.
-		 * @param key The key the password was stored under.
-		 */
-		export function deletePassword(key: string): Thenable<void>;
-
-		/**
-		 * Fires when a password is set or deleted.
-		 */
-		export const onDidChangePassword: Event<void>;
 	}
 
 	//#endregion
@@ -2366,4 +2341,35 @@ declare module 'vscode' {
 	}
 
 	//#endregion
+
+
+	export interface SecretState {
+		/**
+		 * Retrieve a secret that was stored with key. Returns undefined if there
+		 * is no password matching that key.
+		 * @param key The key the password was stored under.
+		 */
+		get(key: string): Thenable<string | undefined>;
+
+		/**
+		 * Store a secret under a given key.
+		 * @param key The key to store the password under
+		 * @param value The password
+		 */
+		set(key: string, value: string): Thenable<void>;
+
+		/**
+		 * Remove a secret from storage.
+		 * @param key The key the password was stored under.
+		 */
+		delete(key: string): Thenable<void>;
+
+		/**
+		 * Fires when a secret is set or deleted.
+		 */
+		onDidChangePassword: Event<void>;
+	}
+	export interface ExtensionContext {
+		secretState: SecretState;
+	}
 }
