@@ -3,7 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { ISCMResource, ISCMRepository, ISCMResourceGroup, ISCMInput, ISCMRevision, ISCMRevisionState } from 'vs/workbench/contrib/scm/common/scm';
+import { ISCMResource, ISCMRepository, ISCMResourceGroup, ISCMInput, ISCMResourceRevision, ISCMCommit } from 'vs/workbench/contrib/scm/common/scm';
 import { IMenu } from 'vs/platform/actions/common/actions';
 import { ActionBar, IActionViewItemProvider } from 'vs/base/browser/ui/actionbar/actionbar';
 import { IDisposable, Disposable, combinedDisposable, toDisposable } from 'vs/base/common/lifecycle';
@@ -118,10 +118,10 @@ export function getActionViewItemProvider(instaService: IInstantiationService): 
 	};
 }
 
-export function isSCMRevision(element: any): element is ISCMRevision {
-	return /^revision$/.test(element.sourceUri.scheme);
+export function isSCMResourceRevision(element: any): element is ISCMResourceRevision {
+	return (element as ISCMResourceRevision).sourceUri && /^revision$/.test(element.sourceUri.scheme);
 }
 
-export function getSCMRevisionFromUri(element: ISCMRevision): ISCMRevisionState {
+export function getSCMCommitFromUri(element: ISCMResourceRevision): ISCMCommit {
 	return JSON.parse(element.sourceUri.query);
 }

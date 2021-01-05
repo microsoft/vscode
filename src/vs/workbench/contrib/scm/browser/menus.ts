@@ -10,7 +10,7 @@ import { IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
 import { IMenuService, MenuId, IMenu } from 'vs/platform/actions/common/actions';
 import { IAction } from 'vs/base/common/actions';
 import { createAndFillInActionBarActions } from 'vs/platform/actions/browser/menuEntryActionViewItem';
-import { ISCMResource, ISCMResourceGroup, ISCMProvider, ISCMRepository, ISCMService, ISCMMenus, ISCMRepositoryMenus, ISCMRevision } from 'vs/workbench/contrib/scm/common/scm';
+import { ISCMResource, ISCMResourceGroup, ISCMProvider, ISCMRepository, ISCMService, ISCMMenus, ISCMRepositoryMenus, ISCMResourceRevision } from 'vs/workbench/contrib/scm/common/scm';
 import { equals } from 'vs/base/common/arrays';
 import { ISplice } from 'vs/base/common/sequence';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
@@ -103,7 +103,7 @@ class SCMMenusItem implements IDisposable {
 		private menuService: IMenuService
 	) { }
 
-	getResourceMenu(resource: ISCMResource | ISCMRevision): IMenu {
+	getResourceMenu(resource: ISCMResource | ISCMResourceRevision): IMenu {
 		if (typeof resource.contextValue === 'undefined') {
 			if (!this.genericResourceMenu) {
 				this.genericResourceMenu = this.menuService.createMenu(MenuId.SCMResourceContext, this.contextKeyService);
@@ -191,7 +191,7 @@ export class SCMRepositoryMenus implements ISCMRepositoryMenus, IDisposable {
 		return this.getOrCreateResourceGroupMenusItem(group).resourceGroupMenu;
 	}
 
-	getResourceMenu(resource: ISCMResource | ISCMRevision): IMenu {
+	getResourceMenu(resource: ISCMResource | ISCMResourceRevision): IMenu {
 		return this.getOrCreateResourceGroupMenusItem(resource.resourceGroup).getResourceMenu(resource);
 	}
 

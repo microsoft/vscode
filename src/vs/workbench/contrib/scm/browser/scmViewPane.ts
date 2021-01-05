@@ -11,7 +11,7 @@ import { IDisposable, Disposable, DisposableStore, combinedDisposable, dispose, 
 import { ViewPane, IViewPaneOptions, ViewAction } from 'vs/workbench/browser/parts/views/viewPane';
 import { append, $, Dimension, asCSSUrl, prepend, trackFocus } from 'vs/base/browser/dom';
 import { IListVirtualDelegate, IIdentityProvider } from 'vs/base/browser/ui/list/list';
-import { ISCMResourceGroup, ISCMResource, ISCMRevision, InputValidationType, ISCMRepository, ISCMInput, IInputValidation, ISCMViewService, ISCMViewVisibleRepositoryChangeEvent, ISCMService, SCMInputChangeReason, VIEW_PANE_ID } from 'vs/workbench/contrib/scm/common/scm';
+import { ISCMResourceGroup, ISCMResource, ISCMResourceRevision, InputValidationType, ISCMRepository, ISCMInput, IInputValidation, ISCMViewService, ISCMViewVisibleRepositoryChangeEvent, ISCMService, SCMInputChangeReason, VIEW_PANE_ID } from 'vs/workbench/contrib/scm/common/scm';
 import { ResourceLabels, IResourceLabel } from 'vs/workbench/browser/labels';
 import { CountBadge } from 'vs/base/browser/ui/countBadge/countBadge';
 import { IEditorService } from 'vs/workbench/services/editor/common/editorService';
@@ -24,7 +24,7 @@ import { MenuItemAction, IMenuService, registerAction2, MenuId, IAction2Options,
 import { IAction, ActionRunner } from 'vs/base/common/actions';
 import { ActionBar, IActionViewItemProvider } from 'vs/base/browser/ui/actionbar/actionbar';
 import { IThemeService, registerThemingParticipant, IFileIconTheme, ThemeIcon, IColorTheme, ICssStyleCollector } from 'vs/platform/theme/common/themeService';
-import { isSCMResource, isSCMResourceGroup, connectPrimaryMenuToInlineActionBar, isSCMRepository, isSCMInput, collectContextMenuActions, getActionViewItemProvider, getSCMRevisionFromUri, isSCMRevision } from './util';
+import { isSCMResource, isSCMResourceGroup, connectPrimaryMenuToInlineActionBar, isSCMRepository, isSCMInput, collectContextMenuActions, getActionViewItemProvider, getSCMCommitFromUri, isSCMResourceRevision } from './util';
 import { attachBadgeStyler } from 'vs/platform/theme/common/styler';
 import { WorkbenchCompressibleObjectTree, IOpenEvent } from 'vs/platform/list/browser/listService';
 import { IConfigurationService, ConfigurationTarget, IConfigurationChangeEvent } from 'vs/platform/configuration/common/configuration';
@@ -85,7 +85,7 @@ import { IWorkspaceContextService } from 'vs/platform/workspace/common/workspace
 import { MarkdownRenderer } from 'vs/editor/browser/core/markdownRenderer';
 import { IconLabel } from 'vs/base/browser/ui/iconLabel/iconLabel';
 
-type TreeElement = ISCMRepository | ISCMInput | ISCMResourceGroup | IResourceNode<ISCMResource, ISCMResourceGroup> | ISCMResource;
+type TreeElement = ISCMRepository | ISCMInput | ISCMResourceGroup | IResourceNode<ISCMResource, ISCMResourceGroup> | ISCMResource | ISCMResourceRevision;
 
 interface ISCMLayout {
 	height: number | undefined;
@@ -532,7 +532,7 @@ interface RevisionTemplate {
 	disposables: IDisposable;
 }
 
-class RevisionRenderer implements ICompressibleTreeRenderer<ISCMRevision, FuzzyScore | LabelFuzzyScore, RevisionTemplate> {
+class RevisionRenderer implements ICompressibleTreeRenderer<ISCMResourceRevision, FuzzyScore | LabelFuzzyScore, RevisionTemplate> {
 
 	static readonly TEMPLATE_ID = 'revision';
 	get templateId(): string { return RevisionRenderer.TEMPLATE_ID; }
@@ -546,7 +546,7 @@ class RevisionRenderer implements ICompressibleTreeRenderer<ISCMRevision, FuzzyS
 	renderTemplate(container: HTMLElement): RevisionTemplate {
 		const element = append(container, $('.resource.revision'));
 		const name = append(element, $('.name'));
-		const iconLabel = new IconLabel(name, { supportHighlights: true, supportIcons: true });
+		const iconLabel = new IconLabel(name, { supportDescriptionHighlights: true, supportHighlights: true, supportIcons: true });
 		const icon = prepend(iconLabel.element, $('span.icon'));
 		const actionsContainer = append(iconLabel.element, $('.actions'));
 		const actionBar = new ActionBar(actionsContainer, {
@@ -559,14 +559,14 @@ class RevisionRenderer implements ICompressibleTreeRenderer<ISCMRevision, FuzzyS
 		return { icon, iconLabel, actionBar, elementDisposables: Disposable.None, disposables };
 	}
 
-	renderElement(node: ITreeNode<ISCMRevision, FuzzyScore | LabelFuzzyScore> | ITreeNode<ISCMRevision, FuzzyScore | LabelFuzzyScore>, index: number, template: RevisionTemplate): void {
+	renderElement(node: ITreeNode<ISCMResourceRevision, FuzzyScore | LabelFuzzyScore> | ITreeNode<ISCMResourceRevision, FuzzyScore | LabelFuzzyScore>, index: number, template: RevisionTemplate): void {
 		template.elementDisposables.dispose();
 
 		const elementDisposables = new DisposableStore();
 
 		const { element: item } = node;
 
-		const revision = item.revision ?? getSCMRevisionFromUri(item);
+		const revision = item.commit ?? getSCMCommitFromUri(item);
 
 		template.actionBar.clear();
 		template.actionBar.context = item;
@@ -617,15 +617,15 @@ class RevisionRenderer implements ICompressibleTreeRenderer<ISCMRevision, FuzzyS
 		template.elementDisposables = elementDisposables;
 	}
 
-	disposeElement(resource: ITreeNode<ISCMRevision, FuzzyScore | LabelFuzzyScore>, index: number, template: RevisionTemplate): void {
+	disposeElement(resource: ITreeNode<ISCMResourceRevision, FuzzyScore | LabelFuzzyScore>, index: number, template: RevisionTemplate): void {
 		template.elementDisposables.dispose();
 	}
 
-	disposeCompressedElements(node: ITreeNode<ICompressedTreeNode<ISCMRevision>, FuzzyScore | LabelFuzzyScore>, index: number, template: RevisionTemplate, height: number | undefined): void {
+	disposeCompressedElements(node: ITreeNode<ICompressedTreeNode<ISCMResourceRevision>, FuzzyScore | LabelFuzzyScore>, index: number, template: RevisionTemplate, height: number | undefined): void {
 		template.elementDisposables.dispose();
 	}
 
-	renderCompressedElements(node: ITreeNode<ICompressedTreeNode<ISCMRevision>, FuzzyScore | LabelFuzzyScore>, index: number, templateData: RevisionTemplate, height: number | undefined): void {
+	renderCompressedElements(node: ITreeNode<ICompressedTreeNode<ISCMResourceRevision>, FuzzyScore | LabelFuzzyScore>, index: number, templateData: RevisionTemplate, height: number | undefined): void {
 		throw new Error('Should never happen since node is incompressible');
 	}
 
@@ -701,12 +701,9 @@ class ListDelegate implements IListVirtualDelegate<TreeElement> {
 			return RepositoryRenderer.TEMPLATE_ID;
 		} else if (isSCMInput(element)) {
 			return InputRenderer.TEMPLATE_ID;
-		} else if (ResourceTree.isResourceNode(element)) {
-			return ResourceRenderer.TEMPLATE_ID;
-		} else if (isSCMResource(element)) {
-			if (isSCMRevision(element)) {
-				return RevisionRenderer.TEMPLATE_ID;
-			}
+		} else if (isSCMResourceRevision(element)) {
+			return RevisionRenderer.TEMPLATE_ID;
+		} else if (ResourceTree.isResourceNode(element) || isSCMResource(element)) {
 			return ResourceRenderer.TEMPLATE_ID;
 		} else {
 			return ResourceGroupRenderer.TEMPLATE_ID;
@@ -744,17 +741,17 @@ export class SCMTreeSorter implements ITreeSorter<TreeElement> {
 		}
 
 		if (isSCMInput(one)) {
-			if (isSCMResourceGroup(other) && other.id === 'unpublished') {
-				return -1;
-			} else {
-				return 1;
-			}
-		} else if (isSCMInput(other)) {
-			if (isSCMResourceGroup(one) && one.id === 'unpublished') {
-				return 1;
-			}
-
+			// if (isSCMResourceGroup(other) && other.id === 'unpublished') {
 			return -1;
+			// } else {
+			// 	return 1;
+			// }
+		} else if (isSCMInput(other)) {
+			// if (isSCMResourceGroup(one) && one.id === 'unpublished') {
+			return 1;
+			// }
+
+			// return -1;
 		}
 
 		if (isSCMResourceGroup(one)) {
@@ -762,13 +759,13 @@ export class SCMTreeSorter implements ITreeSorter<TreeElement> {
 				throw new Error('Invalid comparison');
 			}
 
-			if (one.id === 'unpublished') {
-				return 1;
-			}
+			// if (one.id === 'unpublished') {
+			// 	return 1;
+			// }
 
-			if (other.id === 'unpublished') {
-				return -1;
-			}
+			// if (other.id === 'unpublished') {
+			// 	return -1;
+			// }
 			return 0;
 		}
 
@@ -864,6 +861,10 @@ function getSCMResourceId(element: TreeElement): string {
 	} else if (isSCMInput(element)) {
 		const provider = element.repository.provider;
 		return `input:${provider.id}`;
+	} else if (isSCMResourceRevision(element)) {
+		const group = element.resourceGroup;
+		const provider = group.provider;
+		return `revision:${provider.id}/${group.id}/${element.sourceUri.toString()}`;
 	} else if (isSCMResource(element)) {
 		const group = element.resourceGroup;
 		const provider = group.provider;

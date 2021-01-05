@@ -1934,7 +1934,7 @@ export class Repository implements Disposable {
 			const upstream = `${HEAD!.upstream?.remote}/${HEAD!.upstream?.name}`;
 
 			if (unpublishedChanges === 'commits') {
-				this.unpublishedGroup.label = 'Commits to push to GitHub';
+				this.unpublishedGroup.label = 'Unpublished Commits';
 
 				let first = true;
 				const commits = await this.repository.log({ ref: `${upstream}..${HEAD!.name}` });
@@ -1947,11 +1947,11 @@ export class Repository implements Disposable {
 					first = false;
 				}
 			} else if (unpublishedChanges === 'files') {
-				this.unpublishedGroup.label = 'Changes to push to GitHub';
+				this.unpublishedGroup.label = 'Unpublished Changes';
 
 				const changes = await this.repository.diffBetween(`${upstream}`, HEAD!.name!);
 				for (const change of changes) {
-					unpublished.push(new Resource(ResourceGroupType.Unpublished, change.uri, change.status, useIcons, change.renameUri, { upstream: upstream }));
+					unpublished.push(new Resource(this.resourceCommandResolver, ResourceGroupType.Unpublished, change.uri, change.status, useIcons, change.renameUri, { upstream: upstream }));
 				}
 			}
 		}

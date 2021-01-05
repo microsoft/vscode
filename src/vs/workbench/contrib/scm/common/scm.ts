@@ -32,7 +32,7 @@ export interface ISCMResourceDecorations {
 	faded?: boolean;
 }
 
-export interface ISCMRevisionState {
+export interface ISCMCommit {
 	readonly id: string;
 	readonly shortId?: string;
 	readonly timestamp?: number;
@@ -42,12 +42,13 @@ export interface ISCMRevisionState {
 	readonly status?: string;
 }
 
-export interface ISCMRevision {
+export interface ISCMResourceRevision {
+	readonly commit?: ISCMCommit;
 	readonly resourceGroup: ISCMResourceGroup;
 	readonly sourceUri: URI;
-	readonly revision?: ISCMRevisionState;
 	readonly decorations: ISCMResourceDecorations;
 	readonly contextValue?: string;
+	readonly command: Command | undefined;
 	open(preserveFocus: boolean): Promise<void>;
 }
 
@@ -167,7 +168,7 @@ export interface ISCMRepositoryMenus {
 	readonly titleMenu: ISCMTitleMenu;
 	readonly repositoryMenu: IMenu;
 	getResourceGroupMenu(group: ISCMResourceGroup): IMenu;
-	getResourceMenu(resource: ISCMResource | ISCMRevision): IMenu;
+	getResourceMenu(resource: ISCMResource | ISCMResourceRevision): IMenu;
 	getResourceFolderMenu(group: ISCMResourceGroup): IMenu;
 }
 
