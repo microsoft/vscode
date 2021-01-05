@@ -22,7 +22,7 @@ const HIDE_CURSOR = `${CSI}?25l`;
 const DELETE_CHAR = `${CSI}X`;
 const DELETE_REST_OF_LINE = `${CSI}K`;
 const CSI_STYLE_RE = /^\x1b\[[0-9;]*m/;
-const CSI_MOVE_RE = /^\x1b\[([0-9]*)(;[35])?O?([DC])/;
+const CSI_MOVE_RE = /^\x1b\[?([0-9]*)(;[35])?O?([DC])/;
 const NOT_WORD_RE = /[^a-z0-9]/i;
 
 const statsBufferSize = 24;
