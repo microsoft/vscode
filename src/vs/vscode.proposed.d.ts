@@ -2342,26 +2342,22 @@ declare module 'vscode' {
 	//#endregion
 
 	/**
-	 * TODO@RMacfarlane name
-	 * Secrets
-	 * SecretStorage
-	 * SecretStore
-	 *
-	 * TODO@RMacfarlane jsdoc
+	 * Represents a storage utility for secrets, information that is
+	 * sensitive.
 	 */
-	export interface SecretState {
+	export interface SecretStorage {
 		/**
 		 * Retrieve a secret that was stored with key. Returns undefined if there
 		 * is no password matching that key.
 		 * @param key The key the password was stored under.
-		 * // TODO@RMacfarlane @returns
+		 * @returns The stored value or `undefined`.
 		 */
 		get(key: string): Thenable<string | undefined>;
 
 		/**
 		 * Store a secret under a given key.
-		 * @param key The key to store the password under
-		 * @param value The password
+		 * @param key The key to store the password under.
+		 * @param value The password.
 		 */
 		set(key: string, value: string): Thenable<void>;
 
@@ -2376,10 +2372,8 @@ declare module 'vscode' {
 		 */
 		onDidChange: Event<void>;
 	}
+
 	export interface ExtensionContext {
-		// TODO@RMacfarlane
-		// secrets: SecretState;
-		// secretStorages: SecretState;
-		secretState: SecretState;
+		secrets: SecretStorage;
 	}
 }
