@@ -60,8 +60,8 @@ export class FoldingController extends Disposable implements IEditorContribution
 	}
 
 	private readonly editor: ICodeEditor;
-	private _useFoldingProviders: boolean;
 	private _isEnabled: boolean;
+	private _useFoldingProviders: boolean;
 	private _unfoldOnClickAfterEndOfLine: boolean;
 	private _restoringViewState: boolean;
 
@@ -91,8 +91,8 @@ export class FoldingController extends Disposable implements IEditorContribution
 		super();
 		this.editor = editor;
 		const options = this.editor.getOptions();
-		this._useFoldingProviders = options.get(EditorOption.foldingStrategy) !== 'indentation';
 		this._isEnabled = options.get(EditorOption.folding);
+		this._useFoldingProviders = options.get(EditorOption.foldingStrategy) !== 'indentation';
 		this._unfoldOnClickAfterEndOfLine = options.get(EditorOption.unfoldOnClickAfterEndOfLine);
 		this._restoringViewState = false;
 
