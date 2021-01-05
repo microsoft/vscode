@@ -60,7 +60,7 @@ export class FoldingController extends Disposable implements IEditorContribution
 	}
 
 	private readonly editor: ICodeEditor;
-	private _foldingStrategy: string;
+	private _useFoldingProviders: boolean;
 	private _isEnabled: boolean;
 	private _unfoldOnClickAfterEndOfLine: boolean;
 	private _restoringViewState: boolean;
@@ -91,7 +91,7 @@ export class FoldingController extends Disposable implements IEditorContribution
 		super();
 		this.editor = editor;
 		const options = this.editor.getOptions();
-		this._foldingStrategy = options.get(EditorOption.foldingStrategy);
+		this._useFoldingProviders = options.get(EditorOption.foldingStrategy) !== 'indentation';
 		this._isEnabled = options.get(EditorOption.folding);
 		this._unfoldOnClickAfterEndOfLine = options.get(EditorOption.unfoldOnClickAfterEndOfLine);
 		this._restoringViewState = false;
@@ -127,7 +127,7 @@ export class FoldingController extends Disposable implements IEditorContribution
 				this.onModelContentChanged();
 			}
 			if (e.hasChanged(EditorOption.foldingStrategy)) {
-				this._foldingStrategy = this.editor.getOptions().get(EditorOption.foldingStrategy);
+				this._useFoldingProviders = this.editor.getOptions().get(EditorOption.foldingStrategy) !== 'indentation';
 				this.onFoldingStrategyChanged();
 			}
 			if (e.hasChanged(EditorOption.unfoldOnClickAfterEndOfLine)) {
@@ -251,15 +251,9 @@ export class FoldingController extends Disposable implements IEditorContribution
 		if (this.rangeProvider) {
 			return this.rangeProvider;
 		}
+		this.rangeProvider = new IndentRangeProvider(editorModel); // fallback
 
-		if (this._foldingStrategy !== 'auto' && this._foldingStrategy !== 'indentation') {
-			const foldingProviders = FoldingRangeProviderRegistry.all(editorModel).filter(provider => provider.id === this._foldingStrategy);
-			if (foldingProviders.length > 0) {
-				this.rangeProvider = new SyntaxRangeProvider(editorModel, foldingProviders, () => this.onModelContentChanged());
-			}
-		}
-
-		if (this.foldingModel && (this._foldingStrategy === 'auto' || (this._foldingStrategy !== 'indentation' && !this.rangeProvider))) {
+		if (this._useFoldingProviders && this.foldingModel) {
 			let foldingProviders = FoldingRangeProviderRegistry.ordered(this.foldingModel.textModel);
 			if (foldingProviders.length === 0 && this.foldingStateMemento && this.foldingStateMemento.collapsedRegions) {
 				const rangeProvider = this.rangeProvider = new InitializingRangeProvider(editorModel, this.foldingStateMemento.collapsedRegions, () => {
@@ -269,12 +263,8 @@ export class FoldingController extends Disposable implements IEditorContribution
 				}, 30000);
 				return rangeProvider; // keep memento in case there are still no foldingProviders on the next request.
 			} else if (foldingProviders.length > 0) {
-				this.rangeProvider = new SyntaxRangeProvider(editorModel, foldingProviders, () => this.onModelContentChanged());
+				this.rangeProvider = new SyntaxRangeProvider(editorModel, foldingProviders, this.editor.getOptions().get(EditorOption.foldingStrategy), () => this.onModelContentChanged());
 			}
-		}
-
-		if (!this.rangeProvider) {
-			this.rangeProvider = new IndentRangeProvider(editorModel); // fallback
 		}
 
 		this.foldingStateMemento = null;
