@@ -16,51 +16,14 @@ import { IWorkbenchActionRegistry, Extensions as ActionExtensions } from 'vs/wor
 import { EditorModel } from 'vs/workbench/common/editor';
 import { IKeybindingService } from 'vs/platform/keybinding/common/keybinding';
 import { ResolvedKeybindingItem } from 'vs/platform/keybinding/common/resolvedKeybindingItem';
-import { KeybindingResolver } from 'vs/platform/keybinding/common/keybindingResolver';
+import { getAllUnboundCommands } from 'vs/workbench/services/keybinding/browser/unboundCommands';
+import { IKeybindingItemEntry, KeybindingMatches, KeybindingMatch, IKeybindingItem } from 'vs/workbench/services/preferences/common/preferences';
 
 export const KEYBINDING_ENTRY_TEMPLATE_ID = 'keybinding.entry.template';
 
 const SOURCE_DEFAULT = localize('default', "Default");
 const SOURCE_EXTENSION = localize('extension', "Extension");
 const SOURCE_USER = localize('user', "User");
-
-export interface KeybindingMatch {
-	ctrlKey?: boolean;
-	shiftKey?: boolean;
-	altKey?: boolean;
-	metaKey?: boolean;
-	keyCode?: boolean;
-}
-
-export interface KeybindingMatches {
-	firstPart: KeybindingMatch;
-	chordPart: KeybindingMatch;
-}
-
-export interface IListEntry {
-	id: string;
-	templateId: string;
-}
-
-export interface IKeybindingItemEntry extends IListEntry {
-	keybindingItem: IKeybindingItem;
-	commandIdMatches?: IMatch[];
-	commandLabelMatches?: IMatch[];
-	commandDefaultLabelMatches?: IMatch[];
-	sourceMatches?: IMatch[];
-	whenMatches?: IMatch[];
-	keybindingMatches?: KeybindingMatches;
-}
-
-export interface IKeybindingItem {
-	keybinding: ResolvedKeybinding;
-	keybindingItem: ResolvedKeybindingItem;
-	commandLabel: string;
-	commandDefaultLabel: string;
-	command: string;
-	source: string;
-	when: string;
-}
 
 interface ModifierLabels {
 	ui: ModLabels;
@@ -190,7 +153,7 @@ export class KeybindingsEditorModel extends EditorModel {
 		}
 
 		const commandsWithDefaultKeybindings = this.keybindingsService.getDefaultKeybindings().map(keybinding => keybinding.command);
-		for (const command of KeybindingResolver.getAllUnboundCommands(boundCommands)) {
+		for (const command of getAllUnboundCommands(boundCommands)) {
 			const keybindingItem = new ResolvedKeybindingItem(undefined, command, null, undefined, commandsWithDefaultKeybindings.indexOf(command) === -1, null, false);
 			this._keybindingItemsSortedByPrecedence.push(KeybindingsEditorModel.toKeybindingEntry(command, keybindingItem, workbenchActionsRegistry, actionLabels));
 		}
