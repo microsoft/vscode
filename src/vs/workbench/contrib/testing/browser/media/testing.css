@@ -40,3 +40,8 @@
 	line-height: 22px;
 	margin-right: 8px;
 }
+
+.codicon-testing-loading-icon::before {
+	/* Use steps to throttle FPS to reduce CPU usage */
+	animation: codicon-spin 1.25s steps(30) infinite;
+}

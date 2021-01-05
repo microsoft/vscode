@@ -28,10 +28,12 @@ import { IInstantiationService } from 'vs/platform/instantiation/common/instanti
 import { IKeybindingService } from 'vs/platform/keybinding/common/keybinding';
 import { WorkbenchObjectTree } from 'vs/platform/list/browser/listService';
 import { IOpenerService } from 'vs/platform/opener/common/opener';
+import { IProgressService } from 'vs/platform/progress/common/progress';
 import { IStorageService, StorageScope, StorageTarget } from 'vs/platform/storage/common/storage';
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
 import { IThemeService, ThemeIcon } from 'vs/platform/theme/common/themeService';
 import { IWorkspaceFolder, IWorkspaceFoldersChangeEvent } from 'vs/platform/workspace/common/workspace';
+import { ExtHostTestingResource } from 'vs/workbench/api/common/extHost.protocol';
 import { TestRunState } from 'vs/workbench/api/common/extHostTypes';
 import { IResourceLabel, IResourceLabelOptions, IResourceLabelProps, ResourceLabels } from 'vs/workbench/browser/labels';
 import { ViewPane } from 'vs/workbench/browser/parts/views/viewPane';
@@ -51,11 +53,13 @@ export class TestingExplorerView extends ViewPane {
 	public viewModel!: TestingExplorerViewModel;
 	private currentSubscription?: TestSubscriptionListener;
 	private listContainer!: HTMLElement;
+	private finishDiscovery?: () => void;
 
 	constructor(
 		options: IViewletViewOptions,
 		@ITestingCollectionService private readonly testCollection: ITestingCollectionService,
 		@ITestService private readonly testService: ITestService,
+		@IProgressService private readonly progress: IProgressService,
 		@IContextMenuService contextMenuService: IContextMenuService,
 		@IKeybindingService keybindingService: IKeybindingService,
 		@IConfigurationService configurationService: IConfigurationService,
@@ -87,6 +91,15 @@ export class TestingExplorerView extends ViewPane {
 		this.viewModel = this.instantiationService.createInstance(TestingExplorerViewModel, this.listContainer, this.onDidChangeBodyVisibility, this.currentSubscription);
 		this._register(this.viewModel);
 
+		this.updateProgressIndicator();
+		this._register(this.testService.onBusyStateChange(t => {
+			if (t.resource === ExtHostTestingResource.Workspace && t.busy !== (!!this.finishDiscovery)) {
+				this.updateProgressIndicator();
+			}
+		}));
+
+		this.getProgressIndicator().show(true);
+
 		this._register(this.onDidChangeBodyVisibility(visible => {
 			if (!visible && this.currentSubscription) {
 				this.currentSubscription.dispose();
@@ -99,6 +112,16 @@ export class TestingExplorerView extends ViewPane {
 		}));
 	}
 
+	private updateProgressIndicator() {
+		const busy = Iterable.some(this.testService.busyTestLocations, s => s.resource === ExtHostTestingResource.Workspace);
+		if (!busy && this.finishDiscovery) {
+			this.finishDiscovery();
+			this.finishDiscovery = undefined;
+		} else if (busy && !this.finishDiscovery) {
+			const promise = new Promise<void>(resolve => { this.finishDiscovery = resolve; });
+			this.progress.withProgress({ location: this.getProgressLocation() }, () => promise);
+		}
+	}
 
 	/**
 	 * @override
@@ -401,8 +424,12 @@ class TestsRenderer implements ITreeRenderer<ITestTreeElement, FuzzyScore, TestT
 		const options: IResourceLabelOptions = {};
 		data.actionBar.clear();
 
-		const icon = testingStatesToIcons.get(getComputedState(element));
+		const state = getComputedState(element);
+		const icon = testingStatesToIcons.get(state);
 		data.icon.className = 'computed-state ' + (icon ? ThemeIcon.asClassName(icon) : '');
+		if (state === TestRunState.Running) {
+			data.icon.className += ' codicon-modifier-spin';
+		}
 
 		const test = element.test;
 		if (test) {

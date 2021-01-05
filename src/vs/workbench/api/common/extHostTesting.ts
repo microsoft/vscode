@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { mapFind } from 'vs/base/common/arrays';
-import { disposableTimeout } from 'vs/base/common/async';
+import { disposableTimeout, RunOnceScheduler } from 'vs/base/common/async';
 import { CancellationToken } from 'vs/base/common/cancellation';
 import { throttle } from 'vs/base/common/decorators';
 import { Emitter } from 'vs/base/common/event';
@@ -125,6 +125,19 @@ export class ExtHostTesting implements ExtHostTestingShape {
 			return;
 		}
 
+		let delta = 0;
+		const updateCountScheduler = new RunOnceScheduler(() => {
+			if (delta !== 0) {
+				this.proxy.$updateDiscoveringCount(resource, uri, delta);
+				delta = 0;
+			}
+		}, 5);
+
+		const updateDelta = (amount: number) => {
+			delta += amount;
+			updateCountScheduler.schedule();
+		};
+
 		const subscribeFn = (id: string, provider: vscode.TestProvider) => {
 			try {
 				const hierarchy = method!(provider);
@@ -132,8 +145,10 @@ export class ExtHostTesting implements ExtHostTestingShape {
 					return;
 				}
 
+				updateDelta(1);
 				disposable.add(hierarchy);
 				collection.addRoot(hierarchy.root, id);
+				hierarchy.onDidDiscoverInitialTests(() => updateDelta(-1));
 				hierarchy.onDidChangeTest(e => collection.onItemChange(e, id));
 			} catch (e) {
 				console.error(e);
@@ -269,6 +284,13 @@ export class SingleUseTestCollection implements IDisposable {
 	protected diff: TestsDiff = [];
 	private disposed = false;
 
+	/**
+	 * Debouncer for sending diffs. We use both a throttle and a debounce here,
+	 * so that tests that all change state simultenously are effected together,
+	 * but so we don't send hundreds of test updates per second to the main thread.
+	 */
+	private readonly debounceSendDiff = new RunOnceScheduler(() => this.throttleSendDiff(), 2);
+
 	constructor(private readonly testIdToInternal: Map<string, OwnedCollectionTestItem>, private readonly publishDiff: (diff: TestsDiff) => void) { }
 
 	/**
@@ -276,7 +298,7 @@ export class SingleUseTestCollection implements IDisposable {
 	 */
 	public addRoot(item: vscode.TestItem, providerId: string) {
 		this.addItem(item, providerId, null);
-		this.throttleSendDiff();
+		this.debounceSendDiff.schedule();
 	}
 
 	/**
@@ -300,7 +322,7 @@ export class SingleUseTestCollection implements IDisposable {
 		}
 
 		this.addItem(item, providerId, existing.parent);
-		this.throttleSendDiff();
+		this.debounceSendDiff.schedule();
 	}
 
 	/**
