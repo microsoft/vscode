@@ -3,7 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import * as fs from 'fs';
+import * as pfs from 'vs/base/node/pfs';
 import * as os from 'os';
 import * as path from 'vs/base/common/path';
 import { env } from 'vs/base/common/process';
@@ -48,7 +48,7 @@ class PossiblePowerShellExe implements IPossiblePowerShellExe {
 
 	public exists(): boolean {
 		if (this.knownToExist === undefined) {
-			this.knownToExist = fs.existsSync(this.exePath);
+			this.knownToExist = pfs.fileExistsSync(this.exePath);
 		}
 		return this.knownToExist;
 	}
@@ -110,13 +110,13 @@ function findPSCoreWindowsInstallation(
 	const powerShellInstallBaseDir = path.join(programFilesPath, 'PowerShell');
 
 	// Ensure the base directory exists
-	if (!(fs.existsSync(powerShellInstallBaseDir) && fs.lstatSync(powerShellInstallBaseDir).isDirectory())) {
+	if (!pfs.dirExistsSync(powerShellInstallBaseDir)) {
 		return null;
 	}
 
 	let highestSeenVersion: number = -1;
 	let pwshExePath: string | null = null;
-	for (const item of fs.readdirSync(powerShellInstallBaseDir)) {
+	for (const item of pfs.readdirSync(powerShellInstallBaseDir)) {
 
 		let currentVersion: number = -1;
 		if (findPreview) {
@@ -152,7 +152,7 @@ function findPSCoreWindowsInstallation(
 
 		// Now look for the file
 		const exePath = path.join(powerShellInstallBaseDir, item, 'pwsh.exe');
-		if (!fs.existsSync(exePath)) {
+		if (!pfs.fileExistsSync(exePath)) {
 			continue;
 		}
 
@@ -164,10 +164,10 @@ function findPSCoreWindowsInstallation(
 		return null;
 	}
 
-	const bitness: string = programFilesPath.includes('x86') ? '(x86)' : '(x64)';
+	const bitness: string = programFilesPath.includes('x86') ? ' (x86)' : '';
 	const preview: string = findPreview ? ' Preview' : '';
 
-	return new PossiblePowerShellExe(pwshExePath, `PowerShell${preview} ${bitness}`);
+	return new PossiblePowerShellExe(pwshExePath, `PowerShell${preview}${bitness}`, { knownToExist: true });
 }
 
 function findPSCoreMsix({ findPreview }: { findPreview?: boolean } = {}): IPossiblePowerShellExe | null {
@@ -179,7 +179,7 @@ function findPSCoreMsix({ findPreview }: { findPreview?: boolean } = {}): IPossi
 	// Find the base directory for MSIX application exe shortcuts
 	const msixAppDir = path.join(env.LOCALAPPDATA, 'Microsoft', 'WindowsApps');
 
-	if (!fs.existsSync(msixAppDir)) {
+	if (!pfs.dirExistsSync(msixAppDir)) {
 		return null;
 	}
 
@@ -189,10 +189,10 @@ function findPSCoreMsix({ findPreview }: { findPreview?: boolean } = {}): IPossi
 		: { pwshMsixDirRegex: PwshMsixRegex, pwshMsixName: 'PowerShell (Store)' };
 
 	// We should find only one such application, so return on the first one
-	for (const subdir of fs.readdirSync(msixAppDir)) {
+	for (const subdir of pfs.readdirSync(msixAppDir)) {
 		if (pwshMsixDirRegex.test(subdir)) {
 			const pwshMsixPath = path.join(msixAppDir, subdir, 'pwsh.exe');
-			return new PossiblePowerShellExe(pwshMsixPath, pwshMsixName, { knownToExist: true });
+			return new PossiblePowerShellExe(pwshMsixPath, pwshMsixName);
 		}
 	}
 
@@ -208,7 +208,7 @@ function findPSCoreDotnetGlobalTool(): IPossiblePowerShellExe {
 
 function findWinPS({ useAlternateBitness = false }: { useAlternateBitness?: boolean } = {}): IPossiblePowerShellExe | null {
 
-	// 32-bit OSes only have one WinPS on them
+	// x86 and ARM only have one WinPS on them
 	if (!isOS64Bit && useAlternateBitness) {
 		return null;
 	}
@@ -227,6 +227,8 @@ function findWinPS({ useAlternateBitness = false }: { useAlternateBitness?: bool
 			? WindowsPowerShell64BitLabel
 			: WindowsPowerShell32BitLabel;
 	} else {
+		// NOTE: ARM Windows devices also have Windows PowerShell x86 on them. There is no
+		// "ARM Windows PowerShell".
 		displayName = WindowsPowerShell32BitLabel;
 	}
 
