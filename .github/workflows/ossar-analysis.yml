@@ -1,0 +1,45 @@
+# This workflow integrates a collection of open source static analysis tools
+# with GitHub code scanning. For documentation, or to provide feedback, visit
+# https://github.com/github/ossar-action
+name: OSSAR
+
+on:
+  push:
+  pull_request:
+
+jobs:
+  OSSAR-Scan:
+    # OSSAR runs on windows-latest.
+    # ubuntu-latest and macos-latest support coming soon
+    runs-on: windows-latest
+
+    steps:
+      # Checkout your code repository to scan
+    - name: Checkout repository
+      uses: actions/checkout@v2
+      with:
+        # We must fetch at least the immediate parents so that if this is
+        # a pull request then we can checkout the head.
+        fetch-depth: 2
+
+    # If this run was triggered by a pull request event, then checkout
+    # the head of the pull request instead of the merge commit.
+    - run: git checkout HEAD^2
+      if: ${{ github.event_name == 'pull_request' }}
+
+      # Install dotnet, used by OSSAR
+    - name: Install .NET
+      uses: actions/setup-dotnet@v1
+      with:
+        dotnet-version: '3.1.201'
+
+      # Run open source static analysis tools
+    - name: Run OSSAR
+      uses: github/ossar-action@v1
+      id: ossar
+
+      # Upload results to the Security tab
+    - name: Upload OSSAR results
+      uses: github/codeql-action/upload-sarif@v1
+      with:
+        sarif_file: ${{ steps.ossar.outputs.sarifFile }}
