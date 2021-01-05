@@ -4,6 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { localize } from 'vs/nls';
+import { Codicon } from 'vs/base/common/codicons';
 
 type GettingStartedItem = {
 	id: string
@@ -19,7 +20,7 @@ type GettingStartedCategory = {
 	id: string
 	title: string,
 	description: string,
-	codicon: string,
+	codicon: Codicon,
 	when?: string,
 	content:
 	| { type: 'items', items: GettingStartedItem[] }
@@ -32,7 +33,7 @@ export const content: GettingStartedContent = [
 	{
 		id: 'Beginner',
 		title: localize('gettingStarted.beginner.title', "Get Started"),
-		codicon: 'lightbulb',
+		codicon: Codicon.lightbulb,
 		description: localize('gettingStarted.beginner.description', "Get to know your new editor"),
 		content: {
 			type: 'items',
@@ -102,7 +103,7 @@ export const content: GettingStartedContent = [
 	{
 		id: 'Intermediate',
 		title: localize('gettingStarted.intermediate.title', "Essentials"),
-		codicon: 'heart',
+		codicon: Codicon.heart,
 		description: localize('gettingStarted.intermediate.description', "Must know features you'll love"),
 		content: {
 			type: 'items',
@@ -125,7 +126,7 @@ export const content: GettingStartedContent = [
 	{
 		id: 'Advanced',
 		title: localize('gettingStarted.advanced.title', "Tips & Tricks"),
-		codicon: 'tools',
+		codicon: Codicon.tools,
 		description: localize('gettingStarted.advanced.description', "Favorites from VS Code experts"),
 		content: {
 			type: 'items',
@@ -136,7 +137,7 @@ export const content: GettingStartedContent = [
 	{
 		id: 'OpenFolder-Mac',
 		title: localize('gettingStarted.openFolder.title', "Open Folder"),
-		codicon: 'folder-opened',
+		codicon: Codicon.folderOpened,
 		when: 'isMac',
 		description: localize('gettingStarted.openFolder.description', "Open a project and start working"),
 		content: {
@@ -148,7 +149,7 @@ export const content: GettingStartedContent = [
 	{
 		id: 'OpenFolder-Other',
 		title: localize('gettingStarted.openFolder.title', "Open Folder"),
-		codicon: 'folder-opened',
+		codicon: Codicon.folderOpened,
 		description: localize('gettingStarted.openFolder.description', "Open a project and start working"),
 		when: '!isMac',
 		content: {
@@ -160,7 +161,7 @@ export const content: GettingStartedContent = [
 	{
 		id: 'InteractivePlayground',
 		title: localize('gettingStarted.playground.title', "Interactive Playground"),
-		codicon: 'library',
+		codicon: Codicon.library,
 		description: localize('gettingStarted.interactivePlayground.description', "Learn essential editor features"),
 		content: {
 			type: 'command',
