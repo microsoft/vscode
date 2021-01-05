@@ -219,14 +219,6 @@ export function createApiFactoryAndRegisterActors(accessor: ServicesAccessor): I
 				checkProposedApiEnabled(extension);
 				return extHostAuthentication.onDidChangeAuthenticationProviders;
 			},
-			getProviderIds(): Thenable<ReadonlyArray<string>> {
-				checkProposedApiEnabled(extension);
-				return extHostAuthentication.getProviderIds();
-			},
-			get providerIds(): string[] {
-				checkProposedApiEnabled(extension);
-				return extHostAuthentication.providerIds;
-			},
 			get providers(): ReadonlyArray<vscode.AuthenticationProviderInformation> {
 				checkProposedApiEnabled(extension);
 				return extHostAuthentication.providers;
