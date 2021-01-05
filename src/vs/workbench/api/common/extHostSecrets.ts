@@ -9,7 +9,7 @@ import { ExtHostSecretState } from 'vs/workbench/api/common/exHostSecretState';
 import { ExtensionIdentifier, IExtensionDescription } from 'vs/platform/extensions/common/extensions';
 import { Emitter, Event } from 'vs/base/common/event';
 
-export class ExtensionSecrets implements vscode.SecretState {
+export class ExtensionSecrets implements vscode.SecretStorage {
 
 	protected readonly _id: string;
 	protected readonly _secretState: ExtHostSecretState;
