@@ -9,12 +9,15 @@ import * as nls from 'vscode-nls';
 
 const localize = nls.loadMessageBundle();
 
+const openCommand = 'simpleBrowser.open';
+const showCommand = 'simpleBrowser.show';
+
 export function activate(context: vscode.ExtensionContext) {
 
 	const manager = new SimpleBrowserManager(context.extensionUri);
 	context.subscriptions.push(manager);
 
-	context.subscriptions.push(vscode.commands.registerCommand('simpleBrowser.show', async (url?: string) => {
+	context.subscriptions.push(vscode.commands.registerCommand(showCommand, async (url?: string) => {
 		if (!url) {
 			url = await vscode.window.showInputBox({
 				placeHolder: localize('simpleBrowser.show.placeholder', "https://example.com"),
@@ -22,7 +25,27 @@ export function activate(context: vscode.ExtensionContext) {
 			});
 		}
 
-		manager.show(url || 'https://example.com');
+		if (url) {
+			manager.show(url);
+		}
+	}));
+
+	context.subscriptions.push(vscode.commands.registerCommand(openCommand, (url: vscode.Uri) => {
+		manager.show(url.toString());
+	}));
+
+	context.subscriptions.push(vscode.window.registerExternalUriOpener(['http', 'https'], {
+		openExternalUri(uri: vscode.Uri): vscode.Command | undefined {
+			const configuration = vscode.workspace.getConfiguration('simpleBrowser');
+			if (!configuration.get('opener.enabled', false)) {
+				return undefined;
+			}
+
+			return {
+				title: localize('openTitle', "Open in simple browser"),
+				command: openCommand,
+				arguments: [uri]
+			};
+		}
 	}));
 }
-
