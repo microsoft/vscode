@@ -24,6 +24,9 @@ export function clearNode(node: HTMLElement): void {
 	}
 }
 
+/**
+ * @deprecated Use node.isConnected directly
+ */
 export function isInDOM(node: Node | null): boolean {
 	return node?.isConnected ?? false;
 }
@@ -998,9 +1001,13 @@ export function after<T extends Node>(sibling: HTMLElement, child: T): T {
 	return child;
 }
 
-export function append<T extends Node>(parent: HTMLElement, ...children: T[]): T {
+export function append<T extends Node>(parent: HTMLElement, child: T): T;
+export function append<T extends Node>(parent: HTMLElement, ...children: (T | string)[]): void;
+export function append<T extends Node>(parent: HTMLElement, ...children: (T | string)[]): T | void {
 	parent.append(...children);
-	return children[children.length - 1];
+	if (children.length === 1 && typeof children[0] !== 'string') {
+		return <T>children[0];
+	}
 }
 
 export function prepend<T extends Node>(parent: HTMLElement, child: T): T {
@@ -1008,20 +1015,12 @@ export function prepend<T extends Node>(parent: HTMLElement, child: T): T {
 	return child;
 }
 
-
 /**
  * Removes all children from `parent` and appends `children`
  */
 export function reset(parent: HTMLElement, ...children: Array<Node | string>): void {
 	parent.innerText = '';
-	appendChildren(parent, ...children);
-}
-
-/**
- * Appends `children` to `parent`
- */
-export function appendChildren(parent: HTMLElement, ...children: Array<Node | string>): void {
-	parent.append(...children);
+	append(parent, ...children);
 }
 
 const SELECTOR_REGEX = /([\w\-]+)?(#([\w\-]+))?((\.([\w\-]+))*)/;
