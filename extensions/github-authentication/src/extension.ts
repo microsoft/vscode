@@ -14,7 +14,7 @@ export async function activate(context: vscode.ExtensionContext) {
 	const telemetryReporter = new TelemetryReporter(name, version, aiKey);
 
 	context.subscriptions.push(vscode.window.registerUriHandler(uriHandler));
-	const loginService = new GitHubAuthenticationProvider();
+	const loginService = new GitHubAuthenticationProvider(context);
 
 	await loginService.initialize(context);
 

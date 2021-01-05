@@ -438,6 +438,6 @@
         "@emmetio/math-expression": "^1.0.4",
         "image-size": "^0.5.2",
         "vscode-emmet-helper": "~2.0.0",
-        "vscode-html-languageservice": "^3.0.3"
+        "vscode-languageserver-textdocument": "^1.0.1"
     }
 }

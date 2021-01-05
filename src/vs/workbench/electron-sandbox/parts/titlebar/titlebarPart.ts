@@ -24,6 +24,7 @@ import { INativeHostService } from 'vs/platform/native/electron-sandbox/native';
 import { getTitleBarStyle } from 'vs/platform/windows/common/windows';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { Codicon } from 'vs/base/common/codicons';
+import { NativeMenubarControl } from 'vs/workbench/electron-sandbox/parts/titlebar/menubarControl';
 
 export class TitlebarPart extends BrowserTitleBarPart {
 	private appIcon: HTMLElement | undefined;
@@ -119,7 +120,6 @@ export class TitlebarPart extends BrowserTitleBarPart {
 	}
 
 	protected onConfigurationChanged(event: IConfigurationChangeEvent): void {
-
 		super.onConfigurationChanged(event);
 
 		if (event.affectsConfiguration('window.doubleClickIconToClose')) {
@@ -164,6 +164,11 @@ export class TitlebarPart extends BrowserTitleBarPart {
 
 	createContentArea(parent: HTMLElement): HTMLElement {
 		const ret = super.createContentArea(parent);
+
+		// Native menu controller
+		if (isMacintosh || getTitleBarStyle(this.configurationService) === 'native') {
+			this._register(this.instantiationService.createInstance(NativeMenubarControl));
+		}
 
 		// App Icon (Native Windows/Linux)
 		if (!isMacintosh) {

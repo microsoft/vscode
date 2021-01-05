@@ -25,6 +25,7 @@
 	white-space: nowrap;
 }
 
+.monaco-breadcrumbs .outline-element .outline-element-decoration,
 .monaco-list .outline-element .outline-element-decoration {
 	opacity: 0.75;
 	font-size: 90%;
@@ -35,10 +36,17 @@
 	color: var(--outline-element-color);
 }
 
+/* when showing in breadcrumbs than hide a few things, like markers or descriptions */
+.monaco-breadcrumbs .outline-element .monaco-icon-label-container .monaco-icon-description-container,
+.monaco-breadcrumbs .outline-element .outline-element-decoration {
+	display: none;
+}
+
 .monaco-list .outline-element .outline-element-decoration.bubble {
 	font-family: codicon;
 	font-size: 14px;
 	opacity: 0.4;
+	padding-right: 8px;
 }
 
 .monaco-list .outline-element .outline-element-icon {

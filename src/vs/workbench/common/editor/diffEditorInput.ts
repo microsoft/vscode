@@ -13,6 +13,7 @@ import { dirname } from 'vs/base/common/resources';
 import { ILabelService } from 'vs/platform/label/common/label';
 import { IFileService } from 'vs/platform/files/common/files';
 import { URI } from 'vs/base/common/uri';
+import { withNullAsUndefined } from 'vs/base/common/types';
 
 /**
  * The base editor input for the diff editor. It is made up of two editor inputs, the original version
@@ -110,13 +111,10 @@ export class DiffEditorInput extends SideBySideEditorInput {
 	private async createModel(): Promise<DiffEditorModel> {
 
 		// Join resolve call over two inputs and build diff editor model
-		const models = await Promise.all([
+		const [originalEditorModel, modifiedEditorModel] = await Promise.all([
 			this.originalInput.resolve(),
 			this.modifiedInput.resolve()
 		]);
-
-		const originalEditorModel = models[0];
-		const modifiedEditorModel = models[1];
 
 		// If both are text models, return textdiffeditor model
 		if (modifiedEditorModel instanceof BaseTextEditorModel && originalEditorModel instanceof BaseTextEditorModel) {
@@ -124,7 +122,7 @@ export class DiffEditorInput extends SideBySideEditorInput {
 		}
 
 		// Otherwise return normal diff model
-		return new DiffEditorModel(originalEditorModel, modifiedEditorModel);
+		return new DiffEditorModel(withNullAsUndefined(originalEditorModel), withNullAsUndefined(modifiedEditorModel));
 	}
 
 	matches(otherInput: unknown): boolean {

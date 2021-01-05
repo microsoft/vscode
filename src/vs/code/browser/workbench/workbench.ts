@@ -265,7 +265,6 @@ class PollingURLCallbackProvider extends Disposable implements IURLCallbackProvi
 			setTimeout(() => this.periodicFetchCallback(requestId, startTime), PollingURLCallbackProvider.FETCH_INTERVAL);
 		}
 	}
-
 }
 
 class WorkspaceProvider implements IWorkspaceProvider {

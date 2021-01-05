@@ -74,11 +74,11 @@ suite('Debug - REPL', () => {
 		repl.appendToRepl(session, 'third line', severity.Info);
 		elements = <SimpleReplElement[]>repl.getReplElements();
 		assert.equal(elements.length, 3);
-		assert.equal(elements[0], 'first line\n');
+		assert.equal(elements[0].value, 'first line\n');
 		assert.equal(elements[0].count, 3);
-		assert.equal(elements[1], 'second line');
+		assert.equal(elements[1].value, 'second line');
 		assert.equal(elements[1].count, 2);
-		assert.equal(elements[2], 'third line');
+		assert.equal(elements[2].value, 'third line');
 		assert.equal(elements[2].count, 1);
 	});
 
@@ -93,11 +93,13 @@ suite('Debug - REPL', () => {
 		repl.appendToRepl(session, 'third line', severity.Info);
 		const elements = <SimpleReplElement[]>repl.getReplElements();
 		assert.equal(elements.length, 3);
-		assert.equal(elements[0], 'first line\n');
+		assert.equal(elements[0].value, 'first line\n');
+		assert.equal(elements[0].toString(), 'first line\nfirst line\nfirst line\n');
 		assert.equal(elements[0].count, 3);
-		assert.equal(elements[1], 'second line');
+		assert.equal(elements[1].value, 'second line');
+		assert.equal(elements[1].toString(), 'second line\nsecond line');
 		assert.equal(elements[1].count, 2);
-		assert.equal(elements[2], 'third line');
+		assert.equal(elements[2].value, 'third line');
 		assert.equal(elements[2].count, 1);
 	});
 

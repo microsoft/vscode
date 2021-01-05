@@ -3,7 +3,15 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-.monaco-icon-label.deprecated {
-	text-decoration: line-through;
-	opacity: 0.66;
-}
+//@ts-check
+
+'use strict';
+
+const withBrowserDefaults = require('../shared.webpack.config').browser;
+
+module.exports = withBrowserDefaults({
+	context: __dirname,
+	entry: {
+		extension: './src/extension.ts'
+	}
+});

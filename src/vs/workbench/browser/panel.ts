@@ -61,7 +61,6 @@ export abstract class Panel extends PaneComposite implements IPanel {
 		}
 		return panelActions.length ? panelActions : actions;
 	}
-
 }
 
 /**

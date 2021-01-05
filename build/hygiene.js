@@ -93,6 +93,7 @@ const indentationFilter = [
 	'!**/*.Dockerfile',
 	'!**/*.dockerfile',
 	'!extensions/markdown-language-features/media/*.js',
+	'!extensions/simple-browser/media/*.js',
 ];
 
 const copyrightFilter = [
