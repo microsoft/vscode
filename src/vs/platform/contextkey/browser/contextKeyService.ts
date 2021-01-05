@@ -371,6 +371,7 @@ export class ContextKeyService extends AbstractContextKeyService implements ICon
 	}
 
 	public dispose(): void {
+		this._onDidChangeContext.dispose();
 		this._isDisposed = true;
 		this._toDispose.dispose();
 	}
@@ -440,6 +441,7 @@ class ScopedContextKeyService extends AbstractContextKeyService {
 	}
 
 	public dispose(): void {
+		this._onDidChangeContext.dispose();
 		this._isDisposed = true;
 		this._parent.disposeContext(this._myContextId);
 		this._parentChangeListener?.dispose();
@@ -447,10 +449,6 @@ class ScopedContextKeyService extends AbstractContextKeyService {
 			this._domNode.removeAttribute(KEYBINDING_CONTEXT_ATTR);
 			this._domNode = undefined;
 		}
-	}
-
-	public get onDidChangeContext(): Event<IContextKeyChangeEvent> {
-		return this._onDidChangeContext.event;
 	}
 
 	public getContextValuesContainer(contextId: number): Context {
