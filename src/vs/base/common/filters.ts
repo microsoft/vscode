@@ -468,21 +468,7 @@ function isSeparatorAtPos(value: string, index: number): boolean {
 		return false;
 	}
 	const code = value.charCodeAt(index);
-	switch (code) {
-		case CharCode.Underline:
-		case CharCode.Dash:
-		case CharCode.Period:
-		case CharCode.Space:
-		case CharCode.Slash:
-		case CharCode.Backslash:
-		case CharCode.SingleQuote:
-		case CharCode.DoubleQuote:
-		case CharCode.Colon:
-		case CharCode.DollarSign:
-			return true;
-		default:
-			return false;
-	}
+	return isWordSeparator(code) || strings.isEmojiImprecise(code);
 }
 
 function isWhitespaceAtPos(value: string, index: number): boolean {
