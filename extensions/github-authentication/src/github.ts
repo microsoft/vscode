@@ -40,7 +40,7 @@ export class GitHubAuthenticationProvider {
 			// Ignore, network request failed
 		}
 
-		context.subscriptions.push(context.secretState.onDidChangePassword(() => this.checkForUpdates()));
+		context.subscriptions.push(context.secretState.onDidChange(() => this.checkForUpdates()));
 	}
 
 	private async verifySessions(): Promise<void> {

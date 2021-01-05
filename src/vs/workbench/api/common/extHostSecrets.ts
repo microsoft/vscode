@@ -14,15 +14,15 @@ export class ExtensionSecrets implements vscode.SecretState {
 	protected readonly _id: string;
 	protected readonly _secretState: ExtHostSecretState;
 
-	private _onDidChangePassword = new Emitter<void>();
-	readonly onDidChangePassword: Event<void> = this._onDidChangePassword.event;
+	private _onDidChange = new Emitter<void>();
+	readonly onDidChange: Event<void> = this._onDidChange.event;
 
 
 	constructor(extensionDescription: IExtensionDescription, secretState: ExtHostSecretState) {
 		this._id = ExtensionIdentifier.toKey(extensionDescription.identifier);
 		this._secretState = secretState;
 
-		this._secretState.onDidChangePassword(_ => this._onDidChangePassword.fire());
+		this._secretState.onDidChangePassword(_ => this._onDidChange.fire());
 	}
 
 	get(key: string): Promise<string | undefined> {

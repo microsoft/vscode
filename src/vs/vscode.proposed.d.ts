@@ -2367,7 +2367,7 @@ declare module 'vscode' {
 		/**
 		 * Fires when a secret is set or deleted.
 		 */
-		onDidChangePassword: Event<void>;
+		onDidChange: Event<void>;
 	}
 	export interface ExtensionContext {
 		secretState: SecretState;
