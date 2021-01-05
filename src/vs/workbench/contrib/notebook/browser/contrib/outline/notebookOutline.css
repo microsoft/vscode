@@ -3,7 +3,6 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-.monaco-breadcrumbs > .notebook-outline-element,
 .monaco-list .notebook-outline-element {
 	display: flex;
 	flex: 1;
