@@ -152,23 +152,23 @@ suite('Tests for Wrap with Abbreviations', () => {
 		return testWrapWithAbbreviation([new Selection(2, 0, 2, 0)], 'li.hello|c', expectedContents, contents);
 	});
 
-	test('Wrap with abbreviation link', () => {
-		const contents = `
-	<ul class="nav main">
-		line
-	</ul>
-	`;
-		const expectedContents = `
-	<a href="https://example.com">
-		<div>
-			<ul class="nav main">
-				line
-			</ul>
-		</div>
-	</a>
-	`;
-		return testWrapWithAbbreviation([new Selection(1, 1, 1, 1)], 'a[href="https://example.com"]>div', expectedContents, contents);
-	});
+	// test('Wrap with abbreviation link', () => {
+	// 	const contents = `
+	// <ul class="nav main">
+	// 	line
+	// </ul>
+	// `;
+	// 	const expectedContents = `
+	// <a href="https://example.com">
+	// 	<div>
+	// 		<ul class="nav main">
+	// 			line
+	// 		</ul>
+	// 	</div>
+	// </a>
+	// `;
+	// 	return testWrapWithAbbreviation([new Selection(1, 1, 1, 1)], 'a[href="https://example.com"]>div', expectedContents, contents);
+	// });
 
 	test('Wrap with abbreviation entire node when cursor is on opening tag', () => {
 		const contents = `

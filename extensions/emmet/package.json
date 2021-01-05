@@ -431,7 +431,7 @@
     },
     "devDependencies": {
         "@types/node": "^12.19.9",
-        "emmet": "github:rzhao271/emmet#1b2df677d8925ef5ea6da9df8845968403979a0a"
+        "emmet": "^2.3.0"
     },
     "dependencies": {
         "@emmetio/abbreviation": "^2.2.0",
@@ -439,7 +439,7 @@
         "@emmetio/html-matcher": "^0.3.3",
         "@emmetio/math-expression": "^1.0.4",
         "image-size": "^0.5.2",
-        "vscode-emmet-helper": "2.2.4-1",
+        "vscode-emmet-helper": "2.2.2",
         "vscode-languageserver-textdocument": "^1.0.1"
     }
 }
