@@ -908,7 +908,7 @@ declare module 'vscode' {
 
 	//#region Tree data provider: https://github.com/microsoft/vscode/issues/111614 @alexr00
 	export interface TreeDataProvider<T> {
-		resolveTreeItem?(item: TreeItem, element: T, token?: CancellationToken): ProviderResult<TreeItem>;
+		resolveTreeItem?(item: TreeItem, element: T, token: CancellationToken): ProviderResult<TreeItem>;
 	}
 	////#endregion
 
