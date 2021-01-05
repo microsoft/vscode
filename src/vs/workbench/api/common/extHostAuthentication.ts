@@ -43,14 +43,6 @@ export class ExtHostAuthentication implements ExtHostAuthenticationShape {
 		return Promise.resolve();
 	}
 
-	getProviderIds(): Promise<ReadonlyArray<string>> {
-		return this._proxy.$getProviderIds();
-	}
-
-	get providerIds(): string[] {
-		return this._providerIds;
-	}
-
 	get providers(): ReadonlyArray<vscode.AuthenticationProviderInformation> {
 		return Object.freeze(this._providers.slice());
 	}
