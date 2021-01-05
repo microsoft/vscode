@@ -8886,6 +8886,7 @@ declare module 'vscode' {
 		 * @return The resolved tree item or a thenable that resolves to such. It is OK to return the given
 		 * `item`. When no result is returned, the given `item` will be used.
 		 */
+		// eslint-disable-next-line vscode-dts-cancellation
 		resolveTreeItem?(item: TreeItem, element: T): ProviderResult<TreeItem>;
 	}
 

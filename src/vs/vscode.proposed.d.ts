@@ -1582,6 +1582,7 @@ declare module 'vscode' {
 		// eslint-disable-next-line vscode-dts-provider-naming
 		openNotebook(uri: Uri, openContext: NotebookDocumentOpenContext): NotebookData | Promise<NotebookData>;
 		// eslint-disable-next-line vscode-dts-provider-naming
+		// eslint-disable-next-line vscode-dts-cancellation
 		resolveNotebook(document: NotebookDocument, webview: NotebookCommunication): Promise<void>;
 		// eslint-disable-next-line vscode-dts-provider-naming
 		saveNotebook(document: NotebookDocument, cancellation: CancellationToken): Promise<void>;
