@@ -303,7 +303,7 @@ export class CodeApplication extends Disposable {
 			// Prefer to use the args and env from the target window
 			// when resolving the shell env. It is possible that
 			// a first window was opened from the UI but a second
-			// from the CLI and that has implications for wether to
+			// from the CLI and that has implications for whether to
 			// resolve the shell environment or not.
 			let args: NativeParsedArgs;
 			let env: NodeJS.ProcessEnv;

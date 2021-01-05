@@ -1403,7 +1403,7 @@ export class TabsTitleControl extends TitleControl {
 		}
 
 		// Figure out if active tab is positioned static which has an
-		// impact on wether to reveal the tab or not later
+		// impact on whether to reveal the tab or not later
 		let activeTabPositionStatic = this.accessor.partOptions.pinnedTabSizing !== 'normal' && this.group.isSticky(activeIndex);
 
 		// Special case: we have sticky tabs but the available space for showing tabs
