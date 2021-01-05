@@ -452,6 +452,9 @@ export class Thread implements IThread {
 				this.callStack.splice(start, this.callStack.length - start);
 			}
 			this.callStack = this.callStack.concat(callStack || []);
+			if (typeof this.stoppedDetails?.totalFrames === 'number' && this.stoppedDetails.totalFrames === this.callStack.length) {
+				this.reachedEndOfCallStack = true;
+			}
 		}
 	}
 
