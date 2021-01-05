@@ -899,6 +899,13 @@
                 ]
             },
             {
+                "target": "**/test/monaco/**",
+                "restrictions": [
+                    "**/test/monaco/**",
+                    "*" // node modules
+                ]
+            },
+            {
                 "target": "**/api/**.test.ts",
                 "restrictions": [
                     "**/vs/**",
@@ -969,6 +976,19 @@
                 "vscode-dts-create-func": "warn",
                 "vscode-dts-literal-or-types": "warn",
                 "vscode-dts-interface-naming": "warn",
+                "vscode-dts-cancellation": "warn",
+                "vscode-dts-provider-naming": [
+                    "warn",
+                    {
+                        "allowed": [
+                            "FileSystemProvider",
+                            "TreeDataProvider",
+                            "CustomEditorProvider",
+                            "CustomReadonlyEditorProvider",
+                            "TerminalLinkProvider"
+                        ]
+                    }
+                ],
                 "vscode-dts-event-naming": [
                     "warn",
                     {

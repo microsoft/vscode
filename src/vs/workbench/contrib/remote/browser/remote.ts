@@ -17,7 +17,7 @@ import { IThemeService, ThemeIcon } from 'vs/platform/theme/common/themeService'
 import { IContextMenuService } from 'vs/platform/contextview/browser/contextView';
 import { IExtensionService } from 'vs/workbench/services/extensions/common/extensions';
 import { FilterViewPaneContainer } from 'vs/workbench/browser/parts/views/viewsViewlet';
-import { AutomaticPortForwarding, ForwardedPortsView, VIEWLET_ID } from 'vs/workbench/contrib/remote/browser/remoteExplorer';
+import { AutomaticPortForwarding, ForwardedPortsView, PortRestore, VIEWLET_ID } from 'vs/workbench/contrib/remote/browser/remoteExplorer';
 import { IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
 import { IViewDescriptor, IViewsRegistry, Extensions, ViewContainerLocation, IViewContainersRegistry, IViewDescriptorService } from 'vs/workbench/common/views';
 import { Registry } from 'vs/platform/registry/common/platform';
@@ -458,10 +458,9 @@ class HelpPanelDescriptor implements IViewDescriptor {
 }
 
 export class RemoteViewPaneContainer extends FilterViewPaneContainer implements IViewModel {
-	private switchRemoteInstance: SwitchRemoteViewItem | undefined;
-
 	private helpPanelDescriptor = new HelpPanelDescriptor(this);
 	helpInformation: HelpInformation[] = [];
+	private hasSetSwitchForConnection: boolean = false;
 
 	constructor(
 		@IWorkbenchLayoutService layoutService: IWorkbenchLayoutService,
@@ -522,11 +521,14 @@ export class RemoteViewPaneContainer extends FilterViewPaneContainer implements 
 
 	public getActionViewItem(action: Action): IActionViewItem | undefined {
 		if (action.id === SwitchRemoteAction.ID) {
-			if (this.switchRemoteInstance === undefined) {
-				this.switchRemoteInstance = this.instantiationService.createInstance(SwitchRemoteViewItem, action, SwitchRemoteViewItem.createOptionItems(Registry.as<IViewsRegistry>(Extensions.ViewsRegistry).getViews(this.viewContainer), this.contextKeyService));
+			const optionItems = SwitchRemoteViewItem.createOptionItems(Registry.as<IViewsRegistry>(Extensions.ViewsRegistry).getViews(this.viewContainer), this.contextKeyService);
+			const item = this.instantiationService.createInstance(SwitchRemoteViewItem, action, optionItems);
+			if (!this.hasSetSwitchForConnection) {
+				this.hasSetSwitchForConnection = item.setSelectionForConnection();
+			} else {
+				item.setSelection();
 			}
-
-			return this.switchRemoteInstance;
+			return item;
 		}
 
 		return super.getActionViewItem(action);
@@ -815,4 +817,5 @@ const workbenchContributionsRegistry = Registry.as<IWorkbenchContributionsRegist
 workbenchContributionsRegistry.registerWorkbenchContribution(RemoteAgentConnectionStatusListener, LifecyclePhase.Eventually);
 workbenchContributionsRegistry.registerWorkbenchContribution(RemoteStatusIndicator, LifecyclePhase.Starting);
 workbenchContributionsRegistry.registerWorkbenchContribution(ForwardedPortsView, LifecyclePhase.Eventually);
+workbenchContributionsRegistry.registerWorkbenchContribution(PortRestore, LifecyclePhase.Eventually);
 workbenchContributionsRegistry.registerWorkbenchContribution(AutomaticPortForwarding, LifecyclePhase.Eventually);

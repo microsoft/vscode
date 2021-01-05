@@ -11,12 +11,13 @@ import { Registry } from 'vs/platform/registry/common/platform';
 import { ICustomEditorInfo, IEditorService, IOpenEditorOverrideHandler, IOpenEditorOverrideEntry } from 'vs/workbench/services/editor/common/editorService';
 import { IEditorInput, IEditorPane, IEditorInputFactoryRegistry, Extensions as EditorExtensions, EditorResourceAccessor } from 'vs/workbench/common/editor';
 import { ITextEditorOptions, IEditorOptions } from 'vs/platform/editor/common/editor';
-import { IEditorGroup, OpenEditorContext } from 'vs/workbench/services/editor/common/editorGroupsService';
+import { IEditorGroup, IEditorGroupsService, OpenEditorContext, preferredSideBySideGroupDirection } from 'vs/workbench/services/editor/common/editorGroupsService';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
-import { IQuickInputService, IQuickPickItem } from 'vs/platform/quickinput/common/quickInput';
+import { IKeyMods, IQuickInputService, IQuickPickItem } from 'vs/platform/quickinput/common/quickInput';
 import { URI } from 'vs/base/common/uri';
 import { extname, basename, isEqual } from 'vs/base/common/resources';
 import { Codicon } from 'vs/base/common/codicons';
+import { ServicesAccessor } from 'vs/platform/instantiation/common/instantiation';
 
 /**
  * Id of the default editor for open with.
@@ -30,14 +31,17 @@ export const DEFAULT_EDITOR_ID = 'default';
  * @param id Id of the editor to use. If not provided, the user is prompted for which editor to use.
  */
 export async function openEditorWith(
+	accessor: ServicesAccessor,
 	input: IEditorInput,
 	id: string | undefined,
 	options: IEditorOptions | ITextEditorOptions | undefined,
 	group: IEditorGroup,
-	editorService: IEditorService,
-	configurationService: IConfigurationService,
-	quickInputService: IQuickInputService,
 ): Promise<IEditorPane | undefined> {
+	const editorService = accessor.get(IEditorService);
+	const editorGroupsService = accessor.get(IEditorGroupsService);
+	const configurationService = accessor.get(IConfigurationService);
+	const quickInputService = accessor.get(IQuickInputService);
+
 	const resource = input.resource;
 	if (!resource) {
 		return;
@@ -77,24 +81,58 @@ export async function openEditorWith(
 			}] : undefined
 		};
 	});
+	type QuickPickItem = IQuickPickItem & {
+		readonly handler: IOpenEditorOverrideHandler;
+	};
 
-	const picker = quickInputService.createQuickPick<(IQuickPickItem & { handler: IOpenEditorOverrideHandler })>();
+	const picker = quickInputService.createQuickPick<QuickPickItem>();
 	picker.items = items;
 	if (items.length) {
 		picker.selectedItems = [items[0]];
 	}
 	picker.placeholder = nls.localize('promptOpenWith.placeHolder', "Select editor for '{0}'", basename(originalResource));
+	picker.canAcceptInBackground = true;
 
-	const pickedItem = await new Promise<(IQuickPickItem & { handler: IOpenEditorOverrideHandler }) | undefined>(resolve => {
-		picker.onDidAccept(() => {
-			resolve(picker.selectedItems.length === 1 ? picker.selectedItems[0] : undefined);
-			picker.dispose();
+	type PickedResult = {
+		readonly item: QuickPickItem;
+		readonly keyMods?: IKeyMods;
+		readonly openInBackground: boolean;
+	};
+
+	function openEditor(picked: PickedResult) {
+		const targetGroup = getTargetGroup(group, picked.keyMods, configurationService, editorGroupsService);
+
+		const openOptions: IEditorOptions = {
+			...options,
+			override: picked.item.id,
+			preserveFocus: picked.openInBackground || options?.preserveFocus,
+		};
+		return picked.item.handler.open(input, openOptions, targetGroup, OpenEditorContext.NEW_EDITOR)?.override;
+	}
+
+	const picked = await new Promise<PickedResult | undefined>(resolve => {
+		picker.onDidAccept(e => {
+			if (picker.selectedItems.length === 1) {
+				const result: PickedResult = {
+					item: picker.selectedItems[0],
+					keyMods: picker.keyMods,
+					openInBackground: e.inBackground
+				};
+
+				if (e.inBackground) {
+					openEditor(result);
+				} else {
+					resolve(result);
+				}
+			} else {
+				resolve(undefined);
+			}
 		});
 
 		picker.onDidTriggerItemButton(e => {
 			const pick = e.item;
 			const id = pick.id;
-			resolve(pick); // open the view
+			resolve({ item: pick, openInBackground: false }); // open the view
 			picker.dispose();
 
 			// And persist the setting
@@ -121,7 +159,11 @@ export async function openEditorWith(
 		picker.show();
 	});
 
-	return pickedItem?.handler.open(input, { ...options, override: pickedItem.id }, group, OpenEditorContext.NEW_EDITOR)?.override;
+	if (!picked) {
+		return undefined;
+	}
+
+	return openEditor(picked);
 }
 
 const builtinProviderDisplayName = nls.localize('builtinProviderDisplayName', "Built-in");
@@ -131,6 +173,23 @@ export const defaultEditorOverrideEntry = Object.freeze({
 	label: nls.localize('promptOpenWith.defaultEditor.displayName', "Text Editor"),
 	detail: builtinProviderDisplayName
 });
+
+/**
+ * Get the group to open the editor in by looking at the pressed keys from the picker.
+ */
+function getTargetGroup(
+	startingGroup: IEditorGroup,
+	keyMods: IKeyMods | undefined,
+	configurationService: IConfigurationService,
+	editorGroupsService: IEditorGroupsService,
+) {
+	if (keyMods?.alt || keyMods?.ctrlCmd) {
+		const direction = preferredSideBySideGroupDirection(configurationService);
+		const targetGroup = editorGroupsService.findGroup({ direction }, startingGroup.id);
+		return targetGroup ?? editorGroupsService.addGroup(startingGroup, direction);
+	}
+	return startingGroup;
+}
 
 /**
  * Get a list of all available editors, including the default text editor.

@@ -11,8 +11,8 @@ import { registerSingleton } from 'vs/platform/instantiation/common/extensions';
 import { INotificationService, IPromptChoice, Severity } from 'vs/platform/notification/common/notification';
 import { IHostService } from 'vs/workbench/services/host/browser/host';
 import { createDecorator, ServicesAccessor } from 'vs/platform/instantiation/common/instantiation';
-import { Action2, registerAction2 } from 'vs/platform/actions/common/actions';
-import { IContextKeyService, RawContextKey } from 'vs/platform/contextkey/common/contextkey';
+import { Action2, MenuId, registerAction2 } from 'vs/platform/actions/common/actions';
+import { ContextKeyEqualsExpr, IContextKeyService, RawContextKey } from 'vs/platform/contextkey/common/contextkey';
 import { IDialogService } from 'vs/platform/dialogs/common/dialogs';
 import { LifecyclePhase } from 'vs/workbench/services/lifecycle/common/lifecycle';
 import { Registry } from 'vs/platform/registry/common/platform';
@@ -216,7 +216,13 @@ registerAction2(class extends Action2 {
 			title: { value: localize('title.start', "Start Extension Bisect"), original: 'Start Extension Bisect' },
 			category: localize('help', "Help"),
 			f1: true,
-			precondition: ExtensionBisectUi.ctxIsBisectActive.negate()
+			precondition: ExtensionBisectUi.ctxIsBisectActive.negate(),
+			menu: {
+				id: MenuId.ViewContainerTitle,
+				when: ContextKeyEqualsExpr.create('viewContainer', 'workbench.view.extensions'),
+				group: '2_enablement',
+				order: 3
+			}
 		});
 	}
 

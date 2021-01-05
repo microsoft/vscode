@@ -50,7 +50,7 @@ function terminateProcess(process: cp.ChildProcess, cwd?: string): Promise<Termi
 				options.cwd = cwd;
 			}
 			const killProcess = cp.execFile('taskkill', ['/T', '/F', '/PID', process.pid.toString()], options);
-			return new Promise((resolve, reject) => {
+			return new Promise(resolve => {
 				killProcess.once('error', (err) => {
 					resolve({ success: false, error: err });
 				});
@@ -68,7 +68,7 @@ function terminateProcess(process: cp.ChildProcess, cwd?: string): Promise<Termi
 	} else if (Platform.isLinux || Platform.isMacintosh) {
 		try {
 			const cmd = FileAccess.asFileUri('vs/base/node/terminateProcess.sh', require).fsPath;
-			return new Promise((resolve, reject) => {
+			return new Promise(resolve => {
 				cp.execFile(cmd, [process.pid.toString()], { encoding: 'utf8', shell: true } as cp.ExecFileOptions, (err, stdout, stderr) => {
 					if (err) {
 						resolve({ success: false, error: err });
@@ -86,8 +86,8 @@ function terminateProcess(process: cp.ChildProcess, cwd?: string): Promise<Termi
 	return Promise.resolve({ success: true });
 }
 
-export function getWindowsShell(environment: Platform.IProcessEnvironment = process.env as Platform.IProcessEnvironment): string {
-	return environment['comspec'] || 'cmd.exe';
+export function getWindowsShell(env = process.env as Platform.IProcessEnvironment): string {
+	return env['comspec'] || 'cmd.exe';
 }
 
 export abstract class AbstractProcess<TProgressData> {
@@ -447,8 +447,8 @@ export namespace win32 {
 			// to the current working directory.
 			return path.join(cwd, command);
 		}
-		if (paths === undefined && Types.isString(process.env.PATH)) {
-			paths = process.env.PATH.split(path.delimiter);
+		if (paths === undefined && Types.isString(process.env['PATH'])) {
+			paths = process.env['PATH'].split(path.delimiter);
 		}
 		// No PATH environment. Make path absolute to the cwd.
 		if (paths === undefined || paths.length === 0) {

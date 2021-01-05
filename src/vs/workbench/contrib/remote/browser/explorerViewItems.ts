@@ -31,36 +31,42 @@ export class SwitchRemoteViewItem extends SelectActionViewItem {
 		private readonly optionsItems: IRemoteSelectItem[],
 		@IThemeService themeService: IThemeService,
 		@IContextViewService contextViewService: IContextViewService,
-		@IRemoteExplorerService remoteExplorerService: IRemoteExplorerService,
-		@IWorkbenchEnvironmentService environmentService: IWorkbenchEnvironmentService,
+		@IRemoteExplorerService private remoteExplorerService: IRemoteExplorerService,
+		@IWorkbenchEnvironmentService private environmentService: IWorkbenchEnvironmentService,
 		@IStorageService private readonly storageService: IStorageService
 	) {
 		super(null, action, optionsItems, 0, contextViewService, { ariaLabel: nls.localize('remotes', 'Switch Remote') });
 		this._register(attachSelectBoxStyler(this.selectBox, themeService));
-
-		this.setSelectionForConnection(optionsItems, environmentService, remoteExplorerService);
 	}
 
-	private setSelectionForConnection(optionsItems: IRemoteSelectItem[], environmentService: IWorkbenchEnvironmentService, remoteExplorerService: IRemoteExplorerService) {
+	public setSelectionForConnection(): boolean {
+		let isSetForConnection = false;
 		if (this.optionsItems.length > 0) {
 			let index = 0;
-			const remoteAuthority = environmentService.remoteAuthority;
+			const remoteAuthority = this.environmentService.remoteAuthority;
+			isSetForConnection = true;
 			const explorerType: string[] | undefined = remoteAuthority ? [remoteAuthority.split('+')[0]] :
 				this.storageService.get(REMOTE_EXPLORER_TYPE_KEY, StorageScope.WORKSPACE)?.split(',') ?? this.storageService.get(REMOTE_EXPLORER_TYPE_KEY, StorageScope.GLOBAL)?.split(',');
 			if (explorerType !== undefined) {
-				index = this.getOptionIndexForExplorerType(optionsItems, explorerType);
+				index = this.getOptionIndexForExplorerType(explorerType);
 			}
 			this.select(index);
-			remoteExplorerService.targetType = optionsItems[index].authority;
+			this.remoteExplorerService.targetType = this.optionsItems[index].authority;
 		}
+		return isSetForConnection;
 	}
 
-	private getOptionIndexForExplorerType(optionsItems: IRemoteSelectItem[], explorerType: string[]): number {
+	public setSelection() {
+		const index = this.getOptionIndexForExplorerType(this.remoteExplorerService.targetType);
+		this.select(index);
+	}
+
+	private getOptionIndexForExplorerType(explorerType: string[]): number {
 		let index = 0;
 		for (let optionIterator = 0; (optionIterator < this.optionsItems.length) && (index === 0); optionIterator++) {
-			for (let authorityIterator = 0; authorityIterator < optionsItems[optionIterator].authority.length; authorityIterator++) {
+			for (let authorityIterator = 0; authorityIterator < this.optionsItems[optionIterator].authority.length; authorityIterator++) {
 				for (let i = 0; i < explorerType.length; i++) {
-					if (optionsItems[optionIterator].authority[authorityIterator] === explorerType[i]) {
+					if (this.optionsItems[optionIterator].authority[authorityIterator] === explorerType[i]) {
 						index = optionIterator;
 						break;
 					}

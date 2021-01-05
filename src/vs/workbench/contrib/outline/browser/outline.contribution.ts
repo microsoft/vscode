@@ -8,18 +8,17 @@ import { IViewsRegistry, IViewDescriptor, Extensions as ViewExtensions } from 'v
 import { OutlinePane } from './outlinePane';
 import { Registry } from 'vs/platform/registry/common/platform';
 import { IConfigurationRegistry, Extensions as ConfigurationExtensions, ConfigurationScope } from 'vs/platform/configuration/common/configurationRegistry';
-import { OutlineConfigKeys, OutlineViewId } from 'vs/editor/contrib/documentSymbols/outline';
 import { VIEW_CONTAINER } from 'vs/workbench/contrib/files/browser/explorerViewlet';
 import { SyncDescriptor } from 'vs/platform/instantiation/common/descriptors';
 import { Codicon } from 'vs/base/common/codicons';
 import { registerIcon } from 'vs/platform/theme/common/iconRegistry';
+import { OutlineConfigKeys } from 'vs/workbench/services/outline/browser/outline';
 
-export const PANEL_ID = 'panel.view.outline';
 
 const outlineViewIcon = registerIcon('outline-view-icon', Codicon.symbolClass, localize('outlineViewIcon', 'View icon of the outline view.'));
 
 const _outlineDesc = <IViewDescriptor>{
-	id: OutlineViewId,
+	id: OutlinePane.Id,
 	name: localize('name', "Outline"),
 	containerIcon: outlineViewIcon,
 	ctorDescriptor: new SyncDescriptor(OutlinePane),
@@ -171,41 +170,49 @@ Registry.as<IConfigurationRegistry>(ConfigurationExtensions.Configuration).regis
 		'outline.showObjects': {
 			type: 'boolean',
 			default: true,
+			scope: ConfigurationScope.LANGUAGE_OVERRIDABLE,
 			markdownDescription: localize('filteredTypes.object', "When enabled outline shows `object`-symbols.")
 		},
 		'outline.showKeys': {
 			type: 'boolean',
 			default: true,
+			scope: ConfigurationScope.LANGUAGE_OVERRIDABLE,
 			markdownDescription: localize('filteredTypes.key', "When enabled outline shows `key`-symbols.")
 		},
 		'outline.showNull': {
 			type: 'boolean',
 			default: true,
+			scope: ConfigurationScope.LANGUAGE_OVERRIDABLE,
 			markdownDescription: localize('filteredTypes.null', "When enabled outline shows `null`-symbols.")
 		},
 		'outline.showEnumMembers': {
 			type: 'boolean',
 			default: true,
+			scope: ConfigurationScope.LANGUAGE_OVERRIDABLE,
 			markdownDescription: localize('filteredTypes.enumMember', "When enabled outline shows `enumMember`-symbols.")
 		},
 		'outline.showStructs': {
 			type: 'boolean',
 			default: true,
+			scope: ConfigurationScope.LANGUAGE_OVERRIDABLE,
 			markdownDescription: localize('filteredTypes.struct', "When enabled outline shows `struct`-symbols.")
 		},
 		'outline.showEvents': {
 			type: 'boolean',
 			default: true,
+			scope: ConfigurationScope.LANGUAGE_OVERRIDABLE,
 			markdownDescription: localize('filteredTypes.event', "When enabled outline shows `event`-symbols.")
 		},
 		'outline.showOperators': {
 			type: 'boolean',
 			default: true,
+			scope: ConfigurationScope.LANGUAGE_OVERRIDABLE,
 			markdownDescription: localize('filteredTypes.operator', "When enabled outline shows `operator`-symbols.")
 		},
 		'outline.showTypeParameters': {
 			type: 'boolean',
 			default: true,
+			scope: ConfigurationScope.LANGUAGE_OVERRIDABLE,
 			markdownDescription: localize('filteredTypes.typeParameter', "When enabled outline shows `typeParameter`-symbols.")
 		}
 	}

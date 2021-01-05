@@ -3,7 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { ExtHostTunnelServiceShape, MainContext, MainThreadTunnelServiceShape } from 'vs/workbench/api/common/extHost.protocol';
+import { ExtHostTunnelServiceShape } from 'vs/workbench/api/common/extHost.protocol';
 import { createDecorator } from 'vs/platform/instantiation/common/instantiation';
 import * as vscode from 'vscode';
 import { RemoteTunnel, TunnelCreationOptions, TunnelOptions } from 'vs/platform/remote/common/tunnel';
@@ -44,12 +44,10 @@ export const IExtHostTunnelService = createDecorator<IExtHostTunnelService>('IEx
 export class ExtHostTunnelService implements IExtHostTunnelService {
 	declare readonly _serviceBrand: undefined;
 	onDidChangeTunnels: vscode.Event<void> = (new Emitter<void>()).event;
-	private readonly _proxy: MainThreadTunnelServiceShape;
 
 	constructor(
 		@IExtHostRpcService extHostRpc: IExtHostRpcService,
 	) {
-		this._proxy = extHostRpc.getProxy(MainContext.MainThreadTunnelService);
 	}
 
 	async openTunnel(extension: IExtensionDescription, forward: TunnelOptions): Promise<vscode.Tunnel | undefined> {
@@ -59,10 +57,10 @@ export class ExtHostTunnelService implements IExtHostTunnelService {
 		return [];
 	}
 	async setTunnelExtensionFunctions(provider: vscode.RemoteAuthorityResolver | undefined): Promise<IDisposable> {
-		await this._proxy.$tunnelServiceReady();
 		return { dispose: () => { } };
 	}
-	$forwardPort(tunnelOptions: TunnelOptions, tunnelCreationOptions: TunnelCreationOptions): Promise<TunnelDto> | undefined { return undefined; }
+	async $forwardPort(tunnelOptions: TunnelOptions, tunnelCreationOptions: TunnelCreationOptions): Promise<TunnelDto | undefined> { return undefined; }
 	async $closeTunnel(remote: { host: string, port: number }): Promise<void> { }
 	async $onDidTunnelsChange(): Promise<void> { }
+	async $registerCandidateFinder(): Promise<void> { }
 }

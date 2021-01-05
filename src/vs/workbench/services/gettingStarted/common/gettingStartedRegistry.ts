@@ -3,6 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
+import { Codicon } from 'vs/base/common/codicons';
 import { Emitter, Event } from 'vs/base/common/event';
 import { FileAccess } from 'vs/base/common/network';
 import { URI } from 'vs/base/common/uri';
@@ -32,7 +33,7 @@ export interface IGettingStartedCategoryDescriptor {
 	id: GettingStartedCategory | string
 	title: string
 	description: string
-	codicon: string
+	codicon: Codicon
 	when: ContextKeyExpression
 	content:
 	| { type: 'items' }
@@ -43,7 +44,7 @@ export interface IGettingStartedCategory {
 	id: GettingStartedCategory | string
 	title: string
 	description: string
-	codicon: string
+	codicon: Codicon
 	when: ContextKeyExpression
 	content:
 	| { type: 'items', items: IGettingStartedTask[] }

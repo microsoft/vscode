@@ -32,7 +32,15 @@
     "@types/underscore": "^1.8.9",
     "@types/xml2js": "0.0.33",
     "@typescript-eslint/experimental-utils": "~2.13.0",
-    "typescript": "4.2.0-dev.20201207"
+    "@typescript-eslint/parser": "^3.3.0",
+    "applicationinsights": "1.0.8",
+    "azure-storage": "^2.1.0",
+    "electron-osx-sign": "^0.4.16",
+    "iconv-lite-umd": "0.6.8",
+    "jsonc-parser": "^2.3.0",
+    "mime": "^1.4.1",
+    "typescript": "4.2.0-dev.20201207",
+    "vsce": "1.48.0"
   },
   "scripts": {
     "compile": "tsc -p tsconfig.build.json",

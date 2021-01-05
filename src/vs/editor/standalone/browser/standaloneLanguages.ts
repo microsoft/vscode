@@ -4,6 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { CancellationToken } from 'vs/base/common/cancellation';
+import { Color } from 'vs/base/common/color';
 import { IDisposable } from 'vs/base/common/lifecycle';
 import { Position } from 'vs/editor/common/core/position';
 import { Range } from 'vs/editor/common/core/range';
@@ -87,14 +88,14 @@ export class EncodedTokenizationSupport2Adapter implements modes.ITokenizationSu
 		return this._actual.getInitialState();
 	}
 
-	public tokenize(line: string, state: modes.IState, offsetDelta: number): TokenizationResult {
+	public tokenize(line: string, hasEOL: boolean, state: modes.IState, offsetDelta: number): TokenizationResult {
 		if (typeof this._actual.tokenize === 'function') {
 			return TokenizationSupport2Adapter.adaptTokenize(this._languageIdentifier.language, <{ tokenize(line: string, state: modes.IState): ILineTokens; }>this._actual, line, state, offsetDelta);
 		}
 		throw new Error('Not supported!');
 	}
 
-	public tokenize2(line: string, state: modes.IState): TokenizationResult2 {
+	public tokenize2(line: string, hasEOL: boolean, state: modes.IState): TokenizationResult2 {
 		let result = this._actual.tokenizeEncoded(line, state);
 		return new TokenizationResult2(result.tokens, result.endState);
 	}
@@ -157,7 +158,7 @@ export class TokenizationSupport2Adapter implements modes.ITokenizationSupport {
 		return new TokenizationResult(tokens, endState);
 	}
 
-	public tokenize(line: string, state: modes.IState, offsetDelta: number): TokenizationResult {
+	public tokenize(line: string, hasEOL: boolean, state: modes.IState, offsetDelta: number): TokenizationResult {
 		return TokenizationSupport2Adapter.adaptTokenize(this._languageIdentifier.language, this._actual, line, state, offsetDelta);
 	}
 
@@ -199,7 +200,7 @@ export class TokenizationSupport2Adapter implements modes.ITokenizationSupport {
 		return actualResult;
 	}
 
-	public tokenize2(line: string, state: modes.IState, offsetDelta: number): TokenizationResult2 {
+	public tokenize2(line: string, hasEOL: boolean, state: modes.IState, offsetDelta: number): TokenizationResult2 {
 		let actualResult = this._actual.tokenize(line, state);
 		let tokens = this._toBinaryTokens(actualResult.tokens, offsetDelta);
 
@@ -308,6 +309,22 @@ function isEncodedTokensProvider(provider: TokensProvider | EncodedTokensProvide
 
 function isThenable<T>(obj: any): obj is Thenable<T> {
 	return obj && typeof obj.then === 'function';
+}
+
+/**
+ * Change the color map that is used for token colors.
+ * Supported formats (hex): #RRGGBB, $RRGGBBAA, #RGB, #RGBA
+ */
+export function setColorMap(colorMap: string[] | null): void {
+	if (colorMap) {
+		const result: Color[] = [null!];
+		for (let i = 1, len = colorMap.length; i < len; i++) {
+			result[i] = Color.fromHex(colorMap[i]);
+		}
+		StaticServices.standaloneThemeService.get().setColorMapOverride(result);
+	} else {
+		StaticServices.standaloneThemeService.get().setColorMapOverride(null);
+	}
 }
 
 /**
@@ -570,6 +587,7 @@ export function createMonacoLanguagesAPI(): typeof monaco.languages {
 
 		// provider methods
 		setLanguageConfiguration: <any>setLanguageConfiguration,
+		setColorMap: setColorMap,
 		setTokensProvider: <any>setTokensProvider,
 		setMonarchTokensProvider: <any>setMonarchTokensProvider,
 		registerReferenceProvider: <any>registerReferenceProvider,

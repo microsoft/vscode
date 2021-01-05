@@ -83,6 +83,7 @@ import { ExtHostBulkEdits } from 'vs/workbench/api/common/extHostBulkEdits';
 import { IExtHostFileSystemInfo } from 'vs/workbench/api/common/extHostFileSystemInfo';
 import { ExtHostTesting } from 'vs/workbench/api/common/extHostTesting';
 import { ExtHostUriOpeners } from 'vs/workbench/api/common/extHostUriOpener';
+import { IExtHostSecretState } from 'vs/workbench/api/common/exHostSecretState';
 
 export interface IExtensionApiFactory {
 	(extension: IExtensionDescription, registry: ExtensionDescriptionRegistry, configProvider: ExtHostConfigProvider): typeof vscode;
@@ -108,6 +109,7 @@ export function createApiFactoryAndRegisterActors(accessor: ServicesAccessor): I
 	const extHostTunnelService = accessor.get(IExtHostTunnelService);
 	const extHostApiDeprecation = accessor.get(IExtHostApiDeprecationService);
 	const extHostWindow = accessor.get(IExtHostWindow);
+	const extHostSecretState = accessor.get(IExtHostSecretState);
 
 	// register addressable instances
 	rpcProtocol.set(ExtHostContext.ExtHostFileSystemInfo, extHostFileSystemInfo);
@@ -118,6 +120,7 @@ export function createApiFactoryAndRegisterActors(accessor: ServicesAccessor): I
 	rpcProtocol.set(ExtHostContext.ExtHostStorage, extHostStorage);
 	rpcProtocol.set(ExtHostContext.ExtHostTunnelService, extHostTunnelService);
 	rpcProtocol.set(ExtHostContext.ExtHostWindow, extHostWindow);
+	rpcProtocol.set(ExtHostContext.ExtHostSecretState, extHostSecretState);
 
 	// automatically create and register addressable instances
 	const extHostDecorations = rpcProtocol.set(ExtHostContext.ExtHostDecorations, accessor.get(IExtHostDecorations));
@@ -219,14 +222,6 @@ export function createApiFactoryAndRegisterActors(accessor: ServicesAccessor): I
 				checkProposedApiEnabled(extension);
 				return extHostAuthentication.onDidChangeAuthenticationProviders;
 			},
-			getProviderIds(): Thenable<ReadonlyArray<string>> {
-				checkProposedApiEnabled(extension);
-				return extHostAuthentication.getProviderIds();
-			},
-			get providerIds(): string[] {
-				checkProposedApiEnabled(extension);
-				return extHostAuthentication.providerIds;
-			},
 			get providers(): ReadonlyArray<vscode.AuthenticationProviderInformation> {
 				checkProposedApiEnabled(extension);
 				return extHostAuthentication.providers;
@@ -234,22 +229,6 @@ export function createApiFactoryAndRegisterActors(accessor: ServicesAccessor): I
 			logout(providerId: string, sessionId: string): Thenable<void> {
 				checkProposedApiEnabled(extension);
 				return extHostAuthentication.logout(providerId, sessionId);
-			},
-			getPassword(key: string): Thenable<string | undefined> {
-				checkProposedApiEnabled(extension);
-				return extHostAuthentication.getPassword(extension, key);
-			},
-			setPassword(key: string, value: string): Thenable<void> {
-				checkProposedApiEnabled(extension);
-				return extHostAuthentication.setPassword(extension, key, value);
-			},
-			deletePassword(key: string): Thenable<void> {
-				checkProposedApiEnabled(extension);
-				return extHostAuthentication.deletePassword(extension, key);
-			},
-			get onDidChangePassword(): Event<void> {
-				checkProposedApiEnabled(extension);
-				return extHostAuthentication.onDidChangePassword;
 			}
 		};
 

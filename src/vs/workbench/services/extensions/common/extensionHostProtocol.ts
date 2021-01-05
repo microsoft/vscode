@@ -20,6 +20,8 @@ export interface IExtHostSocketMessage {
 	type: 'VSCODE_EXTHOST_IPC_SOCKET';
 	initialDataChunk: string;
 	skipWebSocketFrames: boolean;
+	permessageDeflate: boolean;
+	inflateBytes: string;
 }
 
 export interface IExtHostReduceGraceTimeMessage {

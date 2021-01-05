@@ -5,7 +5,7 @@
 
 import { createDecorator, IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { URI } from 'vs/base/common/uri';
-import { INotebookEditorModel } from 'vs/workbench/contrib/notebook/common/notebookCommon';
+import { CellUri, INotebookEditorModel } from 'vs/workbench/contrib/notebook/common/notebookCommon';
 import { NotebookEditorModel } from 'vs/workbench/contrib/notebook/common/notebookEditorModel';
 import { DisposableStore, IDisposable, IReference, ReferenceCollection } from 'vs/base/common/lifecycle';
 import { INotebookService } from 'vs/workbench/contrib/notebook/common/notebookService';
@@ -61,6 +61,10 @@ export class NotebookModelResolverService implements INotebookEditorModelResolve
 	}
 
 	async resolve(resource: URI, viewType?: string): Promise<IReference<INotebookEditorModel>> {
+
+		if (resource.scheme === CellUri.scheme) {
+			throw new Error(`CANNOT open a cell-uri as notebook. Tried with ${resource.toString()}`);
+		}
 
 		const existingViewType = this._notebookService.getNotebookTextModel(resource)?.viewType;
 		if (!viewType) {

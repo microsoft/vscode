@@ -40,9 +40,9 @@ export class FileWatcher extends Disposable {
 				serverName: 'File Watcher (chokidar)',
 				args: ['--type=watcherService'],
 				env: {
-					AMD_ENTRYPOINT: 'vs/platform/files/node/watcher/unix/watcherApp',
-					PIPE_LOGGING: 'true',
-					VERBOSE_LOGGING: 'true' // transmit console logs from server to client
+					VSCODE_AMD_ENTRYPOINT: 'vs/platform/files/node/watcher/unix/watcherApp',
+					VSCODE_PIPE_LOGGING: 'true',
+					VSCODE_VERBOSE_LOGGING: 'true' // transmit console logs from server to client
 				}
 			}
 		));
