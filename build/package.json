@@ -17,7 +17,6 @@
     "@types/gulp-json-editor": "^2.2.31",
     "@types/gulp-rename": "^0.0.33",
     "@types/gulp-sourcemaps": "^0.0.32",
-    "@types/gulp-uglify": "^3.0.5",
     "@types/mime": "0.0.29",
     "@types/minimatch": "^3.0.3",
     "@types/minimist": "^1.2.1",
@@ -26,7 +25,6 @@
     "@types/pump": "^1.0.1",
     "@types/request": "^2.47.0",
     "@types/rimraf": "^2.0.4",
-    "@types/terser": "^3.12.0",
     "@types/through": "^0.0.29",
     "@types/through2": "^2.0.34",
     "@types/underscore": "^1.8.9",
@@ -47,5 +45,8 @@
     "watch": "tsc -p tsconfig.build.json --watch",
     "postinstall": "npm run compile",
     "npmCheckJs": "tsc --noEmit"
+  },
+  "dependencies": {
+    "source-map": "0.6.1"
   }
 }

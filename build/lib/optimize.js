@@ -162,47 +162,46 @@ function optimizeTask(opts) {
     };
 }
 exports.optimizeTask = optimizeTask;
+// declare class FileWithCopyright extends VinylFile {
+// 	public __hasOurCopyright: boolean;
+// }
 /**
  * Wrap around uglify and allow the preserveComments function
  * to have a file "context" to include our copyright only once per file.
  */
 function uglifyWithCopyrights() {
-    const composer = require('gulp-uglify/composer');
-    const terser = require('terser');
-    const preserveComments = (f) => {
-        return (_node, comment) => {
-            const text = comment.value;
-            const type = comment.type;
-            if (/@minifier_do_not_preserve/.test(text)) {
-                return false;
-            }
-            const isOurCopyright = IS_OUR_COPYRIGHT_REGEXP.test(text);
-            if (isOurCopyright) {
-                if (f.__hasOurCopyright) {
-                    return false;
-                }
-                f.__hasOurCopyright = true;
-                return true;
-            }
-            if ('comment2' === type) {
-                // check for /*!. Note that text doesn't contain leading /*
-                return (text.length > 0 && text[0] === '!') || /@preserve|license|@cc_on|copyright/i.test(text);
-            }
-            else if ('comment1' === type) {
-                return /license|copyright/i.test(text);
-            }
-            return false;
-        };
-    };
-    const minify = composer(terser);
+    const esbuild = require('gulp-esbuild');
+    // const preserveComments = (f: FileWithCopyright) => {
+    // 	return (_node: any, comment: { value: string; type: string; }) => {
+    // 		const text = comment.value;
+    // 		const type = comment.type;
+    // 		if (/@minifier_do_not_preserve/.test(text)) {
+    // 			return false;
+    // 		}
+    // 		const isOurCopyright = IS_OUR_COPYRIGHT_REGEXP.test(text);
+    // 		if (isOurCopyright) {
+    // 			if (f.__hasOurCopyright) {
+    // 				return false;
+    // 			}
+    // 			f.__hasOurCopyright = true;
+    // 			return true;
+    // 		}
+    // 		if ('comment2' === type) {
+    // 			// check for /*!. Note that text doesn't contain leading /*
+    // 			return (text.length > 0 && text[0] === '!') || /@preserve|license|@cc_on|copyright/i.test(text);
+    // 		} else if ('comment1' === type) {
+    // 			return /license|copyright/i.test(text);
+    // 		}
+    // 		return false;
+    // 	};
+    // };
     const input = es.through();
     const output = input
         .pipe(flatmap((stream, f) => {
-        return stream.pipe(minify({
-            output: {
-                comments: preserveComments(f),
-                max_line_len: 1024
-            }
+        return stream.pipe(esbuild({
+            outfile: f.relative,
+            sourcemap: true,
+            minify: true,
         }));
     }));
     return es.duplex(input, output);
@@ -211,7 +210,6 @@ function minifyTask(src, sourceMapBaseUrl) {
     const sourceMappingURL = sourceMapBaseUrl ? ((f) => `${sourceMapBaseUrl}/${f.relative}.map`) : undefined;
     return cb => {
         const minifyCSS = require('gulp-cssnano');
-        const uglify = require('gulp-uglify');
         const sourcemaps = require('gulp-sourcemaps');
         const jsFilter = filter('**/*.js', { restore: true });
         const cssFilter = filter('**/*.css', { restore: true });
@@ -225,12 +223,7 @@ function minifyTask(src, sourceMapBaseUrl) {
             sourceRoot: undefined,
             includeContent: true,
             addComment: true
-        }), gulp.dest(src + '-min'), (err) => {
-            if (err instanceof uglify.GulpUglifyError) {
-                console.error(`Uglify error in '${err.cause && err.cause.filename}'`);
-            }
-            cb(err);
-        });
+        }), gulp.dest(src + '-min'), (err) => cb(err));
     };
 }
 exports.minifyTask = minifyTask;
