@@ -1093,7 +1093,7 @@ export class ViewPaneContainer extends Component implements IViewPaneContainer {
 		}
 	}
 
-	private isViewMergedWithContainer(): boolean {
+	isViewMergedWithContainer(): boolean {
 		if (!(this.options.mergeViewWithContainerWhenSingleView && this.paneItems.length === 1)) {
 			return false;
 		}
