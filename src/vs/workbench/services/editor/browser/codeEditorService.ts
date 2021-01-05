@@ -73,7 +73,7 @@ export class CodeEditorService extends CodeEditorServiceImpl {
 	private async doOpenCodeEditor(input: IResourceEditorInput, source: ICodeEditor | null, sideBySide?: boolean): Promise<ICodeEditor | null> {
 
 		// Special case: we want to detect the request to open an editor that
-		// is different from the current one to decide wether the current editor
+		// is different from the current one to decide whether the current editor
 		// should be pinned or not. This ensures that the source of a navigation
 		// is not being replaced by the target. An example is "Goto definition"
 		// that otherwise would replace the editor everytime the user navigates.

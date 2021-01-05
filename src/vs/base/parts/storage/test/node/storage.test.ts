@@ -13,12 +13,9 @@ import { mkdirp, writeFile, exists, unlink, rimraf, RimRafMode } from 'vs/base/n
 import { timeout } from 'vs/base/common/async';
 import { Event, Emitter } from 'vs/base/common/event';
 import { isWindows } from 'vs/base/common/platform';
+import { flakySuite } from 'vs/base/test/node/testUtils';
 
-suite('Storage Library', function () {
-
-	// https://github.com/microsoft/vscode/issues/108113
-	this.retries(3);
-	this.timeout(1000 * 20);
+flakySuite('Storage Library', function () {
 
 	function uniqueStorageDir(): string {
 		const id = generateUuid();
@@ -296,11 +293,7 @@ suite('Storage Library', function () {
 	});
 });
 
-suite('SQLite Storage Library', function () {
-
-	// https://github.com/microsoft/vscode/issues/108113
-	this.retries(3);
-	this.timeout(1000 * 20);
+flakySuite('SQLite Storage Library', function () {
 
 	function uniqueStorageDir(): string {
 		const id = generateUuid();
@@ -651,8 +644,6 @@ suite('SQLite Storage Library', function () {
 	});
 
 	test('very large item value', async function () {
-		this.timeout(20000);
-
 		const storageDir = uniqueStorageDir();
 
 		await mkdirp(storageDir);

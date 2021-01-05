@@ -10,7 +10,7 @@ import * as path from 'vs/base/common/path';
 import * as pfs from 'vs/base/node/pfs';
 import { URI } from 'vs/base/common/uri';
 import { createTextBufferFactory } from 'vs/editor/common/model/textModel';
-import { getRandomTestPath } from 'vs/base/test/node/testUtils';
+import { flakySuite, getRandomTestPath } from 'vs/base/test/node/testUtils';
 import { DefaultEndOfLine } from 'vs/editor/common/model';
 import { hashPath } from 'vs/workbench/services/backup/electron-browser/backupFileService';
 import { NativeBackupTracker } from 'vs/workbench/contrib/backup/electron-sandbox/backupTracker';
@@ -51,7 +51,7 @@ class TestBackupRestorer extends BackupRestorer {
 	}
 }
 
-suite('BackupRestorer', () => {
+flakySuite('BackupRestorer', () => {
 	let accessor: TestServiceAccessor;
 
 	let disposables: IDisposable[] = [];
@@ -83,8 +83,6 @@ suite('BackupRestorer', () => {
 	});
 
 	test('Restore backups', async function () {
-		this.timeout(20000);
-
 		const backupFileService = new NodeTestBackupFileService(workspaceBackupPath);
 		const instantiationService = workbenchInstantiationService();
 		instantiationService.stub(IBackupFileService, backupFileService);

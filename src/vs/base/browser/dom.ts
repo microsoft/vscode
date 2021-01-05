@@ -1301,7 +1301,7 @@ export interface IDetectedFullscreen {
 	mode: DetectedFullscreenMode;
 
 	/**
-	 * Wether we know for sure that we are in fullscreen mode or
+	 * Whether we know for sure that we are in fullscreen mode or
 	 * it is a guess.
 	 */
 	guess: boolean;

@@ -3,6 +3,10 @@ steps:
     inputs:
       versionSpec: "12.x"
 
+  - task: geeklearningio.gl-vsts-tasks-yarn.yarn-installer-task.YarnInstaller@2
+    inputs:
+      versionSpec: "1.x"
+
   - task: AzureKeyVault@1
     displayName: "Azure Key Vault: Get Secrets"
     inputs:
@@ -53,6 +57,13 @@ steps:
 
   - script: |
       set -e
+      sudo apt update -y
+      sudo apt install -y build-essential pkg-config libx11-dev libx11-xcb-dev libxkbfile-dev libsecret-1-dev libnotify-bin
+    displayName: Install build tools
+    condition: and(succeeded(), ne(variables.NODE_MODULES_RESTORED, 'true'))
+
+  - script: |
+      set -e
       for i in {1..3}; do # try 3 times, for Terrapin
         yarn --frozen-lockfile && break
         if [ $i -eq 3 ]; then
@@ -83,11 +94,8 @@ steps:
 
   - script: |
       set -e
-      yarn gulp compile-build
-      yarn gulp compile-extensions-build
-      yarn gulp minify-vscode
-      yarn gulp minify-vscode-reh
-      yarn gulp minify-vscode-reh-web
+      yarn npm-run-all -lp compile-build compile-extensions-build
+      yarn npm-run-all -lp minify-vscode minify-vscode-reh minify-vscode-reh-web
     displayName: Compile
 
   - script: |

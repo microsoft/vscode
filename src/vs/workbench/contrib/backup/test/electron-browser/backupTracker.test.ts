@@ -9,7 +9,7 @@ import * as os from 'os';
 import * as path from 'vs/base/common/path';
 import * as pfs from 'vs/base/node/pfs';
 import { URI } from 'vs/base/common/uri';
-import { getRandomTestPath } from 'vs/base/test/node/testUtils';
+import { flakySuite, getRandomTestPath } from 'vs/base/test/node/testUtils';
 import { hashPath } from 'vs/workbench/services/backup/electron-browser/backupFileService';
 import { NativeBackupTracker } from 'vs/workbench/contrib/backup/electron-sandbox/backupTracker';
 import { TextFileEditorModelManager } from 'vs/workbench/services/textfile/common/textFileEditorModelManager';
@@ -51,13 +51,6 @@ import { timeout } from 'vs/base/common/async';
 import { Workspace } from 'vs/platform/workspace/test/common/testWorkspace';
 import { IProgressService } from 'vs/platform/progress/common/progress';
 
-const userdataDir = getRandomTestPath(os.tmpdir(), 'vsctests', 'backuprestorer');
-const backupHome = path.join(userdataDir, 'Backups');
-const workspacesJsonPath = path.join(backupHome, 'workspaces.json');
-
-const workspaceResource = URI.file(platform.isWindows ? 'c:\\workspace' : '/workspace');
-const workspaceBackupPath = path.join(backupHome, hashPath(workspaceResource));
-
 class TestBackupTracker extends NativeBackupTracker {
 
 	constructor(
@@ -92,15 +85,21 @@ class BeforeShutdownEventImpl implements BeforeShutdownEvent {
 	}
 }
 
-suite('BackupTracker', function () {
+flakySuite('BackupTracker', function () {
+	let backupHome: string;
+	let workspaceBackupPath: string;
+
 	let accessor: TestServiceAccessor;
 	let disposables: IDisposable[] = [];
 
-	// https://github.com/microsoft/vscode/issues/112146
-	this.retries(3);
-	this.timeout(1000 * 20);
-
 	setup(async () => {
+		const userdataDir = getRandomTestPath(os.tmpdir(), 'vsctests', 'backuprestorer');
+		backupHome = path.join(userdataDir, 'Backups');
+		const workspacesJsonPath = path.join(backupHome, 'workspaces.json');
+
+		const workspaceResource = URI.file(platform.isWindows ? 'c:\\workspace' : '/workspace');
+		workspaceBackupPath = path.join(backupHome, hashPath(workspaceResource));
+
 		const instantiationService = workbenchInstantiationService();
 		accessor = instantiationService.createInstance(TestServiceAccessor);
 
@@ -113,8 +112,6 @@ suite('BackupTracker', function () {
 			[new SyncDescriptor<EditorInput>(FileEditorInput)]
 		));
 
-		// Delete any existing backups completely and then re-create it.
-		await pfs.rimraf(backupHome, pfs.RimRafMode.MOVE);
 		await pfs.mkdirp(backupHome);
 		await pfs.mkdirp(workspaceBackupPath);
 
@@ -190,20 +187,14 @@ suite('BackupTracker', function () {
 	}
 
 	test('Track backups (untitled)', function () {
-		this.timeout(20000);
-
 		return untitledBackupTest();
 	});
 
 	test('Track backups (untitled with initial contents)', function () {
-		this.timeout(20000);
-
 		return untitledBackupTest({ contents: 'Foo Bar' });
 	});
 
 	test('Track backups (file)', async function () {
-		this.timeout(20000);
-
 		const [accessor, part, tracker] = await createTracker();
 
 		const resource = toResource.call(this, '/path/index.txt');

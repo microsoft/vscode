@@ -1,7 +1,7 @@
 {
   "name": "code-oss-dev",
   "version": "1.53.0",
-  "distro": "93a9b698a51869b29e7d646dbced553755e10c1e",
+  "distro": "567f2a59872f569eef25a9de7f012f47c1d72e9d",
   "author": {
     "name": "Microsoft Corporation"
   },
@@ -46,7 +46,12 @@
     "watch-web": "node --max_old_space_size=4095 ./node_modules/gulp/bin/gulp.js watch-web",
     "eslint": "eslint -c .eslintrc.json --rulesdir ./build/lib/eslint --ext .ts --ext .js ./src/vs ./extensions",
     "electron-rebuild": "electron-rebuild --arch=arm64 --force --version=11.1.0",
-    "playwright-install": "node node_modules/playwright/install.js"
+    "playwright-install": "node node_modules/playwright/install.js",
+    "compile-build": "node --max_old_space_size=4095 ./node_modules/gulp/bin/gulp.js compile-build",
+    "compile-extensions-build": "node --max_old_space_size=4095 ./node_modules/gulp/bin/gulp.js compile-extensions-build",
+    "minify-vscode": "node --max_old_space_size=4095 ./node_modules/gulp/bin/gulp.js minify-vscode",
+    "minify-vscode-reh": "node --max_old_space_size=4095 ./node_modules/gulp/bin/gulp.js minify-vscode-reh",
+    "minify-vscode-reh-web": "node --max_old_space_size=4095 ./node_modules/gulp/bin/gulp.js minify-vscode-reh-web"
   },
   "dependencies": {
     "applicationinsights": "1.0.8",

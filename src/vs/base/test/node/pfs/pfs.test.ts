@@ -14,12 +14,9 @@ import { getPathFromAmdModule } from 'vs/base/common/amd';
 import { isWindows } from 'vs/base/common/platform';
 import { canNormalize } from 'vs/base/common/normalization';
 import { VSBuffer } from 'vs/base/common/buffer';
+import { flakySuite } from 'vs/base/test/node/testUtils';
 
-suite('PFS', function () {
-
-	// https://github.com/microsoft/vscode/issues/84066
-	this.retries(3);
-	this.timeout(1000 * 20);
+flakySuite('PFS', function () {
 
 	test('writeFile', async () => {
 		const id = uuid.generateUuid();

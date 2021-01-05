@@ -35,7 +35,7 @@ import { isStandalone } from 'vs/base/browser/browser';
 			},
 			'workbench.editor.wrapTabs': {
 				'type': 'boolean',
-				'description': nls.localize('wrapTabs', "Controls whether tabs should be wrapped over multiple lines when exceeding available space or wether a scrollbar should appear instead."),
+				'markdownDescription': nls.localize('wrapTabs', "Controls whether tabs should be wrapped over multiple lines when exceeding available space or whether a scrollbar should appear instead. This value is ignored when `#workbench.editor.showTabs#` is disabled."),
 				'default': false
 			},
 			'workbench.editor.scrollToSwitchTabs': {
