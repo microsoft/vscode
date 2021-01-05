@@ -6,14 +6,19 @@
 
 import { Action } from 'vs/base/common/actions';
 import { Emitter } from 'vs/base/common/event';
-import { Iterable } from 'vs/base/common/iterator';
 import { localize } from 'vs/nls';
+import { Action2, MenuId } from 'vs/platform/actions/common/actions';
+import { ContextKeyAndExpr, ContextKeyEqualsExpr } from 'vs/platform/contextkey/common/contextkey';
+import { ServicesAccessor } from 'vs/platform/instantiation/common/instantiation';
 import { ThemeIcon } from 'vs/platform/theme/common/themeService';
 import { TestRunState } from 'vs/workbench/api/common/extHostTypes';
+import { ViewAction } from 'vs/workbench/browser/parts/views/viewPane';
 import * as icons from 'vs/workbench/contrib/testing/browser/icons';
 import { ITestingCollectionService } from 'vs/workbench/contrib/testing/browser/testingCollectionService';
-import { TestingExplorerViewModel } from 'vs/workbench/contrib/testing/browser/testingExplorerView';
-import { EMPTY_TEST_RESULT, InternalTestItem, RunTestsResult } from 'vs/workbench/contrib/testing/common/testCollection';
+import { TestingExplorerView, TestingExplorerViewModel } from 'vs/workbench/contrib/testing/browser/testingExplorerView';
+import { TestExplorerViewMode, Testing } from 'vs/workbench/contrib/testing/common/constants';
+import { EMPTY_TEST_RESULT, InternalTestItem, RunTestsResult, TestIdWithProvider } from 'vs/workbench/contrib/testing/common/testCollection';
+import { TestingContextKeys } from 'vs/workbench/contrib/testing/common/testingContextKeys';
 import { ITestService } from 'vs/workbench/contrib/testing/common/testService';
 
 export class FilterableAction extends Action {
@@ -46,6 +51,9 @@ export class DebugAction extends Action {
 		);
 	}
 
+	/**
+	 * @override
+	 */
 	public run(): Promise<any> {
 		return this.testService.runTests({
 			tests: [{ testId: this.test.id, providerId: this.test.providerId }],
@@ -67,6 +75,9 @@ export class RunAction extends Action {
 		);
 	}
 
+	/**
+	 * @override
+	 */
 	public run(): Promise<any> {
 		return this.testService.runTests({
 			tests: [{ testId: this.test.id, providerId: this.test.providerId }],
@@ -75,61 +86,57 @@ export class RunAction extends Action {
 	}
 }
 
-abstract class RunOrDebugAction extends FilterableAction {
-	constructor(
-		private readonly viewModel: TestingExplorerViewModel,
-		id: string,
-		label: string,
-		className: string,
-		@ITestingCollectionService private readonly testCollection: ITestingCollectionService,
-		@ITestService private readonly testService: ITestService,
-	) {
-		super(
+abstract class RunOrDebugAction extends ViewAction<TestingExplorerView> {
+	constructor(id: string, title: string, icon: ThemeIcon) {
+		super({
 			id,
-			label,
-			'test-action ' + className,
-			/* enabled= */ Iterable.first(testService.testRuns) === undefined,
-		);
-
-		this._register(testService.onTestRunStarted(this.updateVisibility, this));
-		this._register(testService.onTestRunCompleted(this.updateVisibility, this));
-		this._register(viewModel.onDidChangeSelection(this.updateEnablementState, this));
+			title,
+			icon,
+			viewId: Testing.ExplorerViewId,
+			menu: {
+				id: MenuId.ViewTitle,
+				order: 10,
+				group: 'navigation',
+				when: ContextKeyAndExpr.create([
+					ContextKeyEqualsExpr.create('view', Testing.ExplorerViewId),
+					ContextKeyEqualsExpr.create(TestingContextKeys.isRunning.serialize(), false),
+				])
+			}
+		});
 	}
 
-	public run(): Promise<RunTestsResult> {
-		const tests = [...this.getActionableTests()];
+	/**
+	 * @override
+	 */
+	public runInView(accessor: ServicesAccessor, view: TestingExplorerView): Promise<RunTestsResult> {
+		const tests = this.getActionableTests(accessor.get(ITestingCollectionService), view.viewModel);
 		if (!tests.length) {
 			return Promise.resolve(EMPTY_TEST_RESULT);
 		}
 
-		return this.testService.runTests({ tests, debug: this.debug() });
+		return accessor.get(ITestService).runTests({ tests, debug: this.debug() });
 	}
 
-	private updateVisibility() {
-		this._setVisible(Iterable.isEmpty(this.testService.testRuns));
-	}
-
-	private updateEnablementState() {
-		this._setEnabled(!Iterable.isEmpty(this.getActionableTests()));
-	}
-
-	private *getActionableTests() {
-		const selected = this.viewModel.getSelectedTests();
+	private getActionableTests(testCollection: ITestingCollectionService, viewModel: TestingExplorerViewModel) {
+		const selected = viewModel.getSelectedTests();
+		const tests: TestIdWithProvider[] = [];
 		if (!selected.length) {
-			for (const folder of this.testCollection.workspaceFolders()) {
+			for (const folder of testCollection.workspaceFolders()) {
 				for (const child of folder.getChildren()) {
 					if (this.filter(child)) {
-						yield { testId: child.id, providerId: child.providerId };
+						tests.push({ testId: child.id, providerId: child.providerId });
 					}
 				}
 			}
 		} else {
 			for (const item of selected) {
 				if (item?.test && this.filter(item.test)) {
-					yield { testId: item.test.id, providerId: item.test.providerId };
+					tests.push({ testId: item.test.id, providerId: item.test.providerId });
 				}
 			}
 		}
+
+		return tests;
 	}
 
 	protected abstract debug(): boolean;
@@ -138,130 +145,128 @@ abstract class RunOrDebugAction extends FilterableAction {
 
 export class RunSelectedAction extends RunOrDebugAction {
 	constructor(
-		viewModel: TestingExplorerViewModel,
-		@ITestingCollectionService testCollection: ITestingCollectionService,
-		@ITestService testService: ITestService,
 	) {
 		super(
-			viewModel,
 			'action.runSelected',
 			localize('runSelectedTests', 'Run Selected Tests'),
-			ThemeIcon.asClassName(icons.testingRunIcon),
-			testCollection,
-			testService,
+			icons.testingRunIcon,
 		);
 	}
 
+	/**
+	 * @override
+	 */
 	public debug() {
 		return false;
 	}
 
+	/**
+	 * @override
+	 */
 	public filter({ item }: InternalTestItem) {
 		return item.runnable;
 	}
 }
 
 export class DebugSelectedAction extends RunOrDebugAction {
-	constructor(
-		viewModel: TestingExplorerViewModel,
-		@ITestingCollectionService testCollection: ITestingCollectionService,
-		@ITestService testService: ITestService,
-	) {
+	constructor() {
 		super(
-			viewModel,
 			'action.debugSelected',
 			localize('debugSelectedTests', 'Debug Selected Tests'),
-			ThemeIcon.asClassName(icons.testingDebugIcon),
-			testCollection,
-			testService,
+			icons.testingDebugIcon,
 		);
 	}
 
+	/**
+	 * @override
+	 */
 	public debug() {
 		return true;
 	}
 
+	/**
+	 * @override
+	 */
 	public filter({ item }: InternalTestItem) {
 		return item.debuggable;
 	}
 }
 
-export class CancelTestRunAction extends FilterableAction {
-	constructor(@ITestService private readonly testService: ITestService) {
-		super(
-			'action.cancelRun',
-			localize('cancelRunTests', 'Cancel Test Run'),
-			ThemeIcon.asClassName(icons.testingCancelIcon),
-		);
-
-		this._register(testService.onTestRunStarted(this.updateVisibility, this));
-		this._register(testService.onTestRunCompleted(this.updateVisibility, this));
-		this.updateVisibility();
+export class CancelTestRunAction extends Action2 {
+	constructor() {
+		super({
+			id: 'testing.cancelRun',
+			title: localize('testing.cancelRun', "Cancel Test Run"),
+			icon: icons.testingCancelIcon,
+			menu: {
+				id: MenuId.ViewTitle,
+				order: 10,
+				group: 'navigation',
+				when: ContextKeyAndExpr.create([
+					ContextKeyEqualsExpr.create('view', Testing.ExplorerViewId),
+					ContextKeyEqualsExpr.create(TestingContextKeys.isRunning.serialize(), true),
+				])
+			}
+		});
 	}
 
-	private updateVisibility() {
-		this._setVisible(!Iterable.isEmpty(this.testService.testRuns));
-	}
-
-	public async run(): Promise<void> {
-		for (const run of this.testService.testRuns) {
-			this.testService.cancelTestRun(run);
+	/**
+	 * @override
+	 */
+	public async run(accessor: ServicesAccessor) {
+		const testService = accessor.get(ITestService);
+		for (const run of testService.testRuns) {
+			testService.cancelTestRun(run);
 		}
 	}
 }
 
-export const enum ViewMode {
-	List,
-	Tree
-}
-
-export const enum ViewGrouping {
-	ByTree,
-	ByStatus,
-}
-
-export class ToggleViewModeAction extends Action {
-	constructor(private readonly viewModel: TestingExplorerViewModel) {
-		super(
-			'workbench.testing.action.toggleViewMode',
-			localize('toggleViewMode', "View as List"),
-		);
-		this._register(viewModel.onViewModeChange(this.onDidChangeMode, this));
-		this.onDidChangeMode(this.viewModel.viewMode);
+export class TestingViewAsListAction extends ViewAction<TestingExplorerView> {
+	constructor() {
+		super({
+			id: 'testing.viewAsList',
+			viewId: Testing.ExplorerViewId,
+			title: localize('testing.viewAsList', "View as List"),
+			f1: false,
+			toggled: TestingContextKeys.viewMode.isEqualTo(TestExplorerViewMode.List),
+			menu: {
+				id: MenuId.ViewTitle,
+				order: 10,
+				group: 'viewAs',
+				when: ContextKeyEqualsExpr.create('view', Testing.ExplorerViewId)
+			}
+		});
 	}
 
-	async run(): Promise<void> {
-		this.viewModel.viewMode = this.viewModel.viewMode === ViewMode.List
-			? ViewMode.Tree
-			: ViewMode.List;
-	}
-
-	private onDidChangeMode(mode: ViewMode): void {
-		const iconClass = ThemeIcon.asClassName(mode === ViewMode.List ? icons.testingShowAsList : icons.testingShowAsTree);
-		this.class = iconClass;
-		this.checked = mode === ViewMode.List;
+	/**
+	 * @override
+	 */
+	public runInView(_accessor: ServicesAccessor, view: TestingExplorerView) {
+		view.viewModel.viewMode = TestExplorerViewMode.List;
 	}
 }
 
-export class ToggleViewGroupingAction extends Action {
-	constructor(private readonly viewModel: TestingExplorerViewModel) {
-		super(
-			'workbench.testing.action.toggleViewMode',
-			localize('toggleViewMode', "View as List"),
-		);
-		this._register(viewModel.onViewModeChange(this.onDidChangeMode, this));
-		this.onDidChangeMode(this.viewModel.viewMode);
+export class TestingViewAsTreeAction extends ViewAction<TestingExplorerView> {
+	constructor() {
+		super({
+			id: 'testing.viewAsTree',
+			viewId: Testing.ExplorerViewId,
+			title: localize('testing.viewAsTree', "View as Tree"),
+			f1: false,
+			toggled: TestingContextKeys.viewMode.isEqualTo(TestExplorerViewMode.Tree),
+			menu: {
+				id: MenuId.ViewTitle,
+				order: 10,
+				group: 'viewAs',
+				when: ContextKeyEqualsExpr.create('view', Testing.ExplorerViewId)
+			}
+		});
 	}
 
-	async run(): Promise<void> {
-		this.viewModel.viewMode = this.viewModel.viewMode === ViewMode.List
-			? ViewMode.Tree
-			: ViewMode.List;
-	}
-
-	private onDidChangeMode(mode: ViewMode): void {
-		const iconClass = ThemeIcon.asClassName(mode === ViewMode.List ? icons.testingShowAsList : icons.testingShowAsTree);
-		this.class = iconClass;
-		this.checked = mode === ViewMode.List;
+	/**
+	 * @override
+	 */
+	public runInView(_accessor: ServicesAccessor, view: TestingExplorerView) {
+		view.viewModel.viewMode = TestExplorerViewMode.Tree;
 	}
 }

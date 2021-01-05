@@ -49,6 +49,13 @@ export class MainThreadTesting extends Disposable implements MainThreadTestingSh
 	/**
 	 * @inheritdoc
 	 */
+	$updateDiscoveringCount(resource: ExtHostTestingResource, uriComponents: UriComponents, delta: number): void {
+		this.testService.updateDiscoveringCount(resource, URI.revive(uriComponents), delta);
+	}
+
+	/**
+	 * @inheritdoc
+	 */
 	$subscribeToDiffs(resource: ExtHostTestingResource, uriComponents: UriComponents): void {
 		const uri = URI.revive(uriComponents);
 		const disposable = this.testService.subscribeToDiffs(resource, uri,
