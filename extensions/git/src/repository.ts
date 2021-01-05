@@ -79,8 +79,8 @@ export class Resource implements SourceControlResourceState {
 		return this.resources[0];
 	}
 
-	get rightUri(): Uri {
-		return this.resources[1] as Uri;
+	get rightUri(): Uri | undefined {
+		return this.resources[1];
 	}
 
 	get command(): Command {
