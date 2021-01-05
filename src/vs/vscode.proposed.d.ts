@@ -106,17 +106,20 @@ declare module 'vscode' {
 		/**
 		 * Returns an array of current sessions.
 		 */
+		// eslint-disable-next-line vscode-dts-provider-naming
 		getSessions(): Thenable<ReadonlyArray<AuthenticationSession>>;
 
 		/**
 		 * Prompts a user to login.
 		 */
+		// eslint-disable-next-line vscode-dts-provider-naming
 		login(scopes: string[]): Thenable<AuthenticationSession>;
 
 		/**
 		 * Removes the session corresponding to session id.
 		 * @param sessionId The session id to log out of
 		 */
+		// eslint-disable-next-line vscode-dts-provider-naming
 		logout(sessionId: string): Thenable<void>;
 	}
 
@@ -133,31 +136,11 @@ declare module 'vscode' {
 		export function registerAuthenticationProvider(provider: AuthenticationProvider): Disposable;
 
 		/**
-		 * @deprecated - getSession should now trigger extension activation.
-		 * Fires with the provider id that was registered or unregistered.
-		 */
-		export const onDidChangeAuthenticationProviders: Event<AuthenticationProvidersChangeEvent>;
-
-		/**
-		 * @deprecated
-		 * The ids of the currently registered authentication providers.
-		 * @returns An array of the ids of authentication providers that are currently registered.
-		 */
-		export function getProviderIds(): Thenable<ReadonlyArray<string>>;
-
-		/**
-		 * @deprecated
-		 * An array of the ids of authentication providers that are currently registered.
-		 */
-		export const providerIds: ReadonlyArray<string>;
-
-		/**
 		 * An array of the information of authentication providers that are currently registered.
 		 */
 		export const providers: ReadonlyArray<AuthenticationProviderInformation>;
 
 		/**
-		 * @deprecated
 		* Logout of a specific session.
 		* @param providerId The id of the provider to use
 		* @param sessionId The session id to remove
@@ -1028,6 +1011,7 @@ declare module 'vscode' {
 		 *
 		 * @return Thenable indicating that the webview editor has been moved.
 		 */
+		// eslint-disable-next-line vscode-dts-provider-naming
 		moveCustomTextEditor?(newDocument: TextDocument, existingWebviewPanel: WebviewPanel, token: CancellationToken): Thenable<void>;
 	}
 
@@ -1616,10 +1600,15 @@ declare module 'vscode' {
 		 * Content providers should always use [file system providers](#FileSystemProvider) to
 		 * resolve the raw content for `uri` as the resouce is not necessarily a file on disk.
 		 */
+		// eslint-disable-next-line vscode-dts-provider-naming
 		openNotebook(uri: Uri, openContext: NotebookDocumentOpenContext): NotebookData | Promise<NotebookData>;
+		// eslint-disable-next-line vscode-dts-provider-naming
 		resolveNotebook(document: NotebookDocument, webview: NotebookCommunication): Promise<void>;
+		// eslint-disable-next-line vscode-dts-provider-naming
 		saveNotebook(document: NotebookDocument, cancellation: CancellationToken): Promise<void>;
+		// eslint-disable-next-line vscode-dts-provider-naming
 		saveNotebookAs(targetResource: Uri, document: NotebookDocument, cancellation: CancellationToken): Promise<void>;
+		// eslint-disable-next-line vscode-dts-provider-naming
 		backupNotebook(document: NotebookDocument, context: NotebookDocumentBackupContext, cancellation: CancellationToken): Promise<NotebookDocumentBackup>;
 	}
 
@@ -2156,6 +2145,7 @@ declare module 'vscode' {
 		 * It's guaranteed that this method will not be called again while
 		 * there is a previous undisposed watcher for the given workspace folder.
 		 */
+		// eslint-disable-next-line vscode-dts-provider-naming
 		createWorkspaceTestHierarchy?(workspace: WorkspaceFolder): TestHierarchy<T>;
 
 		/**
@@ -2163,6 +2153,7 @@ declare module 'vscode' {
 		 * be called when tests need to be enumerated for a single open file,
 		 * for instance by code lens UI.
 		 */
+		// eslint-disable-next-line vscode-dts-provider-naming
 		createDocumentTestHierarchy?(document: TextDocument): TestHierarchy<T>;
 
 		/**
@@ -2170,6 +2161,7 @@ declare module 'vscode' {
 		 * fire with update test states during the run.
 		 * @todo this will eventually need to be able to return a summary report, coverage for example.
 		 */
+		// eslint-disable-next-line vscode-dts-provider-naming
 		runTests?(options: TestRunOptions<T>, cancellationToken: CancellationToken): ProviderResult<void>;
 	}
 

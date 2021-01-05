@@ -1133,12 +1133,14 @@ export class TabsTitleControl extends TitleControl {
 		// or their first character of the name otherwise
 		let name: string | undefined;
 		let forceLabel = false;
+		let forceDisableBadgeDecorations = false;
 		let description: string;
 		if (options.pinnedTabSizing === 'compact' && this.group.isSticky(index)) {
 			const isShowingIcons = options.showIcons && options.hasIcons;
 			name = isShowingIcons ? '' : tabLabel.name?.charAt(0).toUpperCase();
 			description = '';
 			forceLabel = true;
+			forceDisableBadgeDecorations = true; // not enough space when sticky tabs are compact
 		} else {
 			name = tabLabel.name;
 			description = tabLabel.description || '';
@@ -1157,7 +1159,16 @@ export class TabsTitleControl extends TitleControl {
 		// Label
 		tabLabelWidget.setResource(
 			{ name, description, resource: EditorResourceAccessor.getOriginalUri(editor, { supportSideBySide: SideBySideEditor.BOTH }) },
-			{ title, extraClasses: ['tab-label'], italic: !this.group.isPinned(editor), forceLabel, fileDecorations: { colors: Boolean(options.decorations?.colors), badges: Boolean(options.decorations?.badges) } }
+			{
+				title,
+				extraClasses: ['tab-label'],
+				italic: !this.group.isPinned(editor),
+				forceLabel,
+				fileDecorations: {
+					colors: Boolean(options.decorations?.colors),
+					badges: forceDisableBadgeDecorations ? false : Boolean(options.decorations?.badges)
+				}
+			}
 		);
 
 		// Tests helper
