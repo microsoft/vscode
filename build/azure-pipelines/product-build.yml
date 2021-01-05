@@ -35,12 +35,6 @@ stages:
           VSCODE_ARCH: x64
         steps:
           - template: product-compile.yml
-      - job: Hygiene
-        pool: tryout
-        variables:
-          VSCODE_ARCH: x64
-        steps:
-          - template: product-hygiene.yml
 
   - stage: Windows
     dependsOn:
