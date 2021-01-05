@@ -57,6 +57,11 @@ steps:
 
   - script: |
       set -e
+      sudo apt update -y
+      sudo apt install -y build-essential pkg-config libx11-dev libx11-xcb-dev libxkbfile-dev libsecret-1-dev libnotify-bin
+
+  - script: |
+      set -e
       for i in {1..3}; do # try 3 times, for Terrapin
         yarn --frozen-lockfile && break
         if [ $i -eq 3 ]; then
