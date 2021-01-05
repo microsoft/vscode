@@ -344,7 +344,7 @@
 	margin-right: 0.5em;
 }
 
-/* No Tab Actions */
+/* Tab Actions: Off */
 
 .monaco-workbench .part.editor > .content .editor-group-container > .title .tabs-container > .tab.tab-actions-off {
 	padding-right: 10px; /* give a little bit more room if tab actions is off */
@@ -365,23 +365,6 @@
 
 .monaco-workbench .part.editor > .content .editor-group-container > .title .tabs-container > .tab.tab-actions-off > .tab-actions {
 	pointer-events: none; /* don't allow tab actions to be clicked when running without tab actions */
-}
-
-/* Editor Actions */
-
-.monaco-workbench .part.editor > .content .editor-group-container > .title .editor-actions {
-	cursor: default;
-	flex: initial;
-	padding: 0 8px 0 4px;
-	height: 35px;
-}
-
-.monaco-workbench .part.editor > .content .editor-group-container > .title > .tabs-and-actions-container.wrapping .editor-actions {
-
-	/* When tabs are wrapped, position the editor actions at the end of the very last row */
-	position: absolute;
-	bottom: 0;
-	right: 0;
 }
 
 /* Breadcrumbs */
@@ -425,4 +408,21 @@
 
 .monaco-workbench .part.editor > .content .editor-group-container > .title .tabs-breadcrumbs .breadcrumbs-control .monaco-breadcrumb-item:last-child .codicon:last-child {
 	display: none; /* hides chevrons when last item */
+}
+
+/* Editor Actions Toolbar */
+
+.monaco-workbench .part.editor > .content .editor-group-container > .title .editor-actions {
+	cursor: default;
+	flex: initial;
+	padding: 0 8px 0 4px;
+	height: 35px;
+}
+
+.monaco-workbench .part.editor > .content .editor-group-container > .title > .tabs-and-actions-container.wrapping .editor-actions {
+
+	/* When tabs are wrapped, position the editor actions at the end of the very last row */
+	position: absolute;
+	bottom: 0;
+	right: 0;
 }
