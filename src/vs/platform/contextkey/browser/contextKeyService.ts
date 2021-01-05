@@ -5,7 +5,7 @@
 
 import { Emitter, Event, PauseableEmitter } from 'vs/base/common/event';
 import { Iterable } from 'vs/base/common/iterator';
-import { IDisposable, DisposableStore } from 'vs/base/common/lifecycle';
+import { IDisposable, DisposableStore, MutableDisposable } from 'vs/base/common/lifecycle';
 import { TernarySearchTree } from 'vs/base/common/map';
 import { distinct } from 'vs/base/common/objects';
 import { CommandsRegistry } from 'vs/platform/commands/common/commands';
@@ -408,12 +408,12 @@ class ScopedContextKeyService extends AbstractContextKeyService {
 	private _parent: AbstractContextKeyService;
 	private _domNode: IContextKeyServiceTarget | undefined;
 
-	private _parentChangeListener: IDisposable | undefined;
+	private readonly _parentChangeListener = new MutableDisposable();
 
 	constructor(parent: AbstractContextKeyService, domNode?: IContextKeyServiceTarget) {
 		super(parent.createChildContext());
 		this._parent = parent;
-		this.updateParentChangeListener();
+		this._updateParentChangeListener();
 
 		if (domNode) {
 			this._domNode = domNode;
@@ -429,15 +429,9 @@ class ScopedContextKeyService extends AbstractContextKeyService {
 		}
 	}
 
-	private updateParentChangeListener(): void {
-		if (this._parentChangeListener) {
-			this._parentChangeListener.dispose();
-		}
-
-		this._parentChangeListener = this._parent.onDidChangeContext(e => {
-			// Forward parent events to this listener. Parent will change.
-			this._onDidChangeContext.fire(e);
-		});
+	private _updateParentChangeListener(): void {
+		// Forward parent events to this listener. Parent will change.
+		this._parentChangeListener.value = this._parent.onDidChangeContext(this._onDidChangeContext.fire, this._onDidChangeContext);
 	}
 
 	public dispose(): void {
@@ -476,7 +470,7 @@ class ScopedContextKeyService extends AbstractContextKeyService {
 		const thisContainer = this._parent.getContextValuesContainer(this._myContextId);
 		const oldAllValues = thisContainer.collectAllValues();
 		this._parent = parentContextKeyService;
-		this.updateParentChangeListener();
+		this._updateParentChangeListener();
 		const newParentContainer = this._parent.getContextValuesContainer(this._parent.contextId);
 		thisContainer.updateParent(newParentContainer);
 
