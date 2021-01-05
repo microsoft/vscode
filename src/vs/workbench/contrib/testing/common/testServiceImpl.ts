@@ -31,6 +31,7 @@ export class TestService extends Disposable implements ITestService {
 	private readonly unsubscribeEmitter = new Emitter<{ resource: ExtHostTestingResource, uri: URI }>();
 	private readonly changeProvidersEmitter = new Emitter<{ delta: number }>();
 	private readonly providerCount: IContextKey<number>;
+	private readonly isRunning: IContextKey<boolean>;
 	private readonly runStartedEmitter = new Emitter<RunTestsRequest>();
 	private readonly runCompletedEmitter = new Emitter<{ req: RunTestsRequest, result: RunTestsResult }>();
 	private readonly runningTests = new Map<RunTestsRequest, CancellationTokenSource>();
@@ -41,6 +42,7 @@ export class TestService extends Disposable implements ITestService {
 	constructor(@IContextKeyService contextKeyService: IContextKeyService, @INotificationService private readonly notificationService: INotificationService) {
 		super();
 		this.providerCount = TestingContextKeys.providerCount.bindTo(contextKeyService);
+		this.isRunning = TestingContextKeys.isRunning.bindTo(contextKeyService);
 	}
 
 	/**
@@ -104,9 +106,13 @@ export class TestService extends Disposable implements ITestService {
 
 		this.runningTests.set(req, cancelSource);
 		this.runStartedEmitter.fire(req);
-		const result = await collectTestResults(await Promise.all(requests));
+		this.isRunning.set(true);
+
+		const result = collectTestResults(await Promise.all(requests));
+
 		this.runningTests.delete(req);
 		this.runCompletedEmitter.fire({ req, result });
+		this.isRunning.set(this.runningTests.size > 0);
 
 		return result;
 	}

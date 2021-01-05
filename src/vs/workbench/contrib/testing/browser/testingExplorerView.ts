@@ -9,7 +9,6 @@ import { IIdentityProvider, IKeyboardNavigationLabelProvider, IListVirtualDelega
 import { IListAccessibilityProvider } from 'vs/base/browser/ui/list/listWidget';
 import { ObjectTree } from 'vs/base/browser/ui/tree/objectTree';
 import { ITreeElement, ITreeEvent, ITreeFilter, ITreeNode, ITreeRenderer, ITreeSorter, TreeFilterResult, TreeVisibility } from 'vs/base/browser/ui/tree/tree';
-import { Action } from 'vs/base/common/actions';
 import { throttle } from 'vs/base/common/decorators';
 import { Emitter, Event } from 'vs/base/common/event';
 import { FuzzyScore } from 'vs/base/common/filters';
@@ -41,17 +40,15 @@ import { IViewDescriptorService } from 'vs/workbench/common/views';
 import { testingStatesToIcons } from 'vs/workbench/contrib/testing/browser/icons';
 import { maxPriority, statePriority } from 'vs/workbench/contrib/testing/browser/testExplorerTree';
 import { ITestingCollectionService, TestSubscriptionListener } from 'vs/workbench/contrib/testing/browser/testingCollectionService';
+import { TestExplorerViewMode } from 'vs/workbench/contrib/testing/common/constants';
 import { InternalTestItem, TestDiffOpType, TestsDiff } from 'vs/workbench/contrib/testing/common/testCollection';
+import { TestingContextKeys } from 'vs/workbench/contrib/testing/common/testingContextKeys';
 import { ITestService } from 'vs/workbench/contrib/testing/common/testService';
 import { IEditorService } from 'vs/workbench/services/editor/common/editorService';
-import { CancelTestRunAction, DebugAction, DebugSelectedAction, FilterableAction, filterVisibleActions, RunAction, RunSelectedAction, ToggleViewModeAction, ViewMode } from './testExplorerActions';
-
-export const TESTING_EXPLORER_VIEW_ID = 'workbench.view.testing';
+import { DebugAction, RunAction } from './testExplorerActions';
 
 export class TestingExplorerView extends ViewPane {
-	private primaryActions: Action[] = [];
-	private secondaryActions: Action[] = [];
-	private viewModel!: TestingExplorerViewModel;
+	public viewModel!: TestingExplorerViewModel;
 	private currentSubscription?: TestSubscriptionListener;
 	private listContainer!: HTMLElement;
 
@@ -90,24 +87,6 @@ export class TestingExplorerView extends ViewPane {
 		this.viewModel = this.instantiationService.createInstance(TestingExplorerViewModel, this.listContainer, this.onDidChangeBodyVisibility, this.currentSubscription);
 		this._register(this.viewModel);
 
-		this.secondaryActions = [
-			this.instantiationService.createInstance(ToggleViewModeAction, this.viewModel)
-		];
-		this.secondaryActions.forEach(this._register, this);
-
-		this.primaryActions = [
-			this.instantiationService.createInstance(RunSelectedAction, this.viewModel),
-			this.instantiationService.createInstance(DebugSelectedAction, this.viewModel),
-			this.instantiationService.createInstance(CancelTestRunAction),
-		];
-		this.primaryActions.forEach(this._register, this);
-
-		for (const action of [...this.primaryActions, ...this.secondaryActions]) {
-			if (action instanceof FilterableAction) {
-				action.onDidChangeVisibility(this.updateActions, this);
-			}
-		}
-
 		this._register(this.onDidChangeBodyVisibility(visible => {
 			if (!visible && this.currentSubscription) {
 				this.currentSubscription.dispose();
@@ -118,20 +97,6 @@ export class TestingExplorerView extends ViewPane {
 				this.viewModel.replaceSubscription(this.currentSubscription);
 			}
 		}));
-	}
-
-	/**
-	 * @override
-	 */
-	public getActions() {
-		return [...filterVisibleActions(this.primaryActions), ...super.getActions()];
-	}
-
-	/**
-	 * @override
-	 */
-	public getSecondaryActions() {
-		return [...filterVisibleActions(this.secondaryActions), ...super.getSecondaryActions()];
 	}
 
 
@@ -153,8 +118,9 @@ export class TestingExplorerViewModel extends Disposable {
 	private tree: ObjectTree<ITestTreeElement, FuzzyScore>;
 	private filter: TestsFilter;
 	private projection!: ITestTreeProjection;
-	private _viewMode = Number(this.storageService.get('testing.viewMode', StorageScope.WORKSPACE, String(ViewMode.Tree))) as ViewMode;
-	private viewModeChangeEmitter = new Emitter<ViewMode>();
+
+	private readonly _viewMode = TestingContextKeys.viewMode.bindTo(this.contextKeyService);
+	private viewModeChangeEmitter = new Emitter<TestExplorerViewMode>();
 
 	/**
 	 * Fires when the tree view mode changes.
@@ -167,15 +133,15 @@ export class TestingExplorerViewModel extends Disposable {
 	public readonly onDidChangeSelection: Event<ITreeEvent<ITestTreeElement | null>>;
 
 	public get viewMode() {
-		return this._viewMode;
+		return this._viewMode.get() ?? TestExplorerViewMode.Tree;
 	}
 
-	public set viewMode(newMode: ViewMode) {
-		if (newMode === this._viewMode) {
+	public set viewMode(newMode: TestExplorerViewMode) {
+		if (newMode === this._viewMode.get()) {
 			return;
 		}
 
-		this._viewMode = newMode;
+		this._viewMode.set(newMode);
 		this.updatePreferredProjection();
 		this.storageService.store('testing.viewMode', newMode, StorageScope.WORKSPACE, StorageTarget.USER);
 		this.viewModeChangeEmitter.fire(newMode);
@@ -188,8 +154,11 @@ export class TestingExplorerViewModel extends Disposable {
 		@IInstantiationService instantiationService: IInstantiationService,
 		@IEditorService editorService: IEditorService,
 		@IStorageService private readonly storageService: IStorageService,
+		@IContextKeyService private readonly contextKeyService: IContextKeyService,
 	) {
 		super();
+
+		this._viewMode.set(this.storageService.get('testing.viewMode', StorageScope.WORKSPACE, TestExplorerViewMode.Tree) as TestExplorerViewMode);
 		const labels = this._register(instantiationService.createInstance(ResourceLabels, { onDidChangeVisibility: onDidChangeVisibility }));
 
 		this.filter = new TestsFilter();
@@ -249,7 +218,7 @@ export class TestingExplorerViewModel extends Disposable {
 			return;
 		}
 
-		if (this._viewMode === ViewMode.List) {
+		if (this._viewMode.get() === TestExplorerViewMode.List) {
 			this.projection = new ListProjection(this.listener);
 		} else {
 			this.projection = new HierarchalProjection(this.listener);
