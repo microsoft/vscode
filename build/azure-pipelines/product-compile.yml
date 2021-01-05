@@ -57,8 +57,9 @@ steps:
 
   - script: |
       set -e
-      sudo apt update
-      sudo apt install -y build-essential
+      sudo apt update -y
+      sudo apt install -y build-essential pkg-config
+
     displayName: Install build tools
     condition: and(succeeded(), ne(variables.NODE_MODULES_RESTORED, 'true'))
 
