@@ -87,33 +87,21 @@ steps:
 
   - script: |
       set -e
-      yarn npm-run-all -lp compile-build compile-extensions-build
-      yarn npm-run-all -lp minify-vscode minify-vscode-reh minify-vscode-reh-web
-    displayName: Compile
+      yarn gulp hygiene
+      yarn monaco-compile-check
+      yarn valid-layers-check
+    displayName: Run hygiene, monaco compile & valid layers checks
+    condition: and(succeeded(), eq(variables['VSCODE_STEP_ON_IT'], 'false'))
 
   - script: |
-      set -e
-      AZURE_STORAGE_ACCESS_KEY="$(ticino-storage-key)" \
-        node build/azure-pipelines/upload-sourcemaps
-    displayName: Upload sourcemaps
+      set -
+      ./build/azure-pipelines/common/extract-telemetry.sh
+    displayName: Extract Telemetry
     condition: and(succeeded(), ne(variables['VSCODE_PUBLISH'], 'false'))
 
   - script: |
       set -e
-      VERSION=`node -p "require(\"./package.json\").version"`
-      AZURE_DOCUMENTDB_MASTERKEY="$(builds-docdb-key-readwrite)" \
-        node build/azure-pipelines/common/createBuild.js $VERSION
-    displayName: Create build
+      AZURE_WEBVIEW_STORAGE_ACCESS_KEY="$(vscode-webview-storage-key)" \
+      ./build/azure-pipelines/common/publish-webview.sh
+    displayName: Publish Webview
     condition: and(succeeded(), ne(variables['VSCODE_PUBLISH'], 'false'))
-
-  # we gotta tarball everything in order to preserve file permissions
-  - script: |
-      set -e
-      tar -czf $(Build.ArtifactStagingDirectory)/compilation.tar.gz .build out-*
-    displayName: Compress compilation artifact
-
-  - task: PublishPipelineArtifact@1
-    inputs:
-      targetPath: $(Build.ArtifactStagingDirectory)/compilation.tar.gz
-      artifactName: Compilation
-    displayName: Publish compilation artifact
