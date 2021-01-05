@@ -3,6 +3,10 @@ steps:
     inputs:
       versionSpec: "12.x"
 
+  - task: geeklearningio.gl-vsts-tasks-yarn.yarn-installer-task.YarnInstaller@2
+    inputs:
+      versionSpec: "1.x"
+
   - task: AzureKeyVault@1
     displayName: "Azure Key Vault: Get Secrets"
     inputs:
@@ -83,11 +87,8 @@ steps:
 
   - script: |
       set -e
-      yarn gulp compile-build
-      yarn gulp compile-extensions-build
-      yarn gulp minify-vscode
-      yarn gulp minify-vscode-reh
-      yarn gulp minify-vscode-reh-web
+      yarn npm-run-all -lp compile-build compile-extensions-build
+      yarn npm-run-all -lp minify-vscode minify-vscode-reh minify-vscode-reh-web
     displayName: Compile
 
   - script: |
