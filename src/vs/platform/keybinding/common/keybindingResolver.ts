@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { isNonEmptyArray } from 'vs/base/common/arrays';
-import { MenuRegistry } from 'vs/platform/actions/common/actions';
+import { isIMenuItem, MenuId, MenuRegistry } from 'vs/platform/actions/common/actions';
 import { CommandsRegistry, ICommandHandlerDescription } from 'vs/platform/commands/common/commands';
 import { IContext, ContextKeyExpression, ContextKeyExprType } from 'vs/platform/contextkey/common/contextkey';
 import { ResolvedKeybindingItem } from 'vs/platform/keybinding/common/resolvedKeybindingItem';
@@ -364,9 +364,14 @@ export class KeybindingResolver {
 			}
 			unboundCommands.push(id);
 		};
-		for (const id of MenuRegistry.getCommands().keys()) {
-			addCommand(id, true);
+
+		// Add all commands from Command Palette
+		for (const menuItem of MenuRegistry.getMenuItems(MenuId.CommandPalette)) {
+			if (isIMenuItem(menuItem)) {
+				addCommand(menuItem.command.id, true);
+			}
 		}
+
 		for (const id of CommandsRegistry.getCommands().keys()) {
 			addCommand(id, false);
 		}
