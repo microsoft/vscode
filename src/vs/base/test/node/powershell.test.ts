@@ -46,10 +46,10 @@ if (platform.isWindows) {
 				assert.strictEqual(pwshs.length, 3);
 
 				checkPath(pwshs[0].exePath);
-				assert.strictEqual(pwshs[0].displayName, 'PowerShell (x64)');
+				assert.strictEqual(pwshs[0].displayName, 'PowerShell');
 
 				checkPath(pwshs[1].exePath);
-				assert.strictEqual(pwshs[1].displayName, 'Windows PowerShell (x64)');
+				assert.strictEqual(pwshs[1].displayName, 'Windows PowerShell');
 
 				checkPath(pwshs[2].exePath);
 				assert.strictEqual(pwshs[2].displayName, 'Windows PowerShell (x86)');

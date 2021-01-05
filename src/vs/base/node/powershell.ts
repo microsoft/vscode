@@ -8,7 +8,7 @@ import * as os from 'os';
 import * as path from 'vs/base/common/path';
 import { env } from 'vs/base/common/process';
 
-const WindowsPowerShell64BitLabel = 'Windows PowerShell (x64)';
+const WindowsPowerShell64BitLabel = 'Windows PowerShell';
 const WindowsPowerShell32BitLabel = 'Windows PowerShell (x86)';
 
 // This is required, since parseInt("7-preview") will return 7.
