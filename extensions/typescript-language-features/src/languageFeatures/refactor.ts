@@ -298,7 +298,7 @@ class TypeScriptRefactorProvider implements vscode.CodeActionProvider<TsCodeActi
 			}
 			this.formattingOptionsManager.ensureConfigurationForDocument(document, token);
 
-			const args: Proto.GetApplicableRefactorsRequestArgs = {
+			const args: Proto.GetApplicableRefactorsRequestArgs & { kind?: string } = {
 				...typeConverters.Range.toFileRangeRequestArgs(file, rangeOrSelection),
 				triggerReason: this.toTsTriggerReason(context),
 				kind: context.only?.value
@@ -385,8 +385,8 @@ class TypeScriptRefactorProvider implements vscode.CodeActionProvider<TsCodeActi
 	}
 
 	private static getKind(refactor: Proto.RefactorActionInfo) {
-		if (refactor.kind) {
-			return vscode.CodeActionKind.Empty.append(refactor.kind);
+		if ((refactor as Proto.RefactorActionInfo & { kind?: string }).kind) {
+			return vscode.CodeActionKind.Empty.append((refactor as Proto.RefactorActionInfo & { kind?: string }).kind!);
 		}
 		const match = allKnownCodeActionKinds.find(kind => kind.matches(refactor));
 		return match ? match.kind : vscode.CodeActionKind.Refactor;
