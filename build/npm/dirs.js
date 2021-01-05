@@ -34,6 +34,7 @@ exports.dirs = [
 	'extensions/npm',
 	'extensions/php-language-features',
 	'extensions/search-result',
+	'extensions/simple-browser',
 	'extensions/typescript-language-features',
 	'extensions/vscode-api-tests',
 	'extensions/vscode-colorize-tests',
