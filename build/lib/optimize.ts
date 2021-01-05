@@ -278,6 +278,8 @@ function uglifyWithCopyrights(): NodeJS.ReadWriteStream {
 				outfile: f.relative,
 				sourcemap: true,
 				minify: true,
+				platform: 'node',
+				target: ['node12.18']
 			}));
 		}));
 
