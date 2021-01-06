@@ -1006,6 +1006,31 @@ suite('vscode API - workspace', () => {
 	});
 
 	test('Should send a single FileWillRenameEvent instead of separate events when moving multiple files at once#111867', async function () {
+		this.skip();
+
+		const event = new Promise<vscode.FileWillCreateEvent>(resolve => {
+			let sub = vscode.workspace.onWillCreateFiles(e => {
+				sub.dispose();
+				resolve(e);
+			});
+		});
+
+		const file1 = vscode.Uri.parse(`fake-fs:/${rndName()}`);
+		const file2 = vscode.Uri.parse(`fake-fs:/${rndName()}`);
+
+		const we = new vscode.WorkspaceEdit();
+		we.createFile(file1, { overwrite: true });
+		we.createFile(file2, { overwrite: true });
+		await vscode.workspace.applyEdit(we);
+
+		const e = await event;
+
+		assert.strictEqual(e.files.length, 2);
+		assert.strictEqual(e.files[0].toString(), file1.toString());
+		assert.strictEqual(e.files[1].toString(), file2.toString());
+	});
+
+	test('Should send a single FileWillRenameEvent instead of separate events when moving multiple files at once#111867', async function () {
 
 		const file1 = await createRandomFile();
 		const file2 = await createRandomFile();
