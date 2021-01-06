@@ -31,8 +31,8 @@ export function activate(context: vscode.ExtensionContext) {
 		}
 	}));
 
-	context.subscriptions.push(vscode.commands.registerCommand(openApiCommand, (url: vscode.Uri) => {
-		manager.show(url.toString());
+	context.subscriptions.push(vscode.commands.registerCommand(openApiCommand, (url: vscode.Uri, showOptions?: { preserveFocus?: boolean }) => {
+		manager.show(url.toString(), showOptions);
 	}));
 
 	context.subscriptions.push(vscode.window.registerExternalUriOpener(['http', 'https'], {

@@ -9,6 +9,10 @@ import { Disposable } from './dispose';
 
 const localize = nls.loadMessageBundle();
 
+export interface ShowOptions {
+	readonly preserveFocus?: boolean;
+}
+
 export class SimpleBrowserView extends Disposable {
 
 	public static readonly viewType = 'simpleBrowser.view';
@@ -22,11 +26,13 @@ export class SimpleBrowserView extends Disposable {
 	constructor(
 		private readonly extensionUri: vscode.Uri,
 		url: string,
+		showOptions?: ShowOptions
 	) {
 		super();
 
 		this._webviewPanel = this._register(vscode.window.createWebviewPanel(SimpleBrowserView.viewType, SimpleBrowserView.title, {
 			viewColumn: vscode.ViewColumn.Active,
+			preserveFocus: showOptions?.preserveFocus
 		}, {
 			enableScripts: true,
 			retainContextWhenHidden: true,
@@ -67,9 +73,9 @@ export class SimpleBrowserView extends Disposable {
 		super.dispose();
 	}
 
-	public show(url: string) {
+	public show(url: string, options?: ShowOptions) {
 		this._webviewPanel.webview.html = this.getHtml(url);
-		this._webviewPanel.reveal();
+		this._webviewPanel.reveal(undefined, options?.preserveFocus);
 	}
 
 	private getHtml(url: string) {
