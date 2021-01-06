@@ -217,7 +217,7 @@ export class GettingStartedPage extends Disposable {
 		const categoriesSlide = assertIsDefined(document.getElementById('gettingStartedSlideCategory'));
 		const tasksSlide = assertIsDefined(document.getElementById('gettingStartedSlideDetails'));
 
-		const tasksContent = assertIsDefined(document.getElementById('gettingStartedDetailsContent'));
+		const tasksContent = assertIsDefined(document.getElementById('gettingStartedDetailsContent') as HTMLElement);
 		tasksContent.remove();
 		if (this.detailImageScrollbar) { this.detailImageScrollbar.dispose(); }
 		this.detailImageScrollbar = this._register(new DomScrollableElement(tasksContent, { className: 'full-height-scrollable' }));

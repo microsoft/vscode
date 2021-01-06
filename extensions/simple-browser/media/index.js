@@ -155,6 +155,11 @@ window.addEventListener('message', e => {
                 iframe.focus();
                 break;
             }
+        case 'didChangeFocusLockIndicatorEnabled':
+            {
+                toggleFocusLockIndicatorEnabled(e.data.enabled);
+                break;
+            }
     }
 });
 events_1.onceDocumentLoaded(() => {
@@ -189,10 +194,14 @@ events_1.onceDocumentLoaded(() => {
         iframe.src = input.value;
     });
     navigateTo(settings.url);
+    toggleFocusLockIndicatorEnabled(settings.focusLockIndicatorEnabled);
     function navigateTo(url) {
         iframe.src = url;
     }
 });
+function toggleFocusLockIndicatorEnabled(enabled) {
+    document.body.classList.toggle('enable-focus-lock-indicator', enabled);
+}
 
 
 /***/ })
