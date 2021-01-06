@@ -283,12 +283,11 @@ export class WorkingCopyFileService extends Disposable implements IWorkingCopyFi
 
 		// validate create operation before starting
 		if (isFile) {
-			await Promise.all(operations.map(async operation => {
-				const validateCreate = await this.fileService.canCreateFile(operation.resource, { overwrite: operation.overwrite });
-				if (validateCreate instanceof Error) {
-					throw validateCreate;
-				}
-			}));
+			const validateCreates = await Promise.all(operations.map(operation => this.fileService.canCreateFile(operation.resource, { overwrite: operation.overwrite })));
+			const error = validateCreates.find(validateCreate => validateCreate instanceof Error);
+			if (error instanceof Error) {
+				throw error;
+			}
 		}
 
 		// file operation participant
