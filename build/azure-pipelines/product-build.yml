@@ -202,7 +202,8 @@ stages:
     - stage: Publish
       dependsOn:
         - Windows
-        - Linux
+        - ${{ if or(eq(parameters.VSCODE_BUILD_LINUX, true), eq(parameters.VSCODE_BUILD_LINUX_ARMHF, true), eq(parameters.VSCODE_BUILD_LINUX_ARM64, true), eq(parameters.VSCODE_BUILD_LINUX_ALPINE, true), eq(parameters.VSCODE_BUILD_WEB, true)) }}:
+          - Linux
         - macOS
       condition: succeededOrFailed()
       pool:
