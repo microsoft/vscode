@@ -3,11 +3,12 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
+import { RunOnceScheduler } from 'vs/base/common/async';
 import { Emitter, Event } from 'vs/base/common/event';
 import { DisposableStore } from 'vs/base/common/lifecycle';
 import { IMenu, IMenuActionOptions, IMenuItem, IMenuService, isIMenuItem, ISubmenuItem, MenuId, MenuItemAction, MenuRegistry, SubmenuItemAction, ILocalizedString } from 'vs/platform/actions/common/actions';
 import { ICommandService } from 'vs/platform/commands/common/commands';
-import { IContextKeyService, IContextKeyChangeEvent, ContextKeyExpression } from 'vs/platform/contextkey/common/contextkey';
+import { IContextKeyService, ContextKeyExpression } from 'vs/platform/contextkey/common/contextkey';
 
 export class MenuService implements IMenuService {
 
@@ -53,11 +54,13 @@ class Menu implements IMenu {
 
 		// when context keys change we need to check if the menu also
 		// has changed
-		this._dispoables.add(Event.debounce<IContextKeyChangeEvent, boolean>(
-			this._contextKeyService.onDidChangeContext,
-			(last, event) => last || event.affectsSome(this._contextKeys),
-			50
-		)(e => e && this._onDidChange.fire(undefined), this));
+		const scheduler = new RunOnceScheduler(() => this._onDidChange.fire(this), 50);
+		this._dispoables.add(scheduler);
+		this._dispoables.add(_contextKeyService.onDidChangeContext(e => {
+			if (e.affectsSome(this._contextKeys)) {
+				scheduler.schedule();
+			}
+		}));
 	}
 
 	dispose(): void {
