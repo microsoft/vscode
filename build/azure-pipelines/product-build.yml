@@ -49,7 +49,7 @@ stages:
         steps:
           - template: product-hygiene.yml
 
-  - ${{ if eq(parameters.VSCODE_COMPILE_ONLY, 'false') }}:
+  - ${{ if eq(parameters.VSCODE_COMPILE_ONLY, false) }}:
     - stage: Windows
       dependsOn:
         - Compile
@@ -82,7 +82,7 @@ stages:
             steps:
               - template: win32/product-build-win32.yml
 
-  - ${{ if eq(parameters.VSCODE_COMPILE_ONLY, 'false') }}:
+  - ${{ if eq(parameters.VSCODE_COMPILE_ONLY, false) }}:
     - stage: Linux
       dependsOn:
         - Compile
@@ -165,7 +165,7 @@ stages:
             steps:
               - template: web/product-build-web.yml
 
-  - ${{ if eq(parameters.VSCODE_COMPILE_ONLY, 'false') }}:
+  - ${{ if eq(parameters.VSCODE_COMPILE_ONLY, false) }}:
     - stage: macOS
       dependsOn:
         - Compile
@@ -189,7 +189,7 @@ stages:
             steps:
               - template: darwin/product-build-darwin.yml
 
-  - ${{ if and(eq(variables['VSCODE_CIBUILD'], 'false'), eq(parameters.VSCODE_COMPILE_ONLY, 'false')) }}:
+  - ${{ if and(eq(variables['VSCODE_CIBUILD'], 'false'), eq(parameters.VSCODE_COMPILE_ONLY, false)) }}:
     - stage: Publish
       dependsOn:
         - Windows
