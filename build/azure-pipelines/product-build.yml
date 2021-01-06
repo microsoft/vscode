@@ -18,6 +18,9 @@ parameters:
   - name: VSCODE_COMPILE_ONLY
     type: boolean
     default: false
+  - name: VSCODE_STEP_ON_IT
+    type: boolean
+    default: false
   - name: VSCODE_BUILD_WIN32
     type: boolean
     default: true
@@ -54,6 +57,9 @@ parameters:
   - name: VSCODE_RELEASE
     type: boolean
     default: false
+  - name: ENABLE_TERRAPIN
+    type: boolean
+    default: true
 
 variables:
   - name: VSCODE_CIBUILD
@@ -78,6 +84,10 @@ resources:
 
 stages:
   - stage: Compile
+    variables:
+      ENABLE_TERRAPIN: ${{ parameters.ENABLE_TERRAPIN }}
+      VSCODE_PUBLISH: ${{ parameters.VSCODE_PUBLISH }}
+      VSCODE_STEP_ON_IT: ${{ parameters.VSCODE_STEP_ON_IT }}
     jobs:
       - job: Compile
         pool: compile
@@ -98,6 +108,10 @@ stages:
         - Compile
       pool:
         vmImage: VS2017-Win2016
+      variables:
+        ENABLE_TERRAPIN: ${{ parameters.ENABLE_TERRAPIN }}
+        VSCODE_PUBLISH: ${{ parameters.VSCODE_PUBLISH }}
+        VSCODE_STEP_ON_IT: ${{ parameters.VSCODE_STEP_ON_IT }}
       jobs:
 
         - ${{ if eq(parameters.VSCODE_BUILD_WIN32, true) }}:
@@ -130,6 +144,10 @@ stages:
         - Compile
       pool:
         vmImage: "Ubuntu-18.04"
+      variables:
+        ENABLE_TERRAPIN: ${{ parameters.ENABLE_TERRAPIN }}
+        VSCODE_PUBLISH: ${{ parameters.VSCODE_PUBLISH }}
+        VSCODE_STEP_ON_IT: ${{ parameters.VSCODE_STEP_ON_IT }}
       jobs:
 
         - ${{ if eq(parameters.VSCODE_BUILD_LINUX, true) }}:
@@ -207,6 +225,10 @@ stages:
         - Compile
       pool:
         vmImage: macOS-latest
+      variables:
+        ENABLE_TERRAPIN: ${{ parameters.ENABLE_TERRAPIN }}
+        VSCODE_PUBLISH: ${{ parameters.VSCODE_PUBLISH }}
+        VSCODE_STEP_ON_IT: ${{ parameters.VSCODE_STEP_ON_IT }}
       jobs:
 
         - ${{ if eq(parameters.VSCODE_BUILD_MACOS, true) }}:
