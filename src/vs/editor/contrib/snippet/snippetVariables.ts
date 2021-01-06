@@ -50,7 +50,7 @@ export const KnownSnippetVariableNames: { [key: string]: true } = Object.freeze(
 	'WORKSPACE_FOLDER': true,
 	'RANDOM': true,
 	'RANDOM_HEX': true,
-	'RANDOM_UUID': true
+	'UUID': true
 });
 
 export class CompositeSnippetVariableResolver implements VariableResolver {
@@ -342,10 +342,9 @@ export class RandomBasedVariableResolver implements VariableResolver {
 
 		if (name === 'RANDOM') {
 			return Math.random().toString().slice(-6);
-		}
-		else if (name === 'RANDOM_HEX') {
+		} else if (name === 'RANDOM_HEX') {
 			return Math.random().toString(16).slice(-6);
-		} else if (name === 'RANDOM_UUID') {
+		} else if (name === 'UUID') {
 			return generateUuid();
 		}
 
