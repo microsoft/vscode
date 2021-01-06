@@ -66,6 +66,8 @@ variables:
     value: ${{ eq(parameters.ENABLE_TERRAPIN, true) }}
   - name: VSCODE_CIBUILD
     value: ${{ in(variables['Build.Reason'], 'IndividualCI', 'BatchedCI') }}
+  - name: VSCODE_PUBLISH
+    value: ${{ and(eq(parameters.VSCODE_PUBLISH, true), eq(variables.VSCODE_CIBUILD, false)) }}
   - name: VSCODE_SCHEDULEDBUILD
     value: ${{ eq(variables['Build.Reason'], 'Schedule') }}
   - name: VSCODE_STEP_ON_IT
@@ -88,10 +90,8 @@ resources:
 
 stages:
   - stage: Compile
-    variables:
-      # ENABLE_TERRAPIN: ${{ eq(parameters.ENABLE_TERRAPIN, true) }}
-      VSCODE_PUBLISH: ${{ and(eq(parameters.VSCODE_PUBLISH, true), eq(variables.VSCODE_CIBUILD, false)) }}
-      # VSCODE_STEP_ON_IT: ${{ eq(parameters.VSCODE_STEP_ON_IT, true) }}
+    # variables:
+    #   VSCODE_PUBLISH: ${{ and(eq(parameters.VSCODE_PUBLISH, true), eq(variables.VSCODE_CIBUILD, false)) }}
     jobs:
       - job: Compile
         pool: compile
@@ -113,9 +113,7 @@ stages:
       pool:
         vmImage: VS2017-Win2016
       variables:
-        ENABLE_TERRAPIN: ${{ eq(parameters.ENABLE_TERRAPIN, true) }}
         VSCODE_PUBLISH: ${{ and(eq(parameters.VSCODE_PUBLISH, true), eq(variables.VSCODE_CIBUILD, false)) }}
-        VSCODE_STEP_ON_IT: ${{ eq(parameters.VSCODE_STEP_ON_IT, true) }}
       jobs:
 
         - ${{ if eq(parameters.VSCODE_BUILD_WIN32, true) }}:
@@ -149,9 +147,7 @@ stages:
       pool:
         vmImage: "Ubuntu-18.04"
       variables:
-        ENABLE_TERRAPIN: ${{ eq(parameters.ENABLE_TERRAPIN, true) }}
         VSCODE_PUBLISH: ${{ and(eq(parameters.VSCODE_PUBLISH, true), eq(variables.VSCODE_CIBUILD, false)) }}
-        VSCODE_STEP_ON_IT: ${{ eq(parameters.VSCODE_STEP_ON_IT, true) }}
       jobs:
 
         - ${{ if eq(parameters.VSCODE_BUILD_LINUX, true) }}:
@@ -230,9 +226,7 @@ stages:
       pool:
         vmImage: macOS-latest
       variables:
-        ENABLE_TERRAPIN: ${{ eq(parameters.ENABLE_TERRAPIN, true) }}
         VSCODE_PUBLISH: ${{ and(eq(parameters.VSCODE_PUBLISH, true), eq(variables.VSCODE_CIBUILD, false)) }}
-        VSCODE_STEP_ON_IT: ${{ eq(parameters.VSCODE_STEP_ON_IT, true) }}
       jobs:
 
         - ${{ if eq(parameters.VSCODE_BUILD_MACOS, true) }}:
@@ -251,7 +245,7 @@ stages:
             steps:
               - template: darwin/product-build-darwin.yml
 
-  - ${{ if and(eq(parameters.VSCODE_PUBLISH, true), eq(parameters.VSCODE_COMPILE_ONLY, false)) }}:
+  - ${{ if and(eq(variables['VSCODE_PUBLISH'], true), eq(parameters.VSCODE_COMPILE_ONLY, false)) }}:
     - stage: Publish
       dependsOn:
         - ${{ if or(eq(parameters.VSCODE_BUILD_WIN32, true), eq(parameters.VSCODE_BUILD_WIN32_32BIT, true), eq(parameters.VSCODE_BUILD_WIN32_ARM64, true)) }}:
