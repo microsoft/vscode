@@ -89,6 +89,7 @@ export class TerminalInstance extends Disposable implements ITerminalInstance {
 	private _wrapperElement: (HTMLElement & { xterm?: XTermTerminal }) | undefined;
 	private _xterm: XTermTerminal | undefined;
 	private _xtermCore: XTermCore | undefined;
+	private _typeAheadAddOn: TypeAheadAddon | undefined;
 	private _xtermSearch: SearchAddon | undefined;
 	private _xtermUnicode11: Unicode11Addon | undefined;
 	private _xtermElement: HTMLDivElement | undefined;
@@ -464,8 +465,8 @@ export class TerminalInstance extends Disposable implements ITerminalInstance {
 			}
 		}));
 
-		const typeaheadAddon = this._register(this._instantiationService.createInstance(TypeAheadAddon, this._processManager, this._configHelper));
-		this._xterm.loadAddon(typeaheadAddon);
+		this._typeAheadAddOn = this._register(this._instantiationService.createInstance(TypeAheadAddon, this._processManager, this._configHelper));
+		this._xterm.loadAddon(this._typeAheadAddOn);
 
 		return xterm;
 	}
@@ -1166,6 +1167,7 @@ export class TerminalInstance extends Disposable implements ITerminalInstance {
 		if (this._xterm) {
 			if (reset) {
 				this._xterm.reset();
+				this._typeAheadAddOn?.reset(this._xterm);
 			} else {
 				// Ensure new processes' output starts at start of new line
 				this._xterm.write('\n\x1b[G');
