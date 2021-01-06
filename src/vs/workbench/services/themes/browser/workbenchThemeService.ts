@@ -503,7 +503,7 @@ export class WorkbenchThemeService implements IWorkbenchThemeService {
 		this.onColorThemeChange.fire(this.currentColorTheme);
 
 		// remember theme data for a quick restore
-		if (newTheme.isLoaded && settingsTarget) {
+		if (newTheme.isLoaded) {
 			newTheme.toStorage(this.storageService);
 		}
 
