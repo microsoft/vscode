@@ -8,6 +8,15 @@ schedules:
         - master
 
 parameters:
+  - name: VSCODE_BUILD_WIN32
+    type: boolean
+    default: true
+  - name: VSCODE_BUILD_WIN32_32BIT
+    type: boolean
+    default: true
+  - name: VSCODE_BUILD_WIN32_ARM64
+    type: boolean
+    default: true
   - name: VSCODE_BUILD_LINUX
     type: boolean
     default: true
@@ -18,6 +27,12 @@ parameters:
     type: boolean
     default: true
   - name: VSCODE_BUILD_LINUX_ARMHF
+    type: boolean
+    default: true
+  - name: VSCODE_BUILD_MACOS
+    type: boolean
+    default: true
+  - name: VSCODE_BUILD_MACOS_ARM64
     type: boolean
     default: true
   - name: VSCODE_BUILD_WEB
@@ -64,33 +79,32 @@ stages:
         steps:
           - template: product-hygiene.yml
 
-  - ${{ if eq(parameters.VSCODE_COMPILE_ONLY, false) }}:
+  - ${{ if and(eq(parameters.VSCODE_COMPILE_ONLY, false), or(eq(parameters.VSCODE_BUILD_WIN32, true), eq(parameters.VSCODE_BUILD_WIN32_32BIT, true), eq(parameters.VSCODE_BUILD_WIN32_ARM64, true))) }}:
     - stage: Windows
       dependsOn:
         - Compile
       pool:
         vmImage: VS2017-Win2016
       jobs:
-        - job: Windows
-          condition: and(succeeded(), eq(variables['VSCODE_BUILD_WIN32'], 'true'))
-          timeoutInMinutes: 90
-          variables:
-            VSCODE_ARCH: x64
-          steps:
-            - template: win32/product-build-win32.yml
 
-        - ${{ if eq(variables['VSCODE_CIBUILD'], false) }}:
+        - ${{ if eq(parameters.VSCODE_BUILD_WIN32, true) }}:
+          - job: Windows
+            timeoutInMinutes: 90
+            variables:
+              VSCODE_ARCH: x64
+            steps:
+              - template: win32/product-build-win32.yml
+
+        - ${{ if and(eq(variables['VSCODE_CIBUILD'], false), eq(parameters.VSCODE_BUILD_WIN32_32BIT, true)) }}:
           - job: Windows32
-            condition: and(succeeded(), eq(variables['VSCODE_BUILD_WIN32_32BIT'], 'true'))
             timeoutInMinutes: 90
             variables:
               VSCODE_ARCH: ia32
             steps:
               - template: win32/product-build-win32.yml
 
-        - ${{ if eq(variables['VSCODE_CIBUILD'], false) }}:
+        - ${{ if and(eq(variables['VSCODE_CIBUILD'], false), eq(parameters.VSCODE_BUILD_WIN32_ARM64, true)) }}:
           - job: WindowsARM64
-            condition: and(succeeded(), eq(variables['VSCODE_BUILD_WIN32_ARM64'], 'true'))
             timeoutInMinutes: 90
             variables:
               VSCODE_ARCH: arm64
@@ -174,24 +188,24 @@ stages:
             steps:
               - template: web/product-build-web.yml
 
-  - ${{ if eq(parameters.VSCODE_COMPILE_ONLY, false) }}:
+  - ${{ if and(eq(parameters.VSCODE_COMPILE_ONLY, false), or(eq(parameters.VSCODE_BUILD_MACOS, true), eq(parameters.VSCODE_BUILD_MACOS_ARM64, true))) }}:
     - stage: macOS
       dependsOn:
         - Compile
       pool:
         vmImage: macOS-latest
       jobs:
-        - job: macOS
-          condition: and(succeeded(), eq(variables['VSCODE_BUILD_MACOS'], 'true'))
-          timeoutInMinutes: 90
-          variables:
-            VSCODE_ARCH: x64
-          steps:
-            - template: darwin/product-build-darwin.yml
 
-        - ${{ if eq(variables['VSCODE_CIBUILD'], false) }}:
+        - ${{ if eq(parameters.VSCODE_BUILD_MACOS, true) }}:
+          - job: macOS
+            timeoutInMinutes: 90
+            variables:
+              VSCODE_ARCH: x64
+            steps:
+              - template: darwin/product-build-darwin.yml
+
+        - ${{ if and(eq(variables['VSCODE_CIBUILD'], false), eq(parameters.VSCODE_BUILD_MACOS_ARM64, true)) }}:
           - job: macOSARM64
-            condition: and(succeeded(), eq(variables['VSCODE_BUILD_MACOS_ARM64'], 'true'))
             timeoutInMinutes: 90
             variables:
               VSCODE_ARCH: arm64
@@ -201,10 +215,12 @@ stages:
   - ${{ if and(eq(variables['VSCODE_CIBUILD'], false), eq(parameters.VSCODE_COMPILE_ONLY, false)) }}:
     - stage: Publish
       dependsOn:
-        - Windows
+        - ${{ if or(eq(parameters.VSCODE_BUILD_WIN32, true), eq(parameters.VSCODE_BUILD_WIN32_32BIT, true), eq(parameters.VSCODE_BUILD_WIN32_ARM64, true)) }}:
+          - Windows
         - ${{ if or(eq(parameters.VSCODE_BUILD_LINUX, true), eq(parameters.VSCODE_BUILD_LINUX_ARMHF, true), eq(parameters.VSCODE_BUILD_LINUX_ARM64, true), eq(parameters.VSCODE_BUILD_LINUX_ALPINE, true), eq(parameters.VSCODE_BUILD_WEB, true)) }}:
           - Linux
-        - macOS
+        - ${{ if or(eq(parameters.VSCODE_BUILD_MACOS, true), eq(parameters.VSCODE_BUILD_MACOS_ARM64, true)) }}:
+          - macOS
       condition: succeededOrFailed()
       pool:
         vmImage: "Ubuntu-18.04"
