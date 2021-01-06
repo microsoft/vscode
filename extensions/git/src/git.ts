@@ -1909,11 +1909,11 @@ export class Repository {
 		const fn = (line: string): Ref | null => {
 			let match: RegExpExecArray | null;
 
-			if (match = /^refs\/heads\/([^ ]+) ([0-9a-f]{40}) ([0-9a-f]{40})?$/.exec(line)) {
+			if (match = /^refs\/heads\/([^ ]+) ([0-9a-f]{40}) ?([0-9a-f]{40})?$/.exec(line)) {
 				return { name: match[1], commit: match[2], type: RefType.Head };
-			} else if (match = /^refs\/remotes\/([^/]+)\/([^ ]+) ([0-9a-f]{40}) ([0-9a-f]{40})?$/.exec(line)) {
+			} else if (match = /^refs\/remotes\/([^/]+)\/([^ ]+) ?([0-9a-f]{40}) ([0-9a-f]{40})?$/.exec(line)) {
 				return { name: `${match[1]}/${match[2]}`, commit: match[3], type: RefType.RemoteHead, remote: match[1] };
-			} else if (match = /^refs\/tags\/([^ ]+) ([0-9a-f]{40}) ([0-9a-f]{40})?$/.exec(line)) {
+			} else if (match = /^refs\/tags\/([^ ]+) ([0-9a-f]{40}) ?([0-9a-f]{40})?$/.exec(line)) {
 				return { name: match[1], commit: match[3] ?? match[2], type: RefType.Tag };
 			}
 
