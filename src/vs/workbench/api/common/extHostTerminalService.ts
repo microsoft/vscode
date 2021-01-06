@@ -249,7 +249,14 @@ export class ExtHostPseudoterminal implements ITerminalChildProcess {
 	private readonly _onProcessOverrideDimensions = new Emitter<ITerminalDimensionsOverride | undefined>();
 	public get onProcessOverrideDimensions(): Event<ITerminalDimensionsOverride | undefined> { return this._onProcessOverrideDimensions.event; }
 
-	constructor(private readonly _pty: vscode.Pseudoterminal) { }
+	private _beforeStartData: string[] = [];
+	private _beforeStartWriteDisposable?: IDisposable;
+
+	constructor(private readonly _pty: vscode.Pseudoterminal) {
+		this._beforeStartWriteDisposable = this._pty.onDidWrite((m) => {
+			this._beforeStartData.push(m);
+		});
+	}
 
 	async start(): Promise<undefined> {
 		return undefined;
@@ -284,6 +291,14 @@ export class ExtHostPseudoterminal implements ITerminalChildProcess {
 	}
 
 	startSendingEvents(initialDimensions: ITerminalDimensionsDto | undefined): void {
+		// Flush changes between construction and the current moment
+		this._beforeStartWriteDisposable!.dispose();
+		this._beforeStartWriteDisposable = undefined;
+		for (let data of this._beforeStartData) {
+			this._onProcessData.fire(data);
+		}
+		this._beforeStartData = [];
+
 		// Attach the listeners
 		this._pty.onDidWrite(e => this._onProcessData.fire(e));
 		if (this._pty.onDidClose) {
