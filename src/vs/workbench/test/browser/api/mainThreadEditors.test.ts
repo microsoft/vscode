@@ -103,8 +103,10 @@ suite('MainThreadEditors', () => {
 		});
 		services.set(IWorkingCopyFileService, new class extends mock<IWorkingCopyFileService>() {
 			onDidRunWorkingCopyFileOperation = Event.None;
-			create(operation: ICreateFileOperation) {
-				createdResources.add(operation.resource);
+			create(operations: ICreateFileOperation[]) {
+				for (const operation of operations) {
+					createdResources.add(operation.resource);
+				}
 				return Promise.resolve(Object.create(null));
 			}
 			move(operations: IMoveOperation[]) {

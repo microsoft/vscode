@@ -166,9 +166,9 @@ class CreateOperation implements IFileOperation {
 				continue; // not overwriting, but ignoring, and the target file exists
 			}
 			if (edit.options.folder) {
-				await this._workingCopyFileService.createFolder({ resource: edit.newUri }, this._undoRedoInfo, token);
+				await this._workingCopyFileService.createFolder([{ resource: edit.newUri }], this._undoRedoInfo, token);
 			} else {
-				await this._workingCopyFileService.create({ resource: edit.newUri, contents: edit.contents, overwrite: edit.options.overwrite }, this._undoRedoInfo, token);
+				await this._workingCopyFileService.create([{ resource: edit.newUri, contents: edit.contents, overwrite: edit.options.overwrite }], this._undoRedoInfo, token);
 			}
 
 			undoes.push({
