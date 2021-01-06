@@ -94,15 +94,27 @@ steps:
 
   - script: |
       set -e
-      yarn npm-run-all -lp compile-build compile-extensions-build
-      yarn npm-run-all -lp minify-vscode minify-vscode-reh minify-vscode-reh-web
-    displayName: Compile
+      yarn npm-run-all -lp core-ci extensions-ci hygiene monaco-compile-check valid-layers-check
+    displayName: Compile & Hygiene
 
   - script: |
       set -e
       AZURE_STORAGE_ACCESS_KEY="$(ticino-storage-key)" \
         node build/azure-pipelines/upload-sourcemaps
     displayName: Upload sourcemaps
+    condition: and(succeeded(), ne(variables['VSCODE_PUBLISH'], 'false'))
+
+  - script: |
+      set -
+      ./build/azure-pipelines/common/extract-telemetry.sh
+    displayName: Extract Telemetry
+    condition: and(succeeded(), ne(variables['VSCODE_PUBLISH'], 'false'))
+
+  - script: |
+      set -e
+      AZURE_WEBVIEW_STORAGE_ACCESS_KEY="$(vscode-webview-storage-key)" \
+      ./build/azure-pipelines/common/publish-webview.sh
+    displayName: Publish Webview
     condition: and(succeeded(), ne(variables['VSCODE_PUBLISH'], 'false'))
 
   - script: |
