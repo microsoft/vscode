@@ -2090,13 +2090,11 @@ declare module 'vscode' {
 		readonly onDidChangeTest: Event<T>;
 
 		/**
-		 * An event that should be fired when all tests that are currently defined
-		 * have been discovered. The provider should continue to watch for changes
-		 * and fire `onDidChangeTest` until the hierarchy is disposed.
-		 *
-		 * @todo can this be covered by existing progress apis? Or return a promise
+		 * Promise that should be resolved when all tests that are initially
+		 * defined have been discovered. The provider should continue to watch for
+		 * changes and fire `onDidChangeTest` until the hierarchy is disposed.
 		 */
-		readonly onDidDiscoverInitialTests: Event<void>;
+		readonly discoveredInitialTests?: Thenable<unknown>;
 
 		/**
 		 * Dispose will be called when there are no longer observers interested
@@ -2126,7 +2124,7 @@ declare module 'vscode' {
 		 * there is a previous undisposed watcher for the given workspace folder.
 		 */
 		// eslint-disable-next-line vscode-dts-provider-naming
-		createWorkspaceTestHierarchy?(workspace: WorkspaceFolder): TestHierarchy<T>;
+		createWorkspaceTestHierarchy?(workspace: WorkspaceFolder): TestHierarchy<T> | undefined;
 
 		/**
 		 * Requests that tests be provided for the given document. This will
@@ -2134,7 +2132,7 @@ declare module 'vscode' {
 		 * for instance by code lens UI.
 		 */
 		// eslint-disable-next-line vscode-dts-provider-naming
-		createDocumentTestHierarchy?(document: TextDocument): TestHierarchy<T>;
+		createDocumentTestHierarchy?(document: TextDocument): TestHierarchy<T> | undefined;
 
 		/**
 		 * Starts a test run. This should cause {@link onDidChangeTest} to
