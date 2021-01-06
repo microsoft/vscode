@@ -130,6 +130,17 @@ steps:
 
   - script: |
       set -e
+      (cd .. && tar -czf $(Build.ArtifactStagingDirectory)/linux.tar.gz VSCode-linux-$(VSCODE_ARCH) vscode-reh-linux-$(VSCODE_ARCH) vscode-reh-web-linux-$(VSCODE_ARCH))
+    displayName: Compress compilation artifact
+
+  - task: PublishPipelineArtifact@1
+    inputs:
+      targetPath: $(Build.ArtifactStagingDirectory)/linux.tar.gz
+      artifactName: Linux
+    displayName: Publish compilation artifact
+
+  - script: |
+      set -e
       yarn npm-run-all -lp "electron $(VSCODE_ARCH)" "playwright-install"
     displayName: Download Electron and Playwright
     condition: and(succeeded(), eq(variables['VSCODE_ARCH'], 'x64'), eq(variables['VSCODE_STEP_ON_IT'], 'false'))
