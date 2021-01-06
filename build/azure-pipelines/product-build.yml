@@ -8,8 +8,10 @@ schedules:
         - master
 
 variables:
-  ${{ if and(eq(variables['VSCODE_PUBLISH'], ''), or(eq(variables['Build.Reason'], 'IndividualCI'), eq(variables['Build.Reason'], 'BatchedCI'))) }}:
-    VSCODE_PUBLISH: "false"
+  - name: VSCODE_CIBUILD
+    value: ${{ in(variables['Build.Reason'], 'IndividualCI', 'BatchedCI') }}
+  - name: VSCODE_SCHEDULEDBUILD
+    value: ${{ eq(variables['Build.Reason'], 'Schedule') }}
 
 resources:
   containers:
@@ -57,21 +59,23 @@ stages:
         steps:
           - template: win32/product-build-win32.yml
 
-      - job: Windows32
-        condition: and(succeeded(), eq(variables['VSCODE_BUILD_WIN32_32BIT'], 'true'), ne(variables['VSCODE_PUBLISH'], 'false'))
-        timeoutInMinutes: 90
-        variables:
-          VSCODE_ARCH: ia32
-        steps:
-          - template: win32/product-build-win32.yml
+      - ${{ if eq(variables['VSCODE_CIBUILD'], 'false') }}:
+        - job: Windows32
+          condition: and(succeeded(), eq(variables['VSCODE_BUILD_WIN32_32BIT'], 'true'))
+          timeoutInMinutes: 90
+          variables:
+            VSCODE_ARCH: ia32
+          steps:
+            - template: win32/product-build-win32.yml
 
-      - job: WindowsARM64
-        condition: and(succeeded(), eq(variables['VSCODE_BUILD_WIN32_ARM64'], 'true'), ne(variables['VSCODE_PUBLISH'], 'false'))
-        timeoutInMinutes: 90
-        variables:
-          VSCODE_ARCH: arm64
-        steps:
-          - template: win32/product-build-win32.yml
+      - ${{ if eq(variables['VSCODE_CIBUILD'], 'false') }}:
+        - job: WindowsARM64
+          condition: and(succeeded(), eq(variables['VSCODE_BUILD_WIN32_ARM64'], 'true'))
+          timeoutInMinutes: 90
+          variables:
+            VSCODE_ARCH: arm64
+          steps:
+            - template: win32/product-build-win32.yml
 
   - stage: Linux
     dependsOn:
@@ -89,65 +93,72 @@ stages:
         steps:
           - template: linux/product-build-linux.yml
 
-      - job: LinuxSnap
-        dependsOn:
-          - Linux
-        condition: and(succeeded(), eq(variables['VSCODE_BUILD_LINUX'], 'true'), ne(variables['VSCODE_PUBLISH'], 'false'))
-        container: snapcraft
-        variables:
-          VSCODE_ARCH: x64
-        steps:
-          - template: linux/snap-build-linux.yml
+      - ${{ if eq(variables['VSCODE_CIBUILD'], 'false') }}:
+        - job: LinuxSnap
+          dependsOn:
+            - Linux
+          condition: and(succeeded(), eq(variables['VSCODE_BUILD_LINUX'], 'true'))
+          container: snapcraft
+          variables:
+            VSCODE_ARCH: x64
+          steps:
+            - template: linux/snap-build-linux.yml
 
-      - job: LinuxArmhf
-        condition: and(succeeded(), eq(variables['VSCODE_BUILD_LINUX_ARMHF'], 'true'), ne(variables['VSCODE_PUBLISH'], 'false'))
-        container: vscode-armhf
-        variables:
-          VSCODE_ARCH: armhf
-          NPM_ARCH: armv7l
-        steps:
-          - template: linux/product-build-linux.yml
+      - ${{ if eq(variables['VSCODE_CIBUILD'], 'false') }}:
+        - job: LinuxArmhf
+          condition: and(succeeded(), eq(variables['VSCODE_BUILD_LINUX_ARMHF'], 'true'))
+          container: vscode-armhf
+          variables:
+            VSCODE_ARCH: armhf
+            NPM_ARCH: armv7l
+          steps:
+            - template: linux/product-build-linux.yml
 
-      - job: LinuxSnapArmhf
-        dependsOn:
-          - LinuxArmhf
-        condition: and(succeeded(), eq(variables['VSCODE_BUILD_LINUX_ARMHF'], 'true'), ne(variables['VSCODE_PUBLISH'], 'false'))
-        container: snapcraft
-        variables:
-          VSCODE_ARCH: armhf
-        steps:
-          - template: linux/snap-build-linux.yml
+      - ${{ if eq(variables['VSCODE_CIBUILD'], 'false') }}:
+        - job: LinuxSnapArmhf
+          dependsOn:
+            - LinuxArmhf
+          condition: and(succeeded(), eq(variables['VSCODE_BUILD_LINUX_ARMHF'], 'true'))
+          container: snapcraft
+          variables:
+            VSCODE_ARCH: armhf
+          steps:
+            - template: linux/snap-build-linux.yml
 
-      - job: LinuxArm64
-        condition: and(succeeded(), eq(variables['VSCODE_BUILD_LINUX_ARM64'], 'true'), ne(variables['VSCODE_PUBLISH'], 'false'))
-        container: vscode-arm64
-        variables:
-          VSCODE_ARCH: arm64
-          NPM_ARCH: arm64
-        steps:
-          - template: linux/product-build-linux.yml
+      - ${{ if eq(variables['VSCODE_CIBUILD'], 'false') }}:
+        - job: LinuxArm64
+          condition: and(succeeded(), eq(variables['VSCODE_BUILD_LINUX_ARM64'], 'true'))
+          container: vscode-arm64
+          variables:
+            VSCODE_ARCH: arm64
+            NPM_ARCH: arm64
+          steps:
+            - template: linux/product-build-linux.yml
 
-      - job: LinuxSnapArm64
-        dependsOn:
-          - LinuxArm64
-        condition: and(succeeded(), eq(variables['VSCODE_BUILD_LINUX_ARM64'], 'true'), ne(variables['VSCODE_PUBLISH'], 'false'))
-        container: snapcraft
-        variables:
-          VSCODE_ARCH: arm64
-        steps:
-          - template: linux/snap-build-linux.yml
+      - ${{ if eq(variables['VSCODE_CIBUILD'], 'false') }}:
+        - job: LinuxSnapArm64
+          dependsOn:
+            - LinuxArm64
+          condition: and(succeeded(), eq(variables['VSCODE_BUILD_LINUX_ARM64'], 'true'))
+          container: snapcraft
+          variables:
+            VSCODE_ARCH: arm64
+          steps:
+            - template: linux/snap-build-linux.yml
 
-      - job: LinuxAlpine
-        condition: and(succeeded(), eq(variables['VSCODE_BUILD_LINUX_ALPINE'], 'true'), ne(variables['VSCODE_PUBLISH'], 'false'))
-        steps:
-          - template: linux/product-build-alpine.yml
+      - ${{ if eq(variables['VSCODE_CIBUILD'], 'false') }}:
+        - job: LinuxAlpine
+          condition: and(succeeded(), eq(variables['VSCODE_BUILD_LINUX_ALPINE'], 'true'))
+          steps:
+            - template: linux/product-build-alpine.yml
 
-      - job: LinuxWeb
-        condition: and(succeeded(), eq(variables['VSCODE_BUILD_WEB'], 'true'), ne(variables['VSCODE_PUBLISH'], 'false'))
-        variables:
-          VSCODE_ARCH: x64
-        steps:
-          - template: web/product-build-web.yml
+      - ${{ if eq(variables['VSCODE_CIBUILD'], 'false') }}:
+        - job: LinuxWeb
+          condition: and(succeeded(), eq(variables['VSCODE_BUILD_WEB'], 'true'))
+          variables:
+            VSCODE_ARCH: x64
+          steps:
+            - template: web/product-build-web.yml
 
   - stage: macOS
     dependsOn:
@@ -163,29 +174,33 @@ stages:
           VSCODE_ARCH: x64
         steps:
           - template: darwin/product-build-darwin.yml
-      - job: macOSARM64
-        condition: and(succeeded(), eq(variables['VSCODE_BUILD_MACOS_ARM64'], 'true'), ne(variables['VSCODE_PUBLISH'], 'false'))
-        timeoutInMinutes: 90
-        variables:
-          VSCODE_ARCH: arm64
-        steps:
-          - template: darwin/product-build-darwin.yml
 
-  - stage: Publish
-    dependsOn:
-      - Windows
-      - Linux
-      - macOS
-    condition: and(succeededOrFailed(), eq(variables['VSCODE_COMPILE_ONLY'], 'false'), ne(variables['VSCODE_PUBLISH'], 'false'))
-    pool:
-      vmImage: "Ubuntu-18.04"
-    jobs:
-      - job: SyncMooncake
-        displayName: Sync Mooncake
-        steps:
-          - template: sync-mooncake.yml
-      - job: ReleaseBuild
-        condition: and(succeeded(), or(eq(variables['VSCODE_RELEASE'], 'true'), and(or(eq(variables['VSCODE_QUALITY'], 'insider'), eq(variables['VSCODE_QUALITY'], 'exploration')), eq(variables['Build.Reason'], 'Schedule'))))
-        displayName: Release Build
-        steps:
-          - template: release.yml
+      - ${{ if eq(variables['VSCODE_CIBUILD'], 'false') }}:
+        - job: macOSARM64
+          condition: and(succeeded(), eq(variables['VSCODE_BUILD_MACOS_ARM64'], 'true'))
+          timeoutInMinutes: 90
+          variables:
+            VSCODE_ARCH: arm64
+          steps:
+            - template: darwin/product-build-darwin.yml
+
+  - ${{ if eq(variables['VSCODE_CIBUILD'], 'false') }}:
+    - stage: Publish
+      dependsOn:
+        - Windows
+        - Linux
+        - macOS
+      condition: and(succeededOrFailed(), eq(variables['VSCODE_COMPILE_ONLY'], 'false'))
+      pool:
+        vmImage: "Ubuntu-18.04"
+      jobs:
+        - job: SyncMooncake
+          displayName: Sync Mooncake
+          steps:
+            - template: sync-mooncake.yml
+
+        - job: ReleaseBuild
+          condition: and(succeeded(), or(eq(variables['VSCODE_RELEASE'], 'true'), and(or(eq(variables['VSCODE_QUALITY'], 'insider'), eq(variables['VSCODE_QUALITY'], 'exploration')), eq(variables['Build.Reason'], 'Schedule'))))
+          displayName: Release Build
+          steps:
+            - template: release.yml
