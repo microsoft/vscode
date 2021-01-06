@@ -15,12 +15,6 @@ parameters:
       - exploration
       - insider
       - stable
-  - name: VSCODE_COMPILE_ONLY
-    type: boolean
-    default: false
-  - name: VSCODE_STEP_ON_IT
-    type: boolean
-    default: false
   - name: VSCODE_BUILD_WIN32
     type: boolean
     default: true
@@ -55,6 +49,12 @@ parameters:
     type: boolean
     default: true
   - name: VSCODE_RELEASE
+    type: boolean
+    default: false
+  - name: VSCODE_COMPILE_ONLY
+    type: boolean
+    default: false
+  - name: VSCODE_STEP_ON_IT
     type: boolean
     default: false
   - name: ENABLE_TERRAPIN
