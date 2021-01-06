@@ -85,9 +85,9 @@ resources:
 stages:
   - stage: Compile
     variables:
-      ENABLE_TERRAPIN: ${{ parameters.ENABLE_TERRAPIN }}
-      VSCODE_PUBLISH: ${{ parameters.VSCODE_PUBLISH }}
-      VSCODE_STEP_ON_IT: ${{ parameters.VSCODE_STEP_ON_IT }}
+      ENABLE_TERRAPIN: ${{ eq(parameters.ENABLE_TERRAPIN, true) }}
+      VSCODE_PUBLISH: ${{ and(eq(parameters.VSCODE_PUBLISH, true), eq(variables.VSCODE_CIBUILD, false)) }}
+      VSCODE_STEP_ON_IT: ${{ eq(parameters.VSCODE_STEP_ON_IT, true) }}
     jobs:
       - job: Compile
         pool: compile
@@ -109,9 +109,9 @@ stages:
       pool:
         vmImage: VS2017-Win2016
       variables:
-        ENABLE_TERRAPIN: ${{ parameters.ENABLE_TERRAPIN }}
-        VSCODE_PUBLISH: ${{ parameters.VSCODE_PUBLISH }}
-        VSCODE_STEP_ON_IT: ${{ parameters.VSCODE_STEP_ON_IT }}
+        ENABLE_TERRAPIN: ${{ eq(parameters.ENABLE_TERRAPIN, true) }}
+        VSCODE_PUBLISH: ${{ and(eq(parameters.VSCODE_PUBLISH, true), eq(variables.VSCODE_CIBUILD, false)) }}
+        VSCODE_STEP_ON_IT: ${{ eq(parameters.VSCODE_STEP_ON_IT, true) }}
       jobs:
 
         - ${{ if eq(parameters.VSCODE_BUILD_WIN32, true) }}:
@@ -145,9 +145,9 @@ stages:
       pool:
         vmImage: "Ubuntu-18.04"
       variables:
-        ENABLE_TERRAPIN: ${{ parameters.ENABLE_TERRAPIN }}
-        VSCODE_PUBLISH: ${{ parameters.VSCODE_PUBLISH }}
-        VSCODE_STEP_ON_IT: ${{ parameters.VSCODE_STEP_ON_IT }}
+        ENABLE_TERRAPIN: ${{ eq(parameters.ENABLE_TERRAPIN, true) }}
+        VSCODE_PUBLISH: ${{ and(eq(parameters.VSCODE_PUBLISH, true), eq(variables.VSCODE_CIBUILD, false)) }}
+        VSCODE_STEP_ON_IT: ${{ eq(parameters.VSCODE_STEP_ON_IT, true) }}
       jobs:
 
         - ${{ if eq(parameters.VSCODE_BUILD_LINUX, true) }}:
@@ -226,9 +226,9 @@ stages:
       pool:
         vmImage: macOS-latest
       variables:
-        ENABLE_TERRAPIN: ${{ parameters.ENABLE_TERRAPIN }}
-        VSCODE_PUBLISH: ${{ parameters.VSCODE_PUBLISH }}
-        VSCODE_STEP_ON_IT: ${{ parameters.VSCODE_STEP_ON_IT }}
+        ENABLE_TERRAPIN: ${{ eq(parameters.ENABLE_TERRAPIN, true) }}
+        VSCODE_PUBLISH: ${{ and(eq(parameters.VSCODE_PUBLISH, true), eq(variables.VSCODE_CIBUILD, false)) }}
+        VSCODE_STEP_ON_IT: ${{ eq(parameters.VSCODE_STEP_ON_IT, true) }}
       jobs:
 
         - ${{ if eq(parameters.VSCODE_BUILD_MACOS, true) }}:
@@ -260,10 +260,11 @@ stages:
       pool:
         vmImage: "Ubuntu-18.04"
       jobs:
-        - job: SyncMooncake
-          displayName: Sync Mooncake
-          steps:
-            - template: sync-mooncake.yml
+        - ${{ if eq(parameters.VSCODE_PUBLISH, true) }}:
+          - job: SyncMooncake
+            displayName: Sync Mooncake
+            steps:
+              - template: sync-mooncake.yml
 
         - ${{ if or(eq(parameters.VSCODE_RELEASE, true), and(in(parameters.VSCODE_QUALITY, 'insider', 'exploration'), eq(variables['VSCODE_SCHEDULEDBUILD'], true))) }}:
           - job: ReleaseBuild
