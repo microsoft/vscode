@@ -86,9 +86,9 @@ suite('IndexedDB File Service', function () {
 	});
 
 	test('root is always present', async () => {
-		assert.equal((await userdataFileProvider.stat(userdataURIFromPaths([]))).type, FileType.Directory);
+		assert.strictEqual((await userdataFileProvider.stat(userdataURIFromPaths([]))).type, FileType.Directory);
 		await userdataFileProvider.delete(userdataURIFromPaths([]), { recursive: true, useTrash: false });
-		assert.equal((await userdataFileProvider.stat(userdataURIFromPaths([]))).type, FileType.Directory);
+		assert.strictEqual((await userdataFileProvider.stat(userdataURIFromPaths([]))).type, FileType.Directory);
 	});
 
 	test('createFolder', async () => {
@@ -98,17 +98,17 @@ suite('IndexedDB File Service', function () {
 		const parent = await service.resolve(userdataURIFromPaths([]));
 		const newFolderResource = joinPath(parent.resource, 'newFolder');
 
-		assert.equal((await userdataFileProvider.readdir(parent.resource)).length, 0);
+		assert.strictEqual((await userdataFileProvider.readdir(parent.resource)).length, 0);
 		const newFolder = await service.createFolder(newFolderResource);
-		assert.equal(newFolder.name, 'newFolder');
-		assert.equal((await userdataFileProvider.readdir(parent.resource)).length, 1);
-		assert.equal((await userdataFileProvider.stat(newFolderResource)).type, FileType.Directory);
+		assert.strictEqual(newFolder.name, 'newFolder');
+		assert.strictEqual((await userdataFileProvider.readdir(parent.resource)).length, 1);
+		assert.strictEqual((await userdataFileProvider.stat(newFolderResource)).type, FileType.Directory);
 
 		assert.ok(event);
-		assert.equal(event!.resource.path, newFolderResource.path);
-		assert.equal(event!.operation, FileOperation.CREATE);
-		assert.equal(event!.target!.resource.path, newFolderResource.path);
-		assert.equal(event!.target!.isDirectory, true);
+		assert.strictEqual(event!.resource.path, newFolderResource.path);
+		assert.strictEqual(event!.operation, FileOperation.CREATE);
+		assert.strictEqual(event!.target!.resource.path, newFolderResource.path);
+		assert.strictEqual(event!.target!.isDirectory, true);
 	});
 
 	test('createFolder: creating multiple folders at once', async () => {
@@ -122,22 +122,22 @@ suite('IndexedDB File Service', function () {
 		const newFolder = await service.createFolder(newFolderResource);
 
 		const lastFolderName = multiFolderPaths[multiFolderPaths.length - 1];
-		assert.equal(newFolder.name, lastFolderName);
-		assert.equal((await userdataFileProvider.stat(newFolderResource)).type, FileType.Directory);
+		assert.strictEqual(newFolder.name, lastFolderName);
+		assert.strictEqual((await userdataFileProvider.stat(newFolderResource)).type, FileType.Directory);
 
 		assert.ok(event!);
-		assert.equal(event!.resource.path, newFolderResource.path);
-		assert.equal(event!.operation, FileOperation.CREATE);
-		assert.equal(event!.target!.resource.path, newFolderResource.path);
-		assert.equal(event!.target!.isDirectory, true);
+		assert.strictEqual(event!.resource.path, newFolderResource.path);
+		assert.strictEqual(event!.operation, FileOperation.CREATE);
+		assert.strictEqual(event!.target!.resource.path, newFolderResource.path);
+		assert.strictEqual(event!.target!.isDirectory, true);
 	});
 
 	test('exists', async () => {
 		let exists = await service.exists(userdataURIFromPaths([]));
-		assert.equal(exists, true);
+		assert.strictEqual(exists, true);
 
 		exists = await service.exists(userdataURIFromPaths(['hello']));
-		assert.equal(exists, false);
+		assert.strictEqual(exists, false);
 	});
 
 	test('resolve - file', async () => {
@@ -146,12 +146,12 @@ suite('IndexedDB File Service', function () {
 		const resource = userdataURIFromPaths(['fixtures', 'resolver', 'index.html']);
 		const resolved = await service.resolve(resource);
 
-		assert.equal(resolved.name, 'index.html');
-		assert.equal(resolved.isFile, true);
-		assert.equal(resolved.isDirectory, false);
-		assert.equal(resolved.isSymbolicLink, false);
-		assert.equal(resolved.resource.toString(), resource.toString());
-		assert.equal(resolved.children, undefined);
+		assert.strictEqual(resolved.name, 'index.html');
+		assert.strictEqual(resolved.isFile, true);
+		assert.strictEqual(resolved.isDirectory, false);
+		assert.strictEqual(resolved.isSymbolicLink, false);
+		assert.strictEqual(resolved.resource.toString(), resource.toString());
+		assert.strictEqual(resolved.children, undefined);
 		assert.ok(resolved.size! > 0);
 	});
 
@@ -164,12 +164,12 @@ suite('IndexedDB File Service', function () {
 		const result = await service.resolve(resource);
 
 		assert.ok(result);
-		assert.equal(result.resource.toString(), resource.toString());
-		assert.equal(result.name, 'resolver');
+		assert.strictEqual(result.resource.toString(), resource.toString());
+		assert.strictEqual(result.name, 'resolver');
 		assert.ok(result.children);
 		assert.ok(result.children!.length > 0);
 		assert.ok(result!.isDirectory);
-		assert.equal(result.children!.length, testsElements.length);
+		assert.strictEqual(result.children!.length, testsElements.length);
 
 		assert.ok(result.children!.every(entry => {
 			return testsElements.some(name => {
@@ -181,18 +181,18 @@ suite('IndexedDB File Service', function () {
 			assert.ok(basename(value.resource));
 			if (['examples', 'other'].indexOf(basename(value.resource)) >= 0) {
 				assert.ok(value.isDirectory);
-				assert.equal(value.mtime, undefined);
-				assert.equal(value.ctime, undefined);
+				assert.strictEqual(value.mtime, undefined);
+				assert.strictEqual(value.ctime, undefined);
 			} else if (basename(value.resource) === 'index.html') {
 				assert.ok(!value.isDirectory);
 				assert.ok(!value.children);
-				assert.equal(value.mtime, undefined);
-				assert.equal(value.ctime, undefined);
+				assert.strictEqual(value.mtime, undefined);
+				assert.strictEqual(value.ctime, undefined);
 			} else if (basename(value.resource) === 'site.css') {
 				assert.ok(!value.isDirectory);
 				assert.ok(!value.children);
-				assert.equal(value.mtime, undefined);
-				assert.equal(value.ctime, undefined);
+				assert.strictEqual(value.mtime, undefined);
+				assert.strictEqual(value.ctime, undefined);
 			} else {
 				assert.ok(!'Unexpected value ' + basename(value.resource));
 			}
@@ -218,16 +218,16 @@ suite('IndexedDB File Service', function () {
 		const contents = 'Hello World';
 		const resource = userdataURIFromPaths(['test.txt']);
 
-		assert.equal(await service.canCreateFile(resource), true);
+		assert.strictEqual(await service.canCreateFile(resource), true);
 		const fileStat = await service.createFile(resource, converter(contents));
-		assert.equal(fileStat.name, 'test.txt');
-		assert.equal((await userdataFileProvider.stat(fileStat.resource)).type, FileType.File);
-		assert.equal(new TextDecoder().decode(await userdataFileProvider.readFile(fileStat.resource)), contents);
+		assert.strictEqual(fileStat.name, 'test.txt');
+		assert.strictEqual((await userdataFileProvider.stat(fileStat.resource)).type, FileType.File);
+		assert.strictEqual(new TextDecoder().decode(await userdataFileProvider.readFile(fileStat.resource)), contents);
 
 		assert.ok(event!);
-		assert.equal(event!.resource.path, resource.path);
-		assert.equal(event!.operation, FileOperation.CREATE);
-		assert.equal(event!.target!.resource.path, resource.path);
+		assert.strictEqual(event!.resource.path, resource.path);
+		assert.strictEqual(event!.operation, FileOperation.CREATE);
+		assert.strictEqual(event!.target!.resource.path, resource.path);
 	}
 
 	// Skipped due to failing on build machines where file io pressure is higher.
@@ -239,14 +239,14 @@ suite('IndexedDB File Service', function () {
 		for (let i = 0; i < stats.length; i++) {
 			const entry = batch[i];
 			const stat = stats[i];
-			assert.equal(stat.name, `Hello${i}.txt`);
-			assert.equal((await userdataFileProvider.stat(stat.resource)).type, FileType.File);
-			assert.equal(new TextDecoder().decode(await userdataFileProvider.readFile(stat.resource)), entry.contents);
+			assert.strictEqual(stat.name, `Hello${i}.txt`);
+			assert.strictEqual((await userdataFileProvider.stat(stat.resource)).type, FileType.File);
+			assert.strictEqual(new TextDecoder().decode(await userdataFileProvider.readFile(stat.resource)), entry.contents);
 		}
 		await service.del(userdataURIFromPaths(['batched']), { recursive: true, useTrash: false });
 		await Promise.all(stats.map(async stat => {
 			const newStat = await userdataFileProvider.stat(stat.resource).catch(e => e.code);
-			assert.equal(newStat, FileSystemProviderErrorCode.FileNotFound);
+			assert.strictEqual(newStat, FileSystemProviderErrorCode.FileNotFound);
 		}));
 	});
 
@@ -260,15 +260,15 @@ suite('IndexedDB File Service', function () {
 		const resource = userdataURIFromPaths(['fixtures', 'service', 'deep', 'conway.js']);
 		const source = await service.resolve(resource);
 
-		assert.equal(await service.canDelete(source.resource, { useTrash: false }), true);
+		assert.strictEqual(await service.canDelete(source.resource, { useTrash: false }), true);
 		await service.del(source.resource, { useTrash: false });
 
-		assert.equal(await service.exists(source.resource), false);
-		assert.equal(await service.exists(anotherResource), true);
+		assert.strictEqual(await service.exists(source.resource), false);
+		assert.strictEqual(await service.exists(anotherResource), true);
 
 		assert.ok(event!);
-		assert.equal(event!.resource.path, resource.path);
-		assert.equal(event!.operation, FileOperation.DELETE);
+		assert.strictEqual(event!.resource.path, resource.path);
+		assert.strictEqual(event!.operation, FileOperation.DELETE);
 
 		{
 			let error: Error | undefined = undefined;
@@ -279,7 +279,7 @@ suite('IndexedDB File Service', function () {
 			}
 
 			assert.ok(error);
-			assert.equal((<FileOperationError>error).fileOperationResult, FileOperationResult.FILE_NOT_FOUND);
+			assert.strictEqual((<FileOperationError>error).fileOperationResult, FileOperationResult.FILE_NOT_FOUND);
 		}
 		await reload();
 		{
@@ -291,7 +291,7 @@ suite('IndexedDB File Service', function () {
 			}
 
 			assert.ok(error);
-			assert.equal((<FileOperationError>error).fileOperationResult, FileOperationResult.FILE_NOT_FOUND);
+			assert.strictEqual((<FileOperationError>error).fileOperationResult, FileOperationResult.FILE_NOT_FOUND);
 		}
 	});
 
@@ -303,20 +303,20 @@ suite('IndexedDB File Service', function () {
 		const resource = userdataURIFromPaths(['fixtures', 'service', 'deep']);
 		const subResource1 = userdataURIFromPaths(['fixtures', 'service', 'deep', 'company.js']);
 		const subResource2 = userdataURIFromPaths(['fixtures', 'service', 'deep', 'conway.js']);
-		assert.equal(await service.exists(subResource1), true);
-		assert.equal(await service.exists(subResource2), true);
+		assert.strictEqual(await service.exists(subResource1), true);
+		assert.strictEqual(await service.exists(subResource2), true);
 
 		const source = await service.resolve(resource);
 
-		assert.equal(await service.canDelete(source.resource, { recursive: true, useTrash: false }), true);
+		assert.strictEqual(await service.canDelete(source.resource, { recursive: true, useTrash: false }), true);
 		await service.del(source.resource, { recursive: true, useTrash: false });
 
-		assert.equal(await service.exists(source.resource), false);
-		assert.equal(await service.exists(subResource1), false);
-		assert.equal(await service.exists(subResource2), false);
+		assert.strictEqual(await service.exists(source.resource), false);
+		assert.strictEqual(await service.exists(subResource1), false);
+		assert.strictEqual(await service.exists(subResource2), false);
 		assert.ok(event!);
-		assert.equal(event!.resource.fsPath, resource.fsPath);
-		assert.equal(event!.operation, FileOperation.DELETE);
+		assert.strictEqual(event!.resource.fsPath, resource.fsPath);
+		assert.strictEqual(event!.operation, FileOperation.DELETE);
 	});
 
 
