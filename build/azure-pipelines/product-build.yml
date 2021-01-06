@@ -8,6 +8,18 @@ schedules:
         - master
 
 parameters:
+  - name: VSCODE_BUILD_LINUX
+    type: boolean
+    default: true
+  - name: VSCODE_BUILD_LINUX_ALPINE
+    type: boolean
+    default: true
+  - name: VSCODE_BUILD_LINUX_ARM64
+    type: boolean
+    default: true
+  - name: VSCODE_BUILD_LINUX_ARMHF
+    type: boolean
+    default: true
   - name: VSCODE_COMPILE_ONLY
     type: boolean
     default: false
@@ -89,20 +101,20 @@ stages:
       pool:
         vmImage: "Ubuntu-18.04"
       jobs:
-        - job: Linux
-          condition: and(succeeded(), eq(variables['VSCODE_BUILD_LINUX'], 'true'))
-          container: vscode-x64
-          variables:
-            VSCODE_ARCH: x64
-            NPM_ARCH: x64
-          steps:
-            - template: linux/product-build-linux.yml
 
-        - ${{ if eq(variables['VSCODE_CIBUILD'], false) }}:
+        - ${{ if eq(parameters.VSCODE_BUILD_LINUX, true) }}:
+          - job: Linux
+            container: vscode-x64
+            variables:
+              VSCODE_ARCH: x64
+              NPM_ARCH: x64
+            steps:
+              - template: linux/product-build-linux.yml
+
+        - ${{ if and(eq(variables['VSCODE_CIBUILD'], false), eq(parameters.VSCODE_BUILD_LINUX, true)) }}:
           - job: LinuxSnap
             dependsOn:
               - Linux
-            condition: and(succeeded(), eq(variables['VSCODE_BUILD_LINUX'], 'true'))
             container: snapcraft
             variables:
               VSCODE_ARCH: x64
