@@ -121,10 +121,6 @@ export class TestService extends Disposable implements ITestService {
 			});
 		}).filter(isDefined);
 
-		if (requests.length === 0) {
-			return EMPTY_TEST_RESULT;
-		}
-
 		this.runningTests.set(req, cancelSource);
 		this.runStartedEmitter.fire(req);
 		this.isRunning.set(true);

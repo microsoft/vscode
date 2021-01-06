@@ -35,7 +35,6 @@ exports.dirs = [
 	'extensions/php-language-features',
 	'extensions/search-result',
 	'extensions/simple-browser',
-	'extensions/testing-editor-contributions',
 	'extensions/typescript-language-features',
 	'extensions/vscode-api-tests',
 	'extensions/vscode-colorize-tests',

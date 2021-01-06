@@ -213,7 +213,7 @@ export class TestingExplorerViewModel extends Disposable {
 			}
 
 			editorService.openEditor({
-				resource: location.uri,
+				resource: URI.revive(location.uri),
 				options: { selection: location.range, preserveFocus: true }
 			});
 		}));
@@ -434,7 +434,7 @@ class TestsRenderer implements ITreeRenderer<ITestTreeElement, FuzzyScore, TestT
 		const test = element.test;
 		if (test) {
 			if (test.item.location) {
-				label.resource = test.item.location.uri;
+				label.resource = URI.revive(test.item.location.uri);
 			}
 
 			options.title = 'hover title';
@@ -529,7 +529,15 @@ class HierarchalElement implements ITestTreeElement {
 	}
 
 	public get location() {
-		return this.test.item.location;
+		const location = this.test.item.location;
+		if (!location) {
+			return;
+		}
+
+		return {
+			uri: URI.revive(location.uri),
+			range: location.range,
+		};
 	}
 
 	constructor(public readonly test: InternalTestItem, public readonly parentItem: HierarchalFolder | HierarchalElement) {
