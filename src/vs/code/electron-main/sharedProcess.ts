@@ -14,7 +14,6 @@ import { IThemeMainService } from 'vs/platform/theme/electron-main/themeMainServ
 import { toDisposable, DisposableStore } from 'vs/base/common/lifecycle';
 import { Event } from 'vs/base/common/event';
 import { FileAccess } from 'vs/base/common/network';
-import { browserCodeLoadingCacheStrategy } from 'vs/base/common/platform';
 
 export class SharedProcess implements ISharedProcess {
 
@@ -42,7 +41,7 @@ export class SharedProcess implements ISharedProcess {
 			backgroundColor: this.themeMainService.getBackgroundColor(),
 			webPreferences: {
 				preload: FileAccess.asFileUri('vs/base/parts/sandbox/electron-browser/preload.js', require).fsPath,
-				v8CacheOptions: browserCodeLoadingCacheStrategy,
+				v8CacheOptions: 'bypassHeatCheck',
 				nodeIntegration: true,
 				enableWebSQL: false,
 				enableRemoteModule: false,

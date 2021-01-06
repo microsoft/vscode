@@ -27,7 +27,6 @@
 	const webFrame = preloadGlobals.webFrame;
 	const safeProcess = preloadGlobals.process;
 	const configuration = parseWindowConfiguration();
-	const useCustomProtocol = sandbox || typeof safeProcess.env['ENABLE_VSCODE_BROWSER_CODE_LOADING'] === 'string';
 
 	// Start to resolve process.env before anything gets load
 	// so that we can run loading and resolving in parallel
@@ -77,11 +76,6 @@
 
 		window.document.documentElement.setAttribute('lang', locale);
 
-		// do not advertise AMD to avoid confusing UMD modules loaded with nodejs
-		if (!useCustomProtocol) {
-			window['define'] = undefined;
-		}
-
 		// replace the patched electron fs with the original node fs for all AMD code (TODO@sandbox non-sandboxed only)
 		if (!sandbox) {
 			require.define('fs', [], function () { return require.__$__nodeRequire('original-fs'); });
@@ -89,14 +83,10 @@
 
 		window['MonacoEnvironment'] = {};
 
-		const baseUrl = useCustomProtocol ?
-			`${bootstrapLib.fileUriFromPath(configuration.appRoot, { isWindows: safeProcess.platform === 'win32', scheme: 'vscode-file', fallbackAuthority: 'vscode-app' })}/out` :
-			`${bootstrapLib.fileUriFromPath(configuration.appRoot, { isWindows: safeProcess.platform === 'win32' })}/out`;
-
 		const loaderConfig = {
-			baseUrl,
+			baseUrl: `${bootstrapLib.fileUriFromPath(configuration.appRoot, { isWindows: safeProcess.platform === 'win32', scheme: 'vscode-file', fallbackAuthority: 'vscode-app' })}/out`,
 			'vs/nls': nlsConfig,
-			preferScriptTags: useCustomProtocol
+			preferScriptTags: true
 		};
 
 		// Enable loading of node modules:

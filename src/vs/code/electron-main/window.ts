@@ -18,7 +18,7 @@ import { NativeParsedArgs } from 'vs/platform/environment/common/argv';
 import product from 'vs/platform/product/common/product';
 import { WindowMinimumSize, IWindowSettings, MenuBarVisibility, getTitleBarStyle, getMenuBarVisibility, zoomLevelToZoomFactor, INativeWindowConfiguration } from 'vs/platform/windows/common/windows';
 import { Disposable, toDisposable } from 'vs/base/common/lifecycle';
-import { browserCodeLoadingCacheStrategy, isLinux, isMacintosh, isWindows } from 'vs/base/common/platform';
+import { isLinux, isMacintosh, isWindows } from 'vs/base/common/platform';
 import { ICodeWindow, IWindowState, WindowMode } from 'vs/platform/windows/electron-main/windows';
 import { IWorkspaceIdentifier } from 'vs/platform/workspaces/common/workspaces';
 import { IWorkspacesMainService } from 'vs/platform/workspaces/electron-main/workspacesMainService';
@@ -164,7 +164,7 @@ export class CodeWindow extends Disposable implements ICodeWindow {
 				title: product.nameLong,
 				webPreferences: {
 					preload: FileAccess.asFileUri('vs/base/parts/sandbox/electron-browser/preload.js', require).fsPath,
-					v8CacheOptions: browserCodeLoadingCacheStrategy,
+					v8CacheOptions: 'bypassHeatCheck',
 					enableWebSQL: false,
 					enableRemoteModule: false,
 					spellcheck: false,
@@ -185,10 +185,6 @@ export class CodeWindow extends Disposable implements ICodeWindow {
 						}
 				}
 			};
-
-			if (browserCodeLoadingCacheStrategy) {
-				this.logService.info(`window#ctor: using vscode-file protocol and V8 cache options: ${browserCodeLoadingCacheStrategy}`);
-			}
 
 			// Apply icon to window
 			// Linux: always

@@ -157,8 +157,7 @@ class FileAccessImpl {
 		}
 
 		// Only convert the URI if we are in a native context and it has `file:` scheme
-		// and we have explicitly enabled the conversion (sandbox, or ENABLE_VSCODE_BROWSER_CODE_LOADING)
-		if (platform.isNative && (__forceCodeFileUri || platform.isPreferringBrowserCodeLoad) && uri.scheme === Schemas.file) {
+		if (platform.isNative && uri.scheme === Schemas.file) {
 			return uri.with({
 				scheme: Schemas.vscodeFileResource,
 				// We need to provide an authority here so that it can serve
