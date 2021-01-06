@@ -8,6 +8,16 @@ schedules:
         - master
 
 parameters:
+  - name: VSCODE_QUALITY
+    type: string
+    default: insider
+    values:
+      - exploration
+      - insider
+      - stable
+  - name: VSCODE_COMPILE_ONLY
+    type: boolean
+    default: false
   - name: VSCODE_BUILD_WIN32
     type: boolean
     default: true
@@ -38,7 +48,10 @@ parameters:
   - name: VSCODE_BUILD_WEB
     type: boolean
     default: true
-  - name: VSCODE_COMPILE_ONLY
+  - name: VSCODE_PUBLISH
+    type: boolean
+    default: true
+  - name: VSCODE_RELEASE
     type: boolean
     default: false
 
@@ -230,8 +243,8 @@ stages:
           steps:
             - template: sync-mooncake.yml
 
-        - job: ReleaseBuild
-          condition: and(succeeded(), or(eq(variables['VSCODE_RELEASE'], 'true'), and(or(eq(variables['VSCODE_QUALITY'], 'insider'), eq(variables['VSCODE_QUALITY'], 'exploration')), eq(variables['Build.Reason'], 'Schedule'))))
-          displayName: Release Build
-          steps:
-            - template: release.yml
+        - ${{ if or(eq(parameters.VSCODE_RELEASE, true), and(in(parameters.VSCODE_QUALITY, 'insider', 'exploration'), eq(variables['VSCODE_SCHEDULEDBUILD'], true))) }}:
+          - job: ReleaseBuild
+            displayName: Release Build
+            steps:
+              - template: release.yml
