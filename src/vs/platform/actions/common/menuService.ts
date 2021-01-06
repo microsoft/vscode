@@ -30,8 +30,10 @@ type MenuItemGroup = [string, Array<IMenuItem | ISubmenuItem>];
 
 class Menu implements IMenu {
 
-	private readonly _onDidChange = new Emitter<IMenu | undefined>();
 	private readonly _dispoables = new DisposableStore();
+
+	private readonly _onDidChange = new Emitter<IMenu>();
+	readonly onDidChange: Event<IMenu> = this._onDidChange.event;
 
 	private _menuGroups: MenuItemGroup[] = [];
 	private _contextKeys: Set<string> = new Set();
@@ -46,19 +48,21 @@ class Menu implements IMenu {
 
 		// rebuild this menu whenever the menu registry reports an
 		// event for this MenuId
-		this._dispoables.add(Event.debounce(
-			Event.filter(MenuRegistry.onDidChangeMenu, set => set.has(this._id)),
-			() => { },
-			50
-		)(this._build, this));
+		const scheduler1 = new RunOnceScheduler(() => this._build(), 50);
+		this._dispoables.add(scheduler1);
+		this._dispoables.add(MenuRegistry.onDidChangeMenu(e => {
+			if (e.has(_id)) {
+				scheduler1.schedule();
+			}
+		}));
 
 		// when context keys change we need to check if the menu also
 		// has changed
-		const scheduler = new RunOnceScheduler(() => this._onDidChange.fire(this), 50);
-		this._dispoables.add(scheduler);
+		const scheduler2 = new RunOnceScheduler(() => this._onDidChange.fire(this), 50);
+		this._dispoables.add(scheduler2);
 		this._dispoables.add(_contextKeyService.onDidChangeContext(e => {
 			if (e.affectsSome(this._contextKeys)) {
-				scheduler.schedule();
+				scheduler2.schedule();
 			}
 		}));
 	}
@@ -103,10 +107,6 @@ class Menu implements IMenu {
 			}
 		}
 		this._onDidChange.fire(this);
-	}
-
-	get onDidChange(): Event<IMenu | undefined> {
-		return this._onDidChange.event;
 	}
 
 	getActions(options: IMenuActionOptions): [string, Array<MenuItemAction | SubmenuItemAction>][] {
