@@ -12,7 +12,7 @@ import { CharWidthRequest, CharWidthRequestType, readCharWidths } from 'vs/edito
 import { ElementSizeObserver } from 'vs/editor/browser/config/elementSizeObserver';
 import { CommonEditorConfiguration, IEnvConfiguration } from 'vs/editor/common/config/commonEditorConfig';
 import { EditorOption, EditorFontLigatures } from 'vs/editor/common/config/editorOptions';
-import { BareFontInfo, FontInfo } from 'vs/editor/common/config/fontInfo';
+import { BareFontInfo, FontInfo, SERIALIZED_FONT_INFO_VERSION } from 'vs/editor/common/config/fontInfo';
 import { IDimension } from 'vs/editor/common/editorCommon';
 import { IAccessibilityService, AccessibilitySupport } from 'vs/platform/accessibility/common/accessibility';
 import { IEditorConstructionOptions } from 'vs/editor/browser/editorBrowser';
@@ -76,11 +76,13 @@ export function serializeFontInfo(): ISerializedFontInfo[] | null {
 }
 
 export interface ISerializedFontInfo {
+	readonly version: number;
 	readonly zoomLevel: number;
+	readonly pixelRatio: number;
 	readonly fontFamily: string;
 	readonly fontWeight: string;
 	readonly fontSize: number;
-	fontFeatureSettings: string;
+	readonly fontFeatureSettings: string;
 	readonly lineHeight: number;
 	readonly letterSpacing: number;
 	readonly isMonospace: boolean;
@@ -88,8 +90,8 @@ export interface ISerializedFontInfo {
 	readonly typicalFullwidthCharacterWidth: number;
 	readonly canUseHalfwidthRightwardsArrow: boolean;
 	readonly spaceWidth: number;
-	middotWidth: number;
-	wsmiddotWidth: number;
+	readonly middotWidth: number;
+	readonly wsmiddotWidth: number;
 	readonly maxDigitWidth: number;
 }
 
@@ -158,10 +160,10 @@ class CSSBasedConfiguration extends Disposable {
 		// Take all the saved font info and insert them in the cache without the trusted flag.
 		// The reason for this is that a font might have been installed on the OS in the meantime.
 		for (const savedFontInfo of savedFontInfos) {
-			// compatibility with older versions of VS Code which did not store this...
-			savedFontInfo.fontFeatureSettings = savedFontInfo.fontFeatureSettings || EditorFontLigatures.OFF;
-			savedFontInfo.middotWidth = savedFontInfo.middotWidth || savedFontInfo.spaceWidth;
-			savedFontInfo.wsmiddotWidth = savedFontInfo.wsmiddotWidth || savedFontInfo.spaceWidth;
+			if (savedFontInfo.version !== SERIALIZED_FONT_INFO_VERSION) {
+				// cannot use older version
+				continue;
+			}
 			const fontInfo = new FontInfo(savedFontInfo, false);
 			this._writeToCache(fontInfo, fontInfo);
 		}
@@ -175,6 +177,7 @@ class CSSBasedConfiguration extends Disposable {
 				// Hey, it's Bug 14341 ... we couldn't read
 				readConfig = new FontInfo({
 					zoomLevel: browser.getZoomLevel(),
+					pixelRatio: browser.getPixelRatio(),
 					fontFamily: readConfig.fontFamily,
 					fontWeight: readConfig.fontWeight,
 					fontSize: readConfig.fontSize,
@@ -287,6 +290,7 @@ class CSSBasedConfiguration extends Disposable {
 		const canTrustBrowserZoomLevel = (browser.getTimeSinceLastZoomLevelChanged() > 2000);
 		return new FontInfo({
 			zoomLevel: browser.getZoomLevel(),
+			pixelRatio: browser.getPixelRatio(),
 			fontFamily: bareFontInfo.fontFamily,
 			fontWeight: bareFontInfo.fontWeight,
 			fontSize: bareFontInfo.fontSize,
@@ -329,15 +333,15 @@ export class Configuration extends CommonEditorConfiguration {
 
 	constructor(
 		isSimpleWidget: boolean,
-		options: IEditorConstructionOptions,
+		options: Readonly<IEditorConstructionOptions>,
 		referenceDomElement: HTMLElement | null = null,
 		private readonly accessibilityService: IAccessibilityService
 	) {
 		super(isSimpleWidget, options);
 
-		this._elementSizeObserver = this._register(new ElementSizeObserver(referenceDomElement, options.dimension, () => this._onReferenceDomElementSizeChanged()));
+		this._elementSizeObserver = this._register(new ElementSizeObserver(referenceDomElement, options.dimension, () => this._recomputeOptions()));
 
-		this._register(CSSBasedConfiguration.INSTANCE.onDidChange(() => this._onCSSBasedConfigurationChanged()));
+		this._register(CSSBasedConfiguration.INSTANCE.onDidChange(() => this._recomputeOptions()));
 
 		if (this._validatedOptions.get(EditorOption.automaticLayout)) {
 			this._elementSizeObserver.startObserving();
@@ -349,23 +353,15 @@ export class Configuration extends CommonEditorConfiguration {
 		this._recomputeOptions();
 	}
 
-	private _onReferenceDomElementSizeChanged(): void {
-		this._recomputeOptions();
-	}
-
-	private _onCSSBasedConfigurationChanged(): void {
-		this._recomputeOptions();
-	}
-
 	public observeReferenceElement(dimension?: IDimension): void {
 		this._elementSizeObserver.observe(dimension);
 	}
 
-	public dispose(): void {
-		super.dispose();
+	public updatePixelRatio(): void {
+		this._recomputeOptions();
 	}
 
-	private _getExtraEditorClassName(): string {
+	private static _getExtraEditorClassName(): string {
 		let extra = '';
 		if (!browser.isSafari && !browser.isWebkitWebView) {
 			// Use user-select: none in all browsers except Safari and native macOS WebView
@@ -383,7 +379,7 @@ export class Configuration extends CommonEditorConfiguration {
 
 	protected _getEnvConfiguration(): IEnvConfiguration {
 		return {
-			extraEditorClassName: this._getExtraEditorClassName(),
+			extraEditorClassName: Configuration._getExtraEditorClassName(),
 			outerWidth: this._elementSizeObserver.getWidth(),
 			outerHeight: this._elementSizeObserver.getHeight(),
 			emptySelectionClipboard: browser.isWebKit || browser.isFirefox,

@@ -259,11 +259,11 @@
 	font-family: var(--monaco-monospace-font);
 }
 
-.debug-pane .monaco-inputbox > .wrapper {
+.debug-pane .monaco-inputbox > .ibwrapper {
 	height: 19px;
 }
 
-.debug-pane .monaco-inputbox > .wrapper > .input {
+.debug-pane .monaco-inputbox > .ibwrapper > .input {
 	padding: 0px;
 	color: initial;
 }

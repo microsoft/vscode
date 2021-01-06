@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { mapFind } from 'vs/base/common/arrays';
-import { disposableTimeout } from 'vs/base/common/async';
+import { disposableTimeout, RunOnceScheduler } from 'vs/base/common/async';
 import { CancellationToken } from 'vs/base/common/cancellation';
 import { throttle } from 'vs/base/common/decorators';
 import { Emitter } from 'vs/base/common/event';
@@ -82,7 +82,7 @@ export class ExtHostTesting implements ExtHostTestingShape {
 	/**
 	 * Implements vscode.test.runTests
 	 */
-	public async runTests(req: vscode.TestRunOptions<vscode.TestItem>) {
+	public async runTests(req: vscode.TestRunOptions<vscode.TestItem>, token = CancellationToken.None) {
 		await this.proxy.$runTests({
 			tests: req.tests
 				// Find workspace items first, then owned tests, then document tests.
@@ -94,7 +94,7 @@ export class ExtHostTesting implements ExtHostTestingShape {
 				.filter(isDefined)
 				.map(item => ({ providerId: item.providerId, testId: item.id })),
 			debug: req.debug
-		});
+		}, token);
 	}
 
 	/**
@@ -125,6 +125,19 @@ export class ExtHostTesting implements ExtHostTestingShape {
 			return;
 		}
 
+		let delta = 0;
+		const updateCountScheduler = new RunOnceScheduler(() => {
+			if (delta !== 0) {
+				this.proxy.$updateDiscoveringCount(resource, uri, delta);
+				delta = 0;
+			}
+		}, 5);
+
+		const updateDelta = (amount: number) => {
+			delta += amount;
+			updateCountScheduler.schedule();
+		};
+
 		const subscribeFn = (id: string, provider: vscode.TestProvider) => {
 			try {
 				const hierarchy = method!(provider);
@@ -132,8 +145,10 @@ export class ExtHostTesting implements ExtHostTestingShape {
 					return;
 				}
 
+				updateDelta(1);
 				disposable.add(hierarchy);
 				collection.addRoot(hierarchy.root, id);
+				hierarchy.onDidDiscoverInitialTests(() => updateDelta(-1));
 				hierarchy.onDidChangeTest(e => collection.onItemChange(e, id));
 			} catch (e) {
 				console.error(e);
@@ -178,7 +193,7 @@ export class ExtHostTesting implements ExtHostTestingShape {
 	 * providers to be run.
 	 * @override
 	 */
-	public async $runTestsForProvider(req: RunTestForProviderRequest): Promise<RunTestsResult> {
+	public async $runTestsForProvider(req: RunTestForProviderRequest, cancellation: CancellationToken): Promise<RunTestsResult> {
 		const provider = this.providers.get(req.providerId);
 		if (!provider || !provider.runTests) {
 			return EMPTY_TEST_RESULT;
@@ -189,8 +204,13 @@ export class ExtHostTesting implements ExtHostTestingShape {
 			return EMPTY_TEST_RESULT;
 		}
 
-		await provider.runTests({ tests, debug: req.debug }, CancellationToken.None);
-		return EMPTY_TEST_RESULT;
+		try {
+			await provider.runTests({ tests, debug: req.debug }, cancellation);
+			return EMPTY_TEST_RESULT;
+		} catch (e) {
+			console.error(e); // so it appears to attached debuggers
+			throw e;
+		}
 	}
 }
 
@@ -264,6 +284,13 @@ export class SingleUseTestCollection implements IDisposable {
 	protected diff: TestsDiff = [];
 	private disposed = false;
 
+	/**
+	 * Debouncer for sending diffs. We use both a throttle and a debounce here,
+	 * so that tests that all change state simultenously are effected together,
+	 * but so we don't send hundreds of test updates per second to the main thread.
+	 */
+	private readonly debounceSendDiff = new RunOnceScheduler(() => this.throttleSendDiff(), 2);
+
 	constructor(private readonly testIdToInternal: Map<string, OwnedCollectionTestItem>, private readonly publishDiff: (diff: TestsDiff) => void) { }
 
 	/**
@@ -271,7 +298,7 @@ export class SingleUseTestCollection implements IDisposable {
 	 */
 	public addRoot(item: vscode.TestItem, providerId: string) {
 		this.addItem(item, providerId, null);
-		this.throttleSendDiff();
+		this.debounceSendDiff.schedule();
 	}
 
 	/**
@@ -295,7 +322,7 @@ export class SingleUseTestCollection implements IDisposable {
 		}
 
 		this.addItem(item, providerId, existing.parent);
-		this.throttleSendDiff();
+		this.debounceSendDiff.schedule();
 	}
 
 	/**

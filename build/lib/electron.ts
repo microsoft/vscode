@@ -9,11 +9,8 @@ import * as fs from 'fs';
 import * as path from 'path';
 import * as vfs from 'vinyl-fs';
 import * as filter from 'gulp-filter';
-import * as json from 'gulp-json-editor';
 import * as _ from 'underscore';
 import * as util from './util';
-
-const electron = require('gulp-atom-electron');
 
 const root = path.dirname(path.dirname(__dirname));
 const product = JSON.parse(fs.readFileSync(path.join(root, 'product.json'), 'utf8'));
@@ -86,6 +83,9 @@ export const config = {
 
 function getElectron(arch: string): () => NodeJS.ReadWriteStream {
 	return () => {
+		const electron = require('gulp-atom-electron');
+		const json = require('gulp-json-editor') as typeof import('gulp-json-editor');
+
 		const electronOpts = _.extend({}, config, {
 			platform: process.platform,
 			arch: arch === 'armhf' ? 'arm' : arch,

@@ -28,6 +28,14 @@ const BUILTIN_MARKETPLACE_EXTENSIONS_ROOT = path.join(APP_ROOT, '.build', 'built
 const WEB_DEV_EXTENSIONS_ROOT = path.join(APP_ROOT, '.build', 'builtInWebDevExtensions');
 const WEB_MAIN = path.join(APP_ROOT, 'src', 'vs', 'code', 'browser', 'workbench', 'workbench-dev.html');
 
+// This is useful to simulate real world CORS
+const ALLOWED_CORS_ORIGINS = [
+	'http://localhost:8081',
+	'http://127.0.0.1:8081',
+	'http://localhost:8080',
+	'http://127.0.0.1:8080',
+];
+
 const WEB_PLAYGROUND_VERSION = '0.0.10';
 
 const args = minimist(process.argv, {
@@ -283,6 +291,17 @@ secondaryServer.on('error', err => {
 
 /**
  * @param {import('http').IncomingMessage} req
+ */
+function addCORSReplyHeader(req) {
+	if (typeof req.headers['origin'] !== 'string') {
+		// not a CORS request
+		return false;
+	}
+	return (ALLOWED_CORS_ORIGINS.indexOf(req.headers['origin']) >= 0);
+}
+
+/**
+ * @param {import('http').IncomingMessage} req
  * @param {import('http').ServerResponse} res
  * @param {import('url').UrlWithParsedQuery} parsedUrl
  */
@@ -291,9 +310,10 @@ async function handleStatic(req, res, parsedUrl) {
 	if (/^\/static\/extensions\//.test(parsedUrl.pathname)) {
 		const relativePath = decodeURIComponent(parsedUrl.pathname.substr('/static/extensions/'.length));
 		const filePath = getExtensionFilePath(relativePath, (await builtInExtensionsPromise).locations);
-		const responseHeaders = {
-			'Access-Control-Allow-Origin': '*'
-		};
+		const responseHeaders = {};
+		if (addCORSReplyHeader(req)) {
+			responseHeaders['Access-Control-Allow-Origin'] = '*';
+		}
 		if (!filePath) {
 			return serveError(req, res, 400, `Bad request.`, responseHeaders);
 		}
@@ -315,9 +335,10 @@ async function handleExtension(req, res, parsedUrl) {
 	// Strip `/extension/` from the path
 	const relativePath = decodeURIComponent(parsedUrl.pathname.substr('/extension/'.length));
 	const filePath = getExtensionFilePath(relativePath, (await commandlineProvidedExtensionsPromise).locations);
-	const responseHeaders = {
-		'Access-Control-Allow-Origin': '*'
-	};
+	const responseHeaders = {};
+	if (addCORSReplyHeader(req)) {
+		responseHeaders['Access-Control-Allow-Origin'] = '*';
+	}
 	if (!filePath) {
 		return serveError(req, res, 400, `Bad request.`, responseHeaders);
 	}

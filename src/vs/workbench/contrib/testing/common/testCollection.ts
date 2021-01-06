@@ -9,11 +9,16 @@ import { Location as ModeLocation } from 'vs/editor/common/modes';
 import { ExtHostTestingResource } from 'vs/workbench/api/common/extHost.protocol';
 import { TestMessageSeverity, TestRunState } from 'vs/workbench/api/common/extHostTypes';
 
+export interface TestIdWithProvider {
+	testId: string;
+	providerId: string;
+}
+
 /**
  * Request to them main thread to run a set of tests.
  */
 export interface RunTestsRequest {
-	tests: { testId: string; providerId: string }[];
+	tests: TestIdWithProvider[];
 	debug: boolean;
 }
 

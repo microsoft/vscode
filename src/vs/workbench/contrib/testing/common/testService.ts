@@ -3,6 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
+import { CancellationToken } from 'vs/base/common/cancellation';
 import { Event } from 'vs/base/common/event';
 import { IDisposable } from 'vs/base/common/lifecycle';
 import { URI } from 'vs/base/common/uri';
@@ -13,7 +14,7 @@ import { RunTestForProviderRequest, RunTestsRequest, RunTestsResult, TestsDiff }
 export const ITestService = createDecorator<ITestService>('testService');
 
 export interface MainTestController {
-	runTests(request: RunTestForProviderRequest): Promise<RunTestsResult>;
+	runTests(request: RunTestForProviderRequest, token: CancellationToken): Promise<RunTestsResult>;
 }
 
 export type TestDiffListener = (diff: TestsDiff) => void;
@@ -25,9 +26,30 @@ export interface ITestService {
 	readonly onDidChangeProviders: Event<{ delta: number }>;
 	readonly providers: number;
 	readonly subscriptions: ReadonlyArray<{ resource: ExtHostTestingResource, uri: URI }>;
+
+	readonly testRuns: Iterable<RunTestsRequest>;
+	readonly onTestRunStarted: Event<RunTestsRequest>;
+	readonly onTestRunCompleted: Event<{ req: RunTestsRequest, result: RunTestsResult }>;
+
+	/**
+	 * List of resources where tests are actively being discovered.
+	 */
+	readonly busyTestLocations: Iterable<{ resource: ExtHostTestingResource, uri: URI }>;
+
+	/**
+	 * Fires when the busy state of a resource changes.
+	 */
+	readonly onBusyStateChange: Event<{ resource: ExtHostTestingResource, uri: URI, busy: boolean }>;
+
 	registerTestController(id: string, controller: MainTestController): void;
 	unregisterTestController(id: string): void;
-	runTests(req: RunTestsRequest): Promise<RunTestsResult>;
+	runTests(req: RunTestsRequest, token?: CancellationToken): Promise<RunTestsResult>;
+	cancelTestRun(req: RunTestsRequest): void;
 	publishDiff(resource: ExtHostTestingResource, uri: URI, diff: TestsDiff): void;
 	subscribeToDiffs(resource: ExtHostTestingResource, uri: URI, acceptDiff: TestDiffListener): IDisposable;
+
+	/**
+	 * Updates the number of test providers still discovering tests for the given resource.
+	 */
+	updateDiscoveringCount(resource: ExtHostTestingResource, uri: URI, delta: number): void;
 }

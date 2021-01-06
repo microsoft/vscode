@@ -4,6 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import * as dom from 'vs/base/browser/dom';
+import * as browser from 'vs/base/browser/browser';
 import { Selection } from 'vs/editor/common/core/selection';
 import { FastDomNode, createFastDomNode } from 'vs/base/browser/fastDomNode';
 import { IMouseEvent } from 'vs/base/browser/mouseEvent';
@@ -65,6 +66,7 @@ export class View extends ViewEventHandler {
 
 	private readonly _scrollbar: EditorScrollbar;
 	private readonly _context: ViewContext;
+	private _configPixelRatio: number;
 	private _selections: Selection[];
 
 	// The view lines
@@ -104,6 +106,7 @@ export class View extends ViewEventHandler {
 
 		// The view context is passed on to most classes (basically to reduce param. counts in ctors)
 		this._context = new ViewContext(configuration, themeService.getColorTheme(), model);
+		this._configPixelRatio = this._configPixelRatio = this._context.configuration.options.get(EditorOption.pixelRatio);
 
 		// Ensure the view is the first event handler in order to update the layout
 		this._context.addEventHandler(this);
@@ -298,6 +301,7 @@ export class View extends ViewEventHandler {
 		this._scheduleRender();
 	}
 	public onConfigurationChanged(e: viewEvents.ViewConfigurationChangedEvent): boolean {
+		this._configPixelRatio = this._context.configuration.options.get(EditorOption.pixelRatio);
 		this.domNode.setClassName(this._getEditorClassName());
 		this._applyLayout();
 		return false;
@@ -407,6 +411,12 @@ export class View extends ViewEventHandler {
 		for (const viewPart of viewPartsToRender) {
 			viewPart.render(renderingContext);
 			viewPart.onDidRender();
+		}
+
+		// Try to detect browser zooming and paint again if necessary
+		if (Math.abs(browser.getPixelRatio() - this._configPixelRatio) > 0.001) {
+			// looks like the pixel ratio has changed
+			this._context.configuration.updatePixelRatio();
 		}
 	}
 

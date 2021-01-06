@@ -36,6 +36,8 @@ import { IExtHostTunnelService } from 'vs/workbench/api/common/extHostTunnelServ
 import { IExtHostTerminalService } from 'vs/workbench/api/common/extHostTerminalService';
 import { Emitter, Event } from 'vs/base/common/event';
 import { IExtensionActivationHost, checkActivateWorkspaceContainsExtension } from 'vs/workbench/api/common/shared/workspaceContains';
+import { ExtHostSecretState, IExtHostSecretState } from 'vs/workbench/api/common/exHostSecretState';
+import { ExtensionSecrets } from 'vs/workbench/api/common/extHostSecrets';
 
 interface ITestRunner {
 	/** Old test runner API, as exported from `vscode/lib/testrunner` */
@@ -51,7 +53,7 @@ export const IHostUtils = createDecorator<IHostUtils>('IHostUtils');
 
 export interface IHostUtils {
 	readonly _serviceBrand: undefined;
-	exit(code?: number): void;
+	exit(code: number): void;
 	exists(path: string): Promise<boolean>;
 	realpath(path: string): Promise<string>;
 }
@@ -95,6 +97,7 @@ export abstract class AbstractExtHostExtensionService extends Disposable impleme
 	private readonly _readyToRunExtensions: Barrier;
 	protected readonly _registry: ExtensionDescriptionRegistry;
 	private readonly _storage: ExtHostStorage;
+	private readonly _secretState: ExtHostSecretState;
 	private readonly _storagePath: IExtensionStoragePaths;
 	private readonly _activator: ExtensionsActivator;
 	private _extensionPathIndex: Promise<TernarySearchTree<string, IExtensionDescription>> | null;
@@ -116,7 +119,7 @@ export abstract class AbstractExtHostExtensionService extends Disposable impleme
 		@IExtHostInitDataService initData: IExtHostInitDataService,
 		@IExtensionStoragePaths storagePath: IExtensionStoragePaths,
 		@IExtHostTunnelService extHostTunnelService: IExtHostTunnelService,
-		@IExtHostTerminalService extHostTerminalService: IExtHostTerminalService
+		@IExtHostTerminalService extHostTerminalService: IExtHostTerminalService,
 	) {
 		super();
 		this._hostUtils = hostUtils;
@@ -139,10 +142,12 @@ export abstract class AbstractExtHostExtensionService extends Disposable impleme
 		this._readyToRunExtensions = new Barrier();
 		this._registry = new ExtensionDescriptionRegistry(this._initData.extensions);
 		this._storage = new ExtHostStorage(this._extHostContext);
+		this._secretState = new ExtHostSecretState(this._extHostContext);
 		this._storagePath = storagePath;
 
 		this._instaService = instaService.createChild(new ServiceCollection(
-			[IExtHostStorage, this._storage]
+			[IExtHostStorage, this._storage],
+			[IExtHostSecretState, this._secretState]
 		));
 
 		const hostExtensions = new Set<string>();
@@ -379,6 +384,7 @@ export abstract class AbstractExtHostExtensionService extends Disposable impleme
 
 		const globalState = new ExtensionGlobalMemento(extensionDescription, this._storage);
 		const workspaceState = new ExtensionMemento(extensionDescription.identifier.value, false, this._storage);
+		const secrets = new ExtensionSecrets(extensionDescription, this._secretState);
 		const extensionMode = extensionDescription.isUnderDevelopment
 			? (this._initData.environment.extensionTestsLocationURI ? ExtensionMode.Test : ExtensionMode.Development)
 			: ExtensionMode.Production;
@@ -394,6 +400,7 @@ export abstract class AbstractExtHostExtensionService extends Disposable impleme
 			return Object.freeze<vscode.ExtensionContext>({
 				globalState,
 				workspaceState,
+				secrets,
 				subscriptions: [],
 				get extensionUri() { return extensionDescription.extensionLocation; },
 				get extensionPath() { return extensionDescription.extensionLocation.fsPath; },
@@ -463,22 +470,7 @@ export abstract class AbstractExtHostExtensionService extends Disposable impleme
 
 	private _activateAllStartupFinished(): void {
 		// startup is considered finished
-		const marks = performance.getMarks().map((entry) => {
-			if (entry.name.startsWith('fork/')) {
-				return {
-					name: `extHost/` + entry.name.substr('fork/'.length),
-					startTime: entry.startTime
-				};
-			}
-			if (entry.name.startsWith('code/')) {
-				return {
-					name: `extHost/` + entry.name.substr('code/'.length),
-					startTime: entry.startTime
-				};
-			}
-			return entry;
-		});
-		this._mainThreadExtensionsProxy.$setPerformanceMarks(marks);
+		this._mainThreadExtensionsProxy.$setPerformanceMarks(performance.getMarks());
 
 		for (const desc of this._registry.getAllExtensionDescriptions()) {
 			if (desc.activationEvents) {
@@ -610,11 +602,17 @@ export abstract class AbstractExtHostExtensionService extends Disposable impleme
 	}
 
 	private _testRunnerExit(code: number): void {
+		this._logService.info(`extension host terminating: test runner requested exit with code ${code}`);
+		this._logService.flush();
+
 		// wait at most 5000ms for the renderer to confirm our exit request and for the renderer socket to drain
 		// (this is to ensure all outstanding messages reach the renderer)
 		const exitPromise = this._mainThreadExtensionsProxy.$onExtensionHostExit(code);
 		const drainPromise = this._extHostContext.drain();
 		Promise.race([Promise.all([exitPromise, drainPromise]), timeout(5000)]).then(() => {
+			this._logService.info(`exiting with code ${code}`);
+			this._logService.flush();
+
 			this._hostUtils.exit(code);
 		});
 	}

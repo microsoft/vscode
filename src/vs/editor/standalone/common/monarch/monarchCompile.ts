@@ -395,6 +395,7 @@ export function compile(languageId: string, json: IMonarchLanguage): monarchComm
 	// Create our lexer
 	let lexer: monarchCommon.ILexer = <monarchCommon.ILexer>{};
 	lexer.languageId = languageId;
+	lexer.includeLF = bool(json.includeLF, false);
 	lexer.noThrow = false; // raise exceptions during compilation
 	lexer.maxStack = 100;
 
@@ -411,6 +412,7 @@ export function compile(languageId: string, json: IMonarchLanguage): monarchComm
 	// For calling compileAction later on
 	let lexerMin: monarchCommon.ILexerMin = <any>json;
 	lexerMin.languageId = languageId;
+	lexerMin.includeLF = lexer.includeLF;
 	lexerMin.ignoreCase = lexer.ignoreCase;
 	lexerMin.unicode = lexer.unicode;
 	lexerMin.noThrow = lexer.noThrow;

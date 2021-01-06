@@ -175,7 +175,7 @@ export interface IEditorService {
 	 * identifier.
 	 *
 	 * @param order the order of the editors to use
-	 * @param options wether to exclude sticky editors or not
+	 * @param options whether to exclude sticky editors or not
 	 */
 	getEditors(order: EditorsOrder, options?: { excludeSticky?: boolean }): ReadonlyArray<IEditorIdentifier>;
 

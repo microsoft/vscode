@@ -5,6 +5,7 @@
 
 .test-explorer .test-item {
 	display: flex;
+	align-items: center;
 }
 
 .test-explorer .monaco-list-row .monaco-action-bar {
@@ -25,9 +26,8 @@
 	align-items: center;
 }
 
-.test-explore .codicon {
-	line-height: 22px;
-	margin-right: 2px;
+.test-explorer .computed-state {
+	margin-right: 0.25em;
 }
 
 .monaco-workbench
@@ -39,4 +39,9 @@
 	height: 100%;
 	line-height: 22px;
 	margin-right: 8px;
+}
+
+.codicon-testing-loading-icon::before {
+	/* Use steps to throttle FPS to reduce CPU usage */
+	animation: codicon-spin 1.25s steps(30) infinite;
 }

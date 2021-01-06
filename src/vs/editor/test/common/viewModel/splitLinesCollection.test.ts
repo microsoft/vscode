@@ -333,7 +333,7 @@ suite('SplitLinesCollection', () => {
 		const tokenizationSupport: modes.ITokenizationSupport = {
 			getInitialState: () => NULL_STATE,
 			tokenize: undefined!,
-			tokenize2: (line: string, state: modes.IState): TokenizationResult2 => {
+			tokenize2: (line: string, hasEOL: boolean, state: modes.IState): TokenizationResult2 => {
 				let tokens = _tokens[_lineIndex++];
 
 				let result = new Uint32Array(2 * tokens.length);
@@ -391,7 +391,6 @@ suite('SplitLinesCollection', () => {
 		}
 		if (expected === null) {
 			assert.ok(false);
-			return;
 		}
 		assert.equal(actual.content, expected.content);
 		assert.equal(actual.minColumn, expected.minColumn);

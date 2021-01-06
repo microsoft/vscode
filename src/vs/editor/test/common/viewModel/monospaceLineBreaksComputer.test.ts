@@ -47,6 +47,7 @@ function toAnnotatedText(text: string, lineBreakData: LineBreakData | null): str
 function getLineBreakData(factory: ILineBreaksComputerFactory, tabSize: number, breakAfter: number, columnsForFullWidthChar: number, wrappingIndent: WrappingIndent, text: string, previousLineBreakData: LineBreakData | null): LineBreakData | null {
 	const fontInfo = new FontInfo({
 		zoomLevel: 0,
+		pixelRatio: 1,
 		fontFamily: 'testFontFamily',
 		fontWeight: 'normal',
 		fontSize: 14,
@@ -292,5 +293,10 @@ suite('Editor ViewModel - MonospaceLineBreaksComputer', () => {
 	test('issue #33366: Word wrap algorithm behaves differently around punctuation', () => {
 		const factory = new MonospaceLineBreaksComputerFactory(EditorOptions.wordWrapBreakBeforeCharacters.defaultValue, EditorOptions.wordWrapBreakAfterCharacters.defaultValue);
 		assertLineBreaks(factory, 4, 23, 'this is a line of |text, text that sits |on a line', WrappingIndent.Same);
+	});
+
+	test('issue #112382: Word wrap doesn\'t work well with control characters', () => {
+		const factory = new MonospaceLineBreaksComputerFactory(EditorOptions.wordWrapBreakBeforeCharacters.defaultValue, EditorOptions.wordWrapBreakAfterCharacters.defaultValue);
+		assertLineBreaks(factory, 4, 6, '\x06\x06\x06|\x06\x06\x06', WrappingIndent.Same);
 	});
 });

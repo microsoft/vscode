@@ -20,27 +20,6 @@ export abstract class BreadcrumbsItem {
 	abstract render(container: HTMLElement): void;
 }
 
-export class SimpleBreadcrumbsItem extends BreadcrumbsItem {
-
-	constructor(
-		readonly text: string,
-		readonly title: string = text
-	) {
-		super();
-	}
-
-	equals(other: this) {
-		return other === this || other instanceof SimpleBreadcrumbsItem && other.text === this.text && other.title === this.title;
-	}
-
-	render(container: HTMLElement): void {
-		let node = document.createElement('div');
-		node.title = this.title;
-		node.innerText = this.text;
-		container.appendChild(node);
-	}
-}
-
 export interface IBreadcrumbsWidgetStyles {
 	breadcrumbsBackground?: Color;
 	breadcrumbsForeground?: Color;
@@ -333,7 +312,12 @@ export class BreadcrumbsWidget {
 	private _renderItem(item: BreadcrumbsItem, container: HTMLDivElement): void {
 		dom.clearNode(container);
 		container.className = '';
-		item.render(container);
+		try {
+			item.render(container);
+		} catch (err) {
+			container.innerText = '<<RENDER ERROR>>';
+			console.error(err);
+		}
 		container.tabIndex = -1;
 		container.setAttribute('role', 'listitem');
 		container.classList.add('monaco-breadcrumb-item');

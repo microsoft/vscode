@@ -131,7 +131,7 @@ CommandsRegistry.registerCommand('_extensionTests.setLogLevel', function (access
 CommandsRegistry.registerCommand('_workbench.openExternal', function (accessor: ServicesAccessor, uri: UriComponents, options: { allowTunneling?: boolean }) {
 	// TODO: discuss martin, ben where to put this
 	const openerService = accessor.get(IOpenerService);
-	openerService.open(URI.revive(uri), options);
+	openerService.open(URI.revive(uri), { openExternal: true, allowTunneling: options?.allowTunneling === true });
 });
 
 

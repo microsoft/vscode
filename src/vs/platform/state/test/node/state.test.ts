@@ -6,21 +6,15 @@
 import * as assert from 'assert';
 import * as os from 'os';
 import * as path from 'vs/base/common/path';
-import { getRandomTestPath } from 'vs/base/test/node/testUtils';
+import { flakySuite, getRandomTestPath } from 'vs/base/test/node/testUtils';
 import { FileStorage } from 'vs/platform/state/node/stateService';
 import { mkdirp, rimraf, RimRafMode, writeFileSync } from 'vs/base/node/pfs';
 
-suite('StateService', () => {
+flakySuite('StateService', () => {
 	const parentDir = getRandomTestPath(os.tmpdir(), 'vsctests', 'stateservice');
 	const storageFile = path.join(parentDir, 'storage.json');
 
 	test('Basics', async function () {
-
-		// Given issues such as https://github.com/microsoft/vscode/issues/112447
-		// we see random test failures when accessing the native file system.
-		this.retries(3);
-		this.timeout(1000 * 20);
-
 		await mkdirp(parentDir);
 		writeFileSync(storageFile, '');
 

@@ -5,7 +5,6 @@
  *--------------------------------------------------------------------------------------------*/
 Object.defineProperty(exports, "__esModule", { value: true });
 exports.createESMSourcesAndResources2 = exports.extractEditor = void 0;
-const ts = require("typescript");
 const fs = require("fs");
 const path = require("path");
 const tss = require("./treeshaking");
@@ -29,6 +28,7 @@ function writeFile(filePath, contents) {
 }
 function extractEditor(options) {
     var _a;
+    const ts = require('typescript');
     const tsConfig = JSON.parse(fs.readFileSync(path.join(options.sourcesRoot, 'tsconfig.monaco.json')).toString());
     let compilerOptions;
     if (tsConfig.extends) {
@@ -115,6 +115,7 @@ function extractEditor(options) {
 }
 exports.extractEditor = extractEditor;
 function createESMSourcesAndResources2(options) {
+    const ts = require('typescript');
     const SRC_FOLDER = path.join(REPO_ROOT, options.srcFolder);
     const OUT_FOLDER = path.join(REPO_ROOT, options.outFolder);
     const OUT_RESOURCES_FOLDER = path.join(REPO_ROOT, options.outResourcesFolder);

@@ -158,7 +158,6 @@ export class PlaceHolderToggleCompositePinnedAction extends ToggleCompositePinne
 	}
 }
 
-
 export class SwitchPanelViewAction extends Action {
 
 	constructor(
@@ -235,11 +234,11 @@ registerAction2(class extends Action2 {
 		super({
 			id: 'workbench.action.toggleMaximizedPanel',
 			title: { value: nls.localize('toggleMaximizedPanel', "Toggle Maximized Panel"), original: 'Toggle Maximized Panel' },
-			tooltip: { value: nls.localize('maximizePanel', "Maximize Panel Size"), original: 'Maximize Panel Size' },
+			tooltip: nls.localize('maximizePanel', "Maximize Panel Size"),
 			category: CATEGORIES.View,
 			f1: true,
 			icon: maximizeIcon,
-			toggled: { condition: PanelMaximizedContext, icon: restoreIcon, tooltip: { value: nls.localize('minimizePanel', "Restore Panel Size"), original: 'Restore Panel Size' } },
+			toggled: { condition: PanelMaximizedContext, icon: restoreIcon, tooltip: nls.localize('minimizePanel', "Restore Panel Size") },
 			menu: [{
 				id: MenuId.PanelTitle,
 				group: 'navigation',

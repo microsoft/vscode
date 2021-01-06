@@ -96,7 +96,7 @@ import 'vs/workbench/services/diagnostics/electron-browser/diagnosticsService';
 
 import { registerSingleton } from 'vs/platform/instantiation/common/extensions';
 import { ITunnelService } from 'vs/platform/remote/common/tunnel';
-import { TunnelService } from 'vs/platform/remote/node/tunnelService';
+import { TunnelService } from 'vs/workbench/services/remote/electron-browser/tunnelServiceImpl';
 
 registerSingleton(ITunnelService, TunnelService);
 

@@ -23,7 +23,7 @@ import 'vs/editor/contrib/find/findController';
 import 'vs/editor/contrib/folding/folding';
 import 'vs/editor/contrib/fontZoom/fontZoom';
 import 'vs/editor/contrib/format/formatActions';
-import 'vs/editor/contrib/gotoSymbol/documentSymbols';
+import 'vs/editor/contrib/documentSymbols/documentSymbols';
 import 'vs/editor/contrib/gotoSymbol/goToCommands';
 import 'vs/editor/contrib/gotoSymbol/link/goToDefinitionAtPosition';
 import 'vs/editor/contrib/gotoError/gotoError';

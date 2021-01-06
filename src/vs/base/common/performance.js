@@ -56,6 +56,7 @@ function _define() {
 					let timeOrigin = performance.timeOrigin;
 					if (typeof timeOrigin !== 'number') {
 						// safari: there is no timerOrigin but in renderers there is the timing-property
+						// see https://bugs.webkit.org/show_bug.cgi?id=174862
 						timeOrigin = performance.timing.navigationStart || performance.timing.redirectStart || performance.timing.fetchStart;
 					}
 					const result = [{ name: 'code/timeOrigin', startTime: Math.round(timeOrigin) }];

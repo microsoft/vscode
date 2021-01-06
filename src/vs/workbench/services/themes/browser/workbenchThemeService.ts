@@ -433,16 +433,20 @@ export class WorkbenchThemeService implements IWorkbenchThemeService {
 				themeData.setCustomizations(this.settings);
 				return this.applyTheme(themeData, settingsTarget);
 			}, error => {
-				return Promise.reject(new Error(nls.localize('error.cannotloadtheme', "Unable to load {0}: {1}", themeData.location!.toString(), error.message)));
+				return Promise.reject(new Error(nls.localize('error.cannotloadtheme', "Unable to load {0}: {1}", themeData.location?.toString(), error.message)));
 			});
 		});
 	}
 
 	private reloadCurrentColorTheme() {
 		return this.colorThemeSequencer.queue(async () => {
-			await this.currentColorTheme.reload(this.extensionResourceLoaderService);
-			this.currentColorTheme.setCustomizations(this.settings);
-			await this.applyTheme(this.currentColorTheme, undefined, false);
+			try {
+				await this.currentColorTheme.reload(this.extensionResourceLoaderService);
+				this.currentColorTheme.setCustomizations(this.settings);
+				await this.applyTheme(this.currentColorTheme, undefined, false);
+			} catch (error) {
+				this.logService.info('Unable to reload {0}: {1}', this.currentColorTheme.location?.toString());
+			}
 		});
 	}
 

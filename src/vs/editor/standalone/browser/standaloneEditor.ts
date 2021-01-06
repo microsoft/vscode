@@ -27,7 +27,7 @@ import { SimpleEditorModelResolverService } from 'vs/editor/standalone/browser/s
 import { IDiffEditorConstructionOptions, IStandaloneEditorConstructionOptions, IStandaloneCodeEditor, IStandaloneDiffEditor, StandaloneDiffEditor, StandaloneEditor } from 'vs/editor/standalone/browser/standaloneCodeEditor';
 import { DynamicStandaloneServices, IEditorOverrideServices, StaticServices } from 'vs/editor/standalone/browser/standaloneServices';
 import { IStandaloneThemeData, IStandaloneThemeService } from 'vs/editor/standalone/common/standaloneThemeService';
-import { ICommandService } from 'vs/platform/commands/common/commands';
+import { CommandsRegistry, ICommandService } from 'vs/platform/commands/common/commands';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
 import { IContextViewService, IContextMenuService } from 'vs/platform/contextview/browser/contextView';
@@ -276,7 +276,7 @@ function getSafeTokenizationSupport(language: string): Omit<modes.ITokenizationS
 	}
 	return {
 		getInitialState: () => NULL_STATE,
-		tokenize: (line: string, state: modes.IState, deltaOffset: number) => nullTokenize(language, line, state, deltaOffset)
+		tokenize: (line: string, hasEOL: boolean, state: modes.IState, deltaOffset: number) => nullTokenize(language, line, state, deltaOffset)
 	};
 }
 
@@ -294,7 +294,7 @@ export function tokenize(text: string, languageId: string): Token[][] {
 	let state = tokenizationSupport.getInitialState();
 	for (let i = 0, len = lines.length; i < len; i++) {
 		let line = lines[i];
-		let tokenizationResult = tokenizationSupport.tokenize(line, state, 0);
+		let tokenizationResult = tokenizationSupport.tokenize(line, true, state, 0);
 
 		result[i] = tokenizationResult.tokens;
 		state = tokenizationResult.endState;
@@ -321,6 +321,13 @@ export function setTheme(themeName: string): void {
  */
 export function remeasureFonts(): void {
 	clearAllFontInfos();
+}
+
+/**
+ * Register a command.
+ */
+export function registerCommand(id: string, handler: (accessor: any, ...args: any[]) => void): IDisposable {
+	return CommandsRegistry.registerCommand({ id, handler });
 }
 
 /**
@@ -353,6 +360,7 @@ export function createMonacoEditorAPI(): typeof monaco.editor {
 		defineTheme: <any>defineTheme,
 		setTheme: <any>setTheme,
 		remeasureFonts: remeasureFonts,
+		registerCommand: registerCommand,
 
 		// enums
 		AccessibilitySupport: standaloneEnums.AccessibilitySupport,

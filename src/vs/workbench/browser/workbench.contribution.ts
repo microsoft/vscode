@@ -33,6 +33,11 @@ import { isStandalone } from 'vs/base/browser/browser';
 				'description': nls.localize('showEditorTabs', "Controls whether opened editors should show in tabs or not."),
 				'default': true
 			},
+			'workbench.editor.wrapTabs': {
+				'type': 'boolean',
+				'markdownDescription': nls.localize('wrapTabs', "Controls whether tabs should be wrapped over multiple lines when exceeding available space or whether a scrollbar should appear instead. This value is ignored when `#workbench.editor.showTabs#` is disabled."),
+				'default': false
+			},
 			'workbench.editor.scrollToSwitchTabs': {
 				'type': 'boolean',
 				'markdownDescription': nls.localize({ comment: ['This is the description for a setting. Values surrounded by single quotes are not to be translated.'], key: 'scrollToSwitchTabs' }, "Controls whether scrolling over tabs will open them or not. By default tabs will only reveal upon scrolling, but not open. You can press and hold the Shift-key while scrolling to change this behaviour for that duration. This value is ignored when `#workbench.editor.showTabs#` is disabled."),
@@ -42,6 +47,16 @@ import { isStandalone } from 'vs/base/browser/browser';
 				'type': 'boolean',
 				'markdownDescription': nls.localize('highlightModifiedTabs', "Controls whether a top border is drawn on modified (dirty) editor tabs or not. This value is ignored when `#workbench.editor.showTabs#` is disabled."),
 				'default': false
+			},
+			'workbench.editor.decorations.badges': {
+				'type': 'boolean',
+				'markdownDescription': nls.localize('decorations.badges', "Controls whether editor file decorations should use badges."),
+				'default': true
+			},
+			'workbench.editor.decorations.colors': {
+				'type': 'boolean',
+				'markdownDescription': nls.localize('decorations.colors', "Controls whether editor file decorations should use colors."),
+				'default': true
 			},
 			'workbench.editor.labelFormat': {
 				'type': 'string',
@@ -320,8 +335,8 @@ import { isStandalone } from 'vs/base/browser/browser';
 		nls.localize('activeFolderLong', "`\${activeFolderLong}`: the full path of the folder the file is contained in (e.g. /Users/Development/myFolder/myFileFolder)."),
 		nls.localize('folderName', "`\${folderName}`: name of the workspace folder the file is contained in (e.g. myFolder)."),
 		nls.localize('folderPath', "`\${folderPath}`: file path of the workspace folder the file is contained in (e.g. /Users/Development/myFolder)."),
-		nls.localize('rootName', "`\${rootName}`: name of the workspace (e.g. myFolder or myWorkspace)."),
-		nls.localize('rootPath', "`\${rootPath}`: file path of the workspace (e.g. /Users/Development/myWorkspace)."),
+		nls.localize('rootName', "`\${rootName}`: name of the opened workspace or folder (e.g. myFolder or myWorkspace)."),
+		nls.localize('rootPath', "`\${rootPath}`: file path of the opened workspace or folder (e.g. /Users/Development/myWorkspace)."),
 		nls.localize('appName', "`\${appName}`: e.g. VS Code."),
 		nls.localize('remoteName', "`\${remoteName}`: e.g. SSH"),
 		nls.localize('dirty', "`\${dirty}`: a dirty indicator if the active editor is dirty."),
