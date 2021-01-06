@@ -295,7 +295,7 @@ export class CommonFindController extends Disposable implements IEditorContribut
 				}
 			}
 		} else if (opts.seedSearchStringFromSelection === 'multiple' && !opts.updateSearchScope) {
-			let selectionSearchString = getSelectionSearchString(this._editor, opts.seedSearchStringFromSelection, opts.seedSearchStringFromCursor);
+			let selectionSearchString = getSelectionSearchString(this._editor, opts.seedSearchStringFromSelection);
 			if (selectionSearchString) {
 				stateChanges.searchString = selectionSearchString;
 			}
