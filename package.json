@@ -135,7 +135,6 @@
     "gulp-buffer": "0.0.2",
     "gulp-concat": "^2.6.1",
     "gulp-cssnano": "^2.1.3",
-    "gulp-esbuild": "^0.3.12",
     "gulp-eslint": "^5.0.0",
     "gulp-filter": "^5.1.0",
     "gulp-flatmap": "^1.0.2",
