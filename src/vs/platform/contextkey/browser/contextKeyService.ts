@@ -3,7 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { Emitter, Event, PauseableEmitter } from 'vs/base/common/event';
+import { Emitter, PauseableEmitter } from 'vs/base/common/event';
 import { Iterable } from 'vs/base/common/iterator';
 import { IDisposable, DisposableStore, MutableDisposable } from 'vs/base/common/lifecycle';
 import { TernarySearchTree } from 'vs/base/common/map';
@@ -244,11 +244,13 @@ class CompositeContextKeyChangeEvent implements IContextKeyChangeEvent {
 }
 
 export abstract class AbstractContextKeyService implements IContextKeyService {
-	public _serviceBrand: undefined;
+	declare _serviceBrand: undefined;
 
 	protected _isDisposed: boolean;
-	protected _onDidChangeContext = new PauseableEmitter<IContextKeyChangeEvent>({ merge: input => new CompositeContextKeyChangeEvent(input) });
 	protected _myContextId: number;
+
+	protected _onDidChangeContext = new PauseableEmitter<IContextKeyChangeEvent>({ merge: input => new CompositeContextKeyChangeEvent(input) });
+	readonly onDidChangeContext = this._onDidChangeContext.event;
 
 	constructor(myContextId: number) {
 		this._isDisposed = false;
@@ -268,9 +270,6 @@ export abstract class AbstractContextKeyService implements IContextKeyService {
 		return new ContextKey(this, key, defaultValue);
 	}
 
-	public get onDidChangeContext(): Event<IContextKeyChangeEvent> {
-		return this._onDidChangeContext.event;
-	}
 
 	bufferChangeEvents(callback: Function): void {
 		this._onDidChangeContext.pause();
