@@ -7,10 +7,10 @@ import * as assert from 'assert';
 import { URI } from 'vs/base/common/uri';
 import { FileAccess, Schemas } from 'vs/base/common/network';
 import { isEqual } from 'vs/base/common/resources';
-import { isElectronSandboxed } from 'vs/base/common/platform';
+import { isPreferringBrowserCodeLoad } from 'vs/base/common/platform';
 
 suite('network', () => {
-	const enableTest = isElectronSandboxed;
+	const enableTest = isPreferringBrowserCodeLoad;
 
 	(!enableTest ? test.skip : test)('FileAccess: URI (native)', () => {
 

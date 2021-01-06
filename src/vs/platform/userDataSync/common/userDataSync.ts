@@ -52,10 +52,6 @@ export function registerConfiguration(): IDisposable {
 				scope: ConfigurationScope.APPLICATION,
 				tags: ['sync', 'usesOnlineServices']
 			},
-			'sync.keybindingsPerPlatform': {
-				type: 'boolean',
-				deprecationMessage: localize('sync.keybindingsPerPlatform.deprecated', "Deprecated, use settingsSync.keybindingsPerPlatform instead"),
-			},
 			'settingsSync.ignoredExtensions': {
 				'type': 'array',
 				markdownDescription: localize('settingsSync.ignoredExtensions', "List of extensions to be ignored while synchronizing. The identifier of an extension is always `${publisher}.${name}`. For example: `vscode.csharp`."),
@@ -70,10 +66,6 @@ export function registerConfiguration(): IDisposable {
 				disallowSyncIgnore: true,
 				tags: ['sync', 'usesOnlineServices']
 			},
-			'sync.ignoredExtensions': {
-				'type': 'array',
-				deprecationMessage: localize('sync.ignoredExtensions.deprecated', "Deprecated, use settingsSync.ignoredExtensions instead"),
-			},
 			'settingsSync.ignoredSettings': {
 				'type': 'array',
 				description: localize('settingsSync.ignoredSettings', "Configure settings to be ignored while synchronizing."),
@@ -84,10 +76,6 @@ export function registerConfiguration(): IDisposable {
 				uniqueItems: true,
 				disallowSyncIgnore: true,
 				tags: ['sync', 'usesOnlineServices']
-			},
-			'sync.ignoredSettings': {
-				'type': 'array',
-				deprecationMessage: localize('sync.ignoredSettings.deprecated', "Deprecated, use settingsSync.ignoredSettings instead"),
 			}
 		}
 	});
