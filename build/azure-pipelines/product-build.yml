@@ -97,7 +97,7 @@ stages:
             steps:
               - template: win32/product-build-win32.yml
 
-  - ${{ if eq(parameters.VSCODE_COMPILE_ONLY, false) }}:
+  - ${{ if and(eq(parameters.VSCODE_COMPILE_ONLY, false), or(eq(parameters.VSCODE_BUILD_LINUX, true), eq(parameters.VSCODE_BUILD_LINUX_ARMHF, true), eq(parameters.VSCODE_BUILD_LINUX_ARM64, true), eq(parameters.VSCODE_BUILD_LINUX_ALPINE, true), eq(parameters.VSCODE_BUILD_WEB, true))) }}:
     - stage: Linux
       dependsOn:
         - Compile
