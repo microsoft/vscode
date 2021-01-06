@@ -20,6 +20,9 @@ parameters:
   - name: VSCODE_BUILD_LINUX_ARMHF
     type: boolean
     default: true
+  - name: VSCODE_BUILD_WEB
+    type: boolean
+    default: true
   - name: VSCODE_COMPILE_ONLY
     type: boolean
     default: false
@@ -121,9 +124,8 @@ stages:
             steps:
               - template: linux/snap-build-linux.yml
 
-        - ${{ if eq(variables['VSCODE_CIBUILD'], false) }}:
+        - ${{ if and(eq(variables['VSCODE_CIBUILD'], false), eq(parameters.VSCODE_BUILD_LINUX_ARMHF, true)) }}:
           - job: LinuxArmhf
-            condition: and(succeeded(), eq(variables['VSCODE_BUILD_LINUX_ARMHF'], 'true'))
             container: vscode-armhf
             variables:
               VSCODE_ARCH: armhf
@@ -131,20 +133,18 @@ stages:
             steps:
               - template: linux/product-build-linux.yml
 
-        - ${{ if eq(variables['VSCODE_CIBUILD'], false) }}:
+        - ${{ if and(eq(variables['VSCODE_CIBUILD'], false), eq(parameters.VSCODE_BUILD_LINUX_ARMHF, true)) }}:
           - job: LinuxSnapArmhf
             dependsOn:
               - LinuxArmhf
-            condition: and(succeeded(), eq(variables['VSCODE_BUILD_LINUX_ARMHF'], 'true'))
             container: snapcraft
             variables:
               VSCODE_ARCH: armhf
             steps:
               - template: linux/snap-build-linux.yml
 
-        - ${{ if eq(variables['VSCODE_CIBUILD'], false) }}:
+        - ${{ if and(eq(variables['VSCODE_CIBUILD'], false), eq(parameters.VSCODE_BUILD_LINUX_ARM64, true)) }}:
           - job: LinuxArm64
-            condition: and(succeeded(), eq(variables['VSCODE_BUILD_LINUX_ARM64'], 'true'))
             container: vscode-arm64
             variables:
               VSCODE_ARCH: arm64
@@ -152,26 +152,23 @@ stages:
             steps:
               - template: linux/product-build-linux.yml
 
-        - ${{ if eq(variables['VSCODE_CIBUILD'], false) }}:
+        - ${{ if and(eq(variables['VSCODE_CIBUILD'], false), eq(parameters.VSCODE_BUILD_LINUX_ARM64, true)) }}:
           - job: LinuxSnapArm64
             dependsOn:
               - LinuxArm64
-            condition: and(succeeded(), eq(variables['VSCODE_BUILD_LINUX_ARM64'], 'true'))
             container: snapcraft
             variables:
               VSCODE_ARCH: arm64
             steps:
               - template: linux/snap-build-linux.yml
 
-        - ${{ if eq(variables['VSCODE_CIBUILD'], false) }}:
+        - ${{ if and(eq(variables['VSCODE_CIBUILD'], false), eq(parameters.VSCODE_BUILD_LINUX_ALPINE, true)) }}:
           - job: LinuxAlpine
-            condition: and(succeeded(), eq(variables['VSCODE_BUILD_LINUX_ALPINE'], 'true'))
             steps:
               - template: linux/product-build-alpine.yml
 
-        - ${{ if eq(variables['VSCODE_CIBUILD'], false) }}:
+        - ${{ if and(eq(variables['VSCODE_CIBUILD'], false), eq(parameters.VSCODE_BUILD_WEB, true)) }}:
           - job: LinuxWeb
-            condition: and(succeeded(), eq(variables['VSCODE_BUILD_WEB'], 'true'))
             variables:
               VSCODE_ARCH: x64
             steps:
