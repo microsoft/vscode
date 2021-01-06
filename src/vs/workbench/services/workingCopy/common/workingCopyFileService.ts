@@ -280,6 +280,9 @@ export class WorkingCopyFileService extends Disposable implements IWorkingCopyFi
 	}
 
 	async doCreateFileOrFolder(operations: (ICreateFileOperation | ICreateOperation)[], isFile: boolean, undoInfo?: IFileOperationUndoRedoInfo, token?: CancellationToken): Promise<IFileStatWithMetadata[]> {
+		if (operations.length === 0) {
+			return [];
+		}
 
 		// validate create operation before starting
 		if (isFile) {
