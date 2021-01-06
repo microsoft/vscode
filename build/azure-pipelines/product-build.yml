@@ -64,6 +64,12 @@ parameters:
 variables:
   - name: ENABLE_TERRAPIN
     value: ${{ eq(parameters.ENABLE_TERRAPIN, true) }}
+  - name: VSCODE_BUILD_STAGE_WINDOWS
+    value: ${{ or(eq(parameters.VSCODE_BUILD_WIN32, true), eq(parameters.VSCODE_BUILD_WIN32_32BIT, true), eq(parameters.VSCODE_BUILD_WIN32_ARM64, true)) }}
+  - name: VSCODE_BUILD_STAGE_LINUX
+    value: ${{ or(eq(parameters.VSCODE_BUILD_LINUX, true), eq(parameters.VSCODE_BUILD_LINUX_ARMHF, true), eq(parameters.VSCODE_BUILD_LINUX_ARM64, true), eq(parameters.VSCODE_BUILD_LINUX_ALPINE, true), eq(parameters.VSCODE_BUILD_WEB, true)) }}
+  - name: VSCODE_BUILD_STAGE_MACOS
+    value: ${{ or(eq(parameters.VSCODE_BUILD_MACOS, true), eq(parameters.VSCODE_BUILD_MACOS_ARM64, true)) }}
   - name: VSCODE_CIBUILD
     value: ${{ in(variables['Build.Reason'], 'IndividualCI', 'BatchedCI') }}
   - name: VSCODE_PUBLISH
@@ -90,8 +96,6 @@ resources:
 
 stages:
   - stage: Compile
-    # variables:
-    #   VSCODE_PUBLISH: ${{ and(eq(parameters.VSCODE_PUBLISH, true), eq(variables.VSCODE_CIBUILD, false)) }}
     jobs:
       - job: Compile
         pool: compile
@@ -106,14 +110,12 @@ stages:
         steps:
           - template: product-hygiene.yml
 
-  - ${{ if and(eq(parameters.VSCODE_COMPILE_ONLY, false), or(eq(parameters.VSCODE_BUILD_WIN32, true), eq(parameters.VSCODE_BUILD_WIN32_32BIT, true), eq(parameters.VSCODE_BUILD_WIN32_ARM64, true))) }}:
+  - ${{ if and(eq(parameters.VSCODE_COMPILE_ONLY, false), eq(variables['VSCODE_BUILD_STAGE_WINDOWS'], true)) }}:
     - stage: Windows
       dependsOn:
         - Compile
       pool:
         vmImage: VS2017-Win2016
-      variables:
-        VSCODE_PUBLISH: ${{ and(eq(parameters.VSCODE_PUBLISH, true), eq(variables.VSCODE_CIBUILD, false)) }}
       jobs:
 
         - ${{ if eq(parameters.VSCODE_BUILD_WIN32, true) }}:
@@ -140,14 +142,12 @@ stages:
             steps:
               - template: win32/product-build-win32.yml
 
-  - ${{ if and(eq(parameters.VSCODE_COMPILE_ONLY, false), or(eq(parameters.VSCODE_BUILD_LINUX, true), eq(parameters.VSCODE_BUILD_LINUX_ARMHF, true), eq(parameters.VSCODE_BUILD_LINUX_ARM64, true), eq(parameters.VSCODE_BUILD_LINUX_ALPINE, true), eq(parameters.VSCODE_BUILD_WEB, true))) }}:
+  - ${{ if and(eq(parameters.VSCODE_COMPILE_ONLY, false), eq(variables['VSCODE_BUILD_STAGE_LINUX'], true)) }}:
     - stage: Linux
       dependsOn:
         - Compile
       pool:
         vmImage: "Ubuntu-18.04"
-      variables:
-        VSCODE_PUBLISH: ${{ and(eq(parameters.VSCODE_PUBLISH, true), eq(variables.VSCODE_CIBUILD, false)) }}
       jobs:
 
         - ${{ if eq(parameters.VSCODE_BUILD_LINUX, true) }}:
@@ -219,14 +219,12 @@ stages:
             steps:
               - template: web/product-build-web.yml
 
-  - ${{ if and(eq(parameters.VSCODE_COMPILE_ONLY, false), or(eq(parameters.VSCODE_BUILD_MACOS, true), eq(parameters.VSCODE_BUILD_MACOS_ARM64, true))) }}:
+  - ${{ if and(eq(parameters.VSCODE_COMPILE_ONLY, false), eq(variables['VSCODE_BUILD_STAGE_MACOS'], true)) }}:
     - stage: macOS
       dependsOn:
         - Compile
       pool:
         vmImage: macOS-latest
-      variables:
-        VSCODE_PUBLISH: ${{ and(eq(parameters.VSCODE_PUBLISH, true), eq(variables.VSCODE_CIBUILD, false)) }}
       jobs:
 
         - ${{ if eq(parameters.VSCODE_BUILD_MACOS, true) }}:
@@ -248,11 +246,11 @@ stages:
   - ${{ if and(eq(variables['VSCODE_PUBLISH'], true), eq(parameters.VSCODE_COMPILE_ONLY, false)) }}:
     - stage: Publish
       dependsOn:
-        - ${{ if or(eq(parameters.VSCODE_BUILD_WIN32, true), eq(parameters.VSCODE_BUILD_WIN32_32BIT, true), eq(parameters.VSCODE_BUILD_WIN32_ARM64, true)) }}:
+        - ${{ if eq(variables['VSCODE_BUILD_STAGE_WINDOWS'], true) }}:
           - Windows
-        - ${{ if or(eq(parameters.VSCODE_BUILD_LINUX, true), eq(parameters.VSCODE_BUILD_LINUX_ARMHF, true), eq(parameters.VSCODE_BUILD_LINUX_ARM64, true), eq(parameters.VSCODE_BUILD_LINUX_ALPINE, true), eq(parameters.VSCODE_BUILD_WEB, true)) }}:
+        - ${{ if eq(variables['VSCODE_BUILD_STAGE_LINUX'], true) }}:
           - Linux
-        - ${{ if or(eq(parameters.VSCODE_BUILD_MACOS, true), eq(parameters.VSCODE_BUILD_MACOS_ARM64, true)) }}:
+        - ${{ if eq(variables['VSCODE_BUILD_STAGE_MACOS'], true) }}:
           - macOS
       condition: succeededOrFailed()
       pool:
