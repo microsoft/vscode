@@ -293,7 +293,7 @@ class FileUndoRedoElement implements IWorkspaceUndoRedoElement {
 		}
 	}
 
-	public toString(): string {
+	toString(): string {
 		return this.operations.map(op => String(op)).join(', ');
 	}
 }
