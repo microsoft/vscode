@@ -64,7 +64,7 @@ stages:
           steps:
             - template: win32/product-build-win32.yml
 
-        - ${{ if eq(variables['VSCODE_CIBUILD'], 'false') }}:
+        - ${{ if eq(variables['VSCODE_CIBUILD'], false) }}:
           - job: Windows32
             condition: and(succeeded(), eq(variables['VSCODE_BUILD_WIN32_32BIT'], 'true'))
             timeoutInMinutes: 90
@@ -73,7 +73,7 @@ stages:
             steps:
               - template: win32/product-build-win32.yml
 
-        - ${{ if eq(variables['VSCODE_CIBUILD'], 'false') }}:
+        - ${{ if eq(variables['VSCODE_CIBUILD'], false) }}:
           - job: WindowsARM64
             condition: and(succeeded(), eq(variables['VSCODE_BUILD_WIN32_ARM64'], 'true'))
             timeoutInMinutes: 90
@@ -98,7 +98,7 @@ stages:
           steps:
             - template: linux/product-build-linux.yml
 
-        - ${{ if eq(variables['VSCODE_CIBUILD'], 'false') }}:
+        - ${{ if eq(variables['VSCODE_CIBUILD'], false) }}:
           - job: LinuxSnap
             dependsOn:
               - Linux
@@ -109,7 +109,7 @@ stages:
             steps:
               - template: linux/snap-build-linux.yml
 
-        - ${{ if eq(variables['VSCODE_CIBUILD'], 'false') }}:
+        - ${{ if eq(variables['VSCODE_CIBUILD'], false) }}:
           - job: LinuxArmhf
             condition: and(succeeded(), eq(variables['VSCODE_BUILD_LINUX_ARMHF'], 'true'))
             container: vscode-armhf
@@ -119,7 +119,7 @@ stages:
             steps:
               - template: linux/product-build-linux.yml
 
-        - ${{ if eq(variables['VSCODE_CIBUILD'], 'false') }}:
+        - ${{ if eq(variables['VSCODE_CIBUILD'], false) }}:
           - job: LinuxSnapArmhf
             dependsOn:
               - LinuxArmhf
@@ -130,7 +130,7 @@ stages:
             steps:
               - template: linux/snap-build-linux.yml
 
-        - ${{ if eq(variables['VSCODE_CIBUILD'], 'false') }}:
+        - ${{ if eq(variables['VSCODE_CIBUILD'], false) }}:
           - job: LinuxArm64
             condition: and(succeeded(), eq(variables['VSCODE_BUILD_LINUX_ARM64'], 'true'))
             container: vscode-arm64
@@ -140,7 +140,7 @@ stages:
             steps:
               - template: linux/product-build-linux.yml
 
-        - ${{ if eq(variables['VSCODE_CIBUILD'], 'false') }}:
+        - ${{ if eq(variables['VSCODE_CIBUILD'], false) }}:
           - job: LinuxSnapArm64
             dependsOn:
               - LinuxArm64
@@ -151,13 +151,13 @@ stages:
             steps:
               - template: linux/snap-build-linux.yml
 
-        - ${{ if eq(variables['VSCODE_CIBUILD'], 'false') }}:
+        - ${{ if eq(variables['VSCODE_CIBUILD'], false) }}:
           - job: LinuxAlpine
             condition: and(succeeded(), eq(variables['VSCODE_BUILD_LINUX_ALPINE'], 'true'))
             steps:
               - template: linux/product-build-alpine.yml
 
-        - ${{ if eq(variables['VSCODE_CIBUILD'], 'false') }}:
+        - ${{ if eq(variables['VSCODE_CIBUILD'], false) }}:
           - job: LinuxWeb
             condition: and(succeeded(), eq(variables['VSCODE_BUILD_WEB'], 'true'))
             variables:
@@ -180,7 +180,7 @@ stages:
           steps:
             - template: darwin/product-build-darwin.yml
 
-        - ${{ if eq(variables['VSCODE_CIBUILD'], 'false') }}:
+        - ${{ if eq(variables['VSCODE_CIBUILD'], false) }}:
           - job: macOSARM64
             condition: and(succeeded(), eq(variables['VSCODE_BUILD_MACOS_ARM64'], 'true'))
             timeoutInMinutes: 90
@@ -189,7 +189,7 @@ stages:
             steps:
               - template: darwin/product-build-darwin.yml
 
-  - ${{ if and(eq(variables['VSCODE_CIBUILD'], 'false'), eq(parameters.VSCODE_COMPILE_ONLY, false)) }}:
+  - ${{ if and(eq(variables['VSCODE_CIBUILD'], false), eq(parameters.VSCODE_COMPILE_ONLY, false)) }}:
     - stage: Publish
       dependsOn:
         - Windows
