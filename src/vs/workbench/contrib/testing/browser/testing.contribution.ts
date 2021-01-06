@@ -5,9 +5,11 @@
 
 import { localize } from 'vs/nls';
 import { registerAction2 } from 'vs/platform/actions/common/actions';
+import { CommandsRegistry } from 'vs/platform/commands/common/commands';
 import { ContextKeyExpr } from 'vs/platform/contextkey/common/contextkey';
 import { SyncDescriptor } from 'vs/platform/instantiation/common/descriptors';
 import { registerSingleton } from 'vs/platform/instantiation/common/extensions';
+import { ServicesAccessor } from 'vs/platform/instantiation/common/instantiation';
 import { Registry } from 'vs/platform/registry/common/platform';
 import { Extensions as ViewContainerExtensions, IViewContainersRegistry, IViewsRegistry, ViewContainerLocation } from 'vs/workbench/common/views';
 import { testingViewIcon } from 'vs/workbench/contrib/testing/browser/icons';
@@ -15,6 +17,7 @@ import { ITestingCollectionService, TestingCollectionService } from 'vs/workbenc
 import { TestingExplorerView } from 'vs/workbench/contrib/testing/browser/testingExplorerView';
 import { TestingViewPaneContainer } from 'vs/workbench/contrib/testing/browser/testingViewPaneContainer';
 import { Testing } from 'vs/workbench/contrib/testing/common/constants';
+import { TestIdWithProvider } from 'vs/workbench/contrib/testing/common/testCollection';
 import { TestingContextKeys } from 'vs/workbench/contrib/testing/common/testingContextKeys';
 import { ITestService } from 'vs/workbench/contrib/testing/common/testService';
 import { TestService } from 'vs/workbench/contrib/testing/common/testServiceImpl';
@@ -70,3 +73,19 @@ registerAction2(Action.TestingViewAsTreeAction);
 registerAction2(Action.CancelTestRunAction);
 registerAction2(Action.RunSelectedAction);
 registerAction2(Action.DebugSelectedAction);
+
+CommandsRegistry.registerCommand({
+	id: 'vscode.runTests',
+	handler: async (accessor: ServicesAccessor, tests: TestIdWithProvider[]) => {
+		const testService = accessor.get(ITestService);
+		testService.runTests({ debug: false, tests: tests.filter(t => t.providerId && t.testId) });
+	}
+});
+
+CommandsRegistry.registerCommand({
+	id: 'vscode.debugTests',
+	handler: async (accessor: ServicesAccessor, tests: TestIdWithProvider[]) => {
+		const testService = accessor.get(ITestService);
+		testService.runTests({ debug: true, tests: tests.filter(t => t.providerId && t.testId) });
+	}
+});

@@ -60,6 +60,7 @@ const compilations = [
 	'python/tsconfig.json',
 	'search-result/tsconfig.json',
 	'simple-browser/tsconfig.json',
+	'testing-editor-contributions/tsconfig.json',
 	'typescript-language-features/test-workspace/tsconfig.json',
 	'typescript-language-features/tsconfig.json',
 	'vscode-api-tests/tsconfig.json',

@@ -19,7 +19,7 @@ import { IExtHostRpcService } from 'vs/workbench/api/common/extHostRpcService';
 import { TestItem } from 'vs/workbench/api/common/extHostTypeConverters';
 import { Disposable, RequiredTestItem } from 'vs/workbench/api/common/extHostTypes';
 import { IExtHostWorkspace } from 'vs/workbench/api/common/extHostWorkspace';
-import { AbstractIncrementalTestCollection, EMPTY_TEST_RESULT, IncrementalChangeCollector, IncrementalTestCollectionItem, InternalTestItem, RunTestForProviderRequest, RunTestsResult, TestDiffOpType, TestsDiff } from 'vs/workbench/contrib/testing/common/testCollection';
+import { AbstractIncrementalTestCollection, EMPTY_TEST_RESULT, IncrementalChangeCollector, IncrementalTestCollectionItem, InternalTestItem, RunTestForProviderRequest, RunTestsResult, TestDiffOpType, TestIdWithProvider, TestsDiff } from 'vs/workbench/contrib/testing/common/testCollection';
 import type * as vscode from 'vscode';
 
 const getTestSubscriptionKey = (resource: ExtHostTestingResource, uri: URI) => `${resource}:${uri.toString()}`;
@@ -148,7 +148,7 @@ export class ExtHostTesting implements ExtHostTestingShape {
 				updateDelta(1);
 				disposable.add(hierarchy);
 				collection.addRoot(hierarchy.root, id);
-				hierarchy.onDidDiscoverInitialTests(() => updateDelta(-1));
+				Promise.resolve(hierarchy.discoveredInitialTests).then(() => updateDelta(-1));
 				hierarchy.onDidChangeTest(e => collection.onItemChange(e, id));
 			} catch (e) {
 				console.error(e);
@@ -669,7 +669,7 @@ class ExtHostTestItem implements vscode.TestItem, RequiredTestItem {
 	}
 
 	public toJSON() {
-		const serialized: RequiredTestItem = {
+		const serialized: RequiredTestItem & TestIdWithProvider = {
 			label: this.label,
 			description: this.description,
 			state: this.state,
@@ -677,6 +677,9 @@ class ExtHostTestItem implements vscode.TestItem, RequiredTestItem {
 			runnable: this.runnable,
 			debuggable: this.debuggable,
 			children: this.children.map(c => (c as ExtHostTestItem).toJSON()),
+
+			providerId: this.#internal.providerId,
+			testId: this.#internal.id,
 		};
 
 		return serialized;
@@ -697,6 +700,7 @@ abstract class AbstractTestObserverFactory {
 		const resourceKey = resourceUri.toString();
 		const resource = this.resources.get(resourceKey) ?? this.createObserverData(resourceUri);
 
+		resource.pendingDeletion?.dispose();
 		resource.observers++;
 
 		return {
