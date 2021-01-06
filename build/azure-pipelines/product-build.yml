@@ -62,10 +62,14 @@ parameters:
     default: true
 
 variables:
+  - name: ENABLE_TERRAPIN
+    value: ${{ eq(parameters.ENABLE_TERRAPIN, true) }}
   - name: VSCODE_CIBUILD
     value: ${{ in(variables['Build.Reason'], 'IndividualCI', 'BatchedCI') }}
   - name: VSCODE_SCHEDULEDBUILD
     value: ${{ eq(variables['Build.Reason'], 'Schedule') }}
+  - name: VSCODE_STEP_ON_IT
+    value: ${{ eq(parameters.VSCODE_STEP_ON_IT, true) }}
 
 resources:
   containers:
@@ -85,9 +89,9 @@ resources:
 stages:
   - stage: Compile
     variables:
-      ENABLE_TERRAPIN: ${{ eq(parameters.ENABLE_TERRAPIN, true) }}
+      # ENABLE_TERRAPIN: ${{ eq(parameters.ENABLE_TERRAPIN, true) }}
       VSCODE_PUBLISH: ${{ and(eq(parameters.VSCODE_PUBLISH, true), eq(variables.VSCODE_CIBUILD, false)) }}
-      VSCODE_STEP_ON_IT: ${{ eq(parameters.VSCODE_STEP_ON_IT, true) }}
+      # VSCODE_STEP_ON_IT: ${{ eq(parameters.VSCODE_STEP_ON_IT, true) }}
     jobs:
       - job: Compile
         pool: compile
@@ -247,7 +251,7 @@ stages:
             steps:
               - template: darwin/product-build-darwin.yml
 
-  - ${{ if and(eq(variables['VSCODE_CIBUILD'], false), eq(parameters.VSCODE_COMPILE_ONLY, false)) }}:
+  - ${{ if and(eq(parameters.VSCODE_PUBLISH, true), eq(parameters.VSCODE_COMPILE_ONLY, false)) }}:
     - stage: Publish
       dependsOn:
         - ${{ if or(eq(parameters.VSCODE_BUILD_WIN32, true), eq(parameters.VSCODE_BUILD_WIN32_32BIT, true), eq(parameters.VSCODE_BUILD_WIN32_ARM64, true)) }}:
@@ -260,11 +264,10 @@ stages:
       pool:
         vmImage: "Ubuntu-18.04"
       jobs:
-        - ${{ if eq(parameters.VSCODE_PUBLISH, true) }}:
-          - job: SyncMooncake
-            displayName: Sync Mooncake
-            steps:
-              - template: sync-mooncake.yml
+        - job: SyncMooncake
+          displayName: Sync Mooncake
+          steps:
+            - template: sync-mooncake.yml
 
         - ${{ if or(eq(parameters.VSCODE_RELEASE, true), and(in(parameters.VSCODE_QUALITY, 'insider', 'exploration'), eq(variables['VSCODE_SCHEDULEDBUILD'], true))) }}:
           - job: ReleaseBuild
