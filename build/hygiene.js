@@ -27,6 +27,7 @@ const all = [
 	'scripts/**/*',
 	'src/**/*',
 	'test/**/*',
+	'!out*/**',
 	'!test/**/out/**',
 	'!**/node_modules/**',
 ];
