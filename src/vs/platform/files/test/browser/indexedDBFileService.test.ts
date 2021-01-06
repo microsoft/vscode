@@ -230,8 +230,8 @@ suite('IndexedDB File Service', function () {
 		assert.equal(event!.target!.resource.path, resource.path);
 	}
 
-	// This may be flakey on build machines. If so please disable and ping me (jackson) and we can try an alternative approach (probably exposing more internal state from the FSP)
-	test('createFile (batched)', async () => {
+	// Skipped due to failing on build machines where file io pressure is higher.
+	test.skip('createFile (batched)', async () => {
 		// Batched writes take approx .5ms/file, sequenced take approx 10ms/file.
 		// Testing with 1000 files would take ~10s without batching (exceeds 5s timeout), or 500ms with (well winthin 5s timeout)
 		const batch = Array.from({ length: 1000 }).map((_, i) => ({ contents: `Hello${i}`, resource: userdataURIFromPaths(['batched', `Hello${i}.txt`]) }));
