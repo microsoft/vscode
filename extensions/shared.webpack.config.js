@@ -50,7 +50,8 @@ function withNodeDefaults(/**@type WebpackConfig*/extConfig) {
 					loader: 'ts-loader',
 					options: {
 						compilerOptions: {
-							'sourceMap': true,
+							sourceMap: true,
+							module: 'esnext',
 						}
 					}
 				}]
