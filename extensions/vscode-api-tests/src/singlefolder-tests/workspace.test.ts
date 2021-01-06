@@ -978,6 +978,57 @@ suite('vscode API - workspace', () => {
 		assert.equal(document.getText(), expected);
 	});
 
+	test('Should send a single FileWillRenameEvent instead of separate events when moving multiple files at once#111867', async function () {
+
+		const file1 = await createRandomFile();
+		const file2 = await createRandomFile();
+
+		const file1New = await createRandomFile();
+		const file2New = await createRandomFile();
+
+		const event = new Promise<vscode.FileWillRenameEvent>(resolve => {
+			let sub = vscode.workspace.onWillRenameFiles(e => {
+				sub.dispose();
+				resolve(e);
+			});
+		});
+
+		const we = new vscode.WorkspaceEdit();
+		we.renameFile(file1, file1New, { overwrite: true });
+		we.renameFile(file2, file2New, { overwrite: true });
+		await vscode.workspace.applyEdit(we);
+
+		const e = await event;
+
+		assert.strictEqual(e.files.length, 2);
+		assert.strictEqual(e.files[0].oldUri.toString(), file1.toString());
+		assert.strictEqual(e.files[1].oldUri.toString(), file2.toString());
+	});
+
+	test('Should send a single FileWillRenameEvent instead of separate events when moving multiple files at once#111867', async function () {
+
+		const file1 = await createRandomFile();
+		const file2 = await createRandomFile();
+
+		const event = new Promise<vscode.FileWillDeleteEvent>(resolve => {
+			let sub = vscode.workspace.onWillDeleteFiles(e => {
+				sub.dispose();
+				resolve(e);
+			});
+		});
+
+		const we = new vscode.WorkspaceEdit();
+		we.deleteFile(file1);
+		we.deleteFile(file2);
+		await vscode.workspace.applyEdit(we);
+
+		const e = await event;
+
+		assert.strictEqual(e.files.length, 2);
+		assert.strictEqual(e.files[0].toString(), file1.toString());
+		assert.strictEqual(e.files[1].toString(), file2.toString());
+	});
+
 	test('issue #107739 - Redo of rename Java Class name has no effect', async () => {
 		const file = await createRandomFile('hello');
 		const fileName = basename(file.fsPath);
