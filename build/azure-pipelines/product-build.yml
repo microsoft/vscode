@@ -16,44 +16,48 @@ parameters:
       - exploration
       - insider
       - stable
+  - name: ENABLE_TERRAPIN
+    displayName: "Enable Terrapin"
+    type: boolean
+    default: true
   - name: VSCODE_BUILD_WIN32
-    displayName: "Target: Windows x64"
+    displayName: "🎯 Windows x64"
     type: boolean
     default: true
   - name: VSCODE_BUILD_WIN32_32BIT
-    displayName: "Target: Windows ia32"
+    displayName: "🎯 Windows ia32"
     type: boolean
     default: true
   - name: VSCODE_BUILD_WIN32_ARM64
-    displayName: "Target: Windows arm64"
+    displayName: "🎯 Windows arm64"
     type: boolean
     default: true
   - name: VSCODE_BUILD_LINUX
-    displayName: "Target: Linux x64"
+    displayName: "🎯 Linux x64"
     type: boolean
     default: true
   - name: VSCODE_BUILD_LINUX_ARM64
-    displayName: "Target: Linux arm64"
+    displayName: "🎯 Linux arm64"
     type: boolean
     default: true
   - name: VSCODE_BUILD_LINUX_ARMHF
-    displayName: "Target: Linux armhf"
+    displayName: "🎯 Linux armhf"
     type: boolean
     default: true
   - name: VSCODE_BUILD_LINUX_ALPINE
-    displayName: "Target: Alpine Linux"
+    displayName: "🎯 Alpine Linux"
     type: boolean
     default: true
   - name: VSCODE_BUILD_MACOS
-    displayName: "Target: macOS x64"
+    displayName: "🎯 macOS x64"
     type: boolean
     default: true
   - name: VSCODE_BUILD_MACOS_ARM64
-    displayName: "Target: macOS arm64"
+    displayName: "🎯 macOS arm64"
     type: boolean
     default: true
   - name: VSCODE_BUILD_WEB
-    displayName: "Target: Web"
+    displayName: "🎯 Web"
     type: boolean
     default: true
   - name: VSCODE_PUBLISH
@@ -72,10 +76,6 @@ parameters:
     displayName: "Skip tests"
     type: boolean
     default: false
-  - name: ENABLE_TERRAPIN
-    displayName: "Enable Terrapin"
-    type: boolean
-    default: true
 
 variables:
   - name: ENABLE_TERRAPIN
