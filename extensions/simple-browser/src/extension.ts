@@ -36,7 +36,7 @@ export function activate(context: vscode.ExtensionContext) {
 	}));
 
 	context.subscriptions.push(vscode.window.registerExternalUriOpener(['http', 'https'], {
-		openExternalUri(uri: vscode.Uri): vscode.Command | undefined {
+		openExternalUri(uri: vscode.Uri, context: vscode.OpenExternalUriContext): vscode.Command | undefined {
 			const configuration = vscode.workspace.getConfiguration('simpleBrowser');
 			if (!configuration.get('opener.enabled', false)) {
 				return undefined;
@@ -47,8 +47,11 @@ export function activate(context: vscode.ExtensionContext) {
 				'127.0.0.1'
 			]);
 			try {
-				const url = new URL(uri.toString());
-				if (!enabledHosts.includes(url.hostname)) {
+				// Check against the original uri that triggered the open.
+				// We check this since the `uri` passed to us may have been transformed
+				// by port forwarding.
+				const originalUri = new URL(context.originalUri.toString());
+				if (!enabledHosts.includes(originalUri.hostname)) {
 					return;
 				}
 			} catch {

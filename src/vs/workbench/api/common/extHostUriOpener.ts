@@ -49,7 +49,7 @@ export class ExtHostUriOpeners implements ExtHostUriOpenersShape {
 		});
 	}
 
-	async $openUri(uriComponents: UriComponents, token: CancellationToken): Promise<boolean> {
+	async $openUri(uriComponents: UriComponents, ctx: { originalUri: UriComponents }, token: CancellationToken): Promise<boolean> {
 		const uri = URI.revive(uriComponents);
 
 		const promises = Array.from(this._openers.values()).map(async ({ schemes, opener }): Promise<vscode.Command | undefined> => {
@@ -58,7 +58,10 @@ export class ExtHostUriOpeners implements ExtHostUriOpenersShape {
 			}
 
 			try {
-				const result = await opener.openExternalUri(uri, {}, token);
+				const result = await opener.openExternalUri(uri, {
+					originalUri: URI.revive(ctx.originalUri),
+				}, token);
+
 				if (result) {
 					return result;
 				}

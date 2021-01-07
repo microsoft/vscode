@@ -806,7 +806,7 @@ export interface MainThreadUriOpenersShape extends IDisposable {
 }
 
 export interface ExtHostUriOpenersShape {
-	$openUri(uri: UriComponents, token: CancellationToken): Promise<boolean>;
+	$openUri(uri: UriComponents, ctx: { originalUri: UriComponents }, token: CancellationToken): Promise<boolean>;
 }
 
 export interface ITextSearchComplete {

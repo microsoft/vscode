@@ -4,16 +4,16 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { CancellationToken } from 'vs/base/common/cancellation';
+import { Disposable } from 'vs/base/common/lifecycle';
 import { Schemas } from 'vs/base/common/network';
 import { URI } from 'vs/base/common/uri';
-import { IOpener, IOpenerService, OpenExternalOptions, OpenInternalOptions } from 'vs/platform/opener/common/opener';
+import { IExternalOpener, IOpenerService } from 'vs/platform/opener/common/opener';
 import { ExtHostContext, ExtHostUriOpenersShape, IExtHostContext, MainContext, MainThreadUriOpenersShape } from 'vs/workbench/api/common/extHost.protocol';
 import { IExtensionService } from 'vs/workbench/services/extensions/common/extensions';
 import { extHostNamedCustomer } from '../common/extHostCustomers';
 
-
 @extHostNamedCustomer(MainContext.MainThreadUriOpeners)
-export class MainThreadUriOpeners implements MainThreadUriOpenersShape, IOpener {
+export class MainThreadUriOpeners extends Disposable implements MainThreadUriOpenersShape, IExternalOpener {
 
 	private readonly proxy: ExtHostUriOpenersShape;
 	private readonly handlers = new Map<number, { schemes: ReadonlySet<string> }>();
@@ -23,16 +23,14 @@ export class MainThreadUriOpeners implements MainThreadUriOpenersShape, IOpener 
 		@IOpenerService private readonly openerService: IOpenerService,
 		@IExtensionService private readonly extensionService: IExtensionService,
 	) {
+		super();
 		this.proxy = context.getProxy(ExtHostContext.ExtHostUriOpeners);
 
-		this.openerService.registerOpener(this);
+		this._register(this.openerService.registerAdditionalExternalOpener(this));
 	}
 
-	async open(
-		target: string | URI,
-		options?: OpenInternalOptions | OpenExternalOptions
-	): Promise<boolean> {
-		const targetUri = typeof target === 'string' ? URI.parse(target) : target;
+	public async openExternal(href: string, originalUri: URI): Promise<boolean> {
+		const targetUri = URI.parse(href);
 
 		// Currently we only allow openers for http and https urls
 		if (targetUri.scheme !== Schemas.http && targetUri.scheme !== Schemas.https) {
@@ -47,7 +45,9 @@ export class MainThreadUriOpeners implements MainThreadUriOpenersShape, IOpener 
 			return false;
 		}
 
-		return await this.proxy.$openUri(targetUri, CancellationToken.None);
+		return await this.proxy.$openUri(targetUri, {
+			originalUri: originalUri,
+		}, CancellationToken.None);
 	}
 
 	async $registerUriOpener(handle: number, schemes: readonly string[]): Promise<void> {
@@ -59,6 +59,7 @@ export class MainThreadUriOpeners implements MainThreadUriOpenersShape, IOpener 
 	}
 
 	dispose(): void {
+		super.dispose();
 		this.handlers.clear();
 	}
 }

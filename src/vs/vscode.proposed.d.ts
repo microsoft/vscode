@@ -2301,6 +2301,19 @@ declare module 'vscode' {
 		 */
 		location?: Location;
 	}
+
+	/**
+	 * Additional metadata about the uri being opened
+	 */
+	interface OpenExternalUriContext {
+		/**
+		 * The original uri the open was triggered for.
+		 *
+		 * This may differ from the uri passed to `openExternalUri` due to port forwarding.
+		 */
+		readonly originalUri: Uri;
+	}
+
 	//#endregion
 
 	//#region Opener service (https://github.com/microsoft/vscode/issues/109277)
@@ -2318,8 +2331,9 @@ declare module 'vscode' {
 		/**
 		 * Try to open a given uri.
 		 *
-		 * @param uri The uri being opened.
-		 * @param ctx Additional metadata about how the open was triggered.
+		 * @param uri The uri to open. This uri may have been transformed by port forwarding. To access
+		 * the original uri that triggered the open, use `ctx.original`.
+		 * @param ctx Additional metadata about the triggered open.
 		 * @param token Cancellation token.
 		 *
 		 * @return Optional command that opens the uri. If no command is returned, VS Code will
@@ -2327,7 +2341,7 @@ declare module 'vscode' {
 		 *
 		 * If multiple openers are available for a given uri, then the `Command.title` is shown in the UI.
 		 */
-		openExternalUri(uri: Uri, ctx: {}, token: CancellationToken): ProviderResult<Command>;
+		openExternalUri(uri: Uri, ctx: OpenExternalUriContext, token: CancellationToken): ProviderResult<Command>;
 	}
 
 	namespace window {

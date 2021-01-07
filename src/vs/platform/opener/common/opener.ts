@@ -46,7 +46,7 @@ export interface IOpener {
 }
 
 export interface IExternalOpener {
-	openExternal(href: string): Promise<boolean>;
+	openExternal(href: string, originalUri: URI): Promise<boolean>;
 }
 
 export interface IValidator {
@@ -81,7 +81,13 @@ export interface IOpenerService {
 	 * Sets the handler for opening externally. If not provided,
 	 * a default handler will be used.
 	 */
-	setExternalOpener(opener: IExternalOpener): void;
+	setDefaultExternalOpener(opener: IExternalOpener): void;
+
+	/**
+	 * Registers an additional opener for external resources that is checked
+	 * before the default external opener.
+	 */
+	registerAdditionalExternalOpener(externalOpener: IExternalOpener): IDisposable;
 
 	/**
 	 * Opens a resource, like a webaddress, a document uri, or executes command.
@@ -97,15 +103,16 @@ export interface IOpenerService {
 	resolveExternalUri(resource: URI, options?: ResolveExternalUriOptions): Promise<IResolvedExternalUri>;
 }
 
-export const NullOpenerService: IOpenerService = Object.freeze({
+export const NullOpenerService = Object.freeze({
 	_serviceBrand: undefined,
 	registerOpener() { return Disposable.None; },
 	registerValidator() { return Disposable.None; },
 	registerExternalUriResolver() { return Disposable.None; },
-	setExternalOpener() { },
+	setDefaultExternalOpener() { },
+	registerAdditionalExternalOpener() { return Disposable.None; },
 	async open() { return false; },
 	async resolveExternalUri(uri: URI) { return { resolved: uri, dispose() { } }; },
-});
+} as IOpenerService);
 
 export function matchesScheme(target: URI | string, scheme: string) {
 	if (URI.isUri(target)) {
