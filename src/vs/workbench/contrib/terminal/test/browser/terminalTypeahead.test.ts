@@ -8,7 +8,7 @@ import { IBuffer, Terminal } from 'xterm';
 import { SinonStub, stub, useFakeTimers } from 'sinon';
 import { Emitter } from 'vs/base/common/event';
 import { CharPredictState, IPrediction, PredictionStats, TypeAheadAddon } from 'vs/workbench/contrib/terminal/browser/terminalTypeAheadAddon';
-import { DEFAULT_LOCAL_ECHO_EXCLUDE, IBeforeProcessDataEvent, ITerminalConfiguration } from 'vs/workbench/contrib/terminal/common/terminal';
+import { DEFAULT_LOCAL_ECHO_EXCLUDE, IBeforeProcessDataEvent, ITerminalConfiguration, ITerminalProcessManager } from 'vs/workbench/contrib/terminal/common/terminal';
 import { TerminalConfigHelper } from 'vs/workbench/contrib/terminal/browser/terminalConfigHelper';
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
 
@@ -78,6 +78,7 @@ suite('Workbench - Terminal Typeahead', () => {
 		const onConfigChanged = new Emitter<void>();
 		let publicLog: SinonStub;
 		let config: ITerminalConfiguration;
+		let processManager: ITerminalProcessManager;
 		let addon: TestTypeAheadAddon;
 
 		const predictedHelloo = [
@@ -106,6 +107,10 @@ suite('Workbench - Terminal Typeahead', () => {
 				upcastPartial<ITelemetryService>({ publicLog })
 			);
 			addon.unlockMakingPredictions();
+
+			// Setup process manager that is normally done by terminalinstance.
+			processManager = upcastPartial<ITerminalProcessManager>({ onBeforeProcessData: onBeforeProcessData.event });
+			processManager.onBeforeProcessData(e => addon?.onBeforeProcessData(e));
 		});
 
 		teardown(() => {
