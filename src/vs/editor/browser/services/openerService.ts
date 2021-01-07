@@ -14,7 +14,7 @@ import { URI } from 'vs/base/common/uri';
 import { ICodeEditorService } from 'vs/editor/browser/services/codeEditorService';
 import { ICommandService } from 'vs/platform/commands/common/commands';
 import { EditorOpenContext } from 'vs/platform/editor/common/editor';
-import { IExternalOpener, IExternalUriResolver, IOpener, IOpenerService, IResolvedExternalUri, IValidator, matchesScheme, OpenOptions, ResolveExternalUriOptions } from 'vs/platform/opener/common/opener';
+import { IExternalOpener, IExternalOpenerProvider, IExternalUriResolver, IOpener, IOpenerService, IResolvedExternalUri, IValidator, matchesScheme, OpenOptions, ResolveExternalUriOptions } from 'vs/platform/opener/common/opener';
 
 class CommandOpener implements IOpener {
 
@@ -100,7 +100,7 @@ export class OpenerService implements IOpenerService {
 	private readonly _resolvedUriTargets = new ResourceMap<URI>(uri => uri.with({ path: null, fragment: null, query: null }).toString());
 
 	private _defaultExternalOpener: IExternalOpener;
-	private readonly _additionalExternalOpeners = new LinkedList<IExternalOpener>();
+	private readonly _externalOpenerProviders = new LinkedList<IExternalOpenerProvider>();
 
 	constructor(
 		@ICodeEditorService editorService: ICodeEditorService,
@@ -156,8 +156,8 @@ export class OpenerService implements IOpenerService {
 		this._defaultExternalOpener = externalOpener;
 	}
 
-	registerAdditionalExternalOpener(externalOpener: IExternalOpener): IDisposable {
-		const remove = this._additionalExternalOpeners.push(externalOpener);
+	registerExternalOpenerProvider(provide: IExternalOpenerProvider): IDisposable {
+		const remove = this._externalOpenerProviders.push(provide);
 		return { dispose: remove };
 	}
 
@@ -210,12 +210,14 @@ export class OpenerService implements IOpenerService {
 			href = encodeURI(resolved.toString(true));
 		}
 
-		for (const opener of this._additionalExternalOpeners) {
-			if (await opener.openExternal(href, uri)) {
-				return true;
+		for (const provider of this._externalOpenerProviders) {
+			const opener = await provider.provideExternalOpener(resource);
+			if (opener) {
+				return opener.openExternal(href);
 			}
 		}
-		return this._defaultExternalOpener.openExternal(encodeURI(resolved.toString(true)), uri);
+
+		return this._defaultExternalOpener.openExternal(href);
 	}
 
 	dispose() {

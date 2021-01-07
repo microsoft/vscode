@@ -2306,12 +2306,7 @@ declare module 'vscode' {
 	 * Additional metadata about the uri being opened
 	 */
 	interface OpenExternalUriContext {
-		/**
-		 * The original uri the open was triggered for.
-		 *
-		 * This may differ from the uri passed to `openExternalUri` due to port forwarding.
-		 */
-		readonly originalUri: Uri;
+
 	}
 
 	//#endregion
@@ -2338,6 +2333,9 @@ declare module 'vscode' {
 		 *
 		 * @return Optional command that opens the uri. If no command is returned, VS Code will
 		 * continue checking to see if any other openers are available.
+		 *
+		 * This command is given the resolved uri to open. This may be different from the original `uri` due
+		 * to port forwarding.
 		 *
 		 * If multiple openers are available for a given uri, then the `Command.title` is shown in the UI.
 		 */

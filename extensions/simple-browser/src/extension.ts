@@ -12,6 +12,7 @@ const localize = nls.loadMessageBundle();
 
 const openApiCommand = 'simpleBrowser.api.open';
 const showCommand = 'simpleBrowser.show';
+const internalOpenCommand = '_simpleBrowser.open';
 
 export function activate(context: vscode.ExtensionContext) {
 
@@ -35,8 +36,12 @@ export function activate(context: vscode.ExtensionContext) {
 		manager.show(url.toString(), showOptions);
 	}));
 
+	context.subscriptions.push(vscode.commands.registerCommand(internalOpenCommand, (resolvedUrl: vscode.Uri, originalUri: vscode.Uri) => {
+		manager.show(resolvedUrl.toString());
+	}));
+
 	context.subscriptions.push(vscode.window.registerExternalUriOpener(['http', 'https'], {
-		openExternalUri(uri: vscode.Uri, context: vscode.OpenExternalUriContext): vscode.Command | undefined {
+		openExternalUri(uri: vscode.Uri): vscode.Command | undefined {
 			const configuration = vscode.workspace.getConfiguration('simpleBrowser');
 			if (!configuration.get('opener.enabled', false)) {
 				return undefined;
@@ -47,10 +52,7 @@ export function activate(context: vscode.ExtensionContext) {
 				'127.0.0.1'
 			]);
 			try {
-				// Check against the original uri that triggered the open.
-				// We check this since the `uri` passed to us may have been transformed
-				// by port forwarding.
-				const originalUri = new URL(context.originalUri.toString());
+				const originalUri = new URL(uri.toString());
 				if (!enabledHosts.includes(originalUri.hostname)) {
 					return;
 				}
@@ -60,7 +62,7 @@ export function activate(context: vscode.ExtensionContext) {
 
 			return {
 				title: localize('openTitle', "Open in simple browser"),
-				command: openApiCommand,
+				command: internalOpenCommand,
 				arguments: [uri]
 			};
 		}

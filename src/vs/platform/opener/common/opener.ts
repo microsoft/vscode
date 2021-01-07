@@ -46,7 +46,11 @@ export interface IOpener {
 }
 
 export interface IExternalOpener {
-	openExternal(href: string, originalUri: URI): Promise<boolean>;
+	openExternal(href: string): Promise<boolean>;
+}
+
+export interface IExternalOpenerProvider {
+	provideExternalOpener(resource: URI | string): Promise<IExternalOpener | undefined>;
 }
 
 export interface IValidator {
@@ -84,10 +88,9 @@ export interface IOpenerService {
 	setDefaultExternalOpener(opener: IExternalOpener): void;
 
 	/**
-	 * Registers an additional opener for external resources that is checked
-	 * before the default external opener.
+	 * Registers an a provider for external resources openers.
 	 */
-	registerAdditionalExternalOpener(externalOpener: IExternalOpener): IDisposable;
+	registerExternalOpenerProvider(provider: IExternalOpenerProvider): IDisposable;
 
 	/**
 	 * Opens a resource, like a webaddress, a document uri, or executes command.
@@ -109,7 +112,7 @@ export const NullOpenerService = Object.freeze({
 	registerValidator() { return Disposable.None; },
 	registerExternalUriResolver() { return Disposable.None; },
 	setDefaultExternalOpener() { },
-	registerAdditionalExternalOpener() { return Disposable.None; },
+	registerExternalOpenerProvider() { return Disposable.None; },
 	async open() { return false; },
 	async resolveExternalUri(uri: URI) { return { resolved: uri, dispose() { } }; },
 } as IOpenerService);
