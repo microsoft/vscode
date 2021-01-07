@@ -286,7 +286,7 @@ class ForwardedPortNotifier extends Disposable {
 	}
 
 	private linkMessage() {
-		return nls.localize('remote.tunnelsView.notificationLink', "[See all forwarded ports](command:{1}.focus)", TunnelPanel.ID);
+		return nls.localize('remote.tunnelsView.notificationLink', "[See all forwarded ports](command:{0}.focus)", TunnelPanel.ID);
 	}
 
 	private showNotification(tunnel: RemoteTunnel) {

@@ -5,7 +5,7 @@
 
 import { Emitter, Event } from 'vs/base/common/event';
 import { IDisposable } from 'vs/base/common/lifecycle';
-import { isLinux } from 'vs/base/common/platform';
+import { isWindows } from 'vs/base/common/platform';
 import { URI } from 'vs/base/common/uri';
 import { createDecorator } from 'vs/platform/instantiation/common/instantiation';
 import { ILogService } from 'vs/platform/log/common/log';
@@ -81,7 +81,7 @@ function getOtherLocalhost(host: string): string | undefined {
 }
 
 export function isPortPrivileged(port: number): boolean {
-	return isLinux && (port < 1024);
+	return !isWindows && (port < 1024);
 }
 
 export abstract class AbstractTunnelService implements ITunnelService {
