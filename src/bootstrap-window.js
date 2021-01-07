@@ -99,6 +99,18 @@
 			preferScriptTags: useCustomProtocol
 		};
 
+		// use a trusted types policy when loading via script tags
+		if (loaderConfig.preferScriptTags) {
+			loaderConfig.trustedTypesPolicy = window.trustedTypes?.createPolicy('amdLoader', {
+				createScriptURL(value) {
+					if (value.startsWith(window.location.origin)) {
+						return value;
+					}
+					throw new Error(`Invalid script url: ${value}`);
+				}
+			});
+		}
+
 		// Enable loading of node modules:
 		// - sandbox: we list paths of webpacked modules to help the loader
 		// - non-sandbox: we signal that any module that does not begin with
