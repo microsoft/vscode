@@ -117,7 +117,7 @@ steps:
       cd ./node_modules/keytar
       node-gyp rebuild
     displayName: Rebuild native modules for ARM64
-    condition: eq(variables['VSCODE_ARCH'], 'arm64')
+    condition: and(succeeded(), eq(variables['VSCODE_ARCH'], 'arm64'))
 
   - script: |
       set -e
