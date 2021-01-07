@@ -41,13 +41,13 @@ steps:
       key: 'genericNodeModules | $(Agent.OS) | .build/yarnlockhash'
       path: .build/node_modules_cache
       cacheHitVar: NODE_MODULES_RESTORED
-    displayName: Cache node_modules archive
+    displayName: Restore node_modules cache
 
   - script: |
       set -e
       tar -xzf .build/node_modules_cache/cache.tgz
     condition: and(succeeded(), eq(variables.NODE_MODULES_RESTORED, 'true'))
-    displayName: Extract node_modules archive
+    displayName: Extract node_modules cache
 
   - script: |
       set -e
