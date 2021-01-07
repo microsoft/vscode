@@ -467,7 +467,7 @@ function isSeparatorAtPos(value: string, index: number): boolean {
 	if (index < 0 || index >= value.length) {
 		return false;
 	}
-	const code = value.charCodeAt(index);
+	const code = value.codePointAt(index);
 	switch (code) {
 		case CharCode.Underline:
 		case CharCode.Dash:
@@ -483,6 +483,8 @@ function isSeparatorAtPos(value: string, index: number): boolean {
 		case CharCode.OpenParen:
 		case CharCode.OpenSquareBracket:
 			return true;
+		case undefined:
+			return false;
 		default:
 			if (strings.isEmojiImprecise(code)) {
 				return true;
