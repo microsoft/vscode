@@ -1006,7 +1006,6 @@ suite('vscode API - workspace', () => {
 	});
 
 	test('Should send a single FileWillRenameEvent instead of separate events when moving multiple files at once#111867', async function () {
-		this.skip();
 
 		const event = new Promise<vscode.FileWillCreateEvent>(resolve => {
 			let sub = vscode.workspace.onWillCreateFiles(e => {
