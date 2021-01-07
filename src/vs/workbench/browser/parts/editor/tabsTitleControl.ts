@@ -1421,25 +1421,23 @@ export class TabsTitleControl extends TitleControl {
 		}
 
 		// Handle wrapping tabs according to setting:
-		// - enabled: only add class if tabs wrap and don't exceed available height
+		// - enabled: only add class if tabs wrap and don't exceed available dimensions
 		// - disabled: remove class
 		if (this.accessor.partOptions.wrapTabs) {
-			let tabsWrapMultiLine = tabsAndActionsContainer.classList.contains('wrapping');
-			let updateScrollbar = false;
+			const oldTabsWrapMultiLine = tabsAndActionsContainer.classList.contains('wrapping');
 
 			// Tabs do not wrap multiline: add wrapping if tabs exceed the tabs container width
 			// and the height of the tabs container does not exceed the maximum
+			let tabsWrapMultiLine = oldTabsWrapMultiLine;
 			if (!tabsWrapMultiLine && allTabsWidth > visibleTabsContainerWidth) {
 				tabsAndActionsContainer.classList.add('wrapping');
 				tabsWrapMultiLine = true;
 			}
 
 			// Tabs wrap multiline: remove wrapping if height exceeds available height
-			// or the maximum allowed height
 			if (tabsWrapMultiLine && tabsContainer.offsetHeight > dimensions.available.height) {
 				tabsAndActionsContainer.classList.remove('wrapping');
 				tabsWrapMultiLine = false;
-				updateScrollbar = true;
 			}
 
 			// If we do not exceed the tabs container width, we cannot simply remove
@@ -1450,7 +1448,6 @@ export class TabsTitleControl extends TitleControl {
 			if (tabsWrapMultiLine && allTabsWidth === visibleTabsContainerWidth && tabsContainer.offsetHeight === TabsTitleControl.TAB_HEIGHT) {
 				tabsAndActionsContainer.classList.remove('wrapping');
 				tabsWrapMultiLine = false;
-				updateScrollbar = true;
 			}
 
 			// Update `last-tab-margin-right` CSS variable to account for the absolute
@@ -1469,13 +1466,12 @@ export class TabsTitleControl extends TitleControl {
 			if (tabsWrapMultiLine && lastTab && lastTab.offsetWidth > (dimensions.available.width - editorToolbarContainer.offsetWidth)) {
 				tabsAndActionsContainer.classList.remove('wrapping');
 				tabsWrapMultiLine = false;
-				updateScrollbar = true;
 				tabsContainer.style.setProperty('--last-tab-margin-right', '0');
 			}
 
 			// When tabs change from wrapping back to normal, we need to indicate this
 			// to the scrollbar so that revealing the active tab functions properly.
-			if (updateScrollbar) {
+			if (oldTabsWrapMultiLine && !tabsWrapMultiLine) {
 				tabsScrollbar.setScrollPosition({
 					scrollLeft: tabsContainer.scrollLeft
 				});
