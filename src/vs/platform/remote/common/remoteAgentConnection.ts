@@ -333,11 +333,15 @@ export const enum PersistentConnectionEventType {
 }
 export class ConnectionLostEvent {
 	public readonly type = PersistentConnectionEventType.ConnectionLost;
+	constructor(
+		public readonly millisSinceLastIncomingData: number
+	) { }
 }
 export class ReconnectionWaitEvent {
 	public readonly type = PersistentConnectionEventType.ReconnectionWait;
 	constructor(
 		public readonly durationSeconds: number,
+		public readonly millisSinceLastIncomingData: number,
 		private readonly cancellableTimer: CancelablePromise<void>
 	) { }
 
@@ -347,6 +351,9 @@ export class ReconnectionWaitEvent {
 }
 export class ReconnectionRunningEvent {
 	public readonly type = PersistentConnectionEventType.ReconnectionRunning;
+	constructor(
+		public readonly millisSinceLastIncomingData: number
+	) { }
 }
 export class ConnectionGainEvent {
 	public readonly type = PersistentConnectionEventType.ConnectionGain;
@@ -413,7 +420,7 @@ abstract class PersistentConnection extends Disposable {
 		}
 		const logPrefix = commonLogPrefix(this._connectionType, this.reconnectionToken, true);
 		this._options.logService.info(`${logPrefix} starting reconnecting loop. You can get more information with the trace log level.`);
-		this._onDidStateChange.fire(new ConnectionLostEvent());
+		this._onDidStateChange.fire(new ConnectionLostEvent(this.protocol.getMillisSinceLastIncomingData()));
 		const TIMES = [5, 5, 10, 10, 10, 10, 10, 30];
 		const disconnectStartTime = Date.now();
 		let attempt = -1;
@@ -422,7 +429,7 @@ abstract class PersistentConnection extends Disposable {
 			const waitTime = (attempt < TIMES.length ? TIMES[attempt] : TIMES[TIMES.length - 1]);
 			try {
 				const sleepPromise = sleep(waitTime);
-				this._onDidStateChange.fire(new ReconnectionWaitEvent(waitTime, sleepPromise));
+				this._onDidStateChange.fire(new ReconnectionWaitEvent(waitTime, this.protocol.getMillisSinceLastIncomingData(), sleepPromise));
 
 				this._options.logService.info(`${logPrefix} waiting for ${waitTime} seconds before reconnecting...`);
 				try {
@@ -435,7 +442,7 @@ abstract class PersistentConnection extends Disposable {
 				}
 
 				// connection was lost, let's try to re-establish it
-				this._onDidStateChange.fire(new ReconnectionRunningEvent());
+				this._onDidStateChange.fire(new ReconnectionRunningEvent(this.protocol.getMillisSinceLastIncomingData()));
 				this._options.logService.info(`${logPrefix} resolving connection...`);
 				const simpleOptions = await resolveConnectionOptions(this._options, this.reconnectionToken, this.protocol);
 				this._options.logService.info(`${logPrefix} connecting to ${simpleOptions.host}:${simpleOptions.port}...`);
