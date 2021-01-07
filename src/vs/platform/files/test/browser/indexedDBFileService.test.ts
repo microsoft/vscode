@@ -7,7 +7,7 @@ import * as assert from 'assert';
 import { FileService } from 'vs/platform/files/common/fileService';
 import { Schemas } from 'vs/base/common/network';
 import { URI } from 'vs/base/common/uri';
-import { FileOperation, FileOperationError, FileOperationEvent, FileOperationResult, FileSystemProviderErrorCode, FileType } from 'vs/platform/files/common/files';
+import { FileOperation, FileOperationError, FileOperationEvent, FileOperationResult, FileSystemProviderErrorCode, FileType, IFileStatWithMetadata } from 'vs/platform/files/common/files';
 import { NullLogService } from 'vs/platform/log/common/log';
 import { DisposableStore } from 'vs/base/common/lifecycle';
 import { IIndexedDBFileSystemProvider, IndexedDB, INDEXEDDB_LOGS_OBJECT_STORE, INDEXEDDB_USERDATA_OBJECT_STORE } from 'vs/platform/files/browser/indexedDBFileSystemProvider';
@@ -230,22 +230,60 @@ suite('IndexedDB File Service', function () {
 		assert.strictEqual(event!.target!.resource.path, resource.path);
 	}
 
+	const makeBatchTester = (size: number, name: string) => {
+		const batch = Array.from({ length: 50 }).map((_, i) => ({ contents: `Hello${i}`, resource: userdataURIFromPaths(['batched', name, `Hello${i}.txt`]) }));
+		let stats: Promise<IFileStatWithMetadata[]> | undefined = undefined;
+		return {
+			async create() {
+				return stats = Promise.all(batch.map(entry => service.createFile(entry.resource, VSBuffer.fromString(entry.contents))));
+			},
+			async assertContentsCorrect() {
+				await Promise.all(batch.map(async (entry, i) => {
+					if (!stats) { throw Error('read called before create'); }
+					const stat = (await stats!)[i];
+					assert.strictEqual(stat.name, `Hello${i}.txt`);
+					assert.strictEqual((await userdataFileProvider.stat(stat.resource)).type, FileType.File);
+					assert.strictEqual(new TextDecoder().decode(await userdataFileProvider.readFile(stat.resource)), entry.contents);
+				}));
+			},
+			async delete() {
+				await service.del(userdataURIFromPaths(['batched', name]), { recursive: true, useTrash: false });
+			},
+			async assertContentsEmpty() {
+				if (!stats) { throw Error('assertContentsEmpty called before create'); }
+				await Promise.all((await stats).map(async stat => {
+					const newStat = await userdataFileProvider.stat(stat.resource).catch(e => e.code);
+					assert.strictEqual(newStat, FileSystemProviderErrorCode.FileNotFound);
+				}));
+			}
+		};
+	};
+
 	test('createFile (small batch)', async () => {
-		// Batched writes take approx .5ms/file, sequenced take approx 10ms/file.
-		const batch = Array.from({ length: 50 }).map((_, i) => ({ contents: `Hello${i}`, resource: userdataURIFromPaths(['batched', `Hello${i}.txt`]) }));
-		const stats = await Promise.all(batch.map(entry => service.createFile(entry.resource, VSBuffer.fromString(entry.contents))));
-		for (let i = 0; i < stats.length; i++) {
-			const entry = batch[i];
-			const stat = stats[i];
-			assert.strictEqual(stat.name, `Hello${i}.txt`);
-			assert.strictEqual((await userdataFileProvider.stat(stat.resource)).type, FileType.File);
-			assert.strictEqual(new TextDecoder().decode(await userdataFileProvider.readFile(stat.resource)), entry.contents);
-		}
-		await service.del(userdataURIFromPaths(['batched']), { recursive: true, useTrash: false });
-		await Promise.all(stats.map(async stat => {
-			const newStat = await userdataFileProvider.stat(stat.resource).catch(e => e.code);
-			assert.strictEqual(newStat, FileSystemProviderErrorCode.FileNotFound);
-		}));
+		const tester = makeBatchTester(50, 'smallBatch');
+		await tester.create();
+		await tester.assertContentsCorrect();
+		await tester.delete();
+		await tester.assertContentsEmpty();
+	});
+
+	test('createFile (mixed parallel/sequential)', async () => {
+		const single1 = makeBatchTester(1, 'single1');
+		const single2 = makeBatchTester(1, 'single2');
+
+		const batch1 = makeBatchTester(20, 'batch1');
+		const batch2 = makeBatchTester(20, 'batch2');
+
+		single1.create();
+		batch1.create();
+		await Promise.all([single1.assertContentsCorrect(), batch1.assertContentsCorrect()]);
+		single2.create();
+		batch2.create();
+		await Promise.all([single2.assertContentsCorrect(), batch2.assertContentsCorrect()]);
+		await Promise.all([single1.assertContentsCorrect(), batch1.assertContentsCorrect()]);
+
+		await (Promise.all([single1.delete(), single2.delete(), batch1.delete(), batch2.delete()]));
+		await (Promise.all([single1.assertContentsEmpty(), single2.assertContentsEmpty(), batch1.assertContentsEmpty(), batch2.assertContentsEmpty()]));
 	});
 
 	test('deleteFile', async () => {
