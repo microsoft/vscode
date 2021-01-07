@@ -432,7 +432,7 @@ export class DebugEditorContribution implements IDebugEditorContribution {
 			this.closeExceptionWidget();
 		} else if (sameUri) {
 			const exceptionInfo = await focusedSf.thread.exceptionInfo;
-			if (exceptionInfo && exceptionSf.range.startLineNumber && exceptionSf.range.startColumn) {
+			if (exceptionInfo) {
 				this.showExceptionWidget(exceptionInfo, this.debugService.getViewModel().focusedSession, exceptionSf.range.startLineNumber, exceptionSf.range.startColumn);
 			}
 		}
