@@ -9,6 +9,7 @@ schedules:
 
 parameters:
   - name: VSCODE_QUALITY
+    displayName: Quality
     type: string
     default: insider
     values:
@@ -16,48 +17,63 @@ parameters:
       - insider
       - stable
   - name: VSCODE_BUILD_WIN32
+    displayName: "Target: Windows x64"
     type: boolean
     default: true
   - name: VSCODE_BUILD_WIN32_32BIT
+    displayName: "Target: Windows ia32"
     type: boolean
     default: true
   - name: VSCODE_BUILD_WIN32_ARM64
+    displayName: "Target: Windows arm64"
     type: boolean
     default: true
   - name: VSCODE_BUILD_LINUX
-    type: boolean
-    default: true
-  - name: VSCODE_BUILD_LINUX_ALPINE
+    displayName: "Target: Linux x64"
     type: boolean
     default: true
   - name: VSCODE_BUILD_LINUX_ARM64
+    displayName: "Target: Linux arm64"
     type: boolean
     default: true
   - name: VSCODE_BUILD_LINUX_ARMHF
+    displayName: "Target: Linux armhf"
+    type: boolean
+    default: true
+  - name: VSCODE_BUILD_LINUX_ALPINE
+    displayName: "Target: Alpine Linux"
     type: boolean
     default: true
   - name: VSCODE_BUILD_MACOS
+    displayName: "Target: macOS x64"
     type: boolean
     default: true
   - name: VSCODE_BUILD_MACOS_ARM64
+    displayName: "Target: macOS arm64"
     type: boolean
     default: true
   - name: VSCODE_BUILD_WEB
+    displayName: "Target: Web"
     type: boolean
     default: true
   - name: VSCODE_PUBLISH
+    displayName: "Publish to builds.code.visualstudio.com"
     type: boolean
     default: true
   - name: VSCODE_RELEASE
+    displayName: "Release build if successful"
     type: boolean
     default: false
   - name: VSCODE_COMPILE_ONLY
+    displayName: "Run Compile stage exclusively"
     type: boolean
     default: false
   - name: VSCODE_STEP_ON_IT
+    displayName: "Skip tests"
     type: boolean
     default: false
   - name: ENABLE_TERRAPIN
+    displayName: "Enable Terrapin"
     type: boolean
     default: true
 
