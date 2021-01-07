@@ -4,33 +4,10 @@
  *--------------------------------------------------------------------------------------------*/
 
 const gulp = require('gulp');
-const filter = require('gulp-filter');
 const es = require('event-stream');
-const vfs = require('vinyl-fs');
 const path = require('path');
 const task = require('./lib/task');
-const { all, jsHygieneFilter, tsHygieneFilter, hygiene } = require('./hygiene');
-
-gulp.task('eslint', () => {
-	const gulpeslint = require('gulp-eslint');
-	return vfs
-		.src(all, { base: '.', follow: true, allowEmpty: true })
-		.pipe(filter(jsHygieneFilter.concat(tsHygieneFilter)))
-		.pipe(
-			gulpeslint({
-				configFile: '.eslintrc.json',
-				rulePaths: ['./build/lib/eslint'],
-			})
-		)
-		.pipe(gulpeslint.formatEach('compact'))
-		.pipe(
-			gulpeslint.results((results) => {
-				if (results.warningCount > 0 || results.errorCount > 0) {
-					throw new Error('eslint failed with warnings and/or errors');
-				}
-			})
-		);
-});
+const { hygiene } = require('./hygiene');
 
 function checkPackageJSON(actualPath) {
 	const actual = require(path.join(__dirname, '..', actualPath));
@@ -67,5 +44,5 @@ const checkPackageJSONTask = task.define('check-package-json', () => {
 });
 gulp.task(checkPackageJSONTask);
 
-const hygieneTask = task.define('hygiene', task.series(checkPackageJSONTask, () => hygiene()));
+const hygieneTask = task.define('hygiene', task.series(checkPackageJSONTask, () => hygiene(undefined, false)));
 gulp.task(hygieneTask);
