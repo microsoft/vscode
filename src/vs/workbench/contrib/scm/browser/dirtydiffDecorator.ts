@@ -5,7 +5,7 @@
 
 import * as nls from 'vs/nls';
 
-import 'vs/css!./media/dirtydiffDecorator';
+import './media/dirtydiffDecorator.css';
 import { ThrottledDelayer, first } from 'vs/base/common/async';
 import { IDisposable, dispose, toDisposable, Disposable, DisposableStore } from 'vs/base/common/lifecycle';
 import { Event, Emitter } from 'vs/base/common/event';

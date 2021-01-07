@@ -5,10 +5,10 @@
 
 import { KeyCode, KeyMod } from 'vs/base/common/keyCodes';
 import * as platform from 'vs/base/common/platform';
-import 'vs/css!./media/scrollbar';
-import 'vs/css!./media/terminal';
-import 'vs/css!./media/widgets';
-import 'vs/css!./media/xterm';
+import './media/scrollbar.css';
+import './media/terminal.css';
+import './media/widgets.css';
+import './media/xterm.css';
 import * as nls from 'vs/nls';
 import { SyncActionDescriptor } from 'vs/platform/actions/common/actions';
 import { CommandsRegistry } from 'vs/platform/commands/common/commands';

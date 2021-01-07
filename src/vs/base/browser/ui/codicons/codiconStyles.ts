@@ -3,8 +3,8 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import 'vs/css!./codicon/codicon';
-import 'vs/css!./codicon/codicon-modifiers';
+import './codicon/codicon.css';
+import './codicon/codicon-modifiers.css';
 
 import { Codicon } from 'vs/base/common/codicons';
 

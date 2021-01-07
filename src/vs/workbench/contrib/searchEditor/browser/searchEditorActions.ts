@@ -5,7 +5,7 @@
 
 import { Action } from 'vs/base/common/actions';
 import { URI } from 'vs/base/common/uri';
-import 'vs/css!./media/searchEditor';
+import './media/searchEditor.css';
 import { ICodeEditor, isDiffEditor } from 'vs/editor/browser/editorBrowser';
 import { localize } from 'vs/nls';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';

@@ -3,7 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import 'vs/css!./media/quickInput';
+import './media/quickInput.css';
 import * as dom from 'vs/base/browser/dom';
 import { InputBox, IRange, MessageType, IInputBoxStyles } from 'vs/base/browser/ui/inputbox/inputBox';
 import { IDisposable, Disposable } from 'vs/base/common/lifecycle';

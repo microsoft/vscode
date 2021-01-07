@@ -3,7 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import 'vs/css!./media/gotoErrorWidget';
+import './media/gotoErrorWidget.css';
 import * as nls from 'vs/nls';
 import * as dom from 'vs/base/browser/dom';
 import { dispose, DisposableStore } from 'vs/base/common/lifecycle';

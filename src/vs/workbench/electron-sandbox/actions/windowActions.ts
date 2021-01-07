@@ -3,7 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import 'vs/css!./media/actions';
+import './media/actions.css';
 
 import { URI } from 'vs/base/common/uri';
 import { Action } from 'vs/base/common/actions';

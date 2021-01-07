@@ -12,7 +12,7 @@ import { IDisposable, DisposableStore, MutableDisposable, Disposable } from 'vs/
 import { posix } from 'vs/base/common/path';
 import { basename, dirname, isEqual } from 'vs/base/common/resources';
 import { URI } from 'vs/base/common/uri';
-import 'vs/css!./media/breadcrumbscontrol';
+import './media/breadcrumbscontrol.css';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { FileKind, IFileService, IFileStat } from 'vs/platform/files/common/files';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';

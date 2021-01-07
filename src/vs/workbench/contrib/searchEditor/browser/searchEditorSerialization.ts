@@ -5,7 +5,7 @@
 
 import { coalesce, flatten } from 'vs/base/common/arrays';
 import { URI } from 'vs/base/common/uri';
-import 'vs/css!./media/searchEditor';
+import './media/searchEditor.css';
 import { ServicesAccessor } from 'vs/editor/browser/editorExtensions';
 import { Range } from 'vs/editor/common/core/range';
 import type { ITextModel } from 'vs/editor/common/model';

@@ -3,7 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import 'vs/css!./media/timelinePane';
+import './media/timelinePane.css';
 import { localize } from 'vs/nls';
 import * as DOM from 'vs/base/browser/dom';
 import { IAction, ActionRunner, IActionViewItemProvider } from 'vs/base/common/actions';

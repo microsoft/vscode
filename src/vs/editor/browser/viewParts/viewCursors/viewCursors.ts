@@ -3,7 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import 'vs/css!./viewCursors';
+import './viewCursors.css';
 import { FastDomNode, createFastDomNode } from 'vs/base/browser/fastDomNode';
 import { IntervalTimer, TimeoutTimer } from 'vs/base/common/async';
 import { ViewPart } from 'vs/editor/browser/view/viewPart';

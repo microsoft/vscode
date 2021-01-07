@@ -3,7 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import 'vs/css!./inspectTokens';
+import './inspectTokens.css';
 import { $, append, reset } from 'vs/base/browser/dom';
 import { CharCode } from 'vs/base/common/charCode';
 import { Color } from 'vs/base/common/color';

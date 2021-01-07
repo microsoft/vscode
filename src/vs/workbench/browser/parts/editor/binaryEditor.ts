@@ -3,7 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import 'vs/css!./media/binaryeditor';
+import './media/binaryeditor.css';
 import * as nls from 'vs/nls';
 import { Emitter } from 'vs/base/common/event';
 import { EditorInput, EditorOptions, IEditorOpenContext } from 'vs/workbench/common/editor';

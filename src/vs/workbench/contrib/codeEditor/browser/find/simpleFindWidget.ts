@@ -3,7 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import 'vs/css!./simpleFindWidget';
+import './simpleFindWidget.css';
 import * as nls from 'vs/nls';
 import * as dom from 'vs/base/browser/dom';
 import { FindInput, IFindInputStyles } from 'vs/base/browser/ui/findinput/findInput';

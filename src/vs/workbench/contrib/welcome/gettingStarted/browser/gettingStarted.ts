@@ -3,7 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import 'vs/css!./gettingStarted';
+import './gettingStarted.css';
 import 'vs/workbench/contrib/welcome/gettingStarted/browser/vs_code_editor_getting_started';
 import { localize } from 'vs/nls';
 import { IEditorService } from 'vs/workbench/services/editor/common/editorService';

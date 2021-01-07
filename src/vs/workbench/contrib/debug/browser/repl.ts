@@ -3,7 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import 'vs/css!./media/repl';
+import './media/repl.css';
 import { URI as uri } from 'vs/base/common/uri';
 import { IAction, IActionViewItem } from 'vs/base/common/actions';
 import * as dom from 'vs/base/browser/dom';

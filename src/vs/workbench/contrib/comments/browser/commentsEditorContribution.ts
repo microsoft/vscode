@@ -10,7 +10,7 @@ import { CancelablePromise, createCancelablePromise, Delayer } from 'vs/base/com
 import { onUnexpectedError } from 'vs/base/common/errors';
 import { KeyCode, KeyMod } from 'vs/base/common/keyCodes';
 import { DisposableStore } from 'vs/base/common/lifecycle';
-import 'vs/css!./media/review';
+import './media/review.css';
 import { IMarginData } from 'vs/editor/browser/controller/mouseTarget';
 import { IActiveCodeEditor, ICodeEditor, IEditorMouseEvent, isCodeEditor, isDiffEditor, IViewZone, MouseTargetType } from 'vs/editor/browser/editorBrowser';
 import { EditorAction, registerEditorAction, registerEditorContribution } from 'vs/editor/browser/editorExtensions';

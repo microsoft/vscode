@@ -3,7 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import 'vs/css!./media/debugViewlet';
+import './media/debugViewlet.css';
 import * as nls from 'vs/nls';
 import { IAction, IActionViewItem } from 'vs/base/common/actions';
 import { IDebugService, VIEWLET_ID, State, BREAKPOINTS_VIEW_ID, CONTEXT_DEBUG_UX, CONTEXT_DEBUG_UX_KEY, REPL_VIEW_ID, CONTEXT_DEBUG_STATE, ILaunch } from 'vs/workbench/contrib/debug/common/debug';

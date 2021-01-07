@@ -12,7 +12,7 @@ import { Emitter, Event } from 'vs/base/common/event';
 import { dispose, IDisposable, DisposableStore } from 'vs/base/common/lifecycle';
 import { ScrollbarVisibility } from 'vs/base/common/scrollable';
 import { Codicon, registerCodicon } from 'vs/base/common/codicons';
-import 'vs/css!./breadcrumbsWidget';
+import './breadcrumbsWidget.css';
 
 export abstract class BreadcrumbsItem {
 	dispose(): void { }
