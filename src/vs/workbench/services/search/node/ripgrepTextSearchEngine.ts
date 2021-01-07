@@ -16,6 +16,7 @@ import { URI } from 'vs/base/common/uri';
 import { Progress } from 'vs/platform/progress/common/progress';
 import { IExtendedExtensionSearchOptions, SearchError, SearchErrorCode, serializeSearchError } from 'vs/workbench/services/search/common/search';
 import { Range, TextSearchComplete, TextSearchContext, TextSearchMatch, TextSearchOptions, TextSearchPreviewOptions, TextSearchQuery, TextSearchResult } from 'vs/workbench/services/search/common/searchExtTypes';
+import { RegExpParser, RegExpVisitor, AST as ReAST } from 'vscode-regexpp';
 import { rgPath } from 'vscode-ripgrep';
 import { anchorGlob, createTextSearchResult, IOutputChannel, Maybe } from './ripgrepSearchUtils';
 
@@ -282,6 +283,18 @@ export class RipgrepParser extends EventEmitter {
 		let prevMatchEnd = 0;
 		let prevMatchEndCol = 0;
 		let prevMatchEndLine = lineNumber;
+
+		// it looks like certain regexes can match a line, but cause rg to not
+		// emit any specific submatches for that line.
+		// https://github.com/microsoft/vscode/issues/100569#issuecomment-738496991
+		if (data.submatches.length === 0) {
+			data.submatches.push(
+				fullText.length
+					? { start: 0, end: 1, match: { text: fullText[0] } }
+					: { start: 0, end: 0, match: { text: '' } }
+			);
+		}
+
 		const ranges = coalesce(data.submatches.map((match, i) => {
 			if (this.hitLimit) {
 				return null;
@@ -541,10 +554,78 @@ export interface IRgSubmatch {
 
 export type IRgBytesOrText = { bytes: string } | { text: string };
 
+const isLookBehind = (node: ReAST.Node) => node.type === 'Assertion' && node.kind === 'lookbehind';
+
 export function fixRegexNewline(pattern: string): string {
-	// Replace an unescaped $ at the end of the pattern with \r?$
-	// Match $ preceded by none or even number of literal \
-	return pattern.replace(/(?<=[^\\]|^)(\\\\)*\\n/g, '$1\\r?\\n');
+	// we parse the pattern anew each tiem
+	let re: ReAST.Pattern;
+	try {
+		re = new RegExpParser().parsePattern(pattern);
+	} catch {
+		return pattern;
+	}
+
+	let output = '';
+	let lastEmittedIndex = 0;
+	const replace = (start: number, end: number, text: string) => {
+		output += pattern.slice(lastEmittedIndex, start) + text;
+		lastEmittedIndex = end;
+	};
+
+	const context: ReAST.Node[] = [];
+	const visitor = new RegExpVisitor({
+		onCharacterEnter(char) {
+			if (char.raw !== '\\n') {
+				return;
+			}
+
+			const parent = context[0];
+			if (!parent) {
+				// simple char, \n -> \r?\n
+				replace(char.start, char.end, '\\r?\\n');
+			} else if (context.some(isLookBehind)) {
+				// no-op in a lookbehind, see #100569
+			} else if (parent.type === 'CharacterClass') {
+				// in a bracket expr, [a-z\n] -> (?:[a-z]|\r?\n)
+				const otherContent = pattern.slice(parent.start + 1, char.start) + pattern.slice(char.end, parent.end - 1);
+				replace(parent.start, parent.end, otherContent === '' ? '\\r?\\n' : `(?:[${otherContent}]|\\r?\\n)`);
+			} else if (parent.type === 'Quantifier') {
+				replace(char.start, char.end, '(?:\\r?\\n)');
+			}
+		},
+		onQuantifierEnter(node) {
+			context.unshift(node);
+		},
+		onQuantifierLeave() {
+			context.shift();
+		},
+		onCharacterClassRangeEnter(node) {
+			context.unshift(node);
+		},
+		onCharacterClassRangeLeave() {
+			context.shift();
+		},
+		onCharacterClassEnter(node) {
+			context.unshift(node);
+		},
+		onCharacterClassLeave() {
+			context.shift();
+		},
+		onAssertionEnter(node) {
+			if (isLookBehind(node)) {
+				context.push(node);
+			}
+		},
+		onAssertionLeave(node) {
+			if (context[0] === node) {
+				context.shift();
+			}
+		},
+	});
+
+	visitor.visit(re);
+	output += pattern.slice(lastEmittedIndex);
+	return output;
 }
 
 export function fixNewline(pattern: string): string {

@@ -418,8 +418,8 @@ suite('Strings', () => {
 		assert.equal(strings.getGraphemeBreakType(0xBC1), strings.GraphemeBreakType.SpacingMark);
 	});
 
-	test('multibyteAwareBtoa', () => {
-		assert.equal(strings.multibyteAwareBtoa('hello world'), strings.multibyteAwareBtoa('hello world'));
-		assert.ok(strings.multibyteAwareBtoa('平仮名'));
+	test('truncate', () => {
+		assert.equal('hello world', strings.truncate('hello world', 100));
+		assert.equal('hello…', strings.truncate('hello world', 5));
 	});
 });

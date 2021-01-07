@@ -234,7 +234,6 @@ export abstract class CompositeDescriptor<T extends Composite> {
 		readonly cssClass?: string,
 		readonly order?: number,
 		readonly requestedIndex?: number,
-		readonly keybindingId?: string,
 	) { }
 
 	instantiate(instantiationService: IInstantiationService): T {

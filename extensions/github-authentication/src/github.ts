@@ -5,7 +5,7 @@
 
 import * as vscode from 'vscode';
 import { v4 as uuid } from 'uuid';
-import { keychain } from './common/keychain';
+import { Keychain } from './common/keychain';
 import { GitHubServer, NETWORK_ERROR } from './githubServer';
 import Logger from './common/logger';
 
@@ -26,14 +26,43 @@ export class GitHubAuthenticationProvider {
 	private _sessions: vscode.AuthenticationSession[] = [];
 	private _githubServer = new GitHubServer();
 
+	private _keychain: Keychain;
+
+	constructor(context: vscode.ExtensionContext) {
+		this._keychain = new Keychain(context);
+	}
+
 	public async initialize(context: vscode.ExtensionContext): Promise<void> {
 		try {
 			this._sessions = await this.readSessions();
+			await this.verifySessions();
 		} catch (e) {
 			// Ignore, network request failed
 		}
 
-		context.subscriptions.push(vscode.authentication.onDidChangePassword(() => this.checkForUpdates()));
+		context.subscriptions.push(context.secrets.onDidChange(() => this.checkForUpdates()));
+	}
+
+	private async verifySessions(): Promise<void> {
+		const verifiedSessions: vscode.AuthenticationSession[] = [];
+		const verificationPromises = this._sessions.map(async session => {
+			try {
+				await this._githubServer.getUserInfo(session.accessToken);
+				verifiedSessions.push(session);
+			} catch (e) {
+				// Remove sessions that return unauthorized response
+				if (e.message !== 'Unauthorized') {
+					verifiedSessions.push(session);
+				}
+			}
+		});
+
+		Promise.all(verificationPromises).then(_ => {
+			if (this._sessions.length !== verifiedSessions.length) {
+				this._sessions = verifiedSessions;
+				this.storeSessions();
+			}
+		});
 	}
 
 	private async checkForUpdates() {
@@ -78,7 +107,7 @@ export class GitHubAuthenticationProvider {
 	}
 
 	private async readSessions(): Promise<vscode.AuthenticationSession[]> {
-		const storedSessions = await keychain.getToken() || await keychain.tryMigrate();
+		const storedSessions = await this._keychain.getToken() || await this._keychain.tryMigrate();
 		if (storedSessions) {
 			try {
 				const sessionData: SessionData[] = JSON.parse(storedSessions);
@@ -109,7 +138,7 @@ export class GitHubAuthenticationProvider {
 				}
 
 				Logger.error(`Error reading sessions: ${e}`);
-				await keychain.deleteToken();
+				await this._keychain.deleteToken();
 			}
 		}
 
@@ -117,7 +146,7 @@ export class GitHubAuthenticationProvider {
 	}
 
 	private async storeSessions(): Promise<void> {
-		await keychain.setToken(JSON.stringify(this._sessions));
+		await this._keychain.setToken(JSON.stringify(this._sessions));
 	}
 
 	get sessions(): vscode.AuthenticationSession[] {
@@ -157,9 +186,12 @@ export class GitHubAuthenticationProvider {
 	}
 
 	public async logout(id: string) {
+		Logger.info(`Logging out of ${id}`);
 		const sessionIndex = this._sessions.findIndex(session => session.id === id);
 		if (sessionIndex > -1) {
 			this._sessions.splice(sessionIndex, 1);
+		} else {
+			Logger.error('Session not found');
 		}
 
 		await this.storeSessions();

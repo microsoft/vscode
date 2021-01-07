@@ -8,7 +8,7 @@ import * as os from 'os';
 import * as fs from 'fs';
 import { resolveWorkbenchCommonProperties } from 'vs/workbench/services/telemetry/electron-browser/workbenchCommonProperties';
 import { getRandomTestPath } from 'vs/base/test/node/testUtils';
-import { IStorageService, StorageScope, InMemoryStorageService } from 'vs/platform/storage/common/storage';
+import { IStorageService, StorageScope, InMemoryStorageService, StorageTarget } from 'vs/platform/storage/common/storage';
 import { mkdirp, rimraf, RimRafMode } from 'vs/base/node/pfs';
 import { timeout } from 'vs/base/common/async';
 
@@ -58,7 +58,7 @@ suite('Telemetry - common properties', function () {
 
 	test('lastSessionDate when aviablale', async function () {
 
-		testStorageService.store('telemetry.lastSessionDate', new Date().toUTCString(), StorageScope.GLOBAL);
+		testStorageService.store('telemetry.lastSessionDate', new Date().toUTCString(), StorageScope.GLOBAL, StorageTarget.MACHINE);
 
 		const props = await resolveWorkbenchCommonProperties(testStorageService, commit, version, 'someMachineId', undefined, installSource);
 		assert.ok('common.lastSessionDate' in props); // conditional, see below

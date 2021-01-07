@@ -14,14 +14,9 @@ import { getPathFromAmdModule } from 'vs/base/common/amd';
 import { isWindows } from 'vs/base/common/platform';
 import { canNormalize } from 'vs/base/common/normalization';
 import { VSBuffer } from 'vs/base/common/buffer';
+import { flakySuite } from 'vs/base/test/node/testUtils';
 
-suite('PFS', function () {
-
-	// Given issues such as https://github.com/microsoft/vscode/issues/84066
-	// we see random test failures when accessing the native file system. To
-	// diagnose further, we retry node.js file access tests up to 3 times to
-	// rule out any random disk issue.
-	this.retries(3);
+flakySuite('PFS', function () {
 
 	test('writeFile', async () => {
 		const id = uuid.generateUuid();

@@ -295,9 +295,12 @@ export class TextAreaInput extends Disposable {
 				this._onType.fire(typeInput);
 			}
 
-			// Due to isEdgeOrIE (where the textarea was not cleared initially) and isChrome (the textarea is not updated correctly when composition ends)
+			// Due to
+			// isEdgeOrIE (where the textarea was not cleared initially)
+			// and isChrome (the textarea is not updated correctly when composition ends)
+			// and isFirefox (the textare ais not updated correctly after inserting emojis)
 			// we cannot assume the text at the end consists only of the composited text
-			if (browser.isEdge || browser.isChrome) {
+			if (browser.isEdge || browser.isChrome || browser.isFirefox) {
 				this._textAreaState = TextAreaState.readFromTextArea(this._textArea);
 			}
 
@@ -375,6 +378,20 @@ export class TextAreaInput extends Disposable {
 			this._setHasFocus(true);
 		}));
 		this._register(dom.addDisposableListener(textArea.domNode, 'blur', () => {
+			if (this._isDoingComposition) {
+				// See https://github.com/microsoft/vscode/issues/112621
+				// where compositionend is not triggered when the editor
+				// is taken off-dom during a composition
+
+				// Clear the flag to be able to write to the textarea
+				this._isDoingComposition = false;
+
+				// Clear the textarea to avoid an unwanted cursor type
+				this.writeScreenReaderContent('blurWithoutCompositionEnd');
+
+				// Fire artificial composition end
+				this._onCompositionEnd.fire();
+			}
 			this._setHasFocus(false);
 		}));
 	}

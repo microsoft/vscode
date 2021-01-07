@@ -28,7 +28,7 @@ import 'vs/workbench/contrib/search/browser/search.contribution';
 import { NullLogService } from 'vs/platform/log/common/log';
 import { ITextModel } from 'vs/editor/common/model';
 import { nullExtensionDescription, IExtensionService } from 'vs/workbench/services/extensions/common/extensions';
-import { dispose } from 'vs/base/common/lifecycle';
+import { dispose, ImmortalReference } from 'vs/base/common/lifecycle';
 import { IEditorWorkerService } from 'vs/editor/common/services/editorWorkerService';
 import { mock } from 'vs/base/test/common/mock';
 import { NullApiDeprecationService } from 'vs/workbench/api/common/extHostApiDeprecationService';
@@ -41,13 +41,14 @@ import 'vs/editor/contrib/codelens/codelens';
 import 'vs/editor/contrib/colorPicker/color';
 import 'vs/editor/contrib/format/format';
 import 'vs/editor/contrib/gotoSymbol/goToCommands';
-import 'vs/editor/contrib/gotoSymbol/documentSymbols';
+import 'vs/editor/contrib/documentSymbols/documentSymbols';
 import 'vs/editor/contrib/hover/getHover';
 import 'vs/editor/contrib/links/getLinks';
 import 'vs/editor/contrib/parameterHints/provideSignatureHelp';
 import 'vs/editor/contrib/smartSelect/smartSelect';
 import 'vs/editor/contrib/suggest/suggest';
 import 'vs/editor/contrib/rename/rename';
+import { IResolvedTextEditorModel, ITextModelService } from 'vs/editor/common/services/resolverService';
 
 const defaultSelector = { scheme: 'far' };
 const model: ITextModel = createTextModel(
@@ -107,6 +108,13 @@ suite('ExtHostLanguageFeatureCommands', function () {
 		services.set(IMarkerService, new MarkerService());
 		services.set(IModelService, new class extends mock<IModelService>() {
 			getModel() { return model; }
+		});
+		services.set(ITextModelService, new class extends mock<ITextModelService>() {
+			async createModelReference() {
+				return new ImmortalReference<IResolvedTextEditorModel>(new class extends mock<IResolvedTextEditorModel>() {
+					textEditorModel = model;
+				});
+			}
 		});
 		services.set(IEditorWorkerService, new class extends mock<IEditorWorkerService>() {
 			async computeMoreMinimalEdits(_uri: any, edits: any) {
@@ -192,7 +200,7 @@ suite('ExtHostLanguageFeatureCommands', function () {
 			return commands.executeCommand<vscode.SymbolInformation[]>('vscode.executeWorkspaceSymbolProvider', 'testing').then(value => {
 
 				for (let info of value) {
-					assert.ok(info instanceof types.SymbolInformation);
+					assert.strictEqual(info instanceof types.SymbolInformation, true);
 					assert.equal(info.name, 'testing');
 					assert.equal(info.kind, types.SymbolKind.Array);
 				}
@@ -558,8 +566,8 @@ suite('ExtHostLanguageFeatureCommands', function () {
 			return commands.executeCommand<vscode.SymbolInformation[]>('vscode.executeDocumentSymbolProvider', model.uri).then(values => {
 				assert.equal(values.length, 2);
 				let [first, second] = values;
-				assert.ok(first instanceof types.SymbolInformation);
-				assert.ok(second instanceof types.SymbolInformation);
+				assert.strictEqual(first instanceof types.SymbolInformation, true);
+				assert.strictEqual(second instanceof types.SymbolInformation, true);
 				assert.equal(first.name, 'testing2');
 				assert.equal(second.name, 'testing1');
 			});
@@ -586,9 +594,9 @@ suite('ExtHostLanguageFeatureCommands', function () {
 			return commands.executeCommand<(vscode.SymbolInformation & vscode.DocumentSymbol)[]>('vscode.executeDocumentSymbolProvider', model.uri).then(values => {
 				assert.equal(values.length, 2);
 				let [first, second] = values;
-				assert.ok(first instanceof types.SymbolInformation);
-				assert.ok(!(first instanceof types.DocumentSymbol));
-				assert.ok(second instanceof types.SymbolInformation);
+				assert.strictEqual(first instanceof types.SymbolInformation, true);
+				assert.strictEqual(first instanceof types.DocumentSymbol, false);
+				assert.strictEqual(second instanceof types.SymbolInformation, true);
 				assert.equal(first.name, 'DocumentSymbol');
 				assert.equal(first.children.length, 1);
 				assert.equal(second.name, 'SymbolInformation');

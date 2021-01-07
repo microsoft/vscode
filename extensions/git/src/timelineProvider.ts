@@ -58,8 +58,8 @@ export class GitTimelineItem extends TimelineItem {
 }
 
 export class GitTimelineProvider implements TimelineProvider {
-	private _onDidChange = new EventEmitter<TimelineChangeEvent>();
-	get onDidChange(): Event<TimelineChangeEvent> {
+	private _onDidChange = new EventEmitter<TimelineChangeEvent | undefined>();
+	get onDidChange(): Event<TimelineChangeEvent | undefined> {
 		return this._onDidChange.event;
 	}
 
@@ -200,7 +200,7 @@ export class GitTimelineProvider implements TimelineProvider {
 			if (working) {
 				const date = new Date();
 
-				const item = new GitTimelineItem('', index ? '~' : 'HEAD', localize('git.timeline.uncommitedChanges', 'Uncommited Changes'), date.getTime(), 'working', 'git:file:working');
+				const item = new GitTimelineItem('', index ? '~' : 'HEAD', localize('git.timeline.uncommitedChanges', 'Uncommitted Changes'), date.getTime(), 'working', 'git:file:working');
 				// TODO@eamodio: Replace with a better icon -- reflecting its status maybe?
 				item.iconPath = new (ThemeIcon as any)('git-commit');
 				item.description = '';

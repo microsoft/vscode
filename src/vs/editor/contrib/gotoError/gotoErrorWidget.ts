@@ -30,6 +30,7 @@ import { MenuId, IMenuService } from 'vs/platform/actions/common/actions';
 import { IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
 import { createAndFillInActionBarActions } from 'vs/platform/actions/browser/menuEntryActionViewItem';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
+import { splitLines } from 'vs/base/common/strings';
 
 class MessageWidget {
 
@@ -102,7 +103,7 @@ class MessageWidget {
 			}
 		}
 
-		const lines = message.split(/\r\n|\r|\n/g);
+		const lines = splitLines(message);
 		this._lines = lines.length;
 		this._longestLineLength = 0;
 		for (const line of lines) {
@@ -296,7 +297,7 @@ export class MarkerNavigationWidget extends PeekViewWidget {
 	protected _fillHead(container: HTMLElement): void {
 		super._fillHead(container);
 
-		this._disposables.add(this._actionbarWidget!.actionRunner.onDidBeforeRun(e => this.editor.focus()));
+		this._disposables.add(this._actionbarWidget!.actionRunner.onBeforeRun(e => this.editor.focus()));
 
 		const actions: IAction[] = [];
 		const menu = this._menuService.createMenu(MarkerNavigationWidget.TitleMenu, this._contextKeyService);

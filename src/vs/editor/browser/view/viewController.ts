@@ -322,6 +322,10 @@ export class ViewController {
 		this.userInputEvents.emitMouseDrop(e);
 	}
 
+	public emitMouseDropCanceled(): void {
+		this.userInputEvents.emitMouseDropCanceled();
+	}
+
 	public emitMouseWheel(e: IMouseWheelEvent): void {
 		this.userInputEvents.emitMouseWheel(e);
 	}

@@ -34,7 +34,8 @@ export interface ISCMResource {
 	readonly resourceGroup: ISCMResourceGroup;
 	readonly sourceUri: URI;
 	readonly decorations: ISCMResourceDecorations;
-	readonly contextValue?: string;
+	readonly contextValue: string | undefined;
+	readonly command: Command | undefined;
 	open(preserveFocus: boolean): Promise<void>;
 }
 
@@ -83,11 +84,22 @@ export interface IInputValidator {
 	(value: string, cursorPosition: number): Promise<IInputValidation | undefined>;
 }
 
+export enum SCMInputChangeReason {
+	HistoryPrevious,
+	HistoryNext
+}
+
+export interface ISCMInputChangeEvent {
+	readonly value: string;
+	readonly reason?: SCMInputChangeReason;
+}
+
 export interface ISCMInput {
 	readonly repository: ISCMRepository;
 
-	value: string;
-	readonly onDidChange: Event<string>;
+	readonly value: string;
+	setValue(value: string, fromKeyboard: boolean): void;
+	readonly onDidChange: Event<ISCMInputChangeEvent>;
 
 	placeholder: string;
 	readonly onDidChangePlaceholder: Event<string>;
@@ -97,14 +109,14 @@ export interface ISCMInput {
 
 	visible: boolean;
 	readonly onDidChangeVisibility: Event<boolean>;
+
+	showNextHistoryValue(): void;
+	showPreviousHistoryValue(): void;
 }
 
 export interface ISCMRepository extends IDisposable {
-	readonly selected: boolean;
-	readonly onDidChangeSelection: Event<boolean>;
 	readonly provider: ISCMProvider;
 	readonly input: ISCMInput;
-	setSelected(selected: boolean): void;
 }
 
 export interface ISCMService {
@@ -154,4 +166,8 @@ export interface ISCMViewService {
 
 	isVisible(repository: ISCMRepository): boolean;
 	toggleVisibility(repository: ISCMRepository, visible?: boolean): void;
+
+	readonly focusedRepository: ISCMRepository | undefined;
+	readonly onDidFocusRepository: Event<ISCMRepository | undefined>;
+	focus(repository: ISCMRepository): void;
 }

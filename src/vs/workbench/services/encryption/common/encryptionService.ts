@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { createDecorator } from 'vs/platform/instantiation/common/instantiation';
-import { ICommonEncryptionService } from 'vs/platform/encryption/electron-main/common/encryptionService';
+import { ICommonEncryptionService } from 'vs/platform/encryption/common/encryptionService';
 
 export const IEncryptionService = createDecorator<IEncryptionService>('encryptionService');
 

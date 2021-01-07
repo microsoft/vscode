@@ -25,26 +25,20 @@
 	const preloadGlobals = globals();
 	const sandbox = preloadGlobals.context.sandbox;
 	const webFrame = preloadGlobals.webFrame;
-	const safeProcess = sandbox ? preloadGlobals.process : process;
+	const safeProcess = preloadGlobals.process;
+	const configuration = parseWindowConfiguration();
+	const useCustomProtocol = sandbox || typeof safeProcess.env['ENABLE_VSCODE_BROWSER_CODE_LOADING'] === 'string';
+
+	// Start to resolve process.env before anything gets load
+	// so that we can run loading and resolving in parallel
+	const whenEnvResolved = safeProcess.resolveEnv(configuration.userEnv);
 
 	/**
 	 * @param {string[]} modulePaths
-	 * @param {(result, configuration: object) => any} resultCallback
+	 * @param {(result: unknown, configuration: object) => Promise<unknown> | undefined} resultCallback
 	 * @param {{ forceEnableDeveloperKeybindings?: boolean, disallowReloadKeybinding?: boolean, removeDeveloperKeybindingsAfterLoad?: boolean, canModifyDOM?: (config: object) => void, beforeLoaderConfig?: (config: object, loaderConfig: object) => void, beforeRequire?: () => void }=} options
 	 */
 	function load(modulePaths, resultCallback, options) {
-		const args = parseURLQueryArgs();
-		/**
-		 * // configuration: INativeWindowConfiguration
-		 * @type {{
-		 * zoomLevel?: number,
-		 * extensionDevelopmentPath?: string[],
-		 * extensionTestsPath?: string,
-		 * userEnv?: { [key: string]: string | undefined },
-		 * appRoot?: string,
-		 * nodeCachedDataDir?: string
-		 * }} */
-		const configuration = JSON.parse(args['config'] || '{}') || {};
 
 		// Apply zoom level early to avoid glitches
 		const zoomLevel = configuration.zoomLevel;
@@ -64,22 +58,15 @@
 			developerToolsUnbind = registerDeveloperKeybindings(options && options.disallowReloadKeybinding);
 		}
 
-		// Correctly inherit the parent's environment (TODO@sandbox non-sandboxed only)
-		if (!sandbox) {
-			Object.assign(safeProcess.env, configuration.userEnv);
-		}
-
-		// Enable ASAR support (TODO@sandbox non-sandboxed only)
-		if (!sandbox) {
-			globalThis.MonacoBootstrap.enableASARSupport(configuration.appRoot);
-		}
+		// Enable ASAR support
+		globalThis.MonacoBootstrap.enableASARSupport(configuration.appRoot);
 
 		if (options && typeof options.canModifyDOM === 'function') {
 			options.canModifyDOM(configuration);
 		}
 
-		// Get the nls configuration into the process.env as early as possible  (TODO@sandbox non-sandboxed only)
-		const nlsConfig = sandbox ? { availableLanguages: {} } : globalThis.MonacoBootstrap.setupNLS();
+		// Get the nls configuration into the process.env as early as possible
+		const nlsConfig = globalThis.MonacoBootstrap.setupNLS();
 
 		let locale = nlsConfig.availableLanguages['*'] || 'en';
 		if (locale === 'zh-tw') {
@@ -91,21 +78,38 @@
 		window.document.documentElement.setAttribute('lang', locale);
 
 		// do not advertise AMD to avoid confusing UMD modules loaded with nodejs
-		if (!sandbox) {
+		if (!useCustomProtocol) {
 			window['define'] = undefined;
 		}
 
 		// replace the patched electron fs with the original node fs for all AMD code (TODO@sandbox non-sandboxed only)
 		if (!sandbox) {
-			require.define('fs', ['original-fs'], function (originalFS) { return originalFS; });
+			require.define('fs', [], function () { return require.__$__nodeRequire('original-fs'); });
 		}
 
 		window['MonacoEnvironment'] = {};
 
+		const baseUrl = useCustomProtocol ?
+			`${bootstrapLib.fileUriFromPath(configuration.appRoot, { isWindows: safeProcess.platform === 'win32', scheme: 'vscode-file', fallbackAuthority: 'vscode-app' })}/out` :
+			`${bootstrapLib.fileUriFromPath(configuration.appRoot, { isWindows: safeProcess.platform === 'win32' })}/out`;
+
 		const loaderConfig = {
-			baseUrl: `${bootstrapLib.fileUriFromPath(configuration.appRoot, { isWindows: safeProcess.platform === 'win32' })}/out`,
-			'vs/nls': nlsConfig
+			baseUrl,
+			'vs/nls': nlsConfig,
+			preferScriptTags: useCustomProtocol
 		};
+
+		// use a trusted types policy when loading via script tags
+		if (loaderConfig.preferScriptTags) {
+			loaderConfig.trustedTypesPolicy = window.trustedTypes?.createPolicy('amdLoader', {
+				createScriptURL(value) {
+					if (value.startsWith(window.location.origin)) {
+						return value;
+					}
+					throw new Error(`Invalid script url: ${value}`);
+				}
+			});
+		}
 
 		// Enable loading of node modules:
 		// - sandbox: we list paths of webpacked modules to help the loader
@@ -119,7 +123,6 @@
 				'xterm-addon-search': `../node_modules/xterm-addon-search/lib/xterm-addon-search.js`,
 				'xterm-addon-unicode11': `../node_modules/xterm-addon-unicode11/lib/xterm-addon-unicode11.js`,
 				'xterm-addon-webgl': `../node_modules/xterm-addon-webgl/lib/xterm-addon-webgl.js`,
-				'semver-umd': `../node_modules/semver-umd/lib/semver-umd.js`,
 				'iconv-lite-umd': `../node_modules/iconv-lite-umd/lib/iconv-lite-umd.js`,
 				'jschardet': `../node_modules/jschardet/dist/jschardet.min.js`,
 			};
@@ -151,17 +154,22 @@
 			options.beforeRequire();
 		}
 
-		require(modulePaths, result => {
+		require(modulePaths, async result => {
 			try {
+
+				// Wait for process environment being fully resolved
+				performance.mark('code/willWaitForShellEnv');
+				await whenEnvResolved;
+				performance.mark('code/didWaitForShellEnv');
+
+				// Callback only after process environment is resolved
 				const callbackResult = resultCallback(result, configuration);
-				if (callbackResult && typeof callbackResult.then === 'function') {
-					callbackResult.then(() => {
-						if (developerToolsUnbind && options && options.removeDeveloperKeybindingsAfterLoad) {
-							developerToolsUnbind();
-						}
-					}, error => {
-						onUnexpectedError(error, enableDeveloperTools);
-					});
+				if (callbackResult instanceof Promise) {
+					await callbackResult;
+
+					if (developerToolsUnbind && options && options.removeDeveloperKeybindingsAfterLoad) {
+						developerToolsUnbind();
+					}
 				}
 			} catch (error) {
 				onUnexpectedError(error, enableDeveloperTools);
@@ -170,40 +178,55 @@
 	}
 
 	/**
-	 * @returns {{[param: string]: string }}
+	 * Parses the contents of the window condiguration that
+	 * is passed into the URL from the `electron-main` side.
+	 *
+	 * @returns {{
+	 * zoomLevel?: number,
+	 * extensionDevelopmentPath?: string[],
+	 * extensionTestsPath?: string,
+	 * userEnv?: { [key: string]: string | undefined },
+	 * appRoot: string,
+	 * nodeCachedDataDir?: string
+	 * }}
 	 */
-	function parseURLQueryArgs() {
-		const search = window.location.search || '';
-
-		return search.split(/[?&]/)
+	function parseWindowConfiguration() {
+		const rawConfiguration = (window.location.search || '').split(/[?&]/)
 			.filter(function (param) { return !!param; })
 			.map(function (param) { return param.split('='); })
 			.filter(function (param) { return param.length === 2; })
 			.reduce(function (r, param) { r[param[0]] = decodeURIComponent(param[1]); return r; }, {});
+
+		return JSON.parse(rawConfiguration['config'] || '{}') || {};
 	}
 
 	/**
-	 * @param {boolean} disallowReloadKeybinding
+	 * @param {boolean | undefined} disallowReloadKeybinding
 	 * @returns {() => void}
 	 */
 	function registerDeveloperKeybindings(disallowReloadKeybinding) {
 		const ipcRenderer = preloadGlobals.ipcRenderer;
 
-		const extractKey = function (e) {
-			return [
-				e.ctrlKey ? 'ctrl-' : '',
-				e.metaKey ? 'meta-' : '',
-				e.altKey ? 'alt-' : '',
-				e.shiftKey ? 'shift-' : '',
-				e.keyCode
-			].join('');
-		};
+		const extractKey =
+			/**
+			 * @param {KeyboardEvent} e
+			 */
+			function (e) {
+				return [
+					e.ctrlKey ? 'ctrl-' : '',
+					e.metaKey ? 'meta-' : '',
+					e.altKey ? 'alt-' : '',
+					e.shiftKey ? 'shift-' : '',
+					e.keyCode
+				].join('');
+			};
 
 		// Devtools & reload support
 		const TOGGLE_DEV_TOOLS_KB = (safeProcess.platform === 'darwin' ? 'meta-alt-73' : 'ctrl-shift-73'); // mac: Cmd-Alt-I, rest: Ctrl-Shift-I
 		const TOGGLE_DEV_TOOLS_KB_ALT = '123'; // F12
 		const RELOAD_KB = (safeProcess.platform === 'darwin' ? 'meta-82' : 'ctrl-82'); // mac: Cmd-R, rest: Ctrl-R
 
+		/** @type {((e: KeyboardEvent) => void) | undefined} */
 		let listener = function (e) {
 			const key = extractKey(e);
 			if (key === TOGGLE_DEV_TOOLS_KB || key === TOGGLE_DEV_TOOLS_KB_ALT) {

@@ -174,16 +174,16 @@ export abstract class BaseSwitchWindow extends Action {
 
 		const windows = await this.nativeHostService.getWindows();
 		const placeHolder = nls.localize('switchWindowPlaceHolder', "Select a window to switch to");
-		const picks = windows.map(win => {
-			const resource = win.filename ? URI.file(win.filename) : win.folderUri ? win.folderUri : win.workspace ? win.workspace.configPath : undefined;
-			const fileKind = win.filename ? FileKind.FILE : win.workspace ? FileKind.ROOT_FOLDER : win.folderUri ? FileKind.FOLDER : FileKind.FILE;
+		const picks = windows.map(window => {
+			const resource = window.filename ? URI.file(window.filename) : window.folderUri ? window.folderUri : window.workspace ? window.workspace.configPath : undefined;
+			const fileKind = window.filename ? FileKind.FILE : window.workspace ? FileKind.ROOT_FOLDER : window.folderUri ? FileKind.FOLDER : FileKind.FILE;
 			return {
-				payload: win.id,
-				label: win.title,
-				ariaLabel: win.dirty ? nls.localize('windowDirtyAriaLabel', "{0}, dirty window", win.title) : win.title,
+				payload: window.id,
+				label: window.title,
+				ariaLabel: window.dirty ? nls.localize('windowDirtyAriaLabel', "{0}, dirty window", window.title) : window.title,
 				iconClasses: getIconClasses(this.modelService, this.modeService, resource, fileKind),
-				description: (currentWindowId === win.id) ? nls.localize('current', "Current Window") : undefined,
-				buttons: currentWindowId !== win.id ? win.dirty ? [this.closeDirtyWindowAction] : [this.closeWindowAction] : undefined
+				description: (currentWindowId === window.id) ? nls.localize('current', "Current Window") : undefined,
+				buttons: currentWindowId !== window.id ? window.dirty ? [this.closeDirtyWindowAction] : [this.closeWindowAction] : undefined
 			};
 		});
 		const autoFocusIndex = (picks.indexOf(picks.filter(pick => pick.payload === currentWindowId)[0]) + 1) % picks.length;

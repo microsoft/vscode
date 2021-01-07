@@ -13,21 +13,25 @@ import { IProductService } from 'vs/platform/product/common/productService';
 import { IQuickInputService } from 'vs/platform/quickinput/common/quickInput';
 import { IStorageService } from 'vs/platform/storage/common/storage';
 import { IWorkbenchContribution } from 'vs/workbench/common/contributions';
-import {
-	configureOpenerTrustedDomainsHandler,
-	readTrustedDomains
-} from 'vs/workbench/contrib/url/browser/trustedDomains';
+import { configureOpenerTrustedDomainsHandler, readAuthenticationTrustedDomains, readStaticTrustedDomains, readWorkspaceTrustedDomains } from 'vs/workbench/contrib/url/browser/trustedDomains';
 import { IEditorService } from 'vs/workbench/services/editor/common/editorService';
 import { IClipboardService } from 'vs/platform/clipboard/common/clipboardService';
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { INotificationService } from 'vs/platform/notification/common/notification';
+import { IdleValue } from 'vs/base/common/async';
+import { IAuthenticationService } from 'vs/workbench/services/authentication/browser/authenticationService';
+import { IWorkspaceContextService } from 'vs/platform/workspace/common/workspace';
 
 type TrustedDomainsDialogActionClassification = {
 	action: { classification: 'SystemMetaData', purpose: 'FeatureInsight' };
 };
 
 export class OpenerValidatorContributions implements IWorkbenchContribution {
+
+	private _readWorkspaceTrustedDomainsResult: IdleValue<Promise<string[]>>;
+	private _readAuthenticationTrustedDomainsResult: IdleValue<Promise<string[]>>;
+
 	constructor(
 		@IOpenerService private readonly _openerService: IOpenerService,
 		@IStorageService private readonly _storageService: IStorageService,
@@ -39,8 +43,26 @@ export class OpenerValidatorContributions implements IWorkbenchContribution {
 		@ITelemetryService private readonly _telemetryService: ITelemetryService,
 		@IInstantiationService private readonly _instantiationService: IInstantiationService,
 		@INotificationService private readonly _notificationService: INotificationService,
+		@IAuthenticationService private readonly _authenticationService: IAuthenticationService,
+		@IWorkspaceContextService private readonly _workspaceContextService: IWorkspaceContextService,
 	) {
 		this._openerService.registerValidator({ shouldOpen: r => this.validateLink(r) });
+
+		this._readAuthenticationTrustedDomainsResult = new IdleValue(() =>
+			this._instantiationService.invokeFunction(readAuthenticationTrustedDomains));
+		this._authenticationService.onDidRegisterAuthenticationProvider(() => {
+			this._readAuthenticationTrustedDomainsResult?.dispose();
+			this._readAuthenticationTrustedDomainsResult = new IdleValue(() =>
+				this._instantiationService.invokeFunction(readAuthenticationTrustedDomains));
+		});
+
+		this._readWorkspaceTrustedDomainsResult = new IdleValue(() =>
+			this._instantiationService.invokeFunction(readWorkspaceTrustedDomains));
+		this._workspaceContextService.onDidChangeWorkspaceFolders(() => {
+			this._readWorkspaceTrustedDomainsResult?.dispose();
+			this._readWorkspaceTrustedDomainsResult = new IdleValue(() =>
+				this._instantiationService.invokeFunction(readWorkspaceTrustedDomains));
+		});
 	}
 
 	async validateLink(resource: URI | string): Promise<boolean> {
@@ -54,7 +76,8 @@ export class OpenerValidatorContributions implements IWorkbenchContribution {
 		const { scheme, authority, path, query, fragment } = resource;
 
 		const domainToOpen = `${scheme}://${authority}`;
-		const { defaultTrustedDomains, trustedDomains, userDomains, workspaceDomains } = await this._instantiationService.invokeFunction(readTrustedDomains);
+		const [workspaceDomains, userDomains] = await Promise.all([this._readWorkspaceTrustedDomainsResult.value, this._readAuthenticationTrustedDomainsResult.value]);
+		const { defaultTrustedDomains, trustedDomains, } = this._instantiationService.invokeFunction(readStaticTrustedDomains);
 		const allTrustedDomains = [...defaultTrustedDomains, ...trustedDomains, ...userDomains, ...workspaceDomains];
 
 		if (isURLDomainTrusted(resource, allTrustedDomains)) {
@@ -260,13 +283,15 @@ const doURLMatch = (
 		options.push(doURLMatch(memo, url, trustedURL, urlOffset, trustedURLOffset + 2));
 	}
 
-	if (trustedURL[trustedURLOffset] + trustedURL[trustedURLOffset + 1] === '.*' && url[urlOffset] === '.') {
-		// IP mode. Consume one segment of numbers or nothing.
-		let endBlockIndex = urlOffset + 1;
-		do { endBlockIndex++; } while (/[0-9]/.test(url[endBlockIndex]));
-		if (['.', ':', '/', undefined].includes(url[endBlockIndex])) {
-			options.push(doURLMatch(memo, url, trustedURL, endBlockIndex, trustedURLOffset + 2));
+	if (trustedURL[trustedURLOffset] === '*') {
+		// Any match. Either consume one thing and don't advance base or consume nothing and do.
+		if (urlOffset + 1 === url.length) {
+			// If we're at the end of the input url consume one from both.
+			options.push(doURLMatch(memo, url, trustedURL, urlOffset + 1, trustedURLOffset + 1));
+		} else {
+			options.push(doURLMatch(memo, url, trustedURL, urlOffset + 1, trustedURLOffset));
 		}
+		options.push(doURLMatch(memo, url, trustedURL, urlOffset, trustedURLOffset + 1));
 	}
 
 	if (trustedURL[trustedURLOffset] + trustedURL[trustedURLOffset + 1] === ':*') {

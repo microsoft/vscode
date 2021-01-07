@@ -13,8 +13,9 @@ import { mkdirp, writeFile, exists, unlink, rimraf, RimRafMode } from 'vs/base/n
 import { timeout } from 'vs/base/common/async';
 import { Event, Emitter } from 'vs/base/common/event';
 import { isWindows } from 'vs/base/common/platform';
+import { flakySuite } from 'vs/base/test/node/testUtils';
 
-suite('Storage Library', () => {
+flakySuite('Storage Library', function () {
 
 	function uniqueStorageDir(): string {
 		const id = generateUuid();
@@ -40,10 +41,15 @@ suite('Storage Library', () => {
 			changes.add(key);
 		});
 
+		await storage.whenFlushed(); // returns immediately when no pending updates
+
 		// Simple updates
 		const set1Promise = storage.set('bar', 'foo');
 		const set2Promise = storage.set('barNumber', 55);
 		const set3Promise = storage.set('barBoolean', true);
+
+		let flushPromiseResolved = false;
+		storage.whenFlushed().then(() => flushPromiseResolved = true);
 
 		equal(storage.get('bar'), 'foo');
 		equal(storage.getNumber('barNumber'), 55);
@@ -57,6 +63,7 @@ suite('Storage Library', () => {
 		let setPromiseResolved = false;
 		await Promise.all([set1Promise, set2Promise, set3Promise]).then(() => setPromiseResolved = true);
 		equal(setPromiseResolved, true);
+		equal(flushPromiseResolved, true);
 
 		changes = new Set<string>();
 
@@ -161,6 +168,9 @@ suite('Storage Library', () => {
 		const set1Promise = storage.set('foo', 'bar');
 		const set2Promise = storage.set('bar', 'foo');
 
+		let flushPromiseResolved = false;
+		storage.whenFlushed().then(() => flushPromiseResolved = true);
+
 		equal(storage.get('foo'), 'bar');
 		equal(storage.get('bar'), 'foo');
 
@@ -170,6 +180,7 @@ suite('Storage Library', () => {
 		await storage.close();
 
 		equal(setPromiseResolved, true);
+		equal(flushPromiseResolved, true);
 
 		storage = new Storage(new SQLiteStorageDatabase(join(storageDir, 'storage.db')));
 		await storage.init();
@@ -221,6 +232,9 @@ suite('Storage Library', () => {
 		const set2Promise = storage.set('foo', 'bar2');
 		const set3Promise = storage.set('foo', 'bar3');
 
+		let flushPromiseResolved = false;
+		storage.whenFlushed().then(() => flushPromiseResolved = true);
+
 		equal(storage.get('foo'), 'bar3');
 		equal(changes.size, 1);
 		ok(changes.has('foo'));
@@ -228,6 +242,7 @@ suite('Storage Library', () => {
 		let setPromiseResolved = false;
 		await Promise.all([set1Promise, set2Promise, set3Promise]).then(() => setPromiseResolved = true);
 		ok(setPromiseResolved);
+		ok(flushPromiseResolved);
 
 		changes = new Set<string>();
 
@@ -278,7 +293,7 @@ suite('Storage Library', () => {
 	});
 });
 
-suite('SQLite Storage Library', () => {
+flakySuite('SQLite Storage Library', function () {
 
 	function uniqueStorageDir(): string {
 		const id = generateUuid();
@@ -540,8 +555,6 @@ suite('SQLite Storage Library', () => {
 	});
 
 	test('real world example', async function () {
-		this.timeout(20000);
-
 		const storageDir = uniqueStorageDir();
 
 		await mkdirp(storageDir);
@@ -631,8 +644,6 @@ suite('SQLite Storage Library', () => {
 	});
 
 	test('very large item value', async function () {
-		this.timeout(20000);
-
 		const storageDir = uniqueStorageDir();
 
 		await mkdirp(storageDir);

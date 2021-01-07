@@ -20,11 +20,6 @@ import FormattingOptionsManager from './fileConfigurationManager';
 
 const localize = nls.loadMessageBundle();
 
-namespace Experimental {
-	export interface RefactorActionInfo extends Proto.RefactorActionInfo {
-		readonly notApplicableReason?: string;
-	}
-}
 
 interface DidApplyRefactoringCommand_Args {
 	readonly codeAction: InlinedCodeAction
@@ -58,10 +53,13 @@ class DidApplyRefactoringCommand implements Command {
 
 		const renameLocation = args.codeAction.renameLocation;
 		if (renameLocation) {
-			await vscode.commands.executeCommand('editor.action.rename', [
-				args.codeAction.document.uri,
-				typeConverters.Position.fromLocation(renameLocation)
-			]);
+			// Disable renames in interactive playground https://github.com/microsoft/vscode/issues/75137
+			if (args.codeAction.document.uri.scheme !== fileSchemes.walkThroughSnippet) {
+				await vscode.commands.executeCommand('editor.action.rename', [
+					args.codeAction.document.uri,
+					typeConverters.Position.fromLocation(renameLocation)
+				]);
+			}
 		}
 	}
 }
@@ -300,9 +298,10 @@ class TypeScriptRefactorProvider implements vscode.CodeActionProvider<TsCodeActi
 			}
 			this.formattingOptionsManager.ensureConfigurationForDocument(document, token);
 
-			const args: Proto.GetApplicableRefactorsRequestArgs = {
+			const args: Proto.GetApplicableRefactorsRequestArgs & { kind?: string } = {
 				...typeConverters.Range.toFileRangeRequestArgs(file, rangeOrSelection),
 				triggerReason: this.toTsTriggerReason(context),
+				kind: context.only?.value
 			};
 			return this.client.execute('getApplicableRefactors', args, token);
 		});
@@ -354,7 +353,7 @@ class TypeScriptRefactorProvider implements vscode.CodeActionProvider<TsCodeActi
 	}
 
 	private refactorActionToCodeAction(
-		action: Experimental.RefactorActionInfo,
+		action: Proto.RefactorActionInfo,
 		document: vscode.TextDocument,
 		info: Proto.ApplicableRefactorInfo,
 		rangeOrSelection: vscode.Range | vscode.Selection,
@@ -386,6 +385,9 @@ class TypeScriptRefactorProvider implements vscode.CodeActionProvider<TsCodeActi
 	}
 
 	private static getKind(refactor: Proto.RefactorActionInfo) {
+		if ((refactor as Proto.RefactorActionInfo & { kind?: string }).kind) {
+			return vscode.CodeActionKind.Empty.append((refactor as Proto.RefactorActionInfo & { kind?: string }).kind!);
+		}
 		const match = allKnownCodeActionKinds.find(kind => kind.matches(refactor));
 		return match ? match.kind : vscode.CodeActionKind.Refactor;
 	}

@@ -17,7 +17,6 @@ import { IDisposable, dispose } from 'vs/base/common/lifecycle';
 import { EditorsObserver } from 'vs/workbench/browser/parts/editor/editorsObserver';
 import { timeout } from 'vs/base/common/async';
 import { TestStorageService } from 'vs/workbench/test/common/workbenchTestServices';
-import { isWeb } from 'vs/base/common/platform';
 
 const TEST_EDITOR_ID = 'MyTestEditorForEditorsObserver';
 const TEST_EDITOR_INPUT_ID = 'testEditorInputForEditorsObserver';
@@ -205,10 +204,7 @@ suite('EditorsObserver', function () {
 		part.dispose();
 	});
 
-	test('copy group', async function () {
-		if (isWeb) {
-			this.skip();
-		}
+	test.skip('copy group', async function () { // https://github.com/microsoft/vscode/issues/113620
 		const [part, observer] = await createEditorObserver();
 
 		const input1 = new TestFileEditorInput(URI.parse('foo://bar1'), TEST_SERIALIZABLE_EDITOR_INPUT_ID);
@@ -298,7 +294,7 @@ suite('EditorsObserver', function () {
 		assert.equal(observer.hasEditor(input2.resource), true);
 		assert.equal(observer.hasEditor(input3.resource), true);
 
-		storage._onWillSaveState.fire({ reason: WillSaveStateReason.SHUTDOWN });
+		storage.emitWillSaveState(WillSaveStateReason.SHUTDOWN);
 
 		const restoredObserver = new EditorsObserver(part, storage);
 		await part.whenRestored;
@@ -350,7 +346,7 @@ suite('EditorsObserver', function () {
 		assert.equal(observer.hasEditor(input2.resource), true);
 		assert.equal(observer.hasEditor(input3.resource), true);
 
-		storage._onWillSaveState.fire({ reason: WillSaveStateReason.SHUTDOWN });
+		storage.emitWillSaveState(WillSaveStateReason.SHUTDOWN);
 
 		const restoredObserver = new EditorsObserver(part, storage);
 		await part.whenRestored;
@@ -390,7 +386,7 @@ suite('EditorsObserver', function () {
 		assert.equal(currentEditorsMRU[0].editor, input1);
 		assert.equal(observer.hasEditor(input1.resource), true);
 
-		storage._onWillSaveState.fire({ reason: WillSaveStateReason.SHUTDOWN });
+		storage.emitWillSaveState(WillSaveStateReason.SHUTDOWN);
 
 		const restoredObserver = new EditorsObserver(part, storage);
 		await part.whenRestored;

@@ -9,7 +9,9 @@
 
 	const hostMessaging = new class HostMessaging {
 		constructor() {
+			/** @type {Map<string, Array<(event: MessageEvent, data: any) => void>>} */
 			this.handlers = new Map();
+
 			window.addEventListener('message', (e) => {
 				if (e.data && (e.data.command === 'onmessage' || e.data.command === 'do-update-state')) {
 					// Came from inner iframe
@@ -18,21 +20,36 @@
 				}
 
 				const channel = e.data.channel;
-				const handler = this.handlers.get(channel);
-				if (handler) {
-					handler(e, e.data.args);
+				const handlers = this.handlers.get(channel);
+				if (handlers) {
+					for (const handler of handlers) {
+						handler(e, e.data.args);
+					}
 				} else {
 					console.log('no handler for ', e);
 				}
 			});
 		}
 
+		/**
+		 * @param {string} channel
+		 * @param {any} data
+		 */
 		postMessage(channel, data) {
 			window.parent.postMessage({ target: id, channel, data }, '*');
 		}
 
+		/**
+		 * @param {string} channel
+		 * @param {(event: MessageEvent, data: any) => void} handler
+		 */
 		onMessage(channel, handler) {
-			this.handlers.set(channel, handler);
+			let handlers = this.handlers.get(channel);
+			if (!handlers) {
+				handlers = [];
+				this.handlers.set(channel, handlers);
+			}
+			handlers.push(handler);
 		}
 	}();
 
@@ -41,6 +58,7 @@
 		hostMessaging.postMessage('fatal-error', { message });
 	}
 
+	/** @type {Promise<void>} */
 	const workerReady = new Promise(async (resolveWorkerReady) => {
 		if (onElectron) {
 			return resolveWorkerReady();
@@ -105,6 +123,60 @@
 		}
 	}
 
+	const unloadMonitor = new class {
+
+		constructor() {
+			this.confirmBeforeClose = 'keyboardOnly';
+			this.isModifierKeyDown = false;
+
+			hostMessaging.onMessage('set-confirm-before-close', (_e, /** @type {string} */ data) => {
+				this.confirmBeforeClose = data;
+			});
+
+			hostMessaging.onMessage('content', (_e, /** @type {any} */ data) => {
+				this.confirmBeforeClose = data.confirmBeforeClose;
+			});
+
+			window.addEventListener('beforeunload', (event) => {
+				if (onElectron) {
+					return;
+				}
+
+				switch (this.confirmBeforeClose) {
+					case 'always':
+						{
+							event.preventDefault();
+							event.returnValue = '';
+							return '';
+						}
+					case 'never':
+						{
+							break;
+						}
+					case 'keyboardOnly':
+					default: {
+						if (this.isModifierKeyDown) {
+							event.preventDefault();
+							event.returnValue = '';
+							return '';
+						}
+						break;
+					}
+				}
+			});
+		}
+
+		onIframeLoaded(/** @type {HTMLIFrameElement} */frame) {
+			frame.contentWindow.addEventListener('keydown', e => {
+				this.isModifierKeyDown = e.metaKey || e.ctrlKey || e.altKey;
+			});
+
+			frame.contentWindow.addEventListener('keyup', () => {
+				this.isModifierKeyDown = false;
+			});
+		}
+	};
+
 	/** @type {import('./main').WebviewHost} */
 	const host = {
 		postMessage: hostMessaging.postMessage.bind(hostMessaging),
@@ -112,6 +184,9 @@
 		ready: workerReady,
 		fakeLoad: !onElectron,
 		onElectron: onElectron,
+		onIframeLoaded: (/** @type {HTMLIFrameElement} */ frame) => {
+			unloadMonitor.onIframeLoaded(frame);
+		},
 		rewriteCSP: onElectron
 			? (csp) => {
 				return csp.replace(/vscode-resource:(?=(\s|;|$))/g, 'vscode-webview-resource:');

@@ -1,0 +1,47 @@
+/*---------------------------------------------------------------------------------------------
+ *  Copyright (c) Microsoft Corporation. All rights reserved.
+ *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *--------------------------------------------------------------------------------------------*/
+
+.test-explorer .test-item {
+	display: flex;
+	align-items: center;
+}
+
+.test-explorer .monaco-list-row .monaco-action-bar {
+	display: none;
+	flex-shrink: 0;
+	margin-right: 1px;
+}
+
+.test-explorer .monaco-list-row:hover .monaco-action-bar {
+	display: initial;
+}
+
+.test-explorer .name {
+	overflow: hidden;
+	text-overflow: ellipsis;
+	flex-grow: 1;
+	height: 22px;
+	align-items: center;
+}
+
+.test-explorer .computed-state {
+	margin-right: 0.25em;
+}
+
+.monaco-workbench
+	.test-explorer
+	.monaco-action-bar
+	.action-item
+	> .action-label {
+	width: 16px;
+	height: 100%;
+	line-height: 22px;
+	margin-right: 8px;
+}
+
+.codicon-testing-loading-icon::before {
+	/* Use steps to throttle FPS to reduce CPU usage */
+	animation: codicon-spin 1.25s steps(30) infinite;
+}

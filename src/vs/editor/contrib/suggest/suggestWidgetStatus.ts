@@ -5,15 +5,32 @@
 
 import * as dom from 'vs/base/browser/dom';
 import { ActionBar } from 'vs/base/browser/ui/actionbar/actionbar';
-import { ActionViewItem } from 'vs/base/browser/ui/actionbar/actionViewItems';
 import { IActionViewItemProvider, IAction } from 'vs/base/common/actions';
-import { isFalsyOrEmpty } from 'vs/base/common/arrays';
+import { ResolvedKeybinding } from 'vs/base/common/keyCodes';
 import { DisposableStore } from 'vs/base/common/lifecycle';
-import { format } from 'vs/base/common/strings';
 import { suggestWidgetStatusbarMenu } from 'vs/editor/contrib/suggest/suggest';
-import { IMenuService } from 'vs/platform/actions/common/actions';
+import { localize } from 'vs/nls';
+import { MenuEntryActionViewItem } from 'vs/platform/actions/browser/menuEntryActionViewItem';
+import { IMenuService, MenuItemAction } from 'vs/platform/actions/common/actions';
 import { IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
-import { IKeybindingService } from 'vs/platform/keybinding/common/keybinding';
+import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
+
+class StatusBarViewItem extends MenuEntryActionViewItem {
+
+	updateLabel() {
+		const kb = this._keybindingService.lookupKeybinding(this._action.id);
+		if (!kb) {
+			return super.updateLabel();
+		}
+		if (this.label) {
+			this.label.textContent = localize('ddd', '{0} ({1})', this._action.label, StatusBarViewItem.symbolPrintEnter(kb));
+		}
+	}
+
+	static symbolPrintEnter(kb: ResolvedKeybinding) {
+		return kb.getLabel()?.replace(/\benter\b/gi, '\u23CE');
+	}
+}
 
 export class SuggestWidgetStatus {
 
@@ -23,33 +40,24 @@ export class SuggestWidgetStatus {
 
 	constructor(
 		container: HTMLElement,
-		@IKeybindingService keybindingService: IKeybindingService,
+		@IInstantiationService instantiationService: IInstantiationService,
 		@IMenuService menuService: IMenuService,
 		@IContextKeyService contextKeyService: IContextKeyService,
 	) {
 		this.element = dom.append(container, dom.$('.suggest-status-bar'));
 
-
 		const actionViewItemProvider = <IActionViewItemProvider>(action => {
-			const kb = keybindingService.lookupKeybindings(action.id);
-			return new class extends ActionViewItem {
-				constructor() {
-					super(undefined, action, { label: true, icon: false });
-				}
-				updateLabel() {
-					if (isFalsyOrEmpty(kb) || !this.label) {
-						return super.updateLabel();
-					}
-					const { label } = this.getAction();
-					this.label.textContent = /{\d}/.test(label)
-						? format(this.getAction().label, kb[0].getLabel())
-						: `${this.getAction().label} (${kb[0].getLabel()})`;
-				}
-			};
+			return action instanceof MenuItemAction
+				? instantiationService.createInstance(StatusBarViewItem, action)
+				: undefined;
 		});
 		const leftActions = new ActionBar(this.element, { actionViewItemProvider });
 		const rightActions = new ActionBar(this.element, { actionViewItemProvider });
 		const menu = menuService.createMenu(suggestWidgetStatusbarMenu, contextKeyService);
+
+		leftActions.domNode.classList.add('left');
+		rightActions.domNode.classList.add('right');
+
 		const renderMenu = () => {
 			const left: IAction[] = [];
 			const right: IAction[] = [];

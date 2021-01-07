@@ -10,20 +10,15 @@ import * as gulp from 'gulp';
 import * as path from 'path';
 import { Stream } from 'stream';
 import * as File from 'vinyl';
-import * as vsce from 'vsce';
 import { createStatsStream } from './stats';
 import * as util2 from './util';
-import remote = require('gulp-remote-retry-src');
 const vzip = require('gulp-vinyl-zip');
 import filter = require('gulp-filter');
 import rename = require('gulp-rename');
 import * as fancyLog from 'fancy-log';
 import * as ansiColors from 'ansi-colors';
 const buffer = require('gulp-buffer');
-import json = require('gulp-json-editor');
 import * as jsoncParser from 'jsonc-parser';
-const webpack = require('webpack');
-const webpackGulp = require('webpack-stream');
 const util = require('./util');
 const root = path.dirname(path.dirname(__dirname));
 const commit = util.getVersion(root);
@@ -96,6 +91,10 @@ function fromLocalWebpack(extensionPath: string, webpackConfigFileName: string):
 			}
 		}
 	}
+
+	const vsce = require('vsce') as typeof import('vsce');
+	const webpack = require('webpack');
+	const webpackGulp = require('webpack-stream');
 
 	vsce.listFiles({ cwd: extensionPath, packageManager: vsce.PackageManager.Yarn, packagedDependencies }).then(fileNames => {
 		const files = fileNames
@@ -175,6 +174,8 @@ function fromLocalWebpack(extensionPath: string, webpackConfigFileName: string):
 function fromLocalNormal(extensionPath: string): Stream {
 	const result = es.through();
 
+	const vsce = require('vsce') as typeof import('vsce');
+
 	vsce.listFiles({ cwd: extensionPath, packageManager: vsce.PackageManager.Yarn })
 		.then(fileNames => {
 			const files = fileNames
@@ -200,6 +201,9 @@ const baseHeaders = {
 };
 
 export function fromMarketplace(extensionName: string, version: string, metadata: any): Stream {
+	const remote = require('gulp-remote-retry-src');
+	const json = require('gulp-json-editor') as typeof import('gulp-json-editor');
+
 	const [publisher, name] = extensionName.split('.');
 	const url = `https://marketplace.visualstudio.com/_apis/public/gallery/publishers/${publisher}/vsextensions/${name}/${version}/vspackage`;
 

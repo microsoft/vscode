@@ -2,7 +2,7 @@
 	"name": "Code - OSS",
 
 	// Image contents: https://github.com/microsoft/vscode-dev-containers/blob/master/repository-containers/images/github.com/microsoft/vscode/.devcontainer/base.Dockerfile
-	"image": "mcr.microsoft.com/vscode/devcontainers/repos/microsoft/vscode:master",
+	"image": "mcr.microsoft.com/vscode/devcontainers/repos/microsoft/vscode:branch-master",
 
 	"workspaceMount": "source=${localWorkspaceFolder},target=/home/node/workspace/vscode,type=bind,consistency=cached",
 	"workspaceFolder": "/home/node/workspace/vscode",
@@ -15,14 +15,12 @@
 		"resmon.show.cpufreq": false
 	},
 
-	// noVNC, VNC ports, debug
+	// noVNC, VNC, debug ports
 	"forwardPorts": [6080, 5901, 9222],
 
 	"extensions": [
 		"dbaeumer.vscode-eslint",
-		"EditorConfig.EditorConfig",
-		"mutantdino.resourcemonitor",
-		"GitHub.vscode-pull-request-github"
+		"mutantdino.resourcemonitor"
 	],
 
 	// Optionally loads a cached yarn install for the repo

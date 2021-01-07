@@ -10,10 +10,9 @@ import { DisposableStore, toDisposable } from 'vs/base/common/lifecycle';
 import { UserDataSyncService } from 'vs/platform/userDataSync/common/userDataSyncService';
 import { IFileService } from 'vs/platform/files/common/files';
 import { IEnvironmentService } from 'vs/platform/environment/common/environment';
-import { IStorageService, StorageScope } from 'vs/platform/storage/common/storage';
+import { IStorageService, StorageScope, StorageTarget } from 'vs/platform/storage/common/storage';
 import { GlobalStateSynchroniser } from 'vs/platform/userDataSync/common/globalStateSync';
 import { VSBuffer } from 'vs/base/common/buffer';
-import { IStorageKeysSyncRegistryService } from 'vs/platform/userDataSync/common/storageKeys';
 
 
 suite('GlobalStateSync', () => {
@@ -28,17 +27,11 @@ suite('GlobalStateSync', () => {
 	setup(async () => {
 		testClient = disposableStore.add(new UserDataSyncClient(server));
 		await testClient.setUp(true);
-		let storageKeysSyncRegistryService = testClient.instantiationService.get(IStorageKeysSyncRegistryService);
-		storageKeysSyncRegistryService.registerStorageKey({ key: 'a', version: 1 });
-		storageKeysSyncRegistryService.registerStorageKey({ key: 'b', version: 1 });
 		testObject = (testClient.instantiationService.get(IUserDataSyncService) as UserDataSyncService).getSynchroniser(SyncResource.GlobalState) as GlobalStateSynchroniser;
 		disposableStore.add(toDisposable(() => testClient.instantiationService.get(IUserDataSyncStoreService).clear()));
 
 		client2 = disposableStore.add(new UserDataSyncClient(server));
 		await client2.setUp(true);
-		storageKeysSyncRegistryService = client2.instantiationService.get(IStorageKeysSyncRegistryService);
-		storageKeysSyncRegistryService.registerStorageKey({ key: 'a', version: 1 });
-		storageKeysSyncRegistryService.registerStorageKey({ key: 'b', version: 1 });
 	});
 
 	teardown(() => disposableStore.clear());
@@ -72,7 +65,7 @@ suite('GlobalStateSync', () => {
 
 	test('when global state is created after first sync', async () => {
 		await testObject.sync(await testClient.manifest());
-		updateStorage('a', 'value1', testClient);
+		updateUserStorage('a', 'value1', testClient);
 
 		let lastSyncUserData = await testObject.getLastSyncUserData();
 		const manifest = await testClient.manifest();
@@ -91,7 +84,8 @@ suite('GlobalStateSync', () => {
 	});
 
 	test('first time sync - outgoing to server (no state)', async () => {
-		updateStorage('a', 'value1', testClient);
+		updateUserStorage('a', 'value1', testClient);
+		updateMachineStorage('b', 'value1', testClient);
 		await updateLocale(testClient);
 
 		await testObject.sync(await testClient.manifest());
@@ -105,7 +99,7 @@ suite('GlobalStateSync', () => {
 	});
 
 	test('first time sync - incoming from server (no state)', async () => {
-		updateStorage('a', 'value1', client2);
+		updateUserStorage('a', 'value1', client2);
 		await updateLocale(client2);
 		await client2.sync();
 
@@ -118,10 +112,10 @@ suite('GlobalStateSync', () => {
 	});
 
 	test('first time sync when storage exists', async () => {
-		updateStorage('a', 'value1', client2);
+		updateUserStorage('a', 'value1', client2);
 		await client2.sync();
 
-		updateStorage('b', 'value2', testClient);
+		updateUserStorage('b', 'value2', testClient);
 		await testObject.sync(await testClient.manifest());
 		assert.equal(testObject.status, SyncStatus.Idle);
 		assert.deepEqual(testObject.conflicts, []);
@@ -136,10 +130,10 @@ suite('GlobalStateSync', () => {
 	});
 
 	test('first time sync when storage exists - has conflicts', async () => {
-		updateStorage('a', 'value1', client2);
+		updateUserStorage('a', 'value1', client2);
 		await client2.sync();
 
-		updateStorage('a', 'value2', client2);
+		updateUserStorage('a', 'value2', client2);
 		await testObject.sync(await testClient.manifest());
 
 		assert.equal(testObject.status, SyncStatus.Idle);
@@ -154,10 +148,10 @@ suite('GlobalStateSync', () => {
 	});
 
 	test('sync adding a storage value', async () => {
-		updateStorage('a', 'value1', testClient);
+		updateUserStorage('a', 'value1', testClient);
 		await testObject.sync(await testClient.manifest());
 
-		updateStorage('b', 'value2', testClient);
+		updateUserStorage('b', 'value2', testClient);
 		await testObject.sync(await testClient.manifest());
 		assert.equal(testObject.status, SyncStatus.Idle);
 		assert.deepEqual(testObject.conflicts, []);
@@ -172,10 +166,10 @@ suite('GlobalStateSync', () => {
 	});
 
 	test('sync updating a storage value', async () => {
-		updateStorage('a', 'value1', testClient);
+		updateUserStorage('a', 'value1', testClient);
 		await testObject.sync(await testClient.manifest());
 
-		updateStorage('a', 'value2', testClient);
+		updateUserStorage('a', 'value2', testClient);
 		await testObject.sync(await testClient.manifest());
 		assert.equal(testObject.status, SyncStatus.Idle);
 		assert.deepEqual(testObject.conflicts, []);
@@ -189,8 +183,8 @@ suite('GlobalStateSync', () => {
 	});
 
 	test('sync removing a storage value', async () => {
-		updateStorage('a', 'value1', testClient);
-		updateStorage('b', 'value2', testClient);
+		updateUserStorage('a', 'value1', testClient);
+		updateUserStorage('b', 'value2', testClient);
 		await testObject.sync(await testClient.manifest());
 
 		removeStorage('b', testClient);
@@ -218,9 +212,14 @@ suite('GlobalStateSync', () => {
 		await fileService.writeFile(environmentService.argvResource, VSBuffer.fromString(JSON.stringify({ 'locale': 'en' })));
 	}
 
-	function updateStorage(key: string, value: string, client: UserDataSyncClient): void {
+	function updateUserStorage(key: string, value: string, client: UserDataSyncClient): void {
 		const storageService = client.instantiationService.get(IStorageService);
-		storageService.store(key, value, StorageScope.GLOBAL);
+		storageService.store(key, value, StorageScope.GLOBAL, StorageTarget.USER);
+	}
+
+	function updateMachineStorage(key: string, value: string, client: UserDataSyncClient): void {
+		const storageService = client.instantiationService.get(IStorageService);
+		storageService.store(key, value, StorageScope.GLOBAL, StorageTarget.MACHINE);
 	}
 
 	function removeStorage(key: string, client: UserDataSyncClient): void {

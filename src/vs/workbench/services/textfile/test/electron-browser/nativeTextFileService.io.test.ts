@@ -12,7 +12,7 @@ import { rimraf, RimRafMode, copy, readFile, exists, stat } from 'vs/base/node/p
 import { DisposableStore } from 'vs/base/common/lifecycle';
 import { FileService } from 'vs/platform/files/common/fileService';
 import { NullLogService } from 'vs/platform/log/common/log';
-import { getRandomTestPath } from 'vs/base/test/node/testUtils';
+import { flakySuite, getRandomTestPath } from 'vs/base/test/node/testUtils';
 import { tmpdir } from 'os';
 import { DiskFileSystemProvider } from 'vs/platform/files/node/diskFileSystemProvider';
 import { generateUuid } from 'vs/base/common/uuid';
@@ -25,21 +25,13 @@ import { IWorkingCopyFileService, WorkingCopyFileService } from 'vs/workbench/se
 import { TestWorkingCopyService } from 'vs/workbench/test/common/workbenchTestServices';
 import { UriIdentityService } from 'vs/workbench/services/uriIdentity/common/uriIdentityService';
 
-suite('Files - NativeTextFileService i/o', function () {
+flakySuite('Files - NativeTextFileService i/o', function () {
 	const parentDir = getRandomTestPath(tmpdir(), 'vsctests', 'textfileservice');
 
 	const disposables = new DisposableStore();
 
 	let service: ITextFileService;
 	let testDir: string;
-
-	// Given issues such as https://github.com/microsoft/vscode/issues/78602
-	// and https://github.com/microsoft/vscode/issues/92334 we see random test
-	// failures when accessing the native file system. To diagnose further, we
-	// retry node.js file access tests up to 3 times to rule out any random disk
-	// issue and increase the timeout.
-	this.retries(3);
-	this.timeout(1000 * 10);
 
 	createSuite({
 		setup: async () => {

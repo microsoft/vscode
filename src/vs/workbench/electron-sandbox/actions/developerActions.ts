@@ -42,6 +42,9 @@ export class ConfigureRuntimeArgumentsAction extends Action {
 	}
 
 	async run(): Promise<void> {
-		await this.editorService.openEditor({ resource: this.environmentService.argvResource });
+		await this.editorService.openEditor({
+			resource: this.environmentService.argvResource,
+			options: { pinned: true }
+		});
 	}
 }

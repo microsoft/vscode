@@ -6,16 +6,6 @@
 (function () {
 	'use strict';
 
-	const registerVscodeResourceScheme = (function () {
-		let hasRegistered = false;
-		return () => {
-			if (hasRegistered) {
-				return;
-			}
-			hasRegistered = true;
-		};
-	}());
-
 	const ipcRenderer = require('electron').ipcRenderer;
 
 	let isInDevelopmentMode = false;
@@ -73,8 +63,6 @@
 	});
 
 	document.addEventListener('DOMContentLoaded', () => {
-		registerVscodeResourceScheme();
-
 		// Forward messages from the embedded iframe
 		window.onmessage = (message) => {
 			ipcRenderer.sendToHost(message.data.command, message.data.data);

@@ -35,8 +35,12 @@ class CodeActionAction extends Action {
 		public readonly action: CodeAction,
 		callback: () => Promise<void>,
 	) {
-		super(action.command ? action.command.id : action.title, action.title, undefined, !action.disabled, callback);
+		super(action.command ? action.command.id : action.title, stripNewlines(action.title), undefined, !action.disabled, callback);
 	}
+}
+
+function stripNewlines(str: string): string {
+	return str.replace(/\r\n|\r|\n/g, ' ');
 }
 
 export interface CodeActionShowOptions {
@@ -224,3 +228,5 @@ export class CodeActionKeybindingResolver {
 			}, undefined as ResolveCodeActionKeybinding | undefined);
 	}
 }
+
+

@@ -4,6 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { CharCode } from 'vs/base/common/charCode';
+import { splitLines } from 'vs/base/common/strings';
 import { Range } from 'vs/editor/common/core/range';
 import { DefaultEndOfLine, ITextBuffer, ITextBufferBuilder, ValidAnnotatedEditOperation } from 'vs/editor/common/model';
 
@@ -34,7 +35,7 @@ export function getRandomString(minLength: number, maxLength: number): string {
 export function generateRandomEdits(chunks: string[], editCnt: number): ValidAnnotatedEditOperation[] {
 	let lines: string[] = [];
 	for (const chunk of chunks) {
-		let newLines = chunk.split(/\r\n|\r|\n/);
+		let newLines = splitLines(chunk);
 		if (lines.length === 0) {
 			lines.push(...newLines);
 		} else {
@@ -64,7 +65,7 @@ export function generateRandomEdits(chunks: string[], editCnt: number): ValidAnn
 export function generateSequentialInserts(chunks: string[], editCnt: number): ValidAnnotatedEditOperation[] {
 	let lines: string[] = [];
 	for (const chunk of chunks) {
-		let newLines = chunk.split(/\r\n|\r|\n/);
+		let newLines = splitLines(chunk);
 		if (lines.length === 0) {
 			lines.push(...newLines);
 		} else {
@@ -96,7 +97,7 @@ export function generateSequentialInserts(chunks: string[], editCnt: number): Va
 export function generateRandomReplaces(chunks: string[], editCnt: number, searchStringLen: number, replaceStringLen: number): ValidAnnotatedEditOperation[] {
 	let lines: string[] = [];
 	for (const chunk of chunks) {
-		let newLines = chunk.split(/\r\n|\r|\n/);
+		let newLines = splitLines(chunk);
 		if (lines.length === 0) {
 			lines.push(...newLines);
 		} else {

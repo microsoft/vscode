@@ -20,7 +20,6 @@
     "scripts": {
         "compile": "gulp compile-extension:json-language-features-client compile-extension:json-language-features-server",
         "watch": "gulp watch-extension:json-language-features-client watch-extension:json-language-features-server",
-        "postinstall": "cd server && yarn install",
         "install-client-next": "yarn add vscode-languageclient@next"
     },
     "categories": [
@@ -98,11 +97,13 @@
                     "description": "%json.maxItemsComputed.desc%"
                 },
                 "json.schemaDownload.enable": {
-                  "type": "boolean",
-                  "default": true,
-                  "description": "%json.enableSchemaDownload.desc%",
-                  "tags": ["usesOnlineServices"]
-              }
+                    "type": "boolean",
+                    "default": true,
+                    "description": "%json.enableSchemaDownload.desc%",
+                    "tags": [
+                        "usesOnlineServices"
+                    ]
+                }
             }
         },
         "configurationDefaults": {
@@ -127,12 +128,12 @@
         ]
     },
     "dependencies": {
-        "request-light": "^0.3.0",
+        "request-light": "^0.4.0",
         "vscode-extension-telemetry": "0.1.1",
-        "vscode-languageclient": "7.0.0-next.5.1",
-        "vscode-nls": "^4.1.2"
+        "vscode-languageclient": "^7.0.0",
+        "vscode-nls": "^5.0.0"
     },
     "devDependencies": {
-        "@types/node": "^12.11.7"
+        "@types/node": "^12.19.9"
     }
 }

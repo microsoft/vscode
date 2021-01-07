@@ -30,29 +30,29 @@ export class DynamicWebviewEditorOverlay extends Disposable implements WebviewOv
 	private _initialScrollProgress: number = 0;
 	private _state: string | undefined = undefined;
 
+	private _extension: WebviewExtensionDescription | undefined;
 	private _contentOptions: WebviewContentOptions;
 	private _options: WebviewOptions;
 
 	private _owner: any = undefined;
 
 	private readonly _scopedContextKeyService = this._register(new MutableDisposable<IContextKeyService>());
-	private _findWidgetVisible: IContextKey<boolean>;
+	private _findWidgetVisible: IContextKey<boolean> | undefined;
 
 	public constructor(
 		public readonly id: string,
 		initialOptions: WebviewOptions,
 		initialContentOptions: WebviewContentOptions,
-		public readonly extension: WebviewExtensionDescription | undefined,
+		extension: WebviewExtensionDescription | undefined,
 		@ILayoutService private readonly _layoutService: ILayoutService,
 		@IWebviewService private readonly _webviewService: IWebviewService,
-		@IContextKeyService private readonly _contextKeyService: IContextKeyService
+		@IContextKeyService private readonly _baseContextKeyService: IContextKeyService
 	) {
 		super();
 
+		this._extension = extension;
 		this._options = initialOptions;
 		this._contentOptions = initialContentOptions;
-
-		this._findWidgetVisible = KEYBINDING_CONTEXT_WEBVIEW_FIND_WIDGET_VISIBLE.bindTo(_contextKeyService);
 	}
 
 	public get isFocused() {
@@ -81,15 +81,32 @@ export class DynamicWebviewEditorOverlay extends Disposable implements WebviewOv
 		return container;
 	}
 
-	public claim(owner: any) {
+	public claim(owner: any, scopedContextKeyService: IContextKeyService | undefined) {
+		const oldOwner = this._owner;
+
 		this._owner = owner;
 		this.show();
+
+		if (oldOwner !== owner) {
+			const contextKeyService = (scopedContextKeyService || this._baseContextKeyService);
+
+			// Explicitly clear before creating the new context.
+			// Otherwise we create the new context while the old one is still around
+			this._scopedContextKeyService.clear();
+			this._scopedContextKeyService.value = contextKeyService.createScoped(this.container);
+
+			this._findWidgetVisible?.reset();
+			this._findWidgetVisible = KEYBINDING_CONTEXT_WEBVIEW_FIND_WIDGET_VISIBLE.bindTo(contextKeyService);
+		}
 	}
 
 	public release(owner: any) {
 		if (this._owner !== owner) {
 			return;
 		}
+
+		this._scopedContextKeyService.clear();
+
 		this._owner = undefined;
 		this.container.style.visibility = 'hidden';
 		if (!this._options.retainContextWhenHidden) {
@@ -128,8 +145,6 @@ export class DynamicWebviewEditorOverlay extends Disposable implements WebviewOv
 			}
 
 			webview.mountTo(this.container);
-			this._scopedContextKeyService.value = this._contextKeyService.createScoped(this.container);
-			this._findWidgetVisible = KEYBINDING_CONTEXT_WEBVIEW_FIND_WIDGET_VISIBLE.bindTo(this._scopedContextKeyService.value);
 
 			// Forward events from inner webview to outer listeners
 			this._webviewEvents.clear();
@@ -154,6 +169,7 @@ export class DynamicWebviewEditorOverlay extends Disposable implements WebviewOv
 			this._pendingMessages.forEach(msg => webview.postMessage(msg));
 			this._pendingMessages.clear();
 		}
+
 		this.container.style.visibility = 'visible';
 	}
 
@@ -173,6 +189,12 @@ export class DynamicWebviewEditorOverlay extends Disposable implements WebviewOv
 	public set state(value: string | undefined) {
 		this._state = value;
 		this.withWebview(webview => webview.state = value);
+	}
+
+	public get extension(): WebviewExtensionDescription | undefined { return this._extension; }
+	public set extension(value: WebviewExtensionDescription | undefined) {
+		this._extension = value;
+		this.withWebview(webview => webview.extension = value);
 	}
 
 	public get options(): WebviewOptions { return this._options; }
@@ -232,12 +254,12 @@ export class DynamicWebviewEditorOverlay extends Disposable implements WebviewOv
 	showFind() {
 		if (this._webview.value) {
 			this._webview.value.showFind();
-			this._findWidgetVisible.set(true);
+			this._findWidgetVisible?.set(true);
 		}
 	}
 
 	hideFind() {
-		this._findWidgetVisible.reset();
+		this._findWidgetVisible?.reset();
 		this._webview.value?.hideFind();
 	}
 

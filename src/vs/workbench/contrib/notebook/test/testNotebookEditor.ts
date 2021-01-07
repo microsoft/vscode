@@ -66,6 +66,9 @@ export class TestNotebookEditor implements INotebookEditor {
 
 	constructor(
 	) { }
+	async beginComputeContributedKernels(): Promise<INotebookKernelInfo2[]> {
+		return [];
+	}
 	setEditorDecorations(key: string, range: ICellRange): void {
 		// throw new Error('Method not implemented.');
 	}
@@ -288,7 +291,7 @@ export class TestNotebookEditor implements INotebookEditor {
 	getFontInfo(): BareFontInfo | undefined {
 		return BareFontInfo.createFromRawSettings({
 			fontFamily: 'Monaco',
-		}, 1, true);
+		}, 1, 1, true);
 	}
 	getOutputRenderer(): OutputRenderer {
 		throw new Error('Method not implemented.');

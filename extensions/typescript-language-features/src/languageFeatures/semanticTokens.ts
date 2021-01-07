@@ -73,9 +73,11 @@ class DocumentSemanticTokensProvider implements vscode.DocumentSemanticTokensPro
 			return null;
 		}
 
-		let versionBeforeRequest = document.version;
+		const versionBeforeRequest = document.version;
 
-		const response = await (this.client as ExperimentalProtocol.IExtendedTypeScriptServiceClient).execute('encodedSemanticClassifications-full', requestArg, token);
+		const response = await (this.client as ExperimentalProtocol.IExtendedTypeScriptServiceClient).execute('encodedSemanticClassifications-full', requestArg, token, {
+			cancelOnResourceChange: document.uri
+		});
 		if (response.type !== 'response' || !response.body) {
 			return null;
 		}
@@ -135,7 +137,7 @@ class DocumentSemanticTokensProvider implements vscode.DocumentSemanticTokensPro
 function waitForDocumentChangesToEnd(document: vscode.TextDocument) {
 	let version = document.version;
 	return new Promise<void>((s) => {
-		let iv = setInterval(_ => {
+		const iv = setInterval(_ => {
 			if (document.version === version) {
 				clearInterval(iv);
 				s();
@@ -172,7 +174,7 @@ tokenTypes[TokenType.variable] = 'variable';
 tokenTypes[TokenType.enumMember] = 'enumMember';
 tokenTypes[TokenType.property] = 'property';
 tokenTypes[TokenType.function] = 'function';
-tokenTypes[TokenType.member] = 'member';
+tokenTypes[TokenType.member] = 'method';
 
 const tokenModifiers: string[] = [];
 tokenModifiers[TokenModifier.async] = 'async';

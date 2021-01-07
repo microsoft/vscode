@@ -11,6 +11,7 @@ import * as marked from 'vs/base/common/marked/marked';
 import { Schemas } from 'vs/base/common/network';
 import { isEqual } from 'vs/base/common/resources';
 import { requireToContent } from 'vs/workbench/contrib/welcome/walkThrough/common/walkThroughContentProvider';
+import { Dimension } from 'vs/base/browser/dom';
 
 export class WalkThroughModel extends EditorModel {
 
@@ -42,6 +43,7 @@ export interface WalkThroughInputOptions {
 	readonly resource: URI;
 	readonly telemetryFrom: string;
 	readonly onReady?: (container: HTMLElement) => void;
+	readonly layout?: (dimension: Dimension) => void;
 }
 
 export class WalkThroughInput extends EditorInput {
@@ -91,6 +93,10 @@ export class WalkThroughInput extends EditorInput {
 		return this.options.onReady;
 	}
 
+	get layout() {
+		return this.options.layout;
+	}
+
 	resolve(): Promise<WalkThroughModel> {
 		if (!this.promise) {
 			this.promise = requireToContent(this.options.resource)
@@ -103,12 +109,12 @@ export class WalkThroughInput extends EditorInput {
 					let i = 0;
 					const renderer = new marked.Renderer();
 					renderer.code = (code, lang) => {
-						const resource = this.options.resource.with({ scheme: Schemas.walkThroughSnippet, fragment: `${i++}.${lang}` });
+						i++;
+						const resource = this.options.resource.with({ scheme: Schemas.walkThroughSnippet, fragment: `${i}.${lang}` });
 						snippets.push(this.textModelResolverService.createModelReference(resource));
-						return '';
+						return `<div id="snippet-${resource.fragment}" class="walkThroughEditorContainer" ></div>`;
 					};
-
-					marked(content, { renderer });
+					content = marked(content, { renderer });
 
 					return Promise.all(snippets)
 						.then(refs => new WalkThroughModel(content, refs));

@@ -9,7 +9,7 @@ import { Range } from 'vs/editor/common/core/range';
 import { EditorContextKeys } from 'vs/editor/common/editorContextKeys';
 import { ServicesAccessor, registerEditorAction, EditorAction, IActionOptions } from 'vs/editor/browser/editorExtensions';
 import { ContextKeyExpr } from 'vs/platform/contextkey/common/contextkey';
-import { IDebugService, CONTEXT_IN_DEBUG_MODE, CONTEXT_DEBUG_STATE, State, IDebugEditorContribution, EDITOR_CONTRIBUTION_ID, BreakpointWidgetContext, IBreakpoint, BREAKPOINT_EDITOR_CONTRIBUTION_ID, IBreakpointEditorContribution, REPL_VIEW_ID, CONTEXT_STEP_INTO_TARGETS_SUPPORTED, WATCH_VIEW_ID, CONTEXT_DEBUGGERS_AVAILABLE } from 'vs/workbench/contrib/debug/common/debug';
+import { IDebugService, CONTEXT_IN_DEBUG_MODE, CONTEXT_DEBUG_STATE, State, IDebugEditorContribution, EDITOR_CONTRIBUTION_ID, BreakpointWidgetContext, IBreakpoint, BREAKPOINT_EDITOR_CONTRIBUTION_ID, IBreakpointEditorContribution, REPL_VIEW_ID, CONTEXT_STEP_INTO_TARGETS_SUPPORTED, WATCH_VIEW_ID, CONTEXT_DEBUGGERS_AVAILABLE, CONTEXT_EXCEPTION_WIDGET_VISIBLE } from 'vs/workbench/contrib/debug/common/debug';
 import { ICodeEditor } from 'vs/editor/browser/editorBrowser';
 import { IEditorService } from 'vs/workbench/services/editor/common/editorService';
 import { openBreakpointSource } from 'vs/workbench/contrib/debug/browser/breakpointsView';
@@ -19,6 +19,11 @@ import { IViewsService } from 'vs/workbench/common/views';
 import { IContextMenuService } from 'vs/platform/contextview/browser/contextView';
 import { Action } from 'vs/base/common/actions';
 import { getDomNodePagePosition } from 'vs/base/browser/dom';
+import { IUriIdentityService } from 'vs/workbench/services/uriIdentity/common/uriIdentity';
+import { Position } from 'vs/editor/common/core/position';
+import { URI } from 'vs/base/common/uri';
+import { IDisposable } from 'vs/base/common/lifecycle';
+import { raceTimeout } from 'vs/base/common/async';
 
 export const TOGGLE_BREAKPOINT_ID = 'editor.debug.action.toggleBreakpoint';
 class ToggleBreakpointAction extends EditorAction {
@@ -40,7 +45,7 @@ class ToggleBreakpointAction extends EditorAction {
 		if (editor.hasModel()) {
 			const debugService = accessor.get(IDebugService);
 			const modelUri = editor.getModel().uri;
-			const canSet = debugService.getConfigurationManager().canSetBreakpointsIn(editor.getModel());
+			const canSet = debugService.canSetBreakpointsIn(editor.getModel());
 			// Does not account for multi line selections, Set to remove multiple cursor on the same line
 			const lineNumbers = [...new Set(editor.getSelections().map(s => s.getPosition().lineNumber))];
 
@@ -74,7 +79,7 @@ class ConditionalBreakpointAction extends EditorAction {
 		const debugService = accessor.get(IDebugService);
 
 		const position = editor.getPosition();
-		if (position && editor.hasModel() && debugService.getConfigurationManager().canSetBreakpointsIn(editor.getModel())) {
+		if (position && editor.hasModel() && debugService.canSetBreakpointsIn(editor.getModel())) {
 			editor.getContribution<IBreakpointEditorContribution>(BREAKPOINT_EDITOR_CONTRIBUTION_ID).showBreakpointWidget(position.lineNumber, undefined, BreakpointWidgetContext.CONDITION);
 		}
 	}
@@ -96,7 +101,7 @@ class LogPointAction extends EditorAction {
 		const debugService = accessor.get(IDebugService);
 
 		const position = editor.getPosition();
-		if (position && editor.hasModel() && debugService.getConfigurationManager().canSetBreakpointsIn(editor.getModel())) {
+		if (position && editor.hasModel() && debugService.canSetBreakpointsIn(editor.getModel())) {
 			editor.getContribution<IBreakpointEditorContribution>(BREAKPOINT_EDITOR_CONTRIBUTION_ID).showBreakpointWidget(position.lineNumber, position.column, BreakpointWidgetContext.LOG_MESSAGE);
 		}
 	}
@@ -127,8 +132,32 @@ export class RunToCursorAction extends EditorAction {
 			return;
 		}
 
-		let breakpointToRemove: IBreakpoint;
-		const oneTimeListener = focusedSession.onDidChangeState(() => {
+		const position = editor.getPosition();
+		if (!(editor.hasModel() && position)) {
+			return;
+		}
+
+		const uri = editor.getModel().uri;
+		const bpExists = !!(debugService.getModel().getBreakpoints({ column: position.column, lineNumber: position.lineNumber, uri }).length);
+
+		let breakpointToRemove: IBreakpoint | undefined;
+		let threadToContinue = debugService.getViewModel().focusedThread;
+		if (!bpExists) {
+			const addResult = await this.addBreakpoints(accessor, uri, position);
+			if (addResult.thread) {
+				threadToContinue = addResult.thread;
+			}
+
+			if (addResult.breakpoint) {
+				breakpointToRemove = addResult.breakpoint;
+			}
+		}
+
+		if (!threadToContinue) {
+			return;
+		}
+
+		const oneTimeListener = threadToContinue.session.onDidChangeState(() => {
 			const state = focusedSession.state;
 			if (state === State.Stopped || state === State.Inactive) {
 				if (breakpointToRemove) {
@@ -138,27 +167,90 @@ export class RunToCursorAction extends EditorAction {
 			}
 		});
 
-		const position = editor.getPosition();
-		if (editor.hasModel() && position) {
-			const uri = editor.getModel().uri;
-			const bpExists = !!(debugService.getModel().getBreakpoints({ column: position.column, lineNumber: position.lineNumber, uri }).length);
-			if (!bpExists) {
-				let column = 0;
-				const focusedStackFrame = debugService.getViewModel().focusedStackFrame;
-				if (focusedStackFrame && focusedStackFrame.source.uri.toString() === uri.toString() && focusedStackFrame.range.startLineNumber === position.lineNumber) {
-					// If the cursor is on a line different than the one the debugger is currently paused on, then send the breakpoint at column 0 on the line
-					// otherwise set it at the precise column #102199
-					column = position.column;
-				}
+		await threadToContinue.continue();
+	}
 
-				const breakpoints = await debugService.addBreakpoints(uri, [{ lineNumber: position.lineNumber, column }], false);
-				if (breakpoints && breakpoints.length) {
-					breakpointToRemove = breakpoints[0];
+	private async addBreakpoints(accessor: ServicesAccessor, uri: URI, position: Position) {
+		const debugService = accessor.get(IDebugService);
+		const debugModel = debugService.getModel();
+		const viewModel = debugService.getViewModel();
+		const uriIdentityService = accessor.get(IUriIdentityService);
+
+		let column = 0;
+		const focusedStackFrame = viewModel.focusedStackFrame;
+		if (focusedStackFrame && uriIdentityService.extUri.isEqual(focusedStackFrame.source.uri, uri) && focusedStackFrame.range.startLineNumber === position.lineNumber) {
+			// If the cursor is on a line different than the one the debugger is currently paused on, then send the breakpoint at column 0 on the line
+			// otherwise set it at the precise column #102199
+			column = position.column;
+		}
+
+		const breakpoints = await debugService.addBreakpoints(uri, [{ lineNumber: position.lineNumber, column }], false);
+		const breakpoint = breakpoints?.[0];
+		if (!breakpoint) {
+			return { breakpoint: undefined, thread: viewModel.focusedThread };
+		}
+
+		// If the breakpoint was not initially verified, wait up to 2s for it to become so.
+		// Inherently racey if multiple sessions can verify async, but not solvable...
+		if (!breakpoint.verified) {
+			let listener: IDisposable;
+			await raceTimeout(new Promise<void>(resolve => {
+				listener = debugModel.onDidChangeBreakpoints(() => {
+					if (breakpoint.verified) {
+						resolve();
+					}
+				});
+			}), 2000);
+			listener!.dispose();
+		}
+
+		// Look at paused threads for sessions that verified this bp. Prefer, in order:
+		const enum Score {
+			/** The focused thread */
+			Focused,
+			/** Any other stopped thread of a session that verified the bp */
+			Verified,
+			/** Any thread that verified and paused in the same file */
+			VerifiedAndPausedInFile,
+			/** The focused thread if it verified the breakpoint */
+			VerifiedAndFocused,
+		}
+
+		let bestThread = viewModel.focusedThread;
+		let bestScore = Score.Focused;
+		for (const sessionId of breakpoint.sessionsThatVerified) {
+			const session = debugModel.getSession(sessionId);
+			if (!session) {
+				continue;
+			}
+
+			const threads = session.getAllThreads().filter(t => t.stopped);
+			if (bestScore < Score.VerifiedAndFocused) {
+				if (viewModel.focusedThread && threads.includes(viewModel.focusedThread)) {
+					bestThread = viewModel.focusedThread;
+					bestScore = Score.VerifiedAndFocused;
 				}
 			}
 
-			await debugService.getViewModel().focusedThread!.continue();
+			if (bestScore < Score.VerifiedAndPausedInFile) {
+				const pausedInThisFile = threads.find(t => {
+					const top = t.getTopStackFrame();
+					return top && uriIdentityService.extUri.isEqual(top.source.uri, uri);
+				});
+
+				if (pausedInThisFile) {
+					bestThread = pausedInThisFile;
+					bestScore = Score.VerifiedAndPausedInFile;
+				}
+			}
+
+			if (bestScore < Score.Verified) {
+				bestThread = threads[0];
+				bestScore = Score.VerifiedAndPausedInFile;
+			}
 		}
+
+		return { thread: bestThread, breakpoint };
 	}
 }
 
@@ -272,10 +364,11 @@ class StepIntoTargetsAction extends EditorAction {
 	async run(accessor: ServicesAccessor, editor: ICodeEditor): Promise<void> {
 		const debugService = accessor.get(IDebugService);
 		const contextMenuService = accessor.get(IContextMenuService);
+		const uriIdentityService = accessor.get(IUriIdentityService);
 		const session = debugService.getViewModel().focusedSession;
 		const frame = debugService.getViewModel().focusedStackFrame;
 
-		if (session && frame && editor.hasModel() && editor.getModel().uri.toString() === frame.source.uri.toString()) {
+		if (session && frame && editor.hasModel() && uriIdentityService.extUri.isEqual(editor.getModel().uri, frame.source.uri)) {
 			const targets = await session.stepInTargets(frame.frameId);
 			if (!targets) {
 				return;
@@ -305,6 +398,8 @@ class GoToBreakpointAction extends EditorAction {
 	async run(accessor: ServicesAccessor, editor: ICodeEditor): Promise<any> {
 		const debugService = accessor.get(IDebugService);
 		const editorService = accessor.get(IEditorService);
+		const uriIdentityService = accessor.get(IUriIdentityService);
+
 		if (editor.hasModel()) {
 			const currentUri = editor.getModel().uri;
 			const currentLine = editor.getPosition().lineNumber;
@@ -314,8 +409,8 @@ class GoToBreakpointAction extends EditorAction {
 			//Try to find breakpoint in current file
 			let moveBreakpoint =
 				this.isNext
-					? allEnabledBreakpoints.filter(bp => bp.uri.toString() === currentUri.toString() && bp.lineNumber > currentLine).shift()
-					: allEnabledBreakpoints.filter(bp => bp.uri.toString() === currentUri.toString() && bp.lineNumber < currentLine).pop();
+					? allEnabledBreakpoints.filter(bp => uriIdentityService.extUri.isEqual(bp.uri, currentUri) && bp.lineNumber > currentLine).shift()
+					: allEnabledBreakpoints.filter(bp => uriIdentityService.extUri.isEqual(bp.uri, currentUri) && bp.lineNumber < currentLine).pop();
 
 			//Try to find breakpoints in following files
 			if (!moveBreakpoint) {
@@ -331,7 +426,7 @@ class GoToBreakpointAction extends EditorAction {
 			}
 
 			if (moveBreakpoint) {
-				return openBreakpointSource(moveBreakpoint, false, true, debugService, editorService);
+				return openBreakpointSource(moveBreakpoint, false, true, false, debugService, editorService);
 			}
 		}
 	}
@@ -359,6 +454,27 @@ class GoToPreviousBreakpointAction extends GoToBreakpointAction {
 	}
 }
 
+class CloseExceptionWidgetAction extends EditorAction {
+
+	constructor() {
+		super({
+			id: 'editor.debug.action.closeExceptionWidget',
+			label: nls.localize('closeExceptionWidget', "Close Exception Widget"),
+			alias: 'Close Exception Widget',
+			precondition: CONTEXT_EXCEPTION_WIDGET_VISIBLE,
+			kbOpts: {
+				primary: KeyCode.Escape,
+				weight: KeybindingWeight.EditorContrib
+			}
+		});
+	}
+
+	async run(_accessor: ServicesAccessor, editor: ICodeEditor): Promise<void> {
+		const contribution = editor.getContribution<IDebugEditorContribution>(EDITOR_CONTRIBUTION_ID);
+		contribution.closeExceptionWidget();
+	}
+}
+
 export function registerEditorActions(): void {
 	registerEditorAction(ToggleBreakpointAction);
 	registerEditorAction(ConditionalBreakpointAction);
@@ -370,4 +486,5 @@ export function registerEditorActions(): void {
 	registerEditorAction(ShowDebugHoverAction);
 	registerEditorAction(GoToNextBreakpointAction);
 	registerEditorAction(GoToPreviousBreakpointAction);
+	registerEditorAction(CloseExceptionWidgetAction);
 }

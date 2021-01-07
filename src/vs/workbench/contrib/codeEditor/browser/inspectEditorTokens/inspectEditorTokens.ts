@@ -594,11 +594,17 @@ class InspectEditorTokensWidget extends Disposable implements IContentWidget {
 			theme.resolveScopes(definition, scopesDefinition);
 			const matchingRule = scopesDefinition[property];
 			if (matchingRule && scopesDefinition.scope) {
-				const strScopes = Array.isArray(matchingRule.scope) ? matchingRule.scope.join(', ') : String(matchingRule.scope);
+				const scopes = $('ul.tiw-metadata-values');
+				const strScopes = Array.isArray(matchingRule.scope) ? matchingRule.scope : [String(matchingRule.scope)];
+
+				for (let strScope of strScopes) {
+					scopes.appendChild($('li.tiw-metadata-value.tiw-metadata-scopes', undefined, strScope));
+				}
+
 				elements.push(
 					scopesDefinition.scope.join(' '),
-					$('br'),
-					$('code.tiw-theme-selector', undefined, strScopes, $('br'), JSON.stringify(matchingRule.settings, null, '\t')));
+					scopes,
+					$('code.tiw-theme-selector', undefined, JSON.stringify(matchingRule.settings, null, '\t')));
 				return elements;
 			}
 			return elements;

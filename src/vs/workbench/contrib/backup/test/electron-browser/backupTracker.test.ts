@@ -9,8 +9,8 @@ import * as os from 'os';
 import * as path from 'vs/base/common/path';
 import * as pfs from 'vs/base/node/pfs';
 import { URI } from 'vs/base/common/uri';
-import { getRandomTestPath } from 'vs/base/test/node/testUtils';
-import { hashPath } from 'vs/workbench/services/backup/node/backupFileService';
+import { flakySuite, getRandomTestPath } from 'vs/base/test/node/testUtils';
+import { hashPath } from 'vs/workbench/services/backup/electron-browser/backupFileService';
 import { NativeBackupTracker } from 'vs/workbench/contrib/backup/electron-sandbox/backupTracker';
 import { TextFileEditorModelManager } from 'vs/workbench/services/textfile/common/textFileEditorModelManager';
 import { IEditorService } from 'vs/workbench/services/editor/common/editorService';
@@ -28,12 +28,12 @@ import { NodeTestBackupFileService } from 'vs/workbench/services/backup/test/ele
 import { dispose, IDisposable } from 'vs/base/common/lifecycle';
 import { toResource } from 'vs/base/test/common/utils';
 import { IFilesConfigurationService } from 'vs/workbench/services/filesConfiguration/common/filesConfigurationService';
-import { IWorkingCopyService } from 'vs/workbench/services/workingCopy/common/workingCopyService';
+import { IWorkingCopyBackup, IWorkingCopyService } from 'vs/workbench/services/workingCopy/common/workingCopyService';
 import { ILogService } from 'vs/platform/log/common/log';
 import { HotExitConfiguration } from 'vs/platform/files/common/files';
-import { ShutdownReason, ILifecycleService, BeforeShutdownEvent } from 'vs/platform/lifecycle/common/lifecycle';
+import { ShutdownReason, ILifecycleService, BeforeShutdownEvent } from 'vs/workbench/services/lifecycle/common/lifecycle';
 import { IFileDialogService, ConfirmResult, IDialogService } from 'vs/platform/dialogs/common/dialogs';
-import { IWorkspaceContextService, Workspace } from 'vs/platform/workspace/common/workspace';
+import { IWorkspaceContextService } from 'vs/platform/workspace/common/workspace';
 import { INativeHostService } from 'vs/platform/native/electron-sandbox/native';
 import { BackupTracker } from 'vs/workbench/contrib/backup/common/backupTracker';
 import { workbenchInstantiationService, TestServiceAccessor } from 'vs/workbench/test/electron-browser/workbenchTestServices';
@@ -45,13 +45,11 @@ import { TestFilesConfigurationService } from 'vs/workbench/test/browser/workben
 import { MockContextKeyService } from 'vs/platform/keybinding/test/common/mockKeybindingService';
 import { IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
 import { IEnvironmentService } from 'vs/platform/environment/common/environment';
-
-const userdataDir = getRandomTestPath(os.tmpdir(), 'vsctests', 'backuprestorer');
-const backupHome = path.join(userdataDir, 'Backups');
-const workspacesJsonPath = path.join(backupHome, 'workspaces.json');
-
-const workspaceResource = URI.file(platform.isWindows ? 'c:\\workspace' : '/workspace');
-const workspaceBackupPath = path.join(backupHome, hashPath(workspaceResource));
+import { TestWorkingCopy } from 'vs/workbench/test/common/workbenchTestServices';
+import { CancellationToken } from 'vs/base/common/cancellation';
+import { timeout } from 'vs/base/common/async';
+import { Workspace } from 'vs/platform/workspace/test/common/testWorkspace';
+import { IProgressService } from 'vs/platform/progress/common/progress';
 
 class TestBackupTracker extends NativeBackupTracker {
 
@@ -66,12 +64,14 @@ class TestBackupTracker extends NativeBackupTracker {
 		@INativeHostService nativeHostService: INativeHostService,
 		@ILogService logService: ILogService,
 		@IEditorService editorService: IEditorService,
-		@IEnvironmentService environmentService: IEnvironmentService
+		@IEnvironmentService environmentService: IEnvironmentService,
+		@IProgressService progressService: IProgressService
 	) {
-		super(backupFileService, filesConfigurationService, workingCopyService, lifecycleService, fileDialogService, dialogService, contextService, nativeHostService, logService, editorService, environmentService);
+		super(backupFileService, filesConfigurationService, workingCopyService, lifecycleService, fileDialogService, dialogService, contextService, nativeHostService, logService, editorService, environmentService, progressService);
+	}
 
-		// Reduce timeout for tests
-		BackupTracker.BACKUP_FROM_CONTENT_CHANGE_DELAY = 10;
+	protected getBackupScheduleDelay(): number {
+		return 10; // Reduce timeout for tests
 	}
 }
 
@@ -85,11 +85,21 @@ class BeforeShutdownEventImpl implements BeforeShutdownEvent {
 	}
 }
 
-suite('BackupTracker', () => {
+flakySuite('BackupTracker', function () {
+	let backupHome: string;
+	let workspaceBackupPath: string;
+
 	let accessor: TestServiceAccessor;
 	let disposables: IDisposable[] = [];
 
 	setup(async () => {
+		const userdataDir = getRandomTestPath(os.tmpdir(), 'vsctests', 'backuprestorer');
+		backupHome = path.join(userdataDir, 'Backups');
+		const workspacesJsonPath = path.join(backupHome, 'workspaces.json');
+
+		const workspaceResource = URI.file(platform.isWindows ? 'c:\\workspace' : '/workspace');
+		workspaceBackupPath = path.join(backupHome, hashPath(workspaceResource));
+
 		const instantiationService = workbenchInstantiationService();
 		accessor = instantiationService.createInstance(TestServiceAccessor);
 
@@ -102,8 +112,6 @@ suite('BackupTracker', () => {
 			[new SyncDescriptor<EditorInput>(FileEditorInput)]
 		));
 
-		// Delete any existing backups completely and then re-create it.
-		await pfs.rimraf(backupHome, pfs.RimRafMode.MOVE);
 		await pfs.mkdirp(backupHome);
 		await pfs.mkdirp(workspaceBackupPath);
 
@@ -179,20 +187,14 @@ suite('BackupTracker', () => {
 	}
 
 	test('Track backups (untitled)', function () {
-		this.timeout(20000);
-
 		return untitledBackupTest();
 	});
 
 	test('Track backups (untitled with initial contents)', function () {
-		this.timeout(20000);
-
 		return untitledBackupTest({ contents: 'Foo Bar' });
 	});
 
 	test('Track backups (file)', async function () {
-		this.timeout(20000);
-
 		const [accessor, part, tracker] = await createTracker();
 
 		const resource = toResource.call(this, '/path/index.txt');
@@ -211,6 +213,55 @@ suite('BackupTracker', () => {
 
 		assert.equal(accessor.backupFileService.hasBackupSync(resource), false);
 
+		part.dispose();
+		tracker.dispose();
+	});
+
+	test('Track backups (custom)', async function () {
+		const [accessor, part, tracker] = await createTracker();
+
+		class TestBackupWorkingCopy extends TestWorkingCopy {
+
+			backupDelay = 0;
+
+			constructor(resource: URI) {
+				super(resource);
+
+				accessor.workingCopyService.registerWorkingCopy(this);
+			}
+
+			async backup(token: CancellationToken): Promise<IWorkingCopyBackup> {
+				await timeout(this.backupDelay);
+
+				return {};
+			}
+		}
+
+		const resource = toResource.call(this, '/path/custom.txt');
+		const customWorkingCopy = new TestBackupWorkingCopy(resource);
+
+		// Normal
+		customWorkingCopy.setDirty(true);
+		await accessor.backupFileService.joinBackupResource();
+		assert.equal(accessor.backupFileService.hasBackupSync(resource), true);
+
+		customWorkingCopy.setDirty(false);
+		customWorkingCopy.setDirty(true);
+		await accessor.backupFileService.joinBackupResource();
+		assert.equal(accessor.backupFileService.hasBackupSync(resource), true);
+
+		customWorkingCopy.setDirty(false);
+		await accessor.backupFileService.joinDiscardBackup();
+		assert.equal(accessor.backupFileService.hasBackupSync(resource), false);
+
+		// Cancellation
+		customWorkingCopy.setDirty(true);
+		await timeout(0);
+		customWorkingCopy.setDirty(false);
+		await accessor.backupFileService.joinDiscardBackup();
+		assert.equal(accessor.backupFileService.hasBackupSync(resource), false);
+
+		customWorkingCopy.dispose();
 		part.dispose();
 		tracker.dispose();
 	});

@@ -220,3 +220,9 @@ export function distinct(base: obj, target: obj): obj {
 
 	return result;
 }
+
+export function getCaseInsensitive(target: obj, key: string): any {
+	const lowercaseKey = key.toLowerCase();
+	const equivalentKey = Object.keys(target).find(k => k.toLowerCase() === lowercaseKey);
+	return equivalentKey ? target[equivalentKey] : target[key];
+}

@@ -8,7 +8,7 @@ import { Disposable } from 'vs/base/common/lifecycle';
 import { getServiceMachineId } from 'vs/platform/serviceMachineId/common/serviceMachineId';
 import { IEnvironmentService } from 'vs/platform/environment/common/environment';
 import { IFileService } from 'vs/platform/files/common/files';
-import { IStorageService, StorageScope } from 'vs/platform/storage/common/storage';
+import { IStorageService, StorageScope, StorageTarget } from 'vs/platform/storage/common/storage';
 import { IUserDataSyncStoreService, IUserData, IUserDataSyncLogService, IUserDataManifest } from 'vs/platform/userDataSync/common/userDataSync';
 import { localize } from 'vs/nls';
 import { IProductService } from 'vs/platform/product/common/productService';
@@ -103,7 +103,7 @@ export class UserDataSyncMachinesService extends Disposable implements IUserData
 			machine.name = name;
 			await this.writeMachinesData(machineData);
 			if (machineData.machines.some(({ id }) => id === currentMachineId)) {
-				this.storageService.store(currentMachineNameKey, name, StorageScope.GLOBAL);
+				this.storageService.store(currentMachineNameKey, name, StorageScope.GLOBAL, StorageTarget.MACHINE);
 			}
 		}
 	}

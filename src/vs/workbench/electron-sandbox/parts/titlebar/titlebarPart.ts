@@ -9,7 +9,7 @@ import { IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
 import { IConfigurationService, IConfigurationChangeEvent } from 'vs/platform/configuration/common/configuration';
 import { ILabelService } from 'vs/platform/label/common/label';
 import { IStorageService } from 'vs/platform/storage/common/storage';
-import { IWorkbenchEnvironmentService } from 'vs/workbench/services/environment/common/environmentService';
+import { INativeWorkbenchEnvironmentService } from 'vs/workbench/services/environment/electron-sandbox/environmentService';
 import { IHostService } from 'vs/workbench/services/host/browser/host';
 import { isMacintosh, isWindows, isLinux } from 'vs/base/common/platform';
 import { IMenuService } from 'vs/platform/actions/common/actions';
@@ -24,6 +24,7 @@ import { INativeHostService } from 'vs/platform/native/electron-sandbox/native';
 import { getTitleBarStyle } from 'vs/platform/windows/common/windows';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { Codicon } from 'vs/base/common/codicons';
+import { NativeMenubarControl } from 'vs/workbench/electron-sandbox/parts/titlebar/menubarControl';
 
 export class TitlebarPart extends BrowserTitleBarPart {
 	private appIcon: HTMLElement | undefined;
@@ -32,11 +33,23 @@ export class TitlebarPart extends BrowserTitleBarPart {
 	private dragRegion: HTMLElement | undefined;
 	private resizer: HTMLElement | undefined;
 
+	private getMacTitlebarSize() {
+		const osVersion = this.environmentService.os.release;
+		if (parseFloat(osVersion) >= 20) { // Big Sur increases title bar height
+			return 28;
+		}
+
+		return 22;
+	}
+
+	get minimumHeight(): number { return isMacintosh ? this.getMacTitlebarSize() / getZoomFactor() : super.minimumHeight; }
+	get maximumHeight(): number { return this.minimumHeight; }
+
 	constructor(
 		@IContextMenuService contextMenuService: IContextMenuService,
 		@IConfigurationService protected readonly configurationService: IConfigurationService,
 		@IEditorService editorService: IEditorService,
-		@IWorkbenchEnvironmentService protected readonly environmentService: IWorkbenchEnvironmentService,
+		@INativeWorkbenchEnvironmentService protected readonly environmentService: INativeWorkbenchEnvironmentService,
 		@IWorkspaceContextService contextService: IWorkspaceContextService,
 		@IInstantiationService instantiationService: IInstantiationService,
 		@IThemeService themeService: IThemeService,
@@ -107,7 +120,6 @@ export class TitlebarPart extends BrowserTitleBarPart {
 	}
 
 	protected onConfigurationChanged(event: IConfigurationChangeEvent): void {
-
 		super.onConfigurationChanged(event);
 
 		if (event.affectsConfiguration('window.doubleClickIconToClose')) {
@@ -152,6 +164,11 @@ export class TitlebarPart extends BrowserTitleBarPart {
 
 	createContentArea(parent: HTMLElement): HTMLElement {
 		const ret = super.createContentArea(parent);
+
+		// Native menu controller
+		if (isMacintosh || getTitleBarStyle(this.configurationService) === 'native') {
+			this._register(this.instantiationService.createInstance(NativeMenubarControl));
+		}
 
 		// App Icon (Native Windows/Linux)
 		if (!isMacintosh) {
@@ -206,7 +223,7 @@ export class TitlebarPart extends BrowserTitleBarPart {
 	updateLayout(dimension: DOM.Dimension): void {
 		this.lastLayoutDimensions = dimension;
 
-		if (getTitleBarStyle(this.configurationService, this.environmentService) === 'custom') {
+		if (getTitleBarStyle(this.configurationService) === 'custom') {
 			// Only prevent zooming behavior on macOS or when the menubar is not visible
 			if (isMacintosh || this.currentMenubarVisibility === 'hidden') {
 				this.title.style.zoom = `${1 / getZoomFactor()}`;
