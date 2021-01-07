@@ -535,7 +535,7 @@ suite('Filters', () => {
 	});
 
 	test('Wrong highlight after emoji #113403', function () {
-		assertMatches('di', '⭐div classname=""></div>', '⭐^d^iv classname=""></div>', fuzzyScore);
+		assertMatches('di', '✨div classname=""></div>', '✨^d^iv classname=""></div>', fuzzyScore);
 		assertMatches('di', 'adiv classname=""></div>', 'adiv classname=""></^d^iv>', fuzzyScore);
 	});
 
