@@ -42,12 +42,6 @@ steps:
     displayName: Merge distro
 
   - script: |
-      npx https://aka.ms/enablesecurefeed standAlone
-    displayName: Switch to Terrapin packages
-    timeoutInMinutes: 5
-    condition: and(succeeded(), eq(variables['ENABLE_TERRAPIN'], 'true'))
-
-  - script: |
       mkdir -p .build
       node build/azure-pipelines/common/computeNodeModulesCacheKey.js "web" $ENABLE_TERRAPIN > .build/yarnlockhash
     displayName: Prepare yarn cache flags
@@ -64,6 +58,12 @@ steps:
       tar -xzf .build/node_modules_cache/cache.tgz
     condition: and(succeeded(), eq(variables.NODE_MODULES_RESTORED, 'true'))
     displayName: Extract node_modules archive
+
+  - script: |
+      npx https://aka.ms/enablesecurefeed standAlone
+    timeoutInMinutes: 5
+    condition: and(succeeded(), ne(variables.NODE_MODULES_RESTORED, 'true'), eq(variables['ENABLE_TERRAPIN'], 'true'))
+    displayName: Switch to Terrapin packages
 
   - script: |
       set -e

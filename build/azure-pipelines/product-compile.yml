@@ -31,12 +31,6 @@ steps:
     displayName: Merge distro
 
   - script: |
-      npx https://aka.ms/enablesecurefeed standAlone
-    displayName: Switch to Terrapin packages
-    timeoutInMinutes: 5
-    condition: and(succeeded(), eq(variables['ENABLE_TERRAPIN'], 'true'))
-
-  - script: |
       mkdir -p .build
       node build/azure-pipelines/common/computeNodeModulesCacheKey.js $VSCODE_ARCH $ENABLE_TERRAPIN > .build/yarnlockhash
     displayName: Prepare yarn cache flags
@@ -61,6 +55,12 @@ steps:
       sudo apt install -y build-essential pkg-config libx11-dev libx11-xcb-dev libxkbfile-dev libsecret-1-dev libnotify-bin
     displayName: Install build tools
     condition: and(succeeded(), ne(variables.NODE_MODULES_RESTORED, 'true'))
+
+  - script: |
+      npx https://aka.ms/enablesecurefeed standAlone
+    timeoutInMinutes: 5
+    condition: and(succeeded(), ne(variables.NODE_MODULES_RESTORED, 'true'), eq(variables['ENABLE_TERRAPIN'], 'true'))
+    displayName: Switch to Terrapin packages
 
   - script: |
       set -e
