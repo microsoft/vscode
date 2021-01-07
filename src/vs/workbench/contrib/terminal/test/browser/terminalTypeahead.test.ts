@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import * as assert from 'assert';
-import { IBuffer, Terminal } from 'xterm';
+import { IBuffer, IDisposable, Terminal } from 'xterm';
 import { SinonStub, stub, useFakeTimers } from 'sinon';
 import { Emitter } from 'vs/base/common/event';
 import { CharPredictState, IPrediction, PredictionStats, TypeAheadAddon } from 'vs/workbench/contrib/terminal/browser/terminalTypeAheadAddon';
@@ -78,7 +78,7 @@ suite('Workbench - Terminal Typeahead', () => {
 		const onConfigChanged = new Emitter<void>();
 		let publicLog: SinonStub;
 		let config: ITerminalConfiguration;
-		let processManager: ITerminalProcessManager;
+		let eventToDispose: IDisposable;
 		let addon: TestTypeAheadAddon;
 
 		const predictedHelloo = [
@@ -109,12 +109,13 @@ suite('Workbench - Terminal Typeahead', () => {
 			addon.unlockMakingPredictions();
 
 			// Setup process manager that is normally done by terminalinstance.
-			processManager = upcastPartial<ITerminalProcessManager>({ onBeforeProcessData: onBeforeProcessData.event });
-			processManager.onBeforeProcessData(e => addon?.onBeforeProcessData(e));
+			const processManager = upcastPartial<ITerminalProcessManager>({ onBeforeProcessData: onBeforeProcessData.event });
+			eventToDispose = processManager.onBeforeProcessData(e => addon?.onBeforeProcessData(e));
 		});
 
 		teardown(() => {
 			addon.dispose();
+			eventToDispose.dispose();
 		});
 
 		test('predicts a single character', () => {
