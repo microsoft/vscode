@@ -42,7 +42,7 @@
         "no-var": "warn",
         "jsdoc/no-types": "warn",
         "semi": "off",
-        "mocha/no-exclusive-tests": "warn",
+        // "mocha/no-exclusive-tests": "warn",
         "@typescript-eslint/semi": "warn",
         "@typescript-eslint/naming-convention": [
             "warn",
