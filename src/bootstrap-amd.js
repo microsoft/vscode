@@ -48,7 +48,7 @@ exports.load = function (entrypoint, onLoad, onError) {
 		loader.config({
 			nodeCachedData: {
 				path: process.env['VSCODE_NODE_CACHED_DATA_DIR'],
-				seed: entrypoint
+				seed: entrypoint + process.arch
 			}
 		});
 	}
