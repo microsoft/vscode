@@ -524,7 +524,7 @@ function getNodeCachedDir() {
 				return undefined;
 			}
 
-			return path.join(userDataPath, 'CachedData-' + process.arch, commit);
+			return path.join(userDataPath, 'CachedData', commit);
 		}
 	};
 }
