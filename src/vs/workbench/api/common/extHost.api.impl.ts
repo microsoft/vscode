@@ -569,7 +569,6 @@ export function createApiFactoryAndRegisterActors(accessor: ServicesAccessor): I
 					id = extension.identifier.value;
 					name = nls.localize('extensionLabel', "{0} (Extension)", extension.displayName || extension.name);
 					alignment = alignmentOrOptions;
-					priority = priority;
 				}
 
 				return extHostStatusBar.createStatusBarEntry(id, name, alignment, priority, accessibilityInformation);
