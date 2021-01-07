@@ -5,31 +5,40 @@
 
 import * as vscode from 'vscode';
 import * as nls from 'vscode-nls';
+import { Disposable } from './dispose';
 
 const localize = nls.loadMessageBundle();
 
-export class SimpleBrowserView {
+export interface ShowOptions {
+	readonly preserveFocus?: boolean;
+}
+
+export class SimpleBrowserView extends Disposable {
 
 	public static readonly viewType = 'simpleBrowser.view';
 	private static readonly title = localize('view.title', "Simple Browser");
 
 	private readonly _webviewPanel: vscode.WebviewPanel;
 
-	private readonly _onDidDispose = new vscode.EventEmitter<void>();
+	private readonly _onDidDispose = this._register(new vscode.EventEmitter<void>());
 	public readonly onDispose = this._onDidDispose.event;
 
 	constructor(
 		private readonly extensionUri: vscode.Uri,
 		url: string,
+		showOptions?: ShowOptions
 	) {
-		this._webviewPanel = vscode.window.createWebviewPanel(SimpleBrowserView.viewType, SimpleBrowserView.title, {
+		super();
+
+		this._webviewPanel = this._register(vscode.window.createWebviewPanel(SimpleBrowserView.viewType, SimpleBrowserView.title, {
 			viewColumn: vscode.ViewColumn.Active,
+			preserveFocus: showOptions?.preserveFocus
 		}, {
 			enableScripts: true,
 			retainContextWhenHidden: true,
-		});
+		}));
 
-		this._webviewPanel.webview.onDidReceiveMessage(e => {
+		this._register(this._webviewPanel.webview.onDidReceiveMessage(e => {
 			switch (e.type) {
 				case 'openExternal':
 					try {
@@ -40,26 +49,38 @@ export class SimpleBrowserView {
 					}
 					break;
 			}
-		});
+		}));
 
-		this._webviewPanel.onDidDispose(() => {
+		this._register(this._webviewPanel.onDidDispose(() => {
 			this.dispose();
-		});
+		}));
+
+		this._register(vscode.workspace.onDidChangeConfiguration(e => {
+			if (e.affectsConfiguration('simpleBrowser.focusLockIndicator.enabled')) {
+				const configuration = vscode.workspace.getConfiguration('simpleBrowser');
+				this._webviewPanel.webview.postMessage({
+					type: 'didChangeFocusLockIndicatorEnabled',
+					focusLockEnabled: configuration.get<boolean>('focusLockIndicator.enabled', true)
+				});
+			}
+		}));
 
 		this.show(url);
 	}
 
 	public dispose() {
 		this._onDidDispose.fire();
-		this._webviewPanel.dispose();
+		super.dispose();
 	}
 
-	public show(url: string) {
+	public show(url: string, options?: ShowOptions) {
 		this._webviewPanel.webview.html = this.getHtml(url);
-		this._webviewPanel.reveal();
+		this._webviewPanel.reveal(undefined, options?.preserveFocus);
 	}
 
 	private getHtml(url: string) {
+		const configuration = vscode.workspace.getConfiguration('simpleBrowser');
+
 		const nonce = new Date().getTime() + '' + new Date().getMilliseconds();
 
 		const mainJs = this.extensionResourceUrl('media', 'index.js');
@@ -82,6 +103,7 @@ export class SimpleBrowserView {
 
 				<meta id="simple-browser-settings" data-settings="${escapeAttribute(JSON.stringify({
 			url: url,
+			focusLockEnabled: configuration.get<boolean>('focusLockIndicator.enabled', true)
 		}))}">
 
 				<link rel="stylesheet" type="text/css" href="${mainCss}">

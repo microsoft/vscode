@@ -110,6 +110,6 @@ iframe {
 	pointer-events: none;
 }
 
-.iframe-focused .iframe-focused-alert {
+.iframe-focused.enable-focus-lock-indicator .iframe-focused-alert {
 	display: block;
 }

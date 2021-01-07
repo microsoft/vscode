@@ -5,7 +5,8 @@ Thumbs.db
 node_modules/
 .build/
 extensions/**/dist/
-out*/
+/out*/
+/extensions/**/out/
 src/vs/server
 resources/server
 build/node_modules

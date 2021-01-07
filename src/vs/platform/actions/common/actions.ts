@@ -157,7 +157,7 @@ export interface IMenuActionOptions {
 }
 
 export interface IMenu extends IDisposable {
-	readonly onDidChange: Event<IMenu | undefined>;
+	readonly onDidChange: Event<IMenu>;
 	getActions(options?: IMenuActionOptions): [string, Array<MenuItemAction | SubmenuItemAction>][];
 }
 

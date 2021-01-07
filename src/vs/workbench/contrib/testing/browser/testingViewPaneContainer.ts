@@ -13,7 +13,7 @@ import { IThemeService } from 'vs/platform/theme/common/themeService';
 import { IWorkspaceContextService } from 'vs/platform/workspace/common/workspace';
 import { ViewPaneContainer } from 'vs/workbench/browser/parts/views/viewPaneContainer';
 import { IViewDescriptorService } from 'vs/workbench/common/views';
-import { TESTING_VIEWLET_ID } from 'vs/workbench/contrib/testing/common/testViews';
+import { Testing } from 'vs/workbench/contrib/testing/common/constants';
 import { IExtensionService } from 'vs/workbench/services/extensions/common/extensions';
 import { IWorkbenchLayoutService } from 'vs/workbench/services/layout/browser/layoutService';
 
@@ -31,7 +31,7 @@ export class TestingViewPaneContainer extends ViewPaneContainer {
 		@IWorkspaceContextService contextService: IWorkspaceContextService,
 		@IViewDescriptorService viewDescriptorService: IViewDescriptorService,
 	) {
-		super(TESTING_VIEWLET_ID, { mergeViewWithContainerWhenSingleView: true }, instantiationService, configurationService, layoutService, contextMenuService, telemetryService, extensionService, themeService, storageService, contextService, viewDescriptorService);
+		super(Testing.ViewletId, { mergeViewWithContainerWhenSingleView: true }, instantiationService, configurationService, layoutService, contextMenuService, telemetryService, extensionService, themeService, storageService, contextService, viewDescriptorService);
 	}
 
 	create(parent: HTMLElement): void {

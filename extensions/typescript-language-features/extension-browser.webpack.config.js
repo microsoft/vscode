@@ -12,6 +12,22 @@ const Terser = require('terser');
 
 const withBrowserDefaults = require('../shared.webpack.config').browser;
 
+const languages = [
+	'zh-tw',
+	'cs',
+	'de',
+	'es',
+	'fr',
+	'it',
+	'ja',
+	'ko',
+	'pl',
+	'pt-br',
+	'ru',
+	'tr',
+	'zh-cn',
+];
+
 module.exports = withBrowserDefaults({
 	context: __dirname,
 	entry: {
@@ -26,6 +42,17 @@ module.exports = withBrowserDefaults({
 					to: 'typescript-web/',
 					flatten: true
 				},
+				{
+					from: 'node_modules/typescript-web/lib/typesMap.json',
+					to: 'typescript-web/'
+				},
+				...languages.map(lang => ({
+					from: `node_modules/typescript-web/lib/${lang}/**/*`,
+					to: 'typescript-web/',
+					transformPath: (targetPath) => {
+						return targetPath.replace(/node_modules[\/\\]typescript-web[\/\\]lib/, '');
+					}
+				}))
 			],
 		}),
 		// @ts-ignore

@@ -1,7 +1,7 @@
 {
   "name": "code-oss-dev",
   "version": "1.53.0",
-  "distro": "567f2a59872f569eef25a9de7f012f47c1d72e9d",
+  "distro": "a931eb4eaecce32bb290c9e27dc9f4a10ed6f330",
   "author": {
     "name": "Microsoft Corporation"
   },
@@ -55,7 +55,7 @@
   },
   "dependencies": {
     "applicationinsights": "1.0.8",
-    "chokidar": "3.4.3",
+    "chokidar": "3.5.0",
     "graceful-fs": "4.2.3",
     "http-proxy-agent": "^2.1.0",
     "https-proxy-agent": "^2.2.3",
@@ -78,7 +78,7 @@
     "vscode-ripgrep": "^1.11.1",
     "vscode-sqlite3": "4.0.10",
     "vscode-textmate": "5.2.0",
-    "xterm": "4.10.0-beta.4",
+    "xterm": "4.10.0-beta.39",
     "xterm-addon-search": "0.8.0-beta.3",
     "xterm-addon-unicode11": "0.3.0-beta.3",
     "xterm-addon-webgl": "0.10.0-beta.1",
@@ -173,7 +173,7 @@
     "opn": "^6.0.0",
     "optimist": "0.3.5",
     "p-all": "^1.0.0",
-    "playwright": "1.6.2",
+    "playwright": "1.7.1",
     "pump": "^1.0.1",
     "queue": "3.0.6",
     "rcedit": "^1.1.0",
@@ -185,7 +185,6 @@
     "style-loader": "^1.0.0",
     "terser": "^4.8.0",
     "ts-loader": "^6.2.1",
-    "tsec": "googleinterns/tsec#7bf4ab23686500522341b977b3e2cc04b1f720b1",
     "typescript": "4.2.0-dev.20201207",
     "typescript-formatter": "7.1.0",
     "underscore": "^1.8.2",
@@ -194,6 +193,7 @@
     "vscode-debugprotocol": "1.43.0",
     "vscode-nls-dev": "^3.3.1",
     "vscode-telemetry-extractor": "^1.6.0",
+    "vscode-tsec": "0.0.2",
     "webpack": "^4.43.0",
     "webpack-cli": "^3.3.12",
     "webpack-stream": "^5.2.1",
