@@ -7,7 +7,7 @@ import { MainThreadTunnelServiceShape, IExtHostContext, MainContext, ExtHostCont
 import { TunnelDto } from 'vs/workbench/api/common/extHostTunnelService';
 import { extHostNamedCustomer } from 'vs/workbench/api/common/extHostCustomers';
 import { CandidatePort, IRemoteExplorerService, makeAddress } from 'vs/workbench/services/remote/common/remoteExplorerService';
-import { ITunnelProvider, ITunnelService, TunnelCreationOptions, TunnelOptions } from 'vs/platform/remote/common/tunnel';
+import { ITunnelProvider, ITunnelService, TunnelCreationOptions, TunnelProviderFeatures, TunnelOptions } from 'vs/platform/remote/common/tunnel';
 import { Disposable } from 'vs/base/common/lifecycle';
 import type { TunnelDescription } from 'vs/platform/remote/common/remoteAuthorityResolver';
 
@@ -52,7 +52,7 @@ export class MainThreadTunnelService extends Disposable implements MainThreadTun
 		this.remoteExplorerService.onFoundNewCandidates(candidates);
 	}
 
-	async $setTunnelProvider(): Promise<void> {
+	async $setTunnelProvider(features: TunnelProviderFeatures): Promise<void> {
 		const tunnelProvider: ITunnelProvider = {
 			forwardPort: (tunnelOptions: TunnelOptions, tunnelCreationOptions: TunnelCreationOptions) => {
 				const forward = this._proxy.$forwardPort(tunnelOptions, tunnelCreationOptions);
@@ -75,7 +75,7 @@ export class MainThreadTunnelService extends Disposable implements MainThreadTun
 				return undefined;
 			}
 		};
-		this.tunnelService.setTunnelProvider(tunnelProvider);
+		this.tunnelService.setTunnelProvider(tunnelProvider, features);
 	}
 
 	dispose(): void {

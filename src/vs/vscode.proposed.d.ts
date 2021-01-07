@@ -238,6 +238,13 @@ declare module 'vscode' {
 		 * Provides filtering for candidate ports.
 		 */
 		showCandidatePort?: (host: string, port: number, detail: string) => Thenable<boolean>;
+
+		/**
+		 * Lets the resolver declare which tunnel factory features it supports.
+		 */
+		tunnelFeatures?: {
+			elevation: boolean;
+		};
 	}
 
 	export namespace workspace {

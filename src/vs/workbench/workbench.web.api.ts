@@ -19,6 +19,7 @@ import { CommandsRegistry } from 'vs/platform/commands/common/commands';
 import { IProductConfiguration } from 'vs/platform/product/common/productService';
 import { mark } from 'vs/base/common/performance';
 import { ICredentialsProvider } from 'vs/workbench/services/credentials/common/credentials';
+import { TunnelProviderFeatures } from 'vs/platform/remote/common/tunnel';
 
 interface IResourceUriProvider {
 	(uri: URI): URI;
@@ -46,9 +47,14 @@ interface ITunnelProvider {
 	tunnelFactory?: ITunnelFactory;
 
 	/**
-	 * Support for filtering candidate ports
+	 * Support for filtering candidate ports.
 	 */
 	showPortCandidate?: IShowPortCandidate;
+
+	/**
+	 * The features that the tunnel provider supports.
+	 */
+	features?: TunnelProviderFeatures;
 }
 
 interface ITunnelFactory {

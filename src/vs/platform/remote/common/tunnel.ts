@@ -30,6 +30,10 @@ export interface TunnelCreationOptions {
 	elevationRequired?: boolean;
 }
 
+export interface TunnelProviderFeatures {
+	elevation: boolean;
+}
+
 export interface ITunnelProvider {
 	forwardPort(tunnelOptions: TunnelOptions, tunnelCreationOptions: TunnelCreationOptions): Promise<RemoteTunnel | undefined> | undefined;
 }
@@ -43,7 +47,7 @@ export interface ITunnelService {
 
 	openTunnel(addressProvider: IAddressProvider | undefined, remoteHost: string | undefined, remotePort: number, localPort?: number): Promise<RemoteTunnel | undefined> | undefined;
 	closeTunnel(remoteHost: string, remotePort: number): Promise<void>;
-	setTunnelProvider(provider: ITunnelProvider | undefined): IDisposable;
+	setTunnelProvider(provider: ITunnelProvider | undefined, features: TunnelProviderFeatures): IDisposable;
 }
 
 export function extractLocalHostUriMetaDataForPortMapping(uri: URI): { address: string, port: number } | undefined {
