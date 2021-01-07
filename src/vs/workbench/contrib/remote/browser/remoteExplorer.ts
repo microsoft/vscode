@@ -297,8 +297,8 @@ class ForwardedPortNotifier extends Disposable {
 		const choices = [this.openChoice(tunnel)];
 
 		if (tunnel.tunnelLocalPort !== undefined && this.tunnelService.canElevate && isPortPrivileged(tunnel.tunnelRemotePort)) {
-			// Platforms checks are added for completeness, but at this time only Linux is expected.
-			message += nls.localize('remote.tunnelsView.elevationMessage', "You'll need to run as {0} to use port {1} locally.  ", isWindows ? 'administrator' : 'superuser', tunnel.tunnelRemotePort);
+			// Privileged ports are not on Windows, so it's safe to use "superuser"
+			message += nls.localize('remote.tunnelsView.elevationMessage', "You'll need to run as superuser to use port {0} locally.  ", tunnel.tunnelRemotePort);
 			choices.unshift(this.elevateChoice(tunnel));
 		}
 
@@ -323,7 +323,8 @@ class ForwardedPortNotifier extends Disposable {
 
 	private elevateChoice(tunnel: RemoteTunnel): IPromptChoice {
 		return {
-			label: nls.localize('remote.tunnelsView.elevationButton', "Use Port {0} as {1}", tunnel.tunnelRemotePort, isWindows ? 'Admin' : 'Sudo'),
+			// Privileged ports are not on Windows, so it's ok to stick to just "sudo".
+			label: nls.localize('remote.tunnelsView.elevationButton', "Use Port {0} as Sudo...", tunnel.tunnelRemotePort),
 			run: async () => {
 				await this.remoteExplorerService.close({ host: tunnel.tunnelRemoteHost, port: tunnel.tunnelRemotePort });
 				const newTunnel = await this.remoteExplorerService.forward({ host: tunnel.tunnelRemoteHost, port: tunnel.tunnelRemotePort }, tunnel.tunnelRemotePort, undefined, undefined, true);
