@@ -1418,7 +1418,14 @@ export class TypeAheadAddon extends Disposable implements ITerminalAddon {
 					flushOutput(this.timeline.terminal);
 				}
 
-				addLeftNavigating(new BackspacePrediction(this.timeline.terminal));
+				if (this.timeline!.getCursor(buffer).x <= this.lastRow!.startingX) {
+					this.timeline!.addBoundary(buffer, new TentativeBoundary(new BackspacePrediction(this.timeline.terminal)));
+				} else {
+					// Backspace decrements our ability to go right.
+					this.lastRow.endingX--;
+					this.timeline!.addPrediction(buffer, new BackspacePrediction(this.timeline.terminal));
+				}
+
 				continue;
 			}
 
