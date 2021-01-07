@@ -78,7 +78,6 @@ suite('Workbench - Terminal Typeahead', () => {
 		const onConfigChanged = new Emitter<void>();
 		let publicLog: SinonStub;
 		let config: ITerminalConfiguration;
-		let eventToDispose: IDisposable;
 		let addon: TestTypeAheadAddon;
 
 		const predictedHelloo = [
@@ -103,19 +102,15 @@ suite('Workbench - Terminal Typeahead', () => {
 			});
 			publicLog = stub();
 			addon = new TestTypeAheadAddon(
+				upcastPartial<ITerminalProcessManager>({ onBeforeProcessData: onBeforeProcessData.event }),
 				upcastPartial<TerminalConfigHelper>({ config, onConfigChanged: onConfigChanged.event }),
 				upcastPartial<ITelemetryService>({ publicLog })
 			);
 			addon.unlockMakingPredictions();
-
-			// Setup process manager that is normally done by terminalinstance.
-			const processManager = upcastPartial<ITerminalProcessManager>({ onBeforeProcessData: onBeforeProcessData.event });
-			eventToDispose = processManager.onBeforeProcessData(e => addon?.onBeforeProcessData(e));
 		});
 
 		teardown(() => {
 			addon.dispose();
-			eventToDispose.dispose();
 		});
 
 		test('predicts a single character', () => {

@@ -12,7 +12,7 @@ import { escapeRegExpCharacters } from 'vs/base/common/strings';
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
 import { TerminalConfigHelper } from 'vs/workbench/contrib/terminal/browser/terminalConfigHelper';
 import { XTermAttributes, XTermCore } from 'vs/workbench/contrib/terminal/browser/xterm-private';
-import { DEFAULT_LOCAL_ECHO_EXCLUDE, IBeforeProcessDataEvent, ITerminalConfiguration } from 'vs/workbench/contrib/terminal/common/terminal';
+import { DEFAULT_LOCAL_ECHO_EXCLUDE, IBeforeProcessDataEvent, ITerminalConfiguration, ITerminalProcessManager } from 'vs/workbench/contrib/terminal/common/terminal';
 import type { IBuffer, IBufferCell, IDisposable, ITerminalAddon, Terminal } from 'xterm';
 
 const ESC = '\x1b';
@@ -1235,6 +1235,7 @@ export class TypeAheadAddon extends Disposable implements ITerminalAddon {
 	private clearPredictionDebounce?: IDisposable;
 
 	constructor(
+		private processManager: ITerminalProcessManager,
 		private readonly config: TerminalConfigHelper,
 		@ITelemetryService private readonly telemetryService: ITelemetryService,
 	) {
@@ -1271,6 +1272,7 @@ export class TypeAheadAddon extends Disposable implements ITerminalAddon {
 				}
 			}
 		}));
+		this._register(this.processManager.onBeforeProcessData(e => this.onBeforeProcessData(e)));
 
 		let nextStatsSend: any;
 		this._register(stats.onChange(() => {
@@ -1289,16 +1291,10 @@ export class TypeAheadAddon extends Disposable implements ITerminalAddon {
 		}));
 	}
 
-	public onBeforeProcessData(event: IBeforeProcessDataEvent): void {
-		if (!this.timeline) {
-			return;
-		}
-
-		// console.log('incoming data:', JSON.stringify(event.data));
-		event.data = this.timeline.beforeServerInput(event.data);
-		// console.log('emitted data:', JSON.stringify(event.data));
-
-		this.deferClearingPredictions();
+	public reset(processManager: ITerminalProcessManager) {
+		this.lastRow = undefined;
+		this.processManager = processManager;
+		this._register(this.processManager.onBeforeProcessData(e => this.onBeforeProcessData(e)));
 	}
 
 	private deferClearingPredictions() {
@@ -1394,7 +1390,7 @@ export class TypeAheadAddon extends Disposable implements ITerminalAddon {
 			this.lastRow = { y: actualY, startingX: buffer.cursorX, endingX: buffer.cursorX, charState: CharPredictState.Unknown };
 		} else {
 			this.lastRow.startingX = Math.min(this.lastRow.startingX, buffer.cursorX);
-			this.lastRow.endingX = Math.max(this.lastRow.endingX, buffer.cursorX);
+			this.lastRow.endingX = Math.max(this.lastRow.endingX, this.timeline.getCursor(buffer).x);
 		}
 
 		const addLeftNavigating = (p: IPrediction) =>
@@ -1403,7 +1399,7 @@ export class TypeAheadAddon extends Disposable implements ITerminalAddon {
 				: this.timeline!.addPrediction(buffer, p);
 
 		const addRightNavigating = (p: IPrediction) =>
-			this.timeline!.getCursor(buffer).x >= this.lastRow!.endingX
+			this.timeline!.getCursor(buffer).x >= this.lastRow!.endingX - 1
 				? this.timeline!.addBoundary(buffer, new TentativeBoundary(p))
 				: this.timeline!.addPrediction(buffer, p);
 
@@ -1479,5 +1475,17 @@ export class TypeAheadAddon extends Disposable implements ITerminalAddon {
 			this.deferClearingPredictions();
 			this.typeaheadStyle!.startTracking();
 		}
+	}
+
+	private onBeforeProcessData(event: IBeforeProcessDataEvent): void {
+		if (!this.timeline) {
+			return;
+		}
+
+		// console.log('incoming data:', JSON.stringify(event.data));
+		event.data = this.timeline.beforeServerInput(event.data);
+		// console.log('emitted data:', JSON.stringify(event.data));
+
+		this.deferClearingPredictions();
 	}
 }

@@ -465,7 +465,7 @@ export class TerminalInstance extends Disposable implements ITerminalInstance {
 			}
 		}));
 
-		this._xtermTypeAhead = this._register(this._instantiationService.createInstance(TypeAheadAddon, this._configHelper));
+		this._xtermTypeAhead = this._register(this._instantiationService.createInstance(TypeAheadAddon, this._processManager, this._configHelper));
 		this._xterm.loadAddon(this._xtermTypeAhead);
 
 		return xterm;
@@ -986,9 +986,6 @@ export class TerminalInstance extends Disposable implements ITerminalInstance {
 	}
 
 	private _createProcess(): void {
-		if (this._xtermTypeAhead) {
-			this._processManager.onBeforeProcessData(e => this._xtermTypeAhead?.onBeforeProcessData(e));
-		}
 		this._processManager.createProcess(this._shellLaunchConfig, this._cols, this._rows, this._accessibilityService.isScreenReaderOptimized()).then(error => {
 			if (error) {
 				this._onProcessExit(error);
@@ -1213,6 +1210,8 @@ export class TerminalInstance extends Disposable implements ITerminalInstance {
 
 		this._processManager.onProcessData(data => this._onProcessData(data));
 		this._createProcess();
+
+		this._xtermTypeAhead?.reset(this._processManager);
 	}
 
 	public relaunch(): void {
