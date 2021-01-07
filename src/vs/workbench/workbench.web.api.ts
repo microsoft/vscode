@@ -73,7 +73,7 @@ export interface TunnelCreationOptions {
 	elevationRequired?: boolean;
 }
 
-interface ITunnel extends IDisposable {
+interface ITunnel {
 	remoteAddress: { port: number, host: string };
 
 	/**
@@ -85,6 +85,8 @@ interface ITunnel extends IDisposable {
 	 * Implementers of Tunnel should fire onDidDispose when dispose is called.
 	 */
 	onDidDispose: Event<void>;
+
+	dispose(): Promise<void> | void;
 }
 
 interface IShowPortCandidate {

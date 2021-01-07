@@ -17,7 +17,7 @@ export interface RemoteTunnel {
 	readonly tunnelRemoteHost: string;
 	readonly tunnelLocalPort?: number;
 	readonly localAddress: string;
-	dispose(silent?: boolean): void;
+	dispose(silent?: boolean): Promise<void>;
 }
 
 export interface TunnelOptions {
@@ -119,10 +119,10 @@ export abstract class AbstractTunnelService implements ITunnelService {
 		});
 	}
 
-	dispose(): void {
+	async dispose(): Promise<void> {
 		for (const portMap of this._tunnels.values()) {
 			for (const { value } of portMap.values()) {
-				value.then(tunnel => tunnel?.dispose());
+				await value.then(tunnel => tunnel?.dispose());
 			}
 			portMap.clear();
 		}
@@ -163,13 +163,13 @@ export abstract class AbstractTunnelService implements ITunnelService {
 			tunnelRemoteHost: tunnel.tunnelRemoteHost,
 			tunnelLocalPort: tunnel.tunnelLocalPort,
 			localAddress: tunnel.localAddress,
-			dispose: () => {
+			dispose: async () => {
 				const existingHost = this._tunnels.get(tunnel.tunnelRemoteHost);
 				if (existingHost) {
 					const existing = existingHost.get(tunnel.tunnelRemotePort);
 					if (existing) {
 						existing.refcount--;
-						this.tryDisposeTunnel(tunnel.tunnelRemoteHost, tunnel.tunnelRemotePort, existing);
+						await this.tryDisposeTunnel(tunnel.tunnelRemoteHost, tunnel.tunnelRemotePort, existing);
 					}
 				}
 			}
@@ -178,9 +178,9 @@ export abstract class AbstractTunnelService implements ITunnelService {
 
 	private async tryDisposeTunnel(remoteHost: string, remotePort: number, tunnel: { refcount: number, readonly value: Promise<RemoteTunnel | undefined> }): Promise<void> {
 		if (tunnel.refcount <= 0) {
-			const disposePromise: Promise<void> = tunnel.value.then(tunnel => {
+			const disposePromise: Promise<void> = tunnel.value.then(async (tunnel) => {
 				if (tunnel) {
-					tunnel.dispose(true);
+					await tunnel.dispose(true);
 					this._onTunnelClosed.fire({ host: tunnel.tunnelRemoteHost, port: tunnel.tunnelRemotePort });
 				}
 			});

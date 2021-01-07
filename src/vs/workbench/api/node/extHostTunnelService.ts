@@ -30,11 +30,11 @@ class ExtensionTunnel implements vscode.Tunnel {
 	constructor(
 		public readonly remoteAddress: { port: number, host: string },
 		public readonly localAddress: { port: number, host: string } | string,
-		private readonly _dispose: () => void) { }
+		private readonly _dispose: () => Promise<void>) { }
 
-	dispose(): void {
+	dispose(): Promise<void> {
 		this._onDispose.fire();
-		this._dispose();
+		return this._dispose();
 	}
 }
 
@@ -212,7 +212,7 @@ export class ExtHostTunnelService extends Disposable implements IExtHostTunnelSe
 				if (silent) {
 					hostMap.get(remote.port)!.disposeListener.dispose();
 				}
-				hostMap.get(remote.port)!.tunnel.dispose();
+				await hostMap.get(remote.port)!.tunnel.dispose();
 				hostMap.delete(remote.port);
 			}
 		}
