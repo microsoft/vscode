@@ -534,7 +534,7 @@ suite('Filters', () => {
 		assert.ok(Boolean(match));
 	});
 
-	test('Wrong highlight after emoji #113403', function () {
+	test('Wrong highlight after emoji #113404', function () {
 		assertMatches('di', '✨div classname=""></div>', '✨^d^iv classname=""></div>', fuzzyScore);
 		assertMatches('di', 'adiv classname=""></div>', 'adiv classname=""></^d^iv>', fuzzyScore);
 	});
