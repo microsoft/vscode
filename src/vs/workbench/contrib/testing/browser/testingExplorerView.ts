@@ -9,13 +9,17 @@ import { IIdentityProvider, IKeyboardNavigationLabelProvider, IListVirtualDelega
 import { IListAccessibilityProvider } from 'vs/base/browser/ui/list/listWidget';
 import { ObjectTree } from 'vs/base/browser/ui/tree/objectTree';
 import { ITreeElement, ITreeEvent, ITreeFilter, ITreeNode, ITreeRenderer, ITreeSorter, TreeFilterResult, TreeVisibility } from 'vs/base/browser/ui/tree/tree';
+import { findFirstInSorted } from 'vs/base/common/arrays';
 import { throttle } from 'vs/base/common/decorators';
 import { Emitter, Event } from 'vs/base/common/event';
 import { FuzzyScore } from 'vs/base/common/filters';
 import { Iterable } from 'vs/base/common/iterator';
-import { Disposable, IDisposable } from 'vs/base/common/lifecycle';
+import { Disposable, DisposableStore, IDisposable, toDisposable } from 'vs/base/common/lifecycle';
 import { URI } from 'vs/base/common/uri';
 import 'vs/css!./media/testing';
+import { ICodeEditor } from 'vs/editor/browser/editorBrowser';
+import { ICodeEditorService } from 'vs/editor/browser/services/codeEditorService';
+import { Position } from 'vs/editor/common/core/position';
 import { localize } from 'vs/nls';
 import { MenuEntryActionViewItem } from 'vs/platform/actions/browser/menuEntryActionViewItem';
 import { MenuItemAction } from 'vs/platform/actions/common/actions';
@@ -138,9 +142,9 @@ export class TestingExplorerView extends ViewPane {
 }
 
 export class TestingExplorerViewModel extends Disposable {
-	private tree: ObjectTree<ITestTreeElement, FuzzyScore>;
+	public tree: ObjectTree<ITestTreeElement, FuzzyScore>;
 	private filter: TestsFilter;
-	private projection!: ITestTreeProjection;
+	public projection!: ITestTreeProjection;
 
 	private readonly _viewMode = TestingContextKeys.viewMode.bindTo(this.contextKeyService);
 	private viewModeChangeEmitter = new Emitter<TestExplorerViewMode>();
@@ -176,6 +180,7 @@ export class TestingExplorerViewModel extends Disposable {
 		private listener: TestSubscriptionListener | undefined,
 		@IInstantiationService instantiationService: IInstantiationService,
 		@IEditorService editorService: IEditorService,
+		@ICodeEditorService codeEditorService: ICodeEditorService,
 		@IStorageService private readonly storageService: IStorageService,
 		@IContextKeyService private readonly contextKeyService: IContextKeyService,
 	) {
@@ -208,7 +213,7 @@ export class TestingExplorerViewModel extends Disposable {
 		this.onDidChangeSelection = this.tree.onDidChangeSelection;
 		this._register(this.tree.onDidChangeSelection(evt => {
 			const location = evt.elements[0]?.location;
-			if (!location) {
+			if (!location || !evt.browserEvent) {
 				return;
 			}
 
@@ -216,6 +221,15 @@ export class TestingExplorerViewModel extends Disposable {
 				resource: location.uri,
 				options: { selection: location.range, preserveFocus: true }
 			});
+		}));
+
+		const tracker = this._register(new CodeEditorTracker(codeEditorService, this));
+		this._register(onDidChangeVisibility(visible => {
+			if (visible) {
+				tracker.activate();
+			} else {
+				tracker.deactivate();
+			}
 		}));
 	}
 
@@ -232,6 +246,32 @@ export class TestingExplorerViewModel extends Disposable {
 	public replaceSubscription(listener: TestSubscriptionListener | undefined) {
 		this.listener = listener;
 		this.updatePreferredProjection();
+	}
+
+	/**
+	 * Reveals and moves focus to the item.
+	 */
+	public async revealItem(item: ITestTreeElement, reveal = true): Promise<void> {
+		const chain: ITestTreeElement[] = [];
+		for (let parent = item.parentItem; parent; parent = parent.parentItem) {
+			chain.push(parent);
+		}
+
+		for (const parent of chain.reverse()) {
+			try {
+				this.tree.expand(parent);
+			} catch {
+				// ignore if not present
+			}
+		}
+
+		if (reveal === true && this.tree.getRelativeTop(item) === null) {
+			// Don't scroll to the item if it's already visible, or if set not to.
+			this.tree.reveal(item, 0.5);
+		}
+
+		this.tree.setFocus([item]);
+		this.tree.setSelection([item]);
 	}
 
 	private updatePreferredProjection() {
@@ -261,6 +301,57 @@ export class TestingExplorerViewModel extends Disposable {
 	 */
 	public getSelectedTests() {
 		return this.tree.getSelection();
+	}
+}
+
+class CodeEditorTracker {
+	private store = new DisposableStore();
+	private lastRevealed?: ITestTreeElement;
+
+	constructor(@ICodeEditorService private readonly codeEditorService: ICodeEditorService, private readonly model: TestingExplorerViewModel) {
+	}
+
+	public activate() {
+		const editorStores = new Set<DisposableStore>();
+		this.store.add(toDisposable(() => {
+			for (const store of editorStores) {
+				store.dispose();
+			}
+		}));
+
+		const register = (editor: ICodeEditor) => {
+			const store = new DisposableStore();
+			const uri = editor.getModel()?.uri;
+			if (!uri) {
+				return;
+			}
+
+			store.add(editor.onDidChangeCursorPosition(evt => {
+				const test = this.model.projection.getTestAtPosition(uri, evt.position);
+
+				if (test && test !== this.lastRevealed) {
+					this.model.revealItem(test);
+					this.lastRevealed = test;
+				}
+			}));
+
+			editor.onDidDispose(() => {
+				store.dispose();
+				editorStores.delete(store);
+			});
+		};
+
+		this.store.add(this.codeEditorService.onCodeEditorAdd(register));
+		this.codeEditorService.listCodeEditors().forEach(register);
+	}
+
+	public deactivate() {
+		this.store.dispose();
+		this.store = new DisposableStore();
+	}
+
+	public dispose() {
+		this.store.dispose();
 	}
 }
 
@@ -470,6 +561,12 @@ export interface ITestTreeProjection extends IDisposable {
 	onUpdate: Event<void>;
 
 	/**
+	 * Gets the test at the given position in th editor. Should be fast,
+	 * since it is called on each cursor move.
+	 */
+	getTestAtPosition(uri: URI, position: Position): ITestTreeElement | undefined;
+
+	/**
 	 * Applies pending update to the tree.
 	 */
 	applyTo(tree: ObjectTree<ITestTreeElement, FuzzyScore>): void;
@@ -504,6 +601,11 @@ export interface ITestTreeElement {
 	readonly description?: string;
 
 	/**
+	 * Depth of the item in the tree.
+	 */
+	readonly depth: number;
+
+	/**
 	 * State of of the tree item. Mostly used for deriving the computed state.
 	 */
 	readonly state?: TestRunState;
@@ -515,6 +617,7 @@ export interface ITestTreeElement {
 class HierarchalElement implements ITestTreeElement {
 	public readonly children = new Set<HierarchalElement>();
 	public computedState: TestRunState | undefined;
+	public readonly depth: number = this.parentItem.depth + 1;
 
 	public get treeId() {
 		return `test:${this.test.id}`;
@@ -552,6 +655,7 @@ class HierarchalElement implements ITestTreeElement {
 class HierarchalFolder implements ITestTreeElement {
 	public readonly children = new Set<HierarchalElement>();
 	public readonly parentItem = null;
+	public readonly depth = 0;
 	public computedState: TestRunState | undefined;
 
 	public get treeId() {
@@ -663,6 +767,7 @@ class HierarchalProjection extends Disposable implements ITestTreeProjection {
 	private newlyRenderedNodes = new Set<HierarchalElement | HierarchalFolder>();
 	private updatedNodes = new Set<HierarchalElement | HierarchalFolder>();
 	private removedNodes = new Set<HierarchalElement | HierarchalFolder>();
+	private readonly itemsByUri = new Map<string, HierarchalElement[]>();
 
 	/**
 	 * Map of item IDs to test item objects.
@@ -690,8 +795,7 @@ class HierarchalProjection extends Disposable implements ITestTreeProjection {
 				for (const id of queue.pop()!) {
 					const node = collection.getNodeById(id)!;
 					const item = this.createItem(node, folder.folder);
-					item.parentItem.children.add(item);
-					this.items.set(item.test.id, item);
+					this.storeItem(item);
 					queue.push(node.children);
 				}
 			}
@@ -714,15 +818,32 @@ class HierarchalProjection extends Disposable implements ITestTreeProjection {
 	}
 
 	/**
-	 * Applies the diff to the collection.
+	 * @inheritdoc
+	 */
+	public getTestAtPosition(uri: URI, position: Position) {
+		const tests = this.itemsByUri.get(uri.toString());
+		if (!tests) {
+			return;
+		}
+
+
+		return tests.find(test => {
+			const range = test.location?.range;
+			return range
+				&& new Position(range.startLineNumber, range.startColumn).isBeforeOrEqual(position)
+				&& position.isBefore(new Position(range.endLineNumber, range.endColumn));
+		});
+	}
+
+	/**
+	 * @inheritdoc
 	 */
 	private applyDiff(folder: IWorkspaceFolder, diff: TestsDiff) {
 		for (const op of diff) {
 			switch (op[0]) {
 				case TestDiffOpType.Add: {
 					const item = this.createItem(op[1], folder);
-					item.parentItem.children.add(item);
-					this.items.set(item.test.id, item);
+					this.storeItem(item);
 					this.newlyRenderedNodes.add(item);
 					break;
 				}
@@ -730,10 +851,15 @@ class HierarchalProjection extends Disposable implements ITestTreeProjection {
 				case TestDiffOpType.Update: {
 					const item = op[1];
 					const existing = this.items.get(item.id);
-					if (existing) {
-						existing.update(item, this.addUpdated);
-						this.addUpdated(existing);
+					if (!existing) {
+						break;
 					}
+
+					const locationChanged = existing.location?.uri.toString() !== item.item.location?.uri.toString();
+					if (locationChanged) { this.removeItemFromLocationMap(existing); }
+					existing.update(item, this.addUpdated);
+					if (locationChanged) { this.addItemToLocationMap(existing); }
+					this.addUpdated(existing);
 					break;
 				}
 
@@ -750,7 +876,7 @@ class HierarchalProjection extends Disposable implements ITestTreeProjection {
 					const queue: Iterable<HierarchalElement>[] = [[toRemove]];
 					while (queue.length) {
 						for (const item of queue.pop()!) {
-							this.items.delete(item.test.id);
+							this.unstoreItem(item);
 							this.newlyRenderedNodes.delete(item);
 						}
 					}
@@ -850,6 +976,51 @@ class HierarchalProjection extends Disposable implements ITestTreeProjection {
 			children: Iterable.map(node.children, this.renderNode),
 		};
 	};
+
+	private unstoreItem(item: HierarchalElement) {
+		this.items.delete(item.test.id);
+		this.removeItemFromLocationMap(item);
+	}
+
+	protected storeItem(item: HierarchalElement) {
+		item.parentItem.children.add(item);
+		this.items.set(item.test.id, item);
+		this.addItemToLocationMap(item);
+	}
+
+	protected removeItemFromLocationMap(item: HierarchalElement) {
+		if (!item.location) {
+			return;
+		}
+
+		const key = item.location.uri.toString();
+		const arr = this.itemsByUri.get(key);
+		if (!arr) {
+			return;
+		}
+
+		for (let i = 0; i < arr.length; i++) {
+			if (arr[i] === item) {
+				arr.splice(i, 1);
+				return;
+			}
+		}
+	}
+
+	protected addItemToLocationMap(item: HierarchalElement) {
+		if (!item.location) {
+			return;
+		}
+
+		const key = item.location.uri.toString();
+		const arr = this.itemsByUri.get(key);
+		if (!arr) {
+			this.itemsByUri.set(key, [item]);
+			return;
+		}
+
+		arr.splice(findFirstInSorted(arr, x => x.depth < item.depth), 0, item);
+	}
 }
 
 /**
