@@ -17,7 +17,7 @@
         "url": "https://github.com/microsoft/vscode-emmet"
     },
     "activationEvents": [
-        "*",
+        "onStartupFinished",
         "onCommand:emmet.expandAbbreviation",
         "onLanguage:html",
         "onLanguage:css",
