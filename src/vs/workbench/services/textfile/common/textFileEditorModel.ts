@@ -837,6 +837,9 @@ export class TextFileEditorModel extends BaseTextEditorModel implements ITextFil
 			this.logService.trace(`[text file model] handleSaveSuccess(${versionId}) - not setting dirty to false because versionId did change meanwhile`, this.resource.toString(true));
 		}
 
+		// Update orphan state given save was successful
+		this.setOrphaned(false);
+
 		// Emit Save Event
 		this._onDidSave.fire(options.reason ?? SaveReason.EXPLICIT);
 	}
