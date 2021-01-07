@@ -39,7 +39,7 @@ export class RemoteStatusIndicator extends Disposable implements IWorkbenchContr
 	private hasRemoteActions = false;
 
 	private readonly remoteAuthority = this.environmentService.remoteAuthority;
-	private connectionState: 'initializing' | 'connected' | 'disconnected' | undefined = undefined;
+	private connectionState: 'initializing' | 'connected' | 'reconnecting' | 'disconnected' | undefined = undefined;
 	private readonly connectionStateContextKey = new RawContextKey<'' | 'initializing' | 'disconnected' | 'connected'>('remoteConnectionState', '').bindTo(this.contextKeyService);
 
 	constructor(
@@ -133,13 +133,15 @@ export class RemoteStatusIndicator extends Disposable implements IWorkbenchContr
 				this._register(connection.onDidStateChange((e) => {
 					switch (e.type) {
 						case PersistentConnectionEventType.ConnectionLost:
-						case PersistentConnectionEventType.ReconnectionPermanentFailure:
 						case PersistentConnectionEventType.ReconnectionRunning:
 						case PersistentConnectionEventType.ReconnectionWait:
-							this.setDisconnected(true);
+							this.setState('reconnecting');
+							break;
+						case PersistentConnectionEventType.ReconnectionPermanentFailure:
+							this.setState('disconnected');
 							break;
 						case PersistentConnectionEventType.ConnectionGain:
-							this.setDisconnected(false);
+							this.setState('connected');
 							break;
 					}
 				}));
@@ -158,9 +160,9 @@ export class RemoteStatusIndicator extends Disposable implements IWorkbenchContr
 				try {
 					await this.remoteAuthorityResolverService.resolveAuthority(remoteAuthority);
 
-					this.setDisconnected(false);
+					this.setState('connected');
 				} catch (error) {
-					this.setDisconnected(true);
+					this.setState('disconnected');
 				}
 			})();
 		}
@@ -168,11 +170,16 @@ export class RemoteStatusIndicator extends Disposable implements IWorkbenchContr
 		this.updateRemoteStatusIndicator();
 	}
 
-	private setDisconnected(isDisconnected: boolean): void {
-		const newState = isDisconnected ? 'disconnected' : 'connected';
+	private setState(newState: 'disconnected' | 'connected' | 'reconnecting'): void {
 		if (this.connectionState !== newState) {
 			this.connectionState = newState;
-			this.connectionStateContextKey.set(this.connectionState);
+
+			// simplify context key which doesn't support `connecting`
+			if (this.connectionState === 'reconnecting') {
+				this.connectionStateContextKey.set('disconnected');
+			} else {
+				this.connectionStateContextKey.set(this.connectionState);
+			}
 
 			this.updateRemoteStatusIndicator();
 		}
@@ -201,6 +208,9 @@ export class RemoteStatusIndicator extends Disposable implements IWorkbenchContr
 			switch (this.connectionState) {
 				case 'initializing':
 					this.renderRemoteStatusIndicator(nls.localize('host.open', "Opening Remote..."), nls.localize('host.open', "Opening Remote..."), undefined, true /* progress */);
+					break;
+				case 'reconnecting':
+					this.renderRemoteStatusIndicator(nls.localize('host.reconnecting', "Reconnecting..."), nls.localize('host.reconnecting', "Reconnecting..."), undefined, true /* progress */);
 					break;
 				case 'disconnected':
 					this.renderRemoteStatusIndicator(`$(alert) ${nls.localize('disconnectedFrom', "Disconnected from {0}", truncate(hostLabel, RemoteStatusIndicator.REMOTE_STATUS_LABEL_MAX_LENGTH))}`, nls.localize('host.tooltipDisconnected', "Disconnected from {0}", hostLabel));
