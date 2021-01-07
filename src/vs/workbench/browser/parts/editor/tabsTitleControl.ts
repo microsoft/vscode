@@ -1458,6 +1458,21 @@ export class TabsTitleControl extends TitleControl {
 			// be the width of the editor actions container to avoid screen cheese.
 			tabsContainer.style.setProperty('--last-tab-margin-right', tabsWrapMultiLine ? `${editorToolbarContainer.offsetWidth}px` : '0');
 
+			// We need to disable wrapping also in case the last tab requires more
+			// width than what is available accounting for the available width and
+			// the editor toolbar.
+			// Workaround for https://github.com/microsoft/vscode/issues/113926
+			// An overall better fix is to make the editor toolbar a "fake" last tab
+			// so that it requires the space it needs, potentially wrapping to the
+			// next line (see https://github.com/microsoft/vscode/issues/113801)
+			const lastTab = this.getLastTab();
+			if (tabsWrapMultiLine && lastTab && lastTab.offsetWidth > (dimensions.available.width - editorToolbarContainer.offsetWidth)) {
+				tabsAndActionsContainer.classList.remove('wrapping');
+				tabsWrapMultiLine = false;
+				updateScrollbar = true;
+				tabsContainer.style.setProperty('--last-tab-margin-right', '0');
+			}
+
 			// When tabs change from wrapping back to normal, we need to indicate this
 			// to the scrollbar so that revealing the active tab functions properly.
 			if (updateScrollbar) {
@@ -1547,15 +1562,26 @@ export class TabsTitleControl extends TitleControl {
 
 	private getTabAndIndex(editor: IEditorInput): [HTMLElement, number /* index */] | undefined {
 		const editorIndex = this.group.getIndexOfEditor(editor);
-		if (editorIndex >= 0) {
-			const tabsContainer = assertIsDefined(this.tabsContainer);
-			const tab = tabsContainer.children[editorIndex];
-			if (tab) {
-				return [tab as HTMLElement, editorIndex];
-			}
+		const tab = this.getTabAtIndex(editorIndex);
+		if (tab) {
+			return [tab, editorIndex];
 		}
 
 		return undefined;
+	}
+
+	private getTabAtIndex(editorIndex: number): HTMLElement | undefined {
+		if (editorIndex >= 0) {
+			const tabsContainer = assertIsDefined(this.tabsContainer);
+
+			return tabsContainer.children[editorIndex] as HTMLElement | undefined;
+		}
+
+		return undefined;
+	}
+
+	private getLastTab(): HTMLElement | undefined {
+		return this.getTabAtIndex(this.group.count - 1);
 	}
 
 	private blockRevealActiveTabOnce(): void {
