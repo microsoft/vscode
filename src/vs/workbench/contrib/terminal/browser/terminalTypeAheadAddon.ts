@@ -12,7 +12,7 @@ import { escapeRegExpCharacters } from 'vs/base/common/strings';
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
 import { TerminalConfigHelper } from 'vs/workbench/contrib/terminal/browser/terminalConfigHelper';
 import { XTermAttributes, XTermCore } from 'vs/workbench/contrib/terminal/browser/xterm-private';
-import { DEFAULT_LOCAL_ECHO_EXCLUDE, IBeforeProcessDataEvent, ITerminalConfiguration, ITerminalProcessManager } from 'vs/workbench/contrib/terminal/common/terminal';
+import { DEFAULT_LOCAL_ECHO_EXCLUDE, IBeforeProcessDataEvent, ITerminalConfiguration } from 'vs/workbench/contrib/terminal/common/terminal';
 import type { IBuffer, IBufferCell, IDisposable, ITerminalAddon, Terminal } from 'xterm';
 
 const ESC = '\x1b';
@@ -1235,7 +1235,6 @@ export class TypeAheadAddon extends Disposable implements ITerminalAddon {
 	private clearPredictionDebounce?: IDisposable;
 
 	constructor(
-		private readonly processManager: ITerminalProcessManager,
 		private readonly config: TerminalConfigHelper,
 		@ITelemetryService private readonly telemetryService: ITelemetryService,
 	) {
@@ -1272,7 +1271,6 @@ export class TypeAheadAddon extends Disposable implements ITerminalAddon {
 				}
 			}
 		}));
-		this._register(this.processManager.onBeforeProcessData(e => this.onBeforeProcessData(e)));
 
 		let nextStatsSend: any;
 		this._register(stats.onChange(() => {
@@ -1291,10 +1289,16 @@ export class TypeAheadAddon extends Disposable implements ITerminalAddon {
 		}));
 	}
 
-	// We need a new reference to the Terminal object because the buffer appears to be
-	// corrupted.
-	public reset(terminal: Terminal) {
-		this.timeline = new PredictionTimeline(terminal, this.typeaheadStyle!);
+	public onBeforeProcessData(event: IBeforeProcessDataEvent): void {
+		if (!this.timeline) {
+			return;
+		}
+
+		// console.log('incoming data:', JSON.stringify(event.data));
+		event.data = this.timeline.beforeServerInput(event.data);
+		// console.log('emitted data:', JSON.stringify(event.data));
+
+		this.deferClearingPredictions();
 	}
 
 	private deferClearingPredictions() {
@@ -1475,17 +1479,5 @@ export class TypeAheadAddon extends Disposable implements ITerminalAddon {
 			this.deferClearingPredictions();
 			this.typeaheadStyle!.startTracking();
 		}
-	}
-
-	private onBeforeProcessData(event: IBeforeProcessDataEvent): void {
-		if (!this.timeline) {
-			return;
-		}
-
-		// console.log('incoming data:', JSON.stringify(event.data));
-		event.data = this.timeline.beforeServerInput(event.data);
-		// console.log('emitted data:', JSON.stringify(event.data));
-
-		this.deferClearingPredictions();
 	}
 }

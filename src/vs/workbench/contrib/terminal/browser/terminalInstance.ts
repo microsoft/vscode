@@ -89,7 +89,7 @@ export class TerminalInstance extends Disposable implements ITerminalInstance {
 	private _wrapperElement: (HTMLElement & { xterm?: XTermTerminal }) | undefined;
 	private _xterm: XTermTerminal | undefined;
 	private _xtermCore: XTermCore | undefined;
-	private _typeAheadAddOn: TypeAheadAddon | undefined;
+	private _xtermTypeAhead: TypeAheadAddon | undefined;
 	private _xtermSearch: SearchAddon | undefined;
 	private _xtermUnicode11: Unicode11Addon | undefined;
 	private _xtermElement: HTMLDivElement | undefined;
@@ -465,8 +465,8 @@ export class TerminalInstance extends Disposable implements ITerminalInstance {
 			}
 		}));
 
-		this._typeAheadAddOn = this._register(this._instantiationService.createInstance(TypeAheadAddon, this._processManager, this._configHelper));
-		this._xterm.loadAddon(this._typeAheadAddOn);
+		this._xtermTypeAhead = this._register(this._instantiationService.createInstance(TypeAheadAddon, this._configHelper));
+		this._xterm.loadAddon(this._xtermTypeAhead);
 
 		return xterm;
 	}
@@ -986,6 +986,9 @@ export class TerminalInstance extends Disposable implements ITerminalInstance {
 	}
 
 	private _createProcess(): void {
+		if (this._xtermTypeAhead) {
+			this._processManager.onBeforeProcessData(e => this._xtermTypeAhead?.onBeforeProcessData(e));
+		}
 		this._processManager.createProcess(this._shellLaunchConfig, this._cols, this._rows, this._accessibilityService.isScreenReaderOptimized()).then(error => {
 			if (error) {
 				this._onProcessExit(error);
@@ -1161,13 +1164,9 @@ export class TerminalInstance extends Disposable implements ITerminalInstance {
 		this._pressAnyKeyToCloseListener?.dispose();
 		this._pressAnyKeyToCloseListener = undefined;
 
-		// Kill and clear up the process, making the process manager ready for a new process
-		this._processManager.dispose();
-
 		if (this._xterm) {
 			if (reset) {
 				this._xterm.reset();
-				this._typeAheadAddOn?.reset(this._xterm);
 			} else {
 				// Ensure new processes' output starts at start of new line
 				this._xterm.write('\n\x1b[G');
@@ -1199,6 +1198,9 @@ export class TerminalInstance extends Disposable implements ITerminalInstance {
 
 		// Set the new shell launch config
 		this._shellLaunchConfig = shell; // Must be done before calling _createProcess()
+
+		// Kill and clear up the process, making the process manager ready for a new process
+		this._processManager.dispose();
 
 		// Launch the process unless this is only a renderer.
 		// In the renderer only cases, we still need to set the title correctly.
