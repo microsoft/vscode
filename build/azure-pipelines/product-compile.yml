@@ -101,7 +101,7 @@ steps:
 
   - script: |
       set -e
-      yarn npm-run-all -lp core-ci extensions-ci hygiene eslint monaco-compile-check valid-layers-check
+      yarn npm-run-all -lp core-ci extensions-ci hygiene eslint valid-layers-check
     displayName: Compile & Hygiene
 
   - script: |
