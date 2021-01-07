@@ -42,7 +42,7 @@ export class TunnelFactoryContribution extends Disposable implements IWorkbenchC
 						});
 					});
 				}
-			}));
+			}, environmentService.options?.tunnelProvider?.features ?? { elevation: false }));
 			remoteExplorerService.setTunnelInformation(undefined);
 		}
 	}

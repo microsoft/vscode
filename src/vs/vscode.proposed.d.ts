@@ -234,10 +234,18 @@ declare module 'vscode' {
 		 */
 		tunnelFactory?: (tunnelOptions: TunnelOptions, tunnelCreationOptions: TunnelCreationOptions) => Thenable<Tunnel> | undefined;
 
-		/**
+		/**p
 		 * Provides filtering for candidate ports.
 		 */
 		showCandidatePort?: (host: string, port: number, detail: string) => Thenable<boolean>;
+
+		/**
+		 * Lets the resolver declare which tunnel factory features it supports.
+		 * UNDER DISCUSSION! MAY CHANGE SOON.
+		 */
+		tunnelFeatures?: {
+			elevation: boolean;
+		};
 	}
 
 	export namespace workspace {
