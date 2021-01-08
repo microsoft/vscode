@@ -3870,8 +3870,8 @@ declare module 'vscode' {
 		 *
 		 * Note that `sortText` is only used for the initial ordering of completion
 		 * items. When having a leading word (prefix) ordering is based on how
-		 * well completion match that prefix and the initial ordering is only used
-		 * when completions match equal. The prefix is defined by the
+		 * well completions match that prefix and the initial ordering is only used
+		 * when completions match equally well. The prefix is defined by the
 		 * [`range`](#CompletionItem.range)-property and can therefore be different
 		 * for each completion.
 		 */
@@ -3884,7 +3884,6 @@ declare module 'vscode' {
 		 *
 		 * Note that the filter text is matched against the leading word (prefix) which is defined
 		 * by the [`range`](#CompletionItem.range)-property.
-		 * prefix.
 		 */
 		filterText?: string;
 
