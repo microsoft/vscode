@@ -32,8 +32,7 @@ export type Icon = { dark?: URI; light?: URI; } | ThemeIcon;
 
 export interface ICommandAction {
 	id: string;
-	title: string | ILocalizedString;
-	mnemonicTitle?: string | ILocalizedString;
+	title: string | ILocalizedString | ILocalizedString & { mnemonicedTitle: string };
 	category?: string | ILocalizedString;
 	tooltip?: string;
 	icon?: Icon;
@@ -358,9 +357,7 @@ export class MenuItemAction extends ExecuteCommandAction {
 		@IContextKeyService contextKeyService: IContextKeyService,
 		@ICommandService commandService: ICommandService
 	) {
-
-		const title = item.mnemonicTitle || item.title;
-		typeof title === 'string' ? super(item.id, title, commandService) : super(item.id, title.value, commandService);
+		typeof item.title === 'string' ? super(item.id, item.title, commandService) : super(item.id, item.title.value, commandService);
 
 		this._cssClass = undefined;
 		this._enabled = !item.precondition || contextKeyService.contextMatchesRules(item.precondition);
