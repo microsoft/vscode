@@ -4,11 +4,10 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { Action } from 'vs/base/common/actions';
-import { distinct } from 'vs/base/common/arrays';
 import { onUnexpectedError } from 'vs/base/common/errors';
 import { KeyCode, KeyMod } from 'vs/base/common/keyCodes';
 import * as platform from 'vs/base/common/platform';
-import { dirname, relativePath } from 'vs/base/common/resources';
+import { dirname } from 'vs/base/common/resources';
 import { URI } from 'vs/base/common/uri';
 import { ToggleCaseSensitiveKeybinding, TogglePreserveCaseKeybinding, ToggleRegexKeybinding, ToggleWholeWordKeybinding } from 'vs/editor/contrib/find/findModel';
 import * as nls from 'vs/nls';
@@ -42,7 +41,7 @@ import { FileMatchOrMatch, ISearchWorkbenchService, RenderableMatch, SearchWorkb
 import { IEditorService } from 'vs/workbench/services/editor/common/editorService';
 import { VIEWLET_ID, VIEW_ID, SEARCH_EXCLUDE_CONFIG, SearchSortOrder, ISearchConfiguration } from 'vs/workbench/services/search/common/search';
 import { IViewletService } from 'vs/workbench/services/viewlet/browser/viewlet';
-import { IWorkspaceContextService, WorkbenchState } from 'vs/platform/workspace/common/workspace';
+import { IWorkspaceContextService } from 'vs/platform/workspace/common/workspace';
 import { ExplorerViewPaneContainer } from 'vs/workbench/contrib/files/browser/explorerViewlet';
 import { assertType, assertIsDefined } from 'vs/base/common/types';
 import { SyncDescriptor } from 'vs/platform/instantiation/common/descriptors';
@@ -55,6 +54,7 @@ import { IQuickInputService } from 'vs/platform/quickinput/common/quickInput';
 import { AbstractGotoLineQuickAccessProvider } from 'vs/editor/contrib/quickAccess/gotoLineQuickAccess';
 import { GotoSymbolQuickAccessProvider } from 'vs/workbench/contrib/codeEditor/browser/quickaccess/gotoSymbolQuickAccess';
 import { searchViewIcon } from 'vs/workbench/contrib/search/browser/searchIcons';
+import { resolveResourcesForSearchIncludes } from 'vs/workbench/contrib/search/common/queryBuilder';
 
 registerSingleton(ISearchWorkbenchService, SearchWorkbenchService, true);
 registerSingleton(ISearchHistoryService, SearchHistoryService, true);
@@ -404,48 +404,6 @@ const FocusSearchListCommand: ICommandAction = {
 };
 MenuRegistry.addCommand(FocusSearchListCommand);
 
-const resolveResourcesForSearchIncludes = (resources: URI[], contextService: IWorkspaceContextService): string[] => {
-	resources = distinct(resources, resource => resource.toString());
-
-	const folderPaths: string[] = [];
-	const workspace = contextService.getWorkspace();
-
-	if (resources) {
-		resources.forEach(resource => {
-			let folderPath: string | undefined;
-			if (contextService.getWorkbenchState() === WorkbenchState.FOLDER) {
-				// Show relative path from the root for single-root mode
-				folderPath = relativePath(workspace.folders[0].uri, resource); // always uses forward slashes
-				if (folderPath && folderPath !== '.') {
-					folderPath = './' + folderPath;
-				}
-			} else {
-				const owningFolder = contextService.getWorkspaceFolder(resource);
-				if (owningFolder) {
-					const owningRootName = owningFolder.name;
-
-					// If this root is the only one with its basename, use a relative ./ path. If there is another, use an absolute path
-					const isUniqueFolder = workspace.folders.filter(folder => folder.name === owningRootName).length === 1;
-					if (isUniqueFolder) {
-						const relPath = relativePath(owningFolder.uri, resource); // always uses forward slashes
-						if (relPath === '') {
-							folderPath = `./${owningFolder.name}`;
-						} else {
-							folderPath = `./${owningFolder.name}/${relPath}`;
-						}
-					} else {
-						folderPath = resource.fsPath; // TODO rob: handle on-file URIs
-					}
-				}
-			}
-
-			if (folderPath) {
-				folderPaths.push(folderPath);
-			}
-		});
-	}
-	return folderPaths;
-};
 
 const searchInFolderCommand: ICommandHandler = async (accessor, resource?: URI) => {
 	const listService = accessor.get(IListService);
