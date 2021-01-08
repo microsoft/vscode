@@ -47,6 +47,7 @@ function doAfterImagesLoaded(cb: () => void) {
 			} else {
 				return new Promise<void>((resolve) => {
 					e.addEventListener('load', () => resolve());
+					e.addEventListener('error', () => resolve());
 				});
 			}
 		});
