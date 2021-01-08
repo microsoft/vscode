@@ -355,7 +355,7 @@ export class MenuItemAction extends ExecuteCommandAction {
 	readonly item: ICommandAction;
 	readonly alt: MenuItemAction | undefined;
 
-	private _options: IMenuActionOptions;
+	private readonly _options: IMenuActionOptions | undefined;
 
 	constructor(
 		item: ICommandAction,
@@ -380,10 +380,9 @@ export class MenuItemAction extends ExecuteCommandAction {
 			}
 		}
 
-		this._options = options || {};
-
 		this.item = item;
-		this.alt = alt ? new MenuItemAction(alt, undefined, this._options, contextKeyService, commandService) : undefined;
+		this.alt = alt ? new MenuItemAction(alt, undefined, options, contextKeyService, commandService) : undefined;
+		this._options = options;
 	}
 
 	dispose(): void {
@@ -394,11 +393,11 @@ export class MenuItemAction extends ExecuteCommandAction {
 	run(...args: any[]): Promise<any> {
 		let runArgs: any[] = [];
 
-		if (this._options.arg) {
+		if (this._options?.arg) {
 			runArgs = [...runArgs, this._options.arg];
 		}
 
-		if (this._options.shouldForwardArgs) {
+		if (this._options?.shouldForwardArgs) {
 			runArgs = [...runArgs, ...args];
 		}
 
