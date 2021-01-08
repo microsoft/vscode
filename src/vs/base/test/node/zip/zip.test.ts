@@ -16,13 +16,14 @@ const fixtures = getPathFromAmdModule(require, './fixtures');
 
 suite('Zip', () => {
 
-	test('extract should handle directories', () => {
+	test('extract should handle directories', async () => {
 		const fixture = path.join(fixtures, 'extract.zip');
 		const target = path.join(os.tmpdir(), generateUuid());
 
-		return createCancelablePromise(token => extract(fixture, target, {}, token)
-			.then(() => exists(path.join(target, 'extension')))
-			.then(exists => assert(exists))
-			.then(() => rimraf(target)));
+		await createCancelablePromise(token => extract(fixture, target, {}, token));
+		const doesExist = await exists(path.join(target, 'extension'));
+		assert(doesExist);
+
+		return rimraf(target);
 	});
 });
