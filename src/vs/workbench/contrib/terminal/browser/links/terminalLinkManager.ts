@@ -233,7 +233,7 @@ export class TerminalLinkManager extends DisposableStore {
 
 		let fallbackLabel: string;
 		if (this._tunnelService.canTunnel(URI.parse(uri))) {
-			fallbackLabel = nls.localize('followForwardedLink', "Follow Link for Forwarded Port");
+			fallbackLabel = nls.localize('followForwardedLink', "Follow Link using Forwarded Port");
 		} else {
 			fallbackLabel = nls.localize('followLink', "Follow Link");
 		}
