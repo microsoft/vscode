@@ -47,7 +47,7 @@ if (platform.isWindows) {
 					pwshs.push(p);
 				}
 
-				assert.strictEqual(pwshs.length, 3);
+				assert.strictEqual(pwshs.length, 3, 'Found these PowerShells:\n' + pwshs.map(p => `${p.displayName}: ${p.exePath}`).join('=\n'));
 
 				checkPath(pwshs[0].exePath);
 				assert.strictEqual(pwshs[0].displayName, 'PowerShell');
