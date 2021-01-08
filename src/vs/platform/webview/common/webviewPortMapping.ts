@@ -60,9 +60,9 @@ export class WebviewPortMappingManager implements IDisposable {
 		return undefined;
 	}
 
-	dispose() {
+	async dispose() {
 		for (const tunnel of this._tunnels.values()) {
-			tunnel.dispose();
+			await tunnel.dispose();
 		}
 		this._tunnels.clear();
 	}

@@ -700,6 +700,8 @@ export class CodeApplication extends Disposable {
 		});
 
 		// Create a URL handler to open file URIs in the active window
+		// or open new windows. The URL handler will be invoked from
+		// protocol invocations outside of VSCode.
 		const app = this;
 		const environmentService = this.environmentService;
 		urlService.registerHandler({
@@ -713,12 +715,14 @@ export class CodeApplication extends Disposable {
 				// Check for URIs to open in window
 				const windowOpenableFromProtocolLink = app.getWindowOpenableFromProtocolLink(uri);
 				if (windowOpenableFromProtocolLink) {
-					windowsMainService.open({
+					const [window] = windowsMainService.open({
 						context: OpenContext.API,
 						cli: { ...environmentService.args },
 						urisToOpen: [windowOpenableFromProtocolLink],
 						gotoLineMode: true
 					});
+
+					window.focus(); // this should help ensuring that the right window gets focus when multiple are opened
 
 					return true;
 				}

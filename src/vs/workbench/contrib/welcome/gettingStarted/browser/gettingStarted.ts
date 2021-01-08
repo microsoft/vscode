@@ -211,7 +211,7 @@ export class GettingStartedPage extends Disposable {
 
 				return $('button.getting-started-category',
 					{ 'x-dispatch': 'selectCategory:' + category.id },
-					$(category.codicon.cssSelector, {}), categoryDescriptionElement);
+					$(ThemeIcon.asCSSSelector(category.icon), {}), categoryDescriptionElement);
 			});
 
 		const categoriesSlide = assertIsDefined(document.getElementById('gettingStartedSlideCategory'));
@@ -313,7 +313,7 @@ export class GettingStartedPage extends Disposable {
 		detailTitle.appendChild(
 			$('.getting-started-category',
 				{},
-				$(category.codicon.cssSelector, {}),
+				$(ThemeIcon.asCSSSelector(category.icon), {}),
 				$('.category-description-container', {},
 					$('h2.category-title', {}, category.title),
 					$('.category-description.description', {}, category.description))));

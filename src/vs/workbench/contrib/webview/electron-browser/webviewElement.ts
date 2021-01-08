@@ -70,12 +70,14 @@ export class ElectronWebviewBasedWebview extends BaseWebview<WebviewTag> impleme
 		/* __GDPR__
 			"webview.createWebview" : {
 				"extension": { "classification": "SystemMetaData", "purpose": "FeatureInsight" },
-				"enableFindWidget": { "classification": "SystemMetaData", "purpose": "FeatureInsight", "isMeasurement": true }
+				"enableFindWidget": { "classification": "SystemMetaData", "purpose": "FeatureInsight", "isMeasurement": true },
+				"webviewElementType": { "classification": "SystemMetaData", "purpose": "FeatureInsight", "isMeasurement": true }
 			}
 		*/
 		telemetryService.publicLog('webview.createWebview', {
 			enableFindWidget: !!options.enableFindWidget,
 			extension: extension?.id.value,
+			webviewElementType: 'webview',
 		});
 
 		this._myLogService.debug(`Webview(${this.id}): init`);
@@ -231,9 +233,11 @@ export class ElectronWebviewBasedWebview extends BaseWebview<WebviewTag> impleme
 			return;
 		}
 
-		// Clear the existing focus first.
+		// Clear the existing focus first if not already on the webview.
 		// This is required because the next part where we set the focus is async.
-		if (document.activeElement && document.activeElement instanceof HTMLElement) {
+		if (document.activeElement && document.activeElement instanceof HTMLElement && document.activeElement !== this.element) {
+			// Don't blur if on the webview because this will also happen async and may unset the focus
+			// after the focus trigger fires below.
 			document.activeElement.blur();
 		}
 

@@ -9,57 +9,73 @@ schedules:
 
 parameters:
   - name: VSCODE_QUALITY
+    displayName: Quality
     type: string
     default: insider
     values:
       - exploration
       - insider
       - stable
+  - name: ENABLE_TERRAPIN
+    displayName: "Enable Terrapin"
+    type: boolean
+    default: true
   - name: VSCODE_BUILD_WIN32
+    displayName: "🎯 Windows x64"
     type: boolean
     default: true
   - name: VSCODE_BUILD_WIN32_32BIT
+    displayName: "🎯 Windows ia32"
     type: boolean
     default: true
   - name: VSCODE_BUILD_WIN32_ARM64
+    displayName: "🎯 Windows arm64"
     type: boolean
     default: true
   - name: VSCODE_BUILD_LINUX
-    type: boolean
-    default: true
-  - name: VSCODE_BUILD_LINUX_ALPINE
+    displayName: "🎯 Linux x64"
     type: boolean
     default: true
   - name: VSCODE_BUILD_LINUX_ARM64
+    displayName: "🎯 Linux arm64"
     type: boolean
     default: true
   - name: VSCODE_BUILD_LINUX_ARMHF
+    displayName: "🎯 Linux armhf"
+    type: boolean
+    default: true
+  - name: VSCODE_BUILD_LINUX_ALPINE
+    displayName: "🎯 Alpine Linux"
     type: boolean
     default: true
   - name: VSCODE_BUILD_MACOS
+    displayName: "🎯 macOS x64"
     type: boolean
     default: true
   - name: VSCODE_BUILD_MACOS_ARM64
+    displayName: "🎯 macOS arm64"
     type: boolean
     default: true
   - name: VSCODE_BUILD_WEB
+    displayName: "🎯 Web"
     type: boolean
     default: true
   - name: VSCODE_PUBLISH
+    displayName: "Publish to builds.code.visualstudio.com"
     type: boolean
     default: true
   - name: VSCODE_RELEASE
+    displayName: "Release build if successful"
     type: boolean
     default: false
   - name: VSCODE_COMPILE_ONLY
+    displayName: "Run Compile stage exclusively"
     type: boolean
     default: false
   - name: VSCODE_STEP_ON_IT
+    displayName: "Skip tests"
     type: boolean
     default: false
-  - name: ENABLE_TERRAPIN
-    type: boolean
-    default: true
 
 variables:
   - name: ENABLE_TERRAPIN
@@ -103,12 +119,6 @@ stages:
           VSCODE_ARCH: x64
         steps:
           - template: product-compile.yml
-      - job: Hygiene
-        pool: compile
-        variables:
-          VSCODE_ARCH: x64
-        steps:
-          - template: product-hygiene.yml
 
   - ${{ if and(eq(parameters.VSCODE_COMPILE_ONLY, false), eq(variables['VSCODE_BUILD_STAGE_WINDOWS'], true)) }}:
     - stage: Windows

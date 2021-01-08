@@ -559,6 +559,7 @@ class SimpleTunnelService implements ITunnelService {
 	declare readonly _serviceBrand: undefined;
 
 	tunnels: Promise<readonly RemoteTunnel[]> = Promise.resolve([]);
+	canElevate: boolean = false;
 
 	onTunnelOpened = Event.None;
 	onTunnelClosed = Event.None;
