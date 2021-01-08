@@ -8,7 +8,7 @@ import * as os from 'os';
 import * as path from 'vs/base/common/path';
 import { flakySuite, getRandomTestPath } from 'vs/base/test/node/testUtils';
 import { FileStorage } from 'vs/platform/state/node/stateService';
-import { mkdirp, rimraf, RimRafMode, writeFileSync } from 'vs/base/node/pfs';
+import { mkdirp, rimraf, writeFileSync } from 'vs/base/node/pfs';
 
 flakySuite('StateService', () => {
 	const parentDir = getRandomTestPath(os.tmpdir(), 'vsctests', 'stateservice');
@@ -43,6 +43,6 @@ flakySuite('StateService', () => {
 		service.setItem('some.null.key', null);
 		assert.equal(service.getItem('some.null.key', 'some.default'), 'some.default');
 
-		await rimraf(parentDir, RimRafMode.MOVE);
+		await rimraf(parentDir);
 	});
 });

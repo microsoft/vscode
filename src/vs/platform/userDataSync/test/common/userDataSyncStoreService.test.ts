@@ -58,7 +58,7 @@ suite('UserDataSyncStoreManagementService', () => {
 			authenticationProviders: [{ id: 'configuredAuthProvider', scopes: [] }]
 		};
 
-		const testObject: IUserDataSyncStoreManagementService = client.instantiationService.createInstance(UserDataSyncStoreManagementService);
+		const testObject: IUserDataSyncStoreManagementService = disposableStore.add(client.instantiationService.createInstance(UserDataSyncStoreManagementService));
 
 		assert.equal(testObject.userDataSyncStore?.url.toString(), expected.url.toString());
 		assert.equal(testObject.userDataSyncStore?.defaultUrl.toString(), expected.defaultUrl.toString());
@@ -419,7 +419,7 @@ suite('UserDataSyncStoreService', () => {
 			await testObject.manifest();
 		} catch (e) { }
 
-		const target = client.instantiationService.createInstance(UserDataSyncStoreService);
+		const target = disposableStore.add(client.instantiationService.createInstance(UserDataSyncStoreService));
 		assert.equal(target.donotMakeRequestsUntil?.getTime(), testObject.donotMakeRequestsUntil?.getTime());
 	});
 
@@ -434,7 +434,7 @@ suite('UserDataSyncStoreService', () => {
 		} catch (e) { }
 
 		await timeout(300);
-		const target = client.instantiationService.createInstance(UserDataSyncStoreService);
+		const target = disposableStore.add(client.instantiationService.createInstance(UserDataSyncStoreService));
 		assert.ok(!target.donotMakeRequestsUntil);
 	});
 

@@ -119,7 +119,7 @@ flakySuite('BackupMainService', () => {
 	setup(async () => {
 
 		// Delete any existing backups completely and then re-create it.
-		await pfs.rimraf(backupHome, pfs.RimRafMode.MOVE);
+		await pfs.rimraf(backupHome);
 		await pfs.mkdirp(backupHome);
 
 		configService = new TestConfigurationService();
@@ -129,7 +129,7 @@ flakySuite('BackupMainService', () => {
 	});
 
 	teardown(() => {
-		return pfs.rimraf(backupHome, pfs.RimRafMode.MOVE);
+		return pfs.rimraf(backupHome);
 	});
 
 	test('service validates backup workspaces on startup and cleans up (folder workspaces)', async function () {

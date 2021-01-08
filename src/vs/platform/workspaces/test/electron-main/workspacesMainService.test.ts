@@ -147,13 +147,13 @@ suite('WorkspacesMainService', () => {
 		service = new WorkspacesMainService(environmentService, logService, new TestBackupMainService(), new TestDialogMainService());
 
 		// Delete any existing backups completely and then re-create it.
-		await pfs.rimraf(untitledWorkspacesHomePath, pfs.RimRafMode.MOVE);
+		await pfs.rimraf(untitledWorkspacesHomePath);
 
 		return pfs.mkdirp(untitledWorkspacesHomePath);
 	});
 
 	teardown(() => {
-		return pfs.rimraf(untitledWorkspacesHomePath, pfs.RimRafMode.MOVE);
+		return pfs.rimraf(untitledWorkspacesHomePath);
 	});
 
 	function assertPathEquals(p1: string, p2: string): void {

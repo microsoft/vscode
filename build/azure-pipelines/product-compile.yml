@@ -50,13 +50,6 @@ steps:
     displayName: Extract node_modules cache
 
   - script: |
-      set -e
-      sudo apt update -y
-      sudo apt install -y build-essential pkg-config libx11-dev libx11-xcb-dev libxkbfile-dev libsecret-1-dev libnotify-bin
-    displayName: Install build tools
-    condition: and(succeeded(), ne(variables.NODE_MODULES_RESTORED, 'true'))
-
-  - script: |
       npx https://aka.ms/enablesecurefeed standAlone
     timeoutInMinutes: 5
     condition: and(succeeded(), ne(variables.NODE_MODULES_RESTORED, 'true'), eq(variables['ENABLE_TERRAPIN'], 'true'))

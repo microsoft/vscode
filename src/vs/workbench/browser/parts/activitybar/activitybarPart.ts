@@ -653,7 +653,7 @@ export class ActivitybarPart extends Part implements IActivityBarService {
 			} else {
 				const cachedComposite = this.cachedViewContainers.filter(c => c.id === compositeId)[0];
 				compositeActions = {
-					activityAction: this.instantiationService.createInstance(PlaceHolderViewContainerActivityAction, ActivitybarPart.toActivity(compositeId, compositeId, cachedComposite?.icon, undefined)),
+					activityAction: this.instantiationService.createInstance(PlaceHolderViewContainerActivityAction, ActivitybarPart.toActivity(compositeId, compositeId, cachedComposite?.icon, undefined, true)),
 					pinnedAction: new PlaceHolderToggleCompositePinnedAction(compositeId, this.compositeBar)
 				};
 			}
@@ -720,15 +720,15 @@ export class ActivitybarPart extends Part implements IActivityBarService {
 	}
 
 	private toActivity({ id, focusCommand }: ViewContainer, { icon, title: name }: IViewContainerModel): IActivity {
-		return ActivitybarPart.toActivity(id, name, icon, focusCommand?.id || id);
+		return ActivitybarPart.toActivity(id, name, icon, focusCommand?.id || id, false);
 	}
 
-	private static toActivity(id: string, name: string, icon: URI | ThemeIcon | undefined, keybindingId: string | undefined): IActivity {
+	private static toActivity(id: string, name: string, icon: URI | ThemeIcon | undefined, keybindingId: string | undefined, placeholder: boolean): IActivity {
 		let cssClass: string | undefined = undefined;
 		let iconUrl: URI | undefined = undefined;
 		if (URI.isUri(icon)) {
 			iconUrl = icon;
-			cssClass = `activity-${id.replace(/\./g, '-')}`;
+			cssClass = `${placeholder ? 'placeholder-' : ''}activity-${id.replace(/\./g, '-')}`;
 			const iconClass = `.monaco-workbench .activitybar .monaco-action-bar .action-label.${cssClass}`;
 			createCSSRule(iconClass, `
 				mask: ${asCSSUrl(icon)} no-repeat 50% 50%;

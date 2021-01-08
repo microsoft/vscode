@@ -12,7 +12,7 @@ import { flakySuite, getRandomTestPath } from 'vs/base/test/node/testUtils';
 import { generateUuid } from 'vs/base/common/uuid';
 import { join, basename, dirname, posix } from 'vs/base/common/path';
 import { getPathFromAmdModule } from 'vs/base/common/amd';
-import { copy, rimraf, symlink, RimRafMode, rimrafSync } from 'vs/base/node/pfs';
+import { copy, rimraf, symlink, rimrafSync } from 'vs/base/node/pfs';
 import { URI } from 'vs/base/common/uri';
 import { existsSync, statSync, readdirSync, readFileSync, writeFileSync, renameSync, unlinkSync, mkdirSync, createReadStream } from 'fs';
 import { FileOperation, FileOperationEvent, IFileStat, FileOperationResult, FileSystemProviderCapabilities, FileChangeType, IFileChange, FileChangesEvent, FileOperationError, etag, IStat, IFileStatWithMetadata } from 'vs/platform/files/common/files';
@@ -154,7 +154,7 @@ flakySuite('Disk File Service', function () {
 	teardown(async () => {
 		disposables.clear();
 
-		await rimraf(parentDir, RimRafMode.MOVE);
+		await rimraf(parentDir);
 	});
 
 	test('createFolder', async () => {

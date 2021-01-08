@@ -348,15 +348,17 @@ class TunnelTreeRenderer extends Disposable implements ITreeRenderer<ITunnelGrou
 			inputBox,
 			dom.addStandardDisposableListener(inputBox.inputElement, dom.EventType.KEY_DOWN, (e: IKeyboardEvent) => {
 				if (e.equals(KeyCode.Enter)) {
-					if (inputBox.validate()) {
+					if (inputBox.validate() !== MessageType.ERROR) {
 						done(true, true);
+					} else {
+						done(false, true);
 					}
 				} else if (e.equals(KeyCode.Escape)) {
 					done(false, true);
 				}
 			}),
 			dom.addDisposableListener(inputBox.inputElement, dom.EventType.BLUR, () => {
-				done(inputBox.isInputValid(), true);
+				done(inputBox.validate() !== MessageType.ERROR, true);
 			}),
 			styler
 		];

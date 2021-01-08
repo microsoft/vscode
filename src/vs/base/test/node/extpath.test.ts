@@ -37,7 +37,7 @@ suite('Extpath', () => {
 			assert.equal(real, newDir);
 		}
 
-		await pfs.rimraf(parentDir, pfs.RimRafMode.MOVE);
+		await pfs.rimraf(parentDir);
 	});
 
 	test('realpath', async () => {
@@ -50,7 +50,7 @@ suite('Extpath', () => {
 		const realpathVal = await realpath(newDir);
 		assert.ok(realpathVal);
 
-		await pfs.rimraf(parentDir, pfs.RimRafMode.MOVE);
+		await pfs.rimraf(parentDir);
 	});
 
 	test('realpathSync', async () => {
@@ -68,6 +68,6 @@ suite('Extpath', () => {
 		}
 		assert.ok(realpath!);
 
-		await pfs.rimraf(parentDir, pfs.RimRafMode.MOVE);
+		await pfs.rimraf(parentDir);
 	});
 });

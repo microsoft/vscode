@@ -28,11 +28,18 @@ export interface ILocalizedString {
 	original: string;
 }
 
+export interface ILocalizedTitle extends ILocalizedString {
+	/**
+	 * The title with a mnemonic designation. && precedes the mnemonic.
+	 */
+	mnemonicTitle?: string;
+}
+
 export type Icon = { dark?: URI; light?: URI; } | ThemeIcon;
 
 export interface ICommandAction {
 	id: string;
-	title: string | ILocalizedString | ILocalizedString & { mnemonicedTitle: string };
+	title: string | ILocalizedTitle;
 	category?: string | ILocalizedString;
 	tooltip?: string;
 	icon?: Icon;

@@ -28,7 +28,7 @@ export class MainThreadTunnelService extends Disposable implements MainThreadTun
 	}
 
 	async $openTunnel(tunnelOptions: TunnelOptions, source: string): Promise<TunnelDto | undefined> {
-		const tunnel = await this.remoteExplorerService.forward(tunnelOptions.remoteAddress, tunnelOptions.localAddressPort, tunnelOptions.label, source);
+		const tunnel = await this.remoteExplorerService.forward(tunnelOptions.remoteAddress, tunnelOptions.localAddressPort, tunnelOptions.label, source, true);
 		if (tunnel) {
 			return TunnelDto.fromServiceTunnel(tunnel);
 		}

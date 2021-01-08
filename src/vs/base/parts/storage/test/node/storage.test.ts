@@ -9,7 +9,7 @@ import { generateUuid } from 'vs/base/common/uuid';
 import { join } from 'vs/base/common/path';
 import { tmpdir } from 'os';
 import { equal, ok } from 'assert';
-import { mkdirp, writeFile, exists, unlink, rimraf, RimRafMode } from 'vs/base/node/pfs';
+import { mkdirp, writeFile, exists, unlink, rimraf } from 'vs/base/node/pfs';
 import { timeout } from 'vs/base/common/async';
 import { Event, Emitter } from 'vs/base/common/event';
 import { isWindows } from 'vs/base/common/platform';
@@ -32,7 +32,7 @@ flakySuite('Storage Library', function () {
 	});
 
 	teardown(function () {
-		return rimraf(storageDir, RimRafMode.MOVE);
+		return rimraf(storageDir);
 	});
 
 	test('basics', async () => {
@@ -310,7 +310,7 @@ flakySuite('SQLite Storage Library', function () {
 	});
 
 	teardown(function () {
-		return rimraf(storageDir, RimRafMode.MOVE);
+		return rimraf(storageDir);
 	});
 
 	async function testDBBasics(path: string, logError?: (error: Error | string) => void) {

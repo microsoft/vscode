@@ -939,7 +939,7 @@ registerAction2(class extends Action2 {
 			title: {
 				original: 'Remove All Breakpoints',
 				value: localize('removeAllBreakpoints', "Remove All Breakpoints"),
-				mnemonicedTitle: localize({ key: 'miRemoveAllBreakpoints', comment: ['&& denotes a mnemonic'] }, "Remove &&All Breakpoints")
+				mnemonicTitle: localize({ key: 'miRemoveAllBreakpoints', comment: ['&& denotes a mnemonic'] }, "Remove &&All Breakpoints")
 			},
 			f1: true,
 			icon: icons.breakpointsRemoveAll,
@@ -977,7 +977,7 @@ registerAction2(class extends Action2 {
 			title: {
 				original: '',
 				value: localize('enableAllBreakpoints', "Enable All Breakpoints"),
-				mnemonicedTitle: localize({ key: 'miEnableAllBreakpoints', comment: ['&& denotes a mnemonic'] }, "&&Enable All Breakpoints"),
+				mnemonicTitle: localize({ key: 'miEnableAllBreakpoints', comment: ['&& denotes a mnemonic'] }, "&&Enable All Breakpoints"),
 			},
 			f1: true,
 			precondition: CONTEXT_DEBUGGERS_AVAILABLE,
@@ -1008,7 +1008,7 @@ registerAction2(class extends Action2 {
 			title: {
 				original: 'Disable All Breakpoints',
 				value: localize('disableAllBreakpoints', "Disable All Breakpoints"),
-				mnemonicedTitle: localize({ key: 'miDisableAllBreakpoints', comment: ['&& denotes a mnemonic'] }, "Disable A&&ll Breakpoints")
+				mnemonicTitle: localize({ key: 'miDisableAllBreakpoints', comment: ['&& denotes a mnemonic'] }, "Disable A&&ll Breakpoints")
 			},
 			f1: true,
 			precondition: CONTEXT_DEBUGGERS_AVAILABLE,
