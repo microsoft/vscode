@@ -17,6 +17,9 @@ import { bufferToReadable, bufferToStream, VSBuffer, VSBufferReadable, VSBufferR
 
 suite('IndexedDB File Service', function () {
 
+	// IDB sometimes under pressure in build machines.
+	this.retries(3);
+
 	const logSchema = 'logs';
 
 	let service: FileService;
