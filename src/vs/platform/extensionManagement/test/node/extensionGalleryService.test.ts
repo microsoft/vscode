@@ -39,7 +39,7 @@ suite('Extension Gallery Service', () => {
 		fileService.registerProvider(Schemas.file, diskFileSystemProvider);
 
 		// Delete any existing backups completely and then re-create it.
-		rimraf(marketplaceHome, RimRafMode.MOVE).then(() => {
+		rimraf(marketplaceHome, RimRafMode.UNLINK).then(() => {
 			mkdirp(marketplaceHome).then(() => {
 				done();
 			}, error => done(error));
@@ -48,7 +48,7 @@ suite('Extension Gallery Service', () => {
 
 	teardown(done => {
 		disposables.clear();
-		rimraf(marketplaceHome, RimRafMode.MOVE).then(done, done);
+		rimraf(marketplaceHome, RimRafMode.UNLINK).then(done, done);
 	});
 
 	test('marketplace machine id', () => {

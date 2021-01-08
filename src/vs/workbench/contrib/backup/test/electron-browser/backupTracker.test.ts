@@ -124,7 +124,7 @@ flakySuite('BackupTracker', function () {
 
 		(<TextFileEditorModelManager>accessor.textFileService.files).dispose();
 
-		return pfs.rimraf(backupHome, pfs.RimRafMode.MOVE);
+		return pfs.rimraf(backupHome, pfs.RimRafMode.UNLINK);
 	});
 
 	async function createTracker(autoSaveEnabled = false): Promise<[TestServiceAccessor, EditorPart, BackupTracker, IInstantiationService]> {

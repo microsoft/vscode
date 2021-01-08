@@ -128,7 +128,7 @@ suite('ConfigurationEditingService', () => {
 	teardown(() => {
 		disposables.clear();
 		if (workspaceDir) {
-			return rimraf(workspaceDir, RimRafMode.MOVE);
+			return rimraf(workspaceDir, RimRafMode.UNLINK);
 		}
 		return undefined;
 	});

@@ -25,7 +25,7 @@ suite('Telemetry - common properties', function () {
 	});
 
 	teardown(done => {
-		rimraf(parentDir, RimRafMode.MOVE).then(done, done);
+		rimraf(parentDir, RimRafMode.UNLINK).then(done, done);
 	});
 
 	test('default', async function () {

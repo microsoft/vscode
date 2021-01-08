@@ -43,6 +43,6 @@ flakySuite('StateService', () => {
 		service.setItem('some.null.key', null);
 		assert.equal(service.getItem('some.null.key', 'some.default'), 'some.default');
 
-		await rimraf(parentDir, RimRafMode.MOVE);
+		await rimraf(parentDir, RimRafMode.UNLINK);
 	});
 });

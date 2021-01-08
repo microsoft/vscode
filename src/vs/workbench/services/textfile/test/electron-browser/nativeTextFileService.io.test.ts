@@ -65,7 +65,7 @@ flakySuite('Files - NativeTextFileService i/o', function () {
 
 			disposables.clear();
 
-			await rimraf(parentDir, RimRafMode.MOVE);
+			await rimraf(parentDir, RimRafMode.UNLINK);
 		},
 
 		exists,

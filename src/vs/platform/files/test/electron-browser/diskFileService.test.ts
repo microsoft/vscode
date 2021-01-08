@@ -154,7 +154,7 @@ flakySuite('Disk File Service', function () {
 	teardown(async () => {
 		disposables.clear();
 
-		await rimraf(parentDir, RimRafMode.MOVE);
+		await rimraf(parentDir, RimRafMode.UNLINK);
 	});
 
 	test('createFolder', async () => {

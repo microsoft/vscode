@@ -63,6 +63,6 @@ flakySuite('NativeStorageService', function () {
 		equal(storage.getBoolean('barBoolean', StorageScope.GLOBAL), true);
 
 		await storage.close();
-		await rimraf(storageDir, RimRafMode.MOVE);
+		await rimraf(storageDir, RimRafMode.UNLINK);
 	});
 });

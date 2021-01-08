@@ -45,7 +45,7 @@ suite('Storage', () => {
 	teardown(async () => {
 		disposables.clear();
 
-		await rimraf(parentDir, RimRafMode.MOVE);
+		await rimraf(parentDir, RimRafMode.UNLINK);
 	});
 
 	test('File Based Storage', async () => {

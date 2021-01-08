@@ -284,7 +284,7 @@ suite('ExtensionRecommendationsService Test', () => {
 	teardown(done => {
 		(<ExtensionRecommendationsService>testObject).dispose();
 		if (parentResource) {
-			rimraf(parentResource, RimRafMode.MOVE).then(done, done);
+			rimraf(parentResource, RimRafMode.UNLINK).then(done, done);
 		} else {
 			done();
 		}

@@ -118,14 +118,14 @@ suite('BackupFileService', () => {
 		service = new NodeTestBackupFileService(workspaceBackupPath);
 
 		// Delete any existing backups completely and then re-create it.
-		await pfs.rimraf(backupHome, pfs.RimRafMode.MOVE);
+		await pfs.rimraf(backupHome, pfs.RimRafMode.UNLINK);
 		await pfs.mkdirp(backupHome);
 
 		return pfs.writeFile(workspacesJsonPath, '');
 	});
 
 	teardown(() => {
-		return pfs.rimraf(backupHome, pfs.RimRafMode.MOVE);
+		return pfs.rimraf(backupHome, pfs.RimRafMode.UNLINK);
 	});
 
 	suite('hashPath', () => {
@@ -573,14 +573,14 @@ suite('BackupFilesModel', () => {
 		service = new NodeTestBackupFileService(workspaceBackupPath);
 
 		// Delete any existing backups completely and then re-create it.
-		await pfs.rimraf(backupHome, pfs.RimRafMode.MOVE);
+		await pfs.rimraf(backupHome, pfs.RimRafMode.UNLINK);
 		await pfs.mkdirp(backupHome);
 
 		return pfs.writeFile(workspacesJsonPath, '');
 	});
 
 	teardown(() => {
-		return pfs.rimraf(backupHome, pfs.RimRafMode.MOVE);
+		return pfs.rimraf(backupHome, pfs.RimRafMode.UNLINK);
 	});
 
 	test('simple', () => {

@@ -138,7 +138,7 @@ suite('KeybindingsEditing', () => {
 	teardown(() => {
 		return new Promise<void>((c) => {
 			if (testDir) {
-				rimraf(testDir, RimRafMode.MOVE).then(c, c);
+				rimraf(testDir, RimRafMode.UNLINK).then(c, c);
 			} else {
 				c(undefined);
 			}

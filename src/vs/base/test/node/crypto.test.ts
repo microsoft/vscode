@@ -22,6 +22,6 @@ suite('Crypto', () => {
 
 		await checksum(testFile, '0a4d55a8d778e5022fab701977c5d840bbc486d0');
 
-		await rimraf(testDir, RimRafMode.MOVE);
+		await rimraf(testDir, RimRafMode.UNLINK);
 	});
 });
