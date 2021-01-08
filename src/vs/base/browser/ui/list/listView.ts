@@ -432,8 +432,24 @@ export class ListView<T> implements ISpliceable<T>, IDisposable {
 		const deleteRange = { start, end: start + deleteCount };
 		const removeRange = Range.intersect(previousRenderRange, deleteRange);
 
+		// try to reuse rows, avoid removing them from DOM
+		const rowsToDispose = new Map<string, [IRow, T, number, number][]>();
 		for (let i = removeRange.start; i < removeRange.end; i++) {
-			this.removeItemFromDOM(i);
+			const item = this.items[i];
+			item.dragStartDisposable.dispose();
+
+			if (item.row) {
+				let rows = rowsToDispose.get(item.templateId);
+
+				if (!rows) {
+					rows = [];
+					rowsToDispose.set(item.templateId, rows);
+				}
+
+				rows.push([item.row, item.element, i, item.size]);
+			}
+
+			item.row = null;
 		}
 
 		const previousRestRange: IRange = { start: start + deleteCount, end: this.items.length };
@@ -491,7 +507,24 @@ export class ListView<T> implements ISpliceable<T>, IDisposable {
 
 		for (const range of insertRanges) {
 			for (let i = range.start; i < range.end; i++) {
-				this.insertItemInDOM(i, beforeElement);
+				const item = this.items[i];
+				const rows = rowsToDispose.get(item.templateId);
+				const rowData = rows?.pop();
+				const row = rowData && rowData[0]; // try to reuse a row
+
+				this.insertItemInDOM(i, beforeElement, row);
+			}
+		}
+
+		for (const [templateId, rows] of rowsToDispose) {
+			for (const [row, element, index, size] of rows) {
+				const renderer = this.renderers.get(templateId);
+
+				if (renderer && renderer.disposeElement) {
+					renderer.disposeElement(element, index, row.templateData, size);
+				}
+
+				this.cache.release(row);
 			}
 		}
 
@@ -699,24 +732,26 @@ export class ListView<T> implements ISpliceable<T>, IDisposable {
 
 	// DOM operations
 
-	private insertItemInDOM(index: number, beforeElement: HTMLElement | null): void {
+	private insertItemInDOM(index: number, beforeElement: HTMLElement | null, row?: IRow): void {
 		const item = this.items[index];
 
 		if (!item.row) {
-			item.row = this.cache.alloc(item.templateId);
-			const role = this.accessibilityProvider.getRole(item.element) || 'listitem';
-			item.row!.domNode!.setAttribute('role', role);
-			const checked = this.accessibilityProvider.isChecked(item.element);
-			if (typeof checked !== 'undefined') {
-				item.row!.domNode!.setAttribute('aria-checked', String(!!checked));
-			}
+			item.row = row ?? this.cache.alloc(item.templateId);
 		}
 
-		if (!item.row.domNode!.parentElement) {
+		const role = this.accessibilityProvider.getRole(item.element) || 'listitem';
+		item.row.domNode.setAttribute('role', role);
+
+		const checked = this.accessibilityProvider.isChecked(item.element);
+		if (typeof checked !== 'undefined') {
+			item.row.domNode.setAttribute('aria-checked', String(!!checked));
+		}
+
+		if (!item.row.domNode.parentElement) {
 			if (beforeElement) {
-				this.rowsContainer.insertBefore(item.row.domNode!, beforeElement);
+				this.rowsContainer.insertBefore(item.row.domNode, beforeElement);
 			} else {
-				this.rowsContainer.appendChild(item.row.domNode!);
+				this.rowsContainer.appendChild(item.row.domNode);
 			}
 		}
 
@@ -734,10 +769,10 @@ export class ListView<T> implements ISpliceable<T>, IDisposable {
 
 		const uri = this.dnd.getDragURI(item.element);
 		item.dragStartDisposable.dispose();
-		item.row.domNode!.draggable = !!uri;
+		item.row.domNode.draggable = !!uri;
 
 		if (uri) {
-			const onDragStart = domEvent(item.row.domNode!, 'dragstart');
+			const onDragStart = domEvent(item.row.domNode, 'dragstart');
 			item.dragStartDisposable = onDragStart(event => this.onDragStart(item.element, uri, event));
 		}
 
@@ -768,36 +803,39 @@ export class ListView<T> implements ISpliceable<T>, IDisposable {
 	}
 
 	private updateItemInDOM(item: IItem<T>, index: number): void {
-		item.row!.domNode!.style.top = `${this.elementTop(index)}px`;
+		item.row!.domNode.style.top = `${this.elementTop(index)}px`;
 
 		if (this.setRowHeight) {
-			item.row!.domNode!.style.height = `${item.size}px`;
+			item.row!.domNode.style.height = `${item.size}px`;
 		}
 
 		if (this.setRowLineHeight) {
-			item.row!.domNode!.style.lineHeight = `${item.size}px`;
+			item.row!.domNode.style.lineHeight = `${item.size}px`;
 		}
 
-		item.row!.domNode!.setAttribute('data-index', `${index}`);
-		item.row!.domNode!.setAttribute('data-last-element', index === this.length - 1 ? 'true' : 'false');
-		item.row!.domNode!.setAttribute('aria-setsize', String(this.accessibilityProvider.getSetSize(item.element, index, this.length)));
-		item.row!.domNode!.setAttribute('aria-posinset', String(this.accessibilityProvider.getPosInSet(item.element, index)));
-		item.row!.domNode!.setAttribute('id', this.getElementDomId(index));
+		item.row!.domNode.setAttribute('data-index', `${index}`);
+		item.row!.domNode.setAttribute('data-last-element', index === this.length - 1 ? 'true' : 'false');
+		item.row!.domNode.setAttribute('aria-setsize', String(this.accessibilityProvider.getSetSize(item.element, index, this.length)));
+		item.row!.domNode.setAttribute('aria-posinset', String(this.accessibilityProvider.getPosInSet(item.element, index)));
+		item.row!.domNode.setAttribute('id', this.getElementDomId(index));
 
-		item.row!.domNode!.classList.toggle('drop-target', item.dropTarget);
+		item.row!.domNode.classList.toggle('drop-target', item.dropTarget);
 	}
 
 	private removeItemFromDOM(index: number): void {
 		const item = this.items[index];
 		item.dragStartDisposable.dispose();
 
-		const renderer = this.renderers.get(item.templateId);
-		if (item.row && renderer && renderer.disposeElement) {
-			renderer.disposeElement(item.element, index, item.row.templateData, item.size);
-		}
+		if (item.row) {
+			const renderer = this.renderers.get(item.templateId);
 
-		this.cache.release(item.row!);
-		item.row = null;
+			if (renderer && renderer.disposeElement) {
+				renderer.disposeElement(item.element, index, item.row.templateData, item.size);
+			}
+
+			this.cache.release(item.row);
+			item.row = null;
+		}
 
 		if (this.horizontalScrolling) {
 			this.eventuallyUpdateScrollWidth();
@@ -1025,7 +1063,7 @@ export class ListView<T> implements ISpliceable<T>, IDisposable {
 				const item = this.items[index]!;
 				item.dropTarget = true;
 
-				if (item.row && item.row.domNode) {
+				if (item.row) {
 					item.row.domNode.classList.add('drop-target');
 				}
 			}
@@ -1035,7 +1073,7 @@ export class ListView<T> implements ISpliceable<T>, IDisposable {
 					const item = this.items[index]!;
 					item.dropTarget = false;
 
-					if (item.row && item.row.domNode) {
+					if (item.row) {
 						item.row.domNode.classList.remove('drop-target');
 					}
 				}
@@ -1261,7 +1299,7 @@ export class ListView<T> implements ISpliceable<T>, IDisposable {
 
 		const size = item.size;
 
-		if (!this.setRowHeight && item.row && item.row.domNode) {
+		if (!this.setRowHeight && item.row) {
 			let newSize = item.row.domNode.offsetHeight;
 			item.size = newSize;
 			item.lastDynamicHeightWidth = this.renderWidth;
@@ -1270,8 +1308,8 @@ export class ListView<T> implements ISpliceable<T>, IDisposable {
 
 		const row = this.cache.alloc(item.templateId);
 
-		row.domNode!.style.height = '';
-		this.rowsContainer.appendChild(row.domNode!);
+		row.domNode.style.height = '';
+		this.rowsContainer.appendChild(row.domNode);
 
 		const renderer = this.renderers.get(item.templateId);
 		if (renderer) {
@@ -1282,14 +1320,14 @@ export class ListView<T> implements ISpliceable<T>, IDisposable {
 			}
 		}
 
-		item.size = row.domNode!.offsetHeight;
+		item.size = row.domNode.offsetHeight;
 
 		if (this.virtualDelegate.setDynamicHeight) {
 			this.virtualDelegate.setDynamicHeight(item.element, item.size);
 		}
 
 		item.lastDynamicHeightWidth = this.renderWidth;
-		this.rowsContainer.removeChild(row.domNode!);
+		this.rowsContainer.removeChild(row.domNode);
 		this.cache.release(row);
 
 		return item.size - size;
