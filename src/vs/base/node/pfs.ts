@@ -67,6 +67,7 @@ export async function rimrafWithRetries(path: string, retries: number = 5): Prom
 				// rethrow the error
 				throw err;
 			}
+			console.warn(`Ignoring error in retry ${retries - retry} of ${retries}: `, err);
 		}
 	}
 }
