@@ -28,11 +28,18 @@ export interface ILocalizedString {
 	original: string;
 }
 
+export interface ILocalizedTitle extends ILocalizedString {
+	/**
+	 * The title with a mnemonic designation. && precedes the mnemonic.
+	 */
+	mnemonicTitle?: string;
+}
+
 export type Icon = { dark?: URI; light?: URI; } | ThemeIcon;
 
 export interface ICommandAction {
 	id: string;
-	title: string | ILocalizedString | ILocalizedString & { mnemonicedTitle: string };
+	title: string | ILocalizedTitle;
 	category?: string | ILocalizedString;
 	tooltip?: string;
 	icon?: Icon;
@@ -357,7 +364,7 @@ export class MenuItemAction extends ExecuteCommandAction {
 		@IContextKeyService contextKeyService: IContextKeyService,
 		@ICommandService commandService: ICommandService
 	) {
-		typeof item.title === 'string' ? super(item.id, item.title, commandService) : super(item.id, item.title.value, commandService);
+		typeof item.title === 'string' ? super(item.id, item.title, commandService) : super(item.id, item.title.mnemonicTitle ?? item.title.value, commandService);
 
 		this._cssClass = undefined;
 		this._enabled = !item.precondition || contextKeyService.contextMatchesRules(item.precondition);
