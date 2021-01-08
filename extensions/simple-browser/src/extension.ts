@@ -36,7 +36,7 @@ export function activate(context: vscode.ExtensionContext) {
 		manager.show(url.toString(), showOptions);
 	}));
 
-	context.subscriptions.push(vscode.commands.registerCommand(internalOpenCommand, (resolvedUrl: vscode.Uri, originalUri: vscode.Uri) => {
+	context.subscriptions.push(vscode.commands.registerCommand(internalOpenCommand, (resolvedUrl: vscode.Uri, _originalUri: vscode.Uri) => {
 		manager.show(resolvedUrl.toString());
 	}));
 
