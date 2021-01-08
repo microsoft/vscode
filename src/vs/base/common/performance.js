@@ -107,13 +107,13 @@ if (typeof global === 'object') {
 	sharedObj = {};
 }
 
-if (typeof define === 'function') {
-	// amd
-	define([], function () { return _factory(sharedObj); });
-} else if (typeof module === 'object' && typeof module.exports === 'object') {
-	// commonjs
-	module.exports = _factory(sharedObj);
-} else {
-	console.trace('perf-util defined in UNKNOWN context (neither requirejs or commonjs)');
-	sharedObj.perf = _factory(sharedObj);
-}
+// if (typeof define === 'function') {
+// 	// amd
+// 	define([], function () { return _factory(sharedObj); });
+// } else if (typeof module === 'object' && typeof module.exports === 'object') {
+// commonjs
+module.exports = _factory(sharedObj);
+// } else {
+// 	console.trace('perf-util defined in UNKNOWN context (neither requirejs or commonjs)');
+// 	sharedObj.perf = _factory(sharedObj);
+// }

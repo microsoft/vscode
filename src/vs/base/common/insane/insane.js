@@ -466,9 +466,9 @@ let __insane_func;
 }, {}, [4]);
 
 // ESM-comment-begin
-define(function() { return { insane: __insane_func }; });
+// define(function () { return { insane: __insane_func }; });
 // ESM-comment-end
 
 // ESM-uncomment-begin
-// export var insane = __insane_func;
+export var insane = __insane_func;
 // ESM-uncomment-end

@@ -42,10 +42,13 @@ if (isWeb || typeof require === 'undefined' || typeof require.__$__nodeRequire !
 else {
 
 	// Obtain values from product.json and package.json
-	const rootPath = dirname(FileAccess.asFileUri('', require));
+	// const rootPath = dirname(FileAccess.asFileUri('', require));
 
-	product = require.__$__nodeRequire(joinPath(rootPath, 'product.json').fsPath);
-	const pkg = require.__$__nodeRequire(joinPath(rootPath, 'package.json').fsPath) as { version: string; };
+	// product = require.__$__nodeRequire(joinPath(rootPath, 'product.json').fsPath);
+	// const pkg = require.__$__nodeRequire(joinPath(rootPath, 'package.json').fsPath) as { version: string; };
+
+	product = require('../../../../../product.json');
+	const pkg = require('../../../../../package.json');
 
 	// Running out of sources
 	if (env['VSCODE_DEV']) {

@@ -84,7 +84,7 @@
 
 		// replace the patched electron fs with the original node fs for all AMD code (TODO@sandbox non-sandboxed only)
 		if (!sandbox) {
-			require.define('fs', [], function () { return require.__$__nodeRequire('original-fs'); });
+			// require.define('fs', [], function () { return require.__$__nodeRequire('original-fs'); });
 		}
 
 		window['MonacoEnvironment'] = {};
@@ -93,66 +93,66 @@
 			`${bootstrapLib.fileUriFromPath(configuration.appRoot, { isWindows: safeProcess.platform === 'win32', scheme: 'vscode-file', fallbackAuthority: 'vscode-app' })}/out` :
 			`${bootstrapLib.fileUriFromPath(configuration.appRoot, { isWindows: safeProcess.platform === 'win32' })}/out`;
 
-		const loaderConfig = {
-			baseUrl,
-			'vs/nls': nlsConfig,
-			preferScriptTags: useCustomProtocol
-		};
+		// const loaderConfig = {
+		// 	baseUrl,
+		// 	'vs/nls': nlsConfig,
+		// 	preferScriptTags: useCustomProtocol
+		// };
 
-		// use a trusted types policy when loading via script tags
-		if (loaderConfig.preferScriptTags) {
-			loaderConfig.trustedTypesPolicy = window.trustedTypes?.createPolicy('amdLoader', {
-				createScriptURL(value) {
-					if (value.startsWith(window.location.origin)) {
-						return value;
-					}
-					throw new Error(`Invalid script url: ${value}`);
-				}
-			});
-		}
+		// // use a trusted types policy when loading via script tags
+		// if (loaderConfig.preferScriptTags) {
+		// 	loaderConfig.trustedTypesPolicy = window.trustedTypes?.createPolicy('amdLoader', {
+		// 		createScriptURL(value) {
+		// 			if (value.startsWith(window.location.origin)) {
+		// 				return value;
+		// 			}
+		// 			throw new Error(`Invalid script url: ${value}`);
+		// 		}
+		// 	});
+		// }
 
-		// Enable loading of node modules:
-		// - sandbox: we list paths of webpacked modules to help the loader
-		// - non-sandbox: we signal that any module that does not begin with
-		//                `vs/` should be loaded using node.js require()
-		if (sandbox) {
-			loaderConfig.paths = {
-				'vscode-textmate': `../node_modules/vscode-textmate/release/main`,
-				'vscode-oniguruma': `../node_modules/vscode-oniguruma/release/main`,
-				'xterm': `../node_modules/xterm/lib/xterm.js`,
-				'xterm-addon-search': `../node_modules/xterm-addon-search/lib/xterm-addon-search.js`,
-				'xterm-addon-unicode11': `../node_modules/xterm-addon-unicode11/lib/xterm-addon-unicode11.js`,
-				'xterm-addon-webgl': `../node_modules/xterm-addon-webgl/lib/xterm-addon-webgl.js`,
-				'iconv-lite-umd': `../node_modules/iconv-lite-umd/lib/iconv-lite-umd.js`,
-				'jschardet': `../node_modules/jschardet/dist/jschardet.min.js`,
-			};
-		} else {
-			loaderConfig.amdModulesPattern = /^vs\//;
-		}
+		// // Enable loading of node modules:
+		// // - sandbox: we list paths of webpacked modules to help the loader
+		// // - non-sandbox: we signal that any module that does not begin with
+		// //                `vs/` should be loaded using node.js require()
+		// if (sandbox) {
+		// 	loaderConfig.paths = {
+		// 		'vscode-textmate': `../node_modules/vscode-textmate/release/main`,
+		// 		'vscode-oniguruma': `../node_modules/vscode-oniguruma/release/main`,
+		// 		'xterm': `../node_modules/xterm/lib/xterm.js`,
+		// 		'xterm-addon-search': `../node_modules/xterm-addon-search/lib/xterm-addon-search.js`,
+		// 		'xterm-addon-unicode11': `../node_modules/xterm-addon-unicode11/lib/xterm-addon-unicode11.js`,
+		// 		'xterm-addon-webgl': `../node_modules/xterm-addon-webgl/lib/xterm-addon-webgl.js`,
+		// 		'iconv-lite-umd': `../node_modules/iconv-lite-umd/lib/iconv-lite-umd.js`,
+		// 		'jschardet': `../node_modules/jschardet/dist/jschardet.min.js`,
+		// 	};
+		// } else {
+		// 	loaderConfig.amdModulesPattern = /^vs\//;
+		// }
 
-		// cached data config
-		if (configuration.nodeCachedDataDir) {
-			loaderConfig.nodeCachedData = {
-				path: configuration.nodeCachedDataDir,
-				seed: modulePaths.join('')
-			};
-		}
+		// // cached data config
+		// if (configuration.nodeCachedDataDir) {
+		// 	loaderConfig.nodeCachedData = {
+		// 		path: configuration.nodeCachedDataDir,
+		// 		seed: modulePaths.join('')
+		// 	};
+		// }
 
-		if (options && typeof options.beforeLoaderConfig === 'function') {
-			options.beforeLoaderConfig(configuration, loaderConfig);
-		}
+		// if (options && typeof options.beforeLoaderConfig === 'function') {
+		// 	options.beforeLoaderConfig(configuration, loaderConfig);
+		// }
 
-		require.config(loaderConfig);
+		// require.config(loaderConfig);
 
-		if (nlsConfig.pseudo) {
-			require(['vs/nls'], function (nlsPlugin) {
-				nlsPlugin.setPseudoTranslation(nlsConfig.pseudo);
-			});
-		}
+		// if (nlsConfig.pseudo) {
+		// 	require(['vs/nls'], function (nlsPlugin) {
+		// 		nlsPlugin.setPseudoTranslation(nlsConfig.pseudo);
+		// 	});
+		// }
 
-		if (options && typeof options.beforeRequire === 'function') {
-			options.beforeRequire();
-		}
+		// if (options && typeof options.beforeRequire === 'function') {
+		// 	options.beforeRequire();
+		// }
 
 		require(modulePaths, async result => {
 			try {

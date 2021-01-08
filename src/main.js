@@ -194,9 +194,10 @@ function startup(cachedDataDir, nlsConfig) {
 
 	// Load main in AMD
 	perf.mark('code/willLoadMainBundle');
-	require('./bootstrap-amd').load('vs/code/electron-main/main', () => {
-		perf.mark('code/didLoadMainBundle');
-	});
+	require('./vs/code/electron-main/main');
+	// require('./bootstrap-amd').load('vs/code/electron-main/main', () => {
+	perf.mark('code/didLoadMainBundle');
+	// });
 }
 
 async function onReady() {

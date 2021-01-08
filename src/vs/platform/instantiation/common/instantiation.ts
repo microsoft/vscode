@@ -16,7 +16,7 @@ export namespace _util {
 	export const DI_DEPENDENCIES = '$di$dependencies';
 
 	export function getServiceDependencies(ctor: any): { id: ServiceIdentifier<any>, index: number, optional: boolean }[] {
-		return ctor[DI_DEPENDENCIES] || [];
+		return ctor.prototype[DI_DEPENDENCIES] || [];
 	}
 }
 

@@ -856,8 +856,9 @@ export class CodeWindow extends Disposable implements ICodeWindow {
 			workbench = 'vs/code/electron-browser/workbench/workbench.html';
 		}
 
-		return FileAccess
-			.asBrowserUri(workbench, require)
+		// return FileAccess
+		// 	.asBrowserUri(workbench, require)
+		return URI.file(`/home/joao/Work/vscode/src/${workbench}`)
 			.with({ query: `config=${encodeURIComponent(JSON.stringify(config))}` })
 			.toString(true);
 	}

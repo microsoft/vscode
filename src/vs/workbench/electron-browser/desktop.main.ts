@@ -3,8 +3,8 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import * as fs from 'fs';
-import * as gracefulFs from 'graceful-fs';
+// import * as fs from 'fs';
+// import * as gracefulFs from 'graceful-fs';
 import { createHash } from 'crypto';
 import { exists, stat } from 'vs/base/node/pfs';
 import { isLinux, isMacintosh, isWindows } from 'vs/base/common/platform';
@@ -70,7 +70,7 @@ class DesktopMain extends Disposable {
 	private init(): void {
 
 		// Enable gracefulFs
-		gracefulFs.gracefulify(fs);
+		// gracefulFs.gracefulify(fs);
 
 		// Massage configuration file URIs
 		this.reviveUris();

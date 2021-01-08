@@ -204,7 +204,10 @@ class FileAccessImpl {
 			return uriOrModule;
 		}
 
-		return URI.parse(moduleIdToUrl!.toUrl(uriOrModule));
+		console.log(uriOrModule);
+
+		return URI.parse(`file:///home/joao/Work/vscode/out/${uriOrModule}`);
+		// return URI.parse(moduleIdToUrl!.toUrl(uriOrModule));
 	}
 }
 

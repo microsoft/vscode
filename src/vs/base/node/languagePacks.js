@@ -301,14 +301,14 @@ function factory(nodeRequire, path, fs, perf) {
 }
 
 
-if (typeof define === 'function') {
-	// amd
-	define(['path', 'fs', 'vs/base/common/performance'], function (path, fs, perf) { return factory(require.__$__nodeRequire, path, fs, perf); });
-} else if (typeof module === 'object' && typeof module.exports === 'object') {
+// if (typeof define === 'function') {
+// 	// amd
+// 	define(['path', 'fs', 'vs/base/common/performance'], function (path, fs, perf) { return factory(require.__$__nodeRequire, path, fs, perf); });
+// } else if (typeof module === 'object' && typeof module.exports === 'object') {
 	const path = require('path');
 	const fs = require('fs');
 	const perf = require('../common/performance');
 	module.exports = factory(require, path, fs, perf);
-} else {
-	throw new Error('Unknown context');
-}
+// } else {
+// 	throw new Error('Unknown context');
+// }

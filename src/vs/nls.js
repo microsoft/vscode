@@ -158,3 +158,5 @@ var NLSLoaderPlugin;
     NLSLoaderPlugin.NLSPlugin = NLSPlugin;
     define('vs/nls', new NLSPlugin(new Environment()));
 })(NLSLoaderPlugin || (NLSLoaderPlugin = {}));
+
+module.exports.localize = (_, msg) => msg;

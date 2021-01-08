@@ -3,7 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import * as minimist from 'minimist';
+const minimist = require('minimist');
 import { localize } from 'vs/nls';
 import { isWindows } from 'vs/base/common/platform';
 import { NativeParsedArgs } from 'vs/platform/environment/common/argv';
