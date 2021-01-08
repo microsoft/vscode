@@ -23,10 +23,19 @@ flakySuite('Storage Library', function () {
 		return join(tmpdir(), 'vsctests', id, 'storage2', id);
 	}
 
-	test('basics', async () => {
-		const storageDir = uniqueStorageDir();
-		await mkdirp(storageDir);
+	let storageDir: string;
 
+	setup(function () {
+		storageDir = uniqueStorageDir();
+
+		return mkdirp(storageDir);
+	});
+
+	teardown(function () {
+		return rimraf(storageDir);
+	});
+
+	test('basics', async () => {
 		const storage = new Storage(new SQLiteStorageDatabase(join(storageDir, 'storage.db')));
 
 		await storage.init();
@@ -100,12 +109,9 @@ flakySuite('Storage Library', function () {
 		equal(deletePromiseResolved, true);
 
 		await storage.close();
-		await rimraf(storageDir);
 	});
 
 	test('external changes', async () => {
-		const storageDir = uniqueStorageDir();
-		await mkdirp(storageDir);
 
 		class TestSQLiteStorageDatabase extends SQLiteStorageDatabase {
 			private readonly _onDidChangeItemsExternal = new Emitter<IStorageItemsChangeEvent>();
@@ -155,13 +161,9 @@ flakySuite('Storage Library', function () {
 		equal(changes.size, 0);
 
 		await storage.close();
-		await rimraf(storageDir);
 	});
 
 	test('close flushes data', async () => {
-		const storageDir = uniqueStorageDir();
-		await mkdirp(storageDir);
-
 		let storage = new Storage(new SQLiteStorageDatabase(join(storageDir, 'storage.db')));
 		await storage.init();
 
@@ -213,13 +215,9 @@ flakySuite('Storage Library', function () {
 		ok(!storage.get('bar'));
 
 		await storage.close();
-		await rimraf(storageDir);
 	});
 
 	test('conflicting updates', async () => {
-		const storageDir = uniqueStorageDir();
-		await mkdirp(storageDir);
-
 		let storage = new Storage(new SQLiteStorageDatabase(join(storageDir, 'storage.db')));
 		await storage.init();
 
@@ -259,13 +257,9 @@ flakySuite('Storage Library', function () {
 		ok(setAndDeletePromiseResolved);
 
 		await storage.close();
-		await rimraf(storageDir);
 	});
 
 	test('corrupt DB recovers', async () => {
-		const storageDir = uniqueStorageDir();
-		await mkdirp(storageDir);
-
 		const storageFile = join(storageDir, 'storage.db');
 
 		let storage = new Storage(new SQLiteStorageDatabase(storageFile));
@@ -289,7 +283,6 @@ flakySuite('Storage Library', function () {
 		equal(storage.get('foo'), 'bar');
 
 		await storage.close();
-		await rimraf(storageDir);
 	});
 });
 
@@ -307,6 +300,18 @@ flakySuite('SQLite Storage Library', function () {
 
 		return set;
 	}
+
+	let storageDir: string;
+
+	setup(function () {
+		storageDir = uniqueStorageDir();
+
+		return mkdirp(storageDir);
+	});
+
+	teardown(function () {
+		return rimraf(storageDir);
+	});
 
 	async function testDBBasics(path: string, logError?: (error: Error | string) => void) {
 		let options!: ISQLiteStorageDatabaseOptions;
@@ -381,31 +386,15 @@ flakySuite('SQLite Storage Library', function () {
 	}
 
 	test('basics', async () => {
-		const storageDir = uniqueStorageDir();
-
-		await mkdirp(storageDir);
-
 		await testDBBasics(join(storageDir, 'storage.db'));
-
-		await rimraf(storageDir);
 	});
 
 	test('basics (open multiple times)', async () => {
-		const storageDir = uniqueStorageDir();
-
-		await mkdirp(storageDir);
-
 		await testDBBasics(join(storageDir, 'storage.db'));
 		await testDBBasics(join(storageDir, 'storage.db'));
-
-		await rimraf(storageDir);
 	});
 
 	test('basics (corrupt DB falls back to empty DB)', async () => {
-		const storageDir = uniqueStorageDir();
-
-		await mkdirp(storageDir);
-
 		const corruptDBPath = join(storageDir, 'broken.db');
 		await writeFile(corruptDBPath, 'This is a broken DB');
 
@@ -415,15 +404,9 @@ flakySuite('SQLite Storage Library', function () {
 		});
 
 		ok(expectedError);
-
-		await rimraf(storageDir);
 	});
 
 	test('basics (corrupt DB restores from previous backup)', async () => {
-		const storageDir = uniqueStorageDir();
-
-		await mkdirp(storageDir);
-
 		const storagePath = join(storageDir, 'storage.db');
 		let storage = new SQLiteStorageDatabase(storagePath);
 
@@ -453,15 +436,9 @@ flakySuite('SQLite Storage Library', function () {
 		});
 
 		equal(recoveryCalled, false);
-
-		await rimraf(storageDir);
 	});
 
 	test('basics (corrupt DB falls back to empty DB if backup is corrupt)', async () => {
-		const storageDir = uniqueStorageDir();
-
-		await mkdirp(storageDir);
-
 		const storagePath = join(storageDir, 'storage.db');
 		let storage = new SQLiteStorageDatabase(storagePath);
 
@@ -482,21 +459,9 @@ flakySuite('SQLite Storage Library', function () {
 		equal(storedItems.size, 0);
 
 		await testDBBasics(storagePath);
-
-		await rimraf(storageDir);
 	});
 
-	test('basics (DB that becomes corrupt during runtime stores all state from cache on close)', async () => {
-		if (isWindows) {
-			await Promise.resolve(); // Windows will fail to write to open DB due to locking
-
-			return;
-		}
-
-		const storageDir = uniqueStorageDir();
-
-		await mkdirp(storageDir);
-
+	(isWindows ? test.skip /* Windows will fail to write to open DB due to locking */ : test)('basics (DB that becomes corrupt during runtime stores all state from cache on close)', async () => {
 		const storagePath = join(storageDir, 'storage.db');
 		let storage = new SQLiteStorageDatabase(storagePath);
 
@@ -550,15 +515,9 @@ flakySuite('SQLite Storage Library', function () {
 		});
 
 		equal(recoveryCalled, false);
-
-		await rimraf(storageDir);
 	});
 
 	test('real world example', async function () {
-		const storageDir = uniqueStorageDir();
-
-		await mkdirp(storageDir);
-
 		let storage = new SQLiteStorageDatabase(join(storageDir, 'storage.db'));
 
 		const items1 = new Map<string, string>();
@@ -639,15 +598,9 @@ flakySuite('SQLite Storage Library', function () {
 		equal(storedItems.size, items1.size + items2.size + items3.size);
 
 		await storage.close();
-
-		await rimraf(storageDir);
 	});
 
 	test('very large item value', async function () {
-		const storageDir = uniqueStorageDir();
-
-		await mkdirp(storageDir);
-
 		let storage = new SQLiteStorageDatabase(join(storageDir, 'storage.db'));
 
 		const items = new Map<string, string>();
@@ -692,13 +645,9 @@ flakySuite('SQLite Storage Library', function () {
 		ok(!storedItems.get('super.large.string'));
 
 		await storage.close();
-
-		await rimraf(storageDir);
 	});
 
 	test('multiple concurrent writes execute in sequence', async () => {
-		const storageDir = uniqueStorageDir();
-		await mkdirp(storageDir);
 
 		class TestStorage extends Storage {
 			getStorage(): IStorageDatabase {
@@ -749,15 +698,9 @@ flakySuite('SQLite Storage Library', function () {
 		equal(items.get('some/foo3/path'), 'some/bar/path');
 
 		await storage.close();
-
-		await rimraf(storageDir);
 	});
 
 	test('lots of INSERT & DELETE (below inline max)', async () => {
-		const storageDir = uniqueStorageDir();
-
-		await mkdirp(storageDir);
-
 		const storage = new SQLiteStorageDatabase(join(storageDir, 'storage.db'));
 
 		const items = new Map<string, string>();
@@ -781,15 +724,9 @@ flakySuite('SQLite Storage Library', function () {
 		equal(storedItems.size, 0);
 
 		await storage.close();
-
-		await rimraf(storageDir);
 	});
 
 	test('lots of INSERT & DELETE (above inline max)', async () => {
-		const storageDir = uniqueStorageDir();
-
-		await mkdirp(storageDir);
-
 		const storage = new SQLiteStorageDatabase(join(storageDir, 'storage.db'));
 
 		const items = new Map<string, string>();
@@ -813,7 +750,5 @@ flakySuite('SQLite Storage Library', function () {
 		equal(storedItems.size, 0);
 
 		await storage.close();
-
-		await rimraf(storageDir);
 	});
 });
