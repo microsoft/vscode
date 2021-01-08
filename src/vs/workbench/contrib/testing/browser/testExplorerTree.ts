@@ -31,4 +31,8 @@ export const stateNodes = Object.entries(statePriority).reduce(
 	}, {} as { [K in TestRunState]: TreeStateNode }
 );
 
+export const cmpPriority = (a: TestRunState, b: TestRunState) => statePriority[b] - statePriority[a];
+
 export const maxPriority = (a: TestRunState, b: TestRunState) => statePriority[a] > statePriority[b] ? a : b;
+
+export const statesInOrder = Object.keys(statePriority).map(s => Number(s) as TestRunState).sort(cmpPriority);
