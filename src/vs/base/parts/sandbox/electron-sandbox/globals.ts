@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { globals, INodeProcess, IProcessEnvironment } from 'vs/base/common/platform';
-import { ProcessMemoryInfo, CrashReporter, IpcRenderer, WebFrame } from 'vs/base/parts/sandbox/electron-sandbox/electronTypes';
+import { ProcessMemoryInfo, CrashReporter, IpcRenderer } from 'vs/base/parts/sandbox/electron-sandbox/electronTypes';
 
 export interface ISandboxNodeProcess extends INodeProcess {
 
@@ -82,7 +82,6 @@ export interface ISandboxContext {
 }
 
 export const ipcRenderer: IpcRenderer = globals.vscode.ipcRenderer;
-export const webFrame: WebFrame = globals.vscode.webFrame;
 export const crashReporter: CrashReporter = globals.vscode.crashReporter;
 export const process: ISandboxNodeProcess = globals.vscode.process;
 export const context: ISandboxContext = globals.vscode.context;

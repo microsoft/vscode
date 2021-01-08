@@ -10,7 +10,7 @@ import { NativeHostService } from 'vs/platform/native/electron-sandbox/nativeHos
 import { ipcRenderer } from 'vs/base/parts/sandbox/electron-sandbox/globals';
 import { localize } from 'vs/nls';
 import { ProcessExplorerStyles, ProcessExplorerData } from 'vs/platform/issue/common/issue';
-import { applyZoom, zoomIn, zoomOut } from 'vs/platform/windows/electron-sandbox/window';
+import { zoomIn, zoomOut } from 'vs/platform/windows/electron-sandbox/window';
 import { IContextMenuItem } from 'vs/base/parts/contextmenu/common/contextmenu';
 import { popup } from 'vs/base/parts/contextmenu/electron-sandbox/contextmenu';
 import { ProcessItem } from 'vs/base/common/processes';
@@ -22,6 +22,8 @@ import { ByteSize } from 'vs/platform/files/common/files';
 import { IListVirtualDelegate } from 'vs/base/browser/ui/list/list';
 import { IDataSource, ITreeNode, ITreeRenderer } from 'vs/base/browser/ui/tree/tree';
 import { DataTree } from 'vs/base/browser/ui/tree/dataTree';
+import { setZoomFactor, setZoomLevel } from 'vs/base/browser/browser';
+import { zoomLevelToZoomFactor } from 'vs/platform/windows/common/windows';
 
 const DEBUG_FLAGS_PATTERN = /\s--(inspect|debug)(-brk|port)?=(\d+)?/;
 const DEBUG_PORT_PATTERN = /\s--(inspect|debug)-port=(\d+)/;
@@ -263,6 +265,29 @@ class ProcessExplorer {
 		this.lastRequestTime = Date.now();
 		ipcRenderer.send('vscode:windowsInfoRequest');
 		ipcRenderer.send('vscode:listProcesses');
+
+		document.onkeydown = (e: KeyboardEvent) => {
+			const cmdOrCtrlKey = data.platform === 'darwin' ? e.metaKey : e.ctrlKey;
+
+			// Cmd/Ctrl + w closes issue window
+			if (cmdOrCtrlKey && e.keyCode === 87) {
+				e.stopPropagation();
+				e.preventDefault();
+
+				this.dispose();
+				ipcRenderer.send('vscode:closeProcessExplorer');
+			}
+
+			// Cmd/Ctrl + zooms in
+			else if (cmdOrCtrlKey && e.keyCode === 187) {
+				zoomIn(this.nativeHostService);
+			}
+
+			// Cmd/Ctrl - zooms out
+			else if (cmdOrCtrlKey && e.keyCode === 189) {
+				zoomOut(this.nativeHostService);
+			}
+		};
 	}
 
 	private async createProcessTree(processRoots: MachineProcessInformation[]): Promise<void> {
@@ -458,30 +483,8 @@ class ProcessExplorer {
 export function startup(windowId: number, data: ProcessExplorerData): void {
 	const platformClass = data.platform === 'win32' ? 'windows' : data.platform === 'linux' ? 'linux' : 'mac';
 	document.body.classList.add(platformClass); // used by our fonts
-	applyZoom(data.zoomLevel);
+	setZoomFactor(zoomLevelToZoomFactor(data.zoomLevel));
+	setZoomLevel(data.zoomLevel, true /* isTrusted */);
 
-	const processExplorer = new ProcessExplorer(windowId, data);
-
-	document.onkeydown = (e: KeyboardEvent) => {
-		const cmdOrCtrlKey = data.platform === 'darwin' ? e.metaKey : e.ctrlKey;
-
-		// Cmd/Ctrl + w closes issue window
-		if (cmdOrCtrlKey && e.keyCode === 87) {
-			e.stopPropagation();
-			e.preventDefault();
-
-			processExplorer.dispose();
-			ipcRenderer.send('vscode:closeProcessExplorer');
-		}
-
-		// Cmd/Ctrl + zooms in
-		if (cmdOrCtrlKey && e.keyCode === 187) {
-			zoomIn();
-		}
-
-		// Cmd/Ctrl - zooms out
-		if (cmdOrCtrlKey && e.keyCode === 189) {
-			zoomOut();
-		}
-	};
+	new ProcessExplorer(windowId, data);
 }

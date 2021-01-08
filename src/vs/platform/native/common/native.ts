@@ -70,6 +70,8 @@ export interface ICommonNativeHostService {
 
 	setMinimumSize(width: number | undefined, height: number | undefined): Promise<void>;
 
+	setZoomLevel(level: number): Promise<void>;
+
 	/**
 	 * Make the window focused.
 	 *

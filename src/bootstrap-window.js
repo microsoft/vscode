@@ -24,7 +24,6 @@
 	const bootstrapLib = bootstrap();
 	const preloadGlobals = globals();
 	const sandbox = preloadGlobals.context.sandbox;
-	const webFrame = preloadGlobals.webFrame;
 	const safeProcess = preloadGlobals.process;
 	const configuration = parseWindowConfiguration();
 	const useCustomProtocol = sandbox || typeof safeProcess.env['ENABLE_VSCODE_BROWSER_CODE_LOADING'] === 'string';
@@ -39,12 +38,6 @@
 	 * @param {{ forceEnableDeveloperKeybindings?: boolean, disallowReloadKeybinding?: boolean, removeDeveloperKeybindingsAfterLoad?: boolean, canModifyDOM?: (config: object) => void, beforeLoaderConfig?: (config: object, loaderConfig: object) => void, beforeRequire?: () => void }=} options
 	 */
 	function load(modulePaths, resultCallback, options) {
-
-		// Apply zoom level early to avoid glitches
-		const zoomLevel = configuration.zoomLevel;
-		if (typeof zoomLevel === 'number' && zoomLevel !== 0) {
-			webFrame.setZoomLevel(zoomLevel);
-		}
 
 		// Error handler
 		safeProcess.on('uncaughtException', function (error) {
