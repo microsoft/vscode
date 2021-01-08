@@ -60,9 +60,9 @@ export async function rimrafWithRetries(path: string, retries: number = 5): Prom
 			await rimraf(path);
 			return;
 		} catch (err) {
-			// Check for a ENOTEMPTY error. This can happen if someone else is writing
+			// Check for ENOTEMPTY and EPERM errors. This can happen if someone else is writing
 			// to this directory while we are trying to delete it.
-			if (retry === 0 || err.code !== 'ENOTEMPTY') {
+			if (retry === 0 || err.code !== 'ENOTEMPTY' || err.code !== 'EPERM') {
 				// If this is the last retry or if this is another kind of error, simply
 				// rethrow the error
 				throw err;
