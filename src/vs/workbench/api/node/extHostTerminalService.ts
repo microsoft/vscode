@@ -24,7 +24,7 @@ import { IExtHostRpcService } from 'vs/workbench/api/common/extHostRpcService';
 import { MergedEnvironmentVariableCollection } from 'vs/workbench/contrib/terminal/common/environmentVariableCollection';
 import { IExtHostInitDataService } from 'vs/workbench/api/common/extHostInitDataService';
 import { withNullAsUndefined } from 'vs/base/common/types';
-import { getSystemShell } from 'vs/base/node/shell';
+import { getSystemShell, getSystemShellSync } from 'vs/base/node/shell';
 import { generateUuid } from 'vs/base/common/uuid';
 
 export class ExtHostTerminalService extends BaseExtHostTerminalService {
@@ -34,6 +34,7 @@ export class ExtHostTerminalService extends BaseExtHostTerminalService {
 
 	// TODO: Pull this from main side
 	private _isWorkspaceShellAllowed: boolean = false;
+	private _defaultShell: string | undefined;
 
 	constructor(
 		@IExtHostRpcService extHostRpc: IExtHostRpcService,
@@ -44,6 +45,8 @@ export class ExtHostTerminalService extends BaseExtHostTerminalService {
 		@IExtHostInitDataService private _extHostInitDataService: IExtHostInitDataService
 	) {
 		super(true, extHostRpc);
+		getSystemShell(platform.platform).then(s => this._defaultShell = s);
+
 		this._updateLastActiveWorkspace();
 		this._updateVariableResolver();
 		this._registerListeners();
@@ -78,10 +81,11 @@ export class ExtHostTerminalService extends BaseExtHostTerminalService {
 				.inspect<string | string[]>(key.substr(key.lastIndexOf('.') + 1));
 			return this._apiInspectConfigToPlain<string | string[]>(setting);
 		};
+
 		return terminalEnvironment.getDefaultShell(
 			fetchSetting,
 			this._isWorkspaceShellAllowed,
-			getSystemShell(platform.platform),
+			this._defaultShell ?? getSystemShellSync(platform.platform),
 			process.env.hasOwnProperty('PROCESSOR_ARCHITEW6432'),
 			process.env.windir,
 			terminalEnvironment.createVariableResolver(this._lastActiveWorkspace, this._variableResolver),

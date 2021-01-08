@@ -75,7 +75,7 @@ async function detectAvailableWindowsShells(): Promise<IShellDefinition[]> {
 	};
 
 	// Add all of the different kinds of PowerShells
-	for (const pwshExe of enumeratePowerShellInstallations()) {
+	for await (const pwshExe of enumeratePowerShellInstallations()) {
 		expectedLocations[pwshExe.displayName] = [pwshExe.exePath];
 	}
 

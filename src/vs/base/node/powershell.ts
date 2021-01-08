@@ -27,7 +27,7 @@ export interface IPowerShellExeDetails {
 }
 
 export interface IPossiblePowerShellExe extends IPowerShellExeDetails {
-	exists(): boolean;
+	exists(): Promise<boolean>;
 }
 
 class PossiblePowerShellExe implements IPossiblePowerShellExe {
@@ -46,9 +46,9 @@ class PossiblePowerShellExe implements IPossiblePowerShellExe {
 		this.knownToExist = knownToExist || undefined;
 	}
 
-	public exists(): boolean {
+	public async exists(): Promise<boolean> {
 		if (this.knownToExist === undefined) {
-			this.knownToExist = pfs.fileExistsSync(this.exePath);
+			this.knownToExist = await pfs.fileExists(this.exePath);
 		}
 		return this.knownToExist;
 	}
@@ -98,9 +98,9 @@ function getSystem32Path({ useAlternateBitness = false }: { useAlternateBitness?
 	return path.join(windir, 'System32');
 }
 
-function findPSCoreWindowsInstallation(
+async function findPSCoreWindowsInstallation(
 	{ useAlternateBitness = false, findPreview = false }:
-		{ useAlternateBitness?: boolean; findPreview?: boolean } = {}): IPossiblePowerShellExe | null {
+		{ useAlternateBitness?: boolean; findPreview?: boolean } = {}): Promise<IPossiblePowerShellExe | null> {
 
 	const programFilesPath = getProgramFilesPath({ useAlternateBitness });
 	if (!programFilesPath) {
@@ -110,13 +110,13 @@ function findPSCoreWindowsInstallation(
 	const powerShellInstallBaseDir = path.join(programFilesPath, 'PowerShell');
 
 	// Ensure the base directory exists
-	if (!pfs.dirExistsSync(powerShellInstallBaseDir)) {
+	if (!await pfs.dirExists(powerShellInstallBaseDir)) {
 		return null;
 	}
 
 	let highestSeenVersion: number = -1;
 	let pwshExePath: string | null = null;
-	for (const item of pfs.readdirSync(powerShellInstallBaseDir)) {
+	for (const item of await pfs.readdir(powerShellInstallBaseDir)) {
 
 		let currentVersion: number = -1;
 		if (findPreview) {
@@ -152,7 +152,7 @@ function findPSCoreWindowsInstallation(
 
 		// Now look for the file
 		const exePath = path.join(powerShellInstallBaseDir, item, 'pwsh.exe');
-		if (!pfs.fileExistsSync(exePath)) {
+		if (!await pfs.fileExists(exePath)) {
 			continue;
 		}
 
@@ -170,7 +170,7 @@ function findPSCoreWindowsInstallation(
 	return new PossiblePowerShellExe(pwshExePath, `PowerShell${preview}${bitness}`, { knownToExist: true });
 }
 
-function findPSCoreMsix({ findPreview }: { findPreview?: boolean } = {}): IPossiblePowerShellExe | null {
+async function findPSCoreMsix({ findPreview }: { findPreview?: boolean } = {}): Promise<IPossiblePowerShellExe | null> {
 	// We can't proceed if there's no LOCALAPPDATA path
 	if (!env.LOCALAPPDATA) {
 		return null;
@@ -179,7 +179,7 @@ function findPSCoreMsix({ findPreview }: { findPreview?: boolean } = {}): IPossi
 	// Find the base directory for MSIX application exe shortcuts
 	const msixAppDir = path.join(env.LOCALAPPDATA, 'Microsoft', 'WindowsApps');
 
-	if (!pfs.dirExistsSync(msixAppDir)) {
+	if (!await pfs.dirExists(msixAppDir)) {
 		return null;
 	}
 
@@ -189,7 +189,7 @@ function findPSCoreMsix({ findPreview }: { findPreview?: boolean } = {}): IPossi
 		: { pwshMsixDirRegex: PwshMsixRegex, pwshMsixName: 'PowerShell (Store)' };
 
 	// We should find only one such application, so return on the first one
-	for (const subdir of pfs.readdirSync(msixAppDir)) {
+	for (const subdir of await pfs.readdir(msixAppDir)) {
 		if (pwshMsixDirRegex.test(subdir)) {
 			const pwshMsixPath = path.join(msixAppDir, subdir, 'pwsh.exe');
 			return new PossiblePowerShellExe(pwshMsixPath, pwshMsixName);
@@ -240,21 +240,21 @@ function findWinPS({ useAlternateBitness = false }: { useAlternateBitness?: bool
  * Returned values may not exist, but come with an .exists property
  * which will check whether the executable exists.
  */
-function* enumerateDefaultPowerShellInstallations(): Iterable<IPossiblePowerShellExe> {
+async function* enumerateDefaultPowerShellInstallations(): AsyncIterable<IPossiblePowerShellExe> {
 	// Find PSCore stable first
-	let pwshExe = findPSCoreWindowsInstallation();
+	let pwshExe = await findPSCoreWindowsInstallation();
 	if (pwshExe) {
 		yield pwshExe;
 	}
 
 	// Windows may have a 32-bit pwsh.exe
-	pwshExe = findPSCoreWindowsInstallation({ useAlternateBitness: true });
+	pwshExe = await findPSCoreWindowsInstallation({ useAlternateBitness: true });
 	if (pwshExe) {
 		yield pwshExe;
 	}
 
 	// Also look for the MSIX/UWP installation
-	pwshExe = findPSCoreMsix();
+	pwshExe = await findPSCoreMsix();
 	if (pwshExe) {
 		yield pwshExe;
 	}
@@ -268,19 +268,19 @@ function* enumerateDefaultPowerShellInstallations(): Iterable<IPossiblePowerShel
 	}
 
 	// Look for PSCore preview
-	pwshExe = findPSCoreWindowsInstallation({ findPreview: true });
+	pwshExe = await findPSCoreWindowsInstallation({ findPreview: true });
 	if (pwshExe) {
 		yield pwshExe;
 	}
 
 	// Find a preview MSIX
-	pwshExe = findPSCoreMsix({ findPreview: true });
+	pwshExe = await findPSCoreMsix({ findPreview: true });
 	if (pwshExe) {
 		yield pwshExe;
 	}
 
 	// Look for pwsh-preview with the opposite bitness
-	pwshExe = findPSCoreWindowsInstallation({ useAlternateBitness: true, findPreview: true });
+	pwshExe = await findPSCoreWindowsInstallation({ useAlternateBitness: true, findPreview: true });
 	if (pwshExe) {
 		yield pwshExe;
 	}
@@ -306,9 +306,9 @@ function* enumerateDefaultPowerShellInstallations(): Iterable<IPossiblePowerShel
  * PowerShell items returned by this object are verified
  * to exist on the filesystem.
  */
-export function* enumeratePowerShellInstallations(): Iterable<IPowerShellExeDetails> {
+export async function* enumeratePowerShellInstallations(): AsyncIterable<IPowerShellExeDetails> {
 	// Get the default PowerShell installations first
-	for (const defaultPwsh of enumerateDefaultPowerShellInstallations()) {
+	for await (const defaultPwsh of enumerateDefaultPowerShellInstallations()) {
 		if (defaultPwsh && defaultPwsh.exists()) {
 			yield defaultPwsh;
 		}
@@ -318,8 +318,8 @@ export function* enumeratePowerShellInstallations(): Iterable<IPowerShellExeDeta
 /**
 * Returns the first available PowerShell executable found in the search order.
 */
-export function getFirstAvailablePowerShellInstallation(): IPowerShellExeDetails | null {
-	for (const pwsh of enumeratePowerShellInstallations()) {
+export async function getFirstAvailablePowerShellInstallation(): Promise<IPowerShellExeDetails | null> {
+	for await (const pwsh of enumeratePowerShellInstallations()) {
 		return pwsh;
 	}
 	return null;

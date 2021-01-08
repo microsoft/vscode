@@ -4,8 +4,8 @@
  *--------------------------------------------------------------------------------------------*/
 import * as assert from 'assert';
 import * as platform from 'vs/base/common/platform';
-import * as powershell from 'vs/base/node/powershell';
 import * as fs from 'fs';
+import { enumeratePowerShellInstallations, getFirstAvailablePowerShellInstallation, IPowerShellExeDetails } from 'vs/base/node/powershell';
 
 function checkPath(exePath: string) {
 	// Check to see if the path exists
@@ -25,8 +25,8 @@ function checkPath(exePath: string) {
 if (platform.isWindows) {
 	suite('PowerShell finder', () => {
 
-		test('Can find first available PowerShell', () => {
-			const pwshExe = powershell.getFirstAvailablePowerShellInstallation();
+		test('Can find first available PowerShell', async () => {
+			const pwshExe = await getFirstAvailablePowerShellInstallation();
 			const exePath = pwshExe?.exePath;
 			assert.notStrictEqual(exePath, null);
 			assert.notStrictEqual(pwshExe?.displayName, null);
@@ -41,8 +41,12 @@ if (platform.isWindows) {
 		// 3. Windows PowerShell (x86)
 		// Only run this test in CI where the result is predictable.
 		if (process.env.TF_BUILD || process.env.CI) {
-			test('Can enumerate PowerShells', () => {
-				const pwshs = Array.from(powershell.enumeratePowerShellInstallations());
+			test('Can enumerate PowerShells', async () => {
+				const pwshs = new Array<IPowerShellExeDetails>();
+				for await (const p of enumeratePowerShellInstallations()) {
+					pwshs.push(p);
+				}
+
 				assert.strictEqual(pwshs.length, 3);
 
 				checkPath(pwshs[0].exePath);
