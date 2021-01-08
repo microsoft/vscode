@@ -177,7 +177,7 @@ export class TextFileEditor extends BaseTextEditor {
 			throw createErrorWithActions(toErrorMessage(error), {
 				actions: [
 					new Action('workbench.files.action.createMissingFile', nls.localize('createFile', "Create File"), undefined, true, async () => {
-						await this.textFileService.create(input.preferredResource);
+						await this.textFileService.create([{ resource: input.preferredResource }]);
 
 						return this.editorService.openEditor({
 							resource: input.preferredResource,

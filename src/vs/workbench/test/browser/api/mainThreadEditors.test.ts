@@ -100,6 +100,12 @@ suite('MainThreadEditors', () => {
 				onDidRevert: Event.None,
 				onDidChangeDirty: Event.None
 			};
+			create(operations: { resource: URI }[]) {
+				for (const o of operations) {
+					createdResources.add(o.resource);
+				}
+				return Promise.resolve(Object.create(null));
+			}
 		});
 		services.set(IWorkingCopyFileService, new class extends mock<IWorkingCopyFileService>() {
 			onDidRunWorkingCopyFileOperation = Event.None;

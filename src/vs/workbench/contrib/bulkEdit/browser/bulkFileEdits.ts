@@ -8,7 +8,7 @@ import { WorkspaceFileEditOptions } from 'vs/editor/common/modes';
 import { IFileService, FileSystemProviderCapabilities, IFileContent } from 'vs/platform/files/common/files';
 import { IProgress } from 'vs/platform/progress/common/progress';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
-import { IWorkingCopyFileService, IFileOperationUndoRedoInfo, IMoveOperation, ICopyOperation, IDeleteOperation, ICreateOperation, ICreateFileOperation } from 'vs/workbench/services/workingCopy/common/workingCopyFileService';
+import { IWorkingCopyFileService, IFileOperationUndoRedoInfo, IMoveOperation, ICopyOperation, IDeleteOperation, ICreateOperation } from 'vs/workbench/services/workingCopy/common/workingCopyFileService';
 import { IWorkspaceUndoRedoElement, UndoRedoElementType, IUndoRedoService, UndoRedoGroup, UndoRedoSource } from 'vs/platform/undoRedo/common/undoRedo';
 import { URI } from 'vs/base/common/uri';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
@@ -17,6 +17,8 @@ import { VSBuffer } from 'vs/base/common/buffer';
 import { ResourceFileEdit } from 'vs/editor/browser/services/bulkEditService';
 import { CancellationToken } from 'vs/base/common/cancellation';
 import { flatten, tail } from 'vs/base/common/arrays';
+import { ITextFileService } from 'vs/workbench/services/textfile/common/textfiles';
+import { ITextSnapshot } from 'vs/editor/common/model';
 
 interface IFileOperation {
 	uris: URI[];
@@ -158,6 +160,7 @@ class CreateOperation implements IFileOperation {
 		@IFileService private readonly _fileService: IFileService,
 		@IWorkingCopyFileService private readonly _workingCopyFileService: IWorkingCopyFileService,
 		@IInstantiationService private readonly _instaService: IInstantiationService,
+		@ITextFileService private readonly _textFileService: ITextFileService
 	) { }
 
 	get uris() {
@@ -167,7 +170,7 @@ class CreateOperation implements IFileOperation {
 	async perform(token: CancellationToken): Promise<IFileOperation> {
 
 		const folderCreates: ICreateOperation[] = [];
-		const fileCreates: ICreateFileOperation[] = [];
+		const fileCreates: { resource: URI, value?: string | ITextSnapshot, options?: { overwrite?: boolean } }[] = [];
 		const undoes: DeleteEdit[] = [];
 
 		for (const edit of this._edits) {
@@ -177,7 +180,7 @@ class CreateOperation implements IFileOperation {
 			if (edit.options.folder) {
 				folderCreates.push({ resource: edit.newUri });
 			} else {
-				fileCreates.push({ resource: edit.newUri, contents: edit.contents, overwrite: edit.options.overwrite });
+				fileCreates.push({ resource: edit.newUri, value: edit.contents?.toString(), options: { overwrite: edit.options.overwrite } });
 			}
 			undoes.push(new DeleteEdit(edit.newUri, edit.options, !edit.options.folder && !edit.contents));
 		}
@@ -187,7 +190,7 @@ class CreateOperation implements IFileOperation {
 		}
 
 		await this._workingCopyFileService.createFolder(folderCreates, this._undoRedoInfo, token);
-		await this._workingCopyFileService.create(fileCreates, this._undoRedoInfo, token);
+		await this._textFileService.create(fileCreates, this._undoRedoInfo, token);
 
 		return this._instaService.createInstance(DeleteOperation, undoes, { isUndoing: true });
 	}

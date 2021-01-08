@@ -125,7 +125,7 @@ suite('Files - TextFileService', () => {
 			eventCounter++;
 		});
 
-		await accessor.textFileService.create(model.resource, 'Foo');
+		await accessor.textFileService.create([{ resource: model.resource, value: 'Foo' }]);
 		assert.ok(!accessor.textFileService.isDirty(model.resource));
 
 		assert.equal(eventCounter, 2);
