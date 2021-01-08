@@ -364,7 +364,7 @@ export class MenuItemAction extends ExecuteCommandAction {
 		@IContextKeyService contextKeyService: IContextKeyService,
 		@ICommandService commandService: ICommandService
 	) {
-		typeof item.title === 'string' ? super(item.id, item.title, commandService) : super(item.id, item.title.mnemonicTitle ?? item.title.value, commandService);
+		typeof item.title === 'string' ? super(item.id, item.title, commandService) : super(item.id, item.title.value, commandService);
 
 		this._cssClass = undefined;
 		this._enabled = !item.precondition || contextKeyService.contextMatchesRules(item.precondition);
