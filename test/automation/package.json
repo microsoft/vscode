@@ -9,7 +9,6 @@
   "main": "./out/index.js",
   "private": true,
   "scripts": {
-    "prepare": "npm run compile",
     "compile": "npm run copy-driver && npm run copy-driver-definition && tsc",
     "watch": "npm-run-all -lp watch-driver watch-driver-definition watch-tsc",
     "watch-tsc": "tsc --watch --preserveWatchOutput",

@@ -154,15 +154,17 @@ class NotebookOutlineRenderer implements ITreeRenderer<OutlineEntry, FuzzyScore,
 		return new NotebookOutlineTemplate(container, iconClass, iconLabel, decoration);
 	}
 
-	renderElement(element: ITreeNode<OutlineEntry, FuzzyScore>, _index: number, template: NotebookOutlineTemplate, _height: number | undefined): void {
-		template.iconLabel.setLabel(element.element.label, undefined, { matches: createMatches(element.filterData) });
-		if (this._themeService.getFileIconTheme().hasFileIcons) {
-			template.iconClass.className = 'element-icon ' + getIconClassesForModeId(element.element.cell.language ?? '').join(' ');
+	renderElement(node: ITreeNode<OutlineEntry, FuzzyScore>, _index: number, template: NotebookOutlineTemplate, _height: number | undefined): void {
+		template.iconLabel.setLabel(node.element.label, undefined, { matches: createMatches(node.filterData) });
+
+		// code cells get to use their file icon (assuming the theme supports that)
+		if (node.element.cell.cellKind === CellKind.Code && this._themeService.getFileIconTheme().hasFileIcons) {
+			template.iconClass.className = 'element-icon ' + getIconClassesForModeId(node.element.cell.language ?? '').join(' ');
 		} else {
-			template.iconClass.className = 'element-icon ' + ThemeIcon.asClassNameArray(element.element.icon).join(' ');
+			template.iconClass.className = 'element-icon ' + ThemeIcon.asClassNameArray(node.element.icon).join(' ');
 		}
 
-		const { markerInfo } = element.element;
+		const { markerInfo } = node.element;
 
 		template.container.style.removeProperty('--outline-element-color');
 		template.decoration.innerText = '';

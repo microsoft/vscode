@@ -8,7 +8,7 @@ import { IFileService } from 'vs/platform/files/common/files';
 import { TextFileEditorModelManager } from 'vs/workbench/services/textfile/common/textFileEditorModelManager';
 import { Schemas } from 'vs/base/common/network';
 import { ServiceCollection } from 'vs/platform/instantiation/common/serviceCollection';
-import { rimraf, RimRafMode, copy, readFile, exists, stat } from 'vs/base/node/pfs';
+import { rimraf, copy, readFile, exists, stat } from 'vs/base/node/pfs';
 import { DisposableStore } from 'vs/base/common/lifecycle';
 import { FileService } from 'vs/platform/files/common/fileService';
 import { NullLogService } from 'vs/platform/log/common/log';
@@ -65,7 +65,7 @@ flakySuite('Files - NativeTextFileService i/o', function () {
 
 			disposables.clear();
 
-			await rimraf(parentDir, RimRafMode.MOVE);
+			await rimraf(parentDir);
 		},
 
 		exists,

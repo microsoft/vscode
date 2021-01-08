@@ -3,9 +3,9 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { Emitter, Event, PauseableEmitter } from 'vs/base/common/event';
+import { Emitter, PauseableEmitter } from 'vs/base/common/event';
 import { Iterable } from 'vs/base/common/iterator';
-import { IDisposable, DisposableStore } from 'vs/base/common/lifecycle';
+import { IDisposable, DisposableStore, MutableDisposable } from 'vs/base/common/lifecycle';
 import { TernarySearchTree } from 'vs/base/common/map';
 import { distinct } from 'vs/base/common/objects';
 import { CommandsRegistry } from 'vs/platform/commands/common/commands';
@@ -244,11 +244,13 @@ class CompositeContextKeyChangeEvent implements IContextKeyChangeEvent {
 }
 
 export abstract class AbstractContextKeyService implements IContextKeyService {
-	public _serviceBrand: undefined;
+	declare _serviceBrand: undefined;
 
 	protected _isDisposed: boolean;
-	protected _onDidChangeContext = new PauseableEmitter<IContextKeyChangeEvent>({ merge: input => new CompositeContextKeyChangeEvent(input) });
 	protected _myContextId: number;
+
+	protected _onDidChangeContext = new PauseableEmitter<IContextKeyChangeEvent>({ merge: input => new CompositeContextKeyChangeEvent(input) });
+	readonly onDidChangeContext = this._onDidChangeContext.event;
 
 	constructor(myContextId: number) {
 		this._isDisposed = false;
@@ -268,9 +270,6 @@ export abstract class AbstractContextKeyService implements IContextKeyService {
 		return new ContextKey(this, key, defaultValue);
 	}
 
-	public get onDidChangeContext(): Event<IContextKeyChangeEvent> {
-		return this._onDidChangeContext.event;
-	}
 
 	bufferChangeEvents(callback: Function): void {
 		this._onDidChangeContext.pause();
@@ -371,6 +370,7 @@ export class ContextKeyService extends AbstractContextKeyService implements ICon
 	}
 
 	public dispose(): void {
+		this._onDidChangeContext.dispose();
 		this._isDisposed = true;
 		this._toDispose.dispose();
 	}
@@ -407,12 +407,12 @@ class ScopedContextKeyService extends AbstractContextKeyService {
 	private _parent: AbstractContextKeyService;
 	private _domNode: IContextKeyServiceTarget | undefined;
 
-	private _parentChangeListener: IDisposable | undefined;
+	private readonly _parentChangeListener = new MutableDisposable();
 
 	constructor(parent: AbstractContextKeyService, domNode?: IContextKeyServiceTarget) {
 		super(parent.createChildContext());
 		this._parent = parent;
-		this.updateParentChangeListener();
+		this._updateParentChangeListener();
 
 		if (domNode) {
 			this._domNode = domNode;
@@ -428,18 +428,13 @@ class ScopedContextKeyService extends AbstractContextKeyService {
 		}
 	}
 
-	private updateParentChangeListener(): void {
-		if (this._parentChangeListener) {
-			this._parentChangeListener.dispose();
-		}
-
-		this._parentChangeListener = this._parent.onDidChangeContext(e => {
-			// Forward parent events to this listener. Parent will change.
-			this._onDidChangeContext.fire(e);
-		});
+	private _updateParentChangeListener(): void {
+		// Forward parent events to this listener. Parent will change.
+		this._parentChangeListener.value = this._parent.onDidChangeContext(this._onDidChangeContext.fire, this._onDidChangeContext);
 	}
 
 	public dispose(): void {
+		this._onDidChangeContext.dispose();
 		this._isDisposed = true;
 		this._parent.disposeContext(this._myContextId);
 		this._parentChangeListener?.dispose();
@@ -447,10 +442,6 @@ class ScopedContextKeyService extends AbstractContextKeyService {
 			this._domNode.removeAttribute(KEYBINDING_CONTEXT_ATTR);
 			this._domNode = undefined;
 		}
-	}
-
-	public get onDidChangeContext(): Event<IContextKeyChangeEvent> {
-		return this._onDidChangeContext.event;
 	}
 
 	public getContextValuesContainer(contextId: number): Context {
@@ -478,7 +469,7 @@ class ScopedContextKeyService extends AbstractContextKeyService {
 		const thisContainer = this._parent.getContextValuesContainer(this._myContextId);
 		const oldAllValues = thisContainer.collectAllValues();
 		this._parent = parentContextKeyService;
-		this.updateParentChangeListener();
+		this._updateParentChangeListener();
 		const newParentContainer = this._parent.getContextValuesContainer(this._parent.contextId);
 		thisContainer.updateParent(newParentContainer);
 

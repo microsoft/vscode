@@ -8,15 +8,15 @@ import { WorkspaceFileEditOptions } from 'vs/editor/common/modes';
 import { IFileService, FileSystemProviderCapabilities, IFileContent } from 'vs/platform/files/common/files';
 import { IProgress } from 'vs/platform/progress/common/progress';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
-import { IWorkingCopyFileService, IFileOperationUndoRedoInfo } from 'vs/workbench/services/workingCopy/common/workingCopyFileService';
+import { IWorkingCopyFileService, IFileOperationUndoRedoInfo, IMoveOperation, ICopyOperation, IDeleteOperation, ICreateOperation, ICreateFileOperation } from 'vs/workbench/services/workingCopy/common/workingCopyFileService';
 import { IWorkspaceUndoRedoElement, UndoRedoElementType, IUndoRedoService, UndoRedoGroup, UndoRedoSource } from 'vs/platform/undoRedo/common/undoRedo';
 import { URI } from 'vs/base/common/uri';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { ILogService } from 'vs/platform/log/common/log';
 import { VSBuffer } from 'vs/base/common/buffer';
 import { ResourceFileEdit } from 'vs/editor/browser/services/bulkEditService';
-import * as resources from 'vs/base/common/resources';
 import { CancellationToken } from 'vs/base/common/cancellation';
+import { flatten, tail } from 'vs/base/common/arrays';
 
 interface IFileOperation {
 	uris: URI[];
@@ -31,115 +31,186 @@ class Noop implements IFileOperation {
 	}
 }
 
-class RenameOperation implements IFileOperation {
-
+class RenameEdit {
+	readonly type = 'rename';
 	constructor(
 		readonly newUri: URI,
 		readonly oldUri: URI,
-		readonly options: WorkspaceFileEditOptions,
-		readonly undoRedoInfo: IFileOperationUndoRedoInfo,
+		readonly options: WorkspaceFileEditOptions
+	) { }
+}
+
+class RenameOperation implements IFileOperation {
+
+	constructor(
+		private readonly _edits: RenameEdit[],
+		private readonly _undoRedoInfo: IFileOperationUndoRedoInfo,
 		@IWorkingCopyFileService private readonly _workingCopyFileService: IWorkingCopyFileService,
 		@IFileService private readonly _fileService: IFileService,
 	) { }
 
 	get uris() {
-		return [this.newUri, this.oldUri];
+		return flatten(this._edits.map(edit => [edit.newUri, edit.oldUri]));
 	}
 
 	async perform(token: CancellationToken): Promise<IFileOperation> {
-		// rename
-		if (this.options.overwrite === undefined && this.options.ignoreIfExists && await this._fileService.exists(this.newUri)) {
-			return new Noop(); // not overwriting, but ignoring, and the target file exists
+
+		const moves: IMoveOperation[] = [];
+		const undoes: RenameEdit[] = [];
+		for (const edit of this._edits) {
+			// check: not overwriting, but ignoring, and the target file exists
+			const skip = edit.options.overwrite === undefined && edit.options.ignoreIfExists && await this._fileService.exists(edit.newUri);
+			if (!skip) {
+				moves.push({
+					file: { source: edit.oldUri, target: edit.newUri },
+					overwrite: edit.options.overwrite
+				});
+
+				// reverse edit
+				undoes.push(new RenameEdit(edit.oldUri, edit.newUri, edit.options));
+			}
 		}
 
-		await this._workingCopyFileService.move([{ file: { source: this.oldUri, target: this.newUri }, overwrite: this.options.overwrite }], this.undoRedoInfo, token);
-		return new RenameOperation(this.oldUri, this.newUri, this.options, { isUndoing: true }, this._workingCopyFileService, this._fileService);
+		if (moves.length === 0) {
+			return new Noop();
+		}
+
+		await this._workingCopyFileService.move(moves, this._undoRedoInfo, token);
+		return new RenameOperation(undoes, { isUndoing: true }, this._workingCopyFileService, this._fileService);
 	}
 
 	toString(): string {
-		const oldBasename = resources.basename(this.oldUri);
-		const newBasename = resources.basename(this.newUri);
-		if (oldBasename !== newBasename) {
-			return `(rename ${oldBasename} to ${newBasename})`;
-		}
-		return `(rename ${this.oldUri} to ${this.newUri})`;
+		return `(rename ${this._edits.map(edit => `${edit.oldUri} to ${edit.newUri}`).join(', ')})`;
 	}
+}
+
+class CopyEdit {
+	readonly type = 'copy';
+	constructor(
+		readonly newUri: URI,
+		readonly oldUri: URI,
+		readonly options: WorkspaceFileEditOptions
+	) { }
 }
 
 class CopyOperation implements IFileOperation {
 
 	constructor(
-		readonly newUri: URI,
-		readonly oldUri: URI,
-		readonly options: WorkspaceFileEditOptions,
-		readonly undoRedoInfo: IFileOperationUndoRedoInfo,
+		private readonly _edits: CopyEdit[],
+		private readonly _undoRedoInfo: IFileOperationUndoRedoInfo,
 		@IWorkingCopyFileService private readonly _workingCopyFileService: IWorkingCopyFileService,
 		@IFileService private readonly _fileService: IFileService,
 		@IInstantiationService private readonly _instaService: IInstantiationService
 	) { }
 
 	get uris() {
-		return [this.newUri, this.oldUri];
+		return flatten(this._edits.map(edit => [edit.newUri, edit.oldUri]));
 	}
 
 	async perform(token: CancellationToken): Promise<IFileOperation> {
-		// copy
-		if (this.options.overwrite === undefined && this.options.ignoreIfExists && await this._fileService.exists(this.newUri)) {
-			return new Noop(); // not overwriting, but ignoring, and the target file exists
+
+		// (1) create copy operations, remove noops
+		const copies: ICopyOperation[] = [];
+		for (const edit of this._edits) {
+			//check: not overwriting, but ignoring, and the target file exists
+			const skip = edit.options.overwrite === undefined && edit.options.ignoreIfExists && await this._fileService.exists(edit.newUri);
+			if (!skip) {
+				copies.push({ file: { source: edit.oldUri, target: edit.newUri }, overwrite: edit.options.overwrite });
+			}
 		}
 
-		const stat = await this._workingCopyFileService.copy([{ file: { source: this.oldUri, target: this.newUri }, overwrite: this.options.overwrite }], this.undoRedoInfo, token);
-		const folder = this.options.folder || (stat.length === 1 && stat[0].isDirectory);
-		return this._instaService.createInstance(DeleteOperation, this.newUri, { recursive: true, folder, ...this.options }, { isUndoing: true }, false);
+		if (copies.length === 0) {
+			return new Noop();
+		}
+
+		// (2) perform the actual copy and use the return stats to build undo edits
+		const stats = await this._workingCopyFileService.copy(copies, this._undoRedoInfo, token);
+		const undoes: DeleteEdit[] = [];
+
+		for (let i = 0; i < stats.length; i++) {
+			const stat = stats[i];
+			const edit = this._edits[i];
+			undoes.push(new DeleteEdit(stat.resource, { recursive: true, folder: this._edits[i].options.folder || stat.isDirectory, ...edit.options }, false));
+		}
+
+		return this._instaService.createInstance(DeleteOperation, undoes, { isUndoing: true });
 	}
 
 	toString(): string {
-		return `(copy ${this.oldUri} to ${this.newUri})`;
+		return `(copy ${this._edits.map(edit => `${edit.oldUri} to ${edit.newUri}`).join(', ')})`;
 	}
+}
+
+class CreateEdit {
+	readonly type = 'create';
+	constructor(
+		readonly newUri: URI,
+		readonly options: WorkspaceFileEditOptions,
+		readonly contents: VSBuffer | undefined,
+	) { }
 }
 
 class CreateOperation implements IFileOperation {
 
 	constructor(
-		readonly newUri: URI,
-		readonly options: WorkspaceFileEditOptions,
-		readonly undoRedoInfo: IFileOperationUndoRedoInfo,
-		readonly contents: VSBuffer | undefined,
+		private readonly _edits: CreateEdit[],
+		private readonly _undoRedoInfo: IFileOperationUndoRedoInfo,
 		@IFileService private readonly _fileService: IFileService,
 		@IWorkingCopyFileService private readonly _workingCopyFileService: IWorkingCopyFileService,
 		@IInstantiationService private readonly _instaService: IInstantiationService,
 	) { }
 
 	get uris() {
-		return [this.newUri];
+		return this._edits.map(edit => edit.newUri);
 	}
 
 	async perform(token: CancellationToken): Promise<IFileOperation> {
-		// create file
-		if (this.options.overwrite === undefined && this.options.ignoreIfExists && await this._fileService.exists(this.newUri)) {
-			return new Noop(); // not overwriting, but ignoring, and the target file exists
+
+		const folderCreates: ICreateOperation[] = [];
+		const fileCreates: ICreateFileOperation[] = [];
+		const undoes: DeleteEdit[] = [];
+
+		for (const edit of this._edits) {
+			if (edit.options.overwrite === undefined && edit.options.ignoreIfExists && await this._fileService.exists(edit.newUri)) {
+				continue; // not overwriting, but ignoring, and the target file exists
+			}
+			if (edit.options.folder) {
+				folderCreates.push({ resource: edit.newUri });
+			} else {
+				fileCreates.push({ resource: edit.newUri, contents: edit.contents, overwrite: edit.options.overwrite });
+			}
+			undoes.push(new DeleteEdit(edit.newUri, edit.options, !edit.options.folder && !edit.contents));
 		}
-		if (this.options.folder) {
-			await this._workingCopyFileService.createFolder({ resource: this.newUri }, this.undoRedoInfo, token);
-		} else {
-			await this._workingCopyFileService.create({ resource: this.newUri, contents: this.contents, overwrite: this.options.overwrite }, this.undoRedoInfo, token);
+
+		if (fileCreates.length === 0 && folderCreates.length === 0) {
+			return new Noop();
 		}
-		return this._instaService.createInstance(DeleteOperation, this.newUri, this.options, { isUndoing: true }, !this.options.folder && !this.contents);
+
+		await this._workingCopyFileService.createFolder(folderCreates, this._undoRedoInfo, token);
+		await this._workingCopyFileService.create(fileCreates, this._undoRedoInfo, token);
+
+		return this._instaService.createInstance(DeleteOperation, undoes, { isUndoing: true });
 	}
 
 	toString(): string {
-		return this.options.folder ? `create ${resources.basename(this.newUri)} folder`
-			: `(create ${resources.basename(this.newUri)} with ${this.contents?.byteLength || 0} bytes)`;
+		return `(create ${this._edits.map(edit => edit.options.folder ? `folder ${edit.newUri}` : `file ${edit.newUri} with ${edit.contents?.byteLength || 0} bytes`).join(', ')})`;
 	}
+}
+
+class DeleteEdit {
+	readonly type = 'delete';
+	constructor(
+		readonly oldUri: URI,
+		readonly options: WorkspaceFileEditOptions,
+		readonly undoesCreate: boolean,
+	) { }
 }
 
 class DeleteOperation implements IFileOperation {
 
 	constructor(
-		readonly oldUri: URI,
-		readonly options: WorkspaceFileEditOptions,
-		readonly undoRedoInfo: IFileOperationUndoRedoInfo,
-		private readonly _undoesCreateOperation: boolean,
+		private _edits: DeleteEdit[],
+		private readonly _undoRedoInfo: IFileOperationUndoRedoInfo,
 		@IWorkingCopyFileService private readonly _workingCopyFileService: IWorkingCopyFileService,
 		@IFileService private readonly _fileService: IFileService,
 		@IConfigurationService private readonly _configurationService: IConfigurationService,
@@ -148,38 +219,58 @@ class DeleteOperation implements IFileOperation {
 	) { }
 
 	get uris() {
-		return [this.oldUri];
+		return this._edits.map(edit => edit.oldUri);
 	}
 
 	async perform(token: CancellationToken): Promise<IFileOperation> {
 		// delete file
-		if (!await this._fileService.exists(this.oldUri)) {
-			if (!this.options.ignoreIfNotExists) {
-				throw new Error(`${this.oldUri} does not exist and can not be deleted`);
+
+		const deletes: IDeleteOperation[] = [];
+		const undoes: CreateEdit[] = [];
+
+		for (const edit of this._edits) {
+			if (!await this._fileService.exists(edit.oldUri)) {
+				if (!edit.options.ignoreIfNotExists) {
+					throw new Error(`${edit.oldUri} does not exist and can not be deleted`);
+				}
+				continue;
 			}
+
+			deletes.push({
+				resource: edit.oldUri,
+				recursive: edit.options.recursive,
+				useTrash: !edit.options.skipTrashBin && this._fileService.hasCapability(edit.oldUri, FileSystemProviderCapabilities.Trash) && this._configurationService.getValue<boolean>('files.enableTrash')
+			});
+
+
+			// read file contents for undo operation. when a file is too large it won't be restored
+			let fileContent: IFileContent | undefined;
+			if (!edit.undoesCreate && !edit.options.folder) {
+				try {
+					fileContent = await this._fileService.readFile(edit.oldUri);
+				} catch (err) {
+					this._logService.critical(err);
+				}
+			}
+			if (!(typeof edit.options.maxSize === 'number' && fileContent && (fileContent?.size > edit.options.maxSize))) {
+				undoes.push(new CreateEdit(edit.oldUri, edit.options, fileContent?.value));
+			}
+		}
+
+		if (deletes.length === 0) {
 			return new Noop();
 		}
 
-		let fileContent: IFileContent | undefined;
-		if (!this._undoesCreateOperation && !this.options.folder) {
-			try {
-				fileContent = await this._fileService.readFile(this.oldUri);
-			} catch (err) {
-				this._logService.critical(err);
-			}
-		}
+		await this._workingCopyFileService.delete(deletes, this._undoRedoInfo, token);
 
-		const useTrash = !this.options.skipTrashBin && this._fileService.hasCapability(this.oldUri, FileSystemProviderCapabilities.Trash) && this._configurationService.getValue<boolean>('files.enableTrash');
-		await this._workingCopyFileService.delete([{ resource: this.oldUri, useTrash, recursive: this.options.recursive }], this.undoRedoInfo, token);
-
-		if (typeof this.options.maxSize === 'number' && fileContent && (fileContent?.size > this.options.maxSize)) {
+		if (undoes.length === 0) {
 			return new Noop();
 		}
-		return this._instaService.createInstance(CreateOperation, this.oldUri, this.options, { isUndoing: true }, fileContent?.value);
+		return this._instaService.createInstance(CreateOperation, undoes, { isUndoing: true });
 	}
 
 	toString(): string {
-		return `(delete ${resources.basename(this.oldUri)})`;
+		return `(delete ${this._edits.map(edit => edit.oldUri).join(', ')})`;
 	}
 }
 
@@ -212,7 +303,7 @@ class FileUndoRedoElement implements IWorkspaceUndoRedoElement {
 		}
 	}
 
-	public toString(): string {
+	toString(): string {
 		return this.operations.map(op => String(op)).join(', ');
 	}
 }
@@ -233,31 +324,63 @@ export class BulkFileEdits {
 	async apply(): Promise<void> {
 		const undoOperations: IFileOperation[] = [];
 		const undoRedoInfo = { undoRedoGroupId: this._undoRedoGroup.id };
+
+		const edits: Array<RenameEdit | CopyEdit | DeleteEdit | CreateEdit> = [];
 		for (const edit of this._edits) {
+			if (edit.newResource && edit.oldResource && !edit.options?.copy) {
+				edits.push(new RenameEdit(edit.newResource, edit.oldResource, edit.options ?? {}));
+			} else if (edit.newResource && edit.oldResource && edit.options?.copy) {
+				edits.push(new CopyEdit(edit.newResource, edit.oldResource, edit.options ?? {}));
+			} else if (!edit.newResource && edit.oldResource) {
+				edits.push(new DeleteEdit(edit.oldResource, edit.options ?? {}, false));
+			} else if (edit.newResource && !edit.oldResource) {
+				edits.push(new CreateEdit(edit.newResource, edit.options ?? {}, undefined));
+			}
+		}
+
+		if (edits.length === 0) {
+			return;
+		}
+
+		const groups: Array<RenameEdit | CopyEdit | DeleteEdit | CreateEdit>[] = [];
+		groups[0] = [edits[0]];
+
+		for (let i = 1; i < edits.length; i++) {
+			const edit = edits[i];
+			const lastGroup = tail(groups);
+			if (lastGroup[0].type === edit.type) {
+				lastGroup.push(edit);
+			} else {
+				groups.push([edit]);
+			}
+		}
+
+		for (let group of groups) {
 
 			if (this._token.isCancellationRequested) {
 				break;
 			}
 
-			const options = edit.options || {};
 			let op: IFileOperation | undefined;
-			if (edit.newResource && edit.oldResource && !options.copy) {
-				// rename
-				op = this._instaService.createInstance(RenameOperation, edit.newResource, edit.oldResource, options, undoRedoInfo);
-			} else if (edit.newResource && edit.oldResource && options.copy) {
-				op = this._instaService.createInstance(CopyOperation, edit.newResource, edit.oldResource, options, undoRedoInfo);
-			} else if (!edit.newResource && edit.oldResource) {
-				// delete file
-				op = this._instaService.createInstance(DeleteOperation, edit.oldResource, options, undoRedoInfo, false);
-			} else if (edit.newResource && !edit.oldResource) {
-				// create file
-				op = this._instaService.createInstance(CreateOperation, edit.newResource, options, undoRedoInfo, undefined);
+			switch (group[0].type) {
+				case 'rename':
+					op = this._instaService.createInstance(RenameOperation, <RenameEdit[]>group, undoRedoInfo);
+					break;
+				case 'copy':
+					op = this._instaService.createInstance(CopyOperation, <CopyEdit[]>group, undoRedoInfo);
+					break;
+				case 'delete':
+					op = this._instaService.createInstance(DeleteOperation, <DeleteEdit[]>group, undoRedoInfo);
+					break;
+				case 'create':
+					op = this._instaService.createInstance(CreateOperation, <CreateEdit[]>group, undoRedoInfo);
+					break;
 			}
+
 			if (op) {
 				const undoOp = await op.perform(this._token);
 				undoOperations.push(undoOp);
 			}
-
 			this._progress.report(undefined);
 		}
 

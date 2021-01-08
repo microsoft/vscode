@@ -132,10 +132,7 @@ suite('Workbench - TerminalEnvironment', () => {
 			});
 		});
 
-		test('should add keys ignoring case on Windows', () => {
-			if (!platform.isWindows) {
-				return;
-			}
+		(!platform.isWindows ? test.skip : test)('should add keys ignoring case on Windows', () => {
 			const parent = {
 				a: 'b'
 			};
@@ -162,10 +159,7 @@ suite('Workbench - TerminalEnvironment', () => {
 			});
 		});
 
-		test('null values should delete keys from the parent env ignoring case on Windows', () => {
-			if (!platform.isWindows) {
-				return;
-			}
+		(!platform.isWindows ? test.skip : test)('null values should delete keys from the parent env ignoring case on Windows', () => {
 			const parent = {
 				a: 'b',
 				c: 'd'

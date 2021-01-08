@@ -62,6 +62,26 @@ if (typeof process !== 'undefined') {
 
 const isElectronRenderer = typeof nodeProcess?.versions?.electron === 'string' && nodeProcess.type === 'renderer';
 export const isElectronSandboxed = isElectronRenderer && nodeProcess?.sandboxed;
+export const browserCodeLoadingCacheStrategy: 'none' | 'code' | 'bypassHeatCheck' | 'bypassHeatCheckAndEagerCompile' | undefined = (() => {
+
+	// Always enabled when sandbox is enabled
+	if (isElectronSandboxed) {
+		return 'bypassHeatCheck';
+	}
+
+	// Otherwise, only enabled conditionally
+	const env = nodeProcess?.env['ENABLE_VSCODE_BROWSER_CODE_LOADING'];
+	if (typeof env === 'string') {
+		if (env === 'none' || env === 'code' || env === 'bypassHeatCheck' || env === 'bypassHeatCheckAndEagerCompile') {
+			return env;
+		}
+
+		return 'bypassHeatCheck';
+	}
+
+	return undefined;
+})();
+export const isPreferringBrowserCodeLoad = typeof browserCodeLoadingCacheStrategy === 'string';
 
 // Web environment
 if (typeof navigator === 'object' && !isElectronRenderer) {

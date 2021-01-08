@@ -37,6 +37,11 @@ window.addEventListener('message', e => {
 				iframe.focus();
 				break;
 			}
+		case 'didChangeFocusLockIndicatorEnabled':
+			{
+				toggleFocusLockIndicatorEnabled(e.data.enabled);
+				break;
+			}
 	}
 });
 
@@ -79,8 +84,14 @@ onceDocumentLoaded(() => {
 	});
 
 	navigateTo(settings.url);
+	toggleFocusLockIndicatorEnabled(settings.focusLockIndicatorEnabled);
 
 	function navigateTo(url: string): void {
 		iframe.src = url;
 	}
 });
+
+function toggleFocusLockIndicatorEnabled(enabled: boolean) {
+	document.body.classList.toggle('enable-focus-lock-indicator', enabled);
+}
+
