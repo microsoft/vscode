@@ -30,7 +30,7 @@ flakySuite('PFS', function () {
 		await pfs.writeFile(testFile, 'Hello World', (null!));
 		assert.equal(fs.readFileSync(testFile), 'Hello World');
 
-		await pfs.rimraf(parentDir, pfs.RimRafMode.MOVE);
+		await pfs.rimraf(parentDir);
 	});
 
 	test('writeFile - parallel write on different files works', async () => {
@@ -59,7 +59,7 @@ flakySuite('PFS', function () {
 		assert.equal(fs.readFileSync(testFile4), 'Hello World 4');
 		assert.equal(fs.readFileSync(testFile5), 'Hello World 5');
 
-		await pfs.rimraf(parentDir, pfs.RimRafMode.MOVE);
+		await pfs.rimraf(parentDir);
 	});
 
 	test('writeFile - parallel write on same files works and is sequentalized', async () => {
@@ -80,7 +80,7 @@ flakySuite('PFS', function () {
 		]);
 		assert.equal(fs.readFileSync(testFile), 'Hello World 5');
 
-		await pfs.rimraf(parentDir, pfs.RimRafMode.MOVE);
+		await pfs.rimraf(parentDir);
 	});
 
 	test('rimraf - simple - unlink', async () => {
@@ -254,7 +254,7 @@ flakySuite('PFS', function () {
 		assert.ok(!fs.existsSync(path.join(targetDir2, 'index.html')));
 		assert.ok(fs.existsSync(path.join(targetDir2, 'index_moved.html')));
 
-		await pfs.rimraf(parentDir, pfs.RimRafMode.MOVE);
+		await pfs.rimraf(parentDir);
 
 		assert.ok(!fs.existsSync(parentDir));
 	});
@@ -268,7 +268,7 @@ flakySuite('PFS', function () {
 
 		assert.ok(fs.existsSync(newDir));
 
-		return pfs.rimraf(parentDir, pfs.RimRafMode.MOVE);
+		return pfs.rimraf(parentDir);
 	});
 
 	test('readDirsInDir', async () => {

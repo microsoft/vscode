@@ -9,7 +9,7 @@ import { generateUuid } from 'vs/base/common/uuid';
 import { join } from 'vs/base/common/path';
 import { tmpdir } from 'os';
 import { equal, ok } from 'assert';
-import { mkdirp, writeFile, exists, unlink, rimraf, RimRafMode } from 'vs/base/node/pfs';
+import { mkdirp, writeFile, exists, unlink, rimraf } from 'vs/base/node/pfs';
 import { timeout } from 'vs/base/common/async';
 import { Event, Emitter } from 'vs/base/common/event';
 import { isWindows } from 'vs/base/common/platform';
@@ -100,7 +100,7 @@ flakySuite('Storage Library', function () {
 		equal(deletePromiseResolved, true);
 
 		await storage.close();
-		await rimraf(storageDir, RimRafMode.MOVE);
+		await rimraf(storageDir);
 	});
 
 	test('external changes', async () => {
@@ -155,7 +155,7 @@ flakySuite('Storage Library', function () {
 		equal(changes.size, 0);
 
 		await storage.close();
-		await rimraf(storageDir, RimRafMode.MOVE);
+		await rimraf(storageDir);
 	});
 
 	test('close flushes data', async () => {
@@ -213,7 +213,7 @@ flakySuite('Storage Library', function () {
 		ok(!storage.get('bar'));
 
 		await storage.close();
-		await rimraf(storageDir, RimRafMode.MOVE);
+		await rimraf(storageDir);
 	});
 
 	test('conflicting updates', async () => {
@@ -259,7 +259,7 @@ flakySuite('Storage Library', function () {
 		ok(setAndDeletePromiseResolved);
 
 		await storage.close();
-		await rimraf(storageDir, RimRafMode.MOVE);
+		await rimraf(storageDir);
 	});
 
 	test('corrupt DB recovers', async () => {
@@ -289,7 +289,7 @@ flakySuite('Storage Library', function () {
 		equal(storage.get('foo'), 'bar');
 
 		await storage.close();
-		await rimraf(storageDir, RimRafMode.MOVE);
+		await rimraf(storageDir);
 	});
 });
 
@@ -387,7 +387,7 @@ flakySuite('SQLite Storage Library', function () {
 
 		await testDBBasics(join(storageDir, 'storage.db'));
 
-		await rimraf(storageDir, RimRafMode.MOVE);
+		await rimraf(storageDir);
 	});
 
 	test('basics (open multiple times)', async () => {
@@ -398,7 +398,7 @@ flakySuite('SQLite Storage Library', function () {
 		await testDBBasics(join(storageDir, 'storage.db'));
 		await testDBBasics(join(storageDir, 'storage.db'));
 
-		await rimraf(storageDir, RimRafMode.MOVE);
+		await rimraf(storageDir);
 	});
 
 	test('basics (corrupt DB falls back to empty DB)', async () => {
@@ -416,7 +416,7 @@ flakySuite('SQLite Storage Library', function () {
 
 		ok(expectedError);
 
-		await rimraf(storageDir, RimRafMode.MOVE);
+		await rimraf(storageDir);
 	});
 
 	test('basics (corrupt DB restores from previous backup)', async () => {
@@ -454,7 +454,7 @@ flakySuite('SQLite Storage Library', function () {
 
 		equal(recoveryCalled, false);
 
-		await rimraf(storageDir, RimRafMode.MOVE);
+		await rimraf(storageDir);
 	});
 
 	test('basics (corrupt DB falls back to empty DB if backup is corrupt)', async () => {
@@ -483,7 +483,7 @@ flakySuite('SQLite Storage Library', function () {
 
 		await testDBBasics(storagePath);
 
-		await rimraf(storageDir, RimRafMode.MOVE);
+		await rimraf(storageDir);
 	});
 
 	test('basics (DB that becomes corrupt during runtime stores all state from cache on close)', async () => {
@@ -551,7 +551,7 @@ flakySuite('SQLite Storage Library', function () {
 
 		equal(recoveryCalled, false);
 
-		await rimraf(storageDir, RimRafMode.MOVE);
+		await rimraf(storageDir);
 	});
 
 	test('real world example', async function () {
@@ -640,7 +640,7 @@ flakySuite('SQLite Storage Library', function () {
 
 		await storage.close();
 
-		await rimraf(storageDir, RimRafMode.MOVE);
+		await rimraf(storageDir);
 	});
 
 	test('very large item value', async function () {
@@ -693,7 +693,7 @@ flakySuite('SQLite Storage Library', function () {
 
 		await storage.close();
 
-		await rimraf(storageDir, RimRafMode.MOVE);
+		await rimraf(storageDir);
 	});
 
 	test('multiple concurrent writes execute in sequence', async () => {
@@ -750,7 +750,7 @@ flakySuite('SQLite Storage Library', function () {
 
 		await storage.close();
 
-		await rimraf(storageDir, RimRafMode.MOVE);
+		await rimraf(storageDir);
 	});
 
 	test('lots of INSERT & DELETE (below inline max)', async () => {
@@ -782,7 +782,7 @@ flakySuite('SQLite Storage Library', function () {
 
 		await storage.close();
 
-		await rimraf(storageDir, RimRafMode.MOVE);
+		await rimraf(storageDir);
 	});
 
 	test('lots of INSERT & DELETE (above inline max)', async () => {
@@ -814,6 +814,6 @@ flakySuite('SQLite Storage Library', function () {
 
 		await storage.close();
 
-		await rimraf(storageDir, RimRafMode.MOVE);
+		await rimraf(storageDir);
 	});
 });

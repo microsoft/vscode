@@ -127,7 +127,7 @@ flakySuite('WorkspaceContextService - Folder', () => {
 	teardown(() => {
 		disposables.clear();
 		if (parentResource) {
-			return pfs.rimraf(parentResource, pfs.RimRafMode.MOVE);
+			return pfs.rimraf(parentResource);
 		}
 		return undefined;
 	});
@@ -200,7 +200,7 @@ flakySuite('WorkspaceContextService - Workspace', () => {
 	teardown(() => {
 		disposables.clear();
 		if (parentResource) {
-			return pfs.rimraf(parentResource, pfs.RimRafMode.MOVE);
+			return pfs.rimraf(parentResource);
 		}
 		return undefined;
 	});
@@ -263,7 +263,7 @@ flakySuite('WorkspaceContextService - Workspace Editing', () => {
 	teardown(() => {
 		disposables.clear();
 		if (parentResource) {
-			return pfs.rimraf(parentResource, pfs.RimRafMode.MOVE);
+			return pfs.rimraf(parentResource);
 		}
 		return undefined;
 	});
@@ -524,7 +524,7 @@ flakySuite('WorkspaceService - Initialization', () => {
 	teardown(() => {
 		disposables.clear();
 		if (parentResource) {
-			return pfs.rimraf(parentResource, pfs.RimRafMode.MOVE);
+			return pfs.rimraf(parentResource);
 		}
 		return undefined;
 	});
@@ -803,7 +803,7 @@ flakySuite('WorkspaceConfigurationService - Folder', () => {
 	teardown(() => {
 		disposables.clear();
 		if (parentResource) {
-			return pfs.rimraf(parentResource, pfs.RimRafMode.MOVE);
+			return pfs.rimraf(parentResource);
 		}
 		return undefined;
 	});
@@ -1338,7 +1338,7 @@ flakySuite('WorkspaceConfigurationService-Multiroot', () => {
 	teardown(() => {
 		disposables.clear();
 		if (parentResource) {
-			return pfs.rimraf(parentResource, pfs.RimRafMode.MOVE);
+			return pfs.rimraf(parentResource);
 		}
 		return undefined;
 	});
@@ -1965,7 +1965,7 @@ flakySuite('WorkspaceConfigurationService - Remote Folder', () => {
 	teardown(() => {
 		disposables.clear();
 		if (parentResource) {
-			return pfs.rimraf(parentResource, pfs.RimRafMode.MOVE);
+			return pfs.rimraf(parentResource);
 		}
 		return undefined;
 	});

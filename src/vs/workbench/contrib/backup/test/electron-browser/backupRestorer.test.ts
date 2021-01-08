@@ -67,7 +67,7 @@ flakySuite('BackupRestorer', () => {
 		));
 
 		// Delete any existing backups completely and then re-create it.
-		await pfs.rimraf(backupHome, pfs.RimRafMode.MOVE);
+		await pfs.rimraf(backupHome);
 		await pfs.mkdirp(backupHome);
 
 		return pfs.writeFile(workspacesJsonPath, '');
@@ -79,7 +79,7 @@ flakySuite('BackupRestorer', () => {
 
 		(<TextFileEditorModelManager>accessor.textFileService.files).dispose();
 
-		return pfs.rimraf(backupHome, pfs.RimRafMode.MOVE);
+		return pfs.rimraf(backupHome);
 	});
 
 	test('Restore backups', async function () {
