@@ -37,6 +37,7 @@ import { EditorTheme } from 'vs/editor/common/view/viewContext';
 import { IUndoRedoService, ResourceEditStackSnapshot } from 'vs/platform/undoRedo/common/undoRedo';
 import { TextChange } from 'vs/editor/common/model/textChange';
 import { Constants } from 'vs/base/common/uint';
+import { PieceTreeTextBuffer } from 'vs/editor/common/model/pieceTreeTextBuffer/pieceTreeTextBuffer';
 
 function createTextBufferBuilder() {
 	return new PieceTreeTextBufferBuilder();
@@ -389,7 +390,9 @@ export class TextModel extends Disposable implements model.ITextModel {
 		this._isDisposing = false;
 		// Manually release reference to previous text buffer to avoid large leaks
 		// in case someone leaks a TextModel reference
-		this._buffer = createTextBuffer('', this._options.defaultEOL);
+		const emptyDisposedTextBuffer = new PieceTreeTextBuffer([], '', '\n', false, false, true, true);
+		emptyDisposedTextBuffer.dispose();
+		this._buffer = emptyDisposedTextBuffer;
 	}
 
 	private _assertNotDisposed(): void {

@@ -98,7 +98,7 @@ export function dispose<T extends IDisposable>(arg: T | IterableIterator<T> | un
 
 export function combinedDisposable(...disposables: IDisposable[]): IDisposable {
 	disposables.forEach(markTracked);
-	return trackDisposable({ dispose: () => dispose(disposables) });
+	return toDisposable(() => dispose(disposables));
 }
 
 export function toDisposable(fn: () => void): IDisposable {
