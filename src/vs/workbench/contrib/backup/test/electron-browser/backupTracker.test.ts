@@ -124,7 +124,10 @@ flakySuite('BackupTracker', function () {
 
 		(<TextFileEditorModelManager>accessor.textFileService.files).dispose();
 
-		return pfs.rimraf(backupHome, pfs.RimRafMode.UNLINK);
+		// TODO: these tests cause ENOTEMPTY errors during rimraf which indicates
+		// that one or more tests continue writing to the fixture directory even
+		// after they signal completion.
+		return pfs.rimrafWithRetries(backupHome);
 	});
 
 	async function createTracker(autoSaveEnabled = false): Promise<[TestServiceAccessor, EditorPart, BackupTracker, IInstantiationService]> {
