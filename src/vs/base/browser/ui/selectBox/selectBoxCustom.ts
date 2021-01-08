@@ -460,7 +460,7 @@ export class SelectBoxList extends Disposable implements ISelectBoxDelegate, ILi
 				blockElement.style.zIndex = '-1';
 
 				return combinedDisposable(
-					domEvent(blockElement, dom.EventType.MOUSE_DOWN)((e: MouseEvent) => e.stopPropagation()),
+					dom.addDisposableListener(blockElement, dom.EventType.MOUSE_DOWN, (e: MouseEvent) => e.stopPropagation()),
 					toDisposable(() => blockElement.remove()),
 					this.renderSelectDropDown(container)
 				);

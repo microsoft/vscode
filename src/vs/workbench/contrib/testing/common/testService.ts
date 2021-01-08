@@ -31,10 +31,30 @@ export interface ITestService {
 	readonly onTestRunStarted: Event<RunTestsRequest>;
 	readonly onTestRunCompleted: Event<{ req: RunTestsRequest, result: RunTestsResult }>;
 
+	/**
+	 * List of resources where tests are actively being discovered.
+	 */
+	readonly busyTestLocations: Iterable<{ resource: ExtHostTestingResource, uri: URI }>;
+
+	/**
+	 * Fires when the busy state of a resource changes.
+	 */
+	readonly onBusyStateChange: Event<{ resource: ExtHostTestingResource, uri: URI, busy: boolean }>;
+
 	registerTestController(id: string, controller: MainTestController): void;
 	unregisterTestController(id: string): void;
 	runTests(req: RunTestsRequest, token?: CancellationToken): Promise<RunTestsResult>;
 	cancelTestRun(req: RunTestsRequest): void;
 	publishDiff(resource: ExtHostTestingResource, uri: URI, diff: TestsDiff): void;
 	subscribeToDiffs(resource: ExtHostTestingResource, uri: URI, acceptDiff: TestDiffListener): IDisposable;
+
+	/**
+	 * Updates the number of test providers still discovering tests for the given resource.
+	 */
+	updateDiscoveringCount(resource: ExtHostTestingResource, uri: URI, delta: number): void;
+
+	/**
+	 * Requests to resubscribe to all active subscriptions, discarding old tests.
+	 */
+	resubscribeToAllTests(): void;
 }

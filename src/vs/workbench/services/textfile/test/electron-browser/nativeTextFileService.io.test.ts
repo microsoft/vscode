@@ -8,11 +8,11 @@ import { IFileService } from 'vs/platform/files/common/files';
 import { TextFileEditorModelManager } from 'vs/workbench/services/textfile/common/textFileEditorModelManager';
 import { Schemas } from 'vs/base/common/network';
 import { ServiceCollection } from 'vs/platform/instantiation/common/serviceCollection';
-import { rimraf, RimRafMode, copy, readFile, exists, stat } from 'vs/base/node/pfs';
+import { rimraf, copy, readFile, exists, stat } from 'vs/base/node/pfs';
 import { DisposableStore } from 'vs/base/common/lifecycle';
 import { FileService } from 'vs/platform/files/common/fileService';
 import { NullLogService } from 'vs/platform/log/common/log';
-import { getRandomTestPath } from 'vs/base/test/node/testUtils';
+import { flakySuite, getRandomTestPath } from 'vs/base/test/node/testUtils';
 import { tmpdir } from 'os';
 import { DiskFileSystemProvider } from 'vs/platform/files/node/diskFileSystemProvider';
 import { generateUuid } from 'vs/base/common/uuid';
@@ -25,18 +25,13 @@ import { IWorkingCopyFileService, WorkingCopyFileService } from 'vs/workbench/se
 import { TestWorkingCopyService } from 'vs/workbench/test/common/workbenchTestServices';
 import { UriIdentityService } from 'vs/workbench/services/uriIdentity/common/uriIdentityService';
 
-suite('Files - NativeTextFileService i/o', function () {
+flakySuite('Files - NativeTextFileService i/o', function () {
 	const parentDir = getRandomTestPath(tmpdir(), 'vsctests', 'textfileservice');
 
 	const disposables = new DisposableStore();
 
 	let service: ITextFileService;
 	let testDir: string;
-
-	// https://github.com/microsoft/vscode/issues/78602
-	// https://github.com/microsoft/vscode/issues/92334
-	this.retries(3);
-	this.timeout(1000 * 20);
 
 	createSuite({
 		setup: async () => {
@@ -70,7 +65,7 @@ suite('Files - NativeTextFileService i/o', function () {
 
 			disposables.clear();
 
-			await rimraf(parentDir, RimRafMode.MOVE);
+			await rimraf(parentDir);
 		},
 
 		exists,

@@ -201,7 +201,7 @@ export class TunnelModel extends Disposable {
 		}
 	}
 
-	async forward(remote: { host: string, port: number }, local?: number, name?: string, source?: string): Promise<RemoteTunnel | void> {
+	async forward(remote: { host: string, port: number }, local?: number, name?: string, source?: string, elevateIfNeeded?: boolean): Promise<RemoteTunnel | void> {
 		const existingTunnel = mapHasAddressLocalhostOrAllInterfaces(this.forwarded, remote.host, remote.port);
 		if (!existingTunnel) {
 			const authority = this.environmentService.remoteAuthority;
@@ -209,7 +209,7 @@ export class TunnelModel extends Disposable {
 				getAddress: async () => { return (await this.remoteAuthorityResolverService.resolveAuthority(authority)).authority; }
 			} : undefined;
 
-			const tunnel = await this.tunnelService.openTunnel(addressProvider, remote.host, remote.port, local);
+			const tunnel = await this.tunnelService.openTunnel(addressProvider, remote.host, remote.port, local, elevateIfNeeded);
 			if (tunnel && tunnel.localAddress) {
 				const matchingCandidate = mapHasAddressLocalhostOrAllInterfaces(this._candidates ?? new Map(), remote.host, remote.port);
 				const newForward: Tunnel = {
@@ -362,7 +362,7 @@ export interface IRemoteExplorerService {
 	onDidChangeEditable: Event<ITunnelItem | undefined>;
 	setEditable(tunnelItem: ITunnelItem | undefined, data: IEditableData | null): void;
 	getEditableData(tunnelItem: ITunnelItem | undefined): IEditableData | undefined;
-	forward(remote: { host: string, port: number }, localPort?: number, name?: string, source?: string): Promise<RemoteTunnel | void>;
+	forward(remote: { host: string, port: number }, localPort?: number, name?: string, source?: string, elevateIfNeeded?: boolean): Promise<RemoteTunnel | void>;
 	close(remote: { host: string, port: number }): Promise<void>;
 	setTunnelInformation(tunnelInformation: TunnelInformation | undefined): void;
 	setCandidateFilter(filter: ((candidates: CandidatePort[]) => Promise<CandidatePort[]>) | undefined): IDisposable;
@@ -415,8 +415,8 @@ class RemoteExplorerService implements IRemoteExplorerService {
 		return this._tunnelModel;
 	}
 
-	forward(remote: { host: string, port: number }, local?: number, name?: string, source?: string): Promise<RemoteTunnel | void> {
-		return this.tunnelModel.forward(remote, local, name, source);
+	forward(remote: { host: string, port: number }, local?: number, name?: string, source?: string, elevateIfNeeded?: boolean): Promise<RemoteTunnel | void> {
+		return this.tunnelModel.forward(remote, local, name, source, elevateIfNeeded);
 	}
 
 	close(remote: { host: string, port: number }): Promise<void> {

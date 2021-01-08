@@ -75,7 +75,7 @@ export class MarkerHoverParticipant implements IEditorHoverParticipant<MarkerHov
 			const startColumn = (d.range.startLineNumber === lineNumber) ? d.range.startColumn : 1;
 			const endColumn = (d.range.endLineNumber === lineNumber) ? d.range.endColumn : maxColumn;
 
-			const marker = this._markerDecorationsService.getMarker(model, d);
+			const marker = this._markerDecorationsService.getMarker(model.uri, d);
 			if (!marker) {
 				continue;
 			}

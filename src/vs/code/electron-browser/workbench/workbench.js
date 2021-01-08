@@ -45,6 +45,22 @@
 		}
 	);
 
+	// add default trustedTypes-policy for logging and to workaround
+	// lib/platform limitations
+	window.trustedTypes?.createPolicy('default', {
+		createHTML(value) {
+			// see https://github.com/electron/electron/issues/27211
+			// Electron webviews use a static innerHTML default value and
+			// that isn't trusted. We use a default policy to check for the
+			// exact value of that innerHTML-string and only allow that.
+			if (value === '<!DOCTYPE html><style type="text/css">:host { display: flex; }</style>') {
+				return value;
+			}
+			// throw new Error('UNTRUSTED html usage, default trusted types policy should NEVER be reached');
+			console.trace('UNTRUSTED html usage, default trusted types policy should NEVER be reached');
+			return value;
+		}
+	});
 
 	//region Helpers
 

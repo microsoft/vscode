@@ -593,16 +593,16 @@ export class ViewPaneContainer extends Component implements IViewPaneContainer {
 		let menuActions = this.menuActions.getSecondaryActions();
 		const isViewsSubMenuAction = (action: IAction) => action instanceof SubmenuItemAction && action.item.submenu === ViewsSubMenu;
 		const index = menuActions.findIndex(a => isViewsSubMenuAction(a));
+		const viewPaneContainerActions = this.isViewMergedWithContainer() ? this.paneItems[0].pane.getSecondaryActions() : [];
 		if (index !== -1) {
 			if (index !== 0) {
 				menuActions = [menuActions[index], ...menuActions.slice(0, index), ...menuActions.slice(index + 1)];
 			}
-			if (menuActions.length === 1) {
+			if (menuActions.length === 1 && viewPaneContainerActions.length === 0) {
 				menuActions = (<SubmenuItemAction>menuActions[0]).actions;
 			}
 		}
 
-		const viewPaneContainerActions = this.isViewMergedWithContainer() ? this.paneItems[0].pane.getSecondaryActions() : [];
 		if (menuActions.length && viewPaneContainerActions.length) {
 			return [
 				...menuActions,
@@ -1093,7 +1093,7 @@ export class ViewPaneContainer extends Component implements IViewPaneContainer {
 		}
 	}
 
-	private isViewMergedWithContainer(): boolean {
+	isViewMergedWithContainer(): boolean {
 		if (!(this.options.mergeViewWithContainerWhenSingleView && this.paneItems.length === 1)) {
 			return false;
 		}

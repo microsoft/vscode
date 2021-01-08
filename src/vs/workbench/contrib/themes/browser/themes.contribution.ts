@@ -198,7 +198,7 @@ class SelectFileIconThemeAction extends AbstractIconThemeAction {
 		super(id, label, quickInputService, extensionGalleryService, viewletService);
 	}
 
-	protected builtInEntry: QuickPickInput<ThemeItem> = { id: '', label: localize('noIconThemeLabel', 'None'), description: localize('noIconThemeDesc', 'Disable file icons') };
+	protected builtInEntry: QuickPickInput<ThemeItem> = { id: '', label: localize('noIconThemeLabel', 'None'), description: localize('noIconThemeDesc', 'Disable File Icons') };
 	protected installMessage = localize('installIconThemes', "Install Additional File Icon Themes...");
 	protected placeholderMessage = localize('themes.selectIconTheme', "Select File Icon Theme");
 	protected marketplaceTag = 'tag:icon-theme';

@@ -10,7 +10,7 @@ import * as vscode from 'vscode';
 import { createServer, startServer } from './authServer';
 
 import { v4 as uuid } from 'uuid';
-import { keychain } from './keychain';
+import { Keychain } from './keychain';
 import Logger from './logger';
 import { toBase64UrlEncoding } from './utils';
 import fetch, { Response } from 'node-fetch';
@@ -100,13 +100,16 @@ export class AzureActiveDirectoryService {
 	private _codeExchangePromises = new Map<string, Promise<vscode.AuthenticationSession>>();
 	private _codeVerfifiers = new Map<string, string>();
 
-	constructor() {
+	private _keychain: Keychain;
+
+	constructor(private _context: vscode.ExtensionContext) {
+		this._keychain = new Keychain(_context);
 		this._uriHandler = new UriEventHandler();
 		this._disposables.push(vscode.window.registerUriHandler(this._uriHandler));
 	}
 
 	public async initialize(): Promise<void> {
-		const storedData = await keychain.getToken() || await keychain.tryMigrate();
+		const storedData = await this._keychain.getToken() || await this._keychain.tryMigrate();
 		if (storedData) {
 			try {
 				const sessions = this.parseStoredData(storedData);
@@ -146,7 +149,7 @@ export class AzureActiveDirectoryService {
 			}
 		}
 
-		this._disposables.push(vscode.authentication.onDidChangePassword(() => this.checkForUpdates));
+		this._disposables.push(this._context.secrets.onDidChange(() => this.checkForUpdates));
 	}
 
 	private parseStoredData(data: string): IStoredSession[] {
@@ -163,13 +166,13 @@ export class AzureActiveDirectoryService {
 			};
 		});
 
-		await keychain.setToken(JSON.stringify(serializedData));
+		await this._keychain.setToken(JSON.stringify(serializedData));
 	}
 
 	private async checkForUpdates(): Promise<void> {
 		const addedIds: string[] = [];
 		let removedIds: string[] = [];
-		const storedData = await keychain.getToken();
+		const storedData = await this._keychain.getToken();
 		if (storedData) {
 			try {
 				const sessions = this.parseStoredData(storedData);
@@ -651,7 +654,7 @@ export class AzureActiveDirectoryService {
 		this.removeInMemorySessionData(sessionId);
 
 		if (this._tokens.length === 0) {
-			await keychain.deleteToken();
+			await this._keychain.deleteToken();
 		} else {
 			this.storeTokenData();
 		}
@@ -660,7 +663,7 @@ export class AzureActiveDirectoryService {
 	public async clearSessions() {
 		Logger.info('Logging out of all sessions');
 		this._tokens = [];
-		await keychain.deleteToken();
+		await this._keychain.deleteToken();
 
 		this._refreshTimeouts.forEach(timeout => {
 			clearTimeout(timeout);

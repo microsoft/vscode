@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { mapFind } from 'vs/base/common/arrays';
-import { disposableTimeout } from 'vs/base/common/async';
+import { disposableTimeout, RunOnceScheduler } from 'vs/base/common/async';
 import { CancellationToken } from 'vs/base/common/cancellation';
 import { throttle } from 'vs/base/common/decorators';
 import { Emitter } from 'vs/base/common/event';
@@ -19,7 +19,7 @@ import { IExtHostRpcService } from 'vs/workbench/api/common/extHostRpcService';
 import { TestItem } from 'vs/workbench/api/common/extHostTypeConverters';
 import { Disposable, RequiredTestItem } from 'vs/workbench/api/common/extHostTypes';
 import { IExtHostWorkspace } from 'vs/workbench/api/common/extHostWorkspace';
-import { AbstractIncrementalTestCollection, EMPTY_TEST_RESULT, IncrementalChangeCollector, IncrementalTestCollectionItem, InternalTestItem, RunTestForProviderRequest, RunTestsResult, TestDiffOpType, TestsDiff } from 'vs/workbench/contrib/testing/common/testCollection';
+import { AbstractIncrementalTestCollection, EMPTY_TEST_RESULT, IncrementalChangeCollector, IncrementalTestCollectionItem, InternalTestItem, RunTestForProviderRequest, RunTestsResult, TestDiffOpType, TestIdWithProvider, TestsDiff } from 'vs/workbench/contrib/testing/common/testCollection';
 import type * as vscode from 'vscode';
 
 const getTestSubscriptionKey = (resource: ExtHostTestingResource, uri: URI) => `${resource}:${uri.toString()}`;
@@ -125,6 +125,19 @@ export class ExtHostTesting implements ExtHostTestingShape {
 			return;
 		}
 
+		let delta = 0;
+		const updateCountScheduler = new RunOnceScheduler(() => {
+			if (delta !== 0) {
+				this.proxy.$updateDiscoveringCount(resource, uri, delta);
+				delta = 0;
+			}
+		}, 5);
+
+		const updateDelta = (amount: number) => {
+			delta += amount;
+			updateCountScheduler.schedule();
+		};
+
 		const subscribeFn = (id: string, provider: vscode.TestProvider) => {
 			try {
 				const hierarchy = method!(provider);
@@ -132,8 +145,10 @@ export class ExtHostTesting implements ExtHostTestingShape {
 					return;
 				}
 
+				updateDelta(1);
 				disposable.add(hierarchy);
 				collection.addRoot(hierarchy.root, id);
+				Promise.resolve(hierarchy.discoveredInitialTests).then(() => updateDelta(-1));
 				hierarchy.onDidChangeTest(e => collection.onItemChange(e, id));
 			} catch (e) {
 				console.error(e);
@@ -269,6 +284,13 @@ export class SingleUseTestCollection implements IDisposable {
 	protected diff: TestsDiff = [];
 	private disposed = false;
 
+	/**
+	 * Debouncer for sending diffs. We use both a throttle and a debounce here,
+	 * so that tests that all change state simultenously are effected together,
+	 * but so we don't send hundreds of test updates per second to the main thread.
+	 */
+	private readonly debounceSendDiff = new RunOnceScheduler(() => this.throttleSendDiff(), 2);
+
 	constructor(private readonly testIdToInternal: Map<string, OwnedCollectionTestItem>, private readonly publishDiff: (diff: TestsDiff) => void) { }
 
 	/**
@@ -276,7 +298,7 @@ export class SingleUseTestCollection implements IDisposable {
 	 */
 	public addRoot(item: vscode.TestItem, providerId: string) {
 		this.addItem(item, providerId, null);
-		this.throttleSendDiff();
+		this.debounceSendDiff.schedule();
 	}
 
 	/**
@@ -300,7 +322,7 @@ export class SingleUseTestCollection implements IDisposable {
 		}
 
 		this.addItem(item, providerId, existing.parent);
-		this.throttleSendDiff();
+		this.debounceSendDiff.schedule();
 	}
 
 	/**
@@ -647,7 +669,7 @@ class ExtHostTestItem implements vscode.TestItem, RequiredTestItem {
 	}
 
 	public toJSON() {
-		const serialized: RequiredTestItem = {
+		const serialized: RequiredTestItem & TestIdWithProvider = {
 			label: this.label,
 			description: this.description,
 			state: this.state,
@@ -655,6 +677,9 @@ class ExtHostTestItem implements vscode.TestItem, RequiredTestItem {
 			runnable: this.runnable,
 			debuggable: this.debuggable,
 			children: this.children.map(c => (c as ExtHostTestItem).toJSON()),
+
+			providerId: this.#internal.providerId,
+			testId: this.#internal.id,
 		};
 
 		return serialized;
@@ -675,6 +700,7 @@ abstract class AbstractTestObserverFactory {
 		const resourceKey = resourceUri.toString();
 		const resource = this.resources.get(resourceKey) ?? this.createObserverData(resourceUri);
 
+		resource.pendingDeletion?.dispose();
 		resource.observers++;
 
 		return {

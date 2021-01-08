@@ -8,7 +8,7 @@ import { FileStorageDatabase } from 'vs/platform/storage/browser/storageService'
 import { generateUuid } from 'vs/base/common/uuid';
 import { join } from 'vs/base/common/path';
 import { tmpdir } from 'os';
-import { rimraf, RimRafMode } from 'vs/base/node/pfs';
+import { rimraf } from 'vs/base/node/pfs';
 import { NullLogService } from 'vs/platform/log/common/log';
 import { Storage } from 'vs/base/parts/storage/common/storage';
 import { URI } from 'vs/base/common/uri';
@@ -45,7 +45,7 @@ suite('Storage', () => {
 	teardown(async () => {
 		disposables.clear();
 
-		await rimraf(parentDir, RimRafMode.MOVE);
+		await rimraf(parentDir);
 	});
 
 	test('File Based Storage', async () => {

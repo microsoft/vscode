@@ -4,12 +4,29 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { Disposable, IDisposable } from 'vs/base/common/lifecycle';
-import { getTestSubscriptionKey, RunTestsRequest, RunTestsResult, TestsDiff } from 'vs/workbench/contrib/testing/common/testCollection';
+import { getTestSubscriptionKey, RunTestsRequest, RunTestsResult, TestDiffOpType, TestsDiff } from 'vs/workbench/contrib/testing/common/testCollection';
 import { ITestService } from 'vs/workbench/contrib/testing/common/testService';
 import { extHostNamedCustomer } from 'vs/workbench/api/common/extHostCustomers';
 import { ExtHostContext, ExtHostTestingResource, ExtHostTestingShape, IExtHostContext, MainContext, MainThreadTestingShape } from '../common/extHost.protocol';
 import { URI, UriComponents } from 'vs/base/common/uri';
 import { CancellationToken } from 'vs/base/common/cancellation';
+
+const reviveDiff = (diff: TestsDiff) => {
+	for (const entry of diff) {
+		if (entry[0] === TestDiffOpType.Add || entry[0] === TestDiffOpType.Update) {
+			const item = entry[1];
+			if (item.item.location) {
+				item.item.location.uri = URI.revive(item.item.location.uri);
+			}
+
+			for (const message of item.item.state.messages) {
+				if (message.location) {
+					message.location.uri = URI.revive(message.location.uri);
+				}
+			}
+		}
+	}
+};
 
 @extHostNamedCustomer(MainContext.MainThreadTesting)
 export class MainThreadTesting extends Disposable implements MainThreadTestingShape {
@@ -49,6 +66,13 @@ export class MainThreadTesting extends Disposable implements MainThreadTestingSh
 	/**
 	 * @inheritdoc
 	 */
+	$updateDiscoveringCount(resource: ExtHostTestingResource, uriComponents: UriComponents, delta: number): void {
+		this.testService.updateDiscoveringCount(resource, URI.revive(uriComponents), delta);
+	}
+
+	/**
+	 * @inheritdoc
+	 */
 	$subscribeToDiffs(resource: ExtHostTestingResource, uriComponents: UriComponents): void {
 		const uri = URI.revive(uriComponents);
 		const disposable = this.testService.subscribeToDiffs(resource, uri,
@@ -69,6 +93,7 @@ export class MainThreadTesting extends Disposable implements MainThreadTestingSh
 	 * @inheritdoc
 	 */
 	public $publishDiff(resource: ExtHostTestingResource, uri: UriComponents, diff: TestsDiff): void {
+		reviveDiff(diff);
 		this.testService.publishDiff(resource, URI.revive(uri), diff);
 	}
 

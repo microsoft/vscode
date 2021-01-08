@@ -470,7 +470,9 @@ export class NotificationTemplateRenderer extends Disposable {
 						: buttonToolbar.addButton(buttonOptions));
 				button.label = action.label;
 				this.inputDisposables.add(button.onDidClick(e => {
-					EventHelper.stop(e, true);
+					if (e) {
+						EventHelper.stop(e, true);
+					}
 					actionRunner.run(action);
 				}));
 

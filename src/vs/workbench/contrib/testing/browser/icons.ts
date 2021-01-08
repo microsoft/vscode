@@ -23,7 +23,7 @@ export const testingStatesToIcons = new Map<TestRunState, ThemeIcon>([
 	[TestRunState.Failed, registerIcon('testing-failed-icon', Codicon.close, localize('testingFailedIcon', 'Icon shown for tests that failed.'))],
 	[TestRunState.Passed, registerIcon('testing-passed-icon', Codicon.pass, localize('testingPassedIcon', 'Icon shown for tests that passed.'))],
 	[TestRunState.Queued, registerIcon('testing-queued-icon', Codicon.watch, localize('testingQueuedIcon', 'Icon shown for tests that are queued.'))],
-	[TestRunState.Running, registerIcon('testing-loading-icon', Codicon.loading, localize('testingLoadingIcon', 'Icon shown for tests that are loading.'))],
+	[TestRunState.Running, Codicon.loading],
 	[TestRunState.Skipped, registerIcon('testing-skipped-icon', Codicon.debugStepOver, localize('testingSkippedIcon', 'Icon shown for tests that are skipped.'))],
 	[TestRunState.Unset, registerIcon('testing-unset-icon', Codicon.circleOutline, localize('testingUnsetIcon', 'Icon shown for tests that are in an unset state.'))],
 ]);

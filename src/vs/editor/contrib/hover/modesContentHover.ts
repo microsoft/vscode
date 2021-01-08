@@ -64,7 +64,6 @@ class ColorHover implements IHoverPart {
 class HoverPartInfo {
 	constructor(
 		public readonly owner: IEditorHoverParticipant | null,
-		public readonly sync: boolean,
 		public readonly data: IHoverPart
 	) { }
 }
@@ -100,7 +99,7 @@ class ModesContentComputer implements IHoverComputer<HoverPartInfo[]> {
 		}
 
 		const markdownHovers = await this._markdownHoverParticipant.computeAsync(this._range, token);
-		return markdownHovers.map(h => new HoverPartInfo(this._markdownHoverParticipant, false, h));
+		return markdownHovers.map(h => new HoverPartInfo(this._markdownHoverParticipant, h));
 	}
 
 	public computeSync(): HoverPartInfo[] {
@@ -129,22 +128,21 @@ class ModesContentComputer implements IHoverComputer<HoverPartInfo[]> {
 
 		let result: HoverPartInfo[] = [];
 
-		const markdownHovers = this._markdownHoverParticipant.computeSync(this._range, lineDecorations);
-		result = result.concat(markdownHovers.map(h => new HoverPartInfo(this._markdownHoverParticipant, true, h)));
-
-		const markerHovers = this._markerHoverParticipant.computeSync(this._range, lineDecorations);
-		result = result.concat(markerHovers.map(h => new HoverPartInfo(this._markerHoverParticipant, true, h)));
-
 		const colorDetector = ColorDetector.get(this._editor);
-
 		for (const d of lineDecorations) {
 			const colorData = colorDetector.getColorData(d.range.getStartPosition());
 			if (colorData) {
 				const { color, range } = colorData.colorInfo;
-				result.push(new HoverPartInfo(null, true, new ColorHover(Range.lift(range), color, colorData.provider)));
+				result.push(new HoverPartInfo(null, new ColorHover(Range.lift(range), color, colorData.provider)));
 				break;
 			}
 		}
+
+		const markdownHovers = this._markdownHoverParticipant.computeSync(this._range, lineDecorations);
+		result = result.concat(markdownHovers.map(h => new HoverPartInfo(this._markdownHoverParticipant, h)));
+
+		const markerHovers = this._markerHoverParticipant.computeSync(this._range, lineDecorations);
+		result = result.concat(markerHovers.map(h => new HoverPartInfo(this._markerHoverParticipant, h)));
 
 		return coalesce(result);
 	}
@@ -152,14 +150,7 @@ class ModesContentComputer implements IHoverComputer<HoverPartInfo[]> {
 	public onResult(result: HoverPartInfo[], isFromSynchronousComputation: boolean): void {
 		// Always put synchronous messages before asynchronous ones
 		if (isFromSynchronousComputation) {
-			this._result = result.concat(this._result.sort((a, b) => {
-				if (a.data instanceof ColorHover) { // sort picker messages at to the top
-					return -1;
-				} else if (b.data instanceof ColorHover) {
-					return 1;
-				}
-				return 0;
-			}));
+			this._result = result.concat(this._result);
 		} else {
 			this._result = this._result.concat(result);
 		}
@@ -171,7 +162,7 @@ class ModesContentComputer implements IHoverComputer<HoverPartInfo[]> {
 
 	public getResultWithLoadingMessage(): HoverPartInfo[] {
 		if (this._range) {
-			const loadingMessage = new HoverPartInfo(this._markdownHoverParticipant, true, this._markdownHoverParticipant.createLoadingMessage(this._range));
+			const loadingMessage = new HoverPartInfo(this._markdownHoverParticipant, this._markdownHoverParticipant.createLoadingMessage(this._range));
 			return this._result.slice(0).concat([loadingMessage]);
 
 		}
@@ -285,7 +276,7 @@ export class ModesContentHoverWidget extends Widget implements IContentWidget, I
 							blue: color.rgba.b / 255,
 							alpha: color.rgba.a
 						};
-						return new HoverPartInfo(msg.owner, msg.sync, new ColorHover(msg.data.range, newColor, msg.data.provider));
+						return new HoverPartInfo(msg.owner, new ColorHover(msg.data.range, newColor, msg.data.provider));
 					} else {
 						return msg;
 					}

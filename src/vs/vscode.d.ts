@@ -1700,8 +1700,8 @@ declare module 'vscode' {
 	/**
 	 * Options to configure the behaviour of a file open dialog.
 	 *
-	 * * Note 1: A dialog can select files, folders, or both. This is not true for Windows
-	 * which enforces to open either files or folder, but *not both*.
+	 * * Note 1: On Windows and Linux, a file dialog cannot be both a file selector and a folder selector, so if you
+	 * set both `canSelectFiles` and `canSelectFolders` to `true` on these platforms, a folder selector will be shown.
 	 * * Note 2: Explicitly setting `canSelectFiles` and `canSelectFolders` to `false` is futile
 	 * and the editor then silently adjusts the options to select files.
 	 */
@@ -3870,8 +3870,8 @@ declare module 'vscode' {
 		 *
 		 * Note that `sortText` is only used for the initial ordering of completion
 		 * items. When having a leading word (prefix) ordering is based on how
-		 * well completion match that prefix and the initial ordering is only used
-		 * when completions match equal. The prefix is defined by the
+		 * well completions match that prefix and the initial ordering is only used
+		 * when completions match equally well. The prefix is defined by the
 		 * [`range`](#CompletionItem.range)-property and can therefore be different
 		 * for each completion.
 		 */
@@ -3884,7 +3884,6 @@ declare module 'vscode' {
 		 *
 		 * Note that the filter text is matched against the leading word (prefix) which is defined
 		 * by the [`range`](#CompletionItem.range)-property.
-		 * prefix.
 		 */
 		filterText?: string;
 
@@ -7744,7 +7743,7 @@ declare module 'vscode' {
 		 * your extension should first check to see if any backups exist for the resource. If there is a backup, your
 		 * extension should load the file contents from there instead of from the resource in the workspace.
 		 *
-		 * `backup` is triggered approximately one second after the the user stops editing the document. If the user
+		 * `backup` is triggered approximately one second after the user stops editing the document. If the user
 		 * rapidly edits the document, `backup` will not be invoked until the editing stops.
 		 *
 		 * `backup` is not invoked when `auto save` is enabled (since auto save already persists the resource).
@@ -8886,6 +8885,7 @@ declare module 'vscode' {
 		 * @return The resolved tree item or a thenable that resolves to such. It is OK to return the given
 		 * `item`. When no result is returned, the given `item` will be used.
 		 */
+		// eslint-disable-next-line vscode-dts-cancellation
 		resolveTreeItem?(item: TreeItem, element: T): ProviderResult<TreeItem>;
 	}
 
