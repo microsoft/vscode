@@ -54,24 +54,6 @@ export async function rimraf(path: string, mode = RimRafMode.UNLINK): Promise<vo
 	return rimrafMove(path);
 }
 
-export async function rimrafWithRetries(path: string, retries: number = 5): Promise<void> {
-	for (let retry = retries - 1; retry >= 0; retry--) {
-		try {
-			await rimraf(path);
-			return;
-		} catch (err) {
-			// Check for ENOTEMPTY and EPERM errors. This can happen if someone else is writing
-			// to this directory while we are trying to delete it.
-			if (retry === 0 || (err.code !== 'ENOTEMPTY' && err.code !== 'EPERM')) {
-				// If this is the last retry or if this is another kind of error, simply
-				// rethrow the error
-				throw err;
-			}
-			console.warn(`Ignoring error in retry ${retries - retry} of ${retries}: `, err);
-		}
-	}
-}
-
 async function rimrafUnlink(path: string): Promise<void> {
 	try {
 		const stat = await lstat(path);
