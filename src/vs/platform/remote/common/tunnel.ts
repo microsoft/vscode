@@ -47,6 +47,7 @@ export interface ITunnelService {
 	readonly onTunnelClosed: Event<{ host: string, port: number }>;
 	readonly canElevate: boolean;
 
+	canTunnel(uri: URI): boolean;
 	openTunnel(addressProvider: IAddressProvider | undefined, remoteHost: string | undefined, remotePort: number, localPort?: number, elevateIfNeeded?: boolean): Promise<RemoteTunnel | undefined> | undefined;
 	closeTunnel(remoteHost: string, remotePort: number): Promise<void>;
 	setTunnelProvider(provider: ITunnelProvider | undefined, features: TunnelProviderFeatures): IDisposable;
@@ -254,6 +255,10 @@ export abstract class AbstractTunnelService implements ITunnelService {
 			portMap = this._tunnels.get(remoteHost);
 		}
 		return portMap ? portMap.get(remotePort) : undefined;
+	}
+
+	canTunnel(uri: URI): boolean {
+		return !!extractLocalHostUriMetaDataForPortMapping(uri);
 	}
 
 	protected abstract retainOrCreateTunnel(addressProvider: IAddressProvider, remoteHost: string, remotePort: number, localPort: number | undefined, elevateIfNeeded: boolean): Promise<RemoteTunnel | undefined> | undefined;
