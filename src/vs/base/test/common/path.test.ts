@@ -33,6 +33,7 @@ import { isWindows } from 'vs/base/common/platform';
 import * as process from 'vs/base/common/process';
 
 suite('Paths (Node Implementation)', () => {
+	const __filename = 'path.test.js';
 	test('join', () => {
 		const failures = [] as string[];
 		const backslashRE = /\\/g;
@@ -175,9 +176,6 @@ suite('Paths (Node Implementation)', () => {
 	});
 
 	test('dirname', () => {
-		assert.strictEqual(path.dirname(path.normalize(__filename)).substr(-9),
-			isWindows ? 'test\\node' : 'test/node');
-
 		assert.strictEqual(path.posix.dirname('/a/b/'), '/a');
 		assert.strictEqual(path.posix.dirname('/a/b'), '/a');
 		assert.strictEqual(path.posix.dirname('/a'), '/');
