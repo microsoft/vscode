@@ -480,7 +480,7 @@ class CellContentProvider implements ITextModelContentProvider {
 					create: (defaultEOL) => {
 						const newEOL = (defaultEOL === DefaultEndOfLine.CRLF ? '\r\n' : '\n');
 						(cell.textBuffer as ITextBuffer).setEOL(newEOL);
-						return cell.textBuffer as ITextBuffer;
+						return { textBuffer: cell.textBuffer as ITextBuffer, disposable: Disposable.None };
 					},
 					getFirstLineText: (limit: number) => {
 						return cell.textBuffer.getLineContent(1).substr(0, limit);

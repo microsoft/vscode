@@ -412,10 +412,11 @@ export class ModelServiceImpl extends Disposable implements IModelService {
 
 	public updateModel(model: ITextModel, value: string | ITextBufferFactory): void {
 		const options = this.getCreationOptions(model.getLanguageIdentifier().language, model.uri, model.isForSimpleWidget);
-		const textBuffer = createTextBuffer(value, options.defaultEOL);
+		const { textBuffer, disposable } = createTextBuffer(value, options.defaultEOL);
 
 		// Return early if the text is already set in that form
 		if (model.equalsTextBuffer(textBuffer)) {
+			disposable.dispose();
 			return;
 		}
 
@@ -428,6 +429,7 @@ export class ModelServiceImpl extends Disposable implements IModelService {
 			() => []
 		);
 		model.pushStackElement();
+		disposable.dispose();
 	}
 
 	private static _commonPrefix(a: ILineSequence, aLen: number, aDelta: number, b: ILineSequence, bLen: number, bDelta: number): number {

@@ -61,7 +61,7 @@ export function truncatedArrayOfString(container: HTMLElement, outputs: string[]
 		const bufferBuilder = new PieceTreeTextBufferBuilder();
 		outputs.forEach(output => bufferBuilder.acceptChunk(output));
 		const factory = bufferBuilder.finish();
-		buffer = factory.create(DefaultEndOfLine.LF);
+		buffer = factory.create(DefaultEndOfLine.LF).textBuffer;
 		const sizeBufferLimitPosition = buffer.getPositionAt(SIZE_LIMIT);
 		if (sizeBufferLimitPosition.lineNumber < LINES_LIMIT) {
 			const truncatedText = buffer.getValueInRange(new Range(1, 1, sizeBufferLimitPosition.lineNumber, sizeBufferLimitPosition.column), EndOfLinePreference.TextDefined);
@@ -83,7 +83,7 @@ export function truncatedArrayOfString(container: HTMLElement, outputs: string[]
 		const bufferBuilder = new PieceTreeTextBufferBuilder();
 		outputs.forEach(output => bufferBuilder.acceptChunk(output));
 		const factory = bufferBuilder.finish();
-		buffer = factory.create(DefaultEndOfLine.LF);
+		buffer = factory.create(DefaultEndOfLine.LF).textBuffer;
 	}
 
 	if (buffer.getLineCount() < LINES_LIMIT) {

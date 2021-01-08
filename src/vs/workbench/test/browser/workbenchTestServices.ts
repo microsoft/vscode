@@ -902,7 +902,7 @@ export class TestBackupFileService implements IBackupFileService {
 	async discardBackup(_resource: URI): Promise<void> { }
 	async discardBackups(): Promise<void> { }
 	parseBackupContent(textBufferFactory: ITextBufferFactory): string {
-		const textBuffer = textBufferFactory.create(DefaultEndOfLine.LF);
+		const textBuffer = textBufferFactory.create(DefaultEndOfLine.LF).textBuffer;
 		const lineCount = textBuffer.getLineCount();
 		const range = new Range(1, 1, lineCount, textBuffer.getLineLength(lineCount) + 1);
 		return textBuffer.getValueInRange(range, EndOfLinePreference.TextDefined);
