@@ -8,5 +8,9 @@
 				"exemptionConfig": "./tsec.exemptions.json"
 			}
 		]
-	}
+	},
+	"exclude": [
+		"*/test/*",
+		"**/*.test.ts"
+	]
 }
