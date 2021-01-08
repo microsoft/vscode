@@ -45,6 +45,17 @@ export class IFrameWebview extends BaseWebview<HTMLIFrameElement> implements Web
 	) {
 		super(id, options, contentOptions, extension, webviewThemeDataProvider, notificationService, logService, telemetryService, environmentService);
 
+		/* __GDPR__
+			"webview.createWebview" : {
+				"extension": { "classification": "SystemMetaData", "purpose": "FeatureInsight" },
+				"s": { "classification": "SystemMetaData", "purpose": "FeatureInsight", "isMeasurement": true }
+			}
+		*/
+		telemetryService.publicLog('webview.createWebview', {
+			extension: extension?.id.value,
+			webviewElementType: 'iframe',
+		});
+
 		this._portMappingManager = this._register(new WebviewPortMappingManager(
 			() => this.extension?.location,
 			() => this.content.options.portMapping || [],

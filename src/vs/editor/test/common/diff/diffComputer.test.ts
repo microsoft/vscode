@@ -462,6 +462,13 @@ suite('Editor Diff - DiffComputer', () => {
 		assertDiff(original, modified, expected, true, false, true);
 	});
 
+	test('empty diff 5', () => {
+		let original = [''];
+		let modified = [''];
+		let expected: ILineChange[] = [];
+		assertDiff(original, modified, expected, true, false, true);
+	});
+
 	test('pretty diff 1', () => {
 		let original = [
 			'suite(function () {',

@@ -4,6 +4,18 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { localize } from 'vs/nls';
+import { Codicon } from 'vs/base/common/codicons';
+import { ThemeIcon } from 'vs/platform/theme/common/themeService';
+import { registerIcon } from 'vs/platform/theme/common/iconRegistry';
+
+
+const beginnerIcon = registerIcon('getting-started-beginner', Codicon.lightbulb, localize('getting-started-beginner-icon', "Icon used for the beginner category of getting started"));
+const intermediateIcon = registerIcon('getting-started-intermediate', Codicon.heart, localize('getting-started-intermediate-icon', "Icon used for the intermediate category of getting started"));
+const advancedIcon = registerIcon('getting-started-advanced', Codicon.tools, localize('getting-started-advanced-icon', "Icon used for the advanced category of getting started"));
+
+const openFolderIcon = registerIcon('getting-started-open-folder', Codicon.folderOpened, localize('getting-started-open-folder-icon', "Icon used for the open folder entry in getting started"));
+const interactivePlaygroundIcon = registerIcon('getting-started-interactive-playground', Codicon.library, localize('getting-started-interactive-playground-icon', "Icon used for the interactive playground entry of getting started"));
+
 
 type GettingStartedItem = {
 	id: string
@@ -19,7 +31,7 @@ type GettingStartedCategory = {
 	id: string
 	title: string,
 	description: string,
-	codicon: string,
+	icon: ThemeIcon,
 	when?: string,
 	content:
 	| { type: 'items', items: GettingStartedItem[] }
@@ -32,7 +44,7 @@ export const content: GettingStartedContent = [
 	{
 		id: 'Beginner',
 		title: localize('gettingStarted.beginner.title', "Get Started"),
-		codicon: 'lightbulb',
+		icon: beginnerIcon,
 		description: localize('gettingStarted.beginner.description', "Get to know your new editor"),
 		content: {
 			type: 'items',
@@ -102,7 +114,7 @@ export const content: GettingStartedContent = [
 	{
 		id: 'Intermediate',
 		title: localize('gettingStarted.intermediate.title', "Essentials"),
-		codicon: 'heart',
+		icon: intermediateIcon,
 		description: localize('gettingStarted.intermediate.description', "Must know features you'll love"),
 		content: {
 			type: 'items',
@@ -125,7 +137,7 @@ export const content: GettingStartedContent = [
 	{
 		id: 'Advanced',
 		title: localize('gettingStarted.advanced.title', "Tips & Tricks"),
-		codicon: 'tools',
+		icon: advancedIcon,
 		description: localize('gettingStarted.advanced.description', "Favorites from VS Code experts"),
 		content: {
 			type: 'items',
@@ -136,7 +148,7 @@ export const content: GettingStartedContent = [
 	{
 		id: 'OpenFolder-Mac',
 		title: localize('gettingStarted.openFolder.title', "Open Folder"),
-		codicon: 'folder-opened',
+		icon: openFolderIcon,
 		when: 'isMac',
 		description: localize('gettingStarted.openFolder.description', "Open a project and start working"),
 		content: {
@@ -148,7 +160,7 @@ export const content: GettingStartedContent = [
 	{
 		id: 'OpenFolder-Other',
 		title: localize('gettingStarted.openFolder.title', "Open Folder"),
-		codicon: 'folder-opened',
+		icon: openFolderIcon,
 		description: localize('gettingStarted.openFolder.description', "Open a project and start working"),
 		when: '!isMac',
 		content: {
@@ -160,7 +172,7 @@ export const content: GettingStartedContent = [
 	{
 		id: 'InteractivePlayground',
 		title: localize('gettingStarted.playground.title', "Interactive Playground"),
-		codicon: 'library',
+		icon: interactivePlaygroundIcon,
 		description: localize('gettingStarted.interactivePlayground.description', "Learn essential editor features"),
 		content: {
 			type: 'command',

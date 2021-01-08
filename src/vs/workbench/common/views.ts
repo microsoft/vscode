@@ -27,6 +27,7 @@ import { IMarkdownString } from 'vs/base/common/htmlContent';
 import { mixin } from 'vs/base/common/objects';
 import { Codicon } from 'vs/base/common/codicons';
 import { registerIcon } from 'vs/platform/theme/common/iconRegistry';
+import { CancellationToken } from 'vs/base/common/cancellation';
 
 export const TEST_VIEW_CONTAINER_ID = 'workbench.view.extension.test';
 export const testViewIcon = registerIcon('test-view-icon', Codicon.beaker, localize('testViewIcon', 'View icon of the test view.'));
@@ -693,21 +694,24 @@ export class ResolvableTreeItem implements ITreeItem {
 	command?: Command;
 	children?: ITreeItem[];
 	accessibilityInformation?: IAccessibilityInformation;
-	resolve: () => Promise<void>;
+	resolve: (token: CancellationToken) => Promise<void>;
 	private resolved: boolean = false;
 	private _hasResolve: boolean = false;
-	constructor(treeItem: ITreeItem, resolve?: (() => Promise<ITreeItem | undefined>)) {
+	constructor(treeItem: ITreeItem, resolve?: ((token: CancellationToken) => Promise<ITreeItem | undefined>)) {
 		mixin(this, treeItem);
 		this._hasResolve = !!resolve;
-		this.resolve = async () => {
+		this.resolve = async (token: CancellationToken) => {
 			if (resolve && !this.resolved) {
-				const resolvedItem = await resolve();
+				const resolvedItem = await resolve(token);
 				if (resolvedItem) {
-					// Resolvable elements. Currently only tooltip.
-					this.tooltip = resolvedItem.tooltip;
+					// Resolvable elements. Currently tooltip and command.
+					this.tooltip = this.tooltip ?? resolvedItem.tooltip;
+					this.command = this.command ?? resolvedItem.command;
 				}
 			}
-			this.resolved = true;
+			if (!token.isCancellationRequested) {
+				this.resolved = true;
+			}
 		};
 	}
 	get hasResolve(): boolean {

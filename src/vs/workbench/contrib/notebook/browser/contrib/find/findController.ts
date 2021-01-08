@@ -6,7 +6,7 @@
 import 'vs/css!./media/notebookFind';
 import { IContextViewService } from 'vs/platform/contextview/browser/contextView';
 import { IContextKeyService, IContextKey, ContextKeyExpr } from 'vs/platform/contextkey/common/contextkey';
-import { KEYBINDING_CONTEXT_NOTEBOOK_FIND_WIDGET_FOCUSED, INotebookEditor, CellFindMatch, CellEditState, INotebookEditorContribution, NOTEBOOK_EDITOR_FOCUSED } from 'vs/workbench/contrib/notebook/browser/notebookBrowser';
+import { KEYBINDING_CONTEXT_NOTEBOOK_FIND_WIDGET_FOCUSED, INotebookEditor, CellFindMatch, CellEditState, INotebookEditorContribution, NOTEBOOK_EDITOR_FOCUSED, NOTEBOOK_EDITOR_OPEN } from 'vs/workbench/contrib/notebook/browser/notebookBrowser';
 import { FindDecorations } from 'vs/editor/contrib/find/findDecorations';
 import { ModelDecorationOptions } from 'vs/editor/common/model/textModel';
 import { IModelDeltaDecoration } from 'vs/editor/common/model';
@@ -385,7 +385,7 @@ registerAction2(class extends Action2 {
 			id: 'notebook.find',
 			title: { value: localize('notebookActions.findInNotebook', "Find in Notebook"), original: 'Find in Notebook' },
 			keybinding: {
-				when: NOTEBOOK_EDITOR_FOCUSED,
+				when: ContextKeyExpr.or(NOTEBOOK_EDITOR_FOCUSED, NOTEBOOK_EDITOR_OPEN),
 				primary: KeyCode.KEY_F | KeyMod.CtrlCmd,
 				weight: KeybindingWeight.WorkbenchContrib
 			}

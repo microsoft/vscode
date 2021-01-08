@@ -19,7 +19,7 @@
 }
 
 .scm-view .monaco-tl-contents > div {
-	margin-right: 12px;
+	padding-right: 12px;
 	overflow: hidden;
 }
 
@@ -190,7 +190,7 @@
 
 .scm-view .scm-input {
 	height: 100%;
-	margin-left: 9px;
+	padding-left: 9px;
 }
 
 .scm-view .scm-editor {

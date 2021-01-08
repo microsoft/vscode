@@ -31,9 +31,10 @@ export type Keytar = {
 const SERVICE_ID = `github.auth`;
 
 export class Keychain {
+	constructor(private context: vscode.ExtensionContext) { }
 	async setToken(token: string): Promise<void> {
 		try {
-			return await vscode.authentication.setPassword(SERVICE_ID, token);
+			return await this.context.secrets.set(SERVICE_ID, token);
 		} catch (e) {
 			// Ignore
 			Logger.error(`Setting token failed: ${e}`);
@@ -47,7 +48,7 @@ export class Keychain {
 
 	async getToken(): Promise<string | null | undefined> {
 		try {
-			return await vscode.authentication.getPassword(SERVICE_ID);
+			return await this.context.secrets.get(SERVICE_ID);
 		} catch (e) {
 			// Ignore
 			Logger.error(`Getting token failed: ${e}`);
@@ -57,7 +58,7 @@ export class Keychain {
 
 	async deleteToken(): Promise<void> {
 		try {
-			return await vscode.authentication.deletePassword(SERVICE_ID);
+			return await this.context.secrets.delete(SERVICE_ID);
 		} catch (e) {
 			// Ignore
 			Logger.error(`Deleting token failed: ${e}`);
@@ -85,5 +86,3 @@ export class Keychain {
 		}
 	}
 }
-
-export const keychain = new Keychain();

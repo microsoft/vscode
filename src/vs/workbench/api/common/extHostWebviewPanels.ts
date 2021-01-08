@@ -287,8 +287,8 @@ export class ExtHostWebviewPanels implements extHostProtocol.ExtHostWebviewPanel
 		await serializer.deserializeWebviewPanel(revivedPanel, state);
 	}
 
-	public createNewWebviewPanel(webviewHandle: string, viewType: string, title: string, position: number, options: modes.IWebviewOptions & modes.IWebviewPanelOptions, webview: ExtHostWebview) {
-		const panel = new ExtHostWebviewPanel(webviewHandle, this._proxy, viewType, title, typeof position === 'number' && position >= 0 ? typeConverters.ViewColumn.to(position) : undefined, options, webview);
+	public createNewWebviewPanel(webviewHandle: string, viewType: string, title: string, position: vscode.ViewColumn, options: modes.IWebviewOptions & modes.IWebviewPanelOptions, webview: ExtHostWebview) {
+		const panel = new ExtHostWebviewPanel(webviewHandle, this._proxy, viewType, title, position, options, webview);
 		this._webviewPanels.set(webviewHandle, panel);
 		return panel;
 	}

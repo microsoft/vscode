@@ -10,8 +10,8 @@ import { findFreePortFaster } from 'vs/base/node/ports';
 import { NodeSocket } from 'vs/base/parts/ipc/node/ipc.net';
 import { ILogService } from 'vs/platform/log/common/log';
 import { IProductService } from 'vs/platform/product/common/productService';
-import { connectRemoteAgentTunnel, IConnectionOptions, IAddressProvider } from 'vs/platform/remote/common/remoteAgentConnection';
-import { AbstractTunnelService, RemoteTunnel } from 'vs/platform/remote/common/tunnel';
+import { connectRemoteAgentTunnel, IConnectionOptions, IAddressProvider, ISocketFactory } from 'vs/platform/remote/common/remoteAgentConnection';
+import { AbstractTunnelService, isPortPrivileged, RemoteTunnel } from 'vs/platform/remote/common/tunnel';
 import { nodeSocketFactory } from 'vs/platform/remote/node/nodeSocketFactory';
 import { ISignService } from 'vs/platform/sign/common/sign';
 
@@ -57,7 +57,7 @@ class NodeRemoteTunnel extends Disposable implements RemoteTunnel {
 		this.tunnelRemoteHost = tunnelRemoteHost;
 	}
 
-	public dispose(): void {
+	public async dispose(): Promise<void> {
 		super.dispose();
 		this._server.removeListener('listening', this._listeningListener);
 		this._server.removeListener('connection', this._connectionListener);
@@ -129,8 +129,9 @@ class NodeRemoteTunnel extends Disposable implements RemoteTunnel {
 	}
 }
 
-export class TunnelService extends AbstractTunnelService {
+export class BaseTunnelService extends AbstractTunnelService {
 	public constructor(
+		private readonly socketFactory: ISocketFactory,
 		@ILogService logService: ILogService,
 		@ISignService private readonly signService: ISignService,
 		@IProductService private readonly productService: IProductService
@@ -138,7 +139,7 @@ export class TunnelService extends AbstractTunnelService {
 		super(logService);
 	}
 
-	protected retainOrCreateTunnel(addressProvider: IAddressProvider, remoteHost: string, remotePort: number, localPort?: number): Promise<RemoteTunnel> | undefined {
+	protected retainOrCreateTunnel(addressProvider: IAddressProvider, remoteHost: string, remotePort: number, localPort: number | undefined, elevateIfNeeded: boolean): Promise<RemoteTunnel | undefined> | undefined {
 		const existing = this.getTunnelFromMap(remoteHost, remotePort);
 		if (existing) {
 			++existing.refcount;
@@ -147,7 +148,7 @@ export class TunnelService extends AbstractTunnelService {
 
 		if (this._tunnelProvider) {
 			const preferredLocalPort = localPort === undefined ? remotePort : localPort;
-			const creationInfo = { elevationRequired: this.isPortPrivileged(preferredLocalPort) };
+			const creationInfo = { elevationRequired: elevateIfNeeded ? isPortPrivileged(preferredLocalPort) : false };
 			const tunnelOptions = { remoteAddress: { host: remoteHost, port: remotePort }, localAddressPort: localPort };
 			const tunnel = this._tunnelProvider.forwardPort(tunnelOptions, creationInfo);
 			if (tunnel) {
@@ -157,7 +158,7 @@ export class TunnelService extends AbstractTunnelService {
 		} else {
 			const options: IConnectionOptions = {
 				commit: this.productService.commit,
-				socketFactory: nodeSocketFactory,
+				socketFactory: this.socketFactory,
 				addressProvider,
 				signService: this.signService,
 				logService: this.logService,
@@ -168,5 +169,15 @@ export class TunnelService extends AbstractTunnelService {
 			this.addTunnelToMap(remoteHost, remotePort, tunnel);
 			return tunnel;
 		}
+	}
+}
+
+export class TunnelService extends BaseTunnelService {
+	public constructor(
+		@ILogService logService: ILogService,
+		@ISignService signService: ISignService,
+		@IProductService productService: IProductService
+	) {
+		super(nodeSocketFactory, logService, signService, productService);
 	}
 }

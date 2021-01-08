@@ -20,18 +20,15 @@ import { KeyCode } from 'vs/base/common/keyCodes';
 
 export function clearNode(node: HTMLElement): void {
 	while (node.firstChild) {
-		node.removeChild(node.firstChild);
+		node.firstChild.remove();
 	}
 }
 
+/**
+ * @deprecated Use node.isConnected directly
+ */
 export function isInDOM(node: Node | null): boolean {
-	while (node) {
-		if (node === document.body) {
-			return true;
-		}
-		node = node.parentNode || (node as ShadowRoot).host;
-	}
-	return false;
+	return node?.isConnected ?? false;
 }
 
 class DomListener implements IDisposable {
@@ -1004,9 +1001,13 @@ export function after<T extends Node>(sibling: HTMLElement, child: T): T {
 	return child;
 }
 
-export function append<T extends Node>(parent: HTMLElement, ...children: T[]): T {
-	children.forEach(child => parent.appendChild(child));
-	return children[children.length - 1];
+export function append<T extends Node>(parent: HTMLElement, child: T): T;
+export function append<T extends Node>(parent: HTMLElement, ...children: (T | string)[]): void;
+export function append<T extends Node>(parent: HTMLElement, ...children: (T | string)[]): T | void {
+	parent.append(...children);
+	if (children.length === 1 && typeof children[0] !== 'string') {
+		return <T>children[0];
+	}
 }
 
 export function prepend<T extends Node>(parent: HTMLElement, child: T): T {
@@ -1014,26 +1015,12 @@ export function prepend<T extends Node>(parent: HTMLElement, child: T): T {
 	return child;
 }
 
-
 /**
  * Removes all children from `parent` and appends `children`
  */
 export function reset(parent: HTMLElement, ...children: Array<Node | string>): void {
 	parent.innerText = '';
-	appendChildren(parent, ...children);
-}
-
-/**
- * Appends `children` to `parent`
- */
-export function appendChildren(parent: HTMLElement, ...children: Array<Node | string>): void {
-	for (const child of children) {
-		if (child instanceof Node) {
-			parent.appendChild(child);
-		} else if (typeof child === 'string') {
-			parent.appendChild(document.createTextNode(child));
-		}
-	}
+	append(parent, ...children);
 }
 
 const SELECTOR_REGEX = /([\w\-]+)?(#([\w\-]+))?((\.([\w\-]+))*)/;
@@ -1087,13 +1074,7 @@ function _$<T extends Element>(namespace: Namespace, description: string, attrs?
 		}
 	});
 
-	for (const child of children) {
-		if (child instanceof Node) {
-			result.appendChild(child);
-		} else if (typeof child === 'string') {
-			result.appendChild(document.createTextNode(child));
-		}
-	}
+	result.append(...children);
 
 	return result as T;
 }
@@ -1213,9 +1194,10 @@ export function computeScreenAwareSize(cssPx: number): number {
  * See https://mathiasbynens.github.io/rel-noopener/
  */
 export function windowOpenNoOpener(url: string): void {
-	if (platform.isNative || browser.isEdgeWebView) {
+	if (browser.isElectron || browser.isEdgeWebView) {
 		// In VSCode, window.open() always returns null...
 		// The same is true for a WebView (see https://github.com/microsoft/monaco-editor/issues/628)
+		// Also call directly window.open in sandboxed Electron (see https://github.com/microsoft/monaco-editor/issues/2220)
 		window.open(url);
 	} else {
 		let newTab = window.open();
@@ -1251,7 +1233,7 @@ export function asCSSUrl(uri: URI): string {
 export function triggerDownload(dataOrUri: Uint8Array | URI, name: string): void {
 
 	// If the data is provided as Buffer, we create a
-	// blog URL out of it to produce a valid link
+	// blob URL out of it to produce a valid link
 	let url: string;
 	if (URI.isUri(dataOrUri)) {
 		url = dataOrUri.toString(true);
@@ -1300,7 +1282,7 @@ export interface IDetectedFullscreen {
 	mode: DetectedFullscreenMode;
 
 	/**
-	 * Wether we know for sure that we are in fullscreen mode or
+	 * Whether we know for sure that we are in fullscreen mode or
 	 * it is a guess.
 	 */
 	guess: boolean;

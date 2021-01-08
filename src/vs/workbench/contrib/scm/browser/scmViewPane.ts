@@ -1756,6 +1756,7 @@ export class SCMViewPane extends ViewPane {
 			delegate,
 			renderers,
 			{
+				transformOptimization: false,
 				identityProvider,
 				horizontalScrolling: false,
 				setRowLineHeight: false,

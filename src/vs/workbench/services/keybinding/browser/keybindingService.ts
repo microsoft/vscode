@@ -50,6 +50,7 @@ import { BrowserFeatures, KeyboardSupport } from 'vs/base/browser/canIUse';
 import { ILogService } from 'vs/platform/log/common/log';
 import { ExtensionIdentifier } from 'vs/platform/extensions/common/extensions';
 import { dirname } from 'vs/base/common/resources';
+import { getAllUnboundCommands } from 'vs/workbench/services/keybinding/browser/unboundCommands';
 
 interface ContributedKeyBinding {
 	command: string;
@@ -594,7 +595,7 @@ export class WorkbenchKeybindingService extends AbstractKeybindingService {
 	}
 
 	private static _getAllCommandsAsComment(boundCommands: Map<string, boolean>): string {
-		const unboundCommands = KeybindingResolver.getAllUnboundCommands(boundCommands);
+		const unboundCommands = getAllUnboundCommands(boundCommands);
 		let pretty = unboundCommands.sort().join('\n// - ');
 		return '// ' + nls.localize('unboundCommands', "Here are other available commands: ") + '\n// - ' + pretty;
 	}

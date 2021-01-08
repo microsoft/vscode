@@ -52,6 +52,8 @@ import { IIconLabelMarkdownString } from 'vs/base/browser/ui/iconLabel/iconLabel
 import { renderMarkdownAsPlaintext } from 'vs/base/browser/markdownRenderer';
 import { API_OPEN_DIFF_EDITOR_COMMAND_ID, API_OPEN_EDITOR_COMMAND_ID } from 'vs/workbench/browser/parts/editor/editorCommands';
 import { Codicon } from 'vs/base/common/codicons';
+import { CancellationToken, CancellationTokenSource } from 'vs/base/common/cancellation';
+import { Command } from 'vs/editor/common/modes';
 
 export class TreeViewPane extends ViewPane {
 
@@ -534,12 +536,13 @@ export class TreeView extends Disposable implements ITreeView {
 		}));
 		this.tree.setInput(this.root).then(() => this.updateContentAreas());
 
-		this._register(this.tree.onDidOpen(e => {
+		this._register(this.tree.onDidOpen(async (e) => {
 			if (!e.browserEvent) {
 				return;
 			}
 			const selection = this.tree!.getSelection();
-			const command = selection.length === 1 ? selection[0].command : undefined;
+			const command = await this.resolveCommand(selection.length === 1 ? selection[0] : undefined);
+
 			if (command) {
 				let args = command.arguments || [];
 				if (command.id === API_OPEN_EDITOR_COMMAND_ID || command.id === API_OPEN_DIFF_EDITOR_COMMAND_ID) {
@@ -552,6 +555,17 @@ export class TreeView extends Disposable implements ITreeView {
 			}
 		}));
 
+	}
+
+	private async resolveCommand(element: ITreeItem | undefined): Promise<Command | undefined> {
+		let command = element?.command;
+		if (element && !command) {
+			if ((element instanceof ResolvableTreeItem) && element.hasResolve) {
+				await element.resolve(new CancellationTokenSource().token);
+				command = element.command;
+			}
+		}
+		return command;
 	}
 
 	private onContextMenu(treeMenus: TreeMenus, treeEvent: ITreeContextMenuEvent<ITreeItem>, actionRunner: MultipleSelectionActionRunner): void {
@@ -887,9 +901,9 @@ class TreeRenderer extends Disposable implements ITreeRenderer<ITreeItem, FuzzyS
 		}
 
 		return {
-			markdown: (): Promise<IMarkdownString | string | undefined> => {
+			markdown: (token: CancellationToken): Promise<IMarkdownString | string | undefined> => {
 				return new Promise<IMarkdownString | string | undefined>(async (resolve) => {
-					await node.resolve();
+					await node.resolve(token);
 					resolve(node.tooltip);
 				});
 			},
@@ -935,7 +949,7 @@ class TreeRenderer extends Disposable implements ITreeRenderer<ITreeItem, FuzzyS
 			templateData.resourceLabel.setResource({ name: label, description, resource: labelResource }, {
 				fileKind: this.getFileKind(node),
 				title,
-				hideIcon: !!iconUrl,
+				hideIcon: !!iconUrl || (!!node.themeIcon && !this.isFileKindThemeIcon(node.themeIcon)),
 				fileDecorations,
 				extraClasses: ['custom-view-tree-node-item-resourceLabel'],
 				matches: matches ? matches : createMatches(element.filterData),

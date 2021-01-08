@@ -177,7 +177,29 @@ MenuRegistry.appendMenuItems([{
 		order: 1
 	}
 }, {
+	id: MenuId.ViewTitleContext,
+	item: {
+		group: '3_workbench_layout_move',
+		command: {
+			id: ToggleSidebarPositionAction.ID,
+			title: nls.localize('move sidebar right', "Move Side Bar Right")
+		},
+		when: ContextKeyExpr.notEquals('config.workbench.sideBar.location', 'right'),
+		order: 1
+	}
+}, {
 	id: MenuId.ViewContainerTitleContext,
+	item: {
+		group: '3_workbench_layout_move',
+		command: {
+			id: ToggleSidebarPositionAction.ID,
+			title: nls.localize('move sidebar left', "Move Side Bar Left")
+		},
+		when: ContextKeyExpr.equals('config.workbench.sideBar.location', 'right'),
+		order: 1
+	}
+}, {
+	id: MenuId.ViewTitleContext,
 	item: {
 		group: '3_workbench_layout_move',
 		command: {
@@ -268,6 +290,17 @@ registerAction2(class extends Action2 {
 });
 MenuRegistry.appendMenuItems([{
 	id: MenuId.ViewContainerTitleContext,
+	item: {
+		group: '3_workbench_layout_move',
+		command: {
+			id: TOGGLE_SIDEBAR_VISIBILITY_ACTION_ID,
+			title: nls.localize('compositePart.hideSideBarLabel', "Hide Side Bar"),
+		},
+		when: SideBarVisibleContext,
+		order: 2
+	}
+}, {
+	id: MenuId.ViewTitleContext,
 	item: {
 		group: '3_workbench_layout_move',
 		command: {

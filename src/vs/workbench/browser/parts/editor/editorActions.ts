@@ -23,6 +23,7 @@ import { AllEditorsByMostRecentlyUsedQuickAccess, ActiveGroupEditorsByMostRecent
 import { Codicon } from 'vs/base/common/codicons';
 import { IFilesConfigurationService, AutoSaveMode } from 'vs/workbench/services/filesConfiguration/common/filesConfigurationService';
 import { openEditorWith, getAllAvailableEditors } from 'vs/workbench/services/editor/common/editorOpenWith';
+import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 
 export class ExecuteCommandAction extends Action {
 
@@ -1803,9 +1804,8 @@ export class ReopenResourcesAction extends Action {
 	constructor(
 		id: string,
 		label: string,
-		@IQuickInputService private readonly quickInputService: IQuickInputService,
 		@IEditorService private readonly editorService: IEditorService,
-		@IConfigurationService private readonly configurationService: IConfigurationService
+		@IInstantiationService private readonly instantiationService: IInstantiationService,
 	) {
 		super(id, label);
 	}
@@ -1823,7 +1823,7 @@ export class ReopenResourcesAction extends Action {
 
 		const options = activeEditorPane.options;
 		const group = activeEditorPane.group;
-		await openEditorWith(activeInput, undefined, options, group, this.editorService, this.configurationService, this.quickInputService);
+		await this.instantiationService.invokeFunction(openEditorWith, activeInput, undefined, options, group);
 	}
 }
 

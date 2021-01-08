@@ -4,8 +4,9 @@
  *--------------------------------------------------------------------------------------------*/
 
 import * as vscode from 'vscode';
-import { toLSTextDocument, validate, getHtmlNodeLS, offsetRangeToSelection } from './util';
-import { TextDocument as LSTextDocument } from 'vscode-html-languageservice';
+import { validate, getHtmlFlatNode, offsetRangeToSelection } from './util';
+import { getRootNode } from './parseDocument';
+import { HtmlNode as HtmlFlatNode } from 'EmmetFlatNode';
 
 export function matchTag() {
 	if (!validate(false) || !vscode.window.activeTextEditor) {
@@ -13,11 +14,15 @@ export function matchTag() {
 	}
 
 	const editor = vscode.window.activeTextEditor;
-	const document = toLSTextDocument(editor.document);
+	const document = editor.document;
+	const rootNode = <HtmlFlatNode>getRootNode(document, true);
+	if (!rootNode) {
+		return;
+	}
 
 	let updatedSelections: vscode.Selection[] = [];
 	editor.selections.forEach(selection => {
-		const updatedSelection = getUpdatedSelections(document, selection.start);
+		const updatedSelection = getUpdatedSelections(document, rootNode, selection.start);
 		if (updatedSelection) {
 			updatedSelections.push(updatedSelection);
 		}
@@ -28,22 +33,21 @@ export function matchTag() {
 	}
 }
 
-function getUpdatedSelections(document: LSTextDocument, position: vscode.Position): vscode.Selection | undefined {
-	const currentNode = getHtmlNodeLS(document, position, true);
+function getUpdatedSelections(document: vscode.TextDocument, rootNode: HtmlFlatNode, position: vscode.Position): vscode.Selection | undefined {
+	const offset = document.offsetAt(position);
+	const currentNode = getHtmlFlatNode(document.getText(), rootNode, offset, true);
 	if (!currentNode) {
 		return;
 	}
 
-	const offset = document.offsetAt(position);
-
-	// If no closing tag or cursor is between open and close tag, then no-op
-	if (currentNode.endTagStart === undefined
-		|| currentNode.startTagEnd === undefined
-		|| (offset > currentNode.startTagEnd && offset < currentNode.endTagStart)) {
+	// If no opening/closing tag or cursor is between open and close tag, then no-op
+	if (!currentNode.open
+		|| !currentNode.close
+		|| (offset > currentNode.open.end && offset < currentNode.close.start)) {
 		return;
 	}
 
 	// Place cursor inside the close tag if cursor is inside the open tag, else place it inside the open tag
-	const finalOffset = (offset <= currentNode.startTagEnd) ? currentNode.endTagStart + 2 : currentNode.start + 1;
+	const finalOffset = (offset <= currentNode.open.end) ? currentNode.close.start + 2 : currentNode.start + 1;
 	return offsetRangeToSelection(document, finalOffset, finalOffset);
 }
