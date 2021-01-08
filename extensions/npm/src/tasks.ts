@@ -316,6 +316,9 @@ export async function createTask(context: ExtensionContext, script: NpmTaskDefin
 
 	const packageManager = await getPackageManager(context, folder.uri, showWarning);
 	async function getCommandLine(cmd: string): Promise<string> {
+		if (/\s/.test(kind.script)) {
+			cmd = cmd.replace(kind.script, `"${kind.script}"`);
+		}
 		if (workspace.getConfiguration('npm', folder.uri).get<boolean>('runSilent')) {
 			return `${packageManager} --silent ${cmd}`;
 		}
@@ -393,7 +396,7 @@ export async function startDebugging(context: ExtensionContext, scriptName: stri
 		runtimeExecutable: await getPackageManager(context, folder.uri),
 		runtimeArgs: [
 			'run',
-			scriptName,
+			`${scriptName}`,
 		],
 	};
 
