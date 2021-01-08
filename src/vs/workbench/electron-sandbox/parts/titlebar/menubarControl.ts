@@ -112,6 +112,11 @@ export class NativeMenubarControl extends MenubarControl {
 
 			actions.forEach(menuItem => {
 
+				// use mnemonicTitle whenever possible
+				const title = typeof menuItem.item.title === 'string'
+					? menuItem.item.title
+					: menuItem.item.title.mnemonicTitle ?? menuItem.item.title.value;
+
 				if (menuItem instanceof SubmenuItemAction) {
 					const submenu = { items: [] };
 
@@ -125,7 +130,7 @@ export class NativeMenubarControl extends MenubarControl {
 
 					let menubarSubmenuItem: IMenubarMenuItemSubmenu = {
 						id: menuItem.id,
-						label: menuItem.label,
+						label: title,
 						submenu: submenu
 					};
 
@@ -139,7 +144,7 @@ export class NativeMenubarControl extends MenubarControl {
 
 					let menubarMenuItem: IMenubarMenuItemAction = {
 						id: menuItem.id,
-						label: menuItem.label
+						label: title
 					};
 
 					if (menuItem.checked) {
@@ -150,7 +155,6 @@ export class NativeMenubarControl extends MenubarControl {
 						menubarMenuItem.enabled = false;
 					}
 
-					menubarMenuItem.label = this.calculateActionLabel(menubarMenuItem);
 					keybindings[menuItem.id] = this.getMenubarKeybinding(menuItem.id);
 					menuToPopulate.items.push(menubarMenuItem);
 				}
