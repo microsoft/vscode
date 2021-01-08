@@ -7,7 +7,7 @@ import { checksum } from 'vs/base/node/crypto';
 import { generateUuid } from 'vs/base/common/uuid';
 import { join } from 'vs/base/common/path';
 import { tmpdir } from 'os';
-import { mkdirp, rimraf, RimRafMode, writeFile } from 'vs/base/node/pfs';
+import { mkdirp, rimraf, writeFile } from 'vs/base/node/pfs';
 
 suite('Crypto', () => {
 
@@ -22,6 +22,6 @@ suite('Crypto', () => {
 
 		await checksum(testFile, '0a4d55a8d778e5022fab701977c5d840bbc486d0');
 
-		await rimraf(testDir, RimRafMode.MOVE);
+		await rimraf(testDir);
 	});
 });

@@ -109,7 +109,7 @@ class Menu implements IMenu {
 		this._onDidChange.fire(this);
 	}
 
-	getActions(options: IMenuActionOptions): [string, Array<MenuItemAction | SubmenuItemAction>][] {
+	getActions(options?: IMenuActionOptions): [string, Array<MenuItemAction | SubmenuItemAction>][] {
 		const result: [string, Array<MenuItemAction | SubmenuItemAction>][] = [];
 		for (let group of this._menuGroups) {
 			const [id, items] = group;

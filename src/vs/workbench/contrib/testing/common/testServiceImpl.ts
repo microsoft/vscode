@@ -159,6 +159,18 @@ export class TestService extends Disposable implements ITestService {
 	/**
 	 * @inheritdoc
 	 */
+	public resubscribeToAllTests() {
+		for (const subscription of this.testSubscriptions.values()) {
+			this.unsubscribeEmitter.fire(subscription.ident);
+			const diff = subscription.collection.clear();
+			subscription.onDiff.fire(diff);
+			this.subscribeEmitter.fire(subscription.ident);
+		}
+	}
+
+	/**
+	 * @inheritdoc
+	 */
 	public subscribeToDiffs(resource: ExtHostTestingResource, uri: URI, acceptDiff: TestDiffListener) {
 		const subscriptionKey = getTestSubscriptionKey(resource, uri);
 		let subscription = this.testSubscriptions.get(subscriptionKey);
@@ -237,6 +249,22 @@ class MainThreadTestCollection extends AbstractIncrementalTestCollection<Increme
 				queue.push(item.children);
 			}
 		}
+
+		return ops;
+	}
+
+	/**
+	 * Clears everything from the collection, and returns a diff that applies
+	 * that action.
+	 */
+	public clear() {
+		const ops: TestsDiff = [];
+		for (const root of this.roots) {
+			ops.push([TestDiffOpType.Remove, root]);
+		}
+
+		this.roots.clear();
+		this.items.clear();
 
 		return ops;
 	}

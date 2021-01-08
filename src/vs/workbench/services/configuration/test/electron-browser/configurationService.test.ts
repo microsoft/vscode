@@ -127,7 +127,7 @@ flakySuite('WorkspaceContextService - Folder', () => {
 	teardown(() => {
 		disposables.clear();
 		if (parentResource) {
-			return pfs.rimraf(parentResource, pfs.RimRafMode.MOVE);
+			return pfs.rimraf(parentResource);
 		}
 		return undefined;
 	});
@@ -200,7 +200,7 @@ flakySuite('WorkspaceContextService - Workspace', () => {
 	teardown(() => {
 		disposables.clear();
 		if (parentResource) {
-			return pfs.rimraf(parentResource, pfs.RimRafMode.MOVE);
+			return pfs.rimraf(parentResource);
 		}
 		return undefined;
 	});
@@ -263,7 +263,7 @@ flakySuite('WorkspaceContextService - Workspace Editing', () => {
 	teardown(() => {
 		disposables.clear();
 		if (parentResource) {
-			return pfs.rimraf(parentResource, pfs.RimRafMode.MOVE);
+			return pfs.rimraf(parentResource);
 		}
 		return undefined;
 	});
@@ -524,7 +524,7 @@ flakySuite('WorkspaceService - Initialization', () => {
 	teardown(() => {
 		disposables.clear();
 		if (parentResource) {
-			return pfs.rimraf(parentResource, pfs.RimRafMode.MOVE);
+			return pfs.rimraf(parentResource);
 		}
 		return undefined;
 	});
@@ -803,7 +803,7 @@ flakySuite('WorkspaceConfigurationService - Folder', () => {
 	teardown(() => {
 		disposables.clear();
 		if (parentResource) {
-			return pfs.rimraf(parentResource, pfs.RimRafMode.MOVE);
+			return pfs.rimraf(parentResource);
 		}
 		return undefined;
 	});
@@ -1238,10 +1238,7 @@ flakySuite('WorkspaceConfigurationService - Folder', () => {
 		});
 	});
 
-	test('deleting workspace settings', async () => {
-		if (!isMacintosh) {
-			return;
-		}
+	(!isMacintosh ? test.skip : test)('deleting workspace settings', async () => {
 		fs.writeFileSync(globalSettingsFile, '{ "configurationService.folder.testSetting": "userValue" }');
 		const workspaceSettingsResource = URI.file(path.join(workspaceDir, '.vscode', 'settings.json'));
 		await fileService.writeFile(workspaceSettingsResource, VSBuffer.fromString('{ "configurationService.folder.testSetting": "workspaceValue" }'));
@@ -1338,7 +1335,7 @@ flakySuite('WorkspaceConfigurationService-Multiroot', () => {
 	teardown(() => {
 		disposables.clear();
 		if (parentResource) {
-			return pfs.rimraf(parentResource, pfs.RimRafMode.MOVE);
+			return pfs.rimraf(parentResource);
 		}
 		return undefined;
 	});
@@ -1965,7 +1962,7 @@ flakySuite('WorkspaceConfigurationService - Remote Folder', () => {
 	teardown(() => {
 		disposables.clear();
 		if (parentResource) {
-			return pfs.rimraf(parentResource, pfs.RimRafMode.MOVE);
+			return pfs.rimraf(parentResource);
 		}
 		return undefined;
 	});

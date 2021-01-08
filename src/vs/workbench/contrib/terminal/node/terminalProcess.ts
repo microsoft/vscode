@@ -341,8 +341,11 @@ export class TerminalProcess extends Disposable implements ITerminalChildProcess
 					}
 					this._logService.trace('IPty#pid');
 					exec('lsof -OPln -p ' + this._ptyProcess.pid + ' | grep cwd', (error, stdout, stderr) => {
-						if (stdout !== '') {
+						if (!error && stdout !== '') {
 							resolve(stdout.substring(stdout.indexOf('/'), stdout.length - 1));
+						} else {
+							this._logService.error('lsof did not run successfully, it may not be on the $PATH?', error, stdout, stderr);
+							resolve(this._initialCwd);
 						}
 					});
 				});

@@ -8,11 +8,7 @@ import * as labels from 'vs/base/common/labels';
 import * as platform from 'vs/base/common/platform';
 
 suite('Labels', () => {
-	test('shorten - windows', () => {
-		if (!platform.isWindows) {
-			assert.ok(true);
-			return;
-		}
+	(!platform.isWindows ? test.skip : test)('shorten - windows', () => {
 
 		// nothing to shorten
 		assert.deepEqual(labels.shorten(['a']), ['a']);
@@ -63,11 +59,7 @@ suite('Labels', () => {
 		assert.deepEqual(labels.shorten(['src\\vs\\workbench\\parts\\execution\\electron-browser', 'src\\vs\\workbench\\parts\\execution\\electron-browser\\something', 'src\\vs\\workbench\\parts\\terminal\\electron-browser']), ['…\\execution\\electron-browser', '…\\something', '…\\terminal\\…']);
 	});
 
-	test('shorten - not windows', () => {
-		if (platform.isWindows) {
-			assert.ok(true);
-			return;
-		}
+	(platform.isWindows ? test.skip : test)('shorten - not windows', () => {
 
 		// nothing to shorten
 		assert.deepEqual(labels.shorten(['a']), ['a']);
@@ -142,23 +134,13 @@ suite('Labels', () => {
 		assert.strictEqual(labels.template(t, { dirty: '* ', activeEditorShort: 'somefile.txt', rootName: 'monaco', appName: 'Visual Studio Code', separator: { label: ' - ' } }), '* somefile.txt - monaco - Visual Studio Code');
 	});
 
-	test('getBaseLabel - unix', () => {
-		if (platform.isWindows) {
-			assert.ok(true);
-			return;
-		}
-
+	(platform.isWindows ? test.skip : test)('getBaseLabel - unix', () => {
 		assert.equal(labels.getBaseLabel('/some/folder/file.txt'), 'file.txt');
 		assert.equal(labels.getBaseLabel('/some/folder'), 'folder');
 		assert.equal(labels.getBaseLabel('/'), '/');
 	});
 
-	test('getBaseLabel - windows', () => {
-		if (!platform.isWindows) {
-			assert.ok(true);
-			return;
-		}
-
+	(!platform.isWindows ? test.skip : test)('getBaseLabel - windows', () => {
 		assert.equal(labels.getBaseLabel('c:'), 'C:');
 		assert.equal(labels.getBaseLabel('c:\\'), 'C:');
 		assert.equal(labels.getBaseLabel('c:\\some\\folder\\file.txt'), 'file.txt');
