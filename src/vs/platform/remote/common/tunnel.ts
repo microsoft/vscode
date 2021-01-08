@@ -264,24 +264,4 @@ export abstract class AbstractTunnelService implements ITunnelService {
 	protected abstract retainOrCreateTunnel(addressProvider: IAddressProvider, remoteHost: string, remotePort: number, localPort: number | undefined, elevateIfNeeded: boolean): Promise<RemoteTunnel | undefined> | undefined;
 }
 
-export class TunnelService extends AbstractTunnelService {
-	protected retainOrCreateTunnel(_addressProvider: IAddressProvider, remoteHost: string, remotePort: number, localPort: number | undefined, elevateIfNeeded: boolean): Promise<RemoteTunnel | undefined> | undefined {
-		const existing = this.getTunnelFromMap(remoteHost, remotePort);
-		if (existing) {
-			++existing.refcount;
-			return existing.value;
-		}
 
-		if (this._tunnelProvider) {
-			const preferredLocalPort = localPort === undefined ? remotePort : localPort;
-			const tunnelOptions = { remoteAddress: { host: remoteHost, port: remotePort }, localAddressPort: localPort };
-			const creationInfo = { elevationRequired: elevateIfNeeded ? isPortPrivileged(preferredLocalPort) : false };
-			const tunnel = this._tunnelProvider.forwardPort(tunnelOptions, creationInfo);
-			if (tunnel) {
-				this.addTunnelToMap(remoteHost, remotePort, tunnel);
-			}
-			return tunnel;
-		}
-		return undefined;
-	}
-}
