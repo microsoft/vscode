@@ -28,7 +28,7 @@ export interface ILocalizedString {
 	original: string;
 }
 
-export interface ILocalizedTitle extends ILocalizedString {
+export interface ICommandActionTitle extends ILocalizedString {
 	/**
 	 * The title with a mnemonic designation. && precedes the mnemonic.
 	 */
@@ -39,7 +39,7 @@ export type Icon = { dark?: URI; light?: URI; } | ThemeIcon;
 
 export interface ICommandAction {
 	id: string;
-	title: string | ILocalizedTitle;
+	title: string | ICommandActionTitle;
 	category?: string | ILocalizedString;
 	tooltip?: string;
 	icon?: Icon;
@@ -387,9 +387,7 @@ export class MenuItemAction extends ExecuteCommandAction {
 	}
 
 	dispose(): void {
-		if (this.alt) {
-			this.alt.dispose();
-		}
+		this.alt?.dispose();
 		super.dispose();
 	}
 
