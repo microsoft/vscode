@@ -32,18 +32,16 @@ suite('Paths', () => {
 		assert.equal(extpath.getRoot('file://foo'), '');
 	});
 
-	test('isUNC', () => {
-		if (platform.isWindows) {
-			assert.ok(!extpath.isUNC('foo'));
-			assert.ok(!extpath.isUNC('/foo'));
-			assert.ok(!extpath.isUNC('\\foo'));
-			assert.ok(!extpath.isUNC('\\\\foo'));
-			assert.ok(extpath.isUNC('\\\\a\\b'));
-			assert.ok(!extpath.isUNC('//a/b'));
-			assert.ok(extpath.isUNC('\\\\server\\share'));
-			assert.ok(extpath.isUNC('\\\\server\\share\\'));
-			assert.ok(extpath.isUNC('\\\\server\\share\\path'));
-		}
+	(!platform.isWindows ? test.skip : test)('isUNC', () => {
+		assert.ok(!extpath.isUNC('foo'));
+		assert.ok(!extpath.isUNC('/foo'));
+		assert.ok(!extpath.isUNC('\\foo'));
+		assert.ok(!extpath.isUNC('\\\\foo'));
+		assert.ok(extpath.isUNC('\\\\a\\b'));
+		assert.ok(!extpath.isUNC('//a/b'));
+		assert.ok(extpath.isUNC('\\\\server\\share'));
+		assert.ok(extpath.isUNC('\\\\server\\share\\'));
+		assert.ok(extpath.isUNC('\\\\server\\share\\path'));
 	});
 
 	test('isValidBasename', () => {

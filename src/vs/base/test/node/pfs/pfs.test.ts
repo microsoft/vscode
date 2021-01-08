@@ -293,11 +293,7 @@ flakySuite('PFS', function () {
 		await pfs.rimraf(newDir);
 	});
 
-	test('stat link', async () => {
-		if (isWindows) {
-			return; // Symlinks are not the same on win, and we can not create them programitically without admin privileges
-		}
-
+	(isWindows ? test.skip : test)('stat link', async () => { // Symlinks are not the same on win, and we can not create them programmatically without admin privileges
 		const id1 = uuid.generateUuid();
 		const parentDir = path.join(os.tmpdir(), 'vsctests', id1);
 		const directory = path.join(parentDir, 'pfs', id1);
@@ -319,11 +315,7 @@ flakySuite('PFS', function () {
 		pfs.rimrafSync(directory);
 	});
 
-	test('stat link (non existing target)', async () => {
-		if (isWindows) {
-			return; // Symlinks are not the same on win, and we can not create them programitically without admin privileges
-		}
-
+	(isWindows ? test.skip : test)('stat link (non existing target)', async () => { // Symlinks are not the same on win, and we can not create them programmatically without admin privileges
 		const id1 = uuid.generateUuid();
 		const parentDir = path.join(os.tmpdir(), 'vsctests', id1);
 		const directory = path.join(parentDir, 'pfs', id1);

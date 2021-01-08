@@ -374,7 +374,7 @@ suite('Buffer', () => {
 		assert.equal(errors.length, 0);
 	});
 
-	(isWeb ? test.skip : test)('Performance issue with VSBuffer#slice #76076', function () { // TODO@alexdima this test seems to fail in web
+	(isWeb ? test.skip : test)('Performance issue with VSBuffer#slice #76076', function () { // TODO@alexdima this test seems to fail in web (https://github.com/microsoft/vscode/issues/114042)
 		// Buffer#slice creates a view
 		{
 			const buff = Buffer.from([10, 20, 30, 40]);

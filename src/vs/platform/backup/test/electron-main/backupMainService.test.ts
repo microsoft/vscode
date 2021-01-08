@@ -606,12 +606,7 @@ flakySuite('BackupMainService', () => {
 
 	flakySuite('getWorkspaceHash', () => {
 
-		test('should ignore case on Windows and Mac', () => {
-			// Skip test on Linux
-			if (platform.isLinux) {
-				return;
-			}
-
+		(platform.isLinux ? test.skip : test)('should ignore case on Windows and Mac', () => {
 			if (platform.isMacintosh) {
 				assert.equal(service.getFolderHash(URI.file('/foo')), service.getFolderHash(URI.file('/FOO')));
 			}

@@ -1238,10 +1238,7 @@ flakySuite('WorkspaceConfigurationService - Folder', () => {
 		});
 	});
 
-	test('deleting workspace settings', async () => {
-		if (!isMacintosh) {
-			return;
-		}
+	(!isMacintosh ? test.skip : test)('deleting workspace settings', async () => {
 		fs.writeFileSync(globalSettingsFile, '{ "configurationService.folder.testSetting": "userValue" }');
 		const workspaceSettingsResource = URI.file(path.join(workspaceDir, '.vscode', 'settings.json'));
 		await fileService.writeFile(workspaceSettingsResource, VSBuffer.fromString('{ "configurationService.folder.testSetting": "workspaceValue" }'));

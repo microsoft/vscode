@@ -387,11 +387,7 @@ suite('WorkspacesMainService', () => {
 		service.deleteUntitledWorkspaceSync(workspace);
 	});
 
-	test('rewriteWorkspaceFileForNewLocation (unc paths)', async () => {
-		if (!isWindows) {
-			return;
-		}
-
+	(!isWindows ? test.skip : test)('rewriteWorkspaceFileForNewLocation (unc paths)', async () => {
 		const workspaceLocation = path.join(os.tmpdir(), 'wsloc');
 		const folder1Location = 'x:\\foo';
 		const folder2Location = '\\\\server\\share2\\some\\path';
