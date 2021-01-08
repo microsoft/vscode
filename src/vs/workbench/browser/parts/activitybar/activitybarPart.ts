@@ -43,6 +43,7 @@ import { KeyCode } from 'vs/base/common/keyCodes';
 import { Action2, registerAction2 } from 'vs/platform/actions/common/actions';
 import { CATEGORIES } from 'vs/workbench/common/actions';
 import { registerIcon } from 'vs/platform/theme/common/iconRegistry';
+import { StringSHA1 } from 'vs/base/common/hash';
 
 interface IPlaceholderViewContainer {
 	readonly id: string;
@@ -653,7 +654,7 @@ export class ActivitybarPart extends Part implements IActivityBarService {
 			} else {
 				const cachedComposite = this.cachedViewContainers.filter(c => c.id === compositeId)[0];
 				compositeActions = {
-					activityAction: this.instantiationService.createInstance(PlaceHolderViewContainerActivityAction, ActivitybarPart.toActivity(compositeId, compositeId, cachedComposite?.icon, undefined, true)),
+					activityAction: this.instantiationService.createInstance(PlaceHolderViewContainerActivityAction, ActivitybarPart.toActivity(compositeId, compositeId, cachedComposite?.icon, undefined)),
 					pinnedAction: new PlaceHolderToggleCompositePinnedAction(compositeId, this.compositeBar)
 				};
 			}
@@ -720,15 +721,17 @@ export class ActivitybarPart extends Part implements IActivityBarService {
 	}
 
 	private toActivity({ id, focusCommand }: ViewContainer, { icon, title: name }: IViewContainerModel): IActivity {
-		return ActivitybarPart.toActivity(id, name, icon, focusCommand?.id || id, false);
+		return ActivitybarPart.toActivity(id, name, icon, focusCommand?.id || id);
 	}
 
-	private static toActivity(id: string, name: string, icon: URI | ThemeIcon | undefined, keybindingId: string | undefined, placeholder: boolean): IActivity {
+	private static toActivity(id: string, name: string, icon: URI | ThemeIcon | undefined, keybindingId: string | undefined): IActivity {
 		let cssClass: string | undefined = undefined;
 		let iconUrl: URI | undefined = undefined;
 		if (URI.isUri(icon)) {
 			iconUrl = icon;
-			cssClass = `${placeholder ? 'placeholder-' : ''}activity-${id.replace(/\./g, '-')}`;
+			const hash = new StringSHA1();
+			hash.update(icon.toString());
+			cssClass = `activity-${id.replace(/\./g, '-')}-${hash.digest()}`;
 			const iconClass = `.monaco-workbench .activitybar .monaco-action-bar .action-label.${cssClass}`;
 			createCSSRule(iconClass, `
 				mask: ${asCSSUrl(icon)} no-repeat 50% 50%;
