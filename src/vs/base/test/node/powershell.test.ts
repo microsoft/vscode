@@ -37,6 +37,7 @@ if (platform.isWindows) {
 		// In Azure DevOps or GitHub Actions, they have 3 PowerShell's available
 		// on Windows:
 		// 1. PowerShell stable
+		// 2. PowerShell as a .NET Global Tool
 		// 2. Windows PowerShell (x64)
 		// 3. Windows PowerShell (x86)
 		// Only run this test in CI where the result is predictable.
@@ -47,16 +48,19 @@ if (platform.isWindows) {
 					pwshs.push(p);
 				}
 
-				assert.strictEqual(pwshs.length, 3, 'Found these PowerShells:\n' + pwshs.map(p => `${p.displayName}: ${p.exePath}`).join('=\n'));
+				assert.strictEqual(pwshs.length, 4, 'Found these PowerShells:\n' + pwshs.map(p => `${p.displayName}: ${p.exePath}`).join('\n'));
 
 				checkPath(pwshs[0].exePath);
 				assert.strictEqual(pwshs[0].displayName, 'PowerShell');
 
 				checkPath(pwshs[1].exePath);
-				assert.strictEqual(pwshs[1].displayName, 'Windows PowerShell');
+				assert.strictEqual(pwshs[1].displayName, '.NET Core PowerShell Global Tool');
 
 				checkPath(pwshs[2].exePath);
-				assert.strictEqual(pwshs[2].displayName, 'Windows PowerShell (x86)');
+				assert.strictEqual(pwshs[2].displayName, 'Windows PowerShell');
+
+				checkPath(pwshs[3].exePath);
+				assert.strictEqual(pwshs[3].displayName, 'Windows PowerShell (x86)');
 			});
 		}
 	});
