@@ -181,7 +181,7 @@ export class Sequencer {
 	private current: Promise<any> = Promise.resolve(null);
 
 	queue<T>(promiseTask: ITask<Promise<T>>): Promise<T> {
-		return this.current = this.current.then(() => promiseTask());
+		return this.current = this.current.then(() => promiseTask(), () => promiseTask());
 	}
 }
 

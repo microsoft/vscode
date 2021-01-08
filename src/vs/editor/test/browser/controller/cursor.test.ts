@@ -2406,7 +2406,7 @@ suite('Editor Controller - Regression tests', () => {
 		const tokenizationSupport: ITokenizationSupport = {
 			getInitialState: () => NULL_STATE,
 			tokenize: undefined!,
-			tokenize2: (line: string, state: IState): TokenizationResult2 => {
+			tokenize2: (line: string, hasEOL: boolean, state: IState): TokenizationResult2 => {
 				return new TokenizationResult2(new Uint32Array(0), state);
 			}
 		};

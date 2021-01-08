@@ -14,6 +14,7 @@ import { IThemeMainService } from 'vs/platform/theme/electron-main/themeMainServ
 import { toDisposable, DisposableStore } from 'vs/base/common/lifecycle';
 import { Event } from 'vs/base/common/event';
 import { FileAccess } from 'vs/base/common/network';
+import { browserCodeLoadingCacheStrategy } from 'vs/base/common/platform';
 
 export class SharedProcess implements ISharedProcess {
 
@@ -41,6 +42,7 @@ export class SharedProcess implements ISharedProcess {
 			backgroundColor: this.themeMainService.getBackgroundColor(),
 			webPreferences: {
 				preload: FileAccess.asFileUri('vs/base/parts/sandbox/electron-browser/preload.js', require).fsPath,
+				v8CacheOptions: browserCodeLoadingCacheStrategy,
 				nodeIntegration: true,
 				enableWebSQL: false,
 				enableRemoteModule: false,
@@ -60,11 +62,11 @@ export class SharedProcess implements ISharedProcess {
 			windowId: this.window.id
 		};
 
-		const windowUrl = (this.environmentService.sandbox ?
-			FileAccess._asCodeFileUri('vs/code/electron-browser/sharedProcess/sharedProcess.html', require) :
-			FileAccess.asBrowserUri('vs/code/electron-browser/sharedProcess/sharedProcess.html', require))
-			.with({ query: `config=${encodeURIComponent(JSON.stringify(config))}` });
-		this.window.loadURL(windowUrl.toString(true));
+		this.window.loadURL(FileAccess
+			.asBrowserUri('vs/code/electron-browser/sharedProcess/sharedProcess.html', require)
+			.with({ query: `config=${encodeURIComponent(JSON.stringify(config))}` })
+			.toString(true)
+		);
 
 		// Prevent the window from dying
 		const onClose = (e: ElectronEvent) => {

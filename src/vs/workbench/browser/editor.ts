@@ -12,7 +12,6 @@ import { insert } from 'vs/base/common/arrays';
 import { IDisposable, toDisposable } from 'vs/base/common/lifecycle';
 
 export interface IEditorDescriptor {
-
 	getId(): string;
 	getName(): string;
 

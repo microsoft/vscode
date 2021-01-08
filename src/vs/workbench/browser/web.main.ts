@@ -124,6 +124,7 @@ class BrowserMain extends Disposable {
 				env: {
 					async retrievePerformanceMarks() {
 						await timerService.whenReady();
+
 						return timerService.getPerformanceMarks();
 					}
 				},

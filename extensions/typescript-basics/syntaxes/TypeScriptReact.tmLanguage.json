@@ -4,7 +4,7 @@
 		"If you want to provide a fix or improvement, please create a pull request against the original repository.",
 		"Once accepted there, we are happy to receive an update request."
 	],
-	"version": "https://github.com/microsoft/TypeScript-TmLanguage/commit/a755c6bad619daa8349fb23149eeeff220a06603",
+	"version": "https://github.com/microsoft/TypeScript-TmLanguage/commit/398985941eb36cd270054a6e668d03fb9ef92e77",
 	"name": "TypeScriptReact",
 	"scopeName": "source.tsx",
 	"patterns": [
@@ -2987,13 +2987,7 @@
 			"end": "(?<=\\))|(?=[;),}\\]:?\\-\\+\\>]|\\|\\||\\&\\&|\\!\\=\\=|$|((?<![_$[:alnum:]])(?:(?<=\\.\\.\\.)|(?<!\\.))new(?![_$[:alnum:]])(?:(?=\\.\\.\\.)|(?!\\.)))|((?<![_$[:alnum:]])(?:(?<=\\.\\.\\.)|(?<!\\.))function((\\s+[_$[:alpha:]][_$[:alnum:]]*)|(\\s*[\\(]))))",
 			"patterns": [
 				{
-					"include": "#paren-expression"
-				},
-				{
-					"include": "#class-declaration"
-				},
-				{
-					"include": "#type"
+					"include": "#expression"
 				}
 			]
 		},
@@ -3359,7 +3353,7 @@
 					"name": "keyword.operator.expression.typeof.tsx"
 				}
 			},
-			"end": "(?=[,);}\\]=]|$|;|(?:^\\s*(?:abstract|async|class|const|declare|enum|export|function|import|interface|let|module|namespace|return|type|var)\\b))",
+			"end": "(?=[,);}\\]=>]|$|;|(?:^\\s*(?:abstract|async|class|const|declare|enum|export|function|import|interface|let|module|namespace|return|type|var)\\b))",
 			"patterns": [
 				{
 					"include": "#expression"

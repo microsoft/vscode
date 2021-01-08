@@ -18,7 +18,9 @@ import { IWorkspaceContextService } from 'vs/platform/workspace/common/workspace
 import { EditorOptions, IEditorPane } from 'vs/workbench/common/editor';
 import { IEditorGroup } from 'vs/workbench/services/editor/common/editorGroupsService';
 import { Settings2EditorModel } from 'vs/workbench/services/preferences/common/preferencesModels';
-import { IKeybindingItemEntry } from 'vs/workbench/services/preferences/common/keybindingsEditorModel';
+import { IMatch } from 'vs/base/common/filters';
+import { ResolvedKeybinding } from 'vs/base/common/keyCodes';
+import { ResolvedKeybindingItem } from 'vs/platform/keybinding/common/resolvedKeybindingItem';
 
 export enum SettingValueType {
 	Null = 'null',
@@ -239,6 +241,44 @@ export function getSettingsTargetName(target: ConfigurationTarget, resource: URI
 			return folder ? folder.name : '';
 	}
 	return '';
+}
+
+export interface KeybindingMatch {
+	ctrlKey?: boolean;
+	shiftKey?: boolean;
+	altKey?: boolean;
+	metaKey?: boolean;
+	keyCode?: boolean;
+}
+
+export interface KeybindingMatches {
+	firstPart: KeybindingMatch;
+	chordPart: KeybindingMatch;
+}
+
+export interface IListEntry {
+	id: string;
+	templateId: string;
+}
+
+export interface IKeybindingItemEntry extends IListEntry {
+	keybindingItem: IKeybindingItem;
+	commandIdMatches?: IMatch[];
+	commandLabelMatches?: IMatch[];
+	commandDefaultLabelMatches?: IMatch[];
+	sourceMatches?: IMatch[];
+	whenMatches?: IMatch[];
+	keybindingMatches?: KeybindingMatches;
+}
+
+export interface IKeybindingItem {
+	keybinding: ResolvedKeybinding;
+	keybindingItem: ResolvedKeybindingItem;
+	commandLabel: string;
+	commandDefaultLabel: string;
+	command: string;
+	source: string;
+	when: string;
 }
 
 export interface IKeybindingsEditorPane extends IEditorPane {

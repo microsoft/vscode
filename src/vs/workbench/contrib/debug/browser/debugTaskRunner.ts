@@ -169,11 +169,17 @@ export class DebugTaskRunner {
 			return taskPromise.then(withUndefinedAsNull);
 		});
 
-		return new Promise((c, e) => {
+		return new Promise(async (c, e) => {
+			const waitForInput = new Promise<void>(resolve => once(e => (e.kind === TaskEventKind.AcquiredInput) && e.taskId === task._id, this.taskService.onDidStateChange)(() => {
+				resolve();
+			}));
+
 			promise.then(result => {
 				taskStarted = true;
 				c(result);
 			}, error => e(error));
+
+			await waitForInput;
 
 			setTimeout(() => {
 				if (!taskStarted) {

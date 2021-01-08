@@ -8,7 +8,7 @@ import { tmpdir } from 'os';
 import { FileService } from 'vs/platform/files/common/fileService';
 import { Schemas } from 'vs/base/common/network';
 import { DiskFileSystemProvider } from 'vs/platform/files/node/diskFileSystemProvider';
-import { getRandomTestPath } from 'vs/base/test/node/testUtils';
+import { flakySuite, getRandomTestPath } from 'vs/base/test/node/testUtils';
 import { generateUuid } from 'vs/base/common/uuid';
 import { join, basename, dirname, posix } from 'vs/base/common/path';
 import { getPathFromAmdModule } from 'vs/base/common/amd';
@@ -118,7 +118,7 @@ export class TestDiskFileSystemProvider extends DiskFileSystemProvider {
 	}
 }
 
-suite('Disk File Service', function () {
+flakySuite('Disk File Service', function () {
 
 	const parentDir = getRandomTestPath(tmpdir(), 'vsctests', 'diskfileservice');
 	const testSchema = 'test';
@@ -129,11 +129,6 @@ suite('Disk File Service', function () {
 	let testDir: string;
 
 	const disposables = new DisposableStore();
-
-	// https://github.com/microsoft/vscode/issues/78602
-	// https://github.com/microsoft/vscode/issues/92334
-	this.retries(3);
-	this.timeout(1000 * 20);
 
 	setup(async () => {
 		const logService = new NullLogService();

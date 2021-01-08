@@ -182,7 +182,9 @@ export class Dialog extends Disposable {
 				button.label = mnemonicButtonLabel(buttonMap[index].label, true);
 
 				this._register(button.onDidClick(e => {
-					EventHelper.stop(e);
+					if (e) {
+						EventHelper.stop(e);
+					}
 
 					resolve({
 						button: buttonMap[index].index,
