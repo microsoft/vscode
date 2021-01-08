@@ -3,9 +3,25 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
+import * as assert from 'assert';
+import { Suite } from 'mocha';
 import * as vscode from 'vscode';
 import { TestFS } from './memfs';
-import * as assert from 'assert';
+
+export function flakySuite(title: string, fn: (this: Suite) => void): Suite {
+	return suite(title, function () {
+
+		// Flaky suites need retries and timeout to complete
+		// e.g. because they access the file system which can
+		// be unreliable depending on the environment.
+		this.retries(3);
+		this.timeout(1000 * 20);
+
+		// Invoke suite ensuring that `this` is
+		// properly wired in.
+		fn.call(this);
+	});
+}
 
 export function rndName() {
 	return Math.random().toString(36).replace(/[^a-z]+/g, '').substr(0, 10);
