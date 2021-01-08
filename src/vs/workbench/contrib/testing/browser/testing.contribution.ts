@@ -73,6 +73,9 @@ registerAction2(Action.TestingViewAsTreeAction);
 registerAction2(Action.CancelTestRunAction);
 registerAction2(Action.RunSelectedAction);
 registerAction2(Action.DebugSelectedAction);
+registerAction2(Action.TestingGroupByLocationAction);
+registerAction2(Action.TestingGroupByStatusAction);
+registerAction2(Action.RefreshTestsAction);
 
 CommandsRegistry.registerCommand({
 	id: 'vscode.runTests',
