@@ -33,7 +33,10 @@ namespace TrustedFunction {
 	});
 
 	export function create(...args: string[]): Function {
-		return self.eval(ttpTrustedFunction?.createScript('', ...args) as unknown as string);
+		if (!ttpTrustedFunction) {
+			return new Function(...args);
+		}
+		return self.eval(ttpTrustedFunction.createScript('', ...args) as unknown as string);
 	}
 }
 
