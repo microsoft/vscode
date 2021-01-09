@@ -1362,7 +1362,88 @@ export class TabsTitleControl extends TitleControl {
 	}
 
 	private doLayoutTabs(activeTab: HTMLElement, activeIndex: number, dimensions: ITitleControlDimensions): void {
-		const [tabsAndActionsContainer, tabsContainer, tabsScrollbar, editorToolbarContainer] = assertAllDefined(this.tabsAndActionsContainer, this.tabsContainer, this.tabsScrollbar, this.editorToolbarContainer);
+
+		// Always first layout tabs with wrapping support even if wrapping
+		// is disabled. The result indicates if tabs wrap and if not, we
+		// need to proceed with the layout without wrapping because even
+		// if wrapping is enabled in settings, there are cases where
+		// wrapping is disabled (e.g. due to space constraints)
+		const tabsWrapMultiLine = this.doLayoutTabsWrapping(dimensions);
+		if (!tabsWrapMultiLine) {
+			this.doLayoutTabsNonWrapping(activeTab, activeIndex);
+		}
+	}
+
+	private doLayoutTabsWrapping(dimensions: ITitleControlDimensions): boolean {
+		const [tabsAndActionsContainer, tabsContainer, editorToolbarContainer, tabsScrollbar] = assertAllDefined(this.tabsAndActionsContainer, this.tabsContainer, this.editorToolbarContainer, this.tabsScrollbar);
+
+		// Handle wrapping tabs according to setting:
+		// - enabled: only add class if tabs wrap and don't exceed available dimensions
+		// - disabled: remove class and margin-right variable
+
+		const didTabsWrapMultiLine = tabsAndActionsContainer.classList.contains('wrapping');
+		let tabsWrapMultiLine = didTabsWrapMultiLine;
+
+		function updateTabsWrapping(enabled: boolean): void {
+			tabsWrapMultiLine = enabled;
+
+			// Toggle the `wrapped` class to enable wrapping
+			tabsAndActionsContainer.classList.toggle('wrapping', tabsWrapMultiLine);
+
+			// Update `last-tab-margin-right` CSS variable to account for the absolute
+			// positioned editor actions container when tabs wrap. The margin needs to
+			// be the width of the editor actions container to avoid screen cheese.
+			tabsContainer.style.setProperty('--last-tab-margin-right', tabsWrapMultiLine ? `${editorToolbarContainer.offsetWidth}px` : '0');
+		}
+
+		// Setting enabled: selectively enable wrapping if possible
+		if (this.accessor.partOptions.wrapTabs) {
+			const visibleTabsWidth = tabsContainer.offsetWidth;
+			const allTabsWidth = tabsContainer.scrollWidth;
+
+			// If tabs wrap or should start to wrap (when width exceeds visible width)
+			// we must trigger `updateWrapping` to set the `last-tab-margin-right`
+			// accordingly based on the number of actions. The margin is important to
+			// properly position the last tab apart from the actions
+			if (tabsWrapMultiLine || allTabsWidth > visibleTabsWidth) {
+				updateTabsWrapping(true);
+			}
+
+			// Tabs wrap multiline: remove wrapping under certain size constraint conditions
+			if (tabsWrapMultiLine) {
+				const lastTab = this.getLastTab();
+				if (
+					(tabsContainer.offsetHeight > dimensions.available.height) ||											// if height exceeds available height
+					(allTabsWidth === visibleTabsWidth && tabsContainer.offsetHeight === TabsTitleControl.TAB_HEIGHT) ||	// if wrapping is not needed anymore
+					(lastTab && lastTab.offsetWidth > (dimensions.available.width - editorToolbarContainer.offsetWidth))	// if editor actions occupy too much space
+				) {
+					updateTabsWrapping(false);
+				}
+			}
+		}
+
+		// Setting disabled: remove CSS traces only if tabs did wrap
+		else if (didTabsWrapMultiLine) {
+			updateTabsWrapping(false);
+		}
+
+		// If we transitioned from non-wrapping to wrapping, we need
+		// to update the scrollbar to have an equal `width` and
+		// `scrollWidth`. Otherwise a scrollbar would appear which is
+		// never desired when wrapping.
+		if (tabsWrapMultiLine && !didTabsWrapMultiLine) {
+			const visibleTabsWidth = tabsContainer.offsetWidth;
+			tabsScrollbar.setScrollDimensions({
+				width: visibleTabsWidth,
+				scrollWidth: visibleTabsWidth
+			});
+		}
+
+		return tabsWrapMultiLine;
+	}
+
+	private doLayoutTabsNonWrapping(activeTab: HTMLElement, activeIndex: number): void {
+		const [tabsContainer, tabsScrollbar] = assertAllDefined(this.tabsContainer, this.tabsScrollbar);
 
 		//
 		// Synopsis
@@ -1380,7 +1461,7 @@ export class TabsTitleControl extends TitleControl {
 		// [-- Sticky Tabs Width --]
 		//
 
-		const visibleTabsContainerWidth = tabsContainer.offsetWidth;
+		const visibleTabsWidth = tabsContainer.offsetWidth;
 		const allTabsWidth = tabsContainer.scrollWidth;
 
 		// Compute width of sticky tabs depending on pinned tab sizing
@@ -1409,75 +1490,15 @@ export class TabsTitleControl extends TitleControl {
 		// Special case: we have sticky tabs but the available space for showing tabs
 		// is little enough that we need to disable sticky tabs sticky positioning
 		// so that tabs can be scrolled at naturally.
-		let availableTabsContainerWidth = visibleTabsContainerWidth - stickyTabsWidth;
+		let availableTabsContainerWidth = visibleTabsWidth - stickyTabsWidth;
 		if (this.group.stickyCount > 0 && availableTabsContainerWidth < TabsTitleControl.TAB_WIDTH.fit) {
 			tabsContainer.classList.add('disable-sticky-tabs');
 
-			availableTabsContainerWidth = visibleTabsContainerWidth;
+			availableTabsContainerWidth = visibleTabsWidth;
 			stickyTabsWidth = 0;
 			activeTabPositionStatic = false;
 		} else {
 			tabsContainer.classList.remove('disable-sticky-tabs');
-		}
-
-		// Handle wrapping tabs according to setting:
-		// - enabled: only add class if tabs wrap and don't exceed available dimensions
-		// - disabled: remove class
-		if (this.accessor.partOptions.wrapTabs) {
-			const oldTabsWrapMultiLine = tabsAndActionsContainer.classList.contains('wrapping');
-
-			// Tabs do not wrap multiline: add wrapping if tabs exceed the tabs container width
-			// and the height of the tabs container does not exceed the maximum
-			let tabsWrapMultiLine = oldTabsWrapMultiLine;
-			if (!tabsWrapMultiLine && allTabsWidth > visibleTabsContainerWidth) {
-				tabsAndActionsContainer.classList.add('wrapping');
-				tabsWrapMultiLine = true;
-			}
-
-			// Tabs wrap multiline: remove wrapping if height exceeds available height
-			if (tabsWrapMultiLine && tabsContainer.offsetHeight > dimensions.available.height) {
-				tabsAndActionsContainer.classList.remove('wrapping');
-				tabsWrapMultiLine = false;
-			}
-
-			// If we do not exceed the tabs container width, we cannot simply remove
-			// the wrap class because by wrapping tabs, they reduce their size
-			// and we would otherwise constantly add and remove the class. As such
-			// we need to check if the height of the tabs container is back to normal
-			// and then remove the wrap class.
-			if (tabsWrapMultiLine && allTabsWidth === visibleTabsContainerWidth && tabsContainer.offsetHeight === TabsTitleControl.TAB_HEIGHT) {
-				tabsAndActionsContainer.classList.remove('wrapping');
-				tabsWrapMultiLine = false;
-			}
-
-			// Update `last-tab-margin-right` CSS variable to account for the absolute
-			// positioned editor actions container when tabs wrap. The margin needs to
-			// be the width of the editor actions container to avoid screen cheese.
-			tabsContainer.style.setProperty('--last-tab-margin-right', tabsWrapMultiLine ? `${editorToolbarContainer.offsetWidth}px` : '0');
-
-			// We need to disable wrapping also in case the last tab requires more
-			// width than what is available accounting for the available width and
-			// the editor toolbar.
-			// Workaround for https://github.com/microsoft/vscode/issues/113926
-			// An overall better fix is to make the editor toolbar a "fake" last tab
-			// so that it requires the space it needs, potentially wrapping to the
-			// next line (see https://github.com/microsoft/vscode/issues/113801)
-			const lastTab = this.getLastTab();
-			if (tabsWrapMultiLine && lastTab && lastTab.offsetWidth > (dimensions.available.width - editorToolbarContainer.offsetWidth)) {
-				tabsAndActionsContainer.classList.remove('wrapping');
-				tabsWrapMultiLine = false;
-				tabsContainer.style.setProperty('--last-tab-margin-right', '0');
-			}
-
-			// When tabs change from wrapping back to normal, we need to indicate this
-			// to the scrollbar so that revealing the active tab functions properly.
-			if (oldTabsWrapMultiLine && !tabsWrapMultiLine) {
-				tabsScrollbar.setScrollPosition({
-					scrollLeft: tabsContainer.scrollLeft
-				});
-			}
-		} else {
-			tabsAndActionsContainer.classList.remove('wrapping');
 		}
 
 		let activeTabPosX: number | undefined;
@@ -1490,7 +1511,7 @@ export class TabsTitleControl extends TitleControl {
 
 		// Update scrollbar
 		tabsScrollbar.setScrollDimensions({
-			width: visibleTabsContainerWidth,
+			width: visibleTabsWidth,
 			scrollWidth: allTabsWidth
 		});
 
