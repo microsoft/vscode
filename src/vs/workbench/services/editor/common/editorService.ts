@@ -234,6 +234,11 @@ export interface IEditorService {
 	isOpen(editor: IEditorInput): boolean;
 
 	/**
+	 * Get the existing editor for a given resource.
+	 */
+	getEditorsForResource(resource: URI, group: IEditorGroup): IEditorInput[];
+
+	/**
 	 * Get all available editor overrides for the editor input.
 	 */
 	getEditorOverrides(resource: URI, options: IEditorOptions | undefined, group: IEditorGroup | undefined): [IOpenEditorOverrideHandler, IOpenEditorOverrideEntry][];

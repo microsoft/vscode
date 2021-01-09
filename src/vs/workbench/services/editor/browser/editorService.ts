@@ -756,6 +756,17 @@ export class EditorService extends Disposable implements EditorServiceImpl {
 
 	//#endregion
 
+	//#region findEditor()
+
+	getEditorsForResource(resource: URI, group: IEditorGroup): IEditorInput[] {
+		const cononicalResource = this.asCanonicalEditorResource(resource);
+		return group.getEditors(EditorsOrder.SEQUENTIAL).filter(editor => {
+			return editor.resource && isEqual(editor.resource, cononicalResource);
+		});
+	}
+
+	//#endregion
+
 	//#region replaceEditors()
 
 	async replaceEditors(editors: IResourceEditorReplacement[], group: IEditorGroup | GroupIdentifier): Promise<void>;
@@ -1321,6 +1332,8 @@ export class DelegatingEditorService implements IEditorService {
 	isOpen(editor: IEditorInput): boolean;
 	isOpen(editor: IResourceEditorInput): boolean;
 	isOpen(editor: IEditorInput | IResourceEditorInput): boolean { return this.editorService.isOpen(editor as IResourceEditorInput /* TS fail */); }
+
+	getEditorsForResource(resource: URI, group: IEditorGroup) { return this.editorService.getEditorsForResource(resource, group); }
 
 	overrideOpenEditor(handler: IOpenEditorOverrideHandler): IDisposable { return this.editorService.overrideOpenEditor(handler); }
 	getEditorOverrides(resource: URI, options: IEditorOptions | undefined, group: IEditorGroup | undefined) { return this.editorService.getEditorOverrides(resource, options, group); }

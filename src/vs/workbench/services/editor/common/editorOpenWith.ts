@@ -18,6 +18,7 @@ import { URI } from 'vs/base/common/uri';
 import { extname, basename, isEqual } from 'vs/base/common/resources';
 import { Codicon } from 'vs/base/common/codicons';
 import { ServicesAccessor } from 'vs/platform/instantiation/common/instantiation';
+import { firstOrDefault } from 'vs/base/common/arrays';
 
 /**
  * Id of the default editor for open with.
@@ -217,7 +218,7 @@ export function getAllAvailableEditors(
 					return {
 						override: (async () => {
 							// Try to replace existing editors for resource
-							const existingEditor = group.editors.find(editor => editor.resource && isEqual(editor.resource, resource));
+							const existingEditor = firstOrDefault(editorService.getEditorsForResource(resource, group));
 							if (existingEditor && !fileEditorInput.matches(existingEditor)) {
 								await editorService.replaceEditors([{
 									editor: existingEditor,
