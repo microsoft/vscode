@@ -1322,7 +1322,10 @@ export class TabsTitleControl extends TitleControl {
 			});
 		}
 
-		return new Dimension(dimensions.container.width, this.getDimensions().height);
+		// Compute new dimension of tabs title control and remember it for future usages
+		this.dimensions.used = new Dimension(dimensions.container.width, this.getDimensions().height);
+
+		return this.dimensions.used;
 	}
 
 	private doLayout(dimensions: ITitleControlDimensions): void {
@@ -1339,18 +1342,13 @@ export class TabsTitleControl extends TitleControl {
 			this.doLayoutTabs(activeTab, activeIndex, dimensions);
 		}
 
-		// Compute new dimension of tabs title control and remember it for future usages
-		const oldDimension = this.dimensions.used;
-		const newDimension = this.dimensions.used = new Dimension(dimensions.container.width, this.getDimensions().height);
-
 		// In case the height of the title control changed from before
-		// (currently only possible if tabs are set to wrap), we need
+		// (currently only possible if wrapping changed on/off), we need
 		// to signal this to the outside via a `relayout` call so that
 		// e.g. the editor control can be adjusted accordingly.
-		if (
-			this.accessor.partOptions.wrapTabs &&
-			oldDimension && oldDimension.height !== newDimension.height
-		) {
+		const oldDimension = this.dimensions.used;
+		const newDimension = new Dimension(dimensions.container.width, this.getDimensions().height);
+		if (oldDimension && oldDimension.height !== newDimension.height) {
 			this.group.relayout();
 		}
 	}
