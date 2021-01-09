@@ -12,7 +12,7 @@ import { Disposable, DisposableStore, MutableDisposable } from 'vs/base/common/l
 import { IContextKey, IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
 import { ExtensionIdentifier } from 'vs/platform/extensions/common/extensions';
 import { IWebviewService, KEYBINDING_CONTEXT_WEBVIEW_FIND_WIDGET_ENABLED, KEYBINDING_CONTEXT_WEBVIEW_FIND_WIDGET_VISIBLE, Webview, WebviewContentOptions, WebviewElement, WebviewExtensionDescription, WebviewOptions, WebviewOverlay } from 'vs/workbench/contrib/webview/browser/webview';
-import { IWorkbenchLayoutService } from 'vs/workbench/services/layout/browser/layoutService';
+import { ILayoutService } from 'vs/platform/layout/browser/layoutService';
 
 /**
  * Webview editor overlay that creates and destroys the underlying webview as needed.
@@ -45,7 +45,7 @@ export class DynamicWebviewEditorOverlay extends Disposable implements WebviewOv
 		initialOptions: WebviewOptions,
 		initialContentOptions: WebviewContentOptions,
 		extension: WebviewExtensionDescription | undefined,
-		@IWorkbenchLayoutService private readonly _layoutService: IWorkbenchLayoutService,
+		@ILayoutService private readonly _layoutService: ILayoutService,
 		@IWebviewService private readonly _webviewService: IWebviewService,
 		@IContextKeyService private readonly _baseContextKeyService: IContextKeyService
 	) {
@@ -127,11 +127,12 @@ export class DynamicWebviewEditorOverlay extends Disposable implements WebviewOv
 
 		const frameRect = element.getBoundingClientRect();
 		const containerRect = this.container.parentElement.getBoundingClientRect();
-		const containerBorder = this._layoutService.getWindowBorderWidth() / 2;
+		const parentBorderTop = (containerRect.height - this.container.parentElement.clientHeight) / 2.0;
+		const parentBorderLeft = (containerRect.width - this.container.parentElement.clientWidth) / 2.0;
 		this.container.style.position = 'absolute';
 		this.container.style.overflow = 'hidden';
-		this.container.style.top = `${frameRect.top - containerRect.top - containerBorder}px`;
-		this.container.style.left = `${frameRect.left - containerRect.left - containerBorder}px`;
+		this.container.style.top = `${frameRect.top - containerRect.top - parentBorderTop}px`;
+		this.container.style.left = `${frameRect.left - containerRect.left - parentBorderLeft}px`;
 		this.container.style.width = `${dimension ? dimension.width : frameRect.width}px`;
 		this.container.style.height = `${dimension ? dimension.height : frameRect.height}px`;
 	}
