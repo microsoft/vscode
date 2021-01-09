@@ -21,12 +21,37 @@ suite('markdown.engine', () => {
 		test('Renders a document', async () => {
 			const doc = new InMemoryDocument(testFileName, input);
 			const engine = createNewMarkdownEngine();
-			assert.strictEqual(await engine.render(doc), output);
+			assert.strictEqual((await engine.render(doc)).html, output);
 		});
 
 		test('Renders a string', async () => {
 			const engine = createNewMarkdownEngine();
-			assert.strictEqual(await engine.render(input), output);
+			assert.strictEqual((await engine.render(input)).html, output);
+		});
+	});
+
+	// TODO: How can I run these tests? These tests are not finished yet.
+	suite('image-caching', () => {
+		const input = '![](img.png) [](no-img.png) ![](http://example.org/img.png) ![](img.png) ![](./img2.png)';
+
+		test('Extracts all images', async () => {
+			const engine = createNewMarkdownEngine();
+			assert.deepStrictEqual((await engine.render(input)).html, {
+				html: '',
+				containingImages: [{ src: 'img.png' }, { src: 'http://example.org/img.png' }, { src: 'img.png' }, {}],
+			});
+		});
+
+		test('Cache-Keys are considered', async () => {
+			const engine = createNewMarkdownEngine();
+			const imageCacheKeyBySrc = new Map<string, string>();
+			imageCacheKeyBySrc.set('img.png', '1');
+			imageCacheKeyBySrc.set('./img2.png', '2');
+
+			assert.deepStrictEqual((await engine.render(input, { imageCacheKeyBySrc })).html, {
+				html: '',
+				containingImages: [{ src: 'img.png' }, { src: 'http://example.org/img.png' }, { src: 'img.png' }, {}],
+			});
 		});
 	});
 });

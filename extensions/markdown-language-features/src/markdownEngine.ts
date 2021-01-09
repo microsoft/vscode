@@ -11,6 +11,7 @@ import { Slugifier } from './slugify';
 import { SkinnyTextDocument } from './tableOfContentsProvider';
 import { hash } from './util/hash';
 import { isOfScheme, MarkdownFileExtensions, Schemes } from './util/links';
+import { tryAppendQueryArgToUrl } from './util/url';
 
 const UNICODE_NEWLINE_REGEX = /\u2028|\u2029/g;
 
@@ -52,6 +53,25 @@ class TokenCache {
 		this.cachedDocument = undefined;
 		this.tokens = undefined;
 	}
+}
+
+export interface RenderOutput {
+	html: string;
+	containingImages: { src: string }[];
+}
+
+export interface RenderContext {
+	/**
+	 * Each image is identified by its "src".
+	 * Two images with the same src but different cache keys must not share the
+	 * same cache entry.
+	 */
+	imageCacheKeyBySrc?: ReadonlyMap</* src: */ string, string>;
+}
+
+interface RenderEnv {
+	containingImages: { src: string }[];
+	imageCacheKeyBySrc: ReadonlyMap</* src: */ string, string>;
 }
 
 export class MarkdownEngine {
@@ -141,7 +161,7 @@ export class MarkdownEngine {
 		return engine.parse(text.replace(UNICODE_NEWLINE_REGEX, ''), {});
 	}
 
-	public async render(input: SkinnyTextDocument | string): Promise<string> {
+	public async render(input: SkinnyTextDocument | string, context: RenderContext = {}): Promise<RenderOutput> {
 		const config = this.getConfig(typeof input === 'string' ? undefined : input.uri);
 		const engine = await this.getEngine(config);
 
@@ -149,10 +169,20 @@ export class MarkdownEngine {
 			? this.tokenizeString(input, engine)
 			: this.tokenizeDocument(input, config, engine);
 
-		return engine.renderer.render(tokens, {
+		const env: RenderEnv = {
+			containingImages: [],
+			imageCacheKeyBySrc: context.imageCacheKeyBySrc || new Map()
+		};
+
+		const html = engine.renderer.render(tokens, {
 			...(engine as any).options,
 			...config
-		}, {});
+		}, env);
+
+		return {
+			html,
+			containingImages: env.containingImages
+		};
 	}
 
 	public async parse(document: SkinnyTextDocument): Promise<Token[]> {
@@ -192,12 +222,26 @@ export class MarkdownEngine {
 
 	private addImageStabilizer(md: any): void {
 		const original = md.renderer.rules.image;
-		md.renderer.rules.image = (tokens: any, idx: number, options: any, env: any, self: any) => {
+		md.renderer.rules.image = (tokens: any, idx: number, options: any, env: RenderEnv, self: any) => {
 			const token = tokens[idx];
 			token.attrJoin('class', 'loading');
 
-			const src = token.attrGet('src');
+			// `src-origin` makes this operation idempotent.
+			// Idempotent operations with side effects can be applied on cached values
+			// without worrying about changing the cache.
+			const src = token.attrGet('src-origin') || token.attrGet('src');
 			if (src) {
+				env.containingImages.push({ src });
+				const cacheKey = env.imageCacheKeyBySrc.get(src);
+
+				// Don't change `src` if no cache key is set!
+				// The cache key might alter the server response when the
+				// image is hosted online.
+				if (cacheKey !== undefined) {
+					token.attrSet('src-origin', src);
+					token.attrSet('src', tryAppendQueryArgToUrl(src, 'cacheKey', cacheKey));
+				}
+
 				const imgHash = hash(src);
 				token.attrSet('id', `image-hash-${imgHash}`);
 			}

@@ -39,6 +39,12 @@ function escapeAttribute(value: string | vscode.Uri): string {
 	return value.toString().replace(/"/g, '&quot;');
 }
 
+export interface MarkdownContentProviderOutput {
+	html: string;
+	containingImages: { src: string }[];
+}
+
+
 export class MarkdownContentProvider {
 	constructor(
 		private readonly engine: MarkdownEngine,
@@ -48,13 +54,25 @@ export class MarkdownContentProvider {
 		private readonly logger: Logger
 	) { }
 
+	/**
+	 *
+	 * @param markdownDocument
+	 * @param resourceProvider
+	 * @param previewConfigurations
+	 * @param initialLine
+	 * @param imageCacheKeyBySrc Each image is identified by its "src".
+	 * Two images with the same src but different cache keys must not share the
+	 * same cache entry.
+	 * @param state
+	 */
 	public async provideTextDocumentContent(
 		markdownDocument: vscode.TextDocument,
 		resourceProvider: WebviewResourceProvider,
 		previewConfigurations: MarkdownPreviewConfigurationManager,
 		initialLine: number | undefined = undefined,
+		imageCacheKeyBySrc: ReadonlyMap</* src: */ string, string>,
 		state?: any
-	): Promise<string> {
+	): Promise<MarkdownContentProviderOutput> {
 		const sourceUri = markdownDocument.uri;
 		const config = previewConfigurations.loadAndCacheConfiguration(sourceUri);
 		const initialData = {
@@ -74,8 +92,8 @@ export class MarkdownContentProvider {
 		const nonce = new Date().getTime() + '' + new Date().getMilliseconds();
 		const csp = this.getCsp(resourceProvider, sourceUri, nonce);
 
-		const body = await this.engine.render(markdownDocument);
-		return `<!DOCTYPE html>
+		const body = await this.engine.render(markdownDocument, { imageCacheKeyBySrc });
+		const html = `<!DOCTYPE html>
 			<html style="${escapeAttribute(this.getSettingsOverrideStyles(config))}">
 			<head>
 				<meta http-equiv="Content-type" content="text/html;charset=UTF-8">
@@ -89,11 +107,15 @@ export class MarkdownContentProvider {
 				<base href="${resourceProvider.asWebviewUri(markdownDocument.uri)}">
 			</head>
 			<body class="vscode-body ${config.scrollBeyondLastLine ? 'scrollBeyondLastLine' : ''} ${config.wordWrap ? 'wordWrap' : ''} ${config.markEditorSelection ? 'showEditorSelection' : ''}">
-				${body}
+				${body.html}
 				<div class="code-line" data-line="${markdownDocument.lineCount}"></div>
 				${this.getScripts(resourceProvider, nonce)}
 			</body>
 			</html>`;
+		return {
+			html,
+			containingImages: body.containingImages,
+		};
 	}
 
 	public provideFileNotFoundContent(

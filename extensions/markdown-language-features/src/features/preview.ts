@@ -14,8 +14,9 @@ import { isMarkdownFile } from '../util/file';
 import { normalizeResource, WebviewResourceProvider } from '../util/resources';
 import { getVisibleLine, TopmostLineMonitor } from '../util/topmostLineMonitor';
 import { MarkdownPreviewConfigurationManager } from './previewConfig';
-import { MarkdownContentProvider } from './previewContentProvider';
+import { MarkdownContentProvider, MarkdownContentProviderOutput } from './previewContentProvider';
 import { MarkdownEngine } from '../markdownEngine';
+import { urlToFileUri } from '../util/url';
 
 const localize = nls.loadMessageBundle();
 
@@ -118,6 +119,20 @@ class MarkdownPreview extends Disposable implements WebviewResourceProvider {
 	private _disposed: boolean = false;
 	private imageInfo: { readonly id: string, readonly width: number, readonly height: number; }[] = [];
 
+	private currentCacheKeyOffset = 0;
+	/**
+	 * Cache keys must not be reused during the entire lifetime of the preview.
+	 * Even if images are removed from the document, their cache key must
+	 * not be reset - the image could be added later again.
+	 * In theory, images could be added, removed, edited and added again.
+	 * In this implementation, images that are removed from the document aren't
+	 * tracked anymore for performance reasons.
+	 * If they are added again, they are considered unchanged.
+	 * This behavior can be changed easily.
+	*/
+	private readonly _imageCacheKeysBySrc = new Map</* src: */ string, string>();
+	private readonly _fileWatchersBySrc = new Map</* src: */ string, vscode.FileSystemWatcher>();
+
 	constructor(
 		webview: vscode.WebviewPanel,
 		resource: vscode.Uri,
@@ -208,6 +223,9 @@ class MarkdownPreview extends Disposable implements WebviewResourceProvider {
 		super.dispose();
 		this._disposed = true;
 		clearTimeout(this.throttleTimer);
+		for (const entry of this._fileWatchersBySrc.values()) {
+			entry.dispose();
+		}
 	}
 
 	public get resource(): vscode.Uri {
@@ -303,7 +321,8 @@ class MarkdownPreview extends Disposable implements WebviewResourceProvider {
 		}
 
 		this.currentVersion = pendingVersion;
-		const content = await this._contentProvider.provideTextDocumentContent(document, this, this._previewConfigurations, this.line, this.state);
+		const content = await this._contentProvider.provideTextDocumentContent(document, this,
+			this._previewConfigurations, this.line, this._imageCacheKeysBySrc, this.state);
 
 		// Another call to `doUpdate` may have happened.
 		// Make sure we are still updating for the correct document
@@ -360,7 +379,7 @@ class MarkdownPreview extends Disposable implements WebviewResourceProvider {
 		this._webviewPanel.webview.html = this._contentProvider.provideFileNotFoundContent(this._resource);
 	}
 
-	private setContent(html: string): void {
+	private setContent(content: MarkdownContentProviderOutput): void {
 		if (this._disposed) {
 			return;
 		}
@@ -371,7 +390,32 @@ class MarkdownPreview extends Disposable implements WebviewResourceProvider {
 		this._webviewPanel.iconPath = this.iconPath;
 		this._webviewPanel.webview.options = this.getWebviewOptions();
 
-		this._webviewPanel.webview.html = html;
+		this._webviewPanel.webview.html = content.html;
+
+		const srcs = new Set(content.containingImages.map(img => img.src));
+
+		// Delete stale file watchers.
+		for (const [src, watcher] of [...this._fileWatchersBySrc]) {
+			if (!srcs.has(src)) {
+				watcher.dispose();
+				this._fileWatchersBySrc.delete(src);
+			}
+		}
+
+		// Create new file watchers.
+		const root = vscode.Uri.joinPath(this._resource, '../');
+		for (const src of srcs) {
+			const uri = urlToFileUri(src, root);
+			if (uri && !this._fileWatchersBySrc.has(src)) {
+				const watcher = vscode.workspace.createFileSystemWatcher(uri.fsPath);
+				watcher.onDidChange(() => {
+					this.currentCacheKeyOffset++;
+					this._imageCacheKeysBySrc.set(src, `${this.currentCacheKeyOffset}`);
+					this.refresh();
+				});
+				this._fileWatchersBySrc.set(src, watcher);
+			}
+		}
 	}
 
 	private getWebviewOptions(): vscode.WebviewOptions {
