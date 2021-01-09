@@ -52,13 +52,10 @@ if (platform.isWindows) {
 					pwshs.push(p);
 				}
 
-				assert.strictEqual(pwshs.length, 4, 'Found these PowerShells:\n' + pwshs.map(p => `${p.displayName}: ${p.exePath}`).join('\n'));
+				assert.strictEqual(pwshs.length, 3, 'Found these PowerShells:\n' + pwshs.map(p => `${p.displayName}: ${p.exePath}`).join('\n'));
 
 				checkPath(pwshs[0].exePath);
 				assert.strictEqual(pwshs[0].displayName, 'PowerShell');
-
-				checkPath(pwshs[1].exePath);
-				assert.strictEqual(pwshs[1].displayName, '.NET Core PowerShell Global Tool');
 
 				checkPath(pwshs[2].exePath);
 				assert.strictEqual(pwshs[2].displayName, 'Windows PowerShell');
