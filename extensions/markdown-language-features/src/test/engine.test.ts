@@ -30,15 +30,21 @@ suite('markdown.engine', () => {
 		});
 	});
 
-	// TODO: How can I run these tests? These tests are not finished yet.
 	suite('image-caching', () => {
 		const input = '![](img.png) [](no-img.png) ![](http://example.org/img.png) ![](img.png) ![](./img2.png)';
 
 		test('Extracts all images', async () => {
 			const engine = createNewMarkdownEngine();
-			assert.deepStrictEqual((await engine.render(input)).html, {
-				html: '',
-				containingImages: [{ src: 'img.png' }, { src: 'http://example.org/img.png' }, { src: 'img.png' }, {}],
+			assert.deepStrictEqual((await engine.render(input)), {
+				html: '<p data-line="0" class="code-line">'
+					+ '<img src="img.png" alt="" class="loading" id="image-hash--754511435"> '
+					+ '<a href="no-img.png" data-href="no-img.png"></a> '
+					+ '<img src="http://example.org/img.png" alt="" class="loading" id="image-hash--1903814170"> '
+					+ '<img src="img.png" alt="" class="loading" id="image-hash--754511435"> '
+					+ '<img src="./img2.png" alt="" class="loading" id="image-hash-265238964">'
+					+ '</p>\n'
+				,
+				containingImages: [{ src: 'img.png' }, { src: 'http://example.org/img.png' }, { src: 'img.png' }, { src: './img2.png' }],
 			});
 		});
 
@@ -48,9 +54,16 @@ suite('markdown.engine', () => {
 			imageCacheKeyBySrc.set('img.png', '1');
 			imageCacheKeyBySrc.set('./img2.png', '2');
 
-			assert.deepStrictEqual((await engine.render(input, { imageCacheKeyBySrc })).html, {
-				html: '',
-				containingImages: [{ src: 'img.png' }, { src: 'http://example.org/img.png' }, { src: 'img.png' }, {}],
+			assert.deepStrictEqual((await engine.render(input, { imageCacheKeyBySrc })), {
+				html: '<p data-line="0" class="code-line">'
+					+ '<img src="img.png?cacheKey=1" alt="" class="loading" src-origin="img.png" id="image-hash--754511435"> '
+					+ '<a href="no-img.png" data-href="no-img.png"></a> '
+					+ '<img src="http://example.org/img.png" alt="" class="loading" id="image-hash--1903814170"> '
+					+ '<img src="img.png?cacheKey=1" alt="" class="loading" src-origin="img.png" id="image-hash--754511435"> '
+					+ '<img src="./img2.png?cacheKey=2" alt="" class="loading" src-origin="./img2.png" id="image-hash-265238964">'
+					+ '</p>\n'
+				,
+				containingImages: [{ src: 'img.png' }, { src: 'http://example.org/img.png' }, { src: 'img.png' }, { src: './img2.png' }],
 			});
 		});
 	});
