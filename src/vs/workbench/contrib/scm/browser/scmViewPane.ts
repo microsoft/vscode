@@ -954,8 +954,6 @@ class ViewModel {
 	}
 
 	private refresh(item?: IRepositoryItem | IGroupItem): void {
-		const focusedInput = this.inputRenderer.getFocusedInput();
-
 		if (!this.alwaysShowRepositories && (this.items.size === 1 && (!item || isRepositoryItem(item)))) {
 			const item = Iterable.first(this.items.values())!;
 			this.tree.setChildren(null, this.render(item, this._treeViewState).children);
@@ -964,14 +962,6 @@ class ViewModel {
 		} else {
 			const items = coalesce(this.scmViewService.visibleRepositories.map(r => this.items.get(r)));
 			this.tree.setChildren(null, items.map(item => this.render(item, this._treeViewState)));
-		}
-
-		if (focusedInput) {
-			const inputWidget = this.inputRenderer.getRenderedInputWidget(focusedInput);
-
-			if (inputWidget) {
-				inputWidget.focus();
-			}
 		}
 
 		this._onDidChangeRepositoryCollapseState.fire();
@@ -1756,6 +1746,7 @@ export class SCMViewPane extends ViewPane {
 			delegate,
 			renderers,
 			{
+				transformOptimization: false,
 				identityProvider,
 				horizontalScrolling: false,
 				setRowLineHeight: false,

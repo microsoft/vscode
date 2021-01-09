@@ -1,0 +1,83 @@
+{
+  "name": "simple-browser",
+  "displayName": "%displayName%",
+  "description": "%description%",
+  "enableProposedApi": true,
+  "version": "1.0.0",
+  "icon": "icon.png",
+  "publisher": "vscode",
+  "license": "MIT",
+  "aiKey": "AIF-d9b70cd4-b9f9-4d70-929b-a071c400b217",
+  "engines": {
+    "vscode": "^1.53.0"
+  },
+  "main": "./out/extension",
+  "browser": "./dist/browser/extension",
+  "categories": [
+    "Other"
+  ],
+  "activationEvents": [
+    "onCommand:simpleBrowser.show",
+    "onUriOpen:http",
+    "onUriOpen:https"
+  ],
+  "contributes": {
+    "commands": [
+      {
+        "command": "simpleBrowser.show",
+        "title": "Show",
+        "category": "Simple Browser"
+      }
+    ],
+    "configuration": [
+      {
+        "title": "Simple Browser",
+        "properties": {
+          "simpleBrowser.focusLockIndicator.enabled": {
+            "type": "boolean",
+            "default": true,
+            "title": "Focus Lock Indicator Enabled",
+            "description": "%configuration.focusLockIndicator.enabled.description%"
+          },
+          "simpleBrowser.opener.enabled": {
+            "type": "boolean",
+            "default": false,
+            "title": "Opener Enabled",
+            "description": "%configuration.opener.enabled.description%"
+          },
+          "simpleBrowser.opener.enabledHosts": {
+            "type": "array",
+            "title": "Opener Enabled Hosts",
+            "markdownDescription": "%configuration.opener.enabledHosts.description%",
+            "default": [
+              "localhost",
+              "127.0.0.1"
+            ]
+          }
+        }
+      }
+    ]
+  },
+  "scripts": {
+    "compile": "gulp compile-extension:markdown-language-features && npm run build-preview",
+    "watch": "npm run build-preview && gulp watch-extension:markdown-language-features",
+    "vscode:prepublish": "npm run build-ext && npm run build-preview",
+    "build-ext": "node ../../node_modules/gulp/bin/gulp.js --gulpfile ../../build/gulpfile.extensions.js compile-extension:markdown-language-features ./tsconfig.json",
+    "build-preview": "webpack --mode development",
+    "build-preview-production": "webpack --mode production",
+    "compile-web": "npx webpack-cli --config extension-browser.webpack.config --mode none",
+    "watch-web": "npx webpack-cli --config extension-browser.webpack.config --mode none --watch --info-verbosity verbose"
+  },
+  "dependencies": {
+    "vscode-codicons": "^0.0.12",
+    "vscode-extension-telemetry": "0.1.1",
+    "vscode-nls": "^4.0.0"
+  },
+  "devDependencies": {
+    "@types/node": "^12.11.7",
+    "ts-loader": "^6.2.1",
+    "typescript": "^3.7.3",
+    "webpack": "^4.41.2",
+    "webpack-cli": "^3.3.0"
+  }
+}

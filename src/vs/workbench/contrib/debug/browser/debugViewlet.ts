@@ -6,7 +6,7 @@
 import 'vs/css!./media/debugViewlet';
 import * as nls from 'vs/nls';
 import { IAction, IActionViewItem } from 'vs/base/common/actions';
-import { IDebugService, VIEWLET_ID, State, BREAKPOINTS_VIEW_ID, CONTEXT_DEBUG_UX, CONTEXT_DEBUG_UX_KEY, REPL_VIEW_ID, CONTEXT_DEBUG_STATE, ILaunch } from 'vs/workbench/contrib/debug/common/debug';
+import { IDebugService, VIEWLET_ID, State, BREAKPOINTS_VIEW_ID, CONTEXT_DEBUG_UX, CONTEXT_DEBUG_UX_KEY, REPL_VIEW_ID, CONTEXT_DEBUG_STATE, ILaunch, getStateLabel } from 'vs/workbench/contrib/debug/common/debug';
 import { StartDebugActionViewItem, FocusSessionActionViewItem } from 'vs/workbench/contrib/debug/browser/debugActionViewItems';
 import { IInstantiationService, ServicesAccessor } from 'vs/platform/instantiation/common/instantiation';
 import { IExtensionService } from 'vs/workbench/services/extensions/common/extensions';
@@ -183,6 +183,7 @@ MenuRegistry.appendMenuItem(MenuId.ViewContainerTitle, {
 	order: 10,
 	group: 'navigation',
 	command: {
+		precondition: CONTEXT_DEBUG_STATE.notEqualsTo(getStateLabel(State.Initializing)),
 		id: DEBUG_START_COMMAND_ID,
 		title: DEBUG_START_LABEL
 	}

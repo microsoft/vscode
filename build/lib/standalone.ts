@@ -30,7 +30,7 @@ function writeFile(filePath: string, contents: Buffer | string): void {
 }
 
 export function extractEditor(options: tss.ITreeShakingOptions & { destRoot: string }): void {
-	const ts = <typeof import('typescript')>require('typescript');
+	const ts = require('typescript') as typeof import('typescript');
 
 	const tsConfig = JSON.parse(fs.readFileSync(path.join(options.sourcesRoot, 'tsconfig.monaco.json')).toString());
 	let compilerOptions: { [key: string]: any };
@@ -135,7 +135,7 @@ export interface IOptions2 {
 }
 
 export function createESMSourcesAndResources2(options: IOptions2): void {
-	const ts = <typeof import('typescript')>require('typescript');
+	const ts = require('typescript') as typeof import('typescript');
 
 	const SRC_FOLDER = path.join(REPO_ROOT, options.srcFolder);
 	const OUT_FOLDER = path.join(REPO_ROOT, options.outFolder);

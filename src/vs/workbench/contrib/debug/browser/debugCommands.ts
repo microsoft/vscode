@@ -335,7 +335,7 @@ export function registerCommands(): void {
 
 	KeybindingsRegistry.registerCommandAndKeybindingRule({
 		id: CONTINUE_ID,
-		weight: KeybindingWeight.WorkbenchContrib,
+		weight: KeybindingWeight.WorkbenchContrib + 10, // Use a stronger weight to get priority over start debugging F5 shortcut
 		primary: KeyCode.F5,
 		when: CONTEXT_IN_DEBUG_MODE,
 		handler: (accessor: ServicesAccessor, _: string, context: CallStackContext | unknown) => {

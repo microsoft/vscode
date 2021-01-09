@@ -5,7 +5,6 @@
 
 import 'vs/css!./media/suggest';
 import 'vs/base/browser/ui/codicons/codiconStyles'; // The codicon symbol styles are defined here and must be loaded
-import 'vs/editor/contrib/documentSymbols/outlineTree'; // The codicon symbol colors are defined here and must be loaded
 import * as nls from 'vs/nls';
 import * as strings from 'vs/base/common/strings';
 import * as dom from 'vs/base/browser/dom';
@@ -702,6 +701,14 @@ export class SuggestWidget implements IDisposable {
 		this._loadingTimeout?.dispose();
 		this._setState(State.Hidden);
 		this._onDidHide.fire(this);
+
+		// ensure that a reasonable widget height is persisted so that
+		// accidential "resize-to-single-items" cases aren't happening
+		const dim = this._persistedSize.restore();
+		const minPersistedHeight = Math.ceil(this.getLayoutInfo().itemHeight * 4.3);
+		if (dim && dim.height < minPersistedHeight) {
+			this._persistedSize.store(dim.with(undefined, minPersistedHeight));
+		}
 	}
 
 	isFrozen(): boolean {

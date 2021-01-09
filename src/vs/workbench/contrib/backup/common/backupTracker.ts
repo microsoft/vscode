@@ -18,7 +18,7 @@ export abstract class BackupTracker extends Disposable {
 	private readonly mapWorkingCopyToContentVersion = new Map<IWorkingCopy, number>();
 
 	// A map of scheduled pending backups for working copies
-	private readonly pendingBackups = new Map<IWorkingCopy, IDisposable>();
+	protected readonly pendingBackups = new Map<IWorkingCopy, IDisposable>();
 
 	constructor(
 		protected readonly backupFileService: IBackupFileService,

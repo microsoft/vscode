@@ -6,6 +6,7 @@
 import { groupBy } from 'vs/base/common/arrays';
 import { CancellationToken, CancellationTokenSource } from 'vs/base/common/cancellation';
 import { Emitter } from 'vs/base/common/event';
+import { Iterable } from 'vs/base/common/iterator';
 import { Disposable, toDisposable } from 'vs/base/common/lifecycle';
 import { isDefined } from 'vs/base/common/types';
 import { URI, UriComponents } from 'vs/base/common/uri';
@@ -17,20 +18,25 @@ import { AbstractIncrementalTestCollection, collectTestResults, EMPTY_TEST_RESUL
 import { TestingContextKeys } from 'vs/workbench/contrib/testing/common/testingContextKeys';
 import { ITestService, MainTestController, TestDiffListener } from 'vs/workbench/contrib/testing/common/testService';
 
+type TestLocationIdent = { resource: ExtHostTestingResource, uri: URI };
+
 export class TestService extends Disposable implements ITestService {
 	declare readonly _serviceBrand: undefined;
 	private testControllers = new Map<string, MainTestController>();
 	private readonly testSubscriptions = new Map<string, {
 		collection: MainThreadTestCollection;
-		ident: { resource: ExtHostTestingResource, uri: URI };
+		stillDiscovering: number;
+		ident: TestLocationIdent;
 		onDiff: Emitter<TestsDiff>;
 		listeners: number;
 	}>();
 
-	private readonly subscribeEmitter = new Emitter<{ resource: ExtHostTestingResource, uri: URI }>();
-	private readonly unsubscribeEmitter = new Emitter<{ resource: ExtHostTestingResource, uri: URI }>();
+	private readonly subscribeEmitter = new Emitter<TestLocationIdent>();
+	private readonly unsubscribeEmitter = new Emitter<TestLocationIdent>();
+	private readonly busyStateChangeEmitter = new Emitter<TestLocationIdent & { busy: boolean }>();
 	private readonly changeProvidersEmitter = new Emitter<{ delta: number }>();
 	private readonly providerCount: IContextKey<number>;
+	private readonly isRunning: IContextKey<boolean>;
 	private readonly runStartedEmitter = new Emitter<RunTestsRequest>();
 	private readonly runCompletedEmitter = new Emitter<{ req: RunTestsRequest, result: RunTestsResult }>();
 	private readonly runningTests = new Map<RunTestsRequest, CancellationTokenSource>();
@@ -41,6 +47,7 @@ export class TestService extends Disposable implements ITestService {
 	constructor(@IContextKeyService contextKeyService: IContextKeyService, @INotificationService private readonly notificationService: INotificationService) {
 		super();
 		this.providerCount = TestingContextKeys.providerCount.bindTo(contextKeyService);
+		this.isRunning = TestingContextKeys.isRunning.bindTo(contextKeyService);
 	}
 
 	/**
@@ -75,6 +82,11 @@ export class TestService extends Disposable implements ITestService {
 	/**
 	 * @inheritdoc
 	 */
+	public readonly onBusyStateChange = this.busyStateChangeEmitter.event;
+
+	/**
+	 * @inheritdoc
+	 */
 	public get subscriptions() {
 		return [...this.testSubscriptions].map(([, s]) => s.ident);
 	}
@@ -84,6 +96,13 @@ export class TestService extends Disposable implements ITestService {
 	 */
 	public cancelTestRun(req: RunTestsRequest) {
 		this.runningTests.get(req)?.cancel();
+	}
+
+	/**
+	 * @inheritdoc
+	 */
+	public get busyTestLocations() {
+		return Iterable.map(Iterable.filter(this.testSubscriptions.values(), s => s.stillDiscovering > 0), s => s.ident);
 	}
 
 
@@ -102,13 +121,51 @@ export class TestService extends Disposable implements ITestService {
 			});
 		}).filter(isDefined);
 
+		if (requests.length === 0) {
+			return EMPTY_TEST_RESULT;
+		}
+
 		this.runningTests.set(req, cancelSource);
 		this.runStartedEmitter.fire(req);
-		const result = await collectTestResults(await Promise.all(requests));
+		this.isRunning.set(true);
+
+		const result = collectTestResults(await Promise.all(requests));
+
 		this.runningTests.delete(req);
 		this.runCompletedEmitter.fire({ req, result });
+		this.isRunning.set(this.runningTests.size > 0);
 
 		return result;
+	}
+
+	/**
+	 * @inheritdoc
+	 */
+	public updateDiscoveringCount(resource: ExtHostTestingResource, uri: URI, delta: number) {
+		const subscriptionKey = getTestSubscriptionKey(resource, uri);
+		const subscription = this.testSubscriptions.get(subscriptionKey);
+		if (!subscription) {
+			return;
+		}
+
+		const wasBusy = !!subscription.stillDiscovering;
+		subscription.stillDiscovering += delta;
+		const isBusy = !!subscription.stillDiscovering;
+		if (wasBusy !== isBusy) {
+			this.busyStateChangeEmitter.fire({ resource, uri, busy: isBusy });
+		}
+	}
+
+	/**
+	 * @inheritdoc
+	 */
+	public resubscribeToAllTests() {
+		for (const subscription of this.testSubscriptions.values()) {
+			this.unsubscribeEmitter.fire(subscription.ident);
+			const diff = subscription.collection.clear();
+			subscription.onDiff.fire(diff);
+			this.subscribeEmitter.fire(subscription.ident);
+		}
 	}
 
 	/**
@@ -118,7 +175,13 @@ export class TestService extends Disposable implements ITestService {
 		const subscriptionKey = getTestSubscriptionKey(resource, uri);
 		let subscription = this.testSubscriptions.get(subscriptionKey);
 		if (!subscription) {
-			subscription = { ident: { resource, uri }, collection: new MainThreadTestCollection(), listeners: 0, onDiff: new Emitter() };
+			subscription = {
+				ident: { resource, uri },
+				collection: new MainThreadTestCollection(),
+				listeners: 0,
+				onDiff: new Emitter(),
+				stillDiscovering: 0,
+			};
 			this.subscribeEmitter.fire({ resource, uri });
 			this.testSubscriptions.set(subscriptionKey, subscription);
 		}
@@ -186,6 +249,22 @@ class MainThreadTestCollection extends AbstractIncrementalTestCollection<Increme
 				queue.push(item.children);
 			}
 		}
+
+		return ops;
+	}
+
+	/**
+	 * Clears everything from the collection, and returns a diff that applies
+	 * that action.
+	 */
+	public clear() {
+		const ops: TestsDiff = [];
+		for (const root of this.roots) {
+			ops.push([TestDiffOpType.Remove, root]);
+		}
+
+		this.roots.clear();
+		this.items.clear();
 
 		return ops;
 	}

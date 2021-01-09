@@ -24,7 +24,7 @@ import { TestInstantiationService } from 'vs/platform/instantiation/test/common/
 import { ITextFileService } from 'vs/workbench/services/textfile/common/textfiles';
 import { ITextModelService } from 'vs/editor/common/services/resolverService';
 import { TextModelResolverService } from 'vs/workbench/services/textmodelResolver/common/textModelResolverService';
-import { mkdirp, rimraf, RimRafMode } from 'vs/base/node/pfs';
+import { mkdirp, rimraf } from 'vs/base/node/pfs';
 import { INotificationService } from 'vs/platform/notification/common/notification';
 import { ICommandService } from 'vs/platform/commands/common/commands';
 import { CommandService } from 'vs/workbench/services/commands/common/commandService';
@@ -128,7 +128,7 @@ suite('ConfigurationEditingService', () => {
 	teardown(() => {
 		disposables.clear();
 		if (workspaceDir) {
-			return rimraf(workspaceDir, RimRafMode.MOVE);
+			return rimraf(workspaceDir);
 		}
 		return undefined;
 	});

@@ -67,9 +67,9 @@ export class DiskSearch implements ISearchResultProvider {
 			// results in the forked process inheriting `--inspect-brk=xxx`.
 			freshExecArgv: true,
 			env: {
-				AMD_ENTRYPOINT: 'vs/workbench/services/search/node/searchApp',
-				PIPE_LOGGING: 'true',
-				VERBOSE_LOGGING: verboseLogging
+				VSCODE_AMD_ENTRYPOINT: 'vs/workbench/services/search/node/searchApp',
+				VSCODE_PIPE_LOGGING: 'true',
+				VSCODE_VERBOSE_LOGGING: verboseLogging
 			},
 			useQueue: true
 		};

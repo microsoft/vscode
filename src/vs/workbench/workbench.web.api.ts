@@ -19,6 +19,7 @@ import { CommandsRegistry } from 'vs/platform/commands/common/commands';
 import { IProductConfiguration } from 'vs/platform/product/common/productService';
 import { mark } from 'vs/base/common/performance';
 import { ICredentialsProvider } from 'vs/workbench/services/credentials/common/credentials';
+import { TunnelProviderFeatures } from 'vs/platform/remote/common/tunnel';
 
 interface IResourceUriProvider {
 	(uri: URI): URI;
@@ -46,9 +47,14 @@ interface ITunnelProvider {
 	tunnelFactory?: ITunnelFactory;
 
 	/**
-	 * Support for filtering candidate ports
+	 * Support for filtering candidate ports.
 	 */
 	showPortCandidate?: IShowPortCandidate;
+
+	/**
+	 * The features that the tunnel provider supports.
+	 */
+	features?: TunnelProviderFeatures;
 }
 
 interface ITunnelFactory {
@@ -73,7 +79,7 @@ export interface TunnelCreationOptions {
 	elevationRequired?: boolean;
 }
 
-interface ITunnel extends IDisposable {
+interface ITunnel {
 	remoteAddress: { port: number, host: string };
 
 	/**
@@ -85,6 +91,8 @@ interface ITunnel extends IDisposable {
 	 * Implementers of Tunnel should fire onDidDispose when dispose is called.
 	 */
 	onDidDispose: Event<void>;
+
+	dispose(): Promise<void> | void;
 }
 
 interface IShowPortCandidate {
@@ -456,12 +464,11 @@ interface IPerformanceMark {
 
 interface IWorkbench {
 	commands: {
-
 		/**
 		 * Allows to execute a command, either built-in or from extensions.
 		 */
 		executeCommand(command: string, ...args: any[]): Promise<unknown>;
-	},
+	}
 
 	env: {
 		/**

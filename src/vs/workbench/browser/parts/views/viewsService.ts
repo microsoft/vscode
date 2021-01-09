@@ -392,12 +392,29 @@ export class ViewsService extends Disposable implements IViewsService {
 
 	getViewProgressIndicator(viewId: string): IProgressIndicator | undefined {
 		const viewContainer = this.viewDescriptorService.getViewContainerByViewId(viewId);
-		if (viewContainer === null) {
+		if (!viewContainer) {
 			return undefined;
 		}
 
-		const view = this.viewPaneContainers.get(viewContainer.id)?.viewPaneContainer?.getView(viewId);
-		return view?.getProgressIndicator();
+		const viewPaneContainer = this.viewPaneContainers.get(viewContainer.id)?.viewPaneContainer;
+		if (!viewPaneContainer) {
+			return undefined;
+		}
+
+		const view = viewPaneContainer.getView(viewId);
+		if (!view) {
+			return undefined;
+		}
+
+		if (viewPaneContainer.isViewMergedWithContainer()) {
+			return this.getViewContainerProgressIndicator(viewContainer);
+		}
+
+		return view.getProgressIndicator();
+	}
+
+	private getViewContainerProgressIndicator(viewContainer: ViewContainer): IProgressIndicator | undefined {
+		return this.viewDescriptorService.getViewContainerLocation(viewContainer) === ViewContainerLocation.Sidebar ? this.viewletService.getProgressIndicator(viewContainer.id) : this.panelService.getProgressIndicator(viewContainer.id);
 	}
 
 	private registerViewletOrPanel(viewContainer: ViewContainer, viewContainerLocation: ViewContainerLocation): void {

@@ -39,9 +39,9 @@ export class FileWatcher extends Disposable {
 				serverName: 'File Watcher (nsfw)',
 				args: ['--type=watcherService'],
 				env: {
-					AMD_ENTRYPOINT: 'vs/platform/files/node/watcher/nsfw/watcherApp',
-					PIPE_LOGGING: 'true',
-					VERBOSE_LOGGING: 'true' // transmit console logs from server to client
+					VSCODE_AMD_ENTRYPOINT: 'vs/platform/files/node/watcher/nsfw/watcherApp',
+					VSCODE_PIPE_LOGGING: 'true',
+					VSCODE_VERBOSE_LOGGING: 'true' // transmit console logs from server to client
 				}
 			}
 		));

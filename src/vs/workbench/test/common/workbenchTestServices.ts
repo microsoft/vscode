@@ -201,8 +201,8 @@ export class TestWorkingCopyFileService implements IWorkingCopyFileService {
 
 	getDirty(resource: URI): IWorkingCopy[] { return []; }
 
-	create(operation: ICreateFileOperation, undoInfo?: IFileOperationUndoRedoInfo, token?: CancellationToken): Promise<IFileStatWithMetadata> { throw new Error('Method not implemented.'); }
-	createFolder(operation: ICreateOperation, undoInfo?: IFileOperationUndoRedoInfo, token?: CancellationToken): Promise<IFileStatWithMetadata> { throw new Error('Method not implemented.'); }
+	create(operations: ICreateFileOperation[], undoInfo?: IFileOperationUndoRedoInfo, token?: CancellationToken): Promise<IFileStatWithMetadata[]> { throw new Error('Method not implemented.'); }
+	createFolder(operations: ICreateOperation[], undoInfo?: IFileOperationUndoRedoInfo, token?: CancellationToken): Promise<IFileStatWithMetadata[]> { throw new Error('Method not implemented.'); }
 
 	move(operations: IMoveOperation[], undoInfo?: IFileOperationUndoRedoInfo): Promise<IFileStatWithMetadata[]> { throw new Error('Method not implemented.'); }
 

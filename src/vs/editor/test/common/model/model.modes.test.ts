@@ -28,7 +28,7 @@ suite('Editor Model - Model Modes 1', () => {
 	const tokenizationSupport: modes.ITokenizationSupport = {
 		getInitialState: () => NULL_STATE,
 		tokenize: undefined!,
-		tokenize2: (line: string, state: modes.IState): TokenizationResult2 => {
+		tokenize2: (line: string, hasEOL: boolean, state: modes.IState): TokenizationResult2 => {
 			calledFor.push(line.charAt(0));
 			return new TokenizationResult2(new Uint32Array(0), state);
 		}
@@ -181,7 +181,7 @@ suite('Editor Model - Model Modes 2', () => {
 	const tokenizationSupport: modes.ITokenizationSupport = {
 		getInitialState: () => new ModelState2(''),
 		tokenize: undefined!,
-		tokenize2: (line: string, state: modes.IState): TokenizationResult2 => {
+		tokenize2: (line: string, hasEOL: boolean, state: modes.IState): TokenizationResult2 => {
 			calledFor.push(line);
 			(<ModelState2>state).prevLineContent = line;
 			return new TokenizationResult2(new Uint32Array(0), state);

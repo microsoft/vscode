@@ -559,10 +559,12 @@ class SimpleTunnelService implements ITunnelService {
 	declare readonly _serviceBrand: undefined;
 
 	tunnels: Promise<readonly RemoteTunnel[]> = Promise.resolve([]);
+	canElevate: boolean = false;
 
 	onTunnelOpened = Event.None;
 	onTunnelClosed = Event.None;
 
+	canTunnel(uri: URI): boolean { return false; }
 	openTunnel(addressProvider: IAddressProvider | undefined, remoteHost: string | undefined, remotePort: number, localPort?: number): Promise<RemoteTunnel> | undefined { return undefined; }
 	async closeTunnel(remoteHost: string, remotePort: number): Promise<void> { }
 	setTunnelProvider(provider: ITunnelProvider | undefined): IDisposable { return Disposable.None; }

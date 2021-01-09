@@ -3,11 +3,12 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
+import { RunOnceScheduler } from 'vs/base/common/async';
 import { Emitter, Event } from 'vs/base/common/event';
 import { DisposableStore } from 'vs/base/common/lifecycle';
 import { IMenu, IMenuActionOptions, IMenuItem, IMenuService, isIMenuItem, ISubmenuItem, MenuId, MenuItemAction, MenuRegistry, SubmenuItemAction, ILocalizedString } from 'vs/platform/actions/common/actions';
 import { ICommandService } from 'vs/platform/commands/common/commands';
-import { IContextKeyService, IContextKeyChangeEvent, ContextKeyExpression } from 'vs/platform/contextkey/common/contextkey';
+import { IContextKeyService, ContextKeyExpression } from 'vs/platform/contextkey/common/contextkey';
 
 export class MenuService implements IMenuService {
 
@@ -29,8 +30,10 @@ type MenuItemGroup = [string, Array<IMenuItem | ISubmenuItem>];
 
 class Menu implements IMenu {
 
-	private readonly _onDidChange = new Emitter<IMenu | undefined>();
 	private readonly _dispoables = new DisposableStore();
+
+	private readonly _onDidChange = new Emitter<IMenu>();
+	readonly onDidChange: Event<IMenu> = this._onDidChange.event;
 
 	private _menuGroups: MenuItemGroup[] = [];
 	private _contextKeys: Set<string> = new Set();
@@ -45,19 +48,23 @@ class Menu implements IMenu {
 
 		// rebuild this menu whenever the menu registry reports an
 		// event for this MenuId
-		this._dispoables.add(Event.debounce(
-			Event.filter(MenuRegistry.onDidChangeMenu, set => set.has(this._id)),
-			() => { },
-			50
-		)(this._build, this));
+		const scheduler1 = new RunOnceScheduler(() => this._build(), 50);
+		this._dispoables.add(scheduler1);
+		this._dispoables.add(MenuRegistry.onDidChangeMenu(e => {
+			if (e.has(_id)) {
+				scheduler1.schedule();
+			}
+		}));
 
 		// when context keys change we need to check if the menu also
 		// has changed
-		this._dispoables.add(Event.debounce<IContextKeyChangeEvent, boolean>(
-			this._contextKeyService.onDidChangeContext,
-			(last, event) => last || event.affectsSome(this._contextKeys),
-			50
-		)(e => e && this._onDidChange.fire(undefined), this));
+		const scheduler2 = new RunOnceScheduler(() => this._onDidChange.fire(this), 50);
+		this._dispoables.add(scheduler2);
+		this._dispoables.add(_contextKeyService.onDidChangeContext(e => {
+			if (e.affectsSome(this._contextKeys)) {
+				scheduler2.schedule();
+			}
+		}));
 	}
 
 	dispose(): void {
@@ -102,11 +109,7 @@ class Menu implements IMenu {
 		this._onDidChange.fire(this);
 	}
 
-	get onDidChange(): Event<IMenu | undefined> {
-		return this._onDidChange.event;
-	}
-
-	getActions(options: IMenuActionOptions): [string, Array<MenuItemAction | SubmenuItemAction>][] {
+	getActions(options?: IMenuActionOptions): [string, Array<MenuItemAction | SubmenuItemAction>][] {
 		const result: [string, Array<MenuItemAction | SubmenuItemAction>][] = [];
 		for (let group of this._menuGroups) {
 			const [id, items] = group;

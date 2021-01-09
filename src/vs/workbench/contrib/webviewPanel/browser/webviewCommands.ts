@@ -10,7 +10,7 @@ import { ContextKeyExpr } from 'vs/platform/contextkey/common/contextkey';
 import { ServicesAccessor } from 'vs/platform/instantiation/common/instantiation';
 import { KeybindingWeight } from 'vs/platform/keybinding/common/keybindingsRegistry';
 import { CATEGORIES } from 'vs/workbench/common/actions';
-import { KEYBINDING_CONTEXT_WEBVIEW_FIND_WIDGET_FOCUSED, KEYBINDING_CONTEXT_WEBVIEW_FIND_WIDGET_VISIBLE, Webview } from 'vs/workbench/contrib/webview/browser/webview';
+import { KEYBINDING_CONTEXT_WEBVIEW_FIND_WIDGET_ENABLED, KEYBINDING_CONTEXT_WEBVIEW_FIND_WIDGET_FOCUSED, KEYBINDING_CONTEXT_WEBVIEW_FIND_WIDGET_VISIBLE, Webview } from 'vs/workbench/contrib/webview/browser/webview';
 import { WebviewEditor } from 'vs/workbench/contrib/webviewPanel/browser/webviewEditor';
 import { WebviewInput } from 'vs/workbench/contrib/webviewPanel/browser/webviewEditorInput';
 import { IEditorService } from 'vs/workbench/services/editor/common/editorService';
@@ -26,7 +26,7 @@ export class ShowWebViewEditorFindWidgetAction extends Action2 {
 			id: ShowWebViewEditorFindWidgetAction.ID,
 			title: ShowWebViewEditorFindWidgetAction.LABEL,
 			keybinding: {
-				when: webviewActiveContextKeyExpr,
+				when: ContextKeyExpr.and(webviewActiveContextKeyExpr, KEYBINDING_CONTEXT_WEBVIEW_FIND_WIDGET_ENABLED),
 				primary: KeyMod.CtrlCmd | KeyCode.KEY_F,
 				weight: KeybindingWeight.EditorContrib
 			}

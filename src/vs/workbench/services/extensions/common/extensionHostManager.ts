@@ -261,12 +261,12 @@ export class ExtensionHostManager extends Disposable {
 		const authorityPlusIndex = remoteAuthority.indexOf('+');
 		if (authorityPlusIndex === -1) {
 			// This authority does not need to be resolved, simply parse the port number
-			const pieces = remoteAuthority.split(':');
+			const lastColon = remoteAuthority.lastIndexOf(':');
 			return Promise.resolve({
 				authority: {
 					authority: remoteAuthority,
-					host: pieces[0],
-					port: parseInt(pieces[1], 10),
+					host: remoteAuthority.substring(0, lastColon),
+					port: parseInt(remoteAuthority.substring(lastColon + 1), 10),
 					connectionToken: undefined
 				}
 			});

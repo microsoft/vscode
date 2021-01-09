@@ -8,6 +8,7 @@ const LANGUAGE_DEFAULT = 'en';
 let _isWindows = false;
 let _isMacintosh = false;
 let _isLinux = false;
+let _isLinuxSnap = false;
 let _isNative = false;
 let _isWeb = false;
 let _isIOS = false;
@@ -61,6 +62,26 @@ if (typeof process !== 'undefined') {
 
 const isElectronRenderer = typeof nodeProcess?.versions?.electron === 'string' && nodeProcess.type === 'renderer';
 export const isElectronSandboxed = isElectronRenderer && nodeProcess?.sandboxed;
+export const browserCodeLoadingCacheStrategy: 'none' | 'code' | 'bypassHeatCheck' | 'bypassHeatCheckAndEagerCompile' | undefined = (() => {
+
+	// Always enabled when sandbox is enabled
+	if (isElectronSandboxed) {
+		return 'bypassHeatCheck';
+	}
+
+	// Otherwise, only enabled conditionally
+	const env = nodeProcess?.env['ENABLE_VSCODE_BROWSER_CODE_LOADING'];
+	if (typeof env === 'string') {
+		if (env === 'none' || env === 'code' || env === 'bypassHeatCheck' || env === 'bypassHeatCheckAndEagerCompile') {
+			return env;
+		}
+
+		return 'bypassHeatCheck';
+	}
+
+	return undefined;
+})();
+export const isPreferringBrowserCodeLoad = typeof browserCodeLoadingCacheStrategy === 'string';
 
 // Web environment
 if (typeof navigator === 'object' && !isElectronRenderer) {
@@ -79,6 +100,7 @@ else if (typeof nodeProcess === 'object') {
 	_isWindows = (nodeProcess.platform === 'win32');
 	_isMacintosh = (nodeProcess.platform === 'darwin');
 	_isLinux = (nodeProcess.platform === 'linux');
+	_isLinuxSnap = _isLinux && !!nodeProcess.env['SNAP'] && !!nodeProcess.env['SNAP_REVISION'];
 	_locale = LANGUAGE_DEFAULT;
 	_language = LANGUAGE_DEFAULT;
 	const rawNlsConfig = nodeProcess.env['VSCODE_NLS_CONFIG'];
@@ -128,6 +150,7 @@ if (_isMacintosh) {
 export const isWindows = _isWindows;
 export const isMacintosh = _isMacintosh;
 export const isLinux = _isLinux;
+export const isLinuxSnap = _isLinuxSnap;
 export const isNative = _isNative;
 export const isWeb = _isWeb;
 export const isIOS = _isIOS;

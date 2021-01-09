@@ -45,10 +45,10 @@ export const CONTEXT_IN_DEBUG_MODE = new RawContextKey<boolean>('inDebugMode', f
 export const CONTEXT_IN_DEBUG_REPL = new RawContextKey<boolean>('inDebugRepl', false);
 export const CONTEXT_BREAKPOINT_WIDGET_VISIBLE = new RawContextKey<boolean>('breakpointWidgetVisible', false);
 export const CONTEXT_IN_BREAKPOINT_WIDGET = new RawContextKey<boolean>('inBreakpointWidget', false);
-export const CONTEXT_BREAKPOINTS_FOCUSED = new RawContextKey<boolean>('breakpointsFocused', false);
-export const CONTEXT_WATCH_EXPRESSIONS_FOCUSED = new RawContextKey<boolean>('watchExpressionsFocused', false);
+export const CONTEXT_BREAKPOINTS_FOCUSED = new RawContextKey<boolean>('breakpointsFocused', true);
+export const CONTEXT_WATCH_EXPRESSIONS_FOCUSED = new RawContextKey<boolean>('watchExpressionsFocused', true);
 export const CONTEXT_WATCH_EXPRESSIONS_EXIST = new RawContextKey<boolean>('watchExpressionsExist', false);
-export const CONTEXT_VARIABLES_FOCUSED = new RawContextKey<boolean>('variablesFocused', false);
+export const CONTEXT_VARIABLES_FOCUSED = new RawContextKey<boolean>('variablesFocused', true);
 export const CONTEXT_EXPRESSION_SELECTED = new RawContextKey<boolean>('expressionSelected', false);
 export const CONTEXT_BREAKPOINT_SELECTED = new RawContextKey<boolean>('breakpointSelected', false);
 export const CONTEXT_CALLSTACK_ITEM_TYPE = new RawContextKey<string>('callStackItemType', undefined);
@@ -189,6 +189,7 @@ export interface IDebugSession extends ITreeElement {
 	readonly subId: string | undefined;
 	readonly compact: boolean;
 	readonly compoundRoot: DebugCompoundRoot | undefined;
+	readonly name: string;
 
 	setSubId(subId: string | undefined): void;
 
@@ -636,7 +637,6 @@ export interface IDebuggerContribution extends IPlatformSpecificAdapterContribut
 
 	// supported languages
 	languages?: string[];
-	enableBreakpointsFor?: { languageIds?: string[] };
 
 	// debug configuration support
 	configurationAttributes?: any;
