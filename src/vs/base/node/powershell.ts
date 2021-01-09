@@ -309,7 +309,7 @@ async function* enumerateDefaultPowerShellInstallations(): AsyncIterable<IPossib
 export async function* enumeratePowerShellInstallations(): AsyncIterable<IPowerShellExeDetails> {
 	// Get the default PowerShell installations first
 	for await (const defaultPwsh of enumerateDefaultPowerShellInstallations()) {
-		if (defaultPwsh && defaultPwsh.exists()) {
+		if (await defaultPwsh.exists()) {
 			yield defaultPwsh;
 		}
 	}
