@@ -57,13 +57,11 @@ if (platform.isWindows) {
 				checkPath(pwshs[0].exePath);
 				assert.strictEqual(pwshs[0].displayName, 'PowerShell');
 
-				assert.strictEqual(process.arch, 'x64');
+				checkPath(pwshs[1].exePath);
+				assert.strictEqual(pwshs[1].displayName, 'Windows PowerShell');
 
 				checkPath(pwshs[2].exePath);
-				assert.strictEqual(pwshs[2].displayName, 'Windows PowerShell');
-
-				checkPath(pwshs[3].exePath);
-				assert.strictEqual(pwshs[3].displayName, 'Windows PowerShell (x86)');
+				assert.strictEqual(pwshs[2].displayName, 'Windows PowerShell (x86)');
 			});
 		}
 	});
