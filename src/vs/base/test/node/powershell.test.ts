@@ -16,7 +16,11 @@ function checkPath(exePath: string) {
 	} catch {
 		// fs.exists throws on Windows with SymbolicLinks so we
 		// also use lstat to try and see if the file exists.
-		pathCheckResult = fs.statSync(fs.readlinkSync(exePath)).isFile();
+		try {
+			pathCheckResult = fs.statSync(fs.readlinkSync(exePath)).isFile();
+		} catch {
+
+		}
 	}
 
 	assert.strictEqual(pathCheckResult, true);
