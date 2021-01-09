@@ -456,42 +456,6 @@ export async function fileExists(path: string): Promise<boolean> {
 	}
 }
 
-export function dirExistsSync(path: string): boolean {
-	try {
-		const fileStat = fs.statSync(path);
-
-		return fileStat.isDirectory();
-	} catch (error) {
-		// This catch will be called on some symbolic links on Windows (AppExecLink for example).
-		// So we try our best to see if it's a Directory.
-		try {
-			const fileStat = fs.statSync(fs.readlinkSync(path));
-
-			return fileStat.isDirectory();
-		} catch {
-			return false;
-		}
-	}
-}
-
-export function fileExistsSync(path: string): boolean {
-	try {
-		const fileStat = fs.statSync(path);
-
-		return fileStat.isFile();
-	} catch (error) {
-		// This catch will be called on some symbolic links on Windows (AppExecLink for example).
-		// So we try our best to see if it's a File.
-		try {
-			const fileStat = fs.statSync(fs.readlinkSync(path));
-
-			return fileStat.isFile();
-		} catch {
-			return false;
-		}
-	}
-}
-
 export function whenDeleted(path: string): Promise<void> {
 
 	// Complete when wait marker file is deleted

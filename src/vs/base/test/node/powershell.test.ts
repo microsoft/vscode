@@ -12,11 +12,11 @@ function checkPath(exePath: string) {
 	let pathCheckResult = false;
 	try {
 		const stat = fs.statSync(exePath);
-		pathCheckResult = stat.isFile() || stat.isSymbolicLink();
+		pathCheckResult = stat.isFile();
 	} catch {
 		// fs.exists throws on Windows with SymbolicLinks so we
 		// also use lstat to try and see if the file exists.
-		pathCheckResult = fs.lstatSync(exePath).isSymbolicLink();
+		pathCheckResult = fs.statSync(fs.readlinkSync(exePath)).isFile();
 	}
 
 	assert.strictEqual(pathCheckResult, true);
