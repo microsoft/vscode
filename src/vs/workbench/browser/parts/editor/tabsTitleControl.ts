@@ -1322,7 +1322,10 @@ export class TabsTitleControl extends TitleControl {
 			});
 		}
 
-		return new Dimension(dimensions.container.width, this.getDimensions().height);
+		// Compute new dimension of tabs title control and remember it for future usages
+		this.dimensions.used = new Dimension(dimensions.container.width, this.getDimensions().height);
+
+		return this.dimensions.used;
 	}
 
 	private doLayout(dimensions: ITitleControlDimensions): void {
@@ -1339,18 +1342,13 @@ export class TabsTitleControl extends TitleControl {
 			this.doLayoutTabs(activeTab, activeIndex, dimensions);
 		}
 
-		// Compute new dimension of tabs title control and remember it for future usages
-		const oldDimension = this.dimensions.used;
-		const newDimension = this.dimensions.used = new Dimension(dimensions.container.width, this.getDimensions().height);
-
 		// In case the height of the title control changed from before
-		// (currently only possible if tabs are set to wrap), we need
+		// (currently only possible if wrapping changed on/off), we need
 		// to signal this to the outside via a `relayout` call so that
 		// e.g. the editor control can be adjusted accordingly.
-		if (
-			this.accessor.partOptions.wrapTabs &&
-			oldDimension && oldDimension.height !== newDimension.height
-		) {
+		const oldDimension = this.dimensions.used;
+		const newDimension = new Dimension(dimensions.container.width, this.getDimensions().height);
+		if (oldDimension && oldDimension.height !== newDimension.height) {
 			this.group.relayout();
 		}
 	}
@@ -1362,7 +1360,88 @@ export class TabsTitleControl extends TitleControl {
 	}
 
 	private doLayoutTabs(activeTab: HTMLElement, activeIndex: number, dimensions: ITitleControlDimensions): void {
-		const [tabsAndActionsContainer, tabsContainer, tabsScrollbar, editorToolbarContainer] = assertAllDefined(this.tabsAndActionsContainer, this.tabsContainer, this.tabsScrollbar, this.editorToolbarContainer);
+
+		// Always first layout tabs with wrapping support even if wrapping
+		// is disabled. The result indicates if tabs wrap and if not, we
+		// need to proceed with the layout without wrapping because even
+		// if wrapping is enabled in settings, there are cases where
+		// wrapping is disabled (e.g. due to space constraints)
+		const tabsWrapMultiLine = this.doLayoutTabsWrapping(dimensions);
+		if (!tabsWrapMultiLine) {
+			this.doLayoutTabsNonWrapping(activeTab, activeIndex);
+		}
+	}
+
+	private doLayoutTabsWrapping(dimensions: ITitleControlDimensions): boolean {
+		const [tabsAndActionsContainer, tabsContainer, editorToolbarContainer, tabsScrollbar] = assertAllDefined(this.tabsAndActionsContainer, this.tabsContainer, this.editorToolbarContainer, this.tabsScrollbar);
+
+		// Handle wrapping tabs according to setting:
+		// - enabled: only add class if tabs wrap and don't exceed available dimensions
+		// - disabled: remove class and margin-right variable
+
+		const didTabsWrapMultiLine = tabsAndActionsContainer.classList.contains('wrapping');
+		let tabsWrapMultiLine = didTabsWrapMultiLine;
+
+		function updateTabsWrapping(enabled: boolean): void {
+			tabsWrapMultiLine = enabled;
+
+			// Toggle the `wrapped` class to enable wrapping
+			tabsAndActionsContainer.classList.toggle('wrapping', tabsWrapMultiLine);
+
+			// Update `last-tab-margin-right` CSS variable to account for the absolute
+			// positioned editor actions container when tabs wrap. The margin needs to
+			// be the width of the editor actions container to avoid screen cheese.
+			tabsContainer.style.setProperty('--last-tab-margin-right', tabsWrapMultiLine ? `${editorToolbarContainer.offsetWidth}px` : '0');
+		}
+
+		// Setting enabled: selectively enable wrapping if possible
+		if (this.accessor.partOptions.wrapTabs) {
+			const visibleTabsWidth = tabsContainer.offsetWidth;
+			const allTabsWidth = tabsContainer.scrollWidth;
+
+			// If tabs wrap or should start to wrap (when width exceeds visible width)
+			// we must trigger `updateWrapping` to set the `last-tab-margin-right`
+			// accordingly based on the number of actions. The margin is important to
+			// properly position the last tab apart from the actions
+			if (tabsWrapMultiLine || allTabsWidth > visibleTabsWidth) {
+				updateTabsWrapping(true);
+			}
+
+			// Tabs wrap multiline: remove wrapping under certain size constraint conditions
+			if (tabsWrapMultiLine) {
+				const lastTab = this.getLastTab();
+				if (
+					(tabsContainer.offsetHeight > dimensions.available.height) ||											// if height exceeds available height
+					(allTabsWidth === visibleTabsWidth && tabsContainer.offsetHeight === TabsTitleControl.TAB_HEIGHT) ||	// if wrapping is not needed anymore
+					(lastTab && lastTab.offsetWidth > (dimensions.available.width - editorToolbarContainer.offsetWidth))	// if editor actions occupy too much space
+				) {
+					updateTabsWrapping(false);
+				}
+			}
+		}
+
+		// Setting disabled: remove CSS traces only if tabs did wrap
+		else if (didTabsWrapMultiLine) {
+			updateTabsWrapping(false);
+		}
+
+		// If we transitioned from non-wrapping to wrapping, we need
+		// to update the scrollbar to have an equal `width` and
+		// `scrollWidth`. Otherwise a scrollbar would appear which is
+		// never desired when wrapping.
+		if (tabsWrapMultiLine && !didTabsWrapMultiLine) {
+			const visibleTabsWidth = tabsContainer.offsetWidth;
+			tabsScrollbar.setScrollDimensions({
+				width: visibleTabsWidth,
+				scrollWidth: visibleTabsWidth
+			});
+		}
+
+		return tabsWrapMultiLine;
+	}
+
+	private doLayoutTabsNonWrapping(activeTab: HTMLElement, activeIndex: number): void {
+		const [tabsContainer, tabsScrollbar] = assertAllDefined(this.tabsContainer, this.tabsScrollbar);
 
 		//
 		// Synopsis
@@ -1380,7 +1459,7 @@ export class TabsTitleControl extends TitleControl {
 		// [-- Sticky Tabs Width --]
 		//
 
-		const visibleTabsContainerWidth = tabsContainer.offsetWidth;
+		const visibleTabsWidth = tabsContainer.offsetWidth;
 		const allTabsWidth = tabsContainer.scrollWidth;
 
 		// Compute width of sticky tabs depending on pinned tab sizing
@@ -1409,64 +1488,15 @@ export class TabsTitleControl extends TitleControl {
 		// Special case: we have sticky tabs but the available space for showing tabs
 		// is little enough that we need to disable sticky tabs sticky positioning
 		// so that tabs can be scrolled at naturally.
-		let availableTabsContainerWidth = visibleTabsContainerWidth - stickyTabsWidth;
+		let availableTabsContainerWidth = visibleTabsWidth - stickyTabsWidth;
 		if (this.group.stickyCount > 0 && availableTabsContainerWidth < TabsTitleControl.TAB_WIDTH.fit) {
 			tabsContainer.classList.add('disable-sticky-tabs');
 
-			availableTabsContainerWidth = visibleTabsContainerWidth;
+			availableTabsContainerWidth = visibleTabsWidth;
 			stickyTabsWidth = 0;
 			activeTabPositionStatic = false;
 		} else {
 			tabsContainer.classList.remove('disable-sticky-tabs');
-		}
-
-		// Handle wrapping tabs according to setting:
-		// - enabled: only add class if tabs wrap and don't exceed available height
-		// - disabled: remove class
-		if (this.accessor.partOptions.wrapTabs) {
-			let tabsWrapMultiLine = tabsAndActionsContainer.classList.contains('wrapping');
-			let updateScrollbar = false;
-
-			// Tabs do not wrap multiline: add wrapping if tabs exceed the tabs container width
-			// and the height of the tabs container does not exceed the maximum
-			if (!tabsWrapMultiLine && allTabsWidth > visibleTabsContainerWidth) {
-				tabsAndActionsContainer.classList.add('wrapping');
-				tabsWrapMultiLine = true;
-			}
-
-			// Tabs wrap multiline: remove wrapping if height exceeds available height
-			// or the maximum allowed height
-			if (tabsWrapMultiLine && tabsContainer.offsetHeight > dimensions.available.height) {
-				tabsAndActionsContainer.classList.remove('wrapping');
-				tabsWrapMultiLine = false;
-				updateScrollbar = true;
-			}
-
-			// If we do not exceed the tabs container width, we cannot simply remove
-			// the wrap class because by wrapping tabs, they reduce their size
-			// and we would otherwise constantly add and remove the class. As such
-			// we need to check if the height of the tabs container is back to normal
-			// and then remove the wrap class.
-			if (tabsWrapMultiLine && allTabsWidth === visibleTabsContainerWidth && tabsContainer.offsetHeight === TabsTitleControl.TAB_HEIGHT) {
-				tabsAndActionsContainer.classList.remove('wrapping');
-				tabsWrapMultiLine = false;
-				updateScrollbar = true;
-			}
-
-			// Update `last-tab-margin-right` CSS variable to account for the absolute
-			// positioned editor actions container when tabs wrap. The margin needs to
-			// be the width of the editor actions container to avoid screen cheese.
-			tabsContainer.style.setProperty('--last-tab-margin-right', tabsWrapMultiLine ? `${editorToolbarContainer.offsetWidth}px` : '0');
-
-			// When tabs change from wrapping back to normal, we need to indicate this
-			// to the scrollbar so that revealing the active tab functions properly.
-			if (updateScrollbar) {
-				tabsScrollbar.setScrollPosition({
-					scrollLeft: tabsContainer.scrollLeft
-				});
-			}
-		} else {
-			tabsAndActionsContainer.classList.remove('wrapping');
 		}
 
 		let activeTabPosX: number | undefined;
@@ -1479,7 +1509,7 @@ export class TabsTitleControl extends TitleControl {
 
 		// Update scrollbar
 		tabsScrollbar.setScrollDimensions({
-			width: visibleTabsContainerWidth,
+			width: visibleTabsWidth,
 			scrollWidth: allTabsWidth
 		});
 
@@ -1547,15 +1577,26 @@ export class TabsTitleControl extends TitleControl {
 
 	private getTabAndIndex(editor: IEditorInput): [HTMLElement, number /* index */] | undefined {
 		const editorIndex = this.group.getIndexOfEditor(editor);
-		if (editorIndex >= 0) {
-			const tabsContainer = assertIsDefined(this.tabsContainer);
-			const tab = tabsContainer.children[editorIndex];
-			if (tab) {
-				return [tab as HTMLElement, editorIndex];
-			}
+		const tab = this.getTabAtIndex(editorIndex);
+		if (tab) {
+			return [tab, editorIndex];
 		}
 
 		return undefined;
+	}
+
+	private getTabAtIndex(editorIndex: number): HTMLElement | undefined {
+		if (editorIndex >= 0) {
+			const tabsContainer = assertIsDefined(this.tabsContainer);
+
+			return tabsContainer.children[editorIndex] as HTMLElement | undefined;
+		}
+
+		return undefined;
+	}
+
+	private getLastTab(): HTMLElement | undefined {
+		return this.getTabAtIndex(this.group.count - 1);
 	}
 
 	private blockRevealActiveTabOnce(): void {

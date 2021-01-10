@@ -1700,8 +1700,8 @@ declare module 'vscode' {
 	/**
 	 * Options to configure the behaviour of a file open dialog.
 	 *
-	 * * Note 1: A dialog can select files, folders, or both. This is not true for Windows
-	 * which enforces to open either files or folder, but *not both*.
+	 * * Note 1: On Windows and Linux, a file dialog cannot be both a file selector and a folder selector, so if you
+	 * set both `canSelectFiles` and `canSelectFolders` to `true` on these platforms, a folder selector will be shown.
 	 * * Note 2: Explicitly setting `canSelectFiles` and `canSelectFolders` to `false` is futile
 	 * and the editor then silently adjusts the options to select files.
 	 */
@@ -3870,8 +3870,8 @@ declare module 'vscode' {
 		 *
 		 * Note that `sortText` is only used for the initial ordering of completion
 		 * items. When having a leading word (prefix) ordering is based on how
-		 * well completion match that prefix and the initial ordering is only used
-		 * when completions match equal. The prefix is defined by the
+		 * well completions match that prefix and the initial ordering is only used
+		 * when completions match equally well. The prefix is defined by the
 		 * [`range`](#CompletionItem.range)-property and can therefore be different
 		 * for each completion.
 		 */
@@ -3884,7 +3884,6 @@ declare module 'vscode' {
 		 *
 		 * Note that the filter text is matched against the leading word (prefix) which is defined
 		 * by the [`range`](#CompletionItem.range)-property.
-		 * prefix.
 		 */
 		filterText?: string;
 

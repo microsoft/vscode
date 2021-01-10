@@ -483,7 +483,7 @@ import { isStandalone } from 'vs/base/browser/browser';
 			},
 			'zenMode.restore': {
 				'type': 'boolean',
-				'default': false,
+				'default': true,
 				'description': nls.localize('zenMode.restore', "Controls whether a window should restore to zen mode if it was exited in zen mode.")
 			},
 			'zenMode.silentNotifications': {

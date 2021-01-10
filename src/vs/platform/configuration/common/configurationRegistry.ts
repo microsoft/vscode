@@ -112,6 +112,13 @@ export interface IConfigurationPropertySchema extends IJSONSchema {
 	scope?: ConfigurationScope;
 	included?: boolean;
 	tags?: string[];
+	/**
+	 * When enabled this setting is ignored during sync and user can override this.
+	 */
+	ignoreSync?: boolean;
+	/**
+	 * When enabled this setting is ignored during sync and user cannot override this.
+	 */
 	disallowSyncIgnore?: boolean;
 	enumItemLabels?: string[];
 }

@@ -29,6 +29,7 @@ import { VSBuffer } from 'vs/base/common/buffer';
 import { TestWorkbenchConfiguration } from 'vs/workbench/test/electron-browser/workbenchTestServices';
 import { TestProductService } from 'vs/workbench/test/browser/workbenchTestServices';
 import { CancellationToken, CancellationTokenSource } from 'vs/base/common/cancellation';
+import { insert } from 'vs/base/common/arrays';
 
 const userdataDir = getRandomTestPath(os.tmpdir(), 'vsctests', 'backupfileservice');
 const backupHome = path.join(userdataDir, 'Backups');
@@ -60,6 +61,7 @@ export class NodeTestBackupFileService extends NativeBackupFileService {
 	private backupResourceJoiners: Function[];
 	private discardBackupJoiners: Function[];
 	discardedBackups: URI[];
+	private pendingBackupsArr: Promise<void>[];
 
 	constructor(workspaceBackupPath: string) {
 		const environmentService = new TestWorkbenchEnvironmentService(workspaceBackupPath);
@@ -75,6 +77,11 @@ export class NodeTestBackupFileService extends NativeBackupFileService {
 		this.backupResourceJoiners = [];
 		this.discardBackupJoiners = [];
 		this.discardedBackups = [];
+		this.pendingBackupsArr = [];
+	}
+
+	async waitForAllBackups(): Promise<void> {
+		await Promise.all(this.pendingBackupsArr);
 	}
 
 	joinBackupResource(): Promise<void> {
@@ -82,7 +89,14 @@ export class NodeTestBackupFileService extends NativeBackupFileService {
 	}
 
 	async backup(resource: URI, content?: ITextSnapshot, versionId?: number, meta?: any, token?: CancellationToken): Promise<void> {
-		await super.backup(resource, content, versionId, meta, token);
+		const p = super.backup(resource, content, versionId, meta, token);
+		const removeFromPendingBackups = insert(this.pendingBackupsArr, p.then(undefined, undefined));
+
+		try {
+			await p;
+		} finally {
+			removeFromPendingBackups();
+		}
 
 		while (this.backupResourceJoiners.length) {
 			this.backupResourceJoiners.pop()!();
@@ -118,14 +132,14 @@ suite('BackupFileService', () => {
 		service = new NodeTestBackupFileService(workspaceBackupPath);
 
 		// Delete any existing backups completely and then re-create it.
-		await pfs.rimraf(backupHome, pfs.RimRafMode.MOVE);
+		await pfs.rimraf(backupHome);
 		await pfs.mkdirp(backupHome);
 
 		return pfs.writeFile(workspacesJsonPath, '');
 	});
 
 	teardown(() => {
-		return pfs.rimraf(backupHome, pfs.RimRafMode.MOVE);
+		return pfs.rimraf(backupHome);
 	});
 
 	suite('hashPath', () => {
@@ -573,14 +587,14 @@ suite('BackupFilesModel', () => {
 		service = new NodeTestBackupFileService(workspaceBackupPath);
 
 		// Delete any existing backups completely and then re-create it.
-		await pfs.rimraf(backupHome, pfs.RimRafMode.MOVE);
+		await pfs.rimraf(backupHome);
 		await pfs.mkdirp(backupHome);
 
 		return pfs.writeFile(workspacesJsonPath, '');
 	});
 
 	teardown(() => {
-		return pfs.rimraf(backupHome, pfs.RimRafMode.MOVE);
+		return pfs.rimraf(backupHome);
 	});
 
 	test('simple', () => {

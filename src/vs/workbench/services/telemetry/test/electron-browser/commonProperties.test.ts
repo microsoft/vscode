@@ -9,7 +9,7 @@ import * as fs from 'fs';
 import { resolveWorkbenchCommonProperties } from 'vs/workbench/services/telemetry/electron-browser/workbenchCommonProperties';
 import { getRandomTestPath } from 'vs/base/test/node/testUtils';
 import { IStorageService, StorageScope, InMemoryStorageService, StorageTarget } from 'vs/platform/storage/common/storage';
-import { mkdirp, rimraf, RimRafMode } from 'vs/base/node/pfs';
+import { mkdirp, rimraf } from 'vs/base/node/pfs';
 import { timeout } from 'vs/base/common/async';
 
 suite('Telemetry - common properties', function () {
@@ -25,7 +25,7 @@ suite('Telemetry - common properties', function () {
 	});
 
 	teardown(done => {
-		rimraf(parentDir, RimRafMode.MOVE).then(done, done);
+		rimraf(parentDir).then(done, done);
 	});
 
 	test('default', async function () {

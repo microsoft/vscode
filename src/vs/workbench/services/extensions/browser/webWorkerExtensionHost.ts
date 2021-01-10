@@ -229,7 +229,7 @@ export class WebWorkerExtensionHost extends Disposable implements IExtensionHost
 		const emitter = new Emitter<VSBuffer>();
 
 		const url = getWorkerBootstrapUrl(FileAccess.asBrowserUri('../worker/extensionHostWorkerMain.js', require).toString(true), 'WorkerExtensionHost');
-		const worker = new Worker(ttPolicy ? ttPolicy.createScriptURL(url) as unknown as string : url, { name: 'WorkerExtensionHost' });
+		const worker = new Worker(ttPolicy?.createScriptURL(url) as unknown as string ?? url, { name: 'WorkerExtensionHost' });
 
 		const barrier = new Barrier();
 		let port!: MessagePort;

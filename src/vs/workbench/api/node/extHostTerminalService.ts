@@ -25,6 +25,7 @@ import { MergedEnvironmentVariableCollection } from 'vs/workbench/contrib/termin
 import { IExtHostInitDataService } from 'vs/workbench/api/common/extHostInitDataService';
 import { withNullAsUndefined } from 'vs/base/common/types';
 import { getSystemShell } from 'vs/base/node/shell';
+import { generateUuid } from 'vs/base/common/uuid';
 
 export class ExtHostTerminalService extends BaseExtHostTerminalService {
 
@@ -49,14 +50,14 @@ export class ExtHostTerminalService extends BaseExtHostTerminalService {
 	}
 
 	public createTerminal(name?: string, shellPath?: string, shellArgs?: string[] | string): vscode.Terminal {
-		const terminal = new ExtHostTerminal(this._proxy, { name, shellPath, shellArgs }, name);
+		const terminal = new ExtHostTerminal(this._proxy, generateUuid(), { name, shellPath, shellArgs }, name);
 		this._terminals.push(terminal);
 		terminal.create(shellPath, shellArgs);
 		return terminal;
 	}
 
 	public createTerminalFromOptions(options: vscode.TerminalOptions, isFeatureTerminal?: boolean): vscode.Terminal {
-		const terminal = new ExtHostTerminal(this._proxy, options, options.name);
+		const terminal = new ExtHostTerminal(this._proxy, generateUuid(), options, options.name);
 		this._terminals.push(terminal);
 		terminal.create(
 			withNullAsUndefined(options.shellPath),

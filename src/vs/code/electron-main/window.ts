@@ -596,6 +596,7 @@ export class CodeWindow extends Disposable implements ICodeWindow {
 				}
 
 				if (result.response === 0) {
+					this._win.webContents.forcefullyCrashRenderer(); // Calling reload() immediately after calling this method will force the reload to occur in a new process
 					this.reload();
 				} else if (result.response === 2) {
 					this.destroyWindow();
