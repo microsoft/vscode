@@ -168,6 +168,7 @@ export abstract class AbstractScrollableElement extends Widget {
 	private _shouldRender: boolean;
 
 	private _revealOnScroll: boolean;
+	private _isOnHover = false;
 
 	private readonly _onScroll = this._register(new Emitter<ScrollEvent>());
 	public readonly onScroll: Event<ScrollEvent> = this._onScroll.event;
@@ -228,6 +229,7 @@ export abstract class AbstractScrollableElement extends Widget {
 		this._setListeningToMouseWheel(this._options.handleMouseWheel);
 
 		this.onmouseover(this._listenOnDomNode, (e) => this._onMouseOver(e));
+		this.onmousemove(this._listenOnDomNode, (e) => this._isOnHover = !!(dom.findParentWithClass(e.target, 'monaco-hover')));
 		this.onnonbubblingmouseout(this._listenOnDomNode, (e) => this._onMouseOut(e));
 
 		this._hideTimeout = this._register(new TimeoutTimer());
@@ -346,6 +348,10 @@ export abstract class AbstractScrollableElement extends Widget {
 	}
 
 	private _onMouseWheel(e: StandardWheelEvent): void {
+
+		if (this._isOnHover && (e.browserEvent?.currentTarget as HTMLElement).classList.contains('monaco-editor')) {
+			return;
+		}
 
 		const classifier = MouseWheelClassifier.INSTANCE;
 		if (SCROLL_WHEEL_SMOOTH_SCROLL_ENABLED) {
