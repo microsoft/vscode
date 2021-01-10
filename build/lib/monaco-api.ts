@@ -621,7 +621,7 @@ export class DeclarationResolver {
 	private _sourceFileCache: { [moduleId: string]: CacheEntry | null; };
 
 	constructor(private readonly _fsProvider: FSProvider) {
-		this.ts = <typeof import('typescript')>require('typescript');
+		this.ts = require('typescript') as typeof import('typescript');
 		this._sourceFileCache = Object.create(null);
 	}
 

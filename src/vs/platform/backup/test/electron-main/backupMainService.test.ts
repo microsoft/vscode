@@ -20,11 +20,11 @@ import { TestConfigurationService } from 'vs/platform/configuration/test/common/
 import { ConsoleLogMainService } from 'vs/platform/log/common/log';
 import { IWorkspaceIdentifier } from 'vs/platform/workspaces/common/workspaces';
 import { createHash } from 'crypto';
-import { getRandomTestPath } from 'vs/base/test/node/testUtils';
+import { flakySuite, getRandomTestPath } from 'vs/base/test/node/testUtils';
 import { Schemas } from 'vs/base/common/network';
 import { isEqual } from 'vs/base/common/resources';
 
-suite('BackupMainService', () => {
+flakySuite('BackupMainService', () => {
 
 	function assertEqualUris(actual: URI[], expected: URI[]) {
 		assert.deepEqual(actual.map(a => a.toString()), expected.map(a => a.toString()));
@@ -119,7 +119,7 @@ suite('BackupMainService', () => {
 	setup(async () => {
 
 		// Delete any existing backups completely and then re-create it.
-		await pfs.rimraf(backupHome, pfs.RimRafMode.MOVE);
+		await pfs.rimraf(backupHome);
 		await pfs.mkdirp(backupHome);
 
 		configService = new TestConfigurationService();
@@ -129,11 +129,10 @@ suite('BackupMainService', () => {
 	});
 
 	teardown(() => {
-		return pfs.rimraf(backupHome, pfs.RimRafMode.MOVE);
+		return pfs.rimraf(backupHome);
 	});
 
 	test('service validates backup workspaces on startup and cleans up (folder workspaces)', async function () {
-		this.timeout(1000 * 10); // increase timeout for this test
 
 		// 1) backup workspace path does not exist
 		service.registerFolderBackupSync(fooFile);
@@ -179,7 +178,6 @@ suite('BackupMainService', () => {
 	});
 
 	test('service validates backup workspaces on startup and cleans up (root workspaces)', async function () {
-		this.timeout(1000 * 10); // increase timeout for this test
 
 		// 1) backup workspace path does not exist
 		service.registerWorkspaceBackupSync(toWorkspaceBackupInfo(fooFile.fsPath));
@@ -411,7 +409,6 @@ suite('BackupMainService', () => {
 		});
 
 		test('getEmptyWorkspaceBackupPaths() should return [] when folderWorkspaces in workspaces.json is not a string array', async function () {
-			this.timeout(5000);
 			fs.writeFileSync(backupWorkspacesPath, '{"emptyWorkspaces":{}}');
 			await service.initialize();
 			assert.deepEqual(service.getEmptyWindowBackupPaths(), []);
@@ -608,13 +605,7 @@ suite('BackupMainService', () => {
 	});
 
 	suite('getWorkspaceHash', () => {
-
-		test('should ignore case on Windows and Mac', () => {
-			// Skip test on Linux
-			if (platform.isLinux) {
-				return;
-			}
-
+		(platform.isLinux ? test.skip : test)('should ignore case on Windows and Mac', () => {
 			if (platform.isMacintosh) {
 				assert.equal(service.getFolderHash(URI.file('/foo')), service.getFolderHash(URI.file('/FOO')));
 			}

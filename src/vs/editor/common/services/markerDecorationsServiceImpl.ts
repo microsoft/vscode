@@ -87,13 +87,13 @@ export class MarkerDecorationsService extends Disposable implements IMarkerDecor
 		this._markerDecorations.clear();
 	}
 
-	getMarker(model: ITextModel, decoration: IModelDecoration): IMarker | null {
-		const markerDecorations = this._markerDecorations.get(MODEL_ID(model.uri));
+	getMarker(uri: URI, decoration: IModelDecoration): IMarker | null {
+		const markerDecorations = this._markerDecorations.get(MODEL_ID(uri));
 		return markerDecorations ? (markerDecorations.getMarker(decoration) || null) : null;
 	}
 
-	getLiveMarkers(model: ITextModel): [Range, IMarker][] {
-		const markerDecorations = this._markerDecorations.get(MODEL_ID(model.uri));
+	getLiveMarkers(uri: URI): [Range, IMarker][] {
+		const markerDecorations = this._markerDecorations.get(MODEL_ID(uri));
 		return markerDecorations ? markerDecorations.getMarkers() : [];
 	}
 

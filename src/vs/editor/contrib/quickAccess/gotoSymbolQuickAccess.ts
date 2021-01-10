@@ -12,11 +12,10 @@ import { ITextModel } from 'vs/editor/common/model';
 import { IRange, Range } from 'vs/editor/common/core/range';
 import { AbstractEditorNavigationQuickAccessProvider, IEditorNavigationQuickAccessOptions, IQuickAccessTextEditorContext } from 'vs/editor/contrib/quickAccess/editorNavigationQuickAccess';
 import { DocumentSymbol, SymbolKinds, SymbolTag, DocumentSymbolProviderRegistry, SymbolKind } from 'vs/editor/common/modes';
-import { OutlineModel, OutlineElement } from 'vs/editor/contrib/documentSymbols/outlineModel';
+import { OutlineModel } from 'vs/editor/contrib/documentSymbols/outlineModel';
 import { trim, format } from 'vs/base/common/strings';
 import { prepareQuery, IPreparedQuery, pieceToQuery, scoreFuzzy2 } from 'vs/base/common/fuzzyScorer';
 import { IMatch } from 'vs/base/common/filters';
-import { Iterable } from 'vs/base/common/iterator';
 import { Codicon } from 'vs/base/common/codicons';
 
 export interface IGotoSymbolQuickPickItem extends IQuickPickItem {
@@ -144,7 +143,7 @@ export abstract class AbstractGotoSymbolQuickAccessProvider extends AbstractEdit
 
 		// Resolve symbols from document once and reuse this
 		// request for all filtering and typing then on
-		const symbolsPromise = this.getDocumentSymbols(model, true, token);
+		const symbolsPromise = this.getDocumentSymbols(model, token);
 
 		// Set initial picks and update on type
 		let picksCts: CancellationTokenSource | undefined = undefined;
@@ -418,49 +417,9 @@ export abstract class AbstractGotoSymbolQuickAccessProvider extends AbstractEdit
 		return result;
 	}
 
-	protected async getDocumentSymbols(document: ITextModel, flatten: boolean, token: CancellationToken): Promise<DocumentSymbol[]> {
+	protected async getDocumentSymbols(document: ITextModel, token: CancellationToken): Promise<DocumentSymbol[]> {
 		const model = await OutlineModel.create(document, token);
-		if (token.isCancellationRequested) {
-			return [];
-		}
-
-		const roots: DocumentSymbol[] = [];
-		for (const child of model.children.values()) {
-			if (child instanceof OutlineElement) {
-				roots.push(child.symbol);
-			} else {
-				roots.push(...Iterable.map(child.children.values(), child => child.symbol));
-			}
-		}
-
-		let flatEntries: DocumentSymbol[] = [];
-		if (flatten) {
-			this.flattenDocumentSymbols(flatEntries, roots, '');
-		} else {
-			flatEntries = roots;
-		}
-
-		return flatEntries.sort((symbolA, symbolB) => Range.compareRangesUsingStarts(symbolA.range, symbolB.range));
-	}
-
-	private flattenDocumentSymbols(bucket: DocumentSymbol[], entries: DocumentSymbol[], overrideContainerLabel: string): void {
-		for (const entry of entries) {
-			bucket.push({
-				kind: entry.kind,
-				tags: entry.tags,
-				name: entry.name,
-				detail: entry.detail,
-				containerName: entry.containerName || overrideContainerLabel,
-				range: entry.range,
-				selectionRange: entry.selectionRange,
-				children: undefined, // we flatten it...
-			});
-
-			// Recurse over children
-			if (entry.children) {
-				this.flattenDocumentSymbols(bucket, entry.children, entry.name);
-			}
-		}
+		return token.isCancellationRequested ? [] : model.asListOfDocumentSymbols();
 	}
 }
 

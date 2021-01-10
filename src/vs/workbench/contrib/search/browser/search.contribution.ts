@@ -4,7 +4,6 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { Action } from 'vs/base/common/actions';
-import { distinct } from 'vs/base/common/arrays';
 import { onUnexpectedError } from 'vs/base/common/errors';
 import { KeyCode, KeyMod } from 'vs/base/common/keyCodes';
 import * as platform from 'vs/base/common/platform';
@@ -13,7 +12,7 @@ import { URI } from 'vs/base/common/uri';
 import { ToggleCaseSensitiveKeybinding, TogglePreserveCaseKeybinding, ToggleRegexKeybinding, ToggleWholeWordKeybinding } from 'vs/editor/contrib/find/findModel';
 import * as nls from 'vs/nls';
 import { ICommandAction, MenuId, MenuRegistry, SyncActionDescriptor } from 'vs/platform/actions/common/actions';
-import { CommandsRegistry, ICommandHandler } from 'vs/platform/commands/common/commands';
+import { CommandsRegistry, ICommandHandler, ICommandService } from 'vs/platform/commands/common/commands';
 import { IConfigurationService, ConfigurationTarget } from 'vs/platform/configuration/common/configuration';
 import { ConfigurationScope, Extensions as ConfigurationExtensions, IConfigurationRegistry } from 'vs/platform/configuration/common/configurationRegistry';
 import { ContextKeyExpr, IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
@@ -40,7 +39,7 @@ import { getWorkspaceSymbols } from 'vs/workbench/contrib/search/common/search';
 import { ISearchHistoryService, SearchHistoryService } from 'vs/workbench/contrib/search/common/searchHistoryService';
 import { FileMatchOrMatch, ISearchWorkbenchService, RenderableMatch, SearchWorkbenchService, FileMatch, Match, FolderMatch } from 'vs/workbench/contrib/search/common/searchModel';
 import { IEditorService } from 'vs/workbench/services/editor/common/editorService';
-import { VIEWLET_ID, VIEW_ID, SEARCH_EXCLUDE_CONFIG, SearchSortOrder } from 'vs/workbench/services/search/common/search';
+import { VIEWLET_ID, VIEW_ID, SEARCH_EXCLUDE_CONFIG, SearchSortOrder, ISearchConfiguration } from 'vs/workbench/services/search/common/search';
 import { IViewletService } from 'vs/workbench/services/viewlet/browser/viewlet';
 import { IWorkspaceContextService } from 'vs/platform/workspace/common/workspace';
 import { ExplorerViewPaneContainer } from 'vs/workbench/contrib/files/browser/explorerViewlet';
@@ -55,6 +54,7 @@ import { IQuickInputService } from 'vs/platform/quickinput/common/quickInput';
 import { AbstractGotoLineQuickAccessProvider } from 'vs/editor/contrib/quickAccess/gotoLineQuickAccess';
 import { GotoSymbolQuickAccessProvider } from 'vs/workbench/contrib/codeEditor/browser/quickaccess/gotoSymbolQuickAccess';
 import { searchViewIcon } from 'vs/workbench/contrib/search/browser/searchIcons';
+import { resolveResourcesForSearchIncludes } from 'vs/workbench/contrib/search/common/queryBuilder';
 
 registerSingleton(ISearchWorkbenchService, SearchWorkbenchService, true);
 registerSingleton(ISearchHistoryService, SearchHistoryService, true);
@@ -404,29 +404,40 @@ const FocusSearchListCommand: ICommandAction = {
 };
 MenuRegistry.addCommand(FocusSearchListCommand);
 
-const searchInFolderCommand: ICommandHandler = (accessor, resource?: URI) => {
+
+const searchInFolderCommand: ICommandHandler = async (accessor, resource?: URI) => {
 	const listService = accessor.get(IListService);
 	const fileService = accessor.get(IFileService);
 	const viewsService = accessor.get(IViewsService);
+	const contextService = accessor.get(IWorkspaceContextService);
+	const commandService = accessor.get(ICommandService);
 	const resources = getMultiSelectedResources(resource, listService, accessor.get(IEditorService), accessor.get(IExplorerService));
+	const searchConfig = accessor.get(IConfigurationService).getValue<ISearchConfiguration>().search;
+	const mode = searchConfig.mode;
 
-	return openSearchView(viewsService, true).then(searchView => {
-		if (resources && resources.length && searchView) {
-			return fileService.resolveAll(resources.map(resource => ({ resource }))).then(results => {
-				const folders: URI[] = [];
-
-				results.forEach(result => {
-					if (result.success && result.stat) {
-						folders.push(result.stat.isDirectory ? result.stat.resource : dirname(result.stat.resource));
-					}
-				});
-
-				searchView.searchInFolders(distinct(folders, folder => folder.toString()));
-			});
-		}
-
-		return undefined;
+	const resolvedResources = fileService.resolveAll(resources.map(resource => ({ resource }))).then(results => {
+		const folders: URI[] = [];
+		results.forEach(result => {
+			if (result.success && result.stat) {
+				folders.push(result.stat.isDirectory ? result.stat.resource : dirname(result.stat.resource));
+			}
+		});
+		return resolveResourcesForSearchIncludes(folders, contextService);
 	});
+
+	if (mode === 'view') {
+		const searchView = await openSearchView(viewsService, true);
+		if (resources && resources.length && searchView) {
+			searchView.searchInFolders(await resolvedResources);
+		}
+		return undefined;
+	} else {
+		return commandService.executeCommand(SearchEditorConstants.OpenEditorCommandId, {
+			filesToInclude: (await resolvedResources).join(', '),
+			showIncludesExcludes: true,
+			location: mode === 'newEditor' ? 'new' : 'reuse',
+		});
+	}
 };
 
 const FIND_IN_FOLDER_ID = 'filesExplorer.findInFolder';
@@ -455,12 +466,22 @@ CommandsRegistry.registerCommand({
 const FIND_IN_WORKSPACE_ID = 'filesExplorer.findInWorkspace';
 CommandsRegistry.registerCommand({
 	id: FIND_IN_WORKSPACE_ID,
-	handler: (accessor) => {
-		return openSearchView(accessor.get(IViewsService), true).then(searchView => {
+	handler: async (accessor) => {
+		const searchConfig = accessor.get(IConfigurationService).getValue<ISearchConfiguration>().search;
+		const mode = searchConfig.mode;
+
+		if (mode === 'view') {
+			const searchView = await openSearchView(accessor.get(IViewsService), true);
 			if (searchView) {
 				searchView.searchInFolders();
 			}
-		});
+		}
+		else {
+			return accessor.get(ICommandService).executeCommand(SearchEditorConstants.OpenEditorCommandId, {
+				location: mode === 'newEditor' ? 'new' : 'reuse',
+				filesToInclude: '',
+			});
+		}
 	}
 });
 
@@ -723,6 +744,17 @@ configurationRegistry.registerConfiguration({
 				]
 			},
 			scope: ConfigurationScope.RESOURCE
+		},
+		'search.mode': {
+			type: 'string',
+			enum: ['view', 'reuseEditor', 'newEditor'],
+			default: 'view',
+			markdownDescription: nls.localize('search.mode', "Controls where new `Search: Find in Files` and `Find in Folder` operations occur: either in the sidebar's search view, or in a search editor"),
+			enumDescriptions: [
+				nls.localize('search.mode.view', "Search in the search view, either in the panel or sidebar."),
+				nls.localize('search.mode.reuseEditor', "Search in an existing search editor if present, otherwise in a new search editor"),
+				nls.localize('search.mode.newEditor', "Search in a new search editor"),
+			]
 		},
 		'search.useRipgrep': {
 			type: 'boolean',

@@ -18,7 +18,7 @@ import { NativeParsedArgs } from 'vs/platform/environment/common/argv';
 import product from 'vs/platform/product/common/product';
 import { WindowMinimumSize, IWindowSettings, MenuBarVisibility, getTitleBarStyle, getMenuBarVisibility, zoomLevelToZoomFactor, INativeWindowConfiguration } from 'vs/platform/windows/common/windows';
 import { Disposable, toDisposable } from 'vs/base/common/lifecycle';
-import { isLinux, isMacintosh, isWindows } from 'vs/base/common/platform';
+import { browserCodeLoadingCacheStrategy, isLinux, isMacintosh, isWindows } from 'vs/base/common/platform';
 import { ICodeWindow, IWindowState, WindowMode } from 'vs/platform/windows/electron-main/windows';
 import { IWorkspaceIdentifier } from 'vs/platform/workspaces/common/workspaces';
 import { IWorkspacesMainService } from 'vs/platform/workspaces/electron-main/workspacesMainService';
@@ -164,6 +164,7 @@ export class CodeWindow extends Disposable implements ICodeWindow {
 				title: product.nameLong,
 				webPreferences: {
 					preload: FileAccess.asFileUri('vs/base/parts/sandbox/electron-browser/preload.js', require).fsPath,
+					v8CacheOptions: browserCodeLoadingCacheStrategy,
 					enableWebSQL: false,
 					enableRemoteModule: false,
 					spellcheck: false,
@@ -184,6 +185,10 @@ export class CodeWindow extends Disposable implements ICodeWindow {
 						}
 				}
 			};
+
+			if (browserCodeLoadingCacheStrategy) {
+				this.logService.info(`window#ctor: using vscode-file protocol and V8 cache options: ${browserCodeLoadingCacheStrategy}`);
+			}
 
 			// Apply icon to window
 			// Linux: always
@@ -233,7 +238,7 @@ export class CodeWindow extends Disposable implements ICodeWindow {
 				this._win.setSheetOffset(22); // offset dialogs by the height of the custom title bar if we have any
 			}
 
-			// TODO@Ben (Electron 4 regression): when running on multiple displays where the target display
+			// TODO@bpasero (Electron 4 regression): when running on multiple displays where the target display
 			// to open the window has a larger resolution than the primary display, the window will not size
 			// correctly unless we set the bounds again (https://github.com/microsoft/vscode/issues/74872)
 			//
@@ -568,7 +573,7 @@ export class CodeWindow extends Disposable implements ICodeWindow {
 		// Unresponsive
 		if (error === WindowError.UNRESPONSIVE) {
 			if (this.isExtensionDevelopmentHost || this.isExtensionTestHost || (this._win && this._win.webContents && this._win.webContents.isDevToolsOpened())) {
-				// TODO@Ben Workaround for https://github.com/microsoft/vscode/issues/56994
+				// TODO@bpasero Workaround for https://github.com/microsoft/vscode/issues/56994
 				// In certain cases the window can report unresponsiveness because a breakpoint was hit
 				// and the process is stopped executing. The most typical cases are:
 				// - devtools are opened and debugging happens
@@ -591,6 +596,7 @@ export class CodeWindow extends Disposable implements ICodeWindow {
 				}
 
 				if (result.response === 0) {
+					this._win.webContents.forcefullyCrashRenderer(); // Calling reload() immediately after calling this method will force the reload to occur in a new process
 					this.reload();
 				} else if (result.response === 2) {
 					this.destroyWindow();
@@ -643,32 +649,32 @@ export class CodeWindow extends Disposable implements ICodeWindow {
 	}
 
 	private onConfigurationUpdated(): void {
+
+		// Menubar
 		const newMenuBarVisibility = this.getMenuBarVisibility();
 		if (newMenuBarVisibility !== this.currentMenuBarVisibility) {
 			this.currentMenuBarVisibility = newMenuBarVisibility;
 			this.setMenuBarVisibility(newMenuBarVisibility);
 		}
 
-		// Do not set to empty configuration at startup if setting is empty to not override configuration through CLI options:
-		const env = process.env;
+		// Proxy
 		let newHttpProxy = (this.configurationService.getValue<string>('http.proxy') || '').trim()
-			|| (env.https_proxy || process.env.HTTPS_PROXY || process.env.http_proxy || process.env.HTTP_PROXY || '').trim() // Not standardized.
+			|| (process.env['https_proxy'] || process.env['HTTPS_PROXY'] || process.env['http_proxy'] || process.env['HTTP_PROXY'] || '').trim() // Not standardized.
 			|| undefined;
+
 		if (newHttpProxy?.endsWith('/')) {
 			newHttpProxy = newHttpProxy.substr(0, newHttpProxy.length - 1);
 		}
-		const newNoProxy = (env.no_proxy || env.NO_PROXY || '').trim() || undefined; // Not standardized.
+
+		const newNoProxy = (process.env['no_proxy'] || process.env['NO_PROXY'] || '').trim() || undefined; // Not standardized.
 		if ((newHttpProxy || '').indexOf('@') === -1 && (newHttpProxy !== this.currentHttpProxy || newNoProxy !== this.currentNoProxy)) {
 			this.currentHttpProxy = newHttpProxy;
 			this.currentNoProxy = newNoProxy;
+
 			const proxyRules = newHttpProxy || '';
 			const proxyBypassRules = newNoProxy ? `${newNoProxy},<local>` : '<local>';
 			this.logService.trace(`Setting proxy to '${proxyRules}', bypassing '${proxyBypassRules}'`);
-			this._win.webContents.session.setProxy({
-				proxyRules,
-				proxyBypassRules,
-				pacScript: '',
-			});
+			this._win.webContents.session.setProxy({ proxyRules, proxyBypassRules, pacScript: '' });
 		}
 	}
 
@@ -850,10 +856,10 @@ export class CodeWindow extends Disposable implements ICodeWindow {
 			workbench = 'vs/code/electron-browser/workbench/workbench.html';
 		}
 
-		return (this.environmentService.sandbox ?
-			FileAccess._asCodeFileUri(workbench, require) :
-			FileAccess.asBrowserUri(workbench, require))
-			.with({ query: `config=${encodeURIComponent(JSON.stringify(config))}` }).toString(true);
+		return FileAccess
+			.asBrowserUri(workbench, require)
+			.with({ query: `config=${encodeURIComponent(JSON.stringify(config))}` })
+			.toString(true);
 	}
 
 	serializeWindowState(): IWindowState {

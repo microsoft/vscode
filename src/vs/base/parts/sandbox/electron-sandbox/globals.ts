@@ -48,7 +48,7 @@ export interface ISandboxNodeProcess extends INodeProcess {
 	 * The order of overwrites is `process.env` < `shellEnv` < `userEnv`.
 	 *
 	 * It is critical that every process awaits this method early on startup to get the right
-	 * set of environment in `process.env`. 
+	 * set of environment in `process.env`.
 	 */
 	resolveEnv(userEnv: IProcessEnvironment): Promise<void>;
 
@@ -76,7 +76,7 @@ export interface ISandboxNodeProcess extends INodeProcess {
 export interface ISandboxContext {
 
 	/**
-	 * Wether the renderer runs with `sandbox` enabled or not.
+	 * Whether the renderer runs with `sandbox` enabled or not.
 	 */
 	sandbox: boolean;
 }

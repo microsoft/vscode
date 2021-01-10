@@ -52,14 +52,15 @@ self.addEventListener = () => console.trace(`'addEventListener' has been blocked
 if ((<any>self).Worker) {
 	const ttPolicy = (<any>self).trustedTypes?.createPolicy('extensionHostWorker', { createScriptURL: (value: string) => value });
 
-	// make sure new Worker(...) always uses data:
+	// make sure new Worker(...) always uses blob: (to maintain current origin)
 	const _Worker = (<any>self).Worker;
 	Worker = <any>function (stringUrl: string | URL, options?: WorkerOptions) {
 		const js = `importScripts('${stringUrl}');`;
 		options = options || {};
 		options.name = options.name || path.basename(stringUrl.toString());
-		const url = `data:text/javascript;charset=utf-8,${encodeURIComponent(js)}`;
-		return new _Worker(ttPolicy ? ttPolicy.createScriptURL(url) : url, options);
+		const blob = new Blob([js], { type: 'application/javascript' });
+		const blobUrl = URL.createObjectURL(blob);
+		return new _Worker(ttPolicy ? ttPolicy.createScriptURL(blobUrl) : blobUrl, options);
 	};
 
 } else {

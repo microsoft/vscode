@@ -74,7 +74,7 @@ export function createStatsStream(group: string, log?: boolean): es.ThroughStrea
 }
 
 export function submitAllStats(productJson: any, commit: string): Promise<boolean> {
-	const appInsights = <typeof import('applicationinsights')>require('applicationinsights');
+	const appInsights = require('applicationinsights') as typeof import('applicationinsights');
 
 	const sorted: Entry[] = [];
 	// move entries for single files to the front

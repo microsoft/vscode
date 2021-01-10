@@ -14,6 +14,8 @@ import { Extensions as ConfigurationExtensions, IConfigurationRegistry } from 'v
 import { workbenchConfigurationNodeBase } from 'vs/workbench/common/configuration';
 import product from 'vs/platform/product/common/product';
 
+export * as icons from 'vs/workbench/contrib/welcome/gettingStarted/browser/gettingStartedIcons';
+
 registerAction2(class extends Action2 {
 	constructor() {
 		super({

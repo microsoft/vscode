@@ -6,12 +6,13 @@
 import * as assert from 'assert';
 import { URI } from 'vs/base/common/uri';
 import { WorkspaceFolder } from 'vs/platform/workspace/common/workspace';
-import { EditorBreadcrumbsModel, FileElement } from 'vs/workbench/browser/parts/editor/breadcrumbsModel';
+import { BreadcrumbsModel, FileElement } from 'vs/workbench/browser/parts/editor/breadcrumbsModel';
 import { TestConfigurationService } from 'vs/platform/configuration/test/common/testConfigurationService';
 import { FileKind } from 'vs/platform/files/common/files';
 import { TestContextService } from 'vs/workbench/test/common/workbenchTestServices';
 import { Workspace } from 'vs/platform/workspace/test/common/testWorkspace';
-
+import { mock } from 'vs/base/test/common/mock';
+import { IOutlineService } from 'vs/workbench/services/outline/browser/outline';
 
 suite('Breadcrumb Model', function () {
 
@@ -33,7 +34,7 @@ suite('Breadcrumb Model', function () {
 
 	test('only uri, inside workspace', function () {
 
-		let model = new EditorBreadcrumbsModel(URI.parse('foo:/bar/baz/ws/some/path/file.ts'), URI.parse('foo:/bar/baz/ws/some/path/file.ts'), undefined, configService, configService, workspaceService);
+		let model = new BreadcrumbsModel(URI.parse('foo:/bar/baz/ws/some/path/file.ts'), undefined, configService, workspaceService, new class extends mock<IOutlineService>() { });
 		let elements = model.getElements();
 
 		assert.equal(elements.length, 3);
@@ -48,7 +49,7 @@ suite('Breadcrumb Model', function () {
 
 	test('display uri matters for FileElement', function () {
 
-		let model = new EditorBreadcrumbsModel(URI.parse('foo:/bar/baz/ws/some/PATH/file.ts'), URI.parse('foo:/bar/baz/ws/some/path/file.ts'), undefined, configService, configService, workspaceService);
+		let model = new BreadcrumbsModel(URI.parse('foo:/bar/baz/ws/some/PATH/file.ts'), undefined, configService, workspaceService, new class extends mock<IOutlineService>() { });
 		let elements = model.getElements();
 
 		assert.equal(elements.length, 3);
@@ -63,7 +64,7 @@ suite('Breadcrumb Model', function () {
 
 	test('only uri, outside workspace', function () {
 
-		let model = new EditorBreadcrumbsModel(URI.parse('foo:/outside/file.ts'), URI.parse('foo:/outside/file.ts'), undefined, configService, configService, workspaceService);
+		let model = new BreadcrumbsModel(URI.parse('foo:/outside/file.ts'), undefined, configService, workspaceService, new class extends mock<IOutlineService>() { });
 		let elements = model.getElements();
 
 		assert.equal(elements.length, 2);

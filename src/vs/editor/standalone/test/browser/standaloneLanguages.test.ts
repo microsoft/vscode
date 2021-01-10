@@ -68,7 +68,8 @@ suite('TokenizationSupport2Adapter', () => {
 				tokenColorMap: []
 			};
 		}
-
+		setColorMapOverride(colorMapOverride: Color[] | null): void {
+		}
 		public getFileIconTheme(): IFileIconTheme {
 			return {
 				hasFileIcons: false,
@@ -107,10 +108,10 @@ suite('TokenizationSupport2Adapter', () => {
 
 		const adapter = new TokenizationSupport2Adapter(new MockThemeService(), languageIdentifier, new BadTokensProvider());
 
-		const actualClassicTokens = adapter.tokenize('whatever', MockState.INSTANCE, offsetDelta);
+		const actualClassicTokens = adapter.tokenize('whatever', true, MockState.INSTANCE, offsetDelta);
 		assert.deepEqual(actualClassicTokens.tokens, expectedClassicTokens);
 
-		const actualModernTokens = adapter.tokenize2('whatever', MockState.INSTANCE, offsetDelta);
+		const actualModernTokens = adapter.tokenize2('whatever', true, MockState.INSTANCE, offsetDelta);
 		const modernTokens: number[] = [];
 		for (let i = 0; i < actualModernTokens.tokens.length; i++) {
 			modernTokens[i] = actualModernTokens.tokens[i];

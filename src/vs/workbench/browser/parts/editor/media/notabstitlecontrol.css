@@ -14,7 +14,7 @@
 	flex: auto;
 }
 
-.monaco-workbench .part.editor > .content .editor-group-container > .title .title-label {
+.monaco-workbench .part.editor > .content .editor-group-container > .title > .label-container > .title-label {
 	line-height: 35px;
 	overflow: hidden;
 	text-overflow: ellipsis;
@@ -24,10 +24,6 @@
 
 .monaco-workbench .part.editor > .content .editor-group-container > .title > .label-container > .title-label > .monaco-icon-label-container {
 	flex: none; /* helps to show decorations right next to the label and not at the end */
-}
-
-.monaco-workbench .part.editor > .content .editor-group-container > .title .monaco-icon-label::before {
-	height: 35px; /* tweak the icon size of the editor labels when icons are enabled */
 }
 
 /* Breadcrumbs */
@@ -66,13 +62,11 @@
 .monaco-workbench .part.editor > .content .editor-group-container > .title.breadcrumbs .breadcrumbs-control .monaco-breadcrumb-item.root_folder + .monaco-breadcrumb-item::before,
 .monaco-workbench .part.editor > .content .editor-group-container > .title.breadcrumbs .breadcrumbs-control.relative-path .monaco-breadcrumb-item:nth-child(2)::before,
 .monaco-workbench.windows .part.editor > .content .editor-group-container > .title.breadcrumbs .breadcrumbs-control .monaco-breadcrumb-item:nth-child(2)::before {
-	/* workspace folder, item following workspace folder, or relative path -> hide first seperator */
-	display: none;
+	display: none; /* workspace folder, item following workspace folder, or relative path -> hide first seperator */
 }
 
 .monaco-workbench .part.editor > .content .editor-group-container > .title.breadcrumbs .breadcrumbs-control .monaco-breadcrumb-item.root_folder::after {
-	/* use dot separator for workspace folder */
-	content: '\00a0•\00a0';
+	content: '\00a0•\00a0'; /* use dot separator for workspace folder */
 	padding: 0;
 }
 
@@ -84,13 +78,13 @@
 	padding: 0 1px;
 }
 
-.monaco-workbench .part.editor > .content .editor-group-container > .title.breadcrumbs .breadcrumbs-control .monaco-breadcrumb-item .codicon:last-child,
-.monaco-workbench .part.editor > .content .editor-group-container > .title .tabs-breadcrumbs .breadcrumbs-control .monaco-breadcrumb-item:last-child .codicon:last-child {
-	display: none; /* hides chevrons when no tabs visible and when last items */
+.monaco-workbench .part.editor > .content .editor-group-container > .title.breadcrumbs .breadcrumbs-control .monaco-breadcrumb-item .codicon:last-child {
+	display: none; /* hides chevrons when no tabs visible */
 }
 
-/* Title Actions */
-.monaco-workbench .part.editor > .content .editor-group-container > .title .title-actions {
+/* Editor Actions Toolbar (via title actions) */
+
+.monaco-workbench .part.editor > .content .editor-group-container > .title > .title-actions {
 	display: flex;
 	flex: initial;
 	opacity: 0.5;
@@ -98,6 +92,6 @@
 	height: 35px;
 }
 
-.monaco-workbench .part.editor > .content .editor-group-container.active > .title .title-actions {
+.monaco-workbench .part.editor > .content .editor-group-container.active > .title > .title-actions {
 	opacity: 1;
 }

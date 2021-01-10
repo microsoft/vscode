@@ -4,8 +4,9 @@
  *--------------------------------------------------------------------------------------------*/
 
 import * as vscode from 'vscode';
-import { getHtmlNodeLS, toLSTextDocument, validate } from './util';
-import { TextDocument as LSTextDocument, Node as LSNode } from 'vscode-html-languageservice';
+import { getHtmlFlatNode, validate } from './util';
+import { HtmlNode as HtmlFlatNode } from 'EmmetFlatNode';
+import { getRootNode } from './parseDocument';
 
 export function updateTag(tagName: string): Thenable<boolean> | undefined {
 	if (!validate(false) || !vscode.window.activeTextEditor) {
@@ -13,9 +14,15 @@ export function updateTag(tagName: string): Thenable<boolean> | undefined {
 	}
 
 	const editor = vscode.window.activeTextEditor;
+	const document = editor.document;
+	const rootNode = <HtmlFlatNode>getRootNode(document, true);
+	if (!rootNode) {
+		return;
+	}
+
 	const rangesToUpdate = editor.selections.reverse()
 		.reduce<vscode.Range[]>((prev, selection) =>
-			prev.concat(getRangesToUpdate(editor, selection)), []);
+			prev.concat(getRangesToUpdate(document, selection, rootNode)), []);
 
 	return editor.edit(editBuilder => {
 		rangesToUpdate.forEach(range => {
@@ -24,34 +31,25 @@ export function updateTag(tagName: string): Thenable<boolean> | undefined {
 	});
 }
 
-function getPositionFromOffset(offset: number | undefined, document: LSTextDocument): vscode.Position | undefined {
-	if (offset === undefined) {
-		return undefined;
-	}
-	const pos = document.positionAt(offset);
-	return new vscode.Position(pos.line, pos.character);
-}
-
-function getRangesFromNode(node: LSNode, document: LSTextDocument): vscode.Range[] {
-	const start = getPositionFromOffset(node.start, document)!;
-	const startTagEnd = getPositionFromOffset(node.startTagEnd, document);
-	const end = getPositionFromOffset(node.end, document)!;
-	const endTagStart = getPositionFromOffset(node.endTagStart, document);
-
+function getRangesFromNode(node: HtmlFlatNode, document: vscode.TextDocument): vscode.Range[] {
 	let ranges: vscode.Range[] = [];
-	if (startTagEnd) {
+	if (node.open) {
+		const start = document.positionAt(node.open.start);
 		ranges.push(new vscode.Range(start.translate(0, 1),
-			start.translate(0, 1).translate(0, node.tag!.length ?? 0)));
+			start.translate(0, 1).translate(0, node.name.length)));
 	}
-	if (endTagStart) {
+	if (node.close) {
+		const endTagStart = document.positionAt(node.close.start);
+		const end = document.positionAt(node.close.end);
 		ranges.push(new vscode.Range(endTagStart.translate(0, 2), end.translate(0, -1)));
 	}
 	return ranges;
 }
 
-function getRangesToUpdate(editor: vscode.TextEditor, selection: vscode.Selection): vscode.Range[] {
-	const document = toLSTextDocument(editor.document);
-	const nodeToUpdate = getHtmlNodeLS(document, selection.start, true);
+function getRangesToUpdate(document: vscode.TextDocument, selection: vscode.Selection, rootNode: HtmlFlatNode): vscode.Range[] {
+	const documentText = document.getText();
+	const offset = document.offsetAt(selection.start);
+	const nodeToUpdate = getHtmlFlatNode(documentText, rootNode, offset, true);
 	if (!nodeToUpdate) {
 		return [];
 	}

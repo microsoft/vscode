@@ -17,6 +17,7 @@ import { IMarkdownString } from 'vs/base/common/htmlContent';
 import { isFunction, isString } from 'vs/base/common/types';
 import { domEvent } from 'vs/base/browser/event';
 import { localize } from 'vs/nls';
+import { CancellationToken, CancellationTokenSource } from 'vs/base/common/cancellation';
 
 export interface IIconLabelCreationOptions {
 	supportHighlights?: boolean;
@@ -26,7 +27,7 @@ export interface IIconLabelCreationOptions {
 }
 
 export interface IIconLabelMarkdownString {
-	markdown: IMarkdownString | string | undefined | (() => Promise<IMarkdownString | string | undefined>);
+	markdown: IMarkdownString | string | undefined | ((token: CancellationToken) => Promise<IMarkdownString | string | undefined>);
 	markdownNotSupportedFallback: string | undefined;
 }
 
@@ -200,7 +201,7 @@ export class IconLabel extends Disposable {
 		}
 	}
 
-	private getTooltipForCustom(markdownTooltip: string | IIconLabelMarkdownString): () => Promise<string | IMarkdownString | undefined> {
+	private getTooltipForCustom(markdownTooltip: string | IIconLabelMarkdownString): (token: CancellationToken) => Promise<string | IMarkdownString | undefined> {
 		if (isString(markdownTooltip)) {
 			return async () => markdownTooltip;
 		} else if (isFunction(markdownTooltip.markdown)) {
@@ -222,12 +223,16 @@ export class IconLabel extends Disposable {
 		let hoverOptions: IHoverDelegateOptions | undefined;
 		let mouseX: number | undefined;
 		let isHovering = false;
+		let tokenSource: CancellationTokenSource;
 		function mouseOver(this: HTMLElement, e: MouseEvent): any {
 			if (isHovering) {
 				return;
 			}
+			tokenSource = new CancellationTokenSource();
 			function mouseLeaveOrDown(this: HTMLElement, e: MouseEvent): any {
 				isHovering = false;
+				hoverOptions = undefined;
+				tokenSource.dispose(true);
 				mouseLeaveDisposable.dispose();
 				mouseDownDisposable.dispose();
 			}
@@ -254,7 +259,7 @@ export class IconLabel extends Disposable {
 						};
 						IconLabel.adjustXAndShowCustomHover(hoverOptions, mouseX, hoverDelegate, isHovering);
 
-						const resolvedTooltip = await tooltip();
+						const resolvedTooltip = await tooltip(tokenSource.token);
 						if (resolvedTooltip) {
 							hoverOptions = {
 								text: resolvedTooltip,

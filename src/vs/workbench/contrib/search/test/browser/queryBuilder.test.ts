@@ -93,7 +93,27 @@ suite('QueryBuilder', () => {
 			});
 	});
 
-	test('does not split glob pattern when expandPatterns disabled', () => {
+	test('splits include pattern when expandPatterns enabled', () => {
+		assertEqualQueries(
+			queryBuilder.file(
+				[ROOT_1_NAMED_FOLDER],
+				{ includePattern: '**/foo, **/bar', expandPatterns: true },
+			),
+			{
+				folderQueries: [{
+					folder: ROOT_1_URI
+				}],
+				type: QueryType.File,
+				includePattern: {
+					'**/foo': true,
+					'**/foo/**': true,
+					'**/bar': true,
+					'**/bar/**': true,
+				}
+			});
+	});
+
+	test('does not split include pattern when expandPatterns disabled', () => {
 		assertEqualQueries(
 			queryBuilder.file(
 				[ROOT_1_NAMED_FOLDER],
@@ -106,6 +126,44 @@ suite('QueryBuilder', () => {
 				type: QueryType.File,
 				includePattern: {
 					'**/foo, **/bar': true
+				}
+			});
+	});
+
+	test('includePattern array', () => {
+		assertEqualQueries(
+			queryBuilder.file(
+				[ROOT_1_NAMED_FOLDER],
+				{ includePattern: ['**/foo', '**/bar'] },
+			),
+			{
+				folderQueries: [{
+					folder: ROOT_1_URI
+				}],
+				type: QueryType.File,
+				includePattern: {
+					'**/foo': true,
+					'**/bar': true
+				}
+			});
+	});
+
+	test('includePattern array with expandPatterns', () => {
+		assertEqualQueries(
+			queryBuilder.file(
+				[ROOT_1_NAMED_FOLDER],
+				{ includePattern: ['**/foo', '**/bar'], expandPatterns: true },
+			),
+			{
+				folderQueries: [{
+					folder: ROOT_1_URI
+				}],
+				type: QueryType.File,
+				includePattern: {
+					'**/foo': true,
+					'**/foo/**': true,
+					'**/bar': true,
+					'**/bar/**': true,
 				}
 			});
 	});

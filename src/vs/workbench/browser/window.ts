@@ -85,7 +85,7 @@ export class BrowserWindow extends Disposable {
 		// in a new window because that would leave a blank
 		// window to the user, but using `window.location.href`
 		// will trigger the `beforeunload`.
-		this.openerService.setExternalOpener({
+		this.openerService.setDefaultExternalOpener({
 			openExternal: async (href: string) => {
 				if (matchesScheme(href, Schemas.http) || matchesScheme(href, Schemas.https)) {
 					windowOpenNoOpener(href);
