@@ -11,6 +11,7 @@ import { Event } from 'vs/base/common/event';
 import { registerSingleton } from 'vs/platform/instantiation/common/extensions';
 import { IAction, Action } from 'vs/base/common/actions';
 import { IStorageService, StorageScope, StorageTarget } from 'vs/platform/storage/common/storage';
+import { INotificationItem } from 'vs/workbench/services/preferences/common/preferences';
 
 export class NotificationService extends Disposable implements INotificationService {
 
@@ -22,6 +23,10 @@ export class NotificationService extends Disposable implements INotificationServ
 		@IStorageService private readonly storageService: IStorageService
 	) {
 		super();
+	}
+
+	getNotifications(): INotificationItem[] {
+		return JSON.parse(this.storageService.get('dismissedNotifications', StorageScope.GLOBAL, '[]'));
 	}
 
 	setFilter(filter: NotificationsFilter): void {
@@ -119,12 +124,22 @@ export class NotificationService extends Disposable implements INotificationServ
 			// If the user already picked to not show the notification
 			// again, we return with a no-op notification here
 			if (this.storageService.getBoolean(id, scope)) {
+				// check if key already in storage
+				const notifications = this.getNotifications();
+				notifications.push({ neverShowAgain: true, id: id, label: 'label', when: 'whenever' });
+				this.storageService.store('dismissedNotifications', JSON.stringify(notifications), scope, StorageTarget.USER);
+
 				return new NoOpNotification();
 			}
 
 			const neverShowAgainChoice = {
 				label: nls.localize('neverShowAgain', "Don't Show Again"),
-				run: () => this.storageService.store(id, true, scope, StorageTarget.USER),
+				run: () => {
+					this.storageService.store(id, true, scope, StorageTarget.USER);
+
+					this.getNotifications().push(<INotificationItem>{ neverShowAgain: true, id: id, label: 'label', when: 'whenever' });
+					this.storageService.store('dismissedNotifications', JSON.stringify(this.getNotifications()), scope, StorageTarget.USER);
+				},
 				isSecondary: options.neverShowAgain.isSecondary
 			};
 

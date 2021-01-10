@@ -285,15 +285,14 @@ export interface INotificationItemEntry extends IListEntry {
 	notificationItem: INotificationItem;
 	notificationIdMatches?: IMatch[];
 	notificationLabelMatches?: IMatch[];
-	sourceMatches?: IMatch[];
 	whenMatches?: IMatch[];
 }
 
 export interface INotificationItem {
 	neverShowAgain: boolean;
-	notificationLabel: string;
-	notificationId: string;
-	notificationDescription: string;
+	label: string;
+	id: string;
+	when: string;
 }
 
 export interface INotificationsEditorPane extends IEditorPane {

@@ -569,9 +569,8 @@ export class TerminalInstance extends Disposable implements ITerminalInstance {
 				if (this._storageService.getBoolean(SHOW_TERMINAL_CONFIG_PROMPT, StorageScope.GLOBAL, true) &&
 					this.hasHadInput &&
 					!TERMINAL_CREATION_COMMANDS.includes(resolveResult.commandId)) {
-					this._notificationService.prompt(
-						Severity.Info,
-						nls.localize('configure terminal settings', "Some keybindings are dispatched to the workbench by default."),
+					const message = nls.localize('configure terminal settings', "Some keybindings are dispatched to the workbench by default.");
+					this._notificationService.prompt(Severity.Info, message,
 						[
 							{
 								label: nls.localize('configureTerminalSettings', "Configure Terminal Settings"),
@@ -579,9 +578,8 @@ export class TerminalInstance extends Disposable implements ITerminalInstance {
 									this._preferencesService.openSettings(false, '@id:terminal.integrated.commandsToSkipShell,terminal.integrated.sendKeybindingsToShell,terminal.integrated.allowChords');
 								}
 							} as IPromptChoice
-						]
+						], { neverShowAgain: { id: SHOW_TERMINAL_CONFIG_PROMPT } }
 					);
-					this._storageService.store(SHOW_TERMINAL_CONFIG_PROMPT, false, StorageScope.GLOBAL, StorageTarget.USER);
 				}
 				event.preventDefault();
 				return false;

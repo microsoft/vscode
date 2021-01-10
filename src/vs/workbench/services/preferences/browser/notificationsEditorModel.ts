@@ -8,12 +8,15 @@ import { EditorModel } from 'vs/workbench/common/editor';
 import { INotificationItem } from 'vs/workbench/services/preferences/common/preferences';
 
 export class NotificationsEditorModel extends EditorModel {
-	private _notificationItems: INotificationItem[];
 	constructor(
 		@INotificationService private readonly notificationService: INotificationService
 	) {
 		super();
-		this._notificationItems = [<INotificationItem>{ neverShowAgain: true, notificationLabel: 'terminal', notificationId: 'terminal.id', notificationDescription: 'hello world' }];
 	}
-
+	get notificationItems(): INotificationItem[] {
+		return this.notificationService.getNotifications();
+	}
+	resolve(): Promise<EditorModel> {
+		return Promise.resolve(this);
+	}
 }

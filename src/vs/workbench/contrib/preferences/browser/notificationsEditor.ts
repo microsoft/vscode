@@ -23,7 +23,10 @@ import { Emitter, Event } from 'vs/base/common/event';
 import { IListAccessibilityProvider } from 'vs/base/browser/ui/list/listWidget';
 import { Color, RGBA } from 'vs/base/common/color';
 import { WORKBENCH_BACKGROUND } from 'vs/workbench/common/theme';
-import { INotificationItemEntry, INotificationsEditorPane, IListEntry, IKeybindingItemEntry } from 'vs/workbench/services/preferences/common/preferences';
+import { INotificationItemEntry, INotificationsEditorPane, IListEntry, IKeybindingItemEntry, INotificationItem } from 'vs/workbench/services/preferences/common/preferences';
+import { attachInputBoxStyler } from 'vs/platform/theme/common/styler';
+import { NotificationsEditorModel } from 'vs/workbench/services/preferences/browser/notificationsEditorModel';
+import { INotificationService } from 'vs/platform/notification/common/notification';
 
 const $ = DOM.$;
 
@@ -47,10 +50,12 @@ export class NotificationsEditor extends EditorPane implements INotificationsEdi
 	private overlayContainer!: HTMLElement;
 
 	private columnItems: ColumnItem[] = [];
-	private notificationsListContainer!: HTMLElement;
+	private notificationListContainer!: HTMLElement;
 
 	private listEntries: IListEntry[] = [];
-	private notificationsList!: WorkbenchList<IListEntry>;
+	private notificationList!: WorkbenchList<IListEntry>;
+	private notificationsEditorModel: NotificationsEditorModel | null = null;
+
 
 	private dimension: DOM.Dimension | null = null;
 
@@ -62,13 +67,14 @@ export class NotificationsEditor extends EditorPane implements INotificationsEdi
 		@ITelemetryService telemetryService: ITelemetryService,
 		@IThemeService themeService: IThemeService,
 		@IContextKeyService private readonly contextKeyService: IContextKeyService,
-		// @INotificationService private readonly notificationService: INotificationService,
+		@INotificationService private readonly notificationService: INotificationService,
 		@IInstantiationService private readonly instantiationService: IInstantiationService,
 		// @IEditorService private readonly editorService: IEditorService,
 		@IStorageService storageService: IStorageService
 	) {
 		super(NotificationsEditor.ID, telemetryService, themeService, storageService);
 		this.notificationsEditorContextKey = CONTEXT_KEYBINDINGS_EDITOR.bindTo(this.contextKeyService);
+		this.render(!!this.notificationsEditorContextKey.get());
 	}
 	onDefineWhenExpression!: Event<IKeybindingItemEntry>;
 	search(filter: string): void {
@@ -82,6 +88,19 @@ export class NotificationsEditor extends EditorPane implements INotificationsEdi
 	}
 	showNotificationAgain(notificationEntry: INotificationItemEntry): void {
 		throw new Error('Method not implemented.');
+	}
+	private async render(preserveFocus: boolean): Promise<void> {
+		this.notificationsEditorModel = new NotificationsEditorModel(this.notificationService);
+		await this.notificationsEditorModel.resolve();
+		this.renderNotificationEntries();
+	}
+
+	private renderNotificationEntries(): void {
+		if (this.notificationsEditorModel) {
+			const notificationItems: INotificationItem[] = this.notificationsEditorModel.notificationItems;
+			this.ariaLabelElement.setAttribute('aria-label', localize('show notifications', "Showing {0} notifications", notificationItems.length));
+			this.layoutNotificationsList();
+		}
 	}
 
 	createEditor(parent: HTMLElement): void {
@@ -132,7 +151,7 @@ export class NotificationsEditor extends EditorPane implements INotificationsEdi
 	}
 
 	get activeNotificationEntry(): INotificationItemEntry | null {
-		const focusedElement = this.notificationsList.getFocusedElements()[0];
+		const focusedElement = this.notificationList.getFocusedElements()[0];
 		return focusedElement && focusedElement.templateId === KEYBINDING_ENTRY_TEMPLATE_ID ? <INotificationItemEntry>focusedElement : null;
 	}
 
@@ -148,7 +167,6 @@ export class NotificationsEditor extends EditorPane implements INotificationsEdi
 		this.overlayContainer.style.zIndex = '10';
 		this.hideOverlayContainer();
 	}
-
 
 	private hideOverlayContainer() {
 		this.overlayContainer.style.display = 'none';
@@ -173,37 +191,34 @@ export class NotificationsEditor extends EditorPane implements INotificationsEdi
 		let column = $('.header.actions');
 		this.columnItems.push({ column, width: 30 });
 
-		column = $('.header.command', undefined, localize('command', "Command"));
-		this.columnItems.push({ column, proportion: 0.3, width: 0 });
+		column = $('.header.never-show-again', undefined, localize('never-show-again', "Never Show Again"));
+		this.columnItems.push({ column, proportion: 0.25, width: 0 });
 
-		column = $('.header.keybinding', undefined, localize('keybinding', "Notification"));
-		this.columnItems.push({ column, proportion: 0.2, width: 0 });
+		column = $('.header.notification', undefined, localize('keybinding', "Notification"));
+		this.columnItems.push({ column, proportion: 0.25, width: 0 });
 
 		column = $('.header.when', undefined, localize('when', "When"));
-		this.columnItems.push({ column, proportion: 0.4, width: 0 });
-
-		column = $('.header.source', undefined, localize('source', "Source"));
-		this.columnItems.push({ column, proportion: 0.1, width: 0 });
+		this.columnItems.push({ column, proportion: 0.5, width: 0 });
 
 		DOM.append(notificationsListHeader, ...this.columnItems.map(({ column }) => column));
 	}
 
 	private createList(parent: HTMLElement): void {
-		this.notificationsListContainer = DOM.append(parent, $('.notifications-list-container'));
-		this.notificationsList = this._register(this.instantiationService.createInstance(WorkbenchList, 'NotificationsEditor', this.notificationsListContainer, new Delegate(), [new NotificationItemRenderer(this, this.instantiationService)], {
+		this.notificationListContainer = DOM.append(parent, $('.notifications-list-container'));
+		this.notificationList = this._register(this.instantiationService.createInstance(WorkbenchList, 'NotificationsEditor', this.notificationListContainer, new Delegate(), [new NotificationItemRenderer(this, this.instantiationService)], {
 			identityProvider: { getId: (e: IListEntry) => e.id },
 			setRowLineHeight: false,
 			horizontalScrolling: false,
 			accessibilityProvider: new AccessibilityProvider(),
-			keyboardNavigationLabelProvider: { getKeyboardNavigationLabel: (e: INotificationItemEntry) => e.notificationItem.notificationLabel },
+			keyboardNavigationLabelProvider: { getKeyboardNavigationLabel: (e: INotificationItemEntry) => e.notificationItem.label },
 			overrideStyles: {
 				listBackground: editorBackground
 			}
 		})) as WorkbenchList<IListEntry>;
 
-		this._register(this.notificationsList.onContextMenu(e => this.onContextMenu(e)));
-		this._register(this.notificationsList.onDidFocus(() => {
-			this.notificationsList.getHTMLElement().classList.add('focused');
+		this._register(this.notificationList.onContextMenu(e => this.onContextMenu(e)));
+		this._register(this.notificationList.onDidFocus(() => {
+			this.notificationList.getHTMLElement().classList.add('focused');
 		}));
 	}
 
@@ -225,8 +240,8 @@ export class NotificationsEditor extends EditorPane implements INotificationsEdi
 
 		this.layoutColumns(this.columnItems.map(({ column }) => column));
 		const listHeight = this.dimension.height - (DOM.getDomNodePagePosition(this.headerContainer).height + 12 /*padding*/ + 30 /*list header*/);
-		this.notificationsListContainer.style.height = `${listHeight}px`;
-		this.notificationsList.layout(listHeight);
+		this.notificationListContainer.style.height = `${listHeight}px`;
+		this.notificationList.layout(listHeight);
 	}
 
 	private getIndexOf(listEntry: IListEntry): number {
@@ -245,17 +260,17 @@ export class NotificationsEditor extends EditorPane implements INotificationsEdi
 		const index = typeof entry === 'number' ? entry : this.getIndexOf(entry);
 		if (index !== -1) {
 			if (focus) {
-				this.notificationsList.getHTMLElement().focus();
-				this.notificationsList.setFocus([index]);
+				this.notificationList.getHTMLElement().focus();
+				this.notificationList.setFocus([index]);
 			}
-			this.notificationsList.setSelection([index]);
+			this.notificationList.setSelection([index]);
 		}
 	}
 
 	focusNotifications(): void {
-		this.notificationsList.getHTMLElement().focus();
-		const currentFocusIndices = this.notificationsList.getFocus();
-		this.notificationsList.setFocus([currentFocusIndices.length ? currentFocusIndices[0] : 0]);
+		this.notificationList.getHTMLElement().focus();
+		const currentFocusIndices = this.notificationList.getFocus();
+		this.notificationList.setFocus([currentFocusIndices.length ? currentFocusIndices[0] : 0]);
 	}
 
 	selectNotification(entry: INotificationItemEntry): void {
@@ -305,11 +320,11 @@ class NotificationItemRenderer implements IListRenderer<INotificationItemEntry, 
 	renderTemplate(parent: HTMLElement): NotificationItemTemplate {
 		parent.classList.add('keybinding-item');
 
-		const neverShowAgain: ActionsColumn = this.instantiationService.createInstance(ActionsColumn, parent, this.notificationsEditor);
+		const neverShowAgain: NeverShowAgainColumn = this.instantiationService.createInstance(NeverShowAgainColumn, parent, this.notificationsEditor);
 		const label: LabelColumn = this.instantiationService.createInstance(LabelColumn, parent, this.notificationsEditor);
-		const description: NotificationColumn = this.instantiationService.createInstance(NotificationColumn, parent, this.notificationsEditor);
+		const when: WhenColumn = this.instantiationService.createInstance(WhenColumn, parent, this.notificationsEditor);
 
-		const columns: Column[] = [neverShowAgain, label, description];
+		const columns: Column[] = [neverShowAgain, label, when];
 		const disposables = combinedDisposable(...columns);
 		const elements = columns.map(({ element }) => element);
 
@@ -322,7 +337,6 @@ class NotificationItemRenderer implements IListRenderer<INotificationItemEntry, 
 			disposable: disposables
 		};
 	}
-
 
 	renderElement(notificationEntry: INotificationItemEntry, index: number, template: NotificationItemTemplate): void {
 		template.parent.classList.toggle('odd', index % 2 === 1);
@@ -347,7 +361,7 @@ abstract class Column extends Disposable {
 	}
 }
 
-class ActionsColumn extends Column {
+class NeverShowAgainColumn extends Column {
 	render(entry: INotificationItemEntry): void {
 		throw new Error('Method not implemented.');
 	}
@@ -359,13 +373,16 @@ class ActionsColumn extends Column {
 		parent: HTMLElement,
 		notificationsEditor: INotificationsEditorPane,
 		//@INotificationService private notificationsService: INotificationService
+		@IThemeService private readonly themeService: IThemeService
 	) {
 		super(notificationsEditor);
-		this.element = DOM.append(parent, $('.column.actions', { id: 'actions_' + ++Column.COUNTER }));
+		this.element = DOM.append(parent, $('.column.neverShowAgain', { id: 'neverShowAgain_' + ++Column.COUNTER }));
 		const opts: ICheckboxOpts = { title: 'Never Show Again', isChecked: true };
 		this.checkbox = new Checkbox(opts);
 		// this.checkbox.onChange(e => notificationsService.update(parent.))
+		this._register(attachInputBoxStyler(this.checkbox, this.themeService));
 	}
+
 
 	dispose(): void {
 		super.dispose();
@@ -393,7 +410,7 @@ class LabelColumn extends Column {
 	}
 }
 
-class NotificationColumn extends Column {
+class WhenColumn extends Column {
 
 	private readonly notificationLabel: HTMLElement;
 	readonly element: HTMLElement;
@@ -410,7 +427,7 @@ class NotificationColumn extends Column {
 
 	render(entry: INotificationItemEntry): void {
 		DOM.clearNode(this.notificationLabel);
-		this.notificationLabel.prepend(entry.notificationItem.notificationLabel);
+		this.notificationLabel.prepend(entry.notificationItem.label);
 		DOM.append(this.notificationLabel);
 	}
 }
@@ -424,8 +441,8 @@ class AccessibilityProvider implements IListAccessibilityProvider<INotificationI
 
 	getAriaLabel(entry: INotificationItemEntry): string {
 		let ariaLabel = entry.notificationItem.neverShowAgain
-			+ ', ' + entry.notificationItem.notificationLabel
-			+ ', ' + entry.notificationItem.notificationDescription;
+			+ ', ' + entry.notificationItem.label
+			+ ', ' + entry.notificationItem.when;
 		return ariaLabel;
 	}
 }

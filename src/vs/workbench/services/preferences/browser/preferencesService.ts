@@ -316,14 +316,9 @@ export class PreferencesService extends Disposable implements IPreferencesServic
 	}
 
 	async openNotifications(): Promise<void> {
-		// const notifications = this.environmentService.notificationsResource;
-		// await this.editorService.openEditor({ resource: notifications });
-		// await this.editorService.openEditor(this.instantiationService.createInstance(NotificationsEditor));
 		const options = { pinned: true, revealIfOpened: true };
 		await this.editorService.openEditor(this.instantiationService.createInstance(NotificationsEditorInput), options);
-
 	}
-
 
 	openDefaultKeybindingsFile(): Promise<IEditorPane | undefined> {
 		return this.editorService.openEditor({ resource: this.defaultKeybindingsResource, label: nls.localize('defaultKeybindings', "Default Keybindings") });

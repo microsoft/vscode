@@ -11,6 +11,13 @@ import { IDisposable } from 'vs/base/common/lifecycle';
 
 export import Severity = BaseSeverity;
 
+export interface INotificationItem {
+	neverShowAgain: boolean;
+	label: string;
+	id: string;
+	when: string;
+}
+
 export const INotificationService = createDecorator<INotificationService>('notificationService');
 
 export type NotificationMessage = string | Error;
@@ -363,6 +370,8 @@ export interface INotificationService {
 	 * @param filter the filter to use
 	 */
 	setFilter(filter: NotificationsFilter): void;
+
+	getNotifications(): INotificationItem[];
 }
 
 export class NoOpNotification implements INotificationHandle {
