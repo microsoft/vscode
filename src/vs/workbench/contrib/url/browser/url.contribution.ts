@@ -18,7 +18,6 @@ import { TrustedDomainsFileSystemProvider } from 'vs/workbench/contrib/url/brows
 import { ServicesAccessor } from 'vs/platform/instantiation/common/instantiation';
 import { CATEGORIES } from 'vs/workbench/common/actions';
 import { OpenerValidatorContributions } from 'vs/workbench/contrib/url/browser/trustedDomainsValidator';
-import { NotificationFileSystemProvider } from 'vs/workbench/contrib/url/browser/notificationFileSystemProvider';
 
 class OpenUrlAction extends Action2 {
 

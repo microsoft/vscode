@@ -370,8 +370,6 @@ export interface INotificationService {
 	 * @param filter the filter to use
 	 */
 	setFilter(filter: NotificationsFilter): void;
-
-	getNotifications(): INotificationItem[];
 }
 
 export class NoOpNotification implements INotificationHandle {

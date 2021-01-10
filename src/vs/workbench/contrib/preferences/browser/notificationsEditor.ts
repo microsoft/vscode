@@ -26,7 +26,6 @@ import { WORKBENCH_BACKGROUND } from 'vs/workbench/common/theme';
 import { INotificationItemEntry, INotificationsEditorPane, IListEntry, IKeybindingItemEntry, INotificationItem } from 'vs/workbench/services/preferences/common/preferences';
 import { attachInputBoxStyler } from 'vs/platform/theme/common/styler';
 import { NotificationsEditorModel } from 'vs/workbench/services/preferences/browser/notificationsEditorModel';
-import { INotificationService } from 'vs/platform/notification/common/notification';
 
 const $ = DOM.$;
 
@@ -67,7 +66,7 @@ export class NotificationsEditor extends EditorPane implements INotificationsEdi
 		@ITelemetryService telemetryService: ITelemetryService,
 		@IThemeService themeService: IThemeService,
 		@IContextKeyService private readonly contextKeyService: IContextKeyService,
-		@INotificationService private readonly notificationService: INotificationService,
+		// @INotificationService private readonly notificationService: INotificationService,
 		@IInstantiationService private readonly instantiationService: IInstantiationService,
 		// @IEditorService private readonly editorService: IEditorService,
 		@IStorageService storageService: IStorageService
