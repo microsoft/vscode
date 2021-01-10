@@ -8,11 +8,7 @@ import * as dom from 'vs/base/browser/dom';
 
 const $ = dom.$;
 
-export interface KeybindingLabelOptions {
-	renderUnboundKeybindings: boolean;
-}
-
-export class KeybindingLabel {
+export class NotificationLabel {
 
 	private domNode: HTMLElement;
 
