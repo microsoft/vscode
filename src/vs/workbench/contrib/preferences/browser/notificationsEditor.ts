@@ -90,7 +90,7 @@ export class NotificationsEditor extends EditorPane implements INotificationsEdi
 		throw new Error('Method not implemented.');
 	}
 	private async render(preserveFocus: boolean): Promise<void> {
-		this.notificationsEditorModel = new NotificationsEditorModel(this.notificationService);
+		this.notificationsEditorModel = this.instantiationService.createInstance(NotificationsEditorModel);
 		await this.notificationsEditorModel.resolve();
 		this.renderNotificationEntries();
 	}

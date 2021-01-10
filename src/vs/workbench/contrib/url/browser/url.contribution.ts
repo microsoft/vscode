@@ -70,10 +70,6 @@ Registry.as<IWorkbenchContributionsRegistry>(WorkbenchExtensions.Workbench).regi
 	LifecyclePhase.Ready
 );
 Registry.as<IWorkbenchContributionsRegistry>(WorkbenchExtensions.Workbench).registerWorkbenchContribution(
-	NotificationFileSystemProvider,
-	LifecyclePhase.Ready
-);
-Registry.as<IWorkbenchContributionsRegistry>(WorkbenchExtensions.Workbench).registerWorkbenchContribution(
 	ExternalUriResolverContribution,
 	LifecyclePhase.Ready
 );

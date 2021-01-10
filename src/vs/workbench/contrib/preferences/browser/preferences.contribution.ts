@@ -425,28 +425,6 @@ class PreferencesActionsContribution extends Disposable implements IWorkbenchCon
 			}
 		});
 
-		// registerAction2(class extends Action2 {
-		// 	constructor() {
-		// 		super({
-		// 			id: 'workbench.action.manageNotifications',
-		// 			title: { value: nls.localize('manageNotifications2', "Manage Notifications"), original: 'Manage Notifications' },
-		// 			category,
-		// 			menu: {
-		// 				id: MenuId.CommandPalette,
-		// 				when: WorkbenchStateContext.isEqualTo('workspace')
-		// 			}
-		// 		});
-		// 	}
-		// 	async run(accessor: ServicesAccessor) {
-		// 		const commandService = accessor.get(ICommandService);
-		// 		const preferencesService = accessor.get(IPreferencesService);
-		// 		const workspaceFolder = await commandService.executeCommand<IWorkspaceFolder>(PICK_WORKSPACE_FOLDER_COMMAND_ID);
-		// 		if (workspaceFolder) {
-		// 			await preferencesService.openNotifications();
-		// 		}
-		// 	}
-		// });
-
 		registerAction2(class extends Action2 {
 			constructor() {
 				super({
