@@ -26,6 +26,7 @@ import { IHeaders } from 'vs/base/parts/request/common/request';
 import { generateUuid } from 'vs/base/common/uuid';
 import { createCancelablePromise, CancelablePromise } from 'vs/base/common/async';
 import { isPromiseCanceledError } from 'vs/base/common/errors';
+import { NotificationsSynchroniser } from 'vs/platform/userDataSync/common/notificationsSync';
 
 type SyncErrorClassification = {
 	code: { classification: 'SystemMetaData', purpose: 'FeatureInsight', isMeasurement: true };
@@ -77,6 +78,7 @@ export class UserDataSyncService extends Disposable implements IUserDataSyncServ
 
 	private readonly settingsSynchroniser: SettingsSynchroniser;
 	private readonly keybindingsSynchroniser: KeybindingsSynchroniser;
+	private readonly notificationsSynchroniser: NotificationsSynchroniser;
 	private readonly snippetsSynchroniser: SnippetsSynchroniser;
 	private readonly extensionsSynchroniser: ExtensionsSynchroniser;
 	private readonly globalStateSynchroniser: GlobalStateSynchroniser;
@@ -92,10 +94,11 @@ export class UserDataSyncService extends Disposable implements IUserDataSyncServ
 		super();
 		this.settingsSynchroniser = this._register(this.instantiationService.createInstance(SettingsSynchroniser));
 		this.keybindingsSynchroniser = this._register(this.instantiationService.createInstance(KeybindingsSynchroniser));
+		this.notificationsSynchroniser = this._register(this.instantiationService.createInstance(NotificationsSynchroniser));
 		this.snippetsSynchroniser = this._register(this.instantiationService.createInstance(SnippetsSynchroniser));
 		this.globalStateSynchroniser = this._register(this.instantiationService.createInstance(GlobalStateSynchroniser));
 		this.extensionsSynchroniser = this._register(this.instantiationService.createInstance(ExtensionsSynchroniser));
-		this.synchronisers = [this.settingsSynchroniser, this.keybindingsSynchroniser, this.snippetsSynchroniser, this.globalStateSynchroniser, this.extensionsSynchroniser];
+		this.synchronisers = [this.settingsSynchroniser, this.keybindingsSynchroniser, this.notificationsSynchroniser, this.snippetsSynchroniser, this.globalStateSynchroniser, this.extensionsSynchroniser];
 		this.updateStatus();
 
 		if (this.userDataSyncStoreManagementService.userDataSyncStore) {
@@ -275,7 +278,7 @@ export class UserDataSyncService extends Disposable implements IUserDataSyncServ
 
 	async hasLocalData(): Promise<boolean> {
 		// skip global state synchronizer
-		const synchronizers = [this.settingsSynchroniser, this.keybindingsSynchroniser, this.snippetsSynchroniser, this.extensionsSynchroniser];
+		const synchronizers = [this.settingsSynchroniser, this.keybindingsSynchroniser, this.notificationsSynchroniser, this.snippetsSynchroniser, this.extensionsSynchroniser];
 		for (const synchroniser of synchronizers) {
 			if (await synchroniser.hasLocalData()) {
 				return true;

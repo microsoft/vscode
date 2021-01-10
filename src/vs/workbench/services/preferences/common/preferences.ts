@@ -226,6 +226,7 @@ export interface IPreferencesService {
 	switchSettings(target: ConfigurationTarget, resource: URI, jsonEditor?: boolean): Promise<void>;
 	openGlobalKeybindingSettings(textual: boolean, options?: IKeybindingsEditorOptions): Promise<void>;
 	openDefaultKeybindingsFile(): Promise<IEditorPane | undefined>;
+	openNotifications(): Promise<void>;
 	getEditableSettingsURI(configurationTarget: ConfigurationTarget, resource?: URI): Promise<URI | null>;
 }
 
@@ -279,6 +280,33 @@ export interface IKeybindingItem {
 	command: string;
 	source: string;
 	when: string;
+}
+export interface INotificationItemEntry extends IListEntry {
+	notificationItem: INotificationItem;
+	notificationIdMatches?: IMatch[];
+	notificationLabelMatches?: IMatch[];
+	sourceMatches?: IMatch[];
+	whenMatches?: IMatch[];
+}
+
+export interface INotificationItem {
+	neverShowAgain: boolean;
+	notificationLabel: string;
+	notificationId: string;
+	notificationDescription: string;
+}
+
+export interface INotificationsEditorPane extends IEditorPane {
+
+	readonly activeNotificationEntry: INotificationItemEntry | null;
+	readonly onDefineWhenExpression: Event<IKeybindingItemEntry>;
+	readonly onLayout: Event<void>;
+
+	search(filter: string): void;
+	focusSearch(): void;
+	clearSearchResults(): void;
+	focusNotifications(): void;
+	showNotificationAgain(notificationEntry: INotificationItemEntry): void;
 }
 
 export interface IKeybindingsEditorPane extends IEditorPane {
