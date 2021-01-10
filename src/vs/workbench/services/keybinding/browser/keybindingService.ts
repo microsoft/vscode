@@ -359,11 +359,11 @@ export class WorkbenchKeybindingService extends AbstractKeybindingService {
 		return this._cachedResolver;
 	}
 
-	protected _documentHasFocus(): boolean {
+	protected async _documentHasFocus(): Promise<boolean> {
 		// it is possible that the document has lost focus, but the
 		// window is still focused, e.g. when a <webview> element
 		// has focus
-		return this.hostService.hasFocus || !!this.hostService.isWebviewFocused;
+		return await this.hostService.hadLastFocus();
 	}
 
 	private _resolveKeybindingItems(items: IKeybindingItem[], isDefault: boolean): ResolvedKeybindingItem[] {

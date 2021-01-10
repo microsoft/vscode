@@ -45,7 +45,7 @@ suite('AbstractKeybindingService', () => {
 			return this._resolver;
 		}
 
-		protected _documentHasFocus(): boolean {
+		protected async _documentHasFocus(): Promise<boolean> {
 			return true;
 		}
 

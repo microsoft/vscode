@@ -76,7 +76,6 @@ export class WebviewEditor extends EditorPane {
 			this._element = undefined;
 		}
 
-		this._hostService.isWebviewFocused = false;
 		super.dispose();
 	}
 
@@ -98,7 +97,6 @@ export class WebviewEditor extends EditorPane {
 			});
 		}
 		this.webview?.focus();
-		this._hostService.isWebviewFocused = true;
 	}
 
 	protected setEditorVisible(visible: boolean, group: IEditorGroup | undefined): void {
@@ -186,22 +184,10 @@ export class WebviewEditor extends EditorPane {
 		// Track focus in webview content
 		const webviewContentFocusTracker = DOM.trackFocus(webview.container);
 		store.add(webviewContentFocusTracker);
-		store.add(webviewContentFocusTracker.onDidFocus(() => {
-			this._hostService.isWebviewFocused = true;
-			this._onDidFocusWebview.fire();
-		}));
-		store.add(webviewContentFocusTracker.onDidBlur(() => {
-			this._hostService.isWebviewFocused = false;
-		}));
+		store.add(webviewContentFocusTracker.onDidFocus(() => this._onDidFocusWebview.fire()));
 
 		// Track focus in webview element
-		store.add(webview.onDidFocus(() => {
-			this._hostService.isWebviewFocused = true;
-			this._onDidFocusWebview.fire();
-		}));
-		store.add(webview.onDidBlur(() => {
-			this._hostService.isWebviewFocused = false;
-		}));
+		store.add(webview.onDidFocus(() => this._onDidFocusWebview.fire()));
 
 		return store;
 	}
