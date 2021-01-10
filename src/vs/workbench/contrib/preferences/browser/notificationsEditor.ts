@@ -10,10 +10,8 @@ import { dispose, Disposable, IDisposable, combinedDisposable } from 'vs/base/co
 import { Checkbox, ICheckboxOpts } from 'vs/base/browser/ui/checkbox/checkbox';
 import { EditorPane } from 'vs/workbench/browser/parts/editor/editorPane';
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
-import { KEYBINDING_ENTRY_TEMPLATE_ID } from 'vs/workbench/services/preferences/browser/keybindingsEditorModel';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { CONTEXT_KEYBINDINGS_EDITOR } from 'vs/workbench/contrib/preferences/common/preferences';
-import { IListVirtualDelegate, IListRenderer, IListContextMenuEvent } from 'vs/base/browser/ui/list/list';
 import { IThemeService, registerThemingParticipant, IColorTheme, ICssStyleCollector } from 'vs/platform/theme/common/themeService';
 import { IContextKeyService, IContextKey } from 'vs/platform/contextkey/common/contextkey';
 import { listHighlightForeground, listActiveSelectionForeground, listInactiveSelectionForeground, listHoverForeground, listFocusForeground, editorBackground, foreground, listActiveSelectionBackground, listInactiveSelectionBackground, listFocusBackground, listHoverBackground } from 'vs/platform/theme/common/colorRegistry';
@@ -25,7 +23,9 @@ import { Color, RGBA } from 'vs/base/common/color';
 import { WORKBENCH_BACKGROUND } from 'vs/workbench/common/theme';
 import { INotificationItemEntry, INotificationsEditorPane, IListEntry, IKeybindingItemEntry, INotificationItem } from 'vs/workbench/services/preferences/common/preferences';
 import { attachInputBoxStyler } from 'vs/platform/theme/common/styler';
+import { IListRenderer, IListContextMenuEvent, IListVirtualDelegate } from 'vs/base/browser/ui/list/list';
 import { NotificationsEditorModel } from 'vs/workbench/services/preferences/browser/notificationsEditorModel';
+export const NOTIFICATION_ENTRY_TEMPLATE_ID = 'notification.entry.template';
 
 const $ = DOM.$;
 
@@ -101,7 +101,12 @@ export class NotificationsEditor extends EditorPane implements INotificationsEdi
 			this.layoutNotificationsList();
 		}
 	}
-
+	renderElement(notificationItem: INotificationItem, index: number, template: NotificationItemTemplate): void {
+		template.parent.classList.toggle('odd', index % 2 === 1);
+		for (const column of template.columns) {
+			column.render(notificationItem);
+		}
+	}
 	createEditor(parent: HTMLElement): void {
 		const notificationsEditorElement = DOM.append(parent, $('div', { class: 'notifications-editor' }));
 
@@ -151,7 +156,7 @@ export class NotificationsEditor extends EditorPane implements INotificationsEdi
 
 	get activeNotificationEntry(): INotificationItemEntry | null {
 		const focusedElement = this.notificationList.getFocusedElements()[0];
-		return focusedElement && focusedElement.templateId === KEYBINDING_ENTRY_TEMPLATE_ID ? <INotificationItemEntry>focusedElement : null;
+		return focusedElement && focusedElement.templateId === NOTIFICATION_ENTRY_TEMPLATE_ID ? <INotificationItemEntry>focusedElement : null;
 	}
 
 	private createAriaLabelElement(parent: HTMLElement): void {
@@ -282,7 +287,7 @@ export class NotificationsEditor extends EditorPane implements INotificationsEdi
 			return;
 		}
 
-		if (e.element.templateId === KEYBINDING_ENTRY_TEMPLATE_ID) {
+		if (e.element.templateId === NOTIFICATION_ENTRY_TEMPLATE_ID) {
 			const entry = <INotificationItemEntry>e.element;
 			this.selectEntry(entry);
 		}
@@ -308,16 +313,18 @@ interface NotificationItemTemplate {
 
 class NotificationItemRenderer implements IListRenderer<INotificationItemEntry, NotificationItemTemplate> {
 
-	get templateId(): string { return KEYBINDING_ENTRY_TEMPLATE_ID; }
+	get templateId(): string { return NOTIFICATION_ENTRY_TEMPLATE_ID; }
 
 	constructor(
 		private notificationsEditor: NotificationsEditor,
 		private instantiationService: IInstantiationService
-	) { }
+	) {
+
+	}
 
 
 	renderTemplate(parent: HTMLElement): NotificationItemTemplate {
-		parent.classList.add('keybinding-item');
+		parent.classList.add('notification-item');
 
 		const neverShowAgain: NeverShowAgainColumn = this.instantiationService.createInstance(NeverShowAgainColumn, parent, this.notificationsEditor);
 		const label: LabelColumn = this.instantiationService.createInstance(LabelColumn, parent, this.notificationsEditor);
@@ -340,7 +347,7 @@ class NotificationItemRenderer implements IListRenderer<INotificationItemEntry, 
 	renderElement(notificationEntry: INotificationItemEntry, index: number, template: NotificationItemTemplate): void {
 		template.parent.classList.toggle('odd', index % 2 === 1);
 		for (const column of template.columns) {
-			column.render(notificationEntry);
+			column.render(notificationEntry.notificationItem);
 		}
 	}
 
@@ -353,7 +360,7 @@ abstract class Column extends Disposable {
 	static COUNTER = 0;
 
 	abstract readonly element: HTMLElement;
-	abstract render(entry: INotificationItemEntry): void;
+	abstract render(entry: INotificationItem): void;
 
 	constructor(protected notificationsEditor: INotificationsEditorPane) {
 		super();
@@ -361,7 +368,7 @@ abstract class Column extends Disposable {
 }
 
 class NeverShowAgainColumn extends Column {
-	render(entry: INotificationItemEntry): void {
+	render(entry: INotificationItem): void {
 		throw new Error('Method not implemented.');
 	}
 
@@ -402,7 +409,7 @@ class LabelColumn extends Column {
 		this.element = this.column = DOM.append(parent, $('.column.command', { id: 'command_' + ++Column.COUNTER }));
 	}
 
-	render(entry: INotificationItemEntry): void {
+	render(entry: INotificationItem): void {
 		DOM.clearNode(this.column);
 		this.column.classList.toggle('vertical-align-column');
 		DOM.append(this.column);
@@ -424,9 +431,9 @@ class WhenColumn extends Column {
 		this.notificationLabel = DOM.append(this.element, $('div.notification-label'));
 	}
 
-	render(entry: INotificationItemEntry): void {
+	render(notificationItem: INotificationItem): void {
 		DOM.clearNode(this.notificationLabel);
-		this.notificationLabel.prepend(entry.notificationItem.label);
+		this.notificationLabel.prepend(notificationItem.label);
 		DOM.append(this.notificationLabel);
 	}
 }

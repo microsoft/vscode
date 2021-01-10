@@ -58,7 +58,7 @@ CommandsRegistry.registerCommand({ id: quickAccessNavigateNextInTerminalPickerId
 const quickAccessNavigatePreviousInTerminalPickerId = 'workbench.action.quickOpenNavigatePreviousInTerminalPicker';
 CommandsRegistry.registerCommand({ id: quickAccessNavigatePreviousInTerminalPickerId, handler: getQuickNavigateHandler(quickAccessNavigatePreviousInTerminalPickerId, false) });
 
-NotificationRegistry.registerNotification({ neverShowAgain: true, label: 'Configure Terminal Settings', id: '', when: 'terminal is focused and user has entered input and fires keybinding corresponding to command to skip shell' } as INotificationItem);
+NotificationRegistry.registerNotification({ neverShowAgain: true, label: 'Configure Terminal Settings', id: 'terminal.integrated.showTerminalConfigPrompt', when: 'terminal is focused and user has entered input and fires keybinding corresponding to command to skip shell' } as INotificationItem);
 
 // Register configurations
 const configurationRegistry = Registry.as<IConfigurationRegistry>(Extensions.Configuration);
