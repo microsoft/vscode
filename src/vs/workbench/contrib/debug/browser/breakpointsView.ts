@@ -861,20 +861,28 @@ export function getBreakpointMessageAndIcon(state: State, breakpointsActivated: 
 	};
 }
 
-export const FUNCTION_BREAKPOINT_COMMAND_ID = 'workbench.debug.viewlet.action.addFunctionBreakpointAction';
 registerAction2(class extends Action2 {
 	constructor() {
 		super({
-			id: FUNCTION_BREAKPOINT_COMMAND_ID,
-			title: localize('addFunctionBreakpoint', "Add Function Breakpoint"),
+			id: 'workbench.debug.viewlet.action.addFunctionBreakpointAction',
+			title: {
+				value: localize('addFunctionBreakpoint', "Add Function Breakpoint"),
+				original: 'Add Function Breakpoint',
+				mnemonicTitle: localize({ key: 'miFunctionBreakpoint', comment: ['&& denotes a mnemonic'] }, "&&Function Breakpoint...")
+			},
 			f1: true,
 			icon: icons.watchExpressionsAddFuncBreakpoint,
-			menu: {
+			menu: [{
 				id: MenuId.ViewTitle,
 				group: 'navigation',
 				order: 10,
 				when: ContextKeyEqualsExpr.create('view', BREAKPOINTS_VIEW_ID)
-			}
+			}, {
+				id: MenuId.MenubarNewBreakpointMenu,
+				group: '1_breakpoints',
+				order: 3,
+				when: CONTEXT_DEBUGGERS_AVAILABLE
+			}]
 		});
 	}
 
