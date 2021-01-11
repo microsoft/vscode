@@ -68,39 +68,154 @@ suite('Monarch', () => {
 		const actualTokens: Token[][] = [];
 		let state = tokenizer.getInitialState();
 		for (const line of lines) {
-			const result = tokenizer.tokenize(line, state, 0);
+			const result = tokenizer.tokenize(line, true, state, 0);
 			actualTokens.push(result.tokens);
 			state = result.endState;
 		}
 
-		assert.deepEqual(actualTokens, [
+		assert.deepStrictEqual(actualTokens, [
 			[
-				{ 'offset': 0, 'type': 'source.test1', 'language': 'test1' },
-				{ 'offset': 12, 'type': 'string.quote.test1', 'language': 'test1' },
-				{ 'offset': 15, 'type': 'token.sql', 'language': 'sql' },
-				{ 'offset': 61, 'type': 'string.quote.test1', 'language': 'test1' },
-				{ 'offset': 64, 'type': 'source.test1', 'language': 'test1' }
+				new Token(0, 'source.test1', 'test1'),
+				new Token(12, 'string.quote.test1', 'test1'),
+				new Token(15, 'token.sql', 'sql'),
+				new Token(61, 'string.quote.test1', 'test1'),
+				new Token(64, 'source.test1', 'test1')
 			],
 			[
-				{ 'offset': 0, 'type': 'source.test1', 'language': 'test1' },
-				{ 'offset': 12, 'type': 'string.quote.test1', 'language': 'test1' }
+				new Token(0, 'source.test1', 'test1'),
+				new Token(12, 'string.quote.test1', 'test1')
 			],
 			[
-				{ 'offset': 0, 'type': 'token.sql', 'language': 'sql' }
+				new Token(0, 'token.sql', 'sql')
 			],
 			[
-				{ 'offset': 0, 'type': 'token.sql', 'language': 'sql' }
+				new Token(0, 'token.sql', 'sql')
 			],
 			[
-				{ 'offset': 0, 'type': 'token.sql', 'language': 'sql' }
+				new Token(0, 'token.sql', 'sql')
 			],
 			[
-				{ 'offset': 0, 'type': 'string.quote.test1', 'language': 'test1' },
-				{ 'offset': 3, 'type': 'source.test1', 'language': 'test1' }
+				new Token(0, 'string.quote.test1', 'test1'),
+				new Token(3, 'source.test1', 'test1')
 			]
 		]);
 		innerModeTokenizationRegistration.dispose();
 		innerModeRegistration.dispose();
+	});
+
+	test('microsoft/monaco-editor#1235: Empty Line Handling', () => {
+		const modeService = new ModeServiceImpl();
+		const tokenizer = createMonarchTokenizer(modeService, 'test', {
+			tokenizer: {
+				root: [
+					{ include: '@comments' },
+				],
+
+				comments: [
+					[/\/\/$/, 'comment'], // empty single-line comment
+					[/\/\//, 'comment', '@comment_cpp'],
+				],
+
+				comment_cpp: [
+					[/(?:[^\\]|(?:\\.))+$/, 'comment', '@pop'],
+					[/.+$/, 'comment'],
+					[/$/, 'comment', '@pop']
+					// No possible rule to detect an empty line and @pop?
+				],
+			},
+		});
+
+		const lines = [
+			`// This comment \\`,
+			`   continues on the following line`,
+			``,
+			`// This comment does NOT continue \\\\`,
+			`   because the escape char was itself escaped`,
+			``,
+			`// This comment DOES continue because \\\\\\`,
+			`   the 1st '\\' escapes the 2nd; the 3rd escapes EOL`,
+			``,
+			`// This comment continues to the following line \\`,
+			``,
+			`But the line was empty. This line should not be commented.`,
+		];
+
+		const actualTokens: Token[][] = [];
+		let state = tokenizer.getInitialState();
+		for (const line of lines) {
+			const result = tokenizer.tokenize(line, true, state, 0);
+			actualTokens.push(result.tokens);
+			state = result.endState;
+		}
+
+		assert.deepStrictEqual(actualTokens, [
+			[new Token(0, 'comment.test', 'test')],
+			[new Token(0, 'comment.test', 'test')],
+			[],
+			[new Token(0, 'comment.test', 'test')],
+			[new Token(0, 'source.test', 'test')],
+			[],
+			[new Token(0, 'comment.test', 'test')],
+			[new Token(0, 'comment.test', 'test')],
+			[],
+			[new Token(0, 'comment.test', 'test')],
+			[],
+			[new Token(0, 'source.test', 'test')]
+		]);
+
+	});
+
+	test('microsoft/monaco-editor#2265: Exit a state at end of line', () => {
+		const modeService = new ModeServiceImpl();
+		const tokenizer = createMonarchTokenizer(modeService, 'test', {
+			includeLF: true,
+			tokenizer: {
+				root: [
+					[/^\*/, '', '@inner'],
+					[/\:\*/, '', '@inner'],
+					[/[^*:]+/, 'string'],
+					[/[*:]/, 'string']
+				],
+				inner: [
+					[/\n/, '', '@pop'],
+					[/\d+/, 'number'],
+					[/[^\d]+/, '']
+				]
+			}
+		});
+
+		const lines = [
+			`PRINT 10 * 20`,
+			`*FX200, 3`,
+			`PRINT 2*3:*FX200, 3`
+		];
+
+		const actualTokens: Token[][] = [];
+		let state = tokenizer.getInitialState();
+		for (const line of lines) {
+			const result = tokenizer.tokenize(line, true, state, 0);
+			actualTokens.push(result.tokens);
+			state = result.endState;
+		}
+
+		assert.deepStrictEqual(actualTokens, [
+			[
+				new Token(0, 'string.test', 'test'),
+			],
+			[
+				new Token(0, '', 'test'),
+				new Token(3, 'number.test', 'test'),
+				new Token(6, '', 'test'),
+				new Token(8, 'number.test', 'test'),
+			],
+			[
+				new Token(0, 'string.test', 'test'),
+				new Token(9, '', 'test'),
+				new Token(13, 'number.test', 'test'),
+				new Token(16, '', 'test'),
+				new Token(18, 'number.test', 'test'),
+			]
+		]);
 	});
 
 });

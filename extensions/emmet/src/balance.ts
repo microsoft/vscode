@@ -4,9 +4,9 @@
  *--------------------------------------------------------------------------------------------*/
 
 import * as vscode from 'vscode';
-import { getHtmlNodeLS, offsetRangeToSelection, toLSTextDocument, validate } from './util';
-import { parseMarkupDocument } from './parseMarkupDocument';
-import { TextDocument as LSTextDocument } from 'vscode-html-languageservice';
+import { getHtmlFlatNode, offsetRangeToSelection, validate } from './util';
+import { getRootNode } from './parseDocument';
+import { HtmlNode as HtmlFlatNode } from 'EmmetFlatNode';
 
 let balanceOutStack: Array<vscode.Selection[]> = [];
 let lastBalancedSelections: vscode.Selection[] = [];
@@ -24,16 +24,16 @@ function balance(out: boolean) {
 		return;
 	}
 	const editor = vscode.window.activeTextEditor;
-	const document = toLSTextDocument(editor.document);
-	const htmlDocument = parseMarkupDocument(document);
-	if (!htmlDocument) {
+	const document = editor.document;
+	const rootNode = <HtmlFlatNode>getRootNode(document, true);
+	if (!rootNode) {
 		return;
 	}
 
 	const rangeFn = out ? getRangeToBalanceOut : getRangeToBalanceIn;
 	let newSelections: vscode.Selection[] = [];
 	editor.selections.forEach(selection => {
-		const range = rangeFn(document, selection);
+		const range = rangeFn(document, rootNode, selection);
 		newSelections.push(range);
 	});
 
@@ -57,17 +57,18 @@ function balance(out: boolean) {
 	lastBalancedSelections = editor.selections;
 }
 
-function getRangeToBalanceOut(document: LSTextDocument, selection: vscode.Selection): vscode.Selection {
-	const nodeToBalance = getHtmlNodeLS(document, selection.start, false);
+function getRangeToBalanceOut(document: vscode.TextDocument, rootNode: HtmlFlatNode, selection: vscode.Selection): vscode.Selection {
+	const offset = document.offsetAt(selection.start);
+	const nodeToBalance = getHtmlFlatNode(document.getText(), rootNode, offset, false);
 	if (!nodeToBalance) {
 		return selection;
 	}
-	if (!nodeToBalance.endTagStart || !nodeToBalance.startTagEnd) {
+	if (!nodeToBalance.open || !nodeToBalance.close) {
 		return offsetRangeToSelection(document, nodeToBalance.start, nodeToBalance.end);
 	}
 
-	const innerSelection = offsetRangeToSelection(document, nodeToBalance.startTagEnd, nodeToBalance.endTagStart);
-	const outerSelection = offsetRangeToSelection(document, nodeToBalance.start, nodeToBalance.end);
+	const innerSelection = offsetRangeToSelection(document, nodeToBalance.open.end, nodeToBalance.close.start);
+	const outerSelection = offsetRangeToSelection(document, nodeToBalance.open.start, nodeToBalance.close.end);
 
 	if (innerSelection.contains(selection) && !innerSelection.isEqual(selection)) {
 		return innerSelection;
@@ -78,34 +79,35 @@ function getRangeToBalanceOut(document: LSTextDocument, selection: vscode.Select
 	return selection;
 }
 
-function getRangeToBalanceIn(document: LSTextDocument, selection: vscode.Selection): vscode.Selection {
-	const nodeToBalance = getHtmlNodeLS(document, selection.start, true);
+function getRangeToBalanceIn(document: vscode.TextDocument, rootNode: HtmlFlatNode, selection: vscode.Selection): vscode.Selection {
+	const offset = document.offsetAt(selection.start);
+	const nodeToBalance = getHtmlFlatNode(document.getText(), rootNode, offset, true);
 	if (!nodeToBalance) {
 		return selection;
 	}
 
 	const selectionStart = document.offsetAt(selection.start);
 	const selectionEnd = document.offsetAt(selection.end);
-	if (nodeToBalance.endTagStart !== undefined && nodeToBalance.startTagEnd !== undefined) {
+	if (nodeToBalance.open && nodeToBalance.close) {
 		const entireNodeSelected = selectionStart === nodeToBalance.start && selectionEnd === nodeToBalance.end;
-		const startInOpenTag = selectionStart > nodeToBalance.start && selectionStart < nodeToBalance.startTagEnd;
-		const startInCloseTag = selectionStart > nodeToBalance.endTagStart && selectionStart < nodeToBalance.end;
+		const startInOpenTag = selectionStart > nodeToBalance.open.start && selectionStart < nodeToBalance.open.end;
+		const startInCloseTag = selectionStart > nodeToBalance.close.start && selectionStart < nodeToBalance.close.end;
 
 		if (entireNodeSelected || startInOpenTag || startInCloseTag) {
-			return offsetRangeToSelection(document, nodeToBalance.startTagEnd, nodeToBalance.endTagStart);
+			return offsetRangeToSelection(document, nodeToBalance.open.end, nodeToBalance.close.start);
 		}
 	}
 
-	if (!nodeToBalance.children.length) {
+	if (!nodeToBalance.firstChild) {
 		return selection;
 	}
 
-	const firstChild = nodeToBalance.children[0];
+	const firstChild = nodeToBalance.firstChild;
 	if (selectionStart === firstChild.start
 		&& selectionEnd === firstChild.end
-		&& firstChild.endTagStart !== undefined
-		&& firstChild.startTagEnd !== undefined) {
-		return offsetRangeToSelection(document, firstChild.startTagEnd, firstChild.endTagStart);
+		&& firstChild.open
+		&& firstChild.close) {
+		return offsetRangeToSelection(document, firstChild.open.end, firstChild.close.start);
 	}
 
 	return offsetRangeToSelection(document, firstChild.start, firstChild.end);

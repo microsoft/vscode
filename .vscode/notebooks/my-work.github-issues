@@ -86,6 +86,24 @@
   {
     "kind": 1,
     "language": "markdown",
+    "value": "### Personal Inbox\n",
+    "editable": true
+  },
+  {
+    "kind": 1,
+    "language": "markdown",
+    "value": "\n#### Missing Type label",
+    "editable": true
+  },
+  {
+    "kind": 2,
+    "language": "github-issues",
+    "value": "$repos assignee:@me is:open type:issue -label:bug -label:\"needs more info\" -label:feature-request -label:under-discussion -label:debt -label:plan-item -label:upstream",
+    "editable": true
+  },
+  {
+    "kind": 1,
+    "language": "markdown",
     "value": "#### Not Actionable",
     "editable": true
   },

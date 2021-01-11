@@ -224,7 +224,7 @@ suite('WorkingCopyFileService', () => {
 			eventCounter++;
 		});
 
-		await accessor.workingCopyFileService.createFolder({ resource });
+		await accessor.workingCopyFileService.createFolder([{ resource }]);
 
 		assert.equal(eventCounter, 3);
 
@@ -459,7 +459,7 @@ suite('WorkingCopyFileService', () => {
 			eventCounter++;
 		});
 
-		await accessor.workingCopyFileService.create({ resource, contents });
+		await accessor.workingCopyFileService.create([{ resource, contents }]);
 		assert.ok(!accessor.workingCopyService.isDirty(model.resource));
 		model.dispose();
 

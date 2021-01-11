@@ -227,6 +227,10 @@ export class MockSession implements IDebugSession {
 		return 'mockname';
 	}
 
+	get name(): string {
+		return 'mockname';
+	}
+
 	setName(name: string): void {
 		throw new Error('not implemented');
 	}

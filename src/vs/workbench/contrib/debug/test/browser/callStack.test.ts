@@ -20,6 +20,14 @@ import { generateUuid } from 'vs/base/common/uuid';
 import { debugStackframe, debugStackframeFocused } from 'vs/workbench/contrib/debug/browser/debugIcons';
 import { ThemeIcon } from 'vs/platform/theme/common/themeService';
 
+const mockWorkspaceContextService = {
+	getWorkspace: () => {
+		return {
+			folders: []
+		};
+	}
+} as any;
+
 export function createMockSession(model: DebugModel, name = 'mockSession', options?: IDebugSessionOptions): DebugSession {
 	return new DebugSession(generateUuid(), { resolved: { name, type: 'node', request: 'launch' }, unresolved: undefined }, undefined!, model, options, {
 		getViewModel(): any {
@@ -29,7 +37,7 @@ export function createMockSession(model: DebugModel, name = 'mockSession', optio
 				}
 			};
 		}
-	} as IDebugService, undefined!, undefined!, undefined!, undefined!, undefined!, undefined!, undefined!, NullOpenerService, undefined!, undefined!, mockUriIdentityService);
+	} as IDebugService, undefined!, undefined!, undefined!, undefined!, mockWorkspaceContextService, undefined!, undefined!, NullOpenerService, undefined!, undefined!, mockUriIdentityService);
 }
 
 function createTwoStackFrames(session: DebugSession): { firstStackFrame: StackFrame, secondStackFrame: StackFrame } {
@@ -91,7 +99,7 @@ suite('Debug - CallStack', () => {
 		assert.equal(model.getSessions(true).length, 1);
 	});
 
-	test('threads multiple wtih allThreadsStopped', () => {
+	test('threads multiple wtih allThreadsStopped', async () => {
 		const threadId1 = 1;
 		const threadName1 = 'firstThread';
 		const threadId2 = 2;
@@ -145,19 +153,16 @@ suite('Debug - CallStack', () => {
 
 		// after calling getCallStack, the callstack becomes available
 		// and results in a request for the callstack in the debug adapter
-		thread1.fetchCallStack().then(() => {
-			assert.notEqual(thread1.getCallStack().length, 0);
-		});
+		await thread1.fetchCallStack();
+		assert.notEqual(thread1.getCallStack().length, 0);
 
-		thread2.fetchCallStack().then(() => {
-			assert.notEqual(thread2.getCallStack().length, 0);
-		});
+		await thread2.fetchCallStack();
+		assert.notEqual(thread2.getCallStack().length, 0);
 
 		// calling multiple times getCallStack doesn't result in multiple calls
 		// to the debug adapter
-		thread1.fetchCallStack().then(() => {
-			return thread2.fetchCallStack();
-		});
+		await thread1.fetchCallStack();
+		await thread2.fetchCallStack();
 
 		// clearing the callstack results in the callstack not being available
 		thread1.clearCallStack();
@@ -174,7 +179,7 @@ suite('Debug - CallStack', () => {
 		assert.equal(session.getAllThreads().length, 0);
 	});
 
-	test('threads mutltiple without allThreadsStopped', () => {
+	test('threads mutltiple without allThreadsStopped', async () => {
 		const sessionStub = sinon.spy(rawSession, 'stackTrace');
 
 		const stoppedThreadId = 1;
@@ -230,19 +235,17 @@ suite('Debug - CallStack', () => {
 
 		// after calling getCallStack, the callstack becomes available
 		// and results in a request for the callstack in the debug adapter
-		stoppedThread.fetchCallStack().then(() => {
-			assert.notEqual(stoppedThread.getCallStack().length, 0);
-			assert.equal(runningThread.getCallStack().length, 0);
-			assert.equal(sessionStub.callCount, 1);
-		});
+		await stoppedThread.fetchCallStack();
+		assert.notEqual(stoppedThread.getCallStack().length, 0);
+		assert.equal(runningThread.getCallStack().length, 0);
+		assert.equal(sessionStub.callCount, 1);
 
 		// calling getCallStack on the running thread returns empty array
 		// and does not return in a request for the callstack in the debug
 		// adapter
-		runningThread.fetchCallStack().then(() => {
-			assert.equal(runningThread.getCallStack().length, 0);
-			assert.equal(sessionStub.callCount, 1);
-		});
+		await runningThread.fetchCallStack();
+		assert.equal(runningThread.getCallStack().length, 0);
+		assert.equal(sessionStub.callCount, 1);
 
 		// clearing the callstack results in the callstack not being available
 		stoppedThread.clearCallStack();
@@ -374,7 +377,7 @@ suite('Debug - CallStack', () => {
 			get state(): State {
 				return State.Stopped;
 			}
-		}(generateUuid(), { resolved: { name: 'stoppedSession', type: 'node', request: 'launch' }, unresolved: undefined }, undefined!, model, undefined, undefined!, undefined!, undefined!, undefined!, undefined!, undefined!, undefined!, undefined!, NullOpenerService, undefined!, undefined!, mockUriIdentityService);
+		}(generateUuid(), { resolved: { name: 'stoppedSession', type: 'node', request: 'launch' }, unresolved: undefined }, undefined!, model, undefined, undefined!, undefined!, undefined!, undefined!, undefined!, mockWorkspaceContextService, undefined!, undefined!, NullOpenerService, undefined!, undefined!, mockUriIdentityService);
 
 		const runningSession = createMockSession(model);
 		model.addSession(runningSession);

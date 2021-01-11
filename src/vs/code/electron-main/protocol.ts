@@ -11,7 +11,7 @@ import { INativeEnvironmentService } from 'vs/platform/environment/common/enviro
 import { session } from 'electron';
 import { ILogService } from 'vs/platform/log/common/log';
 import { TernarySearchTree } from 'vs/base/common/map';
-import { isLinux } from 'vs/base/common/platform';
+import { isLinux, isPreferringBrowserCodeLoad } from 'vs/base/common/platform';
 import { IWindowsMainService } from 'vs/platform/windows/electron-main/windows';
 
 type ProtocolCallback = { (result: string | Electron.FilePathWithHeaders | { error: number }): void };
@@ -37,15 +37,17 @@ export class FileProtocolHandler extends Disposable {
 		// Register vscode-file:// handler
 		defaultSession.protocol.registerFileProtocol(Schemas.vscodeFileResource, (request, callback) => this.handleResourceRequest(request, callback as unknown as ProtocolCallback));
 
-		// Block any file:// access (sandbox only)
-		if (environmentService.args.__sandbox) {
+		// Block any file:// access (explicitly enabled only)
+		if (isPreferringBrowserCodeLoad) {
+			this.logService.info(`Intercepting ${Schemas.file}: protocol and blocking it`);
+
 			defaultSession.protocol.interceptFileProtocol(Schemas.file, (request, callback) => this.handleFileRequest(request, callback as unknown as ProtocolCallback));
 		}
 
 		// Cleanup
 		this._register(toDisposable(() => {
 			defaultSession.protocol.unregisterProtocol(Schemas.vscodeFileResource);
-			if (environmentService.args.__sandbox) {
+			if (isPreferringBrowserCodeLoad) {
 				defaultSession.protocol.uninterceptProtocol(Schemas.file);
 			}
 		}));

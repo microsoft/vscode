@@ -30,7 +30,7 @@ import { IJSONEditingService } from 'vs/workbench/services/configuration/common/
 import { JSONEditingService } from 'vs/workbench/services/configuration/common/jsonEditingService';
 import { createHash } from 'crypto';
 import { Schemas } from 'vs/base/common/network';
-import { originalFSPath, joinPath } from 'vs/base/common/resources';
+import { originalFSPath, joinPath, dirname, basename } from 'vs/base/common/resources';
 import { isLinux, isMacintosh } from 'vs/base/common/platform';
 import { RemoteAgentService } from 'vs/workbench/services/remote/electron-browser/remoteAgentServiceImpl';
 import { RemoteAuthorityResolverService } from 'vs/platform/remote/electron-sandbox/remoteAuthorityResolverService';
@@ -55,6 +55,8 @@ import { BrowserWorkbenchEnvironmentService } from 'vs/workbench/services/enviro
 import { INativeWorkbenchEnvironmentService } from 'vs/workbench/services/environment/electron-sandbox/environmentService';
 import { Event } from 'vs/base/common/event';
 import { UriIdentityService } from 'vs/workbench/services/uriIdentity/common/uriIdentityService';
+import { InMemoryFileSystemProvider } from 'vs/platform/files/common/inMemoryFilesystemProvider';
+import { flakySuite } from 'vs/base/test/node/testUtils';
 
 class TestWorkbenchEnvironmentService extends NativeWorkbenchEnvironmentService {
 
@@ -105,104 +107,97 @@ function setUpWorkspace(folders: string[]): Promise<{ parentDir: string, configP
 
 suite('WorkspaceContextService - Folder', () => {
 
-	let workspaceName = `testWorkspace${uuid.generateUuid()}`, parentResource: string, workspaceResource: string, workspaceContextService: IWorkspaceContextService;
+	let folderName = 'Folder A', folder: URI, testObject: WorkspaceService;
 	const disposables = new DisposableStore();
 
-	setup(() => {
-		return setUpFolderWorkspace(workspaceName)
-			.then(({ parentDir, folderDir }) => {
-				parentResource = parentDir;
-				workspaceResource = folderDir;
-				const environmentService = new TestWorkbenchEnvironmentService(URI.file(parentDir));
-				const fileService = disposables.add(new FileService(new NullLogService()));
-				const diskFileSystemProvider = disposables.add(new DiskFileSystemProvider(new NullLogService()));
-				fileService.registerProvider(Schemas.file, diskFileSystemProvider);
-				fileService.registerProvider(Schemas.userData, disposables.add(new FileUserDataProvider(Schemas.file, new DiskFileSystemProvider(new NullLogService()), Schemas.userData, new NullLogService())));
-				workspaceContextService = disposables.add(new WorkspaceService({ configurationCache: new ConfigurationCache(environmentService) }, environmentService, fileService, new RemoteAgentService(environmentService, { _serviceBrand: undefined, ...product }, new RemoteAuthorityResolverService(), new SignService(undefined), new NullLogService()), new UriIdentityService(fileService), new NullLogService()));
-				return (<WorkspaceService>workspaceContextService).initialize(convertToWorkspacePayload(URI.file(folderDir)));
-			});
+	setup(async () => {
+		const logService = new NullLogService();
+		const fileService = disposables.add(new FileService(logService));
+		const fileSystemProvider = disposables.add(new InMemoryFileSystemProvider());
+		fileService.registerProvider(Schemas.file, fileSystemProvider);
+
+		folder = joinPath(URI.file(uuid.generateUuid()), folderName);
+		await fileService.createFolder(folder);
+
+		const environmentService = new TestWorkbenchEnvironmentService(folder);
+		fileService.registerProvider(Schemas.userData, disposables.add(new FileUserDataProvider(Schemas.file, fileSystemProvider, Schemas.userData, new NullLogService())));
+		testObject = disposables.add(new WorkspaceService({ configurationCache: new ConfigurationCache(environmentService, fileService) }, environmentService, fileService, new RemoteAgentService(environmentService, { _serviceBrand: undefined, ...product }, new RemoteAuthorityResolverService(), new SignService(undefined), new NullLogService()), new UriIdentityService(fileService), new NullLogService()));
+		await (<WorkspaceService>testObject).initialize(convertToWorkspacePayload(folder));
 	});
 
-	teardown(() => {
-		disposables.clear();
-		if (parentResource) {
-			return pfs.rimraf(parentResource, pfs.RimRafMode.MOVE);
-		}
-		return undefined;
-	});
+	teardown(() => disposables.clear());
 
 	test('getWorkspace()', () => {
-		const actual = workspaceContextService.getWorkspace();
+		const actual = testObject.getWorkspace();
 
 		assert.equal(actual.folders.length, 1);
-		assert.equal(actual.folders[0].uri.fsPath, URI.file(workspaceResource).fsPath);
-		assert.equal(actual.folders[0].name, workspaceName);
+		assert.equal(actual.folders[0].uri.path, folder.path);
+		assert.equal(actual.folders[0].name, folderName);
 		assert.equal(actual.folders[0].index, 0);
 		assert.ok(!actual.configuration);
 	});
 
 	test('getWorkbenchState()', () => {
-		const actual = workspaceContextService.getWorkbenchState();
+		const actual = testObject.getWorkbenchState();
 
 		assert.equal(actual, WorkbenchState.FOLDER);
 	});
 
 	test('getWorkspaceFolder()', () => {
-		const actual = workspaceContextService.getWorkspaceFolder(URI.file(path.join(workspaceResource, 'a')));
+		const actual = testObject.getWorkspaceFolder(joinPath(folder, 'a'));
 
-		assert.equal(actual, workspaceContextService.getWorkspace().folders[0]);
+		assert.equal(actual, testObject.getWorkspace().folders[0]);
 	});
 
 	test('isCurrentWorkspace() => true', () => {
-		assert.ok(workspaceContextService.isCurrentWorkspace(URI.file(workspaceResource)));
+		assert.ok(testObject.isCurrentWorkspace(folder));
 	});
 
 	test('isCurrentWorkspace() => false', () => {
-		assert.ok(!workspaceContextService.isCurrentWorkspace(URI.file(workspaceResource + 'abc')));
+		assert.ok(!testObject.isCurrentWorkspace(joinPath(dirname(folder), 'abc')));
 	});
 
-	test('workspace is complete', () => workspaceContextService.getCompleteWorkspace());
+	test('workspace is complete', () => testObject.getCompleteWorkspace());
 });
 
 suite('WorkspaceContextService - Workspace', () => {
 
-	let parentResource: string, testObject: WorkspaceService, instantiationService: TestInstantiationService;
+	let testObject: WorkspaceService;
 	const disposables = new DisposableStore();
 
-	setup(() => {
-		return setUpWorkspace(['a', 'b'])
-			.then(({ parentDir, configPath }) => {
+	setup(async () => {
+		const logService = new NullLogService();
+		const fileService = disposables.add(new FileService(logService));
+		const fileSystemProvider = disposables.add(new InMemoryFileSystemProvider());
+		fileService.registerProvider(Schemas.file, fileSystemProvider);
 
-				parentResource = parentDir;
+		const appSettingsHome = URI.file('user');
+		const folderA = URI.file('a');
+		const folderB = URI.file('b');
+		const configResource = URI.file('vsctests.code-workspace');
+		const workspace = { folders: [{ path: folderA.path }, { path: folderB.path }] };
 
-				instantiationService = <TestInstantiationService>workbenchInstantiationService();
-				const environmentService = new TestWorkbenchEnvironmentService(URI.file(parentDir));
-				const remoteAgentService = instantiationService.createInstance(RemoteAgentService);
-				instantiationService.stub(IRemoteAgentService, remoteAgentService);
-				const fileService = disposables.add(new FileService(new NullLogService()));
-				const diskFileSystemProvider = disposables.add(new DiskFileSystemProvider(new NullLogService()));
-				fileService.registerProvider(Schemas.file, diskFileSystemProvider);
-				fileService.registerProvider(Schemas.userData, disposables.add(new FileUserDataProvider(Schemas.file, diskFileSystemProvider, Schemas.userData, new NullLogService())));
-				const workspaceService = disposables.add(new WorkspaceService({ configurationCache: new ConfigurationCache(environmentService) }, environmentService, fileService, remoteAgentService, new UriIdentityService(fileService), new NullLogService()));
+		await fileService.createFolder(appSettingsHome);
+		await fileService.createFolder(folderA);
+		await fileService.createFolder(folderB);
+		await fileService.writeFile(configResource, VSBuffer.fromString(JSON.stringify(workspace, null, '\t')));
 
-				instantiationService.stub(IWorkspaceContextService, workspaceService);
-				instantiationService.stub(IConfigurationService, workspaceService);
-				instantiationService.stub(IEnvironmentService, environmentService);
+		const instantiationService = <TestInstantiationService>workbenchInstantiationService();
+		const environmentService = new TestWorkbenchEnvironmentService(appSettingsHome);
+		const remoteAgentService = disposables.add(instantiationService.createInstance(RemoteAgentService));
+		instantiationService.stub(IRemoteAgentService, remoteAgentService);
+		fileService.registerProvider(Schemas.userData, disposables.add(new FileUserDataProvider(Schemas.file, fileSystemProvider, Schemas.userData, new NullLogService())));
+		testObject = disposables.add(new WorkspaceService({ configurationCache: new ConfigurationCache(environmentService, fileService) }, environmentService, fileService, remoteAgentService, new UriIdentityService(fileService), new NullLogService()));
 
-				return workspaceService.initialize(getWorkspaceIdentifier(configPath)).then(() => {
-					workspaceService.acquireInstantiationService(instantiationService);
-					testObject = workspaceService;
-				});
-			});
+		instantiationService.stub(IWorkspaceContextService, testObject);
+		instantiationService.stub(IConfigurationService, testObject);
+		instantiationService.stub(IEnvironmentService, environmentService);
+
+		await testObject.initialize(getWorkspaceIdentifier(configResource));
+		testObject.acquireInstantiationService(instantiationService);
 	});
 
-	teardown(() => {
-		disposables.clear();
-		if (parentResource) {
-			return pfs.rimraf(parentResource, pfs.RimRafMode.MOVE);
-		}
-		return undefined;
-	});
+	teardown(() => disposables.clear());
 
 	test('workspace folders', () => {
 		const actual = testObject.getWorkspace().folders;
@@ -225,142 +220,125 @@ suite('WorkspaceContextService - Workspace', () => {
 
 suite('WorkspaceContextService - Workspace Editing', () => {
 
-	let parentResource: string, testObject: WorkspaceService, instantiationService: TestInstantiationService;
+	let testObject: WorkspaceService, fileService: IFileService;
 	const disposables = new DisposableStore();
 
-	setup(() => {
-		return setUpWorkspace(['a', 'b'])
-			.then(({ parentDir, configPath }) => {
+	setup(async () => {
+		const logService = new NullLogService();
+		fileService = disposables.add(new FileService(logService));
+		const fileSystemProvider = disposables.add(new InMemoryFileSystemProvider());
+		fileService.registerProvider(Schemas.file, fileSystemProvider);
 
-				parentResource = parentDir;
+		const appSettingsHome = URI.file('user');
+		const folderA = URI.file('a');
+		const folderB = URI.file('b');
+		const configResource = URI.file('vsctests.code-workspace');
+		const workspace = { folders: [{ path: folderA.path }, { path: folderB.path }] };
 
-				instantiationService = <TestInstantiationService>workbenchInstantiationService();
-				const environmentService = new TestWorkbenchEnvironmentService(URI.file(parentDir));
-				const remoteAgentService = instantiationService.createInstance(RemoteAgentService);
-				instantiationService.stub(IRemoteAgentService, remoteAgentService);
-				const fileService = disposables.add(new FileService(new NullLogService()));
-				const diskFileSystemProvider = disposables.add(new DiskFileSystemProvider(new NullLogService()));
-				fileService.registerProvider(Schemas.file, diskFileSystemProvider);
-				fileService.registerProvider(Schemas.userData, disposables.add(new FileUserDataProvider(Schemas.file, diskFileSystemProvider, Schemas.userData, new NullLogService())));
-				const workspaceService = disposables.add(new WorkspaceService({ configurationCache: new ConfigurationCache(environmentService) }, environmentService, fileService, remoteAgentService, new UriIdentityService(fileService), new NullLogService()));
+		await fileService.createFolder(appSettingsHome);
+		await fileService.createFolder(folderA);
+		await fileService.createFolder(folderB);
+		await fileService.writeFile(configResource, VSBuffer.fromString(JSON.stringify(workspace, null, '\t')));
 
-				instantiationService.stub(IWorkspaceContextService, workspaceService);
-				instantiationService.stub(IConfigurationService, workspaceService);
-				instantiationService.stub(IEnvironmentService, environmentService);
+		const instantiationService = <TestInstantiationService>workbenchInstantiationService();
+		const environmentService = new TestWorkbenchEnvironmentService(appSettingsHome);
+		const remoteAgentService = instantiationService.createInstance(RemoteAgentService);
+		instantiationService.stub(IRemoteAgentService, remoteAgentService);
+		fileService.registerProvider(Schemas.userData, disposables.add(new FileUserDataProvider(Schemas.file, fileSystemProvider, Schemas.userData, new NullLogService())));
+		testObject = disposables.add(new WorkspaceService({ configurationCache: new ConfigurationCache(environmentService, fileService) }, environmentService, fileService, remoteAgentService, new UriIdentityService(fileService), new NullLogService()));
 
-				return workspaceService.initialize(getWorkspaceIdentifier(configPath)).then(() => {
-					instantiationService.stub(IFileService, fileService);
-					instantiationService.stub(ITextFileService, instantiationService.createInstance(TestTextFileService));
-					instantiationService.stub(ITextModelService, <ITextModelService>instantiationService.createInstance(TextModelResolverService));
-					workspaceService.acquireInstantiationService(instantiationService);
+		instantiationService.stub(IFileService, fileService);
+		instantiationService.stub(IWorkspaceContextService, testObject);
+		instantiationService.stub(IConfigurationService, testObject);
+		instantiationService.stub(IEnvironmentService, environmentService);
 
-					testObject = workspaceService;
-				});
-			});
+		await testObject.initialize(getWorkspaceIdentifier(configResource));
+		instantiationService.stub(ITextFileService, disposables.add(instantiationService.createInstance(TestTextFileService)));
+		instantiationService.stub(ITextModelService, disposables.add(instantiationService.createInstance(TextModelResolverService)));
+		testObject.acquireInstantiationService(instantiationService);
 	});
 
-	teardown(() => {
-		disposables.clear();
-		if (parentResource) {
-			return pfs.rimraf(parentResource, pfs.RimRafMode.MOVE);
-		}
-		return undefined;
+	teardown(() => disposables.clear());
+
+	test('add folders', async () => {
+		await testObject.addFolders([{ uri: URI.file('d') }, { uri: URI.file('c') }]);
+		const actual = testObject.getWorkspace().folders;
+
+		assert.equal(actual.length, 4);
+		assert.equal(basename(actual[0].uri), 'a');
+		assert.equal(basename(actual[1].uri), 'b');
+		assert.equal(basename(actual[2].uri), 'd');
+		assert.equal(basename(actual[3].uri), 'c');
 	});
 
-	test('add folders', () => {
-		const workspaceDir = path.dirname(testObject.getWorkspace().folders[0].uri.fsPath);
-		return testObject.addFolders([{ uri: URI.file(path.join(workspaceDir, 'd')) }, { uri: URI.file(path.join(workspaceDir, 'c')) }])
-			.then(() => {
-				const actual = testObject.getWorkspace().folders;
+	test('add folders (at specific index)', async () => {
+		await testObject.addFolders([{ uri: URI.file('d') }, { uri: URI.file('c') }], 0);
+		const actual = testObject.getWorkspace().folders;
 
-				assert.equal(actual.length, 4);
-				assert.equal(path.basename(actual[0].uri.fsPath), 'a');
-				assert.equal(path.basename(actual[1].uri.fsPath), 'b');
-				assert.equal(path.basename(actual[2].uri.fsPath), 'd');
-				assert.equal(path.basename(actual[3].uri.fsPath), 'c');
-			});
+		assert.equal(actual.length, 4);
+		assert.equal(basename(actual[0].uri), 'd');
+		assert.equal(basename(actual[1].uri), 'c');
+		assert.equal(basename(actual[2].uri), 'a');
+		assert.equal(basename(actual[3].uri), 'b');
 	});
 
-	test('add folders (at specific index)', () => {
-		const workspaceDir = path.dirname(testObject.getWorkspace().folders[0].uri.fsPath);
-		return testObject.addFolders([{ uri: URI.file(path.join(workspaceDir, 'd')) }, { uri: URI.file(path.join(workspaceDir, 'c')) }], 0)
-			.then(() => {
-				const actual = testObject.getWorkspace().folders;
+	test('add folders (at specific wrong index)', async () => {
+		await testObject.addFolders([{ uri: URI.file('d') }, { uri: URI.file('c') }], 10);
+		const actual = testObject.getWorkspace().folders;
 
-				assert.equal(actual.length, 4);
-				assert.equal(path.basename(actual[0].uri.fsPath), 'd');
-				assert.equal(path.basename(actual[1].uri.fsPath), 'c');
-				assert.equal(path.basename(actual[2].uri.fsPath), 'a');
-				assert.equal(path.basename(actual[3].uri.fsPath), 'b');
-			});
+		assert.equal(actual.length, 4);
+		assert.equal(basename(actual[0].uri), 'a');
+		assert.equal(basename(actual[1].uri), 'b');
+		assert.equal(basename(actual[2].uri), 'd');
+		assert.equal(basename(actual[3].uri), 'c');
 	});
 
-	test('add folders (at specific wrong index)', () => {
-		const workspaceDir = path.dirname(testObject.getWorkspace().folders[0].uri.fsPath);
-		return testObject.addFolders([{ uri: URI.file(path.join(workspaceDir, 'd')) }, { uri: URI.file(path.join(workspaceDir, 'c')) }], 10)
-			.then(() => {
-				const actual = testObject.getWorkspace().folders;
+	test('add folders (with name)', async () => {
+		await testObject.addFolders([{ uri: URI.file('d'), name: 'DDD' }, { uri: URI.file('c'), name: 'CCC' }]);
+		const actual = testObject.getWorkspace().folders;
 
-				assert.equal(actual.length, 4);
-				assert.equal(path.basename(actual[0].uri.fsPath), 'a');
-				assert.equal(path.basename(actual[1].uri.fsPath), 'b');
-				assert.equal(path.basename(actual[2].uri.fsPath), 'd');
-				assert.equal(path.basename(actual[3].uri.fsPath), 'c');
-			});
+		assert.equal(actual.length, 4);
+		assert.equal(basename(actual[0].uri), 'a');
+		assert.equal(basename(actual[1].uri), 'b');
+		assert.equal(basename(actual[2].uri), 'd');
+		assert.equal(basename(actual[3].uri), 'c');
+		assert.equal(actual[2].name, 'DDD');
+		assert.equal(actual[3].name, 'CCC');
 	});
 
-	test('add folders (with name)', () => {
-		const workspaceDir = path.dirname(testObject.getWorkspace().folders[0].uri.fsPath);
-		return testObject.addFolders([{ uri: URI.file(path.join(workspaceDir, 'd')), name: 'DDD' }, { uri: URI.file(path.join(workspaceDir, 'c')), name: 'CCC' }])
-			.then(() => {
-				const actual = testObject.getWorkspace().folders;
-
-				assert.equal(actual.length, 4);
-				assert.equal(path.basename(actual[0].uri.fsPath), 'a');
-				assert.equal(path.basename(actual[1].uri.fsPath), 'b');
-				assert.equal(path.basename(actual[2].uri.fsPath), 'd');
-				assert.equal(path.basename(actual[3].uri.fsPath), 'c');
-				assert.equal(actual[2].name, 'DDD');
-				assert.equal(actual[3].name, 'CCC');
-			});
-	});
-
-	test('add folders triggers change event', () => {
+	test('add folders triggers change event', async () => {
 		const target = sinon.spy();
 		testObject.onDidChangeWorkspaceFolders(target);
-		const workspaceDir = path.dirname(testObject.getWorkspace().folders[0].uri.fsPath);
-		const addedFolders = [{ uri: URI.file(path.join(workspaceDir, 'd')) }, { uri: URI.file(path.join(workspaceDir, 'c')) }];
-		return testObject.addFolders(addedFolders)
-			.then(() => {
-				assert.equal(target.callCount, 1, `Should be called only once but called ${target.callCount} times`);
-				const actual = <IWorkspaceFoldersChangeEvent>target.args[0][0];
-				assert.deepEqual(actual.added.map(r => r.uri.toString()), addedFolders.map(a => a.uri.toString()));
-				assert.deepEqual(actual.removed, []);
-				assert.deepEqual(actual.changed, []);
-			});
+
+		const addedFolders = [{ uri: URI.file('d') }, { uri: URI.file('c') }];
+		await testObject.addFolders(addedFolders);
+
+		assert.equal(target.callCount, 1, `Should be called only once but called ${target.callCount} times`);
+		const actual_1 = (<IWorkspaceFoldersChangeEvent>target.args[0][0]);
+		assert.deepEqual(actual_1.added.map(r => r.uri.toString()), addedFolders.map(a => a.uri.toString()));
+		assert.deepEqual(actual_1.removed, []);
+		assert.deepEqual(actual_1.changed, []);
 	});
 
-	test('remove folders', () => {
-		return testObject.removeFolders([testObject.getWorkspace().folders[0].uri])
-			.then(() => {
-				const actual = testObject.getWorkspace().folders;
-				assert.equal(actual.length, 1);
-				assert.equal(path.basename(actual[0].uri.fsPath), 'b');
-			});
+	test('remove folders', async () => {
+		await testObject.removeFolders([testObject.getWorkspace().folders[0].uri]);
+		const actual = testObject.getWorkspace().folders;
+
+		assert.equal(actual.length, 1);
+		assert.equal(basename(actual[0].uri), 'b');
 	});
 
-	test('remove folders triggers change event', () => {
+	test('remove folders triggers change event', async () => {
 		const target = sinon.spy();
 		testObject.onDidChangeWorkspaceFolders(target);
 		const removedFolder = testObject.getWorkspace().folders[0];
-		return testObject.removeFolders([removedFolder.uri])
-			.then(() => {
-				assert.equal(target.callCount, 1, `Should be called only once but called ${target.callCount} times`);
-				const actual = <IWorkspaceFoldersChangeEvent>target.args[0][0];
-				assert.deepEqual(actual.added, []);
-				assert.deepEqual(actual.removed.map(r => r.uri.toString()), [removedFolder.uri.toString()]);
-				assert.deepEqual(actual.changed.map(c => c.uri.toString()), [testObject.getWorkspace().folders[0].uri.toString()]);
-			});
+		await testObject.removeFolders([removedFolder.uri]);
+
+		assert.equal(target.callCount, 1, `Should be called only once but called ${target.callCount} times`);
+		const actual_1 = (<IWorkspaceFoldersChangeEvent>target.args[0][0]);
+		assert.deepEqual(actual_1.added, []);
+		assert.deepEqual(actual_1.removed.map(r => r.uri.toString()), [removedFolder.uri.toString()]);
+		assert.deepEqual(actual_1.changed.map(c => c.uri.toString()), [testObject.getWorkspace().folders[0].uri.toString()]);
 	});
 
 	test('remove folders and add them back by writing into the file', async () => {
@@ -378,95 +356,87 @@ suite('WorkspaceContextService - Workspace Editing', () => {
 			});
 		});
 
-		const workspace = { folders: [{ path: folders[0].uri.fsPath }, { path: folders[1].uri.fsPath }] };
-		await instantiationService.get(ITextFileService).write(testObject.getWorkspace().configuration!, JSON.stringify(workspace, null, '\t'));
+		const workspace = { folders: [{ path: folders[0].uri.path }, { path: folders[1].uri.path }] };
+		await fileService.writeFile(testObject.getWorkspace().configuration!, VSBuffer.fromString(JSON.stringify(workspace, null, '\t')));
 		await promise;
 	});
 
-	test('update folders (remove last and add to end)', () => {
+	test('update folders (remove last and add to end)', async () => {
 		const target = sinon.spy();
 		testObject.onDidChangeWorkspaceFolders(target);
-		const workspaceDir = path.dirname(testObject.getWorkspace().folders[0].uri.fsPath);
-		const addedFolders = [{ uri: URI.file(path.join(workspaceDir, 'd')) }, { uri: URI.file(path.join(workspaceDir, 'c')) }];
+		const addedFolders = [{ uri: URI.file('d') }, { uri: URI.file('c') }];
 		const removedFolders = [testObject.getWorkspace().folders[1]].map(f => f.uri);
-		return testObject.updateFolders(addedFolders, removedFolders)
-			.then(() => {
-				assert.equal(target.callCount, 1, `Should be called only once but called ${target.callCount} times`);
-				const actual = <IWorkspaceFoldersChangeEvent>target.args[0][0];
-				assert.deepEqual(actual.added.map(r => r.uri.toString()), addedFolders.map(a => a.uri.toString()));
-				assert.deepEqual(actual.removed.map(r => r.uri.toString()), removedFolders.map(a => a.toString()));
-				assert.deepEqual(actual.changed, []);
-			});
+		await testObject.updateFolders(addedFolders, removedFolders);
+
+		assert.equal(target.callCount, 1, `Should be called only once but called ${target.callCount} times`);
+		const actual_1 = (<IWorkspaceFoldersChangeEvent>target.args[0][0]);
+		assert.deepEqual(actual_1.added.map(r => r.uri.toString()), addedFolders.map(a => a.uri.toString()));
+		assert.deepEqual(actual_1.removed.map(r_1 => r_1.uri.toString()), removedFolders.map(a_1 => a_1.toString()));
+		assert.deepEqual(actual_1.changed, []);
 	});
 
-	test('update folders (rename first via add and remove)', () => {
+	test('update folders (rename first via add and remove)', async () => {
 		const target = sinon.spy();
 		testObject.onDidChangeWorkspaceFolders(target);
-		const workspaceDir = path.dirname(testObject.getWorkspace().folders[0].uri.fsPath);
-		const addedFolders = [{ uri: URI.file(path.join(workspaceDir, 'a')), name: 'The Folder' }];
+		const addedFolders = [{ uri: URI.file('a'), name: 'The Folder' }];
 		const removedFolders = [testObject.getWorkspace().folders[0]].map(f => f.uri);
-		return testObject.updateFolders(addedFolders, removedFolders, 0)
-			.then(() => {
-				assert.equal(target.callCount, 1, `Should be called only once but called ${target.callCount} times`);
-				const actual = <IWorkspaceFoldersChangeEvent>target.args[0][0];
-				assert.deepEqual(actual.added, []);
-				assert.deepEqual(actual.removed, []);
-				assert.deepEqual(actual.changed.map(r => r.uri.toString()), removedFolders.map(a => a.toString()));
-			});
+		await testObject.updateFolders(addedFolders, removedFolders, 0);
+
+		assert.equal(target.callCount, 1, `Should be called only once but called ${target.callCount} times`);
+		const actual_1 = (<IWorkspaceFoldersChangeEvent>target.args[0][0]);
+		assert.deepEqual(actual_1.added, []);
+		assert.deepEqual(actual_1.removed, []);
+		assert.deepEqual(actual_1.changed.map(r => r.uri.toString()), removedFolders.map(a => a.toString()));
 	});
 
-	test('update folders (remove first and add to end)', () => {
+	test('update folders (remove first and add to end)', async () => {
 		const target = sinon.spy();
 		testObject.onDidChangeWorkspaceFolders(target);
-		const workspaceDir = path.dirname(testObject.getWorkspace().folders[0].uri.fsPath);
-		const addedFolders = [{ uri: URI.file(path.join(workspaceDir, 'd')) }, { uri: URI.file(path.join(workspaceDir, 'c')) }];
+		const addedFolders = [{ uri: URI.file('d') }, { uri: URI.file('c') }];
 		const removedFolders = [testObject.getWorkspace().folders[0]].map(f => f.uri);
 		const changedFolders = [testObject.getWorkspace().folders[1]].map(f => f.uri);
-		return testObject.updateFolders(addedFolders, removedFolders)
-			.then(() => {
-				assert.equal(target.callCount, 1, `Should be called only once but called ${target.callCount} times`);
-				const actual = <IWorkspaceFoldersChangeEvent>target.args[0][0];
-				assert.deepEqual(actual.added.map(r => r.uri.toString()), addedFolders.map(a => a.uri.toString()));
-				assert.deepEqual(actual.removed.map(r => r.uri.toString()), removedFolders.map(a => a.toString()));
-				assert.deepEqual(actual.changed.map(r => r.uri.toString()), changedFolders.map(a => a.toString()));
-			});
+		await testObject.updateFolders(addedFolders, removedFolders);
+
+		assert.equal(target.callCount, 1, `Should be called only once but called ${target.callCount} times`);
+		const actual_1 = (<IWorkspaceFoldersChangeEvent>target.args[0][0]);
+		assert.deepEqual(actual_1.added.map(r => r.uri.toString()), addedFolders.map(a => a.uri.toString()));
+		assert.deepEqual(actual_1.removed.map(r_1 => r_1.uri.toString()), removedFolders.map(a_1 => a_1.toString()));
+		assert.deepEqual(actual_1.changed.map(r_2 => r_2.uri.toString()), changedFolders.map(a_2 => a_2.toString()));
 	});
 
-	test('reorder folders trigger change event', () => {
+	test('reorder folders trigger change event', async () => {
 		const target = sinon.spy();
 		testObject.onDidChangeWorkspaceFolders(target);
-		const workspace = { folders: [{ path: testObject.getWorkspace().folders[1].uri.fsPath }, { path: testObject.getWorkspace().folders[0].uri.fsPath }] };
-		fs.writeFileSync(testObject.getWorkspace().configuration!.fsPath, JSON.stringify(workspace, null, '\t'));
-		return testObject.reloadConfiguration()
-			.then(() => {
-				assert.equal(target.callCount, 1, `Should be called only once but called ${target.callCount} times`);
-				const actual = <IWorkspaceFoldersChangeEvent>target.args[0][0];
-				assert.deepEqual(actual.added, []);
-				assert.deepEqual(actual.removed, []);
-				assert.deepEqual(actual.changed.map(c => c.uri.toString()), testObject.getWorkspace().folders.map(f => f.uri.toString()).reverse());
-			});
+		const workspace = { folders: [{ path: testObject.getWorkspace().folders[1].uri.path }, { path: testObject.getWorkspace().folders[0].uri.path }] };
+		await fileService.writeFile(testObject.getWorkspace().configuration!, VSBuffer.fromString(JSON.stringify(workspace, null, '\t')));
+		await testObject.reloadConfiguration();
+
+		assert.equal(target.callCount, 1, `Should be called only once but called ${target.callCount} times`);
+		const actual_1 = (<IWorkspaceFoldersChangeEvent>target.args[0][0]);
+		assert.deepEqual(actual_1.added, []);
+		assert.deepEqual(actual_1.removed, []);
+		assert.deepEqual(actual_1.changed.map(c => c.uri.toString()), testObject.getWorkspace().folders.map(f => f.uri.toString()).reverse());
 	});
 
-	test('rename folders trigger change event', () => {
+	test('rename folders trigger change event', async () => {
 		const target = sinon.spy();
 		testObject.onDidChangeWorkspaceFolders(target);
-		const workspace = { folders: [{ path: testObject.getWorkspace().folders[0].uri.fsPath, name: '1' }, { path: testObject.getWorkspace().folders[1].uri.fsPath }] };
-		fs.writeFileSync(testObject.getWorkspace().configuration!.fsPath, JSON.stringify(workspace, null, '\t'));
-		return testObject.reloadConfiguration()
-			.then(() => {
-				assert.equal(target.callCount, 1, `Should be called only once but called ${target.callCount} times`);
-				const actual = <IWorkspaceFoldersChangeEvent>target.args[0][0];
-				assert.deepEqual(actual.added, []);
-				assert.deepEqual(actual.removed, []);
-				assert.deepEqual(actual.changed.map(c => c.uri.toString()), [testObject.getWorkspace().folders[0].uri.toString()]);
-			});
+		const workspace = { folders: [{ path: testObject.getWorkspace().folders[0].uri.path, name: '1' }, { path: testObject.getWorkspace().folders[1].uri.path }] };
+		fileService.writeFile(testObject.getWorkspace().configuration!, VSBuffer.fromString(JSON.stringify(workspace, null, '\t')));
+		await testObject.reloadConfiguration();
+
+		assert.equal(target.callCount, 1, `Should be called only once but called ${target.callCount} times`);
+		const actual_1 = (<IWorkspaceFoldersChangeEvent>target.args[0][0]);
+		assert.deepEqual(actual_1.added, []);
+		assert.deepEqual(actual_1.removed, []);
+		assert.deepEqual(actual_1.changed.map(c => c.uri.toString()), [testObject.getWorkspace().folders[0].uri.toString()]);
 	});
 
 });
 
 suite('WorkspaceService - Initialization', () => {
 
-	let parentResource: string, workspaceConfigPath: URI, testObject: WorkspaceService, globalSettingsFile: string;
+	let configResource: URI, testObject: WorkspaceService, fileService: IFileService, environmentService: NativeWorkbenchEnvironmentService;
 	const configurationRegistry = Registry.as<IConfigurationRegistry>(ConfigurationExtensions.Configuration);
 	const disposables = new DisposableStore();
 
@@ -489,240 +459,204 @@ suite('WorkspaceService - Initialization', () => {
 		});
 	});
 
-	setup(() => {
-		return setUpWorkspace(['1', '2'])
-			.then(({ parentDir, configPath }) => {
+	setup(async () => {
+		const logService = new NullLogService();
+		fileService = disposables.add(new FileService(logService));
+		const fileSystemProvider = disposables.add(new InMemoryFileSystemProvider());
+		fileService.registerProvider(Schemas.file, fileSystemProvider);
 
-				parentResource = parentDir;
-				workspaceConfigPath = configPath;
-				globalSettingsFile = path.join(parentDir, 'settings.json');
+		const appSettingsHome = URI.file('user');
+		const folderA = URI.file('a');
+		const folderB = URI.file('b');
+		configResource = URI.file('vsctests.code-workspace');
+		const workspace = { folders: [{ path: folderA.path }, { path: folderB.path }] };
 
-				const instantiationService = <TestInstantiationService>workbenchInstantiationService();
-				const environmentService = new TestWorkbenchEnvironmentService(URI.file(parentDir));
-				const remoteAgentService = instantiationService.createInstance(RemoteAgentService);
-				instantiationService.stub(IRemoteAgentService, remoteAgentService);
-				const fileService = disposables.add(new FileService(new NullLogService()));
-				const diskFileSystemProvider = disposables.add(new DiskFileSystemProvider(new NullLogService()));
-				fileService.registerProvider(Schemas.file, diskFileSystemProvider);
-				fileService.registerProvider(Schemas.userData, disposables.add(new FileUserDataProvider(Schemas.file, diskFileSystemProvider, Schemas.userData, new NullLogService())));
-				const workspaceService = disposables.add(new WorkspaceService({ configurationCache: new ConfigurationCache(environmentService) }, environmentService, fileService, remoteAgentService, new UriIdentityService(fileService), new NullLogService()));
-				instantiationService.stub(IWorkspaceContextService, workspaceService);
-				instantiationService.stub(IConfigurationService, workspaceService);
-				instantiationService.stub(IEnvironmentService, environmentService);
+		await fileService.createFolder(appSettingsHome);
+		await fileService.createFolder(folderA);
+		await fileService.createFolder(folderB);
+		await fileService.writeFile(configResource, VSBuffer.fromString(JSON.stringify(workspace, null, '\t')));
 
-				return workspaceService.initialize({ id: '' }).then(() => {
-					instantiationService.stub(IFileService, fileService);
-					instantiationService.stub(ITextFileService, instantiationService.createInstance(TestTextFileService));
-					instantiationService.stub(ITextModelService, <ITextModelService>instantiationService.createInstance(TextModelResolverService));
-					workspaceService.acquireInstantiationService(instantiationService);
-					testObject = workspaceService;
-				});
-			});
+		const instantiationService = <TestInstantiationService>workbenchInstantiationService();
+		environmentService = new TestWorkbenchEnvironmentService(appSettingsHome);
+		const remoteAgentService = instantiationService.createInstance(RemoteAgentService);
+		instantiationService.stub(IRemoteAgentService, remoteAgentService);
+		fileService.registerProvider(Schemas.userData, disposables.add(new FileUserDataProvider(Schemas.file, fileSystemProvider, Schemas.userData, new NullLogService())));
+		testObject = disposables.add(new WorkspaceService({ configurationCache: new ConfigurationCache(environmentService, fileService) }, environmentService, fileService, remoteAgentService, new UriIdentityService(fileService), new NullLogService()));
+		instantiationService.stub(IFileService, fileService);
+		instantiationService.stub(IWorkspaceContextService, testObject);
+		instantiationService.stub(IConfigurationService, testObject);
+		instantiationService.stub(IEnvironmentService, environmentService);
+
+		await testObject.initialize({ id: '' });
+		instantiationService.stub(ITextFileService, instantiationService.createInstance(TestTextFileService));
+		instantiationService.stub(ITextModelService, <ITextModelService>instantiationService.createInstance(TextModelResolverService));
+		testObject.acquireInstantiationService(instantiationService);
 	});
 
-	teardown(() => {
-		disposables.clear();
-		if (parentResource) {
-			return pfs.rimraf(parentResource, pfs.RimRafMode.MOVE);
-		}
-		return undefined;
-	});
+	teardown(() => disposables.clear());
 
-	test('initialize a folder workspace from an empty workspace with no configuration changes', () => {
+	test('initialize a folder workspace from an empty workspace with no configuration changes', async () => {
 
-		fs.writeFileSync(globalSettingsFile, '{ "initialization.testSetting1": "userValue" }');
+		await fileService.writeFile(environmentService.settingsResource, VSBuffer.fromString('{ "initialization.testSetting1": "userValue" }'));
 
-		return testObject.reloadConfiguration()
-			.then(() => {
-				const target = sinon.spy();
-				testObject.onDidChangeWorkbenchState(target);
-				testObject.onDidChangeWorkspaceName(target);
-				testObject.onDidChangeWorkspaceFolders(target);
-				testObject.onDidChangeConfiguration(target);
+		await testObject.reloadConfiguration();
+		const target = sinon.spy();
+		testObject.onDidChangeWorkbenchState(target);
+		testObject.onDidChangeWorkspaceName(target);
+		testObject.onDidChangeWorkspaceFolders(target);
+		testObject.onDidChangeConfiguration(target);
 
-				return testObject.initialize(convertToWorkspacePayload(URI.file(path.join(parentResource, '1'))))
-					.then(() => {
-						assert.equal(testObject.getValue('initialization.testSetting1'), 'userValue');
-						assert.equal(target.callCount, 3);
-						assert.deepEqual(target.args[0], [WorkbenchState.FOLDER]);
-						assert.deepEqual(target.args[1], [undefined]);
-						assert.deepEqual((<IWorkspaceFoldersChangeEvent>target.args[2][0]).added.map(folder => folder.uri.fsPath), [URI.file(path.join(parentResource, '1')).fsPath]);
-						assert.deepEqual((<IWorkspaceFoldersChangeEvent>target.args[2][0]).removed, []);
-						assert.deepEqual((<IWorkspaceFoldersChangeEvent>target.args[2][0]).changed, []);
-					});
+		const folder = URI.file('a');
+		await testObject.initialize(convertToWorkspacePayload(folder));
 
-			});
+		assert.equal(testObject.getValue('initialization.testSetting1'), 'userValue');
+		assert.equal(target.callCount, 3);
+		assert.deepEqual(target.args[0], [WorkbenchState.FOLDER]);
+		assert.deepEqual(target.args[1], [undefined]);
+		assert.deepEqual((<IWorkspaceFoldersChangeEvent>target.args[2][0]).added.map(f => f.uri.toString()), [folder.toString()]);
+		assert.deepEqual((<IWorkspaceFoldersChangeEvent>target.args[2][0]).removed, []);
+		assert.deepEqual((<IWorkspaceFoldersChangeEvent>target.args[2][0]).changed, []);
 
 	});
 
-	test('initialize a folder workspace from an empty workspace with configuration changes', () => {
+	test('initialize a folder workspace from an empty workspace with configuration changes', async () => {
 
-		fs.writeFileSync(globalSettingsFile, '{ "initialization.testSetting1": "userValue" }');
+		await fileService.writeFile(environmentService.settingsResource, VSBuffer.fromString('{ "initialization.testSetting1": "userValue" }'));
 
-		return testObject.reloadConfiguration()
-			.then(() => {
-				const target = sinon.spy();
-				testObject.onDidChangeWorkbenchState(target);
-				testObject.onDidChangeWorkspaceName(target);
-				testObject.onDidChangeWorkspaceFolders(target);
-				testObject.onDidChangeConfiguration(target);
+		await testObject.reloadConfiguration();
+		const target = sinon.spy();
+		testObject.onDidChangeWorkbenchState(target);
+		testObject.onDidChangeWorkspaceName(target);
+		testObject.onDidChangeWorkspaceFolders(target);
+		testObject.onDidChangeConfiguration(target);
 
-				fs.writeFileSync(path.join(parentResource, '1', '.vscode', 'settings.json'), '{ "initialization.testSetting1": "workspaceValue" }');
+		const folder = URI.file('a');
+		await fileService.writeFile(joinPath(folder, '.vscode', 'settings.json'), VSBuffer.fromString('{ "initialization.testSetting1": "workspaceValue" }'));
+		await testObject.initialize(convertToWorkspacePayload(folder));
 
-				return testObject.initialize(convertToWorkspacePayload(URI.file(path.join(parentResource, '1'))))
-					.then(() => {
-						assert.equal(testObject.getValue('initialization.testSetting1'), 'workspaceValue');
-						assert.equal(target.callCount, 4);
-						assert.deepEqual((<IConfigurationChangeEvent>target.args[0][0]).affectedKeys, ['initialization.testSetting1']);
-						assert.deepEqual(target.args[1], [WorkbenchState.FOLDER]);
-						assert.deepEqual(target.args[2], [undefined]);
-						assert.deepEqual((<IWorkspaceFoldersChangeEvent>target.args[3][0]).added.map(folder => folder.uri.fsPath), [URI.file(path.join(parentResource, '1')).fsPath]);
-						assert.deepEqual((<IWorkspaceFoldersChangeEvent>target.args[3][0]).removed, []);
-						assert.deepEqual((<IWorkspaceFoldersChangeEvent>target.args[3][0]).changed, []);
-					});
-
-			});
+		assert.equal(testObject.getValue('initialization.testSetting1'), 'workspaceValue');
+		assert.equal(target.callCount, 4);
+		assert.deepEqual((<IConfigurationChangeEvent>target.args[0][0]).affectedKeys, ['initialization.testSetting1']);
+		assert.deepEqual(target.args[1], [WorkbenchState.FOLDER]);
+		assert.deepEqual(target.args[2], [undefined]);
+		assert.deepEqual((<IWorkspaceFoldersChangeEvent>target.args[3][0]).added.map(f => f.uri.toString()), [folder.toString()]);
+		assert.deepEqual((<IWorkspaceFoldersChangeEvent>target.args[3][0]).removed, []);
+		assert.deepEqual((<IWorkspaceFoldersChangeEvent>target.args[3][0]).changed, []);
 
 	});
 
-	test('initialize a multi root workspace from an empty workspace with no configuration changes', () => {
+	test('initialize a multi root workspace from an empty workspace with no configuration changes', async () => {
 
-		fs.writeFileSync(globalSettingsFile, '{ "initialization.testSetting1": "userValue" }');
+		await fileService.writeFile(environmentService.settingsResource, VSBuffer.fromString('{ "initialization.testSetting1": "userValue" }'));
 
-		return testObject.reloadConfiguration()
-			.then(() => {
-				const target = sinon.spy();
-				testObject.onDidChangeWorkbenchState(target);
-				testObject.onDidChangeWorkspaceName(target);
-				testObject.onDidChangeWorkspaceFolders(target);
-				testObject.onDidChangeConfiguration(target);
+		await testObject.reloadConfiguration();
+		const target = sinon.spy();
+		testObject.onDidChangeWorkbenchState(target);
+		testObject.onDidChangeWorkspaceName(target);
+		testObject.onDidChangeWorkspaceFolders(target);
+		testObject.onDidChangeConfiguration(target);
 
-				return testObject.initialize(getWorkspaceIdentifier(workspaceConfigPath))
-					.then(() => {
-						assert.equal(target.callCount, 3);
-						assert.deepEqual(target.args[0], [WorkbenchState.WORKSPACE]);
-						assert.deepEqual(target.args[1], [undefined]);
-						assert.deepEqual((<IWorkspaceFoldersChangeEvent>target.args[2][0]).added.map(folder => folder.uri.fsPath), [URI.file(path.join(parentResource, '1')).fsPath, URI.file(path.join(parentResource, '2')).fsPath]);
-						assert.deepEqual((<IWorkspaceFoldersChangeEvent>target.args[2][0]).removed, []);
-						assert.deepEqual((<IWorkspaceFoldersChangeEvent>target.args[2][0]).changed, []);
-					});
+		await testObject.initialize(getWorkspaceIdentifier(configResource));
 
-			});
+		assert.equal(target.callCount, 3);
+		assert.deepEqual(target.args[0], [WorkbenchState.WORKSPACE]);
+		assert.deepEqual(target.args[1], [undefined]);
+		assert.deepEqual((<IWorkspaceFoldersChangeEvent>target.args[2][0]).added.map(folder => folder.uri.toString()), [URI.file('a').toString(), URI.file('b').toString()]);
+		assert.deepEqual((<IWorkspaceFoldersChangeEvent>target.args[2][0]).removed, []);
+		assert.deepEqual((<IWorkspaceFoldersChangeEvent>target.args[2][0]).changed, []);
 
 	});
 
-	test('initialize a multi root workspace from an empty workspace with configuration changes', () => {
+	test('initialize a multi root workspace from an empty workspace with configuration changes', async () => {
 
-		fs.writeFileSync(globalSettingsFile, '{ "initialization.testSetting1": "userValue" }');
+		await fileService.writeFile(environmentService.settingsResource, VSBuffer.fromString('{ "initialization.testSetting1": "userValue" }'));
 
-		return testObject.reloadConfiguration()
-			.then(() => {
-				const target = sinon.spy();
-				testObject.onDidChangeWorkbenchState(target);
-				testObject.onDidChangeWorkspaceName(target);
-				testObject.onDidChangeWorkspaceFolders(target);
-				testObject.onDidChangeConfiguration(target);
+		await testObject.reloadConfiguration();
+		const target = sinon.spy();
+		testObject.onDidChangeWorkbenchState(target);
+		testObject.onDidChangeWorkspaceName(target);
+		testObject.onDidChangeWorkspaceFolders(target);
+		testObject.onDidChangeConfiguration(target);
 
-				fs.writeFileSync(path.join(parentResource, '1', '.vscode', 'settings.json'), '{ "initialization.testSetting1": "workspaceValue1" }');
-				fs.writeFileSync(path.join(parentResource, '2', '.vscode', 'settings.json'), '{ "initialization.testSetting2": "workspaceValue2" }');
+		await fileService.writeFile(joinPath(URI.file('a'), '.vscode', 'settings.json'), VSBuffer.fromString('{ "initialization.testSetting1": "workspaceValue1" }'));
+		await fileService.writeFile(joinPath(URI.file('b'), '.vscode', 'settings.json'), VSBuffer.fromString('{ "initialization.testSetting2": "workspaceValue2" }'));
+		await testObject.initialize(getWorkspaceIdentifier(configResource));
 
-				return testObject.initialize(getWorkspaceIdentifier(workspaceConfigPath))
-					.then(() => {
-						assert.equal(target.callCount, 4);
-						assert.deepEqual((<IConfigurationChangeEvent>target.args[0][0]).affectedKeys, ['initialization.testSetting1', 'initialization.testSetting2']);
-						assert.deepEqual(target.args[1], [WorkbenchState.WORKSPACE]);
-						assert.deepEqual(target.args[2], [undefined]);
-						assert.deepEqual((<IWorkspaceFoldersChangeEvent>target.args[3][0]).added.map(folder => folder.uri.fsPath), [URI.file(path.join(parentResource, '1')).fsPath, URI.file(path.join(parentResource, '2')).fsPath]);
-						assert.deepEqual((<IWorkspaceFoldersChangeEvent>target.args[3][0]).removed, []);
-						assert.deepEqual((<IWorkspaceFoldersChangeEvent>target.args[3][0]).changed, []);
-					});
-
-			});
+		assert.equal(target.callCount, 4);
+		assert.deepEqual((<IConfigurationChangeEvent>target.args[0][0]).affectedKeys, ['initialization.testSetting1', 'initialization.testSetting2']);
+		assert.deepEqual(target.args[1], [WorkbenchState.WORKSPACE]);
+		assert.deepEqual(target.args[2], [undefined]);
+		assert.deepEqual((<IWorkspaceFoldersChangeEvent>target.args[3][0]).added.map(folder => folder.uri.toString()), [URI.file('a').toString(), URI.file('b').toString()]);
+		assert.deepEqual((<IWorkspaceFoldersChangeEvent>target.args[3][0]).removed, []);
+		assert.deepEqual((<IWorkspaceFoldersChangeEvent>target.args[3][0]).changed, []);
 
 	});
 
-	test('initialize a folder workspace from a folder workspace with no configuration changes', () => {
+	test('initialize a folder workspace from a folder workspace with no configuration changes', async () => {
 
-		return testObject.initialize(convertToWorkspacePayload(URI.file(path.join(parentResource, '1'))))
-			.then(() => {
-				fs.writeFileSync(globalSettingsFile, '{ "initialization.testSetting1": "userValue" }');
+		await testObject.initialize(convertToWorkspacePayload(URI.file('a')));
+		await fileService.writeFile(environmentService.settingsResource, VSBuffer.fromString('{ "initialization.testSetting1": "userValue" }'));
+		await testObject.reloadConfiguration();
+		const target = sinon.spy();
+		testObject.onDidChangeWorkbenchState(target);
+		testObject.onDidChangeWorkspaceName(target);
+		testObject.onDidChangeWorkspaceFolders(target);
+		testObject.onDidChangeConfiguration(target);
 
-				return testObject.reloadConfiguration()
-					.then(() => {
-						const target = sinon.spy();
-						testObject.onDidChangeWorkbenchState(target);
-						testObject.onDidChangeWorkspaceName(target);
-						testObject.onDidChangeWorkspaceFolders(target);
-						testObject.onDidChangeConfiguration(target);
+		await testObject.initialize(convertToWorkspacePayload(URI.file('b')));
 
-						return testObject.initialize(convertToWorkspacePayload(URI.file(path.join(parentResource, '2'))))
-							.then(() => {
-								assert.equal(testObject.getValue('initialization.testSetting1'), 'userValue');
-								assert.equal(target.callCount, 1);
-								assert.deepEqual((<IWorkspaceFoldersChangeEvent>target.args[0][0]).added.map(folder => folder.uri.fsPath), [URI.file(path.join(parentResource, '2')).fsPath]);
-								assert.deepEqual((<IWorkspaceFoldersChangeEvent>target.args[0][0]).removed.map(folder => folder.uri.fsPath), [URI.file(path.join(parentResource, '1')).fsPath]);
-								assert.deepEqual((<IWorkspaceFoldersChangeEvent>target.args[0][0]).changed, []);
-							});
-
-					});
-			});
+		assert.equal(testObject.getValue('initialization.testSetting1'), 'userValue');
+		assert.equal(target.callCount, 1);
+		assert.deepEqual((<IWorkspaceFoldersChangeEvent>target.args[0][0]).added.map(folder_1 => folder_1.uri.toString()), [URI.file('b').toString()]);
+		assert.deepEqual((<IWorkspaceFoldersChangeEvent>target.args[0][0]).removed.map(folder_2 => folder_2.uri.toString()), [URI.file('a').toString()]);
+		assert.deepEqual((<IWorkspaceFoldersChangeEvent>target.args[0][0]).changed, []);
 
 	});
 
-	test('initialize a folder workspace from a folder workspace with configuration changes', () => {
+	test('initialize a folder workspace from a folder workspace with configuration changes', async () => {
 
-		return testObject.initialize(convertToWorkspacePayload(URI.file(path.join(parentResource, '1'))))
-			.then(() => {
+		await testObject.initialize(convertToWorkspacePayload(URI.file('a')));
+		const target = sinon.spy();
+		testObject.onDidChangeWorkbenchState(target);
+		testObject.onDidChangeWorkspaceName(target);
+		testObject.onDidChangeWorkspaceFolders(target);
+		testObject.onDidChangeConfiguration(target);
 
-				const target = sinon.spy();
-				testObject.onDidChangeWorkbenchState(target);
-				testObject.onDidChangeWorkspaceName(target);
-				testObject.onDidChangeWorkspaceFolders(target);
-				testObject.onDidChangeConfiguration(target);
+		await fileService.writeFile(joinPath(URI.file('b'), '.vscode', 'settings.json'), VSBuffer.fromString('{ "initialization.testSetting1": "workspaceValue2" }'));
+		await testObject.initialize(convertToWorkspacePayload(URI.file('b')));
 
-				fs.writeFileSync(path.join(parentResource, '2', '.vscode', 'settings.json'), '{ "initialization.testSetting1": "workspaceValue2" }');
-				return testObject.initialize(convertToWorkspacePayload(URI.file(path.join(parentResource, '2'))))
-					.then(() => {
-						assert.equal(testObject.getValue('initialization.testSetting1'), 'workspaceValue2');
-						assert.equal(target.callCount, 2);
-						assert.deepEqual((<IConfigurationChangeEvent>target.args[0][0]).affectedKeys, ['initialization.testSetting1']);
-						assert.deepEqual((<IWorkspaceFoldersChangeEvent>target.args[1][0]).added.map(folder => folder.uri.fsPath), [URI.file(path.join(parentResource, '2')).fsPath]);
-						assert.deepEqual((<IWorkspaceFoldersChangeEvent>target.args[1][0]).removed.map(folder => folder.uri.fsPath), [URI.file(path.join(parentResource, '1')).fsPath]);
-						assert.deepEqual((<IWorkspaceFoldersChangeEvent>target.args[1][0]).changed, []);
-					});
-			});
+		assert.equal(testObject.getValue('initialization.testSetting1'), 'workspaceValue2');
+		assert.equal(target.callCount, 2);
+		assert.deepEqual((<IConfigurationChangeEvent>target.args[0][0]).affectedKeys, ['initialization.testSetting1']);
+		assert.deepEqual((<IWorkspaceFoldersChangeEvent>target.args[1][0]).added.map(folder_1 => folder_1.uri.toString()), [URI.file('b').toString()]);
+		assert.deepEqual((<IWorkspaceFoldersChangeEvent>target.args[1][0]).removed.map(folder_2 => folder_2.uri.toString()), [URI.file('a').toString()]);
+		assert.deepEqual((<IWorkspaceFoldersChangeEvent>target.args[1][0]).changed, []);
 
 	});
 
-	test('initialize a multi folder workspace from a folder workspacce triggers change events in the right order', () => {
-		const folderDir = path.join(parentResource, '1');
-		return testObject.initialize(convertToWorkspacePayload(URI.file(folderDir)))
-			.then(() => {
+	test('initialize a multi folder workspace from a folder workspacce triggers change events in the right order', async () => {
+		await testObject.initialize(convertToWorkspacePayload(URI.file('a')));
+		const target = sinon.spy();
+		testObject.onDidChangeWorkbenchState(target);
+		testObject.onDidChangeWorkspaceName(target);
+		testObject.onDidChangeWorkspaceFolders(target);
+		testObject.onDidChangeConfiguration(target);
 
-				const target = sinon.spy();
+		await fileService.writeFile(joinPath(URI.file('a'), '.vscode', 'settings.json'), VSBuffer.fromString('{ "initialization.testSetting1": "workspaceValue2" }'));
+		await testObject.initialize(getWorkspaceIdentifier(configResource));
 
-				testObject.onDidChangeWorkbenchState(target);
-				testObject.onDidChangeWorkspaceName(target);
-				testObject.onDidChangeWorkspaceFolders(target);
-				testObject.onDidChangeConfiguration(target);
-
-				fs.writeFileSync(path.join(parentResource, '1', '.vscode', 'settings.json'), '{ "initialization.testSetting1": "workspaceValue2" }');
-				return testObject.initialize(getWorkspaceIdentifier(workspaceConfigPath))
-					.then(() => {
-						assert.equal(target.callCount, 4);
-						assert.deepEqual((<IConfigurationChangeEvent>target.args[0][0]).affectedKeys, ['initialization.testSetting1']);
-						assert.deepEqual(target.args[1], [WorkbenchState.WORKSPACE]);
-						assert.deepEqual(target.args[2], [undefined]);
-						assert.deepEqual((<IWorkspaceFoldersChangeEvent>target.args[3][0]).added.map(folder => folder.uri.fsPath), [URI.file(path.join(parentResource, '2')).fsPath]);
-						assert.deepEqual((<IWorkspaceFoldersChangeEvent>target.args[3][0]).removed, []);
-						assert.deepEqual((<IWorkspaceFoldersChangeEvent>target.args[3][0]).changed, []);
-					});
-			});
+		assert.equal(target.callCount, 4);
+		assert.deepEqual((<IConfigurationChangeEvent>target.args[0][0]).affectedKeys, ['initialization.testSetting1']);
+		assert.deepEqual(target.args[1], [WorkbenchState.WORKSPACE]);
+		assert.deepEqual(target.args[2], [undefined]);
+		assert.deepEqual((<IWorkspaceFoldersChangeEvent>target.args[3][0]).added.map(folder_1 => folder_1.uri.toString()), [URI.file('b').toString()]);
+		assert.deepEqual((<IWorkspaceFoldersChangeEvent>target.args[3][0]).removed, []);
+		assert.deepEqual((<IWorkspaceFoldersChangeEvent>target.args[3][0]).changed, []);
 	});
 
 });
 
-suite('WorkspaceConfigurationService - Folder', () => {
+flakySuite('WorkspaceConfigurationService - Folder', () => {
 
 	let workspaceName = `testWorkspace${uuid.generateUuid()}`, parentResource: string, workspaceDir: string, testObject: IConfigurationService, globalSettingsFile: string, globalTasksFile: string, workspaceService: WorkspaceService;
 	const configurationRegistry = Registry.as<IConfigurationRegistry>(ConfigurationExtensions.Configuration);
@@ -780,7 +714,7 @@ suite('WorkspaceConfigurationService - Folder', () => {
 				const diskFileSystemProvider = disposables.add(new DiskFileSystemProvider(new NullLogService()));
 				fileService.registerProvider(Schemas.file, diskFileSystemProvider);
 				fileService.registerProvider(Schemas.userData, disposables.add(new FileUserDataProvider(Schemas.file, diskFileSystemProvider, Schemas.userData, new NullLogService())));
-				workspaceService = disposables.add(new WorkspaceService({ configurationCache: new ConfigurationCache(environmentService) }, environmentService, fileService, remoteAgentService, new UriIdentityService(fileService), new NullLogService()));
+				workspaceService = disposables.add(new WorkspaceService({ configurationCache: new ConfigurationCache(environmentService, fileService) }, environmentService, fileService, remoteAgentService, new UriIdentityService(fileService), new NullLogService()));
 				instantiationService.stub(IWorkspaceContextService, workspaceService);
 				instantiationService.stub(IConfigurationService, workspaceService);
 				instantiationService.stub(IEnvironmentService, environmentService);
@@ -802,7 +736,7 @@ suite('WorkspaceConfigurationService - Folder', () => {
 	teardown(() => {
 		disposables.clear();
 		if (parentResource) {
-			return pfs.rimraf(parentResource, pfs.RimRafMode.MOVE);
+			return pfs.rimraf(parentResource);
 		}
 		return undefined;
 	});
@@ -1237,10 +1171,7 @@ suite('WorkspaceConfigurationService - Folder', () => {
 		});
 	});
 
-	test('deleting workspace settings', async () => {
-		if (!isMacintosh) {
-			return;
-		}
+	(!isMacintosh ? test.skip : test)('deleting workspace settings', async () => {
 		fs.writeFileSync(globalSettingsFile, '{ "configurationService.folder.testSetting": "userValue" }');
 		const workspaceSettingsResource = URI.file(path.join(workspaceDir, '.vscode', 'settings.json'));
 		await fileService.writeFile(workspaceSettingsResource, VSBuffer.fromString('{ "configurationService.folder.testSetting": "workspaceValue" }'));
@@ -1254,7 +1185,7 @@ suite('WorkspaceConfigurationService - Folder', () => {
 	});
 });
 
-suite('WorkspaceConfigurationService-Multiroot', () => {
+flakySuite('WorkspaceConfigurationService-Multiroot', () => {
 
 	let parentResource: string, workspaceContextService: IWorkspaceContextService, jsonEditingServce: IJSONEditingService, testObject: IConfigurationService, globalSettingsFile: string;
 	const configurationRegistry = Registry.as<IConfigurationRegistry>(ConfigurationExtensions.Configuration);
@@ -1313,7 +1244,7 @@ suite('WorkspaceConfigurationService-Multiroot', () => {
 				const diskFileSystemProvider = disposables.add(new DiskFileSystemProvider(new NullLogService()));
 				fileService.registerProvider(Schemas.file, diskFileSystemProvider);
 				fileService.registerProvider(Schemas.userData, disposables.add(new FileUserDataProvider(Schemas.file, diskFileSystemProvider, Schemas.userData, new NullLogService())));
-				const workspaceService = disposables.add(new WorkspaceService({ configurationCache: new ConfigurationCache(environmentService) }, environmentService, fileService, remoteAgentService, new UriIdentityService(fileService), new NullLogService()));
+				const workspaceService = disposables.add(new WorkspaceService({ configurationCache: new ConfigurationCache(environmentService, fileService) }, environmentService, fileService, remoteAgentService, new UriIdentityService(fileService), new NullLogService()));
 
 				instantiationService.stub(IWorkspaceContextService, workspaceService);
 				instantiationService.stub(IConfigurationService, workspaceService);
@@ -1337,7 +1268,7 @@ suite('WorkspaceConfigurationService-Multiroot', () => {
 	teardown(() => {
 		disposables.clear();
 		if (parentResource) {
-			return pfs.rimraf(parentResource, pfs.RimRafMode.MOVE);
+			return pfs.rimraf(parentResource);
 		}
 		return undefined;
 	});
@@ -1877,7 +1808,7 @@ suite('WorkspaceConfigurationService-Multiroot', () => {
 	});
 });
 
-suite('WorkspaceConfigurationService - Remote Folder', () => {
+flakySuite('WorkspaceConfigurationService - Remote Folder', () => {
 
 	let workspaceName = `testWorkspace${uuid.generateUuid()}`, parentResource: string, workspaceDir: string, testObject: WorkspaceService, globalSettingsFile: string, remoteSettingsFile: string, remoteSettingsResource: URI, instantiationService: TestInstantiationService, resolveRemoteEnvironment: () => void;
 	const remoteAuthority = 'configuraiton-tests';
@@ -1964,7 +1895,7 @@ suite('WorkspaceConfigurationService - Remote Folder', () => {
 	teardown(() => {
 		disposables.clear();
 		if (parentResource) {
-			return pfs.rimraf(parentResource, pfs.RimRafMode.MOVE);
+			return pfs.rimraf(parentResource);
 		}
 		return undefined;
 	});
@@ -2022,27 +1953,6 @@ suite('WorkspaceConfigurationService - Remote Folder', () => {
 			});
 		});
 		resolveRemoteEnvironment();
-		return promise;
-	});
-
-	test.skip('update remote settings', async () => {
-		registerRemoteFileSystemProvider();
-		resolveRemoteEnvironment();
-		await initialize();
-		assert.equal(testObject.getValue('configurationService.remote.machineSetting'), 'isSet');
-		const promise = new Promise<void>((c, e) => {
-			testObject.onDidChangeConfiguration(event => {
-				try {
-					assert.equal(event.source, ConfigurationTarget.USER);
-					assert.deepEqual(event.affectedKeys, ['configurationService.remote.machineSetting']);
-					assert.equal(testObject.getValue('configurationService.remote.machineSetting'), 'remoteValue');
-					c();
-				} catch (error) {
-					e(error);
-				}
-			});
-		});
-		await instantiationService.get(IFileService).writeFile(remoteSettingsResource, VSBuffer.fromString('{ "configurationService.remote.machineSetting": "remoteValue" }'));
 		return promise;
 	});
 
@@ -2146,9 +2056,7 @@ suite('ConfigurationService - Configuration Defaults', () => {
 		});
 	});
 
-	teardown(() => {
-		disposableStore.clear();
-	});
+	teardown(() => disposableStore.clear());
 
 	test('when default value is not overriden', () => {
 		const testObject = createConfiurationService({});

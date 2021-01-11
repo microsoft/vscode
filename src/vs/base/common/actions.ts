@@ -246,15 +246,35 @@ export class ActionWithMenuAction extends Action {
 	}
 }
 
-export class SubmenuAction extends Action {
+export class SubmenuAction implements IAction {
 
-	get actions(): IAction[] {
+	readonly id: string;
+	readonly label: string;
+	readonly class: string | undefined;
+	readonly tooltip: string = '';
+	readonly enabled: boolean = true;
+	readonly checked: boolean = false;
+
+	private readonly _actions: readonly IAction[];
+
+	constructor(id: string, label: string, actions: readonly IAction[], cssClass?: string) {
+		this.id = id;
+		this.label = label;
+		this.class = cssClass;
+		this._actions = actions;
+	}
+
+	dispose(): void {
+		// there is NOTHING to dispose and the SubmenuAction should
+		// never have anything to dispose as it is a convenience type
+		// to bridge into the rendering world.
+	}
+
+	get actions(): readonly IAction[] {
 		return this._actions;
 	}
 
-	constructor(id: string, label: string, private _actions: IAction[], cssClass?: string) {
-		super(id, label, cssClass, !!_actions?.length);
-	}
+	async run(): Promise<any> { }
 }
 
 export class EmptySubmenuAction extends Action {

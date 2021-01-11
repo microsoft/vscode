@@ -59,7 +59,7 @@ import 'vs/workbench/contrib/notebook/browser/contrib/coreActions';
 import 'vs/workbench/contrib/notebook/browser/contrib/find/findController';
 import 'vs/workbench/contrib/notebook/browser/contrib/fold/folding';
 import 'vs/workbench/contrib/notebook/browser/contrib/format/formatting';
-import 'vs/workbench/contrib/notebook/browser/contrib/toc/tocProvider';
+import 'vs/workbench/contrib/notebook/browser/contrib/outline/notebookOutline';
 import 'vs/workbench/contrib/notebook/browser/contrib/marker/markerProvider';
 import 'vs/workbench/contrib/notebook/browser/contrib/status/editorStatus';
 // import 'vs/workbench/contrib/notebook/browser/contrib/scm/scm';
@@ -480,7 +480,7 @@ class CellContentProvider implements ITextModelContentProvider {
 					create: (defaultEOL) => {
 						const newEOL = (defaultEOL === DefaultEndOfLine.CRLF ? '\r\n' : '\n');
 						(cell.textBuffer as ITextBuffer).setEOL(newEOL);
-						return cell.textBuffer as ITextBuffer;
+						return { textBuffer: cell.textBuffer as ITextBuffer, disposable: Disposable.None };
 					},
 					getFirstLineText: (limit: number) => {
 						return cell.textBuffer.getLineContent(1).substr(0, limit);

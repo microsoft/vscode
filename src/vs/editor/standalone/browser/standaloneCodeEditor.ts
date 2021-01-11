@@ -14,7 +14,7 @@ import { InternalEditorAction } from 'vs/editor/common/editorAction';
 import { IModelChangedEvent } from 'vs/editor/common/editorCommon';
 import { ITextModel } from 'vs/editor/common/model';
 import { IEditorWorkerService } from 'vs/editor/common/services/editorWorkerService';
-import { StandaloneKeybindingService, applyConfigurationValues } from 'vs/editor/standalone/browser/simpleServices';
+import { StandaloneKeybindingService, updateConfigurationService } from 'vs/editor/standalone/browser/simpleServices';
 import { IStandaloneThemeService } from 'vs/editor/standalone/common/standaloneThemeService';
 import { IMenuItem, MenuId, MenuRegistry } from 'vs/platform/actions/common/actions';
 import { CommandsRegistry, ICommandHandler, ICommandService } from 'vs/platform/commands/common/commands';
@@ -227,7 +227,7 @@ export class StandaloneCodeEditor extends CodeEditorWidget implements IStandalon
 
 	constructor(
 		domElement: HTMLElement,
-		options: IStandaloneEditorConstructionOptions,
+		_options: Readonly<IStandaloneEditorConstructionOptions>,
 		@IInstantiationService instantiationService: IInstantiationService,
 		@ICodeEditorService codeEditorService: ICodeEditorService,
 		@ICommandService commandService: ICommandService,
@@ -237,7 +237,7 @@ export class StandaloneCodeEditor extends CodeEditorWidget implements IStandalon
 		@INotificationService notificationService: INotificationService,
 		@IAccessibilityService accessibilityService: IAccessibilityService
 	) {
-		options = options || {};
+		const options = { ..._options };
 		options.ariaLabel = options.ariaLabel || StandaloneCodeEditorNLS.editorViewAccessibleLabel;
 		options.ariaLabel = options.ariaLabel + ';' + (StandaloneCodeEditorNLS.accessibilityHelpMessage);
 		super(domElement, options, {}, instantiationService, codeEditorService, commandService, contextKeyService, themeService, notificationService, accessibilityService);
@@ -353,7 +353,7 @@ export class StandaloneEditor extends StandaloneCodeEditor implements IStandalon
 
 	constructor(
 		domElement: HTMLElement,
-		options: IStandaloneEditorConstructionOptions | undefined,
+		_options: Readonly<IStandaloneEditorConstructionOptions> | undefined,
 		toDispose: IDisposable,
 		@IInstantiationService instantiationService: IInstantiationService,
 		@ICodeEditorService codeEditorService: ICodeEditorService,
@@ -366,9 +366,9 @@ export class StandaloneEditor extends StandaloneCodeEditor implements IStandalon
 		@IConfigurationService configurationService: IConfigurationService,
 		@IAccessibilityService accessibilityService: IAccessibilityService
 	) {
-		applyConfigurationValues(configurationService, options, false);
+		const options = { ..._options };
+		updateConfigurationService(configurationService, options, false);
 		const themeDomRegistration = (<StandaloneThemeServiceImpl>themeService).registerEditorContainer(domElement);
-		options = options || {};
 		if (typeof options.theme === 'string') {
 			themeService.setTheme(options.theme);
 		}
@@ -405,8 +405,8 @@ export class StandaloneEditor extends StandaloneCodeEditor implements IStandalon
 		super.dispose();
 	}
 
-	public updateOptions(newOptions: IEditorOptions & IGlobalEditorOptions): void {
-		applyConfigurationValues(this._configurationService, newOptions, false);
+	public updateOptions(newOptions: Readonly<IEditorOptions & IGlobalEditorOptions>): void {
+		updateConfigurationService(this._configurationService, newOptions, false);
 		if (typeof newOptions.theme === 'string') {
 			this._standaloneThemeService.setTheme(newOptions.theme);
 		}
@@ -437,7 +437,7 @@ export class StandaloneDiffEditor extends DiffEditorWidget implements IStandalon
 
 	constructor(
 		domElement: HTMLElement,
-		options: IDiffEditorConstructionOptions | undefined,
+		_options: Readonly<IDiffEditorConstructionOptions> | undefined,
 		toDispose: IDisposable,
 		@IInstantiationService instantiationService: IInstantiationService,
 		@IContextKeyService contextKeyService: IContextKeyService,
@@ -452,9 +452,9 @@ export class StandaloneDiffEditor extends DiffEditorWidget implements IStandalon
 		@IEditorProgressService editorProgressService: IEditorProgressService,
 		@IClipboardService clipboardService: IClipboardService,
 	) {
-		applyConfigurationValues(configurationService, options, true);
+		const options = { ..._options };
+		updateConfigurationService(configurationService, options, true);
 		const themeDomRegistration = (<StandaloneThemeServiceImpl>themeService).registerEditorContainer(domElement);
-		options = options || {};
 		if (typeof options.theme === 'string') {
 			options.theme = themeService.setTheme(options.theme);
 		}
@@ -475,15 +475,15 @@ export class StandaloneDiffEditor extends DiffEditorWidget implements IStandalon
 		super.dispose();
 	}
 
-	public updateOptions(newOptions: IDiffEditorOptions & IGlobalEditorOptions): void {
-		applyConfigurationValues(this._configurationService, newOptions, true);
+	public updateOptions(newOptions: Readonly<IDiffEditorOptions & IGlobalEditorOptions>): void {
+		updateConfigurationService(this._configurationService, newOptions, true);
 		if (typeof newOptions.theme === 'string') {
 			this._standaloneThemeService.setTheme(newOptions.theme);
 		}
 		super.updateOptions(newOptions);
 	}
 
-	protected _createInnerEditor(instantiationService: IInstantiationService, container: HTMLElement, options: IEditorOptions): CodeEditorWidget {
+	protected _createInnerEditor(instantiationService: IInstantiationService, container: HTMLElement, options: Readonly<IEditorOptions>): CodeEditorWidget {
 		return instantiationService.createInstance(StandaloneCodeEditor, container, options);
 	}
 

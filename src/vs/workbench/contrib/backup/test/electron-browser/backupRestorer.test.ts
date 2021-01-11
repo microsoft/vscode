@@ -10,7 +10,7 @@ import * as path from 'vs/base/common/path';
 import * as pfs from 'vs/base/node/pfs';
 import { URI } from 'vs/base/common/uri';
 import { createTextBufferFactory } from 'vs/editor/common/model/textModel';
-import { getRandomTestPath } from 'vs/base/test/node/testUtils';
+import { flakySuite, getRandomTestPath } from 'vs/base/test/node/testUtils';
 import { DefaultEndOfLine } from 'vs/editor/common/model';
 import { hashPath } from 'vs/workbench/services/backup/electron-browser/backupFileService';
 import { NativeBackupTracker } from 'vs/workbench/contrib/backup/electron-sandbox/backupTracker';
@@ -34,27 +34,26 @@ import { isEqual } from 'vs/base/common/resources';
 import { TestServiceAccessor } from 'vs/workbench/test/browser/workbenchTestServices';
 import { BackupRestorer } from 'vs/workbench/contrib/backup/common/backupRestorer';
 
-const userdataDir = getRandomTestPath(os.tmpdir(), 'vsctests', 'backuprestorer');
-const backupHome = path.join(userdataDir, 'Backups');
-const workspacesJsonPath = path.join(backupHome, 'workspaces.json');
-
-const workspaceResource = URI.file(platform.isWindows ? 'c:\\workspace' : '/workspace');
-const workspaceBackupPath = path.join(backupHome, hashPath(workspaceResource));
-const fooFile = URI.file(platform.isWindows ? 'c:\\Foo' : '/Foo');
-const barFile = URI.file(platform.isWindows ? 'c:\\Bar' : '/Bar');
-const untitledFile1 = URI.from({ scheme: Schemas.untitled, path: 'Untitled-1' });
-const untitledFile2 = URI.from({ scheme: Schemas.untitled, path: 'Untitled-2' });
-
 class TestBackupRestorer extends BackupRestorer {
 	async doRestoreBackups(): Promise<URI[] | undefined> {
 		return super.doRestoreBackups();
 	}
 }
 
-suite('BackupRestorer', () => {
+flakySuite('BackupRestorer', () => {
 	let accessor: TestServiceAccessor;
-
 	let disposables: IDisposable[] = [];
+
+	const userdataDir = getRandomTestPath(os.tmpdir(), 'vsctests', 'backuprestorer');
+	const backupHome = path.join(userdataDir, 'Backups');
+	const workspacesJsonPath = path.join(backupHome, 'workspaces.json');
+
+	const workspaceResource = URI.file(platform.isWindows ? 'c:\\workspace' : '/workspace');
+	const workspaceBackupPath = path.join(backupHome, hashPath(workspaceResource));
+	const fooFile = URI.file(platform.isWindows ? 'c:\\Foo' : '/Foo');
+	const barFile = URI.file(platform.isWindows ? 'c:\\Bar' : '/Bar');
+	const untitledFile1 = URI.from({ scheme: Schemas.untitled, path: 'Untitled-1' });
+	const untitledFile2 = URI.from({ scheme: Schemas.untitled, path: 'Untitled-2' });
 
 	setup(async () => {
 		disposables.push(Registry.as<IEditorRegistry>(EditorExtensions.Editors).registerEditor(
@@ -67,24 +66,22 @@ suite('BackupRestorer', () => {
 		));
 
 		// Delete any existing backups completely and then re-create it.
-		await pfs.rimraf(backupHome, pfs.RimRafMode.MOVE);
+		await pfs.rimraf(backupHome);
 		await pfs.mkdirp(backupHome);
 
 		return pfs.writeFile(workspacesJsonPath, '');
 	});
 
-	teardown(async () => {
+	teardown(() => {
 		dispose(disposables);
 		disposables = [];
 
 		(<TextFileEditorModelManager>accessor.textFileService.files).dispose();
 
-		return pfs.rimraf(backupHome, pfs.RimRafMode.MOVE);
+		return pfs.rimraf(backupHome);
 	});
 
 	test('Restore backups', async function () {
-		this.timeout(20000);
-
 		const backupFileService = new NodeTestBackupFileService(workspaceBackupPath);
 		const instantiationService = workbenchInstantiationService();
 		instantiationService.stub(IBackupFileService, backupFileService);
@@ -106,10 +103,10 @@ suite('BackupRestorer', () => {
 		const restorer = instantiationService.createInstance(TestBackupRestorer);
 
 		// Backup 2 normal files and 2 untitled file
-		await backupFileService.backup(untitledFile1, createTextBufferFactory('untitled-1').create(DefaultEndOfLine.LF).createSnapshot(false));
-		await backupFileService.backup(untitledFile2, createTextBufferFactory('untitled-2').create(DefaultEndOfLine.LF).createSnapshot(false));
-		await backupFileService.backup(fooFile, createTextBufferFactory('fooFile').create(DefaultEndOfLine.LF).createSnapshot(false));
-		await backupFileService.backup(barFile, createTextBufferFactory('barFile').create(DefaultEndOfLine.LF).createSnapshot(false));
+		await backupFileService.backup(untitledFile1, createTextBufferFactory('untitled-1').create(DefaultEndOfLine.LF).textBuffer.createSnapshot(false));
+		await backupFileService.backup(untitledFile2, createTextBufferFactory('untitled-2').create(DefaultEndOfLine.LF).textBuffer.createSnapshot(false));
+		await backupFileService.backup(fooFile, createTextBufferFactory('fooFile').create(DefaultEndOfLine.LF).textBuffer.createSnapshot(false));
+		await backupFileService.backup(barFile, createTextBufferFactory('barFile').create(DefaultEndOfLine.LF).textBuffer.createSnapshot(false));
 
 		// Verify backups restored and opened as dirty
 		await restorer.doRestoreBackups();

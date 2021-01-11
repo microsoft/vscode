@@ -379,6 +379,32 @@ export function incrementFileName(name: string, isFolder: boolean, incrementalNa
 		return `${name.substr(0, lastIndexOfDot)}.1${name.substr(lastIndexOfDot)}`;
 	}
 
+	// 123 => 124
+	let noNameNoExtensionRegex = RegExp('(\\d+)$');
+	if (!isFolder && lastIndexOfDot === -1 && name.match(noNameNoExtensionRegex)) {
+		return name.replace(noNameNoExtensionRegex, (match, g1?) => {
+			let number = parseInt(g1);
+			return number < maxNumber
+				? String(number + 1).padStart(g1.length, '0')
+				: `${g1}.1`;
+		});
+	}
+
+	// file => file1
+	// file1 => file2
+	let noExtensionRegex = RegExp('(.*)(\d*)$');
+	if (!isFolder && lastIndexOfDot === -1 && name.match(noExtensionRegex)) {
+		return name.replace(noExtensionRegex, (match, g1?, g2?) => {
+			let number = parseInt(g2);
+			if (isNaN(number)) {
+				number = 0;
+			}
+			return number < maxNumber
+				? g1 + String(number + 1).padStart(g2.length, '0')
+				: `${g1}${g2}.1`;
+		});
+	}
+
 	// folder.1=>folder.2
 	if (isFolder && name.match(/(\d+)$/)) {
 		return name.replace(/(\d+)$/, (match, ...groups) => {

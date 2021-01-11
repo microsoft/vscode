@@ -28,11 +28,18 @@ export interface ILocalizedString {
 	original: string;
 }
 
+export interface ICommandActionTitle extends ILocalizedString {
+	/**
+	 * The title with a mnemonic designation. && precedes the mnemonic.
+	 */
+	mnemonicTitle?: string;
+}
+
 export type Icon = { dark?: URI; light?: URI; } | ThemeIcon;
 
 export interface ICommandAction {
 	id: string;
-	title: string | ILocalizedString | ILocalizedString & { mnemonicedTitle: string };
+	title: string | ICommandActionTitle;
 	category?: string | ILocalizedString;
 	tooltip?: string;
 	icon?: Icon;
@@ -51,7 +58,7 @@ export interface IMenuItem {
 }
 
 export interface ISubmenuItem {
-	title: string | ILocalizedString;
+	title: string | ICommandActionTitle;
 	submenu: MenuId;
 	icon?: Icon;
 	when?: ContextKeyExpression;
@@ -157,7 +164,7 @@ export interface IMenuActionOptions {
 }
 
 export interface IMenu extends IDisposable {
-	readonly onDidChange: Event<IMenu | undefined>;
+	readonly onDidChange: Event<IMenu>;
 	getActions(options?: IMenuActionOptions): [string, Array<MenuItemAction | SubmenuItemAction>][];
 }
 
@@ -343,61 +350,68 @@ export class SubmenuItemAction extends SubmenuAction {
 	}
 }
 
-export class MenuItemAction extends ExecuteCommandAction {
+// implements IAction, does NOT extend Action, so that no one
+// subscribes to events of Action or modified properties
+export class MenuItemAction implements IAction {
 
 	readonly item: ICommandAction;
 	readonly alt: MenuItemAction | undefined;
 
-	private _options: IMenuActionOptions;
+	private readonly _options: IMenuActionOptions | undefined;
+
+	readonly id: string;
+	readonly label: string;
+	readonly tooltip: string;
+	readonly class: string | undefined;
+	readonly enabled: boolean;
+	readonly checked: boolean;
 
 	constructor(
 		item: ICommandAction,
 		alt: ICommandAction | undefined,
-		options: IMenuActionOptions,
+		options: IMenuActionOptions | undefined,
 		@IContextKeyService contextKeyService: IContextKeyService,
-		@ICommandService commandService: ICommandService
+		@ICommandService private _commandService: ICommandService
 	) {
-		typeof item.title === 'string' ? super(item.id, item.title, commandService) : super(item.id, item.title.value, commandService);
-
-		this._cssClass = undefined;
-		this._enabled = !item.precondition || contextKeyService.contextMatchesRules(item.precondition);
-		this._tooltip = item.tooltip;
+		this.id = item.id;
+		this.label = typeof item.title === 'string' ? item.title : item.title.value;
+		this.tooltip = item.tooltip ?? '';
+		this.enabled = !item.precondition || contextKeyService.contextMatchesRules(item.precondition);
+		this.checked = false;
 
 		if (item.toggled) {
 			const toggled = ((item.toggled as { condition: ContextKeyExpression }).condition ? item.toggled : { condition: item.toggled }) as {
 				condition: ContextKeyExpression, icon?: Icon, tooltip?: string | ILocalizedString
 			};
-			this._checked = contextKeyService.contextMatchesRules(toggled.condition);
-			if (this._checked && toggled.tooltip) {
-				this._tooltip = typeof toggled.tooltip === 'string' ? toggled.tooltip : toggled.tooltip.value;
+			this.checked = contextKeyService.contextMatchesRules(toggled.condition);
+			if (this.checked && toggled.tooltip) {
+				this.tooltip = typeof toggled.tooltip === 'string' ? toggled.tooltip : toggled.tooltip.value;
 			}
 		}
 
-		this._options = options || {};
-
 		this.item = item;
-		this.alt = alt ? new MenuItemAction(alt, undefined, this._options, contextKeyService, commandService) : undefined;
+		this.alt = alt ? new MenuItemAction(alt, undefined, options, contextKeyService, _commandService) : undefined;
+		this._options = options;
 	}
 
 	dispose(): void {
-		if (this.alt) {
-			this.alt.dispose();
-		}
-		super.dispose();
+		// there is NOTHING to dispose and the MenuItemAction should
+		// never have anything to dispose as it is a convenience type
+		// to bridge into the rendering world.
 	}
 
 	run(...args: any[]): Promise<any> {
 		let runArgs: any[] = [];
 
-		if (this._options.arg) {
+		if (this._options?.arg) {
 			runArgs = [...runArgs, this._options.arg];
 		}
 
-		if (this._options.shouldForwardArgs) {
+		if (this._options?.shouldForwardArgs) {
 			runArgs = [...runArgs, ...args];
 		}
 
-		return super.run(...runArgs);
+		return this._commandService.executeCommand(this.id, ...runArgs);
 	}
 }
 

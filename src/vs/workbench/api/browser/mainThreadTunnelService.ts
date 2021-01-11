@@ -6,8 +6,8 @@
 import { MainThreadTunnelServiceShape, IExtHostContext, MainContext, ExtHostContext, ExtHostTunnelServiceShape } from 'vs/workbench/api/common/extHost.protocol';
 import { TunnelDto } from 'vs/workbench/api/common/extHostTunnelService';
 import { extHostNamedCustomer } from 'vs/workbench/api/common/extHostCustomers';
-import { IRemoteExplorerService, makeAddress } from 'vs/workbench/services/remote/common/remoteExplorerService';
-import { ITunnelProvider, ITunnelService, TunnelCreationOptions, TunnelOptions } from 'vs/platform/remote/common/tunnel';
+import { CandidatePort, IRemoteExplorerService, makeAddress } from 'vs/workbench/services/remote/common/remoteExplorerService';
+import { ITunnelProvider, ITunnelService, TunnelCreationOptions, TunnelProviderFeatures, TunnelOptions } from 'vs/platform/remote/common/tunnel';
 import { Disposable } from 'vs/base/common/lifecycle';
 import type { TunnelDescription } from 'vs/platform/remote/common/remoteAuthorityResolver';
 
@@ -24,10 +24,11 @@ export class MainThreadTunnelService extends Disposable implements MainThreadTun
 		this._proxy = extHostContext.getProxy(ExtHostContext.ExtHostTunnelService);
 		this._register(tunnelService.onTunnelOpened(() => this._proxy.$onDidTunnelsChange()));
 		this._register(tunnelService.onTunnelClosed(() => this._proxy.$onDidTunnelsChange()));
+		this._register(remoteExplorerService.onEnabledPortsFeatures(() => this._proxy.$registerCandidateFinder()));
 	}
 
 	async $openTunnel(tunnelOptions: TunnelOptions, source: string): Promise<TunnelDto | undefined> {
-		const tunnel = await this.remoteExplorerService.forward(tunnelOptions.remoteAddress, tunnelOptions.localAddressPort, tunnelOptions.label, source);
+		const tunnel = await this.remoteExplorerService.forward(tunnelOptions.remoteAddress, tunnelOptions.localAddressPort, tunnelOptions.label, source, true);
 		if (tunnel) {
 			return TunnelDto.fromServiceTunnel(tunnel);
 		}
@@ -47,27 +48,26 @@ export class MainThreadTunnelService extends Disposable implements MainThreadTun
 		});
 	}
 
-	async $onFoundNewCandidates(candidates: { host: string, port: number, detail: string }[]): Promise<void> {
+	async $onFoundNewCandidates(candidates: CandidatePort[]): Promise<void> {
 		this.remoteExplorerService.onFoundNewCandidates(candidates);
 	}
 
-	async $tunnelServiceReady(): Promise<void> {
-		return this.remoteExplorerService.restore();
-	}
-
-	async $setTunnelProvider(): Promise<void> {
+	async $setTunnelProvider(features: TunnelProviderFeatures): Promise<void> {
 		const tunnelProvider: ITunnelProvider = {
 			forwardPort: (tunnelOptions: TunnelOptions, tunnelCreationOptions: TunnelCreationOptions) => {
 				const forward = this._proxy.$forwardPort(tunnelOptions, tunnelCreationOptions);
 				if (forward) {
 					return forward.then(tunnel => {
+						if (!tunnel) {
+							return undefined;
+						}
 						return {
 							tunnelRemotePort: tunnel.remoteAddress.port,
 							tunnelRemoteHost: tunnel.remoteAddress.host,
 							localAddress: typeof tunnel.localAddress === 'string' ? tunnel.localAddress : makeAddress(tunnel.localAddress.host, tunnel.localAddress.port),
 							tunnelLocalPort: typeof tunnel.localAddress !== 'string' ? tunnel.localAddress.port : undefined,
-							dispose: (silent?: boolean) => {
-								this._proxy.$closeTunnel({ host: tunnel.remoteAddress.host, port: tunnel.remoteAddress.port }, silent);
+							dispose: async (silent?: boolean) => {
+								return this._proxy.$closeTunnel({ host: tunnel.remoteAddress.host, port: tunnel.remoteAddress.port }, silent);
 							}
 						};
 					});
@@ -75,7 +75,7 @@ export class MainThreadTunnelService extends Disposable implements MainThreadTun
 				return undefined;
 			}
 		};
-		this.tunnelService.setTunnelProvider(tunnelProvider);
+		this.tunnelService.setTunnelProvider(tunnelProvider, features);
 	}
 
 	dispose(): void {

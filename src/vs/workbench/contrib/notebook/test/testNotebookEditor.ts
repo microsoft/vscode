@@ -303,7 +303,7 @@ export class TestNotebookEditor implements INotebookEditor {
 	getFontInfo(): BareFontInfo | undefined {
 		return BareFontInfo.createFromRawSettings({
 			fontFamily: 'Monaco',
-		}, 1, true);
+		}, 1, 1, true);
 	}
 	getOutputRenderer(): OutputRenderer {
 		throw new Error('Method not implemented.');

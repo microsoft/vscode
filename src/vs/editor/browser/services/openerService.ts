@@ -6,15 +6,15 @@
 import * as dom from 'vs/base/browser/dom';
 import { IDisposable } from 'vs/base/common/lifecycle';
 import { LinkedList } from 'vs/base/common/linkedList';
+import { ResourceMap } from 'vs/base/common/map';
 import { parse } from 'vs/base/common/marshalling';
 import { Schemas } from 'vs/base/common/network';
 import { normalizePath } from 'vs/base/common/resources';
 import { URI } from 'vs/base/common/uri';
 import { ICodeEditorService } from 'vs/editor/browser/services/codeEditorService';
 import { ICommandService } from 'vs/platform/commands/common/commands';
-import { IOpener, IOpenerService, IValidator, IExternalUriResolver, OpenOptions, ResolveExternalUriOptions, IResolvedExternalUri, IExternalOpener, matchesScheme } from 'vs/platform/opener/common/opener';
 import { EditorOpenContext } from 'vs/platform/editor/common/editor';
-import { ResourceMap } from 'vs/base/common/map';
+import { IExternalOpener, IExternalOpenerProvider, IExternalUriResolver, IOpener, IOpenerService, IResolvedExternalUri, IValidator, matchesScheme, OpenOptions, ResolveExternalUriOptions } from 'vs/platform/opener/common/opener';
 
 class CommandOpener implements IOpener {
 
@@ -99,14 +99,15 @@ export class OpenerService implements IOpenerService {
 	private readonly _resolvers = new LinkedList<IExternalUriResolver>();
 	private readonly _resolvedUriTargets = new ResourceMap<URI>(uri => uri.with({ path: null, fragment: null, query: null }).toString());
 
-	private _externalOpener: IExternalOpener;
+	private _defaultExternalOpener: IExternalOpener;
+	private readonly _externalOpenerProviders = new LinkedList<IExternalOpenerProvider>();
 
 	constructor(
 		@ICodeEditorService editorService: ICodeEditorService,
 		@ICommandService commandService: ICommandService,
 	) {
 		// Default external opener is going through window.open()
-		this._externalOpener = {
+		this._defaultExternalOpener = {
 			openExternal: async href => {
 				// ensure to open HTTP/HTTPS links into new windows
 				// to not trigger a navigation. Any other link is
@@ -151,8 +152,13 @@ export class OpenerService implements IOpenerService {
 		return { dispose: remove };
 	}
 
-	setExternalOpener(externalOpener: IExternalOpener): void {
-		this._externalOpener = externalOpener;
+	setDefaultExternalOpener(externalOpener: IExternalOpener): void {
+		this._defaultExternalOpener = externalOpener;
+	}
+
+	registerExternalOpenerProvider(provide: IExternalOpenerProvider): IDisposable {
+		const remove = this._externalOpenerProviders.push(provide);
+		return { dispose: remove };
 	}
 
 	async open(target: URI | string, options?: OpenOptions): Promise<boolean> {
@@ -195,13 +201,23 @@ export class OpenerService implements IOpenerService {
 		const uri = typeof resource === 'string' ? URI.parse(resource) : resource;
 		const { resolved } = await this.resolveExternalUri(uri, options);
 
+		let href: string;
 		if (typeof resource === 'string' && uri.toString() === resolved.toString()) {
 			// open the url-string AS IS
-			return this._externalOpener.openExternal(resource);
+			href = resource;
 		} else {
 			// open URI using the toString(noEncode)+encodeURI-trick
-			return this._externalOpener.openExternal(encodeURI(resolved.toString(true)));
+			href = encodeURI(resolved.toString(true));
 		}
+
+		for (const provider of this._externalOpenerProviders) {
+			const opener = await provider.provideExternalOpener(resource);
+			if (opener) {
+				return opener.openExternal(href);
+			}
+		}
+
+		return this._defaultExternalOpener.openExternal(href);
 	}
 
 	dispose() {

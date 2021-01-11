@@ -57,7 +57,7 @@ suite('SmoothScrollingOperation', () => {
 
 	function assertSmoothScroll(from: number, to: number, expected: [number, number][]): void {
 		const actual = simulateSmoothScroll(from, to);
-		assert.deepEqual(actual, expected);
+		assert.deepStrictEqual(actual, expected);
 	}
 
 	test('scroll 25 lines (40 fit)', () => {

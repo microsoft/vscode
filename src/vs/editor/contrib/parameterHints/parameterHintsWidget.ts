@@ -82,7 +82,7 @@ export class ParameterHintsWidget extends Disposable implements IContentWidget {
 
 	private createParamaterHintDOMNodes() {
 		const element = $('.editor-widget.parameter-hints-widget');
-		const wrapper = dom.append(element, $('.wrapper'));
+		const wrapper = dom.append(element, $('.phwrapper'));
 		wrapper.tabIndex = -1;
 
 		const controls = dom.append(wrapper, $('.controls'));

@@ -9,7 +9,7 @@ import * as path from 'vs/base/common/path';
 import * as fs from 'fs';
 import * as os from 'os';
 import * as uuid from 'vs/base/common/uuid';
-import { mkdirp, rimraf, RimRafMode } from 'vs/base/node/pfs';
+import { mkdirp, rimraf } from 'vs/base/node/pfs';
 import {
 	IExtensionGalleryService, IGalleryExtensionAssets, IGalleryExtension, IExtensionManagementService,
 	DidInstallExtensionEvent, DidUninstallExtensionEvent, InstallExtensionEvent, IExtensionIdentifier, IExtensionTipsService
@@ -284,7 +284,7 @@ suite('ExtensionRecommendationsService Test', () => {
 	teardown(done => {
 		(<ExtensionRecommendationsService>testObject).dispose();
 		if (parentResource) {
-			rimraf(parentResource, RimRafMode.MOVE).then(done, done);
+			rimraf(parentResource).then(done, done);
 		} else {
 			done();
 		}

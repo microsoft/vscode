@@ -17,7 +17,6 @@ import { IDisposable, dispose } from 'vs/base/common/lifecycle';
 import { EditorsObserver } from 'vs/workbench/browser/parts/editor/editorsObserver';
 import { timeout } from 'vs/base/common/async';
 import { TestStorageService } from 'vs/workbench/test/common/workbenchTestServices';
-import { isWeb } from 'vs/base/common/platform';
 
 const TEST_EDITOR_ID = 'MyTestEditorForEditorsObserver';
 const TEST_EDITOR_INPUT_ID = 'testEditorInputForEditorsObserver';
@@ -206,9 +205,6 @@ suite('EditorsObserver', function () {
 	});
 
 	test('copy group', async function () {
-		if (isWeb) {
-			this.skip();
-		}
 		const [part, observer] = await createEditorObserver();
 
 		const input1 = new TestFileEditorInput(URI.parse('foo://bar1'), TEST_SERIALIZABLE_EDITOR_INPUT_ID);
@@ -234,7 +230,9 @@ suite('EditorsObserver', function () {
 		assert.equal(observer.hasEditor(input3.resource), true);
 
 		const copiedGroup = part.copyGroup(rootGroup, rootGroup, GroupDirection.RIGHT);
+		await copiedGroup.whenRestored;
 		copiedGroup.setActive(true);
+		copiedGroup.focus();
 
 		currentEditorsMRU = observer.editors;
 		assert.equal(currentEditorsMRU.length, 6);

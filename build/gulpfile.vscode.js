@@ -11,13 +11,10 @@ const os = require('os');
 const cp = require('child_process');
 const path = require('path');
 const es = require('event-stream');
-const azure = require('gulp-azure-storage');
-const electron = require('gulp-atom-electron');
 const vfs = require('vinyl-fs');
 const rename = require('gulp-rename');
 const replace = require('gulp-replace');
 const filter = require('gulp-filter');
-const json = require('gulp-json-editor');
 const _ = require('underscore');
 const util = require('./lib/util');
 const task = require('./lib/task');
@@ -102,6 +99,16 @@ const minifyVSCodeTask = task.define('minify-vscode', task.series(
 ));
 gulp.task(minifyVSCodeTask);
 
+const core = task.define('core-ci', task.series(
+	gulp.task('compile-build'),
+	task.parallel(
+		gulp.task('minify-vscode'),
+		gulp.task('minify-vscode-reh'),
+		gulp.task('minify-vscode-reh-web'),
+	)
+));
+gulp.task(core);
+
 /**
  * Compute checksums for some files.
  *
@@ -143,6 +150,9 @@ function packageTask(platform, arch, sourceFolderName, destinationFolderName, op
 	platform = platform || process.platform;
 
 	return () => {
+		const electron = require('gulp-atom-electron');
+		const json = require('gulp-json-editor');
+
 		const out = sourceFolderName;
 
 		const checksums = computeChecksums(out, [
@@ -503,6 +513,8 @@ gulp.task(task.define(
 	task.series(
 		generateVSCodeConfigurationTask,
 		() => {
+			const azure = require('gulp-azure-storage');
+
 			if (!shouldSetupSettingsSearch()) {
 				const branch = process.env.BUILD_SOURCEBRANCH;
 				console.log(`Only runs on master and release branches, not ${branch}`);

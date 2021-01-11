@@ -20,6 +20,7 @@ import { IModelDeltaDecoration } from 'vs/editor/common/model';
 import { IMouseEvent } from 'vs/base/browser/mouseEvent';
 import { CodeEditorWidget } from 'vs/editor/browser/widget/codeEditorWidget';
 import { EditorOption } from 'vs/editor/common/config/editorOptions';
+import { CursorChangeReason } from 'vs/editor/common/controller/cursorEvents';
 
 function hasTriggerModifier(e: IKeyboardEvent | IMouseEvent): boolean {
 	if (isMacintosh) {
@@ -176,8 +177,8 @@ export class DragAndDropController extends Disposable implements IEditorContribu
 						}
 					});
 				}
-				// Use `mouse` as the source instead of `api`.
-				(<CodeEditorWidget>this._editor).setSelections(newSelections || [], 'mouse');
+				// Use `mouse` as the source instead of `api` and setting the reason to explicit (to behave like any other mouse operation).
+				(<CodeEditorWidget>this._editor).setSelections(newSelections || [], 'mouse', CursorChangeReason.Explicit);
 			} else if (!this._dragSelection.containsPosition(newCursorPosition) ||
 				(
 					(

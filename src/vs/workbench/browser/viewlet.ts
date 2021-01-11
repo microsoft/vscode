@@ -3,7 +3,6 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import * as nls from 'vs/nls';
 import * as DOM from 'vs/base/browser/dom';
 import { Registry } from 'vs/platform/registry/common/platform';
 import { Action } from 'vs/base/common/actions';
@@ -17,8 +16,6 @@ import { IThemeService } from 'vs/platform/theme/common/themeService';
 import { IEditorGroupsService } from 'vs/workbench/services/editor/common/editorGroupsService';
 import { URI } from 'vs/base/common/uri';
 import { IStorageService } from 'vs/platform/storage/common/storage';
-import { AsyncDataTree } from 'vs/base/browser/ui/tree/asyncDataTree';
-import { AbstractTree } from 'vs/base/browser/ui/tree/abstractTree';
 import { ViewPaneContainer } from 'vs/workbench/browser/parts/views/viewPaneContainer';
 import { IContextMenuService } from 'vs/platform/contextview/browser/contextView';
 import { IExtensionService } from 'vs/workbench/services/extensions/common/extensions';
@@ -117,7 +114,6 @@ export class ViewletRegistry extends CompositeRegistry<Viewlet> {
 	getViewlets(): ViewletDescriptor[] {
 		return this.getComposites() as ViewletDescriptor[];
 	}
-
 }
 
 Registry.add(Extensions.Viewlets, new ViewletRegistry());
@@ -162,15 +158,5 @@ export class ShowViewletAction extends Action {
 		const sidebarPart = this.layoutService.getContainer(Parts.SIDEBAR_PART);
 
 		return !!(activeViewlet && activeElement && sidebarPart && DOM.isAncestor(activeElement, sidebarPart));
-	}
-}
-
-export class CollapseAction extends Action {
-	// We need a tree getter because the action is sometimes instantiated too early
-	constructor(treeGetter: () => AsyncDataTree<any, any, any> | AbstractTree<any, any, any>, enabled: boolean, clazz?: string) {
-		super('workbench.action.collapse', nls.localize('collapse', "Collapse All"), clazz, enabled, async () => {
-			const tree = treeGetter();
-			tree.collapseAll();
-		});
 	}
 }

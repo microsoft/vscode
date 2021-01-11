@@ -3,6 +3,21 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
+.test-explorer {
+	display: flex;
+	flex-direction: column;
+}
+
+.test-explorer > .monaco-inputbox {
+	flex-shrink: 0;
+	margin: 4px 12px;
+}
+
+.test-explorer > .test-explorer-tree {
+	flex-grow: 1;
+	height: 0px;
+}
+
 .test-explorer .test-item {
 	display: flex;
 	align-items: center;
@@ -39,4 +54,9 @@
 	height: 100%;
 	line-height: 22px;
 	margin-right: 8px;
+}
+
+.codicon-testing-loading-icon::before {
+	/* Use steps to throttle FPS to reduce CPU usage */
+	animation: codicon-spin 1.25s steps(30) infinite;
 }

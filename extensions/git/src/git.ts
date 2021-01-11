@@ -432,7 +432,11 @@ export class Git {
 			if (options.recursive) {
 				command.push('--recursive');
 			}
-			await this.exec(options.parentPath, command, { cancellationToken, onSpawn });
+			await this.exec(options.parentPath, command, {
+				cancellationToken,
+				env: { 'GIT_HTTP_USER_AGENT': this.userAgent },
+				onSpawn,
+			});
 		} catch (err) {
 			if (err.stderr) {
 				err.stderr = err.stderr.replace(/^Cloning.+$/m, '').trim();
@@ -1568,6 +1572,7 @@ export class Repository {
 		const args = ['fetch'];
 		const spawnOptions: SpawnOptions = {
 			cancellationToken: options.cancellationToken,
+			env: { 'GIT_HTTP_USER_AGENT': this.git.userAgent }
 		};
 
 		if (options.remote) {
@@ -1589,7 +1594,7 @@ export class Repository {
 		}
 
 		if (options.silent) {
-			spawnOptions.env = { 'VSCODE_GIT_FETCH_SILENT': 'true' };
+			spawnOptions.env!['VSCODE_GIT_FETCH_SILENT'] = 'true';
 		}
 
 		try {
@@ -1626,7 +1631,10 @@ export class Repository {
 		}
 
 		try {
-			await this.run(args, options);
+			await this.run(args, {
+				cancellationToken: options.cancellationToken,
+				env: { 'GIT_HTTP_USER_AGENT': this.git.userAgent }
+			});
 		} catch (err) {
 			if (/^CONFLICT \([^)]+\): \b/m.test(err.stdout || '')) {
 				err.gitErrorCode = GitErrorCodes.Conflict;
@@ -1694,10 +1702,8 @@ export class Repository {
 			args.push(name);
 		}
 
-		args.splice(0, 0, '-c', `http.userAgent=${this.git.userAgent}`);
-
 		try {
-			await this.run(args);
+			await this.run(args, { env: { 'GIT_HTTP_USER_AGENT': this.git.userAgent } });
 		} catch (err) {
 			if (/^error: failed to push some refs to\b/m.test(err.stderr || '')) {
 				err.gitErrorCode = GitErrorCodes.PushRejected;
@@ -1920,7 +1926,7 @@ export class Repository {
 			return null;
 		};
 
-		return result.stdout.trim().split('\n')
+		return result.stdout.split('\n')
 			.filter(line => !!line)
 			.map(fn)
 			.filter(ref => !!ref) as Ref[];
