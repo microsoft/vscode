@@ -161,43 +161,42 @@ suite('WorkspaceContextService - Folder', () => {
 
 suite('WorkspaceContextService - Workspace', () => {
 
-	let parentResource: string, testObject: WorkspaceService, instantiationService: TestInstantiationService;
+	let testObject: WorkspaceService;
 	const disposables = new DisposableStore();
 
-	setup(() => {
-		return setUpWorkspace(['a', 'b'])
-			.then(({ parentDir, configPath }) => {
+	setup(async () => {
+		const logService = new NullLogService();
+		const fileService = disposables.add(new FileService(logService));
+		const fileSystemProvider = disposables.add(new InMemoryFileSystemProvider());
+		fileService.registerProvider(Schemas.file, fileSystemProvider);
 
-				parentResource = parentDir;
+		const appSettingsHome = URI.file('user');
+		const folderA = URI.file('a');
+		const folderB = URI.file('b');
+		const configResource = URI.file('vsctests.code-workspace');
+		const workspace = { folders: [{ path: folderA.path }, { path: folderB.path }] };
 
-				instantiationService = <TestInstantiationService>workbenchInstantiationService();
-				const environmentService = new TestWorkbenchEnvironmentService(URI.file(parentDir));
-				const remoteAgentService = instantiationService.createInstance(RemoteAgentService);
-				instantiationService.stub(IRemoteAgentService, remoteAgentService);
-				const fileService = disposables.add(new FileService(new NullLogService()));
-				const diskFileSystemProvider = disposables.add(new DiskFileSystemProvider(new NullLogService()));
-				fileService.registerProvider(Schemas.file, diskFileSystemProvider);
-				fileService.registerProvider(Schemas.userData, disposables.add(new FileUserDataProvider(Schemas.file, diskFileSystemProvider, Schemas.userData, new NullLogService())));
-				const workspaceService = disposables.add(new WorkspaceService({ configurationCache: new ConfigurationCache(environmentService, fileService) }, environmentService, fileService, remoteAgentService, new UriIdentityService(fileService), new NullLogService()));
+		await fileService.createFolder(appSettingsHome);
+		await fileService.createFolder(folderA);
+		await fileService.createFolder(folderB);
+		await fileService.writeFile(configResource, VSBuffer.fromString(JSON.stringify(workspace, null, '\t')));
 
-				instantiationService.stub(IWorkspaceContextService, workspaceService);
-				instantiationService.stub(IConfigurationService, workspaceService);
-				instantiationService.stub(IEnvironmentService, environmentService);
+		const instantiationService = <TestInstantiationService>workbenchInstantiationService();
+		const environmentService = new TestWorkbenchEnvironmentService(appSettingsHome);
+		const remoteAgentService = disposables.add(instantiationService.createInstance(RemoteAgentService));
+		instantiationService.stub(IRemoteAgentService, remoteAgentService);
+		fileService.registerProvider(Schemas.userData, disposables.add(new FileUserDataProvider(Schemas.file, fileSystemProvider, Schemas.userData, new NullLogService())));
+		testObject = disposables.add(new WorkspaceService({ configurationCache: new ConfigurationCache(environmentService, fileService) }, environmentService, fileService, remoteAgentService, new UriIdentityService(fileService), new NullLogService()));
 
-				return workspaceService.initialize(getWorkspaceIdentifier(configPath)).then(() => {
-					workspaceService.acquireInstantiationService(instantiationService);
-					testObject = workspaceService;
-				});
-			});
+		instantiationService.stub(IWorkspaceContextService, testObject);
+		instantiationService.stub(IConfigurationService, testObject);
+		instantiationService.stub(IEnvironmentService, environmentService);
+
+		await testObject.initialize(getWorkspaceIdentifier(configResource));
+		testObject.acquireInstantiationService(instantiationService);
 	});
 
-	teardown(() => {
-		disposables.clear();
-		if (parentResource) {
-			return pfs.rimraf(parentResource);
-		}
-		return undefined;
-	});
+	teardown(() => disposables.clear());
 
 	test('workspace folders', () => {
 		const actual = testObject.getWorkspace().folders;
