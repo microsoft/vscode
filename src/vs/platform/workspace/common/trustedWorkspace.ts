@@ -164,7 +164,7 @@ export class TrustedWorkspaceRequestModel extends Disposable implements ITrusted
 	onDidCompleteRequest = this._onDidCompleteRequest.event;
 
 	initiateRequest(immediate: boolean): void {
-		if (this.trustRequest) {
+		if (this.trustRequest && (!immediate || this.trustRequest.immediate)) {
 			return;
 		}
 
@@ -278,6 +278,12 @@ export class TrustedWorkspaceService extends Disposable implements ITrustedWorks
 		}
 
 		if (this._trustRequestPromise) {
+			if (immediate &&
+				this.requestModel.trustRequest &&
+				!this.requestModel.trustRequest.immediate) {
+				this.requestModel.initiateRequest(true);
+			}
+
 			return this._trustRequestPromise;
 		}
 
