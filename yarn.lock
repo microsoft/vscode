@@ -10716,10 +10716,10 @@ vscode-textmate@5.2.0:
   resolved "https://registry.yarnpkg.com/vscode-textmate/-/vscode-textmate-5.2.0.tgz#01f01760a391e8222fe4f33fbccbd1ad71aed74e"
   integrity sha512-Uw5ooOQxRASHgu6C7GVvUxisKXfSgW4oFlO+aa+PAkgmH89O3CXxEEzNRNtHSqtXFTl0nAC1uYj0GMSH27uwtQ==
 
-vscode-tsec@0.0.2:
-  version "0.0.2"
-  resolved "https://registry.yarnpkg.com/vscode-tsec/-/vscode-tsec-0.0.2.tgz#ce7b8f76469071b63ac25020e31addc142cd8ac6"
-  integrity sha512-SDS9m1ExvMZHCsdUCMBvlcGBUSqB1xTZduiKCzTsswD0PUTvtyPPC4OAihoNsHtQvhdSP3o4bOcfGZ9L6VvW7Q==
+vscode-tsec@0.0.3:
+  version "0.0.3"
+  resolved "https://registry.yarnpkg.com/vscode-tsec/-/vscode-tsec-0.0.3.tgz#2c9b4fbf822a9bcb177cd9e9ab46a782bba4628b"
+  integrity sha512-qak2mD8+FDRbC9mSjWQumc9vi1f3ATS7oLsROd3mJ9SFg+GTiRlpOmOpPPY+p+JI5AWNgkWDb/ztsFNGRex8jw==
   dependencies:
     "@types/glob" "^7.1.1"
     "@types/node" "^13.13.5"

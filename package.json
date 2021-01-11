@@ -193,7 +193,7 @@
     "vscode-debugprotocol": "1.43.0",
     "vscode-nls-dev": "^3.3.1",
     "vscode-telemetry-extractor": "^1.6.0",
-    "vscode-tsec": "0.0.2",
+    "vscode-tsec": "0.0.3",
     "webpack": "^4.43.0",
     "webpack-cli": "^3.3.12",
     "webpack-stream": "^5.2.1",
