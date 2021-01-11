@@ -28,12 +28,11 @@ import { IContextKeyService, ContextKeyExpr } from 'vs/platform/contextkey/commo
 import { assertIsDefined } from 'vs/base/common/types';
 import { IActivityBarService } from 'vs/workbench/services/activityBar/browser/activityBarService';
 import { registerSingleton } from 'vs/platform/instantiation/common/extensions';
-import { Schemas } from 'vs/base/common/network';
 import { IWorkbenchEnvironmentService } from 'vs/workbench/services/environment/common/environmentService';
 import { CustomMenubarControl } from 'vs/workbench/browser/parts/titlebar/menubarControl';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { getMenuBarVisibility } from 'vs/platform/windows/common/windows';
-import { isWeb } from 'vs/base/common/platform';
+import { isNative, isWeb } from 'vs/base/common/platform';
 import { Before2D } from 'vs/workbench/browser/dnd';
 import { Codicon, iconRegistry } from 'vs/base/common/codicons';
 import { Action, Separator } from 'vs/base/common/actions';
@@ -134,7 +133,7 @@ export class ActivitybarPart extends Part implements IActivityBarService {
 
 		for (const cachedViewContainer of this.cachedViewContainers) {
 			if (
-				environmentService.remoteAuthority || // In remote window, hide activity bar entries until registered
+				(environmentService.remoteAuthority && isNative) || // Hide activity bar entries until registered in desktop with remote connection
 				this.shouldBeHidden(cachedViewContainer.id, cachedViewContainer)
 			) {
 				cachedViewContainer.visible = false;
@@ -729,14 +728,15 @@ export class ActivitybarPart extends Part implements IActivityBarService {
 		let iconUrl: URI | undefined = undefined;
 		if (URI.isUri(icon)) {
 			iconUrl = icon;
+			const cssUrl = asCSSUrl(icon);
 			const hash = new StringSHA1();
-			hash.update(icon.toString());
+			hash.update(cssUrl);
 			cssClass = `activity-${id.replace(/\./g, '-')}-${hash.digest()}`;
 			const iconClass = `.monaco-workbench .activitybar .monaco-action-bar .action-label.${cssClass}`;
 			createCSSRule(iconClass, `
-				mask: ${asCSSUrl(icon)} no-repeat 50% 50%;
+				mask: ${cssUrl} no-repeat 50% 50%;
 				mask-size: 24px;
-				-webkit-mask: ${asCSSUrl(icon)} no-repeat 50% 50%;
+				-webkit-mask: ${cssUrl} no-repeat 50% 50%;
 				-webkit-mask-size: 24px;
 			`);
 		} else if (ThemeIcon.isThemeIcon(icon)) {
@@ -925,11 +925,10 @@ export class ActivitybarPart extends Part implements IActivityBarService {
 				for (const { when } of viewContainerModel.allViewDescriptors) {
 					views.push({ when: when ? when.serialize() : undefined });
 				}
-				const cacheIcon = URI.isUri(viewContainerModel.icon) ? viewContainerModel.icon.scheme === Schemas.file : true;
 				state.push({
 					id: compositeItem.id,
 					name: viewContainerModel.title,
-					icon: cacheIcon ? viewContainerModel.icon : undefined,
+					icon: this.environmentService.remoteAuthority && isNative ? undefined : viewContainerModel.icon, /* Donot cache icon in desktop with remote connection */
 					views,
 					pinned: compositeItem.pinned,
 					order: compositeItem.order,
