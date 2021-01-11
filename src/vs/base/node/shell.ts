@@ -21,12 +21,8 @@ export async function getSystemShell(p: platform.Platform, env = process.env as 
 		// Don't detect Windows shell when not on Windows
 		return processes.getWindowsShell(env);
 	}
-	// Only use $SHELL for the current OS
-	if (platform.isLinux && p === platform.Platform.Mac || platform.isMacintosh && p === platform.Platform.Linux) {
-		return '/bin/bash';
-	}
 
-	return getSystemShellUnixLike(env);
+	return getSystemShellUnixLike(p, env);
 }
 
 export function getSystemShellSync(p: platform.Platform, env = process.env as platform.IProcessEnvironment): string {
@@ -37,16 +33,17 @@ export function getSystemShellSync(p: platform.Platform, env = process.env as pl
 		// Don't detect Windows shell when not on Windows
 		return processes.getWindowsShell(env);
 	}
+
+	return getSystemShellUnixLike(p, env);
+}
+
+let _TERMINAL_DEFAULT_SHELL_UNIX_LIKE: string | null = null;
+function getSystemShellUnixLike(p: platform.Platform, env: platform.IProcessEnvironment): string {
 	// Only use $SHELL for the current OS
 	if (platform.isLinux && p === platform.Platform.Mac || platform.isMacintosh && p === platform.Platform.Linux) {
 		return '/bin/bash';
 	}
 
-	return getSystemShellUnixLike(env);
-}
-
-let _TERMINAL_DEFAULT_SHELL_UNIX_LIKE: string | null = null;
-function getSystemShellUnixLike(env: platform.IProcessEnvironment): string {
 	if (!_TERMINAL_DEFAULT_SHELL_UNIX_LIKE) {
 		let unixLikeTerminal: string;
 		if (platform.isWindows) {

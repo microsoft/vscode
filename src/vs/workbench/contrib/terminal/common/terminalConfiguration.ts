@@ -436,7 +436,7 @@ export function getNoDefaultTerminalShellConfiguration(): IConfigurationNode {
 
 export async function getTerminalShellConfiguration(getSystemShell: (p: Platform) => Promise<string>): Promise<IConfigurationNode> {
 	return getTerminalShellConfigurationStub(
-		await getSystemShell(Platform.Linux),
-		await getSystemShell(Platform.Mac),
-		await getSystemShell(Platform.Windows));
+		localize('terminal.integrated.shell.linux', "The path of the shell that the terminal uses on Linux (default: {0}). [Read more about configuring the shell](https://code.visualstudio.com/docs/editor/integrated-terminal#_configuration).", await getSystemShell(Platform.Linux)),
+		localize('terminal.integrated.shell.osx', "The path of the shell that the terminal uses on macOS (default: {0}). [Read more about configuring the shell](https://code.visualstudio.com/docs/editor/integrated-terminal#_configuration).", await getSystemShell(Platform.Mac)),
+		localize('terminal.integrated.shell.windows', "The path of the shell that the terminal uses on Windows (default: {0}). [Read more about configuring the shell](https://code.visualstudio.com/docs/editor/integrated-terminal#_configuration).", await getSystemShell(Platform.Windows)));
 }

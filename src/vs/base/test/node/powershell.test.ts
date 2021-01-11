@@ -38,31 +38,30 @@ if (platform.isWindows) {
 			checkPath(exePath!);
 		});
 
-		// In Azure DevOps or GitHub Actions, they have 3 PowerShell's available
-		// on Windows:
-		// 1. PowerShell stable
-		// 2. PowerShell as a .NET Global Tool
-		// 2. Windows PowerShell (x64)
-		// 3. Windows PowerShell (x86)
-		// Only run this test in CI where the result is predictable.
-		if (process.env.TF_BUILD || process.env.CI) {
-			test('Can enumerate PowerShells', async () => {
-				const pwshs = new Array<IPowerShellExeDetails>();
-				for await (const p of enumeratePowerShellInstallations()) {
-					pwshs.push(p);
-				}
+		test('Can enumerate PowerShells', async () => {
+			const pwshs = new Array<IPowerShellExeDetails>();
+			for await (const p of enumeratePowerShellInstallations()) {
+				pwshs.push(p);
+			}
 
-				assert.strictEqual(pwshs.length, 3, 'Found these PowerShells:\n' + pwshs.map(p => `${p.displayName}: ${p.exePath}`).join('\n'));
+			// In Azure DevOps and GitHub Actions there should be an extra PowerShell since PowerShell 7 comes pre-installed
+			const minNumberOfPowerShells = process.env.TF_BUILD || process.env.CI ? 3 : 2;
 
-				checkPath(pwshs[0].exePath);
-				assert.strictEqual(pwshs[0].displayName, 'PowerShell');
+			assert.strictEqual(pwshs.length >= minNumberOfPowerShells, true, 'Found these PowerShells:\n' + pwshs.map(p => `${p.displayName}: ${p.exePath}`).join('\n'));
 
-				checkPath(pwshs[1].exePath);
-				assert.strictEqual(pwshs[1].displayName, 'Windows PowerShell');
+			for (const pwsh of pwshs) {
+				checkPath(pwsh.exePath);
+			}
 
-				checkPath(pwshs[2].exePath);
-				assert.strictEqual(pwshs[2].displayName, 'Windows PowerShell (x86)');
-			});
-		}
+			const lastIndex = pwshs.length - 1;
+			checkPath(pwshs[lastIndex].exePath);
+			assert.strictEqual(pwshs[lastIndex].displayName, 'Windows PowerShell (x86)');
+
+			if (process.arch === 'x64') {
+				const secondToLastIndex = pwshs.length - 2;
+				checkPath(pwshs[secondToLastIndex].exePath);
+				assert.strictEqual(pwshs[secondToLastIndex].displayName, 'Windows PowerShell');
+			}
+		});
 	});
 }

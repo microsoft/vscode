@@ -31,20 +31,10 @@ export interface IPossiblePowerShellExe extends IPowerShellExeDetails {
 }
 
 class PossiblePowerShellExe implements IPossiblePowerShellExe {
-	public readonly exePath: string;
-	public readonly displayName: string;
-
-	private knownToExist: boolean | undefined;
-
 	constructor(
-		pathToExe: string,
-		installationName: string,
-		{ knownToExist = false }: { knownToExist?: boolean } = {}) {
-
-		this.exePath = pathToExe;
-		this.displayName = installationName;
-		this.knownToExist = knownToExist || undefined;
-	}
+		public readonly exePath: string,
+		public readonly displayName: string,
+		private knownToExist?: boolean) { }
 
 	public async exists(): Promise<boolean> {
 		if (this.knownToExist === undefined) {
@@ -167,7 +157,7 @@ async function findPSCoreWindowsInstallation(
 	const bitness: string = programFilesPath.includes('x86') ? ' (x86)' : '';
 	const preview: string = findPreview ? ' Preview' : '';
 
-	return new PossiblePowerShellExe(pwshExePath, `PowerShell${preview}${bitness}`, { knownToExist: true });
+	return new PossiblePowerShellExe(pwshExePath, `PowerShell${preview}${bitness}`, true);
 }
 
 async function findPSCoreMsix({ findPreview }: { findPreview?: boolean } = {}): Promise<IPossiblePowerShellExe | null> {
@@ -232,7 +222,7 @@ function findWinPS({ useAlternateBitness = false }: { useAlternateBitness?: bool
 		displayName = WindowsPowerShell32BitLabel;
 	}
 
-	return new PossiblePowerShellExe(winPSPath, displayName, { knownToExist: true });
+	return new PossiblePowerShellExe(winPSPath, displayName, true);
 }
 
 /**
