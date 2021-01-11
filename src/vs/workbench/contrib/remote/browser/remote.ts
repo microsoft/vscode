@@ -701,6 +701,9 @@ class ReconnectionTimer2 implements IDisposable {
 const DISCONNECT_PROMPT_TIME = 40 * 1000; // 40 seconds
 
 class RemoteAgentConnectionStatusListener extends Disposable implements IWorkbenchContribution {
+
+	private _reloadWindowShown: boolean = false;
+
 	constructor(
 		@IRemoteAgentService remoteAgentService: IRemoteAgentService,
 		@IProgressService progressService: IProgressService,
@@ -818,12 +821,15 @@ class RemoteAgentConnectionStatusListener extends Disposable implements IWorkben
 					case PersistentConnectionEventType.ReconnectionPermanentFailure:
 						hideProgress();
 
-						dialogService.show(Severity.Error, nls.localize('reconnectionPermanentFailure', "Cannot reconnect. Please reload the window."), [nls.localize('reloadWindow', "Reload Window"), nls.localize('cancel', "Cancel")], { cancelId: 1 }).then(result => {
-							// Reload the window
-							if (result.choice === 0) {
-								commandService.executeCommand(ReloadWindowAction.ID);
-							}
-						});
+						if (!this._reloadWindowShown) {
+							this._reloadWindowShown = true;
+							dialogService.show(Severity.Error, nls.localize('reconnectionPermanentFailure', "Cannot reconnect. Please reload the window."), [nls.localize('reloadWindow', "Reload Window"), nls.localize('cancel', "Cancel")], { cancelId: 1 }).then(result => {
+								// Reload the window
+								if (result.choice === 0) {
+									commandService.executeCommand(ReloadWindowAction.ID);
+								}
+							});
+						}
 						break;
 					case PersistentConnectionEventType.ConnectionGain:
 						hideProgress();
