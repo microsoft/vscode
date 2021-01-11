@@ -626,7 +626,7 @@
 				}
 			},
 			"contentName": "meta.function.parameters.php",
-			"end": "(?xi)\n(\\)) \\s* ( : \\s*\n  (?:\\?\\s*)? (?!\\s) [a-z0-9_\\x{7f}-\\x{7fffffff}\\\\\\s\\|]+ (?<!\\s)\n)?\n(?=\\s*(?:{|/[/*]|\\#|$))",
+			"end": "(?xi)\n(\\)) \\s* ( : \\s*\n  (?:\\?\\s*)? (?!\\s) [a-z0-9_\\x{7f}-\\x{7fffffff}\\\\\\s\\|]+ (?<!\\s)\n)?\n(?=\\s*(?:{|/[/*]|\\#|$|;))",
 			"endCaptures": {
 				"1": {
 					"name": "punctuation.definition.parameters.end.bracket.round.php"
@@ -719,7 +719,7 @@
 				}
 			},
 			"contentName": "meta.function.parameters.php",
-			"end": "(?xi)\n(\\)) (?: \\s* (:) \\s* (\n  (?:\\?\\s*)? [a-z0-9_\\x{7f}-\\x{7fffffff}\\\\]+ |                                        # nullable type\n  [a-z0-9_\\x{7f}-\\x{7fffffff}\\\\]+ (?: \\s*\\|\\s* [a-z0-9_\\x{7f}-\\x{7fffffff}\\\\]+)+ # union type\n) )?\n(?=\\s*(?:{|/[/*]|\\#|$))",
+			"end": "(?xi)\n(\\)) (?: \\s* (:) \\s* (\n  (?:\\?\\s*)? [a-z0-9_\\x{7f}-\\x{7fffffff}\\\\]+ |                                        # nullable type\n  [a-z0-9_\\x{7f}-\\x{7fffffff}\\\\]+ (?: \\s*\\|\\s* [a-z0-9_\\x{7f}-\\x{7fffffff}\\\\]+)+ # union type\n) )?\n(?=\\s*(?:{|/[/*]|\\#|$|;))",
 			"endCaptures": {
 				"1": {
 					"name": "punctuation.definition.parameters.end.bracket.round.php"
@@ -1229,7 +1229,7 @@
 					]
 				},
 				{
-					"begin": "(^\\s+)?(?=#)",
+					"begin": "(^\\s+)?(?=#)(?!#\\[)",
 					"beginCaptures": {
 						"1": {
 							"name": "punctuation.whitespace.comment.leading.php"
