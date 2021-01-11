@@ -73,28 +73,9 @@ declare module 'vscode' {
 	}
 
 	/**
-	 * **WARNING** When writing an AuthenticationProvider, `id` should be treated as part of your extension's
-	 * API, changing it is a breaking change for all extensions relying on the provider. The id is
-	 * treated case-sensitively.
+	 * A provider for performing authentication to a service.
 	 */
 	export interface AuthenticationProvider {
-		/**
-		 * Used as an identifier for extensions trying to work with a particular
-		 * provider: 'microsoft', 'github', etc. id must be unique, registering
-		 * another provider with the same id will fail.
-		 */
-		readonly id: string;
-
-		/**
-		 * The human-readable name of the provider.
-		 */
-		readonly label: string;
-
-		/**
-		 * Whether it is possible to be signed into multiple accounts at once with this provider
-		*/
-		readonly supportsMultipleAccounts: boolean;
-
 		/**
 		 * An [event](#Event) which fires when the array of sessions has changed, or data
 		 * within a session has changed.
@@ -121,17 +102,31 @@ declare module 'vscode' {
 		logout(sessionId: string): Thenable<void>;
 	}
 
+	/**
+	 * Options for creating an [AuthenticationProvider](#AuthentcationProvider).
+	 */
+	export interface AuthenticationProviderOptions {
+		/**
+		 * Whether it is possible to be signed into multiple accounts at once with this provider.
+		 * If not specified, will default to false.
+		*/
+		readonly supportsMultipleAccounts?: boolean;
+	}
+
 	export namespace authentication {
 		/**
 		 * Register an authentication provider.
 		 *
 		 * There can only be one provider per id and an error is being thrown when an id
-		 * has already been used by another provider.
+		 * has already been used by another provider. Ids are case-sensitive.
 		 *
+		 * @param id The unique identifier of the provider.
+		 * @param label The human-readable name of the provider.
 		 * @param provider The authentication provider provider.
+		 * @params options Additional options for the provider.
 		 * @return A [disposable](#Disposable) that unregisters this provider when being disposed.
 		 */
-		export function registerAuthenticationProvider(provider: AuthenticationProvider): Disposable;
+		export function registerAuthenticationProvider(id: string, label: string, provider: AuthenticationProvider, options?: AuthenticationProviderOptions): Disposable;
 
 		/**
 		 * @deprecated - getSession should now trigger extension activation.
