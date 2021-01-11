@@ -9,7 +9,7 @@ import { NativeEnvironmentService } from 'vs/platform/environment/node/environme
 import { parseArgs, OPTIONS } from 'vs/platform/environment/node/argv';
 import { getRandomTestPath } from 'vs/base/test/node/testUtils';
 import { join } from 'vs/base/common/path';
-import { mkdirp, RimRafMode, rimraf } from 'vs/base/node/pfs';
+import { mkdirp, rimraf } from 'vs/base/node/pfs';
 import { resolveMarketplaceHeaders } from 'vs/platform/extensionManagement/common/extensionGalleryService';
 import { isUUID } from 'vs/base/common/uuid';
 import { DisposableStore } from 'vs/base/common/lifecycle';
@@ -39,7 +39,7 @@ suite('Extension Gallery Service', () => {
 		fileService.registerProvider(Schemas.file, diskFileSystemProvider);
 
 		// Delete any existing backups completely and then re-create it.
-		rimraf(marketplaceHome, RimRafMode.MOVE).then(() => {
+		rimraf(marketplaceHome).then(() => {
 			mkdirp(marketplaceHome).then(() => {
 				done();
 			}, error => done(error));
@@ -48,7 +48,7 @@ suite('Extension Gallery Service', () => {
 
 	teardown(done => {
 		disposables.clear();
-		rimraf(marketplaceHome, RimRafMode.MOVE).then(done, done);
+		rimraf(marketplaceHome).then(done, done);
 	});
 
 	test('marketplace machine id', () => {

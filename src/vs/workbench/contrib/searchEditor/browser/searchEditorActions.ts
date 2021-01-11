@@ -80,8 +80,8 @@ export const selectAllSearchEditorMatchesCommand = (accessor: ServicesAccessor) 
 	}
 };
 
+// Handler for the action bar entry in the search view.
 export class OpenSearchEditorAction extends Action {
-
 	static readonly ID: string = OpenNewEditorCommandId;
 	static readonly LABEL = localize('search.openNewEditor', "Open New Search Editor");
 
@@ -156,7 +156,7 @@ export const openNewSearchEditor =
 
 		telemetryService.publicLog2('searchEditor/openNewSearchEditor');
 
-		const args: OpenSearchEditorArgs = { query: selected };
+		const args: OpenSearchEditorArgs = { query: selected || undefined };
 		Object.entries(_args).forEach(([name, value]) => {
 			(args as any)[name as any] = (typeof value === 'string') ? configurationResolverService.resolve(lastActiveWorkspaceRoot, value) : value;
 		});
@@ -167,6 +167,7 @@ export const openNewSearchEditor =
 			editor = assertIsDefined(await assertIsDefined(editorGroupsService.getGroup(existing.groupId)).openEditor(input)) as SearchEditor;
 			if (selected) { editor.setQuery(selected); }
 			else { editor.selectQuery(); }
+			editor.setSearchConfig(args);
 		} else {
 			const input = instantiationService.invokeFunction(getOrMakeSearchEditorInput, { config: args, text: '' });
 			editor = await editorService.openEditor(input, { pinned: true }, toSide ? SIDE_GROUP : ACTIVE_GROUP) as SearchEditor;

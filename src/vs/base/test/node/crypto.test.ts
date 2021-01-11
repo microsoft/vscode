@@ -4,24 +4,22 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { checksum } from 'vs/base/node/crypto';
-import { generateUuid } from 'vs/base/common/uuid';
 import { join } from 'vs/base/common/path';
 import { tmpdir } from 'os';
-import { mkdirp, rimraf, RimRafMode, writeFile } from 'vs/base/node/pfs';
+import { mkdirp, rimraf, writeFile } from 'vs/base/node/pfs';
+import { getRandomTestPath } from 'vs/base/test/node/testUtils';
 
 suite('Crypto', () => {
 
 	test('checksum', async () => {
-		const id = generateUuid();
-		const testDir = join(tmpdir(), 'vsctests', id);
-		const testFile = join(testDir, 'checksum.txt');
-
+		const testDir = getRandomTestPath(tmpdir(), 'vsctests', 'crypto');
 		await mkdirp(testDir);
 
+		const testFile = join(testDir, 'checksum.txt');
 		await writeFile(testFile, 'Hello World');
 
 		await checksum(testFile, '0a4d55a8d778e5022fab701977c5d840bbc486d0');
 
-		await rimraf(testDir, RimRafMode.MOVE);
+		await rimraf(testDir);
 	});
 });

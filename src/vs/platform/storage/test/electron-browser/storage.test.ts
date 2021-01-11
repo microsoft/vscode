@@ -5,10 +5,9 @@
 
 import { equal } from 'assert';
 import { FileStorageDatabase } from 'vs/platform/storage/browser/storageService';
-import { generateUuid } from 'vs/base/common/uuid';
 import { join } from 'vs/base/common/path';
 import { tmpdir } from 'os';
-import { rimraf, RimRafMode } from 'vs/base/node/pfs';
+import { rimraf } from 'vs/base/node/pfs';
 import { NullLogService } from 'vs/platform/log/common/log';
 import { Storage } from 'vs/base/parts/storage/common/storage';
 import { URI } from 'vs/base/common/uri';
@@ -20,11 +19,10 @@ import { Schemas } from 'vs/base/common/network';
 
 suite('Storage', () => {
 
-	const parentDir = getRandomTestPath(tmpdir(), 'vsctests', 'storageservice');
+	let testDir: string;
 
 	let fileService: FileService;
 	let fileProvider: DiskFileSystemProvider;
-	let testDir: string;
 
 	const disposables = new DisposableStore();
 
@@ -38,14 +36,13 @@ suite('Storage', () => {
 		disposables.add(fileService.registerProvider(Schemas.file, fileProvider));
 		disposables.add(fileProvider);
 
-		const id = generateUuid();
-		testDir = join(parentDir, id);
+		testDir = getRandomTestPath(tmpdir(), 'vsctests', 'storageservice');
 	});
 
-	teardown(async () => {
+	teardown(() => {
 		disposables.clear();
 
-		await rimraf(parentDir, RimRafMode.MOVE);
+		return rimraf(testDir);
 	});
 
 	test('File Based Storage', async () => {

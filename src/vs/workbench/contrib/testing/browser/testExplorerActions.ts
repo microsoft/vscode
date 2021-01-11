@@ -11,12 +11,11 @@ import { Action2, MenuId } from 'vs/platform/actions/common/actions';
 import { ContextKeyAndExpr, ContextKeyEqualsExpr } from 'vs/platform/contextkey/common/contextkey';
 import { ServicesAccessor } from 'vs/platform/instantiation/common/instantiation';
 import { ThemeIcon } from 'vs/platform/theme/common/themeService';
-import { TestRunState } from 'vs/workbench/api/common/extHostTypes';
 import { ViewAction } from 'vs/workbench/browser/parts/views/viewPane';
 import * as icons from 'vs/workbench/contrib/testing/browser/icons';
 import { ITestingCollectionService } from 'vs/workbench/contrib/testing/browser/testingCollectionService';
 import { TestingExplorerView, TestingExplorerViewModel } from 'vs/workbench/contrib/testing/browser/testingExplorerView';
-import { TestExplorerViewMode, Testing } from 'vs/workbench/contrib/testing/common/constants';
+import { TestExplorerViewGrouping, TestExplorerViewMode, Testing } from 'vs/workbench/contrib/testing/common/constants';
 import { EMPTY_TEST_RESULT, InternalTestItem, RunTestsResult, TestIdWithProvider } from 'vs/workbench/contrib/testing/common/testCollection';
 import { TestingContextKeys } from 'vs/workbench/contrib/testing/common/testingContextKeys';
 import { ITestService } from 'vs/workbench/contrib/testing/common/testService';
@@ -40,14 +39,15 @@ export const filterVisibleActions = (actions: ReadonlyArray<Action>) =>
 
 export class DebugAction extends Action {
 	constructor(
-		private readonly test: InternalTestItem,
+		private readonly tests: Iterable<TestIdWithProvider>,
+		isRunning: boolean,
 		@ITestService private readonly testService: ITestService
 	) {
 		super(
 			'action.run',
 			localize('debug test', 'Debug Test'),
 			'test-action ' + ThemeIcon.asClassName(icons.testingDebugIcon),
-			/* enabled= */ test.item.state.runState !== TestRunState.Running
+			/* enabled= */ !isRunning
 		);
 	}
 
@@ -56,7 +56,7 @@ export class DebugAction extends Action {
 	 */
 	public run(): Promise<any> {
 		return this.testService.runTests({
-			tests: [{ testId: this.test.id, providerId: this.test.providerId }],
+			tests: [...this.tests],
 			debug: true,
 		});
 	}
@@ -64,14 +64,15 @@ export class DebugAction extends Action {
 
 export class RunAction extends Action {
 	constructor(
-		private readonly test: InternalTestItem,
+		private readonly tests: Iterable<TestIdWithProvider>,
+		isRunning: boolean,
 		@ITestService private readonly testService: ITestService
 	) {
 		super(
 			'action.run',
 			localize('run test', 'Run Test'),
 			'test-action ' + ThemeIcon.asClassName(icons.testingRunIcon),
-			/* enabled= */ test.item.state.runState !== TestRunState.Running,
+			/* enabled= */ !isRunning,
 		);
 	}
 
@@ -80,7 +81,7 @@ export class RunAction extends Action {
 	 */
 	public run(): Promise<any> {
 		return this.testService.runTests({
-			tests: [{ testId: this.test.id, providerId: this.test.providerId }],
+			tests: [...this.tests],
 			debug: false,
 		});
 	}
@@ -268,5 +269,77 @@ export class TestingViewAsTreeAction extends ViewAction<TestingExplorerView> {
 	 */
 	public runInView(_accessor: ServicesAccessor, view: TestingExplorerView) {
 		view.viewModel.viewMode = TestExplorerViewMode.Tree;
+	}
+}
+
+
+export class TestingGroupByLocationAction extends ViewAction<TestingExplorerView> {
+	constructor() {
+		super({
+			id: 'testing.groupByLocation',
+			viewId: Testing.ExplorerViewId,
+			title: localize('testing.groupByLocation', "Sort by Name"),
+			f1: false,
+			toggled: TestingContextKeys.viewGrouping.isEqualTo(TestExplorerViewGrouping.ByLocation),
+			menu: {
+				id: MenuId.ViewTitle,
+				order: 10,
+				group: 'groupBy',
+				when: ContextKeyEqualsExpr.create('view', Testing.ExplorerViewId)
+			}
+		});
+	}
+
+	/**
+	 * @override
+	 */
+	public runInView(_accessor: ServicesAccessor, view: TestingExplorerView) {
+		view.viewModel.viewGrouping = TestExplorerViewGrouping.ByLocation;
+	}
+}
+
+export class TestingGroupByStatusAction extends ViewAction<TestingExplorerView> {
+	constructor() {
+		super({
+			id: 'testing.groupByStatus',
+			viewId: Testing.ExplorerViewId,
+			title: localize('testing.groupByStatus', "Sort by Status"),
+			f1: false,
+			toggled: TestingContextKeys.viewGrouping.isEqualTo(TestExplorerViewGrouping.ByStatus),
+			menu: {
+				id: MenuId.ViewTitle,
+				order: 10,
+				group: 'groupBy',
+				when: ContextKeyEqualsExpr.create('view', Testing.ExplorerViewId)
+			}
+		});
+	}
+
+	/**
+	 * @override
+	 */
+	public runInView(_accessor: ServicesAccessor, view: TestingExplorerView) {
+		view.viewModel.viewGrouping = TestExplorerViewGrouping.ByStatus;
+	}
+}
+
+export class RefreshTestsAction extends Action2 {
+	constructor() {
+		super({
+			id: 'testing.refreshTests',
+			title: localize('testing.refresh', "Refresh Tests"),
+			menu: {
+				id: MenuId.ViewTitle,
+				order: 0,
+				when: ContextKeyEqualsExpr.create('view', Testing.ExplorerViewId)
+			}
+		});
+	}
+
+	/**
+	 * @override
+	 */
+	public run(accessor: ServicesAccessor) {
+		accessor.get(ITestService).resubscribeToAllTests();
 	}
 }

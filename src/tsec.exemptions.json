@@ -1,0 +1,5 @@
+{
+	"ban-trustedtypes-createpolicy": [
+		"**/*.ts"
+	]
+}

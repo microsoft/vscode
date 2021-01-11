@@ -599,7 +599,7 @@ export class ViewPaneContainer extends Component implements IViewPaneContainer {
 				menuActions = [menuActions[index], ...menuActions.slice(0, index), ...menuActions.slice(index + 1)];
 			}
 			if (menuActions.length === 1 && viewPaneContainerActions.length === 0) {
-				menuActions = (<SubmenuItemAction>menuActions[0]).actions;
+				menuActions = (<SubmenuItemAction>menuActions[0]).actions.slice();
 			}
 		}
 
