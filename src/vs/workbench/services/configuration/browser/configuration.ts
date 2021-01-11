@@ -415,6 +415,11 @@ export class WorkspaceConfiguration extends Disposable {
 		this._workspaceConfiguration = this._cachedConfiguration = new CachedWorkspaceConfiguration(configurationCache);
 	}
 
+	public dispose() {
+		super.dispose();
+		this._workspaceConfiguration.dispose();
+	}
+
 	async initialize(workspaceIdentifier: IWorkspaceIdentifier): Promise<void> {
 		this._workspaceIdentifier = workspaceIdentifier;
 		if (!this._initialized) {
@@ -708,7 +713,6 @@ export class FolderConfiguration extends Disposable implements IFolderConfigurat
 	readonly onDidChange: Event<void> = this._onDidChange.event;
 
 	private folderConfiguration: IFolderConfiguration;
-	private folderConfigurationDisposable: IDisposable = Disposable.None;
 	private readonly configurationFolder: URI;
 	private cachedFolderConfiguration: CachedFolderConfiguration;
 
@@ -729,14 +733,14 @@ export class FolderConfiguration extends Disposable implements IFolderConfigurat
 			whenProviderRegistered(workspaceFolder.uri, fileService)
 				.then(() => {
 					this.folderConfiguration.dispose();
-					this.folderConfigurationDisposable.dispose();
-					this.folderConfiguration = this.createFileServiceBasedConfiguration(fileService, uriIdentityService);
+					this.folderConfiguration = this._register(this.createFileServiceBasedConfiguration(fileService, uriIdentityService));
 					this._register(this.folderConfiguration.onDidChange(e => this.onDidFolderConfigurationChange()));
 					this.onDidFolderConfigurationChange();
 				});
 		} else {
-			this.folderConfiguration = this.createFileServiceBasedConfiguration(fileService, uriIdentityService);
-			this.folderConfigurationDisposable = this._register(this.folderConfiguration.onDidChange(e => this.onDidFolderConfigurationChange()));
+			this._register(this.cachedFolderConfiguration);
+			this.folderConfiguration = this._register(this.createFileServiceBasedConfiguration(fileService, uriIdentityService));
+			this._register(this.folderConfiguration.onDidChange(e => this.onDidFolderConfigurationChange()));
 		}
 	}
 

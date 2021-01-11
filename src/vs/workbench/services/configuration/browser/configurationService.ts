@@ -462,7 +462,7 @@ export class WorkspaceService extends Disposable implements IWorkbenchConfigurat
 
 			if (!this.localUserConfiguration.hasTasksLoaded) {
 				// Reload local user configuration again to load user tasks
-				runWhenIdle(() => this.reloadLocalUserConfiguration(), 5000);
+				this._register(runWhenIdle(() => this.reloadLocalUserConfiguration(), 5000));
 			}
 		});
 	}
