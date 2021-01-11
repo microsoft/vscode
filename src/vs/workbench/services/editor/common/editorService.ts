@@ -234,9 +234,9 @@ export interface IEditorService {
 	isOpen(editor: IEditorInput): boolean;
 
 	/**
-	 * Get the existing editor for a given resource.
+	 * Find the existing editors for a given resource.
 	 */
-	getEditorsForResource(resource: URI, group: IEditorGroup): IEditorInput[];
+	findEditors(resource: URI, group: IEditorGroup | GroupIdentifier): IEditorInput[];
 
 	/**
 	 * Get all available editor overrides for the editor input.

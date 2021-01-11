@@ -218,7 +218,7 @@ export function getAllAvailableEditors(
 					return {
 						override: (async () => {
 							// Try to replace existing editors for resource
-							const existingEditor = firstOrDefault(editorService.getEditorsForResource(resource, group));
+							const existingEditor = firstOrDefault(editorService.findEditors(resource, group));
 							if (existingEditor && !fileEditorInput.matches(existingEditor)) {
 								await editorService.replaceEditors([{
 									editor: existingEditor,

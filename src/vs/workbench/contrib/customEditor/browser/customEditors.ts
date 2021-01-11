@@ -154,7 +154,7 @@ export class CustomEditorService extends Disposable implements ICustomEditorServ
 			...this.getAllCustomEditors(resource).allEditors,
 		]);
 
-		const existingEditorForResource = group && firstOrDefault(this.editorService.getEditorsForResource(resource, group));
+		const existingEditorForResource = group && firstOrDefault(this.editorService.findEditors(resource, group));
 		const currentlyOpenedEditorType: undefined | string = existingEditorForResource instanceof CustomEditorInput ? existingEditorForResource.viewType : defaultCustomEditor.id;
 
 		const resourceExt = extname(resource);
@@ -271,7 +271,7 @@ export class CustomEditorService extends Disposable implements ICustomEditorServ
 		}
 
 		// Try to replace existing editors for resource
-		const existing = firstOrDefault(this.editorService.getEditorsForResource(resource, targetGroup));
+		const existing = firstOrDefault(this.editorService.findEditors(resource, targetGroup));
 		if (existing) {
 			if (!input.matches(existing)) {
 				await this.editorService.replaceEditors([{
@@ -447,7 +447,7 @@ export class CustomEditorContribution extends Disposable implements IWorkbenchCo
 				return this.onEditorOpening(editor, options, group);
 			},
 			getEditorOverrides: (resource: URI, options: IEditorOptions | undefined, group: IEditorGroup | undefined): IOpenEditorOverrideEntry[] => {
-				const currentEditor = group && firstOrDefault(this.editorService.getEditorsForResource(resource, group));
+				const currentEditor = group && firstOrDefault(this.editorService.findEditors(resource, group));
 
 				const toOverride = (entry: CustomEditorInfo): IOpenEditorOverrideEntry => {
 					return {
@@ -536,7 +536,7 @@ export class CustomEditorContribution extends Disposable implements IWorkbenchCo
 			return;
 		}
 
-		const existingEditorForResource = firstOrDefault(this.editorService.getEditorsForResource(resource, group));
+		const existingEditorForResource = firstOrDefault(this.editorService.findEditors(resource, group));
 		if (existingEditorForResource) {
 			if (editor === existingEditorForResource) {
 				return;
