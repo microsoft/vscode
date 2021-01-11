@@ -7,7 +7,6 @@ import * as assert from 'assert';
 import { VSBuffer, bufferToReadable, readableToBuffer, bufferToStream, streamToBuffer, newWriteableBufferStream, bufferedStreamToBuffer } from 'vs/base/common/buffer';
 import { timeout } from 'vs/base/common/async';
 import { peekStream } from 'vs/base/common/stream';
-import { isWeb } from 'vs/base/common/platform';
 
 suite('Buffer', () => {
 
@@ -374,9 +373,9 @@ suite('Buffer', () => {
 		assert.equal(errors.length, 0);
 	});
 
-	(isWeb ? test.skip : test)('Performance issue with VSBuffer#slice #76076', function () { // TODO@alexdima this test seems to fail in web (https://github.com/microsoft/vscode/issues/114042)
+	test('Performance issue with VSBuffer#slice #76076', function () { // TODO@alexdima this test seems to fail in web (https://github.com/microsoft/vscode/issues/114042)
 		// Buffer#slice creates a view
-		{
+		if (typeof Buffer !== 'undefined') {
 			const buff = Buffer.from([10, 20, 30, 40]);
 			const b2 = buff.slice(1, 3);
 			assert.equal(buff[1], 20);
