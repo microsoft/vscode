@@ -415,7 +415,7 @@ export class WorkspaceConfiguration extends Disposable {
 		this._workspaceConfiguration = this._cachedConfiguration = new CachedWorkspaceConfiguration(configurationCache);
 	}
 
-	public dispose() {
+	dispose() {
 		super.dispose();
 		this._workspaceConfiguration.dispose();
 	}
