@@ -49,17 +49,17 @@ function getProgramFilesPath(
 
 	if (!useAlternateBitness) {
 		// Just use the native system bitness
-		return env.ProgramFiles!;
+		return env.ProgramFiles || null;
 	}
 
 	// We might be a 64-bit process looking for 32-bit program files
 	if (isProcess64Bit) {
-		return env['ProgramFiles(x86)']!;
+		return env['ProgramFiles(x86)'] || null;
 	}
 
 	// We might be a 32-bit process looking for 64-bit program files
 	if (isOS64Bit) {
-		return env.ProgramW6432!;
+		return env.ProgramW6432 || null;
 	}
 
 	// We're a 32-bit process on 32-bit Windows, there is no other Program Files dir
