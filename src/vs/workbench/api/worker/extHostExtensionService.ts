@@ -72,7 +72,7 @@ export class ExtHostExtensionService extends AbstractExtHostExtensionService {
 		const apiFactory = this._instaService.invokeFunction(createApiFactoryAndRegisterActors);
 		this._fakeModules = this._instaService.createInstance(WorkerRequireInterceptor, apiFactory, this._registry);
 		await this._fakeModules.install();
-		performance.mark('extHost/didInitAPI');
+		performance.mark('code/extHost/didInitAPI');
 
 		await this._waitForDebuggerAttachment();
 	}
@@ -85,11 +85,11 @@ export class ExtHostExtensionService extends AbstractExtHostExtensionService {
 
 		module = module.with({ path: ensureSuffix(module.path, '.js') });
 		if (extensionId) {
-			performance.mark(`extHost/willFetchExtensionCode/${extensionId.value}`);
+			performance.mark(`code/extHost/willFetchExtensionCode/${extensionId.value}`);
 		}
 		const response = await fetch(module.toString(true));
 		if (extensionId) {
-			performance.mark(`extHost/didFetchExtensionCode/${extensionId.value}`);
+			performance.mark(`code/extHost/didFetchExtensionCode/${extensionId.value}`);
 		}
 
 		if (response.status !== 200) {
@@ -135,13 +135,13 @@ export class ExtHostExtensionService extends AbstractExtHostExtensionService {
 		try {
 			activationTimesBuilder.codeLoadingStart();
 			if (extensionId) {
-				performance.mark(`extHost/willLoadExtensionCode/${extensionId.value}`);
+				performance.mark(`code/extHost/willLoadExtensionCode/${extensionId.value}`);
 			}
 			initFn(_module, _exports, _require);
 			return <T>(_module.exports !== _exports ? _module.exports : _exports);
 		} finally {
 			if (extensionId) {
-				performance.mark(`extHost/didLoadExtensionCode/${extensionId.value}`);
+				performance.mark(`code/extHost/didLoadExtensionCode/${extensionId.value}`);
 			}
 			activationTimesBuilder.codeLoadingStop();
 		}
