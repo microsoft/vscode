@@ -5,7 +5,6 @@
 
 import { SQLiteStorageDatabase, ISQLiteStorageDatabaseOptions } from 'vs/base/parts/storage/node/storage';
 import { Storage, IStorageDatabase, IStorageItemsChangeEvent } from 'vs/base/parts/storage/common/storage';
-import { generateUuid } from 'vs/base/common/uuid';
 import { join } from 'vs/base/common/path';
 import { tmpdir } from 'os';
 import { equal, ok } from 'assert';
@@ -13,20 +12,15 @@ import { mkdirp, writeFile, exists, unlink, rimraf } from 'vs/base/node/pfs';
 import { timeout } from 'vs/base/common/async';
 import { Event, Emitter } from 'vs/base/common/event';
 import { isWindows } from 'vs/base/common/platform';
-import { flakySuite } from 'vs/base/test/node/testUtils';
+import { flakySuite, getRandomTestPath } from 'vs/base/test/node/testUtils';
+import { generateUuid } from 'vs/base/common/uuid';
 
 flakySuite('Storage Library', function () {
-
-	function uniqueStorageDir(): string {
-		const id = generateUuid();
-
-		return join(tmpdir(), 'vsctests', id, 'storage2', id);
-	}
 
 	let storageDir: string;
 
 	setup(function () {
-		storageDir = uniqueStorageDir();
+		storageDir = getRandomTestPath(tmpdir(), 'vsctests', 'storagelibrary');
 
 		return mkdirp(storageDir);
 	});
@@ -288,12 +282,6 @@ flakySuite('Storage Library', function () {
 
 flakySuite('SQLite Storage Library', function () {
 
-	function uniqueStorageDir(): string {
-		const id = generateUuid();
-
-		return join(tmpdir(), 'vsctests', id, 'storage', id);
-	}
-
 	function toSet(elements: string[]): Set<string> {
 		const set = new Set<string>();
 		elements.forEach(element => set.add(element));
@@ -304,7 +292,7 @@ flakySuite('SQLite Storage Library', function () {
 	let storageDir: string;
 
 	setup(function () {
-		storageDir = uniqueStorageDir();
+		storageDir = getRandomTestPath(tmpdir(), 'vsctests', 'storagelibrary');
 
 		return mkdirp(storageDir);
 	});

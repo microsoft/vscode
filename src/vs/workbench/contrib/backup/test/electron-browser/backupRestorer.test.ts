@@ -34,17 +34,6 @@ import { isEqual } from 'vs/base/common/resources';
 import { TestServiceAccessor } from 'vs/workbench/test/browser/workbenchTestServices';
 import { BackupRestorer } from 'vs/workbench/contrib/backup/common/backupRestorer';
 
-const userdataDir = getRandomTestPath(os.tmpdir(), 'vsctests', 'backuprestorer');
-const backupHome = path.join(userdataDir, 'Backups');
-const workspacesJsonPath = path.join(backupHome, 'workspaces.json');
-
-const workspaceResource = URI.file(platform.isWindows ? 'c:\\workspace' : '/workspace');
-const workspaceBackupPath = path.join(backupHome, hashPath(workspaceResource));
-const fooFile = URI.file(platform.isWindows ? 'c:\\Foo' : '/Foo');
-const barFile = URI.file(platform.isWindows ? 'c:\\Bar' : '/Bar');
-const untitledFile1 = URI.from({ scheme: Schemas.untitled, path: 'Untitled-1' });
-const untitledFile2 = URI.from({ scheme: Schemas.untitled, path: 'Untitled-2' });
-
 class TestBackupRestorer extends BackupRestorer {
 	async doRestoreBackups(): Promise<URI[] | undefined> {
 		return super.doRestoreBackups();
@@ -53,8 +42,18 @@ class TestBackupRestorer extends BackupRestorer {
 
 flakySuite('BackupRestorer', () => {
 	let accessor: TestServiceAccessor;
-
 	let disposables: IDisposable[] = [];
+
+	const userdataDir = getRandomTestPath(os.tmpdir(), 'vsctests', 'backuprestorer');
+	const backupHome = path.join(userdataDir, 'Backups');
+	const workspacesJsonPath = path.join(backupHome, 'workspaces.json');
+
+	const workspaceResource = URI.file(platform.isWindows ? 'c:\\workspace' : '/workspace');
+	const workspaceBackupPath = path.join(backupHome, hashPath(workspaceResource));
+	const fooFile = URI.file(platform.isWindows ? 'c:\\Foo' : '/Foo');
+	const barFile = URI.file(platform.isWindows ? 'c:\\Bar' : '/Bar');
+	const untitledFile1 = URI.from({ scheme: Schemas.untitled, path: 'Untitled-1' });
+	const untitledFile2 = URI.from({ scheme: Schemas.untitled, path: 'Untitled-2' });
 
 	setup(async () => {
 		disposables.push(Registry.as<IEditorRegistry>(EditorExtensions.Editors).registerEditor(
@@ -73,7 +72,7 @@ flakySuite('BackupRestorer', () => {
 		return pfs.writeFile(workspacesJsonPath, '');
 	});
 
-	teardown(async () => {
+	teardown(() => {
 		dispose(disposables);
 		disposables = [];
 

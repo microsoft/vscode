@@ -6,16 +6,15 @@
 import * as assert from 'assert';
 import * as os from 'os';
 import * as path from 'vs/base/common/path';
-import * as uuid from 'vs/base/common/uuid';
 import * as pfs from 'vs/base/node/pfs';
 import { realcaseSync, realpath, realpathSync } from 'vs/base/node/extpath';
+import { getRandomTestPath } from 'vs/base/test/node/testUtils';
 
 suite('Extpath', () => {
 
 	test('realcase', async () => {
-		const id = uuid.generateUuid();
-		const parentDir = path.join(os.tmpdir(), 'vsctests', id);
-		const newDir = path.join(parentDir, 'extpath', id);
+		const parentDir = getRandomTestPath(os.tmpdir(), 'vsctests', 'extpath');
+		const newDir = path.join(parentDir, 'newdir');
 
 		await pfs.mkdirp(newDir, 493);
 
@@ -41,9 +40,8 @@ suite('Extpath', () => {
 	});
 
 	test('realpath', async () => {
-		const id = uuid.generateUuid();
-		const parentDir = path.join(os.tmpdir(), 'vsctests', id);
-		const newDir = path.join(parentDir, 'extpath', id);
+		const parentDir = getRandomTestPath(os.tmpdir(), 'vsctests', 'extpath');
+		const newDir = path.join(parentDir, 'newdir');
 
 		await pfs.mkdirp(newDir, 493);
 
@@ -54,9 +52,8 @@ suite('Extpath', () => {
 	});
 
 	test('realpathSync', async () => {
-		const id = uuid.generateUuid();
-		const parentDir = path.join(os.tmpdir(), 'vsctests', id);
-		const newDir = path.join(parentDir, 'extpath', id);
+		const parentDir = getRandomTestPath(os.tmpdir(), 'vsctests', 'extpath');
+		const newDir = path.join(parentDir, 'newdir');
 
 		await pfs.mkdirp(newDir, 493);
 
