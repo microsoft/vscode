@@ -7,7 +7,7 @@ import 'vs/css!./media/notificationsEditor';
 import { localize } from 'vs/nls';
 import * as DOM from 'vs/base/browser/dom';
 import { dispose, Disposable, IDisposable, combinedDisposable, DisposableStore } from 'vs/base/common/lifecycle';
-import { Checkbox, ICheckboxOpts } from 'vs/base/browser/ui/checkbox/checkbox';
+import { Checkbox } from 'vs/base/browser/ui/checkbox/checkbox';
 import { EditorPane } from 'vs/workbench/browser/parts/editor/editorPane';
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
@@ -16,18 +16,18 @@ import { IThemeService, registerThemingParticipant, IColorTheme, ICssStyleCollec
 import { IContextKeyService, IContextKey } from 'vs/platform/contextkey/common/contextkey';
 import { listHighlightForeground, listActiveSelectionForeground, listInactiveSelectionForeground, listHoverForeground, listFocusForeground, editorBackground, foreground, listActiveSelectionBackground, listInactiveSelectionBackground, listFocusBackground, listHoverBackground } from 'vs/platform/theme/common/colorRegistry';
 import { WorkbenchList } from 'vs/platform/list/browser/listService';
-import { IStorageService } from 'vs/platform/storage/common/storage';
+import { IStorageService, StorageScope, StorageTarget } from 'vs/platform/storage/common/storage';
 import { Emitter, Event } from 'vs/base/common/event';
 import { IListAccessibilityProvider } from 'vs/base/browser/ui/list/listWidget';
 import { Color, RGBA } from 'vs/base/common/color';
 import { WORKBENCH_BACKGROUND } from 'vs/workbench/common/theme';
-import { INotificationItemEntry, INotificationsEditorPane, IListEntry, IKeybindingItemEntry, INotificationItem } from 'vs/workbench/services/preferences/common/preferences';
-import { attachInputBoxStyler } from 'vs/platform/theme/common/styler';
 import { IListRenderer, IListContextMenuEvent, IListVirtualDelegate } from 'vs/base/browser/ui/list/list';
 import { NotificationsEditorModel } from 'vs/workbench/services/preferences/browser/notificationsEditorModel';
 import { HighlightedLabel } from 'vs/base/browser/ui/highlightedlabel/highlightedLabel';
-import { InstantiationService } from 'vs/platform/instantiation/common/instantiationService';
-export const NOTIFICATION_ENTRY_TEMPLATE_ID = 'notification.entry.template';
+import { IListEntry, INotificationsEditorPane } from 'vs/workbench/common/notifications';
+import { INotificationItem } from 'vs/platform/notification/common/notification';
+import { Codicon } from 'vs/base/common/codicons';
+export const NOTIFICATION_TEMPLATE_ID = 'notification.template';
 
 const $ = DOM.$;
 
@@ -67,28 +67,15 @@ export class NotificationsEditor extends EditorPane implements INotificationsEdi
 		@ITelemetryService telemetryService: ITelemetryService,
 		@IThemeService themeService: IThemeService,
 		@IContextKeyService private readonly contextKeyService: IContextKeyService,
-		// @INotificationService private readonly notificationService: INotificationService,
 		@IInstantiationService private readonly instantiationService: IInstantiationService,
-		// @IEditorService private readonly editorService: IEditorService,
 		@IStorageService storageService: IStorageService
 	) {
 		super(NotificationsEditor.ID, telemetryService, themeService, storageService);
 		this.notificationsEditorContextKey = CONTEXT_KEYBINDINGS_EDITOR.bindTo(this.contextKeyService);
+
 		this.render(!!this.notificationsEditorContextKey.get());
 	}
-	onDefineWhenExpression!: Event<IKeybindingItemEntry>;
-	search(filter: string): void {
-		throw new Error('Method not implemented.');
-	}
-	focusSearch(): void {
-		throw new Error('Method not implemented.');
-	}
-	clearSearchResults(): void {
-		throw new Error('Method not implemented.');
-	}
-	showNotificationAgain(notificationEntry: INotificationItemEntry): void {
-		throw new Error('Method not implemented.');
-	}
+
 	private async render(preserveFocus: boolean): Promise<void> {
 		this.notificationsEditorModel = this.instantiationService.createInstance(NotificationsEditorModel);
 		await this.notificationsEditorModel.resolve();
@@ -98,8 +85,10 @@ export class NotificationsEditor extends EditorPane implements INotificationsEdi
 	private renderNotificationEntries(): void {
 		if (this.notificationsEditorModel) {
 			const notificationItems: INotificationItem[] = this.notificationsEditorModel.notificationItems;
-			this.ariaLabelElement.setAttribute('aria-label', localize('show notifications', "Showing {0} notifications", notificationItems.length));
-			console.log(notificationItems);
+			this.ariaLabelElement.setAttribute('aria-label', localize('aria-label', "Showing {0} notifications", notificationItems.length));
+			notificationItems.forEach(notification => notification.templateId = NOTIFICATION_TEMPLATE_ID);
+			this.listEntries = notificationItems;
+			this.notificationList.splice(0, this.notificationList.length, this.listEntries);
 			this.layoutNotificationsList();
 		}
 	}
@@ -113,7 +102,6 @@ export class NotificationsEditor extends EditorPane implements INotificationsEdi
 
 	createEditor(parent: HTMLElement): void {
 		const notificationsEditorElement = DOM.append(parent, $('div', { class: 'notifications-editor' }));
-
 		this.createAriaLabelElement(notificationsEditorElement);
 		this.createOverlayContainer(notificationsEditorElement);
 		this.createHeader(notificationsEditorElement);
@@ -153,14 +141,12 @@ export class NotificationsEditor extends EditorPane implements INotificationsEdi
 		const activeNotificationEntry = this.activeNotificationEntry;
 		if (activeNotificationEntry) {
 			this.selectEntry(activeNotificationEntry);
-		} else {
-			//this.searchWidget.focus();
 		}
 	}
 
-	get activeNotificationEntry(): INotificationItemEntry | null {
+	get activeNotificationEntry(): INotificationItem | null {
 		const focusedElement = this.notificationList.getFocusedElements()[0];
-		return focusedElement && focusedElement.templateId === NOTIFICATION_ENTRY_TEMPLATE_ID ? <INotificationItemEntry>focusedElement : null;
+		return focusedElement && focusedElement.templateId === NOTIFICATION_TEMPLATE_ID ? <INotificationItem>focusedElement : null;
 	}
 
 	private createAriaLabelElement(parent: HTMLElement): void {
@@ -199,13 +185,13 @@ export class NotificationsEditor extends EditorPane implements INotificationsEdi
 		let column = $('.header.actions');
 
 		column = $('.header.never-show-again', undefined, localize('never-show-again', "Never Show Again"));
-		this.columnItems.push({ column, proportion: 0.25, width: 0 });
+		this.columnItems.push({ column, proportion: 0.125, width: 0 });
 
 		column = $('.header.label', undefined, localize('label', "Notification"));
-		this.columnItems.push({ column, proportion: 0.25, width: 0 });
+		this.columnItems.push({ column, proportion: 0.175, width: 0 });
 
 		column = $('.header.when', undefined, localize('when', "When"));
-		this.columnItems.push({ column, proportion: 0.5, width: 0 });
+		this.columnItems.push({ column, proportion: 0.7, width: 0 });
 
 		DOM.append(notificationsListHeader, ...this.columnItems.map(({ column }) => column));
 	}
@@ -213,7 +199,7 @@ export class NotificationsEditor extends EditorPane implements INotificationsEdi
 	private createList(parent: HTMLElement): void {
 		this.notificationListContainer = DOM.append(parent, $('.notifications-list-container'));
 		const notificationRenderer = new NotificationItemRenderer(this, this.instantiationService);
-		this.notificationList = this._register(this.instantiationService.createInstance(WorkbenchList, 'notification.entry.template', this.notificationListContainer, new Delegate(), [notificationRenderer], {
+		this.notificationList = this._register(this.instantiationService.createInstance(WorkbenchList, NOTIFICATION_TEMPLATE_ID, this.notificationListContainer, new Delegate(), [notificationRenderer], {
 			identityProvider: { getId: (e: IListEntry) => e.id },
 			setRowLineHeight: false,
 			horizontalScrolling: false,
@@ -267,8 +253,8 @@ export class NotificationsEditor extends EditorPane implements INotificationsEdi
 		return index;
 	}
 
-	private selectEntry(entry: INotificationItemEntry | number, focus: boolean = true): void {
-		const index = typeof entry === 'number' ? entry : this.getIndexOf(entry);
+	private selectEntry(notification: INotificationItem | number, focus: boolean = true): void {
+		const index = typeof notification === 'number' ? notification : this.getIndexOf(notification);
 		if (index !== -1) {
 			if (focus) {
 				this.notificationList.getHTMLElement().focus();
@@ -284,8 +270,8 @@ export class NotificationsEditor extends EditorPane implements INotificationsEdi
 		this.notificationList.setFocus([currentFocusIndices.length ? currentFocusIndices[0] : 0]);
 	}
 
-	selectNotification(entry: INotificationItemEntry): void {
-		this.selectEntry(entry);
+	selectNotification(notification: INotificationItem): void {
+		this.selectEntry(notification);
 	}
 
 	private onContextMenu(e: IListContextMenuEvent<IListEntry>): void {
@@ -293,10 +279,8 @@ export class NotificationsEditor extends EditorPane implements INotificationsEdi
 			return;
 		}
 
-		if (e.element.templateId === NOTIFICATION_ENTRY_TEMPLATE_ID) {
-			const entry = <INotificationItemEntry>e.element;
-			this.selectEntry(entry);
-		}
+		const notification = <INotificationItem>e.element;
+		this.selectEntry(notification);
 	}
 }
 
@@ -319,7 +303,7 @@ interface NotificationItemTemplate {
 
 class NotificationItemRenderer implements IListRenderer<INotificationItem, NotificationItemTemplate> {
 
-	get templateId(): string { return NOTIFICATION_ENTRY_TEMPLATE_ID; }
+	get templateId(): string { return NOTIFICATION_TEMPLATE_ID; }
 
 	constructor(
 		private notificationsEditor: NotificationsEditor,
@@ -363,7 +347,7 @@ abstract class Column extends Disposable {
 	static COUNTER = 0;
 
 	abstract readonly element: HTMLElement;
-	abstract render(entry: INotificationItem): void;
+	abstract render(notification: INotificationItem): void;
 
 	constructor(protected notificationsEditor: INotificationsEditorPane) {
 		super();
@@ -372,27 +356,32 @@ abstract class Column extends Disposable {
 
 class NeverShowAgainColumn extends Column {
 
-	private readonly checkbox: Checkbox;
+	private readonly checkbox: Checkbox = new Checkbox({ icon: Codicon.check, actionClassName: 'never-show-again-checkbox', isChecked: true, title: '', inputActiveOptionBorder: undefined });
 	readonly element: HTMLElement;
-	private readonly renderDisposables = this._register(new DisposableStore());
+
 
 	constructor(
 		parent: HTMLElement,
 		notificationsEditor: INotificationsEditorPane,
-		@IThemeService private readonly themeService: IThemeService,
-		@IInstantiationService private readonly instantiationService: InstantiationService
+		@IStorageService private readonly storageService: IStorageService
 	) {
 		super(notificationsEditor);
 		this.element = DOM.append(parent, $('.column.neverShowAgain', { id: 'neverShowAgain_' + ++Column.COUNTER }));
-		const opts: ICheckboxOpts = { title: 'Never Show Again', isChecked: true };
-		this.checkbox = this.instantiationService.createInstance(Checkbox, opts);
-		this._register(attachInputBoxStyler(this.checkbox, this.themeService));
 	}
 
 	render(notificationItem: INotificationItem): void {
-		this.renderDisposables.clear();
-		DOM.clearNode(this.element);
-		DOM.append(this.element);
+		const toDispose = new DisposableStore();
+		this.element.appendChild(this.checkbox.domNode);
+		toDispose.add(this.checkbox);
+		toDispose.add(this.checkbox.onChange(() => {
+			if (!this.checkbox.checked) {
+				// delete this row?
+				// unnecessary if there is a change listener on these that
+				// runs render of the notificationsEditor
+			}
+			this.storageService.store(notificationItem.id, this.checkbox.checked, StorageScope.GLOBAL, StorageTarget.USER);
+			this.checkbox.domNode.classList.toggle('codicon-check');
+		}));
 	}
 
 	dispose(): void {
@@ -405,7 +394,6 @@ class LabelColumn extends Column {
 
 	private readonly label: HTMLElement;
 	readonly element: HTMLElement;
-	private readonly renderDisposables = this._register(new DisposableStore());
 
 	constructor(
 		parent: HTMLElement,
@@ -417,13 +405,11 @@ class LabelColumn extends Column {
 	}
 
 	render(notificationItem: INotificationItem): void {
-		this.renderDisposables.clear();
-		DOM.clearNode(this.label);
-		this.label.classList.toggle('code', !notificationItem.when);
-		const whenLabel = new HighlightedLabel(this.label, false);
-		whenLabel.set(notificationItem.when);
-		this.element.title = notificationItem.when;
-		whenLabel.element.title = notificationItem.when;
+		this.label.classList.toggle('code', !notificationItem.label);
+		const label = new HighlightedLabel(this.label, false);
+		label.set(notificationItem.label);
+		this.element.title = notificationItem.label;
+		label.element.title = notificationItem.label;
 	}
 }
 
@@ -450,16 +436,16 @@ class WhenColumn extends Column {
 	}
 }
 
-class AccessibilityProvider implements IListAccessibilityProvider<INotificationItemEntry> {
+class AccessibilityProvider implements IListAccessibilityProvider<INotificationItem> {
 
 	getWidgetAriaLabel(): string {
 		return localize('notificationsLabel', "Notifications");
 	}
 
-	getAriaLabel(entry: INotificationItemEntry): string {
-		let ariaLabel = entry.notificationItem.neverShowAgain
-			+ ', ' + entry.notificationItem.label
-			+ ', ' + entry.notificationItem.when;
+	getAriaLabel(notification: INotificationItem): string {
+		let ariaLabel = 'never show again'
+			+ ', ' + notification.label
+			+ ', ' + notification.when;
 		return ariaLabel;
 	}
 }
@@ -516,17 +502,17 @@ registerThemingParticipant((theme: IColorTheme, collector: ICssStyleCollector) =
 	}
 
 	if (listActiveSelectionForegroundColor) {
-		collector.addRule(`.notifications-editor > .notifications-body > .notifications-list-container .monaco-list:focus .monaco-list-row.selected.focused > .column .monaco-keybinding-key { color: ${listActiveSelectionForegroundColor}; }`);
-		collector.addRule(`.notifications-editor > .notifications-body > .notifications-list-container .monaco-list:focus .monaco-list-row.selected > .column .monaco-keybinding-key { color: ${listActiveSelectionForegroundColor}; }`);
+		collector.addRule(`.notifications-editor > .notifications-body > .notifications-list-container .monaco-list:focus .monaco-list-row.selected.focused > .column .monaco-notification-key { color: ${listActiveSelectionForegroundColor}; }`);
+		collector.addRule(`.notifications-editor > .notifications-body > .notifications-list-container .monaco-list:focus .monaco-list-row.selected > .column .monaco-notification-key { color: ${listActiveSelectionForegroundColor}; }`);
 	}
 	const listInactiveFocusAndSelectionForegroundColor = theme.getColor(listInactiveSelectionForeground);
 	if (listInactiveFocusAndSelectionForegroundColor) {
-		collector.addRule(`.notifications-editor > .notifications-body > .notifications-list-container .monaco-list .monaco-list-row.selected > .column .monaco-keybinding-key { color: ${listInactiveFocusAndSelectionForegroundColor}; }`);
+		collector.addRule(`.notifications-editor > .notifications-body > .notifications-list-container .monaco-list .monaco-list-row.selected > .column .monaco-notification-key { color: ${listInactiveFocusAndSelectionForegroundColor}; }`);
 	}
 	if (listHoverForegroundColor) {
-		collector.addRule(`.notifications-editor > .notifications-body > .notifications-list-container .monaco-list .monaco-list-row:hover:not(.selected):not(.focused) > .column .monaco-keybinding-key { color: ${listHoverForegroundColor}; }`);
+		collector.addRule(`.notifications-editor > .notifications-body > .notifications-list-container .monaco-list .monaco-list-row:hover:not(.selected):not(.focused) > .column .monaco-notification-key { color: ${listHoverForegroundColor}; }`);
 	}
 	if (listFocusForegroundColor) {
-		collector.addRule(`.notifications-editor > .notifications-body > .notifications-list-container .monaco-list .monaco-list-row.focused > .column .monaco-keybinding-key { color: ${listFocusForegroundColor}; }`);
+		collector.addRule(`.notifications-editor > .notifications-body > .notifications-list-container .monaco-list .monaco-list-row.focused > .column .monaco-notification-key { color: ${listFocusForegroundColor}; }`);
 	}
 });

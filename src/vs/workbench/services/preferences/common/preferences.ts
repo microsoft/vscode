@@ -281,33 +281,6 @@ export interface IKeybindingItem {
 	source: string;
 	when: string;
 }
-export interface INotificationItemEntry extends IListEntry {
-	notificationItem: INotificationItem;
-	notificationIdMatches?: IMatch[];
-	notificationLabelMatches?: IMatch[];
-	whenMatches?: IMatch[];
-}
-
-export interface INotificationItem {
-	neverShowAgain: boolean;
-	label: string;
-	id: string;
-	when: string;
-}
-
-export interface INotificationsEditorPane extends IEditorPane {
-
-	readonly activeNotificationEntry: INotificationItemEntry | null;
-	readonly onDefineWhenExpression: Event<IKeybindingItemEntry>;
-	readonly onLayout: Event<void>;
-
-	search(filter: string): void;
-	focusSearch(): void;
-	clearSearchResults(): void;
-	focusNotifications(): void;
-	showNotificationAgain(notificationEntry: INotificationItemEntry): void;
-}
-
 export interface IKeybindingsEditorPane extends IEditorPane {
 
 	readonly activeKeybindingEntry: IKeybindingItemEntry | null;

@@ -12,10 +12,10 @@ import { IDisposable } from 'vs/base/common/lifecycle';
 export import Severity = BaseSeverity;
 
 export interface INotificationItem {
-	neverShowAgain: boolean;
 	label: string;
 	id: string;
 	when: string;
+	templateId: 'notification.template';
 }
 
 export const INotificationService = createDecorator<INotificationService>('notificationService');
