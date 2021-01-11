@@ -5,6 +5,60 @@
 
 /*eslint-env mocha*/
 
+(function() {
+	const fs = require('fs');
+	const originals = {};
+	let logging = false;
+	let withStacks = false;
+
+	self.beginLoggingFS = (withStacks) => {
+		logging = true;
+		withStacks = withStacks || false;
+	};
+	self.endLoggingFS = () => {
+		logging = false;
+		withStacks = false;
+	};
+
+	function createSpy(element, cnt) {
+		return function(...args) {
+			if (logging) {
+				console.log(`calling ${element}: ` + args.slice(0, cnt).join(',') + (withStacks ? (`\n` + new Error().stack.split('\n').slice(2).join('\n')) : ''));
+			}
+			return originals[element].call(this, ...args);
+		};
+	}
+
+	function intercept(element, cnt) {
+		originals[element] = fs[element];
+		fs[element] = createSpy(element, cnt);
+	}
+
+	[
+		['realpathSync', 1],
+		['readFileSync', 1],
+		['openSync', 3],
+		['readSync', 1],
+		['closeSync', 1],
+		['readFile', 2],
+		['mkdir', 1],
+		['lstat', 1],
+		['stat', 1],
+		['watch', 1],
+		['readdir', 1],
+		['access', 2],
+		['open', 2],
+		['write', 1],
+		['fdatasync', 1],
+		['close', 1],
+		['read', 1],
+		['unlink', 1],
+		['rmdir', 1],
+	].forEach((element) => {
+		intercept(element[0], element[1]);
+	})
+})();
+
 const { ipcRenderer } = require('electron');
 const assert = require('assert');
 const path = require('path');

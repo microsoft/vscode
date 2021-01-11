@@ -71,7 +71,7 @@ suite('ModelService', () => {
 				'and finished with the fourth.', //29
 			].join('\n'),
 			DefaultEndOfLine.LF
-		);
+		).textBuffer;
 
 		const actual = ModelServiceImpl._computeEdits(model, textBuffer);
 
@@ -97,7 +97,7 @@ suite('ModelService', () => {
 				'and finished with the fourth.', //29
 			].join('\n'),
 			DefaultEndOfLine.LF
-		);
+		).textBuffer;
 
 		const actual = ModelServiceImpl._computeEdits(model, textBuffer);
 
@@ -125,7 +125,7 @@ suite('ModelService', () => {
 				'and finished with the fourth.', //29
 			].join('\r\n'),
 			DefaultEndOfLine.LF
-		);
+		).textBuffer;
 
 		const actual = ModelServiceImpl._computeEdits(model, textBuffer);
 
@@ -151,7 +151,7 @@ suite('ModelService', () => {
 				'and finished with the fourth.', //29
 			].join('\r\n'),
 			DefaultEndOfLine.LF
-		);
+		).textBuffer;
 
 		const actual = ModelServiceImpl._computeEdits(model, textBuffer);
 
@@ -186,7 +186,7 @@ suite('ModelService', () => {
 				''
 			].join('\r\n'),
 			DefaultEndOfLine.LF
-		);
+		).textBuffer;
 
 		const actual = ModelServiceImpl._computeEdits(model, textBuffer);
 
@@ -380,7 +380,7 @@ suite('ModelService', () => {
 
 function assertComputeEdits(lines1: string[], lines2: string[]): void {
 	const model = createTextModel(lines1.join('\n'));
-	const textBuffer = createTextBuffer(lines2.join('\n'), DefaultEndOfLine.LF);
+	const textBuffer = createTextBuffer(lines2.join('\n'), DefaultEndOfLine.LF).textBuffer;
 
 	// compute required edits
 	// let start = Date.now();

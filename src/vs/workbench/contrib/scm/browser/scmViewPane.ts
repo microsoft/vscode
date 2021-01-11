@@ -1091,7 +1091,7 @@ class ViewModel {
 		}
 
 		if (this.alwaysShowRepositories || this.scmViewService.visibleRepositories.length !== 1) {
-			return this.viewSubMenuAction.actions;
+			return this.viewSubMenuAction.actions.slice(0);
 		}
 
 		const menus = this.scmViewService.menus.getRepositoryMenus(this.scmViewService.visibleRepositories[0].provider);
@@ -1170,7 +1170,9 @@ class SCMViewRepositoriesSubMenuAction extends SubmenuAction {
 	}
 }
 
-class SCMViewSubMenuAction extends SubmenuAction {
+class SCMViewSubMenuAction extends SubmenuAction implements IDisposable {
+
+	private disposable: IDisposable;
 
 	constructor(
 		viewModel: ViewModel,
@@ -1195,7 +1197,11 @@ class SCMViewSubMenuAction extends SubmenuAction {
 			actions
 		);
 
-		this._register(combinedDisposable(listAction, treeAction, sortByNameAction, sortByPathAction, sortByStatusAction));
+		this.disposable = combinedDisposable(listAction, treeAction, sortByNameAction, sortByPathAction, sortByStatusAction);
+	}
+
+	dispose(): void {
+		this.disposable.dispose();
 	}
 }
 

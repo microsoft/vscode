@@ -9,7 +9,6 @@ import { FileService } from 'vs/platform/files/common/fileService';
 import { Schemas } from 'vs/base/common/network';
 import { DiskFileSystemProvider } from 'vs/platform/files/node/diskFileSystemProvider';
 import { flakySuite, getRandomTestPath } from 'vs/base/test/node/testUtils';
-import { generateUuid } from 'vs/base/common/uuid';
 import { join, basename, dirname, posix } from 'vs/base/common/path';
 import { getPathFromAmdModule } from 'vs/base/common/amd';
 import { copy, rimraf, symlink, rimrafSync } from 'vs/base/node/pfs';
@@ -120,12 +119,12 @@ export class TestDiskFileSystemProvider extends DiskFileSystemProvider {
 
 flakySuite('Disk File Service', function () {
 
-	const parentDir = getRandomTestPath(tmpdir(), 'vsctests', 'diskfileservice');
 	const testSchema = 'test';
 
 	let service: FileService;
 	let fileProvider: TestDiskFileSystemProvider;
 	let testProvider: TestDiskFileSystemProvider;
+
 	let testDir: string;
 
 	const disposables = new DisposableStore();
@@ -144,17 +143,17 @@ flakySuite('Disk File Service', function () {
 		disposables.add(service.registerProvider(testSchema, testProvider));
 		disposables.add(testProvider);
 
-		const id = generateUuid();
-		testDir = join(parentDir, id);
+		testDir = getRandomTestPath(tmpdir(), 'vsctests', 'diskfileservice');
+
 		const sourceDir = getPathFromAmdModule(require, './fixtures/service');
 
 		await copy(sourceDir, testDir);
 	});
 
-	teardown(async () => {
+	teardown(() => {
 		disposables.clear();
 
-		await rimraf(parentDir);
+		return rimraf(testDir);
 	});
 
 	test('createFolder', async () => {

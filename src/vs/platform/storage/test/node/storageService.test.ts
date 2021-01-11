@@ -6,8 +6,6 @@
 import { equal } from 'assert';
 import { StorageScope, StorageTarget } from 'vs/platform/storage/common/storage';
 import { NativeStorageService } from 'vs/platform/storage/node/storageService';
-import { generateUuid } from 'vs/base/common/uuid';
-import { join } from 'vs/base/common/path';
 import { tmpdir } from 'os';
 import { mkdirp, rimraf } from 'vs/base/node/pfs';
 import { NullLogService } from 'vs/platform/log/common/log';
@@ -15,15 +13,9 @@ import { NativeEnvironmentService } from 'vs/platform/environment/node/environme
 import { parseArgs, OPTIONS } from 'vs/platform/environment/node/argv';
 import { InMemoryStorageDatabase } from 'vs/base/parts/storage/common/storage';
 import { URI } from 'vs/base/common/uri';
-import { flakySuite } from 'vs/base/test/node/testUtils';
+import { flakySuite, getRandomTestPath } from 'vs/base/test/node/testUtils';
 
 flakySuite('NativeStorageService', function () {
-
-	function uniqueStorageDir(): string {
-		const id = generateUuid();
-
-		return join(tmpdir(), 'vsctests', id, 'storage2', id);
-	}
 
 	test('Migrate Data', async function () {
 
@@ -42,7 +34,7 @@ flakySuite('NativeStorageService', function () {
 			}
 		}
 
-		const storageDir = uniqueStorageDir();
+		const storageDir = getRandomTestPath(tmpdir(), 'vsctests', 'storageservice');
 		await mkdirp(storageDir);
 
 		const storage = new NativeStorageService(new InMemoryStorageDatabase(), new NullLogService(), new StorageTestEnvironmentService(URI.file(storageDir), storageDir));
