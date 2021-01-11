@@ -24,7 +24,7 @@ import { IDisposable, dispose, DisposableStore, combinedDisposable, MutableDispo
 import { ScrollableElement } from 'vs/base/browser/ui/scrollbar/scrollableElement';
 import { ScrollbarVisibility } from 'vs/base/common/scrollable';
 import { getOrSet } from 'vs/base/common/map';
-import { IThemeService, registerThemingParticipant, IColorTheme, ICssStyleCollector } from 'vs/platform/theme/common/themeService';
+import { IThemeService, registerThemingParticipant } from 'vs/platform/theme/common/themeService';
 import { TAB_INACTIVE_BACKGROUND, TAB_ACTIVE_BACKGROUND, TAB_ACTIVE_FOREGROUND, TAB_INACTIVE_FOREGROUND, TAB_BORDER, EDITOR_DRAG_AND_DROP_BACKGROUND, TAB_UNFOCUSED_ACTIVE_FOREGROUND, TAB_UNFOCUSED_INACTIVE_FOREGROUND, TAB_UNFOCUSED_ACTIVE_BACKGROUND, TAB_UNFOCUSED_ACTIVE_BORDER, TAB_ACTIVE_BORDER, TAB_HOVER_BACKGROUND, TAB_HOVER_BORDER, TAB_UNFOCUSED_HOVER_BACKGROUND, TAB_UNFOCUSED_HOVER_BORDER, EDITOR_GROUP_HEADER_TABS_BACKGROUND, WORKBENCH_BACKGROUND, TAB_ACTIVE_BORDER_TOP, TAB_UNFOCUSED_ACTIVE_BORDER_TOP, TAB_ACTIVE_MODIFIED_BORDER, TAB_INACTIVE_MODIFIED_BORDER, TAB_UNFOCUSED_ACTIVE_MODIFIED_BORDER, TAB_UNFOCUSED_INACTIVE_MODIFIED_BORDER, TAB_UNFOCUSED_INACTIVE_BACKGROUND, TAB_HOVER_FOREGROUND, TAB_UNFOCUSED_HOVER_FOREGROUND, EDITOR_GROUP_HEADER_TABS_BORDER, TAB_LAST_PINNED_BORDER } from 'vs/workbench/common/theme';
 import { activeContrastBorder, contrastBorder, editorBackground, breadcrumbsBackground } from 'vs/platform/theme/common/colorRegistry';
 import { ResourcesDropHandler, DraggedEditorIdentifier, DraggedEditorGroupIdentifier, DragAndDropObserver } from 'vs/workbench/browser/dnd';
@@ -255,7 +255,7 @@ export class TabsTitleControl extends TitleControl {
 		});
 
 		// Prevent auto-scrolling (https://github.com/microsoft/vscode/issues/16690)
-		this._register(addDisposableListener(tabsContainer, EventType.MOUSE_DOWN, (e: MouseEvent) => {
+		this._register(addDisposableListener(tabsContainer, EventType.MOUSE_DOWN, e => {
 			if (e.button === 1) {
 				e.preventDefault();
 			}
@@ -689,7 +689,7 @@ export class TabsTitleControl extends TitleControl {
 		};
 
 		// Open on Click / Touch
-		disposables.add(addDisposableListener(tab, EventType.MOUSE_DOWN, (e: MouseEvent) => handleClickOrTouch(e)));
+		disposables.add(addDisposableListener(tab, EventType.MOUSE_DOWN, e => handleClickOrTouch(e)));
 		disposables.add(addDisposableListener(tab, TouchEventType.Tap, (e: GestureEvent) => handleClickOrTouch(e)));
 
 		// Touch Scroll Support
@@ -698,14 +698,14 @@ export class TabsTitleControl extends TitleControl {
 		}));
 
 		// Prevent flicker of focus outline on tab until editor got focus
-		disposables.add(addDisposableListener(tab, EventType.MOUSE_UP, (e: MouseEvent) => {
+		disposables.add(addDisposableListener(tab, EventType.MOUSE_UP, e => {
 			EventHelper.stop(e);
 
 			tab.blur();
 		}));
 
 		// Close on mouse middle click
-		disposables.add(addDisposableListener(tab, EventType.AUXCLICK, (e: MouseEvent) => {
+		disposables.add(addDisposableListener(tab, EventType.AUXCLICK, e => {
 			if (e.button === 1 /* Middle Button*/) {
 				EventHelper.stop(e, true /* for https://github.com/microsoft/vscode/issues/56715 */);
 
@@ -715,7 +715,7 @@ export class TabsTitleControl extends TitleControl {
 		}));
 
 		// Context menu on Shift+F10
-		disposables.add(addDisposableListener(tab, EventType.KEY_DOWN, (e: KeyboardEvent) => {
+		disposables.add(addDisposableListener(tab, EventType.KEY_DOWN, e => {
 			const event = new StandardKeyboardEvent(e);
 			if (event.shiftKey && event.keyCode === KeyCode.F10) {
 				showContextMenu(e);
@@ -728,7 +728,7 @@ export class TabsTitleControl extends TitleControl {
 		}));
 
 		// Keyboard accessibility
-		disposables.add(addDisposableListener(tab, EventType.KEY_UP, (e: KeyboardEvent) => {
+		disposables.add(addDisposableListener(tab, EventType.KEY_UP, e => {
 			const event = new StandardKeyboardEvent(e);
 			let handled = false;
 
@@ -791,7 +791,7 @@ export class TabsTitleControl extends TitleControl {
 		});
 
 		// Context menu
-		disposables.add(addDisposableListener(tab, EventType.CONTEXT_MENU, (e: Event) => {
+		disposables.add(addDisposableListener(tab, EventType.CONTEXT_MENU, e => {
 			EventHelper.stop(e, true);
 
 			const input = this.group.getEditorByIndex(index);
@@ -801,7 +801,7 @@ export class TabsTitleControl extends TitleControl {
 		}, true /* use capture to fix https://github.com/microsoft/vscode/issues/19145 */));
 
 		// Drag support
-		disposables.add(addDisposableListener(tab, EventType.DRAG_START, (e: DragEvent) => {
+		disposables.add(addDisposableListener(tab, EventType.DRAG_START, e => {
 			const editor = this.group.getEditorByIndex(index);
 			if (!editor) {
 				return;
@@ -1322,7 +1322,12 @@ export class TabsTitleControl extends TitleControl {
 			});
 		}
 
-		return new Dimension(dimensions.container.width, this.getDimensions().height);
+		// First time layout: compute the dimensions and store it
+		if (!this.dimensions.used) {
+			this.dimensions.used = new Dimension(dimensions.container.width, this.getDimensions().height);
+		}
+
+		return this.dimensions.used;
 	}
 
 	private doLayout(dimensions: ITitleControlDimensions): void {
@@ -1339,18 +1344,17 @@ export class TabsTitleControl extends TitleControl {
 			this.doLayoutTabs(activeTab, activeIndex, dimensions);
 		}
 
-		// Compute new dimension of tabs title control and remember it for future usages
+		// Remember the dimensions used in the control so that we can
+		// return it fast from the `layout` call without having to
+		// compute it over and over again
 		const oldDimension = this.dimensions.used;
 		const newDimension = this.dimensions.used = new Dimension(dimensions.container.width, this.getDimensions().height);
 
 		// In case the height of the title control changed from before
-		// (currently only possible if tabs are set to wrap), we need
+		// (currently only possible if wrapping changed on/off), we need
 		// to signal this to the outside via a `relayout` call so that
 		// e.g. the editor control can be adjusted accordingly.
-		if (
-			this.accessor.partOptions.wrapTabs &&
-			oldDimension && oldDimension.height !== newDimension.height
-		) {
+		if (oldDimension && oldDimension.height !== newDimension.height) {
 			this.group.relayout();
 		}
 	}
@@ -1362,7 +1366,88 @@ export class TabsTitleControl extends TitleControl {
 	}
 
 	private doLayoutTabs(activeTab: HTMLElement, activeIndex: number, dimensions: ITitleControlDimensions): void {
-		const [tabsAndActionsContainer, tabsContainer, tabsScrollbar, editorToolbarContainer] = assertAllDefined(this.tabsAndActionsContainer, this.tabsContainer, this.tabsScrollbar, this.editorToolbarContainer);
+
+		// Always first layout tabs with wrapping support even if wrapping
+		// is disabled. The result indicates if tabs wrap and if not, we
+		// need to proceed with the layout without wrapping because even
+		// if wrapping is enabled in settings, there are cases where
+		// wrapping is disabled (e.g. due to space constraints)
+		const tabsWrapMultiLine = this.doLayoutTabsWrapping(dimensions);
+		if (!tabsWrapMultiLine) {
+			this.doLayoutTabsNonWrapping(activeTab, activeIndex);
+		}
+	}
+
+	private doLayoutTabsWrapping(dimensions: ITitleControlDimensions): boolean {
+		const [tabsAndActionsContainer, tabsContainer, editorToolbarContainer, tabsScrollbar] = assertAllDefined(this.tabsAndActionsContainer, this.tabsContainer, this.editorToolbarContainer, this.tabsScrollbar);
+
+		// Handle wrapping tabs according to setting:
+		// - enabled: only add class if tabs wrap and don't exceed available dimensions
+		// - disabled: remove class and margin-right variable
+
+		const didTabsWrapMultiLine = tabsAndActionsContainer.classList.contains('wrapping');
+		let tabsWrapMultiLine = didTabsWrapMultiLine;
+
+		function updateTabsWrapping(enabled: boolean): void {
+			tabsWrapMultiLine = enabled;
+
+			// Toggle the `wrapped` class to enable wrapping
+			tabsAndActionsContainer.classList.toggle('wrapping', tabsWrapMultiLine);
+
+			// Update `last-tab-margin-right` CSS variable to account for the absolute
+			// positioned editor actions container when tabs wrap. The margin needs to
+			// be the width of the editor actions container to avoid screen cheese.
+			tabsContainer.style.setProperty('--last-tab-margin-right', tabsWrapMultiLine ? `${editorToolbarContainer.offsetWidth}px` : '0');
+		}
+
+		// Setting enabled: selectively enable wrapping if possible
+		if (this.accessor.partOptions.wrapTabs) {
+			const visibleTabsWidth = tabsContainer.offsetWidth;
+			const allTabsWidth = tabsContainer.scrollWidth;
+
+			// If tabs wrap or should start to wrap (when width exceeds visible width)
+			// we must trigger `updateWrapping` to set the `last-tab-margin-right`
+			// accordingly based on the number of actions. The margin is important to
+			// properly position the last tab apart from the actions
+			if (tabsWrapMultiLine || allTabsWidth > visibleTabsWidth) {
+				updateTabsWrapping(true);
+			}
+
+			// Tabs wrap multiline: remove wrapping under certain size constraint conditions
+			if (tabsWrapMultiLine) {
+				const lastTab = this.getLastTab();
+				if (
+					(tabsContainer.offsetHeight > dimensions.available.height) ||											// if height exceeds available height
+					(allTabsWidth === visibleTabsWidth && tabsContainer.offsetHeight === TabsTitleControl.TAB_HEIGHT) ||	// if wrapping is not needed anymore
+					(lastTab && lastTab.offsetWidth > (dimensions.available.width - editorToolbarContainer.offsetWidth))	// if editor actions occupy too much space
+				) {
+					updateTabsWrapping(false);
+				}
+			}
+		}
+
+		// Setting disabled: remove CSS traces only if tabs did wrap
+		else if (didTabsWrapMultiLine) {
+			updateTabsWrapping(false);
+		}
+
+		// If we transitioned from non-wrapping to wrapping, we need
+		// to update the scrollbar to have an equal `width` and
+		// `scrollWidth`. Otherwise a scrollbar would appear which is
+		// never desired when wrapping.
+		if (tabsWrapMultiLine && !didTabsWrapMultiLine) {
+			const visibleTabsWidth = tabsContainer.offsetWidth;
+			tabsScrollbar.setScrollDimensions({
+				width: visibleTabsWidth,
+				scrollWidth: visibleTabsWidth
+			});
+		}
+
+		return tabsWrapMultiLine;
+	}
+
+	private doLayoutTabsNonWrapping(activeTab: HTMLElement, activeIndex: number): void {
+		const [tabsContainer, tabsScrollbar] = assertAllDefined(this.tabsContainer, this.tabsScrollbar);
 
 		//
 		// Synopsis
@@ -1380,7 +1465,7 @@ export class TabsTitleControl extends TitleControl {
 		// [-- Sticky Tabs Width --]
 		//
 
-		const visibleTabsContainerWidth = tabsContainer.offsetWidth;
+		const visibleTabsWidth = tabsContainer.offsetWidth;
 		const allTabsWidth = tabsContainer.scrollWidth;
 
 		// Compute width of sticky tabs depending on pinned tab sizing
@@ -1409,75 +1494,15 @@ export class TabsTitleControl extends TitleControl {
 		// Special case: we have sticky tabs but the available space for showing tabs
 		// is little enough that we need to disable sticky tabs sticky positioning
 		// so that tabs can be scrolled at naturally.
-		let availableTabsContainerWidth = visibleTabsContainerWidth - stickyTabsWidth;
+		let availableTabsContainerWidth = visibleTabsWidth - stickyTabsWidth;
 		if (this.group.stickyCount > 0 && availableTabsContainerWidth < TabsTitleControl.TAB_WIDTH.fit) {
 			tabsContainer.classList.add('disable-sticky-tabs');
 
-			availableTabsContainerWidth = visibleTabsContainerWidth;
+			availableTabsContainerWidth = visibleTabsWidth;
 			stickyTabsWidth = 0;
 			activeTabPositionStatic = false;
 		} else {
 			tabsContainer.classList.remove('disable-sticky-tabs');
-		}
-
-		// Handle wrapping tabs according to setting:
-		// - enabled: only add class if tabs wrap and don't exceed available dimensions
-		// - disabled: remove class
-		if (this.accessor.partOptions.wrapTabs) {
-			const oldTabsWrapMultiLine = tabsAndActionsContainer.classList.contains('wrapping');
-
-			// Tabs do not wrap multiline: add wrapping if tabs exceed the tabs container width
-			// and the height of the tabs container does not exceed the maximum
-			let tabsWrapMultiLine = oldTabsWrapMultiLine;
-			if (!tabsWrapMultiLine && allTabsWidth > visibleTabsContainerWidth) {
-				tabsAndActionsContainer.classList.add('wrapping');
-				tabsWrapMultiLine = true;
-			}
-
-			// Tabs wrap multiline: remove wrapping if height exceeds available height
-			if (tabsWrapMultiLine && tabsContainer.offsetHeight > dimensions.available.height) {
-				tabsAndActionsContainer.classList.remove('wrapping');
-				tabsWrapMultiLine = false;
-			}
-
-			// If we do not exceed the tabs container width, we cannot simply remove
-			// the wrap class because by wrapping tabs, they reduce their size
-			// and we would otherwise constantly add and remove the class. As such
-			// we need to check if the height of the tabs container is back to normal
-			// and then remove the wrap class.
-			if (tabsWrapMultiLine && allTabsWidth === visibleTabsContainerWidth && tabsContainer.offsetHeight === TabsTitleControl.TAB_HEIGHT) {
-				tabsAndActionsContainer.classList.remove('wrapping');
-				tabsWrapMultiLine = false;
-			}
-
-			// Update `last-tab-margin-right` CSS variable to account for the absolute
-			// positioned editor actions container when tabs wrap. The margin needs to
-			// be the width of the editor actions container to avoid screen cheese.
-			tabsContainer.style.setProperty('--last-tab-margin-right', tabsWrapMultiLine ? `${editorToolbarContainer.offsetWidth}px` : '0');
-
-			// We need to disable wrapping also in case the last tab requires more
-			// width than what is available accounting for the available width and
-			// the editor toolbar.
-			// Workaround for https://github.com/microsoft/vscode/issues/113926
-			// An overall better fix is to make the editor toolbar a "fake" last tab
-			// so that it requires the space it needs, potentially wrapping to the
-			// next line (see https://github.com/microsoft/vscode/issues/113801)
-			const lastTab = this.getLastTab();
-			if (tabsWrapMultiLine && lastTab && lastTab.offsetWidth > (dimensions.available.width - editorToolbarContainer.offsetWidth)) {
-				tabsAndActionsContainer.classList.remove('wrapping');
-				tabsWrapMultiLine = false;
-				tabsContainer.style.setProperty('--last-tab-margin-right', '0');
-			}
-
-			// When tabs change from wrapping back to normal, we need to indicate this
-			// to the scrollbar so that revealing the active tab functions properly.
-			if (oldTabsWrapMultiLine && !tabsWrapMultiLine) {
-				tabsScrollbar.setScrollPosition({
-					scrollLeft: tabsContainer.scrollLeft
-				});
-			}
-		} else {
-			tabsAndActionsContainer.classList.remove('wrapping');
 		}
 
 		let activeTabPosX: number | undefined;
@@ -1490,7 +1515,7 @@ export class TabsTitleControl extends TitleControl {
 
 		// Update scrollbar
 		tabsScrollbar.setScrollDimensions({
-			width: visibleTabsContainerWidth,
+			width: visibleTabsWidth,
 			scrollWidth: allTabsWidth
 		});
 
@@ -1672,7 +1697,7 @@ export class TabsTitleControl extends TitleControl {
 	}
 }
 
-registerThemingParticipant((theme: IColorTheme, collector: ICssStyleCollector) => {
+registerThemingParticipant((theme, collector) => {
 
 	// Add border between tabs and breadcrumbs in high contrast mode.
 	if (theme.type === ColorScheme.HIGH_CONTRAST) {

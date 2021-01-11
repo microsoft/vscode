@@ -260,7 +260,7 @@ flakySuite('BackupMainService', () => {
 		assert.equal(1, fs.readdirSync(path.join(backupHome, emptyBackups[0].backupFolder!)).length);
 	});
 
-	flakySuite('loadSync', () => {
+	suite('loadSync', () => {
 		test('getFolderBackupPaths() should return [] when workspaces.json doesn\'t exist', () => {
 			assertEqualUris(service.getFolderBackupPaths(), []);
 		});
@@ -430,7 +430,7 @@ flakySuite('BackupMainService', () => {
 		});
 	});
 
-	flakySuite('dedupeFolderWorkspaces', () => {
+	suite('dedupeFolderWorkspaces', () => {
 		test('should ignore duplicates (folder workspace)', async () => {
 
 			await ensureFolderExists(existingTestFolder1);
@@ -493,7 +493,7 @@ flakySuite('BackupMainService', () => {
 		});
 	});
 
-	flakySuite('registerWindowForBackups', () => {
+	suite('registerWindowForBackups', () => {
 		test('should persist paths to workspaces.json (folder workspace)', async () => {
 			service.registerFolderBackupSync(fooFile);
 			service.registerFolderBackupSync(barFile);
@@ -541,7 +541,7 @@ flakySuite('BackupMainService', () => {
 		assert.deepEqual(json.rootURIWorkspaces.map(b => b.configURIPath), [URI.file(upperFooPath).toString()]);
 	});
 
-	flakySuite('removeBackupPathSync', () => {
+	suite('removeBackupPathSync', () => {
 		test('should remove folder workspaces from workspaces.json (folder workspace)', async () => {
 			service.registerFolderBackupSync(fooFile);
 			service.registerFolderBackupSync(barFile);
@@ -604,8 +604,7 @@ flakySuite('BackupMainService', () => {
 		});
 	});
 
-	flakySuite('getWorkspaceHash', () => {
-
+	suite('getWorkspaceHash', () => {
 		(platform.isLinux ? test.skip : test)('should ignore case on Windows and Mac', () => {
 			if (platform.isMacintosh) {
 				assert.equal(service.getFolderHash(URI.file('/foo')), service.getFolderHash(URI.file('/FOO')));
@@ -617,7 +616,7 @@ flakySuite('BackupMainService', () => {
 		});
 	});
 
-	flakySuite('mixed path casing', () => {
+	suite('mixed path casing', () => {
 		test('should handle case insensitive paths properly (registerWindowForBackupsSync) (folder workspace)', () => {
 			service.registerFolderBackupSync(fooFile);
 			service.registerFolderBackupSync(URI.file(fooFile.fsPath.toUpperCase()));
@@ -659,7 +658,7 @@ flakySuite('BackupMainService', () => {
 		});
 	});
 
-	flakySuite('getDirtyWorkspaces', () => {
+	suite('getDirtyWorkspaces', () => {
 		test('should report if a workspace or folder has backups', async () => {
 			const folderBackupPath = service.registerFolderBackupSync(fooFile);
 

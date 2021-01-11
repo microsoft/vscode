@@ -7,7 +7,7 @@ import * as assert from 'assert';
 import 'mocha';
 import * as os from 'os';
 import * as vscode from 'vscode';
-import { closeAllEditors, delay, disposeAll, flakySuite } from '../utils';
+import { closeAllEditors, delay, disposeAll } from '../utils';
 
 const webviewId = 'myWebview';
 
@@ -17,7 +17,7 @@ function workspaceFile(...segments: string[]) {
 
 const testDocument = workspaceFile('bower.json');
 
-flakySuite('vscode API - webview', () => {
+suite.skip('vscode API - webview', () => {
 	const disposables: vscode.Disposable[] = [];
 
 	function _register<T extends vscode.Disposable>(disposable: T) {
@@ -212,7 +212,7 @@ flakySuite('vscode API - webview', () => {
 		assert.strictEqual(Math.round(secondResponse.value), 100);
 	});
 
-	test('webviews with retainContextWhenHidden should be able to receive messages while hidden', async () => {
+	test('webviews with retainContextWhenHidden should be able to recive messages while hidden', async () => {
 		const webview = _register(vscode.window.createWebviewPanel(webviewId, 'title', { viewColumn: vscode.ViewColumn.One }, { enableScripts: true, retainContextWhenHidden: true }));
 		const ready = getMesssage(webview);
 

@@ -11,11 +11,12 @@ import { FileStorage } from 'vs/platform/state/node/stateService';
 import { mkdirp, rimraf, writeFileSync } from 'vs/base/node/pfs';
 
 flakySuite('StateService', () => {
-	const parentDir = getRandomTestPath(os.tmpdir(), 'vsctests', 'stateservice');
-	const storageFile = path.join(parentDir, 'storage.json');
 
 	test('Basics', async function () {
+		const parentDir = getRandomTestPath(os.tmpdir(), 'vsctests', 'stateservice');
 		await mkdirp(parentDir);
+
+		const storageFile = path.join(parentDir, 'storage.json');
 		writeFileSync(storageFile, '');
 
 		let service = new FileStorage(storageFile, () => null);

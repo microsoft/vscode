@@ -14,13 +14,13 @@ import { getPathFromAmdModule } from 'vs/base/common/amd';
 import { isWindows } from 'vs/base/common/platform';
 import { canNormalize } from 'vs/base/common/normalization';
 import { VSBuffer } from 'vs/base/common/buffer';
-import { flakySuite } from 'vs/base/test/node/testUtils';
+import { flakySuite, getRandomTestPath } from 'vs/base/test/node/testUtils';
 
 flakySuite('PFS', function () {
 
 	test('writeFile', async () => {
+		const parentDir = getRandomTestPath(os.tmpdir(), 'vsctests', 'pfs');
 		const id = uuid.generateUuid();
-		const parentDir = path.join(os.tmpdir(), 'vsctests', id);
 		const newDir = path.join(parentDir, 'pfs', id);
 		const testFile = path.join(newDir, 'writefile.txt');
 
@@ -34,8 +34,8 @@ flakySuite('PFS', function () {
 	});
 
 	test('writeFile - parallel write on different files works', async () => {
+		const parentDir = getRandomTestPath(os.tmpdir(), 'vsctests', 'pfs');
 		const id = uuid.generateUuid();
-		const parentDir = path.join(os.tmpdir(), 'vsctests', id);
 		const newDir = path.join(parentDir, 'pfs', id);
 		const testFile1 = path.join(newDir, 'writefile1.txt');
 		const testFile2 = path.join(newDir, 'writefile2.txt');
@@ -63,8 +63,8 @@ flakySuite('PFS', function () {
 	});
 
 	test('writeFile - parallel write on same files works and is sequentalized', async () => {
+		const parentDir = getRandomTestPath(os.tmpdir(), 'vsctests', 'pfs');
 		const id = uuid.generateUuid();
-		const parentDir = path.join(os.tmpdir(), 'vsctests', id);
 		const newDir = path.join(parentDir, 'pfs', id);
 		const testFile = path.join(newDir, 'writefile.txt');
 
@@ -84,8 +84,8 @@ flakySuite('PFS', function () {
 	});
 
 	test('rimraf - simple - unlink', async () => {
+		const parentDir = getRandomTestPath(os.tmpdir(), 'vsctests', 'pfs');
 		const id = uuid.generateUuid();
-		const parentDir = path.join(os.tmpdir(), 'vsctests', id);
 		const newDir = path.join(parentDir, 'pfs', id);
 
 		await pfs.mkdirp(newDir, 493);
@@ -97,8 +97,8 @@ flakySuite('PFS', function () {
 	});
 
 	test('rimraf - simple - move', async () => {
+		const parentDir = getRandomTestPath(os.tmpdir(), 'vsctests', 'pfs');
 		const id = uuid.generateUuid();
-		const parentDir = path.join(os.tmpdir(), 'vsctests', id);
 		const newDir = path.join(parentDir, 'pfs', id);
 
 		await pfs.mkdirp(newDir, 493);
@@ -110,8 +110,8 @@ flakySuite('PFS', function () {
 	});
 
 	test('rimraf - recursive folder structure - unlink', async () => {
+		const parentDir = getRandomTestPath(os.tmpdir(), 'vsctests', 'pfs');
 		const id = uuid.generateUuid();
-		const parentDir = path.join(os.tmpdir(), 'vsctests', id);
 		const newDir = path.join(parentDir, 'pfs', id);
 
 		await pfs.mkdirp(newDir, 493);
@@ -125,8 +125,8 @@ flakySuite('PFS', function () {
 	});
 
 	test('rimraf - recursive folder structure - move', async () => {
+		const parentDir = getRandomTestPath(os.tmpdir(), 'vsctests', 'pfs');
 		const id = uuid.generateUuid();
-		const parentDir = path.join(os.tmpdir(), 'vsctests', id);
 		const newDir = path.join(parentDir, 'pfs', id);
 
 		await pfs.mkdirp(newDir, 493);
@@ -140,8 +140,8 @@ flakySuite('PFS', function () {
 	});
 
 	test('rimraf - simple ends with dot - move', async () => {
+		const parentDir = getRandomTestPath(os.tmpdir(), 'vsctests', 'pfs');
 		const id = `${uuid.generateUuid()}.`;
-		const parentDir = path.join(os.tmpdir(), 'vsctests', id);
 		const newDir = path.join(parentDir, 'pfs', id);
 
 		await pfs.mkdirp(newDir, 493);
@@ -153,8 +153,8 @@ flakySuite('PFS', function () {
 	});
 
 	test('rimraf - simple ends with dot slash/backslash - move', async () => {
+		const parentDir = getRandomTestPath(os.tmpdir(), 'vsctests', 'pfs');
 		const id = `${uuid.generateUuid()}.`;
-		const parentDir = path.join(os.tmpdir(), 'vsctests', id);
 		const newDir = path.join(parentDir, 'pfs', id);
 
 		await pfs.mkdirp(newDir, 493);
@@ -166,8 +166,8 @@ flakySuite('PFS', function () {
 	});
 
 	test('rimrafSync - swallows file not found error', function () {
+		const parentDir = getRandomTestPath(os.tmpdir(), 'vsctests', 'pfs');
 		const id = uuid.generateUuid();
-		const parentDir = path.join(os.tmpdir(), 'vsctests', id);
 		const newDir = path.join(parentDir, 'pfs', id);
 
 		pfs.rimrafSync(newDir);
@@ -176,8 +176,8 @@ flakySuite('PFS', function () {
 	});
 
 	test('rimrafSync - simple', async () => {
+		const parentDir = getRandomTestPath(os.tmpdir(), 'vsctests', 'pfs');
 		const id = uuid.generateUuid();
-		const parentDir = path.join(os.tmpdir(), 'vsctests', id);
 		const newDir = path.join(parentDir, 'pfs', id);
 
 		await pfs.mkdirp(newDir, 493);
@@ -191,8 +191,8 @@ flakySuite('PFS', function () {
 	});
 
 	test('rimrafSync - recursive folder structure', async () => {
+		const parentDir = getRandomTestPath(os.tmpdir(), 'vsctests', 'pfs');
 		const id = uuid.generateUuid();
-		const parentDir = path.join(os.tmpdir(), 'vsctests', id);
 		const newDir = path.join(parentDir, 'pfs', id);
 
 		await pfs.mkdirp(newDir, 493);
@@ -208,8 +208,8 @@ flakySuite('PFS', function () {
 	});
 
 	test('moveIgnoreError', async () => {
+		const parentDir = getRandomTestPath(os.tmpdir(), 'vsctests', 'pfs');
 		const id = uuid.generateUuid();
-		const parentDir = path.join(os.tmpdir(), 'vsctests', id);
 		const newDir = path.join(parentDir, 'pfs', id);
 
 		await pfs.mkdirp(newDir, 493);
@@ -260,8 +260,8 @@ flakySuite('PFS', function () {
 	});
 
 	test('mkdirp', async () => {
+		const parentDir = getRandomTestPath(os.tmpdir(), 'vsctests', 'pfs');
 		const id = uuid.generateUuid();
-		const parentDir = path.join(os.tmpdir(), 'vsctests', id);
 		const newDir = path.join(parentDir, 'pfs', id);
 
 		await pfs.mkdirp(newDir, 493);
@@ -272,8 +272,8 @@ flakySuite('PFS', function () {
 	});
 
 	test('readDirsInDir', async () => {
+		const parentDir = getRandomTestPath(os.tmpdir(), 'vsctests', 'pfs');
 		const id = uuid.generateUuid();
-		const parentDir = path.join(os.tmpdir(), 'vsctests', id);
 		const newDir = path.join(parentDir, 'pfs', id);
 
 		await pfs.mkdirp(newDir, 493);
@@ -336,8 +336,8 @@ flakySuite('PFS', function () {
 
 	test('readdir', async () => {
 		if (canNormalize && typeof process.versions['electron'] !== 'undefined' /* needs electron */) {
+			const parentDir = getRandomTestPath(os.tmpdir(), 'vsctests', 'pfs');
 			const id = uuid.generateUuid();
-			const parentDir = path.join(os.tmpdir(), 'vsctests', id);
 			const newDir = path.join(parentDir, 'pfs', id, 'öäü');
 
 			await pfs.mkdirp(newDir, 493);
@@ -353,8 +353,8 @@ flakySuite('PFS', function () {
 
 	test('readdirWithFileTypes', async () => {
 		if (canNormalize && typeof process.versions['electron'] !== 'undefined' /* needs electron */) {
+			const parentDir = getRandomTestPath(os.tmpdir(), 'vsctests', 'pfs');
 			const id = uuid.generateUuid();
-			const parentDir = path.join(os.tmpdir(), 'vsctests', id);
 			const testDir = path.join(parentDir, 'pfs', id);
 
 			const newDir = path.join(testDir, 'öäü');
@@ -403,8 +403,8 @@ flakySuite('PFS', function () {
 		bigData: string | Buffer | Uint8Array,
 		bigDataValue: string
 	): Promise<void> {
+		const parentDir = getRandomTestPath(os.tmpdir(), 'vsctests', 'pfs');
 		const id = uuid.generateUuid();
-		const parentDir = path.join(os.tmpdir(), 'vsctests', id);
 		const newDir = path.join(parentDir, 'pfs', id);
 		const testFile = path.join(newDir, 'flushed.txt');
 
@@ -421,8 +421,8 @@ flakySuite('PFS', function () {
 	}
 
 	test('writeFile (string, error handling)', async () => {
+		const parentDir = getRandomTestPath(os.tmpdir(), 'vsctests', 'pfs');
 		const id = uuid.generateUuid();
-		const parentDir = path.join(os.tmpdir(), 'vsctests', id);
 		const newDir = path.join(parentDir, 'pfs', id);
 		const testFile = path.join(newDir, 'flushed.txt');
 
@@ -445,8 +445,8 @@ flakySuite('PFS', function () {
 	});
 
 	test('writeFileSync', async () => {
+		const parentDir = getRandomTestPath(os.tmpdir(), 'vsctests', 'pfs');
 		const id = uuid.generateUuid();
-		const parentDir = path.join(os.tmpdir(), 'vsctests', id);
 		const newDir = path.join(parentDir, 'pfs', id);
 		const testFile = path.join(newDir, 'flushed.txt');
 
