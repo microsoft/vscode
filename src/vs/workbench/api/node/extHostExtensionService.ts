@@ -63,12 +63,12 @@ export class ExtHostExtensionService extends AbstractExtHostExtensionService {
 		// Module loading tricks
 		const interceptor = this._instaService.createInstance(NodeModuleRequireInterceptor, extensionApiFactory, this._registry);
 		await interceptor.install();
-		performance.mark('extHost/didInitAPI');
+		performance.mark('code/extHost/didInitAPI');
 
 		// Do this when extension service exists, but extensions are not being activated yet.
 		const configProvider = await this._extHostConfiguration.getConfigProvider();
 		await connectProxyResolver(this._extHostWorkspace, configProvider, this, this._logService, this._mainThreadTelemetryProxy, this._initData);
-		performance.mark('extHost/didInitProxyResolver');
+		performance.mark('code/extHost/didInitProxyResolver');
 
 		// Use IPC messages to forward console-calls, note that the console is
 		// already patched to use`process.send()`
@@ -97,14 +97,14 @@ export class ExtHostExtensionService extends AbstractExtHostExtensionService {
 		this._logService.flush();
 		try {
 			if (extensionId) {
-				performance.mark(`extHost/willLoadExtensionCode/${extensionId.value}`);
+				performance.mark(`code/extHost/willLoadExtensionCode/${extensionId.value}`);
 			}
 			r = require.__$__nodeRequire<T>(module.fsPath);
 		} catch (e) {
 			return Promise.reject(e);
 		} finally {
 			if (extensionId) {
-				performance.mark(`extHost/didLoadExtensionCode/${extensionId.value}`);
+				performance.mark(`code/extHost/didLoadExtensionCode/${extensionId.value}`);
 			}
 			activationTimesBuilder.codeLoadingStop();
 		}

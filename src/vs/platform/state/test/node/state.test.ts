@@ -4,19 +4,28 @@
  *--------------------------------------------------------------------------------------------*/
 
 import * as assert from 'assert';
-import * as os from 'os';
-import * as path from 'vs/base/common/path';
+import { tmpdir } from 'os';
+import { join } from 'vs/base/common/path';
 import { flakySuite, getRandomTestPath } from 'vs/base/test/node/testUtils';
 import { FileStorage } from 'vs/platform/state/node/stateService';
 import { mkdirp, rimraf, writeFileSync } from 'vs/base/node/pfs';
 
 flakySuite('StateService', () => {
 
-	test('Basics', async function () {
-		const parentDir = getRandomTestPath(os.tmpdir(), 'vsctests', 'stateservice');
-		await mkdirp(parentDir);
+	let testDir: string;
 
-		const storageFile = path.join(parentDir, 'storage.json');
+	setup(() => {
+		testDir = getRandomTestPath(tmpdir(), 'vsctests', 'stateservice');
+
+		return mkdirp(testDir);
+	});
+
+	teardown(() => {
+		return rimraf(testDir);
+	});
+
+	test('Basics', async function () {
+		const storageFile = join(testDir, 'storage.json');
 		writeFileSync(storageFile, '');
 
 		let service = new FileStorage(storageFile, () => null);
@@ -43,7 +52,5 @@ flakySuite('StateService', () => {
 
 		service.setItem('some.null.key', null);
 		assert.equal(service.getItem('some.null.key', 'some.default'), 'some.default');
-
-		await rimraf(parentDir);
 	});
 });

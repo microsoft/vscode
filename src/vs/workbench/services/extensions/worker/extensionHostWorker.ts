@@ -152,9 +152,9 @@ let onTerminate = (reason: string) => nativeClose();
 
 (function create(): void {
 	const res = new ExtensionWorker();
-	performance.mark(`extHost/willConnectToRenderer`);
+	performance.mark(`code/extHost/willConnectToRenderer`);
 	connectToRenderer(res.protocol).then(data => {
-		performance.mark(`extHost/didWaitForInitData`);
+		performance.mark(`code/extHost/didWaitForInitData`);
 		const extHostMain = new ExtensionHostMain(
 			data.protocol,
 			data.initData,

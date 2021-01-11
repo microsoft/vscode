@@ -4,8 +4,8 @@
  *--------------------------------------------------------------------------------------------*/
 
 import * as assert from 'assert';
-import * as os from 'os';
-import * as pfs from 'vs/base/node/pfs';
+import { tmpdir } from 'os';
+import { mkdirp, rimraf } from 'vs/base/node/pfs';
 import { realcaseSync, realpath, realpathSync } from 'vs/base/node/extpath';
 import { flakySuite, getRandomTestPath } from 'vs/base/test/node/testUtils';
 
@@ -13,13 +13,13 @@ flakySuite('Extpath', () => {
 	let testDir: string;
 
 	setup(() => {
-		testDir = getRandomTestPath(os.tmpdir(), 'vsctests', 'extpath');
+		testDir = getRandomTestPath(tmpdir(), 'vsctests', 'extpath');
 
-		return pfs.mkdirp(testDir, 493);
+		return mkdirp(testDir, 493);
 	});
 
 	teardown(() => {
-		return pfs.rimraf(testDir);
+		return rimraf(testDir);
 	});
 
 	test('realcase', async () => {

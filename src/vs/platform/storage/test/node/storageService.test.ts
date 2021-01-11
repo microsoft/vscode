@@ -17,6 +17,18 @@ import { flakySuite, getRandomTestPath } from 'vs/base/test/node/testUtils';
 
 flakySuite('NativeStorageService', function () {
 
+	let testDir: string;
+
+	setup(() => {
+		testDir = getRandomTestPath(tmpdir(), 'vsctests', 'storageservice');
+
+		return mkdirp(testDir);
+	});
+
+	teardown(() => {
+		return rimraf(testDir);
+	});
+
 	test('Migrate Data', async function () {
 
 		class StorageTestEnvironmentService extends NativeEnvironmentService {
@@ -34,10 +46,7 @@ flakySuite('NativeStorageService', function () {
 			}
 		}
 
-		const storageDir = getRandomTestPath(tmpdir(), 'vsctests', 'storageservice');
-		await mkdirp(storageDir);
-
-		const storage = new NativeStorageService(new InMemoryStorageDatabase(), new NullLogService(), new StorageTestEnvironmentService(URI.file(storageDir), storageDir));
+		const storage = new NativeStorageService(new InMemoryStorageDatabase(), new NullLogService(), new StorageTestEnvironmentService(URI.file(testDir), testDir));
 		await storage.initialize({ id: String(Date.now()) });
 
 		storage.store('bar', 'foo', StorageScope.WORKSPACE, StorageTarget.MACHINE);
@@ -55,6 +64,5 @@ flakySuite('NativeStorageService', function () {
 		equal(storage.getBoolean('barBoolean', StorageScope.GLOBAL), true);
 
 		await storage.close();
-		await rimraf(storageDir);
 	});
 });
