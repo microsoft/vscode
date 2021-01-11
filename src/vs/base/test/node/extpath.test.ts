@@ -8,9 +8,9 @@ import * as os from 'os';
 import * as path from 'vs/base/common/path';
 import * as pfs from 'vs/base/node/pfs';
 import { realcaseSync, realpath, realpathSync } from 'vs/base/node/extpath';
-import { getRandomTestPath } from 'vs/base/test/node/testUtils';
+import { flakySuite, getRandomTestPath } from 'vs/base/test/node/testUtils';
 
-suite('Extpath', () => {
+flakySuite('Extpath', () => {
 
 	test('realcase', async () => {
 		const parentDir = getRandomTestPath(os.tmpdir(), 'vsctests', 'extpath');
