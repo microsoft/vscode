@@ -2430,7 +2430,8 @@ declare module 'vscode' {
 		 * @return A list of arguments labels or a thenable that resolves to such.
 		 */
 		provideInlineHints(model: TextDocument, range: Range, token: CancellationToken): ProviderResult<InlineHint[]>;
-  }
+	}
+
 	/**
 	 * Represents a storage utility for secrets, information that is
 	 * sensitive.
