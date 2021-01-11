@@ -18,7 +18,6 @@ import { ResourceFileEdit } from 'vs/editor/browser/services/bulkEditService';
 import { CancellationToken } from 'vs/base/common/cancellation';
 import { flatten, tail } from 'vs/base/common/arrays';
 import { ITextFileService } from 'vs/workbench/services/textfile/common/textfiles';
-import { ITextSnapshot } from 'vs/editor/common/model';
 
 interface IFileOperation {
 	uris: URI[];
@@ -171,7 +170,7 @@ class CreateOperation implements IFileOperation {
 
 		const folderCreates: ICreateOperation[] = [];
 		const fileCreates: ICreateFileOperation[] = [];
-		const emptyFileCreates: { resource: URI, value?: string | ITextSnapshot, options?: { overwrite?: boolean } }[] = [];
+		const emptyFileCreates: { resource: URI, options?: { overwrite?: boolean } }[] = [];
 		const undoes: DeleteEdit[] = [];
 
 		for (const edit of this._edits) {
@@ -183,7 +182,7 @@ class CreateOperation implements IFileOperation {
 			} else if (edit.contents) {
 				fileCreates.push({ resource: edit.newUri, contents: edit.contents, overwrite: edit.options.overwrite });
 			} else {
-				emptyFileCreates.push({ resource: edit.newUri, value: edit.contents, options: { overwrite: edit.options.overwrite } });
+				emptyFileCreates.push({ resource: edit.newUri, options: { overwrite: edit.options.overwrite } });
 			}
 			undoes.push(new DeleteEdit(edit.newUri, edit.options, !edit.options.folder && !edit.contents));
 		}
