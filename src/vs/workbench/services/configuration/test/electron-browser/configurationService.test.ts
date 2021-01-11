@@ -30,7 +30,7 @@ import { IJSONEditingService } from 'vs/workbench/services/configuration/common/
 import { JSONEditingService } from 'vs/workbench/services/configuration/common/jsonEditingService';
 import { createHash } from 'crypto';
 import { Schemas } from 'vs/base/common/network';
-import { originalFSPath, joinPath, dirname } from 'vs/base/common/resources';
+import { originalFSPath, joinPath, dirname, basename } from 'vs/base/common/resources';
 import { isLinux, isMacintosh } from 'vs/base/common/platform';
 import { RemoteAgentService } from 'vs/workbench/services/remote/electron-browser/remoteAgentServiceImpl';
 import { RemoteAuthorityResolverService } from 'vs/platform/remote/electron-sandbox/remoteAuthorityResolverService';
@@ -219,142 +219,125 @@ suite('WorkspaceContextService - Workspace', () => {
 
 suite('WorkspaceContextService - Workspace Editing', () => {
 
-	let parentResource: string, testObject: WorkspaceService, instantiationService: TestInstantiationService;
+	let testObject: WorkspaceService, fileService: IFileService;
 	const disposables = new DisposableStore();
 
-	setup(() => {
-		return setUpWorkspace(['a', 'b'])
-			.then(({ parentDir, configPath }) => {
+	setup(async () => {
+		const logService = new NullLogService();
+		fileService = disposables.add(new FileService(logService));
+		const fileSystemProvider = disposables.add(new InMemoryFileSystemProvider());
+		fileService.registerProvider(Schemas.file, fileSystemProvider);
 
-				parentResource = parentDir;
+		const appSettingsHome = URI.file('user');
+		const folderA = URI.file('a');
+		const folderB = URI.file('b');
+		const configResource = URI.file('vsctests.code-workspace');
+		const workspace = { folders: [{ path: folderA.path }, { path: folderB.path }] };
 
-				instantiationService = <TestInstantiationService>workbenchInstantiationService();
-				const environmentService = new TestWorkbenchEnvironmentService(URI.file(parentDir));
-				const remoteAgentService = instantiationService.createInstance(RemoteAgentService);
-				instantiationService.stub(IRemoteAgentService, remoteAgentService);
-				const fileService = disposables.add(new FileService(new NullLogService()));
-				const diskFileSystemProvider = disposables.add(new DiskFileSystemProvider(new NullLogService()));
-				fileService.registerProvider(Schemas.file, diskFileSystemProvider);
-				fileService.registerProvider(Schemas.userData, disposables.add(new FileUserDataProvider(Schemas.file, diskFileSystemProvider, Schemas.userData, new NullLogService())));
-				const workspaceService = disposables.add(new WorkspaceService({ configurationCache: new ConfigurationCache(environmentService, fileService) }, environmentService, fileService, remoteAgentService, new UriIdentityService(fileService), new NullLogService()));
+		await fileService.createFolder(appSettingsHome);
+		await fileService.createFolder(folderA);
+		await fileService.createFolder(folderB);
+		await fileService.writeFile(configResource, VSBuffer.fromString(JSON.stringify(workspace, null, '\t')));
 
-				instantiationService.stub(IWorkspaceContextService, workspaceService);
-				instantiationService.stub(IConfigurationService, workspaceService);
-				instantiationService.stub(IEnvironmentService, environmentService);
+		const instantiationService = <TestInstantiationService>workbenchInstantiationService();
+		const environmentService = new TestWorkbenchEnvironmentService(appSettingsHome);
+		const remoteAgentService = instantiationService.createInstance(RemoteAgentService);
+		instantiationService.stub(IRemoteAgentService, remoteAgentService);
+		fileService.registerProvider(Schemas.userData, disposables.add(new FileUserDataProvider(Schemas.file, fileSystemProvider, Schemas.userData, new NullLogService())));
+		testObject = disposables.add(new WorkspaceService({ configurationCache: new ConfigurationCache(environmentService, fileService) }, environmentService, fileService, remoteAgentService, new UriIdentityService(fileService), new NullLogService()));
 
-				return workspaceService.initialize(getWorkspaceIdentifier(configPath)).then(() => {
-					instantiationService.stub(IFileService, fileService);
-					instantiationService.stub(ITextFileService, instantiationService.createInstance(TestTextFileService));
-					instantiationService.stub(ITextModelService, <ITextModelService>instantiationService.createInstance(TextModelResolverService));
-					workspaceService.acquireInstantiationService(instantiationService);
+		instantiationService.stub(IFileService, fileService);
+		instantiationService.stub(IWorkspaceContextService, testObject);
+		instantiationService.stub(IConfigurationService, testObject);
+		instantiationService.stub(IEnvironmentService, environmentService);
 
-					testObject = workspaceService;
-				});
-			});
+		await testObject.initialize(getWorkspaceIdentifier(configResource));
+		instantiationService.stub(ITextFileService, disposables.add(instantiationService.createInstance(TestTextFileService)));
+		instantiationService.stub(ITextModelService, disposables.add(instantiationService.createInstance(TextModelResolverService)));
+		testObject.acquireInstantiationService(instantiationService);
 	});
 
-	teardown(() => {
-		disposables.clear();
-		if (parentResource) {
-			return pfs.rimraf(parentResource);
-		}
-		return undefined;
+	teardown(() => disposables.clear());
+
+	test('add folders', async () => {
+		await testObject.addFolders([{ uri: URI.file('d') }, { uri: URI.file('c') }]);
+		const actual = testObject.getWorkspace().folders;
+
+		assert.equal(actual.length, 4);
+		assert.equal(basename(actual[0].uri), 'a');
+		assert.equal(basename(actual[1].uri), 'b');
+		assert.equal(basename(actual[2].uri), 'd');
+		assert.equal(basename(actual[3].uri), 'c');
 	});
 
-	test('add folders', () => {
-		const workspaceDir = path.dirname(testObject.getWorkspace().folders[0].uri.fsPath);
-		return testObject.addFolders([{ uri: URI.file(path.join(workspaceDir, 'd')) }, { uri: URI.file(path.join(workspaceDir, 'c')) }])
-			.then(() => {
-				const actual = testObject.getWorkspace().folders;
+	test('add folders (at specific index)', async () => {
+		await testObject.addFolders([{ uri: URI.file('d') }, { uri: URI.file('c') }], 0);
+		const actual = testObject.getWorkspace().folders;
 
-				assert.equal(actual.length, 4);
-				assert.equal(path.basename(actual[0].uri.fsPath), 'a');
-				assert.equal(path.basename(actual[1].uri.fsPath), 'b');
-				assert.equal(path.basename(actual[2].uri.fsPath), 'd');
-				assert.equal(path.basename(actual[3].uri.fsPath), 'c');
-			});
+		assert.equal(actual.length, 4);
+		assert.equal(basename(actual[0].uri), 'd');
+		assert.equal(basename(actual[1].uri), 'c');
+		assert.equal(basename(actual[2].uri), 'a');
+		assert.equal(basename(actual[3].uri), 'b');
 	});
 
-	test('add folders (at specific index)', () => {
-		const workspaceDir = path.dirname(testObject.getWorkspace().folders[0].uri.fsPath);
-		return testObject.addFolders([{ uri: URI.file(path.join(workspaceDir, 'd')) }, { uri: URI.file(path.join(workspaceDir, 'c')) }], 0)
-			.then(() => {
-				const actual = testObject.getWorkspace().folders;
+	test('add folders (at specific wrong index)', async () => {
+		await testObject.addFolders([{ uri: URI.file('d') }, { uri: URI.file('c') }], 10);
+		const actual = testObject.getWorkspace().folders;
 
-				assert.equal(actual.length, 4);
-				assert.equal(path.basename(actual[0].uri.fsPath), 'd');
-				assert.equal(path.basename(actual[1].uri.fsPath), 'c');
-				assert.equal(path.basename(actual[2].uri.fsPath), 'a');
-				assert.equal(path.basename(actual[3].uri.fsPath), 'b');
-			});
+		assert.equal(actual.length, 4);
+		assert.equal(basename(actual[0].uri), 'a');
+		assert.equal(basename(actual[1].uri), 'b');
+		assert.equal(basename(actual[2].uri), 'd');
+		assert.equal(basename(actual[3].uri), 'c');
 	});
 
-	test('add folders (at specific wrong index)', () => {
-		const workspaceDir = path.dirname(testObject.getWorkspace().folders[0].uri.fsPath);
-		return testObject.addFolders([{ uri: URI.file(path.join(workspaceDir, 'd')) }, { uri: URI.file(path.join(workspaceDir, 'c')) }], 10)
-			.then(() => {
-				const actual = testObject.getWorkspace().folders;
+	test('add folders (with name)', async () => {
+		await testObject.addFolders([{ uri: URI.file('d'), name: 'DDD' }, { uri: URI.file('c'), name: 'CCC' }]);
+		const actual = testObject.getWorkspace().folders;
 
-				assert.equal(actual.length, 4);
-				assert.equal(path.basename(actual[0].uri.fsPath), 'a');
-				assert.equal(path.basename(actual[1].uri.fsPath), 'b');
-				assert.equal(path.basename(actual[2].uri.fsPath), 'd');
-				assert.equal(path.basename(actual[3].uri.fsPath), 'c');
-			});
+		assert.equal(actual.length, 4);
+		assert.equal(basename(actual[0].uri), 'a');
+		assert.equal(basename(actual[1].uri), 'b');
+		assert.equal(basename(actual[2].uri), 'd');
+		assert.equal(basename(actual[3].uri), 'c');
+		assert.equal(actual[2].name, 'DDD');
+		assert.equal(actual[3].name, 'CCC');
 	});
 
-	test('add folders (with name)', () => {
-		const workspaceDir = path.dirname(testObject.getWorkspace().folders[0].uri.fsPath);
-		return testObject.addFolders([{ uri: URI.file(path.join(workspaceDir, 'd')), name: 'DDD' }, { uri: URI.file(path.join(workspaceDir, 'c')), name: 'CCC' }])
-			.then(() => {
-				const actual = testObject.getWorkspace().folders;
-
-				assert.equal(actual.length, 4);
-				assert.equal(path.basename(actual[0].uri.fsPath), 'a');
-				assert.equal(path.basename(actual[1].uri.fsPath), 'b');
-				assert.equal(path.basename(actual[2].uri.fsPath), 'd');
-				assert.equal(path.basename(actual[3].uri.fsPath), 'c');
-				assert.equal(actual[2].name, 'DDD');
-				assert.equal(actual[3].name, 'CCC');
-			});
-	});
-
-	test('add folders triggers change event', () => {
+	test('add folders triggers change event', async () => {
 		const target = sinon.spy();
 		testObject.onDidChangeWorkspaceFolders(target);
-		const workspaceDir = path.dirname(testObject.getWorkspace().folders[0].uri.fsPath);
-		const addedFolders = [{ uri: URI.file(path.join(workspaceDir, 'd')) }, { uri: URI.file(path.join(workspaceDir, 'c')) }];
-		return testObject.addFolders(addedFolders)
-			.then(() => {
-				assert.equal(target.callCount, 1, `Should be called only once but called ${target.callCount} times`);
-				const actual = <IWorkspaceFoldersChangeEvent>target.args[0][0];
-				assert.deepEqual(actual.added.map(r => r.uri.toString()), addedFolders.map(a => a.uri.toString()));
-				assert.deepEqual(actual.removed, []);
-				assert.deepEqual(actual.changed, []);
-			});
+
+		const addedFolders = [{ uri: URI.file('d') }, { uri: URI.file('c') }];
+		await testObject.addFolders(addedFolders);
+
+		assert.equal(target.callCount, 1, `Should be called only once but called ${target.callCount} times`);
+		const actual_1 = (<IWorkspaceFoldersChangeEvent>target.args[0][0]);
+		assert.deepEqual(actual_1.added.map(r => r.uri.toString()), addedFolders.map(a => a.uri.toString()));
+		assert.deepEqual(actual_1.removed, []);
+		assert.deepEqual(actual_1.changed, []);
 	});
 
-	test('remove folders', () => {
-		return testObject.removeFolders([testObject.getWorkspace().folders[0].uri])
-			.then(() => {
-				const actual = testObject.getWorkspace().folders;
-				assert.equal(actual.length, 1);
-				assert.equal(path.basename(actual[0].uri.fsPath), 'b');
-			});
+	test('remove folders', async () => {
+		await testObject.removeFolders([testObject.getWorkspace().folders[0].uri]);
+		const actual = testObject.getWorkspace().folders;
+
+		assert.equal(actual.length, 1);
+		assert.equal(basename(actual[0].uri), 'b');
 	});
 
-	test('remove folders triggers change event', () => {
+	test('remove folders triggers change event', async () => {
 		const target = sinon.spy();
 		testObject.onDidChangeWorkspaceFolders(target);
 		const removedFolder = testObject.getWorkspace().folders[0];
-		return testObject.removeFolders([removedFolder.uri])
-			.then(() => {
-				assert.equal(target.callCount, 1, `Should be called only once but called ${target.callCount} times`);
-				const actual = <IWorkspaceFoldersChangeEvent>target.args[0][0];
-				assert.deepEqual(actual.added, []);
-				assert.deepEqual(actual.removed.map(r => r.uri.toString()), [removedFolder.uri.toString()]);
-				assert.deepEqual(actual.changed.map(c => c.uri.toString()), [testObject.getWorkspace().folders[0].uri.toString()]);
-			});
+		await testObject.removeFolders([removedFolder.uri]);
+
+		assert.equal(target.callCount, 1, `Should be called only once but called ${target.callCount} times`);
+		const actual_1 = (<IWorkspaceFoldersChangeEvent>target.args[0][0]);
+		assert.deepEqual(actual_1.added, []);
+		assert.deepEqual(actual_1.removed.map(r => r.uri.toString()), [removedFolder.uri.toString()]);
+		assert.deepEqual(actual_1.changed.map(c => c.uri.toString()), [testObject.getWorkspace().folders[0].uri.toString()]);
 	});
 
 	test('remove folders and add them back by writing into the file', async () => {
@@ -372,88 +355,80 @@ suite('WorkspaceContextService - Workspace Editing', () => {
 			});
 		});
 
-		const workspace = { folders: [{ path: folders[0].uri.fsPath }, { path: folders[1].uri.fsPath }] };
-		await instantiationService.get(ITextFileService).write(testObject.getWorkspace().configuration!, JSON.stringify(workspace, null, '\t'));
+		const workspace = { folders: [{ path: folders[0].uri.path }, { path: folders[1].uri.path }] };
+		await fileService.writeFile(testObject.getWorkspace().configuration!, VSBuffer.fromString(JSON.stringify(workspace, null, '\t')));
 		await promise;
 	});
 
-	test('update folders (remove last and add to end)', () => {
+	test('update folders (remove last and add to end)', async () => {
 		const target = sinon.spy();
 		testObject.onDidChangeWorkspaceFolders(target);
-		const workspaceDir = path.dirname(testObject.getWorkspace().folders[0].uri.fsPath);
-		const addedFolders = [{ uri: URI.file(path.join(workspaceDir, 'd')) }, { uri: URI.file(path.join(workspaceDir, 'c')) }];
+		const addedFolders = [{ uri: URI.file('d') }, { uri: URI.file('c') }];
 		const removedFolders = [testObject.getWorkspace().folders[1]].map(f => f.uri);
-		return testObject.updateFolders(addedFolders, removedFolders)
-			.then(() => {
-				assert.equal(target.callCount, 1, `Should be called only once but called ${target.callCount} times`);
-				const actual = <IWorkspaceFoldersChangeEvent>target.args[0][0];
-				assert.deepEqual(actual.added.map(r => r.uri.toString()), addedFolders.map(a => a.uri.toString()));
-				assert.deepEqual(actual.removed.map(r => r.uri.toString()), removedFolders.map(a => a.toString()));
-				assert.deepEqual(actual.changed, []);
-			});
+		await testObject.updateFolders(addedFolders, removedFolders);
+
+		assert.equal(target.callCount, 1, `Should be called only once but called ${target.callCount} times`);
+		const actual_1 = (<IWorkspaceFoldersChangeEvent>target.args[0][0]);
+		assert.deepEqual(actual_1.added.map(r => r.uri.toString()), addedFolders.map(a => a.uri.toString()));
+		assert.deepEqual(actual_1.removed.map(r_1 => r_1.uri.toString()), removedFolders.map(a_1 => a_1.toString()));
+		assert.deepEqual(actual_1.changed, []);
 	});
 
-	test('update folders (rename first via add and remove)', () => {
+	test('update folders (rename first via add and remove)', async () => {
 		const target = sinon.spy();
 		testObject.onDidChangeWorkspaceFolders(target);
-		const workspaceDir = path.dirname(testObject.getWorkspace().folders[0].uri.fsPath);
-		const addedFolders = [{ uri: URI.file(path.join(workspaceDir, 'a')), name: 'The Folder' }];
+		const addedFolders = [{ uri: URI.file('a'), name: 'The Folder' }];
 		const removedFolders = [testObject.getWorkspace().folders[0]].map(f => f.uri);
-		return testObject.updateFolders(addedFolders, removedFolders, 0)
-			.then(() => {
-				assert.equal(target.callCount, 1, `Should be called only once but called ${target.callCount} times`);
-				const actual = <IWorkspaceFoldersChangeEvent>target.args[0][0];
-				assert.deepEqual(actual.added, []);
-				assert.deepEqual(actual.removed, []);
-				assert.deepEqual(actual.changed.map(r => r.uri.toString()), removedFolders.map(a => a.toString()));
-			});
+		await testObject.updateFolders(addedFolders, removedFolders, 0);
+
+		assert.equal(target.callCount, 1, `Should be called only once but called ${target.callCount} times`);
+		const actual_1 = (<IWorkspaceFoldersChangeEvent>target.args[0][0]);
+		assert.deepEqual(actual_1.added, []);
+		assert.deepEqual(actual_1.removed, []);
+		assert.deepEqual(actual_1.changed.map(r => r.uri.toString()), removedFolders.map(a => a.toString()));
 	});
 
-	test('update folders (remove first and add to end)', () => {
+	test('update folders (remove first and add to end)', async () => {
 		const target = sinon.spy();
 		testObject.onDidChangeWorkspaceFolders(target);
-		const workspaceDir = path.dirname(testObject.getWorkspace().folders[0].uri.fsPath);
-		const addedFolders = [{ uri: URI.file(path.join(workspaceDir, 'd')) }, { uri: URI.file(path.join(workspaceDir, 'c')) }];
+		const addedFolders = [{ uri: URI.file('d') }, { uri: URI.file('c') }];
 		const removedFolders = [testObject.getWorkspace().folders[0]].map(f => f.uri);
 		const changedFolders = [testObject.getWorkspace().folders[1]].map(f => f.uri);
-		return testObject.updateFolders(addedFolders, removedFolders)
-			.then(() => {
-				assert.equal(target.callCount, 1, `Should be called only once but called ${target.callCount} times`);
-				const actual = <IWorkspaceFoldersChangeEvent>target.args[0][0];
-				assert.deepEqual(actual.added.map(r => r.uri.toString()), addedFolders.map(a => a.uri.toString()));
-				assert.deepEqual(actual.removed.map(r => r.uri.toString()), removedFolders.map(a => a.toString()));
-				assert.deepEqual(actual.changed.map(r => r.uri.toString()), changedFolders.map(a => a.toString()));
-			});
+		await testObject.updateFolders(addedFolders, removedFolders);
+
+		assert.equal(target.callCount, 1, `Should be called only once but called ${target.callCount} times`);
+		const actual_1 = (<IWorkspaceFoldersChangeEvent>target.args[0][0]);
+		assert.deepEqual(actual_1.added.map(r => r.uri.toString()), addedFolders.map(a => a.uri.toString()));
+		assert.deepEqual(actual_1.removed.map(r_1 => r_1.uri.toString()), removedFolders.map(a_1 => a_1.toString()));
+		assert.deepEqual(actual_1.changed.map(r_2 => r_2.uri.toString()), changedFolders.map(a_2 => a_2.toString()));
 	});
 
-	test('reorder folders trigger change event', () => {
+	test('reorder folders trigger change event', async () => {
 		const target = sinon.spy();
 		testObject.onDidChangeWorkspaceFolders(target);
-		const workspace = { folders: [{ path: testObject.getWorkspace().folders[1].uri.fsPath }, { path: testObject.getWorkspace().folders[0].uri.fsPath }] };
-		fs.writeFileSync(testObject.getWorkspace().configuration!.fsPath, JSON.stringify(workspace, null, '\t'));
-		return testObject.reloadConfiguration()
-			.then(() => {
-				assert.equal(target.callCount, 1, `Should be called only once but called ${target.callCount} times`);
-				const actual = <IWorkspaceFoldersChangeEvent>target.args[0][0];
-				assert.deepEqual(actual.added, []);
-				assert.deepEqual(actual.removed, []);
-				assert.deepEqual(actual.changed.map(c => c.uri.toString()), testObject.getWorkspace().folders.map(f => f.uri.toString()).reverse());
-			});
+		const workspace = { folders: [{ path: testObject.getWorkspace().folders[1].uri.path }, { path: testObject.getWorkspace().folders[0].uri.path }] };
+		await fileService.writeFile(testObject.getWorkspace().configuration!, VSBuffer.fromString(JSON.stringify(workspace, null, '\t')));
+		await testObject.reloadConfiguration();
+
+		assert.equal(target.callCount, 1, `Should be called only once but called ${target.callCount} times`);
+		const actual_1 = (<IWorkspaceFoldersChangeEvent>target.args[0][0]);
+		assert.deepEqual(actual_1.added, []);
+		assert.deepEqual(actual_1.removed, []);
+		assert.deepEqual(actual_1.changed.map(c => c.uri.toString()), testObject.getWorkspace().folders.map(f => f.uri.toString()).reverse());
 	});
 
-	test('rename folders trigger change event', () => {
+	test('rename folders trigger change event', async () => {
 		const target = sinon.spy();
 		testObject.onDidChangeWorkspaceFolders(target);
-		const workspace = { folders: [{ path: testObject.getWorkspace().folders[0].uri.fsPath, name: '1' }, { path: testObject.getWorkspace().folders[1].uri.fsPath }] };
-		fs.writeFileSync(testObject.getWorkspace().configuration!.fsPath, JSON.stringify(workspace, null, '\t'));
-		return testObject.reloadConfiguration()
-			.then(() => {
-				assert.equal(target.callCount, 1, `Should be called only once but called ${target.callCount} times`);
-				const actual = <IWorkspaceFoldersChangeEvent>target.args[0][0];
-				assert.deepEqual(actual.added, []);
-				assert.deepEqual(actual.removed, []);
-				assert.deepEqual(actual.changed.map(c => c.uri.toString()), [testObject.getWorkspace().folders[0].uri.toString()]);
-			});
+		const workspace = { folders: [{ path: testObject.getWorkspace().folders[0].uri.path, name: '1' }, { path: testObject.getWorkspace().folders[1].uri.path }] };
+		fileService.writeFile(testObject.getWorkspace().configuration!, VSBuffer.fromString(JSON.stringify(workspace, null, '\t')));
+		await testObject.reloadConfiguration();
+
+		assert.equal(target.callCount, 1, `Should be called only once but called ${target.callCount} times`);
+		const actual_1 = (<IWorkspaceFoldersChangeEvent>target.args[0][0]);
+		assert.deepEqual(actual_1.added, []);
+		assert.deepEqual(actual_1.removed, []);
+		assert.deepEqual(actual_1.changed.map(c => c.uri.toString()), [testObject.getWorkspace().folders[0].uri.toString()]);
 	});
 
 });
