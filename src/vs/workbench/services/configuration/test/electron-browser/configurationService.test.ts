@@ -119,7 +119,7 @@ flakySuite('WorkspaceContextService - Folder', () => {
 				const diskFileSystemProvider = disposables.add(new DiskFileSystemProvider(new NullLogService()));
 				fileService.registerProvider(Schemas.file, diskFileSystemProvider);
 				fileService.registerProvider(Schemas.userData, disposables.add(new FileUserDataProvider(Schemas.file, new DiskFileSystemProvider(new NullLogService()), Schemas.userData, new NullLogService())));
-				workspaceContextService = disposables.add(new WorkspaceService({ configurationCache: new ConfigurationCache(environmentService) }, environmentService, fileService, new RemoteAgentService(environmentService, { _serviceBrand: undefined, ...product }, new RemoteAuthorityResolverService(), new SignService(undefined), new NullLogService()), new UriIdentityService(fileService), new NullLogService()));
+				workspaceContextService = disposables.add(new WorkspaceService({ configurationCache: new ConfigurationCache(environmentService, fileService) }, environmentService, fileService, new RemoteAgentService(environmentService, { _serviceBrand: undefined, ...product }, new RemoteAuthorityResolverService(), new SignService(undefined), new NullLogService()), new UriIdentityService(fileService), new NullLogService()));
 				return (<WorkspaceService>workspaceContextService).initialize(convertToWorkspacePayload(URI.file(folderDir)));
 			});
 	});
@@ -184,7 +184,7 @@ flakySuite('WorkspaceContextService - Workspace', () => {
 				const diskFileSystemProvider = disposables.add(new DiskFileSystemProvider(new NullLogService()));
 				fileService.registerProvider(Schemas.file, diskFileSystemProvider);
 				fileService.registerProvider(Schemas.userData, disposables.add(new FileUserDataProvider(Schemas.file, diskFileSystemProvider, Schemas.userData, new NullLogService())));
-				const workspaceService = disposables.add(new WorkspaceService({ configurationCache: new ConfigurationCache(environmentService) }, environmentService, fileService, remoteAgentService, new UriIdentityService(fileService), new NullLogService()));
+				const workspaceService = disposables.add(new WorkspaceService({ configurationCache: new ConfigurationCache(environmentService, fileService) }, environmentService, fileService, remoteAgentService, new UriIdentityService(fileService), new NullLogService()));
 
 				instantiationService.stub(IWorkspaceContextService, workspaceService);
 				instantiationService.stub(IConfigurationService, workspaceService);
@@ -243,7 +243,7 @@ flakySuite('WorkspaceContextService - Workspace Editing', () => {
 				const diskFileSystemProvider = disposables.add(new DiskFileSystemProvider(new NullLogService()));
 				fileService.registerProvider(Schemas.file, diskFileSystemProvider);
 				fileService.registerProvider(Schemas.userData, disposables.add(new FileUserDataProvider(Schemas.file, diskFileSystemProvider, Schemas.userData, new NullLogService())));
-				const workspaceService = disposables.add(new WorkspaceService({ configurationCache: new ConfigurationCache(environmentService) }, environmentService, fileService, remoteAgentService, new UriIdentityService(fileService), new NullLogService()));
+				const workspaceService = disposables.add(new WorkspaceService({ configurationCache: new ConfigurationCache(environmentService, fileService) }, environmentService, fileService, remoteAgentService, new UriIdentityService(fileService), new NullLogService()));
 
 				instantiationService.stub(IWorkspaceContextService, workspaceService);
 				instantiationService.stub(IConfigurationService, workspaceService);
@@ -506,7 +506,7 @@ flakySuite('WorkspaceService - Initialization', () => {
 				const diskFileSystemProvider = disposables.add(new DiskFileSystemProvider(new NullLogService()));
 				fileService.registerProvider(Schemas.file, diskFileSystemProvider);
 				fileService.registerProvider(Schemas.userData, disposables.add(new FileUserDataProvider(Schemas.file, diskFileSystemProvider, Schemas.userData, new NullLogService())));
-				const workspaceService = disposables.add(new WorkspaceService({ configurationCache: new ConfigurationCache(environmentService) }, environmentService, fileService, remoteAgentService, new UriIdentityService(fileService), new NullLogService()));
+				const workspaceService = disposables.add(new WorkspaceService({ configurationCache: new ConfigurationCache(environmentService, fileService) }, environmentService, fileService, remoteAgentService, new UriIdentityService(fileService), new NullLogService()));
 				instantiationService.stub(IWorkspaceContextService, workspaceService);
 				instantiationService.stub(IConfigurationService, workspaceService);
 				instantiationService.stub(IEnvironmentService, environmentService);
@@ -781,7 +781,7 @@ flakySuite('WorkspaceConfigurationService - Folder', () => {
 				const diskFileSystemProvider = disposables.add(new DiskFileSystemProvider(new NullLogService()));
 				fileService.registerProvider(Schemas.file, diskFileSystemProvider);
 				fileService.registerProvider(Schemas.userData, disposables.add(new FileUserDataProvider(Schemas.file, diskFileSystemProvider, Schemas.userData, new NullLogService())));
-				workspaceService = disposables.add(new WorkspaceService({ configurationCache: new ConfigurationCache(environmentService) }, environmentService, fileService, remoteAgentService, new UriIdentityService(fileService), new NullLogService()));
+				workspaceService = disposables.add(new WorkspaceService({ configurationCache: new ConfigurationCache(environmentService, fileService) }, environmentService, fileService, remoteAgentService, new UriIdentityService(fileService), new NullLogService()));
 				instantiationService.stub(IWorkspaceContextService, workspaceService);
 				instantiationService.stub(IConfigurationService, workspaceService);
 				instantiationService.stub(IEnvironmentService, environmentService);
@@ -1311,7 +1311,7 @@ flakySuite('WorkspaceConfigurationService-Multiroot', () => {
 				const diskFileSystemProvider = disposables.add(new DiskFileSystemProvider(new NullLogService()));
 				fileService.registerProvider(Schemas.file, diskFileSystemProvider);
 				fileService.registerProvider(Schemas.userData, disposables.add(new FileUserDataProvider(Schemas.file, diskFileSystemProvider, Schemas.userData, new NullLogService())));
-				const workspaceService = disposables.add(new WorkspaceService({ configurationCache: new ConfigurationCache(environmentService) }, environmentService, fileService, remoteAgentService, new UriIdentityService(fileService), new NullLogService()));
+				const workspaceService = disposables.add(new WorkspaceService({ configurationCache: new ConfigurationCache(environmentService, fileService) }, environmentService, fileService, remoteAgentService, new UriIdentityService(fileService), new NullLogService()));
 
 				instantiationService.stub(IWorkspaceContextService, workspaceService);
 				instantiationService.stub(IConfigurationService, workspaceService);
