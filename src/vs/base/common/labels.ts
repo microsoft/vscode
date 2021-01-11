@@ -84,15 +84,21 @@ export function getBaseLabel(resource: URI | string | undefined): string | undef
 	const base = basename(resource) || (resource.scheme === Schemas.file ? resource.fsPath : resource.path) /* can be empty string if '/' is passed in */;
 
 	// convert c: => C:
-	if (hasDriveLetter(base)) {
+	if (isDriveLetter(base)) {
 		return normalizeDriveLetter(base);
 	}
 
 	return base;
 }
 
+const WINDOWS_DRIVE_LETTER_SEP = ':';
+
 function hasDriveLetter(path: string): boolean {
-	return !!(isWindows && path && path[1] === ':');
+	return !!(isWindows && path && path[1] === WINDOWS_DRIVE_LETTER_SEP);
+}
+
+function isDriveLetter(path: string): boolean {
+	return hasDriveLetter(path) && path.endsWith(WINDOWS_DRIVE_LETTER_SEP);
 }
 
 export function extractDriveLetter(path: string): string | undefined {
@@ -225,7 +231,7 @@ export function shorten(paths: string[], pathSeparator: string = sep): string[] 
 					let result = '';
 
 					// preserve disk drive or root prefix
-					if (segments[0].endsWith(':') || prefix !== '') {
+					if (segments[0].endsWith(WINDOWS_DRIVE_LETTER_SEP) || prefix !== '') {
 						if (start === 1) {
 							// extend subpath to include disk drive prefix
 							start = 0;
