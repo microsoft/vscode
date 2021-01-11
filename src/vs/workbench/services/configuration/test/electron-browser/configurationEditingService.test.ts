@@ -104,23 +104,23 @@ suite('ConfigurationEditingService', () => {
 	}
 
 	async function setUpServices(noWorkspace: boolean = false): Promise<void> {
-		instantiationService = <TestInstantiationService>workbenchInstantiationService();
+		instantiationService = <TestInstantiationService>workbenchInstantiationService(undefined, disposables);
 		const environmentService = new TestWorkbenchEnvironmentService(URI.file(workspaceDir));
 		instantiationService.stub(IEnvironmentService, environmentService);
-		const remoteAgentService = instantiationService.createInstance(RemoteAgentService);
+		const remoteAgentService = disposables.add(instantiationService.createInstance(RemoteAgentService));
 		const fileService = disposables.add(new FileService(new NullLogService()));
 		const diskFileSystemProvider = disposables.add(new DiskFileSystemProvider(new NullLogService()));
-		fileService.registerProvider(Schemas.file, diskFileSystemProvider);
-		fileService.registerProvider(Schemas.userData, disposables.add(new FileUserDataProvider(Schemas.file, diskFileSystemProvider, Schemas.userData, new NullLogService())));
+		disposables.add(fileService.registerProvider(Schemas.file, diskFileSystemProvider));
+		disposables.add(fileService.registerProvider(Schemas.userData, disposables.add(new FileUserDataProvider(Schemas.file, diskFileSystemProvider, Schemas.userData, new NullLogService()))));
 		instantiationService.stub(IFileService, fileService);
 		instantiationService.stub(IRemoteAgentService, remoteAgentService);
 		const workspaceService = disposables.add(new WorkspaceService({ configurationCache: new ConfigurationCache(environmentService) }, environmentService, fileService, remoteAgentService, new UriIdentityService(fileService), new NullLogService()));
 		instantiationService.stub(IWorkspaceContextService, workspaceService);
 		await workspaceService.initialize(noWorkspace ? { id: '' } : { folder: URI.file(workspaceDir), id: createHash('md5').update(URI.file(workspaceDir).toString()).digest('hex') });
 		instantiationService.stub(IConfigurationService, workspaceService);
-		instantiationService.stub(IKeybindingEditingService, instantiationService.createInstance(KeybindingsEditingService));
-		instantiationService.stub(ITextFileService, instantiationService.createInstance(TestTextFileService));
-		instantiationService.stub(ITextModelService, <ITextModelService>instantiationService.createInstance(TextModelResolverService));
+		instantiationService.stub(IKeybindingEditingService, disposables.add(instantiationService.createInstance(KeybindingsEditingService)));
+		instantiationService.stub(ITextFileService, disposables.add(instantiationService.createInstance(TestTextFileService)));
+		instantiationService.stub(ITextModelService, <ITextModelService>disposables.add(instantiationService.createInstance(TextModelResolverService)));
 		instantiationService.stub(ICommandService, CommandService);
 		testObject = instantiationService.createInstance(ConfigurationEditingService);
 	}
