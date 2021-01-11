@@ -37,7 +37,7 @@ import { FileUserDataProvider } from 'vs/workbench/services/userData/common/file
 import { UriIdentityService } from 'vs/workbench/services/uriIdentity/common/uriIdentityService';
 import { DisposableStore } from 'vs/base/common/lifecycle';
 import { InMemoryFileSystemProvider } from 'vs/platform/files/common/inMemoryFilesystemProvider';
-import { ConfigurationCache } from 'vs/workbench/services/configuration/electron-browser/configurationCache';
+import { ConfigurationCache as NativeConfigurationCache } from 'vs/workbench/services/configuration/electron-browser/configurationCache';
 import { RemoteAgentService } from 'vs/workbench/services/remote/electron-browser/remoteAgentServiceImpl';
 import { joinPath } from 'vs/base/common/resources';
 import { VSBuffer } from 'vs/base/common/buffer';
@@ -50,6 +50,14 @@ class TestWorkbenchEnvironmentService extends NativeWorkbenchEnvironmentService 
 
 	get appSettingsHome() { return this._appSettingsHome; }
 }
+
+class ConfigurationCache extends NativeConfigurationCache {
+	needsCaching(resource: URI): boolean {
+		return false;
+	}
+}
+
+const ROOT = URI.file('tests').with({ scheme: 'vscode-tests' });
 
 suite('ConfigurationEditingService', () => {
 
@@ -87,19 +95,19 @@ suite('ConfigurationEditingService', () => {
 		const logService = new NullLogService();
 		fileService = disposables.add(new FileService(logService));
 		const fileSystemProvider = disposables.add(new InMemoryFileSystemProvider());
-		disposables.add(fileService.registerProvider(Schemas.file, fileSystemProvider));
+		disposables.add(fileService.registerProvider(ROOT.scheme, fileSystemProvider));
 
-		const workspaceFolder = URI.file(uuid.generateUuid());
+		const workspaceFolder = joinPath(ROOT, uuid.generateUuid());
 		await fileService.createFolder(workspaceFolder);
 
 		instantiationService = <TestInstantiationService>workbenchInstantiationService(undefined, disposables);
 		environmentService = new TestWorkbenchEnvironmentService(workspaceFolder);
 		instantiationService.stub(IEnvironmentService, environmentService);
 		const remoteAgentService = disposables.add(instantiationService.createInstance(RemoteAgentService));
-		disposables.add(fileService.registerProvider(Schemas.userData, disposables.add(new FileUserDataProvider(Schemas.file, fileSystemProvider, Schemas.userData, logService))));
+		disposables.add(fileService.registerProvider(Schemas.userData, disposables.add(new FileUserDataProvider(ROOT.scheme, fileSystemProvider, Schemas.userData, logService))));
 		instantiationService.stub(IFileService, fileService);
 		instantiationService.stub(IRemoteAgentService, remoteAgentService);
-		workspaceService = disposables.add(new WorkspaceService({ configurationCache: new ConfigurationCache(URI.file(environmentService.userDataPath), fileService) }, environmentService, fileService, remoteAgentService, new UriIdentityService(fileService), new NullLogService()));
+		workspaceService = disposables.add(new WorkspaceService({ configurationCache: new ConfigurationCache(ROOT, fileService) }, environmentService, fileService, remoteAgentService, new UriIdentityService(fileService), new NullLogService()));
 		instantiationService.stub(IWorkspaceContextService, workspaceService);
 
 		await workspaceService.initialize({ folder: workspaceFolder, id: createHash('md5').update(workspaceFolder.toString()).digest('hex') });
