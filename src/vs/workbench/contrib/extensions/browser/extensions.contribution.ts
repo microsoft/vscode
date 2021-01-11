@@ -526,7 +526,7 @@ class ExtensionsContributions extends Disposable implements IWorkbenchContributi
 					try {
 						await this.extensionsWorkbenchService.install(extension);
 					} catch (err) {
-						runAction(this.instantiationService.createInstance(PromptExtensionInstallFailureAction, extension, InstallOperation.Update, err));
+						runAction(this.instantiationService.createInstance(PromptExtensionInstallFailureAction, extension, extension.latestVersion, InstallOperation.Update, err));
 					}
 				}));
 			}

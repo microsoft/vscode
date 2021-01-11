@@ -452,6 +452,9 @@ export class Thread implements IThread {
 				this.callStack.splice(start, this.callStack.length - start);
 			}
 			this.callStack = this.callStack.concat(callStack || []);
+			if (typeof this.stoppedDetails?.totalFrames === 'number' && this.stoppedDetails.totalFrames === this.callStack.length) {
+				this.reachedEndOfCallStack = true;
+			}
 		}
 	}
 
@@ -945,6 +948,11 @@ export class DebugModel implements IDebugModel {
 
 			return true;
 		});
+
+		let i = 1;
+		while (this.sessions.some(s => s.getLabel() === session.getLabel())) {
+			session.setName(`${session.configuration.name} ${++i}`);
+		}
 
 		let index = -1;
 		if (session.parentSession) {

@@ -287,7 +287,7 @@ class Mode extends MockMode {
 		this._register(TokenizationRegistry.register(this.getId(), {
 			getInitialState: (): IState => null!,
 			tokenize: undefined!,
-			tokenize2: (line: string, state: IState): TokenizationResult2 => {
+			tokenize2: (line: string, hasEOL: boolean, state: IState): TokenizationResult2 => {
 				let tokensArr: number[] = [];
 				let prevColor: ColorId = -1;
 				for (let i = 0; i < line.length; i++) {

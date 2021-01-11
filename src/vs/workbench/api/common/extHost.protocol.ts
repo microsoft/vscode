@@ -48,7 +48,7 @@ import * as search from 'vs/workbench/services/search/common/search';
 import { EditorGroupColumn, SaveReason } from 'vs/workbench/common/editor';
 import { ExtensionActivationReason } from 'vs/workbench/api/common/extHostExtensionActivator';
 import { TunnelDto } from 'vs/workbench/api/common/extHostTunnelService';
-import { TunnelCreationOptions, TunnelOptions } from 'vs/platform/remote/common/tunnel';
+import { TunnelCreationOptions, TunnelProviderFeatures, TunnelOptions } from 'vs/platform/remote/common/tunnel';
 import { Timeline, TimelineChangeEvent, TimelineOptions, TimelineProviderDescriptor, InternalTimelineOptions } from 'vs/workbench/contrib/timeline/common/timeline';
 import { revive } from 'vs/base/common/marshalling';
 import { IProcessedOutput, INotebookDisplayOrder, NotebookCellMetadata, NotebookDocumentMetadata, ICellEditOperation, NotebookCellsChangedEventDto, NotebookDataDto, IMainCellDto, INotebookDocumentFilter, INotebookKernelInfoDto2, TransientMetadata, INotebookCellStatusBarEntry, ICellRange, INotebookDecorationRenderOptions, INotebookExclusiveDocumentFilter } from 'vs/workbench/contrib/notebook/common/notebookCommon';
@@ -176,7 +176,9 @@ export interface MainThreadAuthenticationShape extends IDisposable {
 	$getSessions(providerId: string): Promise<ReadonlyArray<modes.AuthenticationSession>>;
 	$login(providerId: string, scopes: string[]): Promise<modes.AuthenticationSession>;
 	$logout(providerId: string, sessionId: string): Promise<void>;
+}
 
+export interface MainThreadSecretStateShape extends IDisposable {
 	$getPassword(extensionId: string, key: string): Promise<string | undefined>;
 	$setPassword(extensionId: string, key: string, value: string): Promise<void>;
 	$deletePassword(extensionId: string, key: string): Promise<void>;
@@ -441,6 +443,16 @@ export interface MainThreadProgressShape extends IDisposable {
 	$progressEnd(handle: number): void;
 }
 
+/**
+ * A terminal that is created on the extension host side is temporarily assigned
+ * a UUID by the extension host that created it. Once the renderer side has assigned
+ * a real numeric id, the numeric id will be used.
+ *
+ * All other terminals (that are not created on the extension host side) always
+ * use the numeric id.
+ */
+export type TerminalIdentifier = number | string;
+
 export interface TerminalLaunchConfig {
 	name?: string;
 	shellPath?: string;
@@ -455,11 +467,11 @@ export interface TerminalLaunchConfig {
 }
 
 export interface MainThreadTerminalServiceShape extends IDisposable {
-	$createTerminal(config: TerminalLaunchConfig): Promise<{ id: number, name: string; }>;
-	$dispose(terminalId: number): void;
-	$hide(terminalId: number): void;
-	$sendText(terminalId: number, text: string, addNewLine: boolean): void;
-	$show(terminalId: number, preserveFocus: boolean): void;
+	$createTerminal(extHostTerminalId: string, config: TerminalLaunchConfig): Promise<void>;
+	$dispose(id: TerminalIdentifier): void;
+	$hide(id: TerminalIdentifier): void;
+	$sendText(id: TerminalIdentifier, text: string, addNewLine: boolean): void;
+	$show(id: TerminalIdentifier, preserveFocus: boolean): void;
 	$startSendingDataEvents(): void;
 	$stopSendingDataEvents(): void;
 	$startLinkProvider(): void;
@@ -795,7 +807,9 @@ export interface MainThreadUriOpenersShape extends IDisposable {
 }
 
 export interface ExtHostUriOpenersShape {
-	$openUri(uri: UriComponents, token: CancellationToken): Promise<boolean>;
+	$getOpenersForUri(uri: UriComponents, token: CancellationToken): Promise<{ cacheId: number, openers: ReadonlyArray<{ id: number, title: string }> }>;
+	$openUri(id: ChainedCacheId, uri: UriComponents): Promise<void>;
+	$releaseOpener(cacheId: number): void;
 }
 
 export interface ITextSearchComplete {
@@ -971,8 +985,7 @@ export interface MainThreadTunnelServiceShape extends IDisposable {
 	$openTunnel(tunnelOptions: TunnelOptions, source: string | undefined): Promise<TunnelDto | undefined>;
 	$closeTunnel(remote: { host: string, port: number }): Promise<void>;
 	$getTunnels(): Promise<TunnelDescription[]>;
-	$setTunnelProvider(): Promise<void>;
-	$tunnelServiceReady(): Promise<void>;
+	$setTunnelProvider(features: TunnelProviderFeatures): Promise<void>;
 	$onFoundNewCandidates(candidates: { host: string, port: number, detail: string }[]): Promise<void>;
 }
 
@@ -1065,7 +1078,7 @@ export interface ExtHostTreeViewsShape {
 	$setSelection(treeViewId: string, treeItemHandles: string[]): void;
 	$setVisible(treeViewId: string, visible: boolean): void;
 	$hasResolve(treeViewId: string): Promise<boolean>;
-	$resolve(treeViewId: string, treeItemHandle: string): Promise<ITreeItem | undefined>;
+	$resolve(treeViewId: string, treeItemHandle: string, token: CancellationToken): Promise<ITreeItem | undefined>;
 }
 
 export interface ExtHostWorkspaceShape {
@@ -1107,6 +1120,9 @@ export interface ExtHostAuthenticationShape {
 	$onDidChangeAuthenticationSessions(id: string, label: string, event: modes.AuthenticationSessionsChangeEvent): Promise<void>;
 	$onDidChangeAuthenticationProviders(added: modes.AuthenticationProviderInformation[], removed: modes.AuthenticationProviderInformation[]): Promise<void>;
 	$setProviders(providers: modes.AuthenticationProviderInformation[]): Promise<void>;
+}
+
+export interface ExtHostSecretStateShape {
 	$onDidChangePassword(): Promise<void>;
 }
 
@@ -1531,7 +1547,7 @@ export interface ITerminalDimensionsDto {
 
 export interface ExtHostTerminalServiceShape {
 	$acceptTerminalClosed(id: number, exitCode: number | undefined): void;
-	$acceptTerminalOpened(id: number, name: string, shellLaunchConfig: IShellLaunchConfigDto): void;
+	$acceptTerminalOpened(id: number, extHostTerminalId: string | undefined, name: string, shellLaunchConfig: IShellLaunchConfigDto): void;
 	$acceptActiveTerminalChanged(id: number | null): void;
 	$acceptTerminalProcessId(id: number, processId: number): void;
 	$acceptTerminalProcessData(id: number, data: string): void;
@@ -1777,9 +1793,10 @@ export interface MainThreadThemingShape extends IDisposable {
 }
 
 export interface ExtHostTunnelServiceShape {
-	$forwardPort(tunnelOptions: TunnelOptions, tunnelCreationOptions: TunnelCreationOptions): Promise<TunnelDto> | undefined;
+	$forwardPort(tunnelOptions: TunnelOptions, tunnelCreationOptions: TunnelCreationOptions): Promise<TunnelDto | undefined>;
 	$closeTunnel(remote: { host: string, port: number }, silent?: boolean): Promise<void>;
 	$onDidTunnelsChange(): Promise<void>;
+	$registerCandidateFinder(): Promise<void>;
 }
 
 export interface ExtHostTimelineShape {
@@ -1806,6 +1823,7 @@ export interface MainThreadTestingShape {
 	$unsubscribeFromDiffs(resource: ExtHostTestingResource, uri: UriComponents): void;
 	$publishDiff(resource: ExtHostTestingResource, uri: UriComponents, diff: TestsDiff): void;
 	$runTests(req: RunTestsRequest, token: CancellationToken): Promise<RunTestsResult>;
+	$updateDiscoveringCount(resource: ExtHostTestingResource, uri: UriComponents, delta: number): void;
 }
 
 // --- proxy identifiers
@@ -1838,6 +1856,7 @@ export const MainContext = {
 	MainThreadProgress: createMainId<MainThreadProgressShape>('MainThreadProgress'),
 	MainThreadQuickOpen: createMainId<MainThreadQuickOpenShape>('MainThreadQuickOpen'),
 	MainThreadStatusBar: createMainId<MainThreadStatusBarShape>('MainThreadStatusBar'),
+	MainThreadSecretState: createMainId<MainThreadSecretStateShape>('MainThreadSecretState'),
 	MainThreadStorage: createMainId<MainThreadStorageShape>('MainThreadStorage'),
 	MainThreadTelemetry: createMainId<MainThreadTelemetryShape>('MainThreadTelemetry'),
 	MainThreadTerminalService: createMainId<MainThreadTerminalServiceShape>('MainThreadTerminalService'),
@@ -1894,6 +1913,7 @@ export const ExtHostContext = {
 	ExtHostEditorInsets: createExtId<ExtHostEditorInsetsShape>('ExtHostEditorInsets'),
 	ExtHostProgress: createMainId<ExtHostProgressShape>('ExtHostProgress'),
 	ExtHostComments: createMainId<ExtHostCommentsShape>('ExtHostComments'),
+	ExtHostSecretState: createMainId<ExtHostSecretStateShape>('ExtHostSecretState'),
 	ExtHostStorage: createMainId<ExtHostStorageShape>('ExtHostStorage'),
 	ExtHostUrls: createExtId<ExtHostUrlsShape>('ExtHostUrls'),
 	ExtHostUriOpeners: createExtId<ExtHostUriOpenersShape>('ExtHostUriOpeners'),

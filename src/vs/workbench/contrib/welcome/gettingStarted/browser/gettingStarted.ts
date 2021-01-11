@@ -18,13 +18,14 @@ import { $, addDisposableListener } from 'vs/base/browser/dom';
 import { ICommandService } from 'vs/platform/commands/common/commands';
 import { IProductService } from 'vs/platform/product/common/productService';
 import { IGettingStartedCategoryWithProgress, IGettingStartedService } from 'vs/workbench/services/gettingStarted/common/gettingStartedService';
-import { registerThemingParticipant } from 'vs/platform/theme/common/themeService';
+import { registerThemingParticipant, ThemeIcon } from 'vs/platform/theme/common/themeService';
 import { buttonBackground as welcomeButtonBackground, buttonHoverBackground as welcomeButtonHoverBackground, welcomePageBackground } from 'vs/workbench/contrib/welcome/page/browser/welcomePageColors';
 import { activeContrastBorder, buttonBackground, buttonForeground, buttonHoverBackground, buttonSecondaryBackground, contrastBorder, descriptionForeground, focusBorder, foreground, textLinkActiveForeground, textLinkForeground } from 'vs/platform/theme/common/colorRegistry';
 import { getExtraColor } from 'vs/workbench/contrib/welcome/walkThrough/common/walkThroughUtils';
 import { IKeybindingService } from 'vs/platform/keybinding/common/keybinding';
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
 import { DomScrollableElement } from 'vs/base/browser/ui/scrollbar/scrollableElement';
+import { gettingStartedCheckedCodicon, gettingStartedUncheckedCodicon } from 'vs/workbench/contrib/welcome/gettingStarted/browser/gettingStartedIcons';
 
 export const gettingStartedInputTypeId = 'workbench.editors.gettingStartedInput';
 const telemetryFrom = 'gettingStartedPage';
@@ -96,12 +97,12 @@ export class GettingStartedPage extends Disposable {
 			if (category.id === this.currentCategory?.id) {
 				const badgeelement = assertIsDefined(document.getElementById('done-task-' + task.id));
 				if (task.done) {
-					badgeelement.classList.remove('codicon-circle-large-outline');
-					badgeelement.classList.add('codicon-pass-filled', 'complete');
+					badgeelement.classList.remove(...ThemeIcon.asClassNameArray(gettingStartedUncheckedCodicon));
+					badgeelement.classList.add('complete', ...ThemeIcon.asClassNameArray(gettingStartedCheckedCodicon));
 				}
 				else {
-					badgeelement.classList.add('codicon-circle-large-outline');
-					badgeelement.classList.remove('codicon-pass-filled', 'complete');
+					badgeelement.classList.add(...ThemeIcon.asClassNameArray(gettingStartedUncheckedCodicon));
+					badgeelement.classList.remove('complete', ...ThemeIcon.asClassNameArray(gettingStartedCheckedCodicon));
 				}
 			}
 			this.updateCategoryProgress();
@@ -210,13 +211,13 @@ export class GettingStartedPage extends Disposable {
 
 				return $('button.getting-started-category',
 					{ 'x-dispatch': 'selectCategory:' + category.id },
-					$('.codicon.codicon-' + category.codicon, {}), categoryDescriptionElement);
+					$(ThemeIcon.asCSSSelector(category.icon), {}), categoryDescriptionElement);
 			});
 
 		const categoriesSlide = assertIsDefined(document.getElementById('gettingStartedSlideCategory'));
 		const tasksSlide = assertIsDefined(document.getElementById('gettingStartedSlideDetails'));
 
-		const tasksContent = assertIsDefined(document.getElementById('gettingStartedDetailsContent'));
+		const tasksContent = assertIsDefined(document.getElementById('gettingStartedDetailsContent') as HTMLElement);
 		tasksContent.remove();
 		if (this.detailImageScrollbar) { this.detailImageScrollbar.dispose(); }
 		this.detailImageScrollbar = this._register(new DomScrollableElement(tasksContent, { className: 'full-height-scrollable' }));
@@ -312,7 +313,7 @@ export class GettingStartedPage extends Disposable {
 		detailTitle.appendChild(
 			$('.getting-started-category',
 				{},
-				$('.codicon.codicon-' + category.codicon, {}),
+				$(ThemeIcon.asCSSSelector(category.icon), {}),
 				$('.category-description-container', {},
 					$('h2.category-title', {}, category.title),
 					$('.category-description.description', {}, category.description))));

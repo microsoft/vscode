@@ -20,7 +20,7 @@ class MenuActions extends Disposable {
 	private _secondaryActions: IAction[] = [];
 	get secondaryActions() { return this._secondaryActions; }
 
-	private readonly _onDidChange = new Emitter<void>();
+	private readonly _onDidChange = this._register(new Emitter<void>());
 	readonly onDidChange = this._onDidChange.event;
 
 	private disposables = this._register(new DisposableStore());
@@ -94,6 +94,4 @@ export class CompositeMenuActions extends Disposable {
 		menu.dispose();
 		return actions;
 	}
-
 }
-

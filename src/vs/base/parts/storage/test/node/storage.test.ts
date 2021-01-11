@@ -5,31 +5,31 @@
 
 import { SQLiteStorageDatabase, ISQLiteStorageDatabaseOptions } from 'vs/base/parts/storage/node/storage';
 import { Storage, IStorageDatabase, IStorageItemsChangeEvent } from 'vs/base/parts/storage/common/storage';
-import { generateUuid } from 'vs/base/common/uuid';
 import { join } from 'vs/base/common/path';
 import { tmpdir } from 'os';
 import { equal, ok } from 'assert';
-import { mkdirp, writeFile, exists, unlink, rimraf, RimRafMode } from 'vs/base/node/pfs';
+import { mkdirp, writeFile, exists, unlink, rimraf } from 'vs/base/node/pfs';
 import { timeout } from 'vs/base/common/async';
 import { Event, Emitter } from 'vs/base/common/event';
 import { isWindows } from 'vs/base/common/platform';
+import { flakySuite, getRandomTestPath } from 'vs/base/test/node/testUtils';
+import { generateUuid } from 'vs/base/common/uuid';
 
-suite('Storage Library', function () {
+flakySuite('Storage Library', function () {
 
-	// https://github.com/microsoft/vscode/issues/108113
-	this.retries(3);
-	this.timeout(1000 * 20);
+	let storageDir: string;
 
-	function uniqueStorageDir(): string {
-		const id = generateUuid();
+	setup(function () {
+		storageDir = getRandomTestPath(tmpdir(), 'vsctests', 'storagelibrary');
 
-		return join(tmpdir(), 'vsctests', id, 'storage2', id);
-	}
+		return mkdirp(storageDir);
+	});
+
+	teardown(function () {
+		return rimraf(storageDir);
+	});
 
 	test('basics', async () => {
-		const storageDir = uniqueStorageDir();
-		await mkdirp(storageDir);
-
 		const storage = new Storage(new SQLiteStorageDatabase(join(storageDir, 'storage.db')));
 
 		await storage.init();
@@ -103,12 +103,9 @@ suite('Storage Library', function () {
 		equal(deletePromiseResolved, true);
 
 		await storage.close();
-		await rimraf(storageDir, RimRafMode.MOVE);
 	});
 
 	test('external changes', async () => {
-		const storageDir = uniqueStorageDir();
-		await mkdirp(storageDir);
 
 		class TestSQLiteStorageDatabase extends SQLiteStorageDatabase {
 			private readonly _onDidChangeItemsExternal = new Emitter<IStorageItemsChangeEvent>();
@@ -158,13 +155,9 @@ suite('Storage Library', function () {
 		equal(changes.size, 0);
 
 		await storage.close();
-		await rimraf(storageDir, RimRafMode.MOVE);
 	});
 
 	test('close flushes data', async () => {
-		const storageDir = uniqueStorageDir();
-		await mkdirp(storageDir);
-
 		let storage = new Storage(new SQLiteStorageDatabase(join(storageDir, 'storage.db')));
 		await storage.init();
 
@@ -216,13 +209,9 @@ suite('Storage Library', function () {
 		ok(!storage.get('bar'));
 
 		await storage.close();
-		await rimraf(storageDir, RimRafMode.MOVE);
 	});
 
 	test('conflicting updates', async () => {
-		const storageDir = uniqueStorageDir();
-		await mkdirp(storageDir);
-
 		let storage = new Storage(new SQLiteStorageDatabase(join(storageDir, 'storage.db')));
 		await storage.init();
 
@@ -262,13 +251,9 @@ suite('Storage Library', function () {
 		ok(setAndDeletePromiseResolved);
 
 		await storage.close();
-		await rimraf(storageDir, RimRafMode.MOVE);
 	});
 
 	test('corrupt DB recovers', async () => {
-		const storageDir = uniqueStorageDir();
-		await mkdirp(storageDir);
-
 		const storageFile = join(storageDir, 'storage.db');
 
 		let storage = new Storage(new SQLiteStorageDatabase(storageFile));
@@ -292,21 +277,10 @@ suite('Storage Library', function () {
 		equal(storage.get('foo'), 'bar');
 
 		await storage.close();
-		await rimraf(storageDir, RimRafMode.MOVE);
 	});
 });
 
-suite('SQLite Storage Library', function () {
-
-	// https://github.com/microsoft/vscode/issues/108113
-	this.retries(3);
-	this.timeout(1000 * 20);
-
-	function uniqueStorageDir(): string {
-		const id = generateUuid();
-
-		return join(tmpdir(), 'vsctests', id, 'storage', id);
-	}
+flakySuite('SQLite Storage Library', function () {
 
 	function toSet(elements: string[]): Set<string> {
 		const set = new Set<string>();
@@ -314,6 +288,18 @@ suite('SQLite Storage Library', function () {
 
 		return set;
 	}
+
+	let storageDir: string;
+
+	setup(function () {
+		storageDir = getRandomTestPath(tmpdir(), 'vsctests', 'storagelibrary');
+
+		return mkdirp(storageDir);
+	});
+
+	teardown(function () {
+		return rimraf(storageDir);
+	});
 
 	async function testDBBasics(path: string, logError?: (error: Error | string) => void) {
 		let options!: ISQLiteStorageDatabaseOptions;
@@ -388,31 +374,15 @@ suite('SQLite Storage Library', function () {
 	}
 
 	test('basics', async () => {
-		const storageDir = uniqueStorageDir();
-
-		await mkdirp(storageDir);
-
 		await testDBBasics(join(storageDir, 'storage.db'));
-
-		await rimraf(storageDir, RimRafMode.MOVE);
 	});
 
 	test('basics (open multiple times)', async () => {
-		const storageDir = uniqueStorageDir();
-
-		await mkdirp(storageDir);
-
 		await testDBBasics(join(storageDir, 'storage.db'));
 		await testDBBasics(join(storageDir, 'storage.db'));
-
-		await rimraf(storageDir, RimRafMode.MOVE);
 	});
 
 	test('basics (corrupt DB falls back to empty DB)', async () => {
-		const storageDir = uniqueStorageDir();
-
-		await mkdirp(storageDir);
-
 		const corruptDBPath = join(storageDir, 'broken.db');
 		await writeFile(corruptDBPath, 'This is a broken DB');
 
@@ -422,15 +392,9 @@ suite('SQLite Storage Library', function () {
 		});
 
 		ok(expectedError);
-
-		await rimraf(storageDir, RimRafMode.MOVE);
 	});
 
 	test('basics (corrupt DB restores from previous backup)', async () => {
-		const storageDir = uniqueStorageDir();
-
-		await mkdirp(storageDir);
-
 		const storagePath = join(storageDir, 'storage.db');
 		let storage = new SQLiteStorageDatabase(storagePath);
 
@@ -460,15 +424,9 @@ suite('SQLite Storage Library', function () {
 		});
 
 		equal(recoveryCalled, false);
-
-		await rimraf(storageDir, RimRafMode.MOVE);
 	});
 
 	test('basics (corrupt DB falls back to empty DB if backup is corrupt)', async () => {
-		const storageDir = uniqueStorageDir();
-
-		await mkdirp(storageDir);
-
 		const storagePath = join(storageDir, 'storage.db');
 		let storage = new SQLiteStorageDatabase(storagePath);
 
@@ -489,21 +447,9 @@ suite('SQLite Storage Library', function () {
 		equal(storedItems.size, 0);
 
 		await testDBBasics(storagePath);
-
-		await rimraf(storageDir, RimRafMode.MOVE);
 	});
 
-	test('basics (DB that becomes corrupt during runtime stores all state from cache on close)', async () => {
-		if (isWindows) {
-			await Promise.resolve(); // Windows will fail to write to open DB due to locking
-
-			return;
-		}
-
-		const storageDir = uniqueStorageDir();
-
-		await mkdirp(storageDir);
-
+	(isWindows ? test.skip /* Windows will fail to write to open DB due to locking */ : test)('basics (DB that becomes corrupt during runtime stores all state from cache on close)', async () => {
 		const storagePath = join(storageDir, 'storage.db');
 		let storage = new SQLiteStorageDatabase(storagePath);
 
@@ -557,15 +503,9 @@ suite('SQLite Storage Library', function () {
 		});
 
 		equal(recoveryCalled, false);
-
-		await rimraf(storageDir, RimRafMode.MOVE);
 	});
 
 	test('real world example', async function () {
-		const storageDir = uniqueStorageDir();
-
-		await mkdirp(storageDir);
-
 		let storage = new SQLiteStorageDatabase(join(storageDir, 'storage.db'));
 
 		const items1 = new Map<string, string>();
@@ -646,17 +586,9 @@ suite('SQLite Storage Library', function () {
 		equal(storedItems.size, items1.size + items2.size + items3.size);
 
 		await storage.close();
-
-		await rimraf(storageDir, RimRafMode.MOVE);
 	});
 
 	test('very large item value', async function () {
-		this.timeout(20000);
-
-		const storageDir = uniqueStorageDir();
-
-		await mkdirp(storageDir);
-
 		let storage = new SQLiteStorageDatabase(join(storageDir, 'storage.db'));
 
 		const items = new Map<string, string>();
@@ -701,13 +633,9 @@ suite('SQLite Storage Library', function () {
 		ok(!storedItems.get('super.large.string'));
 
 		await storage.close();
-
-		await rimraf(storageDir, RimRafMode.MOVE);
 	});
 
 	test('multiple concurrent writes execute in sequence', async () => {
-		const storageDir = uniqueStorageDir();
-		await mkdirp(storageDir);
 
 		class TestStorage extends Storage {
 			getStorage(): IStorageDatabase {
@@ -758,15 +686,9 @@ suite('SQLite Storage Library', function () {
 		equal(items.get('some/foo3/path'), 'some/bar/path');
 
 		await storage.close();
-
-		await rimraf(storageDir, RimRafMode.MOVE);
 	});
 
 	test('lots of INSERT & DELETE (below inline max)', async () => {
-		const storageDir = uniqueStorageDir();
-
-		await mkdirp(storageDir);
-
 		const storage = new SQLiteStorageDatabase(join(storageDir, 'storage.db'));
 
 		const items = new Map<string, string>();
@@ -790,15 +712,9 @@ suite('SQLite Storage Library', function () {
 		equal(storedItems.size, 0);
 
 		await storage.close();
-
-		await rimraf(storageDir, RimRafMode.MOVE);
 	});
 
 	test('lots of INSERT & DELETE (above inline max)', async () => {
-		const storageDir = uniqueStorageDir();
-
-		await mkdirp(storageDir);
-
 		const storage = new SQLiteStorageDatabase(join(storageDir, 'storage.db'));
 
 		const items = new Map<string, string>();
@@ -822,7 +738,5 @@ suite('SQLite Storage Library', function () {
 		equal(storedItems.size, 0);
 
 		await storage.close();
-
-		await rimraf(storageDir, RimRafMode.MOVE);
 	});
 });

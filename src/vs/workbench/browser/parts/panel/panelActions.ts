@@ -158,7 +158,6 @@ export class PlaceHolderToggleCompositePinnedAction extends ToggleCompositePinne
 	}
 }
 
-
 export class SwitchPanelViewAction extends Action {
 
 	constructor(

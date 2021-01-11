@@ -425,11 +425,15 @@ export class ViewContainerModel extends Disposable implements IViewContainerMode
 		}
 
 		if (added.length) {
-			this._onDidAddVisibleViewDescriptors.fire(added);
+			this.triggerOnDidAddVisibleViewDescriptors(added);
 		}
 		if (removed.length) {
 			this._onDidRemoveVisibleViewDescriptors.fire(removed);
 		}
+	}
+
+	private triggerOnDidAddVisibleViewDescriptors(added: IAddedViewDescriptorRef[]) {
+		this._onDidAddVisibleViewDescriptors.fire(added.sort((a, b) => a.index - b.index));
 	}
 
 	isCollapsed(id: string): boolean {
@@ -530,7 +534,7 @@ export class ViewContainerModel extends Disposable implements IViewContainerMode
 			this._onDidChangeActiveViewDescriptors.fire(({ added: addedActiveDescriptors, removed: [] }));
 		}
 		if (addedVisibleItems.length) {
-			this._onDidAddVisibleViewDescriptors.fire(addedVisibleItems);
+			this.triggerOnDidAddVisibleViewDescriptors(addedVisibleItems);
 		}
 	}
 
@@ -616,7 +620,7 @@ export class ViewContainerModel extends Disposable implements IViewContainerMode
 			this._onDidRemoveVisibleViewDescriptors.fire(removedVisibleItems);
 		}
 		if (addedVisibleItems.length) {
-			this._onDidAddVisibleViewDescriptors.fire(addedVisibleItems);
+			this.triggerOnDidAddVisibleViewDescriptors(addedVisibleItems);
 		}
 	}
 

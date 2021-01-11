@@ -22,6 +22,8 @@ const stubTest = (label: string): TestItem => ({
 const simplify = (item: TestItem) => {
 	if ('toJSON' in item) {
 		item = (item as any).toJSON();
+		delete (item as any).providerId;
+		delete (item as any).testId;
 	}
 
 	return { ...item, children: undefined };

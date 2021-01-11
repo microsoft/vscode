@@ -282,7 +282,7 @@ suite('PieceTreeTextBuffer._toSingleEditOperation', () => {
 	}
 
 	function testToSingleEditOperation(original: string[], edits: IValidatedEditOperation[], expected: IValidatedEditOperation): void {
-		const textBuffer = <PieceTreeTextBuffer>createTextBufferFactory(original.join('\n')).create(DefaultEndOfLine.LF);
+		const textBuffer = <PieceTreeTextBuffer>createTextBufferFactory(original.join('\n')).create(DefaultEndOfLine.LF).textBuffer;
 
 		const actual = textBuffer._toSingleEditOperation(edits);
 		assert.deepEqual(actual, expected);

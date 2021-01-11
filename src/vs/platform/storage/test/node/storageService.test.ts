@@ -6,29 +6,18 @@
 import { equal } from 'assert';
 import { StorageScope, StorageTarget } from 'vs/platform/storage/common/storage';
 import { NativeStorageService } from 'vs/platform/storage/node/storageService';
-import { generateUuid } from 'vs/base/common/uuid';
-import { join } from 'vs/base/common/path';
 import { tmpdir } from 'os';
-import { mkdirp, rimraf, RimRafMode } from 'vs/base/node/pfs';
+import { mkdirp, rimraf } from 'vs/base/node/pfs';
 import { NullLogService } from 'vs/platform/log/common/log';
 import { NativeEnvironmentService } from 'vs/platform/environment/node/environmentService';
 import { parseArgs, OPTIONS } from 'vs/platform/environment/node/argv';
 import { InMemoryStorageDatabase } from 'vs/base/parts/storage/common/storage';
 import { URI } from 'vs/base/common/uri';
+import { flakySuite, getRandomTestPath } from 'vs/base/test/node/testUtils';
 
-suite('NativeStorageService', function () {
-
-	function uniqueStorageDir(): string {
-		const id = generateUuid();
-
-		return join(tmpdir(), 'vsctests', id, 'storage2', id);
-	}
+flakySuite('NativeStorageService', function () {
 
 	test('Migrate Data', async function () {
-
-		// https://github.com/microsoft/vscode/issues/108113
-		this.retries(3);
-		this.timeout(1000 * 20);
 
 		class StorageTestEnvironmentService extends NativeEnvironmentService {
 
@@ -45,7 +34,7 @@ suite('NativeStorageService', function () {
 			}
 		}
 
-		const storageDir = uniqueStorageDir();
+		const storageDir = getRandomTestPath(tmpdir(), 'vsctests', 'storageservice');
 		await mkdirp(storageDir);
 
 		const storage = new NativeStorageService(new InMemoryStorageDatabase(), new NullLogService(), new StorageTestEnvironmentService(URI.file(storageDir), storageDir));
@@ -66,6 +55,6 @@ suite('NativeStorageService', function () {
 		equal(storage.getBoolean('barBoolean', StorageScope.GLOBAL), true);
 
 		await storage.close();
-		await rimraf(storageDir, RimRafMode.MOVE);
+		await rimraf(storageDir);
 	});
 });

@@ -3,8 +3,6 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { Command } from 'vscode';
-
 /**
  * This is the place for API experiments and proposals.
  * These API are NOT stable and subject to change. They are only available in the Insiders
@@ -106,17 +104,20 @@ declare module 'vscode' {
 		/**
 		 * Returns an array of current sessions.
 		 */
+		// eslint-disable-next-line vscode-dts-provider-naming
 		getSessions(): Thenable<ReadonlyArray<AuthenticationSession>>;
 
 		/**
 		 * Prompts a user to login.
 		 */
+		// eslint-disable-next-line vscode-dts-provider-naming
 		login(scopes: string[]): Thenable<AuthenticationSession>;
 
 		/**
 		 * Removes the session corresponding to session id.
 		 * @param sessionId The session id to log out of
 		 */
+		// eslint-disable-next-line vscode-dts-provider-naming
 		logout(sessionId: string): Thenable<void>;
 	}
 
@@ -139,56 +140,17 @@ declare module 'vscode' {
 		export const onDidChangeAuthenticationProviders: Event<AuthenticationProvidersChangeEvent>;
 
 		/**
-		 * @deprecated
-		 * The ids of the currently registered authentication providers.
-		 * @returns An array of the ids of authentication providers that are currently registered.
-		 */
-		export function getProviderIds(): Thenable<ReadonlyArray<string>>;
-
-		/**
-		 * @deprecated
-		 * An array of the ids of authentication providers that are currently registered.
-		 */
-		export const providerIds: ReadonlyArray<string>;
-
-		/**
 		 * An array of the information of authentication providers that are currently registered.
 		 */
 		export const providers: ReadonlyArray<AuthenticationProviderInformation>;
 
 		/**
-		 * @deprecated
 		* Logout of a specific session.
 		* @param providerId The id of the provider to use
 		* @param sessionId The session id to remove
 		* provider
 		*/
 		export function logout(providerId: string, sessionId: string): Thenable<void>;
-
-		/**
-		 * Retrieve a password that was stored with key. Returns undefined if there
-		 * is no password matching that key.
-		 * @param key The key the password was stored under.
-		 */
-		export function getPassword(key: string): Thenable<string | undefined>;
-
-		/**
-		 * Store a password under a given key.
-		 * @param key The key to store the password under
-		 * @param value The password
-		 */
-		export function setPassword(key: string, value: string): Thenable<void>;
-
-		/**
-		 * Remove a password from storage.
-		 * @param key The key the password was stored under.
-		 */
-		export function deletePassword(key: string): Thenable<void>;
-
-		/**
-		 * Fires when a password is set or deleted.
-		 */
-		export const onDidChangePassword: Event<void>;
 	}
 
 	//#endregion
@@ -227,7 +189,7 @@ declare module 'vscode' {
 	export interface Tunnel extends TunnelDescription {
 		// Implementers of Tunnel should fire onDidDispose when dispose is called.
 		onDidDispose: Event<void>;
-		dispose(): void;
+		dispose(): void | Thenable<void>;
 	}
 
 	/**
@@ -272,10 +234,18 @@ declare module 'vscode' {
 		 */
 		tunnelFactory?: (tunnelOptions: TunnelOptions, tunnelCreationOptions: TunnelCreationOptions) => Thenable<Tunnel> | undefined;
 
-		/**
+		/**p
 		 * Provides filtering for candidate ports.
 		 */
 		showCandidatePort?: (host: string, port: number, detail: string) => Thenable<boolean>;
+
+		/**
+		 * Lets the resolver declare which tunnel factory features it supports.
+		 * UNDER DISCUSSION! MAY CHANGE SOON.
+		 */
+		tunnelFeatures?: {
+			elevation: boolean;
+		};
 	}
 
 	export namespace workspace {
@@ -936,11 +906,17 @@ declare module 'vscode' {
 	}
 	//#endregion
 
-	//#region Tree View: https://github.com/microsoft/vscode/issues/61313
+	//#region Tree View: https://github.com/microsoft/vscode/issues/61313 @alexr00
 	export interface TreeView<T> extends Disposable {
 		reveal(element: T | undefined, options?: { select?: boolean, focus?: boolean, expand?: boolean | number }): Thenable<void>;
 	}
 	//#endregion
+
+	//#region Tree data provider: https://github.com/microsoft/vscode/issues/111614 @alexr00
+	export interface TreeDataProvider<T> {
+		resolveTreeItem?(item: TreeItem, element: T, token: CancellationToken): ProviderResult<TreeItem>;
+	}
+	////#endregion
 
 	//#region Task presentation group: https://github.com/microsoft/vscode/issues/47265
 	export interface TaskPresentationOptions {
@@ -1022,6 +998,7 @@ declare module 'vscode' {
 		 *
 		 * @return Thenable indicating that the webview editor has been moved.
 		 */
+		// eslint-disable-next-line vscode-dts-provider-naming
 		moveCustomTextEditor?(newDocument: TextDocument, existingWebviewPanel: WebviewPanel, token: CancellationToken): Thenable<void>;
 	}
 
@@ -1610,10 +1587,16 @@ declare module 'vscode' {
 		 * Content providers should always use [file system providers](#FileSystemProvider) to
 		 * resolve the raw content for `uri` as the resouce is not necessarily a file on disk.
 		 */
+		// eslint-disable-next-line vscode-dts-provider-naming
 		openNotebook(uri: Uri, openContext: NotebookDocumentOpenContext): NotebookData | Promise<NotebookData>;
+		// eslint-disable-next-line vscode-dts-provider-naming
+		// eslint-disable-next-line vscode-dts-cancellation
 		resolveNotebook(document: NotebookDocument, webview: NotebookCommunication): Promise<void>;
+		// eslint-disable-next-line vscode-dts-provider-naming
 		saveNotebook(document: NotebookDocument, cancellation: CancellationToken): Promise<void>;
+		// eslint-disable-next-line vscode-dts-provider-naming
 		saveNotebookAs(targetResource: Uri, document: NotebookDocument, cancellation: CancellationToken): Promise<void>;
+		// eslint-disable-next-line vscode-dts-provider-naming
 		backupNotebook(document: NotebookDocument, context: NotebookDocumentBackupContext, cancellation: CancellationToken): Promise<NotebookDocumentBackup>;
 	}
 
@@ -2127,13 +2110,11 @@ declare module 'vscode' {
 		readonly onDidChangeTest: Event<T>;
 
 		/**
-		 * An event that should be fired when all tests that are currently defined
-		 * have been discovered. The provider should continue to watch for changes
-		 * and fire `onDidChangeTest` until the hierarchy is disposed.
-		 *
-		 * @todo can this be covered by existing progress apis? Or return a promise
+		 * Promise that should be resolved when all tests that are initially
+		 * defined have been discovered. The provider should continue to watch for
+		 * changes and fire `onDidChangeTest` until the hierarchy is disposed.
 		 */
-		readonly onDidDiscoverInitialTests: Event<void>;
+		readonly discoveredInitialTests?: Thenable<unknown>;
 
 		/**
 		 * Dispose will be called when there are no longer observers interested
@@ -2162,20 +2143,23 @@ declare module 'vscode' {
 		 * It's guaranteed that this method will not be called again while
 		 * there is a previous undisposed watcher for the given workspace folder.
 		 */
-		createWorkspaceTestHierarchy?(workspace: WorkspaceFolder): TestHierarchy<T>;
+		// eslint-disable-next-line vscode-dts-provider-naming
+		createWorkspaceTestHierarchy?(workspace: WorkspaceFolder): TestHierarchy<T> | undefined;
 
 		/**
 		 * Requests that tests be provided for the given document. This will
 		 * be called when tests need to be enumerated for a single open file,
 		 * for instance by code lens UI.
 		 */
-		createDocumentTestHierarchy?(document: TextDocument): TestHierarchy<T>;
+		// eslint-disable-next-line vscode-dts-provider-naming
+		createDocumentTestHierarchy?(document: TextDocument): TestHierarchy<T> | undefined;
 
 		/**
 		 * Starts a test run. This should cause {@link onDidChangeTest} to
 		 * fire with update test states during the run.
 		 * @todo this will eventually need to be able to return a summary report, coverage for example.
 		 */
+		// eslint-disable-next-line vscode-dts-provider-naming
 		runTests?(options: TestRunOptions<T>, cancellationToken: CancellationToken): ProviderResult<void>;
 	}
 
@@ -2329,6 +2313,14 @@ declare module 'vscode' {
 		 */
 		location?: Location;
 	}
+
+	/**
+	 * Additional metadata about the uri being opened
+	 */
+	interface OpenExternalUriContext {
+
+	}
+
 	//#endregion
 
 	//#region Opener service (https://github.com/microsoft/vscode/issues/109277)
@@ -2346,16 +2338,20 @@ declare module 'vscode' {
 		/**
 		 * Try to open a given uri.
 		 *
-		 * @param uri The uri being opened.
-		 * @param ctx Additional metadata about how the open was triggered.
+		 * @param uri The uri to open. This uri may have been transformed by port forwarding. To access
+		 * the original uri that triggered the open, use `ctx.original`.
+		 * @param ctx Additional metadata about the triggered open.
 		 * @param token Cancellation token.
 		 *
 		 * @return Optional command that opens the uri. If no command is returned, VS Code will
 		 * continue checking to see if any other openers are available.
 		 *
+		 * This command is given the resolved uri to open. This may be different from the original `uri` due
+		 * to port forwarding.
+		 *
 		 * If multiple openers are available for a given uri, then the `Command.title` is shown in the UI.
 		 */
-		openExternalUri(uri: Uri, ctx: {}, token: CancellationToken): ProviderResult<Command>;
+		openExternalUri(uri: Uri, ctx: OpenExternalUriContext, token: CancellationToken): ProviderResult<Command>;
 	}
 
 	namespace window {
@@ -2434,5 +2430,40 @@ declare module 'vscode' {
 		 * @return A list of arguments labels or a thenable that resolves to such.
 		 */
 		provideInlineHints(model: TextDocument, range: Range, token: CancellationToken): ProviderResult<InlineHint[]>;
+  }
+	/**
+	 * Represents a storage utility for secrets, information that is
+	 * sensitive.
+	 */
+	export interface SecretStorage {
+		/**
+		 * Retrieve a secret that was stored with key. Returns undefined if there
+		 * is no password matching that key.
+		 * @param key The key the password was stored under.
+		 * @returns The stored value or `undefined`.
+		 */
+		get(key: string): Thenable<string | undefined>;
+
+		/**
+		 * Store a secret under a given key.
+		 * @param key The key to store the password under.
+		 * @param value The password.
+		 */
+		set(key: string, value: string): Thenable<void>;
+
+		/**
+		 * Remove a secret from storage.
+		 * @param key The key the password was stored under.
+		 */
+		delete(key: string): Thenable<void>;
+
+		/**
+		 * Fires when a secret is set or deleted.
+		 */
+		onDidChange: Event<void>;
+	}
+
+	export interface ExtensionContext {
+		secrets: SecretStorage;
 	}
 }

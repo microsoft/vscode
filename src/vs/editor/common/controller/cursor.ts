@@ -393,8 +393,8 @@ export class Cursor extends Disposable {
 		return this._cursors.getPrimaryCursor().modelState.position;
 	}
 
-	public setSelections(eventsCollector: ViewModelEventsCollector, source: string | null | undefined, selections: readonly ISelection[]): void {
-		this.setStates(eventsCollector, source, CursorChangeReason.NotSet, CursorState.fromModelSelections(selections));
+	public setSelections(eventsCollector: ViewModelEventsCollector, source: string | null | undefined, selections: readonly ISelection[], reason: CursorChangeReason): void {
+		this.setStates(eventsCollector, source, reason, CursorState.fromModelSelections(selections));
 	}
 
 	public getPrevEditOperationType(): EditOperationType {
@@ -584,7 +584,7 @@ export class Cursor extends Disposable {
 		});
 		if (selections) {
 			this._isHandling = false;
-			this.setSelections(eventsCollector, source, selections);
+			this.setSelections(eventsCollector, source, selections, CursorChangeReason.NotSet);
 		}
 		if (autoClosedCharactersRanges.length > 0) {
 			this._pushAutoClosedAction(autoClosedCharactersRanges, autoClosedEnclosingRanges);

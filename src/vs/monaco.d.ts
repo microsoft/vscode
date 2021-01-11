@@ -969,6 +969,11 @@ declare namespace monaco.editor {
 	 */
 	export function remeasureFonts(): void;
 
+	/**
+	 * Register a command.
+	 */
+	export function registerCommand(id: string, handler: (accessor: any, ...args: any[]) => void): IDisposable;
+
 	export type BuiltinTheme = 'vs' | 'vs-dark' | 'hc-black';
 
 	export interface IStandaloneThemeData {
@@ -4973,6 +4978,7 @@ declare namespace monaco.editor {
 
 	export class FontInfo extends BareFontInfo {
 		readonly _editorStylingBrand: void;
+		readonly version: number;
 		readonly isTrusted: boolean;
 		readonly isMonospace: boolean;
 		readonly typicalHalfwidthCharacterWidth: number;
@@ -4987,6 +4993,7 @@ declare namespace monaco.editor {
 	export class BareFontInfo {
 		readonly _bareFontInfoBrand: void;
 		readonly zoomLevel: number;
+		readonly pixelRatio: number;
 		readonly fontFamily: string;
 		readonly fontWeight: string;
 		readonly fontSize: number;
@@ -5112,6 +5119,12 @@ declare namespace monaco.languages {
 		 */
 		tokenize?(line: string, state: IState): ILineTokens;
 	}
+
+	/**
+	 * Change the color map that is used for token colors.
+	 * Supported formats (hex): #RRGGBB, $RRGGBBAA, #RGB, #RGBA
+	 */
+	export function setColorMap(colorMap: string[] | null): void;
 
 	/**
 	 * Set the tokens provider for a language (manual implementation).
@@ -6478,6 +6491,11 @@ declare namespace monaco.languages {
 		 * attach this to every token class (by default '.' + name)
 		 */
 		tokenPostfix?: string;
+		/**
+		 * include line feeds (in the form of a \n character) at the end of lines
+		 * Defaults to false
+		 */
+		includeLF?: boolean;
 	}
 
 	/**

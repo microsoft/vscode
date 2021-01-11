@@ -314,10 +314,10 @@ export class DiagnosticsService implements IDiagnosticsService {
 
 		if (isLinux) {
 			systemInfo.linuxEnv = {
-				desktopSession: process.env.DESKTOP_SESSION,
-				xdgSessionDesktop: process.env.XDG_SESSION_DESKTOP,
-				xdgCurrentDesktop: process.env.XDG_CURRENT_DESKTOP,
-				xdgSessionType: process.env.XDG_SESSION_TYPE
+				desktopSession: process.env['DESKTOP_SESSION'],
+				xdgSessionDesktop: process.env['XDG_SESSION_DESKTOP'],
+				xdgCurrentDesktop: process.env['XDG_CURRENT_DESKTOP'],
+				xdgSessionType: process.env['XDG_SESSION_TYPE']
 			};
 		}
 

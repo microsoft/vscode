@@ -42,28 +42,35 @@ steps:
     displayName: Merge distro
 
   - script: |
-      npx https://aka.ms/enablesecurefeed standAlone
-    displayName: Switch to Terrapin packages
-    timeoutInMinutes: 5
-    condition: and(succeeded(), eq(variables['ENABLE_TERRAPIN'], 'true'))
-
-  - script: |
-      echo -n $(VSCODE_ARCH) > .build/arch
-      echo -n $ENABLE_TERRAPIN > .build/terrapin
+      mkdir -p .build
+      node build/azure-pipelines/common/computeNodeModulesCacheKey.js $VSCODE_ARCH $ENABLE_TERRAPIN > .build/yarnlockhash
     displayName: Prepare yarn cache flags
 
-  - task: 1ESLighthouseEng.PipelineArtifactCaching.RestoreCacheV1.RestoreCache@1
+  - task: Cache@2
     inputs:
-      keyfile: ".build/arch, .build/terrapin, build/.cachesalt, .yarnrc, remote/.yarnrc, **/yarn.lock, !**/node_modules/**/yarn.lock, !**/.*/**/yarn.lock"
-      targetfolder: "**/node_modules, !**/node_modules/**/node_modules"
-      vstsFeed: "npm-vscode"
+      key: 'nodeModules | $(Agent.OS) | .build/yarnlockhash'
+      path: .build/node_modules_cache
+      cacheHitVar: NODE_MODULES_RESTORED
+    displayName: Restore node_modules cache
+
+  - script: |
+      set -e
+      tar -xzf .build/node_modules_cache/cache.tgz
+    condition: and(succeeded(), eq(variables.NODE_MODULES_RESTORED, 'true'))
+    displayName: Extract node_modules cache
 
   - script: |
       set -e
       npm install -g node-gyp@latest
       node-gyp --version
     displayName: Update node-gyp
-    condition: and(succeeded(), eq(variables['VSCODE_ARCH'], 'x64'))
+    condition: and(succeeded(), ne(variables.NODE_MODULES_RESTORED, 'true'), eq(variables['VSCODE_ARCH'], 'x64'))
+
+  - script: |
+      npx https://aka.ms/enablesecurefeed standAlone
+    timeoutInMinutes: 5
+    condition: and(succeeded(), ne(variables.NODE_MODULES_RESTORED, 'true'), eq(variables['ENABLE_TERRAPIN'], 'true'))
+    displayName: Switch to Terrapin packages
 
   - script: |
       set -e
@@ -92,14 +99,15 @@ steps:
       ELECTRON_SKIP_BINARY_DOWNLOAD: 1
       PLAYWRIGHT_SKIP_BROWSER_DOWNLOAD: 1
     displayName: Install dependencies
-    condition: and(succeeded(), ne(variables['CacheRestored'], 'true'))
+    condition: and(succeeded(), ne(variables.NODE_MODULES_RESTORED, 'true'))
 
-  - task: 1ESLighthouseEng.PipelineArtifactCaching.SaveCacheV1.SaveCache@1
-    inputs:
-      keyfile: ".build/arch, .build/terrapin, build/.cachesalt, .yarnrc, remote/.yarnrc, **/yarn.lock, !**/node_modules/**/yarn.lock, !**/.*/**/yarn.lock"
-      targetfolder: "**/node_modules, !**/node_modules/**/node_modules"
-      vstsFeed: "npm-vscode"
-    condition: and(succeeded(), ne(variables['CacheRestored'], 'true'))
+  - script: |
+      set -e
+      node build/azure-pipelines/common/listNodeModules.js .build/node_modules_list.txt
+      mkdir -p .build/node_modules_cache
+      tar -czf .build/node_modules_cache/cache.tgz --files-from .build/node_modules_list.txt
+    condition: and(succeeded(), ne(variables.NODE_MODULES_RESTORED, 'true'))
+    displayName: Create node_modules archive
 
   - script: |
       set -e
@@ -144,7 +152,7 @@ steps:
       set -e
       yarn --cwd test/integration/browser compile
     displayName: Compile integration tests
-    condition: and(succeeded(), eq(variables['CacheRestored'], 'true'), eq(variables['VSCODE_ARCH'], 'x64'), eq(variables['VSCODE_STEP_ON_IT'], 'false'))
+    condition: and(succeeded(), eq(variables.NODE_MODULES_RESTORED, 'true'), eq(variables['VSCODE_ARCH'], 'x64'), eq(variables['VSCODE_STEP_ON_IT'], 'false'))
 
   - script: |
       # Figure out the full absolute path of the product we just built

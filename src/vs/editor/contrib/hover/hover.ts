@@ -22,11 +22,10 @@ import { KeybindingWeight } from 'vs/platform/keybinding/common/keybindingsRegis
 import { IOpenerService } from 'vs/platform/opener/common/opener';
 import { editorHoverBackground, editorHoverBorder, editorHoverHighlight, textCodeBlockBackground, textLinkForeground, editorHoverStatusBarBackground, editorHoverForeground } from 'vs/platform/theme/common/colorRegistry';
 import { IThemeService, registerThemingParticipant } from 'vs/platform/theme/common/themeService';
-import { IMarkerDecorationsService } from 'vs/editor/common/services/markersDecorationService';
-import { IKeybindingService } from 'vs/platform/keybinding/common/keybinding';
 import { AccessibilitySupport } from 'vs/platform/accessibility/common/accessibility';
 import { GotoDefinitionAtPositionEditorContribution } from 'vs/editor/contrib/gotoSymbol/link/goToDefinitionAtPosition';
 import { IContextKeyService, IContextKey } from 'vs/platform/contextkey/common/contextkey';
+import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 
 export class ModesHoverController implements IEditorContribution {
 
@@ -64,10 +63,9 @@ export class ModesHoverController implements IEditorContribution {
 	}
 
 	constructor(private readonly _editor: ICodeEditor,
+		@IInstantiationService private readonly _instantiationService: IInstantiationService,
 		@IOpenerService private readonly _openerService: IOpenerService,
 		@IModeService private readonly _modeService: IModeService,
-		@IMarkerDecorationsService private readonly _markerDecorationsService: IMarkerDecorationsService,
-		@IKeybindingService private readonly _keybindingService: IKeybindingService,
 		@IThemeService private readonly _themeService: IThemeService,
 		@IContextKeyService _contextKeyService: IContextKeyService
 	) {
@@ -233,7 +231,7 @@ export class ModesHoverController implements IEditorContribution {
 	}
 
 	private _createHoverWidgets() {
-		this._contentWidget.value = new ModesContentHoverWidget(this._editor, this._hoverVisibleKey, this._markerDecorationsService, this._keybindingService, this._themeService, this._modeService, this._openerService);
+		this._contentWidget.value = new ModesContentHoverWidget(this._editor, this._hoverVisibleKey, this._instantiationService, this._themeService);
 		this._glyphWidget.value = new ModesGlyphHoverWidget(this._editor, this._modeService, this._openerService);
 	}
 

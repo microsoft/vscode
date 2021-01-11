@@ -12,29 +12,29 @@ import * as processes from 'vs/base/node/processes';
  * shell that the terminal uses by default.
  * @param p The platform to detect the shell of.
  */
-export function getSystemShell(p: platform.Platform, environment: platform.IProcessEnvironment = process.env as platform.IProcessEnvironment): string {
+export function getSystemShell(p: platform.Platform, env = process.env as platform.IProcessEnvironment): string {
 	if (p === platform.Platform.Windows) {
 		if (platform.isWindows) {
-			return getSystemShellWindows(environment);
+			return getSystemShellWindows(env);
 		}
 		// Don't detect Windows shell when not on Windows
-		return processes.getWindowsShell(environment);
+		return processes.getWindowsShell(env);
 	}
 	// Only use $SHELL for the current OS
 	if (platform.isLinux && p === platform.Platform.Mac || platform.isMacintosh && p === platform.Platform.Linux) {
 		return '/bin/bash';
 	}
-	return getSystemShellUnixLike(environment);
+	return getSystemShellUnixLike(env);
 }
 
 let _TERMINAL_DEFAULT_SHELL_UNIX_LIKE: string | null = null;
-function getSystemShellUnixLike(environment: platform.IProcessEnvironment): string {
+function getSystemShellUnixLike(env: platform.IProcessEnvironment): string {
 	if (!_TERMINAL_DEFAULT_SHELL_UNIX_LIKE) {
 		let unixLikeTerminal: string;
 		if (platform.isWindows) {
 			unixLikeTerminal = '/bin/bash'; // for WSL
 		} else {
-			unixLikeTerminal = environment.SHELL;
+			unixLikeTerminal = env['SHELL'];
 
 			if (!unixLikeTerminal) {
 				try {
@@ -59,12 +59,12 @@ function getSystemShellUnixLike(environment: platform.IProcessEnvironment): stri
 }
 
 let _TERMINAL_DEFAULT_SHELL_WINDOWS: string | null = null;
-function getSystemShellWindows(environment: platform.IProcessEnvironment): string {
+function getSystemShellWindows(env: platform.IProcessEnvironment): string {
 	if (!_TERMINAL_DEFAULT_SHELL_WINDOWS) {
 		const isAtLeastWindows10 = platform.isWindows && parseFloat(os.release()) >= 10;
-		const is32ProcessOn64Windows = environment.hasOwnProperty('PROCESSOR_ARCHITEW6432');
-		const powerShellPath = `${environment.windir}\\${is32ProcessOn64Windows ? 'Sysnative' : 'System32'}\\WindowsPowerShell\\v1.0\\powershell.exe`;
-		_TERMINAL_DEFAULT_SHELL_WINDOWS = isAtLeastWindows10 ? powerShellPath : processes.getWindowsShell(environment);
+		const is32ProcessOn64Windows = env.hasOwnProperty('PROCESSOR_ARCHITEW6432');
+		const powerShellPath = `${env['windir']}\\${is32ProcessOn64Windows ? 'Sysnative' : 'System32'}\\WindowsPowerShell\\v1.0\\powershell.exe`;
+		_TERMINAL_DEFAULT_SHELL_WINDOWS = isAtLeastWindows10 ? powerShellPath : processes.getWindowsShell(env);
 	}
 	return _TERMINAL_DEFAULT_SHELL_WINDOWS;
 }

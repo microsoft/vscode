@@ -13,7 +13,7 @@ export async function activate(context: vscode.ExtensionContext) {
 	const { name, version, aiKey } = require('../package.json') as { name: string, version: string, aiKey: string };
 	const telemetryReporter = new TelemetryReporter(name, version, aiKey);
 
-	const loginService = new AzureActiveDirectoryService();
+	const loginService = new AzureActiveDirectoryService(context);
 	context.subscriptions.push(loginService);
 
 	await loginService.initialize();

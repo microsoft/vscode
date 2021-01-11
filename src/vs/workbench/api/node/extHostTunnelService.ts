@@ -12,12 +12,16 @@ import { URI } from 'vs/base/common/uri';
 import { exec } from 'child_process';
 import * as resources from 'vs/base/common/resources';
 import * as fs from 'fs';
+import * as pfs from 'vs/base/node/pfs';
 import { isLinux } from 'vs/base/common/platform';
 import { IExtHostTunnelService, TunnelDto } from 'vs/workbench/api/common/extHostTunnelService';
 import { asPromise } from 'vs/base/common/async';
 import { Event, Emitter } from 'vs/base/common/event';
 import { TunnelOptions, TunnelCreationOptions } from 'vs/platform/remote/common/tunnel';
 import { IExtensionDescription } from 'vs/platform/extensions/common/extensions';
+import { promisify } from 'util';
+import { MovingAverage } from 'vs/base/common/numbers';
+import { CandidatePort } from 'vs/workbench/services/remote/common/remoteExplorerService';
 
 class ExtensionTunnel implements vscode.Tunnel {
 	private _onDispose: Emitter<void> = new Emitter();
@@ -26,11 +30,11 @@ class ExtensionTunnel implements vscode.Tunnel {
 	constructor(
 		public readonly remoteAddress: { port: number, host: string },
 		public readonly localAddress: { port: number, host: string } | string,
-		private readonly _dispose: () => void) { }
+		private readonly _dispose: () => Promise<void>) { }
 
-	dispose(): void {
+	dispose(): Promise<void> {
 		this._onDispose.fire();
-		this._dispose();
+		return this._dispose();
 	}
 }
 
@@ -97,7 +101,13 @@ export function loadConnectionTable(stdout: string): Record<string, string>[] {
 	return table;
 }
 
-export async function findPorts(tcp: string, tcp6: string, procSockets: string, processes: { pid: number, cwd: string, cmd: string }[]) {
+function knownExcludeCmdline(command: string): boolean {
+	return !!command.match(/.*\.vscode-server-[a-zA-Z]+\/bin.*/)
+		|| (command.indexOf('out/vs/server/main.js') !== -1)
+		|| (command.indexOf('_productName=VSCode') !== -1);
+}
+
+export async function findPorts(tcp: string, tcp6: string, procSockets: string, processes: { pid: number, cwd: string, cmd: string }[]): Promise<CandidatePort[]> {
 	const connections: { socket: number, ip: string, port: number }[] = loadListeningPorts(tcp, tcp6);
 	const sockets = getSockets(procSockets);
 
@@ -110,11 +120,11 @@ export async function findPorts(tcp: string, tcp6: string, procSockets: string, 
 		return m;
 	}, {} as Record<string, typeof processes[0]>);
 
-	const ports: { host: string, port: number, detail: string }[] = [];
+	const ports: CandidatePort[] = [];
 	connections.filter((connection => socketMap[connection.socket])).forEach(({ socket, ip, port }) => {
 		const command = processMap[socketMap[socket].pid].cmd;
-		if (!command.match(/.*\.vscode-server-[a-zA-Z]+\/bin.*/) && (command.indexOf('out/vs/server/main.js') === -1)) {
-			ports.push({ host: ip, port, detail: processMap[socketMap[socket].pid].cmd });
+		if (!knownExcludeCmdline(command)) {
+			ports.push({ host: ip, port, detail: processMap[socketMap[socket].pid].cmd, pid: socketMap[socket].pid });
 		}
 	});
 	return ports;
@@ -131,13 +141,10 @@ export class ExtHostTunnelService extends Disposable implements IExtHostTunnelSe
 
 	constructor(
 		@IExtHostRpcService extHostRpc: IExtHostRpcService,
-		@IExtHostInitDataService initData: IExtHostInitDataService
+		@IExtHostInitDataService private initData: IExtHostInitDataService
 	) {
 		super();
 		this._proxy = extHostRpc.getProxy(MainContext.MainThreadTunnelService);
-		if (initData.remote.isRemote && initData.remote.authority && !process.env['VSCODE_DISABLE_PROC_READING']) {
-			this.registerCandidateFinder();
-		}
 	}
 
 	async openTunnel(extension: IExtensionDescription, forward: TunnelOptions): Promise<vscode.Tunnel | undefined> {
@@ -156,18 +163,28 @@ export class ExtHostTunnelService extends Disposable implements IExtHostTunnelSe
 		return this._proxy.$getTunnels();
 	}
 
-	registerCandidateFinder(): void {
-		// Every two seconds, scan to see if the candidate ports have changed;
-		if (isLinux) {
-			let oldPorts: { host: string, port: number, detail: string }[] | undefined = undefined;
-			setInterval(async () => {
-				const newPorts = await this.findCandidatePorts();
-				if (!oldPorts || (JSON.stringify(oldPorts) !== JSON.stringify(newPorts))) {
-					oldPorts = newPorts;
-					this._proxy.$onFoundNewCandidates(oldPorts.filter(async (candidate) => await this._showCandidatePort(candidate.host, candidate.port, candidate.detail)));
-					return;
-				}
-			}, 2000);
+	private calculateDelay(movingAverage: number) {
+		// Some local testing indicated that the moving average might be between 50-100 ms.
+		return Math.max(movingAverage * 20, 2000);
+	}
+
+	async $registerCandidateFinder(): Promise<void> {
+		if (!isLinux || !this.initData.remote.isRemote || !this.initData.remote.authority) {
+			return;
+		}
+		// Regularly scan to see if the candidate ports have changed.
+		let movingAverage = new MovingAverage();
+		let oldPorts: { host: string, port: number, detail: string }[] | undefined = undefined;
+		while (1) {
+			const startTime = new Date().getTime();
+			const newPorts = await this.findCandidatePorts();
+			const timeTaken = new Date().getTime() - startTime;
+			movingAverage.update(timeTaken);
+			if (!oldPorts || (JSON.stringify(oldPorts) !== JSON.stringify(newPorts))) {
+				oldPorts = newPorts;
+				await this._proxy.$onFoundNewCandidates(oldPorts.filter(async (candidate) => await this._showCandidatePort(candidate.host, candidate.port, candidate.detail)));
+			}
+			await (new Promise<void>(resolve => setTimeout(() => resolve(), this.calculateDelay(movingAverage.value))));
 		}
 	}
 
@@ -178,12 +195,13 @@ export class ExtHostTunnelService extends Disposable implements IExtHostTunnelSe
 			}
 			if (provider.tunnelFactory) {
 				this._forwardPortProvider = provider.tunnelFactory;
-				await this._proxy.$setTunnelProvider();
+				await this._proxy.$setTunnelProvider(provider.tunnelFeatures ?? {
+					elevation: false
+				});
 			}
 		} else {
 			this._forwardPortProvider = undefined;
 		}
-		await this._proxy.$tunnelServiceReady();
 		return toDisposable(() => {
 			this._forwardPortProvider = undefined;
 		});
@@ -196,7 +214,7 @@ export class ExtHostTunnelService extends Disposable implements IExtHostTunnelSe
 				if (silent) {
 					hostMap.get(remote.port)!.disposeListener.dispose();
 				}
-				hostMap.get(remote.port)!.tunnel.dispose();
+				await hostMap.get(remote.port)!.tunnel.dispose();
 				hostMap.delete(remote.port);
 			}
 		}
@@ -206,7 +224,7 @@ export class ExtHostTunnelService extends Disposable implements IExtHostTunnelSe
 		this._onDidChangeTunnels.fire();
 	}
 
-	$forwardPort(tunnelOptions: TunnelOptions, tunnelCreationOptions: TunnelCreationOptions): Promise<TunnelDto> | undefined {
+	async $forwardPort(tunnelOptions: TunnelOptions, tunnelCreationOptions: TunnelCreationOptions): Promise<TunnelDto | undefined> {
 		if (this._forwardPortProvider) {
 			const providedPort = this._forwardPortProvider(tunnelOptions, tunnelCreationOptions);
 			if (providedPort !== undefined) {
@@ -223,12 +241,12 @@ export class ExtHostTunnelService extends Disposable implements IExtHostTunnelSe
 		return undefined;
 	}
 
-	async findCandidatePorts(): Promise<{ host: string, port: number, detail: string }[]> {
+	async findCandidatePorts(): Promise<CandidatePort[]> {
 		let tcp: string = '';
 		let tcp6: string = '';
 		try {
-			tcp = fs.readFileSync('/proc/net/tcp', 'utf8');
-			tcp6 = fs.readFileSync('/proc/net/tcp6', 'utf8');
+			tcp = await pfs.readFile('/proc/net/tcp', 'utf8');
+			tcp6 = await pfs.readFile('/proc/net/tcp6', 'utf8');
 		} catch (e) {
 			// File reading error. No additional handling needed.
 		}
@@ -238,16 +256,18 @@ export class ExtHostTunnelService extends Disposable implements IExtHostTunnelSe
 			});
 		}));
 
-		const procChildren = fs.readdirSync('/proc');
-		const processes: { pid: number, cwd: string, cmd: string }[] = [];
+		const procChildren = await pfs.readdir('/proc');
+		const processes: {
+			pid: number, cwd: string, cmd: string
+		}[] = [];
 		for (let childName of procChildren) {
 			try {
 				const pid: number = Number(childName);
 				const childUri = resources.joinPath(URI.file('/proc'), childName);
-				const childStat = fs.statSync(childUri.fsPath);
+				const childStat = await pfs.stat(childUri.fsPath);
 				if (childStat.isDirectory() && !isNaN(pid)) {
-					const cwd = fs.readlinkSync(resources.joinPath(childUri, 'cwd').fsPath);
-					const cmd = fs.readFileSync(resources.joinPath(childUri, 'cmdline').fsPath, 'utf8');
+					const cwd = await promisify(fs.readlink)(resources.joinPath(childUri, 'cwd').fsPath);
+					const cmd = await pfs.readFile(resources.joinPath(childUri, 'cmdline').fsPath, 'utf8');
 					processes.push({ pid, cwd, cmd });
 				}
 			} catch (e) {

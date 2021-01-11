@@ -45,22 +45,31 @@ steps:
       exec { git pull --no-rebase https://github.com/$(VSCODE_MIXIN_REPO).git $(node -p "require('./package.json').distro") }
     displayName: Merge distro
 
-  - script: |
-      npx https://aka.ms/enablesecurefeed standAlone
-    displayName: Switch to Terrapin packages
-    timeoutInMinutes: 7
-    condition: and(succeeded(), eq(variables['ENABLE_TERRAPIN'], 'true'))
-
   - powershell: |
       "$(VSCODE_ARCH)" | Out-File -Encoding ascii -NoNewLine .build\arch
       "$env:ENABLE_TERRAPIN" | Out-File -Encoding ascii -NoNewLine .build\terrapin
+      node build/azure-pipelines/common/computeNodeModulesCacheKey.js > .build/yarnlockhash
     displayName: Prepare yarn cache flags
 
-  - task: 1ESLighthouseEng.PipelineArtifactCaching.RestoreCacheV1.RestoreCache@1
+  - task: Cache@2
     inputs:
-      keyfile: ".build/arch, .build/terrapin, build/.cachesalt, .yarnrc, remote/.yarnrc, **/yarn.lock, !**/node_modules/**/yarn.lock, !**/.*/**/yarn.lock"
-      targetfolder: "**/node_modules, !**/node_modules/**/node_modules"
-      vstsFeed: "npm-vscode"
+      key: 'nodeModules | $(Agent.OS) | .build/arch, .build/terrapin, .build/yarnlockhash'
+      path: .build/node_modules_cache
+      cacheHitVar: NODE_MODULES_RESTORED
+    displayName: Restore node_modules cache
+
+  - powershell: |
+      . build/azure-pipelines/win32/exec.ps1
+      $ErrorActionPreference = "Stop"
+      exec { 7z.exe x .build/node_modules_cache/cache.7z -aos }
+    condition: and(succeeded(), eq(variables.NODE_MODULES_RESTORED, 'true'))
+    displayName: Extract node_modules cache
+
+  - script: |
+      npx https://aka.ms/enablesecurefeed standAlone
+    timeoutInMinutes: 5
+    condition: and(succeeded(), ne(variables.NODE_MODULES_RESTORED, 'true'), eq(variables['ENABLE_TERRAPIN'], 'true'))
+    displayName: Switch to Terrapin packages
 
   - powershell: |
       . build/azure-pipelines/win32/exec.ps1
@@ -73,14 +82,16 @@ steps:
       ELECTRON_SKIP_BINARY_DOWNLOAD: 1
       PLAYWRIGHT_SKIP_BROWSER_DOWNLOAD: 1
     displayName: Install dependencies
-    condition: and(succeeded(), ne(variables['CacheRestored'], 'true'))
+    condition: and(succeeded(), ne(variables.NODE_MODULES_RESTORED, 'true'))
 
-  - task: 1ESLighthouseEng.PipelineArtifactCaching.SaveCacheV1.SaveCache@1
-    inputs:
-      keyfile: ".build/arch, .build/terrapin, build/.cachesalt, .yarnrc, remote/.yarnrc, **/yarn.lock, !**/node_modules/**/yarn.lock, !**/.*/**/yarn.lock"
-      targetfolder: "**/node_modules, !**/node_modules/**/node_modules"
-      vstsFeed: "npm-vscode"
-    condition: and(succeeded(), ne(variables['CacheRestored'], 'true'))
+  - powershell: |
+      . build/azure-pipelines/win32/exec.ps1
+      $ErrorActionPreference = "Stop"
+      exec { node build/azure-pipelines/common/listNodeModules.js .build/node_modules_list.txt }
+      exec { mkdir -Force .build/node_modules_cache }
+      exec { 7z.exe a .build/node_modules_cache/cache.7z -mx3 `@.build/node_modules_list.txt }
+    condition: and(succeeded(), ne(variables.NODE_MODULES_RESTORED, 'true'))
+    displayName: Create node_modules archive
 
   - powershell: |
       . build/azure-pipelines/win32/exec.ps1
@@ -144,7 +155,7 @@ steps:
       $ErrorActionPreference = "Stop"
       exec { yarn --cwd test/integration/browser compile }
     displayName: Compile integration tests
-    condition: and(succeeded(), eq(variables['CacheRestored'], 'true'), eq(variables['VSCODE_STEP_ON_IT'], 'false'), ne(variables['VSCODE_ARCH'], 'arm64'))
+    condition: and(succeeded(), eq(variables.NODE_MODULES_RESTORED, 'true'), eq(variables['VSCODE_STEP_ON_IT'], 'false'), ne(variables['VSCODE_ARCH'], 'arm64'))
 
   - powershell: |
       # Figure out the full absolute path of the product we just built

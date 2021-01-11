@@ -128,6 +128,8 @@ export class WebSocketNodeSocket extends Disposable implements ISocket {
 	private _totalOutgoingDataBytes: number;
 	private readonly _zlibInflate: zlib.InflateRaw | null;
 	private readonly _zlibDeflate: zlib.DeflateRaw | null;
+	private _zlibDeflateFlushWaitingCount: number;
+	private _disposeRequested: boolean;
 	private readonly _recordInflateBytes: boolean;
 	private readonly _recordedInflateBytes: Buffer[] = [];
 	private readonly _pendingInflateData: Buffer[] = [];
@@ -226,13 +228,21 @@ export class WebSocketNodeSocket extends Disposable implements ISocket {
 			this._zlibInflate = null;
 			this._zlibDeflate = null;
 		}
+		this._zlibDeflateFlushWaitingCount = 0;
+		this._disposeRequested = false;
 		this._incomingData = new ChunkStream();
 		this._register(this.socket.onData(data => this._acceptChunk(data)));
 		this._register(this.socket.onClose(() => this._onClose.fire()));
 	}
 
 	public dispose(): void {
-		this.socket.dispose();
+		if (this._zlibDeflateFlushWaitingCount > 0) {
+			// Wait for any outstanding writes to finish before disposing
+			this._disposeRequested = true;
+		} else {
+			this.socket.dispose();
+			super.dispose();
+		}
 	}
 
 	public onData(listener: (e: VSBuffer) => void): IDisposable {
@@ -253,8 +263,10 @@ export class WebSocketNodeSocket extends Disposable implements ISocket {
 		if (this._zlibDeflate) {
 			this._zlibDeflate.write(<Buffer>buffer.buffer);
 
+			this._zlibDeflateFlushWaitingCount++;
 			// See https://zlib.net/manual.html#Constants
 			this._zlibDeflate.flush(/*Z_SYNC_FLUSH*/2, () => {
+				this._zlibDeflateFlushWaitingCount--;
 				let data = Buffer.concat(this._pendingDeflateData);
 				this._pendingDeflateData.length = 0;
 
@@ -262,6 +274,10 @@ export class WebSocketNodeSocket extends Disposable implements ISocket {
 				data = data.slice(0, data.length - 4);
 
 				this._write(VSBuffer.wrap(data), true);
+
+				if (this._disposeRequested) {
+					this.dispose();
+				}
 			});
 		} else {
 			this._write(buffer, false);

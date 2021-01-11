@@ -16,9 +16,14 @@ steps:
     inputs:
       versionSpec: "1.x"
 
+  - script: |
+      mkdir -p .build
+      node build/azure-pipelines/common/computeNodeModulesCacheKey.js > .build/yarnlockhash
+    displayName: Prepare yarn cache flags
+
   - task: 1ESLighthouseEng.PipelineArtifactCaching.RestoreCacheV1.RestoreCache@1
     inputs:
-      keyfile: ".yarnrc, remote/.yarnrc, **/yarn.lock, !**/node_modules/**/yarn.lock, !**/.*/**/yarn.lock"
+      keyfile: ".build/yarnlockhash"
       targetfolder: "**/node_modules, !**/node_modules/**/node_modules"
       vstsFeed: "vscode-build-cache"
 
@@ -29,7 +34,7 @@ steps:
 
   - task: 1ESLighthouseEng.PipelineArtifactCaching.SaveCacheV1.SaveCache@1
     inputs:
-      keyfile: ".yarnrc, remote/.yarnrc, **/yarn.lock, !**/node_modules/**/yarn.lock, !**/.*/**/yarn.lock"
+      keyfile: ".build/yarnlockhash"
       targetfolder: "**/node_modules, !**/node_modules/**/node_modules"
       vstsFeed: "vscode-build-cache"
     condition: and(succeeded(), ne(variables['CacheRestored'], 'true'))

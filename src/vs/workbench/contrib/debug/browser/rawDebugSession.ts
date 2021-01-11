@@ -154,6 +154,10 @@ export class RawDebugSession implements IDisposable {
 				case 'invalidated':
 					this._onDidInvalidated.fire(event as DebugProtocol.InvalidatedEvent);
 					break;
+				case 'process':
+					break;
+				case 'module':
+					break;
 				default:
 					this._onDidCustomEvent.fire(event);
 					break;

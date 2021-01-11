@@ -40,7 +40,7 @@ namespace SemanticTokenLegendRequest {
 }
 
 namespace SettingIds {
-	export const linkedRename = 'editor.linkedRename';
+	export const linkedEditing = 'editor.linkedEditing';
 	export const formatEnable = 'html.format.enable';
 
 }
@@ -284,25 +284,25 @@ export function startClient(context: ExtensionContext, newLanguageClient: Langua
 		}
 	});
 
-	const promptForTypeOnRenameKey = 'html.promptForTypeOnRename';
-	const promptForTypeOnRename = extensions.getExtension('formulahendry.auto-rename-tag') !== undefined &&
-		(context.globalState.get(promptForTypeOnRenameKey) !== false) &&
-		!workspace.getConfiguration('editor', { languageId: 'html' }).get('linkedRename');
-
-	if (promptForTypeOnRename) {
-		const activeEditorListener = window.onDidChangeActiveTextEditor(async e => {
-			if (e && documentSelector.indexOf(e.document.languageId) !== -1) {
-				context.globalState.update(promptForTypeOnRenameKey, false);
-				activeEditorListener.dispose();
-				const configure = localize('configureButton', 'Configure');
-				const res = await window.showInformationMessage(localize('linkedRenameQuestion', 'VS Code now has built-in support for auto-renaming tags. Do you want to enable it?'), configure);
-				if (res === configure) {
-					commands.executeCommand('workbench.action.openSettings', SettingIds.linkedRename);
+	const promptForLinkedEditingKey = 'html.promptForLinkedEditing';
+	if (extensions.getExtension('formulahendry.auto-rename-tag') !== undefined && (context.globalState.get(promptForLinkedEditingKey) !== false)) {
+		const config = workspace.getConfiguration('editor', { languageId: 'html' });
+		if (!config.get('linkedEditing') && !config.get('renameOnType')) {
+			const activeEditorListener = window.onDidChangeActiveTextEditor(async e => {
+				if (e && documentSelector.indexOf(e.document.languageId) !== -1) {
+					context.globalState.update(promptForLinkedEditingKey, false);
+					activeEditorListener.dispose();
+					const configure = localize('configureButton', 'Configure');
+					const res = await window.showInformationMessage(localize('linkedEditingQuestion', 'VS Code now has built-in support for auto-renaming tags. Do you want to enable it?'), configure);
+					if (res === configure) {
+						commands.executeCommand('workbench.action.openSettings', SettingIds.linkedEditing);
+					}
 				}
-			}
-		});
-		toDispose.push(activeEditorListener);
+			});
+			toDispose.push(activeEditorListener);
+		}
 	}
+
 
 	toDispose.push();
 }

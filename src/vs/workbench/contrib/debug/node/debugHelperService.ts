@@ -31,8 +31,8 @@ export class NodeDebugHelperService implements IDebugHelperService {
 				args: args,
 				env: {
 					ELECTRON_RUN_AS_NODE: 1,
-					PIPE_LOGGING: 'true',
-					AMD_ENTRYPOINT: 'vs/workbench/contrib/debug/node/telemetryApp'
+					VSCODE_PIPE_LOGGING: 'true',
+					VSCODE_AMD_ENTRYPOINT: 'vs/workbench/contrib/debug/node/telemetryApp'
 				}
 			}
 		);

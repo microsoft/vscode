@@ -19,9 +19,9 @@ import { LifecyclePhase } from 'vs/workbench/services/lifecycle/common/lifecycle
 import { Disposable } from 'vs/base/common/lifecycle';
 
 export class DialogHandlerContribution extends Disposable implements IWorkbenchContribution {
-	private impl: IDialogHandler;
+	private readonly model: IDialogsModel;
+	private readonly impl: IDialogHandler;
 
-	private model: IDialogsModel;
 	private currentDialog: IDialogViewItem | undefined;
 
 	constructor(
