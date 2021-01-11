@@ -6,7 +6,7 @@
 import 'vs/css!./media/notificationsEditor';
 import { localize } from 'vs/nls';
 import * as DOM from 'vs/base/browser/dom';
-import { dispose, Disposable, IDisposable, combinedDisposable } from 'vs/base/common/lifecycle';
+import { dispose, Disposable, IDisposable, combinedDisposable, DisposableStore } from 'vs/base/common/lifecycle';
 import { Checkbox, ICheckboxOpts } from 'vs/base/browser/ui/checkbox/checkbox';
 import { EditorPane } from 'vs/workbench/browser/parts/editor/editorPane';
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
@@ -25,6 +25,8 @@ import { INotificationItemEntry, INotificationsEditorPane, IListEntry, IKeybindi
 import { attachInputBoxStyler } from 'vs/platform/theme/common/styler';
 import { IListRenderer, IListContextMenuEvent, IListVirtualDelegate } from 'vs/base/browser/ui/list/list';
 import { NotificationsEditorModel } from 'vs/workbench/services/preferences/browser/notificationsEditorModel';
+import { HighlightedLabel } from 'vs/base/browser/ui/highlightedlabel/highlightedLabel';
+import { InstantiationService } from 'vs/platform/instantiation/common/instantiationService';
 export const NOTIFICATION_ENTRY_TEMPLATE_ID = 'notification.entry.template';
 
 const $ = DOM.$;
@@ -368,27 +370,29 @@ abstract class Column extends Disposable {
 }
 
 class NeverShowAgainColumn extends Column {
-	render(entry: INotificationItem): void {
-		throw new Error('Method not implemented.');
-	}
 
 	private readonly checkbox: Checkbox;
 	readonly element: HTMLElement;
+	private readonly renderDisposables = this._register(new DisposableStore());
 
 	constructor(
 		parent: HTMLElement,
 		notificationsEditor: INotificationsEditorPane,
-		//@INotificationService private notificationsService: INotificationService
-		@IThemeService private readonly themeService: IThemeService
+		@IThemeService private readonly themeService: IThemeService,
+		@IInstantiationService private readonly instantiationService: InstantiationService
 	) {
 		super(notificationsEditor);
 		this.element = DOM.append(parent, $('.column.neverShowAgain', { id: 'neverShowAgain_' + ++Column.COUNTER }));
 		const opts: ICheckboxOpts = { title: 'Never Show Again', isChecked: true };
-		this.checkbox = new Checkbox(opts);
-		// this.checkbox.onChange(e => notificationsService.update(parent.))
+		this.checkbox = this.instantiationService.createInstance(Checkbox, opts);
 		this._register(attachInputBoxStyler(this.checkbox, this.themeService));
 	}
 
+	render(notificationItem: INotificationItem): void {
+		this.renderDisposables.clear();
+		DOM.clearNode(this.element);
+		DOM.append(this.element);
+	}
 
 	dispose(): void {
 		super.dispose();
@@ -398,46 +402,55 @@ class NeverShowAgainColumn extends Column {
 
 class LabelColumn extends Column {
 
-	private readonly column: HTMLElement;
+	private readonly label: HTMLElement;
 	readonly element: HTMLElement;
+	private readonly renderDisposables = this._register(new DisposableStore());
 
 	constructor(
 		parent: HTMLElement,
 		notificationsEditor: INotificationsEditorPane,
 	) {
 		super(notificationsEditor);
-		this.element = this.column = DOM.append(parent, $('.column.command', { id: 'command_' + ++Column.COUNTER }));
+		this.element = DOM.append(parent, $('.column.label', { id: 'notification_' + ++Column.COUNTER }));
+		this.label = DOM.append(this.element, $('div.label-label'));
 	}
 
-	render(entry: INotificationItem): void {
-		DOM.clearNode(this.column);
-		this.column.classList.toggle('vertical-align-column');
-		DOM.append(this.column);
+	render(notificationItem: INotificationItem): void {
+		this.renderDisposables.clear();
+		DOM.clearNode(this.label);
+		this.label.classList.toggle('code', !notificationItem.when);
+		const whenLabel = new HighlightedLabel(this.label, false);
+		whenLabel.set(notificationItem.when);
+		this.element.title = notificationItem.when;
+		whenLabel.element.title = notificationItem.when;
 	}
 }
 
 class WhenColumn extends Column {
 
-	private readonly notificationLabel: HTMLElement;
+	private readonly whenLabel: HTMLElement;
 	readonly element: HTMLElement;
+	private readonly renderDisposables = this._register(new DisposableStore());
 
 	constructor(
 		parent: HTMLElement,
 		notificationsEditor: INotificationsEditorPane,
 	) {
 		super(notificationsEditor);
-
-		this.element = DOM.append(parent, $('.column.notification', { id: 'notification_' + ++Column.COUNTER }));
-		this.notificationLabel = DOM.append(this.element, $('div.notification-label'));
+		this.element = DOM.append(parent, $('.column.when', { id: 'notification_' + ++Column.COUNTER }));
+		this.whenLabel = DOM.append(this.element, $('div.when-label'));
 	}
 
 	render(notificationItem: INotificationItem): void {
-		DOM.clearNode(this.notificationLabel);
-		this.notificationLabel.prepend(notificationItem.label);
-		DOM.append(this.notificationLabel);
+		this.renderDisposables.clear();
+		DOM.clearNode(this.whenLabel);
+		this.whenLabel.classList.toggle('code', !notificationItem.when);
+		const whenLabel = new HighlightedLabel(this.whenLabel, false);
+		whenLabel.set(notificationItem.when);
+		this.element.title = notificationItem.when;
+		whenLabel.element.title = notificationItem.when;
 	}
 }
-
 
 class AccessibilityProvider implements IListAccessibilityProvider<INotificationItemEntry> {
 
