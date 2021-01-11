@@ -100,7 +100,7 @@ suite('TextModelWithTokens', () => {
 						column: column
 					});
 
-					assert.deepEqual(toRelaxedFoundBracket(actual), toRelaxedFoundBracket(currentExpectedBracket), 'findPrevBracket of ' + lineNumber + ', ' + column);
+					assert.deepStrictEqual(toRelaxedFoundBracket(actual), toRelaxedFoundBracket(currentExpectedBracket), 'findPrevBracket of ' + lineNumber + ', ' + column);
 				}
 			}
 		}
@@ -126,7 +126,7 @@ suite('TextModelWithTokens', () => {
 						column: column
 					});
 
-					assert.deepEqual(toRelaxedFoundBracket(actual), toRelaxedFoundBracket(currentExpectedBracket), 'findNextBracket of ' + lineNumber + ', ' + column);
+					assert.deepStrictEqual(toRelaxedFoundBracket(actual), toRelaxedFoundBracket(currentExpectedBracket), 'findNextBracket of ' + lineNumber + ', ' + column);
 				}
 			}
 		}
@@ -148,12 +148,12 @@ suite('TextModelWithTokens', () => {
 
 function assertIsNotBracket(model: TextModel, lineNumber: number, column: number) {
 	const match = model.matchBracket(new Position(lineNumber, column));
-	assert.equal(match, null, 'is not matching brackets at ' + lineNumber + ', ' + column);
+	assert.strictEqual(match, null, 'is not matching brackets at ' + lineNumber + ', ' + column);
 }
 
 function assertIsBracket(model: TextModel, testPosition: Position, expected: [Range, Range]): void {
 	const actual = model.matchBracket(testPosition);
-	assert.deepEqual(actual, expected, 'matches brackets at ' + testPosition);
+	assert.deepStrictEqual(actual, expected, 'matches brackets at ' + testPosition);
 }
 
 suite('TextModelWithTokens - bracket matching', () => {
@@ -399,8 +399,8 @@ suite('TextModelWithTokens', () => {
 		model.forceTokenization(2);
 		model.forceTokenization(3);
 
-		assert.deepEqual(model.matchBracket(new Position(2, 23)), null);
-		assert.deepEqual(model.matchBracket(new Position(2, 20)), null);
+		assert.deepStrictEqual(model.matchBracket(new Position(2, 23)), null);
+		assert.deepStrictEqual(model.matchBracket(new Position(2, 20)), null);
 
 		model.dispose();
 		registration1.dispose();
@@ -434,7 +434,7 @@ suite('TextModelWithTokens regression tests', () => {
 					foreground: token.getForeground()
 				};
 			};
-			assert.deepEqual(actual, expected.map(decode));
+			assert.deepStrictEqual(actual, expected.map(decode));
 		}
 
 		let _tokenId = 10;
@@ -512,7 +512,7 @@ suite('TextModelWithTokens regression tests', () => {
 		].join('\n'), undefined, languageIdentifier);
 
 		let actual = model.matchBracket(new Position(4, 1));
-		assert.deepEqual(actual, [new Range(4, 1, 4, 7), new Range(9, 1, 9, 11)]);
+		assert.deepStrictEqual(actual, [new Range(4, 1, 4, 7), new Range(9, 1, 9, 11)]);
 
 		model.dispose();
 		registration.dispose();
@@ -537,7 +537,7 @@ suite('TextModelWithTokens regression tests', () => {
 		].join('\n'), undefined, languageIdentifier);
 
 		let actual = model.matchBracket(new Position(3, 9));
-		assert.deepEqual(actual, [new Range(3, 6, 3, 17), new Range(2, 6, 2, 14)]);
+		assert.deepStrictEqual(actual, [new Range(3, 6, 3, 17), new Range(2, 6, 2, 14)]);
 
 		model.dispose();
 		registration.dispose();
@@ -565,7 +565,7 @@ suite('TextModelWithTokens regression tests', () => {
 		let model = createTextModel('A model with one line', undefined, outerMode);
 
 		model.forceTokenization(1);
-		assert.equal(model.getLanguageIdAtPosition(1, 1), innerMode.id);
+		assert.strictEqual(model.getLanguageIdAtPosition(1, 1), innerMode.id);
 
 		model.dispose();
 		registration.dispose();
@@ -586,7 +586,7 @@ suite('TextModel.getLineIndentGuide', () => {
 			actual[line - 1] = [actualIndents[line - 1], activeIndentGuide.startLineNumber, activeIndentGuide.endLineNumber, activeIndentGuide.indent, model.getLineContent(line)];
 		}
 
-		assert.deepEqual(actual, lines);
+		assert.deepStrictEqual(actual, lines);
 
 		model.dispose();
 	}
@@ -764,7 +764,7 @@ suite('TextModel.getLineIndentGuide', () => {
 		].join('\n'));
 
 		const actual = model.getActiveIndentGuide(2, 4, 9);
-		assert.deepEqual(actual, { startLineNumber: 2, endLineNumber: 9, indent: 1 });
+		assert.deepStrictEqual(actual, { startLineNumber: 2, endLineNumber: 9, indent: 1 });
 		model.dispose();
 	});
 

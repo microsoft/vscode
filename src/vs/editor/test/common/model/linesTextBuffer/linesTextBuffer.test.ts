@@ -33,7 +33,7 @@ suite('PieceTreeTextBuffer._getInverseEdits', () => {
 
 	function assertInverseEdits(ops: IValidatedEditOperation[], expected: Range[]): void {
 		let actual = PieceTreeTextBuffer._getInverseEditRanges(ops);
-		assert.deepEqual(actual, expected);
+		assert.deepStrictEqual(actual, expected);
 	}
 
 	test('single insert', () => {
@@ -285,7 +285,7 @@ suite('PieceTreeTextBuffer._toSingleEditOperation', () => {
 		const textBuffer = <PieceTreeTextBuffer>createTextBufferFactory(original.join('\n')).create(DefaultEndOfLine.LF).textBuffer;
 
 		const actual = textBuffer._toSingleEditOperation(edits);
-		assert.deepEqual(actual, expected);
+		assert.deepStrictEqual(actual, expected);
 	}
 
 	test('one edit op is unchanged', () => {

@@ -43,13 +43,13 @@ suite('EditorSimpleWorker', () => {
 
 	function assertPositionAt(offset: number, line: number, column: number) {
 		let position = model.positionAt(offset);
-		assert.equal(position.lineNumber, line);
-		assert.equal(position.column, column);
+		assert.strictEqual(position.lineNumber, line);
+		assert.strictEqual(position.column, column);
 	}
 
 	function assertOffsetAt(lineNumber: number, column: number, offset: number) {
 		let actual = model.offsetAt({ lineNumber, column });
-		assert.equal(actual, offset);
+		assert.strictEqual(actual, offset);
 	}
 
 	test('ICommonModel#offsetAt', () => {
@@ -83,16 +83,16 @@ suite('EditorSimpleWorker', () => {
 
 	test('ICommonModel#validatePosition, issue #15882', function () {
 		let model = worker.addModel(['{"id": "0001","type": "donut","name": "Cake","image":{"url": "images/0001.jpg","width": 200,"height": 200},"thumbnail":{"url": "images/thumbnails/0001.jpg","width": 32,"height": 32}}']);
-		assert.equal(model.offsetAt({ lineNumber: 1, column: 2 }), 1);
+		assert.strictEqual(model.offsetAt({ lineNumber: 1, column: 2 }), 1);
 	});
 
 	test('MoreMinimal', () => {
 
 		return worker.computeMoreMinimalEdits(model.uri.toString(), [{ text: 'This is line One', range: new Range(1, 1, 1, 17) }]).then(edits => {
-			assert.equal(edits.length, 1);
+			assert.strictEqual(edits.length, 1);
 			const [first] = edits;
-			assert.equal(first.text, 'O');
-			assert.deepEqual(first.range, { startLineNumber: 1, startColumn: 14, endLineNumber: 1, endColumn: 15 });
+			assert.strictEqual(first.text, 'O');
+			assert.deepStrictEqual(first.range, { startLineNumber: 1, startColumn: 14, endLineNumber: 1, endColumn: 15 });
 		});
 	});
 
@@ -105,7 +105,7 @@ suite('EditorSimpleWorker', () => {
 		], '\n');
 
 		return worker.computeMoreMinimalEdits(model.uri.toString(), [{ text: '{\r\n\t"a":1\r\n}', range: new Range(1, 1, 3, 2) }]).then(edits => {
-			assert.equal(edits.length, 0);
+			assert.strictEqual(edits.length, 0);
 		});
 	});
 
@@ -118,10 +118,10 @@ suite('EditorSimpleWorker', () => {
 		], '\n');
 
 		return worker.computeMoreMinimalEdits(model.uri.toString(), [{ text: '{\r\n\t"b":1\r\n}', range: new Range(1, 1, 3, 2) }]).then(edits => {
-			assert.equal(edits.length, 1);
+			assert.strictEqual(edits.length, 1);
 			const [first] = edits;
-			assert.equal(first.text, 'b');
-			assert.deepEqual(first.range, { startLineNumber: 2, startColumn: 3, endLineNumber: 2, endColumn: 4 });
+			assert.strictEqual(first.text, 'b');
+			assert.deepStrictEqual(first.range, { startLineNumber: 2, startColumn: 3, endLineNumber: 2, endColumn: 4 });
 		});
 	});
 
@@ -134,10 +134,10 @@ suite('EditorSimpleWorker', () => {
 		]);
 
 		return worker.computeMoreMinimalEdits(model.uri.toString(), [{ text: '\n', range: new Range(3, 2, 4, 1000) }]).then(edits => {
-			assert.equal(edits.length, 1);
+			assert.strictEqual(edits.length, 1);
 			const [first] = edits;
-			assert.equal(first.text, '\n');
-			assert.deepEqual(first.range, { startLineNumber: 3, startColumn: 2, endLineNumber: 3, endColumn: 2 });
+			assert.strictEqual(first.text, '\n');
+			assert.deepStrictEqual(first.range, { startLineNumber: 3, startColumn: 2, endLineNumber: 3, endColumn: 2 });
 		});
 	});
 
@@ -151,7 +151,7 @@ suite('EditorSimpleWorker', () => {
 		]);
 
 		const value = model.getValueInRange({ startLineNumber: 3, startColumn: 1, endLineNumber: 4, endColumn: 1 });
-		assert.equal(value, '}');
+		assert.strictEqual(value, '}');
 	});
 
 
@@ -166,9 +166,9 @@ suite('EditorSimpleWorker', () => {
 			if (!result) {
 				assert.ok(false);
 			}
-			assert.equal(result.words.length, 1);
-			assert.equal(typeof result.duration, 'number');
-			assert.equal(result.words[0], 'foobar');
+			assert.strictEqual(result.words.length, 1);
+			assert.strictEqual(typeof result.duration, 'number');
+			assert.strictEqual(result.words[0], 'foobar');
 		});
 	});
 
@@ -186,6 +186,6 @@ suite('EditorSimpleWorker', () => {
 
 		let words: string[] = [...model.words(/[a-z]+/img)];
 
-		assert.deepEqual(words, ['one', 'line', 'two', 'line', 'past', 'empty', 'single', 'and', 'now', 'we', 'are', 'done']);
+		assert.deepStrictEqual(words, ['one', 'line', 'two', 'line', 'past', 'empty', 'single', 'and', 'now', 'we', 'are', 'done']);
 	});
 });

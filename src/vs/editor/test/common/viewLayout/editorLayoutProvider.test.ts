@@ -95,7 +95,7 @@ suite('Editor ViewLayout - EditorLayoutProvider', () => {
 			maxDigitWidth: input.maxDigitWidth,
 			pixelRatio: input.pixelRatio,
 		});
-		assert.deepEqual(actual, expected);
+		assert.deepStrictEqual(actual, expected);
 	}
 
 	test('EditorLayoutProvider 1', () => {

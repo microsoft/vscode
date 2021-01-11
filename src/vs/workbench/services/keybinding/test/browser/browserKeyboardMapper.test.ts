@@ -41,12 +41,12 @@ suite('keyboard layout loader', () => {
 	let instance = new TestKeyboardMapperFactory(notitifcationService, storageService, commandService);
 
 	test('load default US keyboard layout', () => {
-		assert.notEqual(instance.activeKeyboardLayout, null);
+		assert.notStrictEqual(instance.activeKeyboardLayout, null);
 	});
 
 	test('isKeyMappingActive', () => {
 		instance.setUSKeyboardLayout();
-		assert.equal(instance.isKeyMappingActive({
+		assert.strictEqual(instance.isKeyMappingActive({
 			KeyA: {
 				value: 'a',
 				valueIsDeadKey: false,
@@ -59,7 +59,7 @@ suite('keyboard layout loader', () => {
 			}
 		}), true);
 
-		assert.equal(instance.isKeyMappingActive({
+		assert.strictEqual(instance.isKeyMappingActive({
 			KeyA: {
 				value: 'a',
 				valueIsDeadKey: false,
@@ -82,7 +82,7 @@ suite('keyboard layout loader', () => {
 			}
 		}), true);
 
-		assert.equal(instance.isKeyMappingActive({
+		assert.strictEqual(instance.isKeyMappingActive({
 			KeyZ: {
 				value: 'y',
 				valueIsDeadKey: false,
@@ -110,8 +110,8 @@ suite('keyboard layout loader', () => {
 				withShiftAltGrIsDeadKey: false
 			}
 		});
-		assert.equal(!!instance.activeKeyboardLayout!.isUSStandard, false);
-		assert.equal(instance.isKeyMappingActive({
+		assert.strictEqual(!!instance.activeKeyboardLayout!.isUSStandard, false);
+		assert.strictEqual(instance.isKeyMappingActive({
 			KeyZ: {
 				value: 'y',
 				valueIsDeadKey: false,
@@ -125,13 +125,13 @@ suite('keyboard layout loader', () => {
 		}), true);
 
 		instance.setUSKeyboardLayout();
-		assert.equal(instance.activeKeyboardLayout!.isUSStandard, true);
+		assert.strictEqual(instance.activeKeyboardLayout!.isUSStandard, true);
 	});
 
 	test('Switch keyboard layout info', () => {
 		instance.setKeyboardLayout('com.apple.keylayout.German');
-		assert.equal(!!instance.activeKeyboardLayout!.isUSStandard, false);
-		assert.equal(instance.isKeyMappingActive({
+		assert.strictEqual(!!instance.activeKeyboardLayout!.isUSStandard, false);
+		assert.strictEqual(instance.isKeyMappingActive({
 			KeyZ: {
 				value: 'y',
 				valueIsDeadKey: false,
@@ -145,6 +145,6 @@ suite('keyboard layout loader', () => {
 		}), true);
 
 		instance.setUSKeyboardLayout();
-		assert.equal(instance.activeKeyboardLayout!.isUSStandard, true);
+		assert.strictEqual(instance.activeKeyboardLayout!.isUSStandard, true);
 	});
 });
