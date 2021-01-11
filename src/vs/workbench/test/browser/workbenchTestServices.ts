@@ -1043,6 +1043,7 @@ export class TestHostService implements IHostService {
 	private _hasFocus = true;
 	get hasFocus() { return this._hasFocus; }
 	async hadLastFocus(): Promise<boolean> { return this._hasFocus; }
+	async getWinFocus(): Promise<boolean> { return true; }
 
 	private _onDidChangeFocus = new Emitter<boolean>();
 	readonly onDidChangeFocus = this._onDidChangeFocus.event;

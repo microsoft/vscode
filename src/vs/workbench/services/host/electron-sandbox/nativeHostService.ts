@@ -36,6 +36,10 @@ export class NativeHostService extends Disposable implements IHostService {
 		return document.hasFocus();
 	}
 
+	async getWinFocus(): Promise<boolean> {
+		return await this.nativeHostService.getWinFocus(this.nativeHostService.windowId);
+	}
+
 	async hadLastFocus(): Promise<boolean> {
 		const activeWindowId = await this.nativeHostService.getActiveWindowId();
 

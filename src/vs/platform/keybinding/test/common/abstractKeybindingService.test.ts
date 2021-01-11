@@ -45,8 +45,12 @@ suite('AbstractKeybindingService', () => {
 			return this._resolver;
 		}
 
-		protected async _documentHasFocus(): Promise<boolean> {
+		protected _documentHasFocus(): boolean {
 			return true;
+		}
+
+		protected _windowHasFocus(): Promise<boolean> {
+			return Promise.resolve(true);
 		}
 
 		public resolveKeybinding(kb: Keybinding): ResolvedKeybinding[] {

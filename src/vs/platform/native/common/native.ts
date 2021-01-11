@@ -55,6 +55,7 @@ export interface ICommonNativeHostService {
 	getWindows(): Promise<IOpenedWindow[]>;
 	getWindowCount(): Promise<number>;
 	getActiveWindowId(): Promise<number | undefined>;
+	getWinFocus(windowId: number | undefined): Promise<boolean>;
 
 	openWindow(options?: IOpenEmptyWindowOptions): Promise<void>;
 	openWindow(toOpen: IWindowOpenable[], options?: IOpenWindowOptions): Promise<void>;

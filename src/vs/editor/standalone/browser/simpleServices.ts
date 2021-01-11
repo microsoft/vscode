@@ -369,8 +369,12 @@ export class StandaloneKeybindingService extends AbstractKeybindingService {
 		return this._cachedResolver;
 	}
 
-	protected async _documentHasFocus(): Promise<boolean> {
+	protected _documentHasFocus(): boolean {
 		return document.hasFocus();
+	}
+
+	protected _windowHasFocus(): Promise<boolean> {
+		return Promise.resolve(true);
 	}
 
 	private _toNormalizedKeybindingItems(items: IKeybindingItem[], isDefault: boolean): ResolvedKeybindingItem[] {

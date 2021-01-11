@@ -172,6 +172,10 @@ export class BrowserHostService extends Disposable implements IHostService {
 		return true;
 	}
 
+	async getWinFocus(): Promise<boolean> {
+		return true;
+	}
+
 	async focus(): Promise<void> {
 		window.focus();
 	}

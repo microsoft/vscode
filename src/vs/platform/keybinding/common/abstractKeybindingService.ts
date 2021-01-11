@@ -61,7 +61,8 @@ export abstract class AbstractKeybindingService extends Disposable implements IK
 	}
 
 	protected abstract _getResolver(): KeybindingResolver;
-	protected abstract _documentHasFocus(): Promise<boolean>;
+	protected abstract _documentHasFocus(): boolean;
+	protected abstract _windowHasFocus(): Promise<boolean>;
 	public abstract resolveKeybinding(keybinding: Keybinding): ResolvedKeybinding[];
 	public abstract resolveKeyboardEvent(keyboardEvent: IKeyboardEvent): ResolvedKeybinding;
 	public abstract resolveUserBinding(userBinding: string): ResolvedKeybinding[];
@@ -138,9 +139,9 @@ export abstract class AbstractKeybindingService extends Disposable implements IK
 		};
 		this._currentChordStatusMessage = this._notificationService.status(nls.localize('first.chord', "({0}) was pressed. Waiting for second key of chord...", keypressLabel));
 		const chordEnterTime = Date.now();
-		this._currentChordChecker.cancelAndSet(() => {
+		this._currentChordChecker.cancelAndSet(async () => {
 
-			if (!this._documentHasFocus()) {
+			if (!(await this._windowHasFocus())) {
 				// Focus has been lost => leave chord mode
 				this._leaveChordMode();
 				return;
