@@ -57,7 +57,6 @@ export class NotificationsEditor extends EditorPane implements INotificationsEdi
 	private notificationList!: WorkbenchList<IListEntry>;
 	private notificationsEditorModel: NotificationsEditorModel | null = null;
 
-
 	private dimension: DOM.Dimension | null = null;
 
 	private notificationsEditorContextKey: IContextKey<boolean>;
@@ -100,15 +99,18 @@ export class NotificationsEditor extends EditorPane implements INotificationsEdi
 		if (this.notificationsEditorModel) {
 			const notificationItems: INotificationItem[] = this.notificationsEditorModel.notificationItems;
 			this.ariaLabelElement.setAttribute('aria-label', localize('show notifications', "Showing {0} notifications", notificationItems.length));
+			console.log(notificationItems);
 			this.layoutNotificationsList();
 		}
 	}
+
 	renderElement(notificationItem: INotificationItem, index: number, template: NotificationItemTemplate): void {
 		template.parent.classList.toggle('odd', index % 2 === 1);
 		for (const column of template.columns) {
 			column.render(notificationItem);
 		}
 	}
+
 	createEditor(parent: HTMLElement): void {
 		const notificationsEditorElement = DOM.append(parent, $('div', { class: 'notifications-editor' }));
 
@@ -195,12 +197,11 @@ export class NotificationsEditor extends EditorPane implements INotificationsEdi
 
 		this.columnItems = [];
 		let column = $('.header.actions');
-		this.columnItems.push({ column, width: 30 });
 
 		column = $('.header.never-show-again', undefined, localize('never-show-again', "Never Show Again"));
 		this.columnItems.push({ column, proportion: 0.25, width: 0 });
 
-		column = $('.header.notification', undefined, localize('keybinding', "Notification"));
+		column = $('.header.label', undefined, localize('label', "Notification"));
 		this.columnItems.push({ column, proportion: 0.25, width: 0 });
 
 		column = $('.header.when', undefined, localize('when', "When"));
@@ -211,12 +212,13 @@ export class NotificationsEditor extends EditorPane implements INotificationsEdi
 
 	private createList(parent: HTMLElement): void {
 		this.notificationListContainer = DOM.append(parent, $('.notifications-list-container'));
-		this.notificationList = this._register(this.instantiationService.createInstance(WorkbenchList, 'NotificationsEditor', this.notificationListContainer, new Delegate(), [new NotificationItemRenderer(this, this.instantiationService)], {
+		const notificationRenderer = new NotificationItemRenderer(this, this.instantiationService);
+		this.notificationList = this._register(this.instantiationService.createInstance(WorkbenchList, 'notification.entry.template', this.notificationListContainer, new Delegate(), [notificationRenderer], {
 			identityProvider: { getId: (e: IListEntry) => e.id },
 			setRowLineHeight: false,
 			horizontalScrolling: false,
 			accessibilityProvider: new AccessibilityProvider(),
-			keyboardNavigationLabelProvider: { getKeyboardNavigationLabel: (e: INotificationItemEntry) => e.notificationItem.label },
+			keyboardNavigationLabelProvider: { getKeyboardNavigationLabel: (e: INotificationItem) => e.label },
 			overrideStyles: {
 				listBackground: editorBackground
 			}
@@ -225,6 +227,10 @@ export class NotificationsEditor extends EditorPane implements INotificationsEdi
 		this._register(this.notificationList.onContextMenu(e => this.onContextMenu(e)));
 		this._register(this.notificationList.onDidFocus(() => {
 			this.notificationList.getHTMLElement().classList.add('focused');
+		}));
+		this._register(this.notificationList.onDidBlur(() => {
+			this.notificationList.getHTMLElement().classList.remove('focused');
+			this.notificationsEditorContextKey.reset();
 		}));
 	}
 
@@ -243,7 +249,6 @@ export class NotificationsEditor extends EditorPane implements INotificationsEdi
 				columnItem.width = width * columnItem.proportion;
 			}
 		}
-
 		this.layoutColumns(this.columnItems.map(({ column }) => column));
 		const listHeight = this.dimension.height - (DOM.getDomNodePagePosition(this.headerContainer).height + 12 /*padding*/ + 30 /*list header*/);
 		this.notificationListContainer.style.height = `${listHeight}px`;
@@ -283,7 +288,6 @@ export class NotificationsEditor extends EditorPane implements INotificationsEdi
 		this.selectEntry(entry);
 	}
 
-
 	private onContextMenu(e: IListContextMenuEvent<IListEntry>): void {
 		if (!e.element) {
 			return;
@@ -313,17 +317,14 @@ interface NotificationItemTemplate {
 	disposable: IDisposable;
 }
 
-class NotificationItemRenderer implements IListRenderer<INotificationItemEntry, NotificationItemTemplate> {
+class NotificationItemRenderer implements IListRenderer<INotificationItem, NotificationItemTemplate> {
 
 	get templateId(): string { return NOTIFICATION_ENTRY_TEMPLATE_ID; }
 
 	constructor(
 		private notificationsEditor: NotificationsEditor,
 		private instantiationService: IInstantiationService
-	) {
-
-	}
-
+	) { }
 
 	renderTemplate(parent: HTMLElement): NotificationItemTemplate {
 		parent.classList.add('notification-item');
@@ -346,10 +347,10 @@ class NotificationItemRenderer implements IListRenderer<INotificationItemEntry, 
 		};
 	}
 
-	renderElement(notificationEntry: INotificationItemEntry, index: number, template: NotificationItemTemplate): void {
+	renderElement(notificationItem: INotificationItem, index: number, template: NotificationItemTemplate): void {
 		template.parent.classList.toggle('odd', index % 2 === 1);
 		for (const column of template.columns) {
-			column.render(notificationEntry.notificationItem);
+			column.render(notificationItem);
 		}
 	}
 
@@ -430,7 +431,6 @@ class WhenColumn extends Column {
 
 	private readonly whenLabel: HTMLElement;
 	readonly element: HTMLElement;
-	private readonly renderDisposables = this._register(new DisposableStore());
 
 	constructor(
 		parent: HTMLElement,
@@ -442,8 +442,6 @@ class WhenColumn extends Column {
 	}
 
 	render(notificationItem: INotificationItem): void {
-		this.renderDisposables.clear();
-		DOM.clearNode(this.whenLabel);
 		this.whenLabel.classList.toggle('code', !notificationItem.when);
 		const whenLabel = new HighlightedLabel(this.whenLabel, false);
 		whenLabel.set(notificationItem.when);
