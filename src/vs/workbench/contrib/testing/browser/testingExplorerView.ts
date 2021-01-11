@@ -13,6 +13,7 @@ import { ITreeEvent, ITreeFilter, ITreeNode, ITreeSorter, TreeFilterResult, Tree
 import { throttle } from 'vs/base/common/decorators';
 import { Event } from 'vs/base/common/event';
 import { FuzzyScore } from 'vs/base/common/filters';
+import { splitGlobAware } from 'vs/base/common/glob';
 import { Iterable } from 'vs/base/common/iterator';
 import { Disposable, DisposableStore, toDisposable } from 'vs/base/common/lifecycle';
 import 'vs/css!./media/testing';
@@ -49,6 +50,7 @@ import { StateElement } from 'vs/workbench/contrib/testing/browser/explorerProje
 import { testingStatesToIcons } from 'vs/workbench/contrib/testing/browser/icons';
 import { cmpPriority } from 'vs/workbench/contrib/testing/browser/testExplorerTree';
 import { ITestingCollectionService, TestSubscriptionListener } from 'vs/workbench/contrib/testing/browser/testingCollectionService';
+import { TestingExplorerFilter, TestingFilterState } from 'vs/workbench/contrib/testing/browser/testingExplorerFilter';
 import { TestExplorerViewGrouping, TestExplorerViewMode } from 'vs/workbench/contrib/testing/common/constants';
 import { TestingContextKeys } from 'vs/workbench/contrib/testing/common/testingContextKeys';
 import { ITestService } from 'vs/workbench/contrib/testing/common/testService';
@@ -57,8 +59,10 @@ import { DebugAction, RunAction } from './testExplorerActions';
 
 export class TestingExplorerView extends ViewPane {
 	public viewModel!: TestingExplorerViewModel;
+	private readonly filterState = new TestingFilterState();
+	private filter!: TestingExplorerFilter;
 	private currentSubscription?: TestSubscriptionListener;
-	private listContainer!: HTMLElement;
+	private container!: HTMLElement;
 	private finishDiscovery?: () => void;
 
 	constructor(
@@ -93,8 +97,12 @@ export class TestingExplorerView extends ViewPane {
 	protected renderBody(container: HTMLElement): void {
 		super.renderBody(container);
 
-		this.listContainer = dom.append(container, dom.$('.test-explorer'));
-		this.viewModel = this.instantiationService.createInstance(TestingExplorerViewModel, this.listContainer, this.onDidChangeBodyVisibility, this.currentSubscription);
+		this.container = dom.append(container, dom.$('.test-explorer'));
+		this.filter = this.instantiationService.createInstance(TestingExplorerFilter, this.container, this.filterState);
+		this._register(this.filter);
+
+		const listContainer = dom.append(this.container, dom.$('.test-explorer-tree'));
+		this.viewModel = this.instantiationService.createInstance(TestingExplorerViewModel, listContainer, this.onDidChangeBodyVisibility, this.currentSubscription, this.filterState);
 		this._register(this.viewModel);
 
 		this.updateProgressIndicator();
@@ -118,6 +126,14 @@ export class TestingExplorerView extends ViewPane {
 		}));
 	}
 
+	/**
+	 * @override
+	 */
+	public saveState() {
+		super.saveState();
+		this.filter.saveState();
+	}
+
 	private updateProgressIndicator() {
 		const busy = Iterable.some(this.testService.busyTestLocations, s => s.resource === ExtHostTestingResource.Workspace);
 		if (!busy && this.finishDiscovery) {
@@ -134,7 +150,7 @@ export class TestingExplorerView extends ViewPane {
 	 */
 	protected layoutBody(height: number, width: number): void {
 		super.layoutBody(height, width);
-		this.listContainer.style.height = `${height}px`;
+		this.container.style.height = `${height}px`;
 		this.viewModel.layout(height, width);
 	}
 
@@ -189,6 +205,7 @@ export class TestingExplorerViewModel extends Disposable {
 		listContainer: HTMLElement,
 		onDidChangeVisibility: Event<boolean>,
 		private listener: TestSubscriptionListener | undefined,
+		filterState: TestingFilterState,
 		@IInstantiationService instantiationService: IInstantiationService,
 		@IEditorService editorService: IEditorService,
 		@ICodeEditorService codeEditorService: ICodeEditorService,
@@ -202,7 +219,12 @@ export class TestingExplorerViewModel extends Disposable {
 
 		const labels = this._register(instantiationService.createInstance(ResourceLabels, { onDidChangeVisibility: onDidChangeVisibility }));
 
-		this.filter = new TestsFilter();
+		this.filter = new TestsFilter(filterState.value);
+		this._register(filterState.onDidChange(text => {
+			this.filter.setFilter(text);
+			this.tree.refilter();
+		}));
+
 		this.tree = instantiationService.createInstance(
 			WorkbenchCompressibleObjectTree,
 			'Test Explorer List',
@@ -375,30 +397,65 @@ class CodeEditorTracker {
 	}
 }
 
+class TestsFilter implements ITreeFilter<ITestTreeElement> {
+	private filters: [include: boolean, value: string][] | undefined;
 
-class TestsFilter implements ITreeFilter<ITestTreeElement, FuzzyScore> {
-	private filterText: string | undefined;
-
-	public setFilter(filterText: string) {
-		this.filterText = filterText;
+	constructor(initialFilter: string) {
+		this.setFilter(initialFilter);
 	}
 
-	public filter(element: ITestTreeElement): TreeFilterResult<FuzzyScore> {
+	/**
+	 * Parses and updates the tree filter. Supports lists of patterns that can be !negated.
+	 */
+	public setFilter(text: string) {
+		text = text.trim();
+
+		if (!text) {
+			this.filters = undefined;
+			return;
+		}
+
+		this.filters = [];
+		for (const filter of splitGlobAware(text, ',').map(s => s.trim()).filter(s => !!s.length)) {
+			if (filter.startsWith('!')) {
+				this.filters.push([false, filter.slice(1).toLowerCase()]);
+			} else {
+				this.filters.push([true, filter.toLowerCase()]);
+			}
+		}
+	}
+
+	public filter(element: ITestTreeElement): TreeFilterResult<void> {
 		if (element instanceof HierarchicalByNameElement && element.elementType !== ListElementType.TestLeaf && !element.isTestRoot) {
 			return TreeVisibility.Hidden;
 		}
 
-		if (!this.filterText) {
+		if (this.testFilterText(element.label)) {
 			return TreeVisibility.Visible;
 		}
 
-		if (element.label.includes(this.filterText)) {
-			return TreeVisibility.Visible;
+		return Iterable.isEmpty(element.getChildren()) ? TreeVisibility.Hidden : TreeVisibility.Recurse;
+	}
+
+	private testFilterText(data: string) {
+		if (!this.filters) {
+			return true;
 		}
 
-		return TreeVisibility.Recurse;
+		// start as included if the first glob is a negation
+		let included = this.filters[0][0] === false;
+		data = data.toLowerCase();
+
+		for (const [include, filter] of this.filters) {
+			if (data.includes(filter)) {
+				included = include;
+			}
+		}
+
+		return included;
 	}
 }
+
 class TreeSorter implements ITreeSorter<ITestTreeElement> {
 	public compare(a: ITestTreeElement, b: ITestTreeElement): number {
 		if (a instanceof StateElement && b instanceof StateElement) {
