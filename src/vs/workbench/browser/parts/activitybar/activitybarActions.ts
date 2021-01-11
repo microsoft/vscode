@@ -15,7 +15,7 @@ import { IMenuService, MenuId, IMenu, registerAction2, Action2, IAction2Options 
 import { IContextMenuService } from 'vs/platform/contextview/browser/contextView';
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
 import { activeContrastBorder, focusBorder } from 'vs/platform/theme/common/colorRegistry';
-import { ICssStyleCollector, IColorTheme, IThemeService, registerThemingParticipant } from 'vs/platform/theme/common/themeService';
+import { IColorTheme, IThemeService, registerThemingParticipant } from 'vs/platform/theme/common/themeService';
 import { ActivityAction, ActivityActionViewItem, ICompositeBar, ICompositeBarColors, ToggleCompositePinnedAction } from 'vs/workbench/browser/parts/compositeBarActions';
 import { CATEGORIES } from 'vs/workbench/common/actions';
 import { IActivity } from 'vs/workbench/common/activity';
@@ -206,7 +206,7 @@ export class HomeActivityActionViewItem extends MenuActivityActionViewItem {
 		if (contributedActions.length > 0) {
 			actions.push(disposables.add(new Separator()));
 		}
-		actions.push(disposables.add(new Action('hide', nls.localize('hide', "Hide"), undefined, true, async () => {
+		actions.push(disposables.add(new Action('hide', nls.localize('hide', "Hide Home Button"), undefined, true, async () => {
 			this.storageService.store(HomeActivityActionViewItem.HOME_BAR_VISIBILITY_PREFERENCE, false, StorageScope.GLOBAL, StorageTarget.USER);
 		})));
 
@@ -306,7 +306,7 @@ export class AccountsActivityActionViewItem extends MenuActivityActionViewItem {
 			menus.push(disposables.add(new Separator()));
 		}
 
-		menus.push(disposables.add(new Action('hide', nls.localize('hide', "Hide"), undefined, true, async () => {
+		menus.push(disposables.add(new Action('hide', nls.localize('hideAccounts', "Hide Accounts"), undefined, true, async () => {
 			this.storageService.store(AccountsActivityActionViewItem.ACCOUNTS_VISIBILITY_PREFERENCE_KEY, false, StorageScope.GLOBAL, StorageTarget.USER);
 		})));
 
@@ -400,7 +400,7 @@ registerAction2(
 	}
 );
 
-registerThemingParticipant((theme: IColorTheme, collector: ICssStyleCollector) => {
+registerThemingParticipant((theme, collector) => {
 	const activityBarBackgroundColor = theme.getColor(ACTIVITY_BAR_BACKGROUND);
 	if (activityBarBackgroundColor) {
 		collector.addRule(`

@@ -149,7 +149,7 @@ export class AzureActiveDirectoryService {
 			}
 		}
 
-		this._disposables.push(this._context.secretState.onDidChange(() => this.checkForUpdates));
+		this._disposables.push(this._context.secrets.onDidChange(() => this.checkForUpdates));
 	}
 
 	private parseStoredData(data: string): IStoredSession[] {

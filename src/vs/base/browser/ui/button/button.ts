@@ -14,7 +14,7 @@ import { Gesture, EventType as TouchEventType } from 'vs/base/browser/touch';
 import { renderLabelWithIcons } from 'vs/base/browser/ui/iconLabel/iconLabels';
 import { addDisposableListener, IFocusTracker, EventType, EventHelper, trackFocus, reset, removeTabIndexAndUpdateFocus } from 'vs/base/browser/dom';
 import { IContextMenuProvider } from 'vs/base/browser/contextmenu';
-import { IAction, IActionRunner } from 'vs/base/common/actions';
+import { Action, IAction, IActionRunner } from 'vs/base/common/actions';
 import { CSSIcon, Codicon } from 'vs/base/common/codicons';
 
 export interface IButtonOptions extends IButtonStyles {
@@ -41,7 +41,7 @@ const defaultOptions: IButtonStyles = {
 
 export interface IButton extends IDisposable {
 	readonly element: HTMLElement;
-	readonly onDidClick: BaseEvent<Event>;
+	readonly onDidClick: BaseEvent<Event | undefined>;
 	label: string;
 	icon: CSSIcon;
 	enabled: boolean;
@@ -240,10 +240,12 @@ export interface IButtonWithDropdownOptions extends IButtonOptions {
 export class ButtonWithDropdown extends Disposable implements IButton {
 
 	private readonly button: Button;
+	private readonly action: Action;
 	private readonly dropdownButton: Button;
 
 	readonly element: HTMLElement;
-	readonly onDidClick: BaseEvent<Event>;
+	private readonly _onDidClick = this._register(new Emitter<Event | undefined>());
+	readonly onDidClick = this._onDidClick.event;
 
 	constructor(container: HTMLElement, options: IButtonWithDropdownOptions) {
 		super();
@@ -253,15 +255,16 @@ export class ButtonWithDropdown extends Disposable implements IButton {
 		container.appendChild(this.element);
 
 		this.button = this._register(new Button(this.element, options));
-		this.onDidClick = this.button.onDidClick;
+		this._register(this.button.onDidClick(e => this._onDidClick.fire(e)));
+		this.action = new Action('primaryAction', this.button.label, undefined, true, async () => this._onDidClick.fire(undefined));
 
 		this.dropdownButton = this._register(new Button(this.element, { ...options, title: false, supportIcons: true }));
 		this.dropdownButton.element.classList.add('monaco-dropdown-button');
 		this.dropdownButton.icon = Codicon.dropDownButton;
-		this._register(this.dropdownButton.onDidClick(() => {
+		this._register(this.dropdownButton.onDidClick(e => {
 			options.contextMenuProvider.showContextMenu({
 				getAnchor: () => this.dropdownButton.element,
-				getActions: () => options.actions,
+				getActions: () => [this.action, ...options.actions],
 				actionRunner: options.actionRunner,
 				onHide: () => this.dropdownButton.element.setAttribute('aria-expanded', 'false')
 			});
@@ -271,6 +274,7 @@ export class ButtonWithDropdown extends Disposable implements IButton {
 
 	set label(value: string) {
 		this.button.label = value;
+		this.action.label = value;
 	}
 
 	set icon(icon: CSSIcon) {

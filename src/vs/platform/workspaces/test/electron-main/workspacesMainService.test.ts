@@ -147,13 +147,13 @@ suite('WorkspacesMainService', () => {
 		service = new WorkspacesMainService(environmentService, logService, new TestBackupMainService(), new TestDialogMainService());
 
 		// Delete any existing backups completely and then re-create it.
-		await pfs.rimraf(untitledWorkspacesHomePath, pfs.RimRafMode.MOVE);
+		await pfs.rimraf(untitledWorkspacesHomePath);
 
 		return pfs.mkdirp(untitledWorkspacesHomePath);
 	});
 
 	teardown(() => {
-		return pfs.rimraf(untitledWorkspacesHomePath, pfs.RimRafMode.MOVE);
+		return pfs.rimraf(untitledWorkspacesHomePath);
 	});
 
 	function assertPathEquals(p1: string, p2: string): void {
@@ -387,20 +387,16 @@ suite('WorkspacesMainService', () => {
 		service.deleteUntitledWorkspaceSync(workspace);
 	});
 
-	test.skip('rewriteWorkspaceFileForNewLocation (unc paths)', async () => {
-		if (!isWindows) {
-			return;
-		}
-
+	(!isWindows ? test.skip : test)('rewriteWorkspaceFileForNewLocation (unc paths)', async () => {
 		const workspaceLocation = path.join(os.tmpdir(), 'wsloc');
 		const folder1Location = 'x:\\foo';
 		const folder2Location = '\\\\server\\share2\\some\\path';
-		const folder3Location = path.join(os.tmpdir(), 'wsloc', 'inner', 'more');
+		const folder3Location = path.join(workspaceLocation, 'inner', 'more');
 
 		const workspace = await createUntitledWorkspace([folder1Location, folder2Location, folder3Location]);
 		const workspaceConfigPath = URI.file(path.join(workspaceLocation, `myworkspace.${Date.now()}.${WORKSPACE_EXTENSION}`));
 		let origContent = fs.readFileSync(workspace.configPath.fsPath).toString();
-		const newContent = rewriteWorkspaceFileForNewLocation(origContent, workspace.configPath, false, workspaceConfigPath, extUriBiasedIgnorePathCase);
+		const newContent = rewriteWorkspaceFileForNewLocation(origContent, workspace.configPath, true, workspaceConfigPath, extUriBiasedIgnorePathCase);
 		const ws = (JSON.parse(newContent) as IStoredWorkspace);
 		assertPathEquals((<IRawFileWorkspaceFolder>ws.folders[0]).path, folder1Location);
 		assertPathEquals((<IRawFileWorkspaceFolder>ws.folders[1]).path, folder2Location);

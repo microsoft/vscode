@@ -4,7 +4,6 @@
   "license": "MIT",
   "main": "./src/main.js",
   "scripts": {
-    "postinstall": "npm run compile",
     "compile": "yarn --cwd ../automation compile && tsc",
     "watch-automation": "yarn --cwd ../automation watch",
     "watch-smoke": "tsc --watch --preserveWatchOutput",

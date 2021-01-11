@@ -500,9 +500,14 @@ export class CompositeActionViewItem extends ActivityActionViewItem {
 		return this.compositeActivity;
 	}
 
-	private getActivtyName(): string {
+	private getActivtyName(skipKeybinding = false): string {
+		let name = this.compositeActivityAction.activity.name;
+		if (skipKeybinding) {
+			return name;
+		}
+
 		const keybinding = this.compositeActivityAction.activity.keybindingId ? this.keybindingService.lookupKeybinding(this.compositeActivityAction.activity.keybindingId) : null;
-		return keybinding ? nls.localize('titleKeybinding', "{0} ({1})", this.compositeActivityAction.activity.name, keybinding.getLabel()) : this.compositeActivityAction.activity.name;
+		return keybinding ? nls.localize('titleKeybinding', "{0} ({1})", name, keybinding.getLabel()) : name;
 	}
 
 	render(container: HTMLElement): void {
@@ -615,10 +620,10 @@ export class CompositeActionViewItem extends ActivityActionViewItem {
 
 		const isPinned = this.compositeBar.isPinned(this.activity.id);
 		if (isPinned) {
-			this.toggleCompositePinnedAction.label = nls.localize('hide', "Hide");
+			this.toggleCompositePinnedAction.label = nls.localize('hide', "Hide '{0}'", this.getActivtyName(true));
 			this.toggleCompositePinnedAction.checked = false;
 		} else {
-			this.toggleCompositePinnedAction.label = nls.localize('keep', "Keep");
+			this.toggleCompositePinnedAction.label = nls.localize('keep', "Keep '{0}'", this.getActivtyName(true));
 		}
 
 		const otherActions = this.contextMenuActionsProvider();

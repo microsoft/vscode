@@ -3,7 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 import * as assert from 'assert';
-import 'vs/workbench/services/keybinding/browser/keyboardLayouts/en.darwin'; // 15%
+import 'vs/workbench/services/keybinding/browser/keyboardLayouts/en.darwin';
 import 'vs/workbench/services/keybinding/browser/keyboardLayouts/de.darwin';
 import { KeyboardLayoutContribution } from 'vs/workbench/services/keybinding/browser/keyboardLayouts/_.contribution';
 import { BrowserKeyboardMapperFactoryBase } from 'vs/workbench/services/keybinding/browser/keyboardLayoutService';

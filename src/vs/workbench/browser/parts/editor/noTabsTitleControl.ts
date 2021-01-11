@@ -68,16 +68,16 @@ export class NoTabsTitleControl extends TitleControl {
 		this.enableGroupDragging(titleContainer);
 
 		// Pin on double click
-		this._register(addDisposableListener(titleContainer, EventType.DBLCLICK, (e: MouseEvent) => this.onTitleDoubleClick(e)));
+		this._register(addDisposableListener(titleContainer, EventType.DBLCLICK, e => this.onTitleDoubleClick(e)));
 
 		// Detect mouse click
-		this._register(addDisposableListener(titleContainer, EventType.AUXCLICK, (e: MouseEvent) => this.onTitleAuxClick(e)));
+		this._register(addDisposableListener(titleContainer, EventType.AUXCLICK, e => this.onTitleAuxClick(e)));
 
 		// Detect touch
 		this._register(addDisposableListener(titleContainer, TouchEventType.Tap, (e: GestureEvent) => this.onTitleTap(e)));
 
 		// Context Menu
-		this._register(addDisposableListener(titleContainer, EventType.CONTEXT_MENU, (e: Event) => {
+		this._register(addDisposableListener(titleContainer, EventType.CONTEXT_MENU, e => {
 			if (this.group.activeEditor) {
 				this.onContextMenu(this.group.activeEditor, e, titleContainer);
 			}

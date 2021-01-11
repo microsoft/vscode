@@ -65,22 +65,14 @@ import { generateTokensCSSForColorMap } from 'vs/editor/common/modes/supports/to
 import { editorBackground } from 'vs/platform/theme/common/colorRegistry';
 import { registerAction2, Action2 } from 'vs/platform/actions/common/actions';
 import { IContextMenuService } from 'vs/platform/contextview/browser/contextView';
+import { insane } from 'vs/base/common/insane/insane';
 
 function removeEmbeddedSVGs(documentContent: string): string {
-	const newDocument = new DOMParser().parseFromString(documentContent, 'text/html');
-
-	// remove all inline svgs
-	const allSVGs = newDocument.documentElement.querySelectorAll('svg');
-	if (allSVGs) {
-		for (let i = 0; i < allSVGs.length; i++) {
-			const svg = allSVGs[i];
-			if (svg.parentNode) {
-				svg.parentNode.removeChild(allSVGs[i]);
-			}
+	return insane(documentContent, {
+		filter(token: { tag: string, attrs: { readonly [key: string]: string } }): boolean {
+			return token.tag !== 'svg';
 		}
-	}
-
-	return newDocument.documentElement.outerHTML;
+	});
 }
 
 class NavBar extends Disposable {
@@ -645,8 +637,8 @@ export class ExtensionEditor extends EditorPane {
 	private async renderMarkdown(cacheResult: CacheResult<string>, template: IExtensionEditorTemplate) {
 		const contents = await this.loadContents(() => cacheResult, template);
 		const content = await renderMarkdownDocument(contents, this.extensionService, this.modeService);
-		const documentContent = await this.renderBody(content);
-		return removeEmbeddedSVGs(documentContent);
+		const sanitizedContent = removeEmbeddedSVGs(content);
+		return await this.renderBody(sanitizedContent);
 	}
 
 	private async renderBody(body: string): Promise<string> {

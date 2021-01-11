@@ -17,6 +17,7 @@ import { ILabelService } from 'vs/platform/label/common/label';
 import { normalizeDriveLetter } from 'vs/base/common/labels';
 import { URI } from 'vs/base/common/uri';
 import { OvertypingCapturer } from 'vs/editor/contrib/suggest/suggestOvertypingCapturer';
+import { generateUuid } from 'vs/base/common/uuid';
 
 export const KnownSnippetVariableNames: { [key: string]: true } = Object.freeze({
 	'CURRENT_YEAR': true,
@@ -49,6 +50,7 @@ export const KnownSnippetVariableNames: { [key: string]: true } = Object.freeze(
 	'WORKSPACE_FOLDER': true,
 	'RANDOM': true,
 	'RANDOM_HEX': true,
+	'UUID': true
 });
 
 export class CompositeSnippetVariableResolver implements VariableResolver {
@@ -340,9 +342,10 @@ export class RandomBasedVariableResolver implements VariableResolver {
 
 		if (name === 'RANDOM') {
 			return Math.random().toString().slice(-6);
-		}
-		else if (name === 'RANDOM_HEX') {
+		} else if (name === 'RANDOM_HEX') {
 			return Math.random().toString(16).slice(-6);
+		} else if (name === 'UUID') {
+			return generateUuid();
 		}
 
 		return undefined;

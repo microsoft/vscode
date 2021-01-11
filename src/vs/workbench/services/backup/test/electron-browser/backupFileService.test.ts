@@ -29,6 +29,7 @@ import { VSBuffer } from 'vs/base/common/buffer';
 import { TestWorkbenchConfiguration } from 'vs/workbench/test/electron-browser/workbenchTestServices';
 import { TestProductService } from 'vs/workbench/test/browser/workbenchTestServices';
 import { CancellationToken, CancellationTokenSource } from 'vs/base/common/cancellation';
+import { insert } from 'vs/base/common/arrays';
 
 const userdataDir = getRandomTestPath(os.tmpdir(), 'vsctests', 'backupfileservice');
 const backupHome = path.join(userdataDir, 'Backups');
@@ -60,6 +61,7 @@ export class NodeTestBackupFileService extends NativeBackupFileService {
 	private backupResourceJoiners: Function[];
 	private discardBackupJoiners: Function[];
 	discardedBackups: URI[];
+	private pendingBackupsArr: Promise<void>[];
 
 	constructor(workspaceBackupPath: string) {
 		const environmentService = new TestWorkbenchEnvironmentService(workspaceBackupPath);
@@ -75,6 +77,11 @@ export class NodeTestBackupFileService extends NativeBackupFileService {
 		this.backupResourceJoiners = [];
 		this.discardBackupJoiners = [];
 		this.discardedBackups = [];
+		this.pendingBackupsArr = [];
+	}
+
+	async waitForAllBackups(): Promise<void> {
+		await Promise.all(this.pendingBackupsArr);
 	}
 
 	joinBackupResource(): Promise<void> {
@@ -82,7 +89,14 @@ export class NodeTestBackupFileService extends NativeBackupFileService {
 	}
 
 	async backup(resource: URI, content?: ITextSnapshot, versionId?: number, meta?: any, token?: CancellationToken): Promise<void> {
-		await super.backup(resource, content, versionId, meta, token);
+		const p = super.backup(resource, content, versionId, meta, token);
+		const removeFromPendingBackups = insert(this.pendingBackupsArr, p.then(undefined, undefined));
+
+		try {
+			await p;
+		} finally {
+			removeFromPendingBackups();
+		}
 
 		while (this.backupResourceJoiners.length) {
 			this.backupResourceJoiners.pop()!();
@@ -118,14 +132,14 @@ suite('BackupFileService', () => {
 		service = new NodeTestBackupFileService(workspaceBackupPath);
 
 		// Delete any existing backups completely and then re-create it.
-		await pfs.rimraf(backupHome, pfs.RimRafMode.MOVE);
+		await pfs.rimraf(backupHome);
 		await pfs.mkdirp(backupHome);
 
 		return pfs.writeFile(workspacesJsonPath, '');
 	});
 
 	teardown(() => {
-		return pfs.rimraf(backupHome, pfs.RimRafMode.MOVE);
+		return pfs.rimraf(backupHome);
 	});
 
 	suite('hashPath', () => {
@@ -183,7 +197,7 @@ suite('BackupFileService', () => {
 		});
 
 		test('text file', async () => {
-			await service.backup(fooFile, createTextBufferFactory('test').create(DefaultEndOfLine.LF).createSnapshot(false));
+			await service.backup(fooFile, createTextBufferFactory('test').create(DefaultEndOfLine.LF).textBuffer.createSnapshot(false));
 			assert.equal(fs.readdirSync(path.join(workspaceBackupPath, 'file')).length, 1);
 			assert.equal(fs.existsSync(fooBackupPath), true);
 			assert.equal(fs.readFileSync(fooBackupPath), `${fooFile.toString()}\ntest`);
@@ -191,7 +205,7 @@ suite('BackupFileService', () => {
 		});
 
 		test('text file (with version)', async () => {
-			await service.backup(fooFile, createTextBufferFactory('test').create(DefaultEndOfLine.LF).createSnapshot(false), 666);
+			await service.backup(fooFile, createTextBufferFactory('test').create(DefaultEndOfLine.LF).textBuffer.createSnapshot(false), 666);
 			assert.equal(fs.readdirSync(path.join(workspaceBackupPath, 'file')).length, 1);
 			assert.equal(fs.existsSync(fooBackupPath), true);
 			assert.equal(fs.readFileSync(fooBackupPath), `${fooFile.toString()}\ntest`);
@@ -200,7 +214,7 @@ suite('BackupFileService', () => {
 		});
 
 		test('text file (with meta)', async () => {
-			await service.backup(fooFile, createTextBufferFactory('test').create(DefaultEndOfLine.LF).createSnapshot(false), undefined, { etag: '678', orphaned: true });
+			await service.backup(fooFile, createTextBufferFactory('test').create(DefaultEndOfLine.LF).textBuffer.createSnapshot(false), undefined, { etag: '678', orphaned: true });
 			assert.equal(fs.readdirSync(path.join(workspaceBackupPath, 'file')).length, 1);
 			assert.equal(fs.existsSync(fooBackupPath), true);
 			assert.equal(fs.readFileSync(fooBackupPath).toString(), `${fooFile.toString()} {"etag":"678","orphaned":true}\ntest`);
@@ -208,7 +222,7 @@ suite('BackupFileService', () => {
 		});
 
 		test('untitled file', async () => {
-			await service.backup(untitledFile, createTextBufferFactory('test').create(DefaultEndOfLine.LF).createSnapshot(false));
+			await service.backup(untitledFile, createTextBufferFactory('test').create(DefaultEndOfLine.LF).textBuffer.createSnapshot(false));
 			assert.equal(fs.readdirSync(path.join(workspaceBackupPath, 'untitled')).length, 1);
 			assert.equal(fs.existsSync(untitledBackupPath), true);
 			assert.equal(fs.readFileSync(untitledBackupPath), `${untitledFile.toString()}\ntest`);
@@ -277,7 +291,7 @@ suite('BackupFileService', () => {
 
 	suite('discardBackup', () => {
 		test('text file', async () => {
-			await service.backup(fooFile, createTextBufferFactory('test').create(DefaultEndOfLine.LF).createSnapshot(false));
+			await service.backup(fooFile, createTextBufferFactory('test').create(DefaultEndOfLine.LF).textBuffer.createSnapshot(false));
 			assert.equal(fs.readdirSync(path.join(workspaceBackupPath, 'file')).length, 1);
 			assert.ok(service.hasBackupSync(fooFile));
 
@@ -288,7 +302,7 @@ suite('BackupFileService', () => {
 		});
 
 		test('untitled file', async () => {
-			await service.backup(untitledFile, createTextBufferFactory('test').create(DefaultEndOfLine.LF).createSnapshot(false));
+			await service.backup(untitledFile, createTextBufferFactory('test').create(DefaultEndOfLine.LF).textBuffer.createSnapshot(false));
 			assert.equal(fs.readdirSync(path.join(workspaceBackupPath, 'untitled')).length, 1);
 			await service.discardBackup(untitledFile);
 			assert.equal(fs.existsSync(untitledBackupPath), false);
@@ -298,9 +312,9 @@ suite('BackupFileService', () => {
 
 	suite('discardBackups', () => {
 		test('text file', async () => {
-			await service.backup(fooFile, createTextBufferFactory('test').create(DefaultEndOfLine.LF).createSnapshot(false));
+			await service.backup(fooFile, createTextBufferFactory('test').create(DefaultEndOfLine.LF).textBuffer.createSnapshot(false));
 			assert.equal(fs.readdirSync(path.join(workspaceBackupPath, 'file')).length, 1);
-			await service.backup(barFile, createTextBufferFactory('test').create(DefaultEndOfLine.LF).createSnapshot(false));
+			await service.backup(barFile, createTextBufferFactory('test').create(DefaultEndOfLine.LF).textBuffer.createSnapshot(false));
 			assert.equal(fs.readdirSync(path.join(workspaceBackupPath, 'file')).length, 2);
 			await service.discardBackups();
 			assert.equal(fs.existsSync(fooBackupPath), false);
@@ -309,7 +323,7 @@ suite('BackupFileService', () => {
 		});
 
 		test('untitled file', async () => {
-			await service.backup(untitledFile, createTextBufferFactory('test').create(DefaultEndOfLine.LF).createSnapshot(false));
+			await service.backup(untitledFile, createTextBufferFactory('test').create(DefaultEndOfLine.LF).textBuffer.createSnapshot(false));
 			assert.equal(fs.readdirSync(path.join(workspaceBackupPath, 'untitled')).length, 1);
 			await service.discardBackups();
 			assert.equal(fs.existsSync(untitledBackupPath), false);
@@ -318,29 +332,29 @@ suite('BackupFileService', () => {
 
 		test('can backup after discarding all', async () => {
 			await service.discardBackups();
-			await service.backup(untitledFile, createTextBufferFactory('test').create(DefaultEndOfLine.LF).createSnapshot(false));
+			await service.backup(untitledFile, createTextBufferFactory('test').create(DefaultEndOfLine.LF).textBuffer.createSnapshot(false));
 			assert.equal(fs.existsSync(workspaceBackupPath), true);
 		});
 	});
 
 	suite('getBackups', () => {
 		test('("file") - text file', async () => {
-			await service.backup(fooFile, createTextBufferFactory('test').create(DefaultEndOfLine.LF).createSnapshot(false));
+			await service.backup(fooFile, createTextBufferFactory('test').create(DefaultEndOfLine.LF).textBuffer.createSnapshot(false));
 			const textFiles = await service.getBackups();
 			assert.deepEqual(textFiles.map(f => f.fsPath), [fooFile.fsPath]);
-			await service.backup(barFile, createTextBufferFactory('test').create(DefaultEndOfLine.LF).createSnapshot(false));
+			await service.backup(barFile, createTextBufferFactory('test').create(DefaultEndOfLine.LF).textBuffer.createSnapshot(false));
 			const textFiles_1 = await service.getBackups();
 			assert.deepEqual(textFiles_1.map(f => f.fsPath), [fooFile.fsPath, barFile.fsPath]);
 		});
 
 		test('("file") - untitled file', async () => {
-			await service.backup(untitledFile, createTextBufferFactory('test').create(DefaultEndOfLine.LF).createSnapshot(false));
+			await service.backup(untitledFile, createTextBufferFactory('test').create(DefaultEndOfLine.LF).textBuffer.createSnapshot(false));
 			const textFiles = await service.getBackups();
 			assert.deepEqual(textFiles.map(f => f.fsPath), [untitledFile.fsPath]);
 		});
 
 		test('("untitled") - untitled file', async () => {
-			await service.backup(untitledFile, createTextBufferFactory('test').create(DefaultEndOfLine.LF).createSnapshot(false));
+			await service.backup(untitledFile, createTextBufferFactory('test').create(DefaultEndOfLine.LF).textBuffer.createSnapshot(false));
 			const textFiles = await service.getBackups();
 			assert.deepEqual(textFiles.map(f => f.fsPath), ['Untitled-1']);
 		});
@@ -451,7 +465,7 @@ suite('BackupFileService', () => {
 				orphaned: false
 			};
 
-			await service.backup(fooFile, createTextBufferFactory(contents).create(DefaultEndOfLine.LF).createSnapshot(false), 1, meta);
+			await service.backup(fooFile, createTextBufferFactory(contents).create(DefaultEndOfLine.LF).textBuffer.createSnapshot(false), 1, meta);
 
 			const fileContents = fs.readFileSync(fooBackupPath).toString();
 			assert.equal(fileContents.indexOf(fooFile.toString()), 0);
@@ -462,7 +476,7 @@ suite('BackupFileService', () => {
 
 			const backup = await service.resolve(fooFile);
 			assert.ok(backup);
-			assert.equal(contents, snapshotToString(backup!.value.create(platform.isWindows ? DefaultEndOfLine.CRLF : DefaultEndOfLine.LF).createSnapshot(true)));
+			assert.equal(contents, snapshotToString(backup!.value.create(platform.isWindows ? DefaultEndOfLine.CRLF : DefaultEndOfLine.LF).textBuffer.createSnapshot(true)));
 			assert.ok(!backup!.meta);
 		});
 
@@ -523,7 +537,7 @@ suite('BackupFileService', () => {
 		test('should ignore invalid backups', async () => {
 			const contents = 'test\nand more stuff';
 
-			await service.backup(fooBarFile, createTextBufferFactory(contents).create(DefaultEndOfLine.LF).createSnapshot(false), 1);
+			await service.backup(fooBarFile, createTextBufferFactory(contents).create(DefaultEndOfLine.LF).textBuffer.createSnapshot(false), 1);
 
 			const backup = await service.resolve(fooBarFile);
 			if (!backup) {
@@ -547,11 +561,11 @@ suite('BackupFileService', () => {
 				expectedMeta = meta;
 			}
 
-			await service.backup(resource, createTextBufferFactory(contents).create(DefaultEndOfLine.LF).createSnapshot(false), 1, meta);
+			await service.backup(resource, createTextBufferFactory(contents).create(DefaultEndOfLine.LF).textBuffer.createSnapshot(false), 1, meta);
 
 			const backup = await service.resolve<IBackupTestMetaData>(resource);
 			assert.ok(backup);
-			assert.equal(contents, snapshotToString(backup!.value.create(platform.isWindows ? DefaultEndOfLine.CRLF : DefaultEndOfLine.LF).createSnapshot(true)));
+			assert.equal(contents, snapshotToString(backup!.value.create(platform.isWindows ? DefaultEndOfLine.CRLF : DefaultEndOfLine.LF).textBuffer.createSnapshot(true)));
 
 			if (expectedMeta) {
 				assert.equal(backup!.meta!.etag, expectedMeta.etag);
@@ -573,14 +587,14 @@ suite('BackupFilesModel', () => {
 		service = new NodeTestBackupFileService(workspaceBackupPath);
 
 		// Delete any existing backups completely and then re-create it.
-		await pfs.rimraf(backupHome, pfs.RimRafMode.MOVE);
+		await pfs.rimraf(backupHome);
 		await pfs.mkdirp(backupHome);
 
 		return pfs.writeFile(workspacesJsonPath, '');
 	});
 
 	teardown(() => {
-		return pfs.rimraf(backupHome, pfs.RimRafMode.MOVE);
+		return pfs.rimraf(backupHome);
 	});
 
 	test('simple', () => {

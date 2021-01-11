@@ -3,14 +3,16 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
+import { URL } from 'url';
 import * as vscode from 'vscode';
-import { SimpleBrowserManager } from './simpleBrowserManager';
 import * as nls from 'vscode-nls';
+import { SimpleBrowserManager } from './simpleBrowserManager';
 
 const localize = nls.loadMessageBundle();
 
-const openCommand = 'simpleBrowser.open';
+const openApiCommand = 'simpleBrowser.api.open';
 const showCommand = 'simpleBrowser.show';
+const internalOpenCommand = '_simpleBrowser.open';
 
 export function activate(context: vscode.ExtensionContext) {
 
@@ -30,8 +32,12 @@ export function activate(context: vscode.ExtensionContext) {
 		}
 	}));
 
-	context.subscriptions.push(vscode.commands.registerCommand(openCommand, (url: vscode.Uri) => {
-		manager.show(url.toString());
+	context.subscriptions.push(vscode.commands.registerCommand(openApiCommand, (url: vscode.Uri, showOptions?: { preserveFocus?: boolean }) => {
+		manager.show(url.toString(), showOptions);
+	}));
+
+	context.subscriptions.push(vscode.commands.registerCommand(internalOpenCommand, (resolvedUrl: vscode.Uri, _originalUri: vscode.Uri) => {
+		manager.show(resolvedUrl.toString());
 	}));
 
 	context.subscriptions.push(vscode.window.registerExternalUriOpener(['http', 'https'], {
@@ -41,9 +47,22 @@ export function activate(context: vscode.ExtensionContext) {
 				return undefined;
 			}
 
+			const enabledHosts = configuration.get<string[]>('opener.enabledHosts', [
+				'localhost',
+				'127.0.0.1'
+			]);
+			try {
+				const originalUri = new URL(uri.toString());
+				if (!enabledHosts.includes(originalUri.hostname)) {
+					return;
+				}
+			} catch {
+				return undefined;
+			}
+
 			return {
 				title: localize('openTitle', "Open in simple browser"),
-				command: openCommand,
+				command: internalOpenCommand,
 				arguments: [uri]
 			};
 		}

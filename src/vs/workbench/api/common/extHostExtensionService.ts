@@ -384,7 +384,7 @@ export abstract class AbstractExtHostExtensionService extends Disposable impleme
 
 		const globalState = new ExtensionGlobalMemento(extensionDescription, this._storage);
 		const workspaceState = new ExtensionMemento(extensionDescription.identifier.value, false, this._storage);
-		const secretState = new ExtensionSecrets(extensionDescription, this._secretState);
+		const secrets = new ExtensionSecrets(extensionDescription, this._secretState);
 		const extensionMode = extensionDescription.isUnderDevelopment
 			? (this._initData.environment.extensionTestsLocationURI ? ExtensionMode.Test : ExtensionMode.Development)
 			: ExtensionMode.Production;
@@ -400,7 +400,7 @@ export abstract class AbstractExtHostExtensionService extends Disposable impleme
 			return Object.freeze<vscode.ExtensionContext>({
 				globalState,
 				workspaceState,
-				secretState,
+				secrets,
 				subscriptions: [],
 				get extensionUri() { return extensionDescription.extensionLocation; },
 				get extensionPath() { return extensionDescription.extensionLocation.fsPath; },

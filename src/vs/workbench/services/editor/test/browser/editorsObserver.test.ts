@@ -204,7 +204,7 @@ suite('EditorsObserver', function () {
 		part.dispose();
 	});
 
-	test.skip('copy group', async function () { // https://github.com/microsoft/vscode/issues/113620
+	test('copy group', async function () {
 		const [part, observer] = await createEditorObserver();
 
 		const input1 = new TestFileEditorInput(URI.parse('foo://bar1'), TEST_SERIALIZABLE_EDITOR_INPUT_ID);
@@ -230,7 +230,9 @@ suite('EditorsObserver', function () {
 		assert.equal(observer.hasEditor(input3.resource), true);
 
 		const copiedGroup = part.copyGroup(rootGroup, rootGroup, GroupDirection.RIGHT);
+		await copiedGroup.whenRestored;
 		copiedGroup.setActive(true);
+		copiedGroup.focus();
 
 		currentEditorsMRU = observer.editors;
 		assert.equal(currentEditorsMRU.length, 6);

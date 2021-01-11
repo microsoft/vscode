@@ -11,7 +11,7 @@ import * as json from 'vs/base/common/json';
 import { ChordKeybinding, KeyCode, SimpleKeybinding } from 'vs/base/common/keyCodes';
 import { OS } from 'vs/base/common/platform';
 import * as uuid from 'vs/base/common/uuid';
-import { mkdirp, rimraf, RimRafMode } from 'vs/base/node/pfs';
+import { mkdirp, rimraf } from 'vs/base/node/pfs';
 import { IModeService } from 'vs/editor/common/services/modeService';
 import { ModeServiceImpl } from 'vs/editor/common/services/modeServiceImpl';
 import { IModelService } from 'vs/editor/common/services/modelService';
@@ -138,7 +138,7 @@ suite('KeybindingsEditing', () => {
 	teardown(() => {
 		return new Promise<void>((c) => {
 			if (testDir) {
-				rimraf(testDir, RimRafMode.MOVE).then(c, c);
+				rimraf(testDir).then(c, c);
 			} else {
 				c(undefined);
 			}

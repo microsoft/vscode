@@ -9,7 +9,7 @@ import * as glob from 'vs/base/common/glob';
 import { untildify } from 'vs/base/common/labels';
 import { Schemas } from 'vs/base/common/network';
 import * as path from 'vs/base/common/path';
-import { isEqual, basename } from 'vs/base/common/resources';
+import { isEqual, basename, relativePath } from 'vs/base/common/resources';
 import * as strings from 'vs/base/common/strings';
 import { URI, URI as uri } from 'vs/base/common/uri';
 import { isMultilineRegexSource } from 'vs/editor/common/model/textModelSearch';
@@ -516,4 +516,49 @@ function normalizeGlobPattern(pattern: string): string {
 	return normalizeSlashes(pattern)
 		.replace(/^\.\//, '')
 		.replace(/\/+$/g, '');
+}
+
+/**
+ * Construct an include pattern from a list of folders uris to search in.
+ */
+export function resolveResourcesForSearchIncludes(resources: URI[], contextService: IWorkspaceContextService): string[] {
+	resources = arrays.distinct(resources, resource => resource.toString());
+
+	const folderPaths: string[] = [];
+	const workspace = contextService.getWorkspace();
+
+	if (resources) {
+		resources.forEach(resource => {
+			let folderPath: string | undefined;
+			if (contextService.getWorkbenchState() === WorkbenchState.FOLDER) {
+				// Show relative path from the root for single-root mode
+				folderPath = relativePath(workspace.folders[0].uri, resource); // always uses forward slashes
+				if (folderPath && folderPath !== '.') {
+					folderPath = './' + folderPath;
+				}
+			} else {
+				const owningFolder = contextService.getWorkspaceFolder(resource);
+				if (owningFolder) {
+					const owningRootName = owningFolder.name;
+					// If this root is the only one with its basename, use a relative ./ path. If there is another, use an absolute path
+					const isUniqueFolder = workspace.folders.filter(folder => folder.name === owningRootName).length === 1;
+					if (isUniqueFolder) {
+						const relPath = relativePath(owningFolder.uri, resource); // always uses forward slashes
+						if (relPath === '') {
+							folderPath = `./${owningFolder.name}`;
+						} else {
+							folderPath = `./${owningFolder.name}/${relPath}`;
+						}
+					} else {
+						folderPath = resource.fsPath; // TODO rob: handle non-file URIs
+					}
+				}
+			}
+
+			if (folderPath) {
+				folderPaths.push(folderPath);
+			}
+		});
+	}
+	return folderPaths;
 }

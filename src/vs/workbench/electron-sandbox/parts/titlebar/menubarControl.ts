@@ -25,6 +25,7 @@ import { withNullAsUndefined } from 'vs/base/common/types';
 import { INativeHostService } from 'vs/platform/native/electron-sandbox/native';
 import { IHostService } from 'vs/workbench/services/host/browser/host';
 import { IPreferencesService } from 'vs/workbench/services/preferences/common/preferences';
+import { ICommandService } from 'vs/platform/commands/common/commands';
 
 export class NativeMenubarControl extends MenubarControl {
 
@@ -43,9 +44,10 @@ export class NativeMenubarControl extends MenubarControl {
 		@IAccessibilityService accessibilityService: IAccessibilityService,
 		@IMenubarService private readonly menubarService: IMenubarService,
 		@IHostService hostService: IHostService,
-		@INativeHostService private readonly nativeHostService: INativeHostService
+		@INativeHostService private readonly nativeHostService: INativeHostService,
+		@ICommandService commandService: ICommandService,
 	) {
-		super(menuService, workspacesService, contextKeyService, keybindingService, configurationService, labelService, updateService, storageService, notificationService, preferencesService, environmentService, accessibilityService, hostService);
+		super(menuService, workspacesService, contextKeyService, keybindingService, configurationService, labelService, updateService, storageService, notificationService, preferencesService, environmentService, accessibilityService, hostService, commandService);
 
 		if (isMacintosh) {
 			this.menus['Preferences'] = this._register(this.menuService.createMenu(MenuId.MenubarPreferencesMenu, this.contextKeyService));
@@ -110,6 +112,11 @@ export class NativeMenubarControl extends MenubarControl {
 
 			actions.forEach(menuItem => {
 
+				// use mnemonicTitle whenever possible
+				const title = typeof menuItem.item.title === 'string'
+					? menuItem.item.title
+					: menuItem.item.title.mnemonicTitle ?? menuItem.item.title.value;
+
 				if (menuItem instanceof SubmenuItemAction) {
 					const submenu = { items: [] };
 
@@ -123,7 +130,7 @@ export class NativeMenubarControl extends MenubarControl {
 
 					let menubarSubmenuItem: IMenubarMenuItemSubmenu = {
 						id: menuItem.id,
-						label: menuItem.label,
+						label: title,
 						submenu: submenu
 					};
 
@@ -137,7 +144,7 @@ export class NativeMenubarControl extends MenubarControl {
 
 					let menubarMenuItem: IMenubarMenuItemAction = {
 						id: menuItem.id,
-						label: menuItem.label
+						label: title
 					};
 
 					if (menuItem.checked) {
@@ -148,7 +155,6 @@ export class NativeMenubarControl extends MenubarControl {
 						menubarMenuItem.enabled = false;
 					}
 
-					menubarMenuItem.label = this.calculateActionLabel(menubarMenuItem);
 					keybindings[menuItem.id] = this.getMenubarKeybinding(menuItem.id);
 					menuToPopulate.items.push(menubarMenuItem);
 				}

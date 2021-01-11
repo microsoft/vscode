@@ -747,12 +747,13 @@ export class CloseEditorInAllGroupsAction extends Action {
 	}
 }
 
-export class BaseMoveGroupAction extends Action {
+class BaseMoveCopyGroupAction extends Action {
 
 	constructor(
 		id: string,
 		label: string,
 		private direction: GroupDirection,
+		private isMove: boolean,
 		private editorGroupService: IEditorGroupsService
 	) {
 		super(id, label);
@@ -767,9 +768,18 @@ export class BaseMoveGroupAction extends Action {
 		}
 
 		if (sourceGroup) {
-			const targetGroup = this.findTargetGroup(sourceGroup);
-			if (targetGroup) {
-				this.editorGroupService.moveGroup(sourceGroup, targetGroup, this.direction);
+			let resultGroup: IEditorGroup | undefined = undefined;
+			if (this.isMove) {
+				const targetGroup = this.findTargetGroup(sourceGroup);
+				if (targetGroup) {
+					resultGroup = this.editorGroupService.moveGroup(sourceGroup, targetGroup, this.direction);
+				}
+			} else {
+				resultGroup = this.editorGroupService.copyGroup(sourceGroup, sourceGroup, this.direction);
+			}
+
+			if (resultGroup) {
+				this.editorGroupService.activateGroup(resultGroup);
 			}
 		}
 	}
@@ -799,6 +809,18 @@ export class BaseMoveGroupAction extends Action {
 		}
 
 		return undefined;
+	}
+}
+
+class BaseMoveGroupAction extends BaseMoveCopyGroupAction {
+
+	constructor(
+		id: string,
+		label: string,
+		direction: GroupDirection,
+		editorGroupService: IEditorGroupsService
+	) {
+		super(id, label, direction, true, editorGroupService);
 	}
 }
 
@@ -848,6 +870,74 @@ export class MoveGroupDownAction extends BaseMoveGroupAction {
 
 	static readonly ID = 'workbench.action.moveActiveEditorGroupDown';
 	static readonly LABEL = nls.localize('moveActiveGroupDown', "Move Editor Group Down");
+
+	constructor(
+		id: string,
+		label: string,
+		@IEditorGroupsService editorGroupService: IEditorGroupsService
+	) {
+		super(id, label, GroupDirection.DOWN, editorGroupService);
+	}
+}
+
+class BaseDuplicateGroupAction extends BaseMoveCopyGroupAction {
+
+	constructor(
+		id: string,
+		label: string,
+		direction: GroupDirection,
+		editorGroupService: IEditorGroupsService
+	) {
+		super(id, label, direction, false, editorGroupService);
+	}
+}
+
+export class DuplicateGroupLeftAction extends BaseDuplicateGroupAction {
+
+	static readonly ID = 'workbench.action.duplicateActiveEditorGroupLeft';
+	static readonly LABEL = nls.localize('duplicateActiveGroupLeft', "Duplicate Editor Group Left");
+
+	constructor(
+		id: string,
+		label: string,
+		@IEditorGroupsService editorGroupService: IEditorGroupsService
+	) {
+		super(id, label, GroupDirection.LEFT, editorGroupService);
+	}
+}
+
+export class DuplicateGroupRightAction extends BaseDuplicateGroupAction {
+
+	static readonly ID = 'workbench.action.duplicateActiveEditorGroupRight';
+	static readonly LABEL = nls.localize('duplicateActiveGroupRight', "Duplicate Editor Group Right");
+
+	constructor(
+		id: string,
+		label: string,
+		@IEditorGroupsService editorGroupService: IEditorGroupsService
+	) {
+		super(id, label, GroupDirection.RIGHT, editorGroupService);
+	}
+}
+
+export class DuplicateGroupUpAction extends BaseDuplicateGroupAction {
+
+	static readonly ID = 'workbench.action.duplicateActiveEditorGroupUp';
+	static readonly LABEL = nls.localize('duplicateActiveGroupUp', "Duplicate Editor Group Up");
+
+	constructor(
+		id: string,
+		label: string,
+		@IEditorGroupsService editorGroupService: IEditorGroupsService
+	) {
+		super(id, label, GroupDirection.UP, editorGroupService);
+	}
+}
+
+export class DuplicateGroupDownAction extends BaseDuplicateGroupAction {
+
+	static readonly ID = 'workbench.action.duplicateActiveEditorGroupDown';
+	static readonly LABEL = nls.localize('duplicateActiveGroupDown', "Duplicate Editor Group Down");
 
 	constructor(
 		id: string,

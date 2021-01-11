@@ -213,7 +213,6 @@ export class ExtHostCommands implements ExtHostCommandsShape {
 		try {
 			return await callback.apply(thisArg, args);
 		} catch (err) {
-			console.error(err); // so that it shows up in any attached debugger
 			this._logService.error(err, id);
 			throw new Error(`Running the contributed command: '${id}' failed.`);
 		}

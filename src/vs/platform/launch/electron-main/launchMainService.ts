@@ -34,23 +34,6 @@ export interface IRemoteDiagnosticOptions {
 	includeWorkspaceMetadata?: boolean;
 }
 
-function parseOpenUrl(args: NativeParsedArgs): { uri: URI, url: string }[] {
-	if (args['open-url'] && args._urls && args._urls.length > 0) {
-		// --open-url must contain -- followed by the url(s)
-		// process.argv is used over args._ as args._ are resolved to file paths at this point
-		return coalesce(args._urls
-			.map(url => {
-				try {
-					return { uri: URI.parse(url), url };
-				} catch (err) {
-					return null;
-				}
-			}));
-	}
-
-	return [];
-}
-
 export interface ILaunchMainService {
 	readonly _serviceBrand: undefined;
 	start(args: NativeParsedArgs, userEnv: IProcessEnvironment): Promise<void>;
@@ -88,7 +71,7 @@ export class LaunchMainService implements ILaunchMainService {
 		}
 
 		// Check early for open-url which is handled in URL service
-		const urlsToOpen = parseOpenUrl(args);
+		const urlsToOpen = this.parseOpenUrl(args);
 		if (urlsToOpen.length) {
 			let whenWindowReady: Promise<unknown> = Promise.resolve();
 
@@ -110,6 +93,23 @@ export class LaunchMainService implements ILaunchMainService {
 		else {
 			return this.startOpenWindow(args, userEnv);
 		}
+	}
+
+	private parseOpenUrl(args: NativeParsedArgs): { uri: URI, url: string }[] {
+		if (args['open-url'] && args._urls && args._urls.length > 0) {
+			// --open-url must contain -- followed by the url(s)
+			// process.argv is used over args._ as args._ are resolved to file paths at this point
+			return coalesce(args._urls
+				.map(url => {
+					try {
+						return { uri: URI.parse(url), url };
+					} catch (err) {
+						return null;
+					}
+				}));
+		}
+
+		return [];
 	}
 
 	private async startOpenWindow(args: NativeParsedArgs, userEnv: IProcessEnvironment): Promise<void> {
@@ -284,7 +284,7 @@ export class LaunchMainService implements ILaunchMainService {
 					folderURIs.push(root.uri);
 				});
 			} else {
-				//TODO: can we add the workspace file here?
+				//TODO@RMacfarlane: can we add the workspace file here?
 			}
 		}
 

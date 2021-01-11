@@ -189,7 +189,7 @@ declare module 'vscode' {
 	export interface Tunnel extends TunnelDescription {
 		// Implementers of Tunnel should fire onDidDispose when dispose is called.
 		onDidDispose: Event<void>;
-		dispose(): void;
+		dispose(): void | Thenable<void>;
 	}
 
 	/**
@@ -234,10 +234,18 @@ declare module 'vscode' {
 		 */
 		tunnelFactory?: (tunnelOptions: TunnelOptions, tunnelCreationOptions: TunnelCreationOptions) => Thenable<Tunnel> | undefined;
 
-		/**
+		/**p
 		 * Provides filtering for candidate ports.
 		 */
 		showCandidatePort?: (host: string, port: number, detail: string) => Thenable<boolean>;
+
+		/**
+		 * Lets the resolver declare which tunnel factory features it supports.
+		 * UNDER DISCUSSION! MAY CHANGE SOON.
+		 */
+		tunnelFeatures?: {
+			elevation: boolean;
+		};
 	}
 
 	export namespace workspace {
@@ -1582,6 +1590,7 @@ declare module 'vscode' {
 		// eslint-disable-next-line vscode-dts-provider-naming
 		openNotebook(uri: Uri, openContext: NotebookDocumentOpenContext): NotebookData | Promise<NotebookData>;
 		// eslint-disable-next-line vscode-dts-provider-naming
+		// eslint-disable-next-line vscode-dts-cancellation
 		resolveNotebook(document: NotebookDocument, webview: NotebookCommunication): Promise<void>;
 		// eslint-disable-next-line vscode-dts-provider-naming
 		saveNotebook(document: NotebookDocument, cancellation: CancellationToken): Promise<void>;
@@ -2089,13 +2098,11 @@ declare module 'vscode' {
 		readonly onDidChangeTest: Event<T>;
 
 		/**
-		 * An event that should be fired when all tests that are currently defined
-		 * have been discovered. The provider should continue to watch for changes
-		 * and fire `onDidChangeTest` until the hierarchy is disposed.
-		 *
-		 * @todo can this be covered by existing progress apis? Or return a promise
+		 * Promise that should be resolved when all tests that are initially
+		 * defined have been discovered. The provider should continue to watch for
+		 * changes and fire `onDidChangeTest` until the hierarchy is disposed.
 		 */
-		readonly onDidDiscoverInitialTests: Event<void>;
+		readonly discoveredInitialTests?: Thenable<unknown>;
 
 		/**
 		 * Dispose will be called when there are no longer observers interested
@@ -2125,7 +2132,7 @@ declare module 'vscode' {
 		 * there is a previous undisposed watcher for the given workspace folder.
 		 */
 		// eslint-disable-next-line vscode-dts-provider-naming
-		createWorkspaceTestHierarchy?(workspace: WorkspaceFolder): TestHierarchy<T>;
+		createWorkspaceTestHierarchy?(workspace: WorkspaceFolder): TestHierarchy<T> | undefined;
 
 		/**
 		 * Requests that tests be provided for the given document. This will
@@ -2133,7 +2140,7 @@ declare module 'vscode' {
 		 * for instance by code lens UI.
 		 */
 		// eslint-disable-next-line vscode-dts-provider-naming
-		createDocumentTestHierarchy?(document: TextDocument): TestHierarchy<T>;
+		createDocumentTestHierarchy?(document: TextDocument): TestHierarchy<T> | undefined;
 
 		/**
 		 * Starts a test run. This should cause {@link onDidChangeTest} to
@@ -2294,6 +2301,14 @@ declare module 'vscode' {
 		 */
 		location?: Location;
 	}
+
+	/**
+	 * Additional metadata about the uri being opened
+	 */
+	interface OpenExternalUriContext {
+
+	}
+
 	//#endregion
 
 	//#region Opener service (https://github.com/microsoft/vscode/issues/109277)
@@ -2311,16 +2326,20 @@ declare module 'vscode' {
 		/**
 		 * Try to open a given uri.
 		 *
-		 * @param uri The uri being opened.
-		 * @param ctx Additional metadata about how the open was triggered.
+		 * @param uri The uri to open. This uri may have been transformed by port forwarding. To access
+		 * the original uri that triggered the open, use `ctx.original`.
+		 * @param ctx Additional metadata about the triggered open.
 		 * @param token Cancellation token.
 		 *
 		 * @return Optional command that opens the uri. If no command is returned, VS Code will
 		 * continue checking to see if any other openers are available.
 		 *
+		 * This command is given the resolved uri to open. This may be different from the original `uri` due
+		 * to port forwarding.
+		 *
 		 * If multiple openers are available for a given uri, then the `Command.title` is shown in the UI.
 		 */
-		openExternalUri(uri: Uri, ctx: {}, token: CancellationToken): ProviderResult<Command>;
+		openExternalUri(uri: Uri, ctx: OpenExternalUriContext, token: CancellationToken): ProviderResult<Command>;
 	}
 
 	namespace window {
@@ -2340,19 +2359,23 @@ declare module 'vscode' {
 
 	//#endregion
 
-
-	export interface SecretState {
+	/**
+	 * Represents a storage utility for secrets, information that is
+	 * sensitive.
+	 */
+	export interface SecretStorage {
 		/**
 		 * Retrieve a secret that was stored with key. Returns undefined if there
 		 * is no password matching that key.
 		 * @param key The key the password was stored under.
+		 * @returns The stored value or `undefined`.
 		 */
 		get(key: string): Thenable<string | undefined>;
 
 		/**
 		 * Store a secret under a given key.
-		 * @param key The key to store the password under
-		 * @param value The password
+		 * @param key The key to store the password under.
+		 * @param value The password.
 		 */
 		set(key: string, value: string): Thenable<void>;
 
@@ -2367,7 +2390,8 @@ declare module 'vscode' {
 		 */
 		onDidChange: Event<void>;
 	}
+
 	export interface ExtensionContext {
-		secretState: SecretState;
+		secrets: SecretStorage;
 	}
 }

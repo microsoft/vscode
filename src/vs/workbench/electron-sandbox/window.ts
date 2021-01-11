@@ -484,7 +484,7 @@ export class NativeWindow extends Disposable {
 		};
 
 		// Handle external open() calls
-		this.openerService.setExternalOpener({
+		this.openerService.setDefaultExternalOpener({
 			openExternal: async (href: string) => {
 				const success = await this.nativeHostService.openExternal(href);
 				if (!success) {
