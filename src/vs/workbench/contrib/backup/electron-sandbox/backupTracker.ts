@@ -124,14 +124,7 @@ export class NativeBackupTracker extends BackupTracker implements IWorkbenchCont
 
 		// we ran a backup but received an error that we show to the user
 		if (backupError) {
-			const dirtyEditors = workingCopies.filter(workingCopy => workingCopy.isDirty());
-
-			if (dirtyEditors.length) {
-				const fileList = getFileNamesMessage(dirtyEditors.map(x => x.name));
-				this.showErrorDialog(localize('backupTrackerBackupFailedWithEditors', "The following {0} editors could not be saved to the back up location.", dirtyEditors.length), backupError, fileList);
-			} else {
-				this.showErrorDialog(localize('backupTrackerBackupFailed', "One or more dirty editors could not be saved to the back up location."), backupError);
-			}
+			this.showErrorDialog(localize('backupTrackerBackupFailed', "The following dirty editors could not be saved to the back up location."), workingCopies, backupError);
 
 			return true; // veto (the backup failed)
 		}
@@ -141,15 +134,19 @@ export class NativeBackupTracker extends BackupTracker implements IWorkbenchCont
 		try {
 			return await this.confirmBeforeShutdown(workingCopies.filter(workingCopy => !backups.includes(workingCopy)));
 		} catch (error) {
-			this.showErrorDialog(localize('backupTrackerConfirmFailed', "One or more dirty editors could not be saved or reverted."), error);
+			this.showErrorDialog(localize('backupTrackerConfirmFailed', "The following dirty editors could not be saved or reverted."), workingCopies, error);
 
 			return true; // veto (save or revert failed)
 		}
 	}
 
-	private showErrorDialog(msg: string, error?: Error, fileList?: string): void {
+	private showErrorDialog(msg: string, workingCopies: readonly IWorkingCopy[], error?: Error): void {
+		const dirtyEditors = workingCopies.filter(workingCopy => workingCopy.isDirty());
+
 		const advice = localize('backupErrorDetails', "Try saving or reverting the dirty editors first and then try again.");
-		const detail = fileList ? fileList + '\n' + advice : advice;
+		const detail = dirtyEditors.length
+			? getFileNamesMessage(dirtyEditors.map(x => x.name)) + '\n' + advice
+			: advice;
 
 		this.dialogService.show(Severity.Error, msg, [localize('ok', 'OK')], { detail });
 
