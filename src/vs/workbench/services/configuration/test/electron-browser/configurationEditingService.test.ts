@@ -99,7 +99,7 @@ suite('ConfigurationEditingService', () => {
 		disposables.add(fileService.registerProvider(Schemas.userData, disposables.add(new FileUserDataProvider(Schemas.file, fileSystemProvider, Schemas.userData, logService))));
 		instantiationService.stub(IFileService, fileService);
 		instantiationService.stub(IRemoteAgentService, remoteAgentService);
-		workspaceService = disposables.add(new WorkspaceService({ configurationCache: new ConfigurationCache(environmentService, fileService) }, environmentService, fileService, remoteAgentService, new UriIdentityService(fileService), new NullLogService()));
+		workspaceService = disposables.add(new WorkspaceService({ configurationCache: new ConfigurationCache(URI.file(environmentService.userDataPath), fileService) }, environmentService, fileService, remoteAgentService, new UriIdentityService(fileService), new NullLogService()));
 		instantiationService.stub(IWorkspaceContextService, workspaceService);
 
 		await workspaceService.initialize({ folder: workspaceFolder, id: createHash('md5').update(workspaceFolder.toString()).digest('hex') });

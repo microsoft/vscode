@@ -3,8 +3,6 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { join } from 'vs/base/common/path';
-import { INativeWorkbenchEnvironmentService } from 'vs/workbench/services/environment/electron-sandbox/environmentService';
 import { IConfigurationCache, ConfigurationKey } from 'vs/workbench/services/configuration/common/configuration';
 import { URI } from 'vs/base/common/uri';
 import { Schemas } from 'vs/base/common/network';
@@ -16,7 +14,7 @@ export class ConfigurationCache implements IConfigurationCache {
 
 	private readonly cachedConfigurations: Map<string, CachedConfiguration> = new Map<string, CachedConfiguration>();
 
-	constructor(private readonly environmentService: INativeWorkbenchEnvironmentService, private readonly fileService: IFileService) {
+	constructor(private readonly cacheHome: URI, private readonly fileService: IFileService) {
 	}
 
 	needsCaching(resource: URI): boolean {
@@ -40,7 +38,7 @@ export class ConfigurationCache implements IConfigurationCache {
 		const k = `${type}:${key}`;
 		let cachedConfiguration = this.cachedConfigurations.get(k);
 		if (!cachedConfiguration) {
-			cachedConfiguration = new CachedConfiguration({ type, key }, this.environmentService, this.fileService);
+			cachedConfiguration = new CachedConfiguration({ type, key }, this.cacheHome, this.fileService);
 			this.cachedConfigurations.set(k, cachedConfiguration);
 		}
 		return cachedConfiguration;
@@ -56,10 +54,10 @@ class CachedConfiguration {
 
 	constructor(
 		{ type, key }: ConfigurationKey,
-		environmentService: INativeWorkbenchEnvironmentService,
+		cacheHome: URI,
 		private readonly fileService: IFileService
 	) {
-		this.cachedConfigurationFolderResource = URI.file(join(environmentService.userDataPath, 'CachedConfigurations', type, key));
+		this.cachedConfigurationFolderResource = joinPath(cacheHome, 'CachedConfigurations', type, key);
 		this.cachedConfigurationFileResource = joinPath(this.cachedConfigurationFolderResource, type === 'workspaces' ? 'workspace.json' : 'configuration.json');
 	}
 
