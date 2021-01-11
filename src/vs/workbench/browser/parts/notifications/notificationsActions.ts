@@ -9,7 +9,7 @@ import { localize } from 'vs/nls';
 import { Action, IAction, ActionRunner, WorkbenchActionExecutedEvent, WorkbenchActionExecutedClassification } from 'vs/base/common/actions';
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
 import { INotificationService } from 'vs/platform/notification/common/notification';
-import { CLEAR_NOTIFICATION, EXPAND_NOTIFICATION, COLLAPSE_NOTIFICATION, CLEAR_ALL_NOTIFICATIONS, HIDE_NOTIFICATIONS_CENTER, MANAGE_NOTIFICATIONS_CENTER } from 'vs/workbench/browser/parts/notifications/notificationsCommands';
+import { CLEAR_NOTIFICATION, EXPAND_NOTIFICATION, COLLAPSE_NOTIFICATION, CLEAR_ALL_NOTIFICATIONS, HIDE_NOTIFICATIONS_CENTER, MANAGE_NOTIFICATIONS } from 'vs/workbench/browser/parts/notifications/notificationsCommands';
 import { ICommandService } from 'vs/platform/commands/common/commands';
 import { IClipboardService } from 'vs/platform/clipboard/common/clipboardService';
 import { Codicon } from 'vs/base/common/codicons';
@@ -79,7 +79,7 @@ export class HideNotificationsCenterAction extends Action {
 
 export class ManageNotificationsAction extends Action {
 
-	static readonly ID = MANAGE_NOTIFICATIONS_CENTER;
+	static readonly ID = MANAGE_NOTIFICATIONS;
 	static readonly LABEL = localize('manageNotifications', "Manage Notifications");
 
 	constructor(
@@ -91,7 +91,7 @@ export class ManageNotificationsAction extends Action {
 	}
 
 	async run(): Promise<void> {
-		this.commandService.executeCommand(MANAGE_NOTIFICATIONS_CENTER);
+		this.commandService.executeCommand(MANAGE_NOTIFICATIONS);
 	}
 }
 

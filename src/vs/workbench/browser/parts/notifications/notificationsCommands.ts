@@ -18,7 +18,7 @@ import { IPreferencesService } from 'vs/workbench/services/preferences/common/pr
 // Center
 export const SHOW_NOTIFICATIONS_CENTER = 'notifications.showList';
 export const HIDE_NOTIFICATIONS_CENTER = 'notifications.hideList';
-export const MANAGE_NOTIFICATIONS_CENTER = 'notifications.manage';
+export const MANAGE_NOTIFICATIONS = 'notifications.manage';
 const TOGGLE_NOTIFICATIONS_CENTER = 'notifications.toggleList';
 
 // Toasts
@@ -94,7 +94,7 @@ export function registerNotificationCommands(center: INotificationsCenterControl
 
 	// Manage Notifications
 	KeybindingsRegistry.registerCommandAndKeybindingRule({
-		id: MANAGE_NOTIFICATIONS_CENTER,
+		id: MANAGE_NOTIFICATIONS,
 		weight: KeybindingWeight.WorkbenchContrib + 50,
 		when: NotificationsCenterVisibleContext,
 		primary: KeyCode.Enter,

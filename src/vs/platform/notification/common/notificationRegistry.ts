@@ -10,10 +10,6 @@ export class NotificationRegistry {
 	static _notifications: INotificationItem[] = [];
 	constructor() { }
 
-	getDefaultNotifications(): INotificationItem[] {
-		return Registry.knows('notifications') ? Registry.as('notifications') : [];
-	}
-
 	static registerNotification(notification: INotificationItem): void {
 		this._notifications.push(notification);
 	}

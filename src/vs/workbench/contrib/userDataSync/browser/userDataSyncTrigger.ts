@@ -58,7 +58,7 @@ export class UserDataSyncTrigger extends Disposable implements IWorkbenchContrib
 			return 'keybindingsEditor';
 		}
 		if (editorInput instanceof NotificationsEditorInput) {
-			return 'keybindingsEditor';
+			return 'notificationsEditor';
 		}
 		const resource = editorInput.resource;
 		if (isEqual(resource, this.environmentService.settingsResource)) {
@@ -66,6 +66,9 @@ export class UserDataSyncTrigger extends Disposable implements IWorkbenchContrib
 		}
 		if (isEqual(resource, this.environmentService.keybindingsResource)) {
 			return 'keybindingsEditor';
+		}
+		if (isEqual(resource, this.environmentService.notificationsResource)) {
+			return 'notificationsEditor';
 		}
 		return undefined;
 	}
