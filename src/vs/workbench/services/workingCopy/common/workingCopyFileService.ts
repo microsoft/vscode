@@ -254,7 +254,7 @@ export class WorkingCopyFileService extends Disposable implements IWorkingCopyFi
 		super();
 
 		// register a default working copy provider that uses the working copy service
-		this.registerWorkingCopyProvider(resource => {
+		this._register(this.registerWorkingCopyProvider(resource => {
 			return this.workingCopyService.workingCopies.filter(workingCopy => {
 				if (this.fileService.canHandleResource(resource)) {
 					// only check for parents if the resource can be handled
@@ -265,7 +265,7 @@ export class WorkingCopyFileService extends Disposable implements IWorkingCopyFi
 
 				return this.uriIdentityService.extUri.isEqual(workingCopy.resource, resource);
 			});
-		});
+		}));
 	}
 
 

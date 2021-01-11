@@ -901,7 +901,7 @@ export class FileService extends Disposable implements IFileService {
 
 	watch(resource: URI, options: IWatchOptions = { recursive: false, excludes: [] }): IDisposable {
 		let watchDisposed = false;
-		let watchDisposable = toDisposable(() => watchDisposed = true);
+		let disposeWatch = () => { watchDisposed = true; };
 
 		// Watch and wire in disposable which is async but
 		// check if we got disposed meanwhile and forward
@@ -909,11 +909,11 @@ export class FileService extends Disposable implements IFileService {
 			if (watchDisposed) {
 				dispose(disposable);
 			} else {
-				watchDisposable = disposable;
+				disposeWatch = () => dispose(disposable);
 			}
 		}, error => this.logService.error(error));
 
-		return toDisposable(() => dispose(watchDisposable));
+		return toDisposable(() => disposeWatch());
 	}
 
 	async doWatch(resource: URI, options: IWatchOptions): Promise<IDisposable> {

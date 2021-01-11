@@ -133,7 +133,7 @@ export class ActivitybarPart extends Part implements IActivityBarService {
 
 		for (const cachedViewContainer of this.cachedViewContainers) {
 			if (
-				(environmentService.remoteAuthority && isNative) || // Hide activity bar entries until registered in desktop with remote connection
+				(environmentService.remoteAuthority && isNative) || // In desktop with remote connection, hide activity bar entries until registered.
 				this.shouldBeHidden(cachedViewContainer.id, cachedViewContainer)
 			) {
 				cachedViewContainer.visible = false;
@@ -928,7 +928,7 @@ export class ActivitybarPart extends Part implements IActivityBarService {
 				state.push({
 					id: compositeItem.id,
 					name: viewContainerModel.title,
-					icon: this.environmentService.remoteAuthority && isNative ? undefined : viewContainerModel.icon, /* Donot cache icon in desktop with remote connection */
+					icon: URI.isUri(viewContainerModel.icon) && this.environmentService.remoteAuthority && isNative ? undefined : viewContainerModel.icon, /* Donot cache uri icons in desktop with remote connection */
 					views,
 					pinned: compositeItem.pinned,
 					order: compositeItem.order,
