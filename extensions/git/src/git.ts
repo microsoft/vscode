@@ -2054,6 +2054,36 @@ export class Repository {
 			return branch;
 		}
 
+		try {
+			let res4 = await this.exec(['config', '--get', 'branch.' + name + '.remote']);
+
+			if (!res4.stdout) {
+				throw new Error(`Could not fetch remote of ${name}`);
+			}
+
+			const remote = res4.stdout.trim();
+			res4 = await this.exec(['config', '--get', 'branch.' + name + '.merge']);
+
+			if (!res4.stdout) {
+				throw new Error(`Could not fetch remote branch name of ${name}`);
+			}
+
+			const longRemoteName = res4.stdout.trim();
+			const match = /^refs\/heads\/([^/]+)$/.exec(longRemoteName);
+
+			if (!match) {
+				throw new Error(`Could not parse upstream remote name: ${longRemoteName}`);
+			}
+
+			return {
+				name,
+				type: RefType.Head,
+				upstream: { remote: remote, name: match[1] }
+			};
+		} catch (err) {
+			// noop
+		}
+
 		return Promise.reject<Branch>(new Error('No such branch'));
 	}
 
