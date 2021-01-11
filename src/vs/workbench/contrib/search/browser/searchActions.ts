@@ -10,7 +10,7 @@ import { isWindows, OS } from 'vs/base/common/platform';
 import * as nls from 'vs/nls';
 import { IClipboardService } from 'vs/platform/clipboard/common/clipboardService';
 import { ILabelService } from 'vs/platform/label/common/label';
-import { ICommandHandler } from 'vs/platform/commands/common/commands';
+import { ICommandHandler, ICommandService } from 'vs/platform/commands/common/commands';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { ServicesAccessor } from 'vs/platform/instantiation/common/instantiation';
 import { IKeybindingService } from 'vs/platform/keybinding/common/keybinding';
@@ -30,6 +30,8 @@ import { SearchEditor } from 'vs/workbench/contrib/searchEditor/browser/searchEd
 import { searchRefreshIcon, searchCollapseAllIcon, searchExpandAllIcon, searchClearIcon, searchReplaceAllIcon, searchReplaceIcon, searchRemoveIcon, searchStopIcon } from 'vs/workbench/contrib/search/browser/searchIcons';
 import { IUriIdentityService } from 'vs/workbench/services/uriIdentity/common/uriIdentity';
 import { ThemeIcon } from 'vs/platform/theme/common/themeService';
+import { OpenSearchEditorArgs } from 'vs/workbench/contrib/searchEditor/browser/searchEditor.contribution';
+import { OpenEditorCommandId } from 'vs/workbench/contrib/searchEditor/browser/constants';
 
 export function isSearchViewFocused(viewsService: IViewsService): boolean {
 	const searchView = getSearchView(viewsService);
@@ -173,21 +175,37 @@ export interface IFindInFilesArgs {
 	useExcludeSettingsAndIgnoreFiles?: boolean;
 }
 export const FindInFilesCommand: ICommandHandler = (accessor, args: IFindInFilesArgs = {}) => {
-
-	const viewsService = accessor.get(IViewsService);
-	openSearchView(viewsService, false).then(openedView => {
-		if (openedView) {
-			const searchAndReplaceWidget = openedView.searchAndReplaceWidget;
-			searchAndReplaceWidget.toggleReplace(typeof args.replace === 'string');
-			let updatedText = false;
-			if (typeof args.query === 'string') {
-				openedView.setSearchParameters(args);
-			} else {
-				updatedText = openedView.updateTextFromFindWidgetOrSelection({ allowUnselectedWord: typeof args.replace !== 'string' });
+	const searchConfig = accessor.get(IConfigurationService).getValue<ISearchConfiguration>().search;
+	const mode = searchConfig.mode;
+	if (mode === 'view') {
+		const viewsService = accessor.get(IViewsService);
+		openSearchView(viewsService, false).then(openedView => {
+			if (openedView) {
+				const searchAndReplaceWidget = openedView.searchAndReplaceWidget;
+				searchAndReplaceWidget.toggleReplace(typeof args.replace === 'string');
+				let updatedText = false;
+				if (typeof args.query === 'string') {
+					openedView.setSearchParameters(args);
+				} else {
+					updatedText = openedView.updateTextFromFindWidgetOrSelection({ allowUnselectedWord: typeof args.replace !== 'string' });
+				}
+				openedView.searchAndReplaceWidget.focus(undefined, updatedText, updatedText);
 			}
-			openedView.searchAndReplaceWidget.focus(undefined, updatedText, updatedText);
-		}
-	});
+		});
+	} else {
+		const convertArgs = (args: IFindInFilesArgs): OpenSearchEditorArgs => ({
+			location: mode === 'newEditor' ? 'new' : 'reuse',
+			query: args.query,
+			filesToInclude: args.filesToInclude,
+			filesToExclude: args.filesToExclude,
+			matchWholeWord: args.matchWholeWord,
+			isCaseSensitive: args.isCaseSensitive,
+			isRegexp: args.isRegex,
+			useExcludeSettingsAndIgnoreFiles: args.useExcludeSettingsAndIgnoreFiles,
+			showIncludesExcludes: !!(args.filesToExclude || args.filesToExclude || !args.useExcludeSettingsAndIgnoreFiles),
+		});
+		accessor.get(ICommandService).executeCommand(OpenEditorCommandId, convertArgs(args));
+	}
 };
 
 export class OpenSearchViewletAction extends FindOrReplaceInFilesAction {

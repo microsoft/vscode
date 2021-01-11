@@ -36,15 +36,12 @@
 
 /* Title Container */
 
-.monaco-workbench .part.editor > .content .editor-group-container > .title.tabs > .tabs-and-actions-container {
+.monaco-workbench .part.editor > .content .editor-group-container > .title > .tabs-and-actions-container {
 	display: flex;
+	position: relative; /* position tabs border bottom or editor actions (when tabs wrap) relative to this container */
 }
 
-.monaco-workbench .part.editor > .content .editor-group-container > .title.tabs > .tabs-and-actions-container.tabs-border-bottom {
-	position: relative;
-}
-
-.monaco-workbench .part.editor > .content .editor-group-container > .title.tabs > .tabs-and-actions-container.tabs-border-bottom::after {
+.monaco-workbench .part.editor > .content .editor-group-container > .title > .tabs-and-actions-container.tabs-border-bottom::after {
 	content: '';
 	position: absolute;
 	bottom: 0;
@@ -56,11 +53,11 @@
 	height: 1px;
 }
 
-.monaco-workbench .part.editor > .content .editor-group-container > .title.tabs > .tabs-and-actions-container > .monaco-scrollable-element {
+.monaco-workbench .part.editor > .content .editor-group-container > .title > .tabs-and-actions-container > .monaco-scrollable-element {
 	flex: 1;
 }
 
-.monaco-workbench .part.editor > .content .editor-group-container > .title.tabs > .tabs-and-actions-container > .monaco-scrollable-element .scrollbar {
+.monaco-workbench .part.editor > .content .editor-group-container > .title > .tabs-and-actions-container > .monaco-scrollable-element .scrollbar {
 	z-index: 7;
 	cursor: default;
 }
@@ -75,6 +72,13 @@
 
 .monaco-workbench .part.editor > .content .editor-group-container > .title .tabs-container.scroll {
 	overflow: scroll !important;
+}
+
+.monaco-workbench .part.editor > .content .editor-group-container > .title > .tabs-and-actions-container.wrapping .tabs-container {
+
+	/* Enable wrapping via flex layout and dynamic height */
+	height: auto;
+	flex-wrap: wrap;
 }
 
 .monaco-workbench .part.editor > .content .editor-group-container > .title .tabs-container::-webkit-scrollbar {
@@ -93,6 +97,10 @@
 	padding-left: 10px;
 }
 
+.monaco-workbench .part.editor > .content .editor-group-container > .title > .tabs-and-actions-container.wrapping .tabs-container > .tab:last-child {
+	margin-right: var(--last-tab-margin-right); /* when tabs wrap, we need a margin away from the absolute positioned editor actions */
+}
+
 .monaco-workbench .part.editor > .content .editor-group-container > .title .tabs-container > .tab.sizing-shrink.has-icon.tab-actions-right,
 .monaco-workbench .part.editor > .content .editor-group-container > .title .tabs-container > .tab.sizing-shrink.has-icon.tab-actions-off:not(.sticky-compact) {
 	padding-left: 5px; /* reduce padding when we show icons and are in shrinking mode and tab actions is not left (unless sticky-compact) */
@@ -103,6 +111,10 @@
 	min-width: fit-content;
 	min-width: -moz-fit-content;
 	flex-shrink: 0;
+}
+
+.monaco-workbench .part.editor > .content .editor-group-container > .title > .tabs-and-actions-container.wrapping .tabs-container > .tab.sizing-fit {
+	flex-grow: 1; /* grow the tabs to fill each row for a more homogeneous look when tabs wrap */
 }
 
 .monaco-workbench .part.editor > .content .editor-group-container > .title .tabs-container > .tab.sizing-shrink {
@@ -149,9 +161,7 @@
 .monaco-workbench .part.editor > .content .editor-group-container > .title .tabs-container.disable-sticky-tabs > .tab.sizing-shrink.sticky-compact,
 .monaco-workbench .part.editor > .content .editor-group-container > .title .tabs-container.disable-sticky-tabs > .tab.sizing-fit.sticky-shrink,
 .monaco-workbench .part.editor > .content .editor-group-container > .title .tabs-container.disable-sticky-tabs > .tab.sizing-shrink.sticky-shrink {
-
-	/** Disable sticky positions for sticky compact/shrink tabs if the available space is too little */
-	position: static;
+	position: static; /** disable sticky positions for sticky compact/shrink tabs if the available space is too little */
 }
 
 .monaco-workbench .part.editor > .content .editor-group-container > .title .tabs-container > .tab.tab-actions-left .action-label {
@@ -163,7 +173,7 @@
 	content: '';
 	display: flex;
 	flex: 0;
-	width: 5px; /* Reserve space to hide tab fade when close button is left or off (fixes https://github.com/microsoft/vscode/issues/45728) */
+	width: 5px; /* reserve space to hide tab fade when close button is left or off (fixes https://github.com/microsoft/vscode/issues/45728) */
 }
 
 .monaco-workbench .part.editor > .content .editor-group-container > .title .tabs-container > .tab.sizing-shrink.tab-actions-left {
@@ -276,7 +286,7 @@
 
 .monaco-workbench .part.editor > .content .editor-group-container > .title .tabs-container > .tab.tab-actions-right.sizing-shrink > .tab-actions {
 	flex: 0;
-	overflow: hidden; /* let the tab actions be pushed out of view when sizing is set to shrink to make more room... */
+	overflow: hidden; /* let the tab actions be pushed out of view when sizing is set to shrink to make more room */
 }
 
 .monaco-workbench .part.editor > .content .editor-group-container > .title .tabs-container > .tab.dirty.tab-actions-right.sizing-shrink > .tab-actions,
@@ -334,7 +344,7 @@
 	margin-right: 0.5em;
 }
 
-/* No Tab Actions */
+/* Tab Actions: Off */
 
 .monaco-workbench .part.editor > .content .editor-group-container > .title .tabs-container > .tab.tab-actions-off {
 	padding-right: 10px; /* give a little bit more room if tab actions is off */
@@ -357,15 +367,6 @@
 	pointer-events: none; /* don't allow tab actions to be clicked when running without tab actions */
 }
 
-/* Editor Actions */
-
-.monaco-workbench .part.editor > .content .editor-group-container > .title .editor-actions {
-	cursor: default;
-	flex: initial;
-	padding: 0 8px 0 4px;
-	height: 35px;
-}
-
 /* Breadcrumbs */
 
 .monaco-workbench .part.editor > .content .editor-group-container > .title .tabs-breadcrumbs .breadcrumbs-control {
@@ -383,6 +384,12 @@
 	height: 22px; /* tweak the icon size of the editor labels when icons are enabled */
 }
 
+.monaco-workbench .part.editor > .content .editor-group-container > .title .tabs-breadcrumbs .breadcrumbs-control .outline-element-icon {
+	padding-right: 3px;
+	height: 22px; /* tweak the icon size of the editor labels when icons are enabled */
+	line-height: 22px;
+}
+
 .monaco-workbench .part.editor > .content .editor-group-container > .title .tabs-breadcrumbs .breadcrumbs-control .monaco-breadcrumb-item {
 	max-width: 80%;
 }
@@ -397,4 +404,25 @@
 
 .monaco-workbench .part.editor > .content .editor-group-container > .title .tabs-breadcrumbs .breadcrumbs-control .monaco-breadcrumb-item:last-child {
 	padding-right: 8px;
+}
+
+.monaco-workbench .part.editor > .content .editor-group-container > .title .tabs-breadcrumbs .breadcrumbs-control .monaco-breadcrumb-item:last-child .codicon:last-child {
+	display: none; /* hides chevrons when last item */
+}
+
+/* Editor Actions Toolbar */
+
+.monaco-workbench .part.editor > .content .editor-group-container > .title .editor-actions {
+	cursor: default;
+	flex: initial;
+	padding: 0 8px 0 4px;
+	height: 35px;
+}
+
+.monaco-workbench .part.editor > .content .editor-group-container > .title > .tabs-and-actions-container.wrapping .editor-actions {
+
+	/* When tabs are wrapped, position the editor actions at the end of the very last row */
+	position: absolute;
+	bottom: 0;
+	right: 0;
 }

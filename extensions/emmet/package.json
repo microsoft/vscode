@@ -17,7 +17,7 @@
         "url": "https://github.com/microsoft/vscode-emmet"
     },
     "activationEvents": [
-        "*",
+        "onStartupFinished",
         "onCommand:emmet.expandAbbreviation",
         "onLanguage:html",
         "onLanguage:css",
@@ -430,14 +430,16 @@
         "deps": "yarn add vscode-emmet-helper"
     },
     "devDependencies": {
-        "@types/node": "^12.19.9"
+        "@types/node": "^12.19.9",
+        "emmet": "https://github.com/rzhao271/emmet.git#1b2df677d8925ef5ea6da9df8845968403979a0a"
     },
     "dependencies": {
+        "@emmetio/abbreviation": "^2.2.0",
         "@emmetio/css-parser": "ramya-rao-a/css-parser#vscode",
         "@emmetio/html-matcher": "^0.3.3",
         "@emmetio/math-expression": "^1.0.4",
         "image-size": "^0.5.2",
-        "vscode-emmet-helper": "~2.0.0",
-        "vscode-html-languageservice": "^3.0.3"
+        "vscode-emmet-helper": "2.2.4-2",
+        "vscode-languageserver-textdocument": "^1.0.1"
     }
 }

@@ -1650,10 +1650,7 @@ suite('Tasks version 2.0.0', () => {
 });
 
 suite('Bugs / regression tests', () => {
-	test('Bug 19548', () => {
-		if (Platform.isLinux) {
-			return;
-		}
+	(Platform.isLinux ? test.skip : test)('Bug 19548', () => {
 		let external: ExternalTaskRunnerConfiguration = {
 			version: '0.1.0',
 			windows: {

@@ -95,14 +95,26 @@ export class OpenEditorsView extends ViewPane {
 		super(options, keybindingService, contextMenuService, configurationService, contextKeyService, viewDescriptorService, instantiationService, openerService, themeService, telemetryService);
 
 		this.structuralRefreshDelay = 0;
+		let labelChangeListeners: IDisposable[] = [];
 		this.listRefreshScheduler = new RunOnceScheduler(() => {
+			labelChangeListeners = dispose(labelChangeListeners);
 			const previousLength = this.list.length;
-			this.list.splice(0, this.list.length, this.getElements());
+			const elements = this.getElements();
+			this.list.splice(0, this.list.length, elements);
 			this.focusActiveEditor();
 			if (previousLength !== this.list.length) {
 				this.updateSize();
 			}
 			this.needsRefresh = false;
+
+			if (this.sortOrder === 'alphabetical') {
+				// We need to resort the list if the editor label changed
+				elements.forEach(e => {
+					if (e instanceof OpenEditor) {
+						labelChangeListeners.push(e.editor.onDidChangeLabel(() => this.listRefreshScheduler.schedule()));
+					}
+				});
+			}
 		}, this.structuralRefreshDelay);
 		this.sortOrder = configurationService.getValue('explorer.openEditors.sortOrder');
 

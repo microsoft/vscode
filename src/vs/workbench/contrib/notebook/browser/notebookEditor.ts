@@ -64,14 +64,7 @@ export class NotebookEditor extends EditorPane {
 		this._editorMemento = this.getEditorMemento<INotebookEditorViewState>(_editorGroupService, NOTEBOOK_EDITOR_VIEW_STATE_PREFERENCE_KEY);
 	}
 
-	set viewModel(newModel: NotebookViewModel | undefined) {
-		if (this._widget.value) {
-			this._widget.value.viewModel = newModel;
-			this._onDidChangeModel.fire();
-		}
-	}
-
-	get viewModel() {
+	get viewModel(): NotebookViewModel | undefined {
 		return this._widget.value?.viewModel;
 	}
 
@@ -155,6 +148,7 @@ export class NotebookEditor extends EditorPane {
 		}
 
 		this._widget = this.instantiationService.invokeFunction(this._notebookWidgetService.retrieveWidget, group, input);
+		this._widgetDisposableStore.add(this._widget.value!.onDidChangeModel(() => this._onDidChangeModel.fire()));
 
 		if (this._dimension) {
 			this._widget.value!.layout(this._dimension, this._rootElement);

@@ -127,7 +127,7 @@ Registry.as<IConfigurationRegistry>(ConfigurationExtensions.Configuration)
 			'remote.restoreForwardedPorts': {
 				type: 'boolean',
 				markdownDescription: localize('remote.restoreForwardedPorts', "Restores the ports you forwarded in a workspace."),
-				default: false
+				default: true
 			},
 			'remote.autoForwardPorts': {
 				type: 'boolean',

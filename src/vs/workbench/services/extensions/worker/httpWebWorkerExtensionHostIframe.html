@@ -1,7 +1,7 @@
 <!DOCTYPE html>
 <html>
 	<head>
-		<meta http-equiv="Content-Security-Policy" content="default-src 'none'; child-src 'self' data: blob:; script-src 'unsafe-eval' 'sha256-Q8Eamv01SvhP0LqcT0fmHK5mS7H7S7rVJw8gT40uOaM=' http: https:; connect-src http: https: ws: wss:" />
+		<meta http-equiv="Content-Security-Policy" content="default-src 'none'; child-src 'self' data: blob:; script-src 'unsafe-eval' 'sha256-LU+tuagpyx5mKuYgHsSvz9593ZGS6yeLPRvzq1lKXlY=' http: https:; connect-src http: https: ws: wss:" />
 	</head>
 	<body>
 	<script>
@@ -41,6 +41,7 @@
 					nestedWorkers.delete(id);
 				}
 			} else {
+				worker.onerror = console.error.bind(console);
 				window.parent.postMessage({
 					vscodeWebWorkerExtHostId,
 					data

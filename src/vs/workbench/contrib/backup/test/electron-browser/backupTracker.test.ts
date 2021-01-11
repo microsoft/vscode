@@ -9,7 +9,7 @@ import * as os from 'os';
 import * as path from 'vs/base/common/path';
 import * as pfs from 'vs/base/node/pfs';
 import { URI } from 'vs/base/common/uri';
-import { getRandomTestPath } from 'vs/base/test/node/testUtils';
+import { flakySuite, getRandomTestPath } from 'vs/base/test/node/testUtils';
 import { hashPath } from 'vs/workbench/services/backup/electron-browser/backupFileService';
 import { NativeBackupTracker } from 'vs/workbench/contrib/backup/electron-sandbox/backupTracker';
 import { TextFileEditorModelManager } from 'vs/workbench/services/textfile/common/textFileEditorModelManager';
@@ -51,13 +51,6 @@ import { timeout } from 'vs/base/common/async';
 import { Workspace } from 'vs/platform/workspace/test/common/testWorkspace';
 import { IProgressService } from 'vs/platform/progress/common/progress';
 
-const userdataDir = getRandomTestPath(os.tmpdir(), 'vsctests', 'backuprestorer');
-const backupHome = path.join(userdataDir, 'Backups');
-const workspacesJsonPath = path.join(backupHome, 'workspaces.json');
-
-const workspaceResource = URI.file(platform.isWindows ? 'c:\\workspace' : '/workspace');
-const workspaceBackupPath = path.join(backupHome, hashPath(workspaceResource));
-
 class TestBackupTracker extends NativeBackupTracker {
 
 	constructor(
@@ -80,6 +73,13 @@ class TestBackupTracker extends NativeBackupTracker {
 	protected getBackupScheduleDelay(): number {
 		return 10; // Reduce timeout for tests
 	}
+
+	dispose() {
+		super.dispose();
+		for (const [_, disposable] of this.pendingBackups) {
+			disposable.dispose();
+		}
+	}
 }
 
 class BeforeShutdownEventImpl implements BeforeShutdownEvent {
@@ -92,15 +92,21 @@ class BeforeShutdownEventImpl implements BeforeShutdownEvent {
 	}
 }
 
-suite('BackupTracker', function () {
+flakySuite('BackupTracker', function () {
+	let backupHome: string;
+	let workspaceBackupPath: string;
+
 	let accessor: TestServiceAccessor;
 	let disposables: IDisposable[] = [];
 
-	// https://github.com/microsoft/vscode/issues/112146
-	this.retries(3);
-	this.timeout(1000 * 20);
-
 	setup(async () => {
+		const userdataDir = getRandomTestPath(os.tmpdir(), 'vsctests', 'backuprestorer');
+		backupHome = path.join(userdataDir, 'Backups');
+		const workspacesJsonPath = path.join(backupHome, 'workspaces.json');
+
+		const workspaceResource = URI.file(platform.isWindows ? 'c:\\workspace' : '/workspace');
+		workspaceBackupPath = path.join(backupHome, hashPath(workspaceResource));
+
 		const instantiationService = workbenchInstantiationService();
 		accessor = instantiationService.createInstance(TestServiceAccessor);
 
@@ -113,8 +119,6 @@ suite('BackupTracker', function () {
 			[new SyncDescriptor<EditorInput>(FileEditorInput)]
 		));
 
-		// Delete any existing backups completely and then re-create it.
-		await pfs.rimraf(backupHome, pfs.RimRafMode.MOVE);
 		await pfs.mkdirp(backupHome);
 		await pfs.mkdirp(workspaceBackupPath);
 
@@ -127,10 +131,10 @@ suite('BackupTracker', function () {
 
 		(<TextFileEditorModelManager>accessor.textFileService.files).dispose();
 
-		return pfs.rimraf(backupHome, pfs.RimRafMode.MOVE);
+		return pfs.rimraf(backupHome);
 	});
 
-	async function createTracker(autoSaveEnabled = false): Promise<[TestServiceAccessor, EditorPart, BackupTracker, IInstantiationService]> {
+	async function createTracker(autoSaveEnabled = false): Promise<{ accessor: TestServiceAccessor, part: EditorPart, tracker: BackupTracker, instantiationService: IInstantiationService, cleanup: () => Promise<void> }> {
 		const backupFileService = new NodeTestBackupFileService(workspaceBackupPath);
 		const instantiationService = workbenchInstantiationService();
 		instantiationService.stub(IBackupFileService, backupFileService);
@@ -161,11 +165,19 @@ suite('BackupTracker', function () {
 
 		const tracker = instantiationService.createInstance(TestBackupTracker);
 
-		return [accessor, part, tracker, instantiationService];
+		const cleanup = async () => {
+			// File changes could also schedule some backup operations so we need to wait for them before finishing the test
+			await accessor.backupFileService.waitForAllBackups();
+
+			part.dispose();
+			tracker.dispose();
+		};
+
+		return { accessor, part, tracker, instantiationService, cleanup };
 	}
 
 	async function untitledBackupTest(untitled: IUntitledTextResourceEditorInput = {}): Promise<void> {
-		const [accessor, part, tracker] = await createTracker();
+		const { accessor, cleanup } = await createTracker();
 
 		const untitledEditor = (await accessor.editorService.openEditor(untitled))?.input as UntitledTextEditorInput;
 
@@ -185,26 +197,19 @@ suite('BackupTracker', function () {
 
 		assert.equal(accessor.backupFileService.hasBackupSync(untitledEditor.resource), false);
 
-		part.dispose();
-		tracker.dispose();
+		await cleanup();
 	}
 
 	test('Track backups (untitled)', function () {
-		this.timeout(20000);
-
 		return untitledBackupTest();
 	});
 
 	test('Track backups (untitled with initial contents)', function () {
-		this.timeout(20000);
-
 		return untitledBackupTest({ contents: 'Foo Bar' });
 	});
 
 	test('Track backups (file)', async function () {
-		this.timeout(20000);
-
-		const [accessor, part, tracker] = await createTracker();
+		const { accessor, cleanup } = await createTracker();
 
 		const resource = toResource.call(this, '/path/index.txt');
 		await accessor.editorService.openEditor({ resource, options: { pinned: true } });
@@ -222,12 +227,11 @@ suite('BackupTracker', function () {
 
 		assert.equal(accessor.backupFileService.hasBackupSync(resource), false);
 
-		part.dispose();
-		tracker.dispose();
+		await cleanup();
 	});
 
 	test('Track backups (custom)', async function () {
-		const [accessor, part, tracker] = await createTracker();
+		const { accessor, cleanup } = await createTracker();
 
 		class TestBackupWorkingCopy extends TestWorkingCopy {
 
@@ -271,12 +275,11 @@ suite('BackupTracker', function () {
 		assert.equal(accessor.backupFileService.hasBackupSync(resource), false);
 
 		customWorkingCopy.dispose();
-		part.dispose();
-		tracker.dispose();
+		await cleanup();
 	});
 
 	test('onWillShutdown - no veto if no dirty files', async function () {
-		const [accessor, part, tracker] = await createTracker();
+		const { accessor, cleanup } = await createTracker();
 
 		const resource = toResource.call(this, '/path/index.txt');
 		await accessor.editorService.openEditor({ resource, options: { pinned: true } });
@@ -287,12 +290,11 @@ suite('BackupTracker', function () {
 		const veto = await event.value;
 		assert.ok(!veto);
 
-		part.dispose();
-		tracker.dispose();
+		await cleanup();
 	});
 
 	test('onWillShutdown - veto if user cancels (hot.exit: off)', async function () {
-		const [accessor, part, tracker] = await createTracker();
+		const { accessor, cleanup } = await createTracker();
 
 		const resource = toResource.call(this, '/path/index.txt');
 		await accessor.editorService.openEditor({ resource, options: { pinned: true } });
@@ -312,12 +314,11 @@ suite('BackupTracker', function () {
 		const veto = await event.value;
 		assert.ok(veto);
 
-		part.dispose();
-		tracker.dispose();
+		await cleanup();
 	});
 
 	test('onWillShutdown - no veto if auto save is on', async function () {
-		const [accessor, part, tracker] = await createTracker(true /* auto save enabled */);
+		const { accessor, cleanup } = await createTracker(true /* auto save enabled */);
 
 		const resource = toResource.call(this, '/path/index.txt');
 		await accessor.editorService.openEditor({ resource, options: { pinned: true } });
@@ -336,12 +337,11 @@ suite('BackupTracker', function () {
 
 		assert.equal(accessor.workingCopyService.dirtyCount, 0);
 
-		part.dispose();
-		tracker.dispose();
+		await cleanup();
 	});
 
 	test('onWillShutdown - no veto and backups cleaned up if user does not want to save (hot.exit: off)', async function () {
-		const [accessor, part, tracker] = await createTracker();
+		const { accessor, cleanup } = await createTracker();
 
 		const resource = toResource.call(this, '/path/index.txt');
 		await accessor.editorService.openEditor({ resource, options: { pinned: true } });
@@ -361,12 +361,11 @@ suite('BackupTracker', function () {
 		assert.ok(!veto);
 		assert.ok(accessor.backupFileService.discardedBackups.length > 0);
 
-		part.dispose();
-		tracker.dispose();
+		await cleanup();
 	});
 
 	test('onWillShutdown - save (hot.exit: off)', async function () {
-		const [accessor, part, tracker] = await createTracker();
+		const { accessor, cleanup } = await createTracker();
 
 		const resource = toResource.call(this, '/path/index.txt');
 		await accessor.editorService.openEditor({ resource, options: { pinned: true } });
@@ -386,8 +385,7 @@ suite('BackupTracker', function () {
 		assert.ok(!veto);
 		assert.ok(!model?.isDirty());
 
-		part.dispose();
-		tracker.dispose();
+		await cleanup();
 	});
 
 	suite('Hot Exit', () => {
@@ -494,7 +492,7 @@ suite('BackupTracker', function () {
 		});
 
 		async function hotExitTest(this: any, setting: string, shutdownReason: ShutdownReason, multipleWindows: boolean, workspace: boolean, shouldVeto: boolean): Promise<void> {
-			const [accessor, part, tracker] = await createTracker();
+			const { accessor, cleanup } = await createTracker();
 
 			const resource = toResource.call(this, '/path/index.txt');
 			await accessor.editorService.openEditor({ resource, options: { pinned: true } });
@@ -529,8 +527,7 @@ suite('BackupTracker', function () {
 			assert.equal(accessor.backupFileService.discardedBackups.length, 0); // When hot exit is set, backups should never be cleaned since the confirm result is cancel
 			assert.equal(veto, shouldVeto);
 
-			part.dispose();
-			tracker.dispose();
+			await cleanup();
 		}
 	});
 });

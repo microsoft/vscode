@@ -79,7 +79,7 @@ export class Resource implements SourceControlResourceState {
 		return this.resources[0];
 	}
 
-	get rightUri(): Uri {
+	get rightUri(): Uri | undefined {
 		return this.resources[1];
 	}
 
@@ -88,7 +88,7 @@ export class Resource implements SourceControlResourceState {
 	}
 
 	@memoize
-	private get resources(): [Uri | undefined, Uri] {
+	private get resources(): [Uri | undefined, Uri | undefined] {
 		return this._commandResolver.getResources(this);
 	}
 
@@ -613,7 +613,7 @@ class ResourceCommandResolver {
 		}
 	}
 
-	getResources(resource: Resource): [Uri | undefined, Uri] {
+	getResources(resource: Resource): [Uri | undefined, Uri | undefined] {
 		for (const submodule of this.repository.submodules) {
 			if (path.join(this.repository.root, submodule.path) === resource.resourceUri.fsPath) {
 				return [undefined, toGitUri(resource.resourceUri, resource.resourceGroupType === ResourceGroupType.Index ? 'index' : 'wt', { submoduleOf: this.repository.root })];
@@ -641,7 +641,7 @@ class ResourceCommandResolver {
 		return undefined;
 	}
 
-	private getRightResource(resource: Resource): Uri {
+	private getRightResource(resource: Resource): Uri | undefined {
 		switch (resource.type) {
 			case Status.INDEX_MODIFIED:
 			case Status.INDEX_ADDED:
@@ -677,7 +677,7 @@ class ResourceCommandResolver {
 				return resource.resourceUri;
 		}
 
-		throw new Error('Should never happen');
+		return undefined;
 	}
 
 	private getTitle(resource: Resource): string {

@@ -7,7 +7,6 @@ Object.defineProperty(exports, "__esModule", { value: true });
 exports.shake = exports.toStringShakeLevel = exports.ShakeLevel = void 0;
 const fs = require("fs");
 const path = require("path");
-const ts = require("typescript");
 const TYPESCRIPT_LIB_FOLDER = path.dirname(require.resolve('typescript/lib/lib.d.ts'));
 var ShakeLevel;
 (function (ShakeLevel) {
@@ -41,7 +40,8 @@ function printDiagnostics(options, diagnostics) {
     }
 }
 function shake(options) {
-    const languageService = createTypeScriptLanguageService(options);
+    const ts = require('typescript');
+    const languageService = createTypeScriptLanguageService(ts, options);
     const program = languageService.getProgram();
     const globalDiagnostics = program.getGlobalDiagnostics();
     if (globalDiagnostics.length > 0) {
@@ -58,14 +58,14 @@ function shake(options) {
         printDiagnostics(options, semanticDiagnostics);
         throw new Error(`Compilation Errors encountered.`);
     }
-    markNodes(languageService, options);
-    return generateResult(languageService, options.shakeLevel);
+    markNodes(ts, languageService, options);
+    return generateResult(ts, languageService, options.shakeLevel);
 }
 exports.shake = shake;
 //#region Discovery, LanguageService & Setup
-function createTypeScriptLanguageService(options) {
+function createTypeScriptLanguageService(ts, options) {
     // Discover referenced files
-    const FILES = discoverAndReadFiles(options);
+    const FILES = discoverAndReadFiles(ts, options);
     // Add fake usage files
     options.inlineEntryPoints.forEach((inlineEntryPoint, index) => {
         FILES[`inlineEntryPoint.${index}.ts`] = inlineEntryPoint;
@@ -76,15 +76,15 @@ function createTypeScriptLanguageService(options) {
         FILES[typing] = fs.readFileSync(filePath).toString();
     });
     // Resolve libs
-    const RESOLVED_LIBS = processLibFiles(options);
+    const RESOLVED_LIBS = processLibFiles(ts, options);
     const compilerOptions = ts.convertCompilerOptionsFromJson(options.compilerOptions, options.sourcesRoot).options;
-    const host = new TypeScriptLanguageServiceHost(RESOLVED_LIBS, FILES, compilerOptions);
+    const host = new TypeScriptLanguageServiceHost(ts, RESOLVED_LIBS, FILES, compilerOptions);
     return ts.createLanguageService(host);
 }
 /**
  * Read imports and follow them until all files have been handled
  */
-function discoverAndReadFiles(options) {
+function discoverAndReadFiles(ts, options) {
     const FILES = {};
     const in_queue = Object.create(null);
     const queue = [];
@@ -137,7 +137,7 @@ function discoverAndReadFiles(options) {
 /**
  * Read lib files and follow lib references
  */
-function processLibFiles(options) {
+function processLibFiles(ts, options) {
     const stack = [...options.compilerOptions.lib];
     const result = {};
     while (stack.length > 0) {
@@ -161,7 +161,8 @@ function processLibFiles(options) {
  * A TypeScript language service host
  */
 class TypeScriptLanguageServiceHost {
-    constructor(libs, files, compilerOptions) {
+    constructor(ts, libs, files, compilerOptions) {
+        this._ts = ts;
         this._libs = libs;
         this._files = files;
         this._compilerOptions = compilerOptions;
@@ -183,17 +184,17 @@ class TypeScriptLanguageServiceHost {
     }
     getScriptSnapshot(fileName) {
         if (this._files.hasOwnProperty(fileName)) {
-            return ts.ScriptSnapshot.fromString(this._files[fileName]);
+            return this._ts.ScriptSnapshot.fromString(this._files[fileName]);
         }
         else if (this._libs.hasOwnProperty(fileName)) {
-            return ts.ScriptSnapshot.fromString(this._libs[fileName]);
+            return this._ts.ScriptSnapshot.fromString(this._libs[fileName]);
         }
         else {
-            return ts.ScriptSnapshot.fromString('');
+            return this._ts.ScriptSnapshot.fromString('');
         }
     }
     getScriptKind(_fileName) {
-        return ts.ScriptKind.TS;
+        return this._ts.ScriptKind.TS;
     }
     getCurrentDirectory() {
         return '';
@@ -240,7 +241,7 @@ function nodeOrChildIsBlack(node) {
     }
     return false;
 }
-function markNodes(languageService, options) {
+function markNodes(ts, languageService, options) {
     const program = languageService.getProgram();
     if (!program) {
         throw new Error('Could not get program from language service');
@@ -342,7 +343,7 @@ function markNodes(languageService, options) {
                     if (!referenceSourceFile) {
                         continue;
                     }
-                    const referenceNode = getTokenAtPosition(referenceSourceFile, reference.textSpan.start, false, false);
+                    const referenceNode = getTokenAtPosition(ts, referenceSourceFile, reference.textSpan.start, false, false);
                     if (ts.isMethodDeclaration(referenceNode.parent)
                         || ts.isPropertyDeclaration(referenceNode.parent)
                         || ts.isGetAccessor(referenceNode.parent)
@@ -408,7 +409,7 @@ function markNodes(languageService, options) {
         }
         const nodeSourceFile = node.getSourceFile();
         const loop = (node) => {
-            const [symbol, symbolImportNode] = getRealNodeSymbol(checker, node);
+            const [symbol, symbolImportNode] = getRealNodeSymbol(ts, checker, node);
             if (symbolImportNode) {
                 setColor(symbolImportNode, 2 /* Black */);
             }
@@ -420,7 +421,7 @@ function markNodes(languageService, options) {
                         // (they can be the declaration of a module import)
                         continue;
                     }
-                    if (options.shakeLevel === 2 /* ClassMembers */ && (ts.isClassDeclaration(declaration) || ts.isInterfaceDeclaration(declaration)) && !isLocalCodeExtendingOrInheritingFromDefaultLibSymbol(program, checker, declaration)) {
+                    if (options.shakeLevel === 2 /* ClassMembers */ && (ts.isClassDeclaration(declaration) || ts.isInterfaceDeclaration(declaration)) && !isLocalCodeExtendingOrInheritingFromDefaultLibSymbol(ts, program, checker, declaration)) {
                         enqueue_black(declaration.name);
                         for (let j = 0; j < declaration.members.length; j++) {
                             const member = declaration.members[j];
@@ -484,7 +485,7 @@ function nodeIsInItsOwnDeclaration(nodeSourceFile, node, symbol) {
     }
     return false;
 }
-function generateResult(languageService, shakeLevel) {
+function generateResult(ts, languageService, shakeLevel) {
     const program = languageService.getProgram();
     if (!program) {
         throw new Error('Could not get program from language service');
@@ -614,11 +615,11 @@ function generateResult(languageService, shakeLevel) {
 }
 //#endregion
 //#region Utils
-function isLocalCodeExtendingOrInheritingFromDefaultLibSymbol(program, checker, declaration) {
+function isLocalCodeExtendingOrInheritingFromDefaultLibSymbol(ts, program, checker, declaration) {
     if (!program.isSourceFileDefaultLibrary(declaration.getSourceFile()) && declaration.heritageClauses) {
         for (const heritageClause of declaration.heritageClauses) {
             for (const type of heritageClause.types) {
-                const symbol = findSymbolFromHeritageType(checker, type);
+                const symbol = findSymbolFromHeritageType(ts, checker, type);
                 if (symbol) {
                     const decl = symbol.valueDeclaration || (symbol.declarations && symbol.declarations[0]);
                     if (decl && program.isSourceFileDefaultLibrary(decl.getSourceFile())) {
@@ -630,22 +631,22 @@ function isLocalCodeExtendingOrInheritingFromDefaultLibSymbol(program, checker, 
     }
     return false;
 }
-function findSymbolFromHeritageType(checker, type) {
+function findSymbolFromHeritageType(ts, checker, type) {
     if (ts.isExpressionWithTypeArguments(type)) {
-        return findSymbolFromHeritageType(checker, type.expression);
+        return findSymbolFromHeritageType(ts, checker, type.expression);
     }
     if (ts.isIdentifier(type)) {
-        return getRealNodeSymbol(checker, type)[0];
+        return getRealNodeSymbol(ts, checker, type)[0];
     }
     if (ts.isPropertyAccessExpression(type)) {
-        return findSymbolFromHeritageType(checker, type.name);
+        return findSymbolFromHeritageType(ts, checker, type.name);
     }
     return null;
 }
 /**
  * Returns the node's symbol and the `import` node (if the symbol resolved from a different module)
  */
-function getRealNodeSymbol(checker, node) {
+function getRealNodeSymbol(ts, checker, node) {
     const getPropertySymbolsFromContextualType = ts.getPropertySymbolsFromContextualType;
     const getContainingObjectLiteralElement = ts.getContainingObjectLiteralElement;
     const getNameFromPropertyName = ts.getNameFromPropertyName;
@@ -758,7 +759,7 @@ function getRealNodeSymbol(checker, node) {
     return [null, null];
 }
 /** Get the token whose text contains the position */
-function getTokenAtPosition(sourceFile, position, allowPositionInLeadingTrivia, includeEndPosition) {
+function getTokenAtPosition(ts, sourceFile, position, allowPositionInLeadingTrivia, includeEndPosition) {
     let current = sourceFile;
     outer: while (true) {
         // find the child that contains 'position'

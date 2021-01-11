@@ -34,7 +34,7 @@ export interface ITestCodeEditor extends IActiveCodeEditor {
 class TestCodeEditor extends CodeEditorWidget implements ICodeEditor {
 
 	//#region testing overrides
-	protected _createConfiguration(options: IEditorConstructionOptions): IConfiguration {
+	protected _createConfiguration(options: Readonly<IEditorConstructionOptions>): IConfiguration {
 		return new TestConfiguration(options);
 	}
 	protected _createView(viewModel: ViewModel): [View, boolean] {

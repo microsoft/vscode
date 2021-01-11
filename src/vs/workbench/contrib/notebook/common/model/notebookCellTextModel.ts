@@ -12,7 +12,7 @@ import { Range } from 'vs/editor/common/core/range';
 import { Disposable } from 'vs/base/common/lifecycle';
 import { ITextModelService } from 'vs/editor/common/services/resolverService';
 import { hash } from 'vs/base/common/hash';
-import { createTextBuffer } from 'vs/editor/common/model/textModel';
+import { PieceTreeTextBuffer } from 'vs/editor/common/model/pieceTreeTextBuffer/pieceTreeTextBuffer';
 
 export class NotebookCellTextModel extends Disposable implements ICell {
 	private _onDidChangeOutputs = new Emitter<NotebookCellOutputsSplice[]>();
@@ -65,7 +65,9 @@ export class NotebookCellTextModel extends Disposable implements ICell {
 		const builder = new PieceTreeTextBufferBuilder();
 		builder.acceptChunk(this._source);
 		const bufferFactory = builder.finish(true);
-		this._textBuffer = bufferFactory.create(model.DefaultEndOfLine.LF);
+		const { textBuffer, disposable } = bufferFactory.create(model.DefaultEndOfLine.LF);
+		this._textBuffer = textBuffer;
+		this._register(disposable);
 
 		this._register(this._textBuffer.onDidChangeContent(() => {
 			this._hash = null;
@@ -174,7 +176,9 @@ export class NotebookCellTextModel extends Disposable implements ICell {
 	dispose() {
 		// Manually release reference to previous text buffer to avoid large leaks
 		// in case someone leaks a CellTextModel reference
-		this._textBuffer = createTextBuffer('', model.DefaultEndOfLine.LF);
+		const emptyDisposedTextBuffer = new PieceTreeTextBuffer([], '', '\n', false, false, true, true);
+		emptyDisposedTextBuffer.dispose();
+		this._textBuffer = emptyDisposedTextBuffer;
 		super.dispose();
 	}
 }

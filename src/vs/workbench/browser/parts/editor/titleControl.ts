@@ -9,8 +9,8 @@ import { addDisposableListener, Dimension, EventType } from 'vs/base/browser/dom
 import { StandardMouseEvent } from 'vs/base/browser/mouseEvent';
 import { ActionsOrientation, prepareActions } from 'vs/base/browser/ui/actionbar/actionbar';
 import { ToolBar } from 'vs/base/browser/ui/toolbar/toolbar';
-import { IAction, IRunEvent, WorkbenchActionExecutedEvent, WorkbenchActionExecutedClassification, IActionViewItem } from 'vs/base/common/actions';
-import * as arrays from 'vs/base/common/arrays';
+import { IAction, WorkbenchActionExecutedEvent, WorkbenchActionExecutedClassification, IActionViewItem } from 'vs/base/common/actions';
+import { equals } from 'vs/base/common/arrays';
 import { ResolvedKeybinding } from 'vs/base/common/keyCodes';
 import { dispose, DisposableStore } from 'vs/base/common/lifecycle';
 import { isCodeEditor } from 'vs/editor/browser/editorBrowser';
@@ -26,7 +26,7 @@ import { INotificationService } from 'vs/platform/notification/common/notificati
 import { IQuickInputService } from 'vs/platform/quickinput/common/quickInput';
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
 import { listActiveSelectionBackground, listActiveSelectionForeground } from 'vs/platform/theme/common/colorRegistry';
-import { ICssStyleCollector, IColorTheme, IThemeService, registerThemingParticipant, Themable } from 'vs/platform/theme/common/themeService';
+import { IThemeService, registerThemingParticipant, Themable } from 'vs/platform/theme/common/themeService';
 import { DraggedEditorGroupIdentifier, DraggedEditorIdentifier, fillResourceDataTransfers, LocalSelectionTransfer } from 'vs/workbench/browser/dnd';
 import { EditorPane } from 'vs/workbench/browser/parts/editor/editorPane';
 import { BreadcrumbsConfig } from 'vs/workbench/browser/parts/editor/breadcrumbs';
@@ -161,7 +161,7 @@ export abstract class TitleControl extends Themable {
 		this.editorActionsToolbar.context = context;
 
 		// Action Run Handling
-		this._register(this.editorActionsToolbar.actionRunner.onDidRun((e: IRunEvent) => {
+		this._register(this.editorActionsToolbar.actionRunner.onDidRun(e => {
 
 			// Notify for Error
 			this.notificationService.error(e.error);
@@ -201,11 +201,11 @@ export abstract class TitleControl extends Themable {
 		const { primaryEditorActions, secondaryEditorActions } = this.prepareEditorActions(this.getEditorActions());
 
 		// Only update if something actually has changed
-		const primaryEditorActionIds = primaryEditorActions.map(a => a.id);
-		const secondaryEditorActionIds = secondaryEditorActions.map(a => a.id);
+		const primaryEditorActionIds = primaryEditorActions.map(action => action.id);
+		const secondaryEditorActionIds = secondaryEditorActions.map(action => action.id);
 		if (
-			!arrays.equals(primaryEditorActionIds, this.currentPrimaryEditorActionIds) ||
-			!arrays.equals(secondaryEditorActionIds, this.currentSecondaryEditorActionIds) ||
+			!equals(primaryEditorActionIds, this.currentPrimaryEditorActionIds) ||
+			!equals(secondaryEditorActionIds, this.currentSecondaryEditorActionIds) ||
 			primaryEditorActions.some(action => action instanceof ExecuteCommandAction) || // execute command actions can have the same ID but different arguments
 			secondaryEditorActions.some(action => action instanceof ExecuteCommandAction)  // see also https://github.com/microsoft/vscode/issues/16298
 		) {
@@ -276,7 +276,7 @@ export abstract class TitleControl extends Themable {
 	protected enableGroupDragging(element: HTMLElement): void {
 
 		// Drag start
-		this._register(addDisposableListener(element, EventType.DRAG_START, (e: DragEvent) => {
+		this._register(addDisposableListener(element, EventType.DRAG_START, e => {
 			if (e.target !== element) {
 				return; // only if originating from tabs container
 			}
@@ -368,7 +368,7 @@ export abstract class TitleControl extends Themable {
 			getAnchor: () => anchor,
 			getActions: () => actions,
 			getActionsContext: () => ({ groupId: this.group.id, editorIndex: this.group.getIndexOfEditor(editor) }),
-			getKeyBinding: (action) => this.getKeybinding(action),
+			getKeyBinding: action => this.getKeybinding(action),
 			onHide: () => {
 
 				// restore previous contexts
@@ -433,7 +433,7 @@ export abstract class TitleControl extends Themable {
 	}
 }
 
-registerThemingParticipant((theme: IColorTheme, collector: ICssStyleCollector) => {
+registerThemingParticipant((theme, collector) => {
 
 	// Drag Feedback
 	const dragImageBackground = theme.getColor(listActiveSelectionBackground);

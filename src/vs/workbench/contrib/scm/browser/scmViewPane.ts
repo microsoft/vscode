@@ -954,8 +954,6 @@ class ViewModel {
 	}
 
 	private refresh(item?: IRepositoryItem | IGroupItem): void {
-		const focusedInput = this.inputRenderer.getFocusedInput();
-
 		if (!this.alwaysShowRepositories && (this.items.size === 1 && (!item || isRepositoryItem(item)))) {
 			const item = Iterable.first(this.items.values())!;
 			this.tree.setChildren(null, this.render(item, this._treeViewState).children);
@@ -964,14 +962,6 @@ class ViewModel {
 		} else {
 			const items = coalesce(this.scmViewService.visibleRepositories.map(r => this.items.get(r)));
 			this.tree.setChildren(null, items.map(item => this.render(item, this._treeViewState)));
-		}
-
-		if (focusedInput) {
-			const inputWidget = this.inputRenderer.getRenderedInputWidget(focusedInput);
-
-			if (inputWidget) {
-				inputWidget.focus();
-			}
 		}
 
 		this._onDidChangeRepositoryCollapseState.fire();
@@ -1101,7 +1091,7 @@ class ViewModel {
 		}
 
 		if (this.alwaysShowRepositories || this.scmViewService.visibleRepositories.length !== 1) {
-			return this.viewSubMenuAction.actions;
+			return this.viewSubMenuAction.actions.slice(0);
 		}
 
 		const menus = this.scmViewService.menus.getRepositoryMenus(this.scmViewService.visibleRepositories[0].provider);
@@ -1180,7 +1170,9 @@ class SCMViewRepositoriesSubMenuAction extends SubmenuAction {
 	}
 }
 
-class SCMViewSubMenuAction extends SubmenuAction {
+class SCMViewSubMenuAction extends SubmenuAction implements IDisposable {
+
+	private disposable: IDisposable;
 
 	constructor(
 		viewModel: ViewModel,
@@ -1205,7 +1197,11 @@ class SCMViewSubMenuAction extends SubmenuAction {
 			actions
 		);
 
-		this._register(combinedDisposable(listAction, treeAction, sortByNameAction, sortByPathAction, sortByStatusAction));
+		this.disposable = combinedDisposable(listAction, treeAction, sortByNameAction, sortByPathAction, sortByStatusAction);
+	}
+
+	dispose(): void {
+		this.disposable.dispose();
 	}
 }
 
@@ -1756,6 +1752,7 @@ export class SCMViewPane extends ViewPane {
 			delegate,
 			renderers,
 			{
+				transformOptimization: false,
 				identityProvider,
 				horizontalScrolling: false,
 				setRowLineHeight: false,

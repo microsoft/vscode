@@ -55,6 +55,7 @@ import { BrowserWorkbenchEnvironmentService } from 'vs/workbench/services/enviro
 import { INativeWorkbenchEnvironmentService } from 'vs/workbench/services/environment/electron-sandbox/environmentService';
 import { Event } from 'vs/base/common/event';
 import { UriIdentityService } from 'vs/workbench/services/uriIdentity/common/uriIdentityService';
+import { flakySuite } from 'vs/base/test/node/testUtils';
 
 class TestWorkbenchEnvironmentService extends NativeWorkbenchEnvironmentService {
 
@@ -103,7 +104,7 @@ function setUpWorkspace(folders: string[]): Promise<{ parentDir: string, configP
 }
 
 
-suite('WorkspaceContextService - Folder', () => {
+flakySuite('WorkspaceContextService - Folder', () => {
 
 	let workspaceName = `testWorkspace${uuid.generateUuid()}`, parentResource: string, workspaceResource: string, workspaceContextService: IWorkspaceContextService;
 	const disposables = new DisposableStore();
@@ -126,7 +127,7 @@ suite('WorkspaceContextService - Folder', () => {
 	teardown(() => {
 		disposables.clear();
 		if (parentResource) {
-			return pfs.rimraf(parentResource, pfs.RimRafMode.MOVE);
+			return pfs.rimraf(parentResource);
 		}
 		return undefined;
 	});
@@ -164,7 +165,7 @@ suite('WorkspaceContextService - Folder', () => {
 	test('workspace is complete', () => workspaceContextService.getCompleteWorkspace());
 });
 
-suite('WorkspaceContextService - Workspace', () => {
+flakySuite('WorkspaceContextService - Workspace', () => {
 
 	let parentResource: string, testObject: WorkspaceService, instantiationService: TestInstantiationService;
 	const disposables = new DisposableStore();
@@ -199,7 +200,7 @@ suite('WorkspaceContextService - Workspace', () => {
 	teardown(() => {
 		disposables.clear();
 		if (parentResource) {
-			return pfs.rimraf(parentResource, pfs.RimRafMode.MOVE);
+			return pfs.rimraf(parentResource);
 		}
 		return undefined;
 	});
@@ -223,7 +224,7 @@ suite('WorkspaceContextService - Workspace', () => {
 
 });
 
-suite('WorkspaceContextService - Workspace Editing', () => {
+flakySuite('WorkspaceContextService - Workspace Editing', () => {
 
 	let parentResource: string, testObject: WorkspaceService, instantiationService: TestInstantiationService;
 	const disposables = new DisposableStore();
@@ -262,7 +263,7 @@ suite('WorkspaceContextService - Workspace Editing', () => {
 	teardown(() => {
 		disposables.clear();
 		if (parentResource) {
-			return pfs.rimraf(parentResource, pfs.RimRafMode.MOVE);
+			return pfs.rimraf(parentResource);
 		}
 		return undefined;
 	});
@@ -464,7 +465,7 @@ suite('WorkspaceContextService - Workspace Editing', () => {
 
 });
 
-suite('WorkspaceService - Initialization', () => {
+flakySuite('WorkspaceService - Initialization', () => {
 
 	let parentResource: string, workspaceConfigPath: URI, testObject: WorkspaceService, globalSettingsFile: string;
 	const configurationRegistry = Registry.as<IConfigurationRegistry>(ConfigurationExtensions.Configuration);
@@ -523,7 +524,7 @@ suite('WorkspaceService - Initialization', () => {
 	teardown(() => {
 		disposables.clear();
 		if (parentResource) {
-			return pfs.rimraf(parentResource, pfs.RimRafMode.MOVE);
+			return pfs.rimraf(parentResource);
 		}
 		return undefined;
 	});
@@ -722,7 +723,7 @@ suite('WorkspaceService - Initialization', () => {
 
 });
 
-suite('WorkspaceConfigurationService - Folder', () => {
+flakySuite('WorkspaceConfigurationService - Folder', () => {
 
 	let workspaceName = `testWorkspace${uuid.generateUuid()}`, parentResource: string, workspaceDir: string, testObject: IConfigurationService, globalSettingsFile: string, globalTasksFile: string, workspaceService: WorkspaceService;
 	const configurationRegistry = Registry.as<IConfigurationRegistry>(ConfigurationExtensions.Configuration);
@@ -802,7 +803,7 @@ suite('WorkspaceConfigurationService - Folder', () => {
 	teardown(() => {
 		disposables.clear();
 		if (parentResource) {
-			return pfs.rimraf(parentResource, pfs.RimRafMode.MOVE);
+			return pfs.rimraf(parentResource);
 		}
 		return undefined;
 	});
@@ -1237,10 +1238,7 @@ suite('WorkspaceConfigurationService - Folder', () => {
 		});
 	});
 
-	test('deleting workspace settings', async () => {
-		if (!isMacintosh) {
-			return;
-		}
+	(!isMacintosh ? test.skip : test)('deleting workspace settings', async () => {
 		fs.writeFileSync(globalSettingsFile, '{ "configurationService.folder.testSetting": "userValue" }');
 		const workspaceSettingsResource = URI.file(path.join(workspaceDir, '.vscode', 'settings.json'));
 		await fileService.writeFile(workspaceSettingsResource, VSBuffer.fromString('{ "configurationService.folder.testSetting": "workspaceValue" }'));
@@ -1254,7 +1252,7 @@ suite('WorkspaceConfigurationService - Folder', () => {
 	});
 });
 
-suite('WorkspaceConfigurationService-Multiroot', () => {
+flakySuite('WorkspaceConfigurationService-Multiroot', () => {
 
 	let parentResource: string, workspaceContextService: IWorkspaceContextService, jsonEditingServce: IJSONEditingService, testObject: IConfigurationService, globalSettingsFile: string;
 	const configurationRegistry = Registry.as<IConfigurationRegistry>(ConfigurationExtensions.Configuration);
@@ -1337,7 +1335,7 @@ suite('WorkspaceConfigurationService-Multiroot', () => {
 	teardown(() => {
 		disposables.clear();
 		if (parentResource) {
-			return pfs.rimraf(parentResource, pfs.RimRafMode.MOVE);
+			return pfs.rimraf(parentResource);
 		}
 		return undefined;
 	});
@@ -1877,7 +1875,7 @@ suite('WorkspaceConfigurationService-Multiroot', () => {
 	});
 });
 
-suite('WorkspaceConfigurationService - Remote Folder', () => {
+flakySuite('WorkspaceConfigurationService - Remote Folder', () => {
 
 	let workspaceName = `testWorkspace${uuid.generateUuid()}`, parentResource: string, workspaceDir: string, testObject: WorkspaceService, globalSettingsFile: string, remoteSettingsFile: string, remoteSettingsResource: URI, instantiationService: TestInstantiationService, resolveRemoteEnvironment: () => void;
 	const remoteAuthority = 'configuraiton-tests';
@@ -1964,7 +1962,7 @@ suite('WorkspaceConfigurationService - Remote Folder', () => {
 	teardown(() => {
 		disposables.clear();
 		if (parentResource) {
-			return pfs.rimraf(parentResource, pfs.RimRafMode.MOVE);
+			return pfs.rimraf(parentResource);
 		}
 		return undefined;
 	});
@@ -2022,27 +2020,6 @@ suite('WorkspaceConfigurationService - Remote Folder', () => {
 			});
 		});
 		resolveRemoteEnvironment();
-		return promise;
-	});
-
-	test.skip('update remote settings', async () => {
-		registerRemoteFileSystemProvider();
-		resolveRemoteEnvironment();
-		await initialize();
-		assert.equal(testObject.getValue('configurationService.remote.machineSetting'), 'isSet');
-		const promise = new Promise<void>((c, e) => {
-			testObject.onDidChangeConfiguration(event => {
-				try {
-					assert.equal(event.source, ConfigurationTarget.USER);
-					assert.deepEqual(event.affectedKeys, ['configurationService.remote.machineSetting']);
-					assert.equal(testObject.getValue('configurationService.remote.machineSetting'), 'remoteValue');
-					c();
-				} catch (error) {
-					e(error);
-				}
-			});
-		});
-		await instantiationService.get(IFileService).writeFile(remoteSettingsResource, VSBuffer.fromString('{ "configurationService.remote.machineSetting": "remoteValue" }'));
 		return promise;
 	});
 

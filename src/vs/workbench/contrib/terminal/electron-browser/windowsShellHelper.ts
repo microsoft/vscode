@@ -52,10 +52,6 @@ export class WindowsShellHelper extends Disposable implements IWindowsShellHelpe
 	}
 
 	private async _startMonitoringShell(): Promise<void> {
-		if (!windowsProcessTree) {
-			windowsProcessTree = await import('windows-process-tree');
-		}
-
 		if (this._isDisposed) {
 			return;
 		}
@@ -133,7 +129,10 @@ export class WindowsShellHelper extends Disposable implements IWindowsShellHelpe
 		if (this._currentRequest) {
 			return this._currentRequest;
 		}
-		this._currentRequest = new Promise<string>(resolve => {
+		this._currentRequest = new Promise<string>(async resolve => {
+			if (!windowsProcessTree) {
+				windowsProcessTree = await import('windows-process-tree');
+			}
 			windowsProcessTree.getProcessTree(this._rootProcessId, (tree) => {
 				const name = this.traverseTree(tree);
 				this._currentRequest = undefined;

@@ -20,7 +20,6 @@
   "scripts": {
     "compile": "npx gulp compile-extension:html-language-features-client compile-extension:html-language-features-server",
     "watch": "npx gulp watch-extension:html-language-features-client watch-extension:html-language-features-server",
-    "postinstall": "cd server && yarn install",
     "install-client-next": "yarn add vscode-languageclient@next"
   },
   "categories": [
@@ -148,17 +147,13 @@
           "description": "%html.format.wrapAttributesIndentSize.desc%"
         },
         "html.format.templating": {
-          "type": [
-            "boolean"
-          ],
+          "type": "boolean",
           "scope": "resource",
           "default": false,
           "description": "%html.format.templating.desc%"
         },
         "html.format.unformattedContentDelimiter": {
-          "type": [
-            "string"
-          ],
+          "type": "string",
           "scope": "resource",
           "default": "",
           "markdownDescription": "%html.format.unformattedContentDelimiter.desc%"

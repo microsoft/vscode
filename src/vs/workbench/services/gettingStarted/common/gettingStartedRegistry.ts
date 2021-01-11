@@ -8,6 +8,7 @@ import { FileAccess } from 'vs/base/common/network';
 import { URI } from 'vs/base/common/uri';
 import { ContextKeyExpr, ContextKeyExpression } from 'vs/platform/contextkey/common/contextkey';
 import { Registry } from 'vs/platform/registry/common/platform';
+import { ThemeIcon } from 'vs/platform/theme/common/themeService';
 import { content } from 'vs/workbench/services/gettingStarted/common/gettingStartedContent';
 
 export const enum GettingStartedCategory {
@@ -32,7 +33,7 @@ export interface IGettingStartedCategoryDescriptor {
 	id: GettingStartedCategory | string
 	title: string
 	description: string
-	codicon: string
+	icon: ThemeIcon
 	when: ContextKeyExpression
 	content:
 	| { type: 'items' }
@@ -43,7 +44,7 @@ export interface IGettingStartedCategory {
 	id: GettingStartedCategory | string
 	title: string
 	description: string
-	codicon: string
+	icon: ThemeIcon
 	when: ContextKeyExpression
 	content:
 	| { type: 'items', items: IGettingStartedTask[] }

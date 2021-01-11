@@ -184,11 +184,11 @@ class ProcessRenderer implements ITreeRenderer<ProcessItem, void, IProcessItemTe
 		templateData.name.textContent = name;
 		templateData.name.title = element.cmd;
 
-		templateData.CPU.textContent = element.load.toString();
-		templateData.PID.textContent = element.pid.toString();
+		templateData.CPU.textContent = element.load.toFixed(0);
+		templateData.PID.textContent = element.pid.toFixed(0);
 
 		const memory = this.platform === 'win32' ? element.mem : (this.totalMem * (element.mem / 100));
-		templateData.memory.textContent = Math.round((memory / ByteSize.MB)).toString();
+		templateData.memory.textContent = (memory / ByteSize.MB).toFixed(0);
 	}
 
 	disposeTemplate(templateData: IProcessItemTemplateData): void {

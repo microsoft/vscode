@@ -64,7 +64,7 @@ export class TerminalService implements ITerminalService {
 	private _configHelper: TerminalConfigHelper;
 	private _terminalContainer: HTMLElement | undefined;
 	private _nativeWindowsDelegate: ITerminalNativeWindowsDelegate | undefined;
-	private _remoteTerminalsInitialized: Promise<void> | undefined;
+	private _remoteTerminalsInitPromise: Promise<void> | undefined;
 	private _connectionState: TerminalConnectionState;
 
 	public get configHelper(): ITerminalConfigHelper { return this._configHelper; }
@@ -141,7 +141,7 @@ export class TerminalService implements ITerminalService {
 		const enableTerminalReconnection = this.configHelper.config.enablePersistentSessions;
 		const serverSpawn = this.configHelper.config.serverSpawn;
 		if (!!this._environmentService.remoteAuthority && enableTerminalReconnection && serverSpawn) {
-			this._remoteTerminalsInitialized = this._reconnectToRemoteTerminals();
+			this._remoteTerminalsInitPromise = this._reconnectToRemoteTerminals();
 			this._connectionState = TerminalConnectionState.Connecting;
 		} else {
 			this._connectionState = TerminalConnectionState.Connected;
@@ -436,14 +436,14 @@ export class TerminalService implements ITerminalService {
 	}
 
 	public async initializeTerminals(): Promise<void> {
-		if (this._remoteTerminalsInitialized) {
-			await this._remoteTerminalsInitialized;
+		if (this._remoteTerminalsInitPromise) {
+			await this._remoteTerminalsInitPromise;
 
 			if (!this.terminalTabs.length) {
 				this.createTerminal(undefined);
 			}
-		} else if (!this._environmentService.remoteAuthority && this.terminalTabs.length === 0) {
-			// Local, just create a terminal
+		} else if (this.terminalTabs.length === 0) {
+			// Local window, or remote terminal reconnection is disabled, just create a terminal
 			this.createTerminal();
 		}
 	}
