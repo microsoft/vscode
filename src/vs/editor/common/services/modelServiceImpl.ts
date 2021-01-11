@@ -807,7 +807,8 @@ class ModelSemanticColoring extends Disposable {
 			contentChangeListener.dispose();
 			this._setDocumentSemanticTokens(provider, res || null, styling, pendingChanges);
 		}, (err) => {
-			if (!err || typeof err.message !== 'string' || err.message.indexOf('busy') === -1) {
+			const isExpectedError = err && (errors.isPromiseCanceledError(err) || (typeof err.message === 'string' && err.message.indexOf('busy') !== -1));
+			if (!isExpectedError) {
 				errors.onUnexpectedError(err);
 			}
 
