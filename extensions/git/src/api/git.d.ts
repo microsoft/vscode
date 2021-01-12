@@ -231,9 +231,15 @@ export interface PushErrorHandler {
 
 export type APIState = 'uninitialized' | 'initialized';
 
+export interface PublishEvent {
+	repository: Repository;
+	branch?: string;
+}
+
 export interface API {
 	readonly state: APIState;
 	readonly onDidChangeState: Event<APIState>;
+	readonly onDidPublish: Event<PublishEvent>;
 	readonly git: Git;
 	readonly repositories: Repository[];
 	readonly onDidOpenRepository: Event<Repository>;

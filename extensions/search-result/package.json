@@ -15,7 +15,7 @@
   "main": "./out/extension.js",
   "browser": "./dist/extension.js",
   "activationEvents": [
-    "*"
+    "onLanguage:search-result"
   ],
   "scripts": {
     "generate-grammar": "node ./syntaxes/generateTMLanguage.js",

@@ -43,7 +43,7 @@ export function positionToString(position: Position): string {
 	}
 }
 
-const positionsByString: { [key: string]: Position } = {
+const positionsByString: { [key: string]: Position; } = {
 	[positionToString(Position.LEFT)]: Position.LEFT,
 	[positionToString(Position.RIGHT)]: Position.RIGHT,
 	[positionToString(Position.BOTTOM)]: Position.BOTTOM
@@ -62,7 +62,7 @@ export function panelOpensMaximizedSettingToString(setting: PanelOpensMaximizedO
 	}
 }
 
-const panelOpensMaximizedByString: { [key: string]: PanelOpensMaximizedOptions } = {
+const panelOpensMaximizedByString: { [key: string]: PanelOpensMaximizedOptions; } = {
 	[panelOpensMaximizedSettingToString(PanelOpensMaximizedOptions.ALWAYS)]: PanelOpensMaximizedOptions.ALWAYS,
 	[panelOpensMaximizedSettingToString(PanelOpensMaximizedOptions.NEVER)]: PanelOpensMaximizedOptions.NEVER,
 	[panelOpensMaximizedSettingToString(PanelOpensMaximizedOptions.REMEMBER_LAST)]: PanelOpensMaximizedOptions.REMEMBER_LAST
@@ -193,6 +193,11 @@ export interface IWorkbenchLayoutService extends ILayoutService {
 	 * Gets the current menubar visibility.
 	 */
 	getMenubarVisibility(): MenuBarVisibility;
+
+	/**
+	 * Toggles the menu bar visibility.
+	 */
+	toggleMenuBar(): void;
 
 	/**
 	 * Gets the current panel position. Note that the panel can be hidden too.

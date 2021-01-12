@@ -96,25 +96,25 @@ suite('Editor Contrib - Line Comment Command', () => {
 			throw new Error(`unexpected`);
 		}
 
-		assert.equal(r.shouldRemoveComments, false);
+		assert.strictEqual(r.shouldRemoveComments, false);
 
 		// Does not change `commentStr`
-		assert.equal(r.lines[0].commentStr, '//');
-		assert.equal(r.lines[1].commentStr, 'rem');
-		assert.equal(r.lines[2].commentStr, '!@#');
-		assert.equal(r.lines[3].commentStr, '!@#');
+		assert.strictEqual(r.lines[0].commentStr, '//');
+		assert.strictEqual(r.lines[1].commentStr, 'rem');
+		assert.strictEqual(r.lines[2].commentStr, '!@#');
+		assert.strictEqual(r.lines[3].commentStr, '!@#');
 
 		// Fills in `isWhitespace`
-		assert.equal(r.lines[0].ignore, true);
-		assert.equal(r.lines[1].ignore, true);
-		assert.equal(r.lines[2].ignore, false);
-		assert.equal(r.lines[3].ignore, false);
+		assert.strictEqual(r.lines[0].ignore, true);
+		assert.strictEqual(r.lines[1].ignore, true);
+		assert.strictEqual(r.lines[2].ignore, false);
+		assert.strictEqual(r.lines[3].ignore, false);
 
 		// Fills in `commentStrOffset`
-		assert.equal(r.lines[0].commentStrOffset, 2);
-		assert.equal(r.lines[1].commentStrOffset, 4);
-		assert.equal(r.lines[2].commentStrOffset, 4);
-		assert.equal(r.lines[3].commentStrOffset, 2);
+		assert.strictEqual(r.lines[0].commentStrOffset, 2);
+		assert.strictEqual(r.lines[1].commentStrOffset, 4);
+		assert.strictEqual(r.lines[2].commentStrOffset, 4);
+		assert.strictEqual(r.lines[3].commentStrOffset, 2);
 
 
 		r = LineCommentCommand._analyzeLines(Type.Toggle, true, createSimpleModel([
@@ -127,31 +127,31 @@ suite('Editor Contrib - Line Comment Command', () => {
 			throw new Error(`unexpected`);
 		}
 
-		assert.equal(r.shouldRemoveComments, true);
+		assert.strictEqual(r.shouldRemoveComments, true);
 
 		// Does not change `commentStr`
-		assert.equal(r.lines[0].commentStr, '//');
-		assert.equal(r.lines[1].commentStr, 'rem');
-		assert.equal(r.lines[2].commentStr, '!@#');
-		assert.equal(r.lines[3].commentStr, '!@#');
+		assert.strictEqual(r.lines[0].commentStr, '//');
+		assert.strictEqual(r.lines[1].commentStr, 'rem');
+		assert.strictEqual(r.lines[2].commentStr, '!@#');
+		assert.strictEqual(r.lines[3].commentStr, '!@#');
 
 		// Fills in `isWhitespace`
-		assert.equal(r.lines[0].ignore, true);
-		assert.equal(r.lines[1].ignore, false);
-		assert.equal(r.lines[2].ignore, false);
-		assert.equal(r.lines[3].ignore, false);
+		assert.strictEqual(r.lines[0].ignore, true);
+		assert.strictEqual(r.lines[1].ignore, false);
+		assert.strictEqual(r.lines[2].ignore, false);
+		assert.strictEqual(r.lines[3].ignore, false);
 
 		// Fills in `commentStrOffset`
-		assert.equal(r.lines[0].commentStrOffset, 2);
-		assert.equal(r.lines[1].commentStrOffset, 4);
-		assert.equal(r.lines[2].commentStrOffset, 4);
-		assert.equal(r.lines[3].commentStrOffset, 2);
+		assert.strictEqual(r.lines[0].commentStrOffset, 2);
+		assert.strictEqual(r.lines[1].commentStrOffset, 4);
+		assert.strictEqual(r.lines[2].commentStrOffset, 4);
+		assert.strictEqual(r.lines[3].commentStrOffset, 2);
 
 		// Fills in `commentStrLength`
-		assert.equal(r.lines[0].commentStrLength, 2);
-		assert.equal(r.lines[1].commentStrLength, 4);
-		assert.equal(r.lines[2].commentStrLength, 4);
-		assert.equal(r.lines[3].commentStrLength, 3);
+		assert.strictEqual(r.lines[0].commentStrLength, 2);
+		assert.strictEqual(r.lines[1].commentStrLength, 4);
+		assert.strictEqual(r.lines[2].commentStrLength, 4);
+		assert.strictEqual(r.lines[3].commentStrLength, 3);
 	});
 
 	test('_normalizeInsertionPoint', () => {
@@ -166,7 +166,7 @@ suite('Editor Contrib - Line Comment Command', () => {
 			});
 			LineCommentCommand._normalizeInsertionPoint(model, offsets, 1, tabSize);
 			const actual = offsets.map(item => item.commentStrOffset);
-			assert.deepEqual(actual, expected, testName);
+			assert.deepStrictEqual(actual, expected, testName);
 		};
 
 		// Bug 16696:[comment] comments not aligned in this case

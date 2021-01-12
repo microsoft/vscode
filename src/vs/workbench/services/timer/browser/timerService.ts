@@ -439,7 +439,9 @@ export abstract class AbstractTimerService implements ITimerService {
 	}
 
 	setPerformanceMarks(source: string, marks: perf.PerformanceMark[]): void {
-		this._marks.setMarks(source, marks);
+		// Perf marks are a shared resource because anyone can generate them
+		// and because of that we only accept marks that start with 'code/'
+		this._marks.setMarks(source, marks.filter(mark => mark.name.startsWith('code/')));
 	}
 
 	getPerformanceMarks(): [source: string, marks: readonly perf.PerformanceMark[]][] {
@@ -462,12 +464,12 @@ export abstract class AbstractTimerService implements ITimerService {
 		// event and it is "normalized" to a relative timestamp where the first mark
 		// defines the start
 		for (const [source, marks] of this.getPerformanceMarks()) {
-			type Mark = { source: string; name: string; relativeStartTime: number; startTime: number };
+			type Mark = { source: string; name: string; relativeStartTime: number; startTime: number; };
 			type MarkClassification = {
-				source: { classification: 'SystemMetaData', purpose: 'PerformanceAndHealth' },
-				name: { classification: 'SystemMetaData', purpose: 'PerformanceAndHealth' },
-				relativeStartTime: { classification: 'SystemMetaData', purpose: 'PerformanceAndHealth', isMeasurement: true },
-				startTime: { classification: 'SystemMetaData', purpose: 'PerformanceAndHealth', isMeasurement: true },
+				source: { classification: 'SystemMetaData', purpose: 'PerformanceAndHealth'; },
+				name: { classification: 'SystemMetaData', purpose: 'PerformanceAndHealth'; },
+				relativeStartTime: { classification: 'SystemMetaData', purpose: 'PerformanceAndHealth', isMeasurement: true; },
+				startTime: { classification: 'SystemMetaData', purpose: 'PerformanceAndHealth', isMeasurement: true; },
 			};
 
 			let lastMark: perf.PerformanceMark = marks[0];

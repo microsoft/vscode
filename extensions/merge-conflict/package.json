@@ -14,7 +14,7 @@
     "Other"
   ],
   "activationEvents": [
-    "*"
+    "onStartupFinished"
   ],
   "main": "./out/mergeConflictMain",
   "browser": "./dist/browser/mergeConflictMain",

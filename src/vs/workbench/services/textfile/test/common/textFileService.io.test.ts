@@ -53,7 +53,7 @@ export default function createSuite(params: Params) {
 	test('create - no encoding - content empty', async () => {
 		const resource = URI.file(join(testDir, 'small_new.txt'));
 
-		await service.create(resource);
+		await service.create([{ resource }]);
 
 		const res = await readFile(resource.fsPath);
 		assert.equal(res.byteLength, 0 /* no BOM */);
@@ -62,7 +62,7 @@ export default function createSuite(params: Params) {
 	test('create - no encoding - content provided (string)', async () => {
 		const resource = URI.file(join(testDir, 'small_new.txt'));
 
-		await service.create(resource, 'Hello World');
+		await service.create([{ resource, value: 'Hello World' }]);
 
 		const res = await readFile(resource.fsPath);
 		assert.equal(res.toString(), 'Hello World');
@@ -72,7 +72,7 @@ export default function createSuite(params: Params) {
 	test('create - no encoding - content provided (snapshot)', async () => {
 		const resource = URI.file(join(testDir, 'small_new.txt'));
 
-		await service.create(resource, stringToSnapshot('Hello World'));
+		await service.create([{ resource, value: stringToSnapshot('Hello World') }]);
 
 		const res = await readFile(resource.fsPath);
 		assert.equal(res.toString(), 'Hello World');
@@ -82,7 +82,7 @@ export default function createSuite(params: Params) {
 	test('create - UTF 16 LE - no content', async () => {
 		const resource = URI.file(join(testDir, 'small_new.utf16le'));
 
-		await service.create(resource);
+		await service.create([{ resource }]);
 
 		assert.equal(await exists(resource.fsPath), true);
 
@@ -96,7 +96,7 @@ export default function createSuite(params: Params) {
 	test('create - UTF 16 LE - content provided', async () => {
 		const resource = URI.file(join(testDir, 'small_new.utf16le'));
 
-		await service.create(resource, 'Hello World');
+		await service.create([{ resource, value: 'Hello World' }]);
 
 		assert.equal(await exists(resource.fsPath), true);
 
@@ -110,7 +110,7 @@ export default function createSuite(params: Params) {
 	test('create - UTF 16 BE - no content', async () => {
 		const resource = URI.file(join(testDir, 'small_new.utf16be'));
 
-		await service.create(resource);
+		await service.create([{ resource }]);
 
 		assert.equal(await exists(resource.fsPath), true);
 
@@ -124,7 +124,7 @@ export default function createSuite(params: Params) {
 	test('create - UTF 16 BE - content provided', async () => {
 		const resource = URI.file(join(testDir, 'small_new.utf16be'));
 
-		await service.create(resource, 'Hello World');
+		await service.create([{ resource, value: 'Hello World' }]);
 
 		assert.equal(await exists(resource.fsPath), true);
 
@@ -138,7 +138,7 @@ export default function createSuite(params: Params) {
 	test('create - UTF 8 BOM - no content', async () => {
 		const resource = URI.file(join(testDir, 'small_new.utf8bom'));
 
-		await service.create(resource);
+		await service.create([{ resource }]);
 
 		assert.equal(await exists(resource.fsPath), true);
 
@@ -152,7 +152,7 @@ export default function createSuite(params: Params) {
 	test('create - UTF 8 BOM - content provided', async () => {
 		const resource = URI.file(join(testDir, 'small_new.utf8bom'));
 
-		await service.create(resource, 'Hello World');
+		await service.create([{ resource, value: 'Hello World' }]);
 
 		assert.equal(await exists(resource.fsPath), true);
 
@@ -166,7 +166,7 @@ export default function createSuite(params: Params) {
 	test('create - UTF 8 BOM - empty content - snapshot', async () => {
 		const resource = URI.file(join(testDir, 'small_new.utf8bom'));
 
-		await service.create(resource, createTextModel('').createSnapshot());
+		await service.create([{ resource, value: createTextModel('').createSnapshot() }]);
 
 		assert.equal(await exists(resource.fsPath), true);
 
@@ -180,7 +180,7 @@ export default function createSuite(params: Params) {
 	test('create - UTF 8 BOM - content provided - snapshot', async () => {
 		const resource = URI.file(join(testDir, 'small_new.utf8bom'));
 
-		await service.create(resource, createTextModel('Hello World').createSnapshot());
+		await service.create([{ resource, value: createTextModel('Hello World').createSnapshot() }]);
 
 		assert.equal(await exists(resource.fsPath), true);
 
@@ -216,7 +216,7 @@ export default function createSuite(params: Params) {
 		const resolved = await service.readStream(resource);
 		assert.equal(resolved.encoding, encoding);
 
-		assert.equal(snapshotToString(resolved.value.create(isWindows ? DefaultEndOfLine.CRLF : DefaultEndOfLine.LF).createSnapshot(false)), expectedContent);
+		assert.equal(snapshotToString(resolved.value.create(isWindows ? DefaultEndOfLine.CRLF : DefaultEndOfLine.LF).textBuffer.createSnapshot(false)), expectedContent);
 	}
 
 	test('write - use encoding (cp1252)', async () => {
@@ -244,18 +244,18 @@ export default function createSuite(params: Params) {
 
 	async function testEncodingKeepsData(resource: URI, encoding: string, expected: string) {
 		let resolved = await service.readStream(resource, { encoding });
-		const content = snapshotToString(resolved.value.create(isWindows ? DefaultEndOfLine.CRLF : DefaultEndOfLine.LF).createSnapshot(false));
+		const content = snapshotToString(resolved.value.create(isWindows ? DefaultEndOfLine.CRLF : DefaultEndOfLine.LF).textBuffer.createSnapshot(false));
 		assert.equal(content, expected);
 
 		await service.write(resource, content, { encoding });
 
 		resolved = await service.readStream(resource, { encoding });
-		assert.equal(snapshotToString(resolved.value.create(DefaultEndOfLine.CRLF).createSnapshot(false)), content);
+		assert.equal(snapshotToString(resolved.value.create(DefaultEndOfLine.CRLF).textBuffer.createSnapshot(false)), content);
 
 		await service.write(resource, createTextModel(content).createSnapshot(), { encoding });
 
 		resolved = await service.readStream(resource, { encoding });
-		assert.equal(snapshotToString(resolved.value.create(DefaultEndOfLine.CRLF).createSnapshot(false)), content);
+		assert.equal(snapshotToString(resolved.value.create(DefaultEndOfLine.CRLF).textBuffer.createSnapshot(false)), content);
 	}
 
 	test('write - no encoding - content as string', async () => {
@@ -403,7 +403,7 @@ export default function createSuite(params: Params) {
 
 		const content = (await readFile(resource.fsPath)).toString();
 		assert.equal(
-			snapshotToString(result.value.create(DefaultEndOfLine.LF).createSnapshot(false)),
+			snapshotToString(result.value.create(DefaultEndOfLine.LF).textBuffer.createSnapshot(false)),
 			snapshotToString(createTextModel(content).createSnapshot(false)));
 	}
 
@@ -530,7 +530,7 @@ export default function createSuite(params: Params) {
 		const result = await service.readStream(resource, { encoding });
 		assert.equal(result.encoding, encoding);
 
-		const contents = snapshotToString(result.value.create(DefaultEndOfLine.LF).createSnapshot(false));
+		const contents = snapshotToString(result.value.create(DefaultEndOfLine.LF).textBuffer.createSnapshot(false));
 
 		assert.equal(contents.indexOf(needle), 0);
 		assert.ok(contents.indexOf(needle, 10) > 0);

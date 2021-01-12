@@ -182,7 +182,7 @@ suite('Workbench - Terminal Typeahead', () => {
 		test('handles left arrow when we hit the boundary', () => {
 			const t = createMockTerminal({ lines: ['|'] });
 			addon.activate(t.terminal);
-			addon.unlockLeftNavigating();
+			addon.unlockNavigating();
 
 			const cursorXBefore = addon.getCursor(t.terminal.buffer.active)?.x!;
 			t.onData(`${CSI}${CursorMoveDirection.Back}`);
@@ -198,10 +198,29 @@ suite('Workbench - Terminal Typeahead', () => {
 				cursorXBefore);
 		});
 
+		test('handles right arrow when we hit the boundary', () => {
+			const t = createMockTerminal({ lines: ['|'] });
+			addon.activate(t.terminal);
+			addon.unlockNavigating();
+
+			const cursorXBefore = addon.getCursor(t.terminal.buffer.active)?.x!;
+			t.onData(`${CSI}${CursorMoveDirection.Forwards}`);
+			t.expectWritten('');
+
+			// Trigger rollback because we don't expect this data
+			onBeforeProcessData.fire({ data: 'xy' });
+
+			assert.strictEqual(
+				addon.getCursor(t.terminal.buffer.active)?.x,
+				// The cursor should not have changed because we've hit the
+				// boundary (end of prompt)
+				cursorXBefore);
+		});
+
 		test('internal cursor state is reset when all predictions are undone', () => {
 			const t = createMockTerminal({ lines: ['|'] });
 			addon.activate(t.terminal);
-			addon.unlockLeftNavigating();
+			addon.unlockNavigating();
 
 			const cursorXBefore = addon.getCursor(t.terminal.buffer.active)?.x!;
 			t.onData(`${CSI}${CursorMoveDirection.Back}`);
@@ -293,7 +312,7 @@ suite('Workbench - Terminal Typeahead', () => {
 		test('restores old character after invalid backspace', () => {
 			const t = createMockTerminal({ lines: ['hel|lo'] });
 			addon.activate(t.terminal);
-			addon.unlockLeftNavigating();
+			addon.unlockNavigating();
 			t.onData('\x7F');
 			t.expectWritten(`${CSI}2;4H${CSI}X`);
 			expectProcessed('x', `${CSI}?25l${CSI}0ml${CSI}2;5H${CSI}0mx${CSI}?25h`);
@@ -354,15 +373,15 @@ suite('Workbench - Terminal Typeahead', () => {
 
 class TestTypeAheadAddon extends TypeAheadAddon {
 	public unlockMakingPredictions() {
-		this.lastRow = { y: 1, startingX: 100, charState: CharPredictState.Validated };
+		this.lastRow = { y: 1, startingX: 100, endingX: 100, charState: CharPredictState.Validated };
 	}
 
 	public lockMakingPredictions() {
 		this.lastRow = undefined;
 	}
 
-	public unlockLeftNavigating() {
-		this.lastRow = { y: 1, startingX: 1, charState: CharPredictState.Validated };
+	public unlockNavigating() {
+		this.lastRow = { y: 1, startingX: 1, endingX: 1, charState: CharPredictState.Validated };
 	}
 
 	public reevaluateNow() {

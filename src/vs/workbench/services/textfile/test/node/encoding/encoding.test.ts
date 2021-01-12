@@ -351,7 +351,7 @@ suite('Encoding', () => {
 		assert.equal(content.length, 65537);
 	});
 
-	(isWindows /* unsupported OS */ ? test.skip : test)('toDecodeStream - some stream (UTF-8 issue #102202)', async function () {
+	(isWindows /* TODO@bpasero why does this fail on windows */ ? test.skip : test)('toDecodeStream - some stream (UTF-8 issue #102202)', async function () {
 		const path = getPathFromAmdModule(require, './fixtures/issue_102202.txt');
 		const source = streamToBufferReadableStream(fs.createReadStream(path));
 

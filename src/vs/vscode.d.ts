@@ -3870,8 +3870,8 @@ declare module 'vscode' {
 		 *
 		 * Note that `sortText` is only used for the initial ordering of completion
 		 * items. When having a leading word (prefix) ordering is based on how
-		 * well completion match that prefix and the initial ordering is only used
-		 * when completions match equal. The prefix is defined by the
+		 * well completions match that prefix and the initial ordering is only used
+		 * when completions match equally well. The prefix is defined by the
 		 * [`range`](#CompletionItem.range)-property and can therefore be different
 		 * for each completion.
 		 */
@@ -3884,7 +3884,6 @@ declare module 'vscode' {
 		 *
 		 * Note that the filter text is matched against the leading word (prefix) which is defined
 		 * by the [`range`](#CompletionItem.range)-property.
-		 * prefix.
 		 */
 		filterText?: string;
 
@@ -8881,13 +8880,13 @@ declare module 'vscode' {
 		 * Because of that, no property that changes the presentation (label, description, etc.)
 		 * can be changed.
 		 *
-		 * @param element The object associated with the TreeItem
 		 * @param item Undefined properties of `item` should be set then `item` should be returned.
+		 * @param element The object associated with the TreeItem.
+		 * @param token A cancellation token.
 		 * @return The resolved tree item or a thenable that resolves to such. It is OK to return the given
 		 * `item`. When no result is returned, the given `item` will be used.
 		 */
-		// eslint-disable-next-line vscode-dts-cancellation
-		resolveTreeItem?(item: TreeItem, element: T): ProviderResult<TreeItem>;
+		resolveTreeItem?(item: TreeItem, element: T, token: CancellationToken): ProviderResult<TreeItem>;
 	}
 
 	export class TreeItem {

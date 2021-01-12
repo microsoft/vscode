@@ -285,7 +285,7 @@ export class CodeCell extends Disposable {
 			this.viewUpdateAllCollapsed();
 		} else if (this.viewCell.metadata?.inputCollapsed) {
 			this.viewUpdateInputCollapsed();
-		} else if (this.viewCell.metadata?.outputCollapsed && this.viewCell.outputs.length) {
+		} else if (this.viewCell.metadata?.outputCollapsed && this.viewCell.outputsViewModels.length) {
 			this.viewUpdateOutputCollapsed();
 		} else {
 			this.viewUpdateExpanded();

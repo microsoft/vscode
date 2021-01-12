@@ -24,4 +24,5 @@ workbenchRegistry.registerWorkbenchContribution(TerminalNativeContribution, Life
 
 // Register configurations
 const configurationRegistry = Registry.as<IConfigurationRegistry>(Extensions.Configuration);
-configurationRegistry.registerConfiguration(getTerminalShellConfiguration(getSystemShell));
+
+getTerminalShellConfiguration(getSystemShell).then(config => configurationRegistry.registerConfiguration(config));

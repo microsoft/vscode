@@ -256,12 +256,9 @@ export interface KeybindingMatches {
 	chordPart: KeybindingMatch;
 }
 
-export interface IListEntry {
+export interface IKeybindingItemEntry {
 	id: string;
 	templateId: string;
-}
-
-export interface IKeybindingItemEntry extends IListEntry {
 	keybindingItem: IKeybindingItem;
 	commandIdMatches?: IMatch[];
 	commandLabelMatches?: IMatch[];
