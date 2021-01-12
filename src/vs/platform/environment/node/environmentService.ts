@@ -3,10 +3,10 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
+import * as os from 'os';
 import { IDebugParams, IExtensionHostDebugParams, INativeEnvironmentService } from 'vs/platform/environment/common/environment';
 import { NativeParsedArgs } from 'vs/platform/environment/common/argv';
 import * as paths from 'vs/base/node/paths';
-import * as os from 'os';
 import * as path from 'vs/base/common/path';
 import * as resources from 'vs/base/common/resources';
 import { memoize } from 'vs/base/common/decorators';

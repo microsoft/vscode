@@ -62,6 +62,7 @@ export class CursorConfiguration {
 	public readonly tabSize: number;
 	public readonly indentSize: number;
 	public readonly insertSpaces: boolean;
+	public readonly stickyTabStops: boolean;
 	public readonly pageSize: number;
 	public readonly lineHeight: number;
 	public readonly useTabStops: boolean;
@@ -113,6 +114,7 @@ export class CursorConfiguration {
 		this.tabSize = modelOptions.tabSize;
 		this.indentSize = modelOptions.indentSize;
 		this.insertSpaces = modelOptions.insertSpaces;
+		this.stickyTabStops = options.get(EditorOption.stickyTabStops);
 		this.lineHeight = options.get(EditorOption.lineHeight);
 		this.pageSize = Math.max(1, Math.floor(layoutInfo.height / this.lineHeight) - 2);
 		this.useTabStops = options.get(EditorOption.useTabStops);
@@ -554,14 +556,14 @@ export class CursorColumns {
 	}
 
 	/**
-	 * ATTENTION: This works with 0-based columns (as oposed to the regular 1-based columns)
+	 * ATTENTION: This works with 0-based columns (as opposed to the regular 1-based columns)
 	 */
 	public static prevRenderTabStop(column: number, tabSize: number): number {
 		return column - 1 - (column - 1) % tabSize;
 	}
 
 	/**
-	 * ATTENTION: This works with 0-based columns (as oposed to the regular 1-based columns)
+	 * ATTENTION: This works with 0-based columns (as opposed to the regular 1-based columns)
 	 */
 	public static prevIndentTabStop(column: number, indentSize: number): number {
 		return column - 1 - (column - 1) % indentSize;

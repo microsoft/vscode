@@ -4,10 +4,9 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { URI } from 'vs/base/common/uri';
-import * as resources from 'vs/base/common/resources';
 import { Event, Emitter } from 'vs/base/common/event';
 import * as errors from 'vs/base/common/errors';
-import { Disposable, IDisposable, dispose, toDisposable, MutableDisposable, combinedDisposable } from 'vs/base/common/lifecycle';
+import { Disposable, IDisposable, dispose, toDisposable, MutableDisposable, combinedDisposable, DisposableStore } from 'vs/base/common/lifecycle';
 import { RunOnceScheduler } from 'vs/base/common/async';
 import { FileChangeType, FileChangesEvent, IFileService, whenProviderRegistered, FileOperationError, FileOperationResult } from 'vs/platform/files/common/files';
 import { ConfigurationModel, ConfigurationModelParser, UserSettings } from 'vs/platform/configuration/common/configurationModels';
@@ -22,6 +21,7 @@ import { equals } from 'vs/base/common/objects';
 import { IConfigurationModel } from 'vs/platform/configuration/common/configuration';
 import { IRemoteAgentService } from 'vs/workbench/services/remote/common/remoteAgentService';
 import { hash } from 'vs/base/common/hash';
+import { IUriIdentityService } from 'vs/workbench/services/uriIdentity/common/uriIdentity';
 
 export class UserConfiguration extends Disposable {
 
@@ -36,10 +36,11 @@ export class UserConfiguration extends Disposable {
 	constructor(
 		private readonly userSettingsResource: URI,
 		private readonly scopes: ConfigurationScope[] | undefined,
-		private readonly fileService: IFileService
+		private readonly fileService: IFileService,
+		private readonly uriIdentityService: IUriIdentityService,
 	) {
 		super();
-		this.userConfiguration.value = new UserSettings(this.userSettingsResource, this.scopes, this.fileService);
+		this.userConfiguration.value = new UserSettings(this.userSettingsResource, this.scopes, uriIdentityService.extUri, this.fileService);
 		this._register(this.userConfiguration.value.onDidChange(() => this.reloadConfigurationScheduler.schedule()));
 		this.reloadConfigurationScheduler = this._register(new RunOnceScheduler(() => this.reload().then(configurationModel => this._onDidChangeConfiguration.fire(configurationModel)), 50));
 	}
@@ -53,9 +54,9 @@ export class UserConfiguration extends Disposable {
 			return this.userConfiguration.value!.loadConfiguration();
 		}
 
-		const folder = resources.dirname(this.userSettingsResource);
-		const standAloneConfigurationResources: [string, URI][] = [TASKS_CONFIGURATION_KEY].map(name => ([name, resources.joinPath(folder, `${name}.json`)]));
-		const fileServiceBasedConfiguration = new FileServiceBasedConfiguration(folder.toString(), [this.userSettingsResource], standAloneConfigurationResources, this.scopes, this.fileService);
+		const folder = this.uriIdentityService.extUri.dirname(this.userSettingsResource);
+		const standAloneConfigurationResources: [string, URI][] = [TASKS_CONFIGURATION_KEY].map(name => ([name, this.uriIdentityService.extUri.joinPath(folder, `${name}.json`)]));
+		const fileServiceBasedConfiguration = new FileServiceBasedConfiguration(folder.toString(), [this.userSettingsResource], standAloneConfigurationResources, this.scopes, this.fileService, this.uriIdentityService);
 		const configurationModel = await fileServiceBasedConfiguration.loadConfiguration();
 		this.userConfiguration.value = fileServiceBasedConfiguration;
 
@@ -88,11 +89,12 @@ class FileServiceBasedConfiguration extends Disposable {
 		private readonly settingsResources: URI[],
 		private readonly standAloneConfigurationResources: [string, URI][],
 		private readonly scopes: ConfigurationScope[] | undefined,
-		private fileService: IFileService
+		private fileService: IFileService,
+		private uriIdentityService: IUriIdentityService
 	) {
 		super();
 		this.allResources = [...this.settingsResources, ...this.standAloneConfigurationResources.map(([, resource]) => resource)];
-		this._register(combinedDisposable(...this.allResources.map(resource => this.fileService.watch(resources.dirname(resource)))));
+		this._register(combinedDisposable(...this.allResources.map(resource => this.fileService.watch(uriIdentityService.extUri.dirname(resource)))));
 		this._folderSettingsModelParser = new ConfigurationModelParser(name, this.scopes);
 		this._standAloneConfigurations = [];
 		this._cache = new ConfigurationModel();
@@ -165,7 +167,7 @@ class FileServiceBasedConfiguration extends Disposable {
 				return true;
 			}
 			// One of the resource's parent got deleted
-			if (this.allResources.some(resource => event.contains(resources.dirname(resource), FileChangeType.DELETED))) {
+			if (this.allResources.some(resource => event.contains(this.uriIdentityService.extUri.dirname(resource), FileChangeType.DELETED))) {
 				return true;
 			}
 			return false;
@@ -187,10 +189,14 @@ export class RemoteUserConfiguration extends Disposable {
 	private readonly _onDidChangeConfiguration: Emitter<ConfigurationModel> = this._register(new Emitter<ConfigurationModel>());
 	public readonly onDidChangeConfiguration: Event<ConfigurationModel> = this._onDidChangeConfiguration.event;
 
+	private readonly _onDidInitialize = this._register(new Emitter<ConfigurationModel>());
+	public readonly onDidInitialize = this._onDidInitialize.event;
+
 	constructor(
 		remoteAuthority: string,
 		configurationCache: IConfigurationCache,
 		fileService: IFileService,
+		uriIdentityService: IUriIdentityService,
 		remoteAgentService: IRemoteAgentService
 	) {
 		super();
@@ -198,13 +204,14 @@ export class RemoteUserConfiguration extends Disposable {
 		this._userConfiguration = this._cachedConfiguration = new CachedRemoteUserConfiguration(remoteAuthority, configurationCache);
 		remoteAgentService.getEnvironment().then(async environment => {
 			if (environment) {
-				const userConfiguration = this._register(new FileServiceBasedRemoteUserConfiguration(environment.settingsPath, REMOTE_MACHINE_SCOPES, this._fileService));
+				const userConfiguration = this._register(new FileServiceBasedRemoteUserConfiguration(environment.settingsPath, REMOTE_MACHINE_SCOPES, this._fileService, uriIdentityService));
 				this._register(userConfiguration.onDidChangeConfiguration(configurationModel => this.onDidUserConfigurationChange(configurationModel)));
 				this._userConfigurationInitializationPromise = userConfiguration.initialize();
 				const configurationModel = await this._userConfigurationInitializationPromise;
 				this._userConfiguration.dispose();
 				this._userConfiguration = userConfiguration;
 				this.onDidUserConfigurationChange(configurationModel);
+				this._onDidInitialize.fire(configurationModel);
 			}
 		});
 	}
@@ -256,7 +263,8 @@ class FileServiceBasedRemoteUserConfiguration extends Disposable {
 	constructor(
 		private readonly configurationResource: URI,
 		private readonly scopes: ConfigurationScope[] | undefined,
-		private readonly fileService: IFileService
+		private readonly fileService: IFileService,
+		private readonly uriIdentityService: IUriIdentityService,
 	) {
 		super();
 
@@ -279,7 +287,7 @@ class FileServiceBasedRemoteUserConfiguration extends Disposable {
 	}
 
 	private watchDirectory(): void {
-		const directory = resources.dirname(this.configurationResource);
+		const directory = this.uriIdentityService.extUri.dirname(this.configurationResource);
 		this.directoryWatcherDisposable = this.fileService.watch(directory);
 	}
 
@@ -389,8 +397,8 @@ export class WorkspaceConfiguration extends Disposable {
 
 	private readonly _fileService: IFileService;
 	private readonly _cachedConfiguration: CachedWorkspaceConfiguration;
-	private _workspaceConfiguration: IWorkspaceConfiguration;
-	private _workspaceConfigurationChangeDisposable: IDisposable = Disposable.None;
+	private _workspaceConfiguration: CachedWorkspaceConfiguration | FileServiceBasedWorkspaceConfiguration;
+	private _workspaceConfigurationDisposables = this._register(new DisposableStore());
 	private _workspaceIdentifier: IWorkspaceIdentifier | null = null;
 
 	private readonly _onDidUpdateConfiguration: Emitter<void> = this._register(new Emitter<void>());
@@ -458,10 +466,9 @@ export class WorkspaceConfiguration extends Disposable {
 	}
 
 	private doInitialize(fileServiceBasedWorkspaceConfiguration: FileServiceBasedWorkspaceConfiguration): void {
-		this._workspaceConfiguration.dispose();
-		this._workspaceConfigurationChangeDisposable.dispose();
-		this._workspaceConfiguration = this._register(fileServiceBasedWorkspaceConfiguration);
-		this._workspaceConfigurationChangeDisposable = this._register(this._workspaceConfiguration.onDidChange(e => this.onDidWorkspaceConfigurationChange(true)));
+		this._workspaceConfigurationDisposables.clear();
+		this._workspaceConfiguration = this._workspaceConfigurationDisposables.add(fileServiceBasedWorkspaceConfiguration);
+		this._workspaceConfigurationDisposables.add(this._workspaceConfiguration.onDidChange(e => this.onDidWorkspaceConfigurationChange(true)));
 		this._initialized = true;
 	}
 
@@ -482,19 +489,7 @@ export class WorkspaceConfiguration extends Disposable {
 	}
 }
 
-interface IWorkspaceConfiguration extends IDisposable {
-	readonly onDidChange: Event<void>;
-	workspaceConfigurationModelParser: WorkspaceConfigurationModelParser;
-	workspaceSettings: ConfigurationModel;
-	workspaceIdentifier: IWorkspaceIdentifier | null;
-	load(workspaceIdentifier: IWorkspaceIdentifier): Promise<void>;
-	getConfigurationModel(): ConfigurationModel;
-	getFolders(): IStoredWorkspaceFolder[];
-	getWorkspaceSettings(): ConfigurationModel;
-	reprocessWorkspaceSettings(): ConfigurationModel;
-}
-
-class FileServiceBasedWorkspaceConfiguration extends Disposable implements IWorkspaceConfiguration {
+class FileServiceBasedWorkspaceConfiguration extends Disposable {
 
 	workspaceConfigurationModelParser: WorkspaceConfigurationModelParser;
 	workspaceSettings: ConfigurationModel;
@@ -578,16 +573,14 @@ class FileServiceBasedWorkspaceConfiguration extends Disposable implements IWork
 	}
 }
 
-class CachedWorkspaceConfiguration extends Disposable implements IWorkspaceConfiguration {
+class CachedWorkspaceConfiguration {
 
-	private readonly _onDidChange: Emitter<void> = this._register(new Emitter<void>());
-	readonly onDidChange: Event<void> = this._onDidChange.event;
+	readonly onDidChange: Event<void> = Event.None;
 
 	workspaceConfigurationModelParser: WorkspaceConfigurationModelParser;
 	workspaceSettings: ConfigurationModel;
 
 	constructor(private readonly configurationCache: IConfigurationCache) {
-		super();
 		this.workspaceConfigurationModelParser = new WorkspaceConfigurationModelParser('');
 		this.workspaceSettings = new ConfigurationModel();
 	}
@@ -643,16 +636,9 @@ class CachedWorkspaceConfiguration extends Disposable implements IWorkspaceConfi
 	}
 }
 
-export interface IFolderConfiguration extends IDisposable {
-	readonly onDidChange: Event<void>;
-	loadConfiguration(): Promise<ConfigurationModel>;
-	reprocess(): ConfigurationModel;
-}
+class CachedFolderConfiguration {
 
-class CachedFolderConfiguration extends Disposable implements IFolderConfiguration {
-
-	private readonly _onDidChange: Emitter<void> = this._register(new Emitter<void>());
-	readonly onDidChange: Event<void> = this._onDidChange.event;
+	readonly onDidChange = Event.None;
 
 	private configurationModel: ConfigurationModel;
 	private readonly key: ConfigurationKey;
@@ -662,7 +648,6 @@ class CachedFolderConfiguration extends Disposable implements IFolderConfigurati
 		configFolderRelativePath: string,
 		private readonly configurationCache: IConfigurationCache
 	) {
-		super();
 		this.key = { type: 'folder', key: hash(join(folder.path, configFolderRelativePath)).toString(16) };
 		this.configurationModel = new ConfigurationModel();
 	}
@@ -694,13 +679,12 @@ class CachedFolderConfiguration extends Disposable implements IFolderConfigurati
 	}
 }
 
-export class FolderConfiguration extends Disposable implements IFolderConfiguration {
+export class FolderConfiguration extends Disposable {
 
 	protected readonly _onDidChange: Emitter<void> = this._register(new Emitter<void>());
 	readonly onDidChange: Event<void> = this._onDidChange.event;
 
-	private folderConfiguration: IFolderConfiguration;
-	private folderConfigurationDisposable: IDisposable = Disposable.None;
+	private folderConfiguration: CachedFolderConfiguration | FileServiceBasedConfiguration;
 	private readonly configurationFolder: URI;
 	private cachedFolderConfiguration: CachedFolderConfiguration;
 
@@ -709,25 +693,24 @@ export class FolderConfiguration extends Disposable implements IFolderConfigurat
 		configFolderRelativePath: string,
 		private readonly workbenchState: WorkbenchState,
 		fileService: IFileService,
+		uriIdentityService: IUriIdentityService,
 		private readonly configurationCache: IConfigurationCache
 	) {
 		super();
 
-		this.configurationFolder = resources.joinPath(workspaceFolder.uri, configFolderRelativePath);
+		this.configurationFolder = uriIdentityService.extUri.joinPath(workspaceFolder.uri, configFolderRelativePath);
 		this.cachedFolderConfiguration = new CachedFolderConfiguration(workspaceFolder.uri, configFolderRelativePath, configurationCache);
 		if (this.configurationCache.needsCaching(workspaceFolder.uri)) {
 			this.folderConfiguration = this.cachedFolderConfiguration;
 			whenProviderRegistered(workspaceFolder.uri, fileService)
 				.then(() => {
-					this.folderConfiguration.dispose();
-					this.folderConfigurationDisposable.dispose();
-					this.folderConfiguration = this.createFileServiceBasedConfiguration(fileService);
+					this.folderConfiguration = this._register(this.createFileServiceBasedConfiguration(fileService, uriIdentityService));
 					this._register(this.folderConfiguration.onDidChange(e => this.onDidFolderConfigurationChange()));
 					this.onDidFolderConfigurationChange();
 				});
 		} else {
-			this.folderConfiguration = this.createFileServiceBasedConfiguration(fileService);
-			this.folderConfigurationDisposable = this._register(this.folderConfiguration.onDidChange(e => this.onDidFolderConfigurationChange()));
+			this.folderConfiguration = this._register(this.createFileServiceBasedConfiguration(fileService, uriIdentityService));
+			this._register(this.folderConfiguration.onDidChange(e => this.onDidFolderConfigurationChange()));
 		}
 	}
 
@@ -744,10 +727,10 @@ export class FolderConfiguration extends Disposable implements IFolderConfigurat
 		this._onDidChange.fire();
 	}
 
-	private createFileServiceBasedConfiguration(fileService: IFileService) {
-		const settingsResources = [resources.joinPath(this.configurationFolder, `${FOLDER_SETTINGS_NAME}.json`)];
-		const standAloneConfigurationResources: [string, URI][] = [TASKS_CONFIGURATION_KEY, LAUNCH_CONFIGURATION_KEY].map(name => ([name, resources.joinPath(this.configurationFolder, `${name}.json`)]));
-		return new FileServiceBasedConfiguration(this.configurationFolder.toString(), settingsResources, standAloneConfigurationResources, WorkbenchState.WORKSPACE === this.workbenchState ? FOLDER_SCOPES : WORKSPACE_SCOPES, fileService);
+	private createFileServiceBasedConfiguration(fileService: IFileService, uriIdentityService: IUriIdentityService) {
+		const settingsResources = [uriIdentityService.extUri.joinPath(this.configurationFolder, `${FOLDER_SETTINGS_NAME}.json`)];
+		const standAloneConfigurationResources: [string, URI][] = [TASKS_CONFIGURATION_KEY, LAUNCH_CONFIGURATION_KEY].map(name => ([name, uriIdentityService.extUri.joinPath(this.configurationFolder, `${name}.json`)]));
+		return new FileServiceBasedConfiguration(this.configurationFolder.toString(), settingsResources, standAloneConfigurationResources, WorkbenchState.WORKSPACE === this.workbenchState ? FOLDER_SCOPES : WORKSPACE_SCOPES, fileService, uriIdentityService);
 	}
 
 	private updateCache(): Promise<void> {

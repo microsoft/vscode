@@ -534,6 +534,11 @@ suite('Filters', () => {
 		assert.ok(Boolean(match));
 	});
 
+	test('Wrong highlight after emoji #113404', function () {
+		assertMatches('di', '✨div classname=""></div>', '✨^d^iv classname=""></div>', fuzzyScore);
+		assertMatches('di', 'adiv classname=""></div>', 'adiv classname=""></^d^iv>', fuzzyScore);
+	});
+
 	test('Suggestion is not highlighted #85826', function () {
 		assertMatches('SemanticTokens', 'SemanticTokensEdits', '^S^e^m^a^n^t^i^c^T^o^k^e^n^sEdits', fuzzyScore);
 		assertMatches('SemanticTokens', 'SemanticTokensEdits', '^S^e^m^a^n^t^i^c^T^o^k^e^n^sEdits', fuzzyScoreGracefulAggressive);

@@ -5,14 +5,17 @@
 
 import * as DOM from 'vs/base/browser/dom';
 import { StandardKeyboardEvent } from 'vs/base/browser/keyboardEvent';
-import { CodiconLabel } from 'vs/base/browser/ui/codicons/codiconLabel';
+import { SimpleIconLabel } from 'vs/base/browser/ui/iconLabel/simpleIconLabel';
 import { WorkbenchActionExecutedClassification, WorkbenchActionExecutedEvent } from 'vs/base/common/actions';
-import { stripCodicons } from 'vs/base/common/codicons';
+import { stripIcons } from 'vs/base/common/iconLabels';
 import { toErrorMessage } from 'vs/base/common/errorMessage';
 import { Emitter, Event } from 'vs/base/common/event';
 import { KeyCode } from 'vs/base/common/keyCodes';
 import { Disposable, DisposableStore } from 'vs/base/common/lifecycle';
+import { isWindows } from 'vs/base/common/platform';
 import { extUri } from 'vs/base/common/resources';
+import { ElementSizeObserver } from 'vs/editor/browser/config/elementSizeObserver';
+import { IDimension } from 'vs/editor/common/editorCommon';
 import { IModeService } from 'vs/editor/common/services/modeService';
 import { localize } from 'vs/nls';
 import { ICommandService } from 'vs/platform/commands/common/commands';
@@ -21,8 +24,10 @@ import { INotificationService } from 'vs/platform/notification/common/notificati
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
 import { ChangeCellLanguageAction, INotebookCellActionContext } from 'vs/workbench/contrib/notebook/browser/contrib/coreActions';
 import { ICellViewModel, INotebookEditor } from 'vs/workbench/contrib/notebook/browser/notebookBrowser';
+import { BaseCellViewModel } from 'vs/workbench/contrib/notebook/browser/viewModel/baseCellViewModel';
 import { INotebookCellStatusBarService } from 'vs/workbench/contrib/notebook/common/notebookCellStatusBarService';
 import { CellKind, CellStatusbarAlignment, INotebookCellStatusBarEntry } from 'vs/workbench/contrib/notebook/common/notebookCommon';
+
 
 const $ = DOM.$;
 
@@ -34,7 +39,8 @@ export interface IClickTarget {
 export const enum ClickTargetType {
 	Container = 0,
 	CellStatus = 1,
-	ContributedItem = 2
+	ContributedTextItem = 2,
+	ContributedCommandItem = 3
 }
 
 export class CellEditorStatusBar extends Disposable {
@@ -92,10 +98,18 @@ export class CellEditorStatusBar extends Disposable {
 					event: e
 				});
 			} else {
-				this._onDidClick.fire({
-					type: ClickTargetType.ContributedItem,
-					event: e
-				});
+				if ((e.target as HTMLElement).classList.contains('cell-status-item-has-command')) {
+					this._onDidClick.fire({
+						type: ClickTargetType.ContributedCommandItem,
+						event: e
+					});
+				} else {
+					// text
+					this._onDidClick.fire({
+						type: ClickTargetType.ContributedTextItem,
+						event: e
+					});
+				}
 			}
 		}));
 	}
@@ -146,7 +160,11 @@ class CellStatusBarItem extends Disposable {
 		@INotificationService private readonly notificationService: INotificationService
 	) {
 		super();
-		new CodiconLabel(this.container).text = this._itemModel.text;
+		new SimpleIconLabel(this.container).text = this._itemModel.text;
+
+		if (this._itemModel.opacity) {
+			this.container.style.opacity = this._itemModel.opacity;
+		}
 
 		let ariaLabel: string;
 		let role: string | undefined;
@@ -154,7 +172,7 @@ class CellStatusBarItem extends Disposable {
 			ariaLabel = this._itemModel.accessibilityInformation.label;
 			role = this._itemModel.accessibilityInformation.role;
 		} else {
-			ariaLabel = this._itemModel.text ? stripCodicons(this._itemModel.text).trim() : '';
+			ariaLabel = this._itemModel.text ? stripIcons(this._itemModel.text).trim() : '';
 		}
 
 		if (ariaLabel) {
@@ -219,6 +237,7 @@ export class CellLanguageStatusBarItem extends Disposable {
 		super();
 		this.labelElement = DOM.append(container, $('.cell-language-picker.cell-status-item'));
 		this.labelElement.tabIndex = 0;
+		this.labelElement.classList.add('cell-status-item-has-command');
 
 		this._register(DOM.addDisposableListener(this.labelElement, DOM.EventType.CLICK, () => {
 			this.run();
@@ -234,7 +253,10 @@ export class CellLanguageStatusBarItem extends Disposable {
 
 	private run() {
 		this.instantiationService.invokeFunction(accessor => {
-			new ChangeCellLanguageAction().run(accessor, { notebookEditor: this.editor!, cell: this.cell! });
+			if (!this.editor || !this.editor.hasModel() || !this.cell) {
+				return;
+			}
+			new ChangeCellLanguageAction().run(accessor, { notebookEditor: this.editor, cell: this.cell });
 		});
 	}
 
@@ -252,4 +274,88 @@ export class CellLanguageStatusBarItem extends Disposable {
 		this.labelElement.textContent = this.modeService.getLanguageName(modeId) || this.modeService.getLanguageName('plaintext');
 		this.labelElement.title = localize('notebook.cell.status.language', "Select Cell Language Mode");
 	}
+}
+
+declare const ResizeObserver: any;
+
+export interface IResizeObserver {
+	startObserving: () => void;
+	stopObserving: () => void;
+	getWidth(): number;
+	getHeight(): number;
+	dispose(): void;
+}
+
+export class BrowserResizeObserver extends Disposable implements IResizeObserver {
+	private readonly referenceDomElement: HTMLElement | null;
+
+	private readonly observer: any;
+	private width: number;
+	private height: number;
+
+	constructor(referenceDomElement: HTMLElement | null, dimension: IDimension | undefined, changeCallback: () => void) {
+		super();
+
+		this.referenceDomElement = referenceDomElement;
+		this.width = -1;
+		this.height = -1;
+
+		this.observer = new ResizeObserver((entries: any) => {
+			for (const entry of entries) {
+				if (entry.target === referenceDomElement && entry.contentRect) {
+					if (this.width !== entry.contentRect.width || this.height !== entry.contentRect.height) {
+						this.width = entry.contentRect.width;
+						this.height = entry.contentRect.height;
+						DOM.scheduleAtNextAnimationFrame(() => {
+							changeCallback();
+						});
+					}
+				}
+			}
+		});
+	}
+
+	getWidth(): number {
+		return this.width;
+	}
+
+	getHeight(): number {
+		return this.height;
+	}
+
+	startObserving(): void {
+		this.observer.observe(this.referenceDomElement!);
+	}
+
+	stopObserving(): void {
+		this.observer.unobserve(this.referenceDomElement!);
+	}
+
+	dispose(): void {
+		this.observer.disconnect();
+		super.dispose();
+	}
+}
+
+export function getResizesObserver(referenceDomElement: HTMLElement | null, dimension: IDimension | undefined, changeCallback: () => void): IResizeObserver {
+	if (ResizeObserver) {
+		return new BrowserResizeObserver(referenceDomElement, dimension, changeCallback);
+	} else {
+		return new ElementSizeObserver(referenceDomElement, dimension, changeCallback);
+	}
+}
+
+export function getExecuteCellPlaceholder(viewCell: BaseCellViewModel) {
+	return {
+		alignment: CellStatusbarAlignment.LEFT,
+		priority: -1,
+		cellResource: viewCell.uri,
+		command: undefined,
+		// text: `${keybinding?.getLabel() || 'Ctrl + Enter'} to run`,
+		// tooltip: `${keybinding?.getLabel() || 'Ctrl + Enter'} to run`,
+		text: isWindows ? 'Ctrl + Alt + Enter' : 'Ctrl + Enter to run',
+		tooltip: isWindows ? 'Ctrl + Alt + Enter' : 'Ctrl + Enter to run',
+		visible: true,
+		opacity: '0.7'
+	};
 }

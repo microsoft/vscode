@@ -397,7 +397,7 @@ function tlsPatches(originals: typeof tls) {
 	};
 
 	function patch(original: typeof tls.createSecureContext): typeof tls.createSecureContext {
-		return function (details: tls.SecureContextOptions): ReturnType<typeof tls.createSecureContext> {
+		return function (details?: tls.SecureContextOptions): ReturnType<typeof tls.createSecureContext> {
 			const context = original.apply(null, arguments as any);
 			const certs = (details as any)._vscodeAdditionalCaCerts;
 			if (certs) {
@@ -498,7 +498,7 @@ async function readWindowsCaCertificates() {
 	const winCA = await import('vscode-windows-ca-certs');
 
 	let ders: any[] = [];
-	const store = winCA();
+	const store = new winCA.Crypt32();
 	try {
 		let der: any;
 		while (der = store.next()) {

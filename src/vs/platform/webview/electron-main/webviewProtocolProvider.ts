@@ -10,6 +10,7 @@ import { Disposable, toDisposable } from 'vs/base/common/lifecycle';
 import { FileAccess, Schemas } from 'vs/base/common/network';
 import { URI } from 'vs/base/common/uri';
 import { FileOperationError, FileOperationResult, IFileService } from 'vs/platform/files/common/files';
+import { ILogService } from 'vs/platform/log/common/log';
 import { IRemoteConnectionData } from 'vs/platform/remote/common/remoteAuthorityResolver';
 import { IRequestService } from 'vs/platform/request/common/request';
 import { loadLocalResource, webviewPartitionId, WebviewResourceResponse } from 'vs/platform/webview/common/resourceLoader';
@@ -38,8 +39,9 @@ export class WebviewProtocolProvider extends Disposable {
 
 	constructor(
 		@IFileService private readonly fileService: IFileService,
+		@ILogService private readonly logService: ILogService,
 		@IRequestService private readonly requestService: IRequestService,
-		@IWindowsMainService readonly windowsMainService: IWindowsMainService,
+		@IWindowsMainService private readonly windowsMainService: IWindowsMainService,
 	) {
 		super();
 
@@ -125,7 +127,10 @@ export class WebviewProtocolProvider extends Disposable {
 		}
 	}
 
-	private async handleWebviewRequest(request: Electron.Request, callback: any) {
+	private async handleWebviewRequest(
+		request: Electron.ProtocolRequest,
+		callback: (response: string | Electron.ProtocolResponse) => void
+	) {
 		try {
 			const uri = URI.parse(request.url);
 			const entry = WebviewProtocolProvider.validWebviewFilePaths.get(uri.path);
@@ -144,8 +149,8 @@ export class WebviewProtocolProvider extends Disposable {
 	}
 
 	private async handleWebviewResourceRequest(
-		request: Electron.Request,
-		callback: (stream?: NodeJS.ReadableStream | Electron.StreamProtocolResponse | undefined) => void
+		request: Electron.ProtocolRequest,
+		callback: (stream: NodeJS.ReadableStream | Electron.ProtocolResponse) => void
 	) {
 		try {
 			const uri = URI.parse(request.url);
@@ -205,7 +210,7 @@ export class WebviewProtocolProvider extends Disposable {
 					roots: metadata.localResourceRoots,
 					remoteConnectionData: metadata.remoteConnectionData,
 					rewriteUri,
-				}, fileService, this.requestService);
+				}, fileService, this.requestService, this.logService);
 
 				if (result.type === WebviewResourceResponse.Type.Success) {
 					return callback({
@@ -220,14 +225,14 @@ export class WebviewProtocolProvider extends Disposable {
 
 				if (result.type === WebviewResourceResponse.Type.AccessDenied) {
 					console.error('Webview: Cannot load resource outside of protocol root');
-					return callback({ data: null, statusCode: 401 });
+					return callback({ data: undefined, statusCode: 401 });
 				}
 			}
 		} catch {
 			// noop
 		}
 
-		return callback({ data: null, statusCode: 404 });
+		return callback({ data: undefined, statusCode: 404 });
 	}
 
 	public didLoadResource(requestId: number, content: VSBuffer | undefined) {

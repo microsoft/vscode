@@ -11,7 +11,7 @@ import { IEditorOptions } from 'vs/platform/editor/common/editor';
 
 export const IOpenerService = createDecorator<IOpenerService>('openerService');
 
-type OpenInternalOptions = {
+export type OpenInternalOptions = {
 
 	/**
 	 * Signals that the intent is to open an editor to the side
@@ -31,7 +31,7 @@ type OpenInternalOptions = {
 	readonly fromUserGesture?: boolean;
 };
 
-type OpenExternalOptions = { readonly openExternal?: boolean; readonly allowTunneling?: boolean };
+export type OpenExternalOptions = { readonly openExternal?: boolean; readonly allowTunneling?: boolean };
 
 export type OpenOptions = OpenInternalOptions & OpenExternalOptions;
 
@@ -47,6 +47,10 @@ export interface IOpener {
 
 export interface IExternalOpener {
 	openExternal(href: string): Promise<boolean>;
+}
+
+export interface IExternalOpenerProvider {
+	provideExternalOpener(resource: URI | string): Promise<IExternalOpener | undefined>;
 }
 
 export interface IValidator {
@@ -81,7 +85,12 @@ export interface IOpenerService {
 	 * Sets the handler for opening externally. If not provided,
 	 * a default handler will be used.
 	 */
-	setExternalOpener(opener: IExternalOpener): void;
+	setDefaultExternalOpener(opener: IExternalOpener): void;
+
+	/**
+	 * Registers an a provider for external resources openers.
+	 */
+	registerExternalOpenerProvider(provider: IExternalOpenerProvider): IDisposable;
 
 	/**
 	 * Opens a resource, like a webaddress, a document uri, or executes command.
@@ -97,15 +106,16 @@ export interface IOpenerService {
 	resolveExternalUri(resource: URI, options?: ResolveExternalUriOptions): Promise<IResolvedExternalUri>;
 }
 
-export const NullOpenerService: IOpenerService = Object.freeze({
+export const NullOpenerService = Object.freeze({
 	_serviceBrand: undefined,
 	registerOpener() { return Disposable.None; },
 	registerValidator() { return Disposable.None; },
 	registerExternalUriResolver() { return Disposable.None; },
-	setExternalOpener() { },
+	setDefaultExternalOpener() { },
+	registerExternalOpenerProvider() { return Disposable.None; },
 	async open() { return false; },
 	async resolveExternalUri(uri: URI) { return { resolved: uri, dispose() { } }; },
-});
+} as IOpenerService);
 
 export function matchesScheme(target: URI | string, scheme: string) {
 	if (URI.isUri(target)) {

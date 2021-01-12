@@ -17,8 +17,8 @@ import { URI } from 'vs/base/common/uri';
 import { getRandomTestPath } from 'vs/base/test/node/testUtils';
 import { isWindows } from 'vs/base/common/platform';
 import { normalizeDriveLetter } from 'vs/base/common/labels';
-import { dirname, joinPath } from 'vs/base/common/resources';
-import { IDialogMainService } from 'vs/platform/dialogs/electron-main/dialogs';
+import { dirname, extUriBiasedIgnorePathCase, joinPath } from 'vs/base/common/resources';
+import { IDialogMainService } from 'vs/platform/dialogs/electron-main/dialogMainService';
 import { INativeOpenDialogOptions } from 'vs/platform/dialogs/common/dialogs';
 import { IBackupMainService, IWorkspaceBackupInfo } from 'vs/platform/backup/electron-main/backup';
 import { IEmptyWindowBackupInfo } from 'vs/platform/backup/node/backup';
@@ -147,13 +147,13 @@ suite('WorkspacesMainService', () => {
 		service = new WorkspacesMainService(environmentService, logService, new TestBackupMainService(), new TestDialogMainService());
 
 		// Delete any existing backups completely and then re-create it.
-		await pfs.rimraf(untitledWorkspacesHomePath, pfs.RimRafMode.MOVE);
+		await pfs.rimraf(untitledWorkspacesHomePath);
 
 		return pfs.mkdirp(untitledWorkspacesHomePath);
 	});
 
 	teardown(() => {
-		return pfs.rimraf(untitledWorkspacesHomePath, pfs.RimRafMode.MOVE);
+		return pfs.rimraf(untitledWorkspacesHomePath);
 	});
 
 	function assertPathEquals(p1: string, p2: string): void {
@@ -325,7 +325,7 @@ suite('WorkspacesMainService', () => {
 
 		let origConfigPath = URI.file(firstConfigPath);
 		let workspaceConfigPath = URI.file(path.join(tmpDir, 'inside', 'myworkspace1.code-workspace'));
-		let newContent = rewriteWorkspaceFileForNewLocation(origContent, origConfigPath, false, workspaceConfigPath);
+		let newContent = rewriteWorkspaceFileForNewLocation(origContent, origConfigPath, false, workspaceConfigPath, extUriBiasedIgnorePathCase);
 		let ws = (JSON.parse(newContent) as IStoredWorkspace);
 		assert.equal(ws.folders.length, 3);
 		assertPathEquals((<IRawFileWorkspaceFolder>ws.folders[0]).path, folder1); // absolute path because outside of tmpdir
@@ -334,7 +334,7 @@ suite('WorkspacesMainService', () => {
 
 		origConfigPath = workspaceConfigPath;
 		workspaceConfigPath = URI.file(path.join(tmpDir, 'myworkspace2.code-workspace'));
-		newContent = rewriteWorkspaceFileForNewLocation(newContent, origConfigPath, false, workspaceConfigPath);
+		newContent = rewriteWorkspaceFileForNewLocation(newContent, origConfigPath, false, workspaceConfigPath, extUriBiasedIgnorePathCase);
 		ws = (JSON.parse(newContent) as IStoredWorkspace);
 		assert.equal(ws.folders.length, 3);
 		assertPathEquals((<IRawFileWorkspaceFolder>ws.folders[0]).path, folder1);
@@ -343,7 +343,7 @@ suite('WorkspacesMainService', () => {
 
 		origConfigPath = workspaceConfigPath;
 		workspaceConfigPath = URI.file(path.join(tmpDir, 'other', 'myworkspace2.code-workspace'));
-		newContent = rewriteWorkspaceFileForNewLocation(newContent, origConfigPath, false, workspaceConfigPath);
+		newContent = rewriteWorkspaceFileForNewLocation(newContent, origConfigPath, false, workspaceConfigPath, extUriBiasedIgnorePathCase);
 		ws = (JSON.parse(newContent) as IStoredWorkspace);
 		assert.equal(ws.folders.length, 3);
 		assertPathEquals((<IRawFileWorkspaceFolder>ws.folders[0]).path, folder1);
@@ -352,7 +352,7 @@ suite('WorkspacesMainService', () => {
 
 		origConfigPath = workspaceConfigPath;
 		workspaceConfigPath = URI.parse('foo://foo/bar/myworkspace2.code-workspace');
-		newContent = rewriteWorkspaceFileForNewLocation(newContent, origConfigPath, false, workspaceConfigPath);
+		newContent = rewriteWorkspaceFileForNewLocation(newContent, origConfigPath, false, workspaceConfigPath, extUriBiasedIgnorePathCase);
 		ws = (JSON.parse(newContent) as IStoredWorkspace);
 		assert.equal(ws.folders.length, 3);
 		assert.equal((<IRawUriWorkspaceFolder>ws.folders[0]).uri, URI.file(folder1).toString(true));
@@ -369,7 +369,7 @@ suite('WorkspacesMainService', () => {
 		let origContent = fs.readFileSync(workspace.configPath.fsPath).toString();
 		origContent = `// this is a comment\n${origContent}`;
 
-		let newContent = rewriteWorkspaceFileForNewLocation(origContent, workspace.configPath, false, workspaceConfigPath);
+		let newContent = rewriteWorkspaceFileForNewLocation(origContent, workspace.configPath, false, workspaceConfigPath, extUriBiasedIgnorePathCase);
 		assert.equal(0, newContent.indexOf('// this is a comment'));
 		service.deleteUntitledWorkspaceSync(workspace);
 	});
@@ -381,26 +381,22 @@ suite('WorkspacesMainService', () => {
 		let origContent = fs.readFileSync(workspace.configPath.fsPath).toString();
 		origContent = origContent.replace(/[\\]/g, '/'); // convert backslash to slash
 
-		const newContent = rewriteWorkspaceFileForNewLocation(origContent, workspace.configPath, false, workspaceConfigPath);
+		const newContent = rewriteWorkspaceFileForNewLocation(origContent, workspace.configPath, false, workspaceConfigPath, extUriBiasedIgnorePathCase);
 		const ws = (JSON.parse(newContent) as IStoredWorkspace);
 		assert.ok(ws.folders.every(f => (<IRawFileWorkspaceFolder>f).path.indexOf('\\') < 0));
 		service.deleteUntitledWorkspaceSync(workspace);
 	});
 
-	test.skip('rewriteWorkspaceFileForNewLocation (unc paths)', async () => {
-		if (!isWindows) {
-			return Promise.resolve();
-		}
-
+	(!isWindows ? test.skip : test)('rewriteWorkspaceFileForNewLocation (unc paths)', async () => {
 		const workspaceLocation = path.join(os.tmpdir(), 'wsloc');
 		const folder1Location = 'x:\\foo';
 		const folder2Location = '\\\\server\\share2\\some\\path';
-		const folder3Location = path.join(os.tmpdir(), 'wsloc', 'inner', 'more');
+		const folder3Location = path.join(workspaceLocation, 'inner', 'more');
 
 		const workspace = await createUntitledWorkspace([folder1Location, folder2Location, folder3Location]);
 		const workspaceConfigPath = URI.file(path.join(workspaceLocation, `myworkspace.${Date.now()}.${WORKSPACE_EXTENSION}`));
 		let origContent = fs.readFileSync(workspace.configPath.fsPath).toString();
-		const newContent = rewriteWorkspaceFileForNewLocation(origContent, workspace.configPath, false, workspaceConfigPath);
+		const newContent = rewriteWorkspaceFileForNewLocation(origContent, workspace.configPath, true, workspaceConfigPath, extUriBiasedIgnorePathCase);
 		const ws = (JSON.parse(newContent) as IStoredWorkspace);
 		assertPathEquals((<IRawFileWorkspaceFolder>ws.folders[0]).path, folder1Location);
 		assertPathEquals((<IRawFileWorkspaceFolder>ws.folders[1]).path, folder2Location);
@@ -422,8 +418,6 @@ suite('WorkspacesMainService', () => {
 	});
 
 	test('getUntitledWorkspaceSync', async function () {
-		this.retries(3);
-
 		let untitled = service.getUntitledWorkspacesSync();
 		assert.equal(untitled.length, 0);
 

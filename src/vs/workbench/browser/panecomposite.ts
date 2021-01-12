@@ -16,12 +16,8 @@ import { IWorkspaceContextService } from 'vs/platform/workspace/common/workspace
 import { ViewPaneContainer } from './parts/views/viewPaneContainer';
 import { IPaneComposite } from 'vs/workbench/common/panecomposite';
 import { IAction, IActionViewItem, Separator } from 'vs/base/common/actions';
-import { ViewContainerMenuActions } from 'vs/workbench/browser/parts/views/viewMenuActions';
-import { MenuId } from 'vs/platform/actions/common/actions';
 
 export class PaneComposite extends Composite implements IPaneComposite {
-
-	private menuActions: ViewContainerMenuActions;
 
 	constructor(
 		id: string,
@@ -35,8 +31,6 @@ export class PaneComposite extends Composite implements IPaneComposite {
 		@IWorkspaceContextService protected contextService: IWorkspaceContextService
 	) {
 		super(id, telemetryService, themeService, storageService);
-
-		this.menuActions = this._register(this.instantiationService.createInstance(ViewContainerMenuActions, this.getId(), MenuId.ViewContainerTitleContext));
 		this._register(this.viewPaneContainer.onTitleAreaUpdate(() => this.updateTitleArea()));
 	}
 
@@ -71,22 +65,36 @@ export class PaneComposite extends Composite implements IPaneComposite {
 
 	getContextMenuActions(): ReadonlyArray<IAction> {
 		const result = [];
-		result.push(...this.menuActions.getContextMenuActions());
+		result.push(...this.viewPaneContainer.getContextMenuActions2());
 
-		if (result.length) {
+		const otherActions = this.viewPaneContainer.getContextMenuActions();
+
+		if (otherActions.length) {
 			result.push(new Separator());
+			result.push(...otherActions);
 		}
 
-		result.push(...this.viewPaneContainer.getContextMenuActions());
 		return result;
 	}
 
 	getActions(): ReadonlyArray<IAction> {
-		return this.viewPaneContainer.getActions();
+		const result = [];
+		result.push(...this.viewPaneContainer.getActions2());
+		result.push(...this.viewPaneContainer.getActions());
+		return result;
 	}
 
 	getSecondaryActions(): ReadonlyArray<IAction> {
-		return this.viewPaneContainer.getSecondaryActions();
+		const menuActions = this.viewPaneContainer.getSecondaryActions2();
+		const viewPaneContainerActions = this.viewPaneContainer.getSecondaryActions();
+		if (menuActions.length && viewPaneContainerActions.length) {
+			return [
+				...menuActions,
+				new Separator(),
+				...viewPaneContainerActions
+			];
+		}
+		return menuActions.length ? menuActions : viewPaneContainerActions;
 	}
 
 	getActionViewItem(action: IAction): IActionViewItem | undefined {

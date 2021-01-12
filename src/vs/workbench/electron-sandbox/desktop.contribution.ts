@@ -213,7 +213,7 @@ import { IJSONSchema } from 'vs/base/common/jsonSchema';
 				'type': 'string',
 				'enum': ['preserve', 'all', 'folders', 'one', 'none'],
 				'enumDescriptions': [
-					nls.localize('window.reopenFolders.preserve', "Reopen all windows. If a folder or workspace is opened (e.g. from the command line) it opens as new window. Files will open in one of the restored windows."),
+					nls.localize('window.reopenFolders.preserve', "Always reopen all windows. If a folder or workspace is opened (e.g. from the command line) it opens as a new window unless it was opened before. If files are opened they will open in one of the restored windows."),
 					nls.localize('window.reopenFolders.all', "Reopen all windows unless a folder, workspace or file is opened (e.g. from the command line)."),
 					nls.localize('window.reopenFolders.folders', "Reopen all windows that had folders or workspaces opened unless a folder, workspace or file is opened (e.g. from the command line)."),
 					nls.localize('window.reopenFolders.one', "Reopen the last active window unless a folder, workspace or file is opened (e.g. from the command line)."),
@@ -232,7 +232,8 @@ import { IJSONSchema } from 'vs/base/common/jsonSchema';
 			'window.zoomLevel': {
 				'type': 'number',
 				'default': 0,
-				'description': nls.localize('zoomLevel', "Adjust the zoom level of the window. The original size is 0 and each increment above (e.g. 1) or below (e.g. -1) represents zooming 20% larger or smaller. You can also enter decimals to adjust the zoom level with a finer granularity.")
+				'description': nls.localize('zoomLevel', "Adjust the zoom level of the window. The original size is 0 and each increment above (e.g. 1) or below (e.g. -1) represents zooming 20% larger or smaller. You can also enter decimals to adjust the zoom level with a finer granularity."),
+				ignoreSync: true
 			},
 			'window.newWindowDimensions': {
 				'type': 'string',
@@ -293,12 +294,6 @@ import { IJSONSchema } from 'vs/base/common/jsonSchema';
 				'scope': ConfigurationScope.APPLICATION,
 				'description': nls.localize('window.clickThroughInactive', "If enabled, clicking on an inactive window will both activate the window and trigger the element under the mouse if it is clickable. If disabled, clicking anywhere on an inactive window will activate it only and a second click is required on the element."),
 				'included': isMacintosh
-			},
-			'window.enableExperimentalProxyLoginDialog': {
-				'type': 'boolean',
-				'default': true,
-				'scope': ConfigurationScope.APPLICATION,
-				'description': nls.localize('window.enableExperimentalProxyLoginDialog', "Enables a new login dialog for proxy authentication. Requires a restart to take effect."),
 			}
 		}
 	});

@@ -6,25 +6,25 @@
 import { CancellationToken, CancellationTokenSource } from 'vs/base/common/cancellation';
 import { isPromiseCanceledError } from 'vs/base/common/errors';
 import { DisposableStore } from 'vs/base/common/lifecycle';
+import { isNative } from 'vs/base/common/platform';
+import { withNullAsUndefined } from 'vs/base/common/types';
 import { URI, UriComponents } from 'vs/base/common/uri';
 import { localize } from 'vs/nls';
-import { isNative } from 'vs/base/common/platform';
+import { IEnvironmentService } from 'vs/platform/environment/common/environment';
+import { IFileService } from 'vs/platform/files/common/files';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { ILabelService } from 'vs/platform/label/common/label';
-import { IFileMatch, IPatternInfo, ISearchProgressItem, ISearchService } from 'vs/workbench/services/search/common/search';
-import { IWorkspaceContextService, WorkbenchState, IWorkspace, toWorkspaceFolder } from 'vs/platform/workspace/common/workspace';
+import { INotificationService } from 'vs/platform/notification/common/notification';
+import { IRequestService } from 'vs/platform/request/common/request';
+import { IWorkspace, IWorkspaceContextService, WorkbenchState } from 'vs/platform/workspace/common/workspace';
+import { isUntitledWorkspace } from 'vs/platform/workspaces/common/workspaces';
 import { extHostNamedCustomer } from 'vs/workbench/api/common/extHostCustomers';
+import { checkGlobFileExists } from 'vs/workbench/api/common/shared/workspaceContains';
 import { ITextQueryBuilderOptions, QueryBuilder } from 'vs/workbench/contrib/search/common/queryBuilder';
 import { IEditorService } from 'vs/workbench/services/editor/common/editorService';
+import { IFileMatch, IPatternInfo, ISearchProgressItem, ISearchService } from 'vs/workbench/services/search/common/search';
 import { IWorkspaceEditingService } from 'vs/workbench/services/workspaces/common/workspaceEditing';
-import { ExtHostContext, ExtHostWorkspaceShape, IExtHostContext, MainContext, MainThreadWorkspaceShape, IWorkspaceData, ITextSearchComplete } from '../common/extHost.protocol';
-import { IEnvironmentService } from 'vs/platform/environment/common/environment';
-import { isUntitledWorkspace } from 'vs/platform/workspaces/common/workspaces';
-import { INotificationService } from 'vs/platform/notification/common/notification';
-import { withNullAsUndefined } from 'vs/base/common/types';
-import { IFileService } from 'vs/platform/files/common/files';
-import { IRequestService } from 'vs/platform/request/common/request';
-import { checkGlobFileExists } from 'vs/workbench/api/common/shared/workspaceContains';
+import { ExtHostContext, ExtHostWorkspaceShape, IExtHostContext, ITextSearchComplete, IWorkspaceData, MainContext, MainThreadWorkspaceShape } from '../common/extHost.protocol';
 
 @extHostNamedCustomer(MainContext.MainThreadWorkspace)
 export class MainThreadWorkspace implements MainThreadWorkspaceShape {
@@ -139,7 +139,7 @@ export class MainThreadWorkspace implements MainThreadWorkspaceShape {
 		}
 
 		const query = this._queryBuilder.file(
-			includeFolder ? [toWorkspaceFolder(includeFolder)] : workspace.folders,
+			includeFolder ? [includeFolder] : workspace.folders,
 			{
 				maxResults: withNullAsUndefined(maxResults),
 				disregardExcludeSettings: (excludePatternOrDisregardExcludes === false) || undefined,

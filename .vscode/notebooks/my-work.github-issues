@@ -8,7 +8,7 @@
   {
     "kind": 2,
     "language": "github-issues",
-    "value": "// list of repos we work in\n$repos=repo:microsoft/vscode repo:microsoft/vscode-remote-release repo:microsoft/vscode-js-debug repo:microsoft/vscode-pull-request-github repo:microsoft/vscode-github-issue-notebooks repo:microsoft/vscode-internalbacklog\n\n// current milestone name\n$milestone=milestone:\"November 2020\"",
+    "value": "// list of repos we work in\n$repos=repo:microsoft/vscode repo:microsoft/vscode-remote-release repo:microsoft/vscode-js-debug repo:microsoft/vscode-pull-request-github repo:microsoft/vscode-github-issue-notebooks repo:microsoft/vscode-internalbacklog\n\n// current milestone name\n$milestone=milestone:\"January 2021\"",
     "editable": true
   },
   {
@@ -82,6 +82,24 @@
     "language": "github-issues",
     "value": "$repos assignee:@me is:open milestone:\"Backlog Candidates\"",
     "editable": false
+  },
+  {
+    "kind": 1,
+    "language": "markdown",
+    "value": "### Personal Inbox\n",
+    "editable": true
+  },
+  {
+    "kind": 1,
+    "language": "markdown",
+    "value": "\n#### Missing Type label",
+    "editable": true
+  },
+  {
+    "kind": 2,
+    "language": "github-issues",
+    "value": "$repos assignee:@me is:open type:issue -label:bug -label:\"needs more info\" -label:feature-request -label:under-discussion -label:debt -label:plan-item -label:upstream",
+    "editable": true
   },
   {
     "kind": 1,

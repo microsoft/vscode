@@ -32,7 +32,13 @@ export function merge(localStorage: IStringDictionary<IStorageValue>, remoteStor
 
 	// Added in local
 	for (const key of baseToLocal.added.values()) {
-		remote[key] = localStorage[key];
+		// Skip if local was not synced before and remote also has the key
+		// In this case, remote gets precedence
+		if (!baseStorage && baseToRemote.added.has(key)) {
+			continue;
+		} else {
+			remote[key] = localStorage[key];
+		}
 	}
 
 	// Updated in local
@@ -56,11 +62,19 @@ export function merge(localStorage: IStringDictionary<IStorageValue>, remoteStor
 			logService.info(`GlobalState: Skipped adding ${key} in local storage because it is declared as machine scoped.`);
 			continue;
 		}
-		// Skip if the value is also added in local
-		if (baseToLocal.added.has(key)) {
+		// Skip if the value is also added in local from the time it is last synced
+		if (baseStorage && baseToLocal.added.has(key)) {
 			continue;
 		}
-		local.added[key] = remoteValue;
+		const localValue = localStorage[key];
+		if (localValue && localValue.value === remoteValue.value) {
+			continue;
+		}
+		if (localValue) {
+			local.updated[key] = remoteValue;
+		} else {
+			local.added[key] = remoteValue;
+		}
 	}
 
 	// Updated in Remote

@@ -56,6 +56,7 @@ import { Schemas } from 'vs/base/common/network';
 import { BrowserKeyboardLayoutService } from 'vs/workbench/services/keybinding/browser/keyboardLayoutService';
 import { TerminalInstanceService } from 'vs/workbench/contrib/terminal/browser/terminalInstanceService';
 import { ITerminalInstanceService } from 'vs/workbench/contrib/terminal/browser/terminal';
+import { IWorkbenchConfigurationService } from 'vs/workbench/services/configuration/common/configuration';
 
 
 //#region Environment
@@ -121,7 +122,7 @@ export class SimpleNativeWorkbenchEnvironmentService implements INativeWorkbench
 
 	sharedIPCHandle: string = undefined!;
 
-	extensionsPath?: string | undefined;
+	extensionsPath: string = undefined!;
 	extensionsDownloadPath: string = undefined!;
 	builtinExtensionsPath: string = undefined!;
 
@@ -191,7 +192,9 @@ export class SimpleStorageService extends InMemoryStorageService { }
 
 //#region Configuration
 
-export class SimpleConfigurationService extends BaseSimpleConfigurationService { }
+export class SimpleConfigurationService extends BaseSimpleConfigurationService implements IWorkbenchConfigurationService {
+	async whenRemoteConfigurationLoaded() { }
+}
 
 //#endregion
 
@@ -427,6 +430,7 @@ export class SimpleRemoteAgentService implements IRemoteAgentService {
 	async getRawEnvironment(): Promise<IRemoteAgentEnvironment | null> { return null; }
 	async scanExtensions(skipExtensions?: ExtensionIdentifier[]): Promise<IExtensionDescription[]> { return []; }
 	async scanSingleExtension(extensionLocation: URI, isBuiltin: boolean): Promise<IExtensionDescription | null> { return null; }
+	async whenExtensionsReady(): Promise<void> { }
 }
 
 //#endregion
@@ -555,10 +559,12 @@ class SimpleTunnelService implements ITunnelService {
 	declare readonly _serviceBrand: undefined;
 
 	tunnels: Promise<readonly RemoteTunnel[]> = Promise.resolve([]);
+	canElevate: boolean = false;
 
 	onTunnelOpened = Event.None;
 	onTunnelClosed = Event.None;
 
+	canTunnel(uri: URI): boolean { return false; }
 	openTunnel(addressProvider: IAddressProvider | undefined, remoteHost: string | undefined, remotePort: number, localPort?: number): Promise<RemoteTunnel> | undefined { return undefined; }
 	async closeTunnel(remoteHost: string, remotePort: number): Promise<void> { }
 	setTunnelProvider(provider: ITunnelProvider | undefined): IDisposable { return Disposable.None; }
@@ -741,7 +747,7 @@ class SimpleWorkspaceTagsService implements IWorkspaceTagsService {
 	declare readonly _serviceBrand: undefined;
 
 	async getTags(): Promise<Tags> { return Object.create(null); }
-	getTelemetryWorkspaceId(workspace: IWorkspace, state: WorkbenchState): string | undefined { return undefined; }
+	async getTelemetryWorkspaceId(workspace: IWorkspace, state: WorkbenchState): Promise<string | undefined> { return undefined; }
 	async getHashedRemotesFromUri(workspaceUri: URI, stripEndingDotGit?: boolean): Promise<string[]> { return []; }
 }
 

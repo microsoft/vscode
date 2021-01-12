@@ -14,13 +14,11 @@ export class BrowserTextFileService extends AbstractTextFileService {
 		super.registerListeners();
 
 		// Lifecycle
-		this.lifecycleService.onBeforeShutdown(event => event.veto(this.onBeforeShutdown(event.reason)));
+		this.lifecycleService.onBeforeShutdown(event => event.veto(this.onBeforeShutdown(event.reason), 'veto.textFiles'));
 	}
 
-	protected onBeforeShutdown(reason: ShutdownReason): boolean {
+	private onBeforeShutdown(reason: ShutdownReason): boolean {
 		if (this.files.models.some(model => model.hasState(TextFileEditorModelState.PENDING_SAVE))) {
-			this.logService.warn('Unload veto: pending file saves');
-
 			return true; // files are pending to be saved: veto
 		}
 

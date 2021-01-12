@@ -9,7 +9,7 @@ import { NullLogService } from 'vs/platform/log/common/log';
 
 suite('GlobalStateMerge', () => {
 
-	test('merge when local and remote are same with one value', async () => {
+	test('merge when local and remote are same with one value and local is not synced yet', async () => {
 		const local = { 'a': { version: 1, value: 'a' } };
 		const remote = { 'a': { version: 1, value: 'a' } };
 
@@ -21,7 +21,7 @@ suite('GlobalStateMerge', () => {
 		assert.deepEqual(actual.remote, null);
 	});
 
-	test('merge when local and remote are same with multiple entries', async () => {
+	test('merge when local and remote are same with multiple entries and local is not synced yet', async () => {
 		const local = { 'a': { version: 1, value: 'a' }, 'b': { version: 1, value: 'b' } };
 		const remote = { 'a': { version: 1, value: 'a' }, 'b': { version: 1, value: 'b' } };
 
@@ -33,7 +33,7 @@ suite('GlobalStateMerge', () => {
 		assert.deepEqual(actual.remote, null);
 	});
 
-	test('merge when local and remote are same with multiple entries in different order', async () => {
+	test('merge when local and remote are same with multiple entries in different order and local is not synced yet', async () => {
 		const local = { 'a': { version: 1, value: 'a' }, 'b': { version: 1, value: 'b' } };
 		const remote = { 'b': { version: 1, value: 'b' }, 'a': { version: 1, value: 'a' } };
 
@@ -58,7 +58,7 @@ suite('GlobalStateMerge', () => {
 		assert.deepEqual(actual.remote, null);
 	});
 
-	test('merge when a new entry is added to remote', async () => {
+	test('merge when a new entry is added to remote and local has not synced yet', async () => {
 		const local = { 'a': { version: 1, value: 'a' } };
 		const remote = { 'b': { version: 1, value: 'b' }, 'a': { version: 1, value: 'a' } };
 
@@ -70,7 +70,7 @@ suite('GlobalStateMerge', () => {
 		assert.deepEqual(actual.remote, null);
 	});
 
-	test('merge when multiple new entries are added to remote', async () => {
+	test('merge when multiple new entries are added to remote and local is not synced yet', async () => {
 		const local = {};
 		const remote = { 'b': { version: 1, value: 'b' }, 'a': { version: 1, value: 'a' } };
 
@@ -142,7 +142,7 @@ suite('GlobalStateMerge', () => {
 		assert.deepEqual(actual.remote, null);
 	});
 
-	test('merge when new entries are added to local', async () => {
+	test('merge when new entries are added to local and local is not synced yet', async () => {
 		const local = { 'a': { version: 1, value: 'a' }, 'b': { version: 1, value: 'b' } };
 		const remote = { 'a': { version: 1, value: 'a' } };
 
@@ -202,16 +202,16 @@ suite('GlobalStateMerge', () => {
 		assert.deepEqual(actual.remote, local);
 	});
 
-	test('merge when local and remote with one entry but different value', async () => {
+	test('merge when local and remote with one entry but different value and local is not synced yet', async () => {
 		const local = { 'a': { version: 1, value: 'a' } };
 		const remote = { 'a': { version: 1, value: 'b' } };
 
 		const actual = merge(local, remote, null, { machine: [], unregistered: [] }, new NullLogService());
 
 		assert.deepEqual(actual.local.added, {});
-		assert.deepEqual(actual.local.updated, {});
+		assert.deepEqual(actual.local.updated, { 'a': { version: 1, value: 'b' } });
 		assert.deepEqual(actual.local.removed, []);
-		assert.deepEqual(actual.remote, local);
+		assert.deepEqual(actual.remote, null);
 	});
 
 	test('merge when the entry is removed in remote but updated in local and a new entry is added in remote', async () => {
@@ -253,7 +253,7 @@ suite('GlobalStateMerge', () => {
 		assert.deepEqual(actual.remote, local);
 	});
 
-	test('merge when a new entry is added to remote but scoped to machine locally', async () => {
+	test('merge when a new entry is added to remote but scoped to machine locally and local is not synced yet', async () => {
 		const local = { 'a': { version: 1, value: 'a' } };
 		const remote = { 'b': { version: 1, value: 'b' }, 'a': { version: 1, value: 'a' } };
 

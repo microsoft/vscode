@@ -5149,13 +5149,13 @@
 	},
 	{
 		"c": "Cell",
-		"t": "source.ts meta.namespace.declaration.ts meta.block.ts meta.class.ts meta.method.declaration.ts meta.block.ts meta.var.expr.ts new.expr.ts entity.name.type.ts",
+		"t": "source.ts meta.namespace.declaration.ts meta.block.ts meta.class.ts meta.method.declaration.ts meta.block.ts meta.var.expr.ts new.expr.ts meta.function-call.ts entity.name.function.ts",
 		"r": {
-			"dark_plus": "entity.name.type: #4EC9B0",
-			"light_plus": "entity.name.type: #267F99",
+			"dark_plus": "entity.name.function: #DCDCAA",
+			"light_plus": "entity.name.function: #795E26",
 			"dark_vs": "default: #D4D4D4",
 			"light_vs": "default: #000000",
-			"hc_black": "entity.name.type: #4EC9B0"
+			"hc_black": "entity.name.function: #DCDCAA"
 		}
 	},
 	{
@@ -9219,13 +9219,13 @@
 	},
 	{
 		"c": "Cell",
-		"t": "source.ts meta.namespace.declaration.ts meta.block.ts meta.class.ts meta.method.declaration.ts meta.block.ts meta.block.ts meta.block.ts new.expr.ts entity.name.type.ts",
+		"t": "source.ts meta.namespace.declaration.ts meta.block.ts meta.class.ts meta.method.declaration.ts meta.block.ts meta.block.ts meta.block.ts new.expr.ts meta.function-call.ts entity.name.function.ts",
 		"r": {
-			"dark_plus": "entity.name.type: #4EC9B0",
-			"light_plus": "entity.name.type: #267F99",
+			"dark_plus": "entity.name.function: #DCDCAA",
+			"light_plus": "entity.name.function: #795E26",
 			"dark_vs": "default: #D4D4D4",
 			"light_vs": "default: #000000",
-			"hc_black": "entity.name.type: #4EC9B0"
+			"hc_black": "entity.name.function: #DCDCAA"
 		}
 	},
 	{
@@ -11364,18 +11364,18 @@
 	},
 	{
 		"c": "Conway",
-		"t": "source.ts meta.var.expr.ts new.expr.ts entity.name.type.module.ts",
+		"t": "source.ts meta.var.expr.ts new.expr.ts meta.function-call.ts variable.other.object.ts",
 		"r": {
-			"dark_plus": "entity.name.type: #4EC9B0",
-			"light_plus": "entity.name.type: #267F99",
+			"dark_plus": "variable: #9CDCFE",
+			"light_plus": "variable: #001080",
 			"dark_vs": "default: #D4D4D4",
 			"light_vs": "default: #000000",
-			"hc_black": "entity.name.type: #4EC9B0"
+			"hc_black": "variable: #9CDCFE"
 		}
 	},
 	{
 		"c": ".",
-		"t": "source.ts meta.var.expr.ts new.expr.ts punctuation.accessor.ts",
+		"t": "source.ts meta.var.expr.ts new.expr.ts meta.function-call.ts punctuation.accessor.ts",
 		"r": {
 			"dark_plus": "default: #D4D4D4",
 			"light_plus": "default: #000000",
@@ -11386,13 +11386,13 @@
 	},
 	{
 		"c": "GameOfLife",
-		"t": "source.ts meta.var.expr.ts new.expr.ts entity.name.type.ts",
+		"t": "source.ts meta.var.expr.ts new.expr.ts meta.function-call.ts entity.name.function.ts",
 		"r": {
-			"dark_plus": "entity.name.type: #4EC9B0",
-			"light_plus": "entity.name.type: #267F99",
+			"dark_plus": "entity.name.function: #DCDCAA",
+			"light_plus": "entity.name.function: #795E26",
 			"dark_vs": "default: #D4D4D4",
 			"light_vs": "default: #000000",
-			"hc_black": "entity.name.type: #4EC9B0"
+			"hc_black": "entity.name.function: #DCDCAA"
 		}
 	},
 	{

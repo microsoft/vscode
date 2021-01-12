@@ -78,7 +78,9 @@ enum Storage {
 
 	GRID_LAYOUT = 'workbench.grid.layout',
 	GRID_WIDTH = 'workbench.grid.width',
-	GRID_HEIGHT = 'workbench.grid.height'
+	GRID_HEIGHT = 'workbench.grid.height',
+
+	MENU_VISIBILITY = 'window.menuBarVisibility'
 }
 
 enum Classes {
@@ -303,7 +305,7 @@ export abstract class Layout extends Disposable implements IWorkbenchLayoutServi
 		this._register(addDisposableListener(this.container, EventType.SCROLL, () => this.container.scrollTop = 0));
 
 		// Menubar visibility changes
-		if ((isWindows || isLinux || isWeb) && getTitleBarStyle(this.configurationService, this.environmentService) === 'custom') {
+		if ((isWindows || isLinux || isWeb) && getTitleBarStyle(this.configurationService) === 'custom') {
 			this._register(this.titleService.onMenubarVisibilityChange(visible => this.onMenubarToggled(visible)));
 		}
 
@@ -345,7 +347,7 @@ export abstract class Layout extends Disposable implements IWorkbenchLayoutServi
 		this.workbenchGrid.edgeSnapping = this.state.fullscreen;
 
 		// Changing fullscreen state of the window has an impact on custom title bar visibility, so we need to update
-		if (getTitleBarStyle(this.configurationService, this.environmentService) === 'custom') {
+		if (getTitleBarStyle(this.configurationService) === 'custom') {
 			// Propagate to grid
 			this.workbenchGrid.setViewVisible(this.titleBarPartView, this.isVisible(Parts.TITLEBAR_PART));
 
@@ -394,7 +396,7 @@ export abstract class Layout extends Disposable implements IWorkbenchLayoutServi
 		}
 
 		// Menubar visibility
-		const newMenubarVisibility = getMenuBarVisibility(this.configurationService, this.environmentService);
+		const newMenubarVisibility = getMenuBarVisibility(this.configurationService);
 		this.setMenubarVisibility(newMenubarVisibility, !!skipLayout);
 
 		// Centered Layout
@@ -438,7 +440,7 @@ export abstract class Layout extends Disposable implements IWorkbenchLayoutServi
 	}
 
 	private updateWindowBorder(skipLayout: boolean = false) {
-		if (isWeb || getTitleBarStyle(this.configurationService, this.environmentService) !== 'custom') {
+		if (isWeb || getTitleBarStyle(this.configurationService) !== 'custom') {
 			return;
 		}
 
@@ -482,7 +484,7 @@ export abstract class Layout extends Disposable implements IWorkbenchLayoutServi
 		this.state.fullscreen = isFullscreen();
 
 		// Menubar visibility
-		this.state.menuBar.visibility = getMenuBarVisibility(this.configurationService, this.environmentService);
+		this.state.menuBar.visibility = getMenuBarVisibility(this.configurationService);
 
 		// Activity bar visibility
 		this.state.activityBar.hidden = !this.configurationService.getValue<string>(Settings.ACTIVITYBAR_VISIBLE);
@@ -622,7 +624,7 @@ export abstract class Layout extends Disposable implements IWorkbenchLayoutServi
 		return this._openedDefaultEditors;
 	}
 
-	private getInitialFilesToOpen(): { filesToOpenOrCreate?: IPath[], filesToDiff?: IPath[] } | undefined {
+	private getInitialFilesToOpen(): { filesToOpenOrCreate?: IPath[], filesToDiff?: IPath[]; } | undefined {
 		const defaultLayout = this.environmentService.options?.defaultLayout;
 		if (defaultLayout?.editors?.length && this.storageService.isNew(StorageScope.WORKSPACE)) {
 			this._openedDefaultEditors = true;
@@ -652,7 +654,7 @@ export abstract class Layout extends Disposable implements IWorkbenchLayoutServi
 
 		// Restore editors
 		restorePromises.push((async () => {
-			mark('willRestoreEditors');
+			mark('code/willRestoreEditors');
 
 			// first ensure the editor part is restored
 			await this.editorGroupService.whenRestored;
@@ -669,17 +671,17 @@ export abstract class Layout extends Disposable implements IWorkbenchLayoutServi
 				await this.editorService.openEditors(editors);
 			}
 
-			mark('didRestoreEditors');
+			mark('code/didRestoreEditors');
 		})());
 
 		// Restore default views
 		const restoreDefaultViewsPromise = (async () => {
 			if (this.state.views.defaults?.length) {
-				mark('willOpenDefaultViews');
+				mark('code/willOpenDefaultViews');
 
-				let locationsRestored: { id: string; order: number }[] = [];
+				let locationsRestored: { id: string; order: number; }[] = [];
 
-				const tryOpenView = (view: { id: string; order: number }): boolean => {
+				const tryOpenView = (view: { id: string; order: number; }): boolean => {
 					const location = this.viewDescriptorService.getViewLocationById(view.id);
 					if (location !== null) {
 						const container = this.viewDescriptorService.getViewContainerByViewId(view.id);
@@ -733,7 +735,7 @@ export abstract class Layout extends Disposable implements IWorkbenchLayoutServi
 					this.state.panel.panelToRestore = locationsRestored[ViewContainerLocation.Panel].id;
 				}
 
-				mark('didOpenDefaultViews');
+				mark('code/didOpenDefaultViews');
 			}
 		})();
 		restorePromises.push(restoreDefaultViewsPromise);
@@ -748,14 +750,14 @@ export abstract class Layout extends Disposable implements IWorkbenchLayoutServi
 				return;
 			}
 
-			mark('willRestoreViewlet');
+			mark('code/willRestoreViewlet');
 
 			const viewlet = await this.viewletService.openViewlet(this.state.sideBar.viewletToRestore);
 			if (!viewlet) {
 				await this.viewletService.openViewlet(this.viewDescriptorService.getDefaultViewContainer(ViewContainerLocation.Sidebar)?.id); // fallback to default viewlet as needed
 			}
 
-			mark('didRestoreViewlet');
+			mark('code/didRestoreViewlet');
 		})());
 
 		// Restore Panel
@@ -768,14 +770,14 @@ export abstract class Layout extends Disposable implements IWorkbenchLayoutServi
 				return;
 			}
 
-			mark('willRestorePanel');
+			mark('code/willRestorePanel');
 
 			const panel = await this.panelService.openPanel(this.state.panel.panelToRestore!);
 			if (!panel) {
 				await this.panelService.openPanel(Registry.as<PanelRegistry>(PanelExtensions.Panels).getDefaultPanelId()); // fallback to default panel as needed
 			}
 
-			mark('didRestorePanel');
+			mark('code/didRestorePanel');
 		})());
 
 		// Restore Zen Mode
@@ -878,7 +880,7 @@ export abstract class Layout extends Disposable implements IWorkbenchLayoutServi
 	isVisible(part: Parts): boolean {
 		switch (part) {
 			case Parts.TITLEBAR_PART:
-				if (getTitleBarStyle(this.configurationService, this.environmentService) === 'native') {
+				if (getTitleBarStyle(this.configurationService) === 'native') {
 					return false;
 				} else if (!this.state.fullscreen && !isWeb) {
 					return true;
@@ -1128,7 +1130,7 @@ export abstract class Layout extends Disposable implements IWorkbenchLayoutServi
 			[Parts.STATUSBAR_PART]: this.statusBarPartView
 		};
 
-		const fromJSON = ({ type }: { type: Parts }) => viewMap[type];
+		const fromJSON = ({ type }: { type: Parts; }) => viewMap[type];
 		const workbenchGrid = SerializableGrid.deserialize(
 			this.createGridDescriptor(),
 			{ fromJSON },
@@ -1410,7 +1412,29 @@ export abstract class Layout extends Disposable implements IWorkbenchLayoutServi
 
 		// If panel part becomes visible, show last active panel or default panel
 		else if (!hidden && !this.panelService.getActivePanel()) {
-			const panelToOpen = this.panelService.getLastActivePanelId();
+			let panelToOpen: string | undefined = this.panelService.getLastActivePanelId();
+			const hasViews = (id: string): boolean => {
+				const viewContainer = this.viewDescriptorService.getViewContainerById(id);
+				if (!viewContainer) {
+					return false;
+				}
+
+				const viewContainerModel = this.viewDescriptorService.getViewContainerModel(viewContainer);
+				if (!viewContainerModel) {
+					return false;
+				}
+
+				return viewContainerModel.activeViewDescriptors.length >= 1;
+			};
+
+			// verify that the panel we try to open has views before we default to it
+			// otherwise fall back to any view that has views still refs #111463
+			if (!panelToOpen || !hasViews(panelToOpen)) {
+				panelToOpen = this.viewDescriptorService
+					.getViewContainersByLocation(ViewContainerLocation.Panel)
+					.find(viewContainer => hasViews(viewContainer.id))?.id;
+			}
+
 			if (panelToOpen) {
 				const focus = !skipLayout;
 				this.panelService.openPanel(panelToOpen, focus);
@@ -1527,6 +1551,24 @@ export abstract class Layout extends Disposable implements IWorkbenchLayoutServi
 
 	getMenubarVisibility(): MenuBarVisibility {
 		return this.state.menuBar.visibility;
+	}
+
+	toggleMenuBar(): void {
+		let currentVisibilityValue = getMenuBarVisibility(this.configurationService);
+		if (typeof currentVisibilityValue !== 'string') {
+			currentVisibilityValue = 'default';
+		}
+
+		let newVisibilityValue: string;
+		if (currentVisibilityValue === 'visible' || currentVisibilityValue === 'default') {
+			newVisibilityValue = 'toggle';
+		} else if (currentVisibilityValue === 'compact') {
+			newVisibilityValue = 'hidden';
+		} else {
+			newVisibilityValue = (isWeb && currentVisibilityValue === 'hidden') ? 'compact' : 'default';
+		}
+
+		this.configurationService.updateValue(Storage.MENU_VISIBILITY, newVisibilityValue);
 	}
 
 	getPanelPosition(): Position {

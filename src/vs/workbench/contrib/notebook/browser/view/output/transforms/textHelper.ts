@@ -20,7 +20,7 @@ const LINES_LIMIT = 500;
 
 function generateViewMoreElement(outputs: string[], openerService: IOpenerService, textFileService: ITextFileService) {
 	const md: IMarkdownString = {
-		value: '[show more ...](command:workbench.action.openLargeOutput)',
+		value: '[show more (open the raw output data in a text editor) ...](command:workbench.action.openLargeOutput)',
 		isTrusted: true,
 		supportThemeIcons: true
 	};
@@ -61,14 +61,14 @@ export function truncatedArrayOfString(container: HTMLElement, outputs: string[]
 		const bufferBuilder = new PieceTreeTextBufferBuilder();
 		outputs.forEach(output => bufferBuilder.acceptChunk(output));
 		const factory = bufferBuilder.finish();
-		buffer = factory.create(DefaultEndOfLine.LF);
+		buffer = factory.create(DefaultEndOfLine.LF).textBuffer;
 		const sizeBufferLimitPosition = buffer.getPositionAt(SIZE_LIMIT);
 		if (sizeBufferLimitPosition.lineNumber < LINES_LIMIT) {
 			const truncatedText = buffer.getValueInRange(new Range(1, 1, sizeBufferLimitPosition.lineNumber, sizeBufferLimitPosition.column), EndOfLinePreference.TextDefined);
 			if (renderANSI) {
 				container.appendChild(handleANSIOutput(truncatedText, themeService));
 			} else {
-				const pre = DOM.$('div');
+				const pre = DOM.$('pre');
 				pre.innerText = truncatedText;
 				container.appendChild(pre);
 			}
@@ -83,21 +83,32 @@ export function truncatedArrayOfString(container: HTMLElement, outputs: string[]
 		const bufferBuilder = new PieceTreeTextBufferBuilder();
 		outputs.forEach(output => bufferBuilder.acceptChunk(output));
 		const factory = bufferBuilder.finish();
-		buffer = factory.create(DefaultEndOfLine.LF);
+		buffer = factory.create(DefaultEndOfLine.LF).textBuffer;
 	}
 
 	if (buffer.getLineCount() < LINES_LIMIT) {
 		const lineCount = buffer.getLineCount();
-		const fullRange = new Range(1, 1, lineCount, buffer.getLineLastNonWhitespaceColumn(lineCount));
+		const fullRange = new Range(1, 1, lineCount, Math.max(1, buffer.getLineLastNonWhitespaceColumn(lineCount)));
 
-		container.innerText = buffer.getValueInRange(fullRange, EndOfLinePreference.TextDefined);
+		if (renderANSI) {
+			const pre = DOM.$('pre');
+			container.appendChild(pre);
+
+			pre.appendChild(handleANSIOutput(buffer.getValueInRange(fullRange, EndOfLinePreference.TextDefined), themeService));
+		} else {
+			const pre = DOM.$('pre');
+			container.appendChild(pre);
+			pre.innerText = buffer.getValueInRange(fullRange, EndOfLinePreference.TextDefined);
+		}
 		return;
 	}
 
 	if (renderANSI) {
-		container.appendChild(handleANSIOutput(buffer.getValueInRange(new Range(1, 1, LINES_LIMIT - 5, buffer.getLineLastNonWhitespaceColumn(LINES_LIMIT - 5)), EndOfLinePreference.TextDefined), themeService));
+		const pre = DOM.$('pre');
+		container.appendChild(pre);
+		pre.appendChild(handleANSIOutput(buffer.getValueInRange(new Range(1, 1, LINES_LIMIT - 5, buffer.getLineLastNonWhitespaceColumn(LINES_LIMIT - 5)), EndOfLinePreference.TextDefined), themeService));
 	} else {
-		const pre = DOM.$('div');
+		const pre = DOM.$('pre');
 		pre.innerText = buffer.getValueInRange(new Range(1, 1, LINES_LIMIT - 5, buffer.getLineLastNonWhitespaceColumn(LINES_LIMIT - 5)), EndOfLinePreference.TextDefined);
 		container.appendChild(pre);
 	}
@@ -108,7 +119,9 @@ export function truncatedArrayOfString(container: HTMLElement, outputs: string[]
 
 	const lineCount = buffer.getLineCount();
 	if (renderANSI) {
-		container.appendChild(handleANSIOutput(buffer.getValueInRange(new Range(lineCount - 5, 1, lineCount, buffer.getLineLastNonWhitespaceColumn(lineCount)), EndOfLinePreference.TextDefined), themeService));
+		const pre = DOM.$('div');
+		container.appendChild(pre);
+		pre.appendChild(handleANSIOutput(buffer.getValueInRange(new Range(lineCount - 5, 1, lineCount, buffer.getLineLastNonWhitespaceColumn(lineCount)), EndOfLinePreference.TextDefined), themeService));
 	} else {
 		const post = DOM.$('div');
 		post.innerText = buffer.getValueInRange(new Range(lineCount - 5, 1, lineCount, buffer.getLineLastNonWhitespaceColumn(lineCount)), EndOfLinePreference.TextDefined);

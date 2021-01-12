@@ -181,7 +181,7 @@ suite('TestSynchronizer - Auto Sync', () => {
 	teardown(() => disposableStore.clear());
 
 	test('status is syncing', async () => {
-		const testObject: TestSynchroniser = client.instantiationService.createInstance(TestSynchroniser, SyncResource.Settings);
+		const testObject: TestSynchroniser = disposableStore.add(client.instantiationService.createInstance(TestSynchroniser, SyncResource.Settings));
 
 		const actual: SyncStatus[] = [];
 		disposableStore.add(testObject.onDidChangeStatus(status => actual.push(status)));
@@ -198,7 +198,7 @@ suite('TestSynchronizer - Auto Sync', () => {
 	});
 
 	test('status is set correctly when sync is finished', async () => {
-		const testObject: TestSynchroniser = client.instantiationService.createInstance(TestSynchroniser, SyncResource.Settings);
+		const testObject: TestSynchroniser = disposableStore.add(client.instantiationService.createInstance(TestSynchroniser, SyncResource.Settings));
 		testObject.syncBarrier.open();
 
 		const actual: SyncStatus[] = [];
@@ -210,7 +210,7 @@ suite('TestSynchronizer - Auto Sync', () => {
 	});
 
 	test('status is set correctly when sync has errors', async () => {
-		const testObject: TestSynchroniser = client.instantiationService.createInstance(TestSynchroniser, SyncResource.Settings);
+		const testObject: TestSynchroniser = disposableStore.add(client.instantiationService.createInstance(TestSynchroniser, SyncResource.Settings));
 		testObject.syncResult = { hasError: true, hasConflicts: false };
 		testObject.syncBarrier.open();
 
@@ -227,7 +227,7 @@ suite('TestSynchronizer - Auto Sync', () => {
 	});
 
 	test('status is set to hasConflicts when asked to sync if there are conflicts', async () => {
-		const testObject: TestSynchroniser = client.instantiationService.createInstance(TestSynchroniser, SyncResource.Settings);
+		const testObject: TestSynchroniser = disposableStore.add(client.instantiationService.createInstance(TestSynchroniser, SyncResource.Settings));
 		testObject.syncResult = { hasConflicts: true, hasError: false };
 		testObject.syncBarrier.open();
 
@@ -238,7 +238,7 @@ suite('TestSynchronizer - Auto Sync', () => {
 	});
 
 	test('sync should not run if syncing already', async () => {
-		const testObject: TestSynchroniser = client.instantiationService.createInstance(TestSynchroniser, SyncResource.Settings);
+		const testObject: TestSynchroniser = disposableStore.add(client.instantiationService.createInstance(TestSynchroniser, SyncResource.Settings));
 		const promise = Event.toPromise(testObject.onDoSyncCall.event);
 
 		testObject.sync(await client.manifest());
@@ -255,7 +255,7 @@ suite('TestSynchronizer - Auto Sync', () => {
 	});
 
 	test('sync should not run if disabled', async () => {
-		const testObject: TestSynchroniser = client.instantiationService.createInstance(TestSynchroniser, SyncResource.Settings);
+		const testObject: TestSynchroniser = disposableStore.add(client.instantiationService.createInstance(TestSynchroniser, SyncResource.Settings));
 		client.instantiationService.get(IUserDataSyncResourceEnablementService).setResourceEnablement(testObject.resource, false);
 
 		const actual: SyncStatus[] = [];
@@ -268,7 +268,7 @@ suite('TestSynchronizer - Auto Sync', () => {
 	});
 
 	test('sync should not run if there are conflicts', async () => {
-		const testObject: TestSynchroniser = client.instantiationService.createInstance(TestSynchroniser, SyncResource.Settings);
+		const testObject: TestSynchroniser = disposableStore.add(client.instantiationService.createInstance(TestSynchroniser, SyncResource.Settings));
 		testObject.syncResult = { hasConflicts: true, hasError: false };
 		testObject.syncBarrier.open();
 		await testObject.sync(await client.manifest());
@@ -282,7 +282,7 @@ suite('TestSynchronizer - Auto Sync', () => {
 	});
 
 	test('accept preview during conflicts', async () => {
-		const testObject: TestSynchroniser = client.instantiationService.createInstance(TestSynchroniser, SyncResource.Settings);
+		const testObject: TestSynchroniser = disposableStore.add(client.instantiationService.createInstance(TestSynchroniser, SyncResource.Settings));
 		testObject.syncResult = { hasConflicts: true, hasError: false };
 		testObject.syncBarrier.open();
 
@@ -300,7 +300,7 @@ suite('TestSynchronizer - Auto Sync', () => {
 	});
 
 	test('accept remote during conflicts', async () => {
-		const testObject: TestSynchroniser = client.instantiationService.createInstance(TestSynchroniser, SyncResource.Settings);
+		const testObject: TestSynchroniser = disposableStore.add(client.instantiationService.createInstance(TestSynchroniser, SyncResource.Settings));
 		testObject.syncBarrier.open();
 		await testObject.sync(await client.manifest());
 		const fileService = client.instantiationService.get(IFileService);
@@ -323,7 +323,7 @@ suite('TestSynchronizer - Auto Sync', () => {
 	});
 
 	test('accept local during conflicts', async () => {
-		const testObject: TestSynchroniser = client.instantiationService.createInstance(TestSynchroniser, SyncResource.Settings);
+		const testObject: TestSynchroniser = disposableStore.add(client.instantiationService.createInstance(TestSynchroniser, SyncResource.Settings));
 		testObject.syncBarrier.open();
 		await testObject.sync(await client.manifest());
 		const fileService = client.instantiationService.get(IFileService);
@@ -345,7 +345,7 @@ suite('TestSynchronizer - Auto Sync', () => {
 	});
 
 	test('accept new content during conflicts', async () => {
-		const testObject: TestSynchroniser = client.instantiationService.createInstance(TestSynchroniser, SyncResource.Settings);
+		const testObject: TestSynchroniser = disposableStore.add(client.instantiationService.createInstance(TestSynchroniser, SyncResource.Settings));
 		testObject.syncBarrier.open();
 		await testObject.sync(await client.manifest());
 		const fileService = client.instantiationService.get(IFileService);
@@ -368,7 +368,7 @@ suite('TestSynchronizer - Auto Sync', () => {
 	});
 
 	test('accept delete during conflicts', async () => {
-		const testObject: TestSynchroniser = client.instantiationService.createInstance(TestSynchroniser, SyncResource.Settings);
+		const testObject: TestSynchroniser = disposableStore.add(client.instantiationService.createInstance(TestSynchroniser, SyncResource.Settings));
 		testObject.syncBarrier.open();
 		await testObject.sync(await client.manifest());
 		const fileService = client.instantiationService.get(IFileService);
@@ -390,7 +390,7 @@ suite('TestSynchronizer - Auto Sync', () => {
 	});
 
 	test('accept deleted local during conflicts', async () => {
-		const testObject: TestSynchroniser = client.instantiationService.createInstance(TestSynchroniser, SyncResource.Settings);
+		const testObject: TestSynchroniser = disposableStore.add(client.instantiationService.createInstance(TestSynchroniser, SyncResource.Settings));
 		testObject.syncBarrier.open();
 		await testObject.sync(await client.manifest());
 		const fileService = client.instantiationService.get(IFileService);
@@ -411,7 +411,7 @@ suite('TestSynchronizer - Auto Sync', () => {
 	});
 
 	test('accept deleted remote during conflicts', async () => {
-		const testObject: TestSynchroniser = client.instantiationService.createInstance(TestSynchroniser, SyncResource.Settings);
+		const testObject: TestSynchroniser = disposableStore.add(client.instantiationService.createInstance(TestSynchroniser, SyncResource.Settings));
 		testObject.syncBarrier.open();
 		const fileService = client.instantiationService.get(IFileService);
 		await fileService.writeFile(testObject.localResource, VSBuffer.fromString('some content'));
@@ -431,7 +431,7 @@ suite('TestSynchronizer - Auto Sync', () => {
 	});
 
 	test('request latest data on precondition failure', async () => {
-		const testObject: TestSynchroniser = client.instantiationService.createInstance(TestSynchroniser, SyncResource.Settings);
+		const testObject: TestSynchroniser = disposableStore.add(client.instantiationService.createInstance(TestSynchroniser, SyncResource.Settings));
 		// Sync once
 		testObject.syncBarrier.open();
 		await testObject.sync(await client.manifest());
@@ -458,7 +458,7 @@ suite('TestSynchronizer - Auto Sync', () => {
 	});
 
 	test('no requests are made to server when local change is triggered', async () => {
-		const testObject: TestSynchroniser = client.instantiationService.createInstance(TestSynchroniser, SyncResource.Settings);
+		const testObject: TestSynchroniser = disposableStore.add(client.instantiationService.createInstance(TestSynchroniser, SyncResource.Settings));
 		testObject.syncBarrier.open();
 		await testObject.sync(await client.manifest());
 
@@ -471,7 +471,7 @@ suite('TestSynchronizer - Auto Sync', () => {
 	});
 
 	test('status is reset when getting latest remote data fails', async () => {
-		const testObject: TestSynchroniser = client.instantiationService.createInstance(TestSynchroniser, SyncResource.Settings);
+		const testObject: TestSynchroniser = disposableStore.add(client.instantiationService.createInstance(TestSynchroniser, SyncResource.Settings));
 		testObject.failWhenGettingLatestRemoteUserData = true;
 
 		try {
@@ -502,7 +502,7 @@ suite('TestSynchronizer - Manual Sync', () => {
 	teardown(() => disposableStore.clear());
 
 	test('preview', async () => {
-		const testObject: TestSynchroniser = client.instantiationService.createInstance(TestSynchroniser, SyncResource.Settings);
+		const testObject: TestSynchroniser = disposableStore.add(client.instantiationService.createInstance(TestSynchroniser, SyncResource.Settings));
 		testObject.syncResult = { hasConflicts: false, hasError: false };
 		testObject.syncBarrier.open();
 
@@ -514,7 +514,7 @@ suite('TestSynchronizer - Manual Sync', () => {
 	});
 
 	test('preview -> merge', async () => {
-		const testObject: TestSynchroniser = client.instantiationService.createInstance(TestSynchroniser, SyncResource.Settings);
+		const testObject: TestSynchroniser = disposableStore.add(client.instantiationService.createInstance(TestSynchroniser, SyncResource.Settings));
 		testObject.syncResult = { hasConflicts: false, hasError: false };
 		testObject.syncBarrier.open();
 
@@ -528,7 +528,7 @@ suite('TestSynchronizer - Manual Sync', () => {
 	});
 
 	test('preview -> accept', async () => {
-		const testObject: TestSynchroniser = client.instantiationService.createInstance(TestSynchroniser, SyncResource.Settings);
+		const testObject: TestSynchroniser = disposableStore.add(client.instantiationService.createInstance(TestSynchroniser, SyncResource.Settings));
 		testObject.syncResult = { hasConflicts: false, hasError: false };
 		testObject.syncBarrier.open();
 
@@ -542,7 +542,7 @@ suite('TestSynchronizer - Manual Sync', () => {
 	});
 
 	test('preview -> merge -> accept', async () => {
-		const testObject: TestSynchroniser = client.instantiationService.createInstance(TestSynchroniser, SyncResource.Settings);
+		const testObject: TestSynchroniser = disposableStore.add(client.instantiationService.createInstance(TestSynchroniser, SyncResource.Settings));
 		testObject.syncResult = { hasConflicts: false, hasError: false };
 		testObject.syncBarrier.open();
 
@@ -557,7 +557,7 @@ suite('TestSynchronizer - Manual Sync', () => {
 	});
 
 	test('preview -> merge -> apply', async () => {
-		const testObject: TestSynchroniser = client.instantiationService.createInstance(TestSynchroniser, SyncResource.Settings);
+		const testObject: TestSynchroniser = disposableStore.add(client.instantiationService.createInstance(TestSynchroniser, SyncResource.Settings));
 		testObject.syncResult = { hasConflicts: false, hasError: false };
 		testObject.syncBarrier.open();
 		await testObject.sync(await client.manifest());
@@ -577,7 +577,7 @@ suite('TestSynchronizer - Manual Sync', () => {
 	});
 
 	test('preview -> accept -> apply', async () => {
-		const testObject: TestSynchroniser = client.instantiationService.createInstance(TestSynchroniser, SyncResource.Settings);
+		const testObject: TestSynchroniser = disposableStore.add(client.instantiationService.createInstance(TestSynchroniser, SyncResource.Settings));
 		testObject.syncResult = { hasConflicts: false, hasError: false };
 		testObject.syncBarrier.open();
 		await testObject.sync(await client.manifest());
@@ -597,7 +597,7 @@ suite('TestSynchronizer - Manual Sync', () => {
 	});
 
 	test('preview -> merge -> accept -> apply', async () => {
-		const testObject: TestSynchroniser = client.instantiationService.createInstance(TestSynchroniser, SyncResource.Settings);
+		const testObject: TestSynchroniser = disposableStore.add(client.instantiationService.createInstance(TestSynchroniser, SyncResource.Settings));
 		testObject.syncResult = { hasConflicts: false, hasError: false };
 		testObject.syncBarrier.open();
 		await testObject.sync(await client.manifest());
@@ -617,7 +617,7 @@ suite('TestSynchronizer - Manual Sync', () => {
 	});
 
 	test('preview -> accept', async () => {
-		const testObject: TestSynchroniser = client.instantiationService.createInstance(TestSynchroniser, SyncResource.Settings);
+		const testObject: TestSynchroniser = disposableStore.add(client.instantiationService.createInstance(TestSynchroniser, SyncResource.Settings));
 		testObject.syncResult = { hasConflicts: false, hasError: false };
 		testObject.syncBarrier.open();
 
@@ -630,7 +630,7 @@ suite('TestSynchronizer - Manual Sync', () => {
 	});
 
 	test('preview -> accept -> apply', async () => {
-		const testObject: TestSynchroniser = client.instantiationService.createInstance(TestSynchroniser, SyncResource.Settings);
+		const testObject: TestSynchroniser = disposableStore.add(client.instantiationService.createInstance(TestSynchroniser, SyncResource.Settings));
 		testObject.syncResult = { hasConflicts: false, hasError: false };
 		testObject.syncBarrier.open();
 		await testObject.sync(await client.manifest());
@@ -650,7 +650,7 @@ suite('TestSynchronizer - Manual Sync', () => {
 	});
 
 	test('preivew -> merge -> discard', async () => {
-		const testObject: TestSynchroniser = client.instantiationService.createInstance(TestSynchroniser, SyncResource.Settings);
+		const testObject: TestSynchroniser = disposableStore.add(client.instantiationService.createInstance(TestSynchroniser, SyncResource.Settings));
 		testObject.syncResult = { hasConflicts: false, hasError: false };
 		testObject.syncBarrier.open();
 
@@ -665,7 +665,7 @@ suite('TestSynchronizer - Manual Sync', () => {
 	});
 
 	test('preivew -> merge -> discard -> accept', async () => {
-		const testObject: TestSynchroniser = client.instantiationService.createInstance(TestSynchroniser, SyncResource.Settings);
+		const testObject: TestSynchroniser = disposableStore.add(client.instantiationService.createInstance(TestSynchroniser, SyncResource.Settings));
 		testObject.syncResult = { hasConflicts: false, hasError: false };
 		testObject.syncBarrier.open();
 
@@ -681,7 +681,7 @@ suite('TestSynchronizer - Manual Sync', () => {
 	});
 
 	test('preivew -> accept -> discard', async () => {
-		const testObject: TestSynchroniser = client.instantiationService.createInstance(TestSynchroniser, SyncResource.Settings);
+		const testObject: TestSynchroniser = disposableStore.add(client.instantiationService.createInstance(TestSynchroniser, SyncResource.Settings));
 		testObject.syncResult = { hasConflicts: false, hasError: false };
 		testObject.syncBarrier.open();
 
@@ -696,7 +696,7 @@ suite('TestSynchronizer - Manual Sync', () => {
 	});
 
 	test('preivew -> accept -> discard -> accept', async () => {
-		const testObject: TestSynchroniser = client.instantiationService.createInstance(TestSynchroniser, SyncResource.Settings);
+		const testObject: TestSynchroniser = disposableStore.add(client.instantiationService.createInstance(TestSynchroniser, SyncResource.Settings));
 		testObject.syncResult = { hasConflicts: false, hasError: false };
 		testObject.syncBarrier.open();
 
@@ -712,7 +712,7 @@ suite('TestSynchronizer - Manual Sync', () => {
 	});
 
 	test('preivew -> accept -> discard -> merge', async () => {
-		const testObject: TestSynchroniser = client.instantiationService.createInstance(TestSynchroniser, SyncResource.Settings);
+		const testObject: TestSynchroniser = disposableStore.add(client.instantiationService.createInstance(TestSynchroniser, SyncResource.Settings));
 		testObject.syncResult = { hasConflicts: false, hasError: false };
 		testObject.syncBarrier.open();
 
@@ -728,7 +728,7 @@ suite('TestSynchronizer - Manual Sync', () => {
 	});
 
 	test('preivew -> merge -> accept -> discard', async () => {
-		const testObject: TestSynchroniser = client.instantiationService.createInstance(TestSynchroniser, SyncResource.Settings);
+		const testObject: TestSynchroniser = disposableStore.add(client.instantiationService.createInstance(TestSynchroniser, SyncResource.Settings));
 		testObject.syncResult = { hasConflicts: false, hasError: false };
 		testObject.syncBarrier.open();
 
@@ -744,7 +744,7 @@ suite('TestSynchronizer - Manual Sync', () => {
 	});
 
 	test('preivew -> merge -> discard -> accept -> apply', async () => {
-		const testObject: TestSynchroniser = client.instantiationService.createInstance(TestSynchroniser, SyncResource.Settings);
+		const testObject: TestSynchroniser = disposableStore.add(client.instantiationService.createInstance(TestSynchroniser, SyncResource.Settings));
 		testObject.syncResult = { hasConflicts: false, hasError: false };
 		testObject.syncBarrier.open();
 		await testObject.sync(await client.manifest());
@@ -764,7 +764,7 @@ suite('TestSynchronizer - Manual Sync', () => {
 	});
 
 	test('preivew -> accept -> discard -> accept -> apply', async () => {
-		const testObject: TestSynchroniser = client.instantiationService.createInstance(TestSynchroniser, SyncResource.Settings);
+		const testObject: TestSynchroniser = disposableStore.add(client.instantiationService.createInstance(TestSynchroniser, SyncResource.Settings));
 		testObject.syncResult = { hasConflicts: false, hasError: false };
 		testObject.syncBarrier.open();
 		await testObject.sync(await client.manifest());
@@ -785,7 +785,7 @@ suite('TestSynchronizer - Manual Sync', () => {
 	});
 
 	test('preivew -> accept -> discard -> merge -> apply', async () => {
-		const testObject: TestSynchroniser = client.instantiationService.createInstance(TestSynchroniser, SyncResource.Settings);
+		const testObject: TestSynchroniser = disposableStore.add(client.instantiationService.createInstance(TestSynchroniser, SyncResource.Settings));
 		testObject.syncResult = { hasConflicts: false, hasError: false };
 		testObject.syncBarrier.open();
 		await testObject.sync(await client.manifest());
@@ -808,7 +808,7 @@ suite('TestSynchronizer - Manual Sync', () => {
 	});
 
 	test('conflicts: preview', async () => {
-		const testObject: TestSynchroniser = client.instantiationService.createInstance(TestSynchroniser, SyncResource.Settings);
+		const testObject: TestSynchroniser = disposableStore.add(client.instantiationService.createInstance(TestSynchroniser, SyncResource.Settings));
 		testObject.syncResult = { hasConflicts: true, hasError: false };
 		testObject.syncBarrier.open();
 
@@ -820,7 +820,7 @@ suite('TestSynchronizer - Manual Sync', () => {
 	});
 
 	test('conflicts: preview -> merge', async () => {
-		const testObject: TestSynchroniser = client.instantiationService.createInstance(TestSynchroniser, SyncResource.Settings);
+		const testObject: TestSynchroniser = disposableStore.add(client.instantiationService.createInstance(TestSynchroniser, SyncResource.Settings));
 		testObject.syncResult = { hasConflicts: true, hasError: false };
 		testObject.syncBarrier.open();
 
@@ -834,7 +834,7 @@ suite('TestSynchronizer - Manual Sync', () => {
 	});
 
 	test('conflicts: preview -> merge -> discard', async () => {
-		const testObject: TestSynchroniser = client.instantiationService.createInstance(TestSynchroniser, SyncResource.Settings);
+		const testObject: TestSynchroniser = disposableStore.add(client.instantiationService.createInstance(TestSynchroniser, SyncResource.Settings));
 		testObject.syncResult = { hasConflicts: true, hasError: false };
 		testObject.syncBarrier.open();
 
@@ -849,7 +849,7 @@ suite('TestSynchronizer - Manual Sync', () => {
 	});
 
 	test('conflicts: preview -> accept', async () => {
-		const testObject: TestSynchroniser = client.instantiationService.createInstance(TestSynchroniser, SyncResource.Settings);
+		const testObject: TestSynchroniser = disposableStore.add(client.instantiationService.createInstance(TestSynchroniser, SyncResource.Settings));
 		testObject.syncResult = { hasConflicts: true, hasError: false };
 		testObject.syncBarrier.open();
 
@@ -864,7 +864,7 @@ suite('TestSynchronizer - Manual Sync', () => {
 	});
 
 	test('conflicts: preview -> merge -> accept -> apply', async () => {
-		const testObject: TestSynchroniser = client.instantiationService.createInstance(TestSynchroniser, SyncResource.Settings);
+		const testObject: TestSynchroniser = disposableStore.add(client.instantiationService.createInstance(TestSynchroniser, SyncResource.Settings));
 		testObject.syncResult = { hasConflicts: false, hasError: false };
 		testObject.syncBarrier.open();
 		await testObject.sync(await client.manifest());
@@ -887,7 +887,7 @@ suite('TestSynchronizer - Manual Sync', () => {
 	});
 
 	test('conflicts: preview -> accept', async () => {
-		const testObject: TestSynchroniser = client.instantiationService.createInstance(TestSynchroniser, SyncResource.Settings);
+		const testObject: TestSynchroniser = disposableStore.add(client.instantiationService.createInstance(TestSynchroniser, SyncResource.Settings));
 		testObject.syncResult = { hasConflicts: true, hasError: false };
 		testObject.syncBarrier.open();
 
@@ -901,7 +901,7 @@ suite('TestSynchronizer - Manual Sync', () => {
 	});
 
 	test('conflicts: preview -> accept -> apply', async () => {
-		const testObject: TestSynchroniser = client.instantiationService.createInstance(TestSynchroniser, SyncResource.Settings);
+		const testObject: TestSynchroniser = disposableStore.add(client.instantiationService.createInstance(TestSynchroniser, SyncResource.Settings));
 		testObject.syncResult = { hasConflicts: false, hasError: false };
 		testObject.syncBarrier.open();
 		await testObject.sync(await client.manifest());
@@ -923,7 +923,7 @@ suite('TestSynchronizer - Manual Sync', () => {
 	});
 
 	test('conflicts: preivew -> merge -> discard', async () => {
-		const testObject: TestSynchroniser = client.instantiationService.createInstance(TestSynchroniser, SyncResource.Settings);
+		const testObject: TestSynchroniser = disposableStore.add(client.instantiationService.createInstance(TestSynchroniser, SyncResource.Settings));
 		testObject.syncResult = { hasConflicts: true, hasError: false };
 		testObject.syncBarrier.open();
 
@@ -938,7 +938,7 @@ suite('TestSynchronizer - Manual Sync', () => {
 	});
 
 	test('conflicts: preivew -> merge -> discard -> accept', async () => {
-		const testObject: TestSynchroniser = client.instantiationService.createInstance(TestSynchroniser, SyncResource.Settings);
+		const testObject: TestSynchroniser = disposableStore.add(client.instantiationService.createInstance(TestSynchroniser, SyncResource.Settings));
 		testObject.syncResult = { hasConflicts: true, hasError: false };
 		testObject.syncBarrier.open();
 
@@ -954,7 +954,7 @@ suite('TestSynchronizer - Manual Sync', () => {
 	});
 
 	test('conflicts: preivew -> accept -> discard', async () => {
-		const testObject: TestSynchroniser = client.instantiationService.createInstance(TestSynchroniser, SyncResource.Settings);
+		const testObject: TestSynchroniser = disposableStore.add(client.instantiationService.createInstance(TestSynchroniser, SyncResource.Settings));
 		testObject.syncResult = { hasConflicts: true, hasError: false };
 		testObject.syncBarrier.open();
 
@@ -969,7 +969,7 @@ suite('TestSynchronizer - Manual Sync', () => {
 	});
 
 	test('conflicts: preivew -> accept -> discard -> accept', async () => {
-		const testObject: TestSynchroniser = client.instantiationService.createInstance(TestSynchroniser, SyncResource.Settings);
+		const testObject: TestSynchroniser = disposableStore.add(client.instantiationService.createInstance(TestSynchroniser, SyncResource.Settings));
 		testObject.syncResult = { hasConflicts: true, hasError: false };
 		testObject.syncBarrier.open();
 
@@ -985,7 +985,7 @@ suite('TestSynchronizer - Manual Sync', () => {
 	});
 
 	test('conflicts: preivew -> accept -> discard -> merge', async () => {
-		const testObject: TestSynchroniser = client.instantiationService.createInstance(TestSynchroniser, SyncResource.Settings);
+		const testObject: TestSynchroniser = disposableStore.add(client.instantiationService.createInstance(TestSynchroniser, SyncResource.Settings));
 		testObject.syncResult = { hasConflicts: true, hasError: false };
 		testObject.syncBarrier.open();
 
@@ -1001,7 +1001,7 @@ suite('TestSynchronizer - Manual Sync', () => {
 	});
 
 	test('conflicts: preivew -> merge -> discard -> merge', async () => {
-		const testObject: TestSynchroniser = client.instantiationService.createInstance(TestSynchroniser, SyncResource.Settings);
+		const testObject: TestSynchroniser = disposableStore.add(client.instantiationService.createInstance(TestSynchroniser, SyncResource.Settings));
 		testObject.syncResult = { hasConflicts: true, hasError: false };
 		testObject.syncBarrier.open();
 
@@ -1017,7 +1017,7 @@ suite('TestSynchronizer - Manual Sync', () => {
 	});
 
 	test('conflicts: preivew -> merge -> accept -> discard', async () => {
-		const testObject: TestSynchroniser = client.instantiationService.createInstance(TestSynchroniser, SyncResource.Settings);
+		const testObject: TestSynchroniser = disposableStore.add(client.instantiationService.createInstance(TestSynchroniser, SyncResource.Settings));
 		testObject.syncResult = { hasConflicts: false, hasError: false };
 		testObject.syncBarrier.open();
 
@@ -1033,7 +1033,7 @@ suite('TestSynchronizer - Manual Sync', () => {
 	});
 
 	test('conflicts: preivew -> merge -> discard -> accept -> apply', async () => {
-		const testObject: TestSynchroniser = client.instantiationService.createInstance(TestSynchroniser, SyncResource.Settings);
+		const testObject: TestSynchroniser = disposableStore.add(client.instantiationService.createInstance(TestSynchroniser, SyncResource.Settings));
 		testObject.syncResult = { hasConflicts: false, hasError: false };
 		testObject.syncBarrier.open();
 		await testObject.sync(await client.manifest());
@@ -1053,7 +1053,7 @@ suite('TestSynchronizer - Manual Sync', () => {
 	});
 
 	test('conflicts: preivew -> accept -> discard -> accept -> apply', async () => {
-		const testObject: TestSynchroniser = client.instantiationService.createInstance(TestSynchroniser, SyncResource.Settings);
+		const testObject: TestSynchroniser = disposableStore.add(client.instantiationService.createInstance(TestSynchroniser, SyncResource.Settings));
 		testObject.syncResult = { hasConflicts: false, hasError: false };
 		testObject.syncBarrier.open();
 		await testObject.sync(await client.manifest());

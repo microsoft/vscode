@@ -247,6 +247,10 @@ export function renameIgnoreError(oldPath: string, newPath: string): Promise<voi
 	return new Promise(resolve => fs.rename(oldPath, newPath, () => resolve()));
 }
 
+export function readlink(path: string): Promise<string> {
+	return promisify(fs.readlink)(path);
+}
+
 export function unlink(path: string): Promise<void> {
 	return promisify(fs.unlink)(path);
 }
@@ -422,7 +426,15 @@ export async function dirExists(path: string): Promise<boolean> {
 
 		return fileStat.isDirectory();
 	} catch (error) {
-		return false;
+		// This catch will be called on some symbolic links on Windows (AppExecLink for example).
+		// So we try our best to see if it's a Directory.
+		try {
+			const fileStat = await stat(await readlink(path));
+
+			return fileStat.isDirectory();
+		} catch {
+			return false;
+		}
 	}
 }
 
@@ -432,7 +444,15 @@ export async function fileExists(path: string): Promise<boolean> {
 
 		return fileStat.isFile();
 	} catch (error) {
-		return false;
+		// This catch will be called on some symbolic links on Windows (AppExecLink for example).
+		// So we try our best to see if it's a File.
+		try {
+			const fileStat = await stat(await readlink(path));
+
+			return fileStat.isFile();
+		} catch {
+			return false;
+		}
 	}
 }
 
@@ -459,13 +479,13 @@ export function whenDeleted(path: string): Promise<void> {
 
 export async function move(source: string, target: string): Promise<void> {
 	if (source === target) {
-		return Promise.resolve();
+		return;
 	}
 
 	async function updateMtime(path: string): Promise<void> {
 		const stat = await lstat(path);
 		if (stat.isDirectory() || stat.isSymbolicLink()) {
-			return Promise.resolve(); // only for files
+			return; // only for files
 		}
 
 		const fd = await promisify(fs.open)(path, 'a');
@@ -510,7 +530,7 @@ export async function copy(source: string, target: string, copiedSourcesIn?: { [
 	}
 
 	if (copiedSources[source]) {
-		return Promise.resolve(); // escape when there are cycles (can happen with symlinks)
+		return; // escape when there are cycles (can happen with symlinks)
 	}
 
 	copiedSources[source] = true; // remember as copied

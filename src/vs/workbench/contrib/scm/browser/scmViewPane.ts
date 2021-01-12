@@ -7,7 +7,7 @@ import 'vs/css!./media/scm';
 import { Event, Emitter } from 'vs/base/common/event';
 import { basename, dirname } from 'vs/base/common/resources';
 import { IDisposable, Disposable, DisposableStore, combinedDisposable, dispose, toDisposable } from 'vs/base/common/lifecycle';
-import { ViewPane, IViewPaneOptions } from 'vs/workbench/browser/parts/views/viewPaneContainer';
+import { ViewPane, IViewPaneOptions } from 'vs/workbench/browser/parts/views/viewPane';
 import { append, $, Dimension, asCSSUrl } from 'vs/base/browser/dom';
 import { IListVirtualDelegate, IIdentityProvider } from 'vs/base/browser/ui/list/list';
 import { ISCMResourceGroup, ISCMResource, InputValidationType, ISCMRepository, ISCMInput, IInputValidation, ISCMViewService, ISCMViewVisibleRepositoryChangeEvent, ISCMService, SCMInputChangeReason } from 'vs/workbench/contrib/scm/common/scm';
@@ -22,7 +22,7 @@ import { IKeybindingService } from 'vs/platform/keybinding/common/keybinding';
 import { MenuItemAction, IMenuService } from 'vs/platform/actions/common/actions';
 import { IAction, IActionViewItem, ActionRunner, Action, RadioGroup, Separator, SubmenuAction, IActionViewItemProvider } from 'vs/base/common/actions';
 import { ActionBar } from 'vs/base/browser/ui/actionbar/actionbar';
-import { IThemeService, registerThemingParticipant, IFileIconTheme } from 'vs/platform/theme/common/themeService';
+import { IThemeService, registerThemingParticipant, IFileIconTheme, ThemeIcon } from 'vs/platform/theme/common/themeService';
 import { isSCMResource, isSCMResourceGroup, connectPrimaryMenuToInlineActionBar, isSCMRepository, isSCMInput, collectContextMenuActions, StatusBarAction, StatusBarActionViewItem, getRepositoryVisibilityActions } from './util';
 import { attachBadgeStyler } from 'vs/platform/theme/common/styler';
 import { WorkbenchCompressibleObjectTree, IOpenEvent } from 'vs/platform/list/browser/listService';
@@ -888,7 +888,7 @@ class ViewModel {
 	}
 
 	private createGroupItem(group: ISCMResourceGroup): IGroupItem {
-		const tree = new ResourceTree<ISCMResource, ISCMResourceGroup>(group, group.provider.rootUri || URI.file('/'));
+		const tree = new ResourceTree<ISCMResource, ISCMResourceGroup>(group, group.provider.rootUri || URI.file('/'), this.uriIdentityService.extUri);
 		const resources: ISCMResource[] = [...group.elements];
 		const disposable = combinedDisposable(
 			group.onDidChange(() => this.tree.refilter()),
@@ -954,8 +954,6 @@ class ViewModel {
 	}
 
 	private refresh(item?: IRepositoryItem | IGroupItem): void {
-		const focusedInput = this.inputRenderer.getFocusedInput();
-
 		if (!this.alwaysShowRepositories && (this.items.size === 1 && (!item || isRepositoryItem(item)))) {
 			const item = Iterable.first(this.items.values())!;
 			this.tree.setChildren(null, this.render(item, this._treeViewState).children);
@@ -964,14 +962,6 @@ class ViewModel {
 		} else {
 			const items = coalesce(this.scmViewService.visibleRepositories.map(r => this.items.get(r)));
 			this.tree.setChildren(null, items.map(item => this.render(item, this._treeViewState)));
-		}
-
-		if (focusedInput) {
-			const inputWidget = this.inputRenderer.getRenderedInputWidget(focusedInput);
-
-			if (inputWidget) {
-				inputWidget.focus();
-			}
 		}
 
 		this._onDidChangeRepositoryCollapseState.fire();
@@ -1049,7 +1039,7 @@ class ViewModel {
 			for (let j = item.groupItems.length - 1; j >= 0; j--) {
 				const groupItem = item.groupItems[j];
 				const resource = this.mode === ViewModelMode.Tree
-					? groupItem.tree.getNode(uri)?.element // TODO@Joao URI identity?
+					? groupItem.tree.getNode(uri)?.element
 					: groupItem.resources.find(r => this.uriIdentityService.extUri.isEqual(r.sourceUri, uri));
 
 				if (resource) {
@@ -1063,12 +1053,14 @@ class ViewModel {
 	}
 
 	focus() {
-		for (const repository of this.scmViewService.visibleRepositories) {
-			const widget = this.inputRenderer.getRenderedInputWidget(repository.input);
+		if (this.tree.getFocus().length === 0) {
+			for (const repository of this.scmViewService.visibleRepositories) {
+				const widget = this.inputRenderer.getRenderedInputWidget(repository.input);
 
-			if (widget) {
-				widget.focus();
-				return;
+				if (widget) {
+					widget.focus();
+					return;
+				}
 			}
 		}
 
@@ -1099,7 +1091,7 @@ class ViewModel {
 		}
 
 		if (this.alwaysShowRepositories || this.scmViewService.visibleRepositories.length !== 1) {
-			return this.viewSubMenuAction.actions;
+			return this.viewSubMenuAction.actions.slice(0);
 		}
 
 		const menus = this.scmViewService.menus.getRepositoryMenus(this.scmViewService.visibleRepositories[0].provider);
@@ -1178,7 +1170,9 @@ class SCMViewRepositoriesSubMenuAction extends SubmenuAction {
 	}
 }
 
-class SCMViewSubMenuAction extends SubmenuAction {
+class SCMViewSubMenuAction extends SubmenuAction implements IDisposable {
+
+	private disposable: IDisposable;
 
 	constructor(
 		viewModel: ViewModel,
@@ -1203,7 +1197,11 @@ class SCMViewSubMenuAction extends SubmenuAction {
 			actions
 		);
 
-		this._register(combinedDisposable(listAction, treeAction, sortByNameAction, sortByPathAction, sortByStatusAction));
+		this.disposable = combinedDisposable(listAction, treeAction, sortByNameAction, sortByPathAction, sortByStatusAction);
+	}
+
+	dispose(): void {
+		this.disposable.dispose();
 	}
 }
 
@@ -1227,7 +1225,7 @@ export class ToggleViewModeAction extends Action {
 	}
 
 	private onDidChangeMode(mode: ViewModelMode): void {
-		const iconClass = mode === ViewModelMode.List ? 'codicon-list-tree' : 'codicon-list-flat';
+		const iconClass = ThemeIcon.asClassName(mode === ViewModelMode.List ? Codicon.listTree : Codicon.listFlat);
 		this.class = `scm-action toggle-view-mode ${iconClass}`;
 		this.checked = this.viewModel.mode === this.mode;
 	}
@@ -1656,7 +1654,7 @@ class SCMCollapseAction extends Action {
 		this.enabled = isAnyProviderCollapsible;
 		this.allCollapsed = isAnyProviderCollapsible && this.viewModel.areAllProvidersCollapsed();
 		this.label = this.allCollapsed ? localize('expand all', "Expand All Repositories") : localize('collapse all', "Collapse All Repositories");
-		this.class = this.allCollapsed ? Codicon.expandAll.classNames : Codicon.collapseAll.classNames;
+		this.class = ThemeIcon.asClassName(this.allCollapsed ? Codicon.expandAll : Codicon.collapseAll);
 	}
 }
 
@@ -1754,6 +1752,7 @@ export class SCMViewPane extends ViewPane {
 			delegate,
 			renderers,
 			{
+				transformOptimization: false,
 				identityProvider,
 				horizontalScrolling: false,
 				setRowLineHeight: false,
@@ -1898,7 +1897,7 @@ export class SCMViewPane extends ViewPane {
 		return this.viewModel.getViewActionsContext();
 	}
 
-	private async open(e: IOpenEvent<TreeElement | null>): Promise<void> {
+	private async open(e: IOpenEvent<TreeElement | undefined>): Promise<void> {
 		if (!e.element) {
 			return;
 		} else if (isSCMRepository(e.element)) {

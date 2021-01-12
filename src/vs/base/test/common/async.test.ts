@@ -576,12 +576,12 @@ suite('Async', () => {
 		sequentializer.setPending(2, async.timeout(1));
 		assert.ok(sequentializer.hasPending());
 		assert.ok(sequentializer.hasPending(2));
-		assert.ok(!sequentializer.hasPending(1));
+		assert.strictEqual(sequentializer.hasPending(1), false);
 		assert.ok(sequentializer.pending);
 
 		await async.timeout(2);
-		assert.ok(!sequentializer.hasPending());
-		assert.ok(!sequentializer.hasPending(2));
+		assert.strictEqual(sequentializer.hasPending(), false);
+		assert.strictEqual(sequentializer.hasPending(2), false);
 		assert.ok(!sequentializer.pending);
 	});
 
@@ -651,41 +651,39 @@ suite('Async', () => {
 	test('raceCancellation', async () => {
 		const cts = new CancellationTokenSource();
 
-		const now = Date.now();
-
-		const p = async.raceCancellation(async.timeout(100), cts.token);
+		let triggered = false;
+		const p = async.raceCancellation(async.timeout(100).then(() => triggered = true), cts.token);
 		cts.cancel();
 
 		await p;
 
-		assert.ok(Date.now() - now < 100);
+		assert.ok(!triggered);
 	});
 
 	test('raceTimeout', async () => {
 		const cts = new CancellationTokenSource();
 
 		// timeout wins
-		let now = Date.now();
 		let timedout = false;
+		let triggered = false;
 
-		const p1 = async.raceTimeout(async.timeout(100), 1, () => timedout = true);
+		const p1 = async.raceTimeout(async.timeout(100).then(() => triggered = true), 1, () => timedout = true);
 		cts.cancel();
 
 		await p1;
 
-		assert.ok(Date.now() - now < 100);
+		assert.ok(!triggered);
 		assert.equal(timedout, true);
 
 		// promise wins
-		now = Date.now();
 		timedout = false;
 
-		const p2 = async.raceTimeout(async.timeout(1), 100, () => timedout = true);
+		const p2 = async.raceTimeout(async.timeout(1).then(() => triggered = true), 100, () => timedout = true);
 		cts.cancel();
 
 		await p2;
 
-		assert.ok(Date.now() - now < 100);
+		assert.ok(triggered);
 		assert.equal(timedout, false);
 	});
 
@@ -713,7 +711,11 @@ suite('Async', () => {
 		assert.equal(counter.increment(), 2);
 		assert.equal(counter.increment(), 3);
 
+		const now = Date.now();
 		await async.timeout(20);
+		if (Date.now() - now < 11) {
+			return; // Firefox in Playwright seems to have a flaky timeout implementation (https://github.com/microsoft/vscode/issues/114028)
+		}
 
 		assert.equal(counter.increment(), 1);
 		assert.equal(counter.increment(), 2);

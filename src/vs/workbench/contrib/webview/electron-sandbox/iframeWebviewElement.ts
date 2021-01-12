@@ -58,7 +58,7 @@ export class ElectronIframeWebview extends IFrameWebview {
 		@INativeHostService nativeHostService: INativeHostService,
 	) {
 		super(id, options, contentOptions, extension, webviewThemeDataProvider,
-			noficationService, tunnelService, fileService, requestService, telemetryService, environmentService, _remoteAuthorityResolverService, logService);
+			noficationService, tunnelService, fileService, requestService, telemetryService, environmentService, configurationService, _remoteAuthorityResolverService, logService);
 
 		this._resourceRequestManager = this._register(instantiationService.createInstance(WebviewResourceRequestManager, id, extension, this.content.options));
 
@@ -75,7 +75,7 @@ export class ElectronIframeWebview extends IFrameWebview {
 
 	protected createElement(options: WebviewOptions, contentOptions: WebviewContentOptions) {
 		const element = super.createElement(options, contentOptions);
-		this._elementFocusImpl = element.focus.bind(element);
+		this._elementFocusImpl = () => element.contentWindow?.focus();
 		element.focus = () => {
 			this.doFocus();
 		};

@@ -76,10 +76,10 @@ export abstract class AbstractFileDialogService implements IFileDialogService {
 		}
 
 		if (!candidate) {
-			candidate = await this.pathService.userHome({ preferLocal: schemeFilter === Schemas.file });
+			return this.pathService.userHome({ preferLocal: schemeFilter === Schemas.file });
+		} else {
+			return resources.dirname(candidate);
 		}
-
-		return candidate && resources.dirname(candidate) || undefined;
 	}
 
 	async defaultWorkspacePath(schemeFilter = this.getSchemeFilterForWindow(), filename?: string): Promise<URI> {
@@ -283,10 +283,10 @@ export abstract class AbstractFileDialogService implements IFileDialogService {
 
 			const filter: IFilter = { name: languageName, extensions: distinct(extensions).slice(0, 10).map(e => trim(e, '.')) };
 
-			if (ext && extensions.indexOf(ext) >= 0) {
+			if (ext && extensions.indexOf(ext) >= 0 && !matchingFilter) {
 				matchingFilter = filter;
 
-				return null; // matching filter will be added last to the top
+				return null; // first matching filter will be added to the top
 			}
 
 			return filter;

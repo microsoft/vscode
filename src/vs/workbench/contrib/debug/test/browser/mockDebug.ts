@@ -86,6 +86,10 @@ export class MockDebugService implements IDebugService {
 		throw new Error('not implemented');
 	}
 
+	setExceptionBreakpointCondition(breakpoint: IExceptionBreakpoint, condition: string): Promise<void> {
+		throw new Error('Method not implemented.');
+	}
+
 	public addFunctionBreakpoint(): void { }
 
 	public moveWatchExpression(id: string, position: number): void { }
@@ -220,6 +224,10 @@ export class MockSession implements IDebugSession {
 	}
 
 	getLabel(): string {
+		return 'mockname';
+	}
+
+	get name(): string {
 		return 'mockname';
 	}
 

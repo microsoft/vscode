@@ -41,10 +41,20 @@ export class OneReference {
 	}
 
 	get ariaMessage(): string {
-		return localize(
-			'aria.oneReference', "symbol in {0} on line {1} at column {2}",
-			basename(this.uri), this.range.startLineNumber, this.range.startColumn
-		);
+
+		const preview = this.parent.getPreview(this)?.preview(this.range);
+
+		if (!preview) {
+			return localize(
+				'aria.oneReference', "symbol in {0} on line {1} at column {2}",
+				basename(this.uri), this.range.startLineNumber, this.range.startColumn
+			);
+		} else {
+			return localize(
+				{ key: 'aria.oneReference.preview', comment: ['Placeholders are: 0: filename, 1:line number, 2: column number, 3: preview snippet of source code'] }, "symbol in {0} on line {1} at column {2}, {3}",
+				basename(this.uri), this.range.startLineNumber, this.range.startColumn, preview.value
+			);
+		}
 	}
 }
 

@@ -67,6 +67,7 @@ export abstract class BaseTextEditor extends EditorPane implements ITextEditorPa
 		@IEditorGroupsService protected editorGroupService: IEditorGroupsService
 	) {
 		super(id, telemetryService, themeService, storageService);
+
 		this._instantiationService = instantiationService;
 
 		this.editorMemento = this.getEditorMemento<IEditorViewState>(editorGroupService, BaseTextEditor.TEXT_EDITOR_VIEW_STATE_PREFERENCE_KEY, 100);

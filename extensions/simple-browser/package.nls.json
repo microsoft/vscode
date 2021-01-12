@@ -1,0 +1,7 @@
+{
+	"displayName": "Simple Browser",
+	"description": "A very basic built-in webview for displaying web content.",
+	"configuration.focusLockIndicator.enabled.description": "Enable/disable ",
+	"configuration.opener.enabled.description": "(Experimental) Enables using the built-in simple browser when opening http and https urls.",
+	"configuration.opener.enabledHosts.description": "Lists of hosts to open in the simple browser. For example: `localhost`."
+}

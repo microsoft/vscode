@@ -20,7 +20,9 @@ import { ILogService } from 'vs/platform/log/common/log';
 import { IEditorService } from 'vs/workbench/services/editor/common/editorService';
 import { SaveReason } from 'vs/workbench/common/editor';
 import { IEnvironmentService } from 'vs/platform/environment/common/environment';
-import { CancellationToken } from 'vs/base/common/cancellation';
+import { CancellationToken, CancellationTokenSource } from 'vs/base/common/cancellation';
+import { IProgressService, ProgressLocation } from 'vs/platform/progress/common/progress';
+import { raceCancellation } from 'vs/base/common/async';
 
 export class NativeBackupTracker extends BackupTracker implements IWorkbenchContribution {
 
@@ -47,7 +49,8 @@ export class NativeBackupTracker extends BackupTracker implements IWorkbenchCont
 		@INativeHostService private readonly nativeHostService: INativeHostService,
 		@ILogService logService: ILogService,
 		@IEditorService private readonly editorService: IEditorService,
-		@IEnvironmentService private readonly environmentService: IEnvironmentService
+		@IEnvironmentService private readonly environmentService: IEnvironmentService,
+		@IProgressService private readonly progressService: IProgressService
 	) {
 		super(backupFileService, workingCopyService, logService, lifecycleService);
 	}
@@ -234,9 +237,9 @@ export class NativeBackupTracker extends BackupTracker implements IWorkbenchCont
 		return true; // veto (user canceled)
 	}
 
-	private async doSaveAllBeforeShutdown(workingCopies: IWorkingCopy[], reason: SaveReason): Promise<void>;
-	private async doSaveAllBeforeShutdown(includeUntitled: boolean, reason: SaveReason): Promise<void>;
-	private async doSaveAllBeforeShutdown(arg1: IWorkingCopy[] | boolean, reason: SaveReason): Promise<void> {
+	private doSaveAllBeforeShutdown(workingCopies: IWorkingCopy[], reason: SaveReason): Promise<void>;
+	private doSaveAllBeforeShutdown(includeUntitled: boolean, reason: SaveReason): Promise<void>;
+	private doSaveAllBeforeShutdown(arg1: IWorkingCopy[] | boolean, reason: SaveReason): Promise<void> {
 		const workingCopies = Array.isArray(arg1) ? arg1 : this.workingCopyService.dirtyWorkingCopies.filter(workingCopy => {
 			if (arg1 === false && (workingCopy.capabilities & WorkingCopyCapabilities.Untitled)) {
 				return false; // skip untitled unless explicitly included
@@ -245,21 +248,34 @@ export class NativeBackupTracker extends BackupTracker implements IWorkbenchCont
 			return true;
 		});
 
-		// Skip save participants on shutdown for performance reasons
-		const saveOptions = { skipSaveParticipants: true, reason };
+		const cts = new CancellationTokenSource();
+		return this.progressService.withProgress({
+			location: ProgressLocation.Notification,
+			cancellable: true, // for https://github.com/microsoft/vscode/issues/112278
+			delay: 800, // delay notification so that it only appears when saving takes a long time
+			title: localize('saveBeforeShutdown', "Waiting for dirty editors to save...")
+		}, () => {
+			const saveAllPromise = (async () => {
 
-		// First save through the editor service if we save all to benefit
-		// from some extras like switching to untitled dirty editors before saving.
-		let result: boolean | undefined = undefined;
-		if (typeof arg1 === 'boolean' || workingCopies.length === this.workingCopyService.dirtyCount) {
-			result = await this.editorService.saveAll({ includeUntitled: typeof arg1 === 'boolean' ? arg1 : true, ...saveOptions });
-		}
+				// Skip save participants on shutdown for performance reasons
+				const saveOptions = { skipSaveParticipants: true, reason };
 
-		// If we still have dirty working copies, save those directly
-		// unless the save was not successful (e.g. cancelled)
-		if (result !== false) {
-			await Promise.all(workingCopies.map(workingCopy => workingCopy.isDirty() ? workingCopy.save(saveOptions) : true));
-		}
+				// First save through the editor service if we save all to benefit
+				// from some extras like switching to untitled dirty editors before saving.
+				let result: boolean | undefined = undefined;
+				if (typeof arg1 === 'boolean' || workingCopies.length === this.workingCopyService.dirtyCount) {
+					result = await this.editorService.saveAll({ includeUntitled: typeof arg1 === 'boolean' ? arg1 : true, ...saveOptions });
+				}
+
+				// If we still have dirty working copies, save those directly
+				// unless the save was not successful (e.g. cancelled)
+				if (result !== false) {
+					await Promise.all(workingCopies.map(workingCopy => workingCopy.isDirty() ? workingCopy.save(saveOptions) : true));
+				}
+			})();
+
+			return raceCancellation(saveAllPromise, cts.token);
+		}, () => cts.dispose(true));
 	}
 
 	private async doRevertAllBeforeShutdown(workingCopies: IWorkingCopy[]): Promise<void> {

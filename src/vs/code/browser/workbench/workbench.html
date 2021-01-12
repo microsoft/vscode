@@ -3,8 +3,7 @@
 <html>
 	<head>
 		<script>
-			globalThis.MonacoPerformanceMarks = globalThis.MonacoPerformanceMarks || [];
-			globalThis.MonacoPerformanceMarks.push('renderer/started', Date.now());
+			performance.mark('code/didStartRenderer')
 		</script>
 		<meta charset="utf-8" />
 
@@ -32,7 +31,14 @@
 		self.require = {
 			baseUrl: `${window.location.origin}/static/out`,
 			recordStats: true,
-			createTrustedScriptURL: value => value,
+			trustedTypesPolicy: window.trustedTypes?.createPolicy('amdLoader', {
+				createScriptURL(value) {
+					if(value.startsWith(window.location.origin)) {
+						return value;
+					}
+					throw new Error(`Invalid script url: ${value}`)
+				}
+			}),
 			paths: {
 				'vscode-textmate': `${window.location.origin}/static/node_modules/vscode-textmate/release/main`,
 				'vscode-oniguruma': `${window.location.origin}/static/node_modules/vscode-oniguruma/release/main`,
@@ -48,7 +54,7 @@
 	</script>
 	<script src="./static/out/vs/loader.js"></script>
 	<script>
-		globalThis.MonacoPerformanceMarks.push('willLoadWorkbenchMain', Date.now());
+		performance.mark('code/willLoadWorkbenchMain');
 	</script>
 	<script src="./static/out/vs/workbench/workbench.web.api.nls.js"></script>
 	<script src="./static/out/vs/workbench/workbench.web.api.js"></script>

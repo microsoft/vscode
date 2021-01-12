@@ -72,7 +72,7 @@ class ProjectStatusCommand implements Command {
 	private getVersionItem(): QuickPickItem {
 		return {
 			label: localize('projectQuickPick.version.label', "Select TypeScript Version..."),
-			description: this._client.apiVersion.displayName,
+			description: localize('projectQuickPick.version.description', "[current = {0}]", this._client.apiVersion.displayName),
 			run: () => {
 				this._client.showVersionPicker();
 			}

@@ -11,12 +11,12 @@ import { Color } from 'vs/base/common/color';
 import { Emitter, Event } from 'vs/base/common/event';
 import { KeyCode } from 'vs/base/common/keyCodes';
 import { DisposableStore } from 'vs/base/common/lifecycle';
-import { Codicon } from 'vs/base/common/codicons';
+import { Codicon, CSSIcon } from 'vs/base/common/codicons';
 import { BaseActionViewItem } from 'vs/base/browser/ui/actionbar/actionViewItems';
 
 export interface ICheckboxOpts extends ICheckboxStyles {
 	readonly actionClassName?: string;
-	readonly icon?: Codicon;
+	readonly icon?: CSSIcon;
 	readonly title: string;
 	readonly isChecked: boolean;
 }
@@ -101,12 +101,10 @@ export class Checkbox extends Widget {
 
 		const classes = ['monaco-custom-checkbox'];
 		if (this._opts.icon) {
-			classes.push(this._opts.icon.classNames);
-		} else {
-			classes.push('codicon'); // todo@aeschli: remove once codicon fully adopted
+			classes.push(...CSSIcon.asClassNameArray(this._opts.icon));
 		}
 		if (this._opts.actionClassName) {
-			classes.push(this._opts.actionClassName);
+			classes.push(...this._opts.actionClassName.split(' '));
 		}
 		if (this._checked) {
 			classes.push('checked');
@@ -114,7 +112,7 @@ export class Checkbox extends Widget {
 
 		this.domNode = document.createElement('div');
 		this.domNode.title = this._opts.title;
-		this.domNode.className = classes.join(' ');
+		this.domNode.classList.add(...classes);
 		this.domNode.tabIndex = 0;
 		this.domNode.setAttribute('role', 'checkbox');
 		this.domNode.setAttribute('aria-checked', String(this._checked));

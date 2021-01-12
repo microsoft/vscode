@@ -28,6 +28,7 @@ export interface NativeParsedArgs {
 	'prof-startup'?: boolean;
 	'prof-startup-prefix'?: string;
 	'prof-append-timers'?: string;
+	'prof-v8-extensions'?: boolean;
 	verbose?: boolean;
 	trace?: boolean;
 	'trace-category-filter'?: string;
@@ -72,10 +73,10 @@ export interface NativeParsedArgs {
 	'driver'?: string;
 	'driver-verbose'?: boolean;
 	'remote'?: string;
-	'disable-user-env-probe'?: boolean;
 	'force'?: boolean;
 	'do-not-sync'?: boolean;
 	'force-user-env'?: boolean;
+	'force-disable-user-env'?: boolean;
 	'sync'?: 'on' | 'off';
 	'__sandbox'?: boolean;
 	'logsPath'?: string;

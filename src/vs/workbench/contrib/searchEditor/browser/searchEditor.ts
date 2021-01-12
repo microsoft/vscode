@@ -34,7 +34,7 @@ import { IStorageService } from 'vs/platform/storage/common/storage';
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
 import { inputBorder, registerColor, searchEditorFindMatch, searchEditorFindMatchBorder } from 'vs/platform/theme/common/colorRegistry';
 import { attachInputBoxStyler } from 'vs/platform/theme/common/styler';
-import { IThemeService, registerThemingParticipant } from 'vs/platform/theme/common/themeService';
+import { IThemeService, registerThemingParticipant, ThemeIcon } from 'vs/platform/theme/common/themeService';
 import { IWorkspaceContextService } from 'vs/platform/workspace/common/workspace';
 import { BaseTextEditor } from 'vs/workbench/browser/parts/editor/textEditor';
 import { EditorOptions, IEditorOpenContext } from 'vs/workbench/common/editor';
@@ -139,7 +139,7 @@ export class SearchEditor extends BaseTextEditor {
 		this.includesExcludesContainer = DOM.append(this.queryEditorContainer, DOM.$('.includes-excludes'));
 
 		// // Toggle query details button
-		this.toggleQueryDetailsButton = DOM.append(this.includesExcludesContainer, DOM.$('.expand' + searchDetailsIcon.cssSelector, { tabindex: 0, role: 'button', title: localize('moreSearch', "Toggle Search Details") }));
+		this.toggleQueryDetailsButton = DOM.append(this.includesExcludesContainer, DOM.$('.expand' + ThemeIcon.asCSSSelector(searchDetailsIcon), { tabindex: 0, role: 'button', title: localize('moreSearch', "Toggle Search Details") }));
 		this._register(DOM.addDisposableListener(this.toggleQueryDetailsButton, DOM.EventType.CLICK, e => {
 			DOM.EventHelper.stop(e);
 			this.toggleIncludesExcludes();
@@ -567,6 +567,18 @@ export class SearchEditor extends BaseTextEditor {
 		return this._input as SearchEditorInput;
 	}
 
+	setSearchConfig(config: Partial<Readonly<SearchConfiguration>>) {
+		if (config.query !== undefined) { this.queryEditorWidget.setValue(config.query); }
+		if (config.isCaseSensitive !== undefined) { this.queryEditorWidget.searchInput.setCaseSensitive(config.isCaseSensitive); }
+		if (config.isRegexp !== undefined) { this.queryEditorWidget.searchInput.setRegex(config.isRegexp); }
+		if (config.matchWholeWord !== undefined) { this.queryEditorWidget.searchInput.setWholeWords(config.matchWholeWord); }
+		if (config.contextLines !== undefined) { this.queryEditorWidget.setContextLines(config.contextLines); }
+		if (config.filesToExclude !== undefined) { this.inputPatternExcludes.setValue(config.filesToExclude); }
+		if (config.filesToInclude !== undefined) { this.inputPatternIncludes.setValue(config.filesToInclude); }
+		if (config.useExcludeSettingsAndIgnoreFiles !== undefined) { this.inputPatternExcludes.setUseExcludesAndIgnoreFiles(config.useExcludeSettingsAndIgnoreFiles); }
+		if (config.showIncludesExcludes !== undefined) { this.toggleIncludesExcludes(config.showIncludesExcludes); }
+	}
+
 	async setInput(newInput: SearchEditorInput, options: EditorOptions | undefined, context: IEditorOpenContext, token: CancellationToken): Promise<void> {
 		this.saveViewState();
 
@@ -581,15 +593,7 @@ export class SearchEditor extends BaseTextEditor {
 
 		this.toggleRunAgainMessage(body.getLineCount() === 1 && body.getValue() === '' && config.query !== '');
 
-		this.queryEditorWidget.setValue(config.query);
-		this.queryEditorWidget.searchInput.setCaseSensitive(config.isCaseSensitive);
-		this.queryEditorWidget.searchInput.setRegex(config.isRegexp);
-		this.queryEditorWidget.searchInput.setWholeWords(config.matchWholeWord);
-		this.queryEditorWidget.setContextLines(config.contextLines);
-		this.inputPatternExcludes.setValue(config.filesToExclude);
-		this.inputPatternIncludes.setValue(config.filesToInclude);
-		this.inputPatternExcludes.setUseExcludesAndIgnoreFiles(config.useExcludeSettingsAndIgnoreFiles);
-		this.toggleIncludesExcludes(config.showIncludesExcludes);
+		this.setSearchConfig(config);
 
 		this.restoreViewState();
 

@@ -601,12 +601,6 @@ export interface ITextModel {
 	setValue(newValue: string): void;
 
 	/**
-	 * Replace the entire text buffer value contained in this model.
-	 * @internal
-	 */
-	setValueFromTextBuffer(newValue: ITextBuffer): void;
-
-	/**
 	 * Get the text stored in this model.
 	 * @param eol The end of line character preference. Defaults to `EndOfLinePreference.TextDefined`.
 	 * @param preserverBOM Preserve a BOM character if it was detected when the model was constructed.
@@ -855,7 +849,12 @@ export interface ITextModel {
 	/**
 	 * @internal
 	 */
-	hasSemanticTokens(): boolean;
+	hasCompleteSemanticTokens(): boolean;
+
+	/**
+	 * @internal
+	 */
+	hasSomeSemanticTokens(): boolean;
 
 	/**
 	 * Flush all tokenization state.
@@ -1094,11 +1093,16 @@ export interface ITextModel {
 	detectIndentation(defaultInsertSpaces: boolean, defaultTabSize: number): void;
 
 	/**
-	 * Push a stack element onto the undo stack. This acts as an undo/redo point.
-	 * The idea is to use `pushEditOperations` to edit the model and then to
-	 * `pushStackElement` to create an undo/redo stop point.
+	 * Close the current undo-redo element.
+	 * This offers a way to create an undo/redo stop point.
 	 */
 	pushStackElement(): void;
+
+	/**
+	 * Open the current undo-redo element.
+	 * This offers a way to remove the current undo/redo stop point.
+	 */
+	popStackElement(): void;
 
 	/**
 	 * Push edit operations, basically editing the model. This is the preferred way
@@ -1143,7 +1147,7 @@ export interface ITextModel {
 	_applyRedo(changes: TextChange[], eol: EndOfLineSequence, resultingAlternativeVersionId: number, resultingSelection: Selection[] | null): void;
 
 	/**
-	 * Undo edit operations until the first previous stop point created by `pushStackElement`.
+	 * Undo edit operations until the previous undo/redo point.
 	 * The inverse edit operations will be pushed on the redo stack.
 	 * @internal
 	 */
@@ -1156,7 +1160,7 @@ export interface ITextModel {
 	canUndo(): boolean;
 
 	/**
-	 * Redo edit operations until the next stop point created by `pushStackElement`.
+	 * Redo edit operations until the next undo/redo point.
 	 * The inverse edit operations will be pushed on the undo stack.
 	 * @internal
 	 */
@@ -1266,7 +1270,7 @@ export interface ITextBufferBuilder {
  * @internal
  */
 export interface ITextBufferFactory {
-	create(defaultEOL: DefaultEndOfLine): ITextBuffer;
+	create(defaultEOL: DefaultEndOfLine): { textBuffer: ITextBuffer; disposable: IDisposable; };
 	getFirstLineText(lengthLimit: number): string;
 }
 

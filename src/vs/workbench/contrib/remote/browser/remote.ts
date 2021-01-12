@@ -13,11 +13,11 @@ import { IWorkspaceContextService } from 'vs/platform/workspace/common/workspace
 import { IStorageService } from 'vs/platform/storage/common/storage';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
-import { IThemeService } from 'vs/platform/theme/common/themeService';
+import { IThemeService, ThemeIcon } from 'vs/platform/theme/common/themeService';
 import { IContextMenuService } from 'vs/platform/contextview/browser/contextView';
 import { IExtensionService } from 'vs/workbench/services/extensions/common/extensions';
 import { FilterViewPaneContainer } from 'vs/workbench/browser/parts/views/viewsViewlet';
-import { AutomaticPortForwarding, ForwardedPortsView, VIEWLET_ID } from 'vs/workbench/contrib/remote/browser/remoteExplorer';
+import { AutomaticPortForwarding, ForwardedPortsView, PortRestore, VIEWLET_ID } from 'vs/workbench/contrib/remote/browser/remoteExplorer';
 import { IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
 import { IViewDescriptor, IViewsRegistry, Extensions, ViewContainerLocation, IViewContainersRegistry, IViewDescriptorService } from 'vs/workbench/common/views';
 import { Registry } from 'vs/platform/registry/common/platform';
@@ -29,7 +29,7 @@ import { ShowViewletAction } from 'vs/workbench/browser/viewlet';
 import { IViewletService } from 'vs/workbench/services/viewlet/browser/viewlet';
 import { IEditorGroupsService } from 'vs/workbench/services/editor/common/editorGroupsService';
 import { IWorkbenchActionRegistry, Extensions as WorkbenchActionExtensions, CATEGORIES } from 'vs/workbench/common/actions';
-import { SyncActionDescriptor } from 'vs/platform/actions/common/actions';
+import { registerAction2, SyncActionDescriptor } from 'vs/platform/actions/common/actions';
 import { IProgress, IProgressStep, IProgressService, ProgressLocation } from 'vs/platform/progress/common/progress';
 import { IWorkbenchContribution, IWorkbenchContributionsRegistry, Extensions as WorkbenchExtensions } from 'vs/workbench/common/contributions';
 import { IRemoteAgentService } from 'vs/workbench/services/remote/common/remoteAgentService';
@@ -37,14 +37,14 @@ import { IDialogService } from 'vs/platform/dialogs/common/dialogs';
 import { ReconnectionWaitEvent, PersistentConnectionEventType } from 'vs/platform/remote/common/remoteAgentConnection';
 import Severity from 'vs/base/common/severity';
 import { ReloadWindowAction } from 'vs/workbench/browser/actions/windowActions';
-import { IDisposable } from 'vs/base/common/lifecycle';
+import { Disposable, IDisposable } from 'vs/base/common/lifecycle';
 import { LifecyclePhase } from 'vs/workbench/services/lifecycle/common/lifecycle';
 import { SwitchRemoteViewItem, SwitchRemoteAction } from 'vs/workbench/contrib/remote/browser/explorerViewItems';
-import { Action, IActionViewItem, IAction } from 'vs/base/common/actions';
+import { Action, IActionViewItem } from 'vs/base/common/actions';
 import { isStringArray } from 'vs/base/common/types';
 import { IRemoteExplorerService } from 'vs/workbench/services/remote/common/remoteExplorerService';
 import { IWorkbenchEnvironmentService } from 'vs/workbench/services/environment/common/environmentService';
-import { ViewPane, IViewPaneOptions } from 'vs/workbench/browser/parts/views/viewPaneContainer';
+import { ViewPane, IViewPaneOptions } from 'vs/workbench/browser/parts/views/viewPane';
 import { IListVirtualDelegate } from 'vs/base/browser/ui/list/list';
 import { ITreeRenderer, ITreeNode, IAsyncDataSource } from 'vs/base/browser/ui/tree/tree';
 import { WorkbenchAsyncDataTree } from 'vs/platform/list/browser/listService';
@@ -53,8 +53,8 @@ import { Event } from 'vs/base/common/event';
 import { ExtensionsRegistry, IExtensionPointUser } from 'vs/workbench/services/extensions/common/extensionsRegistry';
 import { SyncDescriptor } from 'vs/platform/instantiation/common/descriptors';
 import { RemoteStatusIndicator } from 'vs/workbench/contrib/remote/browser/remoteIndicator';
-import { inQuickPickContextKeyValue } from 'vs/workbench/browser/quickaccess';
-import { Codicon, registerIcon } from 'vs/base/common/codicons';
+import * as icons from 'vs/workbench/contrib/remote/browser/remoteIcons';
+
 
 export interface HelpInformation {
 	extensionDescription: IExtensionDescription;
@@ -148,15 +148,8 @@ class HelpDataSource implements IAsyncDataSource<HelpModel, IHelpItem> {
 		return [];
 	}
 }
-
-const getStartedIcon = registerIcon('remote-explorer-get-started', Codicon.star);
-const documentationIcon = registerIcon('remote-explorer-documentation', Codicon.book);
-const feedbackIcon = registerIcon('remote-explorer-feedback', Codicon.twitter);
-const reviewIssuesIcon = registerIcon('remote-explorer-review-issues', Codicon.issues);
-const reportIssuesIcon = registerIcon('remote-explorer-report-issues', Codicon.comment);
-
 interface IHelpItem {
-	icon: Codicon,
+	icon: ThemeIcon,
 	iconClasses: string[];
 	label: string;
 	handleClick(): Promise<void>;
@@ -178,7 +171,7 @@ class HelpModel {
 
 		if (getStarted.length) {
 			helpItems.push(new HelpItem(
-				getStartedIcon,
+				icons.getStartedIcon,
 				nls.localize('remote.help.getStarted', "Get Started"),
 				getStarted.map((info: HelpInformation) => (new HelpItemValue(commandService,
 					info.extensionDescription,
@@ -196,7 +189,7 @@ class HelpModel {
 
 		if (documentation.length) {
 			helpItems.push(new HelpItem(
-				documentationIcon,
+				icons.documentationIcon,
 				nls.localize('remote.help.documentation', "Read Documentation"),
 				documentation.map((info: HelpInformation) => (new HelpItemValue(commandService,
 					info.extensionDescription,
@@ -214,7 +207,7 @@ class HelpModel {
 
 		if (feedback.length) {
 			helpItems.push(new HelpItem(
-				feedbackIcon,
+				icons.feedbackIcon,
 				nls.localize('remote.help.feedback', "Provide Feedback"),
 				feedback.map((info: HelpInformation) => (new HelpItemValue(commandService,
 					info.extensionDescription,
@@ -232,7 +225,7 @@ class HelpModel {
 
 		if (issues.length) {
 			helpItems.push(new HelpItem(
-				reviewIssuesIcon,
+				icons.reviewIssuesIcon,
 				nls.localize('remote.help.issues', "Review Issues"),
 				issues.map((info: HelpInformation) => (new HelpItemValue(commandService,
 					info.extensionDescription,
@@ -248,7 +241,7 @@ class HelpModel {
 
 		if (helpItems.length) {
 			helpItems.push(new IssueReporterItem(
-				reportIssuesIcon,
+				icons.reportIssuesIcon,
 				nls.localize('remote.help.report', "Report Issue"),
 				viewModel.helpInformation.map(info => (new HelpItemValue(commandService,
 					info.extensionDescription,
@@ -297,14 +290,14 @@ class HelpItemValue {
 abstract class HelpItemBase implements IHelpItem {
 	public iconClasses: string[] = [];
 	constructor(
-		public icon: Codicon,
+		public icon: ThemeIcon,
 		public label: string,
 		public values: HelpItemValue[],
 		private quickInputService: IQuickInputService,
 		private environmentService: IWorkbenchEnvironmentService,
 		private remoteExplorerService: IRemoteExplorerService
 	) {
-		this.iconClasses.push(...icon.classNamesArray);
+		this.iconClasses.push(...ThemeIcon.asClassNameArray(icon));
 		this.iconClasses.push('remote-help-tree-node-item-icon');
 	}
 
@@ -351,7 +344,7 @@ abstract class HelpItemBase implements IHelpItem {
 
 class HelpItem extends HelpItemBase {
 	constructor(
-		icon: Codicon,
+		icon: ThemeIcon,
 		label: string,
 		values: HelpItemValue[],
 		quickInputService: IQuickInputService,
@@ -369,7 +362,7 @@ class HelpItem extends HelpItemBase {
 
 class IssueReporterItem extends HelpItemBase {
 	constructor(
-		icon: Codicon,
+		icon: ThemeIcon,
 		label: string,
 		values: HelpItemValue[],
 		quickInputService: IQuickInputService,
@@ -455,8 +448,8 @@ class HelpPanelDescriptor implements IViewDescriptor {
 	readonly ctorDescriptor: SyncDescriptor<HelpPanel>;
 	readonly canToggleVisibility = true;
 	readonly hideByDefault = false;
-	readonly workspace = true;
 	readonly group = 'help@50';
+	readonly order = -10;
 
 	constructor(viewModel: IViewModel) {
 		this.ctorDescriptor = new SyncDescriptor(HelpPanel, [viewModel]);
@@ -466,7 +459,7 @@ class HelpPanelDescriptor implements IViewDescriptor {
 export class RemoteViewPaneContainer extends FilterViewPaneContainer implements IViewModel {
 	private helpPanelDescriptor = new HelpPanelDescriptor(this);
 	helpInformation: HelpInformation[] = [];
-	private actions: IAction[] | undefined;
+	private hasSetSwitchForConnection: boolean = false;
 
 	constructor(
 		@IWorkbenchLayoutService layoutService: IWorkbenchLayoutService,
@@ -527,30 +520,26 @@ export class RemoteViewPaneContainer extends FilterViewPaneContainer implements 
 
 	public getActionViewItem(action: Action): IActionViewItem | undefined {
 		if (action.id === SwitchRemoteAction.ID) {
-			return this.instantiationService.createInstance(SwitchRemoteViewItem, action, SwitchRemoteViewItem.createOptionItems(Registry.as<IViewsRegistry>(Extensions.ViewsRegistry).getViews(this.viewContainer), this.contextKeyService));
+			const optionItems = SwitchRemoteViewItem.createOptionItems(Registry.as<IViewsRegistry>(Extensions.ViewsRegistry).getViews(this.viewContainer), this.contextKeyService);
+			const item = this.instantiationService.createInstance(SwitchRemoteViewItem, action, optionItems);
+			if (!this.hasSetSwitchForConnection) {
+				this.hasSetSwitchForConnection = item.setSelectionForConnection();
+			} else {
+				item.setSelection();
+			}
+			return item;
 		}
 
 		return super.getActionViewItem(action);
-	}
-
-	public getActions(): IAction[] {
-		if (!this.actions) {
-			this.actions = [
-				this.instantiationService.createInstance(SwitchRemoteAction, SwitchRemoteAction.ID, SwitchRemoteAction.LABEL)
-			];
-			this.actions.forEach(a => {
-				this._register(a);
-			});
-		}
-		return this.actions;
 	}
 
 	getTitle(): string {
 		const title = nls.localize('remote.explorer', "Remote Explorer");
 		return title;
 	}
-
 }
+
+registerAction2(SwitchRemoteAction);
 
 Registry.as<IViewContainersRegistry>(Extensions.ViewContainersRegistry).registerViewContainer(
 	{
@@ -572,7 +561,7 @@ Registry.as<IViewContainersRegistry>(Extensions.ViewContainersRegistry).register
 				matches = /^details(@(\d+))?$/.exec(group);
 
 				if (matches) {
-					return -500;
+					return -500 + Number(matches[2]);
 				}
 
 				matches = /^help(@(\d+))?$/.exec(group);
@@ -583,7 +572,7 @@ Registry.as<IViewContainersRegistry>(Extensions.ViewContainersRegistry).register
 				return;
 			}
 		},
-		icon: 'codicon-remote-explorer',
+		icon: icons.remoteExplorerViewIcon,
 		order: 4
 	}, ViewContainerLocation.Sidebar);
 
@@ -608,6 +597,7 @@ Registry.as<IWorkbenchActionRegistry>(WorkbenchActionExtensions.WorkbenchActions
 
 class VisibleProgress {
 
+	public readonly location: ProgressLocation;
 	private _isDisposed: boolean;
 	private _lastReport: string | null;
 	private _currentProgressPromiseResolve: (() => void) | null;
@@ -619,6 +609,7 @@ class VisibleProgress {
 	}
 
 	constructor(progressService: IProgressService, location: ProgressLocation, initialReport: string | null, buttons: string[], onDidCancel: (choice: number | undefined, lastReport: string | null) => void) {
+		this.location = location;
 		this._isDisposed = false;
 		this._lastReport = initialReport;
 		this._currentProgressPromiseResolve = null;
@@ -704,28 +695,42 @@ class ReconnectionTimer2 implements IDisposable {
 	}
 }
 
-class RemoteAgentConnectionStatusListener implements IWorkbenchContribution {
+/**
+ * The time when a prompt is shown to the user
+ */
+const DISCONNECT_PROMPT_TIME = 40 * 1000; // 40 seconds
+
+class RemoteAgentConnectionStatusListener extends Disposable implements IWorkbenchContribution {
+
+	private _reloadWindowShown: boolean = false;
+
 	constructor(
 		@IRemoteAgentService remoteAgentService: IRemoteAgentService,
 		@IProgressService progressService: IProgressService,
 		@IDialogService dialogService: IDialogService,
 		@ICommandService commandService: ICommandService,
-		@IContextKeyService contextKeyService: IContextKeyService
+		@IQuickInputService quickInputService: IQuickInputService
 	) {
+		super();
 		const connection = remoteAgentService.getConnection();
 		if (connection) {
+			let quickInputVisible = false;
+			quickInputService.onShow(() => quickInputVisible = true);
+			quickInputService.onHide(() => quickInputVisible = false);
+
 			let visibleProgress: VisibleProgress | null = null;
-			let lastLocation: ProgressLocation.Dialog | ProgressLocation.Notification | null = null;
 			let reconnectWaitEvent: ReconnectionWaitEvent | null = null;
 			let disposableListener: IDisposable | null = null;
 
-			function showProgress(location: ProgressLocation.Dialog | ProgressLocation.Notification, buttons: { label: string, callback: () => void }[], initialReport: string | null = null): VisibleProgress {
+			function showProgress(location: ProgressLocation.Dialog | ProgressLocation.Notification | null, buttons: { label: string, callback: () => void }[], initialReport: string | null = null): VisibleProgress {
 				if (visibleProgress) {
 					visibleProgress.dispose();
 					visibleProgress = null;
 				}
 
-				lastLocation = location;
+				if (!location) {
+					location = quickInputVisible ? ProgressLocation.Notification : ProgressLocation.Dialog;
+				}
 
 				return new VisibleProgress(
 					progressService, location, initialReport, buttons.map(button => button.label),
@@ -767,6 +772,12 @@ class RemoteAgentConnectionStatusListener implements IWorkbenchContribution {
 				}
 			};
 
+			// Possible state transitions:
+			// ConnectionGain      -> ConnectionLost
+			// ConnectionLost      -> ReconnectionWait
+			// ReconnectionWait    -> ReconnectionRunning
+			// ReconnectionRunning -> ConnectionGain, ReconnectionPermanentFailure
+
 			connection.onDidStateChange((e) => {
 				if (visibleProgress) {
 					visibleProgress.stopTimer();
@@ -778,41 +789,47 @@ class RemoteAgentConnectionStatusListener implements IWorkbenchContribution {
 				}
 				switch (e.type) {
 					case PersistentConnectionEventType.ConnectionLost:
-						if (!visibleProgress) {
-							visibleProgress = showProgress(ProgressLocation.Dialog, [reconnectButton, reloadButton]);
+						if (visibleProgress || e.millisSinceLastIncomingData > DISCONNECT_PROMPT_TIME) {
+							if (!visibleProgress) {
+								visibleProgress = showProgress(null, [reconnectButton, reloadButton]);
+							}
+							visibleProgress.report(nls.localize('connectionLost', "Connection Lost"));
 						}
-						visibleProgress.report(nls.localize('connectionLost', "Connection Lost"));
 						break;
 					case PersistentConnectionEventType.ReconnectionWait:
-						reconnectWaitEvent = e;
-						visibleProgress = showProgress(lastLocation || ProgressLocation.Notification, [reconnectButton, reloadButton]);
-						visibleProgress.startTimer(Date.now() + 1000 * e.durationSeconds);
+						if (visibleProgress) {
+							reconnectWaitEvent = e;
+							visibleProgress = showProgress(null, [reconnectButton, reloadButton]);
+							visibleProgress.startTimer(Date.now() + 1000 * e.durationSeconds);
+						}
 						break;
 					case PersistentConnectionEventType.ReconnectionRunning:
-						visibleProgress = showProgress(lastLocation || ProgressLocation.Notification, [reloadButton]);
-						visibleProgress.report(nls.localize('reconnectionRunning', "Attempting to reconnect..."));
+						if (visibleProgress || e.millisSinceLastIncomingData > DISCONNECT_PROMPT_TIME) {
+							visibleProgress = showProgress(null, [reloadButton]);
+							visibleProgress.report(nls.localize('reconnectionRunning', "Disconnected. Attempting to reconnect..."));
 
-						// Register to listen for quick input is opened
-						disposableListener = contextKeyService.onDidChangeContext((contextKeyChangeEvent) => {
-							const reconnectInteraction = new Set<string>([inQuickPickContextKeyValue]);
-							if (contextKeyChangeEvent.affectsSome(reconnectInteraction)) {
+							// Register to listen for quick input is opened
+							disposableListener = quickInputService.onShow(() => {
 								// Need to move from dialog if being shown and user needs to type in a prompt
-								if (lastLocation === ProgressLocation.Dialog && visibleProgress !== null) {
+								if (visibleProgress && visibleProgress.location === ProgressLocation.Dialog) {
 									visibleProgress = showProgress(ProgressLocation.Notification, [reloadButton], visibleProgress.lastReport);
 								}
-							}
-						});
+							});
+						}
 
 						break;
 					case PersistentConnectionEventType.ReconnectionPermanentFailure:
 						hideProgress();
 
-						dialogService.show(Severity.Error, nls.localize('reconnectionPermanentFailure', "Cannot reconnect. Please reload the window."), [nls.localize('reloadWindow', "Reload Window"), nls.localize('cancel', "Cancel")], { cancelId: 1 }).then(result => {
-							// Reload the window
-							if (result.choice === 0) {
-								commandService.executeCommand(ReloadWindowAction.ID);
-							}
-						});
+						if (!this._reloadWindowShown) {
+							this._reloadWindowShown = true;
+							dialogService.show(Severity.Error, nls.localize('reconnectionPermanentFailure', "Cannot reconnect. Please reload the window."), [nls.localize('reloadWindow', "Reload Window"), nls.localize('cancel', "Cancel")], { cancelId: 1 }).then(result => {
+								// Reload the window
+								if (result.choice === 0) {
+									commandService.executeCommand(ReloadWindowAction.ID);
+								}
+							});
+						}
 						break;
 					case PersistentConnectionEventType.ConnectionGain:
 						hideProgress();
@@ -827,4 +844,5 @@ const workbenchContributionsRegistry = Registry.as<IWorkbenchContributionsRegist
 workbenchContributionsRegistry.registerWorkbenchContribution(RemoteAgentConnectionStatusListener, LifecyclePhase.Eventually);
 workbenchContributionsRegistry.registerWorkbenchContribution(RemoteStatusIndicator, LifecyclePhase.Starting);
 workbenchContributionsRegistry.registerWorkbenchContribution(ForwardedPortsView, LifecyclePhase.Eventually);
+workbenchContributionsRegistry.registerWorkbenchContribution(PortRestore, LifecyclePhase.Eventually);
 workbenchContributionsRegistry.registerWorkbenchContribution(AutomaticPortForwarding, LifecyclePhase.Eventually);

@@ -6,7 +6,7 @@
 import type { Event } from 'vs/base/common/event';
 import type { IDisposable } from 'vs/base/common/lifecycle';
 import { ToWebviewMessage } from 'vs/workbench/contrib/notebook/browser/view/renderers/backLayerWebView';
-import { RenderOutputType } from 'vs/workbench/contrib/notebook/common/notebookCommon';
+import { RenderOutputType } from 'vs/workbench/contrib/notebook/browser/notebookBrowser';
 
 // !! IMPORTANT !! everything must be in-line within the webviewPreloads
 // function. Imports are not allowed. This is stringifies and injected into
@@ -27,6 +27,7 @@ declare class ResizeObserver {
 }
 
 declare const __outputNodePadding__: number;
+declare const __outputNodeLeftPadding__: number;
 
 type Listener<T> = { fn: (evt: T) => void; thisArg: unknown; };
 
@@ -88,7 +89,8 @@ function webviewPreloads() {
 		for (let n = 0; n < arr.length; n++) {
 			const node = arr[n];
 			const scriptTag = document.createElement('script');
-			scriptTag.text = node.innerText;
+			const trustedScript = ttPolicy?.createScript(node.innerText) ?? node.innerText;
+			scriptTag.text = trustedScript as string;
 			for (const key of preservedScriptAttributes) {
 				const val = node[key] || node.getAttribute && node.getAttribute(key);
 				if (val) {
@@ -137,14 +139,27 @@ function webviewPreloads() {
 				}
 
 				if (entry.target.id === id && entry.contentRect) {
-					vscode.postMessage({
-						__vscode_notebook_message: true,
-						type: 'dimension',
-						id: id,
-						data: {
-							height: entry.contentRect.height + __outputNodePadding__ * 2
-						}
-					});
+					if (entry.contentRect.height !== 0) {
+						entry.target.style.padding = `${__outputNodePadding__}px ${__outputNodePadding__}px ${__outputNodePadding__}px ${__outputNodeLeftPadding__}px`;
+						vscode.postMessage({
+							__vscode_notebook_message: true,
+							type: 'dimension',
+							id: id,
+							data: {
+								height: entry.contentRect.height + __outputNodePadding__ * 2
+							}
+						});
+					} else {
+						entry.target.style.padding = `0px`;
+						vscode.postMessage({
+							__vscode_notebook_message: true,
+							type: 'dimension',
+							id: id,
+							data: {
+								height: entry.contentRect.height
+							}
+						});
+					}
 				}
 			}
 		});
@@ -374,6 +389,11 @@ function webviewPreloads() {
 		queuedOuputActions.set(event.outputId, promise);
 	};
 
+	const ttPolicy = window.trustedTypes?.createPolicy('notebookOutputRenderer', {
+		createHTML: value => value,
+		createScript: value => value,
+	});
+
 	window.addEventListener('wheel', handleWheel);
 
 	window.addEventListener('message', rawEvent => {
@@ -410,13 +430,15 @@ function webviewPreloads() {
 					outputNode.style.top = data.top + 'px';
 					outputNode.style.left = data.left + 'px';
 					outputNode.style.width = 'calc(100% - ' + data.left + 'px)';
-					outputNode.style.minHeight = '32px';
+					// outputNode.style.minHeight = '32px';
+					outputNode.style.padding = '0px';
 					outputNode.id = outputId;
 
 					addMouseoverListeners(outputNode, outputId);
 					const content = data.content;
 					if (content.type === RenderOutputType.Html) {
-						outputNode.innerHTML = content.htmlContent;
+						const trustedHtml = ttPolicy?.createHTML(content.htmlContent) ?? content.htmlContent;
+						outputNode.innerHTML = trustedHtml as string;
 						cellOutputContainer.appendChild(outputNode);
 						domEval(outputNode);
 					} else if (preloadResults.some(e => e?.state === PreloadState.Error)) {
@@ -447,6 +469,7 @@ function webviewPreloads() {
 						__vscode_notebook_message: true,
 						type: 'dimension',
 						id: outputId,
+						init: true,
 						data: {
 							height: outputNode.clientHeight
 						}
@@ -563,4 +586,4 @@ function webviewPreloads() {
 	});
 }
 
-export const preloadsScriptStr = (outputNodePadding: number) => `(${webviewPreloads})()`.replace(/__outputNodePadding__/g, `${outputNodePadding}`);
+export const preloadsScriptStr = (outputNodePadding: number, outputNodeLeftPadding: number) => `(${webviewPreloads})()`.replace(/__outputNodePadding__/g, `${outputNodePadding}`).replace(/__outputNodeLeftPadding__/g, `${outputNodeLeftPadding}`);

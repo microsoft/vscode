@@ -5,7 +5,7 @@
 
 import { equals } from 'vs/base/common/arrays';
 import { UriComponents } from 'vs/base/common/uri';
-import { escapeCodicons } from 'vs/base/common/codicons';
+import { escapeIcons } from 'vs/base/common/iconLabels';
 import { illegalArgument } from 'vs/base/common/errors';
 
 export interface IMarkdownString {
@@ -46,10 +46,8 @@ export class MarkdownString implements IMarkdownString {
 	}
 
 	appendText(value: string, newlineStyle: MarkdownStringTextNewlineStyle = MarkdownStringTextNewlineStyle.Paragraph): MarkdownString {
-		// escape markdown syntax tokens: http://daringfireball.net/projects/markdown/syntax#backslash
-		this.value += (this.supportThemeIcons ? escapeCodicons(value) : value)
-			.replace(/[\\`*_{}[\]()#+\-.!]/g, '\\$&')
-			.replace(/^([ \t]+)(.+)$/gm, (_match, g1, g2) => '&nbsp;'.repeat(g1.length) + g2)
+		this.value += escapeMarkdownSyntaxTokens(this.supportThemeIcons ? escapeIcons(value) : value)
+			.replace(/([ \t]+)/g, (_match, g1) => '&nbsp;'.repeat(g1.length))
 			.replace(/^>/gm, '\\>')
 			.replace(/\n/g, newlineStyle === MarkdownStringTextNewlineStyle.Break ? '\\\n' : '\n\n');
 
@@ -114,6 +112,11 @@ function markdownStringEqual(a: IMarkdownString, b: IMarkdownString): boolean {
 	} else {
 		return a.value === b.value && a.isTrusted === b.isTrusted && a.supportThemeIcons === b.supportThemeIcons;
 	}
+}
+
+export function escapeMarkdownSyntaxTokens(text: string): string {
+	// escape markdown syntax tokens: http://daringfireball.net/projects/markdown/syntax#backslash
+	return text.replace(/[\\`*_{}[\]()#+\-.!]/g, '\\$&');
 }
 
 export function removeMarkdownEscapes(text: string): string {

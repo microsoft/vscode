@@ -10,7 +10,7 @@ import { isWindows, OS } from 'vs/base/common/platform';
 import * as nls from 'vs/nls';
 import { IClipboardService } from 'vs/platform/clipboard/common/clipboardService';
 import { ILabelService } from 'vs/platform/label/common/label';
-import { ICommandHandler } from 'vs/platform/commands/common/commands';
+import { ICommandHandler, ICommandService } from 'vs/platform/commands/common/commands';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { ServicesAccessor } from 'vs/platform/instantiation/common/instantiation';
 import { IKeybindingService } from 'vs/platform/keybinding/common/keybinding';
@@ -29,6 +29,9 @@ import { SearchEditorInput } from 'vs/workbench/contrib/searchEditor/browser/sea
 import { SearchEditor } from 'vs/workbench/contrib/searchEditor/browser/searchEditor';
 import { searchRefreshIcon, searchCollapseAllIcon, searchExpandAllIcon, searchClearIcon, searchReplaceAllIcon, searchReplaceIcon, searchRemoveIcon, searchStopIcon } from 'vs/workbench/contrib/search/browser/searchIcons';
 import { IUriIdentityService } from 'vs/workbench/services/uriIdentity/common/uriIdentity';
+import { ThemeIcon } from 'vs/platform/theme/common/themeService';
+import { OpenSearchEditorArgs } from 'vs/workbench/contrib/searchEditor/browser/searchEditor.contribution';
+import { OpenEditorCommandId } from 'vs/workbench/contrib/searchEditor/browser/constants';
 
 export function isSearchViewFocused(viewsService: IViewsService): boolean {
 	const searchView = getSearchView(viewsService);
@@ -172,21 +175,37 @@ export interface IFindInFilesArgs {
 	useExcludeSettingsAndIgnoreFiles?: boolean;
 }
 export const FindInFilesCommand: ICommandHandler = (accessor, args: IFindInFilesArgs = {}) => {
-
-	const viewsService = accessor.get(IViewsService);
-	openSearchView(viewsService, false).then(openedView => {
-		if (openedView) {
-			const searchAndReplaceWidget = openedView.searchAndReplaceWidget;
-			searchAndReplaceWidget.toggleReplace(typeof args.replace === 'string');
-			let updatedText = false;
-			if (typeof args.query === 'string') {
-				openedView.setSearchParameters(args);
-			} else {
-				updatedText = openedView.updateTextFromFindWidgetOrSelection({ allowUnselectedWord: typeof args.replace !== 'string' });
+	const searchConfig = accessor.get(IConfigurationService).getValue<ISearchConfiguration>().search;
+	const mode = searchConfig.mode;
+	if (mode === 'view') {
+		const viewsService = accessor.get(IViewsService);
+		openSearchView(viewsService, false).then(openedView => {
+			if (openedView) {
+				const searchAndReplaceWidget = openedView.searchAndReplaceWidget;
+				searchAndReplaceWidget.toggleReplace(typeof args.replace === 'string');
+				let updatedText = false;
+				if (typeof args.query === 'string') {
+					openedView.setSearchParameters(args);
+				} else {
+					updatedText = openedView.updateTextFromFindWidgetOrSelection({ allowUnselectedWord: typeof args.replace !== 'string' });
+				}
+				openedView.searchAndReplaceWidget.focus(undefined, updatedText, updatedText);
 			}
-			openedView.searchAndReplaceWidget.focus(undefined, updatedText, updatedText);
-		}
-	});
+		});
+	} else {
+		const convertArgs = (args: IFindInFilesArgs): OpenSearchEditorArgs => ({
+			location: mode === 'newEditor' ? 'new' : 'reuse',
+			query: args.query,
+			filesToInclude: args.filesToInclude,
+			filesToExclude: args.filesToExclude,
+			matchWholeWord: args.matchWholeWord,
+			isCaseSensitive: args.isCaseSensitive,
+			isRegexp: args.isRegex,
+			useExcludeSettingsAndIgnoreFiles: args.useExcludeSettingsAndIgnoreFiles,
+			showIncludesExcludes: !!(args.filesToExclude || args.filesToExclude || !args.useExcludeSettingsAndIgnoreFiles),
+		});
+		accessor.get(ICommandService).executeCommand(OpenEditorCommandId, convertArgs(args));
+	}
 };
 
 export class OpenSearchViewletAction extends FindOrReplaceInFilesAction {
@@ -279,7 +298,7 @@ export class RefreshAction extends Action {
 	constructor(id: string, label: string,
 		@IViewsService private readonly viewsService: IViewsService
 	) {
-		super(id, label, 'search-action ' + searchRefreshIcon.classNames);
+		super(id, label, 'search-action ' + ThemeIcon.asClassName(searchRefreshIcon));
 	}
 
 	get enabled(): boolean {
@@ -309,7 +328,7 @@ export class CollapseDeepestExpandedLevelAction extends Action {
 	constructor(id: string, label: string,
 		@IViewsService private readonly viewsService: IViewsService
 	) {
-		super(id, label, 'search-action ' + searchCollapseAllIcon.classNames);
+		super(id, label, 'search-action ' + ThemeIcon.asClassName(searchCollapseAllIcon));
 		this.update();
 	}
 
@@ -365,7 +384,7 @@ export class ExpandAllAction extends Action {
 	constructor(id: string, label: string,
 		@IViewsService private readonly viewsService: IViewsService
 	) {
-		super(id, label, 'search-action ' + searchExpandAllIcon.classNames);
+		super(id, label, 'search-action ' + ThemeIcon.asClassName(searchExpandAllIcon));
 		this.update();
 	}
 
@@ -449,7 +468,7 @@ export class ClearSearchResultsAction extends Action {
 	constructor(id: string, label: string,
 		@IViewsService private readonly viewsService: IViewsService
 	) {
-		super(id, label, 'search-action ' + searchClearIcon.classNames);
+		super(id, label, 'search-action ' + ThemeIcon.asClassName(searchClearIcon));
 		this.update();
 	}
 
@@ -475,7 +494,7 @@ export class CancelSearchAction extends Action {
 	constructor(id: string, label: string,
 		@IViewsService private readonly viewsService: IViewsService
 	) {
-		super(id, label, 'search-action ' + searchStopIcon.classNames);
+		super(id, label, 'search-action ' + ThemeIcon.asClassName(searchStopIcon));
 		this.update();
 	}
 
@@ -610,7 +629,7 @@ export class RemoveAction extends AbstractSearchAndReplaceAction {
 		private viewer: WorkbenchObjectTree<RenderableMatch>,
 		private element: RenderableMatch
 	) {
-		super('remove', RemoveAction.LABEL, searchRemoveIcon.classNames);
+		super('remove', RemoveAction.LABEL, ThemeIcon.asClassName(searchRemoveIcon));
 	}
 
 	run(): Promise<any> {
@@ -650,7 +669,7 @@ export class ReplaceAllAction extends AbstractSearchAndReplaceAction {
 		private fileMatch: FileMatch,
 		@IKeybindingService keyBindingService: IKeybindingService
 	) {
-		super(Constants.ReplaceAllInFileActionId, appendKeyBindingLabel(ReplaceAllAction.LABEL, keyBindingService.lookupKeybinding(Constants.ReplaceAllInFileActionId), keyBindingService), searchReplaceAllIcon.classNames);
+		super(Constants.ReplaceAllInFileActionId, appendKeyBindingLabel(ReplaceAllAction.LABEL, keyBindingService.lookupKeybinding(Constants.ReplaceAllInFileActionId), keyBindingService), ThemeIcon.asClassName(searchReplaceAllIcon));
 	}
 
 	run(): Promise<any> {
@@ -674,7 +693,7 @@ export class ReplaceAllInFolderAction extends AbstractSearchAndReplaceAction {
 	constructor(private viewer: WorkbenchObjectTree<RenderableMatch>, private folderMatch: FolderMatch,
 		@IKeybindingService keyBindingService: IKeybindingService
 	) {
-		super(Constants.ReplaceAllInFolderActionId, appendKeyBindingLabel(ReplaceAllInFolderAction.LABEL, keyBindingService.lookupKeybinding(Constants.ReplaceAllInFolderActionId), keyBindingService), searchReplaceAllIcon.classNames);
+		super(Constants.ReplaceAllInFolderActionId, appendKeyBindingLabel(ReplaceAllInFolderAction.LABEL, keyBindingService.lookupKeybinding(Constants.ReplaceAllInFolderActionId), keyBindingService), ThemeIcon.asClassName(searchReplaceAllIcon));
 	}
 
 	run(): Promise<any> {
@@ -701,7 +720,7 @@ export class ReplaceAction extends AbstractSearchAndReplaceAction {
 		@IConfigurationService private readonly configurationService: IConfigurationService,
 		@IUriIdentityService private readonly uriIdentityService: IUriIdentityService
 	) {
-		super(Constants.ReplaceActionId, appendKeyBindingLabel(ReplaceAction.LABEL, keyBindingService.lookupKeybinding(Constants.ReplaceActionId), keyBindingService), searchReplaceIcon.classNames);
+		super(Constants.ReplaceActionId, appendKeyBindingLabel(ReplaceAction.LABEL, keyBindingService.lookupKeybinding(Constants.ReplaceActionId), keyBindingService), ThemeIcon.asClassName(searchReplaceIcon));
 	}
 
 	async run(): Promise<any> {

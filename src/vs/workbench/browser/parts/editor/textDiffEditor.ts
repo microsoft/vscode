@@ -5,7 +5,7 @@
 
 import * as nls from 'vs/nls';
 import * as objects from 'vs/base/common/objects';
-import { isFunction, isObject, isArray, assertIsDefined } from 'vs/base/common/types';
+import { isFunction, isObject, isArray, assertIsDefined, withUndefinedAsNull } from 'vs/base/common/types';
 import { IDiffEditor } from 'vs/editor/browser/editorBrowser';
 import { IDiffEditorOptions, IEditorOptions as ICodeEditorOptions } from 'vs/editor/common/config/editorOptions';
 import { BaseTextEditor, IEditorConfiguration } from 'vs/workbench/browser/parts/editor/textEditor';
@@ -31,6 +31,7 @@ import { EditorActivation, IEditorOptions } from 'vs/platform/editor/common/edit
 import { IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
 import { isEqual } from 'vs/base/common/resources';
 import { multibyteAwareBtoa } from 'vs/base/browser/dom';
+import { IFileService } from 'vs/platform/files/common/files';
 
 /**
  * The text editor that leverages the diff text editor for the editing experience.
@@ -61,9 +62,28 @@ export class TextDiffEditor extends BaseTextEditor implements ITextDiffEditorPan
 		@ITextResourceConfigurationService configurationService: ITextResourceConfigurationService,
 		@IEditorService editorService: IEditorService,
 		@IThemeService themeService: IThemeService,
-		@IEditorGroupsService editorGroupService: IEditorGroupsService
+		@IEditorGroupsService editorGroupService: IEditorGroupsService,
+		@IFileService private readonly fileService: IFileService
 	) {
 		super(TextDiffEditor.ID, telemetryService, instantiationService, storageService, configurationService, themeService, editorService, editorGroupService);
+
+		// Listen to file system provider changes
+		this._register(this.fileService.onDidChangeFileSystemProviderCapabilities(e => this.onDidFileSystemProviderChange(e.scheme)));
+		this._register(this.fileService.onDidChangeFileSystemProviderRegistrations(e => this.onDidFileSystemProviderChange(e.scheme)));
+	}
+
+	private onDidFileSystemProviderChange(scheme: string): void {
+		const control = this.getControl();
+		const input = this.input;
+
+		if (control && input instanceof DiffEditorInput) {
+			if (input.originalInput.resource?.scheme === scheme || input.modifiedInput.resource?.scheme === scheme) {
+				control.updateOptions({
+					readOnly: input.modifiedInput.isReadonly(),
+					originalEditable: !input.originalInput.isReadonly()
+				});
+			}
+		}
 	}
 
 	protected onWillCloseEditorInGroup(editor: IEditorInput): void {
@@ -83,7 +103,7 @@ export class TextDiffEditor extends BaseTextEditor implements ITextDiffEditorPan
 	}
 
 	createEditorControl(parent: HTMLElement, configuration: ICodeEditorOptions): IDiffEditor {
-		return this.instantiationService.createInstance(DiffEditorWidget, parent, configuration);
+		return this.instantiationService.createInstance(DiffEditorWidget, parent, configuration, {});
 	}
 
 	async setInput(input: EditorInput, options: EditorOptions | undefined, context: IEditorOpenContext, token: CancellationToken): Promise<void> {
@@ -112,8 +132,8 @@ export class TextDiffEditor extends BaseTextEditor implements ITextDiffEditorPan
 
 			// Set Editor Model
 			const diffEditor = assertIsDefined(this.getControl());
-			const resolvedDiffEditorModel = <TextDiffEditorModel>resolvedModel;
-			diffEditor.setModel(resolvedDiffEditorModel.textDiffEditorModel);
+			const resolvedDiffEditorModel = resolvedModel as TextDiffEditorModel;
+			diffEditor.setModel(withUndefinedAsNull(resolvedDiffEditorModel.textDiffEditorModel));
 
 			// Apply Options from TextOptions
 			let optionsGotApplied = false;
@@ -226,7 +246,7 @@ export class TextDiffEditor extends BaseTextEditor implements ITextDiffEditorPan
 			diffEditorConfiguration.diffWordWrap = <'off' | 'on' | 'inherit' | undefined>diffEditorConfiguration.wordWrap;
 			delete diffEditorConfiguration.wordWrap;
 
-			objects.mixin(editorConfiguration, diffEditorConfiguration);
+			Object.assign(editorConfiguration, diffEditorConfiguration);
 		}
 
 		return editorConfiguration;

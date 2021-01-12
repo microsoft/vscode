@@ -17,7 +17,7 @@ import { IContextMenuService } from 'vs/platform/contextview/browser/contextView
 import { append, $ } from 'vs/base/browser/dom';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { Delegate, Renderer, IExtensionsViewState, EXTENSION_LIST_ELEMENT_HEIGHT } from 'vs/workbench/contrib/extensions/browser/extensionsList';
-import { ExtensionState, IExtension, IExtensionsWorkbenchService } from 'vs/workbench/contrib/extensions/common/extensions';
+import { ExtensionState, IExtension, IExtensionsWorkbenchService, IWorkspaceRecommendedExtensionsView } from 'vs/workbench/contrib/extensions/common/extensions';
 import { Query } from 'vs/workbench/contrib/extensions/common/extensionQuery';
 import { IExtensionService, toExtension } from 'vs/workbench/services/extensions/common/extensions';
 import { IThemeService } from 'vs/platform/theme/common/themeService';
@@ -25,11 +25,11 @@ import { attachBadgeStyler } from 'vs/platform/theme/common/styler';
 import { IViewletViewOptions } from 'vs/workbench/browser/parts/views/viewsViewlet';
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
 import { CountBadge } from 'vs/base/browser/ui/countBadge/countBadge';
-import { ConfigureWorkspaceFolderRecommendedExtensionsAction, ManageExtensionAction, InstallLocalExtensionsInRemoteAction, getContextMenuActions, ExtensionAction } from 'vs/workbench/contrib/extensions/browser/extensionsActions';
+import { ManageExtensionAction, getContextMenuActions, ExtensionAction } from 'vs/workbench/contrib/extensions/browser/extensionsActions';
 import { WorkbenchPagedList, ListResourceNavigator } from 'vs/platform/list/browser/listService';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { INotificationService, Severity } from 'vs/platform/notification/common/notification';
-import { ViewPane, IViewPaneOptions } from 'vs/workbench/browser/parts/views/viewPaneContainer';
+import { ViewPane, IViewPaneOptions } from 'vs/workbench/browser/parts/views/viewPane';
 import { IWorkspaceContextService } from 'vs/platform/workspace/common/workspace';
 import { coalesce, distinct, flatten } from 'vs/base/common/arrays';
 import { IExperimentService, IExperiment, ExperimentActionType } from 'vs/workbench/contrib/experiments/common/experimentService';
@@ -133,7 +133,11 @@ export class ExtensionsListView extends ViewPane {
 		if (this.options.onDidChangeTitle) {
 			this._register(this.options.onDidChangeTitle(title => this.updateTitle(title)));
 		}
+
+		this.registerActions();
 	}
+
+	protected registerActions(): void { }
 
 	protected renderHeader(container: HTMLElement): void {
 		container.classList.add('extension-view-header');
@@ -176,7 +180,7 @@ export class ExtensionsListView extends ViewPane {
 
 		const resourceNavigator = this._register(new ListResourceNavigator(this.list, { openOnSingleClick: true }));
 		this._register(Event.debounce(Event.filter(resourceNavigator.onDidOpen, e => e.element !== null), (_, event) => event, 75, true)(options => {
-			this.openExtension(this.list!.model.get(options.element!), { sideByside: options.sideBySide, ...options.editorOptions });
+			this.openExtension(options.element!, { sideByside: options.sideBySide, ...options.editorOptions });
 		}));
 
 		this.bodyTemplate = {
@@ -262,32 +266,27 @@ export class ExtensionsListView extends ViewPane {
 			const runningExtensions = await this.extensionService.getExtensions();
 			const manageExtensionAction = this.instantiationService.createInstance(ManageExtensionAction);
 			manageExtensionAction.extension = e.element;
+			let groups: IAction[][] = [];
 			if (manageExtensionAction.enabled) {
-				const groups = await manageExtensionAction.getActionGroups(runningExtensions);
-				let actions: IAction[] = [];
-				for (const menuActions of groups) {
-					actions = [...actions, ...menuActions, new Separator()];
-				}
-				this.contextMenuService.showContextMenu({
-					getAnchor: () => e.anchor,
-					getActions: () => actions.slice(0, actions.length - 1)
-				});
+				groups = await manageExtensionAction.getActionGroups(runningExtensions);
+
 			} else if (e.element) {
-				const groups = getContextMenuActions(e.element, false, this.instantiationService);
+				groups = getContextMenuActions(e.element, false, this.instantiationService);
 				groups.forEach(group => group.forEach(extensionAction => {
 					if (extensionAction instanceof ExtensionAction) {
 						extensionAction.extension = e.element!;
 					}
 				}));
-				let actions: IAction[] = [];
-				for (const menuActions of groups) {
-					actions = [...actions, ...menuActions, new Separator()];
-				}
-				this.contextMenuService.showContextMenu({
-					getAnchor: () => e.anchor,
-					getActions: () => actions
-				});
 			}
+			let actions: IAction[] = [];
+			for (const menuActions of groups) {
+				actions = [...actions, ...menuActions, new Separator()];
+			}
+			actions.pop();
+			this.contextMenuService.showContextMenu({
+				getAnchor: () => e.anchor,
+				getActions: () => actions
+			});
 		}
 	}
 
@@ -823,10 +822,10 @@ export class ExtensionsListView extends ViewPane {
 			if (count === 0 && this.isBodyVisible()) {
 				if (error) {
 					if (error instanceof ExtensionListViewWarning) {
-						this.bodyTemplate.messageSeverityIcon.className = `codicon ${SeverityIcon.className(Severity.Warning)}`;
+						this.bodyTemplate.messageSeverityIcon.className = SeverityIcon.className(Severity.Warning);
 						this.bodyTemplate.messageBox.textContent = getErrorMessage(error);
 					} else {
-						this.bodyTemplate.messageSeverityIcon.className = `codicon ${SeverityIcon.className(Severity.Error)}`;
+						this.bodyTemplate.messageSeverityIcon.className = SeverityIcon.className(Severity.Error);
 						this.bodyTemplate.messageBox.textContent = localize('error', "Error while loading extensions. {0}", getErrorMessage(error));
 					}
 				} else {
@@ -988,14 +987,6 @@ export class ServerInstalledExtensionsView extends ExtensionsListView {
 		return super.show(query.trim());
 	}
 
-	getActions(): IAction[] {
-		if (this.extensionManagementServerService.remoteExtensionManagementServer && this.extensionManagementServerService.localExtensionManagementServer === this.options.server) {
-			const installLocalExtensionsInRemoteAction = this._register(this.instantiationService.createInstance(InstallLocalExtensionsInRemoteAction));
-			installLocalExtensionsInRemoteAction.class = 'codicon codicon-cloud-download';
-			return [installLocalExtensionsInRemoteAction];
-		}
-		return [];
-	}
 }
 
 export class EnabledExtensionsView extends ExtensionsListView {
@@ -1073,9 +1064,8 @@ export class RecommendedExtensionsView extends ExtensionsListView {
 	}
 }
 
-export class WorkspaceRecommendedExtensionsView extends ExtensionsListView {
+export class WorkspaceRecommendedExtensionsView extends ExtensionsListView implements IWorkspaceRecommendedExtensionsView {
 	private readonly recommendedExtensionsQuery = '@recommended:workspace';
-	private installAllAction: Action | undefined;
 
 	renderBody(container: HTMLElement): void {
 		super.renderBody(container);
@@ -1084,29 +1074,11 @@ export class WorkspaceRecommendedExtensionsView extends ExtensionsListView {
 		this._register(this.contextService.onDidChangeWorkbenchState(() => this.show(this.recommendedExtensionsQuery)));
 	}
 
-	getActions(): IAction[] {
-		if (!this.installAllAction) {
-			this.installAllAction = this._register(new Action('workbench.extensions.action.installWorkspaceRecommendedExtensions', localize('installWorkspaceRecommendedExtensions', "Install Workspace Recommended Extensions"), 'codicon codicon-cloud-download', false, () => this.installWorkspaceRecommendations()));
-		}
-
-		const configureWorkspaceFolderAction = this._register(this.instantiationService.createInstance(ConfigureWorkspaceFolderRecommendedExtensionsAction, ConfigureWorkspaceFolderRecommendedExtensionsAction.ID, ConfigureWorkspaceFolderRecommendedExtensionsAction.LABEL));
-		configureWorkspaceFolderAction.class = 'codicon codicon-pencil';
-		return [this.installAllAction, configureWorkspaceFolderAction];
-	}
-
 	async show(query: string): Promise<IPagedModel<IExtension>> {
 		let shouldShowEmptyView = query && query.trim() !== '@recommended' && query.trim() !== '@recommended:workspace';
 		let model = await (shouldShowEmptyView ? this.showEmptyModel() : super.show(this.recommendedExtensionsQuery));
 		this.setExpanded(model.length > 0);
-		await this.setRecommendationsToInstall();
 		return model;
-	}
-
-	private async setRecommendationsToInstall(): Promise<void> {
-		const installableRecommendations = await this.getInstallableWorkspaceRecommendations();
-		if (this.installAllAction) {
-			this.installAllAction.enabled = installableRecommendations.length > 0;
-		}
 	}
 
 	private async getInstallableWorkspaceRecommendations() {
@@ -1117,9 +1089,16 @@ export class WorkspaceRecommendedExtensionsView extends ExtensionsListView {
 		return this.getInstallableRecommendations(recommendations, { source: 'install-all-workspace-recommendations' }, CancellationToken.None);
 	}
 
-	private async installWorkspaceRecommendations(): Promise<void> {
+	async installWorkspaceRecommendations(): Promise<void> {
 		const installableRecommendations = await this.getInstallableWorkspaceRecommendations();
-		await this.extensionManagementService.installExtensions(installableRecommendations.map(i => i.gallery!));
+		if (installableRecommendations.length) {
+			await this.extensionManagementService.installExtensions(installableRecommendations.map(i => i.gallery!));
+		} else {
+			this.notificationService.notify({
+				severity: Severity.Info,
+				message: localize('no local extensions', "There are no extensions to install.")
+			});
+		}
 	}
 
 }

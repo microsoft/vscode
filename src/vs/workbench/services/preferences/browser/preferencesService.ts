@@ -30,7 +30,7 @@ import { IJSONEditingService } from 'vs/workbench/services/configuration/common/
 import { IEditorService } from 'vs/workbench/services/editor/common/editorService';
 import { GroupDirection, IEditorGroup, IEditorGroupsService } from 'vs/workbench/services/editor/common/editorGroupsService';
 import { DEFAULT_SETTINGS_EDITOR_SETTING, FOLDER_SETTINGS_PATH, getSettingsTargetName, IKeybindingsEditorOptions, IKeybindingsEditorPane, IPreferencesEditorModel, IPreferencesService, ISetting, ISettingsEditorOptions, SettingsEditorOptions, USE_SPLIT_JSON_SETTING } from 'vs/workbench/services/preferences/common/preferences';
-import { DefaultPreferencesEditorInput, KeybindingsEditorInput, PreferencesEditorInput, SettingsEditor2Input } from 'vs/workbench/services/preferences/common/preferencesEditorInput';
+import { DefaultPreferencesEditorInput, KeybindingsEditorInput, PreferencesEditorInput, SettingsEditor2Input } from 'vs/workbench/services/preferences/browser/preferencesEditorInput';
 import { defaultKeybindingsContents, DefaultKeybindingsEditorModel, DefaultSettings, DefaultSettingsEditorModel, Settings2EditorModel, SettingsEditorModel, WorkspaceConfigurationEditorModel, DefaultRawSettingsEditorModel } from 'vs/workbench/services/preferences/common/preferencesModels';
 import { registerSingleton } from 'vs/platform/instantiation/common/extensions';
 import { IRemoteAgentService } from 'vs/workbench/services/remote/common/remoteAgentService';
@@ -246,7 +246,7 @@ export class PreferencesService extends Disposable implements IPreferencesServic
 			jsonEditor;
 
 		if (!this.workspaceSettingsResource) {
-			this.notificationService.info(nls.localize('openFolderFirst', "Open a folder first to create workspace settings"));
+			this.notificationService.info(nls.localize('openFolderFirst', "Open a folder or workspace first to create workspace or folder settings."));
 			return Promise.reject(null);
 		}
 
@@ -329,8 +329,8 @@ export class PreferencesService extends Disposable implements IPreferencesServic
 			}
 		}
 		const editor = await this.doOpenSettings(configurationTarget, resource, options, group);
-		if (editor && options?.editSetting) {
-			await this.editSetting(options?.editSetting, editor, resource);
+		if (editor && options?.revealSetting) {
+			await this.revealSetting(options.revealSetting.key, !!options.revealSetting.edit, editor, resource);
 		}
 		return editor;
 	}
@@ -589,7 +589,7 @@ export class PreferencesService extends Disposable implements IPreferencesServic
 		];
 	}
 
-	private async editSetting(settingKey: string, editor: IEditorPane, settingsResource: URI): Promise<void> {
+	private async revealSetting(settingKey: string, edit: boolean, editor: IEditorPane, settingsResource: URI): Promise<void> {
 		const codeEditor = editor ? getCodeEditor(editor.getControl()) : null;
 		if (!codeEditor) {
 			return;
@@ -598,16 +598,18 @@ export class PreferencesService extends Disposable implements IPreferencesServic
 		if (!settingsModel) {
 			return;
 		}
-		const position = await this.getPositionToEdit(settingKey, settingsModel, codeEditor);
+		const position = await this.getPositionToReveal(settingKey, edit, settingsModel, codeEditor);
 		if (position) {
 			codeEditor.setPosition(position);
 			codeEditor.revealPositionNearTop(position);
 			codeEditor.focus();
-			await this.commandService.executeCommand('editor.action.triggerSuggest');
+			if (edit) {
+				await this.commandService.executeCommand('editor.action.triggerSuggest');
+			}
 		}
 	}
 
-	private async getPositionToEdit(settingKey: string, settingsModel: IPreferencesEditorModel<ISetting>, codeEditor: ICodeEditor): Promise<IPosition | null> {
+	private async getPositionToReveal(settingKey: string, edit: boolean, settingsModel: IPreferencesEditorModel<ISetting>, codeEditor: ICodeEditor): Promise<IPosition | null> {
 		const model = codeEditor.getModel();
 		if (!model) {
 			return null;
@@ -620,7 +622,7 @@ export class PreferencesService extends Disposable implements IPreferencesServic
 		let position = null;
 		const type = schema ? schema.type : 'object' /* Override Identifier */;
 		let setting = settingsModel.getPreference(settingKey);
-		if (!setting) {
+		if (!setting && edit) {
 			const defaultValue = (type === 'object' || type === 'array') ? this.configurationService.inspect(settingKey).defaultValue : getDefaultValue(type);
 			if (defaultValue !== undefined) {
 				const key = settingsModel instanceof WorkspaceConfigurationEditorModel ? ['settings', settingKey] : [settingKey];
@@ -630,18 +632,22 @@ export class PreferencesService extends Disposable implements IPreferencesServic
 		}
 
 		if (setting) {
-			position = { lineNumber: setting.valueRange.startLineNumber, column: setting.valueRange.startColumn + 1 };
-			if (type === 'object' || type === 'array') {
-				codeEditor.setPosition(position);
-				await CoreEditingCommands.LineBreakInsert.runEditorCommand(null, codeEditor, null);
-				position = { lineNumber: position.lineNumber + 1, column: model.getLineMaxColumn(position.lineNumber + 1) };
-				const firstNonWhiteSpaceColumn = model.getLineFirstNonWhitespaceColumn(position.lineNumber);
-				if (firstNonWhiteSpaceColumn) {
-					// Line has some text. Insert another new line.
-					codeEditor.setPosition({ lineNumber: position.lineNumber, column: firstNonWhiteSpaceColumn });
+			if (edit) {
+				position = { lineNumber: setting.valueRange.startLineNumber, column: setting.valueRange.startColumn + 1 };
+				if (type === 'object' || type === 'array') {
+					codeEditor.setPosition(position);
 					await CoreEditingCommands.LineBreakInsert.runEditorCommand(null, codeEditor, null);
-					position = { lineNumber: position.lineNumber, column: model.getLineMaxColumn(position.lineNumber) };
+					position = { lineNumber: position.lineNumber + 1, column: model.getLineMaxColumn(position.lineNumber + 1) };
+					const firstNonWhiteSpaceColumn = model.getLineFirstNonWhitespaceColumn(position.lineNumber);
+					if (firstNonWhiteSpaceColumn) {
+						// Line has some text. Insert another new line.
+						codeEditor.setPosition({ lineNumber: position.lineNumber, column: firstNonWhiteSpaceColumn });
+						await CoreEditingCommands.LineBreakInsert.runEditorCommand(null, codeEditor, null);
+						position = { lineNumber: position.lineNumber, column: model.getLineMaxColumn(position.lineNumber) };
+					}
 				}
+			} else {
+				position = { lineNumber: setting.keyRange.startLineNumber, column: setting.keyRange.startColumn };
 			}
 		}
 

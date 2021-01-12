@@ -7,7 +7,7 @@ import * as nls from 'vs/nls';
 import { KeyMod, KeyChord, KeyCode } from 'vs/base/common/keyCodes';
 import { Range } from 'vs/editor/common/core/range';
 import { EditorContextKeys } from 'vs/editor/common/editorContextKeys';
-import { ServicesAccessor, registerEditorAction, EditorAction, IActionOptions } from 'vs/editor/browser/editorExtensions';
+import { registerEditorAction, EditorAction, IActionOptions, EditorAction2 } from 'vs/editor/browser/editorExtensions';
 import { ContextKeyExpr } from 'vs/platform/contextkey/common/contextkey';
 import { IDebugService, CONTEXT_IN_DEBUG_MODE, CONTEXT_DEBUG_STATE, State, IDebugEditorContribution, EDITOR_CONTRIBUTION_ID, BreakpointWidgetContext, IBreakpoint, BREAKPOINT_EDITOR_CONTRIBUTION_ID, IBreakpointEditorContribution, REPL_VIEW_ID, CONTEXT_STEP_INTO_TARGETS_SUPPORTED, WATCH_VIEW_ID, CONTEXT_DEBUGGERS_AVAILABLE, CONTEXT_EXCEPTION_WIDGET_VISIBLE } from 'vs/workbench/contrib/debug/common/debug';
 import { ICodeEditor } from 'vs/editor/browser/editorBrowser';
@@ -24,24 +24,35 @@ import { Position } from 'vs/editor/common/core/position';
 import { URI } from 'vs/base/common/uri';
 import { IDisposable } from 'vs/base/common/lifecycle';
 import { raceTimeout } from 'vs/base/common/async';
+import { registerAction2, MenuId } from 'vs/platform/actions/common/actions';
+import { ServicesAccessor } from 'vs/platform/instantiation/common/instantiation';
 
-export const TOGGLE_BREAKPOINT_ID = 'editor.debug.action.toggleBreakpoint';
-class ToggleBreakpointAction extends EditorAction {
+class ToggleBreakpointAction extends EditorAction2 {
 	constructor() {
 		super({
-			id: TOGGLE_BREAKPOINT_ID,
-			label: nls.localize('toggleBreakpointAction', "Debug: Toggle Breakpoint"),
-			alias: 'Debug: Toggle Breakpoint',
+			id: 'editor.debug.action.toggleBreakpoint',
+			title: {
+				value: nls.localize('toggleBreakpointAction', "Debug: Toggle Breakpoint"),
+				original: 'Toggle Breakpoint',
+				mnemonicTitle: nls.localize({ key: 'miToggleBreakpoint', comment: ['&& denotes a mnemonic'] }, "Toggle &&Breakpoint")
+			},
+			f1: true,
 			precondition: CONTEXT_DEBUGGERS_AVAILABLE,
-			kbOpts: {
-				kbExpr: EditorContextKeys.editorTextFocus,
+			keybinding: {
+				when: EditorContextKeys.editorTextFocus,
 				primary: KeyCode.F9,
 				weight: KeybindingWeight.EditorContrib
+			},
+			menu: {
+				when: CONTEXT_DEBUGGERS_AVAILABLE,
+				id: MenuId.MenubarDebugMenu,
+				group: '4_new_breakpoint',
+				order: 1
 			}
 		});
 	}
 
-	async run(accessor: ServicesAccessor, editor: ICodeEditor): Promise<any> {
+	async runEditorCommand(accessor: ServicesAccessor, editor: ICodeEditor, ...args: any[]): Promise<void> {
 		if (editor.hasModel()) {
 			const debugService = accessor.get(IDebugService);
 			const modelUri = editor.getModel().uri;
@@ -49,33 +60,39 @@ class ToggleBreakpointAction extends EditorAction {
 			// Does not account for multi line selections, Set to remove multiple cursor on the same line
 			const lineNumbers = [...new Set(editor.getSelections().map(s => s.getPosition().lineNumber))];
 
-			return Promise.all(lineNumbers.map(line => {
+			await Promise.all(lineNumbers.map(async line => {
 				const bps = debugService.getModel().getBreakpoints({ lineNumber: line, uri: modelUri });
 				if (bps.length) {
-					return Promise.all(bps.map(bp => debugService.removeBreakpoints(bp.getId())));
+					await Promise.all(bps.map(bp => debugService.removeBreakpoints(bp.getId())));
 				} else if (canSet) {
-					return (debugService.addBreakpoints(modelUri, [{ lineNumber: line }]));
-				} else {
-					return [];
+					await debugService.addBreakpoints(modelUri, [{ lineNumber: line }]);
 				}
 			}));
 		}
 	}
 }
 
-export const TOGGLE_CONDITIONAL_BREAKPOINT_ID = 'editor.debug.action.conditionalBreakpoint';
-class ConditionalBreakpointAction extends EditorAction {
-
+class ConditionalBreakpointAction extends EditorAction2 {
 	constructor() {
 		super({
-			id: TOGGLE_CONDITIONAL_BREAKPOINT_ID,
-			label: nls.localize('conditionalBreakpointEditorAction', "Debug: Add Conditional Breakpoint..."),
-			alias: 'Debug: Add Conditional Breakpoint...',
-			precondition: CONTEXT_DEBUGGERS_AVAILABLE
+			id: 'editor.debug.action.conditionalBreakpoint',
+			title: {
+				value: nls.localize('conditionalBreakpointEditorAction', "Debug: Add Conditional Breakpoint..."),
+				original: 'Debug: Add Conditional Breakpoint...',
+				mnemonicTitle: nls.localize({ key: 'miConditionalBreakpoint', comment: ['&& denotes a mnemonic'] }, "&&Conditional Breakpoint...")
+			},
+			f1: true,
+			precondition: CONTEXT_DEBUGGERS_AVAILABLE,
+			menu: {
+				id: MenuId.MenubarNewBreakpointMenu,
+				group: '1_breakpoints',
+				order: 1,
+				when: CONTEXT_DEBUGGERS_AVAILABLE
+			}
 		});
 	}
 
-	public run(accessor: ServicesAccessor, editor: ICodeEditor): void {
+	runEditorCommand(accessor: ServicesAccessor, editor: ICodeEditor, ...args: any[]): void {
 		const debugService = accessor.get(IDebugService);
 
 		const position = editor.getPosition();
@@ -85,19 +102,28 @@ class ConditionalBreakpointAction extends EditorAction {
 	}
 }
 
-export const ADD_LOG_POINT_ID = 'editor.debug.action.addLogPoint';
-class LogPointAction extends EditorAction {
+class LogPointAction extends EditorAction2 {
 
 	constructor() {
 		super({
-			id: ADD_LOG_POINT_ID,
-			label: nls.localize('logPointEditorAction', "Debug: Add Logpoint..."),
-			alias: 'Debug: Add Logpoint...',
-			precondition: CONTEXT_DEBUGGERS_AVAILABLE
+			id: 'editor.debug.action.addLogPoint',
+			title: {
+				value: nls.localize('logPointEditorAction', "Debug: Add Logpoint..."),
+				original: 'Debug: Add Logpoint...',
+				mnemonicTitle: nls.localize({ key: 'miLogPoint', comment: ['&& denotes a mnemonic'] }, "&&Logpoint...")
+			},
+			precondition: CONTEXT_DEBUGGERS_AVAILABLE,
+			f1: true,
+			menu: {
+				id: MenuId.MenubarNewBreakpointMenu,
+				group: '1_breakpoints',
+				order: 4,
+				when: CONTEXT_DEBUGGERS_AVAILABLE
+			}
 		});
 	}
 
-	public run(accessor: ServicesAccessor, editor: ICodeEditor): void {
+	runEditorCommand(accessor: ServicesAccessor, editor: ICodeEditor, ...args: any[]): void {
 		const debugService = accessor.get(IDebugService);
 
 		const position = editor.getPosition();
@@ -476,9 +502,9 @@ class CloseExceptionWidgetAction extends EditorAction {
 }
 
 export function registerEditorActions(): void {
-	registerEditorAction(ToggleBreakpointAction);
-	registerEditorAction(ConditionalBreakpointAction);
-	registerEditorAction(LogPointAction);
+	registerAction2(ToggleBreakpointAction);
+	registerAction2(ConditionalBreakpointAction);
+	registerAction2(LogPointAction);
 	registerEditorAction(RunToCursorAction);
 	registerEditorAction(StepIntoTargetsAction);
 	registerEditorAction(SelectionToReplAction);

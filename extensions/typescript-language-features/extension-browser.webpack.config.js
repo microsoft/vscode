@@ -12,6 +12,22 @@ const Terser = require('terser');
 
 const withBrowserDefaults = require('../shared.webpack.config').browser;
 
+const languages = [
+	'zh-tw',
+	'cs',
+	'de',
+	'es',
+	'fr',
+	'it',
+	'ja',
+	'ko',
+	'pl',
+	'pt-br',
+	'ru',
+	'tr',
+	'zh-cn',
+];
+
 module.exports = withBrowserDefaults({
 	context: __dirname,
 	entry: {
@@ -22,17 +38,28 @@ module.exports = withBrowserDefaults({
 		new CopyPlugin({
 			patterns: [
 				{
-					from: 'node_modules/typescript-web-server/*.d.ts',
+					from: 'node_modules/typescript-web/lib/*.d.ts',
 					to: 'typescript-web/',
 					flatten: true
 				},
+				{
+					from: 'node_modules/typescript-web/lib/typesMap.json',
+					to: 'typescript-web/'
+				},
+				...languages.map(lang => ({
+					from: `node_modules/typescript-web/lib/${lang}/**/*`,
+					to: 'typescript-web/',
+					transformPath: (targetPath) => {
+						return targetPath.replace(/node_modules[\/\\]typescript-web[\/\\]lib/, '');
+					}
+				}))
 			],
 		}),
 		// @ts-ignore
 		new CopyPlugin({
 			patterns: [
 				{
-					from: 'node_modules/typescript-web-server/tsserver.js',
+					from: 'node_modules/typescript-web/lib/tsserver.js',
 					to: 'typescript-web/tsserver.web.js',
 					transform: (content) => {
 						return Terser.minify(content.toString()).code;

@@ -191,6 +191,10 @@
 	padding: 4px;
 }
 
+.monaco-workbench .notebookOverlay .output pre {
+	margin: 4px 0;
+}
+
 .monaco-workbench .notebookOverlay .output .error_message {
 	color: red;
 }
@@ -475,6 +479,10 @@
 	text-align: center;
 }
 
+.monaco-workbench .notebookOverlay > .cell-list-container > .monaco-list > .monaco-scrollable-element > .monaco-list-rows > .monaco-list-row .output-collapsed .execution-count-label {
+	bottom: 24px;
+}
+
 .monaco-workbench .notebookOverlay .cell .cell-editor-part {
 	position: relative;
 }
@@ -535,6 +543,11 @@
 	cursor: grab;
 }
 
+.monaco-workbench .notebookOverlay.notebook-editor-editable > .cell-list-container > .monaco-list > .monaco-scrollable-element > .scrollbar.visible {
+	z-index: 25;
+	cursor: default;
+}
+
 .monaco-workbench .notebookOverlay .monaco-list .monaco-list-row .cell-focus-indicator .codicon:hover {
 	cursor: pointer;
 }
@@ -580,7 +593,7 @@
 	display: flex;
 	align-items: center;
 	justify-content: center;
-	z-index: 25; /* over the focus outline on the editor, below the title toolbar */
+	z-index: 28; /* over the focus outline on the editor, below the title toolbar */
 	width: 100%;
 	opacity: 0;
 	transition: opacity 0.2s ease-in-out;
@@ -593,8 +606,9 @@
 
 .monaco-workbench .notebookOverlay .cell-list-top-cell-toolbar-container:focus-within,
 .monaco-workbench .notebookOverlay .cell-list-top-cell-toolbar-container:hover,
-.monaco-workbench .notebookOverlay.notebook-editor-editable > .cell-list-container > .monaco-list > .monaco-scrollable-element > .monaco-list-rows > .monaco-list-row .cell-bottom-toolbar-container:focus-within,
-.monaco-workbench .notebookOverlay.notebook-editor-editable > .cell-list-container > .monaco-list > .monaco-scrollable-element > .monaco-list-rows > .monaco-list-row .cell-bottom-toolbar-container:hover {
+.monaco-workbench .notebookOverlay > .cell-list-container > .monaco-list > .monaco-scrollable-element > .monaco-list-rows > .monaco-list-row:hover .cell-bottom-toolbar-container,
+.monaco-workbench .notebookOverlay > .cell-list-container > .monaco-list:focus-within > .monaco-scrollable-element > .monaco-list-rows:not(:hover) > .monaco-list-row.focused .cell-bottom-toolbar-container,
+.monaco-workbench .notebookOverlay.notebook-editor-editable > .cell-list-container > .monaco-list > .monaco-scrollable-element > .monaco-list-rows > .monaco-list-row .cell-bottom-toolbar-container:focus-within {
 	opacity: 1;
 }
 
@@ -851,15 +865,10 @@
 	display: flex;
 }
 
-/* TODO @misolori localize string */
-.monaco-workbench .notebookOverlay > .cell-list-container > .monaco-list > .monaco-scrollable-element > .monaco-list-rows > .monaco-list-row.focused .cell-statusbar-container .cell-run-status:empty::before {
-	content: "Ctrl + Enter to run";
-	width: auto;
-	height: 100%;
-	display: block;
-	opacity: 0.7;
-}
-
 .output-show-more {
 	padding: 8px 0;
+}
+
+.cell-contributed-items.cell-contributed-items-left {
+	margin-left: 4px;
 }

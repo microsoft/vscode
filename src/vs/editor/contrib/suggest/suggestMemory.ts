@@ -82,8 +82,7 @@ export class LRUMemory extends Memory {
 	private _seq = 0;
 
 	memorize(model: ITextModel, pos: IPosition, item: CompletionItem): void {
-		const { label } = item.completion;
-		const key = `${model.getLanguageIdentifier().language}/${label}`;
+		const key = `${model.getLanguageIdentifier().language}/${item.textLabel}`;
 		this._cache.set(key, {
 			touch: this._seq++,
 			type: item.completion.kind,
@@ -111,7 +110,7 @@ export class LRUMemory extends Memory {
 				// consider only top items
 				break;
 			}
-			const key = `${model.getLanguageIdentifier().language}/${items[i].completion.label}`;
+			const key = `${model.getLanguageIdentifier().language}/${items[i].textLabel}`;
 			const item = this._cache.peek(key);
 			if (item && item.touch > seq && item.type === items[i].completion.kind && item.insertText === items[i].completion.insertText) {
 				seq = item.touch;

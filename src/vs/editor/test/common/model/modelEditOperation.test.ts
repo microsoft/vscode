@@ -52,19 +52,19 @@ suite('Editor Model - Model Edit Operation', () => {
 
 		let inverseEditOp = model.applyEdits(editOp, true);
 
-		assert.equal(model.getLineCount(), editedLines.length);
+		assert.strictEqual(model.getLineCount(), editedLines.length);
 		for (let i = 0; i < editedLines.length; i++) {
-			assert.equal(model.getLineContent(i + 1), editedLines[i]);
+			assert.strictEqual(model.getLineContent(i + 1), editedLines[i]);
 		}
 
 		let originalOp = model.applyEdits(inverseEditOp, true);
 
-		assert.equal(model.getLineCount(), 5);
-		assert.equal(model.getLineContent(1), LINE1);
-		assert.equal(model.getLineContent(2), LINE2);
-		assert.equal(model.getLineContent(3), LINE3);
-		assert.equal(model.getLineContent(4), LINE4);
-		assert.equal(model.getLineContent(5), LINE5);
+		assert.strictEqual(model.getLineCount(), 5);
+		assert.strictEqual(model.getLineContent(1), LINE1);
+		assert.strictEqual(model.getLineContent(2), LINE2);
+		assert.strictEqual(model.getLineContent(3), LINE3);
+		assert.strictEqual(model.getLineContent(4), LINE4);
+		assert.strictEqual(model.getLineContent(5), LINE5);
 
 		const simplifyEdit = (edit: IIdentifiedSingleEditOperation) => {
 			return {
@@ -75,7 +75,7 @@ suite('Editor Model - Model Edit Operation', () => {
 				isAutoWhitespaceEdit: edit.isAutoWhitespaceEdit || false
 			};
 		};
-		assert.deepEqual(originalOp.map(simplifyEdit), editOp.map(simplifyEdit));
+		assert.deepStrictEqual(originalOp.map(simplifyEdit), editOp.map(simplifyEdit));
 	}
 
 	test('Insert inline', () => {
