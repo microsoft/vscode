@@ -5,17 +5,17 @@
 
 import { Event } from 'vs/base/common/event';
 import { IDisposable } from 'vs/base/common/lifecycle';
-import { IProcessDataEvent } from 'vs/workbench/contrib/terminal/common/terminal';
+import { IProcessDataEvent, IProcessDataWithAckEvent } from 'vs/workbench/contrib/terminal/common/terminal';
 
 interface TerminalDataBuffer extends IDisposable {
-	data: string[];
+	data: (string | IProcessDataWithAckEvent)[];
 	timeoutId: any;
 }
 
 export class TerminalDataBufferer implements IDisposable {
 	private readonly _terminalBufferMap = new Map<number, TerminalDataBuffer>();
 
-	constructor(private readonly _callback: (id: number, data: string) => void) {
+	constructor(private readonly _callback: (id: number, data: string | IProcessDataWithAckEvent) => void) {
 	}
 
 	dispose() {
@@ -24,10 +24,10 @@ export class TerminalDataBufferer implements IDisposable {
 		}
 	}
 
-	startBuffering(id: number, event: Event<string | IProcessDataEvent>, throttleBy: number = 5): IDisposable {
+	startBuffering(id: number, event: Event<string | IProcessDataEvent | IProcessDataWithAckEvent>, throttleBy: number = 5): IDisposable {
 		let disposable: IDisposable;
-		disposable = event((e: string | IProcessDataEvent) => {
-			const data = (typeof e === 'string' ? e : e.data);
+		disposable = event((e: string | IProcessDataEvent | IProcessDataWithAckEvent) => {
+			const data = (typeof e === 'string' || 'ackId' in e ? e : e.data);
 			let buffer = this._terminalBufferMap.get(id);
 			if (buffer) {
 				buffer.data.push(data);
@@ -61,7 +61,11 @@ export class TerminalDataBufferer implements IDisposable {
 		const buffer = this._terminalBufferMap.get(id);
 		if (buffer) {
 			this._terminalBufferMap.delete(id);
-			this._callback(id, buffer.data.join(''));
+			// TODO: This should batch string events together still
+			// this._callback(id, buffer.data.join(''));
+			for (let b of buffer.data) {
+				this._callback(id, b);
+			}
 		}
 	}
 }
