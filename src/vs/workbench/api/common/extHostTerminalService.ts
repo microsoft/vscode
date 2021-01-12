@@ -221,10 +221,8 @@ export class ExtHostPseudoterminal implements ITerminalChildProcess {
 	}
 
 	acknowledgeDataEvent(charCount: number): void {
-		// TODO: Determine whether ExtHostPseudoterminal terminals should support flow control, this
-		// would need resume/pause APIs
-
-		// No-op
+		// No-op, flow control is not supported in extension owned terminals. If this is ever
+		// implemented it will need new pause and resume VS Code APIs.
 	}
 
 	getInitialCwd(): Promise<string> {

@@ -11,7 +11,7 @@ import * as os from 'os';
 import { Event, Emitter } from 'vs/base/common/event';
 import { getWindowsBuildNumber } from 'vs/workbench/contrib/terminal/node/terminal';
 import { Disposable } from 'vs/base/common/lifecycle';
-import { IShellLaunchConfig, ITerminalChildProcess, ITerminalDimensionsOverride, ITerminalLaunchError } from 'vs/workbench/contrib/terminal/common/terminal';
+import { IShellLaunchConfig, ITerminalChildProcess, ITerminalDimensionsOverride, ITerminalLaunchError, FlowControlConstants } from 'vs/workbench/contrib/terminal/common/terminal';
 import { exec } from 'child_process';
 import { ILogService } from 'vs/platform/log/common/log';
 import { stat } from 'vs/base/node/pfs';
@@ -25,24 +25,6 @@ import { localize } from 'vs/nls';
 // to the terminal. See https://github.com/microsoft/vscode/issues/38137
 const WRITE_MAX_CHUNK_SIZE = 50;
 const WRITE_INTERVAL_MS = 5;
-
-const enum FlowControl {
-	/**
-	 * The number of _unacknowledged_ chars to have been sent before the pty is paused in order for
-	 * the client to catch up.
-	 */
-	HighWatermarkChars = 100000,
-	/**
-	 * After flow control pauses the pty for the client the catch up, this is the number of
-	 * _unacknowledged_ chars to have been caught up to on the client before resuming the pty again.
-	 * This is used to attempt to prevent pauses in the flowing data; ideally while the pty is
-	 * paused the number of unacknowledged chars would always be greater than 0 or the client will
-	 * appear to stutter. In reality this balance is hard to accomplish though so heavy commands
-	 * will likely pause as latency grows, not flooding the connection is the important thing as
-	 * it's shared with other core functionality.
-	 */
-	LowWatermarkChars = 5000
-}
 
 export class TerminalProcess extends Disposable implements ITerminalChildProcess {
 	private _exitCode: number | undefined;
@@ -60,8 +42,7 @@ export class TerminalProcess extends Disposable implements ITerminalChildProcess
 	private readonly _ptyOptions: pty.IPtyForkOptions | pty.IWindowsPtyForkOptions;
 
 	private _isPtyPaused: boolean = false;
-	private _totalDataCharCount: number = 0;
-	private _acknowledgedDataCharCount: number = 0;
+	private _unacknowledgedCharCount: number = 0;
 
 	public get exitMessage(): string | undefined { return this._exitMessage; }
 
@@ -187,14 +168,14 @@ export class TerminalProcess extends Disposable implements ITerminalChildProcess
 		});
 		ptyProcess.onData(data => {
 			const fakeLatency = 1000;
-			this._totalDataCharCount += data.length;
+			this._unacknowledgedCharCount += data.length;
 			setTimeout(() => {
 				this._onProcessData.fire(data);
 			}, fakeLatency);
-			if (!this._isPtyPaused && this._totalDataCharCount - this._acknowledgedDataCharCount > FlowControl.HighWatermarkChars) {
-				// TODO: Expose as public API in node-pty
-				console.log('pause', this._totalDataCharCount - this._acknowledgedDataCharCount, '>', FlowControl.HighWatermarkChars);
+			if (!this._isPtyPaused && this._unacknowledgedCharCount > FlowControlConstants.HighWatermarkChars) {
+				console.log(`pause (${this._unacknowledgedCharCount} > ${FlowControlConstants.HighWatermarkChars}`);
 				this._isPtyPaused = true;
+				// TODO: Expose as public API in node-pty
 				(ptyProcess as any).pause();
 			}
 			if (this._closeTimeout) {
@@ -359,8 +340,11 @@ export class TerminalProcess extends Disposable implements ITerminalChildProcess
 	}
 
 	public acknowledgeDataEvent(charCount: number): void {
-		this._acknowledgedDataCharCount += charCount;
-		if (this._isPtyPaused && this._totalDataCharCount - this._acknowledgedDataCharCount < FlowControl.LowWatermarkChars) {
+		// Prevent lower than 0 to heal from errors
+		this._unacknowledgedCharCount = Math.max(this._unacknowledgedCharCount - charCount, 0);
+		console.log(`Ack ${charCount} chars (unacknowledged: ${this._unacknowledgedCharCount})`);
+		if (this._isPtyPaused && this._unacknowledgedCharCount < FlowControlConstants.LowWatermarkChars) {
+			console.log(`Resume (${this._unacknowledgedCharCount} < ${FlowControlConstants.LowWatermarkChars})`);
 			// TODO: Expose as public API in node-pty
 			(this._ptyProcess as any).resume();
 			this._isPtyPaused = false;

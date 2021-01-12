@@ -6,7 +6,7 @@
 import * as platform from 'vs/base/common/platform';
 import * as terminalEnvironment from 'vs/workbench/contrib/terminal/common/terminalEnvironment';
 import { env as processEnv } from 'vs/base/common/process';
-import { ProcessState, ITerminalProcessManager, IShellLaunchConfig, ITerminalConfigHelper, ITerminalChildProcess, IBeforeProcessDataEvent, ITerminalEnvironment, ITerminalLaunchError, IProcessDataEvent, ITerminalDimensionsOverride } from 'vs/workbench/contrib/terminal/common/terminal';
+import { ProcessState, ITerminalProcessManager, IShellLaunchConfig, ITerminalConfigHelper, ITerminalChildProcess, IBeforeProcessDataEvent, ITerminalEnvironment, ITerminalLaunchError, IProcessDataEvent, ITerminalDimensionsOverride, FlowControlConstants } from 'vs/workbench/contrib/terminal/common/terminal';
 import { ILogService } from 'vs/platform/log/common/log';
 import { Emitter, Event } from 'vs/base/common/event';
 import { IHistoryService } from 'vs/workbench/services/history/common/history';
@@ -64,6 +64,7 @@ export class TerminalProcessManager extends Disposable implements ITerminalProce
 	private _initialCwd: string | undefined;
 	private _extEnvironmentVariableCollection: IMergedEnvironmentVariableCollection | undefined;
 	private _environmentVariableInfo: IEnvironmentVariableInfo | undefined;
+	private _ackDataBufferer: AckDataBufferer;
 
 	private readonly _onProcessReady = this._register(new Emitter<void>());
 	public get onProcessReady(): Event<void> { return this._onProcessReady.event; }
@@ -111,6 +112,7 @@ export class TerminalProcessManager extends Disposable implements ITerminalProce
 			});
 		});
 		this.ptyProcessReady.then(async () => await this.getLatency());
+		this._ackDataBufferer = new AckDataBufferer(e => this._process?.acknowledgeDataEvent(e));
 	}
 
 	public dispose(immediate: boolean = false): void {
@@ -332,8 +334,7 @@ export class TerminalProcessManager extends Disposable implements ITerminalProce
 	}
 
 	public acknowledgeDataEvent(charCount: number): void {
-		// TODO: Batch these acknowledge calls (in proxy/remote connection?)
-		this._process?.acknowledgeDataEvent(charCount);
+		this._ackDataBufferer.ack(charCount);
 	}
 
 	private _onExit(exitCode: number | undefined): void {
@@ -362,5 +363,22 @@ export class TerminalProcessManager extends Disposable implements ITerminalProce
 		}
 		this._environmentVariableInfo = this._instantiationService.createInstance(EnvironmentVariableInfoStale, diff, this._terminalId);
 		this._onEnvironmentVariableInfoChange.fire(this._environmentVariableInfo);
+	}
+}
+
+class AckDataBufferer {
+	private _unsentCharCount: number = 0;
+
+	constructor(
+		private readonly _callback: (charCount: number) => void
+	) {
+	}
+
+	ack(charCount: number) {
+		this._unsentCharCount += charCount;
+		while (this._unsentCharCount > FlowControlConstants.CharCountAckSize) {
+			this._unsentCharCount -= FlowControlConstants.CharCountAckSize;
+			this._callback(FlowControlConstants.CharCountAckSize);
+		}
 	}
 }
