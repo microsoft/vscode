@@ -186,14 +186,11 @@ export class TerminalProcess extends Disposable implements ITerminalChildProcess
 		ptyProcess.onData(data => {
 			// TODO: Periodically request ACK between low and high watermark
 			const fakeLatency = 1000;
-			// TODO: if we're just sending the data length over, ackId doesn't need to exist at all
 			// TODO: We don't need to ack everything, just count on the other side and ack every 1000/10000 bytes
 			this._totalDataCharCount += data.length;
 			setTimeout(() => {
 				this._onProcessData.fire(data);
 			}, fakeLatency);
-			// TODO: Use bytes, not messages
-			// console.log('check', this._currentAckRequestId - this._ackedRequestId, FlowControl.HighWatermarkBytes);
 			if (this._totalDataCharCount - this._acknowledgedDataCharCount > FlowControl.HighWatermarkChars) {
 				// TODO: Expose as public API in node-pty
 				console.log('pause', this._totalDataCharCount - this._acknowledgedDataCharCount, '>', FlowControl.HighWatermarkChars);
@@ -360,9 +357,10 @@ export class TerminalProcess extends Disposable implements ITerminalChildProcess
 		}
 	}
 
-	public acknowledgeDataEvent(ackId: number): void {
-		this._acknowledgedDataCharCount += ackId;
+	public acknowledgeDataEvent(charCount: number): void {
+		this._acknowledgedDataCharCount += charCount;
 		if (this._totalDataCharCount - this._acknowledgedDataCharCount < FlowControl.LowWatermarkChars) {
+			// TODO: Check whether it is paused before resuming
 			// TODO: Expose as public API in node-pty
 			(this._ptyProcess as any).resume();
 		}

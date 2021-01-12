@@ -252,7 +252,7 @@ export class RemoteTerminalProcess extends Disposable implements ITerminalChildP
 		});
 	}
 
-	public acknowledgeDataEvent(ackId: number): void {
+	public acknowledgeDataEvent(charCount: number): void {
 		// TODO: Support flow control for server spawned processes
 	}
 

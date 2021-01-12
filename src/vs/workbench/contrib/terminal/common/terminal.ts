@@ -379,8 +379,7 @@ export interface ITerminalProcessManager extends IDisposable {
 	createProcess(shellLaunchConfig: IShellLaunchConfig, cols: number, rows: number, isScreenReaderModeEnabled: boolean): Promise<ITerminalLaunchError | undefined>;
 	write(data: string): void;
 	setDimensions(cols: number, rows: number): void;
-	// TODO: Rename to charCount
-	acknowledgeDataEvent(ackId: number): void;
+	acknowledgeDataEvent(charCount: number): void;
 
 	getInitialCwd(): Promise<string>;
 	getCwd(): Promise<string>;
@@ -514,8 +513,9 @@ export interface ITerminalChildProcess {
 	 * Acknowledge a data event has been parsed by the terminal, this is used to implement flow
 	 * control to ensure remote processes to not get too far ahead of the client and flood the
 	 * connection.
+	 * @param charCount The number of characters being acknowledged.
 	 */
-	acknowledgeDataEvent(ackId: number): void;
+	acknowledgeDataEvent(charCount: number): void;
 
 	getInitialCwd(): Promise<string>;
 	getCwd(): Promise<string>;
