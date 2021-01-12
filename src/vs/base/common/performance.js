@@ -72,32 +72,11 @@ function _define() {
 		}
 
 	} else if (typeof process === 'object') {
-		// node.js: use "node-native" performance for mark()
-		// and setup a PerformanceObserver for getMarks()
-		const { performance, PerformanceObserver } = (require.nodeRequire || require)('perf_hooks');
+		// node.js: use the normal polyfill but add the timeOrigin
+		// from the node perf_hooks API as very first mark
+		const timeOrigin = Math.round((require.nodeRequire || require)('perf_hooks').performance.timeOrigin);
+		return _definePolyfillMarks(timeOrigin);
 
-		const marks = [];
-		const obs = new PerformanceObserver(list => { marks.push(list.getEntries()); });
-		obs.observe({ entryTypes: ['mark'], buffered: true });
-
-		return {
-			mark(name) {
-				performance.mark(name);
-			},
-			getMarks() {
-				const timeOrigin = performance.timeOrigin;
-				const result = [{ name: 'code/timeOrigin', startTime: Math.round(timeOrigin) }];
-				for (const array of marks) {
-					for (const entry of array) {
-						result.push({
-							name: entry.name,
-							startTime: Math.round(timeOrigin + entry.startTime)
-						});
-					}
-				}
-				return result;
-			}
-		};
 	} else {
 		// unknown environment
 		console.trace('perf-util loaded in UNKNOWN environment');
