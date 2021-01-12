@@ -13,10 +13,10 @@ steps:
       azureSubscription: "vscode-builds-subscription"
       KeyVaultName: vscode
 
-  # - script: |
-  #     set -e
+  - script: |
+      set -e
 
-  #     (cd build ; yarn)
+      (cd build ; yarn)
 
-  #     AZURE_DOCUMENTDB_MASTERKEY="$(builds-docdb-key-readwrite)" \
-  #     node build/azure-pipelines/common/releaseBuild.js
+      AZURE_DOCUMENTDB_MASTERKEY="$(builds-docdb-key-readwrite)" \
+      node build/azure-pipelines/common/releaseBuild.js
