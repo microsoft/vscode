@@ -175,12 +175,11 @@ export class TerminalProcessManager extends Disposable implements ITerminalProce
 
 		this._process.onProcessData(ev => {
 			const data = (typeof ev === 'string' ? ev : ev.data);
-			const sync = (typeof ev === 'string' || 'ackId' in ev ? false : ev.sync);
-			const dataAckId = (typeof ev !== 'string' && 'ackId' in ev ? ev.ackId : undefined);
+			const sync = (typeof ev === 'string' ? false : ev.sync);
 			const beforeProcessDataEvent: IBeforeProcessDataEvent = { data };
 			this._onBeforeProcessData.fire(beforeProcessDataEvent);
 			if (beforeProcessDataEvent.data && beforeProcessDataEvent.data.length > 0) {
-				this._onProcessData.fire({ data: beforeProcessDataEvent.data, sync, dataAckId });
+				this._onProcessData.fire({ data: beforeProcessDataEvent.data, sync });
 			}
 		});
 

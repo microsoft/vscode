@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { DisposableStore, Disposable, IDisposable } from 'vs/base/common/lifecycle';
-import { IShellLaunchConfig, ITerminalProcessExtHostProxy, ISpawnExtHostProcessRequest, ITerminalDimensions, IAvailableShellsRequest, IDefaultShellAndArgsRequest, IStartExtensionTerminalRequest, IProcessDataWithAckEvent } from 'vs/workbench/contrib/terminal/common/terminal';
+import { IShellLaunchConfig, ITerminalProcessExtHostProxy, ISpawnExtHostProcessRequest, ITerminalDimensions, IAvailableShellsRequest, IDefaultShellAndArgsRequest, IStartExtensionTerminalRequest } from 'vs/workbench/contrib/terminal/common/terminal';
 import { ExtHostContext, ExtHostTerminalServiceShape, MainThreadTerminalServiceShape, MainContext, IExtHostContext, IShellLaunchConfigDto, TerminalLaunchConfig, ITerminalDimensionsDto, TerminalIdentifier } from 'vs/workbench/api/common/extHost.protocol';
 import { extHostNamedCustomer } from 'vs/workbench/api/common/extHostCustomers';
 import { URI } from 'vs/base/common/uri';
@@ -168,8 +168,7 @@ export class MainThreadTerminalService implements MainThreadTerminalServiceShape
 	public $startSendingDataEvents(): void {
 		if (!this._dataEventTracker) {
 			this._dataEventTracker = this._instantiationService.createInstance(TerminalDataEventTracker, (id, data) => {
-				const d = typeof data === 'string' ? data : data.data;
-				this._onTerminalData(id, d);
+				this._onTerminalData(id, data);
 			});
 			// Send initial events if they exist
 			this._terminalService.terminalInstances.forEach(t => {
@@ -312,7 +311,7 @@ export class MainThreadTerminalService implements MainThreadTerminalServiceShape
 		}
 	}
 
-	public $sendProcessData(terminalId: number, data: string | IProcessDataWithAckEvent): void {
+	public $sendProcessData(terminalId: number, data: string): void {
 		const terminalProcess = this._terminalProcessProxies.get(terminalId);
 		if (terminalProcess) {
 			terminalProcess.emitData(data);
@@ -425,7 +424,7 @@ class TerminalDataEventTracker extends Disposable {
 	private readonly _bufferer: TerminalDataBufferer;
 
 	constructor(
-		private readonly _callback: (id: number, data: string | IProcessDataWithAckEvent) => void,
+		private readonly _callback: (id: number, data: string) => void,
 		@ITerminalService private readonly _terminalService: ITerminalService
 	) {
 		super();

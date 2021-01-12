@@ -11,7 +11,7 @@ import * as os from 'os';
 import { Event, Emitter } from 'vs/base/common/event';
 import { getWindowsBuildNumber } from 'vs/workbench/contrib/terminal/node/terminal';
 import { Disposable } from 'vs/base/common/lifecycle';
-import { IProcessDataWithAckEvent, IShellLaunchConfig, ITerminalChildProcess, ITerminalDimensionsOverride, ITerminalLaunchError } from 'vs/workbench/contrib/terminal/common/terminal';
+import { IShellLaunchConfig, ITerminalChildProcess, ITerminalDimensionsOverride, ITerminalLaunchError } from 'vs/workbench/contrib/terminal/common/terminal';
 import { exec } from 'child_process';
 import { ILogService } from 'vs/platform/log/common/log';
 import { stat } from 'vs/base/node/pfs';
@@ -63,8 +63,8 @@ export class TerminalProcess extends Disposable implements ITerminalChildProcess
 
 	public get exitMessage(): string | undefined { return this._exitMessage; }
 
-	private readonly _onProcessData = this._register(new Emitter<string | IProcessDataWithAckEvent>());
-	public get onProcessData(): Event<string | IProcessDataWithAckEvent> { return this._onProcessData.event; }
+	private readonly _onProcessData = this._register(new Emitter<string>());
+	public get onProcessData(): Event<string> { return this._onProcessData.event; }
 	private readonly _onProcessExit = this._register(new Emitter<number>());
 	public get onProcessExit(): Event<number> { return this._onProcessExit.event; }
 	private readonly _onProcessReady = this._register(new Emitter<{ pid: number, cwd: string }>());
@@ -189,9 +189,8 @@ export class TerminalProcess extends Disposable implements ITerminalChildProcess
 			// TODO: if we're just sending the data length over, ackId doesn't need to exist at all
 			// TODO: We don't need to ack everything, just count on the other side and ack every 1000/10000 bytes
 			this._totalDataCharCount += data.length;
-			const ackId = data.length;
 			setTimeout(() => {
-				this._onProcessData.fire({ data, ackId });
+				this._onProcessData.fire(data);
 			}, fakeLatency);
 			// TODO: Use bytes, not messages
 			// console.log('check', this._currentAckRequestId - this._ackedRequestId, FlowControl.HighWatermarkBytes);

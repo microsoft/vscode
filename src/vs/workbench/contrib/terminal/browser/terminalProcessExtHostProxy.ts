@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { Event, Emitter } from 'vs/base/common/event';
-import { ITerminalProcessExtHostProxy, IShellLaunchConfig, ITerminalChildProcess, ITerminalConfigHelper, ITerminalDimensions, ITerminalLaunchError, ITerminalDimensionsOverride, IProcessDataWithAckEvent } from 'vs/workbench/contrib/terminal/common/terminal';
+import { ITerminalProcessExtHostProxy, IShellLaunchConfig, ITerminalChildProcess, ITerminalConfigHelper, ITerminalDimensions, ITerminalLaunchError, ITerminalDimensionsOverride } from 'vs/workbench/contrib/terminal/common/terminal';
 import { Disposable } from 'vs/base/common/lifecycle';
 import { URI } from 'vs/base/common/uri';
 import { IRemoteAgentService } from 'vs/workbench/services/remote/common/remoteAgentService';
@@ -15,8 +15,8 @@ let hasReceivedResponseFromRemoteExtHost: boolean = false;
 
 export class TerminalProcessExtHostProxy extends Disposable implements ITerminalChildProcess, ITerminalProcessExtHostProxy {
 
-	private readonly _onProcessData = this._register(new Emitter<string | IProcessDataWithAckEvent>());
-	public readonly onProcessData: Event<string | IProcessDataWithAckEvent> = this._onProcessData.event;
+	private readonly _onProcessData = this._register(new Emitter<string>());
+	public readonly onProcessData: Event<string> = this._onProcessData.event;
 	private readonly _onProcessExit = this._register(new Emitter<number | undefined>());
 	public readonly onProcessExit: Event<number | undefined> = this._onProcessExit.event;
 	private readonly _onProcessReady = this._register(new Emitter<{ pid: number, cwd: string }>());
@@ -62,7 +62,7 @@ export class TerminalProcessExtHostProxy extends Disposable implements ITerminal
 		super();
 	}
 
-	public emitData(data: string | IProcessDataWithAckEvent): void {
+	public emitData(data: string): void {
 		this._onProcessData.fire(data);
 	}
 
