@@ -430,7 +430,7 @@ class DocumentSymbolsOutlineCreator implements IOutlineCreator<IEditorPane, Docu
 		const control = pane.getControl();
 		let editor: ICodeEditor | undefined;
 		if (isCodeEditor(control)) {
-			editor = control as ICodeEditor;
+			editor = control;
 		} else if (isDiffEditor(control)) {
 			editor = control.getModifiedEditor();
 		}
