@@ -258,6 +258,7 @@ export class GettingStartedPage extends Disposable {
 		} else {
 			tasksSlide.classList.add('next');
 		}
+		setImmediate(() => assertIsDefined(container.querySelector('.gettingStartedContainer')).classList.add('animationReady'));
 	}
 
 	private layout() {

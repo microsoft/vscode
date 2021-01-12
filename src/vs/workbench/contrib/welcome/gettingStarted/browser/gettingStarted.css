@@ -12,9 +12,12 @@
 	width: 100%;
 	height: 100%;
 	position: absolute;
-	transition: left 0.25s, opacity 0.25s;
 	left: 0;
 	top: 0;
+}
+
+.monaco-workbench .part.editor > .content .walkThroughContent .gettingStartedContainer.animationReady .gettingStartedSlide {
+	transition: left 0.25s, opacity 0.25s;
 }
 
 .monaco-workbench .part.editor > .content .walkThroughContent .gettingStartedContainer .gettingStartedSlide.categories {
