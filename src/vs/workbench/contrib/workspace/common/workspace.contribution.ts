@@ -17,6 +17,7 @@ import { LifecyclePhase } from 'vs/workbench/services/lifecycle/common/lifecycle
 import { registerIcon } from 'vs/platform/theme/common/iconRegistry';
 import { Codicon } from 'vs/base/common/codicons';
 import { IStatusbarEntry, IStatusbarEntryAccessor, IStatusbarService, StatusbarAlignment } from 'vs/workbench/services/statusbar/common/statusbar';
+import { ThemeColor } from 'vs/workbench/api/common/extHostTypes';
 
 const workspaceTrustIcon = registerIcon('workspace-trust-icon', Codicon.shield, localize('workspaceTrustIcon', "Icon for workspace trust badge."));
 
@@ -127,7 +128,7 @@ class TrustedWorkspaceStatusbarItem extends Disposable implements IWorkbenchCont
 			text: `$(shield) ${text}`,
 			ariaLabel: localize('status.trustedWorkspace', "Workspace Trust"),
 			tooltip: localize('status.trustedWorkspace', "Workspace Trust"),
-			backgroundColor: state === TrustState.Untrusted ? 'red' : 'transparent'
+			backgroundColor: state === TrustState.Untrusted ? new ThemeColor('statusBarItem.errorBackground') : 'transparent'
 		};
 	}
 
