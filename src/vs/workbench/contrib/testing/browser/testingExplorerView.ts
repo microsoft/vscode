@@ -17,7 +17,7 @@ import { splitGlobAware } from 'vs/base/common/glob';
 import { Iterable } from 'vs/base/common/iterator';
 import { Disposable, DisposableStore, toDisposable } from 'vs/base/common/lifecycle';
 import 'vs/css!./media/testing';
-import { ICodeEditor } from 'vs/editor/browser/editorBrowser';
+import { ICodeEditor, isCodeEditor } from 'vs/editor/browser/editorBrowser';
 import { ICodeEditorService } from 'vs/editor/browser/services/codeEditorService';
 import { localize } from 'vs/nls';
 import { MenuEntryActionViewItem } from 'vs/platform/actions/browser/menuEntryActionViewItem';
@@ -48,14 +48,15 @@ import { StateByLocationProjection } from 'vs/workbench/contrib/testing/browser/
 import { StateByNameProjection } from 'vs/workbench/contrib/testing/browser/explorerProjections/stateByName';
 import { StateElement } from 'vs/workbench/contrib/testing/browser/explorerProjections/stateNodes';
 import { testingStatesToIcons } from 'vs/workbench/contrib/testing/browser/icons';
-import { cmpPriority } from 'vs/workbench/contrib/testing/browser/testExplorerTree';
-import { ITestingCollectionService, TestSubscriptionListener } from 'vs/workbench/contrib/testing/browser/testingCollectionService';
+import { cmpPriority, isFailedState } from 'vs/workbench/contrib/testing/browser/testExplorerTree';
+import { ITestingCollectionService, TestSubscriptionListener } from 'vs/workbench/contrib/testing/common/testingCollectionService';
 import { TestingExplorerFilter, TestingFilterState } from 'vs/workbench/contrib/testing/browser/testingExplorerFilter';
 import { TestExplorerViewGrouping, TestExplorerViewMode } from 'vs/workbench/contrib/testing/common/constants';
 import { TestingContextKeys } from 'vs/workbench/contrib/testing/common/testingContextKeys';
 import { ITestService } from 'vs/workbench/contrib/testing/common/testService';
 import { IEditorService } from 'vs/workbench/services/editor/common/editorService';
 import { DebugAction, RunAction } from './testExplorerActions';
+import { TestingOutputPeekController } from 'vs/workbench/contrib/testing/browser/testingOutputPeek';
 
 export class TestingExplorerView extends ViewPane {
 	public viewModel!: TestingExplorerViewModel;
@@ -207,7 +208,7 @@ export class TestingExplorerViewModel extends Disposable {
 		private listener: TestSubscriptionListener | undefined,
 		filterState: TestingFilterState,
 		@IInstantiationService instantiationService: IInstantiationService,
-		@IEditorService editorService: IEditorService,
+		@IEditorService private readonly editorService: IEditorService,
 		@ICodeEditorService codeEditorService: ICodeEditorService,
 		@IStorageService private readonly storageService: IStorageService,
 		@IContextKeyService private readonly contextKeyService: IContextKeyService,
@@ -247,15 +248,10 @@ export class TestingExplorerViewModel extends Disposable {
 
 		this.onDidChangeSelection = this.tree.onDidChangeSelection;
 		this._register(this.tree.onDidChangeSelection(evt => {
-			const location = evt.elements[0]?.location;
-			if (!location || !evt.browserEvent) {
-				return;
+			const selected = evt.elements[0];
+			if (selected && evt.browserEvent) {
+				this.openEditorForItem(selected);
 			}
-
-			editorService.openEditor({
-				resource: location.uri,
-				options: { selection: location.range, preserveFocus: true }
-			});
 		}));
 
 		const tracker = this._register(new CodeEditorTracker(codeEditorService, this));
@@ -311,6 +307,60 @@ export class TestingExplorerViewModel extends Disposable {
 
 		this.tree.setFocus([item]);
 		this.tree.setSelection([item]);
+	}
+
+	/**
+	 * Opens an editor for the item. If there is a failure associated with the
+	 * test item, it will be shown.
+	 */
+	private async openEditorForItem(item: ITestTreeElement) {
+		if (await this.tryPeekError(item)) {
+			return;
+		}
+
+		const location = item?.location;
+		if (!location) {
+			return;
+		}
+
+		const pane = await this.editorService.openEditor({
+			resource: location.uri,
+			options: { selection: location.range, preserveFocus: true }
+		});
+
+		// if the user selected a failed test and now they didn't, hide the peek
+		const control = pane?.getControl();
+		if (isCodeEditor(control)) {
+			TestingOutputPeekController.get(control).removePeek();
+		}
+	}
+
+	/**
+	 * Tries to peek the first test error, if the item is in a failed state.
+	 */
+	private async tryPeekError(item: ITestTreeElement) {
+		if (!item.test || !isFailedState(item.test.item.state.runState)) {
+			return false;
+		}
+
+		const index = item.test.item.state.messages.findIndex(m => !!m.location);
+		if (index === -1) {
+			return;
+		}
+
+		const message = item.test.item.state.messages[index];
+		const pane = await this.editorService.openEditor({
+			resource: message.location!.uri,
+			options: { selection: message.location!.range, preserveFocus: true }
+		});
+
+		const control = pane?.getControl();
+		if (!isCodeEditor(control)) {
+			return false;
+		}
+
+		TestingOutputPeekController.get(control).show(item.test, index);
+		return true;
 	}
 
 	private updatePreferredProjection() {

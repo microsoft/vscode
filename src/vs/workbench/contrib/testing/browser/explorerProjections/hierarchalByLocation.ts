@@ -15,7 +15,7 @@ import { IWorkspaceFolder, IWorkspaceFoldersChangeEvent } from 'vs/platform/work
 import { ITestTreeElement, ITestTreeProjection } from 'vs/workbench/contrib/testing/browser/explorerProjections';
 import { HierarchicalElement, HierarchicalFolder } from 'vs/workbench/contrib/testing/browser/explorerProjections/hierarchalNodes';
 import { locationsEqual, TestLocationStore } from 'vs/workbench/contrib/testing/browser/explorerProjections/locationStore';
-import { TestSubscriptionListener } from 'vs/workbench/contrib/testing/browser/testingCollectionService';
+import { TestSubscriptionListener } from 'vs/workbench/contrib/testing/common/testingCollectionService';
 import { InternalTestItem, TestDiffOpType, TestsDiff } from 'vs/workbench/contrib/testing/common/testCollection';
 
 /**

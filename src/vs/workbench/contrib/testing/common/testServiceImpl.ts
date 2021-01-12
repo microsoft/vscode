@@ -14,7 +14,7 @@ import { localize } from 'vs/nls';
 import { IContextKey, IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
 import { INotificationService } from 'vs/platform/notification/common/notification';
 import { ExtHostTestingResource } from 'vs/workbench/api/common/extHost.protocol';
-import { AbstractIncrementalTestCollection, collectTestResults, EMPTY_TEST_RESULT, getTestSubscriptionKey, IncrementalTestCollectionItem, InternalTestItem, RunTestsRequest, RunTestsResult, TestDiffOpType, TestsDiff } from 'vs/workbench/contrib/testing/common/testCollection';
+import { AbstractIncrementalTestCollection, collectTestResults, EMPTY_TEST_RESULT, getTestSubscriptionKey, IncrementalTestCollectionItem, InternalTestItem, RunTestsRequest, RunTestsResult, TestDiffOpType, TestIdWithProvider, TestsDiff } from 'vs/workbench/contrib/testing/common/testCollection';
 import { TestingContextKeys } from 'vs/workbench/contrib/testing/common/testingContextKeys';
 import { ITestService, MainTestController, TestDiffListener } from 'vs/workbench/contrib/testing/common/testService';
 
@@ -103,6 +103,13 @@ export class TestService extends Disposable implements ITestService {
 	 */
 	public get busyTestLocations() {
 		return Iterable.map(Iterable.filter(this.testSubscriptions.values(), s => s.stillDiscovering > 0), s => s.ident);
+	}
+
+	/**
+	 * @inheritdoc
+	 */
+	public async lookupTest(test: TestIdWithProvider) {
+		return this.testControllers.get(test.providerId)?.lookupTest(test);
 	}
 
 

@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { localize } from 'vs/nls';
-import { registerColor } from 'vs/platform/theme/common/colorRegistry';
+import { editorErrorForeground, registerColor } from 'vs/platform/theme/common/colorRegistry';
 import { TestRunState } from 'vs/workbench/api/common/extHostTypes';
 
 export const testingColorIconFailed = registerColor('testing.iconFailed', {
@@ -43,6 +43,12 @@ export const testingColorIconSkipped = registerColor('testing.iconSkipped', {
 	light: '#848484',
 	hc: '#848484'
 }, localize('testing.iconSkipped', "Color for the 'Skipped' icon in the test explorer."));
+
+export const testingPeekBorder = registerColor('testing.peekBorder', {
+	dark: editorErrorForeground,
+	light: editorErrorForeground,
+	hc: editorErrorForeground,
+}, localize('testing.peekBorder', 'Color of the peek view borders and arrow.'));
 
 export const testStatesToIconColors: { [K in TestRunState]?: string } = {
 	[TestRunState.Errored]: testingColorIconErrored,
