@@ -11,7 +11,13 @@ import { ExtensionIdentifier } from 'vs/platform/extensions/common/extensions';
 import { ExtHostCommands } from 'vs/workbench/api/common/extHostCommands';
 import type * as vscode from 'vscode';
 import { Cache } from './cache';
-import { ChainedCacheId, ExtHostUriOpenersShape, IMainContext, MainContext, MainThreadUriOpenersShape } from './extHost.protocol';
+import { ChainedCacheId, ExtHostUriOpener, ExtHostUriOpenersShape, IMainContext, MainContext, MainThreadUriOpenersShape } from './extHost.protocol';
+
+interface OpenerEntry {
+	readonly extension: ExtensionIdentifier;
+	readonly schemes: ReadonlySet<string>;
+	readonly opener: vscode.ExternalUriOpener;
+}
 
 export class ExtHostUriOpeners implements ExtHostUriOpenersShape {
 
@@ -20,8 +26,8 @@ export class ExtHostUriOpeners implements ExtHostUriOpenersShape {
 	private readonly _proxy: MainThreadUriOpenersShape;
 	private readonly _commands: ExtHostCommands;
 
-	private readonly _cache = new Cache<vscode.Command>('CodeAction');
-	private readonly _openers = new Map<number, { schemes: ReadonlySet<string>, opener: vscode.ExternalUriOpener }>();
+	private readonly _cache = new Cache<{ command: vscode.Command }>('CodeAction');
+	private readonly _openers = new Map<number, OpenerEntry>();
 
 	constructor(
 		mainContext: IMainContext,
@@ -38,8 +44,12 @@ export class ExtHostUriOpeners implements ExtHostUriOpenersShape {
 	): vscode.Disposable {
 		const handle = ExtHostUriOpeners.HandlePool++;
 
-		this._openers.set(handle, { opener, schemes: new Set(schemes) });
-		this._proxy.$registerUriOpener(handle, schemes);
+		this._openers.set(handle, {
+			opener,
+			extension: extensionId,
+			schemes: new Set(schemes),
+		});
+		this._proxy.$registerUriOpener(handle, schemes, extensionId);
 
 		return toDisposable(() => {
 			this._openers.delete(handle);
@@ -47,10 +57,10 @@ export class ExtHostUriOpeners implements ExtHostUriOpenersShape {
 		});
 	}
 
-	async $getOpenersForUri(uriComponents: UriComponents, token: CancellationToken): Promise<{ cacheId: number, openers: Array<{ id: number, title: string }> }> {
+	async $getOpenersForUri(uriComponents: UriComponents, token: CancellationToken): Promise<{ cacheId: number, openers: Array<ExtHostUriOpener> }> {
 		const uri = URI.revive(uriComponents);
 
-		const promises = Array.from(this._openers.values()).map(async ({ schemes, opener }): Promise<vscode.Command | undefined> => {
+		const promises = Array.from(this._openers.values()).map(async ({ schemes, opener, extension }): Promise<{ command: vscode.Command, extension: ExtensionIdentifier } | undefined> => {
 			if (!schemes.has(uri.scheme)) {
 				return undefined;
 			}
@@ -59,7 +69,10 @@ export class ExtHostUriOpeners implements ExtHostUriOpenersShape {
 				const result = await opener.openExternalUri(uri, {}, token);
 
 				if (result) {
-					return result;
+					return {
+						command: result,
+						extension
+					};
 				}
 			} catch (e) {
 				// noop
@@ -71,17 +84,17 @@ export class ExtHostUriOpeners implements ExtHostUriOpenersShape {
 		const cacheId = this._cache.add(commands);
 		return {
 			cacheId,
-			openers: commands.map((command, i) => ({ title: command.title, id: i })),
+			openers: commands.map((entry, i) => ({ title: entry.command.title, commandId: i, extensionId: entry.extension })),
 		};
 	}
 
 	async $openUri(id: ChainedCacheId, uri: UriComponents): Promise<void> {
-		const command = this._cache.get(id[0], id[1]);
-		if (!command) {
+		const entry = this._cache.get(id[0], id[1]);
+		if (!entry) {
 			return;
 		}
 
-		return this._commands.executeCommand(command.command, URI.revive(uri), ...(command.arguments || []));
+		return this._commands.executeCommand(entry.command.command, URI.revive(uri), ...(entry.command.arguments || []));
 	}
 
 	$releaseOpener(cacheId: number): void {
