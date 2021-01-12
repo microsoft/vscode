@@ -1023,6 +1023,7 @@ export class TerminalInstance extends Disposable implements ITerminalInstance {
 			this._xterm?.write(ev.data, () => {
 				this._latestXtermParseData = messageId;
 				// TODO: Disable for local processes?
+				// TODO: We don't need to ack everything, just count on the other side and ack every 1000/10000 bytes
 				this._processManager.acknowledgeDataEvent(ev.data.length);
 			});
 		}
