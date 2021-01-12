@@ -26,6 +26,24 @@ import { localize } from 'vs/nls';
 const WRITE_MAX_CHUNK_SIZE = 50;
 const WRITE_INTERVAL_MS = 5;
 
+const enum FlowControl {
+	/**
+	 * The number of _unacknowledged_ bytes to have been sent before the pty is paused in order for
+	 * the client to catch up.
+	 */
+	HighWatermarkBytes = 100000,
+	/**
+	 * After flow control pauses the pty for the client the catch up, this is the number of
+	 * _unacknowledged_ bytes to have been caught up to on the client before resuming the pty again.
+	 * This is used to attempt to prevent pauses in the flowing data; ideally while the pty is
+	 * paused the number of unacknowledged bytes would always be greater than 0 or the client will
+	 * appear to stutter. In reality this balance is hard to accomplish though so heavy commands
+	 * will likely pause as latency grows, not flooding the connection is the important thing as
+	 * it's shared with other core functionality.
+	 */
+	LowWatermarkBytes = 10000
+}
+
 export class TerminalProcess extends Disposable implements ITerminalChildProcess {
 	private _exitCode: number | undefined;
 	private _exitMessage: string | undefined;
@@ -167,12 +185,17 @@ export class TerminalProcess extends Disposable implements ITerminalChildProcess
 		});
 		ptyProcess.onData(data => {
 			// TODO: Periodically request ACK between low and high watermark
-			this._onProcessData.fire({
-				data,
-				ackId: ++this._currentAckRequestId
-			});
-			if (this._currentAckRequestId > this._ackedRequestId) {
+			const fakeLatency = 1000;
+			this._currentAckRequestId += data.length;
+			const ackId = data.length;
+			setTimeout(() => {
+				this._onProcessData.fire({ data, ackId });
+			}, fakeLatency);
+			// TODO: Use bytes, not messages
+			// console.log('check', this._currentAckRequestId - this._ackedRequestId, FlowControl.HighWatermarkBytes);
+			if (this._currentAckRequestId - this._ackedRequestId > FlowControl.HighWatermarkBytes) {
 				// TODO: Expose as public API in node-pty
+				// console.log('pause', this._currentAckRequestId - this._ackedRequestId, '>', FlowControl.HighWatermarkBytes);
 				(ptyProcess as any).pause();
 			}
 			if (this._closeTimeout) {
@@ -337,8 +360,8 @@ export class TerminalProcess extends Disposable implements ITerminalChildProcess
 	}
 
 	public acknowledgeDataEvent(ackId: number): void {
-		this._ackedRequestId = ackId;
-		if (this._currentAckRequestId === this._ackedRequestId) {
+		this._ackedRequestId += ackId;
+		if (this._currentAckRequestId - this._ackedRequestId < FlowControl.LowWatermarkBytes) {
 			// TODO: Expose as public API in node-pty
 			(this._ptyProcess as any).resume();
 		}
