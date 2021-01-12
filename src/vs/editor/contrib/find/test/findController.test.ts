@@ -102,7 +102,7 @@ suite('FindController', async () => {
 			// I hit Ctrl+F to show the Find dialog
 			startFindAction.run(null, editor);
 
-			assert.deepEqual(findController.getGlobalBufferTerm(), findController.getState().searchString);
+			assert.deepStrictEqual(findController.getGlobalBufferTerm(), findController.getState().searchString);
 			findController.dispose();
 		});
 	});
@@ -126,9 +126,9 @@ suite('FindController', async () => {
 			let nextMatchFindAction = new NextMatchFindAction();
 
 			nextMatchFindAction.run(null, editor);
-			assert.equal(findState.searchString, 'ABC');
+			assert.strictEqual(findState.searchString, 'ABC');
 
-			assert.deepEqual(fromSelection(editor.getSelection()!), [1, 1, 1, 4]);
+			assert.deepStrictEqual(fromSelection(editor.getSelection()!), [1, 1, 1, 4]);
 
 			findController.dispose();
 		});
@@ -152,7 +152,7 @@ suite('FindController', async () => {
 
 			findState.change({ searchString: 'ABC' }, true);
 
-			assert.deepEqual(findController.getGlobalBufferTerm(), 'ABC');
+			assert.deepStrictEqual(findController.getGlobalBufferTerm(), 'ABC');
 
 			findController.dispose();
 		});
@@ -181,14 +181,14 @@ suite('FindController', async () => {
 			findState.change({ searchString: 'ABC' }, true);
 
 			// The first ABC is highlighted.
-			assert.deepEqual(fromSelection(editor.getSelection()!), [1, 1, 1, 4]);
+			assert.deepStrictEqual(fromSelection(editor.getSelection()!), [1, 1, 1, 4]);
 
 			// I hit Esc to exit the Find dialog.
 			findController.closeFindWidget();
 			findController.hasFocus = false;
 
 			// The cursor is now at end of the first line, with ABC on that line highlighted.
-			assert.deepEqual(fromSelection(editor.getSelection()!), [1, 1, 1, 4]);
+			assert.deepStrictEqual(fromSelection(editor.getSelection()!), [1, 1, 1, 4]);
 
 			// I hit delete to remove it and change the text to XYZ.
 			editor.pushUndoStop();
@@ -201,16 +201,16 @@ suite('FindController', async () => {
 			//   ABC
 			//   XYZ
 			//   ABC
-			assert.equal(editor.getModel()!.getLineContent(1), 'XYZ');
+			assert.strictEqual(editor.getModel()!.getLineContent(1), 'XYZ');
 
 			// The cursor is at end of the first line.
-			assert.deepEqual(fromSelection(editor.getSelection()!), [1, 4, 1, 4]);
+			assert.deepStrictEqual(fromSelection(editor.getSelection()!), [1, 4, 1, 4]);
 
 			// I hit F3 to "Find Next" to find the next occurrence of ABC, but instead it searches for XYZ.
 			await nextMatchFindAction.run(null, editor);
 
-			assert.equal(findState.searchString, 'ABC');
-			assert.equal(findController.hasFocus, false);
+			assert.strictEqual(findState.searchString, 'ABC');
+			assert.strictEqual(findController.hasFocus, false);
 
 			findController.dispose();
 		});
@@ -230,10 +230,10 @@ suite('FindController', async () => {
 			});
 
 			await nextMatchFindAction.run(null, editor);
-			assert.deepEqual(fromSelection(editor.getSelection()!), [1, 26, 1, 29]);
+			assert.deepStrictEqual(fromSelection(editor.getSelection()!), [1, 26, 1, 29]);
 
 			await nextMatchFindAction.run(null, editor);
-			assert.deepEqual(fromSelection(editor.getSelection()!), [1, 8, 1, 11]);
+			assert.deepStrictEqual(fromSelection(editor.getSelection()!), [1, 8, 1, 11]);
 
 			findController.dispose();
 		});
@@ -256,10 +256,10 @@ suite('FindController', async () => {
 			await startFindAction.run(null, editor);
 
 			await nextMatchFindAction.run(null, editor);
-			assert.deepEqual(fromSelection(editor.getSelection()!), [2, 9, 2, 13]);
+			assert.deepStrictEqual(fromSelection(editor.getSelection()!), [2, 9, 2, 13]);
 
 			await nextMatchFindAction.run(null, editor);
-			assert.deepEqual(fromSelection(editor.getSelection()!), [1, 9, 1, 13]);
+			assert.deepStrictEqual(fromSelection(editor.getSelection()!), [1, 9, 1, 13]);
 
 			findController.dispose();
 		});
@@ -288,7 +288,7 @@ suite('FindController', async () => {
 			await nextMatchFindAction.run(null, editor);
 			await startFindReplaceAction.run(null, editor);
 
-			assert.equal(findController.getState().searchString, testRegexString);
+			assert.strictEqual(findController.getState().searchString, testRegexString);
 
 			findController.dispose();
 		});
@@ -312,16 +312,16 @@ suite('FindController', async () => {
 				loop: true
 			});
 
-			assert.equal(findController.getState().searchScope, null);
+			assert.strictEqual(findController.getState().searchScope, null);
 
 			findController.getState().change({
 				searchScope: [new Range(1, 1, 1, 5)]
 			}, false);
 
-			assert.deepEqual(findController.getState().searchScope, [new Range(1, 1, 1, 5)]);
+			assert.deepStrictEqual(findController.getState().searchScope, [new Range(1, 1, 1, 5)]);
 
 			findController.closeFindWidget();
-			assert.equal(findController.getState().searchScope, null);
+			assert.strictEqual(findController.getState().searchScope, null);
 		});
 	});
 
@@ -338,13 +338,13 @@ suite('FindController', async () => {
 			findController.getState().change({ searchString: '\\b\\s{3}\\b', replaceString: ' ', isRegex: true }, false);
 			findController.moveToNextMatch();
 
-			assert.deepEqual(editor.getSelections()!.map(fromSelection), [
+			assert.deepStrictEqual(editor.getSelections()!.map(fromSelection), [
 				[1, 39, 1, 42]
 			]);
 
 			findController.replace();
 
-			assert.deepEqual(editor.getValue(), 'HRESULT OnAmbientPropertyChange(DISPID dispid);');
+			assert.deepStrictEqual(editor.getValue(), 'HRESULT OnAmbientPropertyChange(DISPID dispid);');
 
 			findController.dispose();
 		});
@@ -365,13 +365,13 @@ suite('FindController', async () => {
 			findController.getState().change({ searchString: '^', replaceString: 'x', isRegex: true }, false);
 			findController.moveToNextMatch();
 
-			assert.deepEqual(editor.getSelections()!.map(fromSelection), [
+			assert.deepStrictEqual(editor.getSelections()!.map(fromSelection), [
 				[2, 1, 2, 1]
 			]);
 
 			findController.replace();
 
-			assert.deepEqual(editor.getValue(), '\nxline2\nline3');
+			assert.deepStrictEqual(editor.getValue(), '\nxline2\nline3');
 
 			findController.dispose();
 		});
@@ -396,7 +396,7 @@ suite('FindController', async () => {
 			// cmd+f3
 			await nextSelectionMatchFindAction.run(null, editor);
 
-			assert.deepEqual(editor.getSelections()!.map(fromSelection), [
+			assert.deepStrictEqual(editor.getSelections()!.map(fromSelection), [
 				[3, 1, 3, 9]
 			]);
 
@@ -427,7 +427,7 @@ suite('FindController', async () => {
 			// cmd+f3
 			await nextSelectionMatchFindAction.run(null, editor);
 
-			assert.deepEqual(editor.getSelections()!.map(fromSelection), [
+			assert.deepStrictEqual(editor.getSelections()!.map(fromSelection), [
 				[3, 1, 3, 9]
 			]);
 
@@ -458,7 +458,7 @@ suite('FindController', async () => {
 			await startFindWithSelectionAction.run(null, editor);
 			let findState = findController.getState();
 
-			assert.deepEqual(findState.searchString.split(/\r\n|\r|\n/g), ['ABC', 'ABC']);
+			assert.deepStrictEqual(findState.searchString.split(/\r\n|\r|\n/g), ['ABC', 'ABC']);
 
 			editor.setSelection(new Selection(3, 1, 3, 1));
 			await startFindWithSelectionAction.run(null, editor);
@@ -483,7 +483,7 @@ suite('FindController', async () => {
 			startFindWithSelectionAction.run(null, editor);
 
 			let findState = findController.getState();
-			assert.deepEqual(findState.searchString, 'ABC');
+			assert.deepStrictEqual(findState.searchString, 'ABC');
 			findController.dispose();
 		});
 	});
@@ -531,7 +531,7 @@ suite('FindController query options persistence', async () => {
 			// I type ABC.
 			findState.change({ searchString: 'ABC' }, true);
 			// The second ABC is highlighted as matchCase is true.
-			assert.deepEqual(fromSelection(editor.getSelection()!), [2, 1, 2, 4]);
+			assert.deepStrictEqual(fromSelection(editor.getSelection()!), [2, 1, 2, 4]);
 
 			findController.dispose();
 		});
@@ -558,7 +558,7 @@ suite('FindController query options persistence', async () => {
 			// I type AB.
 			findState.change({ searchString: 'AB' }, true);
 			// The second AB is highlighted as wholeWord is true.
-			assert.deepEqual(fromSelection(editor.getSelection()!), [2, 1, 2, 3]);
+			assert.deepStrictEqual(fromSelection(editor.getSelection()!), [2, 1, 2, 3]);
 
 			findController.dispose();
 		});
@@ -575,7 +575,7 @@ suite('FindController query options persistence', async () => {
 			// The cursor is at the very top, of the file, at the first ABC
 			let findController = editor.registerAndInstantiateContribution(TestFindController.ID, TestFindController);
 			findController.toggleRegex();
-			assert.equal(queryState['editor.isRegex'], true);
+			assert.strictEqual(queryState['editor.isRegex'], true);
 
 			findController.dispose();
 		});
@@ -601,13 +601,13 @@ suite('FindController query options persistence', async () => {
 
 			editor.setSelection(new Range(1, 1, 2, 1));
 			findController.start(findConfig);
-			assert.deepEqual(findController.getState().searchScope, [new Selection(1, 1, 2, 1)]);
+			assert.deepStrictEqual(findController.getState().searchScope, [new Selection(1, 1, 2, 1)]);
 
 			findController.closeFindWidget();
 
 			editor.setSelections([new Selection(1, 1, 2, 1), new Selection(2, 1, 2, 5)]);
 			findController.start(findConfig);
-			assert.deepEqual(findController.getState().searchScope, [new Selection(1, 1, 2, 1), new Selection(2, 1, 2, 5)]);
+			assert.deepStrictEqual(findController.getState().searchScope, [new Selection(1, 1, 2, 1), new Selection(2, 1, 2, 5)]);
 		});
 	});
 
@@ -631,7 +631,7 @@ suite('FindController query options persistence', async () => {
 				loop: true
 			});
 
-			assert.deepEqual(findController.getState().searchScope, null);
+			assert.deepStrictEqual(findController.getState().searchScope, null);
 		});
 	});
 
@@ -655,7 +655,7 @@ suite('FindController query options persistence', async () => {
 				loop: true
 			});
 
-			assert.deepEqual(findController.getState().searchScope, [new Selection(1, 2, 1, 3)]);
+			assert.deepStrictEqual(findController.getState().searchScope, [new Selection(1, 2, 1, 3)]);
 		});
 	});
 
@@ -680,7 +680,7 @@ suite('FindController query options persistence', async () => {
 				loop: true
 			});
 
-			assert.deepEqual(findController.getState().searchScope, [new Selection(1, 6, 2, 1)]);
+			assert.deepStrictEqual(findController.getState().searchScope, [new Selection(1, 6, 2, 1)]);
 		});
 	});
 });

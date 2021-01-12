@@ -214,9 +214,9 @@ export function createApiFactoryAndRegisterActors(accessor: ServicesAccessor): I
 			get onDidChangeSessions(): Event<vscode.AuthenticationSessionsChangeEvent> {
 				return extHostAuthentication.onDidChangeSessions;
 			},
-			registerAuthenticationProvider(provider: vscode.AuthenticationProvider): vscode.Disposable {
+			registerAuthenticationProvider(id: string, label: string, provider: vscode.AuthenticationProvider, options?: vscode.AuthenticationProviderOptions): vscode.Disposable {
 				checkProposedApiEnabled(extension);
-				return extHostAuthentication.registerAuthenticationProvider(provider);
+				return extHostAuthentication.registerAuthenticationProvider(id, label, provider, options);
 			},
 			get onDidChangeAuthenticationProviders(): Event<vscode.AuthenticationProvidersChangeEvent> {
 				checkProposedApiEnabled(extension);

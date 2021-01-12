@@ -9,6 +9,7 @@ import { TestRunState } from 'vs/workbench/api/common/extHostTypes';
 export const enum Testing {
 	ViewletId = 'workbench.view.testing',
 	ExplorerViewId = 'workbench.view.testing',
+	OutputPeekContributionId = 'editor.contrib.testingOutputPeek',
 }
 
 export const enum TestExplorerViewMode {

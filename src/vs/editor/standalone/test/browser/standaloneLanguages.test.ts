@@ -109,14 +109,14 @@ suite('TokenizationSupport2Adapter', () => {
 		const adapter = new TokenizationSupport2Adapter(new MockThemeService(), languageIdentifier, new BadTokensProvider());
 
 		const actualClassicTokens = adapter.tokenize('whatever', true, MockState.INSTANCE, offsetDelta);
-		assert.deepEqual(actualClassicTokens.tokens, expectedClassicTokens);
+		assert.deepStrictEqual(actualClassicTokens.tokens, expectedClassicTokens);
 
 		const actualModernTokens = adapter.tokenize2('whatever', true, MockState.INSTANCE, offsetDelta);
 		const modernTokens: number[] = [];
 		for (let i = 0; i < actualModernTokens.tokens.length; i++) {
 			modernTokens[i] = actualModernTokens.tokens[i];
 		}
-		assert.deepEqual(modernTokens, expectedModernTokens);
+		assert.deepStrictEqual(modernTokens, expectedModernTokens);
 	}
 
 	test('tokens always start at index 0 (no offset delta)', () => {

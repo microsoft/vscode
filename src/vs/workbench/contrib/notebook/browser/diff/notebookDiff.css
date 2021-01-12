@@ -21,6 +21,31 @@
 	flex-direction: row;
 }
 
+.notebook-text-diff-editor .webview-cover {
+	user-select: initial;
+	-webkit-user-select: initial;
+}
+
+.notebook-text-diff-editor .cell-body .border-container {
+	position: absolute;
+	width: calc(100% - 32px);
+}
+
+.notebook-text-diff-editor .cell-body .border-container .top-border,
+.notebook-text-diff-editor .cell-body .border-container .bottom-border {
+	position: absolute;
+	width: 100%;
+}
+
+.notebook-text-diff-editor .cell-body .border-container .left-border,
+.notebook-text-diff-editor .cell-body .border-container .right-border {
+	position: absolute;
+}
+
+.notebook-text-diff-editor .cell-body .border-container .right-border {
+	left: 100%;
+}
+
 .notebook-text-diff-editor .cell-body.right {
 	flex-direction: row-reverse;
 }
@@ -32,18 +57,20 @@
 
 .notebook-text-diff-editor .cell-body .cell-diff-editor-container {
 	width: 100%;
-	overflow: hidden;
+	/* why we overflow hidden at the beginning?*/
+	/* overflow: hidden; */
 }
 
 .notebook-text-diff-editor .cell-body .cell-diff-editor-container .metadata-editor-container.diff,
 .notebook-text-diff-editor .cell-body .cell-diff-editor-container .output-editor-container.diff,
 .notebook-text-diff-editor .cell-body .cell-diff-editor-container .editor-container.diff {
 	/** 100% + diffOverviewWidth */
-	width: calc(100% + 30px);
+	width: calc(100%);
 }
 
 .notebook-text-diff-editor .cell-body .cell-diff-editor-container .metadata-editor-container .monaco-diff-editor .diffOverview,
-.notebook-text-diff-editor .cell-body .cell-diff-editor-container .editor-container.diff .monaco-diff-editor .diffOverview {
+.notebook-text-diff-editor .cell-body .cell-diff-editor-container .editor-container.diff .monaco-diff-editor .diffOverview,
+.notebook-text-diff-editor .cell-body .cell-diff-editor-container .output-editor-container.diff .monaco-diff-editor .diffOverview {
 	display: none;
 }
 
@@ -106,10 +133,15 @@
 	overflow: hidden;
 }
 
+.monaco-workbench .notebook-text-diff-editor > .monaco-list > .monaco-scrollable-element > .monaco-list-rows > .monaco-list-row {
+	overflow: visible !important;
+}
+
 .monaco-workbench .notebook-text-diff-editor > .monaco-list > .monaco-scrollable-element > .monaco-list-rows > .monaco-list-row,
 .monaco-workbench .notebook-text-diff-editor > .monaco-list > .monaco-scrollable-element > .monaco-list-rows > .monaco-list-row:hover,
 .monaco-workbench .notebook-text-diff-editor > .monaco-list > .monaco-scrollable-element > .monaco-list-rows > .monaco-list-row.focused {
 	outline: none !important;
+	background-color: transparent !important;
 }
 
 .notebook-text-diff-editor .cell-diff-editor-container .editor-input-toolbar-container {
@@ -117,4 +149,121 @@
 	right: 16px;
 	top: 16px;
 	margin: 4px 2px;
+}
+
+.monaco-workbench .notebook-text-diff-editor .cell-body {
+	height: 0;
+}
+
+.monaco-workbench .notebook-text-diff-editor .cell-body .output-view-container {
+	user-select: text;
+	-webkit-user-select: text;
+	-ms-user-select: text;
+	white-space: initial;
+	cursor: auto;
+	position: relative;
+}
+
+.monaco-workbench .notebook-text-diff-editor .cell-body .output-view-container .output-plaintext {
+	white-space: pre;
+	overflow-x: hidden;
+}
+
+.monaco-workbench .notebook-text-diff-editor .cell-body.left .output-view-container .output-inner-container,
+.monaco-workbench .notebook-text-diff-editor .cell-body.right .output-view-container .output-inner-container {
+	width: 100%;
+	padding: 0px 8px;
+	box-sizing: border-box;
+	overflow-x: hidden;
+}
+
+.monaco-workbench .notebook-text-diff-editor .cell-body.left .output-view-container .output-inner-container {
+	padding: 0px 8px 0px 32px;
+}
+
+.monaco-workbench .notebook-text-diff-editor .cell-body.right .output-view-container .output-inner-container {
+	padding: 0px 8px 0px 32px;
+}
+
+.monaco-workbench .notebook-text-diff-editor .cell-body.full .output-view-container .output-inner-container {
+	width: 100%;
+	padding: 4px 8px 4px 32px;
+	box-sizing: border-box;
+	overflow-x: hidden;
+}
+
+.monaco-workbench .notebook-text-diff-editor .cell-body.full .output-info-container.modified .output-view-container .output-view-container-left {
+	top: 0;
+	position: absolute;
+	left: 0;
+}
+
+.monaco-workbench .notebook-text-diff-editor .cell-body.full .output-info-container.modified .output-view-container .output-view-container-right {
+	position: absolute;
+	top: 0;
+	left: 50%;
+}
+
+.monaco-workbench .notebook-text-diff-editor .cell-body.full .output-info-container.modified .output-view-container .output-view-container-left,
+.monaco-workbench .notebook-text-diff-editor .cell-body.full .output-info-container.modified .output-view-container .output-view-container-right {
+	width: 50%;
+	display: inline-block;
+}
+
+.monaco-workbench .notebook-text-diff-editor .cell-body.full .output-info-container.modified .output-view-container .output-view-container-left div.foreground,
+.monaco-workbench .notebook-text-diff-editor .cell-body.full .output-info-container.modified .output-view-container .output-view-container-right div.foreground {
+	width: 100%;
+}
+
+.monaco-workbench .notebook-text-diff-editor .output-view-container > div.foreground {
+	width: 100%;
+	min-height: 24px;
+	box-sizing: border-box;
+}
+
+.monaco-workbench .notebook-text-diff-editor .output-view-container .error_message {
+	color: red;
+}
+
+.monaco-workbench .notebook-text-diff-editor .output-view-container .error > div {
+	white-space: normal;
+}
+
+.monaco-workbench .notebook-text-diff-editor .output-view-container .error pre.traceback {
+	box-sizing: border-box;
+	padding: 8px 0;
+	margin: 0px;
+}
+
+.monaco-workbench .notebook-text-diff-editor .output-view-container .error .traceback > span {
+	display: block;
+}
+
+.monaco-workbench .notebook-text-diff-editor .output-view-container .display img {
+	max-width: 100%;
+}
+
+.monaco-workbench .notebook-text-diff-editor .output-view-container .multi-mimetype-output {
+	position: absolute;
+	top: 4px;
+	left: 8px;
+	width: 16px;
+	height: 16px;
+	cursor: pointer;
+	padding: 2px 4px 4px 2px;
+}
+
+.monaco-workbench .notebook-text-diff-editor .output-view-container .output-empty-view span {
+	opacity: 0.7;
+}
+
+.monaco-workbench .notebook-text-diff-editor .output-view-container .output-empty-view {
+	font-style: italic;
+	height: 24px;
+	margin: auto;
+	padding-left: 12px;
+}
+
+.monaco-workbench .notebook-text-diff-editor .output-view-container pre {
+	margin: 4px 0;
 }

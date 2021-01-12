@@ -484,11 +484,11 @@ function cursorEqual(viewModel: ViewModel, posLineNumber: number, posColumn: num
 }
 
 function positionEqual(position: Position, lineNumber: number, column: number) {
-	assert.deepEqual(position, new Position(lineNumber, column), 'position equal');
+	assert.deepStrictEqual(position, new Position(lineNumber, column), 'position equal');
 }
 
 function selectionEqual(selection: Selection, posLineNumber: number, posColumn: number, selLineNumber: number, selColumn: number) {
-	assert.deepEqual({
+	assert.deepStrictEqual({
 		selectionStartLineNumber: selection.selectionStartLineNumber,
 		selectionStartColumn: selection.selectionStartColumn,
 		positionLineNumber: selection.positionLineNumber,

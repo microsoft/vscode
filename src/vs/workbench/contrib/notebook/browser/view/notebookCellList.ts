@@ -19,9 +19,9 @@ import { IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
 import { IKeybindingService } from 'vs/platform/keybinding/common/keybinding';
 import { IListService, IWorkbenchListOptions, WorkbenchList } from 'vs/platform/list/browser/listService';
 import { IThemeService } from 'vs/platform/theme/common/themeService';
-import { CellRevealPosition, CellRevealType, CursorAtBoundary, getVisibleCells, ICellViewModel, INotebookCellList, reduceCellRanges, CellEditState, CellFocusMode, BaseCellRenderTemplate, NOTEBOOK_CELL_LIST_FOCUSED, cellRangesEqual } from 'vs/workbench/contrib/notebook/browser/notebookBrowser';
+import { CellRevealPosition, CellRevealType, CursorAtBoundary, getVisibleCells, ICellViewModel, INotebookCellList, reduceCellRanges, CellEditState, CellFocusMode, BaseCellRenderTemplate, NOTEBOOK_CELL_LIST_FOCUSED, cellRangesEqual, ICellOutputViewModel } from 'vs/workbench/contrib/notebook/browser/notebookBrowser';
 import { CellViewModel, NotebookViewModel } from 'vs/workbench/contrib/notebook/browser/viewModel/notebookViewModel';
-import { diff, IProcessedOutput, NOTEBOOK_EDITOR_CURSOR_BOUNDARY, CellKind, ICellRange, NOTEBOOK_EDITOR_CURSOR_BEGIN_END } from 'vs/workbench/contrib/notebook/common/notebookCommon';
+import { diff, NOTEBOOK_EDITOR_CURSOR_BOUNDARY, CellKind, ICellRange, NOTEBOOK_EDITOR_CURSOR_BEGIN_END } from 'vs/workbench/contrib/notebook/common/notebookCommon';
 import { clamp } from 'vs/base/common/numbers';
 import { SCROLLABLE_ELEMENT_PADDING_TOP } from 'vs/workbench/contrib/notebook/browser/constants';
 
@@ -45,10 +45,10 @@ export class NotebookCellList extends WorkbenchList<CellViewModel> implements ID
 	private _viewModelStore = new DisposableStore();
 	private styleElement?: HTMLStyleElement;
 
-	private readonly _onDidRemoveOutput = new Emitter<IProcessedOutput>();
-	readonly onDidRemoveOutput: Event<IProcessedOutput> = this._onDidRemoveOutput.event;
-	private readonly _onDidHideOutput = new Emitter<IProcessedOutput>();
-	readonly onDidHideOutput: Event<IProcessedOutput> = this._onDidHideOutput.event;
+	private readonly _onDidRemoveOutput = new Emitter<ICellOutputViewModel>();
+	readonly onDidRemoveOutput: Event<ICellOutputViewModel> = this._onDidRemoveOutput.event;
+	private readonly _onDidHideOutput = new Emitter<ICellOutputViewModel>();
+	readonly onDidHideOutput: Event<ICellOutputViewModel> = this._onDidHideOutput.event;
 
 	private _viewModel: NotebookViewModel | null = null;
 	private _hiddenRangeIds: string[] = [];
@@ -314,15 +314,17 @@ export class NotebookCellList extends WorkbenchList<CellViewModel> implements ID
 			if (e.synchronous) {
 				viewDiffs.reverse().forEach((diff) => {
 					// remove output in the webview
-					const hideOutputs: IProcessedOutput[] = [];
-					const deletedOutputs: IProcessedOutput[] = [];
+					const hideOutputs: ICellOutputViewModel[] = [];
+					const deletedOutputs: ICellOutputViewModel[] = [];
 
 					for (let i = diff.start; i < diff.start + diff.deleteCount; i++) {
 						const cell = this.element(i);
-						if (this._viewModel!.hasCell(cell.handle)) {
-							hideOutputs.push(...cell?.model.outputs);
-						} else {
-							deletedOutputs.push(...cell?.model.outputs);
+						if (cell.cellKind === CellKind.Code) {
+							if (this._viewModel!.hasCell(cell.handle)) {
+								hideOutputs.push(...cell?.outputsViewModels);
+							} else {
+								deletedOutputs.push(...cell?.outputsViewModels);
+							}
 						}
 					}
 
@@ -338,15 +340,17 @@ export class NotebookCellList extends WorkbenchList<CellViewModel> implements ID
 					}
 
 					viewDiffs.reverse().forEach((diff) => {
-						const hideOutputs: IProcessedOutput[] = [];
-						const deletedOutputs: IProcessedOutput[] = [];
+						const hideOutputs: ICellOutputViewModel[] = [];
+						const deletedOutputs: ICellOutputViewModel[] = [];
 
 						for (let i = diff.start; i < diff.start + diff.deleteCount; i++) {
 							const cell = this.element(i);
-							if (this._viewModel!.hasCell(cell.handle)) {
-								hideOutputs.push(...cell?.model.outputs);
-							} else {
-								deletedOutputs.push(...cell?.model.outputs);
+							if (cell.cellKind === CellKind.Code) {
+								if (this._viewModel!.hasCell(cell.handle)) {
+									hideOutputs.push(...cell?.outputsViewModels);
+								} else {
+									deletedOutputs.push(...cell?.outputsViewModels);
+								}
 							}
 						}
 
@@ -460,15 +464,17 @@ export class NotebookCellList extends WorkbenchList<CellViewModel> implements ID
 
 		viewDiffs.reverse().forEach((diff) => {
 			// remove output in the webview
-			const hideOutputs: IProcessedOutput[] = [];
-			const deletedOutputs: IProcessedOutput[] = [];
+			const hideOutputs: ICellOutputViewModel[] = [];
+			const deletedOutputs: ICellOutputViewModel[] = [];
 
 			for (let i = diff.start; i < diff.start + diff.deleteCount; i++) {
 				const cell = this.element(i);
-				if (this._viewModel!.hasCell(cell.handle)) {
-					hideOutputs.push(...cell?.model.outputs);
-				} else {
-					deletedOutputs.push(...cell?.model.outputs);
+				if (cell.cellKind === CellKind.Code) {
+					if (this._viewModel!.hasCell(cell.handle)) {
+						hideOutputs.push(...cell?.outputsViewModels);
+					} else {
+						deletedOutputs.push(...cell?.outputsViewModels);
+					}
 				}
 			}
 

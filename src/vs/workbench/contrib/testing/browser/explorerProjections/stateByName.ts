@@ -178,10 +178,15 @@ export class StateByNameProjection extends AbstractIncrementalTestCollection<ISt
 				}
 			},
 			update: node => {
-				if (node.item.state.runState !== node.previousState) {
-					this.removeNode(node);
+				if (node.item.state.runState !== node.previousState && node.node) {
+					if (node.item.state.runState === TestRunState.Running) {
+						node.node.computedState = node.item.state.runState;
+					} else {
+						this.removeNode(node);
+					}
 				}
 
+				node.previousState = node.item.state.runState;
 				this.resolveNodesRecursive(node);
 
 				const locationChanged = !locationsEqual(node.location, node.item.location);

@@ -95,7 +95,7 @@ class DocumentSemanticTokensProvider implements vscode.DocumentSemanticTokensPro
 			// as the new request will come in right after our response, we first wait for the document activity to stop
 			await waitForDocumentChangesToEnd(document);
 
-			throw new Error('busy');
+			throw new vscode.CancellationError();
 		}
 
 		const tokenSpan = response.body.spans;

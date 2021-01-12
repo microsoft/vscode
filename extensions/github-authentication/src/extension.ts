@@ -22,10 +22,7 @@ export async function activate(context: vscode.ExtensionContext) {
 		return loginService.manuallyProvideToken();
 	}));
 
-	context.subscriptions.push(vscode.authentication.registerAuthenticationProvider({
-		id: 'github',
-		label: 'GitHub',
-		supportsMultipleAccounts: false,
+	context.subscriptions.push(vscode.authentication.registerAuthenticationProvider('github', 'GitHub', {
 		onDidChangeSessions: onDidChangeSessions.event,
 		getSessions: () => Promise.resolve(loginService.sessions),
 		login: async (scopeList: string[]) => {
@@ -79,7 +76,7 @@ export async function activate(context: vscode.ExtensionContext) {
 				throw e;
 			}
 		}
-	}));
+	}, { supportsMultipleAccounts: false }));
 
 	return;
 }
