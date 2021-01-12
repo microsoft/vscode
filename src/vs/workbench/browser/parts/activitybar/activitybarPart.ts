@@ -13,7 +13,7 @@ import { IBadge, NumberBadge } from 'vs/workbench/services/activity/common/activ
 import { IWorkbenchLayoutService, Parts } from 'vs/workbench/services/layout/browser/layoutService';
 import { IInstantiationService, ServicesAccessor } from 'vs/platform/instantiation/common/instantiation';
 import { IDisposable, toDisposable, DisposableStore, Disposable } from 'vs/base/common/lifecycle';
-import { ToggleActivityBarVisibilityAction, ToggleMenuBarAction, ToggleSidebarPositionAction } from 'vs/workbench/browser/actions/layoutActions';
+import { ToggleActivityBarVisibilityAction, ToggleSidebarPositionAction } from 'vs/workbench/browser/actions/layoutActions';
 import { IThemeService, IColorTheme, ThemeIcon } from 'vs/platform/theme/common/themeService';
 import { ACTIVITY_BAR_BACKGROUND, ACTIVITY_BAR_BORDER, ACTIVITY_BAR_FOREGROUND, ACTIVITY_BAR_ACTIVE_BORDER, ACTIVITY_BAR_BADGE_BACKGROUND, ACTIVITY_BAR_BADGE_FOREGROUND, ACTIVITY_BAR_INACTIVE_FOREGROUND, ACTIVITY_BAR_ACTIVE_BACKGROUND, ACTIVITY_BAR_DRAG_AND_DROP_BORDER } from 'vs/workbench/common/theme';
 import { contrastBorder } from 'vs/platform/theme/common/colorRegistry';
@@ -49,7 +49,7 @@ interface IPlaceholderViewContainer {
 	readonly name?: string;
 	readonly iconUrl?: UriComponents;
 	readonly themeIcon?: ThemeIcon;
-	readonly views?: { when?: string }[];
+	readonly views?: { when?: string; }[];
 }
 
 interface IPinnedViewContainer {
@@ -66,7 +66,7 @@ interface ICachedViewContainer {
 	readonly pinned: boolean;
 	readonly order?: number;
 	visible: boolean;
-	views?: { when?: string }[];
+	views?: { when?: string; }[];
 }
 
 const settingsViewBarIcon = registerIcon('settings-view-bar-icon', Codicon.settingsGear, nls.localize('settingsViewBarIcon', 'Settings icon in the view bar.'));
@@ -110,7 +110,7 @@ export class ActivitybarPart extends Part implements IActivityBarService {
 
 	private readonly accountsActivity: ICompositeActivity[] = [];
 
-	private readonly compositeActions = new Map<string, { activityAction: ViewContainerActivityAction, pinnedAction: ToggleCompositePinnedAction }>();
+	private readonly compositeActions = new Map<string, { activityAction: ViewContainerActivityAction, pinnedAction: ToggleCompositePinnedAction; }>();
 	private readonly viewContainerDisposables = new Map<string, IDisposable>();
 
 	private readonly keyboardNavigationDisposables = this._register(new DisposableStore());
@@ -170,29 +170,36 @@ export class ActivitybarPart extends Part implements IActivityBarService {
 
 				// Home
 				if (this.homeBarContainer) {
-					actions.push(new Action(
-						'toggleHomeBarAction',
-						this.homeBarVisibilityPreference ? nls.localize('hideHomeBar', "Hide Home Button") : nls.localize('showHomeBar', "Show Home Button"),
-						undefined,
-						true,
-						async () => { this.homeBarVisibilityPreference = !this.homeBarVisibilityPreference; }
-					));
+					actions.push({
+						id: 'toggleHomeBarAction',
+						label: nls.localize('homeButton', "Home Button"),
+						checked: this.homeBarVisibilityPreference,
+						enabled: true,
+						run: () => this.homeBarVisibilityPreference = !this.homeBarVisibilityPreference
+					});
 				}
 
 				// Menu
 				const menuBarVisibility = getMenuBarVisibility(this.configurationService);
 				if (menuBarVisibility === 'compact' || (menuBarVisibility === 'hidden' && isWeb)) {
-					actions.push(this.instantiationService.createInstance(ToggleMenuBarAction, ToggleMenuBarAction.ID, menuBarVisibility === 'compact' ? nls.localize('hideMenu', "Hide Menu") : nls.localize('showMenu', "Show Menu")));
+					actions.push({
+						id: 'toggleMenuVisibility',
+						label: nls.localize('menu', "Menu"),
+						checked: menuBarVisibility === 'compact',
+						enabled: true,
+						run: () => this.layoutService.toggleMenuBar()
+					});
 				}
 
 				// Accounts
-				actions.push(new Action(
-					'toggleAccountsVisibility',
-					this.accountsVisibilityPreference ? nls.localize('hideAccounts', "Hide Accounts") : nls.localize('showAccounts', "Show Accounts"),
-					undefined,
-					true,
-					async () => { this.accountsVisibilityPreference = !this.accountsVisibilityPreference; }
-				));
+				actions.push({
+					id: 'toggleAccountsVisibility',
+					label: nls.localize('accounts', "Accounts"),
+					checked: this.accountsVisibilityPreference,
+					enabled: true,
+					run: () => this.accountsVisibilityPreference = !this.accountsVisibilityPreference
+				});
+
 				actions.push(new Separator());
 
 				// Toggle Sidebar
@@ -278,7 +285,7 @@ export class ActivitybarPart extends Part implements IActivityBarService {
 		}));
 	}
 
-	private onDidChangeViewContainers(added: ReadonlyArray<{ container: ViewContainer, location: ViewContainerLocation }>, removed: ReadonlyArray<{ container: ViewContainer, location: ViewContainerLocation }>) {
+	private onDidChangeViewContainers(added: ReadonlyArray<{ container: ViewContainer, location: ViewContainerLocation; }>, removed: ReadonlyArray<{ container: ViewContainer, location: ViewContainerLocation; }>) {
 		removed.filter(({ location }) => location === ViewContainerLocation.Sidebar).forEach(({ container }) => this.onDidDeregisterViewContainer(container));
 		this.onDidRegisterViewContainers(added.filter(({ location }) => location === ViewContainerLocation.Sidebar).map(({ container }) => container));
 	}
@@ -640,7 +647,7 @@ export class ActivitybarPart extends Part implements IActivityBarService {
 		this.updateGlobalActivity(ACCOUNTS_ACTIVITY_ID);
 	}
 
-	private getCompositeActions(compositeId: string): { activityAction: ViewContainerActivityAction, pinnedAction: ToggleCompositePinnedAction } {
+	private getCompositeActions(compositeId: string): { activityAction: ViewContainerActivityAction, pinnedAction: ToggleCompositePinnedAction; } {
 		let compositeActions = this.compositeActions.get(compositeId);
 		if (!compositeActions) {
 			const viewContainer = this.getViewContainer(compositeId);
@@ -921,7 +928,7 @@ export class ActivitybarPart extends Part implements IActivityBarService {
 			const viewContainer = this.getViewContainer(compositeItem.id);
 			if (viewContainer) {
 				const viewContainerModel = this.viewDescriptorService.getViewContainerModel(viewContainer);
-				const views: { when: string | undefined }[] = [];
+				const views: { when: string | undefined; }[] = [];
 				for (const { when } of viewContainerModel.allViewDescriptors) {
 					views.push({ when: when ? when.serialize() : undefined });
 				}
