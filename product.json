@@ -26,7 +26,13 @@
 		"ms-vscode.vscode-js-profile-flame",
 		"ms-vscode.vscode-js-profile-table",
 		"ms-vscode.github-browser",
-		"ms-vscode.github-richnav"
+		"ms-vscode.github-richnav",
+		"ms-vscode.references-view",
+		"GitHub.vscode-pull-request-github",
+		"GitHub.vscode-pull-request-github-insiders",
+		"ms-vscode.js-debug",
+		"ms-vscode.js-debug-nightly",
+		"ms-python.python"
 	],
 	"builtInExtensions": [
 		{
