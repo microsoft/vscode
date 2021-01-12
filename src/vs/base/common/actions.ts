@@ -283,3 +283,16 @@ export class EmptySubmenuAction extends Action {
 		super(EmptySubmenuAction.ID, nls.localize('submenu.empty', '(empty)'), undefined, false);
 	}
 }
+
+export function toAction(props: { id: string, label: string, enabled?: boolean, checked?: boolean, run: Function; }): IAction {
+	return {
+		id: props.id,
+		label: props.label,
+		class: undefined,
+		enabled: props.enabled ?? true,
+		checked: props.checked ?? false,
+		run: async () => props.run(),
+		tooltip: props.label,
+		dispose: () => { }
+	};
+}

@@ -4,7 +4,8 @@
  *--------------------------------------------------------------------------------------------*/
 
 import 'vs/css!./media/panelpart';
-import { IAction, Action, Separator } from 'vs/base/common/actions';
+import { localize } from 'vs/nls';
+import { IAction, Separator } from 'vs/base/common/actions';
 import { Event } from 'vs/base/common/event';
 import { Registry } from 'vs/platform/registry/common/platform';
 import { ActionsOrientation } from 'vs/base/browser/ui/actionbar/actionbar';
@@ -27,7 +28,6 @@ import { ToggleCompositePinnedAction } from 'vs/workbench/browser/parts/composit
 import { IBadge } from 'vs/workbench/services/activity/common/activity';
 import { INotificationService } from 'vs/platform/notification/common/notification';
 import { Dimension, trackFocus, EventHelper } from 'vs/base/browser/dom';
-import { localize } from 'vs/nls';
 import { IDisposable, DisposableStore, MutableDisposable } from 'vs/base/common/lifecycle';
 import { IContextKey, IContextKeyService, ContextKeyExpr } from 'vs/platform/contextkey/common/contextkey';
 import { isUndefinedOrNull, assertIsDefined } from 'vs/base/common/types';
@@ -163,7 +163,7 @@ export class PanelPart extends CompositePart<Panel> implements IPanelService {
 					this.instantiationService.createInstance(TogglePanelAction, TogglePanelAction.ID, localize('hidePanel', "Hide Panel"))
 				]);
 			},
-			getContextMenuActionsForComposite: compositeId => this.getContextMenuActionsForComposite(compositeId) as Action[],
+			getContextMenuActionsForComposite: compositeId => this.getContextMenuActionsForComposite(compositeId),
 			getDefaultCompositeId: () => this.panelRegistry.getDefaultPanelId(),
 			hidePart: () => this.layoutService.setPanelHidden(true),
 			dndHandler: this.dndHandler,
@@ -189,7 +189,7 @@ export class PanelPart extends CompositePart<Panel> implements IPanelService {
 	}
 
 	private readonly panelContextMenuActionsDisposable = this._register(new MutableDisposable());
-	private getContextMenuActionsForComposite(compositeId: string): readonly IAction[] {
+	private getContextMenuActionsForComposite(compositeId: string): IAction[] {
 		const result: IAction[] = [];
 		const scopedContextKeyService = this.contextKeyService.createScoped();
 		scopedContextKeyService.createKey('viewContainer', compositeId);
