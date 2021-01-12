@@ -5,6 +5,7 @@
 
 import * as assert from 'assert';
 import { Emitter } from 'vs/base/common/event';
+import { IProcessDataWithAckEvent } from 'vs/workbench/contrib/terminal/common/terminal';
 import { TerminalDataBufferer } from 'vs/workbench/contrib/terminal/common/terminalDataBuffering';
 
 const wait = (ms: number) => new Promise(resolve => setTimeout(resolve, ms));
@@ -12,7 +13,8 @@ const wait = (ms: number) => new Promise(resolve => setTimeout(resolve, ms));
 suite('Workbench - TerminalDataBufferer', () => {
 	let bufferer: TerminalDataBufferer;
 	let counter: { [id: number]: number };
-	let data: { [id: number]: string };
+	// TODO: Fix these tests
+	let data: { [id: number]: string | IProcessDataWithAckEvent };
 
 	setup(async () => {
 		counter = {};

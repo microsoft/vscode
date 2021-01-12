@@ -11,7 +11,7 @@ import * as os from 'os';
 import { Event, Emitter } from 'vs/base/common/event';
 import { getWindowsBuildNumber } from 'vs/workbench/contrib/terminal/node/terminal';
 import { Disposable } from 'vs/base/common/lifecycle';
-import { IShellLaunchConfig, ITerminalChildProcess, ITerminalLaunchError } from 'vs/workbench/contrib/terminal/common/terminal';
+import { IProcessDataWithAckEvent, IShellLaunchConfig, ITerminalChildProcess, ITerminalDimensionsOverride, ITerminalLaunchError } from 'vs/workbench/contrib/terminal/common/terminal';
 import { exec } from 'child_process';
 import { ILogService } from 'vs/platform/log/common/log';
 import { stat } from 'vs/base/node/pfs';
@@ -38,13 +38,15 @@ export class TerminalProcess extends Disposable implements ITerminalChildProcess
 	private _writeQueue: string[] = [];
 	private _writeTimeout: NodeJS.Timeout | undefined;
 	private _delayedResizer: DelayedResizer | undefined;
+	private _currentAckRequestId: number = 0;
+	private _ackedRequestId: number = 0;
 	private readonly _initialCwd: string;
 	private readonly _ptyOptions: pty.IPtyForkOptions | pty.IWindowsPtyForkOptions;
 
 	public get exitMessage(): string | undefined { return this._exitMessage; }
 
-	private readonly _onProcessData = this._register(new Emitter<string>());
-	public get onProcessData(): Event<string> { return this._onProcessData.event; }
+	private readonly _onProcessData = this._register(new Emitter<string | IProcessDataWithAckEvent>());
+	public get onProcessData(): Event<string | IProcessDataWithAckEvent> { return this._onProcessData.event; }
 	private readonly _onProcessExit = this._register(new Emitter<number>());
 	public get onProcessExit(): Event<number> { return this._onProcessExit.event; }
 	private readonly _onProcessReady = this._register(new Emitter<{ pid: number, cwd: string }>());
@@ -98,6 +100,8 @@ export class TerminalProcess extends Disposable implements ITerminalChildProcess
 			}));
 		}
 	}
+	onProcessOverrideDimensions?: Event<ITerminalDimensionsOverride | undefined> | undefined;
+	onProcessResolvedShellLaunchConfig?: Event<IShellLaunchConfig> | undefined;
 
 	public async start(): Promise<ITerminalLaunchError | undefined> {
 		const results = await Promise.all([this._validateCwd(), this._validateExecutable()]);
@@ -162,7 +166,15 @@ export class TerminalProcess extends Disposable implements ITerminalChildProcess
 			this.onProcessReady(() => c());
 		});
 		ptyProcess.onData(data => {
-			this._onProcessData.fire(data);
+			// TODO: Periodically request ACK between low and high watermark
+			this._onProcessData.fire({
+				data,
+				ackId: ++this._currentAckRequestId
+			});
+			if (this._currentAckRequestId > this._ackedRequestId) {
+				// TODO: Expose as public API in node-pty
+				(ptyProcess as any).pause();
+			}
 			if (this._closeTimeout) {
 				clearTimeout(this._closeTimeout);
 				this._queueProcessExit();
@@ -321,6 +333,14 @@ export class TerminalProcess extends Disposable implements ITerminalChildProcess
 					throw e;
 				}
 			}
+		}
+	}
+
+	public acknowledgeDataEvent(ackId: number): void {
+		this._ackedRequestId = ackId;
+		if (this._currentAckRequestId === this._ackedRequestId) {
+			// TODO: Expose as public API in node-pty
+			(this._ptyProcess as any).resume();
 		}
 	}
 

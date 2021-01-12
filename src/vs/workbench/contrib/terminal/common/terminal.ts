@@ -354,6 +354,12 @@ export interface IBeforeProcessDataEvent {
 export interface IProcessDataEvent {
 	data: string;
 	sync: boolean;
+	dataAckId?: number;
+}
+
+export interface IProcessDataWithAckEvent {
+	data: string;
+	ackId: number;
 }
 
 export interface ITerminalProcessManager extends IDisposable {
@@ -379,6 +385,7 @@ export interface ITerminalProcessManager extends IDisposable {
 	createProcess(shellLaunchConfig: IShellLaunchConfig, cols: number, rows: number, isScreenReaderModeEnabled: boolean): Promise<ITerminalLaunchError | undefined>;
 	write(data: string): void;
 	setDimensions(cols: number, rows: number): void;
+	acknowledgeDataEvent(ackId: number): void;
 
 	getInitialCwd(): Promise<string>;
 	getCwd(): Promise<string>;
@@ -407,7 +414,7 @@ export const enum ProcessState {
 export interface ITerminalProcessExtHostProxy extends IDisposable {
 	readonly terminalId: number;
 
-	emitData(data: string): void;
+	emitData(data: string | IProcessDataWithAckEvent): void;
 	emitTitle(title: string): void;
 	emitReady(pid: number, cwd: string): void;
 	emitExit(exitCode: number | undefined): void;
@@ -419,6 +426,7 @@ export interface ITerminalProcessExtHostProxy extends IDisposable {
 
 	onInput: Event<string>;
 	onResize: Event<{ cols: number, rows: number }>;
+	onAcknowledgeDataEvent: Event<number>;
 	onShutdown: Event<boolean>;
 	onRequestInitialCwd: Event<void>;
 	onRequestCwd: Event<void>;
@@ -482,7 +490,7 @@ export interface ITerminalLaunchError {
  * child_process.ChildProcess node.js interface.
  */
 export interface ITerminalChildProcess {
-	onProcessData: Event<IProcessDataEvent | string>;
+	onProcessData: Event<IProcessDataEvent | IProcessDataWithAckEvent | string>;
 	onProcessExit: Event<number | undefined>;
 	onProcessReady: Event<{ pid: number, cwd: string }>;
 	onProcessTitleChanged: Event<string>;
@@ -506,6 +514,13 @@ export interface ITerminalChildProcess {
 	shutdown(immediate: boolean): void;
 	input(data: string): void;
 	resize(cols: number, rows: number): void;
+
+	/**
+	 * Acknowledge a data event has been parsed by the terminal, this is used to implement flow
+	 * control to ensure remote processes to not get too far ahead of the client and flood the
+	 * connection.
+	 */
+	acknowledgeDataEvent(ackId: number): void;
 
 	getInitialCwd(): Promise<string>;
 	getCwd(): Promise<string>;

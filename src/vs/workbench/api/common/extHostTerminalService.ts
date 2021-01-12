@@ -220,6 +220,13 @@ export class ExtHostPseudoterminal implements ITerminalChildProcess {
 		}
 	}
 
+	acknowledgeDataEvent(ackId: number): void {
+		// TODO: Determine whether ExtHostPseudoterminal terminals should support flow control, this
+		// would need resume/pause APIs
+
+		// No-op
+	}
+
 	getInitialCwd(): Promise<string> {
 		return Promise.resolve('');
 	}
@@ -486,6 +493,10 @@ export abstract class BaseExtHostTerminalService extends Disposable implements I
 		}
 
 		return disposables;
+	}
+
+	public $acceptProcessAckDataEvent(id: number, ackId: number): void {
+		this._terminalProcesses.get(id)?.acknowledgeDataEvent(ackId);
 	}
 
 	public $acceptProcessInput(id: number, data: string): void {

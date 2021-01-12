@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { DisposableStore, Disposable, IDisposable } from 'vs/base/common/lifecycle';
-import { IShellLaunchConfig, ITerminalProcessExtHostProxy, ISpawnExtHostProcessRequest, ITerminalDimensions, IAvailableShellsRequest, IDefaultShellAndArgsRequest, IStartExtensionTerminalRequest } from 'vs/workbench/contrib/terminal/common/terminal';
+import { IShellLaunchConfig, ITerminalProcessExtHostProxy, ISpawnExtHostProcessRequest, ITerminalDimensions, IAvailableShellsRequest, IDefaultShellAndArgsRequest, IStartExtensionTerminalRequest, IProcessDataWithAckEvent } from 'vs/workbench/contrib/terminal/common/terminal';
 import { ExtHostContext, ExtHostTerminalServiceShape, MainThreadTerminalServiceShape, MainContext, IExtHostContext, IShellLaunchConfigDto, TerminalLaunchConfig, ITerminalDimensionsDto, TerminalIdentifier } from 'vs/workbench/api/common/extHost.protocol';
 import { extHostNamedCustomer } from 'vs/workbench/api/common/extHostCustomers';
 import { URI } from 'vs/base/common/uri';
@@ -168,7 +168,8 @@ export class MainThreadTerminalService implements MainThreadTerminalServiceShape
 	public $startSendingDataEvents(): void {
 		if (!this._dataEventTracker) {
 			this._dataEventTracker = this._instantiationService.createInstance(TerminalDataEventTracker, (id, data) => {
-				this._onTerminalData(id, data);
+				const d = typeof data === 'string' ? data : data.data;
+				this._onTerminalData(id, d);
 			});
 			// Send initial events if they exist
 			this._terminalService.terminalInstances.forEach(t => {
@@ -272,6 +273,7 @@ export class MainThreadTerminalService implements MainThreadTerminalServiceShape
 			request.isWorkspaceShellAllowed
 		).then(request.callback, request.callback);
 
+		proxy.onAcknowledgeDataEvent(ackId => this._proxy.$acceptProcessAckDataEvent(proxy.terminalId, ackId));
 		proxy.onInput(data => this._proxy.$acceptProcessInput(proxy.terminalId, data));
 		proxy.onResize(dimensions => this._proxy.$acceptProcessResize(proxy.terminalId, dimensions.cols, dimensions.rows));
 		proxy.onShutdown(immediate => this._proxy.$acceptProcessShutdown(proxy.terminalId, immediate));
@@ -310,7 +312,7 @@ export class MainThreadTerminalService implements MainThreadTerminalServiceShape
 		}
 	}
 
-	public $sendProcessData(terminalId: number, data: string): void {
+	public $sendProcessData(terminalId: number, data: string | IProcessDataWithAckEvent): void {
 		const terminalProcess = this._terminalProcessProxies.get(terminalId);
 		if (terminalProcess) {
 			terminalProcess.emitData(data);
@@ -423,7 +425,7 @@ class TerminalDataEventTracker extends Disposable {
 	private readonly _bufferer: TerminalDataBufferer;
 
 	constructor(
-		private readonly _callback: (id: number, data: string) => void,
+		private readonly _callback: (id: number, data: string | IProcessDataWithAckEvent) => void,
 		@ITerminalService private readonly _terminalService: ITerminalService
 	) {
 		super();
