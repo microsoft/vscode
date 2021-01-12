@@ -35,7 +35,7 @@ import { getMenuBarVisibility } from 'vs/platform/windows/common/windows';
 import { isNative, isWeb } from 'vs/base/common/platform';
 import { Before2D } from 'vs/workbench/browser/dnd';
 import { Codicon, iconRegistry } from 'vs/base/common/codicons';
-import { Action, Separator } from 'vs/base/common/actions';
+import { Action, IAction, Separator } from 'vs/base/common/actions';
 import { Event } from 'vs/base/common/event';
 import { StandardKeyboardEvent } from 'vs/base/browser/keyboardEvent';
 import { KeyCode } from 'vs/base/common/keyCodes';
@@ -161,43 +161,57 @@ export class ActivitybarPart extends Part implements IActivityBarService {
 			icon: true,
 			orientation: ActionsOrientation.VERTICAL,
 			preventLoopNavigation: true,
-			openComposite: (compositeId: string) => this.viewsService.openViewContainer(compositeId, true),
-			getActivityAction: (compositeId: string) => this.getCompositeActions(compositeId).activityAction,
-			getCompositePinnedAction: (compositeId: string) => this.getCompositeActions(compositeId).pinnedAction,
-			getOnCompositeClickAction: (compositeId: string) => new Action(compositeId, '', '', true, () => this.viewsService.isViewContainerVisible(compositeId) ? Promise.resolve(this.viewsService.closeViewContainer(compositeId)) : this.viewsService.openViewContainer(compositeId)),
-			getContextMenuActions: () => {
-				const actions = [];
+			openComposite: compositeId => this.viewsService.openViewContainer(compositeId, true),
+			getActivityAction: compositeId => this.getCompositeActions(compositeId).activityAction,
+			getCompositePinnedAction: compositeId => this.getCompositeActions(compositeId).pinnedAction,
+			getOnCompositeClickAction: compositeId => new Action(compositeId, '', '', true, () => this.viewsService.isViewContainerVisible(compositeId) ? Promise.resolve(this.viewsService.closeViewContainer(compositeId)) : this.viewsService.openViewContainer(compositeId)),
+			fillExtraContextMenuActions: actions => {
 
 				// Home
+				const topActions: IAction[] = [];
 				if (this.homeBarContainer) {
-					actions.push({
+					topActions.push({
 						id: 'toggleHomeBarAction',
 						label: nls.localize('homeButton', "Home Button"),
+						class: undefined,
+						tooltip: nls.localize('homeButton', "Home Button"),
 						checked: this.homeBarVisibilityPreference,
 						enabled: true,
-						run: () => this.homeBarVisibilityPreference = !this.homeBarVisibilityPreference
+						run: async () => this.homeBarVisibilityPreference = !this.homeBarVisibilityPreference,
+						dispose: () => { }
 					});
 				}
 
 				// Menu
 				const menuBarVisibility = getMenuBarVisibility(this.configurationService);
 				if (menuBarVisibility === 'compact' || (menuBarVisibility === 'hidden' && isWeb)) {
-					actions.push({
+					topActions.push({
 						id: 'toggleMenuVisibility',
 						label: nls.localize('menu', "Menu"),
+						class: undefined,
+						tooltip: nls.localize('menu', "Menu"),
 						checked: menuBarVisibility === 'compact',
 						enabled: true,
-						run: () => this.layoutService.toggleMenuBar()
+						run: async () => this.layoutService.toggleMenuBar(),
+						dispose: () => { }
 					});
 				}
 
+				if (topActions.length) {
+					actions.unshift(...topActions, new Separator());
+				}
+
 				// Accounts
+				actions.push(new Separator());
 				actions.push({
 					id: 'toggleAccountsVisibility',
 					label: nls.localize('accounts', "Accounts"),
+					class: undefined,
+					tooltip: nls.localize('accounts', "Accounts"),
 					checked: this.accountsVisibilityPreference,
 					enabled: true,
-					run: () => this.accountsVisibilityPreference = !this.accountsVisibilityPreference
+					run: async () => this.accountsVisibilityPreference = !this.accountsVisibilityPreference,
+					dispose: () => { }
 				});
 
 				actions.push(new Separator());
@@ -213,8 +227,6 @@ export class ActivitybarPart extends Part implements IActivityBarService {
 					true,
 					async () => { this.instantiationService.invokeFunction(accessor => new ToggleActivityBarVisibilityAction().run(accessor)); }
 				));
-
-				return actions;
 			},
 			getContextMenuActionsForComposite: compositeId => this.getContextMenuActionsForComposite(compositeId),
 			getDefaultCompositeId: () => this.viewDescriptorService.getDefaultViewContainer(this.location)!.id,

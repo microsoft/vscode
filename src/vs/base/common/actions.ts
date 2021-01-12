@@ -14,8 +14,8 @@ export interface ITelemetryData {
 }
 
 export type WorkbenchActionExecutedClassification = {
-	id: { classification: 'SystemMetaData', purpose: 'FeatureInsight' };
-	from: { classification: 'SystemMetaData', purpose: 'FeatureInsight' };
+	id: { classification: 'SystemMetaData', purpose: 'FeatureInsight'; };
+	from: { classification: 'SystemMetaData', purpose: 'FeatureInsight'; };
 };
 
 export type WorkbenchActionExecutedEvent = {
@@ -63,7 +63,7 @@ export interface IActionChangeEvent {
 export class Action extends Disposable implements IAction {
 
 	protected _onDidChange = this._register(new Emitter<IActionChangeEvent>());
-	readonly onDidChange: Event<IActionChangeEvent> = this._onDidChange.event;
+	readonly onDidChange = this._onDidChange.event;
 
 	protected readonly _id: string;
 	protected _label: string;
@@ -179,10 +179,10 @@ export interface IRunEvent {
 export class ActionRunner extends Disposable implements IActionRunner {
 
 	private _onBeforeRun = this._register(new Emitter<IRunEvent>());
-	readonly onBeforeRun: Event<IRunEvent> = this._onBeforeRun.event;
+	readonly onBeforeRun = this._onBeforeRun.event;
 
 	private _onDidRun = this._register(new Emitter<IRunEvent>());
-	readonly onDidRun: Event<IRunEvent> = this._onDidRun.event;
+	readonly onDidRun = this._onDidRun.event;
 
 	async run(action: IAction, context?: any): Promise<any> {
 		if (!action.enabled) {
