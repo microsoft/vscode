@@ -272,7 +272,7 @@ export class MainThreadTerminalService implements MainThreadTerminalServiceShape
 			request.isWorkspaceShellAllowed
 		).then(request.callback, request.callback);
 
-		proxy.onAcknowledgeDataEvent(ackId => this._proxy.$acceptProcessAckDataEvent(proxy.terminalId, ackId));
+		proxy.onAcknowledgeDataEvent(charCount => this._proxy.$acceptProcessAckDataEvent(proxy.terminalId, charCount));
 		proxy.onInput(data => this._proxy.$acceptProcessInput(proxy.terminalId, data));
 		proxy.onResize(dimensions => this._proxy.$acceptProcessResize(proxy.terminalId, dimensions.cols, dimensions.rows));
 		proxy.onShutdown(immediate => this._proxy.$acceptProcessShutdown(proxy.terminalId, immediate));

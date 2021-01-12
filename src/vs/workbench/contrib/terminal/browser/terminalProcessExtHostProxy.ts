@@ -141,8 +141,8 @@ export class TerminalProcessExtHostProxy extends Disposable implements ITerminal
 		this._onResize.fire({ cols, rows });
 	}
 
-	public acknowledgeDataEvent(ackId: number): void {
-		this._onAcknowledgeDataEvent.fire(ackId);
+	public acknowledgeDataEvent(charCount: number): void {
+		this._onAcknowledgeDataEvent.fire(charCount);
 	}
 
 	public getInitialCwd(): Promise<string> {

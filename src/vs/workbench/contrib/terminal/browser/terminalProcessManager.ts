@@ -331,8 +331,9 @@ export class TerminalProcessManager extends Disposable implements ITerminalProce
 		return Promise.resolve(this._latency);
 	}
 
-	public acknowledgeDataEvent(ackId: number): void {
-		this._process?.acknowledgeDataEvent(ackId);
+	public acknowledgeDataEvent(charCount: number): void {
+		// TODO: Batch these acknowledge calls (in proxy/remote connection?)
+		this._process?.acknowledgeDataEvent(charCount);
 	}
 
 	private _onExit(exitCode: number | undefined): void {
