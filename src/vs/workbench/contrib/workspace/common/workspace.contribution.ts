@@ -10,7 +10,7 @@ import { IDialogService } from 'vs/platform/dialogs/common/dialogs';
 import { ServicesAccessor } from 'vs/platform/instantiation/common/instantiation';
 import { Severity } from 'vs/platform/notification/common/notification';
 import { Registry } from 'vs/platform/registry/common/platform';
-import { ITrustedWorkspaceService, TrustState } from 'vs/platform/workspace/common/trustedWorkspace';
+import { ITrustedWorkspaceService, TRUSTED_WORKSPACES_URI, TrustState } from 'vs/platform/workspace/common/trustedWorkspace';
 import { Extensions as WorkbenchExtensions, IWorkbenchContribution, IWorkbenchContributionsRegistry } from 'vs/workbench/common/contributions';
 import { IActivityService, IconBadge } from 'vs/workbench/services/activity/common/activity';
 import { LifecyclePhase } from 'vs/workbench/services/lifecycle/common/lifecycle';
@@ -18,6 +18,8 @@ import { registerIcon } from 'vs/platform/theme/common/iconRegistry';
 import { Codicon } from 'vs/base/common/codicons';
 import { IStatusbarEntry, IStatusbarEntryAccessor, IStatusbarService, StatusbarAlignment } from 'vs/workbench/services/statusbar/common/statusbar';
 import { ThemeColor } from 'vs/workbench/api/common/extHostTypes';
+import { IEditorService } from 'vs/workbench/services/editor/common/editorService';
+import { TrustedWorkspacesFileSystemProvider } from 'vs/workbench/contrib/workspace/common/trustedWorkspaceFileSystemProvider';
 
 const workspaceTrustIcon = registerIcon('workspace-trust-icon', Codicon.shield, localize('workspaceTrustIcon', "Icon for workspace trust badge."));
 
@@ -98,8 +100,9 @@ registerAction2(class extends Action2 {
 	}
 
 	run(accessor: ServicesAccessor) {
-		const trustedWorkspaceService = accessor.get(ITrustedWorkspaceService);
-		trustedWorkspaceService.requireWorkspaceTrust(true);
+		const editorService = accessor.get(IEditorService);
+		editorService.openEditor({ resource: TRUSTED_WORKSPACES_URI, mode: 'jsonc', options: { pinned: true } });
+		return;
 	}
 });
 
@@ -139,3 +142,9 @@ class TrustedWorkspaceStatusbarItem extends Disposable implements IWorkbenchCont
 }
 
 Registry.as<IWorkbenchContributionsRegistry>(WorkbenchExtensions.Workbench).registerWorkbenchContribution(TrustedWorkspaceStatusbarItem, LifecyclePhase.Starting);
+
+
+Registry.as<IWorkbenchContributionsRegistry>(WorkbenchExtensions.Workbench).registerWorkbenchContribution(
+	TrustedWorkspacesFileSystemProvider,
+	LifecyclePhase.Ready
+);

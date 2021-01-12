@@ -11,6 +11,8 @@ import { createDecorator } from 'vs/platform/instantiation/common/instantiation'
 import { IStorageService, StorageScope, StorageTarget } from 'vs/platform/storage/common/storage';
 import { IWorkspace, IWorkspaceContextService } from 'vs/platform/workspace/common/workspace';
 
+export const TRUSTED_WORKSPACES_URI = URI.parse('trustedWorkspaces:/Trusted Workspaces');
+
 export enum TrustState {
 	Unknown,
 	Trusted,
@@ -64,9 +66,11 @@ interface ICachedTrustedContentInfo {
 	trustedRemoteItems: { uri: string }[]
 }
 
+export const TRUSTED_WORKSPACES_STORAGE_KEY = 'content.trust.model.key';
+
 export class TrustedContentModel extends Disposable implements ITrustedContentModel {
 
-	private storageKey = 'content.trust.model.key';
+	private storageKey = TRUSTED_WORKSPACES_STORAGE_KEY;
 	private cachedTrustInfo: ICachedTrustedContentInfo;
 
 	private readonly _onDidChangeTrust = this._register(new Emitter<void>());
