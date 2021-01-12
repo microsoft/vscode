@@ -112,31 +112,26 @@ class TrustedWorkspaceStatusbarItem extends Disposable implements IWorkbenchCont
 	) {
 		super();
 
-		const statusbarEntry = this.getStatusbarEntry();
+		const entry = this.getStatusbarEntry(this.trustedWorkspaceService.getWorkspaceTrustState());
 		this.statusBarEntryAccessor = this._register(new MutableDisposable<IStatusbarEntryAccessor>());
-		this.statusBarEntryAccessor.value = this.statusbarService.addEntry(statusbarEntry, TrustedWorkspaceStatusbarItem.ID, localize('status.trrustedWorkspace', "Workspace Trust"), StatusbarAlignment.RIGHT, 1);
-		this.updateStatusbarEntry(this.trustedWorkspaceService.getWorkspaceTrustState());
+		this.statusBarEntryAccessor.value = this.statusbarService.addEntry(entry, TrustedWorkspaceStatusbarItem.ID, localize('status.trrustedWorkspace', "Workspace Trust"), StatusbarAlignment.RIGHT, 1);
 
 		this._register(this.trustedWorkspaceService.onDidChangeTrust(state => this.updateStatusbarEntry(state)));
 	}
 
-	private getStatusbarEntry(): IStatusbarEntry {
+	private getStatusbarEntry(state: TrustState): IStatusbarEntry {
+		const text = (state === TrustState.Untrusted)
+			? 'UNTRUSTED' : (state === TrustState.Trusted ? 'TRUSTED' : 'UNKNOWN');
+
 		return {
-			text: '$(shield)',
+			text: `$(shield) ${text}`,
 			ariaLabel: localize('status.trustedWorkspace', "Workspace Trust"),
 			tooltip: localize('status.trustedWorkspace', "Workspace Trust"),
 		};
 	}
 
 	private updateStatusbarEntry(state: TrustState): void {
-		const statusbarItemText = (state === TrustState.Untrusted)
-			? 'UNTRUSTED' : (state === TrustState.Trusted ? 'TRUSTED' : 'UNKNOWN');
-
-		this.statusBarEntryAccessor.value?.update({
-			...this.getStatusbarEntry(),
-			text: `$(shield) ${statusbarItemText}`
-		});
-
+		this.statusBarEntryAccessor.value?.update(this.getStatusbarEntry(state));
 		this.statusbarService.updateEntryVisibility(TrustedWorkspaceStatusbarItem.ID, state === TrustState.Untrusted);
 	}
 }
