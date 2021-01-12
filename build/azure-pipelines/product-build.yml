@@ -253,27 +253,46 @@ stages:
             steps:
               - template: darwin/product-build-darwin.yml
 
-  - ${{ if and(eq(variables['VSCODE_PUBLISH'], true), eq(parameters.VSCODE_COMPILE_ONLY, false)) }}:
-    - stage: Publish
-      dependsOn:
-        - ${{ if eq(variables['VSCODE_BUILD_STAGE_WINDOWS'], true) }}:
-          - Windows
-        - ${{ if eq(variables['VSCODE_BUILD_STAGE_LINUX'], true) }}:
-          - Linux
-        - ${{ if eq(variables['VSCODE_BUILD_STAGE_MACOS'], true) }}:
-          - macOS
-      pool:
-        vmImage: "Ubuntu-18.04"
-      jobs:
-        - job: SyncMooncake
-          displayName: Sync Mooncake
-          condition: succeededOrFailed()
-          steps:
-            - template: sync-mooncake.yml
+  - stage: Publish
+    dependsOn:
+      - Windows
+      - Linux
+      - macOS
+    condition: and(succeededOrFailed(), eq(variables['VSCODE_COMPILE_ONLY'], 'false'), ne(variables['VSCODE_PUBLISH'], 'false'))
+    pool:
+      vmImage: "Ubuntu-18.04"
+    jobs:
+      - job: SyncMooncake
+        displayName: Sync Mooncake
+        steps:
+          - template: sync-mooncake.yml
+      - job: ReleaseBuild
+        condition: and(succeeded(), or(eq(variables['VSCODE_RELEASE'], 'true'), and(or(eq(variables['VSCODE_QUALITY'], 'insider'), eq(variables['VSCODE_QUALITY'], 'exploration')), eq(variables['Build.Reason'], 'Schedule'))))
+        displayName: Release Build
+        steps:
+          - template: release.yml
 
-        - ${{ if or(eq(parameters.VSCODE_RELEASE, true), and(in(parameters.VSCODE_QUALITY, 'insider', 'exploration'), eq(variables['VSCODE_SCHEDULEDBUILD'], true))) }}:
-          - job: ReleaseBuild
-            displayName: Release Build
-            condition: succeeded()
-            steps:
-              - template: release.yml
+  # - ${{ if and(eq(variables['VSCODE_PUBLISH'], true), eq(parameters.VSCODE_COMPILE_ONLY, false)) }}:
+  #   - stage: Publish
+  #     dependsOn:
+  #       - ${{ if eq(variables['VSCODE_BUILD_STAGE_WINDOWS'], true) }}:
+  #         - Windows
+  #       - ${{ if eq(variables['VSCODE_BUILD_STAGE_LINUX'], true) }}:
+  #         - Linux
+  #       - ${{ if eq(variables['VSCODE_BUILD_STAGE_MACOS'], true) }}:
+  #         - macOS
+  #     pool:
+  #       vmImage: "Ubuntu-18.04"
+  #     jobs:
+  #       - job: SyncMooncake
+  #         displayName: Sync Mooncake
+  #         condition: succeededOrFailed()
+  #         steps:
+  #           - template: sync-mooncake.yml
+
+  #       - ${{ if or(eq(parameters.VSCODE_RELEASE, true), and(in(parameters.VSCODE_QUALITY, 'insider', 'exploration'), eq(variables['VSCODE_SCHEDULEDBUILD'], true))) }}:
+  #         - job: ReleaseBuild
+  #           displayName: Release Build
+  #           condition: succeeded()
+  #           steps:
+  #             - template: release.yml
