@@ -262,12 +262,12 @@ stages:
           - Linux
         - ${{ if eq(variables['VSCODE_BUILD_STAGE_MACOS'], true) }}:
           - macOS
-      condition: succeededOrFailed()
       pool:
         vmImage: "Ubuntu-18.04"
       jobs:
         - job: SyncMooncake
           displayName: Sync Mooncake
+          condition: succeededOrFailed()
           steps:
             - template: sync-mooncake.yml
 
