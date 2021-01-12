@@ -5,7 +5,6 @@
 
 import { FindInPageOptions, WebviewTag } from 'electron';
 import { addDisposableListener } from 'vs/base/browser/dom';
-import { ThrottledDelayer } from 'vs/base/common/async';
 import { Emitter, Event } from 'vs/base/common/event';
 import { once } from 'vs/base/common/functional';
 import { IDisposable } from 'vs/base/common/lifecycle';
@@ -46,7 +45,6 @@ export class ElectronWebviewBasedWebview extends BaseWebview<WebviewTag> impleme
 	private readonly _resourceRequestManager: WebviewResourceRequestManager;
 	private _messagePromise = Promise.resolve();
 
-	private readonly _focusDelayer = this._register(new ThrottledDelayer(10));
 	private _elementFocusImpl!: (options?: FocusOptions | undefined) => void;
 
 	constructor(
@@ -238,32 +236,7 @@ export class ElectronWebviewBasedWebview extends BaseWebview<WebviewTag> impleme
 			// after the focus trigger fires below.
 			document.activeElement.blur();
 		}
-
-		// Workaround for https://github.com/microsoft/vscode/issues/75209
-		// Electron's webview.focus is async so for a sequence of actions such as:
-		//
-		// 1. Open webview
-		// 1. Show quick pick from command palette
-		//
-		// We end up focusing the webview after showing the quick pick, which causes
-		// the quick pick to instantly dismiss.
-		//
-		// Workaround this by debouncing the focus and making sure we are not focused on an input
-		// when we try to re-focus.
-		this._focusDelayer.trigger(async () => {
-			if (!this.isFocused || !this.element) {
-				return;
-			}
-			if (document.activeElement && document.activeElement?.tagName !== 'BODY') {
-				return;
-			}
-			try {
-				this._elementFocusImpl();
-			} catch {
-				// noop
-			}
-			this._send('focus');
-		});
+		this._elementFocusImpl();
 	}
 
 	protected style(): void {
