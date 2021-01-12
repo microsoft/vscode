@@ -133,7 +133,7 @@ export class ActivitybarPart extends Part implements IActivityBarService {
 
 		for (const cachedViewContainer of this.cachedViewContainers) {
 			if (
-				(environmentService.remoteAuthority && isNative) || // In desktop with remote connection, hide activity bar entries until registered.
+				environmentService.remoteAuthority || // In remote window, hide activity bar entries until registered.
 				this.shouldBeHidden(cachedViewContainer.id, cachedViewContainer)
 			) {
 				cachedViewContainer.visible = false;
