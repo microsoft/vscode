@@ -168,9 +168,9 @@ export abstract class AbstractTextFileService extends Disposable implements ITex
 		return this.fileService.writeFile(resource, readable, options);
 	}
 
-	private async getEncodedReadable(resource: URI, value?: string | ITextSnapshot): Promise<VSBuffer | VSBufferReadable | undefined>;
-	private async getEncodedReadable(resource: URI, value: string | ITextSnapshot, options?: IWriteTextFileOptions): Promise<VSBuffer | VSBufferReadable>;
-	private async getEncodedReadable(resource: URI, value?: string | ITextSnapshot, options?: IWriteTextFileOptions): Promise<VSBuffer | VSBufferReadable | undefined> {
+	async getEncodedReadable(resource: URI, value?: string | ITextSnapshot): Promise<VSBuffer | VSBufferReadable | undefined>;
+	async getEncodedReadable(resource: URI, value: string | ITextSnapshot, options?: IWriteTextFileOptions): Promise<VSBuffer | VSBufferReadable>;
+	async getEncodedReadable(resource: URI, value?: string | ITextSnapshot, options?: IWriteTextFileOptions): Promise<VSBuffer | VSBufferReadable | undefined> {
 
 		// check for encoding
 		const { encoding, addBOM } = await this.encoding.getWriteEncoding(resource, options);

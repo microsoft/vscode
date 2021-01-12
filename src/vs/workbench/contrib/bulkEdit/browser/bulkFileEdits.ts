@@ -170,7 +170,6 @@ class CreateOperation implements IFileOperation {
 
 		const folderCreates: ICreateOperation[] = [];
 		const fileCreates: ICreateFileOperation[] = [];
-		const emptyFileCreates: { resource: URI, options?: { overwrite?: boolean } }[] = [];
 		const undoes: DeleteEdit[] = [];
 
 		for (const edit of this._edits) {
@@ -179,21 +178,20 @@ class CreateOperation implements IFileOperation {
 			}
 			if (edit.options.folder) {
 				folderCreates.push({ resource: edit.newUri });
-			} else if (edit.contents) {
-				fileCreates.push({ resource: edit.newUri, contents: edit.contents, overwrite: edit.options.overwrite });
 			} else {
-				emptyFileCreates.push({ resource: edit.newUri, options: { overwrite: edit.options.overwrite } });
+				// If the contents are part of the edit they include the encoding, thus use them. Otherwise get the encoding for a new empty file.
+				const encodedReadable = typeof edit.contents !== 'undefined' ? edit.contents : await this._textFileService.getEncodedReadable(edit.newUri);
+				fileCreates.push({ resource: edit.newUri, contents: encodedReadable, overwrite: edit.options.overwrite });
 			}
 			undoes.push(new DeleteEdit(edit.newUri, edit.options, !edit.options.folder && !edit.contents));
 		}
 
-		if (emptyFileCreates.length === 0 && folderCreates.length === 0 && fileCreates.length === 0) {
+		if (folderCreates.length === 0 && fileCreates.length === 0) {
 			return new Noop();
 		}
 
 		await this._workingCopyFileService.createFolder(folderCreates, this._undoRedoInfo, token);
 		await this._workingCopyFileService.create(fileCreates, this._undoRedoInfo, token);
-		await this._textFileService.create(emptyFileCreates, this._undoRedoInfo, token);
 
 		return this._instaService.createInstance(DeleteOperation, undoes, { isUndoing: true });
 	}

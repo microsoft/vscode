@@ -96,6 +96,11 @@ export interface ITextFileService extends IDisposable {
 	 * the options enable to overwrite.
 	 */
 	create(operations: { resource: URI, value?: string | ITextSnapshot, options?: { overwrite?: boolean } }[], undoInfo?: IFileOperationUndoRedoInfo, token?: CancellationToken): Promise<IFileStatWithMetadata[]>;
+
+	/**
+	 * Returns the readable that uses the appropriate encoding.
+	 */
+	getEncodedReadable(resource: URI, value?: string | ITextSnapshot, options?: IWriteTextFileOptions): Promise<VSBuffer | VSBufferReadable | undefined>;
 }
 
 export interface IReadTextFileOptions extends IReadFileOptions {
