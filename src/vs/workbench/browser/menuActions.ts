@@ -69,7 +69,7 @@ export class CompositeMenuActions extends Disposable {
 
 	constructor(
 		menuId: MenuId,
-		private readonly contextMenuId: MenuId,
+		private readonly contextMenuId: MenuId | undefined,
 		private readonly options: IMenuActionOptions | undefined,
 		@IContextKeyService private readonly contextKeyService: IContextKeyService,
 		@IMenuService private readonly menuService: IMenuService,
@@ -89,9 +89,11 @@ export class CompositeMenuActions extends Disposable {
 
 	getContextMenuActions(): IAction[] {
 		const actions: IAction[] = [];
-		const menu = this.menuService.createMenu(this.contextMenuId, this.contextKeyService);
-		this.contextMenuActionsDisposable.value = createAndFillInActionBarActions(menu, this.options, { primary: [], secondary: actions });
-		menu.dispose();
+		if (this.contextMenuId) {
+			const menu = this.menuService.createMenu(this.contextMenuId, this.contextKeyService);
+			this.contextMenuActionsDisposable.value = createAndFillInActionBarActions(menu, this.options, { primary: [], secondary: actions });
+			menu.dispose();
+		}
 		return actions;
 	}
 }

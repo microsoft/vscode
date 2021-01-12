@@ -803,7 +803,8 @@ export class ViewDescriptorService extends Disposable implements IViewDescriptor
 									ContextKeyEqualsExpr.create('view', viewDescriptor.id),
 									ContextKeyDefinedExpr.create(`${viewDescriptor.id}.visible`),
 								]),
-								group: '1_hide'
+								group: '1_hide',
+								order: 1
 							}]
 						});
 					}
@@ -827,14 +828,6 @@ export class ViewDescriptorService extends Disposable implements IViewDescriptor
 					},
 					menu: [{
 						id: MenuId.ViewContainerTitleContext,
-						when: ContextKeyExpr.or(
-							ContextKeyExpr.and(
-								ContextKeyExpr.equals('viewContainer', viewContainer.id),
-								ContextKeyExpr.equals(`${viewContainer.id}.defaultViewContainerLocation`, false)
-							)
-						)
-					}, {
-						id: MenuId.PanelTitleContext,
 						when: ContextKeyExpr.or(
 							ContextKeyExpr.and(
 								ContextKeyExpr.equals('viewContainer', viewContainer.id),
