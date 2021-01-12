@@ -272,7 +272,6 @@ class WorkspaceTrustRequiredAction extends Action2 {
 
 registerAction2(WorkspaceTrustRequiredAction);
 
-
 class WorkspaceTrustRequestAction extends Action2 {
 	constructor() {
 		super({
@@ -294,6 +293,26 @@ class WorkspaceTrustRequestAction extends Action2 {
 
 registerAction2(WorkspaceTrustRequestAction);
 
+class WorkspaceTrustResetAction extends Action2 {
+	constructor() {
+		super({
+			id: 'workbench.action.resetTrust',
+			title: { value: nls.localize('resetTrustAction', "Reset Workspace Trust"), original: 'Reset Workspace Trust' },
+			f1: true
+		});
+	}
+
+	run(accessor: ServicesAccessor) {
+		const workspaceTrustService = accessor.get(ITrustedWorkspaceService);
+		const notificationService = accessor.get(INotificationService);
+
+		workspaceTrustService.resetWorkspaceTrust().then(trustState => {
+			notificationService.info(`Trust State: ${trustState === TrustState.Unknown ? 'Unknown' : trustState === TrustState.Trusted ? 'Trusted' : 'Untrusted'}`);
+		});
+	}
+}
+
+registerAction2(WorkspaceTrustResetAction);
 
 // --- Actions Registration
 

@@ -48,7 +48,6 @@ export interface ITrustedWorkspaceRequestModel {
 
 export const ITrustedWorkspaceService = createDecorator<ITrustedWorkspaceService>('trustedWorkspaceService');
 
-
 export interface ITrustedWorkspaceService {
 	readonly _serviceBrand: undefined;
 
@@ -57,8 +56,8 @@ export interface ITrustedWorkspaceService {
 	onDidChangeTrust: WorkspaceTrustChangeEvent;
 	getWorkspaceTrustState(): TrustState;
 	requireWorkspaceTrust(immediate?: boolean): Promise<TrustState>;
+	resetWorkspaceTrust(): Promise<TrustState>;
 }
-
 
 interface ICachedTrustedContentInfo {
 	localFolders: { uri: string, trustState: TrustState }[]
@@ -73,12 +72,10 @@ export class TrustedContentModel extends Disposable implements ITrustedContentMo
 	private readonly _onDidChangeTrust = this._register(new Emitter<void>());
 	readonly onDidChangeTrust = this._onDidChangeTrust.event;
 
-
 	constructor(
 		private readonly storageService: IStorageService
 	) {
 		super();
-
 
 		this.cachedTrustInfo = this.loadTrustInfo();
 		this._register(this.storageService.onDidChangeValue(changeEvent => {
@@ -217,9 +214,9 @@ export class TrustedWorkspaceService extends Disposable implements ITrustedWorks
 	}
 
 	private set currentTrustState(trustState: TrustState) {
-		if (this._currentTrustState === trustState) { return; }
+		// TODO - understand the need of this check
+		//if (this._currentTrustState === trustState) { return; }
 		this._currentTrustState = trustState;
-
 		this._onDidChangeTrust.fire(trustState);
 	}
 
@@ -294,6 +291,18 @@ export class TrustedWorkspaceService extends Disposable implements ITrustedWorks
 		this.requestModel.initiateRequest(!!immediate);
 
 		return this._trustRequestPromise;
+	}
+
+	async resetWorkspaceTrust(): Promise<TrustState> {
+		if (this.currentTrustState !== TrustState.Unknown) {
+			this.currentTrustState = TrustState.Unknown;
+
+			this._workspace.folders.forEach(folder => {
+				this.dataModel.setFolderTrustState(folder.uri, TrustState.Unknown);
+			});
+		}
+
+		return Promise.resolve(this.currentTrustState);
 	}
 }
 

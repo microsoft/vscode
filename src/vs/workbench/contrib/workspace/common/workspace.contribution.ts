@@ -16,6 +16,7 @@ import { IActivityService, IconBadge } from 'vs/workbench/services/activity/comm
 import { LifecyclePhase } from 'vs/workbench/services/lifecycle/common/lifecycle';
 import { registerIcon } from 'vs/platform/theme/common/iconRegistry';
 import { Codicon } from 'vs/base/common/codicons';
+import { IStatusbarEntry, IStatusbarEntryAccessor, IStatusbarService, StatusbarAlignment } from 'vs/workbench/services/statusbar/common/statusbar';
 
 const workspaceTrustIcon = registerIcon('workspace-trust-icon', Codicon.shield, localize('workspaceTrustIcon', "Icon for workspace trust badge."));
 
@@ -85,8 +86,8 @@ registerAction2(class extends Action2 {
 		super({
 			id: 'workbench.trust.manage',
 			title: {
-				original: 'Manage Workspace Trust',
-				value: localize('manageTrustWorkspace', "Manage Trust Workspace")
+				original: 'Manage Trust Workspace',
+				value: localize('manageTrustWorkspace', "Manage Workspace Trust")
 			},
 			category: localize('workspacesCategory', "Workspaces"),
 			menu: {
@@ -100,3 +101,44 @@ registerAction2(class extends Action2 {
 		trustedWorkspaceService.requireWorkspaceTrust(true);
 	}
 });
+
+class TrustedWorkspaceStatusbarItem extends Disposable implements IWorkbenchContribution {
+	private static readonly ID = 'status.trustedWorkspace';
+	private readonly statusBarEntryAccessor: MutableDisposable<IStatusbarEntryAccessor>;
+
+	constructor(
+		@IStatusbarService private statusbarService: IStatusbarService,
+		@ITrustedWorkspaceService private trustedWorkspaceService: ITrustedWorkspaceService
+	) {
+		super();
+
+		const statusbarEntry = this.getStatusbarEntry();
+		this.statusBarEntryAccessor = this._register(new MutableDisposable<IStatusbarEntryAccessor>());
+		this.statusBarEntryAccessor.value = this.statusbarService.addEntry(statusbarEntry, TrustedWorkspaceStatusbarItem.ID, localize('status.trrustedWorkspace', "Workspace Trust"), StatusbarAlignment.RIGHT, 1);
+		this.updateStatusbarEntry(this.trustedWorkspaceService.getWorkspaceTrustState());
+
+		this._register(this.trustedWorkspaceService.onDidChangeTrust(state => this.updateStatusbarEntry(state)));
+	}
+
+	private getStatusbarEntry(): IStatusbarEntry {
+		return {
+			text: '$(shield)',
+			ariaLabel: localize('status.trustedWorkspace', "Workspace Trust"),
+			tooltip: localize('status.trustedWorkspace', "Workspace Trust"),
+		};
+	}
+
+	private updateStatusbarEntry(state: TrustState): void {
+		const statusbarItemText = (state === TrustState.Untrusted)
+			? 'UNTRUSTED' : (state === TrustState.Trusted ? 'TRUSTED' : 'UNKNOWN');
+
+		this.statusBarEntryAccessor.value?.update({
+			...this.getStatusbarEntry(),
+			text: `$(shield) ${statusbarItemText}`
+		});
+
+		this.statusbarService.updateEntryVisibility(TrustedWorkspaceStatusbarItem.ID, state === TrustState.Untrusted);
+	}
+}
+
+Registry.as<IWorkbenchContributionsRegistry>(WorkbenchExtensions.Workbench).registerWorkbenchContribution(TrustedWorkspaceStatusbarItem, LifecyclePhase.Starting);
