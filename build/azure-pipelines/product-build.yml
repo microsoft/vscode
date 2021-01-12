@@ -267,7 +267,7 @@ stages:
         steps:
           - template: sync-mooncake.yml
       - job: ReleaseBuild
-        condition: and(succeeded(), or(eq(variables['VSCODE_RELEASE'], 'true'), and(or(eq(variables['VSCODE_QUALITY'], 'insider'), eq(variables['VSCODE_QUALITY'], 'exploration')), eq(variables['Build.Reason'], 'Schedule'))))
+        condition: and(succeeded(), or(eq('${{ parameters.VSCODE_RELEASE }}', true), and(or(eq(variables['VSCODE_QUALITY'], 'insider'), eq(variables['VSCODE_QUALITY'], 'exploration')), eq(variables['Build.Reason'], 'Schedule'))))
         displayName: Release Build
         steps:
           - template: release.yml
