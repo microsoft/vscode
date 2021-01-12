@@ -56,10 +56,12 @@ export class TerminalProcess extends Disposable implements ITerminalChildProcess
 	private _writeQueue: string[] = [];
 	private _writeTimeout: NodeJS.Timeout | undefined;
 	private _delayedResizer: DelayedResizer | undefined;
-	private _totalDataCharCount: number = 0;
-	private _acknowledgedDataCharCount: number = 0;
 	private readonly _initialCwd: string;
 	private readonly _ptyOptions: pty.IPtyForkOptions | pty.IWindowsPtyForkOptions;
+
+	private _isPtyPaused: boolean = false;
+	private _totalDataCharCount: number = 0;
+	private _acknowledgedDataCharCount: number = 0;
 
 	public get exitMessage(): string | undefined { return this._exitMessage; }
 
@@ -184,16 +186,15 @@ export class TerminalProcess extends Disposable implements ITerminalChildProcess
 			this.onProcessReady(() => c());
 		});
 		ptyProcess.onData(data => {
-			// TODO: Periodically request ACK between low and high watermark
 			const fakeLatency = 1000;
-			// TODO: We don't need to ack everything, just count on the other side and ack every 1000/10000 bytes
 			this._totalDataCharCount += data.length;
 			setTimeout(() => {
 				this._onProcessData.fire(data);
 			}, fakeLatency);
-			if (this._totalDataCharCount - this._acknowledgedDataCharCount > FlowControl.HighWatermarkChars) {
+			if (!this._isPtyPaused && this._totalDataCharCount - this._acknowledgedDataCharCount > FlowControl.HighWatermarkChars) {
 				// TODO: Expose as public API in node-pty
 				console.log('pause', this._totalDataCharCount - this._acknowledgedDataCharCount, '>', FlowControl.HighWatermarkChars);
+				this._isPtyPaused = true;
 				(ptyProcess as any).pause();
 			}
 			if (this._closeTimeout) {
@@ -359,10 +360,10 @@ export class TerminalProcess extends Disposable implements ITerminalChildProcess
 
 	public acknowledgeDataEvent(charCount: number): void {
 		this._acknowledgedDataCharCount += charCount;
-		if (this._totalDataCharCount - this._acknowledgedDataCharCount < FlowControl.LowWatermarkChars) {
-			// TODO: Check whether it is paused before resuming
+		if (this._isPtyPaused && this._totalDataCharCount - this._acknowledgedDataCharCount < FlowControl.LowWatermarkChars) {
 			// TODO: Expose as public API in node-pty
 			(this._ptyProcess as any).resume();
+			this._isPtyPaused = false;
 		}
 	}
 
