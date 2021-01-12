@@ -8880,13 +8880,13 @@ declare module 'vscode' {
 		 * Because of that, no property that changes the presentation (label, description, etc.)
 		 * can be changed.
 		 *
-		 * @param element The object associated with the TreeItem
 		 * @param item Undefined properties of `item` should be set then `item` should be returned.
+		 * @param element The object associated with the TreeItem.
+		 * @param token A cancellation token.
 		 * @return The resolved tree item or a thenable that resolves to such. It is OK to return the given
 		 * `item`. When no result is returned, the given `item` will be used.
 		 */
-		// eslint-disable-next-line vscode-dts-cancellation
-		resolveTreeItem?(item: TreeItem, element: T): ProviderResult<TreeItem>;
+		resolveTreeItem?(item: TreeItem, element: T, token: CancellationToken): ProviderResult<TreeItem>;
 	}
 
 	export class TreeItem {
