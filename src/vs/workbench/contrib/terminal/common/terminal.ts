@@ -354,12 +354,6 @@ export interface IBeforeProcessDataEvent {
 export interface IProcessDataEvent {
 	data: string;
 	sync: boolean;
-	dataAckId?: number;
-}
-
-export interface IProcessDataWithAckEvent {
-	data: string;
-	ackId: number;
 }
 
 export interface ITerminalProcessManager extends IDisposable {
@@ -385,6 +379,7 @@ export interface ITerminalProcessManager extends IDisposable {
 	createProcess(shellLaunchConfig: IShellLaunchConfig, cols: number, rows: number, isScreenReaderModeEnabled: boolean): Promise<ITerminalLaunchError | undefined>;
 	write(data: string): void;
 	setDimensions(cols: number, rows: number): void;
+	// TODO: Rename to charCount
 	acknowledgeDataEvent(ackId: number): void;
 
 	getInitialCwd(): Promise<string>;
@@ -414,7 +409,7 @@ export const enum ProcessState {
 export interface ITerminalProcessExtHostProxy extends IDisposable {
 	readonly terminalId: number;
 
-	emitData(data: string | IProcessDataWithAckEvent): void;
+	emitData(data: string): void;
 	emitTitle(title: string): void;
 	emitReady(pid: number, cwd: string): void;
 	emitExit(exitCode: number | undefined): void;
@@ -490,7 +485,7 @@ export interface ITerminalLaunchError {
  * child_process.ChildProcess node.js interface.
  */
 export interface ITerminalChildProcess {
-	onProcessData: Event<IProcessDataEvent | IProcessDataWithAckEvent | string>;
+	onProcessData: Event<IProcessDataEvent | string>;
 	onProcessExit: Event<number | undefined>;
 	onProcessReady: Event<{ pid: number, cwd: string }>;
 	onProcessTitleChanged: Event<string>;
