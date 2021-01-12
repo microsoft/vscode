@@ -29,7 +29,6 @@ import { isMacintosh, isWeb } from 'vs/base/common/platform';
 import { getCurrentAuthenticationSessionInfo, IAuthenticationService } from 'vs/workbench/services/authentication/browser/authenticationService';
 import { AuthenticationSession } from 'vs/editor/common/modes';
 import { IWorkbenchEnvironmentService } from 'vs/workbench/services/environment/common/environmentService';
-import { IStorageService, StorageScope, StorageTarget } from 'vs/platform/storage/common/storage';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { IProductService } from 'vs/platform/product/common/productService';
 import { AnchorAlignment, AnchorAxisAlignment } from 'vs/base/browser/ui/contextview/contextview';
@@ -97,10 +96,10 @@ export class ViewContainerActivityAction extends ActivityAction {
 
 	private logAction(action: string) {
 		type ActivityBarActionClassification = {
-			viewletId: { classification: 'SystemMetaData', purpose: 'FeatureInsight' };
-			action: { classification: 'SystemMetaData', purpose: 'FeatureInsight' };
+			viewletId: { classification: 'SystemMetaData', purpose: 'FeatureInsight'; };
+			action: { classification: 'SystemMetaData', purpose: 'FeatureInsight'; };
 		};
-		this.telemetryService.publicLog2<{ viewletId: String, action: String }, ActivityBarActionClassification>('activityBarAction', { viewletId: this.activity.id, action });
+		this.telemetryService.publicLog2<{ viewletId: String, action: String; }, ActivityBarActionClassification>('activityBarAction', { viewletId: this.activity.id, action });
 	}
 }
 
@@ -185,8 +184,7 @@ export class HomeActivityActionViewItem extends MenuActivityActionViewItem {
 		@IContextMenuService contextMenuService: IContextMenuService,
 		@IContextKeyService contextKeyService: IContextKeyService,
 		@IConfigurationService configurationService: IConfigurationService,
-		@IWorkbenchEnvironmentService environmentService: IWorkbenchEnvironmentService,
-		@IStorageService private readonly storageService: IStorageService
+		@IWorkbenchEnvironmentService environmentService: IWorkbenchEnvironmentService
 	) {
 		super(MenuId.MenubarHomeMenu, action, colors, themeService, menuService, contextMenuService, contextKeyService, configurationService, environmentService);
 	}
@@ -196,19 +194,13 @@ export class HomeActivityActionViewItem extends MenuActivityActionViewItem {
 
 		// Go Home
 		actions.push(disposables.add(new Action('goHome', nls.localize('goHome', "Go Home"), undefined, true, async () => window.location.href = this.goHomeHref)));
-		actions.push(disposables.add(new Separator()));
 
 		// Contributed
 		const contributedActions = await super.resolveActions(homeMenu, disposables);
-		actions.push(...contributedActions);
-
-		// Hide
-		if (contributedActions.length > 0) {
+		if (contributedActions.length) {
 			actions.push(disposables.add(new Separator()));
+			actions.push(...contributedActions);
 		}
-		actions.push(disposables.add(new Action('hide', nls.localize('hide', "Hide Home Button"), undefined, true, async () => {
-			this.storageService.store(HomeActivityActionViewItem.HOME_BAR_VISIBILITY_PREFERENCE, false, StorageScope.GLOBAL, StorageTarget.USER);
-		})));
 
 		return actions;
 	}
@@ -227,7 +219,6 @@ export class AccountsActivityActionViewItem extends MenuActivityActionViewItem {
 		@IContextKeyService contextKeyService: IContextKeyService,
 		@IAuthenticationService private readonly authenticationService: IAuthenticationService,
 		@IWorkbenchEnvironmentService environmentService: IWorkbenchEnvironmentService,
-		@IStorageService private readonly storageService: IStorageService,
 		@IProductService private readonly productService: IProductService,
 		@IConfigurationService configurationService: IConfigurationService,
 	) {
@@ -243,7 +234,7 @@ export class AccountsActivityActionViewItem extends MenuActivityActionViewItem {
 			try {
 				const sessions = await this.authenticationService.getSessions(providerId);
 
-				const groupedSessions: { [label: string]: AuthenticationSession[] } = {};
+				const groupedSessions: { [label: string]: AuthenticationSession[]; } = {};
 				sessions.forEach(session => {
 					if (groupedSessions[session.account.label]) {
 						groupedSessions[session.account.label].push(session);
@@ -301,14 +292,6 @@ export class AccountsActivityActionViewItem extends MenuActivityActionViewItem {
 				menus.push(disposables.add(new Separator()));
 			}
 		});
-
-		if (menus.length) {
-			menus.push(disposables.add(new Separator()));
-		}
-
-		menus.push(disposables.add(new Action('hide', nls.localize('hideAccounts', "Hide Accounts"), undefined, true, async () => {
-			this.storageService.store(AccountsActivityActionViewItem.ACCOUNTS_VISIBILITY_PREFERENCE_KEY, false, StorageScope.GLOBAL, StorageTarget.USER);
-		})));
 
 		return menus;
 	}
