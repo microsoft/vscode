@@ -344,6 +344,21 @@ async function main(): Promise<void> {
 	}
 	channelServer.registerChannel('remoteextensionsenvironment', new RemoteExtensionsEnvironment());
 
+	class RemoteTerminalChannelServer implements IServerChannel<RemoteAgentConnectionContext> {
+		async call(ctx: RemoteAgentConnectionContext, command: string, arg?: any, cancellationToken?: CancellationToken | undefined): Promise<any> {
+			if (command === '$listTerminals') {
+				// TODO const args: IListTerminalsArgs = arg;
+				return [];
+			}
+			console.error('Unknown command: RemoteExtensionsEnvironment.' + command);
+			throw new Error('Unknown command: RemoteExtensionsEnvironment.' + command);
+		}
+		listen(ctx: RemoteAgentConnectionContext, event: string, arg?: any): Event<any> {
+			console.error('Unknown event: RemoteExtensionsEnvironment.' + event);
+			throw new Error('Unknown event: RemoteExtensionsEnvironment.' + event);
+		}
+	}
+	channelServer.registerChannel('remoteterminal', new RemoteTerminalChannelServer());
 
 	const fileService = new FileService(logService);
 	const diskFileSystemProvider = new DiskFileSystemProvider(logService);
