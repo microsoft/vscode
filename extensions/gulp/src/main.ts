@@ -209,7 +209,7 @@ class FolderDetector {
 			return emptyTasks;
 		}
 
-		if (!this.hasGulpfile(rootPath)) {
+		if (!await this.hasGulpfile(rootPath)) {
 			return emptyTasks;
 		}
 

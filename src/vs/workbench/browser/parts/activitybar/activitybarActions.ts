@@ -15,7 +15,7 @@ import { IMenuService, MenuId, IMenu, registerAction2, Action2, IAction2Options 
 import { IContextMenuService } from 'vs/platform/contextview/browser/contextView';
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
 import { activeContrastBorder, focusBorder } from 'vs/platform/theme/common/colorRegistry';
-import { ICssStyleCollector, IColorTheme, IThemeService, registerThemingParticipant } from 'vs/platform/theme/common/themeService';
+import { IColorTheme, IThemeService, registerThemingParticipant } from 'vs/platform/theme/common/themeService';
 import { ActivityAction, ActivityActionViewItem, ICompositeBar, ICompositeBarColors, ToggleCompositePinnedAction } from 'vs/workbench/browser/parts/compositeBarActions';
 import { CATEGORIES } from 'vs/workbench/common/actions';
 import { IActivity } from 'vs/workbench/common/activity';
@@ -29,7 +29,6 @@ import { isMacintosh, isWeb } from 'vs/base/common/platform';
 import { getCurrentAuthenticationSessionInfo, IAuthenticationService } from 'vs/workbench/services/authentication/browser/authenticationService';
 import { AuthenticationSession } from 'vs/editor/common/modes';
 import { IWorkbenchEnvironmentService } from 'vs/workbench/services/environment/common/environmentService';
-import { IStorageService, StorageScope, StorageTarget } from 'vs/platform/storage/common/storage';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { IProductService } from 'vs/platform/product/common/productService';
 import { AnchorAlignment, AnchorAxisAlignment } from 'vs/base/browser/ui/contextview/contextview';
@@ -97,10 +96,10 @@ export class ViewContainerActivityAction extends ActivityAction {
 
 	private logAction(action: string) {
 		type ActivityBarActionClassification = {
-			viewletId: { classification: 'SystemMetaData', purpose: 'FeatureInsight' };
-			action: { classification: 'SystemMetaData', purpose: 'FeatureInsight' };
+			viewletId: { classification: 'SystemMetaData', purpose: 'FeatureInsight'; };
+			action: { classification: 'SystemMetaData', purpose: 'FeatureInsight'; };
 		};
-		this.telemetryService.publicLog2<{ viewletId: String, action: String }, ActivityBarActionClassification>('activityBarAction', { viewletId: this.activity.id, action });
+		this.telemetryService.publicLog2<{ viewletId: String, action: String; }, ActivityBarActionClassification>('activityBarAction', { viewletId: this.activity.id, action });
 	}
 }
 
@@ -109,6 +108,7 @@ class MenuActivityActionViewItem extends ActivityActionViewItem {
 	constructor(
 		private readonly menuId: MenuId,
 		action: ActivityAction,
+		private contextMenuActionsProvider: () => IAction[],
 		colors: (theme: IColorTheme) => ICompositeBarColors,
 		@IThemeService themeService: IThemeService,
 		@IMenuService protected readonly menuService: IMenuService,
@@ -145,11 +145,16 @@ class MenuActivityActionViewItem extends ActivityActionViewItem {
 		}));
 	}
 
-	protected async showContextMenu(e?: MouseEvent): Promise<void> {
+	private async showContextMenu(e?: MouseEvent): Promise<void> {
 		const disposables = new DisposableStore();
 
-		const menu = disposables.add(this.menuService.createMenu(this.menuId, this.contextKeyService));
-		const actions = await this.resolveActions(menu, disposables);
+		let actions: IAction[];
+		if (e?.button !== 2) {
+			const menu = disposables.add(this.menuService.createMenu(this.menuId, this.contextKeyService));
+			actions = await this.resolveMainMenuActions(menu, disposables);
+		} else {
+			actions = await this.resolveContextMenuActions();
+		}
 
 		const isUsingCustomMenu = isWeb || (getTitleBarStyle(this.configurationService) !== 'native' && !isMacintosh); // see #40262
 		const position = this.configurationService.getValue('workbench.sideBar.location');
@@ -163,12 +168,16 @@ class MenuActivityActionViewItem extends ActivityActionViewItem {
 		});
 	}
 
-	protected async resolveActions(menu: IMenu, disposables: DisposableStore): Promise<IAction[]> {
+	protected async resolveMainMenuActions(menu: IMenu, disposables: DisposableStore): Promise<IAction[]> {
 		const actions: IAction[] = [];
 
 		disposables.add(createAndFillInActionBarActions(menu, undefined, { primary: [], secondary: actions }));
 
 		return actions;
+	}
+
+	private async resolveContextMenuActions(): Promise<IAction[]> {
+		return this.contextMenuActionsProvider();
 	}
 }
 
@@ -179,36 +188,30 @@ export class HomeActivityActionViewItem extends MenuActivityActionViewItem {
 	constructor(
 		private readonly goHomeHref: string,
 		action: ActivityAction,
+		contextMenuActionsProvider: () => IAction[],
 		colors: (theme: IColorTheme) => ICompositeBarColors,
 		@IThemeService themeService: IThemeService,
 		@IMenuService menuService: IMenuService,
 		@IContextMenuService contextMenuService: IContextMenuService,
 		@IContextKeyService contextKeyService: IContextKeyService,
 		@IConfigurationService configurationService: IConfigurationService,
-		@IWorkbenchEnvironmentService environmentService: IWorkbenchEnvironmentService,
-		@IStorageService private readonly storageService: IStorageService
+		@IWorkbenchEnvironmentService environmentService: IWorkbenchEnvironmentService
 	) {
-		super(MenuId.MenubarHomeMenu, action, colors, themeService, menuService, contextMenuService, contextKeyService, configurationService, environmentService);
+		super(MenuId.MenubarHomeMenu, action, contextMenuActionsProvider, colors, themeService, menuService, contextMenuService, contextKeyService, configurationService, environmentService);
 	}
 
-	protected async resolveActions(homeMenu: IMenu, disposables: DisposableStore): Promise<IAction[]> {
+	protected async resolveMainMenuActions(homeMenu: IMenu, disposables: DisposableStore): Promise<IAction[]> {
 		const actions = [];
 
 		// Go Home
 		actions.push(disposables.add(new Action('goHome', nls.localize('goHome', "Go Home"), undefined, true, async () => window.location.href = this.goHomeHref)));
-		actions.push(disposables.add(new Separator()));
 
 		// Contributed
-		const contributedActions = await super.resolveActions(homeMenu, disposables);
-		actions.push(...contributedActions);
-
-		// Hide
-		if (contributedActions.length > 0) {
+		const contributedActions = await super.resolveMainMenuActions(homeMenu, disposables);
+		if (contributedActions.length) {
 			actions.push(disposables.add(new Separator()));
+			actions.push(...contributedActions);
 		}
-		actions.push(disposables.add(new Action('hide', nls.localize('hide', "Hide Home Button"), undefined, true, async () => {
-			this.storageService.store(HomeActivityActionViewItem.HOME_BAR_VISIBILITY_PREFERENCE, false, StorageScope.GLOBAL, StorageTarget.USER);
-		})));
 
 		return actions;
 	}
@@ -220,6 +223,7 @@ export class AccountsActivityActionViewItem extends MenuActivityActionViewItem {
 
 	constructor(
 		action: ActivityAction,
+		contextMenuActionsProvider: () => IAction[],
 		colors: (theme: IColorTheme) => ICompositeBarColors,
 		@IThemeService themeService: IThemeService,
 		@IContextMenuService contextMenuService: IContextMenuService,
@@ -227,15 +231,14 @@ export class AccountsActivityActionViewItem extends MenuActivityActionViewItem {
 		@IContextKeyService contextKeyService: IContextKeyService,
 		@IAuthenticationService private readonly authenticationService: IAuthenticationService,
 		@IWorkbenchEnvironmentService environmentService: IWorkbenchEnvironmentService,
-		@IStorageService private readonly storageService: IStorageService,
 		@IProductService private readonly productService: IProductService,
 		@IConfigurationService configurationService: IConfigurationService,
 	) {
-		super(MenuId.AccountsContext, action, colors, themeService, menuService, contextMenuService, contextKeyService, configurationService, environmentService);
+		super(MenuId.AccountsContext, action, contextMenuActionsProvider, colors, themeService, menuService, contextMenuService, contextKeyService, configurationService, environmentService);
 	}
 
-	protected async resolveActions(accountsMenu: IMenu, disposables: DisposableStore): Promise<IAction[]> {
-		await super.resolveActions(accountsMenu, disposables);
+	protected async resolveMainMenuActions(accountsMenu: IMenu, disposables: DisposableStore): Promise<IAction[]> {
+		await super.resolveMainMenuActions(accountsMenu, disposables);
 
 		const otherCommands = accountsMenu.getActions();
 		const providers = this.authenticationService.getProviderIds();
@@ -243,7 +246,7 @@ export class AccountsActivityActionViewItem extends MenuActivityActionViewItem {
 			try {
 				const sessions = await this.authenticationService.getSessions(providerId);
 
-				const groupedSessions: { [label: string]: AuthenticationSession[] } = {};
+				const groupedSessions: { [label: string]: AuthenticationSession[]; } = {};
 				sessions.forEach(session => {
 					if (groupedSessions[session.account.label]) {
 						groupedSessions[session.account.label].push(session);
@@ -302,14 +305,6 @@ export class AccountsActivityActionViewItem extends MenuActivityActionViewItem {
 			}
 		});
 
-		if (menus.length) {
-			menus.push(disposables.add(new Separator()));
-		}
-
-		menus.push(disposables.add(new Action('hide', nls.localize('hideAccounts', "Hide Accounts"), undefined, true, async () => {
-			this.storageService.store(AccountsActivityActionViewItem.ACCOUNTS_VISIBILITY_PREFERENCE_KEY, false, StorageScope.GLOBAL, StorageTarget.USER);
-		})));
-
 		return menus;
 	}
 }
@@ -318,6 +313,7 @@ export class GlobalActivityActionViewItem extends MenuActivityActionViewItem {
 
 	constructor(
 		action: ActivityAction,
+		contextMenuActionsProvider: () => IAction[],
 		colors: (theme: IColorTheme) => ICompositeBarColors,
 		@IThemeService themeService: IThemeService,
 		@IMenuService menuService: IMenuService,
@@ -326,7 +322,7 @@ export class GlobalActivityActionViewItem extends MenuActivityActionViewItem {
 		@IConfigurationService configurationService: IConfigurationService,
 		@IWorkbenchEnvironmentService environmentService: IWorkbenchEnvironmentService
 	) {
-		super(MenuId.GlobalActivity, action, colors, themeService, menuService, contextMenuService, contextKeyService, configurationService, environmentService);
+		super(MenuId.GlobalActivity, action, contextMenuActionsProvider, colors, themeService, menuService, contextMenuService, contextKeyService, configurationService, environmentService);
 	}
 }
 
@@ -400,7 +396,7 @@ registerAction2(
 	}
 );
 
-registerThemingParticipant((theme: IColorTheme, collector: ICssStyleCollector) => {
+registerThemingParticipant((theme, collector) => {
 	const activityBarBackgroundColor = theme.getColor(ACTIVITY_BAR_BACKGROUND);
 	if (activityBarBackgroundColor) {
 		collector.addRule(`

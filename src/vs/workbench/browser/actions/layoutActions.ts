@@ -12,7 +12,6 @@ import { IConfigurationService } from 'vs/platform/configuration/common/configur
 import { IWorkbenchLayoutService, Parts, Position } from 'vs/workbench/services/layout/browser/layoutService';
 import { ServicesAccessor, IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { KeyMod, KeyCode, KeyChord } from 'vs/base/common/keyCodes';
-import { getMenuBarVisibility } from 'vs/platform/windows/common/windows';
 import { isWindows, isLinux, isWeb } from 'vs/base/common/platform';
 import { IsMacNativeContext } from 'vs/platform/contextkey/common/contextkeys';
 import { KeybindingsRegistry, KeybindingWeight } from 'vs/platform/keybinding/common/keybindingsRegistry';
@@ -177,7 +176,29 @@ MenuRegistry.appendMenuItems([{
 		order: 1
 	}
 }, {
+	id: MenuId.ViewTitleContext,
+	item: {
+		group: '3_workbench_layout_move',
+		command: {
+			id: ToggleSidebarPositionAction.ID,
+			title: nls.localize('move sidebar right', "Move Side Bar Right")
+		},
+		when: ContextKeyExpr.notEquals('config.workbench.sideBar.location', 'right'),
+		order: 1
+	}
+}, {
 	id: MenuId.ViewContainerTitleContext,
+	item: {
+		group: '3_workbench_layout_move',
+		command: {
+			id: ToggleSidebarPositionAction.ID,
+			title: nls.localize('move sidebar left', "Move Side Bar Left")
+		},
+		when: ContextKeyExpr.equals('config.workbench.sideBar.location', 'right'),
+		order: 1
+	}
+}, {
+	id: MenuId.ViewTitleContext,
 	item: {
 		group: '3_workbench_layout_move',
 		command: {
@@ -268,6 +289,17 @@ registerAction2(class extends Action2 {
 });
 MenuRegistry.appendMenuItems([{
 	id: MenuId.ViewContainerTitleContext,
+	item: {
+		group: '3_workbench_layout_move',
+		command: {
+			id: TOGGLE_SIDEBAR_VISIBILITY_ACTION_ID,
+			title: nls.localize('compositePart.hideSideBarLabel', "Hide Side Bar"),
+		},
+		when: SideBarVisibleContext,
+		order: 2
+	}
+}, {
+	id: MenuId.ViewTitleContext,
 	item: {
 		group: '3_workbench_layout_move',
 		command: {
@@ -408,32 +440,16 @@ export class ToggleMenuBarAction extends Action {
 	static readonly ID = 'workbench.action.toggleMenuBar';
 	static readonly LABEL = nls.localize('toggleMenuBar', "Toggle Menu Bar");
 
-	private static readonly menuBarVisibilityKey = 'window.menuBarVisibility';
-
 	constructor(
 		id: string,
 		label: string,
-		@IConfigurationService private readonly configurationService: IConfigurationService
+		@IWorkbenchLayoutService private readonly layoutService: IWorkbenchLayoutService
 	) {
 		super(id, label);
 	}
 
-	run(): Promise<void> {
-		let currentVisibilityValue = getMenuBarVisibility(this.configurationService);
-		if (typeof currentVisibilityValue !== 'string') {
-			currentVisibilityValue = 'default';
-		}
-
-		let newVisibilityValue: string;
-		if (currentVisibilityValue === 'visible' || currentVisibilityValue === 'default') {
-			newVisibilityValue = 'toggle';
-		} else if (currentVisibilityValue === 'compact') {
-			newVisibilityValue = 'hidden';
-		} else {
-			newVisibilityValue = (isWeb && currentVisibilityValue === 'hidden') ? 'compact' : 'default';
-		}
-
-		return this.configurationService.updateValue(ToggleMenuBarAction.menuBarVisibilityKey, newVisibilityValue);
+	async run(): Promise<void> {
+		this.layoutService.toggleMenuBar();
 	}
 }
 

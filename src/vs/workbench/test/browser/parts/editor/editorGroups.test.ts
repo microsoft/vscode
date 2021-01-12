@@ -239,7 +239,7 @@ suite('Workbench editor groups', () => {
 	test('Clone Group', function () {
 		const group = createGroup();
 
-		const input1 = input();
+		const input1 = input() as TestEditorInput;
 		const input2 = input();
 		const input3 = input();
 
@@ -256,6 +256,11 @@ suite('Workbench editor groups', () => {
 		assert.notEqual(group.id, clone.id);
 		assert.equal(clone.count, 3);
 
+		let didEditorLabelChange = false;
+		const toDispose = clone.onDidEditorLabelChange(() => didEditorLabelChange = true);
+		input1.setLabel();
+		assert.ok(didEditorLabelChange);
+
 		assert.equal(clone.isPinned(input1), true);
 		assert.equal(clone.isActive(input1), false);
 		assert.equal(clone.isSticky(input1), false);
@@ -267,6 +272,8 @@ suite('Workbench editor groups', () => {
 		assert.equal(clone.isPinned(input3), false);
 		assert.equal(clone.isActive(input3), true);
 		assert.equal(clone.isSticky(input3), false);
+
+		toDispose.dispose();
 	});
 
 	test('contains()', function () {

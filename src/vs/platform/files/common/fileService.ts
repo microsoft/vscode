@@ -11,7 +11,6 @@ import { isAbsolutePath, dirname, basename, joinPath, IExtUri, extUri, extUriIgn
 import { localize } from 'vs/nls';
 import { TernarySearchTree } from 'vs/base/common/map';
 import { isNonEmptyArray, coalesce } from 'vs/base/common/arrays';
-import { getBaseLabel } from 'vs/base/common/labels';
 import { ILogService } from 'vs/platform/log/common/log';
 import { VSBuffer, VSBufferReadable, readableToBuffer, bufferToReadable, streamToBuffer, bufferToStream, VSBufferReadableStream, VSBufferReadableBufferedStream, bufferedStreamToBuffer, newWriteableBufferStream } from 'vs/base/common/buffer';
 import { isReadableStream, transform, peekReadable, peekStream, isReadableBufferedStream } from 'vs/base/common/stream';
@@ -225,7 +224,7 @@ export class FileService extends Disposable implements IFileService {
 		// convert to file stat
 		const fileStat: IFileStat = {
 			resource,
-			name: getBaseLabel(resource),
+			name: basename(resource),
 			isFile: (stat.type & FileType.File) !== 0,
 			isDirectory: (stat.type & FileType.Directory) !== 0,
 			isSymbolicLink: (stat.type & FileType.SymbolicLink) !== 0,
@@ -901,7 +900,7 @@ export class FileService extends Disposable implements IFileService {
 
 	watch(resource: URI, options: IWatchOptions = { recursive: false, excludes: [] }): IDisposable {
 		let watchDisposed = false;
-		let watchDisposable = toDisposable(() => watchDisposed = true);
+		let disposeWatch = () => { watchDisposed = true; };
 
 		// Watch and wire in disposable which is async but
 		// check if we got disposed meanwhile and forward
@@ -909,11 +908,11 @@ export class FileService extends Disposable implements IFileService {
 			if (watchDisposed) {
 				dispose(disposable);
 			} else {
-				watchDisposable = disposable;
+				disposeWatch = () => dispose(disposable);
 			}
 		}, error => this.logService.error(error));
 
-		return toDisposable(() => dispose(watchDisposable));
+		return toDisposable(() => disposeWatch());
 	}
 
 	async doWatch(resource: URI, options: IWatchOptions): Promise<IDisposable> {

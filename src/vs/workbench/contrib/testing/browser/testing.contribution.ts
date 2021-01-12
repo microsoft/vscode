@@ -3,6 +3,9 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
+import { URI } from 'vs/base/common/uri';
+import { isCodeEditor } from 'vs/editor/browser/editorBrowser';
+import { registerEditorContribution } from 'vs/editor/browser/editorExtensions';
 import { localize } from 'vs/nls';
 import { registerAction2 } from 'vs/platform/actions/common/actions';
 import { CommandsRegistry } from 'vs/platform/commands/common/commands';
@@ -15,12 +18,14 @@ import { Extensions as ViewContainerExtensions, IViewContainersRegistry, IViewsR
 import { testingViewIcon } from 'vs/workbench/contrib/testing/browser/icons';
 import { ITestingCollectionService, TestingCollectionService } from 'vs/workbench/contrib/testing/browser/testingCollectionService';
 import { TestingExplorerView } from 'vs/workbench/contrib/testing/browser/testingExplorerView';
+import { TestingOutputPeekController } from 'vs/workbench/contrib/testing/browser/testingOutputPeek';
 import { TestingViewPaneContainer } from 'vs/workbench/contrib/testing/browser/testingViewPaneContainer';
 import { Testing } from 'vs/workbench/contrib/testing/common/constants';
-import { TestIdWithProvider } from 'vs/workbench/contrib/testing/common/testCollection';
+import { ITestMessage, TestIdWithProvider } from 'vs/workbench/contrib/testing/common/testCollection';
 import { TestingContextKeys } from 'vs/workbench/contrib/testing/common/testingContextKeys';
 import { ITestService } from 'vs/workbench/contrib/testing/common/testService';
 import { TestService } from 'vs/workbench/contrib/testing/common/testServiceImpl';
+import { IEditorService } from 'vs/workbench/services/editor/common/editorService';
 import * as Action from './testExplorerActions';
 
 registerSingleton(ITestService, TestService);
@@ -73,6 +78,11 @@ registerAction2(Action.TestingViewAsTreeAction);
 registerAction2(Action.CancelTestRunAction);
 registerAction2(Action.RunSelectedAction);
 registerAction2(Action.DebugSelectedAction);
+registerAction2(Action.TestingGroupByLocationAction);
+registerAction2(Action.TestingGroupByStatusAction);
+registerAction2(Action.RefreshTestsAction);
+
+registerEditorContribution(Testing.OutputPeekContributionId, TestingOutputPeekController);
 
 CommandsRegistry.registerCommand({
 	id: 'vscode.runTests',
@@ -87,5 +97,27 @@ CommandsRegistry.registerCommand({
 	handler: async (accessor: ServicesAccessor, tests: TestIdWithProvider[]) => {
 		const testService = accessor.get(ITestService);
 		testService.runTests({ debug: true, tests: tests.filter(t => t.providerId && t.testId) });
+	}
+});
+
+CommandsRegistry.registerCommand({
+	id: 'vscode.revealTestMessage',
+	handler: async (accessor: ServicesAccessor, message: ITestMessage) => {
+		if (!message.location) {
+			console.warn('Cannot reveal a test message without an associated location');
+			return;
+		}
+
+		const pane = await accessor.get(IEditorService).openEditor({
+			resource: URI.revive(message.location.uri),
+			options: { selection: message.location.range }
+		});
+
+		const control = pane?.getControl();
+		if (!isCodeEditor(control)) {
+			return;
+		}
+
+		TestingOutputPeekController.get(control).show(message);
 	}
 });

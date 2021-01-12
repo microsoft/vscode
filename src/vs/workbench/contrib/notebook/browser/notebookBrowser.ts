@@ -22,7 +22,7 @@ import { OutputRenderer } from 'vs/workbench/contrib/notebook/browser/view/outpu
 import { RunStateRenderer, TimerRenderer } from 'vs/workbench/contrib/notebook/browser/view/renderers/cellRenderer';
 import { CellViewModel, IModelDecorationsChangeAccessor, NotebookViewModel } from 'vs/workbench/contrib/notebook/browser/viewModel/notebookViewModel';
 import { NotebookCellTextModel } from 'vs/workbench/contrib/notebook/common/model/notebookCellTextModel';
-import { CellKind, IProcessedOutput, IRenderOutput, NotebookCellMetadata, NotebookDocumentMetadata, IEditor, INotebookKernelInfo2, IInsetRenderOutput, ICellRange } from 'vs/workbench/contrib/notebook/common/notebookCommon';
+import { CellKind, IProcessedOutput, NotebookCellMetadata, NotebookDocumentMetadata, IEditor, INotebookKernelInfo2, ICellRange, IOrderedMimeType, ITransformedDisplayOutputDto, INotebookRendererInfo, IErrorOutput, IStreamOutput } from 'vs/workbench/contrib/notebook/common/notebookCommon';
 import { Webview } from 'vs/workbench/contrib/webview/browser/webview';
 import { NotebookTextModel } from 'vs/workbench/contrib/notebook/common/model/notebookTextModel';
 import { IMenu } from 'vs/platform/actions/common/actions';
@@ -32,6 +32,7 @@ import { IResourceEditorInput } from 'vs/platform/editor/common/editor';
 import { IConstructorSignature1 } from 'vs/platform/instantiation/common/instantiation';
 import { CellEditorStatusBar } from 'vs/workbench/contrib/notebook/browser/view/renderers/cellWidgets';
 
+//#region Context Keys
 export const KEYBINDING_CONTEXT_NOTEBOOK_FIND_WIDGET_FOCUSED = new RawContextKey<boolean>('notebookFindWidgetFocused', false);
 
 // Is Notebook
@@ -58,14 +59,114 @@ export const NOTEBOOK_CELL_RUN_STATE = new RawContextKey<string>('notebookCellRu
 export const NOTEBOOK_CELL_HAS_OUTPUTS = new RawContextKey<boolean>('notebookCellHasOutputs', false); // bool
 export const NOTEBOOK_CELL_INPUT_COLLAPSED = new RawContextKey<boolean>('notebookCellInputIsCollapsed', false); // bool
 export const NOTEBOOK_CELL_OUTPUT_COLLAPSED = new RawContextKey<boolean>('notebookCellOutputIsCollapsed', false); // bool
+// Kernels
+export const NOTEBOOK_HAS_MULTIPLE_KERNELS = new RawContextKey<boolean>('notebookHasMultipleKernels', false);
 
-// Shared commands
+//#endregion
+
+//#region Shared commands
 export const EXPAND_CELL_CONTENT_COMMAND_ID = 'notebook.cell.expandCellContent';
 export const EXECUTE_CELL_COMMAND_ID = 'notebook.cell.execute';
 
-// Kernels
+//#endregion
 
-export const NOTEBOOK_HAS_MULTIPLE_KERNELS = new RawContextKey<boolean>('notebookHasMultipleKernels', false);
+//#region  Output related types
+export const enum RenderOutputType {
+	None,
+	Html,
+	Extension
+}
+
+export interface IRenderNoOutput {
+	type: RenderOutputType.None;
+	hasDynamicHeight: boolean;
+}
+
+export interface IRenderPlainHtmlOutput {
+	type: RenderOutputType.Html;
+	source: IDisplayOutputViewModel;
+	htmlContent: string;
+	hasDynamicHeight: boolean;
+}
+
+export interface IRenderOutputViaExtension {
+	type: RenderOutputType.Extension;
+	source: IDisplayOutputViewModel;
+	mimeType: string;
+	renderer: INotebookRendererInfo;
+}
+
+export type IInsetRenderOutput = IRenderPlainHtmlOutput | IRenderOutputViaExtension;
+export type IRenderOutput = IRenderNoOutput | IInsetRenderOutput;
+
+export const outputHasDynamicHeight = (o: IRenderOutput) => o.type !== RenderOutputType.Extension && o.hasDynamicHeight;
+
+
+export interface ICellOutputViewModel {
+	cellViewModel: IGenericCellViewModel;
+	model: IProcessedOutput;
+	isDisplayOutput(): this is IDisplayOutputViewModel;
+	isErrorOutput(): this is IErrorOutputViewModel;
+	isStreamOutput(): this is IStreamOutputViewModel;
+}
+
+export interface IDisplayOutputViewModel extends ICellOutputViewModel {
+	model: ITransformedDisplayOutputDto;
+	resolveMimeTypes(textModel: NotebookTextModel): [readonly IOrderedMimeType[], number];
+	pickedMimeType: number;
+}
+
+export interface IErrorOutputViewModel extends ICellOutputViewModel {
+	model: IErrorOutput;
+}
+
+export interface IStreamOutputViewModel extends ICellOutputViewModel {
+	model: IStreamOutput;
+}
+
+//#endregion
+
+//#region Shared types between the Notebook Editor and Notebook Diff Editor, they are mostly used for output rendering
+
+export interface IGenericCellViewModel {
+	id: string;
+	handle: number;
+	uri: URI;
+	metadata: NotebookCellMetadata | undefined;
+	outputIsHovered: boolean;
+	outputsViewModels: ICellOutputViewModel[];
+	getOutputOffset(index: number): number;
+	updateOutputHeight(index: number, height: number): void;
+}
+
+export interface IDisplayOutputLayoutUpdateRequest {
+	output: IDisplayOutputViewModel;
+	cellTop: number;
+	outputOffset: number;
+}
+
+export interface ICommonCellInfo {
+	cellId: string;
+	cellHandle: number;
+	cellUri: URI;
+}
+
+export interface INotebookCellOutputLayoutInfo {
+	width: number;
+	height: number;
+	fontInfo: BareFontInfo;
+}
+
+export interface ICommonNotebookEditor {
+	getCellOutputLayoutInfo(cell: IGenericCellViewModel): INotebookCellOutputLayoutInfo;
+	triggerScroll(event: IMouseWheelEvent): void;
+	getCellByInfo(cellInfo: ICommonCellInfo): IGenericCellViewModel;
+	focusNotebookCell(cell: IGenericCellViewModel, focus: 'editor' | 'container' | 'output'): void;
+	focusNextNotebookCell(cell: IGenericCellViewModel, focus: 'editor' | 'container' | 'output'): void;
+	updateOutputHeight(cellInfo: ICommonCellInfo, output: IDisplayOutputViewModel, height: number, isInit: boolean): void;
+}
+
+//#endregion
 
 export interface NotebookLayoutInfo {
 	width: number;
@@ -123,7 +224,7 @@ export interface MarkdownCellLayoutChangeEvent {
 	totalHeight?: number;
 }
 
-export interface ICellViewModel {
+export interface ICellViewModel extends IGenericCellViewModel {
 	readonly model: NotebookCellTextModel;
 	readonly id: string;
 	readonly textBuffer: IReadonlyTextBuffer;
@@ -134,6 +235,7 @@ export interface ICellViewModel {
 	cellKind: CellKind;
 	editState: CellEditState;
 	focusMode: CellFocusMode;
+	outputIsHovered: boolean;
 	getText(): string;
 	getTextLength(): number;
 	metadata: NotebookCellMetadata | undefined;
@@ -213,7 +315,7 @@ export interface IActiveNotebookEditor extends INotebookEditor {
 	uri: URI;
 }
 
-export interface INotebookEditor extends IEditor {
+export interface INotebookEditor extends IEditor, ICommonNotebookEditor {
 	isEmbedded: boolean;
 
 	cursorNavigationMode: boolean;
@@ -324,6 +426,8 @@ export interface INotebookEditor extends IEditor {
 	 */
 	focusNotebookCell(cell: ICellViewModel, focus: 'editor' | 'container' | 'output'): void;
 
+	focusNextNotebookCell(cell: ICellViewModel, focus: 'editor' | 'container' | 'output'): void;
+
 	/**
 	 * Execute the given notebook cell
 	 */
@@ -362,12 +466,12 @@ export interface INotebookEditor extends IEditor {
 	/**
 	 * Remove the output from the webview layer
 	 */
-	removeInset(output: IProcessedOutput): void;
+	removeInset(output: IDisplayOutputViewModel): void;
 
 	/**
 	 * Hide the inset in the webview layer without removing it
 	 */
-	hideInset(output: IProcessedOutput): void;
+	hideInset(output: IDisplayOutputViewModel): void;
 
 	/**
 	 * Send message to the webview for outputs.
@@ -477,6 +581,9 @@ export interface INotebookEditor extends IEditor {
 	 * @return The contribution or null if contribution not found.
 	 */
 	getContribution<T extends INotebookEditorContribution>(id: string): T;
+
+	getCellByInfo(cellInfo: ICommonCellInfo): ICellViewModel;
+	updateOutputHeight(cellInfo: ICommonCellInfo, output: IDisplayOutputViewModel, height: number, isInit: boolean): void;
 }
 
 export interface INotebookCellList {
@@ -495,8 +602,8 @@ export interface INotebookCellList {
 	scrollLeft: number;
 	length: number;
 	rowsContainer: HTMLElement;
-	readonly onDidRemoveOutput: Event<IProcessedOutput>;
-	readonly onDidHideOutput: Event<IProcessedOutput>;
+	readonly onDidRemoveOutput: Event<ICellOutputViewModel>;
+	readonly onDidHideOutput: Event<ICellOutputViewModel>;
 	readonly onMouseUp: Event<IListMouseEvent<CellViewModel>>;
 	readonly onMouseDown: Event<IListMouseEvent<CellViewModel>>;
 	readonly onContextMenu: Event<IListContextMenuEvent<CellViewModel>>;
@@ -595,7 +702,7 @@ export interface IOutputTransformContribution {
 	 * This call is allowed to have side effects, such as placing output
 	 * directly into the container element.
 	 */
-	render(output: IProcessedOutput, container: HTMLElement, preferredMimeType: string | undefined, notebookUri: URI | undefined): IRenderOutput;
+	render(output: ICellOutputViewModel, container: HTMLElement, preferredMimeType: string | undefined, notebookUri: URI | undefined): IRenderOutput;
 }
 
 export interface CellFindMatch {
