@@ -28,20 +28,20 @@ const WRITE_INTERVAL_MS = 5;
 
 const enum FlowControl {
 	/**
-	 * The number of _unacknowledged_ bytes to have been sent before the pty is paused in order for
+	 * The number of _unacknowledged_ chars to have been sent before the pty is paused in order for
 	 * the client to catch up.
 	 */
-	HighWatermarkBytes = 100000,
+	HighWatermarkChars = 100000,
 	/**
 	 * After flow control pauses the pty for the client the catch up, this is the number of
-	 * _unacknowledged_ bytes to have been caught up to on the client before resuming the pty again.
+	 * _unacknowledged_ chars to have been caught up to on the client before resuming the pty again.
 	 * This is used to attempt to prevent pauses in the flowing data; ideally while the pty is
-	 * paused the number of unacknowledged bytes would always be greater than 0 or the client will
+	 * paused the number of unacknowledged chars would always be greater than 0 or the client will
 	 * appear to stutter. In reality this balance is hard to accomplish though so heavy commands
 	 * will likely pause as latency grows, not flooding the connection is the important thing as
 	 * it's shared with other core functionality.
 	 */
-	LowWatermarkBytes = 10000
+	LowWatermarkChars = 5000
 }
 
 export class TerminalProcess extends Disposable implements ITerminalChildProcess {
@@ -56,8 +56,8 @@ export class TerminalProcess extends Disposable implements ITerminalChildProcess
 	private _writeQueue: string[] = [];
 	private _writeTimeout: NodeJS.Timeout | undefined;
 	private _delayedResizer: DelayedResizer | undefined;
-	private _currentAckRequestId: number = 0;
-	private _ackedRequestId: number = 0;
+	private _totalDataCharCount: number = 0;
+	private _acknowledgedDataCharCount: number = 0;
 	private readonly _initialCwd: string;
 	private readonly _ptyOptions: pty.IPtyForkOptions | pty.IWindowsPtyForkOptions;
 
@@ -186,16 +186,18 @@ export class TerminalProcess extends Disposable implements ITerminalChildProcess
 		ptyProcess.onData(data => {
 			// TODO: Periodically request ACK between low and high watermark
 			const fakeLatency = 1000;
-			this._currentAckRequestId += data.length;
+			// TODO: if we're just sending the data length over, ackId doesn't need to exist at all
+			// TODO: We don't need to ack everything, just count on the other side and ack every 1000/10000 bytes
+			this._totalDataCharCount += data.length;
 			const ackId = data.length;
 			setTimeout(() => {
 				this._onProcessData.fire({ data, ackId });
 			}, fakeLatency);
 			// TODO: Use bytes, not messages
 			// console.log('check', this._currentAckRequestId - this._ackedRequestId, FlowControl.HighWatermarkBytes);
-			if (this._currentAckRequestId - this._ackedRequestId > FlowControl.HighWatermarkBytes) {
+			if (this._totalDataCharCount - this._acknowledgedDataCharCount > FlowControl.HighWatermarkChars) {
 				// TODO: Expose as public API in node-pty
-				// console.log('pause', this._currentAckRequestId - this._ackedRequestId, '>', FlowControl.HighWatermarkBytes);
+				console.log('pause', this._totalDataCharCount - this._acknowledgedDataCharCount, '>', FlowControl.HighWatermarkChars);
 				(ptyProcess as any).pause();
 			}
 			if (this._closeTimeout) {
@@ -360,8 +362,8 @@ export class TerminalProcess extends Disposable implements ITerminalChildProcess
 	}
 
 	public acknowledgeDataEvent(ackId: number): void {
-		this._ackedRequestId += ackId;
-		if (this._currentAckRequestId - this._ackedRequestId < FlowControl.LowWatermarkBytes) {
+		this._acknowledgedDataCharCount += ackId;
+		if (this._totalDataCharCount - this._acknowledgedDataCharCount < FlowControl.LowWatermarkChars) {
 			// TODO: Expose as public API in node-pty
 			(this._ptyProcess as any).resume();
 		}

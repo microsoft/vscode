@@ -1023,7 +1023,8 @@ export class TerminalInstance extends Disposable implements ITerminalInstance {
 			this._xterm?.write(ev.data, () => {
 				this._latestXtermParseData = messageId;
 				if (ev.dataAckId !== undefined) {
-					this._processManager.acknowledgeDataEvent(ev.dataAckId);
+					// TODO: Send back the length of data instead
+					this._processManager.acknowledgeDataEvent(ev.data.length);
 				}
 			});
 		}
