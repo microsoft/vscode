@@ -15,6 +15,13 @@ import { mock } from 'vs/base/test/common/mock';
 import { createTextModel } from 'vs/editor/test/common/editorTestUtils';
 import { Workspace } from 'vs/platform/workspace/test/common/testWorkspace';
 import { extUriBiasedIgnorePathCase } from 'vs/base/common/resources';
+// eslint-disable-next-line code-import-patterns
+import { LabelService } from 'vs/workbench/services/label/common/labelService';
+// eslint-disable-next-line code-import-patterns
+import { TestEnvironmentService, TestPathService } from 'vs/workbench/test/browser/workbenchTestServices';
+// eslint-disable-next-line code-import-patterns
+import { TestContextService } from 'vs/workbench/test/common/workbenchTestServices';
+import { sep } from 'vs/base/common/path';
 
 suite('Snippet Variables Resolver', function () {
 
@@ -337,6 +344,51 @@ suite('Snippet Variables Resolver', function () {
 		assertVariableResolve(resolver, 'WORKSPACE_NAME', 'testWorkspace');
 		if (!isWindows) {
 			assertVariableResolve(resolver, 'WORKSPACE_FOLDER', '/');
+		}
+	});
+
+	test('Add RELATIVE_FILEPATH snippet variable #114208', function () {
+
+		let resolver: VariableResolver;
+
+		const workspaceLabelService = ((path: string): LabelService => {
+			const workspace = new Workspace(path, [toWorkspaceFolder(URI.file(path))]);
+			const labelService = new LabelService(TestEnvironmentService, new TestContextService(workspace), new TestPathService());
+			labelService.registerFormatter({
+				scheme: 'file',
+				formatting: {
+					label: '${path}',
+					separator: sep,
+					tildify: !isWindows,
+					normalizeDriveLetter: isWindows
+				}
+			});
+			return labelService;
+		});
+
+		const model = createTextModel('', undefined, undefined, URI.parse('file:///foo/files/text.txt'));
+
+		// empty workspace
+		resolver = new ModelBasedVariableResolver(
+			workspaceLabelService(''),
+			model
+		);
+
+		if (!isWindows) {
+			assertVariableResolve(resolver, 'RELATIVE_FILEPATH', '/foo/files/text.txt');
+		} else {
+			assertVariableResolve(resolver, 'RELATIVE_FILEPATH', '\\foo\\files\\text.txt');
+		}
+
+		// single folder workspace
+		resolver = new ModelBasedVariableResolver(
+			workspaceLabelService('/foo'),
+			model
+		);
+		if (!isWindows) {
+			assertVariableResolve(resolver, 'RELATIVE_FILEPATH', 'files/text.txt');
+		} else {
+			assertVariableResolve(resolver, 'RELATIVE_FILEPATH', 'files\\text.txt');
 		}
 	});
 });
