@@ -108,6 +108,7 @@ class MenuActivityActionViewItem extends ActivityActionViewItem {
 	constructor(
 		private readonly menuId: MenuId,
 		action: ActivityAction,
+		private contextMenuActionsProvider: () => IAction[],
 		colors: (theme: IColorTheme) => ICompositeBarColors,
 		@IThemeService themeService: IThemeService,
 		@IMenuService protected readonly menuService: IMenuService,
@@ -144,11 +145,16 @@ class MenuActivityActionViewItem extends ActivityActionViewItem {
 		}));
 	}
 
-	protected async showContextMenu(e?: MouseEvent): Promise<void> {
+	private async showContextMenu(e?: MouseEvent): Promise<void> {
 		const disposables = new DisposableStore();
 
-		const menu = disposables.add(this.menuService.createMenu(this.menuId, this.contextKeyService));
-		const actions = await this.resolveActions(menu, disposables);
+		let actions: IAction[];
+		if (e?.button !== 2) {
+			const menu = disposables.add(this.menuService.createMenu(this.menuId, this.contextKeyService));
+			actions = await this.resolveMainMenuActions(menu, disposables);
+		} else {
+			actions = await this.resolveContextMenuActions();
+		}
 
 		const isUsingCustomMenu = isWeb || (getTitleBarStyle(this.configurationService) !== 'native' && !isMacintosh); // see #40262
 		const position = this.configurationService.getValue('workbench.sideBar.location');
@@ -162,12 +168,16 @@ class MenuActivityActionViewItem extends ActivityActionViewItem {
 		});
 	}
 
-	protected async resolveActions(menu: IMenu, disposables: DisposableStore): Promise<IAction[]> {
+	protected async resolveMainMenuActions(menu: IMenu, disposables: DisposableStore): Promise<IAction[]> {
 		const actions: IAction[] = [];
 
 		disposables.add(createAndFillInActionBarActions(menu, undefined, { primary: [], secondary: actions }));
 
 		return actions;
+	}
+
+	private async resolveContextMenuActions(): Promise<IAction[]> {
+		return this.contextMenuActionsProvider();
 	}
 }
 
@@ -178,6 +188,7 @@ export class HomeActivityActionViewItem extends MenuActivityActionViewItem {
 	constructor(
 		private readonly goHomeHref: string,
 		action: ActivityAction,
+		contextMenuActionsProvider: () => IAction[],
 		colors: (theme: IColorTheme) => ICompositeBarColors,
 		@IThemeService themeService: IThemeService,
 		@IMenuService menuService: IMenuService,
@@ -186,17 +197,17 @@ export class HomeActivityActionViewItem extends MenuActivityActionViewItem {
 		@IConfigurationService configurationService: IConfigurationService,
 		@IWorkbenchEnvironmentService environmentService: IWorkbenchEnvironmentService
 	) {
-		super(MenuId.MenubarHomeMenu, action, colors, themeService, menuService, contextMenuService, contextKeyService, configurationService, environmentService);
+		super(MenuId.MenubarHomeMenu, action, contextMenuActionsProvider, colors, themeService, menuService, contextMenuService, contextKeyService, configurationService, environmentService);
 	}
 
-	protected async resolveActions(homeMenu: IMenu, disposables: DisposableStore): Promise<IAction[]> {
+	protected async resolveMainMenuActions(homeMenu: IMenu, disposables: DisposableStore): Promise<IAction[]> {
 		const actions = [];
 
 		// Go Home
 		actions.push(disposables.add(new Action('goHome', nls.localize('goHome', "Go Home"), undefined, true, async () => window.location.href = this.goHomeHref)));
 
 		// Contributed
-		const contributedActions = await super.resolveActions(homeMenu, disposables);
+		const contributedActions = await super.resolveMainMenuActions(homeMenu, disposables);
 		if (contributedActions.length) {
 			actions.push(disposables.add(new Separator()));
 			actions.push(...contributedActions);
@@ -212,6 +223,7 @@ export class AccountsActivityActionViewItem extends MenuActivityActionViewItem {
 
 	constructor(
 		action: ActivityAction,
+		contextMenuActionsProvider: () => IAction[],
 		colors: (theme: IColorTheme) => ICompositeBarColors,
 		@IThemeService themeService: IThemeService,
 		@IContextMenuService contextMenuService: IContextMenuService,
@@ -222,11 +234,11 @@ export class AccountsActivityActionViewItem extends MenuActivityActionViewItem {
 		@IProductService private readonly productService: IProductService,
 		@IConfigurationService configurationService: IConfigurationService,
 	) {
-		super(MenuId.AccountsContext, action, colors, themeService, menuService, contextMenuService, contextKeyService, configurationService, environmentService);
+		super(MenuId.AccountsContext, action, contextMenuActionsProvider, colors, themeService, menuService, contextMenuService, contextKeyService, configurationService, environmentService);
 	}
 
-	protected async resolveActions(accountsMenu: IMenu, disposables: DisposableStore): Promise<IAction[]> {
-		await super.resolveActions(accountsMenu, disposables);
+	protected async resolveMainMenuActions(accountsMenu: IMenu, disposables: DisposableStore): Promise<IAction[]> {
+		await super.resolveMainMenuActions(accountsMenu, disposables);
 
 		const otherCommands = accountsMenu.getActions();
 		const providers = this.authenticationService.getProviderIds();
@@ -301,6 +313,7 @@ export class GlobalActivityActionViewItem extends MenuActivityActionViewItem {
 
 	constructor(
 		action: ActivityAction,
+		contextMenuActionsProvider: () => IAction[],
 		colors: (theme: IColorTheme) => ICompositeBarColors,
 		@IThemeService themeService: IThemeService,
 		@IMenuService menuService: IMenuService,
@@ -309,7 +322,7 @@ export class GlobalActivityActionViewItem extends MenuActivityActionViewItem {
 		@IConfigurationService configurationService: IConfigurationService,
 		@IWorkbenchEnvironmentService environmentService: IWorkbenchEnvironmentService
 	) {
-		super(MenuId.GlobalActivity, action, colors, themeService, menuService, contextMenuService, contextKeyService, configurationService, environmentService);
+		super(MenuId.GlobalActivity, action, contextMenuActionsProvider, colors, themeService, menuService, contextMenuService, contextKeyService, configurationService, environmentService);
 	}
 }
 
