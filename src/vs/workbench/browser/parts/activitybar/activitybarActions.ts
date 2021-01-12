@@ -34,6 +34,7 @@ import { IProductService } from 'vs/platform/product/common/productService';
 import { AnchorAlignment, AnchorAxisAlignment } from 'vs/base/browser/ui/contextview/contextview';
 import { getTitleBarStyle } from 'vs/platform/windows/common/windows';
 import { ServicesAccessor } from 'vs/platform/instantiation/common/instantiation';
+import { IStorageService, StorageScope, StorageTarget } from 'vs/platform/storage/common/storage';
 
 export class ViewContainerActivityAction extends ActivityAction {
 
@@ -153,7 +154,7 @@ class MenuActivityActionViewItem extends ActivityActionViewItem {
 			const menu = disposables.add(this.menuService.createMenu(this.menuId, this.contextKeyService));
 			actions = await this.resolveMainMenuActions(menu, disposables);
 		} else {
-			actions = await this.resolveContextMenuActions();
+			actions = await this.resolveContextMenuActions(disposables);
 		}
 
 		const isUsingCustomMenu = isWeb || (getTitleBarStyle(this.configurationService) !== 'native' && !isMacintosh); // see #40262
@@ -176,7 +177,7 @@ class MenuActivityActionViewItem extends ActivityActionViewItem {
 		return actions;
 	}
 
-	private async resolveContextMenuActions(): Promise<IAction[]> {
+	protected async resolveContextMenuActions(disposables: DisposableStore): Promise<IAction[]> {
 		return this.contextMenuActionsProvider();
 	}
 }
@@ -195,7 +196,8 @@ export class HomeActivityActionViewItem extends MenuActivityActionViewItem {
 		@IContextMenuService contextMenuService: IContextMenuService,
 		@IContextKeyService contextKeyService: IContextKeyService,
 		@IConfigurationService configurationService: IConfigurationService,
-		@IWorkbenchEnvironmentService environmentService: IWorkbenchEnvironmentService
+		@IWorkbenchEnvironmentService environmentService: IWorkbenchEnvironmentService,
+		@IStorageService private readonly storageService: IStorageService
 	) {
 		super(MenuId.MenubarHomeMenu, action, contextMenuActionsProvider, colors, themeService, menuService, contextMenuService, contextKeyService, configurationService, environmentService);
 	}
@@ -212,6 +214,19 @@ export class HomeActivityActionViewItem extends MenuActivityActionViewItem {
 			actions.push(disposables.add(new Separator()));
 			actions.push(...contributedActions);
 		}
+
+		return actions;
+	}
+
+	protected async resolveContextMenuActions(disposables: DisposableStore): Promise<IAction[]> {
+		const actions = await super.resolveContextMenuActions(disposables);
+
+		actions.unshift(...[
+			new Action('hideHomeButton', nls.localize('hideHomeButton', "Hide Home Button"), undefined, true, async () => {
+				this.storageService.store(HomeActivityActionViewItem.HOME_BAR_VISIBILITY_PREFERENCE, false, StorageScope.GLOBAL, StorageTarget.USER);
+			}),
+			new Separator()
+		]);
 
 		return actions;
 	}
@@ -233,6 +248,7 @@ export class AccountsActivityActionViewItem extends MenuActivityActionViewItem {
 		@IWorkbenchEnvironmentService environmentService: IWorkbenchEnvironmentService,
 		@IProductService private readonly productService: IProductService,
 		@IConfigurationService configurationService: IConfigurationService,
+		@IStorageService private readonly storageService: IStorageService
 	) {
 		super(MenuId.AccountsContext, action, contextMenuActionsProvider, colors, themeService, menuService, contextMenuService, contextKeyService, configurationService, environmentService);
 	}
@@ -306,6 +322,19 @@ export class AccountsActivityActionViewItem extends MenuActivityActionViewItem {
 		});
 
 		return menus;
+	}
+
+	protected async resolveContextMenuActions(disposables: DisposableStore): Promise<IAction[]> {
+		const actions = await super.resolveContextMenuActions(disposables);
+
+		actions.unshift(...[
+			new Action('hideAccounts', nls.localize('hideAccounts', "Hide Accounts"), undefined, true, async () => {
+				this.storageService.store(AccountsActivityActionViewItem.ACCOUNTS_VISIBILITY_PREFERENCE_KEY, false, StorageScope.GLOBAL, StorageTarget.USER);
+			}),
+			new Separator()
+		]);
+
+		return actions;
 	}
 }
 
