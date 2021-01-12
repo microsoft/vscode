@@ -287,6 +287,10 @@ export class TestingExplorerViewModel extends Disposable {
 	 * Reveals and moves focus to the item.
 	 */
 	public async revealItem(item: ITestTreeElement, reveal = true): Promise<void> {
+		if (!this.tree.hasElement(item)) {
+			return;
+		}
+
 		const chain: ITestTreeElement[] = [];
 		for (let parent = item.parentItem; parent; parent = parent.parentItem) {
 			chain.push(parent);
@@ -364,6 +368,8 @@ class CodeEditorTracker {
 
 		const register = (editor: ICodeEditor) => {
 			const store = new DisposableStore();
+			editorStores.add(store);
+
 			store.add(editor.onDidChangeCursorPosition(evt => {
 				const uri = editor.getModel()?.uri;
 				if (!uri) {
