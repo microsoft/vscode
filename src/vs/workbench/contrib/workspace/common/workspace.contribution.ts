@@ -127,6 +127,7 @@ class TrustedWorkspaceStatusbarItem extends Disposable implements IWorkbenchCont
 			text: `$(shield) ${text}`,
 			ariaLabel: localize('status.trustedWorkspace', "Workspace Trust"),
 			tooltip: localize('status.trustedWorkspace', "Workspace Trust"),
+			backgroundColor: state === TrustState.Untrusted ? 'red' : 'transparent'
 		};
 	}
 
