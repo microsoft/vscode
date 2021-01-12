@@ -2355,11 +2355,16 @@ export class CommandCenter {
 			}
 
 			await provider.publishRepository!(new ApiRepository(repository));
+			this.model.firePublishEvent(repository, branchName);
+
 			return;
 		}
 
 		if (remotes.length === 1) {
-			return await repository.pushTo(remotes[0].name, branchName, true);
+			await repository.pushTo(remotes[0].name, branchName, true);
+			this.model.firePublishEvent(repository, branchName);
+
+			return;
 		}
 
 		const addRemote = new AddRemoteItem(this);
@@ -2376,9 +2381,13 @@ export class CommandCenter {
 
 			if (newRemote) {
 				await repository.pushTo(newRemote, branchName, true);
+
+				this.model.firePublishEvent(repository, branchName);
 			}
 		} else {
 			await repository.pushTo(choice.label, branchName, true);
+
+			this.model.firePublishEvent(repository, branchName);
 		}
 	}
 

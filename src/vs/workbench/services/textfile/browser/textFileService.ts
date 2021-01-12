@@ -30,7 +30,7 @@ import { BaseTextEditorModel } from 'vs/workbench/common/editor/textEditorModel'
 import { ICodeEditorService } from 'vs/editor/browser/services/codeEditorService';
 import { IPathService } from 'vs/workbench/services/path/common/pathService';
 import { isValidBasename } from 'vs/base/common/extpath';
-import { IWorkingCopyFileService } from 'vs/workbench/services/workingCopy/common/workingCopyFileService';
+import { IWorkingCopyFileService, IFileOperationUndoRedoInfo, ICreateFileOperation } from 'vs/workbench/services/workingCopy/common/workingCopyFileService';
 import { IUriIdentityService } from 'vs/workbench/services/uriIdentity/common/uriIdentity';
 import { IWorkspaceContextService } from 'vs/platform/workspace/common/workspace';
 import { WORKSPACE_EXTENSION } from 'vs/platform/workspaces/common/workspaces';
@@ -38,6 +38,7 @@ import { UTF8, UTF8_with_bom, UTF16be, UTF16le, encodingExists, toEncodeReadable
 import { consumeStream } from 'vs/base/common/stream';
 import { IModeService } from 'vs/editor/common/services/modeService';
 import { ILogService } from 'vs/platform/log/common/log';
+import { CancellationToken } from 'vs/base/common/cancellation';
 
 /**
  * The workbench file service implementation implements the raw file service spec and adds additional methods on top.
@@ -148,11 +149,17 @@ export abstract class AbstractTextFileService extends Disposable implements ITex
 		return [bufferStream, decoder];
 	}
 
-	async create(resource: URI, value?: string | ITextSnapshot, options?: ICreateFileOptions): Promise<IFileStatWithMetadata> {
-		const readable = await this.getEncodedReadable(resource, value);
-		const [stat] = await this.workingCopyFileService.create([{ resource, contents: readable, overwrite: options?.overwrite }]);
+	async create(operations: { resource: URI, value?: string | ITextSnapshot, options?: ICreateFileOptions }[], undoInfo?: IFileOperationUndoRedoInfo, token?: CancellationToken): Promise<IFileStatWithMetadata[]> {
+		const operationsWithContents: ICreateFileOperation[] = await Promise.all(operations.map(async o => {
+			const contents = await this.getEncodedReadable(o.resource, o.value);
+			return {
+				resource: o.resource,
+				contents,
+				overwrite: o.options?.overwrite
+			};
+		}));
 
-		return stat;
+		return this.workingCopyFileService.create(operationsWithContents, undoInfo, token);
 	}
 
 	async write(resource: URI, value: string | ITextSnapshot, options?: IWriteTextFileOptions): Promise<IFileStatWithMetadata> {
@@ -161,9 +168,9 @@ export abstract class AbstractTextFileService extends Disposable implements ITex
 		return this.fileService.writeFile(resource, readable, options);
 	}
 
-	private async getEncodedReadable(resource: URI, value?: string | ITextSnapshot): Promise<VSBuffer | VSBufferReadable | undefined>;
-	private async getEncodedReadable(resource: URI, value: string | ITextSnapshot, options?: IWriteTextFileOptions): Promise<VSBuffer | VSBufferReadable>;
-	private async getEncodedReadable(resource: URI, value?: string | ITextSnapshot, options?: IWriteTextFileOptions): Promise<VSBuffer | VSBufferReadable | undefined> {
+	async getEncodedReadable(resource: URI, value?: string | ITextSnapshot): Promise<VSBuffer | VSBufferReadable | undefined>;
+	async getEncodedReadable(resource: URI, value: string | ITextSnapshot, options?: IWriteTextFileOptions): Promise<VSBuffer | VSBufferReadable>;
+	async getEncodedReadable(resource: URI, value?: string | ITextSnapshot, options?: IWriteTextFileOptions): Promise<VSBuffer | VSBufferReadable | undefined> {
 
 		// check for encoding
 		const { encoding, addBOM } = await this.encoding.getWriteEncoding(resource, options);
@@ -322,7 +329,7 @@ export abstract class AbstractTextFileService extends Disposable implements ITex
 
 			// create target file adhoc if it does not exist yet
 			if (!targetExists) {
-				await this.create(target, '');
+				await this.create([{ resource: target, value: '' }]);
 			}
 
 			try {

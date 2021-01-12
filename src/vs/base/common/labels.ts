@@ -9,11 +9,12 @@ import { startsWithIgnoreCase, rtrim } from 'vs/base/common/strings';
 import { Schemas } from 'vs/base/common/network';
 import { isLinux, isWindows, isMacintosh } from 'vs/base/common/platform';
 import { isEqual, basename, relativePath } from 'vs/base/common/resources';
+import { hasDriveLetter, isRootOrDriveLetter } from 'vs/base/common/extpath';
 
 export interface IWorkspaceFolderProvider {
-	getWorkspaceFolder(resource: URI): { uri: URI, name?: string } | null;
+	getWorkspaceFolder(resource: URI): { uri: URI, name?: string; } | null;
 	getWorkspace(): {
-		folders: { uri: URI, name?: string }[];
+		folders: { uri: URI, name?: string; }[];
 	};
 }
 
@@ -84,25 +85,11 @@ export function getBaseLabel(resource: URI | string | undefined): string | undef
 	const base = basename(resource) || (resource.scheme === Schemas.file ? resource.fsPath : resource.path) /* can be empty string if '/' is passed in */;
 
 	// convert c: => C:
-	if (isDriveLetter(base)) {
+	if (isWindows && isRootOrDriveLetter(base)) {
 		return normalizeDriveLetter(base);
 	}
 
 	return base;
-}
-
-const WINDOWS_DRIVE_LETTER_SEP = ':';
-
-function hasDriveLetter(path: string): boolean {
-	return !!(isWindows && path && path[1] === WINDOWS_DRIVE_LETTER_SEP);
-}
-
-function isDriveLetter(path: string): boolean {
-	return hasDriveLetter(path) && path.endsWith(WINDOWS_DRIVE_LETTER_SEP);
-}
-
-export function extractDriveLetter(path: string): string | undefined {
-	return hasDriveLetter(path) ? path[0] : undefined;
 }
 
 export function normalizeDriveLetter(path: string): string {
@@ -113,7 +100,7 @@ export function normalizeDriveLetter(path: string): string {
 	return path;
 }
 
-let normalizedUserHomeCached: { original: string; normalized: string } = Object.create(null);
+let normalizedUserHomeCached: { original: string; normalized: string; } = Object.create(null);
 export function tildify(path: string, userHome: string): string {
 	if (isWindows || !path || !userHome) {
 		return path; // unsupported
@@ -231,7 +218,7 @@ export function shorten(paths: string[], pathSeparator: string = sep): string[] 
 					let result = '';
 
 					// preserve disk drive or root prefix
-					if (segments[0].endsWith(WINDOWS_DRIVE_LETTER_SEP) || prefix !== '') {
+					if (segments[0].endsWith(':') || prefix !== '') {
 						if (start === 1) {
 							// extend subpath to include disk drive prefix
 							start = 0;
@@ -292,7 +279,7 @@ interface ISegment {
  * @param value string to which templating is applied
  * @param values the values of the templates to use
  */
-export function template(template: string, values: { [key: string]: string | ISeparator | undefined | null } = Object.create(null)): string {
+export function template(template: string, values: { [key: string]: string | ISeparator | undefined | null; } = Object.create(null)): string {
 	const segments: ISegment[] = [];
 
 	let inVariable = false;
@@ -396,7 +383,7 @@ export function unmnemonicLabel(label: string): string {
 /**
  * Splits a path in name and parent path, supporting both '/' and '\'
  */
-export function splitName(fullPath: string): { name: string, parentPath: string } {
+export function splitName(fullPath: string): { name: string, parentPath: string; } {
 	const p = fullPath.indexOf('/') !== -1 ? posix : win32;
 	const name = p.basename(fullPath);
 	const parentPath = p.dirname(fullPath);

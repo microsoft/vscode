@@ -196,7 +196,9 @@ export class ViewsService extends Disposable implements IViewsService {
 									ContextKeyExpr.equals('view', viewDescriptor.id),
 									ContextKeyExpr.equals(`${viewDescriptor.id}.defaultViewLocation`, false)
 								)
-							)
+							),
+							group: '1_hide',
+							order: 2
 						}],
 					});
 				}

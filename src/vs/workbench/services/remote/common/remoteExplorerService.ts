@@ -15,6 +15,7 @@ import { TunnelInformation, TunnelDescription, IRemoteAuthorityResolverService }
 import { IWorkbenchEnvironmentService } from 'vs/workbench/services/environment/common/environmentService';
 import { IAddressProvider } from 'vs/platform/remote/common/remoteAgentConnection';
 import { ThemeIcon } from 'vs/platform/theme/common/themeService';
+import { isNumber, isString } from 'vs/base/common/types';
 
 export const IRemoteExplorerService = createDecorator<IRemoteExplorerService>('remoteExplorerService');
 export const REMOTE_EXPLORER_TYPE_KEY: string = 'remote.explorerType';
@@ -105,6 +106,108 @@ export function mapHasAddressLocalhostOrAllInterfaces<T>(map: Map<string, T>, ho
 	return undefined;
 }
 
+export enum OnPortForward {
+	Notify = 'notify',
+	Open = 'open',
+	Silent = 'silent',
+	Ignore = 'ignore'
+}
+
+interface Attributes {
+	label: string | undefined;
+	onAutoForward: OnPortForward | undefined,
+	elevateIfNeeded: boolean | undefined;
+}
+
+interface PortAttributes extends Attributes {
+	port: number | { start: number, end: number };
+}
+
+export class PortsAttributes extends Disposable {
+	private static SETTING = 'remote.portsAttributes';
+	private static RANGE = /^\d+\-\d+$/;
+	private portsAttributes: PortAttributes[];
+	constructor(private readonly configurationService: IConfigurationService) {
+		super();
+		this._register(configurationService.onDidChangeConfiguration(e => {
+			if (e.affectsConfiguration(PortsAttributes.SETTING)) {
+				this.portsAttributes = this.readSetting();
+			}
+		}));
+		this.portsAttributes = this.readSetting();
+	}
+
+	getAttributes(port: number): Attributes | undefined {
+		let index = this.findNextIndex(port, this.portsAttributes, 0);
+		const attributes: Attributes = {
+			label: undefined,
+			onAutoForward: undefined,
+			elevateIfNeeded: undefined
+		};
+		while (index >= 0) {
+			const found = this.portsAttributes[index];
+			if (found.port === port) {
+				attributes.onAutoForward = found.onAutoForward ?? attributes.onAutoForward;
+				attributes.elevateIfNeeded = (found.elevateIfNeeded !== undefined) ? found.elevateIfNeeded : attributes.elevateIfNeeded;
+				attributes.label = found.label ?? attributes.label;
+			} else {
+				// It's a range, which means that if the attribute is already set, we keep it
+				attributes.onAutoForward = attributes.onAutoForward ?? found.onAutoForward;
+				attributes.elevateIfNeeded = (attributes.elevateIfNeeded !== undefined) ? attributes.elevateIfNeeded : found.elevateIfNeeded;
+				attributes.label = attributes.label ?? found.label;
+			}
+			index = this.findNextIndex(port, this.portsAttributes, index + 1);
+		}
+		if (attributes.onAutoForward !== undefined || attributes.elevateIfNeeded !== undefined) {
+			return attributes;
+		}
+		return undefined;
+	}
+
+	private findNextIndex(port: number, attributes: PortAttributes[], fromIndex: number): number {
+		if (fromIndex >= attributes.length) {
+			return -1;
+		}
+		const sliced = attributes.slice(fromIndex);
+		return sliced.findIndex((value) => {
+			return isNumber(value.port) ? (value.port === port) : (port >= value.port.start && port <= value.port.end);
+		});
+	}
+
+	private readSetting(): PortAttributes[] {
+		const settingValue = this.configurationService.getValue(PortsAttributes.SETTING);
+		if (!settingValue || !Array.isArray(settingValue)) {
+			return [];
+		}
+
+		const attributes: PortAttributes[] = [];
+		for (let setting of settingValue) {
+			let port: number | { start: number, end: number } | undefined = undefined;
+			if (setting.port !== undefined) {
+				if (Number(setting.port)) {
+					port = Number(setting.port);
+				} else if (isString(setting.port) && PortsAttributes.RANGE.test(setting.port)) {
+					const match = (<string>setting.port).match(PortsAttributes.RANGE);
+					port = { start: Number(match![1]), end: Number(match![2]) };
+				}
+			}
+			if (!port) {
+				continue;
+			}
+			attributes.push({
+				port,
+				elevateIfNeeded: setting.elevateIfPrivileged,
+				onAutoForward: setting.onAutoForward,
+				label: setting.label
+			});
+		}
+		attributes.sort((a, b) => {
+			return (isNumber(a.port) ? a.port : a.port.start) - (isNumber(b.port) ? b.port : b.port.start);
+		});
+		return attributes;
+	}
+}
+
 export class TunnelModel extends Disposable {
 	readonly forwarded: Map<string, Tunnel>;
 	readonly detected: Map<string, Tunnel>;
@@ -124,6 +227,7 @@ export class TunnelModel extends Disposable {
 	private _onEnvironmentTunnelsSet: Emitter<void> = new Emitter();
 	public onEnvironmentTunnelsSet: Event<void> = this._onEnvironmentTunnelsSet.event;
 	private _environmentTunnelsSet: boolean = false;
+	private portsAttributes: PortsAttributes;
 
 	constructor(
 		@ITunnelService private readonly tunnelService: ITunnelService,
@@ -133,6 +237,7 @@ export class TunnelModel extends Disposable {
 		@IRemoteAuthorityResolverService private readonly remoteAuthorityResolverService: IRemoteAuthorityResolverService,
 	) {
 		super();
+		this.portsAttributes = new PortsAttributes(configurationService);
 		this.tunnelRestoreValue = this.storageService.get(TUNNELS_TO_RESTORE, StorageScope.WORKSPACE);
 		this.forwarded = new Map();
 		this.remoteTunnels = new Map();
@@ -209,14 +314,16 @@ export class TunnelModel extends Disposable {
 				getAddress: async () => { return (await this.remoteAuthorityResolverService.resolveAuthority(authority)).authority; }
 			} : undefined;
 
-			const tunnel = await this.tunnelService.openTunnel(addressProvider, remote.host, remote.port, local, elevateIfNeeded);
+			const attributes = this.portsAttributes.getAttributes(local !== undefined ? local : remote.port);
+
+			const tunnel = await this.tunnelService.openTunnel(addressProvider, remote.host, remote.port, local, (!elevateIfNeeded) ? attributes?.elevateIfNeeded : elevateIfNeeded);
 			if (tunnel && tunnel.localAddress) {
 				const matchingCandidate = mapHasAddressLocalhostOrAllInterfaces(this._candidates ?? new Map(), remote.host, remote.port);
 				const newForward: Tunnel = {
 					remoteHost: tunnel.tunnelRemoteHost,
 					remotePort: tunnel.tunnelRemotePort,
 					localPort: tunnel.tunnelLocalPort,
-					name: name,
+					name: name ?? attributes?.label,
 					closeable: true,
 					localAddress: tunnel.localAddress,
 					runningProcess: matchingCandidate?.detail,

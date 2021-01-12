@@ -611,7 +611,7 @@ export class StatusbarPart extends Part implements IStatusbarService {
 	}
 
 	private getContextMenuActions(event: StandardMouseEvent): IAction[] {
-		const actions: Action[] = [];
+		const actions: IAction[] = [];
 
 		// Provide an action to hide the status bar at last
 		actions.push(this.instantiationService.createInstance(ToggleStatusbarVisibilityAction, ToggleStatusbarVisibilityAction.ID, nls.localize('hideStatusBar', "Hide Status Bar")));

@@ -176,7 +176,7 @@ export class ActionWithDropdownActionViewItem extends ActionViewItem {
 					return [this._action, ...(Array.isArray(actionsProvider) ? actionsProvider : actionsProvider.getActions())];
 				}
 			};
-			this.dropdownMenuActionViewItem = new DropdownMenuActionViewItem(new Action('dropdownAction', undefined), menuActionsProvider, this.contextMenuProvider, { classNames: ['dropdown', ...Codicon.dropDownButton.classNamesArray, ...(<IActionWithDropdownActionViewItemOptions>this.options).menuActionClassNames || []] });
+			this.dropdownMenuActionViewItem = new DropdownMenuActionViewItem(this._register(new Action('dropdownAction', undefined)), menuActionsProvider, this.contextMenuProvider, { classNames: ['dropdown', ...Codicon.dropDownButton.classNamesArray, ...(<IActionWithDropdownActionViewItemOptions>this.options).menuActionClassNames || []] });
 			this.dropdownMenuActionViewItem.render(this.element);
 		}
 	}

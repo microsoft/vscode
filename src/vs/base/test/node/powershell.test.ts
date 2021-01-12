@@ -3,8 +3,9 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 import * as assert from 'assert';
-import * as platform from 'vs/base/common/platform';
 import * as fs from 'fs';
+import * as os from 'os';
+import * as platform from 'vs/base/common/platform';
 import { enumeratePowerShellInstallations, getFirstAvailablePowerShellInstallation, IPowerShellExeDetails } from 'vs/base/node/powershell';
 
 function checkPath(exePath: string) {
@@ -53,14 +54,30 @@ if (platform.isWindows) {
 				checkPath(pwsh.exePath);
 			}
 
-			const lastIndex = pwshs.length - 1;
-			checkPath(pwshs[lastIndex].exePath);
-			assert.strictEqual(pwshs[lastIndex].displayName, 'Windows PowerShell (x86)');
 
+			const lastIndex = pwshs.length - 1;
+			const secondToLastIndex = pwshs.length - 2;
+
+			// 64bit process on 64bit OS
 			if (process.arch === 'x64') {
-				const secondToLastIndex = pwshs.length - 2;
 				checkPath(pwshs[secondToLastIndex].exePath);
 				assert.strictEqual(pwshs[secondToLastIndex].displayName, 'Windows PowerShell');
+
+				checkPath(pwshs[lastIndex].exePath);
+				assert.strictEqual(pwshs[lastIndex].displayName, 'Windows PowerShell (x86)');
+			} else if (os.arch() === 'x64') {
+				// 32bit process on 64bit OS
+
+				// Windows PowerShell x86 comes first if vscode is 32bit
+				checkPath(pwshs[secondToLastIndex].exePath);
+				assert.strictEqual(pwshs[secondToLastIndex].displayName, 'Windows PowerShell (x86)');
+
+				checkPath(pwshs[lastIndex].exePath);
+				assert.strictEqual(pwshs[lastIndex].displayName, 'Windows PowerShell');
+			} else {
+				// 32bit or ARM process
+				checkPath(pwshs[lastIndex].exePath);
+				assert.strictEqual(pwshs[lastIndex].displayName, 'Windows PowerShell (x86)');
 			}
 		});
 	});
