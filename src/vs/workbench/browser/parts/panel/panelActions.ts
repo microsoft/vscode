@@ -283,30 +283,60 @@ registerAction2(class extends Action2 {
 	}
 });
 
-MenuRegistry.appendMenuItem(MenuId.MenubarAppearanceMenu, {
-	group: '2_workbench_layout',
-	command: {
-		id: TogglePanelAction.ID,
-		title: nls.localize({ key: 'miShowPanel', comment: ['&& denotes a mnemonic'] }, "Show &&Panel"),
-		toggled: ActivePanelContext
-	},
-	order: 5
-});
+MenuRegistry.appendMenuItems([
+	{
+		id: MenuId.MenubarAppearanceMenu,
+		item: {
+			group: '2_workbench_layout',
+			command: {
+				id: TogglePanelAction.ID,
+				title: nls.localize({ key: 'miShowPanel', comment: ['&& denotes a mnemonic'] }, "Show &&Panel"),
+				toggled: ActivePanelContext
+			},
+			order: 5
+		}
+	}, {
+		id: MenuId.ViewTitleContext,
+		item: {
+			group: '3_workbench_layout_move',
+			command: {
+				id: TogglePanelAction.ID,
+				title: { value: nls.localize('hidePanel', "Hide Panel"), original: 'Hide Panel' },
+			},
+			when: PanelVisibleContext,
+			order: 2
+		}
+	}
+]);
 
 function registerPositionPanelActionById(config: PanelActionConfig<Position>) {
 	const { id, label, alias, when } = config;
 	// register the workbench action
 	actionRegistry.registerWorkbenchAction(SyncActionDescriptor.create(SetPanelPositionAction, id, label), alias, CATEGORIES.View.value, when);
 	// register as a menu item
-	MenuRegistry.appendMenuItem(MenuId.MenubarAppearanceMenu, {
-		group: '3_workbench_layout_move',
-		command: {
-			id,
-			title: label
-		},
-		when,
-		order: 5
-	});
+	MenuRegistry.appendMenuItems([{
+		id: MenuId.MenubarAppearanceMenu,
+		item: {
+			group: '3_workbench_layout_move',
+			command: {
+				id,
+				title: label
+			},
+			when,
+			order: 5
+		}
+	}, {
+		id: MenuId.ViewTitleContext,
+		item: {
+			group: '3_workbench_layout_move',
+			command: {
+				id: id,
+				title: label,
+			},
+			when,
+			order: 1
+		}
+	}]);
 }
 
 // register each position panel action
