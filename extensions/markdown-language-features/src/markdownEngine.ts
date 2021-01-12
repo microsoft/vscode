@@ -246,6 +246,7 @@ export class MarkdownEngine {
 								scheme: uri.scheme,
 								fragment: uri.fragment,
 								query: uri.query,
+								path: '/file' + fileUri.path
 							});
 						}
 					}
