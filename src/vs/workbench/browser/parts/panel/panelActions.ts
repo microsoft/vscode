@@ -15,10 +15,11 @@ import { IWorkbenchLayoutService, Parts, Position, positionToString } from 'vs/w
 import { ActivityAction, ToggleCompositePinnedAction, ICompositeBar } from 'vs/workbench/browser/parts/compositeBarActions';
 import { IActivity } from 'vs/workbench/common/activity';
 import { ActivePanelContext, PanelMaximizedContext, PanelPositionContext, PanelVisibleContext } from 'vs/workbench/common/panel';
-import { ContextKeyExpression } from 'vs/platform/contextkey/common/contextkey';
+import { ContextKeyExpr, ContextKeyExpression } from 'vs/platform/contextkey/common/contextkey';
 import { Codicon } from 'vs/base/common/codicons';
 import { registerIcon } from 'vs/platform/theme/common/iconRegistry';
 import { ServicesAccessor } from 'vs/editor/browser/editorExtensions';
+import { ViewContainerLocationToString, ViewContainerLocation } from 'vs/workbench/common/views';
 
 const maximizeIcon = registerIcon('panel-maximize', Codicon.chevronUp, nls.localize('maximizeIcon', 'Icon to maximize a panel.'));
 const restoreIcon = registerIcon('panel-restore', Codicon.chevronDown, nls.localize('restoreIcon', 'Icon to restore a panel.'));
@@ -303,7 +304,7 @@ MenuRegistry.appendMenuItems([
 				id: TogglePanelAction.ID,
 				title: { value: nls.localize('hidePanel', "Hide Panel"), original: 'Hide Panel' },
 			},
-			when: PanelVisibleContext,
+			when: ContextKeyExpr.and(PanelVisibleContext, ContextKeyExpr.equals('viewLocation', ViewContainerLocationToString(ViewContainerLocation.Panel))),
 			order: 2
 		}
 	}
@@ -333,7 +334,7 @@ function registerPositionPanelActionById(config: PanelActionConfig<Position>) {
 				id: id,
 				title: label,
 			},
-			when,
+			when: ContextKeyExpr.and(when, ContextKeyExpr.equals('viewLocation', ViewContainerLocationToString(ViewContainerLocation.Panel))),
 			order: 1
 		}
 	}]);
