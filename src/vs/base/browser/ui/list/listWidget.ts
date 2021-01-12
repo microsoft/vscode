@@ -854,6 +854,7 @@ export interface IListOptions<T> {
 	readonly additionalScrollHeight?: number;
 	readonly transformOptimization?: boolean;
 	readonly smoothScrolling?: boolean;
+	readonly alwaysConsumeMouseWheel?: boolean;
 }
 
 export interface IListStyles {

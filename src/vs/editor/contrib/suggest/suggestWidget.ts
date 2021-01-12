@@ -102,7 +102,7 @@ export class SuggestWidget implements IDisposable {
 	private _focusedItem?: CompletionItem;
 	private _ignoreFocusEvents: boolean = false;
 	private _completionModel?: CompletionModel;
-	private _cappedHeight?: { wanted: number, capped: number };
+	private _cappedHeight?: { wanted: number; capped: number; };
 	private _explainMode: boolean = false;
 
 	readonly element: ResizableHTMLElement;
@@ -216,6 +216,7 @@ export class SuggestWidget implements IDisposable {
 			getHeight: (_element: CompletionItem): number => this.getLayoutInfo().itemHeight,
 			getTemplateId: (_element: CompletionItem): string => 'suggestion'
 		}, [renderer], {
+			alwaysConsumeMouseWheel: true,
 			useShadows: false,
 			mouseSupport: false,
 			accessibilityProvider: {
