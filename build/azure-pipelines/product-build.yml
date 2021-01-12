@@ -274,5 +274,6 @@ stages:
         - ${{ if or(eq(parameters.VSCODE_RELEASE, true), and(in(parameters.VSCODE_QUALITY, 'insider', 'exploration'), eq(variables['VSCODE_SCHEDULEDBUILD'], true))) }}:
           - job: ReleaseBuild
             displayName: Release Build
+            condition: succeeded()
             steps:
               - template: release.yml
