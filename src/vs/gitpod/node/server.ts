@@ -65,7 +65,7 @@ import { IFileChangeDto } from 'vs/workbench/api/common/extHost.protocol';
 import { IExtHostReadyMessage, IExtHostSocketMessage } from 'vs/workbench/services/extensions/common/extensionHostProtocol';
 import { Logger } from 'vs/workbench/services/extensions/common/extensionPoints';
 import { ExtensionScanner, ExtensionScannerInput, IExtensionReference } from 'vs/workbench/services/extensions/node/extensionPoints';
-import { IGetEnvironmentDataArguments, IRemoteAgentEnvironmentDTO, IScanExtensionsArguments } from 'vs/workbench/services/remote/common/remoteAgentEnvironmentChannel';
+import { IGetEnvironmentDataArguments, IRemoteAgentEnvironmentDTO, IScanExtensionsArguments, IScanSingleExtensionArguments } from 'vs/workbench/services/remote/common/remoteAgentEnvironmentChannel';
 import { REMOTE_FILE_SYSTEM_CHANNEL_NAME } from 'vs/workbench/services/remote/common/remoteAgentFileSystemChannel';
 
 const uriTransformerPath = path.join(__dirname, '../../../gitpodUriTransformer');
@@ -293,6 +293,20 @@ async function main(): Promise<void> {
 					userHome: environmentService.userHome,
 					os: OS
 				} as IRemoteAgentEnvironmentDTO, uriTranformer);
+			}
+			if (command === 'scanSingleExtension') {
+				let args: IScanSingleExtensionArguments = arg;
+				const uriTranformer = new URITransformer(rawURITransformerFactory(args.remoteAuthority));
+				args = transformIncomingURIs(args, uriTranformer);
+				// see scanSingleExtension in src/vs/workbench/services/extensions/electron-browser/cachedExtensionScanner.ts
+				// TODO: read built nls file
+				const translations = {};
+				const input = new ExtensionScannerInput(product.version, product.commit, args.language, devMode, URI.revive(args.extensionLocation).fsPath, args.isBuiltin, false, translations);
+				const extension = await ExtensionScanner.scanSingleExtension(input, console);
+				if (!extension) {
+					return undefined;
+				}
+				return transformOutgoingURIs(extension, uriTranformer);
 			}
 			if (command === 'scanExtensions') {
 				let args: IScanExtensionsArguments = arg;
