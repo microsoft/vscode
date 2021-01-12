@@ -133,6 +133,43 @@ Registry.as<IConfigurationRegistry>(ConfigurationExtensions.Configuration)
 				type: 'boolean',
 				markdownDescription: localize('remote.autoForwardPorts', "When enabled, new running processes are detected and ports that they listen on are automatically forwarded."),
 				default: true
+			},
+			'remote.portsAttributes': {
+				type: 'array',
+				description: localize('remote.portsAttributes', "Allows setting of default properties that are set when a specific port number is forwarded."),
+				items: {
+					type: 'object',
+					properties: {
+						'port': {
+							type: 'string',
+							pattern: '^\\d+(\\-\\d+)?$',
+							description: localize('remote.portsAttributes.port', "The port, or range of ports, that these attributes should apply to."),
+							default: '0-65535'
+						},
+						'onAutoForward': {
+							type: 'string',
+							enum: ['notify', 'open', 'silent', 'ignore'],
+							enumDescriptions: [
+								localize('remote.portsAttributes.notify', "Shows a notification when a port is automatically forwarded."),
+								localize('remote.portsAttributes.open', "Opens the browser when the port is automatically forwarded. Depending on your settings, this could open an embedded browser."),
+								localize('remote.portsAttributes.silent', "Shows no notification and takes no action when this port is automatically forwarded."),
+								localize('remote.portsAttributes.ignore', "This port will not be automatically forwarded.")
+							],
+							description: localize('remote.portsAttributes.onForward', "Defines the action that occurs when the port is discovered for automatic forwarding"),
+							default: 'notify'
+						},
+						'elevateIfNeeded': {
+							type: 'boolean',
+							description: localize('remote.portsAttributes.elevateIfNeeded', "Automatically prompt for elevation (if needed) when this port is forwarded. Elevate is required if the local port is a privileged port."),
+							default: false
+						}
+					}
+				},
+				default: [{
+					'port': '3000',
+					'onAutoForward': 'notify',
+					'elevateIfNeeded': false
+				}]
 			}
 		}
 	});
