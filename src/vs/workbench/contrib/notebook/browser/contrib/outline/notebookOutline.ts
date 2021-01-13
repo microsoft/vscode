@@ -11,7 +11,7 @@ import { IThemeService, ThemeIcon } from 'vs/platform/theme/common/themeService'
 import { ICellViewModel } from 'vs/workbench/contrib/notebook/browser/notebookBrowser';
 import { NotebookEditor } from 'vs/workbench/contrib/notebook/browser/notebookEditor';
 import { CellKind } from 'vs/workbench/contrib/notebook/common/notebookCommon';
-import { IOutline, IOutlineBreadcrumbsConfig, IOutlineComparator, IOutlineCreator, IOutlineQuickPickConfig, IOutlineService, IOutlineTreeConfig, IQuickPickDataSource, IQuickPickOutlineElement, OutlineChangeEvent, OutlineConfigKeys } from 'vs/workbench/services/outline/browser/outline';
+import { IOutline, IOutlineComparator, IOutlineCreator, IOutlineListConfig, IOutlineService, IQuickPickDataSource, IQuickPickOutlineElement, OutlineChangeEvent, OutlineConfigKeys } from 'vs/workbench/services/outline/browser/outline';
 import { IWorkbenchContributionsRegistry, Extensions as WorkbenchExtensions } from 'vs/workbench/common/contributions';
 import { Registry } from 'vs/platform/registry/common/platform';
 import { LifecyclePhase } from 'vs/workbench/services/lifecycle/common/lifecycle';
@@ -278,10 +278,7 @@ class NotebookCellOutline implements IOutline<OutlineEntry> {
 	private _activeEntry?: OutlineEntry;
 	private readonly _entriesDisposables = new DisposableStore();
 
-	readonly breadcrumbsConfig: IOutlineBreadcrumbsConfig<OutlineEntry>;
-	readonly treeConfig: IOutlineTreeConfig<OutlineEntry>;
-	readonly quickPickConfig: IOutlineQuickPickConfig<OutlineEntry>;
-
+	readonly config: IOutlineListConfig<OutlineEntry>;
 	readonly outlineKind = 'notebookCells';
 
 	get activeElement(): OutlineEntry | undefined {
@@ -330,7 +327,7 @@ class NotebookCellOutline implements IOutline<OutlineEntry> {
 		const renderers = [instantiationService.createInstance(NotebookOutlineRenderer)];
 		const comparator = new NotebookComparator();
 
-		this.breadcrumbsConfig = {
+		this.config = {
 			breadcrumbsDataSource: {
 				getBreadcrumbElements: () => {
 					let result: OutlineEntry[] = [];
@@ -342,23 +339,12 @@ class NotebookCellOutline implements IOutline<OutlineEntry> {
 					return result;
 				}
 			},
-			treeDataSource,
-			delegate,
-			renderers,
-			comparator,
-			options
-		};
-
-		this.treeConfig = {
-			treeDataSource,
-			delegate,
-			renderers,
-			comparator,
-			options
-		};
-
-		this.quickPickConfig = {
 			quickPickDataSource: instantiationService.createInstance(NotebookQuickPickProvider, () => this._entries),
+			treeDataSource,
+			delegate,
+			renderers,
+			comparator,
+			options
 		};
 	}
 
