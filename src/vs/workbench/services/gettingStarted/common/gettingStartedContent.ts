@@ -56,7 +56,7 @@ export const content: GettingStartedContent = [
 						command: 'workbench.action.debug.start'
 					},
 					doneOn: { commandExecuted: 'workbench.action.debug.start' },
-					media: { type: 'image', altText: 'TBD', path: 'runProject.png' },
+					media: { type: 'image', altText: 'Node.js project running debug mode and paused.', path: 'runProject.png' },
 				},
 				{
 					id: 'forwardPortsTask',
@@ -67,7 +67,7 @@ export const content: GettingStartedContent = [
 						command: '~remote.forwardedPorts.focus'
 					},
 					doneOn: { commandExecuted: '~remote.forwardedPorts.focus' },
-					media: { type: 'image', altText: 'TBD', path: 'forwardPorts.png' },
+					media: { type: 'image', altText: 'Ports panel.', path: 'forwardPorts.png' },
 				},
 				{
 					id: 'pullRequests',
@@ -78,7 +78,7 @@ export const content: GettingStartedContent = [
 						command: 'workbench.view.extension.github-pull-requests'
 					},
 					doneOn: { commandExecuted: 'workbench.view.extension.github-pull-requests' },
-					media: { type: 'image', altText: 'TBD', path: 'pullRequests.png' },
+					media: { type: 'image', altText: 'Preview for reviewing a pull request.', path: 'pullRequests.png' },
 				},
 				{
 					id: 'remoteTerminal',
@@ -89,7 +89,7 @@ export const content: GettingStartedContent = [
 						command: 'terminal.focus'
 					},
 					doneOn: { commandExecuted: 'terminal.focus' },
-					media: { type: 'image', altText: 'TBD', path: 'remoteTerminal.png' },
+					media: { type: 'image', altText: 'Remote terminal showing npm commands.', path: 'remoteTerminal.png' },
 				},
 				{
 					id: 'openVSC',
@@ -100,7 +100,7 @@ export const content: GettingStartedContent = [
 						command: 'github.codespaces.openInStable'
 					},
 					doneOn: { commandExecuted: 'github.codespaces.openInStable' },
-					media: { type: 'image', altText: 'TBD', path: 'openVSC.png' },
+					media: { type: 'image', altText: 'Preview of the Open in VS Code command.', path: 'openVSC.png' },
 				}
 			]
 		}
@@ -121,7 +121,7 @@ export const content: GettingStartedContent = [
 					description: localize('gettingStarted.pickColor.description', "Adapt VS Code to your taste with themes, customizing interface and language syntax colors."),
 					button: { title: localize('gettingStarted.pickColor.button', "Browse Color Themes"), command: 'workbench.action.selectTheme' },
 					doneOn: { eventFired: 'themeSelected' },
-					media: { type: 'image', altText: 'ColorTheme', path: 'colorTheme.png', }
+					media: { type: 'image', altText: 'Color theme preview for dark and light theme.', path: 'colorTheme.png', }
 				},
 				{
 					id: 'findLanguageExtensions',
@@ -198,7 +198,7 @@ export const content: GettingStartedContent = [
 					title: localize('gettingStarted.terminal.title', "Run Command-Line Tasks"),
 					description: localize('gettingStarted.terminal.description', "Quickly run shell commands and monitor build output, right next to your code."),
 					button: {
-						title: localize('gettingStarted.terminal.button', "Open Integrated Terminal"),
+						title: localize('gettingStarted.terminal.button', "Open Terminal"),
 						command: 'workbench.action.terminal.toggleTerminal'
 					},
 					doneOn: { commandExecuted: 'workbench.action.terminal.toggleTerminal' },
@@ -218,13 +218,13 @@ export const content: GettingStartedContent = [
 				{
 					id: 'settings',
 					title: localize('gettingStarted.settings.title', "Everything is a Setting"),
-					description: localize('gettingStarted.settings.description', "Tweak VS Code's core features and interface elements to perfection. Settings Sync will make sure you'll keep the best changes."),
+					description: localize('gettingStarted.settings.description', "Optimize every part of VS Code's look & feel to your liking. Enable Settings Sync to use your personal tweaks across machines."),
 					button: {
-						title: localize('gettingStarted.settings.button', "Tweak Commonly Used Settings"),
+						title: localize('gettingStarted.settings.button', "Tweak Some Settings"),
 						command: 'workbench.action.settings'
 					},
 					doneOn: { commandExecuted: 'workbench.action.settings' },
-					media: { type: 'image', altText: 'gif of a custom tree hover', path: 'settings.png' },
+					media: { type: 'image', altText: 'VS Code Settings', path: 'settings.png' },
 				}
 			]
 		}
