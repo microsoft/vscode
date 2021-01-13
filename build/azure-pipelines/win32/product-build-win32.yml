@@ -295,6 +295,11 @@ steps:
     displayName: Publish
     condition: and(succeeded(), ne(variables['VSCODE_PUBLISH'], 'false'))
 
+  - publish: $(System.DefaultWorkingDirectory)\.build\win32-$(VSCODE_ARCH)\archive\VSCode-win32-$(VSCODE_ARCH).zip
+    artifact: VSCode-win32-$(VSCODE_ARCH).zip
+    displayName: Publish archive
+    condition: and(succeeded(), ne(variables['VSCODE_PUBLISH'], 'false'))
+
   - publish: $(System.DefaultWorkingDirectory)\.build\win32-$(VSCODE_ARCH)\system-setup\VSCodeSetup.exe
     artifact: VSCodeSetup-$(VSCODE_ARCH).exe
     displayName: Publish system setup
@@ -304,6 +309,16 @@ steps:
     artifact: VSCodeUserSetup-$(VSCODE_ARCH).exe
     displayName: Publish user setup
     condition: and(succeeded(), ne(variables['VSCODE_PUBLISH'], 'false'))
+
+  # - publish: $(System.DefaultWorkingDirectory)\.build\win32-$(VSCODE_ARCH)\user-setup\VSCodeSetup.exe
+  #   artifact: vscode-server-win32-$(VSCODE_ARCH).zip
+  #   displayName: Publish server
+  #   condition: and(succeeded(), ne(variables['VSCODE_PUBLISH'], 'false'))
+
+  # - publish: $(System.DefaultWorkingDirectory)\.build\win32-$(VSCODE_ARCH)\user-setup\VSCodeSetup.exe
+  #   artifact: vscode-server-win32-$(VSCODE_ARCH)-web.zip
+  #   displayName: Publish web server
+  #   condition: and(succeeded(), ne(variables['VSCODE_PUBLISH'], 'false'))
 
   - task: ms.vss-governance-buildtask.governance-build-task-component-detection.ComponentGovernanceComponentDetection@0
     displayName: "Component Detection"
