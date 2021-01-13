@@ -277,6 +277,12 @@ interface PushOptions {
 	pushType: PushType;
 	forcePush?: boolean;
 	silent?: boolean;
+
+	pushTo?: {
+		remote?: string;
+		refspec?: string;
+		setUpstream?: boolean;
+	}
 }
 
 class CommandErrorOutputTextDocumentContentProvider implements TextDocumentContentProvider {
@@ -2112,23 +2118,27 @@ export class CommandCenter {
 			}
 		} else {
 			const branchName = repository.HEAD.name;
-			const addRemote = new AddRemoteItem(this);
-			const picks = [...remotes.filter(r => r.pushUrl !== undefined).map(r => ({ label: r.name, description: r.pushUrl })), addRemote];
-			const placeHolder = localize('pick remote', "Pick a remote to publish the branch '{0}' to:", branchName);
-			const choice = await window.showQuickPick(picks, { placeHolder });
+			if (!pushOptions.pushTo?.remote) {
+				const addRemote = new AddRemoteItem(this);
+				const picks = [...remotes.filter(r => r.pushUrl !== undefined).map(r => ({ label: r.name, description: r.pushUrl })), addRemote];
+				const placeHolder = localize('pick remote', "Pick a remote to publish the branch '{0}' to:", branchName);
+				const choice = await window.showQuickPick(picks, { placeHolder });
 
-			if (!choice) {
-				return;
-			}
+				if (!choice) {
+					return;
+				}
 
-			if (choice === addRemote) {
-				const newRemote = await this.addRemote(repository);
+				if (choice === addRemote) {
+					const newRemote = await this.addRemote(repository);
 
-				if (newRemote) {
-					await repository.pushTo(newRemote, branchName, undefined, forcePushMode);
+					if (newRemote) {
+						await repository.pushTo(newRemote, branchName, undefined, forcePushMode);
+					}
+				} else {
+					await repository.pushTo(choice.label, branchName, undefined, forcePushMode);
 				}
 			} else {
-				await repository.pushTo(choice.label, branchName, undefined, forcePushMode);
+				await repository.pushTo(pushOptions.pushTo.remote, pushOptions.pushTo.refspec || branchName, pushOptions.pushTo.setUpstream, forcePushMode);
 			}
 		}
 	}
@@ -2169,13 +2179,13 @@ export class CommandCenter {
 	}
 
 	@command('git.pushTo', { repository: true })
-	async pushTo(repository: Repository): Promise<void> {
-		await this._push(repository, { pushType: PushType.PushTo });
+	async pushTo(repository: Repository, remote?: string, refspec?: string, setUpstream?: boolean): Promise<void> {
+		await this._push(repository, { pushType: PushType.PushTo, pushTo: { remote: remote, refspec: refspec, setUpstream: setUpstream } });
 	}
 
 	@command('git.pushToForce', { repository: true })
-	async pushToForce(repository: Repository): Promise<void> {
-		await this._push(repository, { pushType: PushType.PushTo, forcePush: true });
+	async pushToForce(repository: Repository, remote?: string, refspec?: string, setUpstream?: boolean): Promise<void> {
+		await this._push(repository, { pushType: PushType.PushTo, pushTo: { remote: remote, refspec: refspec, setUpstream: setUpstream }, forcePush: true });
 	}
 
 	@command('git.pushTags', { repository: true })
