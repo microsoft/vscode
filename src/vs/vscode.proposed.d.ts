@@ -16,7 +16,7 @@
 
 declare module 'vscode' {
 
-	// #region auth provider: https://github.com/microsoft/vscode/issues/88309
+	//#region auth provider: https://github.com/microsoft/vscode/issues/88309
 
 	/**
 	 * An [event](#Event) which fires when an [AuthenticationProvider](#AuthenticationProvider) is added or removed.
@@ -738,8 +738,6 @@ declare module 'vscode' {
 
 	//#endregion
 
-
-
 	//#region @joaomoreno: SCM validation
 
 	/**
@@ -873,7 +871,7 @@ declare module 'vscode' {
 
 	//#endregion
 
-	//#region @alexdima - OnEnter enhancement
+	//#region https://github.com/microsoft/vscode/issues/58440
 	export interface OnEnterRule {
 		/**
 		 * This rule will only execute if the text above the this line matches this regular expression.
@@ -1950,7 +1948,6 @@ declare module 'vscode' {
 
 	//#endregion
 
-
 	//#region https://github.com/microsoft/vscode/issues/102091
 
 	export interface TextDocument {
@@ -2362,6 +2359,8 @@ declare module 'vscode' {
 
 	//#endregion
 
+	//#region https://github.com/microsoft/vscode/issues/112249
+
 	/**
 	 * Represents a storage utility for secrets, information that is
 	 * sensitive.
@@ -2397,4 +2396,6 @@ declare module 'vscode' {
 	export interface ExtensionContext {
 		secrets: SecretStorage;
 	}
+
+	//#endregion
 }
