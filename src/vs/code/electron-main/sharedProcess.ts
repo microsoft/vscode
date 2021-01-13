@@ -170,16 +170,20 @@ export class SharedProcess extends Disposable implements ISharedProcess {
 	}
 
 	show(): void {
-		if (this.window) {
-			this.window.show();
-			this.window.webContents.openDevTools();
+		if (!this.window) {
+			return; // possibly too early before created
 		}
+
+		this.window.show();
+		this.window.webContents.openDevTools();
 	}
 
 	hide(): void {
-		if (this.window) {
-			this.window.webContents.closeDevTools();
-			this.window.hide();
+		if (!this.window) {
+			return; // possibly too early before created
 		}
+
+		this.window.webContents.closeDevTools();
+		this.window.hide();
 	}
 }
