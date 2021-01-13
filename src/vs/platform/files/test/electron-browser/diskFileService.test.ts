@@ -9,7 +9,6 @@ import { FileService } from 'vs/platform/files/common/fileService';
 import { Schemas } from 'vs/base/common/network';
 import { DiskFileSystemProvider } from 'vs/platform/files/node/diskFileSystemProvider';
 import { flakySuite, getRandomTestPath } from 'vs/base/test/node/testUtils';
-import { generateUuid } from 'vs/base/common/uuid';
 import { join, basename, dirname, posix } from 'vs/base/common/path';
 import { getPathFromAmdModule } from 'vs/base/common/amd';
 import { copy, rimraf, symlink, rimrafSync } from 'vs/base/node/pfs';
@@ -120,12 +119,12 @@ export class TestDiskFileSystemProvider extends DiskFileSystemProvider {
 
 flakySuite('Disk File Service', function () {
 
-	const parentDir = getRandomTestPath(tmpdir(), 'vsctests', 'diskfileservice');
 	const testSchema = 'test';
 
 	let service: FileService;
 	let fileProvider: TestDiskFileSystemProvider;
 	let testProvider: TestDiskFileSystemProvider;
+
 	let testDir: string;
 
 	const disposables = new DisposableStore();
@@ -144,17 +143,17 @@ flakySuite('Disk File Service', function () {
 		disposables.add(service.registerProvider(testSchema, testProvider));
 		disposables.add(testProvider);
 
-		const id = generateUuid();
-		testDir = join(parentDir, id);
+		testDir = getRandomTestPath(tmpdir(), 'vsctests', 'diskfileservice');
+
 		const sourceDir = getPathFromAmdModule(require, './fixtures/service');
 
 		await copy(sourceDir, testDir);
 	});
 
-	teardown(async () => {
+	teardown(() => {
 		disposables.clear();
 
-		await rimraf(parentDir);
+		return rimraf(testDir);
 	});
 
 	test('createFolder', async () => {
@@ -407,7 +406,7 @@ flakySuite('Disk File Service', function () {
 		assert.equal(r2.name, 'deep');
 	});
 
-	(isWindows /* not reliable on windows */ ? test.skip : test)('resolve - folder symbolic link', async () => {
+	(isWindows /* symlinks are not reliable on windows */ ? test.skip : test)('resolve - folder symbolic link', async () => {
 		const link = URI.file(join(testDir, 'deep-link'));
 		await symlink(join(testDir, 'deep'), link.fsPath);
 
@@ -417,7 +416,7 @@ flakySuite('Disk File Service', function () {
 		assert.equal(resolved.isSymbolicLink, true);
 	});
 
-	(isWindows /* not reliable on windows */ ? test.skip : test)('resolve - file symbolic link', async () => {
+	(isWindows /* symlinks are not reliable on windows */ ? test.skip : test)('resolve - file symbolic link', async () => {
 		const link = URI.file(join(testDir, 'lorem.txt-linked'));
 		await symlink(join(testDir, 'lorem.txt'), link.fsPath);
 
@@ -426,7 +425,7 @@ flakySuite('Disk File Service', function () {
 		assert.equal(resolved.isSymbolicLink, true);
 	});
 
-	(isWindows /* not reliable on windows */ ? test.skip : test)('resolve - symbolic link pointing to non-existing file does not break', async () => {
+	(isWindows /* symlinks are not reliable on windows */ ? test.skip : test)('resolve - symbolic link pointing to non-existing file does not break', async () => {
 		await symlink(join(testDir, 'foo'), join(testDir, 'bar'));
 
 		const resolved = await service.resolve(URI.file(testDir));
@@ -475,7 +474,7 @@ flakySuite('Disk File Service', function () {
 		assert.equal((<FileOperationError>error).fileOperationResult, FileOperationResult.FILE_NOT_FOUND);
 	}
 
-	(isWindows /* not reliable on windows */ ? test.skip : test)('deleteFile - symbolic link (exists)', async () => {
+	(isWindows /* symlinks are not reliable on windows */ ? test.skip : test)('deleteFile - symbolic link (exists)', async () => {
 		const target = URI.file(join(testDir, 'lorem.txt'));
 		const link = URI.file(join(testDir, 'lorem.txt-linked'));
 		await symlink(target.fsPath, link.fsPath);
@@ -497,7 +496,7 @@ flakySuite('Disk File Service', function () {
 		assert.equal(existsSync(target.fsPath), true); // target the link pointed to is never deleted
 	});
 
-	(isWindows /* not reliable on windows */ ? test.skip : test)('deleteFile - symbolic link (pointing to non-existing file)', async () => {
+	(isWindows /* symlinks are not reliable on windows */ ? test.skip : test)('deleteFile - symbolic link (pointing to non-existing file)', async () => {
 		const target = URI.file(join(testDir, 'foo'));
 		const link = URI.file(join(testDir, 'bar'));
 		await symlink(target.fsPath, link.fsPath);
@@ -1541,23 +1540,23 @@ flakySuite('Disk File Service', function () {
 		assert.equal(error!.fileOperationResult, FileOperationResult.FILE_EXCEEDS_MEMORY_LIMIT);
 	}
 
-	(isWindows ? test.skip /* flaky test */ : test)('readFile - FILE_TOO_LARGE - default', async () => {
+	test('readFile - FILE_TOO_LARGE - default', async () => {
 		return testFileTooLarge();
 	});
 
-	(isWindows ? test.skip /* flaky test */ : test)('readFile - FILE_TOO_LARGE - buffered', async () => {
+	test('readFile - FILE_TOO_LARGE - buffered', async () => {
 		setCapabilities(fileProvider, FileSystemProviderCapabilities.FileOpenReadWriteClose);
 
 		return testFileTooLarge();
 	});
 
-	(isWindows ? test.skip /* flaky test */ : test)('readFile - FILE_TOO_LARGE - unbuffered', async () => {
+	test('readFile - FILE_TOO_LARGE - unbuffered', async () => {
 		setCapabilities(fileProvider, FileSystemProviderCapabilities.FileReadWrite);
 
 		return testFileTooLarge();
 	});
 
-	(isWindows ? test.skip /* flaky test */ : test)('readFile - FILE_TOO_LARGE - streamed', async () => {
+	test('readFile - FILE_TOO_LARGE - streamed', async () => {
 		setCapabilities(fileProvider, FileSystemProviderCapabilities.FileReadStream);
 
 		return testFileTooLarge();

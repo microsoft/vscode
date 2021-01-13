@@ -5,7 +5,7 @@
 
 import { Emitter, Event } from 'vs/base/common/event';
 import { Disposable, DisposableStore, IDisposable, toDisposable } from 'vs/base/common/lifecycle';
-import { IBreadcrumbsDataSource, IOutline, IOutlineBreadcrumbsConfig, IOutlineCreator, IOutlineQuickPickConfig, IOutlineService, IOutlineTreeConfig, OutlineChangeEvent, OutlineConfigKeys, } from 'vs/workbench/services/outline/browser/outline';
+import { IBreadcrumbsDataSource, IOutline, IOutlineCreator, IOutlineListConfig, IOutlineService, OutlineChangeEvent, OutlineConfigKeys, OutlineTarget, } from 'vs/workbench/services/outline/browser/outline';
 import { IWorkbenchContributionsRegistry, Extensions as WorkbenchExtensions } from 'vs/workbench/common/contributions';
 import { Registry } from 'vs/platform/registry/common/platform';
 import { LifecyclePhase } from 'vs/workbench/services/lifecycle/common/lifecycle';
@@ -115,9 +115,7 @@ class DocumentSymbolsOutline implements IOutline<DocumentSymbolItem> {
 
 	private readonly _breadcrumbsDataSource: DocumentSymbolBreadcrumbsSource;
 
-	readonly breadcrumbsConfig: IOutlineBreadcrumbsConfig<DocumentSymbolItem>;
-	readonly treeConfig: IOutlineTreeConfig<DocumentSymbolItem>;
-	readonly quickPickConfig: IOutlineQuickPickConfig<DocumentSymbolItem>;
+	readonly config: IOutlineListConfig<DocumentSymbolItem>;
 
 	readonly outlineKind = 'documentSymbols';
 
@@ -132,6 +130,7 @@ class DocumentSymbolsOutline implements IOutline<DocumentSymbolItem> {
 
 	constructor(
 		private readonly _editor: ICodeEditor,
+		target: OutlineTarget,
 		firstLoadBarrier: Barrier,
 		@ICodeEditorService private readonly _codeEditorService: ICodeEditorService,
 		@IConfigurationService private readonly _configurationService: IConfigurationService,
@@ -161,36 +160,24 @@ class DocumentSymbolsOutline implements IOutline<DocumentSymbolItem> {
 			multipleSelectionSupport: false,
 			identityProvider: new DocumentSymbolIdentityProvider(),
 			keyboardNavigationLabelProvider: new DocumentSymbolNavigationLabelProvider(),
+			accessibilityProvider: new DocumentSymbolAccessibilityProvider(localize('document', "Document Symbols")),
+			filter: target === OutlineTarget.OutlinePane
+				? instantiationService.createInstance(DocumentSymbolFilter, 'outline')
+				: target === OutlineTarget.Breadcrumbs
+					? instantiationService.createInstance(DocumentSymbolFilter, 'breadcrumbs')
+					: undefined
 		};
 
-		this.breadcrumbsConfig = {
+		this.config = {
 			breadcrumbsDataSource: this._breadcrumbsDataSource,
 			delegate,
 			renderers,
 			treeDataSource,
 			comparator,
-			options: {
-				...options,
-				filter: instantiationService.createInstance(DocumentSymbolFilter, 'breadcrumbs'),
-				accessibilityProvider: new DocumentSymbolAccessibilityProvider(localize('breadcrumbs', "Breadcrumbs")),
-			}
-		};
-
-		this.treeConfig = {
-			delegate,
-			renderers,
-			treeDataSource,
-			comparator,
-			options: {
-				...options,
-				filter: instantiationService.createInstance(DocumentSymbolFilter, 'outline'),
-				accessibilityProvider: new DocumentSymbolAccessibilityProvider(localize('outline', "Outline")),
-			}
-		};
-
-		this.quickPickConfig = {
+			options,
 			quickPickDataSource: { getQuickPickElements: () => { throw new Error('not implemented'); } }
 		};
+
 
 		// update as language, model, providers changes
 		this._disposables.add(DocumentSymbolProviderRegistry.onDidChange(_ => this._createOutline()));
@@ -426,11 +413,11 @@ class DocumentSymbolsOutlineCreator implements IOutlineCreator<IEditorPane, Docu
 		return isCodeEditor(ctrl) || isDiffEditor(ctrl);
 	}
 
-	async createOutline(pane: IEditorPane, token: CancellationToken): Promise<IOutline<DocumentSymbolItem> | undefined> {
+	async createOutline(pane: IEditorPane, target: OutlineTarget, _token: CancellationToken): Promise<IOutline<DocumentSymbolItem> | undefined> {
 		const control = pane.getControl();
 		let editor: ICodeEditor | undefined;
 		if (isCodeEditor(control)) {
-			editor = control as ICodeEditor;
+			editor = control;
 		} else if (isDiffEditor(control)) {
 			editor = control.getModifiedEditor();
 		}
@@ -438,7 +425,7 @@ class DocumentSymbolsOutlineCreator implements IOutlineCreator<IEditorPane, Docu
 			return undefined;
 		}
 		const firstLoadBarrier = new Barrier();
-		const result = this._instantiationService.createInstance(DocumentSymbolsOutline, editor, firstLoadBarrier);
+		const result = this._instantiationService.createInstance(DocumentSymbolsOutline, editor, target, firstLoadBarrier);
 		await firstLoadBarrier.wait();
 		return result;
 	}

@@ -312,7 +312,7 @@ export class ReplDelegate extends CachedListVirtualDelegate<IReplElement> {
 
 		// Calculate a rough overestimation for the height
 		// For every 70 characters increase the number of lines needed beyond the first
-		if (hasValue(element)) {
+		if (hasValue(element) && !(element instanceof Variable)) {
 			let value = element.value;
 			let valueRows = countNumberOfLines(value) + (ignoreValueLength ? 0 : Math.floor(value.length / 70));
 
@@ -344,6 +344,10 @@ export class ReplDelegate extends CachedListVirtualDelegate<IReplElement> {
 	}
 
 	hasDynamicHeight(element: IReplElement): boolean {
+		if (element instanceof Variable) {
+			// Variables should always be in one line #111843
+			return false;
+		}
 		// Empty elements should not have dynamic height since they will be invisible
 		return element.toString().length > 0;
 	}

@@ -11,7 +11,7 @@ import { NodeSocket } from 'vs/base/parts/ipc/node/ipc.net';
 import { ILogService } from 'vs/platform/log/common/log';
 import { IProductService } from 'vs/platform/product/common/productService';
 import { connectRemoteAgentTunnel, IConnectionOptions, IAddressProvider, ISocketFactory } from 'vs/platform/remote/common/remoteAgentConnection';
-import { AbstractTunnelService, isPortPrivileged, RemoteTunnel } from 'vs/platform/remote/common/tunnel';
+import { AbstractTunnelService, RemoteTunnel } from 'vs/platform/remote/common/tunnel';
 import { nodeSocketFactory } from 'vs/platform/remote/node/nodeSocketFactory';
 import { ISignService } from 'vs/platform/sign/common/sign';
 
@@ -26,6 +26,7 @@ class NodeRemoteTunnel extends Disposable implements RemoteTunnel {
 	public tunnelLocalPort!: number;
 	public tunnelRemoteHost: string;
 	public localAddress!: string;
+	public readonly public = false;
 
 	private readonly _options: IConnectionOptions;
 	private readonly _server: net.Server;
@@ -139,7 +140,7 @@ export class BaseTunnelService extends AbstractTunnelService {
 		super(logService);
 	}
 
-	protected retainOrCreateTunnel(addressProvider: IAddressProvider, remoteHost: string, remotePort: number, localPort: number | undefined, elevateIfNeeded: boolean): Promise<RemoteTunnel | undefined> | undefined {
+	protected retainOrCreateTunnel(addressProvider: IAddressProvider, remoteHost: string, remotePort: number, localPort: number | undefined, elevateIfNeeded: boolean, isPublic: boolean): Promise<RemoteTunnel | undefined> | undefined {
 		const existing = this.getTunnelFromMap(remoteHost, remotePort);
 		if (existing) {
 			++existing.refcount;
@@ -147,14 +148,7 @@ export class BaseTunnelService extends AbstractTunnelService {
 		}
 
 		if (this._tunnelProvider) {
-			const preferredLocalPort = localPort === undefined ? remotePort : localPort;
-			const creationInfo = { elevationRequired: elevateIfNeeded ? isPortPrivileged(preferredLocalPort) : false };
-			const tunnelOptions = { remoteAddress: { host: remoteHost, port: remotePort }, localAddressPort: localPort };
-			const tunnel = this._tunnelProvider.forwardPort(tunnelOptions, creationInfo);
-			if (tunnel) {
-				this.addTunnelToMap(remoteHost, remotePort, tunnel);
-			}
-			return tunnel;
+			return this.createWithProvider(this._tunnelProvider, remoteHost, remotePort, localPort, elevateIfNeeded, isPublic);
 		} else {
 			const options: IConnectionOptions = {
 				commit: this.productService.commit,

@@ -10,7 +10,7 @@ import { IExtensionManifest, ExtensionKind } from 'vs/platform/extensions/common
 suite('ExtensionKind', () => {
 
 	function check(manifest: Partial<IExtensionManifest>, expected: ExtensionKind[]): void {
-		assert.deepEqual(deduceExtensionKind(<IExtensionManifest>manifest), expected);
+		assert.deepStrictEqual(deduceExtensionKind(<IExtensionManifest>manifest), expected);
 	}
 
 	test('declarative with extension dependencies => workspace', () => {

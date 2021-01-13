@@ -322,8 +322,8 @@ export class EditorGroupView extends Themable implements IEditorGroupView {
 	private createContainerContextMenu(): void {
 		const menu = this._register(this.menuService.createMenu(MenuId.EmptyEditorGroupContext, this.contextKeyService));
 
-		this._register(addDisposableListener(this.element, EventType.CONTEXT_MENU, event => this.onShowContainerContextMenu(menu, event)));
-		this._register(addDisposableListener(this.element, TouchEventType.Contextmenu, event => this.onShowContainerContextMenu(menu)));
+		this._register(addDisposableListener(this.element, EventType.CONTEXT_MENU, e => this.onShowContainerContextMenu(menu, e)));
+		this._register(addDisposableListener(this.element, TouchEventType.Contextmenu, () => this.onShowContainerContextMenu(menu)));
 	}
 
 	private onShowContainerContextMenu(menu: IMenu, e?: MouseEvent): void {
@@ -1771,7 +1771,7 @@ export interface EditorReplacement {
 	readonly options?: EditorOptions;
 }
 
-registerThemingParticipant((theme, collector, environment) => {
+registerThemingParticipant((theme, collector) => {
 
 	// Letterpress
 	const letterpress = `./media/letterpress${theme.type === 'dark' ? '-dark' : theme.type === 'hc' ? '-hc' : ''}.svg`;

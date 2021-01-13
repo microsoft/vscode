@@ -315,6 +315,12 @@ function _resolveSettingsTree(tocData: ITOCEntry<string>, allSettings: Set<ISett
 	};
 }
 
+const knownDynamicSettingGroups = [
+	/^settingsSync\..*/,
+	/^sync\..*/,
+	/^workbench.fontAliasing$/,
+];
+
 function getMatchingSettings(allSettings: Set<ISetting>, pattern: string, logService: ILogService): ISetting[] {
 	const result: ISetting[] = [];
 
@@ -325,7 +331,7 @@ function getMatchingSettings(allSettings: Set<ISetting>, pattern: string, logSer
 		}
 	});
 
-	if (!result.length) {
+	if (!result.length && !knownDynamicSettingGroups.some(r => r.test(pattern))) {
 		logService.warn(`Settings pattern "${pattern}" doesn't match any settings`);
 	}
 

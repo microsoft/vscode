@@ -26,7 +26,7 @@ import { onUnexpectedError } from 'vs/base/common/errors';
 import { ServicesAccessor } from 'vs/platform/instantiation/common/instantiation';
 import { KeybindingWeight } from 'vs/platform/keybinding/common/keybindingsRegistry';
 import { IQuickAccessTextEditorContext } from 'vs/editor/contrib/quickAccess/editorNavigationQuickAccess';
-import { IOutlineService } from 'vs/workbench/services/outline/browser/outline';
+import { IOutlineService, OutlineTarget } from 'vs/workbench/services/outline/browser/outline';
 import { isCompositeEditor } from 'vs/editor/browser/editorBrowser';
 
 export class GotoSymbolQuickAccessProvider extends AbstractGotoSymbolQuickAccessProvider {
@@ -143,7 +143,7 @@ export class GotoSymbolQuickAccessProvider extends AbstractGotoSymbolQuickAccess
 
 		picker.busy = true;
 
-		this.outlineService.createOutline(pane, cts.token).then(outline => {
+		this.outlineService.createOutline(pane, OutlineTarget.QuickPick, cts.token).then(outline => {
 
 			if (!outline) {
 				return;
@@ -162,7 +162,7 @@ export class GotoSymbolQuickAccessProvider extends AbstractGotoSymbolQuickAccess
 				}
 			}));
 
-			const entries = Array.from(outline.quickPickConfig.quickPickDataSource.getQuickPickElements());
+			const entries = Array.from(outline.config.quickPickDataSource.getQuickPickElements());
 
 			const items: IGotoSymbolQuickPickItem[] = entries.map((entry, idx) => {
 				return {

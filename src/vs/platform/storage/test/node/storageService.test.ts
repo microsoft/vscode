@@ -6,8 +6,6 @@
 import { equal } from 'assert';
 import { StorageScope, StorageTarget } from 'vs/platform/storage/common/storage';
 import { NativeStorageService } from 'vs/platform/storage/node/storageService';
-import { generateUuid } from 'vs/base/common/uuid';
-import { join } from 'vs/base/common/path';
 import { tmpdir } from 'os';
 import { mkdirp, rimraf } from 'vs/base/node/pfs';
 import { NullLogService } from 'vs/platform/log/common/log';
@@ -15,15 +13,21 @@ import { NativeEnvironmentService } from 'vs/platform/environment/node/environme
 import { parseArgs, OPTIONS } from 'vs/platform/environment/node/argv';
 import { InMemoryStorageDatabase } from 'vs/base/parts/storage/common/storage';
 import { URI } from 'vs/base/common/uri';
-import { flakySuite } from 'vs/base/test/node/testUtils';
+import { flakySuite, getRandomTestPath } from 'vs/base/test/node/testUtils';
 
 flakySuite('NativeStorageService', function () {
 
-	function uniqueStorageDir(): string {
-		const id = generateUuid();
+	let testDir: string;
 
-		return join(tmpdir(), 'vsctests', id, 'storage2', id);
-	}
+	setup(() => {
+		testDir = getRandomTestPath(tmpdir(), 'vsctests', 'storageservice');
+
+		return mkdirp(testDir);
+	});
+
+	teardown(() => {
+		return rimraf(testDir);
+	});
 
 	test('Migrate Data', async function () {
 
@@ -42,10 +46,7 @@ flakySuite('NativeStorageService', function () {
 			}
 		}
 
-		const storageDir = uniqueStorageDir();
-		await mkdirp(storageDir);
-
-		const storage = new NativeStorageService(new InMemoryStorageDatabase(), new NullLogService(), new StorageTestEnvironmentService(URI.file(storageDir), storageDir));
+		const storage = new NativeStorageService(new InMemoryStorageDatabase(), new NullLogService(), new StorageTestEnvironmentService(URI.file(testDir), testDir));
 		await storage.initialize({ id: String(Date.now()) });
 
 		storage.store('bar', 'foo', StorageScope.WORKSPACE, StorageTarget.MACHINE);
@@ -63,6 +64,5 @@ flakySuite('NativeStorageService', function () {
 		equal(storage.getBoolean('barBoolean', StorageScope.GLOBAL), true);
 
 		await storage.close();
-		await rimraf(storageDir);
 	});
 });

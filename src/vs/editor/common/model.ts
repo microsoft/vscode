@@ -601,12 +601,6 @@ export interface ITextModel {
 	setValue(newValue: string): void;
 
 	/**
-	 * Replace the entire text buffer value contained in this model.
-	 * @internal
-	 */
-	setValueFromTextBuffer(newValue: ITextBuffer): void;
-
-	/**
 	 * Get the text stored in this model.
 	 * @param eol The end of line character preference. Defaults to `EndOfLinePreference.TextDefined`.
 	 * @param preserverBOM Preserve a BOM character if it was detected when the model was constructed.
@@ -1276,7 +1270,7 @@ export interface ITextBufferBuilder {
  * @internal
  */
 export interface ITextBufferFactory {
-	create(defaultEOL: DefaultEndOfLine): ITextBuffer;
+	create(defaultEOL: DefaultEndOfLine): { textBuffer: ITextBuffer; disposable: IDisposable; };
 	getFirstLineText(lengthLimit: number): string;
 }
 

@@ -76,8 +76,8 @@ class OutlineItem extends BreadcrumbsItem {
 			return;
 		}
 
-		const templateId = outline.breadcrumbsConfig.delegate.getTemplateId(element);
-		const renderer = outline.breadcrumbsConfig.renderers.find(renderer => renderer.templateId === templateId);
+		const templateId = outline.config.delegate.getTemplateId(element);
+		const renderer = outline.config.renderers.find(renderer => renderer.templateId === templateId);
 		if (!renderer) {
 			container.innerText = '<<NO RENDERER>>';
 			return;

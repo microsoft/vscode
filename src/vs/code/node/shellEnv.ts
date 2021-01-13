@@ -59,7 +59,7 @@ export async function resolveShellEnv(logService: ILogService, args: NativeParse
 let unixShellEnvPromise: Promise<typeof process.env> | undefined = undefined;
 
 async function doResolveUnixShellEnv(logService: ILogService): Promise<typeof process.env> {
-	const promise = new Promise<typeof process.env>((resolve, reject) => {
+	const promise = new Promise<typeof process.env>(async (resolve, reject) => {
 		const runAsNode = process.env['ELECTRON_RUN_AS_NODE'];
 		logService.trace('getUnixShellEnvironment#runAsNode', runAsNode);
 
@@ -79,7 +79,7 @@ async function doResolveUnixShellEnv(logService: ILogService): Promise<typeof pr
 		logService.trace('getUnixShellEnvironment#env', env);
 		logService.trace('getUnixShellEnvironment#spawn', command);
 
-		const systemShellUnix = getSystemShell(platform);
+		const systemShellUnix = await getSystemShell(platform);
 		const child = spawn(systemShellUnix, ['-ilc', command], {
 			detached: true,
 			stdio: ['ignore', 'pipe', process.stderr],

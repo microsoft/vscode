@@ -6,7 +6,7 @@
 import 'vs/css!./media/debugViewlet';
 import * as nls from 'vs/nls';
 import { IAction, IActionViewItem } from 'vs/base/common/actions';
-import { IDebugService, VIEWLET_ID, State, BREAKPOINTS_VIEW_ID, CONTEXT_DEBUG_UX, CONTEXT_DEBUG_UX_KEY, REPL_VIEW_ID, CONTEXT_DEBUG_STATE, ILaunch, getStateLabel } from 'vs/workbench/contrib/debug/common/debug';
+import { IDebugService, VIEWLET_ID, State, BREAKPOINTS_VIEW_ID, CONTEXT_DEBUG_UX, CONTEXT_DEBUG_UX_KEY, REPL_VIEW_ID, CONTEXT_DEBUG_STATE, ILaunch, getStateLabel, CONTEXT_DEBUGGERS_AVAILABLE } from 'vs/workbench/contrib/debug/common/debug';
 import { StartDebugActionViewItem, FocusSessionActionViewItem } from 'vs/workbench/contrib/debug/browser/debugActionViewItems';
 import { IInstantiationService, ServicesAccessor } from 'vs/platform/instantiation/common/instantiation';
 import { IExtensionService } from 'vs/workbench/services/extensions/common/extensions';
@@ -193,7 +193,11 @@ registerAction2(class extends Action2 {
 	constructor() {
 		super({
 			id: DEBUG_CONFIGURE_COMMAND_ID,
-			title: DEBUG_CONFIGURE_LABEL,
+			title: {
+				value: DEBUG_CONFIGURE_LABEL,
+				original: DEBUG_CONFIGURE_LABEL,
+				mnemonicTitle: nls.localize({ key: 'miOpenConfigurations', comment: ['&& denotes a mnemonic'] }, "Open &&Configurations")
+			},
 			f1: true,
 			icon: debugConfigure,
 			precondition: CONTEXT_DEBUG_UX.notEqualsTo('simple'),
@@ -208,6 +212,11 @@ registerAction2(class extends Action2 {
 				order: 20,
 				// Show in debug viewlet secondary actions when debugging and debug toolbar is docked
 				when: ContextKeyExpr.and(ContextKeyEqualsExpr.create('viewContainer', VIEWLET_ID), CONTEXT_DEBUG_STATE.notEqualsTo('inactive'), ContextKeyExpr.equals('config.debug.toolBarLocation', 'docked'))
+			}, {
+				id: MenuId.MenubarDebugMenu,
+				group: '2_configuration',
+				order: 1,
+				when: CONTEXT_DEBUGGERS_AVAILABLE
 			}]
 		});
 	}
@@ -246,7 +255,11 @@ registerAction2(class extends Action2 {
 	constructor() {
 		super({
 			id: OPEN_REPL_COMMAND_ID,
-			title: nls.localize('debugPanel', "Debug Console"),
+			title: {
+				value: nls.localize('debugPanel', "Debug Console"),
+				original: 'Debug Console',
+				mnemonicTitle: nls.localize({ key: 'miToggleDebugConsole', comment: ['&& denotes a mnemonic'] }, "De&&bug Console")
+			},
 			f1: true,
 			keybinding: {
 				primary: KeyMod.CtrlCmd | KeyMod.Shift | KeyCode.KEY_Y,
@@ -258,6 +271,10 @@ registerAction2(class extends Action2 {
 				id: ViewsSubMenu,
 				order: 30,
 				when: ContextKeyExpr.and(ContextKeyEqualsExpr.create('viewContainer', VIEWLET_ID))
+			}, {
+				id: MenuId.MenubarViewMenu,
+				group: '4_panels',
+				order: 2
 			}]
 		});
 	}

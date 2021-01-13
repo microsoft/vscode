@@ -16,17 +16,23 @@ import { IEditorPane } from 'vs/workbench/common/editor';
 
 export const IOutlineService = createDecorator<IOutlineService>('IOutlineService');
 
+export const enum OutlineTarget {
+	OutlinePane = 1,
+	Breadcrumbs = 2,
+	QuickPick = 4
+}
+
 export interface IOutlineService {
 	_serviceBrand: undefined;
 	onDidChange: Event<void>;
 	canCreateOutline(editor: IEditorPane): boolean;
-	createOutline(editor: IEditorPane, token: CancellationToken): Promise<IOutline<any> | undefined>;
+	createOutline(editor: IEditorPane, target: OutlineTarget, token: CancellationToken): Promise<IOutline<any> | undefined>;
 	registerOutlineCreator(creator: IOutlineCreator<any, any>): IDisposable;
 }
 
 export interface IOutlineCreator<P extends IEditorPane, E> {
 	matches(candidate: IEditorPane): candidate is P;
-	createOutline(editor: P, token: CancellationToken): Promise<IOutline<E> | undefined>;
+	createOutline(editor: P, target: OutlineTarget, token: CancellationToken): Promise<IOutline<E> | undefined>;
 }
 
 export interface IBreadcrumbsDataSource<E> {
@@ -37,23 +43,6 @@ export interface IOutlineComparator<E> {
 	compareByPosition(a: E, b: E): number;
 	compareByType(a: E, b: E): number;
 	compareByName(a: E, b: E): number;
-}
-
-export interface IOutlineBreadcrumbsConfig<E> {
-	readonly breadcrumbsDataSource: IBreadcrumbsDataSource<E>;
-	readonly treeDataSource: IDataSource<IOutline<E>, E>;
-	readonly delegate: IListVirtualDelegate<E>;
-	readonly renderers: ITreeRenderer<E, FuzzyScore, any>[];
-	readonly comparator: IOutlineComparator<E>;
-	readonly options: IWorkbenchDataTreeOptions<E, FuzzyScore>;
-}
-
-export interface IOutlineTreeConfig<E> {
-	readonly treeDataSource: IDataSource<IOutline<E>, E>;
-	readonly delegate: IListVirtualDelegate<E>;
-	readonly renderers: ITreeRenderer<E, FuzzyScore, any>[];
-	readonly comparator: IOutlineComparator<E>;
-	readonly options: IWorkbenchDataTreeOptions<E, FuzzyScore>;
 }
 
 export interface IQuickPickOutlineElement<E> {
@@ -68,8 +57,14 @@ export interface IQuickPickDataSource<E> {
 	getQuickPickElements(): Iterable<IQuickPickOutlineElement<E>>;
 }
 
-export interface IOutlineQuickPickConfig<E> {
-	readonly quickPickDataSource: IQuickPickDataSource<E>,
+export interface IOutlineListConfig<E> {
+	readonly breadcrumbsDataSource: IBreadcrumbsDataSource<E>;
+	readonly treeDataSource: IDataSource<IOutline<E>, E>;
+	readonly delegate: IListVirtualDelegate<E>;
+	readonly renderers: ITreeRenderer<E, FuzzyScore, any>[];
+	readonly comparator: IOutlineComparator<E>;
+	readonly options: IWorkbenchDataTreeOptions<E, FuzzyScore>;
+	readonly quickPickDataSource: IQuickPickDataSource<E>;
 }
 
 export interface OutlineChangeEvent {
@@ -78,9 +73,7 @@ export interface OutlineChangeEvent {
 
 export interface IOutline<E> {
 
-	readonly breadcrumbsConfig: IOutlineBreadcrumbsConfig<E>;
-	readonly treeConfig: IOutlineTreeConfig<E>;
-	readonly quickPickConfig: IOutlineQuickPickConfig<E>;
+	readonly config: IOutlineListConfig<E>;
 	readonly outlineKind: string;
 
 	readonly isEmpty: boolean;

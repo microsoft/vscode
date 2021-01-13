@@ -14,7 +14,7 @@ import { localize } from 'vs/nls';
 import { IContextKey, IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
 import { INotificationService } from 'vs/platform/notification/common/notification';
 import { ExtHostTestingResource } from 'vs/workbench/api/common/extHost.protocol';
-import { AbstractIncrementalTestCollection, collectTestResults, EMPTY_TEST_RESULT, getTestSubscriptionKey, IncrementalTestCollectionItem, InternalTestItem, RunTestsRequest, RunTestsResult, TestDiffOpType, TestsDiff } from 'vs/workbench/contrib/testing/common/testCollection';
+import { AbstractIncrementalTestCollection, collectTestResults, EMPTY_TEST_RESULT, getTestSubscriptionKey, IncrementalTestCollectionItem, InternalTestItem, RunTestsRequest, RunTestsResult, TestDiffOpType, TestIdWithProvider, TestsDiff } from 'vs/workbench/contrib/testing/common/testCollection';
 import { TestingContextKeys } from 'vs/workbench/contrib/testing/common/testingContextKeys';
 import { ITestService, MainTestController, TestDiffListener } from 'vs/workbench/contrib/testing/common/testService';
 
@@ -105,6 +105,13 @@ export class TestService extends Disposable implements ITestService {
 		return Iterable.map(Iterable.filter(this.testSubscriptions.values(), s => s.stillDiscovering > 0), s => s.ident);
 	}
 
+	/**
+	 * @inheritdoc
+	 */
+	public async lookupTest(test: TestIdWithProvider) {
+		return this.testControllers.get(test.providerId)?.lookupTest(test);
+	}
+
 
 	/**
 	 * @inheritdoc
@@ -153,6 +160,18 @@ export class TestService extends Disposable implements ITestService {
 		const isBusy = !!subscription.stillDiscovering;
 		if (wasBusy !== isBusy) {
 			this.busyStateChangeEmitter.fire({ resource, uri, busy: isBusy });
+		}
+	}
+
+	/**
+	 * @inheritdoc
+	 */
+	public resubscribeToAllTests() {
+		for (const subscription of this.testSubscriptions.values()) {
+			this.unsubscribeEmitter.fire(subscription.ident);
+			const diff = subscription.collection.clear();
+			subscription.onDiff.fire(diff);
+			this.subscribeEmitter.fire(subscription.ident);
 		}
 	}
 
@@ -237,6 +256,22 @@ class MainThreadTestCollection extends AbstractIncrementalTestCollection<Increme
 				queue.push(item.children);
 			}
 		}
+
+		return ops;
+	}
+
+	/**
+	 * Clears everything from the collection, and returns a diff that applies
+	 * that action.
+	 */
+	public clear() {
+		const ops: TestsDiff = [];
+		for (const root of this.roots) {
+			ops.push([TestDiffOpType.Remove, root]);
+		}
+
+		this.roots.clear();
+		this.items.clear();
 
 		return ops;
 	}

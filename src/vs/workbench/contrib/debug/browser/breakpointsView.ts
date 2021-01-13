@@ -38,8 +38,10 @@ import * as icons from 'vs/workbench/contrib/debug/browser/debugIcons';
 import { registerAction2, Action2, MenuId, IMenu, IMenuService } from 'vs/platform/actions/common/actions';
 import { localize } from 'vs/nls';
 import { ServicesAccessor } from 'vs/editor/browser/editorExtensions';
-import { createAndFillInContextMenuActions } from 'vs/platform/actions/browser/menuEntryActionViewItem';
+import { createAndFillInContextMenuActions, createAndFillInActionBarActions } from 'vs/platform/actions/browser/menuEntryActionViewItem';
 import { isCodeEditor } from 'vs/editor/browser/editorBrowser';
+import { ActionBar } from 'vs/base/browser/ui/actionbar/actionbar';
+import { Codicon } from 'vs/base/common/codicons';
 
 const $ = dom.$;
 
@@ -109,7 +111,7 @@ export class BreakpointsView extends ViewPane {
 
 		this.list = <WorkbenchList<BreakpointItem>>this.instantiationService.createInstance(WorkbenchList, 'Breakpoints', container, delegate, [
 			this.instantiationService.createInstance(BreakpointsRenderer),
-			new ExceptionBreakpointsRenderer(this.debugService),
+			new ExceptionBreakpointsRenderer(this.menu, this.debugService),
 			new ExceptionBreakpointInputRenderer(this.debugService, this.contextViewService, this.themeService),
 			this.instantiationService.createInstance(FunctionBreakpointsRenderer),
 			this.instantiationService.createInstance(DataBreakpointsRenderer),
@@ -202,12 +204,12 @@ export class BreakpointsView extends ViewPane {
 		this.breakpointItemType.set(type);
 		this.exceptionBreakpointSupportsCondition.set(element instanceof ExceptionBreakpoint && element.supportsCondition);
 
-		const actions: IAction[] = [];
-		const actionsDisposable = createAndFillInContextMenuActions(this.menu, { arg: e.element, shouldForwardArgs: false }, actions);
+		const secondary: IAction[] = [];
+		const actionsDisposable = createAndFillInContextMenuActions(this.menu, { arg: e.element, shouldForwardArgs: false }, { primary: [], secondary }, g => /^inline/.test(g));
 
 		this.contextMenuService.showContextMenu({
 			getAnchor: () => e.anchor,
-			getActions: () => actions,
+			getActions: () => secondary,
 			getActionsContext: () => element,
 			onHide: () => dispose(actionsDisposable)
 		});
@@ -289,7 +291,9 @@ interface IBaseBreakpointTemplateData {
 	name: HTMLElement;
 	checkbox: HTMLInputElement;
 	context: BreakpointItem;
+	actionBar: ActionBar;
 	toDispose: IDisposable[];
+	elementDisposable: IDisposable[];
 }
 
 interface IBaseBreakpointWithIconTemplateData extends IBaseBreakpointTemplateData {
@@ -390,6 +394,7 @@ class BreakpointsRenderer implements IListRenderer<IBreakpoint, IBreakpointTempl
 class ExceptionBreakpointsRenderer implements IListRenderer<IExceptionBreakpoint, IExceptionBreakpointTemplateData> {
 
 	constructor(
+		private menu: IMenu,
 		private debugService: IDebugService
 	) {
 		// noop
@@ -407,6 +412,7 @@ class ExceptionBreakpointsRenderer implements IListRenderer<IExceptionBreakpoint
 
 		data.checkbox = createCheckbox();
 		data.toDispose = [];
+		data.elementDisposable = [];
 		data.toDispose.push(dom.addStandardDisposableListener(data.checkbox, 'change', (e) => {
 			this.debugService.enableOrDisableBreakpoints(!data.context.enabled, data.context);
 		}));
@@ -417,6 +423,8 @@ class ExceptionBreakpointsRenderer implements IListRenderer<IExceptionBreakpoint
 		data.condition = dom.append(data.breakpoint, $('span.condition'));
 		data.breakpoint.classList.add('exception');
 
+		data.actionBar = new ActionBar(data.breakpoint);
+		data.toDispose.push(data.actionBar);
 		return data;
 	}
 
@@ -427,6 +435,15 @@ class ExceptionBreakpointsRenderer implements IListRenderer<IExceptionBreakpoint
 		data.checkbox.checked = exceptionBreakpoint.enabled;
 		data.condition.textContent = exceptionBreakpoint.condition || '';
 		data.condition.title = localize('expressionCondition', "Expression condition: {0}", exceptionBreakpoint.condition);
+
+		const primary: IAction[] = [];
+		data.elementDisposable.push(createAndFillInActionBarActions(this.menu, { arg: exceptionBreakpoint, shouldForwardArgs: true }, { primary, secondary: [] }, g => /^inline/.test(g)));
+		data.actionBar.clear();
+		data.actionBar.push(primary, { icon: true, label: false });
+	}
+
+	disposeElement(_element: IExceptionBreakpoint, _index: number, templateData: IExceptionBreakpointTemplateData): void {
+		dispose(templateData.elementDisposable);
 	}
 
 	disposeTemplate(templateData: IExceptionBreakpointTemplateData): void {
@@ -861,20 +878,28 @@ export function getBreakpointMessageAndIcon(state: State, breakpointsActivated: 
 	};
 }
 
-export const FUNCTION_BREAKPOINT_COMMAND_ID = 'workbench.debug.viewlet.action.addFunctionBreakpointAction';
 registerAction2(class extends Action2 {
 	constructor() {
 		super({
-			id: FUNCTION_BREAKPOINT_COMMAND_ID,
-			title: localize('addFunctionBreakpoint', "Add Function Breakpoint"),
+			id: 'workbench.debug.viewlet.action.addFunctionBreakpointAction',
+			title: {
+				value: localize('addFunctionBreakpoint', "Add Function Breakpoint"),
+				original: 'Add Function Breakpoint',
+				mnemonicTitle: localize({ key: 'miFunctionBreakpoint', comment: ['&& denotes a mnemonic'] }, "&&Function Breakpoint...")
+			},
 			f1: true,
 			icon: icons.watchExpressionsAddFuncBreakpoint,
-			menu: {
+			menu: [{
 				id: MenuId.ViewTitle,
 				group: 'navigation',
 				order: 10,
 				when: ContextKeyEqualsExpr.create('view', BREAKPOINTS_VIEW_ID)
-			}
+			}, {
+				id: MenuId.MenubarNewBreakpointMenu,
+				group: '1_breakpoints',
+				order: 3,
+				when: CONTEXT_DEBUGGERS_AVAILABLE
+			}]
 		});
 	}
 
@@ -1059,12 +1084,17 @@ registerAction2(class extends Action2 {
 	constructor() {
 		super({
 			id: 'workbench.action.debug.editExceptionBreakpointCondition',
-			title: localize('editCondition', "Edit Condition"),
+			title: localize('editCondition', "Edit Condition..."),
+			icon: Codicon.edit,
 			menu: [{
 				id: MenuId.DebugBreakpointsContext,
 				group: 'navigation',
 				order: 10,
-				when: CONTEXT_EXCEPTION_BREAKPOINT_SUPPORTS_CONDITION
+				when: ContextKeyExpr.and(CONTEXT_EXCEPTION_BREAKPOINT_SUPPORTS_CONDITION, CONTEXT_BREAKPOINT_ITEM_TYPE.isEqualTo('exceptionBreakpoint'))
+			}, {
+				id: MenuId.DebugBreakpointsContext,
+				group: 'inline',
+				order: 10,
 			}]
 		});
 	}

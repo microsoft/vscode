@@ -15,7 +15,7 @@ import { IConfigurationService } from 'vs/platform/configuration/common/configur
 import { BreadcrumbsConfig } from 'vs/workbench/browser/parts/editor/breadcrumbs';
 import { FileKind } from 'vs/platform/files/common/files';
 import { withNullAsUndefined } from 'vs/base/common/types';
-import { IOutline, IOutlineService } from 'vs/workbench/services/outline/browser/outline';
+import { IOutline, IOutlineService, OutlineTarget } from 'vs/workbench/services/outline/browser/outline';
 import { IEditorPane } from 'vs/workbench/common/editor';
 
 export class FileElement {
@@ -104,7 +104,7 @@ export class BreadcrumbsModel {
 		}
 
 		let didAddOutlineElement = false;
-		for (let element of this._currentOutline.value.breadcrumbsConfig.breadcrumbsDataSource.getBreadcrumbElements()) {
+		for (let element of this._currentOutline.value.config.breadcrumbsDataSource.getBreadcrumbElements()) {
 			result.push(new OutlineElement2(element, this._currentOutline.value));
 			didAddOutlineElement = true;
 		}
@@ -154,7 +154,7 @@ export class BreadcrumbsModel {
 		this._outlineDisposables.clear();
 		this._outlineDisposables.add(toDisposable(() => newCts.dispose(true)));
 
-		this._outlineService.createOutline(editor, newCts.token).then(outline => {
+		this._outlineService.createOutline(editor, OutlineTarget.Breadcrumbs, newCts.token).then(outline => {
 			if (newCts.token.isCancellationRequested) {
 				// cancelled: dispose new outline and reset
 				outline?.dispose();

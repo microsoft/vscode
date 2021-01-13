@@ -70,6 +70,8 @@ interface ITunnelOptions {
 	localAddressPort?: number;
 
 	label?: string;
+
+	public?: boolean;
 }
 
 export interface TunnelCreationOptions {
@@ -86,6 +88,8 @@ interface ITunnel {
 	 * The complete local address(ex. localhost:1234)
 	 */
 	localAddress: string;
+
+	public?: boolean;
 
 	/**
 	 * Implementers of Tunnel should fire onDidDispose when dispose is called.

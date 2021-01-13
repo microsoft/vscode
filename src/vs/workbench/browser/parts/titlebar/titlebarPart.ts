@@ -4,6 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import 'vs/css!./media/titlebarpart';
+import { localize } from 'vs/nls';
 import { dirname, basename } from 'vs/base/common/resources';
 import { Part } from 'vs/workbench/browser/part';
 import { ITitleService, ITitleProperties } from 'vs/workbench/services/title/common/titleService';
@@ -15,11 +16,10 @@ import { IAction } from 'vs/base/common/actions';
 import { IConfigurationService, IConfigurationChangeEvent } from 'vs/platform/configuration/common/configuration';
 import { IEditorService } from 'vs/workbench/services/editor/common/editorService';
 import { DisposableStore, dispose } from 'vs/base/common/lifecycle';
-import * as nls from 'vs/nls';
 import { EditorResourceAccessor, Verbosity, SideBySideEditor } from 'vs/workbench/common/editor';
 import { IWorkbenchEnvironmentService } from 'vs/workbench/services/environment/common/environmentService';
 import { IWorkspaceContextService, WorkbenchState, IWorkspaceFolder } from 'vs/platform/workspace/common/workspace';
-import { IThemeService, registerThemingParticipant, IColorTheme, ICssStyleCollector } from 'vs/platform/theme/common/themeService';
+import { IThemeService, registerThemingParticipant } from 'vs/platform/theme/common/themeService';
 import { TITLE_BAR_ACTIVE_BACKGROUND, TITLE_BAR_ACTIVE_FOREGROUND, TITLE_BAR_INACTIVE_FOREGROUND, TITLE_BAR_INACTIVE_BACKGROUND, TITLE_BAR_BORDER, WORKBENCH_BACKGROUND } from 'vs/workbench/common/theme';
 import { isMacintosh, isWindows, isLinux, isWeb } from 'vs/base/common/platform';
 import { URI } from 'vs/base/common/uri';
@@ -44,9 +44,9 @@ import { withNullAsUndefined } from 'vs/base/common/types';
 
 export class TitlebarPart extends Part implements ITitleService {
 
-	private static readonly NLS_UNSUPPORTED = nls.localize('patchedWindowTitle', "[Unsupported]");
-	private static readonly NLS_USER_IS_ADMIN = isWindows ? nls.localize('userIsAdmin', "[Administrator]") : nls.localize('userIsSudo', "[Superuser]");
-	private static readonly NLS_EXTENSION_HOST = nls.localize('devExtensionWindowTitlePrefix', "[Extension Development Host]");
+	private static readonly NLS_UNSUPPORTED = localize('patchedWindowTitle', "[Unsupported]");
+	private static readonly NLS_USER_IS_ADMIN = isWindows ? localize('userIsAdmin', "[Administrator]") : localize('userIsSudo', "[Superuser]");
+	private static readonly NLS_EXTENSION_HOST = localize('devExtensionWindowTitlePrefix', "[Extension Development Host]");
 	private static readonly TITLE_DIRTY = '\u25cf ';
 
 	//#region IView
@@ -497,7 +497,7 @@ export class TitlebarPart extends Part implements ITitleService {
 	}
 }
 
-registerThemingParticipant((theme: IColorTheme, collector: ICssStyleCollector) => {
+registerThemingParticipant((theme, collector) => {
 	const titlebarActiveFg = theme.getColor(TITLE_BAR_ACTIVE_FOREGROUND);
 	if (titlebarActiveFg) {
 		collector.addRule(`

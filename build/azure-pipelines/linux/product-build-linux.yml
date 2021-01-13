@@ -152,7 +152,7 @@ steps:
       set -e
       yarn --cwd test/integration/browser compile
     displayName: Compile integration tests
-    condition: and(succeeded(), eq(variables.NODE_MODULES_RESTORED, 'true'), eq(variables['VSCODE_ARCH'], 'x64'), eq(variables['VSCODE_STEP_ON_IT'], 'false'))
+    condition: and(succeeded(), eq(variables['VSCODE_ARCH'], 'x64'), eq(variables['VSCODE_STEP_ON_IT'], 'false'))
 
   - script: |
       # Figure out the full absolute path of the product we just built
