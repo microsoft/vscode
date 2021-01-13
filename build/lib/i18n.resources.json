@@ -183,6 +183,10 @@
 			"project": "vscode-workbench"
 		},
 		{
+			"name": "vs/workbench/contrib/testing",
+			"project": "vscode-workbench"
+		},
+		{
 			"name": "vs/workbench/contrib/terminal",
 			"project": "vscode-workbench"
 		},
@@ -223,6 +227,10 @@
 			"project": "vscode-workbench"
 		},
 		{
+			"name": "vs/workbench/contrib/externalUriOpener",
+			"project": "vscode-workbench"
+		},
+		{
 			"name": "vs/workbench/contrib/welcome",
 			"project": "vscode-workbench"
 		},
@@ -248,6 +256,10 @@
 		},
 		{
 			"name": "vs/workbench/services/bulkEdit",
+			"project": "vscode-workbench"
+		},
+		{
+			"name": "vs/workbench/services/clipboard",
 			"project": "vscode-workbench"
 		},
 		{

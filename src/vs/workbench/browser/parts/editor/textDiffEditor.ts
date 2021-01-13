@@ -5,7 +5,7 @@
 
 import * as nls from 'vs/nls';
 import * as objects from 'vs/base/common/objects';
-import { isFunction, isObject, isArray, assertIsDefined } from 'vs/base/common/types';
+import { isFunction, isObject, isArray, assertIsDefined, withUndefinedAsNull } from 'vs/base/common/types';
 import { IDiffEditor } from 'vs/editor/browser/editorBrowser';
 import { IDiffEditorOptions, IEditorOptions as ICodeEditorOptions } from 'vs/editor/common/config/editorOptions';
 import { BaseTextEditor, IEditorConfiguration } from 'vs/workbench/browser/parts/editor/textEditor';
@@ -103,7 +103,7 @@ export class TextDiffEditor extends BaseTextEditor implements ITextDiffEditorPan
 	}
 
 	createEditorControl(parent: HTMLElement, configuration: ICodeEditorOptions): IDiffEditor {
-		return this.instantiationService.createInstance(DiffEditorWidget, parent, configuration);
+		return this.instantiationService.createInstance(DiffEditorWidget, parent, configuration, {});
 	}
 
 	async setInput(input: EditorInput, options: EditorOptions | undefined, context: IEditorOpenContext, token: CancellationToken): Promise<void> {
@@ -132,8 +132,8 @@ export class TextDiffEditor extends BaseTextEditor implements ITextDiffEditorPan
 
 			// Set Editor Model
 			const diffEditor = assertIsDefined(this.getControl());
-			const resolvedDiffEditorModel = <TextDiffEditorModel>resolvedModel;
-			diffEditor.setModel(resolvedDiffEditorModel.textDiffEditorModel);
+			const resolvedDiffEditorModel = resolvedModel as TextDiffEditorModel;
+			diffEditor.setModel(withUndefinedAsNull(resolvedDiffEditorModel.textDiffEditorModel));
 
 			// Apply Options from TextOptions
 			let optionsGotApplied = false;

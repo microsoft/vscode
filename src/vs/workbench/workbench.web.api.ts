@@ -19,6 +19,7 @@ import { CommandsRegistry } from 'vs/platform/commands/common/commands';
 import { IProductConfiguration } from 'vs/platform/product/common/productService';
 import { mark } from 'vs/base/common/performance';
 import { ICredentialsProvider } from 'vs/workbench/services/credentials/common/credentials';
+import { TunnelProviderFeatures } from 'vs/platform/remote/common/tunnel';
 
 interface IResourceUriProvider {
 	(uri: URI): URI;
@@ -46,9 +47,14 @@ interface ITunnelProvider {
 	tunnelFactory?: ITunnelFactory;
 
 	/**
-	 * Support for filtering candidate ports
+	 * Support for filtering candidate ports.
 	 */
 	showPortCandidate?: IShowPortCandidate;
+
+	/**
+	 * The features that the tunnel provider supports.
+	 */
+	features?: TunnelProviderFeatures;
 }
 
 interface ITunnelFactory {
@@ -64,6 +70,8 @@ interface ITunnelOptions {
 	localAddressPort?: number;
 
 	label?: string;
+
+	public?: boolean;
 }
 
 export interface TunnelCreationOptions {
@@ -73,7 +81,7 @@ export interface TunnelCreationOptions {
 	elevationRequired?: boolean;
 }
 
-interface ITunnel extends IDisposable {
+interface ITunnel {
 	remoteAddress: { port: number, host: string };
 
 	/**
@@ -81,10 +89,14 @@ interface ITunnel extends IDisposable {
 	 */
 	localAddress: string;
 
+	public?: boolean;
+
 	/**
 	 * Implementers of Tunnel should fire onDidDispose when dispose is called.
 	 */
 	onDidDispose: Event<void>;
+
+	dispose(): Promise<void> | void;
 }
 
 interface IShowPortCandidate {
@@ -442,10 +454,49 @@ interface IWorkbenchConstructionOptions {
 	//#endregion
 }
 
+interface IPerformanceMark {
+	/**
+	 * The name of a performace marker.
+	 */
+	readonly name: string;
+
+	/**
+	 * The UNIX timestamp at which the marker has been set.
+	 */
+	readonly startTime: number;
+}
+
 interface IWorkbench {
 	commands: {
+		/**
+		 * Allows to execute a command, either built-in or from extensions.
+		 */
 		executeCommand(command: string, ...args: any[]): Promise<unknown>;
-	},
+	}
+
+	env: {
+		/**
+		 * Retrieve performance marks that have been collected during startup. This function
+		 * returns tuples of source and marks. A source is a dedicated context, like
+		 * the renderer or an extension host.
+		 *
+		 * *Note* that marks can be collected on different machines and in different processes
+		 * and that therefore "different clocks" are used. So, comparing `startTime`-properties
+		 * across contexts should be taken with a grain of salt.
+		 *
+		 * @returns A promise that resolves to tuples of source and marks.
+		 */
+		retrievePerformanceMarks(): Promise<[string, readonly IPerformanceMark[]][]>;
+	}
+
+	/**
+	 * Triggers shutdown of the workbench programmatically. After this method is
+	 * called, the workbench is not usable anymore and the page needs to reload
+	 * or closed.
+	 *
+	 * This will also remove any `beforeUnload` handlers that would bring up a
+	 * confirmation dialog.
+	 */
 	shutdown: () => void;
 }
 
@@ -461,7 +512,7 @@ const workbenchPromise = new Promise<IWorkbench>(resolve => workbenchPromiseReso
 function create(domElement: HTMLElement, options: IWorkbenchConstructionOptions): IDisposable {
 
 	// Mark start of workbench
-	mark('didLoadWorkbenchMain');
+	mark('code/didLoadWorkbenchMain');
 
 	// Assert that the workbench is not created more than once. We currently
 	// do not support this and require a full context switch to clean-up.
@@ -600,7 +651,10 @@ export {
 	IDefaultEditor,
 	IDefaultLayout,
 	IDefaultPanelLayout,
-	IDefaultSideBarLayout
+	IDefaultSideBarLayout,
+
+	// Env
+	IPerformanceMark
 };
 
 //#endregion

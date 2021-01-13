@@ -9,6 +9,26 @@ import { IActivityService, NumberBadge } from 'vs/workbench/services/activity/co
 import { localize } from 'vs/nls';
 import Constants from './constants';
 import { IWorkbenchContribution } from 'vs/workbench/common/contributions';
+import { MarkersFilters } from 'vs/workbench/contrib/markers/browser/markersViewActions';
+import { Event } from 'vs/base/common/event';
+import { IView } from 'vs/workbench/common/views';
+import { MarkerElement } from 'vs/workbench/contrib/markers/browser/markersModel';
+
+export interface IMarkersView extends IView {
+
+	readonly onDidFocusFilter: Event<void>;
+	readonly onDidClearFilterText: Event<void>;
+	readonly filters: MarkersFilters;
+	readonly onDidChangeFilterStats: Event<{ total: number, filtered: number }>;
+	focusFilter(): void;
+	clearFilterText(): void;
+	getFilterStats(): { total: number, filtered: number };
+
+	getFocusElement(): MarkerElement | undefined;
+
+	collapseAll(): void;
+	setMultiline(multiline: boolean): void;
+}
 
 export class ActivityUpdater extends Disposable implements IWorkbenchContribution {
 

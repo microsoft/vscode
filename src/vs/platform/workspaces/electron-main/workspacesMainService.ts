@@ -8,7 +8,7 @@ import { IEnvironmentMainService } from 'vs/platform/environment/electron-main/e
 import { join, dirname } from 'vs/base/common/path';
 import { mkdirp, writeFile, rimrafSync, readdirSync, writeFileSync } from 'vs/base/node/pfs';
 import { readFileSync, existsSync, mkdirSync } from 'fs';
-import { isLinux } from 'vs/base/common/platform';
+import { isLinux, isWindows } from 'vs/base/common/platform';
 import { Event, Emitter } from 'vs/base/common/event';
 import { ILogService } from 'vs/platform/log/common/log';
 import { createHash } from 'crypto';
@@ -26,7 +26,7 @@ import { MessageBoxOptions, BrowserWindow } from 'electron';
 import { withNullAsUndefined } from 'vs/base/common/types';
 import { IBackupMainService } from 'vs/platform/backup/electron-main/backup';
 import { IDialogMainService } from 'vs/platform/dialogs/electron-main/dialogMainService';
-import { findWindowOnWorkspace } from 'vs/platform/windows/electron-main/window';
+import { findWindowOnWorkspaceOrFolder } from 'vs/platform/windows/electron-main/windowsFinder';
 
 export const IWorkspacesMainService = createDecorator<IWorkspacesMainService>('workspacesMainService');
 
@@ -112,7 +112,7 @@ export class WorkspacesMainService extends Disposable implements IWorkspacesMain
 			return {
 				id: workspaceIdentifier.id,
 				configPath: workspaceIdentifier.configPath,
-				folders: toWorkspaceFolders(workspace.folders, workspaceIdentifier.configPath),
+				folders: toWorkspaceFolders(workspace.folders, workspaceIdentifier.configPath, extUriBiasedIgnorePathCase),
 				remoteAuthority: workspace.remoteAuthority
 			};
 		} catch (error) {
@@ -173,7 +173,7 @@ export class WorkspacesMainService extends Disposable implements IWorkspacesMain
 		const storedWorkspaceFolder: IStoredWorkspaceFolder[] = [];
 
 		for (const folder of folders) {
-			storedWorkspaceFolder.push(getStoredWorkspaceFolder(folder.uri, true, folder.name, untitledWorkspaceConfigFolder));
+			storedWorkspaceFolder.push(getStoredWorkspaceFolder(folder.uri, true, folder.name, untitledWorkspaceConfigFolder, !isWindows, extUriBiasedIgnorePathCase));
 		}
 
 		return {
@@ -266,22 +266,22 @@ export class WorkspacesMainService extends Disposable implements IWorkspacesMain
 		return result;
 	}
 
-	private async isValidTargetWorkspacePath(window: ICodeWindow, windows: ICodeWindow[], path?: URI): Promise<boolean> {
-		if (!path) {
+	private async isValidTargetWorkspacePath(window: ICodeWindow, windows: ICodeWindow[], workspacePath?: URI): Promise<boolean> {
+		if (!workspacePath) {
 			return true;
 		}
 
-		if (window.openedWorkspace && extUriBiasedIgnorePathCase.isEqual(window.openedWorkspace.configPath, path)) {
+		if (window.openedWorkspace && extUriBiasedIgnorePathCase.isEqual(window.openedWorkspace.configPath, workspacePath)) {
 			return false; // window is already opened on a workspace with that path
 		}
 
 		// Prevent overwriting a workspace that is currently opened in another window
-		if (findWindowOnWorkspace(windows, getWorkspaceIdentifier(path))) {
+		if (findWindowOnWorkspaceOrFolder(windows, workspacePath)) {
 			const options: MessageBoxOptions = {
 				title: product.nameLong,
 				type: 'info',
 				buttons: [localize('ok', "OK")],
-				message: localize('workspaceOpenedMessage', "Unable to save workspace '{0}'", basename(path)),
+				message: localize('workspaceOpenedMessage', "Unable to save workspace '{0}'", basename(workspacePath)),
 				detail: localize('workspaceOpenedDetail', "The workspace is already opened in another window. Please close that window first and then try again."),
 				noLink: true
 			};

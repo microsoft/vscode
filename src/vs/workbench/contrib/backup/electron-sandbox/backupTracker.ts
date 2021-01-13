@@ -9,7 +9,7 @@ import { IWorkbenchContribution } from 'vs/workbench/common/contributions';
 import { IFilesConfigurationService, AutoSaveMode } from 'vs/workbench/services/filesConfiguration/common/filesConfigurationService';
 import { IWorkingCopyService, IWorkingCopy, WorkingCopyCapabilities } from 'vs/workbench/services/workingCopy/common/workingCopyService';
 import { ILifecycleService, LifecyclePhase, ShutdownReason } from 'vs/workbench/services/lifecycle/common/lifecycle';
-import { ConfirmResult, IFileDialogService, IDialogService } from 'vs/platform/dialogs/common/dialogs';
+import { ConfirmResult, IFileDialogService, IDialogService, getFileNamesMessage } from 'vs/platform/dialogs/common/dialogs';
 import Severity from 'vs/base/common/severity';
 import { WorkbenchState, IWorkspaceContextService } from 'vs/platform/workspace/common/workspace';
 import { isMacintosh } from 'vs/base/common/platform';
@@ -20,7 +20,9 @@ import { ILogService } from 'vs/platform/log/common/log';
 import { IEditorService } from 'vs/workbench/services/editor/common/editorService';
 import { SaveReason } from 'vs/workbench/common/editor';
 import { IEnvironmentService } from 'vs/platform/environment/common/environment';
-import { CancellationToken } from 'vs/base/common/cancellation';
+import { CancellationToken, CancellationTokenSource } from 'vs/base/common/cancellation';
+import { IProgressService, ProgressLocation } from 'vs/platform/progress/common/progress';
+import { raceCancellation } from 'vs/base/common/async';
 
 export class NativeBackupTracker extends BackupTracker implements IWorkbenchContribution {
 
@@ -47,7 +49,8 @@ export class NativeBackupTracker extends BackupTracker implements IWorkbenchCont
 		@INativeHostService private readonly nativeHostService: INativeHostService,
 		@ILogService logService: ILogService,
 		@IEditorService private readonly editorService: IEditorService,
-		@IEnvironmentService private readonly environmentService: IEnvironmentService
+		@IEnvironmentService private readonly environmentService: IEnvironmentService,
+		@IProgressService private readonly progressService: IProgressService
 	) {
 		super(backupFileService, workingCopyService, logService, lifecycleService);
 	}
@@ -121,7 +124,7 @@ export class NativeBackupTracker extends BackupTracker implements IWorkbenchCont
 
 		// we ran a backup but received an error that we show to the user
 		if (backupError) {
-			this.showErrorDialog(localize('backupTrackerBackupFailed', "One or more dirty editors could not be saved to the back up location."), backupError);
+			this.showErrorDialog(localize('backupTrackerBackupFailed', "The following dirty editors could not be saved to the back up location."), workingCopies, backupError);
 
 			return true; // veto (the backup failed)
 		}
@@ -131,14 +134,21 @@ export class NativeBackupTracker extends BackupTracker implements IWorkbenchCont
 		try {
 			return await this.confirmBeforeShutdown(workingCopies.filter(workingCopy => !backups.includes(workingCopy)));
 		} catch (error) {
-			this.showErrorDialog(localize('backupTrackerConfirmFailed', "One or more dirty editors could not be saved or reverted."), error);
+			this.showErrorDialog(localize('backupTrackerConfirmFailed', "The following dirty editors could not be saved or reverted."), workingCopies, error);
 
 			return true; // veto (save or revert failed)
 		}
 	}
 
-	private showErrorDialog(msg: string, error?: Error): void {
-		this.dialogService.show(Severity.Error, msg, [localize('ok', 'OK')], { detail: localize('backupErrorDetails', "Try saving or reverting the dirty editors first and then try again.") });
+	private showErrorDialog(msg: string, workingCopies: readonly IWorkingCopy[], error?: Error): void {
+		const dirtyEditors = workingCopies.filter(workingCopy => workingCopy.isDirty());
+
+		const advice = localize('backupErrorDetails', "Try saving or reverting the dirty editors first and then try again.");
+		const detail = dirtyEditors.length
+			? getFileNamesMessage(dirtyEditors.map(x => x.name)) + '\n' + advice
+			: advice;
+
+		this.dialogService.show(Severity.Error, msg, [localize('ok', 'OK')], { detail });
 
 		this.logService.error(error ? `[backup tracker] ${msg}: ${error}` : `[backup tracker] ${msg}`);
 	}
@@ -234,9 +244,9 @@ export class NativeBackupTracker extends BackupTracker implements IWorkbenchCont
 		return true; // veto (user canceled)
 	}
 
-	private async doSaveAllBeforeShutdown(workingCopies: IWorkingCopy[], reason: SaveReason): Promise<void>;
-	private async doSaveAllBeforeShutdown(includeUntitled: boolean, reason: SaveReason): Promise<void>;
-	private async doSaveAllBeforeShutdown(arg1: IWorkingCopy[] | boolean, reason: SaveReason): Promise<void> {
+	private doSaveAllBeforeShutdown(workingCopies: IWorkingCopy[], reason: SaveReason): Promise<void>;
+	private doSaveAllBeforeShutdown(includeUntitled: boolean, reason: SaveReason): Promise<void>;
+	private doSaveAllBeforeShutdown(arg1: IWorkingCopy[] | boolean, reason: SaveReason): Promise<void> {
 		const workingCopies = Array.isArray(arg1) ? arg1 : this.workingCopyService.dirtyWorkingCopies.filter(workingCopy => {
 			if (arg1 === false && (workingCopy.capabilities & WorkingCopyCapabilities.Untitled)) {
 				return false; // skip untitled unless explicitly included
@@ -245,21 +255,34 @@ export class NativeBackupTracker extends BackupTracker implements IWorkbenchCont
 			return true;
 		});
 
-		// Skip save participants on shutdown for performance reasons
-		const saveOptions = { skipSaveParticipants: true, reason };
+		const cts = new CancellationTokenSource();
+		return this.progressService.withProgress({
+			location: ProgressLocation.Notification,
+			cancellable: true, // for https://github.com/microsoft/vscode/issues/112278
+			delay: 800, // delay notification so that it only appears when saving takes a long time
+			title: localize('saveBeforeShutdown', "Waiting for dirty editors to save...")
+		}, () => {
+			const saveAllPromise = (async () => {
 
-		// First save through the editor service if we save all to benefit
-		// from some extras like switching to untitled dirty editors before saving.
-		let result: boolean | undefined = undefined;
-		if (typeof arg1 === 'boolean' || workingCopies.length === this.workingCopyService.dirtyCount) {
-			result = await this.editorService.saveAll({ includeUntitled: typeof arg1 === 'boolean' ? arg1 : true, ...saveOptions });
-		}
+				// Skip save participants on shutdown for performance reasons
+				const saveOptions = { skipSaveParticipants: true, reason };
 
-		// If we still have dirty working copies, save those directly
-		// unless the save was not successful (e.g. cancelled)
-		if (result !== false) {
-			await Promise.all(workingCopies.map(workingCopy => workingCopy.isDirty() ? workingCopy.save(saveOptions) : true));
-		}
+				// First save through the editor service if we save all to benefit
+				// from some extras like switching to untitled dirty editors before saving.
+				let result: boolean | undefined = undefined;
+				if (typeof arg1 === 'boolean' || workingCopies.length === this.workingCopyService.dirtyCount) {
+					result = await this.editorService.saveAll({ includeUntitled: typeof arg1 === 'boolean' ? arg1 : true, ...saveOptions });
+				}
+
+				// If we still have dirty working copies, save those directly
+				// unless the save was not successful (e.g. cancelled)
+				if (result !== false) {
+					await Promise.all(workingCopies.map(workingCopy => workingCopy.isDirty() ? workingCopy.save(saveOptions) : true));
+				}
+			})();
+
+			return raceCancellation(saveAllPromise, cts.token);
+		}, () => cts.dispose(true));
 	}
 
 	private async doRevertAllBeforeShutdown(workingCopies: IWorkingCopy[]): Promise<void> {

@@ -576,12 +576,12 @@ suite('Async', () => {
 		sequentializer.setPending(2, async.timeout(1));
 		assert.ok(sequentializer.hasPending());
 		assert.ok(sequentializer.hasPending(2));
-		assert.ok(!sequentializer.hasPending(1));
+		assert.strictEqual(sequentializer.hasPending(1), false);
 		assert.ok(sequentializer.pending);
 
 		await async.timeout(2);
-		assert.ok(!sequentializer.hasPending());
-		assert.ok(!sequentializer.hasPending(2));
+		assert.strictEqual(sequentializer.hasPending(), false);
+		assert.strictEqual(sequentializer.hasPending(2), false);
 		assert.ok(!sequentializer.pending);
 	});
 
@@ -711,7 +711,11 @@ suite('Async', () => {
 		assert.equal(counter.increment(), 2);
 		assert.equal(counter.increment(), 3);
 
+		const now = Date.now();
 		await async.timeout(20);
+		if (Date.now() - now < 11) {
+			return; // Firefox in Playwright seems to have a flaky timeout implementation (https://github.com/microsoft/vscode/issues/114028)
+		}
 
 		assert.equal(counter.increment(), 1);
 		assert.equal(counter.increment(), 2);

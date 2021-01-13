@@ -7,17 +7,16 @@
 'use strict';
 
 const perf = require('./vs/base/common/performance');
+perf.mark('code/didStartMain');
+
 const lp = require('./vs/base/node/languagePacks');
-
-perf.mark('main:started');
-
 const path = require('path');
 const fs = require('fs');
 const os = require('os');
 const bootstrap = require('./bootstrap');
 const bootstrapNode = require('./bootstrap-node');
 const paths = require('./paths');
-/** @type {any} */
+/** @type {Partial<import('./vs/platform/product/common/productService').IProductConfiguration> & { applicationName: string}} */
 const product = require('../product.json');
 const { app, protocol, crashReporter } = require('electron');
 
@@ -194,14 +193,14 @@ function startup(cachedDataDir, nlsConfig) {
 	process.env['VSCODE_NODE_CACHED_DATA_DIR'] = cachedDataDir || '';
 
 	// Load main in AMD
-	perf.mark('willLoadMainBundle');
+	perf.mark('code/willLoadMainBundle');
 	require('./bootstrap-amd').load('vs/code/electron-main/main', () => {
-		perf.mark('didLoadMainBundle');
+		perf.mark('code/didLoadMainBundle');
 	});
 }
 
 async function onReady() {
-	perf.mark('main:appReady');
+	perf.mark('code/mainAppReady');
 
 	try {
 		const [cachedDataDir, nlsConfig] = await Promise.all([nodeCachedDataDir.ensureExists(), resolveNlsConfiguration()]);
@@ -213,9 +212,7 @@ async function onReady() {
 }
 
 /**
- * @typedef	 {{ [arg: string]: any; '--'?: string[]; _: string[]; }} NativeParsedArgs
- *
- * @param {NativeParsedArgs} cliArgs
+ * @param {import('./vs/platform/environment/common/argv').NativeParsedArgs} cliArgs
  */
 function configureCommandlineSwitchesSync(cliArgs) {
 	const SUPPORTED_ELECTRON_SWITCHES = [
@@ -239,7 +236,11 @@ function configureCommandlineSwitchesSync(cliArgs) {
 	const SUPPORTED_MAIN_PROCESS_SWITCHES = [
 
 		// Persistently enable proposed api via argv.json: https://github.com/microsoft/vscode/issues/99775
-		'enable-proposed-api'
+		'enable-proposed-api',
+
+		// TODO@bpasero remove me once testing is done on `vscode-file` protocol
+		// (all traces of `enable-browser-code-loading` and `ENABLE_VSCODE_BROWSER_CODE_LOADING`)
+		'enable-browser-code-loading'
 	];
 
 	// Read argv config
@@ -270,12 +271,20 @@ function configureCommandlineSwitchesSync(cliArgs) {
 
 		// Append main process flags to process.argv
 		else if (SUPPORTED_MAIN_PROCESS_SWITCHES.indexOf(argvKey) !== -1) {
-			if (argvKey === 'enable-proposed-api') {
-				if (Array.isArray(argvValue)) {
-					argvValue.forEach(id => id && typeof id === 'string' && process.argv.push('--enable-proposed-api', id));
-				} else {
-					console.error(`Unexpected value for \`enable-proposed-api\` in argv.json. Expected array of extension ids.`);
-				}
+			switch (argvKey) {
+				case 'enable-proposed-api':
+					if (Array.isArray(argvValue)) {
+						argvValue.forEach(id => id && typeof id === 'string' && process.argv.push('--enable-proposed-api', id));
+					} else {
+						console.error(`Unexpected value for \`enable-proposed-api\` in argv.json. Expected array of extension ids.`);
+					}
+					break;
+
+				case 'enable-browser-code-loading':
+					if (typeof argvValue === 'string') {
+						process.env['ENABLE_VSCODE_BROWSER_CODE_LOADING'] = argvValue;
+					}
+					break;
 			}
 		}
 	});
@@ -284,6 +293,11 @@ function configureCommandlineSwitchesSync(cliArgs) {
 	const jsFlags = getJSFlags(cliArgs);
 	if (jsFlags) {
 		app.commandLine.appendSwitch('js-flags', jsFlags);
+	}
+
+	// Support __sandbox flag
+	if (cliArgs.__sandbox) {
+		process.env['ENABLE_VSCODE_BROWSER_CODE_LOADING'] = 'bypassHeatCheck';
 	}
 
 	return argvConfig;
@@ -368,7 +382,7 @@ function getArgvConfigPath() {
 }
 
 /**
- * @param {NativeParsedArgs} cliArgs
+ * @param {import('./vs/platform/environment/common/argv').NativeParsedArgs} cliArgs
  * @returns {string | null}
  */
 function getJSFlags(cliArgs) {
@@ -388,7 +402,7 @@ function getJSFlags(cliArgs) {
 }
 
 /**
- * @param {NativeParsedArgs} cliArgs
+ * @param {import('./vs/platform/environment/common/argv').NativeParsedArgs} cliArgs
  *
  * @returns {string}
  */
@@ -401,7 +415,7 @@ function getUserDataPath(cliArgs) {
 }
 
 /**
- * @returns {NativeParsedArgs}
+ * @returns {import('./vs/platform/environment/common/argv').NativeParsedArgs}
  */
 function parseCLIArgs() {
 	const minimist = require('minimist');
@@ -450,11 +464,16 @@ function registerListeners() {
 	 * @type {string[]}
 	 */
 	const openUrls = [];
-	const onOpenUrl = function (event, url) {
-		event.preventDefault();
+	const onOpenUrl =
+		/**
+		 * @param {{ preventDefault: () => void; }} event
+		 * @param {string} url
+		 */
+		function (event, url) {
+			event.preventDefault();
 
-		openUrls.push(url);
-	};
+			openUrls.push(url);
+		};
 
 	app.on('will-finish-launching', function () {
 		app.on('open-url', onOpenUrl);

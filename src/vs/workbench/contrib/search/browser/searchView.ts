@@ -55,9 +55,8 @@ import { FileMatch, FileMatchOrMatch, IChangeEvent, ISearchWorkbenchService, Mat
 import { ACTIVE_GROUP, IEditorService, SIDE_GROUP } from 'vs/workbench/services/editor/common/editorService';
 import { IPreferencesService, ISettingsEditorOptions } from 'vs/workbench/services/preferences/common/preferences';
 import { ITextFileService } from 'vs/workbench/services/textfile/common/textfiles';
-import { relativePath } from 'vs/base/common/resources';
 import { IAccessibilityService } from 'vs/platform/accessibility/common/accessibility';
-import { ViewPane, IViewPaneOptions } from 'vs/workbench/browser/parts/views/viewPaneContainer';
+import { ViewPane, IViewPaneOptions } from 'vs/workbench/browser/parts/views/viewPane';
 import { IKeybindingService } from 'vs/platform/keybinding/common/keybinding';
 import { Memento, MementoObject } from 'vs/workbench/common/memento';
 import { IStorageService, StorageScope, StorageTarget } from 'vs/platform/storage/common/storage';
@@ -397,7 +396,7 @@ export class SearchView extends ViewPane {
 		return this.inputPatternIncludes;
 	}
 
-	get searchExcludePattern(): PatternInputWidget {
+	get searchExcludePattern(): ExcludePatternInputWidget {
 		return this.inputPatternExcludes;
 	}
 
@@ -1269,45 +1268,7 @@ export class SearchView extends ViewPane {
 		}
 	}
 
-	searchInFolders(resources?: URI[]): void {
-		const folderPaths: string[] = [];
-		const workspace = this.contextService.getWorkspace();
-
-		if (resources) {
-			resources.forEach(resource => {
-				let folderPath: string | undefined;
-				if (this.contextService.getWorkbenchState() === WorkbenchState.FOLDER) {
-					// Show relative path from the root for single-root mode
-					folderPath = relativePath(workspace.folders[0].uri, resource); // always uses forward slashes
-					if (folderPath && folderPath !== '.') {
-						folderPath = './' + folderPath;
-					}
-				} else {
-					const owningFolder = this.contextService.getWorkspaceFolder(resource);
-					if (owningFolder) {
-						const owningRootName = owningFolder.name;
-
-						// If this root is the only one with its basename, use a relative ./ path. If there is another, use an absolute path
-						const isUniqueFolder = workspace.folders.filter(folder => folder.name === owningRootName).length === 1;
-						if (isUniqueFolder) {
-							const relPath = relativePath(owningFolder.uri, resource); // always uses forward slashes
-							if (relPath === '') {
-								folderPath = `./${owningFolder.name}`;
-							} else {
-								folderPath = `./${owningFolder.name}/${relPath}`;
-							}
-						} else {
-							folderPath = resource.fsPath; // TODO rob: handle on-file URIs
-						}
-					}
-				}
-
-				if (folderPath) {
-					folderPaths.push(folderPath);
-				}
-			});
-		}
-
+	searchInFolders(folderPaths: string[] = []): void {
 		if (!folderPaths.length || folderPaths.some(folderPath => folderPath === '.')) {
 			this.inputPatternIncludes.setValue('');
 			this.searchWidget.focus();
@@ -1745,9 +1706,10 @@ export class SearchView extends ViewPane {
 				revealIfVisible: true
 			}
 		}, sideBySide ? SIDE_GROUP : ACTIVE_GROUP).then(editor => {
-			if (element instanceof Match && preserveFocus && isCodeEditor(editor)) {
+			const editorControl = editor?.getControl();
+			if (element instanceof Match && preserveFocus && isCodeEditor(editorControl)) {
 				this.viewModel.searchResult.rangeHighlightDecorations.highlightRange(
-					(<ICodeEditor>editor.getControl()).getModel()!,
+					editorControl.getModel()!,
 					element.range()
 				);
 			} else {

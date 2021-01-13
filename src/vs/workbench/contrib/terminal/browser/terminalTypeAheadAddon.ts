@@ -22,7 +22,7 @@ const HIDE_CURSOR = `${CSI}?25l`;
 const DELETE_CHAR = `${CSI}X`;
 const DELETE_REST_OF_LINE = `${CSI}K`;
 const CSI_STYLE_RE = /^\x1b\[[0-9;]*m/;
-const CSI_MOVE_RE = /^\x1b\[([0-9]*)(;[35])?O?([DC])/;
+const CSI_MOVE_RE = /^\x1b\[?([0-9]*)(;[35])?O?([DC])/;
 const NOT_WORD_RE = /[^a-z0-9]/i;
 
 const statsBufferSize = 24;
@@ -201,8 +201,10 @@ export interface IPrediction {
 
 	/**
 	 * Returns whether the given input is one expected by this prediction.
+	 * @param input reader for the input the PTY is giving
+	 * @param lookBehind the last successfully-made prediction, if any
 	 */
-	matches(input: StringReader): MatchResult;
+	matches(input: StringReader, lookBehind?: IPrediction): MatchResult;
 }
 
 class StringReader {
@@ -330,7 +332,8 @@ class TentativeBoundary implements IPrediction {
 		return '';
 	}
 
-	public rollback() {
+	public rollback(cursor: Cursor) {
+		this.inner.rollback(cursor);
 		return '';
 	}
 
@@ -389,7 +392,7 @@ class CharacterPrediction implements IPrediction {
 		return cursor.clone().moveTo(this.appliedAt.pos) + input;
 	}
 
-	public matches(input: StringReader) {
+	public matches(input: StringReader, lookBehind?: IPrediction) {
 		let startIndex = input.index;
 
 		// remove any styling CSI before checking the char
@@ -401,6 +404,14 @@ class CharacterPrediction implements IPrediction {
 
 		if (input.eatChar(this.char)) {
 			return MatchResult.Success;
+		}
+
+		if (lookBehind instanceof CharacterPrediction) {
+			// see #112842
+			const sillyZshOutcome = input.eatGradually(`\b${lookBehind.char}${this.char}`);
+			if (sillyZshOutcome !== MatchResult.Failure) {
+				return sillyZshOutcome;
+			}
 		}
 
 		input.index = startIndex;
@@ -703,6 +714,11 @@ export class PredictionTimeline {
 	 */
 	private showPredictions = false;
 
+	/**
+	 * The last successfully-made prediction.
+	 */
+	private lookBehind?: IPrediction;
+
 	private readonly addedEmitter = new Emitter<IPrediction>();
 	public readonly onPredictionAdded = this.addedEmitter.event;
 	private readonly failedEmitter = new Emitter<IPrediction>();
@@ -771,13 +787,13 @@ export class PredictionTimeline {
 		}
 
 		if (!this.expected.length) {
-			this.cursor = undefined;
+			this.clearPredictionState();
 			return input;
 		}
 
 		const buffer = this.getActiveBuffer();
 		if (!buffer) {
-			this.cursor = undefined;
+			this.clearPredictionState();
 			return input;
 		}
 
@@ -798,7 +814,7 @@ export class PredictionTimeline {
 			const { p: prediction, gen } = this.expected[0];
 			const cursor = this.getCursor(buffer);
 			let beforeTestReaderIndex = reader.index;
-			switch (prediction.matches(reader)) {
+			switch (prediction.matches(reader, this.lookBehind)) {
 				case MatchResult.Success:
 					// if the input character matches what the next prediction expected, undo
 					// the prediction and write the real character out.
@@ -811,6 +827,7 @@ export class PredictionTimeline {
 					}
 
 					this.succeededEmitter.fire(prediction);
+					this.lookBehind = prediction;
 					this.expected.shift();
 					break;
 				case MatchResult.Buffer:
@@ -829,8 +846,7 @@ export class PredictionTimeline {
 						// always restore the style if they modify it.
 						output += attributesToSeq(core(this.terminal)._inputHandler._curAttrData);
 					}
-					this.expected = [];
-					this.cursor = undefined;
+					this.clearPredictionState();
 					this.failedEmitter.fire(prediction);
 					break ReadLoop;
 			}
@@ -842,8 +858,7 @@ export class PredictionTimeline {
 		// reset the cursor
 		if (!reader.eof) {
 			output += reader.rest;
-			this.expected = [];
-			this.cursor = undefined;
+			this.clearPredictionState();
 		}
 
 		// If we passed a generation boundary, apply the current generation's predictions
@@ -876,6 +891,16 @@ export class PredictionTimeline {
 		output = HIDE_CURSOR + output + SHOW_CURSOR;
 
 		return output;
+	}
+
+	/**
+	 * Clears any expected predictions and stored state. Should be called when
+	 * the pty gives us something we don't recognize.
+	 */
+	private clearPredictionState() {
+		this.expected = [];
+		this.cursor = undefined;
+		this.lookBehind = undefined;
 	}
 
 	/**
@@ -1199,7 +1224,7 @@ export class TypeAheadAddon extends Disposable implements ITerminalAddon {
 	private typeaheadStyle?: TypeAheadStyle;
 	private typeaheadThreshold = this.config.config.localEchoLatencyThreshold;
 	private excludeProgramRe = compileExcludeRegexp(this.config.config.localEchoExcludePrograms);
-	protected lastRow?: { y: number; startingX: number; charState: CharPredictState };
+	protected lastRow?: { y: number; startingX: number; endingX: number; charState: CharPredictState };
 	protected timeline?: PredictionTimeline;
 	private terminalTitle = '';
 	public stats?: PredictionStats;
@@ -1210,7 +1235,7 @@ export class TypeAheadAddon extends Disposable implements ITerminalAddon {
 	private clearPredictionDebounce?: IDisposable;
 
 	constructor(
-		private readonly processManager: ITerminalProcessManager,
+		private processManager: ITerminalProcessManager,
 		private readonly config: TerminalConfigHelper,
 		@ITelemetryService private readonly telemetryService: ITelemetryService,
 	) {
@@ -1264,6 +1289,12 @@ export class TypeAheadAddon extends Disposable implements ITerminalAddon {
 
 			this.reevaluatePredictorState(stats, timeline);
 		}));
+	}
+
+	public reset(processManager: ITerminalProcessManager) {
+		this.lastRow = undefined;
+		this.processManager = processManager;
+		this._register(this.processManager.onBeforeProcessData(e => this.onBeforeProcessData(e)));
 	}
 
 	private deferClearingPredictions() {
@@ -1356,13 +1387,19 @@ export class TypeAheadAddon extends Disposable implements ITerminalAddon {
 		// the user gave input, and mark all additions before that as tentative.
 		const actualY = buffer.baseY + buffer.cursorY;
 		if (actualY !== this.lastRow?.y) {
-			this.lastRow = { y: actualY, startingX: buffer.cursorX, charState: CharPredictState.Unknown };
+			this.lastRow = { y: actualY, startingX: buffer.cursorX, endingX: buffer.cursorX, charState: CharPredictState.Unknown };
 		} else {
 			this.lastRow.startingX = Math.min(this.lastRow.startingX, buffer.cursorX);
+			this.lastRow.endingX = Math.max(this.lastRow.endingX, this.timeline.getCursor(buffer).x);
 		}
 
 		const addLeftNavigating = (p: IPrediction) =>
 			this.timeline!.getCursor(buffer).x <= this.lastRow!.startingX
+				? this.timeline!.addBoundary(buffer, new TentativeBoundary(p))
+				: this.timeline!.addPrediction(buffer, p);
+
+		const addRightNavigating = (p: IPrediction) =>
+			this.timeline!.getCursor(buffer).x >= this.lastRow!.endingX - 1
 				? this.timeline!.addBoundary(buffer, new TentativeBoundary(p))
 				: this.timeline!.addPrediction(buffer, p);
 
@@ -1381,7 +1418,14 @@ export class TypeAheadAddon extends Disposable implements ITerminalAddon {
 					flushOutput(this.timeline.terminal);
 				}
 
-				addLeftNavigating(new BackspacePrediction(this.timeline.terminal));
+				if (this.timeline!.getCursor(buffer).x <= this.lastRow!.startingX) {
+					this.timeline!.addBoundary(buffer, new TentativeBoundary(new BackspacePrediction(this.timeline.terminal)));
+				} else {
+					// Backspace decrements our ability to go right.
+					this.lastRow.endingX--;
+					this.timeline!.addPrediction(buffer, new BackspacePrediction(this.timeline.terminal));
+				}
+
 				continue;
 			}
 
@@ -1409,13 +1453,13 @@ export class TypeAheadAddon extends Disposable implements ITerminalAddon {
 				if (direction === CursorMoveDirection.Back) {
 					addLeftNavigating(p);
 				} else {
-					this.timeline.addPrediction(buffer, p);
+					addRightNavigating(p);
 				}
 				continue;
 			}
 
 			if (reader.eatStr(`${ESC}f`)) {
-				this.timeline.addPrediction(buffer, new CursorMovePrediction(CursorMoveDirection.Forwards, true, 1));
+				addRightNavigating(new CursorMovePrediction(CursorMoveDirection.Forwards, true, 1));
 				continue;
 			}
 

@@ -182,7 +182,9 @@ export class Dialog extends Disposable {
 				button.label = mnemonicButtonLabel(buttonMap[index].label, true);
 
 				this._register(button.onDidClick(e => {
-					EventHelper.stop(e);
+					if (e) {
+						EventHelper.stop(e);
+					}
 
 					resolve({
 						button: buttonMap[index].index,
@@ -307,7 +309,9 @@ export class Dialog extends Disposable {
 				}
 			}));
 
-			this.iconElement.classList.remove(...dialogErrorIcon.classNamesArray, ...dialogWarningIcon.classNamesArray, ...dialogInfoIcon.classNamesArray, ...Codicon.loading.classNamesArray);
+			const spinModifierClassName = 'codicon-modifier-spin';
+
+			this.iconElement.classList.remove(...dialogErrorIcon.classNamesArray, ...dialogWarningIcon.classNamesArray, ...dialogInfoIcon.classNamesArray, ...Codicon.loading.classNamesArray, spinModifierClassName);
 
 			switch (this.options.type) {
 				case 'error':
@@ -317,7 +321,7 @@ export class Dialog extends Disposable {
 					this.iconElement.classList.add(...dialogWarningIcon.classNamesArray);
 					break;
 				case 'pending':
-					this.iconElement.classList.add(...Codicon.loading.classNamesArray, 'codicon-animation-spin');
+					this.iconElement.classList.add(...Codicon.loading.classNamesArray, spinModifierClassName);
 					break;
 				case 'none':
 				case 'info':

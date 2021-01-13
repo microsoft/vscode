@@ -4,11 +4,11 @@
  *--------------------------------------------------------------------------------------------*/
 
 import * as vscode from 'vscode';
-import { HtmlNode } from 'EmmetNode';
-import { getHtmlNode, parseDocument, validate } from './util';
+import { getHtmlFlatNode, offsetRangeToSelection, validate } from './util';
+import { getRootNode } from './parseDocument';
+import { HtmlNode as HtmlFlatNode } from 'EmmetFlatNode';
 
 let balanceOutStack: Array<vscode.Selection[]> = [];
-let lastOut = false;
 let lastBalancedSelections: vscode.Selection[] = [];
 
 export function balanceOut() {
@@ -24,53 +24,51 @@ function balance(out: boolean) {
 		return;
 	}
 	const editor = vscode.window.activeTextEditor;
-	let rootNode = <HtmlNode>parseDocument(editor.document);
+	const document = editor.document;
+	const rootNode = <HtmlFlatNode>getRootNode(document, true);
 	if (!rootNode) {
 		return;
 	}
 
-	let getRangeFunction = out ? getRangeToBalanceOut : getRangeToBalanceIn;
+	const rangeFn = out ? getRangeToBalanceOut : getRangeToBalanceIn;
 	let newSelections: vscode.Selection[] = [];
 	editor.selections.forEach(selection => {
-		let range = getRangeFunction(editor.document, selection, rootNode);
+		const range = rangeFn(document, rootNode, selection);
 		newSelections.push(range);
 	});
 
-	if (areSameSelections(newSelections, editor.selections)) {
-		return;
-	}
-
+	// check whether we are starting a balance elsewhere
 	if (areSameSelections(lastBalancedSelections, editor.selections)) {
+		// we are not starting elsewhere, so use the stack as-is
 		if (out) {
-			if (!balanceOutStack.length) {
+			// make sure we are able to expand outwards
+			if (!areSameSelections(editor.selections, newSelections)) {
 				balanceOutStack.push(editor.selections);
 			}
-			balanceOutStack.push(newSelections);
-		} else {
-			if (lastOut) {
-				balanceOutStack.pop();
-			}
-			newSelections = balanceOutStack.pop() || newSelections;
+		} else if (balanceOutStack.length) {
+			newSelections = balanceOutStack.pop()!;
 		}
 	} else {
-		balanceOutStack = out ? [editor.selections, newSelections] : [];
+		// we are starting elsewhere, so reset the stack
+		balanceOutStack = out ? [editor.selections] : [];
 	}
 
-	lastOut = out;
-	lastBalancedSelections = editor.selections = newSelections;
+	editor.selections = newSelections;
+	lastBalancedSelections = editor.selections;
 }
 
-function getRangeToBalanceOut(document: vscode.TextDocument, selection: vscode.Selection, rootNode: HtmlNode): vscode.Selection {
-	let nodeToBalance = getHtmlNode(document, rootNode, selection.start, false);
+function getRangeToBalanceOut(document: vscode.TextDocument, rootNode: HtmlFlatNode, selection: vscode.Selection): vscode.Selection {
+	const offset = document.offsetAt(selection.start);
+	const nodeToBalance = getHtmlFlatNode(document.getText(), rootNode, offset, false);
 	if (!nodeToBalance) {
 		return selection;
 	}
-	if (!nodeToBalance.close) {
-		return new vscode.Selection(nodeToBalance.start, nodeToBalance.end);
+	if (!nodeToBalance.open || !nodeToBalance.close) {
+		return offsetRangeToSelection(document, nodeToBalance.start, nodeToBalance.end);
 	}
 
-	let innerSelection = new vscode.Selection(nodeToBalance.open.end, nodeToBalance.close.start);
-	let outerSelection = new vscode.Selection(nodeToBalance.start, nodeToBalance.end);
+	const innerSelection = offsetRangeToSelection(document, nodeToBalance.open.end, nodeToBalance.close.start);
+	const outerSelection = offsetRangeToSelection(document, nodeToBalance.open.start, nodeToBalance.close.end);
 
 	if (innerSelection.contains(selection) && !innerSelection.isEqual(selection)) {
 		return innerSelection;
@@ -81,19 +79,22 @@ function getRangeToBalanceOut(document: vscode.TextDocument, selection: vscode.S
 	return selection;
 }
 
-function getRangeToBalanceIn(document: vscode.TextDocument, selection: vscode.Selection, rootNode: HtmlNode): vscode.Selection {
-	let nodeToBalance = getHtmlNode(document, rootNode, selection.start, true);
+function getRangeToBalanceIn(document: vscode.TextDocument, rootNode: HtmlFlatNode, selection: vscode.Selection): vscode.Selection {
+	const offset = document.offsetAt(selection.start);
+	const nodeToBalance = getHtmlFlatNode(document.getText(), rootNode, offset, true);
 	if (!nodeToBalance) {
 		return selection;
 	}
 
-	if (nodeToBalance.close) {
-		const entireNodeSelected = selection.start.isEqual(nodeToBalance.start) && selection.end.isEqual(nodeToBalance.end);
-		const startInOpenTag = selection.start.isAfter(nodeToBalance.open.start) && selection.start.isBefore(nodeToBalance.open.end);
-		const startInCloseTag = selection.start.isAfter(nodeToBalance.close.start) && selection.start.isBefore(nodeToBalance.close.end);
+	const selectionStart = document.offsetAt(selection.start);
+	const selectionEnd = document.offsetAt(selection.end);
+	if (nodeToBalance.open && nodeToBalance.close) {
+		const entireNodeSelected = selectionStart === nodeToBalance.start && selectionEnd === nodeToBalance.end;
+		const startInOpenTag = selectionStart > nodeToBalance.open.start && selectionStart < nodeToBalance.open.end;
+		const startInCloseTag = selectionStart > nodeToBalance.close.start && selectionStart < nodeToBalance.close.end;
 
 		if (entireNodeSelected || startInOpenTag || startInCloseTag) {
-			return new vscode.Selection(nodeToBalance.open.end, nodeToBalance.close.start);
+			return offsetRangeToSelection(document, nodeToBalance.open.end, nodeToBalance.close.start);
 		}
 	}
 
@@ -101,14 +102,15 @@ function getRangeToBalanceIn(document: vscode.TextDocument, selection: vscode.Se
 		return selection;
 	}
 
-	if (selection.start.isEqual(nodeToBalance.firstChild.start)
-		&& selection.end.isEqual(nodeToBalance.firstChild.end)
-		&& nodeToBalance.firstChild.close) {
-		return new vscode.Selection(nodeToBalance.firstChild.open.end, nodeToBalance.firstChild.close.start);
+	const firstChild = nodeToBalance.firstChild;
+	if (selectionStart === firstChild.start
+		&& selectionEnd === firstChild.end
+		&& firstChild.open
+		&& firstChild.close) {
+		return offsetRangeToSelection(document, firstChild.open.end, firstChild.close.start);
 	}
 
-	return new vscode.Selection(nodeToBalance.firstChild.start, nodeToBalance.firstChild.end);
-
+	return offsetRangeToSelection(document, firstChild.start, firstChild.end);
 }
 
 function areSameSelections(a: vscode.Selection[], b: vscode.Selection[]): boolean {

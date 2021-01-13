@@ -157,9 +157,10 @@ export interface IConfiguration extends IDisposable {
 
 	setMaxLineNumber(maxLineNumber: number): void;
 	setViewLineCount(viewLineCount: number): void;
-	updateOptions(newOptions: IEditorOptions): void;
+	updateOptions(newOptions: Readonly<IEditorOptions>): void;
 	getRawOptions(): IEditorOptions;
 	observeReferenceElement(dimension?: IDimension): void;
+	updatePixelRatio(): void;
 	setIsDominatedByLongLines(isDominatedByLongLines: boolean): void;
 }
 

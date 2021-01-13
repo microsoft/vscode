@@ -15,6 +15,7 @@ import { IWorkspaceTagsService, Tags } from 'vs/workbench/contrib/tags/common/wo
 import { getHashedRemotesFromConfig } from 'vs/workbench/contrib/tags/electron-browser/workspaceTags';
 import { IProductService } from 'vs/platform/product/common/productService';
 import { splitLines } from 'vs/base/common/strings';
+import { MavenArtifactIdRegex, MavenDependenciesRegex, MavenDependencyRegex, GradleDependencyCompactRegex, GradleDependencyLooseRegex, MavenGroupIdRegex, JavaLibrariesToLookFor } from 'vs/workbench/contrib/tags/common/javaWorkspaceTags';
 
 const MetaModulesToLookFor = [
 	// Azure packages
@@ -333,6 +334,7 @@ export class WorkspaceTagsService implements IWorkspaceTagsService {
 			tags['workspace.bower'] = nameSet.has('bower.json') || nameSet.has('bower_components');
 
 			tags['workspace.java.pom'] = nameSet.has('pom.xml');
+			tags['workspace.java.gradle'] = nameSet.has('build.gradle') || nameSet.has('settings.gradle');
 
 			tags['workspace.yeoman.code.ext'] = nameSet.has('vsc-extension-quickstart.md');
 
@@ -468,8 +470,69 @@ export class WorkspaceTagsService implements IWorkspaceTagsService {
 					// Ignore errors when resolving file or parsing file contents
 				}
 			});
-			return Promise.all([...packageJsonPromises, ...requirementsTxtPromises, ...pipfilePromises]).then(() => tags);
+
+			const pomPromises = getFilePromises('pom.xml', this.fileService, this.textFileService, content => {
+				try {
+					let dependenciesContent;
+					while (dependenciesContent = MavenDependenciesRegex.exec(content.value)) {
+						let dependencyContent;
+						while (dependencyContent = MavenDependencyRegex.exec(dependenciesContent[1])) {
+							const groupIdContent = MavenGroupIdRegex.exec(dependencyContent[1]);
+							const artifactIdContent = MavenArtifactIdRegex.exec(dependencyContent[1]);
+							if (groupIdContent && artifactIdContent) {
+								this.tagJavaDependency(groupIdContent[1], artifactIdContent[1], 'workspace.pom.', tags);
+							}
+						}
+					}
+				}
+				catch (e) {
+					// Ignore errors when resolving maven dependencies
+				}
+			});
+
+			const gradlePromises = getFilePromises('build.gradle', this.fileService, this.textFileService, content => {
+				try {
+					this.processGradleDependencies(content.value, GradleDependencyLooseRegex, tags);
+					this.processGradleDependencies(content.value, GradleDependencyCompactRegex, tags);
+				}
+				catch (e) {
+					// Ignore errors when resolving gradle dependencies
+				}
+			});
+
+			const androidPromises = folders.map(workspaceUri => {
+				const manifest = URI.joinPath(workspaceUri, '/app/src/main/AndroidManifest.xml');
+				return this.fileService.exists(manifest).then(result => {
+					if (result) {
+						tags['workspace.java.android'] = true;
+					}
+				}, err => {
+					// Ignore errors when resolving android
+				});
+			});
+			return Promise.all([...packageJsonPromises, ...requirementsTxtPromises, ...pipfilePromises, ...pomPromises, ...gradlePromises, ...androidPromises]).then(() => tags);
 		});
+	}
+
+	private processGradleDependencies(content: string, regex: RegExp, tags: Tags): void {
+		let dependencyContent;
+		while (dependencyContent = regex.exec(content)) {
+			const groupId = dependencyContent[1];
+			const artifactId = dependencyContent[2];
+			if (groupId && artifactId) {
+				this.tagJavaDependency(groupId, artifactId, 'workspace.gradle.', tags);
+			}
+		}
+	}
+
+	private tagJavaDependency(groupId: string, artifactId: string, prefix: string, tags: Tags): void {
+		for (const javaLibrary of JavaLibrariesToLookFor) {
+			if ((groupId === javaLibrary.groupId || new RegExp(javaLibrary.groupId).test(groupId)) &&
+				(artifactId === javaLibrary.artifactId || new RegExp(javaLibrary.artifactId).test(artifactId))) {
+				tags[prefix + javaLibrary.tag] = true;
+				return;
+			}
+		}
 	}
 
 	private findFolders(): URI[] | undefined {

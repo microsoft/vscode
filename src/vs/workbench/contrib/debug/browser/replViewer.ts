@@ -306,15 +306,15 @@ export class ReplDelegate extends CachedListVirtualDelegate<IReplElement> {
 
 	protected estimateHeight(element: IReplElement, ignoreValueLength = false): number {
 		const config = this.configurationService.getValue<IDebugConfiguration>('debug');
-		const rowHeight = Math.ceil(1.4 * config.console.fontSize);
+		const rowHeight = Math.ceil(1.3 * config.console.fontSize);
 		const countNumberOfLines = (str: string) => Math.max(1, (str && str.match(/\r\n|\n/g) || []).length);
 		const hasValue = (e: any): e is { value: string } => typeof e.value === 'string';
 
 		// Calculate a rough overestimation for the height
-		// For every 30 characters increase the number of lines needed
-		if (hasValue(element)) {
+		// For every 70 characters increase the number of lines needed beyond the first
+		if (hasValue(element) && !(element instanceof Variable)) {
 			let value = element.value;
-			let valueRows = countNumberOfLines(value) + (ignoreValueLength ? 0 : Math.floor(value.length / 30));
+			let valueRows = countNumberOfLines(value) + (ignoreValueLength ? 0 : Math.floor(value.length / 70));
 
 			return valueRows * rowHeight;
 		}
@@ -344,6 +344,10 @@ export class ReplDelegate extends CachedListVirtualDelegate<IReplElement> {
 	}
 
 	hasDynamicHeight(element: IReplElement): boolean {
+		if (element instanceof Variable) {
+			// Variables should always be in one line #111843
+			return false;
+		}
 		// Empty elements should not have dynamic height since they will be invisible
 		return element.toString().length > 0;
 	}
@@ -389,7 +393,8 @@ export class ReplAccessibilityProvider implements IListAccessibilityProvider<IRe
 			return localize('replVariableAriaLabel', "Variable {0}, value {1}", element.name, element.value);
 		}
 		if (element instanceof SimpleReplElement || element instanceof ReplEvaluationInput || element instanceof ReplEvaluationResult) {
-			return element.value + (element instanceof SimpleReplElement && element.count > 1 ? localize('occurred', ", occured {0} times", element.count) : '');
+			return element.value + (element instanceof SimpleReplElement && element.count > 1 ? localize({ key: 'occurred', comment: ['Front will the value of the debug console element. Placeholder will be replaced by a number which represents occurrance count.'] },
+				", occured {0} times", element.count) : '');
 		}
 		if (element instanceof RawObjectReplElement) {
 			return localize('replRawObjectAriaLabel', "Debug console variable {0}, value {1}", element.name, element.value);

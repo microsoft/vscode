@@ -4,11 +4,29 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { Disposable, IDisposable } from 'vs/base/common/lifecycle';
-import { getTestSubscriptionKey, RunTestsRequest, RunTestsResult, TestsDiff } from 'vs/workbench/contrib/testing/common/testCollection';
+import { getTestSubscriptionKey, RunTestsRequest, RunTestsResult, TestDiffOpType, TestsDiff } from 'vs/workbench/contrib/testing/common/testCollection';
 import { ITestService } from 'vs/workbench/contrib/testing/common/testService';
 import { extHostNamedCustomer } from 'vs/workbench/api/common/extHostCustomers';
 import { ExtHostContext, ExtHostTestingResource, ExtHostTestingShape, IExtHostContext, MainContext, MainThreadTestingShape } from '../common/extHost.protocol';
 import { URI, UriComponents } from 'vs/base/common/uri';
+import { CancellationToken } from 'vs/base/common/cancellation';
+
+const reviveDiff = (diff: TestsDiff) => {
+	for (const entry of diff) {
+		if (entry[0] === TestDiffOpType.Add || entry[0] === TestDiffOpType.Update) {
+			const item = entry[1];
+			if (item.item.location) {
+				item.item.location.uri = URI.revive(item.item.location.uri);
+			}
+
+			for (const message of item.item.state.messages) {
+				if (message.location) {
+					message.location.uri = URI.revive(message.location.uri);
+				}
+			}
+		}
+	}
+};
 
 @extHostNamedCustomer(MainContext.MainThreadTesting)
 export class MainThreadTesting extends Disposable implements MainThreadTestingShape {
@@ -23,6 +41,10 @@ export class MainThreadTesting extends Disposable implements MainThreadTestingSh
 		this.proxy = extHostContext.getProxy(ExtHostContext.ExtHostTesting);
 		this._register(this.testService.onShouldSubscribe(args => this.proxy.$subscribeToTests(args.resource, args.uri)));
 		this._register(this.testService.onShouldUnsubscribe(args => this.proxy.$unsubscribeFromTests(args.resource, args.uri)));
+
+		for (const { resource, uri } of this.testService.subscriptions) {
+			this.proxy.$subscribeToTests(resource, uri);
+		}
 	}
 
 	/**
@@ -30,7 +52,8 @@ export class MainThreadTesting extends Disposable implements MainThreadTestingSh
 	 */
 	public $registerTestProvider(id: string) {
 		this.testService.registerTestController(id, {
-			runTests: req => this.proxy.$runTestsForProvider(req),
+			runTests: (req, token) => this.proxy.$runTestsForProvider(req, token),
+			lookupTest: test => this.proxy.$lookupTest(test),
 		});
 	}
 
@@ -39,6 +62,13 @@ export class MainThreadTesting extends Disposable implements MainThreadTestingSh
 	 */
 	public $unregisterTestProvider(id: string) {
 		this.testService.unregisterTestController(id);
+	}
+
+	/**
+	 * @inheritdoc
+	 */
+	$updateDiscoveringCount(resource: ExtHostTestingResource, uriComponents: UriComponents, delta: number): void {
+		this.testService.updateDiscoveringCount(resource, URI.revive(uriComponents), delta);
 	}
 
 	/**
@@ -64,11 +94,12 @@ export class MainThreadTesting extends Disposable implements MainThreadTestingSh
 	 * @inheritdoc
 	 */
 	public $publishDiff(resource: ExtHostTestingResource, uri: UriComponents, diff: TestsDiff): void {
+		reviveDiff(diff);
 		this.testService.publishDiff(resource, URI.revive(uri), diff);
 	}
 
-	public $runTests(req: RunTestsRequest): Promise<RunTestsResult> {
-		return this.testService.runTests(req);
+	public $runTests(req: RunTestsRequest, token: CancellationToken): Promise<RunTestsResult> {
+		return this.testService.runTests(req, token);
 	}
 
 	public dispose() {

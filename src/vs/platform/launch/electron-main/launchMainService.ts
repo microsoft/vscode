@@ -9,8 +9,7 @@ import { IProcessEnvironment, isMacintosh } from 'vs/base/common/platform';
 import { NativeParsedArgs } from 'vs/platform/environment/common/argv';
 import { createDecorator } from 'vs/platform/instantiation/common/instantiation';
 import { IWindowSettings } from 'vs/platform/windows/common/windows';
-import { OpenContext } from 'vs/platform/windows/electron-main/window';
-import { IWindowsMainService, ICodeWindow } from 'vs/platform/windows/electron-main/windows';
+import { IWindowsMainService, ICodeWindow, OpenContext } from 'vs/platform/windows/electron-main/windows';
 import { whenDeleted } from 'vs/base/node/pfs';
 import { IWorkspacesMainService } from 'vs/platform/workspaces/electron-main/workspacesMainService';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
@@ -33,23 +32,6 @@ export interface IStartArguments {
 export interface IRemoteDiagnosticOptions {
 	includeProcesses?: boolean;
 	includeWorkspaceMetadata?: boolean;
-}
-
-function parseOpenUrl(args: NativeParsedArgs): { uri: URI, url: string }[] {
-	if (args['open-url'] && args._urls && args._urls.length > 0) {
-		// --open-url must contain -- followed by the url(s)
-		// process.argv is used over args._ as args._ are resolved to file paths at this point
-		return coalesce(args._urls
-			.map(url => {
-				try {
-					return { uri: URI.parse(url), url };
-				} catch (err) {
-					return null;
-				}
-			}));
-	}
-
-	return [];
 }
 
 export interface ILaunchMainService {
@@ -89,7 +71,7 @@ export class LaunchMainService implements ILaunchMainService {
 		}
 
 		// Check early for open-url which is handled in URL service
-		const urlsToOpen = parseOpenUrl(args);
+		const urlsToOpen = this.parseOpenUrl(args);
 		if (urlsToOpen.length) {
 			let whenWindowReady: Promise<unknown> = Promise.resolve();
 
@@ -111,6 +93,23 @@ export class LaunchMainService implements ILaunchMainService {
 		else {
 			return this.startOpenWindow(args, userEnv);
 		}
+	}
+
+	private parseOpenUrl(args: NativeParsedArgs): { uri: URI, url: string }[] {
+		if (args['open-url'] && args._urls && args._urls.length > 0) {
+			// --open-url must contain -- followed by the url(s)
+			// process.argv is used over args._ as args._ are resolved to file paths at this point
+			return coalesce(args._urls
+				.map(url => {
+					try {
+						return { uri: URI.parse(url), url };
+					} catch (err) {
+						return null;
+					}
+				}));
+		}
+
+		return [];
 	}
 
 	private async startOpenWindow(args: NativeParsedArgs, userEnv: IProcessEnvironment): Promise<void> {
@@ -285,7 +284,7 @@ export class LaunchMainService implements ILaunchMainService {
 					folderURIs.push(root.uri);
 				});
 			} else {
-				//TODO: can we add the workspace file here?
+				//TODO@RMacfarlane: can we add the workspace file here?
 			}
 		}
 
@@ -298,10 +297,10 @@ export class LaunchMainService implements ILaunchMainService {
 		return this.browserWindowToInfo(window.win, folderURIs, window.remoteAuthority);
 	}
 
-	private browserWindowToInfo(win: BrowserWindow, folderURIs: URI[] = [], remoteAuthority?: string): IWindowInfo {
+	private browserWindowToInfo(window: BrowserWindow, folderURIs: URI[] = [], remoteAuthority?: string): IWindowInfo {
 		return {
-			pid: win.webContents.getOSProcessId(),
-			title: win.getTitle(),
+			pid: window.webContents.getOSProcessId(),
+			title: window.getTitle(),
 			folderURIs,
 			remoteAuthority
 		};

@@ -14,7 +14,7 @@ import * as filetype from 'file-type';
 import { assign, groupBy, IDisposable, toDisposable, dispose, mkdirp, readBytes, detectUnicodeEncoding, Encoding, onceEvent, splitInChunks, Limiter } from './util';
 import { CancellationToken, Progress, Uri } from 'vscode';
 import { detectEncoding } from './encoding';
-import { Ref, RefType, Branch, Remote, GitErrorCodes, LogOptions, Change, Status, CommitOptions, BranchQuery } from './api/git';
+import { Ref, RefType, Branch, Remote, ForcePushMode, GitErrorCodes, LogOptions, Change, Status, CommitOptions, BranchQuery } from './api/git';
 import * as byline from 'byline';
 import { StringDecoder } from 'string_decoder';
 
@@ -311,6 +311,7 @@ export class GitError {
 
 export interface IGitOptions {
 	gitPath: string;
+	userAgent: string;
 	version: string;
 	env?: any;
 }
@@ -362,6 +363,8 @@ export interface ICloneOptions {
 export class Git {
 
 	readonly path: string;
+	readonly userAgent: string;
+	readonly version: string;
 	private env: any;
 
 	private _onOutput = new EventEmitter();
@@ -369,6 +372,8 @@ export class Git {
 
 	constructor(options: IGitOptions) {
 		this.path = options.gitPath;
+		this.version = options.version;
+		this.userAgent = options.userAgent;
 		this.env = options.env || {};
 	}
 
@@ -427,7 +432,11 @@ export class Git {
 			if (options.recursive) {
 				command.push('--recursive');
 			}
-			await this.exec(options.parentPath, command, { cancellationToken, onSpawn });
+			await this.exec(options.parentPath, command, {
+				cancellationToken,
+				env: { 'GIT_HTTP_USER_AGENT': this.userAgent },
+				onSpawn,
+			});
 		} catch (err) {
 			if (err.stderr) {
 				err.stderr = err.stderr.replace(/^Cloning.+$/m, '').trim();
@@ -796,11 +805,6 @@ export interface PullOptions {
 	unshallow?: boolean;
 	tags?: boolean;
 	readonly cancellationToken?: CancellationToken;
-}
-
-export enum ForcePushMode {
-	Force,
-	ForceWithLease
 }
 
 export class Repository {
@@ -1563,6 +1567,7 @@ export class Repository {
 		const args = ['fetch'];
 		const spawnOptions: SpawnOptions = {
 			cancellationToken: options.cancellationToken,
+			env: { 'GIT_HTTP_USER_AGENT': this.git.userAgent }
 		};
 
 		if (options.remote) {
@@ -1584,7 +1589,7 @@ export class Repository {
 		}
 
 		if (options.silent) {
-			spawnOptions.env = { 'VSCODE_GIT_FETCH_SILENT': 'true' };
+			spawnOptions.env!['VSCODE_GIT_FETCH_SILENT'] = 'true';
 		}
 
 		try {
@@ -1621,7 +1626,10 @@ export class Repository {
 		}
 
 		try {
-			await this.run(args, options);
+			await this.run(args, {
+				cancellationToken: options.cancellationToken,
+				env: { 'GIT_HTTP_USER_AGENT': this.git.userAgent }
+			});
 		} catch (err) {
 			if (/^CONFLICT \([^)]+\): \b/m.test(err.stdout || '')) {
 				err.gitErrorCode = GitErrorCodes.Conflict;
@@ -1690,7 +1698,7 @@ export class Repository {
 		}
 
 		try {
-			await this.run(args);
+			await this.run(args, { env: { 'GIT_HTTP_USER_AGENT': this.git.userAgent } });
 		} catch (err) {
 			if (/^error: failed to push some refs to\b/m.test(err.stderr || '')) {
 				err.gitErrorCode = GitErrorCodes.PushRejected;
@@ -1913,7 +1921,7 @@ export class Repository {
 			return null;
 		};
 
-		return result.stdout.trim().split('\n')
+		return result.stdout.split('\n')
 			.filter(line => !!line)
 			.map(fn)
 			.filter(ref => !!ref) as Ref[];

@@ -26,6 +26,7 @@ export const enum WebviewMessageChannels {
 	didLoad = 'did-load',
 	doUpdateState = 'do-update-state',
 	doReload = 'do-reload',
+	setConfirmBeforeClose = 'set-confirm-before-close',
 	loadResource = 'load-resource',
 	loadLocalhost = 'load-localhost',
 	webviewReady = 'webview-ready',

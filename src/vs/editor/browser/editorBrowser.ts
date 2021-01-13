@@ -362,6 +362,11 @@ export interface IEditorConstructionOptions extends IEditorOptions {
 
 export interface IDiffEditorConstructionOptions extends IDiffEditorOptions {
 	/**
+	 * The initial editor dimension (to avoid measuring the container).
+	 */
+	dimension?: editorCommon.IDimension;
+
+	/**
 	 * Place overflow widgets inside an external DOM node.
 	 * Defaults to an internal DOM node.
 	 */
@@ -1047,7 +1052,7 @@ export interface IDiffEditor extends editorCommon.IEditor {
 /**
  *@internal
  */
-export function isCodeEditor(thing: any): thing is ICodeEditor {
+export function isCodeEditor(thing: unknown): thing is ICodeEditor {
 	if (thing && typeof (<ICodeEditor>thing).getEditorType === 'function') {
 		return (<ICodeEditor>thing).getEditorType() === editorCommon.EditorType.ICodeEditor;
 	} else {
@@ -1058,7 +1063,7 @@ export function isCodeEditor(thing: any): thing is ICodeEditor {
 /**
  *@internal
  */
-export function isDiffEditor(thing: any): thing is IDiffEditor {
+export function isDiffEditor(thing: unknown): thing is IDiffEditor {
 	if (thing && typeof (<IDiffEditor>thing).getEditorType === 'function') {
 		return (<IDiffEditor>thing).getEditorType() === editorCommon.EditorType.IDiffEditor;
 	} else {
@@ -1069,8 +1074,8 @@ export function isDiffEditor(thing: any): thing is IDiffEditor {
 /**
  *@internal
  */
-export function isCompositeEditor(thing: any): thing is editorCommon.ICompositeCodeEditor {
-	return thing
+export function isCompositeEditor(thing: unknown): thing is editorCommon.ICompositeCodeEditor {
+	return !!thing
 		&& typeof thing === 'object'
 		&& typeof (<editorCommon.ICompositeCodeEditor>thing).onDidChangeActiveEditor === 'function';
 
@@ -1079,7 +1084,7 @@ export function isCompositeEditor(thing: any): thing is editorCommon.ICompositeC
 /**
  *@internal
  */
-export function getCodeEditor(thing: any): ICodeEditor | null {
+export function getCodeEditor(thing: unknown): ICodeEditor | null {
 	if (isCodeEditor(thing)) {
 		return thing;
 	}

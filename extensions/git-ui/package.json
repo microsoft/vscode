@@ -3,6 +3,7 @@
   "displayName": "%displayName%",
   "description": "%description%",
   "publisher": "vscode",
+  "license": "MIT",
   "version": "1.0.0",
   "engines": {
     "vscode": "^1.5.0"
@@ -25,6 +26,6 @@
     "watch": "gulp watch-extension:git-ui"
   },
   "devDependencies": {
-    "@types/node": "^12.11.7"
+    "@types/node": "^12.19.9"
   }
 }

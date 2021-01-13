@@ -9,12 +9,14 @@ import { IWorkbenchContribution } from 'vs/workbench/common/contributions';
 import { IWorkbenchEnvironmentService } from 'vs/workbench/services/environment/common/environmentService';
 import { IOpenerService } from 'vs/platform/opener/common/opener';
 import { URI } from 'vs/base/common/uri';
+import { IRemoteExplorerService } from 'vs/workbench/services/remote/common/remoteExplorerService';
 
 export class TunnelFactoryContribution extends Disposable implements IWorkbenchContribution {
 	constructor(
 		@ITunnelService tunnelService: ITunnelService,
 		@IWorkbenchEnvironmentService environmentService: IWorkbenchEnvironmentService,
-		@IOpenerService openerService: IOpenerService
+		@IOpenerService openerService: IOpenerService,
+		@IRemoteExplorerService remoteExplorerService: IRemoteExplorerService
 	) {
 		super();
 		const tunnelFactory = environmentService.options?.tunnelProvider?.tunnelFactory;
@@ -34,13 +36,15 @@ export class TunnelFactoryContribution extends Disposable implements IWorkbenchC
 								// The tunnel factory may give us an inaccessible local address.
 								// To make sure this doesn't happen, resolve the uri immediately.
 								localAddress: (await openerService.resolveExternalUri(URI.parse(localAddress))).resolved.toString(),
-								dispose: tunnel.dispose
+								public: !!tunnel.public,
+								dispose: async () => { await tunnel.dispose; }
 							};
 							resolve(remoteTunnel);
 						});
 					});
 				}
-			}));
+			}, environmentService.options?.tunnelProvider?.features ?? { elevation: false, public: false }));
+			remoteExplorerService.setTunnelInformation(undefined);
 		}
 	}
 }

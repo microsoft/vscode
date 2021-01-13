@@ -6,10 +6,10 @@
 import * as fs from 'fs';
 import * as gracefulFs from 'graceful-fs';
 import { createHash } from 'crypto';
-import { stat } from 'vs/base/node/pfs';
+import { exists, stat } from 'vs/base/node/pfs';
 import { isLinux, isMacintosh, isWindows } from 'vs/base/common/platform';
 import { zoomLevelToZoomFactor } from 'vs/platform/windows/common/windows';
-import { importEntries, mark } from 'vs/base/common/performance';
+import { mark } from 'vs/base/common/performance';
 import { Workbench } from 'vs/workbench/browser/workbench';
 import { NativeWindow } from 'vs/workbench/electron-sandbox/window';
 import { setZoomLevel, setZoomFactor, setFullscreen } from 'vs/base/browser/browser';
@@ -21,7 +21,7 @@ import { NativeWorkbenchEnvironmentService } from 'vs/workbench/services/environ
 import { IWorkbenchEnvironmentService } from 'vs/workbench/services/environment/common/environmentService';
 import { INativeWorkbenchConfiguration, INativeWorkbenchEnvironmentService } from 'vs/workbench/services/environment/electron-sandbox/environmentService';
 import { ServiceCollection } from 'vs/platform/instantiation/common/serviceCollection';
-import { ISingleFolderWorkspaceIdentifier, IWorkspaceInitializationPayload, ISingleFolderWorkspaceInitializationPayload, reviveWorkspaceIdentifier } from 'vs/platform/workspaces/common/workspaces';
+import { ISingleFolderWorkspaceIdentifier, IWorkspaceInitializationPayload, ISingleFolderWorkspaceInitializationPayload, reviveWorkspaceIdentifier, IWorkspaceIdentifier, IMultiFolderWorkspaceInitializationPayload } from 'vs/platform/workspaces/common/workspaces';
 import { ILogService } from 'vs/platform/log/common/log';
 import { NativeStorageService } from 'vs/platform/storage/node/storageService';
 import { Schemas } from 'vs/base/common/network';
@@ -75,9 +75,6 @@ class DesktopMain extends Disposable {
 		// Massage configuration file URIs
 		this.reviveUris();
 
-		// Setup perf
-		importEntries(this.configuration.perfEntries);
-
 		// Browser config
 		const zoomLevel = this.configuration.zoomLevel || 0;
 		setZoomFactor(zoomLevelToZoomFactor(zoomLevel));
@@ -115,7 +112,7 @@ class DesktopMain extends Disposable {
 		const services = await this.initServices();
 
 		await domContentLoaded();
-		mark('willStartWorkbench');
+		mark('code/willStartWorkbench');
 
 		// Create Workbench
 		const workbench = new Workbench(document.body, services.serviceCollection, services.logService);
@@ -145,13 +142,13 @@ class DesktopMain extends Disposable {
 
 		// Workbench Lifecycle
 		this._register(workbench.onShutdown(() => this.dispose()));
-		this._register(workbench.onWillShutdown(event => event.join(storageService.close())));
+		this._register(workbench.onWillShutdown(event => event.join(storageService.close(), 'join.closeStorage')));
 	}
 
 	private onWindowResize(e: Event, retry: boolean, workbench: Workbench): void {
 		if (e.target === window) {
 			if (window.document && window.document.body && window.document.body.clientWidth === 0) {
-				// TODO@Ben this is an electron issue on macOS when simple fullscreen is enabled
+				// TODO@bpasero this is an electron issue on macOS when simple fullscreen is enabled
 				// where for some reason the window clientWidth is reported as 0 when switching
 				// between simple fullscreen and normal screen. In that case we schedule the layout
 				// call at the next animation frame once, in the hope that the dimensions are
@@ -242,6 +239,7 @@ class DesktopMain extends Disposable {
 		const uriIdentityService = new UriIdentityService(fileService);
 		serviceCollection.set(IUriIdentityService, uriIdentityService);
 
+
 		// !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
 		//
 		// NOTE: Please do NOT register services here. Use `registerSingleton()`
@@ -283,7 +281,7 @@ class DesktopMain extends Disposable {
 				return service;
 			}),
 
-			this.createKeyboardLayoutService(logService, mainProcessService).then(service => {
+			this.createKeyboardLayoutService(mainProcessService).then(service => {
 
 				// KeyboardLayout
 				serviceCollection.set(IKeyboardLayoutService, service);
@@ -310,15 +308,15 @@ class DesktopMain extends Disposable {
 	}
 
 	private async resolveWorkspaceInitializationPayload(): Promise<IWorkspaceInitializationPayload> {
+		let workspaceInitializationPayload: IWorkspaceInitializationPayload | undefined;
 
 		// Multi-root workspace
 		if (this.configuration.workspace) {
-			return this.configuration.workspace;
+			workspaceInitializationPayload = await this.resolveMultiFolderWorkspaceInitializationPayload(this.configuration.workspace);
 		}
 
 		// Single-folder workspace
-		let workspaceInitializationPayload: IWorkspaceInitializationPayload | undefined;
-		if (this.configuration.folderUri) {
+		else if (this.configuration.folderUri) {
 			workspaceInitializationPayload = await this.resolveSingleFolderWorkspaceInitializationPayload(this.configuration.folderUri);
 		}
 
@@ -339,13 +337,28 @@ class DesktopMain extends Disposable {
 		return workspaceInitializationPayload;
 	}
 
+	private async resolveMultiFolderWorkspaceInitializationPayload(workspace: IWorkspaceIdentifier): Promise<IMultiFolderWorkspaceInitializationPayload | undefined> {
+
+		// It is possible that the workspace file does not exist
+		// on disk anymore, so we return `undefined` in that case
+		// (https://github.com/microsoft/vscode/issues/110982)
+		if (workspace.configPath.scheme === Schemas.file && !await exists(workspace.configPath.fsPath)) {
+			return undefined;
+		}
+
+		return workspace;
+	}
+
 	private async resolveSingleFolderWorkspaceInitializationPayload(folderUri: ISingleFolderWorkspaceIdentifier): Promise<ISingleFolderWorkspaceInitializationPayload | undefined> {
 		try {
 			const folder = folderUri.scheme === Schemas.file
 				? URI.file(sanitizeFilePath(folderUri.fsPath, process.env['VSCODE_CWD'] || process.cwd())) // For local: ensure path is absolute
 				: folderUri;
-			const id = await this.createHash(folderUri);
-			return { id, folder };
+
+			return {
+				id: await this.createHash(folderUri),
+				folder
+			};
 		} catch (error) {
 			onUnexpectedError(error);
 		}
@@ -380,7 +393,7 @@ class DesktopMain extends Disposable {
 	}
 
 	private async createWorkspaceService(payload: IWorkspaceInitializationPayload, fileService: FileService, remoteAgentService: IRemoteAgentService, uriIdentityService: IUriIdentityService, logService: ILogService): Promise<WorkspaceService> {
-		const workspaceService = new WorkspaceService({ remoteAuthority: this.environmentService.remoteAuthority, configurationCache: new ConfigurationCache(this.environmentService) }, this.environmentService, fileService, remoteAgentService, uriIdentityService, logService);
+		const workspaceService = new WorkspaceService({ remoteAuthority: this.environmentService.remoteAuthority, configurationCache: new ConfigurationCache(URI.file(this.environmentService.userDataPath), fileService) }, this.environmentService, fileService, remoteAgentService, uriIdentityService, logService);
 
 		try {
 			await workspaceService.initialize(payload);
@@ -388,7 +401,6 @@ class DesktopMain extends Disposable {
 			return workspaceService;
 		} catch (error) {
 			onUnexpectedError(error);
-			logService.error(error);
 
 			return workspaceService;
 		}
@@ -404,13 +416,12 @@ class DesktopMain extends Disposable {
 			return storageService;
 		} catch (error) {
 			onUnexpectedError(error);
-			logService.error(error);
 
 			return storageService;
 		}
 	}
 
-	private async createKeyboardLayoutService(logService: ILogService, mainProcessService: IMainProcessService): Promise<KeyboardLayoutService> {
+	private async createKeyboardLayoutService(mainProcessService: IMainProcessService): Promise<KeyboardLayoutService> {
 		const keyboardLayoutService = new KeyboardLayoutService(mainProcessService);
 
 		try {
@@ -419,7 +430,6 @@ class DesktopMain extends Disposable {
 			return keyboardLayoutService;
 		} catch (error) {
 			onUnexpectedError(error);
-			logService.error(error);
 
 			return keyboardLayoutService;
 		}

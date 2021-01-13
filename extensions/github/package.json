@@ -3,6 +3,7 @@
   "displayName": "%displayName%",
   "description": "%description%",
   "publisher": "vscode",
+  "license": "MIT",
   "version": "0.0.1",
   "engines": {
     "vscode": "^1.41.0"
@@ -62,6 +63,6 @@
     "vscode-nls": "^4.1.2"
   },
   "devDependencies": {
-    "@types/node": "^10.12.21"
+    "@types/node": "^12.19.9"
   }
 }

@@ -277,12 +277,23 @@ export function isRootOrDriveLetter(path: string): boolean {
 			return false;
 		}
 
-		return isWindowsDriveLetter(pathNormalized.charCodeAt(0))
-			&& pathNormalized.charCodeAt(1) === CharCode.Colon
-			&& (path.length === 2 || pathNormalized.charCodeAt(2) === CharCode.Backslash);
+		return hasDriveLetter(pathNormalized) &&
+			(path.length === 2 || pathNormalized.charCodeAt(2) === CharCode.Backslash);
 	}
 
 	return pathNormalized === posix.sep;
+}
+
+export function hasDriveLetter(path: string): boolean {
+	if (isWindows) {
+		return isWindowsDriveLetter(path.charCodeAt(0)) && path.charCodeAt(1) === CharCode.Colon;
+	}
+
+	return false;
+}
+
+export function getDriveLetter(path: string): string | undefined {
+	return hasDriveLetter(path) ? path[0] : undefined;
 }
 
 export function indexOfPath(path: string, candidate: string, ignoreCase?: boolean): number {

@@ -6,6 +6,9 @@
 //@ts-check
 'use strict';
 
+const performance = require('./vs/base/common/performance');
+performance.mark('code/fork/start');
+
 const bootstrap = require('./bootstrap');
 const bootstrapNode = require('./bootstrap-node');
 
@@ -20,7 +23,7 @@ if (process.env['VSCODE_INJECT_NODE_MODULE_LOOKUP_PATH']) {
 }
 
 // Configure: pipe logging to parent process
-if (!!process.send && process.env.PIPE_LOGGING === 'true') {
+if (!!process.send && process.env['VSCODE_PIPE_LOGGING'] === 'true') {
 	pipeLoggingToParent();
 }
 
@@ -38,7 +41,7 @@ if (process.env['VSCODE_PARENT_PID']) {
 configureCrashReporter();
 
 // Load AMD entry point
-require('./bootstrap-amd').load(process.env['AMD_ENTRYPOINT']);
+require('./bootstrap-amd').load(process.env['VSCODE_AMD_ENTRYPOINT']);
 
 
 //#region Helpers
@@ -79,7 +82,7 @@ function pipeLoggingToParent() {
 
 		// Add the stack trace as payload if we are told so. We remove the message and the 2 top frames
 		// to start the stacktrace where the console message was being written
-		if (process.env.VSCODE_LOG_STACK === 'true') {
+		if (process.env['VSCODE_LOG_STACK'] === 'true') {
 			const stack = new Error().stack;
 			if (stack) {
 				argsArray.push({ __$stack: stack.split('\n').slice(3).join('\n') });
@@ -135,18 +138,47 @@ function pipeLoggingToParent() {
 			&& !(obj instanceof Date);
 	}
 
+	/**
+	 *
+	 * @param {'log' | 'warn' | 'error'} severity
+	 * @param {string} args
+	 */
+	function safeSendConsoleMessage(severity, args) {
+		safeSend({ type: '__$console', severity, arguments: args });
+	}
+
+	/**
+	 * @param {'log' | 'info' | 'warn' | 'error'} method
+	 * @param {'log' | 'warn' | 'error'} severity
+	 */
+	function wrapConsoleMethod(method, severity) {
+		if (process.env['VSCODE_LOG_NATIVE'] === 'true') {
+			const original = console[method];
+			console[method] = function () {
+				safeSendConsoleMessage(severity, safeToArray(arguments));
+
+				const stream = method === 'error' || method === 'warn' ? process.stderr : process.stdout;
+				stream.write('\nSTART_NATIVE_LOG\n');
+				original.apply(console, arguments);
+				stream.write('\nEND_NATIVE_LOG\n');
+			};
+		} else {
+			console[method] = function () { safeSendConsoleMessage(severity, safeToArray(arguments)); };
+		}
+	}
+
 	// Pass console logging to the outside so that we have it in the main side if told so
-	if (process.env.VERBOSE_LOGGING === 'true') {
-		console.log = function () { safeSend({ type: '__$console', severity: 'log', arguments: safeToArray(arguments) }); };
-		console.info = function () { safeSend({ type: '__$console', severity: 'log', arguments: safeToArray(arguments) }); };
-		console.warn = function () { safeSend({ type: '__$console', severity: 'warn', arguments: safeToArray(arguments) }); };
-	} else {
+	if (process.env['VSCODE_VERBOSE_LOGGING'] === 'true') {
+		wrapConsoleMethod('info', 'log');
+		wrapConsoleMethod('log', 'log');
+		wrapConsoleMethod('warn', 'warn');
+		wrapConsoleMethod('error', 'error');
+	} else if (process.env['VSCODE_LOG_NATIVE'] !== 'true') {
 		console.log = function () { /* ignore */ };
 		console.warn = function () { /* ignore */ };
 		console.info = function () { /* ignore */ };
+		wrapConsoleMethod('error', 'error');
 	}
-
-	console.error = function () { safeSend({ type: '__$console', severity: 'error', arguments: safeToArray(arguments) }); };
 }
 
 function handleExceptions() {
@@ -177,11 +209,11 @@ function terminateWhenParentTerminates() {
 }
 
 function configureCrashReporter() {
-	const crashReporterOptionsRaw = process.env['CRASH_REPORTER_START_OPTIONS'];
+	const crashReporterOptionsRaw = process.env['VSCODE_CRASH_REPORTER_START_OPTIONS'];
 	if (typeof crashReporterOptionsRaw === 'string') {
 		try {
 			const crashReporterOptions = JSON.parse(crashReporterOptionsRaw);
-			if (crashReporterOptions) {
+			if (crashReporterOptions && process['crashReporter'] /* Electron only */) {
 				process['crashReporter'].start(crashReporterOptions);
 			}
 		} catch (error) {

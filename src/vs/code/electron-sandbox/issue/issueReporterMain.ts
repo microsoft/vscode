@@ -7,11 +7,10 @@ import 'vs/css!./media/issueReporter';
 import 'vs/base/browser/ui/codicons/codiconStyles'; // make sure codicon css is loaded
 import { INativeHostService } from 'vs/platform/native/electron-sandbox/native';
 import { NativeHostService } from 'vs/platform/native/electron-sandbox/nativeHostService';
-import { ipcRenderer, process } from 'vs/base/parts/sandbox/electron-sandbox/globals';
+import { ipcRenderer } from 'vs/base/parts/sandbox/electron-sandbox/globals';
 import { applyZoom, zoomIn, zoomOut } from 'vs/platform/windows/electron-sandbox/window';
 import { $, reset, safeInnerHtml, windowOpenNoOpener } from 'vs/base/browser/dom';
 import { Button } from 'vs/base/browser/ui/button/button';
-import { CodiconLabel } from 'vs/base/browser/ui/codicons/codiconLabel';
 import * as collections from 'vs/base/common/collections';
 import { debounce } from 'vs/base/common/decorators';
 import { Disposable } from 'vs/base/common/lifecycle';
@@ -26,6 +25,8 @@ import { ServiceCollection } from 'vs/platform/instantiation/common/serviceColle
 import { IMainProcessService, MainProcessService } from 'vs/platform/ipc/electron-sandbox/mainProcessService';
 import { IssueReporterData, IssueReporterExtensionData, IssueReporterFeatures, IssueReporterStyles, IssueType } from 'vs/platform/issue/common/issue';
 import { IWindowConfiguration } from 'vs/platform/windows/common/windows';
+import { Codicon } from 'vs/base/common/codicons';
+import { renderIcon } from 'vs/base/browser/ui/iconLabel/iconLabels';
 
 const MAX_URL_LENGTH = 2045;
 
@@ -82,14 +83,12 @@ export class IssueReporter extends Disposable {
 
 		this.initServices(configuration);
 
-		const isSnap = process.platform === 'linux' && process.env.SNAP && process.env.SNAP_REVISION;
-
 		const targetExtension = configuration.data.extensionId ? configuration.data.enabledExtensions.find(extension => extension.id === configuration.data.extensionId) : undefined;
 		this.issueReporterModel = new IssueReporterModel({
 			issueType: configuration.data.issueType || IssueType.Bug,
 			versionInfo: {
 				vscodeVersion: `${configuration.product.nameShort} ${configuration.product.version} (${configuration.product.commit || 'Commit unknown'}, ${configuration.product.date || 'Date unknown'})`,
-				os: `${this.configuration.os.type} ${this.configuration.os.arch} ${this.configuration.os.release}${isSnap ? ' snap' : ''}`
+				os: `${this.configuration.os.type} ${this.configuration.os.arch} ${this.configuration.os.release}${platform.isLinuxSnap ? ' snap' : ''}`
 			},
 			extensionsDisabled: !!configuration.disableExtensions,
 			fileOnExtension: configuration.data.extensionId ? !targetExtension?.isBuiltin : undefined,
@@ -598,8 +597,7 @@ export class IssueReporter extends Disposable {
 					issueState = $('span.issue-state');
 
 					const issueIcon = $('span.issue-icon');
-					const codicon = new CodiconLabel(issueIcon);
-					codicon.text = issue.state === 'open' ? '$(issue-opened)' : '$(issue-closed)';
+					issueIcon.appendChild(renderIcon(issue.state === 'open' ? Codicon.issueOpened : Codicon.issueClosed));
 
 					const issueStateLabel = $('span.issue-state.label');
 					issueStateLabel.textContent = issue.state === 'open' ? localize('open', "Open") : localize('closed', "Closed");

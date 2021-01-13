@@ -5,11 +5,7 @@
 
 import * as sinon from 'sinon';
 import * as assert from 'assert';
-import * as path from 'vs/base/common/path';
-import * as fs from 'fs';
-import * as os from 'os';
 import * as uuid from 'vs/base/common/uuid';
-import { mkdirp, rimraf, RimRafMode } from 'vs/base/node/pfs';
 import {
 	IExtensionGalleryService, IGalleryExtensionAssets, IGalleryExtension, IExtensionManagementService,
 	DidInstallExtensionEvent, DidUninstallExtensionEvent, InstallExtensionEvent, IExtensionIdentifier, IExtensionTipsService
@@ -47,8 +43,6 @@ import { ExtensionType } from 'vs/platform/extensions/common/extensions';
 import { ISharedProcessService } from 'vs/platform/ipc/electron-browser/sharedProcessService';
 import { FileService } from 'vs/platform/files/common/fileService';
 import { NullLogService, ILogService } from 'vs/platform/log/common/log';
-import { Schemas } from 'vs/base/common/network';
-import { DiskFileSystemProvider } from 'vs/platform/files/node/diskFileSystemProvider';
 import { IFileService } from 'vs/platform/files/common/files';
 import { IProductService } from 'vs/platform/product/common/productService';
 import { ExtensionTipsService } from 'vs/platform/extensionManagement/electron-sandbox/extensionTipsService';
@@ -62,6 +56,11 @@ import { IExtensionIgnoredRecommendationsService } from 'vs/workbench/services/e
 import { ExtensionIgnoredRecommendationsService } from 'vs/workbench/services/extensionRecommendations/common/extensionIgnoredRecommendationsService';
 import { IExtensionRecommendationNotificationService } from 'vs/platform/extensionRecommendations/common/extensionRecommendations';
 import { ExtensionRecommendationNotificationService } from 'vs/workbench/contrib/extensions/browser/extensionRecommendationNotificationService';
+import { IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
+import { MockContextKeyService } from 'vs/platform/keybinding/test/common/mockKeybindingService';
+import { InMemoryFileSystemProvider } from 'vs/platform/files/common/inMemoryFilesystemProvider';
+import { joinPath } from 'vs/base/common/resources';
+import { VSBuffer } from 'vs/base/common/buffer';
 
 const mockExtensionGallery: IGalleryExtension[] = [
 	aGalleryExtension('MockExtension1', {
@@ -181,7 +180,6 @@ suite('ExtensionRecommendationsService Test', () => {
 	let instantiationService: TestInstantiationService;
 	let testConfigurationService: TestConfigurationService;
 	let testObject: ExtensionRecommendationsService;
-	let parentResource: string;
 	let installEvent: Emitter<InstallExtensionEvent>,
 		didInstallEvent: Emitter<DidInstallExtensionEvent>,
 		uninstallEvent: Emitter<IExtensionIdentifier>,
@@ -203,6 +201,7 @@ suite('ExtensionRecommendationsService Test', () => {
 		testConfigurationService = new TestConfigurationService();
 		instantiationService.stub(IConfigurationService, testConfigurationService);
 		instantiationService.stub(INotificationService, new TestNotificationService());
+		instantiationService.stub(IContextKeyService, new MockContextKeyService());
 		instantiationService.stub(IExtensionManagementService, <Partial<IExtensionManagementService>>{
 			onInstallExtension: installEvent.event,
 			onDidInstallExtension: didInstallEvent.event,
@@ -278,34 +277,30 @@ suite('ExtensionRecommendationsService Test', () => {
 		});
 	});
 
-	teardown(done => {
-		(<ExtensionRecommendationsService>testObject).dispose();
-		if (parentResource) {
-			rimraf(parentResource, RimRafMode.MOVE).then(done, done);
-		} else {
-			done();
-		}
-	});
+	teardown(() => (<ExtensionRecommendationsService>testObject).dispose());
 
 	function setUpFolderWorkspace(folderName: string, recommendedExtensions: string[], ignoredRecommendations: string[] = []): Promise<void> {
-		const id = uuid.generateUuid();
-		parentResource = path.join(os.tmpdir(), 'vsctests', id);
-		return setUpFolder(folderName, parentResource, recommendedExtensions, ignoredRecommendations);
+		return setUpFolder(folderName, recommendedExtensions, ignoredRecommendations);
 	}
 
-	async function setUpFolder(folderName: string, parentDir: string, recommendedExtensions: string[], ignoredRecommendations: string[] = []): Promise<void> {
-		const folderDir = path.join(parentDir, folderName);
-		const workspaceSettingsDir = path.join(folderDir, '.vscode');
-		await mkdirp(workspaceSettingsDir, 493);
-		const configPath = path.join(workspaceSettingsDir, 'extensions.json');
-		fs.writeFileSync(configPath, JSON.stringify({
+	async function setUpFolder(folderName: string, recommendedExtensions: string[], ignoredRecommendations: string[] = []): Promise<void> {
+		const ROOT = URI.file('tests').with({ scheme: 'vscode-tests' });
+		const logService = new NullLogService();
+		const fileService = new FileService(logService);
+		const fileSystemProvider = new InMemoryFileSystemProvider();
+		fileService.registerProvider(ROOT.scheme, fileSystemProvider);
+
+		const folderDir = joinPath(ROOT, folderName);
+		const workspaceSettingsDir = joinPath(folderDir, '.vscode');
+		await fileService.createFolder(workspaceSettingsDir);
+		const configPath = joinPath(workspaceSettingsDir, 'extensions.json');
+		await fileService.writeFile(configPath, VSBuffer.fromString(JSON.stringify({
 			'recommendations': recommendedExtensions,
 			'unwantedRecommendations': ignoredRecommendations,
-		}, null, '\t'));
+		}, null, '\t')));
 
-		const myWorkspace = testWorkspace(URI.from({ scheme: 'file', path: folderDir }));
-		const fileService = new FileService(new NullLogService());
-		fileService.registerProvider(Schemas.file, new DiskFileSystemProvider(new NullLogService()));
+		const myWorkspace = testWorkspace(folderDir);
+
 		instantiationService.stub(IFileService, fileService);
 		workspaceService = new TestContextService(myWorkspace);
 		instantiationService.stub(IWorkspaceContextService, workspaceService);

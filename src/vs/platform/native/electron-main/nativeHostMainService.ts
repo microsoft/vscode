@@ -4,13 +4,12 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { Emitter, Event } from 'vs/base/common/event';
-import { IWindowsMainService, ICodeWindow } from 'vs/platform/windows/electron-main/windows';
+import { IWindowsMainService, ICodeWindow, OpenContext } from 'vs/platform/windows/electron-main/windows';
 import { MessageBoxOptions, MessageBoxReturnValue, shell, OpenDevToolsOptions, SaveDialogOptions, SaveDialogReturnValue, OpenDialogOptions, OpenDialogReturnValue, Menu, BrowserWindow, app, clipboard, powerMonitor, nativeTheme } from 'electron';
-import { OpenContext } from 'vs/platform/windows/electron-main/window';
 import { ILifecycleMainService } from 'vs/platform/lifecycle/electron-main/lifecycleMainService';
 import { IOpenedWindow, IOpenWindowOptions, IWindowOpenable, IOpenEmptyWindowOptions, IColorScheme } from 'vs/platform/windows/common/windows';
 import { INativeOpenDialogOptions } from 'vs/platform/dialogs/common/dialogs';
-import { isMacintosh, isWindows, isLinux } from 'vs/base/common/platform';
+import { isMacintosh, isWindows, isLinux, isLinuxSnap } from 'vs/base/common/platform';
 import { ICommonNativeHostService, IOSProperties, IOSStatistics } from 'vs/platform/native/common/native';
 import { ISerializableCommandAction } from 'vs/platform/actions/common/actions';
 import { IEnvironmentMainService } from 'vs/platform/environment/electron-main/environmentMainService';
@@ -334,8 +333,8 @@ export class NativeHostMainService extends Disposable implements INativeHostMain
 	}
 
 	async openExternal(windowId: number | undefined, url: string): Promise<boolean> {
-		if (isLinux && process.env.SNAP && process.env.SNAP_REVISION) {
-			NativeHostMainService._safeSnapOpenExternal(url);
+		if (isLinuxSnap) {
+			this.safeSnapOpenExternal(url);
 		} else {
 			shell.openExternal(url);
 		}
@@ -343,7 +342,9 @@ export class NativeHostMainService extends Disposable implements INativeHostMain
 		return true;
 	}
 
-	private static _safeSnapOpenExternal(url: string): void {
+	private safeSnapOpenExternal(url: string): void {
+
+		// Remove some environment variables before opening to avoid issues...
 		const gdkPixbufModuleFile = process.env['GDK_PIXBUF_MODULE_FILE'];
 		const gdkPixbufModuleDir = process.env['GDK_PIXBUF_MODULEDIR'];
 		delete process.env['GDK_PIXBUF_MODULE_FILE'];
@@ -351,6 +352,7 @@ export class NativeHostMainService extends Disposable implements INativeHostMain
 
 		shell.openExternal(url);
 
+		// ...but restore them after
 		process.env['GDK_PIXBUF_MODULE_FILE'] = gdkPixbufModuleFile;
 		process.env['GDK_PIXBUF_MODULEDIR'] = gdkPixbufModuleDir;
 	}

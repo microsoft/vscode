@@ -29,6 +29,8 @@ import { OpenSearchEditorArgs } from 'vs/workbench/contrib/searchEditor/browser/
 import { EditorsOrder } from 'vs/workbench/common/editor';
 import { IEditorGroupsService } from 'vs/workbench/services/editor/common/editorGroupsService';
 import { ThemeIcon } from 'vs/platform/theme/common/themeService';
+import { IViewsService } from 'vs/workbench/common/views';
+import { getSearchView } from 'vs/workbench/contrib/search/browser/searchActions';
 
 export const toggleSearchEditorCaseSensitiveCommand = (accessor: ServicesAccessor) => {
 	const editorService = accessor.get(IEditorService);
@@ -78,13 +80,14 @@ export const selectAllSearchEditorMatchesCommand = (accessor: ServicesAccessor) 
 	}
 };
 
+// Handler for the action bar entry in the search view.
 export class OpenSearchEditorAction extends Action {
-
 	static readonly ID: string = OpenNewEditorCommandId;
 	static readonly LABEL = localize('search.openNewEditor', "Open New Search Editor");
 
 	constructor(id: string, label: string,
 		@IInstantiationService private readonly instantiationService: IInstantiationService,
+		@IViewsService private readonly viewsService: IViewsService,
 	) {
 		super(id, label, ThemeIcon.asClassName(searchNewEditorIcon));
 	}
@@ -98,7 +101,20 @@ export class OpenSearchEditorAction extends Action {
 	}
 
 	async run() {
-		await this.instantiationService.invokeFunction(openNewSearchEditor);
+		const searchView = getSearchView(this.viewsService);
+		if (searchView) {
+			await this.instantiationService.invokeFunction(openNewSearchEditor, {
+				filesToInclude: searchView.searchIncludePattern.getValue(),
+				filesToExclude: searchView.searchExcludePattern.getValue(),
+				isRegexp: searchView.searchAndReplaceWidget.searchInput.getRegex(),
+				isCaseSensitive: searchView.searchAndReplaceWidget.searchInput.getCaseSensitive(),
+				matchWholeWord: searchView.searchAndReplaceWidget.searchInput.getWholeWords(),
+				useExcludeSettingsAndIgnoreFiles: searchView.searchExcludePattern.useExcludesAndIgnoreFiles(),
+				showIncludesExcludes: !!(searchView.searchIncludePattern.getValue() || searchView.searchExcludePattern.getValue() || !searchView.searchExcludePattern.useExcludesAndIgnoreFiles())
+			});
+		} else {
+			await this.instantiationService.invokeFunction(openNewSearchEditor);
+		}
 	}
 }
 
@@ -140,7 +156,7 @@ export const openNewSearchEditor =
 
 		telemetryService.publicLog2('searchEditor/openNewSearchEditor');
 
-		const args: OpenSearchEditorArgs = { query: selected };
+		const args: OpenSearchEditorArgs = { query: selected || undefined };
 		Object.entries(_args).forEach(([name, value]) => {
 			(args as any)[name as any] = (typeof value === 'string') ? configurationResolverService.resolve(lastActiveWorkspaceRoot, value) : value;
 		});
@@ -151,6 +167,7 @@ export const openNewSearchEditor =
 			editor = assertIsDefined(await assertIsDefined(editorGroupsService.getGroup(existing.groupId)).openEditor(input)) as SearchEditor;
 			if (selected) { editor.setQuery(selected); }
 			else { editor.selectQuery(); }
+			editor.setSearchConfig(args);
 		} else {
 			const input = instantiationService.invokeFunction(getOrMakeSearchEditorInput, { config: args, text: '' });
 			editor = await editorService.openEditor(input, { pinned: true }, toSide ? SIDE_GROUP : ACTIVE_GROUP) as SearchEditor;

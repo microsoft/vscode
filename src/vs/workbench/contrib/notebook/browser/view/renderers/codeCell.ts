@@ -231,6 +231,7 @@ export class CodeCell extends Disposable {
 				if (this._activeCellRunPlaceholder === null) {
 					// const keybinding = this._keybindingService.lookupKeybinding(EXECUTE_CELL_COMMAND_ID);
 					this._activeCellRunPlaceholder = this.notebookCellStatusBarService.addEntry(getExecuteCellPlaceholder(this.viewCell));
+					this._register(this._activeCellRunPlaceholder);
 				}
 
 				return;
@@ -284,7 +285,7 @@ export class CodeCell extends Disposable {
 			this.viewUpdateAllCollapsed();
 		} else if (this.viewCell.metadata?.inputCollapsed) {
 			this.viewUpdateInputCollapsed();
-		} else if (this.viewCell.metadata?.outputCollapsed && this.viewCell.outputs.length) {
+		} else if (this.viewCell.metadata?.outputCollapsed && this.viewCell.outputsViewModels.length) {
 			this.viewUpdateOutputCollapsed();
 		} else {
 			this.viewUpdateExpanded();
