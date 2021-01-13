@@ -228,7 +228,7 @@ export function getAllAvailableEditors(
 
 export const customEditorsAssociationsSettingId = 'workbench.editorAssociations';
 
-export const viewTypeSchamaAddition: IJSONSchema = {
+export const viewTypeSchemaAddition: IJSONSchema = {
 	type: 'string',
 	enum: []
 };
@@ -261,7 +261,7 @@ export const editorAssociationsConfigurationNode: IConfigurationNode = {
 								type: 'string',
 								description: nls.localize('editor.editorAssociations.viewType', "The unique id of the editor to use."),
 							},
-							viewTypeSchamaAddition
+							viewTypeSchemaAddition
 						]
 					},
 					'filenamePattern': {
@@ -281,8 +281,8 @@ export const DEFAULT_CUSTOM_EDITOR: ICustomEditorInfo = {
 };
 
 export function updateViewTypeSchema(enumValues: string[], enumDescriptions: string[]): void {
-	viewTypeSchamaAddition.enum = enumValues;
-	viewTypeSchamaAddition.enumDescriptions = enumDescriptions;
+	viewTypeSchemaAddition.enum = enumValues;
+	viewTypeSchemaAddition.enumDescriptions = enumDescriptions;
 
 	Registry.as<IConfigurationRegistry>(Extensions.Configuration)
 		.notifyConfigurationSchemaUpdated(editorAssociationsConfigurationNode);
