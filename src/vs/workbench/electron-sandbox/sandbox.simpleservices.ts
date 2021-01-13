@@ -31,7 +31,7 @@ import { IWebviewService, WebviewContentOptions, WebviewElement, WebviewExtensio
 import { ITextFileService } from 'vs/workbench/services/textfile/common/textfiles';
 import { AbstractTextFileService } from 'vs/workbench/services/textfile/browser/textFileService';
 import { IExtensionManagementServer, IExtensionManagementServerService } from 'vs/workbench/services/extensionManagement/common/extensionManagement';
-import { ITunnelProvider, ITunnelService, RemoteTunnel } from 'vs/platform/remote/common/tunnel';
+import { ITunnelProvider, ITunnelService, RemoteTunnel, TunnelProviderFeatures } from 'vs/platform/remote/common/tunnel';
 import { Disposable, IDisposable } from 'vs/base/common/lifecycle';
 import { IManualSyncTask, IResourcePreview, ISyncResourceHandle, ISyncTask, IUserDataAutoSyncService, IUserDataSyncService, IUserDataSyncStore, IUserDataSyncStoreManagementService, SyncResource, SyncStatus, UserDataSyncStoreType } from 'vs/platform/userDataSync/common/userDataSync';
 import { IUserDataSyncAccount, IUserDataSyncAccountService } from 'vs/platform/userDataSync/common/userDataSyncAccount';
@@ -560,14 +560,15 @@ class SimpleTunnelService implements ITunnelService {
 
 	tunnels: Promise<readonly RemoteTunnel[]> = Promise.resolve([]);
 	canElevate: boolean = false;
-
+	canMakePublic = false;
 	onTunnelOpened = Event.None;
 	onTunnelClosed = Event.None;
 
 	canTunnel(uri: URI): boolean { return false; }
 	openTunnel(addressProvider: IAddressProvider | undefined, remoteHost: string | undefined, remotePort: number, localPort?: number): Promise<RemoteTunnel> | undefined { return undefined; }
+	async changeTunnelPrivacy(remoteHost: string, remotePort: number, isPublic: boolean): Promise<RemoteTunnel | undefined> { return undefined; }
 	async closeTunnel(remoteHost: string, remotePort: number): Promise<void> { }
-	setTunnelProvider(provider: ITunnelProvider | undefined): IDisposable { return Disposable.None; }
+	setTunnelProvider(provider: ITunnelProvider | undefined, features: TunnelProviderFeatures): IDisposable { return Disposable.None; }
 }
 
 registerSingleton(ITunnelService, SimpleTunnelService);

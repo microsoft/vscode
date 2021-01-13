@@ -16,26 +16,7 @@
 
 declare module 'vscode' {
 
-	//#region https://github.com/microsoft/vscode/issues/93686
-
-	/**
-	 * An error type should be used to signal cancellation of an operation.
-	 *
-	 * This type can be used in response to a cancellation token or when an
-	 * operation is being cancelled by the executor of that operation.
-	 */
-	export class CancellationError extends Error {
-
-		/**
-		 * Creates a new cancellation error.
-		 */
-		constructor();
-	}
-
-
-	//#endregion
-
-	// #region auth provider: https://github.com/microsoft/vscode/issues/88309
+	//#region auth provider: https://github.com/microsoft/vscode/issues/88309
 
 	/**
 	 * An [event](#Event) which fires when an [AuthenticationProvider](#AuthenticationProvider) is added or removed.
@@ -173,12 +154,14 @@ declare module 'vscode' {
 		// The desired local port. If this port can't be used, then another will be chosen.
 		localAddressPort?: number;
 		label?: string;
+		public?: boolean;
 	}
 
 	export interface TunnelDescription {
 		remoteAddress: { port: number, host: string; };
 		//The complete local address(ex. localhost:1234)
 		localAddress: { port: number, host: string; } | string;
+		public?: boolean;
 	}
 
 	export interface Tunnel extends TunnelDescription {
@@ -240,6 +223,7 @@ declare module 'vscode' {
 		 */
 		tunnelFeatures?: {
 			elevation: boolean;
+			public: boolean;
 		};
 	}
 
@@ -757,8 +741,6 @@ declare module 'vscode' {
 
 	//#endregion
 
-
-
 	//#region @joaomoreno: SCM validation
 
 	/**
@@ -892,7 +874,7 @@ declare module 'vscode' {
 
 	//#endregion
 
-	//#region @alexdima - OnEnter enhancement
+	//#region https://github.com/microsoft/vscode/issues/58440
 	export interface OnEnterRule {
 		/**
 		 * This rule will only execute if the text above the this line matches this regular expression.
@@ -1969,7 +1951,6 @@ declare module 'vscode' {
 
 	//#endregion
 
-
 	//#region https://github.com/microsoft/vscode/issues/102091
 
 	export interface TextDocument {
@@ -2381,6 +2362,8 @@ declare module 'vscode' {
 
 	//#endregion
 
+	//#region https://github.com/microsoft/vscode/issues/112249
+
 	/**
 	 * Represents a storage utility for secrets, information that is
 	 * sensitive.
@@ -2416,4 +2399,6 @@ declare module 'vscode' {
 	export interface ExtensionContext {
 		secrets: SecretStorage;
 	}
+
+	//#endregion
 }
