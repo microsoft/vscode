@@ -141,10 +141,13 @@ export class ExtHostTunnelService extends Disposable implements IExtHostTunnelSe
 
 	constructor(
 		@IExtHostRpcService extHostRpc: IExtHostRpcService,
-		@IExtHostInitDataService private initData: IExtHostInitDataService
+		@IExtHostInitDataService initData: IExtHostInitDataService
 	) {
 		super();
 		this._proxy = extHostRpc.getProxy(MainContext.MainThreadTunnelService);
+		if (isLinux && initData.remote.isRemote && initData.remote.authority) {
+			this._proxy.$setCandidateFinder();
+		}
 	}
 
 	async openTunnel(extension: IExtensionDescription, forward: TunnelOptions): Promise<vscode.Tunnel | undefined> {
@@ -169,9 +172,6 @@ export class ExtHostTunnelService extends Disposable implements IExtHostTunnelSe
 	}
 
 	async $registerCandidateFinder(): Promise<void> {
-		if (!isLinux || !this.initData.remote.isRemote || !this.initData.remote.authority) {
-			return;
-		}
 		// Regularly scan to see if the candidate ports have changed.
 		let movingAverage = new MovingAverage();
 		let oldPorts: { host: string, port: number, detail: string }[] | undefined = undefined;
@@ -182,7 +182,7 @@ export class ExtHostTunnelService extends Disposable implements IExtHostTunnelSe
 			movingAverage.update(timeTaken);
 			if (!oldPorts || (JSON.stringify(oldPorts) !== JSON.stringify(newPorts))) {
 				oldPorts = newPorts;
-				await this._proxy.$onFoundNewCandidates(oldPorts.filter(async (candidate) => await this._showCandidatePort(candidate.host, candidate.port, candidate.detail)));
+				await this._proxy.$onFoundNewCandidates(oldPorts);
 			}
 			await (new Promise<void>(resolve => setTimeout(() => resolve(), this.calculateDelay(movingAverage.value))));
 		}
@@ -192,11 +192,13 @@ export class ExtHostTunnelService extends Disposable implements IExtHostTunnelSe
 		if (provider) {
 			if (provider.showCandidatePort) {
 				this._showCandidatePort = provider.showCandidatePort;
+				await this._proxy.$setCandidateFilter();
 			}
 			if (provider.tunnelFactory) {
 				this._forwardPortProvider = provider.tunnelFactory;
 				await this._proxy.$setTunnelProvider(provider.tunnelFeatures ?? {
-					elevation: false
+					elevation: false,
+					public: false
 				});
 			}
 		} else {
@@ -239,6 +241,10 @@ export class ExtHostTunnelService extends Disposable implements IExtHostTunnelSe
 			}
 		}
 		return undefined;
+	}
+
+	async $applyCandidateFilter(candidates: CandidatePort[]): Promise<CandidatePort[]> {
+		return Promise.all(candidates.filter(candidate => this._showCandidatePort(candidate.host, candidate.port, candidate.detail)));
 	}
 
 	async findCandidatePorts(): Promise<CandidatePort[]> {

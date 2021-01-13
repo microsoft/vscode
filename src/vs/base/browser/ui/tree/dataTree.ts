@@ -47,12 +47,18 @@ export class DataTree<TInput, T, TFilterData = void> extends AbstractTree<T | nu
 		return this.input;
 	}
 
-	setInput(input: TInput, viewState?: IDataTreeViewState): void {
+	setInput(input: TInput | undefined, viewState?: IDataTreeViewState): void {
 		if (viewState && !this.identityProvider) {
 			throw new TreeError(this.user, 'Can\'t restore tree view state without an identity provider');
 		}
 
 		this.input = input;
+
+		if (!input) {
+			this.nodesByIdentity.clear();
+			this.model.setChildren(null, Iterable.empty());
+			return;
+		}
 
 		if (!viewState) {
 			this._refresh(input);
