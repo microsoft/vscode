@@ -35,7 +35,7 @@ const date = new Date().toISOString();
 
 const gitpodWebResources = [
 	// Workbench
-	'out-build/vs/{base,platform,editor,workbench,gitpod}/**/*.{svg,png}',
+	'out-build/vs/{base,platform,editor,workbench,gitpod}/**/*.{svg,png,jpg}',
 	'out-build/vs/code/browser/workbench/*.html',
 	'out-build/vs/base/browser/ui/codicons/codicon/**',
 	'out-build/vs/**/markdown.css',
@@ -186,8 +186,8 @@ function packageWebTask(sourceFolderName, destinationFolderName) {
 			.map(d => [`${d}/**`, `!${d}/**/{test,tests}/**`, `!${d}/.bin/**`]));
 
 		const runtimeDependencies = gulp.src(dependenciesSrc, { base, dot: true })
-			.pipe(filter(['**', '!**/package-lock.json']))
-			.pipe(util.cleanNodeModules(path.join(__dirname, '.nativeignore')));
+			.pipe(filter(['**', '!**/package-lock.json', '!**/yarn.lock']))
+			.pipe(util.cleanNodeModules(path.join(__dirname, '.moduleignore')));
 
 		const name = product.applicationName;
 		const packageJsonStream = gulp.src([base + '/package.json'], { base })
@@ -262,8 +262,8 @@ function packageServerTask(sourceFolderName, destinationFolderName) {
 			.map(d => [`${d}/**`, `!${d}/**/{test,tests}/**`, `!${d}/.bin/**`]));
 
 		const runtimeDependencies = gulp.src(dependenciesSrc, { base, dot: true })
-			.pipe(filter(['**', '!**/package-lock.json']))
-			.pipe(util.cleanNodeModules(path.join(__dirname, '.nativeignore')));
+			.pipe(filter(['**', '!**/package-lock.json', '!**/yarn.lock']))
+			.pipe(util.cleanNodeModules(path.join(__dirname, '.moduleignore')));
 
 		const name = product.applicationName;
 		const packageJsonStream = gulp.src([base + '/package.json'], { base })
