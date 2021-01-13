@@ -39,7 +39,7 @@ if (platform.isWindows) {
 			checkPath(exePath!);
 		});
 
-		test('Can enumerate PowerShells', async () => {
+		test.skip('Can enumerate PowerShells', async () => { // https://github.com/microsoft/vscode/issues/114248
 			const pwshs = new Array<IPowerShellExeDetails>();
 			for await (const p of enumeratePowerShellInstallations()) {
 				pwshs.push(p);
