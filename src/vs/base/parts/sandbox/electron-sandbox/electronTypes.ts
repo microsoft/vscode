@@ -47,15 +47,6 @@ export interface IpcRenderer {
 	send(channel: string, ...args: any[]): void;
 }
 
-export interface WebFrame {
-	/**
-	 * Changes the zoom level to the specified level. The original size is 0 and each
-	 * increment above or below represents zooming 20% larger or smaller to default
-	 * limits of 300% and 50% of original size, respectively.
-	 */
-	setZoomLevel(level: number): void;
-}
-
 export interface CrashReporter {
 	/**
 	 * Set an extra parameter to be sent with the crash report. The values specified
