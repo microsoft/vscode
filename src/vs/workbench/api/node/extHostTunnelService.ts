@@ -22,6 +22,7 @@ import { IExtensionDescription } from 'vs/platform/extensions/common/extensions'
 import { promisify } from 'util';
 import { MovingAverage } from 'vs/base/common/numbers';
 import { CandidatePort } from 'vs/workbench/services/remote/common/remoteExplorerService';
+import { ILogService } from 'vs/platform/log/common/log';
 
 class ExtensionTunnel implements vscode.Tunnel {
 	private _onDispose: Emitter<void> = new Emitter();
@@ -141,7 +142,8 @@ export class ExtHostTunnelService extends Disposable implements IExtHostTunnelSe
 
 	constructor(
 		@IExtHostRpcService extHostRpc: IExtHostRpcService,
-		@IExtHostInitDataService private initData: IExtHostInitDataService
+		@IExtHostInitDataService private initData: IExtHostInitDataService,
+		@ILogService private logService: ILogService
 	) {
 		super();
 		this._proxy = extHostRpc.getProxy(MainContext.MainThreadTunnelService);
@@ -169,6 +171,7 @@ export class ExtHostTunnelService extends Disposable implements IExtHostTunnelSe
 	}
 
 	async $registerCandidateFinder(): Promise<void> {
+		this.logService.trace(`registerCandidateFinder ${isLinux} ${this.initData.remote.isRemote} ${this.initData.remote.authority}`);
 		if (!isLinux || !this.initData.remote.isRemote || !this.initData.remote.authority) {
 			return;
 		}
@@ -177,6 +180,7 @@ export class ExtHostTunnelService extends Disposable implements IExtHostTunnelSe
 		let oldPorts: { host: string, port: number, detail: string }[] | undefined = undefined;
 		while (1) {
 			const startTime = new Date().getTime();
+			this.logService.trace('finding candidates');
 			const newPorts = await this.findCandidatePorts();
 			const timeTaken = new Date().getTime() - startTime;
 			movingAverage.update(timeTaken);
@@ -189,6 +193,7 @@ export class ExtHostTunnelService extends Disposable implements IExtHostTunnelSe
 	}
 
 	async setTunnelExtensionFunctions(provider: vscode.RemoteAuthorityResolver | undefined): Promise<IDisposable> {
+		this.logService.trace(`setting tunnel extension functions ${!!provider} ${!!provider?.showCandidatePort}`);
 		if (provider) {
 			if (provider.showCandidatePort) {
 				this._showCandidatePort = provider.showCandidatePort;
