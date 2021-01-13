@@ -118,6 +118,171 @@
 				},
 				"publisherDisplayName": "Microsoft"
 			}
+		},
+		{
+			"name": "vscode.theme-abyss",
+			"version": "1.0.0",
+			"repo": "https://github.com/microsoft/vscode-theme-abyss",
+			"metadata": {
+				"id": "8b1706cc-c7f5-447c-b2a2-99a39d1f5fde",
+				"publisherId": {
+					"publisherId": "ecbc86dd-2ea2-45a9-a653-f7a80147dd9d",
+					"publisherName": "vscode",
+					"displayName": "Visual Studio Code",
+					"flags": "verified"
+				},
+				"publisherDisplayName": "Visual Studio Code"
+			}
+		},
+		{
+			"name": "vscode.theme-defaults",
+			"version": "1.0.0",
+			"repo": "https://github.com/microsoft/vscode-theme-defaults",
+			"metadata": {
+				"id": "e5a0ca35-fb87-4635-a795-f0cbd50ec7ad",
+				"publisherId": {
+					"publisherId": "ecbc86dd-2ea2-45a9-a653-f7a80147dd9d",
+					"publisherName": "vscode",
+					"displayName": "Visual Studio Code",
+					"flags": "verified"
+				},
+				"publisherDisplayName": "Visual Studio Code"
+			}
+		},
+		{
+			"name": "vscode.theme-kimbie-dark",
+			"version": "1.0.0",
+			"repo": "https://github.com/microsoft/vscode-theme-kimbie-dark",
+			"metadata": {
+				"id": "340a1ab9-2202-4096-8915-2fd2f229cad8",
+				"publisherId": {
+					"publisherId": "ecbc86dd-2ea2-45a9-a653-f7a80147dd9d",
+					"publisherName": "vscode",
+					"displayName": "Visual Studio Code",
+					"flags": "verified"
+				},
+				"publisherDisplayName": "Visual Studio Code"
+			}
+		},
+		{
+			"name": "vscode.theme-monokai",
+			"version": "1.0.0",
+			"repo": "https://github.com/microsoft/vscode-theme-monokai",
+			"metadata": {
+				"id": "44e7e8de-1042-43db-8525-78ad0e93ea7d",
+				"publisherId": {
+					"publisherId": "ecbc86dd-2ea2-45a9-a653-f7a80147dd9d",
+					"publisherName": "vscode",
+					"displayName": "Visual Studio Code",
+					"flags": "verified"
+				},
+				"publisherDisplayName": "Visual Studio Code"
+			}
+		},
+		{
+			"name": "vscode.theme-monokai-dimmed",
+			"version": "1.0.0",
+			"repo": "https://github.com/microsoft/vscode-theme-monokai-dimmed",
+			"metadata": {
+				"id": "c73022b9-f27c-4069-b6a7-2c9c8286bfa9",
+				"publisherId": {
+					"publisherId": "ecbc86dd-2ea2-45a9-a653-f7a80147dd9d",
+					"publisherName": "vscode",
+					"displayName": "Visual Studio Code",
+					"flags": "verified"
+				},
+				"publisherDisplayName": "Visual Studio Code"
+			}
+		},
+		{
+			"name": "vscode.theme-quietlight",
+			"version": "1.0.0",
+			"repo": "https://github.com/microsoft/vscode-theme-quietlight",
+			"metadata": {
+				"id": "3bbf9547-a70c-44e2-bdf7-181b0eb2baec",
+				"publisherId": {
+					"publisherId": "ecbc86dd-2ea2-45a9-a653-f7a80147dd9d",
+					"publisherName": "vscode",
+					"displayName": "Visual Studio Code",
+					"flags": "verified"
+				},
+				"publisherDisplayName": "Visual Studio Code"
+			}
+		},
+		{
+			"name": "vscode.theme-red",
+			"version": "1.0.0",
+			"repo": "https://github.com/microsoft/vscode-theme-red",
+			"metadata": {
+				"id": "ffe504ea-fc59-4594-b259-89349fa31fb0",
+				"publisherId": {
+					"publisherId": "ecbc86dd-2ea2-45a9-a653-f7a80147dd9d",
+					"publisherName": "vscode",
+					"displayName": "Visual Studio Code",
+					"flags": "verified"
+				},
+				"publisherDisplayName": "Visual Studio Code"
+			}
+		},
+		{
+			"name": "vscode.vscode-theme-seti",
+			"version": "1.0.0",
+			"repo": "https://github.com/microsoft/vscode-theme-seti",
+			"metadata": {
+				"id": "a6b39a92-a357-4570-886b-7f7cc76df224",
+				"publisherId": {
+					"publisherId": "ecbc86dd-2ea2-45a9-a653-f7a80147dd9d",
+					"publisherName": "vscode",
+					"displayName": "Visual Studio Code",
+					"flags": "verified"
+				},
+				"publisherDisplayName": "Visual Studio Code"
+			}
+		},
+		{
+			"name": "vscode.theme-solarized-dark",
+			"version": "1.0.0",
+			"repo": "https://github.com/microsoft/vscode-theme-solarized-dark",
+			"metadata": {
+				"id": "3dd16664-6491-42ad-89f7-3fe6fbca2ed0",
+				"publisherId": {
+					"publisherId": "ecbc86dd-2ea2-45a9-a653-f7a80147dd9d",
+					"publisherName": "vscode",
+					"displayName": "Visual Studio Code",
+					"flags": "verified"
+				},
+				"publisherDisplayName": "Visual Studio Code"
+			}
+		},
+		{
+			"name": "vscode.theme-solarized-light",
+			"version": "1.0.0",
+			"repo": "https://github.com/microsoft/vscode-theme-solarized-light",
+			"metadata": {
+				"id": "19200743-5bf0-49f5-9544-ebaf7fcd7c52",
+				"publisherId": {
+					"publisherId": "ecbc86dd-2ea2-45a9-a653-f7a80147dd9d",
+					"publisherName": "vscode",
+					"displayName": "Visual Studio Code",
+					"flags": "verified"
+				},
+				"publisherDisplayName": "Visual Studio Code"
+			}
+		},
+		{
+			"name": "vscode.theme-tomorrow-night-blue",
+			"version": "1.0.0",
+			"repo": "https://github.com/microsoft/vscode-theme-tomorrow-night-blue",
+			"metadata": {
+				"id": "0bd38366-179a-4134-9e7c-232acdfcf95d",
+				"publisherId": {
+					"publisherId": "ecbc86dd-2ea2-45a9-a653-f7a80147dd9d",
+					"publisherName": "vscode",
+					"displayName": "Visual Studio Code",
+					"flags": "verified"
+				},
+				"publisherDisplayName": "Visual Studio Code"
+			}
 		}
 	],
 	"webBuiltInExtensions": [
