@@ -9,8 +9,7 @@ import * as json from 'vs/base/common/json';
 import { Registry } from 'vs/platform/registry/common/platform';
 import { IEnvironmentService } from 'vs/platform/environment/common/environment';
 import { IWorkspaceContextService } from 'vs/platform/workspace/common/workspace';
-import { TestProductService, workbenchInstantiationService } from 'vs/workbench/test/browser/workbenchTestServices';
-import { TestWorkbenchConfiguration, TestTextFileService } from 'vs/workbench/test/electron-browser/workbenchTestServices';
+import { TestEnvironmentService, TestTextFileService, workbenchInstantiationService } from 'vs/workbench/test/browser/workbenchTestServices';
 import * as uuid from 'vs/base/common/uuid';
 import { IConfigurationRegistry, Extensions as ConfigurationExtensions } from 'vs/platform/configuration/common/configurationRegistry';
 import { WorkspaceService } from 'vs/workbench/services/configuration/browser/configurationService';
@@ -32,37 +31,22 @@ import { NullLogService } from 'vs/platform/log/common/log';
 import { Schemas } from 'vs/base/common/network';
 import { IFileService } from 'vs/platform/files/common/files';
 import { KeybindingsEditingService, IKeybindingEditingService } from 'vs/workbench/services/keybinding/common/keybindingEditing';
-import { NativeWorkbenchEnvironmentService } from 'vs/workbench/services/environment/electron-browser/environmentService';
 import { FileUserDataProvider } from 'vs/workbench/services/userData/common/fileUserDataProvider';
 import { UriIdentityService } from 'vs/workbench/services/uriIdentity/common/uriIdentityService';
 import { DisposableStore } from 'vs/base/common/lifecycle';
 import { InMemoryFileSystemProvider } from 'vs/platform/files/common/inMemoryFilesystemProvider';
-import { ConfigurationCache as NativeConfigurationCache } from 'vs/workbench/services/configuration/electron-browser/configurationCache';
-import { RemoteAgentService } from 'vs/workbench/services/remote/electron-browser/remoteAgentServiceImpl';
 import { joinPath } from 'vs/base/common/resources';
 import { VSBuffer } from 'vs/base/common/buffer';
-
-class TestWorkbenchEnvironmentService extends NativeWorkbenchEnvironmentService {
-
-	constructor(private _appSettingsHome: URI) {
-		super(TestWorkbenchConfiguration, TestProductService);
-	}
-
-	get appSettingsHome() { return this._appSettingsHome; }
-}
-
-class ConfigurationCache extends NativeConfigurationCache {
-	needsCaching(resource: URI): boolean {
-		return false;
-	}
-}
+import { ConfigurationCache } from 'vs/workbench/services/configuration/browser/configurationCache';
+import { RemoteAgentService } from 'vs/workbench/services/remote/browser/remoteAgentServiceImpl';
+import { BrowserWorkbenchEnvironmentService } from 'vs/workbench/services/environment/browser/environmentService';
 
 const ROOT = URI.file('tests').with({ scheme: 'vscode-tests' });
 
 suite('ConfigurationEditingService', () => {
 
 	let instantiationService: TestInstantiationService;
-	let environmentService: NativeWorkbenchEnvironmentService;
+	let environmentService: BrowserWorkbenchEnvironmentService;
 	let fileService: IFileService;
 	let workspaceService: WorkspaceService;
 	let testObject: ConfigurationEditingService;
@@ -101,13 +85,13 @@ suite('ConfigurationEditingService', () => {
 		await fileService.createFolder(workspaceFolder);
 
 		instantiationService = <TestInstantiationService>workbenchInstantiationService(undefined, disposables);
-		environmentService = new TestWorkbenchEnvironmentService(workspaceFolder);
+		environmentService = TestEnvironmentService;
 		instantiationService.stub(IEnvironmentService, environmentService);
-		const remoteAgentService = disposables.add(instantiationService.createInstance(RemoteAgentService));
+		const remoteAgentService = disposables.add(instantiationService.createInstance(RemoteAgentService, null));
 		disposables.add(fileService.registerProvider(Schemas.userData, disposables.add(new FileUserDataProvider(ROOT.scheme, fileSystemProvider, Schemas.userData, logService))));
 		instantiationService.stub(IFileService, fileService);
 		instantiationService.stub(IRemoteAgentService, remoteAgentService);
-		workspaceService = disposables.add(new WorkspaceService({ configurationCache: new ConfigurationCache(ROOT, fileService) }, environmentService, fileService, remoteAgentService, new UriIdentityService(fileService), new NullLogService()));
+		workspaceService = disposables.add(new WorkspaceService({ configurationCache: new ConfigurationCache() }, environmentService, fileService, remoteAgentService, new UriIdentityService(fileService), new NullLogService()));
 		instantiationService.stub(IWorkspaceContextService, workspaceService);
 
 		await workspaceService.initialize({ folder: workspaceFolder, id: createHash('md5').update(workspaceFolder.toString()).digest('hex') });
@@ -151,7 +135,7 @@ suite('ConfigurationEditingService', () => {
 	});
 
 	test('errors cases - invalid global tasks configuration', async () => {
-		const resource = joinPath(environmentService.appSettingsHome, USER_STANDALONE_CONFIGURATIONS['tasks']);
+		const resource = joinPath(environmentService.userRoamingDataHome, USER_STANDALONE_CONFIGURATIONS['tasks']);
 		await fileService.writeFile(resource, VSBuffer.fromString(',,,,,,,,,,,,,,'));
 		try {
 			await testObject.writeConfiguration(EditableConfigurationTarget.USER_LOCAL, { key: 'tasks.configurationEditing.service.testSetting', value: 'value' });
@@ -267,7 +251,7 @@ suite('ConfigurationEditingService', () => {
 	});
 
 	test('write user standalone setting - empty file', async () => {
-		const target = joinPath(environmentService.appSettingsHome, USER_STANDALONE_CONFIGURATIONS['tasks']);
+		const target = joinPath(environmentService.userRoamingDataHome, USER_STANDALONE_CONFIGURATIONS['tasks']);
 		await testObject.writeConfiguration(EditableConfigurationTarget.USER_LOCAL, { key: 'tasks.service.testSetting', value: 'value' });
 
 		const contents = await fileService.readFile(target);
@@ -288,7 +272,7 @@ suite('ConfigurationEditingService', () => {
 	});
 
 	test('write user standalone setting - existing file', async () => {
-		const target = joinPath(environmentService.appSettingsHome, USER_STANDALONE_CONFIGURATIONS['tasks']);
+		const target = joinPath(environmentService.userRoamingDataHome, USER_STANDALONE_CONFIGURATIONS['tasks']);
 		await fileService.writeFile(target, VSBuffer.fromString('{ "my.super.setting": "my.super.value" }'));
 
 		await testObject.writeConfiguration(EditableConfigurationTarget.USER_LOCAL, { key: 'tasks.service.testSetting', value: 'value' });
@@ -312,7 +296,7 @@ suite('ConfigurationEditingService', () => {
 	test('write user standalone setting - empty file - full JSON', async () => {
 		await testObject.writeConfiguration(EditableConfigurationTarget.USER_LOCAL, { key: 'tasks', value: { 'version': '1.0.0', tasks: [{ 'taskName': 'myTask' }] } });
 
-		const target = joinPath(environmentService.appSettingsHome, USER_STANDALONE_CONFIGURATIONS['tasks']);
+		const target = joinPath(environmentService.userRoamingDataHome, USER_STANDALONE_CONFIGURATIONS['tasks']);
 		const contents = await fileService.readFile(target);
 		const parsed = json.parse(contents.value.toString());
 		assert.equal(parsed['version'], '1.0.0');
@@ -332,7 +316,7 @@ suite('ConfigurationEditingService', () => {
 	});
 
 	test('write user standalone setting - existing file - full JSON', async () => {
-		const target = joinPath(environmentService.appSettingsHome, USER_STANDALONE_CONFIGURATIONS['tasks']);
+		const target = joinPath(environmentService.userRoamingDataHome, USER_STANDALONE_CONFIGURATIONS['tasks']);
 		await fileService.writeFile(target, VSBuffer.fromString('{ "my.super.setting": "my.super.value" }'));
 
 		await testObject.writeConfiguration(EditableConfigurationTarget.USER_LOCAL, { key: 'tasks', value: { 'version': '1.0.0', tasks: [{ 'taskName': 'myTask' }] } });
@@ -356,7 +340,7 @@ suite('ConfigurationEditingService', () => {
 	});
 
 	test('write user standalone setting - existing file with JSON errors - full JSON', async () => {
-		const target = joinPath(environmentService.appSettingsHome, USER_STANDALONE_CONFIGURATIONS['tasks']);
+		const target = joinPath(environmentService.userRoamingDataHome, USER_STANDALONE_CONFIGURATIONS['tasks']);
 		await fileService.writeFile(target, VSBuffer.fromString('{ "my.super.setting": ')); // invalid JSON
 
 		await testObject.writeConfiguration(EditableConfigurationTarget.USER_LOCAL, { key: 'tasks', value: { 'version': '1.0.0', tasks: [{ 'taskName': 'myTask' }] } });
@@ -389,7 +373,7 @@ suite('ConfigurationEditingService', () => {
 	});
 
 	test('write user standalone setting should replace complete file', async () => {
-		const target = joinPath(environmentService.appSettingsHome, USER_STANDALONE_CONFIGURATIONS['tasks']);
+		const target = joinPath(environmentService.userRoamingDataHome, USER_STANDALONE_CONFIGURATIONS['tasks']);
 		await fileService.writeFile(target, VSBuffer.fromString(`{
 			"version": "1.0.0",
 			"tasks": [
