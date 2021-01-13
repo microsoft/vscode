@@ -541,40 +541,47 @@ export class RemoteViewPaneContainer extends FilterViewPaneContainer implements 
 
 registerAction2(SwitchRemoteAction);
 
-Registry.as<IViewContainersRegistry>(Extensions.ViewContainersRegistry).registerViewContainer(
-	{
-		id: VIEWLET_ID,
-		name: nls.localize('remote.explorer', "Remote Explorer"),
-		ctorDescriptor: new SyncDescriptor(RemoteViewPaneContainer),
-		hideIfEmpty: true,
-		viewOrderDelegate: {
-			getOrder: (group?: string) => {
-				if (!group) {
-					return;
-				}
+class RemoteViewPaneContainerContribution implements IWorkbenchContribution {
 
-				let matches = /^targets@(\d+)$/.exec(group);
-				if (matches) {
-					return -1000;
-				}
+	constructor(
+		@IRemoteAgentService remoteAgentService: IRemoteAgentService
+	) {
+		Registry.as<IViewContainersRegistry>(Extensions.ViewContainersRegistry).registerViewContainer(
+			{
+				id: VIEWLET_ID,
+				name: nls.localize('remote.explorer', "Remote Explorer"),
+				ctorDescriptor: new SyncDescriptor(RemoteViewPaneContainer),
+				hideIfEmpty: remoteAgentService.getConnection() === null,
+				viewOrderDelegate: {
+					getOrder: (group?: string) => {
+						if (!group) {
+							return;
+						}
 
-				matches = /^details(@(\d+))?$/.exec(group);
+						let matches = /^targets@(\d+)$/.exec(group);
+						if (matches) {
+							return -1000;
+						}
 
-				if (matches) {
-					return -500 + Number(matches[2]);
-				}
+						matches = /^details(@(\d+))?$/.exec(group);
 
-				matches = /^help(@(\d+))?$/.exec(group);
-				if (matches) {
-					return -10;
-				}
+						if (matches) {
+							return -500 + Number(matches[2]);
+						}
 
-				return;
-			}
-		},
-		icon: icons.remoteExplorerViewIcon,
-		order: 4
-	}, ViewContainerLocation.Sidebar);
+						matches = /^help(@(\d+))?$/.exec(group);
+						if (matches) {
+							return -10;
+						}
+
+						return;
+					}
+				},
+				icon: icons.remoteExplorerViewIcon,
+				order: 4
+			}, ViewContainerLocation.Sidebar);
+	}
+}
 
 class OpenRemoteViewletAction extends ShowViewletAction {
 
@@ -841,6 +848,7 @@ class RemoteAgentConnectionStatusListener extends Disposable implements IWorkben
 }
 
 const workbenchContributionsRegistry = Registry.as<IWorkbenchContributionsRegistry>(WorkbenchExtensions.Workbench);
+workbenchContributionsRegistry.registerWorkbenchContribution(RemoteViewPaneContainerContribution, LifecyclePhase.Starting);
 workbenchContributionsRegistry.registerWorkbenchContribution(RemoteAgentConnectionStatusListener, LifecyclePhase.Eventually);
 workbenchContributionsRegistry.registerWorkbenchContribution(RemoteStatusIndicator, LifecyclePhase.Starting);
 workbenchContributionsRegistry.registerWorkbenchContribution(ForwardedPortsView, LifecyclePhase.Eventually);
