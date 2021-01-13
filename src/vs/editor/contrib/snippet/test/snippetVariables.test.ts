@@ -15,12 +15,6 @@ import { mock } from 'vs/base/test/common/mock';
 import { createTextModel } from 'vs/editor/test/common/editorTestUtils';
 import { Workspace } from 'vs/platform/workspace/test/common/testWorkspace';
 import { extUriBiasedIgnorePathCase } from 'vs/base/common/resources';
-// eslint-disable-next-line code-import-patterns
-import { LabelService } from 'vs/workbench/services/label/common/labelService';
-// eslint-disable-next-line code-import-patterns
-import { TestEnvironmentService, TestPathService } from 'vs/workbench/test/browser/workbenchTestServices';
-// eslint-disable-next-line code-import-patterns
-import { TestContextService } from 'vs/workbench/test/common/workbenchTestServices';
 import { sep } from 'vs/base/common/path';
 
 suite('Snippet Variables Resolver', function () {
@@ -351,18 +345,18 @@ suite('Snippet Variables Resolver', function () {
 
 		let resolver: VariableResolver;
 
-		const workspaceLabelService = ((path: string): LabelService => {
-			const workspace = new Workspace(path, [toWorkspaceFolder(URI.file(path))]);
-			const labelService = new LabelService(TestEnvironmentService, new TestContextService(workspace), new TestPathService());
-			labelService.registerFormatter({
-				scheme: 'file',
-				formatting: {
-					label: '${path}',
-					separator: sep,
-					tildify: !isWindows,
-					normalizeDriveLetter: isWindows
+		// Mock a label service (only coded for file uris)
+		const workspaceLabelService = ((rootPath: string): ILabelService => {
+			const labelService = new class extends mock<ILabelService>() {
+				getUriLabel(uri: URI, options: { relative?: boolean } = {}) {
+					const rootFsPath = URI.file(rootPath).fsPath + sep;
+					const fsPath = uri.fsPath;
+					if (options.relative && rootPath && fsPath.startsWith(rootFsPath)) {
+						return fsPath.substring(rootFsPath.length);
+					}
+					return fsPath;
 				}
-			});
+			};
 			return labelService;
 		});
 
