@@ -3,7 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 import * as filters from 'vs/base/common/filters';
-import { data } from './filters.perf.data';
+import { data } from 'vs/base/test/common/filters.perf.data';
 
 const patterns = ['cci', 'ida', 'pos', 'CCI', 'enbled', 'callback', 'gGame', 'cons', 'zyx', 'aBc'];
 

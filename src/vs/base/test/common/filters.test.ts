@@ -285,7 +285,7 @@ suite('Filters', () => {
 		assertMatches('LLLL', 'SVisualLoggerLogsList', undefined, fuzzyScore);
 		assertMatches('TEdit', 'TextEdit', '^Text^E^d^i^t', fuzzyScore);
 		assertMatches('TEdit', 'TextEditor', '^Text^E^d^i^tor', fuzzyScore);
-		assertMatches('TEdit', 'Textedit', '^T^exte^d^i^t', fuzzyScore);
+		assertMatches('TEdit', 'Textedit', '^Text^e^d^i^t', fuzzyScore);
 		assertMatches('TEdit', 'text_edit', '^text_^e^d^i^t', fuzzyScore);
 		assertMatches('TEditDit', 'TextEditorDecorationType', '^Text^E^d^i^tor^Decorat^ion^Type', fuzzyScore);
 		assertMatches('TEdit', 'TextEditorDecorationType', '^Text^E^d^i^torDecorationType', fuzzyScore);
