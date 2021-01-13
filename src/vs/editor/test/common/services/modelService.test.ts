@@ -47,9 +47,9 @@ suite('ModelService', () => {
 		const model2 = modelService.createModel('farboo', null, URI.file(platform.isWindows ? 'c:\\myroot\\myfile.txt' : '/myroot/myfile.txt'));
 		const model3 = modelService.createModel('farboo', null, URI.file(platform.isWindows ? 'c:\\other\\myfile.txt' : '/other/myfile.txt'));
 
-		assert.equal(model1.getOptions().defaultEOL, DefaultEndOfLine.LF);
-		assert.equal(model2.getOptions().defaultEOL, DefaultEndOfLine.CRLF);
-		assert.equal(model3.getOptions().defaultEOL, DefaultEndOfLine.LF);
+		assert.strictEqual(model1.getOptions().defaultEOL, DefaultEndOfLine.LF);
+		assert.strictEqual(model2.getOptions().defaultEOL, DefaultEndOfLine.CRLF);
+		assert.strictEqual(model3.getOptions().defaultEOL, DefaultEndOfLine.LF);
 	});
 
 	test('_computeEdits no change', function () {
@@ -71,11 +71,11 @@ suite('ModelService', () => {
 				'and finished with the fourth.', //29
 			].join('\n'),
 			DefaultEndOfLine.LF
-		);
+		).textBuffer;
 
 		const actual = ModelServiceImpl._computeEdits(model, textBuffer);
 
-		assert.deepEqual(actual, []);
+		assert.deepStrictEqual(actual, []);
 	});
 
 	test('_computeEdits first line changed', function () {
@@ -97,11 +97,11 @@ suite('ModelService', () => {
 				'and finished with the fourth.', //29
 			].join('\n'),
 			DefaultEndOfLine.LF
-		);
+		).textBuffer;
 
 		const actual = ModelServiceImpl._computeEdits(model, textBuffer);
 
-		assert.deepEqual(actual, [
+		assert.deepStrictEqual(actual, [
 			EditOperation.replaceMove(new Range(1, 1, 2, 1), 'This is line One\n')
 		]);
 	});
@@ -125,11 +125,11 @@ suite('ModelService', () => {
 				'and finished with the fourth.', //29
 			].join('\r\n'),
 			DefaultEndOfLine.LF
-		);
+		).textBuffer;
 
 		const actual = ModelServiceImpl._computeEdits(model, textBuffer);
 
-		assert.deepEqual(actual, []);
+		assert.deepStrictEqual(actual, []);
 	});
 
 	test('_computeEdits EOL and other change 1', function () {
@@ -151,11 +151,11 @@ suite('ModelService', () => {
 				'and finished with the fourth.', //29
 			].join('\r\n'),
 			DefaultEndOfLine.LF
-		);
+		).textBuffer;
 
 		const actual = ModelServiceImpl._computeEdits(model, textBuffer);
 
-		assert.deepEqual(actual, [
+		assert.deepStrictEqual(actual, [
 			EditOperation.replaceMove(
 				new Range(1, 1, 4, 1),
 				[
@@ -186,11 +186,11 @@ suite('ModelService', () => {
 				''
 			].join('\r\n'),
 			DefaultEndOfLine.LF
-		);
+		).textBuffer;
 
 		const actual = ModelServiceImpl._computeEdits(model, textBuffer);
 
-		assert.deepEqual(actual, [
+		assert.deepStrictEqual(actual, [
 			EditOperation.replaceMove(new Range(3, 2, 3, 2), '\r\n')
 		]);
 	});
@@ -317,7 +317,7 @@ suite('ModelService', () => {
 		const model1 = modelService.createModel('text', null, resource);
 		// make an edit
 		model1.pushEditOperations(null, [{ range: new Range(1, 5, 1, 5), text: '1' }], () => [new Selection(1, 5, 1, 5)]);
-		assert.equal(model1.getValue(), 'text1');
+		assert.strictEqual(model1.getValue(), 'text1');
 		// dispose it
 		modelService.destroyModel(resource);
 
@@ -325,7 +325,7 @@ suite('ModelService', () => {
 		const model2 = modelService.createModel('text1', null, resource);
 		// undo
 		model2.undo();
-		assert.equal(model2.getValue(), 'text');
+		assert.strictEqual(model2.getValue(), 'text');
 	});
 
 	test('maintains version id and alternative version id for same resource and same content', () => {
@@ -335,7 +335,7 @@ suite('ModelService', () => {
 		const model1 = modelService.createModel('text', null, resource);
 		// make an edit
 		model1.pushEditOperations(null, [{ range: new Range(1, 5, 1, 5), text: '1' }], () => [new Selection(1, 5, 1, 5)]);
-		assert.equal(model1.getValue(), 'text1');
+		assert.strictEqual(model1.getValue(), 'text1');
 		const versionId = model1.getVersionId();
 		const alternativeVersionId = model1.getAlternativeVersionId();
 		// dispose it
@@ -343,8 +343,8 @@ suite('ModelService', () => {
 
 		// create a new model with the same content
 		const model2 = modelService.createModel('text1', null, resource);
-		assert.equal(model2.getVersionId(), versionId);
-		assert.equal(model2.getAlternativeVersionId(), alternativeVersionId);
+		assert.strictEqual(model2.getVersionId(), versionId);
+		assert.strictEqual(model2.getAlternativeVersionId(), alternativeVersionId);
 	});
 
 	test('does not maintain undo for same resource and different content', () => {
@@ -354,7 +354,7 @@ suite('ModelService', () => {
 		const model1 = modelService.createModel('text', null, resource);
 		// make an edit
 		model1.pushEditOperations(null, [{ range: new Range(1, 5, 1, 5), text: '1' }], () => [new Selection(1, 5, 1, 5)]);
-		assert.equal(model1.getValue(), 'text1');
+		assert.strictEqual(model1.getValue(), 'text1');
 		// dispose it
 		modelService.destroyModel(resource);
 
@@ -362,7 +362,7 @@ suite('ModelService', () => {
 		const model2 = modelService.createModel('text2', null, resource);
 		// undo
 		model2.undo();
-		assert.equal(model2.getValue(), 'text2');
+		assert.strictEqual(model2.getValue(), 'text2');
 	});
 
 	test('setValue should clear undo stack', () => {
@@ -370,17 +370,17 @@ suite('ModelService', () => {
 
 		const model = modelService.createModel('text', null, resource);
 		model.pushEditOperations(null, [{ range: new Range(1, 5, 1, 5), text: '1' }], () => [new Selection(1, 5, 1, 5)]);
-		assert.equal(model.getValue(), 'text1');
+		assert.strictEqual(model.getValue(), 'text1');
 
 		model.setValue('text2');
 		model.undo();
-		assert.equal(model.getValue(), 'text2');
+		assert.strictEqual(model.getValue(), 'text2');
 	});
 });
 
 function assertComputeEdits(lines1: string[], lines2: string[]): void {
 	const model = createTextModel(lines1.join('\n'));
-	const textBuffer = createTextBuffer(lines2.join('\n'), DefaultEndOfLine.LF);
+	const textBuffer = createTextBuffer(lines2.join('\n'), DefaultEndOfLine.LF).textBuffer;
 
 	// compute required edits
 	// let start = Date.now();
@@ -390,7 +390,7 @@ function assertComputeEdits(lines1: string[], lines2: string[]): void {
 	// apply edits
 	model.pushEditOperations([], edits, null);
 
-	assert.equal(model.getValue(), lines2.join('\n'));
+	assert.strictEqual(model.getValue(), lines2.join('\n'));
 }
 
 function getRandomInt(min: number, max: number): number {

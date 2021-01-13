@@ -147,8 +147,8 @@ class FileAccessImpl {
 	 * **Note:** use `dom.ts#asCSSUrl` whenever the URL is to be used in CSS context.
 	 */
 	asBrowserUri(uri: URI): URI;
-	asBrowserUri(moduleId: string, moduleIdToUrl: { toUrl(moduleId: string): string }): URI;
-	asBrowserUri(uriOrModule: URI | string, moduleIdToUrl?: { toUrl(moduleId: string): string }): URI {
+	asBrowserUri(moduleId: string, moduleIdToUrl: { toUrl(moduleId: string): string }, __forceCodeFileUri?: boolean): URI;
+	asBrowserUri(uriOrModule: URI | string, moduleIdToUrl?: { toUrl(moduleId: string): string }, __forceCodeFileUri?: boolean): URI {
 		const uri = this.toUri(uriOrModule, moduleIdToUrl);
 
 		// Handle remote URIs via `RemoteAuthorities`
@@ -157,35 +157,21 @@ class FileAccessImpl {
 		}
 
 		// Only convert the URI if we are in a native context and it has `file:` scheme
-		if (platform.isElectronSandboxed && platform.isNative && uri.scheme === Schemas.file) {
-			return this.toCodeFileUri(uri);
+		// and we have explicitly enabled the conversion (sandbox, or ENABLE_VSCODE_BROWSER_CODE_LOADING)
+		if (platform.isNative && (__forceCodeFileUri || platform.isPreferringBrowserCodeLoad) && uri.scheme === Schemas.file) {
+			return uri.with({
+				scheme: Schemas.vscodeFileResource,
+				// We need to provide an authority here so that it can serve
+				// as origin for network and loading matters in chromium.
+				// If the URI is not coming with an authority already, we
+				// add our own
+				authority: uri.authority || this.FALLBACK_AUTHORITY,
+				query: null,
+				fragment: null
+			});
 		}
 
 		return uri;
-	}
-
-	/**
-	 * TODO@bpasero remove me eventually when vscode-file is adopted everywhere
-	 */
-	_asCodeFileUri(uri: URI): URI;
-	_asCodeFileUri(moduleId: string, moduleIdToUrl: { toUrl(moduleId: string): string }): URI;
-	_asCodeFileUri(uriOrModule: URI | string, moduleIdToUrl?: { toUrl(moduleId: string): string }): URI {
-		const uri = this.toUri(uriOrModule, moduleIdToUrl);
-
-		return this.toCodeFileUri(uri);
-	}
-
-	private toCodeFileUri(uri: URI): URI {
-		return uri.with({
-			scheme: Schemas.vscodeFileResource,
-			// We need to provide an authority here so that it can serve
-			// as origin for network and loading matters in chromium.
-			// If the URI is not coming with an authority already, we
-			// add our own
-			authority: uri.authority || this.FALLBACK_AUTHORITY,
-			query: null,
-			fragment: null
-		});
 	}
 
 	/**

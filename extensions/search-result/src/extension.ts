@@ -128,16 +128,15 @@ export function activate(context: vscode.ExtensionContext) {
 
 
 function relativePathToUri(path: string, resultsUri: vscode.Uri): vscode.Uri | undefined {
+	const homePath = process.env.HOME || process.env.HOMEPATH || '';
+	const scheme = homePath ? 'file' : 'vscode-userdata';
+
 	if (pathUtils.isAbsolute(path)) {
-		return vscode.Uri
-			.file(path)
-			.with({ scheme: process.env.HOME ? 'file' : 'vscode-userdata' });
+		return vscode.Uri.file(path).with({ scheme });
 	}
 
 	if (path.indexOf('~/') === 0) {
-		return vscode.Uri
-			.file(pathUtils.join(process.env.HOME ?? '', path.slice(2)))
-			.with({ scheme: process.env.HOME ? 'file' : 'vscode-userdata' });
+		return vscode.Uri.file(pathUtils.join(homePath, path.slice(2))).with({ scheme });
 	}
 
 	const uriFromFolderWithPath = (folder: vscode.WorkspaceFolder, path: string): vscode.Uri =>

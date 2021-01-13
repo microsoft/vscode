@@ -4,6 +4,15 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { localize } from 'vs/nls';
+import { Codicon } from 'vs/base/common/codicons';
+import { ThemeIcon } from 'vs/platform/theme/common/themeService';
+import { registerIcon } from 'vs/platform/theme/common/iconRegistry';
+
+
+const setupIcon = registerIcon('getting-started-setup', Codicon.heart, localize('getting-started-setup-icon', "Icon used for the setup category of getting started"));
+const beginnerIcon = registerIcon('getting-started-beginner', Codicon.lightbulb, localize('getting-started-beginner-icon', "Icon used for the beginner category of getting started"));
+const codespacesIcon = registerIcon('getting-started-codespaces', Codicon.github, localize('getting-started-codespaces-icon', "Icon used for the codespaces category of getting started"));
+
 
 type GettingStartedItem = {
 	id: string
@@ -19,7 +28,7 @@ type GettingStartedCategory = {
 	id: string
 	title: string,
 	description: string,
-	codicon: string,
+	icon: ThemeIcon,
 	when?: string,
 	content:
 	| { type: 'items', items: GettingStartedItem[] }
@@ -32,8 +41,8 @@ export const content: GettingStartedContent = [
 	{
 		id: 'Codespaces',
 		title: localize('gettingStarted.codespaces.title', "Primer on GitHub Codespaces"),
-		codicon: 'github',
-		// when: 'remoteConnectionState == connected',
+		icon: codespacesIcon,
+		when: 'remoteConnectionState == connected',
 		description: localize('gettingStarted.codespaces.description', "Get up and running with your instant code environment."),
 		content: {
 			type: 'items',
@@ -101,8 +110,8 @@ export const content: GettingStartedContent = [
 		id: 'Setup',
 		title: localize('gettingStarted.setup.title', "Quick Setup"),
 		description: localize('gettingStarted.setup.description', "Extend and customize VS Code to fit your needs."),
-		codicon: 'milestone',
-		when: '!emptyWorkspaceSupport',
+		icon: setupIcon,
+		when: 'emptyWorkspaceSupport',
 		content: {
 			type: 'items',
 			items: [
@@ -167,8 +176,8 @@ export const content: GettingStartedContent = [
 
 	{
 		id: 'Beginner',
-		title: localize('gettingStarted.beginner.title', "Fundamentals of VS Code"),
-		codicon: 'milestone',
+		title: localize('gettingStarted.beginner.title', "Learn the Fundamentals"),
+		icon: beginnerIcon,
 		description: localize('gettingStarted.beginner.description', "Get up and running with must-have shortcuts & features."),
 		content: {
 			type: 'items',

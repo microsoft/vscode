@@ -3,6 +3,10 @@ steps:
     inputs:
       versionSpec: "12.x"
 
+  - task: geeklearningio.gl-vsts-tasks-yarn.yarn-installer-task.YarnInstaller@2
+    inputs:
+      versionSpec: "1.x"
+
   - task: AzureKeyVault@1
     displayName: "Azure Key Vault: Get Secrets"
     inputs:
@@ -27,12 +31,6 @@ steps:
     displayName: Merge distro
 
   - script: |
-      npx https://aka.ms/enablesecurefeed standAlone
-    displayName: Switch to Terrapin packages
-    timeoutInMinutes: 5
-    condition: and(succeeded(), eq(variables['ENABLE_TERRAPIN'], 'true'))
-
-  - script: |
       mkdir -p .build
       node build/azure-pipelines/common/computeNodeModulesCacheKey.js $VSCODE_ARCH $ENABLE_TERRAPIN > .build/yarnlockhash
     displayName: Prepare yarn cache flags
@@ -43,13 +41,26 @@ steps:
       key: 'genericNodeModules | $(Agent.OS) | .build/yarnlockhash'
       path: .build/node_modules_cache
       cacheHitVar: NODE_MODULES_RESTORED
-    displayName: Cache node_modules archive
+    displayName: Restore node_modules cache
 
   - script: |
       set -e
       tar -xzf .build/node_modules_cache/cache.tgz
     condition: and(succeeded(), eq(variables.NODE_MODULES_RESTORED, 'true'))
-    displayName: Extract node_modules archive
+    displayName: Extract node_modules cache
+
+  - script: |
+      npx https://aka.ms/enablesecurefeed standAlone
+    timeoutInMinutes: 5
+    condition: and(succeeded(), ne(variables.NODE_MODULES_RESTORED, 'true'), eq(variables['ENABLE_TERRAPIN'], 'true'))
+    displayName: Switch to Terrapin packages
+
+  - script: |
+      set -e
+      sudo apt update -y
+      sudo apt install -y build-essential pkg-config libx11-dev libx11-xcb-dev libxkbfile-dev libsecret-1-dev libnotify-bin
+    displayName: Install build tools
+    condition: and(succeeded(), ne(variables.NODE_MODULES_RESTORED, 'true'))
 
   - script: |
       set -e
@@ -83,18 +94,27 @@ steps:
 
   - script: |
       set -e
-      yarn gulp compile-build
-      yarn gulp compile-extensions-build
-      yarn gulp minify-vscode
-      yarn gulp minify-vscode-reh
-      yarn gulp minify-vscode-reh-web
-    displayName: Compile
+      yarn npm-run-all -lp core-ci extensions-ci hygiene eslint valid-layers-check
+    displayName: Compile & Hygiene
 
   - script: |
       set -e
       AZURE_STORAGE_ACCESS_KEY="$(ticino-storage-key)" \
         node build/azure-pipelines/upload-sourcemaps
     displayName: Upload sourcemaps
+    condition: and(succeeded(), ne(variables['VSCODE_PUBLISH'], 'false'))
+
+  - script: |
+      set -
+      ./build/azure-pipelines/common/extract-telemetry.sh
+    displayName: Extract Telemetry
+    condition: and(succeeded(), ne(variables['VSCODE_PUBLISH'], 'false'))
+
+  - script: |
+      set -e
+      AZURE_WEBVIEW_STORAGE_ACCESS_KEY="$(vscode-webview-storage-key)" \
+      ./build/azure-pipelines/common/publish-webview.sh
+    displayName: Publish Webview
     condition: and(succeeded(), ne(variables['VSCODE_PUBLISH'], 'false'))
 
   - script: |

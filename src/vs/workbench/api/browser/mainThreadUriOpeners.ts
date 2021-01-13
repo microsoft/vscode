@@ -4,61 +4,91 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { CancellationToken } from 'vs/base/common/cancellation';
+import { Disposable } from 'vs/base/common/lifecycle';
 import { Schemas } from 'vs/base/common/network';
 import { URI } from 'vs/base/common/uri';
-import { IOpener, IOpenerService, OpenExternalOptions, OpenInternalOptions } from 'vs/platform/opener/common/opener';
+import { ExtensionIdentifier } from 'vs/platform/extensions/common/extensions';
 import { ExtHostContext, ExtHostUriOpenersShape, IExtHostContext, MainContext, MainThreadUriOpenersShape } from 'vs/workbench/api/common/extHost.protocol';
+import { ExternalOpenerEntry, IExternalOpenerProvider, IExternalUriOpenerService } from 'vs/workbench/contrib/externalUriOpener/common/externalUriOpenerService';
 import { IExtensionService } from 'vs/workbench/services/extensions/common/extensions';
 import { extHostNamedCustomer } from '../common/extHostCustomers';
 
+interface RegisteredOpenerMetadata {
+	readonly schemes: ReadonlySet<string>;
+	readonly extensionId: ExtensionIdentifier;
+	readonly label: string;
+}
 
 @extHostNamedCustomer(MainContext.MainThreadUriOpeners)
-export class MainThreadUriOpeners implements MainThreadUriOpenersShape, IOpener {
+export class MainThreadUriOpeners extends Disposable implements MainThreadUriOpenersShape, IExternalOpenerProvider {
 
 	private readonly proxy: ExtHostUriOpenersShape;
-	private readonly handlers = new Map<number, { schemes: ReadonlySet<string> }>();
+	private readonly registeredOpeners = new Map<number, RegisteredOpenerMetadata>();
 
 	constructor(
 		context: IExtHostContext,
-		@IOpenerService private readonly openerService: IOpenerService,
+		@IExternalUriOpenerService private readonly externalUriOpenerService: IExternalUriOpenerService,
 		@IExtensionService private readonly extensionService: IExtensionService,
 	) {
+		super();
 		this.proxy = context.getProxy(ExtHostContext.ExtHostUriOpeners);
 
-		this.openerService.registerOpener(this);
+		this._register(this.externalUriOpenerService.registerExternalOpenerProvider(this));
 	}
 
-	async open(
-		target: string | URI,
-		options?: OpenInternalOptions | OpenExternalOptions
-	): Promise<boolean> {
-		const targetUri = typeof target === 'string' ? URI.parse(target) : target;
+	public async provideExternalOpeners(href: string | URI): Promise<readonly ExternalOpenerEntry[]> {
+		const targetUri = typeof href === 'string' ? URI.parse(href) : href;
 
 		// Currently we only allow openers for http and https urls
 		if (targetUri.scheme !== Schemas.http && targetUri.scheme !== Schemas.https) {
-			return false;
+			return [];
 		}
 
 		await this.extensionService.activateByEvent(`onUriOpen:${targetUri.scheme}`);
 
 		// If there are no handlers there is no point in making a round trip
-		const hasHandler = Array.from(this.handlers.values()).some(x => x.schemes.has(targetUri.scheme));
+		const hasHandler = Array.from(this.registeredOpeners.values()).some(x => x.schemes.has(targetUri.scheme));
 		if (!hasHandler) {
-			return false;
+			return [];
 		}
 
-		return await this.proxy.$openUri(targetUri, CancellationToken.None);
+		const openerHandles = await this.proxy.$getOpenersForUri(targetUri, CancellationToken.None);
+
+		return openerHandles.map(handle => this.openerForCommand(handle, targetUri));
 	}
 
-	async $registerUriOpener(handle: number, schemes: readonly string[]): Promise<void> {
-		this.handlers.set(handle, { schemes: new Set(schemes) });
+	private openerForCommand(openerHandle: number, sourceUri: URI): ExternalOpenerEntry {
+		const metadata = this.registeredOpeners.get(openerHandle)!;
+		return {
+			id: metadata.extensionId.value,
+			label: metadata.label,
+			openExternal: async (href) => {
+				const resolveUri = URI.parse(href);
+				await this.proxy.$openUri(openerHandle, { resolveUri, sourceUri }, CancellationToken.None);
+				return true;
+			},
+		};
+	}
+
+	async $registerUriOpener(
+		handle: number,
+		schemes: readonly string[],
+		extensionId: ExtensionIdentifier,
+		label: string,
+	): Promise<void> {
+		this.registeredOpeners.set(handle, {
+			schemes: new Set(schemes),
+			label,
+			extensionId,
+		});
 	}
 
 	async $unregisterUriOpener(handle: number): Promise<void> {
-		this.handlers.delete(handle);
+		this.registeredOpeners.delete(handle);
 	}
 
 	dispose(): void {
-		this.handlers.clear();
+		super.dispose();
+		this.registeredOpeners.clear();
 	}
 }

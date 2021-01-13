@@ -747,6 +747,10 @@ export class PersistentProtocol implements IMessagePassingProtocol {
 		return this._socket;
 	}
 
+	public getMillisSinceLastIncomingData(): number {
+		return Date.now() - this._socketReader.lastReadTime;
+	}
+
 	public beginAcceptReconnection(socket: ISocket, initialDataChunk: VSBuffer | null): void {
 		this._isReconnecting = true;
 

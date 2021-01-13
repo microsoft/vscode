@@ -7,6 +7,7 @@ import * as path from 'vs/base/common/path';
 import * as platform from 'vs/base/common/platform';
 import type * as pty from 'node-pty';
 import * as fs from 'fs';
+import * as os from 'os';
 import { Event, Emitter } from 'vs/base/common/event';
 import { getWindowsBuildNumber } from 'vs/workbench/contrib/terminal/node/terminal';
 import { Disposable } from 'vs/base/common/lifecycle';
@@ -329,18 +330,26 @@ export class TerminalProcess extends Disposable implements ITerminalChildProcess
 
 	public getCwd(): Promise<string> {
 		if (platform.isMacintosh) {
-			return new Promise<string>(resolve => {
-				if (!this._ptyProcess) {
-					resolve(this._initialCwd);
-					return;
-				}
-				this._logService.trace('IPty#pid');
-				exec('lsof -OPl -p ' + this._ptyProcess.pid + ' | grep cwd', (error, stdout, stderr) => {
-					if (stdout !== '') {
-						resolve(stdout.substring(stdout.indexOf('/'), stdout.length - 1));
+			// Disable cwd lookup on macOS Big Sur due to spawn blocking thread (darwin v20 is macOS
+			// Big Sur) https://github.com/Microsoft/vscode/issues/105446
+			const osRelease = os.release().split('.');
+			if (osRelease.length > 0 && parseInt(osRelease[0]) < 20) {
+				return new Promise<string>(resolve => {
+					if (!this._ptyProcess) {
+						resolve(this._initialCwd);
+						return;
 					}
+					this._logService.trace('IPty#pid');
+					exec('lsof -OPln -p ' + this._ptyProcess.pid + ' | grep cwd', (error, stdout, stderr) => {
+						if (!error && stdout !== '') {
+							resolve(stdout.substring(stdout.indexOf('/'), stdout.length - 1));
+						} else {
+							this._logService.error('lsof did not run successfully, it may not be on the $PATH?', error, stdout, stderr);
+							resolve(this._initialCwd);
+						}
+					});
 				});
-			});
+			}
 		}
 
 		if (platform.isLinux) {

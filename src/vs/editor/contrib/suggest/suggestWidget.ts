@@ -5,7 +5,6 @@
 
 import 'vs/css!./media/suggest';
 import 'vs/base/browser/ui/codicons/codiconStyles'; // The codicon symbol styles are defined here and must be loaded
-import 'vs/editor/contrib/documentSymbols/outlineTree'; // The codicon symbol colors are defined here and must be loaded
 import * as nls from 'vs/nls';
 import * as strings from 'vs/base/common/strings';
 import * as dom from 'vs/base/browser/dom';
@@ -702,6 +701,14 @@ export class SuggestWidget implements IDisposable {
 		this._loadingTimeout?.dispose();
 		this._setState(State.Hidden);
 		this._onDidHide.fire(this);
+
+		// ensure that a reasonable widget height is persisted so that
+		// accidential "resize-to-single-items" cases aren't happening
+		const dim = this._persistedSize.restore();
+		const minPersistedHeight = Math.ceil(this.getLayoutInfo().itemHeight * 4.3);
+		if (dim && dim.height < minPersistedHeight) {
+			this._persistedSize.store(dim.with(undefined, minPersistedHeight));
+		}
 	}
 
 	isFrozen(): boolean {
@@ -734,11 +741,15 @@ export class SuggestWidget implements IDisposable {
 			return;
 		}
 
-		let height = size?.height;
-		let width = size?.width;
-
 		const bodyBox = dom.getClientArea(document.body);
 		const info = this.getLayoutInfo();
+
+		if (!size) {
+			size = info.defaultSize;
+		}
+
+		let height = size.height;
+		let width = size.width;
 
 		// status bar
 		this._status.element.style.lineHeight = `${info.itemHeight}px`;
@@ -756,9 +767,6 @@ export class SuggestWidget implements IDisposable {
 
 			// width math
 			const maxWidth = bodyBox.width - info.borderHeight - 2 * info.horizontalPadding;
-			if (width === undefined) {
-				width = info.defaultSize.width;
-			}
 			if (width > maxWidth) {
 				width = maxWidth;
 			}
@@ -766,7 +774,6 @@ export class SuggestWidget implements IDisposable {
 
 			// height math
 			const fullHeight = info.statusBarHeight + this._list.contentHeight + info.borderHeight;
-			const preferredHeight = info.defaultSize.height;
 			const minHeight = info.itemHeight + info.statusBarHeight;
 			const editorBox = dom.getDomNodePagePosition(this.editor.getDomNode());
 			const cursorBox = this.editor.getScrolledVisiblePosition(this.editor.getPosition());
@@ -775,15 +782,12 @@ export class SuggestWidget implements IDisposable {
 			const maxHeightAbove = Math.min(editorBox.top + cursorBox.top - info.verticalPadding, fullHeight);
 			let maxHeight = Math.min(Math.max(maxHeightAbove, maxHeightBelow) + info.borderHeight, fullHeight);
 
-			if (height && height === this._cappedHeight?.capped) {
+			if (height === this._cappedHeight?.capped) {
 				// Restore the old (wanted) height when the current
 				// height is capped to fit
 				height = this._cappedHeight.wanted;
 			}
 
-			if (height === undefined) {
-				height = Math.min(preferredHeight, fullHeight);
-			}
 			if (height < minHeight) {
 				height = minHeight;
 			}
@@ -801,14 +805,14 @@ export class SuggestWidget implements IDisposable {
 				this.element.enableSashes(false, true, true, false);
 				maxHeight = maxHeightBelow;
 			}
-			this.element.preferredSize = new dom.Dimension(preferredWidth, preferredHeight);
+			this.element.preferredSize = new dom.Dimension(preferredWidth, info.defaultSize.height);
 			this.element.maxSize = new dom.Dimension(maxWidth, maxHeight);
 			this.element.minSize = new dom.Dimension(220, minHeight);
 
 			// Know when the height was capped to fit and remember
 			// the wanted height for later. This is required when going
 			// left to widen suggestions.
-			this._cappedHeight = size && height === fullHeight
+			this._cappedHeight = height === fullHeight
 				? { wanted: this._cappedHeight?.wanted ?? size.height, capped: height }
 				: undefined;
 		}

@@ -795,7 +795,7 @@ export class ViewDescriptorService extends Disposable implements IViewDescriptor
 						super({
 							id: `${viewDescriptor.id}.removeView`,
 							viewPaneContainerId: viewContainerModel.viewContainer.id,
-							title: localize('hideView', "Hide"),
+							title: localize('hideView', "Hide '{0}'", viewDescriptor.name),
 							precondition: viewDescriptor.canToggleVisibility && (!viewContainerModel.isVisible(viewDescriptor.id) || viewContainerModel.visibleViewDescriptors.length > 1) ? ContextKeyTrueExpr.INSTANCE : ContextKeyFalseExpr.INSTANCE,
 							menu: [{
 								id: MenuId.ViewTitleContext,
@@ -803,7 +803,8 @@ export class ViewDescriptorService extends Disposable implements IViewDescriptor
 									ContextKeyEqualsExpr.create('view', viewDescriptor.id),
 									ContextKeyDefinedExpr.create(`${viewDescriptor.id}.visible`),
 								]),
-								group: '1_hide'
+								group: '1_hide',
+								order: 1
 							}]
 						});
 					}
@@ -827,14 +828,6 @@ export class ViewDescriptorService extends Disposable implements IViewDescriptor
 					},
 					menu: [{
 						id: MenuId.ViewContainerTitleContext,
-						when: ContextKeyExpr.or(
-							ContextKeyExpr.and(
-								ContextKeyExpr.equals('viewContainer', viewContainer.id),
-								ContextKeyExpr.equals(`${viewContainer.id}.defaultViewContainerLocation`, false)
-							)
-						)
-					}, {
-						id: MenuId.PanelTitleContext,
 						when: ContextKeyExpr.or(
 							ContextKeyExpr.and(
 								ContextKeyExpr.equals('viewContainer', viewContainer.id),

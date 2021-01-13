@@ -14,6 +14,11 @@ export interface InputBox {
 	value: string;
 }
 
+export const enum ForcePushMode {
+	Force,
+	ForceWithLease
+}
+
 export const enum RefType {
 	Head,
 	RemoteHead,
@@ -193,7 +198,7 @@ export interface Repository {
 
 	fetch(remote?: string, ref?: string, depth?: number): Promise<void>;
 	pull(unshallow?: boolean): Promise<void>;
-	push(remoteName?: string, branchName?: string, setUpstream?: boolean): Promise<void>;
+	push(remoteName?: string, branchName?: string, setUpstream?: boolean, force?: ForcePushMode): Promise<void>;
 
 	blame(path: string): Promise<string>;
 	log(options?: LogOptions): Promise<Commit[]>;
@@ -231,9 +236,15 @@ export interface PushErrorHandler {
 
 export type APIState = 'uninitialized' | 'initialized';
 
+export interface PublishEvent {
+	repository: Repository;
+	branch?: string;
+}
+
 export interface API {
 	readonly state: APIState;
 	readonly onDidChangeState: Event<APIState>;
+	readonly onDidPublish: Event<PublishEvent>;
 	readonly git: Git;
 	readonly repositories: Repository[];
 	readonly onDidOpenRepository: Event<Repository>;

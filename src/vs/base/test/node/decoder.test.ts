@@ -4,12 +4,12 @@
  *--------------------------------------------------------------------------------------------*/
 
 import * as assert from 'assert';
-import * as decoder from 'vs/base/node/decoder';
+import { LineDecoder } from 'vs/base/node/decoder';
 
 suite('Decoder', () => {
 
 	test('decoding', () => {
-		const lineDecoder = new decoder.LineDecoder();
+		const lineDecoder = new LineDecoder();
 		let res = lineDecoder.write(Buffer.from('hello'));
 		assert.equal(res.length, 0);
 

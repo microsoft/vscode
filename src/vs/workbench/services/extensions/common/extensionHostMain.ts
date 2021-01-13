@@ -68,7 +68,7 @@ export class ExtensionHostMain {
 
 		this._logService = instaService.invokeFunction(accessor => accessor.get(ILogService));
 
-		performance.mark(`extHost/didCreateServices`);
+		performance.mark(`code/extHost/didCreateServices`);
 		this._logService.info('extension host started');
 		this._logService.trace('initData', initData);
 

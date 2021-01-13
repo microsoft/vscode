@@ -74,6 +74,7 @@ export const notebookDocumentMetadataDefaults: Required<NotebookDocumentMetadata
 	displayOrder: NOTEBOOK_DISPLAY_ORDER,
 	custom: {},
 	runState: NotebookRunState.Idle,
+	languages: [],
 	trusted: true
 };
 
@@ -86,6 +87,7 @@ export interface NotebookDocumentMetadata {
 	displayOrder?: (string | glob.IRelativePattern)[];
 	custom?: { [key: string]: unknown };
 	runState?: NotebookRunState;
+	languages: string[];
 	trusted: boolean;
 }
 
@@ -270,36 +272,6 @@ export interface INotebookTextModel {
 	readonly cells: readonly ICell[];
 	onWillDispose(listener: () => void): IDisposable;
 }
-
-export const enum RenderOutputType {
-	None,
-	Html,
-	Extension
-}
-
-export interface IRenderNoOutput {
-	type: RenderOutputType.None;
-	hasDynamicHeight: boolean;
-}
-
-export interface IRenderPlainHtmlOutput {
-	type: RenderOutputType.Html;
-	source: ITransformedDisplayOutputDto;
-	htmlContent: string;
-	hasDynamicHeight: boolean;
-}
-
-export interface IRenderOutputViaExtension {
-	type: RenderOutputType.Extension;
-	source: ITransformedDisplayOutputDto;
-	mimeType: string;
-	renderer: INotebookRendererInfo;
-}
-
-export type IInsetRenderOutput = IRenderPlainHtmlOutput | IRenderOutputViaExtension;
-export type IRenderOutput = IRenderNoOutput | IInsetRenderOutput;
-
-export const outputHasDynamicHeight = (o: IRenderOutput) => o.type !== RenderOutputType.Extension && o.hasDynamicHeight;
 
 export type NotebookCellTextModelSplice<T> = [
 	number /* start */,

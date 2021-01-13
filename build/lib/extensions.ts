@@ -92,7 +92,7 @@ function fromLocalWebpack(extensionPath: string, webpackConfigFileName: string):
 		}
 	}
 
-	const vsce = <typeof import('vsce')>require('vsce');
+	const vsce = require('vsce') as typeof import('vsce');
 	const webpack = require('webpack');
 	const webpackGulp = require('webpack-stream');
 
@@ -174,7 +174,7 @@ function fromLocalWebpack(extensionPath: string, webpackConfigFileName: string):
 function fromLocalNormal(extensionPath: string): Stream {
 	const result = es.through();
 
-	const vsce = <typeof import('vsce')>require('vsce');
+	const vsce = require('vsce') as typeof import('vsce');
 
 	vsce.listFiles({ cwd: extensionPath, packageManager: vsce.PackageManager.Yarn })
 		.then(fileNames => {
@@ -202,7 +202,7 @@ const baseHeaders = {
 
 export function fromMarketplace(extensionName: string, version: string, metadata: any): Stream {
 	const remote = require('gulp-remote-retry-src');
-	const json = <typeof import('gulp-json-editor')>require('gulp-json-editor');
+	const json = require('gulp-json-editor') as typeof import('gulp-json-editor');
 
 	const [publisher, name] = extensionName.split('.');
 	const url = `https://marketplace.visualstudio.com/_apis/public/gallery/publishers/${publisher}/vsextensions/${name}/${version}/vspackage`;
