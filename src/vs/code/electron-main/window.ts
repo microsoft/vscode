@@ -102,22 +102,22 @@ export class CodeWindow extends Disposable implements ICodeWindow {
 
 	private hiddenTitleBarStyle: boolean | undefined;
 	private showTimeoutHandle: NodeJS.Timeout | undefined;
-	private _lastFocusTime: number;
-	private _readyState: ReadyState;
+	private _lastFocusTime = -1;
+	private _readyState = ReadyState.NONE;
 	private windowState: IWindowState;
 	private currentMenuBarVisibility: MenuBarVisibility | undefined;
 
 	private representedFilename: string | undefined;
 	private documentEdited: boolean | undefined;
 
-	private readonly whenReadyCallbacks: { (window: ICodeWindow): void }[];
+	private readonly whenReadyCallbacks: { (window: ICodeWindow): void }[] = [];
 
 	private marketplaceHeadersPromise: Promise<object>;
 
-	private readonly touchBarGroups: TouchBarSegmentedControl[];
+	private readonly touchBarGroups: TouchBarSegmentedControl[] = [];
 
-	private currentHttpProxy?: string;
-	private currentNoProxy?: string;
+	private currentHttpProxy: string | undefined = undefined;
+	private currentNoProxy: string | undefined = undefined;
 
 	constructor(
 		config: IWindowCreationOptions,
@@ -134,11 +134,6 @@ export class CodeWindow extends Disposable implements ICodeWindow {
 		@ILifecycleMainService private readonly lifecycleMainService: ILifecycleMainService
 	) {
 		super();
-
-		this.touchBarGroups = [];
-		this._lastFocusTime = -1;
-		this._readyState = ReadyState.NONE;
-		this.whenReadyCallbacks = [];
 
 		//#region create browser window
 		{
