@@ -59,7 +59,7 @@ export interface IQuickPickDataSource<E> {
 
 export interface IOutlineListConfig<E> {
 	readonly breadcrumbsDataSource: IBreadcrumbsDataSource<E>;
-	readonly treeDataSource: IDataSource<IOutline<E> | undefined, E>;
+	readonly treeDataSource: IDataSource<IOutline<E>, E>;
 	readonly delegate: IListVirtualDelegate<E>;
 	readonly renderers: ITreeRenderer<E, FuzzyScore, any>[];
 	readonly comparator: IOutlineComparator<E>;

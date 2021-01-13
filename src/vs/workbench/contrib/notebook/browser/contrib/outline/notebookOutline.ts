@@ -322,7 +322,7 @@ class NotebookCellOutline implements IOutline<OutlineEntry> {
 			keyboardNavigationLabelProvider: new NotebookNavigationLabelProvider()
 		};
 
-		const treeDataSource: IDataSource<this | undefined, OutlineEntry> = { getChildren: parent => parent instanceof NotebookCellOutline ? this._entries : parent?.children ?? [] };
+		const treeDataSource: IDataSource<this, OutlineEntry> = { getChildren: parent => parent instanceof NotebookCellOutline ? this._entries : parent.children };
 		const delegate = new NotebookOutlineVirtualDelegate();
 		const renderers = [instantiationService.createInstance(NotebookOutlineRenderer)];
 		const comparator = new NotebookComparator();
