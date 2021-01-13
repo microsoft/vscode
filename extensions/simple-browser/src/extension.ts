@@ -12,7 +12,6 @@ const localize = nls.loadMessageBundle();
 
 const openApiCommand = 'simpleBrowser.api.open';
 const showCommand = 'simpleBrowser.show';
-const internalOpenCommand = '_simpleBrowser.open';
 
 export function activate(context: vscode.ExtensionContext) {
 
@@ -36,15 +35,11 @@ export function activate(context: vscode.ExtensionContext) {
 		manager.show(url.toString(), showOptions);
 	}));
 
-	context.subscriptions.push(vscode.commands.registerCommand(internalOpenCommand, (resolvedUrl: vscode.Uri, _originalUri: vscode.Uri) => {
-		manager.show(resolvedUrl.toString());
-	}));
-
 	context.subscriptions.push(vscode.window.registerExternalUriOpener(['http', 'https'], {
-		openExternalUri(uri: vscode.Uri): vscode.Command | undefined {
+		canOpenExternalUri(uri: vscode.Uri) {
 			const configuration = vscode.workspace.getConfiguration('simpleBrowser');
 			if (!configuration.get('opener.enabled', false)) {
-				return undefined;
+				return false;
 			}
 
 			const enabledHosts = configuration.get<string[]>('opener.enabledHosts', [
@@ -54,17 +49,18 @@ export function activate(context: vscode.ExtensionContext) {
 			try {
 				const originalUri = new URL(uri.toString());
 				if (!enabledHosts.includes(originalUri.hostname)) {
-					return;
+					return false;
 				}
 			} catch {
-				return undefined;
+				return false;
 			}
 
-			return {
-				title: localize('openTitle', "Open in simple browser"),
-				command: internalOpenCommand,
-				arguments: [uri]
-			};
+			return true;
+		},
+		openExternalUri(_opener, resolveUri) {
+			return manager.show(resolveUri.toString());
 		}
+	}, {
+		label: localize('openTitle', "Open in simple browser"),
 	}));
 }

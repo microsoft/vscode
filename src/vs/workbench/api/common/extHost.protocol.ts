@@ -801,20 +801,13 @@ export interface ExtHostUrlsShape {
 }
 
 export interface MainThreadUriOpenersShape extends IDisposable {
-	$registerUriOpener(handle: number, schemes: readonly string[], extensionId: ExtensionIdentifier): Promise<void>;
+	$registerUriOpener(handle: number, schemes: readonly string[], extensionId: ExtensionIdentifier, label: string): Promise<void>;
 	$unregisterUriOpener(handle: number): Promise<void>;
 }
 
-export interface ExtHostUriOpener {
-	readonly extensionId: ExtensionIdentifier;
-	readonly commandId: number;
-	readonly title: string;
-}
-
 export interface ExtHostUriOpenersShape {
-	$getOpenersForUri(uri: UriComponents, token: CancellationToken): Promise<{ cacheId: number, openers: ReadonlyArray<ExtHostUriOpener> }>;
-	$openUri(id: ChainedCacheId, uri: UriComponents): Promise<void>;
-	$releaseOpener(cacheId: number): void;
+	$getOpenersForUri(uri: UriComponents, token: CancellationToken): Promise<readonly number[]>;
+	$openUri(handle: number, context: { resolveUri: UriComponents, sourceUri: UriComponents }, token: CancellationToken): Promise<void>;
 }
 
 export interface ITextSearchComplete {
