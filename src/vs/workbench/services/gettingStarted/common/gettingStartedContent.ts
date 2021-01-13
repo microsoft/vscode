@@ -221,9 +221,9 @@ export const content: GettingStartedContent = [
 					description: localize('gettingStarted.settings.description', "Optimize every part of VS Code's look & feel to your liking. Enable Settings Sync to use your personal tweaks across machines."),
 					button: {
 						title: localize('gettingStarted.settings.button', "Tweak Some Settings"),
-						command: 'workbench.action.settings'
+						command: 'workbench.action.openSettings'
 					},
-					doneOn: { commandExecuted: 'workbench.action.settings' },
+					doneOn: { commandExecuted: 'workbench.action.openSettings' },
 					media: { type: 'image', altText: 'VS Code Settings', path: 'settings.png' },
 				}
 			]
