@@ -2657,7 +2657,7 @@ export class CommandCenter {
 						return Promise.resolve();
 					}
 
-					return Promise.resolve(method.apply(this, [repository, ...args]));
+					return Promise.resolve(method.apply(this, [repository, ...args.slice(1)]));
 				});
 			}
 
