@@ -58,7 +58,7 @@ import { ISerializableEnvironmentVariableCollection } from 'vs/workbench/contrib
 import { DebugConfigurationProviderTriggerKind } from 'vs/workbench/api/common/extHostTypes';
 import { IAccessibilityInformation } from 'vs/platform/accessibility/common/accessibility';
 import { IExtensionIdWithVersion } from 'vs/platform/userDataSync/common/extensionsStorageSync';
-import { RunTestForProviderRequest, RunTestsRequest, RunTestsResult, TestsDiff } from 'vs/workbench/contrib/testing/common/testCollection';
+import { InternalTestItem, RunTestForProviderRequest, RunTestsRequest, RunTestsResult, TestIdWithProvider, TestsDiff } from 'vs/workbench/contrib/testing/common/testCollection';
 
 export interface IEnvironment {
 	isExtensionDevelopmentDebug: boolean;
@@ -801,14 +801,13 @@ export interface ExtHostUrlsShape {
 }
 
 export interface MainThreadUriOpenersShape extends IDisposable {
-	$registerUriOpener(handle: number, schemes: readonly string[]): Promise<void>;
+	$registerUriOpener(handle: number, schemes: readonly string[], extensionId: ExtensionIdentifier, label: string): Promise<void>;
 	$unregisterUriOpener(handle: number): Promise<void>;
 }
 
 export interface ExtHostUriOpenersShape {
-	$getOpenersForUri(uri: UriComponents, token: CancellationToken): Promise<{ cacheId: number, openers: ReadonlyArray<{ id: number, title: string }> }>;
-	$openUri(id: ChainedCacheId, uri: UriComponents): Promise<void>;
-	$releaseOpener(cacheId: number): void;
+	$getOpenersForUri(uri: UriComponents, token: CancellationToken): Promise<readonly number[]>;
+	$openUri(handle: number, context: { resolveUri: UriComponents, sourceUri: UriComponents }, token: CancellationToken): Promise<void>;
 }
 
 export interface ITextSearchComplete {
@@ -1801,7 +1800,7 @@ export interface ExtHostTestingShape {
 	$runTestsForProvider(req: RunTestForProviderRequest, token: CancellationToken): Promise<RunTestsResult>;
 	$subscribeToTests(resource: ExtHostTestingResource, uri: UriComponents): void;
 	$unsubscribeFromTests(resource: ExtHostTestingResource, uri: UriComponents): void;
-
+	$lookupTest(test: TestIdWithProvider): Promise<InternalTestItem | undefined>;
 	$acceptDiff(resource: ExtHostTestingResource, uri: UriComponents, diff: TestsDiff): void;
 }
 

@@ -40,7 +40,7 @@ export class TestSubscriptionListener extends Disposable {
 		return this.subscription.workspaceFolderCollections;
 	}
 
-	constructor(private readonly subscription: TestSubscription, public readonly onDispose: () => void) {
+	constructor(public readonly subscription: TestSubscription, public readonly onDispose: () => void) {
 		super();
 		this._register(toDisposable(onDispose));
 	}
@@ -65,6 +65,12 @@ export interface ITestingCollectionService {
 	 * active subscriber/
 	 */
 	readonly count: number;
+
+	/**
+	 * Gets a test by ID if it exists in the collection. This is *not* guarenteed
+	 * and will only include workspace tests.
+	 */
+	getTestById(id: string): ITestSubscriptionItem | undefined;
 
 	/**
 	 * Gets all workspace folders we're listening to.
@@ -95,6 +101,25 @@ export class TestingCollectionService implements ITestingCollectionService {
 	 */
 	public get count() {
 		return this.subscription?.testCount || 0;
+	}
+
+	/**
+	 * @inheritdoc
+	 */
+	public getTestById(id: string) {
+		const collections = this.subscription?.workspaceFolderCollections;
+		if (!collections) {
+			return undefined;
+		}
+
+		for (const [, collection] of collections) {
+			const test = collection.getNodeById(id);
+			if (test) {
+				return test;
+			}
+		}
+
+		return undefined;
 	}
 
 	/**

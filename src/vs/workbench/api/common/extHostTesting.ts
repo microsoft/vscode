@@ -212,6 +212,16 @@ export class ExtHostTesting implements ExtHostTestingShape {
 			throw e;
 		}
 	}
+
+	public $lookupTest(req: TestIdWithProvider): Promise<InternalTestItem | undefined> {
+		const owned = this.ownedTests.getTestById(req.testId);
+		if (!owned) {
+			return Promise.resolve(undefined);
+		}
+
+		const { actual, previousChildren, previousEquals, ...item } = owned;
+		return Promise.resolve(item);
+	}
 }
 
 const keyMap: { [K in keyof Omit<RequiredTestItem, 'children'>]: null } = {

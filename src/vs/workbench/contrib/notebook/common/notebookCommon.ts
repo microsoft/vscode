@@ -74,6 +74,7 @@ export const notebookDocumentMetadataDefaults: Required<NotebookDocumentMetadata
 	displayOrder: NOTEBOOK_DISPLAY_ORDER,
 	custom: {},
 	runState: NotebookRunState.Idle,
+	languages: [],
 	trusted: true
 };
 
@@ -86,6 +87,7 @@ export interface NotebookDocumentMetadata {
 	displayOrder?: (string | glob.IRelativePattern)[];
 	custom?: { [key: string]: unknown };
 	runState?: NotebookRunState;
+	languages: string[];
 	trusted: boolean;
 }
 

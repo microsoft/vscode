@@ -158,7 +158,7 @@ export function createApiFactoryAndRegisterActors(accessor: ServicesAccessor): I
 	const extHostCustomEditors = rpcProtocol.set(ExtHostContext.ExtHostCustomEditors, new ExtHostCustomEditors(rpcProtocol, extHostDocuments, extensionStoragePaths, extHostWebviews, extHostWebviewPanels));
 	const extHostWebviewViews = rpcProtocol.set(ExtHostContext.ExtHostWebviewViews, new ExtHostWebviewViews(rpcProtocol, extHostWebviews));
 	const extHostTesting = rpcProtocol.set(ExtHostContext.ExtHostTesting, new ExtHostTesting(rpcProtocol, extHostDocumentsAndEditors, extHostWorkspace));
-	const extHostUriOpeners = rpcProtocol.set(ExtHostContext.ExtHostUriOpeners, new ExtHostUriOpeners(rpcProtocol, extHostCommands));
+	const extHostUriOpeners = rpcProtocol.set(ExtHostContext.ExtHostUriOpeners, new ExtHostUriOpeners(rpcProtocol));
 
 	// Check that no named customers are missing
 	const expected: ProxyIdentifier<any>[] = values(ExtHostContext);
@@ -672,9 +672,9 @@ export function createApiFactoryAndRegisterActors(accessor: ServicesAccessor): I
 				checkProposedApiEnabled(extension);
 				return extHostNotebook.showNotebookDocument(document, options);
 			},
-			registerExternalUriOpener(schemes: readonly string[], opener: vscode.ExternalUriOpener) {
+			registerExternalUriOpener(schemes: readonly string[], opener: vscode.ExternalUriOpener, metadata: vscode.ExternalUriOpenerMetadata) {
 				checkProposedApiEnabled(extension);
-				return extHostUriOpeners.registerUriOpener(extension.identifier, schemes, opener);
+				return extHostUriOpeners.registerUriOpener(extension.identifier, schemes, opener, metadata);
 			},
 		};
 

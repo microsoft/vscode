@@ -53,6 +53,7 @@ export class MainThreadTesting extends Disposable implements MainThreadTestingSh
 	public $registerTestProvider(id: string) {
 		this.testService.registerTestController(id, {
 			runTests: (req, token) => this.proxy.$runTestsForProvider(req, token),
+			lookupTest: test => this.proxy.$lookupTest(test),
 		});
 	}
 
