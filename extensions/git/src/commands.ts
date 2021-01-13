@@ -8,8 +8,8 @@ import * as path from 'path';
 import { commands, Disposable, LineChange, MessageOptions, OutputChannel, Position, ProgressLocation, QuickPickItem, Range, SourceControlResourceState, TextDocumentShowOptions, TextEditor, Uri, ViewColumn, window, workspace, WorkspaceEdit, WorkspaceFolder, TimelineItem, env, Selection, TextDocumentContentProvider } from 'vscode';
 import TelemetryReporter from 'vscode-extension-telemetry';
 import * as nls from 'vscode-nls';
-import { Branch, GitErrorCodes, Ref, RefType, Status, CommitOptions, RemoteSourceProvider } from './api/git';
-import { ForcePushMode, Git, Stash } from './git';
+import { Branch, ForcePushMode, GitErrorCodes, Ref, RefType, Status, CommitOptions, RemoteSourceProvider } from './api/git';
+import { Git, Stash } from './git';
 import { Model } from './model';
 import { Repository, Resource, ResourceGroupType } from './repository';
 import { applyLineChanges, getModifiedRange, intersectDiffWithRange, invertLineChange, toLineRanges } from './staging';
@@ -277,6 +277,12 @@ interface PushOptions {
 	pushType: PushType;
 	forcePush?: boolean;
 	silent?: boolean;
+
+	pushTo?: {
+		remote?: string;
+		refspec?: string;
+		setUpstream?: boolean;
+	}
 }
 
 class CommandErrorOutputTextDocumentContentProvider implements TextDocumentContentProvider {
@@ -2112,23 +2118,27 @@ export class CommandCenter {
 			}
 		} else {
 			const branchName = repository.HEAD.name;
-			const addRemote = new AddRemoteItem(this);
-			const picks = [...remotes.filter(r => r.pushUrl !== undefined).map(r => ({ label: r.name, description: r.pushUrl })), addRemote];
-			const placeHolder = localize('pick remote', "Pick a remote to publish the branch '{0}' to:", branchName);
-			const choice = await window.showQuickPick(picks, { placeHolder });
+			if (!pushOptions.pushTo?.remote) {
+				const addRemote = new AddRemoteItem(this);
+				const picks = [...remotes.filter(r => r.pushUrl !== undefined).map(r => ({ label: r.name, description: r.pushUrl })), addRemote];
+				const placeHolder = localize('pick remote', "Pick a remote to publish the branch '{0}' to:", branchName);
+				const choice = await window.showQuickPick(picks, { placeHolder });
 
-			if (!choice) {
-				return;
-			}
+				if (!choice) {
+					return;
+				}
 
-			if (choice === addRemote) {
-				const newRemote = await this.addRemote(repository);
+				if (choice === addRemote) {
+					const newRemote = await this.addRemote(repository);
 
-				if (newRemote) {
-					await repository.pushTo(newRemote, branchName, undefined, forcePushMode);
+					if (newRemote) {
+						await repository.pushTo(newRemote, branchName, undefined, forcePushMode);
+					}
+				} else {
+					await repository.pushTo(choice.label, branchName, undefined, forcePushMode);
 				}
 			} else {
-				await repository.pushTo(choice.label, branchName, undefined, forcePushMode);
+				await repository.pushTo(pushOptions.pushTo.remote, pushOptions.pushTo.refspec || branchName, pushOptions.pushTo.setUpstream, forcePushMode);
 			}
 		}
 	}
@@ -2169,13 +2179,13 @@ export class CommandCenter {
 	}
 
 	@command('git.pushTo', { repository: true })
-	async pushTo(repository: Repository): Promise<void> {
-		await this._push(repository, { pushType: PushType.PushTo });
+	async pushTo(repository: Repository, remote?: string, refspec?: string, setUpstream?: boolean): Promise<void> {
+		await this._push(repository, { pushType: PushType.PushTo, pushTo: { remote: remote, refspec: refspec, setUpstream: setUpstream } });
 	}
 
 	@command('git.pushToForce', { repository: true })
-	async pushToForce(repository: Repository): Promise<void> {
-		await this._push(repository, { pushType: PushType.PushTo, forcePush: true });
+	async pushToForce(repository: Repository, remote?: string, refspec?: string, setUpstream?: boolean): Promise<void> {
+		await this._push(repository, { pushType: PushType.PushTo, pushTo: { remote: remote, refspec: refspec, setUpstream: setUpstream }, forcePush: true });
 	}
 
 	@command('git.pushTags', { repository: true })
@@ -2355,11 +2365,16 @@ export class CommandCenter {
 			}
 
 			await provider.publishRepository!(new ApiRepository(repository));
+			this.model.firePublishEvent(repository, branchName);
+
 			return;
 		}
 
 		if (remotes.length === 1) {
-			return await repository.pushTo(remotes[0].name, branchName, true);
+			await repository.pushTo(remotes[0].name, branchName, true);
+			this.model.firePublishEvent(repository, branchName);
+
+			return;
 		}
 
 		const addRemote = new AddRemoteItem(this);
@@ -2376,9 +2391,13 @@ export class CommandCenter {
 
 			if (newRemote) {
 				await repository.pushTo(newRemote, branchName, true);
+
+				this.model.firePublishEvent(repository, branchName);
 			}
 		} else {
 			await repository.pushTo(choice.label, branchName, true);
+
+			this.model.firePublishEvent(repository, branchName);
 		}
 	}
 
@@ -2648,7 +2667,7 @@ export class CommandCenter {
 						return Promise.resolve();
 					}
 
-					return Promise.resolve(method.apply(this, [repository, ...args]));
+					return Promise.resolve(method.apply(this, [repository, ...args.slice(1)]));
 				});
 			}
 

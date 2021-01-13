@@ -16,26 +16,7 @@
 
 declare module 'vscode' {
 
-	//#region https://github.com/microsoft/vscode/issues/93686
-
-	/**
-	 * An error type should be used to signal cancellation of an operation.
-	 *
-	 * This type can be used in response to a cancellation token or when an
-	 * operation is being cancelled by the executor of that operation.
-	 */
-	export class CancellationError extends Error {
-
-		/**
-		 * Creates a new cancellation error.
-		 */
-		constructor();
-	}
-
-
-	//#endregion
-
-	// #region auth provider: https://github.com/microsoft/vscode/issues/88309
+	//#region auth provider: https://github.com/microsoft/vscode/issues/88309
 
 	/**
 	 * An [event](#Event) which fires when an [AuthenticationProvider](#AuthenticationProvider) is added or removed.
@@ -173,12 +154,14 @@ declare module 'vscode' {
 		// The desired local port. If this port can't be used, then another will be chosen.
 		localAddressPort?: number;
 		label?: string;
+		public?: boolean;
 	}
 
 	export interface TunnelDescription {
 		remoteAddress: { port: number, host: string; };
 		//The complete local address(ex. localhost:1234)
 		localAddress: { port: number, host: string; } | string;
+		public?: boolean;
 	}
 
 	export interface Tunnel extends TunnelDescription {
@@ -240,6 +223,7 @@ declare module 'vscode' {
 		 */
 		tunnelFeatures?: {
 			elevation: boolean;
+			public: boolean;
 		};
 	}
 
@@ -757,8 +741,6 @@ declare module 'vscode' {
 
 	//#endregion
 
-
-
 	//#region @joaomoreno: SCM validation
 
 	/**
@@ -892,7 +874,7 @@ declare module 'vscode' {
 
 	//#endregion
 
-	//#region @alexdima - OnEnter enhancement
+	//#region https://github.com/microsoft/vscode/issues/58440
 	export interface OnEnterRule {
 		/**
 		 * This rule will only execute if the text above the this line matches this regular expression.
@@ -903,15 +885,9 @@ declare module 'vscode' {
 
 	//#region Tree View: https://github.com/microsoft/vscode/issues/61313 @alexr00
 	export interface TreeView<T> extends Disposable {
-		reveal(element: T | undefined, options?: { select?: boolean, focus?: boolean, expand?: boolean | number }): Thenable<void>;
+		reveal(element: T | undefined, options?: { select?: boolean, focus?: boolean, expand?: boolean | number; }): Thenable<void>;
 	}
 	//#endregion
-
-	//#region Tree data provider: https://github.com/microsoft/vscode/issues/111614 @alexr00
-	export interface TreeDataProvider<T> {
-		resolveTreeItem?(item: TreeItem, element: T, token: CancellationToken): ProviderResult<TreeItem>;
-	}
-	////#endregion
 
 	//#region Task presentation group: https://github.com/microsoft/vscode/issues/47265
 	export interface TaskPresentationOptions {
@@ -1048,7 +1024,7 @@ declare module 'vscode' {
 		/**
 		 * Additional attributes of a cell metadata.
 		 */
-		custom?: { [key: string]: any };
+		custom?: { [key: string]: any; };
 	}
 
 	export interface CellDisplayOutput {
@@ -1172,7 +1148,7 @@ declare module 'vscode' {
 		/**
 		 * Additional attributes of a cell metadata.
 		 */
-		custom?: { [key: string]: any };
+		custom?: { [key: string]: any; };
 	}
 
 	export interface NotebookCell {
@@ -1222,7 +1198,7 @@ declare module 'vscode' {
 		/**
 		 * Additional attributes of the document metadata.
 		 */
-		custom?: { [key: string]: any };
+		custom?: { [key: string]: any; };
 
 		/**
 		 * The document's current run state
@@ -1234,6 +1210,11 @@ declare module 'vscode' {
 		 * When false, insecure outputs like HTML, JavaScript, SVG will not be rendered.
 		 */
 		trusted?: boolean;
+
+		/**
+		 * Languages the document supports
+		 */
+		languages?: string[];
 	}
 
 	export interface NotebookDocumentContentOptions {
@@ -1279,7 +1260,7 @@ declare module 'vscode' {
 
 		locationAt(positionOrRange: Position | Range): Location;
 		positionAt(location: Location): Position;
-		contains(uri: Uri): boolean
+		contains(uri: Uri): boolean;
 	}
 
 	export interface WorkspaceEdit {
@@ -1608,7 +1589,7 @@ declare module 'vscode' {
 		cancelAllCellsExecution(document: NotebookDocument): void;
 	}
 
-	export type NotebookFilenamePattern = GlobPattern | { include: GlobPattern; exclude: GlobPattern };
+	export type NotebookFilenamePattern = GlobPattern | { include: GlobPattern; exclude: GlobPattern; };
 
 	export interface NotebookDocumentFilter {
 		viewType?: string | string[];
@@ -1714,7 +1695,7 @@ declare module 'vscode' {
 		 */
 		export function createConcatTextDocument(notebook: NotebookDocument, selector?: DocumentSelector): NotebookConcatTextDocument;
 
-		export const onDidChangeActiveNotebookKernel: Event<{ document: NotebookDocument, kernel: NotebookKernel | undefined }>;
+		export const onDidChangeActiveNotebookKernel: Event<{ document: NotebookDocument, kernel: NotebookKernel | undefined; }>;
 
 		/**
 		 * Creates a notebook cell status bar [item](#NotebookCellStatusBarItem).
@@ -1969,7 +1950,6 @@ declare module 'vscode' {
 	}
 
 	//#endregion
-
 
 	//#region https://github.com/microsoft/vscode/issues/102091
 
@@ -2309,32 +2289,60 @@ declare module 'vscode' {
 	//#region Opener service (https://github.com/microsoft/vscode/issues/109277)
 
 	/**
-	 * Handles opening external uris.
+	 * Handles opening uris to external resources, such as http(s) links.
 	 *
-	 * An extension can use this to open a `http` link to a webserver inside of VS Code instead of
-	 * having the link be opened by the webbrowser.
+	 * Extensions can implement an `ExternalUriOpener` to open `http` links to a webserver
+	 * inside of VS Code instead of having the link be opened by the webbrowser.
 	 *
 	 * Currently openers may only be registered for `http` and `https` uris.
 	 */
 	export interface ExternalUriOpener {
 
 		/**
-		 * Try to open a given uri.
+		 * Check if the opener can handle a given uri.
 		 *
-		 * @param uri The uri to open. This uri may have been transformed by port forwarding. To access
-		 * the original uri that triggered the open, use `ctx.original`.
-		 * @param ctx Additional metadata about the triggered open.
-		 * @param token Cancellation token.
+		 * @param uri The uri being opened. This is the uri that the user clicked on. It has
+		 * not yet gone through port forwarding.
+		 * @param token Cancellation token indicating that the result is no longer needed.
 		 *
-		 * @return Optional command that opens the uri. If no command is returned, VS Code will
-		 * continue checking to see if any other openers are available.
-		 *
-		 * This command is given the resolved uri to open. This may be different from the original `uri` due
-		 * to port forwarding.
-		 *
-		 * If multiple openers are available for a given uri, then the `Command.title` is shown in the UI.
+		 * @return True if the opener can open the external uri.
 		 */
-		openExternalUri(uri: Uri, ctx: OpenExternalUriContext, token: CancellationToken): ProviderResult<Command>;
+		canOpenExternalUri(uri: Uri, token: CancellationToken): ProviderResult<boolean>;
+
+		/**
+		 * Open the given uri.
+		 *
+		 * @param resolvedUri The uri to open. This uri may have been transformed by port forwarding, so it
+		 * may not match the original uri passed to `canOpenExternalUri`. Use `ctx.originalUri` to check the
+		 * original uri.
+		 * @param ctx Additional information about the uri being opened.
+		 * @param token Cancellation token indicating that opening has been canceled.
+		 *
+		 * @return Thenable indicating that the opening has completed
+		 */
+		openExternalUri(resolvedUri: Uri, ctx: OpenExternalUriContext, token: CancellationToken): Thenable<void> | void;
+	}
+
+	/**
+	 * Additional information about the uri being opened.
+	 */
+	interface OpenExternalUriContext {
+		/**
+		 * The uri that triggered the open.
+		 *
+		 * Due to port forwarding, this may not match the `resolvedUri` passed to `openExternalUri`
+		 */
+		readonly sourceUri: Uri;
+	}
+
+
+	interface ExternalUriOpenerMetadata {
+		/**
+		 * Text displayed to the user that explains what the opener does.
+		 *
+		 * For example, 'Open in browser preview'
+		 */
+		readonly label: string;
 	}
 
 	namespace window {
@@ -2349,10 +2357,12 @@ declare module 'vscode' {
 		 *
 		* @returns Disposable that unregisters the opener.
 		 */
-		export function registerExternalUriOpener(schemes: readonly string[], opener: ExternalUriOpener,): Disposable;
+		export function registerExternalUriOpener(schemes: readonly string[], opener: ExternalUriOpener, metadata: ExternalUriOpenerMetadata): Disposable;
 	}
 
 	//#endregion
+
+	//#region https://github.com/microsoft/vscode/issues/112249
 
 	/**
 	 * Represents a storage utility for secrets, information that is
@@ -2389,4 +2399,6 @@ declare module 'vscode' {
 	export interface ExtensionContext {
 		secrets: SecretStorage;
 	}
+
+	//#endregion
 }

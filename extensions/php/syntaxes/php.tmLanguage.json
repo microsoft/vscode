@@ -4,7 +4,7 @@
 		"If you want to provide a fix or improvement, please create a pull request against the original repository.",
 		"Once accepted there, we are happy to receive an update request."
 	],
-	"version": "https://github.com/atom/language-php/commit/e2637e1c522c932459eb2d5cf1651c5cc38058a1",
+	"version": "https://github.com/atom/language-php/commit/72739e6341b1b4bf4aa185e928932983baca449e",
 	"scopeName": "source.php",
 	"patterns": [
 		{
@@ -368,6 +368,9 @@
 			]
 		},
 		{
+			"include": "#match_statement"
+		},
+		{
 			"include": "#switch_statement"
 		},
 		{
@@ -626,7 +629,7 @@
 				}
 			},
 			"contentName": "meta.function.parameters.php",
-			"end": "(?xi)\n(\\)) \\s* ( : \\s*\n  (?:\\?\\s*)? (?!\\s) [a-z0-9_\\x{7f}-\\x{7fffffff}\\\\\\s\\|]+ (?<!\\s)\n)?\n(?=\\s*(?:{|/[/*]|\\#|$))",
+			"end": "(?xi)\n(\\)) \\s* ( : \\s*\n  (?:\\?\\s*)? (?!\\s) [a-z0-9_\\x{7f}-\\x{7fffffff}\\\\\\s\\|]+ (?<!\\s)\n)?\n(?=\\s*(?:{|/[/*]|\\#|$|;))",
 			"endCaptures": {
 				"1": {
 					"name": "punctuation.definition.parameters.end.bracket.round.php"
@@ -719,7 +722,7 @@
 				}
 			},
 			"contentName": "meta.function.parameters.php",
-			"end": "(?xi)\n(\\)) (?: \\s* (:) \\s* (\n  (?:\\?\\s*)? [a-z0-9_\\x{7f}-\\x{7fffffff}\\\\]+ |                                        # nullable type\n  [a-z0-9_\\x{7f}-\\x{7fffffff}\\\\]+ (?: \\s*\\|\\s* [a-z0-9_\\x{7f}-\\x{7fffffff}\\\\]+)+ # union type\n) )?\n(?=\\s*(?:{|/[/*]|\\#|$))",
+			"end": "(?xi)\n(\\)) (?: \\s* (:) \\s* (\n  (?:\\?\\s*)? [a-z0-9_\\x{7f}-\\x{7fffffff}\\\\]+ |                                        # nullable type\n  [a-z0-9_\\x{7f}-\\x{7fffffff}\\\\]+ (?: \\s*\\|\\s* [a-z0-9_\\x{7f}-\\x{7fffffff}\\\\]+)+ # union type\n) )?\n(?=\\s*(?:{|/[/*]|\\#|$|;))",
 			"endCaptures": {
 				"1": {
 					"name": "punctuation.definition.parameters.end.bracket.round.php"
@@ -1229,7 +1232,7 @@
 					]
 				},
 				{
-					"begin": "(^\\s+)?(?=#)",
+					"begin": "(^\\s+)?(?=#)(?!#\\[)",
 					"beginCaptures": {
 						"1": {
 							"name": "punctuation.whitespace.comment.leading.php"
@@ -2301,7 +2304,7 @@
 		"object": {
 			"patterns": [
 				{
-					"begin": "(->)(\\$?{)",
+					"begin": "(\\??->)\\s*(\\$?{)",
 					"beginCaptures": {
 						"1": {
 							"name": "keyword.operator.class.php"
@@ -2323,7 +2326,7 @@
 					]
 				},
 				{
-					"begin": "(?i)(->)([a-z_\\x{7f}-\\x{7fffffff}][a-z0-9_\\x{7f}-\\x{7fffffff}]*)\\s*(\\()",
+					"begin": "(?i)(\\??->)\\s*([a-z_\\x{7f}-\\x{7fffffff}][a-z0-9_\\x{7f}-\\x{7fffffff}]*)\\s*(\\()",
 					"beginCaptures": {
 						"1": {
 							"name": "keyword.operator.class.php"
@@ -2363,7 +2366,7 @@
 							"name": "punctuation.definition.variable.php"
 						}
 					},
-					"match": "(?i)(->)((\\$+)?[a-z_\\x{7f}-\\x{7fffffff}][a-z0-9_\\x{7f}-\\x{7fffffff}]*)?"
+					"match": "(?i)(\\??->)\\s*((\\$+)?[a-z_\\x{7f}-\\x{7fffffff}][a-z0-9_\\x{7f}-\\x{7fffffff}]*)?"
 				}
 			]
 		},
@@ -2462,8 +2465,8 @@
 					"include": "#instantiation"
 				},
 				{
-					"begin": "(?xi)\n(?=[a-z0-9_\\x{7f}-\\x{7fffffff}\\\\]+(::)\n  ([a-z_\\x{7f}-\\x{7fffffff}][a-z0-9_\\x{7f}-\\x{7fffffff}]*)?\n)",
-					"end": "(?i)(::)([a-z_\\x{7f}-\\x{7fffffff}][a-z0-9_\\x{7f}-\\x{7fffffff}]*)?",
+					"begin": "(?xi)\n(?=[a-z0-9_\\x{7f}-\\x{7fffffff}\\\\]+\n  (::)\\s*([a-z_\\x{7f}-\\x{7fffffff}][a-z0-9_\\x{7f}-\\x{7fffffff}]*)?\n)",
+					"end": "(?i)(::)\\s*([a-z_\\x{7f}-\\x{7fffffff}][a-z0-9_\\x{7f}-\\x{7fffffff}]*)?",
 					"endCaptures": {
 						"1": {
 							"name": "keyword.operator.class.php"
@@ -3416,6 +3419,67 @@
 				}
 			]
 		},
+		"match_statement": {
+			"patterns": [
+				{
+					"match": "\\s+(?=match\\b)"
+				},
+				{
+					"begin": "\\bmatch\\b",
+					"beginCaptures": {
+						"0": {
+							"name": "keyword.control.match.php"
+						}
+					},
+					"end": "}|(?=\\?>)",
+					"endCaptures": {
+						"0": {
+							"name": "punctuation.definition.section.match-block.end.bracket.curly.php"
+						}
+					},
+					"name": "meta.match-statement.php",
+					"patterns": [
+						{
+							"begin": "\\(",
+							"beginCaptures": {
+								"0": {
+									"name": "punctuation.definition.match-expression.begin.bracket.round.php"
+								}
+							},
+							"end": "\\)|(?=\\?>)",
+							"endCaptures": {
+								"0": {
+									"name": "punctuation.definition.match-expression.end.bracket.round.php"
+								}
+							},
+							"patterns": [
+								{
+									"include": "$self"
+								}
+							]
+						},
+						{
+							"begin": "{",
+							"beginCaptures": {
+								"0": {
+									"name": "punctuation.definition.section.match-block.begin.bracket.curly.php"
+								}
+							},
+							"end": "(?=}|\\?>)",
+							"patterns": [
+								{
+									"match": "=>",
+									"name": "keyword.definition.arrow.php"
+								},
+								{
+									"include": "$self"
+								}
+							]
+						}
+					]
+				}
+			]
+		},
 		"use-inner": {
 			"patterns": [
 				{
@@ -3525,7 +3589,7 @@
 							"name": "punctuation.section.array.end.php"
 						}
 					},
-					"match": "(?xi)\n((\\$)(?<name>[a-z_\\x{7f}-\\x{7fffffff}][a-z0-9_\\x{7f}-\\x{7fffffff}]*))\n(?:\n  (->)(\\g<name>)\n  |\n  (\\[)(?:(\\d+)|((\\$)\\g<name>)|([a-z_\\x{7f}-\\x{7fffffff}][a-z0-9_\\x{7f}-\\x{7fffffff}]*))(\\])\n)?"
+					"match": "(?xi)\n((\\$)(?<name>[a-z_\\x{7f}-\\x{7fffffff}][a-z0-9_\\x{7f}-\\x{7fffffff}]*))\\s*\n(?:\n  (\\??->)\\s*(\\g<name>)\n  |\n  (\\[)(?:(\\d+)|((\\$)\\g<name>)|([a-z_\\x{7f}-\\x{7fffffff}][a-z0-9_\\x{7f}-\\x{7fffffff}]*))(\\])\n)?"
 				},
 				{
 					"captures": {

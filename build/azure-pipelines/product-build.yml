@@ -254,7 +254,7 @@ stages:
               - template: darwin/product-build-darwin.yml
 
   - ${{ if and(eq(variables['VSCODE_PUBLISH'], true), eq(parameters.VSCODE_COMPILE_ONLY, false)) }}:
-    - stage: Publish
+    - stage: Mooncake
       dependsOn:
         - ${{ if eq(variables['VSCODE_BUILD_STAGE_WINDOWS'], true) }}:
           - Windows
@@ -271,8 +271,19 @@ stages:
           steps:
             - template: sync-mooncake.yml
 
-        - ${{ if or(eq(parameters.VSCODE_RELEASE, true), and(in(parameters.VSCODE_QUALITY, 'insider', 'exploration'), eq(variables['VSCODE_SCHEDULEDBUILD'], true))) }}:
-          - job: ReleaseBuild
-            displayName: Release Build
-            steps:
-              - template: release.yml
+  - ${{ if and(eq(parameters.VSCODE_COMPILE_ONLY, false), or(eq(parameters.VSCODE_RELEASE, true), and(in(parameters.VSCODE_QUALITY, 'insider', 'exploration'), eq(variables['VSCODE_SCHEDULEDBUILD'], true)))) }}:
+    - stage: Release
+      dependsOn:
+        - ${{ if eq(variables['VSCODE_BUILD_STAGE_WINDOWS'], true) }}:
+          - Windows
+        - ${{ if eq(variables['VSCODE_BUILD_STAGE_LINUX'], true) }}:
+          - Linux
+        - ${{ if eq(variables['VSCODE_BUILD_STAGE_MACOS'], true) }}:
+          - macOS
+      pool:
+        vmImage: "Ubuntu-18.04"
+      jobs:
+        - job: ReleaseBuild
+          displayName: Release Build
+          steps:
+            - template: release.yml

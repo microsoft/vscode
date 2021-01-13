@@ -214,6 +214,9 @@ import 'vs/workbench/contrib/webviewPanel/browser/webviewPanel.contribution';
 import 'vs/workbench/contrib/webviewView/browser/webviewView.contribution';
 import 'vs/workbench/contrib/customEditor/browser/customEditor.contribution';
 
+// External Uri Opener
+import 'vs/workbench/contrib/externalUriOpener/common/externalUriOpener.contribution';
+
 // Extensions Management
 import 'vs/workbench/contrib/extensions/browser/extensions.contribution';
 import 'vs/workbench/contrib/extensions/browser/extensionsViewlet';

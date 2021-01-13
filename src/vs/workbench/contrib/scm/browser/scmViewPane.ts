@@ -956,12 +956,12 @@ class ViewModel {
 	private refresh(item?: IRepositoryItem | IGroupItem): void {
 		if (!this.alwaysShowRepositories && (this.items.size === 1 && (!item || isRepositoryItem(item)))) {
 			const item = Iterable.first(this.items.values())!;
-			this.tree.setChildren(null, this.render(item, this._treeViewState).children);
+			this.tree.setChildren(null, this.render(item, this.treeViewState).children);
 		} else if (item) {
-			this.tree.setChildren(item.element, this.render(item, this._treeViewState).children);
+			this.tree.setChildren(item.element, this.render(item, this.treeViewState).children);
 		} else {
 			const items = coalesce(this.scmViewService.visibleRepositories.map(r => this.items.get(r)));
-			this.tree.setChildren(null, items.map(item => this.render(item, this._treeViewState)));
+			this.tree.setChildren(null, items.map(item => this.render(item, this.treeViewState)));
 		}
 
 		this._onDidChangeRepositoryCollapseState.fire();
@@ -972,11 +972,11 @@ class ViewModel {
 			const children: ICompressedTreeElement<TreeElement>[] = [];
 			const hasSomeChanges = item.groupItems.some(item => item.element.elements.length > 0);
 
-			if (this.items.size === 1 || hasSomeChanges) {
-				if (item.element.input.visible) {
-					children.push({ element: item.element.input, incompressible: true, collapsible: false });
-				}
+			if (item.element.input.visible) {
+				children.push({ element: item.element.input, incompressible: true, collapsible: false });
+			}
 
+			if (this.items.size === 1 || hasSomeChanges) {
 				children.push(...item.groupItems.map(i => this.render(i, treeViewState)));
 			}
 

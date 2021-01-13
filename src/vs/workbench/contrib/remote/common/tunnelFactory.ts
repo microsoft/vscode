@@ -36,13 +36,14 @@ export class TunnelFactoryContribution extends Disposable implements IWorkbenchC
 								// The tunnel factory may give us an inaccessible local address.
 								// To make sure this doesn't happen, resolve the uri immediately.
 								localAddress: (await openerService.resolveExternalUri(URI.parse(localAddress))).resolved.toString(),
+								public: !!tunnel.public,
 								dispose: async () => { await tunnel.dispose; }
 							};
 							resolve(remoteTunnel);
 						});
 					});
 				}
-			}, environmentService.options?.tunnelProvider?.features ?? { elevation: false }));
+			}, environmentService.options?.tunnelProvider?.features ?? { elevation: false, public: false }));
 			remoteExplorerService.setTunnelInformation(undefined);
 		}
 	}

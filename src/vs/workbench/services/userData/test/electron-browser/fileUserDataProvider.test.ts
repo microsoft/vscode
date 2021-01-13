@@ -4,9 +4,6 @@
  *--------------------------------------------------------------------------------------------*/
 
 import * as assert from 'assert';
-import * as os from 'os';
-import * as path from 'vs/base/common/path';
-import * as uuid from 'vs/base/common/uuid';
 import { IFileService, FileChangeType, IFileChange, IFileSystemProviderWithFileReadWriteCapability, IStat, FileType, FileSystemProviderCapabilities } from 'vs/platform/files/common/files';
 import { FileService } from 'vs/platform/files/common/fileService';
 import { NullLogService } from 'vs/platform/log/common/log';
@@ -15,18 +12,26 @@ import { URI } from 'vs/base/common/uri';
 import { FileUserDataProvider } from 'vs/workbench/services/userData/common/fileUserDataProvider';
 import { dirname, isEqual, joinPath } from 'vs/base/common/resources';
 import { VSBuffer } from 'vs/base/common/buffer';
-import { DiskFileSystemProvider } from 'vs/platform/files/node/diskFileSystemProvider';
 import { DisposableStore, IDisposable, Disposable } from 'vs/base/common/lifecycle';
 import { Emitter, Event } from 'vs/base/common/event';
 import { IWorkbenchEnvironmentService } from 'vs/workbench/services/environment/common/environmentService';
 import { TestProductService } from 'vs/workbench/test/browser/workbenchTestServices';
 import { NativeWorkbenchEnvironmentService } from 'vs/workbench/services/environment/electron-browser/environmentService';
 import { TestWorkbenchConfiguration } from 'vs/workbench/test/electron-browser/workbenchTestServices';
+import { InMemoryFileSystemProvider } from 'vs/platform/files/common/inMemoryFilesystemProvider';
+
+const ROOT = URI.file('tests').with({ scheme: 'vscode-tests' });
+
+class TestWorkbenchEnvironmentService extends NativeWorkbenchEnvironmentService {
+	constructor(private readonly _appSettingsHome: URI) {
+		super(TestWorkbenchConfiguration, TestProductService);
+	}
+	get appSettingsHome() { return this._appSettingsHome; }
+}
 
 suite('FileUserDataProvider', () => {
 
 	let testObject: IFileService;
-	let rootResource: URI;
 	let userDataHomeOnDisk: URI;
 	let backupWorkspaceHomeOnDisk: URI;
 	let environmentService: IWorkbenchEnvironmentService;
@@ -35,32 +40,24 @@ suite('FileUserDataProvider', () => {
 
 	setup(async () => {
 		const logService = new NullLogService();
-		testObject = new FileService(logService);
-		disposables.add(testObject);
+		testObject = disposables.add(new FileService(logService));
+		const fileSystemProvider = disposables.add(new InMemoryFileSystemProvider());
+		disposables.add(testObject.registerProvider(ROOT.scheme, fileSystemProvider));
 
-		const diskFileSystemProvider = new DiskFileSystemProvider(logService);
-		disposables.add(diskFileSystemProvider);
-		disposables.add(testObject.registerProvider(Schemas.file, diskFileSystemProvider));
+		userDataHomeOnDisk = joinPath(ROOT, 'User');
+		const backupHome = joinPath(ROOT, 'Backups');
+		backupWorkspaceHomeOnDisk = joinPath(backupHome, 'workspaceId');
+		await testObject.createFolder(userDataHomeOnDisk);
+		await testObject.createFolder(backupWorkspaceHomeOnDisk);
 
-		const workspaceId = 'workspaceId';
-		rootResource = URI.file(path.join(os.tmpdir(), 'vsctests', uuid.generateUuid()));
-		userDataHomeOnDisk = joinPath(rootResource, 'User');
-		const backupHome = joinPath(rootResource, 'Backups');
-		backupWorkspaceHomeOnDisk = joinPath(backupHome, workspaceId);
-		await Promise.all([testObject.createFolder(userDataHomeOnDisk), testObject.createFolder(backupWorkspaceHomeOnDisk)]);
+		environmentService = new TestWorkbenchEnvironmentService(userDataHomeOnDisk);
 
-		environmentService = new NativeWorkbenchEnvironmentService({ ...TestWorkbenchConfiguration, 'user-data-dir': rootResource.fsPath, backupPath: backupWorkspaceHomeOnDisk.fsPath }, TestProductService);
-
-		fileUserDataProvider = new FileUserDataProvider(Schemas.file, diskFileSystemProvider, Schemas.userData, logService);
+		fileUserDataProvider = new FileUserDataProvider(ROOT.scheme, fileSystemProvider, Schemas.userData, logService);
 		disposables.add(fileUserDataProvider);
 		disposables.add(testObject.registerProvider(Schemas.userData, fileUserDataProvider));
 	});
 
-	teardown(async () => {
-		fileUserDataProvider.dispose(); // need to dispose first, otherwise del will fail (https://github.com/microsoft/vscode/issues/106283)
-		await testObject.del(rootResource, { recursive: true });
-		disposables.clear();
-	});
+	teardown(() => disposables.clear());
 
 	test('exists return false when file does not exist', async () => {
 		const exists = await testObject.exists(environmentService.settingsResource);
@@ -307,14 +304,14 @@ suite('FileUserDataProvider - Watching', () => {
 
 	let testObject: FileUserDataProvider;
 	const disposables = new DisposableStore();
-	const rootFileResource = URI.file(path.join(os.tmpdir(), 'vsctests', uuid.generateUuid()));
+	const rootFileResource = joinPath(ROOT, 'User');
 	const rootUserDataResource = rootFileResource.with({ scheme: Schemas.userData });
 
 	const fileEventEmitter: Emitter<readonly IFileChange[]> = new Emitter<readonly IFileChange[]>();
 	disposables.add(fileEventEmitter);
 
 	setup(() => {
-		testObject = disposables.add(new FileUserDataProvider(Schemas.file, new TestFileSystemProvider(fileEventEmitter.event), Schemas.userData, new NullLogService()));
+		testObject = disposables.add(new FileUserDataProvider(rootFileResource.scheme, new TestFileSystemProvider(fileEventEmitter.event), Schemas.userData, new NullLogService()));
 	});
 
 	teardown(() => disposables.clear());

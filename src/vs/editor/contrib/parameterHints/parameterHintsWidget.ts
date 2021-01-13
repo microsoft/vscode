@@ -369,7 +369,7 @@ export class ParameterHintsWidget extends Disposable implements IContentWidget {
 		const height = Math.max(this.editor.getLayoutInfo().height / 4, 250);
 		const maxHeight = `${height}px`;
 		this.domNodes.element.style.maxHeight = maxHeight;
-		const wrapper = this.domNodes.element.getElementsByClassName('wrapper') as HTMLCollectionOf<HTMLElement>;
+		const wrapper = this.domNodes.element.getElementsByClassName('phwrapper') as HTMLCollectionOf<HTMLElement>;
 		if (wrapper.length) {
 			wrapper[0].style.maxHeight = maxHeight;
 		}
