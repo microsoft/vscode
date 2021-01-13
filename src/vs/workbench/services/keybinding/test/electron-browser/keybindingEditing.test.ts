@@ -130,7 +130,7 @@ suite('KeybindingsEditing', () => {
 
 	});
 
-	teardown(() => disposables.dispose());
+	teardown(() => disposables.clear());
 
 	test('errors cases - parse errors', async () => {
 		await fileService.writeFile(environmentService.keybindingsResource, VSBuffer.fromString(',,,,,,,,,,,,,,'));
