@@ -972,11 +972,11 @@ class ViewModel {
 			const children: ICompressedTreeElement<TreeElement>[] = [];
 			const hasSomeChanges = item.groupItems.some(item => item.element.elements.length > 0);
 
-			if (this.items.size === 1 || hasSomeChanges) {
-				if (item.element.input.visible) {
-					children.push({ element: item.element.input, incompressible: true, collapsible: false });
-				}
+			if (item.element.input.visible) {
+				children.push({ element: item.element.input, incompressible: true, collapsible: false });
+			}
 
+			if (this.items.size === 1 || hasSomeChanges) {
 				children.push(...item.groupItems.map(i => this.render(i, treeViewState)));
 			}
 
