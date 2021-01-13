@@ -143,7 +143,7 @@ class DocumentSymbolsOutline implements IOutline<DocumentSymbolItem> {
 		this._breadcrumbsDataSource = new DocumentSymbolBreadcrumbsSource(_editor, textResourceConfigurationService);
 		const delegate = new DocumentSymbolVirtualDelegate();
 		const renderers = [new DocumentSymbolGroupRenderer(), instantiationService.createInstance(DocumentSymbolRenderer, true)];
-		const treeDataSource: IDataSource<this, DocumentSymbolItem> = {
+		const treeDataSource: IDataSource<this | undefined, DocumentSymbolItem> = {
 			getChildren: (parent) => {
 				if (parent instanceof OutlineElement || parent instanceof OutlineGroup) {
 					return parent.children.values();

@@ -41,7 +41,7 @@ export interface IOutlineComparator<E> {
 
 export interface IOutlineBreadcrumbsConfig<E> {
 	readonly breadcrumbsDataSource: IBreadcrumbsDataSource<E>;
-	readonly treeDataSource: IDataSource<IOutline<E>, E>;
+	readonly treeDataSource: IDataSource<IOutline<E> | undefined, E>;
 	readonly delegate: IListVirtualDelegate<E>;
 	readonly renderers: ITreeRenderer<E, FuzzyScore, any>[];
 	readonly comparator: IOutlineComparator<E>;
@@ -49,7 +49,7 @@ export interface IOutlineBreadcrumbsConfig<E> {
 }
 
 export interface IOutlineTreeConfig<E> {
-	readonly treeDataSource: IDataSource<IOutline<E>, E>;
+	readonly treeDataSource: IDataSource<IOutline<E> | undefined, E>;
 	readonly delegate: IListVirtualDelegate<E>;
 	readonly renderers: ITreeRenderer<E, FuzzyScore, any>[];
 	readonly comparator: IOutlineComparator<E>;

@@ -74,7 +74,7 @@ export class OutlinePane extends ViewPane {
 	private _message!: HTMLDivElement;
 	private _progressBar!: ProgressBar;
 	private _treeContainer!: HTMLElement;
-	private _tree?: WorkbenchDataTree<IOutline<any>, any, FuzzyScore>;
+	private _tree?: WorkbenchDataTree<IOutline<any> | undefined, any, FuzzyScore>;
 	private _treeDimensions?: dom.Dimension;
 	private _treeStates = new LRUCache<string, IDataTreeViewState>(10);
 
@@ -215,7 +215,7 @@ export class OutlinePane extends ViewPane {
 
 		const sorter = new OutlineTreeSorter(newOutline.treeConfig.comparator, this._outlineViewState.sortBy);
 
-		const tree = <WorkbenchDataTree<IOutline<any>, any, FuzzyScore>>this._instantiationService.createInstance(
+		const tree = <WorkbenchDataTree<IOutline<any> | undefined, any, FuzzyScore>>this._instantiationService.createInstance(
 			WorkbenchDataTree,
 			'OutlinePane',
 			this._treeContainer,
@@ -239,6 +239,7 @@ export class OutlinePane extends ViewPane {
 			if (newOutline.isEmpty) {
 				// no more elements
 				this._showMessage(localize('no-symbols', "No symbols found in document '{0}'", basename(resource)));
+				tree.setInput(undefined);
 
 			} else if (!tree.getInput()) {
 				// first: init tree
