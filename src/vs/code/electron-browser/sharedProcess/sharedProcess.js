@@ -15,7 +15,7 @@
 
 	// Load shared process into window
 	bootstrapWindow.load(['vs/code/electron-browser/sharedProcess/sharedProcessMain'], function (sharedProcess, configuration) {
-		sharedProcess.startup({
+		return sharedProcess.main({
 			machineId: configuration.machineId,
 			windowId: configuration.windowId
 		});
