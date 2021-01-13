@@ -469,7 +469,7 @@ export class ActivitybarPart extends Part implements IActivityBarService {
 
 		// Home action bar
 		const homeIndicator = this.environmentService.options?.homeIndicator;
-		if (homeIndicator) {
+		if (homeIndicator && this.configurationService.getValue<boolean>('window.showHomeIndicator')) {
 			let codicon = iconRegistry.get(homeIndicator.icon);
 			if (!codicon) {
 				codicon = Codicon.code;
