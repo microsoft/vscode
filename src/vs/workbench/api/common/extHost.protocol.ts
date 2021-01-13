@@ -802,13 +802,13 @@ export interface ExtHostUrlsShape {
 }
 
 export interface MainThreadUriOpenersShape extends IDisposable {
-	$registerUriOpener(handle: number, schemes: readonly string[], extensionId: ExtensionIdentifier, label: string): Promise<void>;
-	$unregisterUriOpener(handle: number): Promise<void>;
+	$registerUriOpener(id: string, schemes: readonly string[], extensionId: ExtensionIdentifier, label: string): Promise<void>;
+	$unregisterUriOpener(id: string): Promise<void>;
 }
 
 export interface ExtHostUriOpenersShape {
-	$getOpenersForUri(uri: UriComponents, token: CancellationToken): Promise<readonly number[]>;
-	$openUri(handle: number, context: { resolveUri: UriComponents, sourceUri: UriComponents }, token: CancellationToken): Promise<void>;
+	$getOpenersForUri(uri: UriComponents, token: CancellationToken): Promise<readonly string[]>;
+	$openUri(id: string, context: { resolveUri: UriComponents, sourceUri: UriComponents }, token: CancellationToken): Promise<void>;
 }
 
 export interface ITextSearchComplete {
