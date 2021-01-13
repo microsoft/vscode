@@ -18,6 +18,7 @@
   ],
   "activationEvents": [
     "onCommand:simpleBrowser.show",
+    "onCommand:simpleBrowser.api.open",
     "onUriOpen:http",
     "onUriOpen:https"
   ],
