@@ -17,6 +17,7 @@ export class Client extends IPCClient implements IDisposable {
 	private static createProtocol(): Protocol {
 		const onMessage = Event.fromNodeEventEmitter<VSBuffer>(ipcRenderer, 'vscode:message', (_, message) => VSBuffer.wrap(message));
 		ipcRenderer.send('vscode:hello');
+
 		return new Protocol(ipcRenderer, onMessage);
 	}
 
