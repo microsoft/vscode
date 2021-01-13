@@ -1997,7 +1997,7 @@ declare module 'vscode' {
 		 */
 		text: string;
 		/**
-		 * The position of the hint.
+		 * The range of the hint.
 		 */
 		range: Range;
 		/**
