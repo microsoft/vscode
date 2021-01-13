@@ -56,7 +56,7 @@ export const content: GettingStartedContent = [
 						command: 'workbench.action.debug.start'
 					},
 					doneOn: { commandExecuted: 'workbench.action.debug.start' },
-					media: { type: 'image', altText: 'Node.js project running debug mode and paused.', path: 'runProject.png' },
+					media: { type: 'image', altText: 'Node.js project running debug mode and paused.', path: 'runProject.jpg' },
 				},
 				{
 					id: 'forwardPortsTask',
@@ -67,7 +67,7 @@ export const content: GettingStartedContent = [
 						command: '~remote.forwardedPorts.focus'
 					},
 					doneOn: { commandExecuted: '~remote.forwardedPorts.focus' },
-					media: { type: 'image', altText: 'Ports panel.', path: 'forwardPorts.png' },
+					media: { type: 'image', altText: 'Ports panel.', path: 'forwardPorts.jpg' },
 				},
 				{
 					id: 'pullRequests',
@@ -78,7 +78,7 @@ export const content: GettingStartedContent = [
 						command: 'workbench.view.extension.github-pull-requests'
 					},
 					doneOn: { commandExecuted: 'workbench.view.extension.github-pull-requests' },
-					media: { type: 'image', altText: 'Preview for reviewing a pull request.', path: 'pullRequests.png' },
+					media: { type: 'image', altText: 'Preview for reviewing a pull request.', path: 'pullRequests.jpg' },
 				},
 				{
 					id: 'remoteTerminal',
@@ -89,7 +89,7 @@ export const content: GettingStartedContent = [
 						command: 'terminal.focus'
 					},
 					doneOn: { commandExecuted: 'terminal.focus' },
-					media: { type: 'image', altText: 'Remote terminal showing npm commands.', path: 'remoteTerminal.png' },
+					media: { type: 'image', altText: 'Remote terminal showing npm commands.', path: 'remoteTerminal.jpg' },
 				},
 				{
 					id: 'openVSC',
@@ -100,7 +100,7 @@ export const content: GettingStartedContent = [
 						command: 'github.codespaces.openInStable'
 					},
 					doneOn: { commandExecuted: 'github.codespaces.openInStable' },
-					media: { type: 'image', altText: 'Preview of the Open in VS Code command.', path: 'openVSC.png' },
+					media: { type: 'image', altText: 'Preview of the Open in VS Code command.', path: 'openVSC.jpg' },
 				}
 			]
 		}
@@ -121,7 +121,7 @@ export const content: GettingStartedContent = [
 					description: localize('gettingStarted.pickColor.description', "Adapt VS Code to your taste with themes, customizing interface and language syntax colors."),
 					button: { title: localize('gettingStarted.pickColor.button', "Browse Color Themes"), command: 'workbench.action.selectTheme' },
 					doneOn: { eventFired: 'themeSelected' },
-					media: { type: 'image', altText: 'Color theme preview for dark and light theme.', path: 'colorTheme.png', }
+					media: { type: 'image', altText: 'Color theme preview for dark and light theme.', path: 'colorTheme.jpg', }
 				},
 				{
 					id: 'findLanguageExtensions',
@@ -132,7 +132,7 @@ export const content: GettingStartedContent = [
 						command: 'workbench.extensions.action.showLanguageExtensions',
 					},
 					doneOn: { commandExecuted: 'workbench.extensions.action.showLanguageExtensions' },
-					media: { type: 'image', altText: 'Language extensions', path: 'languageExtensions.png', }
+					media: { type: 'image', altText: 'Language extensions', path: 'languageExtensions.jpg', }
 				},
 				{
 					id: 'githubLogin',
@@ -144,7 +144,7 @@ export const content: GettingStartedContent = [
 						command: 'githubsignIn',
 					},
 					doneOn: { commandExecuted: 'workbench.extensions.action.showLanguageExtensions' },
-					media: { type: 'image', altText: 'Commiting a change via Git in VS Code.', path: 'github.png', }
+					media: { type: 'image', altText: 'Commiting a change via Git in VS Code.', path: 'github.jpg', }
 				},
 				{
 					id: 'pickAFolderTask-Mac',
@@ -156,7 +156,7 @@ export const content: GettingStartedContent = [
 						command: 'workbench.action.files.openFileFolder'
 					},
 					doneOn: { commandExecuted: 'workbench.action.files.openFileFolder' },
-					media: { type: 'image', altText: 'Explorer view showing buttons for opening folder and cloning repository.', path: 'openFolder.png' }
+					media: { type: 'image', altText: 'Explorer view showing buttons for opening folder and cloning repository.', path: 'openFolder.jpg' }
 				},
 				{
 					id: 'pickAFolderTask-Other',
@@ -168,7 +168,7 @@ export const content: GettingStartedContent = [
 						command: 'workbench.action.files.openFolder'
 					},
 					doneOn: { commandExecuted: 'workbench.action.files.openFolder' },
-					media: { type: 'image', altText: 'Explorer view showing buttons for opening folder and cloning repository.', path: 'openFolder.png' }
+					media: { type: 'image', altText: 'Explorer view showing buttons for opening folder and cloning repository.', path: 'openFolder.jpg' }
 				}
 			]
 		}
@@ -191,7 +191,7 @@ export const content: GettingStartedContent = [
 						command: 'workbench.action.showCommands'
 					},
 					doneOn: { commandExecuted: 'workbench.action.showCommands' },
-					media: { type: 'image', altText: 'Command Palette overlay for searching and executing commands.', path: 'commandPalette.png' },
+					media: { type: 'image', altText: 'Command Palette overlay for searching and executing commands.', path: 'commandPalette.jpg' },
 				},
 				{
 					id: 'terminal',
@@ -202,7 +202,7 @@ export const content: GettingStartedContent = [
 						command: 'workbench.action.terminal.toggleTerminal'
 					},
 					doneOn: { commandExecuted: 'workbench.action.terminal.toggleTerminal' },
-					media: { type: 'image', altText: 'Integrated terminal running a few npm commands', path: 'terminal.png' },
+					media: { type: 'image', altText: 'Integrated terminal running a few npm commands', path: 'terminal.jpg' },
 				},
 				{
 					id: 'extensions',
@@ -213,7 +213,7 @@ export const content: GettingStartedContent = [
 						command: 'workbench.extensions.action.showRecommendedExtensions'
 					},
 					doneOn: { commandExecuted: 'workbench.extensions.action.showRecommendedExtensions' },
-					media: { type: 'image', altText: 'VS Code extension marketplace with featured language extensions', path: 'extensions.png' },
+					media: { type: 'image', altText: 'VS Code extension marketplace with featured language extensions', path: 'extensions.jpg' },
 				},
 				{
 					id: 'settings',
@@ -224,7 +224,7 @@ export const content: GettingStartedContent = [
 						command: 'workbench.action.openSettings'
 					},
 					doneOn: { commandExecuted: 'workbench.action.openSettings' },
-					media: { type: 'image', altText: 'VS Code Settings', path: 'settings.png' },
+					media: { type: 'image', altText: 'VS Code Settings', path: 'settings.jpg' },
 				}
 			]
 		}
