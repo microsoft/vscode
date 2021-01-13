@@ -8,7 +8,7 @@ import * as Proto from '../protocol';
 import { DocumentSelector } from '../utils/documentSelector';
 import { ClientCapability, ITypeScriptServiceClient, ServerResponse, ExecConfig } from '../typescriptService';
 import { conditionalRegistration, requireSomeCapability } from '../utils/dependentRegistration';
-import { Position } from '../utils/typeConverters';
+import { Range } from '../utils/typeConverters';
 
 namespace ExperimentalProto {
 	export const enum CommandTypes {
@@ -33,7 +33,7 @@ namespace ExperimentalProto {
 
 	interface HintItem {
 		text: string;
-		position: Proto.Location;
+		range: Proto.TextSpan;
 		whitespaceBefore?: boolean;
 		whitespaceAfter?: boolean;
 	}
@@ -77,7 +77,7 @@ class TypeScriptInlineHintsProvider implements vscode.InlineHintsProvider {
 			}
 
 			return response.body.map(hint => {
-				return new vscode.InlineHint(hint.text, Position.fromLocation(hint.position), hint.whitespaceBefore, hint.whitespaceAfter);
+				return new vscode.InlineHint(hint.text, Range.fromTextSpan(hint.range), hint.whitespaceBefore, hint.whitespaceAfter);
 			});
 		} catch (e) {
 			return [];
