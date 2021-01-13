@@ -6,7 +6,7 @@
 import { memoize } from 'vs/base/common/decorators';
 import { IEnvironmentMainService } from 'vs/platform/environment/electron-main/environmentMainService';
 import { BrowserWindow, ipcMain, Event } from 'electron';
-import { ISharedProcess } from 'vs/platform/ipc/electron-main/sharedProcessMainService';
+import { ISharedProcess } from 'vs/platform/sharedProcess/electron-main/sharedProcessMainService';
 import { Barrier } from 'vs/base/common/async';
 import { ILogService } from 'vs/platform/log/common/log';
 import { ILifecycleMainService } from 'vs/platform/lifecycle/electron-main/lifecycleMainService';

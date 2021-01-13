@@ -7,7 +7,7 @@ import { Client as NodeIPCClient } from 'vs/base/parts/ipc/common/ipc.net';
 import { connect as nodeIPCConnect } from 'vs/base/parts/ipc/node/ipc.net';
 import { IChannel, IServerChannel, getDelayedChannel } from 'vs/base/parts/ipc/common/ipc';
 import { IMainProcessService } from 'vs/platform/ipc/electron-sandbox/mainProcessService';
-import { ISharedProcessService } from 'vs/platform/ipc/electron-browser/sharedProcessService';
+import { ISharedProcessService } from 'vs/platform/sharedProcess/electron-browser/sharedProcessService';
 import { registerSingleton } from 'vs/platform/instantiation/common/extensions';
 import { INativeWorkbenchEnvironmentService } from 'vs/workbench/services/environment/electron-sandbox/environmentService';
 import { INativeHostService } from 'vs/platform/native/electron-sandbox/native';
