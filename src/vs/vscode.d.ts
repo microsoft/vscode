@@ -1451,6 +1451,21 @@ declare module 'vscode' {
 	}
 
 	/**
+	 * An error type that should be used to signal cancellation of an operation.
+	 *
+	 * This type can be used in response to a [cancellation token](#CancellationToken)
+	 * being cancelled or when an operation is being cancelled by the
+	 * executor of that operation.
+	 */
+	export class CancellationError extends Error {
+
+		/**
+		 * Creates a new cancellation error.
+		 */
+		constructor();
+	}
+
+	/**
 	 * Represents a type which can release resources, such
 	 * as event listening or a timer.
 	 */
