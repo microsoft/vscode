@@ -1288,7 +1288,7 @@ export interface ISignatureHelpContextDto {
 
 export interface IInlineHintDto {
 	text: string
-	position: IPosition
+	range: IRange
 }
 
 export interface IInlineHintsDto {

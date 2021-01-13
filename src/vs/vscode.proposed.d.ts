@@ -1952,6 +1952,13 @@ declare module 'vscode' {
 
 	export namespace languages {
 		export function getTokenInformationAtPosition(document: TextDocument, position: Position): Promise<TokenInformation>;
+	}
+
+	//#endregion
+
+	//@region https://github.com/microsoft/vscode/issues/16221
+
+	export namespace languages {
 		/**
 		 * Register a inline hints provider.
 		 *
@@ -1966,6 +1973,66 @@ declare module 'vscode' {
 		export function registerInlineHintsProvider(selector: DocumentSelector, provider: InlineHintsProvider): Disposable;
 	}
 
+	export interface ThemableDecorationAttachmentRenderOptions {
+		/**
+		 * CSS styling property that will be applied to the decoration attachment.
+		 */
+		fontSize?: string;
+		/**
+		 * CSS styling property that will be applied to the decoration attachment.
+		 */
+		fontFamily?: string;
+		/**
+		 * CSS styling property that will be applied to the decoration attachment.
+		 */
+		padding?: string;
+	}
+
+	/**
+	 * Inline hint information.
+	 */
+	export class InlineHint {
+		/**
+		 * The text of the hint.
+		 */
+		text: string;
+		/**
+		 * The position of the hint.
+		 */
+		range: Range;
+		/**
+		 * Whitespace before the hint.
+		 */
+		whitespaceBefore?: boolean;
+		/**
+		 * Whitespace after the hint.
+		 */
+		whitespaceAfter?: boolean;
+
+		/**
+		 * Creates a new inline hint information object.
+		 *
+		 * @param text The text of the hint.
+		 * @param range The range of the hint.
+		 * @param whitespaceBefore Whitespace before the hint.
+		 * @param whitespaceAfter TWhitespace after the hint.
+		 */
+		constructor(text: string, range: Range, whitespaceBefore?: boolean, whitespaceAfter?: boolean);
+	}
+
+	/**
+	 * The document formatting provider interface defines the contract between extensions and
+	 * the inline hints feature.
+	 */
+	export interface InlineHintsProvider {
+		/**
+		 * @param model The document in which the command was invoked.
+		 * @param token A cancellation token.
+		 *
+		 * @return A list of arguments labels or a thenable that resolves to such.
+		 */
+		provideInlineHints(model: TextDocument, range: Range, token: CancellationToken): ProviderResult<InlineHint[]>;
+	}
 	//#endregion
 
 	//#region https://github.com/microsoft/vscode/issues/104436
@@ -2370,67 +2437,6 @@ declare module 'vscode' {
 	}
 
 	//#endregion
-
-	export interface ThemableDecorationAttachmentRenderOptions {
-		/**
-		 * CSS styling property that will be applied to the decoration attachment.
-		 */
-		fontSize?: string;
-		/**
-		 * CSS styling property that will be applied to the decoration attachment.
-		 */
-		fontFamily?: string;
-		/**
-		 * CSS styling property that will be applied to the decoration attachment.
-		 */
-		padding?: string;
-	}
-
-	/**
-	 * Inline hint information.
-	 */
-	export class InlineHint {
-		/**
-		 * The text of the hint.
-		 */
-		text: string;
-		/**
-		 * The position of the hint.
-		 */
-		position: Position;
-		/**
-		 * Whitespace before the hint.
-		 */
-		whitespaceBefore?: boolean;
-		/**
-		 * Whitespace after the hint.
-		 */
-		whitespaceAfter?: boolean;
-
-		/**
-		 * Creates a new inline hint information object.
-		 *
-		 * @param text The text of the parameter.
-		 * @param position The position of the argument.
-		 * @param whitespaceBefore Whitespace before the hint.
-		 * @param whitespaceAfter TWhitespace after the hint.
-		 */
-		constructor(text: string, position: Position, whitespaceBefore?: boolean, whitespaceAfter?: boolean);
-	}
-
-	/**
-	 * The document formatting provider interface defines the contract between extensions and
-	 * the inline hints feature.
-	 */
-	export interface InlineHintsProvider {
-		/**
-		 * @param model The document in which the command was invoked.
-		 * @param token A cancellation token.
-		 *
-		 * @return A list of arguments labels or a thenable that resolves to such.
-		 */
-		provideInlineHints(model: TextDocument, range: Range, token: CancellationToken): ProviderResult<InlineHint[]>;
-	}
 
 	/**
 	 * Represents a storage utility for secrets, information that is

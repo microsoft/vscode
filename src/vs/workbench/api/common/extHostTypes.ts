@@ -1376,13 +1376,13 @@ export enum SignatureHelpTriggerKind {
 @es5ClassCompat
 export class InlineHint {
 	text: string;
-	position: Position;
+	range: Range;
 	whitespaceBefore?: boolean;
 	whitespaceAfter?: boolean;
 
-	constructor(text: string, position: Position, whitespaceBefore?: boolean, whitespaceAfter?: boolean) {
+	constructor(text: string, range: Range, whitespaceBefore?: boolean, whitespaceAfter?: boolean) {
 		this.text = text;
-		this.position = position;
+		this.range = range;
 		this.whitespaceBefore = whitespaceBefore;
 		this.whitespaceAfter = whitespaceAfter;
 	}

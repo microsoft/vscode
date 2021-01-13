@@ -1023,7 +1023,7 @@ export namespace InlineHint {
 	export function from(hint: vscode.InlineHint): modes.InlineHint {
 		return {
 			text: hint.text,
-			position: Position.from(hint.position),
+			range: Range.from(hint.range),
 			whitespaceBefore: hint.whitespaceBefore,
 			whitespaceAfter: hint.whitespaceAfter
 		};
@@ -1032,7 +1032,7 @@ export namespace InlineHint {
 	export function to(hint: modes.InlineHint): vscode.InlineHint {
 		return {
 			text: hint.text,
-			position: Position.to(hint.position),
+			range: Range.to(hint.range),
 			whitespaceBefore: hint.whitespaceBefore,
 			whitespaceAfter: hint.whitespaceAfter
 		};

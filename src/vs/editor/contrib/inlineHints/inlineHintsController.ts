@@ -16,7 +16,7 @@ import { ModelDecorationOptions } from 'vs/editor/common/model/textModel';
 import { InlineHintsProvider, InlineHintsProviderRegistry, InlineHint } from 'vs/editor/common/modes';
 import { EditorOption } from 'vs/editor/common/config/editorOptions';
 import { flatten } from 'vs/base/common/arrays';
-import { inlineHintForeground, inlineHintBackground } from 'vs/platform/theme/common/colorRegistry';
+import { editorInlineHintForeground, editorInlineHintBackground } from 'vs/platform/theme/common/colorRegistry';
 import { CancellationToken } from 'vs/base/common/cancellation';
 import { IThemeService } from 'vs/platform/theme/common/themeService';
 import { Range } from 'vs/editor/common/core/range';
@@ -154,10 +154,10 @@ export class InlineHintsDetector extends Disposable implements IEditorContributi
 		const decorations = flatten(hintsData.map(hints => hints.list.map(hint => {
 			return {
 				range: {
-					startLineNumber: hint.position.lineNumber,
-					startColumn: hint.position.column,
-					endLineNumber: hint.position.lineNumber,
-					endColumn: hint.position.column
+					startLineNumber: hint.range.startLineNumber,
+					startColumn: hint.range.startColumn,
+					endLineNumber: hint.range.endLineNumber,
+					endColumn: hint.range.endColumn
 				},
 				options: ModelDecorationOptions.EMPTY
 			};
@@ -173,13 +173,13 @@ export class InlineHintsDetector extends Disposable implements IEditorContributi
 		let decorations: IModelDeltaDecoration[] = [];
 		let newDecorationsTypes: { [key: string]: boolean } = {};
 		const { fontSize, fontFamily } = this._getLayoutInfo();
-		const backgroundColor = this._themeService.getColorTheme().getColor(inlineHintBackground);
-		const fontColor = this._themeService.getColorTheme().getColor(inlineHintForeground);
+		const backgroundColor = this._themeService.getColorTheme().getColor(editorInlineHintBackground);
+		const fontColor = this._themeService.getColorTheme().getColor(editorInlineHintForeground);
 
 		for (let i = 0; i < hintsData.length; i++) {
 			const hint = hintsData[i].list;
 			for (let j = 0; j < hint.length && decorations.length < MAX_DECORATORS; j++) {
-				const { text, position, whitespaceBefore, whitespaceAfter } = hint[j];
+				const { text, range, whitespaceBefore, whitespaceAfter } = hint[j];
 				const marginBefore = whitespaceBefore ? fontSize / 3 : 0;
 				const marginAfter = whitespaceAfter ? fontSize / 3 : 0;
 
@@ -203,10 +203,10 @@ export class InlineHintsDetector extends Disposable implements IEditorContributi
 				newDecorationsTypes[key] = true;
 				decorations.push({
 					range: {
-						startLineNumber: position.lineNumber,
-						startColumn: position.column,
-						endLineNumber: position.lineNumber,
-						endColumn: position.column
+						startLineNumber: range.startLineNumber,
+						startColumn: range.startColumn,
+						endLineNumber: range.endLineNumber,
+						endColumn: range.endColumn
 					},
 					options: this._codeEditorService.resolveDecorationOptions(key, true)
 				});

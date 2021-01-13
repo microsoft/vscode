@@ -9,7 +9,7 @@ import { Event } from 'vs/base/common/event';
 import { IMarkdownString } from 'vs/base/common/htmlContent';
 import { IDisposable } from 'vs/base/common/lifecycle';
 import { URI, UriComponents } from 'vs/base/common/uri';
-import { IPosition, Position } from 'vs/editor/common/core/position';
+import { Position } from 'vs/editor/common/core/position';
 import { IRange, Range } from 'vs/editor/common/core/range';
 import { Selection } from 'vs/editor/common/core/selection';
 import { TokenizationResult, TokenizationResult2 } from 'vs/editor/common/core/token';
@@ -1661,7 +1661,7 @@ export interface CodeLensProvider {
 
 export interface InlineHint {
 	text: string;
-	position: IPosition;
+	range: IRange;
 	whitespaceBefore?: boolean;
 	whitespaceAfter?: boolean;
 }

@@ -1776,12 +1776,6 @@ export class ExtHostLanguageFeatures implements extHostProtocol.ExtHostLanguageF
 		return this._createDisposable(handle);
 	}
 
-	registerInlineHintsProvider(extension: IExtensionDescription, selector: vscode.DocumentSelector, provider: vscode.InlineHintsProvider): vscode.Disposable {
-		const handle = this._addNewAdapter(new InlineHintsAdapter(this._documents, provider), extension);
-		this._proxy.$registerInlineHintsProvider(handle, this._transformDocumentSelector(selector));
-		return this._createDisposable(handle);
-	}
-
 	$provideSignatureHelp(handle: number, resource: UriComponents, position: IPosition, context: extHostProtocol.ISignatureHelpContextDto, token: CancellationToken): Promise<extHostProtocol.ISignatureHelpDto | undefined> {
 		return this._withAdapter(handle, SignatureHelpAdapter, adapter => adapter.provideSignatureHelp(URI.revive(resource), position, context, token), undefined);
 	}
@@ -1791,6 +1785,12 @@ export class ExtHostLanguageFeatures implements extHostProtocol.ExtHostLanguageF
 	}
 
 	// --- inline hints
+
+	registerInlineHintsProvider(extension: IExtensionDescription, selector: vscode.DocumentSelector, provider: vscode.InlineHintsProvider): vscode.Disposable {
+		const handle = this._addNewAdapter(new InlineHintsAdapter(this._documents, provider), extension);
+		this._proxy.$registerInlineHintsProvider(handle, this._transformDocumentSelector(selector));
+		return this._createDisposable(handle);
+	}
 
 	$provideInlineHints(handle: number, resource: UriComponents, range: IRange, token: CancellationToken): Promise<extHostProtocol.IInlineHintsDto | undefined> {
 		return this._withAdapter(handle, InlineHintsAdapter, adapter => adapter.provideInlineHints(URI.revive(resource), range, token), undefined);
