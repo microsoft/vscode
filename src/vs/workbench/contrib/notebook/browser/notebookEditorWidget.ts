@@ -1435,6 +1435,11 @@ export class NotebookEditorWidget extends Disposable implements INotebookEditor 
 					language = this.viewModel.resolvedLanguages[0] || 'plaintext';
 				}
 			}
+
+			if (this.viewModel.resolvedLanguages.indexOf(language) < 0) {
+				// the language no longer exists
+				language = this.viewModel.resolvedLanguages[0] || 'plaintext';
+			}
 		} else {
 			language = 'markdown';
 		}
