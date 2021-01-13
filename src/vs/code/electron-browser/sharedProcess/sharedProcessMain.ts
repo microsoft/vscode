@@ -12,7 +12,6 @@ import { ServiceCollection } from 'vs/platform/instantiation/common/serviceColle
 import { SyncDescriptor } from 'vs/platform/instantiation/common/descriptors';
 import { InstantiationService } from 'vs/platform/instantiation/common/instantiationService';
 import { IEnvironmentService, INativeEnvironmentService } from 'vs/platform/environment/common/environment';
-import { NativeParsedArgs } from 'vs/platform/environment/common/argv';
 import { NativeEnvironmentService } from 'vs/platform/environment/node/environmentService';
 import { ExtensionManagementChannel, ExtensionTipsChannel } from 'vs/platform/extensionManagement/common/extensionManagementIpc';
 import { IExtensionManagementService, IExtensionGalleryService, IGlobalExtensionEnablementService, IExtensionTipsService } from 'vs/platform/extensionManagement/common/extensionManagement';
@@ -29,7 +28,7 @@ import { TelemetryAppenderChannel } from 'vs/platform/telemetry/node/telemetryIp
 import { TelemetryService } from 'vs/platform/telemetry/common/telemetryService';
 import { AppInsightsAppender } from 'vs/platform/telemetry/node/appInsightsAppender';
 import { ipcRenderer } from 'vs/base/parts/sandbox/electron-sandbox/globals';
-import { ILogService, LogLevel, ILoggerService } from 'vs/platform/log/common/log';
+import { ILogService, ILoggerService, MultiplexLogService, ConsoleLogService } from 'vs/platform/log/common/log';
 import { LoggerChannelClient, FollowerLogService } from 'vs/platform/log/common/logIpc';
 import { LocalizationsService } from 'vs/platform/localizations/node/localizations';
 import { ILocalizationsService } from 'vs/platform/localizations/common/localizations';
@@ -73,19 +72,7 @@ import { UserDataAutoSyncEnablementService } from 'vs/platform/userDataSync/comm
 import { IgnoredExtensionsManagementService, IIgnoredExtensionsManagementService } from 'vs/platform/userDataSync/common/ignoredExtensions';
 import { ExtensionsStorageSyncService, IExtensionsStorageSyncService } from 'vs/platform/userDataSync/common/extensionsStorageSync';
 import { IInstantiationService, ServicesAccessor } from 'vs/platform/instantiation/common/instantiation';
-
-interface ISharedProcessConfiguration {
-	readonly machineId: string;
-	readonly windowId: number;
-}
-
-interface ISharedProcessInitData {
-	sharedIPCHandle: string;
-	args: NativeParsedArgs;
-	logLevel: LogLevel;
-	nodeCachedDataDir?: string;
-	backupWorkspacesPath: string;
-}
+import { ISharedProcessConfiguration } from 'vs/platform/sharedProcess/node/sharedProcess';
 
 class MainProcessService implements IMainProcessService {
 
@@ -107,7 +94,7 @@ class MainProcessService implements IMainProcessService {
 
 class SharedProcessMain extends Disposable {
 
-	constructor(private server: NodeIPCServer, private initData: ISharedProcessInitData, private configuration: ISharedProcessConfiguration) {
+	constructor(private server: NodeIPCServer, private configuration: ISharedProcessConfiguration) {
 		super();
 
 		this._register(this.server);
@@ -134,7 +121,7 @@ class SharedProcessMain extends Disposable {
 		instantiationService.invokeFunction(accessor => {
 
 			// Log info
-			accessor.get(ILogService).info('sharedProcess main', JSON.stringify(this.configuration));
+			accessor.get(ILogService).trace('sharedProcess configuration', JSON.stringify(this.configuration));
 
 			// Channels
 			this.initChannels(accessor);
@@ -149,9 +136,9 @@ class SharedProcessMain extends Disposable {
 
 		// Instantiate Clean-up helpers
 		this._register(combinedDisposable(
-			new NodeCachedDataCleaner(this.initData.nodeCachedDataDir),
+			new NodeCachedDataCleaner(this.configuration.nodeCachedDataDir),
 			instantiationService.createInstance(LanguagePackCachedDataCleaner),
-			instantiationService.createInstance(StorageDataCleaner, this.initData.backupWorkspacesPath),
+			instantiationService.createInstance(StorageDataCleaner, this.configuration.backupWorkspacesPath),
 			instantiationService.createInstance(LogsDataCleaner)
 		));
 	}
@@ -160,14 +147,18 @@ class SharedProcessMain extends Disposable {
 		const services = new ServiceCollection();
 
 		// Environment
-		const environmentService = new NativeEnvironmentService(this.initData.args);
+		const environmentService = new NativeEnvironmentService(this.configuration.args);
 		services.set(IEnvironmentService, environmentService);
 		services.set(INativeEnvironmentService, environmentService);
 
 		// Log
 		const mainRouter = new StaticRouter(ctx => ctx === 'main');
 		const loggerClient = new LoggerChannelClient(this.server.getChannel('logger', mainRouter));
-		const logService = this._register(new FollowerLogService(loggerClient, new SpdLogService('sharedprocess', environmentService.logsPath, this.initData.logLevel)));
+		const multiplexLogger = this._register(new MultiplexLogService([
+			this._register(new ConsoleLogService(this.configuration.logLevel)),
+			this._register(new SpdLogService('sharedprocess', environmentService.logsPath, this.configuration.logLevel))
+		]));
+		const logService = this._register(new FollowerLogService(loggerClient, multiplexLogger));
 		services.set(ILogService, logService);
 
 		// Main Process
@@ -323,7 +314,7 @@ class SharedProcessMain extends Disposable {
 	}
 }
 
-function setupIPC(hook: string): Promise<NodeIPCServer> {
+function setupNodeIPC(hook: string): Promise<NodeIPCServer> {
 	function setup(retry: boolean): Promise<NodeIPCServer> {
 		return nodeIPCServe(hook).then(null, err => {
 			if (!retry || isWindows || err.code !== 'EADDRINUSE') {
@@ -359,20 +350,12 @@ function setupIPC(hook: string): Promise<NodeIPCServer> {
 
 export async function main(configuration: ISharedProcessConfiguration): Promise<void> {
 
-	// receive payload from electron-main to start things
-	const initData = await new Promise<ISharedProcessInitData>(resolve => {
-		ipcRenderer.once('vscode:electron-main->shared-process=payload', (event: unknown, r: ISharedProcessInitData) => resolve(r));
-
-		// tell electron-main we are ready to receive payload
-		ipcRenderer.send('vscode:shared-process->electron-main=ready-for-payload');
-	});
-
 	// await IPC connection and signal this back to electron-main
-	const server = await setupIPC(initData.sharedIPCHandle);
+	const server = await setupNodeIPC(configuration.sharedIPCHandle);
 	ipcRenderer.send('vscode:shared-process->electron-main=ipc-ready');
 
 	// await initialization and signal this back to electron-main
-	const sharedProcess = new SharedProcessMain(server, initData, configuration);
+	const sharedProcess = new SharedProcessMain(server, configuration);
 	await sharedProcess.open();
 	ipcRenderer.send('vscode:shared-process->electron-main=init-done');
 }

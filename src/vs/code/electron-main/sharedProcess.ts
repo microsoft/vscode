@@ -5,16 +5,16 @@
 
 import { memoize } from 'vs/base/common/decorators';
 import { IEnvironmentMainService } from 'vs/platform/environment/electron-main/environmentMainService';
-import { BrowserWindow, ipcMain, WebContents, Event as ElectronEvent } from 'electron';
+import { BrowserWindow, ipcMain, Event } from 'electron';
 import { ISharedProcess } from 'vs/platform/ipc/electron-main/sharedProcessMainService';
 import { Barrier } from 'vs/base/common/async';
 import { ILogService } from 'vs/platform/log/common/log';
 import { ILifecycleMainService } from 'vs/platform/lifecycle/electron-main/lifecycleMainService';
 import { IThemeMainService } from 'vs/platform/theme/electron-main/themeMainService';
 import { toDisposable, DisposableStore } from 'vs/base/common/lifecycle';
-import { Event } from 'vs/base/common/event';
 import { FileAccess } from 'vs/base/common/network';
 import { browserCodeLoadingCacheStrategy } from 'vs/base/common/platform';
+import { ISharedProcessConfiguration } from 'vs/platform/sharedProcess/node/sharedProcess';
 
 export class SharedProcess implements ISharedProcess {
 
@@ -54,12 +54,16 @@ export class SharedProcess implements ISharedProcess {
 			}
 		});
 
-		const config = {
-			appRoot: this.environmentService.appRoot,
+		const config: ISharedProcessConfiguration = {
 			machineId: this.machineId,
+			windowId: this.window.id,
+			appRoot: this.environmentService.appRoot,
 			nodeCachedDataDir: this.environmentService.nodeCachedDataDir,
+			backupWorkspacesPath: this.environmentService.backupWorkspacesPath,
 			userEnv: this.userEnv,
-			windowId: this.window.id
+			sharedIPCHandle: this.environmentService.sharedIPCHandle,
+			args: this.environmentService.args,
+			logLevel: this.logService.getLevel()
 		};
 
 		this.window.loadURL(FileAccess
@@ -69,7 +73,7 @@ export class SharedProcess implements ISharedProcess {
 		);
 
 		// Prevent the window from dying
-		const onClose = (e: ElectronEvent) => {
+		const onClose = (e: Event) => {
 			this.logService.trace('SharedProcess#close prevented');
 
 			// We never allow to close the shared process unless we get explicitly disposed()
@@ -114,22 +118,11 @@ export class SharedProcess implements ISharedProcess {
 
 		return new Promise<void>(resolve => {
 
-			// send payload once shared process is ready to receive it
-			disposables.add(Event.once(Event.fromNodeEventEmitter(ipcMain, 'vscode:shared-process->electron-main=ready-for-payload', ({ sender }: { sender: WebContents }) => sender))(sender => {
-				sender.send('vscode:electron-main->shared-process=payload', {
-					sharedIPCHandle: this.environmentService.sharedIPCHandle,
-					args: this.environmentService.args,
-					logLevel: this.logService.getLevel(),
-					backupWorkspacesPath: this.environmentService.backupWorkspacesPath,
-					nodeCachedDataDir: this.environmentService.nodeCachedDataDir
-				});
+			// signal exit to shared process when we get disposed
+			disposables.add(toDisposable(() => this.window?.webContents.send('vscode:electron-main->shared-process=exit')));
 
-				// signal exit to shared process when we get disposed
-				disposables.add(toDisposable(() => sender.send('vscode:electron-main->shared-process=exit')));
-
-				// complete IPC-ready promise when shared process signals this to us
-				ipcMain.once('vscode:shared-process->electron-main=ipc-ready', () => resolve(undefined));
-			}));
+			// complete IPC-ready promise when shared process signals this to us
+			ipcMain.once('vscode:shared-process->electron-main=ipc-ready', () => resolve(undefined));
 		});
 	}
 
