@@ -13,7 +13,7 @@ import { ISnippetsService } from 'vs/workbench/contrib/snippets/browser/snippets
 import { Snippet, SnippetSource } from 'vs/workbench/contrib/snippets/browser/snippetsFile';
 import { LanguageConfigurationRegistry } from 'vs/editor/common/modes/languageConfigurationRegistry';
 import { CompletionContext, CompletionTriggerKind } from 'vs/editor/common/modes';
-import { IDisposable } from 'vs/base/common/lifecycle';
+import { DisposableStore } from 'vs/base/common/lifecycle';
 
 class SimpleSnippetService implements ISnippetsService {
 	declare readonly _serviceBrand: undefined;
@@ -36,6 +36,8 @@ class SimpleSnippetService implements ISnippetsService {
 }
 
 suite('SnippetsService', function () {
+	const disposableStore: DisposableStore = new DisposableStore();
+	const context: CompletionContext = { triggerKind: CompletionTriggerKind.Invoke };
 
 	suiteSetup(function () {
 		ModesRegistry.registerLanguage({
@@ -44,13 +46,14 @@ suite('SnippetsService', function () {
 		});
 	});
 
-	let disposables: Array<IDisposable>;
+	suiteTeardown(function () {
+		disposableStore.dispose();
+	});
+
 	let modeService: ModeServiceImpl;
 	let snippetService: ISnippetsService;
-	let context: CompletionContext = { triggerKind: CompletionTriggerKind.Invoke };
 
 	setup(function () {
-		disposables = new Array<IDisposable>();
 		modeService = new ModeServiceImpl();
 		snippetService = new SimpleSnippetService([new Snippet(
 			['fooLang'],
@@ -69,12 +72,6 @@ suite('SnippetsService', function () {
 			'',
 			SnippetSource.User
 		)]);
-	});
-
-	teardown(function () {
-		for (const disposable of disposables) {
-			disposable.dispose();
-		}
 	});
 
 	test('snippet completions - simple', function () {
@@ -372,7 +369,7 @@ suite('SnippetsService', function () {
 	});
 
 	test('issue #61296: VS code freezes when editing CSS file with emoji', async function () {
-		disposables.push(LanguageConfigurationRegistry.register(modeService.getLanguageIdentifier('fooLang')!, {
+		disposableStore.add(LanguageConfigurationRegistry.register(modeService.getLanguageIdentifier('fooLang')!, {
 			wordPattern: /(#?-?\d*\.\d\w*%?)|(::?[\w-]*(?=[^,{;]*[,{]))|(([@#.!])?[\w-?]+%?|[@#!.])/g
 		}));
 
@@ -511,7 +508,7 @@ suite('SnippetsService', function () {
 	});
 
 	test('Snippet will replace auto-closing pair if specified in prefix', async function () {
-		disposables.push(LanguageConfigurationRegistry.register(modeService.getLanguageIdentifier('fooLang')!, {
+		disposableStore.add(LanguageConfigurationRegistry.register(modeService.getLanguageIdentifier('fooLang')!, {
 			brackets: [
 				['{', '}'],
 				['[', ']'],
