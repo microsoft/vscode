@@ -17,6 +17,7 @@ import { HierarchicalElement, HierarchicalFolder } from 'vs/workbench/contrib/te
 import { locationsEqual, TestLocationStore } from 'vs/workbench/contrib/testing/browser/explorerProjections/locationStore';
 import { TestSubscriptionListener } from 'vs/workbench/contrib/testing/common/testingCollectionService';
 import { InternalTestItem, TestDiffOpType, TestsDiff } from 'vs/workbench/contrib/testing/common/testCollection';
+import { testIdentityProvider as diffIdentityProvider } from 'vs/workbench/contrib/testing/browser/explorerProjections/nodeHelper';
 
 /**
  * Projection that lists tests in their traditional tree view.
@@ -152,10 +153,10 @@ export class HierarchicalByLocationProjection extends Disposable implements ITes
 		const firstFolder = Iterable.first(this.folders.values());
 
 		if (!this.lastHadMultipleFolders && this.folders.size !== 1) {
-			tree.setChildren(null, Iterable.map(this.folders.values(), this.renderNode));
+			tree.setChildren(null, Iterable.map(this.folders.values(), this.renderNode), { diffIdentityProvider });
 			this.lastHadMultipleFolders = true;
 		} else if (this.lastHadMultipleFolders && this.folders.size === 1) {
-			tree.setChildren(null, Iterable.map(firstFolder!.children, this.renderNode));
+			tree.setChildren(null, Iterable.map(firstFolder!.children, this.renderNode), { diffIdentityProvider });
 			this.lastHadMultipleFolders = false;
 		} else {
 			for (const node of this.updatedNodes) {
@@ -169,10 +170,10 @@ export class HierarchicalByLocationProjection extends Disposable implements ITes
 				for (let { parentItem, children } of nodeList) {
 					if (!alreadyUpdatedChildren.has(parentItem)) {
 						if (!this.lastHadMultipleFolders && parentItem === firstFolder) {
-							tree.setChildren(null, Iterable.map(firstFolder.children, this.renderNode));
+							tree.setChildren(null, Iterable.map(firstFolder.children, this.renderNode), { diffIdentityProvider });
 						} else {
 							const pchildren: Iterable<HierarchicalElement | HierarchicalFolder> = parentItem?.children ?? this.folders.values();
-							tree.setChildren(parentItem, Iterable.map(pchildren, this.renderNode));
+							tree.setChildren(parentItem, Iterable.map(pchildren, this.renderNode), { diffIdentityProvider });
 						}
 
 						alreadyUpdatedChildren.add(parentItem);

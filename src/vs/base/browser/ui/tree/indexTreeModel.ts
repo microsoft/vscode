@@ -41,6 +41,15 @@ export interface IIndexTreeModelOptions<T, TFilterData> {
 	readonly collapseByDefault?: boolean; // defaults to false
 	readonly filter?: ITreeFilter<T, TFilterData>;
 	readonly autoExpandSingleChildren?: boolean;
+}
+
+export interface IIndexedSpliceOptions<T, TFilterData> {
+	/**
+	 * If set, child updates will recurse the given number of levels even if
+	 * items in the splice operation are unchanged. `Infinity` is a valid value.
+	 */
+	readonly diffDeep?: number;
+
 	/**
 	 * Identity provider used to optimize splice() calls in the IndexTree. If
 	 * this is not present, optimized splicing is not enabled.
@@ -50,6 +59,16 @@ export interface IIndexTreeModelOptions<T, TFilterData> {
 	 * different. For this, you should call `rerender()`.
 	 */
 	readonly diffIdentityProvider?: IIdentityProvider<T>;
+
+	/**
+	 * Callback for when a node is created.
+	 */
+	onDidCreateNode?: (node: ITreeNode<T, TFilterData>) => void;
+
+	/**
+	 * Callback for when a node is deleted.
+	 */
+	onDidDeleteNode?: (node: ITreeNode<T, TFilterData>) => void
 }
 
 interface CollapsibleStateUpdate {
@@ -87,7 +106,6 @@ export class IndexTreeModel<T extends Exclude<any, undefined>, TFilterData = voi
 	private collapseByDefault: boolean;
 	private filter?: ITreeFilter<T, TFilterData>;
 	private autoExpandSingleChildren: boolean;
-	private diffIdentityProvider?: IIdentityProvider<T>;
 
 	private readonly _onDidSplice = new Emitter<ITreeModelSpliceEvent<T, TFilterData>>();
 	readonly onDidSplice = this._onDidSplice.event;
@@ -101,7 +119,6 @@ export class IndexTreeModel<T extends Exclude<any, undefined>, TFilterData = voi
 		this.collapseByDefault = typeof options.collapseByDefault === 'undefined' ? false : options.collapseByDefault;
 		this.filter = options.filter;
 		this.autoExpandSingleChildren = typeof options.autoExpandSingleChildren === 'undefined' ? false : options.autoExpandSingleChildren;
-		this.diffIdentityProvider = options.diffIdentityProvider;
 
 		this.root = {
 			parent: undefined,
@@ -123,17 +140,16 @@ export class IndexTreeModel<T extends Exclude<any, undefined>, TFilterData = voi
 		location: number[],
 		deleteCount: number,
 		toInsert: Iterable<ITreeElement<T>> = Iterable.empty(),
-		onDidCreateNode?: (node: ITreeNode<T, TFilterData>) => void,
-		onDidDeleteNode?: (node: ITreeNode<T, TFilterData>) => void
+		options: IIndexedSpliceOptions<T, TFilterData> = {},
 	): void {
 		if (location.length === 0) {
 			throw new TreeError(this.user, 'Invalid tree location');
 		}
 
-		if (this.diffIdentityProvider) {
-			this.spliceSmart(this.diffIdentityProvider, location, deleteCount, toInsert, onDidCreateNode, onDidDeleteNode);
+		if (options.diffIdentityProvider) {
+			this.spliceSmart(options.diffIdentityProvider, location, deleteCount, toInsert, options);
 		} else {
-			this.spliceSimple(location, deleteCount, toInsert, onDidCreateNode, onDidDeleteNode);
+			this.spliceSimple(location, deleteCount, toInsert, options);
 		}
 	}
 
@@ -142,16 +158,10 @@ export class IndexTreeModel<T extends Exclude<any, undefined>, TFilterData = voi
 		location: number[],
 		deleteCount: number,
 		toInsertIterable: Iterable<ITreeElement<T>> = Iterable.empty(),
-		onDidCreateNode?: (node: ITreeNode<T, TFilterData>) => void,
-		onDidDeleteNode?: (node: ITreeNode<T, TFilterData>) => void
+		options: IIndexedSpliceOptions<T, TFilterData>,
+		recurseLevels = options.diffDeep ?? 0,
 	) {
 		const { parentNode } = this.getParentNodeWithListIndex(location);
-
-		// fast path
-		if (deleteCount === 0 || parentNode.children.length === 0) {
-			return this.spliceSimple(location, deleteCount, toInsertIterable, onDidCreateNode, onDidDeleteNode);
-		}
-
 		const toInsert = [...toInsertIterable];
 		const index = location[location.length - 1];
 		const diff = new LcsDiff(
@@ -167,26 +177,51 @@ export class IndexTreeModel<T extends Exclude<any, undefined>, TFilterData = voi
 
 		// if we were given a 'best effort' diff, use default behavior
 		if (diff.quitEarly) {
-			return this.spliceSimple(location, deleteCount, toInsert, onDidCreateNode, onDidDeleteNode);
+			return this.spliceSimple(location, deleteCount, toInsert, options);
 		}
 
+		const locationPrefix = location.slice(0, -1);
+		const recurseSplice = (fromOriginal: number, fromModified: number, count: number) => {
+			if (recurseLevels > 0) {
+				for (let i = 0; i < count; i++) {
+					fromOriginal--;
+					fromModified--;
+					this.spliceSmart(
+						identity,
+						[...locationPrefix, fromOriginal, 0],
+						Number.MAX_SAFE_INTEGER,
+						toInsert[fromModified].children,
+						options,
+						recurseLevels - 1,
+					);
+				}
+			}
+		};
+
+		let lastStartO = Math.min(parentNode.children.length, index + deleteCount);
+		let lastStartM = toInsert.length;
 		for (const change of diff.changes.sort((a, b) => b.originalStart - a.originalStart)) {
+			recurseSplice(lastStartO, lastStartM, lastStartO - (change.originalStart + change.originalLength));
+			lastStartO = change.originalStart;
+			lastStartM = change.modifiedStart - index;
+
 			this.spliceSimple(
-				[...location.slice(0, -1), change.originalStart],
+				[...locationPrefix, lastStartO],
 				change.originalLength,
-				Iterable.slice(toInsert, change.modifiedStart - index, change.modifiedStart - index + change.modifiedLength),
-				onDidCreateNode,
-				onDidDeleteNode,
+				Iterable.slice(toInsert, lastStartM, lastStartM + change.modifiedLength),
+				options,
 			);
 		}
+
+		// at this point, startO === startM === count since any remaining prefix should match
+		recurseSplice(lastStartO, lastStartM, lastStartO);
 	}
 
 	private spliceSimple(
 		location: number[],
 		deleteCount: number,
 		toInsert: Iterable<ITreeElement<T>> = Iterable.empty(),
-		onDidCreateNode?: (node: ITreeNode<T, TFilterData>) => void,
-		onDidDeleteNode?: (node: ITreeNode<T, TFilterData>) => void
+		{ onDidCreateNode, onDidDeleteNode }: IIndexedSpliceOptions<T, TFilterData>,
 	) {
 		const { parentNode, listIndex, revealed, visible } = this.getParentNodeWithListIndex(location);
 		const treeListElementsToInsert: ITreeNode<T, TFilterData>[] = [];

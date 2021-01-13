@@ -6,7 +6,7 @@
 import { Iterable } from 'vs/base/common/iterator';
 import { AbstractTree, IAbstractTreeOptions, IAbstractTreeOptionsUpdate } from 'vs/base/browser/ui/tree/abstractTree';
 import { ITreeNode, ITreeModel, ITreeElement, ITreeRenderer, ITreeSorter, ICollapseStateChangeEvent } from 'vs/base/browser/ui/tree/tree';
-import { ObjectTreeModel, IObjectTreeModel } from 'vs/base/browser/ui/tree/objectTreeModel';
+import { ObjectTreeModel, IObjectTreeModel, IObjectTreeSetChildrenOptions } from 'vs/base/browser/ui/tree/objectTreeModel';
 import { IListVirtualDelegate, IKeyboardNavigationLabelProvider } from 'vs/base/browser/ui/list/list';
 import { Event } from 'vs/base/common/event';
 import { CompressibleObjectTreeModel, ElementMapper, ICompressedTreeNode, ICompressedTreeElement } from 'vs/base/browser/ui/tree/compressedObjectTreeModel';
@@ -33,8 +33,8 @@ export class ObjectTree<T extends NonNullable<any>, TFilterData = void> extends 
 		super(user, container, delegate, renderers, options as IObjectTreeOptions<T | null, TFilterData>);
 	}
 
-	setChildren(element: T | null, children: Iterable<ITreeElement<T>> = Iterable.empty()): void {
-		this.model.setChildren(element, children);
+	setChildren(element: T | null, children: Iterable<ITreeElement<T>> = Iterable.empty(), options?: IObjectTreeSetChildrenOptions<T, TFilterData>): void {
+		this.model.setChildren(element, children, options);
 	}
 
 	rerender(element?: T): void {
@@ -189,8 +189,8 @@ export class CompressibleObjectTree<T extends NonNullable<any>, TFilterData = vo
 		super(user, container, delegate, compressibleRenderers, asObjectTreeOptions<T, TFilterData>(compressedTreeNodeProvider, options));
 	}
 
-	setChildren(element: T | null, children: Iterable<ICompressedTreeElement<T>> = Iterable.empty()): void {
-		this.model.setChildren(element, children);
+	setChildren(element: T | null, children: Iterable<ICompressedTreeElement<T>> = Iterable.empty(), options: IObjectTreeSetChildrenOptions<T, TFilterData> = {}): void {
+		this.model.setChildren(element, children, options);
 	}
 
 	protected createModel(user: string, view: IList<ITreeNode<T, TFilterData>>, options: ICompressibleObjectTreeOptions<T, TFilterData>): ITreeModel<T | null, TFilterData, T | null> {

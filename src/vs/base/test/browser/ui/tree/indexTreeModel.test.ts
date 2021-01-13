@@ -5,7 +5,7 @@
 
 import * as assert from 'assert';
 import { ITreeNode, ITreeFilter, TreeVisibility, ITreeElement } from 'vs/base/browser/ui/tree/tree';
-import { IndexTreeModel, IIndexTreeNode, IList, IIndexTreeModelOptions } from 'vs/base/browser/ui/tree/indexTreeModel';
+import { IndexTreeModel, IIndexTreeNode, IList, IIndexedSpliceOptions } from 'vs/base/browser/ui/tree/indexTreeModel';
 
 function toList<T>(arr: T[]): IList<T> {
 	return {
@@ -20,13 +20,20 @@ function toArray<T>(list: ITreeNode<T>[]): T[] {
 	return list.map(i => i.element);
 }
 
+
+function toElements<T>(node: ITreeNode<T>): any {
+	return node.children?.length ? { e: node.element, children: node.children.map(toElements) } : node.element;
+}
+
+const diffIdentityProvider = { getId: (n: number) => String(n) };
+
 /**
  * Calls that test function twice, once with an empty options and
  * once with `diffIdentityProvider`.
  */
-function withSmartSplice(fn: (options: IIndexTreeModelOptions<number, any>) => void) {
+function withSmartSplice(fn: (options: IIndexedSpliceOptions<number, any>) => void) {
 	fn({});
-	fn({ diffIdentityProvider: { getId: n => String(n) } });
+	fn({ diffIdentityProvider });
 }
 
 suite('IndexTreeModel', () => {
@@ -40,13 +47,13 @@ suite('IndexTreeModel', () => {
 
 	test('insert', () => withSmartSplice(options => {
 		const list: ITreeNode<number>[] = [];
-		const model = new IndexTreeModel<number>('test', toList(list), -1, options);
+		const model = new IndexTreeModel<number>('test', toList(list), -1);
 
 		model.splice([0], 0, [
 			{ element: 0 },
 			{ element: 1 },
 			{ element: 2 }
-		]);
+		], options);
 
 		assert.deepEqual(list.length, 3);
 		assert.deepEqual(list[0].element, 0);
@@ -62,7 +69,7 @@ suite('IndexTreeModel', () => {
 
 	test('deep insert', () => withSmartSplice(options => {
 		const list: ITreeNode<number>[] = [];
-		const model = new IndexTreeModel<number>('test', toList(list), -1, options);
+		const model = new IndexTreeModel<number>('test', toList(list), -1);
 
 		model.splice([0], 0, [
 			{
@@ -99,7 +106,7 @@ suite('IndexTreeModel', () => {
 
 	test('deep insert collapsed', () => withSmartSplice(options => {
 		const list: ITreeNode<number>[] = [];
-		const model = new IndexTreeModel<number>('test', toList(list), -1, options);
+		const model = new IndexTreeModel<number>('test', toList(list), -1);
 
 		model.splice([0], 0, [
 			{
@@ -111,7 +118,7 @@ suite('IndexTreeModel', () => {
 			},
 			{ element: 1 },
 			{ element: 2 }
-		]);
+		], options);
 
 		assert.deepEqual(list.length, 3);
 		assert.deepEqual(list[0].element, 0);
@@ -127,17 +134,17 @@ suite('IndexTreeModel', () => {
 
 	test('delete', () => withSmartSplice(options => {
 		const list: ITreeNode<number>[] = [];
-		const model = new IndexTreeModel<number>('test', toList(list), -1, options);
+		const model = new IndexTreeModel<number>('test', toList(list), -1);
 
 		model.splice([0], 0, [
 			{ element: 0 },
 			{ element: 1 },
 			{ element: 2 }
-		]);
+		], options);
 
 		assert.deepEqual(list.length, 3);
 
-		model.splice([1], 1);
+		model.splice([1], 1, undefined, options);
 		assert.deepEqual(list.length, 2);
 		assert.deepEqual(list[0].element, 0);
 		assert.deepEqual(list[0].collapsed, false);
@@ -146,13 +153,13 @@ suite('IndexTreeModel', () => {
 		assert.deepEqual(list[1].collapsed, false);
 		assert.deepEqual(list[1].depth, 1);
 
-		model.splice([0], 2);
+		model.splice([0], 2, undefined, options);
 		assert.deepEqual(list.length, 0);
 	}));
 
 	test('nested delete', () => withSmartSplice(options => {
 		const list: ITreeNode<number>[] = [];
-		const model = new IndexTreeModel<number>('test', toList(list), -1, options);
+		const model = new IndexTreeModel<number>('test', toList(list), -1);
 
 		model.splice([0], 0, [
 			{
@@ -164,11 +171,11 @@ suite('IndexTreeModel', () => {
 			},
 			{ element: 1 },
 			{ element: 2 }
-		]);
+		], options);
 
 		assert.deepEqual(list.length, 6);
 
-		model.splice([1], 2);
+		model.splice([1], 2, undefined, options);
 		assert.deepEqual(list.length, 4);
 		assert.deepEqual(list[0].element, 0);
 		assert.deepEqual(list[0].collapsed, false);
@@ -186,7 +193,7 @@ suite('IndexTreeModel', () => {
 
 	test('deep delete', () => withSmartSplice(options => {
 		const list: ITreeNode<number>[] = [];
-		const model = new IndexTreeModel<number>('test', toList(list), -1, options);
+		const model = new IndexTreeModel<number>('test', toList(list), -1);
 
 		model.splice([0], 0, [
 			{
@@ -198,11 +205,11 @@ suite('IndexTreeModel', () => {
 			},
 			{ element: 1 },
 			{ element: 2 }
-		]);
+		], options);
 
 		assert.deepEqual(list.length, 6);
 
-		model.splice([0], 1);
+		model.splice([0], 1, undefined, options);
 		assert.deepEqual(list.length, 2);
 		assert.deepEqual(list[0].element, 1);
 		assert.deepEqual(list[0].collapsed, false);
@@ -212,9 +219,43 @@ suite('IndexTreeModel', () => {
 		assert.deepEqual(list[1].depth, 1);
 	}));
 
+	test('smart splice deep', () => {
+		const list: ITreeNode<number>[] = [];
+		const model = new IndexTreeModel<number>('test', toList(list), -1);
+
+		model.splice([0], 0, [
+			{ element: 0 },
+			{ element: 1 },
+			{ element: 2 },
+			{ element: 3 },
+		], { diffIdentityProvider });
+
+		assert.deepStrictEqual(list.filter(l => l.depth === 1).map(toElements), [
+			0,
+			1,
+			2,
+			3,
+		]);
+
+		model.splice([0], 3, [
+			{ element: -0.5 },
+			{ element: 0, children: [{ element: 0.1 }] },
+			{ element: 1 },
+			{ element: 2, children: [{ element: 2.1 }, { element: 2.2, children: [{ element: 2.21 }] }] },
+		], { diffIdentityProvider, diffDeep: Infinity });
+
+		assert.deepStrictEqual(list.filter(l => l.depth === 1).map(toElements), [
+			-0.5,
+			{ e: 0, children: [0.1] },
+			1,
+			{ e: 2, children: [2.1, { e: 2.2, children: [2.21] }] },
+			3,
+		]);
+	});
+
 	test('hidden delete', () => withSmartSplice(options => {
 		const list: ITreeNode<number>[] = [];
-		const model = new IndexTreeModel<number>('test', toList(list), -1, options);
+		const model = new IndexTreeModel<number>('test', toList(list), -1);
 
 		model.splice([0], 0, [
 			{
@@ -226,20 +267,20 @@ suite('IndexTreeModel', () => {
 			},
 			{ element: 1 },
 			{ element: 2 }
-		]);
+		], options);
 
 		assert.deepEqual(list.length, 3);
 
-		model.splice([0, 1], 1);
+		model.splice([0, 1], 1, undefined, options);
 		assert.deepEqual(list.length, 3);
 
-		model.splice([0, 0], 2);
+		model.splice([0, 0], 2, undefined, options);
 		assert.deepEqual(list.length, 3);
 	}));
 
 	test('collapse', () => withSmartSplice(options => {
 		const list: ITreeNode<number>[] = [];
-		const model = new IndexTreeModel<number>('test', toList(list), -1, options);
+		const model = new IndexTreeModel<number>('test', toList(list), -1);
 
 		model.splice([0], 0, [
 			{
@@ -251,7 +292,7 @@ suite('IndexTreeModel', () => {
 			},
 			{ element: 1 },
 			{ element: 2 }
-		]);
+		], options);
 
 		assert.deepEqual(list.length, 6);
 
@@ -270,7 +311,7 @@ suite('IndexTreeModel', () => {
 
 	test('expand', () => withSmartSplice(options => {
 		const list: ITreeNode<number>[] = [];
-		const model = new IndexTreeModel<number>('test', toList(list), -1, options);
+		const model = new IndexTreeModel<number>('test', toList(list), -1);
 
 		model.splice([0], 0, [
 			{
@@ -282,7 +323,7 @@ suite('IndexTreeModel', () => {
 			},
 			{ element: 1 },
 			{ element: 2 }
-		]);
+		], options);
 
 		assert.deepEqual(list.length, 3);
 
@@ -316,7 +357,8 @@ suite('IndexTreeModel', () => {
 
 		for (let i = 0; i < times; i++) {
 			const list: ITreeNode<number>[] = [];
-			const model = new IndexTreeModel<number>('test', toList(list), -1, { diffIdentityProvider: { getId: n => String(n) } });
+			const options = { diffIdentityProvider: { getId: (n: number) => String(n) } };
+			const model = new IndexTreeModel<number>('test', toList(list), -1);
 
 			const changes = [];
 			const expected: number[] = [];
@@ -339,7 +381,7 @@ suite('IndexTreeModel', () => {
 					inserts.push(...elements.map(({ element }) => ({ element, children: [] })));
 				}
 
-				model.splice([spliceIndex], deleteCount, inserts);
+				model.splice([spliceIndex], deleteCount, inserts, options);
 				expected.splice(spliceIndex, deleteCount, ...inserts.map(i => i.element));
 
 				const listElements = list.map(l => l.element);
