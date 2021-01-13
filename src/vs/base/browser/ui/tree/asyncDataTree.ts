@@ -224,6 +224,11 @@ function asObjectTreeOptions<TInput, T, TFilterData>(options?: IAsyncDataTreeOpt
 				return options.identityProvider!.getId(el.element as T);
 			}
 		},
+		diffIdentityProvider: options.diffIdentityProvider && {
+			getId(el) {
+				return options.diffIdentityProvider!.getId(el.element as T);
+			}
+		},
 		dnd: options.dnd && new AsyncDataTreeNodeListDragAndDrop(options.dnd),
 		multipleSelectionController: options.multipleSelectionController && {
 			isSelectionSingleChangeEvent(e) {
@@ -282,6 +287,7 @@ export interface IAsyncDataTreeOptionsUpdate extends IAbstractTreeOptionsUpdate 
 
 export interface IAsyncDataTreeOptions<T, TFilterData = void> extends IAsyncDataTreeOptionsUpdate, Pick<IAbstractTreeOptions<T, TFilterData>, Exclude<keyof IAbstractTreeOptions<T, TFilterData>, 'collapseByDefault'>> {
 	readonly collapseByDefault?: { (e: T): boolean; };
+	readonly diffIdentityProvider?: IIdentityProvider<T>;
 	readonly identityProvider?: IIdentityProvider<T>;
 	readonly sorter?: ITreeSorter<T>;
 	readonly autoExpandSingleChildren?: boolean;

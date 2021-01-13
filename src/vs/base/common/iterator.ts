@@ -70,6 +70,25 @@ export namespace Iterable {
 	}
 
 	/**
+	 * Returns an iterable slice of the array, with the same semantics as `array.slice()`.
+	 */
+	export function* slice<T>(iterable: ReadonlyArray<T>, from: number, to = iterable.length): Iterable<T> {
+		if (from < 0) {
+			from += iterable.length;
+		}
+
+		if (to < 0) {
+			to += iterable.length;
+		} else if (to > iterable.length) {
+			to = iterable.length;
+		}
+
+		for (; from < to; from++) {
+			yield iterable[from];
+		}
+	}
+
+	/**
 	 * Consumes `atMost` elements from iterable and returns the consumed elements,
 	 * and an iterable for the rest of the elements.
 	 */

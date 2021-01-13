@@ -3,8 +3,10 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
+import { IIdentityProvider } from 'vs/base/browser/ui/list/list';
 import { ICollapseStateChangeEvent, ITreeElement, ITreeFilter, ITreeFilterDataResult, ITreeModel, ITreeNode, TreeVisibility, ITreeModelSpliceEvent, TreeError } from 'vs/base/browser/ui/tree/tree';
 import { tail2 } from 'vs/base/common/arrays';
+import { LcsDiff } from 'vs/base/common/diff/diff';
 import { Emitter, Event, EventBufferer } from 'vs/base/common/event';
 import { Iterable } from 'vs/base/common/iterator';
 import { ISpliceable } from 'vs/base/common/sequence';
@@ -39,6 +41,15 @@ export interface IIndexTreeModelOptions<T, TFilterData> {
 	readonly collapseByDefault?: boolean; // defaults to false
 	readonly filter?: ITreeFilter<T, TFilterData>;
 	readonly autoExpandSingleChildren?: boolean;
+	/**
+	 * Identity provider used to optimize splice() calls in the IndexTree. If
+	 * this is not present, optimized splicing is not enabled.
+	 *
+	 * Warning: if this is present, calls to `setChildren()` will not replace
+	 * or update nodes if their identity is the same, even if the elements are
+	 * different. For this, you should call `rerender()`.
+	 */
+	readonly diffIdentityProvider?: IIdentityProvider<T>;
 }
 
 interface CollapsibleStateUpdate {
@@ -76,6 +87,7 @@ export class IndexTreeModel<T extends Exclude<any, undefined>, TFilterData = voi
 	private collapseByDefault: boolean;
 	private filter?: ITreeFilter<T, TFilterData>;
 	private autoExpandSingleChildren: boolean;
+	private diffIdentityProvider?: IIdentityProvider<T>;
 
 	private readonly _onDidSplice = new Emitter<ITreeModelSpliceEvent<T, TFilterData>>();
 	readonly onDidSplice = this._onDidSplice.event;
@@ -89,6 +101,7 @@ export class IndexTreeModel<T extends Exclude<any, undefined>, TFilterData = voi
 		this.collapseByDefault = typeof options.collapseByDefault === 'undefined' ? false : options.collapseByDefault;
 		this.filter = options.filter;
 		this.autoExpandSingleChildren = typeof options.autoExpandSingleChildren === 'undefined' ? false : options.autoExpandSingleChildren;
+		this.diffIdentityProvider = options.diffIdentityProvider;
 
 		this.root = {
 			parent: undefined,
@@ -117,6 +130,64 @@ export class IndexTreeModel<T extends Exclude<any, undefined>, TFilterData = voi
 			throw new TreeError(this.user, 'Invalid tree location');
 		}
 
+		if (this.diffIdentityProvider) {
+			this.spliceSmart(this.diffIdentityProvider, location, deleteCount, toInsert, onDidCreateNode, onDidDeleteNode);
+		} else {
+			this.spliceSimple(location, deleteCount, toInsert, onDidCreateNode, onDidDeleteNode);
+		}
+	}
+
+	private spliceSmart(
+		identity: IIdentityProvider<T>,
+		location: number[],
+		deleteCount: number,
+		toInsertIterable: Iterable<ITreeElement<T>> = Iterable.empty(),
+		onDidCreateNode?: (node: ITreeNode<T, TFilterData>) => void,
+		onDidDeleteNode?: (node: ITreeNode<T, TFilterData>) => void
+	) {
+		const { parentNode } = this.getParentNodeWithListIndex(location);
+
+		// fast path
+		if (deleteCount === 0 || parentNode.children.length === 0) {
+			return this.spliceSimple(location, deleteCount, toInsertIterable, onDidCreateNode, onDidDeleteNode);
+		}
+
+		const toInsert = [...toInsertIterable];
+		const index = location[location.length - 1];
+		const diff = new LcsDiff(
+			{ getElements: () => parentNode.children.map(e => identity.getId(e.element).toString()) },
+			{
+				getElements: () => [
+					...parentNode.children.slice(0, index),
+					...toInsert,
+					...parentNode.children.slice(index + deleteCount),
+				].map(e => identity.getId(e.element).toString())
+			},
+		).ComputeDiff(false);
+
+		// if we were given a 'best effort' diff, use default behavior
+		if (diff.quitEarly) {
+			return this.spliceSimple(location, deleteCount, toInsert, onDidCreateNode, onDidDeleteNode);
+		}
+
+		for (const change of diff.changes.sort((a, b) => b.originalStart - a.originalStart)) {
+			this.spliceSimple(
+				[...location.slice(0, -1), change.originalStart],
+				change.originalLength,
+				Iterable.slice(toInsert, change.modifiedStart - index, change.modifiedStart - index + change.modifiedLength),
+				onDidCreateNode,
+				onDidDeleteNode,
+			);
+		}
+	}
+
+	private spliceSimple(
+		location: number[],
+		deleteCount: number,
+		toInsert: Iterable<ITreeElement<T>> = Iterable.empty(),
+		onDidCreateNode?: (node: ITreeNode<T, TFilterData>) => void,
+		onDidDeleteNode?: (node: ITreeNode<T, TFilterData>) => void
+	) {
 		const { parentNode, listIndex, revealed, visible } = this.getParentNodeWithListIndex(location);
 		const treeListElementsToInsert: ITreeNode<T, TFilterData>[] = [];
 		const nodesToInsertIterator = Iterable.map(toInsert, el => this.createTreeNode(el, parentNode, parentNode.visible ? TreeVisibility.Visible : TreeVisibility.Hidden, revealed, treeListElementsToInsert, onDidCreateNode));

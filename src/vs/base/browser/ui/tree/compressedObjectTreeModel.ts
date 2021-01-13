@@ -363,14 +363,19 @@ function mapList<T, TFilterData>(nodeMapper: CompressedNodeWeakMapper<T, TFilter
 function mapOptions<T, TFilterData>(compressedNodeUnwrapper: CompressedNodeUnwrapper<T>, options: ICompressibleObjectTreeModelOptions<T, TFilterData>): ICompressedObjectTreeModelOptions<T, TFilterData> {
 	return {
 		...options,
-		sorter: options.sorter && {
-			compare(node: ICompressedTreeNode<T>, otherNode: ICompressedTreeNode<T>): number {
-				return options.sorter!.compare(node.elements[0], otherNode.elements[0]);
+		diffIdentityProvider: options.diffIdentityProvider && {
+			getId(node: ICompressedTreeNode<T>): { toString(): string; } {
+				return options.diffIdentityProvider!.getId(compressedNodeUnwrapper(node));
 			}
 		},
 		identityProvider: options.identityProvider && {
 			getId(node: ICompressedTreeNode<T>): { toString(): string; } {
 				return options.identityProvider!.getId(compressedNodeUnwrapper(node));
+			}
+		},
+		sorter: options.sorter && {
+			compare(node: ICompressedTreeNode<T>, otherNode: ICompressedTreeNode<T>): number {
+				return options.sorter!.compare(node.elements[0], otherNode.elements[0]);
 			}
 		},
 		filter: options.filter && {
