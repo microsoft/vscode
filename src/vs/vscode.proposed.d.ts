@@ -154,12 +154,14 @@ declare module 'vscode' {
 		// The desired local port. If this port can't be used, then another will be chosen.
 		localAddressPort?: number;
 		label?: string;
+		public?: boolean;
 	}
 
 	export interface TunnelDescription {
 		remoteAddress: { port: number, host: string; };
 		//The complete local address(ex. localhost:1234)
 		localAddress: { port: number, host: string; } | string;
+		public?: boolean;
 	}
 
 	export interface Tunnel extends TunnelDescription {
@@ -221,6 +223,7 @@ declare module 'vscode' {
 		 */
 		tunnelFeatures?: {
 			elevation: boolean;
+			public: boolean;
 		};
 	}
 
