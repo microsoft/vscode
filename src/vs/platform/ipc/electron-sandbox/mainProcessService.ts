@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { IChannel, IServerChannel } from 'vs/base/parts/ipc/common/ipc';
-import { Client } from 'vs/base/parts/ipc/electron-sandbox/ipc.electron';
+import { Client as IPCElectronClient } from 'vs/base/parts/ipc/electron-sandbox/ipc.electron';
 import { Disposable } from 'vs/base/common/lifecycle';
 import { createDecorator } from 'vs/platform/instantiation/common/instantiation';
 
@@ -23,14 +23,14 @@ export class MainProcessService extends Disposable implements IMainProcessServic
 
 	declare readonly _serviceBrand: undefined;
 
-	private mainProcessConnection: Client;
+	private mainProcessConnection: IPCElectronClient;
 
 	constructor(
 		windowId: number
 	) {
 		super();
 
-		this.mainProcessConnection = this._register(new Client(`window:${windowId}`));
+		this.mainProcessConnection = this._register(new IPCElectronClient(`window:${windowId}`));
 	}
 
 	getChannel(channelName: string): IChannel {

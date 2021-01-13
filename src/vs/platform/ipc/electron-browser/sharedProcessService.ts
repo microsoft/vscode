@@ -15,6 +15,5 @@ export interface ISharedProcessService {
 	getChannel(channelName: string): IChannel;
 	registerChannel(channelName: string, channel: IServerChannel<string>): void;
 
-	whenSharedProcessReady(): Promise<void>;
-	toggleSharedProcessWindow(): Promise<void>;
+	toggleWindow(): Promise<void>;
 }

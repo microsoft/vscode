@@ -3,8 +3,8 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { Client } from 'vs/base/parts/ipc/common/ipc.net';
-import { connect } from 'vs/base/parts/ipc/node/ipc.net';
+import { Client as NodeIPCClient } from 'vs/base/parts/ipc/common/ipc.net';
+import { connect as nodeIPCConnect } from 'vs/base/parts/ipc/node/ipc.net';
 import { IChannel, IServerChannel, getDelayedChannel } from 'vs/base/parts/ipc/common/ipc';
 import { IMainProcessService } from 'vs/platform/ipc/electron-sandbox/mainProcessService';
 import { ISharedProcessService } from 'vs/platform/ipc/electron-browser/sharedProcessService';
@@ -16,7 +16,7 @@ export class SharedProcessService implements ISharedProcessService {
 
 	declare readonly _serviceBrand: undefined;
 
-	private withSharedProcessConnection: Promise<Client<string>>;
+	private withSharedProcessConnection: Promise<NodeIPCClient<string>>;
 	private sharedProcessMainChannel: IChannel;
 
 	constructor(
@@ -26,12 +26,15 @@ export class SharedProcessService implements ISharedProcessService {
 	) {
 		this.sharedProcessMainChannel = mainProcessService.getChannel('sharedProcess');
 
-		this.withSharedProcessConnection = this.whenSharedProcessReady()
-			.then(() => connect(environmentService.sharedIPCHandle, `window:${nativeHostService.windowId}`));
+		this.withSharedProcessConnection = (async () => {
+			await this.whenReady();
+
+			return nodeIPCConnect(environmentService.sharedIPCHandle, `window:${nativeHostService.windowId}`);
+		})();
 	}
 
-	whenSharedProcessReady(): Promise<void> {
-		return this.sharedProcessMainChannel.call('whenSharedProcessReady');
+	private whenReady(): Promise<void> {
+		return this.sharedProcessMainChannel.call('whenReady');
 	}
 
 	getChannel(channelName: string): IChannel {
@@ -42,8 +45,8 @@ export class SharedProcessService implements ISharedProcessService {
 		this.withSharedProcessConnection.then(connection => connection.registerChannel(channelName, channel));
 	}
 
-	toggleSharedProcessWindow(): Promise<void> {
-		return this.sharedProcessMainChannel.call('toggleSharedProcessWindow');
+	toggleWindow(): Promise<void> {
+		return this.sharedProcessMainChannel.call('toggleWindow');
 	}
 }
 

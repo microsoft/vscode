@@ -11,8 +11,9 @@ export interface ISharedProcessMainService {
 
 	readonly _serviceBrand: undefined;
 
-	whenSharedProcessReady(): Promise<void>;
-	toggleSharedProcessWindow(): Promise<void>;
+	whenReady(): Promise<void>;
+
+	toggleWindow(): Promise<void>;
 }
 
 export interface ISharedProcess {
@@ -26,11 +27,11 @@ export class SharedProcessMainService implements ISharedProcessMainService {
 
 	constructor(private sharedProcess: ISharedProcess) { }
 
-	whenSharedProcessReady(): Promise<void> {
+	whenReady(): Promise<void> {
 		return this.sharedProcess.whenReady();
 	}
 
-	async toggleSharedProcessWindow(): Promise<void> {
+	async toggleWindow(): Promise<void> {
 		return this.sharedProcess.toggle();
 	}
 }

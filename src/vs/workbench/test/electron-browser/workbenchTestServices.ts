@@ -152,8 +152,7 @@ export class TestSharedProcessService implements ISharedProcessService {
 
 	registerChannel(channelName: string, channel: any): void { }
 
-	async toggleSharedProcessWindow(): Promise<void> { }
-	async whenSharedProcessReady(): Promise<void> { }
+	async toggleWindow(): Promise<void> { }
 }
 
 export class TestNativeHostService implements INativeHostService {
