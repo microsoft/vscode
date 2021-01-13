@@ -230,7 +230,7 @@ class LineChange implements ILineChange {
 		this.charChanges = charChanges;
 	}
 
-	public static createFromDiffResult(shouldIgnoreTrimWhitespace: boolean, diffChange: IDiffChange, originalLineSequence: LineSequence, modifiedLineSequence: LineSequence, continueCharDiff: () => boolean, shouldComputeCharChanges: boolean, shouldPostProcessCharChanges: boolean): LineChange {
+	public static createFromDiffResult(shouldIgnoreTrimWhitespace: boolean, diffChange: IDiffChange, originalLineSequence: LineSequence, modifiedLineSequence: LineSequence, continueCharDiff: () => boolean, shouldComputeCharChanges: boolean, shouldPostProcessCharChanges: boolean): LineChange[] {
 		let originalStartLineNumber: number;
 		let originalEndLineNumber: number;
 		let modifiedStartLineNumber: number;
@@ -270,7 +270,12 @@ class LineChange implements ILineChange {
 			}
 		}
 
-		return new LineChange(originalStartLineNumber, originalEndLineNumber, modifiedStartLineNumber, modifiedEndLineNumber, charChanges);
+		const lineChanges: LineChange[] = [];
+		for (let i = modifiedStartLineNumber; i <= modifiedEndLineNumber; i++) {
+			lineChanges.push(new LineChange(originalStartLineNumber, originalEndLineNumber, i, i, charChanges));
+		}
+
+		return lineChanges;
 	}
 }
 
@@ -374,7 +379,7 @@ export class DiffComputer {
 		if (this.shouldIgnoreTrimWhitespace) {
 			const lineChanges: LineChange[] = [];
 			for (let i = 0, length = rawChanges.length; i < length; i++) {
-				lineChanges.push(LineChange.createFromDiffResult(this.shouldIgnoreTrimWhitespace, rawChanges[i], this.original, this.modified, this.continueCharDiff, this.shouldComputeCharChanges, this.shouldPostProcessCharChanges));
+				lineChanges.push(...LineChange.createFromDiffResult(this.shouldIgnoreTrimWhitespace, rawChanges[i], this.original, this.modified, this.continueCharDiff, this.shouldComputeCharChanges, this.shouldPostProcessCharChanges));
 			}
 			return {
 				quitEarly: quitEarly,
@@ -452,7 +457,7 @@ export class DiffComputer {
 
 			if (nextChange) {
 				// Emit the actual change
-				result.push(LineChange.createFromDiffResult(this.shouldIgnoreTrimWhitespace, nextChange, this.original, this.modified, this.continueCharDiff, this.shouldComputeCharChanges, this.shouldPostProcessCharChanges));
+				result.push(...LineChange.createFromDiffResult(this.shouldIgnoreTrimWhitespace, nextChange, this.original, this.modified, this.continueCharDiff, this.shouldComputeCharChanges, this.shouldPostProcessCharChanges));
 
 				originalLineIndex += nextChange.originalLength;
 				modifiedLineIndex += nextChange.modifiedLength;
