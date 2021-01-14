@@ -440,7 +440,6 @@ const _minWordMatchPos = initArr(2 * _maxLen); // min word position for a certai
 const _maxWordMatchPos = initArr(2 * _maxLen); // max word position for a certain pattern position
 const _diag = initTable(); // the length of a contiguous diagonal match
 const _table = initTable();
-const _scores = initTable();
 const _arrows = <Arrow[][]>initTable();
 const _debug = false;
 
@@ -469,7 +468,7 @@ function printTables(pattern: string, patternStart: number, word: string, wordSt
 	word = word.substr(wordStart);
 	console.log(printTable(_table, pattern, pattern.length, word, word.length));
 	console.log(printTable(_arrows, pattern, pattern.length, word, word.length));
-	console.log(printTable(_scores, pattern, pattern.length, word, word.length));
+	console.log(printTable(_diag, pattern, pattern.length, word, word.length));
 }
 
 function isSeparatorAtPos(value: string, index: number): boolean {
@@ -607,7 +606,6 @@ export function fuzzyScore(pattern: string, patternLow: string, patternStart: nu
 		for (column = minWordMatchPos - wordStart + 1, wordPos = minWordMatchPos; wordPos < nextMaxWordMatchPos; column++, wordPos++) {
 
 			const score = (wordPos > maxWordMatchPos ? -1 : _doScore(pattern, patternLow, patternPos, patternStart, word, wordLow, wordPos));
-			_scores[row][column] = score;
 
 			if (patternPos === patternStart && score > 1) {
 				hasStrongFirstMatch = true;
@@ -710,8 +708,8 @@ export function fuzzyScore(pattern: string, patternLow: string, patternStart: nu
 
 		// Overturn the "forwards" decision if keeping the "backwards" diagonal would give a better match
 		if (
-			_scores[row][column] > 0 // only if we can do a contiguous match diagonally
-			&& backwardsDiagLength > 1 // only if we would have a contiguous match of 3 characters
+			backwardsDiagLength > 1 // only if we would have a contiguous match of 3 characters
+			&& patternLow[patternStart + row - 1] === wordLow[wordStart + column - 1] // only if we can do a contiguous match diagonally
 			&& !isUpperCaseAtPos(diagColumn + wordStart - 1, word, wordLow) // only if the forwards chose diagonal is not an uppercase
 			&& backwardsDiagLength + 1 > _diag[row][diagColumn] // only if our contiguous match would be longer than the "forwards" contiguous match
 		) {
