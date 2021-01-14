@@ -133,7 +133,10 @@ export class TerminalProcessManager extends Disposable implements ITerminalProce
 		rows: number,
 		isScreenReaderModeEnabled: boolean
 	): Promise<ITerminalLaunchError | undefined> {
+		shellLaunchConfig.flowControl = this._configHelper.config.flowControl;
 		if (shellLaunchConfig.isExtensionTerminal) {
+			// Flow control is not supported for extension terminals
+			shellLaunchConfig.flowControl = false;
 			this._processType = ProcessType.ExtensionTerminal;
 			this._process = this._instantiationService.createInstance(TerminalProcessExtHostProxy, this._terminalId, shellLaunchConfig, undefined, cols, rows, this._configHelper);
 		} else {
@@ -169,7 +172,10 @@ export class TerminalProcessManager extends Disposable implements ITerminalProce
 					this._process = this._instantiationService.createInstance(TerminalProcessExtHostProxy, this._terminalId, shellLaunchConfig, activeWorkspaceRootUri, cols, rows, this._configHelper);
 				}
 			} else {
-				this._process = await this._launchProcess(shellLaunchConfig, cols, rows, this.userHome, isScreenReaderModeEnabled);
+				// Flow control is not needed for ptys hosted in the same process (ie. the electron
+				// renderer).
+				shellLaunchConfig.flowControl = false;
+				this._process = await this._launchLocalProcess(shellLaunchConfig, cols, rows, this.userHome, isScreenReaderModeEnabled);
 			}
 		}
 
@@ -223,7 +229,7 @@ export class TerminalProcessManager extends Disposable implements ITerminalProce
 		return undefined;
 	}
 
-	private async _launchProcess(
+	private async _launchLocalProcess(
 		shellLaunchConfig: IShellLaunchConfig,
 		cols: number,
 		rows: number,
