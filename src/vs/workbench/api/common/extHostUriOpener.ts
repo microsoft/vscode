@@ -19,11 +19,9 @@ interface OpenerEntry {
 
 export class ExtHostUriOpeners implements ExtHostUriOpenersShape {
 
-	private static HandlePool = 0;
-
 	private readonly _proxy: MainThreadUriOpenersShape;
 
-	private readonly _openers = new Map<number, OpenerEntry>();
+	private readonly _openers = new Map<string, OpenerEntry>();
 
 	constructor(
 		mainContext: IMainContext,
@@ -37,48 +35,52 @@ export class ExtHostUriOpeners implements ExtHostUriOpenersShape {
 		opener: vscode.ExternalUriOpener,
 		metadata: vscode.ExternalUriOpenerMetadata,
 	): vscode.Disposable {
-		const handle = ExtHostUriOpeners.HandlePool++;
+		const id = metadata.id;
+		if (this._openers.has(id)) {
+			throw new Error(`Opener with id already registered: '${id}'`);
+		}
 
-		this._openers.set(handle, {
+		this._openers.set(id, {
 			opener,
 			extension: extensionId,
 			schemes: new Set(schemes),
 			metadata
 		});
-		this._proxy.$registerUriOpener(handle, schemes, extensionId, metadata.label);
+		this._proxy.$registerUriOpener(id, schemes, extensionId, metadata.label);
 
 		return toDisposable(() => {
-			this._openers.delete(handle);
-			this._proxy.$unregisterUriOpener(handle);
+			this._openers.delete(id);
+			this._proxy.$unregisterUriOpener(id);
 		});
 	}
 
-	async $getOpenersForUri(uriComponents: UriComponents, token: CancellationToken): Promise<readonly number[]> {
+	async $getOpenersForUri(uriComponents: UriComponents, token: CancellationToken): Promise<readonly string[]> {
 		const uri = URI.revive(uriComponents);
 
-		const promises = Array.from(this._openers.entries()).map(async ([handle, { schemes, opener, }]): Promise<number | undefined> => {
-			if (!schemes.has(uri.scheme)) {
-				return undefined;
-			}
-
-			try {
-				if (await opener.canOpenExternalUri(uri, token)) {
-					return handle;
+		const promises = Array.from(this._openers.entries())
+			.map(async ([id, { schemes, opener, }]): Promise<string | undefined> => {
+				if (!schemes.has(uri.scheme)) {
+					return undefined;
 				}
-			} catch (e) {
-				console.log(e);
-				// noop
-			}
-			return undefined;
-		});
 
-		return (await Promise.all(promises)).filter(handle => typeof handle === 'number') as number[];
+				try {
+					if (await opener.canOpenExternalUri(uri, token)) {
+						return id;
+					}
+				} catch (e) {
+					console.log(e);
+					// noop
+				}
+				return undefined;
+			});
+
+		return (await Promise.all(promises)).filter(handle => typeof handle === 'string') as string[];
 	}
 
-	async $openUri(handle: number, context: { resolveUri: UriComponents, sourceUri: UriComponents }, token: CancellationToken): Promise<void> {
-		const entry = this._openers.get(handle);
+	async $openUri(id: string, context: { resolveUri: UriComponents, sourceUri: UriComponents }, token: CancellationToken): Promise<void> {
+		const entry = this._openers.get(id);
 		if (!entry) {
-			throw new Error(`Unknown opener handle: '${handle}'`);
+			throw new Error(`Unknown opener id: '${id}'`);
 		}
 		return entry.opener.openExternalUri(URI.revive(context.resolveUri), {
 			sourceUri: URI.revive(context.sourceUri)

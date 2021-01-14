@@ -50,11 +50,11 @@ export const CONTEXT_WATCH_EXPRESSIONS_FOCUSED = new RawContextKey<boolean>('wat
 export const CONTEXT_WATCH_EXPRESSIONS_EXIST = new RawContextKey<boolean>('watchExpressionsExist', false);
 export const CONTEXT_VARIABLES_FOCUSED = new RawContextKey<boolean>('variablesFocused', true);
 export const CONTEXT_EXPRESSION_SELECTED = new RawContextKey<boolean>('expressionSelected', false);
-export const CONTEXT_BREAKPOINT_SELECTED = new RawContextKey<boolean>('breakpointSelected', false);
+export const CONTEXT_BREAKPOINT_INPUT_FOCUSED = new RawContextKey<boolean>('breakpointInputFocused', false);
 export const CONTEXT_CALLSTACK_ITEM_TYPE = new RawContextKey<string>('callStackItemType', undefined);
 export const CONTEXT_WATCH_ITEM_TYPE = new RawContextKey<string>('watchItemType', undefined);
 export const CONTEXT_BREAKPOINT_ITEM_TYPE = new RawContextKey<string>('breakpointItemType', undefined);
-export const CONTEXT_EXCEPTION_BREAKPOINT_SUPPORTS_CONDITION = new RawContextKey<boolean>('exceptionBreakpointSupportsCondition', false);
+export const CONTEXT_BREAKPOINT_SUPPORTS_CONDITION = new RawContextKey<boolean>('breakpointSupportsCondition', false);
 export const CONTEXT_LOADED_SCRIPTS_SUPPORTED = new RawContextKey<boolean>('loadedScriptsSupported', false);
 export const CONTEXT_LOADED_SCRIPTS_ITEM_TYPE = new RawContextKey<string>('loadedScriptsItemType', undefined);
 export const CONTEXT_FOCUSED_SESSION_IS_ATTACH = new RawContextKey<boolean>('focusedSessionIsAttach', false);
@@ -444,9 +444,7 @@ export interface IViewModel extends ITreeElement {
 	readonly focusedStackFrame: IStackFrame | undefined;
 
 	getSelectedExpression(): IExpression | undefined;
-	getSelectedBreakpoint(): IFunctionBreakpoint | IExceptionBreakpoint | undefined;
 	setSelectedExpression(expression: IExpression | undefined): void;
-	setSelectedBreakpoint(functionBreakpoint: IFunctionBreakpoint | IExceptionBreakpoint | undefined): void;
 	updateViews(): void;
 
 	isMultiSessionView(): boolean;
@@ -454,7 +452,6 @@ export interface IViewModel extends ITreeElement {
 	onDidFocusSession: Event<IDebugSession | undefined>;
 	onDidFocusStackFrame: Event<{ stackFrame: IStackFrame | undefined, explicit: boolean }>;
 	onDidSelectExpression: Event<IExpression | undefined>;
-	onDidSelectBreakpoint: Event<IFunctionBreakpoint | IExceptionBreakpoint | undefined>;
 	onWillUpdateViews: Event<void>;
 }
 
@@ -852,10 +849,10 @@ export interface IDebugService {
 	addFunctionBreakpoint(name?: string, id?: string): void;
 
 	/**
-	 * Renames an already existing function breakpoint.
+	 * Updates an already existing function breakpoint.
 	 * Notifies debug adapter of breakpoint changes.
 	 */
-	renameFunctionBreakpoint(id: string, newFunctionName: string): Promise<void>;
+	updateFunctionBreakpoint(id: string, update: { name?: string, hitCondition?: string, condition?: string }): Promise<void>;
 
 	/**
 	 * Removes all function breakpoints. If id is passed only removes the function breakpoint with the passed id.

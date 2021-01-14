@@ -24,7 +24,10 @@ export class MainThreadTunnelService extends Disposable implements MainThreadTun
 		this._proxy = extHostContext.getProxy(ExtHostContext.ExtHostTunnelService);
 		this._register(tunnelService.onTunnelOpened(() => this._proxy.$onDidTunnelsChange()));
 		this._register(tunnelService.onTunnelClosed(() => this._proxy.$onDidTunnelsChange()));
-		this._register(remoteExplorerService.onEnabledPortsFeatures(() => this._proxy.$registerCandidateFinder()));
+	}
+
+	async $setCandidateFinder(): Promise<void> {
+		this._register(this.remoteExplorerService.onEnabledPortsFeatures(() => this._proxy.$registerCandidateFinder()));
 	}
 
 	async $openTunnel(tunnelOptions: TunnelOptions, source: string): Promise<TunnelDto | undefined> {
@@ -78,6 +81,13 @@ export class MainThreadTunnelService extends Disposable implements MainThreadTun
 		};
 		this.tunnelService.setTunnelProvider(tunnelProvider, features);
 	}
+
+	async $setCandidateFilter(): Promise<void> {
+		this.remoteExplorerService.setCandidateFilter((candidates: CandidatePort[]): Promise<CandidatePort[]> => {
+			return this._proxy.$applyCandidateFilter(candidates);
+		});
+	}
+
 
 	dispose(): void {
 
