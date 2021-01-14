@@ -30,7 +30,7 @@ class CheckoutItem implements QuickPickItem {
 
 	constructor(protected ref: Ref) { }
 
-	async run(repository: Repository, opts?: { detached?: boolean }): Promise<void> {
+	async run(repository: Repository, opts?: { detached?: boolean; }): Promise<void> {
 		const ref = this.ref.name;
 
 		if (!ref) {
@@ -54,7 +54,7 @@ class CheckoutRemoteHeadItem extends CheckoutItem {
 		return localize('remote branch at', "Remote branch at {0}", this.shortCommit);
 	}
 
-	async run(repository: Repository, opts?: { detached?: boolean }): Promise<void> {
+	async run(repository: Repository, opts?: { detached?: boolean; }): Promise<void> {
 		if (!this.ref.name) {
 			return;
 		}
@@ -125,9 +125,11 @@ class CreateBranchFromItem implements QuickPickItem {
 }
 
 class CheckoutDetachedItem implements QuickPickItem {
-	get label(): string { return '$(debug-disconnect) ' + localize('checkout detached', 'Checkout detached...'); }
+	get label(): string { return '$(debug-disconnect) ' + (this.command === 'switch' ? localize('switch detached', 'Switch detached...') : localize('checkout detached', 'Checkout detached...')); }
 	get description(): string { return ''; }
 	get alwaysShow(): boolean { return true; }
+
+	constructor(private command?: 'checkout' | 'switch') { }
 }
 
 class HEADItem implements QuickPickItem {
@@ -186,7 +188,7 @@ function command(commandId: string, options: CommandOptions = {}): Function {
 // 	'image/bmp'
 // ];
 
-async function categorizeResourceByResolution(resources: Resource[]): Promise<{ merge: Resource[], resolved: Resource[], unresolved: Resource[], deletionConflicts: Resource[] }> {
+async function categorizeResourceByResolution(resources: Resource[]): Promise<{ merge: Resource[], resolved: Resource[], unresolved: Resource[], deletionConflicts: Resource[]; }> {
 	const selection = resources.filter(s => s instanceof Resource) as Resource[];
 	const merge = selection.filter(s => s.resourceGroupType === ResourceGroupType.Merge);
 	const isBothAddedOrModified = (s: Resource) => s.type === Status.BOTH_MODIFIED || s.type === Status.BOTH_ADDED;
@@ -233,7 +235,7 @@ class CheckoutProcessor {
 
 	private refs: Ref[] = [];
 	get items(): CheckoutItem[] { return this.refs.map(r => new this.ctor(r)); }
-	constructor(private type: RefType, private ctor: { new(ref: Ref): CheckoutItem }) { }
+	constructor(private type: RefType, private ctor: { new(ref: Ref): CheckoutItem; }) { }
 
 	onRef(ref: Ref): void {
 		if (ref.type === this.type) {
@@ -372,7 +374,7 @@ export class CommandCenter {
 		await resource.open();
 	}
 
-	async cloneRepository(url?: string, parentPath?: string, options: { recursive?: boolean } = {}): Promise<void> {
+	async cloneRepository(url?: string, parentPath?: string, options: { recursive?: boolean; } = {}): Promise<void> {
 		if (!url || typeof url !== 'string') {
 			url = await pickRemoteSource(this.model, {
 				providerLabel: provider => localize('clonefrom', "Clone from {0}", provider.name),
@@ -526,7 +528,7 @@ export class CommandCenter {
 			} else {
 				const placeHolder = localize('init', "Pick workspace folder to initialize git repo in");
 				const pick = { label: localize('choose', "Choose Folder...") };
-				const items: { label: string, folder?: WorkspaceFolder }[] = [
+				const items: { label: string, folder?: WorkspaceFolder; }[] = [
 					...workspace.workspaceFolders.map(folder => ({ label: folder.name, description: folder.uri.fsPath, folder })),
 					pick
 				];
@@ -1648,15 +1650,25 @@ export class CommandCenter {
 
 	@command('git.checkout', { repository: true })
 	async checkout(repository: Repository, treeish?: string): Promise<boolean> {
-		return this._checkout(repository, { treeish });
+		return this._checkout(repository, { command: 'checkout', treeish });
 	}
 
 	@command('git.checkoutDetached', { repository: true })
 	async checkoutDetached(repository: Repository, treeish?: string): Promise<boolean> {
-		return this._checkout(repository, { detached: true, treeish });
+		return this._checkout(repository, { command: 'checkout', detached: true, treeish });
 	}
 
-	private async _checkout(repository: Repository, opts?: { detached?: boolean, treeish?: string }): Promise<boolean> {
+	@command('git.switch', { repository: true })
+	async switch(repository: Repository, treeish?: string): Promise<boolean> {
+		return this._checkout(repository, { command: 'switch', treeish });
+	}
+
+	@command('git.switchDetached', { repository: true })
+	async switchDetached(repository: Repository, treeish?: string): Promise<boolean> {
+		return this._checkout(repository, { command: 'switch', detached: true, treeish });
+	}
+
+	private async _checkout(repository: Repository, opts?: { command?: 'checkout' | 'switch', detached?: boolean, treeish?: string; }): Promise<boolean> {
 		if (typeof opts?.treeish === 'string') {
 			await repository.checkout(opts?.treeish, opts);
 			return true;
@@ -1664,7 +1676,7 @@ export class CommandCenter {
 
 		const createBranch = new CreateBranchItem();
 		const createBranchFrom = new CreateBranchFromItem();
-		const checkoutDetached = new CheckoutDetachedItem();
+		const checkoutDetached = new CheckoutDetachedItem(opts?.command);
 		const picks: QuickPickItem[] = [];
 
 		if (!opts?.detached) {
@@ -1675,9 +1687,13 @@ export class CommandCenter {
 
 		const quickpick = window.createQuickPick();
 		quickpick.items = picks;
-		quickpick.placeholder = opts?.detached
-			? localize('select a ref to checkout detached', 'Select a ref to checkout in detached mode')
-			: localize('select a ref to checkout', 'Select a ref to checkout');
+		quickpick.placeholder = opts?.command === 'switch'
+			? (opts?.detached
+				? localize('select a ref to switch detached', 'Select a ref to switch in detached mode')
+				: localize('select a ref to switch', 'Select a ref to switch'))
+			: (opts?.detached
+				? localize('select a ref to checkout detached', 'Select a ref to checkout in detached mode')
+				: localize('select a ref to checkout', 'Select a ref to checkout'));
 
 		quickpick.show();
 
@@ -1693,7 +1709,7 @@ export class CommandCenter {
 		} else if (choice === createBranchFrom) {
 			await this._branch(repository, quickpick.value, true);
 		} else if (choice === checkoutDetached) {
-			return this._checkout(repository, { detached: true });
+			return this._checkout(repository, { command: opts?.command, detached: true });
 		} else {
 			const item = choice as CheckoutItem;
 
@@ -1704,9 +1720,10 @@ export class CommandCenter {
 					throw err;
 				}
 
-				const force = localize('force', "Force Checkout");
-				const stash = localize('stashcheckout', "Stash & Checkout");
-				const choice = await window.showWarningMessage(localize('local changes', "Your local changes would be overwritten by checkout."), { modal: true }, force, stash);
+				const message = opts?.command === 'switch' ? localize('local changes switch', "Your local changes would be overwritten by switch.") : localize('local changes checkout', "Your local changes would be overwritten by checkout.");
+				const force = opts?.command === 'switch' ? localize('forceswitch', "Force Switch") : localize('forcecheckout', "Force Checkout");
+				const stash = opts?.command === 'switch' ? localize('stashswitch', "Stash & Switch") : localize('stashcheckout', "Stash & Checkout");
+				const choice = await window.showWarningMessage(message, { modal: true }, force, stash);
 
 				if (choice === force) {
 					await this.cleanAll(repository);
@@ -2847,7 +2864,7 @@ export class CommandCenter {
 			}
 
 			return result;
-		}, [] as { repository: Repository, resources: Uri[] }[]);
+		}, [] as { repository: Repository, resources: Uri[]; }[]);
 
 		const promises = groups
 			.map(({ repository, resources }) => fn(repository as Repository, isSingleResource ? resources[0] : resources));

@@ -48,6 +48,8 @@
 	"command.undoCommit": "Undo Last Commit",
 	"command.checkout": "Checkout to...",
 	"command.checkoutDetached": "Checkout to (Detached)...",
+	"command.switch": "Switch to...",
+	"command.switchDetached": "Switch to (Detached)...",
 	"command.branch": "Create Branch...",
 	"command.branchFrom": "Create Branch From...",
 	"command.deleteBranch": "Delete Branch...",
