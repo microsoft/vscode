@@ -11,7 +11,7 @@ import { IJSONSchema } from 'vs/base/common/jsonSchema';
 export const externalUriOpenersSettingId = 'workbench.externalUriOpeners';
 
 export interface ExternalUriOpenerConfiguration {
-	readonly hostname: string;
+	readonly uri: string;
 	readonly id: string;
 }
 
@@ -19,6 +19,18 @@ export const externalUriOpenerIdSchemaAddition: IJSONSchema = {
 	type: 'string',
 	enum: []
 };
+
+const exampleUriPatterns = `
+- \`https://microsoft.com\`: Matches this specific domain using https
+- \`https://microsoft.com:8080\`: Matches this specific domain on this port using https
+- \`https://microsoft.com:*\`: Matches this specific domain on any port using https
+- \`https://microsoft.com/foo\`: Matches \`https://microsoft.com/foo\` and \`https://microsoft.com/foo/bar\`, but not \`https://microsoft.com/foobar\` or \`https://microsoft.com/bar\`
+- \`https://*.microsoft.com\`: Match all domains ending in \`microsoft.com\` using https
+- \`microsoft.com\`: Match this specific domain using either http or https
+- \`*.microsoft.com\`: Match all domains ending in \`microsoft.com\` using either http or https
+- \`http://192.168.0.1\`: Matches this specific IP using http
+- \`http://192.168.0.*\`: Matches all IP's with this prefix using http
+- \`*\`: Match all domains using either http or https`;
 
 export const externalUriOpenersConfigurationNode: IConfigurationNode = {
 	...workbenchConfigurationNodeBase,
@@ -30,15 +42,15 @@ export const externalUriOpenersConfigurationNode: IConfigurationNode = {
 				type: 'object',
 				defaultSnippets: [{
 					body: {
-						'hostname': '$1',
+						'uri': '$1',
 						'id': '$2'
 					}
 				}],
-				required: ['hostname', 'id'],
+				required: ['uri', 'id'],
 				properties: {
-					'hostname': {
+					'uri': {
 						type: 'string',
-						description: nls.localize('externalUriOpeners.hostname', "The hostname of sites the opener applies to."),
+						markdownDescription: nls.localize('externalUriOpeners.uri', "Uri pattern that the opener applies to. Example patterns: \n{0}", exampleUriPatterns),
 					},
 					'id': {
 						anyOf: [
