@@ -146,17 +146,13 @@ export class CompressedObjectTreeModel<T extends NonNullable<any>, TFilterData e
 		children: Iterable<ICompressedTreeElement<T>> = Iterable.empty(),
 		options: IObjectTreeSetChildrenOptions<T, TFilterData>,
 	): void {
-		// Must be deep, since the compression can affect nested elements and is
-		// thus called for the parent of the splicing node.
+		// Diffs must be deem, since the compression can affect nested elements.
 		// @see https://github.com/microsoft/vscode/pull/114237#issuecomment-759425034
-		const resolvedOptions = {
-			diffIdentityProvider: options.diffIdentityProvider && wrapIdentityProvider(options.diffIdentityProvider),
-			diffDeep: options.diffDeep ?? 2,
-		};
 
+		const diffIdentityProvider = options.diffIdentityProvider && wrapIdentityProvider(options.diffIdentityProvider);
 		if (element === null) {
 			const compressedChildren = Iterable.map(children, this.enabled ? compress : noCompress);
-			this._setChildren(null, compressedChildren, resolvedOptions);
+			this._setChildren(null, compressedChildren, { diffIdentityProvider, diffDeep: Infinity });
 			return;
 		}
 
@@ -177,7 +173,10 @@ export class CompressedObjectTreeModel<T extends NonNullable<any>, TFilterData e
 		const parentChildren = parent.children
 			.map(child => child === node ? recompressedElement : child);
 
-		this._setChildren(parent.element, parentChildren, resolvedOptions);
+		this._setChildren(parent.element, parentChildren, {
+			diffIdentityProvider,
+			diffDeep: node.depth - parent.depth,
+		});
 	}
 
 	isCompressionEnabled(): boolean {
