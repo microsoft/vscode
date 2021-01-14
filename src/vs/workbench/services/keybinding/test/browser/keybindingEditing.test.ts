@@ -33,15 +33,13 @@ import { IEditorGroupsService } from 'vs/workbench/services/editor/common/editor
 import { KeybindingsEditingService } from 'vs/workbench/services/keybinding/common/keybindingEditing';
 import { ITextFileService } from 'vs/workbench/services/textfile/common/textfiles';
 import { TextModelResolverService } from 'vs/workbench/services/textmodelResolver/common/textModelResolverService';
-import { TestBackupFileService, TestEditorGroupsService, TestEditorService, TestLifecycleService, TestPathService, TestProductService } from 'vs/workbench/test/browser/workbenchTestServices';
+import { TestBackupFileService, TestEditorGroupsService, TestEditorService, TestEnvironmentService, TestLifecycleService, TestPathService, TestTextFileService } from 'vs/workbench/test/browser/workbenchTestServices';
 import { FileService } from 'vs/platform/files/common/fileService';
 import { Schemas } from 'vs/base/common/network';
 import { URI } from 'vs/base/common/uri';
 import { FileUserDataProvider } from 'vs/workbench/services/userData/common/fileUserDataProvider';
-import { NativeWorkbenchEnvironmentService } from 'vs/workbench/services/environment/electron-browser/environmentService';
 import { TestConfigurationService } from 'vs/platform/configuration/test/common/testConfigurationService';
 import { IWorkingCopyService } from 'vs/workbench/services/workingCopy/common/workingCopyService';
-import { TestWorkbenchConfiguration, TestTextFileService } from 'vs/workbench/test/electron-browser/workbenchTestServices';
 import { ILabelService } from 'vs/platform/label/common/label';
 import { LabelService } from 'vs/workbench/services/label/common/labelService';
 import { IFilesConfigurationService, FilesConfigurationService } from 'vs/workbench/services/filesConfiguration/common/filesConfigurationService';
@@ -59,15 +57,6 @@ import { InMemoryFileSystemProvider } from 'vs/platform/files/common/inMemoryFil
 import { DisposableStore } from 'vs/base/common/lifecycle';
 import { VSBuffer } from 'vs/base/common/buffer';
 
-class TestWorkbenchEnvironmentService extends NativeWorkbenchEnvironmentService {
-
-	constructor(private _appSettingsHome: URI) {
-		super(TestWorkbenchConfiguration, TestProductService);
-	}
-
-	get appSettingsHome() { return this._appSettingsHome; }
-}
-
 interface Modifiers {
 	metaKey?: boolean;
 	ctrlKey?: boolean;
@@ -80,7 +69,7 @@ const ROOT = URI.file('tests').with({ scheme: 'vscode-tests' });
 suite('KeybindingsEditing', () => {
 
 	const disposables = new DisposableStore();
-	let instantiationService: TestInstantiationService, fileService: IFileService, environmentService: NativeWorkbenchEnvironmentService;
+	let instantiationService: TestInstantiationService, fileService: IFileService, environmentService: IEnvironmentService;
 	let testObject: KeybindingsEditingService;
 
 	setup(async () => {
@@ -91,7 +80,7 @@ suite('KeybindingsEditing', () => {
 
 		const userFolder = joinPath(ROOT, 'User');
 		await fileService.createFolder(userFolder);
-		environmentService = new TestWorkbenchEnvironmentService(userFolder);
+		environmentService = TestEnvironmentService;
 
 		instantiationService = new TestInstantiationService();
 

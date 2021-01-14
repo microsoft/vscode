@@ -287,7 +287,7 @@ export async function connectRemoteAgentManagement(options: IConnectionOptions, 
 	} catch (err) {
 		options.logService.error(`[remote-connection] An error occurred in the very first connect attempt, it will be treated as a permanent error! Error:`);
 		options.logService.error(err);
-		PersistentConnection.triggerPermanentFailure();
+		PersistentConnection.triggerPermanentFailure(RemoteAuthorityResolverError.isHandled(err));
 		throw err;
 	}
 }
@@ -301,7 +301,7 @@ export async function connectRemoteAgentExtensionHost(options: IConnectionOption
 	} catch (err) {
 		options.logService.error(`[remote-connection] An error occurred in the very first connect attempt, it will be treated as a permanent error! Error:`);
 		options.logService.error(err);
-		PersistentConnection.triggerPermanentFailure();
+		PersistentConnection.triggerPermanentFailure(RemoteAuthorityResolverError.isHandled(err));
 		throw err;
 	}
 }
@@ -360,16 +360,21 @@ export class ConnectionGainEvent {
 }
 export class ReconnectionPermanentFailureEvent {
 	public readonly type = PersistentConnectionEventType.ReconnectionPermanentFailure;
+	constructor(
+		public readonly handled: boolean
+	) { }
 }
 export type PersistentConnectionEvent = ConnectionGainEvent | ConnectionLostEvent | ReconnectionWaitEvent | ReconnectionRunningEvent | ReconnectionPermanentFailureEvent;
 
 abstract class PersistentConnection extends Disposable {
 
-	public static triggerPermanentFailure(): void {
+	public static triggerPermanentFailure(handled: boolean): void {
 		this._permanentFailure = true;
-		this._instances.forEach(instance => instance._gotoPermanentFailure());
+		this._permanentFailureHandled = handled;
+		this._instances.forEach(instance => instance._gotoPermanentFailure(handled));
 	}
 	private static _permanentFailure: boolean = false;
+	private static _permanentFailureHandled: boolean = false;
 	private static _instances: PersistentConnection[] = [];
 
 	private readonly _onDidStateChange = this._register(new Emitter<PersistentConnectionEvent>());
@@ -396,7 +401,7 @@ abstract class PersistentConnection extends Disposable {
 		PersistentConnection._instances.push(this);
 
 		if (PersistentConnection._permanentFailure) {
-			this._gotoPermanentFailure();
+			this._gotoPermanentFailure(PersistentConnection._permanentFailureHandled);
 		}
 	}
 
@@ -455,13 +460,13 @@ abstract class PersistentConnection extends Disposable {
 				if (err.code === 'VSCODE_CONNECTION_ERROR') {
 					this._options.logService.error(`${logPrefix} A permanent error occurred in the reconnecting loop! Will give up now! Error:`);
 					this._options.logService.error(err);
-					PersistentConnection.triggerPermanentFailure();
+					PersistentConnection.triggerPermanentFailure(false);
 					break;
 				}
 				if (Date.now() - disconnectStartTime > ProtocolConstants.ReconnectionGraceTime) {
 					this._options.logService.error(`${logPrefix} An error occurred while reconnecting, but it will be treated as a permanent error because the reconnection grace time has expired! Will give up now! Error:`);
 					this._options.logService.error(err);
-					PersistentConnection.triggerPermanentFailure();
+					PersistentConnection.triggerPermanentFailure(false);
 					break;
 				}
 				if (RemoteAuthorityResolverError.isTemporarilyNotAvailable(err)) {
@@ -482,16 +487,22 @@ abstract class PersistentConnection extends Disposable {
 					// try again!
 					continue;
 				}
+				if (err instanceof RemoteAuthorityResolverError) {
+					this._options.logService.error(`${logPrefix} A RemoteAuthorityResolverError occurred while trying to reconnect. Will give up now! Error:`);
+					this._options.logService.error(err);
+					PersistentConnection.triggerPermanentFailure(RemoteAuthorityResolverError.isHandled(err));
+					break;
+				}
 				this._options.logService.error(`${logPrefix} An unknown error occurred while trying to reconnect, since this is an unknown case, it will be treated as a permanent error! Will give up now! Error:`);
 				this._options.logService.error(err);
-				PersistentConnection.triggerPermanentFailure();
+				PersistentConnection.triggerPermanentFailure(false);
 				break;
 			}
 		} while (!PersistentConnection._permanentFailure);
 	}
 
-	private _gotoPermanentFailure(): void {
-		this._onDidStateChange.fire(new ReconnectionPermanentFailureEvent());
+	private _gotoPermanentFailure(handled: boolean): void {
+		this._onDidStateChange.fire(new ReconnectionPermanentFailureEvent(handled));
 		safeDisposeProtocolAndSocket(this.protocol);
 	}
 
