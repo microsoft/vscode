@@ -16,17 +16,16 @@ import { DisposableStore, IDisposable, Disposable } from 'vs/base/common/lifecyc
 import { Emitter, Event } from 'vs/base/common/event';
 import { IWorkbenchEnvironmentService } from 'vs/workbench/services/environment/common/environmentService';
 import { TestProductService } from 'vs/workbench/test/browser/workbenchTestServices';
-import { NativeWorkbenchEnvironmentService } from 'vs/workbench/services/environment/electron-browser/environmentService';
-import { TestWorkbenchConfiguration } from 'vs/workbench/test/electron-browser/workbenchTestServices';
 import { InMemoryFileSystemProvider } from 'vs/platform/files/common/inMemoryFilesystemProvider';
+import { BrowserWorkbenchEnvironmentService } from 'vs/workbench/services/environment/browser/environmentService';
 
 const ROOT = URI.file('tests').with({ scheme: 'vscode-tests' });
 
-class TestWorkbenchEnvironmentService extends NativeWorkbenchEnvironmentService {
-	constructor(private readonly _appSettingsHome: URI) {
-		super(TestWorkbenchConfiguration, TestProductService);
+class TestWorkbenchEnvironmentService extends BrowserWorkbenchEnvironmentService {
+	constructor(private readonly appSettingsHome: URI) {
+		super(Object.create(null), TestProductService);
 	}
-	get appSettingsHome() { return this._appSettingsHome; }
+	get userRoamingDataHome() { return this.appSettingsHome.with({ scheme: Schemas.userData }); }
 }
 
 suite('FileUserDataProvider', () => {

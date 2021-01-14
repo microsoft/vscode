@@ -2288,11 +2288,28 @@ declare module 'vscode' {
 
 	//#region Opener service (https://github.com/microsoft/vscode/issues/109277)
 
+	export enum ExternalUriOpenerEnablement {
+		/**
+		 * The opener cannot handle the uri.
+		 */
+		Disabled = 0,
+
+		/**
+		 * The opener can handle the uri.
+		 */
+		Enabled = 1,
+
+		/**
+		 * The opener can handle the uri and should be automatically selected if possible.
+		 */
+		Preferred = 2
+	}
+
 	/**
 	 * Handles opening uris to external resources, such as http(s) links.
 	 *
 	 * Extensions can implement an `ExternalUriOpener` to open `http` links to a webserver
-	 * inside of VS Code instead of having the link be opened by the webbrowser.
+	 * inside of VS Code instead of having the link be opened by the web browser.
 	 *
 	 * Currently openers may only be registered for `http` and `https` uris.
 	 */
@@ -2305,12 +2322,18 @@ declare module 'vscode' {
 		 * not yet gone through port forwarding.
 		 * @param token Cancellation token indicating that the result is no longer needed.
 		 *
-		 * @return True if the opener can open the external uri.
+		 * @return If the opener can open the external uri.
 		 */
-		canOpenExternalUri(uri: Uri, token: CancellationToken): ProviderResult<boolean>;
+		canOpenExternalUri(uri: Uri, token: CancellationToken): ProviderResult<ExternalUriOpenerEnablement>;
 
 		/**
 		 * Open the given uri.
+		 *
+		 * This is invoked when:
+		 *
+		 * - The user clicks a link which does not have an assigned opener. In this case, first `canOpenExternalUri`
+		 *   is called and if the user selects this opener, then `openExternalUri` is called.
+		 * - The user sets the default opener for a link in their settings and then visits a link.
 		 *
 		 * @param resolvedUri The uri to open. This uri may have been transformed by port forwarding, so it
 		 * may not match the original uri passed to `canOpenExternalUri`. Use `ctx.originalUri` to check the
@@ -2335,8 +2358,17 @@ declare module 'vscode' {
 		readonly sourceUri: Uri;
 	}
 
-
+	/**
+	 * Additional metadata about the registered opener.
+	 */
 	interface ExternalUriOpenerMetadata {
+		/**
+		 * Unique id of the opener, such as `myExtension.browserPreview`
+		 *
+		 * This is used in settings and commands to identifier the opener.
+		 */
+		readonly id: string;
+
 		/**
 		 * Text displayed to the user that explains what the opener does.
 		 *

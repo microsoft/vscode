@@ -3,28 +3,35 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
+import { firstOrDefault } from 'vs/base/common/arrays';
+import { CancellationToken } from 'vs/base/common/cancellation';
+import { Iterable } from 'vs/base/common/iterator';
 import { Disposable, IDisposable } from 'vs/base/common/lifecycle';
 import { LinkedList } from 'vs/base/common/linkedList';
 import { URI } from 'vs/base/common/uri';
+import * as modes from 'vs/editor/common/modes';
 import * as nls from 'vs/nls';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { createDecorator } from 'vs/platform/instantiation/common/instantiation';
 import { IExternalOpener, IOpenerService } from 'vs/platform/opener/common/opener';
 import { IQuickInputService, IQuickPickItem, IQuickPickSeparator } from 'vs/platform/quickinput/common/quickInput';
 import { ExternalUriOpenerConfiguration, externalUriOpenersSettingId } from 'vs/workbench/contrib/externalUriOpener/common/configuration';
+import { testUrlMatchesGlob } from 'vs/workbench/contrib/url/common/urlGlob';
 import { IPreferencesService } from 'vs/workbench/services/preferences/common/preferences';
 
 export const IExternalUriOpenerService = createDecorator<IExternalUriOpenerService>('externalUriOpenerService');
 
-export interface ExternalOpenerEntry extends IExternalOpener {
-	readonly id: string;
-	readonly label: string;
-}
-
-
 
 export interface IExternalOpenerProvider {
-	provideExternalOpeners(resource: URI | string): Promise<readonly ExternalOpenerEntry[]>;
+	getOpeners(targetUri: URI): AsyncIterable<IExternalUriOpener>;
+}
+
+export interface IExternalUriOpener {
+	readonly id: string;
+	readonly label: string;
+
+	canOpen(uri: URI, token: CancellationToken): Promise<modes.ExternalUriOpenerEnablement>;
+	openExternalUri(uri: URI, ctx: { sourceUri: URI }, token: CancellationToken): Promise<boolean>;
 }
 
 export interface IExternalUriOpenerService {
@@ -40,7 +47,7 @@ export class ExternalUriOpenerService extends Disposable implements IExternalUri
 
 	public readonly _serviceBrand: undefined;
 
-	private readonly _externalOpenerProviders = new LinkedList<IExternalOpenerProvider>();
+	private readonly _providers = new LinkedList<IExternalOpenerProvider>();
 
 	constructor(
 		@IOpenerService openerService: IOpenerService,
@@ -53,44 +60,89 @@ export class ExternalUriOpenerService extends Disposable implements IExternalUri
 	}
 
 	registerExternalOpenerProvider(provider: IExternalOpenerProvider): IDisposable {
-		const remove = this._externalOpenerProviders.push(provider);
+		const remove = this._providers.push(provider);
 		return { dispose: remove };
 	}
 
-	async openExternal(href: string): Promise<boolean> {
+	async openExternal(href: string, ctx: { sourceUri: URI }, token: CancellationToken): Promise<boolean> {
 
 		const targetUri = typeof href === 'string' ? URI.parse(href) : href;
 
-		const openers: ExternalOpenerEntry[] = [];
-		for (const provider of this._externalOpenerProviders) {
-			openers.push(...(await provider.provideExternalOpeners(targetUri)));
-		}
+		const allOpeners = new Map<string, IExternalUriOpener>();
+		await Promise.all(Iterable.map(this._providers, async (provider) => {
+			for await (const opener of provider.getOpeners(targetUri)) {
+				allOpeners.set(opener.id, opener);
+			}
+		}));
 
-		if (openers.length === 0) {
+		if (allOpeners.size === 0) {
 			return false;
 		}
 
-		const authority = targetUri.authority;
+		// First check to see if we have a configured opener
+		const configuredOpener = this.getConfiguredOpenerForUri(allOpeners, targetUri);
+		if (configuredOpener) {
+			return configuredOpener.openExternalUri(targetUri, ctx, token);
+		}
+
+		// Then check to see if there is a valid opener
+		const validOpeners: Array<{ opener: IExternalUriOpener, preferred: boolean }> = [];
+		await Promise.all(Array.from(allOpeners.values()).map(async opener => {
+			switch (await opener.canOpen(targetUri, token)) {
+				case modes.ExternalUriOpenerEnablement.Enabled:
+					validOpeners.push({ opener, preferred: false });
+					break;
+
+				case modes.ExternalUriOpenerEnablement.Preferred:
+					validOpeners.push({ opener, preferred: true });
+					break;
+			}
+		}));
+		if (validOpeners.length === 0) {
+			return false;
+		}
+
+		// See if we have a preferred opener first
+		const preferred = firstOrDefault(validOpeners.filter(x => x.preferred));
+		if (preferred) {
+			return preferred.opener.openExternalUri(targetUri, ctx, token);
+		}
+
+		// Otherwise prompt
+		return this.showOpenerPrompt(validOpeners, targetUri, ctx, token);
+	}
+
+	private getConfiguredOpenerForUri(openers: Map<string, IExternalUriOpener>, targetUri: URI): IExternalUriOpener | undefined {
 		const config = this.configurationService.getValue<readonly ExternalUriOpenerConfiguration[]>(externalUriOpenersSettingId) || [];
-		for (const entry of config) {
-			if (entry.hostname === authority) {
-				const opener = openers.find(opener => opener.id === entry.id);
-				if (opener) {
-					return opener.openExternal(href);
+		for (const { id, uri } of config) {
+			const entry = openers.get(id);
+			if (entry) {
+				if (testUrlMatchesGlob(targetUri.toString(), uri)) {
+					// Skip the `canOpen` check here since the opener was specifically requested.
+					return entry;
 				}
 			}
 		}
+		return undefined;
+	}
 
-		type PickItem = IQuickPickItem & { opener?: IExternalOpener | 'configureDefault' };
-		const items: Array<PickItem | IQuickPickSeparator> = openers.map((opener, i): PickItem => {
+	private async showOpenerPrompt(
+		openers: ReadonlyArray<{ opener: IExternalUriOpener, preferred: boolean }>,
+		targetUri: URI,
+		ctx: { sourceUri: URI },
+		token: CancellationToken
+	): Promise<boolean> {
+		type PickItem = IQuickPickItem & { opener?: IExternalUriOpener | 'configureDefault' };
+
+		const items: Array<PickItem | IQuickPickSeparator> = openers.map((entry): PickItem => {
 			return {
-				label: opener.label,
-				opener: opener
+				label: entry.opener.label,
+				opener: entry.opener
 			};
 		});
 		items.push(
 			{
-				label: 'Default',
+				label: nls.localize('selectOpenerDefaultLabel', 'Default external uri opener'),
 				opener: undefined
 			},
 			{ type: 'separator' },
@@ -116,7 +168,7 @@ export class ExternalUriOpenerService extends Disposable implements IExternalUri
 			});
 			return true;
 		} else {
-			return picked.opener.openExternal(href);
+			return picked.opener.openExternalUri(targetUri, ctx, token);
 		}
 	}
 }

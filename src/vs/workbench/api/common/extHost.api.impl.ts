@@ -1133,6 +1133,7 @@ export function createApiFactoryAndRegisterActors(accessor: ServicesAccessor): I
 			EventEmitter: Emitter,
 			ExtensionKind: extHostTypes.ExtensionKind,
 			ExtensionMode: extHostTypes.ExtensionMode,
+			ExternalUriOpenerEnablement: extHostTypes.ExternalUriOpenerEnablement,
 			FileChangeType: extHostTypes.FileChangeType,
 			FileDecoration: extHostTypes.FileDecoration,
 			FileSystemError: extHostTypes.FileSystemError,

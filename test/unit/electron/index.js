@@ -16,6 +16,7 @@ const events = require('events');
 const MochaJUnitReporter = require('mocha-junit-reporter');
 const url = require('url');
 const createStatsCollector = require('mocha/lib/stats-collector');
+const FullJsonStreamReporter = require('../fullJsonStreamReporter');
 
 // Disable render process reuse, we still have
 // non-context aware native modules in the renderer.
@@ -73,6 +74,10 @@ function deserializeRunnable(runnable) {
 }
 
 function importMochaReporter(name) {
+	if (name === 'full-json-stream') {
+		return FullJsonStreamReporter;
+	}
+
 	const reporterPath = path.join(path.dirname(require.resolve('mocha')), 'lib', 'reporters', name);
 	return require(reporterPath);
 }

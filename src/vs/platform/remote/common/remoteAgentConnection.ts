@@ -8,7 +8,7 @@ import { generateUuid } from 'vs/base/common/uuid';
 import { RemoteAgentConnectionContext } from 'vs/platform/remote/common/remoteAgentEnvironment';
 import { Disposable } from 'vs/base/common/lifecycle';
 import { VSBuffer } from 'vs/base/common/buffer';
-import { Emitter } from 'vs/base/common/event';
+import { Emitter, Event } from 'vs/base/common/event';
 import { RemoteAuthorityResolverError } from 'vs/platform/remote/common/remoteAuthorityResolver';
 import { isPromiseCanceledError, onUnexpectedError } from 'vs/base/common/errors';
 import { ISignService } from 'vs/platform/sign/common/sign';
@@ -86,6 +86,38 @@ export interface ISocketFactory {
 	connect(host: string, port: number, query: string, callback: IConnectCallback): void;
 }
 
+async function readOneControlMessage<T>(protocol: PersistentProtocol): Promise<T> {
+	const raw = await Event.toPromise(protocol.onControlMessage);
+	const msg = JSON.parse(raw.toString());
+	const error = getErrorFromMessage(msg);
+	if (error) {
+		throw error;
+	}
+	return msg;
+}
+
+function waitWithTimeout<T>(promise: Promise<T>, timeout: number): Promise<T> {
+	return new Promise<T>((resolve, reject) => {
+		const timeoutToken = setTimeout(() => {
+			const error: any = new Error('Timeout');
+			error.code = 'ETIMEDOUT';
+			error.syscall = 'connect';
+			reject(error);
+		}, timeout);
+
+		promise.then(
+			(result) => {
+				clearTimeout(timeoutToken);
+				resolve(result);
+			},
+			(error) => {
+				clearTimeout(timeoutToken);
+				reject(error);
+			}
+		);
+	});
+}
+
 async function connectToRemoteExtensionHostAgent(options: ISimpleConnectionOptions, connectionType: ConnectionType, args: any | undefined): Promise<{ protocol: PersistentProtocol; ownsProtocol: boolean; }> {
 	const logPrefix = connectLogPrefix(options, connectionType);
 	const { protocol, ownsProtocol } = await new Promise<{ protocol: PersistentProtocol; ownsProtocol: boolean; }>((c, e) => {
@@ -113,69 +145,54 @@ async function connectToRemoteExtensionHostAgent(options: ISimpleConnectionOptio
 		);
 	});
 
-	return new Promise<{ protocol: PersistentProtocol; ownsProtocol: boolean; }>((c, e) => {
+	options.logService.trace(`${logPrefix} 3/6. sending AuthRequest control message.`);
+	const authRequest: AuthRequest = {
+		type: 'auth',
+		auth: options.connectionToken || '00000000000000000000'
+	};
+	protocol.sendControl(VSBuffer.fromString(JSON.stringify(authRequest)));
 
-		const errorTimeoutToken = setTimeout(() => {
-			const error: any = new Error('handshake timeout');
-			error.code = 'ETIMEDOUT';
-			error.syscall = 'connect';
+	try {
+		const msg = await waitWithTimeout(readOneControlMessage<HandshakeMessage>(protocol), 10000);
+
+		if (msg.type !== 'sign' || typeof msg.data !== 'string') {
+			const error: any = new Error('Unexpected handshake message');
+			error.code = 'VSCODE_CONNECTION_ERROR';
+			throw error;
+		}
+
+		options.logService.trace(`${logPrefix} 4/6. received SignRequest control message.`);
+
+		const signed = await options.signService.sign(msg.data);
+		const connTypeRequest: ConnectionTypeRequest = {
+			type: 'connectionType',
+			commit: options.commit,
+			signedData: signed,
+			desiredConnectionType: connectionType
+		};
+		if (args) {
+			connTypeRequest.args = args;
+		}
+
+		options.logService.trace(`${logPrefix} 5/6. sending ConnectionTypeRequest control message.`);
+		protocol.sendControl(VSBuffer.fromString(JSON.stringify(connTypeRequest)));
+
+		return { protocol, ownsProtocol };
+
+	} catch (error) {
+		if (error && error.code === 'ETIMEDOUT') {
 			options.logService.error(`${logPrefix} the handshake took longer than 10 seconds. Error:`);
 			options.logService.error(error);
-			if (ownsProtocol) {
-				safeDisposeProtocolAndSocket(protocol);
-			}
-			e(error);
-		}, 10000);
-
-		const messageRegistration = protocol.onControlMessage(async raw => {
-			const msg = <HandshakeMessage>JSON.parse(raw.toString());
-			// Stop listening for further events
-			messageRegistration.dispose();
-
-			const error = getErrorFromMessage(msg);
-			if (error) {
-				options.logService.error(`${logPrefix} received error control message when negotiating connection. Error:`);
-				options.logService.error(error);
-				if (ownsProtocol) {
-					safeDisposeProtocolAndSocket(protocol);
-				}
-				return e(error);
-			}
-
-			if (msg.type === 'sign') {
-				options.logService.trace(`${logPrefix} 4/6. received SignRequest control message.`);
-				const signed = await options.signService.sign(msg.data);
-				const connTypeRequest: ConnectionTypeRequest = {
-					type: 'connectionType',
-					commit: options.commit,
-					signedData: signed,
-					desiredConnectionType: connectionType
-				};
-				if (args) {
-					connTypeRequest.args = args;
-				}
-				options.logService.trace(`${logPrefix} 5/6. sending ConnectionTypeRequest control message.`);
-				protocol.sendControl(VSBuffer.fromString(JSON.stringify(connTypeRequest)));
-				clearTimeout(errorTimeoutToken);
-				c({ protocol, ownsProtocol });
-			} else {
-				const error = new Error('handshake error');
-				options.logService.error(`${logPrefix} received unexpected control message. Error:`);
-				options.logService.error(error);
-				if (ownsProtocol) {
-					safeDisposeProtocolAndSocket(protocol);
-				}
-				e(error);
-			}
-		});
-
-		options.logService.trace(`${logPrefix} 3/6. sending AuthRequest control message.`);
-		const authRequest: AuthRequest = {
-			type: 'auth',
-			auth: options.connectionToken || '00000000000000000000'
-		};
-		protocol.sendControl(VSBuffer.fromString(JSON.stringify(authRequest)));
-	});
+		}
+		if (error && error.code === 'VSCODE_CONNECTION_ERROR') {
+			options.logService.error(`${logPrefix} received error control message when negotiating connection. Error:`);
+			options.logService.error(error);
+		}
+		if (ownsProtocol) {
+			safeDisposeProtocolAndSocket(protocol);
+		}
+		throw error;
+	}
 }
 
 interface IManagementConnectionResult {
@@ -287,7 +304,7 @@ export async function connectRemoteAgentManagement(options: IConnectionOptions, 
 	} catch (err) {
 		options.logService.error(`[remote-connection] An error occurred in the very first connect attempt, it will be treated as a permanent error! Error:`);
 		options.logService.error(err);
-		PersistentConnection.triggerPermanentFailure();
+		PersistentConnection.triggerPermanentFailure(RemoteAuthorityResolverError.isHandled(err));
 		throw err;
 	}
 }
@@ -301,7 +318,7 @@ export async function connectRemoteAgentExtensionHost(options: IConnectionOption
 	} catch (err) {
 		options.logService.error(`[remote-connection] An error occurred in the very first connect attempt, it will be treated as a permanent error! Error:`);
 		options.logService.error(err);
-		PersistentConnection.triggerPermanentFailure();
+		PersistentConnection.triggerPermanentFailure(RemoteAuthorityResolverError.isHandled(err));
 		throw err;
 	}
 }
@@ -360,16 +377,21 @@ export class ConnectionGainEvent {
 }
 export class ReconnectionPermanentFailureEvent {
 	public readonly type = PersistentConnectionEventType.ReconnectionPermanentFailure;
+	constructor(
+		public readonly handled: boolean
+	) { }
 }
 export type PersistentConnectionEvent = ConnectionGainEvent | ConnectionLostEvent | ReconnectionWaitEvent | ReconnectionRunningEvent | ReconnectionPermanentFailureEvent;
 
 abstract class PersistentConnection extends Disposable {
 
-	public static triggerPermanentFailure(): void {
+	public static triggerPermanentFailure(handled: boolean): void {
 		this._permanentFailure = true;
-		this._instances.forEach(instance => instance._gotoPermanentFailure());
+		this._permanentFailureHandled = handled;
+		this._instances.forEach(instance => instance._gotoPermanentFailure(handled));
 	}
 	private static _permanentFailure: boolean = false;
+	private static _permanentFailureHandled: boolean = false;
 	private static _instances: PersistentConnection[] = [];
 
 	private readonly _onDidStateChange = this._register(new Emitter<PersistentConnectionEvent>());
@@ -396,7 +418,7 @@ abstract class PersistentConnection extends Disposable {
 		PersistentConnection._instances.push(this);
 
 		if (PersistentConnection._permanentFailure) {
-			this._gotoPermanentFailure();
+			this._gotoPermanentFailure(PersistentConnection._permanentFailureHandled);
 		}
 	}
 
@@ -455,13 +477,13 @@ abstract class PersistentConnection extends Disposable {
 				if (err.code === 'VSCODE_CONNECTION_ERROR') {
 					this._options.logService.error(`${logPrefix} A permanent error occurred in the reconnecting loop! Will give up now! Error:`);
 					this._options.logService.error(err);
-					PersistentConnection.triggerPermanentFailure();
+					PersistentConnection.triggerPermanentFailure(false);
 					break;
 				}
 				if (Date.now() - disconnectStartTime > ProtocolConstants.ReconnectionGraceTime) {
 					this._options.logService.error(`${logPrefix} An error occurred while reconnecting, but it will be treated as a permanent error because the reconnection grace time has expired! Will give up now! Error:`);
 					this._options.logService.error(err);
-					PersistentConnection.triggerPermanentFailure();
+					PersistentConnection.triggerPermanentFailure(false);
 					break;
 				}
 				if (RemoteAuthorityResolverError.isTemporarilyNotAvailable(err)) {
@@ -482,16 +504,22 @@ abstract class PersistentConnection extends Disposable {
 					// try again!
 					continue;
 				}
+				if (err instanceof RemoteAuthorityResolverError) {
+					this._options.logService.error(`${logPrefix} A RemoteAuthorityResolverError occurred while trying to reconnect. Will give up now! Error:`);
+					this._options.logService.error(err);
+					PersistentConnection.triggerPermanentFailure(RemoteAuthorityResolverError.isHandled(err));
+					break;
+				}
 				this._options.logService.error(`${logPrefix} An unknown error occurred while trying to reconnect, since this is an unknown case, it will be treated as a permanent error! Will give up now! Error:`);
 				this._options.logService.error(err);
-				PersistentConnection.triggerPermanentFailure();
+				PersistentConnection.triggerPermanentFailure(false);
 				break;
 			}
 		} while (!PersistentConnection._permanentFailure);
 	}
 
-	private _gotoPermanentFailure(): void {
-		this._onDidStateChange.fire(new ReconnectionPermanentFailureEvent());
+	private _gotoPermanentFailure(handled: boolean): void {
+		this._onDidStateChange.fire(new ReconnectionPermanentFailureEvent(handled));
 		safeDisposeProtocolAndSocket(this.protocol);
 	}
 

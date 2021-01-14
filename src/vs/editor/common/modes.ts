@@ -1876,3 +1876,13 @@ export interface ITokenizationRegistry {
  * @internal
  */
 export const TokenizationRegistry = new TokenizationRegistryImpl();
+
+
+/**
+ * @internal
+ */
+export enum ExternalUriOpenerEnablement {
+	Disabled,
+	Enabled,
+	Preferred
+}

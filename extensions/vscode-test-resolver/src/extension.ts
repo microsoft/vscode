@@ -206,7 +206,7 @@ export function activate(context: vscode.ExtensionContext) {
 		});
 	}
 
-	vscode.workspace.registerRemoteAuthorityResolver('test', {
+	const authorityResolverDisposable = vscode.workspace.registerRemoteAuthorityResolver('test', {
 		resolve(_authority: string): Thenable<vscode.ResolvedAuthority> {
 			return vscode.window.withProgress({
 				location: vscode.ProgressLocation.Notification,
@@ -221,6 +221,17 @@ export function activate(context: vscode.ExtensionContext) {
 	});
 	vscode.commands.registerCommand('vscode-testresolver.newWindowWithError', () => {
 		return vscode.commands.executeCommand('vscode.newWindow', { remoteAuthority: 'test+error' });
+	});
+	vscode.commands.registerCommand('vscode-testresolver.killServerAndTriggerHandledError', () => {
+		authorityResolverDisposable.dispose();
+		if (extHostProcess) {
+			terminateProcess(extHostProcess, context.extensionPath);
+		}
+		vscode.workspace.registerRemoteAuthorityResolver('test', {
+			async resolve(_authority: string): Promise<vscode.ResolvedAuthority> {
+				throw vscode.RemoteAuthorityResolverError.NotAvailable('Intentional Error', true);
+			}
+		});
 	});
 	vscode.commands.registerCommand('vscode-testresolver.showLog', () => {
 		if (outputChannel) {
