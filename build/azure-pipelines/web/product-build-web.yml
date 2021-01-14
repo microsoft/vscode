@@ -125,6 +125,6 @@ steps:
     displayName: Publish
 
   - publish: $(Agent.BuildDirectory)/vscode-web.tar.gz
-    artifact: vscode-web.tar.gz
-    displayName: Publish web
+    artifact: web-standalone
+    displayName: Publish web archive
     condition: and(succeeded(), ne(variables['VSCODE_PUBLISH'], 'false'))
