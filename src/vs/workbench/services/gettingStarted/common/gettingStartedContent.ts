@@ -134,15 +134,15 @@ export const content: GettingStartedContent = [
 					media: { type: 'image', altText: 'Language extensions', path: 'languageExtensions.jpg', }
 				},
 				{
-					id: 'githubLogin',
-					title: localize('gettingStarted.githubLogin.title', "Use GitHub in VS Code"),
-					description: localize('gettingStarted.githubLogin.description', "Integrated GitHub makes it easier for you to manage projects from inside your code editor, including authentication, publishing repos, and viewing your repo timeline."),
-					when: '!githubBrowser:hasProviders',
+					id: 'settingsSync',
+					title: localize('gettingStarted.settingsSync.title', "Syncronize Settings"),
+					description: localize('gettingStarted.settingsSync.description', "Sign in to syncronize things like settings, extensions, and more, across your devices."),
+					when: '!syncEnabled && !userDataSyncTurningOn && syncStatus != uninitialized && userDataSyncAccountStatus != uninitialized',
 					button: {
-						title: localize('gettingStarted.githubLogin.button', "Sign in to GitHub"),
-						command: 'githubsignIn',
+						title: localize('gettingStarted.settingsSync.button', "Sign in to Sync"),
+						command: 'workbench.userDataSync.actions.turnOn',
 					},
-					doneOn: { commandExecuted: 'workbench.extensions.action.showLanguageExtensions' },
+					doneOn: { eventFired: 'sync-enabled' },
 					media: { type: 'image', altText: 'Commiting a change via Git in VS Code.', path: 'github.jpg', }
 				},
 				{
