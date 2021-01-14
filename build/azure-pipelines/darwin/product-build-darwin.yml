@@ -334,17 +334,17 @@ steps:
     displayName: Publish
     condition: and(succeeded(), ne(variables['VSCODE_PUBLISH'], 'false'))
 
-  - publish: $(Agent.BuildDirectory)\VSCode-darwin-$(VSCODE_ARCH).zip
+  - publish: $(Agent.BuildDirectory)/VSCode-darwin-$(VSCODE_ARCH).zip
     artifact: VSCode-darwin-$(VSCODE_ARCH).zip
     displayName: Publish archive
     condition: and(succeeded(), ne(variables['VSCODE_PUBLISH'], 'false'))
 
-  - publish: $(Agent.BuildDirectory)\vscode-server-darwin.zip
+  - publish: $(Agent.BuildDirectory)/vscode-server-darwin.zip
     artifact: vscode-server-darwin-$(VSCODE_ARCH).zip
     displayName: Publish server
     condition: and(succeeded(), eq(variables['VSCODE_ARCH'], 'x64'), ne(variables['VSCODE_PUBLISH'], 'false'))
 
-  - publish: $(Agent.BuildDirectory)\vscode-server-darwin-web.zip
+  - publish: $(Agent.BuildDirectory)/vscode-server-darwin-web.zip
     artifact: vscode-server-darwin-$(VSCODE_ARCH)-web.zip
     displayName: Publish web server
     condition: and(succeeded(), eq(variables['VSCODE_ARCH'], 'x64'), ne(variables['VSCODE_PUBLISH'], 'false'))
