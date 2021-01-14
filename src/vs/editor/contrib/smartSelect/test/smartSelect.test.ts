@@ -45,6 +45,16 @@ class MockJSMode extends MockMode {
 
 suite('SmartSelect', () => {
 
+	const OriginalBracketSelectionRangeProviderMaxDuration = BracketSelectionRangeProvider._maxDuration;
+
+	suiteSetup(() => {
+		BracketSelectionRangeProvider._maxDuration = 5000; // 5 seconds
+	});
+
+	suiteTeardown(() => {
+		BracketSelectionRangeProvider._maxDuration = OriginalBracketSelectionRangeProviderMaxDuration;
+	});
+
 	let modelService: ModelServiceImpl;
 	let mode: MockJSMode;
 
