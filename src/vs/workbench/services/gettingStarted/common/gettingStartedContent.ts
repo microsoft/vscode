@@ -42,7 +42,7 @@ export const content: GettingStartedContent = [
 		id: 'Codespaces',
 		title: localize('gettingStarted.codespaces.title', "Primer on GitHub Codespaces"),
 		icon: codespacesIcon,
-		when: 'remoteConnectionState == connected',
+		when: 'remoteName == codespaces',
 		description: localize('gettingStarted.codespaces.description', "Get up and running with your instant code environment."),
 		content: {
 			type: 'items',
