@@ -254,6 +254,11 @@ steps:
     displayName: Publish
     condition: and(succeeded(), ne(variables['VSCODE_PUBLISH'], 'false'))
 
+  - publish: $(Agent.BuildDirectory)
+    artifact: BuildDirectory-Linux-$(VSCODE_ARCH)
+    displayName: Publish server
+    condition: and(succeeded(), ne(variables['VSCODE_PUBLISH'], 'false'))
+
   - task: PublishPipelineArtifact@0
     displayName: "Publish Pipeline Artifact"
     inputs:

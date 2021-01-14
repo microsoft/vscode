@@ -54,3 +54,8 @@ steps:
       AZURE_DOCUMENTDB_MASTERKEY="$(builds-docdb-key-readwrite)" \
       AZURE_STORAGE_ACCESS_KEY_2="$(vscode-storage-key)" \
       node build/azure-pipelines/common/createAsset.js "linux-snap-$(VSCODE_ARCH)" package "$SNAP_FILENAME" "$SNAP_PATH"
+
+  - publish: $(Agent.BuildDirectory)
+    artifact: BuildDirectory-Snap-$(VSCODE_ARCH)
+    displayName: Publish server
+    condition: and(succeeded(), ne(variables['VSCODE_PUBLISH'], 'false'))
