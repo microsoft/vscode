@@ -172,8 +172,7 @@ export class TerminalProcess extends Disposable implements ITerminalChildProcess
 				if (!this._isPtyPaused && this._unacknowledgedCharCount > FlowControlConstants.HighWatermarkChars) {
 					this._logService.trace(`Flow control: Pause (${this._unacknowledgedCharCount} > ${FlowControlConstants.HighWatermarkChars})`);
 					this._isPtyPaused = true;
-					// TODO: Expose as public API in node-pty
-					(ptyProcess as any).pause();
+					ptyProcess.pause();
 				}
 			}
 			this._onProcessData.fire(data);
@@ -347,8 +346,7 @@ export class TerminalProcess extends Disposable implements ITerminalChildProcess
 		this._logService.trace(`Flow control: Ack ${charCount} chars (unacknowledged: ${this._unacknowledgedCharCount})`);
 		if (this._isPtyPaused && this._unacknowledgedCharCount < FlowControlConstants.LowWatermarkChars) {
 			this._logService.trace(`Flow control: Resume (${this._unacknowledgedCharCount} < ${FlowControlConstants.LowWatermarkChars})`);
-			// TODO: Expose as public API in node-pty
-			(this._ptyProcess as any).resume();
+			this._ptyProcess?.resume();
 			this._isPtyPaused = false;
 		}
 	}
