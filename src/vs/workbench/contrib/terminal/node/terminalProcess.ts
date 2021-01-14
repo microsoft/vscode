@@ -170,7 +170,7 @@ export class TerminalProcess extends Disposable implements ITerminalChildProcess
 			if (this._shellLaunchConfig.flowControl) {
 				this._unacknowledgedCharCount += data.length;
 				if (!this._isPtyPaused && this._unacknowledgedCharCount > FlowControlConstants.HighWatermarkChars) {
-					console.log(`pause (${this._unacknowledgedCharCount} > ${FlowControlConstants.HighWatermarkChars}`);
+					this._logService.trace(`Flow control: Pause (${this._unacknowledgedCharCount} > ${FlowControlConstants.HighWatermarkChars})`);
 					this._isPtyPaused = true;
 					// TODO: Expose as public API in node-pty
 					(ptyProcess as any).pause();
@@ -344,9 +344,9 @@ export class TerminalProcess extends Disposable implements ITerminalChildProcess
 		}
 		// Prevent lower than 0 to heal from errors
 		this._unacknowledgedCharCount = Math.max(this._unacknowledgedCharCount - charCount, 0);
-		console.log(`Ack ${charCount} chars (unacknowledged: ${this._unacknowledgedCharCount})`);
+		this._logService.trace(`Flow control: Ack ${charCount} chars (unacknowledged: ${this._unacknowledgedCharCount})`);
 		if (this._isPtyPaused && this._unacknowledgedCharCount < FlowControlConstants.LowWatermarkChars) {
-			console.log(`Resume (${this._unacknowledgedCharCount} < ${FlowControlConstants.LowWatermarkChars})`);
+			this._logService.trace(`Flow control: Resume (${this._unacknowledgedCharCount} < ${FlowControlConstants.LowWatermarkChars})`);
 			// TODO: Expose as public API in node-pty
 			(this._ptyProcess as any).resume();
 			this._isPtyPaused = false;
