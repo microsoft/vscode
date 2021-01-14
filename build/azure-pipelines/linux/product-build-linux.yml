@@ -254,16 +254,6 @@ steps:
     displayName: Publish
     condition: and(succeeded(), ne(variables['VSCODE_PUBLISH'], 'false'))
 
-  - publish: $(Agent.BuildDirectory)/vscode-server-linux-$(VSCODE_ARCH).tar.gz
-    artifact: server-linux-$(VSCODE_ARCH)
-    displayName: Publish server archive
-    condition: and(succeeded(), ne(variables['VSCODE_PUBLISH'], 'false'))
-
-  - publish: $(Agent.BuildDirectory)/vscode-server-linux-$(VSCODE_ARCH)-web.tar.gz
-    artifact: server-linux-$(VSCODE_ARCH)-web
-    displayName: Publish web server archive
-    condition: and(succeeded(), ne(variables['VSCODE_PUBLISH'], 'false'))
-
   - publish: .build/linux/deb
     artifact: linux-deb-$(VSCODE_ARCH)
     displayName: Publish deb package
@@ -272,6 +262,16 @@ steps:
   - publish: .build/linux/rpm
     artifact: linux-rpm-$(VSCODE_ARCH)
     displayName: Publish rpm package
+    condition: and(succeeded(), ne(variables['VSCODE_PUBLISH'], 'false'))
+
+  # - publish: $(Agent.BuildDirectory)/vscode-server-linux-$(VSCODE_ARCH).tar.gz
+  #   artifact: server-linux-$(VSCODE_ARCH)
+  #   displayName: Publish server archive
+  #   condition: and(succeeded(), ne(variables['VSCODE_PUBLISH'], 'false'))
+
+  - publish: $(Agent.BuildDirectory)/vscode-server-linux-$(VSCODE_ARCH)-web.tar.gz
+    artifact: server-linux-$(VSCODE_ARCH)-web
+    displayName: Publish web server archive
     condition: and(succeeded(), ne(variables['VSCODE_PUBLISH'], 'false'))
 
   - task: PublishPipelineArtifact@0
