@@ -73,6 +73,8 @@ import { IgnoredExtensionsManagementService, IIgnoredExtensionsManagementService
 import { ExtensionsStorageSyncService, IExtensionsStorageSyncService } from 'vs/platform/userDataSync/common/extensionsStorageSync';
 import { IInstantiationService, ServicesAccessor } from 'vs/platform/instantiation/common/instantiation';
 import { ISharedProcessConfiguration } from 'vs/platform/sharedProcess/node/sharedProcess';
+import { LocalizationsUpdater } from 'vs/code/electron-browser/sharedProcess/contrib/localizationsUpdater';
+import { DeprecatedExtensionsCleaner } from 'vs/code/electron-browser/sharedProcess/contrib/deprecatedExtensionsCleaner';
 
 class MainProcessService implements IMainProcessService {
 
@@ -125,21 +127,16 @@ class SharedProcessMain extends Disposable {
 
 			// Channels
 			this.initChannels(accessor);
-
-			// Clean-up deprecated extensions
-			const extensionManagementService = this._register((accessor.get(IExtensionManagementService) as ExtensionManagementService));
-			extensionManagementService.removeDeprecatedExtensions();
-
-			// Update localizations cache
-			(accessor.get(ILocalizationsService) as LocalizationsService).update();
 		});
 
-		// Instantiate Clean-up helpers
+		// Instantiate Contributions
 		this._register(combinedDisposable(
 			new NodeCachedDataCleaner(this.configuration.nodeCachedDataDir),
 			instantiationService.createInstance(LanguagePackCachedDataCleaner),
 			instantiationService.createInstance(StorageDataCleaner, this.configuration.backupWorkspacesPath),
-			instantiationService.createInstance(LogsDataCleaner)
+			instantiationService.createInstance(LogsDataCleaner),
+			instantiationService.createInstance(LocalizationsUpdater),
+			instantiationService.createInstance(DeprecatedExtensionsCleaner)
 		));
 	}
 
@@ -158,6 +155,7 @@ class SharedProcessMain extends Disposable {
 			this._register(new ConsoleLogService(this.configuration.logLevel)),
 			this._register(new SpdLogService('sharedprocess', environmentService.logsPath, this.configuration.logLevel))
 		]));
+
 		const logService = this._register(new FollowerLogService(loggerClient, multiplexLogger));
 		services.set(ILogService, logService);
 
@@ -201,7 +199,7 @@ class SharedProcessMain extends Disposable {
 		// Extension recommendations
 		const activeWindowManager = new ActiveWindowManager(nativeHostService);
 		const activeWindowRouter = new StaticRouter(ctx => activeWindowManager.getActiveClientId().then(id => ctx === id));
-		services.set(IExtensionRecommendationNotificationService, new ExtensionRecommendationNotificationServiceChannelClient(this.server.getChannel('IExtensionRecommendationNotificationService', activeWindowRouter)));
+		services.set(IExtensionRecommendationNotificationService, new ExtensionRecommendationNotificationServiceChannelClient(this.server.getChannel('extensionRecommendationNotification', activeWindowRouter)));
 
 		// Logger
 		const loggerService = new LoggerService(logService, fileService);

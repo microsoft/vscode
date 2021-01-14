@@ -50,7 +50,7 @@ export class SharedProcess extends Disposable implements ISharedProcess {
 		}
 
 		// Signal exit to shared process when shutting down
-		window.webContents.send('vscode:electron-main->shared-process=exit');
+		window.webContents.send('vscode:electron-main->shared-process=exit'); // TODO verify call
 
 		// Shut the shared process down when we are quitting
 		//
@@ -60,6 +60,7 @@ export class SharedProcess extends Disposable implements ISharedProcess {
 		//
 		if (this.windowCloseListener) {
 			window.removeListener('close', this.windowCloseListener);
+			this.windowCloseListener = undefined;
 		}
 
 		// Electron seems to crash on Windows without this setTimeout :|
@@ -116,6 +117,7 @@ export class SharedProcess extends Disposable implements ISharedProcess {
 			logLevel: this.logService.getLevel()
 		};
 
+		// Load with config
 		this.window.loadURL(FileAccess
 			.asBrowserUri('vs/code/electron-browser/sharedProcess/sharedProcess.html', require)
 			.with({ query: `config=${encodeURIComponent(JSON.stringify(config))}` })
