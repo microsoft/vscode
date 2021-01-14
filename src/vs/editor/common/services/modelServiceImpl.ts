@@ -712,7 +712,9 @@ class SemanticTokensResponse {
 	}
 }
 
-class ModelSemanticColoring extends Disposable {
+export class ModelSemanticColoring extends Disposable {
+
+	public static FETCH_DOCUMENT_SEMANTIC_TOKENS_DELAY = 300;
 
 	private _isDisposed: boolean;
 	private readonly _model: ITextModel;
@@ -728,7 +730,7 @@ class ModelSemanticColoring extends Disposable {
 		this._isDisposed = false;
 		this._model = model;
 		this._semanticStyling = stylingProvider;
-		this._fetchDocumentSemanticTokens = this._register(new RunOnceScheduler(() => this._fetchDocumentSemanticTokensNow(), 300));
+		this._fetchDocumentSemanticTokens = this._register(new RunOnceScheduler(() => this._fetchDocumentSemanticTokensNow(), ModelSemanticColoring.FETCH_DOCUMENT_SEMANTIC_TOKENS_DELAY));
 		this._currentDocumentResponse = null;
 		this._currentDocumentRequestCancellationTokenSource = null;
 		this._documentProvidersChangeListeners = [];
@@ -844,9 +846,7 @@ class ModelSemanticColoring extends Disposable {
 		const rescheduleIfNeeded = () => {
 			if (pendingChanges.length > 0 && !this._fetchDocumentSemanticTokens.isScheduled()) {
 				this._fetchDocumentSemanticTokens.schedule();
-				return true;
 			}
-			return false;
 		};
 
 		if (this._currentDocumentResponse) {
@@ -865,10 +865,8 @@ class ModelSemanticColoring extends Disposable {
 			return;
 		}
 		if (!tokens) {
-			// Only reset semantic tokens if we did not reschedule to avoid "blinking" tokens
-			if (!rescheduleIfNeeded()) {
-				this._model.setSemanticTokens(null, true);
-			}
+			this._model.setSemanticTokens(null, true);
+			rescheduleIfNeeded();
 			return;
 		}
 
@@ -945,8 +943,7 @@ class ModelSemanticColoring extends Disposable {
 			}
 
 			this._model.setSemanticTokens(result, true);
-		}
-		else {
+		} else {
 			this._model.setSemanticTokens(null, true);
 		}
 
