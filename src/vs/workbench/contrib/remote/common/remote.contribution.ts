@@ -44,7 +44,6 @@ export class LabelContribution implements IWorkbenchContribution {
 				});
 				this.labelService.registerFormatter({
 					scheme: Schemas.userData,
-					priority: true,
 					formatting
 				});
 			}
