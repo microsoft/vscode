@@ -115,7 +115,7 @@ export class LabelService extends Disposable implements ILabelService {
 
 		this.formatters.forEach(formatter => {
 			if (formatter.scheme === resource.scheme) {
-				if (!bestResult && !formatter.authority) {
+				if (!formatter.authority && (!bestResult || formatter.priority)) {
 					bestResult = formatter;
 					return;
 				}

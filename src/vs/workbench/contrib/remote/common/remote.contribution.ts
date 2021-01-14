@@ -44,15 +44,8 @@ export class LabelContribution implements IWorkbenchContribution {
 				});
 				this.labelService.registerFormatter({
 					scheme: Schemas.userData,
+					priority: true,
 					formatting
-				});
-			} else {
-				this.labelService.registerFormatter({
-					scheme: Schemas.userData,
-					formatting: {
-						label: '${scheme}:${path}',
-						separator: '/',
-					}
 				});
 			}
 		});

@@ -29,6 +29,8 @@ import { IEnvironmentService } from 'vs/platform/environment/common/environment'
 import { IExtensionService, toExtensionDescription } from 'vs/workbench/services/extensions/common/extensions';
 import { areSameExtensions } from 'vs/platform/extensionManagement/common/extensionManagementUtil';
 import { mark } from 'vs/base/common/performance';
+import { ILabelService } from 'vs/platform/label/common/label';
+import { Schemas } from 'vs/base/common/network';
 
 export const IUserDataInitializationService = createDecorator<IUserDataInitializationService>('IUserDataInitializationService');
 export interface IUserDataInitializationService {
@@ -245,3 +247,24 @@ if (isWeb) {
 	const workbenchRegistry = Registry.as<IWorkbenchContributionsRegistry>(Extensions.Workbench);
 	workbenchRegistry.registerWorkbenchContribution(InitializeOtherResourcesContribution, LifecyclePhase.Restored);
 }
+
+
+export class UserDataLabelFormattingContribution implements IWorkbenchContribution {
+	constructor(
+		@ILabelService private readonly labelService: ILabelService) {
+		this.registerFormatters();
+	}
+
+	private registerFormatters(): void {
+		this.labelService.registerFormatter({
+			scheme: Schemas.userData,
+			formatting: {
+				label: '${scheme}:${path}',
+				separator: '/',
+			}
+		});
+	}
+}
+
+const workbenchContributionsRegistry = Registry.as<IWorkbenchContributionsRegistry>(Extensions.Workbench);
+workbenchContributionsRegistry.registerWorkbenchContribution(UserDataLabelFormattingContribution, LifecyclePhase.Starting);
