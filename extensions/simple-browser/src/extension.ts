@@ -49,15 +49,17 @@ export function activate(context: vscode.ExtensionContext) {
 		canOpenExternalUri(uri: vscode.Uri) {
 			const configuration = vscode.workspace.getConfiguration('simpleBrowser');
 			if (!configuration.get('opener.enabled', false)) {
-				return false;
+				return vscode.ExternalUriOpenerEnablement.Disabled;
 			}
 
 			const originalUri = new URL(uri.toString());
 			if (enabledHosts.has(originalUri.hostname)) {
-				return true;
+				return isWeb()
+					? vscode.ExternalUriOpenerEnablement.Preferred
+					: vscode.ExternalUriOpenerEnablement.Enabled;
 			}
 
-			return false;
+			return vscode.ExternalUriOpenerEnablement.Disabled;
 		},
 		openExternalUri(resolveUri: vscode.Uri) {
 			return manager.show(resolveUri.toString());
@@ -66,4 +68,9 @@ export function activate(context: vscode.ExtensionContext) {
 		id: openerId,
 		label: localize('openTitle', "Open in simple browser"),
 	}));
+}
+
+function isWeb(): boolean {
+	// @ts-expect-error
+	return typeof navigator !== 'undefined' && vscode.env.uiKind === vscode.UIKind.Web;
 }

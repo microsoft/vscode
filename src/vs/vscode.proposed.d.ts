@@ -2288,6 +2288,23 @@ declare module 'vscode' {
 
 	//#region Opener service (https://github.com/microsoft/vscode/issues/109277)
 
+	export enum ExternalUriOpenerEnablement {
+		/**
+		 * The opener cannot handle the uri.
+		 */
+		Disabled = 0,
+
+		/**
+		 * The opener can handle the uri.
+		 */
+		Enabled = 1,
+
+		/**
+		 * The opener can handle the uri and should be automatically selected if possible.
+		 */
+		Preferred = 2
+	}
+
 	/**
 	 * Handles opening uris to external resources, such as http(s) links.
 	 *
@@ -2305,9 +2322,9 @@ declare module 'vscode' {
 		 * not yet gone through port forwarding.
 		 * @param token Cancellation token indicating that the result is no longer needed.
 		 *
-		 * @return True if the opener can open the external uri.
+		 * @return If the opener can open the external uri.
 		 */
-		canOpenExternalUri(uri: Uri, token: CancellationToken): ProviderResult<boolean>;
+		canOpenExternalUri(uri: Uri, token: CancellationToken): ProviderResult<ExternalUriOpenerEnablement>;
 
 		/**
 		 * Open the given uri.

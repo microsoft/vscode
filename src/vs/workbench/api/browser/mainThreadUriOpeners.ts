@@ -3,7 +3,6 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { CancellationToken } from 'vs/base/common/cancellation';
 import { isPromiseCanceledError } from 'vs/base/common/errors';
 import { Disposable } from 'vs/base/common/lifecycle';
 import { Schemas } from 'vs/base/common/network';
@@ -13,7 +12,7 @@ import { ExtensionIdentifier } from 'vs/platform/extensions/common/extensions';
 import { INotificationService } from 'vs/platform/notification/common/notification';
 import { ExtHostContext, ExtHostUriOpenersShape, IExtHostContext, MainContext, MainThreadUriOpenersShape } from 'vs/workbench/api/common/extHost.protocol';
 import { externalUriOpenerIdSchemaAddition } from 'vs/workbench/contrib/externalUriOpener/common/configuration';
-import { ExternalOpenerEntry, IExternalOpenerProvider, IExternalUriOpenerService } from 'vs/workbench/contrib/externalUriOpener/common/externalUriOpenerService';
+import { IExternalOpenerProvider, IExternalUriOpener, IExternalUriOpenerService } from 'vs/workbench/contrib/externalUriOpener/common/externalUriOpenerService';
 import { IExtensionService } from 'vs/workbench/services/extensions/common/extensions';
 import { extHostNamedCustomer } from '../common/extHostCustomers';
 
@@ -31,45 +30,42 @@ export class MainThreadUriOpeners extends Disposable implements MainThreadUriOpe
 
 	constructor(
 		context: IExtHostContext,
-		@IExternalUriOpenerService private readonly externalUriOpenerService: IExternalUriOpenerService,
+		@IExternalUriOpenerService externalUriOpenerService: IExternalUriOpenerService,
 		@IExtensionService private readonly extensionService: IExtensionService,
 		@INotificationService private readonly notificationService: INotificationService,
 	) {
 		super();
 		this.proxy = context.getProxy(ExtHostContext.ExtHostUriOpeners);
 
-		this._register(this.externalUriOpenerService.registerExternalOpenerProvider(this));
+		this._register(externalUriOpenerService.registerExternalOpenerProvider(this));
 	}
 
-	public async provideExternalOpeners(href: string | URI): Promise<readonly ExternalOpenerEntry[]> {
-		const targetUri = typeof href === 'string' ? URI.parse(href) : href;
+	public async *getOpeners(targetUri: URI): AsyncIterable<IExternalUriOpener> {
 
 		// Currently we only allow openers for http and https urls
 		if (targetUri.scheme !== Schemas.http && targetUri.scheme !== Schemas.https) {
-			return [];
+			return;
 		}
 
 		await this.extensionService.activateByEvent(`onUriOpen:${targetUri.scheme}`);
 
-		// If there are no handlers there is no point in making a round trip
-		const hasHandler = Array.from(this._registeredOpeners.values()).some(x => x.schemes.has(targetUri.scheme));
-		if (!hasHandler) {
-			return [];
+		for (const [id, openerMetadata] of this._registeredOpeners) {
+			if (openerMetadata.schemes.has(targetUri.scheme)) {
+				yield this.createOpener(id, openerMetadata);
+			}
 		}
-
-		const openerIds = await this.proxy.$getOpenersForUri(targetUri, CancellationToken.None);
-		return openerIds.map(id => this.createOpener(id, targetUri));
 	}
 
-	private createOpener(openerId: string, sourceUri: URI): ExternalOpenerEntry {
-		const metadata = this._registeredOpeners.get(openerId)!;
+	private createOpener(id: string, metadata: RegisteredOpenerMetadata): IExternalUriOpener {
 		return {
-			id: openerId,
+			id: id,
 			label: metadata.label,
-			openExternal: async (href) => {
-				const resolveUri = URI.parse(href);
+			canOpen: (uri, token) => {
+				return this.proxy.$canOpenUri(id, uri, token);
+			},
+			openExternalUri: async (uri, ctx, token) => {
 				try {
-					await this.proxy.$openUri(openerId, { resolveUri, sourceUri }, CancellationToken.None);
+					await this.proxy.$openUri(id, { resolvedUri: uri, sourceUri: ctx.sourceUri }, token);
 				} catch (e) {
 					if (!isPromiseCanceledError(e)) {
 						this.notificationService.error(localize('openerFailedMessage', "Could not open uri: {0}", e.toString()));
