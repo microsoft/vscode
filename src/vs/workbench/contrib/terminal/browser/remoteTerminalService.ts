@@ -252,6 +252,10 @@ export class RemoteTerminalProcess extends Disposable implements ITerminalChildP
 		});
 	}
 
+	public acknowledgeDataEvent(charCount: number): void {
+		// TODO: Support flow control for server spawned processes
+	}
+
 	public async getInitialCwd(): Promise<string> {
 		await this._startBarrier.wait();
 		return this._remoteTerminalChannel.getTerminalInitialCwd(this._remoteTerminalId);
