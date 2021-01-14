@@ -153,6 +153,11 @@ export interface ITriggerTerminalDataReplayArguments {
 	id: number;
 }
 
+export interface ISendCharCountToTerminalProcessArguments {
+	id: number;
+	charCount: number;
+}
+
 export interface IRemoteTerminalProcessReadyEvent {
 	type: 'ready';
 	pid: number;
@@ -321,6 +326,13 @@ export class RemoteTerminalChannelClient {
 			id, data
 		};
 		return this._channel.call<void>('$sendInputToTerminalProcess', args);
+	}
+
+	public sendCharCountToTerminalProcess(id: number, charCount: number): Promise<void> {
+		const args: ISendCharCountToTerminalProcessArguments = {
+			id, charCount
+		};
+		return this._channel.call<void>('$sendCharCountToTerminalProcess', args);
 	}
 
 	public shutdownTerminalProcess(id: number, immediate: boolean): Promise<void> {
