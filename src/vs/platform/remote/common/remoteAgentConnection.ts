@@ -118,32 +118,43 @@ function waitWithTimeout<T>(promise: Promise<T>, timeout: number): Promise<T> {
 	});
 }
 
+function createSocket(socketFactory: ISocketFactory, host: string, port: number, query: string): Promise<ISocket> {
+	return new Promise<ISocket>((resolve, reject) => {
+		socketFactory.connect(host, port, query, (err: any, socket: ISocket | undefined) => {
+			if (err || !socket) {
+				return reject(err);
+			}
+			resolve(socket);
+		});
+	});
+}
+
 async function connectToRemoteExtensionHostAgent(options: ISimpleConnectionOptions, connectionType: ConnectionType, args: any | undefined): Promise<{ protocol: PersistentProtocol; ownsProtocol: boolean; }> {
 	const logPrefix = connectLogPrefix(options, connectionType);
-	const { protocol, ownsProtocol } = await new Promise<{ protocol: PersistentProtocol; ownsProtocol: boolean; }>((c, e) => {
-		options.logService.trace(`${logPrefix} 1/6. invoking socketFactory.connect().`);
-		options.socketFactory.connect(
-			options.host,
-			options.port,
-			`reconnectionToken=${options.reconnectionToken}&reconnection=${options.reconnectionProtocol ? 'true' : 'false'}`,
-			(err: any, socket: ISocket | undefined) => {
-				if (err || !socket) {
-					options.logService.error(`${logPrefix} socketFactory.connect() failed. Error:`);
-					options.logService.error(err);
-					e(err);
-					return;
-				}
 
-				options.logService.trace(`${logPrefix} 2/6. socketFactory.connect() was successful.`);
-				if (options.reconnectionProtocol) {
-					options.reconnectionProtocol.beginAcceptReconnection(socket, null);
-					c({ protocol: options.reconnectionProtocol, ownsProtocol: false });
-				} else {
-					c({ protocol: new PersistentProtocol(socket, null), ownsProtocol: true });
-				}
-			}
-		);
-	});
+	options.logService.trace(`${logPrefix} 1/6. invoking socketFactory.connect().`);
+
+	let socket: ISocket;
+	try {
+		socket = await createSocket(options.socketFactory, options.host, options.port, `reconnectionToken=${options.reconnectionToken}&reconnection=${options.reconnectionProtocol ? 'true' : 'false'}`);
+	} catch (error) {
+		options.logService.error(`${logPrefix} socketFactory.connect() failed. Error:`);
+		options.logService.error(error);
+		throw error;
+	}
+
+	options.logService.trace(`${logPrefix} 2/6. socketFactory.connect() was successful.`);
+
+	let protocol: PersistentProtocol;
+	let ownsProtocol: boolean;
+	if (options.reconnectionProtocol) {
+		options.reconnectionProtocol.beginAcceptReconnection(socket, null);
+		protocol = options.reconnectionProtocol;
+		ownsProtocol = false;
+	} else {
+		protocol = new PersistentProtocol(socket, null);
+		ownsProtocol = true;
+	}
 
 	options.logService.trace(`${logPrefix} 3/6. sending AuthRequest control message.`);
 	const authRequest: AuthRequest = {
