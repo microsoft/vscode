@@ -167,17 +167,16 @@ export class TerminalProcess extends Disposable implements ITerminalChildProcess
 			this.onProcessReady(() => c());
 		});
 		ptyProcess.onData(data => {
-			const fakeLatency = 1000;
-			this._unacknowledgedCharCount += data.length;
-			setTimeout(() => {
-				this._onProcessData.fire(data);
-			}, fakeLatency);
-			if (!this._isPtyPaused && this._unacknowledgedCharCount > FlowControlConstants.HighWatermarkChars) {
-				console.log(`pause (${this._unacknowledgedCharCount} > ${FlowControlConstants.HighWatermarkChars}`);
-				this._isPtyPaused = true;
-				// TODO: Expose as public API in node-pty
-				(ptyProcess as any).pause();
+			if (this._shellLaunchConfig.flowControl) {
+				this._unacknowledgedCharCount += data.length;
+				if (!this._isPtyPaused && this._unacknowledgedCharCount > FlowControlConstants.HighWatermarkChars) {
+					console.log(`pause (${this._unacknowledgedCharCount} > ${FlowControlConstants.HighWatermarkChars}`);
+					this._isPtyPaused = true;
+					// TODO: Expose as public API in node-pty
+					(ptyProcess as any).pause();
+				}
 			}
+			this._onProcessData.fire(data);
 			if (this._closeTimeout) {
 				clearTimeout(this._closeTimeout);
 				this._queueProcessExit();
@@ -340,6 +339,9 @@ export class TerminalProcess extends Disposable implements ITerminalChildProcess
 	}
 
 	public acknowledgeDataEvent(charCount: number): void {
+		if (!this._shellLaunchConfig.flowControl) {
+			return;
+		}
 		// Prevent lower than 0 to heal from errors
 		this._unacknowledgedCharCount = Math.max(this._unacknowledgedCharCount - charCount, 0);
 		console.log(`Ack ${charCount} chars (unacknowledged: ${this._unacknowledgedCharCount})`);

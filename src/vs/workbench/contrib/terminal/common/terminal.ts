@@ -138,6 +138,7 @@ export interface ITerminalConfiguration {
 	localEchoStyle: 'bold' | 'dim' | 'italic' | 'underlined' | 'inverted' | string;
 	serverSpawn: boolean;
 	enablePersistentSessions: boolean;
+	flowControl: boolean;
 }
 
 export const DEFAULT_LOCAL_ECHO_EXCLUDE: ReadonlyArray<string> = ['vim', 'vi', 'nano', 'tmux'];
@@ -287,6 +288,11 @@ export interface IShellLaunchConfig {
 	 * a terminal used to drive some VS Code feature.
 	 */
 	isFeatureTerminal?: boolean;
+
+	/**
+	 * Whether flow control is enabled for this terminal.
+	 */
+	flowControl?: boolean;
 }
 
 /**
