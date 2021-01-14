@@ -4,6 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import * as platform from 'vs/base/common/platform';
+import * as performance from 'vs/base/common/performance';
 import { URI, UriComponents } from 'vs/base/common/uri';
 import { IChannel } from 'vs/base/parts/ipc/common/ipc';
 import { IExtensionDescription, ExtensionIdentifier } from 'vs/platform/extensions/common/extensions';
@@ -41,6 +42,7 @@ export interface IRemoteAgentEnvironmentDTO {
 	workspaceStorageHome: UriComponents;
 	userHome: UriComponents;
 	os: platform.OperatingSystem;
+	marks: performance.PerformanceMark[]
 }
 
 export class RemoteExtensionEnvironmentChannelClient {
