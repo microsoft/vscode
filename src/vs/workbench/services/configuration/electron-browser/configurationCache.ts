@@ -6,7 +6,7 @@
 import { IConfigurationCache, ConfigurationKey } from 'vs/workbench/services/configuration/common/configuration';
 import { URI } from 'vs/base/common/uri';
 import { Schemas } from 'vs/base/common/network';
-import { IFileService } from 'vs/platform/files/common/files';
+import { FileOperationError, FileOperationResult, IFileService } from 'vs/platform/files/common/files';
 import { joinPath } from 'vs/base/common/resources';
 import { VSBuffer } from 'vs/base/common/buffer';
 
@@ -77,8 +77,14 @@ class CachedConfiguration {
 		}
 	}
 
-	remove(): Promise<void> {
-		return this.fileService.del(this.cachedConfigurationFolderResource, { recursive: true, useTrash: false });
+	async remove(): Promise<void> {
+		try {
+			await this.fileService.del(this.cachedConfigurationFolderResource, { recursive: true, useTrash: false });
+		} catch (error) {
+			if ((<FileOperationError>error).fileOperationResult !== FileOperationResult.FILE_NOT_FOUND) {
+				throw error;
+			}
+		}
 	}
 
 	private async createCachedFolder(): Promise<boolean> {
