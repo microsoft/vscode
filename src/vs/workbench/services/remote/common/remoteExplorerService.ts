@@ -305,11 +305,12 @@ export class TunnelModel extends Disposable {
 	async restoreForwarded() {
 		if (this.configurationService.getValue('remote.restoreForwardedPorts')) {
 			if (this.tunnelRestoreValue) {
-				(<Tunnel[] | undefined>JSON.parse(this.tunnelRestoreValue))?.forEach(tunnel => {
+				const tunnels = <Tunnel[] | undefined>JSON.parse(this.tunnelRestoreValue) ?? [];
+				for (let tunnel of tunnels) {
 					if (!mapHasAddressLocalhostOrAllInterfaces(this.detected, tunnel.remoteHost, tunnel.remotePort)) {
-						this.forward({ host: tunnel.remoteHost, port: tunnel.remotePort }, tunnel.localPort, tunnel.name, undefined, undefined, tunnel.privacy === TunnelPrivacy.Public);
+						await this.forward({ host: tunnel.remoteHost, port: tunnel.remotePort }, tunnel.localPort, tunnel.name, undefined, undefined, tunnel.privacy === TunnelPrivacy.Public);
 					}
-				});
+				}
 			}
 		}
 	}
