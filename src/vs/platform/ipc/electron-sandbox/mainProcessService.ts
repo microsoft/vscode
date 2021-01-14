@@ -3,10 +3,11 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { IChannel, IServerChannel } from 'vs/base/parts/ipc/common/ipc';
+import { IChannel, IServerChannel, StaticRouter } from 'vs/base/parts/ipc/common/ipc';
 import { Client as IPCElectronClient } from 'vs/base/parts/ipc/electron-sandbox/ipc.electron';
 import { Disposable } from 'vs/base/common/lifecycle';
 import { createDecorator } from 'vs/platform/instantiation/common/instantiation';
+import { Server } from 'vs/base/parts/ipc/electron-sandbox/ipc.mp';
 
 export const IMainProcessService = createDecorator<IMainProcessService>('mainProcessService');
 
@@ -19,7 +20,10 @@ export interface IMainProcessService {
 	registerChannel(channelName: string, channel: IServerChannel<string>): void;
 }
 
-export class MainProcessService extends Disposable implements IMainProcessService {
+/**
+ * An implementation of `IMainProcessService` that leverages Electron's IPC.
+ */
+export class ElectronIPCMainProcessService extends Disposable implements IMainProcessService {
 
 	declare readonly _serviceBrand: undefined;
 
@@ -39,5 +43,26 @@ export class MainProcessService extends Disposable implements IMainProcessServic
 
 	registerChannel(channelName: string, channel: IServerChannel<string>): void {
 		this.mainProcessConnection.registerChannel(channelName, channel);
+	}
+}
+
+/**
+ * An implementation of `IMainProcessService` that leverages MessagePorts.
+ */
+export class MessagePortMainProcessService implements IMainProcessService {
+
+	declare readonly _serviceBrand: undefined;
+
+	constructor(
+		private server: Server,
+		private router: StaticRouter
+	) { }
+
+	getChannel(channelName: string): IChannel {
+		return this.server.getChannel(channelName, this.router);
+	}
+
+	registerChannel(channelName: string, channel: IServerChannel<string>): void {
+		this.server.registerChannel(channelName, channel);
 	}
 }

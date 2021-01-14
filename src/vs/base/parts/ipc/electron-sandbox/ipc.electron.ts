@@ -33,6 +33,6 @@ export class Client extends IPCClient implements IDisposable {
 	}
 
 	dispose(): void {
-		this.protocol.dispose();
+		this.protocol.disconnect();
 	}
 }

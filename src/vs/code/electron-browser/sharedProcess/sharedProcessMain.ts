@@ -6,9 +6,8 @@
 import product from 'vs/platform/product/common/product';
 import * as fs from 'fs';
 import { gracefulify } from 'graceful-fs';
-import { isWindows } from 'vs/base/common/platform';
-import { IChannel, IServerChannel, StaticRouter, createChannelSender, createChannelReceiver } from 'vs/base/parts/ipc/common/ipc';
-import { serve as nodeIPCServe, Server as NodeIPCServer, connect as nodeIPCConnect } from 'vs/base/parts/ipc/node/ipc.net';
+import { Server as MessagePortServer } from 'vs/base/parts/ipc/electron-sandbox/ipc.mp';
+import { StaticRouter, createChannelSender, createChannelReceiver } from 'vs/base/parts/ipc/common/ipc';
 import { ServiceCollection } from 'vs/platform/instantiation/common/serviceCollection';
 import { SyncDescriptor } from 'vs/platform/instantiation/common/descriptors';
 import { InstantiationService } from 'vs/platform/instantiation/common/instantiationService';
@@ -40,7 +39,7 @@ import { NodeCachedDataCleaner } from 'vs/code/electron-browser/sharedProcess/co
 import { LanguagePackCachedDataCleaner } from 'vs/code/electron-browser/sharedProcess/contrib/languagePackCachedDataCleaner';
 import { StorageDataCleaner } from 'vs/code/electron-browser/sharedProcess/contrib/storageDataCleaner';
 import { LogsDataCleaner } from 'vs/code/electron-browser/sharedProcess/contrib/logsDataCleaner';
-import { IMainProcessService } from 'vs/platform/ipc/electron-sandbox/mainProcessService';
+import { IMainProcessService, MessagePortMainProcessService } from 'vs/platform/ipc/electron-sandbox/mainProcessService';
 import { SpdLogService } from 'vs/platform/log/node/spdlogService';
 import { DiagnosticsService, IDiagnosticsService } from 'vs/platform/diagnostics/node/diagnosticsService';
 import { FileService } from 'vs/platform/files/common/fileService';
@@ -79,33 +78,15 @@ import { DeprecatedExtensionsCleaner } from 'vs/code/electron-browser/sharedProc
 import { onUnexpectedError, setUnexpectedErrorHandler } from 'vs/base/common/errors';
 import { toErrorMessage } from 'vs/base/common/errorMessage';
 
-class MainProcessService implements IMainProcessService {
-
-	declare readonly _serviceBrand: undefined;
-
-	constructor(
-		private server: NodeIPCServer,
-		private mainRouter: StaticRouter
-	) { }
-
-	getChannel(channelName: string): IChannel {
-		return this.server.getChannel(channelName, this.mainRouter);
-	}
-
-	registerChannel(channelName: string, channel: IServerChannel<string>): void {
-		this.server.registerChannel(channelName, channel);
-	}
-}
-
 class SharedProcessMain extends Disposable {
 
-	constructor(private server: NodeIPCServer, private configuration: ISharedProcessConfiguration) {
+	private server = this._register(new MessagePortServer());
+
+	constructor(private configuration: ISharedProcessConfiguration) {
 		super();
 
 		// Enable gracefulFs
 		gracefulify(fs);
-
-		this._register(this.server);
 
 		this.registerListeners();
 	}
@@ -160,7 +141,7 @@ class SharedProcessMain extends Disposable {
 
 		// Log
 		const mainRouter = new StaticRouter(ctx => ctx === 'main');
-		const loggerClient = new LoggerChannelClient(this.server.getChannel('logger', mainRouter));
+		const loggerClient = new LoggerChannelClient(this.server.getChannel('logger', mainRouter)); // we only use this for log levels
 		const multiplexLogger = this._register(new MultiplexLogService([
 			this._register(new ConsoleLogService(this.configuration.logLevel)),
 			this._register(new SpdLogService('sharedprocess', environmentService.logsPath, this.configuration.logLevel))
@@ -170,7 +151,7 @@ class SharedProcessMain extends Disposable {
 		services.set(ILogService, logService);
 
 		// Main Process
-		const mainProcessService = new MainProcessService(this.server, mainRouter);
+		const mainProcessService = new MessagePortMainProcessService(this.server, mainRouter);
 		services.set(IMainProcessService, mainProcessService);
 
 		// Files
@@ -345,48 +326,14 @@ class SharedProcessMain extends Disposable {
 	}
 }
 
-function setupNodeIPC(hook: string): Promise<NodeIPCServer> {
-	function setup(retry: boolean): Promise<NodeIPCServer> {
-		return nodeIPCServe(hook).then(null, err => {
-			if (!retry || isWindows || err.code !== 'EADDRINUSE') {
-				return Promise.reject(err);
-			}
-
-			// should retry, not windows and eaddrinuse
-
-			return nodeIPCConnect(hook, '').then(
-				client => {
-					// we could connect to a running instance. this is not good, abort
-					client.dispose();
-					return Promise.reject(new Error('There is an instance already running.'));
-				},
-				err => {
-					// it happens on Linux and OS X that the pipe is left behind
-					// let's delete it, since we can't connect to it
-					// and the retry the whole thing
-					try {
-						fs.unlinkSync(hook);
-					} catch (e) {
-						return Promise.reject(new Error('Error deleting the shared ipc hook.'));
-					}
-
-					return setup(false);
-				}
-			);
-		});
-	}
-
-	return setup(true);
-}
-
 export async function main(configuration: ISharedProcessConfiguration): Promise<void> {
 
-	// await IPC connection and signal this back to electron-main
-	const server = await setupNodeIPC(configuration.sharedIPCHandle);
+	// create shared process and signal back to main that we are
+	// ready to accept message ports as client connections
+	const sharedProcess = new SharedProcessMain(configuration);
 	ipcRenderer.send('vscode:shared-process->electron-main=ipc-ready');
 
 	// await initialization and signal this back to electron-main
-	const sharedProcess = new SharedProcessMain(server, configuration);
 	await sharedProcess.open();
 	ipcRenderer.send('vscode:shared-process->electron-main=init-done');
 }

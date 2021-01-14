@@ -28,7 +28,7 @@ export class Protocol implements IMessagePassingProtocol {
 		}
 	}
 
-	dispose(): void {
+	disconnect(): void {
 		this.sender.send('vscode:disconnect', null);
 	}
 }

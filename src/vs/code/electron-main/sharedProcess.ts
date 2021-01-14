@@ -3,9 +3,8 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { memoize } from 'vs/base/common/decorators';
+import { BrowserWindow, ipcMain, Event, MessagePortMain } from 'electron';
 import { IEnvironmentMainService } from 'vs/platform/environment/electron-main/environmentMainService';
-import { BrowserWindow, ipcMain, Event } from 'electron';
 import { ISharedProcess } from 'vs/platform/sharedProcess/electron-main/sharedProcessMainService';
 import { Barrier } from 'vs/base/common/async';
 import { ILogService } from 'vs/platform/log/common/log';
@@ -15,13 +14,12 @@ import { FileAccess } from 'vs/base/common/network';
 import { browserCodeLoadingCacheStrategy } from 'vs/base/common/platform';
 import { ISharedProcessConfiguration } from 'vs/platform/sharedProcess/node/sharedProcess';
 import { Disposable } from 'vs/base/common/lifecycle';
+import { connect as connectMessagePort } from 'vs/base/parts/ipc/electron-main/ipc.mp';
+import { assertIsDefined } from 'vs/base/common/types';
 
 export class SharedProcess extends Disposable implements ISharedProcess {
 
 	private readonly whenSpawnedBarrier = new Barrier();
-
-	// overall ready promise when shared process signals initialization is done
-	private readonly _whenReady = new Promise<void>(resolve => ipcMain.once('vscode:shared-process->electron-main=init-done', () => resolve()));
 
 	private window: BrowserWindow | undefined = undefined;
 	private windowCloseListener: ((event: Event) => void) | undefined = undefined;
@@ -40,7 +38,16 @@ export class SharedProcess extends Disposable implements ISharedProcess {
 	}
 
 	private registerListeners(): void {
+
+		// Lifecycle
 		this._register(this.lifecycleMainService.onWillShutdown(() => this.onWillShutdown()));
+
+		// Shared process connections
+		ipcMain.on('vscode:createSharedProcessMessageChannel', async (e, nonce: string) => {
+			const port = await this.connect();
+
+			e.sender.postMessage('vscode:createSharedProcessMessageChannelResult', nonce, [port]);
+		});
 	}
 
 	private onWillShutdown(): void {
@@ -50,7 +57,7 @@ export class SharedProcess extends Disposable implements ISharedProcess {
 		}
 
 		// Signal exit to shared process when shutting down
-		window.webContents.send('vscode:electron-main->shared-process=exit'); // TODO verify call
+		window.webContents.send('vscode:electron-main->shared-process=exit');
 
 		// Shut the shared process down when we are quitting
 		//
@@ -75,17 +82,45 @@ export class SharedProcess extends Disposable implements ISharedProcess {
 		}, 0);
 	}
 
-	@memoize
-	private get _whenIpcReady(): Promise<void> {
+	private _whenReady: Promise<void> | undefined = undefined;
+	whenReady(): Promise<void> {
+		if (!this._whenReady) {
+			// Overall signal that the shared process window was loaded and
+			// all services within have been created.
+			this._whenReady = new Promise<void>(resolve => ipcMain.once('vscode:shared-process->electron-main=init-done', () => {
+				this.logService.trace('SharedProcess: Overall ready');
 
-		// Create window for shared process
-		this.createWindow();
+				resolve();
+			}));
+		}
 
-		// Listeners
-		this.registerWindowListeners();
+		return this._whenReady;
+	}
 
-		// complete IPC-ready promise when shared process signals this to us
-		return new Promise<void>(resolve => ipcMain.once('vscode:shared-process->electron-main=ipc-ready', () => resolve(undefined)));
+	private _whenIpcReady: Promise<void> | undefined = undefined;
+	private get whenIpcReady() {
+		if (!this._whenIpcReady) {
+			this._whenIpcReady = (async () => {
+
+				// Always wait for `spawn()`
+				await this.whenSpawnedBarrier.wait();
+
+				// Create window for shared process
+				this.createWindow();
+
+				// Listeners
+				this.registerWindowListeners();
+
+				// Wait for window indicating that IPC connections are accepted
+				await new Promise<void>(resolve => ipcMain.once('vscode:shared-process->electron-main=ipc-ready', () => {
+					this.logService.trace('SharedProcess: IPC ready');
+
+					resolve();
+				}));
+			})();
+		}
+
+		return this._whenIpcReady;
 	}
 
 	private createWindow(): void {
@@ -151,7 +186,7 @@ export class SharedProcess extends Disposable implements ISharedProcess {
 		// Crashes & Unrsponsive & Failed to load
 		this.window.webContents.on('render-process-gone', (event, details) => this.logService.error(`[VS Code]: sharedProcess crashed (detail: ${details?.reason})`));
 		this.window.on('unresponsive', () => this.logService.error('[VS Code]: detected unresponsive sharedProcess window'));
-		this.window.webContents.on('did-fail-load', (event: Event, errorCode: number, errorDescription: string) => this.logService.warn('[VS Code]: fail to load sharedProcess window, ', errorDescription));
+		this.window.webContents.on('did-fail-load', (event, errorCode, errorDescription) => this.logService.warn('[VS Code]: fail to load sharedProcess window, ', errorDescription));
 	}
 
 	spawn(userEnv: NodeJS.ProcessEnv): void {
@@ -161,20 +196,14 @@ export class SharedProcess extends Disposable implements ISharedProcess {
 		this.whenSpawnedBarrier.open();
 	}
 
-	async whenReady(): Promise<void> {
+	async connect(): Promise<MessagePortMain> {
 
-		// Always wait for `spawn()`
-		await this.whenSpawnedBarrier.wait();
+		// Wait for shared process being ready to accept connection
+		await this.whenIpcReady;
 
-		await this._whenReady;
-	}
-
-	async whenIpcReady(): Promise<void> {
-
-		// Always wait for `spawn()`
-		await this.whenSpawnedBarrier.wait();
-
-		await this._whenIpcReady;
+		// Connect and return message port
+		const window = assertIsDefined(this.window);
+		return connectMessagePort(window);
 	}
 
 	toggle(): void {
