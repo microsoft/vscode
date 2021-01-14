@@ -4,12 +4,14 @@
  *--------------------------------------------------------------------------------------------*/
 
 import * as vscode from 'vscode';
+import * as nls from 'vscode-nls';
 import { Node, HtmlNode, Rule, Property, Stylesheet } from 'EmmetFlatNode';
 import { getEmmetHelper, getFlatNode, getMappingForIncludedLanguages, validate, getEmmetConfiguration, isStyleSheet, getEmmetMode, parsePartialStylesheet, isStyleAttribute, getEmbeddedCssNodeIfAny, allowedMimeTypesInScriptTag, toLSTextDocument } from './util';
 import { getRootNode as parseDocument } from './parseDocument';
 import { MarkupAbbreviation } from 'emmet';
 // import { AbbreviationNode } from '@emmetio/abbreviation';
 
+const localize = nls.loadMessageBundle();
 const trimRegex = /[\u00a0]*[\d#\-\*\u2022]+\.?/;
 const hexColorRegex = /^#[\da-fA-F]{0,6}$/;
 // const inlineElements = ['a', 'abbr', 'acronym', 'applet', 'b', 'basefont', 'bdo',
@@ -47,16 +49,14 @@ function doWrapping(_: boolean, args: any) {
 	}
 
 	const editor = vscode.window.activeTextEditor;
-	// if (individualLines) {
-	// 	if (editor.selections.length === 1 && editor.selection.isEmpty) {
-	// 		vscode.window.showInformationMessage('Select more than 1 line and try again.');
-	// 		return;
-	// 	}
-	// 	if (editor.selections.find(x => x.isEmpty)) {
-	// 		vscode.window.showInformationMessage('Select more than 1 line in each selection and try again.');
-	// 		return;
-	// 	}
-	// }
+
+	const linkedEditingEnabled = vscode.workspace.getConfiguration('editor').get<boolean>('linkedEditing');
+	if (linkedEditingEnabled && editor.selections.find(x => x.isEmpty)) {
+		const message = localize('linkedEditingIsOnWarning', "Please uncheck the 'editor.linkedEditing' setting as it interferes with this command. To update tags, use the 'Emmet: Update Tag' command instead.");
+		vscode.window.showErrorMessage(message);
+		return;
+	}
+
 	args = args || {};
 	if (!args['language']) {
 		args['language'] = editor.document.languageId;
@@ -73,6 +73,7 @@ function doWrapping(_: boolean, args: any) {
 		let rangeToReplace: vscode.Range = selection.isReversed ? new vscode.Range(selection.active, selection.anchor) : selection;
 		const document = editor.document;
 		if (!rangeToReplace.isSingleLine && rangeToReplace.end.character === 0) {
+			// in case of multi-line, exclude last empty line from rangeToReplace
 			const previousLine = rangeToReplace.end.line - 1;
 			const lastChar = document.lineAt(previousLine).text.length;
 			rangeToReplace = new vscode.Range(rangeToReplace.start, new vscode.Position(previousLine, lastChar));
@@ -84,12 +85,15 @@ function doWrapping(_: boolean, args: any) {
 				const currentNodeStart = document.positionAt(currentNode.start);
 				const currentNodeEnd = document.positionAt(currentNode.end);
 				if (currentNodeStart.line === active.line || currentNodeEnd.line === active.line) {
+					// wrap around entire node
 					rangeToReplace = new vscode.Range(currentNodeStart, currentNodeEnd);
 				}
 				else {
+					// wrap line that cursor is on
 					rangeToReplace = new vscode.Range(rangeToReplace.start.line, 0, rangeToReplace.start.line, document.lineAt(rangeToReplace.start.line).text.length);
 				}
 			} else {
+				// wrap line that cursor is on
 				rangeToReplace = new vscode.Range(rangeToReplace.start.line, 0, rangeToReplace.start.line, document.lineAt(rangeToReplace.start.line).text.length);
 			}
 		}
@@ -101,15 +105,17 @@ function doWrapping(_: boolean, args: any) {
 
 		let textToWrapInPreview: string[];
 		const textToReplace = document.getText(rangeToReplace);
-		// if (individualLines) {
-		// 	textToWrapInPreview = textToReplace.split('\n').map(x => x.trim());
-		// } else {
-		// the following assumes the lines are indented the same way
+
+		// the following assumes all the lines are indented the same way as the first
+		// this assumption helps with applyPreview later
 		const wholeFirstLine = document.lineAt(rangeToReplace.start).text;
 		const otherMatches = wholeFirstLine.match(/^(\s*)/);
 		const precedingWhitespace = otherMatches ? otherMatches[1] : '';
-		textToWrapInPreview = rangeToReplace.isSingleLine ? [textToReplace] : textToReplace.split('\n' + precedingWhitespace).map(x => x.trimEnd());
-		// }
+		textToWrapInPreview = rangeToReplace.isSingleLine ?
+			[textToReplace] :
+			textToReplace.split('\n' + precedingWhitespace).map(x => x.trimEnd());
+
+		// escape $ characters, fixes #52640
 		textToWrapInPreview = textToWrapInPreview.map(e => e.replace(/(\$\d)/g, '\\$1'));
 
 		return {
@@ -132,9 +138,10 @@ function doWrapping(_: boolean, args: any) {
 	function applyPreview(expandAbbrList: ExpandAbbreviationInput[]): Thenable<boolean> {
 		let lastOldPreviewRange = new vscode.Range(0, 0, 0, 0);
 		let lastNewPreviewRange = new vscode.Range(0, 0, 0, 0);
-		let totalLinesInserted = 0;
+		let totalNewLinesInserted = 0;
 
 		return editor.edit(builder => {
+			// the edits are applied in order top-down
 			for (let i = 0; i < rangesToReplace.length; i++) {
 				const expandedText = expandAbbr(expandAbbrList[i]) || '';
 				if (!expandedText) {
@@ -142,6 +149,8 @@ function doWrapping(_: boolean, args: any) {
 					break;
 				}
 
+				// get the current preview range, format the new wrapped text, and then replace
+				// the text in the preview range with that new text
 				const oldPreviewRange = rangesToReplace[i].previewRange;
 				const preceedingText = editor.document.getText(new vscode.Range(oldPreviewRange.start.line, 0, oldPreviewRange.start.line, oldPreviewRange.start.character));
 				const indentPrefix = (preceedingText.match(/^(\s*)/) || ['', ''])[1];
@@ -155,13 +164,17 @@ function doWrapping(_: boolean, args: any) {
 				newText = newText.replace(/\\\$/g, '$'); // Remove backslashes before $
 				builder.replace(oldPreviewRange, newText);
 
+				// calculate the new preview range to use for future previews
+				// we also have to take into account that the previous expansions could:
+				// - cause new lines to appear
+				// - be on the same line as other expansions
 				const expandedTextLines = newText.split('\n');
 				const oldPreviewLines = oldPreviewRange.end.line - oldPreviewRange.start.line + 1;
 				const newLinesInserted = expandedTextLines.length - oldPreviewLines;
 
-				const newPreviewLineStart = oldPreviewRange.start.line + totalLinesInserted;
+				const newPreviewLineStart = oldPreviewRange.start.line + totalNewLinesInserted;
 				let newPreviewStart = oldPreviewRange.start.character;
-				const newPreviewLineEnd = oldPreviewRange.end.line + totalLinesInserted + newLinesInserted;
+				const newPreviewLineEnd = oldPreviewRange.end.line + totalNewLinesInserted + newLinesInserted;
 				let newPreviewEnd = expandedTextLines[expandedTextLines.length - 1].length;
 				if (i > 0 && newPreviewLineEnd === lastNewPreviewRange.end.line) {
 					// If newPreviewLineEnd is equal to the previous expandedText lineEnd,
@@ -180,9 +193,9 @@ function doWrapping(_: boolean, args: any) {
 				}
 
 				lastOldPreviewRange = rangesToReplace[i].previewRange;
-				rangesToReplace[i].previewRange = lastNewPreviewRange = new vscode.Range(newPreviewLineStart, newPreviewStart, newPreviewLineEnd, newPreviewEnd);
-
-				totalLinesInserted += newLinesInserted;
+				lastNewPreviewRange = new vscode.Range(newPreviewLineStart, newPreviewStart, newPreviewLineEnd, newPreviewEnd);
+				rangesToReplace[i].previewRange = lastNewPreviewRange;
+				totalNewLinesInserted += newLinesInserted;
 			}
 		}, { undoStopBefore: false, undoStopAfter: false });
 	}
@@ -236,9 +249,10 @@ function doWrapping(_: boolean, args: any) {
 		return '';
 	}
 
+	const prompt = localize('wrapWithAbbreviationPrompt', "Enter Abbreviation");
 	const abbreviationPromise: Thenable<string | undefined> = (args && args['abbreviation']) ?
 		Promise.resolve(args['abbreviation']) :
-		vscode.window.showInputBox({ prompt: 'Enter Abbreviation', validateInput: inputChanged });
+		vscode.window.showInputBox({ prompt, validateInput: inputChanged });
 	return abbreviationPromise.then(inputAbbreviation => {
 		return makeChanges(inputAbbreviation, true);
 	});
