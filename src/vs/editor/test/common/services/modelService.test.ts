@@ -14,8 +14,6 @@ import { createStringBuilder } from 'vs/editor/common/core/stringBuilder';
 import { DefaultEndOfLine, ITextModel } from 'vs/editor/common/model';
 import { createTextBuffer } from 'vs/editor/common/model/textModel';
 import { ModelSemanticColoring, ModelServiceImpl } from 'vs/editor/common/services/modelServiceImpl';
-import { ITextResourcePropertiesService } from 'vs/editor/common/services/textResourceConfigurationService';
-import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { TestConfigurationService } from 'vs/platform/configuration/test/common/testConfigurationService';
 import { TestColorTheme, TestThemeService } from 'vs/platform/theme/test/common/testThemeService';
 import { NullLogService } from 'vs/platform/log/common/log';
@@ -32,6 +30,7 @@ import { ColorScheme } from 'vs/platform/theme/common/theme';
 import { ModesRegistry } from 'vs/editor/common/modes/modesRegistry';
 import { IModelService } from 'vs/editor/common/services/modelService';
 import { IModeService } from 'vs/editor/common/services/modeService';
+import { TestTextResourcePropertiesService } from 'vs/editor/test/common/services/testTextResourcePropertiesService';
 
 const GENERATE_TESTS = false;
 
@@ -527,23 +526,5 @@ assertComputeEdits(file1, file2);
 `);
 			break;
 		}
-	}
-}
-
-export class TestTextResourcePropertiesService implements ITextResourcePropertiesService {
-
-	declare readonly _serviceBrand: undefined;
-
-	constructor(
-		@IConfigurationService private readonly configurationService: IConfigurationService,
-	) {
-	}
-
-	getEOL(resource: URI, language?: string): string {
-		const eol = this.configurationService.getValue<string>('files.eol', { overrideIdentifier: language, resource });
-		if (eol && eol !== 'auto') {
-			return eol;
-		}
-		return (platform.isLinux || platform.isMacintosh) ? '\n' : '\r\n';
 	}
 }
