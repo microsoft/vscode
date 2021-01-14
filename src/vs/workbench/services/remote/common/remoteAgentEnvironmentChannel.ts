@@ -65,7 +65,8 @@ export class RemoteExtensionEnvironmentChannelClient {
 			globalStorageHome: URI.revive(data.globalStorageHome),
 			workspaceStorageHome: URI.revive(data.workspaceStorageHome),
 			userHome: URI.revive(data.userHome),
-			os: data.os
+			os: data.os,
+			marks: data.marks
 		};
 	}
 
