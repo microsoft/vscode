@@ -41,17 +41,17 @@ export class SCMViewPaneContainer extends ViewPaneContainer {
 		parent.classList.add('scm-viewlet');
 	}
 
-	getActionsContext(): unknown {
-		if (this.views.length === 1) {
-			const view = this.views[0];
+	// getActionsContext(): unknown {
+	// 	if (this.views.length === 1) {
+	// 		const view = this.views[0];
 
-			if (view instanceof SCMViewPane) {
-				return view.getActionsContext();
-			}
-		}
+	// 		if (view instanceof SCMViewPane) {
+	// 			return view.getActionsContext();
+	// 		}
+	// 	}
 
-		return undefined;
-	}
+	// 	return undefined;
+	// }
 
 	getOptimalWidth(): number {
 		return 400;

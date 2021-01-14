@@ -7,19 +7,19 @@ import 'vs/css!./media/scm';
 import { Event, Emitter } from 'vs/base/common/event';
 import { basename, dirname } from 'vs/base/common/resources';
 import { IDisposable, Disposable, DisposableStore, combinedDisposable, dispose, toDisposable } from 'vs/base/common/lifecycle';
-import { ViewPane, IViewPaneOptions } from 'vs/workbench/browser/parts/views/viewPane';
+import { ViewPane, IViewPaneOptions, ViewAction } from 'vs/workbench/browser/parts/views/viewPane';
 import { append, $, Dimension, asCSSUrl } from 'vs/base/browser/dom';
 import { IListVirtualDelegate, IIdentityProvider } from 'vs/base/browser/ui/list/list';
-import { ISCMResourceGroup, ISCMResource, InputValidationType, ISCMRepository, ISCMInput, IInputValidation, ISCMViewService, ISCMViewVisibleRepositoryChangeEvent, ISCMService, SCMInputChangeReason } from 'vs/workbench/contrib/scm/common/scm';
+import { ISCMResourceGroup, ISCMResource, InputValidationType, ISCMRepository, ISCMInput, IInputValidation, ISCMViewService, ISCMViewVisibleRepositoryChangeEvent, ISCMService, SCMInputChangeReason, VIEW_PANE_ID } from 'vs/workbench/contrib/scm/common/scm';
 import { ResourceLabels, IResourceLabel } from 'vs/workbench/browser/labels';
 import { CountBadge } from 'vs/base/browser/ui/countBadge/countBadge';
 import { IEditorService } from 'vs/workbench/services/editor/common/editorService';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { IContextViewService, IContextMenuService } from 'vs/platform/contextview/browser/contextView';
-import { IContextKeyService, IContextKey } from 'vs/platform/contextkey/common/contextkey';
+import { IContextKeyService, IContextKey, ContextKeyEqualsExpr } from 'vs/platform/contextkey/common/contextkey';
 import { ICommandService } from 'vs/platform/commands/common/commands';
 import { IKeybindingService } from 'vs/platform/keybinding/common/keybinding';
-import { MenuItemAction, IMenuService } from 'vs/platform/actions/common/actions';
+import { MenuItemAction, IMenuService, registerAction2, MenuId, IAction2Options, MenuRegistry } from 'vs/platform/actions/common/actions';
 import { IAction, IActionViewItem, ActionRunner, Action, RadioGroup, Separator, SubmenuAction, IActionViewItemProvider } from 'vs/base/common/actions';
 import { ActionBar } from 'vs/base/browser/ui/actionbar/actionbar';
 import { IThemeService, registerThemingParticipant, IFileIconTheme, ThemeIcon } from 'vs/platform/theme/common/themeService';
@@ -50,7 +50,7 @@ import { ITextModel } from 'vs/editor/common/model';
 import { IEditorConstructionOptions } from 'vs/editor/browser/editorBrowser';
 import { getSimpleEditorOptions } from 'vs/workbench/contrib/codeEditor/browser/simpleEditorOptions';
 import { IModelService } from 'vs/editor/common/services/modelService';
-import { EditorExtensionsRegistry } from 'vs/editor/browser/editorExtensions';
+import { EditorExtensionsRegistry, ServicesAccessor } from 'vs/editor/browser/editorExtensions';
 import { MenuPreventer } from 'vs/workbench/contrib/codeEditor/browser/menuPreventer';
 import { SelectionClipboardContributionID } from 'vs/workbench/contrib/codeEditor/browser/selectionClipboard';
 import { ContextMenuController } from 'vs/editor/contrib/contextmenu/contextmenu';
@@ -776,6 +776,10 @@ class ViewModel {
 
 	get mode(): ViewModelMode { return this._mode; }
 	set mode(mode: ViewModelMode) {
+		if (this._mode === mode) {
+			return;
+		}
+
 		this._mode = mode;
 
 		for (const [, item] of this.items) {
@@ -1178,15 +1182,12 @@ class SCMViewSubMenuAction extends SubmenuAction implements IDisposable {
 		viewModel: ViewModel,
 		@IInstantiationService instantiationService: IInstantiationService
 	) {
-		const listAction = new SCMViewModeListAction(viewModel);
-		const treeAction = new SCMViewModeTreeAction(viewModel);
 		const sortByNameAction = new SCMSortByNameAction(viewModel);
 		const sortByPathAction = new SCMSortByPathAction(viewModel);
 		const sortByStatusAction = new SCMSortByStatusAction(viewModel);
 		const actions = [
 			instantiationService.createInstance(SCMViewRepositoriesSubMenuAction),
 			new Separator(),
-			...new RadioGroup([listAction, treeAction]).actions,
 			new Separator(),
 			...new RadioGroup([sortByNameAction, sortByPathAction, sortByStatusAction]).actions
 		];
@@ -1197,7 +1198,7 @@ class SCMViewSubMenuAction extends SubmenuAction implements IDisposable {
 			actions
 		);
 
-		this.disposable = combinedDisposable(listAction, treeAction, sortByNameAction, sortByPathAction, sortByStatusAction);
+		this.disposable = combinedDisposable(sortByNameAction, sortByPathAction, sortByStatusAction);
 	}
 
 	dispose(): void {
@@ -1205,43 +1206,67 @@ class SCMViewSubMenuAction extends SubmenuAction implements IDisposable {
 	}
 }
 
-export class ToggleViewModeAction extends Action {
+const ViewSortMenuId = new MenuId('SCMViewSort');
+MenuRegistry.appendMenuItem(MenuId.ViewTitle, {
+	title: localize('sortAction', "View & Sort"),
+	submenu: ViewSortMenuId,
+	when: ContextKeyEqualsExpr.create('view', VIEW_PANE_ID)
+});
 
-	static readonly ID = 'workbench.scm.action.toggleViewMode';
-	static readonly LABEL = localize('toggleViewMode', "Toggle View Mode");
-
-	constructor(id: string = ToggleViewModeAction.ID, label: string = ToggleViewModeAction.LABEL, private viewModel: ViewModel, private mode?: ViewModelMode) {
-		super(id, label);
-		this._register(this.viewModel.onDidChangeMode(this.onDidChangeMode, this));
-		this.onDidChangeMode(this.viewModel.mode);
+class SetListViewModeAction extends ViewAction<SCMViewPane>  {
+	constructor(menu: Partial<IAction2Options['menu']> = {}) {
+		super({
+			id: 'workbench.scm.action.setListViewMode',
+			title: localize('setListViewMode', "View as List"),
+			viewId: VIEW_PANE_ID,
+			f1: false,
+			icon: Codicon.listFlat,
+			menu: {
+				id: ViewSortMenuId,
+				...menu
+			}
+		});
 	}
 
-	async run(): Promise<void> {
-		if (typeof this.mode === 'undefined') {
-			this.viewModel.mode = this.viewModel.mode === ViewModelMode.List ? ViewModelMode.Tree : ViewModelMode.List;
-		} else {
-			this.viewModel.mode = this.mode;
-		}
-	}
-
-	private onDidChangeMode(mode: ViewModelMode): void {
-		const iconClass = ThemeIcon.asClassName(mode === ViewModelMode.List ? Codicon.listTree : Codicon.listFlat);
-		this.class = `scm-action toggle-view-mode ${iconClass}`;
-		this.checked = this.viewModel.mode === this.mode;
-	}
-}
-
-class SCMViewModeListAction extends ToggleViewModeAction {
-	constructor(viewModel: ViewModel) {
-		super('workbench.scm.action.viewModeList', localize('viewModeList', "View as List"), viewModel, ViewModelMode.List);
+	async runInView(_: ServicesAccessor, view: SCMViewPane): Promise<void> {
+		view.viewModel.mode = ViewModelMode.List;
 	}
 }
 
-class SCMViewModeTreeAction extends ToggleViewModeAction {
-	constructor(viewModel: ViewModel) {
-		super('workbench.scm.action.viewModeTree', localize('viewModeTree', "View as Tree"), viewModel, ViewModelMode.Tree);
+class SetTreeViewModeAction extends ViewAction<SCMViewPane>  {
+	constructor(menu: Partial<IAction2Options['menu']> = {}) {
+		super({
+			id: 'workbench.scm.action.setTreeViewMode',
+			title: localize('setTreeViewMode', "View as Tree"),
+			viewId: VIEW_PANE_ID,
+			f1: false,
+			icon: Codicon.listTree,
+			menu: {
+				id: ViewSortMenuId,
+				...menu
+			}
+		});
+	}
+
+	async runInView(_: ServicesAccessor, view: SCMViewPane): Promise<void> {
+		view.viewModel.mode = ViewModelMode.Tree;
 	}
 }
+
+registerAction2(SetListViewModeAction);
+registerAction2(SetTreeViewModeAction);
+
+// class SCMViewModeListAction extends ToggleViewModeAction {
+// 	constructor(viewModel: ViewModel) {
+// 		super('workbench.scm.action.viewModeList', localize('viewModeList', "View as List"), viewModel, ViewModelMode.List);
+// 	}
+// }
+
+// class SCMViewModeTreeAction extends ToggleViewModeAction {
+// 	constructor(viewModel: ViewModel) {
+// 		super('workbench.scm.action.viewModeTree', localize('viewModeTree', "View as Tree"), viewModel, ViewModelMode.Tree);
+// 	}
+// }
 
 abstract class SCMSortAction extends Action {
 
@@ -1660,42 +1685,57 @@ class SCMCollapseAction extends Action {
 
 export class SCMViewPane extends ViewPane {
 
-	private _onDidLayout = new Emitter<void>();
-	private layoutCache: ISCMLayout = {
-		height: undefined,
-		width: undefined,
-		onDidChange: this._onDidLayout.event
-	};
+	private _onDidLayout: Emitter<void>;
+	private layoutCache: ISCMLayout;
 
 	private listContainer!: HTMLElement;
 	private tree!: WorkbenchCompressibleObjectTree<TreeElement, FuzzyScore>;
-	private viewModel!: ViewModel;
+	private _viewModel!: ViewModel;
+	get viewModel(): ViewModel { return this._viewModel; }
 	private listLabels!: ResourceLabels;
 	private inputRenderer!: InputRenderer;
-	private toggleViewModelModeAction: ToggleViewModeAction | undefined;
+
+	private scmService: ISCMService;
+	private scmViewService: ISCMViewService;
+	private storageService: IStorageService;
 
 	constructor(
 		options: IViewPaneOptions,
-		@ISCMService private scmService: ISCMService,
-		@ISCMViewService private scmViewService: ISCMViewService,
-		@IKeybindingService protected keybindingService: IKeybindingService,
-		@IThemeService protected themeService: IThemeService,
-		@IContextMenuService protected contextMenuService: IContextMenuService,
-		@IContextViewService protected contextViewService: IContextViewService,
-		@ICommandService protected commandService: ICommandService,
-		@IEditorService protected editorService: IEditorService,
-		@IInstantiationService protected instantiationService: IInstantiationService,
+		@ISCMService scmService: ISCMService,
+		@ISCMViewService scmViewService: ISCMViewService,
+		@IKeybindingService keybindingService: IKeybindingService,
+		@IThemeService themeService: IThemeService,
+		@IContextMenuService contextMenuService: IContextMenuService,
+		@IContextViewService contextViewService: IContextViewService,
+		@ICommandService commandService: ICommandService,
+		@IEditorService editorService: IEditorService,
+		@IInstantiationService _instantiationService: IInstantiationService,
 		@IViewDescriptorService viewDescriptorService: IViewDescriptorService,
-		@IConfigurationService protected configurationService: IConfigurationService,
-		@IContextKeyService contextKeyService: IContextKeyService,
-		@IMenuService protected menuService: IMenuService,
-		@IStorageService private storageService: IStorageService,
+		@IConfigurationService configurationService: IConfigurationService,
+		@IContextKeyService _contextKeyService: IContextKeyService,
+		@IMenuService menuService: IMenuService,
+		@IStorageService storageService: IStorageService,
 		@IOpenerService openerService: IOpenerService,
 		@ITelemetryService telemetryService: ITelemetryService,
 	) {
-		super(options, keybindingService, contextMenuService, configurationService, contextKeyService, viewDescriptorService, instantiationService, openerService, themeService, telemetryService);
-		this._register(Event.any(this.scmService.onDidAddRepository, this.scmService.onDidRemoveRepository)(() => this._onDidChangeViewWelcomeState.fire()));
+		const contextKeyService = _contextKeyService.createScoped();
+		const services = new ServiceCollection([IContextKeyService, contextKeyService]);
+		const instantiationService = _instantiationService.createChild(services);
 
+		super(options, keybindingService, contextMenuService, configurationService, contextKeyService, viewDescriptorService, instantiationService, openerService, themeService, telemetryService);
+
+		this.scmService = scmService;
+		this.scmViewService = scmViewService;
+		this.storageService = storageService;
+
+		this._onDidLayout = new Emitter<void>();
+		this.layoutCache = {
+			height: undefined,
+			width: undefined,
+			onDidChange: this._onDidLayout.event
+		};
+
+		this._register(Event.any(this.scmService.onDidAddRepository, this.scmService.onDidRemoveRepository)(() => this._onDidChangeViewWelcomeState.fire()));
 		this._register(this.scmViewService.menus.titleMenu.onDidChangeTitle(this.updateActions, this));
 	}
 
@@ -1737,12 +1777,12 @@ export class SCMViewPane extends ViewPane {
 			this.instantiationService.createInstance(RepositoryRenderer, actionViewItemProvider),
 			this.inputRenderer,
 			this.instantiationService.createInstance(ResourceGroupRenderer, actionViewItemProvider),
-			this.instantiationService.createInstance(ResourceRenderer, () => this.viewModel, this.listLabels, actionViewItemProvider, actionRunner)
+			this.instantiationService.createInstance(ResourceRenderer, () => this._viewModel, this.listLabels, actionViewItemProvider, actionRunner)
 		];
 
 		const filter = new SCMTreeFilter();
-		const sorter = new SCMTreeSorter(() => this.viewModel);
-		const keyboardNavigationLabelProvider = this.instantiationService.createInstance(SCMTreeKeyboardNavigationLabelProvider, () => this.viewModel);
+		const sorter = new SCMTreeSorter(() => this._viewModel);
+		const keyboardNavigationLabelProvider = this.instantiationService.createInstance(SCMTreeKeyboardNavigationLabelProvider, () => this._viewModel);
 		const identityProvider = new SCMResourceIdentityProvider();
 
 		this.tree = this.instantiationService.createInstance(
@@ -1789,41 +1829,38 @@ export class SCMViewPane extends ViewPane {
 			} catch {/* noop */ }
 		}
 
-		this.viewModel = this.instantiationService.createInstance(ViewModel, this.tree, this.inputRenderer, viewMode, ViewModelSortKey.Path, viewState);
-		this._register(this.viewModel);
+		this._viewModel = this.instantiationService.createInstance(ViewModel, this.tree, this.inputRenderer, viewMode, ViewModelSortKey.Path, viewState);
+		this._register(this._viewModel);
 
 		this.listContainer.classList.add('file-icon-themable-tree');
 		this.listContainer.classList.add('show-file-icons');
 
 		this.updateIndentStyles(this.themeService.getFileIconTheme());
 		this._register(this.themeService.onDidFileIconThemeChange(this.updateIndentStyles, this));
-		this._register(this.viewModel.onDidChangeMode(this.onDidChangeMode, this));
+		this._register(this._viewModel.onDidChangeMode(this.onDidChangeMode, this));
 
-		this.toggleViewModelModeAction = new ToggleViewModeAction(ToggleViewModeAction.ID, ToggleViewModeAction.LABEL, this.viewModel);
-		this._register(this.toggleViewModelModeAction);
-
-		this._register(this.onDidChangeBodyVisibility(this.viewModel.setVisible, this.viewModel));
+		this._register(this.onDidChangeBodyVisibility(this._viewModel.setVisible, this._viewModel));
 
 		this._register(Event.filter(this.configurationService.onDidChangeConfiguration, e => e.affectsConfiguration('scm.alwaysShowRepositories'))(this.updateActions, this));
 		this.updateActions();
 
 		this._register(this.storageService.onWillSaveState(e => {
 			if (e.reason === WillSaveStateReason.SHUTDOWN) {
-				this.storageService.store(`scm.viewState`, JSON.stringify(this.viewModel.treeViewState), StorageScope.WORKSPACE, StorageTarget.MACHINE);
+				this.storageService.store(`scm.viewState`, JSON.stringify(this._viewModel.treeViewState), StorageScope.WORKSPACE, StorageTarget.MACHINE);
 			}
 		}));
 	}
 
 	private updateIndentStyles(theme: IFileIconTheme): void {
-		this.listContainer.classList.toggle('list-view-mode', this.viewModel.mode === ViewModelMode.List);
-		this.listContainer.classList.toggle('tree-view-mode', this.viewModel.mode === ViewModelMode.Tree);
-		this.listContainer.classList.toggle('align-icons-and-twisties', (this.viewModel.mode === ViewModelMode.List && theme.hasFileIcons) || (theme.hasFileIcons && !theme.hasFolderIcons));
-		this.listContainer.classList.toggle('hide-arrows', this.viewModel.mode === ViewModelMode.Tree && theme.hidesExplorerArrows === true);
+		this.listContainer.classList.toggle('list-view-mode', this._viewModel.mode === ViewModelMode.List);
+		this.listContainer.classList.toggle('tree-view-mode', this._viewModel.mode === ViewModelMode.Tree);
+		this.listContainer.classList.toggle('align-icons-and-twisties', (this._viewModel.mode === ViewModelMode.List && theme.hasFileIcons) || (theme.hasFileIcons && !theme.hasFolderIcons));
+		this.listContainer.classList.toggle('hide-arrows', this._viewModel.mode === ViewModelMode.Tree && theme.hidesExplorerArrows === true);
 	}
 
 	private onDidChangeMode(): void {
 		this.updateIndentStyles(this.themeService.getFileIconTheme());
-		this.storageService.store(`scm.viewMode`, this.viewModel.mode, StorageScope.WORKSPACE, StorageTarget.USER);
+		this.storageService.store(`scm.viewMode`, this._viewModel.mode, StorageScope.WORKSPACE, StorageTarget.USER);
 	}
 
 	layoutBody(height: number | undefined = this.layoutCache.height, width: number | undefined = this.layoutCache.width): void {
@@ -1847,39 +1884,39 @@ export class SCMViewPane extends ViewPane {
 		super.focus();
 
 		if (this.isExpanded()) {
-			this.viewModel.focus();
+			this._viewModel.focus();
 		}
 	}
 
-	getActions(): IAction[] {
-		const result = [];
+	// getActions(): IAction[] {
+	// 	const result = [];
 
-		if (this.toggleViewModelModeAction) {
-			result.push(this.toggleViewModelModeAction);
-		}
+	// 	if (this.toggleViewModelModeAction) {
+	// 		result.push(this.toggleViewModelModeAction);
+	// 	}
 
-		if (!this.viewModel) {
-			return result;
-		}
+	// 	if (!this.viewModel) {
+	// 		return result;
+	// 	}
 
-		if (this.scmViewService.visibleRepositories.length < 2) {
-			return [...result, ...this.viewModel.getViewActions()];
-		}
+	// 	if (this.scmViewService.visibleRepositories.length < 2) {
+	// 		return [...result, ...this.viewModel.getViewActions()];
+	// 	}
 
-		return [
-			...result,
-			new SCMCollapseAction(this.viewModel),
-			...this.viewModel.getViewActions()
-		];
-	}
+	// 	return [
+	// 		...result,
+	// 		new SCMCollapseAction(this.viewModel),
+	// 		...this.viewModel.getViewActions()
+	// 	];
+	// }
 
-	getSecondaryActions(): IAction[] {
-		if (!this.viewModel) {
-			return [];
-		}
+	// getSecondaryActions(): IAction[] {
+	// 	if (!this.viewModel) {
+	// 		return [];
+	// 	}
 
-		return this.viewModel.getViewSecondaryActions();
-	}
+	// 	return this.viewModel.getViewSecondaryActions();
+	// }
 
 	getActionViewItem(action: IAction): IActionViewItem | undefined {
 		if (action instanceof StatusBarAction) {
@@ -1889,13 +1926,13 @@ export class SCMViewPane extends ViewPane {
 		return super.getActionViewItem(action);
 	}
 
-	getActionsContext(): any {
-		if (!this.viewModel) {
-			return [];
-		}
+	// getActionsContext(): any {
+	// 	if (!this.viewModel) {
+	// 		return [];
+	// 	}
 
-		return this.viewModel.getViewActionsContext();
-	}
+	// 	return this.viewModel.getViewActionsContext();
+	// }
 
 	private async open(e: IOpenEvent<TreeElement | undefined>): Promise<void> {
 		if (!e.element) {
