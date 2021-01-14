@@ -55,6 +55,7 @@ import { SyncDescriptor } from 'vs/platform/instantiation/common/descriptors';
 import { RemoteStatusIndicator } from 'vs/workbench/contrib/remote/browser/remoteIndicator';
 import * as icons from 'vs/workbench/contrib/remote/browser/remoteIcons';
 import { ILogService } from 'vs/platform/log/common/log';
+import { ITimerService } from 'vs/workbench/services/timer/browser/timerService';
 
 
 export interface HelpInformation {
@@ -596,6 +597,20 @@ Registry.as<IWorkbenchActionRegistry>(WorkbenchActionExtensions.WorkbenchActions
 	CATEGORIES.View.value
 );
 
+class RemoteMarkers implements IWorkbenchContribution {
+
+	constructor(
+		@IRemoteAgentService remoteAgentService: IRemoteAgentService,
+		@ITimerService timerService: ITimerService,
+	) {
+		remoteAgentService.getEnvironment().then(remoteEnv => {
+			if (remoteEnv) {
+				timerService.setPerformanceMarks('server', remoteEnv.marks);
+			}
+		});
+	}
+}
+
 class VisibleProgress {
 
 	public readonly location: ProgressLocation;
@@ -851,3 +866,4 @@ workbenchContributionsRegistry.registerWorkbenchContribution(RemoteStatusIndicat
 workbenchContributionsRegistry.registerWorkbenchContribution(ForwardedPortsView, LifecyclePhase.Eventually);
 workbenchContributionsRegistry.registerWorkbenchContribution(PortRestore, LifecyclePhase.Eventually);
 workbenchContributionsRegistry.registerWorkbenchContribution(AutomaticPortForwarding, LifecyclePhase.Eventually);
+workbenchContributionsRegistry.registerWorkbenchContribution(RemoteMarkers, LifecyclePhase.Eventually);
