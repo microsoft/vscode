@@ -54,7 +54,7 @@ import { UserDataSyncStoreManagementService } from 'vs/platform/userDataSync/com
 import { IUserDataSyncStoreManagementService } from 'vs/platform/userDataSync/common/userDataSync';
 import { ILifecycleService } from 'vs/workbench/services/lifecycle/common/lifecycle';
 import { Action2, MenuId, registerAction2 } from 'vs/platform/actions/common/actions';
-import { ServicesAccessor } from 'vs/platform/instantiation/common/instantiation';
+import { IInstantiationService, ServicesAccessor } from 'vs/platform/instantiation/common/instantiation';
 import { localize } from 'vs/nls';
 import { CATEGORIES } from 'vs/workbench/common/actions';
 import { IDialogService } from 'vs/platform/dialogs/common/dialogs';
@@ -63,6 +63,7 @@ import { IUriIdentityService } from 'vs/workbench/services/uriIdentity/common/ur
 import { UriIdentityService } from 'vs/workbench/services/uriIdentity/common/uriIdentityService';
 import { BrowserWindow } from 'vs/workbench/browser/window';
 import { ITimerService } from 'vs/workbench/services/timer/browser/timerService';
+import { ILabelService } from 'vs/platform/label/common/label';
 
 class BrowserMain extends Disposable {
 
@@ -110,6 +111,9 @@ class BrowserMain extends Disposable {
 
 		// Logging
 		services.logService.trace('workbench configuration', JSON.stringify(this.configuration));
+
+		// Label formatting
+		this.registerLabelFormatters(instantiationService);
 
 		// Return API Facade
 		return instantiationService.invokeFunction(accessor => {
@@ -337,6 +341,19 @@ class BrowserMain extends Disposable {
 				}
 			});
 		}
+	}
+
+	private registerLabelFormatters(instantiationService: IInstantiationService) {
+		instantiationService.invokeFunction((accessor) => {
+			accessor.get(ILabelService).registerFormatter({
+				scheme: Schemas.userData,
+				priority: true,
+				formatting: {
+					label: '${scheme}:${path}',
+					separator: '/',
+				}
+			});
+		});
 	}
 
 	private async createStorageService(payload: IWorkspaceInitializationPayload, environmentService: IWorkbenchEnvironmentService, fileService: IFileService, logService: ILogService): Promise<BrowserStorageService> {
