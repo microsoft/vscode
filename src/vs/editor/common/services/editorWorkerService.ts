@@ -16,6 +16,7 @@ export interface IDiffComputationResult {
 	quitEarly: boolean;
 	identical: boolean;
 	changes: ILineChange[];
+	diffChanges: ILineChange[] | null;
 }
 
 export interface IEditorWorkerService {

@@ -400,7 +400,8 @@ export class EditorSimpleWorker implements IRequestHandler, IDisposable {
 		return {
 			quitEarly: diffResult.quitEarly,
 			identical: identical,
-			changes: diffResult.changes
+			changes: diffResult.changes,
+			diffChanges: diffResult.diffChanges,
 		};
 	}
 

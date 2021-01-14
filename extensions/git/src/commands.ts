@@ -1039,10 +1039,16 @@ export class CommandCenter {
 
 		const modifiedDocument = textEditor.document;
 		const selections = textEditor.selections;
+		console.log(selections);
 		const selectedChanges = changes.filter(change => {
 			const modifiedRange = getModifiedRange(modifiedDocument, change);
-			return selections.every(selection => !selection.intersection(modifiedRange));
+			console.log('change: ', change);
+			console.log('modifiedRange: ', modifiedRange);
+			// console.log(change.modifiedEndLineNumber, selections[0].end.line, change.modifiedEndLineNumber, selections[0].start.line)
+			return change.modifiedEndLineNumber <= (selections[0].end.line + 1) && change.modifiedEndLineNumber >= (selections[0].start.line + 1);
+			// return selections.every(selection => !selection.intersection(modifiedRange));
 		});
+		console.log(selectedChanges);
 
 		if (selectedChanges.length === changes.length) {
 			return;

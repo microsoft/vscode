@@ -686,7 +686,7 @@ export class DiffEditorWidget extends Disposable implements editorBrowser.IDiffE
 		if (!this._diffComputationResult) {
 			return null;
 		}
-		return this._diffComputationResult.changes;
+		return this._diffComputationResult.diffChanges;
 	}
 
 	public getDiffComputationResult(): IDiffComputationResult | null {
