@@ -111,7 +111,6 @@ export const content: GettingStartedContent = [
 		title: localize('gettingStarted.setup.title', "Quick Setup"),
 		description: localize('gettingStarted.setup.description', "Extend and customize VS Code to fit your needs."),
 		icon: setupIcon,
-		when: 'emptyWorkspaceSupport',
 		content: {
 			type: 'items',
 			items: [
@@ -150,7 +149,7 @@ export const content: GettingStartedContent = [
 					id: 'pickAFolderTask-Mac',
 					title: localize('gettingStarted.setup.OpenFolder.title', "Open Your Project"),
 					description: localize('gettingStarted.setup.OpenFolder.description', "Open a project folder to get started!"),
-					when: '!emptyWorkspaceSupport && isMac',
+					when: 'isMac',
 					button: {
 						title: localize('gettingStarted.setup.OpenFolder.button', "Pick a Folder"),
 						command: 'workbench.action.files.openFileFolder'
@@ -162,7 +161,7 @@ export const content: GettingStartedContent = [
 					id: 'pickAFolderTask-Other',
 					title: localize('gettingStarted.setup.OpenFolder.title', "Open Your Project"),
 					description: localize('gettingStarted.setup.OpenFolder.description', "Open a project folder to get started!"),
-					when: '!emptyWorkspaceSupport && !isMac',
+					when: '!isMac',
 					button: {
 						title: localize('gettingStarted.setup.OpenFolder.button', "Pick a Folder"),
 						command: 'workbench.action.files.openFolder'
