@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import * as fs from 'fs';
-import * as gracefulFs from 'graceful-fs';
+import { gracefulify } from 'graceful-fs';
 import { createHash } from 'crypto';
 import { exists, stat } from 'vs/base/node/pfs';
 import { isLinux, isMacintosh, isWindows } from 'vs/base/common/platform';
@@ -70,7 +70,7 @@ class DesktopMain extends Disposable {
 	private init(): void {
 
 		// Enable gracefulFs
-		gracefulFs.gracefulify(fs);
+		gracefulify(fs);
 
 		// Massage configuration file URIs
 		this.reviveUris();

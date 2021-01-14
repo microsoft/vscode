@@ -81,6 +81,9 @@ export class SharedProcess extends Disposable implements ISharedProcess {
 		// Create window for shared process
 		this.createWindow();
 
+		// Listeners
+		this.registerWindowListeners();
+
 		// complete IPC-ready promise when shared process signals this to us
 		return new Promise<void>(resolve => ipcMain.once('vscode:shared-process->electron-main=ipc-ready', () => resolve(undefined)));
 	}
@@ -123,6 +126,12 @@ export class SharedProcess extends Disposable implements ISharedProcess {
 			.with({ query: `config=${encodeURIComponent(JSON.stringify(config))}` })
 			.toString(true)
 		);
+	}
+
+	private registerWindowListeners(): void {
+		if (!this.window) {
+			return;
+		}
 
 		// Prevent the window from closing
 		this.windowCloseListener = (e: Event) => {
@@ -138,6 +147,11 @@ export class SharedProcess extends Disposable implements ISharedProcess {
 		};
 
 		this.window.on('close', this.windowCloseListener);
+
+		// Crashes & Unrsponsive & Failed to load
+		this.window.webContents.on('render-process-gone', (event, details) => this.logService.error(`[VS Code]: sharedProcess crashed (detail: ${details?.reason})`));
+		this.window.on('unresponsive', () => this.logService.error('[VS Code]: detected unresponsive sharedProcess window'));
+		this.window.webContents.on('did-fail-load', (event: Event, errorCode: number, errorDescription: string) => this.logService.warn('[VS Code]: fail to load sharedProcess window, ', errorDescription));
 	}
 
 	spawn(userEnv: NodeJS.ProcessEnv): void {

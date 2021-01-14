@@ -412,9 +412,10 @@ export class CodeWindow extends Disposable implements ICodeWindow {
 
 	private registerListeners(): void {
 
-		// Crashes & Unrsponsive
+		// Crashes & Unrsponsive & Failed to load
 		this._win.webContents.on('render-process-gone', (event, details) => this.onWindowError(WindowError.CRASHED, details));
 		this._win.on('unresponsive', () => this.onWindowError(WindowError.UNRESPONSIVE));
+		this._win.webContents.on('did-fail-load', (event: Event, errorCode: number, errorDescription: string) => this.logService.warn('[VS Code]: fail to load workbench window, ', errorDescription));
 
 		// Window close
 		this._win.on('closed', () => {
@@ -523,11 +524,6 @@ export class CodeWindow extends Disposable implements ICodeWindow {
 
 		this._win.on('leave-full-screen', () => {
 			this.sendWhenReady('vscode:leaveFullScreen', CancellationToken.None);
-		});
-
-		// Window Failed to load
-		this._win.webContents.on('did-fail-load', (event: Event, errorCode: number, errorDescription: string, validatedURL: string, isMainFrame: boolean) => {
-			this.logService.warn('[electron event]: fail to load, ', errorDescription);
 		});
 
 		// Handle configuration changes

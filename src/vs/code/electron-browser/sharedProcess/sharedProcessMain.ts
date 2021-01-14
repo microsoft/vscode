@@ -4,7 +4,8 @@
  *--------------------------------------------------------------------------------------------*/
 
 import product from 'vs/platform/product/common/product';
-import { unlinkSync } from 'fs';
+import * as fs from 'fs';
+import { gracefulify } from 'graceful-fs';
 import { isWindows } from 'vs/base/common/platform';
 import { IChannel, IServerChannel, StaticRouter, createChannelSender, createChannelReceiver } from 'vs/base/parts/ipc/common/ipc';
 import { serve as nodeIPCServe, Server as NodeIPCServer, connect as nodeIPCConnect } from 'vs/base/parts/ipc/node/ipc.net';
@@ -75,6 +76,8 @@ import { IInstantiationService, ServicesAccessor } from 'vs/platform/instantiati
 import { ISharedProcessConfiguration } from 'vs/platform/sharedProcess/node/sharedProcess';
 import { LocalizationsUpdater } from 'vs/code/electron-browser/sharedProcess/contrib/localizationsUpdater';
 import { DeprecatedExtensionsCleaner } from 'vs/code/electron-browser/sharedProcess/contrib/deprecatedExtensionsCleaner';
+import { onUnexpectedError, setUnexpectedErrorHandler } from 'vs/base/common/errors';
+import { toErrorMessage } from 'vs/base/common/errorMessage';
 
 class MainProcessService implements IMainProcessService {
 
@@ -99,6 +102,9 @@ class SharedProcessMain extends Disposable {
 	constructor(private server: NodeIPCServer, private configuration: ISharedProcessConfiguration) {
 		super();
 
+		// Enable gracefulFs
+		gracefulify(fs);
+
 		this._register(this.server);
 
 		this.registerListeners();
@@ -121,12 +127,16 @@ class SharedProcessMain extends Disposable {
 		registerUserDataSyncConfiguration();
 
 		instantiationService.invokeFunction(accessor => {
+			const logService = accessor.get(ILogService);
 
 			// Log info
-			accessor.get(ILogService).trace('sharedProcess configuration', JSON.stringify(this.configuration));
+			logService.trace('sharedProcess configuration', JSON.stringify(this.configuration));
 
 			// Channels
 			this.initChannels(accessor);
+
+			// Error handler
+			this.registerErrorHandler(logService);
 		});
 
 		// Instantiate Contributions
@@ -310,6 +320,29 @@ class SharedProcessMain extends Disposable {
 		const userDataAutoSyncChannel = new UserDataAutoSyncChannel(userDataAutoSync);
 		this.server.registerChannel('userDataAutoSync', userDataAutoSyncChannel);
 	}
+
+	private registerErrorHandler(logService: ILogService): void {
+
+		// Listen on unhandled rejection events
+		window.addEventListener('unhandledrejection', (event: PromiseRejectionEvent) => {
+
+			// See https://developer.mozilla.org/en-US/docs/Web/API/PromiseRejectionEvent
+			onUnexpectedError(event.reason);
+
+			// Prevent the printing of this event to the console
+			event.preventDefault();
+		});
+
+		// Install handler for unexpected errors
+		setUnexpectedErrorHandler(error => {
+			const message = toErrorMessage(error, true);
+			if (!message) {
+				return;
+			}
+
+			logService.error(message);
+		});
+	}
 }
 
 function setupNodeIPC(hook: string): Promise<NodeIPCServer> {
@@ -332,7 +365,7 @@ function setupNodeIPC(hook: string): Promise<NodeIPCServer> {
 					// let's delete it, since we can't connect to it
 					// and the retry the whole thing
 					try {
-						unlinkSync(hook);
+						fs.unlinkSync(hook);
 					} catch (e) {
 						return Promise.reject(new Error('Error deleting the shared ipc hook.'));
 					}
