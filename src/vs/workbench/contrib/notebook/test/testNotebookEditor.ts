@@ -66,6 +66,12 @@ export class TestNotebookEditor implements INotebookEditor {
 
 	constructor(
 	) { }
+	revealCellRangeInView(range: ICellRange): void {
+		throw new Error('Method not implemented.');
+	}
+	revealInViewAtTop(cell: ICellViewModel): void {
+		throw new Error('Method not implemented.');
+	}
 	getCellOutputLayoutInfo(cell: IGenericCellViewModel): INotebookCellOutputLayoutInfo {
 		throw new Error('Method not implemented.');
 	}
