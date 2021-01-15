@@ -39,7 +39,7 @@ import { IThemeMainService, ThemeMainService } from 'vs/platform/theme/electron-
 import { once } from 'vs/base/common/functional';
 import { ISignService } from 'vs/platform/sign/common/sign';
 import { SignService } from 'vs/platform/sign/node/signService';
-import { IDiagnosticsService } from 'vs/platform/diagnostics/node/diagnosticsService';
+import { DiagnosticsService } from 'vs/platform/diagnostics/node/diagnosticsService';
 import { FileService } from 'vs/platform/files/common/fileService';
 import { DiskFileSystemProvider } from 'vs/platform/files/node/diskFileSystemProvider';
 import { Schemas } from 'vs/base/common/network';
@@ -54,6 +54,7 @@ import { basename, resolve } from 'vs/base/common/path';
 import { coalesce, distinct } from 'vs/base/common/arrays';
 import { EnvironmentMainService, IEnvironmentMainService } from 'vs/platform/environment/electron-main/environmentMainService';
 import { toErrorMessage } from 'vs/base/common/errorMessage';
+import { NullTelemetryService } from 'vs/platform/telemetry/common/telemetryUtils';
 
 class ExpectedError extends Error {
 	readonly isExpected = true;
@@ -294,11 +295,7 @@ class CodeMain {
 			// Process Info
 			if (args.status) {
 				return instantiationService.invokeFunction(async () => {
-
-					// Create a diagnostic service connected to the existing shared process
-					const sharedProcessClient = await nodeIPCConnect(environmentService.sharedIPCHandle, 'main');
-					const diagnosticsChannel = sharedProcessClient.getChannel('diagnostics');
-					const diagnosticsService = createChannelSender<IDiagnosticsService>(diagnosticsChannel);
+					const diagnosticsService = new DiagnosticsService(NullTelemetryService);
 					const mainProcessInfo = await launchService.getMainProcessInfo();
 					const remoteDiagnostics = await launchService.getRemoteDiagnostics({ includeProcesses: true, includeWorkspaceMetadata: true });
 					const diagnostics = await diagnosticsService.getDiagnostics(mainProcessInfo, remoteDiagnostics);
