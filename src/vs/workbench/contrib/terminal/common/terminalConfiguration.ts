@@ -401,7 +401,7 @@ export const terminalConfiguration: IConfigurationNode = {
 		'terminal.integrated.flowControl': {
 			description: localize('terminal.integrated.flowControl', "Experimental: whether to enable flow control which will slow the program on the remote side to avoid flooding remote connections with terminal output. This setting has no effect for local terminals and terminals where the output/input is controlled by an extension. Changing this will only affect new terminals."),
 			type: 'boolean',
-			default: false
+			default: true
 		}
 	}
 };
