@@ -341,12 +341,12 @@ steps:
 
   - publish: $(Agent.BuildDirectory)/vscode-server-darwin.zip
     artifact: vscode-server-darwin-$(VSCODE_ARCH)
-    displayName: Publish server
+    displayName: Publish server archive
     condition: and(succeeded(), eq(variables['VSCODE_ARCH'], 'x64'), ne(variables['VSCODE_PUBLISH'], 'false'))
 
   - publish: $(Agent.BuildDirectory)/vscode-server-darwin-web.zip
     artifact: vscode-server-darwin-$(VSCODE_ARCH)-web
-    displayName: Publish web server
+    displayName: Publish web server archive
     condition: and(succeeded(), eq(variables['VSCODE_ARCH'], 'x64'), ne(variables['VSCODE_PUBLISH'], 'false'))
 
   - script: |
