@@ -138,7 +138,7 @@ export const content: GettingStartedContent = [
 					id: 'settingsSync',
 					title: localize('gettingStarted.settingsSync.title', "Syncronize Settings"),
 					description: localize('gettingStarted.settingsSync.description', "Sign in to syncronize things like settings, extensions, and more, across your devices."),
-					when: '!syncEnabled && !userDataSyncTurningOn && syncStatus != uninitialized && userDataSyncAccountStatus != uninitialized',
+					when: 'syncStatus != uninitialized',
 					button: {
 						title: localize('gettingStarted.settingsSync.button', "Sign in to Sync"),
 						command: 'workbench.userDataSync.actions.turnOn',
