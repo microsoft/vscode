@@ -791,7 +791,7 @@ class RemoteAgentConnectionStatusListener extends Disposable implements IWorkben
 
 			// Possible state transitions:
 			// ConnectionGain      -> ConnectionLost
-			// ConnectionLost      -> ReconnectionWait
+			// ConnectionLost      -> ReconnectionWait, ReconnectionRunning
 			// ReconnectionWait    -> ReconnectionRunning
 			// ReconnectionRunning -> ConnectionGain, ReconnectionPermanentFailure
 

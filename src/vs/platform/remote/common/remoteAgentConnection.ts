@@ -454,20 +454,22 @@ abstract class PersistentConnection extends Disposable {
 		const logPrefix = commonLogPrefix(this._connectionType, this.reconnectionToken, true);
 		this._options.logService.info(`${logPrefix} starting reconnecting loop. You can get more information with the trace log level.`);
 		this._onDidStateChange.fire(new ConnectionLostEvent(this.protocol.getMillisSinceLastIncomingData()));
-		const TIMES = [5, 5, 10, 10, 10, 10, 10, 30];
+		const TIMES = [0, 5, 5, 10, 10, 10, 10, 10, 30];
 		const disconnectStartTime = Date.now();
 		let attempt = -1;
 		do {
 			attempt++;
 			const waitTime = (attempt < TIMES.length ? TIMES[attempt] : TIMES[TIMES.length - 1]);
 			try {
-				const sleepPromise = sleep(waitTime);
-				this._onDidStateChange.fire(new ReconnectionWaitEvent(waitTime, this.protocol.getMillisSinceLastIncomingData(), sleepPromise));
+				if (waitTime > 0) {
+					const sleepPromise = sleep(waitTime);
+					this._onDidStateChange.fire(new ReconnectionWaitEvent(waitTime, this.protocol.getMillisSinceLastIncomingData(), sleepPromise));
 
-				this._options.logService.info(`${logPrefix} waiting for ${waitTime} seconds before reconnecting...`);
-				try {
-					await sleepPromise;
-				} catch { } // User canceled timer
+					this._options.logService.info(`${logPrefix} waiting for ${waitTime} seconds before reconnecting...`);
+					try {
+						await sleepPromise;
+					} catch { } // User canceled timer
+				}
 
 				if (PersistentConnection._permanentFailure) {
 					this._options.logService.error(`${logPrefix} permanent failure occurred while running the reconnecting loop.`);
