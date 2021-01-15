@@ -97,7 +97,7 @@ export function templateToSnippet(template: string): vscode.SnippetString {
 	template = template.replace(/\$/g, '\\$');
 	template = template.replace(/^[ \t]*(?=(\/|[ ]\*))/gm, '');
 	template = template.replace(/^(\/\*\*\s*\*[ ]*)$/m, (x) => x + `\$0`);
-	template = template.replace(/\* @param([ ]\{\S+\})?\s+(\S+)[ \t]$/gm, (_param, type, post) => {
+	template = template.replace(/\* @param([ ]\{\S+\})?\s+(\S+)[ \t]*$/gm, (_param, type, post) => {
 		let out = '* @param ';
 		if (type === ' {any}' || type === ' {*}') {
 			out += `{\$\{${snippetIndex++}:*\}} `;
