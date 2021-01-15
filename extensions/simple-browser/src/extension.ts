@@ -3,10 +3,11 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { URL } from 'url';
 import * as vscode from 'vscode';
 import * as nls from 'vscode-nls';
 import { SimpleBrowserManager } from './simpleBrowserManager';
+
+declare const URL: typeof import('url').URL;
 
 const localize = nls.loadMessageBundle();
 
@@ -47,11 +48,6 @@ export function activate(context: vscode.ExtensionContext) {
 
 	context.subscriptions.push(vscode.window.registerExternalUriOpener(openerId, ['http', 'https'], {
 		canOpenExternalUri(uri: vscode.Uri) {
-			const configuration = vscode.workspace.getConfiguration('simpleBrowser');
-			if (!configuration.get('opener.enabled', false)) {
-				return vscode.ExternalUriOpenerPriority.None;
-			}
-
 			const originalUri = new URL(uri.toString());
 			if (enabledHosts.has(originalUri.hostname)) {
 				return isWeb()
@@ -62,7 +58,9 @@ export function activate(context: vscode.ExtensionContext) {
 			return vscode.ExternalUriOpenerPriority.None;
 		},
 		openExternalUri(resolveUri: vscode.Uri) {
-			return manager.show(resolveUri.toString());
+			return manager.show(resolveUri.toString(), {
+				viewColumn: vscode.window.activeTextEditor ? vscode.ViewColumn.Beside : vscode.ViewColumn.Active
+			});
 		}
 	}, {
 		label: localize('openTitle', "Open in simple browser"),
