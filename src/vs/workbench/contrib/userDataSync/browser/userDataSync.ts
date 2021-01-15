@@ -155,7 +155,10 @@ export class UserDataSyncWorkbenchContribution extends Disposable implements IWo
 			textModelResolverService.registerTextModelContentProvider(USER_DATA_SYNC_SCHEME, instantiationService.createInstance(UserDataRemoteContentProvider));
 			registerEditorContribution(AcceptChangesContribution.ID, AcceptChangesContribution);
 
-			this._register(Event.any(userDataSyncService.onDidChangeStatus, userDataAutoSyncEnablementService.onDidChangeEnablement)(() => this.turningOnSync = !userDataAutoSyncEnablementService.isEnabled() && userDataSyncService.status !== SyncStatus.Idle));
+			this._register(Event.any(userDataSyncService.onDidChangeStatus, userDataAutoSyncEnablementService.onDidChangeEnablement)(() => {
+				if (userDataAutoSyncEnablementService.isEnabled()) { this.gettingStartedService.progressByEvent('sync-enabled'); }
+				this.turningOnSync = !userDataAutoSyncEnablementService.isEnabled() && userDataSyncService.status !== SyncStatus.Idle;
+			}));
 		}
 	}
 
@@ -449,7 +452,6 @@ export class UserDataSyncWorkbenchContribution extends Disposable implements IWo
 				await this.selectSettingsSyncService(this.userDataSyncStoreManagementService.userDataSyncStore);
 			}
 			await this.userDataSyncWorkbenchService.turnOn();
-			this.gettingStartedService.progressByEvent('sync-enabled');
 			this.storageService.store('sync.donotAskPreviewConfirmation', true, StorageScope.GLOBAL, StorageTarget.MACHINE);
 		} catch (e) {
 			if (isPromiseCanceledError(e)) {
