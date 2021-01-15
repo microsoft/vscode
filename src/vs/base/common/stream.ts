@@ -3,6 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
+import { onUnexpectedError } from 'vs/base/common/errors';
 import { DisposableStore, toDisposable } from 'vs/base/common/lifecycle';
 
 /**
@@ -229,7 +230,7 @@ class WriteableStreamImpl<T> implements WriteableStream<T> {
 
 		// flowing: directly send the data to listeners
 		if (this.state.flowing) {
-			this.listeners.data.forEach(listener => listener(data));
+			this.listeners.data.slice(0).forEach(listener => listener(data));
 		}
 
 		// not yet flowing: buffer data until flowing
@@ -250,7 +251,12 @@ class WriteableStreamImpl<T> implements WriteableStream<T> {
 
 		// flowing: directly send the error to listeners
 		if (this.state.flowing) {
-			this.listeners.error.forEach(listener => listener(error));
+			if (this.listeners.error.length === 0) {
+				// nobody listened to this error
+				onUnexpectedError(error);
+			} else {
+				this.listeners.error.slice(0).forEach(listener => listener(error));
+			}
 		}
 
 		// not yet flowing: buffer errors until flowing
@@ -273,7 +279,7 @@ class WriteableStreamImpl<T> implements WriteableStream<T> {
 
 		// flowing: send end event to listeners
 		if (this.state.flowing) {
-			this.listeners.end.forEach(listener => listener());
+			this.listeners.end.slice(0).forEach(listener => listener());
 
 			this.destroy();
 		}
@@ -361,7 +367,7 @@ class WriteableStreamImpl<T> implements WriteableStream<T> {
 		if (this.buffer.data.length > 0) {
 			const fullDataBuffer = this.reducer(this.buffer.data);
 
-			this.listeners.data.forEach(listener => listener(fullDataBuffer));
+			this.listeners.data.slice(0).forEach(listener => listener(fullDataBuffer));
 
 			this.buffer.data.length = 0;
 
@@ -375,7 +381,12 @@ class WriteableStreamImpl<T> implements WriteableStream<T> {
 	private flowErrors(): void {
 		if (this.listeners.error.length > 0) {
 			for (const error of this.buffer.error) {
-				this.listeners.error.forEach(listener => listener(error));
+				if (this.listeners.error.length === 0) {
+					// nobody listened to this error
+					onUnexpectedError(error);
+				} else {
+					this.listeners.error.slice(0).forEach(listener => listener(error));
+				}
 			}
 
 			this.buffer.error.length = 0;
@@ -384,7 +395,7 @@ class WriteableStreamImpl<T> implements WriteableStream<T> {
 
 	private flowEnd(): boolean {
 		if (this.state.ended) {
-			this.listeners.end.forEach(listener => listener());
+			this.listeners.end.slice(0).forEach(listener => listener());
 
 			return this.listeners.end.length > 0;
 		}
