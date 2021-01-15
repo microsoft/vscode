@@ -91,6 +91,7 @@ export interface ITerminalConfiguration {
 		osx: string[];
 		windows: string[];
 	};
+	altClickMovesCursor: boolean;
 	macOptionIsMeta: boolean;
 	macOptionClickForcesSelection: boolean;
 	rendererType: 'auto' | 'canvas' | 'dom' | 'experimentalWebgl';
