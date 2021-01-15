@@ -14,16 +14,19 @@ import { INotificationService, Severity } from 'vs/platform/notification/common/
 import { IQuickPickItem, IQuickInputService } from 'vs/platform/quickinput/common/quickInput';
 import { Action2 } from 'vs/platform/actions/common/actions';
 import { ServicesAccessor } from 'vs/platform/instantiation/common/instantiation';
+import { ITrustedWorkspaceService, TrustState } from 'vs/platform/workspace/common/trustedWorkspace';
 
 const ARE_AUTOMATIC_TASKS_ALLOWED_IN_WORKSPACE = 'tasks.run.allowAutomatic';
 
 export class RunAutomaticTasks extends Disposable implements IWorkbenchContribution {
 	constructor(
 		@ITaskService private readonly taskService: ITaskService,
-		@IStorageService storageService: IStorageService) {
+		@IStorageService storageService: IStorageService,
+		@ITrustedWorkspaceService trustedWorkspaceService: ITrustedWorkspaceService) {
 		super();
 		const isFolderAutomaticAllowed = storageService.getBoolean(ARE_AUTOMATIC_TASKS_ALLOWED_IN_WORKSPACE, StorageScope.WORKSPACE, undefined);
-		this.tryRunTasks(isFolderAutomaticAllowed);
+		const isTrustedWorkspace = trustedWorkspaceService.getWorkspaceTrustState() === TrustState.Trusted;
+		this.tryRunTasks(isFolderAutomaticAllowed && isTrustedWorkspace);
 	}
 
 	private tryRunTasks(isAllowed: boolean | undefined) {
@@ -84,8 +87,13 @@ export class RunAutomaticTasks extends Disposable implements IWorkbenchContribut
 		return { tasks, taskNames };
 	}
 
-	public static promptForPermission(taskService: ITaskService, storageService: IStorageService, notificationService: INotificationService,
+	public static async promptForPermission(taskService: ITaskService, storageService: IStorageService, notificationService: INotificationService, trustedWorkspaceService: ITrustedWorkspaceService,
 		workspaceTaskResult: Map<string, WorkspaceFolderTaskResult>) {
+		const isTrustedWorkspace = await trustedWorkspaceService.requireWorkspaceTrust() === TrustState.Trusted;
+		if (!isTrustedWorkspace) {
+			return;
+		}
+
 		const isFolderAutomaticAllowed = storageService.getBoolean(ARE_AUTOMATIC_TASKS_ALLOWED_IN_WORKSPACE, StorageScope.WORKSPACE, undefined);
 		if (isFolderAutomaticAllowed !== undefined) {
 			return;
