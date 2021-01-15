@@ -420,6 +420,7 @@ export interface MainThreadLanguagesShape extends IDisposable {
 export interface MainThreadMessageOptions {
 	extension?: IExtensionDescription;
 	modal?: boolean;
+	useCustom?: boolean;
 }
 
 export interface MainThreadMessageServiceShape extends IDisposable {

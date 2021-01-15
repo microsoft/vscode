@@ -33,6 +33,7 @@ export class MainThreadMessageService implements MainThreadMessageServiceShape {
 
 	$showMessage(severity: Severity, message: string, options: MainThreadMessageOptions, commands: { title: string; isCloseAffordance: boolean; handle: number; }[]): Promise<number | undefined> {
 		if (options.modal) {
+			// TODO: Handle options.useCustom
 			return this._showModalMessage(severity, message, commands);
 		} else {
 			return this._showMessage(severity, message, commands, options.extension);

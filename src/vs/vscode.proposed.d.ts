@@ -133,6 +133,13 @@ declare module 'vscode' {
 
 	//#region @alexdima - resolvers
 
+	export interface MessageOptions {
+		/**
+		 * Do not render a native message box.
+		 */
+		useCustom?: boolean;
+	}
+
 	export interface RemoteAuthorityResolverContext {
 		resolveAttempt: number;
 	}
