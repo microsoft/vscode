@@ -10,13 +10,12 @@ import { StandardMouseEvent } from 'vs/base/browser/mouseEvent';
 import { ActionsOrientation, prepareActions } from 'vs/base/browser/ui/actionbar/actionbar';
 import { ToolBar } from 'vs/base/browser/ui/toolbar/toolbar';
 import { IAction, WorkbenchActionExecutedEvent, WorkbenchActionExecutedClassification, IActionViewItem } from 'vs/base/common/actions';
-import { equals } from 'vs/base/common/arrays';
 import { ResolvedKeybinding } from 'vs/base/common/keyCodes';
 import { dispose, DisposableStore } from 'vs/base/common/lifecycle';
 import { isCodeEditor } from 'vs/editor/browser/editorBrowser';
 import { localize } from 'vs/nls';
 import { createAndFillInActionBarActions, createAndFillInContextMenuActions, MenuEntryActionViewItem, SubmenuEntryActionViewItem } from 'vs/platform/actions/browser/menuEntryActionViewItem';
-import { ExecuteCommandAction, IMenu, IMenuService, MenuId, MenuItemAction, SubmenuItemAction } from 'vs/platform/actions/common/actions';
+import { IMenu, IMenuService, MenuId, MenuItemAction, SubmenuItemAction } from 'vs/platform/actions/common/actions';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { IContextKeyService, IContextKey } from 'vs/platform/contextkey/common/contextkey';
 import { IContextMenuService } from 'vs/platform/contextview/browser/contextView';
@@ -66,9 +65,6 @@ export abstract class TitleControl extends Themable {
 	protected readonly editorTransfer = LocalSelectionTransfer.getInstance<DraggedEditorIdentifier>();
 
 	protected breadcrumbsControl: BreadcrumbsControl | undefined = undefined;
-
-	private currentPrimaryEditorActionIds: string[] = [];
-	private currentSecondaryEditorActionIds: string[] = [];
 
 	private editorActionsToolbar: ToolBar | undefined;
 
@@ -196,25 +192,10 @@ export abstract class TitleControl extends Themable {
 	}
 
 	protected updateEditorActionsToolbar(): void {
-
-		// Update Editor Actions Toolbar
 		const { primaryEditorActions, secondaryEditorActions } = this.prepareEditorActions(this.getEditorActions());
 
-		// Only update if something actually has changed
-		const primaryEditorActionIds = primaryEditorActions.map(action => action.id);
-		const secondaryEditorActionIds = secondaryEditorActions.map(action => action.id);
-		if (
-			!equals(primaryEditorActionIds, this.currentPrimaryEditorActionIds) ||
-			!equals(secondaryEditorActionIds, this.currentSecondaryEditorActionIds) ||
-			primaryEditorActions.some(action => action instanceof ExecuteCommandAction) || // execute command actions can have the same ID but different arguments
-			secondaryEditorActions.some(action => action instanceof ExecuteCommandAction)  // see also https://github.com/microsoft/vscode/issues/16298
-		) {
-			const editorActionsToolbar = assertIsDefined(this.editorActionsToolbar);
-			editorActionsToolbar.setActions(primaryEditorActions, secondaryEditorActions);
-
-			this.currentPrimaryEditorActionIds = primaryEditorActionIds;
-			this.currentSecondaryEditorActionIds = secondaryEditorActionIds;
-		}
+		const editorActionsToolbar = assertIsDefined(this.editorActionsToolbar);
+		editorActionsToolbar.setActions(primaryEditorActions, secondaryEditorActions);
 	}
 
 	protected prepareEditorActions(editorActions: IToolbarActions): { primaryEditorActions: IAction[]; secondaryEditorActions: IAction[]; } {
@@ -265,12 +246,7 @@ export abstract class TitleControl extends Themable {
 	}
 
 	protected clearEditorActionsToolbar(): void {
-		if (this.editorActionsToolbar) {
-			this.editorActionsToolbar.setActions([], []);
-		}
-
-		this.currentPrimaryEditorActionIds = [];
-		this.currentSecondaryEditorActionIds = [];
+		this.editorActionsToolbar?.setActions([], []);
 	}
 
 	protected enableGroupDragging(element: HTMLElement): void {

@@ -1244,10 +1244,18 @@ export class DebugModel implements IDebugModel {
 		return newFunctionBreakpoint;
 	}
 
-	renameFunctionBreakpoint(id: string, name: string): void {
+	updateFunctionBreakpoint(id: string, update: { name?: string, hitCondition?: string, condition?: string }): void {
 		const functionBreakpoint = this.functionBreakpoints.find(fbp => fbp.getId() === id);
 		if (functionBreakpoint) {
-			functionBreakpoint.name = name;
+			if (typeof update.name === 'string') {
+				functionBreakpoint.name = update.name;
+			}
+			if (typeof update.condition === 'string') {
+				functionBreakpoint.condition = update.condition;
+			}
+			if (typeof update.hitCondition === 'string') {
+				functionBreakpoint.hitCondition = update.hitCondition;
+			}
 			this._onDidChangeBreakpoints.fire({ changed: [functionBreakpoint], sessionOnly: false });
 		}
 	}

@@ -27,7 +27,11 @@ export class MainThreadTunnelService extends Disposable implements MainThreadTun
 	}
 
 	async $setCandidateFinder(): Promise<void> {
-		this._register(this.remoteExplorerService.onEnabledPortsFeatures(() => this._proxy.$registerCandidateFinder()));
+		if (this.remoteExplorerService.portsFeaturesEnabled) {
+			this._proxy.$registerCandidateFinder();
+		} else {
+			this._register(this.remoteExplorerService.onEnabledPortsFeatures(() => this._proxy.$registerCandidateFinder()));
+		}
 	}
 
 	async $openTunnel(tunnelOptions: TunnelOptions, source: string): Promise<TunnelDto | undefined> {

@@ -1,7 +1,7 @@
 {
   "name": "code-oss-dev",
   "version": "1.53.0",
-  "distro": "b6aba18ee240389adb38e2ab87a8c7c3e7765702",
+  "distro": "cb2b2df95eb87c873b72420d14a4c67ad0c860c5",
   "author": {
     "name": "Microsoft Corporation"
   },
@@ -34,7 +34,8 @@
     "7z": "7z",
     "update-grammars": "node build/npm/update-all-grammars.js",
     "update-localization-extension": "node build/npm/update-localization-extension.js",
-    "smoketest": "cd test/smoke && node test/index.js",
+    "smoketest": "cd test/smoke && yarn compile && node test/index.js",
+    "smoketest-no-compile": "cd test/smoke && node test/index.js",
     "download-builtin-extensions": "node build/lib/builtInExtensions.js",
     "monaco-compile-check": "tsc -p src/tsconfig.monaco.json --noEmit",
     "tsec-compile-check": "node node_modules/vscode-tsec/bin/tsec -p src/tsconfig.tsec.json",
@@ -69,7 +70,7 @@
     "native-is-elevated": "0.4.1",
     "native-keymap": "2.2.1",
     "native-watchdog": "1.3.0",
-    "node-pty": "0.10.0-beta18",
+    "node-pty": "0.10.0-beta19",
     "spdlog": "^0.11.1",
     "sudo-prompt": "9.1.1",
     "tas-client-umd": "0.1.2",
