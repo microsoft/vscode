@@ -30,7 +30,13 @@ export class Server extends IPCServer {
 			const { port1: incomingPort, port2: outgoingPort } = new MessageChannel();
 			const protocol = new MessagePortProtocol(incomingPort);
 
-			const result: ClientConnectionEvent = { protocol, onDidClientDisconnect: protocol.onDisconnect };
+			const result: ClientConnectionEvent = {
+				protocol,
+				// Not part of the standard spec, but in Electron we get a `close` event
+				// when the other side closes. We can use this to detect disconnects
+				// (https://github.com/electron/electron/blob/11-x-y/docs/api/message-port-main.md#event-close)
+				onDidClientDisconnect: Event.fromDOMEventEmitter(incomingPort, 'close')
+			};
 
 			// Send one port back to the requestor
 			ipcRenderer.postMessage('vscode:createMessageChannelResult', nonce, [outgoingPort]);

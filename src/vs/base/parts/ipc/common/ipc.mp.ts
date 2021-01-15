@@ -17,13 +17,10 @@ import { VSBuffer } from 'vs/base/common/buffer';
 export interface MessageEvent {
 
 	/**
-	 * For our use we only consider `Uint8Array` and `disconnect`
-	 * a valid data transfer via message ports. Our protocol
-	 * implementation is buffer based and we only need the explicit
-	 * `disconnect` because message ports currently have no way of
-	 * indicating when their connection is closed.
+	 * For our use we only consider `Uint8Array` a valid data transfer
+	 * via message ports because our protocol implementation is buffer based.
 	 */
-	data: Uint8Array | 'disconnect';
+	data: Uint8Array;
 }
 
 export interface MessagePort {
@@ -31,7 +28,7 @@ export interface MessagePort {
 	addEventListener(type: 'message', listener: (this: MessagePort, e: MessageEvent) => unknown): void;
 	removeEventListener(type: 'message', listener: (this: MessagePort, e: MessageEvent) => unknown): void;
 
-	postMessage(message: Uint8Array | 'disconnect'): void;
+	postMessage(message: Uint8Array): void;
 
 	start(): void;
 	close(): void;
@@ -44,19 +41,12 @@ export interface MessagePort {
  */
 export class Protocol implements IMessagePassingProtocol {
 
-	private readonly onRawData = Event.fromDOMEventEmitter<VSBuffer | 'disconnect'>(this.port, 'message', (e: MessageEvent) => e.data === 'disconnect' ? e.data : VSBuffer.wrap(e.data));
-
-	readonly onMessage = Event.filter(this.onRawData, data => data !== 'disconnect') as Event<VSBuffer>;
-	readonly onDisconnect = Event.signal(Event.filter(this.onRawData, data => data === 'disconnect'));
+	readonly onMessage = Event.fromDOMEventEmitter<VSBuffer>(this.port, 'message', (e: MessageEvent) => VSBuffer.wrap(e.data));
 
 	constructor(private port: MessagePort) {
 
 		// we must call start() to ensure messages are flowing
 		port.start();
-
-		// when the other end disconnects, ensure that we close
-		// our end as well to stay in sync
-		Event.once(this.onDisconnect)(() => port.close());
 	}
 
 	send(message: VSBuffer): void {
@@ -64,7 +54,6 @@ export class Protocol implements IMessagePassingProtocol {
 	}
 
 	disconnect(): void {
-		this.port.postMessage('disconnect');
 		this.port.close();
 	}
 }
