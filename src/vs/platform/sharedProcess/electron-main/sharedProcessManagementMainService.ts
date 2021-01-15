@@ -4,33 +4,24 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { createDecorator } from 'vs/platform/instantiation/common/instantiation';
+import { ISharedProcess } from 'vs/platform/sharedProcess/node/sharedProcess';
+import { ISharedProcessManagementService } from 'vs/platform/sharedProcess/common/sharedProcessManagement';
 
-export const ISharedProcessMainService = createDecorator<ISharedProcessMainService>('sharedProcessMainService');
+export const ISharedProcessManagementMainService = createDecorator<ISharedProcessManagementMainService>('sharedProcessManagementMainService');
 
-export interface ISharedProcessMainService {
+export interface ISharedProcessManagementMainService extends ISharedProcessManagementService { }
 
-	readonly _serviceBrand: undefined;
-
-	whenSharedProcessReady(): Promise<void>;
-	toggleSharedProcessWindow(): Promise<void>;
-}
-
-export interface ISharedProcess {
-	whenReady(): Promise<void>;
-	toggle(): void;
-}
-
-export class SharedProcessMainService implements ISharedProcessMainService {
+export class SharedProcessManagementMainService implements ISharedProcessManagementMainService {
 
 	declare readonly _serviceBrand: undefined;
 
 	constructor(private sharedProcess: ISharedProcess) { }
 
-	whenSharedProcessReady(): Promise<void> {
+	whenReady(): Promise<void> {
 		return this.sharedProcess.whenReady();
 	}
 
-	async toggleSharedProcessWindow(): Promise<void> {
+	async toggleWindow(): Promise<void> {
 		return this.sharedProcess.toggle();
 	}
 }

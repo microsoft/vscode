@@ -21,7 +21,7 @@ class ToggleSharedProcessAction extends Action2 {
 	}
 
 	async run(accessor: ServicesAccessor): Promise<void> {
-		return accessor.get(ISharedProcessService).toggleSharedProcessWindow();
+		return accessor.get(ISharedProcessService).toggleWindow();
 	}
 }
 

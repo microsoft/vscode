@@ -4,16 +4,14 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { createDecorator } from 'vs/platform/instantiation/common/instantiation';
-import { IChannel, IServerChannel } from 'vs/base/parts/ipc/common/ipc';
 
-export const ISharedProcessService = createDecorator<ISharedProcessService>('sharedProcessService');
+export const ISharedProcessManagementService = createDecorator<ISharedProcessManagementService>('sharedProcessManagement');
 
-export interface ISharedProcessService {
+export interface ISharedProcessManagementService {
 
 	readonly _serviceBrand: undefined;
 
-	getChannel(channelName: string): IChannel;
-	registerChannel(channelName: string, channel: IServerChannel<string>): void;
+	whenReady(): Promise<void>;
 
 	toggleWindow(): Promise<void>;
 }
