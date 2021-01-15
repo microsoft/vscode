@@ -8,6 +8,7 @@ import { workbenchConfigurationNodeBase } from 'vs/workbench/common/configuratio
 import * as nls from 'vs/nls';
 import { IJSONSchema } from 'vs/base/common/jsonSchema';
 import { Registry } from 'vs/platform/registry/common/platform';
+import { defaultExternalUriOpenerId } from 'vs/workbench/contrib/externalUriOpener/common/contributedOpeners';
 
 export const externalUriOpenersSettingId = 'workbench.externalUriOpeners';
 
@@ -58,6 +59,12 @@ export const externalUriOpenersConfigurationNode: IConfigurationNode = {
 							{
 								type: 'string',
 								description: nls.localize('externalUriOpeners.id', "The id of the opener."),
+							},
+							{
+								type: 'string',
+								description: nls.localize('externalUriOpeners.id', "The id of the opener."),
+								enum: [defaultExternalUriOpenerId],
+								enumDescriptions: [nls.localize('externalUriOpeners.defaultId', "Open using VS Code's standard opener.")],
 							},
 							externalUriOpenerIdSchemaAddition
 						]
