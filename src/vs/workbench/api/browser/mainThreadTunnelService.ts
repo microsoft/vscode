@@ -45,7 +45,8 @@ export class MainThreadTunnelService extends Disposable implements MainThreadTun
 				&& (tunnelOptions.localAddressPort !== undefined)
 				&& (tunnel.tunnelLocalPort !== undefined)
 				&& isPortPrivileged(tunnelOptions.localAddressPort)
-				&& (tunnel.tunnelLocalPort !== tunnelOptions.localAddressPort)) {
+				&& (tunnel.tunnelLocalPort !== tunnelOptions.localAddressPort)
+				&& this.tunnelService.canElevate) {
 
 				this.elevationPrompt(tunnelOptions, tunnel, source);
 			}
