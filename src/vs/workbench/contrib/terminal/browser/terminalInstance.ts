@@ -396,6 +396,7 @@ export class TerminalInstance extends Disposable implements ITerminalInstance {
 		const editorOptions = this._configurationService.getValue<IEditorOptions>('editor');
 
 		const xterm = new Terminal({
+			altClickMovesCursor: config.altClickMovesCursor,
 			scrollback: config.scrollback,
 			theme: this._getXtermTheme(),
 			drawBoldTextInBrightColors: config.drawBoldTextInBrightColors,
@@ -1286,6 +1287,7 @@ export class TerminalInstance extends Disposable implements ITerminalInstance {
 
 	public updateConfig(): void {
 		const config = this._configHelper.config;
+		this._safeSetOption('altClickMovesCursor', config.altClickMovesCursor);
 		this._setCursorBlink(config.cursorBlinking);
 		this._setCursorStyle(config.cursorStyle);
 		this._setCursorWidth(config.cursorWidth);
