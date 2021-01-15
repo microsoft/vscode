@@ -72,7 +72,7 @@ import { UserDataAutoSyncEnablementService } from 'vs/platform/userDataSync/comm
 import { IgnoredExtensionsManagementService, IIgnoredExtensionsManagementService } from 'vs/platform/userDataSync/common/ignoredExtensions';
 import { ExtensionsStorageSyncService, IExtensionsStorageSyncService } from 'vs/platform/userDataSync/common/extensionsStorageSync';
 import { IInstantiationService, ServicesAccessor } from 'vs/platform/instantiation/common/instantiation';
-import { ISharedProcessConfiguration } from 'vs/platform/ipc/node/sharedProcess';
+import { ISharedProcessConfiguration } from 'vs/platform/sharedProcess/node/sharedProcess';
 import { LocalizationsUpdater } from 'vs/code/electron-browser/sharedProcess/contrib/localizationsUpdater';
 import { DeprecatedExtensionsCleaner } from 'vs/code/electron-browser/sharedProcess/contrib/deprecatedExtensionsCleaner';
 import { onUnexpectedError, setUnexpectedErrorHandler } from 'vs/base/common/errors';

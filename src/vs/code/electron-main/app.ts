@@ -68,7 +68,7 @@ import { IDiagnosticsService } from 'vs/platform/diagnostics/node/diagnosticsSer
 import { ExtensionHostDebugBroadcastChannel } from 'vs/platform/debug/common/extensionHostDebugIpc';
 import { ElectronExtensionHostDebugBroadcastChannel } from 'vs/platform/debug/electron-main/extensionHostDebugIpc';
 import { INativeHostMainService, NativeHostMainService } from 'vs/platform/native/electron-main/nativeHostMainService';
-import { ISharedProcessMainService, SharedProcessMainService } from 'vs/platform/ipc/electron-main/sharedProcessMainService';
+import { ISharedProcessMainService, SharedProcessMainService } from 'vs/platform/sharedProcess/electron-main/sharedProcessMainService';
 import { IDialogMainService, DialogMainService } from 'vs/platform/dialogs/electron-main/dialogMainService';
 import { withNullAsUndefined } from 'vs/base/common/types';
 import { mnemonicButtonLabel, getPathLabel } from 'vs/base/common/labels';
