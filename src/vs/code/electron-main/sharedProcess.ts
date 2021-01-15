@@ -44,6 +44,8 @@ export class SharedProcess extends Disposable implements ISharedProcess {
 
 		// Shared process connections
 		ipcMain.on('vscode:createSharedProcessMessageChannel', async (e, nonce: string) => {
+			this.logService.trace('SharedProcess: on vscode:createSharedProcessMessageChannel');
+
 			const port = await this.connect();
 
 			e.sender.postMessage('vscode:createSharedProcessMessageChannelResult', nonce, [port]);

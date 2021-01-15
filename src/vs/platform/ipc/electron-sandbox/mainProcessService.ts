@@ -7,7 +7,7 @@ import { IChannel, IServerChannel, StaticRouter } from 'vs/base/parts/ipc/common
 import { Client as IPCElectronClient } from 'vs/base/parts/ipc/electron-sandbox/ipc.electron';
 import { Disposable } from 'vs/base/common/lifecycle';
 import { createDecorator } from 'vs/platform/instantiation/common/instantiation';
-import { Server } from 'vs/base/parts/ipc/electron-sandbox/ipc.mp';
+import { Server as MessagePortServer } from 'vs/base/parts/ipc/electron-sandbox/ipc.mp';
 
 export const IMainProcessService = createDecorator<IMainProcessService>('mainProcessService');
 
@@ -54,7 +54,7 @@ export class MessagePortMainProcessService implements IMainProcessService {
 	declare readonly _serviceBrand: undefined;
 
 	constructor(
-		private server: Server,
+		private server: MessagePortServer,
 		private router: StaticRouter
 	) { }
 

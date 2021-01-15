@@ -188,12 +188,12 @@ class SharedProcessMain extends Disposable {
 		services.set(IDownloadService, new SyncDescriptor(DownloadService));
 
 		// Extension recommendations
-		const activeWindowManager = new ActiveWindowManager(nativeHostService);
+		const activeWindowManager = this._register(new ActiveWindowManager(nativeHostService));
 		const activeWindowRouter = new StaticRouter(ctx => activeWindowManager.getActiveClientId().then(id => ctx === id));
 		services.set(IExtensionRecommendationNotificationService, new ExtensionRecommendationNotificationServiceChannelClient(this.server.getChannel('extensionRecommendationNotification', activeWindowRouter)));
 
 		// Logger
-		const loggerService = new LoggerService(logService, fileService);
+		const loggerService = this._register(new LoggerService(logService, fileService));
 		services.set(ILoggerService, loggerService);
 
 		// Telemetry
