@@ -213,9 +213,11 @@ export class AutomaticPortForwarding extends Disposable implements IWorkbenchCon
 		remoteAgentService.getEnvironment().then(environment => {
 			if (environment?.os === OperatingSystem.Windows) {
 				this._register(new OutputAutomaticPortForwarding(terminalService, notificationService, openerService,
-					remoteExplorerService, configurationService, debugService, tunnelService));
+					remoteExplorerService, configurationService, debugService, tunnelService, remoteAgentService, false));
 			} else if (environment?.os === OperatingSystem.Linux) {
 				this._register(new ProcAutomaticPortForwarding(configurationService, remoteExplorerService, notificationService, openerService, tunnelService));
+				this._register(new OutputAutomaticPortForwarding(terminalService, notificationService, openerService,
+					remoteExplorerService, configurationService, debugService, tunnelService, remoteAgentService, true));
 			}
 		});
 	}
@@ -368,7 +370,9 @@ class OutputAutomaticPortForwarding extends Disposable {
 		private readonly remoteExplorerService: IRemoteExplorerService,
 		private readonly configurationService: IConfigurationService,
 		private readonly debugService: IDebugService,
-		readonly tunnelService: ITunnelService
+		readonly tunnelService: ITunnelService,
+		private readonly remoteAgentService: IRemoteAgentService,
+		readonly privilegedOnly: boolean
 	) {
 		super();
 		this.portsAttributes = new PortsAttributes(configurationService);
@@ -406,6 +410,9 @@ class OutputAutomaticPortForwarding extends Disposable {
 				return;
 			}
 			if (this.portsAttributes.getAttributes(localUrl.port)?.onAutoForward === OnPortForward.Ignore) {
+				return;
+			}
+			if (this.privilegedOnly && !isPortPrivileged(localUrl.port, (await this.remoteAgentService.getEnvironment())?.os)) {
 				return;
 			}
 			const forwarded = await this.remoteExplorerService.forward(localUrl);
