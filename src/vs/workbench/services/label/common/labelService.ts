@@ -149,6 +149,8 @@ export class LabelService extends Disposable implements ILabelService {
 			while (relativeLabel[overlap] && relativeLabel[overlap] === baseResourceLabel[overlap]) { overlap++; }
 			if (!relativeLabel[overlap] || relativeLabel[overlap] === formatting.separator) {
 				relativeLabel = relativeLabel.substring(1 + overlap);
+			} else if (overlap === baseResourceLabel.length && baseResource.uri.path === '/') {
+				relativeLabel = relativeLabel.substring(overlap);
 			}
 
 			const hasMultipleRoots = this.contextService.getWorkspace().folders.length > 1;
