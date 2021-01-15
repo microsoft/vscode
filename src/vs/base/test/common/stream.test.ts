@@ -106,6 +106,8 @@ suite('Stream', () => {
 		error = false;
 		stream.removeListener('error', errorListener);
 
+		// always leave at least one error listener to streams to avoid unexpected errors during test running
+		stream.on('error', () => { });
 		stream.error(new Error());
 		assert.equal(error, false);
 	});
