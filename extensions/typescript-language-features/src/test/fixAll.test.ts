@@ -13,9 +13,14 @@ const testDocumentUri = vscode.Uri.parse('untitled:test.ts');
 
 const emptyRange = new vscode.Range(new vscode.Position(0, 0), new vscode.Position(0, 0));
 
-suite('TypeScript Fix All', () => {
+suite.skip('TypeScript Fix All', () => {
 
 	const _disposables: vscode.Disposable[] = [];
+
+	setup(async () => {
+		// the tests assume that typescript features are registered
+		await vscode.extensions.getExtension('vscode.typescript-language-features')!.activate();
+	});
 
 	teardown(async () => {
 		disposeAll(_disposables);

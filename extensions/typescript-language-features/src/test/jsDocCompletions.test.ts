@@ -7,7 +7,7 @@ import 'mocha';
 import * as vscode from 'vscode';
 import { disposeAll } from '../utils/dispose';
 import { acceptFirstSuggestion } from './suggestTestHelpers';
-import { assertEditorContents, Config, createTestEditor, CURSOR, enumerateConfig, insertModesValues, joinLines, updateConfig, VsCodeConfiguration, wait } from './testUtils';
+import { assertEditorContents, Config, createTestEditor, CURSOR, enumerateConfig, insertModesValues, joinLines, updateConfig, VsCodeConfiguration } from './testUtils';
 
 const testDocumentUri = vscode.Uri.parse('untitled:test.ts');
 
@@ -21,7 +21,8 @@ suite('JSDoc Completions', () => {
 	let oldConfig: { [key: string]: any } = {};
 
 	setup(async () => {
-		await wait(100);
+		// the tests assume that typescript features are registered
+		await vscode.extensions.getExtension('vscode.typescript-language-features')!.activate();
 
 		// Save off config and apply defaults
 		oldConfig = await updateConfig(testDocumentUri, configDefaults);

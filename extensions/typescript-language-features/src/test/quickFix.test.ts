@@ -9,9 +9,14 @@ import * as vscode from 'vscode';
 import { disposeAll } from '../utils/dispose';
 import { createTestEditor, joinLines, retryUntilDocumentChanges, wait } from './testUtils';
 
-suite('TypeScript Quick Fix', () => {
+suite.skip('TypeScript Quick Fix', () => {
 
 	const _disposables: vscode.Disposable[] = [];
+
+	setup(async () => {
+		// the tests assume that typescript features are registered
+		await vscode.extensions.getExtension('vscode.typescript-language-features')!.activate();
+	});
 
 	teardown(async () => {
 		disposeAll(_disposables);

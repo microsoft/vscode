@@ -37,7 +37,8 @@ suite('TypeScript References', () => {
 	let oldConfig: { [key: string]: any } = {};
 
 	setup(async () => {
-		await wait(100);
+		// the tests assume that typescript features are registered
+		await vscode.extensions.getExtension('vscode.typescript-language-features')!.activate();
 
 		// Save off config and apply defaults
 		oldConfig = await updateConfig(configDefaults);

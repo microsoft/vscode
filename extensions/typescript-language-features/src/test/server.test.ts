@@ -60,7 +60,7 @@ class FakeServerProcess implements TsServerProcess {
 	}
 }
 
-suite('Server', () => {
+suite.skip('Server', () => {
 	const tracer = new Tracer(new Logger());
 
 	test('should send requests with increasing sequence numbers', async () => {
