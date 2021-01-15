@@ -8,7 +8,6 @@ import { IpcRendererEvent } from 'vs/base/parts/sandbox/electron-sandbox/electro
 import { ipcRenderer } from 'vs/base/parts/sandbox/electron-sandbox/globals';
 import { Client as MessagePortClient } from 'vs/base/parts/ipc/common/ipc.mp';
 import { IChannel, IServerChannel, getDelayedChannel } from 'vs/base/parts/ipc/common/ipc';
-import { IMainProcessService } from 'vs/platform/ipc/electron-sandbox/mainProcessService';
 import { ISharedProcessService } from 'vs/platform/ipc/electron-browser/sharedProcessService';
 import { registerSingleton } from 'vs/platform/instantiation/common/extensions';
 import { INativeHostService } from 'vs/platform/native/electron-sandbox/native';
@@ -16,16 +15,16 @@ import { generateUuid } from 'vs/base/common/uuid';
 import { ILogService } from 'vs/platform/log/common/log';
 import { ILifecycleService } from 'vs/workbench/services/lifecycle/common/lifecycle';
 import { Disposable } from 'vs/base/common/lifecycle';
+import { ISharedProcessManagementService } from 'vs/platform/sharedProcess/common/sharedProcessManagement';
 
 export class SharedProcessService extends Disposable implements ISharedProcessService {
 
 	declare readonly _serviceBrand: undefined;
 
-	private readonly sharedProcessMainChannel = this.mainProcessService.getChannel('sharedProcess');
 	private readonly withSharedProcessConnection: Promise<MessagePortClient>;
 
 	constructor(
-		@IMainProcessService private readonly mainProcessService: IMainProcessService,
+		@ISharedProcessManagementService private readonly sharedProcessManagementService: ISharedProcessManagementService,
 		@INativeHostService private readonly nativeHostService: INativeHostService,
 		@ILogService private readonly logService: ILogService,
 		@ILifecycleService private readonly lifecycleService: ILifecycleService
@@ -47,7 +46,7 @@ export class SharedProcessService extends Disposable implements ISharedProcessSe
 		this.logService.trace('Workbench->SharedProcess#connect');
 
 		// await the shared process to be ready
-		await this.sharedProcessMainChannel.call('whenReady');
+		await this.sharedProcessManagementService.whenReady();
 
 		// Ask to create message channel inside the window
 		// and send over a UUID to correlate the response
@@ -74,7 +73,7 @@ export class SharedProcessService extends Disposable implements ISharedProcessSe
 	}
 
 	toggleWindow(): Promise<void> {
-		return this.sharedProcessMainChannel.call('toggleWindow');
+		return this.sharedProcessManagementService.toggleWindow();
 	}
 }
 

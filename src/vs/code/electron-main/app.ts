@@ -68,7 +68,7 @@ import { IDiagnosticsService } from 'vs/platform/diagnostics/node/diagnosticsSer
 import { ExtensionHostDebugBroadcastChannel } from 'vs/platform/debug/common/extensionHostDebugIpc';
 import { ElectronExtensionHostDebugBroadcastChannel } from 'vs/platform/debug/electron-main/extensionHostDebugIpc';
 import { INativeHostMainService, NativeHostMainService } from 'vs/platform/native/electron-main/nativeHostMainService';
-import { ISharedProcessMainService, SharedProcessMainService } from 'vs/platform/sharedProcess/electron-main/sharedProcessMainService';
+import { ISharedProcessManagementMainService, SharedProcessManagementMainService } from 'vs/platform/sharedProcess/electron-main/sharedProcessManagementMainService';
 import { IDialogMainService, DialogMainService } from 'vs/platform/dialogs/electron-main/dialogMainService';
 import { withNullAsUndefined } from 'vs/base/common/types';
 import { mnemonicButtonLabel, getPathLabel } from 'vs/base/common/labels';
@@ -509,7 +509,7 @@ export class CodeApplication extends Disposable {
 
 		services.set(IWindowsMainService, new SyncDescriptor(WindowsMainService, [machineId, this.userEnv]));
 		services.set(IDialogMainService, new SyncDescriptor(DialogMainService));
-		services.set(ISharedProcessMainService, new SyncDescriptor(SharedProcessMainService, [sharedProcess]));
+		services.set(ISharedProcessManagementMainService, new SyncDescriptor(SharedProcessManagementMainService, [sharedProcess]));
 		services.set(ILaunchMainService, new SyncDescriptor(LaunchMainService));
 		services.set(IDiagnosticsService, createChannelSender(getDelayedChannel(sharedProcessReady.then(client => client.getChannel('diagnostics')))));
 
@@ -621,9 +621,9 @@ export class CodeApplication extends Disposable {
 		electronIpcServer.registerChannel('nativeHost', nativeHostChannel);
 		sharedProcessClient.then(client => client.registerChannel('nativeHost', nativeHostChannel));
 
-		const sharedProcessMainService = accessor.get(ISharedProcessMainService);
-		const sharedProcessChannel = createChannelReceiver(sharedProcessMainService);
-		electronIpcServer.registerChannel('sharedProcess', sharedProcessChannel);
+		const sharedProcessMainManagementService = accessor.get(ISharedProcessManagementMainService);
+		const sharedProcessManagementChannel = createChannelReceiver(sharedProcessMainManagementService);
+		electronIpcServer.registerChannel('sharedProcessManagement', sharedProcessManagementChannel);
 
 		const workspacesService = accessor.get(IWorkspacesService);
 		const workspacesChannel = createChannelReceiver(workspacesService);
