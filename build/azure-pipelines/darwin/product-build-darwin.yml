@@ -216,8 +216,7 @@ steps:
       set -e
       APP_ROOT=$(agent.builddirectory)/VSCode-darwin-$(VSCODE_ARCH)
       APP_NAME="`ls $APP_ROOT | head -n 1`"
-      yarn smoketest --build "$APP_ROOT/$APP_NAME"
-    continueOnError: true
+      yarn smoketest-no-compile --build "$APP_ROOT/$APP_NAME"
     timeoutInMinutes: 5
     displayName: Run smoke tests (Electron)
     condition: and(succeeded(), eq(variables['VSCODE_ARCH'], 'x64'), eq(variables['VSCODE_STEP_ON_IT'], 'false'))
@@ -225,8 +224,7 @@ steps:
   - script: |
       set -e
       VSCODE_REMOTE_SERVER_PATH="$(agent.builddirectory)/vscode-reh-web-darwin" \
-      yarn smoketest --web --headless
-    continueOnError: true
+      yarn smoketest-no-compile --web --headless
     timeoutInMinutes: 5
     displayName: Run smoke tests (Browser)
     condition: and(succeeded(), eq(variables['VSCODE_ARCH'], 'x64'), eq(variables['VSCODE_STEP_ON_IT'], 'false'))
@@ -333,6 +331,21 @@ steps:
       ./build/azure-pipelines/darwin/publish.sh
     displayName: Publish
     condition: and(succeeded(), ne(variables['VSCODE_PUBLISH'], 'false'))
+
+  - publish: $(Agent.BuildDirectory)/VSCode-darwin-$(VSCODE_ARCH).zip
+    artifact: vscode-darwin-$(VSCODE_ARCH)
+    displayName: Publish archive
+    condition: and(succeeded(), ne(variables['VSCODE_PUBLISH'], 'false'))
+
+  - publish: $(Agent.BuildDirectory)/vscode-server-darwin.zip
+    artifact: vscode-server-darwin-$(VSCODE_ARCH)
+    displayName: Publish server archive
+    condition: and(succeeded(), eq(variables['VSCODE_ARCH'], 'x64'), ne(variables['VSCODE_PUBLISH'], 'false'))
+
+  - publish: $(Agent.BuildDirectory)/vscode-server-darwin-web.zip
+    artifact: vscode-server-darwin-$(VSCODE_ARCH)-web
+    displayName: Publish web server archive
+    condition: and(succeeded(), eq(variables['VSCODE_ARCH'], 'x64'), ne(variables['VSCODE_PUBLISH'], 'false'))
 
   - script: |
       AZURE_STORAGE_ACCESS_KEY="$(ticino-storage-key)" \

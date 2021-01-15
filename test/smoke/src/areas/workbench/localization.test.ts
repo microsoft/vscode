@@ -28,7 +28,7 @@ export function setup() {
 				return;
 			}
 
-			await app.workbench.explorer.waitForOpenEditorsViewTitle(title => /geöffnete editoren/i.test(title));
+			// await app.workbench.explorer.waitForOpenEditorsViewTitle(title => /geöffnete editoren/i.test(title));
 
 			await app.workbench.search.openSearchViewlet();
 			await app.workbench.search.waitForTitle(title => /suchen/i.test(title));

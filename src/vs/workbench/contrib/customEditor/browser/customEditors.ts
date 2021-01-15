@@ -3,7 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { coalesce, distinct } from 'vs/base/common/arrays';
+import { coalesce, distinct, firstOrDefault } from 'vs/base/common/arrays';
 import { Codicon } from 'vs/base/common/codicons';
 import { Emitter, Event } from 'vs/base/common/event';
 import { Lazy } from 'vs/base/common/lazy';
@@ -154,13 +154,8 @@ export class CustomEditorService extends Disposable implements ICustomEditorServ
 			...this.getAllCustomEditors(resource).allEditors,
 		]);
 
-		let currentlyOpenedEditorType: undefined | string;
-		for (const editor of group ? group.editors : []) {
-			if (editor.resource && isEqual(editor.resource, resource)) {
-				currentlyOpenedEditorType = editor instanceof CustomEditorInput ? editor.viewType : defaultCustomEditor.id;
-				break;
-			}
-		}
+		const existingEditorForResource = group && firstOrDefault(this.editorService.findEditors(resource, group));
+		const currentlyOpenedEditorType: undefined | string = existingEditorForResource instanceof CustomEditorInput ? existingEditorForResource.viewType : defaultCustomEditor.id;
 
 		const resourceExt = extname(resource);
 
@@ -276,9 +271,8 @@ export class CustomEditorService extends Disposable implements ICustomEditorServ
 		}
 
 		// Try to replace existing editors for resource
-		const existingEditors = targetGroup.editors.filter(editor => editor.resource && isEqual(editor.resource, resource));
-		if (existingEditors.length) {
-			const existing = existingEditors[0];
+		const existing = firstOrDefault(this.editorService.findEditors(resource, targetGroup));
+		if (existing) {
 			if (!input.matches(existing)) {
 				await this.editorService.replaceEditors([{
 					editor: existing,
@@ -453,7 +447,7 @@ export class CustomEditorContribution extends Disposable implements IWorkbenchCo
 				return this.onEditorOpening(editor, options, group);
 			},
 			getEditorOverrides: (resource: URI, options: IEditorOptions | undefined, group: IEditorGroup | undefined): IOpenEditorOverrideEntry[] => {
-				const currentEditor = group?.editors.find(editor => isEqual(editor.resource, resource));
+				const currentEditor = group && firstOrDefault(this.editorService.findEditors(resource, group));
 
 				const toOverride = (entry: CustomEditorInfo): IOpenEditorOverrideEntry => {
 					return {
@@ -542,7 +536,7 @@ export class CustomEditorContribution extends Disposable implements IWorkbenchCo
 			return;
 		}
 
-		const existingEditorForResource = group.editors.find(editor => isEqual(resource, editor.resource));
+		const existingEditorForResource = firstOrDefault(this.editorService.findEditors(resource, group));
 		if (existingEditorForResource) {
 			if (editor === existingEditorForResource) {
 				return;

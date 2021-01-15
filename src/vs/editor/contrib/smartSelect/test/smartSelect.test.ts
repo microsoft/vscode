@@ -16,7 +16,7 @@ import { BracketSelectionRangeProvider } from 'vs/editor/contrib/smartSelect/bra
 import { provideSelectionRanges } from 'vs/editor/contrib/smartSelect/smartSelect';
 import { CancellationToken } from 'vs/base/common/cancellation';
 import { WordSelectionRangeProvider } from 'vs/editor/contrib/smartSelect/wordSelections';
-import { TestTextResourcePropertiesService } from 'vs/editor/test/common/services/modelService.test';
+import { TestTextResourcePropertiesService } from 'vs/editor/test/common/services/testTextResourcePropertiesService';
 import { TestThemeService } from 'vs/platform/theme/test/common/testThemeService';
 import { NullLogService } from 'vs/platform/log/common/log';
 import { UndoRedoService } from 'vs/platform/undoRedo/common/undoRedoService';
@@ -44,6 +44,16 @@ class MockJSMode extends MockMode {
 }
 
 suite('SmartSelect', () => {
+
+	const OriginalBracketSelectionRangeProviderMaxDuration = BracketSelectionRangeProvider._maxDuration;
+
+	suiteSetup(() => {
+		BracketSelectionRangeProvider._maxDuration = 5000; // 5 seconds
+	});
+
+	suiteTeardown(() => {
+		BracketSelectionRangeProvider._maxDuration = OriginalBracketSelectionRangeProviderMaxDuration;
+	});
 
 	let modelService: ModelServiceImpl;
 	let mode: MockJSMode;

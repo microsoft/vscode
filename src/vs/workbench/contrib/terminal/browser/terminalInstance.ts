@@ -1020,7 +1020,12 @@ export class TerminalInstance extends Disposable implements ITerminalInstance {
 			this._xtermCore?.writeSync(ev.data);
 		} else {
 			const messageId = ++this._latestXtermWriteData;
-			this._xterm?.write(ev.data, () => this._latestXtermParseData = messageId);
+			this._xterm?.write(ev.data, () => {
+				this._latestXtermParseData = messageId;
+				if (this._shellLaunchConfig.flowControl) {
+					this._processManager.acknowledgeDataEvent(ev.data.length);
+				}
+			});
 		}
 	}
 

@@ -18,6 +18,7 @@
   ],
   "activationEvents": [
     "onCommand:simpleBrowser.show",
+    "onCommand:simpleBrowser.api.open",
     "onUriOpen:http",
     "onUriOpen:https"
   ],
@@ -38,21 +39,6 @@
             "default": true,
             "title": "Focus Lock Indicator Enabled",
             "description": "%configuration.focusLockIndicator.enabled.description%"
-          },
-          "simpleBrowser.opener.enabled": {
-            "type": "boolean",
-            "default": false,
-            "title": "Opener Enabled",
-            "description": "%configuration.opener.enabled.description%"
-          },
-          "simpleBrowser.opener.enabledHosts": {
-            "type": "array",
-            "title": "Opener Enabled Hosts",
-            "markdownDescription": "%configuration.opener.enabledHosts.description%",
-            "default": [
-              "localhost",
-              "127.0.0.1"
-            ]
           }
         }
       }

@@ -22,7 +22,7 @@ import BaseHtml from 'vs/code/electron-sandbox/issue/issueReporterPage';
 import { localize } from 'vs/nls';
 import { isRemoteDiagnosticError, SystemInfo } from 'vs/platform/diagnostics/common/diagnostics';
 import { ServiceCollection } from 'vs/platform/instantiation/common/serviceCollection';
-import { IMainProcessService, MainProcessService } from 'vs/platform/ipc/electron-sandbox/mainProcessService';
+import { IMainProcessService, ElectronIPCMainProcessService } from 'vs/platform/ipc/electron-sandbox/mainProcessService';
 import { IssueReporterData, IssueReporterExtensionData, IssueReporterFeatures, IssueReporterStyles, IssueType } from 'vs/platform/issue/common/issue';
 import { IWindowConfiguration } from 'vs/platform/windows/common/windows';
 import { Codicon } from 'vs/base/common/codicons';
@@ -266,7 +266,7 @@ export class IssueReporter extends Disposable {
 
 	private initServices(configuration: IssueReporterConfiguration): void {
 		const serviceCollection = new ServiceCollection();
-		const mainProcessService = new MainProcessService(configuration.windowId);
+		const mainProcessService = new ElectronIPCMainProcessService(configuration.windowId);
 		serviceCollection.set(IMainProcessService, mainProcessService);
 
 		this.nativeHostService = new NativeHostService(configuration.windowId, mainProcessService) as INativeHostService;

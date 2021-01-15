@@ -220,8 +220,13 @@ export abstract class AbstractTextResourceEditorInput extends EditorInput implem
 			return undefined; // save cancelled
 		}
 
-		// If the target is a different resource (from "Save As" operation), return with a new editor input
-		if (saveAs && !isEqual(target, this.preferredResource)) {
+		// If this save operation results in a new editor, either
+		// because it was saved to disk (e.g. from untitled) or
+		// through an explicit "Save As", make sure to replace it.
+		if (
+			target.scheme !== this.resource.scheme ||
+			(saveAs && !isEqual(target, this.preferredResource))
+		) {
 			return this.editorService.createEditorInput({ resource: target });
 		}
 

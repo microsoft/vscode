@@ -25,7 +25,7 @@ import { isMacintosh, isWindows, isLinux, isWeb } from 'vs/base/common/platform'
 import { URI } from 'vs/base/common/uri';
 import { Color } from 'vs/base/common/color';
 import { trim } from 'vs/base/common/strings';
-import { EventType, EventHelper, Dimension, isAncestor, append, $, addDisposableListener, runAtThisOrScheduleAtNextAnimationFrame } from 'vs/base/browser/dom';
+import { EventType, EventHelper, Dimension, isAncestor, append, $, addDisposableListener, runAtThisOrScheduleAtNextAnimationFrame, prepend } from 'vs/base/browser/dom';
 import { CustomMenubarControl } from 'vs/workbench/browser/parts/titlebar/menubarControl';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { template } from 'vs/base/common/labels';
@@ -41,6 +41,7 @@ import { IHostService } from 'vs/workbench/services/host/browser/host';
 import { IProductService } from 'vs/platform/product/common/productService';
 import { Schemas } from 'vs/base/common/network';
 import { withNullAsUndefined } from 'vs/base/common/types';
+import { Codicon, iconRegistry } from 'vs/base/common/codicons';
 
 export class TitlebarPart extends Part implements ITitleService {
 
@@ -65,6 +66,8 @@ export class TitlebarPart extends Part implements ITitleService {
 
 	protected title!: HTMLElement;
 	protected customMenubar: CustomMenubarControl | undefined;
+	protected appIcon: HTMLElement | undefined;
+	private appIconBadge: HTMLElement | undefined;
 	protected menubar?: HTMLElement;
 	protected lastLayoutDimensions: Dimension | undefined;
 	private titleBarStyle: 'native' | 'custom';
@@ -341,6 +344,28 @@ export class TitlebarPart extends Part implements ITitleService {
 	createContentArea(parent: HTMLElement): HTMLElement {
 		this.element = parent;
 
+		// App Icon (Native Windows/Linux and Web)
+		if (!isMacintosh || isWeb) {
+			this.appIcon = prepend(this.element, $('a.window-appicon'));
+
+			// Web-only home indicator and menu
+			if (isWeb) {
+				const homeIndicator = this.environmentService.options?.homeIndicator;
+				if (homeIndicator) {
+					let codicon = iconRegistry.get(homeIndicator.icon);
+					if (!codicon) {
+						codicon = Codicon.code;
+					}
+
+					this.appIcon.setAttribute('href', homeIndicator.href);
+					this.appIcon.classList.add(...codicon.classNamesArray);
+					this.appIconBadge = document.createElement('div');
+					this.appIconBadge.classList.add('home-bar-icon-badge');
+					this.appIcon.appendChild(this.appIconBadge);
+				}
+			}
+		}
+
 		// Menubar: install a custom menu bar depending on configuration
 		// and when not in activity bar
 		if (this.titleBarStyle !== 'native'
@@ -407,6 +432,11 @@ export class TitlebarPart extends Part implements ITitleService {
 				return color.isOpaque() ? color : color.makeOpaque(WORKBENCH_BACKGROUND(theme));
 			}) || '';
 			this.element.style.backgroundColor = titleBackground;
+
+			if (this.appIconBadge) {
+				this.appIconBadge.style.backgroundColor = titleBackground;
+			}
+
 			if (titleBackground && Color.fromHex(titleBackground).isLighter()) {
 				this.element.classList.add('light');
 			} else {
@@ -441,7 +471,7 @@ export class TitlebarPart extends Part implements ITitleService {
 
 	protected adjustTitleMarginToCenter(): void {
 		if (this.customMenubar && this.menubar) {
-			const leftMarker = this.menubar.clientWidth + 10;
+			const leftMarker = (this.appIcon ? this.appIcon.clientWidth : 0) + this.menubar.clientWidth + 10;
 			const rightMarker = this.element.clientWidth - 10;
 
 			// Not enough space to center the titlebar within window,

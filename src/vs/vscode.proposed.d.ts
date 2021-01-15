@@ -133,6 +133,13 @@ declare module 'vscode' {
 
 	//#region @alexdima - resolvers
 
+	export interface MessageOptions {
+		/**
+		 * Do not render a native message box.
+		 */
+		useCustom?: boolean;
+	}
+
 	export interface RemoteAuthorityResolverContext {
 		resolveAttempt: number;
 	}
@@ -1294,11 +1301,17 @@ declare module 'vscode' {
 		 * The range will always be revealed in the center of the viewport.
 		 */
 		InCenter = 1,
+
 		/**
 		 * If the range is outside the viewport, it will be revealed in the center of the viewport.
 		 * Otherwise, it will be revealed with as little scrolling as possible.
 		 */
 		InCenterIfOutsideViewport = 2,
+
+		/**
+		 * The range will always be revealed at the top of the viewport.
+		 */
+		AtTop = 3
 	}
 
 	export interface NotebookEditor {
@@ -2288,11 +2301,46 @@ declare module 'vscode' {
 
 	//#region Opener service (https://github.com/microsoft/vscode/issues/109277)
 
+	export enum ExternalUriOpenerPriority {
+		/**
+		 * The opener is disabled and will not be shown to users.
+		 *
+		 * Note that the opener can still be used if the user
+		 * specifically configures it in their settings.
+		 */
+		None = 0,
+
+		/**
+		 * The opener can open the uri but will not be shown by default when a
+		 * user clicks on the uri.
+		 *
+		 * If only optional openers are enabled, then VS Code's default opener
+		 * will be automatically used.
+		 */
+		Option = 1,
+
+		/**
+		 * The opener can open the uri.
+		 *
+		 * When the user clicks on a uri, they will be prompted to select the opener
+		 * they wish to use for it.
+		 */
+		Default = 2,
+
+		/**
+		 * The opener can open the uri and should be automatically selected if possible.
+		 *
+		 * Preferred openers will be automatically selected if no other preferred openers
+		 * are available.
+		 */
+		Preferred = 3,
+	}
+
 	/**
 	 * Handles opening uris to external resources, such as http(s) links.
 	 *
 	 * Extensions can implement an `ExternalUriOpener` to open `http` links to a webserver
-	 * inside of VS Code instead of having the link be opened by the webbrowser.
+	 * inside of VS Code instead of having the link be opened by the web browser.
 	 *
 	 * Currently openers may only be registered for `http` and `https` uris.
 	 */
@@ -2305,12 +2353,18 @@ declare module 'vscode' {
 		 * not yet gone through port forwarding.
 		 * @param token Cancellation token indicating that the result is no longer needed.
 		 *
-		 * @return True if the opener can open the external uri.
+		 * @return If the opener can open the external uri.
 		 */
-		canOpenExternalUri(uri: Uri, token: CancellationToken): ProviderResult<boolean>;
+		canOpenExternalUri(uri: Uri, token: CancellationToken): ExternalUriOpenerPriority | Thenable<ExternalUriOpenerPriority>;
 
 		/**
 		 * Open the given uri.
+		 *
+		 * This is invoked when:
+		 *
+		 * - The user clicks a link which does not have an assigned opener. In this case, first `canOpenExternalUri`
+		 *   is called and if the user selects this opener, then `openExternalUri` is called.
+		 * - The user sets the default opener for a link in their settings and then visits a link.
 		 *
 		 * @param resolvedUri The uri to open. This uri may have been transformed by port forwarding, so it
 		 * may not match the original uri passed to `canOpenExternalUri`. Use `ctx.originalUri` to check the
@@ -2335,8 +2389,11 @@ declare module 'vscode' {
 		readonly sourceUri: Uri;
 	}
 
-
+	/**
+	 * Additional metadata about the registered opener.
+	 */
 	interface ExternalUriOpenerMetadata {
+
 		/**
 		 * Text displayed to the user that explains what the opener does.
 		 *
@@ -2351,13 +2408,16 @@ declare module 'vscode' {
 		 *
 		 * When a uri is about to be opened, an `onUriOpen:SCHEME` activation event is fired.
 		 *
+		 * @param id Unique id of the opener, such as `myExtension.browserPreview`. This is used in settings
+		 *   and commands to identify the opener.
 		 * @param schemes List of uri schemes the opener is triggered for. Currently only `http`
 		 * and `https` are supported.
 		 * @param opener Opener to register.
+		 * @param metadata Additional information about the opener.
 		 *
 		* @returns Disposable that unregisters the opener.
 		 */
-		export function registerExternalUriOpener(schemes: readonly string[], opener: ExternalUriOpener, metadata: ExternalUriOpenerMetadata): Disposable;
+		export function registerExternalUriOpener(id: string, schemes: readonly string[], opener: ExternalUriOpener, metadata: ExternalUriOpenerMetadata): Disposable;
 	}
 
 	//#endregion

@@ -4,11 +4,11 @@
  *--------------------------------------------------------------------------------------------*/
 
 import * as nls from 'vs/nls';
-import { IMenuService, MenuId, IMenu, SubmenuItemAction, registerAction2, Action2 } from 'vs/platform/actions/common/actions';
+import { IMenuService, MenuId, IMenu, SubmenuItemAction, registerAction2, Action2, MenuRegistry, MenuItemAction } from 'vs/platform/actions/common/actions';
 import { registerThemingParticipant, IThemeService } from 'vs/platform/theme/common/themeService';
 import { MenuBarVisibility, getTitleBarStyle, IWindowOpenable, getMenuBarVisibility } from 'vs/platform/windows/common/windows';
-import { IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
-import { IAction, Action, SubmenuAction, Separator } from 'vs/base/common/actions';
+import { ContextKeyExpr, IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
+import { IAction, Action, SubmenuAction, Separator, toAction } from 'vs/base/common/actions';
 import * as DOM from 'vs/base/browser/dom';
 import { IKeybindingService } from 'vs/platform/keybinding/common/keybinding';
 import { isMacintosh, isWeb, isIOS, isNative } from 'vs/base/common/platform';
@@ -325,6 +325,16 @@ export class CustomMenubarControl extends MenubarControl {
 		this.registerListeners();
 
 		this.registerActions();
+
+		// Register web menu actions to the file menu when its in the title
+		this.getWebNavigationMenuItemActions().forEach(actionItem => {
+			this._register(MenuRegistry.appendMenuItem(MenuId.MenubarFileMenu, {
+				command: actionItem.item,
+				title: actionItem.item.title,
+				group: 'z_Web',
+				when: ContextKeyExpr.and(IsWebContext, ContextKeyExpr.notEquals('config.window.menuBarVisibility', 'compact'))
+			}));
+		});
 
 		registerThemingParticipant((theme, collector) => {
 			const menubarActiveWindowFgColor = theme.getColor(TITLE_BAR_ACTIVE_FOREGROUND);
@@ -662,6 +672,27 @@ export class CustomMenubarControl extends MenubarControl {
 		}
 	}
 
+	private getWebNavigationMenuItemActions(): MenuItemAction[] {
+		if (!isWeb) {
+			return []; // only for web
+		}
+
+		const webNavigationActions = [];
+		const webNavigationMenu = this.menuService.createMenu(MenuId.MenubarHomeMenu, this.contextKeyService);
+		for (const groups of webNavigationMenu.getActions()) {
+			const [, actions] = groups;
+			for (const action of actions) {
+				if (action instanceof MenuItemAction) {
+					webNavigationActions.push(action);
+				}
+			}
+		}
+
+		webNavigationMenu.dispose();
+
+		return webNavigationActions;
+	}
+
 	private getMenuBarOptions(): IMenuBarOptions {
 		return {
 			enableMnemonics: this.currentEnableMenuBarMnemonics,
@@ -669,7 +700,28 @@ export class CustomMenubarControl extends MenubarControl {
 			visibility: this.currentMenubarVisibility,
 			getKeybinding: (action) => this.keybindingService.lookupKeybinding(action.id),
 			alwaysOnMnemonics: this.alwaysOnMnemonics,
-			compactMode: this.currentCompactMenuMode
+			compactMode: this.currentCompactMenuMode,
+			getCompactMenuActions: () => {
+				if (!isWeb) {
+					return []; // only for web
+				}
+
+				const webNavigationActions: IAction[] = [];
+				const href = this.environmentService.options?.homeIndicator?.href;
+				if (href) {
+					webNavigationActions.push(toAction({ id: 'goHome', label: nls.localize('goHome', "Go Home"), run: () => window.location.href = href }));
+				}
+
+				const otherActions = this.getWebNavigationMenuItemActions().map(action => {
+					const title = typeof action.item.title === 'string'
+						? action.item.title
+						: action.item.title.mnemonicTitle ?? action.item.title.value;
+					return new Action(action.id, mnemonicMenuLabel(title), action.class, action.enabled, () => this.commandService.executeCommand(action.id));
+				});
+
+				webNavigationActions.push(...otherActions);
+				return webNavigationActions;
+			}
 		};
 	}
 

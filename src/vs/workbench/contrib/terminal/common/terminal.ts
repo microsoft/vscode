@@ -138,6 +138,7 @@ export interface ITerminalConfiguration {
 	localEchoStyle: 'bold' | 'dim' | 'italic' | 'underlined' | 'inverted' | string;
 	serverSpawn: boolean;
 	enablePersistentSessions: boolean;
+	flowControl: boolean;
 }
 
 export const DEFAULT_LOCAL_ECHO_EXCLUDE: ReadonlyArray<string> = ['vim', 'vi', 'nano', 'tmux'];
@@ -287,6 +288,11 @@ export interface IShellLaunchConfig {
 	 * a terminal used to drive some VS Code feature.
 	 */
 	isFeatureTerminal?: boolean;
+
+	/**
+	 * Whether flow control is enabled for this terminal.
+	 */
+	flowControl?: boolean;
 }
 
 /**
@@ -379,6 +385,7 @@ export interface ITerminalProcessManager extends IDisposable {
 	createProcess(shellLaunchConfig: IShellLaunchConfig, cols: number, rows: number, isScreenReaderModeEnabled: boolean): Promise<ITerminalLaunchError | undefined>;
 	write(data: string): void;
 	setDimensions(cols: number, rows: number): void;
+	acknowledgeDataEvent(charCount: number): void;
 
 	getInitialCwd(): Promise<string>;
 	getCwd(): Promise<string>;
@@ -419,6 +426,7 @@ export interface ITerminalProcessExtHostProxy extends IDisposable {
 
 	onInput: Event<string>;
 	onResize: Event<{ cols: number, rows: number }>;
+	onAcknowledgeDataEvent: Event<number>;
 	onShutdown: Event<boolean>;
 	onRequestInitialCwd: Event<void>;
 	onRequestCwd: Event<void>;
@@ -507,9 +515,40 @@ export interface ITerminalChildProcess {
 	input(data: string): void;
 	resize(cols: number, rows: number): void;
 
+	/**
+	 * Acknowledge a data event has been parsed by the terminal, this is used to implement flow
+	 * control to ensure remote processes to not get too far ahead of the client and flood the
+	 * connection.
+	 * @param charCount The number of characters being acknowledged.
+	 */
+	acknowledgeDataEvent(charCount: number): void;
+
 	getInitialCwd(): Promise<string>;
 	getCwd(): Promise<string>;
 	getLatency(): Promise<number>;
+}
+
+export const enum FlowControlConstants {
+	/**
+	 * The number of _unacknowledged_ chars to have been sent before the pty is paused in order for
+	 * the client to catch up.
+	 */
+	HighWatermarkChars = 100000,
+	/**
+	 * After flow control pauses the pty for the client the catch up, this is the number of
+	 * _unacknowledged_ chars to have been caught up to on the client before resuming the pty again.
+	 * This is used to attempt to prevent pauses in the flowing data; ideally while the pty is
+	 * paused the number of unacknowledged chars would always be greater than 0 or the client will
+	 * appear to stutter. In reality this balance is hard to accomplish though so heavy commands
+	 * will likely pause as latency grows, not flooding the connection is the important thing as
+	 * it's shared with other core functionality.
+	 */
+	LowWatermarkChars = 5000,
+	/**
+	 * The number characters that are accumulated on the client side before sending an ack event.
+	 * This must be less than or equal to LowWatermarkChars or the terminal max never unpause.
+	 */
+	CharCountAckSize = 5000
 }
 
 export const enum TERMINAL_COMMAND_ID {
