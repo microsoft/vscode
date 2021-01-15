@@ -135,14 +135,8 @@ export class ActivitybarPart extends Part implements IActivityBarService {
 		super(Parts.ACTIVITYBAR_PART, { hasTitle: false }, themeService, storageService, layoutService);
 
 		for (const cachedViewContainer of this.cachedViewContainers) {
-			if (
-				environmentService.remoteAuthority || // In remote window, hide activity bar entries until registered.
-				this.shouldBeHidden(cachedViewContainer.id, cachedViewContainer)
-			) {
-				cachedViewContainer.visible = false;
-			}
+			cachedViewContainer.visible = !this.shouldBeHidden(cachedViewContainer.id, cachedViewContainer);
 		}
-
 		this.compositeBar = this.createCompositeBar();
 
 		this.onDidRegisterViewContainers(this.getViewContainers());
@@ -791,8 +785,8 @@ export class ActivitybarPart extends Part implements IActivityBarService {
 			}
 		}
 
-		// Check Cache
-		if (!this.hasExtensionsRegistered) {
+		// Check cache only in desktop local window and if extensions are not yet registered
+		if (!this.environmentService.remoteAuthority && !this.hasExtensionsRegistered) {
 			cachedViewContainer = cachedViewContainer || this.cachedViewContainers.find(({ id }) => id === viewContainerId);
 
 			// Show builtin ViewContainer if not registered yet
