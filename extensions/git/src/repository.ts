@@ -1133,8 +1133,8 @@ export class Repository implements Disposable {
 		await this.run(Operation.Add, () => this.repository.add(resources.map(r => r.fsPath), opts));
 	}
 
-	async rm(resources: Uri[]): Promise<void> {
-		await this.run(Operation.Remove, () => this.repository.rm(resources.map(r => r.fsPath)));
+	async rm(resources: Uri[], cache = false): Promise<void> {
+		await this.run(Operation.Remove, () => this.repository.rm(resources.map(r => r.fsPath), cache));
 	}
 
 	async stage(resource: Uri, contents: string): Promise<void> {

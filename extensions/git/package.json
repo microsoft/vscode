@@ -405,6 +405,11 @@
         "category": "Git"
       },
       {
+        "command": "git.rm",
+        "title": "%command.rm%",
+        "category": "Git"
+      },
+      {
         "command": "git.removeRemote",
         "title": "%command.removeRemote%",
         "category": "Git"

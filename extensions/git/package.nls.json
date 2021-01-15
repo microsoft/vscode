@@ -71,6 +71,7 @@
 	"command.pushFollowTagsForce": "Push (Follow Tags, Force)",
 	"command.pushTags": "Push Tags",
 	"command.addRemote": "Add Remote...",
+	"command.rm": "Remove",
 	"command.removeRemote": "Remove Remote",
 	"command.sync": "Sync",
 	"command.syncRebase": "Sync (Rebase)",

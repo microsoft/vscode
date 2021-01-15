@@ -608,6 +608,23 @@ export class CommandCenter {
 		}
 	}
 
+	@command('git.rm', { repository: true })
+	async rm(repository: Repository): Promise<void> {
+		const textEditor = window.activeTextEditor;
+
+		if (!textEditor) {
+			return;
+		}
+
+		const fileName = textEditor.document.fileName;
+		if (await repository.diffIndexWithHEAD(fileName) || await repository.diffWithHEAD(fileName)) {
+			window.showErrorMessage(`Failed to remove, please discard changes in ${fileName}`);
+			return;
+		}
+
+		await repository.rm([textEditor.document.uri], true);
+	}
+
 	@command('git.openRepository', { repository: false })
 	async openRepository(path?: string): Promise<void> {
 		if (!path) {
