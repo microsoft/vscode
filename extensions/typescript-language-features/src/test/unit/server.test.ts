@@ -6,14 +6,14 @@
 import * as assert from 'assert';
 import 'mocha';
 import * as stream from 'stream';
-import type * as Proto from '../protocol';
-import { NodeRequestCanceller } from '../tsServer/cancellation.electron';
-import { ProcessBasedTsServer, TsServerProcess } from '../tsServer/server';
-import { ServerType } from '../typescriptService';
-import { nulToken } from '../utils/cancellation';
-import { Logger } from '../utils/logger';
-import { TelemetryReporter } from '../utils/telemetry';
-import Tracer from '../utils/tracer';
+import type * as Proto from '../../protocol';
+import { NodeRequestCanceller } from '../../tsServer/cancellation.electron';
+import { ProcessBasedTsServer, TsServerProcess } from '../../tsServer/server';
+import { ServerType } from '../../typescriptService';
+import { nulToken } from '../../utils/cancellation';
+import { Logger } from '../../utils/logger';
+import { TelemetryReporter } from '../../utils/telemetry';
+import Tracer from '../../utils/tracer';
 
 
 const NoopTelemetryReporter = new class implements TelemetryReporter {

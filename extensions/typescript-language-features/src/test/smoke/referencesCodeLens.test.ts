@@ -6,8 +6,8 @@
 import * as assert from 'assert';
 import 'mocha';
 import * as vscode from 'vscode';
-import { disposeAll } from '../utils/dispose';
-import { createTestEditor, wait } from './testUtils';
+import { disposeAll } from '../../utils/dispose';
+import { createTestEditor, wait } from '../../test/testUtils';
 
 
 type VsCodeConfiguration = { [key: string]: any };

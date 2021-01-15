@@ -6,8 +6,8 @@
 import * as assert from 'assert';
 import 'mocha';
 import * as vscode from 'vscode';
-import { templateToSnippet } from '../languageFeatures/jsDocCompletions';
-import { joinLines } from './testUtils';
+import { templateToSnippet } from '../../languageFeatures/jsDocCompletions';
+import { joinLines } from '../testUtils';
 
 suite('typescript.jsDocSnippet', () => {
 

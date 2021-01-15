@@ -5,9 +5,9 @@
 
 import 'mocha';
 import * as vscode from 'vscode';
-import { disposeAll } from '../utils/dispose';
-import { acceptFirstSuggestion } from './suggestTestHelpers';
-import { assertEditorContents, Config, createTestEditor, CURSOR, enumerateConfig, insertModesValues, joinLines, updateConfig, VsCodeConfiguration } from './testUtils';
+import { disposeAll } from '../../utils/dispose';
+import { acceptFirstSuggestion } from '../suggestTestHelpers';
+import { assertEditorContents, Config, createTestEditor, CURSOR, enumerateConfig, insertModesValues, joinLines, updateConfig, VsCodeConfiguration } from '../testUtils';
 
 const testDocumentUri = vscode.Uri.parse('untitled:test.ts');
 
