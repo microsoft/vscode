@@ -255,7 +255,7 @@ steps:
     condition: and(succeeded(), ne(variables['VSCODE_PUBLISH'], 'false'))
 
   - publish: .build/linux/deb
-    artifact: linux-deb-$(VSCODE_ARCH)
+    artifact: vscode-linux-deb-$(VSCODE_ARCH)
     displayName: Publish deb package
     condition: and(succeeded(), ne(variables['VSCODE_PUBLISH'], 'false'))
 
