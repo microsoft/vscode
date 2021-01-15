@@ -69,3 +69,7 @@ mkdir -p $REPO/.build/linux/snap-tarball
 SNAP_TARBALL_PATH="$REPO/.build/linux/snap-tarball/snap-$VSCODE_ARCH.tar.gz"
 rm -rf $SNAP_TARBALL_PATH
 (cd .build/linux && tar -czf $SNAP_TARBALL_PATH snap)
+
+# Export DEB_PATH, RPM_PATH
+echo "##vso[task.setvariable variable=DEB_PATH]$DEB_PATH"
+echo "##vso[task.setvariable variable=RPM_PATH]$RPM_PATH"
