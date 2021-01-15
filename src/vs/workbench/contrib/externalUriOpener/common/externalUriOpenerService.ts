@@ -16,11 +16,10 @@ import { createDecorator } from 'vs/platform/instantiation/common/instantiation'
 import { IExternalOpener, IOpenerService } from 'vs/platform/opener/common/opener';
 import { IQuickInputService, IQuickPickItem, IQuickPickSeparator } from 'vs/platform/quickinput/common/quickInput';
 import { IStorageService } from 'vs/platform/storage/common/storage';
-import { ExternalUriOpenerConfiguration, externalUriOpenersSettingId } from 'vs/workbench/contrib/externalUriOpener/common/configuration';
+import { defaultExternalUriOpenerId, ExternalUriOpenerConfiguration, externalUriOpenersSettingId } from 'vs/workbench/contrib/externalUriOpener/common/configuration';
 import { testUrlMatchesGlob } from 'vs/workbench/contrib/url/common/urlGlob';
 import { IPreferencesService } from 'vs/workbench/services/preferences/common/preferences';
 
-export const defaultExternalUriOpenerId = 'default';
 
 export const IExternalUriOpenerService = createDecorator<IExternalUriOpenerService>('externalUriOpenerService');
 

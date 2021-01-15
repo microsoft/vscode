@@ -8,7 +8,8 @@ import { workbenchConfigurationNodeBase } from 'vs/workbench/common/configuratio
 import * as nls from 'vs/nls';
 import { IJSONSchema } from 'vs/base/common/jsonSchema';
 import { Registry } from 'vs/platform/registry/common/platform';
-import { defaultExternalUriOpenerId } from 'vs/workbench/contrib/externalUriOpener/common/contributedOpeners';
+
+export const defaultExternalUriOpenerId = 'default';
 
 export const externalUriOpenersSettingId = 'workbench.externalUriOpeners';
 
