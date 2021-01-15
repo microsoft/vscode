@@ -469,6 +469,7 @@ export class ActivitybarPart extends Part implements IActivityBarService {
 
 		// Home action bar
 		const homeIndicator = this.environmentService.options?.homeIndicator;
+		// TODO @sbatten remove the fake setting and associated code
 		if (homeIndicator && this.configurationService.getValue<boolean>('window.showHomeIndicator')) {
 			let codicon = iconRegistry.get(homeIndicator.icon);
 			if (!codicon) {
