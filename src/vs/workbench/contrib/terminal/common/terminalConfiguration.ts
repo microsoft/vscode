@@ -91,7 +91,7 @@ export const terminalConfiguration: IConfigurationNode = {
 			default: false
 		},
 		'terminal.integrated.altClickMovesCursor': {
-			description: localize('terminal.integrated.altClickMovesCursor', "If enabled, alt/option + click will move the prompt cursor to position underneath the mouse."),
+			description: localize('terminal.integrated.altClickMovesCursor', "If enabled, alt/option + click will move the prompt cursor to position underneath the mouse. This may not work reliably depending on your shell."),
 			type: 'boolean',
 			default: true
 		},
