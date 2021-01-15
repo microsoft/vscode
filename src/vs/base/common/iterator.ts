@@ -39,6 +39,8 @@ export namespace Iterable {
 		return false;
 	}
 
+	export function filter<T, R extends T>(iterable: Iterable<T>, predicate: (t: T) => t is R): Iterable<R>;
+	export function filter<T>(iterable: Iterable<T>, predicate: (t: T) => boolean): Iterable<T>;
 	export function* filter<T>(iterable: Iterable<T>, predicate: (t: T) => boolean): Iterable<T> {
 		for (const element of iterable) {
 			if (predicate(element)) {

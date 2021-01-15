@@ -2974,5 +2974,6 @@ export type RequiredTestItem = {
 	[K in keyof Required<vscode.TestItem>]: K extends AllowedUndefined ? vscode.TestItem[K] : Required<vscode.TestItem>[K]
 };
 
+export type TestItem = vscode.TestItem;
 
 //#endregion

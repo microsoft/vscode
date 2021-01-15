@@ -3,7 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { CompressibleObjectTree } from 'vs/base/browser/ui/tree/objectTree';
+import { ObjectTree } from 'vs/base/browser/ui/tree/objectTree';
 import { Event } from 'vs/base/common/event';
 import { FuzzyScore } from 'vs/base/common/filters';
 import { IDisposable } from 'vs/base/common/lifecycle';
@@ -35,7 +35,7 @@ export interface ITestTreeProjection extends IDisposable {
 	/**
 	 * Applies pending update to the tree.
 	 */
-	applyTo(tree: CompressibleObjectTree<ITestTreeElement, FuzzyScore>): void;
+	applyTo(tree: ObjectTree<ITestTreeElement, FuzzyScore>): void;
 }
 
 
@@ -46,6 +46,8 @@ export interface ITestTreeElement {
 	 * becomes invalid.
 	 */
 	computedState: TestRunState | undefined;
+
+	readonly children: Set<ITestTreeElement>;
 
 	/**
 	 * Unique ID of the element in the tree.
@@ -88,5 +90,4 @@ export interface ITestTreeElement {
 	readonly state?: TestRunState;
 	readonly label: string;
 	readonly parentItem: ITestTreeElement | null;
-	getChildren(): Iterable<ITestTreeElement>;
 }
