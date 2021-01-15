@@ -179,3 +179,7 @@
 .extension-list-item > .details > .footer > .monaco-action-bar > .actions-container .extension-action.label {
 	max-width: 150px;
 }
+
+.extension-list-item .footer .monaco-action-bar .action-item.action-dropdown-item > .monaco-dropdown {
+	margin-right: 0px;
+}
