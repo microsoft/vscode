@@ -10,8 +10,9 @@ import { URI } from 'vs/base/common/uri';
 import { localize } from 'vs/nls';
 import { ExtensionIdentifier } from 'vs/platform/extensions/common/extensions';
 import { INotificationService } from 'vs/platform/notification/common/notification';
+import { IStorageService } from 'vs/platform/storage/common/storage';
 import { ExtHostContext, ExtHostUriOpenersShape, IExtHostContext, MainContext, MainThreadUriOpenersShape } from 'vs/workbench/api/common/extHost.protocol';
-import { externalUriOpenerIdSchemaAddition } from 'vs/workbench/contrib/externalUriOpener/common/configuration';
+import { ContributedExternalUriOpenersStore } from 'vs/workbench/contrib/externalUriOpener/common/contributedOpeners';
 import { IExternalOpenerProvider, IExternalUriOpener, IExternalUriOpenerService } from 'vs/workbench/contrib/externalUriOpener/common/externalUriOpenerService';
 import { IExtensionService } from 'vs/workbench/services/extensions/common/extensions';
 import { extHostNamedCustomer } from '../common/extHostCustomers';
@@ -27,9 +28,11 @@ export class MainThreadUriOpeners extends Disposable implements MainThreadUriOpe
 
 	private readonly proxy: ExtHostUriOpenersShape;
 	private readonly _registeredOpeners = new Map<string, RegisteredOpenerMetadata>();
+	private readonly _contributedExternalUriOpenersStore: ContributedExternalUriOpenersStore;
 
 	constructor(
 		context: IExtHostContext,
+		@IStorageService storageService: IStorageService,
 		@IExternalUriOpenerService externalUriOpenerService: IExternalUriOpenerService,
 		@IExtensionService private readonly extensionService: IExtensionService,
 		@INotificationService private readonly notificationService: INotificationService,
@@ -38,6 +41,8 @@ export class MainThreadUriOpeners extends Disposable implements MainThreadUriOpe
 		this.proxy = context.getProxy(ExtHostContext.ExtHostUriOpeners);
 
 		this._register(externalUriOpenerService.registerExternalOpenerProvider(this));
+
+		this._contributedExternalUriOpenersStore = this._register(new ContributedExternalUriOpenersStore(storageService, extensionService));
 	}
 
 	public async *getOpeners(targetUri: URI): AsyncIterable<IExternalUriOpener> {
@@ -92,11 +97,12 @@ export class MainThreadUriOpeners extends Disposable implements MainThreadUriOpe
 			extensionId,
 		});
 
-		externalUriOpenerIdSchemaAddition.enum?.push(id);
+		this._contributedExternalUriOpenersStore.add(id, extensionId.value);
 	}
 
 	async $unregisterUriOpener(id: string): Promise<void> {
 		this._registeredOpeners.delete(id);
+		this._contributedExternalUriOpenersStore.delete(id);
 	}
 
 	dispose(): void {

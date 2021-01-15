@@ -39,12 +39,6 @@
             "default": true,
             "title": "Focus Lock Indicator Enabled",
             "description": "%configuration.focusLockIndicator.enabled.description%"
-          },
-          "simpleBrowser.opener.enabled": {
-            "type": "boolean",
-            "default": false,
-            "title": "Opener Enabled",
-            "description": "%configuration.opener.enabled.description%"
           }
         }
       }

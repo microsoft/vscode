@@ -2978,8 +2978,9 @@ export type RequiredTestItem = {
 
 //#endregion
 
-export enum ExternalUriOpenerEnablement {
-	Disabled = 0,
-	Enabled = 1,
-	Preferred = 2
+export enum ExternalUriOpenerPriority {
+	None = 0,
+	Option = 1,
+	Default = 2,
+	Preferred = 3,
 }
