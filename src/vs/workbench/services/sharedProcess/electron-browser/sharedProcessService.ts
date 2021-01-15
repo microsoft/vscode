@@ -71,10 +71,6 @@ export class SharedProcessService extends Disposable implements ISharedProcessSe
 	registerChannel(channelName: string, channel: IServerChannel<string>): void {
 		this.withSharedProcessConnection.then(connection => connection.registerChannel(channelName, channel));
 	}
-
-	toggleWindow(): Promise<void> {
-		return this.sharedProcessManagementService.toggleWindow();
-	}
 }
 
 registerSingleton(ISharedProcessService, SharedProcessService, true);
