@@ -144,7 +144,7 @@ export const content: GettingStartedContent = [
 						command: 'workbench.userDataSync.actions.turnOn',
 					},
 					doneOn: { eventFired: 'sync-enabled' },
-					media: { type: 'image', altText: 'Commiting a change via Git in VS Code.', path: 'github.jpg', }
+					media: { type: 'image', altText: 'The "Turn on Sync" entry in the settings gear menu.', path: 'settingsSync.jpg', }
 				},
 				{
 					id: 'pickAFolderTask-Mac',
