@@ -215,8 +215,8 @@ export class BreakpointsView extends ViewPane {
 			element instanceof FunctionBreakpoint ? 'functionBreakpoint' : element instanceof DataBreakpoint ? 'dataBreakpoint' : undefined;
 		this.breakpointItemType.set(type);
 		const session = this.debugService.getViewModel().focusedSession;
-		const conditionNotSupported = (element instanceof ExceptionBreakpoint && !element.supportsCondition) || (session && session.capabilities.supportsConditionalBreakpoints);
-		this.breakpointSupportsCondition.set(!conditionNotSupported);
+		const conditionSupported = element instanceof ExceptionBreakpoint ? element.supportsCondition : (!session || !!session.capabilities.supportsConditionalBreakpoints);
+		this.breakpointSupportsCondition.set(conditionSupported);
 
 		const secondary: IAction[] = [];
 		const actionsDisposable = createAndFillInContextMenuActions(this.menu, { arg: e.element, shouldForwardArgs: false }, { primary: [], secondary }, g => /^inline/.test(g));
@@ -511,8 +511,6 @@ class FunctionBreakpointsRenderer implements IListRenderer<FunctionBreakpoint, I
 		data.checkbox = createCheckbox();
 		data.toDispose = [];
 		data.elementDisposable = [];
-		const session = this.debugService.getViewModel().focusedSession;
-		this.breakpointSupportsCondition.set(!session || !!session.capabilities.supportsConditionalBreakpoints);
 		data.toDispose.push(dom.addStandardDisposableListener(data.checkbox, 'change', (e) => {
 			this.debugService.enableOrDisableBreakpoints(!data.context.enabled, data.context);
 		}));
@@ -551,6 +549,7 @@ class FunctionBreakpointsRenderer implements IListRenderer<FunctionBreakpoint, I
 		}
 
 		const primary: IAction[] = [];
+		this.breakpointSupportsCondition.set(!session || !!session.capabilities.supportsConditionalBreakpoints);
 		data.elementDisposable.push(createAndFillInActionBarActions(this.menu, { arg: functionBreakpoint, shouldForwardArgs: true }, { primary, secondary: [] }, g => /^inline/.test(g)));
 		data.actionBar.clear();
 		data.actionBar.push(primary, { icon: true, label: false });
