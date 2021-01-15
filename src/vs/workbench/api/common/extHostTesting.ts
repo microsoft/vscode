@@ -28,6 +28,7 @@ export class ExtHostTesting implements ExtHostTestingShape {
 	private readonly providers = new Map<string, vscode.TestProvider>();
 	private readonly proxy: MainThreadTestingShape;
 	private readonly ownedTests = new OwnedTestCollection();
+	private readonly WorkspaceTestHierarchies = new Map<vscode.Uri, vscode.TestHierarchy<vscode.TestItem>>();
 	private readonly testSubscriptions = new Map<string, {
 		collection: SingleUseTestCollection;
 		store: IDisposable;
@@ -112,7 +113,10 @@ export class ExtHostTesting implements ExtHostTestingShape {
 		if (resource === ExtHostTestingResource.TextDocument) {
 			const document = this.documents.getDocument(uri);
 			if (document) {
-				method = p => p.createDocumentTestHierarchy?.(document.document);
+				const folder = await this.workspace.getWorkspaceFolder2(uri, false);
+				method = p => p.createDocumentTestHierarchy
+					? p.createDocumentTestHierarchy(document.document)
+					: this.createDefaultDocumentTestHierarchy(p, document.document, folder);
 			}
 		} else {
 			const folder = await this.workspace.getWorkspaceFolder2(uri, false);
@@ -216,6 +220,57 @@ export class ExtHostTesting implements ExtHostTestingShape {
 
 		const { actual, previousChildren, previousEquals, ...item } = owned;
 		return Promise.resolve(item);
+	}
+
+	private createDefaultDocumentTestHierarchy(provider: vscode.TestProvider, document: vscode.TextDocument, folder: vscode.WorkspaceFolder): vscode.TestHierarchy<vscode.TestItem> | undefined {
+		// let idOfProvider: string | undefined;
+		// for (const [id, p] of this.providers) {
+		// 	if (p === provider) {
+		// 		idOfProvider = id;
+		// 	}
+		// }
+
+		// if (!idOfProvider) {
+		// 	return;
+		// }
+
+		// const sub = this.testSubscriptions.get(idOfProvider);
+		// if (!sub) {
+		// 	return;
+		// }
+
+		// for (const test of sub) {
+
+		// }
+		// this.testSubscriptions.get(idOfProvider)?.collection
+		let hierarchy = this.WorkspaceTestHierarchies.get(folder.uri) ?? provider.createWorkspaceTestHierarchy?.(folder);
+		if (!hierarchy) {
+			return;
+		}
+
+		const node = this.findNode(hierarchy.root, document.uri);
+		if (node) {
+			return {
+				root: node,
+				dispose: hierarchy.dispose,
+				onDidChangeTest: hierarchy.onDidChangeTest
+			};
+		}
+
+		return this.WorkspaceTestHierarchies.get(document.uri)!;
+	}
+
+	private findNode(root: vscode.TestItem, uri: vscode.Uri): vscode.TestItem | undefined {
+		const queue = new Array<vscode.TestItem>();
+		queue.push(root);
+
+		while (queue.length > 0) {
+			const current = queue.shift();
+			if (current?.location?.uri === uri) {
+				return current;
+			}
+			current?.children?.forEach(c => queue.push(c));
+		}
 	}
 }
 
