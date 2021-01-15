@@ -604,6 +604,10 @@ export interface MainThreadEditorInsetsShape extends IDisposable {
 	$postMessage(handle: number, value: any): Promise<boolean>;
 }
 
+export interface MainThreadEditorTabsShape extends IDisposable {
+
+}
+
 export interface ExtHostEditorInsetsShape {
 	$onDidDispose(handle: number): void;
 	$onDidReceiveMessage(handle: number, message: any): void;
@@ -1839,6 +1843,7 @@ export const MainContext = {
 	MainThreadDocumentContentProviders: createMainId<MainThreadDocumentContentProvidersShape>('MainThreadDocumentContentProviders'),
 	MainThreadTextEditors: createMainId<MainThreadTextEditorsShape>('MainThreadTextEditors'),
 	MainThreadEditorInsets: createMainId<MainThreadEditorInsetsShape>('MainThreadEditorInsets'),
+	MainThreadEditorTabs: createMainId<MainThreadEditorTabsShape>('MainThreadEditorTabs'),
 	MainThreadErrors: createMainId<MainThreadErrorsShape>('MainThreadErrors'),
 	MainThreadTreeViews: createMainId<MainThreadTreeViewsShape>('MainThreadTreeViews'),
 	MainThreadDownloadService: createMainId<MainThreadDownloadServiceShape>('MainThreadDownloadService'),
