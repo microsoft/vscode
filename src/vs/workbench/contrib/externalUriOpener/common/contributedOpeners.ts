@@ -9,8 +9,6 @@ import { Memento } from 'vs/workbench/common/memento';
 import { updateContributedOpeners } from 'vs/workbench/contrib/externalUriOpener/common/configuration';
 import { IExtensionService } from 'vs/workbench/services/extensions/common/extensions';
 
-export const defaultExternalUriOpenerId = 'default';
-
 interface RegisteredExternalOpener {
 	readonly extensionId: string;
 }
