@@ -5,14 +5,14 @@
 
 import { BrowserWindow, ipcMain, Event, MessagePortMain } from 'electron';
 import { IEnvironmentMainService } from 'vs/platform/environment/electron-main/environmentMainService';
-import { ISharedProcess } from 'vs/platform/sharedProcess/electron-main/sharedProcessMainService';
+import { ISharedProcess } from 'vs/platform/ipc/electron-main/sharedProcessMainService';
 import { Barrier } from 'vs/base/common/async';
 import { ILogService } from 'vs/platform/log/common/log';
 import { ILifecycleMainService } from 'vs/platform/lifecycle/electron-main/lifecycleMainService';
 import { IThemeMainService } from 'vs/platform/theme/electron-main/themeMainService';
 import { FileAccess } from 'vs/base/common/network';
 import { browserCodeLoadingCacheStrategy } from 'vs/base/common/platform';
-import { ISharedProcessConfiguration } from 'vs/platform/sharedProcess/node/sharedProcess';
+import { ISharedProcessConfiguration } from 'vs/platform/ipc/node/sharedProcess';
 import { Disposable } from 'vs/base/common/lifecycle';
 import { connect as connectMessagePort } from 'vs/base/parts/ipc/electron-main/ipc.mp';
 import { assertIsDefined } from 'vs/base/common/types';

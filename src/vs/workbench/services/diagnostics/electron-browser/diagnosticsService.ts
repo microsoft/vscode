@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { createChannelSender } from 'vs/base/parts/ipc/common/ipc';
-import { ISharedProcessService } from 'vs/platform/sharedProcess/electron-browser/sharedProcessService';
+import { ISharedProcessService } from 'vs/platform/ipc/electron-browser/sharedProcessService';
 import { registerSingleton } from 'vs/platform/instantiation/common/extensions';
 import { IDiagnosticsService } from 'vs/platform/diagnostics/node/diagnosticsService';
 

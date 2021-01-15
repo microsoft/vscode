@@ -5,7 +5,7 @@
 
 import { createChannelSender } from 'vs/base/parts/ipc/common/ipc';
 import { ILocalizationsService } from 'vs/platform/localizations/common/localizations';
-import { ISharedProcessService } from 'vs/platform/sharedProcess/electron-browser/sharedProcessService';
+import { ISharedProcessService } from 'vs/platform/ipc/electron-browser/sharedProcessService';
 import { registerSingleton } from 'vs/platform/instantiation/common/extensions';
 
 // @ts-ignore: interface is implemented via proxy

@@ -9,7 +9,7 @@ import { ipcRenderer } from 'vs/base/parts/sandbox/electron-sandbox/globals';
 import { Client as MessagePortClient } from 'vs/base/parts/ipc/common/ipc.mp';
 import { IChannel, IServerChannel, getDelayedChannel } from 'vs/base/parts/ipc/common/ipc';
 import { IMainProcessService } from 'vs/platform/ipc/electron-sandbox/mainProcessService';
-import { ISharedProcessService } from 'vs/platform/sharedProcess/electron-browser/sharedProcessService';
+import { ISharedProcessService } from 'vs/platform/ipc/electron-browser/sharedProcessService';
 import { registerSingleton } from 'vs/platform/instantiation/common/extensions';
 import { INativeHostService } from 'vs/platform/native/electron-sandbox/native';
 import { generateUuid } from 'vs/base/common/uuid';
