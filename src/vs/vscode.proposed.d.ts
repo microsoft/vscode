@@ -2294,21 +2294,39 @@ declare module 'vscode' {
 
 	//#region Opener service (https://github.com/microsoft/vscode/issues/109277)
 
-	export enum ExternalUriOpenerEnablement {
+	export enum ExternalUriOpenerPriority {
 		/**
-		 * The opener cannot handle the uri.
+		 * The opener is disabled and will not be shown to users.
+		 *
+		 * Note that the opener can still be used if the user
+		 * specifically configures it in their settings.
 		 */
-		Disabled = 0,
+		None = 0,
 
 		/**
-		 * The opener can handle the uri.
+		 * The opener can open the uri but will not be shown by default when a
+		 * user clicks on the uri.
+		 *
+		 * If only optional openers are enabled, then VS Code's default opener
+		 * will be automatically used.
 		 */
-		Enabled = 1,
+		Option = 1,
 
 		/**
-		 * The opener can handle the uri and should be automatically selected if possible.
+		 * The opener can open the uri.
+		 *
+		 * When the user clicks on a uri, they will be prompted to select the opener
+		 * they wish to use for it.
 		 */
-		Preferred = 2
+		Default = 2,
+
+		/**
+		 * The opener can open the uri and should be automatically selected if possible.
+		 *
+		 * Preferred openers will be automatically selected if no other preferred openers
+		 * are available.
+		 */
+		Preferred = 3,
 	}
 
 	/**
@@ -2330,7 +2348,7 @@ declare module 'vscode' {
 		 *
 		 * @return If the opener can open the external uri.
 		 */
-		canOpenExternalUri(uri: Uri, token: CancellationToken): ProviderResult<ExternalUriOpenerEnablement>;
+		canOpenExternalUri(uri: Uri, token: CancellationToken): ExternalUriOpenerPriority | Thenable<ExternalUriOpenerPriority>;
 
 		/**
 		 * Open the given uri.
@@ -2368,12 +2386,6 @@ declare module 'vscode' {
 	 * Additional metadata about the registered opener.
 	 */
 	interface ExternalUriOpenerMetadata {
-		/**
-		 * Unique id of the opener, such as `myExtension.browserPreview`
-		 *
-		 * This is used in settings and commands to identifier the opener.
-		 */
-		readonly id: string;
 
 		/**
 		 * Text displayed to the user that explains what the opener does.
@@ -2389,13 +2401,16 @@ declare module 'vscode' {
 		 *
 		 * When a uri is about to be opened, an `onUriOpen:SCHEME` activation event is fired.
 		 *
+		 * @param id Unique id of the opener, such as `myExtension.browserPreview`. This is used in settings
+		 *   and commands to identify the opener.
 		 * @param schemes List of uri schemes the opener is triggered for. Currently only `http`
 		 * and `https` are supported.
 		 * @param opener Opener to register.
+		 * @param metadata Additional information about the opener.
 		 *
 		* @returns Disposable that unregisters the opener.
 		 */
-		export function registerExternalUriOpener(schemes: readonly string[], opener: ExternalUriOpener, metadata: ExternalUriOpenerMetadata): Disposable;
+		export function registerExternalUriOpener(id: string, schemes: readonly string[], opener: ExternalUriOpener, metadata: ExternalUriOpenerMetadata): Disposable;
 	}
 
 	//#endregion

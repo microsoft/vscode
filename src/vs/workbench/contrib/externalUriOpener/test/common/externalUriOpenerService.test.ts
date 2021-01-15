@@ -7,7 +7,7 @@ import * as assert from 'assert';
 import { CancellationToken } from 'vs/base/common/cancellation';
 import { Disposable } from 'vs/base/common/lifecycle';
 import { URI } from 'vs/base/common/uri';
-import { ExternalUriOpenerEnablement } from 'vs/editor/common/modes';
+import { ExternalUriOpenerPriority } from 'vs/editor/common/modes';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { TestConfigurationService } from 'vs/platform/configuration/test/common/testConfigurationService';
 import { TestInstantiationService } from 'vs/platform/instantiation/test/common/instantiationServiceMock';
@@ -73,13 +73,13 @@ suite('ExternalUriOpenerService', () => {
 				yield {
 					id: 'disabled-id',
 					label: 'disabled',
-					canOpen: async () => ExternalUriOpenerEnablement.Disabled,
+					canOpen: async () => ExternalUriOpenerPriority.None,
 					openExternalUri: async () => true,
 				};
 				yield {
 					id: 'enabled-id',
 					label: 'enabled',
-					canOpen: async () => ExternalUriOpenerEnablement.Enabled,
+					canOpen: async () => ExternalUriOpenerPriority.Default,
 					openExternalUri: async () => {
 						openedWithEnabled = true;
 						return true;
@@ -103,7 +103,7 @@ suite('ExternalUriOpenerService', () => {
 				yield {
 					id: 'other-id',
 					label: 'other',
-					canOpen: async () => ExternalUriOpenerEnablement.Enabled,
+					canOpen: async () => ExternalUriOpenerPriority.Default,
 					openExternalUri: async () => {
 						return true;
 					}
@@ -111,7 +111,7 @@ suite('ExternalUriOpenerService', () => {
 				yield {
 					id: 'preferred-id',
 					label: 'preferred',
-					canOpen: async () => ExternalUriOpenerEnablement.Preferred,
+					canOpen: async () => ExternalUriOpenerPriority.Preferred,
 					openExternalUri: async () => {
 						openedWithPreferred = true;
 						return true;

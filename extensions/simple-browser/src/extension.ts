@@ -45,27 +45,26 @@ export function activate(context: vscode.ExtensionContext) {
 		manager.show(url.toString(), showOptions);
 	}));
 
-	context.subscriptions.push(vscode.window.registerExternalUriOpener(['http', 'https'], {
+	context.subscriptions.push(vscode.window.registerExternalUriOpener(openerId, ['http', 'https'], {
 		canOpenExternalUri(uri: vscode.Uri) {
 			const configuration = vscode.workspace.getConfiguration('simpleBrowser');
 			if (!configuration.get('opener.enabled', false)) {
-				return vscode.ExternalUriOpenerEnablement.Disabled;
+				return vscode.ExternalUriOpenerPriority.None;
 			}
 
 			const originalUri = new URL(uri.toString());
 			if (enabledHosts.has(originalUri.hostname)) {
 				return isWeb()
-					? vscode.ExternalUriOpenerEnablement.Preferred
-					: vscode.ExternalUriOpenerEnablement.Enabled;
+					? vscode.ExternalUriOpenerPriority.Preferred
+					: vscode.ExternalUriOpenerPriority.Option;
 			}
 
-			return vscode.ExternalUriOpenerEnablement.Disabled;
+			return vscode.ExternalUriOpenerPriority.None;
 		},
 		openExternalUri(resolveUri: vscode.Uri) {
 			return manager.show(resolveUri.toString());
 		}
 	}, {
-		id: openerId,
 		label: localize('openTitle', "Open in simple browser"),
 	}));
 }

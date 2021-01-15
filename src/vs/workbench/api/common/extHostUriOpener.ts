@@ -32,11 +32,11 @@ export class ExtHostUriOpeners implements ExtHostUriOpenersShape {
 
 	registerUriOpener(
 		extensionId: ExtensionIdentifier,
+		id: string,
 		schemes: readonly string[],
 		opener: vscode.ExternalUriOpener,
 		metadata: vscode.ExternalUriOpenerMetadata,
 	): vscode.Disposable {
-		const id = metadata.id;
 		if (this._openers.has(id)) {
 			throw new Error(`Opener with id already registered: '${id}'`);
 		}
@@ -55,15 +55,14 @@ export class ExtHostUriOpeners implements ExtHostUriOpenersShape {
 		});
 	}
 
-	async $canOpenUri(id: string, uriComponents: UriComponents, token: CancellationToken): Promise<modes.ExternalUriOpenerEnablement> {
+	async $canOpenUri(id: string, uriComponents: UriComponents, token: CancellationToken): Promise<modes.ExternalUriOpenerPriority> {
 		const entry = this._openers.get(id);
 		if (!entry) {
 			throw new Error(`Unknown opener with id: ${id}`);
 		}
 
 		const uri = URI.revive(uriComponents);
-		const result = await entry.opener.canOpenExternalUri(uri, token);
-		return result ? result : modes.ExternalUriOpenerEnablement.Disabled;
+		return entry.opener.canOpenExternalUri(uri, token);
 	}
 
 	async $openUri(id: string, context: { resolvedUri: UriComponents, sourceUri: UriComponents }, token: CancellationToken): Promise<void> {

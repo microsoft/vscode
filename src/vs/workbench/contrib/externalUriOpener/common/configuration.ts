@@ -3,10 +3,11 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { IConfigurationNode } from 'vs/platform/configuration/common/configurationRegistry';
+import { IConfigurationNode, IConfigurationRegistry, Extensions } from 'vs/platform/configuration/common/configurationRegistry';
 import { workbenchConfigurationNodeBase } from 'vs/workbench/common/configuration';
 import * as nls from 'vs/nls';
 import { IJSONSchema } from 'vs/base/common/jsonSchema';
+import { Registry } from 'vs/platform/registry/common/platform';
 
 export const externalUriOpenersSettingId = 'workbench.externalUriOpeners';
 
@@ -15,7 +16,7 @@ export interface ExternalUriOpenerConfiguration {
 	readonly id: string;
 }
 
-export const externalUriOpenerIdSchemaAddition: IJSONSchema = {
+const externalUriOpenerIdSchemaAddition: IJSONSchema = {
 	type: 'string',
 	enum: []
 };
@@ -66,3 +67,11 @@ export const externalUriOpenersConfigurationNode: IConfigurationNode = {
 		}
 	}
 };
+
+export function updateContributedOpeners(enumValues: string[], enumDescriptions: string[]): void {
+	externalUriOpenerIdSchemaAddition.enum = enumValues;
+	externalUriOpenerIdSchemaAddition.enumDescriptions = enumDescriptions;
+
+	Registry.as<IConfigurationRegistry>(Extensions.Configuration)
+		.notifyConfigurationSchemaUpdated(externalUriOpenersConfigurationNode);
+}

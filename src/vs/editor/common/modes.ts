@@ -1881,8 +1881,9 @@ export const TokenizationRegistry = new TokenizationRegistryImpl();
 /**
  * @internal
  */
-export enum ExternalUriOpenerEnablement {
-	Disabled,
-	Enabled,
-	Preferred
+export enum ExternalUriOpenerPriority {
+	None = 0,
+	Option = 1,
+	Default = 2,
+	Preferred = 3,
 }

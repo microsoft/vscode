@@ -15,6 +15,7 @@ import { IConfigurationService } from 'vs/platform/configuration/common/configur
 import { createDecorator } from 'vs/platform/instantiation/common/instantiation';
 import { IExternalOpener, IOpenerService } from 'vs/platform/opener/common/opener';
 import { IQuickInputService, IQuickPickItem, IQuickPickSeparator } from 'vs/platform/quickinput/common/quickInput';
+import { IStorageService } from 'vs/platform/storage/common/storage';
 import { ExternalUriOpenerConfiguration, externalUriOpenersSettingId } from 'vs/workbench/contrib/externalUriOpener/common/configuration';
 import { testUrlMatchesGlob } from 'vs/workbench/contrib/url/common/urlGlob';
 import { IPreferencesService } from 'vs/workbench/services/preferences/common/preferences';
@@ -30,7 +31,7 @@ export interface IExternalUriOpener {
 	readonly id: string;
 	readonly label: string;
 
-	canOpen(uri: URI, token: CancellationToken): Promise<modes.ExternalUriOpenerEnablement>;
+	canOpen(uri: URI, token: CancellationToken): Promise<modes.ExternalUriOpenerPriority>;
 	openExternalUri(uri: URI, ctx: { sourceUri: URI }, token: CancellationToken): Promise<boolean>;
 }
 
@@ -51,6 +52,7 @@ export class ExternalUriOpenerService extends Disposable implements IExternalUri
 
 	constructor(
 		@IOpenerService openerService: IOpenerService,
+		@IStorageService storageService: IStorageService,
 		@IConfigurationService private readonly configurationService: IConfigurationService,
 		@IPreferencesService private readonly preferencesService: IPreferencesService,
 		@IQuickInputService private readonly quickInputService: IQuickInputService,
@@ -86,16 +88,16 @@ export class ExternalUriOpenerService extends Disposable implements IExternalUri
 		}
 
 		// Then check to see if there is a valid opener
-		const validOpeners: Array<{ opener: IExternalUriOpener, preferred: boolean }> = [];
+		const validOpeners: Array<{ opener: IExternalUriOpener, priority: modes.ExternalUriOpenerPriority }> = [];
 		await Promise.all(Array.from(allOpeners.values()).map(async opener => {
-			switch (await opener.canOpen(targetUri, token)) {
-				case modes.ExternalUriOpenerEnablement.Enabled:
-					validOpeners.push({ opener, preferred: false });
+			const priority = await opener.canOpen(targetUri, token);
+			switch (priority) {
+				case modes.ExternalUriOpenerPriority.Option:
+				case modes.ExternalUriOpenerPriority.Default:
+				case modes.ExternalUriOpenerPriority.Preferred:
+					validOpeners.push({ opener, priority });
 					break;
 
-				case modes.ExternalUriOpenerEnablement.Preferred:
-					validOpeners.push({ opener, preferred: true });
-					break;
 			}
 		}));
 		if (validOpeners.length === 0) {
@@ -103,13 +105,18 @@ export class ExternalUriOpenerService extends Disposable implements IExternalUri
 		}
 
 		// See if we have a preferred opener first
-		const preferred = firstOrDefault(validOpeners.filter(x => x.preferred));
+		const preferred = firstOrDefault(validOpeners.filter(x => x.priority === modes.ExternalUriOpenerPriority.Preferred));
 		if (preferred) {
 			return preferred.opener.openExternalUri(targetUri, ctx, token);
 		}
 
+		// See if we only have optional openers, use the default opener
+		if (validOpeners.every(x => x.priority === modes.ExternalUriOpenerPriority.Option)) {
+			return false;
+		}
+
 		// Otherwise prompt
-		return this.showOpenerPrompt(validOpeners, targetUri, ctx, token);
+		return this.showOpenerPrompt(validOpeners.map(x => x.opener), targetUri, ctx, token);
 	}
 
 	private getConfiguredOpenerForUri(openers: Map<string, IExternalUriOpener>, targetUri: URI): IExternalUriOpener | undefined {
@@ -127,17 +134,17 @@ export class ExternalUriOpenerService extends Disposable implements IExternalUri
 	}
 
 	private async showOpenerPrompt(
-		openers: ReadonlyArray<{ opener: IExternalUriOpener, preferred: boolean }>,
+		openers: ReadonlyArray<IExternalUriOpener>,
 		targetUri: URI,
 		ctx: { sourceUri: URI },
 		token: CancellationToken
 	): Promise<boolean> {
 		type PickItem = IQuickPickItem & { opener?: IExternalUriOpener | 'configureDefault' };
 
-		const items: Array<PickItem | IQuickPickSeparator> = openers.map((entry): PickItem => {
+		const items: Array<PickItem | IQuickPickSeparator> = openers.map((opener): PickItem => {
 			return {
-				label: entry.opener.label,
-				opener: entry.opener
+				label: opener.label,
+				opener: opener
 			};
 		});
 		items.push(
