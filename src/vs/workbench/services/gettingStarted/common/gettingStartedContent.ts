@@ -99,6 +99,7 @@ export const content: GettingStartedContent = [
 						title: localize('gettingStarted.openVSC.button', "Open in VS Code"),
 						command: 'github.codespaces.openInStable'
 					},
+					when: 'isWeb',
 					doneOn: { commandExecuted: 'github.codespaces.openInStable' },
 					media: { type: 'image', altText: 'Preview of the Open in VS Code command.', path: 'openVSC.jpg' },
 				}
