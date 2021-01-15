@@ -17,6 +17,7 @@ import { IExternalOpener, IOpenerService } from 'vs/platform/opener/common/opene
 import { IQuickInputService, IQuickPickItem, IQuickPickSeparator } from 'vs/platform/quickinput/common/quickInput';
 import { IStorageService } from 'vs/platform/storage/common/storage';
 import { ExternalUriOpenerConfiguration, externalUriOpenersSettingId } from 'vs/workbench/contrib/externalUriOpener/common/configuration';
+import { defaultExternalUriOpenerId } from 'vs/workbench/contrib/externalUriOpener/common/contributedOpeners';
 import { testUrlMatchesGlob } from 'vs/workbench/contrib/url/common/urlGlob';
 import { IPreferencesService } from 'vs/workbench/services/preferences/common/preferences';
 
@@ -70,12 +71,7 @@ export class ExternalUriOpenerService extends Disposable implements IExternalUri
 
 		const targetUri = typeof href === 'string' ? URI.parse(href) : href;
 
-		const allOpeners = new Map<string, IExternalUriOpener>();
-		await Promise.all(Iterable.map(this._providers, async (provider) => {
-			for await (const opener of provider.getOpeners(targetUri)) {
-				allOpeners.set(opener.id, opener);
-			}
-		}));
+		const allOpeners = await this.getAllOpenersForUri(targetUri);
 
 		if (allOpeners.size === 0) {
 			return false;
@@ -84,7 +80,8 @@ export class ExternalUriOpenerService extends Disposable implements IExternalUri
 		// First check to see if we have a configured opener
 		const configuredOpener = this.getConfiguredOpenerForUri(allOpeners, targetUri);
 		if (configuredOpener) {
-			return configuredOpener.openExternalUri(targetUri, ctx, token);
+			// Skip the `canOpen` check here since the opener was specifically requested.
+			return configuredOpener === 'default' ? false : configuredOpener.openExternalUri(targetUri, ctx, token);
 		}
 
 		// Then check to see if there is a valid opener
@@ -97,7 +94,6 @@ export class ExternalUriOpenerService extends Disposable implements IExternalUri
 				case modes.ExternalUriOpenerPriority.Preferred:
 					validOpeners.push({ opener, priority });
 					break;
-
 			}
 		}));
 		if (validOpeners.length === 0) {
@@ -119,13 +115,26 @@ export class ExternalUriOpenerService extends Disposable implements IExternalUri
 		return this.showOpenerPrompt(validOpeners.map(x => x.opener), targetUri, ctx, token);
 	}
 
-	private getConfiguredOpenerForUri(openers: Map<string, IExternalUriOpener>, targetUri: URI): IExternalUriOpener | undefined {
+	private async getAllOpenersForUri(targetUri: URI): Promise<Map<string, IExternalUriOpener>> {
+		const allOpeners = new Map<string, IExternalUriOpener>();
+		await Promise.all(Iterable.map(this._providers, async (provider) => {
+			for await (const opener of provider.getOpeners(targetUri)) {
+				allOpeners.set(opener.id, opener);
+			}
+		}));
+		return allOpeners;
+	}
+
+	private getConfiguredOpenerForUri(openers: Map<string, IExternalUriOpener>, targetUri: URI): IExternalUriOpener | 'default' | undefined {
 		const config = this.configurationService.getValue<readonly ExternalUriOpenerConfiguration[]>(externalUriOpenersSettingId) || [];
 		for (const { id, uri } of config) {
-			const entry = openers.get(id);
-			if (entry) {
-				if (testUrlMatchesGlob(targetUri.toString(), uri)) {
-					// Skip the `canOpen` check here since the opener was specifically requested.
+			if (testUrlMatchesGlob(targetUri.toString(), uri)) {
+				if (id === defaultExternalUriOpenerId) {
+					return 'default';
+				}
+
+				const entry = openers.get(id);
+				if (entry) {
 					return entry;
 				}
 			}
