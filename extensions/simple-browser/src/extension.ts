@@ -13,6 +13,13 @@ const localize = nls.loadMessageBundle();
 const openApiCommand = 'simpleBrowser.api.open';
 const showCommand = 'simpleBrowser.show';
 
+const enabledHosts = new Set<string>([
+	'localhost',
+	'127.0.0.1'
+]);
+
+const openerId = 'simpleBrowser.open';
+
 export function activate(context: vscode.ExtensionContext) {
 
 	const manager = new SimpleBrowserManager(context.extensionUri);
@@ -42,25 +49,18 @@ export function activate(context: vscode.ExtensionContext) {
 				return false;
 			}
 
-			const enabledHosts = configuration.get<string[]>('opener.enabledHosts', [
-				'localhost',
-				'127.0.0.1'
-			]);
-			try {
-				const originalUri = new URL(uri.toString());
-				if (!enabledHosts.includes(originalUri.hostname)) {
-					return false;
-				}
-			} catch {
-				return false;
+			const originalUri = new URL(uri.toString());
+			if (enabledHosts.has(originalUri.hostname)) {
+				return true;
 			}
 
-			return true;
+			return false;
 		},
-		openExternalUri(_opener, resolveUri) {
+		openExternalUri(resolveUri: vscode.Uri) {
 			return manager.show(resolveUri.toString());
 		}
 	}, {
+		id: openerId,
 		label: localize('openTitle', "Open in simple browser"),
 	}));
 }

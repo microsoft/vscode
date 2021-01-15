@@ -2292,7 +2292,7 @@ declare module 'vscode' {
 	 * Handles opening uris to external resources, such as http(s) links.
 	 *
 	 * Extensions can implement an `ExternalUriOpener` to open `http` links to a webserver
-	 * inside of VS Code instead of having the link be opened by the webbrowser.
+	 * inside of VS Code instead of having the link be opened by the web browser.
 	 *
 	 * Currently openers may only be registered for `http` and `https` uris.
 	 */
@@ -2311,6 +2311,12 @@ declare module 'vscode' {
 
 		/**
 		 * Open the given uri.
+		 *
+		 * This is invoked when:
+		 *
+		 * - The user clicks a link which does not have an assigned opener. In this case, first `canOpenExternalUri`
+		 *   is called and if the user selects this opener, then `openExternalUri` is called.
+		 * - The user sets the default opener for a link in their settings and then visits a link.
 		 *
 		 * @param resolvedUri The uri to open. This uri may have been transformed by port forwarding, so it
 		 * may not match the original uri passed to `canOpenExternalUri`. Use `ctx.originalUri` to check the
@@ -2335,8 +2341,17 @@ declare module 'vscode' {
 		readonly sourceUri: Uri;
 	}
 
-
+	/**
+	 * Additional metadata about the registered opener.
+	 */
 	interface ExternalUriOpenerMetadata {
+		/**
+		 * Unique id of the opener, such as `myExtension.browserPreview`
+		 *
+		 * This is used in settings and commands to identifier the opener.
+		 */
+		readonly id: string;
+
 		/**
 		 * Text displayed to the user that explains what the opener does.
 		 *

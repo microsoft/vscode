@@ -129,7 +129,7 @@ export class WebSocketNodeSocket extends Disposable implements ISocket {
 	private readonly _zlibInflate: zlib.InflateRaw | null;
 	private readonly _zlibDeflate: zlib.DeflateRaw | null;
 	private _zlibDeflateFlushWaitingCount: number;
-	private _disposeRequested: boolean;
+	private readonly _onDidZlibFlush = this._register(new Emitter<void>());
 	private readonly _recordInflateBytes: boolean;
 	private readonly _recordedInflateBytes: Buffer[] = [];
 	private readonly _pendingInflateData: Buffer[] = [];
@@ -229,7 +229,6 @@ export class WebSocketNodeSocket extends Disposable implements ISocket {
 			this._zlibDeflate = null;
 		}
 		this._zlibDeflateFlushWaitingCount = 0;
-		this._disposeRequested = false;
 		this._incomingData = new ChunkStream();
 		this._register(this.socket.onData(data => this._acceptChunk(data)));
 		this._register(this.socket.onClose(() => this._onClose.fire()));
@@ -238,7 +237,9 @@ export class WebSocketNodeSocket extends Disposable implements ISocket {
 	public dispose(): void {
 		if (this._zlibDeflateFlushWaitingCount > 0) {
 			// Wait for any outstanding writes to finish before disposing
-			this._disposeRequested = true;
+			this._register(this._onDidZlibFlush.event(() => {
+				this.dispose();
+			}));
 		} else {
 			this.socket.dispose();
 			super.dispose();
@@ -275,8 +276,8 @@ export class WebSocketNodeSocket extends Disposable implements ISocket {
 
 				this._write(VSBuffer.wrap(data), true);
 
-				if (this._disposeRequested) {
-					this.dispose();
+				if (this._zlibDeflateFlushWaitingCount === 0) {
+					this._onDidZlibFlush.fire();
 				}
 			});
 		} else {
@@ -429,8 +430,11 @@ export class WebSocketNodeSocket extends Disposable implements ISocket {
 		}
 	}
 
-	public drain(): Promise<void> {
-		return this.socket.drain();
+	public async drain(): Promise<void> {
+		if (this._zlibDeflateFlushWaitingCount > 0) {
+			await Event.toPromise(this._onDidZlibFlush.event);
+		}
+		await this.socket.drain();
 	}
 }
 
