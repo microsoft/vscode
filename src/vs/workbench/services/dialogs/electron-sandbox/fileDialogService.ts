@@ -27,6 +27,8 @@ export class FileDialogService extends AbstractFileDialogService implements IFil
 
 	declare readonly _serviceBrand: undefined;
 
+	private saveDialogActive: boolean = false;
+
 	constructor(
 		@IHostService hostService: IHostService,
 		@IWorkspaceContextService contextService: IWorkspaceContextService,
@@ -124,9 +126,14 @@ export class FileDialogService extends AbstractFileDialogService implements IFil
 		if (this.shouldUseSimplified(schema).useSimplified) {
 			return this.pickFileToSaveSimplified(schema, options);
 		} else {
-			const result = await this.nativeHostService.showSaveDialog(this.toNativeSaveDialogOptions(options));
-			if (result && !result.canceled && result.filePath) {
-				return URI.file(result.filePath);
+			// Windows: multiple save dialogs appear if Ctrl+S is spammed, so check if one is already open
+			if (!this.saveDialogActive) {
+				this.saveDialogActive = true;
+				const result = await this.nativeHostService.showSaveDialog(this.toNativeSaveDialogOptions(options));
+				this.saveDialogActive = false;
+				if (result && !result.canceled && result.filePath) {
+					return URI.file(result.filePath);
+				}
 			}
 		}
 		return;
