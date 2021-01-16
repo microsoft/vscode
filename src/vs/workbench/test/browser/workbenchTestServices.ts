@@ -13,7 +13,7 @@ import { NullTelemetryService } from 'vs/platform/telemetry/common/telemetryUtil
 import { IEditorInputWithOptions, IEditorIdentifier, IUntitledTextResourceEditorInput, IResourceDiffEditorInput, IEditorInput, IEditorPane, IEditorCloseEvent, IEditorPartOptions, IRevertOptions, GroupIdentifier, EditorInput, EditorOptions, EditorsOrder, IFileEditorInput, IEditorInputFactoryRegistry, IEditorInputFactory, Extensions as EditorExtensions, ISaveOptions, IMoveResult, ITextEditorPane, ITextDiffEditorPane, IVisibleEditorPane, IEditorOpenContext } from 'vs/workbench/common/editor';
 import { IEditorOpeningEvent, EditorServiceImpl, IEditorGroupView, IEditorGroupsAccessor, IEditorGroupTitleDimensions } from 'vs/workbench/browser/parts/editor/editor';
 import { Event, Emitter } from 'vs/base/common/event';
-import { IBackupFileService, IResolvedBackup } from 'vs/workbench/services/backup/common/backup';
+import { IBackupFileService } from 'vs/workbench/services/backup/common/backup';
 import { IConfigurationService, ConfigurationTarget } from 'vs/platform/configuration/common/configuration';
 import { IWorkbenchLayoutService, Parts, Position as PartPosition } from 'vs/workbench/services/layout/browser/layoutService';
 import { TextModelResolverService } from 'vs/workbench/services/textmodelResolver/common/textModelResolverService';
@@ -114,6 +114,10 @@ import { EncodingOracle, IEncodingOverride } from 'vs/workbench/services/textfil
 import { UTF16le, UTF16be, UTF8_with_bom } from 'vs/workbench/services/textfile/common/encoding';
 import { ColorScheme } from 'vs/platform/theme/common/theme';
 import { Iterable } from 'vs/base/common/iterator';
+import { InMemoryBackupFileService } from 'vs/workbench/services/backup/common/backupFileService';
+import { hash } from 'vs/base/common/hash';
+import { BrowserBackupFileService } from 'vs/workbench/services/backup/browser/backupFileService';
+import { FileService } from 'vs/platform/files/common/fileService';
 
 export function createFileEditorInput(instantiationService: IInstantiationService, resource: URI): FileEditorInput {
 	return instantiationService.createInstance(FileEditorInput, resource, undefined, undefined, undefined, undefined, undefined);
@@ -893,24 +897,75 @@ export class TestFileService implements IFileService {
 	async canDelete(resource: URI, options?: { useTrash?: boolean | undefined; recursive?: boolean | undefined; } | undefined): Promise<Error | true> { return true; }
 }
 
-export class TestBackupFileService implements IBackupFileService {
-	declare readonly _serviceBrand: undefined;
+export class TestBackupFileService extends InMemoryBackupFileService {
 
-	hasBackups(): Promise<boolean> { return Promise.resolve(false); }
-	hasBackup(_resource: URI): Promise<boolean> { return Promise.resolve(false); }
-	hasBackupSync(resource: URI, versionId?: number): boolean { return false; }
-	async registerResourceForBackup(_resource: URI): Promise<void> { }
-	async deregisterResourceForBackup(_resource: URI): Promise<void> { }
-	async backup<T extends object>(_resource: URI, _content?: ITextSnapshot, versionId?: number, meta?: T): Promise<void> { }
-	getBackups(): Promise<URI[]> { return Promise.resolve([]); }
-	resolve<T extends object>(_backup: URI): Promise<IResolvedBackup<T> | undefined> { return Promise.resolve(undefined); }
-	async discardBackup(_resource: URI): Promise<void> { }
-	async discardBackups(): Promise<void> { }
+	constructor() {
+		super(resource => String(hash(resource.path)));
+	}
+
 	parseBackupContent(textBufferFactory: ITextBufferFactory): string {
 		const textBuffer = textBufferFactory.create(DefaultEndOfLine.LF).textBuffer;
 		const lineCount = textBuffer.getLineCount();
 		const range = new Range(1, 1, lineCount, textBuffer.getLineLength(lineCount) + 1);
 		return textBuffer.getValueInRange(range, EndOfLinePreference.TextDefined);
+	}
+}
+
+export class InMemoryTestBackupFileService extends BrowserBackupFileService {
+
+	readonly fileService: IFileService;
+
+	private backupResourceJoiners: Function[];
+	private discardBackupJoiners: Function[];
+
+	discardedBackups: URI[];
+
+	constructor() {
+		const environmentService = TestEnvironmentService;
+		const logService = new NullLogService();
+		const fileService = new FileService(logService);
+		fileService.registerProvider(Schemas.file, new InMemoryFileSystemProvider());
+		fileService.registerProvider(Schemas.userData, new InMemoryFileSystemProvider());
+
+		super(new TestContextService(TestWorkspace), environmentService, fileService, logService);
+
+		this.fileService = fileService;
+		this.backupResourceJoiners = [];
+		this.discardBackupJoiners = [];
+		this.discardedBackups = [];
+	}
+
+	joinBackupResource(): Promise<void> {
+		return new Promise(resolve => this.backupResourceJoiners.push(resolve));
+	}
+
+	joinDiscardBackup(): Promise<void> {
+		return new Promise(resolve => this.discardBackupJoiners.push(resolve));
+	}
+
+	async backup(resource: URI, content?: ITextSnapshot, versionId?: number, meta?: any, token?: CancellationToken): Promise<void> {
+		await super.backup(resource, content, versionId, meta, token);
+
+		while (this.backupResourceJoiners.length) {
+			this.backupResourceJoiners.pop()!();
+		}
+	}
+
+	async discardBackup(resource: URI): Promise<void> {
+		await super.discardBackup(resource);
+		this.discardedBackups.push(resource);
+
+		while (this.discardBackupJoiners.length) {
+			this.discardBackupJoiners.pop()!();
+		}
+	}
+
+	async getBackupContents(resource: URI): Promise<string> {
+		const backupResource = this.toBackupResource(resource);
+
+		const fileContents = await this.fileService.readFile(backupResource);
+
+		return fileContents.value.toString();
 	}
 }
 
