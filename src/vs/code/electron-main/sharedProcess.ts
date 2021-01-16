@@ -212,29 +212,21 @@ export class SharedProcess extends Disposable implements ISharedProcess {
 		return connectMessagePort(window);
 	}
 
-	toggle(): void {
-		if (!this.window || this.window.isVisible()) {
-			this.hide();
+	async toggle(): Promise<void> {
+
+		// wait for window to be created
+		await this.whenIpcReady;
+
+		if (!this.window) {
+			return; // possibly disposed already
+		}
+
+		if (this.window.isVisible()) {
+			this.window.webContents.closeDevTools();
+			this.window.hide();
 		} else {
-			this.show();
+			this.window.show();
+			this.window.webContents.openDevTools();
 		}
-	}
-
-	show(): void {
-		if (!this.window) {
-			return; // possibly too early before created
-		}
-
-		this.window.show();
-		this.window.webContents.openDevTools();
-	}
-
-	hide(): void {
-		if (!this.window) {
-			return; // possibly too early before created
-		}
-
-		this.window.webContents.closeDevTools();
-		this.window.hide();
 	}
 }

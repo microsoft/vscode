@@ -12,7 +12,7 @@ export interface ISharedProcess {
 	 * Toggles the visibility of the otherwise hidden
 	 * shared process window.
 	 */
-	toggle(): void;
+	toggle(): Promise<void>;
 }
 
 export interface ISharedProcessConfiguration {
