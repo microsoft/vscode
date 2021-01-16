@@ -231,9 +231,8 @@ class MarkdownPreview extends Disposable implements WebviewResourceProvider {
 	}
 
 	/**
-	 * Eventually refreshes the preview.
-	 * First call immediatly refreshs the preview,
-	 * subsequent calls are debounced.
+	 * The first call immediately refreshes the preview,
+	 * calls happening shortly thereafter are debounced.
 	*/
 	public refresh() {
 		// Schedule update if none is pending
