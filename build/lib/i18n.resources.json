@@ -227,6 +227,10 @@
 			"project": "vscode-workbench"
 		},
 		{
+			"name": "vs/workbench/contrib/externalUriOpener",
+			"project": "vscode-workbench"
+		},
+		{
 			"name": "vs/workbench/contrib/welcome",
 			"project": "vscode-workbench"
 		},

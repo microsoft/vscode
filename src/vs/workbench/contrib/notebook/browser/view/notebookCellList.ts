@@ -547,6 +547,22 @@ export class NotebookCellList extends WorkbenchList<CellViewModel> implements ID
 		return viewIndexInfo.index;
 	}
 
+	private _getViewIndexUpperBound2(modelIndex: number) {
+		if (!this.hiddenRangesPrefixSum) {
+			return modelIndex;
+		}
+
+		const viewIndexInfo = this.hiddenRangesPrefixSum.getIndexOf(modelIndex);
+
+		if (viewIndexInfo.remainder !== 0) {
+			if (modelIndex >= this.hiddenRangesPrefixSum.getTotalValue()) {
+				return modelIndex - (this.hiddenRangesPrefixSum.getTotalValue() - this.hiddenRangesPrefixSum.getCount());
+			}
+		}
+
+		return viewIndexInfo.index;
+	}
+
 	focusElement(cell: ICellViewModel) {
 		const index = this._getViewIndexUpperBound(cell);
 
@@ -587,11 +603,59 @@ export class NotebookCellList extends WorkbenchList<CellViewModel> implements ID
 		super.setFocus(indexes, browserEvent);
 	}
 
+	revealElementsInView(range: ICellRange) {
+		const startIndex = this._getViewIndexUpperBound2(range.start);
+
+		if (startIndex < 0) {
+			return;
+		}
+
+		const endIndex = this._getViewIndexUpperBound2(range.end);
+
+		const scrollTop = this.getViewScrollTop();
+		const wrapperBottom = this.getViewScrollBottom();
+		const elementTop = this.view.elementTop(startIndex);
+		if (elementTop >= scrollTop
+			&& elementTop < wrapperBottom) {
+			// start element is visible
+			// check end
+
+			const endElementTop = this.view.elementTop(endIndex);
+			const endElementHeight = this.view.elementHeight(endIndex);
+
+			if (endElementTop >= wrapperBottom) {
+				return this._revealInternal(startIndex, false, CellRevealPosition.Top);
+			}
+
+			if (endElementTop < wrapperBottom) {
+				// end element partially visible
+				if (endElementTop + endElementHeight - wrapperBottom < elementTop - scrollTop) {
+					// there is enough space to just scroll up a little bit to make the end element visible
+					return this.view.setScrollTop(scrollTop + endElementTop + endElementHeight - wrapperBottom);
+				} else {
+					// don't even try it
+					return this._revealInternal(startIndex, false, CellRevealPosition.Top);
+				}
+			}
+		}
+
+
+		this._revealInView(startIndex);
+	}
+
 	revealElementInView(cell: ICellViewModel) {
 		const index = this._getViewIndexUpperBound(cell);
 
 		if (index >= 0) {
 			this._revealInView(index);
+		}
+	}
+
+	revealElementInViewAtTop(cell: ICellViewModel) {
+		const index = this._getViewIndexUpperBound(cell);
+
+		if (index >= 0) {
+			this._revealInternal(index, false, CellRevealPosition.Top);
 		}
 	}
 

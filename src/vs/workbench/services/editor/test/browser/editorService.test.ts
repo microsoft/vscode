@@ -1094,4 +1094,52 @@ suite('EditorService', () => {
 
 		part.dispose();
 	});
+
+	test('findEditors', async () => {
+		const [part, service] = createEditorService();
+
+		const input = new TestFileEditorInput(URI.parse('my://resource-openEditors'), TEST_EDITOR_INPUT_ID);
+		const otherInput = new TestFileEditorInput(URI.parse('my://resource2-openEditors'), TEST_EDITOR_INPUT_ID);
+
+		await part.whenRestored;
+
+		// Open editors
+		await service.openEditors([{ editor: input }, { editor: otherInput }]);
+		assert.equal(part.activeGroup.count, 2);
+
+		// Try using find editors for opened editors
+		{
+			const found = service.findEditors(input.resource, part.activeGroup);
+			assert.equal(found.length, 1);
+			assert.equal(found[0], input);
+		}
+		{
+			const found = service.findEditors(otherInput.resource, part.activeGroup);
+			assert.equal(found.length, 1);
+			assert.equal(found[0], otherInput);
+		}
+
+		// Make sure we don't find non-opened editors
+		{
+			const found = service.findEditors(URI.parse('my://no-such-resource'), part.activeGroup);
+			assert.equal(found.length, 0);
+		}
+
+		// Make sure we don't find editors across groups
+		{
+			const newEditor = await service.openEditor(new TestFileEditorInput(URI.parse('my://other-group-resource'), TEST_EDITOR_INPUT_ID), { pinned: true, preserveFocus: true }, SIDE_GROUP);
+
+			const found = service.findEditors(input.resource, newEditor!.group!.id);
+			assert.equal(found.length, 0);
+		}
+
+		// Check we don't find editors after closing them
+		await part.activeGroup.closeAllEditors();
+		{
+			const found = service.findEditors(input.resource, part.activeGroup);
+			assert.equal(found.length, 0);
+		}
+
+		part.dispose();
+	});
 });

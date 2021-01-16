@@ -149,7 +149,8 @@ export class ExtHostTerminalService extends BaseExtHostTerminalService {
 			executable: shellLaunchConfigDto.executable,
 			args: shellLaunchConfigDto.args,
 			cwd: typeof shellLaunchConfigDto.cwd === 'string' ? shellLaunchConfigDto.cwd : URI.revive(shellLaunchConfigDto.cwd),
-			env: shellLaunchConfigDto.env
+			env: shellLaunchConfigDto.env,
+			flowControl: shellLaunchConfigDto.flowControl
 		};
 
 		// Merge in shell and args from settings

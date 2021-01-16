@@ -19,7 +19,7 @@ import { ICommandService } from 'vs/platform/commands/common/commands';
 import { IProductService } from 'vs/platform/product/common/productService';
 import { IGettingStartedCategoryWithProgress, IGettingStartedService } from 'vs/workbench/services/gettingStarted/common/gettingStartedService';
 import { registerThemingParticipant, ThemeIcon } from 'vs/platform/theme/common/themeService';
-import { buttonBackground as welcomeButtonBackground, buttonHoverBackground as welcomeButtonHoverBackground, welcomePageBackground } from 'vs/workbench/contrib/welcome/page/browser/welcomePageColors';
+import { welcomeButtonBackground, welcomeButtonHoverBackground, welcomePageBackground, welcomePageProgressBackground, welcomePageProgressForeground } from 'vs/workbench/contrib/welcome/page/browser/welcomePageColors';
 import { activeContrastBorder, buttonBackground, buttonForeground, buttonHoverBackground, buttonSecondaryBackground, contrastBorder, descriptionForeground, focusBorder, foreground, textLinkActiveForeground, textLinkForeground } from 'vs/platform/theme/common/colorRegistry';
 import { getExtraColor } from 'vs/workbench/contrib/welcome/walkThrough/common/walkThroughUtils';
 import { IKeybindingService } from 'vs/platform/keybinding/common/keybinding';
@@ -204,7 +204,11 @@ export class GettingStartedPage extends Disposable {
 						$('.category-description-container', {},
 							$('h3.category-title', {}, category.title),
 							$('.category-description.description', {}, category.description),
-							$('.category-progress', { 'x-data-category-id': category.id, }, $('.message'), $('progress'))) :
+							$('.category-progress', { 'x-data-category-id': category.id, },
+								$('.message'),
+								$('.progress-bar-outer', {},
+									$('.progress-bar-inner'))))
+						:
 						$('.category-description-container', {},
 							$('h3.category-title', {}, category.title),
 							$('.category-description.description', {}, category.description));
@@ -258,6 +262,7 @@ export class GettingStartedPage extends Disposable {
 		} else {
 			tasksSlide.classList.add('next');
 		}
+		setTimeout(() => assertIsDefined(container.querySelector('.gettingStartedContainer')).classList.add('animationReady'), 0);
 	}
 
 	private layout() {
@@ -276,9 +281,9 @@ export class GettingStartedPage extends Disposable {
 			const numTotal = category.content.items.length;
 
 			const message = assertIsDefined(element.firstChild);
-			const bar = assertIsDefined(element.lastChild) as HTMLProgressElement;
-			bar.value = numDone;
-			bar.max = numTotal;
+			const bar = assertIsDefined(element.querySelector('.progress-bar-inner')) as HTMLDivElement;
+			bar.style.width = `${(numDone / numTotal) * 100}%`;
+
 			if (numTotal === numDone) {
 				message.textContent = `All items complete!`;
 			}
@@ -469,5 +474,14 @@ registerThemingParticipant((theme, collector) => {
 	const activeBorder = theme.getColor(activeContrastBorder);
 	if (activeBorder) {
 		collector.addRule(`.monaco-workbench .part.editor > .content .walkThroughContent .gettingStartedContainer button:hover { outline-color: ${activeBorder}; }`);
+	}
+
+	const progressBackground = theme.getColor(welcomePageProgressBackground);
+	if (progressBackground) {
+		collector.addRule(`.monaco-workbench .part.editor > .content .walkThroughContent .gettingStartedContainer .gettingStartedSlide.categories .progress-bar-outer { background-color: ${progressBackground}; }`);
+	}
+	const progressForeground = theme.getColor(welcomePageProgressForeground);
+	if (progressForeground) {
+		collector.addRule(`.monaco-workbench .part.editor > .content .walkThroughContent .gettingStartedContainer .gettingStartedSlide.categories .progress-bar-inner { background-color: ${progressForeground}; }`);
 	}
 });

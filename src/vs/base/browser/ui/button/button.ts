@@ -256,7 +256,7 @@ export class ButtonWithDropdown extends Disposable implements IButton {
 
 		this.button = this._register(new Button(this.element, options));
 		this._register(this.button.onDidClick(e => this._onDidClick.fire(e)));
-		this.action = new Action('primaryAction', this.button.label, undefined, true, async () => this._onDidClick.fire(undefined));
+		this.action = this._register(new Action('primaryAction', this.button.label, undefined, true, async () => this._onDidClick.fire(undefined)));
 
 		this.dropdownButton = this._register(new Button(this.element, { ...options, title: false, supportIcons: true }));
 		this.dropdownButton.element.classList.add('monaco-dropdown-button');

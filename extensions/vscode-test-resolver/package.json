@@ -47,6 +47,11 @@
 				"title": "Show Log",
 				"category": "Remote-TestResolver",
 				"command": "vscode-testresolver.showLog"
+			},
+			{
+				"title": "Kill Server and Trigger Handled Error",
+				"category": "Remote-TestResolver",
+				"command": "vscode-testresolver.killServerAndTriggerHandledError"
 			}
 		],
 		"menus": {

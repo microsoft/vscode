@@ -35,7 +35,7 @@ export abstract class Panel extends PaneComposite implements IPanel {
 		@IWorkspaceContextService contextService: IWorkspaceContextService,
 	) {
 		super(id, viewPaneContainer, telemetryService, storageService, instantiationService, themeService, contextMenuService, extensionService, contextService);
-		this.panelActions = this._register(this.instantiationService.createInstance(CompositeMenuActions, MenuId.PanelTitle, MenuId.PanelTitleContext, undefined));
+		this.panelActions = this._register(this.instantiationService.createInstance(CompositeMenuActions, MenuId.PanelTitle, undefined, undefined));
 		this._register(this.panelActions.onDidChange(() => this.updateTitleArea()));
 	}
 

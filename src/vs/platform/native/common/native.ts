@@ -49,7 +49,7 @@ export interface ICommonNativeHostService {
 
 	readonly onDidChangeColorScheme: Event<IColorScheme>;
 
-	readonly onDidChangePassword: Event<void>;
+	readonly onDidChangePassword: Event<{ service: string, account: string }>;
 
 	// Window
 	getWindows(): Promise<IOpenedWindow[]>;

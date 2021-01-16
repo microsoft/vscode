@@ -11,4 +11,5 @@ export namespace TestingContextKeys {
 	export const viewMode = new RawContextKey('testExplorerViewMode', TestExplorerViewMode.List);
 	export const viewGrouping = new RawContextKey('testExplorerViewGrouping', TestExplorerViewGrouping.ByLocation);
 	export const isRunning = new RawContextKey('testIsrunning', false);
+	export const peekVisible = new RawContextKey('testPeekVisible', false);
 }

@@ -472,7 +472,7 @@ export class BreadcrumbsOutlinePicker extends BreadcrumbsPicker {
 
 	protected _createTree(container: HTMLElement, input: OutlineElement2) {
 
-		const { breadcrumbsConfig: config } = input.outline;
+		const { config } = input.outline;
 
 		return <WorkbenchDataTree<IOutline<any>, any, FuzzyScore>>this._instantiationService.createInstance(
 			WorkbenchDataTree,

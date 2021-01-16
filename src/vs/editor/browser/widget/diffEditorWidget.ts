@@ -319,7 +319,9 @@ export class DiffEditorWidget extends Disposable implements editorBrowser.IDiffE
 		this._register(dom.addStandardDisposableListener(this._overviewDomElement, 'mousedown', (e) => {
 			this._modifiedEditor.delegateVerticalScrollbarMouseDown(e);
 		}));
-		this._containerDomElement.appendChild(this._overviewDomElement);
+		if (this._renderOverviewRuler) {
+			this._containerDomElement.appendChild(this._overviewDomElement);
+		}
 
 		// Create left side
 		this._originalDomNode = document.createElement('div');
@@ -646,7 +648,9 @@ export class DiffEditorWidget extends Disposable implements editorBrowser.IDiffE
 			this._modifiedOverviewRuler.dispose();
 		}
 		this._overviewDomElement.removeChild(this._overviewViewportDomElement.domNode);
-		this._containerDomElement.removeChild(this._overviewDomElement);
+		if (this._renderOverviewRuler) {
+			this._containerDomElement.removeChild(this._overviewDomElement);
+		}
 
 		this._containerDomElement.removeChild(this._originalDomNode);
 		this._originalEditor.dispose();
@@ -759,6 +763,16 @@ export class DiffEditorWidget extends Disposable implements editorBrowser.IDiffE
 			// Update class name
 			this._containerDomElement.className = DiffEditorWidget._getClassName(this._themeService.getColorTheme(), this._renderSideBySide);
 		}
+
+		// renderOverviewRuler
+		if (typeof newOptions.renderOverviewRuler !== 'undefined' && this._renderOverviewRuler !== newOptions.renderOverviewRuler) {
+			this._renderOverviewRuler = newOptions.renderOverviewRuler;
+			if (this._renderOverviewRuler) {
+				this._containerDomElement.appendChild(this._overviewDomElement);
+			} else {
+				this._containerDomElement.removeChild(this._overviewDomElement);
+			}
+		}
 	}
 
 	public getModel(): editorCommon.IDiffEditorModel {
@@ -768,7 +782,7 @@ export class DiffEditorWidget extends Disposable implements editorBrowser.IDiffE
 		};
 	}
 
-	public setModel(model: editorCommon.IDiffEditorModel): void {
+	public setModel(model: editorCommon.IDiffEditorModel | null): void {
 		// Guard us against partial null model
 		if (model && (!model.original || !model.modified)) {
 			throw new Error(!model.original ? 'DiffEditorWidget.setModel: Original model is null' : 'DiffEditorWidget.setModel: Modified model is null');

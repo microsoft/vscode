@@ -14,7 +14,7 @@ import * as filetype from 'file-type';
 import { assign, groupBy, IDisposable, toDisposable, dispose, mkdirp, readBytes, detectUnicodeEncoding, Encoding, onceEvent, splitInChunks, Limiter } from './util';
 import { CancellationToken, Progress, Uri } from 'vscode';
 import { detectEncoding } from './encoding';
-import { Ref, RefType, Branch, Remote, GitErrorCodes, LogOptions, Change, Status, CommitOptions, BranchQuery } from './api/git';
+import { Ref, RefType, Branch, Remote, ForcePushMode, GitErrorCodes, LogOptions, Change, Status, CommitOptions, BranchQuery } from './api/git';
 import * as byline from 'byline';
 import { StringDecoder } from 'string_decoder';
 
@@ -807,11 +807,6 @@ export interface PullOptions {
 	readonly cancellationToken?: CancellationToken;
 }
 
-export enum ForcePushMode {
-	Force,
-	ForceWithLease
-}
-
 export class Repository {
 
 	constructor(
@@ -1374,8 +1369,10 @@ export class Repository {
 			args.push('--no-verify');
 		}
 
-		// Stops git from guessing at user/email
-		args.splice(0, 0, '-c', 'user.useConfigOnly=true');
+		if (opts.requireUserConfig ?? true) {
+			// Stops git from guessing at user/email
+			args.splice(0, 0, '-c', 'user.useConfigOnly=true');
+		}
 
 		try {
 			await this.run(args, !opts.amend || message ? { input: message || '' } : {});

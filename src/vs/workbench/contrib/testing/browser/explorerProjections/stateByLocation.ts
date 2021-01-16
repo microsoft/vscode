@@ -18,7 +18,7 @@ import { locationsEqual, TestLocationStore } from 'vs/workbench/contrib/testing/
 import { isRunningState, NodeChangeList } from 'vs/workbench/contrib/testing/browser/explorerProjections/nodeHelper';
 import { StateElement } from 'vs/workbench/contrib/testing/browser/explorerProjections/stateNodes';
 import { statesInOrder } from 'vs/workbench/contrib/testing/browser/testExplorerTree';
-import { TestSubscriptionListener } from 'vs/workbench/contrib/testing/browser/testingCollectionService';
+import { TestSubscriptionListener } from 'vs/workbench/contrib/testing/common/testingCollectionService';
 import { AbstractIncrementalTestCollection, IncrementalChangeCollector, IncrementalTestCollectionItem, InternalTestItem, TestDiffOpType, TestIdWithProvider, TestsDiff } from 'vs/workbench/contrib/testing/common/testCollection';
 
 interface IStatusTestItem extends IncrementalTestCollectionItem {

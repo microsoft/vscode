@@ -37,6 +37,17 @@
 
 			/**
 			 * @param {string} channel
+			 * @param {any} message
+			 * @param {MessagePort[]} transfer
+			 */
+			postMessage(channel, message, transfer) {
+				if (validateIPC(channel)) {
+					ipcRenderer.postMessage(channel, message, transfer);
+				}
+			},
+
+			/**
+			 * @param {string} channel
 			 * @param {any[]} args
 			 * @returns {Promise<any> | undefined}
 			 */

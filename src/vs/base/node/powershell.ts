@@ -19,7 +19,7 @@ const PwshPreviewMsixRegex: RegExp = /^Microsoft.PowerShellPreview_.*/;
 
 // The platform details descriptor for the platform we're on
 const isProcess64Bit: boolean = process.arch === 'x64';
-const isOS64Bit: boolean = isProcess64Bit || env.hasOwnProperty('PROCESSOR_ARCHITEW6432');
+const isOS64Bit: boolean = isProcess64Bit || os.arch() === 'x64';
 
 export interface IPowerShellExeDetails {
 	readonly displayName: string;

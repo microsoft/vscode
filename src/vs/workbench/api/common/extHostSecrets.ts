@@ -14,15 +14,19 @@ export class ExtensionSecrets implements vscode.SecretStorage {
 	protected readonly _id: string;
 	protected readonly _secretState: ExtHostSecretState;
 
-	private _onDidChange = new Emitter<void>();
-	readonly onDidChange: Event<void> = this._onDidChange.event;
+	private _onDidChange = new Emitter<vscode.SecretStorageChangeEvent>();
+	readonly onDidChange: Event<vscode.SecretStorageChangeEvent> = this._onDidChange.event;
 
 
 	constructor(extensionDescription: IExtensionDescription, secretState: ExtHostSecretState) {
 		this._id = ExtensionIdentifier.toKey(extensionDescription.identifier);
 		this._secretState = secretState;
 
-		this._secretState.onDidChangePassword(_ => this._onDidChange.fire());
+		this._secretState.onDidChangePassword(e => {
+			if (e.extensionId === this._id) {
+				this._onDidChange.fire({ key: e.key });
+			}
+		});
 	}
 
 	get(key: string): Promise<string | undefined> {

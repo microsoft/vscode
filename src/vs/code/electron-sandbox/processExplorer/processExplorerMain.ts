@@ -17,7 +17,7 @@ import { ProcessItem } from 'vs/base/common/processes';
 import * as dom from 'vs/base/browser/dom';
 import { DisposableStore } from 'vs/base/common/lifecycle';
 import { isRemoteDiagnosticError, IRemoteDiagnosticError } from 'vs/platform/diagnostics/common/diagnostics';
-import { MainProcessService } from 'vs/platform/ipc/electron-sandbox/mainProcessService';
+import { ElectronIPCMainProcessService } from 'vs/platform/ipc/electron-sandbox/mainProcessService';
 import { ByteSize } from 'vs/platform/files/common/files';
 import { IListVirtualDelegate } from 'vs/base/browser/ui/list/list';
 import { IDataSource, ITreeNode, ITreeRenderer } from 'vs/base/browser/ui/tree/tree';
@@ -233,7 +233,7 @@ class ProcessExplorer {
 	private tree: DataTree<any, ProcessTree | MachineProcessInformation | ProcessItem | ProcessInformation | IRemoteDiagnosticError, any> | undefined;
 
 	constructor(windowId: number, private data: ProcessExplorerData) {
-		const mainProcessService = new MainProcessService(windowId);
+		const mainProcessService = new ElectronIPCMainProcessService(windowId);
 		this.nativeHostService = new NativeHostService(windowId, mainProcessService) as INativeHostService;
 
 		this.applyStyles(data.styles);
