@@ -241,13 +241,6 @@ export class SearchView extends ViewPane {
 		this.searchStateKey.set(v);
 	}
 
-	/**
-	 * Exposed for openSearchEditor TODO@JacksonKearl
-	 */
-	getInstantiationService(): IInstantiationService {
-		return this.instantiationService;
-	}
-
 	getContainer(): HTMLElement {
 		return this.container;
 	}
