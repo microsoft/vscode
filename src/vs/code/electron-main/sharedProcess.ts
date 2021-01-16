@@ -41,9 +41,14 @@ export class SharedProcess extends Disposable implements ISharedProcess {
 		// Lifecycle
 		this._register(this.lifecycleMainService.onWillShutdown(() => this.onWillShutdown()));
 
-		// Shared process connections
+		// Shared process connections from workbench windows
 		ipcMain.on('vscode:createSharedProcessMessageChannel', async (e, nonce: string) => {
 			this.logService.trace('SharedProcess: on vscode:createSharedProcessMessageChannel');
+
+			// await the shared process to be overall ready
+			// we do not just wait for IPC ready because the
+			// workbench window will communicate directly
+			await this.whenReady();
 
 			const port = await this.connect();
 

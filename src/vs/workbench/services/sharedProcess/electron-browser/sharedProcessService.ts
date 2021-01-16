@@ -15,7 +15,6 @@ import { generateUuid } from 'vs/base/common/uuid';
 import { ILogService } from 'vs/platform/log/common/log';
 import { ILifecycleService } from 'vs/workbench/services/lifecycle/common/lifecycle';
 import { Disposable } from 'vs/base/common/lifecycle';
-import { ISharedProcessManagementService } from 'vs/platform/sharedProcess/common/sharedProcessManagement';
 
 export class SharedProcessService extends Disposable implements ISharedProcessService {
 
@@ -24,7 +23,6 @@ export class SharedProcessService extends Disposable implements ISharedProcessSe
 	private readonly withSharedProcessConnection: Promise<MessagePortClient>;
 
 	constructor(
-		@ISharedProcessManagementService private readonly sharedProcessManagementService: ISharedProcessManagementService,
 		@INativeHostService private readonly nativeHostService: INativeHostService,
 		@ILogService private readonly logService: ILogService,
 		@ILifecycleService private readonly lifecycleService: ILifecycleService
@@ -44,9 +42,6 @@ export class SharedProcessService extends Disposable implements ISharedProcessSe
 
 	private async connect(): Promise<MessagePortClient> {
 		this.logService.trace('Workbench->SharedProcess#connect');
-
-		// await the shared process to be ready
-		await this.sharedProcessManagementService.whenReady();
 
 		// Ask to create message channel inside the window
 		// and send over a UUID to correlate the response
