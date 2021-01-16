@@ -37,7 +37,7 @@ import { IDialogService } from 'vs/platform/dialogs/common/dialogs';
 import { ReconnectionWaitEvent, PersistentConnectionEventType } from 'vs/platform/remote/common/remoteAgentConnection';
 import Severity from 'vs/base/common/severity';
 import { ReloadWindowAction } from 'vs/workbench/browser/actions/windowActions';
-import { IDisposable } from 'vs/base/common/lifecycle';
+import { Disposable, IDisposable } from 'vs/base/common/lifecycle';
 import { LifecyclePhase } from 'vs/workbench/services/lifecycle/common/lifecycle';
 import { SwitchRemoteViewItem, SwitchRemoteAction } from 'vs/workbench/contrib/remote/browser/explorerViewItems';
 import { Action, IActionViewItem } from 'vs/base/common/actions';
@@ -53,8 +53,9 @@ import { Event } from 'vs/base/common/event';
 import { ExtensionsRegistry, IExtensionPointUser } from 'vs/workbench/services/extensions/common/extensionsRegistry';
 import { SyncDescriptor } from 'vs/platform/instantiation/common/descriptors';
 import { RemoteStatusIndicator } from 'vs/workbench/contrib/remote/browser/remoteIndicator';
-import { inQuickPickContextKeyValue } from 'vs/workbench/browser/quickaccess';
 import * as icons from 'vs/workbench/contrib/remote/browser/remoteIcons';
+import { ILogService } from 'vs/platform/log/common/log';
+import { ITimerService } from 'vs/workbench/services/timer/browser/timerService';
 
 
 export interface HelpInformation {
@@ -596,8 +597,23 @@ Registry.as<IWorkbenchActionRegistry>(WorkbenchActionExtensions.WorkbenchActions
 	CATEGORIES.View.value
 );
 
+class RemoteMarkers implements IWorkbenchContribution {
+
+	constructor(
+		@IRemoteAgentService remoteAgentService: IRemoteAgentService,
+		@ITimerService timerService: ITimerService,
+	) {
+		remoteAgentService.getEnvironment().then(remoteEnv => {
+			if (remoteEnv) {
+				timerService.setPerformanceMarks('server', remoteEnv.marks);
+			}
+		});
+	}
+}
+
 class VisibleProgress {
 
+	public readonly location: ProgressLocation;
 	private _isDisposed: boolean;
 	private _lastReport: string | null;
 	private _currentProgressPromiseResolve: (() => void) | null;
@@ -609,6 +625,7 @@ class VisibleProgress {
 	}
 
 	constructor(progressService: IProgressService, location: ProgressLocation, initialReport: string | null, buttons: string[], onDidCancel: (choice: number | undefined, lastReport: string | null) => void) {
+		this.location = location;
 		this._isDisposed = false;
 		this._lastReport = initialReport;
 		this._currentProgressPromiseResolve = null;
@@ -694,28 +711,43 @@ class ReconnectionTimer2 implements IDisposable {
 	}
 }
 
-class RemoteAgentConnectionStatusListener implements IWorkbenchContribution {
+/**
+ * The time when a prompt is shown to the user
+ */
+const DISCONNECT_PROMPT_TIME = 40 * 1000; // 40 seconds
+
+class RemoteAgentConnectionStatusListener extends Disposable implements IWorkbenchContribution {
+
+	private _reloadWindowShown: boolean = false;
+
 	constructor(
 		@IRemoteAgentService remoteAgentService: IRemoteAgentService,
 		@IProgressService progressService: IProgressService,
 		@IDialogService dialogService: IDialogService,
 		@ICommandService commandService: ICommandService,
-		@IContextKeyService contextKeyService: IContextKeyService
+		@IQuickInputService quickInputService: IQuickInputService,
+		@ILogService logService: ILogService
 	) {
+		super();
 		const connection = remoteAgentService.getConnection();
 		if (connection) {
+			let quickInputVisible = false;
+			quickInputService.onShow(() => quickInputVisible = true);
+			quickInputService.onHide(() => quickInputVisible = false);
+
 			let visibleProgress: VisibleProgress | null = null;
-			let lastLocation: ProgressLocation.Dialog | ProgressLocation.Notification | null = null;
 			let reconnectWaitEvent: ReconnectionWaitEvent | null = null;
 			let disposableListener: IDisposable | null = null;
 
-			function showProgress(location: ProgressLocation.Dialog | ProgressLocation.Notification, buttons: { label: string, callback: () => void }[], initialReport: string | null = null): VisibleProgress {
+			function showProgress(location: ProgressLocation.Dialog | ProgressLocation.Notification | null, buttons: { label: string, callback: () => void }[], initialReport: string | null = null): VisibleProgress {
 				if (visibleProgress) {
 					visibleProgress.dispose();
 					visibleProgress = null;
 				}
 
-				lastLocation = location;
+				if (!location) {
+					location = quickInputVisible ? ProgressLocation.Notification : ProgressLocation.Dialog;
+				}
 
 				return new VisibleProgress(
 					progressService, location, initialReport, buttons.map(button => button.label),
@@ -757,6 +789,12 @@ class RemoteAgentConnectionStatusListener implements IWorkbenchContribution {
 				}
 			};
 
+			// Possible state transitions:
+			// ConnectionGain      -> ConnectionLost
+			// ConnectionLost      -> ReconnectionWait, ReconnectionRunning
+			// ReconnectionWait    -> ReconnectionRunning
+			// ReconnectionRunning -> ConnectionGain, ReconnectionPermanentFailure
+
 			connection.onDidStateChange((e) => {
 				if (visibleProgress) {
 					visibleProgress.stopTimer();
@@ -768,41 +806,50 @@ class RemoteAgentConnectionStatusListener implements IWorkbenchContribution {
 				}
 				switch (e.type) {
 					case PersistentConnectionEventType.ConnectionLost:
-						if (!visibleProgress) {
-							visibleProgress = showProgress(ProgressLocation.Dialog, [reconnectButton, reloadButton]);
+						if (visibleProgress || e.millisSinceLastIncomingData > DISCONNECT_PROMPT_TIME) {
+							if (!visibleProgress) {
+								visibleProgress = showProgress(null, [reconnectButton, reloadButton]);
+							}
+							visibleProgress.report(nls.localize('connectionLost', "Connection Lost"));
 						}
-						visibleProgress.report(nls.localize('connectionLost', "Connection Lost"));
 						break;
 					case PersistentConnectionEventType.ReconnectionWait:
-						reconnectWaitEvent = e;
-						visibleProgress = showProgress(lastLocation || ProgressLocation.Notification, [reconnectButton, reloadButton]);
-						visibleProgress.startTimer(Date.now() + 1000 * e.durationSeconds);
+						if (visibleProgress) {
+							reconnectWaitEvent = e;
+							visibleProgress = showProgress(null, [reconnectButton, reloadButton]);
+							visibleProgress.startTimer(Date.now() + 1000 * e.durationSeconds);
+						}
 						break;
 					case PersistentConnectionEventType.ReconnectionRunning:
-						visibleProgress = showProgress(lastLocation || ProgressLocation.Notification, [reloadButton]);
-						visibleProgress.report(nls.localize('reconnectionRunning', "Attempting to reconnect..."));
+						if (visibleProgress || e.millisSinceLastIncomingData > DISCONNECT_PROMPT_TIME) {
+							visibleProgress = showProgress(null, [reloadButton]);
+							visibleProgress.report(nls.localize('reconnectionRunning', "Disconnected. Attempting to reconnect..."));
 
-						// Register to listen for quick input is opened
-						disposableListener = contextKeyService.onDidChangeContext((contextKeyChangeEvent) => {
-							const reconnectInteraction = new Set<string>([inQuickPickContextKeyValue]);
-							if (contextKeyChangeEvent.affectsSome(reconnectInteraction)) {
+							// Register to listen for quick input is opened
+							disposableListener = quickInputService.onShow(() => {
 								// Need to move from dialog if being shown and user needs to type in a prompt
-								if (lastLocation === ProgressLocation.Dialog && visibleProgress !== null) {
+								if (visibleProgress && visibleProgress.location === ProgressLocation.Dialog) {
 									visibleProgress = showProgress(ProgressLocation.Notification, [reloadButton], visibleProgress.lastReport);
 								}
-							}
-						});
+							});
+						}
 
 						break;
 					case PersistentConnectionEventType.ReconnectionPermanentFailure:
 						hideProgress();
 
-						dialogService.show(Severity.Error, nls.localize('reconnectionPermanentFailure', "Cannot reconnect. Please reload the window."), [nls.localize('reloadWindow', "Reload Window"), nls.localize('cancel', "Cancel")], { cancelId: 1 }).then(result => {
-							// Reload the window
-							if (result.choice === 0) {
-								commandService.executeCommand(ReloadWindowAction.ID);
-							}
-						});
+						if (e.handled) {
+							logService.info(`Error handled: Not showing a notification for the error.`);
+							console.log(`Error handled: Not showing a notification for the error.`);
+						} else if (!this._reloadWindowShown) {
+							this._reloadWindowShown = true;
+							dialogService.show(Severity.Error, nls.localize('reconnectionPermanentFailure', "Cannot reconnect. Please reload the window."), [nls.localize('reloadWindow', "Reload Window"), nls.localize('cancel', "Cancel")], { cancelId: 1, useCustom: true }).then(result => {
+								// Reload the window
+								if (result.choice === 0) {
+									commandService.executeCommand(ReloadWindowAction.ID);
+								}
+							});
+						}
 						break;
 					case PersistentConnectionEventType.ConnectionGain:
 						hideProgress();
@@ -819,3 +866,4 @@ workbenchContributionsRegistry.registerWorkbenchContribution(RemoteStatusIndicat
 workbenchContributionsRegistry.registerWorkbenchContribution(ForwardedPortsView, LifecyclePhase.Eventually);
 workbenchContributionsRegistry.registerWorkbenchContribution(PortRestore, LifecyclePhase.Eventually);
 workbenchContributionsRegistry.registerWorkbenchContribution(AutomaticPortForwarding, LifecyclePhase.Eventually);
+workbenchContributionsRegistry.registerWorkbenchContribution(RemoteMarkers, LifecyclePhase.Eventually);

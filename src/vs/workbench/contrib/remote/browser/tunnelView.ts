@@ -26,7 +26,7 @@ import { IconLabel } from 'vs/base/browser/ui/iconLabel/iconLabel';
 import { ActionRunner, IAction } from 'vs/base/common/actions';
 import { IMenuService, MenuId, IMenu, MenuRegistry, MenuItemAction, ILocalizedString, SubmenuItemAction, Action2, registerAction2 } from 'vs/platform/actions/common/actions';
 import { createAndFillInContextMenuActions, createAndFillInActionBarActions, MenuEntryActionViewItem, SubmenuEntryActionViewItem } from 'vs/platform/actions/browser/menuEntryActionViewItem';
-import { IRemoteExplorerService, TunnelModel, makeAddress, TunnelType, ITunnelItem, Tunnel, mapHasAddressLocalhostOrAllInterfaces, TUNNEL_VIEW_ID, parseAddress, CandidatePort } from 'vs/workbench/services/remote/common/remoteExplorerService';
+import { IRemoteExplorerService, TunnelModel, makeAddress, TunnelType, ITunnelItem, Tunnel, mapHasAddressLocalhostOrAllInterfaces, TUNNEL_VIEW_ID, parseAddress, CandidatePort, TunnelPrivacy } from 'vs/workbench/services/remote/common/remoteExplorerService';
 import { IClipboardService } from 'vs/platform/clipboard/common/clipboardService';
 import { INotificationService, Severity } from 'vs/platform/notification/common/notification';
 import { InputBox, MessageType } from 'vs/base/browser/ui/inputbox/inputBox';
@@ -37,12 +37,12 @@ import { IThemeService, ThemeIcon } from 'vs/platform/theme/common/themeService'
 import { IKeyboardEvent } from 'vs/base/browser/keyboardEvent';
 import { ViewPane, IViewPaneOptions } from 'vs/workbench/browser/parts/views/viewPane';
 import { URI } from 'vs/base/common/uri';
-import { RemoteTunnel } from 'vs/platform/remote/common/tunnel';
+import { isPortPrivileged, ITunnelService, RemoteTunnel } from 'vs/platform/remote/common/tunnel';
 import { SyncDescriptor } from 'vs/platform/instantiation/common/descriptors';
 import { KeybindingsRegistry, KeybindingWeight } from 'vs/platform/keybinding/common/keybindingsRegistry';
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
 import { ActionViewItem } from 'vs/base/browser/ui/actionbar/actionViewItems';
-import { forwardPortIcon, openBrowserIcon, portIcon, portsViewIcon, stopForwardIcon } from 'vs/workbench/contrib/remote/browser/remoteIcons';
+import { forwardPortIcon, openBrowserIcon, portIcon, portsViewIcon, privatePortIcon, publicPortIcon, stopForwardIcon } from 'vs/workbench/contrib/remote/browser/remoteIcons';
 
 export const forwardedPortsViewEnabled = new RawContextKey<boolean>('forwardedPortsViewEnabled', false);
 export const PORT_AUTO_FORWARD_SETTING = 'remote.autoForwardPorts';
@@ -312,14 +312,14 @@ class TunnelTreeRenderer extends Disposable implements ITreeRenderer<ITunnelGrou
 			validationOptions: {
 				validation: (value) => {
 					const message = editableData.validationMessage(value);
-					if (!message || message.severity !== Severity.Error) {
+					if (!message) {
 						return null;
 					}
 
 					return {
 						content: message.content,
 						formatContent: true,
-						type: MessageType.ERROR
+						type: message.severity === Severity.Error ? MessageType.ERROR : MessageType.INFO
 					};
 				}
 			},
@@ -348,15 +348,17 @@ class TunnelTreeRenderer extends Disposable implements ITreeRenderer<ITunnelGrou
 			inputBox,
 			dom.addStandardDisposableListener(inputBox.inputElement, dom.EventType.KEY_DOWN, (e: IKeyboardEvent) => {
 				if (e.equals(KeyCode.Enter)) {
-					if (inputBox.validate()) {
+					if (inputBox.validate() !== MessageType.ERROR) {
 						done(true, true);
+					} else {
+						done(false, true);
 					}
 				} else if (e.equals(KeyCode.Escape)) {
 					done(false, true);
 				}
 			}),
 			dom.addDisposableListener(inputBox.inputElement, dom.EventType.BLUR, () => {
-				done(inputBox.isInputValid(), true);
+				done(inputBox.validate() !== MessageType.ERROR, true);
 			}),
 			styler
 		];
@@ -408,7 +410,17 @@ interface ITunnelGroup {
 
 class TunnelItem implements ITunnelItem {
 	static createFromTunnel(tunnel: Tunnel, type: TunnelType = TunnelType.Forwarded, closeable?: boolean) {
-		return new TunnelItem(type, tunnel.remoteHost, tunnel.remotePort, tunnel.localAddress, tunnel.localPort, closeable === undefined ? tunnel.closeable : closeable, tunnel.name, tunnel.runningProcess, tunnel.source, tunnel.pid);
+		return new TunnelItem(type,
+			tunnel.remoteHost,
+			tunnel.remotePort,
+			tunnel.localAddress,
+			tunnel.localPort,
+			closeable === undefined ? tunnel.closeable : closeable,
+			tunnel.name,
+			tunnel.runningProcess,
+			tunnel.source,
+			tunnel.pid,
+			tunnel.privacy);
 	}
 
 	constructor(
@@ -421,7 +433,8 @@ class TunnelItem implements ITunnelItem {
 		public name?: string,
 		private runningProcess?: string,
 		private source?: string,
-		private pid?: number
+		private pid?: number,
+		public privacy?: TunnelPrivacy,
 	) { }
 	get label(): string {
 		if (this.name) {
@@ -503,12 +516,18 @@ class TunnelItem implements ITunnelItem {
 	}
 
 	get icon(): ThemeIcon | undefined {
-		return this.tunnelType === TunnelType.Detected || this.tunnelType === TunnelType.Forwarded ? portIcon : undefined;
+		switch (this.privacy) {
+			case TunnelPrivacy.Private: return privatePortIcon;
+			case TunnelPrivacy.Public: return publicPortIcon;
+			default: return this.tunnelType === TunnelType.Detected || this.tunnelType === TunnelType.Forwarded ? portIcon : undefined;
+
+		}
 	}
 }
 
 export const TunnelTypeContextKey = new RawContextKey<TunnelType>('tunnelType', TunnelType.Add);
 export const TunnelCloseableContextKey = new RawContextKey<boolean>('tunnelCloseable', false);
+const TunnelPrivacyContextKey = new RawContextKey<TunnelPrivacy | undefined>('tunnelPrivacy', undefined);
 const TunnelViewFocusContextKey = new RawContextKey<boolean>('tunnelViewFocus', false);
 const TunnelViewSelectionKeyName = 'tunnelViewSelection';
 const TunnelViewSelectionContextKey = new RawContextKey<ITunnelItem | undefined>(TunnelViewSelectionKeyName, undefined);
@@ -522,6 +541,7 @@ export class TunnelPanel extends ViewPane {
 	private tree!: TunnelDataTree;
 	private tunnelTypeContext: IContextKey<TunnelType>;
 	private tunnelCloseableContext: IContextKey<boolean>;
+	private tunnelPrivacyContext: IContextKey<TunnelPrivacy | undefined>;
 	private tunnelViewFocusContext: IContextKey<boolean>;
 	private tunnelViewSelectionContext: IContextKey<ITunnelItem | undefined>;
 	private portChangableContextKey: IContextKey<boolean>;
@@ -550,6 +570,7 @@ export class TunnelPanel extends ViewPane {
 		super(options, keybindingService, contextMenuService, configurationService, contextKeyService, viewDescriptorService, instantiationService, openerService, themeService, telemetryService);
 		this.tunnelTypeContext = TunnelTypeContextKey.bindTo(contextKeyService);
 		this.tunnelCloseableContext = TunnelCloseableContextKey.bindTo(contextKeyService);
+		this.tunnelPrivacyContext = TunnelPrivacyContextKey.bindTo(contextKeyService);
 		this.tunnelViewFocusContext = TunnelViewFocusContextKey.bindTo(contextKeyService);
 		this.tunnelViewSelectionContext = TunnelViewSelectionContextKey.bindTo(contextKeyService);
 		this.portChangableContextKey = PortChangableContextKey.bindTo(contextKeyService);
@@ -677,11 +698,13 @@ export class TunnelPanel extends ViewPane {
 			this.tunnelViewSelectionContext.set(item);
 			this.tunnelTypeContext.set(item.tunnelType);
 			this.tunnelCloseableContext.set(!!item.closeable);
+			this.tunnelPrivacyContext.set(item.privacy);
 			this.portChangableContextKey.set(!!item.localPort);
 		} else {
 			this.tunnelTypeContext.reset();
 			this.tunnelViewSelectionContext.reset();
 			this.tunnelCloseableContext.reset();
+			this.tunnelPrivacyContext.reset();
 			this.portChangableContextKey.reset();
 		}
 	}
@@ -700,10 +723,12 @@ export class TunnelPanel extends ViewPane {
 			this.tree!.setFocus([node]);
 			this.tunnelTypeContext.set(node.tunnelType);
 			this.tunnelCloseableContext.set(!!node.closeable);
+			this.tunnelPrivacyContext.set(node.privacy);
 			this.portChangableContextKey.set(!!node.localPort);
 		} else {
 			this.tunnelTypeContext.set(TunnelType.Add);
 			this.tunnelCloseableContext.set(false);
+			this.tunnelPrivacyContext.set(undefined);
 			this.portChangableContextKey.set(false);
 		}
 
@@ -763,17 +788,6 @@ export class TunnelPanelDescriptor implements IViewDescriptor {
 	}
 }
 
-function validationMessage(validationString: string | null): { content: string, severity: Severity } | null {
-	if (!validationString) {
-		return null;
-	}
-
-	return {
-		content: validationString,
-		severity: Severity.Error
-	};
-}
-
 namespace LabelTunnelAction {
 	export const ID = 'remote.tunnel.label';
 	export const LABEL = nls.localize('remote.tunnel.label', "Set Label");
@@ -803,6 +817,7 @@ namespace LabelTunnelAction {
 const invalidPortString: string = nls.localize('remote.tunnelsView.portNumberValid', "Forwarded port is invalid.");
 const maxPortNumber: number = 65536;
 const invalidPortNumberString: string = nls.localize('remote.tunnelsView.portNumberToHigh', "Port number must be \u2265 0 and < {0}.", maxPortNumber);
+const requiresSudoString: string = nls.localize('remote.tunnelView.inlineElevationMessage', "Requires Sudo");
 
 export namespace ForwardPortAction {
 	export const INLINE_ID = 'remote.tunnel.forwardInline';
@@ -811,12 +826,14 @@ export namespace ForwardPortAction {
 	export const TREEITEM_LABEL = nls.localize('remote.tunnel.forwardItem', "Forward Port");
 	const forwardPrompt = nls.localize('remote.tunnel.forwardPrompt', "Port number or address (eg. 3000 or 10.10.10.10:2000).");
 
-	function validateInput(value: string): string | null {
+	function validateInput(value: string, canElevate: boolean): { content: string, severity: Severity } | null {
 		const parsed = parseAddress(value);
 		if (!parsed) {
-			return invalidPortString;
+			return { content: invalidPortString, severity: Severity.Error };
 		} else if (parsed.port >= maxPortNumber) {
-			return invalidPortNumberString;
+			return { content: invalidPortNumberString, severity: Severity.Error };
+		} else if (canElevate && isPortPrivileged(parsed.port)) {
+			return { content: requiresSudoString, severity: Severity.Info };
 		}
 		return null;
 	}
@@ -831,6 +848,7 @@ export namespace ForwardPortAction {
 		return async (accessor, arg) => {
 			const remoteExplorerService = accessor.get(IRemoteExplorerService);
 			const notificationService = accessor.get(INotificationService);
+			const tunnelService = accessor.get(ITunnelService);
 			if (arg instanceof TunnelItem) {
 				remoteExplorerService.forward({ host: arg.remoteHost, port: arg.remotePort }).then(tunnel => error(notificationService, tunnel, arg.remoteHost, arg.remotePort));
 			} else {
@@ -838,11 +856,11 @@ export namespace ForwardPortAction {
 					onFinish: async (value, success) => {
 						let parsed: { host: string, port: number } | undefined;
 						if (success && (parsed = parseAddress(value))) {
-							remoteExplorerService.forward({ host: parsed.host, port: parsed.port }).then(tunnel => error(notificationService, tunnel, parsed!.host, parsed!.port));
+							remoteExplorerService.forward({ host: parsed.host, port: parsed.port }, undefined, undefined, undefined, true).then(tunnel => error(notificationService, tunnel, parsed!.host, parsed!.port));
 						}
 						remoteExplorerService.setEditable(undefined, null);
 					},
-					validationMessage: (value) => validationMessage(validateInput(value)),
+					validationMessage: (value) => validateInput(value, tunnelService.canElevate),
 					placeholder: forwardPrompt
 				});
 			}
@@ -855,14 +873,15 @@ export namespace ForwardPortAction {
 			const notificationService = accessor.get(INotificationService);
 			const viewsService = accessor.get(IViewsService);
 			const quickInputService = accessor.get(IQuickInputService);
+			const tunnelService = accessor.get(ITunnelService);
 			await viewsService.openView(TunnelPanel.ID, true);
 			const value = await quickInputService.input({
 				prompt: forwardPrompt,
-				validateInput: (value) => Promise.resolve(validateInput(value))
+				validateInput: (value) => Promise.resolve(validateInput(value, tunnelService.canElevate)?.content)
 			});
 			let parsed: { host: string, port: number } | undefined;
 			if (value && (parsed = parseAddress(value))) {
-				remoteExplorerService.forward({ host: parsed.host, port: parsed.port }).then(tunnel => error(notificationService, tunnel, parsed!.host, parsed!.port));
+				remoteExplorerService.forward({ host: parsed.host, port: parsed.port }, undefined, undefined, undefined, true).then(tunnel => error(notificationService, tunnel, parsed!.host, parsed!.port));
 			}
 		};
 	}
@@ -1039,11 +1058,13 @@ namespace ChangeLocalPortAction {
 	export const ID = 'remote.tunnel.changeLocalPort';
 	export const LABEL = nls.localize('remote.tunnel.changeLocalPort', "Change Local Port");
 
-	function validateInput(value: string): string | null {
+	function validateInput(value: string, canElevate: boolean): { content: string, severity: Severity } | null {
 		if (!value.match(/^[0-9]+$/)) {
-			return invalidPortString;
+			return { content: invalidPortString, severity: Severity.Error };
 		} else if (Number(value) >= maxPortNumber) {
-			return invalidPortNumberString;
+			return { content: invalidPortNumberString, severity: Severity.Error };
+		} else if (canElevate && isPortPrivileged(Number(value))) {
+			return { content: requiresSudoString, severity: Severity.Info };
 		}
 		return null;
 	}
@@ -1052,6 +1073,7 @@ namespace ChangeLocalPortAction {
 		return async (accessor, arg) => {
 			const remoteExplorerService = accessor.get(IRemoteExplorerService);
 			const notificationService = accessor.get(INotificationService);
+			const tunnelService = accessor.get(ITunnelService);
 			const context = (arg !== undefined || arg instanceof TunnelItem) ? arg : accessor.get(IContextKeyService).getContextKeyValue(TunnelViewSelectionKeyName);
 			if (context instanceof TunnelItem) {
 				remoteExplorerService.setEditable(context, {
@@ -1060,15 +1082,45 @@ namespace ChangeLocalPortAction {
 						if (success) {
 							await remoteExplorerService.close({ host: context.remoteHost, port: context.remotePort });
 							const numberValue = Number(value);
-							const newForward = await remoteExplorerService.forward({ host: context.remoteHost, port: context.remotePort }, numberValue, context.name);
+							const newForward = await remoteExplorerService.forward({ host: context.remoteHost, port: context.remotePort }, numberValue, context.name, undefined, true);
 							if (newForward && newForward.tunnelLocalPort !== numberValue) {
 								notificationService.warn(nls.localize('remote.tunnel.changeLocalPortNumber', "The local port {0} is not available. Port number {1} has been used instead", value, newForward.tunnelLocalPort ?? newForward.localAddress));
 							}
 						}
 					},
-					validationMessage: (value) => validationMessage(validateInput(value)),
+					validationMessage: (value) => validateInput(value, tunnelService.canElevate),
 					placeholder: nls.localize('remote.tunnelsView.changePort', "New local port")
 				});
+			}
+		};
+	}
+}
+
+namespace MakePortPublicAction {
+	export const ID = 'remote.tunnel.makePublic';
+	export const LABEL = nls.localize('remote.tunnel.makePublic', "Make Public");
+
+	export function handler(): ICommandHandler {
+		return async (accessor, arg) => {
+			if (arg instanceof TunnelItem) {
+				const remoteExplorerService = accessor.get(IRemoteExplorerService);
+				await remoteExplorerService.close({ host: arg.remoteHost, port: arg.remotePort });
+				return remoteExplorerService.forward({ host: arg.remoteHost, port: arg.remotePort }, arg.localPort, arg.name, undefined, true, true);
+			}
+		};
+	}
+}
+
+namespace MakePortPrivateAction {
+	export const ID = 'remote.tunnel.makePrivate';
+	export const LABEL = nls.localize('remote.tunnel.makePrivate', "Make Private");
+
+	export function handler(): ICommandHandler {
+		return async (accessor, arg) => {
+			if (arg instanceof TunnelItem) {
+				const remoteExplorerService = accessor.get(IRemoteExplorerService);
+				await remoteExplorerService.close({ host: arg.remoteHost, port: arg.remotePort });
+				return remoteExplorerService.forward({ host: arg.remoteHost, port: arg.remotePort }, arg.localPort, arg.name, undefined, true, false);
 			}
 		};
 	}
@@ -1111,6 +1163,8 @@ KeybindingsRegistry.registerCommandAndKeybindingRule({
 });
 CommandsRegistry.registerCommand(CopyAddressAction.COMMANDPALETTE_ID, CopyAddressAction.commandPaletteHandler());
 CommandsRegistry.registerCommand(ChangeLocalPortAction.ID, ChangeLocalPortAction.handler());
+CommandsRegistry.registerCommand(MakePortPublicAction.ID, MakePortPublicAction.handler());
+CommandsRegistry.registerCommand(MakePortPrivateAction.ID, MakePortPrivateAction.handler());
 
 MenuRegistry.appendMenuItem(MenuId.CommandPalette, ({
 	command: {
@@ -1190,6 +1244,24 @@ MenuRegistry.appendMenuItem(MenuId.TunnelContext, ({
 	group: '1_manage',
 	order: 0,
 	command: {
+		id: MakePortPublicAction.ID,
+		title: MakePortPublicAction.LABEL,
+	},
+	when: TunnelPrivacyContextKey.isEqualTo(TunnelPrivacy.Private)
+}));
+MenuRegistry.appendMenuItem(MenuId.TunnelContext, ({
+	group: '1_manage',
+	order: 0,
+	command: {
+		id: MakePortPrivateAction.ID,
+		title: MakePortPrivateAction.LABEL,
+	},
+	when: TunnelPrivacyContextKey.isEqualTo(TunnelPrivacy.Public)
+}));
+MenuRegistry.appendMenuItem(MenuId.TunnelContext, ({
+	group: '1_manage',
+	order: 1,
+	command: {
 		id: ChangeLocalPortAction.ID,
 		title: ChangeLocalPortAction.LABEL,
 	},
@@ -1206,7 +1278,7 @@ MenuRegistry.appendMenuItem(MenuId.TunnelContext, ({
 }));
 MenuRegistry.appendMenuItem(MenuId.TunnelContext, ({
 	group: '1_manage',
-	order: 1,
+	order: 2,
 	command: {
 		id: ClosePortAction.INLINE_ID,
 		title: ClosePortAction.LABEL,

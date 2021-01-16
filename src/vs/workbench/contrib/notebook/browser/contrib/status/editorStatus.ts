@@ -8,7 +8,7 @@ import { Registry } from 'vs/platform/registry/common/platform';
 import { Action2, registerAction2 } from 'vs/platform/actions/common/actions';
 import { ServicesAccessor } from 'vs/platform/instantiation/common/instantiation';
 import { IQuickInputService, IQuickPickItem, QuickPickInput } from 'vs/platform/quickinput/common/quickInput';
-import { INotebookActionContext, NOTEBOOK_ACTIONS_CATEGORY, getActiveNotebookEditor } from 'vs/workbench/contrib/notebook/browser/contrib/coreActions';
+import { NOTEBOOK_ACTIONS_CATEGORY, getActiveNotebookEditor } from 'vs/workbench/contrib/notebook/browser/contrib/coreActions';
 import { INotebookEditor, NOTEBOOK_IS_ACTIVE_EDITOR } from 'vs/workbench/contrib/notebook/browser/notebookBrowser';
 
 import { INotebookService } from 'vs/workbench/contrib/notebook/common/notebookService';
@@ -37,7 +37,7 @@ registerAction2(class extends Action2 {
 		});
 	}
 
-	async run(accessor: ServicesAccessor, context?: INotebookActionContext): Promise<void> {
+	async run(accessor: ServicesAccessor, context?: { id: string }): Promise<void> {
 		const editorService = accessor.get<IEditorService>(IEditorService);
 		const quickInputService = accessor.get<IQuickInputService>(IQuickInputService);
 		const configurationService = accessor.get<IConfigurationService>(IConfigurationService);
@@ -52,12 +52,28 @@ registerAction2(class extends Action2 {
 		const picker = quickInputService.createQuickPick<(IQuickPickItem & { run(): void; kernelProviderId?: string })>();
 		picker.placeholder = nls.localize('notebook.runCell.selectKernel', "Select a notebook kernel to run this notebook");
 		picker.matchOnDetail = true;
-		picker.show();
+
+
+		if (context && context.id) {
+		} else {
+			picker.show();
+		}
+
 		picker.busy = true;
 
 		const tokenSource = new CancellationTokenSource();
-		const availableKernels2 = await editor.beginComputeContributedKernels();
-		const picks: QuickPickInput<IQuickPickItem & { run(): void; kernelProviderId?: string; }>[] = [...availableKernels2].map((a) => {
+		const availableKernels = await editor.beginComputeContributedKernels();
+
+		if (availableKernels.length && availableKernels.find(kernel => kernel.id === context?.id)) {
+			const selectedKernel = availableKernels.find(kernel => kernel.id === context?.id);
+
+			editor.activeKernel = selectedKernel!;
+			return selectedKernel!.resolve(editor.uri!, editor.getId(), tokenSource.token);
+		} else {
+			picker.show();
+		}
+
+		const picks: QuickPickInput<IQuickPickItem & { run(): void; kernelProviderId?: string; }>[] = [...availableKernels].map((a) => {
 			return {
 				id: a.id,
 				label: a.label,

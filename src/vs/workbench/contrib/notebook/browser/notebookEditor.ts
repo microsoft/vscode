@@ -20,13 +20,13 @@ import { EditorPane } from 'vs/workbench/browser/parts/editor/editorPane';
 import { EditorOptions, IEditorInput, IEditorMemento, IEditorOpenContext } from 'vs/workbench/common/editor';
 import { NotebookEditorInput } from 'vs/workbench/contrib/notebook/browser/notebookEditorInput';
 import { NotebookEditorWidget } from 'vs/workbench/contrib/notebook/browser/notebookEditorWidget';
-import { IBorrowValue, INotebookEditorWidgetService } from 'vs/workbench/contrib/notebook/browser/notebookEditorWidgetService';
 import { INotebookEditorViewState, NotebookViewModel } from 'vs/workbench/contrib/notebook/browser/viewModel/notebookViewModel';
 import { IEditorDropService } from 'vs/workbench/services/editor/browser/editorDropService';
 import { IEditorGroup, IEditorGroupsService, GroupsOrder } from 'vs/workbench/services/editor/common/editorGroupsService';
 import { IEditorService } from 'vs/workbench/services/editor/common/editorService';
 import { NotebookEditorOptions } from 'vs/workbench/contrib/notebook/browser/notebookBrowser';
 import { INotebookService } from 'vs/workbench/contrib/notebook/common/notebookService';
+import { IBorrowValue, INotebookEditorWidgetService } from 'vs/workbench/contrib/notebook/browser/notebookEditorWidgetService';
 
 const NOTEBOOK_EDITOR_VIEW_STATE_PREFERENCE_KEY = 'NotebookEditorViewState';
 
@@ -64,14 +64,7 @@ export class NotebookEditor extends EditorPane {
 		this._editorMemento = this.getEditorMemento<INotebookEditorViewState>(_editorGroupService, NOTEBOOK_EDITOR_VIEW_STATE_PREFERENCE_KEY);
 	}
 
-	set viewModel(newModel: NotebookViewModel | undefined) {
-		if (this._widget.value) {
-			this._widget.value.viewModel = newModel;
-			this._onDidChangeModel.fire();
-		}
-	}
-
-	get viewModel() {
+	get viewModel(): NotebookViewModel | undefined {
 		return this._widget.value?.viewModel;
 	}
 
@@ -155,6 +148,7 @@ export class NotebookEditor extends EditorPane {
 		}
 
 		this._widget = this.instantiationService.invokeFunction(this._notebookWidgetService.retrieveWidget, group, input);
+		this._widgetDisposableStore.add(this._widget.value!.onDidChangeModel(() => this._onDidChangeModel.fire()));
 
 		if (this._dimension) {
 			this._widget.value!.layout(this._dimension, this._rootElement);

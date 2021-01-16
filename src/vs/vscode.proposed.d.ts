@@ -3,8 +3,6 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { Command } from 'vscode';
-
 /**
  * This is the place for API experiments and proposals.
  * These API are NOT stable and subject to change. They are only available in the Insiders
@@ -18,26 +16,7 @@ import { Command } from 'vscode';
 
 declare module 'vscode' {
 
-	//#region https://github.com/microsoft/vscode/issues/93686
-
-	/**
-	 * An error type should be used to signal cancellation of an operation.
-	 *
-	 * This type can be used in response to a cancellation token or when an
-	 * operation is being cancelled by the executor of that operation.
-	 */
-	export class CancellationError extends Error {
-
-		/**
-		 * Creates a new cancellation error.
-		 */
-		constructor();
-	}
-
-
-	//#endregion
-
-	// #region auth provider: https://github.com/microsoft/vscode/issues/88309
+	//#region auth provider: https://github.com/microsoft/vscode/issues/88309
 
 	/**
 	 * An [event](#Event) which fires when an [AuthenticationProvider](#AuthenticationProvider) is added or removed.
@@ -75,28 +54,9 @@ declare module 'vscode' {
 	}
 
 	/**
-	 * **WARNING** When writing an AuthenticationProvider, `id` should be treated as part of your extension's
-	 * API, changing it is a breaking change for all extensions relying on the provider. The id is
-	 * treated case-sensitively.
+	 * A provider for performing authentication to a service.
 	 */
 	export interface AuthenticationProvider {
-		/**
-		 * Used as an identifier for extensions trying to work with a particular
-		 * provider: 'microsoft', 'github', etc. id must be unique, registering
-		 * another provider with the same id will fail.
-		 */
-		readonly id: string;
-
-		/**
-		 * The human-readable name of the provider.
-		 */
-		readonly label: string;
-
-		/**
-		 * Whether it is possible to be signed into multiple accounts at once with this provider
-		*/
-		readonly supportsMultipleAccounts: boolean;
-
 		/**
 		 * An [event](#Event) which fires when the array of sessions has changed, or data
 		 * within a session has changed.
@@ -106,18 +66,32 @@ declare module 'vscode' {
 		/**
 		 * Returns an array of current sessions.
 		 */
+		// eslint-disable-next-line vscode-dts-provider-naming
 		getSessions(): Thenable<ReadonlyArray<AuthenticationSession>>;
 
 		/**
 		 * Prompts a user to login.
 		 */
+		// eslint-disable-next-line vscode-dts-provider-naming
 		login(scopes: string[]): Thenable<AuthenticationSession>;
 
 		/**
 		 * Removes the session corresponding to session id.
 		 * @param sessionId The session id to log out of
 		 */
+		// eslint-disable-next-line vscode-dts-provider-naming
 		logout(sessionId: string): Thenable<void>;
+	}
+
+	/**
+	 * Options for creating an [AuthenticationProvider](#AuthentcationProvider).
+	 */
+	export interface AuthenticationProviderOptions {
+		/**
+		 * Whether it is possible to be signed into multiple accounts at once with this provider.
+		 * If not specified, will default to false.
+		*/
+		readonly supportsMultipleAccounts?: boolean;
 	}
 
 	export namespace authentication {
@@ -125,12 +99,15 @@ declare module 'vscode' {
 		 * Register an authentication provider.
 		 *
 		 * There can only be one provider per id and an error is being thrown when an id
-		 * has already been used by another provider.
+		 * has already been used by another provider. Ids are case-sensitive.
 		 *
+		 * @param id The unique identifier of the provider.
+		 * @param label The human-readable name of the provider.
 		 * @param provider The authentication provider provider.
+		 * @params options Additional options for the provider.
 		 * @return A [disposable](#Disposable) that unregisters this provider when being disposed.
 		 */
-		export function registerAuthenticationProvider(provider: AuthenticationProvider): Disposable;
+		export function registerAuthenticationProvider(id: string, label: string, provider: AuthenticationProvider, options?: AuthenticationProviderOptions): Disposable;
 
 		/**
 		 * @deprecated - getSession should now trigger extension activation.
@@ -139,61 +116,29 @@ declare module 'vscode' {
 		export const onDidChangeAuthenticationProviders: Event<AuthenticationProvidersChangeEvent>;
 
 		/**
-		 * @deprecated
-		 * The ids of the currently registered authentication providers.
-		 * @returns An array of the ids of authentication providers that are currently registered.
-		 */
-		export function getProviderIds(): Thenable<ReadonlyArray<string>>;
-
-		/**
-		 * @deprecated
-		 * An array of the ids of authentication providers that are currently registered.
-		 */
-		export const providerIds: ReadonlyArray<string>;
-
-		/**
 		 * An array of the information of authentication providers that are currently registered.
 		 */
 		export const providers: ReadonlyArray<AuthenticationProviderInformation>;
 
 		/**
-		 * @deprecated
 		* Logout of a specific session.
 		* @param providerId The id of the provider to use
 		* @param sessionId The session id to remove
 		* provider
 		*/
 		export function logout(providerId: string, sessionId: string): Thenable<void>;
-
-		/**
-		 * Retrieve a password that was stored with key. Returns undefined if there
-		 * is no password matching that key.
-		 * @param key The key the password was stored under.
-		 */
-		export function getPassword(key: string): Thenable<string | undefined>;
-
-		/**
-		 * Store a password under a given key.
-		 * @param key The key to store the password under
-		 * @param value The password
-		 */
-		export function setPassword(key: string, value: string): Thenable<void>;
-
-		/**
-		 * Remove a password from storage.
-		 * @param key The key the password was stored under.
-		 */
-		export function deletePassword(key: string): Thenable<void>;
-
-		/**
-		 * Fires when a password is set or deleted.
-		 */
-		export const onDidChangePassword: Event<void>;
 	}
 
 	//#endregion
 
 	//#region @alexdima - resolvers
+
+	export interface MessageOptions {
+		/**
+		 * Do not render a native message box.
+		 */
+		useCustom?: boolean;
+	}
 
 	export interface RemoteAuthorityResolverContext {
 		resolveAttempt: number;
@@ -216,18 +161,20 @@ declare module 'vscode' {
 		// The desired local port. If this port can't be used, then another will be chosen.
 		localAddressPort?: number;
 		label?: string;
+		public?: boolean;
 	}
 
 	export interface TunnelDescription {
 		remoteAddress: { port: number, host: string; };
 		//The complete local address(ex. localhost:1234)
 		localAddress: { port: number, host: string; } | string;
+		public?: boolean;
 	}
 
 	export interface Tunnel extends TunnelDescription {
 		// Implementers of Tunnel should fire onDidDispose when dispose is called.
 		onDidDispose: Event<void>;
-		dispose(): void;
+		dispose(): void | Thenable<void>;
 	}
 
 	/**
@@ -272,10 +219,19 @@ declare module 'vscode' {
 		 */
 		tunnelFactory?: (tunnelOptions: TunnelOptions, tunnelCreationOptions: TunnelCreationOptions) => Thenable<Tunnel> | undefined;
 
-		/**
+		/**p
 		 * Provides filtering for candidate ports.
 		 */
 		showCandidatePort?: (host: string, port: number, detail: string) => Thenable<boolean>;
+
+		/**
+		 * Lets the resolver declare which tunnel factory features it supports.
+		 * UNDER DISCUSSION! MAY CHANGE SOON.
+		 */
+		tunnelFeatures?: {
+			elevation: boolean;
+			public: boolean;
+		};
 	}
 
 	export namespace workspace {
@@ -792,8 +748,6 @@ declare module 'vscode' {
 
 	//#endregion
 
-
-
 	//#region @joaomoreno: SCM validation
 
 	/**
@@ -927,7 +881,7 @@ declare module 'vscode' {
 
 	//#endregion
 
-	//#region @alexdima - OnEnter enhancement
+	//#region https://github.com/microsoft/vscode/issues/58440
 	export interface OnEnterRule {
 		/**
 		 * This rule will only execute if the text above the this line matches this regular expression.
@@ -938,15 +892,9 @@ declare module 'vscode' {
 
 	//#region Tree View: https://github.com/microsoft/vscode/issues/61313 @alexr00
 	export interface TreeView<T> extends Disposable {
-		reveal(element: T | undefined, options?: { select?: boolean, focus?: boolean, expand?: boolean | number }): Thenable<void>;
+		reveal(element: T | undefined, options?: { select?: boolean, focus?: boolean, expand?: boolean | number; }): Thenable<void>;
 	}
 	//#endregion
-
-	//#region Tree data provider: https://github.com/microsoft/vscode/issues/111614 @alexr00
-	export interface TreeDataProvider<T> {
-		resolveTreeItem?(item: TreeItem, element: T, token?: CancellationToken): ProviderResult<TreeItem>;
-	}
-	////#endregion
 
 	//#region Task presentation group: https://github.com/microsoft/vscode/issues/47265
 	export interface TaskPresentationOptions {
@@ -1028,6 +976,7 @@ declare module 'vscode' {
 		 *
 		 * @return Thenable indicating that the webview editor has been moved.
 		 */
+		// eslint-disable-next-line vscode-dts-provider-naming
 		moveCustomTextEditor?(newDocument: TextDocument, existingWebviewPanel: WebviewPanel, token: CancellationToken): Thenable<void>;
 	}
 
@@ -1082,7 +1031,7 @@ declare module 'vscode' {
 		/**
 		 * Additional attributes of a cell metadata.
 		 */
-		custom?: { [key: string]: any };
+		custom?: { [key: string]: any; };
 	}
 
 	export interface CellDisplayOutput {
@@ -1206,7 +1155,7 @@ declare module 'vscode' {
 		/**
 		 * Additional attributes of a cell metadata.
 		 */
-		custom?: { [key: string]: any };
+		custom?: { [key: string]: any; };
 	}
 
 	export interface NotebookCell {
@@ -1256,7 +1205,7 @@ declare module 'vscode' {
 		/**
 		 * Additional attributes of the document metadata.
 		 */
-		custom?: { [key: string]: any };
+		custom?: { [key: string]: any; };
 
 		/**
 		 * The document's current run state
@@ -1268,6 +1217,11 @@ declare module 'vscode' {
 		 * When false, insecure outputs like HTML, JavaScript, SVG will not be rendered.
 		 */
 		trusted?: boolean;
+
+		/**
+		 * Languages the document supports
+		 */
+		languages?: string[];
 	}
 
 	export interface NotebookDocumentContentOptions {
@@ -1313,7 +1267,7 @@ declare module 'vscode' {
 
 		locationAt(positionOrRange: Position | Range): Location;
 		positionAt(location: Location): Position;
-		contains(uri: Uri): boolean
+		contains(uri: Uri): boolean;
 	}
 
 	export interface WorkspaceEdit {
@@ -1347,11 +1301,17 @@ declare module 'vscode' {
 		 * The range will always be revealed in the center of the viewport.
 		 */
 		InCenter = 1,
+
 		/**
 		 * If the range is outside the viewport, it will be revealed in the center of the viewport.
 		 * Otherwise, it will be revealed with as little scrolling as possible.
 		 */
 		InCenterIfOutsideViewport = 2,
+
+		/**
+		 * The range will always be revealed at the top of the viewport.
+		 */
+		AtTop = 3
 	}
 
 	export interface NotebookEditor {
@@ -1616,10 +1576,16 @@ declare module 'vscode' {
 		 * Content providers should always use [file system providers](#FileSystemProvider) to
 		 * resolve the raw content for `uri` as the resouce is not necessarily a file on disk.
 		 */
+		// eslint-disable-next-line vscode-dts-provider-naming
 		openNotebook(uri: Uri, openContext: NotebookDocumentOpenContext): NotebookData | Promise<NotebookData>;
+		// eslint-disable-next-line vscode-dts-provider-naming
+		// eslint-disable-next-line vscode-dts-cancellation
 		resolveNotebook(document: NotebookDocument, webview: NotebookCommunication): Promise<void>;
+		// eslint-disable-next-line vscode-dts-provider-naming
 		saveNotebook(document: NotebookDocument, cancellation: CancellationToken): Promise<void>;
+		// eslint-disable-next-line vscode-dts-provider-naming
 		saveNotebookAs(targetResource: Uri, document: NotebookDocument, cancellation: CancellationToken): Promise<void>;
+		// eslint-disable-next-line vscode-dts-provider-naming
 		backupNotebook(document: NotebookDocument, context: NotebookDocumentBackupContext, cancellation: CancellationToken): Promise<NotebookDocumentBackup>;
 	}
 
@@ -1636,7 +1602,7 @@ declare module 'vscode' {
 		cancelAllCellsExecution(document: NotebookDocument): void;
 	}
 
-	export type NotebookFilenamePattern = GlobPattern | { include: GlobPattern; exclude: GlobPattern };
+	export type NotebookFilenamePattern = GlobPattern | { include: GlobPattern; exclude: GlobPattern; };
 
 	export interface NotebookDocumentFilter {
 		viewType?: string | string[];
@@ -1742,7 +1708,7 @@ declare module 'vscode' {
 		 */
 		export function createConcatTextDocument(notebook: NotebookDocument, selector?: DocumentSelector): NotebookConcatTextDocument;
 
-		export const onDidChangeActiveNotebookKernel: Event<{ document: NotebookDocument, kernel: NotebookKernel | undefined }>;
+		export const onDidChangeActiveNotebookKernel: Event<{ document: NotebookDocument, kernel: NotebookKernel | undefined; }>;
 
 		/**
 		 * Creates a notebook cell status bar [item](#NotebookCellStatusBarItem).
@@ -1998,7 +1964,6 @@ declare module 'vscode' {
 
 	//#endregion
 
-
 	//#region https://github.com/microsoft/vscode/issues/102091
 
 	export interface TextDocument {
@@ -2121,13 +2086,11 @@ declare module 'vscode' {
 		readonly onDidChangeTest: Event<T>;
 
 		/**
-		 * An event that should be fired when all tests that are currently defined
-		 * have been discovered. The provider should continue to watch for changes
-		 * and fire `onDidChangeTest` until the hierarchy is disposed.
-		 *
-		 * @todo can this be covered by existing progress apis? Or return a promise
+		 * Promise that should be resolved when all tests that are initially
+		 * defined have been discovered. The provider should continue to watch for
+		 * changes and fire `onDidChangeTest` until the hierarchy is disposed.
 		 */
-		readonly onDidDiscoverInitialTests: Event<void>;
+		readonly discoveredInitialTests?: Thenable<unknown>;
 
 		/**
 		 * Dispose will be called when there are no longer observers interested
@@ -2156,20 +2119,23 @@ declare module 'vscode' {
 		 * It's guaranteed that this method will not be called again while
 		 * there is a previous undisposed watcher for the given workspace folder.
 		 */
-		createWorkspaceTestHierarchy?(workspace: WorkspaceFolder): TestHierarchy<T>;
+		// eslint-disable-next-line vscode-dts-provider-naming
+		createWorkspaceTestHierarchy?(workspace: WorkspaceFolder): TestHierarchy<T> | undefined;
 
 		/**
 		 * Requests that tests be provided for the given document. This will
 		 * be called when tests need to be enumerated for a single open file,
 		 * for instance by code lens UI.
 		 */
-		createDocumentTestHierarchy?(document: TextDocument): TestHierarchy<T>;
+		// eslint-disable-next-line vscode-dts-provider-naming
+		createDocumentTestHierarchy?(document: TextDocument): TestHierarchy<T> | undefined;
 
 		/**
 		 * Starts a test run. This should cause {@link onDidChangeTest} to
 		 * fire with update test states during the run.
 		 * @todo this will eventually need to be able to return a summary report, coverage for example.
 		 */
+		// eslint-disable-next-line vscode-dts-provider-naming
 		runTests?(options: TestRunOptions<T>, cancellationToken: CancellationToken): ProviderResult<void>;
 	}
 
@@ -2323,33 +2289,117 @@ declare module 'vscode' {
 		 */
 		location?: Location;
 	}
+
+	/**
+	 * Additional metadata about the uri being opened
+	 */
+	interface OpenExternalUriContext {
+
+	}
+
 	//#endregion
 
 	//#region Opener service (https://github.com/microsoft/vscode/issues/109277)
 
+	export enum ExternalUriOpenerPriority {
+		/**
+		 * The opener is disabled and will not be shown to users.
+		 *
+		 * Note that the opener can still be used if the user
+		 * specifically configures it in their settings.
+		 */
+		None = 0,
+
+		/**
+		 * The opener can open the uri but will not be shown by default when a
+		 * user clicks on the uri.
+		 *
+		 * If only optional openers are enabled, then VS Code's default opener
+		 * will be automatically used.
+		 */
+		Option = 1,
+
+		/**
+		 * The opener can open the uri.
+		 *
+		 * When the user clicks on a uri, they will be prompted to select the opener
+		 * they wish to use for it.
+		 */
+		Default = 2,
+
+		/**
+		 * The opener can open the uri and should be automatically selected if possible.
+		 *
+		 * Preferred openers will be automatically selected if no other preferred openers
+		 * are available.
+		 */
+		Preferred = 3,
+	}
+
 	/**
-	 * Handles opening external uris.
+	 * Handles opening uris to external resources, such as http(s) links.
 	 *
-	 * An extension can use this to open a `http` link to a webserver inside of VS Code instead of
-	 * having the link be opened by the webbrowser.
+	 * Extensions can implement an `ExternalUriOpener` to open `http` links to a webserver
+	 * inside of VS Code instead of having the link be opened by the web browser.
 	 *
 	 * Currently openers may only be registered for `http` and `https` uris.
 	 */
 	export interface ExternalUriOpener {
 
 		/**
-		 * Try to open a given uri.
+		 * Check if the opener can handle a given uri.
 		 *
-		 * @param uri The uri being opened.
-		 * @param ctx Additional metadata about how the open was triggered.
-		 * @param token Cancellation token.
+		 * @param uri The uri being opened. This is the uri that the user clicked on. It has
+		 * not yet gone through port forwarding.
+		 * @param token Cancellation token indicating that the result is no longer needed.
 		 *
-		 * @return Optional command that opens the uri. If no command is returned, VS Code will
-		 * continue checking to see if any other openers are available.
-		 *
-		 * If multiple openers are available for a given uri, then the `Command.title` is shown in the UI.
+		 * @return If the opener can open the external uri.
 		 */
-		openExternalUri(uri: Uri, ctx: {}, token: CancellationToken): ProviderResult<Command>;
+		canOpenExternalUri(uri: Uri, token: CancellationToken): ExternalUriOpenerPriority | Thenable<ExternalUriOpenerPriority>;
+
+		/**
+		 * Open the given uri.
+		 *
+		 * This is invoked when:
+		 *
+		 * - The user clicks a link which does not have an assigned opener. In this case, first `canOpenExternalUri`
+		 *   is called and if the user selects this opener, then `openExternalUri` is called.
+		 * - The user sets the default opener for a link in their settings and then visits a link.
+		 *
+		 * @param resolvedUri The uri to open. This uri may have been transformed by port forwarding, so it
+		 * may not match the original uri passed to `canOpenExternalUri`. Use `ctx.originalUri` to check the
+		 * original uri.
+		 * @param ctx Additional information about the uri being opened.
+		 * @param token Cancellation token indicating that opening has been canceled.
+		 *
+		 * @return Thenable indicating that the opening has completed
+		 */
+		openExternalUri(resolvedUri: Uri, ctx: OpenExternalUriContext, token: CancellationToken): Thenable<void> | void;
+	}
+
+	/**
+	 * Additional information about the uri being opened.
+	 */
+	interface OpenExternalUriContext {
+		/**
+		 * The uri that triggered the open.
+		 *
+		 * Due to port forwarding, this may not match the `resolvedUri` passed to `openExternalUri`
+		 */
+		readonly sourceUri: Uri;
+	}
+
+	/**
+	 * Additional metadata about the registered opener.
+	 */
+	interface ExternalUriOpenerMetadata {
+
+		/**
+		 * Text displayed to the user that explains what the opener does.
+		 *
+		 * For example, 'Open in browser preview'
+		 */
+		readonly label: string;
 	}
 
 	namespace window {
@@ -2358,13 +2408,66 @@ declare module 'vscode' {
 		 *
 		 * When a uri is about to be opened, an `onUriOpen:SCHEME` activation event is fired.
 		 *
+		 * @param id Unique id of the opener, such as `myExtension.browserPreview`. This is used in settings
+		 *   and commands to identify the opener.
 		 * @param schemes List of uri schemes the opener is triggered for. Currently only `http`
 		 * and `https` are supported.
 		 * @param opener Opener to register.
+		 * @param metadata Additional information about the opener.
 		 *
 		* @returns Disposable that unregisters the opener.
 		 */
-		export function registerExternalUriOpener(schemes: readonly string[], opener: ExternalUriOpener,): Disposable;
+		export function registerExternalUriOpener(id: string, schemes: readonly string[], opener: ExternalUriOpener, metadata: ExternalUriOpenerMetadata): Disposable;
+	}
+
+	//#endregion
+
+	//#region https://github.com/microsoft/vscode/issues/112249
+
+	/**
+	 * The event data that is fired when a secret is added or removed.
+	 */
+	export interface SecretStorageChangeEvent {
+		/**
+		 * The key of the secret that has changed.
+		 */
+		key: string;
+	}
+
+	/**
+	 * Represents a storage utility for secrets, information that is
+	 * sensitive.
+	 */
+	export interface SecretStorage {
+		/**
+		 * Retrieve a secret that was stored with key. Returns undefined if there
+		 * is no password matching that key.
+		 * @param key The key the password was stored under.
+		 * @returns The stored value or `undefined`.
+		 */
+		get(key: string): Thenable<string | undefined>;
+
+		/**
+		 * Store a secret under a given key.
+		 * @param key The key to store the password under.
+		 * @param value The password.
+		 */
+		set(key: string, value: string): Thenable<void>;
+
+		/**
+		 * Remove a secret from storage.
+		 * @param key The key the password was stored under.
+		 */
+		delete(key: string): Thenable<void>;
+
+		/**
+		 * Fires when a secret is set or deleted.
+		 */
+		onDidChange: Event<SecretStorageChangeEvent>;
+	}
+
+	export interface ExtensionContext {
+		secrets: SecretStorage;
 	}
 
 	//#endregion

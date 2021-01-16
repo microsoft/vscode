@@ -4,23 +4,28 @@
  *--------------------------------------------------------------------------------------------*/
 
 import * as assert from 'assert';
-import * as os from 'os';
-import * as path from 'vs/base/common/path';
-import { getRandomTestPath } from 'vs/base/test/node/testUtils';
+import { tmpdir } from 'os';
+import { join } from 'vs/base/common/path';
+import { flakySuite, getRandomTestPath } from 'vs/base/test/node/testUtils';
 import { FileStorage } from 'vs/platform/state/node/stateService';
-import { mkdirp, rimraf, RimRafMode, writeFileSync } from 'vs/base/node/pfs';
+import { mkdirp, rimraf, writeFileSync } from 'vs/base/node/pfs';
 
-suite('StateService', () => {
-	const parentDir = getRandomTestPath(os.tmpdir(), 'vsctests', 'stateservice');
-	const storageFile = path.join(parentDir, 'storage.json');
+flakySuite('StateService', () => {
+
+	let testDir: string;
+
+	setup(() => {
+		testDir = getRandomTestPath(tmpdir(), 'vsctests', 'stateservice');
+
+		return mkdirp(testDir);
+	});
+
+	teardown(() => {
+		return rimraf(testDir);
+	});
 
 	test('Basics', async function () {
-
-		// https://github.com/microsoft/vscode/issues/112447
-		this.retries(3);
-		this.timeout(1000 * 20);
-
-		await mkdirp(parentDir);
+		const storageFile = join(testDir, 'storage.json');
 		writeFileSync(storageFile, '');
 
 		let service = new FileStorage(storageFile, () => null);
@@ -47,7 +52,5 @@ suite('StateService', () => {
 
 		service.setItem('some.null.key', null);
 		assert.equal(service.getItem('some.null.key', 'some.default'), 'some.default');
-
-		await rimraf(parentDir, RimRafMode.MOVE);
 	});
 });

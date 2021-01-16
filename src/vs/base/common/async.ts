@@ -181,7 +181,7 @@ export class Sequencer {
 	private current: Promise<any> = Promise.resolve(null);
 
 	queue<T>(promiseTask: ITask<Promise<T>>): Promise<T> {
-		return this.current = this.current.then(() => promiseTask());
+		return this.current = this.current.then(() => promiseTask(), () => promiseTask());
 	}
 }
 
@@ -205,7 +205,7 @@ export class SequencerByKey<TKey> {
 }
 
 /**
- * A helper to delay execution of a task that is being requested often.
+ * A helper to delay (debounce) execution of a task that is being requested often.
  *
  * Following the throttler, now imagine the mail man wants to optimize the number of
  * trips proactively. The trip itself can be long, so he decides not to make the trip

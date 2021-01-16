@@ -18,13 +18,14 @@ import { $, addDisposableListener } from 'vs/base/browser/dom';
 import { ICommandService } from 'vs/platform/commands/common/commands';
 import { IProductService } from 'vs/platform/product/common/productService';
 import { IGettingStartedCategoryWithProgress, IGettingStartedService } from 'vs/workbench/services/gettingStarted/common/gettingStartedService';
-import { registerThemingParticipant } from 'vs/platform/theme/common/themeService';
-import { buttonBackground as welcomeButtonBackground, buttonHoverBackground as welcomeButtonHoverBackground, welcomePageBackground } from 'vs/workbench/contrib/welcome/page/browser/welcomePageColors';
+import { registerThemingParticipant, ThemeIcon } from 'vs/platform/theme/common/themeService';
+import { welcomeButtonBackground, welcomeButtonHoverBackground, welcomePageBackground, welcomePageProgressBackground, welcomePageProgressForeground } from 'vs/workbench/contrib/welcome/page/browser/welcomePageColors';
 import { activeContrastBorder, buttonBackground, buttonForeground, buttonHoverBackground, buttonSecondaryBackground, contrastBorder, descriptionForeground, focusBorder, foreground, textLinkActiveForeground, textLinkForeground } from 'vs/platform/theme/common/colorRegistry';
 import { getExtraColor } from 'vs/workbench/contrib/welcome/walkThrough/common/walkThroughUtils';
 import { IKeybindingService } from 'vs/platform/keybinding/common/keybinding';
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
 import { DomScrollableElement } from 'vs/base/browser/ui/scrollbar/scrollableElement';
+import { gettingStartedCheckedCodicon, gettingStartedUncheckedCodicon } from 'vs/workbench/contrib/welcome/gettingStarted/browser/gettingStartedIcons';
 
 export const gettingStartedInputTypeId = 'workbench.editors.gettingStartedInput';
 const telemetryFrom = 'gettingStartedPage';
@@ -96,12 +97,12 @@ export class GettingStartedPage extends Disposable {
 			if (category.id === this.currentCategory?.id) {
 				const badgeelement = assertIsDefined(document.getElementById('done-task-' + task.id));
 				if (task.done) {
-					badgeelement.classList.remove('codicon-circle-large-outline');
-					badgeelement.classList.add('codicon-pass-filled', 'complete');
+					badgeelement.classList.remove(...ThemeIcon.asClassNameArray(gettingStartedUncheckedCodicon));
+					badgeelement.classList.add('complete', ...ThemeIcon.asClassNameArray(gettingStartedCheckedCodicon));
 				}
 				else {
-					badgeelement.classList.add('codicon-circle-large-outline');
-					badgeelement.classList.remove('codicon-pass-filled', 'complete');
+					badgeelement.classList.add(...ThemeIcon.asClassNameArray(gettingStartedUncheckedCodicon));
+					badgeelement.classList.remove('complete', ...ThemeIcon.asClassNameArray(gettingStartedCheckedCodicon));
 				}
 			}
 			this.updateCategoryProgress();
@@ -203,20 +204,24 @@ export class GettingStartedPage extends Disposable {
 						$('.category-description-container', {},
 							$('h3.category-title', {}, category.title),
 							$('.category-description.description', {}, category.description),
-							$('.category-progress', { 'x-data-category-id': category.id, }, $('.message'), $('progress'))) :
+							$('.category-progress', { 'x-data-category-id': category.id, },
+								$('.message'),
+								$('.progress-bar-outer', {},
+									$('.progress-bar-inner'))))
+						:
 						$('.category-description-container', {},
 							$('h3.category-title', {}, category.title),
 							$('.category-description.description', {}, category.description));
 
 				return $('button.getting-started-category',
 					{ 'x-dispatch': 'selectCategory:' + category.id },
-					$('.codicon.codicon-' + category.codicon, {}), categoryDescriptionElement);
+					$(ThemeIcon.asCSSSelector(category.icon), {}), categoryDescriptionElement);
 			});
 
 		const categoriesSlide = assertIsDefined(document.getElementById('gettingStartedSlideCategory'));
 		const tasksSlide = assertIsDefined(document.getElementById('gettingStartedSlideDetails'));
 
-		const tasksContent = assertIsDefined(document.getElementById('gettingStartedDetailsContent'));
+		const tasksContent = assertIsDefined(document.getElementById('gettingStartedDetailsContent') as HTMLElement);
 		tasksContent.remove();
 		if (this.detailImageScrollbar) { this.detailImageScrollbar.dispose(); }
 		this.detailImageScrollbar = this._register(new DomScrollableElement(tasksContent, { className: 'full-height-scrollable' }));
@@ -257,6 +262,7 @@ export class GettingStartedPage extends Disposable {
 		} else {
 			tasksSlide.classList.add('next');
 		}
+		setTimeout(() => assertIsDefined(container.querySelector('.gettingStartedContainer')).classList.add('animationReady'), 0);
 	}
 
 	private layout() {
@@ -275,9 +281,9 @@ export class GettingStartedPage extends Disposable {
 			const numTotal = category.content.items.length;
 
 			const message = assertIsDefined(element.firstChild);
-			const bar = assertIsDefined(element.lastChild) as HTMLProgressElement;
-			bar.value = numDone;
-			bar.max = numTotal;
+			const bar = assertIsDefined(element.querySelector('.progress-bar-inner')) as HTMLDivElement;
+			bar.style.width = `${(numDone / numTotal) * 100}%`;
+
 			if (numTotal === numDone) {
 				message.textContent = `All items complete!`;
 			}
@@ -312,7 +318,7 @@ export class GettingStartedPage extends Disposable {
 		detailTitle.appendChild(
 			$('.getting-started-category',
 				{},
-				$('.codicon.codicon-' + category.codicon, {}),
+				$(ThemeIcon.asCSSSelector(category.icon), {}),
 				$('.category-description-container', {},
 					$('h2.category-title', {}, category.title),
 					$('.category-description.description', {}, category.description))));
@@ -468,5 +474,14 @@ registerThemingParticipant((theme, collector) => {
 	const activeBorder = theme.getColor(activeContrastBorder);
 	if (activeBorder) {
 		collector.addRule(`.monaco-workbench .part.editor > .content .walkThroughContent .gettingStartedContainer button:hover { outline-color: ${activeBorder}; }`);
+	}
+
+	const progressBackground = theme.getColor(welcomePageProgressBackground);
+	if (progressBackground) {
+		collector.addRule(`.monaco-workbench .part.editor > .content .walkThroughContent .gettingStartedContainer .gettingStartedSlide.categories .progress-bar-outer { background-color: ${progressBackground}; }`);
+	}
+	const progressForeground = theme.getColor(welcomePageProgressForeground);
+	if (progressForeground) {
+		collector.addRule(`.monaco-workbench .part.editor > .content .walkThroughContent .gettingStartedContainer .gettingStartedSlide.categories .progress-bar-inner { background-color: ${progressForeground}; }`);
 	}
 });

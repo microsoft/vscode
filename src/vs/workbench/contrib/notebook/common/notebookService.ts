@@ -26,7 +26,7 @@ export interface IMainNotebookController {
 	supportBackup: boolean;
 	viewOptions?: { displayName: string; filenamePattern: (string | IRelativePattern | INotebookExclusiveDocumentFilter)[]; exclusive: boolean; };
 	options: { transientOutputs: boolean; transientMetadata: TransientMetadata; };
-	resolveNotebookDocument(viewType: string, uri: URI, backupId?: string): Promise<{ data: NotebookDataDto, transientOptions: TransientOptions }>;
+	resolveNotebookDocument(viewType: string, uri: URI, backupId?: string): Promise<{ data: NotebookDataDto, transientOptions: TransientOptions; }>;
 	reloadNotebook(mainthreadTextModel: NotebookTextModel): Promise<void>;
 	resolveNotebookEditor(viewType: string, uri: URI, editorId: string): Promise<void>;
 	onDidReceiveMessage(editorId: string, rendererType: string | undefined, message: any): void;
@@ -46,13 +46,14 @@ export interface INotebookService {
 	onDidAddNotebookDocument: Event<NotebookTextModel>;
 	onNotebookDocumentSaved: Event<URI>;
 	onDidChangeKernels: Event<URI | undefined>;
-	onDidChangeNotebookActiveKernel: Event<{ uri: URI, providerHandle: number | undefined, kernelId: string | undefined }>;
+	onDidChangeNotebookActiveKernel: Event<{ uri: URI, providerHandle: number | undefined, kernelId: string | undefined; }>;
 	registerNotebookController(viewType: string, extensionData: NotebookExtensionDescription, controller: IMainNotebookController): IDisposable;
 
 	getMimeTypeInfo(textModel: NotebookTextModel, output: ITransformedDisplayOutputDto): readonly IOrderedMimeType[];
 
 	registerNotebookKernelProvider(provider: INotebookKernelProvider): IDisposable;
 	getContributedNotebookKernels(viewType: string, resource: URI, token: CancellationToken): Promise<INotebookKernelInfo2[]>;
+	getContributedNotebookKernelProviders(): Promise<INotebookKernelProvider[]>;
 	getContributedNotebookOutputRenderers(id: string): NotebookOutputRendererInfo | undefined;
 	getRendererInfo(id: string): INotebookRendererInfo | undefined;
 

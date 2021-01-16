@@ -4,7 +4,6 @@
   "license": "MIT",
   "main": "./index.js",
   "scripts": {
-    "postinstall": "tsc",
     "compile": "tsc"
   },
   "devDependencies": {

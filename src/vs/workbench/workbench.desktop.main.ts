@@ -23,13 +23,6 @@ import 'vs/workbench/workbench.sandbox.main';
 //#endregion
 
 
-//#region --- workbench actions
-
-import 'vs/workbench/electron-browser/actions/developerActions';
-
-//#endregion
-
-
 // !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
 //
 // NOTE: Please do NOT register services here. Use `registerSingleton()`
@@ -78,7 +71,6 @@ import 'vs/workbench/services/userDataSync/electron-browser/userDataSyncService'
 import 'vs/workbench/services/userDataSync/electron-browser/userDataSyncAccountService';
 import 'vs/workbench/services/userDataSync/electron-browser/userDataSyncStoreManagementService';
 import 'vs/workbench/services/userDataSync/electron-browser/userDataAutoSyncService';
-import 'vs/workbench/services/sharedProcess/electron-browser/sharedProcessService';
 import 'vs/workbench/services/localizations/electron-browser/localizationsService';
 import 'vs/workbench/services/diagnostics/electron-browser/diagnosticsService';
 
@@ -97,8 +89,10 @@ import 'vs/workbench/services/diagnostics/electron-browser/diagnosticsService';
 import { registerSingleton } from 'vs/platform/instantiation/common/extensions';
 import { ITunnelService } from 'vs/platform/remote/common/tunnel';
 import { TunnelService } from 'vs/workbench/services/remote/electron-browser/tunnelServiceImpl';
+import { ISharedProcessService, SharedProcessService } from 'vs/platform/ipc/electron-browser/sharedProcessService';
 
 registerSingleton(ITunnelService, TunnelService);
+registerSingleton(ISharedProcessService, SharedProcessService, true);
 
 //#endregion
 

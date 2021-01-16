@@ -412,10 +412,11 @@ export class ModelServiceImpl extends Disposable implements IModelService {
 
 	public updateModel(model: ITextModel, value: string | ITextBufferFactory): void {
 		const options = this.getCreationOptions(model.getLanguageIdentifier().language, model.uri, model.isForSimpleWidget);
-		const textBuffer = createTextBuffer(value, options.defaultEOL);
+		const { textBuffer, disposable } = createTextBuffer(value, options.defaultEOL);
 
 		// Return early if the text is already set in that form
 		if (model.equalsTextBuffer(textBuffer)) {
+			disposable.dispose();
 			return;
 		}
 
@@ -428,6 +429,7 @@ export class ModelServiceImpl extends Disposable implements IModelService {
 			() => []
 		);
 		model.pushStackElement();
+		disposable.dispose();
 	}
 
 	private static _commonPrefix(a: ILineSequence, aLen: number, aDelta: number, b: ILineSequence, bLen: number, bDelta: number): number {
@@ -513,58 +515,6 @@ export class ModelServiceImpl extends Disposable implements IModelService {
 		if (!modelData) {
 			return;
 		}
-		const model = modelData.model;
-		const sharesUndoRedoStack = (this._undoRedoService.getUriComparisonKey(model.uri) !== model.uri.toString());
-		let maintainUndoRedoStack = false;
-		let heapSize = 0;
-		if (sharesUndoRedoStack || (this._shouldRestoreUndoStack() && schemaShouldMaintainUndoRedoElements(resource))) {
-			const elements = this._undoRedoService.getElements(resource);
-			if (elements.past.length > 0 || elements.future.length > 0) {
-				for (const element of elements.past) {
-					if (isEditStackElement(element) && element.matchesResource(resource)) {
-						maintainUndoRedoStack = true;
-						heapSize += element.heapSize(resource);
-						element.setModel(resource); // remove reference from text buffer instance
-					}
-				}
-				for (const element of elements.future) {
-					if (isEditStackElement(element) && element.matchesResource(resource)) {
-						maintainUndoRedoStack = true;
-						heapSize += element.heapSize(resource);
-						element.setModel(resource); // remove reference from text buffer instance
-					}
-				}
-			}
-		}
-
-		if (!maintainUndoRedoStack) {
-			if (!sharesUndoRedoStack) {
-				const initialUndoRedoSnapshot = modelData.model.getInitialUndoRedoSnapshot();
-				if (initialUndoRedoSnapshot !== null) {
-					this._undoRedoService.restoreSnapshot(initialUndoRedoSnapshot);
-				}
-			}
-			modelData.model.dispose();
-			return;
-		}
-
-		const maxMemory = ModelServiceImpl.MAX_MEMORY_FOR_CLOSED_FILES_UNDO_STACK;
-		if (!sharesUndoRedoStack && heapSize > maxMemory) {
-			// the undo stack for this file would never fit in the configured memory, so don't bother with it.
-			const initialUndoRedoSnapshot = modelData.model.getInitialUndoRedoSnapshot();
-			if (initialUndoRedoSnapshot !== null) {
-				this._undoRedoService.restoreSnapshot(initialUndoRedoSnapshot);
-			}
-			modelData.model.dispose();
-			return;
-		}
-
-		this._ensureDisposedModelsHeapSize(maxMemory - heapSize);
-
-		// We only invalidate the elements, but they remain in the undo-redo service.
-		this._undoRedoService.setElementsValidFlag(resource, false, (element) => (isEditStackElement(element) && element.matchesResource(resource)));
-		this._insertDisposedModel(new DisposedModelInfo(resource, modelData.model.getInitialUndoRedoSnapshot(), Date.now(), sharesUndoRedoStack, heapSize, computeModelSha1(model), model.getVersionId(), model.getAlternativeVersionId()));
-
 		modelData.model.dispose();
 	}
 
@@ -598,6 +548,50 @@ export class ModelServiceImpl extends Disposable implements IModelService {
 	private _onWillDispose(model: ITextModel): void {
 		const modelId = MODEL_ID(model.uri);
 		const modelData = this._models[modelId];
+
+		const sharesUndoRedoStack = (this._undoRedoService.getUriComparisonKey(model.uri) !== model.uri.toString());
+		let maintainUndoRedoStack = false;
+		let heapSize = 0;
+		if (sharesUndoRedoStack || (this._shouldRestoreUndoStack() && schemaShouldMaintainUndoRedoElements(model.uri))) {
+			const elements = this._undoRedoService.getElements(model.uri);
+			if (elements.past.length > 0 || elements.future.length > 0) {
+				for (const element of elements.past) {
+					if (isEditStackElement(element) && element.matchesResource(model.uri)) {
+						maintainUndoRedoStack = true;
+						heapSize += element.heapSize(model.uri);
+						element.setModel(model.uri); // remove reference from text buffer instance
+					}
+				}
+				for (const element of elements.future) {
+					if (isEditStackElement(element) && element.matchesResource(model.uri)) {
+						maintainUndoRedoStack = true;
+						heapSize += element.heapSize(model.uri);
+						element.setModel(model.uri); // remove reference from text buffer instance
+					}
+				}
+			}
+		}
+
+		const maxMemory = ModelServiceImpl.MAX_MEMORY_FOR_CLOSED_FILES_UNDO_STACK;
+		if (!maintainUndoRedoStack) {
+			if (!sharesUndoRedoStack) {
+				const initialUndoRedoSnapshot = modelData.model.getInitialUndoRedoSnapshot();
+				if (initialUndoRedoSnapshot !== null) {
+					this._undoRedoService.restoreSnapshot(initialUndoRedoSnapshot);
+				}
+			}
+		} else if (!sharesUndoRedoStack && heapSize > maxMemory) {
+			// the undo stack for this file would never fit in the configured memory, so don't bother with it.
+			const initialUndoRedoSnapshot = modelData.model.getInitialUndoRedoSnapshot();
+			if (initialUndoRedoSnapshot !== null) {
+				this._undoRedoService.restoreSnapshot(initialUndoRedoSnapshot);
+			}
+		} else {
+			this._ensureDisposedModelsHeapSize(maxMemory - heapSize);
+			// We only invalidate the elements, but they remain in the undo-redo service.
+			this._undoRedoService.setElementsValidFlag(model.uri, false, (element) => (isEditStackElement(element) && element.matchesResource(model.uri)));
+			this._insertDisposedModel(new DisposedModelInfo(model.uri, modelData.model.getInitialUndoRedoSnapshot(), Date.now(), sharesUndoRedoStack, heapSize, computeModelSha1(model), model.getVersionId(), model.getAlternativeVersionId()));
+		}
 
 		delete this._models[modelId];
 		modelData.dispose();
@@ -718,7 +712,9 @@ class SemanticTokensResponse {
 	}
 }
 
-class ModelSemanticColoring extends Disposable {
+export class ModelSemanticColoring extends Disposable {
+
+	public static FETCH_DOCUMENT_SEMANTIC_TOKENS_DELAY = 300;
 
 	private _isDisposed: boolean;
 	private readonly _model: ITextModel;
@@ -734,7 +730,7 @@ class ModelSemanticColoring extends Disposable {
 		this._isDisposed = false;
 		this._model = model;
 		this._semanticStyling = stylingProvider;
-		this._fetchDocumentSemanticTokens = this._register(new RunOnceScheduler(() => this._fetchDocumentSemanticTokensNow(), 300));
+		this._fetchDocumentSemanticTokens = this._register(new RunOnceScheduler(() => this._fetchDocumentSemanticTokensNow(), ModelSemanticColoring.FETCH_DOCUMENT_SEMANTIC_TOKENS_DELAY));
 		this._currentDocumentResponse = null;
 		this._currentDocumentRequestCancellationTokenSource = null;
 		this._documentProvidersChangeListeners = [];
@@ -813,7 +809,8 @@ class ModelSemanticColoring extends Disposable {
 			contentChangeListener.dispose();
 			this._setDocumentSemanticTokens(provider, res || null, styling, pendingChanges);
 		}, (err) => {
-			if (!err || typeof err.message !== 'string' || err.message.indexOf('busy') === -1) {
+			const isExpectedError = err && (errors.isPromiseCanceledError(err) || (typeof err.message === 'string' && err.message.indexOf('busy') !== -1));
+			if (!isExpectedError) {
 				errors.onUnexpectedError(err);
 			}
 
@@ -847,6 +844,12 @@ class ModelSemanticColoring extends Disposable {
 
 	private _setDocumentSemanticTokens(provider: DocumentSemanticTokensProvider | null, tokens: SemanticTokens | SemanticTokensEdits | null, styling: SemanticTokensProviderStyling | null, pendingChanges: IModelContentChangedEvent[]): void {
 		const currentResponse = this._currentDocumentResponse;
+		const rescheduleIfNeeded = () => {
+			if (pendingChanges.length > 0 && !this._fetchDocumentSemanticTokens.isScheduled()) {
+				this._fetchDocumentSemanticTokens.schedule();
+			}
+		};
+
 		if (this._currentDocumentResponse) {
 			this._currentDocumentResponse.dispose();
 			this._currentDocumentResponse = null;
@@ -864,6 +867,7 @@ class ModelSemanticColoring extends Disposable {
 		}
 		if (!tokens) {
 			this._model.setSemanticTokens(null, true);
+			rescheduleIfNeeded();
 			return;
 		}
 
@@ -937,17 +941,14 @@ class ModelSemanticColoring extends Disposable {
 						}
 					}
 				}
-
-				if (!this._fetchDocumentSemanticTokens.isScheduled()) {
-					this._fetchDocumentSemanticTokens.schedule();
-				}
 			}
 
 			this._model.setSemanticTokens(result, true);
-			return;
+		} else {
+			this._model.setSemanticTokens(null, true);
 		}
 
-		this._model.setSemanticTokens(null, true);
+		rescheduleIfNeeded();
 	}
 
 	private _getSemanticColoringProvider(): DocumentSemanticTokensProvider | null {

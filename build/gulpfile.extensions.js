@@ -59,10 +59,11 @@ const compilations = [
 	'php-language-features/tsconfig.json',
 	'python/tsconfig.json',
 	'search-result/tsconfig.json',
+	'simple-browser/tsconfig.json',
+	'testing-editor-contributions/tsconfig.json',
 	'typescript-language-features/test-workspace/tsconfig.json',
 	'typescript-language-features/tsconfig.json',
 	'vscode-api-tests/tsconfig.json',
-	'vscode-colorize-tests/tsconfig.json',
 	'vscode-custom-editor-tests/tsconfig.json',
 	'vscode-notebook-tests/tsconfig.json',
 	'vscode-test-resolver/tsconfig.json'
@@ -208,6 +209,8 @@ const compileExtensionsBuildTask = task.define('compile-extensions-build', task.
 ));
 
 gulp.task(compileExtensionsBuildTask);
+gulp.task(task.define('extensions-ci', task.series(compileExtensionsBuildTask)));
+
 exports.compileExtensionsBuildTask = compileExtensionsBuildTask;
 
 const compileWebExtensionsTask = task.define('compile-web', () => buildWebExtensions(false));

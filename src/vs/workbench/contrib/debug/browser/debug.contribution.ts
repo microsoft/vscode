@@ -12,7 +12,7 @@ import { Registry } from 'vs/platform/registry/common/platform';
 import { registerSingleton } from 'vs/platform/instantiation/common/extensions';
 import { IConfigurationRegistry, Extensions as ConfigurationExtensions } from 'vs/platform/configuration/common/configurationRegistry';
 import { IWorkbenchActionRegistry, Extensions as WorkbenchActionRegistryExtensions, CATEGORIES } from 'vs/workbench/common/actions';
-import { BreakpointsView, FUNCTION_BREAKPOINT_COMMAND_ID } from 'vs/workbench/contrib/debug/browser/breakpointsView';
+import { BreakpointsView } from 'vs/workbench/contrib/debug/browser/breakpointsView';
 import { CallStackView } from 'vs/workbench/contrib/debug/browser/callStackView';
 import { Extensions as WorkbenchExtensions, IWorkbenchContributionsRegistry } from 'vs/workbench/common/contributions';
 import {
@@ -21,7 +21,7 @@ import {
 } from 'vs/workbench/contrib/debug/common/debug';
 import { DebugToolBar } from 'vs/workbench/contrib/debug/browser/debugToolBar';
 import { DebugService } from 'vs/workbench/contrib/debug/browser/debugService';
-import { registerCommands, ADD_CONFIGURATION_ID, TOGGLE_INLINE_BREAKPOINT_ID, COPY_STACK_TRACE_ID, RESTART_SESSION_ID, TERMINATE_THREAD_ID, STEP_OVER_ID, STEP_INTO_ID, STEP_OUT_ID, PAUSE_ID, DISCONNECT_ID, STOP_ID, RESTART_FRAME_ID, CONTINUE_ID, FOCUS_REPL_ID, JUMP_TO_CURSOR_ID, RESTART_LABEL, STEP_INTO_LABEL, STEP_OVER_LABEL, STEP_OUT_LABEL, PAUSE_LABEL, DISCONNECT_LABEL, STOP_LABEL, CONTINUE_LABEL, DEBUG_CONFIGURE_COMMAND_ID, DEBUG_START_LABEL, DEBUG_START_COMMAND_ID, DEBUG_RUN_LABEL, DEBUG_RUN_COMMAND_ID, EDIT_EXPRESSION_COMMAND_ID, REMOVE_EXPRESSION_COMMAND_ID } from 'vs/workbench/contrib/debug/browser/debugCommands';
+import { registerCommands, ADD_CONFIGURATION_ID, TOGGLE_INLINE_BREAKPOINT_ID, COPY_STACK_TRACE_ID, RESTART_SESSION_ID, TERMINATE_THREAD_ID, STEP_OVER_ID, STEP_INTO_ID, STEP_OUT_ID, PAUSE_ID, DISCONNECT_ID, STOP_ID, RESTART_FRAME_ID, CONTINUE_ID, FOCUS_REPL_ID, JUMP_TO_CURSOR_ID, RESTART_LABEL, STEP_INTO_LABEL, STEP_OVER_LABEL, STEP_OUT_LABEL, PAUSE_LABEL, DISCONNECT_LABEL, STOP_LABEL, CONTINUE_LABEL, DEBUG_START_LABEL, DEBUG_START_COMMAND_ID, DEBUG_RUN_LABEL, DEBUG_RUN_COMMAND_ID, EDIT_EXPRESSION_COMMAND_ID, REMOVE_EXPRESSION_COMMAND_ID } from 'vs/workbench/contrib/debug/browser/debugCommands';
 import { StatusBarColorProvider } from 'vs/workbench/contrib/debug/browser/statusbarColorProvider';
 import { IViewsRegistry, Extensions as ViewExtensions, IViewContainersRegistry, ViewContainerLocation, ViewContainer } from 'vs/workbench/common/views';
 import { isMacintosh, isWeb } from 'vs/base/common/platform';
@@ -31,7 +31,7 @@ import { DebugStatusContribution } from 'vs/workbench/contrib/debug/browser/debu
 import { LifecyclePhase } from 'vs/workbench/services/lifecycle/common/lifecycle';
 import { launchSchemaId } from 'vs/workbench/services/configuration/common/configuration';
 import { LoadedScriptsView } from 'vs/workbench/contrib/debug/browser/loadedScriptsView';
-import { ADD_LOG_POINT_ID, TOGGLE_CONDITIONAL_BREAKPOINT_ID, TOGGLE_BREAKPOINT_ID, RunToCursorAction, registerEditorActions } from 'vs/workbench/contrib/debug/browser/debugEditorActions';
+import { RunToCursorAction, registerEditorActions } from 'vs/workbench/contrib/debug/browser/debugEditorActions';
 import { WatchExpressionsView, ADD_WATCH_LABEL, REMOVE_WATCH_EXPRESSIONS_COMMAND_ID, REMOVE_WATCH_EXPRESSIONS_LABEL, ADD_WATCH_ID } from 'vs/workbench/contrib/debug/browser/watchExpressionsView';
 import { VariablesView, SET_VARIABLE_ID, COPY_VALUE_ID, BREAK_WHEN_VALUE_CHANGES_ID, COPY_EVALUATE_PATH_ID, ADD_TO_WATCH_ID } from 'vs/workbench/contrib/debug/browser/variablesView';
 import { Repl } from 'vs/workbench/contrib/debug/browser/repl';
@@ -202,15 +202,6 @@ function registerDebugMenu(): void {
 		order: 4
 	});
 
-	MenuRegistry.appendMenuItem(MenuId.MenubarViewMenu, {
-		group: '4_panels',
-		command: {
-			id: OPEN_REPL_COMMAND_ID,
-			title: nls.localize({ key: 'miToggleDebugConsole', comment: ['&& denotes a mnemonic'] }, "De&&bug Console")
-		},
-		order: 2
-	});
-
 	// Debug menu
 
 	MenuRegistry.appendMenuItem(MenuId.MenubarDebugMenu, {
@@ -256,15 +247,6 @@ function registerDebugMenu(): void {
 	});
 
 	// Configuration
-	MenuRegistry.appendMenuItem(MenuId.MenubarDebugMenu, {
-		group: '2_configuration',
-		command: {
-			id: DEBUG_CONFIGURE_COMMAND_ID,
-			title: nls.localize({ key: 'miOpenConfigurations', comment: ['&& denotes a mnemonic'] }, "Open &&Configurations")
-		},
-		order: 1,
-		when: CONTEXT_DEBUGGERS_AVAILABLE
-	});
 
 	MenuRegistry.appendMenuItem(MenuId.MenubarDebugMenu, {
 		group: '2_configuration',
@@ -322,25 +304,6 @@ function registerDebugMenu(): void {
 	});
 
 	// New Breakpoints
-	MenuRegistry.appendMenuItem(MenuId.MenubarDebugMenu, {
-		group: '4_new_breakpoint',
-		command: {
-			id: TOGGLE_BREAKPOINT_ID,
-			title: nls.localize({ key: 'miToggleBreakpoint', comment: ['&& denotes a mnemonic'] }, "Toggle &&Breakpoint")
-		},
-		order: 1,
-		when: CONTEXT_DEBUGGERS_AVAILABLE
-	});
-
-	MenuRegistry.appendMenuItem(MenuId.MenubarNewBreakpointMenu, {
-		group: '1_breakpoints',
-		command: {
-			id: TOGGLE_CONDITIONAL_BREAKPOINT_ID,
-			title: nls.localize({ key: 'miConditionalBreakpoint', comment: ['&& denotes a mnemonic'] }, "&&Conditional Breakpoint...")
-		},
-		order: 1,
-		when: CONTEXT_DEBUGGERS_AVAILABLE
-	});
 
 	MenuRegistry.appendMenuItem(MenuId.MenubarNewBreakpointMenu, {
 		group: '1_breakpoints',
@@ -349,26 +312,6 @@ function registerDebugMenu(): void {
 			title: nls.localize({ key: 'miInlineBreakpoint', comment: ['&& denotes a mnemonic'] }, "Inline Breakp&&oint")
 		},
 		order: 2,
-		when: CONTEXT_DEBUGGERS_AVAILABLE
-	});
-
-	MenuRegistry.appendMenuItem(MenuId.MenubarNewBreakpointMenu, {
-		group: '1_breakpoints',
-		command: {
-			id: FUNCTION_BREAKPOINT_COMMAND_ID,
-			title: nls.localize({ key: 'miFunctionBreakpoint', comment: ['&& denotes a mnemonic'] }, "&&Function Breakpoint...")
-		},
-		order: 3,
-		when: CONTEXT_DEBUGGERS_AVAILABLE
-	});
-
-	MenuRegistry.appendMenuItem(MenuId.MenubarNewBreakpointMenu, {
-		group: '1_breakpoints',
-		command: {
-			id: ADD_LOG_POINT_ID,
-			title: nls.localize({ key: 'miLogPoint', comment: ['&& denotes a mnemonic'] }, "&&Logpoint...")
-		},
-		order: 4,
 		when: CONTEXT_DEBUGGERS_AVAILABLE
 	});
 

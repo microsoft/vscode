@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import * as fs from 'fs';
-import * as gracefulFs from 'graceful-fs';
+import { gracefulify } from 'graceful-fs';
 import { createHash } from 'crypto';
 import { exists, stat } from 'vs/base/node/pfs';
 import { isLinux, isMacintosh, isWindows } from 'vs/base/common/platform';
@@ -32,7 +32,7 @@ import { IWorkbenchConfigurationService } from 'vs/workbench/services/configurat
 import { IStorageService } from 'vs/platform/storage/common/storage';
 import { Disposable } from 'vs/base/common/lifecycle';
 import { registerWindowDriver } from 'vs/platform/driver/electron-browser/driver';
-import { IMainProcessService, MainProcessService } from 'vs/platform/ipc/electron-sandbox/mainProcessService';
+import { IMainProcessService, ElectronIPCMainProcessService } from 'vs/platform/ipc/electron-sandbox/mainProcessService';
 import { RemoteAuthorityResolverService } from 'vs/platform/remote/electron-sandbox/remoteAuthorityResolverService';
 import { IRemoteAuthorityResolverService } from 'vs/platform/remote/common/remoteAuthorityResolver';
 import { RemoteAgentService } from 'vs/workbench/services/remote/electron-browser/remoteAgentServiceImpl';
@@ -70,7 +70,7 @@ class DesktopMain extends Disposable {
 	private init(): void {
 
 		// Enable gracefulFs
-		gracefulFs.gracefulify(fs);
+		gracefulify(fs);
 
 		// Massage configuration file URIs
 		this.reviveUris();
@@ -148,7 +148,7 @@ class DesktopMain extends Disposable {
 	private onWindowResize(e: Event, retry: boolean, workbench: Workbench): void {
 		if (e.target === window) {
 			if (window.document && window.document.body && window.document.body.clientWidth === 0) {
-				// TODO@Ben this is an electron issue on macOS when simple fullscreen is enabled
+				// TODO@bpasero this is an electron issue on macOS when simple fullscreen is enabled
 				// where for some reason the window clientWidth is reported as 0 when switching
 				// between simple fullscreen and normal screen. In that case we schedule the layout
 				// call at the next animation frame once, in the hope that the dimensions are
@@ -181,7 +181,7 @@ class DesktopMain extends Disposable {
 
 
 		// Main Process
-		const mainProcessService = this._register(new MainProcessService(this.configuration.windowId));
+		const mainProcessService = this._register(new ElectronIPCMainProcessService(this.configuration.windowId));
 		serviceCollection.set(IMainProcessService, mainProcessService);
 
 		// Environment
@@ -238,6 +238,7 @@ class DesktopMain extends Disposable {
 		// Uri Identity
 		const uriIdentityService = new UriIdentityService(fileService);
 		serviceCollection.set(IUriIdentityService, uriIdentityService);
+
 
 		// !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
 		//
@@ -392,7 +393,7 @@ class DesktopMain extends Disposable {
 	}
 
 	private async createWorkspaceService(payload: IWorkspaceInitializationPayload, fileService: FileService, remoteAgentService: IRemoteAgentService, uriIdentityService: IUriIdentityService, logService: ILogService): Promise<WorkspaceService> {
-		const workspaceService = new WorkspaceService({ remoteAuthority: this.environmentService.remoteAuthority, configurationCache: new ConfigurationCache(this.environmentService) }, this.environmentService, fileService, remoteAgentService, uriIdentityService, logService);
+		const workspaceService = new WorkspaceService({ remoteAuthority: this.environmentService.remoteAuthority, configurationCache: new ConfigurationCache(URI.file(this.environmentService.userDataPath), fileService) }, this.environmentService, fileService, remoteAgentService, uriIdentityService, logService);
 
 		try {
 			await workspaceService.initialize(payload);

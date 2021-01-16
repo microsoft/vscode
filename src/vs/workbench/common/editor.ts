@@ -74,7 +74,7 @@ export interface IEditorPane extends IComposite {
 	/**
 	 * The assigned options of the editor.
 	 */
-	readonly options: EditorOptions | undefined;
+	readonly options: IEditorOptions | undefined;
 
 	/**
 	 * The assigned group this editor is showing in.
@@ -1215,7 +1215,7 @@ export interface IEditorOpenContext {
 	 * An editor is new for a group if it was not part of the group before and
 	 * otherwise was already opened in the group and just became the active editor.
 	 *
-	 * This hint can e.g. be used to decide wether to restore view state or not.
+	 * This hint can e.g. be used to decide whether to restore view state or not.
 	 */
 	newInGroup?: boolean;
 }
@@ -1265,6 +1265,7 @@ export interface IWorkbenchEditorConfiguration {
 
 interface IEditorPartConfiguration {
 	showTabs?: boolean;
+	wrapTabs?: boolean;
 	scrollToSwitchTabs?: boolean;
 	highlightModifiedTabs?: boolean;
 	tabCloseButton?: 'left' | 'right' | 'off';

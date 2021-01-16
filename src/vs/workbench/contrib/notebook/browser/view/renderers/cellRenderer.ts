@@ -791,7 +791,7 @@ export class CodeCellRenderer extends AbstractCellRenderer implements IListRende
 		this.dndController.registerDragHandle(templateData, rootContainer, dragHandle, () => new CodeCellDragImageRenderer().getDragImage(templateData, templateData.editor, 'code'));
 
 		disposables.add(DOM.addDisposableListener(focusSinkElement, DOM.EventType.FOCUS, () => {
-			if (templateData.currentRenderedCell && (templateData.currentRenderedCell as CodeCellViewModel).outputs.length) {
+			if (templateData.currentRenderedCell && (templateData.currentRenderedCell as CodeCellViewModel).outputsViewModels.length) {
 				this.notebookEditor.focusNotebookCell(templateData.currentRenderedCell, 'output');
 			}
 		}));
@@ -802,7 +802,7 @@ export class CodeCellRenderer extends AbstractCellRenderer implements IListRende
 	}
 
 	private updateForOutputs(element: CodeCellViewModel, templateData: CodeCellRenderTemplate): void {
-		if (element.outputs.length) {
+		if (element.outputsViewModels.length) {
 			DOM.show(templateData.focusSinkElement);
 		} else {
 			DOM.hide(templateData.focusSinkElement);

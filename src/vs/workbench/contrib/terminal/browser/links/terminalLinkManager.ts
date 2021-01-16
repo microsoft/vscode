@@ -27,6 +27,7 @@ import { XTermCore } from 'vs/workbench/contrib/terminal/browser/xterm-private';
 import { TerminalHover, ILinkHoverTargetOptions } from 'vs/workbench/contrib/terminal/browser/widgets/terminalHoverWidget';
 import { TerminalLink } from 'vs/workbench/contrib/terminal/browser/links/terminalLink';
 import { TerminalExternalLinkProviderAdapter } from 'vs/workbench/contrib/terminal/browser/links/terminalExternalLinkProviderAdapter';
+import { ITunnelService } from 'vs/platform/remote/common/tunnel';
 
 export type XtermLinkMatcherHandler = (event: MouseEvent | undefined, link: string) => Promise<void>;
 export type XtermLinkMatcherValidationCallback = (uri: string, callback: (isValid: boolean) => void) => void;
@@ -53,7 +54,8 @@ export class TerminalLinkManager extends DisposableStore {
 		@IEditorService private readonly _editorService: IEditorService,
 		@IConfigurationService private readonly _configurationService: IConfigurationService,
 		@IFileService private readonly _fileService: IFileService,
-		@IInstantiationService private readonly _instantiationService: IInstantiationService
+		@IInstantiationService private readonly _instantiationService: IInstantiationService,
+		@ITunnelService private readonly _tunnelService: ITunnelService
 	) {
 		super();
 
@@ -229,8 +231,33 @@ export class TerminalLinkManager extends DisposableStore {
 			}
 		}
 
-		// Use 'undefined' when uri is '' so the link displays correctly
-		return new MarkdownString(`[${label || nls.localize('followLink', "Follow Link")}](${uri || 'undefined'}) (${clickLabel})`, true);
+		let fallbackLabel: string;
+		if (this._tunnelService.canTunnel(URI.parse(uri))) {
+			fallbackLabel = nls.localize('followForwardedLink', "Follow Link using Forwarded Port");
+		} else {
+			fallbackLabel = nls.localize('followLink', "Follow Link");
+		}
+
+		const markdown = new MarkdownString('', true);
+		// Escapes markdown in label & uri
+		if (label) {
+			label = markdown.appendText(label).value;
+			markdown.value = '';
+		}
+		if (uri) {
+			uri = markdown.appendText(uri).value;
+			markdown.value = '';
+		}
+
+		label = label || fallbackLabel;
+		// Use the label when uri is '' so the link displays correctly
+		uri = uri || label;
+		// Although if there is a space in the uri, just replace it completely
+		if (/(\s|&nbsp;)/.test(uri)) {
+			uri = nls.localize('followLinkUrl', 'Link');
+		}
+
+		return markdown.appendMarkdown(`[${label}](${uri}) (${clickLabel})`);
 	}
 
 	private get osPath(): IPath {

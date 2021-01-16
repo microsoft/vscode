@@ -165,7 +165,8 @@ suite('ExtensionsListView Tests', () => {
 		instantiationService.stub(IViewDescriptorService, {
 			getViewLocationById(): ViewContainerLocation {
 				return ViewContainerLocation.Sidebar;
-			}
+			},
+			onDidChangeLocation: Event.None
 		});
 
 		instantiationService.stub(IExtensionService, <Partial<IExtensionService>>{

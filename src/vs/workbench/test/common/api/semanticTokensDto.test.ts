@@ -25,7 +25,7 @@ suite('SemanticTokensDto', () => {
 				data: toArr(dto.data)
 			};
 		};
-		assert.deepEqual(convert(actual), convert(expected));
+		assert.deepStrictEqual(convert(actual), convert(expected));
 	}
 
 	function assertEqualDelta(actual: IDeltaSemanticTokensDto, expected: IDeltaSemanticTokensDto): void {
@@ -46,7 +46,7 @@ suite('SemanticTokensDto', () => {
 				deltas: dto.deltas.map(convertOne)
 			};
 		};
-		assert.deepEqual(convert(actual), convert(expected));
+		assert.deepStrictEqual(convert(actual), convert(expected));
 	}
 
 	function testRoundTrip(value: ISemanticTokensDto): void {

@@ -12,7 +12,7 @@ import { IJSONSchema } from 'vs/base/common/jsonSchema';
 import { textmateColorsSchemaId, textmateColorGroupSchemaId } from 'vs/workbench/services/themes/common/colorThemeSchema';
 import { workbenchColorsSchemaId } from 'vs/platform/theme/common/colorRegistry';
 import { tokenStylingSchemaId } from 'vs/platform/theme/common/tokenClassificationRegistry';
-import { ThemeSettings, IWorkbenchColorTheme, IWorkbenchFileIconTheme, IColorCustomizations, ITokenColorCustomizations, IWorkbenchProductIconTheme, ISemanticTokenColorCustomizations, IExperimentalSemanticTokenColorCustomizations } from 'vs/workbench/services/themes/common/workbenchThemeService';
+import { ThemeSettings, IWorkbenchColorTheme, IWorkbenchFileIconTheme, IColorCustomizations, ITokenColorCustomizations, IWorkbenchProductIconTheme, ISemanticTokenColorCustomizations, IExperimentalSemanticTokenColorCustomizations, ThemeSettingTarget } from 'vs/workbench/services/themes/common/workbenchThemeService';
 import { IConfigurationService, ConfigurationTarget } from 'vs/platform/configuration/common/configuration';
 import { isMacintosh, isWeb, isWindows } from 'vs/base/common/platform';
 
@@ -293,17 +293,17 @@ export class ThemeConfiguration {
 		return this.configurationService.getValue<IExperimentalSemanticTokenColorCustomizations>(ThemeSettings.TOKEN_COLOR_CUSTOMIZATIONS_EXPERIMENTAL);
 	}
 
-	public async setColorTheme(theme: IWorkbenchColorTheme, settingsTarget: ConfigurationTarget | undefined | 'auto'): Promise<IWorkbenchColorTheme> {
+	public async setColorTheme(theme: IWorkbenchColorTheme, settingsTarget: ThemeSettingTarget): Promise<IWorkbenchColorTheme> {
 		await this.writeConfiguration(ThemeSettings.COLOR_THEME, theme.settingsId, settingsTarget);
 		return theme;
 	}
 
-	public async setFileIconTheme(theme: IWorkbenchFileIconTheme, settingsTarget: ConfigurationTarget | undefined | 'auto'): Promise<IWorkbenchFileIconTheme> {
+	public async setFileIconTheme(theme: IWorkbenchFileIconTheme, settingsTarget: ThemeSettingTarget): Promise<IWorkbenchFileIconTheme> {
 		await this.writeConfiguration(ThemeSettings.FILE_ICON_THEME, theme.settingsId, settingsTarget);
 		return theme;
 	}
 
-	public async setProductIconTheme(theme: IWorkbenchProductIconTheme, settingsTarget: ConfigurationTarget | undefined | 'auto'): Promise<IWorkbenchProductIconTheme> {
+	public async setProductIconTheme(theme: IWorkbenchProductIconTheme, settingsTarget: ThemeSettingTarget): Promise<IWorkbenchProductIconTheme> {
 		await this.writeConfiguration(ThemeSettings.PRODUCT_ICON_THEME, theme.settingsId, settingsTarget);
 		return theme;
 	}
@@ -325,7 +325,7 @@ export class ThemeConfiguration {
 		return ConfigurationTarget.USER;
 	}
 
-	private async writeConfiguration(key: string, value: any, settingsTarget: ConfigurationTarget | 'auto' | undefined): Promise<void> {
+	private async writeConfiguration(key: string, value: any, settingsTarget: ThemeSettingTarget): Promise<void> {
 		if (settingsTarget === undefined) {
 			return;
 		}

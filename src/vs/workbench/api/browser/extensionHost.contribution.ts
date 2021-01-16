@@ -30,6 +30,7 @@ import './mainThreadDocuments';
 import './mainThreadDocumentsAndEditors';
 import './mainThreadEditor';
 import './mainThreadEditors';
+import './mainThreadEditorTabs';
 import './mainThreadErrors';
 import './mainThreadExtensionService';
 import './mainThreadFileSystem';
@@ -66,6 +67,7 @@ import './mainThreadTunnelService';
 import './mainThreadAuthentication';
 import './mainThreadTimeline';
 import './mainThreadTesting';
+import './mainThreadSecretState';
 import 'vs/workbench/api/common/apiCommands';
 
 export class ExtensionPoints implements IWorkbenchContribution {

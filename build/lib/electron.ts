@@ -84,7 +84,7 @@ export const config = {
 function getElectron(arch: string): () => NodeJS.ReadWriteStream {
 	return () => {
 		const electron = require('gulp-atom-electron');
-		const json = <typeof import('gulp-json-editor')>require('gulp-json-editor');
+		const json = require('gulp-json-editor') as typeof import('gulp-json-editor');
 
 		const electronOpts = _.extend({}, config, {
 			platform: process.platform,

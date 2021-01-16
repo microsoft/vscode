@@ -31,7 +31,7 @@ import {
 	SyncResource, SyncStatus, UserDataSyncError, UserDataSyncErrorCode, USER_DATA_SYNC_SCHEME, IUserDataSyncResourceEnablementService,
 	getSyncResourceFromLocalPreview, IResourcePreview, IUserDataSyncStoreManagementService, UserDataSyncStoreType, IUserDataSyncStore, IUserDataAutoSyncEnablementService
 } from 'vs/platform/userDataSync/common/userDataSync';
-import { FloatingClickWidget } from 'vs/workbench/browser/parts/editor/editorWidgets';
+import { FloatingClickWidget } from 'vs/workbench/browser/codeeditor';
 import { IWorkbenchContribution } from 'vs/workbench/common/contributions';
 import { IEditorInput, EditorResourceAccessor, SideBySideEditor } from 'vs/workbench/common/editor';
 import { DiffEditorInput } from 'vs/workbench/common/editor/diffEditorInput';
@@ -153,7 +153,8 @@ export class UserDataSyncWorkbenchContribution extends Disposable implements IWo
 			textModelResolverService.registerTextModelContentProvider(USER_DATA_SYNC_SCHEME, instantiationService.createInstance(UserDataRemoteContentProvider));
 			registerEditorContribution(AcceptChangesContribution.ID, AcceptChangesContribution);
 
-			this._register(Event.any(userDataSyncService.onDidChangeStatus, userDataAutoSyncEnablementService.onDidChangeEnablement)(() => this.turningOnSync = !userDataAutoSyncEnablementService.isEnabled() && userDataSyncService.status !== SyncStatus.Idle));
+			this._register(Event.any(userDataSyncService.onDidChangeStatus, userDataAutoSyncEnablementService.onDidChangeEnablement)
+				(() => this.turningOnSync = !userDataAutoSyncEnablementService.isEnabled() && userDataSyncService.status !== SyncStatus.Idle));
 		}
 	}
 

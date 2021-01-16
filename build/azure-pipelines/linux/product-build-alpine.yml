@@ -51,12 +51,6 @@ steps:
     displayName: Merge distro
 
   - script: |
-      npx https://aka.ms/enablesecurefeed standAlone
-    displayName: Switch to Terrapin packages
-    timeoutInMinutes: 5
-    condition: and(succeeded(), eq(variables['ENABLE_TERRAPIN'], 'true'))
-
-  - script: |
       mkdir -p .build
       node build/azure-pipelines/common/computeNodeModulesCacheKey.js "alpine" $ENABLE_TERRAPIN > .build/yarnlockhash
     displayName: Prepare yarn cache flags
@@ -66,13 +60,19 @@ steps:
       key: 'nodeModules | $(Agent.OS) | .build/yarnlockhash'
       path: .build/node_modules_cache
       cacheHitVar: NODE_MODULES_RESTORED
-    displayName: Cache node_modules archive
+    displayName: Restore node_modules cache
 
   - script: |
       set -e
       tar -xzf .build/node_modules_cache/cache.tgz
     condition: and(succeeded(), eq(variables.NODE_MODULES_RESTORED, 'true'))
-    displayName: Extract node_modules archive
+    displayName: Extract node_modules cache
+
+  - script: |
+      npx https://aka.ms/enablesecurefeed standAlone
+    timeoutInMinutes: 5
+    condition: and(succeeded(), ne(variables.NODE_MODULES_RESTORED, 'true'), eq(variables['ENABLE_TERRAPIN'], 'true'))
+    displayName: Switch to Terrapin packages
 
   - script: |
       set -e
@@ -121,6 +121,16 @@ steps:
       VSCODE_MIXIN_PASSWORD="$(github-distro-mixin-password)" \
       ./build/azure-pipelines/linux/alpine/publish.sh
     displayName: Publish
+    condition: and(succeeded(), ne(variables['VSCODE_PUBLISH'], 'false'))
+
+  - publish: $(Agent.BuildDirectory)/vscode-server-linux-alpine.tar.gz
+    artifact: vscode-server-linux-alpine
+    displayName: Publish server archive
+    condition: and(succeeded(), ne(variables['VSCODE_PUBLISH'], 'false'))
+
+  - publish: $(Agent.BuildDirectory)/vscode-server-linux-alpine-web.tar.gz
+    artifact: vscode-server-linux-alpine-web
+    displayName: Publish web server archive
     condition: and(succeeded(), ne(variables['VSCODE_PUBLISH'], 'false'))
 
   - task: ms.vss-governance-buildtask.governance-build-task-component-detection.ComponentGovernanceComponentDetection@0

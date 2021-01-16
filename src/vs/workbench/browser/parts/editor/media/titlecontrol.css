@@ -26,9 +26,13 @@
 	cursor: pointer;
 }
 
+.monaco-workbench .part.editor > .content .editor-group-container > .title .monaco-icon-label::before {
+	height: 35px; /* tweak the icon size of the editor labels when icons are enabled */
+}
+
 .monaco-workbench .part.editor > .content .editor-group-container > .title.breadcrumbs .monaco-icon-label::after,
 .monaco-workbench .part.editor > .content .editor-group-container > .title.tabs .monaco-icon-label::after {
-	padding-right: 0; /* By default the icon label has a padding right and this isn't wanted when not showing tabs and not showing breadcrumbs */
+	padding-right: 0; /* by default the icon label has a padding right and this isn't wanted when not showing tabs and not showing breadcrumbs */
 }
 
 /* Title Actions */
@@ -64,12 +68,11 @@
 	opacity: 0.4;
 }
 
-/* Drag Cursor */
+/* Drag and Drop */
+
 .monaco-workbench .part.editor > .content .editor-group-container > .title {
 	cursor: grab;
 }
-
-/* Drag and Drop Feedback */
 
 .monaco-editor-group-drag-image {
 	display: inline-block;

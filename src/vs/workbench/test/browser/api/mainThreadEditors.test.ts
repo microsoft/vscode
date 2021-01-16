@@ -40,7 +40,7 @@ import { SyncDescriptor } from 'vs/platform/instantiation/common/descriptors';
 import { IWorkspaceContextService } from 'vs/platform/workspace/common/workspace';
 import { IWorkbenchEnvironmentService } from 'vs/workbench/services/environment/common/environmentService';
 import { ILabelService } from 'vs/platform/label/common/label';
-import { IWorkingCopyFileService, IMoveOperation, IDeleteOperation, ICopyOperation, ICreateFileOperation } from 'vs/workbench/services/workingCopy/common/workingCopyFileService';
+import { IWorkingCopyFileService, IMoveOperation, IDeleteOperation, ICopyOperation, ICreateFileOperation, ICreateOperation } from 'vs/workbench/services/workingCopy/common/workingCopyFileService';
 import { UndoRedoService } from 'vs/platform/undoRedo/common/undoRedoService';
 import { TestDialogService } from 'vs/platform/dialogs/test/common/testDialogService';
 import { IDialogService } from 'vs/platform/dialogs/common/dialogs';
@@ -50,6 +50,8 @@ import { INotificationService } from 'vs/platform/notification/common/notificati
 import { TestTextResourcePropertiesService, TestContextService } from 'vs/workbench/test/common/workbenchTestServices';
 import { IUriIdentityService } from 'vs/workbench/services/uriIdentity/common/uriIdentity';
 import { extUri } from 'vs/base/common/resources';
+import { ITextSnapshot } from 'vs/editor/common/model';
+import { VSBuffer, VSBufferReadable } from 'vs/base/common/buffer';
 
 suite('MainThreadEditors', () => {
 
@@ -100,11 +102,25 @@ suite('MainThreadEditors', () => {
 				onDidRevert: Event.None,
 				onDidChangeDirty: Event.None
 			};
+			create(operations: { resource: URI }[]) {
+				for (const o of operations) {
+					createdResources.add(o.resource);
+				}
+				return Promise.resolve(Object.create(null));
+			}
+			async getEncodedReadable(resource: URI, value?: string | ITextSnapshot): Promise<VSBuffer | VSBufferReadable | undefined> {
+				return undefined;
+			}
 		});
 		services.set(IWorkingCopyFileService, new class extends mock<IWorkingCopyFileService>() {
 			onDidRunWorkingCopyFileOperation = Event.None;
-			create(operation: ICreateFileOperation) {
-				createdResources.add(operation.resource);
+			createFolder(operations: ICreateOperation[]): any {
+				this.create(operations);
+			}
+			create(operations: ICreateFileOperation[]) {
+				for (const operation of operations) {
+					createdResources.add(operation.resource);
+				}
 				return Promise.resolve(Object.create(null));
 			}
 			move(operations: IMoveOperation[]) {

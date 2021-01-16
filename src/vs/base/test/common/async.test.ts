@@ -711,7 +711,11 @@ suite('Async', () => {
 		assert.equal(counter.increment(), 2);
 		assert.equal(counter.increment(), 3);
 
+		const now = Date.now();
 		await async.timeout(20);
+		if (Date.now() - now < 11) {
+			return; // Firefox in Playwright seems to have a flaky timeout implementation (https://github.com/microsoft/vscode/issues/114028)
+		}
 
 		assert.equal(counter.increment(), 1);
 		assert.equal(counter.increment(), 2);

@@ -40,23 +40,24 @@ class LanguageSelection extends Disposable implements ILanguageSelection {
 	}
 }
 
-export class ModeServiceImpl implements IModeService {
+export class ModeServiceImpl extends Disposable implements IModeService {
 	public _serviceBrand: undefined;
 
 	private readonly _instantiatedModes: { [modeId: string]: IMode; };
 	private readonly _registry: LanguagesRegistry;
 
-	private readonly _onDidCreateMode = new Emitter<IMode>();
+	private readonly _onDidCreateMode = this._register(new Emitter<IMode>());
 	public readonly onDidCreateMode: Event<IMode> = this._onDidCreateMode.event;
 
-	protected readonly _onLanguagesMaybeChanged = new Emitter<void>();
+	protected readonly _onLanguagesMaybeChanged = this._register(new Emitter<void>());
 	public readonly onLanguagesMaybeChanged: Event<void> = this._onLanguagesMaybeChanged.event;
 
 	constructor(warnOnOverwrite = false) {
+		super();
 		this._instantiatedModes = {};
 
-		this._registry = new LanguagesRegistry(true, warnOnOverwrite);
-		this._registry.onDidChange(() => this._onLanguagesMaybeChanged.fire());
+		this._registry = this._register(new LanguagesRegistry(true, warnOnOverwrite));
+		this._register(this._registry.onDidChange(() => this._onLanguagesMaybeChanged.fire()));
 	}
 
 	protected _onReady(): Promise<boolean> {

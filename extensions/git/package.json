@@ -1742,6 +1742,11 @@
           "description": "%config.ignoreLimitWarning%",
           "default": false
         },
+        "git.ignoreRebaseWarning": {
+          "type": "boolean",
+          "description": "%config.ignoreRebaseWarning%",
+          "default": false
+        },
         "git.defaultCloneDirectory": {
           "type": [
             "string",
@@ -2049,6 +2054,11 @@
           "default": "mixed",
           "description": "%config.untrackedChanges%",
           "scope": "resource"
+        },
+        "git.requireGitUserConfig": {
+          "type": "boolean",
+          "description": "%config.requireGitUserConfig%",
+          "default": true
         },
         "git.showCommitInput": {
           "type": "boolean",

@@ -7,9 +7,9 @@
 
 const path = require('path');
 const glob = require('glob');
-const fs = require('fs');
 const events = require('events');
 const mocha = require('mocha');
+const createStatsCollector = require('../../../node_modules/mocha/lib/stats-collector');
 const MochaJUnitReporter = require('mocha-junit-reporter');
 const url = require('url');
 const minimatch = require('minimatch');
@@ -186,6 +186,7 @@ class EchoRunner extends events.EventEmitter {
 
 	constructor(event, title = '') {
 		super();
+		createStatsCollector(this);
 		event.on('start', () => this.emit('start'));
 		event.on('end', () => this.emit('end'));
 		event.on('suite', (suite) => this.emit('suite', EchoRunner.deserializeSuite(suite, title)));
@@ -218,6 +219,7 @@ class EchoRunner extends events.EventEmitter {
 		return {
 			title: runnable.title,
 			fullTitle: () => titleExtra && runnable.fullTitle ? `${runnable.fullTitle} - /${titleExtra}/` : runnable.fullTitle,
+			titlePath: () => runnable.titlePath,
 			async: runnable.async,
 			slow: () => runnable.slow,
 			speed: runnable.speed,

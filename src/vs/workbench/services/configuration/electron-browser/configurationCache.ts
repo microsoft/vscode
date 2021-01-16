@@ -3,18 +3,18 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import * as pfs from 'vs/base/node/pfs';
-import { join } from 'vs/base/common/path';
-import { INativeWorkbenchEnvironmentService } from 'vs/workbench/services/environment/electron-sandbox/environmentService';
 import { IConfigurationCache, ConfigurationKey } from 'vs/workbench/services/configuration/common/configuration';
 import { URI } from 'vs/base/common/uri';
 import { Schemas } from 'vs/base/common/network';
+import { FileOperationError, FileOperationResult, IFileService } from 'vs/platform/files/common/files';
+import { joinPath } from 'vs/base/common/resources';
+import { VSBuffer } from 'vs/base/common/buffer';
 
 export class ConfigurationCache implements IConfigurationCache {
 
 	private readonly cachedConfigurations: Map<string, CachedConfiguration> = new Map<string, CachedConfiguration>();
 
-	constructor(private readonly environmentService: INativeWorkbenchEnvironmentService) {
+	constructor(private readonly cacheHome: URI, private readonly fileService: IFileService) {
 	}
 
 	needsCaching(resource: URI): boolean {
@@ -38,7 +38,7 @@ export class ConfigurationCache implements IConfigurationCache {
 		const k = `${type}:${key}`;
 		let cachedConfiguration = this.cachedConfigurations.get(k);
 		if (!cachedConfiguration) {
-			cachedConfiguration = new CachedConfiguration({ type, key }, this.environmentService);
+			cachedConfiguration = new CachedConfiguration({ type, key }, this.cacheHome, this.fileService);
 			this.cachedConfigurations.set(k, cachedConfiguration);
 		}
 		return cachedConfiguration;
@@ -49,21 +49,22 @@ export class ConfigurationCache implements IConfigurationCache {
 
 class CachedConfiguration {
 
-	private cachedConfigurationFolderPath: string;
-	private cachedConfigurationFilePath: string;
+	private cachedConfigurationFolderResource: URI;
+	private cachedConfigurationFileResource: URI;
 
 	constructor(
 		{ type, key }: ConfigurationKey,
-		environmentService: INativeWorkbenchEnvironmentService
+		cacheHome: URI,
+		private readonly fileService: IFileService
 	) {
-		this.cachedConfigurationFolderPath = join(environmentService.userDataPath, 'CachedConfigurations', type, key);
-		this.cachedConfigurationFilePath = join(this.cachedConfigurationFolderPath, type === 'workspaces' ? 'workspace.json' : 'configuration.json');
+		this.cachedConfigurationFolderResource = joinPath(cacheHome, 'CachedConfigurations', type, key);
+		this.cachedConfigurationFileResource = joinPath(this.cachedConfigurationFolderResource, type === 'workspaces' ? 'workspace.json' : 'configuration.json');
 	}
 
 	async read(): Promise<string> {
 		try {
-			const content = await pfs.readFile(this.cachedConfigurationFilePath);
-			return content.toString();
+			const content = await this.fileService.readFile(this.cachedConfigurationFileResource);
+			return content.value.toString();
 		} catch (e) {
 			return '';
 		}
@@ -72,18 +73,30 @@ class CachedConfiguration {
 	async save(content: string): Promise<void> {
 		const created = await this.createCachedFolder();
 		if (created) {
-			await pfs.writeFile(this.cachedConfigurationFilePath, content);
+			await this.fileService.writeFile(this.cachedConfigurationFileResource, VSBuffer.fromString(content));
 		}
 	}
 
-	remove(): Promise<void> {
-		return pfs.rimraf(this.cachedConfigurationFolderPath);
+	async remove(): Promise<void> {
+		try {
+			await this.fileService.del(this.cachedConfigurationFolderResource, { recursive: true, useTrash: false });
+		} catch (error) {
+			if ((<FileOperationError>error).fileOperationResult !== FileOperationResult.FILE_NOT_FOUND) {
+				throw error;
+			}
+		}
 	}
 
-	private createCachedFolder(): Promise<boolean> {
-		return Promise.resolve(pfs.exists(this.cachedConfigurationFolderPath))
-			.then(undefined, () => false)
-			.then(exists => exists ? exists : pfs.mkdirp(this.cachedConfigurationFolderPath).then(() => true, () => false));
+	private async createCachedFolder(): Promise<boolean> {
+		if (await this.fileService.exists(this.cachedConfigurationFolderResource)) {
+			return true;
+		}
+		try {
+			await this.fileService.createFolder(this.cachedConfigurationFolderResource);
+			return true;
+		} catch (error) {
+			return false;
+		}
 	}
 }
 
