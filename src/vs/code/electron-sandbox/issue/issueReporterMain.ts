@@ -441,7 +441,11 @@ export class IssueReporter extends Disposable {
 
 	private updatePreviewButtonState() {
 		if (this.isPreviewEnabled()) {
-			this.previewButton.label = localize('previewOnGitHub', "Preview on GitHub");
+			if (this.configuration.data.githubAccessToken) {
+				this.previewButton.label = localize('createOnGitHub', "Create on GitHub");
+			} else {
+				this.previewButton.label = localize('previewOnGitHub', "Preview on GitHub");
+			}
 			this.previewButton.enabled = true;
 		} else {
 			this.previewButton.enabled = false;
@@ -776,6 +780,35 @@ export class IssueReporter extends Disposable {
 		return isValid;
 	}
 
+	private async submitToGitHub(issueTitle: string, issueBody: string, gitHubDetails: { owner: string, repositoryName: string }): Promise<boolean> {
+		const url = `https://api.github.com/repos/${gitHubDetails.owner}/${gitHubDetails.repositoryName}/issues`;
+		const init = {
+			method: 'POST',
+			body: JSON.stringify({
+				title: issueTitle,
+				body: issueBody
+			}),
+			headers: new Headers({
+				'Content-Type': 'application/json',
+				'Authorization': `Bearer ${this.configuration.data.githubAccessToken}`
+			})
+		};
+
+		return new Promise((resolve, reject) => {
+			window.fetch(url, init).then((response) => {
+				if (response.ok) {
+					response.json().then(result => {
+						ipcRenderer.send('vscode:openExternal', result.html_url);
+						ipcRenderer.send('vscode:closeIssueReporter');
+						resolve(true);
+					});
+				} else {
+					resolve(false);
+				}
+			});
+		});
+	}
+
 	private async createIssue(): Promise<boolean> {
 		if (!this.validateInputs()) {
 			// If inputs are invalid, set focus to the first one and add listeners on them
@@ -808,8 +841,16 @@ export class IssueReporter extends Disposable {
 
 		this.hasBeenSubmitted = true;
 
-		const baseUrl = this.getIssueUrlWithTitle((<HTMLInputElement>this.getElementById('issue-title')).value);
+		const issueTitle = (<HTMLInputElement>this.getElementById('issue-title')).value;
 		const issueBody = this.issueReporterModel.serialize();
+
+		const issueUrl = this.issueReporterModel.fileOnExtension() ? this.getExtensionGitHubUrl() : this.configuration.product.reportIssueUrl!;
+		const gitHubDetails = this.parseGitHubUrl(issueUrl);
+		if (this.configuration.data.githubAccessToken && gitHubDetails) {
+			return this.submitToGitHub(issueTitle, issueBody, gitHubDetails);
+		}
+
+		const baseUrl = this.getIssueUrlWithTitle((<HTMLInputElement>this.getElementById('issue-title')).value);
 		let url = baseUrl + `&body=${encodeURIComponent(issueBody)}`;
 
 		if (url.length > MAX_URL_LENGTH) {
@@ -837,6 +878,20 @@ export class IssueReporter extends Disposable {
 
 			ipcRenderer.send('vscode:issueReporterClipboard');
 		});
+	}
+
+	private parseGitHubUrl(url: string): undefined | { repositoryName: string, owner: string } {
+		// Assumes a GitHub url to a particular repo, https://github.com/repositoryName/owner.
+		// Repository name and owner cannot contain '/'
+		const match = /^https?:\/\/github\.com\/([^\/]*)\/([^\/]*).*/.exec(url);
+		if (match && match.length) {
+			return {
+				owner: match[1],
+				repositoryName: match[2]
+			};
+		}
+
+		return undefined;
 	}
 
 	private getExtensionGitHubUrl(): string {

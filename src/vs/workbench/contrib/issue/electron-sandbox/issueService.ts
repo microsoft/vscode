@@ -17,6 +17,7 @@ import { ExtensionType } from 'vs/platform/extensions/common/extensions';
 import { process } from 'vs/base/parts/sandbox/electron-sandbox/globals';
 import { IProductService } from 'vs/platform/product/common/productService';
 import { ITASExperimentService } from 'vs/workbench/services/experiment/common/experimentService';
+import { IAuthenticationService } from 'vs/workbench/services/authentication/browser/authenticationService';
 
 export class WorkbenchIssueService implements IWorkbenchIssueService {
 	declare readonly _serviceBrand: undefined;
@@ -28,7 +29,8 @@ export class WorkbenchIssueService implements IWorkbenchIssueService {
 		@IWorkbenchExtensionEnablementService private readonly extensionEnablementService: IWorkbenchExtensionEnablementService,
 		@INativeWorkbenchEnvironmentService private readonly environmentService: INativeWorkbenchEnvironmentService,
 		@IProductService private readonly productService: IProductService,
-		@ITASExperimentService private readonly experimentService: ITASExperimentService
+		@ITASExperimentService private readonly experimentService: ITASExperimentService,
+		@IAuthenticationService private readonly authenticationService: IAuthenticationService
 	) { }
 
 	async openReporter(dataOverrides: Partial<IssueReporterData> = {}): Promise<void> {
@@ -52,12 +54,15 @@ export class WorkbenchIssueService implements IWorkbenchIssueService {
 			};
 		});
 		const experiments = await this.experimentService.getCurrentExperiments();
+		const githubSessions = await this.authenticationService.getSessions('github');
+		const potentialSessions = githubSessions.filter(session => session.scopes.includes('repo'));
 		const theme = this.themeService.getColorTheme();
 		const issueReporterData: IssueReporterData = Object.assign({
 			styles: getIssueReporterStyles(theme),
 			zoomLevel: getZoomLevel(),
 			enabledExtensions: extensionData,
-			experiments: experiments?.join('\n')
+			experiments: experiments?.join('\n'),
+			githubAccessToken: potentialSessions[0]?.accessToken
 		}, dataOverrides);
 		return this.issueService.openReporter(issueReporterData);
 	}
