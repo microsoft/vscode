@@ -9,7 +9,6 @@ import 'mocha';
 
 import { InMemoryDocument } from './inMemoryDocument';
 import { createNewMarkdownEngine } from './engine';
-import { joinLines } from './util';
 
 const testFileName = vscode.Uri.file('test.md');
 
