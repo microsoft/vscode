@@ -54,23 +54,11 @@ export class MarkdownContentProvider {
 		private readonly logger: Logger
 	) { }
 
-	/**
-	 *
-	 * @param markdownDocument
-	 * @param resourceProvider
-	 * @param previewConfigurations
-	 * @param initialLine
-	 * @param imageCacheKeyBySrc Each image is identified by its "src".
-	 * Two images with the same src but different cache keys must not share the
-	 * same cache entry.
-	 * @param state
-	 */
 	public async provideTextDocumentContent(
 		markdownDocument: vscode.TextDocument,
 		resourceProvider: WebviewResourceProvider,
 		previewConfigurations: MarkdownPreviewConfigurationManager,
 		initialLine: number | undefined = undefined,
-		imageCacheKeyBySrc: ReadonlyMap</* src: */ string, string>,
 		state?: any
 	): Promise<MarkdownContentProviderOutput> {
 		const sourceUri = markdownDocument.uri;
@@ -92,7 +80,7 @@ export class MarkdownContentProvider {
 		const nonce = new Date().getTime() + '' + new Date().getMilliseconds();
 		const csp = this.getCsp(resourceProvider, sourceUri, nonce);
 
-		const body = await this.engine.render(markdownDocument, { imageCacheKeyBySrc });
+		const body = await this.engine.render(markdownDocument);
 		const html = `<!DOCTYPE html>
 			<html style="${escapeAttribute(this.getSettingsOverrideStyles(config))}">
 			<head>

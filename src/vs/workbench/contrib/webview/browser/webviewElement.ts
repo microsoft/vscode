@@ -202,7 +202,7 @@ export class IFrameWebview extends BaseWebview<HTMLIFrameElement> implements Web
 				remoteConnectionData,
 				rewriteUri,
 			}, {
-				readFileStream: (resource) => this.fileService.readFileStream(resource).then(x => x.value),
+				readFileStream: (resource) => this.fileService.readFileStream(resource).then(x => ({ stream: x.value, etag: x.etag })),
 			}, this.requestService, this.logService);
 
 			if (result.type === WebviewResourceResponse.Type.Success) {

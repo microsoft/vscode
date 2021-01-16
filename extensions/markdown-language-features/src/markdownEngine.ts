@@ -11,7 +11,6 @@ import { Slugifier } from './slugify';
 import { SkinnyTextDocument } from './tableOfContentsProvider';
 import { hash } from './util/hash';
 import { isOfScheme, MarkdownFileExtensions, Schemes } from './util/links';
-import { tryAppendQueryArgToUrl } from './util/url';
 
 const UNICODE_NEWLINE_REGEX = /\u2028|\u2029/g;
 
@@ -60,18 +59,8 @@ export interface RenderOutput {
 	containingImages: { src: string }[];
 }
 
-export interface RenderContext {
-	/**
-	 * Each image is identified by its "src".
-	 * Two images with the same src but different cache keys must not share the
-	 * same cache entry.
-	 */
-	imageCacheKeyBySrc?: ReadonlyMap</* src: */ string, string>;
-}
-
 interface RenderEnv {
 	containingImages: { src: string }[];
-	imageCacheKeyBySrc: ReadonlyMap</* src: */ string, string>;
 }
 
 export class MarkdownEngine {
@@ -161,7 +150,7 @@ export class MarkdownEngine {
 		return engine.parse(text.replace(UNICODE_NEWLINE_REGEX, ''), {});
 	}
 
-	public async render(input: SkinnyTextDocument | string, context: RenderContext = {}): Promise<RenderOutput> {
+	public async render(input: SkinnyTextDocument | string): Promise<RenderOutput> {
 		const config = this.getConfig(typeof input === 'string' ? undefined : input.uri);
 		const engine = await this.getEngine(config);
 
@@ -170,8 +159,7 @@ export class MarkdownEngine {
 			: this.tokenizeDocument(input, config, engine);
 
 		const env: RenderEnv = {
-			containingImages: [],
-			imageCacheKeyBySrc: context.imageCacheKeyBySrc || new Map()
+			containingImages: []
 		};
 
 		const html = engine.renderer.render(tokens, {
@@ -226,22 +214,9 @@ export class MarkdownEngine {
 			const token = tokens[idx];
 			token.attrJoin('class', 'loading');
 
-			// `src-origin` makes this operation idempotent.
-			// Idempotent operations with side effects can be applied on cached values
-			// without worrying about changing the cache.
-			const src = token.attrGet('src-origin') || token.attrGet('src');
+			const src = token.attrGet('src');
 			if (src) {
 				env.containingImages.push({ src });
-				const cacheKey = env.imageCacheKeyBySrc.get(src);
-
-				// Don't change `src` if no cache key is set!
-				// The cache key might alter the server response when the
-				// image is hosted online.
-				if (cacheKey !== undefined) {
-					token.attrSet('src-origin', src);
-					token.attrSet('src', tryAppendQueryArgToUrl(src, 'cacheKey', cacheKey));
-				}
-
 				const imgHash = hash(src);
 				token.attrSet('id', `image-hash-${imgHash}`);
 			}
