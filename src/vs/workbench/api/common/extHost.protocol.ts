@@ -1130,7 +1130,7 @@ export interface ExtHostAuthenticationShape {
 }
 
 export interface ExtHostSecretStateShape {
-	$onDidChangePassword(): Promise<void>;
+	$onDidChangePassword(e: { extensionId: string, key: string }): Promise<void>;
 }
 
 export interface ExtHostSearchShape {

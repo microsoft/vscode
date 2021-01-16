@@ -90,7 +90,7 @@ export class NativeHostMainService extends Disposable implements INativeHostMain
 	private readonly _onDidChangeColorScheme = this._register(new Emitter<IColorScheme>());
 	readonly onDidChangeColorScheme = this._onDidChangeColorScheme.event;
 
-	private readonly _onDidChangePassword = this._register(new Emitter<void>());
+	private readonly _onDidChangePassword = this._register(new Emitter<{ account: string, service: string }>());
 	readonly onDidChangePassword = this._onDidChangePassword.event;
 
 	//#endregion
@@ -705,7 +705,7 @@ export class NativeHostMainService extends Disposable implements INativeHostMain
 			await keytar.setPassword(service, account, password);
 		}
 
-		this._onDidChangePassword.fire();
+		this._onDidChangePassword.fire({ service, account });
 	}
 
 	async deletePassword(windowId: number | undefined, service: string, account: string): Promise<boolean> {
@@ -713,7 +713,7 @@ export class NativeHostMainService extends Disposable implements INativeHostMain
 
 		const didDelete = await keytar.deletePassword(service, account);
 		if (didDelete) {
-			this._onDidChangePassword.fire();
+			this._onDidChangePassword.fire({ service, account });
 		}
 
 		return didDelete;
