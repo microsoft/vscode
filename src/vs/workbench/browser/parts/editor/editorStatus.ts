@@ -717,7 +717,10 @@ export class EditorStatus extends Disposable implements IWorkbenchContribution {
 				info.mode = withNullAsUndefined(this.modeService.getLanguageName(modeId));
 			}
 		}
-
+		const activeTextEditorControl = getCodeEditor(this.editorService.activeTextEditorControl);
+		if (!activeTextEditorControl?.hasWidgetFocus()) {
+			activeTextEditorControl?.focus();
+		}
 		this.updateState(info);
 	}
 
