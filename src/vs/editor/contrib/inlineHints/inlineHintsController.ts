@@ -182,11 +182,11 @@ export class InlineHintsController implements IEditorContribution {
 
 	private _getLayoutInfo() {
 		const options = this._editor.getOption(EditorOption.inlineHints);
+		const editorFontSize = this._editor.getOption(EditorOption.fontSize);
 		let fontSize = options.fontSize;
-		if (!fontSize || fontSize < 5) {
-			fontSize = (this._editor.getOption(EditorOption.fontSize) * .9) | 0;
+		if (!fontSize || fontSize < 5 || fontSize > editorFontSize) {
+			fontSize = (editorFontSize * .9) | 0;
 		}
-
 		const fontFamily = options.fontFamily;
 		return { fontSize, fontFamily };
 	}
