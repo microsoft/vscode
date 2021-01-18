@@ -91,8 +91,8 @@ suite('Workbench - Terminal Typeahead', () => {
 
 		setup(() => {
 			config = upcastPartial<ITerminalConfiguration>({
-				typeaheadStyle: 'italic',
-				typeaheadThreshold: 0
+				localEchoStyle: 'italic',
+				localEchoLatencyThreshold: 0
 			});
 			publicLog = stub();
 			addon = new TypeAheadAddon(

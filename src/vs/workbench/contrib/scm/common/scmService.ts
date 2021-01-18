@@ -10,6 +10,7 @@ import { ILogService } from 'vs/platform/log/common/log';
 import { IContextKey, IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
 import { IStorageService, StorageScope, WillSaveStateReason } from 'vs/platform/storage/common/storage';
 import { HistoryNavigator2 } from 'vs/base/common/history';
+import { IWorkspaceContextService } from 'vs/platform/workspace/common/workspace';
 
 class SCMInput implements ISCMInput {
 
@@ -69,7 +70,8 @@ class SCMInput implements ISCMInput {
 
 	constructor(
 		readonly repository: ISCMRepository,
-		@IStorageService private storageService: IStorageService
+		@IStorageService private storageService: IStorageService,
+		@IWorkspaceContextService private contextService: IWorkspaceContextService
 	) {
 		const historyKey = `scm/input:${this.repository.provider.label}:${this.repository.provider.rootUri?.path}`;
 		let history: string[] | undefined;
@@ -100,6 +102,16 @@ class SCMInput implements ISCMInput {
 				if (this.repository.provider.rootUri) {
 					this.storageService.store(historyKey, JSON.stringify([...this.historyNavigator]), StorageScope.GLOBAL);
 				}
+			}
+		});
+
+		this.contextService.onDidChangeWorkspaceFolders(e => {
+			if (this.historyNavigator.isAtEnd()) {
+				this.historyNavigator.replaceLast(this._value);
+			}
+
+			if (this.repository.provider.rootUri) {
+				this.storageService.store(historyKey, JSON.stringify([...this.historyNavigator]), StorageScope.GLOBAL);
 			}
 		});
 	}
@@ -153,12 +165,13 @@ class SCMRepository implements ISCMRepository {
 	private readonly _onDidChangeSelection = new Emitter<boolean>();
 	readonly onDidChangeSelection: Event<boolean> = this._onDidChangeSelection.event;
 
-	readonly input: ISCMInput = new SCMInput(this, this.storageService);
+	readonly input: ISCMInput = new SCMInput(this, this.storageService, this.contextService);
 
 	constructor(
 		public readonly provider: ISCMProvider,
 		private disposable: IDisposable,
-		@IStorageService private storageService: IStorageService
+		@IStorageService private storageService: IStorageService,
+		@IWorkspaceContextService private contextService: IWorkspaceContextService
 	) { }
 
 	setSelected(selected: boolean): void {
@@ -195,7 +208,8 @@ export class SCMService implements ISCMService {
 	constructor(
 		@ILogService private readonly logService: ILogService,
 		@IContextKeyService contextKeyService: IContextKeyService,
-		@IStorageService private storageService: IStorageService
+		@IStorageService private storageService: IStorageService,
+		@IWorkspaceContextService private contextService: IWorkspaceContextService
 	) {
 		this.providerCount = contextKeyService.createKey('scm.providerCount', 0);
 	}
@@ -223,7 +237,7 @@ export class SCMService implements ISCMService {
 			this.providerCount.set(this._repositories.length);
 		});
 
-		const repository = new SCMRepository(provider, disposable, this.storageService);
+		const repository = new SCMRepository(provider, disposable, this.storageService, this.contextService);
 		this._repositories.push(repository);
 		this._onDidAddProvider.fire(repository);
 
