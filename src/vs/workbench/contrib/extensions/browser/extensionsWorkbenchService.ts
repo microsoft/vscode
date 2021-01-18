@@ -1046,23 +1046,29 @@ export class ExtensionsWorkbenchService extends Disposable implements IExtension
 	}
 
 	private async installFromGallery(extension: IExtension, gallery: IGalleryExtension, installOptions?: InstallOptions): Promise<IExtension> {
-		// TODO: Handle trust when installing from the Gallery
-		this.installing.push(extension);
-		this._onChange.fire(extension);
-		try {
-			if (extension.state === ExtensionState.Installed && extension.local) {
-				await this.extensionManagementService.updateFromGallery(gallery, extension.local);
-			} else {
-				await this.extensionManagementService.installFromGallery(gallery, installOptions);
-			}
-			const ids: string[] | undefined = extension.identifier.uuid ? [extension.identifier.uuid] : undefined;
-			const names: string[] | undefined = extension.identifier.uuid ? undefined : [extension.identifier.id];
-			this.queryGallery({ names, ids, pageSize: 1 }, CancellationToken.None);
-			return this.local.filter(local => areSameExtensions(local.identifier, gallery.identifier))[0];
-		} finally {
-			this.installing = this.installing.filter(e => e !== extension);
-			this._onChange.fire(this.local.filter(e => areSameExtensions(e.identifier, extension.identifier))[0]);
+		const manifest = await extension.getManifest(CancellationToken.None);
+
+		if (manifest) {
+			this.promptForTrustIfNeededAndInstall(manifest, async () => {
+				this.installing.push(extension);
+				this._onChange.fire(extension);
+				try {
+					if (extension.state === ExtensionState.Installed && extension.local) {
+						await this.extensionManagementService.updateFromGallery(gallery, extension.local);
+					} else {
+						await this.extensionManagementService.installFromGallery(gallery, installOptions);
+					}
+					const ids: string[] | undefined = extension.identifier.uuid ? [extension.identifier.uuid] : undefined;
+					const names: string[] | undefined = extension.identifier.uuid ? undefined : [extension.identifier.id];
+					this.queryGallery({ names, ids, pageSize: 1 }, CancellationToken.None);
+					return this.local.filter(local => areSameExtensions(local.identifier, gallery.identifier))[0];
+				} finally {
+					this.installing = this.installing.filter(e => e !== extension);
+					this._onChange.fire(this.local.filter(e => areSameExtensions(e.identifier, extension.identifier))[0]);
+				}
+			});
 		}
+		return Promise.reject();
 	}
 
 	private async promptForTrustIfNeededAndInstall<T>(manifest: IExtensionManifest, installTask: () => Promise<T>): Promise<T> {
