@@ -75,16 +75,17 @@ export class ExtensionManagementCLIService implements IExtensionManagementCLISer
 			});
 			return;
 		}
-		const idSeen = new Map<string, boolean>();
+		extensions = extensions.sort((e1, e2) => e1.identifier.id.localeCompare(e2.identifier.id));
+		let lastId: string | undefined = undefined;
 		for (let extension of extensions) {
-			if (!idSeen.get(extension.identifier.id)) {
-				idSeen.set(extension.identifier.id, true);
+			if (lastId !== extension.identifier.id) {
+				lastId = extension.identifier.id;
 				output.log(getId(extension.manifest, showVersions));
 			}
 		}
 	}
 
-	async installExtensions(extensions: (string | URI)[], builtinExtensionIds: string[], isMachineScoped: boolean, force: boolean, output: CLIOutput = console): Promise<void> {
+	public async installExtensions(extensions: (string | URI)[], builtinExtensionIds: string[], isMachineScoped: boolean, force: boolean, output: CLIOutput = console): Promise<void> {
 		const failed: string[] = [];
 		const installedExtensionsManifests: IExtensionManifest[] = [];
 		if (extensions.length) {
@@ -128,7 +129,7 @@ export class ExtensionManagementCLIService implements IExtensionManagementCLISer
 		if (vsixs.length) {
 			await Promise.all(vsixs.map(async vsix => {
 				try {
-					const manifest = await this.installVSIX(vsix, force);
+					const manifest = await this.installVSIX(vsix, force, output);
 					if (manifest) {
 						installedExtensionsManifests.push(manifest);
 					}
@@ -147,7 +148,7 @@ export class ExtensionManagementCLIService implements IExtensionManagementCLISer
 				const gallery = galleryExtensions.get(extensionInfo.id.toLowerCase());
 				if (gallery) {
 					try {
-						const manifest = await this.installFromGallery(extensionInfo, gallery, installed, force);
+						const manifest = await this.installFromGallery(extensionInfo, gallery, installed, force, output);
 						if (manifest) {
 							installedExtensionsManifests.push(manifest);
 						}
@@ -172,7 +173,7 @@ export class ExtensionManagementCLIService implements IExtensionManagementCLISer
 		}
 	}
 
-	private async installVSIX(vsix: URI, force: boolean, output: CLIOutput = console): Promise<IExtensionManifest | null> {
+	private async installVSIX(vsix: URI, force: boolean, output: CLIOutput): Promise<IExtensionManifest | null> {
 
 		const manifest = await this.extensionManagementService.getManifest(vsix);
 		const valid = await this.validate(manifest, force, output);
@@ -214,7 +215,7 @@ export class ExtensionManagementCLIService implements IExtensionManagementCLISer
 		return galleryExtensions;
 	}
 
-	private async installFromGallery({ id, version, installOptions }: InstallExtensionInfo, galleryExtension: IGalleryExtension, installed: ILocalExtension[], force: boolean, output: CLIOutput = console): Promise<IExtensionManifest | null> {
+	private async installFromGallery({ id, version, installOptions }: InstallExtensionInfo, galleryExtension: IGalleryExtension, installed: ILocalExtension[], force: boolean, output: CLIOutput): Promise<IExtensionManifest | null> {
 		const manifest = await this.extensionGalleryService.getManifest(galleryExtension, CancellationToken.None);
 		const installedExtension = installed.find(e => areSameExtensions(e.identifier, galleryExtension.identifier));
 		if (installedExtension) {
@@ -244,7 +245,7 @@ export class ExtensionManagementCLIService implements IExtensionManagementCLISer
 		}
 	}
 
-	private async validate(manifest: IExtensionManifest, force: boolean, output: CLIOutput = console): Promise<boolean> {
+	private async validate(manifest: IExtensionManifest, force: boolean, output: CLIOutput): Promise<boolean> {
 		if (!manifest) {
 			throw new Error('Invalid vsix');
 		}
