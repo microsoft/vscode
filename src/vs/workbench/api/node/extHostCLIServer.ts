@@ -42,8 +42,8 @@ export interface RunCommandPipeArgs {
 export interface ExtensionManagementPipeArgs {
 	type: 'extensionManagement';
 	list?: { showVersions?: boolean, category?: string; };
-	install?: string[];
-	uninstall?: string[];
+	install?: (string | URI)[];
+	uninstall?: (string | URI)[];
 	force?: boolean;
 }
 

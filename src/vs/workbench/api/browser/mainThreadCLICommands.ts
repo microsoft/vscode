@@ -3,6 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
+import { isString } from 'vs/base/common/types';
 import { URI, UriComponents } from 'vs/base/common/uri';
 import { CommandsRegistry } from 'vs/platform/commands/common/commands';
 import { IExtensionManagementCLIService } from 'vs/platform/extensionManagement/common/extensionManagement';
@@ -35,16 +36,17 @@ CommandsRegistry.registerCommand('_remoteCLI.manageExtensions', async function (
 	if (args.list) {
 		await cliService.listExtensions(!!args.list.showVersions, args.list.category, output);
 	} else {
+		const revive = (inputs: (string | UriComponents)[]) => inputs.map(input => isString(input) ? input : URI.revive(input));
 		if (Array.isArray(args.install) && args.install.length) {
 			try {
-				await cliService.installExtensions(args.install, [], false, !!args.force, output);
+				await cliService.installExtensions(revive(args.install), [], false, !!args.force, output);
 			} catch (e) {
 				lines.push(e.message);
 			}
 		}
 		if (Array.isArray(args.uninstall) && args.uninstall.length) {
 			try {
-				await cliService.uninstallExtensions(args.uninstall, !!args.force, output);
+				await cliService.uninstallExtensions(revive(args.uninstall), !!args.force, output);
 			} catch (e) {
 				lines.push(e.message);
 			}
