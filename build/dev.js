@@ -17,21 +17,51 @@ async function exec(cmd, opts = {}) {
 	});
 }
 
-async function cloneOrPull(ext) {
-	const folderName = ext.repo.replace(/.*\//, '');
-	const folder = path.join(root, folderName);
+async function initExtension(extDesc) {
+	const folder = extDesc.repo.replace(/.*\//, '');
+	const folderPath = path.join(root, folder);
 
-	if (!await exists(folder)) {
-		await exec(`git clone ${ext.repo}.git`, { cwd: root });
-	} else {
-		await exec(`git pull`, { cwd: folder });
+	if (!await exists(folderPath)) {
+		console.log(`⏳ git clone: ${extDesc.name}`);
+		await exec(`git clone ${extDesc.repo}.git`, { cwd: root });
 	}
+
+	const pkg = require(path.join(folderPath, 'package.json'));
+	let type = undefined;
+
+	if (pkg['contributes']['themes'] || pkg['contributes']['iconThemes']) {
+		type = 'themes';
+	} else if (pkg['contributes']['grammars']) {
+		type = 'grammars';
+	} else {
+		type = 'misc';
+	}
+
+	return { folder, type };
 }
 
-async function syncExtensions() {
-	for (const ext of product.builtInExtensions) {
-		console.log(`👉 ${ext.name}`);
-		await cloneOrPull(ext);
+async function createWorkspace(type, extensions) {
+	const workspaceName = `vscode-extensions-${type}.code-workspace`;
+	const workspacePath = path.join(root, workspaceName);
+	const workspace = { folders: extensions.map(ext => ({ path: ext.folder })) };
+	console.log(`✅ create workspace: ${workspaceName}`);
+	await fs.writeFile(workspacePath, JSON.stringify(workspace, undefined, '  '));
+}
+
+async function init() {
+	const extensions = [];
+
+	for (const extDesc of product.builtInExtensions) {
+		extensions.push(await initExtension(extDesc));
+	}
+
+	await createWorkspace('all', extensions);
+
+	const byType = extensions
+		.reduce((m, e) => m.set(e.type, [...(m.get(e.type) || []), e]), new Map());
+
+	for (const [type, extensions] of byType) {
+		await createWorkspace(type, extensions);
 	}
 }
 
@@ -41,9 +71,9 @@ if (require.main === module) {
 	program.version('0.0.1');
 
 	program
-		.command('sync-extensions')
-		.description('Clone or pull extension repositories alongside vscode')
-		.action(syncExtensions);
+		.command('init')
+		.description('Initialize workspace with built-in extensions')
+		.action(init);
 
 	program.parseAsync(process.argv);
 }
