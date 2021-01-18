@@ -24,7 +24,6 @@ import { INotificationService } from 'vs/platform/notification/common/notificati
 import { ICommandService } from 'vs/platform/commands/common/commands';
 import { CommandService } from 'vs/workbench/services/commands/common/commandService';
 import { URI } from 'vs/base/common/uri';
-import { createHash } from 'crypto';
 import { IRemoteAgentService } from 'vs/workbench/services/remote/common/remoteAgentService';
 import { FileService } from 'vs/platform/files/common/fileService';
 import { NullLogService } from 'vs/platform/log/common/log';
@@ -40,6 +39,7 @@ import { VSBuffer } from 'vs/base/common/buffer';
 import { ConfigurationCache } from 'vs/workbench/services/configuration/browser/configurationCache';
 import { RemoteAgentService } from 'vs/workbench/services/remote/browser/remoteAgentServiceImpl';
 import { BrowserWorkbenchEnvironmentService } from 'vs/workbench/services/environment/browser/environmentService';
+import { hash } from 'vs/base/common/hash';
 
 const ROOT = URI.file('tests').with({ scheme: 'vscode-tests' });
 
@@ -94,7 +94,7 @@ suite('ConfigurationEditingService', () => {
 		workspaceService = disposables.add(new WorkspaceService({ configurationCache: new ConfigurationCache() }, environmentService, fileService, remoteAgentService, new UriIdentityService(fileService), new NullLogService()));
 		instantiationService.stub(IWorkspaceContextService, workspaceService);
 
-		await workspaceService.initialize({ folder: workspaceFolder, id: createHash('md5').update(workspaceFolder.toString()).digest('hex') });
+		await workspaceService.initialize({ folder: workspaceFolder, id: hash(workspaceFolder.toString()).toString(16) });
 		instantiationService.stub(IConfigurationService, workspaceService);
 		instantiationService.stub(IKeybindingEditingService, disposables.add(instantiationService.createInstance(KeybindingsEditingService)));
 		instantiationService.stub(ITextFileService, disposables.add(instantiationService.createInstance(TestTextFileService)));
