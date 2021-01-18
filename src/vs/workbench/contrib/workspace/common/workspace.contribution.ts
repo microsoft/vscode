@@ -69,7 +69,7 @@ export class WorkspaceTrustRequestHandler extends Disposable implements IWorkben
 					} else if (result.choice === 1) {
 						this.requestModel.completeRequest(TrustState.Untrusted);
 					} else {
-						this.requestModel.completeRequest(TrustState.Unknown);
+						this.requestModel.completeRequest(undefined);
 					}
 				}
 			}

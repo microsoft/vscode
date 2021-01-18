@@ -47,10 +47,10 @@ export interface ITrustedWorkspaceRequestModel {
 	readonly trustRequest: ITrustedWorkspaceRequest | undefined;
 
 	readonly onDidInitiateRequest: Event<void>;
-	readonly onDidCompleteRequest: Event<TrustState>;
+	readonly onDidCompleteRequest: Event<TrustState | undefined>;
 
 	initiateRequest(request?: ITrustedWorkspaceRequest): void;
-	completeRequest(trustState: TrustState): void;
+	completeRequest(trustState?: TrustState): void;
 }
 
 export interface ITrustedWorkspaceChangeModel {
@@ -173,7 +173,7 @@ export class TrustedWorkspaceRequestModel extends Disposable implements ITrusted
 	_onDidInitiateRequest = this._register(new Emitter<void>());
 	onDidInitiateRequest: Event<void> = this._onDidInitiateRequest.event;
 
-	_onDidCompleteRequest = this._register(new Emitter<TrustState>());
+	_onDidCompleteRequest = this._register(new Emitter<TrustState | undefined>());
 	onDidCompleteRequest = this._onDidCompleteRequest.event;
 
 	initiateRequest(request: ITrustedWorkspaceRequest): void {
@@ -185,7 +185,7 @@ export class TrustedWorkspaceRequestModel extends Disposable implements ITrusted
 		this._onDidInitiateRequest.fire();
 	}
 
-	completeRequest(trustState: TrustState): void {
+	completeRequest(trustState?: TrustState): void {
 		this.trustRequest = undefined;
 		this._onDidCompleteRequest.fire(trustState);
 	}
@@ -267,17 +267,17 @@ export class TrustedWorkspaceService extends Disposable implements ITrustedWorks
 		return state ?? TrustState.Unknown;
 	}
 
-	private onTrustRequestCompleted(trustState: TrustState): void {
+	private onTrustRequestCompleted(trustState?: TrustState): void {
 		if (this._trustRequestPromise === undefined) {
 			return;
 		}
 
-		// if (this.currentTrustState !== TrustState.Unknown) {
-		// 	this._inFlightResolver!(this.currentTrustState);
-		// 	this._inFlightResolver = undefined;
-		// 	this._trustRequestPromise = undefined;
-		// 	return;
-		// }
+		if (!trustState) {
+			this._inFlightResolver!(this.currentTrustState);
+			this._inFlightResolver = undefined;
+			this._trustRequestPromise = undefined;
+			return;
+		}
 
 		this._inFlightResolver!(trustState);
 		this._inFlightResolver = undefined;
