@@ -17,26 +17,32 @@ async function exec(cmd, opts = {}) {
 	});
 }
 
-async function initExtension(extDesc) {
+function getFolderPath(extDesc) {
 	const folder = extDesc.repo.replace(/.*\//, '');
-	const folderPath = path.join(root, folder);
+	return folderPath = path.join(root, folder);
+}
+
+async function getExtensionType(folderPath) {
+	const pkg = JSON.parse(await fs.readFile(path.join(folderPath, 'package.json'), 'utf8'));
+
+	if (pkg['contributes']['themes'] || pkg['contributes']['iconThemes']) {
+		return 'themes';
+	} else if (pkg['contributes']['grammars']) {
+		return 'grammars';
+	} else {
+		return 'misc';
+	}
+}
+
+async function initExtension(extDesc) {
+	const folderPath = getFolderPath(extDesc);
 
 	if (!await exists(folderPath)) {
 		console.log(`⏳ git clone: ${extDesc.name}`);
 		await exec(`git clone ${extDesc.repo}.git`, { cwd: root });
 	}
 
-	const pkg = require(path.join(folderPath, 'package.json'));
-	let type = undefined;
-
-	if (pkg['contributes']['themes'] || pkg['contributes']['iconThemes']) {
-		type = 'themes';
-	} else if (pkg['contributes']['grammars']) {
-		type = 'grammars';
-	} else {
-		type = 'misc';
-	}
-
+	const type = await getExtensionType(folderPath);
 	return { folder, type };
 }
 
@@ -65,6 +71,22 @@ async function init() {
 	}
 }
 
+async function ls() {
+	const types = new Map();
+
+	for (const extDesc of product.builtInExtensions) {
+		const folderPath = getFolderPath(extDesc);
+		const type = await getExtensionType(folderPath);
+		types.set(type, 1 + (types.get(type) || 0));
+	}
+
+	for (const [type, count] of types) {
+		console.log(`${type}: ${count} extensions`);
+	}
+
+	console.log(`total: ${product.builtInExtensions.length} extensions`);
+}
+
 if (require.main === module) {
 	const { program } = require('commander');
 
@@ -74,6 +96,18 @@ if (require.main === module) {
 		.command('init')
 		.description('Initialize workspace with built-in extensions')
 		.action(init);
+
+	program
+		.command('ls')
+		.description('List extension types')
+		.action(ls);
+
+	// program
+	// 	.command('each')
+	// 	.option('-g, --grammars', 'Grammars only')
+	// 	.option('-t, --themes', 'Themes only')
+	// 	.description('Run a command for each repo')
+	// 	.action(init);
 
 	program.parseAsync(process.argv);
 }
