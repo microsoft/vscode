@@ -140,7 +140,7 @@ export class ExplorerService implements IExplorerService {
 		return this.view.getContext(respectMultiSelection);
 	}
 
-	async applyBulkEdit(edit: ResourceFileEdit[], options: { undoLabel: string, progressLabel: string }): Promise<void> {
+	async applyBulkEdit(edit: ResourceFileEdit[], options: { undoLabel: string, progressLabel: string, confirmBeforeUndo?: boolean }): Promise<void> {
 		const cancellationTokenSource = new CancellationTokenSource();
 		const promise = this.progressService.withProgress({
 			location: ProgressLocation.Window,
@@ -152,7 +152,8 @@ export class ExplorerService implements IExplorerService {
 				undoRedoSource: UNDO_REDO_SOURCE,
 				label: options.undoLabel,
 				progress,
-				token: cancellationTokenSource.token
+				token: cancellationTokenSource.token,
+				confirmBeforeUndo: options.confirmBeforeUndo
 			});
 		}, () => cancellationTokenSource.cancel());
 		await this.progressService.withProgress({ location: ProgressLocation.Explorer, delay: 500 }, () => promise);

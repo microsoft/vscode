@@ -286,7 +286,8 @@ class FileUndoRedoElement implements IWorkspaceUndoRedoElement {
 
 	constructor(
 		readonly label: string,
-		readonly operations: IFileOperation[]
+		readonly operations: IFileOperation[],
+		readonly confirmBeforeUndo: boolean
 	) {
 		this.resources = (<URI[]>[]).concat(...operations.map(op => op.uris));
 	}
@@ -318,6 +319,7 @@ export class BulkFileEdits {
 		private readonly _label: string,
 		private readonly _undoRedoGroup: UndoRedoGroup,
 		private readonly _undoRedoSource: UndoRedoSource | undefined,
+		private readonly _confirmBeforeUndo: boolean,
 		private readonly _progress: IProgress<void>,
 		private readonly _token: CancellationToken,
 		private readonly _edits: ResourceFileEdit[],
@@ -388,6 +390,6 @@ export class BulkFileEdits {
 			this._progress.report(undefined);
 		}
 
-		this._undoRedoService.pushElement(new FileUndoRedoElement(this._label, undoOperations), this._undoRedoGroup, this._undoRedoSource);
+		this._undoRedoService.pushElement(new FileUndoRedoElement(this._label, undoOperations, this._confirmBeforeUndo), this._undoRedoGroup, this._undoRedoSource);
 	}
 }
