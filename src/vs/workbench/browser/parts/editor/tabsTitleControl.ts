@@ -10,7 +10,7 @@ import { EditorResourceAccessor, GroupIdentifier, IEditorInput, Verbosity, Edito
 import { StandardKeyboardEvent } from 'vs/base/browser/keyboardEvent';
 import { EventType as TouchEventType, GestureEvent, Gesture } from 'vs/base/browser/touch';
 import { KeyCode } from 'vs/base/common/keyCodes';
-import { ResourceLabels, IResourceLabel, DEFAULT_LABELS_CONTAINER } from 'vs/workbench/browser/labels';
+import { MultipleResourceLabels, IResourceLabel, IResourceLabels, DEFAULT_LABELS_CONTAINER } from 'vs/workbench/browser/labels';
 import { ActionBar } from 'vs/base/browser/ui/actionbar/actionbar';
 import { IContextMenuService } from 'vs/platform/contextview/browser/contextView';
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
@@ -56,8 +56,9 @@ interface IEditorInputLabel {
 	title?: string;
 	ariaLabel?: string;
 }
+type IEditorInputLabels = IEditorInputLabel[];
 
-type AugmentedLabel = IEditorInputLabel & { editor: IEditorInput };
+type AugmentedLabel = IEditorInputLabel & { editor: IEditorInput, index: number };
 
 export class TabsTitleControl extends TitleControl {
 
@@ -86,8 +87,8 @@ export class TabsTitleControl extends TitleControl {
 	private readonly closeEditorAction = this._register(this.instantiationService.createInstance(CloseOneEditorAction, CloseOneEditorAction.ID, CloseOneEditorAction.LABEL));
 	private readonly unpinEditorAction = this._register(this.instantiationService.createInstance(UnpinEditorAction, UnpinEditorAction.ID, UnpinEditorAction.LABEL));
 
-	private readonly tabResourceLabels = this._register(this.instantiationService.createInstance(ResourceLabels, DEFAULT_LABELS_CONTAINER));
-	private tabLabels: IEditorInputLabel[] = [];
+	private readonly tabResourceLabels = this._register(this.instantiationService.createInstance(MultipleResourceLabels, DEFAULT_LABELS_CONTAINER));
+	private tabLabels: IEditorInputLabels[] = [];
 	private tabActionBars: ActionBar[] = [];
 	private tabDisposables: IDisposable[] = [];
 
@@ -473,8 +474,8 @@ export class TabsTitleControl extends TitleControl {
 		this.tabLabels.splice(targetIndex, 0, editorLabel);
 
 		// As such we need to redraw each tab
-		this.forEachTab((editor, index, tabContainer, tabLabelWidget, tabLabel, tabActionBar) => {
-			this.redrawTab(editor, index, tabContainer, tabLabelWidget, tabLabel, tabActionBar);
+		this.forEachTab((editor, index, tabContainer, tabLabelWidget, tabLabels, tabActionBar) => {
+			this.redrawTab(editor, index, tabContainer, tabLabelWidget, tabLabels, tabActionBar);
 		});
 
 		// Moving an editor requires a layout to keep the active editor visible
@@ -482,7 +483,9 @@ export class TabsTitleControl extends TitleControl {
 	}
 
 	pinEditor(editor: IEditorInput): void {
-		this.withTab(editor, (editor, index, tabContainer, tabLabelWidget, tabLabel) => this.redrawTabLabel(editor, index, tabContainer, tabLabelWidget, tabLabel));
+		this.withTab(editor, (editor, index, tabContainer, tabLabelWidgets, tabLabels) => {
+			this.redrawTabLabels(editor, index, tabContainer, tabLabelWidgets, tabLabels);
+		});
 	}
 
 	stickEditor(editor: IEditorInput): void {
@@ -511,8 +514,8 @@ export class TabsTitleControl extends TitleControl {
 	setActive(isGroupActive: boolean): void {
 
 		// Activity has an impact on each tab's active indication
-		this.forEachTab((editor, index, tabContainer, tabLabelWidget, tabLabel) => {
-			this.redrawTabActiveAndDirty(isGroupActive, editor, tabContainer, tabLabelWidget);
+		this.forEachTab((editor, index, tabContainer, tabLabelWidgets, tabLabel) => {
+			this.redrawTabActiveAndDirty(isGroupActive, editor, tabContainer, tabLabelWidgets);
 		});
 
 		// Activity has an impact on the toolbar, so we need to update and layout
@@ -538,8 +541,8 @@ export class TabsTitleControl extends TitleControl {
 		this.computeTabLabels();
 
 		// As such we need to redraw each label
-		this.forEachTab((editor, index, tabContainer, tabLabelWidget, tabLabel) => {
-			this.redrawTabLabel(editor, index, tabContainer, tabLabelWidget, tabLabel);
+		this.forEachTab((editor, index, tabContainer, tabLabelWidget, tabLabels) => {
+			this.redrawTabLabels(editor, index, tabContainer, tabLabelWidget, tabLabels);
 		});
 
 		// A change to a label requires a layout to keep the active editor visible
@@ -547,7 +550,7 @@ export class TabsTitleControl extends TitleControl {
 	}
 
 	updateEditorDirty(editor: IEditorInput): void {
-		this.withTab(editor, (editor, index, tabContainer, tabLabelWidget) => this.redrawTabActiveAndDirty(this.accessor.activeGroup === this.group, editor, tabContainer, tabLabelWidget));
+		this.withTab(editor, (editor, index, tabContainer, tabLabelWidgets) => this.redrawTabActiveAndDirty(this.accessor.activeGroup === this.group, editor, tabContainer, tabLabelWidgets));
 	}
 
 	updateOptions(oldOptions: IEditorPartOptions, newOptions: IEditorPartOptions): void {
@@ -582,24 +585,24 @@ export class TabsTitleControl extends TitleControl {
 		this.redraw();
 	}
 
-	private forEachTab(fn: (editor: IEditorInput, index: number, tabContainer: HTMLElement, tabLabelWidget: IResourceLabel, tabLabel: IEditorInputLabel, tabActionBar: ActionBar) => void): void {
+	private forEachTab(fn: (editor: IEditorInput, index: number, tabContainer: HTMLElement, tabLabelWidgets: IResourceLabels, tabLabels: IEditorInputLabels, tabActionBar: ActionBar) => void): void {
 		this.group.editors.forEach((editor, index) => {
 			this.doWithTab(index, editor, fn);
 		});
 	}
 
-	private withTab(editor: IEditorInput, fn: (editor: IEditorInput, index: number, tabContainer: HTMLElement, tabLabelWidget: IResourceLabel, tabLabel: IEditorInputLabel, tabActionBar: ActionBar) => void): void {
+	private withTab(editor: IEditorInput, fn: (editor: IEditorInput, index: number, tabContainer: HTMLElement, tabLabelWidgets: IResourceLabels, tabLabels: IEditorInputLabels, tabActionBar: ActionBar) => void): void {
 		this.doWithTab(this.group.getIndexOfEditor(editor), editor, fn);
 	}
 
-	private doWithTab(index: number, editor: IEditorInput, fn: (editor: IEditorInput, index: number, tabContainer: HTMLElement, tabLabelWidget: IResourceLabel, tabLabel: IEditorInputLabel, tabActionBar: ActionBar) => void): void {
+	private doWithTab(index: number, editor: IEditorInput, fn: (editor: IEditorInput, index: number, tabContainer: HTMLElement, tabLabelWidgets: IResourceLabels, tabLabels: IEditorInputLabels, tabActionBar: ActionBar) => void): void {
 		const tabsContainer = assertIsDefined(this.tabsContainer);
 		const tabContainer = tabsContainer.children[index] as HTMLElement;
-		const tabResourceLabel = this.tabResourceLabels.get(index);
-		const tabLabel = this.tabLabels[index];
+		const tabResourceLabels = this.tabResourceLabels.get(index);
+		const tabLabels = this.tabLabels[index];
 		const tabActionBar = this.tabActionBars[index];
-		if (tabContainer && tabResourceLabel && tabLabel) {
-			fn(editor, index, tabContainer, tabResourceLabel, tabLabel, tabActionBar);
+		if (tabContainer && tabResourceLabels && tabLabels) {
+			fn(editor, index, tabContainer, tabResourceLabels, tabLabels, tabActionBar);
 		}
 	}
 
@@ -942,17 +945,19 @@ export class TabsTitleControl extends TitleControl {
 		const { verbosity, shortenDuplicates } = this.getLabelConfigFlags(labelFormat);
 
 		// Build labels and descriptions for each editor
-		const labels = this.group.editors.map((editor, index) => ({
-			editor,
-			name: editor.getName(),
-			description: editor.getDescription(verbosity),
-			title: withNullAsUndefined(editor.getTitle(Verbosity.LONG)),
-			ariaLabel: computeEditorAriaLabel(editor, index, this.group, this.editorGroupService.count)
-		}));
+		const labels = this.group.editors.map((editor, editorIndex) =>
+			editor.getNames().map((name, index) => ({
+				editor,
+				name,
+				index,
+				description: editor.getDescriptions(verbosity)[index],
+				title: withNullAsUndefined(editor.getTitle(Verbosity.LONG)),
+				ariaLabel: computeEditorAriaLabel(editor, editorIndex, this.group, this.editorGroupService.count)
+			})));
 
 		// Shorten labels as needed
 		if (shortenDuplicates) {
-			this.shortenTabLabels(labels);
+			this.shortenTabLabels(labels.reduce((acc, l) => acc.concat(l), []));
 		}
 
 		this.tabLabels = labels;
@@ -990,7 +995,7 @@ export class TabsTitleControl extends TitleControl {
 			let useLongDescriptions = false;
 			mapDescriptionToDuplicates.forEach((duplicateDescriptions, name) => {
 				if (!useLongDescriptions && duplicateDescriptions.length > 1) {
-					const [first, ...rest] = duplicateDescriptions.map(({ editor }) => editor.getDescription(Verbosity.LONG));
+					const [first, ...rest] = duplicateDescriptions.map(({ editor, index }) => editor.getDescriptions(Verbosity.LONG)[index]);
 					useLongDescriptions = rest.some(description => description !== first);
 				}
 			});
@@ -999,7 +1004,7 @@ export class TabsTitleControl extends TitleControl {
 			if (useLongDescriptions) {
 				mapDescriptionToDuplicates.clear();
 				duplicateTitles.forEach(label => {
-					label.description = label.editor.getDescription(Verbosity.LONG);
+					label.description = label.editor.getDescriptions(Verbosity.LONG)[label.index];
 					getOrSet(mapDescriptionToDuplicates, label.description, []).push(label);
 				});
 			}
@@ -1055,8 +1060,8 @@ export class TabsTitleControl extends TitleControl {
 		}
 
 		// For each tab
-		this.forEachTab((editor, index, tabContainer, tabLabelWidget, tabLabel, tabActionBar) => {
-			this.redrawTab(editor, index, tabContainer, tabLabelWidget, tabLabel, tabActionBar);
+		this.forEachTab((editor, index, tabContainer, tabLabelWidgets, tabLabels, tabActionBar) => {
+			this.redrawTab(editor, index, tabContainer, tabLabelWidgets, tabLabels, tabActionBar);
 		});
 
 		// Update Editor Actions Toolbar
@@ -1066,12 +1071,12 @@ export class TabsTitleControl extends TitleControl {
 		this.layout(this.dimensions);
 	}
 
-	private redrawTab(editor: IEditorInput, index: number, tabContainer: HTMLElement, tabLabelWidget: IResourceLabel, tabLabel: IEditorInputLabel, tabActionBar: ActionBar): void {
+	private redrawTab(editor: IEditorInput, index: number, tabContainer: HTMLElement, tabLabelWidgets: IResourceLabels, tabLabels: IEditorInputLabels, tabActionBar: ActionBar): void {
 		const isTabSticky = this.group.isSticky(index);
 		const options = this.accessor.partOptions;
 
-		// Label
-		this.redrawTabLabel(editor, index, tabContainer, tabLabelWidget, tabLabel);
+		// Labels
+		this.redrawTabLabels(editor, index, tabContainer, tabLabelWidgets, tabLabels);
 
 		// Action
 		const tabAction = isTabSticky ? this.unpinEditorAction : this.closeEditorAction;
@@ -1122,34 +1127,41 @@ export class TabsTitleControl extends TitleControl {
 		this.redrawTabBorders(index, tabContainer);
 
 		// Active / dirty state
-		this.redrawTabActiveAndDirty(this.accessor.activeGroup === this.group, editor, tabContainer, tabLabelWidget);
+		this.redrawTabActiveAndDirty(this.accessor.activeGroup === this.group, editor, tabContainer, tabLabelWidgets);
 	}
 
-	private redrawTabLabel(editor: IEditorInput, index: number, tabContainer: HTMLElement, tabLabelWidget: IResourceLabel, tabLabel: IEditorInputLabel): void {
+	private redrawTabLabels(editor: IEditorInput, index: number, tabContainer: HTMLElement, tabLabelWidgets: IResourceLabels, tabLabels: IEditorInputLabels): void {
 		const options = this.accessor.partOptions;
 
-		// Unless tabs are sticky compact, show the full label and description
-		// Sticky compact tabs will only show an icon if icons are enabled
-		// or their first character of the name otherwise
-		let name: string | undefined;
-		let forceLabel = false;
-		let forceDisableBadgeDecorations = false;
-		let description: string;
-		if (options.pinnedTabSizing === 'compact' && this.group.isSticky(index)) {
-			const isShowingIcons = options.showIcons && options.hasIcons;
-			name = isShowingIcons ? '' : tabLabel.name?.charAt(0).toUpperCase();
-			description = '';
-			forceLabel = true;
-			forceDisableBadgeDecorations = true; // not enough space when sticky tabs are compact
-		} else {
-			name = tabLabel.name;
-			description = tabLabel.description || '';
-		}
+		const resource = EditorResourceAccessor.getOriginalUri(editor, { supportSideBySide: SideBySideEditor.BOTH });
+		const italic = !this.group.isPinned(editor);
+		const resources = tabLabels.map((tabLabel, i) => {
+			// Unless tabs are sticky compact, show the full label and description
+			// Sticky compact tabs will only show an icon if icons are enabled
+			// or their first character of the name otherwise
+			let name: string | undefined;
+			let forceLabel = false;
+			let description: string;
+			if (options.pinnedTabSizing === 'compact' && this.group.isSticky(index)) {
+				const isShowingIcons = options.showIcons && options.hasIcons;
+				name = isShowingIcons ? '' : tabLabel.name?.charAt(0).toUpperCase();
+				description = '';
+				forceLabel = true;
+			} else {
+				name = tabLabel.name;
+				description = tabLabel.description || '';
+			}
 
-		const title = tabLabel.title || '';
+			return {
+				label: { name, description, resource },
+				options: { title: tabLabel.title, extraClasses: ['tab-label'], italic, forceLabel, hideIcon: i % 2 === 1 }
+			};
+		});
 
-		if (tabLabel.ariaLabel) {
-			tabContainer.setAttribute('aria-label', tabLabel.ariaLabel);
+		const title = tabLabels[0]?.title || '';
+
+		if (tabLabels[0]?.ariaLabel) {
+			tabContainer.setAttribute('aria-label', tabLabels[0].ariaLabel);
 			// Set aria-description to empty string so that screen readers would not read the title as well
 			// More details https://github.com/microsoft/vscode/issues/95378
 			tabContainer.setAttribute('aria-description', '');
@@ -1157,24 +1169,12 @@ export class TabsTitleControl extends TitleControl {
 		tabContainer.title = title;
 
 		// Label
-		tabLabelWidget.setResource(
-			{ name, description, resource: EditorResourceAccessor.getOriginalUri(editor, { supportSideBySide: SideBySideEditor.BOTH }) },
-			{
-				title,
-				extraClasses: ['tab-label'],
-				italic: !this.group.isPinned(editor),
-				forceLabel,
-				fileDecorations: {
-					colors: Boolean(options.decorations?.colors),
-					badges: forceDisableBadgeDecorations ? false : Boolean(options.decorations?.badges)
-				}
-			}
-		);
+		tabLabelWidgets.setResources(resources);
 
 		// Tests helper
-		const resource = EditorResourceAccessor.getOriginalUri(editor, { supportSideBySide: SideBySideEditor.PRIMARY });
-		if (resource) {
-			tabContainer.setAttribute('data-resource-name', basenameOrAuthority(resource));
+		const resourceTest = EditorResourceAccessor.getOriginalUri(editor, { supportSideBySide: SideBySideEditor.PRIMARY });
+		if (resourceTest) {
+			tabContainer.setAttribute('data-resource-name', basenameOrAuthority(resourceTest));
 		} else {
 			tabContainer.removeAttribute('data-resource-name');
 		}

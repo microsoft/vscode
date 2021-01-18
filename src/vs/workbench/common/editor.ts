@@ -411,9 +411,25 @@ export interface IEditorInput extends IDisposable {
 	getName(): string;
 
 	/**
+	 * Returns an array of display names of this input. Editors that
+	 * open multiple files can have multiple display names. If
+	 * getName is not undefined, the first array element is the value
+	 * of getName.
+	 */
+	getNames(verbosity?: Verbosity): string[];
+
+	/**
 	 * Returns the display description of this input.
 	 */
 	getDescription(verbosity?: Verbosity): string | undefined;
+
+	/**
+	 * Returns an array of display descriptions of this input. Editors that
+	 * open multiple files can have multiple display descriptions. If
+	 * getDescription is not undefined, the first array element is the value
+	 * of getDescription.
+	 */
+	getDescriptions(verbosity?: Verbosity): (string | undefined)[];
 
 	/**
 	 * Returns the display title of this input.
@@ -533,8 +549,21 @@ export abstract class EditorInput extends Disposable implements IEditorInput {
 		return `Editor ${this.getTypeId()}`;
 	}
 
+	getNames(): string[] {
+		return [this.getName()];
+	}
+
 	getDescription(verbosity?: Verbosity): string | undefined {
 		return undefined;
+	}
+
+	getDescriptions(verbosity?: Verbosity): string[] {
+		const description = this.getDescription();
+		if (description !== undefined) {
+			return [description];
+		} else {
+			return [];
+		}
 	}
 
 	getTitle(verbosity?: Verbosity): string {

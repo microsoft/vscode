@@ -167,6 +167,19 @@ export class LabelService extends Disposable implements ILabelService {
 		return options.endWithSeparator ? this.appendSeparatorIfMissing(label, formatting) : label;
 	}
 
+	getUriDirLabel(resource: URI): string {
+		const formatting = this.findFormatting(resource);
+		const label = this.doGetUriLabel(resource, formatting);
+		if (formatting) {
+			switch (formatting.separator) {
+				case paths.win32.sep: return paths.win32.dirname(label);
+				case paths.posix.sep: return paths.posix.dirname(label);
+			}
+		}
+
+		return paths.dirname(label);
+	}
+
 	getUriBasenameLabel(resource: URI): string {
 		const formatting = this.findFormatting(resource);
 		const label = this.doGetUriLabel(resource, formatting);

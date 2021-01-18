@@ -91,6 +91,27 @@ export interface IResourceLabel extends IDisposable {
 	clear(): void;
 }
 
+export interface IResourceLabels extends IResourceLabel {
+	readonly elements: HTMLElement[];
+
+	/**
+	 * Most generic way to apply multiple labels with raw information.
+	 */
+	setLabels(labels: { label?: string, description?: string, options?: IIconLabelValueOptions }[]): void;
+
+	/**
+	 * Convenient method to apply multiple labels by passing a resource along.
+	 *
+	 * Note: for file resources consider to use the #setFile() method instead.
+	 */
+	setResources(resources: { label: IResourceLabelProps, options?: IResourceLabelOptions }[]): void;
+
+	/**
+	 * Convenient method to render multiple file labels based on a resource.
+	 */
+	setFiles(files: { resource: URI, options?: IFileLabelOptions }[]): void;
+}
+
 export interface IResourceLabelsContainer {
 	readonly onDidChangeVisibility: Event<boolean>;
 }
@@ -99,17 +120,17 @@ export const DEFAULT_LABELS_CONTAINER: IResourceLabelsContainer = {
 	onDidChangeVisibility: Event.None
 };
 
-export class ResourceLabels extends Disposable {
+class ResourceLabelGroupBase<WidgetType extends IResourceLabelWidget, LabelType> extends Disposable {
 
-	private _onDidChangeDecorations = this._register(new Emitter<void>());
+	protected _onDidChangeDecorations = this._register(new Emitter<void>());
 	readonly onDidChangeDecorations = this._onDidChangeDecorations.event;
 
-	private widgets: ResourceLabelWidget[] = [];
-	private labels: IResourceLabel[] = [];
+	protected widgets: WidgetType[] = [];
+	protected labels: LabelType[] = [];
 
 	constructor(
 		container: IResourceLabelsContainer,
-		@IInstantiationService private readonly instantiationService: IInstantiationService,
+		@IInstantiationService protected readonly instantiationService: IInstantiationService,
 		@IConfigurationService private readonly configurationService: IConfigurationService,
 		@IModelService private readonly modelService: IModelService,
 		@IModeService private readonly modeService: IModeService,
@@ -123,7 +144,7 @@ export class ResourceLabels extends Disposable {
 		this.registerListeners(container);
 	}
 
-	private registerListeners(container: IResourceLabelsContainer): void {
+	protected registerListeners(container: IResourceLabelsContainer): void {
 
 		// notify when visibility changes
 		this._register(container.onDidChangeVisibility(visible => {
@@ -186,9 +207,33 @@ export class ResourceLabels extends Disposable {
 		}));
 	}
 
-	get(index: number): IResourceLabel {
+	protected disposeWidget(widget: WidgetType): void {
+		const index = this.widgets.indexOf(widget);
+		if (index > -1) {
+			this.widgets.splice(index, 1);
+			this.labels.splice(index, 1);
+		}
+
+		dispose(widget);
+	}
+
+	get(index: number): LabelType {
 		return this.labels[index];
 	}
+
+	clear(): void {
+		this.widgets = dispose(this.widgets);
+		this.labels = [];
+	}
+
+	dispose(): void {
+		super.dispose();
+
+		this.clear();
+	}
+}
+
+export class ResourceLabels extends ResourceLabelGroupBase<ResourceLabelWidget, IResourceLabel> {
 
 	create(container: HTMLElement, options?: IIconLabelCreationOptions): IResourceLabel {
 		const widget = this.instantiationService.createInstance(ResourceLabelWidget, container, options);
@@ -211,25 +256,34 @@ export class ResourceLabels extends Disposable {
 		return label;
 	}
 
-	private disposeWidget(widget: ResourceLabelWidget): void {
-		const index = this.widgets.indexOf(widget);
-		if (index > -1) {
-			this.widgets.splice(index, 1);
-			this.labels.splice(index, 1);
-		}
+}
 
-		dispose(widget);
-	}
 
-	clear(): void {
-		this.widgets = dispose(this.widgets);
-		this.labels = [];
-	}
+export class MultipleResourceLabels extends ResourceLabelGroupBase<ResourceLabelWidgets, IResourceLabels> {
 
-	dispose(): void {
-		super.dispose();
+	create(container: HTMLElement, options?: IIconLabelCreationOptions): IResourceLabels {
+		const widgets = this.instantiationService.createInstance(ResourceLabelWidgets, container, options);
 
-		this.clear();
+		// Only expose a handle to the outside
+		const labels: IResourceLabels = {
+			element: widgets.element,
+			elements: widgets.elements,
+			onDidRender: widgets.onDidRender,
+			setLabel: (label: string, description?: string, options?: IIconLabelValueOptions) => widgets.setLabels([{ label, description, options }]),
+			setLabels: (labels: { label: string, description?: string, options?: IIconLabelValueOptions }[]) => widgets.setLabels(labels),
+			setResource: (label: IResourceLabelProps, options?: IResourceLabelOptions) => widgets.setResources([{ label, options }]),
+			setResources: (resources: { label: IResourceLabelProps, options?: IResourceLabelOptions }[]) => widgets.setResources(resources),
+			setFile: (resource: URI, options?: IFileLabelOptions) => widgets.setFiles([{ resource, options }]),
+			setFiles: (files: { resource: URI, options?: IFileLabelOptions }[]) => widgets.setFiles(files),
+			clear: () => widgets.clear(),
+			dispose: () => this.disposeWidget(widgets)
+		};
+
+		// Store
+		this.labels.push(labels);
+		this.widgets.push(widgets);
+
+		return labels;
 	}
 }
 
@@ -265,7 +319,22 @@ enum Redraw {
 	Full = 2
 }
 
-class ResourceLabelWidget extends IconLabel {
+interface IResourceLabelWidget extends IDisposable {
+	readonly onDidRender: Event<void>;
+
+	notifyVisibilityChanged(visible: boolean): void;
+	notifyModelModeChanged(model: ITextModel): void;
+	notifyModelAdded(model: ITextModel): void;
+
+	notifyFileDecorationsChanges(e: IResourceDecorationChangeEvent): boolean;
+	notifyExtensionsRegistered(): void;
+	notifyThemeChange(): void;
+	notifyFileAssociationsChange(): void;
+	notifyFormattersChange(scheme: string): void;
+	notifyUntitledLabelChange(resource: URI): void;
+}
+
+class ResourceLabelWidget extends IconLabel implements IResourceLabelWidget {
 
 	private _onDidRender = this._register(new Emitter<void>());
 	readonly onDidRender = this._onDidRender.event;
@@ -587,5 +656,127 @@ class ResourceLabelWidget extends IconLabel {
 		this.lastKnownDetectedModeId = undefined;
 		this.computedIconClasses = undefined;
 		this.computedPathLabel = undefined;
+	}
+}
+
+class ResourceLabelWidgets extends Disposable implements IResourceLabelWidget {
+	private widgets: ResourceLabelWidget[] = [];
+	private container: HTMLElement;
+	private options: IIconLabelCreationOptions | undefined;
+	private _onDidRender = this._register(new Emitter<void>());
+	readonly onDidRender = this._onDidRender.event;
+
+	constructor(
+		container: HTMLElement,
+		options: IIconLabelCreationOptions | undefined,
+		@IInstantiationService private readonly instantiationService: IInstantiationService) {
+
+		super();
+		this.container = container;
+		this.options = options;
+		this.newWidgetOrFromIndex(0);
+	}
+
+	notifyVisibilityChanged(visible: boolean): void {
+		this.widgets.forEach(widget => widget.notifyVisibilityChanged(visible));
+	}
+
+	notifyModelModeChanged(model: ITextModel): void {
+		this.widgets.forEach(widget => widget.notifyModelModeChanged(model));
+	}
+
+	notifyModelAdded(model: ITextModel): void {
+		this.widgets.forEach(widget => widget.notifyModelAdded(model));
+	}
+	notifyFileDecorationsChanges(e: IResourceDecorationChangeEvent): boolean {
+		return this.widgets.map(widget => widget.notifyFileDecorationsChanges(e)).some(w => w);
+	}
+
+	notifyExtensionsRegistered(): void {
+		this.widgets.forEach(widget => widget.notifyExtensionsRegistered());
+	}
+
+	notifyThemeChange(): void {
+		this.widgets.forEach(widget => widget.notifyThemeChange());
+	}
+
+	notifyFileAssociationsChange(): void {
+		this.widgets.forEach(widget => widget.notifyFileAssociationsChange());
+	}
+
+	notifyFormattersChange(scheme: string): void {
+		this.widgets.forEach(widget => widget.notifyFormattersChange(scheme));
+	}
+
+	notifyUntitledLabelChange(resource: URI): void {
+		this.widgets.forEach(widget => widget.notifyUntitledLabelChange(resource));
+	}
+
+	private newWidgetOrFromIndex(i: number): ResourceLabelWidget {
+		if (this.widgets[i]) {
+			return this.widgets[i];
+		} else {
+			const widget = this.instantiationService.createInstance(ResourceLabelWidget, this.container, this.options);
+			widget.onDidRender(() => this._onDidRender.fire());
+			this.widgets.push(widget);
+			return widget;
+		}
+	}
+
+	setFiles(files: { resource: URI, options?: IFileLabelOptions }[]): void {
+		this.clear();
+
+		files.forEach(({ resource, options }, i) => {
+			this.newWidgetOrFromIndex(i).setFile(resource, options);
+		});
+	}
+
+	setResources(resources: { label: IResourceLabelProps, options?: IResourceLabelOptions }[]): void {
+		this.clear();
+
+		resources.forEach(({ label, options }, i) => {
+			if (!options) {
+				options = Object.create(null);
+			}
+
+			this.newWidgetOrFromIndex(i).setResource(label, options);
+		});
+	}
+
+	setLabels(labels: { label: string | string[], description?: string, options?: IIconLabelValueOptions }[]): void {
+		this.clear();
+
+		labels.forEach(({ label, description, options }, i) => {
+			this.newWidgetOrFromIndex(i).setLabel(label, description, options);
+		});
+	}
+
+	clear(): void {
+		const [firstWidget, ...extraWidgets] = this.widgets;
+		this.widgets = [firstWidget];
+
+		firstWidget.clear();
+		extraWidgets.forEach(extraWidget => {
+			this.container.removeChild(extraWidget.element);
+			extraWidget.dispose();
+		});
+
+		this.options = undefined;
+	}
+
+	dispose(): void {
+		super.dispose();
+		this.widgets.forEach(widget => widget.dispose());
+
+		this.widgets = [];
+		this.options = undefined;
+	}
+
+	get element(): HTMLElement {
+		return this.elements[0];
+	}
+
+	get elements(): HTMLElement[] {
+		return this.widgets.map(widget => widget.element);
 	}
 }

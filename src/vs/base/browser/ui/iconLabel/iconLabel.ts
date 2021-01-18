@@ -108,7 +108,16 @@ export class IconLabel extends Disposable {
 	constructor(container: HTMLElement, options?: IIconLabelCreationOptions) {
 		super();
 
-		this.domNode = this._register(new FastLabelNode(dom.append(container, dom.$('.monaco-icon-label'))));
+		// If there is already an IconLabel in the container, place new IconLabel after it.
+		// Otherwise, append it in the container.
+		const existingLabels = container.querySelectorAll<HTMLElement>('.monaco-icon-label');
+		const newLabel = dom.$('.monaco-icon-label');
+		if (existingLabels.length > 0) {
+			existingLabels[existingLabels.length - 1].after(newLabel);
+			this.domNode = this._register(new FastLabelNode(newLabel));
+		} else {
+			this.domNode = this._register(new FastLabelNode(dom.append(container, newLabel)));
+		}
 
 		this.labelContainer = dom.append(this.domNode.element, dom.$('.monaco-icon-label-container'));
 

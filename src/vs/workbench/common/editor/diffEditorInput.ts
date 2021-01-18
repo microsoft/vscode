@@ -14,6 +14,8 @@ import { ILabelService } from 'vs/platform/label/common/label';
 import { IFileService } from 'vs/platform/files/common/files';
 import { URI } from 'vs/base/common/uri';
 import { withNullAsUndefined } from 'vs/base/common/types';
+import { sep } from 'vs/base/common/path';
+
 
 /**
  * The base editor input for the diff editor. It is made up of two editor inputs, the original version
@@ -42,20 +44,39 @@ export class DiffEditorInput extends SideBySideEditorInput {
 	}
 
 	getName(): string {
+		return this.getNames().join('');
+	}
+
+	getNames(verbosity: Verbosity = Verbosity.MEDIUM): string[] {
 		if (!this.name) {
+			const splitter = localize('diffLabelSplitter', " ↔ ");
+
 
 			// Craft a name from original and modified input that includes the
 			// relative path in case both sides have different parents and we
 			// compare file resources.
 			const fileResources = this.asFileResources();
+			let labels: string[];
 			if (fileResources && dirname(fileResources.original).path !== dirname(fileResources.modified).path) {
-				return `${this.labelService.getUriLabel(fileResources.original, { relative: true })} ↔ ${this.labelService.getUriLabel(fileResources.modified, { relative: true })}`;
+				labels = [
+					(verbosity === Verbosity.LONG ? this.labelService.getUriDirLabel(fileResources.original) + sep : '') +
+					this.labelService.getUriBasenameLabel(fileResources.original),
+					splitter,
+					(verbosity === Verbosity.LONG ? this.labelService.getUriDirLabel(fileResources.modified) + sep : '') +
+					this.labelService.getUriBasenameLabel(fileResources.modified)
+				];
+			} else {
+				labels = [
+					this.originalInput.getName(),
+					splitter,
+					this.modifiedInput.getName()
+				];
 			}
 
-			return localize('sideBySideLabels', "{0} ↔ {1}", this.originalInput.getName(), this.modifiedInput.getName());
+			return labels;
 		}
 
-		return this.name;
+		return [this.name];
 	}
 
 	getDescription(verbosity: Verbosity = Verbosity.MEDIUM): string | undefined {

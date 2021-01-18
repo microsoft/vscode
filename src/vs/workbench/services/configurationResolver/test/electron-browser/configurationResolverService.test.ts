@@ -708,6 +708,9 @@ class MockLabelService implements ILabelService {
 	getUriBasenameLabel(resource: uri): string {
 		throw new Error('Method not implemented.');
 	}
+	getUriDirLabel(resource: uri): string {
+		throw new Error('Method not implemented.');
+	}
 	getWorkspaceLabel(workspace: uri | IWorkspaceIdentifier | IWorkspace, options?: { verbose: boolean; }): string {
 		throw new Error('Method not implemented.');
 	}

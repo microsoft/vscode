@@ -44,7 +44,7 @@ import { ISingleFolderWorkspaceIdentifier, IWorkspaceIdentifier } from 'vs/platf
 import { ILayoutService } from 'vs/platform/layout/browser/layoutService';
 import { SimpleServicesNLS } from 'vs/editor/common/standaloneStrings';
 import { ClassifiedEvent, StrictPropertyCheck, GDPRClassification } from 'vs/platform/telemetry/common/gdprTypings';
-import { basename } from 'vs/base/common/resources';
+import { basename, dirname } from 'vs/base/common/resources';
 import { ICodeEditorService } from 'vs/editor/browser/services/codeEditorService';
 import { ILogService } from 'vs/platform/log/common/log';
 
@@ -734,6 +734,10 @@ export class SimpleUriLabelService implements ILabelService {
 
 	getUriBasenameLabel(resource: URI): string {
 		return basename(resource);
+	}
+
+	getUriDirLabel(resource: URI): string {
+		return dirname(resource).toString();
 	}
 
 	public getWorkspaceLabel(workspace: IWorkspaceIdentifier | URI | IWorkspace, options?: { verbose: boolean; }): string {
