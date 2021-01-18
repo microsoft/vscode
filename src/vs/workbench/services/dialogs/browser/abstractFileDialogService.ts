@@ -20,7 +20,7 @@ import { IOpenerService } from 'vs/platform/opener/common/opener';
 import { IHostService } from 'vs/workbench/services/host/browser/host';
 import Severity from 'vs/base/common/severity';
 import { coalesce, distinct } from 'vs/base/common/arrays';
-import { trim } from 'vs/base/common/strings';
+import { compareIgnoreCase, trim } from 'vs/base/common/strings';
 import { IModeService } from 'vs/editor/common/services/modeService';
 import { ILabelService } from 'vs/platform/label/common/label';
 import { IPathService } from 'vs/workbench/services/path/common/pathService';
@@ -276,11 +276,7 @@ export abstract class AbstractFileDialogService implements IFileDialogService {
 		const ext: string | undefined = defaultUri ? resources.extname(defaultUri) : undefined;
 		let matchingFilter: IFilter | undefined;
 
-		const registeredLanguageNames = this.modeService.getRegisteredLanguageNames().sort((a, b) => {
-			const lowerA = a.toLowerCase();
-			const lowerB = b.toLowerCase();
-			return (lowerA < lowerB) ? - 1 : (lowerB > lowerA) ? 1 : 0;
-		});
+		const registeredLanguageNames = this.modeService.getRegisteredLanguageNames().sort((a, b) => compareIgnoreCase(a, b));
 		const registeredLanguageFilters: IFilter[] = coalesce(registeredLanguageNames.map(languageName => {
 			const extensions = this.modeService.getExtensions(languageName);
 			if (!extensions || !extensions.length) {
