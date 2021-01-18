@@ -6,16 +6,21 @@
 import 'mocha';
 import * as assert from 'assert';
 import * as vscode from 'vscode';
-import { disposeAll } from '../utils/dispose';
-import { createTestEditor, wait, joinLines } from './testUtils';
+import { disposeAll } from '../../utils/dispose';
+import { createTestEditor, wait, joinLines } from '../../test/testUtils';
 
 const testDocumentUri = vscode.Uri.parse('untitled:test.ts');
 
 const emptyRange = new vscode.Range(new vscode.Position(0, 0), new vscode.Position(0, 0));
 
-suite('TypeScript Fix All', () => {
+suite.skip('TypeScript Fix All', () => {
 
 	const _disposables: vscode.Disposable[] = [];
+
+	setup(async () => {
+		// the tests assume that typescript features are registered
+		await vscode.extensions.getExtension('vscode.typescript-language-features')!.activate();
+	});
 
 	teardown(async () => {
 		disposeAll(_disposables);

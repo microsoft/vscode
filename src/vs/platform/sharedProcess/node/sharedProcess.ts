@@ -9,15 +9,10 @@ import { LogLevel } from 'vs/platform/log/common/log';
 export interface ISharedProcess {
 
 	/**
-	 * Signals the shared process has finished initialization.
-	 */
-	whenReady(): Promise<void>;
-
-	/**
 	 * Toggles the visibility of the otherwise hidden
 	 * shared process window.
 	 */
-	toggle(): void;
+	toggle(): Promise<void>;
 }
 
 export interface ISharedProcessConfiguration {

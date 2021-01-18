@@ -2055,6 +2055,11 @@
           "description": "%config.untrackedChanges%",
           "scope": "resource"
         },
+        "git.requireGitUserConfig": {
+          "type": "boolean",
+          "description": "%config.requireGitUserConfig%",
+          "default": true
+        },
         "git.showCommitInput": {
           "type": "boolean",
           "scope": "resource",

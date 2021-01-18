@@ -6,8 +6,8 @@
 import * as assert from 'assert';
 import 'mocha';
 import * as vscode from 'vscode';
-import { disposeAll } from '../utils/dispose';
-import { createTestEditor, wait } from './testUtils';
+import { disposeAll } from '../../utils/dispose';
+import { createTestEditor, wait } from '../../test/testUtils';
 
 
 type VsCodeConfiguration = { [key: string]: any };
@@ -37,7 +37,8 @@ suite('TypeScript References', () => {
 	let oldConfig: { [key: string]: any } = {};
 
 	setup(async () => {
-		await wait(100);
+		// the tests assume that typescript features are registered
+		await vscode.extensions.getExtension('vscode.typescript-language-features')!.activate();
 
 		// Save off config and apply defaults
 		oldConfig = await updateConfig(configDefaults);

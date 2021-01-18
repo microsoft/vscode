@@ -31,7 +31,7 @@ import { ConfigurationService } from 'vs/platform/configuration/common/configura
 import { IRequestService } from 'vs/platform/request/common/request';
 import { RequestMainService } from 'vs/platform/request/electron-main/requestMainService';
 import { CodeApplication } from 'vs/code/electron-main/app';
-import { mnemonicButtonLabel } from 'vs/base/common/labels';
+import { getPathLabel, mnemonicButtonLabel } from 'vs/base/common/labels';
 import { SpdLogService } from 'vs/platform/log/node/spdlogService';
 import { BufferLogService } from 'vs/platform/log/common/bufferLog';
 import { setUnexpectedErrorHandler } from 'vs/base/common/errors';
@@ -341,11 +341,11 @@ class CodeMain {
 
 	private handleStartupDataDirError(environmentService: IEnvironmentMainService, error: NodeJS.ErrnoException): void {
 		if (error.code === 'EACCES' || error.code === 'EPERM') {
-			const directories = coalesce([environmentService.userDataPath, environmentService.extensionsPath, XDG_RUNTIME_DIR]);
+			const directories = coalesce([environmentService.userDataPath, environmentService.extensionsPath, XDG_RUNTIME_DIR]).map(folder => getPathLabel(folder, environmentService));
 
 			this.showStartupWarningDialog(
-				localize('startupDataDirError', "Unable to write program user data ({0})", toErrorMessage(error)),
-				localize('startupUserDataAndExtensionsDirErrorDetail', "Please make sure the following directories are writeable:\n\n{0}", directories.join('\n'))
+				localize('startupDataDirError', "Unable to write program user data."),
+				localize('startupUserDataAndExtensionsDirErrorDetail', "{0}\n\nPlease make sure the following directories are writeable:\n\n{1}", toErrorMessage(error), directories.join('\n'))
 			);
 		}
 	}

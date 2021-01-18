@@ -237,7 +237,22 @@ export class NotebookContribution extends Disposable implements IWorkbenchContri
 				const associatedEditors = distinct([
 					...this.getUserAssociatedNotebookEditors(resource),
 					...this.getContributedEditors(resource)
-				], editor => editor.id);
+				], editor => editor.id).sort((a, b) => {
+					// if a content provider is exclusive, it has higher order
+					if (a.exclusive && b.exclusive) {
+						return 0;
+					}
+
+					if (a.exclusive) {
+						return -1;
+					}
+
+					if (b.exclusive) {
+						return 1;
+					}
+
+					return 0;
+				});
 
 				return associatedEditors.map(info => {
 					return {

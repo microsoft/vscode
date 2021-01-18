@@ -6,9 +6,9 @@
 import * as assert from 'assert';
 import 'mocha';
 import * as vscode from 'vscode';
-import type * as Proto from '../protocol';
-import { CachedResponse } from '../tsServer/cachedResponse';
-import { ServerResponse } from '../typescriptService';
+import type * as Proto from '../../protocol';
+import { CachedResponse } from '../../tsServer/cachedResponse';
+import { ServerResponse } from '../../typescriptService';
 
 suite('CachedResponse', () => {
 	test('should cache simple response for same document', async () => {

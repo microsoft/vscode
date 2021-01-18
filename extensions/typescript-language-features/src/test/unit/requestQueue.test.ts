@@ -5,7 +5,7 @@
 
 import * as assert from 'assert';
 import 'mocha';
-import { RequestQueue, RequestQueueingType } from '../tsServer/requestQueue';
+import { RequestQueue, RequestQueueingType } from '../../tsServer/requestQueue';
 
 suite('RequestQueue', () => {
 	test('should be empty on creation', async () => {

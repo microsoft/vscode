@@ -77,9 +77,9 @@ export const selectAllSearchEditorMatchesCommand = (accessor: ServicesAccessor) 
 
 export async function openSearchEditor(accessor: ServicesAccessor): Promise<void> {
 	const viewsService = accessor.get(IViewsService);
+	const instantiationService = accessor.get(IInstantiationService);
 	const searchView = getSearchView(viewsService);
 	if (searchView) {
-		const instantiationService = searchView.getInstantiationService();
 		await instantiationService.invokeFunction(openNewSearchEditor, {
 			filesToInclude: searchView.searchIncludePattern.getValue(),
 			filesToExclude: searchView.searchExcludePattern.getValue(),
@@ -90,7 +90,6 @@ export async function openSearchEditor(accessor: ServicesAccessor): Promise<void
 			showIncludesExcludes: !!(searchView.searchIncludePattern.getValue() || searchView.searchExcludePattern.getValue() || !searchView.searchExcludePattern.useExcludesAndIgnoreFiles())
 		});
 	} else {
-		const instantiationService = accessor.get(IInstantiationService);
 		await instantiationService.invokeFunction(openNewSearchEditor);
 	}
 }

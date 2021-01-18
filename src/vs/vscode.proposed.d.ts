@@ -2425,6 +2425,16 @@ declare module 'vscode' {
 	//#region https://github.com/microsoft/vscode/issues/112249
 
 	/**
+	 * The event data that is fired when a secret is added or removed.
+	 */
+	export interface SecretStorageChangeEvent {
+		/**
+		 * The key of the secret that has changed.
+		 */
+		key: string;
+	}
+
+	/**
 	 * Represents a storage utility for secrets, information that is
 	 * sensitive.
 	 */
@@ -2453,7 +2463,7 @@ declare module 'vscode' {
 		/**
 		 * Fires when a secret is set or deleted.
 		 */
-		onDidChange: Event<void>;
+		onDidChange: Event<SecretStorageChangeEvent>;
 	}
 
 	export interface ExtensionContext {

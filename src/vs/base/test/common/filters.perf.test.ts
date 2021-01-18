@@ -17,6 +17,9 @@ function perfSuite(name: string, callback: (this: Mocha.Suite) => void) {
 
 perfSuite('Performance - fuzzyMatch', function () {
 
+	// suiteSetup(() => console.profile());
+	// suiteTeardown(() => console.profileEnd());
+
 	console.log(`Matching ${data.length} items against ${patterns.length} patterns (${data.length * patterns.length} operations) `);
 
 	function perfTest(name: string, match: filters.FuzzyScorer) {

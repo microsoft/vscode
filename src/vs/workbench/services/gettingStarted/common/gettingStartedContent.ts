@@ -53,9 +53,9 @@ export const content: GettingStartedContent = [
 					description: localize('gettingStarted.runProject.description', "Build, run & debug your application in your codespace instead of locally."),
 					button: {
 						title: localize('gettingStarted.runProject.button', "Run Project"),
-						command: 'workbench.action.debug.start'
+						command: 'workbench.action.debug.selectandstart'
 					},
-					doneOn: { commandExecuted: 'workbench.action.debug.start' },
+					doneOn: { commandExecuted: 'workbench.action.debug.selectandstart' },
 					media: { type: 'image', altText: 'Node.js project running debug mode and paused.', path: 'runProject.jpg' },
 				},
 				{

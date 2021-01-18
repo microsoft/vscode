@@ -6,7 +6,7 @@
 import * as assert from 'assert';
 import 'mocha';
 import * as vscode from 'vscode';
-import { CURSOR, withRandomFileEditor, wait, joinLines } from './testUtils';
+import { CURSOR, withRandomFileEditor, wait, joinLines } from '../testUtils';
 
 const onDocumentChange = (doc: vscode.TextDocument): Promise<vscode.TextDocument> => {
 	return new Promise<vscode.TextDocument>(resolve => {
@@ -27,7 +27,12 @@ const type = async (document: vscode.TextDocument, text: string): Promise<vscode
 	return document;
 };
 
-suite('OnEnter', () => {
+suite.skip('OnEnter', () => {
+	setup(async () => {
+		// the tests make the assumption that language rules are registered
+		await vscode.extensions.getExtension('vscode.typescript-language-features')!.activate();
+	});
+
 	test('should indent after if block with braces', () => {
 		return withRandomFileEditor(`if (true) {${CURSOR}`, 'js', async (_editor, document) => {
 			await type(document, '\nx');
@@ -49,6 +54,17 @@ suite('OnEnter', () => {
 				joinLines(`({`,
 					`    x`,
 					`})`));
+		});
+	});
+
+	test('should indent after simple jsx tag with attributes', () => {
+		return withRandomFileEditor(`const a = <div onclick={bla}>${CURSOR}`, 'jsx', async (_editor, document) => {
+			await type(document, '\nx');
+			assert.strictEqual(
+				document.getText(),
+				joinLines(
+					`const a = <div onclick={bla}>`,
+					`    x`));
 		});
 	});
 });

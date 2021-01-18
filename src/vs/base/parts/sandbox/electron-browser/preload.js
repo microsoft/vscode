@@ -125,6 +125,7 @@
 		 */
 		process: {
 			get platform() { return process.platform; },
+			get arch() { return process.arch; },
 			get env() { return process.env; },
 			get versions() { return process.versions; },
 			get type() { return 'renderer'; },

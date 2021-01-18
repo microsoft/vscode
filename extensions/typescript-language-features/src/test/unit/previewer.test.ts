@@ -5,7 +5,7 @@
 
 import * as assert from 'assert';
 import 'mocha';
-import { tagsMarkdownPreview, markdownDocumentation } from '../utils/previewer';
+import { tagsMarkdownPreview, markdownDocumentation } from '../../utils/previewer';
 
 suite('typescript.previewer', () => {
 	test('Should ignore hyphens after a param tag', async () => {
