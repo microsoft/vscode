@@ -41,6 +41,7 @@ import { FileAccess } from 'vs/base/common/network';
 import { IIgnoredExtensionsManagementService } from 'vs/platform/userDataSync/common/ignoredExtensions';
 import { IUserDataAutoSyncService } from 'vs/platform/userDataSync/common/userDataSync';
 import { IContextKey, IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
+import { ITrustedWorkspaceService, TrustState } from 'vs/platform/workspace/common/trustedWorkspace';
 
 interface IExtensionStateProvider<T> {
 	(extension: Extension): T;
@@ -524,7 +525,8 @@ export class ExtensionsWorkbenchService extends Disposable implements IExtension
 		@IIgnoredExtensionsManagementService private readonly extensionsSyncManagementService: IIgnoredExtensionsManagementService,
 		@IUserDataAutoSyncService private readonly userDataAutoSyncService: IUserDataAutoSyncService,
 		@IProductService private readonly productService: IProductService,
-		@IContextKeyService contextKeyService: IContextKeyService
+		@IContextKeyService contextKeyService: IContextKeyService,
+		@ITrustedWorkspaceService private readonly trustedWorkspaceService: ITrustedWorkspaceService
 	) {
 		super();
 		this.hasOutdatedExtensionsContextKey = HasOutdatedExtensionsContext.bindTo(contextKeyService);
@@ -1031,17 +1033,20 @@ export class ExtensionsWorkbenchService extends Disposable implements IExtension
 
 	private async installFromVSIX(vsix: URI): Promise<IExtension> {
 		const manifest = await this.extensionManagementService.getManifest(vsix);
-		const existingExtension = this.local.find(local => areSameExtensions(local.identifier, { id: getGalleryExtensionId(manifest.publisher, manifest.name) }));
-		const { identifier } = await this.extensionManagementService.install(vsix);
+		return this.promptForTrustIfNeededAndInstall(manifest, async () => {
+			const existingExtension = this.local.find(local => areSameExtensions(local.identifier, { id: getGalleryExtensionId(manifest.publisher, manifest.name) }));
+			const { identifier } = await this.extensionManagementService.install(vsix);
 
-		if (existingExtension && existingExtension.latestVersion !== manifest.version) {
-			this.ignoreAutoUpdate(new ExtensionIdentifierWithVersion(identifier, manifest.version));
-		}
+			if (existingExtension && existingExtension.latestVersion !== manifest.version) {
+				this.ignoreAutoUpdate(new ExtensionIdentifierWithVersion(identifier, manifest.version));
+			}
 
-		return this.local.filter(local => areSameExtensions(local.identifier, identifier))[0];
+			return this.local.filter(local => areSameExtensions(local.identifier, identifier))[0];
+		});
 	}
 
 	private async installFromGallery(extension: IExtension, gallery: IGalleryExtension, installOptions?: InstallOptions): Promise<IExtension> {
+		// TODO: Handle trust when installing from the Gallery
 		this.installing.push(extension);
 		this._onChange.fire(extension);
 		try {
@@ -1058,6 +1063,18 @@ export class ExtensionsWorkbenchService extends Disposable implements IExtension
 			this.installing = this.installing.filter(e => e !== extension);
 			this._onChange.fire(this.local.filter(e => areSameExtensions(e.identifier, extension.identifier))[0]);
 		}
+	}
+
+	private async promptForTrustIfNeededAndInstall<T>(manifest: IExtensionManifest, installTask: () => Promise<T>): Promise<T> {
+		if (manifest.requiresWorkspaceTrust === 'onStart') {
+			const trustState = await this.trustedWorkspaceService.requireWorkspaceTrust(
+				{
+					immediate: true,
+					message: 'Installing this extension requires you to trust the contents of this workspace.'
+				});
+			return trustState === TrustState.Trusted ? installTask() : Promise.reject();
+		}
+		return installTask();
 	}
 
 	private promptAndSetEnablement(extensions: IExtension[], enablementState: EnablementState): Promise<any> {
