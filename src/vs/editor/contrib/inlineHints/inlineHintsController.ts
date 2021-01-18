@@ -3,21 +3,20 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { CancelablePromise, createCancelablePromise, RunOnceScheduler } from 'vs/base/common/async';
-import { onUnexpectedError } from 'vs/base/common/errors';
+import { RunOnceScheduler } from 'vs/base/common/async';
+import { onUnexpectedExternalError } from 'vs/base/common/errors';
 import { hash } from 'vs/base/common/hash';
-import { Disposable, DisposableStore, dispose, IDisposable } from 'vs/base/common/lifecycle';
+import { DisposableStore, toDisposable } from 'vs/base/common/lifecycle';
 import { ICodeEditor } from 'vs/editor/browser/editorBrowser';
 import { registerEditorContribution } from 'vs/editor/browser/editorExtensions';
 import { ICodeEditorService } from 'vs/editor/browser/services/codeEditorService';
 import { IEditorContribution } from 'vs/editor/common/editorCommon';
 import { IModelDeltaDecoration, ITextModel } from 'vs/editor/common/model';
-import { ModelDecorationOptions } from 'vs/editor/common/model/textModel';
 import { InlineHintsProvider, InlineHintsProviderRegistry, InlineHint } from 'vs/editor/common/modes';
 import { EditorOption } from 'vs/editor/common/config/editorOptions';
 import { flatten } from 'vs/base/common/arrays';
 import { editorInlineHintForeground, editorInlineHintBackground } from 'vs/platform/theme/common/colorRegistry';
-import { CancellationToken } from 'vs/base/common/cancellation';
+import { CancellationToken, CancellationTokenSource } from 'vs/base/common/cancellation';
 import { IThemeService } from 'vs/platform/theme/common/themeService';
 import { Range } from 'vs/editor/common/core/range';
 import { LanguageFeatureRequestDelays } from 'vs/editor/common/modes/languageFeatureRegistry';
@@ -30,155 +29,107 @@ export interface InlineHintsData {
 	provider: InlineHintsProvider;
 }
 
-export function getInlineHints(model: ITextModel, ranges: Range[], token: CancellationToken): Promise<InlineHintsData[]> {
+export async function getInlineHints(model: ITextModel, ranges: Range[], token: CancellationToken): Promise<InlineHintsData[]> {
 	const datas: InlineHintsData[] = [];
 	const providers = InlineHintsProviderRegistry.ordered(model).reverse();
 	const promises = flatten(providers.map(provider => ranges.map(range => Promise.resolve(provider.provideInlineHints(model, range, token)).then(result => {
 		if (result) {
 			datas.push({ list: result, provider });
 		}
+	}, err => {
+		onUnexpectedExternalError(err);
 	}))));
 
-	return Promise.all(promises).then(() => datas);
+	await Promise.all(promises);
+
+	return datas;
 }
 
-export class InlineHintsController extends Disposable implements IEditorContribution {
+export class InlineHintsController implements IEditorContribution {
 
 	static readonly ID: string = 'editor.contrib.InlineHints';
-	private readonly _localToDispose = this._register(new DisposableStore());
-	private _decorationsIds: string[] = [];
-	private _hintsDatas = new Map<string, InlineHintsData>();
-	private _hintsDecoratorIds: string[] = [];
-	private readonly _decorationsTypes = new Set<string>();
-	private _isEnabled: boolean;
-	private _getInlineHintsPromise: CancelablePromise<InlineHintsData[]> | undefined;
-	private readonly _getInlineHintsDelays = new LanguageFeatureRequestDelays(InlineHintsProviderRegistry, 250, 2500);
 
-	private _inlineHintsProvidersChangeListeners: IDisposable[] = [];
+	// static get(editor: ICodeEditor): InlineHintsController {
+	// 	return editor.getContribution<InlineHintsController>(this.ID);
+	// }
+
+	private readonly _disposables = new DisposableStore();
+	private readonly _sessionDisposables = new DisposableStore();
+
+	private readonly _getInlineHintsDelays = new LanguageFeatureRequestDelays(InlineHintsProviderRegistry, 250, 2500);
+	private readonly _decorationsTypes = new Set<string>();
+
+	private _decorationIds: string[] = [];
 
 	constructor(private readonly _editor: ICodeEditor,
 		@ICodeEditorService private readonly _codeEditorService: ICodeEditorService,
 		@IThemeService private readonly _themeService: IThemeService,
 	) {
-		super();
-		this._register(_editor.onDidChangeModel(() => {
-			this._isEnabled = this.isEnabled();
-			this._onModelChanged();
-		}));
-		this._register(_editor.onDidChangeModelLanguage(() => this._onModelChanged()));
-		this._register(InlineHintsProviderRegistry.onDidChange(() => this._onModelChanged()));
-		this._register(_editor.onDidChangeConfiguration((e) => {
+		this._disposables.add(InlineHintsProviderRegistry.onDidChange(() => this._update()));
+		this._disposables.add(_editor.onDidChangeModel(() => this._update()));
+		this._disposables.add(_editor.onDidChangeModelLanguage(() => this._update()));
+		this._disposables.add(_editor.onDidChangeConfiguration(e => {
 			if (e.hasChanged(EditorOption.inlineHints)) {
-				if (this._isEnabled) {
-					this._onModelChanged();
-				} else {
-					this._removeAllDecorations();
-				}
+				this._update();
 			}
 		}));
-		this._register(_editor.onDidScrollChange(() => {
-			this._onModelChanged();
-		}));
 
-		this._isEnabled = this.isEnabled();
-		this._onModelChanged();
-	}
-
-	isEnabled(): boolean {
-		const model = this._editor.getModel();
-		if (!model) {
-			return false;
-		}
-
-		return this._editor.getOption(EditorOption.inlineHints).enabled;
-	}
-
-	static get(editor: ICodeEditor): InlineHintsController {
-		return editor.getContribution<InlineHintsController>(this.ID);
+		this._update();
 	}
 
 	dispose(): void {
-		this._stop();
+		this._sessionDisposables.dispose();
 		this._removeAllDecorations();
-		super.dispose();
+		this._disposables.dispose();
 	}
 
-	private _onModelChanged(): void {
-		this._stop();
+	private _update(): void {
+		this._sessionDisposables.clear();
 
-		if (!this._isEnabled) {
+		if (!this._editor.getOption(EditorOption.inlineHints).enabled) {
+			this._removeAllDecorations();
 			return;
 		}
+
 		const model = this._editor.getModel();
-
 		if (!model || !InlineHintsProviderRegistry.has(model)) {
+			this._removeAllDecorations();
 			return;
 		}
 
-		const scheduler = new RunOnceScheduler(() => {
+		const scheduler = new RunOnceScheduler(async () => {
 			const t1 = Date.now();
 
-			this._getInlineHintsPromise?.cancel();
-			this._getInlineHintsPromise = createCancelablePromise(token => {
-				const visibleRanges = this._editor.getVisibleRangesPlusViewportAboveBelow();
-				return getInlineHints(model, visibleRanges, token);
-			});
+			const cts = new CancellationTokenSource();
+			this._sessionDisposables.add(toDisposable(() => cts.dispose(true)));
 
-			this._getInlineHintsPromise.then(result => {
-				// update moving average
-				const newDelay = this._getInlineHintsDelays.update(model, Date.now() - t1);
-				scheduler.delay = newDelay;
+			const visibleRanges = this._editor.getVisibleRangesPlusViewportAboveBelow();
+			const result = await getInlineHints(model, visibleRanges, cts.token);
 
-				// render hints
-				this._updateDecorations(result);
-				this._updateHintsDecorators(result);
-			}, onUnexpectedError);
+			// update moving average
+			const newDelay = this._getInlineHintsDelays.update(model, Date.now() - t1);
+			scheduler.delay = newDelay;
+
+			// render hints
+			this._updateHintsDecorators(result);
 
 		}, this._getInlineHintsDelays.get(model));
 
-		this._localToDispose.add(scheduler);
+		this._sessionDisposables.add(scheduler);
 
-		const bindInlineHintsChangeListeners = () => {
-			dispose(this._inlineHintsProvidersChangeListeners);
-			this._inlineHintsProvidersChangeListeners = [];
-			for (const provider of InlineHintsProviderRegistry.all(model)) {
-				if (typeof provider.onDidChangeInlineHints === 'function') {
-					this._inlineHintsProvidersChangeListeners.push(provider.onDidChangeInlineHints(() => scheduler.schedule()));
-				}
-			}
-		};
-		bindInlineHintsChangeListeners();
-		this._localToDispose.add(this._editor.onDidChangeModelContent(() => {
-			scheduler.schedule();
-		}));
+		// update inline hints when content or scroll position changes
+		this._sessionDisposables.add(this._editor.onDidChangeModelContent(() => scheduler.schedule()));
+		this._disposables.add(this._editor.onDidScrollChange(() => scheduler.schedule()));
 		scheduler.schedule();
-	}
 
-	private _stop(): void {
-		if (this._getInlineHintsPromise) {
-			this._getInlineHintsPromise.cancel();
-			this._getInlineHintsPromise = undefined;
+		// update inline hints when any any provider fires an event
+		const providerListener = new DisposableStore();
+		this._sessionDisposables.add(providerListener);
+		for (const provider of InlineHintsProviderRegistry.all(model)) {
+			if (typeof provider.onDidChangeInlineHints === 'function') {
+				providerListener.add(provider.onDidChangeInlineHints(() => scheduler.schedule()));
+			}
 		}
-		this._localToDispose.clear();
-	}
-
-	private _updateDecorations(hintsData: InlineHintsData[]): void {
-		const decorations = flatten(hintsData.map(hints => hints.list.map(hint => {
-			return {
-				range: {
-					startLineNumber: hint.range.startLineNumber,
-					startColumn: hint.range.startColumn,
-					endLineNumber: hint.range.endLineNumber,
-					endColumn: hint.range.endColumn
-				},
-				options: ModelDecorationOptions.EMPTY
-			};
-		})));
-
-		this._decorationsIds = this._editor.deltaDecorations(this._decorationsIds, decorations);
-
-		this._hintsDatas = new Map<string, InlineHintsData>();
-		this._decorationsIds.forEach((id, i) => this._hintsDatas.set(id, hintsData[i]));
 	}
 
 	private _updateHintsDecorators(hintsData: InlineHintsData[]): void {
@@ -236,7 +187,7 @@ export class InlineHintsController extends Disposable implements IEditorContribu
 			}
 		});
 
-		this._hintsDecoratorIds = this._editor.deltaDecorations(this._hintsDecoratorIds, decorations);
+		this._decorationIds = this._editor.deltaDecorations(this._decorationIds, decorations);
 	}
 
 	private _getLayoutInfo() {
@@ -251,8 +202,7 @@ export class InlineHintsController extends Disposable implements IEditorContribu
 	}
 
 	private _removeAllDecorations(): void {
-		this._decorationsIds = this._editor.deltaDecorations(this._decorationsIds, []);
-		this._hintsDecoratorIds = this._editor.deltaDecorations(this._hintsDecoratorIds, []);
+		this._decorationIds = this._editor.deltaDecorations(this._decorationIds, []);
 
 		this._decorationsTypes.forEach(subType => {
 			this._codeEditorService.removeDecorationType(subType);
