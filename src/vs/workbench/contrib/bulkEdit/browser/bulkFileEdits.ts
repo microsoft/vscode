@@ -17,6 +17,7 @@ import { VSBuffer } from 'vs/base/common/buffer';
 import { ResourceFileEdit } from 'vs/editor/browser/services/bulkEditService';
 import { CancellationToken } from 'vs/base/common/cancellation';
 import { flatten, tail } from 'vs/base/common/arrays';
+import { ITextFileService } from 'vs/workbench/services/textfile/common/textfiles';
 
 interface IFileOperation {
 	uris: URI[];
@@ -158,6 +159,7 @@ class CreateOperation implements IFileOperation {
 		@IFileService private readonly _fileService: IFileService,
 		@IWorkingCopyFileService private readonly _workingCopyFileService: IWorkingCopyFileService,
 		@IInstantiationService private readonly _instaService: IInstantiationService,
+		@ITextFileService private readonly _textFileService: ITextFileService
 	) { }
 
 	get uris() {
@@ -177,12 +179,14 @@ class CreateOperation implements IFileOperation {
 			if (edit.options.folder) {
 				folderCreates.push({ resource: edit.newUri });
 			} else {
-				fileCreates.push({ resource: edit.newUri, contents: edit.contents, overwrite: edit.options.overwrite });
+				// If the contents are part of the edit they include the encoding, thus use them. Otherwise get the encoding for a new empty file.
+				const encodedReadable = typeof edit.contents !== 'undefined' ? edit.contents : await this._textFileService.getEncodedReadable(edit.newUri);
+				fileCreates.push({ resource: edit.newUri, contents: encodedReadable, overwrite: edit.options.overwrite });
 			}
 			undoes.push(new DeleteEdit(edit.newUri, edit.options, !edit.options.folder && !edit.contents));
 		}
 
-		if (fileCreates.length === 0 && folderCreates.length === 0) {
+		if (folderCreates.length === 0 && fileCreates.length === 0) {
 			return new Noop();
 		}
 

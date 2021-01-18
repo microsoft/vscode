@@ -13,7 +13,7 @@ import { ServicesAccessor } from 'vs/platform/instantiation/common/instantiation
 import { ThemeIcon } from 'vs/platform/theme/common/themeService';
 import { ViewAction } from 'vs/workbench/browser/parts/views/viewPane';
 import * as icons from 'vs/workbench/contrib/testing/browser/icons';
-import { ITestingCollectionService } from 'vs/workbench/contrib/testing/browser/testingCollectionService';
+import { ITestingCollectionService } from 'vs/workbench/contrib/testing/common/testingCollectionService';
 import { TestingExplorerView, TestingExplorerViewModel } from 'vs/workbench/contrib/testing/browser/testingExplorerView';
 import { TestExplorerViewGrouping, TestExplorerViewMode, Testing } from 'vs/workbench/contrib/testing/common/constants';
 import { EMPTY_TEST_RESULT, InternalTestItem, RunTestsResult, TestIdWithProvider } from 'vs/workbench/contrib/testing/common/testCollection';

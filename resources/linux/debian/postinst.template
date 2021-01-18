@@ -73,6 +73,6 @@ NdCFTW7wY0Fb1fWJ+/KTsC4=
 	if [ "$WRITE_SOURCE" -eq "1" ]; then
 		echo "### THIS FILE IS AUTOMATICALLY CONFIGURED ###
 # You may comment out this entry, but any other modifications may be lost.
-deb [arch=amd64,arm64,armhf] http://packages.microsoft.com/repos/@@REPOSITORY_NAME@@ stable main" > $CODE_SOURCE_PART
+deb [arch=@@SUPPORTED_ARCHITECTURES@@] http://packages.microsoft.com/repos/@@REPOSITORY_NAME@@ stable main" > $CODE_SOURCE_PART
 	fi
 fi

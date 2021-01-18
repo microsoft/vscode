@@ -58,7 +58,8 @@ import { ISerializableEnvironmentVariableCollection } from 'vs/workbench/contrib
 import { DebugConfigurationProviderTriggerKind } from 'vs/workbench/api/common/extHostTypes';
 import { IAccessibilityInformation } from 'vs/platform/accessibility/common/accessibility';
 import { IExtensionIdWithVersion } from 'vs/platform/userDataSync/common/extensionsStorageSync';
-import { RunTestForProviderRequest, RunTestsRequest, RunTestsResult, TestsDiff } from 'vs/workbench/contrib/testing/common/testCollection';
+import { InternalTestItem, RunTestForProviderRequest, RunTestsRequest, RunTestsResult, TestIdWithProvider, TestsDiff } from 'vs/workbench/contrib/testing/common/testCollection';
+import { CandidatePort } from 'vs/workbench/services/remote/common/remoteExplorerService';
 
 export interface IEnvironment {
 	isExtensionDevelopmentDebug: boolean;
@@ -803,14 +804,13 @@ export interface ExtHostUrlsShape {
 }
 
 export interface MainThreadUriOpenersShape extends IDisposable {
-	$registerUriOpener(handle: number, schemes: readonly string[]): Promise<void>;
-	$unregisterUriOpener(handle: number): Promise<void>;
+	$registerUriOpener(id: string, schemes: readonly string[], extensionId: ExtensionIdentifier, label: string): Promise<void>;
+	$unregisterUriOpener(id: string): Promise<void>;
 }
 
 export interface ExtHostUriOpenersShape {
-	$getOpenersForUri(uri: UriComponents, token: CancellationToken): Promise<{ cacheId: number, openers: ReadonlyArray<{ id: number, title: string }> }>;
-	$openUri(id: ChainedCacheId, uri: UriComponents): Promise<void>;
-	$releaseOpener(cacheId: number): void;
+	$getOpenersForUri(uri: UriComponents, token: CancellationToken): Promise<readonly string[]>;
+	$openUri(id: string, context: { resolveUri: UriComponents, sourceUri: UriComponents }, token: CancellationToken): Promise<void>;
 }
 
 export interface ITextSearchComplete {
@@ -987,6 +987,8 @@ export interface MainThreadTunnelServiceShape extends IDisposable {
 	$closeTunnel(remote: { host: string, port: number }): Promise<void>;
 	$getTunnels(): Promise<TunnelDescription[]>;
 	$setTunnelProvider(features: TunnelProviderFeatures): Promise<void>;
+	$setCandidateFinder(): Promise<void>;
+	$setCandidateFilter(): Promise<void>;
 	$onFoundNewCandidates(candidates: { host: string, port: number, detail: string }[]): Promise<void>;
 }
 
@@ -1805,6 +1807,7 @@ export interface ExtHostTunnelServiceShape {
 	$closeTunnel(remote: { host: string, port: number }, silent?: boolean): Promise<void>;
 	$onDidTunnelsChange(): Promise<void>;
 	$registerCandidateFinder(): Promise<void>;
+	$applyCandidateFilter(candidates: CandidatePort[]): Promise<CandidatePort[]>;
 }
 
 export interface ExtHostTimelineShape {
@@ -1820,7 +1823,7 @@ export interface ExtHostTestingShape {
 	$runTestsForProvider(req: RunTestForProviderRequest, token: CancellationToken): Promise<RunTestsResult>;
 	$subscribeToTests(resource: ExtHostTestingResource, uri: UriComponents): void;
 	$unsubscribeFromTests(resource: ExtHostTestingResource, uri: UriComponents): void;
-
+	$lookupTest(test: TestIdWithProvider): Promise<InternalTestItem | undefined>;
 	$acceptDiff(resource: ExtHostTestingResource, uri: UriComponents, diff: TestsDiff): void;
 }
 

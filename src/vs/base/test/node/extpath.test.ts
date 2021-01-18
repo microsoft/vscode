@@ -4,67 +4,56 @@
  *--------------------------------------------------------------------------------------------*/
 
 import * as assert from 'assert';
-import * as os from 'os';
-import * as path from 'vs/base/common/path';
-import * as pfs from 'vs/base/node/pfs';
+import { tmpdir } from 'os';
+import { mkdirp, rimraf } from 'vs/base/node/pfs';
 import { realcaseSync, realpath, realpathSync } from 'vs/base/node/extpath';
-import { getRandomTestPath } from 'vs/base/test/node/testUtils';
+import { flakySuite, getRandomTestPath } from 'vs/base/test/node/testUtils';
 
-suite('Extpath', () => {
+flakySuite('Extpath', () => {
+	let testDir: string;
+
+	setup(() => {
+		testDir = getRandomTestPath(tmpdir(), 'vsctests', 'extpath');
+
+		return mkdirp(testDir, 493);
+	});
+
+	teardown(() => {
+		return rimraf(testDir);
+	});
 
 	test('realcase', async () => {
-		const parentDir = getRandomTestPath(os.tmpdir(), 'vsctests', 'extpath');
-		const newDir = path.join(parentDir, 'newdir');
-
-		await pfs.mkdirp(newDir, 493);
 
 		// assume case insensitive file system
 		if (process.platform === 'win32' || process.platform === 'darwin') {
-			const upper = newDir.toUpperCase();
+			const upper = testDir.toUpperCase();
 			const real = realcaseSync(upper);
 
 			if (real) { // can be null in case of permission errors
 				assert.notEqual(real, upper);
 				assert.equal(real.toUpperCase(), upper);
-				assert.equal(real, newDir);
+				assert.equal(real, testDir);
 			}
 		}
 
 		// linux, unix, etc. -> assume case sensitive file system
 		else {
-			const real = realcaseSync(newDir);
-			assert.equal(real, newDir);
+			const real = realcaseSync(testDir);
+			assert.equal(real, testDir);
 		}
-
-		await pfs.rimraf(parentDir);
 	});
 
 	test('realpath', async () => {
-		const parentDir = getRandomTestPath(os.tmpdir(), 'vsctests', 'extpath');
-		const newDir = path.join(parentDir, 'newdir');
-
-		await pfs.mkdirp(newDir, 493);
-
-		const realpathVal = await realpath(newDir);
+		const realpathVal = await realpath(testDir);
 		assert.ok(realpathVal);
-
-		await pfs.rimraf(parentDir);
 	});
 
 	test('realpathSync', async () => {
-		const parentDir = getRandomTestPath(os.tmpdir(), 'vsctests', 'extpath');
-		const newDir = path.join(parentDir, 'newdir');
-
-		await pfs.mkdirp(newDir, 493);
-
-		let realpath!: string;
 		try {
-			realpath = realpathSync(newDir);
+			const realpath = realpathSync(testDir);
+			assert.ok(realpath);
 		} catch (error) {
-			assert.ok(!error);
+			assert.fail(error);
 		}
-		assert.ok(realpath!);
-
-		await pfs.rimraf(parentDir);
 	});
 });

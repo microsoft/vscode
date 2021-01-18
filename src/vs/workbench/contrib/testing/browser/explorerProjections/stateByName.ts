@@ -18,7 +18,7 @@ import { ListElementType } from 'vs/workbench/contrib/testing/browser/explorerPr
 import { locationsEqual, TestLocationStore } from 'vs/workbench/contrib/testing/browser/explorerProjections/locationStore';
 import { NodeChangeList } from 'vs/workbench/contrib/testing/browser/explorerProjections/nodeHelper';
 import { StateElement } from 'vs/workbench/contrib/testing/browser/explorerProjections/stateNodes';
-import { TestSubscriptionListener } from 'vs/workbench/contrib/testing/browser/testingCollectionService';
+import { TestSubscriptionListener } from 'vs/workbench/contrib/testing/common/testingCollectionService';
 import { AbstractIncrementalTestCollection, IncrementalChangeCollector, IncrementalTestCollectionItem, InternalTestItem, TestDiffOpType, TestIdWithProvider, TestsDiff } from 'vs/workbench/contrib/testing/common/testCollection';
 
 class ListTestStateElement implements ITestTreeElement {
@@ -178,10 +178,15 @@ export class StateByNameProjection extends AbstractIncrementalTestCollection<ISt
 				}
 			},
 			update: node => {
-				if (node.item.state.runState !== node.previousState) {
-					this.removeNode(node);
+				if (node.item.state.runState !== node.previousState && node.node) {
+					if (node.item.state.runState === TestRunState.Running) {
+						node.node.computedState = node.item.state.runState;
+					} else {
+						this.removeNode(node);
+					}
 				}
 
+				node.previousState = node.item.state.runState;
 				this.resolveNodesRecursive(node);
 
 				const locationChanged = !locationsEqual(node.location, node.item.location);

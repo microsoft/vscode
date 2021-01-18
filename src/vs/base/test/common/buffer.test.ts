@@ -7,35 +7,34 @@ import * as assert from 'assert';
 import { VSBuffer, bufferToReadable, readableToBuffer, bufferToStream, streamToBuffer, newWriteableBufferStream, bufferedStreamToBuffer } from 'vs/base/common/buffer';
 import { timeout } from 'vs/base/common/async';
 import { peekStream } from 'vs/base/common/stream';
-import { isWeb } from 'vs/base/common/platform';
 
 suite('Buffer', () => {
 
 	test('issue #71993 - VSBuffer#toString returns numbers', () => {
 		const data = new Uint8Array([1, 2, 3, 'h'.charCodeAt(0), 'i'.charCodeAt(0), 4, 5]).buffer;
 		const buffer = VSBuffer.wrap(new Uint8Array(data, 3, 2));
-		assert.deepEqual(buffer.toString(), 'hi');
+		assert.deepStrictEqual(buffer.toString(), 'hi');
 	});
 
 	test('bufferToReadable / readableToBuffer', () => {
 		const content = 'Hello World';
 		const readable = bufferToReadable(VSBuffer.fromString(content));
 
-		assert.equal(readableToBuffer(readable).toString(), content);
+		assert.strictEqual(readableToBuffer(readable).toString(), content);
 	});
 
 	test('bufferToStream / streamToBuffer', async () => {
 		const content = 'Hello World';
 		const stream = bufferToStream(VSBuffer.fromString(content));
 
-		assert.equal((await streamToBuffer(stream)).toString(), content);
+		assert.strictEqual((await streamToBuffer(stream)).toString(), content);
 	});
 
 	test('bufferedStreamToBuffer', async () => {
 		const content = 'Hello World';
 		const stream = await peekStream(bufferToStream(VSBuffer.fromString(content)), 1);
 
-		assert.equal((await bufferedStreamToBuffer(stream)).toString(), content);
+		assert.strictEqual((await bufferedStreamToBuffer(stream)).toString(), content);
 	});
 
 	test('bufferWriteableStream - basics (no error)', async () => {
@@ -61,11 +60,11 @@ suite('Buffer', () => {
 		await timeout(0);
 		stream.end(VSBuffer.fromString('World'));
 
-		assert.equal(chunks.length, 2);
-		assert.equal(chunks[0].toString(), 'Hello');
-		assert.equal(chunks[1].toString(), 'World');
-		assert.equal(ended, true);
-		assert.equal(errors.length, 0);
+		assert.strictEqual(chunks.length, 2);
+		assert.strictEqual(chunks[0].toString(), 'Hello');
+		assert.strictEqual(chunks[1].toString(), 'World');
+		assert.strictEqual(ended, true);
+		assert.strictEqual(errors.length, 0);
 	});
 
 	test('bufferWriteableStream - basics (error)', async () => {
@@ -91,10 +90,10 @@ suite('Buffer', () => {
 		await timeout(0);
 		stream.end(new Error());
 
-		assert.equal(chunks.length, 1);
-		assert.equal(chunks[0].toString(), 'Hello');
-		assert.equal(ended, true);
-		assert.equal(errors.length, 1);
+		assert.strictEqual(chunks.length, 1);
+		assert.strictEqual(chunks[0].toString(), 'Hello');
+		assert.strictEqual(ended, true);
+		assert.strictEqual(errors.length, 1);
 	});
 
 	test('bufferWriteableStream - buffers data when no listener', async () => {
@@ -120,10 +119,10 @@ suite('Buffer', () => {
 			errors.push(error);
 		});
 
-		assert.equal(chunks.length, 1);
-		assert.equal(chunks[0].toString(), 'HelloWorld');
-		assert.equal(ended, true);
-		assert.equal(errors.length, 0);
+		assert.strictEqual(chunks.length, 1);
+		assert.strictEqual(chunks[0].toString(), 'HelloWorld');
+		assert.strictEqual(ended, true);
+		assert.strictEqual(errors.length, 0);
 	});
 
 	test('bufferWriteableStream - buffers errors when no listener', async () => {
@@ -151,10 +150,10 @@ suite('Buffer', () => {
 
 		stream.end();
 
-		assert.equal(chunks.length, 1);
-		assert.equal(chunks[0].toString(), 'Hello');
-		assert.equal(ended, true);
-		assert.equal(errors.length, 1);
+		assert.strictEqual(chunks.length, 1);
+		assert.strictEqual(chunks[0].toString(), 'Hello');
+		assert.strictEqual(ended, true);
+		assert.strictEqual(errors.length, 1);
 	});
 
 	test('bufferWriteableStream - buffers end when no listener', async () => {
@@ -180,10 +179,10 @@ suite('Buffer', () => {
 			errors.push(error);
 		});
 
-		assert.equal(chunks.length, 1);
-		assert.equal(chunks[0].toString(), 'HelloWorld');
-		assert.equal(ended, true);
-		assert.equal(errors.length, 0);
+		assert.strictEqual(chunks.length, 1);
+		assert.strictEqual(chunks[0].toString(), 'HelloWorld');
+		assert.strictEqual(ended, true);
+		assert.strictEqual(errors.length, 0);
 	});
 
 	test('bufferWriteableStream - nothing happens after end()', async () => {
@@ -221,13 +220,13 @@ suite('Buffer', () => {
 		await timeout(0);
 		stream.end(VSBuffer.fromString('World'));
 
-		assert.equal(dataCalledAfterEnd, false);
-		assert.equal(errorCalledAfterEnd, false);
-		assert.equal(endCalledAfterEnd, false);
+		assert.strictEqual(dataCalledAfterEnd, false);
+		assert.strictEqual(errorCalledAfterEnd, false);
+		assert.strictEqual(endCalledAfterEnd, false);
 
-		assert.equal(chunks.length, 2);
-		assert.equal(chunks[0].toString(), 'Hello');
-		assert.equal(chunks[1].toString(), 'World');
+		assert.strictEqual(chunks.length, 2);
+		assert.strictEqual(chunks[0].toString(), 'Hello');
+		assert.strictEqual(chunks[1].toString(), 'World');
 	});
 
 	test('bufferWriteableStream - pause/resume (simple)', async () => {
@@ -255,16 +254,16 @@ suite('Buffer', () => {
 		await timeout(0);
 		stream.end(VSBuffer.fromString('World'));
 
-		assert.equal(chunks.length, 0);
-		assert.equal(errors.length, 0);
-		assert.equal(ended, false);
+		assert.strictEqual(chunks.length, 0);
+		assert.strictEqual(errors.length, 0);
+		assert.strictEqual(ended, false);
 
 		stream.resume();
 
-		assert.equal(chunks.length, 1);
-		assert.equal(chunks[0].toString(), 'HelloWorld');
-		assert.equal(ended, true);
-		assert.equal(errors.length, 0);
+		assert.strictEqual(chunks.length, 1);
+		assert.strictEqual(chunks[0].toString(), 'HelloWorld');
+		assert.strictEqual(ended, true);
+		assert.strictEqual(errors.length, 0);
 	});
 
 	test('bufferWriteableStream - pause/resume (pause after first write)', async () => {
@@ -293,18 +292,18 @@ suite('Buffer', () => {
 		await timeout(0);
 		stream.end(VSBuffer.fromString('World'));
 
-		assert.equal(chunks.length, 1);
-		assert.equal(chunks[0].toString(), 'Hello');
-		assert.equal(errors.length, 0);
-		assert.equal(ended, false);
+		assert.strictEqual(chunks.length, 1);
+		assert.strictEqual(chunks[0].toString(), 'Hello');
+		assert.strictEqual(errors.length, 0);
+		assert.strictEqual(ended, false);
 
 		stream.resume();
 
-		assert.equal(chunks.length, 2);
-		assert.equal(chunks[0].toString(), 'Hello');
-		assert.equal(chunks[1].toString(), 'World');
-		assert.equal(ended, true);
-		assert.equal(errors.length, 0);
+		assert.strictEqual(chunks.length, 2);
+		assert.strictEqual(chunks[0].toString(), 'Hello');
+		assert.strictEqual(chunks[1].toString(), 'World');
+		assert.strictEqual(ended, true);
+		assert.strictEqual(errors.length, 0);
 	});
 
 	test('bufferWriteableStream - pause/resume (error)', async () => {
@@ -332,16 +331,16 @@ suite('Buffer', () => {
 		await timeout(0);
 		stream.end(new Error());
 
-		assert.equal(chunks.length, 0);
-		assert.equal(ended, false);
-		assert.equal(errors.length, 0);
+		assert.strictEqual(chunks.length, 0);
+		assert.strictEqual(ended, false);
+		assert.strictEqual(errors.length, 0);
 
 		stream.resume();
 
-		assert.equal(chunks.length, 1);
-		assert.equal(chunks[0].toString(), 'Hello');
-		assert.equal(ended, true);
-		assert.equal(errors.length, 1);
+		assert.strictEqual(chunks.length, 1);
+		assert.strictEqual(chunks[0].toString(), 'Hello');
+		assert.strictEqual(ended, true);
+		assert.strictEqual(errors.length, 1);
 	});
 
 	test('bufferWriteableStream - destroy', async () => {
@@ -369,46 +368,46 @@ suite('Buffer', () => {
 		await timeout(0);
 		stream.end(VSBuffer.fromString('World'));
 
-		assert.equal(chunks.length, 0);
-		assert.equal(ended, false);
-		assert.equal(errors.length, 0);
+		assert.strictEqual(chunks.length, 0);
+		assert.strictEqual(ended, false);
+		assert.strictEqual(errors.length, 0);
 	});
 
-	(isWeb ? test.skip : test)('Performance issue with VSBuffer#slice #76076', function () { // TODO@alexdima this test seems to fail in web (https://github.com/microsoft/vscode/issues/114042)
+	test('Performance issue with VSBuffer#slice #76076', function () { // TODO@alexdima this test seems to fail in web (https://github.com/microsoft/vscode/issues/114042)
 		// Buffer#slice creates a view
-		{
+		if (typeof Buffer !== 'undefined') {
 			const buff = Buffer.from([10, 20, 30, 40]);
 			const b2 = buff.slice(1, 3);
-			assert.equal(buff[1], 20);
-			assert.equal(b2[0], 20);
+			assert.strictEqual(buff[1], 20);
+			assert.strictEqual(b2[0], 20);
 
 			buff[1] = 17; // modify buff AND b2
-			assert.equal(buff[1], 17);
-			assert.equal(b2[0], 17);
+			assert.strictEqual(buff[1], 17);
+			assert.strictEqual(b2[0], 17);
 		}
 
 		// TypedArray#slice creates a copy
 		{
 			const unit = new Uint8Array([10, 20, 30, 40]);
 			const u2 = unit.slice(1, 3);
-			assert.equal(unit[1], 20);
-			assert.equal(u2[0], 20);
+			assert.strictEqual(unit[1], 20);
+			assert.strictEqual(u2[0], 20);
 
 			unit[1] = 17; // modify unit, NOT b2
-			assert.equal(unit[1], 17);
-			assert.equal(u2[0], 20);
+			assert.strictEqual(unit[1], 17);
+			assert.strictEqual(u2[0], 20);
 		}
 
 		// TypedArray#subarray creates a view
 		{
 			const unit = new Uint8Array([10, 20, 30, 40]);
 			const u2 = unit.subarray(1, 3);
-			assert.equal(unit[1], 20);
-			assert.equal(u2[0], 20);
+			assert.strictEqual(unit[1], 20);
+			assert.strictEqual(u2[0], 20);
 
 			unit[1] = 17; // modify unit AND b2
-			assert.equal(unit[1], 17);
-			assert.equal(u2[0], 17);
+			assert.strictEqual(unit[1], 17);
+			assert.strictEqual(u2[0], 17);
 		}
 	});
 });

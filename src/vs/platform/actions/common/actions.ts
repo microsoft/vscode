@@ -16,6 +16,7 @@ import { ThemeIcon } from 'vs/platform/theme/common/themeService';
 import { UriDto } from 'vs/base/common/types';
 import { Iterable } from 'vs/base/common/iterator';
 import { LinkedList } from 'vs/base/common/linkedList';
+import { CSSIcon } from 'vs/base/common/codicons';
 
 export interface ILocalizedString {
 	/**
@@ -393,6 +394,9 @@ export class MenuItemAction implements IAction {
 		this.item = item;
 		this.alt = alt ? new MenuItemAction(alt, undefined, options, contextKeyService, _commandService) : undefined;
 		this._options = options;
+		if (ThemeIcon.isThemeIcon(item.icon)) {
+			this.class = CSSIcon.asClassName(item.icon);
+		}
 	}
 
 	dispose(): void {

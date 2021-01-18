@@ -12,9 +12,12 @@
 	width: 100%;
 	height: 100%;
 	position: absolute;
-	transition: left 0.25s, opacity 0.25s;
 	left: 0;
 	top: 0;
+}
+
+.monaco-workbench .part.editor > .content .walkThroughContent .gettingStartedContainer.animationReady .gettingStartedSlide {
+	transition: left 0.25s, opacity 0.25s;
 }
 
 .monaco-workbench .part.editor > .content .walkThroughContent .gettingStartedContainer .gettingStartedSlide.categories {
@@ -47,9 +50,15 @@
 	font-size: 12px;
 }
 
-.monaco-workbench .part.editor > .content .walkThroughContent .gettingStartedContainer .gettingStartedSlide.categories progress {
-	font-size: 12pt;
-	width: 100%;
+.monaco-workbench .part.editor > .content .walkThroughContent .gettingStartedContainer .gettingStartedSlide.categories .progress-bar-outer {
+	height: 8px;
+	border-radius: 4px;
+	margin-top: 4px;
+}
+
+.monaco-workbench .part.editor > .content .walkThroughContent .gettingStartedContainer .gettingStartedSlide.categories .progress-bar-inner {
+	height: 100%;
+	border-radius: 4px;
 }
 
 .monaco-workbench .part.editor > .content .walkThroughContent .gettingStartedContainer .gettingStartedSlide.categories #getting-started-categories-container {

@@ -147,7 +147,7 @@ export class SearchEditorInput extends EditorInput {
 		if (path) {
 			this.telemetryService.publicLog2('searchEditor/saveSearchResults');
 			const toWrite = await this.serializeForDisk();
-			if (await this.textFileService.create(path, toWrite, { overwrite: true })) {
+			if (await this.textFileService.create([{ resource: path, value: toWrite, options: { overwrite: true } }])) {
 				this.setDirty(false);
 				if (!isEqual(path, this.modelUri)) {
 					const input = this.instantiationService.invokeFunction(getOrMakeSearchEditorInput, { config: this.config, backingUri: path });

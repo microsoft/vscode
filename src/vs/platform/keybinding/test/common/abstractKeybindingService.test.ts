@@ -211,13 +211,13 @@ suite('AbstractKeybindingService', () => {
 
 		// send Ctrl/Cmd + K
 		let shouldPreventDefault = kbService.testDispatch(KeyMod.CtrlCmd | KeyCode.KEY_K);
-		assert.equal(shouldPreventDefault, true);
-		assert.deepEqual(executeCommandCalls, []);
-		assert.deepEqual(showMessageCalls, []);
-		assert.deepEqual(statusMessageCalls, [
+		assert.strictEqual(shouldPreventDefault, true);
+		assert.deepStrictEqual(executeCommandCalls, []);
+		assert.deepStrictEqual(showMessageCalls, []);
+		assert.deepStrictEqual(statusMessageCalls, [
 			`(${toUsLabel(KeyMod.CtrlCmd | KeyCode.KEY_K)}) was pressed. Waiting for second key of chord...`
 		]);
-		assert.deepEqual(statusMessageCallsDisposed, []);
+		assert.deepStrictEqual(statusMessageCallsDisposed, []);
 		executeCommandCalls = [];
 		showMessageCalls = [];
 		statusMessageCalls = [];
@@ -225,13 +225,13 @@ suite('AbstractKeybindingService', () => {
 
 		// send backspace
 		shouldPreventDefault = kbService.testDispatch(KeyCode.Backspace);
-		assert.equal(shouldPreventDefault, true);
-		assert.deepEqual(executeCommandCalls, []);
-		assert.deepEqual(showMessageCalls, []);
-		assert.deepEqual(statusMessageCalls, [
+		assert.strictEqual(shouldPreventDefault, true);
+		assert.deepStrictEqual(executeCommandCalls, []);
+		assert.deepStrictEqual(showMessageCalls, []);
+		assert.deepStrictEqual(statusMessageCalls, [
 			`The key combination (${toUsLabel(KeyMod.CtrlCmd | KeyCode.KEY_K)}, ${toUsLabel(KeyCode.Backspace)}) is not a command.`
 		]);
-		assert.deepEqual(statusMessageCallsDisposed, [
+		assert.deepStrictEqual(statusMessageCallsDisposed, [
 			`(${toUsLabel(KeyMod.CtrlCmd | KeyCode.KEY_K)}) was pressed. Waiting for second key of chord...`
 		]);
 		executeCommandCalls = [];
@@ -241,14 +241,14 @@ suite('AbstractKeybindingService', () => {
 
 		// send backspace
 		shouldPreventDefault = kbService.testDispatch(KeyCode.Backspace);
-		assert.equal(shouldPreventDefault, true);
-		assert.deepEqual(executeCommandCalls, [{
+		assert.strictEqual(shouldPreventDefault, true);
+		assert.deepStrictEqual(executeCommandCalls, [{
 			commandId: 'simpleCommand',
 			args: [null]
 		}]);
-		assert.deepEqual(showMessageCalls, []);
-		assert.deepEqual(statusMessageCalls, []);
-		assert.deepEqual(statusMessageCallsDisposed, []);
+		assert.deepStrictEqual(showMessageCalls, []);
+		assert.deepStrictEqual(statusMessageCalls, []);
+		assert.deepStrictEqual(statusMessageCallsDisposed, []);
 		executeCommandCalls = [];
 		showMessageCalls = [];
 		statusMessageCalls = [];
@@ -273,11 +273,11 @@ suite('AbstractKeybindingService', () => {
 
 		function assertIsIgnored(keybinding: number): void {
 			let shouldPreventDefault = kbService.testDispatch(keybinding);
-			assert.equal(shouldPreventDefault, false);
-			assert.deepEqual(executeCommandCalls, []);
-			assert.deepEqual(showMessageCalls, []);
-			assert.deepEqual(statusMessageCalls, []);
-			assert.deepEqual(statusMessageCallsDisposed, []);
+			assert.strictEqual(shouldPreventDefault, false);
+			assert.deepStrictEqual(executeCommandCalls, []);
+			assert.deepStrictEqual(showMessageCalls, []);
+			assert.deepStrictEqual(statusMessageCalls, []);
+			assert.deepStrictEqual(statusMessageCallsDisposed, []);
 			executeCommandCalls = [];
 			showMessageCalls = [];
 			statusMessageCalls = [];
@@ -310,14 +310,14 @@ suite('AbstractKeybindingService', () => {
 			key1: true
 		});
 		let shouldPreventDefault = kbService.testDispatch(KeyMod.CtrlCmd | KeyCode.KEY_K);
-		assert.equal(shouldPreventDefault, true);
-		assert.deepEqual(executeCommandCalls, [{
+		assert.strictEqual(shouldPreventDefault, true);
+		assert.deepStrictEqual(executeCommandCalls, [{
 			commandId: 'simpleCommand',
 			args: [null]
 		}]);
-		assert.deepEqual(showMessageCalls, []);
-		assert.deepEqual(statusMessageCalls, []);
-		assert.deepEqual(statusMessageCallsDisposed, []);
+		assert.deepStrictEqual(showMessageCalls, []);
+		assert.deepStrictEqual(statusMessageCalls, []);
+		assert.deepStrictEqual(statusMessageCallsDisposed, []);
 		executeCommandCalls = [];
 		showMessageCalls = [];
 		statusMessageCalls = [];
@@ -326,13 +326,13 @@ suite('AbstractKeybindingService', () => {
 		// send Ctrl/Cmd + K
 		currentContextValue = createContext({});
 		shouldPreventDefault = kbService.testDispatch(KeyMod.CtrlCmd | KeyCode.KEY_K);
-		assert.equal(shouldPreventDefault, true);
-		assert.deepEqual(executeCommandCalls, []);
-		assert.deepEqual(showMessageCalls, []);
-		assert.deepEqual(statusMessageCalls, [
+		assert.strictEqual(shouldPreventDefault, true);
+		assert.deepStrictEqual(executeCommandCalls, []);
+		assert.deepStrictEqual(showMessageCalls, []);
+		assert.deepStrictEqual(statusMessageCalls, [
 			`(${toUsLabel(KeyMod.CtrlCmd | KeyCode.KEY_K)}) was pressed. Waiting for second key of chord...`
 		]);
-		assert.deepEqual(statusMessageCallsDisposed, []);
+		assert.deepStrictEqual(statusMessageCallsDisposed, []);
 		executeCommandCalls = [];
 		showMessageCalls = [];
 		statusMessageCalls = [];
@@ -341,14 +341,14 @@ suite('AbstractKeybindingService', () => {
 		// send Ctrl/Cmd + X
 		currentContextValue = createContext({});
 		shouldPreventDefault = kbService.testDispatch(KeyMod.CtrlCmd | KeyCode.KEY_X);
-		assert.equal(shouldPreventDefault, true);
-		assert.deepEqual(executeCommandCalls, [{
+		assert.strictEqual(shouldPreventDefault, true);
+		assert.deepStrictEqual(executeCommandCalls, [{
 			commandId: 'chordCommand',
 			args: [null]
 		}]);
-		assert.deepEqual(showMessageCalls, []);
-		assert.deepEqual(statusMessageCalls, []);
-		assert.deepEqual(statusMessageCallsDisposed, [
+		assert.deepStrictEqual(showMessageCalls, []);
+		assert.deepStrictEqual(statusMessageCalls, []);
+		assert.deepStrictEqual(statusMessageCallsDisposed, [
 			`(${toUsLabel(KeyMod.CtrlCmd | KeyCode.KEY_K)}) was pressed. Waiting for second key of chord...`
 		]);
 		executeCommandCalls = [];
@@ -370,14 +370,14 @@ suite('AbstractKeybindingService', () => {
 		// send Ctrl/Cmd + K
 		currentContextValue = createContext({});
 		let shouldPreventDefault = kbService.testDispatch(KeyMod.CtrlCmd | KeyCode.KEY_K);
-		assert.equal(shouldPreventDefault, true);
-		assert.deepEqual(executeCommandCalls, [{
+		assert.strictEqual(shouldPreventDefault, true);
+		assert.deepStrictEqual(executeCommandCalls, [{
 			commandId: 'simpleCommand',
 			args: [null]
 		}]);
-		assert.deepEqual(showMessageCalls, []);
-		assert.deepEqual(statusMessageCalls, []);
-		assert.deepEqual(statusMessageCallsDisposed, []);
+		assert.deepStrictEqual(showMessageCalls, []);
+		assert.deepStrictEqual(statusMessageCalls, []);
+		assert.deepStrictEqual(statusMessageCallsDisposed, []);
 		executeCommandCalls = [];
 		showMessageCalls = [];
 		statusMessageCalls = [];
@@ -388,14 +388,14 @@ suite('AbstractKeybindingService', () => {
 			key1: true
 		});
 		shouldPreventDefault = kbService.testDispatch(KeyMod.CtrlCmd | KeyCode.KEY_K);
-		assert.equal(shouldPreventDefault, true);
-		assert.deepEqual(executeCommandCalls, [{
+		assert.strictEqual(shouldPreventDefault, true);
+		assert.deepStrictEqual(executeCommandCalls, [{
 			commandId: 'simpleCommand',
 			args: [null]
 		}]);
-		assert.deepEqual(showMessageCalls, []);
-		assert.deepEqual(statusMessageCalls, []);
-		assert.deepEqual(statusMessageCallsDisposed, []);
+		assert.deepStrictEqual(showMessageCalls, []);
+		assert.deepStrictEqual(statusMessageCalls, []);
+		assert.deepStrictEqual(statusMessageCallsDisposed, []);
 		executeCommandCalls = [];
 		showMessageCalls = [];
 		statusMessageCalls = [];
@@ -406,11 +406,11 @@ suite('AbstractKeybindingService', () => {
 			key1: true
 		});
 		shouldPreventDefault = kbService.testDispatch(KeyMod.CtrlCmd | KeyCode.KEY_X);
-		assert.equal(shouldPreventDefault, false);
-		assert.deepEqual(executeCommandCalls, []);
-		assert.deepEqual(showMessageCalls, []);
-		assert.deepEqual(statusMessageCalls, []);
-		assert.deepEqual(statusMessageCallsDisposed, []);
+		assert.strictEqual(shouldPreventDefault, false);
+		assert.deepStrictEqual(executeCommandCalls, []);
+		assert.deepStrictEqual(showMessageCalls, []);
+		assert.deepStrictEqual(statusMessageCalls, []);
+		assert.deepStrictEqual(statusMessageCallsDisposed, []);
 		executeCommandCalls = [];
 		showMessageCalls = [];
 		statusMessageCalls = [];
@@ -428,14 +428,14 @@ suite('AbstractKeybindingService', () => {
 		// send Ctrl/Cmd + K
 		currentContextValue = createContext({});
 		let shouldPreventDefault = kbService.testDispatch(KeyMod.CtrlCmd | KeyCode.KEY_K);
-		assert.equal(shouldPreventDefault, false);
-		assert.deepEqual(executeCommandCalls, [{
+		assert.strictEqual(shouldPreventDefault, false);
+		assert.deepStrictEqual(executeCommandCalls, [{
 			commandId: 'simpleCommand',
 			args: [null]
 		}]);
-		assert.deepEqual(showMessageCalls, []);
-		assert.deepEqual(statusMessageCalls, []);
-		assert.deepEqual(statusMessageCallsDisposed, []);
+		assert.deepStrictEqual(showMessageCalls, []);
+		assert.deepStrictEqual(statusMessageCalls, []);
+		assert.deepStrictEqual(statusMessageCallsDisposed, []);
 		executeCommandCalls = [];
 		showMessageCalls = [];
 		statusMessageCalls = [];

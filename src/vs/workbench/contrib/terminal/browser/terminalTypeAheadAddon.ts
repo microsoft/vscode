@@ -1224,7 +1224,7 @@ export class TypeAheadAddon extends Disposable implements ITerminalAddon {
 	private typeaheadStyle?: TypeAheadStyle;
 	private typeaheadThreshold = this.config.config.localEchoLatencyThreshold;
 	private excludeProgramRe = compileExcludeRegexp(this.config.config.localEchoExcludePrograms);
-	protected lastRow?: { y: number; startingX: number; charState: CharPredictState };
+	protected lastRow?: { y: number; startingX: number; endingX: number; charState: CharPredictState };
 	protected timeline?: PredictionTimeline;
 	private terminalTitle = '';
 	public stats?: PredictionStats;
@@ -1235,7 +1235,7 @@ export class TypeAheadAddon extends Disposable implements ITerminalAddon {
 	private clearPredictionDebounce?: IDisposable;
 
 	constructor(
-		private readonly processManager: ITerminalProcessManager,
+		private processManager: ITerminalProcessManager,
 		private readonly config: TerminalConfigHelper,
 		@ITelemetryService private readonly telemetryService: ITelemetryService,
 	) {
@@ -1289,6 +1289,12 @@ export class TypeAheadAddon extends Disposable implements ITerminalAddon {
 
 			this.reevaluatePredictorState(stats, timeline);
 		}));
+	}
+
+	public reset(processManager: ITerminalProcessManager) {
+		this.lastRow = undefined;
+		this.processManager = processManager;
+		this._register(this.processManager.onBeforeProcessData(e => this.onBeforeProcessData(e)));
 	}
 
 	private deferClearingPredictions() {
@@ -1381,13 +1387,19 @@ export class TypeAheadAddon extends Disposable implements ITerminalAddon {
 		// the user gave input, and mark all additions before that as tentative.
 		const actualY = buffer.baseY + buffer.cursorY;
 		if (actualY !== this.lastRow?.y) {
-			this.lastRow = { y: actualY, startingX: buffer.cursorX, charState: CharPredictState.Unknown };
+			this.lastRow = { y: actualY, startingX: buffer.cursorX, endingX: buffer.cursorX, charState: CharPredictState.Unknown };
 		} else {
 			this.lastRow.startingX = Math.min(this.lastRow.startingX, buffer.cursorX);
+			this.lastRow.endingX = Math.max(this.lastRow.endingX, this.timeline.getCursor(buffer).x);
 		}
 
 		const addLeftNavigating = (p: IPrediction) =>
 			this.timeline!.getCursor(buffer).x <= this.lastRow!.startingX
+				? this.timeline!.addBoundary(buffer, new TentativeBoundary(p))
+				: this.timeline!.addPrediction(buffer, p);
+
+		const addRightNavigating = (p: IPrediction) =>
+			this.timeline!.getCursor(buffer).x >= this.lastRow!.endingX - 1
 				? this.timeline!.addBoundary(buffer, new TentativeBoundary(p))
 				: this.timeline!.addPrediction(buffer, p);
 
@@ -1406,7 +1418,14 @@ export class TypeAheadAddon extends Disposable implements ITerminalAddon {
 					flushOutput(this.timeline.terminal);
 				}
 
-				addLeftNavigating(new BackspacePrediction(this.timeline.terminal));
+				if (this.timeline!.getCursor(buffer).x <= this.lastRow!.startingX) {
+					this.timeline!.addBoundary(buffer, new TentativeBoundary(new BackspacePrediction(this.timeline.terminal)));
+				} else {
+					// Backspace decrements our ability to go right.
+					this.lastRow.endingX--;
+					this.timeline!.addPrediction(buffer, new BackspacePrediction(this.timeline.terminal));
+				}
+
 				continue;
 			}
 
@@ -1434,13 +1453,13 @@ export class TypeAheadAddon extends Disposable implements ITerminalAddon {
 				if (direction === CursorMoveDirection.Back) {
 					addLeftNavigating(p);
 				} else {
-					this.timeline.addPrediction(buffer, p);
+					addRightNavigating(p);
 				}
 				continue;
 			}
 
 			if (reader.eatStr(`${ESC}f`)) {
-				this.timeline.addPrediction(buffer, new CursorMovePrediction(CursorMoveDirection.Forwards, true, 1));
+				addRightNavigating(new CursorMovePrediction(CursorMoveDirection.Forwards, true, 1));
 				continue;
 			}
 

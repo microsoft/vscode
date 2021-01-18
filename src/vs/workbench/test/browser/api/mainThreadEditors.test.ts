@@ -50,6 +50,8 @@ import { INotificationService } from 'vs/platform/notification/common/notificati
 import { TestTextResourcePropertiesService, TestContextService } from 'vs/workbench/test/common/workbenchTestServices';
 import { IUriIdentityService } from 'vs/workbench/services/uriIdentity/common/uriIdentity';
 import { extUri } from 'vs/base/common/resources';
+import { ITextSnapshot } from 'vs/editor/common/model';
+import { VSBuffer, VSBufferReadable } from 'vs/base/common/buffer';
 
 suite('MainThreadEditors', () => {
 
@@ -100,6 +102,15 @@ suite('MainThreadEditors', () => {
 				onDidRevert: Event.None,
 				onDidChangeDirty: Event.None
 			};
+			create(operations: { resource: URI }[]) {
+				for (const o of operations) {
+					createdResources.add(o.resource);
+				}
+				return Promise.resolve(Object.create(null));
+			}
+			async getEncodedReadable(resource: URI, value?: string | ITextSnapshot): Promise<VSBuffer | VSBufferReadable | undefined> {
+				return undefined;
+			}
 		});
 		services.set(IWorkingCopyFileService, new class extends mock<IWorkingCopyFileService>() {
 			onDidRunWorkingCopyFileOperation = Event.None;

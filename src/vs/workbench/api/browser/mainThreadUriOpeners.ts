@@ -4,98 +4,107 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { CancellationToken } from 'vs/base/common/cancellation';
+import { isPromiseCanceledError } from 'vs/base/common/errors';
 import { Disposable } from 'vs/base/common/lifecycle';
 import { Schemas } from 'vs/base/common/network';
 import { URI } from 'vs/base/common/uri';
-import { IExternalOpener, IExternalOpenerProvider, IOpenerService } from 'vs/platform/opener/common/opener';
-import { IQuickInputService, IQuickPickItem } from 'vs/platform/quickinput/common/quickInput';
+import { localize } from 'vs/nls';
+import { ExtensionIdentifier } from 'vs/platform/extensions/common/extensions';
+import { INotificationService } from 'vs/platform/notification/common/notification';
 import { ExtHostContext, ExtHostUriOpenersShape, IExtHostContext, MainContext, MainThreadUriOpenersShape } from 'vs/workbench/api/common/extHost.protocol';
+import { externalUriOpenerIdSchemaAddition } from 'vs/workbench/contrib/externalUriOpener/common/configuration';
+import { ExternalOpenerEntry, IExternalOpenerProvider, IExternalUriOpenerService } from 'vs/workbench/contrib/externalUriOpener/common/externalUriOpenerService';
 import { IExtensionService } from 'vs/workbench/services/extensions/common/extensions';
 import { extHostNamedCustomer } from '../common/extHostCustomers';
+
+interface RegisteredOpenerMetadata {
+	readonly schemes: ReadonlySet<string>;
+	readonly extensionId: ExtensionIdentifier;
+	readonly label: string;
+}
 
 @extHostNamedCustomer(MainContext.MainThreadUriOpeners)
 export class MainThreadUriOpeners extends Disposable implements MainThreadUriOpenersShape, IExternalOpenerProvider {
 
 	private readonly proxy: ExtHostUriOpenersShape;
-	private readonly handlers = new Map<number, { schemes: ReadonlySet<string> }>();
+	private readonly _registeredOpeners = new Map<string, RegisteredOpenerMetadata>();
 
 	constructor(
 		context: IExtHostContext,
-		@IOpenerService private readonly openerService: IOpenerService,
+		@IExternalUriOpenerService private readonly externalUriOpenerService: IExternalUriOpenerService,
 		@IExtensionService private readonly extensionService: IExtensionService,
-		@IQuickInputService private readonly quickInputService: IQuickInputService,
+		@INotificationService private readonly notificationService: INotificationService,
 	) {
 		super();
 		this.proxy = context.getProxy(ExtHostContext.ExtHostUriOpeners);
 
-		this._register(this.openerService.registerExternalOpenerProvider(this));
+		this._register(this.externalUriOpenerService.registerExternalOpenerProvider(this));
 	}
-	public async provideExternalOpener(href: string | URI): Promise<IExternalOpener | undefined> {
+
+	public async provideExternalOpeners(href: string | URI): Promise<readonly ExternalOpenerEntry[]> {
 		const targetUri = typeof href === 'string' ? URI.parse(href) : href;
 
 		// Currently we only allow openers for http and https urls
 		if (targetUri.scheme !== Schemas.http && targetUri.scheme !== Schemas.https) {
-			return undefined;
+			return [];
 		}
 
 		await this.extensionService.activateByEvent(`onUriOpen:${targetUri.scheme}`);
 
 		// If there are no handlers there is no point in making a round trip
-		const hasHandler = Array.from(this.handlers.values()).some(x => x.schemes.has(targetUri.scheme));
+		const hasHandler = Array.from(this._registeredOpeners.values()).some(x => x.schemes.has(targetUri.scheme));
 		if (!hasHandler) {
-			return undefined;
+			return [];
 		}
 
-
-		const { openers, cacheId } = await this.proxy.$getOpenersForUri(targetUri, CancellationToken.None);
-		if (openers.length === 0) {
-			return undefined;
-		} else if (openers.length === 1) {
-			return this.openerForCommand(cacheId, openers[0].id);
-		} else {
-			type PickItem = IQuickPickItem & { index: number };
-			const items = openers.map((opener, i): PickItem => {
-				return {
-					label: opener.title,
-					index: i
-				};
-			});
-
-			const picked = await this.quickInputService.pick(items, {});
-			if (picked) {
-				const opener = openers[(picked as PickItem).index];
-				return this.openerForCommand(cacheId, opener.id);
-			}
-
-			this.proxy.$releaseOpener(cacheId);
-			return undefined;
-		}
+		const openerIds = await this.proxy.$getOpenersForUri(targetUri, CancellationToken.None);
+		return openerIds.map(id => this.createOpener(id, targetUri));
 	}
 
-	private openerForCommand(cacheId: number, commandId: number): IExternalOpener {
+	private createOpener(openerId: string, sourceUri: URI): ExternalOpenerEntry {
+		const metadata = this._registeredOpeners.get(openerId)!;
 		return {
+			id: openerId,
+			label: metadata.label,
 			openExternal: async (href) => {
-				const targetUri = URI.parse(href);
+				const resolveUri = URI.parse(href);
 				try {
-					await this.proxy.$openUri([cacheId, commandId], targetUri);
-				} finally {
-					this.proxy.$releaseOpener(cacheId);
+					await this.proxy.$openUri(openerId, { resolveUri, sourceUri }, CancellationToken.None);
+				} catch (e) {
+					if (!isPromiseCanceledError(e)) {
+						this.notificationService.error(localize('openerFailedMessage', "Could not open uri: {0}", e.toString()));
+					}
 				}
 				return true;
-			}
+			},
 		};
 	}
 
-	async $registerUriOpener(handle: number, schemes: readonly string[]): Promise<void> {
-		this.handlers.set(handle, { schemes: new Set(schemes) });
+	async $registerUriOpener(
+		id: string,
+		schemes: readonly string[],
+		extensionId: ExtensionIdentifier,
+		label: string,
+	): Promise<void> {
+		if (this._registeredOpeners.has(id)) {
+			throw new Error(`Opener with id already registered: '${id}'`);
+		}
+
+		this._registeredOpeners.set(id, {
+			schemes: new Set(schemes),
+			label,
+			extensionId,
+		});
+
+		externalUriOpenerIdSchemaAddition.enum?.push(id);
 	}
 
-	async $unregisterUriOpener(handle: number): Promise<void> {
-		this.handlers.delete(handle);
+	async $unregisterUriOpener(id: string): Promise<void> {
+		this._registeredOpeners.delete(id);
 	}
 
 	dispose(): void {
 		super.dispose();
-		this.handlers.clear();
+		this._registeredOpeners.clear();
 	}
 }

@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import 'vs/css!./media/activitybarpart';
-import * as nls from 'vs/nls';
+import { localize } from 'vs/nls';
 import { ActionsOrientation, ActionBar } from 'vs/base/browser/ui/actionbar/actionbar';
 import { GLOBAL_ACTIVITY_ID, IActivity, ACCOUNTS_ACTIVITY_ID } from 'vs/workbench/common/activity';
 import { Part } from 'vs/workbench/browser/part';
@@ -13,7 +13,7 @@ import { IBadge, NumberBadge } from 'vs/workbench/services/activity/common/activ
 import { IWorkbenchLayoutService, Parts } from 'vs/workbench/services/layout/browser/layoutService';
 import { IInstantiationService, ServicesAccessor } from 'vs/platform/instantiation/common/instantiation';
 import { IDisposable, toDisposable, DisposableStore, Disposable } from 'vs/base/common/lifecycle';
-import { ToggleActivityBarVisibilityAction, ToggleMenuBarAction, ToggleSidebarPositionAction } from 'vs/workbench/browser/actions/layoutActions';
+import { ToggleActivityBarVisibilityAction, ToggleSidebarPositionAction } from 'vs/workbench/browser/actions/layoutActions';
 import { IThemeService, IColorTheme, ThemeIcon } from 'vs/platform/theme/common/themeService';
 import { ACTIVITY_BAR_BACKGROUND, ACTIVITY_BAR_BORDER, ACTIVITY_BAR_FOREGROUND, ACTIVITY_BAR_ACTIVE_BORDER, ACTIVITY_BAR_BADGE_BACKGROUND, ACTIVITY_BAR_BADGE_FOREGROUND, ACTIVITY_BAR_INACTIVE_FOREGROUND, ACTIVITY_BAR_ACTIVE_BACKGROUND, ACTIVITY_BAR_DRAG_AND_DROP_BORDER } from 'vs/workbench/common/theme';
 import { contrastBorder } from 'vs/platform/theme/common/colorRegistry';
@@ -28,15 +28,14 @@ import { IContextKeyService, ContextKeyExpr } from 'vs/platform/contextkey/commo
 import { assertIsDefined } from 'vs/base/common/types';
 import { IActivityBarService } from 'vs/workbench/services/activityBar/browser/activityBarService';
 import { registerSingleton } from 'vs/platform/instantiation/common/extensions';
-import { Schemas } from 'vs/base/common/network';
 import { IWorkbenchEnvironmentService } from 'vs/workbench/services/environment/common/environmentService';
 import { CustomMenubarControl } from 'vs/workbench/browser/parts/titlebar/menubarControl';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { getMenuBarVisibility } from 'vs/platform/windows/common/windows';
-import { isWeb } from 'vs/base/common/platform';
+import { isNative, isWeb } from 'vs/base/common/platform';
 import { Before2D } from 'vs/workbench/browser/dnd';
 import { Codicon, iconRegistry } from 'vs/base/common/codicons';
-import { Action, Separator } from 'vs/base/common/actions';
+import { IAction, Separator, toAction } from 'vs/base/common/actions';
 import { Event } from 'vs/base/common/event';
 import { StandardKeyboardEvent } from 'vs/base/browser/keyboardEvent';
 import { KeyCode } from 'vs/base/common/keyCodes';
@@ -50,7 +49,7 @@ interface IPlaceholderViewContainer {
 	readonly name?: string;
 	readonly iconUrl?: UriComponents;
 	readonly themeIcon?: ThemeIcon;
-	readonly views?: { when?: string }[];
+	readonly views?: { when?: string; }[];
 }
 
 interface IPinnedViewContainer {
@@ -67,11 +66,8 @@ interface ICachedViewContainer {
 	readonly pinned: boolean;
 	readonly order?: number;
 	visible: boolean;
-	views?: { when?: string }[];
+	views?: { when?: string; }[];
 }
-
-const settingsViewBarIcon = registerIcon('settings-view-bar-icon', Codicon.settingsGear, nls.localize('settingsViewBarIcon', 'Settings icon in the view bar.'));
-const accountsViewBarIcon = registerIcon('accounts-view-bar-icon', Codicon.account, nls.localize('accountsViewBarIcon', 'Accounts icon in the view bar.'));
 
 export class ActivitybarPart extends Part implements IActivityBarService {
 
@@ -81,6 +77,9 @@ export class ActivitybarPart extends Part implements IActivityBarService {
 	private static readonly PLACEHOLDER_VIEW_CONTAINERS = 'workbench.activity.placeholderViewlets';
 	private static readonly ACTION_HEIGHT = 48;
 	private static readonly ACCOUNTS_ACTION_INDEX = 0;
+
+	private static readonly GEAR_ICON = registerIcon('settings-view-bar-icon', Codicon.settingsGear, localize('settingsViewBarIcon', "Settings icon in the view bar."));
+	private static readonly ACCOUNTS_ICON = registerIcon('accounts-view-bar-icon', Codicon.account, localize('accountsViewBarIcon', "Accounts icon in the view bar."));
 
 	//#region IView
 
@@ -111,7 +110,7 @@ export class ActivitybarPart extends Part implements IActivityBarService {
 
 	private readonly accountsActivity: ICompositeActivity[] = [];
 
-	private readonly compositeActions = new Map<string, { activityAction: ViewContainerActivityAction, pinnedAction: ToggleCompositePinnedAction }>();
+	private readonly compositeActions = new Map<string, { activityAction: ViewContainerActivityAction, pinnedAction: ToggleCompositePinnedAction; }>();
 	private readonly viewContainerDisposables = new Map<string, IDisposable>();
 
 	private readonly keyboardNavigationDisposables = this._register(new DisposableStore());
@@ -134,7 +133,7 @@ export class ActivitybarPart extends Part implements IActivityBarService {
 
 		for (const cachedViewContainer of this.cachedViewContainers) {
 			if (
-				environmentService.remoteAuthority || // In remote window, hide activity bar entries until registered
+				environmentService.remoteAuthority || // In remote window, hide activity bar entries until registered.
 				this.shouldBeHidden(cachedViewContainer.id, cachedViewContainer)
 			) {
 				cachedViewContainer.visible = false;
@@ -162,53 +161,66 @@ export class ActivitybarPart extends Part implements IActivityBarService {
 			icon: true,
 			orientation: ActionsOrientation.VERTICAL,
 			preventLoopNavigation: true,
-			openComposite: (compositeId: string) => this.viewsService.openViewContainer(compositeId, true),
-			getActivityAction: (compositeId: string) => this.getCompositeActions(compositeId).activityAction,
-			getCompositePinnedAction: (compositeId: string) => this.getCompositeActions(compositeId).pinnedAction,
-			getOnCompositeClickAction: (compositeId: string) => new Action(compositeId, '', '', true, () => this.viewsService.isViewContainerVisible(compositeId) ? Promise.resolve(this.viewsService.closeViewContainer(compositeId)) : this.viewsService.openViewContainer(compositeId)),
-			getContextMenuActions: () => {
-				const actions = [];
+			openComposite: compositeId => this.viewsService.openViewContainer(compositeId, true),
+			getActivityAction: compositeId => this.getCompositeActions(compositeId).activityAction,
+			getCompositePinnedAction: compositeId => this.getCompositeActions(compositeId).pinnedAction,
+			getOnCompositeClickAction: compositeId => toAction({ id: compositeId, label: '', run: async () => this.viewsService.isViewContainerVisible(compositeId) ? this.viewsService.closeViewContainer(compositeId) : this.viewsService.openViewContainer(compositeId) }),
+			fillExtraContextMenuActions: actions => {
 
 				// Home
+				const topActions: IAction[] = [];
 				if (this.homeBarContainer) {
-					actions.push(new Action(
-						'toggleHomeBarAction',
-						this.homeBarVisibilityPreference ? nls.localize('hideHomeBar', "Hide Home Button") : nls.localize('showHomeBar', "Show Home Button"),
-						undefined,
-						true,
-						async () => { this.homeBarVisibilityPreference = !this.homeBarVisibilityPreference; }
-					));
+					topActions.push({
+						id: 'toggleHomeBarAction',
+						label: localize('homeButton', "Home Button"),
+						class: undefined,
+						tooltip: localize('homeButton', "Home Button"),
+						checked: this.homeBarVisibilityPreference,
+						enabled: true,
+						run: async () => this.homeBarVisibilityPreference = !this.homeBarVisibilityPreference,
+						dispose: () => { }
+					});
 				}
 
 				// Menu
 				const menuBarVisibility = getMenuBarVisibility(this.configurationService);
 				if (menuBarVisibility === 'compact' || (menuBarVisibility === 'hidden' && isWeb)) {
-					actions.push(this.instantiationService.createInstance(ToggleMenuBarAction, ToggleMenuBarAction.ID, menuBarVisibility === 'compact' ? nls.localize('hideMenu', "Hide Menu") : nls.localize('showMenu', "Show Menu")));
+					topActions.push({
+						id: 'toggleMenuVisibility',
+						label: localize('menu', "Menu"),
+						class: undefined,
+						tooltip: localize('menu', "Menu"),
+						checked: menuBarVisibility === 'compact',
+						enabled: true,
+						run: async () => this.layoutService.toggleMenuBar(),
+						dispose: () => { }
+					});
+				}
+
+				if (topActions.length) {
+					actions.unshift(...topActions, new Separator());
 				}
 
 				// Accounts
-				actions.push(new Action(
-					'toggleAccountsVisibility',
-					this.accountsVisibilityPreference ? nls.localize('hideAccounts', "Hide Accounts") : nls.localize('showAccounts', "Show Accounts"),
-					undefined,
-					true,
-					async () => { this.accountsVisibilityPreference = !this.accountsVisibilityPreference; }
-				));
+				actions.push(new Separator());
+				actions.push({
+					id: 'toggleAccountsVisibility',
+					label: localize('accounts', "Accounts"),
+					class: undefined,
+					tooltip: localize('accounts', "Accounts"),
+					checked: this.accountsVisibilityPreference,
+					enabled: true,
+					run: async () => this.accountsVisibilityPreference = !this.accountsVisibilityPreference,
+					dispose: () => { }
+				});
+
 				actions.push(new Separator());
 
 				// Toggle Sidebar
 				actions.push(this.instantiationService.createInstance(ToggleSidebarPositionAction, ToggleSidebarPositionAction.ID, ToggleSidebarPositionAction.getLabel(this.layoutService)));
 
 				// Toggle Activity Bar
-				actions.push(new Action(
-					ToggleActivityBarVisibilityAction.ID,
-					nls.localize('hideActivitBar', "Hide Activity Bar"),
-					undefined,
-					true,
-					async () => { this.instantiationService.invokeFunction(accessor => new ToggleActivityBarVisibilityAction().run(accessor)); }
-				));
-
-				return actions;
+				actions.push(toAction({ id: ToggleActivityBarVisibilityAction.ID, label: localize('hideActivitBar', "Hide Activity Bar"), run: async () => this.instantiationService.invokeFunction(accessor => new ToggleActivityBarVisibilityAction().run(accessor)) }));
 			},
 			getContextMenuActionsForComposite: compositeId => this.getContextMenuActionsForComposite(compositeId),
 			getDefaultCompositeId: () => this.viewDescriptorService.getDefaultViewContainer(this.location)!.id,
@@ -224,24 +236,20 @@ export class ActivitybarPart extends Part implements IActivityBarService {
 		}));
 	}
 
-	private getContextMenuActionsForComposite(compositeId: string): Action[] {
-		const actions = [];
+	private getContextMenuActionsForComposite(compositeId: string): IAction[] {
+		const actions: IAction[] = [];
 
 		const viewContainer = this.viewDescriptorService.getViewContainerById(compositeId)!;
 		const defaultLocation = this.viewDescriptorService.getDefaultViewContainerLocation(viewContainer)!;
 		if (defaultLocation !== this.viewDescriptorService.getViewContainerLocation(viewContainer)) {
-			actions.push(new Action('resetLocationAction', nls.localize('resetLocation', "Reset Location"), undefined, true, async () => {
-				this.viewDescriptorService.moveViewContainerToLocation(viewContainer, defaultLocation);
-			}));
+			actions.push(toAction({ id: 'resetLocationAction', label: localize('resetLocation', "Reset Location"), run: () => this.viewDescriptorService.moveViewContainerToLocation(viewContainer, defaultLocation) }));
 		} else {
 			const viewContainerModel = this.viewDescriptorService.getViewContainerModel(viewContainer);
 			if (viewContainerModel.allViewDescriptors.length === 1) {
 				const viewToReset = viewContainerModel.allViewDescriptors[0];
 				const defaultContainer = this.viewDescriptorService.getDefaultContainerById(viewToReset.id)!;
 				if (defaultContainer !== viewContainer) {
-					actions.push(new Action('resetLocationAction', nls.localize('resetLocation', "Reset Location"), undefined, true, async () => {
-						this.viewDescriptorService.moveViewsToContainer([viewToReset], defaultContainer);
-					}));
+					actions.push(toAction({ id: 'resetLocationAction', label: localize('resetLocation', "Reset Location"), run: () => this.viewDescriptorService.moveViewsToContainer([viewToReset], defaultContainer) }));
 				}
 			}
 		}
@@ -279,7 +287,7 @@ export class ActivitybarPart extends Part implements IActivityBarService {
 		}));
 	}
 
-	private onDidChangeViewContainers(added: ReadonlyArray<{ container: ViewContainer, location: ViewContainerLocation }>, removed: ReadonlyArray<{ container: ViewContainer, location: ViewContainerLocation }>) {
+	private onDidChangeViewContainers(added: ReadonlyArray<{ container: ViewContainer, location: ViewContainerLocation; }>, removed: ReadonlyArray<{ container: ViewContainer, location: ViewContainerLocation; }>) {
 		removed.filter(({ location }) => location === ViewContainerLocation.Sidebar).forEach(({ container }) => this.onDidDeregisterViewContainer(container));
 		this.onDidRegisterViewContainers(added.filter(({ location }) => location === ViewContainerLocation.Sidebar).map(({ container }) => container));
 	}
@@ -557,14 +565,14 @@ export class ActivitybarPart extends Part implements IActivityBarService {
 
 	private createHomeBar(href: string, icon: Codicon): void {
 		this.homeBarContainer = document.createElement('div');
-		this.homeBarContainer.setAttribute('aria-label', nls.localize('homeIndicator', "Home"));
+		this.homeBarContainer.setAttribute('aria-label', localize('homeIndicator', "Home"));
 		this.homeBarContainer.setAttribute('role', 'toolbar');
 		this.homeBarContainer.classList.add('home-bar');
 
 		this.homeBar = this._register(new ActionBar(this.homeBarContainer, {
-			actionViewItemProvider: action => this.instantiationService.createInstance(HomeActivityActionViewItem, href, action as ActivityAction, (theme: IColorTheme) => this.getActivitybarItemColors(theme)),
+			actionViewItemProvider: action => this.instantiationService.createInstance(HomeActivityActionViewItem, href, action as ActivityAction, () => this.compositeBar.getContextMenuActions(), (theme: IColorTheme) => this.getActivitybarItemColors(theme)),
 			orientation: ActionsOrientation.VERTICAL,
-			ariaLabel: nls.localize('home', "Home"),
+			ariaLabel: localize('home', "Home"),
 			animated: false,
 			preventLoopNavigation: true,
 			ignoreOrientationForPreviousAndNextKey: true
@@ -576,7 +584,7 @@ export class ActivitybarPart extends Part implements IActivityBarService {
 
 		this.homeBar.push(this._register(new ActivityAction({
 			id: 'workbench.actions.home',
-			name: nls.localize('home', "Home"),
+			name: localize('home', "Home"),
 			cssClass: icon.classNames
 		})));
 
@@ -588,17 +596,17 @@ export class ActivitybarPart extends Part implements IActivityBarService {
 		this.globalActivityActionBar = this._register(new ActionBar(container, {
 			actionViewItemProvider: action => {
 				if (action.id === 'workbench.actions.manage') {
-					return this.instantiationService.createInstance(GlobalActivityActionViewItem, action as ActivityAction, (theme: IColorTheme) => this.getActivitybarItemColors(theme));
+					return this.instantiationService.createInstance(GlobalActivityActionViewItem, action as ActivityAction, () => this.compositeBar.getContextMenuActions(), (theme: IColorTheme) => this.getActivitybarItemColors(theme));
 				}
 
 				if (action.id === 'workbench.actions.accounts') {
-					return this.instantiationService.createInstance(AccountsActivityActionViewItem, action as ActivityAction, (theme: IColorTheme) => this.getActivitybarItemColors(theme));
+					return this.instantiationService.createInstance(AccountsActivityActionViewItem, action as ActivityAction, () => this.compositeBar.getContextMenuActions(), (theme: IColorTheme) => this.getActivitybarItemColors(theme));
 				}
 
 				throw new Error(`No view item for action '${action.id}'`);
 			},
 			orientation: ActionsOrientation.VERTICAL,
-			ariaLabel: nls.localize('manage', "Manage"),
+			ariaLabel: localize('manage', "Manage"),
 			animated: false,
 			preventLoopNavigation: true,
 			ignoreOrientationForPreviousAndNextKey: true
@@ -606,15 +614,15 @@ export class ActivitybarPart extends Part implements IActivityBarService {
 
 		this.globalActivityAction = this._register(new ActivityAction({
 			id: 'workbench.actions.manage',
-			name: nls.localize('manage', "Manage"),
-			cssClass: ThemeIcon.asClassName(settingsViewBarIcon)
+			name: localize('manage', "Manage"),
+			cssClass: ThemeIcon.asClassName(ActivitybarPart.GEAR_ICON)
 		}));
 
 		if (this.accountsVisibilityPreference) {
 			this.accountsActivityAction = this._register(new ActivityAction({
 				id: 'workbench.actions.accounts',
-				name: nls.localize('accounts', "Accounts"),
-				cssClass: ThemeIcon.asClassName(accountsViewBarIcon)
+				name: localize('accounts', "Accounts"),
+				cssClass: ThemeIcon.asClassName(ActivitybarPart.ACCOUNTS_ICON)
 			}));
 
 			this.globalActivityActionBar.push(this.accountsActivityAction, { index: ActivitybarPart.ACCOUNTS_ACTION_INDEX });
@@ -631,7 +639,7 @@ export class ActivitybarPart extends Part implements IActivityBarService {
 			} else {
 				this.accountsActivityAction = this._register(new ActivityAction({
 					id: 'workbench.actions.accounts',
-					name: nls.localize('accounts', "Accounts"),
+					name: localize('accounts', "Accounts"),
 					cssClass: Codicon.account.classNames
 				}));
 				this.globalActivityActionBar.push(this.accountsActivityAction, { index: ActivitybarPart.ACCOUNTS_ACTION_INDEX });
@@ -641,7 +649,7 @@ export class ActivitybarPart extends Part implements IActivityBarService {
 		this.updateGlobalActivity(ACCOUNTS_ACTIVITY_ID);
 	}
 
-	private getCompositeActions(compositeId: string): { activityAction: ViewContainerActivityAction, pinnedAction: ToggleCompositePinnedAction } {
+	private getCompositeActions(compositeId: string): { activityAction: ViewContainerActivityAction, pinnedAction: ToggleCompositePinnedAction; } {
 		let compositeActions = this.compositeActions.get(compositeId);
 		if (!compositeActions) {
 			const viewContainer = this.getViewContainer(compositeId);
@@ -729,14 +737,15 @@ export class ActivitybarPart extends Part implements IActivityBarService {
 		let iconUrl: URI | undefined = undefined;
 		if (URI.isUri(icon)) {
 			iconUrl = icon;
+			const cssUrl = asCSSUrl(icon);
 			const hash = new StringSHA1();
-			hash.update(icon.toString());
+			hash.update(cssUrl);
 			cssClass = `activity-${id.replace(/\./g, '-')}-${hash.digest()}`;
 			const iconClass = `.monaco-workbench .activitybar .monaco-action-bar .action-label.${cssClass}`;
 			createCSSRule(iconClass, `
-				mask: ${asCSSUrl(icon)} no-repeat 50% 50%;
+				mask: ${cssUrl} no-repeat 50% 50%;
 				mask-size: 24px;
-				-webkit-mask: ${asCSSUrl(icon)} no-repeat 50% 50%;
+				-webkit-mask: ${cssUrl} no-repeat 50% 50%;
 				-webkit-mask-size: 24px;
 			`);
 		} else if (ThemeIcon.isThemeIcon(icon)) {
@@ -921,15 +930,14 @@ export class ActivitybarPart extends Part implements IActivityBarService {
 			const viewContainer = this.getViewContainer(compositeItem.id);
 			if (viewContainer) {
 				const viewContainerModel = this.viewDescriptorService.getViewContainerModel(viewContainer);
-				const views: { when: string | undefined }[] = [];
+				const views: { when: string | undefined; }[] = [];
 				for (const { when } of viewContainerModel.allViewDescriptors) {
 					views.push({ when: when ? when.serialize() : undefined });
 				}
-				const cacheIcon = URI.isUri(viewContainerModel.icon) ? viewContainerModel.icon.scheme === Schemas.file : true;
 				state.push({
 					id: compositeItem.id,
 					name: viewContainerModel.title,
-					icon: cacheIcon ? viewContainerModel.icon : undefined,
+					icon: URI.isUri(viewContainerModel.icon) && this.environmentService.remoteAuthority && isNative ? undefined : viewContainerModel.icon, /* Donot cache uri icons in desktop with remote connection */
 					views,
 					pinned: compositeItem.pinned,
 					order: compositeItem.order,
@@ -1070,7 +1078,7 @@ class FocusActivityBarAction extends Action2 {
 	constructor() {
 		super({
 			id: 'workbench.action.focusActivityBar',
-			title: { value: nls.localize('focusActivityBar', "Focus Activity Bar"), original: 'Focus Activity Bar' },
+			title: { value: localize('focusActivityBar', "Focus Activity Bar"), original: 'Focus Activity Bar' },
 			category: CATEGORIES.View,
 			f1: true
 		});

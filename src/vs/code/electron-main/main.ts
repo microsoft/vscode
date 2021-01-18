@@ -53,6 +53,7 @@ import { rtrim, trim } from 'vs/base/common/strings';
 import { basename, resolve } from 'vs/base/common/path';
 import { coalesce, distinct } from 'vs/base/common/arrays';
 import { EnvironmentMainService, IEnvironmentMainService } from 'vs/platform/environment/electron-main/environmentMainService';
+import { toErrorMessage } from 'vs/base/common/errorMessage';
 
 class ExpectedError extends Error {
 	readonly isExpected = true;
@@ -346,7 +347,7 @@ class CodeMain {
 			const directories = coalesce([environmentService.userDataPath, environmentService.extensionsPath, XDG_RUNTIME_DIR]);
 
 			this.showStartupWarningDialog(
-				localize('startupDataDirError', "Unable to write program user data."),
+				localize('startupDataDirError', "Unable to write program user data ({0})", toErrorMessage(error)),
 				localize('startupUserDataAndExtensionsDirErrorDetail', "Please make sure the following directories are writeable:\n\n{0}", directories.join('\n'))
 			);
 		}

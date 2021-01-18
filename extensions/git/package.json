@@ -1742,6 +1742,11 @@
           "description": "%config.ignoreLimitWarning%",
           "default": false
         },
+        "git.ignoreRebaseWarning": {
+          "type": "boolean",
+          "description": "%config.ignoreRebaseWarning%",
+          "default": false
+        },
         "git.defaultCloneDirectory": {
           "type": [
             "string",

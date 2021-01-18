@@ -89,6 +89,7 @@ export class TerminalInstance extends Disposable implements ITerminalInstance {
 	private _wrapperElement: (HTMLElement & { xterm?: XTermTerminal }) | undefined;
 	private _xterm: XTermTerminal | undefined;
 	private _xtermCore: XTermCore | undefined;
+	private _xtermTypeAhead: TypeAheadAddon | undefined;
 	private _xtermSearch: SearchAddon | undefined;
 	private _xtermUnicode11: Unicode11Addon | undefined;
 	private _xtermElement: HTMLDivElement | undefined;
@@ -464,8 +465,8 @@ export class TerminalInstance extends Disposable implements ITerminalInstance {
 			}
 		}));
 
-		const typeaheadAddon = this._register(this._instantiationService.createInstance(TypeAheadAddon, this._processManager, this._configHelper));
-		this._xterm.loadAddon(typeaheadAddon);
+		this._xtermTypeAhead = this._register(this._instantiationService.createInstance(TypeAheadAddon, this._processManager, this._configHelper));
+		this._xterm.loadAddon(this._xtermTypeAhead);
 
 		return xterm;
 	}
@@ -1160,9 +1161,6 @@ export class TerminalInstance extends Disposable implements ITerminalInstance {
 		this._pressAnyKeyToCloseListener?.dispose();
 		this._pressAnyKeyToCloseListener = undefined;
 
-		// Kill and clear up the process, making the process manager ready for a new process
-		this._processManager.dispose();
-
 		if (this._xterm) {
 			if (reset) {
 				this._xterm.reset();
@@ -1198,6 +1196,9 @@ export class TerminalInstance extends Disposable implements ITerminalInstance {
 		// Set the new shell launch config
 		this._shellLaunchConfig = shell; // Must be done before calling _createProcess()
 
+		// Kill and clear up the process, making the process manager ready for a new process
+		this._processManager.dispose();
+
 		// Launch the process unless this is only a renderer.
 		// In the renderer only cases, we still need to set the title correctly.
 		const oldTitle = this._title;
@@ -1209,6 +1210,8 @@ export class TerminalInstance extends Disposable implements ITerminalInstance {
 
 		this._processManager.onProcessData(data => this._onProcessData(data));
 		this._createProcess();
+
+		this._xtermTypeAhead?.reset(this._processManager);
 	}
 
 	public relaunch(): void {

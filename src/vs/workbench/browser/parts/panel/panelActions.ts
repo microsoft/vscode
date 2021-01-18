@@ -15,10 +15,11 @@ import { IWorkbenchLayoutService, Parts, Position, positionToString } from 'vs/w
 import { ActivityAction, ToggleCompositePinnedAction, ICompositeBar } from 'vs/workbench/browser/parts/compositeBarActions';
 import { IActivity } from 'vs/workbench/common/activity';
 import { ActivePanelContext, PanelMaximizedContext, PanelPositionContext, PanelVisibleContext } from 'vs/workbench/common/panel';
-import { ContextKeyExpression } from 'vs/platform/contextkey/common/contextkey';
+import { ContextKeyExpr, ContextKeyExpression } from 'vs/platform/contextkey/common/contextkey';
 import { Codicon } from 'vs/base/common/codicons';
 import { registerIcon } from 'vs/platform/theme/common/iconRegistry';
 import { ServicesAccessor } from 'vs/editor/browser/editorExtensions';
+import { ViewContainerLocationToString, ViewContainerLocation } from 'vs/workbench/common/views';
 
 const maximizeIcon = registerIcon('panel-maximize', Codicon.chevronUp, nls.localize('maximizeIcon', 'Icon to maximize a panel.'));
 const restoreIcon = registerIcon('panel-restore', Codicon.chevronDown, nls.localize('restoreIcon', 'Icon to restore a panel.'));
@@ -283,30 +284,60 @@ registerAction2(class extends Action2 {
 	}
 });
 
-MenuRegistry.appendMenuItem(MenuId.MenubarAppearanceMenu, {
-	group: '2_workbench_layout',
-	command: {
-		id: TogglePanelAction.ID,
-		title: nls.localize({ key: 'miShowPanel', comment: ['&& denotes a mnemonic'] }, "Show &&Panel"),
-		toggled: ActivePanelContext
-	},
-	order: 5
-});
+MenuRegistry.appendMenuItems([
+	{
+		id: MenuId.MenubarAppearanceMenu,
+		item: {
+			group: '2_workbench_layout',
+			command: {
+				id: TogglePanelAction.ID,
+				title: nls.localize({ key: 'miShowPanel', comment: ['&& denotes a mnemonic'] }, "Show &&Panel"),
+				toggled: ActivePanelContext
+			},
+			order: 5
+		}
+	}, {
+		id: MenuId.ViewTitleContext,
+		item: {
+			group: '3_workbench_layout_move',
+			command: {
+				id: TogglePanelAction.ID,
+				title: { value: nls.localize('hidePanel', "Hide Panel"), original: 'Hide Panel' },
+			},
+			when: ContextKeyExpr.and(PanelVisibleContext, ContextKeyExpr.equals('viewLocation', ViewContainerLocationToString(ViewContainerLocation.Panel))),
+			order: 2
+		}
+	}
+]);
 
 function registerPositionPanelActionById(config: PanelActionConfig<Position>) {
 	const { id, label, alias, when } = config;
 	// register the workbench action
 	actionRegistry.registerWorkbenchAction(SyncActionDescriptor.create(SetPanelPositionAction, id, label), alias, CATEGORIES.View.value, when);
 	// register as a menu item
-	MenuRegistry.appendMenuItem(MenuId.MenubarAppearanceMenu, {
-		group: '3_workbench_layout_move',
-		command: {
-			id,
-			title: label
-		},
-		when,
-		order: 5
-	});
+	MenuRegistry.appendMenuItems([{
+		id: MenuId.MenubarAppearanceMenu,
+		item: {
+			group: '3_workbench_layout_move',
+			command: {
+				id,
+				title: label
+			},
+			when,
+			order: 5
+		}
+	}, {
+		id: MenuId.ViewTitleContext,
+		item: {
+			group: '3_workbench_layout_move',
+			command: {
+				id: id,
+				title: label,
+			},
+			when: ContextKeyExpr.and(when, ContextKeyExpr.equals('viewLocation', ViewContainerLocationToString(ViewContainerLocation.Panel))),
+			order: 1
+		}
+	}]);
 }
 
 // register each position panel action

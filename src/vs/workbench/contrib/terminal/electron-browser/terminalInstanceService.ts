@@ -82,7 +82,7 @@ export class TerminalInstanceService implements ITerminalInstanceService {
 		return this._storageService.getBoolean(IS_WORKSPACE_SHELL_ALLOWED_STORAGE_KEY, StorageScope.WORKSPACE, false);
 	}
 
-	public getDefaultShellAndArgs(useAutomationShell: boolean, platformOverride: Platform = platform): Promise<{ shell: string, args: string | string[] }> {
+	public async getDefaultShellAndArgs(useAutomationShell: boolean, platformOverride: Platform = platform): Promise<{ shell: string, args: string | string[] }> {
 		const isWorkspaceShellAllowed = this._isWorkspaceShellAllowed();
 		const activeWorkspaceRootUri = this._historyService.getLastActiveWorkspaceRoot();
 		let lastActiveWorkspace = activeWorkspaceRootUri ? this._workspaceContextService.getWorkspaceFolder(activeWorkspaceRootUri) : undefined;
@@ -90,7 +90,7 @@ export class TerminalInstanceService implements ITerminalInstanceService {
 		const shell = getDefaultShell(
 			(key) => this._configurationService.inspect(key),
 			isWorkspaceShellAllowed,
-			getSystemShell(platformOverride),
+			await getSystemShell(platformOverride),
 			process.env.hasOwnProperty('PROCESSOR_ARCHITEW6432'),
 			process.env.windir,
 			createVariableResolver(lastActiveWorkspace, this._configurationResolverService),

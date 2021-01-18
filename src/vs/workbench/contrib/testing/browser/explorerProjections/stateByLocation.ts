@@ -15,10 +15,10 @@ import { Location as ModeLocation } from 'vs/editor/common/modes';
 import { TestRunState } from 'vs/workbench/api/common/extHostTypes';
 import { ITestTreeElement, ITestTreeProjection } from 'vs/workbench/contrib/testing/browser/explorerProjections';
 import { locationsEqual, TestLocationStore } from 'vs/workbench/contrib/testing/browser/explorerProjections/locationStore';
-import { NodeChangeList } from 'vs/workbench/contrib/testing/browser/explorerProjections/nodeHelper';
+import { isRunningState, NodeChangeList } from 'vs/workbench/contrib/testing/browser/explorerProjections/nodeHelper';
 import { StateElement } from 'vs/workbench/contrib/testing/browser/explorerProjections/stateNodes';
 import { statesInOrder } from 'vs/workbench/contrib/testing/browser/testExplorerTree';
-import { TestSubscriptionListener } from 'vs/workbench/contrib/testing/browser/testingCollectionService';
+import { TestSubscriptionListener } from 'vs/workbench/contrib/testing/common/testingCollectionService';
 import { AbstractIncrementalTestCollection, IncrementalChangeCollector, IncrementalTestCollectionItem, InternalTestItem, TestDiffOpType, TestIdWithProvider, TestsDiff } from 'vs/workbench/contrib/testing/common/testCollection';
 
 interface IStatusTestItem extends IncrementalTestCollectionItem {
@@ -187,9 +187,19 @@ export class StateByLocationProjection extends AbstractIncrementalTestCollection
 				}
 			},
 			update: node => {
+				const isRunning = isRunningState(node.item.state.runState);
 				if (node.item.state.runState !== node.previousState) {
-					this.pruneStateElements(node, node.previousState);
-					this.resolveNodesRecursive(node);
+					if (isRunning && node.treeElements.has(node.previousState)) {
+						node.treeElements.get(node.previousState)!.computedState = TestRunState.Running;
+					} else {
+						this.pruneStateElements(node, node.previousState);
+						this.resolveNodesRecursive(node);
+					}
+				} else if (!isRunning) {
+					const previous = node.treeElements.get(node.item.state.runState);
+					if (previous) {
+						previous.computedState = node.item.state.runState;
+					}
 				}
 
 				const locationChanged = !locationsEqual(node.location, node.item.location);
@@ -199,7 +209,7 @@ export class StateByLocationProjection extends AbstractIncrementalTestCollection
 					this.locations.add(node);
 				}
 
-				const treeNode = node.treeElements.get(node.item.state.runState)!;
+				const treeNode = node.treeElements.get(node.previousState)!;
 				this.changes.updated(treeNode);
 			},
 			complete: () => {
