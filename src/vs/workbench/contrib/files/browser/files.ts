@@ -16,6 +16,7 @@ import { IEditorGroupsService } from 'vs/workbench/services/editor/common/editor
 import { IEditableData } from 'vs/workbench/common/views';
 import { createDecorator } from 'vs/platform/instantiation/common/instantiation';
 import { ResourceFileEdit } from 'vs/editor/browser/services/bulkEditService';
+import { ProgressLocation } from 'vs/platform/progress/common/progress';
 
 
 export interface IExplorerService {
@@ -34,7 +35,7 @@ export interface IExplorerService {
 	refresh(): Promise<void>;
 	setToCopy(stats: ExplorerItem[], cut: boolean): Promise<void>;
 	isCut(stat: ExplorerItem): boolean;
-	applyBulkEdit(edit: ResourceFileEdit[], options: { undoLabel: string, progressLabel: string, confirmBeforeUndo?: boolean }): Promise<void>;
+	applyBulkEdit(edit: ResourceFileEdit[], options: { undoLabel: string, progressLabel: string, confirmBeforeUndo?: boolean, progressLocation?: ProgressLocation.Explorer | ProgressLocation.Window }): Promise<void>;
 
 	/**
 	 * Selects and reveal the file element provided by the given resource if its found in the explorer.

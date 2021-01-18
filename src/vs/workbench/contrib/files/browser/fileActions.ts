@@ -1189,6 +1189,7 @@ const downloadFileHandler = async (accessor: ServicesAccessor) => {
 					await explorerService.applyBulkEdit([new ResourceFileEdit(explorerItem.resource, destination, { overwrite: true, copy: true })], {
 						undoLabel: nls.localize('downloadBulkEdit', "Download {0}", explorerItem.name),
 						progressLabel: nls.localize('downloadingBulkEdit', "Downloading {0}", explorerItem.name),
+						progressLocation: ProgressLocation.Explorer
 					});
 				} else {
 					cts.cancel(); // User canceled a download. In case there were multiple files selected we should cancel the remainder of the prompts #86100
