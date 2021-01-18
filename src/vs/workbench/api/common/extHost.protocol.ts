@@ -1292,10 +1292,6 @@ export interface ISignatureHelpContextDto {
 export interface IInlineHintDto {
 	text: string;
 	range: IRange;
-	triggerPosition: IPosition;
-	prefix?: string;
-	postfix?: string;
-	contextValue?: string;
 	hoverMessage?: string;
 	whitespaceBefore?: boolean;
 	whitespaceAfter?: boolean;

@@ -1024,10 +1024,6 @@ export namespace InlineHint {
 		return {
 			text: hint.text,
 			range: Range.from(hint.range),
-			triggerPosition: Position.from(hint.triggerPosition),
-			prefix: hint.prefix,
-			postfix: hint.postfix,
-			contextValue: hint.contextValue,
 			hoverMessage: hint.hoverMessage,
 			whitespaceBefore: hint.whitespaceBefore,
 			whitespaceAfter: hint.whitespaceAfter
@@ -1038,10 +1034,6 @@ export namespace InlineHint {
 		return {
 			text: hint.text,
 			range: Range.to(hint.range),
-			triggerPosition: Position.to(hint.triggerPosition),
-			prefix: hint.prefix,
-			postfix: hint.postfix,
-			contextValue: hint.contextValue,
 			hoverMessage: hint.hoverMessage,
 			whitespaceBefore: hint.whitespaceBefore,
 			whitespaceAfter: hint.whitespaceAfter

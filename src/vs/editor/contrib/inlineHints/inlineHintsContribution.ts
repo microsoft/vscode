@@ -2,7 +2,8 @@
  *  Copyright (c) Microsoft Corporation. All rights reserved.
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
-import { InlineHintsController } from 'vs/editor/contrib/inlineHints/inlineHintsController';
+import 'vs/editor/contrib/inlineHints/inlineHintsController';
+
 import { Disposable, dispose } from 'vs/base/common/lifecycle';
 import { ICodeEditor, IEditorMouseEvent, MouseTargetType } from 'vs/editor/browser/editorBrowser';
 import { registerEditorContribution } from 'vs/editor/browser/editorExtensions';
@@ -12,15 +13,12 @@ import { IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
 import { IAction } from 'vs/base/common/actions';
 import { IContextMenuService } from 'vs/platform/contextview/browser/contextView';
 import { createAndFillInContextMenuActions } from 'vs/platform/actions/browser/menuEntryActionViewItem';
-import { IPosition } from 'vs/editor/common/core/position';
 import { Range } from 'vs/editor/common/core/range';
 import { ModesHoverController } from 'vs/editor/contrib/hover/hover';
 import { HoverStartMode } from 'vs/editor/contrib/hover/hoverOperation';
 
 interface InlineHintsMenuCommandArgs {
 	range: Range;
-	triggerPosition: IPosition;
-	contextValue?: string;
 }
 
 export class InlineHintsContribution extends Disposable implements IEditorContribution {
@@ -45,7 +43,7 @@ export class InlineHintsContribution extends Disposable implements IEditorContri
 		super.dispose();
 	}
 
-	private getTriggerDecorationAndMetadataFromEvent(mouseEvent: IEditorMouseEvent) {
+	private getTriggerDecorationFromEvent(mouseEvent: IEditorMouseEvent) {
 		const targetType = mouseEvent.target.type;
 
 		if (targetType !== MouseTargetType.CONTENT_TEXT) {
@@ -73,48 +71,29 @@ export class InlineHintsContribution extends Disposable implements IEditorContri
 			return;
 		}
 
-		const currentDecoration = decorations.find(decoration => isInlineHintsClassName(decoration.options.beforeContentClassName));
-		if (!currentDecoration) {
-			return;
-		}
-
-		const inlineHintsController = this._editor.getContribution<InlineHintsController>(InlineHintsController.ID);
-		if (!InlineHintsController) {
-			return;
-		}
-
-		const metadata = inlineHintsController.getMetadata(currentDecoration.id);
-		if (!metadata) {
-			return;
-		}
-
-		return [currentDecoration, metadata] as const;
+		return decorations.find(decoration => isInlineHintsClassName(decoration.options.beforeContentClassName));
 	}
 
 	private onMouseMove(mouseEvent: IEditorMouseEvent) {
-		const decorationAndMetadata = this.getTriggerDecorationAndMetadataFromEvent(mouseEvent);
+		const decorationAndMetadata = this.getTriggerDecorationFromEvent(mouseEvent);
 		if (!decorationAndMetadata) {
 			return;
 		}
 
-		const [currentDecoration] = decorationAndMetadata;
+		const currentDecoration = decorationAndMetadata;
 		const hoverController = this._editor.getContribution<ModesHoverController>(ModesHoverController.ID);
 		hoverController.showContentHover(currentDecoration.range, HoverStartMode.Immediate, false);
 	}
 
 	private onContextMenu(mouseEvent: IEditorMouseEvent) {
-		const decorationAndMetadata = this.getTriggerDecorationAndMetadataFromEvent(mouseEvent);
+		const decorationAndMetadata = this.getTriggerDecorationFromEvent(mouseEvent);
 		if (!decorationAndMetadata) {
 			return;
 		}
 
-		const [currentDecoration, metadata] = decorationAndMetadata;
-
 		const actions: IAction[] = [];
 		const arg: InlineHintsMenuCommandArgs = {
-			range: currentDecoration.range,
-			triggerPosition: metadata.triggerPosition,
-			contextValue: metadata.contextValue || null!
+			range: decorationAndMetadata.range
 		};
 
 		const actionsDisposable = createAndFillInContextMenuActions(this.menu, { arg, shouldForwardArgs: false }, actions);

@@ -21,7 +21,6 @@ import { CancellationToken } from 'vs/base/common/cancellation';
 import { IThemeService } from 'vs/platform/theme/common/themeService';
 import { Range } from 'vs/editor/common/core/range';
 import { LanguageFeatureRequestDelays } from 'vs/editor/common/modes/languageFeatureRegistry';
-import { IPosition } from 'vs/editor/common/core/position';
 import { MarkdownString } from 'vs/base/common/htmlContent';
 
 const MAX_DECORATORS = 500;
@@ -29,11 +28,6 @@ const MAX_DECORATORS = 500;
 export interface InlineHintsData {
 	list: InlineHint[];
 	provider: InlineHintsProvider;
-}
-
-export interface InlineHintsMetadata {
-	triggerPosition: IPosition;
-	contextValue?: string;
 }
 
 export function getInlineHints(model: ITextModel, ranges: Range[], token: CancellationToken): Promise<InlineHintsData[]> {
@@ -54,7 +48,6 @@ export class InlineHintsController extends Disposable implements IEditorContribu
 	private readonly _localToDispose = this._register(new DisposableStore());
 	private _decorationsIds: string[] = [];
 	private _hintsDatas = new Map<string, InlineHintsData>();
-	private _inlineHintsMetadataMap = new Map<string, InlineHintsMetadata>();
 	private _hintsDecoratorIds: string[] = [];
 	private readonly _decorationsTypes = new Set<string>();
 	private _isEnabled: boolean;
@@ -108,10 +101,6 @@ export class InlineHintsController extends Disposable implements IEditorContribu
 		this._stop();
 		this._removeAllDecorations();
 		super.dispose();
-	}
-
-	getMetadata(id: string) {
-		return this._inlineHintsMetadataMap.get(id);
 	}
 
 	private _onModelChanged(): void {
@@ -195,7 +184,6 @@ export class InlineHintsController extends Disposable implements IEditorContribu
 	private _updateHintsDecorators(hintsData: InlineHintsData[]): void {
 		let decorations: IModelDeltaDecoration[] = [];
 		const newDecorationsTypes: { [key: string]: boolean } = {};
-		const newHintsMetadats: InlineHintsMetadata[] = [];
 		const { fontSize, fontFamily } = this._getLayoutInfo();
 		const backgroundColor = this._themeService.getColorTheme().getColor(editorInlineHintBackground);
 		const fontColor = this._themeService.getColorTheme().getColor(editorInlineHintForeground);
@@ -203,7 +191,7 @@ export class InlineHintsController extends Disposable implements IEditorContribu
 		for (let i = 0; i < hintsData.length; i++) {
 			const hint = hintsData[i].list;
 			for (let j = 0; j < hint.length && decorations.length < MAX_DECORATORS; j++) {
-				const { text, range, triggerPosition, prefix = '', postfix = '', contextValue, hoverMessage, whitespaceBefore, whitespaceAfter } = hint[j];
+				const { text, range, hoverMessage, whitespaceBefore, whitespaceAfter } = hint[j];
 				const marginBefore = whitespaceBefore ? fontSize / 3 : 0;
 				const marginAfter = whitespaceAfter ? fontSize / 3 : 0;
 
@@ -213,7 +201,7 @@ export class InlineHintsController extends Disposable implements IEditorContribu
 				if (!this._decorationsTypes.has(key) && !newDecorationsTypes[key]) {
 					this._codeEditorService.registerDecorationType(key, {
 						before: {
-							contentText: `${prefix}${text}${postfix}`,
+							contentText: text,
 							backgroundColor: `${backgroundColor}`,
 							color: `${fontColor}`,
 							margin: `0px ${marginAfter}px 0px ${marginBefore}px`,
@@ -239,10 +227,6 @@ export class InlineHintsController extends Disposable implements IEditorContribu
 					},
 					options
 				});
-				newHintsMetadats.push({
-					triggerPosition,
-					contextValue
-				});
 			}
 		}
 
@@ -253,11 +237,6 @@ export class InlineHintsController extends Disposable implements IEditorContribu
 		});
 
 		this._hintsDecoratorIds = this._editor.deltaDecorations(this._hintsDecoratorIds, decorations);
-		const newInlineHintsMetadataMap = new Map<string, InlineHintsMetadata>();
-		this._hintsDecoratorIds.forEach((decorationId, idx) => {
-			newInlineHintsMetadataMap.set(decorationId, newHintsMetadats[idx]);
-		});
-		this._inlineHintsMetadataMap = newInlineHintsMetadataMap;
 	}
 
 	private _getLayoutInfo() {
