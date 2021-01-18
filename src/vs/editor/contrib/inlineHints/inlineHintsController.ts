@@ -55,10 +55,9 @@ export class InlineHintsController implements IEditorContribution {
 
 	private readonly _disposables = new DisposableStore();
 	private readonly _sessionDisposables = new DisposableStore();
-
 	private readonly _getInlineHintsDelays = new LanguageFeatureRequestDelays(InlineHintsProviderRegistry, 250, 2500);
-	private readonly _decorationsTypes = new Set<string>();
 
+	private _decorationsTypeIds: string[] = [];
 	private _decorationIds: string[] = [];
 
 	constructor(private readonly _editor: ICodeEditor,
@@ -133,61 +132,54 @@ export class InlineHintsController implements IEditorContribution {
 	}
 
 	private _updateHintsDecorators(hintsData: InlineHintsData[]): void {
-		let decorations: IModelDeltaDecoration[] = [];
-		const newDecorationsTypes: { [key: string]: boolean } = {};
 		const { fontSize, fontFamily } = this._getLayoutInfo();
 		const backgroundColor = this._themeService.getColorTheme().getColor(editorInlineHintBackground);
 		const fontColor = this._themeService.getColorTheme().getColor(editorInlineHintForeground);
 
-		for (let i = 0; i < hintsData.length; i++) {
-			const hint = hintsData[i].list;
-			for (let j = 0; j < hint.length && decorations.length < MAX_DECORATORS; j++) {
-				const { text, range, hoverMessage, whitespaceBefore, whitespaceAfter } = hint[j];
+		const newDecorationsTypeIds: string[] = [];
+		const newDecorationsData: IModelDeltaDecoration[] = [];
+
+		for (const { list: hints } of hintsData) {
+
+			for (let j = 0; j < hints.length && newDecorationsData.length < MAX_DECORATORS; j++) {
+				const { text, range, hoverMessage, whitespaceBefore, whitespaceAfter } = hints[j];
 				const marginBefore = whitespaceBefore ? fontSize / 3 : 0;
 				const marginAfter = whitespaceAfter ? fontSize / 3 : 0;
 
-				const subKey = hash(text).toString(16);
-				let key = 'inlineHints-' + subKey;
+				const subKey = hash([text, marginBefore, marginAfter]).toString(16);
+				const key = 'inlineHints-' + subKey;
 
-				if (!this._decorationsTypes.has(key) && !newDecorationsTypes[key]) {
-					this._codeEditorService.registerDecorationType(key, {
-						before: {
-							contentText: text,
-							backgroundColor: `${backgroundColor}`,
-							color: `${fontColor}`,
-							margin: `0px ${marginAfter}px 0px ${marginBefore}px`,
-							fontSize: `${fontSize}px`,
-							fontFamily: fontFamily,
-							padding: '0px 2px'
-						}
-					}, undefined, this._editor);
-				}
+				// decoration types are ref-counted which means we only need to
+				// call register und remove equally often
+				newDecorationsTypeIds.push(key);
+				this._codeEditorService.registerDecorationType(key, {
+					before: {
+						contentText: text,
+						backgroundColor: `${backgroundColor}`,
+						color: `${fontColor}`,
+						margin: `0px ${marginAfter}px 0px ${marginBefore}px`,
+						fontSize: `${fontSize}px`,
+						fontFamily: fontFamily,
+						padding: '0px 2px'
+					}
+				}, undefined, this._editor);
 
-				newDecorationsTypes[key] = true;
 				const options = this._codeEditorService.resolveDecorationOptions(key, true);
 				if (hoverMessage) {
 					options.hoverMessage = new MarkdownString().appendText(hoverMessage);
 				}
 
-				decorations.push({
-					range: {
-						startLineNumber: range.startLineNumber,
-						startColumn: range.startColumn,
-						endLineNumber: range.endLineNumber,
-						endColumn: range.endColumn
-					},
+				newDecorationsData.push({
+					range,
 					options
 				});
 			}
 		}
 
-		this._decorationsTypes.forEach(subType => {
-			if (!newDecorationsTypes[subType]) {
-				this._codeEditorService.removeDecorationType(subType);
-			}
-		});
+		this._decorationsTypeIds.forEach(this._codeEditorService.removeDecorationType, this._codeEditorService);
+		this._decorationsTypeIds = newDecorationsTypeIds;
 
-		this._decorationIds = this._editor.deltaDecorations(this._decorationIds, decorations);
+		this._decorationIds = this._editor.deltaDecorations(this._decorationIds, newDecorationsData);
 	}
 
 	private _getLayoutInfo() {
@@ -203,10 +195,8 @@ export class InlineHintsController implements IEditorContribution {
 
 	private _removeAllDecorations(): void {
 		this._decorationIds = this._editor.deltaDecorations(this._decorationIds, []);
-
-		this._decorationsTypes.forEach(subType => {
-			this._codeEditorService.removeDecorationType(subType);
-		});
+		this._decorationsTypeIds.forEach(this._codeEditorService.removeDecorationType, this._codeEditorService);
+		this._decorationsTypeIds = [];
 	}
 }
 
