@@ -42,8 +42,8 @@ export interface RunCommandPipeArgs {
 export interface ExtensionManagementPipeArgs {
 	type: 'extensionManagement';
 	list?: { showVersions?: boolean, category?: string; };
-	install?: (string | URI)[];
-	uninstall?: (string | URI)[];
+	install?: string[];
+	uninstall?: string[];
 	force?: boolean;
 }
 
@@ -166,7 +166,14 @@ export class CLIServerBase {
 	private async manageExtensions(data: ExtensionManagementPipeArgs, res: http.ServerResponse) {
 		console.log('server: manageExtensions');
 		try {
-			const output = await this._commands.executeCommand('_remoteCLI.manageExtensions', data, { allowTunneling: true });
+			const toExtOrVSIX = (inputs: string[] | undefined) => inputs?.map(input => /\.vsix$/i.test(input) ? URI.parse(input) : input);
+			const commandArgs = {
+				list: data.list,
+				install: toExtOrVSIX(data.install),
+				uninstall: toExtOrVSIX(data.uninstall),
+				force: data.force
+			};
+			const output = await this._commands.executeCommand('_remoteCLI.manageExtensions', commandArgs, { allowTunneling: true });
 			res.writeHead(200);
 			res.write(output);
 		} catch (e) {
