@@ -7,7 +7,6 @@ import 'vs/css!./media/panel';
 import * as nls from 'vs/nls';
 import * as dom from 'vs/base/browser/dom';
 import { basename } from 'vs/base/common/resources';
-import { CollapseAllAction } from 'vs/base/browser/ui/tree/treeDefaults';
 import { isCodeEditor } from 'vs/editor/browser/editorBrowser';
 import { IInstantiationService, ServicesAccessor } from 'vs/platform/instantiation/common/instantiation';
 import { IThemeService } from 'vs/platform/theme/common/themeService';
@@ -137,7 +136,11 @@ export class CommentsPanel extends ViewPane {
 
 	public collapseAll() {
 		if (this.tree) {
-			new CollapseAllAction<any, any>(this.tree, true).run();
+			this.tree.collapseAll();
+			this.tree.setSelection([]);
+			this.tree.setFocus([]);
+			this.tree.domFocus();
+			this.tree.focusFirst();
 		}
 	}
 
