@@ -6,7 +6,7 @@
 import { localize } from 'vs/nls';
 import { Event, Emitter } from 'vs/base/common/event';
 import { Disposable } from 'vs/base/common/lifecycle';
-import { IExtensionManagementService, DidUninstallExtensionEvent, IExtensionIdentifier, IGlobalExtensionEnablementService, ENABLED_EXTENSIONS_STORAGE_PATH, DISABLED_EXTENSIONS_STORAGE_PATH } from 'vs/platform/extensionManagement/common/extensionManagement';
+import { IExtensionManagementService, DidUninstallExtensionEvent, IExtensionIdentifier, IGlobalExtensionEnablementService, ENABLED_EXTENSIONS_STORAGE_PATH, DISABLED_EXTENSIONS_STORAGE_PATH, DidInstallExtensionEvent } from 'vs/platform/extensionManagement/common/extensionManagement';
 import { IWorkbenchExtensionEnablementService, EnablementState, IExtensionManagementServerService } from 'vs/workbench/services/extensionManagement/common/extensionManagement';
 import { areSameExtensions } from 'vs/platform/extensionManagement/common/extensionManagementUtil';
 import { IWorkspaceContextService, WorkbenchState } from 'vs/platform/workspace/common/workspace';
@@ -59,6 +59,7 @@ export class ExtensionEnablementService extends Disposable implements IWorkbench
 		super();
 		this.storageManger = this._register(new StorageManager(storageService));
 		this._register(this.globalExtensionEnablementService.onDidChangeEnablement(({ extensions, source }) => this.onDidChangeExtensions(extensions, source)));
+		this._register(extensionManagementService.onDidInstallExtension(this._onDidInstallExtension, this));
 		this._register(extensionManagementService.onDidUninstallExtension(this._onDidUninstallExtension, this));
 		this._register(this.trustedWorkspaceService.onDidChangeTrust(this._onDidChangeTrust, this));
 
@@ -438,6 +439,15 @@ export class ExtensionEnablementService extends Disposable implements IWorkbench
 			// Enable extensions
 			this._onEnablementChanged.fire(this.extensionsDisabledByTrustRequirement);
 			this.extensionsDisabledByTrustRequirement = [];
+		}
+	}
+
+	private _onDidInstallExtension({ local, error }: DidInstallExtensionEvent): void {
+		if (local && !error && this._isDisabledByTrustRequirement(local)) {
+			this.trustedWorkspaceService.requireWorkspaceTrust({
+				immediate: true,
+				message: 'Enabling this extension requires you to trust the contents of this workspace.'
+			});
 		}
 	}
 
