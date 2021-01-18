@@ -107,6 +107,11 @@ export interface IWorkbenchLayoutService extends ILayoutService {
 	readonly onPartVisibilityChange: Event<void>;
 
 	/**
+	 * Run a layout of the workbench.
+	 */
+	layout(): void;
+
+	/**
 	 * Asks the part service if all parts have been fully restored. For editor part
 	 * this means that the contents of editors have loaded.
 	 */
