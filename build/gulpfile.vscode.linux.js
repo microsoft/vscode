@@ -99,6 +99,7 @@ function prepareDebPackage(arch) {
 			.pipe(replace('@@QUALITY@@', product.quality || '@@QUALITY@@'))
 			.pipe(replace('@@UPDATEURL@@', product.updateUrl || '@@UPDATEURL@@'))
 			.pipe(replace('@@REPOSITORY_NAME@@', arch === 'x64' ? 'vscode' : 'code'))
+			.pipe(replace('@@SUPPORTED_ARCHITECTURES@@', arch === 'x64' ? 'amd64' : 'amd64,arm64,armhf'))
 			.pipe(rename('DEBIAN/postinst'));
 
 		const all = es.merge(control, postinst, postrm, prerm, desktops, appdata, workspaceMime, icon, bash_completion, zsh_completion, code);

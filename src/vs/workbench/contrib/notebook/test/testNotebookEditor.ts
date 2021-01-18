@@ -47,7 +47,7 @@ export class TestCell extends NotebookCellTextModel {
 		outputs: IProcessedOutput[],
 		modelService: ITextModelService
 	) {
-		super(CellUri.generate(URI.parse('test:///fake/notebook'), handle), handle, source, language, cellKind, outputs, undefined, { transientMetadata: {}, transientOutputs: false }, modelService);
+		super(CellUri.generate(URI.parse('test:///fake/notebook'), viewType, handle), handle, source, language, cellKind, outputs, undefined, { transientMetadata: {}, transientOutputs: false }, modelService);
 	}
 }
 
@@ -66,6 +66,12 @@ export class TestNotebookEditor implements INotebookEditor {
 
 	constructor(
 	) { }
+	revealCellRangeInView(range: ICellRange): void {
+		throw new Error('Method not implemented.');
+	}
+	revealInViewAtTop(cell: ICellViewModel): void {
+		throw new Error('Method not implemented.');
+	}
 	getCellOutputLayoutInfo(cell: IGenericCellViewModel): INotebookCellOutputLayoutInfo {
 		throw new Error('Method not implemented.');
 	}

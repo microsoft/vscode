@@ -254,6 +254,26 @@ steps:
     displayName: Publish
     condition: and(succeeded(), ne(variables['VSCODE_PUBLISH'], 'false'))
 
+  - publish: $(DEB_PATH)
+    artifact: vscode-linux-deb-$(VSCODE_ARCH)
+    displayName: Publish deb package
+    condition: and(succeeded(), ne(variables['VSCODE_PUBLISH'], 'false'))
+
+  - publish: $(RPM_PATH)
+    artifact: vscode-linux-rpm-$(VSCODE_ARCH)
+    displayName: Publish rpm package
+    condition: and(succeeded(), ne(variables['VSCODE_PUBLISH'], 'false'))
+
+  - publish: $(Agent.BuildDirectory)/vscode-server-linux-$(VSCODE_ARCH).tar.gz
+    artifact: vscode-server-linux-$(VSCODE_ARCH)
+    displayName: Publish server archive
+    condition: and(succeeded(), ne(variables['VSCODE_PUBLISH'], 'false'))
+
+  - publish: $(Agent.BuildDirectory)/vscode-server-linux-$(VSCODE_ARCH)-web.tar.gz
+    artifact: vscode-server-linux-$(VSCODE_ARCH)-web
+    displayName: Publish web server archive
+    condition: and(succeeded(), ne(variables['VSCODE_PUBLISH'], 'false'))
+
   - task: PublishPipelineArtifact@0
     displayName: "Publish Pipeline Artifact"
     inputs:

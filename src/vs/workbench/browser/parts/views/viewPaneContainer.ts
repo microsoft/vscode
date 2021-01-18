@@ -590,28 +590,33 @@ export class ViewPaneContainer extends Component implements IViewPaneContainer {
 	}
 
 	getSecondaryActions2(): IAction[] {
+		const viewPaneActions = this.isViewMergedWithContainer() ? this.paneItems[0].pane.getSecondaryActions() : [];
 		let menuActions = this.menuActions.getSecondaryActions();
-		const isViewsSubMenuAction = (action: IAction) => action instanceof SubmenuItemAction && action.item.submenu === ViewsSubMenu;
-		const index = menuActions.findIndex(a => isViewsSubMenuAction(a));
-		const viewPaneContainerActions = this.isViewMergedWithContainer() ? this.paneItems[0].pane.getSecondaryActions() : [];
-		if (index !== -1) {
-			if (index !== 0) {
-				menuActions = [menuActions[index], ...menuActions.slice(0, index), ...menuActions.slice(index + 1)];
-			}
-			if (menuActions.length === 1 && viewPaneContainerActions.length === 0) {
-				menuActions = (<SubmenuItemAction>menuActions[0]).actions.slice();
+
+		const viewsSubmenuActionIndex = menuActions.findIndex(action => action instanceof SubmenuItemAction && action.item.submenu === ViewsSubMenu);
+		if (viewsSubmenuActionIndex !== -1) {
+			const viewsSubmenuAction = <SubmenuItemAction>menuActions[viewsSubmenuActionIndex];
+			if (viewsSubmenuAction.actions.some(({ enabled }) => enabled)) {
+				if (menuActions.length === 1 && viewPaneActions.length === 0) {
+					menuActions = viewsSubmenuAction.actions.slice();
+				} else if (viewsSubmenuActionIndex !== 0) {
+					menuActions = [viewsSubmenuAction, ...menuActions.slice(0, viewsSubmenuActionIndex), ...menuActions.slice(viewsSubmenuActionIndex + 1)];
+				}
+			} else {
+				// Remove views submenu if none of the actions are enabled
+				menuActions.splice(viewsSubmenuActionIndex, 1);
 			}
 		}
 
-		if (menuActions.length && viewPaneContainerActions.length) {
+		if (menuActions.length && viewPaneActions.length) {
 			return [
 				...menuActions,
 				new Separator(),
-				...viewPaneContainerActions
+				...viewPaneActions
 			];
 		}
 
-		return menuActions.length ? menuActions : viewPaneContainerActions;
+		return menuActions.length ? menuActions : viewPaneActions;
 	}
 
 	getSecondaryActions(): IAction[] {

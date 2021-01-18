@@ -21,6 +21,7 @@ import { match } from 'vs/base/common/glob';
 import { LifecyclePhase } from 'vs/workbench/services/lifecycle/common/lifecycle';
 import { registerSingleton } from 'vs/platform/instantiation/common/extensions';
 import { IPathService } from 'vs/workbench/services/path/common/pathService';
+import { hasDriveLetter } from 'vs/base/common/extpath';
 
 const resourceLabelFormattersExtPoint = ExtensionsRegistry.registerExtensionPoint<ResourceLabelFormatter[]>({
 	extensionPoint: 'resourceLabelFormatters',
@@ -73,10 +74,6 @@ const resourceLabelFormattersExtPoint = ExtensionsRegistry.registerExtensionPoin
 const sepRegexp = /\//g;
 const labelMatchingRegexp = /\$\{(scheme|authority|path|(query)\.(.+?))\}/g;
 
-function hasDriveLetter(path: string): boolean {
-	return !!(path && path[2] === ':');
-}
-
 class ResourceLabelFormattersHandler implements IWorkbenchContribution {
 	private formattersDisposables = new Map<ResourceLabelFormatter, IDisposable>();
 
@@ -115,7 +112,7 @@ export class LabelService extends Disposable implements ILabelService {
 
 		this.formatters.forEach(formatter => {
 			if (formatter.scheme === resource.scheme) {
-				if (!bestResult && !formatter.authority) {
+				if (!formatter.authority && (!bestResult || formatter.priority)) {
 					bestResult = formatter;
 					return;
 				}
@@ -152,6 +149,8 @@ export class LabelService extends Disposable implements ILabelService {
 			while (relativeLabel[overlap] && relativeLabel[overlap] === baseResourceLabel[overlap]) { overlap++; }
 			if (!relativeLabel[overlap] || relativeLabel[overlap] === formatting.separator) {
 				relativeLabel = relativeLabel.substring(1 + overlap);
+			} else if (overlap === baseResourceLabel.length && baseResource.uri.path === '/') {
+				relativeLabel = relativeLabel.substring(overlap);
 			}
 
 			const hasMultipleRoots = this.contextService.getWorkspace().folders.length > 1;
@@ -268,7 +267,7 @@ export class LabelService extends Disposable implements ILabelService {
 		});
 
 		// convert \c:\something => C:\something
-		if (formatting.normalizeDriveLetter && hasDriveLetter(label)) {
+		if (formatting.normalizeDriveLetter && hasDriveLetter(label.substr(1))) {
 			label = label.charAt(1).toUpperCase() + label.substr(2);
 		}
 

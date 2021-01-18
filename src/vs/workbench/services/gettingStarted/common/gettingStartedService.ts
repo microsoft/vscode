@@ -12,6 +12,8 @@ import { Memento } from 'vs/workbench/common/memento';
 import { Action2, registerAction2 } from 'vs/platform/actions/common/actions';
 import { ICommandService } from 'vs/platform/commands/common/commands';
 import { IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
+import { Disposable } from 'vs/base/common/lifecycle';
+import { IUserDataAutoSyncEnablementService } from 'vs/platform/userDataSync/common/userDataSync';
 
 export const IGettingStartedService = createDecorator<IGettingStartedService>('gettingStartedService');
 
@@ -43,7 +45,7 @@ export interface IGettingStartedService {
 	progressByEvent(eventName: string): void;
 }
 
-export class GettingStartedService implements IGettingStartedService {
+export class GettingStartedService extends Disposable implements IGettingStartedService {
 	declare readonly _serviceBrand: undefined;
 
 	private readonly _onDidAddTask = new Emitter<IGettingStartedTaskWithProgress>();
@@ -65,7 +67,10 @@ export class GettingStartedService implements IGettingStartedService {
 		@IStorageService private readonly storageService: IStorageService,
 		@ICommandService private readonly commandService: ICommandService,
 		@IContextKeyService private readonly contextService: IContextKeyService,
+		@IUserDataAutoSyncEnablementService  readonly userDataAutoSyncEnablementService: IUserDataAutoSyncEnablementService,
 	) {
+		super();
+
 		this.memento = new Memento('gettingStartedService', this.storageService);
 		this.taskProgress = this.memento.getMemento(StorageScope.GLOBAL, StorageTarget.USER);
 
@@ -75,13 +80,17 @@ export class GettingStartedService implements IGettingStartedService {
 			}
 		});
 
-		this.registry.onDidAddCategory(category => this._onDidAddCategory.fire(this.getCategoryProgress(category)));
-		this.registry.onDidAddTask(task => {
+		this._register(this.registry.onDidAddCategory(category => this._onDidAddCategory.fire(this.getCategoryProgress(category))));
+		this._register(this.registry.onDidAddTask(task => {
 			this.registerDoneListeners(task);
 			this._onDidAddTask.fire(this.getTaskProgress(task));
-		});
+		}));
 
-		this.commandService.onDidExecuteCommand(command => this.progressByCommand(command.commandId));
+		this._register(this.commandService.onDidExecuteCommand(command => this.progressByCommand(command.commandId)));
+
+		this._register(userDataAutoSyncEnablementService.onDidChangeEnablement(() => {
+			if (userDataAutoSyncEnablementService.isEnabled()) { this.progressByEvent('sync-enabled'); }
+		}));
 	}
 
 	private registerDoneListeners(task: IGettingStartedTask) {
