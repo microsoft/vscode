@@ -148,6 +148,7 @@ export class MenuId {
 	static readonly AccountsContext = new MenuId('AccountsContext');
 	static readonly PanelTitle = new MenuId('PanelTitle');
 	static readonly PanelTitleContext = new MenuId('PanelTitleContext');
+	static readonly InlineHintContext = new MenuId('InlineHintContext');
 
 	readonly id: number;
 	readonly _debugName: string;

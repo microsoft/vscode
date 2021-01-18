@@ -1787,9 +1787,18 @@ export class ExtHostLanguageFeatures implements extHostProtocol.ExtHostLanguageF
 	// --- inline hints
 
 	registerInlineHintsProvider(extension: IExtensionDescription, selector: vscode.DocumentSelector, provider: vscode.InlineHintsProvider): vscode.Disposable {
+
+		const eventHandle = typeof provider.onDidChangeInlineHints === 'function' ? this._nextHandle() : undefined;
 		const handle = this._addNewAdapter(new InlineHintsAdapter(this._documents, provider), extension);
-		this._proxy.$registerInlineHintsProvider(handle, this._transformDocumentSelector(selector));
-		return this._createDisposable(handle);
+
+		this._proxy.$registerInlineHintsProvider(handle, this._transformDocumentSelector(selector), eventHandle);
+		let result = this._createDisposable(handle);
+
+		if (eventHandle !== undefined) {
+			const subscription = provider.onDidChangeInlineHints!(_ => this._proxy.$emitInlineHintsEvent(eventHandle));
+			result = Disposable.from(result, subscription);
+		}
+		return result;
 	}
 
 	$provideInlineHints(handle: number, resource: UriComponents, range: IRange, token: CancellationToken): Promise<extHostProtocol.IInlineHintsDto | undefined> {

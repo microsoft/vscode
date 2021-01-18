@@ -2001,6 +2001,26 @@ declare module 'vscode' {
 		 */
 		range: Range;
 		/**
+		 * The position of hint trigger.
+		 */
+		triggerPosition: Position;
+		/**
+		 * Prefix of hint text.
+		 */
+		prefix?: string;
+		/**
+		 * Postfix of hint text.
+		 */
+		postfix?: string;
+		/**
+		 * Context for the hint.
+		 */
+		contextValue?: string;
+		/**
+		 * Tooltip when hover on the hint.
+		 */
+		hoverMessage?: string;
+		/**
 		 * Whitespace before the hint.
 		 */
 		whitespaceBefore?: boolean;
@@ -2014,10 +2034,15 @@ declare module 'vscode' {
 		 *
 		 * @param text The text of the hint.
 		 * @param range The range of the hint.
+		 * @param triggerPosition The position of hint trigger.
+		 * @param prefix Prefix of hint text.
+		 * @param postfix Postfix of hint text.
+		 * @param contextValue Context for the hint.
+		 * @param hoverInfo Tooltip when hover on the hint.
 		 * @param whitespaceBefore Whitespace before the hint.
 		 * @param whitespaceAfter TWhitespace after the hint.
 		 */
-		constructor(text: string, range: Range, whitespaceBefore?: boolean, whitespaceAfter?: boolean);
+		constructor(text: string, range: Range, triggerPosition: Position, prefix?: string, postfix?: string, contextValue?: string, hoverInfo?: string, whitespaceBefore?: boolean, whitespaceAfter?: boolean);
 	}
 
 	/**
@@ -2025,6 +2050,12 @@ declare module 'vscode' {
 	 * the inline hints feature.
 	 */
 	export interface InlineHintsProvider {
+
+		/**
+		 * An optional event to signal that inline hints have changed.
+		 * @see [EventEmitter](#EventEmitter)
+		 */
+		onDidChangeInlineHints?: Event<void>;
 		/**
 		 * @param model The document in which the command was invoked.
 		 * @param token A cancellation token.

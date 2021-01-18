@@ -499,13 +499,28 @@ export class MainThreadLanguageFeatures implements MainThreadLanguageFeaturesSha
 
 	// --- inline hints
 
-	$registerInlineHintsProvider(handle: number, selector: IDocumentFilterDto[]): void {
-		this._registrations.set(handle, modes.InlineHintsProviderRegistry.register(selector, <modes.InlineHintsProvider>{
+	$registerInlineHintsProvider(handle: number, selector: IDocumentFilterDto[], eventHandle: number | undefined): void {
+		const provider = <modes.InlineHintsProvider>{
 			provideInlineHints: async (model: ITextModel, range: EditorRange, token: CancellationToken): Promise<modes.InlineHint[] | undefined> => {
 				const result = await this._proxy.$provideInlineHints(handle, model.uri, range, token);
 				return result?.hints;
 			}
-		}));
+		};
+
+		if (typeof eventHandle === 'number') {
+			const emitter = new Emitter<void>();
+			this._registrations.set(eventHandle, emitter);
+			provider.onDidChangeInlineHints = emitter.event;
+		}
+
+		this._registrations.set(handle, modes.InlineHintsProviderRegistry.register(selector, provider));
+	}
+
+	$emitInlineHintsEvent(eventHandle: number, event?: any): void {
+		const obj = this._registrations.get(eventHandle);
+		if (obj instanceof Emitter) {
+			obj.fire(event);
+		}
 	}
 
 	// --- links

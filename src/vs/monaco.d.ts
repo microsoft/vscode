@@ -6406,11 +6406,17 @@ declare namespace monaco.languages {
 	export interface InlineHint {
 		text: string;
 		range: IRange;
+		triggerPosition: IPosition;
+		prefix?: string;
+		postfix?: string;
+		contextValue?: string;
+		hoverMessage?: string;
 		whitespaceBefore?: boolean;
 		whitespaceAfter?: boolean;
 	}
 
 	export interface InlineHintsProvider {
+		onDidChangeInlineHints?: IEvent<void> | undefined;
 		provideInlineHints(model: editor.ITextModel, range: Range, token: CancellationToken): ProviderResult<InlineHint[]>;
 	}
 

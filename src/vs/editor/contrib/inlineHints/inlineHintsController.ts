@@ -6,7 +6,7 @@
 import { CancelablePromise, createCancelablePromise, RunOnceScheduler } from 'vs/base/common/async';
 import { onUnexpectedError } from 'vs/base/common/errors';
 import { hash } from 'vs/base/common/hash';
-import { Disposable, DisposableStore } from 'vs/base/common/lifecycle';
+import { Disposable, DisposableStore, dispose, IDisposable } from 'vs/base/common/lifecycle';
 import { ICodeEditor } from 'vs/editor/browser/editorBrowser';
 import { registerEditorContribution } from 'vs/editor/browser/editorExtensions';
 import { ICodeEditorService } from 'vs/editor/browser/services/codeEditorService';
@@ -21,12 +21,19 @@ import { CancellationToken } from 'vs/base/common/cancellation';
 import { IThemeService } from 'vs/platform/theme/common/themeService';
 import { Range } from 'vs/editor/common/core/range';
 import { LanguageFeatureRequestDelays } from 'vs/editor/common/modes/languageFeatureRegistry';
+import { IPosition } from 'vs/editor/common/core/position';
+import { MarkdownString } from 'vs/base/common/htmlContent';
 
 const MAX_DECORATORS = 500;
 
 export interface InlineHintsData {
 	list: InlineHint[];
 	provider: InlineHintsProvider;
+}
+
+export interface InlineHintsMetadata {
+	triggerPosition: IPosition;
+	contextValue?: string;
 }
 
 export function getInlineHints(model: ITextModel, ranges: Range[], token: CancellationToken): Promise<InlineHintsData[]> {
@@ -41,17 +48,20 @@ export function getInlineHints(model: ITextModel, ranges: Range[], token: Cancel
 	return Promise.all(promises).then(() => datas);
 }
 
-export class InlineHintsDetector extends Disposable implements IEditorContribution {
+export class InlineHintsController extends Disposable implements IEditorContribution {
 
 	static readonly ID: string = 'editor.contrib.InlineHints';
 	private readonly _localToDispose = this._register(new DisposableStore());
 	private _decorationsIds: string[] = [];
 	private _hintsDatas = new Map<string, InlineHintsData>();
+	private _inlineHintsMetadataMap = new Map<string, InlineHintsMetadata>();
 	private _hintsDecoratorIds: string[] = [];
 	private readonly _decorationsTypes = new Set<string>();
 	private _isEnabled: boolean;
 	private _getInlineHintsPromise: CancelablePromise<InlineHintsData[]> | undefined;
 	private readonly _getInlineHintsDelays = new LanguageFeatureRequestDelays(InlineHintsProviderRegistry, 250, 2500);
+
+	private _inlineHintsProvidersChangeListeners: IDisposable[] = [];
 
 	constructor(private readonly _editor: ICodeEditor,
 		@ICodeEditorService private readonly _codeEditorService: ICodeEditorService,
@@ -64,10 +74,8 @@ export class InlineHintsDetector extends Disposable implements IEditorContributi
 		}));
 		this._register(_editor.onDidChangeModelLanguage(() => this._onModelChanged()));
 		this._register(InlineHintsProviderRegistry.onDidChange(() => this._onModelChanged()));
-		this._register(_editor.onDidChangeConfiguration(() => {
-			let prevIsEnabled = this._isEnabled;
-			this._isEnabled = this.isEnabled();
-			if (prevIsEnabled !== this._isEnabled) {
+		this._register(_editor.onDidChangeConfiguration((e) => {
+			if (e.hasChanged(EditorOption.inlineHints)) {
 				if (this._isEnabled) {
 					this._onModelChanged();
 				} else {
@@ -92,14 +100,18 @@ export class InlineHintsDetector extends Disposable implements IEditorContributi
 		return this._editor.getOption(EditorOption.inlineHints).enabled;
 	}
 
-	static get(editor: ICodeEditor): InlineHintsDetector {
-		return editor.getContribution<InlineHintsDetector>(this.ID);
+	static get(editor: ICodeEditor): InlineHintsController {
+		return editor.getContribution<InlineHintsController>(this.ID);
 	}
 
 	dispose(): void {
 		this._stop();
 		this._removeAllDecorations();
 		super.dispose();
+	}
+
+	getMetadata(id: string) {
+		return this._inlineHintsMetadataMap.get(id);
 	}
 
 	private _onModelChanged(): void {
@@ -136,6 +148,17 @@ export class InlineHintsDetector extends Disposable implements IEditorContributi
 		}, this._getInlineHintsDelays.get(model));
 
 		this._localToDispose.add(scheduler);
+
+		const bindInlineHintsChangeListeners = () => {
+			dispose(this._inlineHintsProvidersChangeListeners);
+			this._inlineHintsProvidersChangeListeners = [];
+			for (const provider of InlineHintsProviderRegistry.all(model)) {
+				if (typeof provider.onDidChangeInlineHints === 'function') {
+					this._inlineHintsProvidersChangeListeners.push(provider.onDidChangeInlineHints(() => scheduler.schedule()));
+				}
+			}
+		};
+		bindInlineHintsChangeListeners();
 		this._localToDispose.add(this._editor.onDidChangeModelContent(() => {
 			scheduler.schedule();
 		}));
@@ -171,7 +194,8 @@ export class InlineHintsDetector extends Disposable implements IEditorContributi
 
 	private _updateHintsDecorators(hintsData: InlineHintsData[]): void {
 		let decorations: IModelDeltaDecoration[] = [];
-		let newDecorationsTypes: { [key: string]: boolean } = {};
+		const newDecorationsTypes: { [key: string]: boolean } = {};
+		const newHintsMetadats: InlineHintsMetadata[] = [];
 		const { fontSize, fontFamily } = this._getLayoutInfo();
 		const backgroundColor = this._themeService.getColorTheme().getColor(editorInlineHintBackground);
 		const fontColor = this._themeService.getColorTheme().getColor(editorInlineHintForeground);
@@ -179,7 +203,7 @@ export class InlineHintsDetector extends Disposable implements IEditorContributi
 		for (let i = 0; i < hintsData.length; i++) {
 			const hint = hintsData[i].list;
 			for (let j = 0; j < hint.length && decorations.length < MAX_DECORATORS; j++) {
-				const { text, range, whitespaceBefore, whitespaceAfter } = hint[j];
+				const { text, range, triggerPosition, prefix = '', postfix = '', contextValue, hoverMessage, whitespaceBefore, whitespaceAfter } = hint[j];
 				const marginBefore = whitespaceBefore ? fontSize / 3 : 0;
 				const marginAfter = whitespaceAfter ? fontSize / 3 : 0;
 
@@ -189,7 +213,7 @@ export class InlineHintsDetector extends Disposable implements IEditorContributi
 				if (!this._decorationsTypes.has(key) && !newDecorationsTypes[key]) {
 					this._codeEditorService.registerDecorationType(key, {
 						before: {
-							contentText: text,
+							contentText: `${prefix}${text}${postfix}`,
 							backgroundColor: `${backgroundColor}`,
 							color: `${fontColor}`,
 							margin: `0px ${marginAfter}px 0px ${marginBefore}px`,
@@ -201,6 +225,11 @@ export class InlineHintsDetector extends Disposable implements IEditorContributi
 				}
 
 				newDecorationsTypes[key] = true;
+				const options = this._codeEditorService.resolveDecorationOptions(key, true);
+				if (hoverMessage) {
+					options.hoverMessage = new MarkdownString().appendText(hoverMessage);
+				}
+
 				decorations.push({
 					range: {
 						startLineNumber: range.startLineNumber,
@@ -208,7 +237,11 @@ export class InlineHintsDetector extends Disposable implements IEditorContributi
 						endLineNumber: range.endLineNumber,
 						endColumn: range.endColumn
 					},
-					options: this._codeEditorService.resolveDecorationOptions(key, true)
+					options
+				});
+				newHintsMetadats.push({
+					triggerPosition,
+					contextValue
 				});
 			}
 		}
@@ -220,6 +253,11 @@ export class InlineHintsDetector extends Disposable implements IEditorContributi
 		});
 
 		this._hintsDecoratorIds = this._editor.deltaDecorations(this._hintsDecoratorIds, decorations);
+		const newInlineHintsMetadataMap = new Map<string, InlineHintsMetadata>();
+		this._hintsDecoratorIds.forEach((decorationId, idx) => {
+			newInlineHintsMetadataMap.set(decorationId, newHintsMetadats[idx]);
+		});
+		this._inlineHintsMetadataMap = newInlineHintsMetadataMap;
 	}
 
 	private _getLayoutInfo() {
@@ -243,4 +281,4 @@ export class InlineHintsDetector extends Disposable implements IEditorContributi
 	}
 }
 
-registerEditorContribution(InlineHintsDetector.ID, InlineHintsDetector);
+registerEditorContribution(InlineHintsController.ID, InlineHintsController);

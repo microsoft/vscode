@@ -401,7 +401,8 @@ export interface MainThreadLanguageFeaturesShape extends IDisposable {
 	$registerDocumentRangeSemanticTokensProvider(handle: number, selector: IDocumentFilterDto[], legend: modes.SemanticTokensLegend): void;
 	$registerSuggestSupport(handle: number, selector: IDocumentFilterDto[], triggerCharacters: string[], supportsResolveDetails: boolean, displayName: string): void;
 	$registerSignatureHelpProvider(handle: number, selector: IDocumentFilterDto[], metadata: ISignatureHelpProviderMetadataDto): void;
-	$registerInlineHintsProvider(handle: number, selector: IDocumentFilterDto[]): void;
+	$registerInlineHintsProvider(handle: number, selector: IDocumentFilterDto[], eventHandle: number | undefined): void;
+	$emitInlineHintsEvent(eventHandle: number, event?: any): void;
 	$registerDocumentLinkProvider(handle: number, selector: IDocumentFilterDto[], supportsResolve: boolean): void;
 	$registerDocumentColorProvider(handle: number, selector: IDocumentFilterDto[]): void;
 	$registerFoldingRangeProvider(handle: number, selector: IDocumentFilterDto[], eventHandle: number | undefined): void;
@@ -1287,8 +1288,15 @@ export interface ISignatureHelpContextDto {
 }
 
 export interface IInlineHintDto {
-	text: string
-	range: IRange
+	text: string;
+	range: IRange;
+	triggerPosition: IPosition;
+	prefix?: string;
+	postfix?: string;
+	contextValue?: string;
+	hoverMessage?: string;
+	whitespaceBefore?: boolean;
+	whitespaceAfter?: boolean;
 }
 
 export interface IInlineHintsDto {

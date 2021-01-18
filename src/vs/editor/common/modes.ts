@@ -9,7 +9,7 @@ import { Event } from 'vs/base/common/event';
 import { IMarkdownString } from 'vs/base/common/htmlContent';
 import { IDisposable } from 'vs/base/common/lifecycle';
 import { URI, UriComponents } from 'vs/base/common/uri';
-import { Position } from 'vs/editor/common/core/position';
+import { IPosition, Position } from 'vs/editor/common/core/position';
 import { IRange, Range } from 'vs/editor/common/core/range';
 import { Selection } from 'vs/editor/common/core/selection';
 import { TokenizationResult, TokenizationResult2 } from 'vs/editor/common/core/token';
@@ -1662,11 +1662,17 @@ export interface CodeLensProvider {
 export interface InlineHint {
 	text: string;
 	range: IRange;
+	triggerPosition: IPosition;
+	prefix?: string;
+	postfix?: string;
+	contextValue?: string;
+	hoverMessage?: string;
 	whitespaceBefore?: boolean;
 	whitespaceAfter?: boolean;
 }
 
 export interface InlineHintsProvider {
+	onDidChangeInlineHints?: Event<void> | undefined;
 	provideInlineHints(model: model.ITextModel, range: Range, token: CancellationToken): ProviderResult<InlineHint[]>;
 }
 
