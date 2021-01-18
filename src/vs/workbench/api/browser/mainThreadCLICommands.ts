@@ -20,7 +20,7 @@ CommandsRegistry.registerCommand('_cli.openExternal', function (accessor: Servic
 
 interface ManageExtensionsArgs {
 	list?: { showVersions?: boolean, category?: string; };
-	install?: string[];
+	install?: (string | URI)[];
 	uninstall?: string[];
 	force?: boolean;
 }

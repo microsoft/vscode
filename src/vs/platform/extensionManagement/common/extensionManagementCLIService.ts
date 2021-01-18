@@ -6,7 +6,6 @@
 import { localize } from 'vs/nls';
 
 import { isPromiseCanceledError } from 'vs/base/common/errors';
-import * as path from 'vs/base/common/path';
 import { URI } from 'vs/base/common/uri';
 import * as semver from 'vs/base/common/semver/semver';
 import { CLIOutput, IExtensionGalleryService, IExtensionManagementCLIService, IExtensionManagementService, IGalleryExtension, ILocalExtension, InstallOptions } from 'vs/platform/extensionManagement/common/extensionManagement';
@@ -85,7 +84,7 @@ export class ExtensionManagementCLIService implements IExtensionManagementCLISer
 		}
 	}
 
-	async installExtensions(extensions: string[], builtinExtensionIds: string[], isMachineScoped: boolean, force: boolean, output: CLIOutput = console): Promise<void> {
+	async installExtensions(extensions: (string | URI)[], builtinExtensionIds: string[], isMachineScoped: boolean, force: boolean, output: CLIOutput = console): Promise<void> {
 		const failed: string[] = [];
 		const installedExtensionsManifests: IExtensionManifest[] = [];
 		if (extensions.length) {
@@ -107,10 +106,10 @@ export class ExtensionManagementCLIService implements IExtensionManagementCLISer
 			}
 			return true;
 		};
-		const vsixs: string[] = [];
+		const vsixs: URI[] = [];
 		const installExtensionInfos: InstallExtensionInfo[] = [];
 		for (const extension of extensions) {
-			if (/\.vsix$/i.test(extension)) {
+			if (extension instanceof URI) {
 				vsixs.push(extension);
 			} else {
 				const [id, version] = getIdAndVersion(extension);
@@ -135,7 +134,7 @@ export class ExtensionManagementCLIService implements IExtensionManagementCLISer
 					}
 				} catch (err) {
 					output.error(err.message || err.stack || err);
-					failed.push(vsix);
+					failed.push(vsix.toString());
 				}
 			}));
 		}
@@ -173,13 +172,13 @@ export class ExtensionManagementCLIService implements IExtensionManagementCLISer
 		}
 	}
 
-	private async installVSIX(vsix: string, force: boolean, output: CLIOutput = console): Promise<IExtensionManifest | null> {
-		vsix = path.isAbsolute(vsix) ? vsix : path.join(process.cwd(), vsix);
-		const manifest = await this.extensionManagementService.getManifest(URI.file(vsix));
+	private async installVSIX(vsix: URI, force: boolean, output: CLIOutput = console): Promise<IExtensionManifest | null> {
+
+		const manifest = await this.extensionManagementService.getManifest(vsix);
 		const valid = await this.validate(manifest, force, output);
 		if (valid) {
 			try {
-				await this.extensionManagementService.install(URI.file(vsix));
+				await this.extensionManagementService.install(vsix);
 				output.log(localize('successVsixInstall', "Extension '{0}' was successfully installed.", getBaseLabel(vsix)));
 				return manifest;
 			} catch (error) {
@@ -262,15 +261,13 @@ export class ExtensionManagementCLIService implements IExtensionManagementCLISer
 		return true;
 	}
 
-	public async uninstallExtensions(extensions: string[], force: boolean, output: CLIOutput = console): Promise<void> {
-		const getExtensionId = async (extensionDescription: string): Promise<string> => {
-			if (!/\.vsix$/i.test(extensionDescription)) {
-				return extensionDescription;
+	public async uninstallExtensions(extensions: (string | URI)[], force: boolean, output: CLIOutput = console): Promise<void> {
+		const getExtensionId = async (extensionDescription: string | URI): Promise<string> => {
+			if (extensionDescription instanceof URI) {
+				const manifest = await this.extensionManagementService.getManifest(extensionDescription);
+				return getId(manifest);
 			}
-
-			const zipPath = path.isAbsolute(extensionDescription) ? extensionDescription : path.join(process.cwd(), extensionDescription);
-			const manifest = await this.extensionManagementService.getManifest(URI.file(zipPath));
-			return getId(manifest);
+			return extensionDescription;
 		};
 
 		const uninstalledExtensions: ILocalExtension[] = [];
@@ -319,4 +316,3 @@ export class ExtensionManagementCLIService implements IExtensionManagementCLISer
 		return this.localizationsService.update();
 	}
 }
-

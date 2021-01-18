@@ -3,6 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
+import * as path from 'vs/base/common/path';
 import { raceTimeout } from 'vs/base/common/async';
 import product from 'vs/platform/product/common/product';
 import { ServiceCollection } from 'vs/platform/instantiation/common/serviceCollection';
@@ -37,6 +38,7 @@ import { DiskFileSystemProvider } from 'vs/platform/files/node/diskFileSystemPro
 import { DisposableStore } from 'vs/base/common/lifecycle';
 import { IProductService } from 'vs/platform/product/common/productService';
 import { ExtensionManagementCLIService } from 'vs/platform/extensionManagement/common/extensionManagementCLIService';
+import { URI } from 'vs/base/common/uri';
 
 export class Main {
 
@@ -54,14 +56,18 @@ export class Main {
 		if (argv['list-extensions']) {
 			await this.extensionManagementCLIService.listExtensions(!!argv['show-versions'], argv['category']);
 		} else if (argv['install-extension'] || argv['install-builtin-extension']) {
-			await this.extensionManagementCLIService.installExtensions(argv['install-extension'] || [], argv['install-builtin-extension'] || [], !!argv['do-not-sync'], !!argv['force']);
+			await this.extensionManagementCLIService.installExtensions(this.asExtensionIdOrVSIX(argv['install-extension'] || []), argv['install-builtin-extension'] || [], !!argv['do-not-sync'], !!argv['force']);
 		} else if (argv['uninstall-extension']) {
-			await this.extensionManagementCLIService.uninstallExtensions(argv['uninstall-extension'], !!argv['force']);
+			await this.extensionManagementCLIService.uninstallExtensions(this.asExtensionIdOrVSIX(argv['uninstall-extension']), !!argv['force']);
 		} else if (argv['locate-extension']) {
 			await this.extensionManagementCLIService.locateExtension(argv['locate-extension']);
 		} else if (argv['telemetry']) {
 			console.log(buildTelemetryMessage(this.environmentService.appRoot, this.environmentService.extensionsPath));
 		}
+	}
+
+	private asExtensionIdOrVSIX(inputs: string[]): (string | URI)[] {
+		return inputs.map(input => /\.vsix$/i.test(input) ? URI.file(path.isAbsolute(input) ? input : path.join(process.cwd(), input)) : input);
 	}
 
 	private setInstallSource(installSource: string): Promise<void> {
