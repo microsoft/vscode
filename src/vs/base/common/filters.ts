@@ -593,7 +593,7 @@ export function fuzzyScore(pattern: string, patternLow: string, patternStart: nu
 	let patternPos = patternStart;
 	let wordPos = wordStart;
 
-	let hasStrongFirstMatch = false;
+	const hasStrongFirstMatch = [false];
 
 	// There will be a match, fill in tables
 	for (row = 1, patternPos = patternStart; patternPos < patternLen; row++, patternPos++) {
@@ -605,48 +605,22 @@ export function fuzzyScore(pattern: string, patternLow: string, patternStart: nu
 
 		for (column = minWordMatchPos - wordStart + 1, wordPos = minWordMatchPos; wordPos < nextMaxWordMatchPos; column++, wordPos++) {
 
-			const score = (wordPos > maxWordMatchPos ? -1 : _doScore(pattern, patternLow, patternPos, patternStart, word, wordLow, wordPos));
+			let score = Number.MIN_SAFE_INTEGER;
+			let canComeDiag = false;
 
-			if (patternPos === patternStart && score > 1) {
-				hasStrongFirstMatch = true;
+			if (wordPos <= maxWordMatchPos) {
+				score = _doScore(
+					pattern, patternLow, patternPos, patternStart,
+					word, wordLow, wordPos, wordLen, wordStart,
+					_diag[row - 1][column - 1] === 0,
+					hasStrongFirstMatch
+				);
 			}
 
-			const canComeDiag = (score > 0);
 			let diagScore = 0;
-			if (canComeDiag) {
-				diagScore = score;
-
-				// Having a gap in the word match is penalized less if the gap occurs around natural boundaries e.g. aA, _a, .a
-				const isNaturalGapLocation = (
-					isUpperCaseAtPos(wordPos, word, wordLow)
-					|| isSeparatorAtPos(wordLow, wordPos - 1)
-					|| isWhitespaceAtPos(wordLow, wordPos - 1)
-				);
-
-				if (row === 1) {
-					// first character in pattern
-					if (column > 1) {
-						// the first pattern character would match a word character that is not at the word start
-						// so introduce a penalty to account for the gap preceding this match
-						diagScore += -5 + (isNaturalGapLocation ? 2 : 0);
-					}
-				} else {
-					// column is guaranteed to be > 1 because we must have consumed at least one word character with the first row
-					diagScore += _table[row - 1][column - 1];
-					if (_diag[row - 1][column - 1] === 0) {
-						// this would be the beginning of a new match (i.e. there would be a gap before this location)
-						diagScore += (isNaturalGapLocation ? 2 : 0);
-					} else {
-						// this is part of a contiguous match, so give it a slight bonus, but do so only if it would not be a prefered gap location
-						diagScore += (isNaturalGapLocation ? 0 : 1);
-					}
-				}
-
-				if (wordPos + 1 === wordLen) {
-					// we always penalize gaps, but this gives unfair advantages to a match that would match the last character in the word
-					// so pretend there is a gap after the last character in the word to normalize things
-					diagScore += -5 + (isNaturalGapLocation ? 2 : 0);
-				}
+			if (score !== Number.MAX_SAFE_INTEGER) {
+				canComeDiag = true;
+				diagScore = score + _table[row - 1][column - 1];
 			}
 
 			const canComeLeft = (wordPos > minWordMatchPos);
@@ -679,7 +653,7 @@ export function fuzzyScore(pattern: string, patternLow: string, patternStart: nu
 		printTables(pattern, patternStart, word, wordStart);
 	}
 
-	if (!hasStrongFirstMatch && !firstMatchCanBeWeak) {
+	if (!hasStrongFirstMatch[0] && !firstMatchCanBeWeak) {
 		return undefined;
 	}
 
@@ -747,39 +721,73 @@ export function fuzzyScore(pattern: string, patternLow: string, patternStart: nu
 	return [finalScore, matches, wordStart];
 }
 
-function _doScore(pattern: string, patternLow: string, patternPos: number, patternStart: number, word: string, wordLow: string, wordPos: number) {
+function _doScore(
+	pattern: string, patternLow: string, patternPos: number, patternStart: number,
+	word: string, wordLow: string, wordPos: number, wordLen: number, wordStart: number,
+	newMatchStart: boolean,
+	outFirstMatchStrong: boolean[],
+): number {
 	if (patternLow[patternPos] !== wordLow[wordPos]) {
-		return -1;
+		return Number.MIN_SAFE_INTEGER;
 	}
+
+	let score = 1;
+	let isGapLocation = false;
 	if (wordPos === (patternPos - patternStart)) {
 		// common prefix: `foobar <-> foobaz`
 		//                            ^^^^^
-		if (pattern[patternPos] === word[wordPos]) {
-			return 7;
-		} else {
-			return 5;
-		}
+		score = pattern[patternPos] === word[wordPos] ? 7 : 5;
+
 	} else if (isUpperCaseAtPos(wordPos, word, wordLow) && (wordPos === 0 || !isUpperCaseAtPos(wordPos - 1, word, wordLow))) {
 		// hitting upper-case: `foo <-> forOthers`
 		//                              ^^ ^
-		if (pattern[patternPos] === word[wordPos]) {
-			return 7;
-		} else {
-			return 5;
-		}
+		score = pattern[patternPos] === word[wordPos] ? 7 : 5;
+		isGapLocation = true;
+
 	} else if (isSeparatorAtPos(wordLow, wordPos) && (wordPos === 0 || !isSeparatorAtPos(wordLow, wordPos - 1))) {
 		// hitting a separator: `. <-> foo.bar`
 		//                                ^
-		return 5;
+		score = 5;
 
 	} else if (isSeparatorAtPos(wordLow, wordPos - 1) || isWhitespaceAtPos(wordLow, wordPos - 1)) {
 		// post separator: `foo <-> bar_foo`
 		//                              ^^^
-		return 5;
-
-	} else {
-		return 1;
+		score = 5;
+		isGapLocation = true;
 	}
+
+	if (score > 1 && patternPos === patternStart) {
+		outFirstMatchStrong[0] = true;
+	}
+
+	if (!isGapLocation) {
+		isGapLocation = isUpperCaseAtPos(wordPos, word, wordLow) || isSeparatorAtPos(wordLow, wordPos - 1) || isWhitespaceAtPos(wordLow, wordPos - 1);
+	}
+
+	//
+	if (patternPos === patternStart) { // first character in pattern
+		if (wordPos > wordStart) {
+			// the first pattern character would match a word character that is not at the word start
+			// so introduce a penalty to account for the gap preceding this match
+			score -= isGapLocation ? 3 : 5;
+		}
+	} else {
+		if (newMatchStart) {
+			// this would be the beginning of a new match (i.e. there would be a gap before this location)
+			score += isGapLocation ? 2 : 0;
+		} else {
+			// this is part of a contiguous match, so give it a slight bonus, but do so only if it would not be a prefered gap location
+			score += isGapLocation ? 0 : 1;
+		}
+	}
+
+	if (wordPos + 1 === wordLen) {
+		// we always penalize gaps, but this gives unfair advantages to a match that would match the last character in the word
+		// so pretend there is a gap after the last character in the word to normalize things
+		score -= isGapLocation ? 3 : 5;
+	}
+
+	return score;
 }
 
 //#endregion
