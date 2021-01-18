@@ -162,7 +162,23 @@ export class ExtensionEnablementService extends Disposable implements IWorkbench
 			}
 		}
 
-		const result = await Promise.all(extensions.map(e => this._setEnablement(e, newState)));
+		const result = await Promise.all(extensions.map(e => {
+			if (this._isDisabledByTrustRequirement(e)) {
+				return this.trustedWorkspaceService.requireWorkspaceTrust({
+					immediate: true,
+					message: 'Enabling this extension requires you to trust the contents of this workspace.'
+				}).then(trustState => {
+					if (trustState === TrustState.Trusted) {
+						return this._setEnablement(e, newState);
+					} else {
+						return Promise.resolve(false);
+					}
+				});
+			} else {
+				return this._setEnablement(e, newState);
+			}
+		}));
+
 		const changedExtensions = extensions.filter((e, index) => result[index]);
 		if (changedExtensions.length) {
 			this._onEnablementChanged.fire(changedExtensions);
@@ -175,12 +191,6 @@ export class ExtensionEnablementService extends Disposable implements IWorkbench
 		const currentState = this._getEnablementState(extension.identifier);
 
 		if (currentState === newState) {
-			if (this._isDisabledByTrustRequirement(extension)) {
-				this.trustedWorkspaceService.requireWorkspaceTrust({
-					immediate: true,
-					message: 'Enabling this extension requires you to trust the contents of this workspace.'
-				});
-			}
 			return Promise.resolve(false);
 		}
 
