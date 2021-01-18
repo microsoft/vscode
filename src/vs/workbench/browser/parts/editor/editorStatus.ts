@@ -586,6 +586,12 @@ export class EditorStatus extends Disposable implements IWorkbenchContribution {
 		this.updateEOLElement(this.state.EOL ? this.state.EOL === '\r\n' ? nlsEOLCRLF : nlsEOLLF : undefined);
 		this.updateModeElement(this.state.mode);
 		this.updateMetadataElement(this.state.metadata);
+
+		// Fix #106824
+		const activeTextEditorControl = getCodeEditor(this.editorService.activeTextEditorControl);
+		if (!activeTextEditorControl?.hasWidgetFocus()) {
+			activeTextEditorControl?.focus();
+		}
 	}
 
 	private getSelectionLabel(info: IEditorSelectionStatus): string | undefined {
@@ -1135,9 +1141,6 @@ export class ChangeModeAction extends Action {
 		const pick = await this.quickInputService.pick(picks, { placeHolder: nls.localize('pickLanguage', "Select Language Mode"), matchOnDescription: true });
 		if (!pick) {
 			return;
-		}
-		if (!activeTextEditorControl.hasWidgetFocus()) {
-			activeTextEditorControl.focus();
 		}
 
 		if (pick === galleryAction) {
