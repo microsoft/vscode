@@ -175,11 +175,6 @@ const apiMenus: IAPIMenu[] = [
 		key: 'timeline/item/context',
 		id: MenuId.TimelineItemContext,
 		description: localize('view.timelineContext', "The Timeline view item context menu")
-	},
-	{
-		key: 'inlineHints/context',
-		id: MenuId.InlineHintContext,
-		description: localize('menus.inlineHintsContext', "The inline hints context menu")
 	}
 ];
 
