@@ -406,7 +406,7 @@ export async function startDebugging(context: ExtensionContext, scriptName: stri
 		runtimeExecutable: await getPackageManager(context, folder.uri),
 		runtimeArgs: [
 			'run',
-			`${scriptName}`,
+			scriptName,
 		],
 	};
 
