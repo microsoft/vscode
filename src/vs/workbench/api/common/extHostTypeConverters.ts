@@ -394,13 +394,10 @@ export namespace ThemableDecorationAttachmentRenderOptions {
 			borderColor: <string | types.ThemeColor>options.borderColor,
 			fontStyle: options.fontStyle,
 			fontWeight: options.fontWeight,
-			fontSize: options.fontSize,
-			fontFamily: options.fontFamily,
 			textDecoration: options.textDecoration,
 			color: <string | types.ThemeColor>options.color,
 			backgroundColor: <string | types.ThemeColor>options.backgroundColor,
 			margin: options.margin,
-			padding: options.padding,
 			width: options.width,
 			height: options.height,
 		};

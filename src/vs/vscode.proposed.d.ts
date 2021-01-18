@@ -1962,21 +1962,6 @@ declare module 'vscode' {
 		export function registerInlineHintsProvider(selector: DocumentSelector, provider: InlineHintsProvider): Disposable;
 	}
 
-	export interface ThemableDecorationAttachmentRenderOptions {
-		/**
-		 * CSS styling property that will be applied to the decoration attachment.
-		 */
-		fontSize?: string;
-		/**
-		 * CSS styling property that will be applied to the decoration attachment.
-		 */
-		fontFamily?: string;
-		/**
-		 * CSS styling property that will be applied to the decoration attachment.
-		 */
-		padding?: string;
-	}
-
 	/**
 	 * Inline hint information.
 	 */
