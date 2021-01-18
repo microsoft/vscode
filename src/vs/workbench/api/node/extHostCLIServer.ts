@@ -171,7 +171,7 @@ export class CLIServerBase {
 			res.write(output);
 		} catch (e) {
 			res.writeHead(500);
-			res.write(toString());
+			res.write(String(e));
 		}
 		res.end();
 	}
