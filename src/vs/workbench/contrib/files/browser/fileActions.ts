@@ -1181,7 +1181,7 @@ const downloadFileHandler = async (accessor: ServicesAccessor) => {
 				const destination = await fileDialogService.showSaveDialog({
 					availableFileSystems: [Schemas.file],
 					saveLabel: mnemonicButtonLabel(nls.localize('downloadButton', "Download")),
-					title: explorerItem.isDirectory ? nls.localize('downloadFolder', "Download Folder") : nls.localize('downloadFile', "Download File"),
+					title: nls.localize('chooseWhereToDownload', "Choose Where to Download"),
 					defaultUri
 				});
 
