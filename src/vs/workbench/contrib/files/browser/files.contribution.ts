@@ -492,7 +492,7 @@ MenuRegistry.appendMenuItem(MenuId.MenubarViewMenu, {
 UndoCommand.addImplementation(110, (accessor: ServicesAccessor) => {
 	const undoRedoService = accessor.get(IUndoRedoService);
 	const explorerService = accessor.get(IExplorerService);
-	if (explorerService.hasViewFocus()) {
+	if (explorerService.hasViewFocus() && undoRedoService.canUndo(UNDO_REDO_SOURCE)) {
 		undoRedoService.undo(UNDO_REDO_SOURCE);
 		return true;
 	}
@@ -503,7 +503,7 @@ UndoCommand.addImplementation(110, (accessor: ServicesAccessor) => {
 RedoCommand.addImplementation(110, (accessor: ServicesAccessor) => {
 	const undoRedoService = accessor.get(IUndoRedoService);
 	const explorerService = accessor.get(IExplorerService);
-	if (explorerService.hasViewFocus()) {
+	if (explorerService.hasViewFocus() && undoRedoService.canRedo(UNDO_REDO_SOURCE)) {
 		undoRedoService.redo(UNDO_REDO_SOURCE);
 		return true;
 	}
