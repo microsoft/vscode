@@ -850,7 +850,6 @@ export class SelectionHighlighter extends Disposable implements IEditorContribut
 					this.updateSoon.schedule();
 				} else {
 					this._setState(null);
-
 				}
 			} else {
 				this._update();

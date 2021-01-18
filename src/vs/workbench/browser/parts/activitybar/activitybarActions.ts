@@ -4,11 +4,11 @@
  *--------------------------------------------------------------------------------------------*/
 
 import 'vs/css!./media/activityaction';
-import * as nls from 'vs/nls';
-import * as DOM from 'vs/base/browser/dom';
+import { localize } from 'vs/nls';
+import { EventType, addDisposableListener, EventHelper } from 'vs/base/browser/dom';
 import { StandardKeyboardEvent } from 'vs/base/browser/keyboardEvent';
 import { EventType as TouchEventType, GestureEvent } from 'vs/base/browser/touch';
-import { Action, IAction, Separator, SubmenuAction } from 'vs/base/common/actions';
+import { Action, IAction, Separator, SubmenuAction, toAction } from 'vs/base/common/actions';
 import { KeyCode } from 'vs/base/common/keyCodes';
 import { DisposableStore } from 'vs/base/common/lifecycle';
 import { IMenuService, MenuId, IMenu, registerAction2, Action2, IAction2Options } from 'vs/platform/actions/common/actions';
@@ -29,12 +29,12 @@ import { isMacintosh, isWeb } from 'vs/base/common/platform';
 import { getCurrentAuthenticationSessionInfo, IAuthenticationService } from 'vs/workbench/services/authentication/browser/authenticationService';
 import { AuthenticationSession } from 'vs/editor/common/modes';
 import { IWorkbenchEnvironmentService } from 'vs/workbench/services/environment/common/environmentService';
-import { IStorageService, StorageScope, StorageTarget } from 'vs/platform/storage/common/storage';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { IProductService } from 'vs/platform/product/common/productService';
 import { AnchorAlignment, AnchorAxisAlignment } from 'vs/base/browser/ui/contextview/contextview';
 import { getTitleBarStyle } from 'vs/platform/windows/common/windows';
 import { ServicesAccessor } from 'vs/platform/instantiation/common/instantiation';
+import { IStorageService, StorageScope, StorageTarget } from 'vs/platform/storage/common/storage';
 
 export class ViewContainerActivityAction extends ActivityAction {
 
@@ -97,10 +97,10 @@ export class ViewContainerActivityAction extends ActivityAction {
 
 	private logAction(action: string) {
 		type ActivityBarActionClassification = {
-			viewletId: { classification: 'SystemMetaData', purpose: 'FeatureInsight' };
-			action: { classification: 'SystemMetaData', purpose: 'FeatureInsight' };
+			viewletId: { classification: 'SystemMetaData', purpose: 'FeatureInsight'; };
+			action: { classification: 'SystemMetaData', purpose: 'FeatureInsight'; };
 		};
-		this.telemetryService.publicLog2<{ viewletId: String, action: String }, ActivityBarActionClassification>('activityBarAction', { viewletId: this.activity.id, action });
+		this.telemetryService.publicLog2<{ viewletId: String, action: String; }, ActivityBarActionClassification>('activityBarAction', { viewletId: this.activity.id, action });
 	}
 }
 
@@ -109,6 +109,7 @@ class MenuActivityActionViewItem extends ActivityActionViewItem {
 	constructor(
 		private readonly menuId: MenuId,
 		action: ActivityAction,
+		private contextMenuActionsProvider: () => IAction[],
 		colors: (theme: IColorTheme) => ICompositeBarColors,
 		@IThemeService themeService: IThemeService,
 		@IMenuService protected readonly menuService: IMenuService,
@@ -126,30 +127,35 @@ class MenuActivityActionViewItem extends ActivityActionViewItem {
 		// Context menus are triggered on mouse down so that an item can be picked
 		// and executed with releasing the mouse over it
 
-		this._register(DOM.addDisposableListener(this.container, DOM.EventType.MOUSE_DOWN, (e: MouseEvent) => {
-			DOM.EventHelper.stop(e, true);
+		this._register(addDisposableListener(this.container, EventType.MOUSE_DOWN, (e: MouseEvent) => {
+			EventHelper.stop(e, true);
 			this.showContextMenu(e);
 		}));
 
-		this._register(DOM.addDisposableListener(this.container, DOM.EventType.KEY_UP, (e: KeyboardEvent) => {
+		this._register(addDisposableListener(this.container, EventType.KEY_UP, (e: KeyboardEvent) => {
 			let event = new StandardKeyboardEvent(e);
 			if (event.equals(KeyCode.Enter) || event.equals(KeyCode.Space)) {
-				DOM.EventHelper.stop(e, true);
+				EventHelper.stop(e, true);
 				this.showContextMenu();
 			}
 		}));
 
-		this._register(DOM.addDisposableListener(this.container, TouchEventType.Tap, (e: GestureEvent) => {
-			DOM.EventHelper.stop(e, true);
+		this._register(addDisposableListener(this.container, TouchEventType.Tap, (e: GestureEvent) => {
+			EventHelper.stop(e, true);
 			this.showContextMenu();
 		}));
 	}
 
-	protected async showContextMenu(e?: MouseEvent): Promise<void> {
+	private async showContextMenu(e?: MouseEvent): Promise<void> {
 		const disposables = new DisposableStore();
 
-		const menu = disposables.add(this.menuService.createMenu(this.menuId, this.contextKeyService));
-		const actions = await this.resolveActions(menu, disposables);
+		let actions: IAction[];
+		if (e?.button !== 2) {
+			const menu = disposables.add(this.menuService.createMenu(this.menuId, this.contextKeyService));
+			actions = await this.resolveMainMenuActions(menu, disposables);
+		} else {
+			actions = await this.resolveContextMenuActions(disposables);
+		}
 
 		const isUsingCustomMenu = isWeb || (getTitleBarStyle(this.configurationService) !== 'native' && !isMacintosh); // see #40262
 		const position = this.configurationService.getValue('workbench.sideBar.location');
@@ -163,12 +169,16 @@ class MenuActivityActionViewItem extends ActivityActionViewItem {
 		});
 	}
 
-	protected async resolveActions(menu: IMenu, disposables: DisposableStore): Promise<IAction[]> {
+	protected async resolveMainMenuActions(menu: IMenu, disposables: DisposableStore): Promise<IAction[]> {
 		const actions: IAction[] = [];
 
 		disposables.add(createAndFillInActionBarActions(menu, undefined, { primary: [], secondary: actions }));
 
 		return actions;
+	}
+
+	protected async resolveContextMenuActions(disposables: DisposableStore): Promise<IAction[]> {
+		return this.contextMenuActionsProvider();
 	}
 }
 
@@ -179,6 +189,7 @@ export class HomeActivityActionViewItem extends MenuActivityActionViewItem {
 	constructor(
 		private readonly goHomeHref: string,
 		action: ActivityAction,
+		contextMenuActionsProvider: () => IAction[],
 		colors: (theme: IColorTheme) => ICompositeBarColors,
 		@IThemeService themeService: IThemeService,
 		@IMenuService menuService: IMenuService,
@@ -188,27 +199,32 @@ export class HomeActivityActionViewItem extends MenuActivityActionViewItem {
 		@IWorkbenchEnvironmentService environmentService: IWorkbenchEnvironmentService,
 		@IStorageService private readonly storageService: IStorageService
 	) {
-		super(MenuId.MenubarHomeMenu, action, colors, themeService, menuService, contextMenuService, contextKeyService, configurationService, environmentService);
+		super(MenuId.MenubarHomeMenu, action, contextMenuActionsProvider, colors, themeService, menuService, contextMenuService, contextKeyService, configurationService, environmentService);
 	}
 
-	protected async resolveActions(homeMenu: IMenu, disposables: DisposableStore): Promise<IAction[]> {
+	protected async resolveMainMenuActions(homeMenu: IMenu, disposables: DisposableStore): Promise<IAction[]> {
 		const actions = [];
 
 		// Go Home
-		actions.push(disposables.add(new Action('goHome', nls.localize('goHome', "Go Home"), undefined, true, async () => window.location.href = this.goHomeHref)));
-		actions.push(disposables.add(new Separator()));
+		actions.push(toAction({ id: 'goHome', label: localize('goHome', "Go Home"), run: () => window.location.href = this.goHomeHref }));
 
 		// Contributed
-		const contributedActions = await super.resolveActions(homeMenu, disposables);
-		actions.push(...contributedActions);
-
-		// Hide
-		if (contributedActions.length > 0) {
+		const contributedActions = await super.resolveMainMenuActions(homeMenu, disposables);
+		if (contributedActions.length) {
 			actions.push(disposables.add(new Separator()));
+			actions.push(...contributedActions);
 		}
-		actions.push(disposables.add(new Action('hide', nls.localize('hide', "Hide Home Button"), undefined, true, async () => {
-			this.storageService.store(HomeActivityActionViewItem.HOME_BAR_VISIBILITY_PREFERENCE, false, StorageScope.GLOBAL, StorageTarget.USER);
-		})));
+
+		return actions;
+	}
+
+	protected async resolveContextMenuActions(disposables: DisposableStore): Promise<IAction[]> {
+		const actions = await super.resolveContextMenuActions(disposables);
+
+		actions.unshift(...[
+			toAction({ id: 'hideHomeButton', label: localize('hideHomeButton', "Hide Home Button"), run: () => this.storageService.store(HomeActivityActionViewItem.HOME_BAR_VISIBILITY_PREFERENCE, false, StorageScope.GLOBAL, StorageTarget.USER) }),
+			new Separator()
+		]);
 
 		return actions;
 	}
@@ -220,6 +236,7 @@ export class AccountsActivityActionViewItem extends MenuActivityActionViewItem {
 
 	constructor(
 		action: ActivityAction,
+		contextMenuActionsProvider: () => IAction[],
 		colors: (theme: IColorTheme) => ICompositeBarColors,
 		@IThemeService themeService: IThemeService,
 		@IContextMenuService contextMenuService: IContextMenuService,
@@ -227,15 +244,15 @@ export class AccountsActivityActionViewItem extends MenuActivityActionViewItem {
 		@IContextKeyService contextKeyService: IContextKeyService,
 		@IAuthenticationService private readonly authenticationService: IAuthenticationService,
 		@IWorkbenchEnvironmentService environmentService: IWorkbenchEnvironmentService,
-		@IStorageService private readonly storageService: IStorageService,
 		@IProductService private readonly productService: IProductService,
 		@IConfigurationService configurationService: IConfigurationService,
+		@IStorageService private readonly storageService: IStorageService
 	) {
-		super(MenuId.AccountsContext, action, colors, themeService, menuService, contextMenuService, contextKeyService, configurationService, environmentService);
+		super(MenuId.AccountsContext, action, contextMenuActionsProvider, colors, themeService, menuService, contextMenuService, contextKeyService, configurationService, environmentService);
 	}
 
-	protected async resolveActions(accountsMenu: IMenu, disposables: DisposableStore): Promise<IAction[]> {
-		await super.resolveActions(accountsMenu, disposables);
+	protected async resolveMainMenuActions(accountsMenu: IMenu, disposables: DisposableStore): Promise<IAction[]> {
+		await super.resolveMainMenuActions(accountsMenu, disposables);
 
 		const otherCommands = accountsMenu.getActions();
 		const providers = this.authenticationService.getProviderIds();
@@ -243,7 +260,7 @@ export class AccountsActivityActionViewItem extends MenuActivityActionViewItem {
 			try {
 				const sessions = await this.authenticationService.getSessions(providerId);
 
-				const groupedSessions: { [label: string]: AuthenticationSession[] } = {};
+				const groupedSessions: { [label: string]: AuthenticationSession[]; } = {};
 				sessions.forEach(session => {
 					if (groupedSessions[session.account.label]) {
 						groupedSessions[session.account.label].push(session);
@@ -266,11 +283,11 @@ export class AccountsActivityActionViewItem extends MenuActivityActionViewItem {
 
 			if (sessionInfo.sessions) {
 				Object.keys(sessionInfo.sessions).forEach(accountName => {
-					const manageExtensionsAction = disposables.add(new Action(`configureSessions${accountName}`, nls.localize('manageTrustedExtensions', "Manage Trusted Extensions"), '', true, () => {
+					const manageExtensionsAction = disposables.add(new Action(`configureSessions${accountName}`, localize('manageTrustedExtensions', "Manage Trusted Extensions"), '', true, () => {
 						return this.authenticationService.manageTrustedExtensionsForAccount(sessionInfo.providerId, accountName);
 					}));
 
-					const signOutAction = disposables.add(new Action('signOut', nls.localize('signOut', "Sign Out"), '', true, () => {
+					const signOutAction = disposables.add(new Action('signOut', localize('signOut', "Sign Out"), '', true, () => {
 						return this.authenticationService.signOutOfAccount(sessionInfo.providerId, accountName);
 					}));
 
@@ -285,7 +302,7 @@ export class AccountsActivityActionViewItem extends MenuActivityActionViewItem {
 					menus.push(providerSubMenu);
 				});
 			} else {
-				const providerUnavailableAction = disposables.add(new Action('providerUnavailable', nls.localize('authProviderUnavailable', '{0} is currently unavailable', providerDisplayName)));
+				const providerUnavailableAction = disposables.add(new Action('providerUnavailable', localize('authProviderUnavailable', '{0} is currently unavailable', providerDisplayName)));
 				menus.push(providerUnavailableAction);
 			}
 		});
@@ -302,15 +319,18 @@ export class AccountsActivityActionViewItem extends MenuActivityActionViewItem {
 			}
 		});
 
-		if (menus.length) {
-			menus.push(disposables.add(new Separator()));
-		}
-
-		menus.push(disposables.add(new Action('hide', nls.localize('hideAccounts', "Hide Accounts"), undefined, true, async () => {
-			this.storageService.store(AccountsActivityActionViewItem.ACCOUNTS_VISIBILITY_PREFERENCE_KEY, false, StorageScope.GLOBAL, StorageTarget.USER);
-		})));
-
 		return menus;
+	}
+
+	protected async resolveContextMenuActions(disposables: DisposableStore): Promise<IAction[]> {
+		const actions = await super.resolveContextMenuActions(disposables);
+
+		actions.unshift(...[
+			toAction({ id: 'hideAccounts', label: localize('hideAccounts', "Hide Accounts"), run: () => this.storageService.store(AccountsActivityActionViewItem.ACCOUNTS_VISIBILITY_PREFERENCE_KEY, false, StorageScope.GLOBAL, StorageTarget.USER) }),
+			new Separator()
+		]);
+
+		return actions;
 	}
 }
 
@@ -318,6 +338,7 @@ export class GlobalActivityActionViewItem extends MenuActivityActionViewItem {
 
 	constructor(
 		action: ActivityAction,
+		contextMenuActionsProvider: () => IAction[],
 		colors: (theme: IColorTheme) => ICompositeBarColors,
 		@IThemeService themeService: IThemeService,
 		@IMenuService menuService: IMenuService,
@@ -326,7 +347,7 @@ export class GlobalActivityActionViewItem extends MenuActivityActionViewItem {
 		@IConfigurationService configurationService: IConfigurationService,
 		@IWorkbenchEnvironmentService environmentService: IWorkbenchEnvironmentService
 	) {
-		super(MenuId.GlobalActivity, action, colors, themeService, menuService, contextMenuService, contextKeyService, configurationService, environmentService);
+		super(MenuId.GlobalActivity, action, contextMenuActionsProvider, colors, themeService, menuService, contextMenuService, contextKeyService, configurationService, environmentService);
 	}
 }
 
@@ -379,7 +400,7 @@ registerAction2(
 		constructor() {
 			super({
 				id: 'workbench.action.previousSideBarView',
-				title: { value: nls.localize('previousSideBarView', "Previous Side Bar View"), original: 'Previous Side Bar View' },
+				title: { value: localize('previousSideBarView', "Previous Side Bar View"), original: 'Previous Side Bar View' },
 				category: CATEGORIES.View,
 				f1: true
 			}, -1);
@@ -392,7 +413,7 @@ registerAction2(
 		constructor() {
 			super({
 				id: 'workbench.action.nextSideBarView',
-				title: { value: nls.localize('nextSideBarView', "Next Side Bar View"), original: 'Next Side Bar View' },
+				title: { value: localize('nextSideBarView', "Next Side Bar View"), original: 'Next Side Bar View' },
 				category: CATEGORIES.View,
 				f1: true
 			}, 1);

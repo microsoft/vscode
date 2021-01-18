@@ -152,7 +152,7 @@ export abstract class ExtHostDebugServiceBase implements IExtHostDebugService, E
 
 		const source = <any>src;
 
-		if (typeof source.sourceReference === 'number') {
+		if (typeof source.sourceReference === 'number' && source.sourceReference > 0) {
 			// src can be retrieved via DAP's "source" request
 
 			let debug = `debug:${encodeURIComponent(source.path || '')}`;

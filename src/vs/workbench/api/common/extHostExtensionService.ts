@@ -190,7 +190,7 @@ export abstract class AbstractExtHostExtensionService extends Disposable impleme
 			this._almostReadyToRunExtensions.open();
 
 			await this._extHostWorkspace.waitForInitializeCall();
-			performance.mark('extHost/ready');
+			performance.mark('code/extHost/ready');
 			this._readyToStartExtensionHost.open();
 
 			if (this._initData.autoStart) {
@@ -372,10 +372,10 @@ export abstract class AbstractExtHostExtensionService extends Disposable impleme
 			this._loadCommonJSModule<IExtensionModule>(extensionDescription.identifier, joinPath(extensionDescription.extensionLocation, entryPoint), activationTimesBuilder),
 			this._loadExtensionContext(extensionDescription)
 		]).then(values => {
-			performance.mark(`extHost/willActivateExtension/${extensionDescription.identifier.value}`);
+			performance.mark(`code/extHost/willActivateExtension/${extensionDescription.identifier.value}`);
 			return AbstractExtHostExtensionService._callActivate(this._logService, extensionDescription.identifier, values[0], values[1], activationTimesBuilder);
 		}).then((activatedExtension) => {
-			performance.mark(`extHost/didActivateExtension/${extensionDescription.identifier.value}`);
+			performance.mark(`code/extHost/didActivateExtension/${extensionDescription.identifier.value}`);
 			return activatedExtension;
 		});
 	}
@@ -666,9 +666,9 @@ export abstract class AbstractExtHostExtensionService extends Disposable impleme
 		}
 
 		try {
-			performance.mark(`extHost/willResolveAuthority/${authorityPrefix}`);
+			performance.mark(`code/extHost/willResolveAuthority/${authorityPrefix}`);
 			const result = await resolver.resolve(remoteAuthority, { resolveAttempt });
-			performance.mark(`extHost/didResolveAuthorityOK/${authorityPrefix}`);
+			performance.mark(`code/extHost/didResolveAuthorityOK/${authorityPrefix}`);
 			this._disposables.add(await this._extHostTunnelService.setTunnelExtensionFunctions(resolver));
 
 			// Split merged API result into separate authority/options
@@ -691,7 +691,7 @@ export abstract class AbstractExtHostExtensionService extends Disposable impleme
 				}
 			};
 		} catch (err) {
-			performance.mark(`extHost/didResolveAuthorityError/${authorityPrefix}`);
+			performance.mark(`code/extHost/didResolveAuthorityError/${authorityPrefix}`);
 			if (err instanceof RemoteAuthorityResolverError) {
 				return {
 					type: 'error',

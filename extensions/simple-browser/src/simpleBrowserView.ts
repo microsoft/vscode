@@ -11,6 +11,7 @@ const localize = nls.loadMessageBundle();
 
 export interface ShowOptions {
 	readonly preserveFocus?: boolean;
+	readonly viewColumn?: vscode.ViewColumn;
 }
 
 export class SimpleBrowserView extends Disposable {
@@ -31,7 +32,7 @@ export class SimpleBrowserView extends Disposable {
 		super();
 
 		this._webviewPanel = this._register(vscode.window.createWebviewPanel(SimpleBrowserView.viewType, SimpleBrowserView.title, {
-			viewColumn: vscode.ViewColumn.Active,
+			viewColumn: showOptions?.viewColumn ?? vscode.ViewColumn.Active,
 			preserveFocus: showOptions?.preserveFocus
 		}, {
 			enableScripts: true,
@@ -75,7 +76,7 @@ export class SimpleBrowserView extends Disposable {
 
 	public show(url: string, options?: ShowOptions) {
 		this._webviewPanel.webview.html = this.getHtml(url);
-		this._webviewPanel.reveal(undefined, options?.preserveFocus);
+		this._webviewPanel.reveal(options?.viewColumn, options?.preserveFocus);
 	}
 
 	private getHtml(url: string) {

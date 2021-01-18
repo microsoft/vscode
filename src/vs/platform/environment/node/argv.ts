@@ -150,10 +150,6 @@ export function parseArgs<T>(args: string[], options: OptionDescriptions<T>, err
 	const string: string[] = [];
 	const boolean: string[] = [];
 	for (let optionId in options) {
-		if (optionId[0] === '_') {
-			continue;
-		}
-
 		const o = options[optionId];
 		if (o.alias) {
 			alias[optionId] = o.alias;

@@ -181,6 +181,7 @@ export interface IDialogOptions {
 	cancelId?: number;
 	detail?: string;
 	checkbox?: ICheckbox;
+	useCustom?: boolean;
 }
 
 export interface IInput {

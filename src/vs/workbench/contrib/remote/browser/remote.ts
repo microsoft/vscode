@@ -54,6 +54,8 @@ import { ExtensionsRegistry, IExtensionPointUser } from 'vs/workbench/services/e
 import { SyncDescriptor } from 'vs/platform/instantiation/common/descriptors';
 import { RemoteStatusIndicator } from 'vs/workbench/contrib/remote/browser/remoteIndicator';
 import * as icons from 'vs/workbench/contrib/remote/browser/remoteIcons';
+import { ILogService } from 'vs/platform/log/common/log';
+import { ITimerService } from 'vs/workbench/services/timer/browser/timerService';
 
 
 export interface HelpInformation {
@@ -595,6 +597,20 @@ Registry.as<IWorkbenchActionRegistry>(WorkbenchActionExtensions.WorkbenchActions
 	CATEGORIES.View.value
 );
 
+class RemoteMarkers implements IWorkbenchContribution {
+
+	constructor(
+		@IRemoteAgentService remoteAgentService: IRemoteAgentService,
+		@ITimerService timerService: ITimerService,
+	) {
+		remoteAgentService.getEnvironment().then(remoteEnv => {
+			if (remoteEnv) {
+				timerService.setPerformanceMarks('server', remoteEnv.marks);
+			}
+		});
+	}
+}
+
 class VisibleProgress {
 
 	public readonly location: ProgressLocation;
@@ -701,12 +717,16 @@ class ReconnectionTimer2 implements IDisposable {
 const DISCONNECT_PROMPT_TIME = 40 * 1000; // 40 seconds
 
 class RemoteAgentConnectionStatusListener extends Disposable implements IWorkbenchContribution {
+
+	private _reloadWindowShown: boolean = false;
+
 	constructor(
 		@IRemoteAgentService remoteAgentService: IRemoteAgentService,
 		@IProgressService progressService: IProgressService,
 		@IDialogService dialogService: IDialogService,
 		@ICommandService commandService: ICommandService,
-		@IQuickInputService quickInputService: IQuickInputService
+		@IQuickInputService quickInputService: IQuickInputService,
+		@ILogService logService: ILogService
 	) {
 		super();
 		const connection = remoteAgentService.getConnection();
@@ -771,7 +791,7 @@ class RemoteAgentConnectionStatusListener extends Disposable implements IWorkben
 
 			// Possible state transitions:
 			// ConnectionGain      -> ConnectionLost
-			// ConnectionLost      -> ReconnectionWait
+			// ConnectionLost      -> ReconnectionWait, ReconnectionRunning
 			// ReconnectionWait    -> ReconnectionRunning
 			// ReconnectionRunning -> ConnectionGain, ReconnectionPermanentFailure
 
@@ -794,7 +814,7 @@ class RemoteAgentConnectionStatusListener extends Disposable implements IWorkben
 						}
 						break;
 					case PersistentConnectionEventType.ReconnectionWait:
-						if (visibleProgress || e.millisSinceLastIncomingData > DISCONNECT_PROMPT_TIME) {
+						if (visibleProgress) {
 							reconnectWaitEvent = e;
 							visibleProgress = showProgress(null, [reconnectButton, reloadButton]);
 							visibleProgress.startTimer(Date.now() + 1000 * e.durationSeconds);
@@ -803,7 +823,7 @@ class RemoteAgentConnectionStatusListener extends Disposable implements IWorkben
 					case PersistentConnectionEventType.ReconnectionRunning:
 						if (visibleProgress || e.millisSinceLastIncomingData > DISCONNECT_PROMPT_TIME) {
 							visibleProgress = showProgress(null, [reloadButton]);
-							visibleProgress.report(nls.localize('reconnectionRunning', "Attempting to reconnect..."));
+							visibleProgress.report(nls.localize('reconnectionRunning', "Disconnected. Attempting to reconnect..."));
 
 							// Register to listen for quick input is opened
 							disposableListener = quickInputService.onShow(() => {
@@ -818,12 +838,18 @@ class RemoteAgentConnectionStatusListener extends Disposable implements IWorkben
 					case PersistentConnectionEventType.ReconnectionPermanentFailure:
 						hideProgress();
 
-						dialogService.show(Severity.Error, nls.localize('reconnectionPermanentFailure', "Cannot reconnect. Please reload the window."), [nls.localize('reloadWindow', "Reload Window"), nls.localize('cancel', "Cancel")], { cancelId: 1 }).then(result => {
-							// Reload the window
-							if (result.choice === 0) {
-								commandService.executeCommand(ReloadWindowAction.ID);
-							}
-						});
+						if (e.handled) {
+							logService.info(`Error handled: Not showing a notification for the error.`);
+							console.log(`Error handled: Not showing a notification for the error.`);
+						} else if (!this._reloadWindowShown) {
+							this._reloadWindowShown = true;
+							dialogService.show(Severity.Error, nls.localize('reconnectionPermanentFailure', "Cannot reconnect. Please reload the window."), [nls.localize('reloadWindow', "Reload Window"), nls.localize('cancel', "Cancel")], { cancelId: 1, useCustom: true }).then(result => {
+								// Reload the window
+								if (result.choice === 0) {
+									commandService.executeCommand(ReloadWindowAction.ID);
+								}
+							});
+						}
 						break;
 					case PersistentConnectionEventType.ConnectionGain:
 						hideProgress();
@@ -840,3 +866,4 @@ workbenchContributionsRegistry.registerWorkbenchContribution(RemoteStatusIndicat
 workbenchContributionsRegistry.registerWorkbenchContribution(ForwardedPortsView, LifecyclePhase.Eventually);
 workbenchContributionsRegistry.registerWorkbenchContribution(PortRestore, LifecyclePhase.Eventually);
 workbenchContributionsRegistry.registerWorkbenchContribution(AutomaticPortForwarding, LifecyclePhase.Eventually);
+workbenchContributionsRegistry.registerWorkbenchContribution(RemoteMarkers, LifecyclePhase.Eventually);

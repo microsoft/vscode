@@ -464,7 +464,9 @@ export abstract class AbstractExtensionService extends Disposable implements IEx
 
 	protected _onExtensionHostCrashed(extensionHost: ExtensionHostManager, code: number, signal: string | null): void {
 		console.error('Extension host terminated unexpectedly. Code: ', code, ' Signal: ', signal);
-		this._stopExtensionHosts();
+		if (extensionHost.kind === ExtensionHostKind.LocalProcess) {
+			this._stopExtensionHosts();
+		}
 	}
 
 	//#region IExtensionService

@@ -53,7 +53,7 @@ export default function createSuite(params: Params) {
 	test('create - no encoding - content empty', async () => {
 		const resource = URI.file(join(testDir, 'small_new.txt'));
 
-		await service.create(resource);
+		await service.create([{ resource }]);
 
 		const res = await readFile(resource.fsPath);
 		assert.equal(res.byteLength, 0 /* no BOM */);
@@ -62,7 +62,7 @@ export default function createSuite(params: Params) {
 	test('create - no encoding - content provided (string)', async () => {
 		const resource = URI.file(join(testDir, 'small_new.txt'));
 
-		await service.create(resource, 'Hello World');
+		await service.create([{ resource, value: 'Hello World' }]);
 
 		const res = await readFile(resource.fsPath);
 		assert.equal(res.toString(), 'Hello World');
@@ -72,7 +72,7 @@ export default function createSuite(params: Params) {
 	test('create - no encoding - content provided (snapshot)', async () => {
 		const resource = URI.file(join(testDir, 'small_new.txt'));
 
-		await service.create(resource, stringToSnapshot('Hello World'));
+		await service.create([{ resource, value: stringToSnapshot('Hello World') }]);
 
 		const res = await readFile(resource.fsPath);
 		assert.equal(res.toString(), 'Hello World');
@@ -82,7 +82,7 @@ export default function createSuite(params: Params) {
 	test('create - UTF 16 LE - no content', async () => {
 		const resource = URI.file(join(testDir, 'small_new.utf16le'));
 
-		await service.create(resource);
+		await service.create([{ resource }]);
 
 		assert.equal(await exists(resource.fsPath), true);
 
@@ -96,7 +96,7 @@ export default function createSuite(params: Params) {
 	test('create - UTF 16 LE - content provided', async () => {
 		const resource = URI.file(join(testDir, 'small_new.utf16le'));
 
-		await service.create(resource, 'Hello World');
+		await service.create([{ resource, value: 'Hello World' }]);
 
 		assert.equal(await exists(resource.fsPath), true);
 
@@ -110,7 +110,7 @@ export default function createSuite(params: Params) {
 	test('create - UTF 16 BE - no content', async () => {
 		const resource = URI.file(join(testDir, 'small_new.utf16be'));
 
-		await service.create(resource);
+		await service.create([{ resource }]);
 
 		assert.equal(await exists(resource.fsPath), true);
 
@@ -124,7 +124,7 @@ export default function createSuite(params: Params) {
 	test('create - UTF 16 BE - content provided', async () => {
 		const resource = URI.file(join(testDir, 'small_new.utf16be'));
 
-		await service.create(resource, 'Hello World');
+		await service.create([{ resource, value: 'Hello World' }]);
 
 		assert.equal(await exists(resource.fsPath), true);
 
@@ -138,7 +138,7 @@ export default function createSuite(params: Params) {
 	test('create - UTF 8 BOM - no content', async () => {
 		const resource = URI.file(join(testDir, 'small_new.utf8bom'));
 
-		await service.create(resource);
+		await service.create([{ resource }]);
 
 		assert.equal(await exists(resource.fsPath), true);
 
@@ -152,7 +152,7 @@ export default function createSuite(params: Params) {
 	test('create - UTF 8 BOM - content provided', async () => {
 		const resource = URI.file(join(testDir, 'small_new.utf8bom'));
 
-		await service.create(resource, 'Hello World');
+		await service.create([{ resource, value: 'Hello World' }]);
 
 		assert.equal(await exists(resource.fsPath), true);
 
@@ -166,7 +166,7 @@ export default function createSuite(params: Params) {
 	test('create - UTF 8 BOM - empty content - snapshot', async () => {
 		const resource = URI.file(join(testDir, 'small_new.utf8bom'));
 
-		await service.create(resource, createTextModel('').createSnapshot());
+		await service.create([{ resource, value: createTextModel('').createSnapshot() }]);
 
 		assert.equal(await exists(resource.fsPath), true);
 
@@ -180,7 +180,7 @@ export default function createSuite(params: Params) {
 	test('create - UTF 8 BOM - content provided - snapshot', async () => {
 		const resource = URI.file(join(testDir, 'small_new.utf8bom'));
 
-		await service.create(resource, createTextModel('Hello World').createSnapshot());
+		await service.create([{ resource, value: createTextModel('Hello World').createSnapshot() }]);
 
 		assert.equal(await exists(resource.fsPath), true);
 

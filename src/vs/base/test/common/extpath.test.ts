@@ -107,7 +107,7 @@ suite('Paths', () => {
 		}
 	});
 
-	test('isRoot', () => {
+	test('isRootOrDriveLetter', () => {
 		if (platform.isWindows) {
 			assert.ok(extpath.isRootOrDriveLetter('c:'));
 			assert.ok(extpath.isRootOrDriveLetter('D:'));
@@ -118,6 +118,34 @@ suite('Paths', () => {
 		} else {
 			assert.ok(extpath.isRootOrDriveLetter('/'));
 			assert.ok(!extpath.isRootOrDriveLetter('/path'));
+		}
+	});
+
+	test('hasDriveLetter', () => {
+		if (platform.isWindows) {
+			assert.ok(extpath.hasDriveLetter('c:'));
+			assert.ok(extpath.hasDriveLetter('D:'));
+			assert.ok(extpath.hasDriveLetter('D:/'));
+			assert.ok(extpath.hasDriveLetter('D:\\'));
+			assert.ok(extpath.hasDriveLetter('D:\\path'));
+			assert.ok(extpath.hasDriveLetter('D:/path'));
+		} else {
+			assert.ok(!extpath.hasDriveLetter('/'));
+			assert.ok(!extpath.hasDriveLetter('/path'));
+		}
+	});
+
+	test('getDriveLetter', () => {
+		if (platform.isWindows) {
+			assert.equal(extpath.getDriveLetter('c:'), 'c');
+			assert.equal(extpath.getDriveLetter('D:'), 'D');
+			assert.equal(extpath.getDriveLetter('D:/'), 'D');
+			assert.equal(extpath.getDriveLetter('D:\\'), 'D');
+			assert.equal(extpath.getDriveLetter('D:\\path'), 'D');
+			assert.equal(extpath.getDriveLetter('D:/path'), 'D');
+		} else {
+			assert.ok(!extpath.getDriveLetter('/'));
+			assert.ok(!extpath.getDriveLetter('/path'));
 		}
 	});
 

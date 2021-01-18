@@ -17,17 +17,21 @@ import { IClipboardService } from 'vs/platform/clipboard/common/clipboardService
 import { CommandsRegistry, ICommandService } from 'vs/platform/commands/common/commands';
 import { ContextKeyExpr, IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
 import { InputFocusedContext, InputFocusedContextKey } from 'vs/platform/contextkey/common/contextkeys';
-import { ServicesAccessor } from 'vs/platform/instantiation/common/instantiation';
+import { IInstantiationService, ServicesAccessor } from 'vs/platform/instantiation/common/instantiation';
 import { KeybindingWeight } from 'vs/platform/keybinding/common/keybindingsRegistry';
 import { IQuickInputService, IQuickPickItem, QuickPickInput } from 'vs/platform/quickinput/common/quickInput';
 import { CATEGORIES } from 'vs/workbench/common/actions';
 import { BaseCellRenderTemplate, CellEditState, CellFocusMode, EXECUTE_CELL_COMMAND_ID, EXPAND_CELL_CONTENT_COMMAND_ID, IActiveNotebookEditor, ICellViewModel, INotebookEditor, NOTEBOOK_CELL_EDITABLE, NOTEBOOK_CELL_EDITOR_FOCUSED, NOTEBOOK_CELL_HAS_OUTPUTS, NOTEBOOK_CELL_INPUT_COLLAPSED, NOTEBOOK_CELL_LIST_FOCUSED, NOTEBOOK_CELL_MARKDOWN_EDIT_MODE, NOTEBOOK_CELL_OUTPUT_COLLAPSED, NOTEBOOK_CELL_TYPE, NOTEBOOK_EDITOR_EDITABLE, NOTEBOOK_EDITOR_EXECUTING_NOTEBOOK, NOTEBOOK_EDITOR_FOCUSED, NOTEBOOK_EDITOR_RUNNABLE, NOTEBOOK_IS_ACTIVE_EDITOR, NOTEBOOK_OUTPUT_FOCUSED } from 'vs/workbench/contrib/notebook/browser/notebookBrowser';
 import { CellViewModel } from 'vs/workbench/contrib/notebook/browser/viewModel/notebookViewModel';
-import { CellEditType, CellKind, ICellEditOperation, ICellRange, isDocumentExcludePattern, NotebookCellMetadata, NotebookCellRunState, NOTEBOOK_EDITOR_CURSOR_BEGIN_END, NOTEBOOK_EDITOR_CURSOR_BOUNDARY, TransientMetadata } from 'vs/workbench/contrib/notebook/common/notebookCommon';
+import { CellEditType, CellKind, ICellEditOperation, ICellRange, INotebookDocumentFilter, isDocumentExcludePattern, NotebookCellMetadata, NotebookCellRunState, NOTEBOOK_EDITOR_CURSOR_BEGIN_END, NOTEBOOK_EDITOR_CURSOR_BOUNDARY, TransientMetadata } from 'vs/workbench/contrib/notebook/common/notebookCommon';
 import { INotebookService } from 'vs/workbench/contrib/notebook/common/notebookService';
 import { IEditorGroupsService } from 'vs/workbench/services/editor/common/editorGroupsService';
 import { IEditorService } from 'vs/workbench/services/editor/common/editorService';
 import * as icons from 'vs/workbench/contrib/notebook/browser/notebookIcons';
+import { CancellationTokenSource } from 'vs/base/common/cancellation';
+import { NotebookEditorInput } from 'vs/workbench/contrib/notebook/browser/notebookEditorInput';
+import { EditorsOrder } from 'vs/workbench/common/editor';
+import { INotebookEditorWidgetService } from 'vs/workbench/contrib/notebook/browser/notebookEditorWidgetService';
 
 // Notebook Commands
 const EXECUTE_NOTEBOOK_COMMAND_ID = 'notebook.execute';
@@ -179,16 +183,16 @@ abstract class NotebookCellAction<T = INotebookCellActionContext> extends Notebo
 		return !!context && !!(context as INotebookCellActionContext).notebookEditor && !!(context as INotebookCellActionContext).cell;
 	}
 
-	protected getCellContextFromArgs(accessor: ServicesAccessor, context?: T): INotebookCellActionContext | undefined {
+	protected getCellContextFromArgs(accessor: ServicesAccessor, context?: T, ...additionalArgs: any[]): INotebookCellActionContext | undefined {
 		return undefined;
 	}
 
-	async run(accessor: ServicesAccessor, context?: INotebookCellActionContext): Promise<void> {
+	async run(accessor: ServicesAccessor, context?: INotebookCellActionContext, ...additionalArgs: any[]): Promise<void> {
 		if (this.isCellActionContext(context)) {
 			return this.runWithContext(accessor, context);
 		}
 
-		const contextFromArgs = this.getCellContextFromArgs(accessor, context);
+		const contextFromArgs = this.getCellContextFromArgs(accessor, context, ...additionalArgs);
 
 		if (contextFromArgs) {
 			return this.runWithContext(accessor, contextFromArgs);
@@ -234,6 +238,11 @@ registerAction2(class extends NotebookCellAction<ICellRange> {
 								}
 							}
 						}
+					},
+					{
+						name: 'uri',
+						description: 'The document uri',
+						constraint: URI
 					}
 				]
 			},
@@ -241,9 +250,36 @@ registerAction2(class extends NotebookCellAction<ICellRange> {
 		});
 	}
 
-	getCellContextFromArgs(accessor: ServicesAccessor, context?: ICellRange): INotebookCellActionContext | undefined {
+	getCellContextFromArgs(accessor: ServicesAccessor, context?: ICellRange, ...additionalArgs: any[]): INotebookCellActionContext | undefined {
 		if (!context || typeof context.start !== 'number' || typeof context.end !== 'number' || context.start >= context.end) {
 			return;
+		}
+
+		if (additionalArgs.length && additionalArgs[0]) {
+			const uri = URI.revive(additionalArgs[0]);
+
+			if (uri) {
+				// we will run cell against this document
+				const editorService = accessor.get(IEditorService);
+				const editorGroupService = accessor.get(IEditorGroupsService);
+				const instantiationService = accessor.get(IInstantiationService);
+				const notebookWidgetService = accessor.get(INotebookEditorWidgetService);
+				const editorId = editorService.getEditors(EditorsOrder.SEQUENTIAL).find(editorId => editorId.editor instanceof NotebookEditorInput && editorId.editor.resource?.toString() === uri.toString());
+
+				if (editorId) {
+					const group = editorGroupService.getGroup(editorId.groupId);
+					const widget = instantiationService.invokeFunction(notebookWidgetService.retrieveWidget, group!, editorId.editor as NotebookEditorInput);
+
+					if (widget.value?.hasModel()) {
+						const cells = widget.value.viewModel.viewCells;
+
+						return {
+							notebookEditor: widget.value!,
+							cell: cells[context.start]
+						};
+					}
+				}
+			}
 		}
 
 		const activeEditorContext = this.getActiveEditorContext(accessor);
@@ -580,7 +616,7 @@ registerAction2(class extends NotebookCellAction {
 
 export function getActiveNotebookEditor(editorService: IEditorService): INotebookEditor | undefined {
 	// TODO@roblourens can `isNotebookEditor` be on INotebookEditor to avoid a circular dependency?
-	const activeEditorPane = editorService.activeEditorPane as unknown as { isNotebookEditor?: boolean } | undefined;
+	const activeEditorPane = editorService.activeEditorPane as unknown as { isNotebookEditor?: boolean; } | undefined;
 	return activeEditorPane?.isNotebookEditor ? (editorService.activeEditorPane?.getControl() as INotebookEditor) : undefined;
 }
 
@@ -1891,8 +1927,8 @@ CommandsRegistry.registerCommand('notebook.trust', (accessor, args) => {
 CommandsRegistry.registerCommand('_resolveNotebookContentProvider', (accessor, args): {
 	viewType: string;
 	displayName: string;
-	options: { transientOutputs: boolean; transientMetadata: TransientMetadata };
-	filenamePattern: (string | glob.IRelativePattern | { include: string | glob.IRelativePattern, exclude: string | glob.IRelativePattern })[]
+	options: { transientOutputs: boolean; transientMetadata: TransientMetadata; };
+	filenamePattern: (string | glob.IRelativePattern | { include: string | glob.IRelativePattern, exclude: string | glob.IRelativePattern; })[];
 }[] => {
 	const notebookService = accessor.get<INotebookService>(INotebookService);
 	const contentProviders = notebookService.getContributedNotebookProviders();
@@ -1914,7 +1950,7 @@ CommandsRegistry.registerCommand('_resolveNotebookContentProvider', (accessor, a
 			}
 
 			return null;
-		}).filter(pattern => pattern !== null) as (string | glob.IRelativePattern | { include: string | glob.IRelativePattern, exclude: string | glob.IRelativePattern })[];
+		}).filter(pattern => pattern !== null) as (string | glob.IRelativePattern | { include: string | glob.IRelativePattern, exclude: string | glob.IRelativePattern; })[];
 
 		return {
 			viewType: provider.id,
@@ -1923,4 +1959,45 @@ CommandsRegistry.registerCommand('_resolveNotebookContentProvider', (accessor, a
 			options: { transientMetadata: provider.options.transientMetadata, transientOutputs: provider.options.transientOutputs }
 		};
 	});
+});
+
+CommandsRegistry.registerCommand('_resolveNotebookKernelProviders', async (accessor, args): Promise<{
+	extensionId: string;
+	description?: string;
+	selector: INotebookDocumentFilter;
+}[]> => {
+	const notebookService = accessor.get<INotebookService>(INotebookService);
+	const providers = await notebookService.getContributedNotebookKernelProviders();
+	return providers.map(provider => ({
+		extensionId: provider.providerExtensionId,
+		description: provider.providerDescription,
+		selector: provider.selector
+	}));
+});
+
+CommandsRegistry.registerCommand('_resolveNotebookKernels', async (accessor, args: {
+	viewType: string;
+	uri: UriComponents;
+}): Promise<{
+	id?: string;
+	label: string;
+	description?: string;
+	detail?: string;
+	isPreferred?: boolean;
+	preloads?: URI[];
+}[]> => {
+	const notebookService = accessor.get<INotebookService>(INotebookService);
+	const uri = URI.revive(args.uri as UriComponents);
+	const source = new CancellationTokenSource();
+	const kernels = await notebookService.getContributedNotebookKernels(args.viewType, uri, source.token);
+	source.dispose();
+
+	return kernels.map(provider => ({
+		id: provider.id,
+		label: provider.label,
+		description: provider.description,
+		detail: provider.detail,
+		isPreferred: provider.isPreferred,
+		preloads: provider.preloads?.map(preload => URI.revive(preload)) || []
+	}));
 });

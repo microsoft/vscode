@@ -46,7 +46,7 @@ import { IListAccessibilityProvider } from 'vs/base/browser/ui/list/listWidget';
 import { Color, RGBA } from 'vs/base/common/color';
 import { WORKBENCH_BACKGROUND } from 'vs/workbench/common/theme';
 import { IBaseActionViewItemOptions } from 'vs/base/browser/ui/actionbar/actionViewItems';
-import { IKeybindingItemEntry, IKeybindingsEditorPane, IListEntry } from 'vs/workbench/services/preferences/common/preferences';
+import { IKeybindingItemEntry, IKeybindingsEditorPane } from 'vs/workbench/services/preferences/common/preferences';
 import { keybindingsRecordKeysIcon, keybindingsSortIcon, keybindingsAddIcon, preferencesClearInputIcon, keybindingsEditIcon } from 'vs/workbench/contrib/preferences/browser/preferencesIcons';
 
 const $ = DOM.$;
@@ -96,8 +96,8 @@ export class KeybindingsEditor extends EditorPane implements IKeybindingsEditorP
 	private columnItems: ColumnItem[] = [];
 	private keybindingsListContainer!: HTMLElement;
 	private unAssignedKeybindingItemToRevealAndFocus: IKeybindingItemEntry | null = null;
-	private listEntries: IListEntry[] = [];
-	private keybindingsList!: WorkbenchList<IListEntry>;
+	private listEntries: IKeybindingItemEntry[] = [];
+	private keybindingsList!: WorkbenchList<IKeybindingItemEntry>;
 
 	private dimension: DOM.Dimension | null = null;
 	private delayedFiltering: Delayer<void>;
@@ -479,7 +479,7 @@ export class KeybindingsEditor extends EditorPane implements IKeybindingsEditorP
 	private createList(parent: HTMLElement): void {
 		this.keybindingsListContainer = DOM.append(parent, $('.keybindings-list-container'));
 		this.keybindingsList = this._register(this.instantiationService.createInstance(WorkbenchList, 'KeybindingsEditor', this.keybindingsListContainer, new Delegate(), [new KeybindingItemRenderer(this, this.instantiationService)], {
-			identityProvider: { getId: (e: IListEntry) => e.id },
+			identityProvider: { getId: (e: IKeybindingItemEntry) => e.id },
 			setRowLineHeight: false,
 			horizontalScrolling: false,
 			accessibilityProvider: new AccessibilityProvider(),
@@ -487,7 +487,7 @@ export class KeybindingsEditor extends EditorPane implements IKeybindingsEditorP
 			overrideStyles: {
 				listBackground: editorBackground
 			}
-		})) as WorkbenchList<IListEntry>;
+		})) as WorkbenchList<IKeybindingItemEntry>;
 
 		this._register(this.keybindingsList.onContextMenu(e => this.onContextMenu(e)));
 		this._register(this.keybindingsList.onDidChangeFocus(e => this.onFocusChange(e)));
@@ -620,7 +620,7 @@ export class KeybindingsEditor extends EditorPane implements IKeybindingsEditorP
 		this.keybindingsList.layout(listHeight);
 	}
 
-	private getIndexOf(listEntry: IListEntry): number {
+	private getIndexOf(listEntry: IKeybindingItemEntry): number {
 		const index = this.listEntries.indexOf(listEntry);
 		if (index === -1) {
 			for (let i = 0; i < this.listEntries.length; i++) {
@@ -674,7 +674,7 @@ export class KeybindingsEditor extends EditorPane implements IKeybindingsEditorP
 		this.sortByPrecedenceAction.checked = !this.sortByPrecedenceAction.checked;
 	}
 
-	private onContextMenu(e: IListContextMenuEvent<IListEntry>): void {
+	private onContextMenu(e: IListContextMenuEvent<IKeybindingItemEntry>): void {
 		if (!e.element) {
 			return;
 		}
@@ -702,7 +702,7 @@ export class KeybindingsEditor extends EditorPane implements IKeybindingsEditorP
 		}
 	}
 
-	private onFocusChange(e: IListEvent<IListEntry>): void {
+	private onFocusChange(e: IListEvent<IKeybindingItemEntry>): void {
 		this.keybindingFocusContextKey.reset();
 		const element = e.elements[0];
 		if (!element) {
@@ -821,9 +821,9 @@ export class KeybindingsEditor extends EditorPane implements IKeybindingsEditorP
 	}
 }
 
-class Delegate implements IListVirtualDelegate<IListEntry> {
+class Delegate implements IListVirtualDelegate<IKeybindingItemEntry> {
 
-	getHeight(element: IListEntry) {
+	getHeight(element: IKeybindingItemEntry) {
 		if (element.templateId === KEYBINDING_ENTRY_TEMPLATE_ID) {
 			const commandIdMatched = (<IKeybindingItemEntry>element).keybindingItem.commandLabel && (<IKeybindingItemEntry>element).commandIdMatches;
 			const commandDefaultLabelMatched = !!(<IKeybindingItemEntry>element).commandDefaultLabelMatches;
@@ -837,7 +837,7 @@ class Delegate implements IListVirtualDelegate<IListEntry> {
 		return 24;
 	}
 
-	getTemplateId(element: IListEntry) {
+	getTemplateId(element: IKeybindingItemEntry) {
 		return element.templateId;
 	}
 }

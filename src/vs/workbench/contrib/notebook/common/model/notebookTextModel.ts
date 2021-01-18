@@ -257,7 +257,7 @@ export class NotebookTextModel extends Disposable implements INotebookTextModel 
 		super();
 		this.transientOptions = options;
 		this.metadata = metadata;
-		this.updateLanguages(languages);
+		this.updateLanguages(metadata.languages && metadata.languages.length ? metadata.languages : languages);
 		this._initialize(cells);
 
 		this._eventEmitter = new DelayedEmitter(
@@ -275,7 +275,7 @@ export class NotebookTextModel extends Disposable implements INotebookTextModel 
 
 		const mainCells = cells.map(cell => {
 			const cellHandle = this._cellhandlePool++;
-			const cellUri = CellUri.generate(this.uri, cellHandle);
+			const cellUri = CellUri.generate(this.uri, this.viewType, cellHandle);
 			return new NotebookCellTextModel(cellUri, cellHandle, cell.source, cell.language, cell.cellKind, cell.outputs || [], cell.metadata, this.transientOptions, this._modelService);
 		});
 
@@ -425,7 +425,7 @@ export class NotebookTextModel extends Disposable implements INotebookTextModel 
 		// prepare add
 		const cells = cellDtos.map(cellDto => {
 			const cellHandle = this._cellhandlePool++;
-			const cellUri = CellUri.generate(this.uri, cellHandle);
+			const cellUri = CellUri.generate(this.uri, this.viewType, cellHandle);
 			const cell = new NotebookCellTextModel(
 				cellUri, cellHandle,
 				cellDto.source, cellDto.language, cellDto.cellKind, cellDto.outputs || [], cellDto.metadata, this.transientOptions,
@@ -497,6 +497,10 @@ export class NotebookTextModel extends Disposable implements INotebookTextModel 
 	private _updateNotebookMetadata(metadata: NotebookDocumentMetadata, computeUndoRedo: boolean) {
 		const oldMetadata = this.metadata;
 		this.metadata = metadata;
+
+		if (this.metadata.languages && this.metadata.languages.length) {
+			this.updateLanguages(this.metadata.languages);
+		}
 
 		if (computeUndoRedo) {
 			const that = this;

@@ -145,6 +145,7 @@ suite('Labels', () => {
 		assert.equal(labels.getBaseLabel('c:\\'), 'C:');
 		assert.equal(labels.getBaseLabel('c:\\some\\folder\\file.txt'), 'file.txt');
 		assert.equal(labels.getBaseLabel('c:\\some\\folder'), 'folder');
+		assert.equal(labels.getBaseLabel('c:\\some\\f:older'), 'f:older'); // https://github.com/microsoft/vscode-remote-release/issues/4227
 	});
 
 	test('mnemonicButtonLabel', () => {

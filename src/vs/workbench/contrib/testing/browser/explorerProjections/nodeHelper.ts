@@ -6,7 +6,10 @@
 import { ICompressedTreeElement } from 'vs/base/browser/ui/tree/compressedObjectTreeModel';
 import { CompressibleObjectTree, ObjectTree } from 'vs/base/browser/ui/tree/objectTree';
 import { Iterable } from 'vs/base/common/iterator';
+import { TestRunState } from 'vs/workbench/api/common/extHostTypes';
 import { ITestTreeElement } from 'vs/workbench/contrib/testing/browser/explorerProjections';
+
+export const isRunningState = (s: TestRunState) => s === TestRunState.Queued || s === TestRunState.Running;
 
 /**
  * Removes nodes from the set whose parents don't exist in the tree. This is
@@ -24,7 +27,7 @@ export const pruneNodesWithParentsNotInTree = <T extends ITestTreeElement>(nodes
 /**
  * Helper to gather and bulk-apply tree updates.
  */
-export class NodeChangeList<T extends ITestTreeElement & { children: Iterable<T>; parentItem: T | null }> {
+export class NodeChangeList<T extends ITestTreeElement & { children: Iterable<T>; parentItem: T | null; }> {
 	private changedParents = new Set<T | null>();
 	private updatedNodes = new Set<T>();
 

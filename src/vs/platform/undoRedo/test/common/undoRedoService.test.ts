@@ -23,9 +23,9 @@ suite('UndoRedoService', () => {
 		const resource = URI.file('test.txt');
 		const service = createUndoRedoService();
 
-		assert.equal(service.canUndo(resource), false);
-		assert.equal(service.canRedo(resource), false);
-		assert.equal(service.hasElements(resource), false);
+		assert.strictEqual(service.canUndo(resource), false);
+		assert.strictEqual(service.canRedo(resource), false);
+		assert.strictEqual(service.hasElements(resource), false);
 		assert.ok(service.getLastElement(resource) === null);
 
 		let undoCall1 = 0;
@@ -39,27 +39,27 @@ suite('UndoRedoService', () => {
 		};
 		service.pushElement(element1);
 
-		assert.equal(undoCall1, 0);
-		assert.equal(redoCall1, 0);
-		assert.equal(service.canUndo(resource), true);
-		assert.equal(service.canRedo(resource), false);
-		assert.equal(service.hasElements(resource), true);
+		assert.strictEqual(undoCall1, 0);
+		assert.strictEqual(redoCall1, 0);
+		assert.strictEqual(service.canUndo(resource), true);
+		assert.strictEqual(service.canRedo(resource), false);
+		assert.strictEqual(service.hasElements(resource), true);
 		assert.ok(service.getLastElement(resource) === element1);
 
 		service.undo(resource);
-		assert.equal(undoCall1, 1);
-		assert.equal(redoCall1, 0);
-		assert.equal(service.canUndo(resource), false);
-		assert.equal(service.canRedo(resource), true);
-		assert.equal(service.hasElements(resource), true);
+		assert.strictEqual(undoCall1, 1);
+		assert.strictEqual(redoCall1, 0);
+		assert.strictEqual(service.canUndo(resource), false);
+		assert.strictEqual(service.canRedo(resource), true);
+		assert.strictEqual(service.hasElements(resource), true);
 		assert.ok(service.getLastElement(resource) === null);
 
 		service.redo(resource);
-		assert.equal(undoCall1, 1);
-		assert.equal(redoCall1, 1);
-		assert.equal(service.canUndo(resource), true);
-		assert.equal(service.canRedo(resource), false);
-		assert.equal(service.hasElements(resource), true);
+		assert.strictEqual(undoCall1, 1);
+		assert.strictEqual(redoCall1, 1);
+		assert.strictEqual(service.canUndo(resource), true);
+		assert.strictEqual(service.canRedo(resource), false);
+		assert.strictEqual(service.hasElements(resource), true);
 		assert.ok(service.getLastElement(resource) === element1);
 
 		let undoCall2 = 0;
@@ -73,24 +73,24 @@ suite('UndoRedoService', () => {
 		};
 		service.pushElement(element2);
 
-		assert.equal(undoCall1, 1);
-		assert.equal(redoCall1, 1);
-		assert.equal(undoCall2, 0);
-		assert.equal(redoCall2, 0);
-		assert.equal(service.canUndo(resource), true);
-		assert.equal(service.canRedo(resource), false);
-		assert.equal(service.hasElements(resource), true);
+		assert.strictEqual(undoCall1, 1);
+		assert.strictEqual(redoCall1, 1);
+		assert.strictEqual(undoCall2, 0);
+		assert.strictEqual(redoCall2, 0);
+		assert.strictEqual(service.canUndo(resource), true);
+		assert.strictEqual(service.canRedo(resource), false);
+		assert.strictEqual(service.hasElements(resource), true);
 		assert.ok(service.getLastElement(resource) === element2);
 
 		service.undo(resource);
 
-		assert.equal(undoCall1, 1);
-		assert.equal(redoCall1, 1);
-		assert.equal(undoCall2, 1);
-		assert.equal(redoCall2, 0);
-		assert.equal(service.canUndo(resource), true);
-		assert.equal(service.canRedo(resource), true);
-		assert.equal(service.hasElements(resource), true);
+		assert.strictEqual(undoCall1, 1);
+		assert.strictEqual(redoCall1, 1);
+		assert.strictEqual(undoCall2, 1);
+		assert.strictEqual(redoCall2, 0);
+		assert.strictEqual(service.canUndo(resource), true);
+		assert.strictEqual(service.canRedo(resource), true);
+		assert.strictEqual(service.hasElements(resource), true);
 		assert.ok(service.getLastElement(resource) === null);
 
 		let undoCall3 = 0;
@@ -104,28 +104,28 @@ suite('UndoRedoService', () => {
 		};
 		service.pushElement(element3);
 
-		assert.equal(undoCall1, 1);
-		assert.equal(redoCall1, 1);
-		assert.equal(undoCall2, 1);
-		assert.equal(redoCall2, 0);
-		assert.equal(undoCall3, 0);
-		assert.equal(redoCall3, 0);
-		assert.equal(service.canUndo(resource), true);
-		assert.equal(service.canRedo(resource), false);
-		assert.equal(service.hasElements(resource), true);
+		assert.strictEqual(undoCall1, 1);
+		assert.strictEqual(redoCall1, 1);
+		assert.strictEqual(undoCall2, 1);
+		assert.strictEqual(redoCall2, 0);
+		assert.strictEqual(undoCall3, 0);
+		assert.strictEqual(redoCall3, 0);
+		assert.strictEqual(service.canUndo(resource), true);
+		assert.strictEqual(service.canRedo(resource), false);
+		assert.strictEqual(service.hasElements(resource), true);
 		assert.ok(service.getLastElement(resource) === element3);
 
 		service.undo(resource);
 
-		assert.equal(undoCall1, 1);
-		assert.equal(redoCall1, 1);
-		assert.equal(undoCall2, 1);
-		assert.equal(redoCall2, 0);
-		assert.equal(undoCall3, 1);
-		assert.equal(redoCall3, 0);
-		assert.equal(service.canUndo(resource), true);
-		assert.equal(service.canRedo(resource), true);
-		assert.equal(service.hasElements(resource), true);
+		assert.strictEqual(undoCall1, 1);
+		assert.strictEqual(redoCall1, 1);
+		assert.strictEqual(undoCall2, 1);
+		assert.strictEqual(redoCall2, 0);
+		assert.strictEqual(undoCall3, 1);
+		assert.strictEqual(redoCall3, 0);
+		assert.strictEqual(service.canUndo(resource), true);
+		assert.strictEqual(service.canRedo(resource), true);
+		assert.strictEqual(service.hasElements(resource), true);
 		assert.ok(service.getLastElement(resource) === null);
 	});
 
@@ -169,50 +169,50 @@ suite('UndoRedoService', () => {
 		};
 		service.pushElement(element1);
 
-		assert.equal(service.canUndo(resource1), true);
-		assert.equal(service.canRedo(resource1), false);
-		assert.equal(service.hasElements(resource1), true);
+		assert.strictEqual(service.canUndo(resource1), true);
+		assert.strictEqual(service.canRedo(resource1), false);
+		assert.strictEqual(service.hasElements(resource1), true);
 		assert.ok(service.getLastElement(resource1) === element1);
-		assert.equal(service.canUndo(resource2), true);
-		assert.equal(service.canRedo(resource2), false);
-		assert.equal(service.hasElements(resource2), true);
+		assert.strictEqual(service.canUndo(resource2), true);
+		assert.strictEqual(service.canRedo(resource2), false);
+		assert.strictEqual(service.hasElements(resource2), true);
 		assert.ok(service.getLastElement(resource2) === element1);
 
 		await service.undo(resource1);
 
-		assert.equal(undoCall1, 1);
-		assert.equal(redoCall1, 0);
-		assert.equal(service.canUndo(resource1), false);
-		assert.equal(service.canRedo(resource1), true);
-		assert.equal(service.hasElements(resource1), true);
+		assert.strictEqual(undoCall1, 1);
+		assert.strictEqual(redoCall1, 0);
+		assert.strictEqual(service.canUndo(resource1), false);
+		assert.strictEqual(service.canRedo(resource1), true);
+		assert.strictEqual(service.hasElements(resource1), true);
 		assert.ok(service.getLastElement(resource1) === null);
-		assert.equal(service.canUndo(resource2), false);
-		assert.equal(service.canRedo(resource2), true);
-		assert.equal(service.hasElements(resource2), true);
+		assert.strictEqual(service.canUndo(resource2), false);
+		assert.strictEqual(service.canRedo(resource2), true);
+		assert.strictEqual(service.hasElements(resource2), true);
 		assert.ok(service.getLastElement(resource2) === null);
 
 		await service.redo(resource2);
-		assert.equal(undoCall1, 1);
-		assert.equal(redoCall1, 1);
-		assert.equal(undoCall11, 0);
-		assert.equal(redoCall11, 0);
-		assert.equal(undoCall12, 0);
-		assert.equal(redoCall12, 0);
-		assert.equal(service.canUndo(resource1), true);
-		assert.equal(service.canRedo(resource1), false);
-		assert.equal(service.hasElements(resource1), true);
+		assert.strictEqual(undoCall1, 1);
+		assert.strictEqual(redoCall1, 1);
+		assert.strictEqual(undoCall11, 0);
+		assert.strictEqual(redoCall11, 0);
+		assert.strictEqual(undoCall12, 0);
+		assert.strictEqual(redoCall12, 0);
+		assert.strictEqual(service.canUndo(resource1), true);
+		assert.strictEqual(service.canRedo(resource1), false);
+		assert.strictEqual(service.hasElements(resource1), true);
 		assert.ok(service.getLastElement(resource1) === element1);
-		assert.equal(service.canUndo(resource2), true);
-		assert.equal(service.canRedo(resource2), false);
-		assert.equal(service.hasElements(resource2), true);
+		assert.strictEqual(service.canUndo(resource2), true);
+		assert.strictEqual(service.canRedo(resource2), false);
+		assert.strictEqual(service.hasElements(resource2), true);
 		assert.ok(service.getLastElement(resource2) === element1);
 
 	});
 
 	test('UndoRedoGroup.None uses id 0', () => {
-		assert.equal(UndoRedoGroup.None.id, 0);
-		assert.equal(UndoRedoGroup.None.nextOrder(), 0);
-		assert.equal(UndoRedoGroup.None.nextOrder(), 0);
+		assert.strictEqual(UndoRedoGroup.None.id, 0);
+		assert.strictEqual(UndoRedoGroup.None.nextOrder(), 0);
+		assert.strictEqual(UndoRedoGroup.None.nextOrder(), 0);
 	});
 
 });

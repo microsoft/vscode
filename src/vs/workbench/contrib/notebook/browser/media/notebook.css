@@ -191,6 +191,10 @@
 	padding: 4px;
 }
 
+.monaco-workbench .notebookOverlay .output pre {
+	margin: 4px 0;
+}
+
 .monaco-workbench .notebookOverlay .output .error_message {
 	color: red;
 }

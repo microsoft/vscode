@@ -151,9 +151,6 @@ export class TestSharedProcessService implements ISharedProcessService {
 	getChannel(channelName: string): any { return undefined; }
 
 	registerChannel(channelName: string, channel: any): void { }
-
-	async toggleSharedProcessWindow(): Promise<void> { }
-	async whenSharedProcessReady(): Promise<void> { }
 }
 
 export class TestNativeHostService implements INativeHostService {
@@ -225,6 +222,7 @@ export class TestNativeHostService implements INativeHostService {
 	async exit(code: number): Promise<void> { }
 	async openDevTools(options?: Electron.OpenDevToolsOptions | undefined): Promise<void> { }
 	async toggleDevTools(): Promise<void> { }
+	async toggleSharedProcessWindow(): Promise<void> { }
 	async resolveProxy(url: string): Promise<string | undefined> { return undefined; }
 	async readClipboardText(type?: 'selection' | 'clipboard' | undefined): Promise<string> { return ''; }
 	async writeClipboardText(text: string, type?: 'selection' | 'clipboard' | undefined): Promise<void> { }

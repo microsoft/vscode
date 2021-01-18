@@ -118,6 +118,7 @@ export class ExplorerViewletViewsContribution extends Disposable implements IWor
 			canToggleVisibility: true,
 			canMoveView: true,
 			collapsed: true,
+			hideByDefault: true,
 			focusCommand: {
 				id: 'workbench.files.action.focusOpenEditorsView',
 				keybindings: { primary: KeyChord(KeyMod.CtrlCmd | KeyCode.KEY_K, KeyCode.KEY_E) }

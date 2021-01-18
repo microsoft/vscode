@@ -3,22 +3,21 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import * as nls from 'vs/nls';
 import { RunOnceScheduler } from 'vs/base/common/async';
 import * as dom from 'vs/base/browser/dom';
 import { IViewletViewOptions } from 'vs/workbench/browser/parts/views/viewsViewlet';
-import { IDebugService, State, IStackFrame, IDebugSession, IThread, CONTEXT_CALLSTACK_ITEM_TYPE, IDebugModel } from 'vs/workbench/contrib/debug/common/debug';
+import { IDebugService, State, IStackFrame, IDebugSession, IThread, CONTEXT_CALLSTACK_ITEM_TYPE, IDebugModel, CALLSTACK_VIEW_ID, CONTEXT_DEBUG_STATE, getStateLabel } from 'vs/workbench/contrib/debug/common/debug';
 import { Thread, StackFrame, ThreadAndSessionIds } from 'vs/workbench/contrib/debug/common/debugModel';
 import { IContextMenuService } from 'vs/platform/contextview/browser/contextView';
-import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
-import { MenuId, IMenu, IMenuService, MenuItemAction, SubmenuItemAction } from 'vs/platform/actions/common/actions';
+import { IInstantiationService, ServicesAccessor } from 'vs/platform/instantiation/common/instantiation';
+import { MenuId, IMenu, IMenuService, MenuItemAction, SubmenuItemAction, registerAction2 } from 'vs/platform/actions/common/actions';
 import { IKeybindingService } from 'vs/platform/keybinding/common/keybinding';
 import { renderViewTree } from 'vs/workbench/contrib/debug/browser/baseDebugView';
 import { IAction, Action } from 'vs/base/common/actions';
 import { IEditorService } from 'vs/workbench/services/editor/common/editorService';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
-import { IContextKey, IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
-import { ViewPane } from 'vs/workbench/browser/parts/views/viewPane';
+import { IContextKey, IContextKeyService, ContextKeyEqualsExpr } from 'vs/platform/contextkey/common/contextkey';
+import { ViewPane, ViewAction } from 'vs/workbench/browser/parts/views/viewPane';
 import { ILabelService } from 'vs/platform/label/common/label';
 import { IListAccessibilityProvider } from 'vs/base/browser/ui/list/listWidget';
 import { createAndFillInContextMenuActions, createAndFillInActionBarActions, MenuEntryActionViewItem, SubmenuEntryActionViewItem } from 'vs/platform/actions/browser/menuEntryActionViewItem';
@@ -46,6 +45,8 @@ import { ITreeCompressionDelegate } from 'vs/base/browser/ui/tree/asyncDataTree'
 import { ICompressibleTreeRenderer } from 'vs/base/browser/ui/tree/objectTree';
 import { ICompressedTreeNode } from 'vs/base/browser/ui/tree/compressedObjectTreeModel';
 import * as icons from 'vs/workbench/contrib/debug/browser/debugIcons';
+import { localize } from 'vs/nls';
+import { Codicon } from 'vs/base/common/codicons';
 
 const $ = dom.$;
 
@@ -161,7 +162,7 @@ export class CallStackView extends ViewPane {
 				this.stateMessageLabel.classList.toggle('exception', thread.stoppedDetails.reason === 'exception');
 				this.stateMessage.hidden = false;
 			} else if (sessions.length === 1 && sessions[0].state === State.Running) {
-				this.stateMessageLabel.textContent = nls.localize({ key: 'running', comment: ['indicates state'] }, "Running");
+				this.stateMessageLabel.textContent = localize({ key: 'running', comment: ['indicates state'] }, "Running");
 				this.stateMessageLabel.title = sessions[0].getLabel();
 				this.stateMessageLabel.classList.remove('exception');
 				this.stateMessage.hidden = false;
@@ -202,14 +203,6 @@ export class CallStackView extends ViewPane {
 		this.stateMessage = dom.append(titleContainer, $('span.state-message'));
 		this.stateMessage.hidden = true;
 		this.stateMessageLabel = dom.append(this.stateMessage, $('span.label'));
-	}
-
-	getActions(): IAction[] {
-		if (this.stateMessage.hidden) {
-			return [new Action('debug.callStack.collapseAll', nls.localize('collapse', "Collapse All"), `explorer-action ${ThemeIcon.asClassName(icons.debugCollapseAll)}`, true, async () => this.tree.collapseAll())];
-		}
-
-		return [];
 	}
 
 	renderBody(container: HTMLElement): void {
@@ -258,7 +251,7 @@ export class CallStackView extends ViewPane {
 						return LoadAllRenderer.LABEL;
 					}
 
-					return nls.localize('showMoreStackFrames2', "Show More Stack Frames");
+					return localize('showMoreStackFrames2', "Show More Stack Frames");
 				},
 				getCompressedNodeKeyboardNavigationLabel: (e: CallStackItem[]) => {
 					const firstItem = e[0];
@@ -375,6 +368,10 @@ export class CallStackView extends ViewPane {
 
 	focus(): void {
 		this.tree.domFocus();
+	}
+
+	collapseAll(): void {
+		this.tree.collapseAll();
 	}
 
 	private async updateTreeSelection(): Promise<void> {
@@ -531,7 +528,7 @@ class SessionsRenderer implements ICompressibleTreeRenderer<IDebugSession, Fuzzy
 	}
 
 	private doRenderElement(session: IDebugSession, matches: IMatch[], data: ISessionTemplateData): void {
-		data.session.title = nls.localize({ key: 'session', comment: ['Session is a noun'] }, "Session");
+		data.session.title = localize({ key: 'session', comment: ['Session is a noun'] }, "Session");
 		data.label.set(session.getLabel(), matches);
 		const thread = session.getAllThreads().find(t => t.stopped);
 
@@ -556,7 +553,7 @@ class SessionsRenderer implements ICompressibleTreeRenderer<IDebugSession, Fuzzy
 				data.session.title = thread.stoppedDetails.text;
 			}
 		} else {
-			data.stateLabel.textContent = nls.localize({ key: 'running', comment: ['indicates state'] }, "Running");
+			data.stateLabel.textContent = localize({ key: 'running', comment: ['indicates state'] }, "Running");
 		}
 	}
 
@@ -590,7 +587,7 @@ class ThreadsRenderer implements ICompressibleTreeRenderer<IThread, FuzzyScore, 
 
 	renderElement(element: ITreeNode<IThread, FuzzyScore>, index: number, data: IThreadTemplateData): void {
 		const thread = element.element;
-		data.thread.title = nls.localize('thread', "Thread");
+		data.thread.title = localize('thread', "Thread");
 		data.label.set(thread.name, createMatches(element.filterData));
 		data.stateLabel.textContent = thread.stateLabel;
 
@@ -659,7 +656,7 @@ class StackFramesRenderer implements ICompressibleTreeRenderer<IStackFrame, Fuzz
 
 		data.actionBar.clear();
 		if (hasActions) {
-			const action = new Action('debug.callStack.restartFrame', nls.localize('restartFrame', "Restart Frame"), ThemeIcon.asClassName(icons.debugRestartFrame), true, async () => {
+			const action = new Action('debug.callStack.restartFrame', localize('restartFrame', "Restart Frame"), ThemeIcon.asClassName(icons.debugRestartFrame), true, async () => {
 				try {
 					await stackFrame.restart();
 				} catch (e) {
@@ -709,7 +706,7 @@ class ErrorsRenderer implements ICompressibleTreeRenderer<string, FuzzyScore, IE
 
 class LoadAllRenderer implements ICompressibleTreeRenderer<ThreadAndSessionIds, FuzzyScore, ILabelTemplateData> {
 	static readonly ID = 'loadAll';
-	static readonly LABEL = nls.localize('loadAllStackFrames', "Load All Stack Frames");
+	static readonly LABEL = localize('loadAllStackFrames', "Load All Stack Frames");
 
 	constructor(private readonly themeService: IThemeService) { }
 
@@ -765,9 +762,9 @@ class ShowMoreRenderer implements ICompressibleTreeRenderer<IStackFrame[], Fuzzy
 	renderElement(element: ITreeNode<IStackFrame[], FuzzyScore>, index: number, data: ILabelTemplateData): void {
 		const stackFrames = element.element;
 		if (stackFrames.every(sf => !!(sf.source && sf.source.origin && sf.source.origin === stackFrames[0].source.origin))) {
-			data.label.textContent = nls.localize('showMoreAndOrigin', "Show {0} More: {1}", stackFrames.length, stackFrames[0].source.origin);
+			data.label.textContent = localize('showMoreAndOrigin', "Show {0} More: {1}", stackFrames.length, stackFrames[0].source.origin);
 		} else {
-			data.label.textContent = nls.localize('showMoreStackFrames', "Show {0} More Stack Frames", stackFrames.length);
+			data.label.textContent = localize('showMoreStackFrames', "Show {0} More Stack Frames", stackFrames.length);
 		}
 	}
 
@@ -929,26 +926,26 @@ class CallStackDataSource implements IAsyncDataSource<IDebugModel, CallStackItem
 class CallStackAccessibilityProvider implements IListAccessibilityProvider<CallStackItem> {
 
 	getWidgetAriaLabel(): string {
-		return nls.localize({ comment: ['Debug is a noun in this context, not a verb.'], key: 'callStackAriaLabel' }, "Debug Call Stack");
+		return localize({ comment: ['Debug is a noun in this context, not a verb.'], key: 'callStackAriaLabel' }, "Debug Call Stack");
 	}
 
 	getAriaLabel(element: CallStackItem): string {
 		if (element instanceof Thread) {
-			return nls.localize({ key: 'threadAriaLabel', comment: ['Placeholders stand for the thread name and the thread state.For example "Thread 1" and "Stopped'] }, "Thread {0} {1}", element.name, element.stateLabel);
+			return localize({ key: 'threadAriaLabel', comment: ['Placeholders stand for the thread name and the thread state.For example "Thread 1" and "Stopped'] }, "Thread {0} {1}", element.name, element.stateLabel);
 		}
 		if (element instanceof StackFrame) {
-			return nls.localize('stackFrameAriaLabel', "Stack Frame {0}, line {1}, {2}", element.name, element.range.startLineNumber, getSpecificSourceName(element));
+			return localize('stackFrameAriaLabel', "Stack Frame {0}, line {1}, {2}", element.name, element.range.startLineNumber, getSpecificSourceName(element));
 		}
 		if (isDebugSession(element)) {
 			const thread = element.getAllThreads().find(t => t.stopped);
-			const state = thread ? thread.stateLabel : nls.localize({ key: 'running', comment: ['indicates state'] }, "Running");
-			return nls.localize({ key: 'sessionLabel', comment: ['Placeholders stand for the session name and the session state. For example "Launch Program" and "Running"'] }, "Session {0} {1}", element.getLabel(), state);
+			const state = thread ? thread.stateLabel : localize({ key: 'running', comment: ['indicates state'] }, "Running");
+			return localize({ key: 'sessionLabel', comment: ['Placeholders stand for the session name and the session state. For example "Launch Program" and "Running"'] }, "Session {0} {1}", element.getLabel(), state);
 		}
 		if (typeof element === 'string') {
 			return element;
 		}
 		if (element instanceof Array) {
-			return nls.localize('showMoreStackFrames', "Show {0} More Stack Frames", element.length);
+			return localize('showMoreStackFrames', "Show {0} More Stack Frames", element.length);
 		}
 
 		// element instanceof ThreadAndSessionIds
@@ -1120,3 +1117,26 @@ class CallStackCompressionDelegate implements ITreeCompressionDelegate<CallStack
 		return true;
 	}
 }
+
+registerAction2(class Collapse extends ViewAction<CallStackView> {
+	constructor() {
+		super({
+			id: 'callStack.collapse',
+			viewId: CALLSTACK_VIEW_ID,
+			title: localize('collapse', "Collapse All"),
+			f1: false,
+			icon: Codicon.collapseAll,
+			precondition: CONTEXT_DEBUG_STATE.isEqualTo(getStateLabel(State.Stopped)),
+			menu: {
+				id: MenuId.ViewTitle,
+				order: 10,
+				group: 'navigation',
+				when: ContextKeyEqualsExpr.create('view', CALLSTACK_VIEW_ID)
+			}
+		});
+	}
+
+	runInView(_accessor: ServicesAccessor, view: CallStackView) {
+		view.collapseAll();
+	}
+});

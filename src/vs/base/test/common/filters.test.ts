@@ -285,7 +285,7 @@ suite('Filters', () => {
 		assertMatches('LLLL', 'SVisualLoggerLogsList', undefined, fuzzyScore);
 		assertMatches('TEdit', 'TextEdit', '^Text^E^d^i^t', fuzzyScore);
 		assertMatches('TEdit', 'TextEditor', '^Text^E^d^i^tor', fuzzyScore);
-		assertMatches('TEdit', 'Textedit', '^T^exte^d^i^t', fuzzyScore);
+		assertMatches('TEdit', 'Textedit', '^Text^e^d^i^t', fuzzyScore);
 		assertMatches('TEdit', 'text_edit', '^text_^e^d^i^t', fuzzyScore);
 		assertMatches('TEditDit', 'TextEditorDecorationType', '^Text^E^d^i^tor^Decorat^ion^Type', fuzzyScore);
 		assertMatches('TEdit', 'TextEditorDecorationType', '^Text^E^d^i^torDecorationType', fuzzyScore);
@@ -532,6 +532,11 @@ suite('Filters', () => {
 	test('"Go to Symbol" with the exact method name doesn\'t work as expected #84787', function () {
 		const match = fuzzyScore(':get', ':get', 1, 'get', 'get', 0, true);
 		assert.ok(Boolean(match));
+	});
+
+	test('Wrong highlight after emoji #113404', function () {
+		assertMatches('di', '✨div classname=""></div>', '✨^d^iv classname=""></div>', fuzzyScore);
+		assertMatches('di', 'adiv classname=""></div>', 'adiv classname=""></^d^iv>', fuzzyScore);
 	});
 
 	test('Suggestion is not highlighted #85826', function () {

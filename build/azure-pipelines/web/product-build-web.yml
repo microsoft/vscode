@@ -123,3 +123,8 @@ steps:
       VSCODE_MIXIN_PASSWORD="$(github-distro-mixin-password)" \
       ./build/azure-pipelines/web/publish.sh
     displayName: Publish
+
+  - publish: $(Agent.BuildDirectory)/vscode-web.tar.gz
+    artifact: vscode-web-standalone
+    displayName: Publish web archive
+    condition: and(succeeded(), ne(variables['VSCODE_PUBLISH'], 'false'))

@@ -11,9 +11,9 @@
 	let logging = false;
 	let withStacks = false;
 
-	self.beginLoggingFS = (withStacks) => {
+	self.beginLoggingFS = (_withStacks) => {
 		logging = true;
-		withStacks = withStacks || false;
+		withStacks = _withStacks || false;
 	};
 	self.endLoggingFS = () => {
 		logging = false;

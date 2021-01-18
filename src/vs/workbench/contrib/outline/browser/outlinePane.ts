@@ -31,7 +31,7 @@ import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
 import { Codicon } from 'vs/base/common/codicons';
 import { MenuId, registerAction2 } from 'vs/platform/actions/common/actions';
 import { OutlineSortOrder, OutlineViewState } from './outlineViewState';
-import { IOutline, IOutlineComparator, IOutlineService } from 'vs/workbench/services/outline/browser/outline';
+import { IOutline, IOutlineComparator, IOutlineService, OutlineTarget } from 'vs/workbench/services/outline/browser/outline';
 import { EditorResourceAccessor, IEditorPane } from 'vs/workbench/common/editor';
 import { CancellationTokenSource } from 'vs/base/common/cancellation';
 import { Event } from 'vs/base/common/event';
@@ -74,7 +74,7 @@ export class OutlinePane extends ViewPane {
 	private _message!: HTMLDivElement;
 	private _progressBar!: ProgressBar;
 	private _treeContainer!: HTMLElement;
-	private _tree?: WorkbenchDataTree<IOutline<any>, any, FuzzyScore>;
+	private _tree?: WorkbenchDataTree<IOutline<any> | undefined, any, FuzzyScore>;
 	private _treeDimensions?: dom.Dimension;
 	private _treeStates = new LRUCache<string, IDataTreeViewState>(10);
 
@@ -203,7 +203,7 @@ export class OutlinePane extends ViewPane {
 		const cts = new CancellationTokenSource();
 		this._editorDisposables.add(toDisposable(() => cts.dispose(true)));
 
-		const newOutline = await this._outlineService.createOutline(pane, cts.token);
+		const newOutline = await this._outlineService.createOutline(pane, OutlineTarget.OutlinePane, cts.token);
 		loadingMessage?.dispose();
 
 		if (!newOutline) {
@@ -213,17 +213,17 @@ export class OutlinePane extends ViewPane {
 		this._editorDisposables.add(newOutline);
 		this._progressBar.stop().hide();
 
-		const sorter = new OutlineTreeSorter(newOutline.treeConfig.comparator, this._outlineViewState.sortBy);
+		const sorter = new OutlineTreeSorter(newOutline.config.comparator, this._outlineViewState.sortBy);
 
-		const tree = <WorkbenchDataTree<IOutline<any>, any, FuzzyScore>>this._instantiationService.createInstance(
+		const tree = <WorkbenchDataTree<IOutline<any> | undefined, any, FuzzyScore>>this._instantiationService.createInstance(
 			WorkbenchDataTree,
 			'OutlinePane',
 			this._treeContainer,
-			newOutline.treeConfig.delegate,
-			newOutline.treeConfig.renderers,
-			newOutline.treeConfig.treeDataSource,
+			newOutline.config.delegate,
+			newOutline.config.renderers,
+			newOutline.config.treeDataSource,
 			{
-				...newOutline.treeConfig.options,
+				...newOutline.config.options,
 				sorter,
 				openOnSingleClick: true,
 				expandOnlyOnTwistieClick: true,
@@ -239,6 +239,7 @@ export class OutlinePane extends ViewPane {
 			if (newOutline.isEmpty) {
 				// no more elements
 				this._showMessage(localize('no-symbols', "No symbols found in document '{0}'", basename(resource)));
+				tree.setInput(undefined);
 
 			} else if (!tree.getInput()) {
 				// first: init tree

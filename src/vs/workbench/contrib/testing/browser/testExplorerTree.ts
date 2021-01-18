@@ -7,7 +7,6 @@ import { TestRunState } from 'vs/workbench/api/common/extHostTypes';
 
 export type TreeStateNode = { statusNode: true; state: TestRunState; priority: number };
 
-
 /**
  * List of display priorities for different run states. When tests update,
  * the highest-priority state from any of their children will be the state
@@ -22,6 +21,9 @@ export const statePriority: { [K in TestRunState]: number } = {
 	[TestRunState.Skipped]: 1,
 	[TestRunState.Unset]: 0,
 };
+
+
+export const isFailedState = (s: TestRunState) => s === TestRunState.Errored || s === TestRunState.Failed;
 
 export const stateNodes = Object.entries(statePriority).reduce(
 	(acc, [stateStr, priority]) => {
