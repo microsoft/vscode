@@ -439,6 +439,7 @@ export class TestLayoutService implements IWorkbenchLayoutService {
 	private readonly _onMenubarVisibilityChange = new Emitter<Dimension>();
 	get onMenubarVisibilityChange(): Event<Dimension> { return this._onMenubarVisibilityChange.event; }
 
+	layout(): void { }
 	isRestored(): boolean { return true; }
 	hasFocus(_part: Parts): boolean { return false; }
 	focusPart(_part: Parts): void { }

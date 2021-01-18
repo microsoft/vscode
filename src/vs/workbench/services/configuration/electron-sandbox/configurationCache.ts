@@ -43,9 +43,7 @@ export class ConfigurationCache implements IConfigurationCache {
 		}
 		return cachedConfiguration;
 	}
-
 }
-
 
 class CachedConfiguration {
 

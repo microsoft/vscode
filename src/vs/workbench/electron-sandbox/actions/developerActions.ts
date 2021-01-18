@@ -81,3 +81,19 @@ export class ToggleSharedProcessAction extends Action2 {
 		return accessor.get(INativeHostService).toggleSharedProcessWindow();
 	}
 }
+
+export class ReloadWindowWithExtensionsDisabledAction extends Action2 {
+
+	constructor() {
+		super({
+			id: 'workbench.action.reloadWindowWithExtensionsDisabled',
+			title: { value: localize('reloadWindowWithExtensionsDisabled', "Reload With Extensions Disabled"), original: 'Reload With Extensions Disabled' },
+			category: CATEGORIES.Developer,
+			f1: true
+		});
+	}
+
+	async run(accessor: ServicesAccessor): Promise<void> {
+		return accessor.get(INativeHostService).reload({ disableExtensions: true });
+	}
+}
