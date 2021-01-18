@@ -21,6 +21,11 @@ import { IThemeService } from 'vs/platform/theme/common/themeService';
 import { Range } from 'vs/editor/common/core/range';
 import { LanguageFeatureRequestDelays } from 'vs/editor/common/modes/languageFeatureRegistry';
 import { MarkdownString } from 'vs/base/common/htmlContent';
+import { CommandsRegistry } from 'vs/platform/commands/common/commands';
+import { URI } from 'vs/base/common/uri';
+import { IRange } from 'vs/base/common/range';
+import { assertType } from 'vs/base/common/types';
+import { ITextModelService } from 'vs/editor/common/services/resolverService';
 
 const MAX_DECORATORS = 500;
 
@@ -199,3 +204,19 @@ export class InlineHintsController implements IEditorContribution {
 }
 
 registerEditorContribution(InlineHintsController.ID, InlineHintsController);
+
+CommandsRegistry.registerCommand('_executeInlineHintProvider', async (accessor, ...args: [URI, IRange]): Promise<InlineHint[]> => {
+
+	const [uri, range] = args;
+	assertType(URI.isUri(uri));
+	assertType(Range.isIRange(range));
+
+	const ref = await accessor.get(ITextModelService).createModelReference(uri);
+	try {
+		const data = await getInlineHints(ref.object.textEditorModel, [Range.lift(range)], CancellationToken.None);
+		return flatten(data.map(item => item.list)).sort((a, b) => Range.compareRangesUsingStarts(a.range, b.range));
+
+	} finally {
+		ref.dispose();
+	}
+});
