@@ -143,8 +143,8 @@ export class InlineHintsController implements IEditorContribution {
 
 			for (let j = 0; j < hints.length && newDecorationsData.length < MAX_DECORATORS; j++) {
 				const { text, range, hoverMessage, whitespaceBefore, whitespaceAfter } = hints[j];
-				const marginBefore = whitespaceBefore ? fontSize / 3 : 0;
-				const marginAfter = whitespaceAfter ? fontSize / 3 : 0;
+				const marginBefore = whitespaceBefore ? (fontSize / 3) | 0 : 0;
+				const marginAfter = whitespaceAfter ? (fontSize / 3) | 0 : 0;
 
 				const subKey = hash([text, marginBefore, marginAfter]).toString(16);
 				const key = 'inlineHints-' + subKey;
@@ -160,7 +160,7 @@ export class InlineHintsController implements IEditorContribution {
 						margin: `0px ${marginAfter}px 0px ${marginBefore}px`,
 						fontSize: `${fontSize}px`,
 						fontFamily: fontFamily,
-						padding: '0px 2px'
+						padding: `0px ${(fontSize / 4) | 0}px`
 					}
 				}, undefined, this._editor);
 
