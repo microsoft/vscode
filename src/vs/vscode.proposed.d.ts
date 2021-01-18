@@ -2546,5 +2546,4 @@ declare module 'vscode' {
 	}
 
 	//#endregion
-
 }
