@@ -40,6 +40,8 @@ import { DisposableStore } from 'vs/base/common/lifecycle';
 import { IProductService } from 'vs/platform/product/common/productService';
 import { ExtensionManagementCLIService } from 'vs/platform/extensionManagement/common/extensionManagementCLIService';
 import { URI } from 'vs/base/common/uri';
+import { LocalizationsService } from 'vs/platform/localizations/node/localizations';
+import { ILocalizationsService } from 'vs/platform/localizations/common/localizations';
 
 export class Main {
 
@@ -130,6 +132,7 @@ export async function main(argv: NativeParsedArgs): Promise<void> {
 		services.set(IExtensionManagementService, new SyncDescriptor(ExtensionManagementService));
 		services.set(IExtensionGalleryService, new SyncDescriptor(ExtensionGalleryService));
 		services.set(IExtensionManagementCLIService, new SyncDescriptor(ExtensionManagementCLIService));
+		services.set(ILocalizationsService, new SyncDescriptor(LocalizationsService));
 
 		const appenders: AppInsightsAppender[] = [];
 		if (isBuilt && !extensionDevelopmentLocationURI && !environmentService.disableTelemetry && product.enableTelemetry) {
