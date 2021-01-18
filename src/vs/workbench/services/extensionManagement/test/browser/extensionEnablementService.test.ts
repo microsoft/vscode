@@ -30,6 +30,7 @@ import { TestNotificationService } from 'vs/platform/notification/test/common/te
 import { IHostService } from 'vs/workbench/services/host/browser/host';
 import { mock } from 'vs/base/test/common/mock';
 import { IExtensionBisectService } from 'vs/workbench/services/extensionManagement/browser/extensionBisect';
+import { ITrustedWorkspaceService } from 'vs/platform/workspace/common/trustedWorkspace';
 
 function createStorageService(instantiationService: TestInstantiationService): IStorageService {
 	let service = instantiationService.get(IStorageService);
@@ -64,7 +65,8 @@ export class TestExtensionEnablementService extends ExtensionEnablementService {
 			instantiationService.get(ILifecycleService) || instantiationService.stub(ILifecycleService, new TestLifecycleService()),
 			instantiationService.get(INotificationService) || instantiationService.stub(INotificationService, new TestNotificationService()),
 			instantiationService.get(IHostService),
-			new class extends mock<IExtensionBisectService>() { isDisabledByBisect() { return false; } }
+			new class extends mock<IExtensionBisectService>() { isDisabledByBisect() { return false; } },
+			new class extends mock<ITrustedWorkspaceService>() { isExtensionDisabledByTrustRequirement() { return false; } }
 		);
 	}
 

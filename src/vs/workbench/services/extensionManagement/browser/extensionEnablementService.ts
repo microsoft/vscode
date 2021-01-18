@@ -25,6 +25,7 @@ import { ILifecycleService, LifecyclePhase } from 'vs/workbench/services/lifecyc
 import { INotificationService, Severity } from 'vs/platform/notification/common/notification';
 import { IHostService } from 'vs/workbench/services/host/browser/host';
 import { IExtensionBisectService } from 'vs/workbench/services/extensionManagement/browser/extensionBisect';
+import { ITrustedWorkspaceChangeModel, ITrustedWorkspaceService, TrustState } from 'vs/platform/workspace/common/trustedWorkspace';
 
 const SOURCE = 'IWorkbenchExtensionEnablementService';
 
@@ -36,6 +37,7 @@ export class ExtensionEnablementService extends Disposable implements IWorkbench
 	public readonly onEnablementChanged: Event<readonly IExtension[]> = this._onEnablementChanged.event;
 
 	private readonly storageManger: StorageManager;
+	private extensionsDisabledByTrustRequirement: IExtension[] = [];
 
 	constructor(
 		@IStorageService storageService: IStorageService,
@@ -50,13 +52,23 @@ export class ExtensionEnablementService extends Disposable implements IWorkbench
 		@IUserDataSyncAccountService private readonly userDataSyncAccountService: IUserDataSyncAccountService,
 		@ILifecycleService private readonly lifecycleService: ILifecycleService,
 		@INotificationService private readonly notificationService: INotificationService,
-		@IHostService hostService: IHostService,
+		@IHostService private readonly hostService: IHostService,
 		@IExtensionBisectService private readonly extensionBisectService: IExtensionBisectService,
+		@ITrustedWorkspaceService private readonly trustedWorkspaceService: ITrustedWorkspaceService
 	) {
 		super();
 		this.storageManger = this._register(new StorageManager(storageService));
 		this._register(this.globalExtensionEnablementService.onDidChangeEnablement(({ extensions, source }) => this.onDidChangeExtensions(extensions, source)));
 		this._register(extensionManagementService.onDidUninstallExtension(this._onDidUninstallExtension, this));
+		this._register(this.trustedWorkspaceService.onDidChangeTrust(this._onDidChangeTrust, this));
+
+		// Trusted extensions notification
+		// TODO: Confirm that this is the right lifecycle phase
+		this.lifecycleService.when(LifecyclePhase.Eventually).then(() => {
+			if (this.extensionsDisabledByTrustRequirement.length > 0) {
+				this.trustedWorkspaceService.requireWorkspaceTrust(false);
+			}
+		});
 
 		// delay notification for extensions disabled until workbench restored
 		if (this.allUserExtensionsDisabled) {
@@ -86,6 +98,9 @@ export class ExtensionEnablementService extends Disposable implements IWorkbench
 		}
 		if (this._isDisabledByExtensionKind(extension)) {
 			return EnablementState.DisabledByExtensionKind;
+		}
+		if (this._isEnabled(extension) && this._isDisabledByTrustRequirement(extension)) {
+			return EnablementState.DisabledByTrustRequirement;
 		}
 		return this._getEnablementState(extension.identifier);
 	}
@@ -185,6 +200,11 @@ export class ExtensionEnablementService extends Disposable implements IWorkbench
 		return enablementState === EnablementState.EnabledWorkspace || enablementState === EnablementState.EnabledGlobally;
 	}
 
+	private _isEnabled(extension: IExtension): boolean {
+		const enablementState = this._getEnablementState(extension.identifier);
+		return enablementState === EnablementState.EnabledWorkspace || enablementState === EnablementState.EnabledGlobally;
+	}
+
 	isDisabledGlobally(extension: IExtension): boolean {
 		return this._isDisabledGlobally(extension.identifier);
 	}
@@ -229,6 +249,21 @@ export class ExtensionEnablementService extends Disposable implements IWorkbench
 				}
 			}
 			return true;
+		}
+		return false;
+	}
+
+	private _isDisabledByTrustRequirement(extension: IExtension): boolean {
+		const workspaceTrustState = this.trustedWorkspaceService.getWorkspaceTrustState();
+
+		if (extension.manifest.requiresWorkspaceTrust === 'onStart') {
+			if (workspaceTrustState !== TrustState.Trusted) {
+				if (this.extensionsDisabledByTrustRequirement
+					.every(e => !areSameExtensions(extension.identifier, e.identifier))) {
+					this.extensionsDisabledByTrustRequirement.push(extension);
+				}
+			}
+			return workspaceTrustState !== TrustState.Trusted;
 		}
 		return false;
 	}
@@ -365,6 +400,21 @@ export class ExtensionEnablementService extends Disposable implements IWorkbench
 			const installedExtensions = await this.extensionManagementService.getInstalled();
 			const extensions = installedExtensions.filter(installedExtension => extensionIdentifiers.some(identifier => areSameExtensions(identifier, installedExtension.identifier)));
 			this._onEnablementChanged.fire(extensions);
+		}
+	}
+
+	private async _onDidChangeTrust(state: ITrustedWorkspaceChangeModel): Promise<void> {
+		if (state.previousState === TrustState.Trusted && (
+			state.currentState === TrustState.Untrusted ||
+			state.currentState === TrustState.Unknown)) {
+			// Reload window
+			this.hostService.reload();
+			return;
+		}
+		if (state.currentState === TrustState.Trusted) {
+			// Enable extensions
+			this._onEnablementChanged.fire(this.extensionsDisabledByTrustRequirement);
+			this.extensionsDisabledByTrustRequirement = [];
 		}
 	}
 

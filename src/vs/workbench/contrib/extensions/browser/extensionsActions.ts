@@ -58,7 +58,7 @@ import { ActionWithDropdownActionViewItem, IActionWithDropdownActionViewItemOpti
 import { IContextMenuProvider } from 'vs/base/browser/contextmenu';
 import { ILogService } from 'vs/platform/log/common/log';
 import * as Constants from 'vs/workbench/contrib/logs/common/logConstants';
-import { infoIcon, manageExtensionIcon, syncEnabledIcon, syncIgnoredIcon, warningIcon } from 'vs/workbench/contrib/extensions/browser/extensionsIcons';
+import { infoIcon, manageExtensionIcon, syncEnabledIcon, syncIgnoredIcon, trustIcon, warningIcon } from 'vs/workbench/contrib/extensions/browser/extensionsIcons';
 
 function getRelativeDateLabel(date: Date): string {
 	const delta = new Date().getTime() - date.getTime();
@@ -2110,6 +2110,7 @@ export class SystemDisabledWarningAction extends ExtensionAction {
 
 	private static readonly CLASS = `${ExtensionAction.ICON_ACTION_CLASS} system-disable`;
 	private static readonly WARNING_CLASS = `${SystemDisabledWarningAction.CLASS} ${ThemeIcon.asClassName(warningIcon)}`;
+	private static readonly SECURITY_CLASS = `${SystemDisabledWarningAction.CLASS} ${ThemeIcon.asClassName(trustIcon)}`;
 	private static readonly INFO_CLASS = `${SystemDisabledWarningAction.CLASS} ${ThemeIcon.asClassName(infoIcon)}`;
 
 	updateWhenCounterExtensionChanges: boolean = true;
@@ -2186,6 +2187,11 @@ export class SystemDisabledWarningAction extends ExtensionAction {
 				}
 				return;
 			}
+		}
+		if (this.extension.enablementState === EnablementState.DisabledByTrustRequirement) {
+			this.class = `${SystemDisabledWarningAction.SECURITY_CLASS}`;
+			this.tooltip = localize('disabled because of trust requirement', "This extension has been disabled because it requires a trusted workspace");
+			return;
 		}
 	}
 

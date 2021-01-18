@@ -6,10 +6,11 @@
 import { Emitter, Event } from 'vs/base/common/event';
 import { Disposable } from 'vs/base/common/lifecycle';
 import { URI } from 'vs/base/common/uri';
+import { IContextKey, IContextKeyService, RawContextKey } from 'vs/platform/contextkey/common/contextkey';
 import { registerSingleton } from 'vs/platform/instantiation/common/extensions';
 import { createDecorator } from 'vs/platform/instantiation/common/instantiation';
 import { IStorageService, StorageScope, StorageTarget } from 'vs/platform/storage/common/storage';
-import { IWorkspace, IWorkspaceContextService } from 'vs/platform/workspace/common/workspace';
+import { IWorkspace, IWorkspaceContextService, WorkbenchState } from 'vs/platform/workspace/common/workspace';
 
 export const TRUSTED_WORKSPACES_URI = URI.parse('trustedWorkspaces:/Trusted Workspaces');
 
@@ -24,7 +25,10 @@ export enum TrustScope {
 	Remote
 }
 
-export type WorkspaceTrustChangeEvent = Event<TrustState>;
+export const TrustedWorkspaceContext = {
+	IsPendingRequest: new RawContextKey<boolean>('trustedWorkspaceIsPendingRequest', false),
+	IsTrusted: new RawContextKey<boolean>('trustedWorkspaceIsTrusted', false)
+};
 
 export interface ITrustedContentModel {
 
@@ -47,6 +51,13 @@ export interface ITrustedWorkspaceRequestModel {
 	initiateRequest(immediate: boolean): void;
 	completeRequest(trustState: TrustState): void;
 }
+
+export interface ITrustedWorkspaceChangeModel {
+	previousState: TrustState;
+	currentState: TrustState;
+}
+
+export type WorkspaceTrustChangeEvent = Event<ITrustedWorkspaceChangeModel>;
 
 export const ITrustedWorkspaceService = createDecorator<ITrustedWorkspaceService>('trustedWorkspaceService');
 
@@ -186,31 +197,36 @@ export class TrustedWorkspaceService extends Disposable implements ITrustedWorks
 	private readonly dataModel: ITrustedContentModel;
 	readonly requestModel: ITrustedWorkspaceRequestModel;
 
-	private readonly _onDidChangeTrust = this._register(new Emitter<TrustState>());
+	private readonly _onDidChangeTrust = this._register(new Emitter<ITrustedWorkspaceChangeModel>());
 	readonly onDidChangeTrust = this._onDidChangeTrust.event;
 
 	private _currentTrustState: TrustState = TrustState.Unknown;
-	private _workspace: IWorkspace;
-	private _trustRequestPromise?: Promise<TrustState>;
 	private _inFlightResolver?: (trustState: TrustState) => void;
+	private _trustRequestPromise?: Promise<TrustState>;
+	private _workspace: IWorkspace;
+
+	private readonly _ctxTrustedWorkspaceIsTrusted: IContextKey<boolean>;
+	private readonly _ctxTrustedWorkspacePendingRequest: IContextKey<boolean>;
 
 	constructor(
 		@IStorageService private readonly storageService: IStorageService,
-		@IWorkspaceContextService private readonly workspaceService: IWorkspaceContextService
+		@IWorkspaceContextService private readonly workspaceService: IWorkspaceContextService,
+		@IContextKeyService contextKeyService: IContextKeyService
 	) {
 		super();
 
-		this._workspace = this.workspaceService.getWorkspace();
-
 		this.dataModel = this._register(new TrustedContentModel(this.storageService));
-
 		this.requestModel = this._register(new TrustedWorkspaceRequestModel());
 
+		this._workspace = this.workspaceService.getWorkspace();
 		this._currentTrustState = this.calculateWorkspaceTrustState();
 
 		this._register(this.dataModel.onDidChangeTrust(() => this.currentTrustState = this.calculateWorkspaceTrustState()));
-
 		this._register(this.requestModel.onDidCompleteRequest((trustState) => this.onTrustRequestCompleted(trustState)));
+
+		this._ctxTrustedWorkspaceIsTrusted = TrustedWorkspaceContext.IsTrusted.bindTo(contextKeyService);
+		this._ctxTrustedWorkspacePendingRequest = TrustedWorkspaceContext.IsPendingRequest.bindTo(contextKeyService);
+		this._ctxTrustedWorkspaceIsTrusted.set(this.currentTrustState === TrustState.Trusted);
 	}
 
 	private get currentTrustState(): TrustState {
@@ -218,15 +234,19 @@ export class TrustedWorkspaceService extends Disposable implements ITrustedWorks
 	}
 
 	private set currentTrustState(trustState: TrustState) {
-		// TODO - understand the need of this check
-		//if (this._currentTrustState === trustState) { return; }
+		if (this._currentTrustState === trustState) { return; }
+		const previousState = this._currentTrustState;
 		this._currentTrustState = trustState;
-		this._onDidChangeTrust.fire(trustState);
+
+		this._onDidChangeTrust.fire({ previousState, currentState: this._currentTrustState });
 	}
 
 	private calculateWorkspaceTrustState(): TrustState {
-		let state = undefined;
+		if (this.workspaceService.getWorkbenchState() === WorkbenchState.EMPTY) {
+			return TrustState.Trusted;
+		}
 
+		let state = undefined;
 		for (const folder of this._workspace.folders) {
 			const folderTrust = this.dataModel.getFolderTrustState(folder.uri);
 
@@ -261,12 +281,13 @@ export class TrustedWorkspaceService extends Disposable implements ITrustedWorks
 
 		this._inFlightResolver!(trustState);
 		this._inFlightResolver = undefined;
-		this._currentTrustState = trustState;
 		this._trustRequestPromise = undefined;
 
 		this._workspace.folders.forEach(folder => {
 			this.dataModel.setFolderTrustState(folder.uri, trustState);
 		});
+		this._ctxTrustedWorkspacePendingRequest.set(false);
+		this._ctxTrustedWorkspaceIsTrusted.set(trustState === TrustState.Trusted);
 	}
 
 	getWorkspaceTrustState(): TrustState {
@@ -293,20 +314,18 @@ export class TrustedWorkspaceService extends Disposable implements ITrustedWorks
 		});
 
 		this.requestModel.initiateRequest(!!immediate);
+		this._ctxTrustedWorkspacePendingRequest.set(true);
 
 		return this._trustRequestPromise;
 	}
 
 	async resetWorkspaceTrust(): Promise<TrustState> {
 		if (this.currentTrustState !== TrustState.Unknown) {
-			this.currentTrustState = TrustState.Unknown;
-
 			this._workspace.folders.forEach(folder => {
 				this.dataModel.setFolderTrustState(folder.uri, TrustState.Unknown);
 			});
 		}
-
-		return Promise.resolve(this.currentTrustState);
+		return Promise.resolve(TrustState.Unknown);
 	}
 }
 

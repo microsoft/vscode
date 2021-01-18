@@ -10,7 +10,7 @@ import { IDialogService } from 'vs/platform/dialogs/common/dialogs';
 import { ServicesAccessor } from 'vs/platform/instantiation/common/instantiation';
 import { Severity } from 'vs/platform/notification/common/notification';
 import { Registry } from 'vs/platform/registry/common/platform';
-import { ITrustedWorkspaceService, TRUSTED_WORKSPACES_URI, TrustState } from 'vs/platform/workspace/common/trustedWorkspace';
+import { ITrustedWorkspaceChangeModel, ITrustedWorkspaceService, TrustedWorkspaceContext, TRUSTED_WORKSPACES_URI, TrustState } from 'vs/platform/workspace/common/trustedWorkspace';
 import { Extensions as WorkbenchExtensions, IWorkbenchContribution, IWorkbenchContributionsRegistry } from 'vs/workbench/common/contributions';
 import { IActivityService, IconBadge } from 'vs/workbench/services/activity/common/activity';
 import { LifecyclePhase } from 'vs/workbench/services/lifecycle/common/lifecycle';
@@ -20,6 +20,7 @@ import { IStatusbarEntry, IStatusbarEntryAccessor, IStatusbarService, StatusbarA
 import { ThemeColor } from 'vs/workbench/api/common/extHostTypes';
 import { IEditorService } from 'vs/workbench/services/editor/common/editorService';
 import { TrustedWorkspacesFileSystemProvider } from 'vs/workbench/contrib/workspace/common/trustedWorkspaceFileSystemProvider';
+import { ContextKeyExpr } from 'vs/platform/contextkey/common/contextkey';
 
 const workspaceTrustIcon = registerIcon('workspace-trust-icon', Codicon.shield, localize('workspaceTrustIcon', "Icon for workspace trust badge."));
 
@@ -87,15 +88,112 @@ Registry.as<IWorkbenchContributionsRegistry>(WorkbenchExtensions.Workbench).regi
 registerAction2(class extends Action2 {
 	constructor() {
 		super({
-			id: 'workbench.trust.manage',
+			id: 'workbench.trust.grant',
 			title: {
-				original: 'Manage Trust Workspace',
-				value: localize('manageTrustWorkspace', "Manage Workspace Trust")
+				original: 'Grant Workspace Trust',
+				value: localize('grantTrustWorkspace', "Grant Workspace Trust")
 			},
 			category: localize('workspacesCategory', "Workspaces"),
 			menu: {
-				id: MenuId.GlobalActivity
+				id: MenuId.GlobalActivity,
+				when: TrustedWorkspaceContext.IsPendingRequest,
+				order: 10
+			},
+		});
+	}
+
+	run(accessor: ServicesAccessor) {
+		const workspaceTrustService = accessor.get(ITrustedWorkspaceService);
+		workspaceTrustService.requestModel.completeRequest(TrustState.Trusted);
+		return;
+	}
+});
+
+registerAction2(class extends Action2 {
+	constructor() {
+		super({
+			id: 'workbench.trust.deny',
+			title: {
+				original: 'Deny Workspace Trust',
+				value: localize('denyTrustWorkspace', "Deny Workspace Trust")
+			},
+			category: localize('workspacesCategory', "Workspaces"),
+			menu: {
+				id: MenuId.GlobalActivity,
+				when: TrustedWorkspaceContext.IsPendingRequest,
+				order: 20
+			},
+		});
+	}
+
+	run(accessor: ServicesAccessor) {
+		const workspaceTrustService = accessor.get(ITrustedWorkspaceService);
+		workspaceTrustService.requestModel.completeRequest(TrustState.Untrusted);
+		return;
+	}
+});
+
+registerAction2(class extends Action2 {
+	constructor() {
+		super({
+			id: 'workbench.trust.revoke',
+			title: {
+				original: 'Revoke Workspace Trust',
+				value: localize('revoke', "Revoke Workspace Trust")
+			},
+			category: localize('workspacesCategory', "Workspaces"),
+			menu: {
+				id: MenuId.GlobalActivity,
+				when: ContextKeyExpr.and(TrustedWorkspaceContext.IsPendingRequest.negate(), TrustedWorkspaceContext.IsTrusted),
+				order: 30
 			}
+		});
+	}
+
+	run(accessor: ServicesAccessor) {
+		const workspaceTrustService = accessor.get(ITrustedWorkspaceService);
+		workspaceTrustService.resetWorkspaceTrust();
+		return;
+	}
+});
+
+registerAction2(class extends Action2 {
+	constructor() {
+		super({
+			id: 'workbench.trust.reset',
+			title: {
+				original: 'Reset Workspace Trust',
+				value: localize('reset', "Reset Workspace Trust")
+			},
+			category: localize('workspacesCategory', "Workspaces"),
+			menu: {
+				id: MenuId.GlobalActivity,
+				when: ContextKeyExpr.and(TrustedWorkspaceContext.IsPendingRequest.negate(), TrustedWorkspaceContext.IsTrusted.negate()),
+				order: 40
+			}
+		});
+	}
+
+	run(accessor: ServicesAccessor) {
+		const workspaceTrustService = accessor.get(ITrustedWorkspaceService);
+		workspaceTrustService.resetWorkspaceTrust();
+		return;
+	}
+});
+
+registerAction2(class extends Action2 {
+	constructor() {
+		super({
+			id: 'workbench.trust.manage',
+			title: {
+				original: 'Manage Trusted Workspaces',
+				value: localize('manageTrustWorkspace', "Manage Trusted Workspaces")
+			},
+			category: localize('workspacesCategory', "Workspaces"),
+			menu: {
+				id: MenuId.GlobalActivity,
+				order: 50
+			},
 		});
 	}
 
@@ -135,14 +233,16 @@ class TrustedWorkspaceStatusbarItem extends Disposable implements IWorkbenchCont
 		};
 	}
 
-	private updateStatusbarEntry(state: TrustState): void {
-		this.statusBarEntryAccessor.value?.update(this.getStatusbarEntry(state));
-		this.statusbarService.updateEntryVisibility(TrustedWorkspaceStatusbarItem.ID, state === TrustState.Untrusted);
+	private updateStatusbarEntry(state: ITrustedWorkspaceChangeModel): void {
+		this.statusBarEntryAccessor.value?.update(this.getStatusbarEntry(state.currentState));
+		//this.statusbarService.updateEntryVisibility(TrustedWorkspaceStatusbarItem.ID, state.currentState === TrustState.Untrusted);
 	}
 }
 
-Registry.as<IWorkbenchContributionsRegistry>(WorkbenchExtensions.Workbench).registerWorkbenchContribution(TrustedWorkspaceStatusbarItem, LifecyclePhase.Starting);
-
+Registry.as<IWorkbenchContributionsRegistry>(WorkbenchExtensions.Workbench).registerWorkbenchContribution(
+	TrustedWorkspaceStatusbarItem,
+	LifecyclePhase.Starting
+);
 
 Registry.as<IWorkbenchContributionsRegistry>(WorkbenchExtensions.Workbench).registerWorkbenchContribution(
 	TrustedWorkspacesFileSystemProvider,
