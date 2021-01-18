@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import * as assert from 'assert';
-import { IFullSemanticTokensDto, IDeltaSemanticTokensDto, encodeSemanticTokensDto, ISemanticTokensDto, decodeSemanticTokensDto } from 'vs/workbench/api/common/shared/semanticTokensDto';
+import { IFullSemanticTokensDto, IDeltaSemanticTokensDto, encodeSemanticTokensDto, ISemanticTokensDto, decodeSemanticTokensDto } from 'vs/editor/common/services/semanticTokensDto';
 import { VSBuffer } from 'vs/base/common/buffer';
 
 suite('SemanticTokensDto', () => {

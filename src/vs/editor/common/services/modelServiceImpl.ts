@@ -29,6 +29,7 @@ import { StringSHA1 } from 'vs/base/common/hash';
 import { EditStackElement, isEditStackElement } from 'vs/editor/common/model/editStack';
 import { Schemas } from 'vs/base/common/network';
 import { SemanticTokensProviderStyling, toMultilineTokens2 } from 'vs/editor/common/services/semanticTokensProviderStyling';
+import { getDocumentSemanticTokens, isSemanticTokens, isSemanticTokensEdits } from 'vs/editor/common/services/getSemanticTokens';
 
 export interface IEditorSemanticHighlightingOptions {
 	enabled: true | false | 'configuredByTheme';
@@ -784,15 +785,21 @@ export class ModelSemanticColoring extends Disposable {
 			// there is already a request running, let it finish...
 			return;
 		}
-		const provider = this._getSemanticColoringProvider();
-		if (!provider) {
+
+		const cancellationTokenSource = new CancellationTokenSource();
+		const lastResultId = this._currentDocumentResponse ? this._currentDocumentResponse.resultId || null : null;
+		const r = getDocumentSemanticTokens(this._model, lastResultId, cancellationTokenSource.token);
+		if (!r) {
+			// there is no provider
 			if (this._currentDocumentResponse) {
 				// there are semantic tokens set
 				this._model.setSemanticTokens(null, false);
 			}
 			return;
 		}
-		this._currentDocumentRequestCancellationTokenSource = new CancellationTokenSource();
+
+		const { provider, request } = r;
+		this._currentDocumentRequestCancellationTokenSource = cancellationTokenSource;
 
 		const pendingChanges: IModelContentChangedEvent[] = [];
 		const contentChangeListener = this._model.onDidChangeContent((e) => {
@@ -800,9 +807,6 @@ export class ModelSemanticColoring extends Disposable {
 		});
 
 		const styling = this._semanticStyling.get(provider);
-
-		const lastResultId = this._currentDocumentResponse ? this._currentDocumentResponse.resultId || null : null;
-		const request = Promise.resolve(provider.provideDocumentSemanticTokens(this._model, lastResultId, this._currentDocumentRequestCancellationTokenSource.token));
 
 		request.then((res) => {
 			this._currentDocumentRequestCancellationTokenSource = null;
@@ -826,14 +830,6 @@ export class ModelSemanticColoring extends Disposable {
 				}
 			}
 		});
-	}
-
-	private static _isSemanticTokens(v: SemanticTokens | SemanticTokensEdits): v is SemanticTokens {
-		return v && !!((<SemanticTokens>v).data);
-	}
-
-	private static _isSemanticTokensEdits(v: SemanticTokens | SemanticTokensEdits): v is SemanticTokensEdits {
-		return v && Array.isArray((<SemanticTokensEdits>v).edits);
 	}
 
 	private static _copy(src: Uint32Array, srcOffset: number, dest: Uint32Array, destOffset: number, length: number): void {
@@ -871,7 +867,7 @@ export class ModelSemanticColoring extends Disposable {
 			return;
 		}
 
-		if (ModelSemanticColoring._isSemanticTokensEdits(tokens)) {
+		if (isSemanticTokensEdits(tokens)) {
 			if (!currentResponse) {
 				// not possible!
 				this._model.setSemanticTokens(null, true);
@@ -922,7 +918,7 @@ export class ModelSemanticColoring extends Disposable {
 			}
 		}
 
-		if (ModelSemanticColoring._isSemanticTokens(tokens)) {
+		if (isSemanticTokens(tokens)) {
 
 			this._currentDocumentResponse = new SemanticTokensResponse(provider, tokens.resultId, tokens.data);
 
@@ -949,10 +945,5 @@ export class ModelSemanticColoring extends Disposable {
 		}
 
 		rescheduleIfNeeded();
-	}
-
-	private _getSemanticColoringProvider(): DocumentSemanticTokensProvider | null {
-		const result = DocumentSemanticTokensProviderRegistry.ordered(this._model);
-		return (result.length > 0 ? result[0] : null);
 	}
 }
