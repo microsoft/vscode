@@ -204,6 +204,25 @@ registerAction2(class extends Action2 {
 	}
 });
 
+registerAction2(class extends Action2 {
+	constructor() {
+		super({
+			id: 'workbench.trust.require',
+			title: 'Require Workspace Trust'
+		});
+	}
+
+	run(accessor: ServicesAccessor) {
+		const workspaceTrustService = accessor.get(ITrustedWorkspaceService);
+		workspaceTrustService.requireWorkspaceTrust(
+			{
+				immediate: true,
+				message: 'Do you want to trust the contents of this workspace?'
+			});
+		return;
+	}
+});
+
 class TrustedWorkspaceStatusbarItem extends Disposable implements IWorkbenchContribution {
 	private static readonly ID = 'status.trustedWorkspace';
 	private readonly statusBarEntryAccessor: MutableDisposable<IStatusbarEntryAccessor>;
@@ -229,7 +248,8 @@ class TrustedWorkspaceStatusbarItem extends Disposable implements IWorkbenchCont
 			text: `$(shield) ${text}`,
 			ariaLabel: localize('status.trustedWorkspace', "Workspace Trust"),
 			tooltip: localize('status.trustedWorkspace', "Workspace Trust"),
-			backgroundColor: state === TrustState.Untrusted ? new ThemeColor('statusBarItem.errorBackground') : 'transparent'
+			backgroundColor: state === TrustState.Untrusted ? new ThemeColor('statusBarItem.errorBackground') : 'transparent',
+			command: 'workbench.trust.require'
 		};
 	}
 

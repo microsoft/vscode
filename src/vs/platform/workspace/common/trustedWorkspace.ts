@@ -272,12 +272,12 @@ export class TrustedWorkspaceService extends Disposable implements ITrustedWorks
 			return;
 		}
 
-		if (this.currentTrustState !== TrustState.Unknown) {
-			this._inFlightResolver!(this.currentTrustState);
-			this._inFlightResolver = undefined;
-			this._trustRequestPromise = undefined;
-			return;
-		}
+		// if (this.currentTrustState !== TrustState.Unknown) {
+		// 	this._inFlightResolver!(this.currentTrustState);
+		// 	this._inFlightResolver = undefined;
+		// 	this._trustRequestPromise = undefined;
+		// 	return;
+		// }
 
 		this._inFlightResolver!(trustState);
 		this._inFlightResolver = undefined;
@@ -295,7 +295,10 @@ export class TrustedWorkspaceService extends Disposable implements ITrustedWorks
 	}
 
 	async requireWorkspaceTrust(request?: ITrustedWorkspaceRequest): Promise<TrustState> {
-		if (this.currentTrustState !== TrustState.Unknown) {
+		if (this.currentTrustState === TrustState.Trusted) {
+			return this.currentTrustState;
+		}
+		if (this.currentTrustState === TrustState.Untrusted && !request?.immediate) {
 			return this.currentTrustState;
 		}
 
