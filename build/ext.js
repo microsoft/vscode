@@ -10,9 +10,9 @@ const product = require('../product.json');
 const root = path.resolve(path.join(__dirname, '..', '..'));
 const exists = (path) => fs.stat(path).then(() => true, () => false);
 
-async function exec(cmd, opts = {}) {
+async function exec(cmd, args, opts = {}) {
 	return new Promise((c, e) => {
-		const child = cp.spawn(cmd, { shell: true, stdio: 'inherit', ...opts });
+		const child = cp.spawn(cmd, args, { stdio: 'inherit', ...opts });
 		child.on('close', code => code === 0 ? c() : e(`Returned ${code}`));
 	});
 }
@@ -39,17 +39,17 @@ async function initExtension(extDesc) {
 
 	if (!await exists(folderPath)) {
 		console.log(`⏳ git clone: ${extDesc.name}`);
-		await exec(`git clone ${extDesc.repo}.git`, { cwd: root });
+		await exec('git', ['clone', `${extDesc.repo}.git`], { cwd: root });
 	}
 
 	const type = await getExtensionType(folderPath);
-	return { folder, type };
+	return { path: folderPath, type };
 }
 
 async function createWorkspace(type, extensions) {
 	const workspaceName = `vscode-extensions-${type}.code-workspace`;
 	const workspacePath = path.join(root, workspaceName);
-	const workspace = { folders: extensions.map(ext => ({ path: ext.folder })) };
+	const workspace = { folders: extensions.map(ext => ({ path: path.basename(ext.path) })) };
 	console.log(`✅ create workspace: ${workspaceName}`);
 	await fs.writeFile(workspacePath, JSON.stringify(workspace, undefined, '  '));
 }
@@ -87,6 +87,23 @@ async function ls() {
 	console.log(`total: ${product.builtInExtensions.length} extensions`);
 }
 
+async function each([cmd, ...args], opts) {
+	for (const extDesc of product.builtInExtensions) {
+		const folderPath = getFolderPath(extDesc);
+
+		if (opts.type) {
+			const type = await getExtensionType(folderPath);
+
+			if (type !== opts.type) {
+				continue;
+			}
+		}
+
+		console.log(`👉 ${extDesc.name}`);
+		await exec(cmd, args, { cwd: folderPath });
+	}
+}
+
 if (require.main === module) {
 	const { program } = require('commander');
 
@@ -102,12 +119,11 @@ if (require.main === module) {
 		.description('List extension types')
 		.action(ls);
 
-	// program
-	// 	.command('each')
-	// 	.option('-g, --grammars', 'Grammars only')
-	// 	.option('-t, --themes', 'Themes only')
-	// 	.description('Run a command for each repo')
-	// 	.action(init);
+	program
+		.command('each <command...>')
+		.option('-t, --type <type>', 'Specific type only')
+		.description('Run a command in each extension repository')
+		.action(each);
 
 	program.parseAsync(process.argv);
 }
