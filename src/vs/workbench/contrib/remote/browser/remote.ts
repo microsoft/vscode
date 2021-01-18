@@ -55,6 +55,7 @@ import { SyncDescriptor } from 'vs/platform/instantiation/common/descriptors';
 import { RemoteStatusIndicator } from 'vs/workbench/contrib/remote/browser/remoteIndicator';
 import * as icons from 'vs/workbench/contrib/remote/browser/remoteIcons';
 import { ILogService } from 'vs/platform/log/common/log';
+import { ITimerService } from 'vs/workbench/services/timer/browser/timerService';
 
 
 export interface HelpInformation {
@@ -596,6 +597,20 @@ Registry.as<IWorkbenchActionRegistry>(WorkbenchActionExtensions.WorkbenchActions
 	CATEGORIES.View.value
 );
 
+class RemoteMarkers implements IWorkbenchContribution {
+
+	constructor(
+		@IRemoteAgentService remoteAgentService: IRemoteAgentService,
+		@ITimerService timerService: ITimerService,
+	) {
+		remoteAgentService.getEnvironment().then(remoteEnv => {
+			if (remoteEnv) {
+				timerService.setPerformanceMarks('server', remoteEnv.marks);
+			}
+		});
+	}
+}
+
 class VisibleProgress {
 
 	public readonly location: ProgressLocation;
@@ -776,7 +791,7 @@ class RemoteAgentConnectionStatusListener extends Disposable implements IWorkben
 
 			// Possible state transitions:
 			// ConnectionGain      -> ConnectionLost
-			// ConnectionLost      -> ReconnectionWait
+			// ConnectionLost      -> ReconnectionWait, ReconnectionRunning
 			// ReconnectionWait    -> ReconnectionRunning
 			// ReconnectionRunning -> ConnectionGain, ReconnectionPermanentFailure
 
@@ -828,7 +843,7 @@ class RemoteAgentConnectionStatusListener extends Disposable implements IWorkben
 							console.log(`Error handled: Not showing a notification for the error.`);
 						} else if (!this._reloadWindowShown) {
 							this._reloadWindowShown = true;
-							dialogService.show(Severity.Error, nls.localize('reconnectionPermanentFailure', "Cannot reconnect. Please reload the window."), [nls.localize('reloadWindow', "Reload Window"), nls.localize('cancel', "Cancel")], { cancelId: 1 }).then(result => {
+							dialogService.show(Severity.Error, nls.localize('reconnectionPermanentFailure', "Cannot reconnect. Please reload the window."), [nls.localize('reloadWindow', "Reload Window"), nls.localize('cancel', "Cancel")], { cancelId: 1, useCustom: true }).then(result => {
 								// Reload the window
 								if (result.choice === 0) {
 									commandService.executeCommand(ReloadWindowAction.ID);
@@ -851,3 +866,4 @@ workbenchContributionsRegistry.registerWorkbenchContribution(RemoteStatusIndicat
 workbenchContributionsRegistry.registerWorkbenchContribution(ForwardedPortsView, LifecyclePhase.Eventually);
 workbenchContributionsRegistry.registerWorkbenchContribution(PortRestore, LifecyclePhase.Eventually);
 workbenchContributionsRegistry.registerWorkbenchContribution(AutomaticPortForwarding, LifecyclePhase.Eventually);
+workbenchContributionsRegistry.registerWorkbenchContribution(RemoteMarkers, LifecyclePhase.Eventually);

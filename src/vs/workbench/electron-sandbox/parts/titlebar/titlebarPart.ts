@@ -27,7 +27,6 @@ import { Codicon } from 'vs/base/common/codicons';
 import { NativeMenubarControl } from 'vs/workbench/electron-sandbox/parts/titlebar/menubarControl';
 
 export class TitlebarPart extends BrowserTitleBarPart {
-	private appIcon: HTMLElement | undefined;
 	private windowControls: HTMLElement | undefined;
 	private maxRestoreControl: HTMLElement | undefined;
 	private dragRegion: HTMLElement | undefined;
@@ -171,8 +170,7 @@ export class TitlebarPart extends BrowserTitleBarPart {
 		}
 
 		// App Icon (Native Windows/Linux)
-		if (!isMacintosh) {
-			this.appIcon = DOM.prepend(this.element, DOM.$('div.window-appicon'));
+		if (this.appIcon) {
 			this.onUpdateAppIconDragBehavior();
 
 			this._register(DOM.addDisposableListener(this.appIcon, DOM.EventType.DBLCLICK, (e => {

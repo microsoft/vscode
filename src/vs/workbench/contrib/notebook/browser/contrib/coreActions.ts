@@ -17,7 +17,7 @@ import { IClipboardService } from 'vs/platform/clipboard/common/clipboardService
 import { CommandsRegistry, ICommandService } from 'vs/platform/commands/common/commands';
 import { ContextKeyExpr, IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
 import { InputFocusedContext, InputFocusedContextKey } from 'vs/platform/contextkey/common/contextkeys';
-import { ServicesAccessor } from 'vs/platform/instantiation/common/instantiation';
+import { IInstantiationService, ServicesAccessor } from 'vs/platform/instantiation/common/instantiation';
 import { KeybindingWeight } from 'vs/platform/keybinding/common/keybindingsRegistry';
 import { IQuickInputService, IQuickPickItem, QuickPickInput } from 'vs/platform/quickinput/common/quickInput';
 import { CATEGORIES } from 'vs/workbench/common/actions';
@@ -29,6 +29,9 @@ import { IEditorGroupsService } from 'vs/workbench/services/editor/common/editor
 import { IEditorService } from 'vs/workbench/services/editor/common/editorService';
 import * as icons from 'vs/workbench/contrib/notebook/browser/notebookIcons';
 import { CancellationTokenSource } from 'vs/base/common/cancellation';
+import { NotebookEditorInput } from 'vs/workbench/contrib/notebook/browser/notebookEditorInput';
+import { EditorsOrder } from 'vs/workbench/common/editor';
+import { INotebookEditorWidgetService } from 'vs/workbench/contrib/notebook/browser/notebookEditorWidgetService';
 
 // Notebook Commands
 const EXECUTE_NOTEBOOK_COMMAND_ID = 'notebook.execute';
@@ -180,16 +183,16 @@ abstract class NotebookCellAction<T = INotebookCellActionContext> extends Notebo
 		return !!context && !!(context as INotebookCellActionContext).notebookEditor && !!(context as INotebookCellActionContext).cell;
 	}
 
-	protected getCellContextFromArgs(accessor: ServicesAccessor, context?: T): INotebookCellActionContext | undefined {
+	protected getCellContextFromArgs(accessor: ServicesAccessor, context?: T, ...additionalArgs: any[]): INotebookCellActionContext | undefined {
 		return undefined;
 	}
 
-	async run(accessor: ServicesAccessor, context?: INotebookCellActionContext): Promise<void> {
+	async run(accessor: ServicesAccessor, context?: INotebookCellActionContext, ...additionalArgs: any[]): Promise<void> {
 		if (this.isCellActionContext(context)) {
 			return this.runWithContext(accessor, context);
 		}
 
-		const contextFromArgs = this.getCellContextFromArgs(accessor, context);
+		const contextFromArgs = this.getCellContextFromArgs(accessor, context, ...additionalArgs);
 
 		if (contextFromArgs) {
 			return this.runWithContext(accessor, contextFromArgs);
@@ -235,6 +238,11 @@ registerAction2(class extends NotebookCellAction<ICellRange> {
 								}
 							}
 						}
+					},
+					{
+						name: 'uri',
+						description: 'The document uri',
+						constraint: URI
 					}
 				]
 			},
@@ -242,9 +250,36 @@ registerAction2(class extends NotebookCellAction<ICellRange> {
 		});
 	}
 
-	getCellContextFromArgs(accessor: ServicesAccessor, context?: ICellRange): INotebookCellActionContext | undefined {
+	getCellContextFromArgs(accessor: ServicesAccessor, context?: ICellRange, ...additionalArgs: any[]): INotebookCellActionContext | undefined {
 		if (!context || typeof context.start !== 'number' || typeof context.end !== 'number' || context.start >= context.end) {
 			return;
+		}
+
+		if (additionalArgs.length && additionalArgs[0]) {
+			const uri = URI.revive(additionalArgs[0]);
+
+			if (uri) {
+				// we will run cell against this document
+				const editorService = accessor.get(IEditorService);
+				const editorGroupService = accessor.get(IEditorGroupsService);
+				const instantiationService = accessor.get(IInstantiationService);
+				const notebookWidgetService = accessor.get(INotebookEditorWidgetService);
+				const editorId = editorService.getEditors(EditorsOrder.SEQUENTIAL).find(editorId => editorId.editor instanceof NotebookEditorInput && editorId.editor.resource?.toString() === uri.toString());
+
+				if (editorId) {
+					const group = editorGroupService.getGroup(editorId.groupId);
+					const widget = instantiationService.invokeFunction(notebookWidgetService.retrieveWidget, group!, editorId.editor as NotebookEditorInput);
+
+					if (widget.value?.hasModel()) {
+						const cells = widget.value.viewModel.viewCells;
+
+						return {
+							notebookEditor: widget.value!,
+							cell: cells[context.start]
+						};
+					}
+				}
+			}
 		}
 
 		const activeEditorContext = this.getActiveEditorContext(accessor);

@@ -15,6 +15,12 @@ export interface ISandboxNodeProcess extends INodeProcess {
 	readonly platform: 'win32' | 'linux' | 'darwin';
 
 	/**
+	 * The process.arch property returns a string identifying the CPU architecture
+	 * on which the Node.js process is running.
+	 */
+	readonly arch: string;
+
+	/**
 	 * The type will always be Electron renderer.
 	 */
 	readonly type: 'renderer';

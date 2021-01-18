@@ -46,7 +46,7 @@ button {
 	text-align: center;
 	outline: 1px solid transparent;
 	outline-offset: 2px !important;
-	color: var(--vscode-button-foreground);
+	color: var(--vscode-icon-foreground);
 	background: none;
 }
 

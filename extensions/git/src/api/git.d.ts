@@ -136,6 +136,7 @@ export interface CommitOptions {
 	signCommit?: boolean;
 	empty?: boolean;
 	noVerify?: boolean;
+	requireUserConfig?: boolean;
 }
 
 export interface BranchQuery {

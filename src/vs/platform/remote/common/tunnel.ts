@@ -5,7 +5,7 @@
 
 import { Emitter, Event } from 'vs/base/common/event';
 import { IDisposable } from 'vs/base/common/lifecycle';
-import { isWindows } from 'vs/base/common/platform';
+import { isWindows, OperatingSystem } from 'vs/base/common/platform';
 import { URI } from 'vs/base/common/uri';
 import { createDecorator } from 'vs/platform/instantiation/common/instantiation';
 import { ILogService } from 'vs/platform/log/common/log';
@@ -85,8 +85,12 @@ function getOtherLocalhost(host: string): string | undefined {
 	return (host === 'localhost') ? '127.0.0.1' : ((host === '127.0.0.1') ? 'localhost' : undefined);
 }
 
-export function isPortPrivileged(port: number): boolean {
-	return !isWindows && (port < 1024);
+export function isPortPrivileged(port: number, os?: OperatingSystem): boolean {
+	if (os) {
+		return os !== OperatingSystem.Windows && (port < 1024);
+	} else {
+		return !isWindows && (port < 1024);
+	}
 }
 
 export abstract class AbstractTunnelService implements ITunnelService {

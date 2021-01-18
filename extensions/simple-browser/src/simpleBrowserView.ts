@@ -32,7 +32,7 @@ export class SimpleBrowserView extends Disposable {
 		super();
 
 		this._webviewPanel = this._register(vscode.window.createWebviewPanel(SimpleBrowserView.viewType, SimpleBrowserView.title, {
-			viewColumn: vscode.ViewColumn.Active,
+			viewColumn: showOptions?.viewColumn ?? vscode.ViewColumn.Active,
 			preserveFocus: showOptions?.preserveFocus
 		}, {
 			enableScripts: true,

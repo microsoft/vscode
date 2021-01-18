@@ -3,10 +3,11 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { URL } from 'url';
 import * as vscode from 'vscode';
 import * as nls from 'vscode-nls';
 import { SimpleBrowserManager } from './simpleBrowserManager';
+
+declare const URL: typeof import('url').URL;
 
 const localize = nls.loadMessageBundle();
 
@@ -45,25 +46,28 @@ export function activate(context: vscode.ExtensionContext) {
 		manager.show(url.toString(), showOptions);
 	}));
 
-	context.subscriptions.push(vscode.window.registerExternalUriOpener(['http', 'https'], {
+	context.subscriptions.push(vscode.window.registerExternalUriOpener(openerId, ['http', 'https'], {
 		canOpenExternalUri(uri: vscode.Uri) {
-			const configuration = vscode.workspace.getConfiguration('simpleBrowser');
-			if (!configuration.get('opener.enabled', false)) {
-				return false;
-			}
-
 			const originalUri = new URL(uri.toString());
 			if (enabledHosts.has(originalUri.hostname)) {
-				return true;
+				return isWeb()
+					? vscode.ExternalUriOpenerPriority.Default
+					: vscode.ExternalUriOpenerPriority.Option;
 			}
 
-			return false;
+			return vscode.ExternalUriOpenerPriority.None;
 		},
 		openExternalUri(resolveUri: vscode.Uri) {
-			return manager.show(resolveUri.toString());
+			return manager.show(resolveUri.toString(), {
+				viewColumn: vscode.window.activeTextEditor ? vscode.ViewColumn.Beside : vscode.ViewColumn.Active
+			});
 		}
 	}, {
-		id: openerId,
 		label: localize('openTitle', "Open in simple browser"),
 	}));
+}
+
+function isWeb(): boolean {
+	// @ts-expect-error
+	return typeof navigator !== 'undefined' && vscode.env.uiKind === vscode.UIKind.Web;
 }

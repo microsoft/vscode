@@ -38,7 +38,6 @@ exports.dirs = [
 	'extensions/testing-editor-contributions',
 	'extensions/typescript-language-features',
 	'extensions/vscode-api-tests',
-	'extensions/vscode-colorize-tests',
 	'extensions/vscode-custom-editor-tests',
 	'extensions/vscode-notebook-tests',
 	'extensions/vscode-test-resolver',

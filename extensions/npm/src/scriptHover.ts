@@ -103,7 +103,7 @@ export class NpmScriptHoverProvider implements HoverProvider {
 		let documentUri = args.documentUri;
 		let folder = workspace.getWorkspaceFolder(documentUri);
 		if (folder) {
-			let task = await createTask(this.context, script, `run ${script}`, folder, documentUri);
+			let task = await createTask(this.context, script, ['run', script], folder, documentUri);
 			await tasks.executeTask(task);
 		}
 	}
