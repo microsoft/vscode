@@ -23,7 +23,7 @@ import { KeyChord, KeyCode, KeyMod } from 'vs/base/common/keyCodes';
 import { ContextKeyExpr } from 'vs/platform/contextkey/common/contextkey';
 import { IWorkbenchEnvironmentService } from 'vs/workbench/services/environment/common/environmentService';
 import { IWorkspacesService, hasWorkspaceFileExtension } from 'vs/platform/workspaces/common/workspaces';
-import { ITrustedWorkspaceService, TrustState } from 'vs/platform/workspace/common/trustedWorkspace';
+import { TRUSTED_WORKSPACES_URI } from 'vs/platform/workspace/common/trustedWorkspace';
 
 export class OpenFileAction extends Action {
 
@@ -251,68 +251,22 @@ export class DuplicateWorkspaceInNewWindowAction extends Action {
 	}
 }
 
-class WorkspaceTrustRequiredAction extends Action2 {
+class WorkspaceTrustManageAction extends Action2 {
 	constructor() {
 		super({
-			id: 'workbench.action.requireTrust',
-			title: { value: nls.localize('requireTrustAction', "Require Workspace Trust"), original: 'Require Workspace Trust' },
+			id: 'workbench.action.manageTrust',
+			title: { value: nls.localize('resetTrustAction', "Manage Trusted Workspaces"), original: 'Manage Trusted Workspaces' },
 			f1: true
 		});
 	}
 
 	run(accessor: ServicesAccessor) {
-		const workspaceTrustService = accessor.get(ITrustedWorkspaceService);
-		const notificationService = accessor.get(INotificationService);
-
-		workspaceTrustService.requireWorkspaceTrust(true).then(trustState => {
-			notificationService.info(`Trust State: ${trustState === TrustState.Unknown ? 'Unknown' : trustState === TrustState.Trusted ? 'Trusted' : 'Untrusted'}`);
-		});
+		const editorService = accessor.get(IEditorService);
+		editorService.openEditor({ resource: TRUSTED_WORKSPACES_URI, mode: 'jsonc', options: { pinned: true } });
 	}
 }
 
-registerAction2(WorkspaceTrustRequiredAction);
-
-class WorkspaceTrustRequestAction extends Action2 {
-	constructor() {
-		super({
-			id: 'workbench.action.requestTrust',
-			title: { value: nls.localize('requestTrustAction', "Request Workspace Trust"), original: 'Request Workspace Trust' },
-			f1: true
-		});
-	}
-
-	run(accessor: ServicesAccessor) {
-		const workspaceTrustService = accessor.get(ITrustedWorkspaceService);
-		const notificationService = accessor.get(INotificationService);
-
-		workspaceTrustService.requireWorkspaceTrust(false).then(trustState => {
-			notificationService.info(`Trust State: ${trustState === TrustState.Unknown ? 'Unknown' : trustState === TrustState.Trusted ? 'Trusted' : 'Untrusted'}`);
-		});
-	}
-}
-
-registerAction2(WorkspaceTrustRequestAction);
-
-class WorkspaceTrustResetAction extends Action2 {
-	constructor() {
-		super({
-			id: 'workbench.action.resetTrust',
-			title: { value: nls.localize('resetTrustAction', "Reset Workspace Trust"), original: 'Reset Workspace Trust' },
-			f1: true
-		});
-	}
-
-	run(accessor: ServicesAccessor) {
-		const workspaceTrustService = accessor.get(ITrustedWorkspaceService);
-		const notificationService = accessor.get(INotificationService);
-
-		workspaceTrustService.resetWorkspaceTrust().then(trustState => {
-			notificationService.info(`Trust State: ${trustState === TrustState.Unknown ? 'Unknown' : trustState === TrustState.Trusted ? 'Trusted' : 'Untrusted'}`);
-		});
-	}
-}
-
-registerAction2(WorkspaceTrustResetAction);
+registerAction2(WorkspaceTrustManageAction);
 
 // --- Actions Registration
 
