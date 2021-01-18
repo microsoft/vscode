@@ -68,7 +68,7 @@ NdCFTW7wY0Fb1fWJ+/KTsC4=
 		WRITE_SOURCE=1
 	elif grep -Eq "http:\/\/packages\.microsoft\.com\/repos\/vscode" $CODE_SOURCE_PART; then
 		# Migrate from old repository
-		sed -i "s/^deb .*/deb [arch=amd64,arm64,armhf] http:\/\/packages.microsoft.com\/repos\/code stable main/" $CODE_SOURCE_PART
+		WRITE_SOURCE=1
 	elif grep -q "# disabled on upgrade to" $CODE_SOURCE_PART; then
 		# Write source list if it was disabled by OS upgrade
 		WRITE_SOURCE=1
