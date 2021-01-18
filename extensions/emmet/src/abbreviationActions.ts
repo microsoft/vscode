@@ -49,20 +49,15 @@ function doWrapping(_: boolean, args: any) {
 	}
 
 	const editor = vscode.window.activeTextEditor;
-
-	const linkedEditingEnabled = vscode.workspace.getConfiguration('editor').get<boolean>('linkedEditing');
-	if (linkedEditingEnabled && editor.selections.find(x => x.isEmpty)) {
-		const message = localize('linkedEditingIsOnWarning', "Please uncheck the 'editor.linkedEditing' setting as it interferes with this command. To update tags, use the 'Emmet: Update Tag' command instead.");
-		vscode.window.showErrorMessage(message);
-		return;
-	}
+	const document = editor.document;
 
 	args = args || {};
 	if (!args['language']) {
-		args['language'] = editor.document.languageId;
+		args['language'] = document.languageId;
 	}
+	// we know it's not stylesheet due to the validate(false) call above
 	const syntax = getSyntaxFromArgs(args) || 'html';
-	const rootNode = parseDocument(editor.document, true);
+	const rootNode = parseDocument(document, true);
 
 	let inPreview = false;
 	let currentValue = '';
@@ -71,7 +66,6 @@ function doWrapping(_: boolean, args: any) {
 	// Fetch general information for the succesive expansions. i.e. the ranges to replace and its contents
 	const rangesToReplace: PreviewRangesWithContent[] = editor.selections.sort((a: vscode.Selection, b: vscode.Selection) => { return a.start.compareTo(b.start); }).map(selection => {
 		let rangeToReplace: vscode.Range = selection.isReversed ? new vscode.Range(selection.active, selection.anchor) : selection;
-		const document = editor.document;
 		if (!rangeToReplace.isSingleLine && rangeToReplace.end.character === 0) {
 			// in case of multi-line, exclude last empty line from rangeToReplace
 			const previousLine = rangeToReplace.end.line - 1;
@@ -125,6 +119,28 @@ function doWrapping(_: boolean, args: any) {
 			textToWrapInPreview
 		};
 	});
+
+	// if a selection falls on a node, it could interfere with linked editing,
+	// so back up the selections, and change selections to wrap around the node
+	const oldSelections = editor.selections;
+	const newSelections: vscode.Selection[] = [];
+	editor.selections.forEach(selection => {
+		let { start, end } = selection;
+		const startOffset = document.offsetAt(start);
+		const startNode = <HtmlNode>getFlatNode(rootNode, startOffset, true);
+		const endOffset = document.offsetAt(end);
+		const endNode = <HtmlNode>getFlatNode(rootNode, endOffset, true);
+		if (startNode) {
+			start = document.positionAt(startNode.start);
+		}
+		if (endNode) {
+			end = document.positionAt(endNode.end);
+		}
+		// don't need to preserve active/anchor order since the selection changes
+		// after wrapping anyway
+		newSelections.push(new vscode.Selection(start, end));
+	});
+	editor.selections = newSelections;
 
 	function revertPreview(): Thenable<boolean> {
 		return editor.edit(builder => {
@@ -253,8 +269,12 @@ function doWrapping(_: boolean, args: any) {
 	const abbreviationPromise: Thenable<string | undefined> = (args && args['abbreviation']) ?
 		Promise.resolve(args['abbreviation']) :
 		vscode.window.showInputBox({ prompt, validateInput: inputChanged });
-	return abbreviationPromise.then(inputAbbreviation => {
-		return makeChanges(inputAbbreviation, true);
+	return abbreviationPromise.then(async (inputAbbreviation) => {
+		const changesWereMade = await makeChanges(inputAbbreviation, true);
+		if (!changesWereMade) {
+			editor.selections = oldSelections;
+		}
+		return changesWereMade;
 	});
 }
 

@@ -7,7 +7,7 @@ import { localize } from 'vs/nls';
 
 import { isPromiseCanceledError } from 'vs/base/common/errors';
 import { URI } from 'vs/base/common/uri';
-import * as semver from 'vs/base/common/semver/semver';
+import { gt } from 'vs/base/common/semver/semver';
 import { CLIOutput, IExtensionGalleryService, IExtensionManagementCLIService, IExtensionManagementService, IGalleryExtension, ILocalExtension, InstallOptions } from 'vs/platform/extensionManagement/common/extensionManagement';
 import { adoptToGalleryExtensionId, areSameExtensions, getGalleryExtensionId } from 'vs/platform/extensionManagement/common/extensionManagementUtil';
 import { ExtensionType, EXTENSION_CATEGORIES, IExtensionManifest, isLanguagePackExtension } from 'vs/platform/extensions/common/extensions';
@@ -251,7 +251,7 @@ export class ExtensionManagementCLIService implements IExtensionManagementCLISer
 
 		const extensionIdentifier = { id: getGalleryExtensionId(manifest.publisher, manifest.name) };
 		const installedExtensions = await this.extensionManagementService.getInstalled(ExtensionType.User);
-		const newer = installedExtensions.find(local => areSameExtensions(extensionIdentifier, local.identifier) && semver.gt(local.manifest.version, manifest.version));
+		const newer = installedExtensions.find(local => areSameExtensions(extensionIdentifier, local.identifier) && gt(local.manifest.version, manifest.version));
 
 		if (newer && !force) {
 			output.log(localize('forceDowngrade', "A newer version of extension '{0}' v{1} is already installed. Use '--force' option to downgrade to older version.", newer.identifier.id, newer.manifest.version, manifest.version));

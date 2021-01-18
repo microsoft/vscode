@@ -22,7 +22,6 @@ import { ITextModelService } from 'vs/editor/common/services/resolverService';
 import { TextModelResolverService } from 'vs/workbench/services/textmodelResolver/common/textModelResolverService';
 import { IJSONEditingService } from 'vs/workbench/services/configuration/common/jsonEditing';
 import { JSONEditingService } from 'vs/workbench/services/configuration/common/jsonEditingService';
-import { createHash } from 'crypto';
 import { Schemas } from 'vs/base/common/network';
 import { joinPath, dirname, basename } from 'vs/base/common/resources';
 import { isLinux } from 'vs/base/common/platform';
@@ -46,10 +45,11 @@ import { ConfigurationCache as BrowserConfigurationCache } from 'vs/workbench/se
 import { BrowserWorkbenchEnvironmentService } from 'vs/workbench/services/environment/browser/environmentService';
 import { RemoteAgentService } from 'vs/workbench/services/remote/browser/remoteAgentServiceImpl';
 import { RemoteAuthorityResolverService } from 'vs/platform/remote/browser/remoteAuthorityResolverService';
+import { hash } from 'vs/base/common/hash';
 
 function convertToWorkspacePayload(folder: URI): ISingleFolderWorkspaceInitializationPayload {
 	return {
-		id: createHash('md5').update(folder.fsPath).digest('hex'),
+		id: hash(folder.toString()).toString(16),
 		folder
 	} as ISingleFolderWorkspaceInitializationPayload;
 }
@@ -1974,8 +1974,7 @@ function getWorkspaceId(configPath: URI): string {
 	if (!isLinux) {
 		workspaceConfigPath = workspaceConfigPath.toLowerCase(); // sanitize for platform file system
 	}
-
-	return createHash('md5').update(workspaceConfigPath).digest('hex');
+	return hash(workspaceConfigPath).toString(16);
 }
 
 export function getWorkspaceIdentifier(configPath: URI): IWorkspaceIdentifier {

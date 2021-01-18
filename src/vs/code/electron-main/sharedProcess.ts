@@ -41,9 +41,14 @@ export class SharedProcess extends Disposable implements ISharedProcess {
 		// Lifecycle
 		this._register(this.lifecycleMainService.onWillShutdown(() => this.onWillShutdown()));
 
-		// Shared process connections
+		// Shared process connections from workbench windows
 		ipcMain.on('vscode:createSharedProcessMessageChannel', async (e, nonce: string) => {
 			this.logService.trace('SharedProcess: on vscode:createSharedProcessMessageChannel');
+
+			// await the shared process to be overall ready
+			// we do not just wait for IPC ready because the
+			// workbench window will communicate directly
+			await this.whenReady();
 
 			const port = await this.connect();
 
@@ -207,29 +212,21 @@ export class SharedProcess extends Disposable implements ISharedProcess {
 		return connectMessagePort(window);
 	}
 
-	toggle(): void {
-		if (!this.window || this.window.isVisible()) {
-			this.hide();
+	async toggle(): Promise<void> {
+
+		// wait for window to be created
+		await this.whenIpcReady;
+
+		if (!this.window) {
+			return; // possibly disposed already
+		}
+
+		if (this.window.isVisible()) {
+			this.window.webContents.closeDevTools();
+			this.window.hide();
 		} else {
-			this.show();
+			this.window.show();
+			this.window.webContents.openDevTools();
 		}
-	}
-
-	show(): void {
-		if (!this.window) {
-			return; // possibly too early before created
-		}
-
-		this.window.show();
-		this.window.webContents.openDevTools();
-	}
-
-	hide(): void {
-		if (!this.window) {
-			return; // possibly too early before created
-		}
-
-		this.window.webContents.closeDevTools();
-		this.window.hide();
 	}
 }

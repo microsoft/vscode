@@ -1165,6 +1165,12 @@ export class Repository implements Disposable {
 				}
 
 				delete opts.all;
+
+				if (opts.requireUserConfig === undefined || opts.requireUserConfig === null) {
+					const config = workspace.getConfiguration('git', Uri.file(this.root));
+					opts.requireUserConfig = config.get<boolean>('requireGitUserConfig');
+				}
+
 				await this.repository.commit(message, opts);
 			});
 		}

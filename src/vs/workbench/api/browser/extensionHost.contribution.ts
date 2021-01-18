@@ -31,6 +31,7 @@ import './mainThreadDocuments';
 import './mainThreadDocumentsAndEditors';
 import './mainThreadEditor';
 import './mainThreadEditors';
+import './mainThreadEditorTabs';
 import './mainThreadErrors';
 import './mainThreadExtensionService';
 import './mainThreadFileSystem';

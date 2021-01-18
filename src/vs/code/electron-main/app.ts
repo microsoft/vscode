@@ -4,6 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { app, ipcMain, systemPreferences, contentTracing, protocol, BrowserWindow, dialog, session } from 'electron';
+import { release } from 'os';
 import { IProcessEnvironment, isWindows, isMacintosh, isLinux, isLinuxSnap } from 'vs/base/common/platform';
 import { WindowsMainService } from 'vs/platform/windows/electron-main/windowsMainService';
 import { IWindowOpenable } from 'vs/platform/windows/common/windows';
@@ -28,9 +29,9 @@ import { IOpenURLOptions, IURLService } from 'vs/platform/url/common/url';
 import { URLHandlerChannelClient, URLHandlerRouter } from 'vs/platform/url/common/urlIpc';
 import { ITelemetryService, machineIdKey } from 'vs/platform/telemetry/common/telemetry';
 import { NullTelemetryService } from 'vs/platform/telemetry/common/telemetryUtils';
-import { TelemetryAppenderClient } from 'vs/platform/telemetry/node/telemetryIpc';
+import { TelemetryAppenderClient } from 'vs/platform/telemetry/common/telemetryIpc';
 import { TelemetryService, ITelemetryServiceConfig } from 'vs/platform/telemetry/common/telemetryService';
-import { resolveCommonProperties } from 'vs/platform/telemetry/node/commonProperties';
+import { resolveCommonProperties } from 'vs/platform/telemetry/common/commonProperties';
 import product from 'vs/platform/product/common/product';
 import { ProxyAuthHandler } from 'vs/code/electron-main/auth';
 import { FileProtocolHandler } from 'vs/code/electron-main/protocol';
@@ -68,7 +69,6 @@ import { IDiagnosticsService } from 'vs/platform/diagnostics/node/diagnosticsSer
 import { ExtensionHostDebugBroadcastChannel } from 'vs/platform/debug/common/extensionHostDebugIpc';
 import { ElectronExtensionHostDebugBroadcastChannel } from 'vs/platform/debug/electron-main/extensionHostDebugIpc';
 import { INativeHostMainService, NativeHostMainService } from 'vs/platform/native/electron-main/nativeHostMainService';
-import { ISharedProcessManagementMainService, SharedProcessManagementMainService } from 'vs/platform/sharedProcess/electron-main/sharedProcessManagementMainService';
 import { IDialogMainService, DialogMainService } from 'vs/platform/dialogs/electron-main/dialogMainService';
 import { withNullAsUndefined } from 'vs/base/common/types';
 import { mnemonicButtonLabel, getPathLabel } from 'vs/base/common/labels';
@@ -509,7 +509,6 @@ export class CodeApplication extends Disposable {
 
 		services.set(IWindowsMainService, new SyncDescriptor(WindowsMainService, [machineId, this.userEnv]));
 		services.set(IDialogMainService, new SyncDescriptor(DialogMainService));
-		services.set(ISharedProcessManagementMainService, new SyncDescriptor(SharedProcessManagementMainService, [sharedProcess]));
 		services.set(ILaunchMainService, new SyncDescriptor(LaunchMainService));
 		services.set(IDiagnosticsService, createChannelSender(getDelayedChannel(sharedProcessReady.then(client => client.getChannel('diagnostics')))));
 
@@ -517,7 +516,7 @@ export class CodeApplication extends Disposable {
 		services.set(IEncryptionMainService, new SyncDescriptor(EncryptionMainService, [machineId]));
 		services.set(IKeyboardLayoutMainService, new SyncDescriptor(KeyboardLayoutMainService));
 		services.set(IDisplayMainService, new SyncDescriptor(DisplayMainService));
-		services.set(INativeHostMainService, new SyncDescriptor(NativeHostMainService));
+		services.set(INativeHostMainService, new SyncDescriptor(NativeHostMainService, [sharedProcess]));
 		services.set(IWebviewManagerService, new SyncDescriptor(WebviewMainService));
 		services.set(IWorkspacesService, new SyncDescriptor(WorkspacesService));
 		services.set(IMenubarMainService, new SyncDescriptor(MenubarMainService));
@@ -538,7 +537,7 @@ export class CodeApplication extends Disposable {
 		if (!this.environmentService.isExtensionDevelopment && !this.environmentService.args['disable-telemetry'] && !!product.enableTelemetry) {
 			const channel = getDelayedChannel(sharedProcessReady.then(client => client.getChannel('telemetryAppender')));
 			const appender = new TelemetryAppenderClient(channel);
-			const commonProperties = resolveCommonProperties(product.commit, product.version, machineId, product.msftInternalDomains, this.environmentService.installSourcePath);
+			const commonProperties = resolveCommonProperties(this.fileService, release(), process.arch, product.commit, product.version, machineId, product.msftInternalDomains, this.environmentService.installSourcePath);
 			const piiPaths = [this.environmentService.appRoot, this.environmentService.extensionsPath];
 			const config: ITelemetryServiceConfig = { appender, commonProperties, piiPaths, sendErrorTelemetry: true };
 
@@ -620,10 +619,6 @@ export class CodeApplication extends Disposable {
 		const nativeHostChannel = createChannelReceiver(this.nativeHostMainService);
 		electronIpcServer.registerChannel('nativeHost', nativeHostChannel);
 		sharedProcessClient.then(client => client.registerChannel('nativeHost', nativeHostChannel));
-
-		const sharedProcessMainManagementService = accessor.get(ISharedProcessManagementMainService);
-		const sharedProcessManagementChannel = createChannelReceiver(sharedProcessMainManagementService);
-		electronIpcServer.registerChannel('sharedProcessManagement', sharedProcessManagementChannel);
 
 		const workspacesService = accessor.get(IWorkspacesService);
 		const workspacesChannel = createChannelReceiver(workspacesService);
@@ -835,7 +830,7 @@ export class CodeApplication extends Disposable {
 					mnemonicButtonLabel(localize({ key: 'cancel', comment: ['&& denotes a mnemonic'] }, "&&No")),
 				],
 				cancelId: 1,
-				message: localize('confirmOpenMessage', "An external application wants to open '{0}' in {1}. Do you want to open this file or folder?", getPathLabel(uri.fsPath), product.nameShort),
+				message: localize('confirmOpenMessage', "An external application wants to open '{0}' in {1}. Do you want to open this file or folder?", getPathLabel(uri.fsPath, this.environmentService), product.nameShort),
 				detail: localize('confirmOpenDetail', "If you did not initiate this request, it may represent an attempted attack on your system. Unless you took an explicit action to initiate this request, you should press 'No'"),
 				noLink: true
 			});

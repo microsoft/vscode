@@ -51,7 +51,7 @@ export function activate(context: vscode.ExtensionContext) {
 			const originalUri = new URL(uri.toString());
 			if (enabledHosts.has(originalUri.hostname)) {
 				return isWeb()
-					? vscode.ExternalUriOpenerPriority.Preferred
+					? vscode.ExternalUriOpenerPriority.Default
 					: vscode.ExternalUriOpenerPriority.Option;
 			}
 

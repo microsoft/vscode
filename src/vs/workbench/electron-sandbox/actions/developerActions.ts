@@ -9,7 +9,6 @@ import { IEditorService } from 'vs/workbench/services/editor/common/editorServic
 import { Action2, MenuId } from 'vs/platform/actions/common/actions';
 import { CATEGORIES } from 'vs/workbench/common/actions';
 import { ServicesAccessor } from 'vs/platform/instantiation/common/instantiation';
-import { ISharedProcessManagementService } from 'vs/platform/sharedProcess/common/sharedProcessManagement';
 import { IWorkbenchEnvironmentService } from 'vs/workbench/services/environment/common/environmentService';
 import { KeybindingWeight } from 'vs/platform/keybinding/common/keybindingsRegistry';
 import { IsDevelopmentContext } from 'vs/platform/contextkey/common/contextkeys';
@@ -79,6 +78,22 @@ export class ToggleSharedProcessAction extends Action2 {
 	}
 
 	async run(accessor: ServicesAccessor): Promise<void> {
-		return accessor.get(ISharedProcessManagementService).toggleWindow();
+		return accessor.get(INativeHostService).toggleSharedProcessWindow();
+	}
+}
+
+export class ReloadWindowWithExtensionsDisabledAction extends Action2 {
+
+	constructor() {
+		super({
+			id: 'workbench.action.reloadWindowWithExtensionsDisabled',
+			title: { value: localize('reloadWindowWithExtensionsDisabled', "Reload With Extensions Disabled"), original: 'Reload With Extensions Disabled' },
+			category: CATEGORIES.Developer,
+			f1: true
+		});
+	}
+
+	async run(accessor: ServicesAccessor): Promise<void> {
+		return accessor.get(INativeHostService).reload({ disableExtensions: true });
 	}
 }

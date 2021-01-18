@@ -3,7 +3,8 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import * as path from 'vs/base/common/path';
+import { release } from 'os';
+import { isAbsolute, join } from 'vs/base/common/path';
 import { raceTimeout } from 'vs/base/common/async';
 import product from 'vs/platform/product/common/product';
 import { ServiceCollection } from 'vs/platform/instantiation/common/serviceCollection';
@@ -19,7 +20,7 @@ import { ExtensionGalleryService } from 'vs/platform/extensionManagement/common/
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
 import { combinedAppender, NullTelemetryService } from 'vs/platform/telemetry/common/telemetryUtils';
 import { TelemetryService, ITelemetryServiceConfig } from 'vs/platform/telemetry/common/telemetryService';
-import { resolveCommonProperties } from 'vs/platform/telemetry/node/commonProperties';
+import { resolveCommonProperties } from 'vs/platform/telemetry/common/commonProperties';
 import { IRequestService } from 'vs/platform/request/common/request';
 import { RequestService } from 'vs/platform/request/node/requestService';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
@@ -67,7 +68,7 @@ export class Main {
 	}
 
 	private asExtensionIdOrVSIX(inputs: string[]): (string | URI)[] {
-		return inputs.map(input => /\.vsix$/i.test(input) ? URI.file(path.isAbsolute(input) ? input : path.join(process.cwd(), input)) : input);
+		return inputs.map(input => /\.vsix$/i.test(input) ? URI.file(isAbsolute(input) ? input : join(process.cwd(), input)) : input);
 	}
 
 	private setInstallSource(installSource: string): Promise<void> {
@@ -139,7 +140,7 @@ export async function main(argv: NativeParsedArgs): Promise<void> {
 			const config: ITelemetryServiceConfig = {
 				appender: combinedAppender(...appenders),
 				sendErrorTelemetry: false,
-				commonProperties: resolveCommonProperties(product.commit, product.version, stateService.getItem('telemetry.machineId'), product.msftInternalDomains, installSourcePath),
+				commonProperties: resolveCommonProperties(fileService, release(), process.arch, product.commit, product.version, stateService.getItem('telemetry.machineId'), product.msftInternalDomains, installSourcePath),
 				piiPaths: [appRoot, extensionsPath]
 			};
 

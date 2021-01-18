@@ -11,13 +11,9 @@ import { ISignService } from 'vs/platform/sign/common/sign';
 import { URI } from 'vs/base/common/uri';
 import { InMemoryFileSystemProvider } from 'vs/platform/files/common/inMemoryFilesystemProvider';
 import { Event } from 'vs/base/common/event';
-import { IRemoteAgentConnection, IRemoteAgentService } from 'vs/workbench/services/remote/common/remoteAgentService';
-import { IDiagnosticInfoOptions, IDiagnosticInfo } from 'vs/platform/diagnostics/common/diagnostics';
-import { IAddressProvider, ISocketFactory } from 'vs/platform/remote/common/remoteAgentConnection';
-import { IRemoteAgentEnvironment } from 'vs/platform/remote/common/remoteAgentEnvironment';
+import { IAddressProvider } from 'vs/platform/remote/common/remoteAgentConnection';
 import { ITelemetryData, ITelemetryInfo, ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
-import { BrowserSocketFactory } from 'vs/platform/remote/browser/browserSocketFactory';
-import { ExtensionIdentifier, IExtension, IExtensionDescription } from 'vs/platform/extensions/common/extensions';
+import { IExtension } from 'vs/platform/extensions/common/extensions';
 import { SimpleConfigurationService as BaseSimpleConfigurationService } from 'vs/editor/standalone/browser/simpleServices';
 import { InMemoryStorageService } from 'vs/platform/storage/common/storage';
 import { registerSingleton } from 'vs/platform/instantiation/common/extensions';
@@ -410,28 +406,6 @@ testRunner.configure({
 });
 
 module.exports = testRunner;`);
-
-//#endregion
-
-//#region Remote
-
-export class SimpleRemoteAgentService implements IRemoteAgentService {
-
-	declare readonly _serviceBrand: undefined;
-
-	socketFactory: ISocketFactory = new BrowserSocketFactory(null);
-
-	getConnection(): IRemoteAgentConnection | null { return null; }
-	async getEnvironment(bail?: boolean): Promise<IRemoteAgentEnvironment | null> { return null; }
-	async getDiagnosticInfo(options: IDiagnosticInfoOptions): Promise<IDiagnosticInfo | undefined> { return undefined; }
-	async disableTelemetry(): Promise<void> { }
-	async logTelemetry(eventName: string, data?: ITelemetryData): Promise<void> { }
-	async flushTelemetry(): Promise<void> { }
-	async getRawEnvironment(): Promise<IRemoteAgentEnvironment | null> { return null; }
-	async scanExtensions(skipExtensions?: ExtensionIdentifier[]): Promise<IExtensionDescription[]> { return []; }
-	async scanSingleExtension(extensionLocation: URI, isBuiltin: boolean): Promise<IExtensionDescription | null> { return null; }
-	async whenExtensionsReady(): Promise<void> { }
-}
 
 //#endregion
 

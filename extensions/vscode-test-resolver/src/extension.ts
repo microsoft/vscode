@@ -229,6 +229,9 @@ export function activate(context: vscode.ExtensionContext) {
 		}
 		vscode.workspace.registerRemoteAuthorityResolver('test', {
 			async resolve(_authority: string): Promise<vscode.ResolvedAuthority> {
+				setTimeout(async () => {
+					await vscode.window.showErrorMessage('Just a custom message.', { modal: true, useCustom: true }, 'OK', 'Great');
+				}, 2000);
 				throw vscode.RemoteAuthorityResolverError.NotAvailable('Intentional Error', true);
 			}
 		});

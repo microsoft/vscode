@@ -420,6 +420,7 @@ export interface MainThreadLanguagesShape extends IDisposable {
 export interface MainThreadMessageOptions {
 	extension?: IExtensionDescription;
 	modal?: boolean;
+	useCustom?: boolean;
 }
 
 export interface MainThreadMessageServiceShape extends IDisposable {
@@ -602,6 +603,10 @@ export interface MainThreadEditorInsetsShape extends IDisposable {
 	$setHtml(handle: number, value: string): void;
 	$setOptions(handle: number, options: modes.IWebviewOptions): void;
 	$postMessage(handle: number, value: any): Promise<boolean>;
+}
+
+export interface MainThreadEditorTabsShape extends IDisposable {
+
 }
 
 export interface ExtHostEditorInsetsShape {
@@ -1125,7 +1130,7 @@ export interface ExtHostAuthenticationShape {
 }
 
 export interface ExtHostSecretStateShape {
-	$onDidChangePassword(): Promise<void>;
+	$onDidChangePassword(e: { extensionId: string, key: string }): Promise<void>;
 }
 
 export interface ExtHostSearchShape {
@@ -1839,6 +1844,7 @@ export const MainContext = {
 	MainThreadDocumentContentProviders: createMainId<MainThreadDocumentContentProvidersShape>('MainThreadDocumentContentProviders'),
 	MainThreadTextEditors: createMainId<MainThreadTextEditorsShape>('MainThreadTextEditors'),
 	MainThreadEditorInsets: createMainId<MainThreadEditorInsetsShape>('MainThreadEditorInsets'),
+	MainThreadEditorTabs: createMainId<MainThreadEditorTabsShape>('MainThreadEditorTabs'),
 	MainThreadErrors: createMainId<MainThreadErrorsShape>('MainThreadErrors'),
 	MainThreadTreeViews: createMainId<MainThreadTreeViewsShape>('MainThreadTreeViews'),
 	MainThreadDownloadService: createMainId<MainThreadDownloadServiceShape>('MainThreadDownloadService'),
