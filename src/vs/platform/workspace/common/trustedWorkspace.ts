@@ -27,7 +27,7 @@ export enum TrustScope {
 
 export const TrustedWorkspaceContext = {
 	IsPendingRequest: new RawContextKey<boolean>('trustedWorkspaceIsPendingRequest', false),
-	IsTrusted: new RawContextKey<boolean>('trustedWorkspaceIsTrusted', false)
+	TrustState: new RawContextKey<TrustState>('trustedWorkspaceTrustState', TrustState.Unknown)
 };
 
 export interface ITrustedContentModel {
@@ -205,7 +205,7 @@ export class TrustedWorkspaceService extends Disposable implements ITrustedWorks
 	private _trustRequestPromise?: Promise<TrustState>;
 	private _workspace: IWorkspace;
 
-	private readonly _ctxTrustedWorkspaceIsTrusted: IContextKey<boolean>;
+	private readonly _ctxTrustedWorkspaceTrustState: IContextKey<TrustState>;
 	private readonly _ctxTrustedWorkspacePendingRequest: IContextKey<boolean>;
 
 	constructor(
@@ -224,9 +224,9 @@ export class TrustedWorkspaceService extends Disposable implements ITrustedWorks
 		this._register(this.dataModel.onDidChangeTrust(() => this.currentTrustState = this.calculateWorkspaceTrustState()));
 		this._register(this.requestModel.onDidCompleteRequest((trustState) => this.onTrustRequestCompleted(trustState)));
 
-		this._ctxTrustedWorkspaceIsTrusted = TrustedWorkspaceContext.IsTrusted.bindTo(contextKeyService);
+		this._ctxTrustedWorkspaceTrustState = TrustedWorkspaceContext.TrustState.bindTo(contextKeyService);
 		this._ctxTrustedWorkspacePendingRequest = TrustedWorkspaceContext.IsPendingRequest.bindTo(contextKeyService);
-		this._ctxTrustedWorkspaceIsTrusted.set(this.currentTrustState === TrustState.Trusted);
+		this._ctxTrustedWorkspaceTrustState.set(this.currentTrustState);
 	}
 
 	private get currentTrustState(): TrustState {
@@ -287,7 +287,7 @@ export class TrustedWorkspaceService extends Disposable implements ITrustedWorks
 			this.dataModel.setFolderTrustState(folder.uri, trustState);
 		});
 		this._ctxTrustedWorkspacePendingRequest.set(false);
-		this._ctxTrustedWorkspaceIsTrusted.set(trustState === TrustState.Trusted);
+		this._ctxTrustedWorkspaceTrustState.set(trustState);
 	}
 
 	getWorkspaceTrustState(): TrustState {

@@ -144,7 +144,7 @@ registerAction2(class extends Action2 {
 			category: localize('workspacesCategory', "Workspaces"),
 			menu: {
 				id: MenuId.GlobalActivity,
-				when: ContextKeyExpr.and(TrustedWorkspaceContext.IsPendingRequest.negate(), TrustedWorkspaceContext.IsTrusted),
+				when: ContextKeyExpr.and(TrustedWorkspaceContext.IsPendingRequest.negate(), TrustedWorkspaceContext.TrustState.isEqualTo(TrustState.Trusted)),
 				order: 30
 			}
 		});
@@ -168,7 +168,7 @@ registerAction2(class extends Action2 {
 			category: localize('workspacesCategory', "Workspaces"),
 			menu: {
 				id: MenuId.GlobalActivity,
-				when: ContextKeyExpr.and(TrustedWorkspaceContext.IsPendingRequest.negate(), TrustedWorkspaceContext.IsTrusted.negate()),
+				when: ContextKeyExpr.and(TrustedWorkspaceContext.IsPendingRequest.negate(), TrustedWorkspaceContext.TrustState.isEqualTo(TrustState.Untrusted)),
 				order: 40
 			}
 		});

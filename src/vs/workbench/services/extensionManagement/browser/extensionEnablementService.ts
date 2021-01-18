@@ -264,10 +264,7 @@ export class ExtensionEnablementService extends Disposable implements IWorkbench
 
 		if (extension.manifest.requiresWorkspaceTrust === 'onStart') {
 			if (workspaceTrustState !== TrustState.Trusted) {
-				if (this.extensionsDisabledByTrustRequirement
-					.every(e => !areSameExtensions(extension.identifier, e.identifier))) {
-					this.extensionsDisabledByTrustRequirement.push(extension);
-				}
+				this._addToWorkspaceDisabledExtensionsByTrustRequirement(extension);
 			}
 			return workspaceTrustState !== TrustState.Trusted;
 		}
@@ -374,6 +371,26 @@ export class ExtensionEnablementService extends Disposable implements IWorkbench
 		return false;
 	}
 
+	private _addToWorkspaceDisabledExtensionsByTrustRequirement(extension: IExtension): void {
+		if (this.extensionsDisabledByTrustRequirement.every(e => !areSameExtensions(extension.identifier, e.identifier))) {
+			this.extensionsDisabledByTrustRequirement.push(extension);
+		}
+	}
+
+	private _removeFromWorkspaceDisabledExtensionsByTrustRequirement(identifier: IExtensionIdentifier): void {
+		let index = -1;
+		for (let i = 0; i < this.extensionsDisabledByTrustRequirement.length; i++) {
+			const disabledExtension = this.extensionsDisabledByTrustRequirement[i];
+			if (areSameExtensions(disabledExtension.identifier, identifier)) {
+				index = i;
+				break;
+			}
+		}
+		if (index !== -1) {
+			this.extensionsDisabledByTrustRequirement.splice(index, 1);
+		}
+	}
+
 	protected _getWorkspaceEnabledExtensions(): IExtensionIdentifier[] {
 		return this._getExtensions(ENABLED_EXTENSIONS_STORAGE_PATH);
 	}
@@ -433,6 +450,7 @@ export class ExtensionEnablementService extends Disposable implements IWorkbench
 	private _reset(extension: IExtensionIdentifier) {
 		this._removeFromWorkspaceDisabledExtensions(extension);
 		this._removeFromWorkspaceEnabledExtensions(extension);
+		this._removeFromWorkspaceDisabledExtensionsByTrustRequirement(extension);
 		this.globalExtensionEnablementService.enableExtension(extension);
 	}
 }
