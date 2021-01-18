@@ -3,11 +3,12 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
+import { release } from 'os';
 import { localize } from 'vs/nls';
 import { raceTimeout } from 'vs/base/common/async';
-import * as semver from 'vs/base/common/semver/semver';
+import { gt } from 'vs/base/common/semver/semver';
 import product from 'vs/platform/product/common/product';
-import * as path from 'vs/base/common/path';
+import { isAbsolute, join } from 'vs/base/common/path';
 import { ServiceCollection } from 'vs/platform/instantiation/common/serviceCollection';
 import { SyncDescriptor } from 'vs/platform/instantiation/common/descriptors';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
@@ -21,7 +22,7 @@ import { ExtensionGalleryService } from 'vs/platform/extensionManagement/common/
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
 import { combinedAppender, NullTelemetryService } from 'vs/platform/telemetry/common/telemetryUtils';
 import { TelemetryService, ITelemetryServiceConfig } from 'vs/platform/telemetry/common/telemetryService';
-import { resolveCommonProperties } from 'vs/platform/telemetry/node/commonProperties';
+import { resolveCommonProperties } from 'vs/platform/telemetry/common/commonProperties';
 import { IRequestService } from 'vs/platform/request/common/request';
 import { RequestService } from 'vs/platform/request/node/requestService';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
@@ -215,7 +216,7 @@ export class Main {
 	}
 
 	private async installVSIX(vsix: string, force: boolean): Promise<IExtensionManifest | null> {
-		vsix = path.isAbsolute(vsix) ? vsix : path.join(process.cwd(), vsix);
+		vsix = isAbsolute(vsix) ? vsix : join(process.cwd(), vsix);
 		const manifest = await getManifest(vsix);
 		const valid = await this.validate(manifest, force);
 		if (valid) {
@@ -293,7 +294,7 @@ export class Main {
 
 		const extensionIdentifier = { id: getGalleryExtensionId(manifest.publisher, manifest.name) };
 		const installedExtensions = await this.extensionManagementService.getInstalled(ExtensionType.User);
-		const newer = installedExtensions.find(local => areSameExtensions(extensionIdentifier, local.identifier) && semver.gt(local.manifest.version, manifest.version));
+		const newer = installedExtensions.find(local => areSameExtensions(extensionIdentifier, local.identifier) && gt(local.manifest.version, manifest.version));
 
 		if (newer && !force) {
 			console.log(localize('forceDowngrade', "A newer version of extension '{0}' v{1} is already installed. Use '--force' option to downgrade to older version.", newer.identifier.id, newer.manifest.version, manifest.version));
@@ -309,7 +310,7 @@ export class Main {
 				return extensionDescription;
 			}
 
-			const zipPath = path.isAbsolute(extensionDescription) ? extensionDescription : path.join(process.cwd(), extensionDescription);
+			const zipPath = isAbsolute(extensionDescription) ? extensionDescription : join(process.cwd(), extensionDescription);
 			const manifest = await getManifest(zipPath);
 			return getId(manifest);
 		}
@@ -424,7 +425,7 @@ export async function main(argv: NativeParsedArgs): Promise<void> {
 			const config: ITelemetryServiceConfig = {
 				appender: combinedAppender(...appenders),
 				sendErrorTelemetry: false,
-				commonProperties: resolveCommonProperties(product.commit, product.version, stateService.getItem('telemetry.machineId'), product.msftInternalDomains, installSourcePath),
+				commonProperties: resolveCommonProperties(fileService, release(), process.arch, product.commit, product.version, stateService.getItem('telemetry.machineId'), product.msftInternalDomains, installSourcePath),
 				piiPaths: [appRoot, extensionsPath]
 			};
 
