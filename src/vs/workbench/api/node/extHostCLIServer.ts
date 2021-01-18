@@ -157,7 +157,7 @@ export class CLIServerBase {
 
 	private async openExternal(data: OpenExternalCommandPipeArgs, res: http.ServerResponse) {
 		for (const uri of data.uris) {
-			await this._commands.executeCommand('_cli.openExternal', URI.parse(uri), { allowTunneling: true });
+			await this._commands.executeCommand('_remoteCLI.openExternal', URI.parse(uri), { allowTunneling: true });
 		}
 		res.writeHead(200);
 		res.end();
@@ -166,7 +166,7 @@ export class CLIServerBase {
 	private async manageExtensions(data: ExtensionManagementPipeArgs, res: http.ServerResponse) {
 		console.log('server: manageExtensions');
 		try {
-			const output = await this._commands.executeCommand('_cli.manageExtensions', data, { allowTunneling: true });
+			const output = await this._commands.executeCommand('_remoteCLI.manageExtensions', data, { allowTunneling: true });
 			res.writeHead(200);
 			res.write(output);
 		} catch (e) {
