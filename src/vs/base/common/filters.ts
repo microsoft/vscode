@@ -576,17 +576,7 @@ export function fuzzyScore(pattern: string, patternLow: string, patternStart: nu
 
 	// Find the max matching word position for each pattern position
 	// NOTE: the min matching word position was filled in above, in the `isPatternInWord` call
-	{
-		let patternPos = patternLen - 1;
-		let wordPos = wordLen - 1;
-		while (patternPos >= patternStart && wordPos >= wordStart) {
-			if (patternLow[patternPos] === wordLow[wordPos]) {
-				_maxWordMatchPos[patternPos] = wordPos;
-				patternPos--;
-			}
-			wordPos--;
-		}
-	}
+	_fillInMaxWordMatchPos(patternLen, wordLen, patternStart, wordStart, patternLow, wordLow);
 
 	let row: number = 1;
 	let column: number = 1;
@@ -623,11 +613,11 @@ export function fuzzyScore(pattern: string, patternLow: string, patternStart: nu
 				diagScore = score + _table[row - 1][column - 1];
 			}
 
-			const canComeLeft = (wordPos > minWordMatchPos);
-			const leftScore = (canComeLeft ? _table[row][column - 1] + (_diag[row][column - 1] > 0 ? -5 : 0) : 0); // penalty for a gap start
+			const canComeLeft = wordPos > minWordMatchPos;
+			const leftScore = canComeLeft ? _table[row][column - 1] + (_diag[row][column - 1] > 0 ? -5 : 0) : 0; // penalty for a gap start
 
-			const canComeLeftLeft = (wordPos > minWordMatchPos + 1 && _diag[row][column - 1] > 0);
-			const leftLeftScore = (canComeLeftLeft ? _table[row][column - 2] + (_diag[row][column - 2] > 0 ? -5 : 0) : 0); // penalty for a gap start
+			const canComeLeftLeft = wordPos > minWordMatchPos + 1 && _diag[row][column - 1] > 0;
+			const leftLeftScore = canComeLeftLeft ? _table[row][column - 2] + (_diag[row][column - 2] > 0 ? -5 : 0) : 0; // penalty for a gap start
 
 			if (canComeLeftLeft && (!canComeLeft || leftLeftScore >= leftScore) && (!canComeDiag || leftLeftScore >= diagScore)) {
 				// always prefer choosing left left to jump over a diagonal because that means a match is earlier in the word
@@ -719,6 +709,18 @@ export function fuzzyScore(pattern: string, patternLow: string, patternStart: nu
 	finalScore -= skippedCharsCount;
 
 	return [finalScore, matches, wordStart];
+}
+
+function _fillInMaxWordMatchPos(patternLen: number, wordLen: number, patternStart: number, wordStart: number, patternLow: string, wordLow: string) {
+	let patternPos = patternLen - 1;
+	let wordPos = wordLen - 1;
+	while (patternPos >= patternStart && wordPos >= wordStart) {
+		if (patternLow[patternPos] === wordLow[wordPos]) {
+			_maxWordMatchPos[patternPos] = wordPos;
+			patternPos--;
+		}
+		wordPos--;
+	}
 }
 
 function _doScore(
