@@ -40,6 +40,7 @@ export interface ITrustedContentModel {
 
 export interface ITrustedWorkspaceRequest {
 	immediate: boolean;
+	message?: string;
 }
 
 export interface ITrustedWorkspaceRequestModel {
@@ -48,7 +49,7 @@ export interface ITrustedWorkspaceRequestModel {
 	readonly onDidInitiateRequest: Event<void>;
 	readonly onDidCompleteRequest: Event<TrustState>;
 
-	initiateRequest(immediate: boolean): void;
+	initiateRequest(request?: ITrustedWorkspaceRequest): void;
 	completeRequest(trustState: TrustState): void;
 }
 
@@ -68,7 +69,7 @@ export interface ITrustedWorkspaceService {
 
 	onDidChangeTrust: WorkspaceTrustChangeEvent;
 	getWorkspaceTrustState(): TrustState;
-	requireWorkspaceTrust(immediate?: boolean): Promise<TrustState>;
+	requireWorkspaceTrust(request?: ITrustedWorkspaceRequest): Promise<TrustState>;
 	resetWorkspaceTrust(): Promise<TrustState>;
 }
 
@@ -175,12 +176,12 @@ export class TrustedWorkspaceRequestModel extends Disposable implements ITrusted
 	_onDidCompleteRequest = this._register(new Emitter<TrustState>());
 	onDidCompleteRequest = this._onDidCompleteRequest.event;
 
-	initiateRequest(immediate: boolean): void {
-		if (this.trustRequest && (!immediate || this.trustRequest.immediate)) {
+	initiateRequest(request: ITrustedWorkspaceRequest): void {
+		if (this.trustRequest && (!request.immediate || this.trustRequest.immediate)) {
 			return;
 		}
 
-		this.trustRequest = { immediate };
+		this.trustRequest = request;
 		this._onDidInitiateRequest.fire();
 	}
 
@@ -188,7 +189,6 @@ export class TrustedWorkspaceRequestModel extends Disposable implements ITrusted
 		this.trustRequest = undefined;
 		this._onDidCompleteRequest.fire(trustState);
 	}
-
 }
 
 export class TrustedWorkspaceService extends Disposable implements ITrustedWorkspaceService {
@@ -294,16 +294,16 @@ export class TrustedWorkspaceService extends Disposable implements ITrustedWorks
 		return this.currentTrustState;
 	}
 
-	async requireWorkspaceTrust(immediate?: boolean): Promise<TrustState> {
+	async requireWorkspaceTrust(request?: ITrustedWorkspaceRequest): Promise<TrustState> {
 		if (this.currentTrustState !== TrustState.Unknown) {
 			return this.currentTrustState;
 		}
 
 		if (this._trustRequestPromise) {
-			if (immediate &&
+			if (request?.immediate &&
 				this.requestModel.trustRequest &&
 				!this.requestModel.trustRequest.immediate) {
-				this.requestModel.initiateRequest(true);
+				this.requestModel.initiateRequest(request);
 			}
 
 			return this._trustRequestPromise;
@@ -313,7 +313,7 @@ export class TrustedWorkspaceService extends Disposable implements ITrustedWorks
 			this._inFlightResolver = resolve;
 		});
 
-		this.requestModel.initiateRequest(!!immediate);
+		this.requestModel.initiateRequest(request);
 		this._ctxTrustedWorkspacePendingRequest.set(true);
 
 		return this._trustRequestPromise;

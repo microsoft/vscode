@@ -57,7 +57,7 @@ export class WorkspaceTrustRequestHandler extends Disposable implements IWorkben
 				if (this.requestModel.trustRequest.immediate) {
 					const result = await this.dialogService.show(
 						Severity.Info,
-						'This workspace wants trust right now!',
+						this.requestModel.trustRequest.message ?? 'This workspace wants trust right now!',
 						['Trust', `Don't Trust`, 'Cancel'],
 						{
 							cancelId: 2

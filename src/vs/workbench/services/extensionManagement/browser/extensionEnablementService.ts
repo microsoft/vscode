@@ -66,7 +66,7 @@ export class ExtensionEnablementService extends Disposable implements IWorkbench
 		// TODO: Confirm that this is the right lifecycle phase
 		this.lifecycleService.when(LifecyclePhase.Eventually).then(() => {
 			if (this.extensionsDisabledByTrustRequirement.length > 0) {
-				this.trustedWorkspaceService.requireWorkspaceTrust(false);
+				this.trustedWorkspaceService.requireWorkspaceTrust({ immediate: false });
 			}
 		});
 
@@ -174,6 +174,12 @@ export class ExtensionEnablementService extends Disposable implements IWorkbench
 		const currentState = this._getEnablementState(extension.identifier);
 
 		if (currentState === newState) {
+			if (this._isDisabledByTrustRequirement(extension)) {
+				this.trustedWorkspaceService.requireWorkspaceTrust({
+					immediate: true,
+					message: 'Enabling this extension requires you to trust the contents of this workspace.'
+				});
+			}
 			return Promise.resolve(false);
 		}
 
