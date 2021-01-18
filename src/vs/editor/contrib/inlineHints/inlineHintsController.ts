@@ -10,7 +10,7 @@ import { DisposableStore, toDisposable } from 'vs/base/common/lifecycle';
 import { ICodeEditor } from 'vs/editor/browser/editorBrowser';
 import { registerEditorContribution } from 'vs/editor/browser/editorExtensions';
 import { ICodeEditorService } from 'vs/editor/browser/services/codeEditorService';
-import { IEditorContribution } from 'vs/editor/common/editorCommon';
+import { IContentDecorationRenderOptions, IEditorContribution } from 'vs/editor/common/editorCommon';
 import { IModelDeltaDecoration, ITextModel } from 'vs/editor/common/model';
 import { InlineHintsProvider, InlineHintsProviderRegistry, InlineHint } from 'vs/editor/common/modes';
 import { EditorOption } from 'vs/editor/common/config/editorOptions';
@@ -146,23 +146,21 @@ export class InlineHintsController implements IEditorContribution {
 				const marginBefore = whitespaceBefore ? (fontSize / 3) | 0 : 0;
 				const marginAfter = whitespaceAfter ? (fontSize / 3) | 0 : 0;
 
-				const subKey = hash([text, marginBefore, marginAfter]).toString(16);
-				const key = 'inlineHints-' + subKey;
+				const before: IContentDecorationRenderOptions = {
+					contentText: text,
+					backgroundColor: `${backgroundColor}`,
+					color: `${fontColor}`,
+					margin: `0px ${marginAfter}px 0px ${marginBefore}px`,
+					fontSize: `${fontSize}px`,
+					fontFamily: fontFamily,
+					padding: `0px ${(fontSize / 4) | 0}px`
+				};
+				const key = 'inlineHints-' + hash(before).toString(16);
+				this._codeEditorService.registerDecorationType(key, { before }, undefined, this._editor);
 
 				// decoration types are ref-counted which means we only need to
 				// call register und remove equally often
 				newDecorationsTypeIds.push(key);
-				this._codeEditorService.registerDecorationType(key, {
-					before: {
-						contentText: text,
-						backgroundColor: `${backgroundColor}`,
-						color: `${fontColor}`,
-						margin: `0px ${marginAfter}px 0px ${marginBefore}px`,
-						fontSize: `${fontSize}px`,
-						fontFamily: fontFamily,
-						padding: `0px ${(fontSize / 4) | 0}px`
-					}
-				}, undefined, this._editor);
 
 				const options = this._codeEditorService.resolveDecorationOptions(key, true);
 				if (hoverMessage) {
