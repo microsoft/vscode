@@ -717,10 +717,7 @@ export class EditorStatus extends Disposable implements IWorkbenchContribution {
 				info.mode = withNullAsUndefined(this.modeService.getLanguageName(modeId));
 			}
 		}
-		const activeTextEditorControl = getCodeEditor(this.editorService.activeTextEditorControl);
-		if (!activeTextEditorControl?.hasWidgetFocus()) {
-			activeTextEditorControl?.focus();
-		}
+
 		this.updateState(info);
 	}
 
@@ -1138,6 +1135,9 @@ export class ChangeModeAction extends Action {
 		const pick = await this.quickInputService.pick(picks, { placeHolder: nls.localize('pickLanguage', "Select Language Mode"), matchOnDescription: true });
 		if (!pick) {
 			return;
+		}
+		if (!activeTextEditorControl.hasWidgetFocus()) {
+			activeTextEditorControl.focus();
 		}
 
 		if (pick === galleryAction) {
