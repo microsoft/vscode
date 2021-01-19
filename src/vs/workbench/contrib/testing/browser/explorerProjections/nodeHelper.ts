@@ -95,7 +95,7 @@ export class NodeChangeList<T extends ITestTreeElement & { children: Iterable<T>
 		pruneNodesNotInTree(this.changedParents, tree);
 		pruneNodesNotInTree(this.updatedNodes, tree);
 
-		const diffDeep = this.isFirstApply ? Infinity : 0;
+		const diffDepth = this.isFirstApply ? Infinity : 0;
 		this.isFirstApply = false;
 
 		for (let parent of this.changedParents) {
@@ -107,7 +107,7 @@ export class NodeChangeList<T extends ITestTreeElement & { children: Iterable<T>
 				tree.setChildren(
 					parent,
 					this.renderNodeList(renderNode, parent === null ? roots() : parent.children),
-					{ diffIdentityProvider: testIdentityProvider, diffDeep },
+					{ diffIdentityProvider: testIdentityProvider, diffDepth },
 				);
 			}
 		}

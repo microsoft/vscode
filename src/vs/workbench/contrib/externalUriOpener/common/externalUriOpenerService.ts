@@ -67,7 +67,7 @@ export class ExternalUriOpenerService extends Disposable implements IExternalUri
 		return { dispose: remove };
 	}
 
-	async openExternal(href: string, ctx: { sourceUri: URI }, token: CancellationToken): Promise<boolean> {
+	async openExternal(href: string, ctx: { sourceUri: URI, preferredOpenerId?: string }, token: CancellationToken): Promise<boolean> {
 
 		const targetUri = typeof href === 'string' ? URI.parse(href) : href;
 
@@ -77,11 +77,24 @@ export class ExternalUriOpenerService extends Disposable implements IExternalUri
 			return false;
 		}
 
-		// First check to see if we have a configured opener
+		// First see if we have a preferredOpener
+		if (ctx.preferredOpenerId) {
+			if (ctx.preferredOpenerId === defaultExternalUriOpenerId) {
+				return false;
+			}
+
+			const preferredOpener = allOpeners.get(ctx.preferredOpenerId);
+			if (preferredOpener) {
+				// Skip the `canOpen` check here since the opener was specifically requested.
+				return preferredOpener.openExternalUri(targetUri, ctx, token);
+			}
+		}
+
+		// Check to see if we have a configured opener
 		const configuredOpener = this.getConfiguredOpenerForUri(allOpeners, targetUri);
 		if (configuredOpener) {
 			// Skip the `canOpen` check here since the opener was specifically requested.
-			return configuredOpener === 'default' ? false : configuredOpener.openExternalUri(targetUri, ctx, token);
+			return configuredOpener === defaultExternalUriOpenerId ? false : configuredOpener.openExternalUri(targetUri, ctx, token);
 		}
 
 		// Then check to see if there is a valid opener

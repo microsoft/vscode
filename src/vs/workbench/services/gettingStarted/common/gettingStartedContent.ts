@@ -18,7 +18,9 @@ type GettingStartedItem = {
 	id: string
 	title: string,
 	description: string,
-	button: { title: string, command: string },
+	button:
+	| { title: string, command?: never, link: string }
+	| { title: string, command: string, link?: never },
 	doneOn: { commandExecuted: string, eventFired?: never } | { eventFired: string, commandExecuted?: never, }
 	when?: string,
 	media: { type: 'image', path: string, altText: string },
@@ -224,6 +226,17 @@ export const content: GettingStartedContent = [
 						command: 'workbench.action.openSettings'
 					},
 					doneOn: { commandExecuted: 'workbench.action.openSettings' },
+					media: { type: 'image', altText: 'VS Code Settings', path: 'settings.jpg' },
+				},
+				{
+					id: 'video',
+					title: localize('gettingStarted.video.title', "Open A Link"),
+					description: localize('gettingStarted.video.description', "Open a link."),
+					button: {
+						title: localize('gettingStarted.video.button', "Open"),
+						link: 'https://aka.ms/unknown'
+					},
+					doneOn: { eventFired: 'linkOpened:https://aka.ms/unknown' },
 					media: { type: 'image', altText: 'VS Code Settings', path: 'settings.jpg' },
 				}
 			]

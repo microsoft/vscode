@@ -372,6 +372,16 @@ MenuRegistry.appendMenuItem(MenuId.MenubarPreferencesMenu, {
 	order: 2
 });
 
+MenuRegistry.appendMenuItem(MenuId.MenubarPreferencesMenu, {
+	group: '4_themes',
+	command: {
+		id: SelectProductIconThemeAction.ID,
+		title: localize({ key: 'miSelectProductIconTheme', comment: ['&& denotes a mnemonic'] }, "&&Product Icon Theme")
+	},
+	order: 3
+});
+
+
 MenuRegistry.appendMenuItem(MenuId.GlobalActivity, {
 	group: '4_themes',
 	command: {
@@ -388,4 +398,13 @@ MenuRegistry.appendMenuItem(MenuId.GlobalActivity, {
 		title: localize('themes.selectIconTheme.label', "File Icon Theme")
 	},
 	order: 2
+});
+
+MenuRegistry.appendMenuItem(MenuId.GlobalActivity, {
+	group: '4_themes',
+	command: {
+		id: SelectProductIconThemeAction.ID,
+		title: localize('themes.selectProductIconTheme.label', "Product Icon Theme")
+	},
+	order: 3
 });

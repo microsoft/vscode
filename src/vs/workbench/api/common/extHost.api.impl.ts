@@ -292,8 +292,11 @@ export function createApiFactoryAndRegisterActors(accessor: ServicesAccessor): I
 			get shell() {
 				return extHostTerminalService.getDefaultShell(false, configProvider);
 			},
-			openExternal(uri: URI) {
-				return extHostWindow.openUri(uri, { allowTunneling: !!initData.remote.authority });
+			openExternal(uri: URI, options?: { allowContributedOpeners?: boolean | string; }) {
+				return extHostWindow.openUri(uri, {
+					allowTunneling: !!initData.remote.authority,
+					allowContributedOpeners: options?.allowContributedOpeners,
+				});
 			},
 			asExternalUri(uri: URI) {
 				if (uri.scheme === initData.environment.appUriScheme) {
