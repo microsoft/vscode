@@ -34,6 +34,7 @@ namespace ExperimentalProto {
 	interface HintItem {
 		text: string;
 		range: Proto.TextSpan;
+		hoverMessage?: string;
 		whitespaceBefore?: boolean;
 		whitespaceAfter?: boolean;
 	}
@@ -77,7 +78,7 @@ class TypeScriptInlineHintsProvider implements vscode.InlineHintsProvider {
 			}
 
 			return response.body.map(hint => {
-				return new vscode.InlineHint(hint.text, Range.fromTextSpan(hint.range), hint.whitespaceBefore, hint.whitespaceAfter);
+				return new vscode.InlineHint(hint.text, Range.fromTextSpan(hint.range), hint.hoverMessage, hint.whitespaceBefore, hint.whitespaceAfter);
 			});
 		} catch (e) {
 			return [];
