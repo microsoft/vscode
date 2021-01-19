@@ -312,7 +312,7 @@ suite('Notebook API tests', () => {
 		await vscode.commands.executeCommand('notebook.cell.insertCodeCellAbove');
 		await vscode.commands.executeCommand('notebook.focusTop');
 
-		const activeCell = vscode.window.activeNotebookEditor!.selection;
+		const activeCell = vscode.window.activeNotebookEditor!.selection![0];
 		assert.equal(vscode.window.activeNotebookEditor!.document.cells.indexOf(activeCell!), 0);
 		const moveChange = getEventOncePromise(vscode.notebook.onDidChangeNotebookCells);
 		await vscode.commands.executeCommand('notebook.cell.moveDown');
@@ -720,14 +720,14 @@ suite('notebook workflow', () => {
 		const resource = await createRandomFile('', undefined, 'first', '.vsctestnb');
 		await vscode.commands.executeCommand('vscode.openWith', resource, 'notebookCoreTest');
 		assert.equal(vscode.window.activeNotebookEditor !== undefined, true, 'notebook first');
-		assert.equal(vscode.window.activeNotebookEditor!.selection?.document.getText(), 'test');
-		assert.equal(vscode.window.activeNotebookEditor!.selection?.language, 'typescript');
+		assert.equal(vscode.window.activeNotebookEditor!.selection![0]?.document.getText(), 'test');
+		assert.equal(vscode.window.activeNotebookEditor!.selection![0]?.language, 'typescript');
 
 		await vscode.commands.executeCommand('notebook.cell.insertCodeCellBelow');
-		assert.equal(vscode.window.activeNotebookEditor!.selection?.document.getText(), '');
+		assert.equal(vscode.window.activeNotebookEditor!.selection![0].document.getText(), '');
 
 		await vscode.commands.executeCommand('notebook.cell.insertCodeCellAbove');
-		const activeCell = vscode.window.activeNotebookEditor!.selection;
+		const activeCell = vscode.window.activeNotebookEditor!.selection![0];
 		assert.notEqual(vscode.window.activeNotebookEditor!.selection, undefined);
 		assert.equal(activeCell!.document.getText(), '');
 		assert.equal(vscode.window.activeNotebookEditor!.document.cells.length, 3);
@@ -742,16 +742,16 @@ suite('notebook workflow', () => {
 		const resource = await createRandomFile('', undefined, 'first', '.vsctestnb');
 		await vscode.commands.executeCommand('vscode.openWith', resource, 'notebookCoreTest');
 		assert.equal(vscode.window.activeNotebookEditor !== undefined, true, 'notebook first');
-		assert.equal(vscode.window.activeNotebookEditor!.selection?.document.getText(), 'test');
-		assert.equal(vscode.window.activeNotebookEditor!.selection?.language, 'typescript');
+		assert.equal(vscode.window.activeNotebookEditor!.selection![0].document.getText(), 'test');
+		assert.equal(vscode.window.activeNotebookEditor!.selection![0].language, 'typescript');
 
 		// ---- insert cell below and focus ---- //
 		await vscode.commands.executeCommand('notebook.cell.insertCodeCellBelow');
-		assert.equal(vscode.window.activeNotebookEditor!.selection?.document.getText(), '');
+		assert.equal(vscode.window.activeNotebookEditor!.selection![0].document.getText(), '');
 
 		// ---- insert cell above and focus ---- //
 		await vscode.commands.executeCommand('notebook.cell.insertCodeCellAbove');
-		let activeCell = vscode.window.activeNotebookEditor!.selection;
+		let activeCell = vscode.window.activeNotebookEditor!.selection![0];
 		assert.notEqual(vscode.window.activeNotebookEditor!.selection, undefined);
 		assert.equal(activeCell!.document.getText(), '');
 		assert.equal(vscode.window.activeNotebookEditor!.document.cells.length, 3);
@@ -759,21 +759,21 @@ suite('notebook workflow', () => {
 
 		// ---- focus bottom ---- //
 		await vscode.commands.executeCommand('notebook.focusBottom');
-		activeCell = vscode.window.activeNotebookEditor!.selection;
+		activeCell = vscode.window.activeNotebookEditor!.selection![0];
 		assert.equal(vscode.window.activeNotebookEditor!.document.cells.indexOf(activeCell!), 2);
 
 		// ---- focus top and then copy down ---- //
 		await vscode.commands.executeCommand('notebook.focusTop');
-		activeCell = vscode.window.activeNotebookEditor!.selection;
+		activeCell = vscode.window.activeNotebookEditor!.selection![0];
 		assert.equal(vscode.window.activeNotebookEditor!.document.cells.indexOf(activeCell!), 0);
 
 		await vscode.commands.executeCommand('notebook.cell.copyDown');
-		activeCell = vscode.window.activeNotebookEditor!.selection;
+		activeCell = vscode.window.activeNotebookEditor!.selection![0];
 		assert.equal(vscode.window.activeNotebookEditor!.document.cells.indexOf(activeCell!), 1);
 		assert.equal(activeCell?.document.getText(), 'test');
 
 		await vscode.commands.executeCommand('notebook.cell.delete');
-		activeCell = vscode.window.activeNotebookEditor!.selection;
+		activeCell = vscode.window.activeNotebookEditor!.selection![0];
 		assert.equal(vscode.window.activeNotebookEditor!.document.cells.indexOf(activeCell!), 1);
 		assert.equal(activeCell?.document.getText(), '');
 
@@ -785,15 +785,15 @@ suite('notebook workflow', () => {
 		assert.equal(vscode.window.activeNotebookEditor!.document.cells[1].document.getText(), 'test');
 		assert.equal(vscode.window.activeNotebookEditor!.document.cells[2].document.getText(), '');
 		assert.equal(vscode.window.activeNotebookEditor!.document.cells[3].document.getText(), '');
-		activeCell = vscode.window.activeNotebookEditor!.selection;
+		activeCell = vscode.window.activeNotebookEditor!.selection![0];
 		assert.equal(vscode.window.activeNotebookEditor!.document.cells.indexOf(activeCell!), 0);
 
 
 		// ---- move up and down ---- //
 
 		await vscode.commands.executeCommand('notebook.cell.moveDown');
-		assert.equal(vscode.window.activeNotebookEditor!.document.cells.indexOf(vscode.window.activeNotebookEditor!.selection!), 1,
-			`first move down, active cell ${vscode.window.activeNotebookEditor!.selection!.uri.toString()}, ${vscode.window.activeNotebookEditor!.selection!.document.getText()}`);
+		assert.equal(vscode.window.activeNotebookEditor!.document.cells.indexOf(vscode.window.activeNotebookEditor!.selection![0]), 1,
+			`first move down, active cell ${vscode.window.activeNotebookEditor!.selection![0].uri.toString()}, ${vscode.window.activeNotebookEditor!.selection![0].document.getText()}`);
 
 		// await vscode.commands.executeCommand('notebook.cell.moveDown');
 		// activeCell = vscode.window.activeNotebookEditor!.selection;
@@ -816,20 +816,20 @@ suite('notebook workflow', () => {
 		const resource = await createRandomFile('', undefined, 'first', '.vsctestnb');
 		await vscode.commands.executeCommand('vscode.openWith', resource, 'notebookCoreTest');
 		assert.equal(vscode.window.activeNotebookEditor !== undefined, true, 'notebook first');
-		assert.equal(vscode.window.activeNotebookEditor!.selection?.document.getText(), 'test');
-		assert.equal(vscode.window.activeNotebookEditor!.selection?.language, 'typescript');
+		assert.equal(vscode.window.activeNotebookEditor!.selection![0].document.getText(), 'test');
+		assert.equal(vscode.window.activeNotebookEditor!.selection![0].language, 'typescript');
 
 		await vscode.commands.executeCommand('notebook.cell.insertCodeCellBelow');
-		assert.equal(vscode.window.activeNotebookEditor!.selection?.document.getText(), '');
+		assert.equal(vscode.window.activeNotebookEditor!.selection![0].document.getText(), '');
 		const edit = new vscode.WorkspaceEdit();
-		edit.insert(vscode.window.activeNotebookEditor!.selection!.uri, new vscode.Position(0, 0), 'var abc = 0;');
+		edit.insert(vscode.window.activeNotebookEditor!.selection![0].uri, new vscode.Position(0, 0), 'var abc = 0;');
 		await vscode.workspace.applyEdit(edit);
 
 		const cellsChangeEvent = getEventOncePromise<vscode.NotebookCellsChangeEvent>(vscode.notebook.onDidChangeNotebookCells);
 		await vscode.commands.executeCommand('notebook.cell.joinAbove');
 		await cellsChangeEvent;
 
-		assert.deepEqual(vscode.window.activeNotebookEditor!.selection?.document.getText().split(/\r\n|\r|\n/), ['test', 'var abc = 0;']);
+		assert.deepEqual(vscode.window.activeNotebookEditor!.selection![0].document.getText().split(/\r\n|\r|\n/), ['test', 'var abc = 0;']);
 
 		await vscode.commands.executeCommand('workbench.action.files.save');
 		await vscode.commands.executeCommand('workbench.action.closeActiveEditor');
@@ -843,7 +843,7 @@ suite('notebook workflow', () => {
 		await vscode.commands.executeCommand('notebook.cell.insertCodeCellAbove');
 		await vscode.commands.executeCommand('notebook.focusTop');
 
-		const activeCell = vscode.window.activeNotebookEditor!.selection;
+		const activeCell = vscode.window.activeNotebookEditor!.selection![0];
 		assert.equal(vscode.window.activeNotebookEditor!.document.cells.indexOf(activeCell!), 0);
 		await vscode.commands.executeCommand('notebook.cell.moveDown');
 		await vscode.commands.executeCommand('notebook.cell.moveDown');
@@ -1045,14 +1045,14 @@ suite('notebook dirty state', () => {
 		const resource = await createRandomFile('', undefined, 'first', '.vsctestnb');
 		await vscode.commands.executeCommand('vscode.openWith', resource, 'notebookCoreTest');
 		assert.equal(vscode.window.activeNotebookEditor !== undefined, true, 'notebook first');
-		assert.equal(vscode.window.activeNotebookEditor!.selection?.document.getText(), 'test');
-		assert.equal(vscode.window.activeNotebookEditor!.selection?.language, 'typescript');
+		assert.equal(vscode.window.activeNotebookEditor!.selection![0].document.getText(), 'test');
+		assert.equal(vscode.window.activeNotebookEditor!.selection![0].language, 'typescript');
 
 		await vscode.commands.executeCommand('notebook.cell.insertCodeCellBelow');
-		assert.equal(vscode.window.activeNotebookEditor!.selection?.document.getText(), '');
+		assert.equal(vscode.window.activeNotebookEditor!.selection![0].document.getText(), '');
 
 		await vscode.commands.executeCommand('notebook.cell.insertCodeCellAbove');
-		const activeCell = vscode.window.activeNotebookEditor!.selection;
+		const activeCell = vscode.window.activeNotebookEditor!.selection![0];
 		assert.notEqual(vscode.window.activeNotebookEditor!.selection, undefined);
 		assert.equal(activeCell!.document.getText(), '');
 		assert.equal(vscode.window.activeNotebookEditor!.document.cells.length, 3);
@@ -1064,7 +1064,7 @@ suite('notebook dirty state', () => {
 		assert.equal(vscode.window.activeNotebookEditor !== undefined, true);
 		assert.equal(vscode.window.activeNotebookEditor?.selection !== undefined, true);
 		assert.deepEqual(vscode.window.activeNotebookEditor?.document.cells[1], vscode.window.activeNotebookEditor?.selection);
-		assert.equal(vscode.window.activeNotebookEditor?.selection?.document.getText(), 'var abc = 0;');
+		assert.equal(vscode.window.activeNotebookEditor?.selection![0].document.getText(), 'var abc = 0;');
 
 		await saveFileAndCloseAll(resource);
 	});
@@ -1076,14 +1076,14 @@ suite('notebook undo redo', () => {
 		const resource = await createRandomFile('', undefined, 'first', '.vsctestnb');
 		await vscode.commands.executeCommand('vscode.openWith', resource, 'notebookCoreTest');
 		assert.equal(vscode.window.activeNotebookEditor !== undefined, true, 'notebook first');
-		assert.equal(vscode.window.activeNotebookEditor!.selection?.document.getText(), 'test');
-		assert.equal(vscode.window.activeNotebookEditor!.selection?.language, 'typescript');
+		assert.equal(vscode.window.activeNotebookEditor!.selection![0].document.getText(), 'test');
+		assert.equal(vscode.window.activeNotebookEditor!.selection![0].language, 'typescript');
 
 		await vscode.commands.executeCommand('notebook.cell.insertCodeCellBelow');
-		assert.equal(vscode.window.activeNotebookEditor!.selection?.document.getText(), '');
+		assert.equal(vscode.window.activeNotebookEditor!.selection![0].document.getText(), '');
 
 		await vscode.commands.executeCommand('notebook.cell.insertCodeCellAbove');
-		const activeCell = vscode.window.activeNotebookEditor!.selection;
+		const activeCell = vscode.window.activeNotebookEditor!.selection![0];
 		assert.notEqual(vscode.window.activeNotebookEditor!.selection, undefined);
 		assert.equal(activeCell!.document.getText(), '');
 		assert.equal(vscode.window.activeNotebookEditor!.document.cells.length, 3);
@@ -1092,24 +1092,24 @@ suite('notebook undo redo', () => {
 
 		// modify the second cell, delete it
 		const edit = new vscode.WorkspaceEdit();
-		edit.insert(vscode.window.activeNotebookEditor!.selection!.uri, new vscode.Position(0, 0), 'var abc = 0;');
+		edit.insert(vscode.window.activeNotebookEditor!.selection![0].uri, new vscode.Position(0, 0), 'var abc = 0;');
 		await vscode.workspace.applyEdit(edit);
 		await vscode.commands.executeCommand('notebook.cell.delete');
 		assert.equal(vscode.window.activeNotebookEditor!.document.cells.length, 2);
-		assert.equal(vscode.window.activeNotebookEditor!.document.cells.indexOf(vscode.window.activeNotebookEditor!.selection!), 1);
+		assert.equal(vscode.window.activeNotebookEditor!.document.cells.indexOf(vscode.window.activeNotebookEditor!.selection![0]), 1);
 
 
 		// undo should bring back the deleted cell, and revert to previous content and selection
 		await vscode.commands.executeCommand('undo');
 		assert.equal(vscode.window.activeNotebookEditor!.document.cells.length, 3);
-		assert.equal(vscode.window.activeNotebookEditor!.document.cells.indexOf(vscode.window.activeNotebookEditor!.selection!), 1);
-		assert.equal(vscode.window.activeNotebookEditor?.selection?.document.getText(), 'var abc = 0;');
+		assert.equal(vscode.window.activeNotebookEditor!.document.cells.indexOf(vscode.window.activeNotebookEditor!.selection![0]), 1);
+		assert.equal(vscode.window.activeNotebookEditor?.selection![0].document.getText(), 'var abc = 0;');
 
 		// redo
 		// await vscode.commands.executeCommand('notebook.redo');
 		// assert.equal(vscode.window.activeNotebookEditor!.document.cells.length, 2);
 		// assert.equal(vscode.window.activeNotebookEditor!.document.cells.indexOf(vscode.window.activeNotebookEditor!.selection!), 1);
-		// assert.equal(vscode.window.activeNotebookEditor?.selection?.document.getText(), 'test');
+		// assert.equal(vscode.window.activeNotebookEditor?.selection![0].document.getText(), 'test');
 
 		await saveFileAndCloseAll(resource);
 	});
@@ -1184,7 +1184,7 @@ suite('notebook working copy', () => {
 	// 	const resource = await createRandomFile('', undefined, 'first', '.vsctestnb');
 	// 	await vscode.commands.executeCommand('vscode.openWith', resource, 'notebookCoreTest');
 	// 	await vscode.commands.executeCommand('notebook.cell.insertCodeCellBelow');
-	// 	assert.equal(vscode.window.activeNotebookEditor!.selection?.document.getText(), '');
+	// 	assert.equal(vscode.window.activeNotebookEditor!.selection![0].document.getText(), '');
 
 	// 	await vscode.commands.executeCommand('notebook.cell.insertCodeCellAbove');
 	// 	await vscode.commands.executeCommand('default:type', { text: 'var abc = 0;' });
@@ -1195,7 +1195,7 @@ suite('notebook working copy', () => {
 	// 	assert.equal(vscode.window.activeNotebookEditor !== undefined, true);
 	// 	assert.equal(vscode.window.activeNotebookEditor?.selection !== undefined, true);
 	// 	assert.deepEqual(vscode.window.activeNotebookEditor?.document.cells[0], vscode.window.activeNotebookEditor?.selection);
-	// 	assert.equal(vscode.window.activeNotebookEditor?.selection?.document.getText(), 'test');
+	// 	assert.equal(vscode.window.activeNotebookEditor?.selection![0].document.getText(), 'test');
 
 	// 	await vscode.commands.executeCommand('workbench.action.files.save');
 	// 	await vscode.commands.executeCommand('workbench.action.closeActiveEditor');
@@ -1205,7 +1205,7 @@ suite('notebook working copy', () => {
 	// 	const resource = await createRandomFile('', undefined, 'first', '.vsctestnb');
 	// 	await vscode.commands.executeCommand('vscode.openWith', resource, 'notebookCoreTest');
 	// 	await vscode.commands.executeCommand('notebook.cell.insertCodeCellBelow');
-	// 	assert.equal(vscode.window.activeNotebookEditor!.selection?.document.getText(), '');
+	// 	assert.equal(vscode.window.activeNotebookEditor!.selection![0].document.getText(), '');
 
 	// 	await vscode.commands.executeCommand('notebook.cell.insertCodeCellAbove');
 	// 	await vscode.commands.executeCommand('default:type', { text: 'var abc = 0;' });
@@ -1215,7 +1215,7 @@ suite('notebook working copy', () => {
 	// 	assert.equal(vscode.window.activeNotebookEditor?.selection !== undefined, true);
 	// 	assert.deepEqual(vscode.window.activeNotebookEditor?.document.cells[0], vscode.window.activeNotebookEditor?.selection);
 	// 	assert.deepEqual(vscode.window.activeNotebookEditor?.document.cells.length, 1);
-	// 	assert.equal(vscode.window.activeNotebookEditor?.selection?.document.getText(), 'test');
+	// 	assert.equal(vscode.window.activeNotebookEditor?.selection![0].document.getText(), 'test');
 
 	// 	await vscode.commands.executeCommand('workbench.action.files.saveAll');
 	// 	await vscode.commands.executeCommand('workbench.action.closeAllEditors');
@@ -1226,11 +1226,11 @@ suite('notebook working copy', () => {
 		const resource = await createRandomFile('', undefined, 'first', '.vsctestnb');
 		await vscode.commands.executeCommand('vscode.openWith', resource, 'notebookCoreTest');
 		await vscode.commands.executeCommand('notebook.cell.insertCodeCellBelow');
-		assert.equal(vscode.window.activeNotebookEditor!.selection?.document.getText(), '');
+		assert.equal(vscode.window.activeNotebookEditor!.selection![0].document.getText(), '');
 
 		await vscode.commands.executeCommand('notebook.cell.insertCodeCellAbove');
 		const edit = new vscode.WorkspaceEdit();
-		edit.insert(vscode.window.activeNotebookEditor!.selection!.uri, new vscode.Position(0, 0), 'var abc = 0;');
+		edit.insert(vscode.window.activeNotebookEditor!.selection![0].uri, new vscode.Position(0, 0), 'var abc = 0;');
 		await vscode.workspace.applyEdit(edit);
 
 		const secondResource = await createRandomFile('', undefined, 'second', '.vsctestnb');
@@ -1242,7 +1242,7 @@ suite('notebook working copy', () => {
 		assert.equal(vscode.window.activeNotebookEditor?.selection !== undefined, true);
 		assert.deepEqual(vscode.window.activeNotebookEditor?.document.cells[1], vscode.window.activeNotebookEditor?.selection);
 		assert.deepEqual(vscode.window.activeNotebookEditor?.document.cells.length, 3);
-		assert.equal(vscode.window.activeNotebookEditor?.selection?.document.getText(), 'var abc = 0;');
+		assert.equal(vscode.window.activeNotebookEditor?.selection![0].document.getText(), 'var abc = 0;');
 
 		await saveFileAndCloseAll(resource);
 	});
@@ -1252,17 +1252,17 @@ suite('notebook working copy', () => {
 		const resource = await createRandomFile('', undefined, 'first', '.vsctestnb');
 		await vscode.commands.executeCommand('vscode.openWith', resource, 'notebookCoreTest');
 		await vscode.commands.executeCommand('notebook.cell.insertCodeCellBelow');
-		assert.equal(vscode.window.activeNotebookEditor!.selection?.document.getText(), '');
+		assert.equal(vscode.window.activeNotebookEditor!.selection![0].document.getText(), '');
 
 		await vscode.commands.executeCommand('notebook.cell.insertCodeCellAbove');
 		const edit = new vscode.WorkspaceEdit();
-		edit.insert(vscode.window.activeNotebookEditor!.selection!.uri, new vscode.Position(0, 0), 'var abc = 0;');
+		edit.insert(vscode.window.activeNotebookEditor!.selection![0].uri, new vscode.Position(0, 0), 'var abc = 0;');
 		await vscode.workspace.applyEdit(edit);
 
 		const secondResource = await createRandomFile('', undefined, 'second', '.vsctestnb');
 		await vscode.commands.executeCommand('vscode.openWith', secondResource, 'notebookCoreTest');
 		await vscode.commands.executeCommand('notebook.cell.insertCodeCellBelow');
-		assert.equal(vscode.window.activeNotebookEditor!.selection?.document.getText(), '');
+		assert.equal(vscode.window.activeNotebookEditor!.selection![0].document.getText(), '');
 
 		// switch to the first editor
 		await vscode.commands.executeCommand('vscode.openWith', resource, 'notebookCoreTest');
@@ -1270,7 +1270,7 @@ suite('notebook working copy', () => {
 		assert.equal(vscode.window.activeNotebookEditor?.selection !== undefined, true);
 		assert.deepEqual(vscode.window.activeNotebookEditor?.document.cells[1], vscode.window.activeNotebookEditor?.selection);
 		assert.deepEqual(vscode.window.activeNotebookEditor?.document.cells.length, 3);
-		assert.equal(vscode.window.activeNotebookEditor?.selection?.document.getText(), 'var abc = 0;');
+		assert.equal(vscode.window.activeNotebookEditor?.selection![0].document.getText(), 'var abc = 0;');
 
 		// switch to the second editor
 		await vscode.commands.executeCommand('vscode.openWith', secondResource, 'notebookCoreTest');
@@ -1278,7 +1278,7 @@ suite('notebook working copy', () => {
 		assert.equal(vscode.window.activeNotebookEditor?.selection !== undefined, true);
 		assert.deepEqual(vscode.window.activeNotebookEditor?.document.cells[1], vscode.window.activeNotebookEditor?.selection);
 		assert.deepEqual(vscode.window.activeNotebookEditor?.document.cells.length, 2);
-		assert.equal(vscode.window.activeNotebookEditor?.selection?.document.getText(), '');
+		assert.equal(vscode.window.activeNotebookEditor?.selection![0].document.getText(), '');
 
 		await saveAllFilesAndCloseAll(secondResource);
 		// await vscode.commands.executeCommand('workbench.action.files.saveAll');
@@ -1292,14 +1292,14 @@ suite('notebook working copy', () => {
 		await vscode.commands.executeCommand('vscode.openWith', resource, 'notebookCoreTest');
 		const firstNotebookEditor = vscode.window.activeNotebookEditor;
 		assert.equal(firstNotebookEditor !== undefined, true, 'notebook first');
-		assert.equal(firstNotebookEditor!.selection?.document.getText(), 'test');
-		assert.equal(firstNotebookEditor!.selection?.language, 'typescript');
+		assert.equal(firstNotebookEditor!.selection![0].document.getText(), 'test');
+		assert.equal(firstNotebookEditor!.selection![0].language, 'typescript');
 
 		await splitEditor();
 		const secondNotebookEditor = vscode.window.activeNotebookEditor;
 		assert.equal(secondNotebookEditor !== undefined, true, 'notebook first');
-		assert.equal(secondNotebookEditor!.selection?.document.getText(), 'test');
-		assert.equal(secondNotebookEditor!.selection?.language, 'typescript');
+		assert.equal(secondNotebookEditor!.selection![0].document.getText(), 'test');
+		assert.equal(secondNotebookEditor!.selection![0].language, 'typescript');
 
 		assert.notEqual(firstNotebookEditor, secondNotebookEditor);
 		assert.equal(firstNotebookEditor?.document, secondNotebookEditor?.document, 'split notebook editors share the same document');
@@ -1319,8 +1319,8 @@ suite('metadata', () => {
 		await vscode.commands.executeCommand('vscode.openWith', resource, 'notebookCoreTest');
 		assert.equal(vscode.window.activeNotebookEditor !== undefined, true, 'notebook first');
 		assert.equal(vscode.window.activeNotebookEditor!.document.metadata.custom!['testMetadata'] as boolean, false);
-		assert.equal(vscode.window.activeNotebookEditor!.selection?.metadata.custom!['testCellMetadata'] as number, 123);
-		assert.equal(vscode.window.activeNotebookEditor!.selection?.language, 'typescript');
+		assert.equal(vscode.window.activeNotebookEditor!.selection![0].metadata.custom!['testCellMetadata'] as number, 123);
+		assert.equal(vscode.window.activeNotebookEditor!.selection![0].language, 'typescript');
 
 		await saveFileAndCloseAll(resource);
 	});
@@ -1333,8 +1333,8 @@ suite('metadata', () => {
 		await vscode.commands.executeCommand('vscode.openWith', resource, 'notebookCoreTest');
 		assert.equal(vscode.window.activeNotebookEditor !== undefined, true, 'notebook first');
 		assert.equal(vscode.window.activeNotebookEditor!.document.metadata.custom!['testMetadata'] as boolean, false);
-		assert.equal(vscode.window.activeNotebookEditor!.selection?.metadata.custom!['testCellMetadata'] as number, 123);
-		assert.equal(vscode.window.activeNotebookEditor!.selection?.language, 'typescript');
+		assert.equal(vscode.window.activeNotebookEditor!.selection![0].metadata.custom!['testCellMetadata'] as number, 123);
+		assert.equal(vscode.window.activeNotebookEditor!.selection![0].language, 'typescript');
 
 		// TODO see #101462
 		// await vscode.commands.executeCommand('notebook.cell.copyDown');
@@ -1351,8 +1351,8 @@ suite('regression', () => {
 	// 	assertInitalState();
 	// 	await vscode.commands.executeCommand('workbench.action.files.newUntitledFile', { "viewType": "notebookCoreTest" });
 	// 	assert.equal(vscode.window.activeNotebookEditor !== undefined, true, 'notebook first');
-	// 	assert.equal(vscode.window.activeNotebookEditor!.selection?.document.getText(), '');
-	// 	assert.equal(vscode.window.activeNotebookEditor!.selection?.language, 'typescript');
+	// 	assert.equal(vscode.window.activeNotebookEditor!.selection![0].document.getText(), '');
+	// 	assert.equal(vscode.window.activeNotebookEditor!.selection![0].language, 'typescript');
 	// 	await vscode.commands.executeCommand('workbench.action.closeAllEditors');
 	// });
 
@@ -1398,12 +1398,12 @@ suite('regression', () => {
 		await vscode.commands.executeCommand('vscode.openWith', resource, 'notebookCoreTest');
 		await vscode.commands.executeCommand('notebook.cell.insertCodeCellBelow');
 		const edit = new vscode.WorkspaceEdit();
-		edit.insert(vscode.window.activeNotebookEditor!.selection!.uri, new vscode.Position(0, 0), 'var abc = 0;');
+		edit.insert(vscode.window.activeNotebookEditor!.selection![0].uri, new vscode.Position(0, 0), 'var abc = 0;');
 		await vscode.workspace.applyEdit(edit);
 
 		assert.equal(vscode.window.activeNotebookEditor !== undefined, true, 'notebook first');
-		assert.equal(vscode.window.activeNotebookEditor!.selection?.document.getText(), 'var abc = 0;');
-		assert.equal(vscode.window.activeNotebookEditor!.selection?.language, 'typescript');
+		assert.equal(vscode.window.activeNotebookEditor!.selection![0].document.getText(), 'var abc = 0;');
+		assert.equal(vscode.window.activeNotebookEditor!.selection![0].language, 'typescript');
 
 		await vscode.commands.executeCommand('vscode.openWith', resource, 'default');
 		assert.equal(vscode.window.activeTextEditor?.document.uri.path, resource.path);
@@ -1441,17 +1441,17 @@ suite('regression', () => {
 		const resource = await createRandomFile('', undefined, 'first', '.vsctestnb');
 		await vscode.commands.executeCommand('vscode.openWith', resource, 'notebookCoreTest');
 
-		let activeCell = vscode.window.activeNotebookEditor!.selection;
+		let activeCell = vscode.window.activeNotebookEditor!.selection![0];
 		assert.equal(activeCell?.document.getText(), 'test');
 
 		await vscode.commands.executeCommand('notebook.cell.copyDown');
 		await vscode.commands.executeCommand('notebook.cell.edit');
-		activeCell = vscode.window.activeNotebookEditor!.selection;
+		activeCell = vscode.window.activeNotebookEditor!.selection![0];
 		assert.equal(vscode.window.activeNotebookEditor!.document.cells.indexOf(activeCell!), 1);
 		assert.equal(activeCell?.document.getText(), 'test');
 
 		const edit = new vscode.WorkspaceEdit();
-		edit.insert(vscode.window.activeNotebookEditor!.selection!.uri, new vscode.Position(0, 0), 'var abc = 0;');
+		edit.insert(vscode.window.activeNotebookEditor!.selection![0].uri, new vscode.Position(0, 0), 'var abc = 0;');
 		await vscode.workspace.applyEdit(edit);
 
 		assert.equal(vscode.window.activeNotebookEditor!.document.cells.length, 2);
