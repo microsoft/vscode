@@ -61,6 +61,7 @@ export namespace EditorContextKeys {
 	export const hasReferenceProvider = new RawContextKey<boolean>('editorHasReferenceProvider', false);
 	export const hasRenameProvider = new RawContextKey<boolean>('editorHasRenameProvider', false);
 	export const hasSignatureHelpProvider = new RawContextKey<boolean>('editorHasSignatureHelpProvider', false);
+	export const hasInlineHintsProvider = new RawContextKey<boolean>('editorHasInlineHintsProvider', false);
 
 	// -- mode context keys: formatting
 	export const hasDocumentFormattingProvider = new RawContextKey<boolean>('editorHasDocumentFormattingProvider', false);

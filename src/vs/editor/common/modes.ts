@@ -1659,6 +1659,19 @@ export interface CodeLensProvider {
 	resolveCodeLens?(model: model.ITextModel, codeLens: CodeLens, token: CancellationToken): ProviderResult<CodeLens>;
 }
 
+export interface InlineHint {
+	text: string;
+	range: IRange;
+	hoverMessage?: string;
+	whitespaceBefore?: boolean;
+	whitespaceAfter?: boolean;
+}
+
+export interface InlineHintsProvider {
+	onDidChangeInlineHints?: Event<void> | undefined;
+	provideInlineHints(model: model.ITextModel, range: Range, token: CancellationToken): ProviderResult<InlineHint[]>;
+}
+
 export interface SemanticTokensLegend {
 	readonly tokenTypes: string[];
 	readonly tokenModifiers: string[];
@@ -1763,6 +1776,11 @@ export const TypeDefinitionProviderRegistry = new LanguageFeatureRegistry<TypeDe
  * @internal
  */
 export const CodeLensProviderRegistry = new LanguageFeatureRegistry<CodeLensProvider>();
+
+/**
+ * @internal
+ */
+export const InlineHintsProviderRegistry = new LanguageFeatureRegistry<InlineHintsProvider>();
 
 /**
  * @internal

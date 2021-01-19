@@ -1015,6 +1015,29 @@ export namespace SignatureHelp {
 	}
 }
 
+export namespace InlineHint {
+
+	export function from(hint: vscode.InlineHint): modes.InlineHint {
+		return {
+			text: hint.text,
+			range: Range.from(hint.range),
+			hoverMessage: hint.hoverMessage,
+			whitespaceBefore: hint.whitespaceBefore,
+			whitespaceAfter: hint.whitespaceAfter
+		};
+	}
+
+	export function to(hint: modes.InlineHint): vscode.InlineHint {
+		return {
+			text: hint.text,
+			range: Range.to(hint.range),
+			hoverMessage: hint.hoverMessage,
+			whitespaceBefore: hint.whitespaceBefore,
+			whitespaceAfter: hint.whitespaceAfter
+		};
+	}
+}
+
 export namespace DocumentLink {
 
 	export function from(link: vscode.DocumentLink): modes.ILink {

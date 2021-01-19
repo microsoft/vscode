@@ -461,6 +461,10 @@ export function createApiFactoryAndRegisterActors(accessor: ServicesAccessor): I
 			getTokenInformationAtPosition(doc: vscode.TextDocument, pos: vscode.Position) {
 				checkProposedApiEnabled(extension);
 				return extHostLanguages.tokenAtPosition(doc, pos);
+			},
+			registerInlineHintsProvider(selector: vscode.DocumentSelector, provider: vscode.InlineHintsProvider): vscode.Disposable {
+				checkProposedApiEnabled(extension);
+				return extHostLanguageFeatures.registerInlineHintsProvider(extension, selector, provider);
 			}
 		};
 
@@ -1143,6 +1147,7 @@ export function createApiFactoryAndRegisterActors(accessor: ServicesAccessor): I
 			FunctionBreakpoint: extHostTypes.FunctionBreakpoint,
 			Hover: extHostTypes.Hover,
 			IndentAction: languageConfiguration.IndentAction,
+			InlineHint: extHostTypes.InlineHint,
 			Location: extHostTypes.Location,
 			MarkdownString: extHostTypes.MarkdownString,
 			OverviewRulerLane: OverviewRulerLane,
