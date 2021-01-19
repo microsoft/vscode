@@ -17,6 +17,7 @@ import { LanguageConfigurationFileHandler } from 'vs/workbench/contrib/codeEdito
 // --- mainThread participants
 import './mainThreadBulkEdits';
 import './mainThreadCodeInsets';
+import './mainThreadCLICommands';
 import './mainThreadClipboard';
 import './mainThreadCommands';
 import './mainThreadConfiguration';

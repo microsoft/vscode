@@ -73,6 +73,7 @@ export interface IBulkEditOptions {
 	quotableLabel?: string;
 	undoRedoSource?: UndoRedoSource;
 	undoRedoGroupId?: number;
+	confirmBeforeUndo?: boolean;
 }
 
 export interface IBulkEditResult {

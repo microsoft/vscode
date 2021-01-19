@@ -1,7 +1,7 @@
 {
   "name": "code-oss-dev",
   "version": "1.53.0",
-  "distro": "9e581f6c455b4b1e21341326fcdc67b68f03d908",
+  "distro": "1c294d42f651cc04e284747e849e624cebd770d5",
   "author": {
     "name": "Microsoft Corporation"
   },
@@ -55,7 +55,8 @@
     "minify-vscode-reh-web": "node --max_old_space_size=4095 ./node_modules/gulp/bin/gulp.js minify-vscode-reh-web",
     "hygiene": "node --max_old_space_size=4095 ./node_modules/gulp/bin/gulp.js hygiene",
     "core-ci": "node --max_old_space_size=4095 ./node_modules/gulp/bin/gulp.js core-ci",
-    "extensions-ci": "node --max_old_space_size=4095 ./node_modules/gulp/bin/gulp.js extensions-ci"
+    "extensions-ci": "node --max_old_space_size=4095 ./node_modules/gulp/bin/gulp.js extensions-ci",
+    "ext": "node build/ext.js"
   },
   "dependencies": {
     "applicationinsights": "1.0.8",
