@@ -14,7 +14,7 @@ import { TernarySearchTree } from 'vs/base/common/map';
 import { isNonEmptyArray, coalesce } from 'vs/base/common/arrays';
 import { ILogService } from 'vs/platform/log/common/log';
 import { VSBuffer, VSBufferReadable, readableToBuffer, bufferToReadable, streamToBuffer, VSBufferReadableStream, VSBufferReadableBufferedStream, bufferedStreamToBuffer, newWriteableBufferStream } from 'vs/base/common/buffer';
-import { isReadableStream, transform, peekReadable, peekStream, isReadableBufferedStream, newWriteableStream } from 'vs/base/common/stream';
+import { isReadableStream, transform, peekReadable, peekStream, isReadableBufferedStream, newWriteableStream, IReadableStreamObservable, observe } from 'vs/base/common/stream';
 import { Queue } from 'vs/base/common/async';
 import { CancellationTokenSource, CancellationToken } from 'vs/base/common/cancellation';
 import { Schemas } from 'vs/base/common/network';
@@ -455,7 +455,7 @@ export class FileService extends Disposable implements IFileService {
 		});
 
 		let fileStream: VSBufferReadableStream | undefined = undefined;
-		let fileStreamClosed: Promise<void> | undefined = undefined;
+		let fileStreamObserver: IReadableStreamObservable | undefined = undefined;
 
 		try {
 
@@ -482,10 +482,8 @@ export class FileService extends Disposable implements IFileService {
 				fileStream = this.readFileBuffered(provider, resource, cancellableSource.token, options);
 			}
 
-			fileStreamClosed = Promise.race([
-				Event.toPromise<void>(Event.fromNodeEventEmitter(fileStream, 'end')),
-				Event.toPromise<void>(Event.fromNodeEventEmitter(fileStream, 'error'))
-			]);
+			// observe the stream for the error case below
+			fileStreamObserver = observe(fileStream);
 
 			const fileStat = await statPromise;
 
@@ -494,9 +492,12 @@ export class FileService extends Disposable implements IFileService {
 				value: fileStream
 			};
 		} catch (error) {
-			if (fileStream && fileStreamClosed) {
-				fileStream.on('data', () => { /* drain the data from the file stream to get the end event */ });
-				await fileStreamClosed;
+
+			// Await the stream to finish so that we exit this method
+			// in a consistent state with file handles closed
+			// (https://github.com/microsoft/vscode/issues/114024)
+			if (fileStreamObserver) {
+				await fileStreamObserver.closed();
 			}
 
 			throw new FileOperationError(localize('err.read', "Unable to read file '{0}' ({1})", this.resourceForError(resource), ensureFileSystemProviderError(error).toString()), toFileOperationResult(error), options);
@@ -699,7 +700,6 @@ export class FileService extends Disposable implements IFileService {
 			// across providers: copy to target & delete at source
 			else {
 				await this.doMoveCopy(sourceProvider, source, targetProvider, target, 'copy', overwrite);
-
 				await this.del(source, { recursive: true });
 
 				return 'copy';
