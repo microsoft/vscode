@@ -39,6 +39,7 @@
     "iconv-lite-umd": "0.6.8",
     "jsonc-parser": "^2.3.0",
     "mime": "^1.4.1",
+    "mkdirp": "^1.0.4",
     "source-map": "0.6.1",
     "typescript": "4.2.0-dev.20201207",
     "vsce": "1.48.0"

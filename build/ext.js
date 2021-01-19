@@ -6,9 +6,26 @@
 const fs = require('fs').promises;
 const path = require('path');
 const cp = require('child_process');
+const os = require('os');
+const mkdirp = require('mkdirp');
 const product = require('../product.json');
 const root = path.resolve(path.join(__dirname, '..', '..'));
 const exists = (path) => fs.stat(path).then(() => true, () => false);
+
+const controlFilePath = path.join(os.homedir(), '.vscode-oss-dev', 'extensions', 'control.json');
+
+async function readControlFile() {
+	try {
+		return JSON.parse(await fs.readFile(controlFilePath, 'utf8'));
+	} catch (err) {
+		return {};
+	}
+}
+
+async function writeControlFile(control) {
+	await mkdirp(path.dirname(controlFilePath));
+	await fs.writeFile(controlFilePath, JSON.stringify(control, null, '  '));
+}
 
 async function exec(cmd, args, opts = {}) {
 	return new Promise((c, e) => {
@@ -43,14 +60,18 @@ async function initExtension(extDesc) {
 	}
 
 	const type = await getExtensionType(folderPath);
-	return { path: folderPath, type };
+	return { path: folderPath, type, ...extDesc };
 }
 
 async function createWorkspace(type, extensions) {
 	const workspaceName = `vscode-${type}-extensions.code-workspace`;
 	const workspacePath = path.join(root, workspaceName);
 	const workspace = { folders: extensions.map(ext => ({ path: path.basename(ext.path) })) };
-	console.log(`✅ create workspace: ${workspaceName}`);
+
+	if (!await exists(workspacePath)) {
+		console.log(`✅ create workspace: ${workspaceName}`);
+	}
+
 	await fs.writeFile(workspacePath, JSON.stringify(workspace, undefined, '  '));
 }
 
@@ -69,25 +90,29 @@ async function init() {
 	for (const [type, extensions] of byType) {
 		await createWorkspace(type, extensions);
 	}
+
+	return byType;
 }
 
-async function ls() {
-	const types = new Map();
+async function status() {
+	const byType = await init();
+	const control = await readControlFile();
 
-	for (const extDesc of product.builtInExtensions) {
-		const folderPath = getFolderPath(extDesc);
-		const type = await getExtensionType(folderPath);
-		types.set(type, 1 + (types.get(type) || 0));
-	}
+	for (const [type, extensions] of byType) {
+		console.log(`${type} (${extensions.length} extensions):`);
 
-	for (const [type, count] of types) {
-		console.log(`${type}: ${count} extensions`);
+		const maxWidth = Math.max(...extensions.map(e => e.name.length));
+		for (const ext of extensions) {
+			console.log(`  ${ext.name.padEnd(maxWidth, ' ')} ➡  ${control[ext.name]}`);
+		}
 	}
 
 	console.log(`total: ${product.builtInExtensions.length} extensions`);
 }
 
 async function each([cmd, ...args], opts) {
+	await init();
+
 	for (const extDesc of product.builtInExtensions) {
 		const folderPath = getFolderPath(extDesc);
 
@@ -104,6 +129,46 @@ async function each([cmd, ...args], opts) {
 	}
 }
 
+async function _link(extensions, opts, fn) {
+	await init();
+
+	const control = await readControlFile();
+
+	for (const extDesc of product.builtInExtensions) {
+		if (extensions.length > 0 && extensions.indexOf(extDesc.name) === -1) {
+			continue;
+		}
+
+		if (opts.type) {
+			const folderPath = getFolderPath(extDesc);
+			const type = await getExtensionType(folderPath);
+
+			if (type !== opts.type) {
+				continue;
+			}
+		}
+
+		await fn(control, extDesc);
+	}
+
+	await writeControlFile(control);
+}
+
+async function link(extensions, opts) {
+	await _link(extensions, opts, async (control, extDesc) => {
+		const ext = await initExtension(extDesc);
+		control[extDesc.name] = ext.path;
+		console.log(`👉 link: ${extDesc.name} ➡ ${ext.path}`);
+	});
+}
+
+async function unlink(extensions, opts) {
+	await _link(extensions, opts, async (control, extDesc) => {
+		control[extDesc.name] = 'marketplace';
+		console.log(`👉 unlink: ${extDesc.name}`);
+	});
+}
+
 if (require.main === module) {
 	const { program } = require('commander');
 
@@ -115,9 +180,9 @@ if (require.main === module) {
 		.action(init);
 
 	program
-		.command('ls')
-		.description('List extension types')
-		.action(ls);
+		.command('status')
+		.description('Print extension status')
+		.action(status);
 
 	program
 		.command('each <command...>')
@@ -125,6 +190,18 @@ if (require.main === module) {
 		.description('Run a command in each extension repository')
 		.allowUnknownOption()
 		.action(each);
+
+	program
+		.command('link [extensions...]')
+		.option('-t, --type <type>', 'Specific type only')
+		.description('Link with code-oss')
+		.action(link);
+
+	program
+		.command('unlink [extensions...]')
+		.option('-t, --type <type>', 'Specific type only')
+		.description('Unlink from code-oss')
+		.action(unlink);
 
 	program.parseAsync(process.argv);
 }
