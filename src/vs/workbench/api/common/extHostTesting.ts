@@ -6,7 +6,6 @@
 import { mapFind } from 'vs/base/common/arrays';
 import { disposableTimeout, RunOnceScheduler } from 'vs/base/common/async';
 import { CancellationToken } from 'vs/base/common/cancellation';
-import { throttle } from 'vs/base/common/decorators';
 import { Emitter } from 'vs/base/common/event';
 import { once } from 'vs/base/common/functional';
 import { DisposableStore, IDisposable } from 'vs/base/common/lifecycle';
@@ -19,7 +18,8 @@ import { IExtHostRpcService } from 'vs/workbench/api/common/extHostRpcService';
 import { TestItem } from 'vs/workbench/api/common/extHostTypeConverters';
 import { Disposable, RequiredTestItem } from 'vs/workbench/api/common/extHostTypes';
 import { IExtHostWorkspace } from 'vs/workbench/api/common/extHostWorkspace';
-import { AbstractIncrementalTestCollection, EMPTY_TEST_RESULT, IncrementalChangeCollector, IncrementalTestCollectionItem, InternalTestItem, RunTestForProviderRequest, RunTestsResult, TestDiffOpType, TestIdWithProvider, TestsDiff } from 'vs/workbench/contrib/testing/common/testCollection';
+import { OwnedTestCollection, SingleUseTestCollection } from 'vs/workbench/contrib/testing/common/ownedTestCollection';
+import { AbstractIncrementalTestCollection, EMPTY_TEST_RESULT, IncrementalChangeCollector, IncrementalTestCollectionItem, InternalTestItem, RunTestForProviderRequest, RunTestsResult, TestIdWithProvider, TestsDiff } from 'vs/workbench/contrib/testing/common/testCollection';
 import type * as vscode from 'vscode';
 
 const getTestSubscriptionKey = (resource: ExtHostTestingResource, uri: URI) => `${resource}:${uri.toString()}`;
@@ -221,210 +221,6 @@ export class ExtHostTesting implements ExtHostTestingShape {
 
 		const { actual, previousChildren, previousEquals, ...item } = owned;
 		return Promise.resolve(item);
-	}
-}
-
-const keyMap: { [K in keyof Omit<RequiredTestItem, 'children'>]: null } = {
-	label: null,
-	location: null,
-	state: null,
-	debuggable: null,
-	description: null,
-	runnable: null
-};
-
-const simpleProps = Object.keys(keyMap) as ReadonlyArray<keyof typeof keyMap>;
-
-const itemEqualityComparator = (a: vscode.TestItem) => {
-	const values: unknown[] = [];
-	for (const prop of simpleProps) {
-		values.push(a[prop]);
-	}
-
-	return (b: vscode.TestItem) => {
-		for (let i = 0; i < simpleProps.length; i++) {
-			if (values[i] !== b[simpleProps[i]]) {
-				return false;
-			}
-		}
-
-		return true;
-	};
-};
-
-/**
- * @private
- */
-export interface OwnedCollectionTestItem extends InternalTestItem {
-	actual: vscode.TestItem;
-	previousChildren: Set<string>;
-	previousEquals: (v: vscode.TestItem) => boolean;
-}
-
-/**
- * @private
- */
-export class OwnedTestCollection {
-	protected readonly testIdToInternal = new Map<string, OwnedCollectionTestItem>();
-
-	/**
-	 * Gets test information by ID, if it was defined and still exists in this
-	 * extension host.
-	 */
-	public getTestById(id: string) {
-		return this.testIdToInternal.get(id);
-	}
-
-	/**
-	 * Creates a new test collection for a specific hierarchy for a workspace
-	 * or document observation.
-	 */
-	public createForHierarchy(publishDiff: (diff: TestsDiff) => void = () => undefined) {
-		return new SingleUseTestCollection(this.testIdToInternal, publishDiff);
-	}
-}
-
-/**
- * Maintains tests created and registered for a single set of hierarchies
- * for a workspace or document.
- * @private
- */
-export class SingleUseTestCollection implements IDisposable {
-	protected readonly testItemToInternal = new Map<vscode.TestItem, OwnedCollectionTestItem>();
-	protected diff: TestsDiff = [];
-	private disposed = false;
-
-	/**
-	 * Debouncer for sending diffs. We use both a throttle and a debounce here,
-	 * so that tests that all change state simultenously are effected together,
-	 * but so we don't send hundreds of test updates per second to the main thread.
-	 */
-	private readonly debounceSendDiff = new RunOnceScheduler(() => this.throttleSendDiff(), 2);
-
-	constructor(private readonly testIdToInternal: Map<string, OwnedCollectionTestItem>, private readonly publishDiff: (diff: TestsDiff) => void) { }
-
-	/**
-	 * Adds a new root node to the collection.
-	 */
-	public addRoot(item: vscode.TestItem, providerId: string) {
-		this.addItem(item, providerId, null);
-		this.debounceSendDiff.schedule();
-	}
-
-	/**
-	 * Gets test information by its reference, if it was defined and still exists
-	 * in this extension host.
-	 */
-	public getTestByReference(item: vscode.TestItem) {
-		return this.testItemToInternal.get(item);
-	}
-
-	/**
-	 * Should be called when an item change is fired on the test provider.
-	 */
-	public onItemChange(item: vscode.TestItem, providerId: string) {
-		const existing = this.testItemToInternal.get(item);
-		if (!existing) {
-			if (!this.disposed) {
-				console.warn(`Received a TestProvider.onDidChangeTest for a test that wasn't seen before as a child.`);
-			}
-			return;
-		}
-
-		this.addItem(item, providerId, existing.parent);
-		this.debounceSendDiff.schedule();
-	}
-
-	/**
-	 * Gets a diff of all changes that have been made, and clears the diff queue.
-	 */
-	public collectDiff() {
-		const diff = this.diff;
-		this.diff = [];
-		return diff;
-	}
-
-	public dispose() {
-		for (const item of this.testItemToInternal.values()) {
-			this.testIdToInternal.delete(item.id);
-		}
-
-		this.diff = [];
-		this.disposed = true;
-	}
-
-	protected getId(): string {
-		return generateUuid();
-	}
-
-	private addItem(actual: vscode.TestItem, providerId: string, parent: string | null) {
-		let internal = this.testItemToInternal.get(actual);
-		if (!internal) {
-			internal = {
-				actual,
-				id: this.getId(),
-				parent,
-				item: TestItem.from(actual),
-				providerId,
-				previousChildren: new Set(),
-				previousEquals: itemEqualityComparator(actual),
-			};
-
-			this.testItemToInternal.set(actual, internal);
-			this.testIdToInternal.set(internal.id, internal);
-			this.diff.push([TestDiffOpType.Add, { id: internal.id, parent, providerId, item: internal.item }]);
-		} else if (!internal.previousEquals(actual)) {
-			internal.item = TestItem.from(actual);
-			internal.previousEquals = itemEqualityComparator(actual);
-			this.diff.push([TestDiffOpType.Update, { id: internal.id, parent, providerId, item: internal.item }]);
-		}
-
-		// If there are children, track which ones are deleted
-		// and recursively and/update them.
-		if (actual.children) {
-			const deletedChildren = internal.previousChildren;
-			const currentChildren = new Set<string>();
-			for (const child of actual.children) {
-				const c = this.addItem(child, providerId, internal.id);
-				deletedChildren.delete(c.id);
-				currentChildren.add(c.id);
-			}
-
-			for (const child of deletedChildren) {
-				this.removeItembyId(child);
-			}
-
-			internal.previousChildren = currentChildren;
-		}
-
-
-		return internal;
-	}
-
-	private removeItembyId(id: string) {
-		this.diff.push([TestDiffOpType.Remove, id]);
-
-		const queue = [this.testIdToInternal.get(id)];
-		while (queue.length) {
-			const item = queue.pop();
-			if (!item) {
-				continue;
-			}
-
-			this.testIdToInternal.delete(item.id);
-			this.testItemToInternal.delete(item.actual);
-			for (const child of item.previousChildren) {
-				queue.push(this.testIdToInternal.get(child));
-			}
-		}
-	}
-
-	@throttle(200)
-	protected throttleSendDiff() {
-		const diff = this.collectDiff();
-		if (diff.length) {
-			this.publishDiff(diff);
-		}
 	}
 }
 
