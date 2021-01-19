@@ -12,11 +12,13 @@ import { ContextKeyAndExpr, ContextKeyEqualsExpr } from 'vs/platform/contextkey/
 import { ServicesAccessor } from 'vs/platform/instantiation/common/instantiation';
 import { ThemeIcon } from 'vs/platform/theme/common/themeService';
 import { ViewAction } from 'vs/workbench/browser/parts/views/viewPane';
+import { ShowViewletAction2 } from 'vs/workbench/browser/viewlet';
+import { CATEGORIES } from 'vs/workbench/common/actions';
 import * as icons from 'vs/workbench/contrib/testing/browser/icons';
-import { ITestingCollectionService } from 'vs/workbench/contrib/testing/common/testingCollectionService';
 import { TestingExplorerView, TestingExplorerViewModel } from 'vs/workbench/contrib/testing/browser/testingExplorerView';
 import { TestExplorerViewGrouping, TestExplorerViewMode, Testing } from 'vs/workbench/contrib/testing/common/constants';
 import { EMPTY_TEST_RESULT, InternalTestItem, RunTestsResult, TestIdWithProvider } from 'vs/workbench/contrib/testing/common/testCollection';
+import { ITestingCollectionService } from 'vs/workbench/contrib/testing/common/testingCollectionService';
 import { TestingContextKeys } from 'vs/workbench/contrib/testing/common/testingContextKeys';
 import { ITestService } from 'vs/workbench/contrib/testing/common/testService';
 
@@ -341,5 +343,21 @@ export class RefreshTestsAction extends Action2 {
 	 */
 	public run(accessor: ServicesAccessor) {
 		accessor.get(ITestService).resubscribeToAllTests();
+	}
+}
+
+export class ShowTestView extends ShowViewletAction2 {
+	constructor() {
+		super({
+			// matches old test action for back-compat
+			id: 'workbench.view.extension.test',
+			title: localize('showTestViewley', "Show Test"),
+			category: CATEGORIES.View.value,
+			f1: true,
+		});
+	}
+
+	protected viewletId() {
+		return Testing.ViewletId;
 	}
 }

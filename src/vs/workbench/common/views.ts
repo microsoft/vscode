@@ -29,9 +29,6 @@ import { Codicon } from 'vs/base/common/codicons';
 import { registerIcon } from 'vs/platform/theme/common/iconRegistry';
 import { CancellationToken } from 'vs/base/common/cancellation';
 
-export const TEST_VIEW_CONTAINER_ID = 'workbench.view.extension.test';
-export const testViewIcon = registerIcon('test-view-icon', Codicon.beaker, localize('testViewIcon', 'View icon of the test view.'));
-
 export const defaultViewIcon = registerIcon('default-view-icon', Codicon.window, localize('defaultViewIcon', 'Default view icon.'));
 
 export namespace Extensions {

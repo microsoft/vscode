@@ -39,11 +39,11 @@ registerSingleton(ITestingCollectionService, TestingCollectionService);
 
 const viewContainer = Registry.as<IViewContainersRegistry>(ViewContainerExtensions.ViewContainersRegistry).registerViewContainer({
 	id: Testing.ViewletId,
-	name: localize('testing', "Testing"),
+	name: localize('test', "Test"),
 	ctorDescriptor: new SyncDescriptor(TestingViewPaneContainer),
 	icon: testingViewIcon,
 	alwaysUseContainerInfo: true,
-	order: 5,
+	order: 6,
 	hideIfEmpty: true,
 }, ViewContainerLocation.Sidebar);
 
@@ -87,6 +87,7 @@ registerAction2(Action.DebugSelectedAction);
 registerAction2(Action.TestingGroupByLocationAction);
 registerAction2(Action.TestingGroupByStatusAction);
 registerAction2(Action.RefreshTestsAction);
+registerAction2(Action.ShowTestView);
 
 Registry.as<IWorkbenchContributionsRegistry>(WorkbenchExtensions.Workbench).registerWorkbenchContribution(TestingContentProvider, LifecyclePhase.Eventually);
 
