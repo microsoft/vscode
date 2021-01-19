@@ -19,7 +19,7 @@ export interface IComposite {
 	readonly onDidBlur: Event<void>;
 
 	/**
-	 *  Returns true if the composite has focus.
+	 * Returns true if the composite has focus.
 	 */
 	hasFocus(): boolean;
 
