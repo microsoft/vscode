@@ -171,7 +171,7 @@
     "mime": "^1.4.1",
     "minimatch": "^3.0.4",
     "minimist": "^1.2.5",
-    "mkdirp": "^0.5.0",
+    "mkdirp": "^1.0.4",
     "mocha": "^8.2.1",
     "mocha-junit-reporter": "^2.0.0",
     "mocha-multi-reporters": "^1.5.1",
