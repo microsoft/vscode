@@ -1945,18 +1945,18 @@ declare module 'vscode' {
 
 	//#endregion
 
-	//@region https://github.com/microsoft/vscode/issues/16221
+	//#region https://github.com/microsoft/vscode/issues/16221
 
 	export namespace languages {
 		/**
 		 * Register a inline hints provider.
 		 *
-		 * Multiple providers can be registered for a language. In that case providers are sorted
-		 * by their [score](#languages.match) and the best-matching provider is used. Failure
-		 * of the selected provider will cause a failure of the whole operation.
+		 * Multiple providers can be registered for a language. In that case providers are asked in
+		 * parallel and the results are merged. A failing provider (rejected promise or exception) will
+		 * not cause a failure of the whole operation.
 		 *
 		 * @param selector A selector that defines the documents this provider is applicable to.
-		 * @param provider An on type inline hints provider.
+		 * @param provider An inline hints provider.
 		 * @return A [disposable](#Disposable) that unregisters this provider when being disposed.
 		 */
 		export function registerInlineHintsProvider(selector: DocumentSelector, provider: InlineHintsProvider): Disposable;
@@ -2000,7 +2000,7 @@ declare module 'vscode' {
 	}
 
 	/**
-	 * The document formatting provider interface defines the contract between extensions and
+	 * The inline hints provider interface defines the contract between extensions and
 	 * the inline hints feature.
 	 */
 	export interface InlineHintsProvider {
@@ -2010,8 +2010,10 @@ declare module 'vscode' {
 		 * @see [EventEmitter](#EventEmitter)
 		 */
 		onDidChangeInlineHints?: Event<void>;
+
 		/**
 		 * @param model The document in which the command was invoked.
+		 * @param range The range for which line hints should be computed.
 		 * @param token A cancellation token.
 		 *
 		 * @return A list of arguments labels or a thenable that resolves to such.
