@@ -227,7 +227,7 @@ function focusNextOrPreviousPart(layoutService: IWorkbenchLayoutService, editorS
 
 function isActiveElementInNotebookEditor(editorService: IEditorService): boolean {
 	const activeEditorPane = editorService.activeEditorPane as unknown as { isNotebookEditor?: boolean } | undefined;
-	if (activeEditorPane?.isNotebookEditor) {
+	if (activeEditorPane?.isNotebookEditor) { // TODO@rebornix TODO@jrieken debt: https://github.com/microsoft/vscode/issues/114554
 		const control = editorService.activeEditorPane?.getControl() as { getDomNode(): HTMLElement; getOverflowContainerDomNode(): HTMLElement; };
 		const activeElement = document.activeElement;
 		return isAncestor(activeElement, control.getDomNode()) || isAncestor(activeElement, control.getOverflowContainerDomNode());
