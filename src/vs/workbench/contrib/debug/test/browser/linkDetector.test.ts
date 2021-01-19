@@ -85,7 +85,7 @@ suite('Debug - Link Detector', () => {
 		assert.equal(expectedOutput, output.outerHTML);
 	});
 
-	test.only('relativeLinkWithWorkspace', () => {
+	test('relativeLinkWithWorkspace', () => {
 		const input = '\./foo/bar.js';
 		const expectedOutput = /^<span><a class="link">\.\/foo\/bar\.js<\/a><\/span>$/;
 		const output = linkDetector.linkify(input, false, new WorkspaceFolder({ uri: URI.file('/path/to/workspace'), name: 'ws', index: 0 }));
