@@ -271,7 +271,6 @@ export class CodeApplication extends Disposable {
 		//#region Bootstrap IPC Handlers
 
 		ipcMain.on('vscode:fetchShellEnv', async event => {
-			const webContents = event.sender;
 			const window = this.windowsMainService?.getWindowByWebContents(event.sender);
 
 			let replied = false;
@@ -283,9 +282,7 @@ export class CodeApplication extends Disposable {
 				if (!replied) {
 					replied = true;
 
-					if (!webContents.isDestroyed()) {
-						webContents.send('vscode:acceptShellEnv', env);
-					}
+					window?.send('vscode:acceptShellEnv', env);
 				}
 			}
 
