@@ -400,6 +400,23 @@ function webviewPreloads() {
 		const event = rawEvent as ({ data: ToWebviewMessage; });
 
 		switch (event.data.type) {
+			case 'createMarkdownPreview':
+				const data = event.data;
+				let cellContainer = document.getElementById(data.id);
+				if (!cellContainer) {
+					const container = document.getElementById('container')!;
+					const newElement = document.createElement('div');
+
+					newElement.id = data.id;
+					container.appendChild(newElement);
+					cellContainer = newElement;
+				}
+
+				const previewNode = document.createElement('div');
+				previewNode.style.position = 'absolute';
+				previewNode.style.top = data.top + 'px';
+				previewNode.innerText = data.content;
+				break;
 			case 'html':
 				enqueueOutputAction(event.data, async data => {
 					const preloadResults = await Promise.all(data.requiredPreloads.map(p => preloadPromises.get(p.uri)));

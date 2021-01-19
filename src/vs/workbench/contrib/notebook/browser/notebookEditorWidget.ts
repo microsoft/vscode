@@ -62,6 +62,7 @@ import { Webview } from 'vs/workbench/contrib/webview/browser/webview';
 import { IEditorGroupsService } from 'vs/workbench/services/editor/common/editorGroupsService';
 import { configureKernelIcon, errorStateIcon, successStateIcon } from 'vs/workbench/contrib/notebook/browser/notebookIcons';
 import { debugIconStartForeground } from 'vs/workbench/contrib/debug/browser/debugColors';
+import { MarkdownCellViewModel } from 'vs/workbench/contrib/notebook/browser/viewModel/markdownCellViewModel';
 
 const $ = DOM.$;
 
@@ -1925,6 +1926,17 @@ export class NotebookEditorWidget extends Disposable implements INotebookEditor 
 
 	triggerScroll(event: IMouseWheelEvent) {
 		this._list.triggerScrollFromMouseWheelEvent(event);
+	}
+
+	async createMarkdownPreview(cell: MarkdownCellViewModel) {
+		if (!this._webview) {
+			return;
+		}
+
+		await this._resolveWebview();
+
+		const cellTop = this._list.getAbsoluteTopOfElement(cell);
+		await this._webview!.createMarkdownPreview(cell.id, cell.getText(), cellTop);
 	}
 
 	async createInset(cell: CodeCellViewModel, output: IInsetRenderOutput, offset: number): Promise<void> {
