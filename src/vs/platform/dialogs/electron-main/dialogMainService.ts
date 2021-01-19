@@ -144,8 +144,7 @@ export class DialogMainService implements IDialogMainService {
 		if (!window) {
 			return true;
 		}
-		let windowDialog = this.activeWindowDialogs.has(window.id);
-		if (!windowDialog) {
+		if (!this.activeWindowDialogs.has(window.id)) {
 			this.activeWindowDialogs.add(window.id);
 			return true;
 		}
