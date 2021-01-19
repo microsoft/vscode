@@ -375,7 +375,7 @@ export namespace Event {
 	}
 
 	export function toPromise<T>(event: Event<T>): Promise<T> {
-		return new Promise(c => once(event)(c));
+		return new Promise(resolve => once(event)(resolve));
 	}
 }
 

@@ -999,9 +999,7 @@ suite('EditorService', () => {
 	});
 
 	function awaitActiveEditorChange(editorService: IEditorService): Promise<void> {
-		return new Promise(c => {
-			Event.once(editorService.onDidActiveEditorChange)(c);
-		});
+		return Event.toPromise(Event.once(editorService.onDidActiveEditorChange));
 	}
 
 	test('file watcher gets installed for out of workspace files', async function () {
