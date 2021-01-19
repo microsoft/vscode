@@ -1977,7 +1977,7 @@ declare module 'vscode' {
 		/**
 		 * Tooltip when hover on the hint.
 		 */
-		hoverMessage?: string;
+		description?: string | MarkdownString;
 		/**
 		 * Whitespace before the hint.
 		 */
@@ -1996,7 +1996,7 @@ declare module 'vscode' {
 		 * @param whitespaceBefore Whitespace before the hint.
 		 * @param whitespaceAfter TWhitespace after the hint.
 		 */
-		constructor(text: string, range: Range, hoverMessage?: string, whitespaceBefore?: boolean, whitespaceAfter?: boolean);
+		constructor(text: string, range: Range, description?: string | MarkdownString, whitespaceBefore?: boolean, whitespaceAfter?: boolean);
 	}
 
 	/**

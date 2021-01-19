@@ -1662,7 +1662,7 @@ export interface CodeLensProvider {
 export interface InlineHint {
 	text: string;
 	range: IRange;
-	hoverMessage?: string;
+	description?: string | IMarkdownString;
 	whitespaceBefore?: boolean;
 	whitespaceAfter?: boolean;
 }

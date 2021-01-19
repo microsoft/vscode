@@ -149,7 +149,7 @@ export class InlineHintsController implements IEditorContribution {
 		for (const { list: hints } of hintsData) {
 
 			for (let j = 0; j < hints.length && newDecorationsData.length < MAX_DECORATORS; j++) {
-				const { text, range, hoverMessage, whitespaceBefore, whitespaceAfter } = hints[j];
+				const { text, range, description: hoverMessage, whitespaceBefore, whitespaceAfter } = hints[j];
 				const marginBefore = whitespaceBefore ? (fontSize / 3) | 0 : 0;
 				const marginAfter = whitespaceAfter ? (fontSize / 3) | 0 : 0;
 
@@ -171,8 +171,10 @@ export class InlineHintsController implements IEditorContribution {
 				newDecorationsTypeIds.push(key);
 
 				const options = this._codeEditorService.resolveDecorationOptions(key, true);
-				if (hoverMessage) {
+				if (typeof hoverMessage === 'string') {
 					options.hoverMessage = new MarkdownString().appendText(hoverMessage);
+				} else if (hoverMessage) {
+					options.hoverMessage = hoverMessage;
 				}
 
 				newDecorationsData.push({

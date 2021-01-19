@@ -1021,20 +1021,20 @@ export namespace InlineHint {
 		return {
 			text: hint.text,
 			range: Range.from(hint.range),
-			hoverMessage: hint.hoverMessage,
+			description: hint.description && MarkdownString.fromStrict(hint.description),
 			whitespaceBefore: hint.whitespaceBefore,
 			whitespaceAfter: hint.whitespaceAfter
 		};
 	}
 
 	export function to(hint: modes.InlineHint): vscode.InlineHint {
-		return {
-			text: hint.text,
-			range: Range.to(hint.range),
-			hoverMessage: hint.hoverMessage,
-			whitespaceBefore: hint.whitespaceBefore,
-			whitespaceAfter: hint.whitespaceAfter
-		};
+		return new types.InlineHint(
+			hint.text,
+			Range.to(hint.range),
+			htmlContent.isMarkdownString(hint.description) ? MarkdownString.to(hint.description) : hint.description,
+			hint.whitespaceBefore,
+			hint.whitespaceAfter
+		);
 	}
 }
 

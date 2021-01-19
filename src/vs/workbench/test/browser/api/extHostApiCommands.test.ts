@@ -1173,7 +1173,7 @@ suite('ExtHostLanguageFeatureCommands', function () {
 
 		disposables.push(extHost.registerInlineHintsProvider(nullExtensionDescription, defaultSelector, <vscode.InlineHintsProvider>{
 			provideInlineHints() {
-				return [new types.InlineHint('Foo', new types.Range(0, 1, 2, 3), undefined, true, false)];
+				return [new types.InlineHint('Foo', new types.Range(0, 1, 2, 3), new types.MarkdownString('**Hello**'), true, false)];
 			}
 		}));
 
@@ -1188,6 +1188,8 @@ suite('ExtHostLanguageFeatureCommands', function () {
 		assert.strictEqual(first.range.start.character, 1);
 		assert.strictEqual(first.range.end.line, 2);
 		assert.strictEqual(first.range.end.character, 3);
+		assert.ok(first.description instanceof types.MarkdownString);
+		assert.strictEqual((<types.MarkdownString>first.description).value, '**Hello**');
 
 		assert.strictEqual(second.text, 'Bar');
 		assert.strictEqual(second.range.start.line, 10);

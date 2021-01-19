@@ -1377,14 +1377,14 @@ export enum SignatureHelpTriggerKind {
 export class InlineHint {
 	text: string;
 	range: Range;
-	hoverMessage?: string;
+	description?: string | vscode.MarkdownString;
 	whitespaceBefore?: boolean;
 	whitespaceAfter?: boolean;
 
-	constructor(text: string, range: Range, hoverMessage?: string, whitespaceBefore?: boolean, whitespaceAfter?: boolean) {
+	constructor(text: string, range: Range, description?: string | vscode.MarkdownString, whitespaceBefore?: boolean, whitespaceAfter?: boolean) {
 		this.text = text;
 		this.range = range;
-		this.hoverMessage = hoverMessage;
+		this.description = description;
 		this.whitespaceBefore = whitespaceBefore;
 		this.whitespaceAfter = whitespaceAfter;
 	}
