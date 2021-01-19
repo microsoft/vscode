@@ -138,6 +138,7 @@ export class ExtHostTunnelService extends Disposable implements IExtHostTunnelSe
 	private _extensionTunnels: Map<string, Map<number, { tunnel: vscode.Tunnel, disposeListener: IDisposable }>> = new Map();
 	private _onDidChangeTunnels: Emitter<void> = new Emitter<void>();
 	onDidChangeTunnels: vscode.Event<void> = this._onDidChangeTunnels.event;
+	private _candidateFindingEnabled: boolean = false;
 
 	constructor(
 		@IExtHostRpcService extHostRpc: IExtHostRpcService,
@@ -171,11 +172,16 @@ export class ExtHostTunnelService extends Disposable implements IExtHostTunnelSe
 		return Math.max(movingAverage * 20, 2000);
 	}
 
-	async $registerCandidateFinder(): Promise<void> {
+	async $registerCandidateFinder(enable: boolean): Promise<void> {
+		if (enable && this._candidateFindingEnabled) {
+			// already enabled
+			return;
+		}
+		this._candidateFindingEnabled = enable;
 		// Regularly scan to see if the candidate ports have changed.
 		let movingAverage = new MovingAverage();
 		let oldPorts: { host: string, port: number, detail: string }[] | undefined = undefined;
-		while (1) {
+		while (this._candidateFindingEnabled) {
 			const startTime = new Date().getTime();
 			const newPorts = await this.findCandidatePorts();
 			const timeTaken = new Date().getTime() - startTime;
