@@ -1180,6 +1180,8 @@ export class ChangeModeAction extends Action {
 					modeSupport.setMode(languageSelection.languageIdentifier.language);
 				}
 			}
+
+			activeTextEditorControl.focus();
 		}
 	}
 
@@ -1277,6 +1279,8 @@ export class ChangeEOLAction extends Action {
 				textModel.pushStackElement();
 			}
 		}
+
+		activeTextEditorControl.focus();
 	}
 }
 
@@ -1298,7 +1302,8 @@ export class ChangeEncodingAction extends Action {
 	}
 
 	async run(): Promise<void> {
-		if (!getCodeEditor(this.editorService.activeTextEditorControl)) {
+		const activeTextEditorControl = getCodeEditor(this.editorService.activeTextEditorControl);
+		if (!activeTextEditorControl) {
 			await this.quickInputService.pick([{ label: nls.localize('noEditor', "No text editor active at this time") }]);
 			return;
 		}
@@ -1416,5 +1421,7 @@ export class ChangeEncodingAction extends Action {
 		if (typeof encoding.id !== 'undefined' && activeEncodingSupport && activeEncodingSupport.getEncoding() !== encoding.id) {
 			activeEncodingSupport.setEncoding(encoding.id, isReopenWithEncoding ? EncodingMode.Decode : EncodingMode.Encode); // Set new encoding
 		}
+
+		activeTextEditorControl.focus();
 	}
 }
