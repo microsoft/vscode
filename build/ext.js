@@ -12,7 +12,7 @@ const exists = (path) => fs.stat(path).then(() => true, () => false);
 
 async function exec(cmd, args, opts = {}) {
 	return new Promise((c, e) => {
-		const child = cp.spawn(cmd, args, { stdio: 'inherit', ...opts });
+		const child = cp.spawn(cmd, args, { stdio: 'inherit', env: process.env, ...opts });
 		child.on('close', code => code === 0 ? c() : e(`Returned ${code}`));
 	});
 }
@@ -26,9 +26,9 @@ async function getExtensionType(folderPath) {
 	const pkg = JSON.parse(await fs.readFile(path.join(folderPath, 'package.json'), 'utf8'));
 
 	if (pkg['contributes']['themes'] || pkg['contributes']['iconThemes']) {
-		return 'themes';
+		return 'theme';
 	} else if (pkg['contributes']['grammars']) {
-		return 'grammars';
+		return 'grammar';
 	} else {
 		return 'misc';
 	}
@@ -47,7 +47,7 @@ async function initExtension(extDesc) {
 }
 
 async function createWorkspace(type, extensions) {
-	const workspaceName = `vscode-extensions-${type}.code-workspace`;
+	const workspaceName = `vscode-${type}-extensions.code-workspace`;
 	const workspacePath = path.join(root, workspaceName);
 	const workspace = { folders: extensions.map(ext => ({ path: path.basename(ext.path) })) };
 	console.log(`✅ create workspace: ${workspaceName}`);
