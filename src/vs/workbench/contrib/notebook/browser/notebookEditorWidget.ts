@@ -297,6 +297,14 @@ export class NotebookEditorWidget extends Disposable implements INotebookEditor 
 		return this.viewModel?.selectionHandles || [];
 	}
 
+	getSelectionViewModels(): ICellViewModel[] {
+		if (!this.viewModel) {
+			return [];
+		}
+
+		return this.viewModel.selectionHandles.map(handle => this.viewModel!.getCellByHandle(handle)) as ICellViewModel[];
+	}
+
 	hasModel(): this is IActiveNotebookEditor {
 		return !!this._notebookViewModel;
 	}
