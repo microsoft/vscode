@@ -13,7 +13,7 @@ import { Range } from 'vs/editor/common/core/range';
 import { SymbolKind, SymbolKinds, SymbolTag } from 'vs/editor/common/modes';
 import { OutlineElement, OutlineGroup, OutlineModel } from 'vs/editor/contrib/documentSymbols/outlineModel';
 import { localize } from 'vs/nls';
-import { IconLabel } from 'vs/base/browser/ui/iconLabel/iconLabel';
+import { IconLabel, IIconLabelValueOptions } from 'vs/base/browser/ui/iconLabel/iconLabel';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { MarkerSeverity } from 'vs/platform/markers/common/markers';
 import { IThemeService, registerThemingParticipant, IColorTheme, ICssStyleCollector } from 'vs/platform/theme/common/themeService';
@@ -132,10 +132,10 @@ export class DocumentSymbolRenderer implements ITreeRenderer<OutlineElement, Fuz
 
 	renderElement(node: ITreeNode<OutlineElement, FuzzyScore>, _index: number, template: DocumentSymbolTemplate): void {
 		const { element } = node;
-		const options = {
+		const options: IIconLabelValueOptions = {
 			matches: createMatches(node.filterData),
 			labelEscapeNewLines: true,
-			extraClasses: <string[]>[],
+			extraClasses: ['nowrap'],
 			title: localize('title.template', "{0} ({1})", element.symbol.name, DocumentSymbolRenderer._symbolKindNames[element.symbol.kind])
 		};
 		if (this._configurationService.getValue(OutlineConfigKeys.icons)) {
@@ -144,7 +144,7 @@ export class DocumentSymbolRenderer implements ITreeRenderer<OutlineElement, Fuz
 			template.iconClass.classList.add(`outline-element-icon`, ...SymbolKinds.toCssClassName(element.symbol.kind, true).split(' '));
 		}
 		if (element.symbol.tags.indexOf(SymbolTag.Deprecated) >= 0) {
-			options.extraClasses.push(`deprecated`);
+			options.extraClasses!.push(`deprecated`);
 			options.matches = [];
 		}
 		template.iconLabel.setLabel(element.symbol.name, element.symbol.detail, options);
