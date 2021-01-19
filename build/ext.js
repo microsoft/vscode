@@ -123,6 +123,7 @@ if (require.main === module) {
 		.command('each <command...>')
 		.option('-t, --type <type>', 'Specific type only')
 		.description('Run a command in each extension repository')
+		.allowUnknownOption()
 		.action(each);
 
 	program.parseAsync(process.argv);
