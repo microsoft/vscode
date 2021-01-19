@@ -25,6 +25,7 @@ import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
 import { DomScrollableElement } from 'vs/base/browser/ui/scrollbar/scrollableElement';
 import { gettingStartedCheckedCodicon, gettingStartedUncheckedCodicon } from 'vs/workbench/contrib/welcome/gettingStarted/browser/gettingStartedIcons';
 import { ServicesAccessor } from 'vs/editor/browser/editorExtensions';
+import { IOpenerService } from 'vs/platform/opener/common/opener';
 
 export const gettingStartedInputTypeId = 'workbench.editors.gettingStartedInput';
 const telemetryFrom = 'gettingStartedPage';
@@ -85,6 +86,7 @@ export class GettingStartedPage extends Disposable {
 		@IKeybindingService private readonly keybindingService: IKeybindingService,
 		@IGettingStartedService private readonly gettingStartedService: IGettingStartedService,
 		@ITelemetryService private readonly telemetryService: ITelemetryService,
+		@IOpenerService private readonly openerService: IOpenerService,
 	) {
 		super();
 
@@ -170,8 +172,14 @@ export class GettingStartedPage extends Disposable {
 								throw Error('cannot run task action for category of non items type' + this.currentCategory?.id);
 							}
 							const taskToRun = assertIsDefined(this.currentCategory?.content.items.find(task => task.id === argument));
-							const commandToRun = assertIsDefined(taskToRun.button?.command);
-							this.commandService.executeCommand(commandToRun);
+							if (taskToRun.button.command) {
+								this.commandService.executeCommand(taskToRun.button.command);
+							} else if (taskToRun.button.link) {
+								this.openerService.open(taskToRun.button.link);
+								this.gettingStartedService.progressByEvent('linkOpened:' + taskToRun.button.link);
+							} else {
+								throw Error('Task ' + JSON.stringify(taskToRun) + ' does not have an associated action');
+							}
 							break;
 						}
 						default: {
@@ -344,7 +352,7 @@ export class GettingStartedPage extends Disposable {
 						...(
 							task.button
 								? [$('button.emphasis.getting-started-task-action', { 'x-dispatch': 'runTaskAction:' + task.id },
-									task.button.title + this.getKeybindingLabel(task.button.command)
+									task.button.title + (task.button.command ? this.getKeybindingLabel(task.button.command) : '')
 								)]
 								: []),
 						...(
