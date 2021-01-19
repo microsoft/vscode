@@ -187,7 +187,10 @@ export class TerminalLinkManager extends DisposableStore {
 	}
 
 	private _handleHypertextLink(url: string): void {
-		this._openerService.open(url, { allowTunneling: !!(this._processManager && this._processManager.remoteAuthority) });
+		this._openerService.open(url, {
+			allowTunneling: !!(this._processManager && this._processManager.remoteAuthority),
+			allowContributedOpeners: true,
+		});
 	}
 
 	private async _handleProtocolLink(link: string): Promise<void> {

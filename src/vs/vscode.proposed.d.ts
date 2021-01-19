@@ -2367,13 +2367,6 @@ declare module 'vscode' {
 		location?: Location;
 	}
 
-	/**
-	 * Additional metadata about the uri being opened
-	 */
-	interface OpenExternalUriContext {
-
-	}
-
 	//#endregion
 
 	//#region Opener service (https://github.com/microsoft/vscode/issues/109277)
@@ -2495,6 +2488,23 @@ declare module 'vscode' {
 		* @returns Disposable that unregisters the opener.
 		 */
 		export function registerExternalUriOpener(id: string, schemes: readonly string[], opener: ExternalUriOpener, metadata: ExternalUriOpenerMetadata): Disposable;
+	}
+
+	interface OpenExternalOptions {
+		/**
+		 *
+		 * If `true`, then VS Code will check if any contributed openers can handle the
+		 * uri, and fallback to the default opener behavior.
+		 *
+		 * If it is string, then this specifies the id of the `ExternalUriOpener`
+		 * that should be used if it is available. Use `'default'` to force VS Code's
+		 * standard external opener to be used.
+		 */
+		readonly allowContributedOpeners?: boolean | string;
+	}
+
+	namespace env {
+		export function openExternal(target: Uri, options?: OpenExternalOptions): Thenable<boolean>;
 	}
 
 	//#endregion
