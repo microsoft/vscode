@@ -593,7 +593,12 @@ export function transform<Original, Transformed>(stream: ReadableStreamEvents<Or
 }
 
 export interface IReadableStreamObservable {
-	closed: () => Promise<void>;
+
+	/**
+	 * A promise to await the `end` or `error` event
+	 * of a stream.
+	 */
+	errorOrEnd: () => Promise<void>;
 }
 
 /**
@@ -605,20 +610,21 @@ export function observe(stream: ReadableStream<unknown>): IReadableStreamObserva
 	// A stream is closed when it ended or errord
 	// We install this listener right from the
 	// beginning to catch the events early.
-	const closed = Promise.race([
+	const errorOrEnd = Promise.race([
 		new Promise<void>(resolve => stream.on('end', () => resolve())),
 		new Promise<void>(resolve => stream.on('error', () => resolve()))
 	]);
 
 	return {
-		closed(): Promise<void> {
+		errorOrEnd(): Promise<void> {
 
-			// We need to ensure that there is a `data` listener
-			// on the stream to observe because the `end` event
-			// is only fired when there is at least one consumer
-			stream.on('data', () => { });
+			// We need to ensure the stream is flowing so that our
+			// listeners are getting triggered. It is possible that
+			// the stream is not flowing because no `data` listener
+			// was attached yet.
+			stream.resume();
 
-			return closed;
+			return errorOrEnd;
 		}
 	};
 }

@@ -498,7 +498,7 @@ export class FileService extends Disposable implements IFileService {
 			// in a consistent state with file handles closed
 			// (https://github.com/microsoft/vscode/issues/114024)
 			if (fileStreamObserver) {
-				await fileStreamObserver.closed();
+				await fileStreamObserver.errorOrEnd();
 			}
 
 			throw new FileOperationError(localize('err.read', "Unable to read file '{0}' ({1})", this.resourceForError(resource), ensureFileSystemProviderError(error).toString()), toFileOperationResult(error), options);

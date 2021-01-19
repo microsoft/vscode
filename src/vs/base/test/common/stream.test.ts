@@ -338,25 +338,25 @@ suite('Stream', () => {
 	test('observer', async () => {
 		const source1 = newWriteableStream<string>(strings => strings.join());
 		setTimeout(() => source1.error(new Error()));
-		await observe(source1).closed();
+		await observe(source1).errorOrEnd();
 
 		const source2 = newWriteableStream<string>(strings => strings.join());
 		setTimeout(() => source2.end('Hello Test'));
-		await observe(source2).closed();
+		await observe(source2).errorOrEnd();
 
 		const source3 = newWriteableStream<string>(strings => strings.join());
 		setTimeout(() => {
 			source3.write('Hello Test');
 			source3.error(new Error());
 		});
-		await observe(source3).closed();
+		await observe(source3).errorOrEnd();
 
 		const source4 = newWriteableStream<string>(strings => strings.join());
 		setTimeout(() => {
 			source4.write('Hello Test');
 			source4.end();
 		});
-		await observe(source4).closed();
+		await observe(source4).errorOrEnd();
 	});
 
 	test('events are delivered even if a listener is removed during delivery', () => {
