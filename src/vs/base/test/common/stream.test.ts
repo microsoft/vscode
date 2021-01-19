@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import * as assert from 'assert';
-import { isReadableStream, newWriteableStream, Readable, consumeReadable, peekReadable, consumeStream, ReadableStream, toStream, toReadable, transform, peekStream, isReadableBufferedStream } from 'vs/base/common/stream';
+import { isReadableStream, newWriteableStream, Readable, consumeReadable, peekReadable, consumeStream, ReadableStream, toStream, toReadable, transform, peekStream, isReadableBufferedStream, observe } from 'vs/base/common/stream';
 import { timeout } from 'vs/base/common/async';
 
 suite('Stream', () => {
@@ -106,6 +106,8 @@ suite('Stream', () => {
 		error = false;
 		stream.removeListener('error', errorListener);
 
+		// always leave at least one error listener to streams to avoid unexpected errors during test running
+		stream.on('error', () => { });
 		stream.error(new Error());
 		assert.equal(error, false);
 	});
@@ -331,5 +333,46 @@ suite('Stream', () => {
 
 		const consumed = await consumeStream(result, strings => strings.join());
 		assert.equal(consumed, '11,22,33,44,55');
+	});
+
+	test('observer', async () => {
+		const source1 = newWriteableStream<string>(strings => strings.join());
+		setTimeout(() => source1.error(new Error()));
+		await observe(source1).closed();
+
+		const source2 = newWriteableStream<string>(strings => strings.join());
+		setTimeout(() => source2.end('Hello Test'));
+		await observe(source2).closed();
+
+		const source3 = newWriteableStream<string>(strings => strings.join());
+		setTimeout(() => {
+			source3.write('Hello Test');
+			source3.error(new Error());
+		});
+		await observe(source3).closed();
+
+		const source4 = newWriteableStream<string>(strings => strings.join());
+		setTimeout(() => {
+			source4.write('Hello Test');
+			source4.end();
+		});
+		await observe(source4).closed();
+	});
+
+	test('events are delivered even if a listener is removed during delivery', () => {
+		const stream = newWriteableStream<string>(strings => strings.join());
+
+		let listener1Called = false;
+		let listener2Called = false;
+
+		const listener1 = () => { stream.removeListener('end', listener1); listener1Called = true; };
+		const listener2 = () => { listener2Called = true; };
+		stream.on('end', listener1);
+		stream.on('end', listener2);
+		stream.on('data', () => { });
+		stream.end('');
+
+		assert.strictEqual(listener1Called, true);
+		assert.strictEqual(listener2Called, true);
 	});
 });
