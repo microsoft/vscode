@@ -231,6 +231,13 @@ export class MarkdownEngine {
 					return normalizeLink(vscode.Uri.parse(link).with({ scheme: vscode.env.uriScheme }).toString());
 				}
 
+				// Support file:// links
+				if (isOfScheme(Schemes.file, link)) {
+					// Ensure link is relative by prepending `/` so that it uses the <base> element URI
+					// when resolving the absolute URL
+					return normalizeLink('/' + link.replace(/^file:/, 'file'));
+				}
+
 				// If original link doesn't look like a url with a scheme, assume it must be a link to a file in workspace
 				if (!/^[a-z\-]+:/i.test(link)) {
 					// Use a fake scheme for parsing
@@ -241,12 +248,14 @@ export class MarkdownEngine {
 					if (uri.path[0] === '/') {
 						const root = vscode.workspace.getWorkspaceFolder(this.currentDocument!);
 						if (root) {
-							const fileUri = vscode.Uri.joinPath(root.uri, uri.fsPath);
-							uri = fileUri.with({
-								scheme: uri.scheme,
+							const fileUri = vscode.Uri.joinPath(root.uri, uri.fsPath).with({
 								fragment: uri.fragment,
 								query: uri.query,
 							});
+
+							// Ensure fileUri is relative by prepending `/` so that it uses the <base> element URI
+							// when resolving the absolute URL
+							uri = vscode.Uri.parse('markdown-link:' + '/' + fileUri.toString(true).replace(/^\S+?:/, fileUri.scheme));
 						}
 					}
 
@@ -269,9 +278,7 @@ export class MarkdownEngine {
 	private addLinkValidator(md: any): void {
 		const validateLink = md.validateLink;
 		md.validateLink = (link: string) => {
-			// support file:// links
 			return validateLink(link)
-				|| isOfScheme(Schemes.file, link)
 				|| isOfScheme(Schemes.vscode, link)
 				|| isOfScheme(Schemes['vscode-insiders'], link)
 				|| /^data:image\/.*?;/.test(link);
