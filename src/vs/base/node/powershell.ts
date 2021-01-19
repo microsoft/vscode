@@ -3,6 +3,8 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
+ // do some stuff
+ 
 import * as pfs from 'vs/base/node/pfs';
 import * as os from 'os';
 import * as path from 'vs/base/common/path';
