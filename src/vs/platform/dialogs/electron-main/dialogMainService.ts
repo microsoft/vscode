@@ -51,11 +51,14 @@ export class DialogMainService implements IDialogMainService {
 	private readonly mapWindowToDialogQueue: Map<number, Queue<void>>;
 	private readonly noWindowDialogQueue: Queue<void>;
 
+	private activeWindowDialogs: Set<number> = new Set();
+
 	constructor(
 		@IStateService private readonly stateService: IStateService
 	) {
 		this.mapWindowToDialogQueue = new Map<number, Queue<void>>();
 		this.noWindowDialogQueue = new Queue<void>();
+		this.activeWindowDialogs = new Set();
 	}
 
 	pickFileFolder(options: INativeOpenDialogOptions, window?: BrowserWindow): Promise<string[] | undefined> {
@@ -137,6 +140,27 @@ export class DialogMainService implements IDialogMainService {
 		return windowDialogQueue;
 	}
 
+	private requestDialog(window?: BrowserWindow): boolean {
+		if (!window) {
+			return true;
+		}
+		let windowDialog = this.activeWindowDialogs.has(window.id);
+		if (!windowDialog) {
+			this.activeWindowDialogs.add(window.id);
+			return true;
+		}
+		return false;
+	}
+
+	private freeDialog(window?: BrowserWindow): void {
+		if (!window) {
+			return;
+		}
+		if (this.activeWindowDialogs.has(window.id)) {
+			this.activeWindowDialogs.delete(window.id);
+		}
+	}
+
 	showMessageBox(options: MessageBoxOptions, window?: BrowserWindow): Promise<MessageBoxReturnValue> {
 		return this.getDialogQueue(window).queue(async () => {
 			if (window) {
@@ -147,7 +171,7 @@ export class DialogMainService implements IDialogMainService {
 		});
 	}
 
-	showSaveDialog(options: SaveDialogOptions, window?: BrowserWindow): Promise<SaveDialogReturnValue> {
+	async showSaveDialog(options: SaveDialogOptions, window?: BrowserWindow): Promise<SaveDialogReturnValue> {
 
 		function normalizePath(path: string | undefined): string | undefined {
 			if (path && isMacintosh) {
@@ -157,8 +181,10 @@ export class DialogMainService implements IDialogMainService {
 			return path;
 		}
 
-		return this.getDialogQueue(window).queue(async () => {
-			let result: SaveDialogReturnValue;
+		let result: SaveDialogReturnValue;
+
+		// Only create the dialog if the window doesn't already have one open
+		if (this.requestDialog(window)) {
 			if (window) {
 				result = await dialog.showSaveDialog(window, options);
 			} else {
@@ -166,12 +192,15 @@ export class DialogMainService implements IDialogMainService {
 			}
 
 			result.filePath = normalizePath(result.filePath);
+			this.freeDialog(window);
 
 			return result;
-		});
+		}
+
+		return { canceled: true, filePath: undefined };
 	}
 
-	showOpenDialog(options: OpenDialogOptions, window?: BrowserWindow): Promise<OpenDialogReturnValue> {
+	async showOpenDialog(options: OpenDialogOptions, window?: BrowserWindow): Promise<OpenDialogReturnValue> {
 
 		function normalizePaths(paths: string[]): string[] {
 			if (paths && paths.length > 0 && isMacintosh) {
@@ -181,8 +210,8 @@ export class DialogMainService implements IDialogMainService {
 			return paths;
 		}
 
-		return this.getDialogQueue(window).queue(async () => {
-
+		// Only create the dialog if the window doesn't already have one open
+		if (this.requestDialog(window)) {
 			// Ensure the path exists (if provided)
 			if (options.defaultPath) {
 				const pathExists = await exists(options.defaultPath);
@@ -200,8 +229,11 @@ export class DialogMainService implements IDialogMainService {
 			}
 
 			result.filePaths = normalizePaths(result.filePaths);
+			this.freeDialog(window);
 
 			return result;
-		});
+		}
+
+		return { canceled: true, filePaths: [] };
 	}
 }
