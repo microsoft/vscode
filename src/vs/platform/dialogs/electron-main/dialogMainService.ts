@@ -3,6 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
+import { Event } from 'vs/base/common/event';
 import { createDecorator } from 'vs/platform/instantiation/common/instantiation';
 import { MessageBoxOptions, MessageBoxReturnValue, SaveDialogOptions, SaveDialogReturnValue, OpenDialogOptions, OpenDialogReturnValue, dialog, FileFilter, BrowserWindow } from 'electron';
 import { Queue } from 'vs/base/common/async';
@@ -16,6 +17,7 @@ import { withNullAsUndefined } from 'vs/base/common/types';
 import { localize } from 'vs/nls';
 import { WORKSPACE_FILTER } from 'vs/platform/workspaces/common/workspaces';
 import { mnemonicButtonLabel } from 'vs/base/common/labels';
+import { Disposable, dispose, IDisposable, toDisposable } from 'vs/base/common/lifecycle';
 
 export const IDialogMainService = createDecorator<IDialogMainService>('dialogMainService');
 
@@ -48,17 +50,14 @@ export class DialogMainService implements IDialogMainService {
 
 	private static readonly workingDirPickerStorageKey = 'pickerWorkingDir';
 
-	private readonly mapWindowToDialogQueue: Map<number, Queue<void>>;
-	private readonly noWindowDialogQueue: Queue<void>;
+	private readonly windowFileDialogLocks = new Set<number>();
 
-	private activeWindowDialogs: Set<number>;
+	private readonly windowsMessageBoxQueue = new Map<number, Queue<MessageBoxReturnValue>>();
+	private readonly noWindowMessageBoxQueue = new Queue<MessageBoxReturnValue>();
 
 	constructor(
 		@IStateService private readonly stateService: IStateService
 	) {
-		this.mapWindowToDialogQueue = new Map<number, Queue<void>>();
-		this.noWindowDialogQueue = new Queue<void>();
-		this.activeWindowDialogs = new Set();
 	}
 
 	pickFileFolder(options: INativeOpenDialogOptions, window?: BrowserWindow): Promise<string[] | undefined> {
@@ -126,48 +125,31 @@ export class DialogMainService implements IDialogMainService {
 		return;
 	}
 
-	private getDialogQueue(window?: BrowserWindow): Queue<any> {
-		if (!window) {
-			return this.noWindowDialogQueue;
-		}
-
-		let windowDialogQueue = this.mapWindowToDialogQueue.get(window.id);
-		if (!windowDialogQueue) {
-			windowDialogQueue = new Queue<any>();
-			this.mapWindowToDialogQueue.set(window.id, windowDialogQueue);
-		}
-
-		return windowDialogQueue;
-	}
-
-	private requestDialog(window?: BrowserWindow): boolean {
-		if (!window) {
-			return true;
-		}
-		if (!this.activeWindowDialogs.has(window.id)) {
-			this.activeWindowDialogs.add(window.id);
-			return true;
-		}
-		return false;
-	}
-
-	private freeDialog(window?: BrowserWindow): void {
-		if (!window) {
-			return;
-		}
-		if (this.activeWindowDialogs.has(window.id)) {
-			this.activeWindowDialogs.delete(window.id);
-		}
-	}
-
 	showMessageBox(options: MessageBoxOptions, window?: BrowserWindow): Promise<MessageBoxReturnValue> {
-		return this.getDialogQueue(window).queue(async () => {
+		return this.getMessageBoxQueue(window).queue(async () => {
 			if (window) {
 				return dialog.showMessageBox(window, options);
 			}
 
 			return dialog.showMessageBox(options);
 		});
+	}
+
+	private getMessageBoxQueue(window?: BrowserWindow): Queue<MessageBoxReturnValue> {
+
+		// Queue message box requests per window so that one can show
+		// after the other.
+		if (window) {
+			let windowMessageBoxQueue = this.windowsMessageBoxQueue.get(window.id);
+			if (!windowMessageBoxQueue) {
+				windowMessageBoxQueue = new Queue<MessageBoxReturnValue>();
+				this.windowsMessageBoxQueue.set(window.id, windowMessageBoxQueue);
+			}
+
+			return windowMessageBoxQueue;
+		} else {
+			return this.noWindowMessageBoxQueue;
+		}
 	}
 
 	async showSaveDialog(options: SaveDialogOptions, window?: BrowserWindow): Promise<SaveDialogReturnValue> {
@@ -180,10 +162,13 @@ export class DialogMainService implements IDialogMainService {
 			return path;
 		}
 
-		let result: SaveDialogReturnValue;
+		const fileDialogLock = await this.acquireFileDialogLock(window);
+		if (!fileDialogLock) {
+			throw new Error('A file dialog is already showing for the window');
+		}
 
-		// Only create the dialog if the window doesn't already have one open
-		if (this.requestDialog(window)) {
+		try {
+			let result: SaveDialogReturnValue;
 			if (window) {
 				result = await dialog.showSaveDialog(window, options);
 			} else {
@@ -191,12 +176,11 @@ export class DialogMainService implements IDialogMainService {
 			}
 
 			result.filePath = normalizePath(result.filePath);
-			this.freeDialog(window);
 
 			return result;
+		} finally {
+			dispose(fileDialogLock);
 		}
-
-		return { canceled: true, filePath: undefined };
 	}
 
 	async showOpenDialog(options: OpenDialogOptions, window?: BrowserWindow): Promise<OpenDialogReturnValue> {
@@ -209,17 +193,20 @@ export class DialogMainService implements IDialogMainService {
 			return paths;
 		}
 
-		// Only create the dialog if the window doesn't already have one open
-		if (this.requestDialog(window)) {
-			// Ensure the path exists (if provided)
-			if (options.defaultPath) {
-				const pathExists = await exists(options.defaultPath);
-				if (!pathExists) {
-					options.defaultPath = undefined;
-				}
+		// Ensure the path exists (if provided)
+		if (options.defaultPath) {
+			const pathExists = await exists(options.defaultPath);
+			if (!pathExists) {
+				options.defaultPath = undefined;
 			}
+		}
 
-			// Show dialog
+		const fileDialogLock = await this.acquireFileDialogLock(window);
+		if (!fileDialogLock) {
+			throw new Error('A file dialog is already showing for the window');
+		}
+
+		try {
 			let result: OpenDialogReturnValue;
 			if (window) {
 				result = await dialog.showOpenDialog(window, options);
@@ -228,11 +215,43 @@ export class DialogMainService implements IDialogMainService {
 			}
 
 			result.filePaths = normalizePaths(result.filePaths);
-			this.freeDialog(window);
 
 			return result;
+		} finally {
+			dispose(fileDialogLock);
+		}
+	}
+
+	private async acquireFileDialogLock(window?: BrowserWindow): Promise<IDisposable | undefined> {
+
+		// if no window is provided, allow as many dialogs as
+		// needed since we consider them not modal per window
+		if (!window) {
+			return Disposable.None;
 		}
 
-		return { canceled: true, filePaths: [] };
+		// make sure to await any currently showing message boxes before proceeding
+		await this.joinMessageBoxQueue(window);
+
+		// if a window is provided, only allow a single dialog
+		// at the same time because dialogs are modal and we
+		// do not want to open one dialog after the other
+		// (https://github.com/microsoft/vscode/issues/114432)
+		if (this.windowFileDialogLocks.has(window.id)) {
+			return undefined;
+		}
+
+		this.windowFileDialogLocks.add(window.id);
+
+		return toDisposable(() => this.windowFileDialogLocks.delete(window.id));
+	}
+
+	private async joinMessageBoxQueue(window: BrowserWindow): Promise<void> {
+		const queue = this.getMessageBoxQueue(window);
+		if (queue.size === 0) {
+			return;
+		}
+
+		return Event.toPromise(queue.onFinished);
 	}
 }
