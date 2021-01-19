@@ -454,8 +454,8 @@ export class FileService extends Disposable implements IFileService {
 			throw error;
 		});
 
-		let fileStream: VSBufferReadableStream | null = null;
-		let fileStreamClosed: Promise<void> | null = null;
+		let fileStream: VSBufferReadableStream | undefined = undefined;
+		let fileStreamClosed: Promise<void> | undefined = undefined;
 
 		try {
 
@@ -498,6 +498,7 @@ export class FileService extends Disposable implements IFileService {
 				fileStream.on('data', () => { /* drain the data from the file stream to get the end event */ });
 				await fileStreamClosed;
 			}
+
 			throw new FileOperationError(localize('err.read', "Unable to read file '{0}' ({1})", this.resourceForError(resource), ensureFileSystemProviderError(error).toString()), toFileOperationResult(error), options);
 		}
 	}
@@ -525,6 +526,9 @@ export class FileService extends Disposable implements IFileService {
 
 	private readFileUnbuffered(provider: IFileSystemProviderWithFileReadWriteCapability, resource: URI, options?: IReadFileOptions): VSBufferReadableStream {
 		const stream = newWriteableStream<VSBuffer>(data => VSBuffer.concat(data));
+
+		// Read the file into the stream async but do not wait for
+		// this to complete because streams work via events
 		(async () => {
 			try {
 				let buffer = await provider.readFile(resource);
@@ -541,11 +545,14 @@ export class FileService extends Disposable implements IFileService {
 
 				// Throw if file is too large to load
 				this.validateReadFileLimits(resource, buffer.byteLength, options);
+
+				// End stream with data
 				stream.end(VSBuffer.wrap(buffer));
 			} catch (err) {
 				stream.error(err);
 			}
 		})();
+
 		return stream;
 	}
 

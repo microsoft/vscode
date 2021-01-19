@@ -230,7 +230,7 @@ class WriteableStreamImpl<T> implements WriteableStream<T> {
 
 		// flowing: directly send the data to listeners
 		if (this.state.flowing) {
-			this.listeners.data.slice(0).forEach(listener => listener(data));
+			this.emitData(data);
 		}
 
 		// not yet flowing: buffer data until flowing
@@ -251,12 +251,7 @@ class WriteableStreamImpl<T> implements WriteableStream<T> {
 
 		// flowing: directly send the error to listeners
 		if (this.state.flowing) {
-			if (this.listeners.error.length === 0) {
-				// nobody listened to this error
-				onUnexpectedError(error);
-			} else {
-				this.listeners.error.slice(0).forEach(listener => listener(error));
-			}
+			this.emitError(error);
 		}
 
 		// not yet flowing: buffer errors until flowing
@@ -279,7 +274,7 @@ class WriteableStreamImpl<T> implements WriteableStream<T> {
 
 		// flowing: send end event to listeners
 		if (this.state.flowing) {
-			this.listeners.end.slice(0).forEach(listener => listener());
+			this.emitEnd();
 
 			this.destroy();
 		}
@@ -288,6 +283,22 @@ class WriteableStreamImpl<T> implements WriteableStream<T> {
 		else {
 			this.state.ended = true;
 		}
+	}
+
+	private emitData(data: T): void {
+		this.listeners.data.slice(0).forEach(listener => listener(data)); // slice to avoid listener mutation from delivering event
+	}
+
+	private emitError(error: Error): void {
+		if (this.listeners.error.length === 0) {
+			onUnexpectedError(error); // nobody listened to this error so we log it as unexpected
+		} else {
+			this.listeners.error.slice(0).forEach(listener => listener(error)); // slice to avoid listener mutation from delivering event
+		}
+	}
+
+	private emitEnd(): void {
+		this.listeners.end.slice(0).forEach(listener => listener()); // slice to avoid listener mutation from delivering event
 	}
 
 	on(event: 'data', callback: (data: T) => void): void;
@@ -367,7 +378,7 @@ class WriteableStreamImpl<T> implements WriteableStream<T> {
 		if (this.buffer.data.length > 0) {
 			const fullDataBuffer = this.reducer(this.buffer.data);
 
-			this.listeners.data.slice(0).forEach(listener => listener(fullDataBuffer));
+			this.emitData(fullDataBuffer);
 
 			this.buffer.data.length = 0;
 
@@ -381,12 +392,7 @@ class WriteableStreamImpl<T> implements WriteableStream<T> {
 	private flowErrors(): void {
 		if (this.listeners.error.length > 0) {
 			for (const error of this.buffer.error) {
-				if (this.listeners.error.length === 0) {
-					// nobody listened to this error
-					onUnexpectedError(error);
-				} else {
-					this.listeners.error.slice(0).forEach(listener => listener(error));
-				}
+				this.emitError(error);
 			}
 
 			this.buffer.error.length = 0;
@@ -395,7 +401,7 @@ class WriteableStreamImpl<T> implements WriteableStream<T> {
 
 	private flowEnd(): boolean {
 		if (this.state.ended) {
-			this.listeners.end.slice(0).forEach(listener => listener());
+			this.emitEnd();
 
 			return this.listeners.end.length > 0;
 		}

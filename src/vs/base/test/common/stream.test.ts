@@ -335,16 +335,19 @@ suite('Stream', () => {
 		assert.equal(consumed, '11,22,33,44,55');
 	});
 
-	test('Events are not delivered if a listener is removed during delivery', () => {
+	test('events are delivered even if a listener is removed during delivery', () => {
 		const stream = newWriteableStream<string>(strings => strings.join());
+
 		let listener1Called = false;
 		let listener2Called = false;
+
 		const listener1 = () => { stream.removeListener('end', listener1); listener1Called = true; };
 		const listener2 = () => { listener2Called = true; };
 		stream.on('end', listener1);
 		stream.on('end', listener2);
 		stream.on('data', () => { });
 		stream.end('');
+
 		assert.strictEqual(listener1Called, true);
 		assert.strictEqual(listener2Called, true);
 	});
