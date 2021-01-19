@@ -170,6 +170,13 @@ export interface ICustomRendererMessage {
 	message: unknown;
 }
 
+export interface ICreateMarkdownMessage {
+	type: 'createMarkdownPreview',
+	id: string;
+	content: string;
+	top: number;
+}
+
 export type FromWebviewMessage =
 	| WebviewIntialized
 	| IDimensionMessage
@@ -192,7 +199,8 @@ export type ToWebviewMessage =
 	| IShowOutputMessage
 	| IUpdatePreloadResourceMessage
 	| IUpdateDecorationsMessage
-	| ICustomRendererMessage;
+	| ICustomRendererMessage
+	| ICreateMarkdownMessage;
 
 export type AnyMessage = FromWebviewMessage | ToWebviewMessage;
 
@@ -636,6 +644,21 @@ var requirejs = (function() {
 			version: version++,
 			forceDisplay,
 			widgets: widgets
+		});
+	}
+
+	async createMarkdownPreview(cellId: string, content: string, cellTop: number) {
+		if (this._disposed) {
+			return;
+		}
+
+		const initialTop = cellTop;
+
+		this._sendMessageToWebview({
+			type: 'createMarkdownPreview',
+			id: cellId,
+			content: content,
+			top: initialTop
 		});
 	}
 
