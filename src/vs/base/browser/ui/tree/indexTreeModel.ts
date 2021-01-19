@@ -48,7 +48,7 @@ export interface IIndexedSpliceOptions<T, TFilterData> {
 	 * If set, child updates will recurse the given number of levels even if
 	 * items in the splice operation are unchanged. `Infinity` is a valid value.
 	 */
-	readonly diffDeep?: number;
+	readonly diffDepth?: number;
 
 	/**
 	 * Identity provider used to optimize splice() calls in the IndexTree. If
@@ -159,7 +159,7 @@ export class IndexTreeModel<T extends Exclude<any, undefined>, TFilterData = voi
 		deleteCount: number,
 		toInsertIterable: Iterable<ITreeElement<T>> = Iterable.empty(),
 		options: IIndexedSpliceOptions<T, TFilterData>,
-		recurseLevels = options.diffDeep ?? 0,
+		recurseLevels = options.diffDepth ?? 0,
 	) {
 		const { parentNode } = this.getParentNodeWithListIndex(location);
 		const toInsert = [...toInsertIterable];
