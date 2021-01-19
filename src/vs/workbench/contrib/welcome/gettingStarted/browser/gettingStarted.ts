@@ -68,7 +68,7 @@ export class GettingStartedPage extends Disposable {
 	readonly editorInput: GettingStartedInput;
 	private inProgressScroll = Promise.resolve();
 
-	private dispatchListeners: Map<HTMLElement, DisposableStore> = new Map();
+	private dispatchListeners: DisposableStore = new DisposableStore();
 
 	private gettingStartedCategories: IGettingStartedCategoryWithProgress[];
 	private currentCategory: IGettingStartedCategoryWithProgress | undefined;
@@ -94,7 +94,7 @@ export class GettingStartedPage extends Disposable {
 		this.editorInput.selectedTask = initialState.selectedTask;
 
 		this.gettingStartedCategories = this.gettingStartedService.getCategories();
-		this._register({ dispose: () => this.dispatchListeners.forEach(entry => entry.dispose()) });
+		this._register(this.dispatchListeners);
 		this._register(this.gettingStartedService.onDidAddTask(task => console.log('added new task', task, 'that isnt being rendered yet')));
 		this._register(this.gettingStartedService.onDidAddCategory(category => console.log('added new category', category, 'that isnt being rendered yet')));
 		this._register(this.gettingStartedService.onDidProgressTask(task => {
@@ -124,15 +124,12 @@ export class GettingStartedPage extends Disposable {
 	}
 
 	private registerDispatchListeners(container: HTMLElement) {
-		if (!this.dispatchListeners.has(container)) { this.dispatchListeners.set(container, new DisposableStore()); }
-		const containerCollection = this.dispatchListeners.get(container)!;
-
-		containerCollection.clear();
+		this.dispatchListeners.clear();
 
 		container.querySelectorAll('[x-dispatch]').forEach(element => {
 			const [command, argument] = (element.getAttribute('x-dispatch') ?? '').split(':');
 			if (command) {
-				containerCollection.add(addDisposableListener(element, 'click', (e) => {
+				this.dispatchListeners.add(addDisposableListener(element, 'click', (e) => {
 
 					type GettingStartedActionClassification = {
 						command: { classification: 'PublicNonPersonalData', purpose: 'FeatureInsight' };
