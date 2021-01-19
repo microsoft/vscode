@@ -18,7 +18,7 @@ import { EditorPart } from 'vs/workbench/browser/parts/editor/editorPart';
 import { IEditorGroupsService } from 'vs/workbench/services/editor/common/editorGroupsService';
 import { EditorService } from 'vs/workbench/services/editor/browser/editorService';
 import { Registry } from 'vs/platform/registry/common/platform';
-import { EditorInput, IUntitledTextResourceEditorInput } from 'vs/workbench/common/editor';
+import { EditorInput } from 'vs/workbench/common/editor';
 import { FileEditorInput } from 'vs/workbench/contrib/files/common/editors/fileEditorInput';
 import { SyncDescriptor } from 'vs/platform/instantiation/common/descriptors';
 import { IEditorRegistry, EditorDescriptor, Extensions as EditorExtensions } from 'vs/workbench/browser/editor';
@@ -28,7 +28,7 @@ import { NodeTestBackupFileService } from 'vs/workbench/services/backup/test/ele
 import { dispose, IDisposable } from 'vs/base/common/lifecycle';
 import { toResource } from 'vs/base/test/common/utils';
 import { IFilesConfigurationService } from 'vs/workbench/services/filesConfiguration/common/filesConfigurationService';
-import { IWorkingCopyBackup, IWorkingCopyService } from 'vs/workbench/services/workingCopy/common/workingCopyService';
+import { IWorkingCopyService } from 'vs/workbench/services/workingCopy/common/workingCopyService';
 import { ILogService } from 'vs/platform/log/common/log';
 import { HotExitConfiguration } from 'vs/platform/files/common/files';
 import { ShutdownReason, ILifecycleService, BeforeShutdownEvent } from 'vs/workbench/services/lifecycle/common/lifecycle';
@@ -38,16 +38,12 @@ import { INativeHostService } from 'vs/platform/native/electron-sandbox/native';
 import { BackupTracker } from 'vs/workbench/contrib/backup/common/backupTracker';
 import { workbenchInstantiationService, TestServiceAccessor } from 'vs/workbench/test/electron-browser/workbenchTestServices';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
-import { UntitledTextEditorInput } from 'vs/workbench/services/untitled/common/untitledTextEditorInput';
 import { TestConfigurationService } from 'vs/platform/configuration/test/common/testConfigurationService';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { TestFilesConfigurationService } from 'vs/workbench/test/browser/workbenchTestServices';
 import { MockContextKeyService } from 'vs/platform/keybinding/test/common/mockKeybindingService';
 import { IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
 import { IEnvironmentService } from 'vs/platform/environment/common/environment';
-import { TestWorkingCopy } from 'vs/workbench/test/common/workbenchTestServices';
-import { CancellationToken } from 'vs/base/common/cancellation';
-import { timeout } from 'vs/base/common/async';
 import { Workspace } from 'vs/platform/workspace/test/common/testWorkspace';
 import { IProgressService } from 'vs/platform/progress/common/progress';
 
@@ -92,7 +88,7 @@ class BeforeShutdownEventImpl implements BeforeShutdownEvent {
 	}
 }
 
-flakySuite('BackupTracker', function () {
+flakySuite('BackupTracker (native)', function () {
 	let backupHome: string;
 	let workspaceBackupPath: string;
 
@@ -176,38 +172,6 @@ flakySuite('BackupTracker', function () {
 		return { accessor, part, tracker, instantiationService, cleanup };
 	}
 
-	async function untitledBackupTest(untitled: IUntitledTextResourceEditorInput = {}): Promise<void> {
-		const { accessor, cleanup } = await createTracker();
-
-		const untitledEditor = (await accessor.editorService.openEditor(untitled))?.input as UntitledTextEditorInput;
-
-		const untitledModel = await untitledEditor.resolve();
-
-		if (!untitled?.contents) {
-			untitledModel.textEditorModel.setValue('Super Good');
-		}
-
-		await accessor.backupFileService.joinBackupResource();
-
-		assert.equal(accessor.backupFileService.hasBackupSync(untitledEditor.resource), true);
-
-		untitledModel.dispose();
-
-		await accessor.backupFileService.joinDiscardBackup();
-
-		assert.equal(accessor.backupFileService.hasBackupSync(untitledEditor.resource), false);
-
-		await cleanup();
-	}
-
-	test('Track backups (untitled)', function () {
-		return untitledBackupTest();
-	});
-
-	test('Track backups (untitled with initial contents)', function () {
-		return untitledBackupTest({ contents: 'Foo Bar' });
-	});
-
 	test('Track backups (file)', async function () {
 		const { accessor, cleanup } = await createTracker();
 
@@ -227,54 +191,6 @@ flakySuite('BackupTracker', function () {
 
 		assert.equal(accessor.backupFileService.hasBackupSync(resource), false);
 
-		await cleanup();
-	});
-
-	test('Track backups (custom)', async function () {
-		const { accessor, cleanup } = await createTracker();
-
-		class TestBackupWorkingCopy extends TestWorkingCopy {
-
-			backupDelay = 0;
-
-			constructor(resource: URI) {
-				super(resource);
-
-				accessor.workingCopyService.registerWorkingCopy(this);
-			}
-
-			async backup(token: CancellationToken): Promise<IWorkingCopyBackup> {
-				await timeout(this.backupDelay);
-
-				return {};
-			}
-		}
-
-		const resource = toResource.call(this, '/path/custom.txt');
-		const customWorkingCopy = new TestBackupWorkingCopy(resource);
-
-		// Normal
-		customWorkingCopy.setDirty(true);
-		await accessor.backupFileService.joinBackupResource();
-		assert.equal(accessor.backupFileService.hasBackupSync(resource), true);
-
-		customWorkingCopy.setDirty(false);
-		customWorkingCopy.setDirty(true);
-		await accessor.backupFileService.joinBackupResource();
-		assert.equal(accessor.backupFileService.hasBackupSync(resource), true);
-
-		customWorkingCopy.setDirty(false);
-		await accessor.backupFileService.joinDiscardBackup();
-		assert.equal(accessor.backupFileService.hasBackupSync(resource), false);
-
-		// Cancellation
-		customWorkingCopy.setDirty(true);
-		await timeout(0);
-		customWorkingCopy.setDirty(false);
-		await accessor.backupFileService.joinDiscardBackup();
-		assert.equal(accessor.backupFileService.hasBackupSync(resource), false);
-
-		customWorkingCopy.dispose();
 		await cleanup();
 	});
 

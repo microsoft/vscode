@@ -3,7 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { URI, UriComponents } from 'vs/base/common/uri';
+import { URI } from 'vs/base/common/uri';
 import * as typeConverters from 'vs/workbench/api/common/extHostTypeConverters';
 import { CommandsRegistry, ICommandService, ICommandHandler } from 'vs/platform/commands/common/commands';
 import { ServicesAccessor } from 'vs/platform/instantiation/common/instantiation';
@@ -12,7 +12,6 @@ import { IWorkspacesService, IRecent } from 'vs/platform/workspaces/common/works
 import { ILogService } from 'vs/platform/log/common/log';
 import { IEnvironmentService } from 'vs/platform/environment/common/environment';
 import { IViewDescriptorService, IViewsService, ViewVisibilityState } from 'vs/workbench/common/views';
-import { IOpenerService } from 'vs/platform/opener/common/opener';
 
 // -----------------------------------------------------------------
 // The following commands are registered on both sides separately.
@@ -126,12 +125,6 @@ CommandsRegistry.registerCommand('_extensionTests.setLogLevel', function (access
 	if (environmentService.isExtensionDevelopment && !!environmentService.extensionTestsLocationURI) {
 		logService.setLevel(level);
 	}
-});
-
-CommandsRegistry.registerCommand('_workbench.openExternal', function (accessor: ServicesAccessor, uri: UriComponents, options: { allowTunneling?: boolean }) {
-	// TODO: discuss martin, ben where to put this
-	const openerService = accessor.get(IOpenerService);
-	openerService.open(URI.revive(uri), { openExternal: true, allowTunneling: options?.allowTunneling === true });
 });
 
 

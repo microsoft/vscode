@@ -646,14 +646,13 @@ export class MainThreadNotebooks extends Disposable implements MainThreadNoteboo
 
 			switch (revealType) {
 				case NotebookEditorRevealType.Default:
-					notebookEditor.revealInView(cell);
-					break;
+					return notebookEditor.revealCellRangeInView(range);
 				case NotebookEditorRevealType.InCenter:
-					notebookEditor.revealInCenter(cell);
-					break;
+					return notebookEditor.revealInCenter(cell);
 				case NotebookEditorRevealType.InCenterIfOutsideViewport:
-					notebookEditor.revealInCenterIfOutsideViewport(cell);
-					break;
+					return notebookEditor.revealInCenterIfOutsideViewport(cell);
+				case NotebookEditorRevealType.AtTop:
+					return notebookEditor.revealInViewAtTop(cell);
 				default:
 					break;
 			}

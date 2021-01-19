@@ -206,27 +206,54 @@ export function activate(context: vscode.ExtensionContext) {
 		});
 	}
 
-	vscode.workspace.registerRemoteAuthorityResolver('test', {
+	const authorityResolverDisposable = vscode.workspace.registerRemoteAuthorityResolver('test', {
 		resolve(_authority: string): Thenable<vscode.ResolvedAuthority> {
 			return vscode.window.withProgress({
 				location: vscode.ProgressLocation.Notification,
 				title: 'Open TestResolver Remote ([details](command:vscode-testresolver.showLog))',
 				cancellable: false
 			}, (progress) => doResolve(_authority, progress));
-		}
+		},
+		tunnelFactory,
+		tunnelFeatures: { elevation: true, public: false }
 	});
+	context.subscriptions.push(authorityResolverDisposable);
 
-	vscode.commands.registerCommand('vscode-testresolver.newWindow', () => {
+	context.subscriptions.push(vscode.commands.registerCommand('vscode-testresolver.newWindow', () => {
 		return vscode.commands.executeCommand('vscode.newWindow', { remoteAuthority: 'test+test' });
-	});
-	vscode.commands.registerCommand('vscode-testresolver.newWindowWithError', () => {
+	}));
+	context.subscriptions.push(vscode.commands.registerCommand('vscode-testresolver.newWindowWithError', () => {
 		return vscode.commands.executeCommand('vscode.newWindow', { remoteAuthority: 'test+error' });
-	});
-	vscode.commands.registerCommand('vscode-testresolver.showLog', () => {
+	}));
+	context.subscriptions.push(vscode.commands.registerCommand('vscode-testresolver.killServerAndTriggerHandledError', () => {
+		authorityResolverDisposable.dispose();
+		if (extHostProcess) {
+			terminateProcess(extHostProcess, context.extensionPath);
+		}
+		vscode.workspace.registerRemoteAuthorityResolver('test', {
+			async resolve(_authority: string): Promise<vscode.ResolvedAuthority> {
+				setTimeout(async () => {
+					await vscode.window.showErrorMessage('Just a custom message.', { modal: true, useCustom: true }, 'OK', 'Great');
+				}, 2000);
+				throw vscode.RemoteAuthorityResolverError.NotAvailable('Intentional Error', true);
+			}
+		});
+	}));
+	context.subscriptions.push(vscode.commands.registerCommand('vscode-testresolver.showLog', () => {
 		if (outputChannel) {
 			outputChannel.show();
 		}
-	});
+	}));
+	context.subscriptions.push(vscode.commands.registerCommand('vscode-testresolver.openTunnel', () => {
+		vscode.workspace.openTunnel({
+			remoteAddress: {
+				host: 'localhost',
+				port: 100
+			},
+			localAddressPort: 100
+		});
+	}));
+	vscode.commands.executeCommand('setContext', 'forwardedPortsViewEnabled', true);
 }
 
 type ActionItem = (vscode.MessageItem & { execute: () => void; });
@@ -286,4 +313,21 @@ function sleep(ms: number): Promise<void> {
 
 function getConfiguration<T>(id: string): T | undefined {
 	return vscode.workspace.getConfiguration('testresolver').get<T>(id);
+}
+
+function tunnelFactory(tunnelOptions: vscode.TunnelOptions): Promise<vscode.Tunnel> | undefined {
+	const onDidDispose: vscode.EventEmitter<void> = new vscode.EventEmitter();
+	let isDisposed = false;
+	return Promise.resolve({
+		localAddress: { host: 'localhost', port: (tunnelOptions.localAddressPort === undefined ? tunnelOptions.remoteAddress.port : tunnelOptions.localAddressPort) + 1 },
+		remoteAddress: tunnelOptions.remoteAddress,
+		public: tunnelOptions.public,
+		onDidDispose: onDidDispose.event,
+		dispose: () => {
+			if (!isDisposed) {
+				isDisposed = true;
+				onDidDispose.fire();
+			}
+		}
+	});
 }

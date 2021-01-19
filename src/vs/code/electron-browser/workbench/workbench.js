@@ -23,7 +23,7 @@
 		'vs/nls!vs/workbench/workbench.desktop.main',
 		'vs/css!vs/workbench/workbench.desktop.main'
 	],
-		async function (workbench, configuration) {
+		function (_, configuration) {
 
 			// Mark start of workbench
 			performance.mark('code/didLoadWorkbenchMain');
@@ -56,9 +56,9 @@
 			if (value === '<!DOCTYPE html><style type="text/css">:host { display: flex; }</style>') {
 				return value;
 			}
-			// throw new Error('UNTRUSTED html usage, default trusted types policy should NEVER be reached');
-			console.trace('UNTRUSTED html usage, default trusted types policy should NEVER be reached');
-			return value;
+			throw new Error('UNTRUSTED html usage, default trusted types policy should NEVER be reached');
+			// console.trace('UNTRUSTED html usage, default trusted types policy should NEVER be reached');
+			// return value;
 		}
 	});
 

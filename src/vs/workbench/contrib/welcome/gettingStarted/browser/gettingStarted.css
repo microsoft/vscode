@@ -39,6 +39,7 @@
 
 .monaco-workbench .part.editor > .content .walkThroughContent .gettingStartedContainer .gettingStartedSlide.categories .category-title {
 	margin-bottom: 4px;
+	font-weight: 600;
 }
 
 .monaco-workbench .part.editor > .content .walkThroughContent .gettingStartedContainer .gettingStartedSlide.categories .category-description-container {
@@ -50,9 +51,15 @@
 	font-size: 12px;
 }
 
-.monaco-workbench .part.editor > .content .walkThroughContent .gettingStartedContainer .gettingStartedSlide.categories progress {
-	font-size: 12pt;
-	width: 100%;
+.monaco-workbench .part.editor > .content .walkThroughContent .gettingStartedContainer .gettingStartedSlide.categories .progress-bar-outer {
+	height: 8px;
+	border-radius: 4px;
+	margin-top: 4px;
+}
+
+.monaco-workbench .part.editor > .content .walkThroughContent .gettingStartedContainer .gettingStartedSlide.categories .progress-bar-inner {
+	height: 100%;
+	border-radius: 4px;
 }
 
 .monaco-workbench .part.editor > .content .walkThroughContent .gettingStartedContainer .gettingStartedSlide.categories #getting-started-categories-container {
@@ -71,6 +78,7 @@
 .monaco-workbench .part.editor > .content .walkThroughContent .gettingStartedContainer .gettingStartedSlide .getting-started-category {
 	width: 330px;
 	min-height: 80px;
+	font-size: 13px;
 	margin: 12px;
 	text-align: left;
 	display: flex;
@@ -128,11 +136,13 @@
 	width: 100%;
 	overflow: hidden;
 	transition: max-height .1s linear;
-	max-height: 150px; /* taller than we need, to allow for animating */
+	max-height: 150px;
 }
 
 .monaco-workbench .part.editor > .content .walkThroughContent .gettingStartedContainer .gettingStartedSlide.detail .getting-started-task:not(.expanded) {
 	max-height: 54px;
+	background: none;
+	opacity: 0.8;
 }
 
 .monaco-workbench .part.editor > .content .walkThroughContent .gettingStartedContainer .gettingStartedSlide.detail #getting-started-detail-columns #getting-started-detail-left > div {
@@ -143,17 +153,14 @@
 .monaco-workbench .part.editor > .content .walkThroughContent .gettingStartedContainer .gettingStartedSlide.detail .getting-started-task:not(.expanded) .actions,
 .monaco-workbench .part.editor > .content .walkThroughContent .gettingStartedContainer .gettingStartedSlide.detail .getting-started-task:not(.expanded) button,
 .monaco-workbench .part.editor > .content .walkThroughContent .gettingStartedContainer .gettingStartedSlide.detail .getting-started-task:not(.expanded) a {
-	visibility: hidden;
+	display: none;
 }
 
-.monaco-workbench .part.editor > .content .walkThroughContent .gettingStartedContainer .gettingStartedSlide.detail .getting-started-task .task-title {
-	font-size: 14pt;
-}
 
 
 .monaco-workbench .part.editor > .content .walkThroughContent .gettingStartedContainer .gettingStartedSlide.detail .getting-started-task .task-description {
-	margin-top: 4px;
-	font-size: 13px;
+	padding-top: 8px;
+	font-size: 12px;
 }
 
 .monaco-workbench .part.editor > .content .walkThroughContent .gettingStartedContainer .gettingStartedSlide.detail .getting-started-task .actions {
@@ -173,13 +180,14 @@
 
 .monaco-workbench .part.editor > .content .walkThroughContent .gettingStartedContainer .gettingStartedSlide.detail .getting-started-task .codicon {
 	margin-right: 8px;
-	font-size: 20px;
+	font-size: 13px;
 }
 
 .monaco-workbench .part.editor > .content .walkThroughContent .gettingStartedContainer .gettingStartedSlide.detail .getting-started-task-action {
 	padding: 6px 12px;
-	font-size: 11pt;
+	font-size: 13px;
 	min-width: 100px;
+	margin-bottom: 0;
 }
 
 .monaco-workbench .part.editor > .content .walkThroughContent .gettingStartedContainer .gettingStartedSlide.detail #getting-started-detail-left {
@@ -206,7 +214,7 @@
 
 .monaco-workbench .part.editor > .content .walkThroughContent .gettingStartedContainer .gettingStartedSlide.detail #getting-started-detail-right {
 	display: flex;
-	align-items: center;
+	align-items: flex-start;
 	justify-content: center;
 	width: 66%;
 	min-height: 300px;
@@ -221,11 +229,6 @@
 	text-align: left;
 	padding: 16px;
 }
-
-.monaco-workbench .part.editor > .content .walkThroughContent .gettingStartedContainer button {
-	margin-bottom: 12px;
-}
-
 .monaco-workbench .part.editor > .content .walkThroughContent .gettingStartedContainer button:hover {
 	cursor: pointer;
 }
@@ -269,12 +272,13 @@
 
 .monaco-workbench .part.editor > .content .walkThroughContent .gettingStartedContainer .gettingStartedSlide h2 {
 	font-weight: normal;
+	line-height: 26px;
 	margin: 0 0 4px 0;
 }
 
 .monaco-workbench .part.editor > .content .walkThroughContent .gettingStartedContainer .gettingStartedSlide h3 {
-	font-size: 18px;
-	font-weight: bold;
+	font-size: 13px;
+	font-weight: 700;
 	margin: 0;
 }
 

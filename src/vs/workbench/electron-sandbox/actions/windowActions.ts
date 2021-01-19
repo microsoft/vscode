@@ -4,7 +4,6 @@
  *--------------------------------------------------------------------------------------------*/
 
 import 'vs/css!./media/actions';
-
 import { URI } from 'vs/base/common/uri';
 import { Action } from 'vs/base/common/actions';
 import * as nls from 'vs/nls';
@@ -119,26 +118,6 @@ export class ZoomResetAction extends BaseZoomAction {
 
 	async run(): Promise<void> {
 		this.setConfiguredZoomLevel(0);
-	}
-}
-
-export class ReloadWindowWithExtensionsDisabledAction extends Action {
-
-	static readonly ID = 'workbench.action.reloadWindowWithExtensionsDisabled';
-	static readonly LABEL = nls.localize('reloadWindowWithExtensionsDisabled', "Reload With Extensions Disabled");
-
-	constructor(
-		id: string,
-		label: string,
-		@INativeHostService private readonly nativeHostService: INativeHostService
-	) {
-		super(id, label);
-	}
-
-	async run(): Promise<boolean> {
-		await this.nativeHostService.reload({ disableExtensions: true });
-
-		return true;
 	}
 }
 

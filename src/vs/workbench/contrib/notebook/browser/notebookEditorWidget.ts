@@ -1226,8 +1226,16 @@ export class NotebookEditorWidget extends Disposable implements INotebookEditor 
 		// this.viewModel!.selectionHandles = [cell.handle];
 	}
 
+	revealCellRangeInView(range: ICellRange) {
+		return this._list.revealElementsInView(range);
+	}
+
 	revealInView(cell: ICellViewModel) {
 		this._list.revealElementInView(cell);
+	}
+
+	revealInViewAtTop(cell: ICellViewModel) {
+		this._list.revealElementInViewAtTop(cell);
 	}
 
 	revealInCenterIfOutsideViewport(cell: ICellViewModel) {

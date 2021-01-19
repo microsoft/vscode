@@ -162,9 +162,7 @@ suite('Files - TextFileEditorTracker', () => {
 	});
 
 	function awaitEditorOpening(editorService: IEditorService): Promise<void> {
-		return new Promise(c => {
-			Event.once(editorService.onDidActiveEditorChange)(c);
-		});
+		return Event.toPromise(Event.once(editorService.onDidActiveEditorChange));
 	}
 
 	test('non-dirty files reload on window focus', async function () {

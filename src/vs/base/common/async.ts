@@ -152,13 +152,13 @@ export class Throttler {
 					return result;
 				};
 
-				this.queuedPromise = new Promise(c => {
-					this.activePromise!.then(onComplete, onComplete).then(c);
+				this.queuedPromise = new Promise(resolve => {
+					this.activePromise!.then(onComplete, onComplete).then(resolve);
 				});
 			}
 
-			return new Promise((c, e) => {
-				this.queuedPromise!.then(c, e);
+			return new Promise((resolve, reject) => {
+				this.queuedPromise!.then(resolve, reject);
 			});
 		}
 
@@ -248,9 +248,9 @@ export class Delayer<T> implements IDisposable {
 		this.cancelTimeout();
 
 		if (!this.completionPromise) {
-			this.completionPromise = new Promise((c, e) => {
-				this.doResolve = c;
-				this.doReject = e;
+			this.completionPromise = new Promise((resolve, reject) => {
+				this.doResolve = resolve;
+				this.doReject = reject;
 			}).then(() => {
 				this.completionPromise = null;
 				this.doResolve = null;
