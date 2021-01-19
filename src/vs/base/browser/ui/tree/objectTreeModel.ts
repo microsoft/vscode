@@ -178,9 +178,7 @@ export class ObjectTreeModel<T extends NonNullable<any>, TFilterData extends Non
 		const location = this.getElementLocation(element);
 		const node = this.model.getNode(location);
 
-		// it should be safe to always use diff mode here if an identity provider
-		// is available, since we know the nodes and their nested children are unchanged.
-		this._setChildren(location, this.resortChildren(node, recursive), { diffIdentityProvider: this.identityProvider });
+		this._setChildren(location, this.resortChildren(node, recursive), {});
 	}
 
 	private resortChildren(node: ITreeNode<T | null, TFilterData>, recursive: boolean, first = true): Iterable<ITreeElement<T>> {
