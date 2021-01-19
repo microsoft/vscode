@@ -3,6 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
+import { IIdentityProvider } from 'vs/base/browser/ui/list/list';
 import { ICompressedTreeElement } from 'vs/base/browser/ui/tree/compressedObjectTreeModel';
 import { CompressibleObjectTree, ObjectTree } from 'vs/base/browser/ui/tree/objectTree';
 import { Iterable } from 'vs/base/common/iterator';
@@ -10,6 +11,12 @@ import { TestRunState } from 'vs/workbench/api/common/extHostTypes';
 import { ITestTreeElement } from 'vs/workbench/contrib/testing/browser/explorerProjections';
 
 export const isRunningState = (s: TestRunState) => s === TestRunState.Queued || s === TestRunState.Running;
+
+export const testIdentityProvider: IIdentityProvider<ITestTreeElement> = {
+	getId(element) {
+		return element.treeId;
+	}
+};
 
 /**
  * Removes nodes from the set whose parents don't exist in the tree. This is
@@ -54,7 +61,7 @@ export class NodeChangeList<T extends ITestTreeElement & { children: Iterable<T>
 		for (const parent of this.changedParents) {
 			if (parent === null || tree.hasElement(parent)) {
 				const pchildren: Iterable<T> = parent ? parent.children : roots();
-				tree.setChildren(parent, Iterable.map(pchildren, renderNode));
+				tree.setChildren(parent, Iterable.map(pchildren, renderNode), { diffIdentityProvider: testIdentityProvider });
 			}
 		}
 
