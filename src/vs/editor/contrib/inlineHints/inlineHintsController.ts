@@ -65,11 +65,13 @@ export class InlineHintsController implements IEditorContribution {
 	private _decorationsTypeIds: string[] = [];
 	private _decorationIds: string[] = [];
 
-	constructor(private readonly _editor: ICodeEditor,
+	constructor(
+		private readonly _editor: ICodeEditor,
 		@ICodeEditorService private readonly _codeEditorService: ICodeEditorService,
 		@IThemeService private readonly _themeService: IThemeService,
 	) {
 		this._disposables.add(InlineHintsProviderRegistry.onDidChange(() => this._update()));
+		this._disposables.add(_themeService.onDidColorThemeChange(() => this._update()));
 		this._disposables.add(_editor.onDidChangeModel(() => this._update()));
 		this._disposables.add(_editor.onDidChangeModelLanguage(() => this._update()));
 		this._disposables.add(_editor.onDidChangeConfiguration(e => {
@@ -158,7 +160,8 @@ export class InlineHintsController implements IEditorContribution {
 					margin: `0px ${marginAfter}px 0px ${marginBefore}px`,
 					fontSize: `${fontSize}px`,
 					fontFamily: fontFamily,
-					padding: `0px ${(fontSize / 4) | 0}px`
+					padding: `0px ${(fontSize / 4) | 0}px`,
+					borderRadius: `${(fontSize / 4) | 0}px`,
 				};
 				const key = 'inlineHints-' + hash(before).toString(16);
 				this._codeEditorService.registerDecorationType(key, { before }, undefined, this._editor);
