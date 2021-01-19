@@ -21,6 +21,7 @@ import { ThemeColor } from 'vs/workbench/api/common/extHostTypes';
 import { IEditorService } from 'vs/workbench/services/editor/common/editorService';
 import { TrustedWorkspacesFileSystemProvider } from 'vs/workbench/contrib/workspace/common/trustedWorkspaceFileSystemProvider';
 import { ContextKeyExpr } from 'vs/platform/contextkey/common/contextkey';
+import { WorkbenchStateContext } from 'vs/workbench/browser/contextkeys';
 
 const workspaceTrustIcon = registerIcon('workspace-trust-icon', Codicon.shield, localize('workspaceTrustIcon', "Icon for workspace trust badge."));
 
@@ -144,7 +145,7 @@ registerAction2(class extends Action2 {
 			category: localize('workspacesCategory', "Workspaces"),
 			menu: {
 				id: MenuId.GlobalActivity,
-				when: ContextKeyExpr.and(TrustedWorkspaceContext.IsPendingRequest.negate(), TrustedWorkspaceContext.TrustState.isEqualTo(TrustState.Trusted)),
+				when: ContextKeyExpr.and(WorkbenchStateContext.isEqualTo('empty').negate(), TrustedWorkspaceContext.IsPendingRequest.negate(), TrustedWorkspaceContext.TrustState.isEqualTo(TrustState.Trusted)),
 				order: 30
 			}
 		});
@@ -168,7 +169,7 @@ registerAction2(class extends Action2 {
 			category: localize('workspacesCategory', "Workspaces"),
 			menu: {
 				id: MenuId.GlobalActivity,
-				when: ContextKeyExpr.and(TrustedWorkspaceContext.IsPendingRequest.negate(), TrustedWorkspaceContext.TrustState.isEqualTo(TrustState.Untrusted)),
+				when: ContextKeyExpr.and(WorkbenchStateContext.isEqualTo('empty').negate(), TrustedWorkspaceContext.IsPendingRequest.negate(), TrustedWorkspaceContext.TrustState.isEqualTo(TrustState.Untrusted)),
 				order: 40
 			}
 		});
@@ -255,7 +256,7 @@ class TrustedWorkspaceStatusbarItem extends Disposable implements IWorkbenchCont
 
 	private updateStatusbarEntry(state: ITrustedWorkspaceChangeModel): void {
 		this.statusBarEntryAccessor.value?.update(this.getStatusbarEntry(state.currentState));
-		//this.statusbarService.updateEntryVisibility(TrustedWorkspaceStatusbarItem.ID, state.currentState === TrustState.Untrusted);
+		this.statusbarService.updateEntryVisibility(TrustedWorkspaceStatusbarItem.ID, state.currentState === TrustState.Untrusted);
 	}
 }
 

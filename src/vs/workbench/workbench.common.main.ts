@@ -310,7 +310,7 @@ import 'vs/workbench/contrib/welcome/common/viewsWelcome.contribution';
 import 'vs/workbench/contrib/timeline/browser/timeline.contribution';
 
 // Workspace
-import 'vs/workbench/contrib/workspace/common/workspace.contribution';
+import 'vs/workbench/contrib/workspace/browser/workspace.contribution';
 
 // Workspaces
 import 'vs/workbench/contrib/workspaces/browser/workspaces.contribution';
