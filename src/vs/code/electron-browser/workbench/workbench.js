@@ -56,9 +56,9 @@
 			if (value === '<!DOCTYPE html><style type="text/css">:host { display: flex; }</style>') {
 				return value;
 			}
-			// throw new Error('UNTRUSTED html usage, default trusted types policy should NEVER be reached');
-			console.trace('UNTRUSTED html usage, default trusted types policy should NEVER be reached');
-			return value;
+			throw new Error('UNTRUSTED html usage, default trusted types policy should NEVER be reached');
+			// console.trace('UNTRUSTED html usage, default trusted types policy should NEVER be reached');
+			// return value;
 		}
 	});
 
