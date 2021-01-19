@@ -1137,11 +1137,6 @@ export class ChangeModeAction extends Action {
 			return;
 		}
 
-		// refocus to editor if editor were not foucused
-		if (!activeTextEditorControl.hasWidgetFocus()) {
-			activeTextEditorControl.focus();
-		}
-
 		if (pick === galleryAction) {
 			galleryAction.run();
 			return;
@@ -1185,6 +1180,8 @@ export class ChangeModeAction extends Action {
 					modeSupport.setMode(languageSelection.languageIdentifier.language);
 				}
 			}
+
+			activeTextEditorControl.focus();
 		}
 	}
 
@@ -1283,10 +1280,7 @@ export class ChangeEOLAction extends Action {
 			}
 		}
 
-		// refocus to editor if editor were not foucused
-		if (!activeTextEditorControl.hasWidgetFocus()) {
-			activeTextEditorControl.focus();
-		}
+		activeTextEditorControl.focus();
 	}
 }
 
@@ -1308,7 +1302,8 @@ export class ChangeEncodingAction extends Action {
 	}
 
 	async run(): Promise<void> {
-		if (!getCodeEditor(this.editorService.activeTextEditorControl)) {
+		const activeTextEditorControl = getCodeEditor(this.editorService.activeTextEditorControl);
+		if (!activeTextEditorControl) {
 			await this.quickInputService.pick([{ label: nls.localize('noEditor', "No text editor active at this time") }]);
 			return;
 		}
@@ -1427,10 +1422,6 @@ export class ChangeEncodingAction extends Action {
 			activeEncodingSupport.setEncoding(encoding.id, isReopenWithEncoding ? EncodingMode.Decode : EncodingMode.Encode); // Set new encoding
 		}
 
-		// refocus to editor if editor were not foucused
-		const activeTextEditorControl = getCodeEditor(this.editorService.activeTextEditorControl);
-		if (!activeTextEditorControl?.hasWidgetFocus()) {
-			activeTextEditorControl?.focus();
-		}
+		activeTextEditorControl.focus();
 	}
 }
