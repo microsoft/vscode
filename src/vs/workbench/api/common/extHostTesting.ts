@@ -28,7 +28,6 @@ export class ExtHostTesting implements ExtHostTestingShape {
 	private readonly providers = new Map<string, vscode.TestProvider>();
 	private readonly proxy: MainThreadTestingShape;
 	private readonly ownedTests = new OwnedTestCollection();
-	private readonly WorkspaceTestHierarchies = new Map<vscode.Uri, vscode.TestHierarchy<vscode.TestItem>>();
 	private readonly testSubscriptions = new Map<string, {
 		collection: SingleUseTestCollection;
 		store: IDisposable;
@@ -222,55 +221,86 @@ export class ExtHostTesting implements ExtHostTestingShape {
 		return Promise.resolve(item);
 	}
 
-	private createDefaultDocumentTestHierarchy(provider: vscode.TestProvider, document: vscode.TextDocument, folder: vscode.WorkspaceFolder): vscode.TestHierarchy<vscode.TestItem> | undefined {
-		// let idOfProvider: string | undefined;
-		// for (const [id, p] of this.providers) {
-		// 	if (p === provider) {
-		// 		idOfProvider = id;
-		// 	}
-		// }
-
-		// if (!idOfProvider) {
-		// 	return;
-		// }
-
-		// const sub = this.testSubscriptions.get(idOfProvider);
-		// if (!sub) {
-		// 	return;
-		// }
-
-		// for (const test of sub) {
-
-		// }
-		// this.testSubscriptions.get(idOfProvider)?.collection
-		let hierarchy = this.WorkspaceTestHierarchies.get(folder.uri) ?? provider.createWorkspaceTestHierarchy?.(folder);
-		if (!hierarchy) {
+	private createDefaultDocumentTestHierarchy(provider: vscode.TestProvider, document: vscode.TextDocument, folder: vscode.WorkspaceFolder | undefined): vscode.TestHierarchy<vscode.TestItem> | undefined {
+		if (!folder) {
 			return;
 		}
 
-		const node = this.findNode(hierarchy.root, document.uri);
-		if (node) {
-			return {
-				root: node,
-				dispose: hierarchy.dispose,
-				onDidChangeTest: hierarchy.onDidChangeTest
-			};
+		let workspaceHierarchy = provider.createWorkspaceTestHierarchy?.(folder);
+		if (!workspaceHierarchy) {
+			return;
 		}
 
-		return this.WorkspaceTestHierarchies.get(document.uri)!;
+		const onDidChangeTest = new Emitter<vscode.TestItem>();
+		workspaceHierarchy.onDidChangeTest(node => {
+			const wrapper = TestItemWrapper.getWrapperForTestItem(node, document.uri);
+			if (wrapper.doesHaveNodeMatchingFilter) {
+			}
+		});
+
+		return {
+			root: TestItemWrapper.getWrapperForTestItem(workspaceHierarchy.root, document.uri),
+			dispose: () => onDidChangeTest.dispose(),
+			onDidChangeTest: onDidChangeTest.event
+		};
+	}
+}
+
+class TestItemWrapper implements vscode.TestItem {
+	public static wrapperMap = new WeakMap<vscode.TestItem, TestItemWrapper>();
+
+	public static getWrapperForTestItem(item: vscode.TestItem, filterToUri: vscode.Uri, parent?: TestItemWrapper) {
+		if (TestItemWrapper.wrapperMap.has(item)) {
+			return TestItemWrapper.wrapperMap.get(item)!;
+		}
+		const w = new TestItemWrapper(item, filterToUri, parent);
+		TestItemWrapper.wrapperMap.set(item, w);
+		return w;
 	}
 
-	private findNode(root: vscode.TestItem, uri: vscode.Uri): vscode.TestItem | undefined {
-		const queue = new Array<vscode.TestItem>();
-		queue.push(root);
+	public get label() {
+		return this.actualItem.label;
+	}
 
-		while (queue.length > 0) {
-			const current = queue.shift();
-			if (current?.location?.uri === uri) {
-				return current;
-			}
-			current?.children?.forEach(c => queue.push(c));
-		}
+	public get debuggable() {
+		return this.actualItem.debuggable;
+	}
+
+	public get description() {
+		return this.actualItem.description;
+	}
+
+	public get location() {
+		return this.actualItem.location;
+	}
+
+	public get runnable() {
+		return this.actualItem.runnable;
+	}
+
+	public get state() {
+		return this.actualItem.state;
+	}
+
+	public get children() {
+		return this.getWrappedChildren().filter(child => child.doesHaveNodeMatchingFilter);
+	}
+
+	public get doesHaveNodeMatchingFilter(): boolean {
+		return !this.parent
+			|| this.actualItem.location?.uri.toString() === this.filterToUri.toString()
+			|| this.getWrappedChildren().some(child => child.doesHaveNodeMatchingFilter);
+	}
+	public get visibleParent(): TestItemWrapper {
+		return this.doesHaveNodeMatchingFilter ? this : this.parent!.visibleParent;
+	}
+
+	constructor(private readonly actualItem: vscode.TestItem, private filterToUri: vscode.Uri, private readonly parent?: TestItemWrapper) {
+		this.getWrappedChildren();
+	}
+
+	private getWrappedChildren() {
+		return this.actualItem.children?.map(t => TestItemWrapper.getWrapperForTestItem(t, this.filterToUri, this)) || [];
 	}
 }
 
