@@ -120,6 +120,7 @@ export class OutlinePane extends ViewPane {
 	dispose(): void {
 		this._disposables.dispose();
 		this._editorDisposables.dispose();
+		this._editorListener.dispose();
 		super.dispose();
 	}
 

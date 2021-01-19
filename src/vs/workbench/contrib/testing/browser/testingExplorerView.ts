@@ -5,11 +5,11 @@
 
 import * as dom from 'vs/base/browser/dom';
 import { ActionBar } from 'vs/base/browser/ui/actionbar/actionbar';
-import { IIdentityProvider, IListVirtualDelegate } from 'vs/base/browser/ui/list/list';
+import { IIdentityProvider, IKeyboardNavigationLabelProvider, IListVirtualDelegate } from 'vs/base/browser/ui/list/list';
 import { IListAccessibilityProvider } from 'vs/base/browser/ui/list/listWidget';
 import { ICompressedTreeNode } from 'vs/base/browser/ui/tree/compressedObjectTreeModel';
-import { CompressibleObjectTree, ICompressibleKeyboardNavigationLabelProvider, ICompressibleTreeRenderer } from 'vs/base/browser/ui/tree/objectTree';
-import { ITreeEvent, ITreeFilter, ITreeNode, ITreeSorter, TreeFilterResult, TreeVisibility } from 'vs/base/browser/ui/tree/tree';
+import { ObjectTree } from 'vs/base/browser/ui/tree/objectTree';
+import { ITreeEvent, ITreeFilter, ITreeNode, ITreeRenderer, ITreeSorter, TreeFilterResult, TreeVisibility } from 'vs/base/browser/ui/tree/tree';
 import { throttle } from 'vs/base/common/decorators';
 import { Event } from 'vs/base/common/event';
 import { FuzzyScore } from 'vs/base/common/filters';
@@ -28,7 +28,7 @@ import { IContextMenuService } from 'vs/platform/contextview/browser/contextView
 import { FileKind } from 'vs/platform/files/common/files';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { IKeybindingService } from 'vs/platform/keybinding/common/keybinding';
-import { WorkbenchCompressibleObjectTree } from 'vs/platform/list/browser/listService';
+import { WorkbenchObjectTree } from 'vs/platform/list/browser/listService';
 import { IOpenerService } from 'vs/platform/opener/common/opener';
 import { IProgressService } from 'vs/platform/progress/common/progress';
 import { IStorageService, StorageScope, StorageTarget } from 'vs/platform/storage/common/storage';
@@ -42,21 +42,21 @@ import { IViewletViewOptions } from 'vs/workbench/browser/parts/views/viewsViewl
 import { IViewDescriptorService } from 'vs/workbench/common/views';
 import { ITestTreeElement, ITestTreeProjection } from 'vs/workbench/contrib/testing/browser/explorerProjections';
 import { HierarchicalByLocationProjection } from 'vs/workbench/contrib/testing/browser/explorerProjections/hierarchalByLocation';
-import { HierarchicalByNameElement, HierarchicalByNameProjection, ListElementType } from 'vs/workbench/contrib/testing/browser/explorerProjections/hierarchalByName';
+import { HierarchicalByNameProjection } from 'vs/workbench/contrib/testing/browser/explorerProjections/hierarchalByName';
 import { getComputedState } from 'vs/workbench/contrib/testing/browser/explorerProjections/hierarchalNodes';
 import { StateByLocationProjection } from 'vs/workbench/contrib/testing/browser/explorerProjections/stateByLocation';
 import { StateByNameProjection } from 'vs/workbench/contrib/testing/browser/explorerProjections/stateByName';
 import { StateElement } from 'vs/workbench/contrib/testing/browser/explorerProjections/stateNodes';
 import { testingStatesToIcons } from 'vs/workbench/contrib/testing/browser/icons';
 import { cmpPriority, isFailedState } from 'vs/workbench/contrib/testing/browser/testExplorerTree';
-import { ITestingCollectionService, TestSubscriptionListener } from 'vs/workbench/contrib/testing/common/testingCollectionService';
 import { TestingExplorerFilter, TestingFilterState } from 'vs/workbench/contrib/testing/browser/testingExplorerFilter';
+import { TestingOutputPeekController } from 'vs/workbench/contrib/testing/browser/testingOutputPeek';
 import { TestExplorerViewGrouping, TestExplorerViewMode } from 'vs/workbench/contrib/testing/common/constants';
+import { ITestingCollectionService, TestSubscriptionListener } from 'vs/workbench/contrib/testing/common/testingCollectionService';
 import { TestingContextKeys } from 'vs/workbench/contrib/testing/common/testingContextKeys';
 import { ITestService } from 'vs/workbench/contrib/testing/common/testService';
 import { IEditorService } from 'vs/workbench/services/editor/common/editorService';
 import { DebugAction, RunAction } from './testExplorerActions';
-import { TestingOutputPeekController } from 'vs/workbench/contrib/testing/browser/testingOutputPeek';
 
 export class TestingExplorerView extends ViewPane {
 	public viewModel!: TestingExplorerViewModel;
@@ -161,7 +161,7 @@ export class TestingExplorerView extends ViewPane {
 }
 
 export class TestingExplorerViewModel extends Disposable {
-	public tree: CompressibleObjectTree<ITestTreeElement, FuzzyScore>;
+	public tree: ObjectTree<ITestTreeElement, FuzzyScore>;
 	private filter: TestsFilter;
 	public projection!: ITestTreeProjection;
 
@@ -227,7 +227,7 @@ export class TestingExplorerViewModel extends Disposable {
 		}));
 
 		this.tree = instantiationService.createInstance(
-			WorkbenchCompressibleObjectTree,
+			WorkbenchObjectTree,
 			'Test Explorer List',
 			listContainer,
 			new ListDelegate(),
@@ -241,7 +241,7 @@ export class TestingExplorerViewModel extends Disposable {
 				keyboardNavigationLabelProvider: instantiationService.createInstance(TreeKeyboardNavigationLabelProvider),
 				accessibilityProvider: instantiationService.createInstance(ListAccessibilityProvider),
 				filter: this.filter,
-			}) as WorkbenchCompressibleObjectTree<ITestTreeElement, FuzzyScore>;
+			}) as WorkbenchObjectTree<ITestTreeElement, FuzzyScore>;
 		this._register(this.tree);
 
 		this.updatePreferredProjection();
@@ -482,15 +482,11 @@ class TestsFilter implements ITreeFilter<ITestTreeElement> {
 	}
 
 	public filter(element: ITestTreeElement): TreeFilterResult<void> {
-		if (element instanceof HierarchicalByNameElement && element.elementType !== ListElementType.TestLeaf && !element.isTestRoot) {
-			return TreeVisibility.Hidden;
-		}
-
 		if (this.testFilterText(element.label)) {
 			return TreeVisibility.Visible;
 		}
 
-		return Iterable.isEmpty(element.getChildren()) ? TreeVisibility.Hidden : TreeVisibility.Recurse;
+		return Iterable.isEmpty(element.children) ? TreeVisibility.Hidden : TreeVisibility.Recurse;
 	}
 
 	private testFilterText(data: string) {
@@ -532,7 +528,7 @@ class ListAccessibilityProvider implements IListAccessibilityProvider<ITestTreeE
 	}
 }
 
-class TreeKeyboardNavigationLabelProvider implements ICompressibleKeyboardNavigationLabelProvider<ITestTreeElement> {
+class TreeKeyboardNavigationLabelProvider implements IKeyboardNavigationLabelProvider<ITestTreeElement> {
 	getCompressedNodeKeyboardNavigationLabel(elements: ITestTreeElement[]) {
 		return this.getKeyboardNavigationLabel(elements[elements.length - 1]);
 	}
@@ -564,7 +560,7 @@ interface TestTemplateData {
 	actionBar: ActionBar;
 }
 
-class TestsRenderer implements ICompressibleTreeRenderer<ITestTreeElement, FuzzyScore, TestTemplateData> {
+class TestsRenderer implements ITreeRenderer<ITestTreeElement, FuzzyScore, TestTemplateData> {
 	public static readonly ID = 'testExplorer';
 
 	constructor(

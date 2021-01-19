@@ -4,20 +4,12 @@
  *--------------------------------------------------------------------------------------------*/
 
 import * as assert from 'assert';
-import { MirroredTestCollection, OwnedTestCollection, SingleUseTestCollection } from 'vs/workbench/api/common/extHostTesting';
+import { MirroredTestCollection } from 'vs/workbench/api/common/extHostTesting';
 import * as convert from 'vs/workbench/api/common/extHostTypeConverters';
-import { TestRunState, TestState } from 'vs/workbench/api/common/extHostTypes';
-import { TestDiffOpType, TestsDiff } from 'vs/workbench/contrib/testing/common/testCollection';
+import { TestDiffOpType } from 'vs/workbench/contrib/testing/common/testCollection';
+import { stubTest, testStubs } from 'vs/workbench/contrib/testing/common/testStubs';
+import { TestOwnedTestCollection, TestSingleUseCollection } from 'vs/workbench/contrib/testing/test/common/ownedTestCollection';
 import { TestChangeEvent, TestItem } from 'vscode';
-
-const stubTest = (label: string): TestItem => ({
-	label,
-	location: undefined,
-	state: new TestState(TestRunState.Unset),
-	debuggable: true,
-	runnable: true,
-	description: ''
-});
 
 const simplify = (item: TestItem) => {
 	if ('toJSON' in item) {
@@ -43,44 +35,6 @@ const assertTreeListEqual = (a: ReadonlyArray<Readonly<TestItem>>, b: ReadonlyAr
 	a.forEach((_, i) => assertTreesEqual(a[i], b[i]));
 };
 
-const stubNestedTests = () => ({
-	...stubTest('root'),
-	children: [
-		{ ...stubTest('a'), children: [stubTest('aa'), stubTest('ab')] },
-		stubTest('b'),
-	]
-});
-
-class TestOwnedTestCollection extends OwnedTestCollection {
-	public get idToInternal() {
-		return this.testIdToInternal;
-	}
-
-	public createForHierarchy(publishDiff: (diff: TestsDiff) => void = () => undefined) {
-		return new TestSingleUseCollection(this.testIdToInternal, publishDiff);
-	}
-}
-
-class TestSingleUseCollection extends SingleUseTestCollection {
-	private idCounter = 0;
-
-	public get itemToInternal() {
-		return this.testItemToInternal;
-	}
-
-	public get currentDiff() {
-		return this.diff;
-	}
-
-	protected getId() {
-		return String(this.idCounter++);
-	}
-
-	public setDiff(diff: TestsDiff) {
-		this.diff = diff;
-	}
-}
-
 class TestMirroredCollection extends MirroredTestCollection {
 	public changeEvent!: TestChangeEvent;
 
@@ -104,12 +58,12 @@ suite('ExtHost Testing', () => {
 
 	teardown(() => {
 		single.dispose();
-		assert.deepEqual(owned.idToInternal.size, 0, 'expected owned ids to be empty after dispose');
+		assert.strictEqual(owned.idToInternal.size, 0, 'expected owned ids to be empty after dispose');
 	});
 
 	suite('OwnedTestCollection', () => {
 		test('adds a root recursively', () => {
-			const tests = stubNestedTests();
+			const tests = testStubs.nested();
 			single.addRoot(tests, 'pid');
 			assert.deepStrictEqual(single.collectDiff(), [
 				[TestDiffOpType.Add, { id: '0', providerId: 'pid', parent: null, item: convert.TestItem.from(stubTest('root')) }],
@@ -121,14 +75,14 @@ suite('ExtHost Testing', () => {
 		});
 
 		test('no-ops if items not changed', () => {
-			const tests = stubNestedTests();
+			const tests = testStubs.nested();
 			single.addRoot(tests, 'pid');
 			single.collectDiff();
 			assert.deepStrictEqual(single.collectDiff(), []);
 		});
 
 		test('watches property mutations', () => {
-			const tests = stubNestedTests();
+			const tests = testStubs.nested();
 			single.addRoot(tests, 'pid');
 			single.collectDiff();
 			tests.children![0].description = 'Hello world'; /* item a */
@@ -142,7 +96,7 @@ suite('ExtHost Testing', () => {
 		});
 
 		test('removes children', () => {
-			const tests = stubNestedTests();
+			const tests = testStubs.nested();
 			single.addRoot(tests, 'pid');
 			single.collectDiff();
 			tests.children!.splice(0, 1);
@@ -156,7 +110,7 @@ suite('ExtHost Testing', () => {
 		});
 
 		test('adds new children', () => {
-			const tests = stubNestedTests();
+			const tests = testStubs.nested();
 			single.addRoot(tests, 'pid');
 			single.collectDiff();
 			const child = stubTest('ac');
@@ -176,7 +130,7 @@ suite('ExtHost Testing', () => {
 		setup(() => m = new TestMirroredCollection());
 
 		test('mirrors creation of the root', () => {
-			const tests = stubNestedTests();
+			const tests = testStubs.nested();
 			single.addRoot(tests, 'pid');
 			m.apply(single.collectDiff());
 			assertTreesEqual(m.rootTestItems[0], owned.getTestById('0')!.actual);
@@ -184,7 +138,7 @@ suite('ExtHost Testing', () => {
 		});
 
 		test('mirrors node deletion', () => {
-			const tests = stubNestedTests();
+			const tests = testStubs.nested();
 			single.addRoot(tests, 'pid');
 			m.apply(single.collectDiff());
 			tests.children!.splice(0, 1);
@@ -196,7 +150,7 @@ suite('ExtHost Testing', () => {
 		});
 
 		test('mirrors node addition', () => {
-			const tests = stubNestedTests();
+			const tests = testStubs.nested();
 			single.addRoot(tests, 'pid');
 			m.apply(single.collectDiff());
 			tests.children![0].children!.push(stubTest('ac'));
@@ -208,7 +162,7 @@ suite('ExtHost Testing', () => {
 		});
 
 		test('mirrors node update', () => {
-			const tests = stubNestedTests();
+			const tests = testStubs.nested();
 			single.addRoot(tests, 'pid');
 			m.apply(single.collectDiff());
 			tests.children![0].description = 'Hello world'; /* item a */
@@ -219,9 +173,9 @@ suite('ExtHost Testing', () => {
 		});
 
 		suite('MirroredChangeCollector', () => {
-			let tests = stubNestedTests();
+			let tests = testStubs.nested();
 			setup(() => {
-				tests = stubNestedTests();
+				tests = testStubs.nested();
 				single.addRoot(tests, 'pid');
 				m.apply(single.collectDiff());
 			});
@@ -266,7 +220,7 @@ suite('ExtHost Testing', () => {
 			});
 
 			test('is a no-op if a node is added and removed', () => {
-				const nested = stubNestedTests();
+				const nested = testStubs.nested();
 				tests.children.push(nested);
 				single.onItemChange(tests, 'pid');
 				tests.children.pop();

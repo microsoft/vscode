@@ -119,8 +119,6 @@ suite('EditorAutoSave', () => {
 	});
 
 	function awaitModelSaved(model: ITextFileEditorModel): Promise<void> {
-		return new Promise(c => {
-			Event.once(model.onDidChangeDirty)(c);
-		});
+		return Event.toPromise(Event.once(model.onDidChangeDirty));
 	}
 });

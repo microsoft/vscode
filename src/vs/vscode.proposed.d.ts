@@ -1945,6 +1945,83 @@ declare module 'vscode' {
 
 	//#endregion
 
+	//#region https://github.com/microsoft/vscode/issues/16221
+
+	export namespace languages {
+		/**
+		 * Register a inline hints provider.
+		 *
+		 * Multiple providers can be registered for a language. In that case providers are asked in
+		 * parallel and the results are merged. A failing provider (rejected promise or exception) will
+		 * not cause a failure of the whole operation.
+		 *
+		 * @param selector A selector that defines the documents this provider is applicable to.
+		 * @param provider An inline hints provider.
+		 * @return A [disposable](#Disposable) that unregisters this provider when being disposed.
+		 */
+		export function registerInlineHintsProvider(selector: DocumentSelector, provider: InlineHintsProvider): Disposable;
+	}
+
+	/**
+	 * Inline hint information.
+	 */
+	export class InlineHint {
+		/**
+		 * The text of the hint.
+		 */
+		text: string;
+		/**
+		 * The range of the hint.
+		 */
+		range: Range;
+		/**
+		 * Tooltip when hover on the hint.
+		 */
+		description?: string | MarkdownString;
+		/**
+		 * Whitespace before the hint.
+		 */
+		whitespaceBefore?: boolean;
+		/**
+		 * Whitespace after the hint.
+		 */
+		whitespaceAfter?: boolean;
+
+		/**
+		 * Creates a new inline hint information object.
+		 *
+		 * @param text The text of the hint.
+		 * @param range The range of the hint.
+		 * @param hoverMessage Tooltip when hover on the hint.
+		 * @param whitespaceBefore Whitespace before the hint.
+		 * @param whitespaceAfter TWhitespace after the hint.
+		 */
+		constructor(text: string, range: Range, description?: string | MarkdownString, whitespaceBefore?: boolean, whitespaceAfter?: boolean);
+	}
+
+	/**
+	 * The inline hints provider interface defines the contract between extensions and
+	 * the inline hints feature.
+	 */
+	export interface InlineHintsProvider {
+
+		/**
+		 * An optional event to signal that inline hints have changed.
+		 * @see [EventEmitter](#EventEmitter)
+		 */
+		onDidChangeInlineHints?: Event<void>;
+
+		/**
+		 * @param model The document in which the command was invoked.
+		 * @param range The range for which line hints should be computed.
+		 * @param token A cancellation token.
+		 *
+		 * @return A list of arguments labels or a thenable that resolves to such.
+		 */
+		provideInlineHints(model: TextDocument, range: Range, token: CancellationToken): ProviderResult<InlineHint[]>;
+	}
+	//#endregion
+
 	//#region https://github.com/microsoft/vscode/issues/104436
 
 	export enum ExtensionRuntime {

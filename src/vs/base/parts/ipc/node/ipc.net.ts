@@ -137,6 +137,7 @@ export class WebSocketNodeSocket extends Disposable implements ISocket {
 	private readonly _incomingData: ChunkStream;
 	private readonly _onData = this._register(new Emitter<VSBuffer>());
 	private readonly _onClose = this._register(new Emitter<void>());
+	private _isEnded: boolean = false;
 
 	private readonly _state = {
 		state: ReadState.PeekHeader,
@@ -274,7 +275,10 @@ export class WebSocketNodeSocket extends Disposable implements ISocket {
 				// See https://tools.ietf.org/html/rfc7692#section-7.2.1
 				data = data.slice(0, data.length - 4);
 
-				this._write(VSBuffer.wrap(data), true);
+				if (!this._isEnded) {
+					// Avoid ERR_STREAM_WRITE_AFTER_END
+					this._write(VSBuffer.wrap(data), true);
+				}
 
 				if (this._zlibDeflateFlushWaitingCount === 0) {
 					this._onDidZlibFlush.fire();
@@ -327,6 +331,7 @@ export class WebSocketNodeSocket extends Disposable implements ISocket {
 	}
 
 	public end(): void {
+		this._isEnded = true;
 		this.socket.end();
 	}
 

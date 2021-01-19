@@ -18,7 +18,8 @@
 		"onResolveRemoteAuthority:test",
 		"onCommand:vscode-testresolver.newWindow",
 		"onCommand:vscode-testresolver.newWindowWithError",
-		"onCommand:vscode-testresolver.showLog"
+		"onCommand:vscode-testresolver.showLog",
+		"onCommand:vscode-testresolver.openTunnel"
 	],
 	"main": "./out/extension",
 	"devDependencies": {
@@ -52,6 +53,11 @@
 				"title": "Kill Server and Trigger Handled Error",
 				"category": "Remote-TestResolver",
 				"command": "vscode-testresolver.killServerAndTriggerHandledError"
+			},
+			{
+				"title": "Open Tunnel 100",
+				"category": "Remote-TestResolver",
+				"command": "vscode-testresolver.openTunnel"
 			}
 		],
 		"menus": {
