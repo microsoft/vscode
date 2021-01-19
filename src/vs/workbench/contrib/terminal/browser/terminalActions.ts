@@ -25,11 +25,11 @@ import { URI } from 'vs/base/common/uri';
 import { isWindows } from 'vs/base/common/platform';
 import { withNullAsUndefined } from 'vs/base/common/types';
 import { ITerminalInstance, ITerminalService, Direction, IRemoteTerminalService, TerminalConnectionState } from 'vs/workbench/contrib/terminal/browser/terminal';
-import { Action2, registerAction2, ILocalizedString } from 'vs/platform/actions/common/actions';
+import { Action2, registerAction2, ILocalizedString, MenuId } from 'vs/platform/actions/common/actions';
 import { TerminalQuickAccessProvider } from 'vs/workbench/contrib/terminal/browser/terminalQuickAccess';
 import { ToggleViewAction } from 'vs/workbench/browser/actions/layoutActions';
 import { IViewsService, IViewDescriptorService } from 'vs/workbench/common/views';
-import { IContextKeyService, ContextKeyExpr } from 'vs/platform/contextkey/common/contextkey';
+import { IContextKeyService, ContextKeyExpr, ContextKeyEqualsExpr } from 'vs/platform/contextkey/common/contextkey';
 import { selectBorder } from 'vs/platform/theme/common/colorRegistry';
 import { KeyMod, KeyCode } from 'vs/base/common/keyCodes';
 import { KeybindingWeight } from 'vs/platform/keybinding/common/keybindingsRegistry';
@@ -43,7 +43,6 @@ import { ILabelService } from 'vs/platform/label/common/label';
 import { RemoteNameContext } from 'vs/workbench/browser/contextkeys';
 import { IPreferencesService } from 'vs/workbench/services/preferences/common/preferences';
 import { killTerminalIcon, newTerminalIcon } from 'vs/workbench/contrib/terminal/browser/terminalIcons';
-import { Codicon } from 'vs/base/common/codicons';
 
 async function getCwdForSplit(configHelper: ITerminalConfigHelper, instance: ITerminalInstance, folders?: IWorkspaceFolder[], commandService?: ICommandService): Promise<string | URI | undefined> {
 	switch (configHelper.config.splitCwd) {
@@ -212,34 +211,6 @@ export class CreateNewTerminalAction extends Action {
 			this._terminalService.setActiveInstance(instance);
 		}
 		await this._terminalService.showPanel(true);
-	}
-}
-
-export class SplitTerminalAction extends Action {
-	public static readonly ID = TERMINAL_COMMAND_ID.SPLIT;
-	public static readonly LABEL = localize('workbench.action.terminal.split', "Split Terminal");
-	public static readonly SHORT_LABEL = localize('workbench.action.terminal.split.short', "Split");
-	public static readonly HORIZONTAL_CLASS = 'terminal-action ' + Codicon.splitHorizontal.classNames;
-	public static readonly VERTICAL_CLASS = 'terminal-action ' + Codicon.splitVertical.classNames;
-
-	constructor(
-		id: string, label: string,
-		@ITerminalService private readonly _terminalService: ITerminalService,
-		@ICommandService private readonly _commandService: ICommandService,
-		@IWorkspaceContextService private readonly _workspaceContextService: IWorkspaceContextService
-	) {
-		super(id, label, SplitTerminalAction.HORIZONTAL_CLASS);
-	}
-
-	public async run(): Promise<any> {
-		await this._terminalService.doWithActiveInstance(async t => {
-			const cwd = await getCwdForSplit(this._terminalService.configHelper, t, this._workspaceContextService.getWorkspace().folders, this._commandService);
-			if (cwd === undefined) {
-				return undefined;
-			}
-			this._terminalService.splitInstance(t, { cwd });
-			return this._terminalService.showPanel(true);
-		});
 	}
 }
 
@@ -1453,6 +1424,48 @@ export function registerTerminalActions() {
 		}
 		run(accessor: ServicesAccessor) {
 			accessor.get(ITerminalService).getActiveInstance()?.showEnvironmentInfoHover();
+		}
+	});
+	registerAction2(class extends Action2 {
+		constructor() {
+			super({
+				id: TERMINAL_COMMAND_ID.SPLIT,
+				title: { value: localize('workbench.action.terminal.split', "Split Terminal"), original: 'Split Terminal' },
+				f1: true,
+				category,
+				precondition: KEYBINDING_CONTEXT_TERMINAL_PROCESS_SUPPORTED,
+				keybinding: [{
+					primary: KeyMod.CtrlCmd | KeyMod.Shift | KeyCode.KEY_5,
+					weight: KeybindingWeight.WorkbenchContrib,
+					mac: {
+						primary: KeyMod.CtrlCmd | KeyCode.US_BACKSLASH,
+						secondary: [KeyMod.WinCtrl | KeyMod.Shift | KeyCode.KEY_5]
+					},
+					when: KEYBINDING_CONTEXT_TERMINAL_FOCUS
+				}],
+				menu: [{
+					id: MenuId.ViewContainerTitle,
+					when: ContextKeyEqualsExpr.create('view', TERMINAL_VIEW_ID),
+				}]
+			});
+			// actionRegistry.registerWorkbenchAction(SyncActionDescriptor.from(SplitTerminalAction, {
+			// 	primary: KeyMod.CtrlCmd | KeyMod.Shift | KeyCode.KEY_5,
+			// 	mac: {
+			// 		primary: KeyMod.CtrlCmd | KeyCode.US_BACKSLASH,
+			// 		secondary: [KeyMod.WinCtrl | KeyMod.Shift | KeyCode.KEY_5]
+			// 	}
+			// }, KEYBINDING_CONTEXT_TERMINAL_FOCUS), 'Terminal: Split Terminal', category, KEYBINDING_CONTEXT_TERMINAL_PROCESS_SUPPORTED);
+		}
+		async run(accessor: ServicesAccessor) {
+			const terminalService = accessor.get(ITerminalService);
+			await terminalService.doWithActiveInstance(async t => {
+				const cwd = await getCwdForSplit(terminalService.configHelper, t, accessor.get(IWorkspaceContextService).getWorkspace().folders, accessor.get(ICommandService));
+				if (cwd === undefined) {
+					return undefined;
+				}
+				terminalService.splitInstance(t, { cwd });
+				return terminalService.showPanel(true);
+			});
 		}
 	});
 }
