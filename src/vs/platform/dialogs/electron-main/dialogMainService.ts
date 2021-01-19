@@ -51,7 +51,7 @@ export class DialogMainService implements IDialogMainService {
 	private readonly mapWindowToDialogQueue: Map<number, Queue<void>>;
 	private readonly noWindowDialogQueue: Queue<void>;
 
-	private activeWindowDialogs: Set<number> = new Set();
+	private activeWindowDialogs: Set<number>;
 
 	constructor(
 		@IStateService private readonly stateService: IStateService
