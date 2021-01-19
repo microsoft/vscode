@@ -28,8 +28,7 @@ if (!/yarn[\w-.]*\.js$|yarnpkg$/.test(process.env['npm_execpath'])) {
 	err = true;
 }
 
-const os = process.platform;
-if (os === 'win32') {
+if (process.platform === 'win32') {
 	if (!hasSupportedVisualStudioVersion()) {
 		console.error('\033[1;31m*** Invalid C/C++ Compiler Toolchain. Please check https://github.com/microsoft/vscode/wiki/How-to-Contribute.\033[0;0m');
 		err = true;
