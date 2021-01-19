@@ -28,11 +28,10 @@ if (!/yarn[\w-.]*\.js$|yarnpkg$/.test(process.env['npm_execpath'])) {
 	err = true;
 }
 
-const os = process.env['OS'];
-if (os.startsWith('Windows')) {
-	const vsVersion = getLatestSupportedVisualStudioVersion();
-	if (!vsVersion) {
-		console.error('\033[1;31m*** Please use Visual Studio 2017 or 2019.\033[0;0m');
+const os = process.platform;
+if (os === 'win32') {
+	if (!hasSupportedVisualStudioVersion()) {
+		console.error('\033[1;31m*** Invalid C/C++ Compiler Toolchain. Please check https://github.com/microsoft/vscode/wiki/How-to-Contribute.\033[0;0m');
 		err = true;
 	}
 }
@@ -42,19 +41,13 @@ if (err) {
 	process.exit(1);
 }
 
-function getLatestSupportedVisualStudioVersion() {
+function hasSupportedVisualStudioVersion() {
 	const fs = require('fs');
 	const path = require('path');
 	// Translated over from
 	// https://source.chromium.org/chromium/chromium/src/+/master:build/vs_toolchain.py;l=140-175
 	const supportedVersions = ['2019', '2017'];
 
-	// VS installed in depot_tools for Googlers
-	if (process.env['DEPOT_TOOLS_WIN_TOOLCHAIN'] === '1') {
-		return supportedVersions[0];
-	}
-
-	// VS installed in system for everyone else
 	const availableVersions = [];
 	for (const version of supportedVersions) {
 		let vsPath = process.env[`vs${version}_install`];
@@ -63,12 +56,14 @@ function getLatestSupportedVisualStudioVersion() {
 			break;
 		}
 		const programFiles86Path = process.env['ProgramFiles(x86)'];
-		vsPath = `${programFiles86Path}/Microsoft Visual Studio/${version}`;
-		const vsTypes = ['Enterprise', 'Professional', 'Community', 'Preview', 'BuildTools'];
-		if (programFiles86Path && vsTypes.some(vsType => fs.existsSync(path.join(vsPath, vsType)))) {
-			availableVersions.push(version);
-			break;
+		if (programFiles86Path) {
+			vsPath = `${programFiles86Path}/Microsoft Visual Studio/${version}`;
+			const vsTypes = ['Enterprise', 'Professional', 'Community', 'Preview', 'BuildTools'];
+			if (vsTypes.some(vsType => fs.existsSync(path.join(vsPath, vsType)))) {
+				availableVersions.push(version);
+				break;
+			}
 		}
 	}
-	return availableVersions.length ? availableVersions[0] : undefined;
+	return availableVersions.length;
 }
