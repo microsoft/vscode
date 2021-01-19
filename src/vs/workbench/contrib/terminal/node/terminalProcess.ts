@@ -351,6 +351,19 @@ export class TerminalProcess extends Disposable implements ITerminalChildProcess
 		}
 	}
 
+	public clearUnacknowledgedChars(): void {
+		if (!this._shellLaunchConfig.flowControl) {
+			return;
+		}
+
+		this._unacknowledgedCharCount = 0;
+		this._logService.trace(`Flow control: Cleared all unacknowledged chars, forcing resume`);
+		if (this._isPtyPaused) {
+			this._ptyProcess?.resume();
+			this._isPtyPaused = false;
+		}
+	}
+
 	public getInitialCwd(): Promise<string> {
 		return Promise.resolve(this._initialCwd);
 	}
