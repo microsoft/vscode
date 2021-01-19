@@ -454,7 +454,6 @@ export class FileService extends Disposable implements IFileService {
 			throw error;
 		});
 
-		let fileStream: VSBufferReadableStream | undefined = undefined;
 		let fileStreamObserver: IReadableStreamObservable | undefined = undefined;
 
 		try {
@@ -466,6 +465,8 @@ export class FileService extends Disposable implements IFileService {
 			if (options && typeof options.etag === 'string' && options.etag !== ETAG_DISABLED) {
 				await statPromise;
 			}
+
+			let fileStream: VSBufferReadableStream | undefined = undefined;
 
 			// read unbuffered (only if either preferred, or the provider has no buffered read capability)
 			if (!(hasOpenReadWriteCloseCapability(provider) || hasFileReadStreamCapability(provider)) || (hasReadWriteCapability(provider) && options?.preferUnbuffered)) {
