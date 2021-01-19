@@ -586,12 +586,6 @@ export class EditorStatus extends Disposable implements IWorkbenchContribution {
 		this.updateEOLElement(this.state.EOL ? this.state.EOL === '\r\n' ? nlsEOLCRLF : nlsEOLLF : undefined);
 		this.updateModeElement(this.state.mode);
 		this.updateMetadataElement(this.state.metadata);
-
-		// Fix #106824
-		const activeTextEditorControl = getCodeEditor(this.editorService.activeTextEditorControl);
-		if (!activeTextEditorControl?.hasWidgetFocus()) {
-			activeTextEditorControl?.focus();
-		}
 	}
 
 	private getSelectionLabel(info: IEditorSelectionStatus): string | undefined {
@@ -1143,6 +1137,11 @@ export class ChangeModeAction extends Action {
 			return;
 		}
 
+		// refocus to editor if editor were not foucused
+		if (!activeTextEditorControl.hasWidgetFocus()) {
+			activeTextEditorControl.focus();
+		}
+
 		if (pick === galleryAction) {
 			galleryAction.run();
 			return;
@@ -1283,6 +1282,11 @@ export class ChangeEOLAction extends Action {
 				textModel.pushStackElement();
 			}
 		}
+
+		// refocus to editor if editor were not foucused
+		if (!activeTextEditorControl.hasWidgetFocus()) {
+			activeTextEditorControl.focus();
+		}
 	}
 }
 
@@ -1421,6 +1425,12 @@ export class ChangeEncodingAction extends Action {
 		const activeEncodingSupport = toEditorWithEncodingSupport(this.editorService.activeEditorPane.input);
 		if (typeof encoding.id !== 'undefined' && activeEncodingSupport && activeEncodingSupport.getEncoding() !== encoding.id) {
 			activeEncodingSupport.setEncoding(encoding.id, isReopenWithEncoding ? EncodingMode.Decode : EncodingMode.Encode); // Set new encoding
+		}
+
+		// refocus to editor if editor were not foucused
+		const activeTextEditorControl = getCodeEditor(this.editorService.activeTextEditorControl);
+		if (!activeTextEditorControl?.hasWidgetFocus()) {
+			activeTextEditorControl?.focus();
 		}
 	}
 }
