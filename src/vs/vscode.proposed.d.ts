@@ -884,7 +884,7 @@ declare module 'vscode' {
 	//#region https://github.com/microsoft/vscode/issues/58440
 	export interface OnEnterRule {
 		/**
-		 * This rule will only execute if the text above the this line matches this regular expression.
+		 * This rule will only execute if the text above the line matches this regular expression.
 		 */
 		oneLineAboveText?: RegExp;
 	}
