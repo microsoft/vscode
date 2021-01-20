@@ -20,6 +20,7 @@ import { ICompressedTreeNode, ICompressedTreeElement } from 'vs/base/browser/ui/
 import { IThemable } from 'vs/base/common/styler';
 import { isFilterResult, getVisibleState } from 'vs/base/browser/ui/tree/indexTreeModel';
 import { treeItemLoadingIcon } from 'vs/base/browser/ui/tree/treeIcons';
+import { IObjectTreeSetChildrenOptions } from 'vs/base/browser/ui/tree/objectTreeModel';
 
 interface IAsyncDataTreeNode<TInput, T> {
 	element: TInput | T;
@@ -279,6 +280,7 @@ function asObjectTreeOptions<TInput, T, TFilterData>(options?: IAsyncDataTreeOpt
 }
 
 export interface IAsyncDataTreeOptionsUpdate extends IAbstractTreeOptionsUpdate { }
+export interface IAsycnDataTreeUpdateChildrenOptions<T, TFilterData> extends IObjectTreeSetChildrenOptions<T, TFilterData> { }
 
 export interface IAsyncDataTreeOptions<T, TFilterData = void> extends IAsyncDataTreeOptionsUpdate, Pick<IAbstractTreeOptions<T, TFilterData>, Exclude<keyof IAbstractTreeOptions<T, TFilterData>, 'collapseByDefault'>> {
 	readonly collapseByDefault?: { (e: T): boolean; };
@@ -499,11 +501,11 @@ export class AsyncDataTree<TInput, T, TFilterData = void> implements IDisposable
 		}
 	}
 
-	async updateChildren(element: TInput | T = this.root.element, recursive = true, rerender = false): Promise<void> {
-		await this._updateChildren(element, recursive, rerender);
+	async updateChildren(element: TInput | T = this.root.element, recursive = true, rerender = false, options?: IAsycnDataTreeUpdateChildrenOptions<T | TInput, TFilterData>): Promise<void> {
+		await this._updateChildren(element, recursive, rerender, undefined, options);
 	}
 
-	private async _updateChildren(element: TInput | T = this.root.element, recursive = true, rerender = false, viewStateContext?: IAsyncDataTreeViewStateContext<TInput, T>): Promise<void> {
+	private async _updateChildren(element: TInput | T = this.root.element, recursive = true, rerender = false, viewStateContext?: IAsyncDataTreeViewStateContext<TInput, T>, options?: IAsycnDataTreeUpdateChildrenOptions<T | TInput, TFilterData>): Promise<void> {
 		if (typeof this.root.element === 'undefined') {
 			throw new TreeError(this.user, 'Tree input not set');
 		}
@@ -514,7 +516,7 @@ export class AsyncDataTree<TInput, T, TFilterData = void> implements IDisposable
 		}
 
 		const node = this.getDataNode(element);
-		await this.refreshAndRenderNode(node, recursive, viewStateContext);
+		await this.refreshAndRenderNode(node, recursive, viewStateContext, options);
 
 		if (rerender) {
 			try {
@@ -704,9 +706,9 @@ export class AsyncDataTree<TInput, T, TFilterData = void> implements IDisposable
 		return node;
 	}
 
-	private async refreshAndRenderNode(node: IAsyncDataTreeNode<TInput, T>, recursive: boolean, viewStateContext?: IAsyncDataTreeViewStateContext<TInput, T>): Promise<void> {
+	private async refreshAndRenderNode(node: IAsyncDataTreeNode<TInput, T>, recursive: boolean, viewStateContext?: IAsyncDataTreeViewStateContext<TInput, T>, options?: IAsycnDataTreeUpdateChildrenOptions<T | TInput, TFilterData>): Promise<void> {
 		await this.refreshNode(node, recursive, viewStateContext);
-		this.render(node, viewStateContext);
+		this.render(node, viewStateContext, options);
 	}
 
 	private async refreshNode(node: IAsyncDataTreeNode<TInput, T>, recursive: boolean, viewStateContext?: IAsyncDataTreeViewStateContext<TInput, T>): Promise<void> {
@@ -921,9 +923,17 @@ export class AsyncDataTree<TInput, T, TFilterData = void> implements IDisposable
 		return childrenToRefresh;
 	}
 
-	protected render(node: IAsyncDataTreeNode<TInput, T>, viewStateContext?: IAsyncDataTreeViewStateContext<TInput, T>): void {
+	protected render(node: IAsyncDataTreeNode<TInput, T>, viewStateContext?: IAsyncDataTreeViewStateContext<TInput, T>, options?: IAsycnDataTreeUpdateChildrenOptions<T | TInput, TFilterData>): void {
 		const children = node.children.map(node => this.asTreeElement(node, viewStateContext));
-		this.tree.setChildren(node === this.root ? null : node, children);
+		const asTreeOptions = options ? {
+			diffIdentityProvider: options.diffIdentityProvider ? {
+				getId(node: IAsyncDataTreeNode<TInput, T>): { toString(): string; } {
+					return options.diffIdentityProvider!.getId(node.element);
+				}
+			} : undefined,
+			diffDept: options.diffDepth,
+		} : undefined;
+		this.tree.setChildren(node === this.root ? null : node, children, asTreeOptions);
 
 		if (node !== this.root) {
 			this.tree.setCollapsible(node, node.hasChildren);
@@ -1153,6 +1163,10 @@ export class CompressibleAsyncDataTree<TInput, T, TFilterData = void> extends As
 	updateOptions(options: ICompressibleAsyncDataTreeOptionsUpdate = {}): void {
 		this.tree.updateOptions(options);
 	}
+
+	// updateChildren(): Promise<vdoi> {
+	// 	this.tree.setChildren()
+	// }
 
 	getViewState(): IAsyncDataTreeViewState {
 		if (!this.identityProvider) {
