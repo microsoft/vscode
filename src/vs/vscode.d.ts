@@ -12161,7 +12161,7 @@ declare module 'vscode' {
 		/**
 		 * Optional reaction handler for creating and deleting reactions on a [comment](#Comment).
 		 */
-		reactionHandler?: (comment: Comment, reaction: CommentReaction) => Promise<void>;
+		reactionHandler?: (comment: Comment, reaction: CommentReaction) => Thenable<void>;
 
 		/**
 		 * Dispose this comment controller.

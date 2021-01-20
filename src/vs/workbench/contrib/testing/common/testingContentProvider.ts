@@ -8,15 +8,17 @@ import { ITextModel } from 'vs/editor/common/model';
 import { IModelService } from 'vs/editor/common/services/modelService';
 import { ITextModelContentProvider, ITextModelService } from 'vs/editor/common/services/resolverService';
 import { IWorkbenchContribution } from 'vs/workbench/common/contributions';
-import { ITestingCollectionService } from 'vs/workbench/contrib/testing/common/testingCollectionService';
 import { parseTestUri, TestUriType, TEST_DATA_SCHEME } from 'vs/workbench/contrib/testing/common/testingUri';
 import { ITestService } from 'vs/workbench/contrib/testing/common/testService';
 
+/**
+ * A content provider that returns various outputs for tests. This is used
+ * in the inline peek view.
+ */
 export class TestingContentProvider implements IWorkbenchContribution, ITextModelContentProvider {
 	constructor(
 		@ITextModelService textModelResolverService: ITextModelService,
 		@IModelService private readonly modelService: IModelService,
-		@ITestingCollectionService private readonly collection: ITestingCollectionService,
 		@ITestService private readonly testService: ITestService,
 	) {
 		textModelResolverService.registerTextModelContentProvider(TEST_DATA_SCHEME, this);
@@ -36,8 +38,7 @@ export class TestingContentProvider implements IWorkbenchContribution, ITextMode
 			return null;
 		}
 
-		const test = this.collection.getTestById(resource.authority) ||
-			await this.testService.lookupTest({ providerId: parsed.providerId, testId: parsed.testId });
+		const test = await this.testService.lookupTest({ providerId: parsed.providerId, testId: parsed.testId });
 		if (!test) {
 			return null;
 		}

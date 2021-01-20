@@ -17,8 +17,8 @@ import { locationsEqual, TestLocationStore } from 'vs/workbench/contrib/testing/
 import { isRunningState, NodeChangeList, NodeRenderDirective, NodeRenderFn, peersHaveChildren } from 'vs/workbench/contrib/testing/browser/explorerProjections/nodeHelper';
 import { StateElement } from 'vs/workbench/contrib/testing/browser/explorerProjections/stateNodes';
 import { statesInOrder } from 'vs/workbench/contrib/testing/browser/testExplorerTree';
-import { AbstractIncrementalTestCollection, IncrementalChangeCollector, IncrementalTestCollectionItem, InternalTestItem, TestDiffOpType, TestIdWithProvider, TestsDiff } from 'vs/workbench/contrib/testing/common/testCollection';
-import { TestSubscriptionListener } from 'vs/workbench/contrib/testing/common/testingCollectionService';
+import { AbstractIncrementalTestCollection, IncrementalChangeCollector, IncrementalTestCollectionItem, InternalTestItem, TestIdWithProvider, TestsDiff } from 'vs/workbench/contrib/testing/common/testCollection';
+import { TestSubscriptionListener } from 'vs/workbench/contrib/testing/common/workspaceTestCollectionService';
 
 interface IStatusTestItem extends IncrementalTestCollectionItem {
 	treeElements: Map<TestRunState, TestStateElement>;
@@ -109,14 +109,7 @@ export class StateByLocationProjection extends AbstractIncrementalTestCollection
 
 		const firstDiff: TestsDiff = [];
 		for (const [, collection] of listener.workspaceFolderCollections) {
-			const queue = [collection.rootNodes];
-			while (queue.length) {
-				for (const id of queue.pop()!) {
-					const node = collection.getNodeById(id)!;
-					firstDiff.push([TestDiffOpType.Add, node]);
-					queue.push(node.children);
-				}
-			}
+			firstDiff.push(...collection.getReviverDiff());
 		}
 
 		this.apply(firstDiff);

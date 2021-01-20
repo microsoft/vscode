@@ -54,6 +54,15 @@ class TokenCache {
 	}
 }
 
+export interface RenderOutput {
+	html: string;
+	containingImages: { src: string }[];
+}
+
+interface RenderEnv {
+	containingImages: { src: string }[];
+}
+
 export class MarkdownEngine {
 	private md?: Promise<MarkdownIt>;
 
@@ -141,7 +150,7 @@ export class MarkdownEngine {
 		return engine.parse(text.replace(UNICODE_NEWLINE_REGEX, ''), {});
 	}
 
-	public async render(input: SkinnyTextDocument | string): Promise<string> {
+	public async render(input: SkinnyTextDocument | string): Promise<RenderOutput> {
 		const config = this.getConfig(typeof input === 'string' ? undefined : input.uri);
 		const engine = await this.getEngine(config);
 
@@ -149,10 +158,19 @@ export class MarkdownEngine {
 			? this.tokenizeString(input, engine)
 			: this.tokenizeDocument(input, config, engine);
 
-		return engine.renderer.render(tokens, {
+		const env: RenderEnv = {
+			containingImages: []
+		};
+
+		const html = engine.renderer.render(tokens, {
 			...(engine as any).options,
 			...config
-		}, {});
+		}, env);
+
+		return {
+			html,
+			containingImages: env.containingImages
+		};
 	}
 
 	public async parse(document: SkinnyTextDocument): Promise<Token[]> {
@@ -192,12 +210,13 @@ export class MarkdownEngine {
 
 	private addImageStabilizer(md: any): void {
 		const original = md.renderer.rules.image;
-		md.renderer.rules.image = (tokens: any, idx: number, options: any, env: any, self: any) => {
+		md.renderer.rules.image = (tokens: any, idx: number, options: any, env: RenderEnv, self: any) => {
 			const token = tokens[idx];
 			token.attrJoin('class', 'loading');
 
 			const src = token.attrGet('src');
 			if (src) {
+				env.containingImages.push({ src });
 				const imgHash = hash(src);
 				token.attrSet('id', `image-hash-${imgHash}`);
 			}

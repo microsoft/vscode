@@ -53,8 +53,8 @@ suite('MainThreadDiagnostics', function () {
 			source: 'me'
 		}]]]);
 
-		assert.equal(markerService.read().length, 1);
+		assert.strictEqual(markerService.read().length, 1);
 		diag.dispose();
-		assert.equal(markerService.read().length, 0);
+		assert.strictEqual(markerService.read().length, 0);
 	});
 });

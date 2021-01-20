@@ -51,8 +51,8 @@ suite('OnEnter', () => {
 		let support = new OnEnterSupport({
 			onEnterRules: javascriptOnEnterRules
 		});
-		let testIndentAction = (oneLineAboveText: string, beforeText: string, afterText: string, expectedIndentAction: IndentAction | null, expectedAppendText: string | null, removeText: number = 0) => {
-			let actual = support.onEnter(EditorAutoIndentStrategy.Advanced, oneLineAboveText, beforeText, afterText);
+		let testIndentAction = (previousLineText: string, beforeText: string, afterText: string, expectedIndentAction: IndentAction | null, expectedAppendText: string | null, removeText: number = 0) => {
+			let actual = support.onEnter(EditorAutoIndentStrategy.Advanced, previousLineText, beforeText, afterText);
 			if (expectedIndentAction === null) {
 				assert.strictEqual(actual, null, 'isNull:' + beforeText);
 			} else {

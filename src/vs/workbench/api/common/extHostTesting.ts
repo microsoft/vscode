@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { mapFind } from 'vs/base/common/arrays';
-import { disposableTimeout, RunOnceScheduler } from 'vs/base/common/async';
+import { disposableTimeout } from 'vs/base/common/async';
 import { CancellationToken } from 'vs/base/common/cancellation';
 import { Emitter } from 'vs/base/common/event';
 import { once } from 'vs/base/common/functional';
@@ -19,7 +19,7 @@ import { TestItem } from 'vs/workbench/api/common/extHostTypeConverters';
 import { Disposable, RequiredTestItem } from 'vs/workbench/api/common/extHostTypes';
 import { IExtHostWorkspace } from 'vs/workbench/api/common/extHostWorkspace';
 import { OwnedTestCollection, SingleUseTestCollection } from 'vs/workbench/contrib/testing/common/ownedTestCollection';
-import { AbstractIncrementalTestCollection, EMPTY_TEST_RESULT, IncrementalChangeCollector, IncrementalTestCollectionItem, InternalTestItem, RunTestForProviderRequest, RunTestsResult, TestIdWithProvider, TestsDiff } from 'vs/workbench/contrib/testing/common/testCollection';
+import { AbstractIncrementalTestCollection, EMPTY_TEST_RESULT, IncrementalChangeCollector, IncrementalTestCollectionItem, InternalTestItem, RunTestForProviderRequest, RunTestsResult, TestDiffOpType, TestIdWithProvider, TestsDiff } from 'vs/workbench/contrib/testing/common/testCollection';
 import type * as vscode from 'vscode';
 
 const getTestSubscriptionKey = (resource: ExtHostTestingResource, uri: URI) => `${resource}:${uri.toString()}`;
@@ -125,19 +125,6 @@ export class ExtHostTesting implements ExtHostTestingShape {
 			return;
 		}
 
-		let delta = 0;
-		const updateCountScheduler = new RunOnceScheduler(() => {
-			if (delta !== 0) {
-				this.proxy.$updateDiscoveringCount(resource, uri, delta);
-				delta = 0;
-			}
-		}, 5);
-
-		const updateDelta = (amount: number) => {
-			delta += amount;
-			updateCountScheduler.schedule();
-		};
-
 		const subscribeFn = (id: string, provider: vscode.TestProvider) => {
 			try {
 				const hierarchy = method!(provider);
@@ -145,10 +132,10 @@ export class ExtHostTesting implements ExtHostTestingShape {
 					return;
 				}
 
-				updateDelta(1);
+				collection.pushDiff([TestDiffOpType.DeltaDiscoverComplete, 1]);
 				disposable.add(hierarchy);
 				collection.addRoot(hierarchy.root, id);
-				Promise.resolve(hierarchy.discoveredInitialTests).then(() => updateDelta(-1));
+				Promise.resolve(hierarchy.discoveredInitialTests).then(() => collection.pushDiff([TestDiffOpType.DeltaDiscoverComplete, -1]));
 				hierarchy.onDidChangeTest(e => collection.onItemChange(e, id));
 			} catch (e) {
 				console.error(e);
@@ -161,6 +148,10 @@ export class ExtHostTesting implements ExtHostTestingShape {
 			subscribeFn(id, provider);
 		}
 
+		// note: we don't increment the root count initially -- this is done by the
+		// main thread, incrementing once per extension host. We just push the
+		// diff to signal that roots have been discovered.
+		collection.pushDiff([TestDiffOpType.DeltaRootsComplete, -1]);
 		this.testSubscriptions.set(subscriptionKey, { store: disposable, collection, subscribeFn });
 	}
 

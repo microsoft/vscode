@@ -711,7 +711,7 @@ export class CustomMenubarControl extends MenubarControl {
 				if (href) {
 					webNavigationActions.push(new Action('goHome', nls.localize('goHome', "Go Home"), undefined, true,
 						async (event?: MouseEvent) => {
-							if (event?.ctrlKey) {
+							if ((!isMacintosh && event?.ctrlKey) || (isMacintosh && event?.metaKey)) {
 								window.open(href, '_blank');
 							} else {
 								window.location.href = href;

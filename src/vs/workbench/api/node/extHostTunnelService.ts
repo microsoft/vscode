@@ -15,13 +15,13 @@ import * as fs from 'fs';
 import * as pfs from 'vs/base/node/pfs';
 import { isLinux } from 'vs/base/common/platform';
 import { IExtHostTunnelService, TunnelDto } from 'vs/workbench/api/common/extHostTunnelService';
-import { asPromise } from 'vs/base/common/async';
 import { Event, Emitter } from 'vs/base/common/event';
 import { TunnelOptions, TunnelCreationOptions } from 'vs/platform/remote/common/tunnel';
 import { IExtensionDescription } from 'vs/platform/extensions/common/extensions';
 import { promisify } from 'util';
 import { MovingAverage } from 'vs/base/common/numbers';
 import { CandidatePort } from 'vs/workbench/services/remote/common/remoteExplorerService';
+import { ILogService } from 'vs/platform/log/common/log';
 
 class ExtensionTunnel implements vscode.Tunnel {
 	private _onDispose: Emitter<void> = new Emitter();
@@ -142,7 +142,8 @@ export class ExtHostTunnelService extends Disposable implements IExtHostTunnelSe
 
 	constructor(
 		@IExtHostRpcService extHostRpc: IExtHostRpcService,
-		@IExtHostInitDataService initData: IExtHostInitDataService
+		@IExtHostInitDataService initData: IExtHostInitDataService,
+		@ILogService private readonly logService: ILogService
 	) {
 		super();
 		this._proxy = extHostRpc.getProxy(MainContext.MainThreadTunnelService);
@@ -234,16 +235,19 @@ export class ExtHostTunnelService extends Disposable implements IExtHostTunnelSe
 
 	async $forwardPort(tunnelOptions: TunnelOptions, tunnelCreationOptions: TunnelCreationOptions): Promise<TunnelDto | undefined> {
 		if (this._forwardPortProvider) {
-			const providedPort = this._forwardPortProvider(tunnelOptions, tunnelCreationOptions);
-			if (providedPort !== undefined) {
-				return asPromise(() => providedPort).then(tunnel => {
+			try {
+				const providedPort = this._forwardPortProvider(tunnelOptions, tunnelCreationOptions);
+				if (providedPort !== undefined) {
+					const tunnel = await providedPort;
 					if (!this._extensionTunnels.has(tunnelOptions.remoteAddress.host)) {
 						this._extensionTunnels.set(tunnelOptions.remoteAddress.host, new Map());
 					}
 					const disposeListener = this._register(tunnel.onDidDispose(() => this._proxy.$closeTunnel(tunnel.remoteAddress)));
 					this._extensionTunnels.get(tunnelOptions.remoteAddress.host)!.set(tunnelOptions.remoteAddress.port, { tunnel, disposeListener });
-					return Promise.resolve(TunnelDto.fromApiTunnel(tunnel));
-				});
+					return TunnelDto.fromApiTunnel(tunnel);
+				}
+			} catch (e) {
+				this.logService.trace('$forwardPort: tunnel provider error');
 			}
 		}
 		return undefined;
