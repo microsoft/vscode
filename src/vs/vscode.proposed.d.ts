@@ -886,7 +886,7 @@ declare module 'vscode' {
 		/**
 		 * This rule will only execute if the text above the line matches this regular expression.
 		 */
-		oneLineAboveText?: RegExp;
+		previousLineText?: RegExp;
 	}
 	//#endregion
 
