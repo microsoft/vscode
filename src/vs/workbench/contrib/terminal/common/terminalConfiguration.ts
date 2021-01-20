@@ -93,7 +93,7 @@ export const terminalConfiguration: IConfigurationNode = {
 		'terminal.integrated.altClickMovesCursor': {
 			description: localize('terminal.integrated.altClickMovesCursor', "If enabled, alt/option + click will move the prompt cursor to position underneath the mouse. This may not work reliably depending on your shell."),
 			type: 'boolean',
-			default: true
+			default: false
 		},
 		'terminal.integrated.copyOnSelection': {
 			description: localize('terminal.integrated.copyOnSelection', "Controls whether text selected in the terminal will be copied to the clipboard."),
