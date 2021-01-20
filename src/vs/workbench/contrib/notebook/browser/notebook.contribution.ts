@@ -232,7 +232,8 @@ export class NotebookContribution extends Disposable implements IWorkbenchContri
 		this._register(this.editorService.overrideOpenEditor({
 			getEditorOverrides: (resource: URI, options: IEditorOptions | undefined, group: IEditorGroup | undefined) => {
 
-				const currentEditorForResource = group && this.editorService.findEditors(resource, group);
+				const currentEditorsForResource = group && this.editorService.findEditors(resource, group);
+				const currentEditorForResource = currentEditorsForResource && currentEditorsForResource.length ? currentEditorsForResource[0] : undefined;
 
 				const associatedEditors = distinct([
 					...this.getUserAssociatedNotebookEditors(resource),
