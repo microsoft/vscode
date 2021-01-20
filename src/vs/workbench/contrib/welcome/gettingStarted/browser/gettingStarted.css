@@ -79,6 +79,7 @@
 	width: 330px;
 	min-height: 80px;
 	font-size: 13px;
+	line-height: normal;
 	margin: 12px;
 	text-align: left;
 	display: flex;
@@ -127,8 +128,8 @@
 .monaco-workbench .part.editor > .content .walkThroughContent .gettingStartedContainer .gettingStartedSlide.detail .getting-started-detail-columns {
 	display: flex;
 	justify-content: flex-start;
-	padding: 20px 20px 0;
-	max-height: calc(100% - 20px);
+	padding: 40px 40px 0;
+	max-height: calc(100% - 40px);
 }
 
 .monaco-workbench .part.editor > .content .walkThroughContent .gettingStartedContainer .gettingStartedSlide.detail .getting-started-task {
@@ -160,7 +161,6 @@
 
 .monaco-workbench .part.editor > .content .walkThroughContent .gettingStartedContainer .gettingStartedSlide.detail .getting-started-task .task-description {
 	padding-top: 8px;
-	font-size: 12px;
 }
 
 .monaco-workbench .part.editor > .content .walkThroughContent .gettingStartedContainer .gettingStartedSlide.detail .getting-started-task .actions {
@@ -180,7 +180,6 @@
 
 .monaco-workbench .part.editor > .content .walkThroughContent .gettingStartedContainer .gettingStartedSlide.detail .getting-started-task .codicon {
 	margin-right: 8px;
-	font-size: 13px;
 }
 
 .monaco-workbench .part.editor > .content .walkThroughContent .gettingStartedContainer .gettingStartedSlide.detail .getting-started-task-action {
@@ -227,6 +226,8 @@
 	color: inherit;
 	text-align: left;
 	padding: 16px;
+	margin: 1px 0; /* makes room for focus border */
+	font-family: inherit;
 }
 .monaco-workbench .part.editor > .content .walkThroughContent .gettingStartedContainer button:hover {
 	cursor: pointer;
@@ -240,7 +241,6 @@
 	position: absolute;
 	left: -2px;
 	top: -10px;
-	font-size: 12pt;
 	margin: 10px;
 	z-index: 1;
 }
