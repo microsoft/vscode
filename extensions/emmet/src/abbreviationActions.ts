@@ -151,13 +151,18 @@ function doWrapping(_: boolean, args: any) {
 	});
 	editor.selections = newSelections;
 
-	function revertPreview(): Thenable<boolean> {
+	function revertPreview(definitive: boolean): Thenable<boolean> {
 		return editor.edit(builder => {
 			for (const rangeToReplace of rangesToReplace) {
 				builder.replace(rangeToReplace.previewRange, rangeToReplace.originalContent);
 				rangeToReplace.previewRange = rangeToReplace.originalRange;
 			}
-		}, { undoStopBefore: false, undoStopAfter: false });
+		}, { undoStopBefore: false, undoStopAfter: false }).then(res => {
+			if (definitive) {
+				editor.selections = oldSelections;
+			}
+			return res;
+		});
 	}
 
 	function applyPreview(expandAbbrList: ExpandAbbreviationInput[]): Thenable<boolean> {
@@ -227,7 +232,7 @@ function doWrapping(_: boolean, args: any) {
 
 	function makeChanges(inputAbbreviation: string | undefined, definitive: boolean): Thenable<boolean> {
 		if (!inputAbbreviation || !inputAbbreviation.trim() || !helper.isAbbreviationValid(syntax, inputAbbreviation)) {
-			return inPreview ? revertPreview().then(() => { return false; }) : Promise.resolve(inPreview);
+			return inPreview ? revertPreview(definitive).then(() => { return false; }) : Promise.resolve(inPreview);
 		}
 
 		const extractedResults = helper.extractAbbreviationFromText(inputAbbreviation);
@@ -239,7 +244,7 @@ function doWrapping(_: boolean, args: any) {
 
 		const { abbreviation, filter } = extractedResults;
 		if (definitive) {
-			const revertPromise = inPreview ? revertPreview() : Promise.resolve(true);
+			const revertPromise = inPreview ? revertPreview(definitive) : Promise.resolve(true);
 			return revertPromise.then(() => {
 				const expandAbbrList: ExpandAbbreviationInput[] = rangesToReplace.map(rangesAndContent => {
 					const rangeToReplace = rangesAndContent.originalRange;
