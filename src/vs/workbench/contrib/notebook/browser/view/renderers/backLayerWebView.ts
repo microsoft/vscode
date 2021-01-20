@@ -296,6 +296,7 @@ export class BackLayerWebView<T extends ICommonCellInfo> extends Disposable {
 						-webkit-user-select: text;
 						-ms-user-select: text;
 						white-space: initial;
+						padding-left: 0px !important;
 					}
 
 					/* markdown */
