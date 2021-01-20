@@ -10,7 +10,7 @@ import { URI } from 'vs/base/common/uri';
 import { IWorkspaceFolder, IWorkspaceFolderData, IWorkspaceFoldersChangeEvent } from 'vs/platform/workspace/common/workspace';
 import { ITestTreeElement, ITestTreeProjection } from 'vs/workbench/contrib/testing/browser/explorerProjections';
 import { TestsDiff } from 'vs/workbench/contrib/testing/common/testCollection';
-import { TestSubscriptionListener } from 'vs/workbench/contrib/testing/common/testingCollectionService';
+import { TestSubscriptionListener } from 'vs/workbench/contrib/testing/common/workspaceTestCollectionService';
 import { TestOwnedTestCollection, TestSingleUseCollection } from 'vs/workbench/contrib/testing/test/common/ownedTestCollection';
 
 type SerializedTree = { e: string; children?: SerializedTree[] };

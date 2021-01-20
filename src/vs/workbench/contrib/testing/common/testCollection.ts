@@ -82,15 +82,23 @@ export interface InternalTestItem {
 }
 
 export const enum TestDiffOpType {
+	/** Adds a new test (with children) */
 	Add,
+	/** Shallow-updates an existing test */
 	Update,
+	/** Removes a test (and all its children) */
 	Remove,
+	/** Changes the number of providers running initial test discovery. */
+	DeltaDiscoverComplete,
+	/** Changes the number of providers who are yet to publish their collection roots. */
+	DeltaRootsComplete,
 }
 
 export type TestsDiffOp =
 	| [op: TestDiffOpType.Add, item: InternalTestItem]
 	| [op: TestDiffOpType.Update, item: InternalTestItem]
-	| [op: TestDiffOpType.Remove, itemId: string];
+	| [op: TestDiffOpType.Remove, itemId: string]
+	| [op: TestDiffOpType.DeltaDiscoverComplete | TestDiffOpType.DeltaRootsComplete, amount: number];
 
 /**
  * Utility function to get a unique string for a subscription to a resource,
@@ -213,11 +221,36 @@ export abstract class AbstractIncrementalTestCollection<T extends IncrementalTes
 							}
 						}
 					}
+					break;
 				}
+
+				case TestDiffOpType.DeltaDiscoverComplete:
+					this.updateBusyProviders(op[1]);
+					break;
+
+				case TestDiffOpType.DeltaRootsComplete:
+					this.updatePendingRoots(op[1]);
+					break;
 			}
 		}
 
 		changes.complete();
+	}
+
+	/**
+	 * Updates the number of providers who are still discovering items.
+	 */
+	protected updateBusyProviders(delta: number) {
+		// no-op
+	}
+
+	/**
+	 * Updates the number of test root sources who are yet to report. When
+	 * the total pending test roots reaches 0, the roots for all providers
+	 * will exist in the collection.
+	 */
+	protected updatePendingRoots(delta: number) {
+		// no-op
 	}
 
 	/**

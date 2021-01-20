@@ -270,8 +270,13 @@ export class CodeApplication extends Disposable {
 
 		//#region Bootstrap IPC Handlers
 
+		let slowShellResolveWarningShown = false;
 		ipcMain.on('vscode:fetchShellEnv', async event => {
-			const window = this.windowsMainService?.getWindowByWebContents(event.sender);
+
+			// DO NOT remove: not only usual windows are fetching the
+			// shell environment but also shared process, issue reporter
+			// etc, so we need to reply via `webContents` always
+			const webContents = event.sender;
 
 			let replied = false;
 
@@ -282,15 +287,25 @@ export class CodeApplication extends Disposable {
 				if (!replied) {
 					replied = true;
 
-					window?.send('vscode:acceptShellEnv', env);
+					if (!webContents.isDestroyed()) {
+						webContents.send('vscode:acceptShellEnv', env);
+					}
 				}
 			}
 
 			// Handle slow shell environment resolve calls:
-			// - a warning after 3s but continue to resolve
-			// - an error after 10s and stop trying to resolve
+			// - a warning after 3s but continue to resolve (only once in active window)
+			// - an error after 10s and stop trying to resolve (in every window where this happens)
 			const cts = new CancellationTokenSource();
-			const shellEnvSlowWarningHandle = setTimeout(() => window?.sendWhenReady('vscode:showShellEnvSlowWarning', cts.token), 3000);
+
+			const shellEnvSlowWarningHandle = setTimeout(() => {
+				if (!slowShellResolveWarningShown) {
+					this.windowsMainService?.sendToFocused('vscode:showShellEnvSlowWarning', cts.token);
+					slowShellResolveWarningShown = true;
+				}
+			}, 3000);
+
+			const window = this.windowsMainService?.getWindowByWebContents(event.sender); // Note: this can be `undefined` for the shared process!!
 			const shellEnvTimeoutErrorHandle = setTimeout(() => {
 				cts.dispose(true);
 				window?.sendWhenReady('vscode:showShellEnvTimeoutError', CancellationToken.None);
@@ -302,6 +317,9 @@ export class CodeApplication extends Disposable {
 			// a first window was opened from the UI but a second
 			// from the CLI and that has implications for whether to
 			// resolve the shell environment or not.
+			//
+			// Window can be undefined for e.g. the shared process
+			// that is not part of our windows registry!
 			let args: NativeParsedArgs;
 			let env: NodeJS.ProcessEnv;
 			if (window?.config) {

@@ -46,7 +46,7 @@ import { IProductService } from 'vs/platform/product/common/productService';
 import { IEditorOptions } from 'vs/platform/editor/common/editor';
 import { IWorkbenchLayoutService } from 'vs/workbench/services/layout/browser/layoutService';
 import { IViewletService } from 'vs/workbench/services/viewlet/browser/viewlet';
-import { gettingStartedInputTypeId, GettingStartedPage } from 'vs/workbench/contrib/welcome/gettingStarted/browser/gettingStarted';
+import { getGettingStartedInput, gettingStartedInputTypeId } from 'vs/workbench/contrib/welcome/gettingStarted/browser/gettingStarted';
 import { welcomeButtonBackground, welcomeButtonHoverBackground, welcomePageBackground } from 'vs/workbench/contrib/welcome/page/browser/welcomePageColors';
 
 const configurationKey = 'workbench.startupEditor';
@@ -105,10 +105,6 @@ export class WelcomePageContribution implements IWorkbenchContribution {
 							});
 					} else {
 						const startupEditorTypeID = startupEditorSetting === 'gettingStarted' ? gettingStartedInputTypeId : welcomeInputTypeId;
-						const launchEditor = startupEditorSetting === 'gettingStarted'
-							? instantiationService.createInstance(GettingStartedPage, {})
-							: instantiationService.createInstance(WelcomePage);
-
 						let options: IEditorOptions;
 						let editor = editorService.activeEditor;
 						if (editor) {
@@ -120,7 +116,13 @@ export class WelcomePageContribution implements IWorkbenchContribution {
 						} else {
 							options = { pinned: false };
 						}
-						return launchEditor.openEditor(options);
+
+						if (startupEditorTypeID === gettingStartedInputTypeId) {
+							editorService.openEditor(instantiationService.invokeFunction(getGettingStartedInput, {}), options);
+						} else {
+							const launchEditor = instantiationService.createInstance(WelcomePage);
+							return launchEditor.openEditor(options);
+						}
 					}
 				}
 				return undefined;

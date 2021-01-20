@@ -253,7 +253,6 @@ export class OutlinePane extends ViewPane {
 				// update: refresh tree
 				this._domNode.classList.remove('message');
 				tree.updateChildren();
-				tree.expandAll();
 			}
 		};
 		updateTree();

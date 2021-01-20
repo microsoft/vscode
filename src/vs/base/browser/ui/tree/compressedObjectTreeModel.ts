@@ -152,7 +152,7 @@ export class CompressedObjectTreeModel<T extends NonNullable<any>, TFilterData e
 		const diffIdentityProvider = options.diffIdentityProvider && wrapIdentityProvider(options.diffIdentityProvider);
 		if (element === null) {
 			const compressedChildren = Iterable.map(children, this.enabled ? compress : noCompress);
-			this._setChildren(null, compressedChildren, { diffIdentityProvider, diffDeep: Infinity });
+			this._setChildren(null, compressedChildren, { diffIdentityProvider, diffDepth: Infinity });
 			return;
 		}
 
@@ -175,7 +175,7 @@ export class CompressedObjectTreeModel<T extends NonNullable<any>, TFilterData e
 
 		this._setChildren(parent.element, parentChildren, {
 			diffIdentityProvider,
-			diffDeep: node.depth - parent.depth,
+			diffDepth: node.depth - parent.depth,
 		});
 	}
 
@@ -199,7 +199,7 @@ export class CompressedObjectTreeModel<T extends NonNullable<any>, TFilterData e
 		// provider is available, since we know the raw nodes are unchanged.
 		this._setChildren(null, recompressedRootChildren, {
 			diffIdentityProvider: this.identityProvider,
-			diffDeep: Infinity,
+			diffDepth: Infinity,
 		});
 	}
 

@@ -9,7 +9,7 @@ import { Action } from 'vs/base/common/actions';
 import { IViewletService } from 'vs/workbench/services/viewlet/browser/viewlet';
 import { IViewlet } from 'vs/workbench/common/viewlet';
 import { CompositeDescriptor, CompositeRegistry } from 'vs/workbench/browser/composite';
-import { IConstructorSignature0, IInstantiationService, BrandedService } from 'vs/platform/instantiation/common/instantiation';
+import { IConstructorSignature0, IInstantiationService, BrandedService, ServicesAccessor } from 'vs/platform/instantiation/common/instantiation';
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
 import { IWorkbenchLayoutService, Parts } from 'vs/workbench/services/layout/browser/layoutService';
 import { IThemeService } from 'vs/platform/theme/common/themeService';
@@ -24,6 +24,7 @@ import { IConfigurationService } from 'vs/platform/configuration/common/configur
 import { PaneComposite } from 'vs/workbench/browser/panecomposite';
 import { Event } from 'vs/base/common/event';
 import { FilterViewPaneContainer } from 'vs/workbench/browser/parts/views/viewsViewlet';
+import { Action2 } from 'vs/platform/actions/common/actions';
 
 export abstract class Viewlet extends PaneComposite implements IViewlet {
 
@@ -137,7 +138,7 @@ export class ShowViewletAction extends Action {
 	async run(): Promise<void> {
 
 		// Pass focus to viewlet if not open or focused
-		if (this.otherViewletShowing() || !this.sidebarHasFocus()) {
+		if (otherViewletShowing(this.viewletService, this.viewletId) || !sidebarHasFocus(this.viewletService, this.layoutService)) {
 			await this.viewletService.openViewlet(this.viewletId, true);
 			return;
 		}
@@ -145,18 +146,42 @@ export class ShowViewletAction extends Action {
 		// Otherwise pass focus to editor group
 		this.editorGroupService.activeGroup.focus();
 	}
+}
 
-	private otherViewletShowing(): boolean {
-		const activeViewlet = this.viewletService.getActiveViewlet();
+/**
+ * A reusable action to show a viewlet with a specific id.
+ */
+export abstract class ShowViewletAction2 extends Action2 {
+	/**
+	 * Gets the viewlet ID to show.
+	 */
+	protected abstract viewletId(): string;
 
-		return !activeViewlet || activeViewlet.getId() !== this.viewletId;
-	}
+	public async run(accessor: ServicesAccessor): Promise<void> {
+		const viewletService = accessor.get(IViewletService);
+		const editorGroupService = accessor.get(IEditorGroupsService);
+		const layoutService = accessor.get(IWorkbenchLayoutService);
 
-	private sidebarHasFocus(): boolean {
-		const activeViewlet = this.viewletService.getActiveViewlet();
-		const activeElement = document.activeElement;
-		const sidebarPart = this.layoutService.getContainer(Parts.SIDEBAR_PART);
+		// Pass focus to viewlet if not open or focused
+		if (otherViewletShowing(viewletService, this.viewletId()) || !sidebarHasFocus(viewletService, layoutService)) {
+			await viewletService.openViewlet(this.viewletId(), true);
+			return;
+		}
 
-		return !!(activeViewlet && activeElement && sidebarPart && DOM.isAncestor(activeElement, sidebarPart));
+		// Otherwise pass focus to editor group
+		editorGroupService.activeGroup.focus();
 	}
 }
+
+const otherViewletShowing = (viewletService: IViewletService, viewletId: string): boolean => {
+	const activeViewlet = viewletService.getActiveViewlet();
+	return !activeViewlet || activeViewlet.getId() !== viewletId;
+};
+
+const sidebarHasFocus = (viewletService: IViewletService, layoutService: IWorkbenchLayoutService): boolean => {
+	const activeViewlet = viewletService.getActiveViewlet();
+	const activeElement = document.activeElement;
+	const sidebarPart = layoutService.getContainer(Parts.SIDEBAR_PART);
+
+	return !!(activeViewlet && activeElement && sidebarPart && DOM.isAncestor(activeElement, sidebarPart));
+};

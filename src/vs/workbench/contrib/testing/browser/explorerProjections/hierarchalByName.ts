@@ -10,7 +10,7 @@ import { HierarchicalByLocationProjection as HierarchicalByLocationProjection } 
 import { HierarchicalElement, HierarchicalFolder } from 'vs/workbench/contrib/testing/browser/explorerProjections/hierarchalNodes';
 import { NodeRenderDirective } from 'vs/workbench/contrib/testing/browser/explorerProjections/nodeHelper';
 import { InternalTestItem } from 'vs/workbench/contrib/testing/common/testCollection';
-import { TestSubscriptionListener } from 'vs/workbench/contrib/testing/common/testingCollectionService';
+import { TestSubscriptionListener } from 'vs/workbench/contrib/testing/common/workspaceTestCollectionService';
 
 /**
  * Type of test element in the list.

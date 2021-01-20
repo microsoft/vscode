@@ -1,7 +1,7 @@
 {
   "name": "code-oss-dev",
   "version": "1.53.0",
-  "distro": "dd764d38c8e0aa3914484c1e62300f51cdd7c5b8",
+  "distro": "826dce393851992f3b4af928e2bf7dd3813843cc",
   "author": {
     "name": "Microsoft Corporation"
   },
@@ -38,7 +38,7 @@
     "smoketest-no-compile": "cd test/smoke && node test/index.js",
     "download-builtin-extensions": "node build/lib/builtInExtensions.js",
     "monaco-compile-check": "tsc -p src/tsconfig.monaco.json --noEmit",
-    "tsec-compile-check": "node node_modules/vscode-tsec/bin/tsec -p src/tsconfig.tsec.json",
+    "tsec-compile-check": "node node_modules/tsec/bin/tsec -p src/tsconfig.tsec.json",
     "valid-layers-check": "node build/lib/layersChecker.js",
     "strict-function-types-watch": "tsc --watch -p src/tsconfig.json --noEmit --strictFunctionTypes",
     "update-distro": "node build/npm/update-distro.js",
@@ -189,6 +189,7 @@
     "source-map": "0.6.1",
     "source-map-support": "^0.3.2",
     "style-loader": "^1.0.0",
+    "tsec": "0.1.1",
     "ts-loader": "^6.2.1",
     "typescript": "4.2.0-dev.20201207",
     "typescript-formatter": "7.1.0",
@@ -198,7 +199,6 @@
     "vscode-debugprotocol": "1.43.0",
     "vscode-nls-dev": "^3.3.1",
     "vscode-telemetry-extractor": "^1.6.0",
-    "vscode-tsec": "0.0.3",
     "webpack": "^4.43.0",
     "webpack-cli": "^3.3.12",
     "webpack-stream": "^5.2.1",

@@ -242,7 +242,7 @@ suite('IndexTreeModel', () => {
 			{ element: 0, children: [{ element: 0.1 }] },
 			{ element: 1 },
 			{ element: 2, children: [{ element: 2.1 }, { element: 2.2, children: [{ element: 2.21 }] }] },
-		], { diffIdentityProvider, diffDeep: Infinity });
+		], { diffIdentityProvider, diffDepth: Infinity });
 
 		assert.deepStrictEqual(list.filter(l => l.depth === 1).map(toElements), [
 			-0.5,

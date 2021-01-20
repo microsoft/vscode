@@ -15,7 +15,7 @@ import { HierarchicalElement, HierarchicalFolder } from 'vs/workbench/contrib/te
 import { locationsEqual, TestLocationStore } from 'vs/workbench/contrib/testing/browser/explorerProjections/locationStore';
 import { NodeChangeList, NodeRenderDirective, NodeRenderFn, peersHaveChildren } from 'vs/workbench/contrib/testing/browser/explorerProjections/nodeHelper';
 import { InternalTestItem, TestDiffOpType, TestsDiff } from 'vs/workbench/contrib/testing/common/testCollection';
-import { TestSubscriptionListener } from 'vs/workbench/contrib/testing/common/testingCollectionService';
+import { TestSubscriptionListener } from 'vs/workbench/contrib/testing/common/workspaceTestCollectionService';
 
 /**
  * Projection that lists tests in their traditional tree view.
@@ -46,7 +46,7 @@ export class HierarchicalByLocationProjection extends Disposable implements ITes
 		this._register(listener.onFolderChange(this.applyFolderChange, this));
 
 		for (const [folder, collection] of listener.workspaceFolderCollections) {
-			const queue = [collection.rootNodes];
+			const queue = [collection.rootIds];
 			while (queue.length) {
 				for (const id of queue.pop()!) {
 					const node = collection.getNodeById(id)!;
