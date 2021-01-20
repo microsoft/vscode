@@ -90,39 +90,6 @@ export class CliMain extends Disposable {
 		});
 	}
 
-	private async doRun(environmentService: INativeEnvironmentService, extensionManagementCLIService: IExtensionManagementCLIService): Promise<void> {
-
-		// Install Source
-		if (this.argv['install-source']) {
-			return this.setInstallSource(environmentService, this.argv['install-source']);
-		}
-
-		// List Extensions
-		if (this.argv['list-extensions']) {
-			return extensionManagementCLIService.listExtensions(!!this.argv['show-versions'], this.argv['category']);
-		}
-
-		// Install Extension
-		else if (this.argv['install-extension'] || this.argv['install-builtin-extension']) {
-			return extensionManagementCLIService.installExtensions(this.asExtensionIdOrVSIX(this.argv['install-extension'] || []), this.argv['install-builtin-extension'] || [], !!this.argv['do-not-sync'], !!this.argv['force']);
-		}
-
-		// Uninstall Extension
-		else if (this.argv['uninstall-extension']) {
-			return extensionManagementCLIService.uninstallExtensions(this.asExtensionIdOrVSIX(this.argv['uninstall-extension']), !!this.argv['force']);
-		}
-
-		// Locate Extension
-		else if (this.argv['locate-extension']) {
-			return extensionManagementCLIService.locateExtension(this.argv['locate-extension']);
-		}
-
-		// Telemetry
-		else if (this.argv['telemetry']) {
-			console.log(buildTelemetryMessage(environmentService.appRoot, environmentService.extensionsPath));
-		}
-	}
-
 	private async initServices(): Promise<[IInstantiationService, AppInsightsAppender[]]> {
 		const services = new ServiceCollection();
 
@@ -213,6 +180,39 @@ export class CliMain extends Disposable {
 
 			logService.error(message);
 		});
+	}
+
+	private async doRun(environmentService: INativeEnvironmentService, extensionManagementCLIService: IExtensionManagementCLIService): Promise<void> {
+
+		// Install Source
+		if (this.argv['install-source']) {
+			return this.setInstallSource(environmentService, this.argv['install-source']);
+		}
+
+		// List Extensions
+		if (this.argv['list-extensions']) {
+			return extensionManagementCLIService.listExtensions(!!this.argv['show-versions'], this.argv['category']);
+		}
+
+		// Install Extension
+		else if (this.argv['install-extension'] || this.argv['install-builtin-extension']) {
+			return extensionManagementCLIService.installExtensions(this.asExtensionIdOrVSIX(this.argv['install-extension'] || []), this.argv['install-builtin-extension'] || [], !!this.argv['do-not-sync'], !!this.argv['force']);
+		}
+
+		// Uninstall Extension
+		else if (this.argv['uninstall-extension']) {
+			return extensionManagementCLIService.uninstallExtensions(this.asExtensionIdOrVSIX(this.argv['uninstall-extension']), !!this.argv['force']);
+		}
+
+		// Locate Extension
+		else if (this.argv['locate-extension']) {
+			return extensionManagementCLIService.locateExtension(this.argv['locate-extension']);
+		}
+
+		// Telemetry
+		else if (this.argv['telemetry']) {
+			console.log(buildTelemetryMessage(environmentService.appRoot, environmentService.extensionsPath));
+		}
 	}
 
 	private asExtensionIdOrVSIX(inputs: string[]): (string | URI)[] {
