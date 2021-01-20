@@ -21,6 +21,11 @@ const TRUSTED_WORKSPACES_STAT: IStat = {
 	size: 0
 };
 
+const PREPENDED_TEXT = `// The following file is a placeholder UX for managing trusted workspaces. It will be replaced by a rich editor and provide
+// additonal information about what trust means. e.g. enabling trust will unblock automatic tasks on startup and list the tasks. It will enable certain extensions
+// and list the extensions with associated functionality.
+`;
+
 export class TrustedWorkspacesFileSystemProvider implements IFileSystemProviderWithFileReadWriteCapability, IWorkbenchContribution {
 	readonly capabilities = FileSystemProviderCapabilities.FileReadWrite;
 
@@ -41,16 +46,18 @@ export class TrustedWorkspacesFileSystemProvider implements IFileSystemProviderW
 	async readFile(resource: URI): Promise<Uint8Array> {
 		let trustedWorkspacesContent = this.storageService.get(TRUSTED_WORKSPACES_STORAGE_KEY, StorageScope.GLOBAL);
 
-		const objectForm = JSON.parse(trustedWorkspacesContent || '{}');
+		let objectForm = {};
+		try {
+			objectForm = JSON.parse(trustedWorkspacesContent || '{}');
+		} catch { }
 
-
-		const buffer = VSBuffer.fromString(JSON.stringify(objectForm, undefined, 2)).buffer;
+		const buffer = VSBuffer.fromString(PREPENDED_TEXT + JSON.stringify(objectForm, undefined, 2)).buffer;
 		return buffer;
 	}
 
 	writeFile(resource: URI, content: Uint8Array, opts: FileWriteOptions): Promise<void> {
 		try {
-			const trustedWorkspacesContent = VSBuffer.wrap(content).toString();
+			const trustedWorkspacesContent = VSBuffer.wrap(content).toString().replace(PREPENDED_TEXT, '');
 			this.storageService.store(TRUSTED_WORKSPACES_STORAGE_KEY, trustedWorkspacesContent, StorageScope.GLOBAL, StorageTarget.MACHINE);
 		} catch (err) { }
 

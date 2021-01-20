@@ -69,7 +69,7 @@ export interface ITrustedWorkspaceService {
 
 	onDidChangeTrust: WorkspaceTrustChangeEvent;
 	getWorkspaceTrustState(): TrustState;
-	requireWorkspaceTrust(request?: ITrustedWorkspaceRequest): Promise<TrustState>;
+	requireWorkspaceTrust(request: ITrustedWorkspaceRequest): Promise<TrustState>;
 	resetWorkspaceTrust(): Promise<TrustState>;
 }
 
@@ -104,13 +104,29 @@ export class TrustedContentModel extends Disposable implements ITrustedContentMo
 	private loadTrustInfo(): ICachedTrustedContentInfo {
 		const infoAsString = this.storageService.get(this.storageKey, StorageScope.GLOBAL);
 
+		let result: ICachedTrustedContentInfo | undefined;
 		try {
 			if (infoAsString) {
-				return JSON.parse(infoAsString);
+				result = JSON.parse(infoAsString);
 			}
 		} catch { }
 
-		return { localFolders: [], trustedRemoteItems: [] };
+		if (!result) {
+			result = {
+				localFolders: [],
+				trustedRemoteItems: []
+			};
+		}
+
+		if (!result.localFolders) {
+			result.localFolders = [];
+		}
+
+		if (!result.trustedRemoteItems) {
+			result.trustedRemoteItems = [];
+		}
+
+		return result;
 	}
 
 	private saveTrustInfo(): void {
