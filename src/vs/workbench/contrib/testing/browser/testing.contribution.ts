@@ -33,8 +33,10 @@ import { TestService } from 'vs/workbench/contrib/testing/common/testServiceImpl
 import { IEditorService } from 'vs/workbench/services/editor/common/editorService';
 import { LifecyclePhase } from 'vs/workbench/services/lifecycle/common/lifecycle';
 import * as Action from './testExplorerActions';
+import { ITestResultService, TestResultService } from 'vs/workbench/contrib/testing/common/testResultService';
 
 registerSingleton(ITestService, TestService);
+registerSingleton(ITestResultService, TestResultService);
 registerSingleton(IWorkspaceTestCollectionService, WorkspaceTestCollectionService);
 
 const viewContainer = Registry.as<IViewContainersRegistry>(ViewContainerExtensions.ViewContainersRegistry).registerViewContainer({
