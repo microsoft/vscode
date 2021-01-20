@@ -260,13 +260,13 @@
         },
         "typescript.inlineHints.includeInlineParameterNameHints": {
           "type": "boolean",
-          "default": true,
+          "default": false,
           "description": "%configuration.inlineHints.includeInlineParameterNameHints%",
           "scope": "resource"
         },
         "typescript.inlineHints.includeInlineFunctionParameterTypeHints": {
           "type": "boolean",
-          "default": true,
+          "default": false,
           "description": "%configuration.inlineHints.includeInlineFunctionParameterTypeHints%",
           "scope": "resource"
         },
@@ -308,11 +308,71 @@
         },
         "typescript.inlineHints.includeInlineEnumMemberValueHints": {
           "type": "boolean",
-          "default": true,
+          "default": false,
           "description": "%configuration.inlineHints.includeInlineEnumMemberValueHints%",
           "scope": "resource"
         },
         "typescript.inlineHints.includeInlineCallChainsHints": {
+          "type": "boolean",
+          "default": false,
+          "description": "%configuration.inlineHints.includeInlineCallChainsHints%",
+          "scope": "resource"
+        },
+        "javascript.inlineHints.includeInlineParameterNameHints": {
+          "type": "boolean",
+          "default": false,
+          "description": "%configuration.inlineHints.includeInlineParameterNameHints%",
+          "scope": "resource"
+        },
+        "javascript.inlineHints.includeInlineFunctionParameterTypeHints": {
+          "type": "boolean",
+          "default": false,
+          "description": "%configuration.inlineHints.includeInlineFunctionParameterTypeHints%",
+          "scope": "resource"
+        },
+        "javascript.inlineHints.includeInlineVariableTypeHints": {
+          "type": "boolean",
+          "default": false,
+          "description": "%configuration.inlineHints.includeInlineVariableTypeHints%",
+          "scope": "resource"
+        },
+        "javascript.inlineHints.includeInlineNonLiteralParameterNameHints": {
+          "type": "boolean",
+          "default": false,
+          "description": "%configuration.inlineHints.includeInlineNonLiteralParameterNameHints%",
+          "scope": "resource"
+        },
+        "javascript.inlineHints.includeInlineDuplicatedParameterNameHints": {
+          "type": "boolean",
+          "default": false,
+          "description": "%configuration.inlineHints.includeInlineDuplicatedParameterNameHints%",
+          "scope": "resource"
+        },
+        "javascript.inlineHints.includeInlineRequireAssignedVariableTypeHints": {
+          "type": "boolean",
+          "default": false,
+          "description": "%configuration.inlineHints.includeInlineRequireAssignedVariableTypeHints%",
+          "scope": "resource"
+        },
+        "javascript.inlineHints.includeInlinePropertyDeclarationTypeHints": {
+          "type": "boolean",
+          "default": false,
+          "description": "%configuration.inlineHints.includeInlinePropertyDeclarationTypeHints%",
+          "scope": "resource"
+        },
+        "javascript.inlineHints.includeInlineFunctionLikeReturnTypeHints": {
+          "type": "boolean",
+          "default": false,
+          "description": "%configuration.inlineHints.includeInlineFunctionLikeReturnTypeHints%",
+          "scope": "resource"
+        },
+        "javascript.inlineHints.includeInlineEnumMemberValueHints": {
+          "type": "boolean",
+          "default": false,
+          "description": "%configuration.inlineHints.includeInlineEnumMemberValueHints%",
+          "scope": "resource"
+        },
+        "javascript.inlineHints.includeInlineCallChainsHints": {
           "type": "boolean",
           "default": false,
           "description": "%configuration.inlineHints.includeInlineCallChainsHints%",

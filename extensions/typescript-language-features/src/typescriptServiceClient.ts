@@ -554,16 +554,6 @@ export default class TypeScriptServiceClient extends Disposable implements IType
 				providePrefixAndSuffixTextForRename: true,
 				allowRenameOfImportPath: true,
 				includePackageJsonAutoImports: this._configuration.includePackageJsonAutoImports,
-				includeInlineParameterNameHints: this._configuration.includeInlineParameterNameHints,
-				includeInlineFunctionParameterTypeHints: this._configuration.includeInlineFunctionParameterTypeHints,
-				includeInlineVariableTypeHints: this._configuration.includeInlineVariableTypeHints,
-				includeInlineNonLiteralParameterNameHints: this._configuration.includeInlineNonLiteralParameterNameHints,
-				includeInlineDuplicatedParameterNameHints: this._configuration.includeInlineDuplicatedParameterNameHints,
-				includeInlineRequireAssignedVariableTypeHints: this._configuration.includeInlineRequireAssignedVariableTypeHints,
-				includeInlinePropertyDeclarationTypeHints: this._configuration.includeInlinePropertyDeclarationTypeHints,
-				includeInlineFunctionLikeReturnTypeHints: this._configuration.includeInlineFunctionLikeReturnTypeHints,
-				includeInlineEnumMemberValueHints: this._configuration.includeInlineEnumMemberValueHints,
-				includeInlineCallChainsHints: this._configuration.includeInlineCallChainsHints
 			},
 			watchOptions
 		};

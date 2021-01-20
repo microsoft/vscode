@@ -198,16 +198,7 @@ export default class FileConfigurationManager extends Disposable {
 			allowRenameOfImportPath: true,
 			includeAutomaticOptionalChainCompletions: config.get<boolean>('suggest.includeAutomaticOptionalChainCompletions', true),
 			provideRefactorNotApplicableReason: true,
-			includeInlineParameterNameHints: config.get<boolean>('inlineHints.includeInlineParameterName', true),
-			includeInlineFunctionParameterTypeHints: config.get<boolean>('inlineHints.includeInlineFunctionParameterType', true),
-			includeInlineVariableTypeHints: config.get<boolean>('inlineHints.includeInlineVariableType', true),
-			includeInlineNonLiteralParameterNameHints: config.get<boolean>('inlineHints.includeInlineNonLiteralParameterName', true),
-			includeInlineDuplicatedParameterNameHints: config.get<boolean>('inlineHints.includeInlineDuplicatedParameterName', true),
-			includeInlineRequireAssignedVariableTypeHints: config.get<boolean>('inlineHints.includeInlineRequireAssignedVariableType', true),
-			includeInlinePropertyDeclarationTypeHints: config.get<boolean>('inlineHints.includeInlinePropertyDeclarationType', true),
-			includeInlineFunctionLikeReturnTypeHints: config.get<boolean>('inlineHints.includeInlineFunctionLikeReturnType', true),
-			includeInlineEnumMemberValueHints: config.get<boolean>('inlineHints.includeInlineEnumMemberValue', true),
-			includeInlineCallChainsHints: config.get<boolean>('inlineHints.includeInlineCallChainsHints', true)
+			...getInlineHintsPreferences(config)
 		};
 
 		return preferences;
@@ -220,6 +211,21 @@ export default class FileConfigurationManager extends Disposable {
 			default: return this.client.apiVersion.gte(API.v333) ? 'auto' : undefined;
 		}
 	}
+}
+
+export function getInlineHintsPreferences(config: vscode.WorkspaceConfiguration) {
+	return {
+		includeInlineParameterNameHints: config.get<boolean>('inlineHints.includeInlineParameterNameHints', false),
+		includeInlineFunctionParameterTypeHints: config.get<boolean>('inlineHints.includeInlineFunctionParameterTypeHints', false),
+		includeInlineVariableTypeHints: config.get<boolean>('inlineHints.includeInlineVariableTypeHints', false),
+		includeInlineNonLiteralParameterNameHints: config.get<boolean>('inlineHints.includeInlineNonLiteralParameterNameHints', false),
+		includeInlineDuplicatedParameterNameHints: config.get<boolean>('inlineHints.includeInlineDuplicatedParameterNameHints', false),
+		includeInlineRequireAssignedVariableTypeHints: config.get<boolean>('inlineHints.includeInlineRequireAssignedVariableTypeHints', false),
+		includeInlinePropertyDeclarationTypeHints: config.get<boolean>('inlineHints.includeInlinePropertyDeclarationTypeHints', false),
+		includeInlineFunctionLikeReturnTypeHints: config.get<boolean>('inlineHints.includeInlineFunctionLikeReturnTypeHints', false),
+		includeInlineEnumMemberValueHints: config.get<boolean>('inlineHints.includeInlineEnumMemberValueHints', false),
+		includeInlineCallChainsHints: config.get<boolean>('inlineHints.includeInlineCallChainsHints', false)
+	};
 }
 
 function getImportModuleSpecifierPreference(config: vscode.WorkspaceConfiguration) {

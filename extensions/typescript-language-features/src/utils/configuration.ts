@@ -103,16 +103,6 @@ export class TypeScriptServiceConfiguration {
 	public readonly watchOptions: protocol.WatchOptions | undefined;
 	public readonly includePackageJsonAutoImports: 'auto' | 'on' | 'off' | undefined;
 	public readonly enableTsServerTracing: boolean;
-	public readonly includeInlineParameterNameHints: boolean | undefined;
-	public readonly includeInlineFunctionParameterTypeHints: boolean | undefined;
-	public readonly includeInlineVariableTypeHints: boolean | undefined;
-	public readonly includeInlineNonLiteralParameterNameHints: boolean | undefined;
-	public readonly includeInlineDuplicatedParameterNameHints: boolean | undefined;
-	public readonly includeInlineRequireAssignedVariableTypeHints: boolean | undefined;
-	public readonly includeInlinePropertyDeclarationTypeHints: boolean | undefined;
-	public readonly includeInlineFunctionLikeReturnTypeHints: boolean | undefined;
-	public readonly includeInlineEnumMemberValueHints: boolean | undefined;
-	public readonly includeInlineCallChainsHints: boolean | undefined;
 
 	public static loadFromWorkspace(): TypeScriptServiceConfiguration {
 		return new TypeScriptServiceConfiguration();
@@ -136,16 +126,6 @@ export class TypeScriptServiceConfiguration {
 		this.watchOptions = TypeScriptServiceConfiguration.readWatchOptions(configuration);
 		this.includePackageJsonAutoImports = TypeScriptServiceConfiguration.readIncludePackageJsonAutoImports(configuration);
 		this.enableTsServerTracing = TypeScriptServiceConfiguration.readEnableTsServerTracing(configuration);
-		this.includeInlineParameterNameHints = TypeScriptServiceConfiguration.readIncludeInlineParameterNameHints(configuration);
-		this.includeInlineFunctionParameterTypeHints = TypeScriptServiceConfiguration.readIncludeInlineFunctionParameterTypeHints(configuration);
-		this.includeInlineVariableTypeHints = TypeScriptServiceConfiguration.readIncludeInlineVariableTypeHints(configuration);
-		this.includeInlineNonLiteralParameterNameHints = TypeScriptServiceConfiguration.readIncludeInlineNonLiteralParameterNameHints(configuration);
-		this.includeInlineDuplicatedParameterNameHints = TypeScriptServiceConfiguration.readIncludeInlineDuplicatedParameterNameHints(configuration);
-		this.includeInlineRequireAssignedVariableTypeHints = TypeScriptServiceConfiguration.readIncludeInlineRequireAssignedVariableTypeHints(configuration);
-		this.includeInlinePropertyDeclarationTypeHints = TypeScriptServiceConfiguration.readIncludeInlinePropertyDeclarationTypeHints(configuration);
-		this.includeInlineFunctionLikeReturnTypeHints = TypeScriptServiceConfiguration.readIncludeInlineFunctionLikeReturnTypeHints(configuration);
-		this.includeInlineEnumMemberValueHints = TypeScriptServiceConfiguration.readIncludeInlineEnumMemberValueHints(configuration);
-		this.includeInlineCallChainsHints = TypeScriptServiceConfiguration.readIncludeInlineCallChainsHints(configuration);
 	}
 
 	public isEqualTo(other: TypeScriptServiceConfiguration): boolean {
@@ -235,45 +215,5 @@ export class TypeScriptServiceConfiguration {
 
 	private static readEnableTsServerTracing(configuration: vscode.WorkspaceConfiguration): boolean {
 		return configuration.get<boolean>('typescript.tsserver.enableTracing', false);
-	}
-
-	private static readIncludeInlineParameterNameHints(configuration: vscode.WorkspaceConfiguration): boolean {
-		return configuration.get<boolean>('typescript.inlineHints.includeInlineParameterNameHints', true);
-	}
-
-	private static readIncludeInlineFunctionParameterTypeHints(configuration: vscode.WorkspaceConfiguration): boolean {
-		return configuration.get<boolean>('typescript.inlineHints.includeInlineFunctionParameterTypeHints', true);
-	}
-
-	private static readIncludeInlineVariableTypeHints(configuration: vscode.WorkspaceConfiguration): boolean {
-		return configuration.get<boolean>('typescript.inlineHints.includeInlineVariableTypeHints', false);
-	}
-
-	private static readIncludeInlineNonLiteralParameterNameHints(configuration: vscode.WorkspaceConfiguration): boolean {
-		return configuration.get<boolean>('typescript.inlineHints.includeInlineNonLiteralParameterNameHints', false);
-	}
-
-	private static readIncludeInlineDuplicatedParameterNameHints(configuration: vscode.WorkspaceConfiguration): boolean {
-		return configuration.get<boolean>('typescript.inlineHints.includeInlineDuplicatedParameterNameHints', false);
-	}
-
-	private static readIncludeInlineRequireAssignedVariableTypeHints(configuration: vscode.WorkspaceConfiguration): boolean {
-		return configuration.get<boolean>('typescript.inlineHints.includeInlineRequireAssignedVariableTypeHints', false);
-	}
-
-	private static readIncludeInlinePropertyDeclarationTypeHints(configuration: vscode.WorkspaceConfiguration): boolean {
-		return configuration.get<boolean>('typescript.inlineHints.includeInlinePropertyDeclarationTypeHints', false);
-	}
-
-	private static readIncludeInlineFunctionLikeReturnTypeHints(configuration: vscode.WorkspaceConfiguration): boolean {
-		return configuration.get<boolean>('typescript.inlineHints.includeInlineFunctionLikeReturnTypeHints', false);
-	}
-
-	private static readIncludeInlineEnumMemberValueHints(configuration: vscode.WorkspaceConfiguration): boolean {
-		return configuration.get<boolean>('typescript.inlineHints.includeInlineEnumMemberValueHints', true);
-	}
-
-	private static readIncludeInlineCallChainsHints(configuration: vscode.WorkspaceConfiguration): boolean {
-		return configuration.get<boolean>('typescript.inlineHints.includeInlineCallChainsHints', false);
 	}
 }
