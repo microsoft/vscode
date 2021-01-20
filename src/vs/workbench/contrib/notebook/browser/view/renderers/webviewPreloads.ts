@@ -426,7 +426,8 @@ function webviewPreloads() {
 						previewNode.style.position = 'absolute';
 						previewNode.style.top = data.top + 'px';
 						previewNode.innerText = data.content;
-						previewNode.id = `${data.id}`;
+						previewNode.id = `${data.id}_preview`;
+						previewNode.classList.add('preview');
 						cellContainer.appendChild(previewNode);
 
 						// TODO: handle namespace
@@ -482,6 +483,7 @@ function webviewPreloads() {
 					}
 
 					const outputNode = document.createElement('div');
+					outputNode.classList.add('output');
 					outputNode.style.position = 'absolute';
 					outputNode.style.top = data.top + 'px';
 					outputNode.style.left = data.left + 'px';

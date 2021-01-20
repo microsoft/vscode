@@ -280,11 +280,159 @@ export class BackLayerWebView<T extends ICommonCellInfo> extends Disposable {
 				<meta charset="UTF-8">
 				<base href="${baseUrl}/"/>
 				<style>
-					#container > div > div {
+					#container > div > div.output {
 						width: 100%;
 						padding: ${this.options.outputNodePadding}px ${this.options.outputNodePadding}px ${this.options.outputNodePadding}px ${this.options.outputNodeLeftPadding}px;
 						box-sizing: border-box;
 						background-color: var(--vscode-notebook-outputContainerBackgroundColor);
+					}
+
+					#container > div > div.preview {
+						width: 100%;
+						box-sizing: border-box;
+						white-space: nowrap;
+						overflow: hidden;
+						user-select: text;
+						-webkit-user-select: text;
+						-ms-user-select: text;
+						white-space: initial;
+					}
+
+					/* markdown */
+
+
+					#container > div > div.preview img {
+						max-width: 100%;
+						max-height: 100%;
+					}
+
+					#container > div > div.preview a {
+						text-decoration: none;
+					}
+
+					#container > div > div.preview a:hover {
+						text-decoration: underline;
+					}
+
+					#container > div > div.preview a:focus,
+					#container > div > div.preview input:focus,
+					#container > div > div.preview select:focus,
+					#container > div > div.preview textarea:focus {
+						outline: 1px solid -webkit-focus-ring-color;
+						outline-offset: -1px;
+					}
+
+					#container > div > div.preview hr {
+						border: 0;
+						height: 2px;
+						border-bottom: 2px solid;
+					}
+
+					#container > div > div.preview h1 {
+						padding-bottom: 0.3em;
+						line-height: 1.2;
+						border-bottom-width: 1px;
+						border-bottom-style: solid;
+						border-color: rgba(255, 255, 255, 0.18);
+					}
+
+					#container > div > div.preview h1 {
+						border-color: rgba(0, 0, 0, 0.18);
+					}
+
+					#container > div > div.preview h1,
+					#container > div > div.preview h2,
+					#container > div > div.preview h3 {
+						font-weight: normal;
+					}
+
+					#container > div > div.preview div {
+						width: 100%;
+					}
+
+					/* Adjust margin of first item in markdown cell */
+					#container > div > div.preview div *:first-child {
+						margin-top: 0px;
+					}
+
+					/* h1 tags don't need top margin */
+					#container > div > div.preview div h1:first-child {
+						margin-top: 0;
+					}
+
+					/* Removes bottom margin when only one item exists in markdown cell */
+					#container > div > div.preview div *:only-child,
+					#container > div > div.preview div *:last-child {
+						margin-bottom: 0;
+						padding-bottom: 0;
+					}
+
+					/* makes all markdown cells consistent */
+					#container > div > div.preview div {
+						min-height: 24px;
+					}
+
+					#container > div > div.preview table {
+						border-collapse: collapse;
+						border-spacing: 0;
+					}
+
+					#container > div > div.preview table th,
+					#container > div > div.preview table td {
+						border: 1px solid;
+					}
+
+					#container > div > div.preview table > thead > tr > th {
+						text-align: left;
+						border-bottom: 1px solid;
+					}
+
+					#container > div > div.preview table > thead > tr > th,
+					#container > div > div.preview table > thead > tr > td,
+					#container > div > div.preview table > tbody > tr > th,
+					#container > div > div.preview table > tbody > tr > td {
+						padding: 5px 10px;
+					}
+
+					#container > div > div.preview table > tbody > tr + tr > td {
+						border-top: 1px solid;
+					}
+
+					#container > div > div.preview blockquote {
+						margin: 0 7px 0 5px;
+						padding: 0 16px 0 10px;
+						border-left-width: 5px;
+						border-left-style: solid;
+					}
+
+					#container > div > div.preview code,
+					#container > div > div.preview .code {
+						font-family: var(--monaco-monospace-font);
+						font-size: 1em;
+						line-height: 1.357em;
+					}
+
+					#container > div > div.preview .code {
+						white-space: pre-wrap;
+					}
+
+					#container > div > div.preview .latex-block {
+						display: block;
+					}
+
+					#container > div > div.preview .latex {
+						vertical-align: middle;
+						display: inline-block;
+					}
+
+					#container > div > div.preview .latex img,
+					#container > div > div.preview .latex-block img {
+						filter: brightness(0) invert(0)
+					}
+
+					.monaco-workbench.vs-dark .notebookOverlay .cell.markdown .latex img,
+					.monaco-workbench.vs-dark .notebookOverlay .cell.markdown .latex-block img {
+						filter: brightness(0) invert(1)
 					}
 
 					#container > div.nb-symbolHighlight > div {
