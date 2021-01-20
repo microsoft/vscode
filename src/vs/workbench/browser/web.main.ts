@@ -345,8 +345,10 @@ class BrowserMain extends Disposable {
 
 		// Single-folder workspace
 		if (workspace && isFolderToOpen(workspace)) {
-			const id = hash(workspace.folderUri.toString()).toString(16);
-			return { id, folder: workspace.folderUri };
+			return {
+				id: hash(workspace.folderUri.toString()).toString(16),
+				folder: workspace.folderUri
+			};
 		}
 
 		return { id: 'empty-window' };

@@ -87,6 +87,13 @@ export function isRecentFile(curr: IRecent): curr is IRecentFile {
  */
 export type ISingleFolderWorkspaceIdentifier = URI;
 
+export function reviveSingleFolderIdentifier(folder: UriComponents): ISingleFolderWorkspaceIdentifier {
+	return URI.revive(folder);
+}
+
+/**
+ * A multi-root workspace identifier is a path to a workspace file + id.
+ */
 export interface IWorkspaceIdentifier {
 	id: string;
 	configPath: URI;
