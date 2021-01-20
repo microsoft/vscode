@@ -326,15 +326,47 @@ registerAction2(class extends NotebookCellAction<ICellRange> {
 								}
 							}
 						}
+					},
+					{
+						name: 'uri',
+						description: 'The document uri',
+						constraint: URI
 					}
 				]
 			},
 		});
 	}
 
-	getCellContextFromArgs(accessor: ServicesAccessor, context?: ICellRange): INotebookCellActionContext | undefined {
+	getCellContextFromArgs(accessor: ServicesAccessor, context?: ICellRange, ...additionalArgs: any[]): INotebookCellActionContext | undefined {
 		if (!context || typeof context.start !== 'number' || typeof context.end !== 'number' || context.start >= context.end) {
 			return;
+		}
+
+		if (additionalArgs.length && additionalArgs[0]) {
+			const uri = URI.revive(additionalArgs[0]);
+
+			if (uri) {
+				// we will run cell against this document
+				const editorService = accessor.get(IEditorService);
+				const editorGroupService = accessor.get(IEditorGroupsService);
+				const instantiationService = accessor.get(IInstantiationService);
+				const notebookWidgetService = accessor.get(INotebookEditorWidgetService);
+				const editorId = editorService.getEditors(EditorsOrder.SEQUENTIAL).find(editorId => editorId.editor instanceof NotebookEditorInput && editorId.editor.resource?.toString() === uri.toString());
+
+				if (editorId) {
+					const group = editorGroupService.getGroup(editorId.groupId);
+					const widget = instantiationService.invokeFunction(notebookWidgetService.retrieveWidget, group!, editorId.editor as NotebookEditorInput);
+
+					if (widget.value?.hasModel()) {
+						const cells = widget.value.viewModel.viewCells;
+
+						return {
+							notebookEditor: widget.value!,
+							cell: cells[context.start]
+						};
+					}
+				}
+			}
 		}
 
 		const activeEditorContext = this.getActiveEditorContext(accessor);
