@@ -53,7 +53,7 @@ import { TestingOutputPeekController } from 'vs/workbench/contrib/testing/browse
 import { TestExplorerViewGrouping, TestExplorerViewMode, Testing } from 'vs/workbench/contrib/testing/common/constants';
 import { TestingContextKeys } from 'vs/workbench/contrib/testing/common/testingContextKeys';
 import { cmpPriority, isFailedState } from 'vs/workbench/contrib/testing/common/testingStates';
-import { ITestResultService, sumCounts } from 'vs/workbench/contrib/testing/common/testResultService';
+import { ITestResultService, sumCounts, TestStateCount } from 'vs/workbench/contrib/testing/common/testResultService';
 import { ITestService } from 'vs/workbench/contrib/testing/common/testService';
 import { IWorkspaceTestCollectionService, TestSubscriptionListener } from 'vs/workbench/contrib/testing/common/workspaceTestCollectionService';
 import { IActivityService, NumberBadge, ProgressBadge } from 'vs/workbench/services/activity/common/activity';
@@ -104,11 +104,12 @@ export class TestingExplorerView extends ViewPane {
 		this.filter = this.instantiationService.createInstance(TestingExplorerFilter, this.container, this.filterState);
 		this._register(this.filter);
 
+		const messagesContainer = dom.append(this.container, dom.$('.test-explorer-messages'));
+		this._register(this.instantiationService.createInstance(TestRunProgress, messagesContainer, this.getProgressLocation()));
+
 		const listContainer = dom.append(this.container, dom.$('.test-explorer-tree'));
 		this.viewModel = this.instantiationService.createInstance(TestingExplorerViewModel, listContainer, this.onDidChangeBodyVisibility, this.currentSubscription, this.filterState);
 		this._register(this.viewModel);
-
-		this._register(this.instantiationService.createInstance(TestRunProgress, this.getProgressLocation()));
 
 		this._register(this.onDidChangeBodyVisibility(visible => {
 			if (!visible && this.currentSubscription) {
@@ -651,6 +652,22 @@ class TestsRenderer implements ITreeRenderer<ITestTreeElement, FuzzyScore, TestT
 	}
 }
 
+const collectCounts = (count: TestStateCount) => {
+	const failed = count[TestRunState.Errored] + count[TestRunState.Failed];
+	const passed = count[TestRunState.Passed];
+	const skipped = count[TestRunState.Skipped];
+	return { passed, failed, runSoFar: passed + failed, totalWillBeRun: passed + failed + skipped, skipped, };
+};
+
+const getProgressText = ({ passed, runSoFar, skipped }: { passed: number, runSoFar: number, skipped: number }) => {
+	const percent = (passed / runSoFar * 100).toFixed(0);
+	if (skipped === 0) {
+		return localize('testProgress', '{0}/{1} tests passed ({2}%)', passed, runSoFar, percent);
+	} else {
+		return localize('testProgressWithSkip', '{0}/{1} tests passed ({2}%, {3} skipped)', passed, runSoFar, percent, skipped);
+	}
+};
+
 class TestRunProgress {
 	private current?: { update: IProgress<IProgressStep>; deferred: DeferredPromise<void> };
 	private badge = new MutableDisposable();
@@ -666,6 +683,7 @@ class TestRunProgress {
 	});
 
 	constructor(
+		private readonly messagesContainer: HTMLElement,
 		private readonly location: string,
 		@IProgressService private readonly progress: IProgressService,
 		@ITestResultService private readonly resultService: ITestResultService,
@@ -686,6 +704,7 @@ class TestRunProgress {
 	private updateProgress() {
 		const running = this.resultService.results.filter(r => !r.isComplete);
 		if (!running.length) {
+			this.setIdleText(this.resultService.results[0]?.counts);
 			this.current?.deferred.complete();
 			this.current = undefined;
 		} else if (!this.current) {
@@ -695,10 +714,27 @@ class TestRunProgress {
 				return this.current.deferred.p;
 			});
 		} else {
-			const count = sumCounts(running.map(r => r.counts));
-			const completed = count[TestRunState.Errored] + count[TestRunState.Failed] + count[TestRunState.Passed];
-			const total = completed + count[TestRunState.Queued] + count[TestRunState.Running];
-			this.current.update.report({ increment: completed, total });
+			const counts = sumCounts(running.map(r => r.counts));
+			this.setRunningText(counts);
+			const { runSoFar, totalWillBeRun } = collectCounts(counts);
+			this.current.update.report({ increment: runSoFar, total: totalWillBeRun });
+		}
+	}
+
+	private setRunningText(counts: TestStateCount) {
+		const collected = collectCounts(counts);
+		if (collected.runSoFar === 0) {
+			this.messagesContainer.innerText = localize('testResultStarting', 'Test run is starting...');
+		} else {
+			this.messagesContainer.innerText = getProgressText(collected);
+		}
+	}
+
+	private setIdleText(lastCount?: TestStateCount) {
+		if (!lastCount) {
+			this.messagesContainer.innerText = '';
+		} else {
+			this.messagesContainer.innerText = getProgressText(collectCounts(lastCount));
 		}
 	}
 

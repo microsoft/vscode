@@ -38,9 +38,7 @@ const makeNode = (
 	collection: IMainThreadTestCollection,
 	test: IncrementalTestCollectionItem,
 ): TestResultItem => {
-	const mapped: TestResultItem = { ...test, children: [], results: makeEmptyCounts() };
-	mapped.results[test.item.state.runState]++;
-
+	const mapped: TestResultItem = { ...test, children: [] };
 	for (const childId of test.children) {
 		const child = collection.getNodeById(childId);
 		if (child) {
@@ -53,7 +51,6 @@ const makeNode = (
 
 export interface TestResultItem extends InternalTestItem {
 	children: TestResultItem[]
-	results: { [K in TestRunState]: number };
 }
 
 /**

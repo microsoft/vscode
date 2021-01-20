@@ -197,6 +197,10 @@ export class ExtHostTesting implements ExtHostTestingShape {
 
 		try {
 			await provider.runTests({ tests, debug: req.debug }, cancellation);
+			for (const { collection } of this.testSubscriptions.values()) {
+				collection.flushDiff(); // ensure all states are updated
+			}
+
 			return EMPTY_TEST_RESULT;
 		} catch (e) {
 			console.error(e); // so it appears to attached debuggers
