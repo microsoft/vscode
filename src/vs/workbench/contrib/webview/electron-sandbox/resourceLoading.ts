@@ -21,6 +21,8 @@ import { loadLocalResource, WebviewResourceResponse } from 'vs/platform/webview/
 import { IWebviewManagerService } from 'vs/platform/webview/common/webviewManagerService';
 import { WebviewContentOptions, WebviewExtensionDescription } from 'vs/workbench/contrib/webview/browser/webview';
 import { IWorkbenchEnvironmentService } from 'vs/workbench/services/environment/common/environmentService';
+import { IExtensionService } from 'vs/workbench/services/extensions/common/extensions';
+import { IExtensionDescription } from 'vs/platform/extensions/common/extensions';
 
 /**
  * Try to rewrite `vscode-resource:` urls in html
@@ -56,7 +58,7 @@ export class WebviewResourceRequestManager extends Disposable {
 
 	constructor(
 		private readonly id: string,
-		private readonly extension: WebviewExtensionDescription | undefined,
+		readonly extension: WebviewExtensionDescription | undefined,
 		initialContentOptions: WebviewContentOptions,
 		@ILogService private readonly _logService: ILogService,
 		@IRemoteAuthorityResolverService remoteAuthorityResolverService: IRemoteAuthorityResolverService,
@@ -65,6 +67,7 @@ export class WebviewResourceRequestManager extends Disposable {
 		@INativeHostService nativeHostService: INativeHostService,
 		@IFileService fileService: IFileService,
 		@IRequestService requestService: IRequestService,
+		@IExtensionService extensionService: IExtensionService,
 	) {
 		super();
 
@@ -78,16 +81,43 @@ export class WebviewResourceRequestManager extends Disposable {
 		const remoteAuthority = environmentService.remoteAuthority;
 		const remoteConnectionData = remoteAuthority ? remoteAuthorityResolverService.getConnectionData(remoteAuthority) : null;
 
-		this._logService.debug(`WebviewResourceRequestManager(${this.id}): did-start-loading`);
+		let latestExtensionLocation: { extensionLocation?: URI, localResourceRoots: URI[] } = { extensionLocation: extension?.location, localResourceRoots: [...this._localResourceRoots] };
+		const register = async () => {
+			// `extension` could come from the deserialized webview, which was whatever we had in the previous execution.
+			// An extension update could have changed the extensionLocation, e.g. from a new version having a new dir name.
+			// This would cause permission errors in the webview, so we need to update this extension location with a new value
+			// from whatever extension we have actually loaded.
+			let foundExt: IExtensionDescription | undefined = undefined;
+			if (extension?.id !== undefined) {
+				foundExt = await extensionService.getExtension(extension?.id.value);
+			}
 
-		this._ready = this._webviewManagerService.registerWebview(this.id, nativeHostService.windowId, {
-			extensionLocation: this.extension?.location.toJSON(),
-			localResourceRoots: this._localResourceRoots.map(x => x.toJSON()),
-			remoteConnectionData: remoteConnectionData,
-			portMappings: this._portMappings,
-		}).then(() => {
+			// Update the extensionLocation AND the associated local resource roots to match the running extension version.
+			if (foundExt !== undefined) {
+				latestExtensionLocation.extensionLocation = foundExt?.extensionLocation;
+				if (extension?.location !== undefined) {
+					latestExtensionLocation.localResourceRoots = this._localResourceRoots.map(root => {
+						const newPath = root.path.replace(extension?.location.path, foundExt!.extensionLocation.path);
+						if (root.path !== newPath) {
+							const newRoot = root.with({ path: newPath });
+							this._logService.info(`WebviewResourceRequestManager(${this.id}): replaced localResourceRoot: ${root.toString()} -> ${newRoot.toString()}`);
+							return newRoot;
+						}
+						return root;
+					});
+				}
+			}
+
+			await this._webviewManagerService.registerWebview(this.id, nativeHostService.windowId, {
+				extensionLocation: latestExtensionLocation.extensionLocation?.toJSON(),
+				localResourceRoots: latestExtensionLocation.localResourceRoots.map(root => root.toJSON()),
+				remoteConnectionData: remoteConnectionData,
+				portMappings: this._portMappings,
+			});
 			this._logService.debug(`WebviewResourceRequestManager(${this.id}): did register`);
-		});
+		};
+		this._ready = register();
+
 
 		if (remoteAuthority) {
 			this._register(remoteAuthorityResolverService.onDidChangeConnectionData(() => {
@@ -107,8 +137,8 @@ export class WebviewResourceRequestManager extends Disposable {
 				this._logService.debug(`WebviewResourceRequestManager(${this.id}): starting resource load. uri: ${uri}`);
 
 				const response = await loadLocalResource(uri, {
-					extensionLocation: this.extension?.location,
-					roots: this._localResourceRoots,
+					extensionLocation: latestExtensionLocation.extensionLocation,
+					roots: latestExtensionLocation.localResourceRoots,
 					remoteConnectionData: remoteConnectionData,
 				}, {
 					readFileStream: (resource) => fileService.readFileStream(resource).then(x => ({ stream: x.value, etag: x.etag })),
