@@ -2518,7 +2518,7 @@ declare module 'vscode' {
 		/**
 		 * The key of the secret that has changed.
 		 */
-		key: string;
+		readonly key: string;
 	}
 
 	/**
@@ -2539,7 +2539,7 @@ declare module 'vscode' {
 		 * @param key The key to store the password under.
 		 * @param value The password.
 		 */
-		set(key: string, value: string): Thenable<void>;
+		store(key: string, value: string): Thenable<void>;
 
 		/**
 		 * Remove a secret from storage.
@@ -2554,7 +2554,7 @@ declare module 'vscode' {
 	}
 
 	export interface ExtensionContext {
-		secrets: SecretStorage;
+		readonly secrets: SecretStorage;
 	}
 
 	//#endregion
