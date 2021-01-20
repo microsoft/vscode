@@ -271,6 +271,10 @@ export class CodeApplication extends Disposable {
 		//#region Bootstrap IPC Handlers
 
 		ipcMain.on('vscode:fetchShellEnv', async event => {
+
+			// DO NOT remove: not only usual windows are fetching the
+			// shell environment but also shared process, issue reporter
+			// etc, so we need to reply via `webContents` always
 			const webContents = event.sender;
 
 			let replied = false;
@@ -305,6 +309,9 @@ export class CodeApplication extends Disposable {
 			// a first window was opened from the UI but a second
 			// from the CLI and that has implications for whether to
 			// resolve the shell environment or not.
+			//
+			// Window can be undefined for e.g. the shared process
+			// that is not part of our windows registry!
 			let args: NativeParsedArgs;
 			let env: NodeJS.ProcessEnv;
 			if (window?.config) {
