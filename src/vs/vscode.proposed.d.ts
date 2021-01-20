@@ -2576,7 +2576,7 @@ declare module 'vscode' {
 
 	//#endregion
 
-	//#region Workspace Trust (https://github.com/microsoft/vscode/issues/106488)
+	//#region Workspace Trust - @sbatten, @lszomoru
 
 	export enum WorkspaceTrustState {
 		/**
@@ -2627,7 +2627,7 @@ declare module 'vscode' {
 		/**
 		 * Event that fires when the trust state of the current workspace changes
 		 */
-		export const onDidChangeTrustState: Event<WorkspaceTrustStateChangeEvent>;
+		// export const onDidChangeTrustState: Event<WorkspaceTrustStateChangeEvent>;
 	}
 
 	//#endregion

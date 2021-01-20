@@ -875,11 +875,18 @@ export function createApiFactoryAndRegisterActors(accessor: ServicesAccessor): I
 			onDidChangeTunnels: (listener, thisArg?, disposables?) => {
 				checkProposedApiEnabled(extension);
 				return extHostTunnelService.onDidChangeTunnels(listener, thisArg, disposables);
-
 			},
 			registerTimelineProvider: (scheme: string | string[], provider: vscode.TimelineProvider) => {
 				checkProposedApiEnabled(extension);
 				return extHostTimeline.registerTimelineProvider(scheme, provider, extension.identifier, extHostCommands.converter);
+			},
+			getWorkspaceTrustState: () => {
+				checkProposedApiEnabled(extension);
+				return extHostTypes.WorkspaceTrustState.Trusted;
+			},
+			requireWorkspaceTrust: (reason?: string) => {
+				checkProposedApiEnabled(extension);
+				return Promise.resolve(extHostTypes.WorkspaceTrustState.Trusted);
 			}
 		};
 
@@ -1278,6 +1285,10 @@ export function createApiFactoryAndRegisterActors(accessor: ServicesAccessor): I
 				// checkProposedApiEnabled(extension);
 				return extHostTypes.TestState;
 			},
+			get WorkspaceTrustState() {
+				// checkProposedApiEnabled(extension);
+				return extHostTypes.WorkspaceTrustState;
+			}
 		};
 	};
 }
