@@ -25,7 +25,8 @@ export namespace WebviewResourceResponse {
 
 		constructor(
 			public readonly stream: VSBufferReadableStream,
-			public readonly mimeType: string
+			public readonly etag: string | undefined,
+			public readonly mimeType: string,
 		) { }
 	}
 
@@ -36,7 +37,7 @@ export namespace WebviewResourceResponse {
 }
 
 interface FileReader {
-	readFileStream(resource: URI): Promise<VSBufferReadableStream>;
+	readFileStream(resource: URI): Promise<{ stream: VSBufferReadableStream, etag?: string }>;
 }
 
 export async function loadLocalResource(
@@ -73,7 +74,7 @@ export async function loadLocalResource(
 		logService.debug(`loadLocalResource - Loaded over http(s). requestUri=${requestUri}, response=${response.res.statusCode}`);
 
 		if (response.res.statusCode === 200) {
-			return new WebviewResourceResponse.StreamSuccess(response.stream, mime);
+			return new WebviewResourceResponse.StreamSuccess(response.stream, undefined, mime);
 		}
 		return WebviewResourceResponse.Failed;
 	}
@@ -82,7 +83,7 @@ export async function loadLocalResource(
 		const contents = await fileReader.readFileStream(resourceToLoad);
 		logService.debug(`loadLocalResource - Loaded using fileReader. requestUri=${requestUri}`);
 
-		return new WebviewResourceResponse.StreamSuccess(contents, mime);
+		return new WebviewResourceResponse.StreamSuccess(contents.stream, contents.etag, mime);
 	} catch (err) {
 		logService.debug(`loadLocalResource - Error using fileReader. requestUri=${requestUri}`);
 		console.log(err);

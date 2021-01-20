@@ -111,7 +111,7 @@ export class WebviewResourceRequestManager extends Disposable {
 					roots: this._localResourceRoots,
 					remoteConnectionData: remoteConnectionData,
 				}, {
-					readFileStream: (resource) => fileService.readFileStream(resource).then(x => x.value),
+					readFileStream: (resource) => fileService.readFileStream(resource).then(x => ({ stream: x.value, etag: x.etag })),
 				}, requestService, this._logService);
 				this._logService.debug(`WebviewResourceRequestManager(${this.id}): finished resource load. uri: ${uri}, type=${response.type}`);
 
