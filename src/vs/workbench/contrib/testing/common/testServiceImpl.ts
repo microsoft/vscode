@@ -223,7 +223,7 @@ export class TestService extends Disposable implements ITestService {
 		const sub = this.testSubscriptions.get(getTestSubscriptionKey(resource, URI.revive(uri)));
 		if (sub) {
 			sub.collection.apply(diff);
-			console.log('accept', sub.collection, diff);
+			// console.log('accept', sub.collection, diff);
 			sub.onDiff.fire(diff);
 		}
 	}
