@@ -140,6 +140,13 @@ export interface INotebookRendererInfo {
 	matches(mimeType: string): boolean;
 }
 
+export interface INotebookMarkdownRendererInfo {
+	entrypoint: URI;
+	preloads: ReadonlyArray<URI>;
+	extensionLocation: URI;
+	extensionId: ExtensionIdentifier;
+}
+
 export interface IStreamOutput {
 	outputKind: CellOutputKind.Text;
 	text: string;

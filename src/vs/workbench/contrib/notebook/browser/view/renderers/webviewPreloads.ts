@@ -317,6 +317,10 @@ function webviewPreloads() {
 		mimeType?: string;
 		element: HTMLElement;
 	}
+	interface ICreateMarkdownInfo {
+		readonly content: string;
+		readonly element: HTMLElement;
+	}
 
 	interface IDestroyCellInfo {
 		outputId: string;
@@ -324,6 +328,7 @@ function webviewPreloads() {
 
 	const onWillDestroyOutput = createEmitter<[string | undefined /* namespace */, IDestroyCellInfo | undefined /* cell uri */]>();
 	const onDidCreateOutput = createEmitter<[string | undefined /* namespace */, ICreateCellInfo]>();
+	const onDidCreateMarkdown = createEmitter<[string | undefined /* namespace */, ICreateMarkdownInfo]>();
 	const onDidReceiveMessage = createEmitter<[string, unknown]>();
 
 	const matchesNs = (namespace: string, query: string | undefined) => namespace === '*' || query === namespace || query === 'undefined';
@@ -352,6 +357,7 @@ function webviewPreloads() {
 			onDidReceiveMessage: mapEmitter(onDidReceiveMessage, ([ns, data]) => ns === namespace ? data : dontEmit),
 			onWillDestroyOutput: mapEmitter(onWillDestroyOutput, ([ns, data]) => matchesNs(namespace, ns) ? data : dontEmit),
 			onDidCreateOutput: mapEmitter(onDidCreateOutput, ([ns, data]) => matchesNs(namespace, ns) ? data : dontEmit),
+			onDidCreateMarkdown: mapEmitter(onDidCreateMarkdown, ([ns, data]) => data),
 		};
 	};
 
@@ -404,41 +410,50 @@ function webviewPreloads() {
 		switch (event.data.type) {
 			case 'createMarkdownPreview':
 				const data = event.data;
-				let cellContainer = document.getElementById(data.id);
-				if (!cellContainer) {
-					const container = document.getElementById('container')!;
-					const newElement = document.createElement('div');
+				(async () => {
+					const preloadResults = await Promise.all(data.requiredPreloads.map(p => preloadPromises.get(p.uri)));
 
-					newElement.id = `${data.id}`;
-					container.appendChild(newElement);
-					cellContainer = newElement;
+					let cellContainer = document.getElementById(data.id);
+					if (!cellContainer) {
+						const container = document.getElementById('container')!;
+						const newElement = document.createElement('div');
 
-					const previewNode = document.createElement('div');
-					previewNode.style.position = 'absolute';
-					previewNode.style.top = data.top + 'px';
-					previewNode.innerText = data.content;
-					previewNode.id = `${data.id}`;
-					cellContainer.appendChild(previewNode);
+						newElement.id = `${data.id}`;
+						container.appendChild(newElement);
+						cellContainer = newElement;
 
-					resizeObserve(previewNode, `${data.id}_preview`, false);
-
-					vscode.postMessage({
-						__vscode_notebook_message: true,
-						type: 'dimension',
-						id: `${data.id}_preview`,
-						init: true,
-						data: {
-							height: previewNode.clientHeight
-						},
-						isOutput: false
-					});
-				} else {
-					const previewNode = document.getElementById(`${data.id}_container`);
-					if (previewNode) {
+						const previewNode = document.createElement('div');
+						previewNode.style.position = 'absolute';
+						previewNode.style.top = data.top + 'px';
 						previewNode.innerText = data.content;
-					}
-				}
+						previewNode.id = `${data.id}`;
+						cellContainer.appendChild(previewNode);
 
+						// TODO: handle namespace
+						onDidCreateMarkdown.fire([undefined/* data.apiNamespace */, {
+							element: previewNode,
+							content: data.content
+						}]);
+
+						resizeObserve(previewNode, `${data.id}_preview`, false);
+
+						vscode.postMessage({
+							__vscode_notebook_message: true,
+							type: 'dimension',
+							id: `${data.id}_preview`,
+							init: true,
+							data: {
+								height: previewNode.clientHeight
+							},
+							isOutput: false
+						});
+					} else {
+						const previewNode = document.getElementById(`${data.id}_container`);
+						if (previewNode) {
+							previewNode.innerText = data.content;
+						}
+					}
+				})();
 				break;
 
 			case 'html':
