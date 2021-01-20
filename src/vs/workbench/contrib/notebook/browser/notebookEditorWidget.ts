@@ -1106,6 +1106,19 @@ export class NotebookEditorWidget extends Disposable implements INotebookEditor 
 						this._webview?.updateViewScrollTop(-scrollTop, false, updateItems);
 					}
 				}
+
+				if (this._webview?.markdownPreviewMapping) {
+					const updateItems: { id: string, top: number }[] = [];
+					this._webview!.markdownPreviewMapping.forEach(cellId => {
+						const cell = this.viewModel?.viewCells.find(cell => cell.id === cellId)
+						if (cell) {
+							const cellTop = this._list.getAbsoluteTopOfElement(cell);
+							// console.log(cellId, cellTop);
+							updateItems.push({ id: cellId, top: cellTop });
+						}
+					});
+					this._webview?.updateMarkdownScrollTop(updateItems);
+				}
 			});
 		}));
 
@@ -2056,6 +2069,14 @@ export class NotebookEditorWidget extends Disposable implements INotebookEditor 
 			const outputIndex = cell.outputsViewModels.indexOf(output);
 			cell.updateOutputHeight(outputIndex, outputHeight);
 			this.layoutNotebookCell(cell, cell.layoutInfo.totalHeight);
+		}
+	}
+
+	updateMarkdownCellHeight(cellId: string, height: number, isInit: boolean) {
+		const cell = this.viewModel?.viewCells.find(vc => vc.id === cellId);
+
+		if (cell && cell instanceof MarkdownCellViewModel) {
+			cell.renderedMarkdownHeight = height;
 		}
 	}
 

@@ -66,7 +66,8 @@ export class StatefulMarkdownCell extends Disposable {
 
 		this._register(getResizesObserver(this.markdownContainer, undefined, () => {
 			if (viewCell.editState === CellEditState.Preview) {
-				this.viewCell.renderedMarkdownHeight = templateData.container.clientHeight;
+				// TODO@rebornix
+				// this.viewCell.renderedMarkdownHeight = templateData.container.clientHeight;
 			}
 		})).startObserving();
 
@@ -290,35 +291,35 @@ export class StatefulMarkdownCell extends Disposable {
 		this.notebookEditor.createMarkdownPreview(this.viewCell);
 		return;
 
-		const markdownRenderer = this.viewCell.getMarkdownRenderer();
-		const renderedHTML = this.viewCell.getHTML();
-		if (renderedHTML) {
-			this.markdownContainer.appendChild(renderedHTML);
-		}
+		// const markdownRenderer = this.viewCell.getMarkdownRenderer();
+		// const renderedHTML = this.viewCell.getHTML();
+		// if (renderedHTML) {
+		// 	this.markdownContainer.appendChild(renderedHTML);
+		// }
 
-		if (this.editor) {
-			// switch from editing mode
-			this.viewCell.renderedMarkdownHeight = this.templateData.container.clientHeight;
-			this.relayoutCell();
-		} else {
-			// first time, readonly mode
-			this.localDisposables.add(markdownRenderer.onDidRenderAsync(() => {
-				this.viewCell.renderedMarkdownHeight = this.templateData.container.clientHeight;
-				this.relayoutCell();
-			}));
+		// if (this.editor) {
+		// 	// switch from editing mode
+		// 	this.viewCell.renderedMarkdownHeight = this.templateData.container.clientHeight;
+		// 	this.relayoutCell();
+		// } else {
+		// 	// first time, readonly mode
+		// 	this.localDisposables.add(markdownRenderer.onDidRenderAsync(() => {
+		// 		this.viewCell.renderedMarkdownHeight = this.templateData.container.clientHeight;
+		// 		this.relayoutCell();
+		// 	}));
 
-			this.localDisposables.add(this.viewCell.textBuffer.onDidChangeContent(() => {
-				this.markdownContainer.innerText = '';
-				this.viewCell.clearHTML();
-				const renderedHTML = this.viewCell.getHTML();
-				if (renderedHTML) {
-					this.markdownContainer.appendChild(renderedHTML);
-				}
-			}));
+		// 	this.localDisposables.add(this.viewCell.textBuffer.onDidChangeContent(() => {
+		// 		this.markdownContainer.innerText = '';
+		// 		this.viewCell.clearHTML();
+		// 		const renderedHTML = this.viewCell.getHTML();
+		// 		if (renderedHTML) {
+		// 			this.markdownContainer.appendChild(renderedHTML);
+		// 		}
+		// 	}));
 
-			this.viewCell.renderedMarkdownHeight = this.templateData.container.clientHeight;
-			this.relayoutCell();
-		}
+		// 	this.viewCell.renderedMarkdownHeight = this.templateData.container.clientHeight;
+		// 	this.relayoutCell();
+		// }
 	}
 
 	private focusEditorIfNeeded() {
