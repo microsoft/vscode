@@ -14,11 +14,13 @@ steps:
       artifact: Compilation
       path: $(Build.ArtifactStagingDirectory)
     displayName: Download compilation output
+    condition: and(succeeded(), ne(variables['VSCODE_ARCH'], 'universal'))
 
   - script: |
       set -e
       tar -xzf $(Build.ArtifactStagingDirectory)/compilation.tar.gz
     displayName: Extract compilation output
+    condition: and(succeeded(), ne(variables['VSCODE_ARCH'], 'universal'))
 
   - script: |
       set -e
@@ -115,6 +117,16 @@ steps:
     displayName: Rebuild native modules for ARM64
     condition: and(succeeded(), eq(variables['VSCODE_ARCH'], 'arm64'))
 
+  - download: current
+    artifact: vscode-darwin-x64
+    displayName: Download x64 artifact
+    condition: and(succeeded(), eq(variables['VSCODE_ARCH'], 'universal'))
+
+  - download: current
+    artifact: vscode-darwin-arm64
+    displayName: Download arm64 artifact
+    condition: and(succeeded(), eq(variables['VSCODE_ARCH'], 'universal'))
+
   - script: |
       set -e
       node build/azure-pipelines/mixin
@@ -125,6 +137,7 @@ steps:
       VSCODE_MIXIN_PASSWORD="$(github-distro-mixin-password)" \
         yarn gulp vscode-darwin-$(VSCODE_ARCH)-min-ci
     displayName: Build
+    condition: and(succeeded(), ne(variables['VSCODE_ARCH'], 'universal'))
 
   - script: |
       set -e
@@ -137,10 +150,18 @@ steps:
 
   - script: |
       set -e
+      unzip $(Pipeline.Workspace)/vscode-darwin-x64/VSCode-darwin-x64.zip -d $(agent.builddirectory)/vscode-x64
+      unzip $(Pipeline.Workspace)/vscode-darwin-arm64/VSCode-darwin-arm64.zip -d $(agent.builddirectory)/vscode-arm64
+      DEBUG=* node build/darwin/create-universal-app.js
+    displayName: Create Universal App
+    condition: and(succeeded(), eq(variables['VSCODE_ARCH'], 'universal'))
+
+  - script: |
+      set -e
       VSCODE_MIXIN_PASSWORD="$(github-distro-mixin-password)" \
         yarn npm-run-all -lp "electron $(VSCODE_ARCH)" "playwright-install"
     displayName: Download Electron and Playwright
-    condition: and(succeeded(), eq(variables['VSCODE_STEP_ON_IT'], 'false'))
+    condition: and(succeeded(), ne(variables['VSCODE_ARCH'], 'universal'), eq(variables['VSCODE_STEP_ON_IT'], 'false'))
 
   - script: |
       set -e
@@ -320,7 +341,7 @@ steps:
       APP_NAME="`ls $APP_ROOT | head -n 1`"
       "$APP_ROOT/$APP_NAME/Contents/Resources/app/bin/code" --export-default-configuration=.build
     displayName: Verify start after signing (export configuration)
-    condition: and(succeeded(), eq(variables['VSCODE_ARCH'], 'x64'), ne(variables['VSCODE_PUBLISH'], 'false'))
+    condition: and(succeeded(), ne(variables['VSCODE_ARCH'], 'arm64'), ne(variables['VSCODE_PUBLISH'], 'false'))
 
   - script: |
       set -e
