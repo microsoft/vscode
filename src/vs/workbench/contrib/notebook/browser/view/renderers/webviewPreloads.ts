@@ -131,7 +131,7 @@ function webviewPreloads() {
 
 	const outputObservers = new Map<string, ResizeObserver>();
 
-	const resizeObserve = (container: Element, id: string) => {
+	const resizeObserve = (container: Element, id: string, output: boolean) => {
 		const resizeObserver = new ResizeObserver(entries => {
 			for (const entry of entries) {
 				if (!document.body.contains(entry.target)) {
@@ -147,7 +147,8 @@ function webviewPreloads() {
 							id: id,
 							data: {
 								height: entry.contentRect.height + __outputNodePadding__ * 2
-							}
+							},
+							isOutput: output
 						});
 					} else {
 						entry.target.style.padding = `0px`;
@@ -157,7 +158,8 @@ function webviewPreloads() {
 							id: id,
 							data: {
 								height: entry.contentRect.height
-							}
+							},
+							isOutput: output
 						});
 					}
 				}
@@ -407,16 +409,38 @@ function webviewPreloads() {
 					const container = document.getElementById('container')!;
 					const newElement = document.createElement('div');
 
-					newElement.id = data.id;
+					newElement.id = `${data.id}`;
 					container.appendChild(newElement);
 					cellContainer = newElement;
+
+					const previewNode = document.createElement('div');
+					previewNode.style.position = 'absolute';
+					previewNode.style.top = data.top + 'px';
+					previewNode.innerText = data.content;
+					previewNode.id = `${data.id}`;
+					cellContainer.appendChild(previewNode);
+
+					resizeObserve(previewNode, `${data.id}_preview`, false);
+
+					vscode.postMessage({
+						__vscode_notebook_message: true,
+						type: 'dimension',
+						id: `${data.id}_preview`,
+						init: true,
+						data: {
+							height: previewNode.clientHeight
+						},
+						isOutput: false
+					});
+				} else {
+					const previewNode = document.getElementById(`${data.id}_container`);
+					if (previewNode) {
+						previewNode.innerText = data.content;
+					}
 				}
 
-				const previewNode = document.createElement('div');
-				previewNode.style.position = 'absolute';
-				previewNode.style.top = data.top + 'px';
-				previewNode.innerText = data.content;
 				break;
+
 			case 'html':
 				enqueueOutputAction(event.data, async data => {
 					const preloadResults = await Promise.all(data.requiredPreloads.map(p => preloadPromises.get(p.uri)));
@@ -480,7 +504,7 @@ function webviewPreloads() {
 						cellOutputContainer.appendChild(outputNode);
 					}
 
-					resizeObserve(outputNode, outputId);
+					resizeObserve(outputNode, outputId, true);
 
 					vscode.postMessage({
 						__vscode_notebook_message: true,
@@ -510,6 +534,21 @@ function webviewPreloads() {
 							}
 						}
 					}
+					break;
+				}
+			case 'view-scroll-markdown':
+				{
+					// const date = new Date();
+					// console.log('----- will scroll ----  ', date.getMinutes() + ':' + date.getSeconds() + ':' + date.getMilliseconds());
+					event.data.cells.map(cell => {
+						const widget = document.getElementById(`${cell.id}_preview`)!;
+
+						if (widget) {
+							widget.style.top = `${cell.top}px`;
+						}
+
+					});
+
 					break;
 				}
 			case 'clear':

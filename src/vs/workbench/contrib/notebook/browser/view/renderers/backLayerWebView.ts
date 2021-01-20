@@ -36,6 +36,7 @@ export interface IDimensionMessage {
 	id: string;
 	init: boolean;
 	data: DOM.Dimension;
+	isOutput: boolean;
 }
 
 export interface IMouseEnterMessage {
@@ -108,6 +109,11 @@ export interface IViewScrollTopRequestMessage {
 	forceDisplay: boolean;
 	widgets: IContentWidgetTopRequest[];
 	version: number;
+}
+
+export interface IViewScrollMarkdownRequestMessage {
+	type: 'view-scroll-markdown';
+	cells: { id: string; top: number }[];
 }
 
 export interface IScrollRequestMessage {
@@ -199,7 +205,8 @@ export type ToWebviewMessage =
 	| IUpdatePreloadResourceMessage
 	| IUpdateDecorationsMessage
 	| ICustomRendererMessage
-	| ICreateMarkdownMessage;
+	| ICreateMarkdownMessage
+	| IViewScrollMarkdownRequestMessage;
 
 export type AnyMessage = FromWebviewMessage | ToWebviewMessage;
 
@@ -228,6 +235,7 @@ export class BackLayerWebView<T extends ICommonCellInfo> extends Disposable {
 	element: HTMLElement;
 	webview: WebviewElement | undefined = undefined;
 	insetMapping: Map<IDisplayOutputViewModel, ICachedInset<T>> = new Map();
+	markdownPreviewMapping: Set<string> = new Set();
 	hiddenInsetMapping: Set<IDisplayOutputViewModel> = new Set();
 	reversedInsetMapping: Map<string, IDisplayOutputViewModel> = new Map();
 	localResourceRootsCache: URI[] | undefined = undefined;
@@ -466,13 +474,18 @@ var requirejs = (function() {
 
 			if (data.__vscode_notebook_message) {
 				if (data.type === 'dimension') {
-					const height = data.data.height;
-					const outputHeight = height;
+					if (data.isOutput) {
+						const height = data.data.height;
+						const outputHeight = height;
 
-					const resolvedResult = this.resolveOutputId(data.id);
-					if (resolvedResult) {
-						const { cellInfo, output } = resolvedResult;
-						this.notebookEditor.updateOutputHeight(cellInfo, output, outputHeight, !!data.init);
+						const resolvedResult = this.resolveOutputId(data.id);
+						if (resolvedResult) {
+							const { cellInfo, output } = resolvedResult;
+							this.notebookEditor.updateOutputHeight(cellInfo, output, outputHeight, !!data.init);
+						}
+					} else {
+						const cellId = data.id.substr(0, data.id.length - '_preview'.length);
+						this.notebookEditor.updateMarkdownCellHeight(cellId, data.data.height, !!data.init);
 					}
 				} else if (data.type === 'mouseenter') {
 					const resolvedResult = this.resolveOutputId(data.id);
@@ -617,6 +630,13 @@ var requirejs = (function() {
 		return true;
 	}
 
+	updateMarkdownScrollTop(items: { id: string, top: number }[]) {
+		this._sendMessageToWebview({
+			type: 'view-scroll-markdown',
+			cells: items
+		});
+	}
+
 	updateViewScrollTop(top: number, forceDisplay: boolean, items: IDisplayOutputLayoutUpdateRequest[]) {
 		if (this._disposed) {
 			return;
@@ -651,6 +671,8 @@ var requirejs = (function() {
 		}
 
 		const initialTop = cellTop;
+
+		this.markdownPreviewMapping.add(cellId);
 
 		this._sendMessageToWebview({
 			type: 'createMarkdownPreview',
