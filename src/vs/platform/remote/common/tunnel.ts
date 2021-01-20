@@ -177,6 +177,7 @@ export abstract class AbstractTunnelService implements ITunnelService {
 
 		const resolvedTunnel = this.retainOrCreateTunnel(addressProvider, remoteHost, remotePort, localPort, elevateIfNeeded, isPublic);
 		if (!resolvedTunnel) {
+			this.logService.trace(`Tunnel was not created.`);
 			return resolvedTunnel;
 		}
 
