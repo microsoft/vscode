@@ -932,6 +932,7 @@ export class AsyncDataTree<TInput, T, TFilterData = void> implements IDisposable
 				}
 			} : undefined,
 			diffDept: options.diffDepth,
+			//TODO@Isidor convert onDidNode events
 		} : undefined;
 		this.tree.setChildren(node === this.root ? null : node, children, asTreeOptions);
 
@@ -1163,10 +1164,6 @@ export class CompressibleAsyncDataTree<TInput, T, TFilterData = void> extends As
 	updateOptions(options: ICompressibleAsyncDataTreeOptionsUpdate = {}): void {
 		this.tree.updateOptions(options);
 	}
-
-	// updateChildren(): Promise<vdoi> {
-	// 	this.tree.setChildren()
-	// }
 
 	getViewState(): IAsyncDataTreeViewState {
 		if (!this.identityProvider) {
