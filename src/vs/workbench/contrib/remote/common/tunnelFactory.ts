@@ -37,7 +37,7 @@ export class TunnelFactoryContribution extends Disposable implements IWorkbenchC
 								// To make sure this doesn't happen, resolve the uri immediately.
 								localAddress: (await openerService.resolveExternalUri(URI.parse(localAddress))).resolved.toString(),
 								public: !!tunnel.public,
-								dispose: async () => { await tunnel.dispose; }
+								dispose: async () => { await tunnel.dispose(); }
 							};
 							resolve(remoteTunnel);
 						});
