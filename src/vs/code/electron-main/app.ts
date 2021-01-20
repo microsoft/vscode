@@ -272,7 +272,6 @@ export class CodeApplication extends Disposable {
 
 		ipcMain.on('vscode:fetchShellEnv', async event => {
 			const webContents = event.sender;
-			const window = this.windowsMainService?.getWindowByWebContents(event.sender);
 
 			let replied = false;
 
@@ -292,6 +291,7 @@ export class CodeApplication extends Disposable {
 			// Handle slow shell environment resolve calls:
 			// - a warning after 3s but continue to resolve
 			// - an error after 10s and stop trying to resolve
+			const window = this.windowsMainService?.getWindowByWebContents(event.sender); // Note: this can be `undefined` for the shared process!!
 			const cts = new CancellationTokenSource();
 			const shellEnvSlowWarningHandle = setTimeout(() => window?.sendWhenReady('vscode:showShellEnvSlowWarning', cts.token), 3000);
 			const shellEnvTimeoutErrorHandle = setTimeout(() => {
