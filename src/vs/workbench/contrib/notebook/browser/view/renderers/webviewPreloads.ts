@@ -422,13 +422,15 @@ function webviewPreloads() {
 						container.appendChild(newElement);
 						cellContainer = newElement;
 
+						const previewContainerNode = document.createElement('div');
+						previewContainerNode.style.position = 'absolute';
+						previewContainerNode.style.top = data.top + 'px';
+						previewContainerNode.id = `${data.id}_preview`;
+						previewContainerNode.classList.add('preview');
+						cellContainer.appendChild(previewContainerNode);
+
 						const previewNode = document.createElement('div');
-						previewNode.style.position = 'absolute';
-						previewNode.style.top = data.top + 'px';
-						previewNode.innerText = data.content;
-						previewNode.id = `${data.id}_preview`;
-						previewNode.classList.add('preview');
-						cellContainer.appendChild(previewNode);
+						previewContainerNode.appendChild(previewNode);
 
 						// TODO: handle namespace
 						onDidCreateMarkdown.fire([undefined/* data.apiNamespace */, {
@@ -436,7 +438,7 @@ function webviewPreloads() {
 							content: data.content
 						}]);
 
-						resizeObserve(previewNode, `${data.id}_preview`, false);
+						resizeObserve(previewContainerNode, `${data.id}_preview`, false);
 
 						vscode.postMessage({
 							__vscode_notebook_message: true,
@@ -444,7 +446,7 @@ function webviewPreloads() {
 							id: `${data.id}_preview`,
 							init: true,
 							data: {
-								height: previewNode.clientHeight
+								height: previewContainerNode.clientHeight
 							},
 							isOutput: false
 						});
