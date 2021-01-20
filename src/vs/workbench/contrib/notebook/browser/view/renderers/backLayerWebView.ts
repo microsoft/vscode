@@ -301,7 +301,6 @@ export class BackLayerWebView<T extends ICommonCellInfo> extends Disposable {
 
 					/* markdown */
 
-
 					#container > div > div.preview img {
 						max-width: 100%;
 						max-height: 100%;
