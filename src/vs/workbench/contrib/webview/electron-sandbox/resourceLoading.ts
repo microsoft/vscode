@@ -96,15 +96,7 @@ export class WebviewResourceRequestManager extends Disposable {
 			if (foundExt !== undefined) {
 				latestExtensionLocation.extensionLocation = foundExt?.extensionLocation;
 				if (extension?.location !== undefined) {
-					latestExtensionLocation.localResourceRoots = this._localResourceRoots.map(root => {
-						const newPath = root.path.replace(extension?.location.path, foundExt!.extensionLocation.path);
-						if (root.path !== newPath) {
-							const newRoot = root.with({ path: newPath });
-							this._logService.info(`WebviewResourceRequestManager(${this.id}): replaced localResourceRoot: ${root.toString()} -> ${newRoot.toString()}`);
-							return newRoot;
-						}
-						return root;
-					});
+					latestExtensionLocation.localResourceRoots = this.getAssociatedLocalResources(extension?.location.path, foundExt!.extensionLocation.path);
 				}
 			}
 
@@ -157,6 +149,18 @@ export class WebviewResourceRequestManager extends Disposable {
 
 		ipcRenderer.on(loadResourceChannel, loadResourceListener);
 		this._register(toDisposable(() => ipcRenderer.removeListener(loadResourceChannel, loadResourceListener)));
+	}
+
+	private getAssociatedLocalResources(extPath: string, foundPath: string) {
+		return this._localResourceRoots.map(root => {
+			const newPath = root.path.replace(extPath, foundPath);
+			if (root.path !== newPath) {
+				const newRoot = root.with({ path: newPath });
+				this._logService.info(`WebviewResourceRequestManager(${this.id}): replaced localResourceRoot: ${root.toString()} -> ${newRoot.toString()}`);
+				return newRoot;
+			}
+			return root;
+		});
 	}
 
 	public update(options: WebviewContentOptions) {
