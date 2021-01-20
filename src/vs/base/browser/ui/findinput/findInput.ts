@@ -258,6 +258,10 @@ export class FindInput extends Widget {
 		this.onmousedown(this.inputBox.inputElement, (e) => this._onMouseDown.fire(e));
 	}
 
+	public get onDidChange(): Event<string> {
+		return this.inputBox.onDidChange;
+	}
+
 	public enable(): void {
 		this.domNode.classList.remove('disabled');
 		this.inputBox.enable();

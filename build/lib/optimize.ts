@@ -8,17 +8,11 @@
 import * as es from 'event-stream';
 import * as gulp from 'gulp';
 import * as concat from 'gulp-concat';
-import * as minifyCSS from 'gulp-cssnano';
 import * as filter from 'gulp-filter';
-import * as flatmap from 'gulp-flatmap';
-import * as sourcemaps from 'gulp-sourcemaps';
-import * as uglify from 'gulp-uglify';
-import * as composer from 'gulp-uglify/composer';
 import * as fancyLog from 'fancy-log';
 import * as ansiColors from 'ansi-colors';
 import * as path from 'path';
 import * as pump from 'pump';
-import * as terser from 'terser';
 import * as VinylFile from 'vinyl';
 import * as bundle from './bundle';
 import { Language, processNlsFiles } from './i18n';
@@ -184,6 +178,8 @@ export function optimizeTask(opts: IOptimizeTaskOpts): () => NodeJS.ReadWriteStr
 	const fileContentMapper = opts.fileContentMapper || ((contents: string, _path: string) => contents);
 
 	return function () {
+		const sourcemaps = require('gulp-sourcemaps') as typeof import('gulp-sourcemaps');
+
 		const bundlesStream = es.through(); // this stream will contain the bundled files
 		const resourcesStream = es.through(); // this stream will contain the resources
 		const bundleInfoStream = es.through(); // this stream will contain bundleInfo.json
@@ -235,62 +231,14 @@ export function optimizeTask(opts: IOptimizeTaskOpts): () => NodeJS.ReadWriteStr
 	};
 }
 
-declare class FileWithCopyright extends VinylFile {
-	public __hasOurCopyright: boolean;
-}
-/**
- * Wrap around uglify and allow the preserveComments function
- * to have a file "context" to include our copyright only once per file.
- */
-function uglifyWithCopyrights(): NodeJS.ReadWriteStream {
-	const preserveComments = (f: FileWithCopyright) => {
-		return (_node: any, comment: { value: string; type: string; }) => {
-			const text = comment.value;
-			const type = comment.type;
-
-			if (/@minifier_do_not_preserve/.test(text)) {
-				return false;
-			}
-
-			const isOurCopyright = IS_OUR_COPYRIGHT_REGEXP.test(text);
-
-			if (isOurCopyright) {
-				if (f.__hasOurCopyright) {
-					return false;
-				}
-				f.__hasOurCopyright = true;
-				return true;
-			}
-
-			if ('comment2' === type) {
-				// check for /*!. Note that text doesn't contain leading /*
-				return (text.length > 0 && text[0] === '!') || /@preserve|license|@cc_on|copyright/i.test(text);
-			} else if ('comment1' === type) {
-				return /license|copyright/i.test(text);
-			}
-			return false;
-		};
-	};
-
-	const minify = (composer as any)(terser);
-	const input = es.through();
-	const output = input
-		.pipe(flatmap((stream, f) => {
-			return stream.pipe(minify({
-				output: {
-					comments: preserveComments(<FileWithCopyright>f),
-					max_line_len: 1024
-				}
-			}));
-		}));
-
-	return es.duplex(input, output);
-}
-
 export function minifyTask(src: string, sourceMapBaseUrl?: string): (cb: any) => void {
+	const esbuild = require('esbuild') as typeof import('esbuild');
 	const sourceMappingURL = sourceMapBaseUrl ? ((f: any) => `${sourceMapBaseUrl}/${f.relative}.map`) : undefined;
 
 	return cb => {
+		const minifyCSS = require('gulp-cssnano') as typeof import('gulp-cssnano');
+		const sourcemaps = require('gulp-sourcemaps') as typeof import('gulp-sourcemaps');
+
 		const jsFilter = filter('**/*.js', { restore: true });
 		const cssFilter = filter('**/*.css', { restore: true });
 
@@ -298,7 +246,25 @@ export function minifyTask(src: string, sourceMapBaseUrl?: string): (cb: any) =>
 			gulp.src([src + '/**', '!' + src + '/**/*.map']),
 			jsFilter,
 			sourcemaps.init({ loadMaps: true }),
-			uglifyWithCopyrights(),
+			es.map((f: any, cb) => {
+				esbuild.build({
+					entryPoints: [f.path],
+					minify: true,
+					sourcemap: 'external',
+					outdir: '.',
+					platform: 'node',
+					target: ['node12.18'],
+					write: false
+				}).then(res => {
+					const jsFile = res.outputFiles.find(f => /\.js$/.test(f.path))!;
+					const sourceMapFile = res.outputFiles.find(f => /\.js\.map$/.test(f.path))!;
+
+					f.contents = Buffer.from(jsFile.contents);
+					f.sourceMap = JSON.parse(sourceMapFile.text);
+
+					cb(undefined, f);
+				}, cb);
+			}),
 			jsFilter.restore,
 			cssFilter,
 			minifyCSS({ reduceIdents: false }),
@@ -316,13 +282,7 @@ export function minifyTask(src: string, sourceMapBaseUrl?: string): (cb: any) =>
 				includeContent: true,
 				addComment: true
 			} as any),
-			gulp.dest(src + '-min')
-			, (err: any) => {
-				if (err instanceof (uglify as any).GulpUglifyError) {
-					console.error(`Uglify error in '${err.cause && err.cause.filename}'`);
-				}
-
-				cb(err);
-			});
+			gulp.dest(src + '-min'),
+			(err: any) => cb(err));
 	};
 }

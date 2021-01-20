@@ -18,7 +18,7 @@ export abstract class BackupTracker extends Disposable {
 	private readonly mapWorkingCopyToContentVersion = new Map<IWorkingCopy, number>();
 
 	// A map of scheduled pending backups for working copies
-	private readonly pendingBackups = new Map<IWorkingCopy, IDisposable>();
+	protected readonly pendingBackups = new Map<IWorkingCopy, IDisposable>();
 
 	constructor(
 		protected readonly backupFileService: IBackupFileService,
@@ -43,7 +43,7 @@ export abstract class BackupTracker extends Disposable {
 		this._register(this.workingCopyService.onDidChangeContent(workingCopy => this.onDidChangeContent(workingCopy)));
 
 		// Lifecycle (handled in subclasses)
-		this.lifecycleService.onBeforeShutdown(event => event.veto(this.onBeforeShutdown(event.reason)));
+		this.lifecycleService.onBeforeShutdown(event => event.veto(this.onBeforeShutdown(event.reason), 'veto.backups'));
 	}
 
 	private onDidRegister(workingCopy: IWorkingCopy): void {

@@ -41,9 +41,20 @@ export class IFrameWebview extends BaseWebview<HTMLIFrameElement> implements Web
 		@IWorkbenchEnvironmentService environmentService: IWorkbenchEnvironmentService,
 		@IConfigurationService private readonly _configurationService: IConfigurationService,
 		@IRemoteAuthorityResolverService private readonly _remoteAuthorityResolverService: IRemoteAuthorityResolverService,
-		@ILogService logService: ILogService,
+		@ILogService private readonly logService: ILogService,
 	) {
 		super(id, options, contentOptions, extension, webviewThemeDataProvider, notificationService, logService, telemetryService, environmentService);
+
+		/* __GDPR__
+			"webview.createWebview" : {
+				"extension": { "classification": "SystemMetaData", "purpose": "FeatureInsight" },
+				"s": { "classification": "SystemMetaData", "purpose": "FeatureInsight", "isMeasurement": true }
+			}
+		*/
+		telemetryService.publicLog('webview.createWebview', {
+			extension: extension?.id.value,
+			webviewElementType: 'iframe',
+		});
 
 		this._portMappingManager = this._register(new WebviewPortMappingManager(
 			() => this.extension?.location,
@@ -191,8 +202,8 @@ export class IFrameWebview extends BaseWebview<HTMLIFrameElement> implements Web
 				remoteConnectionData,
 				rewriteUri,
 			}, {
-				readFileStream: (resource) => this.fileService.readFileStream(resource).then(x => x.value),
-			}, this.requestService);
+				readFileStream: (resource) => this.fileService.readFileStream(resource).then(x => ({ stream: x.value, etag: x.etag })),
+			}, this.requestService, this.logService);
 
 			if (result.type === WebviewResourceResponse.Type.Success) {
 				const { buffer } = await streamToBuffer(result.stream);

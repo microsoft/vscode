@@ -83,7 +83,7 @@ export class NativeStorageService extends AbstractStorageService {
 			const useInMemoryStorage = !!this.environmentService.extensionTestsLocationURI; // no storage during extension tests!
 
 			// Create workspace storage and initialize
-			mark('willInitWorkspaceStorage');
+			mark('code/willInitWorkspaceStorage');
 			try {
 				const workspaceStorage = this.createWorkspaceStorage(
 					useInMemoryStorage ? SQLiteStorageDatabase.IN_MEMORY_PATH : join(result.path, NativeStorageService.WORKSPACE_STORAGE_NAME),
@@ -99,7 +99,7 @@ export class NativeStorageService extends AbstractStorageService {
 					workspaceStorage.set(IS_NEW_KEY, false);
 				}
 			} finally {
-				mark('didInitWorkspaceStorage');
+				mark('code/didInitWorkspaceStorage');
 			}
 		} catch (error) {
 			this.logService.error(`[storage] initializeWorkspaceStorage(): Unable to init workspace storage due to ${error}`);

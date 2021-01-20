@@ -7,7 +7,7 @@ import 'vs/css!./media/scm';
 import { Event, Emitter } from 'vs/base/common/event';
 import { basename, dirname } from 'vs/base/common/resources';
 import { IDisposable, Disposable, DisposableStore, combinedDisposable, dispose, toDisposable } from 'vs/base/common/lifecycle';
-import { ViewPane, IViewPaneOptions } from 'vs/workbench/browser/parts/views/viewPaneContainer';
+import { ViewPane, IViewPaneOptions } from 'vs/workbench/browser/parts/views/viewPane';
 import { append, $, Dimension, asCSSUrl } from 'vs/base/browser/dom';
 import { IListVirtualDelegate, IIdentityProvider } from 'vs/base/browser/ui/list/list';
 import { ISCMResourceGroup, ISCMResource, InputValidationType, ISCMRepository, ISCMInput, IInputValidation, ISCMViewService, ISCMViewVisibleRepositoryChangeEvent, ISCMService, SCMInputChangeReason } from 'vs/workbench/contrib/scm/common/scm';
@@ -954,24 +954,14 @@ class ViewModel {
 	}
 
 	private refresh(item?: IRepositoryItem | IGroupItem): void {
-		const focusedInput = this.inputRenderer.getFocusedInput();
-
 		if (!this.alwaysShowRepositories && (this.items.size === 1 && (!item || isRepositoryItem(item)))) {
 			const item = Iterable.first(this.items.values())!;
-			this.tree.setChildren(null, this.render(item, this._treeViewState).children);
+			this.tree.setChildren(null, this.render(item, this.treeViewState).children);
 		} else if (item) {
-			this.tree.setChildren(item.element, this.render(item, this._treeViewState).children);
+			this.tree.setChildren(item.element, this.render(item, this.treeViewState).children);
 		} else {
 			const items = coalesce(this.scmViewService.visibleRepositories.map(r => this.items.get(r)));
-			this.tree.setChildren(null, items.map(item => this.render(item, this._treeViewState)));
-		}
-
-		if (focusedInput) {
-			const inputWidget = this.inputRenderer.getRenderedInputWidget(focusedInput);
-
-			if (inputWidget) {
-				inputWidget.focus();
-			}
+			this.tree.setChildren(null, items.map(item => this.render(item, this.treeViewState)));
 		}
 
 		this._onDidChangeRepositoryCollapseState.fire();
@@ -982,11 +972,11 @@ class ViewModel {
 			const children: ICompressedTreeElement<TreeElement>[] = [];
 			const hasSomeChanges = item.groupItems.some(item => item.element.elements.length > 0);
 
-			if (this.items.size === 1 || hasSomeChanges) {
-				if (item.element.input.visible) {
-					children.push({ element: item.element.input, incompressible: true, collapsible: false });
-				}
+			if (item.element.input.visible) {
+				children.push({ element: item.element.input, incompressible: true, collapsible: false });
+			}
 
+			if (this.items.size === 1 || hasSomeChanges) {
 				children.push(...item.groupItems.map(i => this.render(i, treeViewState)));
 			}
 
@@ -1101,7 +1091,7 @@ class ViewModel {
 		}
 
 		if (this.alwaysShowRepositories || this.scmViewService.visibleRepositories.length !== 1) {
-			return this.viewSubMenuAction.actions;
+			return this.viewSubMenuAction.actions.slice(0);
 		}
 
 		const menus = this.scmViewService.menus.getRepositoryMenus(this.scmViewService.visibleRepositories[0].provider);
@@ -1180,7 +1170,9 @@ class SCMViewRepositoriesSubMenuAction extends SubmenuAction {
 	}
 }
 
-class SCMViewSubMenuAction extends SubmenuAction {
+class SCMViewSubMenuAction extends SubmenuAction implements IDisposable {
+
+	private disposable: IDisposable;
 
 	constructor(
 		viewModel: ViewModel,
@@ -1205,7 +1197,11 @@ class SCMViewSubMenuAction extends SubmenuAction {
 			actions
 		);
 
-		this._register(combinedDisposable(listAction, treeAction, sortByNameAction, sortByPathAction, sortByStatusAction));
+		this.disposable = combinedDisposable(listAction, treeAction, sortByNameAction, sortByPathAction, sortByStatusAction);
+	}
+
+	dispose(): void {
+		this.disposable.dispose();
 	}
 }
 
@@ -1756,6 +1752,7 @@ export class SCMViewPane extends ViewPane {
 			delegate,
 			renderers,
 			{
+				transformOptimization: false,
 				identityProvider,
 				horizontalScrolling: false,
 				setRowLineHeight: false,

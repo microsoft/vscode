@@ -27,9 +27,7 @@ import { IMarkdownString } from 'vs/base/common/htmlContent';
 import { mixin } from 'vs/base/common/objects';
 import { Codicon } from 'vs/base/common/codicons';
 import { registerIcon } from 'vs/platform/theme/common/iconRegistry';
-
-export const TEST_VIEW_CONTAINER_ID = 'workbench.view.extension.test';
-export const testViewIcon = registerIcon('test-view-icon', Codicon.beaker, localize('testViewIcon', 'View icon of the test view.'));
+import { CancellationToken } from 'vs/base/common/cancellation';
 
 export const defaultViewIcon = registerIcon('default-view-icon', Codicon.window, localize('defaultViewIcon', 'Default view icon.'));
 
@@ -262,6 +260,8 @@ export interface IAddedViewDescriptorState {
 }
 
 export interface IViewContainerModel {
+
+	readonly viewContainer: ViewContainer;
 
 	readonly title: string;
 	readonly icon: ThemeIcon | URI | undefined;
@@ -512,7 +512,7 @@ export interface IViewsService {
  * View Contexts
  */
 export const FocusedViewContext = new RawContextKey<string>('focusedView', '');
-export function getVisbileViewContextKey(viewId: string): string { return `${viewId}.visible`; }
+export function getVisbileViewContextKey(viewId: string): string { return `view.${viewId}.visible`; }
 
 export const IViewDescriptorService = createDecorator<IViewDescriptorService>('viewDescriptorService');
 
@@ -691,21 +691,24 @@ export class ResolvableTreeItem implements ITreeItem {
 	command?: Command;
 	children?: ITreeItem[];
 	accessibilityInformation?: IAccessibilityInformation;
-	resolve: () => Promise<void>;
+	resolve: (token: CancellationToken) => Promise<void>;
 	private resolved: boolean = false;
 	private _hasResolve: boolean = false;
-	constructor(treeItem: ITreeItem, resolve?: (() => Promise<ITreeItem | undefined>)) {
+	constructor(treeItem: ITreeItem, resolve?: ((token: CancellationToken) => Promise<ITreeItem | undefined>)) {
 		mixin(this, treeItem);
 		this._hasResolve = !!resolve;
-		this.resolve = async () => {
+		this.resolve = async (token: CancellationToken) => {
 			if (resolve && !this.resolved) {
-				const resolvedItem = await resolve();
+				const resolvedItem = await resolve(token);
 				if (resolvedItem) {
-					// Resolvable elements. Currently only tooltip.
-					this.tooltip = resolvedItem.tooltip;
+					// Resolvable elements. Currently tooltip and command.
+					this.tooltip = this.tooltip ?? resolvedItem.tooltip;
+					this.command = this.command ?? resolvedItem.command;
 				}
 			}
-			this.resolved = true;
+			if (!token.isCancellationRequested) {
+				this.resolved = true;
+			}
 		};
 	}
 	get hasResolve(): boolean {
@@ -763,5 +766,6 @@ export interface IViewPaneContainer {
 	getActionViewItem(action: IAction): IActionViewItem | undefined;
 	getActionsContext(): unknown;
 	getView(viewId: string): IView | undefined;
+	toggleViewVisibility(viewId: string): void;
 	saveState(): void;
 }

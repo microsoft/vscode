@@ -60,7 +60,7 @@ export class LocalizationWorkbenchContribution extends Disposable implements IWo
 					updateAndRestart ? localize('updateLocale', "Would you like to change VS Code's UI language to {0} and restart?", e.local.manifest.contributes.localizations[0].languageName || e.local.manifest.contributes.localizations[0].languageId)
 						: localize('activateLanguagePack', "In order to use VS Code in {0}, VS Code needs to restart.", e.local.manifest.contributes.localizations[0].languageName || e.local.manifest.contributes.localizations[0].languageId),
 					[{
-						label: updateAndRestart ? localize('yes', "Yes") : localize('restart now', "Restart Now"),
+						label: updateAndRestart ? localize('changeAndRestart', "Change Language and Restart") : localize('restart', "Restart"),
 						run: () => {
 							const updatePromise = updateAndRestart ? this.jsonEditingService.write(this.environmentService.argvResource, [{ path: ['locale'], value: locale }], true) : Promise.resolve(undefined);
 							updatePromise.then(() => this.hostService.restart(), e => this.notificationService.error(e));

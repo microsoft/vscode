@@ -157,7 +157,7 @@ export class InputBox extends Widget {
 
 		let tagName = this.options.flexibleHeight ? 'textarea' : 'input';
 
-		let wrapper = dom.append(this.element, $('.wrapper'));
+		let wrapper = dom.append(this.element, $('.ibwrapper'));
 		this.input = dom.append(wrapper, $(tagName + '.input.empty'));
 		this.input.setAttribute('autocorrect', 'off');
 		this.input.setAttribute('autocapitalize', 'off');
@@ -398,7 +398,7 @@ export class InputBox extends Widget {
 		return !!this.validation && !this.validation(this.value);
 	}
 
-	public validate(): boolean {
+	public validate(): MessageType | undefined {
 		let errorMsg: IMessage | null = null;
 
 		if (this.validation) {
@@ -414,7 +414,7 @@ export class InputBox extends Widget {
 			}
 		}
 
-		return !errorMsg;
+		return errorMsg?.type;
 	}
 
 	public stylesForType(type: MessageType | undefined): { border: Color | undefined; background: Color | undefined; foreground: Color | undefined } {

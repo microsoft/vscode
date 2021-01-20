@@ -17,6 +17,7 @@ import { ILabelService } from 'vs/platform/label/common/label';
 import { normalizeDriveLetter } from 'vs/base/common/labels';
 import { URI } from 'vs/base/common/uri';
 import { OvertypingCapturer } from 'vs/editor/contrib/suggest/suggestOvertypingCapturer';
+import { generateUuid } from 'vs/base/common/uuid';
 
 export const KnownSnippetVariableNames: { [key: string]: true } = Object.freeze({
 	'CURRENT_YEAR': true,
@@ -42,6 +43,7 @@ export const KnownSnippetVariableNames: { [key: string]: true } = Object.freeze(
 	'TM_FILENAME_BASE': true,
 	'TM_DIRECTORY': true,
 	'TM_FILEPATH': true,
+	'RELATIVE_FILEPATH': true,
 	'BLOCK_COMMENT_START': true,
 	'BLOCK_COMMENT_END': true,
 	'LINE_COMMENT': true,
@@ -49,6 +51,7 @@ export const KnownSnippetVariableNames: { [key: string]: true } = Object.freeze(
 	'WORKSPACE_FOLDER': true,
 	'RANDOM': true,
 	'RANDOM_HEX': true,
+	'UUID': true
 });
 
 export class CompositeSnippetVariableResolver implements VariableResolver {
@@ -177,6 +180,8 @@ export class ModelBasedVariableResolver implements VariableResolver {
 
 		} else if (name === 'TM_FILEPATH' && this._labelService) {
 			return this._labelService.getUriLabel(this._model.uri);
+		} else if (name === 'RELATIVE_FILEPATH' && this._labelService) {
+			return this._labelService.getUriLabel(this._model.uri, { relative: true, noPrefix: true });
 		}
 
 		return undefined;
@@ -340,9 +345,10 @@ export class RandomBasedVariableResolver implements VariableResolver {
 
 		if (name === 'RANDOM') {
 			return Math.random().toString().slice(-6);
-		}
-		else if (name === 'RANDOM_HEX') {
+		} else if (name === 'RANDOM_HEX') {
 			return Math.random().toString(16).slice(-6);
+		} else if (name === 'UUID') {
+			return generateUuid();
 		}
 
 		return undefined;

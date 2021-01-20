@@ -117,7 +117,7 @@ export class ItemRenderer implements IListRenderer<CompletionItem, ISuggestionTe
 		data.left = append(main, $('span.left'));
 		data.right = append(main, $('span.right'));
 
-		data.iconLabel = new IconLabel(data.left, { supportHighlights: true, supportCodicons: true });
+		data.iconLabel = new IconLabel(data.left, { supportHighlights: true, supportIcons: true });
 		data.disposables.add(data.iconLabel);
 
 		data.parametersLabel = append(data.left, $('span.signature-label'));

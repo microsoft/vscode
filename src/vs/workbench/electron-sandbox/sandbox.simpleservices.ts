@@ -11,13 +11,9 @@ import { ISignService } from 'vs/platform/sign/common/sign';
 import { URI } from 'vs/base/common/uri';
 import { InMemoryFileSystemProvider } from 'vs/platform/files/common/inMemoryFilesystemProvider';
 import { Event } from 'vs/base/common/event';
-import { IRemoteAgentConnection, IRemoteAgentService } from 'vs/workbench/services/remote/common/remoteAgentService';
-import { IDiagnosticInfoOptions, IDiagnosticInfo } from 'vs/platform/diagnostics/common/diagnostics';
-import { IAddressProvider, ISocketFactory } from 'vs/platform/remote/common/remoteAgentConnection';
-import { IRemoteAgentEnvironment } from 'vs/platform/remote/common/remoteAgentEnvironment';
+import { IAddressProvider } from 'vs/platform/remote/common/remoteAgentConnection';
 import { ITelemetryData, ITelemetryInfo, ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
-import { BrowserSocketFactory } from 'vs/platform/remote/browser/browserSocketFactory';
-import { ExtensionIdentifier, IExtension, IExtensionDescription } from 'vs/platform/extensions/common/extensions';
+import { IExtension } from 'vs/platform/extensions/common/extensions';
 import { SimpleConfigurationService as BaseSimpleConfigurationService } from 'vs/editor/standalone/browser/simpleServices';
 import { InMemoryStorageService } from 'vs/platform/storage/common/storage';
 import { registerSingleton } from 'vs/platform/instantiation/common/extensions';
@@ -31,7 +27,7 @@ import { IWebviewService, WebviewContentOptions, WebviewElement, WebviewExtensio
 import { ITextFileService } from 'vs/workbench/services/textfile/common/textfiles';
 import { AbstractTextFileService } from 'vs/workbench/services/textfile/browser/textFileService';
 import { IExtensionManagementServer, IExtensionManagementServerService } from 'vs/workbench/services/extensionManagement/common/extensionManagement';
-import { ITunnelProvider, ITunnelService, RemoteTunnel } from 'vs/platform/remote/common/tunnel';
+import { ITunnelProvider, ITunnelService, RemoteTunnel, TunnelProviderFeatures } from 'vs/platform/remote/common/tunnel';
 import { Disposable, IDisposable } from 'vs/base/common/lifecycle';
 import { IManualSyncTask, IResourcePreview, ISyncResourceHandle, ISyncTask, IUserDataAutoSyncService, IUserDataSyncService, IUserDataSyncStore, IUserDataSyncStoreManagementService, SyncResource, SyncStatus, UserDataSyncStoreType } from 'vs/platform/userDataSync/common/userDataSync';
 import { IUserDataSyncAccount, IUserDataSyncAccountService } from 'vs/platform/userDataSync/common/userDataSyncAccount';
@@ -413,28 +409,6 @@ module.exports = testRunner;`);
 
 //#endregion
 
-//#region Remote
-
-export class SimpleRemoteAgentService implements IRemoteAgentService {
-
-	declare readonly _serviceBrand: undefined;
-
-	socketFactory: ISocketFactory = new BrowserSocketFactory(null);
-
-	getConnection(): IRemoteAgentConnection | null { return null; }
-	async getEnvironment(bail?: boolean): Promise<IRemoteAgentEnvironment | null> { return null; }
-	async getDiagnosticInfo(options: IDiagnosticInfoOptions): Promise<IDiagnosticInfo | undefined> { return undefined; }
-	async disableTelemetry(): Promise<void> { }
-	async logTelemetry(eventName: string, data?: ITelemetryData): Promise<void> { }
-	async flushTelemetry(): Promise<void> { }
-	async getRawEnvironment(): Promise<IRemoteAgentEnvironment | null> { return null; }
-	async scanExtensions(skipExtensions?: ExtensionIdentifier[]): Promise<IExtensionDescription[]> { return []; }
-	async scanSingleExtension(extensionLocation: URI, isBuiltin: boolean): Promise<IExtensionDescription | null> { return null; }
-	async whenExtensionsReady(): Promise<void> { }
-}
-
-//#endregion
-
 
 //#region Backup File
 
@@ -559,13 +533,16 @@ class SimpleTunnelService implements ITunnelService {
 	declare readonly _serviceBrand: undefined;
 
 	tunnels: Promise<readonly RemoteTunnel[]> = Promise.resolve([]);
-
+	canElevate: boolean = false;
+	canMakePublic = false;
 	onTunnelOpened = Event.None;
 	onTunnelClosed = Event.None;
 
+	canTunnel(uri: URI): boolean { return false; }
 	openTunnel(addressProvider: IAddressProvider | undefined, remoteHost: string | undefined, remotePort: number, localPort?: number): Promise<RemoteTunnel> | undefined { return undefined; }
+	async changeTunnelPrivacy(remoteHost: string, remotePort: number, isPublic: boolean): Promise<RemoteTunnel | undefined> { return undefined; }
 	async closeTunnel(remoteHost: string, remotePort: number): Promise<void> { }
-	setTunnelProvider(provider: ITunnelProvider | undefined): IDisposable { return Disposable.None; }
+	setTunnelProvider(provider: ITunnelProvider | undefined, features: TunnelProviderFeatures): IDisposable { return Disposable.None; }
 }
 
 registerSingleton(ITunnelService, SimpleTunnelService);

@@ -12,6 +12,7 @@ import { ExtensionHostMain } from 'vs/workbench/services/extensions/common/exten
 import { IHostUtils } from 'vs/workbench/api/common/extHostExtensionService';
 import { NestedWorker } from 'vs/workbench/services/extensions/worker/polyfillNestedWorker';
 import * as path from 'vs/base/common/path';
+import * as performance from 'vs/base/common/performance';
 
 import 'vs/workbench/api/common/extHost.common.services';
 import 'vs/workbench/api/worker/extHost.worker.services';
@@ -51,14 +52,15 @@ self.addEventListener = () => console.trace(`'addEventListener' has been blocked
 if ((<any>self).Worker) {
 	const ttPolicy = (<any>self).trustedTypes?.createPolicy('extensionHostWorker', { createScriptURL: (value: string) => value });
 
-	// make sure new Worker(...) always uses data:
+	// make sure new Worker(...) always uses blob: (to maintain current origin)
 	const _Worker = (<any>self).Worker;
 	Worker = <any>function (stringUrl: string | URL, options?: WorkerOptions) {
 		const js = `importScripts('${stringUrl}');`;
 		options = options || {};
 		options.name = options.name || path.basename(stringUrl.toString());
-		const url = `data:text/javascript;charset=utf-8,${encodeURIComponent(js)}`;
-		return new _Worker(ttPolicy ? ttPolicy.createScriptURL(url) : url, options);
+		const blob = new Blob([js], { type: 'application/javascript' });
+		const blobUrl = URL.createObjectURL(blob);
+		return new _Worker(ttPolicy ? ttPolicy.createScriptURL(blobUrl) : blobUrl, options);
 	};
 
 } else {
@@ -110,7 +112,7 @@ class ExtensionWorker {
 			if (isMessageOfType(msg, MessageType.Terminate)) {
 				// handle terminate-message right here
 				terminating = true;
-				onTerminate();
+				onTerminate('received terminate message from renderer');
 				return;
 			}
 
@@ -146,13 +148,13 @@ function connectToRenderer(protocol: IMessagePassingProtocol): Promise<IRenderer
 	});
 }
 
-let onTerminate = nativeClose;
+let onTerminate = (reason: string) => nativeClose();
 
 (function create(): void {
 	const res = new ExtensionWorker();
-
+	performance.mark(`code/extHost/willConnectToRenderer`);
 	connectToRenderer(res.protocol).then(data => {
-
+		performance.mark(`code/extHost/didWaitForInitData`);
 		const extHostMain = new ExtensionHostMain(
 			data.protocol,
 			data.initData,
@@ -160,6 +162,6 @@ let onTerminate = nativeClose;
 			null,
 		);
 
-		onTerminate = () => extHostMain.terminate();
+		onTerminate = (reason: string) => extHostMain.terminate(reason);
 	});
 })();

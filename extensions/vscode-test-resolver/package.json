@@ -3,6 +3,7 @@
 	"description": "Test resolver for VS Code",
 	"version": "0.0.1",
 	"publisher": "vscode",
+	"license": "MIT",
 	"enableProposedApi": true,
 	"private": true,
 	"engines": {
@@ -17,12 +18,12 @@
 		"onResolveRemoteAuthority:test",
 		"onCommand:vscode-testresolver.newWindow",
 		"onCommand:vscode-testresolver.newWindowWithError",
-		"onCommand:vscode-testresolver.showLog"
+		"onCommand:vscode-testresolver.showLog",
+		"onCommand:vscode-testresolver.openTunnel"
 	],
 	"main": "./out/extension",
 	"devDependencies": {
-		"@types/node": "^12.11.7",
-		"vscode": "1.1.5"
+		"@types/node": "^12.19.9"
 	},
 	"contributes": {
 		"resourceLabelFormatters": [
@@ -47,6 +48,16 @@
 				"title": "Show Log",
 				"category": "Remote-TestResolver",
 				"command": "vscode-testresolver.showLog"
+			},
+			{
+				"title": "Kill Server and Trigger Handled Error",
+				"category": "Remote-TestResolver",
+				"command": "vscode-testresolver.killServerAndTriggerHandledError"
+			},
+			{
+				"title": "Open Tunnel 100",
+				"category": "Remote-TestResolver",
+				"command": "vscode-testresolver.openTunnel"
 			}
 		],
 		"menus": {

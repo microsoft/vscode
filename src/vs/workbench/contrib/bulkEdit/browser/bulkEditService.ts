@@ -30,6 +30,7 @@ class BulkEdit {
 		private readonly _edits: ResourceEdit[],
 		private readonly _undoRedoGroup: UndoRedoGroup,
 		private readonly _undoRedoSource: UndoRedoSource | undefined,
+		private readonly _confirmBeforeUndo: boolean,
 		@IInstantiationService private readonly _instaService: IInstantiationService,
 		@ILogService private readonly _logService: ILogService,
 	) {
@@ -76,7 +77,7 @@ class BulkEdit {
 			}
 			const group = this._edits.slice(index, index + range);
 			if (group[0] instanceof ResourceFileEdit) {
-				await this._performFileEdits(<ResourceFileEdit[]>group, this._undoRedoGroup, this._undoRedoSource, progress);
+				await this._performFileEdits(<ResourceFileEdit[]>group, this._undoRedoGroup, this._undoRedoSource, this._confirmBeforeUndo, progress);
 			} else if (group[0] instanceof ResourceTextEdit) {
 				await this._performTextEdits(<ResourceTextEdit[]>group, this._undoRedoGroup, this._undoRedoSource, progress);
 			} else if (group[0] instanceof ResourceNotebookCellEdit) {
@@ -88,9 +89,9 @@ class BulkEdit {
 		}
 	}
 
-	private async _performFileEdits(edits: ResourceFileEdit[], undoRedoGroup: UndoRedoGroup, undoRedoSource: UndoRedoSource | undefined, progress: IProgress<void>) {
+	private async _performFileEdits(edits: ResourceFileEdit[], undoRedoGroup: UndoRedoGroup, undoRedoSource: UndoRedoSource | undefined, confirmBeforeUndo: boolean, progress: IProgress<void>) {
 		this._logService.debug('_performFileEdits', JSON.stringify(edits));
-		const model = this._instaService.createInstance(BulkFileEdits, this._label || localize('workspaceEdit', "Workspace Edit"), undoRedoGroup, undoRedoSource, progress, this._token, edits);
+		const model = this._instaService.createInstance(BulkFileEdits, this._label || localize('workspaceEdit', "Workspace Edit"), undoRedoGroup, undoRedoSource, confirmBeforeUndo, progress, this._token, edits);
 		await model.apply();
 	}
 
@@ -139,7 +140,7 @@ export class BulkEditService implements IBulkEditService {
 			return { ariaSummary: localize('nothing', "Made no edits") };
 		}
 
-		if (this._previewHandler && !options?.suppressPreview && (options?.showPreview || edits.some(value => value.metadata?.needsConfirmation))) {
+		if (this._previewHandler && (options?.showPreview || edits.some(value => value.metadata?.needsConfirmation))) {
 			edits = await this._previewHandler(edits, options);
 		}
 
@@ -183,7 +184,8 @@ export class BulkEditService implements IBulkEditService {
 			options?.token ?? CancellationToken.None,
 			edits,
 			undoRedoGroup,
-			options?.undoRedoSource
+			options?.undoRedoSource,
+			!!options?.confirmBeforeUndo
 		);
 
 		try {

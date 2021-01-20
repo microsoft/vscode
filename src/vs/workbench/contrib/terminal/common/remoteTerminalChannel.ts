@@ -13,7 +13,7 @@ import { IRemoteAuthorityResolverService } from 'vs/platform/remote/common/remot
 import { IWorkspaceContextService } from 'vs/platform/workspace/common/workspace';
 import { IEnvironmentVariableService, ISerializableEnvironmentVariableCollection } from 'vs/workbench/contrib/terminal/common/environmentVariable';
 import { serializeEnvironmentVariableCollection } from 'vs/workbench/contrib/terminal/common/environmentVariableShared';
-import { ITerminalConfiguration, ITerminalEnvironment, ITerminalLaunchError, TERMINAL_CONFIG_SECTION } from 'vs/workbench/contrib/terminal/common/terminal';
+import { IRawTerminalTabLayoutInfo, ITerminalConfiguration, ITerminalEnvironment, ITerminalLaunchError, ITerminalsLayoutInfo, ITerminalsLayoutInfoById, ITerminalTabLayoutInfoById, TERMINAL_CONFIG_SECTION } from 'vs/workbench/contrib/terminal/common/terminal';
 import { IConfigurationResolverService } from 'vs/workbench/services/configurationResolver/common/configurationResolver';
 import { SideBySideEditor, EditorResourceAccessor } from 'vs/workbench/common/editor';
 import { IEditorService } from 'vs/workbench/services/editor/common/editorService';
@@ -53,6 +53,7 @@ export interface ICompleteTerminalConfiguration {
 	'terminal.integrated.inheritEnv': boolean;
 	'terminal.integrated.cwd': string;
 	'terminal.integrated.detectLocale': 'auto' | 'off' | 'on';
+	'terminal.flowControl': boolean;
 }
 
 export type ITerminalEnvironmentVariableCollections = [string, ISerializableEnvironmentVariableCollection][];
@@ -128,6 +129,15 @@ export interface IListTerminalsArgs {
 	isInitialization: boolean;
 }
 
+export interface ISetTerminalLayoutInfoArgs {
+	workspaceId: string;
+	tabs: ITerminalTabLayoutInfoById[];
+}
+
+export interface IGetTerminalLayoutInfoArgs {
+	workspaceId: string;
+}
+
 export interface IRemoteTerminalDescriptionDto {
 	id: number;
 	pid: number;
@@ -135,10 +145,18 @@ export interface IRemoteTerminalDescriptionDto {
 	cwd: string;
 	workspaceId: string;
 	workspaceName: string;
+	isOrphan: boolean;
 }
+
+export type ITerminalTabLayoutInfoDto = IRawTerminalTabLayoutInfo<IRemoteTerminalDescriptionDto>;
 
 export interface ITriggerTerminalDataReplayArguments {
 	id: number;
+}
+
+export interface ISendCharCountToTerminalProcessArguments {
+	id: number;
+	charCount: number;
 }
 
 export interface IRemoteTerminalProcessReadyEvent {
@@ -231,6 +249,7 @@ export class RemoteTerminalChannelClient {
 			'terminal.integrated.inheritEnv': terminalConfig.inheritEnv,
 			'terminal.integrated.cwd': terminalConfig.cwd,
 			'terminal.integrated.detectLocale': terminalConfig.detectLocale,
+			'terminal.flowControl': terminalConfig.flowControl
 		};
 
 		// We will use the resolver service to resolve all the variables in the config / launch config
@@ -311,6 +330,13 @@ export class RemoteTerminalChannelClient {
 		return this._channel.call<void>('$sendInputToTerminalProcess', args);
 	}
 
+	public sendCharCountToTerminalProcess(id: number, charCount: number): Promise<void> {
+		const args: ISendCharCountToTerminalProcessArguments = {
+			id, charCount
+		};
+		return this._channel.call<void>('$sendCharCountToTerminalProcess', args);
+	}
+
 	public shutdownTerminalProcess(id: number, immediate: boolean): Promise<void> {
 		const args: IShutdownTerminalProcessArguments = {
 			id, immediate
@@ -361,5 +387,22 @@ export class RemoteTerminalChannelClient {
 			isInitialization
 		};
 		return this._channel.call<IRemoteTerminalDescriptionDto[]>('$listTerminals', args);
+	}
+
+	public setTerminalLayoutInfo(layout: ITerminalsLayoutInfoById): Promise<void> {
+		const workspace = this._workspaceContextService.getWorkspace();
+		const args: ISetTerminalLayoutInfoArgs = {
+			workspaceId: workspace.id,
+			tabs: layout.tabs
+		};
+		return this._channel.call<void>('$setTerminalLayoutInfo', args);
+	}
+
+	public getTerminalLayoutInfo(): Promise<ITerminalsLayoutInfo | undefined> {
+		const workspace = this._workspaceContextService.getWorkspace();
+		const args: IGetTerminalLayoutInfoArgs = {
+			workspaceId: workspace.id,
+		};
+		return this._channel.call<ITerminalsLayoutInfo>('$getTerminalLayoutInfo', args);
 	}
 }

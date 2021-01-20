@@ -89,11 +89,13 @@ import 'vs/workbench/services/userDataSync/browser/userDataSyncWorkbenchService'
 import 'vs/workbench/services/authentication/browser/authenticationService';
 import 'vs/workbench/services/hover/browser/hoverService';
 import 'vs/workbench/services/experiment/common/experimentService';
+import 'vs/workbench/services/outline/browser/outlineService';
 
 import { registerSingleton } from 'vs/platform/instantiation/common/extensions';
 import { ExtensionGalleryService } from 'vs/platform/extensionManagement/common/extensionGalleryService';
+import { ExtensionManagementCLIService } from 'vs/platform/extensionManagement/common/extensionManagementCLIService';
 import { GlobalExtensionEnablementService } from 'vs/platform/extensionManagement/common/extensionEnablementService';
-import { IExtensionGalleryService, IGlobalExtensionEnablementService } from 'vs/platform/extensionManagement/common/extensionManagement';
+import { IExtensionGalleryService, IExtensionManagementCLIService, IGlobalExtensionEnablementService } from 'vs/platform/extensionManagement/common/extensionManagement';
 import { ContextViewService } from 'vs/platform/contextview/browser/contextViewService';
 import { IContextViewService } from 'vs/platform/contextview/browser/contextView';
 import { IListService, ListService } from 'vs/platform/list/browser/listService';
@@ -125,6 +127,7 @@ registerSingleton(IIgnoredExtensionsManagementService, IgnoredExtensionsManageme
 registerSingleton(IGlobalExtensionEnablementService, GlobalExtensionEnablementService);
 registerSingleton(IExtensionsStorageSyncService, ExtensionsStorageSyncService);
 registerSingleton(IExtensionGalleryService, ExtensionGalleryService, true);
+registerSingleton(IExtensionManagementCLIService, ExtensionManagementCLIService);
 registerSingleton(IContextViewService, ContextViewService, true);
 registerSingleton(IListService, ListService, true);
 registerSingleton(IEditorWorkerService, EditorWorkerServiceImpl);
@@ -213,6 +216,9 @@ import 'vs/workbench/contrib/webviewPanel/browser/webviewPanel.contribution';
 import 'vs/workbench/contrib/webviewView/browser/webviewView.contribution';
 import 'vs/workbench/contrib/customEditor/browser/customEditor.contribution';
 
+// External Uri Opener
+import 'vs/workbench/contrib/externalUriOpener/common/externalUriOpener.contribution';
+
 // Extensions Management
 import 'vs/workbench/contrib/extensions/browser/extensions.contribution';
 import 'vs/workbench/contrib/extensions/browser/extensionsViewlet';
@@ -283,6 +289,7 @@ import 'vs/workbench/contrib/welcome/walkThrough/browser/walkThrough.contributio
 import 'vs/workbench/contrib/callHierarchy/browser/callHierarchy.contribution';
 
 // Outline
+import 'vs/workbench/contrib/codeEditor/browser/outline/documentSymbolsOutline';
 import 'vs/workbench/contrib/outline/browser/outline.contribution';
 
 // Experiments

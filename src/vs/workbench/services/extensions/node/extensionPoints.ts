@@ -12,7 +12,7 @@ import { getParseErrorMessage } from 'vs/base/common/jsonErrorMessages';
 import * as types from 'vs/base/common/types';
 import { URI } from 'vs/base/common/uri';
 import * as pfs from 'vs/base/node/pfs';
-import { getGalleryExtensionId, groupByExtension, ExtensionIdentifierWithVersion } from 'vs/platform/extensionManagement/common/extensionManagementUtil';
+import { getGalleryExtensionId, groupByExtension, ExtensionIdentifierWithVersion, getExtensionId } from 'vs/platform/extensionManagement/common/extensionManagementUtil';
 import { isValidExtensionVersion } from 'vs/platform/extensions/common/extensionValidator';
 import { ExtensionIdentifier, IExtensionDescription } from 'vs/platform/extensions/common/extensions';
 import { Translations, ILog } from 'vs/workbench/services/extensions/common/extensionPoints';
@@ -47,10 +47,19 @@ abstract class ExtensionManifestHandler {
 
 class ExtensionManifestParser extends ExtensionManifestHandler {
 
+	private static _fastParseJSON(text: string, errors: json.ParseError[]): any {
+		try {
+			return JSON.parse(text);
+		} catch (err) {
+			// invalid JSON, let's get good errors
+			return json.parse(text, errors);
+		}
+	}
+
 	public parse(): Promise<IExtensionDescription> {
 		return pfs.readFile(this._absoluteManifestPath).then((manifestContents) => {
 			const errors: json.ParseError[] = [];
-			const manifest = json.parse(manifestContents.toString(), errors);
+			const manifest = ExtensionManifestParser._fastParseJSON(manifestContents.toString(), errors);
 			if (json.getNodeType(manifest) !== 'object') {
 				this._log.error(this._absoluteFolderPath, nls.localize('jsonParseInvalidType', "Invalid manifest file {0}: Not an JSON object.", this._absoluteManifestPath));
 			} else if (errors.length === 0) {
@@ -326,7 +335,7 @@ class ExtensionManifestValidator extends ExtensionManifestHandler {
 		}
 
 		// id := `publisher.name`
-		extensionDescription.id = `${extensionDescription.publisher}.${extensionDescription.name}`;
+		extensionDescription.id = getExtensionId(extensionDescription.publisher, extensionDescription.name);
 		extensionDescription.identifier = new ExtensionIdentifier(extensionDescription.id);
 
 		extensionDescription.extensionLocation = URI.file(this._absoluteFolderPath);

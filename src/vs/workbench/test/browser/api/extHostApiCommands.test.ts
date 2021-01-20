@@ -35,20 +35,21 @@ import { NullApiDeprecationService } from 'vs/workbench/api/common/extHostApiDep
 import { ServiceCollection } from 'vs/platform/instantiation/common/serviceCollection';
 import { SyncDescriptor } from 'vs/platform/instantiation/common/descriptors';
 import { InstantiationService } from 'vs/platform/instantiation/common/instantiationService';
+import { IResolvedTextEditorModel, ITextModelService } from 'vs/editor/common/services/resolverService';
 
 import 'vs/editor/contrib/codeAction/codeAction';
 import 'vs/editor/contrib/codelens/codelens';
 import 'vs/editor/contrib/colorPicker/color';
 import 'vs/editor/contrib/format/format';
 import 'vs/editor/contrib/gotoSymbol/goToCommands';
-import 'vs/editor/contrib/gotoSymbol/documentSymbols';
+import 'vs/editor/contrib/documentSymbols/documentSymbols';
 import 'vs/editor/contrib/hover/getHover';
 import 'vs/editor/contrib/links/getLinks';
 import 'vs/editor/contrib/parameterHints/provideSignatureHelp';
 import 'vs/editor/contrib/smartSelect/smartSelect';
 import 'vs/editor/contrib/suggest/suggest';
 import 'vs/editor/contrib/rename/rename';
-import { IResolvedTextEditorModel, ITextModelService } from 'vs/editor/common/services/resolverService';
+import 'vs/editor/contrib/inlineHints/inlineHintsController';
 
 const defaultSelector = { scheme: 'far' };
 const model: ITextModel = createTextModel(
@@ -200,7 +201,7 @@ suite('ExtHostLanguageFeatureCommands', function () {
 			return commands.executeCommand<vscode.SymbolInformation[]>('vscode.executeWorkspaceSymbolProvider', 'testing').then(value => {
 
 				for (let info of value) {
-					assert.ok(info instanceof types.SymbolInformation);
+					assert.strictEqual(info instanceof types.SymbolInformation, true);
 					assert.equal(info.name, 'testing');
 					assert.equal(info.kind, types.SymbolKind.Array);
 				}
@@ -566,8 +567,8 @@ suite('ExtHostLanguageFeatureCommands', function () {
 			return commands.executeCommand<vscode.SymbolInformation[]>('vscode.executeDocumentSymbolProvider', model.uri).then(values => {
 				assert.equal(values.length, 2);
 				let [first, second] = values;
-				assert.ok(first instanceof types.SymbolInformation);
-				assert.ok(second instanceof types.SymbolInformation);
+				assert.strictEqual(first instanceof types.SymbolInformation, true);
+				assert.strictEqual(second instanceof types.SymbolInformation, true);
 				assert.equal(first.name, 'testing2');
 				assert.equal(second.name, 'testing1');
 			});
@@ -594,9 +595,9 @@ suite('ExtHostLanguageFeatureCommands', function () {
 			return commands.executeCommand<(vscode.SymbolInformation & vscode.DocumentSymbol)[]>('vscode.executeDocumentSymbolProvider', model.uri).then(values => {
 				assert.equal(values.length, 2);
 				let [first, second] = values;
-				assert.ok(first instanceof types.SymbolInformation);
-				assert.ok(!(first instanceof types.DocumentSymbol));
-				assert.ok(second instanceof types.SymbolInformation);
+				assert.strictEqual(first instanceof types.SymbolInformation, true);
+				assert.strictEqual(first instanceof types.DocumentSymbol, false);
+				assert.strictEqual(second instanceof types.SymbolInformation, true);
 				assert.equal(first.name, 'DocumentSymbol');
 				assert.equal(first.children.length, 1);
 				assert.equal(second.name, 'SymbolInformation');
@@ -1139,6 +1140,87 @@ suite('ExtHostLanguageFeatureCommands', function () {
 				assert.equal(value[0].contents.length, 1);
 			});
 		});
+	});
+
+	// --- inline hints
+
+	test('Inline Hints, back and forth', async function () {
+		disposables.push(extHost.registerInlineHintsProvider(nullExtensionDescription, defaultSelector, <vscode.InlineHintsProvider>{
+			provideInlineHints() {
+				return [new types.InlineHint('Foo', new types.Range(0, 1, 2, 3), undefined, true, false)];
+			}
+		}));
+
+		await rpcProtocol.sync();
+
+		const value = await commands.executeCommand<vscode.InlineHint[]>('vscode.executeInlineHintProvider', model.uri, new types.Range(0, 0, 20, 20));
+		assert.strictEqual(value.length, 1);
+
+		const [first] = value;
+		assert.strictEqual(first.text, 'Foo');
+		assert.strictEqual(first.range.start.line, 0);
+		assert.strictEqual(first.range.start.character, 1);
+		assert.strictEqual(first.range.end.line, 2);
+		assert.strictEqual(first.range.end.character, 3);
+	});
+
+	test('Inline Hints, merge', async function () {
+		disposables.push(extHost.registerInlineHintsProvider(nullExtensionDescription, defaultSelector, <vscode.InlineHintsProvider>{
+			provideInlineHints() {
+				return [new types.InlineHint('Bar', new types.Range(10, 11, 12, 13), undefined, true, false)];
+			}
+		}));
+
+		disposables.push(extHost.registerInlineHintsProvider(nullExtensionDescription, defaultSelector, <vscode.InlineHintsProvider>{
+			provideInlineHints() {
+				return [new types.InlineHint('Foo', new types.Range(0, 1, 2, 3), new types.MarkdownString('**Hello**'), true, false)];
+			}
+		}));
+
+		await rpcProtocol.sync();
+
+		const value = await commands.executeCommand<vscode.InlineHint[]>('vscode.executeInlineHintProvider', model.uri, new types.Range(0, 0, 20, 20));
+		assert.strictEqual(value.length, 2);
+
+		const [first, second] = value;
+		assert.strictEqual(first.text, 'Foo');
+		assert.strictEqual(first.range.start.line, 0);
+		assert.strictEqual(first.range.start.character, 1);
+		assert.strictEqual(first.range.end.line, 2);
+		assert.strictEqual(first.range.end.character, 3);
+		assert.ok(first.description instanceof types.MarkdownString);
+		assert.strictEqual((<types.MarkdownString>first.description).value, '**Hello**');
+
+		assert.strictEqual(second.text, 'Bar');
+		assert.strictEqual(second.range.start.line, 10);
+		assert.strictEqual(second.range.start.character, 11);
+		assert.strictEqual(second.range.end.line, 12);
+		assert.strictEqual(second.range.end.character, 13);
+	});
+
+	test('Inline Hints, bad provider', async function () {
+		disposables.push(extHost.registerInlineHintsProvider(nullExtensionDescription, defaultSelector, <vscode.InlineHintsProvider>{
+			provideInlineHints() {
+				return [new types.InlineHint('Foo', new types.Range(0, 1, 2, 3), undefined, true, false)];
+			}
+		}));
+		disposables.push(extHost.registerInlineHintsProvider(nullExtensionDescription, defaultSelector, <vscode.InlineHintsProvider>{
+			provideInlineHints() {
+				throw new Error();
+			}
+		}));
+
+		await rpcProtocol.sync();
+
+		const value = await commands.executeCommand<vscode.InlineHint[]>('vscode.executeInlineHintProvider', model.uri, new types.Range(0, 0, 20, 20));
+		assert.strictEqual(value.length, 1);
+
+		const [first] = value;
+		assert.strictEqual(first.text, 'Foo');
+		assert.strictEqual(first.range.start.line, 0);
+		assert.strictEqual(first.range.start.character, 1);
+		assert.strictEqual(first.range.end.line, 2);
+		assert.strictEqual(first.range.end.character, 3);
 	});
 
 	// --- selection ranges

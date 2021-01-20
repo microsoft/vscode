@@ -57,7 +57,7 @@ function getHoverMessage(link: Link, useMetaKey: boolean): MarkdownString {
 				nativeLabel = ` "${nativeLabelText}"`;
 			}
 		}
-		const hoverMessage = new MarkdownString('', true).appendMarkdown(`[${label}](${link.url.toString()}${nativeLabel}) (${kb})`);
+		const hoverMessage = new MarkdownString('', true).appendMarkdown(`[${label}](${link.url.toString(true)}${nativeLabel}) (${kb})`);
 		return hoverMessage;
 	} else {
 		return new MarkdownString().appendText(`${label} (${kb})`);
@@ -327,7 +327,7 @@ export class LinkDetector implements IEditorContribution {
 				}
 			}
 
-			return this.openerService.open(uri, { openToSide, fromUserGesture });
+			return this.openerService.open(uri, { openToSide, fromUserGesture, allowContributedOpeners: true });
 
 		}, err => {
 			const messageOrError =

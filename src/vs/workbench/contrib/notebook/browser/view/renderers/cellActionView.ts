@@ -3,7 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { renderCodicons } from 'vs/base/browser/codicons';
+import { renderLabelWithIcons } from 'vs/base/browser/ui/iconLabel/iconLabels';
 import * as DOM from 'vs/base/browser/dom';
 import { BaseActionViewItem } from 'vs/base/browser/ui/actionbar/actionViewItems';
 import { Action, IAction, Separator } from 'vs/base/common/actions';
@@ -91,7 +91,7 @@ export class CodiconActionViewItem extends MenuEntryActionViewItem {
 	}
 	updateLabel(): void {
 		if (this.options.label && this.label) {
-			DOM.reset(this.label, ...renderCodicons(this._commandAction.label ?? ''));
+			DOM.reset(this.label, ...renderLabelWithIcons(this._commandAction.label ?? ''));
 		}
 	}
 }

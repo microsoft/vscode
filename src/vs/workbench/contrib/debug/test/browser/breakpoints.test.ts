@@ -153,8 +153,8 @@ suite('Debug - Breakpoints', () => {
 	test('function breakpoints', () => {
 		model.addFunctionBreakpoint('foo', '1');
 		model.addFunctionBreakpoint('bar', '2');
-		model.renameFunctionBreakpoint('1', 'fooUpdated');
-		model.renameFunctionBreakpoint('2', 'barUpdated');
+		model.updateFunctionBreakpoint('1', { name: 'fooUpdated' });
+		model.updateFunctionBreakpoint('2', { name: 'barUpdated' });
 
 		const functionBps = model.getFunctionBreakpoints();
 		assert.equal(functionBps[0].name, 'fooUpdated');

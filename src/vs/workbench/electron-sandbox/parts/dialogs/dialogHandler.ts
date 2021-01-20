@@ -6,7 +6,7 @@
 import * as nls from 'vs/nls';
 import { fromNow } from 'vs/base/common/date';
 import { mnemonicButtonLabel } from 'vs/base/common/labels';
-import { isLinux, isWindows } from 'vs/base/common/platform';
+import { isLinux, isLinuxSnap, isWindows } from 'vs/base/common/platform';
 import Severity from 'vs/base/common/severity';
 import { MessageBoxOptions } from 'vs/base/parts/sandbox/common/electronTypes';
 import { IClipboardService } from 'vs/platform/clipboard/common/clipboardService';
@@ -161,7 +161,6 @@ export class NativeDialogHandler implements IDialogHandler {
 			version = `${version} (${this.productService.target} setup)`;
 		}
 
-		const isSnap = process.platform === 'linux' && process.env.SNAP && process.env.SNAP_REVISION;
 		const osProps = await this.nativeHostService.getOSProperties();
 
 		const detailString = (useAgo: boolean): string => {
@@ -174,7 +173,7 @@ export class NativeDialogHandler implements IDialogHandler {
 				process.versions['chrome'],
 				process.versions['node'],
 				process.versions['v8'],
-				`${osProps.type} ${osProps.arch} ${osProps.release}${isSnap ? ' snap' : ''}`
+				`${osProps.type} ${osProps.arch} ${osProps.release}${isLinuxSnap ? ' snap' : ''}`
 			);
 		};
 
@@ -206,4 +205,3 @@ export class NativeDialogHandler implements IDialogHandler {
 		}
 	}
 }
-

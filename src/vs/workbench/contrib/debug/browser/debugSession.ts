@@ -64,7 +64,7 @@ export class DebugSession implements IDebugSession {
 
 	private readonly _onDidChangeREPLElements = new Emitter<void>();
 
-	private name: string | undefined;
+	private _name: string | undefined;
 	private readonly _onDidChangeName = new Emitter<string>();
 
 	constructor(
@@ -146,13 +146,16 @@ export class DebugSession implements IDebugSession {
 
 	getLabel(): string {
 		const includeRoot = this.workspaceContextService.getWorkspace().folders.length > 1;
-		const name = this.name || this.configuration.name;
-		return includeRoot && this.root ? `${name} (${resources.basenameOrAuthority(this.root.uri)})` : name;
+		return includeRoot && this.root ? `${this.name} (${resources.basenameOrAuthority(this.root.uri)})` : this.name;
 	}
 
 	setName(name: string): void {
-		this.name = name;
+		this._name = name;
 		this._onDidChangeName.fire(name);
+	}
+
+	get name(): string {
+		return this._name || this.configuration.name;
 	}
 
 	get state(): State {

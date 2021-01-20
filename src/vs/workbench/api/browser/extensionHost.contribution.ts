@@ -17,6 +17,7 @@ import { LanguageConfigurationFileHandler } from 'vs/workbench/contrib/codeEdito
 // --- mainThread participants
 import './mainThreadBulkEdits';
 import './mainThreadCodeInsets';
+import './mainThreadCLICommands';
 import './mainThreadClipboard';
 import './mainThreadCommands';
 import './mainThreadConfiguration';
@@ -30,6 +31,7 @@ import './mainThreadDocuments';
 import './mainThreadDocumentsAndEditors';
 import './mainThreadEditor';
 import './mainThreadEditors';
+import './mainThreadEditorTabs';
 import './mainThreadErrors';
 import './mainThreadExtensionService';
 import './mainThreadFileSystem';
@@ -54,6 +56,7 @@ import './mainThreadTheming';
 import './mainThreadTreeViews';
 import './mainThreadDownloadService';
 import './mainThreadUrls';
+import './mainThreadUriOpeners';
 import './mainThreadWindow';
 import './mainThreadWebviewManager';
 import './mainThreadWorkspace';
@@ -65,6 +68,7 @@ import './mainThreadTunnelService';
 import './mainThreadAuthentication';
 import './mainThreadTimeline';
 import './mainThreadTesting';
+import './mainThreadSecretState';
 import 'vs/workbench/api/common/apiCommands';
 
 export class ExtensionPoints implements IWorkbenchContribution {

@@ -89,6 +89,7 @@ export class TerminalInstance extends Disposable implements ITerminalInstance {
 	private _wrapperElement: (HTMLElement & { xterm?: XTermTerminal }) | undefined;
 	private _xterm: XTermTerminal | undefined;
 	private _xtermCore: XTermCore | undefined;
+	private _xtermTypeAhead: TypeAheadAddon | undefined;
 	private _xtermSearch: SearchAddon | undefined;
 	private _xtermUnicode11: Unicode11Addon | undefined;
 	private _xtermElement: HTMLDivElement | undefined;
@@ -369,6 +370,8 @@ export class TerminalInstance extends Disposable implements ITerminalInstance {
 		return TerminalInstance._lastKnownCanvasDimensions;
 	}
 
+	public get remoteTerminalId(): number | undefined { return this._processManager.remoteTerminalId; }
+
 	private async _getXtermConstructor(): Promise<typeof XTermTerminal> {
 		if (xtermConstructor) {
 			return xtermConstructor;
@@ -393,6 +396,7 @@ export class TerminalInstance extends Disposable implements ITerminalInstance {
 		const editorOptions = this._configurationService.getValue<IEditorOptions>('editor');
 
 		const xterm = new Terminal({
+			altClickMovesCursor: config.altClickMovesCursor,
 			scrollback: config.scrollback,
 			theme: this._getXtermTheme(),
 			drawBoldTextInBrightColors: config.drawBoldTextInBrightColors,
@@ -462,8 +466,8 @@ export class TerminalInstance extends Disposable implements ITerminalInstance {
 			}
 		}));
 
-		const typeaheadAddon = this._register(this._instantiationService.createInstance(TypeAheadAddon, this._processManager, this._configHelper));
-		this._xterm.loadAddon(typeaheadAddon);
+		this._xtermTypeAhead = this._register(this._instantiationService.createInstance(TypeAheadAddon, this._processManager, this._configHelper));
+		this._xterm.loadAddon(this._xtermTypeAhead);
 
 		return xterm;
 	}
@@ -522,12 +526,7 @@ export class TerminalInstance extends Disposable implements ITerminalInstance {
 			throw new Error('xterm elements not set after open');
 		}
 
-		// Check if custom Terminal title exists and set same
-		if (this._title.length > 0) {
-			xterm.textarea.setAttribute('aria-label', nls.localize('terminalTextBoxAriaLabelNumberAndTitle', "Terminal {0}, {1}", this._id, this._title));
-		} else {
-			xterm.textarea.setAttribute('aria-label', nls.localize('terminalTextBoxAriaLabel', "Terminal {0}", this._id));
-		}
+		this._setAriaLabel(xterm, this._id, this._title);
 
 		xterm.textarea.addEventListener('focus', () => this._onFocus.fire(this));
 		xterm.attachCustomKeyEventHandler((event: KeyboardEvent): boolean => {
@@ -1025,7 +1024,12 @@ export class TerminalInstance extends Disposable implements ITerminalInstance {
 			this._xtermCore?.writeSync(ev.data);
 		} else {
 			const messageId = ++this._latestXtermWriteData;
-			this._xterm?.write(ev.data, () => this._latestXtermParseData = messageId);
+			this._xterm?.write(ev.data, () => {
+				this._latestXtermParseData = messageId;
+				if (this._shellLaunchConfig.flowControl) {
+					this._processManager.acknowledgeDataEvent(ev.data.length);
+				}
+			});
 		}
 	}
 
@@ -1166,9 +1170,6 @@ export class TerminalInstance extends Disposable implements ITerminalInstance {
 		this._pressAnyKeyToCloseListener?.dispose();
 		this._pressAnyKeyToCloseListener = undefined;
 
-		// Kill and clear up the process, making the process manager ready for a new process
-		this._processManager.dispose();
-
 		if (this._xterm) {
 			if (reset) {
 				this._xterm.reset();
@@ -1204,6 +1205,9 @@ export class TerminalInstance extends Disposable implements ITerminalInstance {
 		// Set the new shell launch config
 		this._shellLaunchConfig = shell; // Must be done before calling _createProcess()
 
+		// Kill and clear up the process, making the process manager ready for a new process
+		this._processManager.dispose();
+
 		// Launch the process unless this is only a renderer.
 		// In the renderer only cases, we still need to set the title correctly.
 		const oldTitle = this._title;
@@ -1215,6 +1219,8 @@ export class TerminalInstance extends Disposable implements ITerminalInstance {
 
 		this._processManager.onProcessData(data => this._onProcessData(data));
 		this._createProcess();
+
+		this._xtermTypeAhead?.reset(this._processManager);
 	}
 
 	public relaunch(): void {
@@ -1284,6 +1290,7 @@ export class TerminalInstance extends Disposable implements ITerminalInstance {
 
 	public updateConfig(): void {
 		const config = this._configHelper.config;
+		this._safeSetOption('altClickMovesCursor', config.altClickMovesCursor);
 		this._setCursorBlink(config.cursorBlinking);
 		this._setCursorStyle(config.cursorStyle);
 		this._setCursorWidth(config.cursorWidth);
@@ -1480,6 +1487,16 @@ export class TerminalInstance extends Disposable implements ITerminalInstance {
 		this._shellType = shellType;
 	}
 
+	private _setAriaLabel(xterm: XTermTerminal | undefined, terminalId: number, title: string | undefined): void {
+		if (xterm) {
+			if (title && title.length > 0) {
+				xterm.textarea?.setAttribute('aria-label', nls.localize('terminalTextBoxAriaLabelNumberAndTitle', "Terminal {0}, {1}", terminalId, title));
+			} else {
+				xterm.textarea?.setAttribute('aria-label', nls.localize('terminalTextBoxAriaLabel', "Terminal {0}", terminalId));
+			}
+		}
+	}
+
 	public setTitle(title: string | undefined, eventSource: TitleEventSource): void {
 		if (!title) {
 			return;
@@ -1504,6 +1521,8 @@ export class TerminalInstance extends Disposable implements ITerminalInstance {
 		const didTitleChange = title !== this._title;
 		this._title = title;
 		if (didTitleChange) {
+			this._setAriaLabel(this._xterm, this._id, this._title);
+
 			if (this._titleReadyComplete) {
 				this._titleReadyComplete(title);
 				this._titleReadyComplete = undefined;

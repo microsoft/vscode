@@ -152,13 +152,13 @@ export class Throttler {
 					return result;
 				};
 
-				this.queuedPromise = new Promise(c => {
-					this.activePromise!.then(onComplete, onComplete).then(c);
+				this.queuedPromise = new Promise(resolve => {
+					this.activePromise!.then(onComplete, onComplete).then(resolve);
 				});
 			}
 
-			return new Promise((c, e) => {
-				this.queuedPromise!.then(c, e);
+			return new Promise((resolve, reject) => {
+				this.queuedPromise!.then(resolve, reject);
 			});
 		}
 
@@ -181,7 +181,7 @@ export class Sequencer {
 	private current: Promise<any> = Promise.resolve(null);
 
 	queue<T>(promiseTask: ITask<Promise<T>>): Promise<T> {
-		return this.current = this.current.then(() => promiseTask());
+		return this.current = this.current.then(() => promiseTask(), () => promiseTask());
 	}
 }
 
@@ -205,7 +205,7 @@ export class SequencerByKey<TKey> {
 }
 
 /**
- * A helper to delay execution of a task that is being requested often.
+ * A helper to delay (debounce) execution of a task that is being requested often.
  *
  * Following the throttler, now imagine the mail man wants to optimize the number of
  * trips proactively. The trip itself can be long, so he decides not to make the trip
@@ -248,9 +248,9 @@ export class Delayer<T> implements IDisposable {
 		this.cancelTimeout();
 
 		if (!this.completionPromise) {
-			this.completionPromise = new Promise((c, e) => {
-				this.doResolve = c;
-				this.doReject = e;
+			this.completionPromise = new Promise((resolve, reject) => {
+				this.doResolve = resolve;
+				this.doReject = reject;
 			}).then(() => {
 				this.completionPromise = null;
 				this.doResolve = null;
