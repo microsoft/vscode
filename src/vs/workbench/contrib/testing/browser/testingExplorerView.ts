@@ -11,6 +11,7 @@ import { ICompressedTreeNode } from 'vs/base/browser/ui/tree/compressedObjectTre
 import { ObjectTree } from 'vs/base/browser/ui/tree/objectTree';
 import { ITreeEvent, ITreeFilter, ITreeNode, ITreeRenderer, ITreeSorter, TreeFilterResult, TreeVisibility } from 'vs/base/browser/ui/tree/tree';
 import { DeferredPromise } from 'vs/base/common/async';
+import { Color, RGBA } from 'vs/base/common/color';
 import { throttle } from 'vs/base/common/decorators';
 import { Event } from 'vs/base/common/event';
 import { FuzzyScore } from 'vs/base/common/filters';
@@ -34,7 +35,8 @@ import { IOpenerService } from 'vs/platform/opener/common/opener';
 import { IProgress, IProgressService, IProgressStep } from 'vs/platform/progress/common/progress';
 import { IStorageService, StorageScope, StorageTarget } from 'vs/platform/storage/common/storage';
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
-import { IThemeService, ThemeIcon } from 'vs/platform/theme/common/themeService';
+import { foreground } from 'vs/platform/theme/common/colorRegistry';
+import { IThemeService, registerThemingParticipant, ThemeIcon } from 'vs/platform/theme/common/themeService';
 import { TestRunState } from 'vs/workbench/api/common/extHostTypes';
 import { IResourceLabel, IResourceLabelOptions, IResourceLabelProps, ResourceLabels } from 'vs/workbench/browser/labels';
 import { ViewPane } from 'vs/workbench/browser/parts/views/viewPane';
@@ -53,7 +55,7 @@ import { TestingOutputPeekController } from 'vs/workbench/contrib/testing/browse
 import { TestExplorerViewGrouping, TestExplorerViewMode, Testing } from 'vs/workbench/contrib/testing/common/constants';
 import { TestingContextKeys } from 'vs/workbench/contrib/testing/common/testingContextKeys';
 import { cmpPriority, isFailedState } from 'vs/workbench/contrib/testing/common/testingStates';
-import { ITestResultService, sumCounts } from 'vs/workbench/contrib/testing/common/testResultService';
+import { ITestResultService, sumCounts, TestStateCount } from 'vs/workbench/contrib/testing/common/testResultService';
 import { ITestService } from 'vs/workbench/contrib/testing/common/testService';
 import { IWorkspaceTestCollectionService, TestSubscriptionListener } from 'vs/workbench/contrib/testing/common/workspaceTestCollectionService';
 import { IActivityService, NumberBadge, ProgressBadge } from 'vs/workbench/services/activity/common/activity';
@@ -104,11 +106,12 @@ export class TestingExplorerView extends ViewPane {
 		this.filter = this.instantiationService.createInstance(TestingExplorerFilter, this.container, this.filterState);
 		this._register(this.filter);
 
+		const messagesContainer = dom.append(this.container, dom.$('.test-explorer-messages'));
+		this._register(this.instantiationService.createInstance(TestRunProgress, messagesContainer, this.getProgressLocation()));
+
 		const listContainer = dom.append(this.container, dom.$('.test-explorer-tree'));
 		this.viewModel = this.instantiationService.createInstance(TestingExplorerViewModel, listContainer, this.onDidChangeBodyVisibility, this.currentSubscription, this.filterState);
 		this._register(this.viewModel);
-
-		this._register(this.instantiationService.createInstance(TestRunProgress, this.getProgressLocation()));
 
 		this._register(this.onDidChangeBodyVisibility(visible => {
 			if (!visible && this.currentSubscription) {
@@ -651,6 +654,29 @@ class TestsRenderer implements ITreeRenderer<ITestTreeElement, FuzzyScore, TestT
 	}
 }
 
+const collectCounts = (count: TestStateCount) => {
+	const failed = count[TestRunState.Errored] + count[TestRunState.Failed];
+	const passed = count[TestRunState.Passed];
+	const skipped = count[TestRunState.Skipped];
+
+	return {
+		passed,
+		failed,
+		runSoFar: passed + failed,
+		totalWillBeRun: passed + failed + count[TestRunState.Queued] + count[TestRunState.Running],
+		skipped,
+	};
+};
+
+const getProgressText = ({ passed, runSoFar, skipped }: { passed: number, runSoFar: number, skipped: number }) => {
+	const percent = (passed / runSoFar * 100).toFixed(0);
+	if (skipped === 0) {
+		return localize('testProgress', '{0}/{1} tests passed ({2}%)', passed, runSoFar, percent);
+	} else {
+		return localize('testProgressWithSkip', '{0}/{1} tests passed ({2}%, {3} skipped)', passed, runSoFar, percent, skipped);
+	}
+};
+
 class TestRunProgress {
 	private current?: { update: IProgress<IProgressStep>; deferred: DeferredPromise<void> };
 	private badge = new MutableDisposable();
@@ -666,11 +692,13 @@ class TestRunProgress {
 	});
 
 	constructor(
+		private readonly messagesContainer: HTMLElement,
 		private readonly location: string,
 		@IProgressService private readonly progress: IProgressService,
 		@ITestResultService private readonly resultService: ITestResultService,
 		@IActivityService private readonly activityService: IActivityService,
-	) { }
+	) {
+	}
 
 	public dispose() {
 		this.resultLister.dispose();
@@ -686,6 +714,7 @@ class TestRunProgress {
 	private updateProgress() {
 		const running = this.resultService.results.filter(r => !r.isComplete);
 		if (!running.length) {
+			this.setIdleText(this.resultService.results[0]?.counts);
 			this.current?.deferred.complete();
 			this.current = undefined;
 		} else if (!this.current) {
@@ -695,15 +724,36 @@ class TestRunProgress {
 				return this.current.deferred.p;
 			});
 		} else {
-			const count = sumCounts(running.map(r => r.counts));
-			const completed = count[TestRunState.Errored] + count[TestRunState.Failed] + count[TestRunState.Passed];
-			const total = completed + count[TestRunState.Queued] + count[TestRunState.Running];
-			this.current.update.report({ increment: completed, total });
+			const counts = sumCounts(running.map(r => r.counts));
+			this.setRunningText(counts);
+			const { runSoFar, totalWillBeRun } = collectCounts(counts);
+			this.current.update.report({ increment: runSoFar, total: totalWillBeRun });
+		}
+	}
+
+	private setRunningText(counts: TestStateCount) {
+		this.messagesContainer.dataset.state = 'running';
+
+		const collected = collectCounts(counts);
+		if (collected.runSoFar === 0) {
+			this.messagesContainer.innerText = localize('testResultStarting', 'Test run is starting...');
+		} else {
+			this.messagesContainer.innerText = getProgressText(collected);
+		}
+	}
+
+	private setIdleText(lastCount?: TestStateCount) {
+		if (!lastCount) {
+			this.messagesContainer.innerText = '';
+		} else {
+			const collected = collectCounts(lastCount);
+			this.messagesContainer.dataset.state = collected.failed ? 'failed' : 'running';
+			this.messagesContainer.innerText = getProgressText(collected);
 		}
 	}
 
 	private updateBadge() {
-		this.badge.dispose();
+		this.badge.value = undefined;
 		const result = this.resultService.results[0]; // currently running, or last run
 		if (!result) {
 			return;
@@ -711,7 +761,7 @@ class TestRunProgress {
 
 		if (!result.isComplete) {
 			const badge = new ProgressBadge(() => localize('testBadgeRunning', 'Test run in progress'));
-			this.badge.value = this.activityService.showViewActivity(Testing.ExplorerViewId, { badge });
+			this.badge.value = this.activityService.showViewActivity(Testing.ExplorerViewId, { badge, clazz: 'progress-badge' });
 			return;
 		}
 
@@ -724,3 +774,13 @@ class TestRunProgress {
 		this.badge.value = this.activityService.showViewActivity(Testing.ExplorerViewId, { badge });
 	}
 }
+
+registerThemingParticipant((theme, collector) => {
+	if (theme.type === 'dark') {
+		const foregroundColor = theme.getColor(foreground);
+		if (foregroundColor) {
+			const fgWithOpacity = new Color(new RGBA(foregroundColor.rgba.r, foregroundColor.rgba.g, foregroundColor.rgba.b, 0.65));
+			collector.addRule(`.test-explorer .test-explorer-messages { color: ${fgWithOpacity}; }`);
+		}
+	}
+});

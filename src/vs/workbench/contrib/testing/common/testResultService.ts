@@ -38,9 +38,7 @@ const makeNode = (
 	collection: IMainThreadTestCollection,
 	test: IncrementalTestCollectionItem,
 ): TestResultItem => {
-	const mapped: TestResultItem = { ...test, children: [], results: makeEmptyCounts() };
-	mapped.results[test.item.state.runState]++;
-
+	const mapped: TestResultItem = { ...test, children: [] };
 	for (const childId of test.children) {
 		const child = collection.getNodeById(childId);
 		if (child) {
@@ -53,7 +51,6 @@ const makeNode = (
 
 export interface TestResultItem extends InternalTestItem {
 	children: TestResultItem[]
-	results: { [K in TestRunState]: number };
 }
 
 /**
@@ -191,7 +188,7 @@ export class TestResultService implements ITestResultService {
 	/**
 	 * @inheritdoc
 	 */
-	public readonly results: TestResult[] = [];
+	public results: TestResult[] = [];
 
 	/**
 	 * @inheritdoc
@@ -213,14 +210,20 @@ export class TestResultService implements ITestResultService {
 			this.results.pop();
 		}
 
-		result.onComplete(this.reorder, this);
-		this.reorder();
+		result.onComplete(this.onComplete, this);
+		this.isRunning.set(true);
 		this.newResultEmitter.fire(result);
 		return result;
 	}
 
-	private reorder() {
-		this.results.sort((a, b) => (a.isComplete ? 0 : 1) - (b.isComplete ? 0 : 1));
-		this.isRunning.set(this.results.length > 0 && !this.results[0].isComplete);
+	private onComplete() {
+		// move the complete test run down behind any still-running ones
+		for (let i = 0; i < this.results.length - 2; i++) {
+			if (this.results[i].isComplete && !this.results[i + 1].isComplete) {
+				[this.results[i], this.results[i + 1]] = [this.results[i + 1], this.results[i]];
+			}
+		}
+
+		this.isRunning.set(!this.results[0]?.isComplete);
 	}
 }
