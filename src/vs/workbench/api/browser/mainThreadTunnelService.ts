@@ -14,6 +14,7 @@ import type { TunnelDescription } from 'vs/platform/remote/common/remoteAuthorit
 import { INotificationService, Severity } from 'vs/platform/notification/common/notification';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { PORT_AUTO_FORWARD_SETTING } from 'vs/workbench/contrib/remote/browser/tunnelView';
+import { ILogService } from 'vs/platform/log/common/log';
 
 @extHostNamedCustomer(MainContext.MainThreadTunnelService)
 export class MainThreadTunnelService extends Disposable implements MainThreadTunnelServiceShape {
@@ -25,7 +26,8 @@ export class MainThreadTunnelService extends Disposable implements MainThreadTun
 		@IRemoteExplorerService private readonly remoteExplorerService: IRemoteExplorerService,
 		@ITunnelService private readonly tunnelService: ITunnelService,
 		@INotificationService private readonly notificationService: INotificationService,
-		@IConfigurationService private readonly configurationService: IConfigurationService
+		@IConfigurationService private readonly configurationService: IConfigurationService,
+		@ILogService private readonly logService: ILogService
 	) {
 		super();
 		this._proxy = extHostContext.getProxy(ExtHostContext.ExtHostTunnelService);
@@ -100,6 +102,7 @@ export class MainThreadTunnelService extends Disposable implements MainThreadTun
 				const forward = this._proxy.$forwardPort(tunnelOptions, tunnelCreationOptions);
 				if (forward) {
 					return forward.then(tunnel => {
+						this.logService.trace(`MainThreadTunnelService: New tunnel established by tunnel provider: ${tunnel?.remoteAddress.host}:${tunnel?.remoteAddress.port}`);
 						if (!tunnel) {
 							return undefined;
 						}
@@ -110,6 +113,7 @@ export class MainThreadTunnelService extends Disposable implements MainThreadTun
 							tunnelLocalPort: typeof tunnel.localAddress !== 'string' ? tunnel.localAddress.port : undefined,
 							public: tunnel.public,
 							dispose: async (silent?: boolean) => {
+								this.logService.trace(`MainThreadTunnelService: Closing tunnel from tunnel provider: ${tunnel?.remoteAddress.host}:${tunnel?.remoteAddress.port}`);
 								return this._proxy.$closeTunnel({ host: tunnel.remoteAddress.host, port: tunnel.remoteAddress.port }, silent);
 							}
 						};
