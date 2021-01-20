@@ -67,9 +67,9 @@ export class DiffEditorInput extends SideBySideEditorInput {
 				];
 			} else {
 				labels = [
-					this.originalInput.getName(),
+					...this.originalInput.getNames(),
 					splitter,
-					this.modifiedInput.getName()
+					...this.modifiedInput.getNames()
 				];
 			}
 
@@ -79,18 +79,20 @@ export class DiffEditorInput extends SideBySideEditorInput {
 		return [this.name];
 	}
 
-	getDescription(verbosity: Verbosity = Verbosity.MEDIUM): string | undefined {
-		if (typeof this.description !== 'string') {
-
-			// Pass the description of the modified side in case both original
-			// and modified input have the same parent and we compare file resources.
-			const fileResources = this.asFileResources();
-			if (fileResources && dirname(fileResources.original).path === dirname(fileResources.modified).path) {
-				return this.modifiedInput.getDescription(verbosity);
-			}
+	getDescriptions(verbosity: Verbosity = Verbosity.MEDIUM): string[] {
+		if (!this.description) {
+			return [
+				...this.originalInput.getDescriptions(verbosity),
+				'',
+				...this.modifiedInput.getDescriptions(verbosity)
+			];
 		}
 
-		return this.description;
+		return [this.description];
+	}
+
+	getDescription(verbosity: Verbosity = Verbosity.MEDIUM): string | undefined {
+		return this.getDescriptions().join(' ');
 	}
 
 	private asFileResources(): { original: URI, modified: URI } | undefined {
