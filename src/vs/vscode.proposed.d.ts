@@ -881,15 +881,6 @@ declare module 'vscode' {
 
 	//#endregion
 
-	//#region https://github.com/microsoft/vscode/issues/58440
-	export interface OnEnterRule {
-		/**
-		 * This rule will only execute if the text above the line matches this regular expression.
-		 */
-		previousLineText?: RegExp;
-	}
-	//#endregion
-
 	//#region Tree View: https://github.com/microsoft/vscode/issues/61313 @alexr00
 	export interface TreeView<T> extends Disposable {
 		reveal(element: T | undefined, options?: { select?: boolean, focus?: boolean, expand?: boolean | number; }): Thenable<void>;
