@@ -16,7 +16,7 @@ import { Event } from 'vs/base/common/event';
 import { FuzzyScore } from 'vs/base/common/filters';
 import { splitGlobAware } from 'vs/base/common/glob';
 import { Iterable } from 'vs/base/common/iterator';
-import { Disposable, DisposableStore, toDisposable } from 'vs/base/common/lifecycle';
+import { Disposable, DisposableStore, MutableDisposable, toDisposable } from 'vs/base/common/lifecycle';
 import 'vs/css!./media/testing';
 import { ICodeEditor, isCodeEditor } from 'vs/editor/browser/editorBrowser';
 import { ICodeEditorService } from 'vs/editor/browser/services/codeEditorService';
@@ -50,12 +50,13 @@ import { StateElement } from 'vs/workbench/contrib/testing/browser/explorerProje
 import { testingStatesToIcons } from 'vs/workbench/contrib/testing/browser/icons';
 import { TestingExplorerFilter, TestingFilterState } from 'vs/workbench/contrib/testing/browser/testingExplorerFilter';
 import { TestingOutputPeekController } from 'vs/workbench/contrib/testing/browser/testingOutputPeek';
-import { TestExplorerViewGrouping, TestExplorerViewMode } from 'vs/workbench/contrib/testing/common/constants';
+import { TestExplorerViewGrouping, TestExplorerViewMode, Testing } from 'vs/workbench/contrib/testing/common/constants';
 import { TestingContextKeys } from 'vs/workbench/contrib/testing/common/testingContextKeys';
 import { cmpPriority, isFailedState } from 'vs/workbench/contrib/testing/common/testingStates';
 import { ITestResultService, sumCounts } from 'vs/workbench/contrib/testing/common/testResultService';
 import { ITestService } from 'vs/workbench/contrib/testing/common/testService';
 import { IWorkspaceTestCollectionService, TestSubscriptionListener } from 'vs/workbench/contrib/testing/common/workspaceTestCollectionService';
+import { IActivityService, NumberBadge, ProgressBadge } from 'vs/workbench/services/activity/common/activity';
 import { IEditorService } from 'vs/workbench/services/editor/common/editorService';
 import { DebugAction, RunAction } from './testExplorerActions';
 
@@ -652,30 +653,37 @@ class TestsRenderer implements ITreeRenderer<ITestTreeElement, FuzzyScore, TestT
 
 class TestRunProgress {
 	private current?: { update: IProgress<IProgressStep>; deferred: DeferredPromise<void> };
+	private badge = new MutableDisposable();
 	private readonly resultLister = this.resultService.onNewTestResult(result => {
-		this.update();
-		result.onChange(this.throttledUpdate, this);
-		result.onComplete(this.throttledUpdate, this);
+		this.updateProgress();
+		this.updateBadge();
+
+		result.onChange(this.throttledProgressUpdate, this);
+		result.onComplete(() => {
+			this.throttledProgressUpdate();
+			this.updateBadge();
+		});
 	});
 
 	constructor(
 		private readonly location: string,
 		@IProgressService private readonly progress: IProgressService,
 		@ITestResultService private readonly resultService: ITestResultService,
+		@IActivityService private readonly activityService: IActivityService,
 	) { }
 
 	public dispose() {
 		this.resultLister.dispose();
 		this.current?.deferred.complete();
-		this.current = undefined;
+		this.badge.dispose();
 	}
 
 	@throttle(200)
-	private throttledUpdate() {
-		this.update();
+	private throttledProgressUpdate() {
+		this.updateProgress();
 	}
 
-	private update() {
+	private updateProgress() {
 		const running = this.resultService.results.filter(r => !r.isComplete);
 		if (!running.length) {
 			this.current?.deferred.complete();
@@ -683,7 +691,7 @@ class TestRunProgress {
 		} else if (!this.current) {
 			this.progress.withProgress({ location: this.location, total: 100 }, update => {
 				this.current = { update, deferred: new DeferredPromise() };
-				this.update();
+				this.updateProgress();
 				return this.current.deferred.p;
 			});
 		} else {
@@ -692,5 +700,27 @@ class TestRunProgress {
 			const total = completed + count[TestRunState.Queued] + count[TestRunState.Running];
 			this.current.update.report({ increment: completed, total });
 		}
+	}
+
+	private updateBadge() {
+		this.badge.dispose();
+		const result = this.resultService.results[0]; // currently running, or last run
+		if (!result) {
+			return;
+		}
+
+		if (!result.isComplete) {
+			const badge = new ProgressBadge(() => localize('testBadgeRunning', 'Test run in progress'));
+			this.badge.value = this.activityService.showViewActivity(Testing.ExplorerViewId, { badge });
+			return;
+		}
+
+		const failures = result.counts[TestRunState.Failed] + result.counts[TestRunState.Errored];
+		if (failures === 0) {
+			return;
+		}
+
+		const badge = new NumberBadge(failures, () => localize('testBadgeFailures', '{0} tests failed', failures));
+		this.badge.value = this.activityService.showViewActivity(Testing.ExplorerViewId, { badge });
 	}
 }
