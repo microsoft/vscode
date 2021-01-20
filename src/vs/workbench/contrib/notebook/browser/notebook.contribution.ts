@@ -337,7 +337,24 @@ export class NotebookContribution extends Disposable implements IWorkbenchContri
 		}
 
 		if (originalInput instanceof NotebookEditorInput) {
-			return undefined;
+			if (originalInput.viewType === id) {
+				return undefined;
+			} else {
+				return {
+					override: (async () => {
+						const notebookInput = NotebookEditorInput.create(this.instantiationService, originalInput.resource, originalInput.getName(), id);
+						await group.replaceEditors([{
+							editor: originalInput,
+							replacement: notebookInput
+						}]);
+						if (group.activeEditorPane?.input === notebookInput) {
+							return group.activeEditorPane;
+						} else {
+							return undefined;
+						}
+					})()
+				};
+			}
 		}
 
 		if (originalInput instanceof NotebookDiffEditorInput) {
