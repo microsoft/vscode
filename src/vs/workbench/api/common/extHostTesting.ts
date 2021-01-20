@@ -237,16 +237,45 @@ export class ExtHostTesting implements ExtHostTestingShape {
 		const onDidChangeTest = new Emitter<vscode.TestItem>();
 		workspaceHierarchy.onDidChangeTest(node => {
 			const wrapper = TestItemFilteredWrapper.getWrapperForTestItem(node, document.uri);
-			if (wrapper.doesHaveNodeMatchingFilter(true)) {
-				onDidChangeTest.fire(wrapper);
-			} else {
+			const previouslySeen = wrapper.hasNodeMatchingFilter;
+
+			if (previouslySeen) {
+				// reset cache and get whether you can currently see the TestItem.
+				wrapper.reset();
+				const currentlySeen = wrapper.hasNodeMatchingFilter;
+
+				if (currentlySeen) {
+					onDidChangeTest.fire(wrapper);
+					return;
+				}
+
+				// Fire the event to say that the current visible parent has changed.
 				onDidChangeTest.fire(wrapper.visibleParent);
+				return;
 			}
+
+			const previousParent = wrapper.visibleParent;
+			wrapper.reset();
+			const currentlySeen = wrapper.hasNodeMatchingFilter;
+
+			// It wasn't previously seen and isn't currently seen so
+			// nothing has actually changed.
+			if (!currentlySeen) {
+				return;
+			}
+
+			// The test is now visible so we need to refresh the cache
+			// of the previous visible parent and fire that it has changed.
+			previousParent.reset();
+			onDidChangeTest.fire(previousParent);
 		});
 
 		return {
 			root: TestItemFilteredWrapper.getWrapperForTestItem(workspaceHierarchy.root, document.uri),
-			dispose: () => onDidChangeTest.dispose(),
+			dispose: () => {
+				onDidChangeTest.dispose();
+				TestItemFilteredWrapper.removeFilter(document.uri);
+			},
 			onDidChangeTest: onDidChangeTest.event
 		};
 	}
@@ -257,15 +286,26 @@ export class ExtHostTesting implements ExtHostTestingShape {
  * to only the children that are located in a certain vscode.Uri.
  */
 class TestItemFilteredWrapper implements vscode.TestItem {
-	private static wrapperMap = new WeakMap<vscode.TestItem, TestItemFilteredWrapper>();
+	private static wrapperMap = new WeakMap<vscode.Uri, WeakMap<vscode.TestItem, TestItemFilteredWrapper>>();
+	public static removeFilter(uri: vscode.Uri): void {
+		this.wrapperMap.delete(uri);
+	}
 
 	// Wraps the TestItem specified in a TestItemFilteredWrapper and pulls from a cache if it already exists.
-	public static getWrapperForTestItem(item: vscode.TestItem, filterToUri: vscode.Uri, parent?: TestItemFilteredWrapper) {
-		if (TestItemFilteredWrapper.wrapperMap.has(item)) {
-			return TestItemFilteredWrapper.wrapperMap.get(item)!;
+	public static getWrapperForTestItem(item: vscode.TestItem, filterToUri: vscode.Uri, parent?: TestItemFilteredWrapper): TestItemFilteredWrapper {
+		let innerMap = this.wrapperMap.get(filterToUri);
+		if (innerMap?.has(item)) {
+			return innerMap.get(item)!;
 		}
+
+		if (!innerMap) {
+			innerMap = new WeakMap<vscode.TestItem, TestItemFilteredWrapper>();
+			this.wrapperMap.set(filterToUri, innerMap);
+
+		}
+
 		const w = new TestItemFilteredWrapper(item, filterToUri, parent);
-		TestItemFilteredWrapper.wrapperMap.set(item, w);
+		innerMap.set(item, w);
 		return w;
 	}
 
@@ -295,32 +335,41 @@ class TestItemFilteredWrapper implements vscode.TestItem {
 
 	public get children() {
 		// We only want children that match the filter.
-		return this.getWrappedChildren().filter(child => child.doesHaveNodeMatchingFilter());
+		return this.getWrappedChildren().filter(child => child.hasNodeMatchingFilter);
 	}
 
 	public get visibleParent(): TestItemFilteredWrapper {
-		return this.doesHaveNodeMatchingFilter() ? this : this.parent!.visibleParent;
+		return this.hasNodeMatchingFilter ? this : this.parent!.visibleParent;
 	}
 
-	private readonly matchesUri: boolean;
-	private hasNodeMatchingFilter: boolean | undefined;
+	private matchesFilter: boolean | undefined;
 
 	// Determines if the TestItem matches the filter. This would be true if:
 	// 1. We don't have a parent (because the root is the workspace root node)
 	// 2. The URI of the current node matches the filter URI
 	// 3. Some child of the current node matches the filter URI
-	public doesHaveNodeMatchingFilter(forceEvaluation?: boolean): boolean {
-		if (forceEvaluation || this.hasNodeMatchingFilter === undefined) {
-			this.hasNodeMatchingFilter = !this.parent
-				|| this.matchesUri
-				|| this.getWrappedChildren().some(child => child.doesHaveNodeMatchingFilter());
+	public get hasNodeMatchingFilter(): boolean {
+		if (this.matchesFilter === undefined) {
+			this.matchesFilter = !this.parent
+				|| this.actual.location?.uri.toString() === this.filterToUri.toString()
+				|| this.getWrappedChildren().some(child => child.hasNodeMatchingFilter);
 		}
 
-		return this.hasNodeMatchingFilter;
+		return this.matchesFilter;
+	}
+
+	// Reset the cache of whether or not you can see a node from a particular node
+	// up to it's visible parent.
+	public reset(): void {
+		if (this === this.visibleParent) {
+			this.matchesFilter = undefined;
+		} else {
+			this.parent?.reset();
+			this.matchesFilter = undefined;
+		}
 	}
 
 	constructor(public readonly actual: vscode.TestItem, private filterToUri: vscode.Uri, private readonly parent?: TestItemFilteredWrapper) {
-		this.matchesUri = this.actual.location?.uri.toString() === this.filterToUri.toString();
 		this.getWrappedChildren();
 	}
 
