@@ -10,6 +10,7 @@ import { IListAccessibilityProvider } from 'vs/base/browser/ui/list/listWidget';
 import { ICompressedTreeNode } from 'vs/base/browser/ui/tree/compressedObjectTreeModel';
 import { ObjectTree } from 'vs/base/browser/ui/tree/objectTree';
 import { ITreeEvent, ITreeFilter, ITreeNode, ITreeRenderer, ITreeSorter, TreeFilterResult, TreeVisibility } from 'vs/base/browser/ui/tree/tree';
+import { DeferredPromise } from 'vs/base/common/async';
 import { throttle } from 'vs/base/common/decorators';
 import { Event } from 'vs/base/common/event';
 import { FuzzyScore } from 'vs/base/common/filters';
@@ -30,7 +31,7 @@ import { IInstantiationService } from 'vs/platform/instantiation/common/instanti
 import { IKeybindingService } from 'vs/platform/keybinding/common/keybinding';
 import { WorkbenchObjectTree } from 'vs/platform/list/browser/listService';
 import { IOpenerService } from 'vs/platform/opener/common/opener';
-import { IProgressService } from 'vs/platform/progress/common/progress';
+import { IProgress, IProgressService, IProgressStep } from 'vs/platform/progress/common/progress';
 import { IStorageService, StorageScope, StorageTarget } from 'vs/platform/storage/common/storage';
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
 import { IThemeService, ThemeIcon } from 'vs/platform/theme/common/themeService';
@@ -47,13 +48,14 @@ import { StateByLocationProjection } from 'vs/workbench/contrib/testing/browser/
 import { StateByNameProjection } from 'vs/workbench/contrib/testing/browser/explorerProjections/stateByName';
 import { StateElement } from 'vs/workbench/contrib/testing/browser/explorerProjections/stateNodes';
 import { testingStatesToIcons } from 'vs/workbench/contrib/testing/browser/icons';
-import { cmpPriority, isFailedState } from 'vs/workbench/contrib/testing/browser/testExplorerTree';
 import { TestingExplorerFilter, TestingFilterState } from 'vs/workbench/contrib/testing/browser/testingExplorerFilter';
 import { TestingOutputPeekController } from 'vs/workbench/contrib/testing/browser/testingOutputPeek';
 import { TestExplorerViewGrouping, TestExplorerViewMode } from 'vs/workbench/contrib/testing/common/constants';
-import { IWorkspaceTestCollectionService, TestSubscriptionListener } from 'vs/workbench/contrib/testing/common/workspaceTestCollectionService';
 import { TestingContextKeys } from 'vs/workbench/contrib/testing/common/testingContextKeys';
+import { cmpPriority, isFailedState } from 'vs/workbench/contrib/testing/common/testingStates';
+import { ITestResultService, sumCounts } from 'vs/workbench/contrib/testing/common/testResultService';
 import { ITestService } from 'vs/workbench/contrib/testing/common/testService';
+import { IWorkspaceTestCollectionService, TestSubscriptionListener } from 'vs/workbench/contrib/testing/common/workspaceTestCollectionService';
 import { IEditorService } from 'vs/workbench/services/editor/common/editorService';
 import { DebugAction, RunAction } from './testExplorerActions';
 
@@ -105,7 +107,7 @@ export class TestingExplorerView extends ViewPane {
 		this.viewModel = this.instantiationService.createInstance(TestingExplorerViewModel, listContainer, this.onDidChangeBodyVisibility, this.currentSubscription, this.filterState);
 		this._register(this.viewModel);
 
-		this.getProgressIndicator().show(true);
+		this._register(this.instantiationService.createInstance(TestRunProgress, this.getProgressLocation()));
 
 		this._register(this.onDidChangeBodyVisibility(visible => {
 			if (!visible && this.currentSubscription) {
@@ -127,7 +129,7 @@ export class TestingExplorerView extends ViewPane {
 		this.filter.saveState();
 	}
 
-	private updateProgressIndicator(busy: number) {
+	private updateDiscoveryProgress(busy: number) {
 		if (!busy && this.finishDiscovery) {
 			this.finishDiscovery();
 			this.finishDiscovery = undefined;
@@ -148,7 +150,7 @@ export class TestingExplorerView extends ViewPane {
 
 	private createSubscription() {
 		const handle = this.testCollection.subscribeToWorkspaceTests();
-		handle.subscription.onBusyProvidersChange(() => this.updateProgressIndicator(handle.subscription.busyProviders));
+		handle.subscription.onBusyProvidersChange(() => this.updateDiscoveryProgress(handle.subscription.busyProviders));
 		return handle;
 	}
 }
@@ -645,5 +647,50 @@ class TestsRenderer implements ITreeRenderer<ITestTreeElement, FuzzyScore, TestT
 	disposeTemplate(templateData: TestTemplateData): void {
 		templateData.label.dispose();
 		templateData.actionBar.dispose();
+	}
+}
+
+class TestRunProgress {
+	private current?: { update: IProgress<IProgressStep>; deferred: DeferredPromise<void> };
+	private readonly resultLister = this.resultService.onNewTestResult(result => {
+		this.update();
+		result.onChange(this.throttledUpdate, this);
+		result.onComplete(this.throttledUpdate, this);
+	});
+
+	constructor(
+		private readonly location: string,
+		@IProgressService private readonly progress: IProgressService,
+		@ITestResultService private readonly resultService: ITestResultService,
+	) { }
+
+	public dispose() {
+		this.resultLister.dispose();
+		this.current?.deferred.complete();
+		this.current = undefined;
+	}
+
+	@throttle(200)
+	private throttledUpdate() {
+		this.update();
+	}
+
+	private update() {
+		const running = this.resultService.results.filter(r => !r.isComplete);
+		if (!running.length) {
+			this.current?.deferred.complete();
+			this.current = undefined;
+		} else if (!this.current) {
+			this.progress.withProgress({ location: this.location, total: 100 }, update => {
+				this.current = { update, deferred: new DeferredPromise() };
+				this.update();
+				return this.current.deferred.p;
+			});
+		} else {
+			const count = sumCounts(running.map(r => r.counts));
+			const completed = count[TestRunState.Errored] + count[TestRunState.Failed] + count[TestRunState.Passed];
+			const total = completed + count[TestRunState.Queued] + count[TestRunState.Running];
+			this.current.update.report({ increment: completed, total });
+		}
 	}
 }

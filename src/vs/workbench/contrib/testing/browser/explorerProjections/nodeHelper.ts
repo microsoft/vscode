@@ -7,10 +7,7 @@ import { IIdentityProvider } from 'vs/base/browser/ui/list/list';
 import { ICompressedTreeElement } from 'vs/base/browser/ui/tree/compressedObjectTreeModel';
 import { ObjectTree } from 'vs/base/browser/ui/tree/objectTree';
 import { ITreeElement } from 'vs/base/browser/ui/tree/tree';
-import { TestRunState } from 'vs/workbench/api/common/extHostTypes';
 import { ITestTreeElement } from 'vs/workbench/contrib/testing/browser/explorerProjections';
-
-export const isRunningState = (s: TestRunState) => s === TestRunState.Queued || s === TestRunState.Running;
 
 export const testIdentityProvider: IIdentityProvider<ITestTreeElement> = {
 	getId(element) {

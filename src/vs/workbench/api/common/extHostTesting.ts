@@ -621,16 +621,9 @@ class TextDocumentTestObserverFactory extends AbstractTestObserverFactory {
 		const uriString = resourceUri.toString();
 		this.diffListeners.set(uriString, onDiff);
 
-		const disposeListener = this.documents.onDidRemoveDocuments(evt => {
-			if (evt.some(delta => delta.document.uri.toString() === uriString)) {
-				this.unlisten(resourceUri);
-			}
-		});
-
 		this.proxy.$subscribeToDiffs(ExtHostTestingResource.TextDocument, resourceUri);
 		return new Disposable(() => {
 			this.proxy.$unsubscribeFromDiffs(ExtHostTestingResource.TextDocument, resourceUri);
-			disposeListener.dispose();
 			this.diffListeners.delete(uriString);
 		});
 	}

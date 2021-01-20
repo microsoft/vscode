@@ -75,10 +75,7 @@ export interface ITestService {
 	readonly onDidChangeProviders: Event<{ delta: number; }>;
 	readonly providers: number;
 	readonly subscriptions: ReadonlyArray<{ resource: ExtHostTestingResource, uri: URI; }>;
-
 	readonly testRuns: Iterable<RunTestsRequest>;
-	readonly onTestRunStarted: Event<RunTestsRequest>;
-	readonly onTestRunCompleted: Event<{ req: RunTestsRequest, result: RunTestsResult; }>;
 
 	registerTestController(id: string, controller: MainTestController): void;
 	unregisterTestController(id: string): void;

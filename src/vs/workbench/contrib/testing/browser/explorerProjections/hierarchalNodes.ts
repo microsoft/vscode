@@ -7,7 +7,7 @@ import { Iterable } from 'vs/base/common/iterator';
 import { IWorkspaceFolder } from 'vs/platform/workspace/common/workspace';
 import { TestRunState } from 'vs/workbench/api/common/extHostTypes';
 import { ITestTreeElement } from 'vs/workbench/contrib/testing/browser/explorerProjections';
-import { maxPriority, statePriority } from 'vs/workbench/contrib/testing/browser/testExplorerTree';
+import { maxPriority, statePriority } from 'vs/workbench/contrib/testing/common/testingStates';
 import { InternalTestItem, TestIdWithProvider } from 'vs/workbench/contrib/testing/common/testCollection';
 
 /**
