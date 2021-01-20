@@ -337,7 +337,7 @@ class MainThreadTestCollection extends AbstractIncrementalTestCollection<Increme
 	 */
 	protected updatePendingRoots(delta: number) {
 		this._pendingRootProviders += delta;
-		this.pendingRootChangeEmitter.fire(this._busyProviders);
+		this.pendingRootChangeEmitter.fire(this._pendingRootProviders);
 	}
 
 	/**

@@ -200,11 +200,7 @@ abstract class RunOrDebugAllAllAction extends Action2 {
 			const handle = testService.subscribeToDiffs(ExtHostTestingResource.Workspace, folder.uri);
 			try {
 				await waitForAllRoots(handle.collection);
-				// todo: there is a V8 bug here (?!!?!?)
-				// https://twitter.com/ConnorPeet/status/1351703843998846977
-				// if (handle.collection.rootIds.size === 0) {
-				// 	debugger;
-				// }
+
 				for (const root of handle.collection.rootIds) {
 					const node = handle.collection.getNodeById(root);
 					if (node && (this.debug ? node.item.debuggable : node.item.runnable)) {
