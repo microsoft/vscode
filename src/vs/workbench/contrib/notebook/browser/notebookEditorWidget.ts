@@ -1110,10 +1110,9 @@ export class NotebookEditorWidget extends Disposable implements INotebookEditor 
 				if (this._webview?.markdownPreviewMapping) {
 					const updateItems: { id: string, top: number }[] = [];
 					this._webview!.markdownPreviewMapping.forEach(cellId => {
-						const cell = this.viewModel?.viewCells.find(cell => cell.id === cellId)
+						const cell = this.viewModel?.viewCells.find(cell => cell.id === cellId);
 						if (cell) {
 							const cellTop = this._list.getAbsoluteTopOfElement(cell);
-							// console.log(cellId, cellTop);
 							updateItems.push({ id: cellId, top: cellTop });
 						}
 					});
