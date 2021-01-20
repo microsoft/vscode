@@ -3,18 +3,17 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { debounce } from 'vs/base/common/decorators';
 import { Emitter } from 'vs/base/common/event';
-import { Disposable, IDisposable, toDisposable } from 'vs/base/common/lifecycle';
+import { Disposable, DisposableStore, IDisposable, toDisposable } from 'vs/base/common/lifecycle';
 import { createDecorator, IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { IWorkspaceContextService, IWorkspaceFolder, IWorkspaceFoldersChangeEvent } from 'vs/platform/workspace/common/workspace';
 import { ExtHostTestingResource } from 'vs/workbench/api/common/extHost.protocol';
-import { AbstractIncrementalTestCollection, IncrementalChangeCollector, IncrementalTestCollectionItem, InternalTestItem, TestsDiff } from 'vs/workbench/contrib/testing/common/testCollection';
-import { ITestService } from 'vs/workbench/contrib/testing/common/testService';
+import { IncrementalTestCollectionItem, TestsDiff } from 'vs/workbench/contrib/testing/common/testCollection';
+import { IMainThreadTestCollection, ITestService } from 'vs/workbench/contrib/testing/common/testService';
 
 export interface ITestSubscriptionFolder {
 	folder: IWorkspaceFolder;
-	getChildren(): Iterable<ITestSubscriptionItem>;
+	getChildren(): Iterable<IncrementalTestCollectionItem>;
 }
 
 export interface ITestSubscriptionItem extends IncrementalTestCollectionItem {
@@ -27,10 +26,6 @@ export class TestSubscriptionListener extends Disposable {
 
 	public readonly onDiff = this.onDiffEmitter.event;
 	public readonly onFolderChange = this.onFolderChangeEmitter.event;
-
-	public get testCount() {
-		return this.subscription.testCount;
-	}
 
 	public get workspaceFolders() {
 		return this.subscription.workspaceFolders;
@@ -57,20 +52,8 @@ export class TestSubscriptionListener extends Disposable {
 /**
  * Maintains an observable set of tests in the core.
  */
-export interface ITestingCollectionService {
+export interface IWorkspaceTestCollectionService {
 	readonly _serviceBrand: undefined;
-
-	/**
-	 * Gets the current tests. Will only be non-zero if there's at least one
-	 * active subscriber/
-	 */
-	readonly count: number;
-
-	/**
-	 * Gets a test by ID if it exists in the collection. This is *not* guarenteed
-	 * and will only include workspace tests.
-	 */
-	getTestById(id: string): ITestSubscriptionItem | undefined;
 
 	/**
 	 * Gets all workspace folders we're listening to.
@@ -83,9 +66,9 @@ export interface ITestingCollectionService {
 	subscribeToWorkspaceTests(): TestSubscriptionListener;
 }
 
-export const ITestingCollectionService = createDecorator<ITestingCollectionService>('ITestingViewService');
+export const IWorkspaceTestCollectionService = createDecorator<IWorkspaceTestCollectionService>('ITestingViewService');
 
-export class TestingCollectionService implements ITestingCollectionService {
+export class WorkspaceTestCollectionService implements IWorkspaceTestCollectionService {
 	declare _serviceBrand: undefined;
 
 	private subscription?: TestSubscription;
@@ -95,32 +78,6 @@ export class TestingCollectionService implements ITestingCollectionService {
 	}
 
 	constructor(@IInstantiationService protected instantiationService: IInstantiationService) { }
-
-	/**
-	 * @inheritdoc
-	 */
-	public get count() {
-		return this.subscription?.testCount || 0;
-	}
-
-	/**
-	 * @inheritdoc
-	 */
-	public getTestById(id: string) {
-		const collections = this.subscription?.workspaceFolderCollections;
-		if (!collections) {
-			return undefined;
-		}
-
-		for (const [, collection] of collections) {
-			const test = collection.getNodeById(id);
-			if (test) {
-				return test;
-			}
-		}
-
-		return undefined;
-	}
 
 	/**
 	 * @inheritdoc
@@ -137,33 +94,47 @@ export class TestingCollectionService implements ITestingCollectionService {
 
 			this.subscription.removeListener(listener);
 			if (this.subscription.listenerCount === 0) {
-				this.debounceDispose();
+				this.subscription.dispose();
+				this.subscription = undefined;
 			}
 		});
 
 		this.subscription.addListener(listener);
 		return listener;
 	}
-
-	@debounce(10_0000)
-	private debounceDispose() {
-		if (this.subscription && this.subscription.listenerCount === 0) {
-			this.subscription.dispose();
-			this.subscription = undefined;
-		}
-	}
 }
 
 
 class TestSubscription extends Disposable {
 	private listeners = new Set<TestSubscriptionListener>();
+	private pendingRootChangeEmitter = new Emitter<number>();
+	private busyProvidersChangeEmitter = new Emitter<number>();
 	private readonly collectionsForWorkspaces = new Map<string, {
 		listener: IDisposable,
 		folder: ITestSubscriptionFolder,
-		collection: TestCollection,
+		collection: IMainThreadTestCollection,
 	}>();
 
-	public testCount = 0;
+	public readonly onPendingRootProvidersChange = this.pendingRootChangeEmitter.event;
+	public readonly onBusyProvidersChange = this.busyProvidersChangeEmitter.event;
+
+	public get busyProviders() {
+		let total = 0;
+		for (const { collection } of this.collectionsForWorkspaces.values()) {
+			total += collection.busyProviders;
+		}
+
+		return total;
+	}
+
+	public get pendingRootProviders() {
+		let total = 0;
+		for (const { collection } of this.collectionsForWorkspaces.values()) {
+			total += collection.pendingRootProviders;
+		}
+
+		return total;
+	}
 
 	public get listenerCount() {
 		return this.listeners.size;
@@ -224,8 +195,8 @@ class TestSubscription extends Disposable {
 		const folderNode: ITestSubscriptionFolder = {
 			folder,
 			getChildren: function* () {
-				for (const rootId of collection.rootNodes) {
-					const node = collection.getNodeById(rootId);
+				for (const rootId of listener.collection.rootIds) {
+					const node = listener.collection.getNodeById(rootId);
 					if (node) {
 						yield node;
 					}
@@ -233,50 +204,28 @@ class TestSubscription extends Disposable {
 			},
 		};
 
-		const collection = new TestCollection(folderNode, {
-			add: () => {
-				this.testCount++;
-			},
-			remove: () => {
-				this.testCount--;
-			},
-			update: () => undefined,
-			complete: () => undefined,
-		});
-
 		const listener = this.testService.subscribeToDiffs(
 			ExtHostTestingResource.Workspace,
 			folder.uri,
 			diff => {
-				collection.apply(diff);
 				for (const listener of this.listeners) {
 					listener.publishDiff(folder, diff);
 				}
 			},
 		);
 
-		this.collectionsForWorkspaces.set(folder.uri.toString(), { listener, collection, folder: folderNode });
-	}
-}
+		const disposable = new DisposableStore();
+		disposable.add(listener);
+		disposable.add(listener.collection.onBusyProvidersChange(
+			() => this.pendingRootChangeEmitter.fire(this.pendingRootProviders)));
+		disposable.add(listener.collection.onBusyProvidersChange(
+			() => this.busyProvidersChangeEmitter.fire(this.busyProviders)));
 
-class TestCollection extends AbstractIncrementalTestCollection<ITestSubscriptionItem> {
-	constructor(private readonly workspace: ITestSubscriptionFolder, private readonly collector: IncrementalChangeCollector<ITestSubscriptionItem>) {
-		super();
-	}
 
-	public get rootNodes() {
-		return this.roots;
-	}
-
-	public getNodeById(id: string) {
-		return this.items.get(id);
-	}
-
-	protected createChangeCollector() {
-		return this.collector;
-	}
-
-	protected createItem(internal: InternalTestItem): ITestSubscriptionItem {
-		return { ...internal, root: this.workspace, children: new Set<string>() };
+		this.collectionsForWorkspaces.set(folder.uri.toString(), {
+			listener: disposable,
+			collection: listener.collection,
+			folder: folderNode,
+		});
 	}
 }

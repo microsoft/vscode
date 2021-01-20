@@ -34,7 +34,6 @@ import { IProgressService } from 'vs/platform/progress/common/progress';
 import { IStorageService, StorageScope, StorageTarget } from 'vs/platform/storage/common/storage';
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
 import { IThemeService, ThemeIcon } from 'vs/platform/theme/common/themeService';
-import { ExtHostTestingResource } from 'vs/workbench/api/common/extHost.protocol';
 import { TestRunState } from 'vs/workbench/api/common/extHostTypes';
 import { IResourceLabel, IResourceLabelOptions, IResourceLabelProps, ResourceLabels } from 'vs/workbench/browser/labels';
 import { ViewPane } from 'vs/workbench/browser/parts/views/viewPane';
@@ -52,7 +51,7 @@ import { cmpPriority, isFailedState } from 'vs/workbench/contrib/testing/browser
 import { TestingExplorerFilter, TestingFilterState } from 'vs/workbench/contrib/testing/browser/testingExplorerFilter';
 import { TestingOutputPeekController } from 'vs/workbench/contrib/testing/browser/testingOutputPeek';
 import { TestExplorerViewGrouping, TestExplorerViewMode } from 'vs/workbench/contrib/testing/common/constants';
-import { ITestingCollectionService, TestSubscriptionListener } from 'vs/workbench/contrib/testing/common/testingCollectionService';
+import { IWorkspaceTestCollectionService, TestSubscriptionListener } from 'vs/workbench/contrib/testing/common/workspaceTestCollectionService';
 import { TestingContextKeys } from 'vs/workbench/contrib/testing/common/testingContextKeys';
 import { ITestService } from 'vs/workbench/contrib/testing/common/testService';
 import { IEditorService } from 'vs/workbench/services/editor/common/editorService';
@@ -68,7 +67,7 @@ export class TestingExplorerView extends ViewPane {
 
 	constructor(
 		options: IViewletViewOptions,
-		@ITestingCollectionService private readonly testCollection: ITestingCollectionService,
+		@IWorkspaceTestCollectionService private readonly testCollection: IWorkspaceTestCollectionService,
 		@ITestService private readonly testService: ITestService,
 		@IProgressService private readonly progress: IProgressService,
 		@IContextMenuService contextMenuService: IContextMenuService,
@@ -106,13 +105,6 @@ export class TestingExplorerView extends ViewPane {
 		this.viewModel = this.instantiationService.createInstance(TestingExplorerViewModel, listContainer, this.onDidChangeBodyVisibility, this.currentSubscription, this.filterState);
 		this._register(this.viewModel);
 
-		this.updateProgressIndicator();
-		this._register(this.testService.onBusyStateChange(t => {
-			if (t.resource === ExtHostTestingResource.Workspace && t.busy !== (!!this.finishDiscovery)) {
-				this.updateProgressIndicator();
-			}
-		}));
-
 		this.getProgressIndicator().show(true);
 
 		this._register(this.onDidChangeBodyVisibility(visible => {
@@ -135,8 +127,7 @@ export class TestingExplorerView extends ViewPane {
 		this.filter.saveState();
 	}
 
-	private updateProgressIndicator() {
-		const busy = Iterable.some(this.testService.busyTestLocations, s => s.resource === ExtHostTestingResource.Workspace);
+	private updateProgressIndicator(busy: number) {
 		if (!busy && this.finishDiscovery) {
 			this.finishDiscovery();
 			this.finishDiscovery = undefined;
@@ -156,7 +147,9 @@ export class TestingExplorerView extends ViewPane {
 	}
 
 	private createSubscription() {
-		return this.testCollection.subscribeToWorkspaceTests();
+		const handle = this.testCollection.subscribeToWorkspaceTests();
+		handle.subscription.onBusyProvidersChange(() => this.updateProgressIndicator(handle.subscription.busyProviders));
+		return handle;
 	}
 }
 
@@ -307,6 +300,13 @@ export class TestingExplorerViewModel extends Disposable {
 
 		this.tree.setFocus([item]);
 		this.tree.setSelection([item]);
+	}
+
+	/**
+	 * Collapse all items in the tree.
+	 */
+	public async collapseAll() {
+		this.tree.collapseAll();
 	}
 
 	/**

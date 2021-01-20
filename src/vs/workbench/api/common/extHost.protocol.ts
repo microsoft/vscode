@@ -1839,7 +1839,6 @@ export interface MainThreadTestingShape {
 	$unsubscribeFromDiffs(resource: ExtHostTestingResource, uri: UriComponents): void;
 	$publishDiff(resource: ExtHostTestingResource, uri: UriComponents, diff: TestsDiff): void;
 	$runTests(req: RunTestsRequest, token: CancellationToken): Promise<RunTestsResult>;
-	$updateDiscoveringCount(resource: ExtHostTestingResource, uri: UriComponents, delta: number): void;
 }
 
 // --- proxy identifiers
