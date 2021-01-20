@@ -1448,14 +1448,26 @@ export class SearchView extends ViewPane {
 
 				if (!completed) {
 					message = SEARCH_CANCELLED_MESSAGE;
-				} else if (hasIncludes && hasExcludes) {
-					message = nls.localize('noResultsIncludesExcludes', "No results found in '{0}' excluding '{1}' - ", includePatternText, excludePatternText);
-				} else if (hasIncludes) {
-					message = nls.localize('noResultsIncludes', "No results found in '{0}' - ", includePatternText);
-				} else if (hasExcludes) {
-					message = nls.localize('noResultsExcludes', "No results found excluding '{0}' - ", excludePatternText);
+				} else if (this.inputPatternIncludes.onlySearchInOpenEditors()) {
+					if (hasIncludes && hasExcludes) {
+						message = nls.localize('noOpenEditorResultsIncludesExcludes', "No results found in open editors matching '{0}' excluding '{1}' - ", includePatternText, excludePatternText);
+					} else if (hasIncludes) {
+						message = nls.localize('noOpenEditorResultsIncludes', "No results found in open editors matching '{0}' - ", includePatternText);
+					} else if (hasExcludes) {
+						message = nls.localize('noOpenEditorResultsExcludes', "No results found in open editors excluding '{0}' - ", excludePatternText);
+					} else {
+						message = nls.localize('noOpenEditorResultsFound', "No results found in open editors. Review your settings for configured exclusions and check your gitignore files - ");
+					}
 				} else {
-					message = nls.localize('noResultsFound', "No results found. Review your settings for configured exclusions and check your gitignore files - ");
+					if (hasIncludes && hasExcludes) {
+						message = nls.localize('noResultsIncludesExcludes', "No results found in '{0}' excluding '{1}' - ", includePatternText, excludePatternText);
+					} else if (hasIncludes) {
+						message = nls.localize('noResultsIncludes', "No results found in '{0}' - ", includePatternText);
+					} else if (hasExcludes) {
+						message = nls.localize('noResultsExcludes', "No results found excluding '{0}' - ", excludePatternText);
+					} else {
+						message = nls.localize('noResultsFound', "No results found. Review your settings for configured exclusions and check your gitignore files - ");
+					}
 				}
 
 				// Indicate as status to ARIA
