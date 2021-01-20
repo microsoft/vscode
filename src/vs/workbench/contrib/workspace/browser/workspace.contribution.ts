@@ -25,6 +25,9 @@ import { WorkbenchStateContext } from 'vs/workbench/browser/contextkeys';
 
 const workspaceTrustIcon = registerIcon('workspace-trust-icon', Codicon.shield, localize('workspaceTrustIcon', "Icon for workspace trust badge."));
 
+/*
+ * Trust Request UX Handler
+ */
 export class WorkspaceTrustRequestHandler extends Disposable implements IWorkbenchContribution {
 	private readonly requestModel = this.trustedWorkspaceService.requestModel;
 	private readonly badgeDisposable = this._register(new MutableDisposable());
@@ -86,6 +89,61 @@ export class WorkspaceTrustRequestHandler extends Disposable implements IWorkben
 
 Registry.as<IWorkbenchContributionsRegistry>(WorkbenchExtensions.Workbench).registerWorkbenchContribution(WorkspaceTrustRequestHandler, LifecyclePhase.Ready);
 
+/*
+ * Status Bar Entry
+ */
+class TrustedWorkspaceStatusbarItem extends Disposable implements IWorkbenchContribution {
+	private static readonly ID = 'status.trustedWorkspace';
+	private readonly statusBarEntryAccessor: MutableDisposable<IStatusbarEntryAccessor>;
+
+	constructor(
+		@IStatusbarService private statusbarService: IStatusbarService,
+		@ITrustedWorkspaceService private trustedWorkspaceService: ITrustedWorkspaceService
+	) {
+		super();
+
+		const entry = this.getStatusbarEntry(this.trustedWorkspaceService.getWorkspaceTrustState());
+		this.statusBarEntryAccessor = this._register(new MutableDisposable<IStatusbarEntryAccessor>());
+		this.statusBarEntryAccessor.value = this.statusbarService.addEntry(entry, TrustedWorkspaceStatusbarItem.ID, localize('status.trrustedWorkspace', "Workspace Trust"), StatusbarAlignment.RIGHT, 1);
+
+		this._register(this.trustedWorkspaceService.onDidChangeTrust(state => this.updateStatusbarEntry(state)));
+	}
+
+	private getStatusbarEntry(state: TrustState): IStatusbarEntry {
+		const text = (state === TrustState.Untrusted)
+			? 'UNTRUSTED' : (state === TrustState.Trusted ? 'TRUSTED' : 'UNKNOWN');
+
+		return {
+			text: `$(shield) ${text}`,
+			ariaLabel: localize('status.trustedWorkspace', "Workspace Trust"),
+			tooltip: localize('status.trustedWorkspace', "Workspace Trust"),
+			backgroundColor: state === TrustState.Untrusted ? new ThemeColor('statusBarItem.errorBackground') : 'transparent',
+			command: 'workbench.trust.require'
+		};
+	}
+
+	private updateStatusbarEntry(state: ITrustedWorkspaceChangeModel): void {
+		this.statusBarEntryAccessor.value?.update(this.getStatusbarEntry(state.currentState));
+		this.statusbarService.updateEntryVisibility(TrustedWorkspaceStatusbarItem.ID, state.currentState === TrustState.Untrusted);
+	}
+}
+
+Registry.as<IWorkbenchContributionsRegistry>(WorkbenchExtensions.Workbench).registerWorkbenchContribution(
+	TrustedWorkspaceStatusbarItem,
+	LifecyclePhase.Starting
+);
+
+/*
+ * Trusted Workspace JSON Editor
+ */
+Registry.as<IWorkbenchContributionsRegistry>(WorkbenchExtensions.Workbench).registerWorkbenchContribution(
+	TrustedWorkspacesFileSystemProvider,
+	LifecyclePhase.Ready
+);
+
+/*
+ * Actions
+ */
 registerAction2(class extends Action2 {
 	constructor() {
 		super({
@@ -223,49 +281,3 @@ registerAction2(class extends Action2 {
 		return;
 	}
 });
-
-class TrustedWorkspaceStatusbarItem extends Disposable implements IWorkbenchContribution {
-	private static readonly ID = 'status.trustedWorkspace';
-	private readonly statusBarEntryAccessor: MutableDisposable<IStatusbarEntryAccessor>;
-
-	constructor(
-		@IStatusbarService private statusbarService: IStatusbarService,
-		@ITrustedWorkspaceService private trustedWorkspaceService: ITrustedWorkspaceService
-	) {
-		super();
-
-		const entry = this.getStatusbarEntry(this.trustedWorkspaceService.getWorkspaceTrustState());
-		this.statusBarEntryAccessor = this._register(new MutableDisposable<IStatusbarEntryAccessor>());
-		this.statusBarEntryAccessor.value = this.statusbarService.addEntry(entry, TrustedWorkspaceStatusbarItem.ID, localize('status.trrustedWorkspace', "Workspace Trust"), StatusbarAlignment.RIGHT, 1);
-
-		this._register(this.trustedWorkspaceService.onDidChangeTrust(state => this.updateStatusbarEntry(state)));
-	}
-
-	private getStatusbarEntry(state: TrustState): IStatusbarEntry {
-		const text = (state === TrustState.Untrusted)
-			? 'UNTRUSTED' : (state === TrustState.Trusted ? 'TRUSTED' : 'UNKNOWN');
-
-		return {
-			text: `$(shield) ${text}`,
-			ariaLabel: localize('status.trustedWorkspace', "Workspace Trust"),
-			tooltip: localize('status.trustedWorkspace', "Workspace Trust"),
-			backgroundColor: state === TrustState.Untrusted ? new ThemeColor('statusBarItem.errorBackground') : 'transparent',
-			command: 'workbench.trust.require'
-		};
-	}
-
-	private updateStatusbarEntry(state: ITrustedWorkspaceChangeModel): void {
-		this.statusBarEntryAccessor.value?.update(this.getStatusbarEntry(state.currentState));
-		this.statusbarService.updateEntryVisibility(TrustedWorkspaceStatusbarItem.ID, state.currentState === TrustState.Untrusted);
-	}
-}
-
-Registry.as<IWorkbenchContributionsRegistry>(WorkbenchExtensions.Workbench).registerWorkbenchContribution(
-	TrustedWorkspaceStatusbarItem,
-	LifecyclePhase.Starting
-);
-
-Registry.as<IWorkbenchContributionsRegistry>(WorkbenchExtensions.Workbench).registerWorkbenchContribution(
-	TrustedWorkspacesFileSystemProvider,
-	LifecyclePhase.Ready
-);
