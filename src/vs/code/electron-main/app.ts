@@ -270,6 +270,7 @@ export class CodeApplication extends Disposable {
 
 		//#region Bootstrap IPC Handlers
 
+		let slowShellResolveWarningShown = false;
 		ipcMain.on('vscode:fetchShellEnv', async event => {
 
 			// DO NOT remove: not only usual windows are fetching the
@@ -293,11 +294,18 @@ export class CodeApplication extends Disposable {
 			}
 
 			// Handle slow shell environment resolve calls:
-			// - a warning after 3s but continue to resolve
-			// - an error after 10s and stop trying to resolve
-			const window = this.windowsMainService?.getWindowByWebContents(event.sender); // Note: this can be `undefined` for the shared process!!
+			// - a warning after 3s but continue to resolve (only once in active window)
+			// - an error after 10s and stop trying to resolve (in every window where this happens)
 			const cts = new CancellationTokenSource();
-			const shellEnvSlowWarningHandle = setTimeout(() => window?.sendWhenReady('vscode:showShellEnvSlowWarning', cts.token), 3000);
+
+			const shellEnvSlowWarningHandle = setTimeout(() => {
+				if (!slowShellResolveWarningShown) {
+					this.windowsMainService?.sendToFocused('vscode:showShellEnvSlowWarning', cts.token);
+					slowShellResolveWarningShown = true;
+				}
+			}, 3000);
+
+			const window = this.windowsMainService?.getWindowByWebContents(event.sender); // Note: this can be `undefined` for the shared process!!
 			const shellEnvTimeoutErrorHandle = setTimeout(() => {
 				cts.dispose(true);
 				window?.sendWhenReady('vscode:showShellEnvTimeoutError', CancellationToken.None);
