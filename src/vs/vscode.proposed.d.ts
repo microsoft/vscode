@@ -2507,57 +2507,7 @@ declare module 'vscode' {
 		export function openExternal(target: Uri, options?: OpenExternalOptions): Thenable<boolean>;
 	}
 
-	//#endregion
-
-	//#region https://github.com/microsoft/vscode/issues/112249
-
-	/**
-	 * The event data that is fired when a secret is added or removed.
-	 */
-	export interface SecretStorageChangeEvent {
-		/**
-		 * The key of the secret that has changed.
-		 */
-		readonly key: string;
-	}
-
-	/**
-	 * Represents a storage utility for secrets, information that is
-	 * sensitive.
-	 */
-	export interface SecretStorage {
-		/**
-		 * Retrieve a secret that was stored with key. Returns undefined if there
-		 * is no password matching that key.
-		 * @param key The key the password was stored under.
-		 * @returns The stored value or `undefined`.
-		 */
-		get(key: string): Thenable<string | undefined>;
-
-		/**
-		 * Store a secret under a given key.
-		 * @param key The key to store the password under.
-		 * @param value The password.
-		 */
-		store(key: string, value: string): Thenable<void>;
-
-		/**
-		 * Remove a secret from storage.
-		 * @param key The key the password was stored under.
-		 */
-		delete(key: string): Thenable<void>;
-
-		/**
-		 * Fires when a secret is set or deleted.
-		 */
-		onDidChange: Event<SecretStorageChangeEvent>;
-	}
-
-	export interface ExtensionContext {
-		readonly secrets: SecretStorage;
-	}
-
-	//#endregion
+	//#endregionn
 
 	//#region https://github.com/Microsoft/vscode/issues/15178
 
