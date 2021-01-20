@@ -13,5 +13,6 @@
 **/extensions/**/out/**
 **/extensions/**/build/**
 **/extensions/markdown-language-features/media/**
+**/extensions/markdown-language-features/notebook-out/**
 **/extensions/typescript-basics/test/colorize-fixtures/**
 **/extensions/**/dist/**

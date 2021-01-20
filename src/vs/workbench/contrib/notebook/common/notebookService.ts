@@ -18,6 +18,7 @@ import { NotebookCellTextModel } from 'vs/workbench/contrib/notebook/common/mode
 import { IDisposable } from 'vs/base/common/lifecycle';
 import { NotebookOutputRendererInfo } from 'vs/workbench/contrib/notebook/common/notebookOutputRenderer';
 import { IRelativePattern } from 'vs/base/common/glob';
+import { NotebookMarkdownRendererInfo } from 'vs/workbench/contrib/notebook/common/notebookMarkdownRenderer';
 
 
 export const INotebookService = createDecorator<INotebookService>('notebookService');
@@ -56,6 +57,7 @@ export interface INotebookService {
 	getContributedNotebookKernelProviders(): Promise<INotebookKernelProvider[]>;
 	getContributedNotebookOutputRenderers(id: string): NotebookOutputRendererInfo | undefined;
 	getRendererInfo(id: string): INotebookRendererInfo | undefined;
+	getMarkdownRendererInfo(): NotebookMarkdownRendererInfo | undefined;
 
 	resolveNotebook(viewType: string, uri: URI, forceReload: boolean, backupId?: string): Promise<NotebookTextModel>;
 	getNotebookTextModel(uri: URI): NotebookTextModel | undefined;
