@@ -2558,4 +2558,21 @@ declare module 'vscode' {
 	}
 
 	//#endregion
+
+	//#region https://github.com/Microsoft/vscode/issues/15178
+
+	// TODO@API must be a class
+	export interface OpenEditorInfo {
+		name: string;
+		resource: Uri;
+	}
+
+	export namespace window {
+		export const openEditors: ReadonlyArray<OpenEditorInfo>;
+
+		// todo@API proper event type
+		export const onDidChangeOpenEditors: Event<void>;
+	}
+
+	//#endregion
 }
