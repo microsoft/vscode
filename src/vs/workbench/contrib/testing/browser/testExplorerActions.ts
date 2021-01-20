@@ -226,7 +226,7 @@ export class RunAllAction extends RunOrDebugAllAllAction {
 		super(
 			'testing.runAll',
 			localize('runAllTests', 'Run All Tests'),
-			icons.testingDebugIcon,
+			icons.testingRunIcon,
 			false,
 			localize('noTestProvider', 'No tests found in this workspace. You may need to install a test provider extension'),
 		);
