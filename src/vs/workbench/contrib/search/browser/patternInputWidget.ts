@@ -218,7 +218,7 @@ export class IncludePatternInputWidget extends PatternInputWidget {
 	protected renderSubcontrols(controlsDiv: HTMLDivElement): void {
 		this.useSearchInEditorsBox = this._register(new Checkbox({
 			icon: Codicon.book,
-			title: nls.localize('onlySearchInOpenEditors', "Search Only in Open Editors"),
+			title: nls.localize('onlySearchInOpenEditors', "Search only in Open Editors"),
 			isChecked: false,
 		}));
 		if (!this.configurationService.getValue<ISearchConfiguration>().search?.experimental?.searchInOpenEditors) {

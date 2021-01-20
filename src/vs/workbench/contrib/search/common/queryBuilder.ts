@@ -175,7 +175,7 @@ export class QueryBuilder {
 
 		const queryProps: ICommonQueryProps<uri> = {
 			_reason: options._reason,
-			folderQueries,
+			folderQueries: options.onlyOpenEditors ? [] : folderQueries,
 			usingSearchPaths: !!(includeSearchPathsInfo.searchPaths && includeSearchPathsInfo.searchPaths.length),
 			extraFileResources: options.extraFileResources,
 
@@ -188,22 +188,14 @@ export class QueryBuilder {
 		if (options.onlyOpenEditors) {
 			const openEditors = arrays.coalesce(arrays.flatten(this.editorGroupsService.groups.map(group => group.editors.map(editor => editor.resource))));
 			const openEditorsInQuery = openEditors.filter(editor => pathIncludedInQuery(queryProps, editor.fsPath));
-			const openEditorIncludes = openEditorsInQuery.map(editor => {
-				const workspace = this.workspaceContextService.getWorkspaceFolder(editor);
-				if (workspace) {
-					const relPath = path.relative(workspace?.uri.fsPath, editor.fsPath);
-					return includeFolderName ? `./${workspace.name}/${relPath}` : `./${relPath}`;
-				}
-				else {
-					return editor.fsPath.replace(/^\//, '');
-				}
-			});
-			// return this.commonQuery(folderResources, { ...options, expandPatterns: false, onlyOpenEditors: false, includePattern: openEditorIncludes.join(', ') });
+			queryProps.extraFileResources = openEditorsInQuery;
+			queryProps.folderQueries = [];
 		}
-
-		// Filter extraFileResources against global include/exclude patterns - they are already expected to not belong to a workspace
-		const extraFileResources = options.extraFileResources && options.extraFileResources.filter(extraFile => pathIncludedInQuery(queryProps, extraFile.fsPath));
-		queryProps.extraFileResources = extraFileResources && extraFileResources.length ? extraFileResources : undefined;
+		else {
+			// Filter extraFileResources against global include/exclude patterns - they are already expected to not belong to a workspace
+			const extraFileResources = options.extraFileResources && options.extraFileResources.filter(extraFile => pathIncludedInQuery(queryProps, extraFile.fsPath));
+			queryProps.extraFileResources = extraFileResources && extraFileResources.length ? extraFileResources : undefined;
+		}
 
 		return queryProps;
 	}
