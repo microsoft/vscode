@@ -57,7 +57,6 @@ const compilations = [
 	'microsoft-authentication/tsconfig.json',
 	'npm/tsconfig.json',
 	'php-language-features/tsconfig.json',
-	'python/tsconfig.json',
 	'search-result/tsconfig.json',
 	'simple-browser/tsconfig.json',
 	'testing-editor-contributions/tsconfig.json',
