@@ -80,7 +80,7 @@ export class WorkspaceTrustRequestHandler extends Disposable implements IWorkben
 		}));
 
 		this._register(this.requestModel.onDidCompleteRequest(trustState => {
-			if (trustState !== TrustState.Unknown) {
+			if (trustState !== undefined && trustState !== TrustState.Unknown) {
 				this.toggleRequestBadge(false);
 			}
 		}));
@@ -144,6 +144,8 @@ Registry.as<IWorkbenchContributionsRegistry>(WorkbenchExtensions.Workbench).regi
 /*
  * Actions
  */
+
+// Grant Workspace Trust
 registerAction2(class extends Action2 {
 	constructor() {
 		super({
@@ -153,21 +155,37 @@ registerAction2(class extends Action2 {
 				value: localize('grantTrustWorkspace', "Grant Workspace Trust")
 			},
 			category: localize('workspacesCategory', "Workspaces"),
+			f1: true,
+			precondition: TrustedWorkspaceContext.TrustState.isEqualTo(TrustState.Trusted).negate(),
 			menu: {
 				id: MenuId.GlobalActivity,
 				when: TrustedWorkspaceContext.IsPendingRequest,
+				group: '7_trust',
 				order: 10
 			},
 		});
 	}
 
-	run(accessor: ServicesAccessor) {
+	async run(accessor: ServicesAccessor) {
+		const dialogService = accessor.get(IDialogService);
 		const workspaceTrustService = accessor.get(ITrustedWorkspaceService);
-		workspaceTrustService.requestModel.completeRequest(TrustState.Trusted);
+
+		const result = await dialogService.confirm({
+			message: localize('grantTrustWorkspace', "Grant Workspace Trust"),
+			detail: localize('confirmGrantWorkspaceTrust', "Granting trust to the workspace will enable features that may pose a security risk if the contents of the workspace cannot be trusted. Are you sure you want to trust this workspace?"),
+			primaryButton: localize('yes', 'Yes'),
+			secondaryButton: localize('no', 'No')
+		});
+
+		if (result.confirmed) {
+			workspaceTrustService.requestModel.completeRequest(TrustState.Trusted);
+		}
+
 		return;
 	}
 });
 
+// Deny Workspace Trust
 registerAction2(class extends Action2 {
 	constructor() {
 		super({
@@ -177,45 +195,36 @@ registerAction2(class extends Action2 {
 				value: localize('denyTrustWorkspace', "Deny Workspace Trust")
 			},
 			category: localize('workspacesCategory', "Workspaces"),
+			f1: true,
+			precondition: TrustedWorkspaceContext.TrustState.isEqualTo(TrustState.Untrusted).negate(),
 			menu: {
 				id: MenuId.GlobalActivity,
 				when: TrustedWorkspaceContext.IsPendingRequest,
+				group: '7_trust',
 				order: 20
 			},
 		});
 	}
 
-	run(accessor: ServicesAccessor) {
+	async run(accessor: ServicesAccessor) {
+		const dialogService = accessor.get(IDialogService);
 		const workspaceTrustService = accessor.get(ITrustedWorkspaceService);
-		workspaceTrustService.requestModel.completeRequest(TrustState.Untrusted);
-		return;
-	}
-});
 
-registerAction2(class extends Action2 {
-	constructor() {
-		super({
-			id: 'workbench.trust.revoke',
-			title: {
-				original: 'Revoke Workspace Trust',
-				value: localize('revoke', "Revoke Workspace Trust")
-			},
-			category: localize('workspacesCategory', "Workspaces"),
-			menu: {
-				id: MenuId.GlobalActivity,
-				when: ContextKeyExpr.and(WorkbenchStateContext.isEqualTo('empty').negate(), TrustedWorkspaceContext.IsPendingRequest.negate(), TrustedWorkspaceContext.TrustState.isEqualTo(TrustState.Trusted)),
-				order: 30
-			}
+		const result = await dialogService.confirm({
+			message: localize('denyTrustWorkspace', "Deny Workspace Trust"),
+			detail: localize('confirmDenyWorkspaceTrust', "Denying trust to the workspace will disable features that may pose a security risk if the contents of the workspace cannot be trusted. Are you sure you want to deny trust to this workspace?"),
+			primaryButton: localize('yes', 'Yes'),
+			secondaryButton: localize('no', 'No')
 		});
-	}
 
-	run(accessor: ServicesAccessor) {
-		const workspaceTrustService = accessor.get(ITrustedWorkspaceService);
-		workspaceTrustService.resetWorkspaceTrust();
+		if (result.confirmed) {
+			workspaceTrustService.requestModel.completeRequest(TrustState.Untrusted);
+		}
 		return;
 	}
 });
 
+// Reset Workspace Trust
 registerAction2(class extends Action2 {
 	constructor() {
 		super({
@@ -225,21 +234,31 @@ registerAction2(class extends Action2 {
 				value: localize('reset', "Reset Workspace Trust")
 			},
 			category: localize('workspacesCategory', "Workspaces"),
-			menu: {
-				id: MenuId.GlobalActivity,
-				when: ContextKeyExpr.and(WorkbenchStateContext.isEqualTo('empty').negate(), TrustedWorkspaceContext.IsPendingRequest.negate(), TrustedWorkspaceContext.TrustState.isEqualTo(TrustState.Untrusted)),
-				order: 40
-			}
+			f1: true,
+			precondition: ContextKeyExpr.and(WorkbenchStateContext.isEqualTo('empty').negate(), TrustedWorkspaceContext.TrustState.isEqualTo(TrustState.Unknown).negate())
 		});
 	}
 
-	run(accessor: ServicesAccessor) {
+	async run(accessor: ServicesAccessor) {
+		const dialogService = accessor.get(IDialogService);
 		const workspaceTrustService = accessor.get(ITrustedWorkspaceService);
-		workspaceTrustService.resetWorkspaceTrust();
+
+		const result = await dialogService.confirm({
+			message: localize('reset', "Reset Workspace Trust"),
+			detail: localize('confirmResetWorkspaceTrust', "Resetting workspace trust to the workspace will disable features that may pose a security risk if the contents of the workspace cannot be trusted. Are you sure you want to reset trust this workspace?"),
+			primaryButton: localize('yesGrant', 'Yes'),
+			secondaryButton: localize('noGrant', 'No')
+		});
+
+		if (result.confirmed) {
+			workspaceTrustService.resetWorkspaceTrust();
+		}
+
 		return;
 	}
 });
 
+// Manage Workspace Trust
 registerAction2(class extends Action2 {
 	constructor() {
 		super({
@@ -251,7 +270,8 @@ registerAction2(class extends Action2 {
 			category: localize('workspacesCategory', "Workspaces"),
 			menu: {
 				id: MenuId.GlobalActivity,
-				order: 50
+				group: '7_trust',
+				order: 40
 			},
 		});
 	}
@@ -263,11 +283,13 @@ registerAction2(class extends Action2 {
 	}
 });
 
+// Require Workspace Trust
 registerAction2(class extends Action2 {
 	constructor() {
 		super({
 			id: 'workbench.trust.require',
-			title: 'Require Workspace Trust'
+			title: 'Require Workspace Trust',
+			f1: true
 		});
 	}
 

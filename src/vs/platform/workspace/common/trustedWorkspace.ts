@@ -284,24 +284,21 @@ export class TrustedWorkspaceService extends Disposable implements ITrustedWorks
 	}
 
 	private onTrustRequestCompleted(trustState?: TrustState): void {
-		if (this._trustRequestPromise === undefined) {
-			return;
+		if (this._inFlightResolver) {
+			this._inFlightResolver(trustState === undefined ? this.currentTrustState : trustState);
 		}
 
-		if (!trustState) {
-			this._inFlightResolver!(this.currentTrustState);
-			this._inFlightResolver = undefined;
-			this._trustRequestPromise = undefined;
-			return;
-		}
-
-		this._inFlightResolver!(trustState);
 		this._inFlightResolver = undefined;
 		this._trustRequestPromise = undefined;
+
+		if (trustState === undefined) {
+			return;
+		}
 
 		this._workspace.folders.forEach(folder => {
 			this.dataModel.setFolderTrustState(folder.uri, trustState);
 		});
+
 		this._ctxTrustedWorkspacePendingRequest.set(false);
 		this._ctxTrustedWorkspaceTrustState.set(trustState);
 	}
