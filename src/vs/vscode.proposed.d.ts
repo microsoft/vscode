@@ -2575,4 +2575,60 @@ declare module 'vscode' {
 	}
 
 	//#endregion
+
+	//#region Workspace Trust (https://github.com/microsoft/vscode/issues/106488)
+
+	export enum WorkspaceTrustState {
+		/**
+		 * The workspace is untrusted, and it will have limited functionality.
+		 */
+		Untrusted = 0,
+
+		/**
+		 * The workspace is trusted, and all functionality will be available.
+		 */
+		Trusted = 1,
+
+		/**
+		 * The initial state of the workspace.
+		 *
+		 * If trust will be required, users will be prompted to make a choice.
+		 */
+		Unknown = 2
+	}
+
+	/**
+	 * The event data that is fired when the trust state of the workspace changes
+	 */
+	export interface WorkspaceTrustStateChangeEvent {
+		/**
+		 * Previous trust state of the workspace
+		 */
+		previousTrustState: WorkspaceTrustState;
+
+		/**
+		 * Current trust state of the workspace
+		 */
+		currentTrustState: WorkspaceTrustState;
+	}
+
+	namespace workspace {
+		/**
+		 * Returns the trust state of the current workspace
+		 */
+		export function getWorkspaceTrustState(): WorkspaceTrustState;
+
+		/**
+		 * Prompt the user to chose whether to trust the current workspace
+		 * @param reason Optional message which would be displayed in the prompt
+		 */
+		export function requireWorkspaceTrust(reason?: string): Promise<WorkspaceTrustState>;
+
+		/**
+		 * Event that fires when the trust state of the current workspace changes
+		 */
+		export const onDidChangeTrustState: Event<WorkspaceTrustStateChangeEvent>;
+	}
+
+	//#endregion
 }
