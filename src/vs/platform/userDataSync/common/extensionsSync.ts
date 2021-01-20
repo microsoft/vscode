@@ -11,7 +11,7 @@ import { Event } from 'vs/base/common/event';
 import { IEnvironmentService } from 'vs/platform/environment/common/environment';
 import { IExtensionManagementService, IExtensionGalleryService, IGlobalExtensionEnablementService, ILocalExtension } from 'vs/platform/extensionManagement/common/extensionManagement';
 import { ExtensionType, IExtensionIdentifier } from 'vs/platform/extensions/common/extensions';
-import { areSameExtensions } from 'vs/platform/extensionManagement/common/extensionManagementUtil';
+import { areSameExtensions, getExtensionId } from 'vs/platform/extensionManagement/common/extensionManagementUtil';
 import { IFileService } from 'vs/platform/files/common/files';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { merge } from 'vs/platform/userDataSync/common/extensionsMerge';
@@ -465,7 +465,7 @@ export class ExtensionsSynchroniser extends AbstractSynchroniser implements IUse
 				try {
 					const keys = this.extensionsStorageSyncService.getKeysForSync({ id: identifier.id, version: manifest.version });
 					if (keys) {
-						const extensionStorageValue = this.storageService.get(identifier.id, StorageScope.GLOBAL) || '{}';
+						const extensionStorageValue = this.storageService.get(getExtensionId(manifest.publisher, manifest.name) /* use the same id used in extension host */, StorageScope.GLOBAL) || '{}';
 						const extensionStorageState = JSON.parse(extensionStorageValue);
 						syncExntesion.state = Object.keys(extensionStorageState).reduce((state: IStringDictionary<any>, key) => {
 							if (keys.includes(key)) {
