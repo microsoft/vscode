@@ -376,26 +376,24 @@ async function tunnelFactory(tunnelOptions: vscode.TunnelOptions, tunnelCreation
 				remoteSocket.pipe(proxySocket);
 				proxySocket.pipe(remoteSocket);
 			});
-			let localPort: number | undefined;
+			let localPort = 0;
 
-			if (tunnelCreationOptions.elevationRequired) {
-				// If elevation is required, we can't use the requeseted local port, because this tunnel factory
-				// only pretends to support elevation for testing purposes
-				localPort = 0;
-			} else if (tunnelOptions.localAddressPort) {
+			if (tunnelOptions.localAddressPort) {
 				// When the tunnelOptions include a localAddressPort, we should use that.
 				// However, the test resolver all runs on one machine, so if the localAddressPort is the same as the remote port,
 				// then we must use a different port number.
-				if (tunnelOptions.localAddressPort === tunnelOptions.remoteAddress.port) {
-					localPort = tunnelOptions.localAddressPort + 1;
-				} else {
-					localPort = tunnelOptions.localAddressPort;
-				}
+				localPort = tunnelOptions.localAddressPort;
 			} else {
-				// Best practice is to use the same remote port as local port when no local port is provided.
-				// However, everything is running on one machine here, so we can't do that.
-				// In this case, we will just increment the port number by 1.
-				localPort = tunnelOptions.remoteAddress.port < 1024 ? 0 : tunnelOptions.remoteAddress.port + 1;
+				localPort = tunnelOptions.remoteAddress.port;
+			}
+
+			if (localPort === tunnelOptions.remoteAddress.port) {
+				localPort += 1;
+			}
+
+			// The test resolver can't actually handle privileged ports, it only pretends to.
+			if (localPort < 1024 && process.platform !== 'win32') {
+				localPort = 0;
 			}
 			proxyServer.listen(localPort, () => {
 				const localPort = (<net.AddressInfo>proxyServer.address()).port;
