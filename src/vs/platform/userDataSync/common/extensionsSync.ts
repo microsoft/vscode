@@ -556,7 +556,7 @@ export class ExtensionsInitializer extends AbstractInitializer {
 		for (const { syncExtension, installedExtension } of installedExtensionsToSync) {
 			if (syncExtension.state) {
 				const extensionState = getExtensionStorageState(installedExtension.manifest.publisher, installedExtension.manifest.name, this.storageService);
-				Object.keys(syncExtension.state).forEach(key => { extensionState[key] = syncExtension.state![key]; });
+				Object.keys(syncExtension.state).forEach(key => extensionState[key] = syncExtension.state![key]);
 				storeExtensionStorageState(installedExtension.manifest.publisher, installedExtension.manifest.name, extensionState, this.storageService);
 			}
 		}
