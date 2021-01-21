@@ -209,11 +209,6 @@ class DocumentSymbolsOutline implements IOutline<DocumentSymbolItem> {
 	}
 
 	async reveal(entry: DocumentSymbolItem, options: IEditorOptions, sideBySide: boolean): Promise<void> {
-		if (entry instanceof OutlineElement) {
-			const position = Range.getStartPosition(entry.symbol.selectionRange);
-			this._editor.revealPositionInCenterIfOutsideViewport(position, ScrollType.Immediate);
-			this._editor.setPosition(position);
-		}
 		const model = OutlineModel.get(entry);
 		if (!model || !(entry instanceof OutlineElement)) {
 			return;

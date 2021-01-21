@@ -335,7 +335,7 @@ export interface IIndentationRuleDto {
 export interface IOnEnterRuleDto {
 	beforeText: IRegExpDto;
 	afterText?: IRegExpDto;
-	oneLineAboveText?: IRegExpDto;
+	previousLineText?: IRegExpDto;
 	action: EnterAction;
 }
 export interface ILanguageConfigurationDto {

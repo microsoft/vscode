@@ -80,8 +80,8 @@ suite('SnippetsService', function () {
 		const model = createTextModel('', undefined, modeService.getLanguageIdentifier('fooLang'));
 
 		return provider.provideCompletionItems(model, new Position(1, 1), context)!.then(result => {
-			assert.equal(result.incomplete, undefined);
-			assert.equal(result.suggestions.length, 2);
+			assert.strictEqual(result.incomplete, undefined);
+			assert.strictEqual(result.suggestions.length, 2);
 		});
 	});
 
@@ -91,14 +91,14 @@ suite('SnippetsService', function () {
 		const model = createTextModel('bar', undefined, modeService.getLanguageIdentifier('fooLang'));
 
 		return provider.provideCompletionItems(model, new Position(1, 4), context)!.then(result => {
-			assert.equal(result.incomplete, undefined);
-			assert.equal(result.suggestions.length, 1);
-			assert.deepEqual(result.suggestions[0].label, {
+			assert.strictEqual(result.incomplete, undefined);
+			assert.strictEqual(result.suggestions.length, 1);
+			assert.deepStrictEqual(result.suggestions[0].label, {
 				name: 'bar',
 				type: 'barTest'
 			});
-			assert.equal((result.suggestions[0].range as any).insert.startColumn, 1);
-			assert.equal(result.suggestions[0].insertText, 'barCodeSnippet');
+			assert.strictEqual((result.suggestions[0].range as any).insert.startColumn, 1);
+			assert.strictEqual(result.suggestions[0].insertText, 'barCodeSnippet');
 		});
 	});
 
@@ -126,48 +126,48 @@ suite('SnippetsService', function () {
 		const model = createTextModel('bar-bar', undefined, modeService.getLanguageIdentifier('fooLang'));
 
 		await provider.provideCompletionItems(model, new Position(1, 3), context)!.then(result => {
-			assert.equal(result.incomplete, undefined);
-			assert.equal(result.suggestions.length, 2);
-			assert.deepEqual(result.suggestions[0].label, {
+			assert.strictEqual(result.incomplete, undefined);
+			assert.strictEqual(result.suggestions.length, 2);
+			assert.deepStrictEqual(result.suggestions[0].label, {
 				name: 'bar',
 				type: 'barTest'
 			});
-			assert.equal(result.suggestions[0].insertText, 's1');
-			assert.equal((result.suggestions[0].range as any).insert.startColumn, 1);
-			assert.deepEqual(result.suggestions[1].label, {
+			assert.strictEqual(result.suggestions[0].insertText, 's1');
+			assert.strictEqual((result.suggestions[0].range as any).insert.startColumn, 1);
+			assert.deepStrictEqual(result.suggestions[1].label, {
 				name: 'bar-bar',
 				type: 'name'
 			});
-			assert.equal(result.suggestions[1].insertText, 's2');
-			assert.equal((result.suggestions[1].range as any).insert.startColumn, 1);
+			assert.strictEqual(result.suggestions[1].insertText, 's2');
+			assert.strictEqual((result.suggestions[1].range as any).insert.startColumn, 1);
 		});
 
 		await provider.provideCompletionItems(model, new Position(1, 5), context)!.then(result => {
-			assert.equal(result.incomplete, undefined);
-			assert.equal(result.suggestions.length, 1);
-			assert.deepEqual(result.suggestions[0].label, {
+			assert.strictEqual(result.incomplete, undefined);
+			assert.strictEqual(result.suggestions.length, 1);
+			assert.deepStrictEqual(result.suggestions[0].label, {
 				name: 'bar-bar',
 				type: 'name'
 			});
-			assert.equal(result.suggestions[0].insertText, 's2');
-			assert.equal((result.suggestions[0].range as any).insert.startColumn, 1);
+			assert.strictEqual(result.suggestions[0].insertText, 's2');
+			assert.strictEqual((result.suggestions[0].range as any).insert.startColumn, 1);
 		});
 
 		await provider.provideCompletionItems(model, new Position(1, 6), context)!.then(result => {
-			assert.equal(result.incomplete, undefined);
-			assert.equal(result.suggestions.length, 2);
-			assert.deepEqual(result.suggestions[0].label, {
+			assert.strictEqual(result.incomplete, undefined);
+			assert.strictEqual(result.suggestions.length, 2);
+			assert.deepStrictEqual(result.suggestions[0].label, {
 				name: 'bar',
 				type: 'barTest'
 			});
-			assert.equal(result.suggestions[0].insertText, 's1');
-			assert.equal((result.suggestions[0].range as any).insert.startColumn, 5);
-			assert.deepEqual(result.suggestions[1].label, {
+			assert.strictEqual(result.suggestions[0].insertText, 's1');
+			assert.strictEqual((result.suggestions[0].range as any).insert.startColumn, 5);
+			assert.deepStrictEqual(result.suggestions[1].label, {
 				name: 'bar-bar',
 				type: 'name'
 			});
-			assert.equal(result.suggestions[1].insertText, 's2');
-			assert.equal((result.suggestions[1].range as any).insert.startColumn, 1);
+			assert.strictEqual(result.suggestions[1].insertText, 's2');
+			assert.strictEqual((result.suggestions[1].range as any).insert.startColumn, 1);
 		});
 	});
 
@@ -186,21 +186,21 @@ suite('SnippetsService', function () {
 
 		let model = createTextModel('\t<?php', undefined, modeService.getLanguageIdentifier('fooLang'));
 		return provider.provideCompletionItems(model, new Position(1, 7), context)!.then(result => {
-			assert.equal(result.suggestions.length, 1);
+			assert.strictEqual(result.suggestions.length, 1);
 			model.dispose();
 
 			model = createTextModel('\t<?', undefined, modeService.getLanguageIdentifier('fooLang'));
 			return provider.provideCompletionItems(model, new Position(1, 4), context)!;
 		}).then(result => {
-			assert.equal(result.suggestions.length, 1);
-			assert.equal((result.suggestions[0].range as any).insert.startColumn, 2);
+			assert.strictEqual(result.suggestions.length, 1);
+			assert.strictEqual((result.suggestions[0].range as any).insert.startColumn, 2);
 			model.dispose();
 
 			model = createTextModel('a<?', undefined, modeService.getLanguageIdentifier('fooLang'));
 			return provider.provideCompletionItems(model, new Position(1, 4), context)!;
 		}).then(result => {
-			assert.equal(result.suggestions.length, 1);
-			assert.equal((result.suggestions[0].range as any).insert.startColumn, 2);
+			assert.strictEqual(result.suggestions.length, 1);
+			assert.strictEqual((result.suggestions[0].range as any).insert.startColumn, 2);
 			model.dispose();
 		});
 	});
@@ -221,10 +221,10 @@ suite('SnippetsService', function () {
 
 		let model = createTextModel('<head>\n\t\n>/head>', undefined, modeService.getLanguageIdentifier('fooLang'));
 		return provider.provideCompletionItems(model, new Position(1, 1), context)!.then(result => {
-			assert.equal(result.suggestions.length, 1);
+			assert.strictEqual(result.suggestions.length, 1);
 			return provider.provideCompletionItems(model, new Position(2, 2), context)!;
 		}).then(result => {
-			assert.equal(result.suggestions.length, 1);
+			assert.strictEqual(result.suggestions.length, 1);
 		});
 	});
 
@@ -251,13 +251,13 @@ suite('SnippetsService', function () {
 
 		let model = createTextModel('', undefined, modeService.getLanguageIdentifier('fooLang'));
 		return provider.provideCompletionItems(model, new Position(1, 1), context)!.then(result => {
-			assert.equal(result.suggestions.length, 2);
+			assert.strictEqual(result.suggestions.length, 2);
 			let [first, second] = result.suggestions;
-			assert.deepEqual(first.label, {
+			assert.deepStrictEqual(first.label, {
 				name: 'first',
 				type: 'first'
 			});
-			assert.deepEqual(second.label, {
+			assert.deepStrictEqual(second.label, {
 				name: 'second',
 				type: 'second'
 			});
@@ -279,13 +279,13 @@ suite('SnippetsService', function () {
 		let model = createTextModel('p-', undefined, modeService.getLanguageIdentifier('fooLang'));
 
 		let result = await provider.provideCompletionItems(model, new Position(1, 2), context)!;
-		assert.equal(result.suggestions.length, 1);
+		assert.strictEqual(result.suggestions.length, 1);
 
 		result = await provider.provideCompletionItems(model, new Position(1, 3), context)!;
-		assert.equal(result.suggestions.length, 1);
+		assert.strictEqual(result.suggestions.length, 1);
 
 		result = await provider.provideCompletionItems(model, new Position(1, 3), context)!;
-		assert.equal(result.suggestions.length, 1);
+		assert.strictEqual(result.suggestions.length, 1);
 	});
 
 	test('No snippets suggestion on long lines beyond character 100 #58807', async function () {
@@ -304,7 +304,7 @@ suite('SnippetsService', function () {
 		let model = createTextModel('Thisisaverylonglinegoingwithmore100bcharactersandthismakesintellisensebecomea Thisisaverylonglinegoingwithmore100bcharactersandthismakesintellisensebecomea b', undefined, modeService.getLanguageIdentifier('fooLang'));
 		let result = await provider.provideCompletionItems(model, new Position(1, 158), context)!;
 
-		assert.equal(result.suggestions.length, 1);
+		assert.strictEqual(result.suggestions.length, 1);
 	});
 
 	test('Type colon will trigger snippet #60746', async function () {
@@ -323,7 +323,7 @@ suite('SnippetsService', function () {
 		let model = createTextModel(':', undefined, modeService.getLanguageIdentifier('fooLang'));
 		let result = await provider.provideCompletionItems(model, new Position(1, 2), context)!;
 
-		assert.equal(result.suggestions.length, 0);
+		assert.strictEqual(result.suggestions.length, 0);
 	});
 
 	test('substring of prefix can\'t trigger snippet #60737', async function () {
@@ -342,8 +342,8 @@ suite('SnippetsService', function () {
 		let model = createTextModel('template', undefined, modeService.getLanguageIdentifier('fooLang'));
 		let result = await provider.provideCompletionItems(model, new Position(1, 9), context)!;
 
-		assert.equal(result.suggestions.length, 1);
-		assert.deepEqual(result.suggestions[0].label, {
+		assert.strictEqual(result.suggestions.length, 1);
+		assert.deepStrictEqual(result.suggestions[0].label, {
 			name: 'mytemplate',
 			type: 'mytemplate'
 		});
@@ -365,7 +365,7 @@ suite('SnippetsService', function () {
 		let model = createTextModel('Thisisaverylonglinegoingwithmore100bcharactersandthismakesintellisensebecomea Thisisaverylonglinegoingwithmore100bcharactersandthismakesintellisensebecomea b text_after_b', undefined, modeService.getLanguageIdentifier('fooLang'));
 		let result = await provider.provideCompletionItems(model, new Position(1, 158), context)!;
 
-		assert.equal(result.suggestions.length, 1);
+		assert.strictEqual(result.suggestions.length, 1);
 	});
 
 	test('issue #61296: VS code freezes when editing CSS file with emoji', async function () {
@@ -388,7 +388,7 @@ suite('SnippetsService', function () {
 		let model = createTextModel('.🐷-a-b', undefined, modeService.getLanguageIdentifier('fooLang'));
 		let result = await provider.provideCompletionItems(model, new Position(1, 8), context)!;
 
-		assert.equal(result.suggestions.length, 1);
+		assert.strictEqual(result.suggestions.length, 1);
 	});
 
 	test('No snippets shown when triggering completions at whitespace on line that already has text #62335', async function () {
@@ -407,7 +407,7 @@ suite('SnippetsService', function () {
 		let model = createTextModel('a ', undefined, modeService.getLanguageIdentifier('fooLang'));
 		let result = await provider.provideCompletionItems(model, new Position(1, 3), context)!;
 
-		assert.equal(result.suggestions.length, 1);
+		assert.strictEqual(result.suggestions.length, 1);
 	});
 
 	test('Snippet prefix with special chars and numbers does not work #62906', async function () {
@@ -434,16 +434,16 @@ suite('SnippetsService', function () {
 		let model = createTextModel(' <', undefined, modeService.getLanguageIdentifier('fooLang'));
 		let result = await provider.provideCompletionItems(model, new Position(1, 3), context)!;
 
-		assert.equal(result.suggestions.length, 1);
+		assert.strictEqual(result.suggestions.length, 1);
 		let [first] = result.suggestions;
-		assert.equal((first.range as any).insert.startColumn, 2);
+		assert.strictEqual((first.range as any).insert.startColumn, 2);
 
 		model = createTextModel('1', undefined, modeService.getLanguageIdentifier('fooLang'));
 		result = await provider.provideCompletionItems(model, new Position(1, 2), context)!;
 
-		assert.equal(result.suggestions.length, 1);
+		assert.strictEqual(result.suggestions.length, 1);
 		[first] = result.suggestions;
-		assert.equal((first.range as any).insert.startColumn, 1);
+		assert.strictEqual((first.range as any).insert.startColumn, 1);
 	});
 
 	test('Snippet replace range', async function () {
@@ -462,26 +462,26 @@ suite('SnippetsService', function () {
 		let model = createTextModel('not wordFoo bar', undefined, modeService.getLanguageIdentifier('fooLang'));
 		let result = await provider.provideCompletionItems(model, new Position(1, 3), context)!;
 
-		assert.equal(result.suggestions.length, 1);
+		assert.strictEqual(result.suggestions.length, 1);
 		let [first] = result.suggestions;
-		assert.equal((first.range as any).insert.endColumn, 3);
-		assert.equal((first.range as any).replace.endColumn, 9);
+		assert.strictEqual((first.range as any).insert.endColumn, 3);
+		assert.strictEqual((first.range as any).replace.endColumn, 9);
 
 		model = createTextModel('not woFoo bar', undefined, modeService.getLanguageIdentifier('fooLang'));
 		result = await provider.provideCompletionItems(model, new Position(1, 3), context)!;
 
-		assert.equal(result.suggestions.length, 1);
+		assert.strictEqual(result.suggestions.length, 1);
 		[first] = result.suggestions;
-		assert.equal((first.range as any).insert.endColumn, 3);
-		assert.equal((first.range as any).replace.endColumn, 3);
+		assert.strictEqual((first.range as any).insert.endColumn, 3);
+		assert.strictEqual((first.range as any).replace.endColumn, 3);
 
 		model = createTextModel('not word', undefined, modeService.getLanguageIdentifier('fooLang'));
 		result = await provider.provideCompletionItems(model, new Position(1, 1), context)!;
 
-		assert.equal(result.suggestions.length, 1);
+		assert.strictEqual(result.suggestions.length, 1);
 		[first] = result.suggestions;
-		assert.equal((first.range as any).insert.endColumn, 1);
-		assert.equal((first.range as any).replace.endColumn, 9);
+		assert.strictEqual((first.range as any).insert.endColumn, 1);
+		assert.strictEqual((first.range as any).replace.endColumn, 9);
 	});
 
 	test('Snippet replace-range incorrect #108894', async function () {
@@ -501,10 +501,10 @@ suite('SnippetsService', function () {
 		let model = createTextModel('filler e KEEP ng filler', undefined, modeService.getLanguageIdentifier('fooLang'));
 		let result = await provider.provideCompletionItems(model, new Position(1, 9), context)!;
 
-		assert.equal(result.suggestions.length, 1);
+		assert.strictEqual(result.suggestions.length, 1);
 		let [first] = result.suggestions;
-		assert.equal((first.range as any).insert.endColumn, 9);
-		assert.equal((first.range as any).replace.endColumn, 9);
+		assert.strictEqual((first.range as any).insert.endColumn, 9);
+		assert.strictEqual((first.range as any).replace.endColumn, 9);
 	});
 
 	test('Snippet will replace auto-closing pair if specified in prefix', async function () {

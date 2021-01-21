@@ -50,9 +50,9 @@ suite('Snippet Variables Resolver', function () {
 		const variable = <Variable>snippet.children[0];
 		variable.resolve(resolver);
 		if (variable.children.length === 0) {
-			assert.equal(undefined, expected);
+			assert.strictEqual(undefined, expected);
 		} else {
-			assert.equal(variable.toString(), expected);
+			assert.strictEqual(variable.toString(), expected);
 		}
 	}
 
@@ -129,17 +129,17 @@ suite('Snippet Variables Resolver', function () {
 
 	test('TextmateSnippet, resolve variable', function () {
 		const snippet = new SnippetParser().parse('"$TM_CURRENT_WORD"', true);
-		assert.equal(snippet.toString(), '""');
+		assert.strictEqual(snippet.toString(), '""');
 		snippet.resolveVariables(resolver);
-		assert.equal(snippet.toString(), '"this"');
+		assert.strictEqual(snippet.toString(), '"this"');
 
 	});
 
 	test('TextmateSnippet, resolve variable with default', function () {
 		const snippet = new SnippetParser().parse('"${TM_CURRENT_WORD:foo}"', true);
-		assert.equal(snippet.toString(), '"foo"');
+		assert.strictEqual(snippet.toString(), '"foo"');
 		snippet.resolveVariables(resolver);
-		assert.equal(snippet.toString(), '"this"');
+		assert.strictEqual(snippet.toString(), '"this"');
 	});
 
 	test('More useful environment variables for snippets, #32737', function () {
@@ -171,14 +171,14 @@ suite('Snippet Variables Resolver', function () {
 			.resolveVariables({ resolve(variable) { return varValue || variable.name; } });
 
 		const actual = snippet.toString();
-		assert.equal(actual, expected);
+		assert.strictEqual(actual, expected);
 	}
 
 	test('Variable Snippet Transform', function () {
 
 		const snippet = new SnippetParser().parse('name=${TM_FILENAME/(.*)\\..+$/$1/}', true);
 		snippet.resolveVariables(resolver);
-		assert.equal(snippet.toString(), 'name=text');
+		assert.strictEqual(snippet.toString(), 'name=text');
 
 		assertVariableResolve2('${ThisIsAVar/([A-Z]).*(Var)/$2/}', 'Var');
 		assertVariableResolve2('${ThisIsAVar/([A-Z]).*(Var)/$2-${1:/downcase}/}', 'Var-t');
@@ -269,7 +269,7 @@ suite('Snippet Variables Resolver', function () {
 		const snippet = new SnippetParser().parse(`$${varName}`);
 		const variable = <Variable>snippet.children[0];
 
-		assert.equal(variable.resolve(resolver), true, `${varName} failed to resolve`);
+		assert.strictEqual(variable.resolve(resolver), true, `${varName} failed to resolve`);
 	}
 
 	test('Add time variables for snippets #41631, #43140', function () {
@@ -294,10 +294,10 @@ suite('Snippet Variables Resolver', function () {
 
 		const snippet = new SnippetParser().parse('${TM_LINE_NUMBER/(10)/${1:?It is:It is not}/} line 10', true);
 		snippet.resolveVariables({ resolve() { return '10'; } });
-		assert.equal(snippet.toString(), 'It is line 10');
+		assert.strictEqual(snippet.toString(), 'It is line 10');
 
 		snippet.resolveVariables({ resolve() { return '11'; } });
-		assert.equal(snippet.toString(), 'It is not line 10');
+		assert.strictEqual(snippet.toString(), 'It is not line 10');
 	});
 
 	test('Add workspace name and folder variables for snippets #68261', function () {

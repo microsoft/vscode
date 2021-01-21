@@ -42,6 +42,24 @@ export interface ITunnelProvider {
 	forwardPort(tunnelOptions: TunnelOptions, tunnelCreationOptions: TunnelCreationOptions): Promise<RemoteTunnel | undefined> | undefined;
 }
 
+export interface ITunnel {
+	remoteAddress: { port: number, host: string };
+
+	/**
+	 * The complete local address(ex. localhost:1234)
+	 */
+	localAddress: string;
+
+	public?: boolean;
+
+	/**
+	 * Implementers of Tunnel should fire onDidDispose when dispose is called.
+	 */
+	onDidDispose: Event<void>;
+
+	dispose(): Promise<void> | void;
+}
+
 export interface ITunnelService {
 	readonly _serviceBrand: undefined;
 
@@ -177,6 +195,7 @@ export abstract class AbstractTunnelService implements ITunnelService {
 
 		const resolvedTunnel = this.retainOrCreateTunnel(addressProvider, remoteHost, remotePort, localPort, elevateIfNeeded, isPublic);
 		if (!resolvedTunnel) {
+			this.logService.trace(`Tunnel was not created.`);
 			return resolvedTunnel;
 		}
 
