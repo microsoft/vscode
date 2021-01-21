@@ -236,7 +236,12 @@ export class Repl extends ViewPane implements IHistoryNavigationWidget {
 			}
 		}));
 		this._register(this.configurationService.onDidChangeConfiguration(e => {
-			if (e.affectsConfiguration('debug.console.lineHeight') || e.affectsConfiguration('debug.console.fontSize') || e.affectsConfiguration('debug.console.fontFamily')) {
+			if (
+				e.affectsConfiguration('debug.console.lineHeight')
+				|| e.affectsConfiguration('debug.console.fontSize')
+				|| e.affectsConfiguration('debug.console.fontFamily')
+				|| e.affectsConfiguration('debug.console.wordWrap')
+			) {
 				this.onDidStyleChange();
 			}
 		}));
@@ -313,6 +318,7 @@ export class Repl extends ViewPane implements IHistoryNavigationWidget {
 	private onDidStyleChange(): void {
 		if (this.styleElement) {
 			const debugConsole = this.configurationService.getValue<IDebugConfiguration>('debug').console;
+			const wordWrap = debugConsole.wordWrap;
 			const fontSize = debugConsole.fontSize;
 			const fontFamily = debugConsole.fontFamily === 'default' ? 'var(--monaco-monospace-font)' : `${debugConsole.fontFamily}`;
 			const lineHeight = debugConsole.lineHeight ? `${debugConsole.lineHeight}px` : '1.4em';
@@ -349,6 +355,11 @@ export class Repl extends ViewPane implements IHistoryNavigationWidget {
 				}
 			`;
 			this.container.style.setProperty(`--vscode-repl-font-family`, fontFamily);
+			const treeElement = this.tree.getHTMLElement();
+			treeElement.parentElement?.classList.toggle('word-wrap', wordWrap);
+			this.tree.updateOptions({
+				horizontalScrolling: !wordWrap
+			});
 
 			this.tree.rerender();
 

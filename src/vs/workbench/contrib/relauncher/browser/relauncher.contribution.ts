@@ -55,7 +55,6 @@ export class SettingsChangeRelauncher extends Disposable implements IWorkbenchCo
 		// Debug console word wrap
 		if (typeof config.debug?.console.wordWrap === 'boolean' && config.debug.console.wordWrap !== this.debugConsoleWordWrap) {
 			this.debugConsoleWordWrap = config.debug.console.wordWrap;
-			changed = true;
 		}
 
 		if (isNative) {
