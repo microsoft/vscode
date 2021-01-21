@@ -25,6 +25,7 @@ import { IWorkspaceEditingService } from 'vs/workbench/services/workspaces/commo
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { BeforeShutdownEvent, ILifecycleService } from 'vs/workbench/services/lifecycle/common/lifecycle';
 import { ILogService } from 'vs/platform/log/common/log';
+import { getWorkspaceIdentifier } from 'vs/workbench/services/workspaces/browser/workspaces';
 
 /**
  * A workspace to open in the workbench can either be:
@@ -338,7 +339,7 @@ export class BrowserHostService extends Disposable implements IHostService {
 		}
 
 		if (isWorkspaceToOpen(openable)) {
-			return this.labelService.getWorkspaceLabel({ id: '', configPath: openable.workspaceUri }, { verbose: true });
+			return this.labelService.getWorkspaceLabel(getWorkspaceIdentifier(openable.workspaceUri), { verbose: true });
 		}
 
 		return this.labelService.getUriLabel(openable.fileUri);

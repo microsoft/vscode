@@ -14,7 +14,7 @@ import { IEnvironmentService } from 'vs/platform/environment/common/environment'
 import { IWorkspaceContextService, IWorkspace } from 'vs/platform/workspace/common/workspace';
 import { basenameOrAuthority, basename, joinPath, dirname } from 'vs/base/common/resources';
 import { tildify, getPathLabel } from 'vs/base/common/labels';
-import { IWorkspaceIdentifier, ISingleFolderWorkspaceIdentifier, isSingleFolderWorkspaceIdentifier, WORKSPACE_EXTENSION, toWorkspaceIdentifier, isWorkspaceIdentifier, isUntitledWorkspace } from 'vs/platform/workspaces/common/workspaces';
+import { IWorkspaceIdentifier, isSingleFolderWorkspaceIdentifier, WORKSPACE_EXTENSION, toWorkspaceIdentifier, isWorkspaceIdentifier, isUntitledWorkspace } from 'vs/platform/workspaces/common/workspaces';
 import { ILabelService, ResourceLabelFormatter, ResourceLabelFormatting, IFormatterChangeEvent } from 'vs/platform/label/common/label';
 import { ExtensionsRegistry } from 'vs/workbench/services/extensions/common/extensionsRegistry';
 import { match } from 'vs/base/common/glob';
@@ -180,7 +180,7 @@ export class LabelService extends Disposable implements ILabelService {
 		return paths.basename(label);
 	}
 
-	getWorkspaceLabel(workspace: (IWorkspaceIdentifier | ISingleFolderWorkspaceIdentifier | IWorkspace), options?: { verbose: boolean }): string {
+	getWorkspaceLabel(workspace: (IWorkspaceIdentifier | URI | IWorkspace), options?: { verbose: boolean }): string {
 		if (IWorkspace.isIWorkspace(workspace)) {
 			const identifier = toWorkspaceIdentifier(workspace);
 			if (!identifier) {

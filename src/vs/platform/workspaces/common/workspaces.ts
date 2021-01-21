@@ -70,7 +70,7 @@ export interface IRecentWorkspace {
 }
 
 export interface IRecentFolder {
-	folderUri: ISingleFolderWorkspaceIdentifier;
+	folderUri: URI;
 	label?: string;
 }
 
