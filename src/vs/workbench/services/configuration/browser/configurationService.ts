@@ -177,12 +177,19 @@ export class WorkspaceService extends Disposable implements IWorkbenchConfigurat
 		return !!this.getWorkspaceFolder(resource);
 	}
 
-	public isCurrentWorkspace(workspaceIdentifier: IWorkspaceIdentifier | URI): boolean {
+	public isCurrentWorkspace(workspaceIdOrRoot: IWorkspaceIdentifier | ISingleFolderWorkspaceIdentifier | URI): boolean {
 		switch (this.getWorkbenchState()) {
 			case WorkbenchState.FOLDER:
-				return URI.isUri(workspaceIdentifier) && this.uriIdentityService.extUri.isEqual(workspaceIdentifier, this.workspace.folders[0].uri);
+				let folderUri: URI | undefined = undefined;
+				if (URI.isUri(workspaceIdOrRoot)) {
+					folderUri = workspaceIdOrRoot;
+				} else if (isSingleFolderWorkspaceIdentifier(workspaceIdOrRoot)) {
+					folderUri = workspaceIdOrRoot.uri;
+				}
+
+				return URI.isUri(folderUri) && this.uriIdentityService.extUri.isEqual(folderUri, this.workspace.folders[0].uri);
 			case WorkbenchState.WORKSPACE:
-				return isWorkspaceIdentifier(workspaceIdentifier) && this.workspace.id === workspaceIdentifier.id;
+				return isWorkspaceIdentifier(workspaceIdOrRoot) && this.workspace.id === workspaceIdOrRoot.id;
 		}
 		return false;
 	}
