@@ -454,7 +454,37 @@ function webviewPreloads() {
 					}
 				}
 				break;
-
+			case 'showMarkdownPreview':
+				{
+					const data = event.data;
+					let cellContainer = document.getElementById(data.id);
+					if (cellContainer) {
+						cellContainer.style.display = 'block';
+					}
+					const previewNode = document.getElementById(`${data.id}_container`);
+					if (previewNode) {
+						previewNode.style.top = `${data.top}px`;
+					}
+				}
+				break;
+			case 'hideMarkdownPreview':
+				{
+					const data = event.data;
+					let cellContainer = document.getElementById(data.id);
+					if (cellContainer) {
+						cellContainer.style.display = 'none';
+					}
+				}
+				break;
+			case 'removeMarkdownPreview':
+				{
+					const data = event.data;
+					let cellContainer = document.getElementById(data.id);
+					if (cellContainer) {
+						cellContainer?.parentElement?.removeChild(cellContainer);
+					}
+				}
+				break;
 			case 'html':
 				enqueueOutputAction(event.data, async data => {
 					const preloadResults = await Promise.all(data.requiredPreloads.map(p => preloadPromises.get(p.uri)));

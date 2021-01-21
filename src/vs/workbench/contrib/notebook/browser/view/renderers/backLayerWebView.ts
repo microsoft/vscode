@@ -181,6 +181,22 @@ export interface ICreateMarkdownMessage {
 	content: string;
 	top: number;
 }
+export interface IRemoveMarkdownMessage {
+	type: 'removeMarkdownPreview',
+	id: string;
+}
+
+
+export interface IHideMarkdownMessage {
+	type: 'hideMarkdownPreview',
+	id: string;
+}
+
+export interface IShowMarkdownMessage {
+	type: 'showMarkdownPreview',
+	id: string;
+	top: number;
+}
 
 export type FromWebviewMessage =
 	| WebviewIntialized
@@ -206,6 +222,9 @@ export type ToWebviewMessage =
 	| IUpdateDecorationsMessage
 	| ICustomRendererMessage
 	| ICreateMarkdownMessage
+	| IRemoveMarkdownMessage
+	| IShowMarkdownMessage
+	| IHideMarkdownMessage
 	| IViewScrollMarkdownRequestMessage;
 
 export type AnyMessage = FromWebviewMessage | ToWebviewMessage;
@@ -846,6 +865,42 @@ var requirejs = (function() {
 			id: cellId,
 			content: content,
 			top: initialTop,
+		});
+	}
+
+	async showMarkdownPreview(cellId: string, cellTop: number) {
+		if (this._disposed) {
+			return;
+		}
+
+		this._sendMessageToWebview({
+			type: 'showMarkdownPreview',
+			id: cellId,
+			top: cellTop
+		});
+	}
+
+	async hideMarkdownPreview(cellId: string,) {
+		if (this._disposed) {
+			return;
+		}
+
+		this._sendMessageToWebview({
+			type: 'hideMarkdownPreview',
+			id: cellId
+		});
+	}
+
+	async removeMarkdownPreview(cellId: string,) {
+		if (this._disposed) {
+			return;
+		}
+
+		this.markdownPreviewMapping.delete(cellId);
+
+		this._sendMessageToWebview({
+			type: 'removeMarkdownPreview',
+			id: cellId
 		});
 	}
 

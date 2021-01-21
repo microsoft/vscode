@@ -463,6 +463,8 @@ export interface INotebookEditor extends IEditor, ICommonNotebookEditor {
 	layoutNotebookCell(cell: ICellViewModel, height: number): Promise<void>;
 
 	createMarkdownPreview(cell: ICellViewModel): Promise<void>;
+	hideMarkdownPreview(cell: ICellViewModel): Promise<void>;
+	removeMarkdownPreview(cell: ICellViewModel): Promise<void>;
 
 	/**
 	 * Render the output in webview layer
