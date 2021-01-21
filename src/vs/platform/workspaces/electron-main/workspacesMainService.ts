@@ -7,7 +7,7 @@ import { IWorkspaceIdentifier, hasWorkspaceFileExtension, UNTITLED_WORKSPACE_NAM
 import { IEnvironmentMainService } from 'vs/platform/environment/electron-main/environmentMainService';
 import { join, dirname } from 'vs/base/common/path';
 import { mkdirp, writeFile, rimrafSync, readdirSync, writeFileSync } from 'vs/base/node/pfs';
-import { readFileSync, existsSync, mkdirSync, statSync } from 'fs';
+import { readFileSync, existsSync, mkdirSync, statSync, Stats } from 'fs';
 import { isLinux, isMacintosh, isWindows } from 'vs/base/common/platform';
 import { Event, Emitter } from 'vs/base/common/event';
 import { ILogService } from 'vs/platform/log/common/log';
@@ -339,15 +339,21 @@ export function getWorkspaceIdentifier(configPath: URI): IWorkspaceIdentifier {
 
 export function getSingleFolderWorkspaceIdentifier(folderUri: URI): ISingleFolderWorkspaceIdentifier | undefined {
 
-	function getFolderId(): string {
+	function getFolderId(): string | undefined {
 
 		// Remote: produce a hash from the entire URI
 		if (folderUri.scheme !== Schemas.file) {
 			return createHash('md5').update(folderUri.toString()).digest('hex');
 		}
 
+		let fileStat: Stats;
+		try {
+			fileStat = statSync(folderUri.fsPath);
+		} catch (error) {
+			return undefined; // folder does not exist!
+		}
+
 		// Local: produce a hash from the path and include creation time as salt
-		const fileStat = statSync(folderUri.fsPath);
 		let ctime: number | undefined;
 		if (isLinux) {
 			ctime = fileStat.ino; // Linux: birthtime is ctime, so we cannot use it! We use the ino instead!
@@ -366,12 +372,13 @@ export function getSingleFolderWorkspaceIdentifier(folderUri: URI): ISingleFolde
 		return createHash('md5').update(folderUri.fsPath).update(ctime ? String(ctime) : '').digest('hex');
 	}
 
-	try {
+	const folderId = getFolderId();
+	if (typeof folderId === 'string') {
 		return {
-			id: getFolderId(),
+			id: folderId,
 			uri: folderUri
 		};
-	} catch (error) {
-		return undefined; // the folder might not exist anymore
 	}
+
+	return undefined; // invalid folder
 }
