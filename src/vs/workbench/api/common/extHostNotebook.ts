@@ -78,8 +78,8 @@ export interface ExtHostNotebookOutputRenderingHandler {
 }
 
 export class ExtHostNotebookKernelProviderAdapter extends Disposable {
-	private _kernelToId = new Map<vscode.NotebookKernel, string>();
-	private _idToKernel = new Map<string, vscode.NotebookKernel>();
+	private _kernelToFriendlyId = new Map<vscode.NotebookKernel, string>();
+	private _friendlyIdToKernel = new Map<string, vscode.NotebookKernel>();
 	constructor(
 		private readonly _proxy: MainThreadNotebookShape,
 		private readonly _handle: number,
@@ -101,24 +101,25 @@ export class ExtHostNotebookKernelProviderAdapter extends Disposable {
 
 		const newMap = new Map<vscode.NotebookKernel, string>();
 		let kernel_unique_pool = 0;
-		const kernelIdCache = new Set<string>();
+		const kernelFriendlyIdCache = new Set<string>();
 
 		const transformedData: INotebookKernelInfoDto2[] = data.map(kernel => {
-			let id = this._kernelToId.get(kernel);
-			if (id === undefined) {
-				if (kernel.id && kernelIdCache.has(kernel.id)) {
-					id = `${this._extension.identifier.value}_${kernel.id}_${kernel_unique_pool++}`;
+			let friendlyId = this._kernelToFriendlyId.get(kernel);
+			if (friendlyId === undefined) {
+				if (kernel.id && kernelFriendlyIdCache.has(kernel.id)) {
+					friendlyId = `${this._extension.identifier.value}_${kernel.id}_${kernel_unique_pool++}`;
 				} else {
-					id = `${this._extension.identifier.value}_${kernel.id || UUID.generateUuid()}`;
+					friendlyId = `${this._extension.identifier.value}_${kernel.id || UUID.generateUuid()}`;
 				}
 
-				this._kernelToId.set(kernel, id);
+				this._kernelToFriendlyId.set(kernel, friendlyId);
 			}
 
-			newMap.set(kernel, id);
+			newMap.set(kernel, friendlyId);
 
 			return {
-				id,
+				id: kernel.id,
+				friendlyId: friendlyId,
 				label: kernel.label,
 				extension: this._extension.identifier,
 				extensionLocation: this._extension.extensionLocation,
@@ -129,22 +130,22 @@ export class ExtHostNotebookKernelProviderAdapter extends Disposable {
 			};
 		});
 
-		this._kernelToId = newMap;
+		this._kernelToFriendlyId = newMap;
 
-		this._idToKernel.clear();
-		this._kernelToId.forEach((value, key) => {
-			this._idToKernel.set(value, key);
+		this._friendlyIdToKernel.clear();
+		this._kernelToFriendlyId.forEach((value, key) => {
+			this._friendlyIdToKernel.set(value, key);
 		});
 
 		return transformedData;
 	}
 
-	getKernel(kernelId: string) {
-		return this._idToKernel.get(kernelId);
+	getKernelByFriendlyId(kernelId: string) {
+		return this._friendlyIdToKernel.get(kernelId);
 	}
 
 	async resolveNotebook(kernelId: string, document: ExtHostNotebookDocument, webview: vscode.NotebookCommunication, token: CancellationToken) {
-		const kernel = this._idToKernel.get(kernelId);
+		const kernel = this._friendlyIdToKernel.get(kernelId);
 
 		if (kernel && this._provider.resolveKernel) {
 			return this._provider.resolveKernel(kernel, document.notebookDocument, webview, token);
@@ -152,7 +153,7 @@ export class ExtHostNotebookKernelProviderAdapter extends Disposable {
 	}
 
 	async executeNotebook(kernelId: string, document: ExtHostNotebookDocument, cell: ExtHostCell | undefined) {
-		const kernel = this._idToKernel.get(kernelId);
+		const kernel = this._friendlyIdToKernel.get(kernelId);
 
 		if (!kernel) {
 			return;
@@ -166,7 +167,7 @@ export class ExtHostNotebookKernelProviderAdapter extends Disposable {
 	}
 
 	async cancelNotebook(kernelId: string, document: ExtHostNotebookDocument, cell: ExtHostCell | undefined) {
-		const kernel = this._idToKernel.get(kernelId);
+		const kernel = this._friendlyIdToKernel.get(kernelId);
 
 		if (!kernel) {
 			return;
@@ -580,10 +581,10 @@ export class ExtHostNotebookController implements ExtHostNotebookShape, ExtHostN
 		this._outputDisplayOrder = displayOrder;
 	}
 
-	$acceptNotebookActiveKernelChange(event: { uri: UriComponents, providerHandle: number | undefined, kernelId: string | undefined; }) {
+	$acceptNotebookActiveKernelChange(event: { uri: UriComponents, providerHandle: number | undefined, kernelFriendlyId: string | undefined; }) {
 		if (event.providerHandle !== undefined) {
 			this._withAdapter(event.providerHandle, event.uri, async (adapter, document) => {
-				const kernel = event.kernelId ? adapter.getKernel(event.kernelId) : undefined;
+				const kernel = event.kernelFriendlyId ? adapter.getKernelByFriendlyId(event.kernelFriendlyId) : undefined;
 				this._editors.forEach(editor => {
 					if (editor.editor.notebookData === document) {
 						editor.editor._acceptKernel(kernel);
