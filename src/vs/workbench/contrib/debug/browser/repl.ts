@@ -361,7 +361,9 @@ export class Repl extends ViewPane implements IHistoryNavigationWidget {
 				horizontalScrolling: !wordWrap
 			});
 
-			this.tree.rerender();
+			setTimeout(() => {
+				this.tree.rerender();
+			}, 0);
 
 			if (this.dimension) {
 				this.layoutBody(this.dimension.height, this.dimension.width);
