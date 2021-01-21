@@ -338,27 +338,19 @@ function getConfiguration<T>(id: string): T | undefined {
 	return vscode.workspace.getConfiguration('testresolver').get<T>(id);
 }
 
-const allTunnels: Map<number, vscode.Tunnel> = new Map();
+const remoteServers: number[] = [];
 
 async function showCandidatePort(_host: string, port: number, _detail: string): Promise<boolean> {
-	return !Array.from(allTunnels.values()).find(value => {
-		if (typeof value.localAddress === 'string') {
-			return true;
-		} else {
-			return value.localAddress.port === port;
-		}
-	});
+	return remoteServers.includes(port) || port === 100;
 }
 
 async function tunnelFactory(tunnelOptions: vscode.TunnelOptions, tunnelCreationOptions: vscode.TunnelCreationOptions): Promise<vscode.Tunnel> {
+	outputChannel.appendLine(`Tunnel factory request: Remote ${tunnelOptions.remoteAddress.port} -> local ${tunnelOptions.localAddressPort}`);
 	if (tunnelCreationOptions.elevationRequired) {
 		await vscode.window.showInformationMessage('This is a fake elevation message. A real resolver would show a native elevation prompt.', { modal: true }, 'Ok');
 	}
 
-	const tunnel = await createTunnelService();
-
-	allTunnels.set(tunnel.remoteAddress.port, tunnel);
-	return tunnel;
+	return createTunnelService();
 
 	function newTunnel(localAddress: { host: string, port: number }) {
 		const onDidDispose: vscode.EventEmitter<void> = new vscode.EventEmitter();
@@ -416,6 +408,7 @@ function runHTTPTestServer(port: number): vscode.Disposable {
 		res.writeHead(200);
 		res.end(`Hello, World from test server running on port ${port}!`);
 	});
+	remoteServers.push(port);
 	server.listen(port);
 	const message = `Opened HTTP server on http://localhost:${port}`;
 	console.log(message);
@@ -423,6 +416,10 @@ function runHTTPTestServer(port: number): vscode.Disposable {
 	return {
 		dispose: () => {
 			server.close();
+			const index = remoteServers.indexOf(port);
+			if (index !== -1) {
+				remoteServers.splice(index, 1);
+			}
 		}
 	};
 }

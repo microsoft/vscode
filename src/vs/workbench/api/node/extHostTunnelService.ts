@@ -259,7 +259,8 @@ export class ExtHostTunnelService extends Disposable implements IExtHostTunnelSe
 	}
 
 	async $applyCandidateFilter(candidates: CandidatePort[]): Promise<CandidatePort[]> {
-		return Promise.all(candidates.filter(candidate => this._showCandidatePort(candidate.host, candidate.port, candidate.detail)));
+		const filter = await Promise.all(candidates.map(candidate => this._showCandidatePort(candidate.host, candidate.port, candidate.detail)));
+		return candidates.filter((candidate, index) => filter[index]);
 	}
 
 	async findCandidatePorts(): Promise<CandidatePort[]> {
