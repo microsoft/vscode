@@ -277,9 +277,7 @@ export class LaunchMainService implements ILaunchMainService {
 		if (isSingleFolderWorkspaceIdentifier(workspace)) {
 			folderURIs.push(workspace.uri);
 		} else if (isWorkspaceIdentifier(workspace)) {
-			// workspace folders can only be shown for local workspaces
-			const workspaceConfigPath = workspace.configPath;
-			const resolvedWorkspace = this.workspacesMainService.resolveLocalWorkspaceSync(workspaceConfigPath);
+			const resolvedWorkspace = this.workspacesMainService.resolveLocalWorkspaceSync(workspace.configPath); // workspace folders can only be shown for local (resolved) workspaces
 			if (resolvedWorkspace) {
 				const rootFolders = resolvedWorkspace.folders;
 				rootFolders.forEach(root => {

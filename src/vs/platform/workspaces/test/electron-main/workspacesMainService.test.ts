@@ -105,7 +105,7 @@ export class TestBackupMainService implements IBackupMainService {
 }
 
 suite('WorkspacesMainService', () => {
-	const parentDir = getRandomTestPath(os.tmpdir(), 'vsctests', 'workspacesservice');
+	const parentDir = getRandomTestPath(os.tmpdir(), 'vsctests', 'workspacesmainservice');
 	const untitledWorkspacesHomePath = path.join(parentDir, 'Workspaces');
 
 	class TestEnvironmentService extends EnvironmentMainService {

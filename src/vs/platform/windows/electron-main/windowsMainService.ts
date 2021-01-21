@@ -495,7 +495,6 @@ export class WindowsMainService extends Disposable implements IWindowsMainServic
 
 			// Open remaining ones
 			allFoldersToOpen.forEach(folderToOpen => {
-
 				if (windowsOnFolderPath.some(window => isSingleFolderWorkspaceIdentifier(window.openedWorkspace) && extUriBiasedIgnorePathCase.isEqual(window.openedWorkspace.uri, folderToOpen.folderUri))) {
 					return; // ignore folders that are already open
 				}
@@ -615,7 +614,7 @@ export class WindowsMainService extends Disposable implements IWindowsMainServic
 
 		// Otherwise proceed to open folder/workspace
 		return this.openInBrowserWindow({
-			workspace: folderOrWorkspace.workspace,
+			workspace,
 			userEnv: openConfig.userEnv,
 			cli: openConfig.cli,
 			initialStartup: openConfig.initialStartup,

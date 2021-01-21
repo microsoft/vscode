@@ -149,22 +149,21 @@ export class NativeStorageService extends AbstractStorageService {
 	private ensureWorkspaceStorageFolderMeta(payload: IWorkspaceInitializationPayload): void {
 		let meta: object | undefined = undefined;
 		if (isSingleFolderWorkspaceIdentifier(payload)) {
-			meta = { uri: payload.uri.toString() };
+			meta = { folder: payload.uri.toString() };
 		} else if (isWorkspaceIdentifier(payload)) {
-			meta = { configPath: payload.configPath.toString() };
+			meta = { workspace: payload.configPath.toString() };
 		}
 
 		if (meta) {
-			const logService = this.logService;
-			const workspaceStorageMetaPath = join(this.getWorkspaceStorageFolderPath(payload), NativeStorageService.WORKSPACE_META_NAME);
 			(async () => {
 				try {
+					const workspaceStorageMetaPath = join(this.getWorkspaceStorageFolderPath(payload), NativeStorageService.WORKSPACE_META_NAME);
 					const storageExists = await exists(workspaceStorageMetaPath);
 					if (!storageExists) {
 						await writeFile(workspaceStorageMetaPath, JSON.stringify(meta, undefined, 2));
 					}
 				} catch (error) {
-					logService.error(error);
+					this.logService.error(error);
 				}
 			})();
 		}

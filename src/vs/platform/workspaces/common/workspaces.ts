@@ -109,19 +109,27 @@ export interface IBaseWorkspaceIdentifier {
  * A single folder workspace identifier is a path to a folder + id.
  */
 export interface ISingleFolderWorkspaceIdentifier extends IBaseWorkspaceIdentifier {
+
+	/**
+	 * Folder path as `URI`.
+	 */
 	uri: URI;
 }
 
 export function isSingleFolderWorkspaceIdentifier(obj: unknown): obj is ISingleFolderWorkspaceIdentifier {
 	const singleFolderIdentifier = obj as ISingleFolderWorkspaceIdentifier | undefined;
 
-	return !!singleFolderIdentifier && typeof singleFolderIdentifier.id === 'string' && URI.isUri(singleFolderIdentifier.uri);
+	return typeof singleFolderIdentifier?.id === 'string' && URI.isUri(singleFolderIdentifier.uri);
 }
 
 /**
  * A multi-root workspace identifier is a path to a workspace file + id.
  */
 export interface IWorkspaceIdentifier extends IBaseWorkspaceIdentifier {
+
+	/**
+	 * Workspace config file path as `URI`.
+	 */
 	configPath: URI;
 }
 
@@ -150,7 +158,7 @@ export function toWorkspaceIdentifier(workspace: IWorkspace): IWorkspaceIdentifi
 export function isWorkspaceIdentifier(obj: unknown): obj is IWorkspaceIdentifier {
 	const workspaceIdentifier = obj as IWorkspaceIdentifier | undefined;
 
-	return !!workspaceIdentifier && typeof workspaceIdentifier.id === 'string' && URI.isUri(workspaceIdentifier.configPath);
+	return typeof workspaceIdentifier?.id === 'string' && URI.isUri(workspaceIdentifier.configPath);
 }
 
 export function reviveIdentifier(identifier: { id: string, uri?: UriComponents, configPath?: UriComponents } | undefined): IWorkspaceIdentifier | ISingleFolderWorkspaceIdentifier | undefined {
@@ -184,17 +192,13 @@ export function isStoredWorkspaceFolder(obj: unknown): obj is IStoredWorkspaceFo
 export function isRawFileWorkspaceFolder(obj: unknown): obj is IRawFileWorkspaceFolder {
 	const candidate = obj as IRawFileWorkspaceFolder | undefined;
 
-	return typeof candidate === 'object' &&
-		typeof candidate.path === 'string' &&
-		(!candidate.name || typeof candidate.name === 'string');
+	return typeof candidate?.path === 'string' && (!candidate.name || typeof candidate.name === 'string');
 }
 
 export function isRawUriWorkspaceFolder(obj: unknown): obj is IRawUriWorkspaceFolder {
 	const candidate = obj as IRawUriWorkspaceFolder | undefined;
 
-	return typeof candidate === 'object' &&
-		typeof candidate.uri === 'string' &&
-		(!candidate.name || typeof candidate.name === 'string');
+	return typeof candidate?.uri === 'string' && (!candidate.name || typeof candidate.name === 'string');
 }
 
 export interface IRawFileWorkspaceFolder {

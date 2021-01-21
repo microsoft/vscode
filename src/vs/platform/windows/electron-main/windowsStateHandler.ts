@@ -200,7 +200,7 @@ export class WindowsStateHandler extends Disposable {
 		// Any non extension host window with same workspace or folder
 		else if (!window.isExtensionDevelopmentHost && window.openedWorkspace) {
 			this._state.openedWindows.forEach(openedWindow => {
-				const sameWorkspace = isWorkspaceIdentifier(window.openedWorkspace) && isWorkspaceIdentifier(openedWindow.workspace) && openedWindow.workspace.id === window.openedWorkspace.id;
+				const sameWorkspace = isWorkspaceIdentifier(window.openedWorkspace) && openedWindow.workspace?.id === window.openedWorkspace.id;
 				const sameFolder = isSingleFolderWorkspaceIdentifier(window.openedWorkspace) && openedWindow.folderUri && extUriBiasedIgnorePathCase.isEqual(openedWindow.folderUri, window.openedWorkspace.uri);
 
 				if (sameWorkspace || sameFolder) {

@@ -208,30 +208,32 @@ export class LabelService extends Disposable implements ILabelService {
 		return '';
 	}
 
-	private doGetWorkspaceLabel(configPath: URI, options?: { verbose: boolean }): string {
+	private doGetWorkspaceLabel(workspaceUri: URI, options?: { verbose: boolean }): string {
+
 		// Workspace: Untitled
-		if (isUntitledWorkspace(configPath, this.environmentService)) {
+		if (isUntitledWorkspace(workspaceUri, this.environmentService)) {
 			return localize('untitledWorkspace', "Untitled (Workspace)");
 		}
 
 		// Workspace: Saved
-		let filename = basename(configPath);
+		let filename = basename(workspaceUri);
 		if (filename.endsWith(WORKSPACE_EXTENSION)) {
 			filename = filename.substr(0, filename.length - WORKSPACE_EXTENSION.length - 1);
 		}
+
 		let label;
 		if (options && options.verbose) {
-			label = localize('workspaceNameVerbose', "{0} (Workspace)", this.getUriLabel(joinPath(dirname(configPath), filename)));
+			label = localize('workspaceNameVerbose', "{0} (Workspace)", this.getUriLabel(joinPath(dirname(workspaceUri), filename)));
 		} else {
 			label = localize('workspaceName', "{0} (Workspace)", filename);
 		}
-		return this.appendWorkspaceSuffix(label, configPath);
+
+		return this.appendWorkspaceSuffix(label, workspaceUri);
 	}
 
-	private doGetSingleFolderWorkspaceLabel(folder: URI, options?: { verbose: boolean }): string {
-		// Folder on disk
-		const label = options && options.verbose ? this.getUriLabel(folder) : basename(folder) || '/';
-		return this.appendWorkspaceSuffix(label, folder);
+	private doGetSingleFolderWorkspaceLabel(folderUri: URI, options?: { verbose: boolean }): string {
+		const label = options && options.verbose ? this.getUriLabel(folderUri) : basename(folderUri) || '/';
+		return this.appendWorkspaceSuffix(label, folderUri);
 	}
 
 	getSeparator(scheme: string, authority?: string): '/' | '\\' {

@@ -231,7 +231,7 @@ class DesktopMain extends Disposable {
 			fileService.registerProvider(Schemas.vscodeRemote, remoteFileSystemProvider);
 		}
 
-		const payload = await this.resolveWorkspaceInitializationPayload();
+		const payload = this.resolveWorkspaceInitializationPayload();
 
 		const services = await Promise.all([
 			this.createWorkspaceService(payload, fileService, remoteAgentService, uriIdentityService, logService).then(service => {
@@ -279,7 +279,7 @@ class DesktopMain extends Disposable {
 		return { serviceCollection, logService, storageService: services[1] };
 	}
 
-	private async resolveWorkspaceInitializationPayload(): Promise<IWorkspaceInitializationPayload> {
+	private resolveWorkspaceInitializationPayload(): IWorkspaceInitializationPayload {
 		let workspaceInitializationPayload: IWorkspaceInitializationPayload | undefined = this.configuration.workspace;
 
 		// Fallback to empty workspace if we have no payload yet.
