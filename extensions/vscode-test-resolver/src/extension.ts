@@ -319,13 +319,10 @@ function getConfiguration<T>(id: string): T | undefined {
 function tunnelFactory(tunnelOptions: vscode.TunnelOptions): Promise<vscode.Tunnel> | undefined {
 	let remotePort = tunnelOptions.remoteAddress.port;
 	if (remotePort === 100) {
-		return createTunnelServer();
-	} else {
-		const port: number = (tunnelOptions.localAddressPort || remotePort) + 1;
-		const dummyTunnel = newTunnel({ host: 'localhost', port });
-		return Promise.resolve(dummyTunnel);
-
+		return createTunnelService();
 	}
+	return undefined;
+
 
 	function newTunnel(localAddress: { host: string, port: number }) {
 		const onDidDispose: vscode.EventEmitter<void> = new vscode.EventEmitter();
@@ -344,7 +341,7 @@ function tunnelFactory(tunnelOptions: vscode.TunnelOptions): Promise<vscode.Tunn
 		};
 	}
 
-	function createTunnelServer(): Promise<vscode.Tunnel> {
+	function createTunnelService(): Promise<vscode.Tunnel> {
 		return new Promise<vscode.Tunnel>((res, _rej) => {
 			const proxyServer = net.createServer(proxySocket => {
 				outputChannel.appendLine(`Connection accepted`);
@@ -354,8 +351,9 @@ function tunnelFactory(tunnelOptions: vscode.TunnelOptions): Promise<vscode.Tunn
 			});
 			proxyServer.listen(tunnelOptions.localAddressPort === undefined ? 0 : tunnelOptions.localAddressPort, () => {
 				const localPort = (<net.AddressInfo>proxyServer.address()).port;
-				console.log(`New tunnel server: Remote ${tunnelOptions.remoteAddress.port} -> local ${localPort}`);
+				console.log(`New test resolver tunnel service: Remote ${tunnelOptions.remoteAddress.port} -> local ${localPort}`);
 				const tunnel = newTunnel({ host: 'localhost', port: localPort });
+				tunnel.onDidDispose(() => proxyServer.close());
 				res(tunnel);
 			});
 		});
