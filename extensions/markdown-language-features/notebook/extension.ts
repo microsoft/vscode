@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 import type * as markdownIt from 'markdown-it';
 
-declare const extendMarkdown: undefined | (
+declare const extendMarkdownIt: undefined | (
 	(f: (md: markdownIt.MarkdownIt) => void) => void
 );
 
@@ -18,8 +18,8 @@ declare const extendMarkdown: undefined | (
 	link.href = 'https://cdnjs.cloudflare.com/ajax/libs/KaTeX/0.11.1/katex.min.css';
 	document.getElementsByTagName('head')[0].appendChild(link);
 
-	if (typeof extendMarkdown !== 'undefined') {
-		extendMarkdown((md: markdownIt.MarkdownIt) => {
+	if (typeof extendMarkdownIt !== 'undefined') {
+		extendMarkdownIt((md: markdownIt.MarkdownIt) => {
 			md.use(katex);
 		});
 	}

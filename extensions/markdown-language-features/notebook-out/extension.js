@@ -117,7 +117,7 @@ eval("(function webpackUniversalModuleDefinition(root, factory) {\n\tif(true)\n\
 /***/ (function(module, exports, __webpack_require__) {
 
 "use strict";
-eval("\nObject.defineProperty(exports, \"__esModule\", { value: true });\n(function () {\n    const katex = __webpack_require__(/*! @iktakahiro/markdown-it-katex */ \"./node_modules/@iktakahiro/markdown-it-katex/index.js\");\n    // Insert math css\n    const link = document.createElement('link');\n    link.rel = 'stylesheet';\n    link.type = 'text/css';\n    link.href = 'https://cdnjs.cloudflare.com/ajax/libs/KaTeX/0.11.1/katex.min.css';\n    document.getElementsByTagName('head')[0].appendChild(link);\n    if (typeof extendMarkdown !== 'undefined') {\n        extendMarkdown((md) => {\n            md.use(katex);\n        });\n    }\n}());\n\n\n//# sourceURL=webpack:///./notebook/extension.ts?");
+eval("\nObject.defineProperty(exports, \"__esModule\", { value: true });\n(function () {\n    const katex = __webpack_require__(/*! @iktakahiro/markdown-it-katex */ \"./node_modules/@iktakahiro/markdown-it-katex/index.js\");\n    // Insert math css\n    const link = document.createElement('link');\n    link.rel = 'stylesheet';\n    link.type = 'text/css';\n    link.href = 'https://cdnjs.cloudflare.com/ajax/libs/KaTeX/0.11.1/katex.min.css';\n    document.getElementsByTagName('head')[0].appendChild(link);\n    if (typeof extendMarkdownIt !== 'undefined') {\n        extendMarkdownIt((md) => {\n            md.use(katex);\n        });\n    }\n}());\n\n\n//# sourceURL=webpack:///./notebook/extension.ts?");
 
 /***/ })
 
