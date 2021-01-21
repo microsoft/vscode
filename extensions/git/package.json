@@ -290,6 +290,16 @@
         "category": "Git"
       },
       {
+        "command": "git.switch",
+        "title": "%command.switch%",
+        "category": "Git"
+      },
+      {
+        "command": "git.switchDetached",
+        "title": "%command.switchDetached%",
+        "category": "Git"
+      },
+      {
         "command": "git.branch",
         "title": "%command.branch%",
         "category": "Git"
