@@ -20,12 +20,11 @@ import { IWorkspaceContextService } from 'vs/platform/workspace/common/workspace
 import { ICommonCellInfo, ICommonNotebookEditor, IDisplayOutputLayoutUpdateRequest, IDisplayOutputViewModel, IGenericCellViewModel, IInsetRenderOutput, RenderOutputType } from 'vs/workbench/contrib/notebook/browser/notebookBrowser';
 import { preloadsScriptStr } from 'vs/workbench/contrib/notebook/browser/view/renderers/webviewPreloads';
 import { transformWebviewThemeVars } from 'vs/workbench/contrib/notebook/browser/view/renderers/webviewThemeMapping';
-import { CellOutputKind, IDisplayOutput, INotebookMarkdownRendererInfo, INotebookRendererInfo } from 'vs/workbench/contrib/notebook/common/notebookCommon';
+import { CellOutputKind, IDisplayOutput, INotebookRendererInfo } from 'vs/workbench/contrib/notebook/common/notebookCommon';
 import { INotebookService } from 'vs/workbench/contrib/notebook/common/notebookService';
 import { IWebviewService, WebviewContentPurpose, WebviewElement } from 'vs/workbench/contrib/webview/browser/webview';
 import { asWebviewUri } from 'vs/workbench/contrib/webview/common/webviewUri';
 import { IWorkbenchEnvironmentService } from 'vs/workbench/services/environment/common/environmentService';
-import { NotebookMarkdownRendererInfo } from 'vs/workbench/contrib/notebook/common/notebookMarkdownRenderer';
 
 export interface WebviewIntialized {
 	__vscode_notebook_message: boolean;
@@ -182,7 +181,6 @@ export interface ICreateMarkdownMessage {
 	id: string;
 	content: string;
 	top: number;
-	requiredPreloads: ReadonlyArray<IPreloadResource>;
 }
 
 export type FromWebviewMessage =
@@ -274,7 +272,8 @@ export class BackLayerWebView<T extends ICommonCellInfo> extends Disposable {
 		this.element.style.height = '1400px';
 		this.element.style.position = 'absolute';
 	}
-	generateContent(coreDependencies: string, baseUrl: string) {
+	private generateContent(coreDependencies: string, baseUrl: string) {
+		const markdownRenderersSrc = this.getMarkdownRendererScripts();
 		return html`
 		<html lang="en">
 			<head>
@@ -499,8 +498,27 @@ export class BackLayerWebView<T extends ICommonCellInfo> extends Disposable {
 				${coreDependencies}
 				<div id='container' class="widgetarea" style="position: absolute;width:100%;top: 0px"></div>
 				<script>${preloadsScriptStr(this.options.outputNodePadding, this.options.outputNodeLeftPadding)}</script>
+				${markdownRenderersSrc}
 			</body>
 		</html>`;
+	}
+
+	private getMarkdownRendererScripts() {
+		const markdownRenderers = this.notebookService.getMarkdownRendererInfo();
+
+		return markdownRenderers
+			.sort((a, b) => {
+				// prefer built-in extension
+				if (a.extensionIsBuiltin) {
+					return b.extensionIsBuiltin ? 0 : -1;
+				}
+				return b.extensionIsBuiltin ? 1 : -1;
+			})
+			.map(renderer => {
+				return asWebviewUri(this.environmentService, this.id, renderer.entrypoint);
+			})
+			.map(src => `<script src="${src}"></script>`)
+			.join('\n');
 	}
 
 	postRendererMessage(rendererId: string, message: any) {
@@ -688,11 +706,6 @@ var requirejs = (function() {
 
 			this._onMessage.fire({ message: data });
 		}));
-
-		const info = this.notebookService.getMarkdownRendererInfo();
-		if (info) {
-			this.updateMarkdownPreloads([info]);
-		}
 	}
 
 	private async _onDidClickDataLink(event: IClickedDataUrlMessage): Promise<void> {
@@ -826,15 +839,8 @@ var requirejs = (function() {
 		if (this._disposed) {
 			return;
 		}
-		const info = this.notebookService.getMarkdownRendererInfo();
-
-		let preloads: IPreloadResource[] = [];
-		if (info) {
-			preloads = await this.updateRendererPreloads([info]);
-		}
 
 		const initialTop = cellTop;
-
 		this.markdownPreviewMapping.add(cellId);
 
 		this._sendMessageToWebview({
@@ -842,7 +848,6 @@ var requirejs = (function() {
 			id: cellId,
 			content: content,
 			top: initialTop,
-			requiredPreloads: preloads,
 		});
 	}
 
@@ -1026,7 +1031,7 @@ var requirejs = (function() {
 		this._updatePreloads(resources, 'kernel');
 	}
 
-	async updateRendererPreloads(renderers: Iterable<INotebookRendererInfo | INotebookMarkdownRendererInfo>) {
+	async updateRendererPreloads(renderers: Iterable<INotebookRendererInfo>) {
 		if (this._disposed) {
 			return [];
 		}
@@ -1057,31 +1062,6 @@ var requirejs = (function() {
 		this.rendererRootsCache = extensionLocations;
 		this._updatePreloads(resources, 'renderer');
 		return requiredPreloads;
-	}
-
-	async updateMarkdownPreloads(renderers: Iterable<NotebookMarkdownRendererInfo>): Promise<IPreloadResource[]> {
-		if (this._disposed) {
-			return [];
-		}
-
-		await this._loaded;
-
-		const preloads: IPreloadResource[] = [];
-		for (const renderer of renderers) {
-			const entrypoint = renderer.entrypoint;
-			const uri = asWebviewUri(this.environmentService, this.id, entrypoint);
-			preloads.push({
-				originalUri: entrypoint.toString(), //todo
-				uri: uri.toString(),
-			});
-		}
-		this._sendMessageToWebview({
-			type: 'preload',
-			resources: preloads,
-			source: 'renderer'
-		});
-
-		return preloads;
 	}
 
 	private _updatePreloads(resources: IPreloadResource[], source: 'renderer' | 'kernel') {

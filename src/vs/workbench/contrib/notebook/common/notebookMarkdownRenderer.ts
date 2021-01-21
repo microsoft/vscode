@@ -15,7 +15,7 @@ export class NotebookMarkdownRendererInfo implements INotebookMarkdownRendererIn
 	readonly displayName: string;
 	readonly extensionLocation: URI;
 	readonly extensionId: ExtensionIdentifier;
-	readonly preloads: URI[] = [];
+	readonly extensionIsBuiltin: boolean;
 
 	constructor(descriptor: {
 		readonly id: string;
@@ -28,5 +28,6 @@ export class NotebookMarkdownRendererInfo implements INotebookMarkdownRendererIn
 		this.extensionLocation = descriptor.extension.extensionLocation;
 		this.entrypoint = joinPath(this.extensionLocation, descriptor.entrypoint);
 		this.displayName = descriptor.displayName;
+		this.extensionIsBuiltin = descriptor.extension.isBuiltin;
 	}
 }

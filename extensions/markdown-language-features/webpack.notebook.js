@@ -7,6 +7,7 @@ const path = require('path');
 module.exports = {
 	entry: {
 		index: './notebook/index.ts',
+		extension: './notebook/extension.ts',
 	},
 	module: {
 		rules: [

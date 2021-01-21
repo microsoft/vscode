@@ -141,10 +141,10 @@ export interface INotebookRendererInfo {
 }
 
 export interface INotebookMarkdownRendererInfo {
-	entrypoint: URI;
-	preloads: ReadonlyArray<URI>;
-	extensionLocation: URI;
-	extensionId: ExtensionIdentifier;
+	readonly entrypoint: URI;
+	readonly extensionLocation: URI;
+	readonly extensionId: ExtensionIdentifier;
+	readonly extensionIsBuiltin: boolean;
 }
 
 export interface IStreamOutput {
