@@ -9,6 +9,7 @@ import * as path from 'path';
 import * as fs from 'fs';
 import * as os from 'os';
 import * as net from 'net';
+import * as http from 'http';
 import { downloadAndUnzipVSCodeServer } from './download';
 import { terminateProcess } from './util/processes';
 
@@ -245,14 +246,35 @@ export function activate(context: vscode.ExtensionContext) {
 			outputChannel.show();
 		}
 	}));
-	context.subscriptions.push(vscode.commands.registerCommand('vscode-testresolver.openTunnel', () => {
-		vscode.workspace.openTunnel({
-			remoteAddress: {
-				host: 'localhost',
-				port: 100
-			},
-			localAddressPort: 100
+
+	context.subscriptions.push(vscode.commands.registerCommand('vscode-testresolver.openTunnel', async () => {
+		const result = await vscode.window.showInputBox({
+			prompt: 'Enter the remote port for the tunnel',
+			value: '5000',
+			validateInput: input => /^[\d]+$/.test(input) ? undefined : 'Not a valid number'
 		});
+		if (result) {
+			const port = Number.parseInt(result);
+			vscode.workspace.openTunnel({
+				remoteAddress: {
+					host: 'localhost',
+					port: port
+				},
+				localAddressPort: port + 1
+			});
+		}
+
+	}));
+	context.subscriptions.push(vscode.commands.registerCommand('vscode-testresolver.startRemoteServer', async () => {
+		const result = await vscode.window.showInputBox({
+			prompt: 'Enter the port for the remote server',
+			value: '5000',
+			validateInput: input => /^[\d]+$/.test(input) ? undefined : 'Not a valid number'
+		});
+		if (result) {
+			runHTTPTestServer(Number.parseInt(result));
+		}
+
 	}));
 	vscode.commands.executeCommand('setContext', 'forwardedPortsViewEnabled', true);
 }
@@ -316,9 +338,14 @@ function getConfiguration<T>(id: string): T | undefined {
 	return vscode.workspace.getConfiguration('testresolver').get<T>(id);
 }
 
+const remoteServers: number[] = [];
+
 function tunnelFactory(tunnelOptions: vscode.TunnelOptions): Promise<vscode.Tunnel> | undefined {
+	outputChannel.appendLine(`Tunnel factory request: Remote ${tunnelOptions.remoteAddress.port} -> local ${tunnelOptions.localAddressPort}`);
+
 	let remotePort = tunnelOptions.remoteAddress.port;
-	if (remotePort === 100) {
+	// only forward ports from our own 'remote' servers
+	if (remoteServers.includes(remotePort)) {
 		return createTunnelService();
 	}
 	return undefined;
@@ -344,18 +371,38 @@ function tunnelFactory(tunnelOptions: vscode.TunnelOptions): Promise<vscode.Tunn
 	function createTunnelService(): Promise<vscode.Tunnel> {
 		return new Promise<vscode.Tunnel>((res, _rej) => {
 			const proxyServer = net.createServer(proxySocket => {
-				outputChannel.appendLine(`Connection accepted`);
 				const remoteSocket = net.createConnection({ host: tunnelOptions.remoteAddress.host, port: tunnelOptions.remoteAddress.port });
 				remoteSocket.pipe(proxySocket);
 				proxySocket.pipe(remoteSocket);
 			});
 			proxyServer.listen(tunnelOptions.localAddressPort === undefined ? 0 : tunnelOptions.localAddressPort, () => {
 				const localPort = (<net.AddressInfo>proxyServer.address()).port;
-				console.log(`New test resolver tunnel service: Remote ${tunnelOptions.remoteAddress.port} -> local ${localPort}`);
+				outputChannel.appendLine(`New test resolver tunnel service: Remote ${tunnelOptions.remoteAddress.port} -> local ${localPort}`);
 				const tunnel = newTunnel({ host: 'localhost', port: localPort });
 				tunnel.onDidDispose(() => proxyServer.close());
 				res(tunnel);
 			});
 		});
 	}
+}
+
+function runHTTPTestServer(port: number): vscode.Disposable {
+	const server = http.createServer((_req, res) => {
+		res.writeHead(200);
+		res.end(`Hello, World from test server running on port ${port}!`);
+	});
+	remoteServers.push(port);
+	server.listen(port);
+	const message = `Opened HTTP server on http://localhost:${port}`;
+	console.log(message);
+	outputChannel.appendLine(message);
+	return {
+		dispose: () => {
+			server.close();
+			const index = remoteServers.indexOf(port);
+			if (index !== -1) {
+				remoteServers.splice(index, 1);
+			}
+		}
+	};
 }
