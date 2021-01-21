@@ -215,7 +215,8 @@ export function activate(context: vscode.ExtensionContext) {
 			}, (progress) => doResolve(_authority, progress));
 		},
 		tunnelFactory,
-		tunnelFeatures: { elevation: true, public: false }
+		tunnelFeatures: { elevation: true, public: false },
+		showCandidatePort: async (_host, port) => port === 100
 	});
 	context.subscriptions.push(authorityResolverDisposable);
 
@@ -316,18 +317,46 @@ function getConfiguration<T>(id: string): T | undefined {
 }
 
 function tunnelFactory(tunnelOptions: vscode.TunnelOptions): Promise<vscode.Tunnel> | undefined {
-	const onDidDispose: vscode.EventEmitter<void> = new vscode.EventEmitter();
-	let isDisposed = false;
-	return Promise.resolve({
-		localAddress: { host: 'localhost', port: (tunnelOptions.localAddressPort === undefined ? tunnelOptions.remoteAddress.port : tunnelOptions.localAddressPort) + 1 },
-		remoteAddress: tunnelOptions.remoteAddress,
-		public: tunnelOptions.public,
-		onDidDispose: onDidDispose.event,
-		dispose: () => {
-			if (!isDisposed) {
-				isDisposed = true;
-				onDidDispose.fire();
+	let remotePort = tunnelOptions.remoteAddress.port;
+	if (remotePort === 100) {
+		return createTunnelServer();
+	} else {
+		const port: number = (tunnelOptions.localAddressPort || remotePort) + 1;
+		const dummyTunnel = newTunnel({ host: 'localhost', port });
+		return Promise.resolve(dummyTunnel);
+
+	}
+
+	function newTunnel(localAddress: { host: string, port: number }) {
+		const onDidDispose: vscode.EventEmitter<void> = new vscode.EventEmitter();
+		let isDisposed = false;
+		return {
+			localAddress,
+			remoteAddress: tunnelOptions.remoteAddress,
+			public: tunnelOptions.public,
+			onDidDispose: onDidDispose.event,
+			dispose: () => {
+				if (!isDisposed) {
+					isDisposed = true;
+					onDidDispose.fire();
+				}
 			}
-		}
-	});
+		};
+	}
+
+	function createTunnelServer(): Promise<vscode.Tunnel> {
+		return new Promise<vscode.Tunnel>((res, _rej) => {
+			const proxyServer = net.createServer(proxySocket => {
+				outputChannel.appendLine(`Connection accepted`);
+				const remoteSocket = net.createConnection({ host: tunnelOptions.remoteAddress.host, port: tunnelOptions.remoteAddress.port });
+				remoteSocket.pipe(proxySocket);
+				proxySocket.pipe(remoteSocket);
+			});
+			proxyServer.listen(tunnelOptions.localAddressPort === undefined ? 0 : tunnelOptions.localAddressPort + 1, () => {
+				const localPort = (<net.AddressInfo>proxyServer.address()).port;
+				const tunnel = newTunnel({ host: 'localhost', port: localPort });
+				res(tunnel);
+			});
+		});
+	}
 }
