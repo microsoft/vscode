@@ -1416,7 +1416,7 @@ export function registerTerminalActions() {
 					{
 						primary: KeyMod.CtrlCmd | KeyMod.Shift | KeyCode.KEY_F,
 						when: ContextKeyExpr.and(KEYBINDING_CONTEXT_TERMINAL_PROCESS_SUPPORTED, KEYBINDING_CONTEXT_TERMINAL_FOCUS, KEYBINDING_CONTEXT_TERMINAL_TEXT_SELECTED),
-						weight: KeybindingWeight.WorkbenchContrib
+						weight: KeybindingWeight.WorkbenchContrib + 50
 					}
 				],
 				precondition: KEYBINDING_CONTEXT_TERMINAL_PROCESS_SUPPORTED
