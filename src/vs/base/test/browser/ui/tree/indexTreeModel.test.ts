@@ -5,7 +5,7 @@
 
 import * as assert from 'assert';
 import { ITreeNode, ITreeFilter, TreeVisibility, ITreeElement } from 'vs/base/browser/ui/tree/tree';
-import { IndexTreeModel, IIndexTreeNode, IList, IIndexedSpliceOptions } from 'vs/base/browser/ui/tree/indexTreeModel';
+import { IndexTreeModel, IIndexTreeNode, IList, IIndexTreeModelSpliceOptions } from 'vs/base/browser/ui/tree/indexTreeModel';
 
 function toList<T>(arr: T[]): IList<T> {
 	return {
@@ -31,7 +31,7 @@ const diffIdentityProvider = { getId: (n: number) => String(n) };
  * Calls that test function twice, once with an empty options and
  * once with `diffIdentityProvider`.
  */
-function withSmartSplice(fn: (options: IIndexedSpliceOptions<number, any>) => void) {
+function withSmartSplice(fn: (options: IIndexTreeModelSpliceOptions<number, any>) => void) {
 	fn({});
 	fn({ diffIdentityProvider });
 }
