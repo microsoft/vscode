@@ -27,7 +27,6 @@ import { withNullAsUndefined } from 'vs/base/common/types';
 import { IBackupMainService } from 'vs/platform/backup/electron-main/backup';
 import { IDialogMainService } from 'vs/platform/dialogs/electron-main/dialogMainService';
 import { findWindowOnWorkspaceOrFolder } from 'vs/platform/windows/electron-main/windowsFinder';
-import { sanitizeFilePath } from 'vs/base/common/extpath';
 
 export const IWorkspacesMainService = createDecorator<IWorkspacesMainService>('workspacesMainService');
 
@@ -324,12 +323,12 @@ export class WorkspacesMainService extends Disposable implements IWorkspacesMain
 export function getWorkspaceIdentifier(configPath: URI): IWorkspaceIdentifier {
 
 	function getWorkspaceId(): string {
-		let workspaceConfigPath = configPath.scheme === Schemas.file ? originalFSPath(configPath) : configPath.toString();
+		let configPathStr = configPath.scheme === Schemas.file ? originalFSPath(configPath) : configPath.toString();
 		if (!isLinux) {
-			workspaceConfigPath = workspaceConfigPath.toLowerCase(); // sanitize for platform file system
+			configPathStr = configPathStr.toLowerCase(); // sanitize for platform file system
 		}
 
-		return createHash('md5').update(workspaceConfigPath).digest('hex');
+		return createHash('md5').update(configPathStr).digest('hex');
 	}
 
 	return {
@@ -338,17 +337,17 @@ export function getWorkspaceIdentifier(configPath: URI): IWorkspaceIdentifier {
 	};
 }
 
-export function getSingleFolderWorkspaceIdentifier(uri: URI): ISingleFolderWorkspaceIdentifier | undefined {
+export function getSingleFolderWorkspaceIdentifier(folderUri: URI): ISingleFolderWorkspaceIdentifier | undefined {
 
 	function getFolderId(): string {
 
 		// Remote: produce a hash from the entire URI
-		if (uri.scheme !== Schemas.file) {
-			return createHash('md5').update(uri.toString()).digest('hex');
+		if (folderUri.scheme !== Schemas.file) {
+			return createHash('md5').update(folderUri.toString()).digest('hex');
 		}
 
 		// Local: produce a hash from the path and include creation time as salt
-		const fileStat = statSync(uri.fsPath);
+		const fileStat = statSync(folderUri.fsPath);
 		let ctime: number | undefined;
 		if (isLinux) {
 			ctime = fileStat.ino; // Linux: birthtime is ctime, so we cannot use it! We use the ino instead!
@@ -364,21 +363,15 @@ export function getSingleFolderWorkspaceIdentifier(uri: URI): ISingleFolderWorks
 
 		// we use the ctime as extra salt to the ID so that we catch the case of a folder getting
 		// deleted and recreated. in that case we do not want to carry over previous state
-		return createHash('md5').update(uri.fsPath).update(ctime ? String(ctime) : '').digest('hex');
+		return createHash('md5').update(folderUri.fsPath).update(ctime ? String(ctime) : '').digest('hex');
 	}
 
 	try {
-		const folder = uri.scheme === Schemas.file
-			? URI.file(sanitizeFilePath(uri.fsPath, process.env['VSCODE_CWD'] || process.cwd())) // For local: ensure path is absolute
-			: uri;
-
 		return {
 			id: getFolderId(),
-			uri: folder
+			uri: folderUri
 		};
 	} catch (error) {
-		//onUnexpectedError(error);
+		return undefined; // the folder might not exist anymore
 	}
-
-	return undefined;
 }

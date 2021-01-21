@@ -3,7 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { statSync, unlink } from 'fs';
+import { statSync, unlink, existsSync } from 'fs';
 import { basename, normalize, join, posix } from 'vs/base/common/path';
 import { localize } from 'vs/nls';
 import { coalesce, distinct, firstOrDefault } from 'vs/base/common/arrays';
@@ -24,7 +24,7 @@ import product from 'vs/platform/product/common/product';
 import { IWindowsMainService, IOpenConfiguration, IWindowsCountChangedEvent, ICodeWindow, IOpenEmptyConfiguration, OpenContext } from 'vs/platform/windows/electron-main/windows';
 import { IWorkspacesHistoryMainService } from 'vs/platform/workspaces/electron-main/workspacesHistoryMainService';
 import { IProcessEnvironment, isMacintosh } from 'vs/base/common/platform';
-import { IWorkspaceIdentifier, hasWorkspaceFileExtension, IRecent, isWorkspaceIdentifier, isSingleFolderWorkspaceIdentifier } from 'vs/platform/workspaces/common/workspaces';
+import { IWorkspaceIdentifier, hasWorkspaceFileExtension, IRecent, isWorkspaceIdentifier, isSingleFolderWorkspaceIdentifier, ISingleFolderWorkspaceIdentifier } from 'vs/platform/workspaces/common/workspaces';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { Schemas } from 'vs/base/common/network';
 import { URI } from 'vs/base/common/uri';
@@ -36,7 +36,7 @@ import { once } from 'vs/base/common/functional';
 import { Disposable } from 'vs/base/common/lifecycle';
 import { IDialogMainService } from 'vs/platform/dialogs/electron-main/dialogMainService';
 import { withNullAsUndefined } from 'vs/base/common/types';
-import { isWindowsDriveLetter, toSlashes, parseLineAndColumnAware } from 'vs/base/common/extpath';
+import { isWindowsDriveLetter, toSlashes, parseLineAndColumnAware, sanitizeFilePath } from 'vs/base/common/extpath';
 import { CharCode } from 'vs/base/common/charCode';
 import { getPathLabel } from 'vs/base/common/labels';
 import { CancellationToken } from 'vs/base/common/cancellation';
@@ -49,8 +49,7 @@ interface IOpenBrowserWindowOptions {
 	readonly userEnv?: IProcessEnvironment;
 	readonly cli?: NativeParsedArgs;
 
-	readonly workspace?: IWorkspaceIdentifier;
-	readonly folderUri?: URI;
+	readonly workspace?: IWorkspaceIdentifier | ISingleFolderWorkspaceIdentifier;
 
 	readonly remoteAuthority?: string;
 
@@ -603,9 +602,20 @@ export class WindowsMainService extends Disposable implements IWindowsMainServic
 			windowToUse = this.getWindowById(openConfig.contextWindowId); // fix for https://github.com/microsoft/vscode/issues/49587
 		}
 
+		// Resolve the workspace identifier
+		// - workspace: can turn `undefined` if the workspace config file does not exist on disk
+		// - single folder: can turn `undefined` if the folder does not exist on disk
+		const workspace = this.resolveWorkspaceIdentifier(folderOrWorkspace);
+
+		// Fallback to empty window if our validation has shown
+		// that neither folder nor workspace exist anymore
+		if (!workspace) {
+			return this.doOpenEmpty(openConfig, forceNewWindow, undefined, filesToOpen, windowToUse);
+		}
+
+		// Otherwise proceed to open folder/workspace
 		return this.openInBrowserWindow({
 			workspace: folderOrWorkspace.workspace,
-			folderUri: folderOrWorkspace.folderUri,
 			userEnv: openConfig.userEnv,
 			cli: openConfig.cli,
 			initialStartup: openConfig.initialStartup,
@@ -615,6 +625,32 @@ export class WindowsMainService extends Disposable implements IWindowsMainServic
 			filesToOpen,
 			windowToUse
 		});
+	}
+
+	private resolveWorkspaceIdentifier(path: IPathToOpen): IWorkspaceIdentifier | ISingleFolderWorkspaceIdentifier | undefined {
+
+		// Workspace
+		if (path.workspace) {
+			if (path.workspace.configPath.scheme === Schemas.file && !existsSync(path.workspace.configPath.fsPath)) {
+				return undefined; // fix for https://github.com/microsoft/vscode/issues/110982
+			}
+
+			return path.workspace;
+		}
+
+		// Single Folder
+		if (path.folderUri) {
+			let sanitizedFolderUri: URI;
+			if (path.folderUri.scheme === Schemas.file) {
+				sanitizedFolderUri = URI.file(sanitizeFilePath(path.folderUri.fsPath, process.env['VSCODE_CWD'] || process.cwd())); // local: ensure absolute path is used
+			} else {
+				sanitizedFolderUri = path.folderUri;
+			}
+
+			return getSingleFolderWorkspaceIdentifier(sanitizedFolderUri);
+		}
+
+		return undefined;
 	}
 
 	private getPathsToOpen(openConfig: IOpenConfiguration): IPathToOpen[] {
@@ -1179,7 +1215,7 @@ export class WindowsMainService extends Disposable implements IWindowsMainServic
 		configuration.execPath = process.execPath;
 		configuration.userEnv = { ...this.initialUserEnv, ...options.userEnv };
 		configuration.isInitialStartup = options.initialStartup;
-		configuration.workspace = options.workspace ? options.workspace : options.folderUri ? getSingleFolderWorkspaceIdentifier(options.folderUri) : undefined;
+		configuration.workspace = options.workspace;
 		configuration.remoteAuthority = options.remoteAuthority;
 
 		const filesToOpen = options.filesToOpen;
