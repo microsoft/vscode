@@ -1977,7 +1977,31 @@ export class NotebookEditorWidget extends Disposable implements INotebookEditor 
 		await this._resolveWebview();
 
 		const cellTop = this._list.getAbsoluteTopOfElement(cell);
-		await this._webview!.createMarkdownPreview(cell.id, cell.getText(), cellTop);
+		if (this._webview.markdownPreviewMapping.has(cell.id)) {
+			await this._webview!.showMarkdownPreview(cell.id, cellTop);
+		} else {
+			await this._webview!.createMarkdownPreview(cell.id, cell.getText(), cellTop);
+		}
+	}
+
+	async hideMarkdownPreview(cell: MarkdownCellViewModel) {
+		if (!this._webview) {
+			return;
+		}
+
+		await this._resolveWebview();
+
+		await this._webview!.hideMarkdownPreview(cell.id);
+	}
+
+	async removeMarkdownPreview(cell: MarkdownCellViewModel) {
+		if (!this._webview) {
+			return;
+		}
+
+		await this._resolveWebview();
+
+		await this._webview!.removeMarkdownPreview(cell.id);
 	}
 
 	async createInset(cell: CodeCellViewModel, output: IInsetRenderOutput, offset: number): Promise<void> {
