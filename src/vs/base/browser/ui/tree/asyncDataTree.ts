@@ -924,16 +924,14 @@ export class AsyncDataTree<TInput, T, TFilterData = void> implements IDisposable
 
 	protected render(node: IAsyncDataTreeNode<TInput, T>, viewStateContext?: IAsyncDataTreeViewStateContext<TInput, T>, options?: IAsyncDataTreeUpdateChildrenOptions<T>): void {
 		const children = node.children.map(node => this.asTreeElement(node, viewStateContext));
-
-		const diffIdentity = options?.diffIdentityProvider;
-		const objectTreeOptions: IObjectTreeSetChildrenOptions<IAsyncDataTreeNode<TInput, T>> | undefined = options ? {
+		const objectTreeOptions: IObjectTreeSetChildrenOptions<IAsyncDataTreeNode<TInput, T>> | undefined = options && {
 			...options,
-			diffIdentityProvider: diffIdentity ? {
+			diffIdentityProvider: options!.diffIdentityProvider && {
 				getId(node: IAsyncDataTreeNode<TInput, T>): { toString(): string; } {
-					return diffIdentity.getId(node.element as T);
+					return options!.diffIdentityProvider!.getId(node.element as T);
 				}
-			} : undefined
-		} : undefined;
+			}
+		};
 
 		this.tree.setChildren(node === this.root ? null : node, children, objectTreeOptions);
 
