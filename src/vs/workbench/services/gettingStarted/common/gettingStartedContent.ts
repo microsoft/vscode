@@ -87,7 +87,7 @@ export const content: GettingStartedContent = [
 					title: localize('gettingStarted.remoteTerminal.title', "Run tasks in the integrated terminal"),
 					description: localize('gettingStarted.remoteTerminal.description', "Perform quick command-line tasks using the built-in terminal."),
 					button: {
-						title: localize('gettingStarted.remoteTerminal.button', "Open Terminal"),
+						title: localize('gettingStarted.remoteTerminal.button', "Focus Terminal"),
 						command: 'terminal.focus'
 					},
 					doneOn: { commandExecuted: 'terminal.focus' },
