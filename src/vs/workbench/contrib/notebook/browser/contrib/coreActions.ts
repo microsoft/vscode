@@ -578,7 +578,35 @@ registerAction2(class extends NotebookAction {
 		super({
 			id: CANCEL_NOTEBOOK_COMMAND_ID,
 			title: localize('notebookActions.cancelNotebook', "Cancel Notebook Execution"),
+			description: {
+				description: localize('notebookActions.executeNotebook', "Execute Notebook"),
+				args: [
+					{
+						name: 'uri',
+						description: 'The document uri',
+						constraint: URI
+					}
+				]
+			},
 		});
+	}
+
+	getEditorContextFromArgsOrActive(accessor: ServicesAccessor, context?: UriComponents): INotebookActionContext | undefined {
+		if (context) {
+			const uri = URI.revive(context);
+
+			if (uri) {
+				const widget = getWidgetFromUri(accessor, uri);
+
+				if (widget) {
+					return {
+						notebookEditor: widget,
+					};
+				}
+			}
+		}
+
+		return undefined;
 	}
 
 	async runWithContext(accessor: ServicesAccessor, context: INotebookActionContext): Promise<void> {
