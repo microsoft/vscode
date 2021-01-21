@@ -29,6 +29,7 @@ import { IEnvironmentService } from 'vs/platform/environment/common/environment'
 import { IExtensionService, toExtensionDescription } from 'vs/workbench/services/extensions/common/extensions';
 import { areSameExtensions } from 'vs/platform/extensionManagement/common/extensionManagementUtil';
 import { mark } from 'vs/base/common/performance';
+import { IIgnoredExtensionsManagementService } from 'vs/platform/userDataSync/common/ignoredExtensions';
 
 export const IUserDataInitializationService = createDecorator<IUserDataInitializationService>('IUserDataInitializationService');
 export interface IUserDataInitializationService {
@@ -191,11 +192,12 @@ class WorkbenchExtensionsInitializer extends ExtensionsInitializer {
 		@IExtensionGalleryService galleryService: IExtensionGalleryService,
 		@IGlobalExtensionEnablementService extensionEnablementService: IGlobalExtensionEnablementService,
 		@IStorageService storageService: IStorageService,
+		@IIgnoredExtensionsManagementService ignoredExtensionsManagementService: IIgnoredExtensionsManagementService,
 		@IFileService fileService: IFileService,
 		@IEnvironmentService environmentService: IEnvironmentService,
 		@IUserDataSyncLogService logService: IUserDataSyncLogService,
 	) {
-		super(extensionManagementService, galleryService, extensionEnablementService, storageService, fileService, environmentService, logService);
+		super(extensionManagementService, galleryService, extensionEnablementService, storageService, ignoredExtensionsManagementService, fileService, environmentService, logService);
 	}
 
 	protected async initializeRemoteExtensions(remoteExtensions: ISyncExtension[]): Promise<ILocalExtension[]> {

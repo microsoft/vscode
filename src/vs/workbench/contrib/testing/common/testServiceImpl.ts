@@ -16,6 +16,7 @@ import { INotificationService } from 'vs/platform/notification/common/notificati
 import { ExtHostTestingResource } from 'vs/workbench/api/common/extHost.protocol';
 import { AbstractIncrementalTestCollection, collectTestResults, EMPTY_TEST_RESULT, getTestSubscriptionKey, IncrementalTestCollectionItem, InternalTestItem, RunTestsRequest, RunTestsResult, TestDiffOpType, TestIdWithProvider, TestsDiff } from 'vs/workbench/contrib/testing/common/testCollection';
 import { TestingContextKeys } from 'vs/workbench/contrib/testing/common/testingContextKeys';
+import { ITestResultService, TestResult } from 'vs/workbench/contrib/testing/common/testResultService';
 import { IMainThreadTestCollection, ITestService, MainTestController, TestDiffListener } from 'vs/workbench/contrib/testing/common/testService';
 
 type TestLocationIdent = { resource: ExtHostTestingResource, uri: URI };
@@ -39,7 +40,6 @@ export class TestService extends Disposable implements ITestService {
 	private readonly busyStateChangeEmitter = new Emitter<TestLocationIdent & { busy: boolean }>();
 	private readonly changeProvidersEmitter = new Emitter<{ delta: number }>();
 	private readonly providerCount: IContextKey<number>;
-	private readonly isRunning: IContextKey<boolean>;
 	private readonly runStartedEmitter = new Emitter<RunTestsRequest>();
 	private readonly runCompletedEmitter = new Emitter<{ req: RunTestsRequest, result: RunTestsResult }>();
 	private readonly runningTests = new Map<RunTestsRequest, CancellationTokenSource>();
@@ -48,10 +48,9 @@ export class TestService extends Disposable implements ITestService {
 	public readonly onTestRunStarted = this.runStartedEmitter.event;
 	public readonly onTestRunCompleted = this.runCompletedEmitter.event;
 
-	constructor(@IContextKeyService contextKeyService: IContextKeyService, @INotificationService private readonly notificationService: INotificationService) {
+	constructor(@IContextKeyService contextKeyService: IContextKeyService, @INotificationService private readonly notificationService: INotificationService, @ITestResultService private readonly testResults: ITestResultService) {
 		super();
 		this.providerCount = TestingContextKeys.providerCount.bindTo(contextKeyService);
-		this.isRunning = TestingContextKeys.isRunning.bindTo(contextKeyService);
 	}
 
 	/**
@@ -128,32 +127,37 @@ export class TestService extends Disposable implements ITestService {
 	 * @inheritdoc
 	 */
 	public async runTests(req: RunTestsRequest, token = CancellationToken.None): Promise<RunTestsResult> {
-		const tests = groupBy(req.tests, (a, b) => a.providerId === b.providerId ? 0 : 1);
-		const cancelSource = new CancellationTokenSource(token);
-		const requests = tests.map(group => {
-			const providerId = group[0].providerId;
-			const controller = this.testControllers.get(providerId);
-			return controller?.runTests({ providerId, debug: req.debug, ids: group.map(t => t.testId) }, cancelSource.token).catch(err => {
-				this.notificationService.error(localize('testError', 'An error occurred attempting to run tests: {0}', err.message));
+		let result: TestResult | undefined;
+		const subscriptions = [...this.testSubscriptions.values()]
+			.filter(v => req.tests.some(t => v.collection.getNodeById(t.testId)))
+			.map(s => this.subscribeToDiffs(s.ident.resource, s.ident.uri, () => result?.notifyChanged()));
+		result = this.testResults.push(TestResult.from(subscriptions.map(s => s.collection), req.tests));
+
+		try {
+			const tests = groupBy(req.tests, (a, b) => a.providerId === b.providerId ? 0 : 1);
+			const cancelSource = new CancellationTokenSource(token);
+			const requests = tests.map(group => {
+				const providerId = group[0].providerId;
+				const controller = this.testControllers.get(providerId);
+				return controller?.runTests({ providerId, debug: req.debug, ids: group.map(t => t.testId) }, cancelSource.token).catch(err => {
+					this.notificationService.error(localize('testError', 'An error occurred attempting to run tests: {0}', err.message));
+					return EMPTY_TEST_RESULT;
+				});
+			}).filter(isDefined);
+
+			if (requests.length === 0) {
 				return EMPTY_TEST_RESULT;
-			});
-		}).filter(isDefined);
+			}
 
-		if (requests.length === 0) {
-			return EMPTY_TEST_RESULT;
+			this.runningTests.set(req, cancelSource);
+			const result = collectTestResults(await Promise.all(requests));
+			this.runningTests.delete(req);
+
+			return result;
+		} finally {
+			subscriptions.forEach(s => s.dispose());
+			result.markComplete();
 		}
-
-		this.runningTests.set(req, cancelSource);
-		this.runStartedEmitter.fire(req);
-		this.isRunning.set(true);
-
-		const result = collectTestResults(await Promise.all(requests));
-
-		this.runningTests.delete(req);
-		this.runCompletedEmitter.fire({ req, result });
-		this.isRunning.set(this.runningTests.size > 0);
-
-		return result;
 	}
 
 	/**
@@ -223,7 +227,7 @@ export class TestService extends Disposable implements ITestService {
 		const sub = this.testSubscriptions.get(getTestSubscriptionKey(resource, URI.revive(uri)));
 		if (sub) {
 			sub.collection.apply(diff);
-			console.log('accept', sub.collection, diff);
+			// console.log('accept', sub.collection, diff);
 			sub.onDiff.fire(diff);
 		}
 	}

@@ -232,7 +232,8 @@ export class NotebookContribution extends Disposable implements IWorkbenchContri
 		this._register(this.editorService.overrideOpenEditor({
 			getEditorOverrides: (resource: URI, options: IEditorOptions | undefined, group: IEditorGroup | undefined) => {
 
-				const currentEditorForResource = group && this.editorService.findEditors(resource, group);
+				const currentEditorsForResource = group && this.editorService.findEditors(resource, group);
+				const currentEditorForResource = currentEditorsForResource && currentEditorsForResource.length ? currentEditorsForResource[0] : undefined;
 
 				const associatedEditors = distinct([
 					...this.getUserAssociatedNotebookEditors(resource),
@@ -335,8 +336,25 @@ export class NotebookContribution extends Disposable implements IWorkbenchContri
 			return undefined;
 		}
 
-		if (originalInput instanceof NotebookEditorInput) {
-			return undefined;
+		if (id && originalInput instanceof NotebookEditorInput) {
+			if (originalInput.viewType === id) {
+				return undefined;
+			} else {
+				return {
+					override: (async () => {
+						const notebookInput = NotebookEditorInput.create(this.instantiationService, originalInput.resource, originalInput.getName(), id);
+						await group.replaceEditors([{
+							editor: originalInput,
+							replacement: notebookInput
+						}]);
+						if (group.activeEditorPane?.input === notebookInput) {
+							return group.activeEditorPane;
+						} else {
+							return undefined;
+						}
+					})()
+				};
+			}
 		}
 
 		if (originalInput instanceof NotebookDiffEditorInput) {
