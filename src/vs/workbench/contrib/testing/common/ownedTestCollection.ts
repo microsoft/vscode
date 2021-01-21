@@ -188,6 +188,10 @@ export class SingleUseTestCollection implements IDisposable {
 
 	@throttle(200)
 	protected throttleSendDiff() {
+		this.flushDiff();
+	}
+
+	public flushDiff() {
 		const diff = this.collectDiff();
 		if (diff.length) {
 			this.publishDiff(diff);

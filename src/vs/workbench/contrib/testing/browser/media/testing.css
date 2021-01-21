@@ -46,6 +46,10 @@
 	margin-right: 0.25em;
 }
 
+.test-explorer .test-explorer-messages {
+	padding: 0 12px 8px;
+}
+
 .monaco-workbench
 	.test-explorer
 	.monaco-action-bar
@@ -63,11 +67,11 @@
 }
 
 /** -- peek */
-.monaco-editor .zone-widget .zone-widget-container.peekview-widget {
+.monaco-editor .zone-widget.test-output-peek .zone-widget-container.peekview-widget {
 	border-top-width: 2px;
 	border-bottom-width: 2px;
 }
 
-/* .monaco-editor .zone-widget .zone-widget-container.peekview-widget .peekview-title .filename {
-	height: 22px;
-} */
+.monaco-editor .zone-widget.test-output-peek .zone-widget-container.peekview-widget .peekview-title .filename {
+	max-height: 29px;
+}

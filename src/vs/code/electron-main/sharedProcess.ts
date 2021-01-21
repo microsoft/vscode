@@ -14,6 +14,7 @@ import { browserCodeLoadingCacheStrategy } from 'vs/base/common/platform';
 import { ISharedProcess, ISharedProcessConfiguration } from 'vs/platform/sharedProcess/node/sharedProcess';
 import { Disposable } from 'vs/base/common/lifecycle';
 import { connect as connectMessagePort } from 'vs/base/parts/ipc/electron-main/ipc.mp';
+import { assertIsDefined } from 'vs/base/common/types';
 
 export class SharedProcess extends Disposable implements ISharedProcess {
 
@@ -49,8 +50,18 @@ export class SharedProcess extends Disposable implements ISharedProcess {
 			// workbench window will communicate directly
 			await this.whenReady();
 
+			// connect to the shared process window
 			const port = await this.connect();
 
+			// Check back if the requesting window meanwhile closed
+			// Since shared process is delayed on startup there is
+			// a chance that the window close before the shared process
+			// was ready for a connection.
+			if (e.sender.isDestroyed()) {
+				return port.close();
+			}
+
+			// send the port back to the requesting window
 			e.sender.postMessage('vscode:createSharedProcessMessageChannelResult', nonce, [port]);
 		});
 	}
@@ -62,7 +73,7 @@ export class SharedProcess extends Disposable implements ISharedProcess {
 		}
 
 		// Signal exit to shared process when shutting down
-		if (!window.webContents.isDestroyed()) {
+		if (!window.isDestroyed() && !window.webContents.isDestroyed()) {
 			window.webContents.send('vscode:electron-main->shared-process=exit');
 		}
 
@@ -208,13 +219,9 @@ export class SharedProcess extends Disposable implements ISharedProcess {
 		// Wait for shared process being ready to accept connection
 		await this.whenIpcReady;
 
-		// Assert healthy shared process window
-		if (!this.window || this.window.webContents.isDestroyed()) {
-			throw new Error('Cannot connect to shared process window because the window is closed or destroyed');
-		}
-
 		// Connect and return message port
-		return connectMessagePort(this.window);
+		const window = assertIsDefined(this.window);
+		return connectMessagePort(window);
 	}
 
 	async toggle(): Promise<void> {

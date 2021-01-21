@@ -780,4 +780,31 @@ suite('Async', () => {
 		assert.equal(ct1!.isCancellationRequested, true, 'should cancel a');
 		assert.equal(ct2!.isCancellationRequested, true, 'should cancel b');
 	});
+
+	suite('DeferredPromise', () => {
+		test('resolves', async () => {
+			const deferred = new async.DeferredPromise<number>();
+			assert.strictEqual(deferred.isResolved, false);
+			deferred.complete(42);
+			assert.strictEqual(await deferred.p, 42);
+			assert.strictEqual(deferred.isResolved, true);
+		});
+
+		test('rejects', async () => {
+			const deferred = new async.DeferredPromise<number>();
+			assert.strictEqual(deferred.isRejected, false);
+			const err = new Error('oh no!');
+			deferred.error(err);
+			assert.strictEqual(await deferred.p.catch(e => e), err);
+			assert.strictEqual(deferred.isRejected, true);
+		});
+
+		test('cancels', async () => {
+			const deferred = new async.DeferredPromise<number>();
+			assert.strictEqual(deferred.isRejected, false);
+			deferred.cancel();
+			assert.strictEqual((await deferred.p.catch(e => e)).name, 'Canceled');
+			assert.strictEqual(deferred.isRejected, true);
+		});
+	});
 });

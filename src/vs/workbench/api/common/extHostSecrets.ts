@@ -33,8 +33,8 @@ export class ExtensionSecrets implements vscode.SecretStorage {
 		return this._secretState.get(this._id, key);
 	}
 
-	set(key: string, value: string): Promise<void> {
-		return this._secretState.set(this._id, key, value);
+	store(key: string, value: string): Promise<void> {
+		return this._secretState.store(this._id, key, value);
 	}
 
 	delete(key: string): Promise<void> {

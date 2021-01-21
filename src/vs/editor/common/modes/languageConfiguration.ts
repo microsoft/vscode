@@ -150,7 +150,7 @@ export interface OnEnterRule {
 	/**
 	 * This rule will only execute if the text above the this line matches this regular expression.
 	 */
-	oneLineAboveText?: RegExp;
+	previousLineText?: RegExp;
 	/**
 	 * The action to execute.
 	 */
