@@ -10,7 +10,7 @@ import { NotebookExtensionDescription } from 'vs/workbench/api/common/extHost.pr
 import { Event } from 'vs/base/common/event';
 import {
 	INotebookTextModel, INotebookRendererInfo,
-	IEditor, INotebookKernelProvider, INotebookKernelInfo2, TransientMetadata, NotebookDataDto, TransientOptions, INotebookDecorationRenderOptions, INotebookExclusiveDocumentFilter, IOrderedMimeType, ITransformedDisplayOutputDto
+	IEditor, INotebookKernelProvider, INotebookKernelInfo2, TransientMetadata, NotebookDataDto, TransientOptions, INotebookDecorationRenderOptions, INotebookExclusiveDocumentFilter, IOrderedMimeType, ITransformedDisplayOutputDto, INotebookMarkdownRendererInfo
 } from 'vs/workbench/contrib/notebook/common/notebookCommon';
 import { NotebookTextModel } from 'vs/workbench/contrib/notebook/common/model/notebookTextModel';
 import { CancellationToken } from 'vs/base/common/cancellation';
@@ -18,7 +18,6 @@ import { NotebookCellTextModel } from 'vs/workbench/contrib/notebook/common/mode
 import { IDisposable } from 'vs/base/common/lifecycle';
 import { NotebookOutputRendererInfo } from 'vs/workbench/contrib/notebook/common/notebookOutputRenderer';
 import { IRelativePattern } from 'vs/base/common/glob';
-import { NotebookMarkdownRendererInfo } from 'vs/workbench/contrib/notebook/common/notebookMarkdownRenderer';
 
 
 export const INotebookService = createDecorator<INotebookService>('notebookService');
@@ -57,7 +56,7 @@ export interface INotebookService {
 	getContributedNotebookKernelProviders(): Promise<INotebookKernelProvider[]>;
 	getContributedNotebookOutputRenderers(id: string): NotebookOutputRendererInfo | undefined;
 	getRendererInfo(id: string): INotebookRendererInfo | undefined;
-	getMarkdownRendererInfo(): NotebookMarkdownRendererInfo | undefined;
+	getMarkdownRendererInfo(): INotebookMarkdownRendererInfo[];
 
 	resolveNotebook(viewType: string, uri: URI, forceReload: boolean, backupId?: string): Promise<NotebookTextModel>;
 	getNotebookTextModel(uri: URI): NotebookTextModel | undefined;

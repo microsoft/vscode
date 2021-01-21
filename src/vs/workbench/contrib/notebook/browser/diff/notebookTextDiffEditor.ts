@@ -581,6 +581,10 @@ export class NotebookTextDiffEditor extends EditorPane implements INotebookTextD
 		});
 	}
 
+	updateMarkdownCellHeight() {
+		// TODO
+	}
+
 	getCellByInfo(cellInfo: IDiffCellInfo): IGenericCellViewModel {
 		return cellInfo.diffElement.getCellByUri(cellInfo.cellUri);
 	}

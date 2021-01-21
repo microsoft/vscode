@@ -300,6 +300,12 @@ export class TestNotebookEditor implements INotebookEditor {
 	createInset(cell: CellViewModel, output: IInsetRenderOutput, offset: number): Promise<void> {
 		return Promise.resolve();
 	}
+	createMarkdownPreview(cell: ICellViewModel): Promise<void> {
+		return Promise.resolve();
+	}
+	updateMarkdownCellHeight(cellId: string, height: number, isInit: boolean): void {
+		// noop
+	}
 	removeInset(output: ICellOutputViewModel): void {
 		// throw new Error('Method not implemented.');
 	}

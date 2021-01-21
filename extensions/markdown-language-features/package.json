@@ -35,6 +35,11 @@
         "id": "markdownItRenderer",
         "displayName": "Markdown it renderer",
         "entrypoint": "./notebook-out/index.js"
+      },
+      {
+        "id": "markdownItRenderer-katex",
+        "displayName": "Markdown it renderer",
+        "entrypoint": "./notebook-out/extension.js"
       }
     ],
     "commands": [
@@ -332,6 +337,7 @@
     "watch-web": "npx webpack-cli --config extension-browser.webpack.config --mode none --watch --info-verbosity verbose"
   },
   "dependencies": {
+    "@iktakahiro/markdown-it-katex": "^4.0.1",
     "highlight.js": "^10.4.1",
     "markdown-it": "^12.0.3",
     "markdown-it-front-matter": "^0.2.1",
