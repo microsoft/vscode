@@ -162,19 +162,17 @@ export class QueryBuilder {
 			this.parseSearchPaths(pattern, expandPatterns === 'strict');
 	}
 
-	private commonQuery(folderResources: (IWorkspaceFolderData | URI)[] = [], options: ICommonQueryBuilderOptions = {}, strict?: boolean): ICommonQueryProps<uri> {
-		const patternExpansionMode = strict ? 'strict' : options.expandPatterns ? 'loose' : 'none';
+	private commonQuery(folderResources: (IWorkspaceFolderData | URI)[] = [], options: ICommonQueryBuilderOptions = {}, strictPatterns?: boolean): ICommonQueryProps<uri> {
+		const patternExpansionMode = strictPatterns ? 'strict' : options.expandPatterns ? 'loose' : 'none';
 		const includeSearchPathsInfo: ISearchPathsInfo = this.handleIncludeExclude(options.includePattern, patternExpansionMode);
 		const excludeSearchPathsInfo: ISearchPathsInfo = this.handleIncludeExclude(options.excludePattern, patternExpansionMode);
 
 		// Build folderQueries from searchPaths, if given, otherwise folderResources
 		const includeFolderName = folderResources.length > 1;
-		const folderQueries = options.onlyOpenEditors
-			? []
-			: (includeSearchPathsInfo.searchPaths && includeSearchPathsInfo.searchPaths.length ?
-				includeSearchPathsInfo.searchPaths.map(searchPath => this.getFolderQueryForSearchPath(searchPath, options, excludeSearchPathsInfo)) :
-				folderResources.map(folder => this.getFolderQueryForRoot(folder, options, excludeSearchPathsInfo, includeFolderName)))
-				.filter(query => !!query) as IFolderQuery[];
+		const folderQueries = (includeSearchPathsInfo.searchPaths && includeSearchPathsInfo.searchPaths.length ?
+			includeSearchPathsInfo.searchPaths.map(searchPath => this.getFolderQueryForSearchPath(searchPath, options, excludeSearchPathsInfo)) :
+			folderResources.map(folder => this.getFolderQueryForRoot(folder, options, excludeSearchPathsInfo, includeFolderName)))
+			.filter(query => !!query) as IFolderQuery[];
 
 		const queryProps: ICommonQueryProps<uri> = {
 			_reason: options._reason,
@@ -256,11 +254,11 @@ export class QueryBuilder {
 
 	/**
 	 * Take the includePattern as seen in the search viewlet, and split into components that look like searchPaths, and
-	 * glob patterns. When `strict` is false, patterns are expanded from 'foo/bar' to '{foo/bar/**, **\/foo/bar}.
+	 * glob patterns. When `strictPatterns` is false, patterns are expanded from 'foo/bar' to '{foo/bar/**, **\/foo/bar}.
 	 *
 	 * Public for test.
 	 */
-	parseSearchPaths(pattern: string | string[], strict = false): ISearchPathsInfo {
+	parseSearchPaths(pattern: string | string[], strictPatterns = false): ISearchPathsInfo {
 		const isSearchPath = (segment: string) => {
 			// A segment is a search path if it is an absolute path or starts with ./, ../, .\, or ..\
 			return path.isAbsolute(segment) || /^\.\.?([\/\\]|$)/.test(segment);
@@ -283,15 +281,15 @@ export class QueryBuilder {
 			.map(s => strings.rtrim(s, '/'))
 			.map(s => strings.rtrim(s, '\\'))
 			.map(p => {
-				if (!strict && p[0] === '.') {
+				if (!strictPatterns && p[0] === '.') {
 					p = '*' + p; // convert ".js" to "*.js"
 				}
 
-				return strict ? [p] : expandGlobalGlob(p);
+				return strictPatterns ? [p] : expandGlobalGlob(p);
 			});
 
 		const result: ISearchPathsInfo = {};
-		const searchPaths = this.expandSearchPathPatterns(groups.searchPaths || [], strict);
+		const searchPaths = this.expandSearchPathPatterns(groups.searchPaths || [], strictPatterns);
 		if (searchPaths && searchPaths.length) {
 			result.searchPaths = searchPaths;
 		}
@@ -314,7 +312,7 @@ export class QueryBuilder {
 	/**
 	 * Split search paths (./ or ../ or absolute paths in the includePatterns) into absolute paths and globs applied to those paths
 	 */
-	private expandSearchPathPatterns(searchPaths: string[], strict: boolean): ISearchPathPattern[] {
+	private expandSearchPathPatterns(searchPaths: string[], strictPatterns: boolean): ISearchPathPattern[] {
 		if (!searchPaths || !searchPaths.length) {
 			// No workspace => ignore search paths
 			return [];
@@ -334,7 +332,7 @@ export class QueryBuilder {
 
 				// Expanded search paths to multiple resolved patterns (with ** and without)
 				return arrays.flatten(
-					oneExpanded.map(oneExpandedResult => this.resolveOneSearchPathPattern(oneExpandedResult, globPortion, strict)));
+					oneExpanded.map(oneExpandedResult => this.resolveOneSearchPathPattern(oneExpandedResult, globPortion, strictPatterns)));
 			}));
 
 		const searchPathPatternMap = new Map<string, ISearchPathPattern>();
@@ -420,7 +418,7 @@ export class QueryBuilder {
 		return [];
 	}
 
-	private resolveOneSearchPathPattern(oneExpandedResult: IOneSearchPathPattern, globPortion: string | undefined, strict: boolean): IOneSearchPathPattern[] {
+	private resolveOneSearchPathPattern(oneExpandedResult: IOneSearchPathPattern, globPortion: string | undefined, strictPatterns: boolean): IOneSearchPathPattern[] {
 		const pattern = oneExpandedResult.pattern && globPortion ?
 			`${oneExpandedResult.pattern}/${globPortion}` :
 			oneExpandedResult.pattern || globPortion;
@@ -431,7 +429,7 @@ export class QueryBuilder {
 				pattern
 			}];
 
-		if (!strict && pattern && !pattern.endsWith('**')) {
+		if (!strictPatterns && pattern && !pattern.endsWith('**')) {
 			results.push({
 				searchPath: oneExpandedResult.searchPath,
 				pattern: pattern + '/**'
