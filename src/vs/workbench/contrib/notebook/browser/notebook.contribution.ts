@@ -336,7 +336,7 @@ export class NotebookContribution extends Disposable implements IWorkbenchContri
 			return undefined;
 		}
 
-		if (originalInput instanceof NotebookEditorInput) {
+		if (id && originalInput instanceof NotebookEditorInput) {
 			if (originalInput.viewType === id) {
 				return undefined;
 			} else {
