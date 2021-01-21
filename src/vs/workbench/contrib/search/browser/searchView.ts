@@ -1489,6 +1489,7 @@ export class SearchView extends ViewPane {
 
 						this.inputPatternExcludes.setValue('');
 						this.inputPatternIncludes.setValue('');
+						this.inputPatternIncludes.setOnlySearchInOpenEditors(false);
 
 						this.triggerQueryChange({ preserveFocus: false });
 					}));

@@ -412,21 +412,25 @@ export function pathIncludedInQuery(queryProps: ICommonQueryProps<URI>, fsPath: 
 		return false;
 	}
 
-	if (queryProps.includePattern && !glob.match(queryProps.includePattern, fsPath)) {
-		return false;
-	}
+	if (queryProps.includePattern || queryProps.usingSearchPaths) {
+		if (queryProps.includePattern && glob.match(queryProps.includePattern, fsPath)) {
+			return true;
+		}
 
-	// If searchPaths are being used, the extra file must be in a subfolder and match the pattern, if present
-	if (queryProps.usingSearchPaths) {
-		return !!queryProps.folderQueries && queryProps.folderQueries.every(fq => {
-			const searchPath = fq.folder.fsPath;
-			if (extpath.isEqualOrParent(fsPath, searchPath)) {
-				const relPath = relative(searchPath, fsPath);
-				return !fq.includePattern || !!glob.match(fq.includePattern, relPath);
-			} else {
-				return false;
-			}
-		});
+		// If searchPaths are being used, the extra file must be in a subfolder and match the pattern, if present
+		if (queryProps.usingSearchPaths) {
+			return !!queryProps.folderQueries && queryProps.folderQueries.some(fq => {
+				const searchPath = fq.folder.fsPath;
+				if (extpath.isEqualOrParent(fsPath, searchPath)) {
+					const relPath = relative(searchPath, fsPath);
+					return !fq.includePattern || !!glob.match(fq.includePattern, relPath);
+				} else {
+					return false;
+				}
+			});
+		}
+
+		return false;
 	}
 
 	return true;

@@ -42,6 +42,9 @@ export class RipgrepTextSearchEngine {
 
 			const cwd = options.folder.fsPath;
 
+			console.log({ query, options, rgArgs, cwd });
+
+
 			const escapedArgs = rgArgs
 				.map(arg => arg.match(/^-/) ? arg : `'${arg}'`)
 				.join(' ');
@@ -385,13 +388,7 @@ function getRgArgs(query: TextSearchQuery, options: TextSearchOptions): string[]
 
 	if (otherIncludes && otherIncludes.length) {
 		const uniqueOthers = new Set<string>();
-		otherIncludes.forEach(other => {
-			if (!other.endsWith('/**')) {
-				other += '/**';
-			}
-
-			uniqueOthers.add(other);
-		});
+		otherIncludes.forEach(other => { uniqueOthers.add(other); });
 
 		args.push('-g', '!*');
 		uniqueOthers
@@ -508,10 +505,6 @@ function getRgArgs(query: TextSearchQuery, options: TextSearchOptions): string[]
  */
 export function spreadGlobComponents(globArg: string): string[] {
 	const components = splitGlobAware(globArg, '/');
-	if (components[components.length - 1] !== '**') {
-		components.push('**');
-	}
-
 	return components.map((_, i) => components.slice(0, i + 1).join('/'));
 }
 
