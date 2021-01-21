@@ -41,7 +41,7 @@ import { FileAccess } from 'vs/base/common/network';
 import { IIgnoredExtensionsManagementService } from 'vs/platform/userDataSync/common/ignoredExtensions';
 import { IUserDataAutoSyncService } from 'vs/platform/userDataSync/common/userDataSync';
 import { IContextKey, IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
-import { ITrustedWorkspaceService, TrustState } from 'vs/platform/workspace/common/trustedWorkspace';
+import { ITrustedWorkspaceService, WorkspaceTrustState } from 'vs/platform/workspace/common/trustedWorkspace';
 
 interface IExtensionStateProvider<T> {
 	(extension: Extension): T;
@@ -1078,7 +1078,7 @@ export class ExtensionsWorkbenchService extends Disposable implements IExtension
 					immediate: true,
 					message: 'Installing this extension requires you to trust the contents of this workspace.'
 				});
-			return trustState === TrustState.Trusted ? installTask() : Promise.reject();
+			return trustState === WorkspaceTrustState.Trusted ? installTask() : Promise.reject();
 		}
 		return installTask();
 	}

@@ -10,7 +10,7 @@ import { IDialogService } from 'vs/platform/dialogs/common/dialogs';
 import { ServicesAccessor } from 'vs/platform/instantiation/common/instantiation';
 import { Severity } from 'vs/platform/notification/common/notification';
 import { Registry } from 'vs/platform/registry/common/platform';
-import { ITrustedWorkspaceChangeModel, ITrustedWorkspaceService, TrustedWorkspaceContext, TRUSTED_WORKSPACES_URI, TrustState } from 'vs/platform/workspace/common/trustedWorkspace';
+import { ITrustedWorkspaceService, TrustedWorkspaceContext, TRUSTED_WORKSPACES_URI, WorkspaceTrustState, WorkspaceTrustStateChangeEvent } from 'vs/platform/workspace/common/trustedWorkspace';
 import { Extensions as WorkbenchExtensions, IWorkbenchContribution, IWorkbenchContributionsRegistry } from 'vs/workbench/common/contributions';
 import { IActivityService, IconBadge } from 'vs/workbench/services/activity/common/activity';
 import { LifecyclePhase } from 'vs/workbench/services/lifecycle/common/lifecycle';
@@ -69,9 +69,9 @@ export class WorkspaceTrustRequestHandler extends Disposable implements IWorkben
 					);
 
 					if (result.choice === 0) {
-						this.requestModel.completeRequest(TrustState.Trusted);
+						this.requestModel.completeRequest(WorkspaceTrustState.Trusted);
 					} else if (result.choice === 1) {
-						this.requestModel.completeRequest(TrustState.Untrusted);
+						this.requestModel.completeRequest(WorkspaceTrustState.Untrusted);
 					} else {
 						this.requestModel.completeRequest(undefined);
 					}
@@ -80,7 +80,7 @@ export class WorkspaceTrustRequestHandler extends Disposable implements IWorkben
 		}));
 
 		this._register(this.requestModel.onDidCompleteRequest(trustState => {
-			if (trustState !== undefined && trustState !== TrustState.Unknown) {
+			if (trustState !== undefined && trustState !== WorkspaceTrustState.Unknown) {
 				this.toggleRequestBadge(false);
 			}
 		}));
@@ -109,22 +109,22 @@ class TrustedWorkspaceStatusbarItem extends Disposable implements IWorkbenchCont
 		this._register(this.trustedWorkspaceService.onDidChangeTrust(state => this.updateStatusbarEntry(state)));
 	}
 
-	private getStatusbarEntry(state: TrustState): IStatusbarEntry {
-		const text = (state === TrustState.Untrusted)
-			? 'UNTRUSTED' : (state === TrustState.Trusted ? 'TRUSTED' : 'UNKNOWN');
+	private getStatusbarEntry(state: WorkspaceTrustState): IStatusbarEntry {
+		const text = (state === WorkspaceTrustState.Untrusted)
+			? 'UNTRUSTED' : (state === WorkspaceTrustState.Trusted ? 'TRUSTED' : 'UNKNOWN');
 
 		return {
 			text: `$(shield) ${text}`,
 			ariaLabel: localize('status.trustedWorkspace', "Workspace Trust"),
 			tooltip: localize('status.trustedWorkspace', "Workspace Trust"),
-			backgroundColor: state === TrustState.Untrusted ? new ThemeColor('statusBarItem.errorBackground') : 'transparent',
+			backgroundColor: state === WorkspaceTrustState.Untrusted ? new ThemeColor('statusBarItem.errorBackground') : 'transparent',
 			command: 'workbench.trust.require'
 		};
 	}
 
-	private updateStatusbarEntry(state: ITrustedWorkspaceChangeModel): void {
-		this.statusBarEntryAccessor.value?.update(this.getStatusbarEntry(state.currentState));
-		this.statusbarService.updateEntryVisibility(TrustedWorkspaceStatusbarItem.ID, state.currentState === TrustState.Untrusted);
+	private updateStatusbarEntry(state: WorkspaceTrustStateChangeEvent): void {
+		this.statusBarEntryAccessor.value?.update(this.getStatusbarEntry(state.currentTrustState));
+		this.statusbarService.updateEntryVisibility(TrustedWorkspaceStatusbarItem.ID, state.currentTrustState === WorkspaceTrustState.Untrusted);
 	}
 }
 
@@ -156,7 +156,7 @@ registerAction2(class extends Action2 {
 			},
 			category: localize('workspacesCategory', "Workspaces"),
 			f1: true,
-			precondition: TrustedWorkspaceContext.TrustState.isEqualTo(TrustState.Trusted).negate(),
+			precondition: TrustedWorkspaceContext.TrustState.isEqualTo(WorkspaceTrustState.Trusted).negate(),
 			menu: {
 				id: MenuId.GlobalActivity,
 				when: TrustedWorkspaceContext.IsPendingRequest,
@@ -178,7 +178,7 @@ registerAction2(class extends Action2 {
 		});
 
 		if (result.confirmed) {
-			workspaceTrustService.requestModel.completeRequest(TrustState.Trusted);
+			workspaceTrustService.requestModel.completeRequest(WorkspaceTrustState.Trusted);
 		}
 
 		return;
@@ -196,7 +196,7 @@ registerAction2(class extends Action2 {
 			},
 			category: localize('workspacesCategory', "Workspaces"),
 			f1: true,
-			precondition: TrustedWorkspaceContext.TrustState.isEqualTo(TrustState.Untrusted).negate(),
+			precondition: TrustedWorkspaceContext.TrustState.isEqualTo(WorkspaceTrustState.Untrusted).negate(),
 			menu: {
 				id: MenuId.GlobalActivity,
 				when: TrustedWorkspaceContext.IsPendingRequest,
@@ -218,7 +218,7 @@ registerAction2(class extends Action2 {
 		});
 
 		if (result.confirmed) {
-			workspaceTrustService.requestModel.completeRequest(TrustState.Untrusted);
+			workspaceTrustService.requestModel.completeRequest(WorkspaceTrustState.Untrusted);
 		}
 		return;
 	}
@@ -235,7 +235,7 @@ registerAction2(class extends Action2 {
 			},
 			category: localize('workspacesCategory', "Workspaces"),
 			f1: true,
-			precondition: ContextKeyExpr.and(WorkbenchStateContext.isEqualTo('empty').negate(), TrustedWorkspaceContext.TrustState.isEqualTo(TrustState.Unknown).negate())
+			precondition: ContextKeyExpr.and(WorkbenchStateContext.isEqualTo('empty').negate(), TrustedWorkspaceContext.TrustState.isEqualTo(WorkspaceTrustState.Unknown).negate())
 		});
 	}
 

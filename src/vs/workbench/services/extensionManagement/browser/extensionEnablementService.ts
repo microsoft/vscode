@@ -25,7 +25,7 @@ import { ILifecycleService, LifecyclePhase } from 'vs/workbench/services/lifecyc
 import { INotificationService, Severity } from 'vs/platform/notification/common/notification';
 import { IHostService } from 'vs/workbench/services/host/browser/host';
 import { IExtensionBisectService } from 'vs/workbench/services/extensionManagement/browser/extensionBisect';
-import { ITrustedWorkspaceChangeModel, ITrustedWorkspaceService, TrustState } from 'vs/platform/workspace/common/trustedWorkspace';
+import { WorkspaceTrustStateChangeEvent, ITrustedWorkspaceService, WorkspaceTrustState } from 'vs/platform/workspace/common/trustedWorkspace';
 
 const SOURCE = 'IWorkbenchExtensionEnablementService';
 
@@ -168,7 +168,7 @@ export class ExtensionEnablementService extends Disposable implements IWorkbench
 					immediate: true,
 					message: 'Enabling this extension requires you to trust the contents of this workspace.'
 				}).then(trustState => {
-					if (trustState === TrustState.Trusted) {
+					if (trustState === WorkspaceTrustState.Trusted) {
 						return this._setEnablement(e, newState);
 					} else {
 						return Promise.resolve(false);
@@ -274,10 +274,10 @@ export class ExtensionEnablementService extends Disposable implements IWorkbench
 		const workspaceTrustState = this.trustedWorkspaceService.getWorkspaceTrustState();
 
 		if (extension.manifest.requiresWorkspaceTrust === 'onStart') {
-			if (workspaceTrustState !== TrustState.Trusted) {
+			if (workspaceTrustState !== WorkspaceTrustState.Trusted) {
 				this._addToWorkspaceDisabledExtensionsByTrustRequirement(extension);
 			}
-			return workspaceTrustState !== TrustState.Trusted;
+			return workspaceTrustState !== WorkspaceTrustState.Trusted;
 		}
 		return false;
 	}
@@ -437,15 +437,15 @@ export class ExtensionEnablementService extends Disposable implements IWorkbench
 		}
 	}
 
-	private async _onDidChangeTrust(state: ITrustedWorkspaceChangeModel): Promise<void> {
-		if (state.previousState === TrustState.Trusted && (
-			state.currentState === TrustState.Untrusted ||
-			state.currentState === TrustState.Unknown)) {
+	private async _onDidChangeTrust(state: WorkspaceTrustStateChangeEvent): Promise<void> {
+		if (state.previousTrustState === WorkspaceTrustState.Trusted && (
+			state.currentTrustState === WorkspaceTrustState.Untrusted ||
+			state.currentTrustState === WorkspaceTrustState.Unknown)) {
 			// Reload window
 			this.hostService.reload();
 			return;
 		}
-		if (state.currentState === TrustState.Trusted) {
+		if (state.currentTrustState === WorkspaceTrustState.Trusted) {
 			// Enable extensions
 			this._onEnablementChanged.fire(this.extensionsDisabledByTrustRequirement);
 			this.extensionsDisabledByTrustRequirement = [];

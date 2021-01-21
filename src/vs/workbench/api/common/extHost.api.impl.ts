@@ -48,7 +48,7 @@ import { ExtHostUrls } from 'vs/workbench/api/common/extHostUrls';
 import { ExtHostWebviews } from 'vs/workbench/api/common/extHostWebview';
 import { IExtHostWindow } from 'vs/workbench/api/common/extHostWindow';
 import { IExtHostWorkspace } from 'vs/workbench/api/common/extHostWorkspace';
-import { throwProposedApiError, checkProposedApiEnabled } from 'vs/workbench/services/extensions/common/extensions';
+import { throwProposedApiError, checkProposedApiEnabled, checkRequiresWorkspaceTrust } from 'vs/workbench/services/extensions/common/extensions';
 import { ProxyIdentifier } from 'vs/workbench/services/extensions/common/proxyIdentifier';
 import { ExtensionDescriptionRegistry } from 'vs/workbench/services/extensions/common/extensionDescriptionRegistry';
 import type * as vscode from 'vscode';
@@ -880,13 +880,18 @@ export function createApiFactoryAndRegisterActors(accessor: ServicesAccessor): I
 				checkProposedApiEnabled(extension);
 				return extHostTimeline.registerTimelineProvider(scheme, provider, extension.identifier, extHostCommands.converter);
 			},
-			getWorkspaceTrustState: () => {
+			get trustState() {
 				checkProposedApiEnabled(extension);
-				return extHostTypes.WorkspaceTrustState.Trusted;
+				checkRequiresWorkspaceTrust(extension);
+				return extHostWorkspace.trustState;
 			},
-			requireWorkspaceTrust: (reason?: string) => {
+			requireWorkspaceTrust: (message?: string) => {
 				checkProposedApiEnabled(extension);
-				return Promise.resolve(extHostTypes.WorkspaceTrustState.Trusted);
+				checkRequiresWorkspaceTrust(extension);
+				return extHostWorkspace.requireWorkspaceTrust(message);
+			},
+			onDidChangeWorkspaceTrustState: (listener, thisArgs?, disposables?) => {
+				return extHostWorkspace.onDidChangeWorkspaceTrustState(listener, thisArgs, disposables);
 			}
 		};
 

@@ -2612,22 +2612,22 @@ declare module 'vscode' {
 		currentTrustState: WorkspaceTrustState;
 	}
 
-	namespace workspace {
+	export namespace workspace {
 		/**
-		 * Returns the trust state of the current workspace
+		 * The trust state of the current workspace
 		 */
-		export function getWorkspaceTrustState(): WorkspaceTrustState;
+		export const trustState: WorkspaceTrustState;
 
 		/**
 		 * Prompt the user to chose whether to trust the current workspace
-		 * @param reason Optional message which would be displayed in the prompt
+		 * @param message Optional message which would be displayed in the prompt
 		 */
-		export function requireWorkspaceTrust(reason?: string): Promise<WorkspaceTrustState>;
+		export function requireWorkspaceTrust(message?: string): Thenable<WorkspaceTrustState>;
 
 		/**
 		 * Event that fires when the trust state of the current workspace changes
 		 */
-		// export const onDidChangeTrustState: Event<WorkspaceTrustStateChangeEvent>;
+		export const onDidChangeWorkspaceTrustState: Event<WorkspaceTrustStateChangeEvent>;
 	}
 
 	//#endregion
