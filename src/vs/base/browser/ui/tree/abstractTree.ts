@@ -961,6 +961,7 @@ export interface IAbstractTreeOptionsUpdate extends ITreeRendererOptions {
 	readonly filterOnType?: boolean;
 	readonly smoothScrolling?: boolean;
 	readonly horizontalScrolling?: boolean;
+	readonly supportDynamicHeights?: boolean;
 	readonly expandOnlyOnDoubleClick?: boolean;
 	readonly expandOnlyOnTwistieClick?: boolean | ((e: any) => boolean); // e is T
 }

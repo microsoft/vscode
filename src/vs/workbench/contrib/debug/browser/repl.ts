@@ -358,12 +358,11 @@ export class Repl extends ViewPane implements IHistoryNavigationWidget {
 			const treeElement = this.tree.getHTMLElement();
 			treeElement.parentElement?.classList.toggle('word-wrap', wordWrap);
 			this.tree.updateOptions({
-				horizontalScrolling: !wordWrap
+				horizontalScrolling: !wordWrap,
+				supportDynamicHeights: wordWrap,
 			});
 
-			setTimeout(() => {
-				this.tree.rerender();
-			}, 0);
+			this.tree.rerender();
 
 			if (this.dimension) {
 				this.layoutBody(this.dimension.height, this.dimension.width);
