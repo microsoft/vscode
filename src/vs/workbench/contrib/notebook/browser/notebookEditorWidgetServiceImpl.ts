@@ -21,6 +21,10 @@ export class NotebookEditorWidgetService implements INotebookEditorWidgetService
 	private readonly _notebookWidgets = new Map<number, ResourceMap<{ widget: NotebookEditorWidget, token: number | undefined }>>();
 	private readonly _disposables = new DisposableStore();
 
+	get widgets() {
+		return [...this._notebookWidgets.values()].map(val => [...val.values()].map(widget => widget.widget)).reduce((prev, curr) => { return [...prev, ...curr]; }, []);
+	}
+
 	constructor(
 		@IEditorGroupsService editorGroupService: IEditorGroupsService,
 		@IEditorService editorService: IEditorService,

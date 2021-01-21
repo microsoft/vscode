@@ -1369,7 +1369,7 @@ export class Repository implements Disposable {
 					await this.repository.fetch({ all: true });
 				}
 
-				if (await this.checkIfMaybeRebased(branch)) {
+				if (await this.checkIfMaybeRebased(this.HEAD?.name)) {
 					await this.repository.pull(rebase, remote, branch, { unshallow, tags });
 				}
 			});
@@ -1440,7 +1440,7 @@ export class Repository implements Disposable {
 						await this.repository.fetch({ all: true, cancellationToken });
 					}
 
-					if (await this.checkIfMaybeRebased(pullBranch)) {
+					if (await this.checkIfMaybeRebased(this.HEAD?.name)) {
 						await this.repository.pull(rebase, remoteName, pullBranch, { tags, cancellationToken });
 					}
 				};
@@ -1472,7 +1472,7 @@ export class Repository implements Disposable {
 		});
 	}
 
-	private async checkIfMaybeRebased(branch?: string) {
+	private async checkIfMaybeRebased(currentBranch?: string) {
 		const config = workspace.getConfiguration('git');
 		const shouldIgnore = config.get<boolean>('ignoreRebaseWarning') === true;
 
@@ -1481,12 +1481,16 @@ export class Repository implements Disposable {
 		}
 
 		const maybeRebased = await this.run(Operation.Log, async () => {
-			const result = await this.repository.run(['log', '--oneline', '--cherry', `${branch ?? ''}...${branch ?? ''}@{upstream}`, '--']);
-			if (result.exitCode) {
+			try {
+				const result = await this.repository.run(['log', '--oneline', '--cherry', `${currentBranch ?? ''}...${currentBranch ?? ''}@{upstream}`, '--']);
+				if (result.exitCode) {
+					return false;
+				}
+
+				return /^=/.test(result.stdout);
+			} catch {
 				return false;
 			}
-
-			return /^=/.test(result.stdout);
 		});
 
 		if (!maybeRebased) {
@@ -1497,9 +1501,9 @@ export class Repository implements Disposable {
 		const pull = { title: localize('pull', "Pull") };
 		const cancel = { title: localize('dont pull', "Don't Pull") };
 		const result = await window.showWarningMessage(
-			branch
-				? localize('pull branch maybe rebased', "It looks like branch \'{0}\' might have been rebased. Are you sure you still want to pull?", branch)
-				: localize('pull maybe rebased', "It looks like the current branch might have been rebased. Are you sure you still want to pull?"),
+			currentBranch
+				? localize('pull branch maybe rebased', "It looks like the current branch \'{0}\' might have been rebased. Are you sure you still want to pull into it?", currentBranch)
+				: localize('pull maybe rebased', "It looks like the current branch might have been rebased. Are you sure you still want to pull into it?"),
 			always, pull, cancel
 		);
 

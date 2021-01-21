@@ -102,7 +102,7 @@ export class TestingOutputPeek extends PeekViewWidget {
 		@IInstantiationService protected readonly instantiationService: IInstantiationService,
 		@ITextModelService private readonly modelService: ITextModelService,
 	) {
-		super(editor, { showFrame: false, showArrow: true, isResizeable: true, isAccessible: true }, instantiationService);
+		super(editor, { showFrame: false, showArrow: true, isResizeable: true, isAccessible: true, className: 'test-output-peek' }, instantiationService);
 
 		this._disposables.add(themeService.onDidColorThemeChange(this.applyTheme, this));
 		this.applyTheme(themeService.getColorTheme());
