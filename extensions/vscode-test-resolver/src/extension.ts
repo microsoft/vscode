@@ -352,8 +352,9 @@ function tunnelFactory(tunnelOptions: vscode.TunnelOptions): Promise<vscode.Tunn
 				remoteSocket.pipe(proxySocket);
 				proxySocket.pipe(remoteSocket);
 			});
-			proxyServer.listen(tunnelOptions.localAddressPort === undefined ? 0 : tunnelOptions.localAddressPort + 1, () => {
+			proxyServer.listen(tunnelOptions.localAddressPort === undefined ? 0 : tunnelOptions.localAddressPort, () => {
 				const localPort = (<net.AddressInfo>proxyServer.address()).port;
+				console.log(`New tunnel server: Remote ${tunnelOptions.remoteAddress.port} -> local ${localPort}`);
 				const tunnel = newTunnel({ host: 'localhost', port: localPort });
 				res(tunnel);
 			});
