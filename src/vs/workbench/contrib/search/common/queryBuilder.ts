@@ -169,14 +169,16 @@ export class QueryBuilder {
 
 		// Build folderQueries from searchPaths, if given, otherwise folderResources
 		const includeFolderName = folderResources.length > 1;
-		const folderQueries = (includeSearchPathsInfo.searchPaths && includeSearchPathsInfo.searchPaths.length ?
-			includeSearchPathsInfo.searchPaths.map(searchPath => this.getFolderQueryForSearchPath(searchPath, options, excludeSearchPathsInfo)) :
-			folderResources.map(folder => this.getFolderQueryForRoot(folder, options, excludeSearchPathsInfo, includeFolderName)))
-			.filter(query => !!query) as IFolderQuery[];
+		const folderQueries = options.onlyOpenEditors
+			? []
+			: (includeSearchPathsInfo.searchPaths && includeSearchPathsInfo.searchPaths.length ?
+				includeSearchPathsInfo.searchPaths.map(searchPath => this.getFolderQueryForSearchPath(searchPath, options, excludeSearchPathsInfo)) :
+				folderResources.map(folder => this.getFolderQueryForRoot(folder, options, excludeSearchPathsInfo, includeFolderName)))
+				.filter(query => !!query) as IFolderQuery[];
 
 		const queryProps: ICommonQueryProps<uri> = {
 			_reason: options._reason,
-			folderQueries: options.onlyOpenEditors ? [] : folderQueries,
+			folderQueries,
 			usingSearchPaths: !!(includeSearchPathsInfo.searchPaths && includeSearchPathsInfo.searchPaths.length),
 			extraFileResources: options.extraFileResources,
 
