@@ -73,7 +73,7 @@ export class SharedProcess extends Disposable implements ISharedProcess {
 		}
 
 		// Signal exit to shared process when shutting down
-		if (!window.webContents.isDestroyed()) {
+		if (!window.isDestroyed() && !window.webContents.isDestroyed()) {
 			window.webContents.send('vscode:electron-main->shared-process=exit');
 		}
 
