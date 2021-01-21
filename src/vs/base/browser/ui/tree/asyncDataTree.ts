@@ -280,7 +280,7 @@ function asObjectTreeOptions<TInput, T, TFilterData>(options?: IAsyncDataTreeOpt
 }
 
 export interface IAsyncDataTreeOptionsUpdate extends IAbstractTreeOptionsUpdate { }
-export interface IAsycnDataTreeUpdateChildrenOptions<T, TFilterData> extends IObjectTreeSetChildrenOptions<T, TFilterData> { }
+export interface IAsyncDataTreeUpdateChildrenOptions<T, TFilterData> extends IObjectTreeSetChildrenOptions<T, TFilterData> { }
 
 export interface IAsyncDataTreeOptions<T, TFilterData = void> extends IAsyncDataTreeOptionsUpdate, Pick<IAbstractTreeOptions<T, TFilterData>, Exclude<keyof IAbstractTreeOptions<T, TFilterData>, 'collapseByDefault'>> {
 	readonly collapseByDefault?: { (e: T): boolean; };
@@ -501,11 +501,11 @@ export class AsyncDataTree<TInput, T, TFilterData = void> implements IDisposable
 		}
 	}
 
-	async updateChildren(element: TInput | T = this.root.element, recursive = true, rerender = false, options?: IAsycnDataTreeUpdateChildrenOptions<T | TInput, TFilterData>): Promise<void> {
+	async updateChildren(element: TInput | T = this.root.element, recursive = true, rerender = false, options?: IAsyncDataTreeUpdateChildrenOptions<T | TInput, TFilterData>): Promise<void> {
 		await this._updateChildren(element, recursive, rerender, undefined, options);
 	}
 
-	private async _updateChildren(element: TInput | T = this.root.element, recursive = true, rerender = false, viewStateContext?: IAsyncDataTreeViewStateContext<TInput, T>, options?: IAsycnDataTreeUpdateChildrenOptions<T | TInput, TFilterData>): Promise<void> {
+	private async _updateChildren(element: TInput | T = this.root.element, recursive = true, rerender = false, viewStateContext?: IAsyncDataTreeViewStateContext<TInput, T>, options?: IAsyncDataTreeUpdateChildrenOptions<T | TInput, TFilterData>): Promise<void> {
 		if (typeof this.root.element === 'undefined') {
 			throw new TreeError(this.user, 'Tree input not set');
 		}
@@ -706,7 +706,7 @@ export class AsyncDataTree<TInput, T, TFilterData = void> implements IDisposable
 		return node;
 	}
 
-	private async refreshAndRenderNode(node: IAsyncDataTreeNode<TInput, T>, recursive: boolean, viewStateContext?: IAsyncDataTreeViewStateContext<TInput, T>, options?: IAsycnDataTreeUpdateChildrenOptions<T | TInput, TFilterData>): Promise<void> {
+	private async refreshAndRenderNode(node: IAsyncDataTreeNode<TInput, T>, recursive: boolean, viewStateContext?: IAsyncDataTreeViewStateContext<TInput, T>, options?: IAsyncDataTreeUpdateChildrenOptions<T | TInput, TFilterData>): Promise<void> {
 		await this.refreshNode(node, recursive, viewStateContext);
 		this.render(node, viewStateContext, options);
 	}
@@ -923,18 +923,20 @@ export class AsyncDataTree<TInput, T, TFilterData = void> implements IDisposable
 		return childrenToRefresh;
 	}
 
-	protected render(node: IAsyncDataTreeNode<TInput, T>, viewStateContext?: IAsyncDataTreeViewStateContext<TInput, T>, options?: IAsycnDataTreeUpdateChildrenOptions<T | TInput, TFilterData>): void {
+	protected render(node: IAsyncDataTreeNode<TInput, T>, viewStateContext?: IAsyncDataTreeViewStateContext<TInput, T>, options?: IAsyncDataTreeUpdateChildrenOptions<T, TFilterData>): void {
 		const children = node.children.map(node => this.asTreeElement(node, viewStateContext));
-		const asTreeOptions = options ? {
-			diffIdentityProvider: options.diffIdentityProvider ? {
+
+		const diffIdentity = options?.diffIdentityProvider;
+		const treeOptions = options ? {
+			diffIdentityProvider: diffIdentity ? {
 				getId(node: IAsyncDataTreeNode<TInput, T>): { toString(): string; } {
-					return options.diffIdentityProvider!.getId(node.element);
+					return diffIdentity.getId(node.element as T);
 				}
 			} : undefined,
-			diffDept: options.diffDepth,
-			//TODO@Isidor convert onDidNode events
+			diffDept: options.diffDepth
 		} : undefined;
-		this.tree.setChildren(node === this.root ? null : node, children, asTreeOptions);
+
+		this.tree.setChildren(node === this.root ? null : node, children, treeOptions);
 
 		if (node !== this.root) {
 			this.tree.setCollapsible(node, node.hasChildren);
