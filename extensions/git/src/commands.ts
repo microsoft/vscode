@@ -5,6 +5,7 @@
 
 import * as os from 'os';
 import * as path from 'path';
+import { promises as fs } from 'fs';
 import { commands, Disposable, LineChange, MessageOptions, OutputChannel, Position, ProgressLocation, QuickPickItem, Range, SourceControlResourceState, TextDocumentShowOptions, TextEditor, Uri, ViewColumn, window, workspace, WorkspaceEdit, WorkspaceFolder, TimelineItem, env, Selection, TextDocumentContentProvider } from 'vscode';
 import TelemetryReporter from 'vscode-extension-telemetry';
 import * as nls from 'vscode-nls';
@@ -1200,7 +1201,27 @@ export class CommandCenter {
 		}
 
 		const resources = scmResources.map(r => r.resourceUri);
+
+		let isFileBeingUsedByAnotherProcess: boolean = false;
+
+		await Promise.all(resources.map(async (object) => {
+			try {
+				let fileHandler = await fs.open(object.fsPath, 'r+');
+				fileHandler.close();
+			} catch (error) {
+				if (error.code === 'EBUSY') {
+					window.showErrorMessage(localize('file is being used by another process', "Cannot discard changes in {0} because it is being used by another process", object.fsPath), { modal: true });
+					isFileBeingUsedByAnotherProcess = true;
+				}
+			}
+		}));
+
+		if (isFileBeingUsedByAnotherProcess) {
+			return;
+		}
+
 		await this.runByRepository(resources, async (repository, resources) => repository.clean(resources));
+
 	}
 
 	@command('git.cleanAll', { repository: true })
@@ -1210,6 +1231,8 @@ export class CommandCenter {
 		if (resources.length === 0) {
 			return;
 		}
+
+		let resourcesUri = resources.map(r => r.resourceUri);
 
 		const trackedResources = resources.filter(r => r.type !== Status.UNTRACKED && r.type !== Status.IGNORED);
 		const untrackedResources = resources.filter(r => r.type === Status.UNTRACKED || r.type === Status.IGNORED);
@@ -1221,6 +1244,8 @@ export class CommandCenter {
 		} else if (trackedResources.length === 0) {
 			await this._cleanUntrackedChanges(repository, resources);
 		} else { // resources.length > 1 && untrackedResources.length > 0 && trackedResources.length > 0
+
+
 			const untrackedMessage = untrackedResources.length === 1
 				? localize('there are untracked files single', "The following untracked file will be DELETED FROM DISK if discarded: {0}.", path.basename(untrackedResources[0].resourceUri.fsPath))
 				: localize('there are untracked files', "There are {0} untracked files which will be DELETED FROM DISK if discarded.", untrackedResources.length);
@@ -1240,7 +1265,24 @@ export class CommandCenter {
 				return;
 			}
 
-			await repository.clean(resources.map(r => r.resourceUri));
+			let doNotDiscard: string[] = [];
+
+			await Promise.all(resourcesUri.map(async (object) => {
+				try {
+					let fileHandler = await fs.open(object.fsPath, 'r+');
+					fileHandler.close();
+				} catch (error) {
+					if (error.code === 'EBUSY') {
+						window.showErrorMessage(localize('file is being used by another process', "Cannot discard changes in {0} because it is being used by another process", object.fsPath), { modal: true });
+						doNotDiscard.push(object.fsPath);
+					}
+				}
+			}));
+
+			resourcesUri = resources.map(r => r.resourceUri);
+			resourcesUri = resourcesUri.filter(item => !doNotDiscard.includes(item.fsPath));
+
+			await repository.clean(resourcesUri);
 		}
 	}
 
@@ -1285,7 +1327,25 @@ export class CommandCenter {
 			return;
 		}
 
-		await repository.clean(resources.map(r => r.resourceUri));
+		let doNotDiscard: string[] = [];
+		let resourcesUri = resources.map(r => r.resourceUri);
+
+		await Promise.all(resourcesUri.map(async (object) => {
+			try {
+				let fileHandler = await fs.open(object.fsPath, 'r+');
+				fileHandler.close();
+			} catch (error) {
+				if (error.code === 'EBUSY') {
+					window.showErrorMessage(localize('file is being used by another process', "Cannot discard changes in {0} because it is being used by another process", object.fsPath), { modal: true });
+					doNotDiscard.push(object.fsPath);
+				}
+			}
+		}));
+
+		resourcesUri = resources.map(r => r.resourceUri);
+		resourcesUri = resourcesUri.filter(item => !doNotDiscard.includes(item.fsPath));
+
+		await repository.clean(resourcesUri);
 	}
 
 	private async _cleanUntrackedChange(repository: Repository, resource: Resource): Promise<void> {
@@ -1294,6 +1354,21 @@ export class CommandCenter {
 		const pick = await window.showWarningMessage(message, { modal: true }, yes);
 
 		if (pick !== yes) {
+			return;
+		}
+		let isFileBeingUsedByAnotherProcess: boolean = false;
+
+		try {
+			let fileHandler = await fs.open(resource.resourceUri.fsPath, 'r+');
+			fileHandler.close();
+		} catch (error) {
+			if (error.code === 'EBUSY') {
+				window.showErrorMessage(localize('file is being used by another process', "Cannot discard changes in {0} because it is being used by another process", resource.resourceUri.fsPath), { modal: true });
+				isFileBeingUsedByAnotherProcess = true;
+			}
+		}
+
+		if (isFileBeingUsedByAnotherProcess) {
 			return;
 		}
 
@@ -1309,7 +1384,25 @@ export class CommandCenter {
 			return;
 		}
 
-		await repository.clean(resources.map(r => r.resourceUri));
+		let doNotDiscard: string[] = [];
+		let resourcesUri = resources.map(r => r.resourceUri);
+
+		await Promise.all(resourcesUri.map(async (object) => {
+			try {
+				let fileHandler = await fs.open(object.fsPath, 'r+');
+				fileHandler.close();
+			} catch (error) {
+				if (error.code === 'EBUSY') {
+					window.showErrorMessage(localize('file is being used by another process', "Cannot discard changes in {0} because it is being used by another process", object.fsPath), { modal: true });
+					doNotDiscard.push(object.fsPath);
+				}
+			}
+		}));
+
+		resourcesUri = resources.map(r => r.resourceUri);
+		resourcesUri = resourcesUri.filter(item => !doNotDiscard.includes(item.fsPath));
+
+		await repository.clean(resourcesUri);
 	}
 
 	private async smartCommit(
