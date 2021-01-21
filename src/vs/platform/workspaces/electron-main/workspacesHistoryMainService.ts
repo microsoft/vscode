@@ -253,7 +253,7 @@ export class WorkspacesHistoryMainService extends Disposable implements IWorkspa
 
 		const currentFolder = include?.config?.folderUri;
 		if (currentFolder) {
-			workspaces.push({ folderUri: currentFolder });
+			workspaces.push({ folderUri: currentFolder.uri });
 		}
 
 		// Add currently files to open to the beginning if any

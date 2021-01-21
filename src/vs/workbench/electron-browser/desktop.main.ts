@@ -328,7 +328,7 @@ class DesktopMain extends Disposable {
 		return workspace;
 	}
 
-	private async resolveSingleFolderWorkspaceInitializationPayload(folderUri: ISingleFolderWorkspaceIdentifier): Promise<ISingleFolderWorkspaceInitializationPayload | undefined> {
+	private async resolveSingleFolderWorkspaceInitializationPayload({ uri: folderUri }: ISingleFolderWorkspaceIdentifier): Promise<ISingleFolderWorkspaceInitializationPayload | undefined> {
 		try {
 			const folder = folderUri.scheme === Schemas.file
 				? URI.file(sanitizeFilePath(folderUri.fsPath, process.env['VSCODE_CWD'] || process.cwd())) // For local: ensure path is absolute

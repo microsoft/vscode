@@ -273,7 +273,7 @@ export class LaunchMainService implements ILaunchMainService {
 		const folderURIs: URI[] = [];
 
 		if (window.openedFolderUri) {
-			folderURIs.push(window.openedFolderUri);
+			folderURIs.push(window.openedFolderUri.uri);
 		} else if (window.openedWorkspace) {
 			// workspace folders can only be shown for local workspaces
 			const workspaceConfigPath = window.openedWorkspace.configPath;

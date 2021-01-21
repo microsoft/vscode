@@ -154,7 +154,7 @@ export abstract class BaseSwitchWindow extends Action {
 		const windows = await this.nativeHostService.getWindows();
 		const placeHolder = nls.localize('switchWindowPlaceHolder', "Select a window to switch to");
 		const picks = windows.map(window => {
-			const resource = window.filename ? URI.file(window.filename) : window.folderUri ? window.folderUri : window.workspace ? window.workspace.configPath : undefined;
+			const resource = window.filename ? URI.file(window.filename) : window.folderUri ? window.folderUri.uri : window.workspace ? window.workspace.configPath : undefined;
 			const fileKind = window.filename ? FileKind.FILE : window.workspace ? FileKind.ROOT_FOLDER : window.folderUri ? FileKind.FOLDER : FileKind.FILE;
 			return {
 				payload: window.id,

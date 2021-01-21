@@ -95,33 +95,59 @@ export function isRecentFile(curr: IRecent): curr is IRecentFile {
 
 //#region Identifiers / Payload
 
-/**
- * A single folder workspace identifier is just the path to the folder.
- */
-export type ISingleFolderWorkspaceIdentifier = URI;
+export interface IBaseWorkspaceIdentifier {
 
-export function reviveSingleFolderIdentifier(folder: UriComponents): ISingleFolderWorkspaceIdentifier {
-	return URI.revive(folder);
+	/**
+	 * Every workspace (multi-root, single folder or empty)
+	 * has a unique identifier. It is not possible to open
+	 * a workspace with the same `id` in multiple windows
+	 */
+	id: string;
+}
+
+/**
+ * A single folder workspace identifier is a path to a folder + id.
+ */
+export interface ISingleFolderWorkspaceIdentifier extends IBaseWorkspaceIdentifier {
+	uri: URI;
+}
+
+export function isSingleFolderWorkspaceIdentifier(obj: unknown): obj is ISingleFolderWorkspaceIdentifier {
+	const singleFolderIdentifier = obj as ISingleFolderWorkspaceIdentifier | undefined;
+
+	return !!singleFolderIdentifier && typeof singleFolderIdentifier.id === 'string' && singleFolderIdentifier.uri instanceof URI;
+}
+
+export function reviveSingleFolderIdentifier(folder: { id: string, uri: UriComponents; }): ISingleFolderWorkspaceIdentifier {
+	return {
+		id: folder.id,
+		uri: URI.revive(folder.uri)
+	};
 }
 
 /**
  * A multi-root workspace identifier is a path to a workspace file + id.
  */
-export interface IWorkspaceIdentifier {
-	id: string;
+export interface IWorkspaceIdentifier extends IBaseWorkspaceIdentifier {
 	configPath: URI;
 }
 
 export function toWorkspaceIdentifier(workspace: IWorkspace): IWorkspaceIdentifier | ISingleFolderWorkspaceIdentifier | undefined {
+
+	// Multi root
 	if (workspace.configuration) {
 		return {
-			configPath: workspace.configuration,
-			id: workspace.id
+			id: workspace.id,
+			configPath: workspace.configuration
 		};
 	}
 
+	// Single folder
 	if (workspace.folders.length === 1) {
-		return workspace.folders[0].uri;
+		return {
+			id: workspace.id,
+			uri: workspace.folders[0].uri
+		};
 	}
 
 	// Empty workspace
@@ -135,16 +161,19 @@ export function isWorkspaceIdentifier(obj: unknown): obj is IWorkspaceIdentifier
 }
 
 export function reviveWorkspaceIdentifier(workspace: { id: string, configPath: UriComponents; }): IWorkspaceIdentifier {
-	return { id: workspace.id, configPath: URI.revive(workspace.configPath) };
+	return {
+		id: workspace.id,
+		configPath: URI.revive(workspace.configPath)
+	};
 }
 
 export function isUntitledWorkspace(path: URI, environmentService: IEnvironmentService): boolean {
 	return extUriBiasedIgnorePathCase.isEqualOrParent(path, environmentService.untitledWorkspacesHome);
 }
 
-export interface ISingleFolderWorkspaceInitializationPayload { id: string; uri: URI; }
+export interface ISingleFolderWorkspaceInitializationPayload extends ISingleFolderWorkspaceIdentifier { }
 export interface IMultiFolderWorkspaceInitializationPayload extends IWorkspaceIdentifier { }
-export interface IEmptyWorkspaceInitializationPayload { id: string; }
+export interface IEmptyWorkspaceInitializationPayload extends IBaseWorkspaceIdentifier { }
 
 export type IWorkspaceInitializationPayload = IMultiFolderWorkspaceInitializationPayload | ISingleFolderWorkspaceInitializationPayload | IEmptyWorkspaceInitializationPayload;
 

@@ -33,9 +33,9 @@ export function findWindowOnFile(windows: ICodeWindow[], fileUri: URI, localWork
 	}
 
 	// Then go with single folder windows that are parent of the provided file path
-	const singleFolderWindowsOnFilePath = windows.filter(window => window.openedFolderUri && extUriBiasedIgnorePathCase.isEqualOrParent(fileUri, window.openedFolderUri));
+	const singleFolderWindowsOnFilePath = windows.filter(window => window.openedFolderUri && extUriBiasedIgnorePathCase.isEqualOrParent(fileUri, window.openedFolderUri.uri));
 	if (singleFolderWindowsOnFilePath.length) {
-		return singleFolderWindowsOnFilePath.sort((windowA, windowB) => -(windowA.openedFolderUri!.path.length - windowB.openedFolderUri!.path.length))[0];
+		return singleFolderWindowsOnFilePath.sort((windowA, windowB) => -(windowA.openedFolderUri!.uri.path.length - windowB.openedFolderUri!.uri.path.length))[0];
 	}
 
 	return undefined;
@@ -51,7 +51,7 @@ export function findWindowOnWorkspaceOrFolder(windows: ICodeWindow[], folderOrWo
 		}
 
 		// check for folder path
-		if (window.openedFolderUri && extUriBiasedIgnorePathCase.isEqual(window.openedFolderUri, folderOrWorkspaceConfigUri)) {
+		if (window.openedFolderUri && extUriBiasedIgnorePathCase.isEqual(window.openedFolderUri.uri, folderOrWorkspaceConfigUri)) {
 			return window;
 		}
 	}

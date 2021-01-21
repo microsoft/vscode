@@ -39,7 +39,7 @@ function createTestCodeWindow(options: { lastFocusTime: number, openedFolderUri?
 		id: number = -1;
 		win: Electron.BrowserWindow = undefined!;
 		config: INativeWindowConfiguration | undefined;
-		openedFolderUri = options.openedFolderUri;
+		openedFolderUri = options.openedFolderUri ? { id: '', uri: options.openedFolderUri } : undefined;
 		openedWorkspace = options.openedWorkspace;
 		backupPath?: string | undefined;
 		remoteAuthority?: string | undefined;

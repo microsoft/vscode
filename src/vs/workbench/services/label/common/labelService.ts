@@ -14,7 +14,7 @@ import { IEnvironmentService } from 'vs/platform/environment/common/environment'
 import { IWorkspaceContextService, IWorkspace } from 'vs/platform/workspace/common/workspace';
 import { basenameOrAuthority, basename, joinPath, dirname } from 'vs/base/common/resources';
 import { tildify, getPathLabel } from 'vs/base/common/labels';
-import { IWorkspaceIdentifier, WORKSPACE_EXTENSION, toWorkspaceIdentifier, isWorkspaceIdentifier, isUntitledWorkspace } from 'vs/platform/workspaces/common/workspaces';
+import { IWorkspaceIdentifier, WORKSPACE_EXTENSION, toWorkspaceIdentifier, isWorkspaceIdentifier, isUntitledWorkspace, isSingleFolderWorkspaceIdentifier } from 'vs/platform/workspaces/common/workspaces';
 import { ILabelService, ResourceLabelFormatter, ResourceLabelFormatting, IFormatterChangeEvent } from 'vs/platform/label/common/label';
 import { ExtensionsRegistry } from 'vs/workbench/services/extensions/common/extensionsRegistry';
 import { match } from 'vs/base/common/glob';
@@ -180,44 +180,57 @@ export class LabelService extends Disposable implements ILabelService {
 		return paths.basename(label);
 	}
 
-	getWorkspaceLabel(workspace: (IWorkspaceIdentifier | URI | IWorkspace), options?: { verbose: boolean }): string {
+	getWorkspaceLabel(workspace: IWorkspaceIdentifier | URI | IWorkspace, options?: { verbose: boolean }): string {
 		if (IWorkspace.isIWorkspace(workspace)) {
 			const identifier = toWorkspaceIdentifier(workspace);
-			if (!identifier) {
-				return '';
+			if (isWorkspaceIdentifier(identifier)) {
+				return this.getWorkspaceLabel(identifier, options);
 			}
 
-			workspace = identifier;
+			if (isSingleFolderWorkspaceIdentifier(identifier)) {
+				return this.getWorkspaceLabel(identifier.uri, options);
+			}
+
+			return '';
 		}
 
 		// Workspace: Single Folder
 		if (URI.isUri(workspace)) {
-			// Folder on disk
-			const label = options && options.verbose ? this.getUriLabel(workspace) : basename(workspace) || '/';
-			return this.appendWorkspaceSuffix(label, workspace);
+			return this.doGetSingleFolderWorkspaceLabel(workspace, options);
 		}
 
+		// Workspace: Multi Root
 		if (isWorkspaceIdentifier(workspace)) {
-			// Workspace: Untitled
-			if (isUntitledWorkspace(workspace.configPath, this.environmentService)) {
-				return localize('untitledWorkspace', "Untitled (Workspace)");
-			}
-
-			// Workspace: Saved
-			let filename = basename(workspace.configPath);
-			if (filename.endsWith(WORKSPACE_EXTENSION)) {
-				filename = filename.substr(0, filename.length - WORKSPACE_EXTENSION.length - 1);
-			}
-			let label;
-			if (options && options.verbose) {
-				label = localize('workspaceNameVerbose', "{0} (Workspace)", this.getUriLabel(joinPath(dirname(workspace.configPath), filename)));
-			} else {
-				label = localize('workspaceName', "{0} (Workspace)", filename);
-			}
-			return this.appendWorkspaceSuffix(label, workspace.configPath);
+			return this.doGetWorkspaceLabel(workspace.configPath, options);
 		}
-		return '';
 
+		return '';
+	}
+
+	private doGetWorkspaceLabel(configPath: URI, options?: { verbose: boolean }): string {
+		// Workspace: Untitled
+		if (isUntitledWorkspace(configPath, this.environmentService)) {
+			return localize('untitledWorkspace', "Untitled (Workspace)");
+		}
+
+		// Workspace: Saved
+		let filename = basename(configPath);
+		if (filename.endsWith(WORKSPACE_EXTENSION)) {
+			filename = filename.substr(0, filename.length - WORKSPACE_EXTENSION.length - 1);
+		}
+		let label;
+		if (options && options.verbose) {
+			label = localize('workspaceNameVerbose', "{0} (Workspace)", this.getUriLabel(joinPath(dirname(configPath), filename)));
+		} else {
+			label = localize('workspaceName', "{0} (Workspace)", filename);
+		}
+		return this.appendWorkspaceSuffix(label, configPath);
+	}
+
+	private doGetSingleFolderWorkspaceLabel(folder: URI, options?: { verbose: boolean }): string {
+		// Folder on disk
+		const label = options && options.verbose ? this.getUriLabel(folder) : basename(folder) || '/';
+		return this.appendWorkspaceSuffix(label, folder);
 	}
 
 	getSeparator(scheme: string, authority?: string): '/' | '\\' {

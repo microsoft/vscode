@@ -423,7 +423,7 @@ export class WindowsMainService extends Disposable implements IWindowsMainServic
 
 				// Window is single folder
 				else if (windowToUseForFiles.openedFolderUri) {
-					foldersToOpen.push({ folderUri: windowToUseForFiles.openedFolderUri, remoteAuthority: windowToUseForFiles.remoteAuthority });
+					foldersToOpen.push({ folderUri: windowToUseForFiles.openedFolderUri.uri, remoteAuthority: windowToUseForFiles.remoteAuthority });
 				}
 
 				// Window is empty
@@ -497,7 +497,7 @@ export class WindowsMainService extends Disposable implements IWindowsMainServic
 			// Open remaining ones
 			allFoldersToOpen.forEach(folderToOpen => {
 
-				if (windowsOnFolderPath.some(window => extUriBiasedIgnorePathCase.isEqual(window.openedFolderUri, folderToOpen.folderUri))) {
+				if (windowsOnFolderPath.some(window => extUriBiasedIgnorePathCase.isEqual(window.openedFolderUri?.uri, folderToOpen.folderUri))) {
 					return; // ignore folders that are already open
 				}
 
@@ -1180,7 +1180,7 @@ export class WindowsMainService extends Disposable implements IWindowsMainServic
 		configuration.userEnv = { ...this.initialUserEnv, ...options.userEnv };
 		configuration.isInitialStartup = options.initialStartup;
 		configuration.workspace = options.workspace;
-		configuration.folderUri = options.folderUri;
+		configuration.folderUri = options.folderUri ? { id: '', uri: options.folderUri } : undefined; // TODO@bpasero compute ID properly
 		configuration.remoteAuthority = options.remoteAuthority;
 
 		const filesToOpen = options.filesToOpen;
@@ -1284,7 +1284,7 @@ export class WindowsMainService extends Disposable implements IWindowsMainServic
 			if (configuration.workspace) {
 				configuration.backupPath = this.backupMainService.registerWorkspaceBackupSync({ workspace: configuration.workspace, remoteAuthority: configuration.remoteAuthority });
 			} else if (configuration.folderUri) {
-				configuration.backupPath = this.backupMainService.registerFolderBackupSync(configuration.folderUri);
+				configuration.backupPath = this.backupMainService.registerFolderBackupSync(configuration.folderUri.uri);
 			} else {
 				const backupFolder = options.emptyWindowBackupInfo && options.emptyWindowBackupInfo.backupFolder;
 				configuration.backupPath = this.backupMainService.registerEmptyWindowBackupSync(backupFolder, configuration.remoteAuthority);

@@ -201,7 +201,7 @@ export class WindowsStateHandler extends Disposable {
 		else if (!window.isExtensionDevelopmentHost && (!!window.openedWorkspace || !!window.openedFolderUri)) {
 			this._state.openedWindows.forEach(openedWindow => {
 				const sameWorkspace = window.openedWorkspace && openedWindow.workspace && openedWindow.workspace.id === window.openedWorkspace.id;
-				const sameFolder = window.openedFolderUri && openedWindow.folderUri && extUriBiasedIgnorePathCase.isEqual(openedWindow.folderUri, window.openedFolderUri);
+				const sameFolder = window.openedFolderUri && openedWindow.folderUri && extUriBiasedIgnorePathCase.isEqual(openedWindow.folderUri, window.openedFolderUri.uri);
 
 				if (sameWorkspace || sameFolder) {
 					openedWindow.uiState = state.uiState;
@@ -221,7 +221,7 @@ export class WindowsStateHandler extends Disposable {
 	private toWindowState(window: ICodeWindow): IWindowState {
 		return {
 			workspace: window.openedWorkspace,
-			folderUri: window.openedFolderUri,
+			folderUri: window.openedFolderUri?.uri,
 			backupPath: window.backupPath,
 			remoteAuthority: window.remoteAuthority,
 			uiState: window.serializeWindowState()
@@ -281,7 +281,7 @@ export class WindowsStateHandler extends Disposable {
 
 			// Known Folder - load from stored settings
 			if (configuration.folderUri) {
-				const stateForFolder = this.state.openedWindows.filter(openedWindow => openedWindow.folderUri && extUriBiasedIgnorePathCase.isEqual(openedWindow.folderUri, configuration.folderUri)).map(o => o.uiState);
+				const stateForFolder = this.state.openedWindows.filter(openedWindow => openedWindow.folderUri && extUriBiasedIgnorePathCase.isEqual(openedWindow.folderUri, configuration.folderUri?.uri)).map(o => o.uiState);
 				if (stateForFolder.length) {
 					return stateForFolder[0];
 				}
