@@ -622,9 +622,13 @@ class TestsRenderer implements ITreeRenderer<ITestTreeElement, FuzzyScore, TestT
 				label.resource = test.item.location.uri;
 			}
 
-			options.title = 'hover title';
-			options.fileKind = FileKind.FILE;
+			let title = element.label;
+			for (let p = element.parentItem; p; p = p.parentItem) {
+				title = `${p.label}, ${title}`;
+			}
 
+			options.title = title;
+			options.fileKind = FileKind.FILE;
 			label.description = element.description;
 		} else {
 			options.fileKind = FileKind.ROOT_FOLDER;
