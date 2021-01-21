@@ -545,7 +545,21 @@ registerAction2(class extends NotebookAction {
 			}
 		}
 
-		return undefined;
+		const editorService = accessor.get(IEditorService);
+		const editor = getActiveNotebookEditor(editorService);
+		if (!editor) {
+			return;
+		}
+
+		if (!editor.hasModel()) {
+			return;
+		}
+
+		const activeCell = editor.getActiveCell();
+		return {
+			cell: activeCell,
+			notebookEditor: editor
+		};
 	}
 
 	async runWithContext(accessor: ServicesAccessor, context: INotebookActionContext): Promise<void> {
@@ -606,7 +620,21 @@ registerAction2(class extends NotebookAction {
 			}
 		}
 
-		return undefined;
+		const editorService = accessor.get(IEditorService);
+		const editor = getActiveNotebookEditor(editorService);
+		if (!editor) {
+			return;
+		}
+
+		if (!editor.hasModel()) {
+			return;
+		}
+
+		const activeCell = editor.getActiveCell();
+		return {
+			cell: activeCell,
+			notebookEditor: editor
+		};
 	}
 
 	async runWithContext(accessor: ServicesAccessor, context: INotebookActionContext): Promise<void> {
