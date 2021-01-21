@@ -59,6 +59,8 @@
     "extensions-ci": "node --max_old_space_size=4095 ./node_modules/gulp/bin/gulp.js extensions-ci"
   },
   "dependencies": {
+    "@gitpod/supervisor-api-grpc": "ak-remote-terminal-channel",
+    "@grpc/grpc-js": "latest",
     "applicationinsights": "1.0.8",
     "chokidar": "3.5.1",
     "graceful-fs": "4.2.3",
@@ -99,6 +101,7 @@
     "@types/copy-webpack-plugin": "^6.0.3",
     "@types/cssnano": "^4.0.0",
     "@types/debug": "4.1.5",
+    "@types/google-protobuf": "^3.7.4",
     "@types/graceful-fs": "4.1.2",
     "@types/gulp-postcss": "^8.0.0",
     "@types/http-proxy-agent": "^2.0.1",
