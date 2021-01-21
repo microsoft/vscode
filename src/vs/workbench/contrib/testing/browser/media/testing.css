@@ -9,11 +9,6 @@
 	flex-direction: column;
 }
 
-.test-explorer > .monaco-inputbox {
-	flex-shrink: 0;
-	margin: 4px 12px;
-}
-
 .test-explorer > .test-explorer-tree {
 	flex-grow: 1;
 	height: 0px;
@@ -74,4 +69,26 @@
 
 .monaco-editor .zone-widget.test-output-peek .zone-widget-container.peekview-widget .peekview-title .filename {
 	max-height: 29px;
+}
+
+
+/** -- filter  */
+.testing-filter-action-bar {
+	flex-shrink: 0;
+	margin: 4px 12px;
+}
+
+.testing-filter-action-item {
+	display: flex !important;
+	flex-grow: 1;
+	max-width: 400px;
+	align-items: center;
+}
+
+.testing-filter-action-bar .testing-filter-action-item {
+	max-width: none;
+}
+
+.testing-filter-action-item .testing-filter-wrapper {
+	flex-grow: 1;
 }
