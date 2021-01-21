@@ -42,9 +42,6 @@ export class RipgrepTextSearchEngine {
 
 			const cwd = options.folder.fsPath;
 
-			console.log({ query, options, rgArgs, cwd });
-
-
 			const escapedArgs = rgArgs
 				.map(arg => arg.match(/^-/) ? arg : `'${arg}'`)
 				.join(' ');
