@@ -82,6 +82,7 @@ export async function openSearchEditor(accessor: ServicesAccessor): Promise<void
 	if (searchView) {
 		await instantiationService.invokeFunction(openNewSearchEditor, {
 			filesToInclude: searchView.searchIncludePattern.getValue(),
+			onlyOpenEditors: searchView.searchIncludePattern.onlySearchInOpenEditors(),
 			filesToExclude: searchView.searchExcludePattern.getValue(),
 			isRegexp: searchView.searchAndReplaceWidget.searchInput.getRegex(),
 			isCaseSensitive: searchView.searchAndReplaceWidget.searchInput.getCaseSensitive(),
@@ -161,7 +162,7 @@ export const openNewSearchEditor =
 	};
 
 export const createEditorFromSearchResult =
-	async (accessor: ServicesAccessor, searchResult: SearchResult, rawIncludePattern: string, rawExcludePattern: string) => {
+	async (accessor: ServicesAccessor, searchResult: SearchResult, rawIncludePattern: string, rawExcludePattern: string, onlySearchInOpenEditors: boolean) => {
 		if (!searchResult.query) {
 			console.error('Expected searchResult.query to be defined. Got', searchResult);
 			return;
@@ -180,6 +181,7 @@ export const createEditorFromSearchResult =
 		const labelFormatter = (uri: URI): string => labelService.getUriLabel(uri, { relative: true });
 
 		const { text, matchRanges, config } = serializeSearchResultForEditor(searchResult, rawIncludePattern, rawExcludePattern, 0, labelFormatter, sortOrder);
+		config.onlyOpenEditors = onlySearchInOpenEditors;
 		const contextLines = configurationService.getValue<ISearchConfigurationProperties>('search').searchEditor.defaultNumberOfContextLines;
 
 		if (searchResult.isDirty || contextLines === 0 || contextLines === null) {

@@ -388,7 +388,7 @@ export class SearchView extends ViewPane {
 		return this.searchWidget;
 	}
 
-	get searchIncludePattern(): PatternInputWidget {
+	get searchIncludePattern(): IncludePatternInputWidget {
 		return this.inputPatternIncludes;
 	}
 
@@ -1617,7 +1617,7 @@ export class SearchView extends ViewPane {
 
 			this.messageDisposables.push(dom.addDisposableListener(openInEditorLink, dom.EventType.CLICK, (e: MouseEvent) => {
 				dom.EventHelper.stop(e, false);
-				this.instantiationService.invokeFunction(createEditorFromSearchResult, this.searchResult, this.searchIncludePattern.getValue(), this.searchExcludePattern.getValue());
+				this.instantiationService.invokeFunction(createEditorFromSearchResult, this.searchResult, this.searchIncludePattern.getValue(), this.searchExcludePattern.getValue(), this.searchIncludePattern.onlySearchInOpenEditors());
 			}));
 
 			this.reLayout();
