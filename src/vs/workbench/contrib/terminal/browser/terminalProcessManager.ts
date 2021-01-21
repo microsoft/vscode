@@ -168,6 +168,7 @@ export class TerminalProcessManager extends Disposable implements ITerminalProce
 
 				const activeWorkspaceRootUri = this._historyService.getLastActiveWorkspaceRoot();
 
+				// this is a copy of what the merged environment collection is on the remote side
 				await this._setupEnvVariableInfo(activeWorkspaceRootUri, shellLaunchConfig);
 
 				const enableRemoteAgentTerminals = this._configHelper.config.serverSpawn;
@@ -247,6 +248,7 @@ export class TerminalProcessManager extends Disposable implements ITerminalProce
 		if (!shellLaunchConfig.strictEnv) {
 			this._extEnvironmentVariableCollection = this._environmentVariableService.mergedCollection;
 			this._register(this._environmentVariableService.onDidChangeCollections(newCollection => this._onEnvironmentVariableCollectionChange(newCollection)));
+			// for remote terminals, this is a copy of the mergedEnvironmentCollection created on the remote side
 			this._extEnvironmentVariableCollection.applyToProcessEnvironment(env);
 			if (this._extEnvironmentVariableCollection.map.size > 0) {
 				this._environmentVariableInfo = new EnvironmentVariableInfoChangesActive(this._extEnvironmentVariableCollection);
