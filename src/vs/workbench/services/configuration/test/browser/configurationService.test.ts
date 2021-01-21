@@ -50,8 +50,8 @@ import { hash } from 'vs/base/common/hash';
 function convertToWorkspacePayload(folder: URI): ISingleFolderWorkspaceInitializationPayload {
 	return {
 		id: hash(folder.toString()).toString(16),
-		folder
-	} as ISingleFolderWorkspaceInitializationPayload;
+		uri: folder
+	};
 }
 
 class ConfigurationCache extends BrowserConfigurationCache {

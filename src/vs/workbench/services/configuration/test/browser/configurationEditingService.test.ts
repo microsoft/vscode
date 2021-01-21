@@ -94,7 +94,7 @@ suite('ConfigurationEditingService', () => {
 		workspaceService = disposables.add(new WorkspaceService({ configurationCache: new ConfigurationCache() }, environmentService, fileService, remoteAgentService, new UriIdentityService(fileService), new NullLogService()));
 		instantiationService.stub(IWorkspaceContextService, workspaceService);
 
-		await workspaceService.initialize({ folder: workspaceFolder, id: hash(workspaceFolder.toString()).toString(16) });
+		await workspaceService.initialize({ id: hash(workspaceFolder.toString()).toString(16), uri: workspaceFolder });
 		instantiationService.stub(IConfigurationService, workspaceService);
 		instantiationService.stub(IKeybindingEditingService, disposables.add(instantiationService.createInstance(KeybindingsEditingService)));
 		instantiationService.stub(ITextFileService, disposables.add(instantiationService.createInstance(TestTextFileService)));

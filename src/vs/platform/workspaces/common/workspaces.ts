@@ -103,22 +103,24 @@ export function reviveWorkspaceIdentifier(workspace: { id: string, configPath: U
 	return { id: workspace.id, configPath: URI.revive(workspace.configPath) };
 }
 
-export function isStoredWorkspaceFolder(thing: unknown): thing is IStoredWorkspaceFolder {
-	return isRawFileWorkspaceFolder(thing) || isRawUriWorkspaceFolder(thing);
+export function isStoredWorkspaceFolder(obj: unknown): obj is IStoredWorkspaceFolder {
+	return isRawFileWorkspaceFolder(obj) || isRawUriWorkspaceFolder(obj);
 }
 
-export function isRawFileWorkspaceFolder(thing: any): thing is IRawFileWorkspaceFolder {
-	return thing
-		&& typeof thing === 'object'
-		&& typeof thing.path === 'string'
-		&& (!thing.name || typeof thing.name === 'string');
+export function isRawFileWorkspaceFolder(obj: unknown): obj is IRawFileWorkspaceFolder {
+	const candidate = obj as IRawFileWorkspaceFolder | undefined;
+
+	return typeof candidate === 'object' &&
+		typeof candidate.path === 'string' &&
+		(!candidate.name || typeof candidate.name === 'string');
 }
 
-export function isRawUriWorkspaceFolder(thing: any): thing is IRawUriWorkspaceFolder {
-	return thing
-		&& typeof thing === 'object'
-		&& typeof thing.uri === 'string'
-		&& (!thing.name || typeof thing.name === 'string');
+export function isRawUriWorkspaceFolder(obj: unknown): obj is IRawUriWorkspaceFolder {
+	const candidate = obj as IRawUriWorkspaceFolder | undefined;
+
+	return typeof candidate === 'object' &&
+		typeof candidate.uri === 'string' &&
+		(!candidate.name || typeof candidate.name === 'string');
 }
 
 export interface IRawFileWorkspaceFolder {
@@ -163,9 +165,9 @@ export function isSingleFolderWorkspaceIdentifier(obj: unknown): obj is ISingleF
 }
 
 export function isWorkspaceIdentifier(obj: unknown): obj is IWorkspaceIdentifier {
-	const workspaceIdentifier = obj as IWorkspaceIdentifier;
+	const workspaceIdentifier = obj as IWorkspaceIdentifier | undefined;
 
-	return workspaceIdentifier && typeof workspaceIdentifier.id === 'string' && workspaceIdentifier.configPath instanceof URI;
+	return !!workspaceIdentifier && typeof workspaceIdentifier.id === 'string' && workspaceIdentifier.configPath instanceof URI;
 }
 
 export function toWorkspaceIdentifier(workspace: IWorkspace): IWorkspaceIdentifier | ISingleFolderWorkspaceIdentifier | undefined {
@@ -188,14 +190,20 @@ export function isUntitledWorkspace(path: URI, environmentService: IEnvironmentS
 	return extUriBiasedIgnorePathCase.isEqualOrParent(path, environmentService.untitledWorkspacesHome);
 }
 
-export type IMultiFolderWorkspaceInitializationPayload = IWorkspaceIdentifier;
-export interface ISingleFolderWorkspaceInitializationPayload { id: string; folder: ISingleFolderWorkspaceIdentifier; }
+export interface ISingleFolderWorkspaceInitializationPayload { id: string; uri: URI; }
+export interface IMultiFolderWorkspaceInitializationPayload extends IWorkspaceIdentifier { }
 export interface IEmptyWorkspaceInitializationPayload { id: string; }
 
 export type IWorkspaceInitializationPayload = IMultiFolderWorkspaceInitializationPayload | ISingleFolderWorkspaceInitializationPayload | IEmptyWorkspaceInitializationPayload;
 
-export function isSingleFolderWorkspaceInitializationPayload(obj: any): obj is ISingleFolderWorkspaceInitializationPayload {
-	return isSingleFolderWorkspaceIdentifier((obj.folder as ISingleFolderWorkspaceIdentifier));
+export function isSingleFolderWorkspaceInitializationPayload(obj: unknown): obj is ISingleFolderWorkspaceInitializationPayload {
+	const candidate = obj as ISingleFolderWorkspaceInitializationPayload | undefined;
+
+	return candidate?.uri instanceof URI;
+}
+
+export function isMultiFolderWorkspaceInitializationPayload(obj: unknown): obj is IMultiFolderWorkspaceInitializationPayload {
+	return isWorkspaceIdentifier(obj);
 }
 
 const WORKSPACE_SUFFIX = '.' + WORKSPACE_EXTENSION;

@@ -12,7 +12,7 @@ import { mark } from 'vs/base/common/performance';
 import { join } from 'vs/base/common/path';
 import { copy, exists, mkdirp, writeFile } from 'vs/base/node/pfs';
 import { IEnvironmentService } from 'vs/platform/environment/common/environment';
-import { IWorkspaceInitializationPayload, isWorkspaceIdentifier, isSingleFolderWorkspaceInitializationPayload } from 'vs/platform/workspaces/common/workspaces';
+import { IWorkspaceInitializationPayload, isSingleFolderWorkspaceInitializationPayload, isMultiFolderWorkspaceInitializationPayload } from 'vs/platform/workspaces/common/workspaces';
 import { assertIsDefined } from 'vs/base/common/types';
 import { RunOnceScheduler, runWhenIdle } from 'vs/base/common/async';
 
@@ -149,15 +149,15 @@ export class NativeStorageService extends AbstractStorageService {
 	private ensureWorkspaceStorageFolderMeta(payload: IWorkspaceInitializationPayload): void {
 		let meta: object | undefined = undefined;
 		if (isSingleFolderWorkspaceInitializationPayload(payload)) {
-			meta = { folder: payload.folder.toString() };
-		} else if (isWorkspaceIdentifier(payload)) {
-			meta = { configuration: payload.configPath };
+			meta = { uri: payload.uri.toString() };
+		} else if (isMultiFolderWorkspaceInitializationPayload(payload)) {
+			meta = { configPath: payload.configPath.toString() };
 		}
 
 		if (meta) {
 			const logService = this.logService;
 			const workspaceStorageMetaPath = join(this.getWorkspaceStorageFolderPath(payload), NativeStorageService.WORKSPACE_META_NAME);
-			(async function () {
+			(async () => {
 				try {
 					const storageExists = await exists(workspaceStorageMetaPath);
 					if (!storageExists) {

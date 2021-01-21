@@ -336,7 +336,7 @@ class DesktopMain extends Disposable {
 
 			return {
 				id: await this.createHash(folderUri),
-				folder
+				uri: folder
 			};
 		} catch (error) {
 			onUnexpectedError(error);

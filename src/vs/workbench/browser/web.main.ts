@@ -347,7 +347,7 @@ class BrowserMain extends Disposable {
 		if (workspace && isFolderToOpen(workspace)) {
 			return {
 				id: hash(workspace.folderUri.toString()).toString(16),
-				folder: workspace.folderUri
+				uri: workspace.folderUri
 			};
 		}
 
