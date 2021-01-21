@@ -189,8 +189,8 @@
     "source-map": "0.6.1",
     "source-map-support": "^0.3.2",
     "style-loader": "^1.0.0",
-    "tsec": "0.1.1",
     "ts-loader": "^6.2.1",
+    "tsec": "0.1.1",
     "typescript": "4.2.0-dev.20201207",
     "typescript-formatter": "7.1.0",
     "underscore": "^1.8.2",
@@ -218,5 +218,9 @@
     "windows-foreground-love": "0.2.0",
     "windows-mutex": "0.3.0",
     "windows-process-tree": "0.2.4"
+  },
+  "resolutions": {
+    "elliptic": "^6.5.3",
+    "nwmatcher": "^1.4.4"
   }
 }
