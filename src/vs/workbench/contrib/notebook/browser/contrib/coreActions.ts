@@ -141,9 +141,9 @@ abstract class NotebookAction extends Action2 {
 		super(desc);
 	}
 
-	async run(accessor: ServicesAccessor, context?: INotebookActionContext): Promise<void> {
+	async run(accessor: ServicesAccessor, context?: any): Promise<void> {
 		if (!this.isNotebookActionContext(context)) {
-			context = this.getActiveEditorContext(accessor);
+			context = this.getEditorContextFromArgsOrActive(accessor, context);
 			if (!context) {
 				return;
 			}
@@ -158,7 +158,7 @@ abstract class NotebookAction extends Action2 {
 		return !!context && !!(context as INotebookActionContext).notebookEditor;
 	}
 
-	protected getActiveEditorContext(accessor: ServicesAccessor): INotebookActionContext | undefined {
+	protected getEditorContextFromArgsOrActive(accessor: ServicesAccessor, context?: any): INotebookActionContext | undefined {
 		const editorService = accessor.get(IEditorService);
 
 		const editor = getActiveNotebookEditor(editorService);
@@ -198,13 +198,29 @@ abstract class NotebookCellAction<T = INotebookCellActionContext> extends Notebo
 			return this.runWithContext(accessor, contextFromArgs);
 		}
 
-		const activeEditorContext = this.getActiveEditorContext(accessor);
+		const activeEditorContext = this.getEditorContextFromArgsOrActive(accessor);
 		if (this.isCellActionContext(activeEditorContext)) {
 			return this.runWithContext(accessor, activeEditorContext);
 		}
 	}
 
 	abstract runWithContext(accessor: ServicesAccessor, context: INotebookCellActionContext): Promise<void>;
+}
+
+export function getWidgetFromUri(accessor: ServicesAccessor, uri: URI) {
+	const editorService = accessor.get(IEditorService);
+	const notebookWidgetService = accessor.get(INotebookEditorWidgetService);
+	const editorId = editorService.getEditors(EditorsOrder.SEQUENTIAL).find(editorId => editorId.editor instanceof NotebookEditorInput && editorId.editor.resource?.toString() === uri.toString());
+
+	if (editorId) {
+		const widget = notebookWidgetService.widgets.find(widget => widget.textModel?.viewType === (editorId.editor as NotebookEditorInput).viewType && widget.uri?.toString() === editorId.editor.resource!.toString());
+
+		if (widget && widget.hasModel()) {
+			return widget;
+		}
+	}
+
+	return undefined;
 }
 
 registerAction2(class extends NotebookCellAction<ICellRange> {
@@ -259,27 +275,19 @@ registerAction2(class extends NotebookCellAction<ICellRange> {
 			const uri = URI.revive(additionalArgs[0]);
 
 			if (uri) {
-				// we will run cell against this document
-				const editorService = accessor.get(IEditorService);
-				const notebookWidgetService = accessor.get(INotebookEditorWidgetService);
-				const editorId = editorService.getEditors(EditorsOrder.SEQUENTIAL).find(editorId => editorId.editor instanceof NotebookEditorInput && editorId.editor.resource?.toString() === uri.toString());
+				const widget = getWidgetFromUri(accessor, uri);
+				if (widget) {
+					const cells = widget.viewModel.viewCells;
 
-				if (editorId) {
-					const widget = notebookWidgetService.widgets.find(widget => widget.textModel?.viewType === (editorId.editor as NotebookEditorInput).viewType && widget.uri?.toString() === editorId.editor.resolve.toString());
-
-					if (widget && widget.hasModel()) {
-						const cells = widget.viewModel.viewCells;
-
-						return {
-							notebookEditor: widget,
-							cell: cells[context.start]
-						};
-					}
+					return {
+						notebookEditor: widget,
+						cell: cells[context.start]
+					};
 				}
 			}
 		}
 
-		const activeEditorContext = this.getActiveEditorContext(accessor);
+		const activeEditorContext = this.getEditorContextFromArgsOrActive(accessor);
 
 		if (!activeEditorContext || !activeEditorContext.notebookEditor.viewModel || context.start >= activeEditorContext.notebookEditor.viewModel.viewCells.length) {
 			return;
@@ -343,27 +351,19 @@ registerAction2(class extends NotebookCellAction<ICellRange> {
 			const uri = URI.revive(additionalArgs[0]);
 
 			if (uri) {
-				// we will run cell against this document
-				const editorService = accessor.get(IEditorService);
-				const notebookWidgetService = accessor.get(INotebookEditorWidgetService);
-				const editorId = editorService.getEditors(EditorsOrder.SEQUENTIAL).find(editorId => editorId.editor instanceof NotebookEditorInput && editorId.editor.resource?.toString() === uri.toString());
+				const widget = getWidgetFromUri(accessor, uri);
+				if (widget) {
+					const cells = widget.viewModel.viewCells;
 
-				if (editorId) {
-					const widget = notebookWidgetService.widgets.find(widget => widget.textModel?.viewType === (editorId.editor as NotebookEditorInput).viewType && widget.uri?.toString() === editorId.editor.resolve.toString());
-
-					if (widget && widget.hasModel()) {
-						const cells = widget.viewModel.viewCells;
-
-						return {
-							notebookEditor: widget,
-							cell: cells[context.start]
-						};
-					}
+					return {
+						notebookEditor: widget,
+						cell: cells[context.start]
+					};
 				}
 			}
 		}
 
-		const activeEditorContext = this.getActiveEditorContext(accessor);
+		const activeEditorContext = this.getEditorContextFromArgsOrActive(accessor);
 
 		if (!activeEditorContext || !activeEditorContext.notebookEditor.viewModel || context.start >= activeEditorContext.notebookEditor.viewModel.viewCells.length) {
 			return;
@@ -517,19 +517,48 @@ registerAction2(class extends NotebookAction {
 		super({
 			id: EXECUTE_NOTEBOOK_COMMAND_ID,
 			title: localize('notebookActions.executeNotebook', "Execute Notebook"),
+			description: {
+				description: localize('notebookActions.executeNotebook', "Execute Notebook"),
+				args: [
+					{
+						name: 'uri',
+						description: 'The document uri',
+						constraint: URI
+					}
+				]
+			},
 		});
+	}
+
+	getEditorContextFromArgsOrActive(accessor: ServicesAccessor, context?: UriComponents): INotebookActionContext | undefined {
+		if (context) {
+			const uri = URI.revive(context);
+
+			if (uri) {
+				const widget = getWidgetFromUri(accessor, uri);
+
+				if (widget) {
+					return {
+						notebookEditor: widget,
+					};
+				}
+			}
+		}
+
+		return undefined;
 	}
 
 	async runWithContext(accessor: ServicesAccessor, context: INotebookActionContext): Promise<void> {
 		renderAllMarkdownCells(context);
 
+		const editorService = accessor.get(IEditorService);
+		const editor = editorService.getEditors(EditorsOrder.MOST_RECENTLY_ACTIVE).find(
+			editor => editor instanceof NotebookEditorInput && editor.viewType === context.notebookEditor.viewModel.viewType && editor.resource.toString() === context.notebookEditor.viewModel.uri.toString());
 		const editorGroupService = accessor.get(IEditorGroupsService);
-		const group = editorGroupService.activeGroup;
 
-		if (group) {
-			if (group.activeEditor) {
-				group.pinEditor(group.activeEditor);
-			}
+		if (editor) {
+			const group = editorGroupService.getGroup(editor.groupId);
+			group?.pinEditor(editor.editor);
 		}
 
 		return context.notebookEditor.executeNotebook();
@@ -771,7 +800,7 @@ registerAction2(class extends NotebookAction {
 	}
 
 	async run(accessor: ServicesAccessor): Promise<void> {
-		const context = this.getActiveEditorContext(accessor);
+		const context = this.getEditorContextFromArgsOrActive(accessor);
 		if (context) {
 			this.runWithContext(accessor, context);
 		}
@@ -796,7 +825,7 @@ registerAction2(class extends NotebookAction {
 	}
 
 	async run(accessor: ServicesAccessor): Promise<void> {
-		const context = this.getActiveEditorContext(accessor);
+		const context = this.getEditorContextFromArgsOrActive(accessor);
 		if (context) {
 			this.runWithContext(accessor, context);
 		}
