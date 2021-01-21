@@ -40,7 +40,7 @@ interface IEnterAction {
 interface IOnEnterRule {
 	beforeText: string | IRegExp;
 	afterText?: string | IRegExp;
-	oneLineAboveText?: string | IRegExp;
+	previousLineText?: string | IRegExp;
 	action: IEnterAction;
 }
 
@@ -328,10 +328,10 @@ export class LanguageConfigurationFileHandler {
 					resultingOnEnterRule.afterText = afterText;
 				}
 			}
-			if (onEnterRule.oneLineAboveText) {
-				const oneLineAboveText = this._parseRegex(languageIdentifier, `onEnterRules[${i}].oneLineAboveText`, onEnterRule.oneLineAboveText);
-				if (oneLineAboveText) {
-					resultingOnEnterRule.oneLineAboveText = oneLineAboveText;
+			if (onEnterRule.previousLineText) {
+				const previousLineText = this._parseRegex(languageIdentifier, `onEnterRules[${i}].previousLineText`, onEnterRule.previousLineText);
+				if (previousLineText) {
+					resultingOnEnterRule.previousLineText = previousLineText;
 				}
 			}
 			result = result || [];
@@ -741,21 +741,21 @@ const schema: IJSONSchema = {
 							}
 						}
 					},
-					oneLineAboveText: {
+					previousLineText: {
 						type: ['string', 'object'],
-						description: nls.localize('schema.onEnterRules.oneLineAboveText', 'This rule will only execute if the text above the line matches this regular expression.'),
+						description: nls.localize('schema.onEnterRules.previousLineText', 'This rule will only execute if the text above the line matches this regular expression.'),
 						properties: {
 							pattern: {
 								type: 'string',
-								description: nls.localize('schema.onEnterRules.oneLineAboveText.pattern', 'The RegExp pattern for oneLineAboveText.'),
+								description: nls.localize('schema.onEnterRules.previousLineText.pattern', 'The RegExp pattern for previousLineText.'),
 								default: '',
 							},
 							flags: {
 								type: 'string',
-								description: nls.localize('schema.onEnterRules.oneLineAboveText.flags', 'The RegExp flags for oneLineAboveText.'),
+								description: nls.localize('schema.onEnterRules.previousLineText.flags', 'The RegExp flags for previousLineText.'),
 								default: '',
 								pattern: '^([gimuy]+)$',
-								patternErrorMessage: nls.localize('schema.onEnterRules.oneLineAboveText.errorMessage', 'Must match the pattern `/^([gimuy]+)$/`.')
+								patternErrorMessage: nls.localize('schema.onEnterRules.previousLineText.errorMessage', 'Must match the pattern `/^([gimuy]+)$/`.')
 							}
 						}
 					},

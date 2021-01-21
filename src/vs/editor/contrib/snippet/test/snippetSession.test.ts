@@ -23,14 +23,14 @@ suite('SnippetSession', function () {
 			const actual = s.shift()!;
 			assert.ok(selection.equalsSelection(actual), `actual=${selection.toString()} <> expected=${actual.toString()}`);
 		}
-		assert.equal(s.length, 0);
+		assert.strictEqual(s.length, 0);
 	}
 
 	setup(function () {
 		model = createTextModel('function foo() {\n    console.log(a);\n}');
 		editor = createTestCodeEditor({ model: model }) as IActiveCodeEditor;
 		editor.setSelections([new Selection(1, 1, 1, 1), new Selection(2, 5, 2, 5)]);
-		assert.equal(model.getEOL(), '\n');
+		assert.strictEqual(model.getEOL(), '\n');
 	});
 
 	teardown(function () {
@@ -43,7 +43,7 @@ suite('SnippetSession', function () {
 		function assertNormalized(position: IPosition, input: string, expected: string): void {
 			const snippet = new SnippetParser().parse(input);
 			SnippetSession.adjustWhitespace(model, position, snippet, true, true);
-			assert.equal(snippet.toTextmateString(), expected);
+			assert.strictEqual(snippet.toTextmateString(), expected);
 		}
 
 		assertNormalized(new Position(1, 1), 'foo', 'foo');
@@ -73,7 +73,7 @@ suite('SnippetSession', function () {
 	test('text edits & selection', function () {
 		const session = new SnippetSession(editor, 'foo${1:bar}foo$0');
 		session.insert();
-		assert.equal(editor.getModel()!.getValue(), 'foobarfoofunction foo() {\n    foobarfooconsole.log(a);\n}');
+		assert.strictEqual(editor.getModel()!.getValue(), 'foobarfoofunction foo() {\n    foobarfooconsole.log(a);\n}');
 
 		assertSelections(editor, new Selection(1, 4, 1, 7), new Selection(2, 8, 2, 11));
 		session.next();
@@ -86,7 +86,7 @@ suite('SnippetSession', function () {
 		editor.setSelections([new Selection(2, 5, 2, 5), new Selection(1, 1, 1, 1)]);
 
 		session.insert();
-		assert.equal(model.getValue(), 'barfunction foo() {\n    barconsole.log(a);\n}');
+		assert.strictEqual(model.getValue(), 'barfunction foo() {\n    barconsole.log(a);\n}');
 		assertSelections(editor, new Selection(2, 5, 2, 8), new Selection(1, 1, 1, 4));
 	});
 
@@ -107,7 +107,7 @@ suite('SnippetSession', function () {
 	test('snippets, just text', function () {
 		const session = new SnippetSession(editor, 'foobar');
 		session.insert();
-		assert.equal(model.getValue(), 'foobarfunction foo() {\n    foobarconsole.log(a);\n}');
+		assert.strictEqual(model.getValue(), 'foobarfunction foo() {\n    foobarconsole.log(a);\n}');
 		assertSelections(editor, new Selection(1, 7, 1, 7), new Selection(2, 11, 2, 11));
 	});
 
@@ -116,7 +116,7 @@ suite('SnippetSession', function () {
 		const session = new SnippetSession(editor, 'foo\n\t${1:bar}\n$0');
 		session.insert();
 
-		assert.equal(editor.getModel()!.getValue(), 'foo\n    bar\nfunction foo() {\n    foo\n        bar\n    console.log(a);\n}');
+		assert.strictEqual(editor.getModel()!.getValue(), 'foo\n    bar\nfunction foo() {\n    foo\n        bar\n    console.log(a);\n}');
 
 		assertSelections(editor, new Selection(2, 5, 2, 8), new Selection(5, 9, 5, 12));
 
@@ -129,7 +129,7 @@ suite('SnippetSession', function () {
 		editor.setSelection(new Selection(2, 5, 2, 5));
 		const session = new SnippetSession(editor, 'abc\n    foo\n        bar\n$0', { overwriteBefore: 0, overwriteAfter: 0, adjustWhitespace: false, clipboardText: undefined, overtypingCapturer: undefined });
 		session.insert();
-		assert.equal(editor.getModel()!.getValue(), 'function foo() {\n    abc\n    foo\n        bar\nconsole.log(a);\n}');
+		assert.strictEqual(editor.getModel()!.getValue(), 'function foo() {\n    abc\n    foo\n        bar\nconsole.log(a);\n}');
 	});
 
 	test('snippets, selections -> next/prev', () => {
@@ -171,7 +171,7 @@ suite('SnippetSession', function () {
 
 		// go to final tabstop
 		session.next();
-		assert.equal(model.getValue(), 'fX_bar_function foo() {\n    fX_bar_console.log(a);\n}');
+		assert.strictEqual(model.getValue(), 'fX_bar_function foo() {\n    fX_bar_console.log(a);\n}');
 		assertSelections(editor, new Selection(1, 8, 1, 8), new Selection(2, 12, 2, 12));
 	});
 
@@ -180,7 +180,7 @@ suite('SnippetSession', function () {
 		editor.setSelections([new Selection(1, 1, 1, 4), new Selection(1, 9, 1, 12)]);
 
 		new SnippetSession(editor, 'x$0').insert();
-		assert.equal(model.getValue(), 'x_bar_x');
+		assert.strictEqual(model.getValue(), 'x_bar_x');
 		assertSelections(editor, new Selection(1, 2, 1, 2), new Selection(1, 8, 1, 8));
 	});
 
@@ -189,7 +189,7 @@ suite('SnippetSession', function () {
 		editor.setSelections([new Selection(1, 1, 1, 4), new Selection(1, 9, 1, 12)]);
 
 		new SnippetSession(editor, 'LONGER$0').insert();
-		assert.equal(model.getValue(), 'LONGER_bar_LONGER');
+		assert.strictEqual(model.getValue(), 'LONGER_bar_LONGER');
 		assertSelections(editor, new Selection(1, 7, 1, 7), new Selection(1, 18, 1, 18));
 	});
 
@@ -203,11 +203,11 @@ suite('SnippetSession', function () {
 		editor.trigger('test', 'type', { text: 'foo-' });
 
 		session.next();
-		assert.equal(model.getValue(), 'foo_foo-bar_foo');
+		assert.strictEqual(model.getValue(), 'foo_foo-bar_foo');
 		assertSelections(editor, new Selection(1, 12, 1, 12));
 
 		editor.trigger('test', 'type', { text: 'XXX' });
-		assert.equal(model.getValue(), 'foo_foo-barXXX_foo');
+		assert.strictEqual(model.getValue(), 'foo_foo-barXXX_foo');
 		session.prev();
 		assertSelections(editor, new Selection(1, 5, 1, 9));
 		session.next();
@@ -242,7 +242,7 @@ suite('SnippetSession', function () {
 		editor.trigger('test', 'type', { text: '333' });
 
 		session.next();
-		assert.equal(model.getValue(), '111222333function foo() {\n    111222333console.log(a);\n}');
+		assert.strictEqual(model.getValue(), '111222333function foo() {\n    111222333console.log(a);\n}');
 		assertSelections(editor, new Selection(1, 10, 1, 10), new Selection(2, 14, 2, 14));
 
 		session.prev();
@@ -269,22 +269,22 @@ suite('SnippetSession', function () {
 		editor.trigger('test', 'type', { text: '333' });
 
 		session.next();
-		assert.equal(session.isAtLastPlaceholder, true);
+		assert.strictEqual(session.isAtLastPlaceholder, true);
 	});
 
 	test('snippets, gracefully move over final tabstop', function () {
 		const session = new SnippetSession(editor, '${1}bar$0');
 		session.insert();
 
-		assert.equal(session.isAtLastPlaceholder, false);
+		assert.strictEqual(session.isAtLastPlaceholder, false);
 		assertSelections(editor, new Selection(1, 1, 1, 1), new Selection(2, 5, 2, 5));
 
 		session.next();
-		assert.equal(session.isAtLastPlaceholder, true);
+		assert.strictEqual(session.isAtLastPlaceholder, true);
 		assertSelections(editor, new Selection(1, 4, 1, 4), new Selection(2, 8, 2, 8));
 
 		session.next();
-		assert.equal(session.isAtLastPlaceholder, true);
+		assert.strictEqual(session.isAtLastPlaceholder, true);
 		assertSelections(editor, new Selection(1, 4, 1, 4), new Selection(2, 8, 2, 8));
 	});
 
@@ -294,46 +294,46 @@ suite('SnippetSession', function () {
 		assertSelections(editor, new Selection(1, 5, 1, 7), new Selection(2, 9, 2, 11));
 
 		editor.trigger('test', 'type', { text: 'XXX' });
-		assert.equal(model.getValue(), 'log(XXX);function foo() {\n    log(XXX);console.log(a);\n}');
+		assert.strictEqual(model.getValue(), 'log(XXX);function foo() {\n    log(XXX);console.log(a);\n}');
 
 		session.next();
-		assert.equal(session.isAtLastPlaceholder, false);
+		assert.strictEqual(session.isAtLastPlaceholder, false);
 		// assertSelections(editor, new Selection(1, 7, 1, 7), new Selection(2, 11, 2, 11));
 
 		session.next();
-		assert.equal(session.isAtLastPlaceholder, true);
+		assert.strictEqual(session.isAtLastPlaceholder, true);
 		assertSelections(editor, new Selection(1, 10, 1, 10), new Selection(2, 14, 2, 14));
 	});
 
 	test('snippets, selections and snippet ranges', function () {
 		const session = new SnippetSession(editor, '${1:foo}farboo${2:bar}$0');
 		session.insert();
-		assert.equal(model.getValue(), 'foofarboobarfunction foo() {\n    foofarboobarconsole.log(a);\n}');
+		assert.strictEqual(model.getValue(), 'foofarboobarfunction foo() {\n    foofarboobarconsole.log(a);\n}');
 		assertSelections(editor, new Selection(1, 1, 1, 4), new Selection(2, 5, 2, 8));
 
-		assert.equal(session.isSelectionWithinPlaceholders(), true);
+		assert.strictEqual(session.isSelectionWithinPlaceholders(), true);
 
 		editor.setSelections([new Selection(1, 1, 1, 1)]);
-		assert.equal(session.isSelectionWithinPlaceholders(), false);
+		assert.strictEqual(session.isSelectionWithinPlaceholders(), false);
 
 		editor.setSelections([new Selection(1, 6, 1, 6), new Selection(2, 10, 2, 10)]);
-		assert.equal(session.isSelectionWithinPlaceholders(), false); // in snippet, outside placeholder
+		assert.strictEqual(session.isSelectionWithinPlaceholders(), false); // in snippet, outside placeholder
 
 		editor.setSelections([new Selection(1, 6, 1, 6), new Selection(2, 10, 2, 10), new Selection(1, 1, 1, 1)]);
-		assert.equal(session.isSelectionWithinPlaceholders(), false); // in snippet, outside placeholder
+		assert.strictEqual(session.isSelectionWithinPlaceholders(), false); // in snippet, outside placeholder
 
 		editor.setSelections([new Selection(1, 6, 1, 6), new Selection(2, 10, 2, 10), new Selection(2, 20, 2, 21)]);
-		assert.equal(session.isSelectionWithinPlaceholders(), false);
+		assert.strictEqual(session.isSelectionWithinPlaceholders(), false);
 
 		// reset selection to placeholder
 		session.next();
-		assert.equal(session.isSelectionWithinPlaceholders(), true);
+		assert.strictEqual(session.isSelectionWithinPlaceholders(), true);
 		assertSelections(editor, new Selection(1, 10, 1, 13), new Selection(2, 14, 2, 17));
 
 		// reset selection to placeholder
 		session.next();
-		assert.equal(session.isSelectionWithinPlaceholders(), true);
-		assert.equal(session.isAtLastPlaceholder, true);
+		assert.strictEqual(session.isSelectionWithinPlaceholders(), true);
+		assert.strictEqual(session.isAtLastPlaceholder, true);
 		assertSelections(editor, new Selection(1, 13, 1, 13), new Selection(2, 17, 2, 17));
 	});
 
@@ -344,20 +344,20 @@ suite('SnippetSession', function () {
 
 		const first = new SnippetSession(editor, 'foo${2:bar}foo$0');
 		first.insert();
-		assert.equal(model.getValue(), 'foobarfoo');
+		assert.strictEqual(model.getValue(), 'foobarfoo');
 		assertSelections(editor, new Selection(1, 4, 1, 7));
 
 		const second = new SnippetSession(editor, 'ba${1:zzzz}$0');
 		second.insert();
-		assert.equal(model.getValue(), 'foobazzzzfoo');
+		assert.strictEqual(model.getValue(), 'foobazzzzfoo');
 		assertSelections(editor, new Selection(1, 6, 1, 10));
 
 		second.next();
-		assert.equal(second.isAtLastPlaceholder, true);
+		assert.strictEqual(second.isAtLastPlaceholder, true);
 		assertSelections(editor, new Selection(1, 10, 1, 10));
 
 		first.next();
-		assert.equal(first.isAtLastPlaceholder, true);
+		assert.strictEqual(first.isAtLastPlaceholder, true);
 		assertSelections(editor, new Selection(1, 13, 1, 13));
 	});
 
@@ -365,11 +365,11 @@ suite('SnippetSession', function () {
 
 		const session = new SnippetSession(editor, 'farboo$0');
 		session.insert();
-		assert.equal(session.isAtLastPlaceholder, true);
-		assert.equal(session.isSelectionWithinPlaceholders(), false);
+		assert.strictEqual(session.isAtLastPlaceholder, true);
+		assert.strictEqual(session.isSelectionWithinPlaceholders(), false);
 
 		editor.trigger('test', 'type', { text: 'XXX' });
-		assert.equal(session.isSelectionWithinPlaceholders(), false);
+		assert.strictEqual(session.isSelectionWithinPlaceholders(), false);
 	});
 
 	test('snippets, typing at beginning', function () {
@@ -379,12 +379,12 @@ suite('SnippetSession', function () {
 		session.insert();
 
 		editor.setSelection(new Selection(1, 2, 1, 2));
-		assert.equal(session.isSelectionWithinPlaceholders(), false);
-		assert.equal(session.isAtLastPlaceholder, true);
+		assert.strictEqual(session.isSelectionWithinPlaceholders(), false);
+		assert.strictEqual(session.isAtLastPlaceholder, true);
 
 		editor.trigger('test', 'type', { text: 'XXX' });
-		assert.equal(model.getLineContent(1), 'fXXXfarboounction foo() {');
-		assert.equal(session.isSelectionWithinPlaceholders(), false);
+		assert.strictEqual(model.getLineContent(1), 'fXXXfarboounction foo() {');
+		assert.strictEqual(session.isSelectionWithinPlaceholders(), false);
 
 		session.next();
 		assertSelections(editor, new Selection(1, 11, 1, 11));
@@ -412,7 +412,7 @@ suite('SnippetSession', function () {
 		const session = new SnippetSession(editor, '@line=$TM_LINE_NUMBER$0');
 		session.insert();
 
-		assert.equal(model.getValue(), '@line=1function foo() {\n    @line=2console.log(a);\n}');
+		assert.strictEqual(model.getValue(), '@line=1function foo() {\n    @line=2console.log(a);\n}');
 		assertSelections(editor, new Selection(1, 8, 1, 8), new Selection(2, 12, 2, 12));
 	});
 
@@ -428,10 +428,10 @@ suite('SnippetSession', function () {
 
 		session.next();
 		assertSelections(editor, new Selection(1, 22, 1, 22));
-		assert.equal(session.isAtLastPlaceholder, false);
+		assert.strictEqual(session.isAtLastPlaceholder, false);
 
 		session.next();
-		assert.equal(session.isAtLastPlaceholder, true);
+		assert.strictEqual(session.isAtLastPlaceholder, true);
 		assertSelections(editor, new Selection(1, 23, 1, 23));
 
 		session.prev();
@@ -456,8 +456,8 @@ suite('SnippetSession', function () {
 		editor.trigger('test', 'type', { text: 'foo' });
 		session.next();
 
-		assert.equal(model.getValue(), 'bar');
-		assert.equal(session.isAtLastPlaceholder, true);
+		assert.strictEqual(model.getValue(), 'bar');
+		assert.strictEqual(session.isAtLastPlaceholder, true);
 		assertSelections(editor, new Selection(1, 4, 1, 4));
 	});
 
@@ -471,8 +471,8 @@ suite('SnippetSession', function () {
 		editor.trigger('test', 'type', { text: 'foo' });
 		session.next();
 
-		assert.equal(model.getValue(), 'foo baz bar');
-		assert.equal(session.isAtLastPlaceholder, true);
+		assert.strictEqual(model.getValue(), 'foo baz bar');
+		assert.strictEqual(session.isAtLastPlaceholder, true);
 		assertSelections(editor, new Selection(1, 12, 1, 12));
 	});
 
@@ -493,8 +493,8 @@ suite('SnippetSession', function () {
 		assertSelections(editor, new Selection(1, 16, 1, 16));
 		session.next();
 
-		assert.equal(model.getValue(), 'clk : std_logic;\n');
-		assert.equal(session.isAtLastPlaceholder, true);
+		assert.strictEqual(model.getValue(), 'clk : std_logic;\n');
+		assert.strictEqual(session.isAtLastPlaceholder, true);
 		assertSelections(editor, new Selection(2, 1, 2, 1));
 	});
 
@@ -532,8 +532,8 @@ suite('SnippetSession', function () {
 		editor.trigger('test', 'type', { text: 'string' });
 		session.next();
 
-		assert.equal(model.getValue(), expected);
-		assert.equal(session.isAtLastPlaceholder, true);
+		assert.strictEqual(model.getValue(), expected);
+		assert.strictEqual(session.isAtLastPlaceholder, true);
 		assertSelections(editor, new Selection(4, 2, 4, 2));
 
 	});
@@ -556,8 +556,8 @@ suite('SnippetSession', function () {
 		editor.trigger('test', 'type', { text: ' := \'1\'' });
 		session.next();
 
-		assert.equal(model.getValue(), 'clk : std_logic := \'1\';\n');
-		assert.equal(session.isAtLastPlaceholder, true);
+		assert.strictEqual(model.getValue(), 'clk : std_logic := \'1\';\n');
+		assert.strictEqual(session.isAtLastPlaceholder, true);
 		assertSelections(editor, new Selection(2, 1, 2, 1));
 	});
 
@@ -570,13 +570,13 @@ suite('SnippetSession', function () {
 		assertSelections(editor, new Selection(1, 1, 1, 2), new Selection(1, 5, 1, 6));
 		session.next();
 
-		assert.equal(model.getValue(), '{fff}');
+		assert.strictEqual(model.getValue(), '{fff}');
 		assertSelections(editor, new Selection(1, 2, 1, 5));
 		editor.trigger('test', 'type', { text: 'ggg' });
 		session.next();
 
-		assert.equal(model.getValue(), '{ggg}');
-		assert.equal(session.isAtLastPlaceholder, true);
+		assert.strictEqual(model.getValue(), '{ggg}');
+		assert.strictEqual(session.isAtLastPlaceholder, true);
 		assertSelections(editor, new Selection(1, 6, 1, 6));
 	});
 
@@ -584,7 +584,7 @@ suite('SnippetSession', function () {
 		editor.getModel().setValue('');
 		const session = new SnippetSession(editor, '${1:{}${2:fff}${1/[\\{]/}/}$0');
 		session.insert();
-		assert.equal(editor.getModel().getValue(), '{fff{');
+		assert.strictEqual(editor.getModel().getValue(), '{fff{');
 
 		assertSelections(editor, new Selection(1, 1, 1, 2), new Selection(1, 5, 1, 6));
 		session.next();
@@ -599,25 +599,25 @@ suite('SnippetSession', function () {
 
 		editor.trigger('test', 'type', { text: '1' });
 		editor.trigger('test', 'type', { text: '\n' });
-		assert.equal(editor.getModel()!.getValue(), 'test 1\n');
+		assert.strictEqual(editor.getModel()!.getValue(), 'test 1\n');
 
 		session.merge('test ${1:replaceme}');
 		editor.trigger('test', 'type', { text: '2' });
 		editor.trigger('test', 'type', { text: '\n' });
 
-		assert.equal(editor.getModel()!.getValue(), 'test 1\ntest 2\n');
+		assert.strictEqual(editor.getModel()!.getValue(), 'test 1\ntest 2\n');
 
 		session.merge('test ${1:replaceme}');
 		editor.trigger('test', 'type', { text: '3' });
 		editor.trigger('test', 'type', { text: '\n' });
 
-		assert.equal(editor.getModel()!.getValue(), 'test 1\ntest 2\ntest 3\n');
+		assert.strictEqual(editor.getModel()!.getValue(), 'test 1\ntest 2\ntest 3\n');
 
 		session.merge('test ${1:replaceme}');
 		editor.trigger('test', 'type', { text: '4' });
 		editor.trigger('test', 'type', { text: '\n' });
 
-		assert.equal(editor.getModel()!.getValue(), 'test 1\ntest 2\ntest 3\ntest 4\n');
+		assert.strictEqual(editor.getModel()!.getValue(), 'test 1\ntest 2\ntest 3\ntest 4\n');
 	});
 
 	test('Snippet variable text isn\'t whitespace normalised, #31124', function () {
@@ -642,7 +642,7 @@ suite('SnippetSession', function () {
 			'end'
 		].join('\n');
 
-		assert.equal(editor.getModel()!.getValue(), expected);
+		assert.strictEqual(editor.getModel()!.getValue(), expected);
 
 		editor.getModel()!.setValue([
 			'start',
@@ -665,7 +665,7 @@ suite('SnippetSession', function () {
 			'end'
 		].join('\n');
 
-		assert.equal(editor.getModel()!.getValue(), expected);
+		assert.strictEqual(editor.getModel()!.getValue(), expected);
 	});
 
 	test('Selecting text from left to right, and choosing item messes up code, #31199', function () {
@@ -680,7 +680,7 @@ suite('SnippetSession', function () {
 
 		editor.setSelections([new Selection(1, 9, 1, 12)]);
 		new SnippetSession(editor, 'far', { overwriteBefore: 3, overwriteAfter: 0, adjustWhitespace: true, clipboardText: undefined, overtypingCapturer: undefined }).insert();
-		assert.equal(model.getValue(), 'console.far');
+		assert.strictEqual(model.getValue(), 'console.far');
 	});
 
 	test('Tabs don\'t get replaced with spaces in snippet transformations #103818', function () {

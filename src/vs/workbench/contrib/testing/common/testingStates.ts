@@ -38,3 +38,5 @@ export const cmpPriority = (a: TestRunState, b: TestRunState) => statePriority[b
 export const maxPriority = (a: TestRunState, b: TestRunState) => statePriority[a] > statePriority[b] ? a : b;
 
 export const statesInOrder = Object.keys(statePriority).map(s => Number(s) as TestRunState).sort(cmpPriority);
+
+export const isRunningState = (s: TestRunState) => s === TestRunState.Queued || s === TestRunState.Running;

@@ -39,7 +39,7 @@ suite('ExtHostDocumentsAndEditors', () => {
 				try {
 
 					for (const data of e) {
-						assert.equal(data.document.isClosed, true);
+						assert.strictEqual(data.document.isClosed, true);
 					}
 					resolve(undefined);
 				} catch (e) {

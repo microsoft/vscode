@@ -197,6 +197,10 @@ export class ExtHostTesting implements ExtHostTestingShape {
 
 		try {
 			await provider.runTests({ tests, debug: req.debug }, cancellation);
+			for (const { collection } of this.testSubscriptions.values()) {
+				collection.flushDiff(); // ensure all states are updated
+			}
+
 			return EMPTY_TEST_RESULT;
 		} catch (e) {
 			console.error(e); // so it appears to attached debuggers
@@ -621,16 +625,9 @@ class TextDocumentTestObserverFactory extends AbstractTestObserverFactory {
 		const uriString = resourceUri.toString();
 		this.diffListeners.set(uriString, onDiff);
 
-		const disposeListener = this.documents.onDidRemoveDocuments(evt => {
-			if (evt.some(delta => delta.document.uri.toString() === uriString)) {
-				this.unlisten(resourceUri);
-			}
-		});
-
 		this.proxy.$subscribeToDiffs(ExtHostTestingResource.TextDocument, resourceUri);
 		return new Disposable(() => {
 			this.proxy.$unsubscribeFromDiffs(ExtHostTestingResource.TextDocument, resourceUri);
-			disposeListener.dispose();
 			this.diffListeners.delete(uriString);
 		});
 	}

@@ -101,11 +101,11 @@ export class RichEditSupport {
 		return this._electricCharacter;
 	}
 
-	public onEnter(autoIndent: EditorAutoIndentStrategy, oneLineAboveText: string, beforeEnterText: string, afterEnterText: string): EnterAction | null {
+	public onEnter(autoIndent: EditorAutoIndentStrategy, previousLineText: string, beforeEnterText: string, afterEnterText: string): EnterAction | null {
 		if (!this._onEnterSupport) {
 			return null;
 		}
-		return this._onEnterSupport.onEnter(autoIndent, oneLineAboveText, beforeEnterText, afterEnterText);
+		return this._onEnterSupport.onEnter(autoIndent, previousLineText, beforeEnterText, afterEnterText);
 	}
 
 	private static _mergeConf(prev: LanguageConfiguration | null, current: LanguageConfiguration): LanguageConfiguration {
@@ -700,17 +700,17 @@ export class LanguageConfigurationRegistryImpl {
 			afterEnterText = endScopedLineTokens.getLineContent().substr(range.endColumn - 1 - scopedLineTokens.firstCharOffset);
 		}
 
-		let oneLineAboveText = '';
+		let previousLineText = '';
 		if (range.startLineNumber > 1 && scopedLineTokens.firstCharOffset === 0) {
 			// This is not the first line and the entire line belongs to this mode
 			const oneLineAboveScopedLineTokens = this.getScopedLineTokens(model, range.startLineNumber - 1);
 			if (oneLineAboveScopedLineTokens.languageId === scopedLineTokens.languageId) {
 				// The line above ends with text belonging to the same mode
-				oneLineAboveText = oneLineAboveScopedLineTokens.getLineContent();
+				previousLineText = oneLineAboveScopedLineTokens.getLineContent();
 			}
 		}
 
-		const enterResult = richEditSupport.onEnter(autoIndent, oneLineAboveText, beforeEnterText, afterEnterText);
+		const enterResult = richEditSupport.onEnter(autoIndent, previousLineText, beforeEnterText, afterEnterText);
 		if (!enterResult) {
 			return null;
 		}

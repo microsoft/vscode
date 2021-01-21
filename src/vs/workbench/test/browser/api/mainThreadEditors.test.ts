@@ -199,7 +199,7 @@ suite('MainThreadEditors', () => {
 		model.applyEdits([EditOperation.insert(new Position(0, 0), 'something')]);
 
 		return editors.$tryApplyWorkspaceEdit({ edits: [workspaceResourceEdit] }).then((result) => {
-			assert.equal(result, false);
+			assert.strictEqual(result, false);
 		});
 	});
 
@@ -228,11 +228,11 @@ suite('MainThreadEditors', () => {
 
 		let p1 = editors.$tryApplyWorkspaceEdit({ edits: [workspaceResourceEdit1] }).then((result) => {
 			// first edit request succeeds
-			assert.equal(result, true);
+			assert.strictEqual(result, true);
 		});
 		let p2 = editors.$tryApplyWorkspaceEdit({ edits: [workspaceResourceEdit2] }).then((result) => {
 			// second edit request fails
-			assert.equal(result, false);
+			assert.strictEqual(result, false);
 		});
 		return Promise.all([p1, p2]);
 	});
@@ -245,10 +245,10 @@ suite('MainThreadEditors', () => {
 				{ _type: WorkspaceEditType.File, oldUri: resource, newUri: undefined, options: undefined }
 			]
 		}).then((result) => {
-			assert.equal(result, true);
-			assert.equal(movedResources.get(resource), resource);
-			assert.equal(createdResources.has(resource), true);
-			assert.equal(deletedResources.has(resource), true);
+			assert.strictEqual(result, true);
+			assert.strictEqual(movedResources.get(resource), resource);
+			assert.strictEqual(createdResources.has(resource), true);
+			assert.strictEqual(deletedResources.has(resource), true);
 		});
 	});
 });

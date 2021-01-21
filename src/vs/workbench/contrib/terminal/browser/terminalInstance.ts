@@ -997,6 +997,7 @@ export class TerminalInstance extends Disposable implements ITerminalInstance {
 			case 'pwsh.exe':
 				return WindowsShellType.PowerShell;
 			case 'bash.exe':
+			case 'git-cmd.exe':
 				return WindowsShellType.GitBash;
 			case 'wsl.exe':
 			case 'ubuntu.exe':
