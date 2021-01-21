@@ -65,8 +65,7 @@ export interface ICodeWindow extends IDisposable {
 	readonly win: BrowserWindow;
 	readonly config: INativeWindowConfiguration | undefined;
 
-	readonly openedFolderUri?: ISingleFolderWorkspaceIdentifier;
-	readonly openedWorkspace?: IWorkspaceIdentifier;
+	readonly openedWorkspace?: IWorkspaceIdentifier | ISingleFolderWorkspaceIdentifier;
 
 	readonly backupPath?: string;
 

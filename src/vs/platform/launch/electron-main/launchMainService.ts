@@ -20,6 +20,7 @@ import { IDiagnosticInfoOptions, IDiagnosticInfo, IRemoteDiagnosticInfo, IRemote
 import { IMainProcessInfo, IWindowInfo } from 'vs/platform/launch/node/launch';
 import { isLaunchedFromCli } from 'vs/platform/environment/node/argvHelper';
 import { CancellationToken } from 'vs/base/common/cancellation';
+import { isSingleFolderWorkspaceIdentifier, isWorkspaceIdentifier } from 'vs/platform/workspaces/common/workspaces';
 
 export const ID = 'launchMainService';
 export const ILaunchMainService = createDecorator<ILaunchMainService>(ID);
@@ -272,11 +273,12 @@ export class LaunchMainService implements ILaunchMainService {
 	private getFolderURIs(window: ICodeWindow): URI[] {
 		const folderURIs: URI[] = [];
 
-		if (window.openedFolderUri) {
-			folderURIs.push(window.openedFolderUri.uri);
-		} else if (window.openedWorkspace) {
+		const workspace = window.openedWorkspace;
+		if (isSingleFolderWorkspaceIdentifier(workspace)) {
+			folderURIs.push(workspace.uri);
+		} else if (isWorkspaceIdentifier(workspace)) {
 			// workspace folders can only be shown for local workspaces
-			const workspaceConfigPath = window.openedWorkspace.configPath;
+			const workspaceConfigPath = workspace.configPath;
 			const resolvedWorkspace = this.workspacesMainService.resolveLocalWorkspaceSync(workspaceConfigPath);
 			if (resolvedWorkspace) {
 				const rootFolders = resolvedWorkspace.folders;

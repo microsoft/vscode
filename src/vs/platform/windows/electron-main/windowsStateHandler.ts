@@ -15,7 +15,7 @@ import { ILogService } from 'vs/platform/log/common/log';
 import { IStateService } from 'vs/platform/state/node/state';
 import { INativeWindowConfiguration, IWindowSettings } from 'vs/platform/windows/common/windows';
 import { ICodeWindow, IWindowsMainService, IWindowState as IWindowUIState, WindowMode } from 'vs/platform/windows/electron-main/windows';
-import { IWorkspaceIdentifier } from 'vs/platform/workspaces/common/workspaces';
+import { isSingleFolderWorkspaceIdentifier, isWorkspaceIdentifier, IWorkspaceIdentifier } from 'vs/platform/workspaces/common/workspaces';
 
 export interface IWindowState {
 	workspace?: IWorkspaceIdentifier;
@@ -198,10 +198,10 @@ export class WindowsStateHandler extends Disposable {
 		}
 
 		// Any non extension host window with same workspace or folder
-		else if (!window.isExtensionDevelopmentHost && (!!window.openedWorkspace || !!window.openedFolderUri)) {
+		else if (!window.isExtensionDevelopmentHost && window.openedWorkspace) {
 			this._state.openedWindows.forEach(openedWindow => {
-				const sameWorkspace = window.openedWorkspace && openedWindow.workspace && openedWindow.workspace.id === window.openedWorkspace.id;
-				const sameFolder = window.openedFolderUri && openedWindow.folderUri && extUriBiasedIgnorePathCase.isEqual(openedWindow.folderUri, window.openedFolderUri.uri);
+				const sameWorkspace = isWorkspaceIdentifier(window.openedWorkspace) && isWorkspaceIdentifier(openedWindow.workspace) && openedWindow.workspace.id === window.openedWorkspace.id;
+				const sameFolder = isSingleFolderWorkspaceIdentifier(window.openedWorkspace) && openedWindow.folderUri && extUriBiasedIgnorePathCase.isEqual(openedWindow.folderUri, window.openedWorkspace.uri);
 
 				if (sameWorkspace || sameFolder) {
 					openedWindow.uiState = state.uiState;
@@ -220,8 +220,8 @@ export class WindowsStateHandler extends Disposable {
 
 	private toWindowState(window: ICodeWindow): IWindowState {
 		return {
-			workspace: window.openedWorkspace,
-			folderUri: window.openedFolderUri?.uri,
+			workspace: isWorkspaceIdentifier(window.openedWorkspace) ? window.openedWorkspace : undefined,
+			folderUri: isSingleFolderWorkspaceIdentifier(window.openedWorkspace) ? window.openedWorkspace.uri : undefined,
 			backupPath: window.backupPath,
 			remoteAuthority: window.remoteAuthority,
 			uiState: window.serializeWindowState()

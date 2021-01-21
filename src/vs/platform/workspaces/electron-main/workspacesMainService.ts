@@ -3,7 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { IWorkspaceIdentifier, hasWorkspaceFileExtension, UNTITLED_WORKSPACE_NAME, IResolvedWorkspace, IStoredWorkspaceFolder, isStoredWorkspaceFolder, IWorkspaceFolderCreationData, IUntitledWorkspaceInfo, getStoredWorkspaceFolder, IEnterWorkspaceResult, isUntitledWorkspace } from 'vs/platform/workspaces/common/workspaces';
+import { IWorkspaceIdentifier, hasWorkspaceFileExtension, UNTITLED_WORKSPACE_NAME, IResolvedWorkspace, IStoredWorkspaceFolder, isStoredWorkspaceFolder, IWorkspaceFolderCreationData, IUntitledWorkspaceInfo, getStoredWorkspaceFolder, IEnterWorkspaceResult, isUntitledWorkspace, isWorkspaceIdentifier } from 'vs/platform/workspaces/common/workspaces';
 import { IEnvironmentMainService } from 'vs/platform/environment/electron-main/environmentMainService';
 import { join, dirname } from 'vs/base/common/path';
 import { mkdirp, writeFile, rimrafSync, readdirSync, writeFileSync } from 'vs/base/node/pfs';
@@ -271,7 +271,7 @@ export class WorkspacesMainService extends Disposable implements IWorkspacesMain
 			return true;
 		}
 
-		if (window.openedWorkspace && extUriBiasedIgnorePathCase.isEqual(window.openedWorkspace.configPath, workspacePath)) {
+		if (isWorkspaceIdentifier(window.openedWorkspace) && extUriBiasedIgnorePathCase.isEqual(window.openedWorkspace.configPath, workspacePath)) {
 			return false; // window is already opened on a workspace with that path
 		}
 
@@ -308,7 +308,7 @@ export class WorkspacesMainService extends Disposable implements IWorkspacesMain
 		}
 
 		// if the window was opened on an untitled workspace, delete it.
-		if (window.openedWorkspace && this.isUntitledWorkspace(window.openedWorkspace)) {
+		if (isWorkspaceIdentifier(window.openedWorkspace) && this.isUntitledWorkspace(window.openedWorkspace)) {
 			this.deleteUntitledWorkspaceSync(window.openedWorkspace);
 		}
 

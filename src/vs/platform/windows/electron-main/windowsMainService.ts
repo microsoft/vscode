@@ -24,7 +24,7 @@ import product from 'vs/platform/product/common/product';
 import { IWindowsMainService, IOpenConfiguration, IWindowsCountChangedEvent, ICodeWindow, IOpenEmptyConfiguration, OpenContext } from 'vs/platform/windows/electron-main/windows';
 import { IWorkspacesHistoryMainService } from 'vs/platform/workspaces/electron-main/workspacesHistoryMainService';
 import { IProcessEnvironment, isMacintosh } from 'vs/base/common/platform';
-import { IWorkspaceIdentifier, hasWorkspaceFileExtension, IRecent } from 'vs/platform/workspaces/common/workspaces';
+import { IWorkspaceIdentifier, hasWorkspaceFileExtension, IRecent, isWorkspaceIdentifier, isSingleFolderWorkspaceIdentifier } from 'vs/platform/workspaces/common/workspaces';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { Schemas } from 'vs/base/common/network';
 import { URI } from 'vs/base/common/uri';
@@ -417,13 +417,13 @@ export class WindowsMainService extends Disposable implements IWindowsMainServic
 			if (windowToUseForFiles) {
 
 				// Window is workspace
-				if (windowToUseForFiles.openedWorkspace) {
+				if (isWorkspaceIdentifier(windowToUseForFiles.openedWorkspace)) {
 					workspacesToOpen.push({ workspace: windowToUseForFiles.openedWorkspace, remoteAuthority: windowToUseForFiles.remoteAuthority });
 				}
 
 				// Window is single folder
-				else if (windowToUseForFiles.openedFolderUri) {
-					foldersToOpen.push({ folderUri: windowToUseForFiles.openedFolderUri.uri, remoteAuthority: windowToUseForFiles.remoteAuthority });
+				else if (isSingleFolderWorkspaceIdentifier(windowToUseForFiles.openedWorkspace)) {
+					foldersToOpen.push({ folderUri: windowToUseForFiles.openedWorkspace.uri, remoteAuthority: windowToUseForFiles.remoteAuthority });
 				}
 
 				// Window is empty
@@ -497,7 +497,7 @@ export class WindowsMainService extends Disposable implements IWindowsMainServic
 			// Open remaining ones
 			allFoldersToOpen.forEach(folderToOpen => {
 
-				if (windowsOnFolderPath.some(window => extUriBiasedIgnorePathCase.isEqual(window.openedFolderUri?.uri, folderToOpen.folderUri))) {
+				if (windowsOnFolderPath.some(window => isSingleFolderWorkspaceIdentifier(window.openedWorkspace) && extUriBiasedIgnorePathCase.isEqual(window.openedWorkspace.uri, folderToOpen.folderUri))) {
 					return; // ignore folders that are already open
 				}
 
