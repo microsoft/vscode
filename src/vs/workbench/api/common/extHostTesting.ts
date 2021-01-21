@@ -285,7 +285,7 @@ export class ExtHostTesting implements ExtHostTestingShape {
  * A class which wraps a vscode.TestItem that provides the ability to filter a TestItem's children
  * to only the children that are located in a certain vscode.Uri.
  */
-class TestItemFilteredWrapper implements vscode.TestItem {
+export class TestItemFilteredWrapper implements vscode.TestItem {
 	private static wrapperMap = new WeakMap<vscode.Uri, WeakMap<vscode.TestItem, TestItemFilteredWrapper>>();
 	public static removeFilter(uri: vscode.Uri): void {
 		this.wrapperMap.delete(uri);
@@ -369,7 +369,7 @@ class TestItemFilteredWrapper implements vscode.TestItem {
 		}
 	}
 
-	constructor(public readonly actual: vscode.TestItem, private filterToUri: vscode.Uri, private readonly parent?: TestItemFilteredWrapper) {
+	private constructor(public readonly actual: vscode.TestItem, private filterToUri: vscode.Uri, private readonly parent?: TestItemFilteredWrapper) {
 		this.getWrappedChildren();
 	}
 
