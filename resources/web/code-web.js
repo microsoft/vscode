@@ -400,8 +400,8 @@ async function handleRoot(req, res) {
 
 	const secondaryHost = (
 		req.headers['host']
-		? req.headers['host'].replace(':' + PORT, ':' + SECONDARY_PORT)
-		: `${HOST}:${SECONDARY_PORT}`
+			? req.headers['host'].replace(':' + PORT, ':' + SECONDARY_PORT)
+			: `${HOST}:${SECONDARY_PORT}`
 	);
 	const webConfigJSON = {
 		folderUri: folderUri,
