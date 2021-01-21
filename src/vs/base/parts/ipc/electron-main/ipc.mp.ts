@@ -38,7 +38,7 @@ export class Client extends MessagePortClient implements IDisposable {
 export async function connect(window: BrowserWindow): Promise<MessagePortMain> {
 
 	// Assert healthy window to talk to
-	if (window.webContents.isDestroyed()) {
+	if (window.isDestroyed() || window.webContents.isDestroyed()) {
 		throw new Error('ipc.mp#connect: Cannot talk to window because it is closed or destroyed');
 	}
 

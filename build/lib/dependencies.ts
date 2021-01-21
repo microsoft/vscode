@@ -5,12 +5,27 @@
 
 'use strict';
 
-const path = require('path');
+import * as path from 'path';
+import * as cp from 'child_process';
+import * as _ from 'underscore';
 const parseSemver = require('parse-semver');
-const cp = require('child_process');
-const _ = require('underscore');
 
-function asYarnDependency(prefix, tree) {
+interface Tree {
+	readonly name: string;
+	readonly children?: Tree[];
+}
+
+interface FlatDependency {
+	readonly name: string;
+	readonly version: string;
+	readonly path: string;
+}
+
+interface Dependency extends FlatDependency {
+	readonly children: Dependency[];
+}
+
+function asYarnDependency(prefix: string, tree: Tree): Dependency | null {
 	let parseResult;
 
 	try {
@@ -42,7 +57,7 @@ function asYarnDependency(prefix, tree) {
 	return { name, version, path: dependencyPath, children };
 }
 
-function getYarnProductionDependencies(cwd) {
+function getYarnProductionDependencies(cwd: string): Dependency[] {
 	const raw = cp.execSync('yarn list --json', { cwd, encoding: 'utf8', env: { ...process.env, NODE_ENV: 'production' }, stdio: [null, null, 'inherit'] });
 	const match = /^{"type":"tree".*$/m.exec(raw);
 
@@ -50,25 +65,22 @@ function getYarnProductionDependencies(cwd) {
 		throw new Error('Could not parse result of `yarn list --json`');
 	}
 
-	const trees = JSON.parse(match[0]).data.trees;
+	const trees = JSON.parse(match[0]).data.trees as Tree[];
 
 	return trees
 		.map(tree => asYarnDependency(path.join(cwd, 'node_modules'), tree))
-		.filter(dep => !!dep);
+		.filter<Dependency>((dep): dep is Dependency => !!dep);
 }
 
-function getProductionDependencies(cwd) {
-	const result = [];
+export function getProductionDependencies(cwd: string): FlatDependency[] {
+	const result: FlatDependency[] = [];
 	const deps = getYarnProductionDependencies(cwd);
-	const flatten = dep => { result.push({ name: dep.name, version: dep.version, path: dep.path }); dep.children.forEach(flatten); };
+	const flatten = (dep: Dependency) => { result.push({ name: dep.name, version: dep.version, path: dep.path }); dep.children.forEach(flatten); };
 	deps.forEach(flatten);
-
 	return _.uniq(result);
 }
 
-module.exports.getProductionDependencies = getProductionDependencies;
-
 if (require.main === module) {
-	const root = path.dirname(__dirname);
+	const root = path.dirname(path.dirname(__dirname));
 	console.log(JSON.stringify(getProductionDependencies(root), null, '  '));
 }

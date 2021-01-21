@@ -1,0 +1,14 @@
+[
+  {
+    "kind": 1,
+    "language": "markdown",
+    "value": "## Native Notebook Paper Cuts\n\nThis notebook serves as an ongoing collection of paper cut issues that we encounter while dogfooding native notebooks. With that in mind only promote issues that really turn you off when using notebooks, e.g issues that make you wanna stop using native notebooks. To mark an issue (bug, feature-request, etc) as paper cut add the labels: `notebook` _and_ `papercut :drop_of_blood:`",
+    "editable": true
+  },
+  {
+    "kind": 2,
+    "language": "github-issues",
+    "value": "repo:microsoft/vscode is:open label:notebook label:\"papercut :drop_of_blood:\"",
+    "editable": true
+  }
+]
