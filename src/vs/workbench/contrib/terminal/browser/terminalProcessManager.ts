@@ -168,8 +168,12 @@ export class TerminalProcessManager extends Disposable implements ITerminalProce
 
 				const activeWorkspaceRootUri = this._historyService.getLastActiveWorkspaceRoot();
 
+<<<<<<< HEAD
 				// this is a copy of what the merged environment collection is on the remote side
 				await this._setupEnvVariableInfo(activeWorkspaceRootUri, shellLaunchConfig);
+=======
+				await this._refreshEnvironmentVariables(activeWorkspaceRootUri, shellLaunchConfig);
+>>>>>>> 60f1eac940 (Fix #105177 get terminal environment variable to show up in remote container)
 
 				const enableRemoteAgentTerminals = this._configHelper.config.serverSpawn;
 				if (enableRemoteAgentTerminals) {
@@ -236,7 +240,11 @@ export class TerminalProcessManager extends Disposable implements ITerminalProce
 	}
 
 	// Fetch any extension environment additions and apply them
+<<<<<<< HEAD
 	private async _setupEnvVariableInfo(activeWorkspaceRootUri: URI | undefined, shellLaunchConfig: IShellLaunchConfig): Promise<void> {
+=======
+	private async _refreshEnvironmentVariables(activeWorkspaceRootUri: URI | undefined, shellLaunchConfig: IShellLaunchConfig): Promise<void> {
+>>>>>>> 60f1eac940 (Fix #105177 get terminal environment variable to show up in remote container)
 		const platformKey = platform.isWindows ? 'windows' : (platform.isMacintosh ? 'osx' : 'linux');
 		const lastActiveWorkspace = activeWorkspaceRootUri ? withNullAsUndefined(this._workspaceContextService.getWorkspaceFolder(activeWorkspaceRootUri)) : undefined;
 		const envFromConfigValue = this._workspaceConfigurationService.inspect<ITerminalEnvironment | undefined>(`terminal.integrated.env.${platformKey}`);
@@ -248,12 +256,15 @@ export class TerminalProcessManager extends Disposable implements ITerminalProce
 		if (!shellLaunchConfig.strictEnv) {
 			this._extEnvironmentVariableCollection = this._environmentVariableService.mergedCollection;
 			this._register(this._environmentVariableService.onDidChangeCollections(newCollection => this._onEnvironmentVariableCollectionChange(newCollection)));
+<<<<<<< HEAD
 			// For remote terminals, this is a copy of the mergedEnvironmentCollection created on
 			// the remote side. Since the environment collection is synced between the remote and
 			// local sides immediately this is a fairly safe way of enabling the env var diffing and
 			// info widget. While technically these could differ due to the slight change of a race
 			// condition, the chance is minimal plus the impact on the user is also not that great
 			// if it happens - it's not worth adding plumbing to sync back the resolved collection.
+=======
+>>>>>>> 60f1eac940 (Fix #105177 get terminal environment variable to show up in remote container)
 			this._extEnvironmentVariableCollection.applyToProcessEnvironment(env);
 			if (this._extEnvironmentVariableCollection.map.size > 0) {
 				this._environmentVariableInfo = new EnvironmentVariableInfoChangesActive(this._extEnvironmentVariableCollection);
@@ -305,7 +316,11 @@ export class TerminalProcessManager extends Disposable implements ITerminalProce
 		const baseEnv = this._configHelper.config.inheritEnv ? processEnv : await this._terminalInstanceService.getMainProcessParentEnv();
 		const env = terminalEnvironment.createTerminalEnvironment(shellLaunchConfig, envFromConfigValue, terminalEnvironment.createVariableResolver(lastActiveWorkspace, this._configurationResolverService), isWorkspaceShellAllowed, this._productService.version, this._configHelper.config.detectLocale, baseEnv);
 
+<<<<<<< HEAD
 		await this._setupEnvVariableInfo(activeWorkspaceRootUri, shellLaunchConfig);
+=======
+		await this._refreshEnvironmentVariables(activeWorkspaceRootUri, shellLaunchConfig);
+>>>>>>> 60f1eac940 (Fix #105177 get terminal environment variable to show up in remote container)
 
 		const useConpty = this._configHelper.config.windowsEnableConpty && !isScreenReaderModeEnabled;
 		return this._terminalInstanceService.createTerminalProcess(shellLaunchConfig, initialCwd, cols, rows, env, useConpty);
