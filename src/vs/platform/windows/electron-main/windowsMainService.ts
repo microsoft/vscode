@@ -31,7 +31,7 @@ import { URI } from 'vs/base/common/uri';
 import { normalizePath, originalFSPath, removeTrailingPathSeparator, extUriBiasedIgnorePathCase } from 'vs/base/common/resources';
 import { getRemoteAuthority } from 'vs/platform/remote/common/remoteHosts';
 import { IWindowState, WindowsStateHandler } from 'vs/platform/windows/electron-main/windowsStateHandler';
-import { getWorkspaceIdentifier, IWorkspacesMainService } from 'vs/platform/workspaces/electron-main/workspacesMainService';
+import { getSingleFolderWorkspaceIdentifier, getWorkspaceIdentifier, IWorkspacesMainService } from 'vs/platform/workspaces/electron-main/workspacesMainService';
 import { once } from 'vs/base/common/functional';
 import { Disposable } from 'vs/base/common/lifecycle';
 import { IDialogMainService } from 'vs/platform/dialogs/electron-main/dialogMainService';
@@ -1179,7 +1179,7 @@ export class WindowsMainService extends Disposable implements IWindowsMainServic
 		configuration.execPath = process.execPath;
 		configuration.userEnv = { ...this.initialUserEnv, ...options.userEnv };
 		configuration.isInitialStartup = options.initialStartup;
-		configuration.workspace = options.workspace ?? (options.folderUri ? { id: '', uri: options.folderUri } : undefined); // TODO@bpasero compute ID properly
+		configuration.workspace = options.workspace ? options.workspace : options.folderUri ? getSingleFolderWorkspaceIdentifier(options.folderUri) : undefined;
 		configuration.remoteAuthority = options.remoteAuthority;
 
 		const filesToOpen = options.filesToOpen;

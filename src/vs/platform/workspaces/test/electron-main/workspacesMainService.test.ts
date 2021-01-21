@@ -10,7 +10,7 @@ import * as path from 'vs/base/common/path';
 import * as pfs from 'vs/base/node/pfs';
 import { EnvironmentMainService } from 'vs/platform/environment/electron-main/environmentMainService';
 import { parseArgs, OPTIONS } from 'vs/platform/environment/node/argv';
-import { WorkspacesMainService, IStoredWorkspace } from 'vs/platform/workspaces/electron-main/workspacesMainService';
+import { WorkspacesMainService, IStoredWorkspace, getSingleFolderWorkspaceIdentifier } from 'vs/platform/workspaces/electron-main/workspacesMainService';
 import { WORKSPACE_EXTENSION, IRawFileWorkspaceFolder, IWorkspaceFolderCreationData, IRawUriWorkspaceFolder, rewriteWorkspaceFileForNewLocation, IWorkspaceIdentifier, IStoredWorkspaceFolder } from 'vs/platform/workspaces/common/workspaces';
 import { NullLogService } from 'vs/platform/log/common/log';
 import { URI } from 'vs/base/common/uri';
@@ -147,13 +147,13 @@ suite('WorkspacesMainService', () => {
 		service = new WorkspacesMainService(environmentService, logService, new TestBackupMainService(), new TestDialogMainService());
 
 		// Delete any existing backups completely and then re-create it.
-		await pfs.rimraf(untitledWorkspacesHomePath);
+		await pfs.rimraf(parentDir);
 
 		return pfs.mkdirp(untitledWorkspacesHomePath);
 	});
 
 	teardown(() => {
-		return pfs.rimraf(untitledWorkspacesHomePath);
+		return pfs.rimraf(parentDir);
 	});
 
 	function assertPathEquals(p1: string, p2: string): void {
@@ -447,5 +447,21 @@ suite('WorkspacesMainService', () => {
 		service.deleteUntitledWorkspaceSync(untitledTwo);
 		untitled = service.getUntitledWorkspacesSync();
 		assert.equal(0, untitled.length);
+	});
+
+	test('getSingleWorkspaceIdentifier', async function () {
+		const nonLocalUri = URI.parse('myscheme://server/work/p/f1');
+		const nonLocalUriId = getSingleFolderWorkspaceIdentifier(nonLocalUri);
+		assert.ok(nonLocalUriId?.id);
+
+		const localNonExistingUri = URI.file(path.join(parentDir, 'f1'));
+		const localNonExistingUriId = getSingleFolderWorkspaceIdentifier(localNonExistingUri);
+		assert.ok(!localNonExistingUriId);
+
+		fs.mkdirSync(path.join(parentDir, 'f1'));
+
+		const localExistingUri = URI.file(path.join(parentDir, 'f1'));
+		const localExistingUriId = getSingleFolderWorkspaceIdentifier(localExistingUri);
+		assert.ok(localExistingUriId?.id);
 	});
 });

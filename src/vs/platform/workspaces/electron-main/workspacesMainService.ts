@@ -3,12 +3,12 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { IWorkspaceIdentifier, hasWorkspaceFileExtension, UNTITLED_WORKSPACE_NAME, IResolvedWorkspace, IStoredWorkspaceFolder, isStoredWorkspaceFolder, IWorkspaceFolderCreationData, IUntitledWorkspaceInfo, getStoredWorkspaceFolder, IEnterWorkspaceResult, isUntitledWorkspace, isWorkspaceIdentifier } from 'vs/platform/workspaces/common/workspaces';
+import { IWorkspaceIdentifier, hasWorkspaceFileExtension, UNTITLED_WORKSPACE_NAME, IResolvedWorkspace, IStoredWorkspaceFolder, isStoredWorkspaceFolder, IWorkspaceFolderCreationData, IUntitledWorkspaceInfo, getStoredWorkspaceFolder, IEnterWorkspaceResult, isUntitledWorkspace, isWorkspaceIdentifier, ISingleFolderWorkspaceIdentifier } from 'vs/platform/workspaces/common/workspaces';
 import { IEnvironmentMainService } from 'vs/platform/environment/electron-main/environmentMainService';
 import { join, dirname } from 'vs/base/common/path';
 import { mkdirp, writeFile, rimrafSync, readdirSync, writeFileSync } from 'vs/base/node/pfs';
-import { readFileSync, existsSync, mkdirSync } from 'fs';
-import { isLinux, isWindows } from 'vs/base/common/platform';
+import { readFileSync, existsSync, mkdirSync, statSync } from 'fs';
+import { isLinux, isMacintosh, isWindows } from 'vs/base/common/platform';
 import { Event, Emitter } from 'vs/base/common/event';
 import { ILogService } from 'vs/platform/log/common/log';
 import { createHash } from 'crypto';
@@ -27,6 +27,7 @@ import { withNullAsUndefined } from 'vs/base/common/types';
 import { IBackupMainService } from 'vs/platform/backup/electron-main/backup';
 import { IDialogMainService } from 'vs/platform/dialogs/electron-main/dialogMainService';
 import { findWindowOnWorkspaceOrFolder } from 'vs/platform/windows/electron-main/windowsFinder';
+import { sanitizeFilePath } from 'vs/base/common/extpath';
 
 export const IWorkspacesMainService = createDecorator<IWorkspacesMainService>('workspacesMainService');
 
@@ -320,18 +321,64 @@ export class WorkspacesMainService extends Disposable implements IWorkspacesMain
 	}
 }
 
-function getWorkspaceId(configPath: URI): string {
-	let workspaceConfigPath = configPath.scheme === Schemas.file ? originalFSPath(configPath) : configPath.toString();
-	if (!isLinux) {
-		workspaceConfigPath = workspaceConfigPath.toLowerCase(); // sanitize for platform file system
+export function getWorkspaceIdentifier(configPath: URI): IWorkspaceIdentifier {
+
+	function getWorkspaceId(): string {
+		let workspaceConfigPath = configPath.scheme === Schemas.file ? originalFSPath(configPath) : configPath.toString();
+		if (!isLinux) {
+			workspaceConfigPath = workspaceConfigPath.toLowerCase(); // sanitize for platform file system
+		}
+
+		return createHash('md5').update(workspaceConfigPath).digest('hex');
 	}
 
-	return createHash('md5').update(workspaceConfigPath).digest('hex');
+	return {
+		id: getWorkspaceId(),
+		configPath
+	};
 }
 
-export function getWorkspaceIdentifier(configPath: URI): IWorkspaceIdentifier {
-	return {
-		configPath,
-		id: getWorkspaceId(configPath)
-	};
+export function getSingleFolderWorkspaceIdentifier(uri: URI): ISingleFolderWorkspaceIdentifier | undefined {
+
+	function getFolderId(): string {
+
+		// Remote: produce a hash from the entire URI
+		if (uri.scheme !== Schemas.file) {
+			return createHash('md5').update(uri.toString()).digest('hex');
+		}
+
+		// Local: produce a hash from the path and include creation time as salt
+		const fileStat = statSync(uri.fsPath);
+		let ctime: number | undefined;
+		if (isLinux) {
+			ctime = fileStat.ino; // Linux: birthtime is ctime, so we cannot use it! We use the ino instead!
+		} else if (isMacintosh) {
+			ctime = fileStat.birthtime.getTime(); // macOS: birthtime is fine to use as is
+		} else if (isWindows) {
+			if (typeof fileStat.birthtimeMs === 'number') {
+				ctime = Math.floor(fileStat.birthtimeMs); // Windows: fix precision issue in node.js 8.x to get 7.x results (see https://github.com/nodejs/node/issues/19897)
+			} else {
+				ctime = fileStat.birthtime.getTime();
+			}
+		}
+
+		// we use the ctime as extra salt to the ID so that we catch the case of a folder getting
+		// deleted and recreated. in that case we do not want to carry over previous state
+		return createHash('md5').update(uri.fsPath).update(ctime ? String(ctime) : '').digest('hex');
+	}
+
+	try {
+		const folder = uri.scheme === Schemas.file
+			? URI.file(sanitizeFilePath(uri.fsPath, process.env['VSCODE_CWD'] || process.cwd())) // For local: ensure path is absolute
+			: uri;
+
+		return {
+			id: getFolderId(),
+			uri: folder
+		};
+	} catch (error) {
+		//onUnexpectedError(error);
+	}
+
+	return undefined;
 }
