@@ -21,7 +21,7 @@ import { NativeWorkbenchEnvironmentService } from 'vs/workbench/services/environ
 import { IWorkbenchEnvironmentService } from 'vs/workbench/services/environment/common/environmentService';
 import { INativeWorkbenchConfiguration, INativeWorkbenchEnvironmentService } from 'vs/workbench/services/environment/electron-sandbox/environmentService';
 import { ServiceCollection } from 'vs/platform/instantiation/common/serviceCollection';
-import { ISingleFolderWorkspaceIdentifier, IWorkspaceInitializationPayload, ISingleFolderWorkspaceInitializationPayload, IWorkspaceIdentifier, IMultiFolderWorkspaceInitializationPayload, isSingleFolderWorkspaceIdentifier, isWorkspaceIdentifier, reviveIdentifier } from 'vs/platform/workspaces/common/workspaces';
+import { ISingleFolderWorkspaceIdentifier, IWorkspaceInitializationPayload, IWorkspaceIdentifier, isSingleFolderWorkspaceIdentifier, isWorkspaceIdentifier, reviveIdentifier } from 'vs/platform/workspaces/common/workspaces';
 import { ILogService } from 'vs/platform/log/common/log';
 import { NativeStorageService } from 'vs/platform/storage/node/storageService';
 import { Schemas } from 'vs/base/common/network';
@@ -313,7 +313,7 @@ class DesktopMain extends Disposable {
 		return workspaceInitializationPayload;
 	}
 
-	private async resolveMultiFolderWorkspaceInitializationPayload(workspace: IWorkspaceIdentifier): Promise<IMultiFolderWorkspaceInitializationPayload | undefined> {
+	private async resolveMultiFolderWorkspaceInitializationPayload(workspace: IWorkspaceIdentifier): Promise<IWorkspaceIdentifier | undefined> {
 
 		// It is possible that the workspace file does not exist
 		// on disk anymore, so we return `undefined` in that case
@@ -325,7 +325,7 @@ class DesktopMain extends Disposable {
 		return workspace;
 	}
 
-	private async resolveSingleFolderWorkspaceInitializationPayload({ uri: folderUri }: ISingleFolderWorkspaceIdentifier): Promise<ISingleFolderWorkspaceInitializationPayload | undefined> {
+	private async resolveSingleFolderWorkspaceInitializationPayload({ uri: folderUri }: ISingleFolderWorkspaceIdentifier): Promise<ISingleFolderWorkspaceIdentifier | undefined> {
 		try {
 			const folder = folderUri.scheme === Schemas.file
 				? URI.file(sanitizeFilePath(folderUri.fsPath, process.env['VSCODE_CWD'] || process.cwd())) // For local: ensure path is absolute

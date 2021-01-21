@@ -169,21 +169,9 @@ export function isUntitledWorkspace(path: URI, environmentService: IEnvironmentS
 	return extUriBiasedIgnorePathCase.isEqualOrParent(path, environmentService.untitledWorkspacesHome);
 }
 
-export interface ISingleFolderWorkspaceInitializationPayload extends ISingleFolderWorkspaceIdentifier { }
-export interface IMultiFolderWorkspaceInitializationPayload extends IWorkspaceIdentifier { }
 export interface IEmptyWorkspaceInitializationPayload extends IBaseWorkspaceIdentifier { }
 
-export type IWorkspaceInitializationPayload = IMultiFolderWorkspaceInitializationPayload | ISingleFolderWorkspaceInitializationPayload | IEmptyWorkspaceInitializationPayload;
-
-export function isSingleFolderWorkspaceInitializationPayload(obj: unknown): obj is ISingleFolderWorkspaceInitializationPayload {
-	const candidate = obj as ISingleFolderWorkspaceInitializationPayload | undefined;
-
-	return URI.isUri(candidate?.uri);
-}
-
-export function isMultiFolderWorkspaceInitializationPayload(obj: unknown): obj is IMultiFolderWorkspaceInitializationPayload {
-	return isWorkspaceIdentifier(obj);
-}
+export type IWorkspaceInitializationPayload = IWorkspaceIdentifier | ISingleFolderWorkspaceIdentifier | IEmptyWorkspaceInitializationPayload;
 
 //#endregion
 

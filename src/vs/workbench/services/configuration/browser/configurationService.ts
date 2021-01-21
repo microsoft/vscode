@@ -17,7 +17,7 @@ import { Configuration } from 'vs/workbench/services/configuration/common/config
 import { FOLDER_CONFIG_FOLDER_NAME, defaultSettingsSchemaId, userSettingsSchemaId, workspaceSettingsSchemaId, folderSettingsSchemaId, IConfigurationCache, machineSettingsSchemaId, LOCAL_MACHINE_SCOPES, IWorkbenchConfigurationService } from 'vs/workbench/services/configuration/common/configuration';
 import { Registry } from 'vs/platform/registry/common/platform';
 import { IConfigurationRegistry, Extensions, allSettings, windowSettings, resourceSettings, applicationSettings, machineSettings, machineOverridableSettings, ConfigurationScope } from 'vs/platform/configuration/common/configurationRegistry';
-import { IWorkspaceIdentifier, isWorkspaceIdentifier, IStoredWorkspaceFolder, isStoredWorkspaceFolder, IWorkspaceFolderCreationData, IWorkspaceInitializationPayload, isMultiFolderWorkspaceInitializationPayload, ISingleFolderWorkspaceInitializationPayload, IEmptyWorkspaceInitializationPayload, useSlashForPath, getStoredWorkspaceFolder, isSingleFolderWorkspaceInitializationPayload, IMultiFolderWorkspaceInitializationPayload } from 'vs/platform/workspaces/common/workspaces';
+import { IWorkspaceIdentifier, isWorkspaceIdentifier, IStoredWorkspaceFolder, isStoredWorkspaceFolder, IWorkspaceFolderCreationData, IWorkspaceInitializationPayload, IEmptyWorkspaceInitializationPayload, useSlashForPath, getStoredWorkspaceFolder, isSingleFolderWorkspaceIdentifier, ISingleFolderWorkspaceIdentifier } from 'vs/platform/workspaces/common/workspaces';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { ConfigurationEditingService, EditableConfigurationTarget } from 'vs/workbench/services/configuration/common/configurationEditingService';
 import { WorkspaceConfiguration, FolderConfiguration, RemoteUserConfiguration, UserConfiguration } from 'vs/workbench/services/configuration/browser/configuration';
@@ -382,18 +382,18 @@ export class WorkspaceService extends Disposable implements IWorkbenchConfigurat
 	}
 
 	private createWorkspace(arg: IWorkspaceInitializationPayload): Promise<Workspace> {
-		if (isMultiFolderWorkspaceInitializationPayload(arg)) {
+		if (isWorkspaceIdentifier(arg)) {
 			return this.createMultiFolderWorkspace(arg);
 		}
 
-		if (isSingleFolderWorkspaceInitializationPayload(arg)) {
+		if (isSingleFolderWorkspaceIdentifier(arg)) {
 			return this.createSingleFolderWorkspace(arg);
 		}
 
 		return this.createEmptyWorkspace(arg);
 	}
 
-	private createMultiFolderWorkspace(workspacePayload: IMultiFolderWorkspaceInitializationPayload): Promise<Workspace> {
+	private createMultiFolderWorkspace(workspacePayload: IWorkspaceIdentifier): Promise<Workspace> {
 		return this.workspaceConfiguration.initialize({ id: workspacePayload.id, configPath: workspacePayload.configPath })
 			.then(() => {
 				const workspaceConfigPath = workspacePayload.configPath;
@@ -405,7 +405,7 @@ export class WorkspaceService extends Disposable implements IWorkbenchConfigurat
 			});
 	}
 
-	private createSingleFolderWorkspace(singleFolderPayload: ISingleFolderWorkspaceInitializationPayload): Promise<Workspace> {
+	private createSingleFolderWorkspace(singleFolderPayload: ISingleFolderWorkspaceIdentifier): Promise<Workspace> {
 		const workspace = new Workspace(singleFolderPayload.id, [toWorkspaceFolder(singleFolderPayload.uri)], null, uri => this.uriIdentityService.extUri.ignorePathCasing(uri));
 		workspace.initialized = true;
 		return Promise.resolve(workspace);
