@@ -234,6 +234,7 @@ export class TestingExplorerViewModel extends Disposable {
 				instantiationService.createInstance(TestsRenderer, labels)
 			],
 			{
+				simpleKeyboardNavigation: true,
 				identityProvider: instantiationService.createInstance(IdentityProvider),
 				hideTwistiesOfChildlessElements: true,
 				sorter: instantiationService.createInstance(TreeSorter),
@@ -459,6 +460,12 @@ class CodeEditorTracker {
 	}
 }
 
+const enum FilterResult {
+	Include,
+	Exclude,
+	Inherit,
+}
+
 class TestsFilter implements ITreeFilter<ITestTreeElement> {
 	private filters: [include: boolean, value: string][] | undefined;
 
@@ -488,25 +495,32 @@ class TestsFilter implements ITreeFilter<ITestTreeElement> {
 	}
 
 	public filter(element: ITestTreeElement): TreeFilterResult<void> {
-		if (this.testFilterText(element.label)) {
-			return TreeVisibility.Visible;
+		for (let e: ITestTreeElement | null = element; e; e = e.parentItem) {
+			switch (this.testFilterText(e.label)) {
+				case FilterResult.Exclude:
+					return TreeVisibility.Hidden;
+				case FilterResult.Include:
+					return TreeVisibility.Visible;
+				case FilterResult.Inherit:
+				// continue to parent
+			}
 		}
 
-		return Iterable.isEmpty(element.children) ? TreeVisibility.Hidden : TreeVisibility.Recurse;
+		return TreeVisibility.Recurse;
 	}
 
 	private testFilterText(data: string) {
 		if (!this.filters) {
-			return true;
+			return FilterResult.Include;
 		}
 
 		// start as included if the first glob is a negation
-		let included = this.filters[0][0] === false;
+		let included = this.filters[0][0] === false ? FilterResult.Exclude : FilterResult.Inherit;
 		data = data.toLowerCase();
 
 		for (const [include, filter] of this.filters) {
 			if (data.includes(filter)) {
-				included = include;
+				included = include ? FilterResult.Include : FilterResult.Exclude;
 			}
 		}
 

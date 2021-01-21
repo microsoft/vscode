@@ -11,7 +11,8 @@ import { TestRunState } from 'vs/workbench/api/common/extHostTypes';
 import { testStatesToIconColors } from 'vs/workbench/contrib/testing/browser/theme';
 
 export const testingViewIcon = registerIcon('test-view-icon', Codicon.beaker, localize('testViewIcon', 'View icon of the test view.'));
-export const testingRunIcon = registerIcon('testing-run-icon', Codicon.runAll, localize('testingRunIcon', 'Icon of the "run test" action.'));
+export const testingRunIcon = registerIcon('testing-run-icon', Codicon.run, localize('testingRunIcon', 'Icon of the "run test" action.'));
+export const testingRunAllIcon = registerIcon('testing-run-icon', Codicon.runAll, localize('testingRunAllIcon', 'Icon of the "run all tests" action.'));
 export const testingDebugIcon = registerIcon('testing-debug-icon', Codicon.debugAlt, localize('testingDebugIcon', 'Icon of the "debug test" action.'));
 export const testingCancelIcon = registerIcon('testing-cancel-icon', Codicon.close, localize('testingCancelIcon', 'Icon to cancel ongoing test runs.'));
 
