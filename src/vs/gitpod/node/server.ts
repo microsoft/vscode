@@ -3,6 +3,9 @@
  *--------------------------------------------------------------------------------------------*/
 
 import type { ResolvedPlugins } from '@gitpod/gitpod-protocol';
+import { TerminalServiceClient } from '@gitpod/supervisor-api-grpc/lib/terminal_grpc_pb';
+import { ListTerminalsRequest, ListTerminalsResponse } from '@gitpod/supervisor-api-grpc/lib/terminal_pb';
+import * as grpc from '@grpc/grpc-js';
 import * as cp from 'child_process';
 import * as crypto from 'crypto';
 import * as fs from 'fs';
@@ -20,17 +23,19 @@ import { IRemoteConsoleLog } from 'vs/base/common/console';
 import { onUnexpectedError, setUnexpectedErrorHandler } from 'vs/base/common/errors';
 import { Emitter, Event } from 'vs/base/common/event';
 import { IDisposable } from 'vs/base/common/lifecycle';
+import { TernarySearchTree } from 'vs/base/common/map';
 import { Schemas } from 'vs/base/common/network';
-import { OS } from 'vs/base/common/platform';
+import * as platform from 'vs/base/common/platform';
 import Severity from 'vs/base/common/severity';
 import { ReadableStreamEventPayload } from 'vs/base/common/stream';
 import { URI } from 'vs/base/common/uri';
 import { IRawURITransformer, transformIncomingURIs, transformOutgoingURIs, URITransformer } from 'vs/base/common/uriIpc';
 import { generateUuid } from 'vs/base/common/uuid';
-import { mkdirp, rimraf, readdir, unlink } from 'vs/base/node/pfs';
+import { mkdirp, readdir, rimraf, unlink } from 'vs/base/node/pfs';
 import { ClientConnectionEvent, IPCServer, IServerChannel } from 'vs/base/parts/ipc/common/ipc';
 import { PersistentProtocol, ProtocolConstants } from 'vs/base/parts/ipc/common/ipc.net';
 import { NodeSocket, WebSocketNodeSocket } from 'vs/base/parts/ipc/node/ipc.net';
+import { OpenSupervisorTerminalProcessOptions, SupervisorTerminalProcess } from 'vs/gitpod/node/supervisorTerminalProcess';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { ConfigurationService } from 'vs/platform/configuration/common/configurationService';
 import { ExtensionHostDebugBroadcastChannel } from 'vs/platform/debug/common/extensionHostDebugIpc';
@@ -56,12 +61,22 @@ import product from 'vs/platform/product/common/product';
 import { IProductService } from 'vs/platform/product/common/productService';
 import { ConnectionType, ErrorMessage, HandshakeMessage, IRemoteExtensionHostStartParams, OKMessage, SignRequest } from 'vs/platform/remote/common/remoteAgentConnection';
 import { RemoteAgentConnectionContext } from 'vs/platform/remote/common/remoteAgentEnvironment';
-import { IRequestService, asText } from 'vs/platform/request/common/request';
+import { asText, IRequestService } from 'vs/platform/request/common/request';
 import { RequestChannel } from 'vs/platform/request/common/requestIpc';
 import { RequestService } from 'vs/platform/request/node/requestService';
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
 import { NullTelemetryService } from 'vs/platform/telemetry/common/telemetryUtils';
+import { IWorkspaceFolder } from 'vs/platform/workspace/common/workspace';
 import { IFileChangeDto } from 'vs/workbench/api/common/extHost.protocol';
+import { IEnvironmentVariableCollection } from 'vs/workbench/contrib/terminal/common/environmentVariable';
+import { MergedEnvironmentVariableCollection } from 'vs/workbench/contrib/terminal/common/environmentVariableCollection';
+import { deserializeEnvironmentVariableCollection } from 'vs/workbench/contrib/terminal/common/environmentVariableShared';
+import { ICreateTerminalProcessArguments, ICreateTerminalProcessResult, IGetTerminalCwdArguments, IGetTerminalInitialCwdArguments, IOnTerminalProcessEventArguments, IRemoteTerminalDescriptionDto, IResizeTerminalProcessArguments, ISendInputToTerminalProcessArguments, IShutdownTerminalProcessArguments, IStartTerminalProcessArguments, IWorkspaceFolderData } from 'vs/workbench/contrib/terminal/common/remoteTerminalChannel';
+import { IShellLaunchConfig, ITerminalLaunchError } from 'vs/workbench/contrib/terminal/common/terminal';
+import * as terminalEnvironment from 'vs/workbench/contrib/terminal/common/terminalEnvironment';
+import { getSystemShell } from 'vs/workbench/contrib/terminal/node/terminal';
+import { getMainProcessParentEnv } from 'vs/workbench/contrib/terminal/node/terminalEnvironment';
+import { AbstractVariableResolverService } from 'vs/workbench/services/configurationResolver/common/variableResolver';
 import { IExtHostReadyMessage, IExtHostSocketMessage } from 'vs/workbench/services/extensions/common/extensionHostProtocol';
 import { Logger } from 'vs/workbench/services/extensions/common/extensionPoints';
 import { ExtensionScanner, ExtensionScannerInput, IExtensionReference } from 'vs/workbench/services/extensions/node/extensionPoints';
@@ -241,7 +256,13 @@ async function installExtensionsFromServer(
 }
 
 async function main(): Promise<void> {
-	const cliServerSocketsPath = path.join(os.tmpdir(), 'gitpod-cli-server-sockets');
+	const devMode = !!process.env['VSCODE_DEV'];
+	let cliServerSocketsPath = path.join(os.tmpdir(), 'gitpod-cli-server-sockets');
+	if (devMode) {
+		cliServerSocketsPath += '-dev';
+	}
+	cliServerSocketsPath = path.join(cliServerSocketsPath, generateUuid());
+	console.log('CLI server sockets path: ' + cliServerSocketsPath);
 
 	const connectionToken = generateUuid();
 
@@ -260,7 +281,6 @@ async function main(): Promise<void> {
 	const logService = new MultiplexLogService([new ConsoleLogMainService(getLogLevel(environmentService))]);
 	channelServer.registerChannel('logger', new LoggerChannel(logService));
 
-	const devMode = !!process.env['VSCODE_DEV'];
 	const systemExtensionRoot = path.normalize(path.join(getPathFromAmdModule(require, ''), '..', 'extensions'));
 	const extraDevSystemExtensionsRoot = path.normalize(path.join(getPathFromAmdModule(require, ''), '..', '.build', 'builtInExtensions'));
 	const logger = new Logger((severity, source, message) => {
@@ -291,7 +311,7 @@ async function main(): Promise<void> {
 					globalStorageHome: environmentService.globalStorageHome,
 					workspaceStorageHome: environmentService.workspaceStorageHome,
 					userHome: environmentService.userHome,
-					os: OS
+					os: platform.OS
 				} as IRemoteAgentEnvironmentDTO, uriTranformer);
 			}
 			if (command === 'scanSingleExtension') {
@@ -358,18 +378,341 @@ async function main(): Promise<void> {
 	}
 	channelServer.registerChannel('remoteextensionsenvironment', new RemoteExtensionsEnvironment());
 
+	/**
+	 * See ExtHostVariableResolverService in src/vs/workbench/api/common/extHostDebugService.ts for a reference implementation.
+	 */
+	class RemoteTerminalVariableResolverService extends AbstractVariableResolverService {
+
+		private readonly structure = TernarySearchTree.forUris<IWorkspaceFolder>(() => false);
+
+		constructor(folders: IWorkspaceFolder[], resolvedVariables: { [name: string]: string }, activeFileResource: URI | undefined, env: platform.IProcessEnvironment) {
+			super({
+				getFolderUri: (folderName: string): URI | undefined => {
+					const found = folders.filter(f => f.name === folderName);
+					if (found && found.length > 0) {
+						return found[0].uri;
+					}
+					return undefined;
+				},
+				getWorkspaceFolderCount: (): number => {
+					return folders.length;
+				},
+				getConfigurationValue: (folderUri: URI | undefined, section: string): string | undefined => {
+					return resolvedVariables['config:' + section];
+				},
+				getExecPath: (): string | undefined => {
+					return env['VSCODE_EXEC_PATH'];
+				},
+				getFilePath: (): string | undefined => {
+					if (activeFileResource) {
+						return path.normalize(activeFileResource.fsPath);
+					}
+					return undefined;
+				},
+				getWorkspaceFolderPathForFile: (): string | undefined => {
+					if (activeFileResource) {
+						const ws = this.structure.findSubstr(activeFileResource);
+						if (ws) {
+							return path.normalize(ws.uri.fsPath);
+						}
+					}
+					return undefined;
+				},
+				getSelectedText: (): string | undefined => {
+					return resolvedVariables.selectedText;
+				},
+				getLineNumber: (): string | undefined => {
+					return resolvedVariables.lineNumber;
+				}
+			}, undefined, env);
+
+			// setup the workspace folder data structure
+			folders.forEach(folder => {
+				this.structure.set(folder.uri, folder);
+			});
+		}
+
+	}
+	const toWorkspaceFolder = (data: IWorkspaceFolderData) => ({
+		uri: URI.revive(data.uri),
+		name: data.name,
+		index: data.index,
+		toResource: () => {
+			throw new Error('Not implemented');
+		}
+	});
+
+	const supervisorAddr = process.env.SUPERVISOR_ADDR || 'localhost:22999';
+	const terminalServiceClient = new TerminalServiceClient(supervisorAddr, grpc.credentials.createInsecure());
 	class RemoteTerminalChannelServer implements IServerChannel<RemoteAgentConnectionContext> {
-		async call(ctx: RemoteAgentConnectionContext, command: string, arg?: any, cancellationToken?: CancellationToken | undefined): Promise<any> {
-			if (command === '$listTerminals') {
-				// TODO const args: IListTerminalsArgs = arg;
-				return [];
+		private terminalIdSeq = 0;
+		private readonly terminalProcesses = new Map<number, SupervisorTerminalProcess>();
+		private readonly aliasToId = new Map<string, number>();
+		private createTerminlaProcess(
+			initialCwd: string,
+			workspaceId: string,
+			workspaceName: string,
+			shouldPersistTerminal: boolean,
+			openOptions?: OpenSupervisorTerminalProcessOptions
+		): SupervisorTerminalProcess {
+			const terminalProcess = new SupervisorTerminalProcess(
+				this.terminalIdSeq++,
+				terminalServiceClient,
+				initialCwd,
+				workspaceId,
+				workspaceName,
+				shouldPersistTerminal,
+				openOptions
+			);
+			this.terminalProcesses.set(terminalProcess.id, terminalProcess);
+			terminalProcess.add({
+				dispose: () => {
+					this.terminalProcesses.delete(terminalProcess.id);
+				}
+			});
+			return terminalProcess;
+		}
+		private attachTerminalProcess(terminalProcess: SupervisorTerminalProcess): void {
+			const alias = terminalProcess.alias;
+			if (!alias) {
+				return;
 			}
-			console.error('Unknown command: RemoteExtensionsEnvironment.' + command);
-			throw new Error('Unknown command: RemoteExtensionsEnvironment.' + command);
+			this.aliasToId.set(alias, terminalProcess.id);
+			terminalProcess.add({ dispose: () => this.aliasToId.delete(alias) });
+		}
+		async call(ctx: RemoteAgentConnectionContext, command: string, arg?: any, cancellationToken?: CancellationToken | undefined): Promise<any> {
+			if (command === '$createTerminalProcess') {
+				const uriTranformer = new URITransformer(rawURITransformerFactory(ctx.remoteAuthority));
+				const args = transformIncomingURIs(arg as ICreateTerminalProcessArguments, uriTranformer);
+				const shellLaunchConfigDto = args.shellLaunchConfig;
+				// see  $spawnExtHostProcess in src/vs/workbench/api/node/extHostTerminalService.ts for a reference implementation
+				const shellLaunchConfig: IShellLaunchConfig = {
+					name: shellLaunchConfigDto.name,
+					executable: shellLaunchConfigDto.executable,
+					args: shellLaunchConfigDto.args,
+					cwd: typeof shellLaunchConfigDto.cwd === 'string' ? shellLaunchConfigDto.cwd : URI.revive(shellLaunchConfigDto.cwd),
+					env: shellLaunchConfigDto.env
+				};
+
+				let lastActiveWorkspace: IWorkspaceFolder | undefined;
+				if (args.activeWorkspaceFolder) {
+					lastActiveWorkspace = toWorkspaceFolder(args.activeWorkspaceFolder);
+				}
+
+				const procesEnv = { ...process.env, ...args.resolverEnv } as platform.IProcessEnvironment;
+				const variableResolver = new RemoteTerminalVariableResolverService(
+					args.workspaceFolders.map(toWorkspaceFolder),
+					args.resolvedVariables,
+					args.activeFileResource ? URI.revive(args.activeFileResource) : undefined,
+					procesEnv
+				);
+
+				// Merge in shell and args from settings
+				if (!shellLaunchConfig.executable) {
+					shellLaunchConfig.executable = terminalEnvironment.getDefaultShell(
+						key => args.configuration[key],
+						args.isWorkspaceShellAllowed,
+						getSystemShell(platform.platform),
+						process.env.hasOwnProperty('PROCESSOR_ARCHITEW6432'),
+						process.env.windir,
+						terminalEnvironment.createVariableResolver(lastActiveWorkspace, variableResolver),
+						logService,
+						false
+					);
+					shellLaunchConfig.args = terminalEnvironment.getDefaultShellArgs(
+						key => args.configuration[key],
+						args.isWorkspaceShellAllowed,
+						false,
+						terminalEnvironment.createVariableResolver(lastActiveWorkspace, variableResolver),
+						logService
+					);
+				} else {
+					shellLaunchConfig.executable = variableResolver.resolve(lastActiveWorkspace, shellLaunchConfig.executable);
+					if (shellLaunchConfig.args) {
+						if (Array.isArray(shellLaunchConfig.args)) {
+							const resolvedArgs: string[] = [];
+							for (const arg of shellLaunchConfig.args) {
+								resolvedArgs.push(variableResolver.resolve(lastActiveWorkspace, arg));
+							}
+							shellLaunchConfig.args = resolvedArgs;
+						} else {
+							shellLaunchConfig.args = variableResolver.resolve(lastActiveWorkspace, shellLaunchConfig.args);
+						}
+					}
+				}
+
+				// Get the initial cwd
+				const initialCwd = terminalEnvironment.getCwd(
+					shellLaunchConfig,
+					os.homedir(),
+					terminalEnvironment.createVariableResolver(lastActiveWorkspace, variableResolver),
+					lastActiveWorkspace?.uri,
+					args.configuration['terminal.integrated.cwd'], logService
+				);
+				shellLaunchConfig.cwd = initialCwd;
+
+				const envFromConfig = args.configuration['terminal.integrated.env.linux'];
+				const baseEnv = args.configuration['terminal.integrated.inheritEnv'] ? procesEnv : await getMainProcessParentEnv(procesEnv);
+				const env = terminalEnvironment.createTerminalEnvironment(
+					shellLaunchConfig,
+					envFromConfig,
+					terminalEnvironment.createVariableResolver(lastActiveWorkspace, variableResolver),
+					args.isWorkspaceShellAllowed,
+					product.version,
+					args.configuration['terminal.integrated.detectLocale'] || 'auto',
+					baseEnv
+				);
+
+				// Apply extension environment variable collections to the environment
+				if (!shellLaunchConfig.strictEnv) {
+					const collection = new Map<string, IEnvironmentVariableCollection>();
+					for (const [name, serialized] of args.envVariableCollections) {
+						collection.set(name, {
+							map: deserializeEnvironmentVariableCollection(serialized)
+						});
+					}
+					const mergedCollection = new MergedEnvironmentVariableCollection(collection);
+					mergedCollection.applyToProcessEnvironment(env);
+				}
+
+				const terminalProcess = this.createTerminlaProcess(
+					initialCwd,
+					args.workspaceId,
+					args.workspaceName,
+					args.shouldPersistTerminal,
+					{
+						shell: shellLaunchConfig.executable!,
+						shellArgs: typeof shellLaunchConfig.args === 'string' ? [shellLaunchConfig.args] : shellLaunchConfig.args || [],
+						cols: args.cols,
+						rows: args.rows,
+						env
+					});
+				const result: ICreateTerminalProcessResult = {
+					terminalId: terminalProcess.id,
+					resolvedShellLaunchConfig: shellLaunchConfig
+				};
+				return transformOutgoingURIs(result, uriTranformer);
+			}
+			if (command === '$startTerminalProcess') {
+				const args: IStartTerminalProcessArguments = arg;
+				const terminalProcess = this.terminalProcesses.get(args.id);
+				if (!terminalProcess) {
+					return <ITerminalLaunchError>{
+						message: 'terminal not found'
+					};
+				}
+				const result = await terminalProcess.start();
+				this.attachTerminalProcess(terminalProcess);
+				return result;
+			}
+			if (command === '$shutdownTerminalProcess') {
+				const args: IShutdownTerminalProcessArguments = arg;
+				const terminalProcess = this.terminalProcesses.get(args.id);
+				if (!terminalProcess) {
+					throw new Error('terminal not found');
+				}
+				return terminalProcess.shutdown(args.immediate);
+			}
+			if (command === '$sendInputToTerminalProcess') {
+				const args: ISendInputToTerminalProcessArguments = arg;
+				const terminalProcess = this.terminalProcesses.get(args.id);
+				if (!terminalProcess) {
+					throw new Error('terminal not found');
+				}
+				return terminalProcess.input(args.data);
+			}
+			if (command === '$resizeTerminalProcess') {
+				const args: IResizeTerminalProcessArguments = arg;
+				const terminalProcess = this.terminalProcesses.get(args.id);
+				if (!terminalProcess) {
+					throw new Error('terminal not found');
+				}
+				return terminalProcess.resize(args.cols, args.rows);
+			}
+			if (command === '$getTerminalInitialCwd') {
+				const args: IGetTerminalInitialCwdArguments = arg;
+				const terminalProcess = this.terminalProcesses.get(args.id);
+				if (!terminalProcess) {
+					throw new Error('terminal not found');
+				}
+				return terminalProcess.getInitialCwd();
+			}
+			if (command === '$getTerminalCwd') {
+				const args: IGetTerminalCwdArguments = arg;
+				const terminalProcess = this.terminalProcesses.get(args.id);
+				if (!terminalProcess) {
+					throw new Error('terminal not found');
+				}
+				return terminalProcess.getCwd();
+			}
+			/*if (command === '$sendCommandResultToTerminalProcess') {
+				const args: ISendCommandResultToTerminalProcessArguments = arg;
+				return;
+			}
+			if (command === '$orphanQuestionReply') {
+				const args: IOrphanQuestionReplyArgs = arg;
+				return;
+			}*/
+			if (command === '$listTerminals') {
+				try {
+					const result: IRemoteTerminalDescriptionDto[] = [];
+					const response = await util.promisify<ListTerminalsRequest, ListTerminalsResponse>(terminalServiceClient.list.bind(terminalServiceClient))(new ListTerminalsRequest());
+					for (const terminal of response.getTerminalsList()) {
+						const alias = terminal.getAlias();
+						const id = this.aliasToId.get(alias);
+						const annotations = terminal.getAnnotationsMap();
+						const workspaceId = annotations.get('workspaceId') || 'unknown';
+						const workspaceName = annotations.get('workspaceName') || 'unknown';
+						const shouldPersistTerminal = Boolean(annotations.get('shouldPersistTerminal'));
+						let terminalProcess: SupervisorTerminalProcess | undefined;
+						if (!id) {
+							terminalProcess = this.createTerminlaProcess(
+								terminal.getInitialWorkdir(),
+								workspaceId,
+								workspaceName,
+								shouldPersistTerminal
+							);
+							this.terminalProcesses.set(terminalProcess.id, terminalProcess);
+
+							terminalProcess.alias = alias;
+							this.attachTerminalProcess(terminalProcess);
+						} else {
+							terminalProcess = this.terminalProcesses.get(id);
+						}
+						if (!terminalProcess) {
+							continue;
+						}
+
+						result.push({
+							id: terminalProcess.id,
+							cwd: terminal.getCurrentWorkdir(),
+							pid: terminal.getPid(),
+							title: terminal.getTitle(),
+							workspaceId,
+							workspaceName
+						});
+					}
+
+					return result;
+				} catch (e) {
+					console.error('code server: failed to list remote terminals:', e);
+					return [];
+				}
+			}
+			console.error('Unknown command: RemoteTerminalChannel.' + command);
+			throw new Error('Unknown command: RemoteTerminalChannel.' + command);
 		}
 		listen(ctx: RemoteAgentConnectionContext, event: string, arg?: any): Event<any> {
-			console.error('Unknown event: RemoteExtensionsEnvironment.' + event);
-			throw new Error('Unknown event: RemoteExtensionsEnvironment.' + event);
+			if (event === '$onTerminalProcessEvent') {
+				const args: IOnTerminalProcessEventArguments = arg;
+				const terminalProcess = this.terminalProcesses.get(args.id);
+				if (!terminalProcess) {
+					throw new Error('terminal not found');
+				}
+				return terminalProcess.onEvent;
+			}
+			console.error('Unknown event: RemoteTerminalChannel.' + event);
+			throw new Error('Unknown event: RemoteTerminalChannel.' + event);
 		}
 	}
 	channelServer.registerChannel('remoteterminal', new RemoteTerminalChannelServer());
@@ -594,11 +937,16 @@ async function main(): Promise<void> {
 						processes.add(String(client.extensionHost.pid));
 					}
 				});
-				const links = [];
+				const links: string[] = [];
 				for (const linkName of linkNames) {
 					const link = path.join(cliServerSocketsPath, linkName);
 					if (processes.has(path.parse(link).name)) {
-						links.push(link);
+						try {
+							const socket = await util.promisify(fs.realpath.bind(fs))(link);
+							links.push(socket);
+						} catch {
+							/* no-op symlink is broken */
+						}
 					}
 				}
 				res.writeHead(200, { 'Content-Type': 'application/json' });
@@ -809,7 +1157,8 @@ async function main(): Promise<void> {
 									VERBOSE_LOGGING: 'true',
 									VSCODE_HANDLES_UNCAUGHT_ERRORS: 'true',
 									VSCODE_EXTHOST_WILL_SEND_SOCKET: 'true',
-									VSCODE_LOG_STACK: 'true'
+									VSCODE_LOG_STACK: 'true',
+									GITPOD_CLI_SERVER_SOCKETS_PATH: cliServerSocketsPath
 								},
 								// see https://github.com/akosyakov/gitpod-code/blob/33b49a273f1f6d44f303426b52eaf89f0f5cc596/src/vs/base/parts/ipc/node/ipc.cp.ts#L72-L78
 								execArgv: [],

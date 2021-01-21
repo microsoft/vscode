@@ -120,8 +120,8 @@
   },
   "dependencies": {
     "@gitpod/gitpod-protocol": "master",
-    "@gitpod/supervisor-api-grpc": "ak-git-token-in-supervisor",
-    "@grpc/grpc-js": "^1.1.7",
+    "@gitpod/supervisor-api-grpc": "ak-remote-terminal-channel",
+    "@grpc/grpc-js": "latest",
     "bufferutil": "^4.0.1",
     "reconnecting-websocket": "^4.4.0",
     "utf-8-validate": "^5.0.2",

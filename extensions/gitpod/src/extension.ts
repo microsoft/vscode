@@ -3,31 +3,30 @@
 
 // TODO get rid of loading inversify and reflect-metadata
 require('reflect-metadata');
-import * as uuid from 'uuid';
-import WebSocket = require('ws');
-import { GitpodHostUrl } from '@gitpod/gitpod-protocol/lib/util/gitpod-host-url';
 import { GitpodClient, GitpodServer, GitpodServiceImpl } from '@gitpod/gitpod-protocol/lib/gitpod-service';
 import { JsonRpcProxyFactory } from '@gitpod/gitpod-protocol/lib/messaging/proxy-factory';
+import { GitpodHostUrl } from '@gitpod/gitpod-protocol/lib/util/gitpod-host-url';
 import * as workspaceInstance from '@gitpod/gitpod-protocol/lib/workspace-instance';
 import { ControlServiceClient } from '@gitpod/supervisor-api-grpc/lib/control_grpc_pb';
 import { ExposePortRequest, ExposePortResponse } from '@gitpod/supervisor-api-grpc/lib/control_pb';
 import { InfoServiceClient } from '@gitpod/supervisor-api-grpc/lib/info_grpc_pb';
 import { WorkspaceInfoRequest, WorkspaceInfoResponse } from '@gitpod/supervisor-api-grpc/lib/info_pb';
 import { StatusServiceClient } from '@gitpod/supervisor-api-grpc/lib/status_grpc_pb';
-import { OnPortExposedAction, PortsStatus, PortsStatusRequest, PortsStatusResponse, PortVisibility, TasksStatusRequest, TasksStatusResponse, TaskState, TaskStatus, ExposedPortInfo } from '@gitpod/supervisor-api-grpc/lib/status_pb';
+import { ExposedPortInfo, OnPortExposedAction, PortsStatus, PortsStatusRequest, PortsStatusResponse, PortVisibility, TasksStatusRequest, TasksStatusResponse, TaskState, TaskStatus } from '@gitpod/supervisor-api-grpc/lib/status_pb';
 import { TerminalServiceClient } from '@gitpod/supervisor-api-grpc/lib/terminal_grpc_pb';
-import { CloseTerminalRequest, ListenTerminalRequest, ListenTerminalResponse, SetTerminalSizeRequest, WriteTerminalRequest } from '@gitpod/supervisor-api-grpc/lib/terminal_pb';
+import { ShutdownTerminalRequest, ListenTerminalRequest, ListenTerminalResponse, SetTerminalSizeRequest, TerminalSize, WriteTerminalRequest } from '@gitpod/supervisor-api-grpc/lib/terminal_pb';
 import { TokenServiceClient } from '@gitpod/supervisor-api-grpc/lib/token_grpc_pb';
 import { GetTokenRequest, GetTokenResponse } from '@gitpod/supervisor-api-grpc/lib/token_pb';
 import * as grpc from '@grpc/grpc-js';
-import ReconnectingWebSocket from 'reconnecting-websocket';
 import * as fs from 'fs';
-import * as os from 'os';
 import * as path from 'path';
+import ReconnectingWebSocket from 'reconnecting-websocket';
 import { URL } from 'url';
 import * as util from 'util';
+import * as uuid from 'uuid';
 import * as vscode from 'vscode';
 import { ConsoleLogger, listen as doListen } from 'vscode-ws-jsonrpc';
+import WebSocket = require('ws');
 
 export async function activate(context: vscode.ExtensionContext) {
 	const supervisorAddr = process.env.SUPERVISOR_ADDR || 'localhost:22999';
@@ -239,7 +238,7 @@ export async function activate(context: vscode.ExtensionContext) {
 					const req = new PortsStatusRequest();
 					req.setObserve(true);
 					const evts = statusServiceClient.portsStatus(req);
-					stopUpdates = evts.cancel;
+					stopUpdates = evts.cancel.bind(evts);
 
 					await new Promise((resolve, reject) => {
 						evts.on('close', resolve);
@@ -249,9 +248,13 @@ export async function activate(context: vscode.ExtensionContext) {
 						});
 					});
 				} catch (err) {
-					console.error('cannot maintain connection to supervisor', err);
-					await new Promise(resolve => setTimeout(resolve, 1000));
+					if (!('code' in err && err.code === grpc.status.CANCELLED)) {
+						console.error('cannot maintain connection to supervisor', err);
+					}
+				} finally {
+					stopUpdates = undefined;
 				}
+				await new Promise(resolve => setTimeout(resolve, 1000));
 			}
 		})();
 		return new vscode.Disposable(() => {
@@ -299,7 +302,6 @@ export async function activate(context: vscode.ExtensionContext) {
 	context.subscriptions.push(vscode.commands.registerCommand('gitpod.ports.openBrowser', (port: GitpodWorkspacePort) => {
 		const publicUrl = port.status?.exposed?.url;
 		if (publicUrl) {
-			// TODO(ak) add gitpod server subdomains as trusted to linkProtectionTrustedDomains during the build
 			vscode.env.openExternal(vscode.Uri.parse(publicUrl));
 		}
 	}));
@@ -394,37 +396,55 @@ export async function activate(context: vscode.ExtensionContext) {
 		private readonly onDidWriteEmitter = new vscode.EventEmitter<string>();
 		readonly onDidWrite = this.onDidWriteEmitter.event;
 
-		private resolveOpen: undefined | ((initialDimensions: vscode.TerminalDimensions | undefined) => void);
-		private rejectOpen: undefined | ((reason: Error) => void);
-		private readonly pendingOpen = new Promise<vscode.TerminalDimensions | undefined>((resolve, reject) => {
-			this.resolveOpen = resolve;
-			this.rejectOpen = reject;
+		private readonly onDidCloseEmitter = new vscode.EventEmitter<void | number>();
+		readonly onDidClose = this.onDidCloseEmitter.event;
+
+		private resolveAttach: undefined | (() => void);
+		private rejectAttach: undefined | ((reason: Error) => void);
+		private readonly pendingAttach = new Promise<void>((resolve, reject) => {
+			this.resolveAttach = resolve;
+			this.rejectAttach = reject;
 		});
 
 		private closed = false;
 
 		/** means dispose */
 		close(): void {
+			this.doClose();
+		}
+		private doClose(exitCode?: number): void {
 			if (this.closed) {
 				return;
 			}
 			this.closed = true;
-			this.rejectOpen!(new Error('closed'));
+			this.rejectAttach!(new Error('closed'));
+			this.onDidCloseEmitter.fire(exitCode);
+			this.onDidCloseEmitter.dispose();
 			this.onDidWriteEmitter.dispose();
 			if (this.stopListen) {
 				this.stopListen();
 			}
+			this.stopListen = undefined;
 		}
 
 		private alias?: string;
-		private stopListen?: Function;
-		async listen(alias: string): Promise<void> {
-			if (this.alias || this.closed) {
+		attach(alias: string): void {
+			if (this.alias) {
 				return;
 			}
 			this.alias = alias;
+			this.resolveAttach!();
+		}
+
+		private stopListen?: Function;
+		async open(initialDimensions: vscode.TerminalDimensions | undefined): Promise<void> {
 			try {
-				const initialDimensions = await this.pendingOpen;
+				await this.pendingAttach;
+			} catch {
+				return;
+			}
+			const alias = this.alias!;
+			try {
 				if (initialDimensions) {
 					this.setDimensions(initialDimensions);
 				}
@@ -433,49 +453,50 @@ export async function activate(context: vscode.ExtensionContext) {
 			}
 			let run = true;
 			while (run) {
-				await new Promise(resolve => {
-					try {
+				let notFound = false;
+				let exitCode: number | undefined;
+				try {
+					await new Promise<number | undefined>((resolve, reject) => {
 						const request = new ListenTerminalRequest();
 						request.setAlias(alias);
 						const stream = terminalServiceClient.listen(request);
-						this.stopListen = stream.cancel;
-
-						stream.on('close', resolve);
-						stream.on('end', () => {
-							run = false;
-							resolve(undefined);
-						});
-						stream.on('error', () => {
-							run = false;
-							resolve(undefined);
-						});
+						this.stopListen = stream.cancel.bind(stream);
+						stream.on('end', resolve);
+						stream.on('error', reject);
 						stream.on('data', (response: ListenTerminalResponse) => {
-							let data = '';
-							for (const buffer of [response.getStdout(), response.getStderr()]) {
+							if (response.hasData()) {
+								let data = '';
+								const buffer = response.getData();
 								if (typeof buffer === 'string') {
 									data += buffer;
 								} else {
 									data += Buffer.from(buffer).toString();
 								}
-							}
-							if (data !== '') {
-								this.onDidWriteEmitter.fire(data);
+								if (data !== '') {
+									this.onDidWriteEmitter.fire(data);
+								}
+							} else if (response.hasExitCode()) {
+								exitCode = response.getExitCode();
 							}
 						});
-					} catch (e) {
-						resolve(undefined);
+					});
+				} catch (e) {
+					notFound = 'code' in e && e.code === grpc.status.NOT_FOUND;
+					if (!this.closed && !notFound && !('code' in e && e.code === grpc.status.CANCELLED)) {
+						console.error(`[${this.alias}] listening to the gitpod task terminal failed:`, e);
 					}
-				});
+				} finally {
+					this.stopListen = undefined;
+				}
 				if (this.closed) {
 					run = false;
 				} else {
+					if (notFound || typeof exitCode !== undefined) {
+						this.doClose(exitCode);
+					}
 					await new Promise(resolve => setTimeout(resolve, 2000));
 				}
 			}
-		}
-
-		open(initialDimensions: vscode.TerminalDimensions | undefined): void {
-			this.resolveOpen!(initialDimensions);
 		}
 
 		/* it it called after close to kill the underlying terminal */
@@ -483,10 +504,10 @@ export async function activate(context: vscode.ExtensionContext) {
 			if (!this.alias) {
 				return;
 			}
-			const request = new CloseTerminalRequest();
+			const request = new ShutdownTerminalRequest();
 			request.setAlias(this.alias);
-			terminalServiceClient.close(request, e => {
-				if (e) {
+			terminalServiceClient.shutdown(request, e => {
+				if (e && e.code !== grpc.status.NOT_FOUND) {
 					console.error(`[${this.alias}] failed to kill the gitpod task terminal:`, e);
 				}
 			});
@@ -496,13 +517,16 @@ export async function activate(context: vscode.ExtensionContext) {
 			if (!this.alias) {
 				return;
 			}
+			const size = new TerminalSize();
+			size.setCols(dimensions.columns);
+			size.setRows(dimensions.rows);
+
 			const request = new SetTerminalSizeRequest();
 			request.setAlias(this.alias);
-			request.setCols(dimensions.columns);
-			request.setRows(dimensions.rows);
+			request.setSize(size);
 			request.setForce(true);
 			terminalServiceClient.setSize(request, e => {
-				if (e) {
+				if (e && e.code !== grpc.status.NOT_FOUND) {
 					console.error(`[${this.alias}] failed to resize the gitpod task terminal:`, e);
 				}
 			});
@@ -516,7 +540,7 @@ export async function activate(context: vscode.ExtensionContext) {
 			request.setAlias(this.alias);
 			request.setStdin(Buffer.from(data));
 			terminalServiceClient.write(request, e => {
-				if (e) {
+				if (e && e.code !== grpc.status.NOT_FOUND) {
 					console.error(`[${this.alias}] failed to write to the gitpod task terminal:`, e);
 				}
 			});
@@ -557,10 +581,9 @@ export async function activate(context: vscode.ExtensionContext) {
 					terminal.show(false);
 				}
 
-				if (task.getState() !== TaskState.RUNNING || !task.getTerminal()) {
-					continue;
+				if (task.getState() === TaskState.RUNNING && task.getTerminal()) {
+					terminal.creationOptions.pty.attach(task.getTerminal());
 				}
-				terminal.creationOptions.pty.listen(task.getTerminal());
 			} catch (e) {
 				console.error('Failed to update Gitpod task terminal:', e);
 			}
@@ -576,7 +599,7 @@ export async function activate(context: vscode.ExtensionContext) {
 					const req = new TasksStatusRequest();
 					req.setObserve(true);
 					const evts = statusServiceClient.tasksStatus(req);
-					stopUpdates = evts.cancel;
+					stopUpdates = evts.cancel.bind(evts);
 
 					await new Promise((resolve, reject) => {
 						evts.on('close', resolve);
@@ -586,9 +609,13 @@ export async function activate(context: vscode.ExtensionContext) {
 						});
 					});
 				} catch (err) {
-					console.error('cannot maintain connection to supervisor', err);
-					await new Promise(resolve => setTimeout(resolve, 1000));
+					if (!('code' in err && err.code === grpc.status.CANCELLED)) {
+						console.error('cannot maintain connection to supervisor', err);
+					}
+				} finally {
+					stopUpdates = undefined;
 				}
+				await new Promise(resolve => setTimeout(resolve, 1000));
 			}
 		})();
 		return new vscode.Disposable(() => {
@@ -650,9 +677,10 @@ export async function activate(context: vscode.ExtensionContext) {
 	//#endregion
 
 	//#region cli
+	const cliServerSocketsPath = process.env['GITPOD_CLI_SERVER_SOCKETS_PATH'];
 	const vscodeIpcHookCli = process.env['VSCODE_IPC_HOOK_CLI'];
-	if (vscodeIpcHookCli) {
-		const cliServerSocketLink = path.join(os.tmpdir(), 'gitpod-cli-server-sockets', process.pid + '.socket');
+	if (cliServerSocketsPath && vscodeIpcHookCli) {
+		const cliServerSocketLink = path.join(cliServerSocketsPath, process.pid + '.socket');
 		(async () => {
 			try {
 				await util.promisify(fs.symlink)(vscodeIpcHookCli, cliServerSocketLink);
