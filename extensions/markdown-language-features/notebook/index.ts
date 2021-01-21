@@ -6,16 +6,16 @@
 import * as MarkdownIt from 'markdown-it';
 
 declare const acquireNotebookRendererApi: any;
-type extendMarkdownFnType = (
+type extendMarkdownItFnType = (
 	(f: (md: MarkdownIt.MarkdownIt) => void) => void
 );
 
 (function () {
 	const markdownIt = new MarkdownIt();
 
-	(globalThis as any).extendMarkdown = ((f: (md: MarkdownIt.MarkdownIt) => void) => {
+	(globalThis as any).extendMarkdownIt = ((f: (md: MarkdownIt.MarkdownIt) => void) => {
 		f(markdownIt);
-	}) as extendMarkdownFnType;
+	}) as extendMarkdownItFnType;
 
 	const notebook = acquireNotebookRendererApi('notebookCoreTestRenderer');
 
@@ -24,4 +24,6 @@ type extendMarkdownFnType = (
 		const rendered = markdownIt.render(content);
 		element.innerHTML = rendered;
 	});
+
+	console.log('markdown-it');
 }());
