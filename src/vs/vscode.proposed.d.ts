@@ -2450,7 +2450,7 @@ declare module 'vscode' {
 		/**
 		 * The uri that triggered the open.
 		 *
-		 * Due to port forwarding, this may not match the `resolvedUri` passed to `openExternalUri`
+		 * Due to port forwarding, this may not match the `resolvedUri` passed to `openExternalUri`.
 		 */
 		readonly sourceUri: Uri;
 	}
@@ -2459,6 +2459,13 @@ declare module 'vscode' {
 	 * Additional metadata about the registered opener.
 	 */
 	interface ExternalUriOpenerMetadata {
+
+		/**
+		 * List of uri schemes the opener is triggered for.
+		 *
+		 * Currently only `http` and `https` are supported.
+		 */
+		readonly schemes: readonly string[]
 
 		/**
 		 * Text displayed to the user that explains what the opener does.
@@ -2476,14 +2483,12 @@ declare module 'vscode' {
 		 *
 		 * @param id Unique id of the opener, such as `myExtension.browserPreview`. This is used in settings
 		 *   and commands to identify the opener.
-		 * @param schemes List of uri schemes the opener is triggered for. Currently only `http`
-		 * and `https` are supported.
 		 * @param opener Opener to register.
 		 * @param metadata Additional information about the opener.
 		 *
 		* @returns Disposable that unregisters the opener.
-		 */
-		export function registerExternalUriOpener(id: string, schemes: readonly string[], opener: ExternalUriOpener, metadata: ExternalUriOpenerMetadata): Disposable;
+		*/
+		export function registerExternalUriOpener(id: string, opener: ExternalUriOpener, metadata: ExternalUriOpenerMetadata): Disposable;
 	}
 
 	interface OpenExternalOptions {
