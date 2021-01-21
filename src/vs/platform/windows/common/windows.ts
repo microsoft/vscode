@@ -239,8 +239,7 @@ export interface INativeWindowConfiguration extends IWindowConfiguration, Native
 	nodeCachedDataDir?: string;
 	partsSplashPath: string;
 
-	workspace?: IWorkspaceIdentifier;
-	folderUri?: ISingleFolderWorkspaceIdentifier;
+	workspace?: IWorkspaceIdentifier | ISingleFolderWorkspaceIdentifier;
 
 	isInitialStartup?: boolean;
 	logLevel: LogLevel;

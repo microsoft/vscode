@@ -21,7 +21,7 @@ import { NativeWorkbenchEnvironmentService } from 'vs/workbench/services/environ
 import { IWorkbenchEnvironmentService } from 'vs/workbench/services/environment/common/environmentService';
 import { INativeWorkbenchConfiguration, INativeWorkbenchEnvironmentService } from 'vs/workbench/services/environment/electron-sandbox/environmentService';
 import { ServiceCollection } from 'vs/platform/instantiation/common/serviceCollection';
-import { ISingleFolderWorkspaceIdentifier, IWorkspaceInitializationPayload, ISingleFolderWorkspaceInitializationPayload, reviveWorkspaceIdentifier, IWorkspaceIdentifier, IMultiFolderWorkspaceInitializationPayload, reviveSingleFolderIdentifier } from 'vs/platform/workspaces/common/workspaces';
+import { ISingleFolderWorkspaceIdentifier, IWorkspaceInitializationPayload, ISingleFolderWorkspaceInitializationPayload, IWorkspaceIdentifier, IMultiFolderWorkspaceInitializationPayload, isSingleFolderWorkspaceIdentifier, isWorkspaceIdentifier, reviveIdentifier } from 'vs/platform/workspaces/common/workspaces';
 import { ILogService } from 'vs/platform/log/common/log';
 import { NativeStorageService } from 'vs/platform/storage/node/storageService';
 import { Schemas } from 'vs/base/common/network';
@@ -83,14 +83,11 @@ class DesktopMain extends Disposable {
 	}
 
 	private reviveUris() {
-		if (this.configuration.folderUri) {
-			this.configuration.folderUri = reviveSingleFolderIdentifier(this.configuration.folderUri);
-		}
 
-		if (this.configuration.workspace) {
-			this.configuration.workspace = reviveWorkspaceIdentifier(this.configuration.workspace);
-		}
+		// Workspace
+		this.configuration.workspace = reviveIdentifier(this.configuration.workspace);
 
+		// Files
 		const filesToWait = this.configuration.filesToWait;
 		const filesToWaitPaths = filesToWait?.paths;
 		[filesToWaitPaths, this.configuration.filesToOpenOrCreate, this.configuration.filesToDiff].forEach(paths => {
@@ -290,13 +287,13 @@ class DesktopMain extends Disposable {
 		let workspaceInitializationPayload: IWorkspaceInitializationPayload | undefined;
 
 		// Multi-root workspace
-		if (this.configuration.workspace) {
+		if (isWorkspaceIdentifier(this.configuration.workspace)) {
 			workspaceInitializationPayload = await this.resolveMultiFolderWorkspaceInitializationPayload(this.configuration.workspace);
 		}
 
 		// Single-folder workspace
-		else if (this.configuration.folderUri) {
-			workspaceInitializationPayload = await this.resolveSingleFolderWorkspaceInitializationPayload(this.configuration.folderUri);
+		else if (isSingleFolderWorkspaceIdentifier(this.configuration.workspace)) {
+			workspaceInitializationPayload = await this.resolveSingleFolderWorkspaceInitializationPayload(this.configuration.workspace);
 		}
 
 		// Fallback to empty workspace if we have no payload yet.

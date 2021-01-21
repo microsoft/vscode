@@ -12,7 +12,7 @@ import { domContentLoaded } from 'vs/base/browser/dom';
 import { URI } from 'vs/base/common/uri';
 import { IWorkbenchEnvironmentService } from 'vs/workbench/services/environment/common/environmentService';
 import { ServiceCollection } from 'vs/platform/instantiation/common/serviceCollection';
-import { reviveSingleFolderIdentifier, reviveWorkspaceIdentifier } from 'vs/platform/workspaces/common/workspaces';
+import { reviveIdentifier } from 'vs/platform/workspaces/common/workspaces';
 import { ILogService } from 'vs/platform/log/common/log';
 import { Schemas } from 'vs/base/common/network';
 import { IWorkspaceContextService } from 'vs/platform/workspace/common/workspace';
@@ -62,14 +62,11 @@ class DesktopMain extends Disposable {
 	}
 
 	private reviveUris() {
-		if (this.configuration.folderUri) {
-			this.configuration.folderUri = reviveSingleFolderIdentifier(this.configuration.folderUri);
-		}
 
-		if (this.configuration.workspace) {
-			this.configuration.workspace = reviveWorkspaceIdentifier(this.configuration.workspace);
-		}
+		// Workspace
+		this.configuration.workspace = reviveIdentifier(this.configuration.workspace);
 
+		// Files
 		const filesToWait = this.configuration.filesToWait;
 		const filesToWaitPaths = filesToWait?.paths;
 		[filesToWaitPaths, this.configuration.filesToOpenOrCreate, this.configuration.filesToDiff].forEach(paths => {

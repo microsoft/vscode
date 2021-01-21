@@ -14,7 +14,7 @@ import { IEnvironmentService } from 'vs/platform/environment/common/environment'
 import { IWorkspaceContextService, IWorkspace } from 'vs/platform/workspace/common/workspace';
 import { basenameOrAuthority, basename, joinPath, dirname } from 'vs/base/common/resources';
 import { tildify, getPathLabel } from 'vs/base/common/labels';
-import { IWorkspaceIdentifier, WORKSPACE_EXTENSION, toWorkspaceIdentifier, isWorkspaceIdentifier, isUntitledWorkspace, isSingleFolderWorkspaceIdentifier } from 'vs/platform/workspaces/common/workspaces';
+import { IWorkspaceIdentifier, WORKSPACE_EXTENSION, toWorkspaceIdentifier, isWorkspaceIdentifier, isUntitledWorkspace, isSingleFolderWorkspaceIdentifier, ISingleFolderWorkspaceIdentifier } from 'vs/platform/workspaces/common/workspaces';
 import { ILabelService, ResourceLabelFormatter, ResourceLabelFormatting, IFormatterChangeEvent } from 'vs/platform/label/common/label';
 import { ExtensionsRegistry } from 'vs/workbench/services/extensions/common/extensionsRegistry';
 import { match } from 'vs/base/common/glob';
@@ -180,23 +180,24 @@ export class LabelService extends Disposable implements ILabelService {
 		return paths.basename(label);
 	}
 
-	getWorkspaceLabel(workspace: IWorkspaceIdentifier | URI | IWorkspace, options?: { verbose: boolean }): string {
+	getWorkspaceLabel(workspace: IWorkspaceIdentifier | ISingleFolderWorkspaceIdentifier | URI | IWorkspace, options?: { verbose: boolean }): string {
 		if (IWorkspace.isIWorkspace(workspace)) {
 			const identifier = toWorkspaceIdentifier(workspace);
-			if (isWorkspaceIdentifier(identifier)) {
+			if (identifier) {
 				return this.getWorkspaceLabel(identifier, options);
-			}
-
-			if (isSingleFolderWorkspaceIdentifier(identifier)) {
-				return this.getWorkspaceLabel(identifier.uri, options);
 			}
 
 			return '';
 		}
 
-		// Workspace: Single Folder
+		// Workspace: Single Folder (as URI)
 		if (URI.isUri(workspace)) {
 			return this.doGetSingleFolderWorkspaceLabel(workspace, options);
+		}
+
+		// Workspace: Single Folder (as URI)
+		if (isSingleFolderWorkspaceIdentifier(workspace)) {
+			return this.doGetSingleFolderWorkspaceLabel(workspace.uri, options);
 		}
 
 		// Workspace: Multi Root

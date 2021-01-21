@@ -362,7 +362,7 @@ export class CodeWindow extends Disposable implements ICodeWindow {
 
 	get backupPath(): string | undefined { return this.currentConfig?.backupPath; }
 
-	get openedWorkspace(): IWorkspaceIdentifier | ISingleFolderWorkspaceIdentifier | undefined { return this.currentConfig?.workspace ?? this.currentConfig?.folderUri; }
+	get openedWorkspace(): IWorkspaceIdentifier | ISingleFolderWorkspaceIdentifier | undefined { return this.currentConfig?.workspace; }
 
 	get remoteAuthority(): string | undefined { return this.currentConfig?.remoteAuthority; }
 

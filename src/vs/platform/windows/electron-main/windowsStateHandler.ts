@@ -272,16 +272,16 @@ export class WindowsStateHandler extends Disposable {
 
 			// Known Workspace - load from stored settings
 			const workspace = configuration.workspace;
-			if (workspace) {
-				const stateForWorkspace = this.state.openedWindows.filter(openedWindow => openedWindow.workspace && openedWindow.workspace.id === workspace.id).map(o => o.uiState);
+			if (isWorkspaceIdentifier(workspace)) {
+				const stateForWorkspace = this.state.openedWindows.filter(openedWindow => openedWindow.workspace && openedWindow.workspace.id === workspace.id).map(openedWindow => openedWindow.uiState);
 				if (stateForWorkspace.length) {
 					return stateForWorkspace[0];
 				}
 			}
 
 			// Known Folder - load from stored settings
-			if (configuration.folderUri) {
-				const stateForFolder = this.state.openedWindows.filter(openedWindow => openedWindow.folderUri && extUriBiasedIgnorePathCase.isEqual(openedWindow.folderUri, configuration.folderUri?.uri)).map(o => o.uiState);
+			if (isSingleFolderWorkspaceIdentifier(workspace)) {
+				const stateForFolder = this.state.openedWindows.filter(openedWindow => openedWindow.folderUri && extUriBiasedIgnorePathCase.isEqual(openedWindow.folderUri, workspace.uri)).map(openedWindow => openedWindow.uiState);
 				if (stateForFolder.length) {
 					return stateForFolder[0];
 				}
@@ -289,7 +289,7 @@ export class WindowsStateHandler extends Disposable {
 
 			// Empty windows with backups
 			else if (configuration.backupPath) {
-				const stateForEmptyWindow = this.state.openedWindows.filter(openedWindow => openedWindow.backupPath === configuration.backupPath).map(o => o.uiState);
+				const stateForEmptyWindow = this.state.openedWindows.filter(openedWindow => openedWindow.backupPath === configuration.backupPath).map(openedWindow => openedWindow.uiState);
 				if (stateForEmptyWindow.length) {
 					return stateForEmptyWindow[0];
 				}

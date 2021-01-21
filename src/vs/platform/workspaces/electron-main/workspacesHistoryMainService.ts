@@ -11,7 +11,7 @@ import { ILogService } from 'vs/platform/log/common/log';
 import { getBaseLabel, getPathLabel, splitName } from 'vs/base/common/labels';
 import { Event as CommonEvent, Emitter } from 'vs/base/common/event';
 import { isWindows, isMacintosh } from 'vs/base/common/platform';
-import { IWorkspaceIdentifier, IRecentlyOpened, isRecentWorkspace, isRecentFolder, IRecent, isRecentFile, IRecentFolder, IRecentWorkspace, IRecentFile, toStoreData, restoreRecentlyOpened, RecentlyOpenedStorageData, WORKSPACE_EXTENSION } from 'vs/platform/workspaces/common/workspaces';
+import { IWorkspaceIdentifier, IRecentlyOpened, isRecentWorkspace, isRecentFolder, IRecent, isRecentFile, IRecentFolder, IRecentWorkspace, IRecentFile, toStoreData, restoreRecentlyOpened, RecentlyOpenedStorageData, WORKSPACE_EXTENSION, isWorkspaceIdentifier, isSingleFolderWorkspaceIdentifier } from 'vs/platform/workspaces/common/workspaces';
 import { IWorkspacesMainService } from 'vs/platform/workspaces/electron-main/workspacesMainService';
 import { ThrottledDelayer } from 'vs/base/common/async';
 import { dirname, originalFSPath, basename, extUriBiasedIgnorePathCase } from 'vs/base/common/resources';
@@ -247,13 +247,10 @@ export class WorkspacesHistoryMainService extends Disposable implements IWorkspa
 
 		// Add current workspace to beginning if set
 		const currentWorkspace = include?.config?.workspace;
-		if (currentWorkspace && !this.workspacesMainService.isUntitledWorkspace(currentWorkspace)) {
+		if (isWorkspaceIdentifier(currentWorkspace) && !this.workspacesMainService.isUntitledWorkspace(currentWorkspace)) {
 			workspaces.push({ workspace: currentWorkspace });
-		}
-
-		const currentFolder = include?.config?.folderUri;
-		if (currentFolder) {
-			workspaces.push({ folderUri: currentFolder.uri });
+		} else if (isSingleFolderWorkspaceIdentifier(currentWorkspace)) {
+			workspaces.push({ folderUri: currentWorkspace.uri });
 		}
 
 		// Add currently files to open to the beginning if any

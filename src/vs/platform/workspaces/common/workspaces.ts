@@ -115,14 +115,7 @@ export interface ISingleFolderWorkspaceIdentifier extends IBaseWorkspaceIdentifi
 export function isSingleFolderWorkspaceIdentifier(obj: unknown): obj is ISingleFolderWorkspaceIdentifier {
 	const singleFolderIdentifier = obj as ISingleFolderWorkspaceIdentifier | undefined;
 
-	return !!singleFolderIdentifier && typeof singleFolderIdentifier.id === 'string' && singleFolderIdentifier.uri instanceof URI;
-}
-
-export function reviveSingleFolderIdentifier(folder: { id: string, uri: UriComponents; }): ISingleFolderWorkspaceIdentifier {
-	return {
-		id: folder.id,
-		uri: URI.revive(folder.uri)
-	};
+	return !!singleFolderIdentifier && typeof singleFolderIdentifier.id === 'string' && URI.isUri(singleFolderIdentifier.uri);
 }
 
 /**
@@ -157,14 +150,19 @@ export function toWorkspaceIdentifier(workspace: IWorkspace): IWorkspaceIdentifi
 export function isWorkspaceIdentifier(obj: unknown): obj is IWorkspaceIdentifier {
 	const workspaceIdentifier = obj as IWorkspaceIdentifier | undefined;
 
-	return !!workspaceIdentifier && typeof workspaceIdentifier.id === 'string' && workspaceIdentifier.configPath instanceof URI;
+	return !!workspaceIdentifier && typeof workspaceIdentifier.id === 'string' && URI.isUri(workspaceIdentifier.configPath);
 }
 
-export function reviveWorkspaceIdentifier(workspace: { id: string, configPath: UriComponents; }): IWorkspaceIdentifier {
-	return {
-		id: workspace.id,
-		configPath: URI.revive(workspace.configPath)
-	};
+export function reviveIdentifier(identifier: { id: string, uri?: UriComponents, configPath?: UriComponents } | undefined): IWorkspaceIdentifier | ISingleFolderWorkspaceIdentifier | undefined {
+	if (identifier?.uri) {
+		return { id: identifier.id, uri: URI.revive(identifier.uri) };
+	}
+
+	if (identifier?.configPath) {
+		return { id: identifier.id, configPath: URI.revive(identifier.configPath) };
+	}
+
+	return undefined;
 }
 
 export function isUntitledWorkspace(path: URI, environmentService: IEnvironmentService): boolean {
@@ -180,7 +178,7 @@ export type IWorkspaceInitializationPayload = IMultiFolderWorkspaceInitializatio
 export function isSingleFolderWorkspaceInitializationPayload(obj: unknown): obj is ISingleFolderWorkspaceInitializationPayload {
 	const candidate = obj as ISingleFolderWorkspaceInitializationPayload | undefined;
 
-	return candidate?.uri instanceof URI;
+	return URI.isUri(candidate?.uri);
 }
 
 export function isMultiFolderWorkspaceInitializationPayload(obj: unknown): obj is IMultiFolderWorkspaceInitializationPayload {

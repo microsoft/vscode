@@ -1179,8 +1179,7 @@ export class WindowsMainService extends Disposable implements IWindowsMainServic
 		configuration.execPath = process.execPath;
 		configuration.userEnv = { ...this.initialUserEnv, ...options.userEnv };
 		configuration.isInitialStartup = options.initialStartup;
-		configuration.workspace = options.workspace;
-		configuration.folderUri = options.folderUri ? { id: '', uri: options.folderUri } : undefined; // TODO@bpasero compute ID properly
+		configuration.workspace = options.workspace ?? (options.folderUri ? { id: '', uri: options.folderUri } : undefined); // TODO@bpasero compute ID properly
 		configuration.remoteAuthority = options.remoteAuthority;
 
 		const filesToOpen = options.filesToOpen;
@@ -1281,10 +1280,10 @@ export class WindowsMainService extends Disposable implements IWindowsMainServic
 
 		// Register window for backups
 		if (!configuration.extensionDevelopmentPath) {
-			if (configuration.workspace) {
+			if (isWorkspaceIdentifier(configuration.workspace)) {
 				configuration.backupPath = this.backupMainService.registerWorkspaceBackupSync({ workspace: configuration.workspace, remoteAuthority: configuration.remoteAuthority });
-			} else if (configuration.folderUri) {
-				configuration.backupPath = this.backupMainService.registerFolderBackupSync(configuration.folderUri.uri);
+			} else if (isSingleFolderWorkspaceIdentifier(configuration.workspace)) {
+				configuration.backupPath = this.backupMainService.registerFolderBackupSync(configuration.workspace.uri);
 			} else {
 				const backupFolder = options.emptyWindowBackupInfo && options.emptyWindowBackupInfo.backupFolder;
 				configuration.backupPath = this.backupMainService.registerEmptyWindowBackupSync(backupFolder, configuration.remoteAuthority);

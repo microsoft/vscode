@@ -313,7 +313,6 @@ export class WorkspacesMainService extends Disposable implements IWorkspacesMain
 		}
 
 		// Update window configuration properly based on transition to workspace
-		window.config.folderUri = undefined;
 		window.config.workspace = workspace;
 		window.config.backupPath = backupPath;
 
