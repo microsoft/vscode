@@ -553,7 +553,7 @@ registerAction2(class extends NotebookAction {
 
 		const editorService = accessor.get(IEditorService);
 		const editor = editorService.getEditors(EditorsOrder.MOST_RECENTLY_ACTIVE).find(
-			editor => editor instanceof NotebookEditorInput && editor.viewType === context.notebookEditor.viewModel.viewType && editor.resource.toString() === context.notebookEditor.viewModel.uri.toString());
+			editor => editor.editor instanceof NotebookEditorInput && editor.editor.viewType === context.notebookEditor.viewModel.viewType && editor.editor.resource.toString() === context.notebookEditor.viewModel.uri.toString());
 		const editorGroupService = accessor.get(IEditorGroupsService);
 
 		if (editor) {
