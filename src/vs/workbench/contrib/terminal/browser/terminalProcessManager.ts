@@ -168,7 +168,7 @@ export class TerminalProcessManager extends Disposable implements ITerminalProce
 
 				const activeWorkspaceRootUri = this._historyService.getLastActiveWorkspaceRoot();
 
-				await this._refreshEnvironmentVariables(activeWorkspaceRootUri, shellLaunchConfig);
+				await this._setupEnvVariableInfo(activeWorkspaceRootUri, shellLaunchConfig);
 
 				const enableRemoteAgentTerminals = this._configHelper.config.serverSpawn;
 				if (enableRemoteAgentTerminals) {
@@ -235,7 +235,7 @@ export class TerminalProcessManager extends Disposable implements ITerminalProce
 	}
 
 	// Fetch any extension environment additions and apply them
-	private async _refreshEnvironmentVariables(activeWorkspaceRootUri: URI | undefined, shellLaunchConfig: IShellLaunchConfig): Promise<void> {
+	private async _setupEnvVariableInfo(activeWorkspaceRootUri: URI | undefined, shellLaunchConfig: IShellLaunchConfig): Promise<void> {
 		const platformKey = platform.isWindows ? 'windows' : (platform.isMacintosh ? 'osx' : 'linux');
 		const lastActiveWorkspace = activeWorkspaceRootUri ? withNullAsUndefined(this._workspaceContextService.getWorkspaceFolder(activeWorkspaceRootUri)) : undefined;
 		const envFromConfigValue = this._workspaceConfigurationService.inspect<ITerminalEnvironment | undefined>(`terminal.integrated.env.${platformKey}`);
@@ -298,7 +298,7 @@ export class TerminalProcessManager extends Disposable implements ITerminalProce
 		const baseEnv = this._configHelper.config.inheritEnv ? processEnv : await this._terminalInstanceService.getMainProcessParentEnv();
 		const env = terminalEnvironment.createTerminalEnvironment(shellLaunchConfig, envFromConfigValue, terminalEnvironment.createVariableResolver(lastActiveWorkspace, this._configurationResolverService), isWorkspaceShellAllowed, this._productService.version, this._configHelper.config.detectLocale, baseEnv);
 
-		await this._refreshEnvironmentVariables(activeWorkspaceRootUri, shellLaunchConfig);
+		await this._setupEnvVariableInfo(activeWorkspaceRootUri, shellLaunchConfig);
 
 		const useConpty = this._configHelper.config.windowsEnableConpty && !isScreenReaderModeEnabled;
 		return this._terminalInstanceService.createTerminalProcess(shellLaunchConfig, initialCwd, cols, rows, env, useConpty);
