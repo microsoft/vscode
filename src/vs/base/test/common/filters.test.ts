@@ -9,7 +9,7 @@ function filterOk(filter: IFilter, word: string, wordToMatchAgainst: string, hig
 	let r = filter(word, wordToMatchAgainst);
 	assert(r, `${word} didn't match ${wordToMatchAgainst}`);
 	if (highlights) {
-		assert.deepEqual(r, highlights);
+		assert.deepStrictEqual(r, highlights);
 	}
 }
 
@@ -233,7 +233,7 @@ suite('Filters', () => {
 				pos = match.end;
 			}
 			actualWord += word.substring(pos);
-			assert.equal(actualWord, decoratedWord);
+			assert.strictEqual(actualWord, decoratedWord);
 		}
 	}
 
@@ -442,7 +442,7 @@ suite('Filters', () => {
 				}
 			}
 		}
-		assert.equal(topIdx, expected, `${pattern} -> actual=${words[topIdx]} <> expected=${words[expected]}`);
+		assert.strictEqual(topIdx, expected, `${pattern} -> actual=${words[topIdx]} <> expected=${words[expected]}`);
 	}
 
 	test('topScore - fuzzyScore', function () {

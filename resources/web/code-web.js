@@ -21,6 +21,7 @@ const vfs = require('vinyl-fs');
 const uuid = require('uuid');
 
 const extensions = require('../../build/lib/extensions');
+const { getBuiltInExtensions } = require('../../build/lib/builtInExtensions');
 
 const APP_ROOT = path.join(__dirname, '..', '..');
 const BUILTIN_EXTENSIONS_ROOT = path.join(APP_ROOT, 'extensions');
@@ -90,6 +91,8 @@ const exists = (path) => util.promisify(fs.exists)(path);
 const readFile = (path) => util.promisify(fs.readFile)(path);
 
 async function getBuiltInExtensionInfos() {
+	await getBuiltInExtensions();
+
 	const allExtensions = [];
 	/** @type {Object.<string, string>} */
 	const locations = {};
@@ -400,8 +403,8 @@ async function handleRoot(req, res) {
 
 	const secondaryHost = (
 		req.headers['host']
-		? req.headers['host'].replace(':' + PORT, ':' + SECONDARY_PORT)
-		: `${HOST}:${SECONDARY_PORT}`
+			? req.headers['host'].replace(':' + PORT, ':' + SECONDARY_PORT)
+			: `${HOST}:${SECONDARY_PORT}`
 	);
 	const webConfigJSON = {
 		folderUri: folderUri,

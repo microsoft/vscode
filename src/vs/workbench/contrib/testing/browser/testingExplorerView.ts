@@ -10,12 +10,14 @@ import { IListAccessibilityProvider } from 'vs/base/browser/ui/list/listWidget';
 import { ICompressedTreeNode } from 'vs/base/browser/ui/tree/compressedObjectTreeModel';
 import { ObjectTree } from 'vs/base/browser/ui/tree/objectTree';
 import { ITreeEvent, ITreeFilter, ITreeNode, ITreeRenderer, ITreeSorter, TreeFilterResult, TreeVisibility } from 'vs/base/browser/ui/tree/tree';
+import { DeferredPromise } from 'vs/base/common/async';
+import { Color, RGBA } from 'vs/base/common/color';
 import { throttle } from 'vs/base/common/decorators';
 import { Event } from 'vs/base/common/event';
 import { FuzzyScore } from 'vs/base/common/filters';
 import { splitGlobAware } from 'vs/base/common/glob';
 import { Iterable } from 'vs/base/common/iterator';
-import { Disposable, DisposableStore, toDisposable } from 'vs/base/common/lifecycle';
+import { Disposable, DisposableStore, MutableDisposable, toDisposable } from 'vs/base/common/lifecycle';
 import 'vs/css!./media/testing';
 import { ICodeEditor, isCodeEditor } from 'vs/editor/browser/editorBrowser';
 import { ICodeEditorService } from 'vs/editor/browser/services/codeEditorService';
@@ -30,10 +32,11 @@ import { IInstantiationService } from 'vs/platform/instantiation/common/instanti
 import { IKeybindingService } from 'vs/platform/keybinding/common/keybinding';
 import { WorkbenchObjectTree } from 'vs/platform/list/browser/listService';
 import { IOpenerService } from 'vs/platform/opener/common/opener';
-import { IProgressService } from 'vs/platform/progress/common/progress';
+import { IProgress, IProgressService, IProgressStep } from 'vs/platform/progress/common/progress';
 import { IStorageService, StorageScope, StorageTarget } from 'vs/platform/storage/common/storage';
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
-import { IThemeService, ThemeIcon } from 'vs/platform/theme/common/themeService';
+import { foreground } from 'vs/platform/theme/common/colorRegistry';
+import { IThemeService, registerThemingParticipant, ThemeIcon } from 'vs/platform/theme/common/themeService';
 import { TestRunState } from 'vs/workbench/api/common/extHostTypes';
 import { IResourceLabel, IResourceLabelOptions, IResourceLabelProps, ResourceLabels } from 'vs/workbench/browser/labels';
 import { ViewPane } from 'vs/workbench/browser/parts/views/viewPane';
@@ -47,13 +50,15 @@ import { StateByLocationProjection } from 'vs/workbench/contrib/testing/browser/
 import { StateByNameProjection } from 'vs/workbench/contrib/testing/browser/explorerProjections/stateByName';
 import { StateElement } from 'vs/workbench/contrib/testing/browser/explorerProjections/stateNodes';
 import { testingStatesToIcons } from 'vs/workbench/contrib/testing/browser/icons';
-import { cmpPriority, isFailedState } from 'vs/workbench/contrib/testing/browser/testExplorerTree';
 import { TestingExplorerFilter, TestingFilterState } from 'vs/workbench/contrib/testing/browser/testingExplorerFilter';
 import { TestingOutputPeekController } from 'vs/workbench/contrib/testing/browser/testingOutputPeek';
-import { TestExplorerViewGrouping, TestExplorerViewMode } from 'vs/workbench/contrib/testing/common/constants';
-import { IWorkspaceTestCollectionService, TestSubscriptionListener } from 'vs/workbench/contrib/testing/common/workspaceTestCollectionService';
+import { TestExplorerViewGrouping, TestExplorerViewMode, Testing } from 'vs/workbench/contrib/testing/common/constants';
 import { TestingContextKeys } from 'vs/workbench/contrib/testing/common/testingContextKeys';
+import { cmpPriority, isFailedState } from 'vs/workbench/contrib/testing/common/testingStates';
+import { ITestResultService, sumCounts, TestStateCount } from 'vs/workbench/contrib/testing/common/testResultService';
 import { ITestService } from 'vs/workbench/contrib/testing/common/testService';
+import { IWorkspaceTestCollectionService, TestSubscriptionListener } from 'vs/workbench/contrib/testing/common/workspaceTestCollectionService';
+import { IActivityService, NumberBadge, ProgressBadge } from 'vs/workbench/services/activity/common/activity';
 import { IEditorService } from 'vs/workbench/services/editor/common/editorService';
 import { DebugAction, RunAction } from './testExplorerActions';
 
@@ -101,11 +106,12 @@ export class TestingExplorerView extends ViewPane {
 		this.filter = this.instantiationService.createInstance(TestingExplorerFilter, this.container, this.filterState);
 		this._register(this.filter);
 
+		const messagesContainer = dom.append(this.container, dom.$('.test-explorer-messages'));
+		this._register(this.instantiationService.createInstance(TestRunProgress, messagesContainer, this.getProgressLocation()));
+
 		const listContainer = dom.append(this.container, dom.$('.test-explorer-tree'));
 		this.viewModel = this.instantiationService.createInstance(TestingExplorerViewModel, listContainer, this.onDidChangeBodyVisibility, this.currentSubscription, this.filterState);
 		this._register(this.viewModel);
-
-		this.getProgressIndicator().show(true);
 
 		this._register(this.onDidChangeBodyVisibility(visible => {
 			if (!visible && this.currentSubscription) {
@@ -127,7 +133,7 @@ export class TestingExplorerView extends ViewPane {
 		this.filter.saveState();
 	}
 
-	private updateProgressIndicator(busy: number) {
+	private updateDiscoveryProgress(busy: number) {
 		if (!busy && this.finishDiscovery) {
 			this.finishDiscovery();
 			this.finishDiscovery = undefined;
@@ -148,7 +154,7 @@ export class TestingExplorerView extends ViewPane {
 
 	private createSubscription() {
 		const handle = this.testCollection.subscribeToWorkspaceTests();
-		handle.subscription.onBusyProvidersChange(() => this.updateProgressIndicator(handle.subscription.busyProviders));
+		handle.subscription.onBusyProvidersChange(() => this.updateDiscoveryProgress(handle.subscription.busyProviders));
 		return handle;
 	}
 }
@@ -228,6 +234,7 @@ export class TestingExplorerViewModel extends Disposable {
 				instantiationService.createInstance(TestsRenderer, labels)
 			],
 			{
+				simpleKeyboardNavigation: true,
 				identityProvider: instantiationService.createInstance(IdentityProvider),
 				hideTwistiesOfChildlessElements: true,
 				sorter: instantiationService.createInstance(TreeSorter),
@@ -453,6 +460,12 @@ class CodeEditorTracker {
 	}
 }
 
+const enum FilterResult {
+	Include,
+	Exclude,
+	Inherit,
+}
+
 class TestsFilter implements ITreeFilter<ITestTreeElement> {
 	private filters: [include: boolean, value: string][] | undefined;
 
@@ -482,25 +495,32 @@ class TestsFilter implements ITreeFilter<ITestTreeElement> {
 	}
 
 	public filter(element: ITestTreeElement): TreeFilterResult<void> {
-		if (this.testFilterText(element.label)) {
-			return TreeVisibility.Visible;
+		for (let e: ITestTreeElement | null = element; e; e = e.parentItem) {
+			switch (this.testFilterText(e.label)) {
+				case FilterResult.Exclude:
+					return TreeVisibility.Hidden;
+				case FilterResult.Include:
+					return TreeVisibility.Visible;
+				case FilterResult.Inherit:
+				// continue to parent
+			}
 		}
 
-		return Iterable.isEmpty(element.children) ? TreeVisibility.Hidden : TreeVisibility.Recurse;
+		return TreeVisibility.Recurse;
 	}
 
 	private testFilterText(data: string) {
 		if (!this.filters) {
-			return true;
+			return FilterResult.Include;
 		}
 
 		// start as included if the first glob is a negation
-		let included = this.filters[0][0] === false;
+		let included = this.filters[0][0] === false ? FilterResult.Exclude : FilterResult.Inherit;
 		data = data.toLowerCase();
 
 		for (const [include, filter] of this.filters) {
 			if (data.includes(filter)) {
-				included = include;
+				included = include ? FilterResult.Include : FilterResult.Exclude;
 			}
 		}
 
@@ -616,9 +636,13 @@ class TestsRenderer implements ITreeRenderer<ITestTreeElement, FuzzyScore, TestT
 				label.resource = test.item.location.uri;
 			}
 
-			options.title = 'hover title';
-			options.fileKind = FileKind.FILE;
+			let title = element.label;
+			for (let p = element.parentItem; p; p = p.parentItem) {
+				title = `${p.label}, ${title}`;
+			}
 
+			options.title = title;
+			options.fileKind = FileKind.FILE;
 			label.description = element.description;
 		} else {
 			options.fileKind = FileKind.ROOT_FOLDER;
@@ -647,3 +671,134 @@ class TestsRenderer implements ITreeRenderer<ITestTreeElement, FuzzyScore, TestT
 		templateData.actionBar.dispose();
 	}
 }
+
+const collectCounts = (count: TestStateCount) => {
+	const failed = count[TestRunState.Errored] + count[TestRunState.Failed];
+	const passed = count[TestRunState.Passed];
+	const skipped = count[TestRunState.Skipped];
+
+	return {
+		passed,
+		failed,
+		runSoFar: passed + failed,
+		totalWillBeRun: passed + failed + count[TestRunState.Queued] + count[TestRunState.Running],
+		skipped,
+	};
+};
+
+const getProgressText = ({ passed, runSoFar, skipped }: { passed: number, runSoFar: number, skipped: number }) => {
+	const percent = (passed / runSoFar * 100).toFixed(0);
+	if (skipped === 0) {
+		return localize('testProgress', '{0}/{1} tests passed ({2}%)', passed, runSoFar, percent);
+	} else {
+		return localize('testProgressWithSkip', '{0}/{1} tests passed ({2}%, {3} skipped)', passed, runSoFar, percent, skipped);
+	}
+};
+
+class TestRunProgress {
+	private current?: { update: IProgress<IProgressStep>; deferred: DeferredPromise<void> };
+	private badge = new MutableDisposable();
+	private readonly resultLister = this.resultService.onNewTestResult(result => {
+		this.updateProgress();
+		this.updateBadge();
+
+		result.onChange(this.throttledProgressUpdate, this);
+		result.onComplete(() => {
+			this.throttledProgressUpdate();
+			this.updateBadge();
+		});
+	});
+
+	constructor(
+		private readonly messagesContainer: HTMLElement,
+		private readonly location: string,
+		@IProgressService private readonly progress: IProgressService,
+		@ITestResultService private readonly resultService: ITestResultService,
+		@IActivityService private readonly activityService: IActivityService,
+	) {
+	}
+
+	public dispose() {
+		this.resultLister.dispose();
+		this.current?.deferred.complete();
+		this.badge.dispose();
+	}
+
+	@throttle(200)
+	private throttledProgressUpdate() {
+		this.updateProgress();
+	}
+
+	private updateProgress() {
+		const running = this.resultService.results.filter(r => !r.isComplete);
+		if (!running.length) {
+			this.setIdleText(this.resultService.results[0]?.counts);
+			this.current?.deferred.complete();
+			this.current = undefined;
+		} else if (!this.current) {
+			this.progress.withProgress({ location: this.location, total: 100 }, update => {
+				this.current = { update, deferred: new DeferredPromise() };
+				this.updateProgress();
+				return this.current.deferred.p;
+			});
+		} else {
+			const counts = sumCounts(running.map(r => r.counts));
+			this.setRunningText(counts);
+			const { runSoFar, totalWillBeRun } = collectCounts(counts);
+			this.current.update.report({ increment: runSoFar, total: totalWillBeRun });
+		}
+	}
+
+	private setRunningText(counts: TestStateCount) {
+		this.messagesContainer.dataset.state = 'running';
+
+		const collected = collectCounts(counts);
+		if (collected.runSoFar === 0) {
+			this.messagesContainer.innerText = localize('testResultStarting', 'Test run is starting...');
+		} else {
+			this.messagesContainer.innerText = getProgressText(collected);
+		}
+	}
+
+	private setIdleText(lastCount?: TestStateCount) {
+		if (!lastCount) {
+			this.messagesContainer.innerText = '';
+		} else {
+			const collected = collectCounts(lastCount);
+			this.messagesContainer.dataset.state = collected.failed ? 'failed' : 'running';
+			this.messagesContainer.innerText = getProgressText(collected);
+		}
+	}
+
+	private updateBadge() {
+		this.badge.value = undefined;
+		const result = this.resultService.results[0]; // currently running, or last run
+		if (!result) {
+			return;
+		}
+
+		if (!result.isComplete) {
+			const badge = new ProgressBadge(() => localize('testBadgeRunning', 'Test run in progress'));
+			this.badge.value = this.activityService.showViewActivity(Testing.ExplorerViewId, { badge, clazz: 'progress-badge' });
+			return;
+		}
+
+		const failures = result.counts[TestRunState.Failed] + result.counts[TestRunState.Errored];
+		if (failures === 0) {
+			return;
+		}
+
+		const badge = new NumberBadge(failures, () => localize('testBadgeFailures', '{0} tests failed', failures));
+		this.badge.value = this.activityService.showViewActivity(Testing.ExplorerViewId, { badge });
+	}
+}
+
+registerThemingParticipant((theme, collector) => {
+	if (theme.type === 'dark') {
+		const foregroundColor = theme.getColor(foreground);
+		if (foregroundColor) {
+			const fgWithOpacity = new Color(new RGBA(foregroundColor.rgba.r, foregroundColor.rgba.g, foregroundColor.rgba.b, 0.65));
+			collector.addRule(`.test-explorer .test-explorer-messages { color: ${fgWithOpacity}; }`);
+		}
+	}
+});

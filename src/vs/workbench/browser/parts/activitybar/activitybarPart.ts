@@ -785,8 +785,8 @@ export class ActivitybarPart extends Part implements IActivityBarService {
 			}
 		}
 
-		// Check cache only in desktop local window and if extensions are not yet registered
-		if (!this.environmentService.remoteAuthority && !this.hasExtensionsRegistered) {
+		// Check cache only if extensions are not yet registered and current window is not native (desktop) remote connection window
+		if (!this.hasExtensionsRegistered && !(this.environmentService.remoteAuthority && isNative)) {
 			cachedViewContainer = cachedViewContainer || this.cachedViewContainers.find(({ id }) => id === viewContainerId);
 
 			// Show builtin ViewContainer if not registered yet

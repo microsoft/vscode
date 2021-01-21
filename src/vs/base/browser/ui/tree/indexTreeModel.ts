@@ -43,7 +43,7 @@ export interface IIndexTreeModelOptions<T, TFilterData> {
 	readonly autoExpandSingleChildren?: boolean;
 }
 
-export interface IIndexedSpliceOptions<T, TFilterData> {
+export interface IIndexTreeModelSpliceOptions<T, TFilterData> {
 	/**
 	 * If set, child updates will recurse the given number of levels even if
 	 * items in the splice operation are unchanged. `Infinity` is a valid value.
@@ -140,7 +140,7 @@ export class IndexTreeModel<T extends Exclude<any, undefined>, TFilterData = voi
 		location: number[],
 		deleteCount: number,
 		toInsert: Iterable<ITreeElement<T>> = Iterable.empty(),
-		options: IIndexedSpliceOptions<T, TFilterData> = {},
+		options: IIndexTreeModelSpliceOptions<T, TFilterData> = {},
 	): void {
 		if (location.length === 0) {
 			throw new TreeError(this.user, 'Invalid tree location');
@@ -158,7 +158,7 @@ export class IndexTreeModel<T extends Exclude<any, undefined>, TFilterData = voi
 		location: number[],
 		deleteCount: number,
 		toInsertIterable: Iterable<ITreeElement<T>> = Iterable.empty(),
-		options: IIndexedSpliceOptions<T, TFilterData>,
+		options: IIndexTreeModelSpliceOptions<T, TFilterData>,
 		recurseLevels = options.diffDepth ?? 0,
 	) {
 		const { parentNode } = this.getParentNodeWithListIndex(location);
@@ -221,7 +221,7 @@ export class IndexTreeModel<T extends Exclude<any, undefined>, TFilterData = voi
 		location: number[],
 		deleteCount: number,
 		toInsert: Iterable<ITreeElement<T>> = Iterable.empty(),
-		{ onDidCreateNode, onDidDeleteNode }: IIndexedSpliceOptions<T, TFilterData>,
+		{ onDidCreateNode, onDidDeleteNode }: IIndexTreeModelSpliceOptions<T, TFilterData>,
 	) {
 		const { parentNode, listIndex, revealed, visible } = this.getParentNodeWithListIndex(location);
 		const treeListElementsToInsert: ITreeNode<T, TFilterData>[] = [];
