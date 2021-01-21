@@ -337,8 +337,9 @@ export class StatefulMarkdownCell extends Disposable {
 			}
 		);
 
-		this.viewCell.editorHeight = realContentHeight;
-		this.relayoutCell();
+		// LET the content size observer to handle it
+		// this.viewCell.editorHeight = realContentHeight;
+		// this.relayoutCell();
 	}
 
 	private relayoutCell(): void {
