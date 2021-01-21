@@ -217,7 +217,7 @@ export function activate(context: vscode.ExtensionContext) {
 		},
 		tunnelFactory,
 		tunnelFeatures: { elevation: true, public: false },
-		showCandidatePort: async (_host, port) => port === 100
+		showCandidatePort
 	});
 	context.subscriptions.push(authorityResolverDisposable);
 
@@ -338,18 +338,27 @@ function getConfiguration<T>(id: string): T | undefined {
 	return vscode.workspace.getConfiguration('testresolver').get<T>(id);
 }
 
-const remoteServers: number[] = [];
+const allTunnels: Map<number, vscode.Tunnel> = new Map();
 
-function tunnelFactory(tunnelOptions: vscode.TunnelOptions): Promise<vscode.Tunnel> | undefined {
-	outputChannel.appendLine(`Tunnel factory request: Remote ${tunnelOptions.remoteAddress.port} -> local ${tunnelOptions.localAddressPort}`);
+async function showCandidatePort(_host: string, port: number, _detail: string): Promise<boolean> {
+	return !Array.from(allTunnels.values()).find(value => {
+		if (typeof value.localAddress === 'string') {
+			return true;
+		} else {
+			return value.localAddress.port === port;
+		}
+	});
+}
 
-	let remotePort = tunnelOptions.remoteAddress.port;
-	// only forward ports from our own 'remote' servers
-	if (remoteServers.includes(remotePort)) {
-		return createTunnelService();
+async function tunnelFactory(tunnelOptions: vscode.TunnelOptions, tunnelCreationOptions: vscode.TunnelCreationOptions): Promise<vscode.Tunnel> {
+	if (tunnelCreationOptions.elevationRequired) {
+		await vscode.window.showInformationMessage('This is a fake elevation message. A real resolver would show a native elevation prompt.', { modal: true }, 'Ok');
 	}
-	return undefined;
 
+	const tunnel = await createTunnelService();
+
+	allTunnels.set(tunnel.remoteAddress.port, tunnel);
+	return tunnel;
 
 	function newTunnel(localAddress: { host: string, port: number }) {
 		const onDidDispose: vscode.EventEmitter<void> = new vscode.EventEmitter();
@@ -375,7 +384,23 @@ function tunnelFactory(tunnelOptions: vscode.TunnelOptions): Promise<vscode.Tunn
 				remoteSocket.pipe(proxySocket);
 				proxySocket.pipe(remoteSocket);
 			});
-			proxyServer.listen(tunnelOptions.localAddressPort === undefined ? 0 : tunnelOptions.localAddressPort, () => {
+			let localPort: number | undefined;
+			// When the tunnelOptions include a localAddressPort, we should use that.
+			// However, the test resolver all runs on one machine, so if the localAddressPort is the same as the remote port,
+			// then we must use a different port number.
+			if (tunnelOptions.localAddressPort) {
+				if (tunnelOptions.localAddressPort === tunnelOptions.remoteAddress.port) {
+					localPort = tunnelOptions.localAddressPort + 1;
+				} else {
+					localPort = tunnelOptions.localAddressPort;
+				}
+			} else {
+				// Best practice is to use the same remote port as local port when no local port is provided.
+				// However, everything is running on one machine here, so we can't do that.
+				// In this case, we will just increment the port number by 1.
+				localPort = tunnelOptions.remoteAddress.port + 1;
+			}
+			proxyServer.listen(localPort, () => {
 				const localPort = (<net.AddressInfo>proxyServer.address()).port;
 				outputChannel.appendLine(`New test resolver tunnel service: Remote ${tunnelOptions.remoteAddress.port} -> local ${localPort}`);
 				const tunnel = newTunnel({ host: 'localhost', port: localPort });
@@ -391,7 +416,6 @@ function runHTTPTestServer(port: number): vscode.Disposable {
 		res.writeHead(200);
 		res.end(`Hello, World from test server running on port ${port}!`);
 	});
-	remoteServers.push(port);
 	server.listen(port);
 	const message = `Opened HTTP server on http://localhost:${port}`;
 	console.log(message);
@@ -399,10 +423,6 @@ function runHTTPTestServer(port: number): vscode.Disposable {
 	return {
 		dispose: () => {
 			server.close();
-			const index = remoteServers.indexOf(port);
-			if (index !== -1) {
-				remoteServers.splice(index, 1);
-			}
 		}
 	};
 }
