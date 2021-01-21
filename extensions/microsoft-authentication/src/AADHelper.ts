@@ -26,6 +26,7 @@ const tenant = 'organizations';
 
 interface IToken {
 	accessToken?: string; // When unable to refresh due to network problems, the access token becomes undefined
+	idToken?: string; // depending on the scopes can be either supplied or empty
 
 	expiresIn?: number; // How long access token is valid, in seconds
 	expiresAt?: number; // UNIX epoch time at which token will expire
@@ -69,6 +70,12 @@ export interface ITokenResponse {
 	scope: string;
 	token_type: string;
 	id_token?: string;
+}
+
+type MicrosoftTokens = [accessToken: string, idToken?: string];
+
+export interface MicrosoftAuthenticationSession extends vscode.AuthenticationSession {
+	idToken?: string;
 }
 
 function parseQuery(uri: vscode.Uri) {
@@ -228,29 +235,30 @@ export class AzureActiveDirectoryService {
 		}
 	}
 
-	private async convertToSession(token: IToken): Promise<vscode.AuthenticationSession> {
-		const resolvedToken = await this.resolveAccessToken(token);
+	private async convertToSession(token: IToken): Promise<MicrosoftAuthenticationSession> {
+		const resolvedTokens = await this.resolveAccessAndIdTokens(token);
 		return {
 			id: token.sessionId,
-			accessToken: resolvedToken,
+			accessToken: resolvedTokens[0],
+			idToken: resolvedTokens[1],
 			account: token.account,
 			scopes: token.scope.split(' ')
 		};
 	}
 
-	private async resolveAccessToken(token: IToken): Promise<string> {
+	private async resolveAccessAndIdTokens(token: IToken): Promise<MicrosoftTokens> {
 		if (token.accessToken && (!token.expiresAt || token.expiresAt > Date.now())) {
 			token.expiresAt
 				? Logger.info(`Token available from cache, expires in ${token.expiresAt - Date.now()} milliseconds`)
 				: Logger.info('Token available from cache');
-			return Promise.resolve(token.accessToken);
+			return Promise.resolve([token.accessToken, token.idToken]);
 		}
 
 		try {
 			Logger.info('Token expired or unavailable, trying refresh');
 			const refreshedToken = await this.refreshToken(token.refreshToken, token.scope, token.sessionId);
 			if (refreshedToken.accessToken) {
-				return refreshedToken.accessToken;
+				return [refreshedToken.accessToken, refreshedToken.idToken];
 			} else {
 				throw new Error();
 			}
@@ -501,6 +509,7 @@ export class AzureActiveDirectoryService {
 			expiresIn: json.expires_in,
 			expiresAt: json.expires_in ? Date.now() + json.expires_in * 1000 : undefined,
 			accessToken: json.access_token,
+			idToken: json.id_token,
 			refreshToken: json.refresh_token,
 			scope,
 			sessionId: existingId || `${claims.tid}/${(claims.oid || (claims.altsecid || '' + claims.ipd || ''))}/${uuid()}`,
