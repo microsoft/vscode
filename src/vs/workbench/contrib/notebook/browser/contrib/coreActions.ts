@@ -17,7 +17,7 @@ import { IClipboardService } from 'vs/platform/clipboard/common/clipboardService
 import { CommandsRegistry, ICommandService } from 'vs/platform/commands/common/commands';
 import { ContextKeyExpr, IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
 import { InputFocusedContext, InputFocusedContextKey } from 'vs/platform/contextkey/common/contextkeys';
-import { IInstantiationService, ServicesAccessor } from 'vs/platform/instantiation/common/instantiation';
+import { ServicesAccessor } from 'vs/platform/instantiation/common/instantiation';
 import { KeybindingWeight } from 'vs/platform/keybinding/common/keybindingsRegistry';
 import { IQuickInputService, IQuickPickItem, QuickPickInput } from 'vs/platform/quickinput/common/quickInput';
 import { CATEGORIES } from 'vs/workbench/common/actions';
@@ -261,20 +261,17 @@ registerAction2(class extends NotebookCellAction<ICellRange> {
 			if (uri) {
 				// we will run cell against this document
 				const editorService = accessor.get(IEditorService);
-				const editorGroupService = accessor.get(IEditorGroupsService);
-				const instantiationService = accessor.get(IInstantiationService);
 				const notebookWidgetService = accessor.get(INotebookEditorWidgetService);
 				const editorId = editorService.getEditors(EditorsOrder.SEQUENTIAL).find(editorId => editorId.editor instanceof NotebookEditorInput && editorId.editor.resource?.toString() === uri.toString());
 
 				if (editorId) {
-					const group = editorGroupService.getGroup(editorId.groupId);
-					const widget = instantiationService.invokeFunction(notebookWidgetService.retrieveWidget, group!, editorId.editor as NotebookEditorInput);
+					const widget = notebookWidgetService.widgets.find(widget => widget.textModel?.viewType === (editorId.editor as NotebookEditorInput).viewType && widget.uri?.toString() === editorId.editor.resolve.toString());
 
-					if (widget.value?.hasModel()) {
-						const cells = widget.value.viewModel.viewCells;
+					if (widget && widget.hasModel()) {
+						const cells = widget.viewModel.viewCells;
 
 						return {
-							notebookEditor: widget.value!,
+							notebookEditor: widget,
 							cell: cells[context.start]
 						};
 					}
@@ -348,20 +345,17 @@ registerAction2(class extends NotebookCellAction<ICellRange> {
 			if (uri) {
 				// we will run cell against this document
 				const editorService = accessor.get(IEditorService);
-				const editorGroupService = accessor.get(IEditorGroupsService);
-				const instantiationService = accessor.get(IInstantiationService);
 				const notebookWidgetService = accessor.get(INotebookEditorWidgetService);
 				const editorId = editorService.getEditors(EditorsOrder.SEQUENTIAL).find(editorId => editorId.editor instanceof NotebookEditorInput && editorId.editor.resource?.toString() === uri.toString());
 
 				if (editorId) {
-					const group = editorGroupService.getGroup(editorId.groupId);
-					const widget = instantiationService.invokeFunction(notebookWidgetService.retrieveWidget, group!, editorId.editor as NotebookEditorInput);
+					const widget = notebookWidgetService.widgets.find(widget => widget.textModel?.viewType === (editorId.editor as NotebookEditorInput).viewType && widget.uri?.toString() === editorId.editor.resolve.toString());
 
-					if (widget.value?.hasModel()) {
-						const cells = widget.value.viewModel.viewCells;
+					if (widget && widget.hasModel()) {
+						const cells = widget.viewModel.viewCells;
 
 						return {
-							notebookEditor: widget.value!,
+							notebookEditor: widget,
 							cell: cells[context.start]
 						};
 					}
