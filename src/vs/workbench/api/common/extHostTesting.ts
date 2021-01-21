@@ -236,7 +236,7 @@ export class ExtHostTesting implements ExtHostTestingShape {
 
 		const onDidChangeTest = new Emitter<vscode.TestItem>();
 		workspaceHierarchy.onDidChangeTest(node => {
-			const wrapper = TestItemFilteredWrapper.getWrapperForTestItem(node, document.uri);
+			const wrapper = TestItemFilteredWrapper.getWrapperForTestItem(node, document);
 			const previouslySeen = wrapper.hasNodeMatchingFilter;
 
 			if (previouslySeen) {
@@ -271,10 +271,10 @@ export class ExtHostTesting implements ExtHostTestingShape {
 		});
 
 		return {
-			root: TestItemFilteredWrapper.getWrapperForTestItem(workspaceHierarchy.root, document.uri),
+			root: TestItemFilteredWrapper.getWrapperForTestItem(workspaceHierarchy.root, document),
 			dispose: () => {
 				onDidChangeTest.dispose();
-				TestItemFilteredWrapper.removeFilter(document.uri);
+				TestItemFilteredWrapper.removeFilter(document);
 			},
 			onDidChangeTest: onDidChangeTest.event
 		};
@@ -286,25 +286,25 @@ export class ExtHostTesting implements ExtHostTestingShape {
  * to only the children that are located in a certain vscode.Uri.
  */
 export class TestItemFilteredWrapper implements vscode.TestItem {
-	private static wrapperMap = new WeakMap<vscode.Uri, WeakMap<vscode.TestItem, TestItemFilteredWrapper>>();
-	public static removeFilter(uri: vscode.Uri): void {
-		this.wrapperMap.delete(uri);
+	private static wrapperMap = new WeakMap<vscode.TextDocument, WeakMap<vscode.TestItem, TestItemFilteredWrapper>>();
+	public static removeFilter(document: vscode.TextDocument): void {
+		this.wrapperMap.delete(document);
 	}
 
 	// Wraps the TestItem specified in a TestItemFilteredWrapper and pulls from a cache if it already exists.
-	public static getWrapperForTestItem(item: vscode.TestItem, filterToUri: vscode.Uri, parent?: TestItemFilteredWrapper): TestItemFilteredWrapper {
-		let innerMap = this.wrapperMap.get(filterToUri);
+	public static getWrapperForTestItem(item: vscode.TestItem, filterDocument: vscode.TextDocument, parent?: TestItemFilteredWrapper): TestItemFilteredWrapper {
+		let innerMap = this.wrapperMap.get(filterDocument);
 		if (innerMap?.has(item)) {
 			return innerMap.get(item)!;
 		}
 
 		if (!innerMap) {
 			innerMap = new WeakMap<vscode.TestItem, TestItemFilteredWrapper>();
-			this.wrapperMap.set(filterToUri, innerMap);
+			this.wrapperMap.set(filterDocument, innerMap);
 
 		}
 
-		const w = new TestItemFilteredWrapper(item, filterToUri, parent);
+		const w = new TestItemFilteredWrapper(item, filterDocument, parent);
 		innerMap.set(item, w);
 		return w;
 	}
@@ -351,7 +351,7 @@ export class TestItemFilteredWrapper implements vscode.TestItem {
 	public get hasNodeMatchingFilter(): boolean {
 		if (this.matchesFilter === undefined) {
 			this.matchesFilter = !this.parent
-				|| this.actual.location?.uri.toString() === this.filterToUri.toString()
+				|| this.actual.location?.uri.toString() === this.filterDocument.uri.toString()
 				|| this.getWrappedChildren().some(child => child.hasNodeMatchingFilter);
 		}
 
@@ -361,20 +361,19 @@ export class TestItemFilteredWrapper implements vscode.TestItem {
 	// Reset the cache of whether or not you can see a node from a particular node
 	// up to it's visible parent.
 	public reset(): void {
-		if (this === this.visibleParent) {
-			this.matchesFilter = undefined;
-		} else {
+		if (this !== this.visibleParent) {
 			this.parent?.reset();
-			this.matchesFilter = undefined;
 		}
+		this.matchesFilter = undefined;
 	}
 
-	private constructor(public readonly actual: vscode.TestItem, private filterToUri: vscode.Uri, private readonly parent?: TestItemFilteredWrapper) {
+
+	private constructor(public readonly actual: vscode.TestItem, private filterDocument: vscode.TextDocument, private readonly parent?: TestItemFilteredWrapper) {
 		this.getWrappedChildren();
 	}
 
 	private getWrappedChildren() {
-		return this.actual.children?.map(t => TestItemFilteredWrapper.getWrapperForTestItem(t, this.filterToUri, this)) || [];
+		return this.actual.children?.map(t => TestItemFilteredWrapper.getWrapperForTestItem(t, this.filterDocument, this)) || [];
 	}
 }
 
