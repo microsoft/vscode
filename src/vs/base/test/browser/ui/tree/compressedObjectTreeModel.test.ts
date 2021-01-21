@@ -8,7 +8,7 @@ import { compress, ICompressedTreeElement, ICompressedTreeNode, decompress, Comp
 import { Iterable } from 'vs/base/common/iterator';
 import { ITreeNode } from 'vs/base/browser/ui/tree/tree';
 import { IList } from 'vs/base/browser/ui/tree/indexTreeModel';
-import { IObjectTreeSetChildrenOptions } from 'vs/base/browser/ui/tree/objectTreeModel';
+import { IObjectTreeModelSetChildrenOptions } from 'vs/base/browser/ui/tree/objectTreeModel';
 
 interface IResolvedCompressedTreeElement<T> extends ICompressedTreeElement<T> {
 	readonly element: T;
@@ -309,7 +309,7 @@ suite('CompressedObjectTree', function () {
 		 * Calls that test function twice, once with an empty options and
 		 * once with `diffIdentityProvider`.
 		 */
-		function withSmartSplice(fn: (options: IObjectTreeSetChildrenOptions<number, any>) => void) {
+		function withSmartSplice(fn: (options: IObjectTreeModelSetChildrenOptions<number, any>) => void) {
 			fn({});
 			fn({ diffIdentityProvider: { getId: n => String(n) } });
 		}

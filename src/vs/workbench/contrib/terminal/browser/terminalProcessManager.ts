@@ -157,11 +157,12 @@ export class TerminalProcessManager extends Disposable implements ITerminalProce
 				const userHomeUri = await this._pathService.userHome();
 				this.userHome = userHomeUri.path;
 				if (hasRemoteAuthority) {
-					const remoteEnv = await this._remoteAgentService.getEnvironment();
-					if (remoteEnv) {
-						this.userHome = remoteEnv.userHome.path;
-						this.os = remoteEnv.os;
-					}
+					this._remoteAgentService.getEnvironment().then(remoteEnv => {
+						if (remoteEnv) {
+							this.userHome = remoteEnv.userHome.path;
+							this.os = remoteEnv.os;
+						}
+					});
 				}
 
 				const activeWorkspaceRootUri = this._historyService.getLastActiveWorkspaceRoot();

@@ -236,15 +236,20 @@ export class ExtHostTunnelService extends Disposable implements IExtHostTunnelSe
 	async $forwardPort(tunnelOptions: TunnelOptions, tunnelCreationOptions: TunnelCreationOptions): Promise<TunnelDto | undefined> {
 		if (this._forwardPortProvider) {
 			try {
+				this.logService.trace('$forwardPort: Getting tunnel from provider.');
 				const providedPort = this._forwardPortProvider(tunnelOptions, tunnelCreationOptions);
+				this.logService.trace('$forwardPort: Got tunnel promise from provider.');
 				if (providedPort !== undefined) {
 					const tunnel = await providedPort;
+					this.logService.trace('$forwardPort: Successfully awaited tunnel from provider.');
 					if (!this._extensionTunnels.has(tunnelOptions.remoteAddress.host)) {
 						this._extensionTunnels.set(tunnelOptions.remoteAddress.host, new Map());
 					}
 					const disposeListener = this._register(tunnel.onDidDispose(() => this._proxy.$closeTunnel(tunnel.remoteAddress)));
 					this._extensionTunnels.get(tunnelOptions.remoteAddress.host)!.set(tunnelOptions.remoteAddress.port, { tunnel, disposeListener });
 					return TunnelDto.fromApiTunnel(tunnel);
+				} else {
+					this.logService.trace('$forwardPort: Tunnel is undefined');
 				}
 			} catch (e) {
 				this.logService.trace('$forwardPort: tunnel provider error');
@@ -254,7 +259,8 @@ export class ExtHostTunnelService extends Disposable implements IExtHostTunnelSe
 	}
 
 	async $applyCandidateFilter(candidates: CandidatePort[]): Promise<CandidatePort[]> {
-		return Promise.all(candidates.filter(candidate => this._showCandidatePort(candidate.host, candidate.port, candidate.detail)));
+		const filter = await Promise.all(candidates.map(candidate => this._showCandidatePort(candidate.host, candidate.port, candidate.detail)));
+		return candidates.filter((candidate, index) => filter[index]);
 	}
 
 	async findCandidatePorts(): Promise<CandidatePort[]> {

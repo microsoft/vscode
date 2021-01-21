@@ -75,11 +75,12 @@ function revealLastElement(tree: WorkbenchAsyncDataTree<any, any, any>) {
 }
 
 const sessionsToIgnore = new Set<IDebugSession>();
+const identityProvider = { getId: (element: IReplElement) => element.getId() };
 
 export class Repl extends ViewPane implements IHistoryNavigationWidget {
 	declare readonly _serviceBrand: undefined;
 
-	private static readonly REFRESH_DELAY = 100; // delay in ms to refresh the repl for new elements to show
+	private static readonly REFRESH_DELAY = 50; // delay in ms to refresh the repl for new elements to show
 	private static readonly URI = uri.parse(`${DEBUG_SCHEME}:replinput`);
 
 	private history: HistoryNavigator<string>;
@@ -505,7 +506,7 @@ export class Repl extends ViewPane implements IHistoryNavigationWidget {
 			}
 
 			const lastElementVisible = this.tree.scrollTop + this.tree.renderHeight >= this.tree.scrollHeight;
-			await this.tree.updateChildren();
+			await this.tree.updateChildren(undefined, true, false, { diffIdentityProvider: identityProvider });
 
 			const session = this.tree.getInput();
 			if (session) {
@@ -567,7 +568,7 @@ export class Repl extends ViewPane implements IHistoryNavigationWidget {
 			{
 				filter: this.filter,
 				accessibilityProvider: new ReplAccessibilityProvider(),
-				identityProvider: { getId: (element: IReplElement) => element.getId() },
+				identityProvider,
 				mouseSupport: false,
 				keyboardNavigationLabelProvider: { getKeyboardNavigationLabel: (e: IReplElement) => e },
 				horizontalScrolling: !wordWrap,
