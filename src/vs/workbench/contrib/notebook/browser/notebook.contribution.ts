@@ -368,7 +368,7 @@ export class NotebookContribution extends Disposable implements IWorkbenchContri
 					// there are notebook editors with the same resource
 
 					if (existingEditors.find(editor => editor.viewType === id)) {
-						return { override: this.editorService.openEditor(existingEditors.find(editor => editor.viewType === id)!, options, group) };
+						return { override: this.editorService.openEditor(existingEditors.find(editor => editor.viewType === id)!, { ...options, override: false }, group) };
 					} else {
 						return {
 							override: (async () => {

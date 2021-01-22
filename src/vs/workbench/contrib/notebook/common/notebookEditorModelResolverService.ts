@@ -61,9 +61,6 @@ export class NotebookModelResolverService implements INotebookEditorModelResolve
 	}
 
 	async resolve(resource: URI, viewType?: string): Promise<IReference<INotebookEditorModel>> {
-
-		console.log(resource, viewType);
-
 		if (resource.scheme === CellUri.scheme) {
 			throw new Error(`CANNOT open a cell-uri as notebook. Tried with ${resource.toString()}`);
 		}
