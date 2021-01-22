@@ -22,6 +22,7 @@ import { IEditorService } from 'vs/workbench/services/editor/common/editorServic
 import { TrustedWorkspacesFileSystemProvider } from 'vs/workbench/contrib/workspace/common/trustedWorkspaceFileSystemProvider';
 import { ContextKeyExpr } from 'vs/platform/contextkey/common/contextkey';
 import { WorkbenchStateContext } from 'vs/workbench/browser/contextkeys';
+import { ICommandService } from 'vs/platform/commands/common/commands';
 
 const workspaceTrustIcon = registerIcon('workspace-trust-icon', Codicon.shield, localize('workspaceTrustIcon', "Icon for workspace trust badge."));
 
@@ -35,6 +36,7 @@ export class WorkspaceTrustRequestHandler extends Disposable implements IWorkben
 	constructor(
 		@IDialogService private readonly dialogService: IDialogService,
 		@IActivityService private readonly activityService: IActivityService,
+		@ICommandService private readonly commandService: ICommandService,
 		@ITrustedWorkspaceService private readonly trustedWorkspaceService: ITrustedWorkspaceService
 	) {
 		super();
@@ -60,18 +62,24 @@ export class WorkspaceTrustRequestHandler extends Disposable implements IWorkben
 
 				if (this.requestModel.trustRequest.immediate) {
 					const result = await this.dialogService.show(
-						Severity.Info,
-						this.requestModel.trustRequest.message ?? 'This workspace wants trust right now!',
-						['Trust', `Don't Trust`, 'Cancel'],
-						{
-							cancelId: 2
-						}
-					);
+						Severity.Warning,
+						localize('immediateTrustRequestTitle', "Unknown Source Risk"),
+						[
+							localize('trustWorkspace', "Trust"),
+							localize('dontTrustWorkspace', "Don't Trust"),
+							localize('manageWorkspaceTrust', 'Manage')
+						], {
+						cancelId: -1,
+						detail: localize('immediateTrustRequestDetail', "A feature you are trying to use may be a security risk if you do not trust the source of the files or folders you currently have open.\n\nYou should only trust this workspace if you trust its source. Otherwise, features will be enabled that may compromise your device or personal information."),
+					});
 
 					if (result.choice === 0) {
 						this.requestModel.completeRequest(WorkspaceTrustState.Trusted);
 					} else if (result.choice === 1) {
 						this.requestModel.completeRequest(WorkspaceTrustState.Untrusted);
+					} else if (result.choice === 2) {
+						this.requestModel.completeRequest(undefined);
+						await this.commandService.executeCommand('workbench.trust.manage');
 					} else {
 						this.requestModel.completeRequest(undefined);
 					}
