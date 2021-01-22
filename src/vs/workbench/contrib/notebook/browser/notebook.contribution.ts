@@ -336,24 +336,69 @@ export class NotebookContribution extends Disposable implements IWorkbenchContri
 			return undefined;
 		}
 
-		if (id && originalInput instanceof NotebookEditorInput) {
-			if (originalInput.viewType === id) {
-				return undefined;
+		// Run reopen with ...
+		if (id) {
+			// from the editor tab context menu
+			if (originalInput instanceof NotebookEditorInput) {
+				if (originalInput.viewType === id) {
+					// reopen with the same type
+					return undefined;
+				} else {
+					return {
+						override: (async () => {
+							const notebookInput = NotebookEditorInput.create(this.instantiationService, originalInput.resource, originalInput.getName(), id);
+							const originalEditorIndex = group.getIndexOfEditor(originalInput);
+
+							await group.closeEditor(originalInput);
+							originalInput.dispose();
+							const newEditor = await group.openEditor(notebookInput, { ...options, index: originalEditorIndex, override: false });
+							if (newEditor) {
+								return newEditor;
+							} else {
+								return undefined;
+							}
+						})()
+					};
+				}
 			} else {
-				return {
-					override: (async () => {
-						const notebookInput = NotebookEditorInput.create(this.instantiationService, originalInput.resource, originalInput.getName(), id);
-						await group.replaceEditors([{
-							editor: originalInput,
-							replacement: notebookInput
-						}]);
-						if (group.activeEditorPane?.input === notebookInput) {
-							return group.activeEditorPane;
-						} else {
-							return undefined;
-						}
-					})()
-				};
+				// from the file explorer
+				const existingEditors = this.editorService.findEditors(originalInput.resource, group).filter(editor => editor instanceof NotebookEditorInput) as NotebookEditorInput[];
+
+				if (existingEditors.length) {
+					// there are notebook editors with the same resource
+
+					if (existingEditors.find(editor => editor.viewType === id)) {
+						return { override: this.editorService.openEditor(existingEditors.find(editor => editor.viewType === id)!, options, group) };
+					} else {
+						return {
+							override: (async () => {
+								const firstEditor = existingEditors[0]!;
+								const originalEditorIndex = group.getIndexOfEditor(firstEditor);
+
+								await group.closeEditor(firstEditor);
+								firstEditor.dispose();
+								const notebookInput = NotebookEditorInput.create(this.instantiationService, originalInput.resource!, originalInput.getName(), id);
+								const newEditor = await group.openEditor(notebookInput, { ...options, index: originalEditorIndex, override: false });
+
+								if (newEditor) {
+									return newEditor;
+								} else {
+									return undefined;
+								}
+							})()
+						};
+					}
+				}
+			}
+		}
+
+		// Click on the editor tab
+		if (id === undefined && originalInput instanceof NotebookEditorInput) {
+			const existingEditors = this.editorService.findEditors(originalInput.resource, group).filter(editor => editor instanceof NotebookEditorInput && editor === originalInput);
+
+			if (existingEditors.length) {
+				// same
+				return undefined;
 			}
 		}
 
