@@ -193,10 +193,10 @@ export class BulkEditService implements IBulkEditService {
 			!!options?.confirmBeforeUndo
 		);
 
+		let listener: IDisposable | undefined;
 		try {
-			const listener = this._lifecycleService.onBeforeShutdown(e => e.veto(this.shouldVeto(label), 'veto.blukEditService'));
+			listener = this._lifecycleService.onBeforeShutdown(e => e.veto(this.shouldVeto(label), 'veto.blukEditService'));
 			await bulkEdit.perform();
-			listener.dispose();
 			return { ariaSummary: bulkEdit.ariaMessage() };
 		} catch (err) {
 			// console.log('apply FAILED');
@@ -204,6 +204,9 @@ export class BulkEditService implements IBulkEditService {
 			this._logService.error(err);
 			throw err;
 		} finally {
+			if (listener) {
+				listener.dispose();
+			}
 			undoRedoGroupRemove();
 		}
 	}
