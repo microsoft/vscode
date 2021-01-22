@@ -408,51 +408,18 @@ function webviewPreloads() {
 		const event = rawEvent as ({ data: ToWebviewMessage; });
 
 		switch (event.data.type) {
-			case 'createMarkdownPreview':
-				const data = event.data;
-				let cellContainer = document.getElementById(data.id);
-				if (!cellContainer) {
-					const container = document.getElementById('container')!;
-					const newElement = document.createElement('div');
-
-					newElement.id = `${data.id}`;
-					container.appendChild(newElement);
-					cellContainer = newElement;
-
-					const previewContainerNode = document.createElement('div');
-					previewContainerNode.style.position = 'absolute';
-					previewContainerNode.style.top = data.top + 'px';
-					previewContainerNode.id = `${data.id}_preview`;
-					previewContainerNode.classList.add('preview');
-					cellContainer.appendChild(previewContainerNode);
-
-					const previewNode = document.createElement('div');
-					previewContainerNode.appendChild(previewNode);
-
-					// TODO: handle namespace
-					onDidCreateMarkdown.fire([undefined/* data.apiNamespace */, {
-						element: previewNode,
-						content: data.content
-					}]);
-
-					resizeObserve(previewContainerNode, `${data.id}_preview`, false);
-
-					vscode.postMessage({
-						__vscode_notebook_message: true,
-						type: 'dimension',
-						id: `${data.id}_preview`,
-						init: true,
-						data: {
-							height: previewContainerNode.clientHeight
-						},
-						isOutput: false
-					});
-				} else {
-					const previewNode = document.getElementById(`${data.id}_container`);
-					if (previewNode) {
-						previewNode.innerText = data.content;
-					}
+			case 'initializeMarkdownPreview':
+				for (const cell of event.data.cells) {
+					createMarkdownPreview(cell.cellId, cell.content, -10000);
 				}
+
+				vscode.postMessage({
+					__vscode_notebook_message: true,
+					type: 'initializedMarkdownPreview',
+				});
+				break;
+			case 'createMarkdownPreview':
+				createMarkdownPreview(event.data.id, event.data.content, event.data.top);
 				break;
 			case 'showMarkdownPreview':
 				{
@@ -685,6 +652,52 @@ function webviewPreloads() {
 		__vscode_notebook_message: true,
 		type: 'initialized'
 	});
+
+	function createMarkdownPreview(cellId: string, content: string, top: number) {
+		let cellContainer = document.getElementById(cellId);
+		if (!cellContainer) {
+			const container = document.getElementById('container')!;
+			const newElement = document.createElement('div');
+
+			newElement.id = `${cellId}`;
+			container.appendChild(newElement);
+			cellContainer = newElement;
+
+			const previewContainerNode = document.createElement('div');
+			previewContainerNode.style.position = 'absolute';
+			previewContainerNode.style.top = top + 'px';
+			previewContainerNode.id = `${cellId}_preview`;
+			previewContainerNode.classList.add('preview');
+			cellContainer.appendChild(previewContainerNode);
+
+			const previewNode = document.createElement('div');
+			previewContainerNode.appendChild(previewNode);
+
+			// TODO: handle namespace
+			onDidCreateMarkdown.fire([undefined /* data.apiNamespace */, {
+				element: previewNode,
+				content: content
+			}]);
+
+			resizeObserve(previewContainerNode, `${cellId}_preview`, false);
+
+			vscode.postMessage({
+				__vscode_notebook_message: true,
+				type: 'dimension',
+				id: `${cellId}_preview`,
+				init: true,
+				data: {
+					height: previewContainerNode.clientHeight
+				},
+				isOutput: false
+			});
+		} else {
+			const previewNode = document.getElementById(`${cellId}_container`);
+			if (previewNode) {
+				previewNode.innerText = content;
+			}
+		}
+	}
 }
 
 export const preloadsScriptStr = (outputNodePadding: number, outputNodeLeftPadding: number) => `(${webviewPreloads})()`.replace(/__outputNodePadding__/g, `${outputNodePadding}`).replace(/__outputNodeLeftPadding__/g, `${outputNodeLeftPadding}`);

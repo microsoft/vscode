@@ -303,6 +303,12 @@ export class TestNotebookEditor implements INotebookEditor {
 	createMarkdownPreview(cell: ICellViewModel): Promise<void> {
 		return Promise.resolve();
 	}
+	hideMarkdownPreview(cell: ICellViewModel): Promise<void> {
+		return Promise.resolve();
+	}
+	removeMarkdownPreview(cell: ICellViewModel): Promise<void> {
+		return Promise.resolve();
+	}
 	updateMarkdownCellHeight(cellId: string, height: number, isInit: boolean): void {
 		// noop
 	}
