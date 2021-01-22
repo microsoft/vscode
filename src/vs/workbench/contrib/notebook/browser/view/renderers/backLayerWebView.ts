@@ -199,6 +199,11 @@ export interface IShowMarkdownMessage {
 	top: number;
 }
 
+export interface IInitializeMarkdownMessage {
+	type: 'initializeMarkdownPreview';
+	cells: Array<{ cellId: string, content: string }>;
+}
+
 export type FromWebviewMessage =
 	| WebviewIntialized
 	| IDimensionMessage
@@ -226,6 +231,7 @@ export type ToWebviewMessage =
 	| IRemoveMarkdownMessage
 	| IShowMarkdownMessage
 	| IHideMarkdownMessage
+	| IInitializeMarkdownMessage
 	| IViewScrollMarkdownRequestMessage;
 
 export type AnyMessage = FromWebviewMessage | ToWebviewMessage;
@@ -767,7 +773,12 @@ var requirejs = (function() {
 
 		const workspaceFolders = this.contextService.getWorkspace().folders.map(x => x.uri);
 
-		this.localResourceRootsCache = [...this.notebookService.getNotebookProviderResourceRoots(), ...workspaceFolders, rootPath];
+		this.localResourceRootsCache = [
+			...this.notebookService.getNotebookProviderResourceRoots(),
+			...this.notebookService.getMarkdownRendererInfo().map(x => dirname(x.entrypoint)),
+			...workspaceFolders,
+			rootPath,
+		];
 
 		const webview = webviewService.createWebviewElement(this.id, {
 			purpose: WebviewContentPurpose.NotebookRenderer,
@@ -904,6 +915,30 @@ var requirejs = (function() {
 			type: 'removeMarkdownPreview',
 			id: cellId
 		});
+	}
+
+	async initializeMarkdown(cells: Array<{ cellId: string, content: string }>) {
+		await this._loaded;
+
+		// TODO: use proper handler
+		const p = new Promise<void>(resolve => {
+			this.webview?.onMessage(e => {
+				if (e.type === 'initializedMarkdownPreview') {
+					resolve();
+				}
+			});
+		});
+
+		for (const cell of cells) {
+			this.markdownPreviewMapping.add(cell.cellId);
+		}
+
+		this._sendMessageToWebview({
+			type: 'initializeMarkdownPreview',
+			cells: cells,
+		});
+
+		await p;
 	}
 
 	async createInset(cellInfo: T, content: IInsetRenderOutput, cellTop: number, offset: number) {
