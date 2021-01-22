@@ -87,6 +87,7 @@ export class Repl extends ViewPane implements IHistoryNavigationWidget {
 	private tree!: WorkbenchAsyncDataTree<IDebugSession, IReplElement, FuzzyScore>;
 	private replDelegate!: ReplDelegate;
 	private container!: HTMLElement;
+	private treeContainer!: HTMLElement;
 	private replInput!: CodeEditorWidget;
 	private replInputContainer!: HTMLElement;
 	private dimension!: dom.Dimension;
@@ -237,7 +238,12 @@ export class Repl extends ViewPane implements IHistoryNavigationWidget {
 			}
 		}));
 		this._register(this.configurationService.onDidChangeConfiguration(e => {
-			if (e.affectsConfiguration('debug.console.lineHeight') || e.affectsConfiguration('debug.console.fontSize') || e.affectsConfiguration('debug.console.fontFamily')) {
+			if (e.affectsConfiguration('debug.console.wordWrap')) {
+				this.tree.dispose();
+				this.treeContainer.innerText = '';
+				dom.clearNode(this.treeContainer);
+				this.createReplTree();
+			} else if (e.affectsConfiguration('debug.console.lineHeight') || e.affectsConfiguration('debug.console.fontSize') || e.affectsConfiguration('debug.console.fontFamily')) {
 				this.onDidStyleChange();
 			}
 		}));
@@ -541,19 +547,21 @@ export class Repl extends ViewPane implements IHistoryNavigationWidget {
 
 	protected renderBody(parent: HTMLElement): void {
 		super.renderBody(parent);
-
 		this.container = dom.append(parent, $('.repl'));
-		const treeContainer = dom.append(this.container, $(`.repl-tree.${MOUSE_CURSOR_TEXT_CSS_CLASS_NAME}`));
+		this.treeContainer = dom.append(this.container, $(`.repl-tree.${MOUSE_CURSOR_TEXT_CSS_CLASS_NAME}`));
 		this.createReplInput(this.container);
+		this.createReplTree();
+	}
 
+	private createReplTree(): void {
 		this.replDelegate = new ReplDelegate(this.configurationService);
 		const wordWrap = this.configurationService.getValue<IDebugConfiguration>('debug').console.wordWrap;
-		treeContainer.classList.toggle('word-wrap', wordWrap);
+		this.treeContainer.classList.toggle('word-wrap', wordWrap);
 		const linkDetector = this.instantiationService.createInstance(LinkDetector);
 		this.tree = <WorkbenchAsyncDataTree<IDebugSession, IReplElement, FuzzyScore>>this.instantiationService.createInstance(
 			WorkbenchAsyncDataTree,
 			'DebugRepl',
-			treeContainer,
+			this.treeContainer,
 			this.replDelegate,
 			[
 				this.instantiationService.createInstance(ReplVariablesRenderer, linkDetector),
