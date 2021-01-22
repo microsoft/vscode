@@ -32,6 +32,7 @@ import { listErrorForeground, listWarningForeground } from 'vs/platform/theme/co
 import { isEqual } from 'vs/base/common/resources';
 import { IdleValue } from 'vs/base/common/async';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
+import { IConfigurationRegistry, Extensions as ConfigurationExtensions } from 'vs/platform/configuration/common/configurationRegistry';
 
 export interface IOutlineMarkerInfo {
 	readonly count: number;
@@ -254,7 +255,6 @@ class NotebookComparator implements IOutlineComparator<OutlineEntry> {
 
 	private readonly _collator = new IdleValue<Intl.Collator>(() => new Intl.Collator(undefined, { numeric: true }));
 
-
 	compareByPosition(a: OutlineEntry, b: OutlineEntry): number {
 		return a.index - b.index;
 	}
@@ -310,6 +310,12 @@ class NotebookCellOutline implements IOutline<OutlineEntry> {
 			installSelectionListener();
 		}));
 
+		this._dispoables.add(_configurationService.onDidChangeConfiguration(e => {
+			if (e.affectsConfiguration('outline.showNotebookCodeCells')) {
+				this._recomputeState();
+			}
+		}));
+
 		this._recomputeState();
 		installSelectionListener();
 
@@ -363,6 +369,8 @@ class NotebookCellOutline implements IOutline<OutlineEntry> {
 			return;
 		}
 
+		const includeCodeCells = this._configurationService.getValue<boolean>('outline.showNotebookCodeCells');
+
 		const [selected] = viewModel.selectionHandles;
 		const entries: OutlineEntry[] = [];
 
@@ -370,6 +378,10 @@ class NotebookCellOutline implements IOutline<OutlineEntry> {
 			const cell = viewModel.viewCells[i];
 			const content = cell.getText();
 			const isMarkdown = cell.cellKind === CellKind.Markdown;
+
+			if (!isMarkdown && !includeCodeCells) {
+				continue;
+			}
 
 			// find first none empty line or use default text
 			const lineMatch = content.match(/^.*\w+.*\w*$/m);
@@ -546,3 +558,17 @@ class NotebookOutlineCreator implements IOutlineCreator<NotebookEditor, OutlineE
 }
 
 Registry.as<IWorkbenchContributionsRegistry>(WorkbenchExtensions.Workbench).registerWorkbenchContribution(NotebookOutlineCreator, LifecyclePhase.Eventually);
+
+
+Registry.as<IConfigurationRegistry>(ConfigurationExtensions.Configuration).registerConfiguration({
+	'id': 'outline',
+	'order': 117,
+	'type': 'object',
+	'properties': {
+		'outline.showNotebookCodeCells': {
+			type: 'boolean',
+			default: true,
+			markdownDescription: localize('showNotebookCodeCells', "When enabled outline shows code cell of notebooks.")
+		}
+	}
+});
