@@ -27,18 +27,33 @@ import { TestingContextKeys } from 'vs/workbench/contrib/testing/common/testingC
 export interface ITestExplorerFilterState {
 	_serviceBrand: undefined;
 	readonly onDidChange: Event<string>;
+	readonly onDidRequestReveal: Event<string[]>;
 	value: string;
+	reveal: string[] | undefined;
 }
 
 export const ITestExplorerFilterState = createDecorator<ITestExplorerFilterState>('testingFilterState');
 
 export class TestExplorerFilterState implements ITestExplorerFilterState {
 	declare _serviceBrand: undefined;
-
+	private readonly revealRequest = new Emitter<string[]>();
 	private readonly changeEmitter = new Emitter<string>();
 	private _value = '';
+	private _reveal?: string[];
 
+	public readonly onDidRequestReveal = this.revealRequest.event;
 	public readonly onDidChange = this.changeEmitter.event;
+
+	public get reveal() {
+		return this._reveal;
+	}
+
+	public set reveal(v: string[] | undefined) {
+		this._reveal = v;
+		if (v !== undefined) {
+			this.revealRequest.fire(v);
+		}
+	}
 
 	public get value() {
 		return this._value;

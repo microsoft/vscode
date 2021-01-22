@@ -56,6 +56,7 @@ import { TestingOutputPeekController } from 'vs/workbench/contrib/testing/browse
 import { TestExplorerViewGrouping, TestExplorerViewMode, Testing } from 'vs/workbench/contrib/testing/common/constants';
 import { TestingContextKeys } from 'vs/workbench/contrib/testing/common/testingContextKeys';
 import { cmpPriority, isFailedState } from 'vs/workbench/contrib/testing/common/testingStates';
+import { buildTestUri, TestUriType } from 'vs/workbench/contrib/testing/common/testingUri';
 import { ITestResultService, sumCounts, TestStateCount } from 'vs/workbench/contrib/testing/common/testResultService';
 import { ITestService } from 'vs/workbench/contrib/testing/common/testService';
 import { IWorkspaceTestCollectionService, TestSubscriptionListener } from 'vs/workbench/contrib/testing/common/workspaceTestCollectionService';
@@ -388,7 +389,13 @@ export class TestingExplorerViewModel extends Disposable {
 			return false;
 		}
 
-		TestingOutputPeekController.get(control).show(item.test, index);
+		TestingOutputPeekController.get(control).show(buildTestUri({
+			type: TestUriType.LiveMessage,
+			messageIndex: index,
+			providerId: item.test.providerId,
+			testId: item.test.id,
+		}));
+
 		return true;
 	}
 
@@ -648,10 +655,6 @@ class TestsRenderer implements ITreeRenderer<ITestTreeElement, FuzzyScore, TestT
 		const state = getComputedState(element);
 		const icon = testingStatesToIcons.get(state);
 		data.icon.className = 'computed-state ' + (icon ? ThemeIcon.asClassName(icon) : '');
-		if (state === TestRunState.Running) {
-			data.icon.className += ' codicon-modifier-spin';
-		}
-
 		const test = element.test;
 		if (test) {
 			if (test.item.location) {

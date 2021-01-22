@@ -46,14 +46,8 @@ export class HierarchicalByLocationProjection extends Disposable implements ITes
 		this._register(listener.onFolderChange(this.applyFolderChange, this));
 
 		for (const [folder, collection] of listener.workspaceFolderCollections) {
-			const queue = [collection.rootIds];
-			while (queue.length) {
-				for (const id of queue.pop()!) {
-					const node = collection.getNodeById(id)!;
-					const item = this.createItem(node, folder.folder);
-					this.storeItem(item);
-					queue.push(node.children);
-				}
+			for (const node of collection.all) {
+				this.storeItem(this.createItem(node, folder.folder));
 			}
 		}
 

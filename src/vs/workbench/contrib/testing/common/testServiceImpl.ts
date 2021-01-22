@@ -7,7 +7,7 @@ import { groupBy } from 'vs/base/common/arrays';
 import { disposableTimeout } from 'vs/base/common/async';
 import { CancellationToken, CancellationTokenSource } from 'vs/base/common/cancellation';
 import { Emitter } from 'vs/base/common/event';
-import { Disposable, IDisposable } from 'vs/base/common/lifecycle';
+import { Disposable, IDisposable, IReference } from 'vs/base/common/lifecycle';
 import { isDefined } from 'vs/base/common/types';
 import { URI, UriComponents } from 'vs/base/common/uri';
 import { localize } from 'vs/nls';
@@ -131,7 +131,7 @@ export class TestService extends Disposable implements ITestService {
 		const subscriptions = [...this.testSubscriptions.values()]
 			.filter(v => req.tests.some(t => v.collection.getNodeById(t.testId)))
 			.map(s => this.subscribeToDiffs(s.ident.resource, s.ident.uri, () => result?.notifyChanged()));
-		result = this.testResults.push(TestResult.from(subscriptions.map(s => s.collection), req.tests));
+		result = this.testResults.push(TestResult.from(subscriptions.map(s => s.object), req.tests));
 
 		try {
 			const tests = groupBy(req.tests, (a, b) => a.providerId === b.providerId ? 0 : 1);
@@ -175,7 +175,7 @@ export class TestService extends Disposable implements ITestService {
 	/**
 	 * @inheritdoc
 	 */
-	public subscribeToDiffs(resource: ExtHostTestingResource, uri: URI, acceptDiff?: TestDiffListener) {
+	public subscribeToDiffs(resource: ExtHostTestingResource, uri: URI, acceptDiff?: TestDiffListener): IReference<IMainThreadTestCollection> {
 		const subscriptionKey = getTestSubscriptionKey(resource, uri);
 		let subscription = this.testSubscriptions.get(subscriptionKey);
 		if (!subscription) {
@@ -200,7 +200,7 @@ export class TestService extends Disposable implements ITestService {
 
 		const listener = acceptDiff && subscription.onDiff.event(acceptDiff);
 		return {
-			collection: subscription.collection,
+			object: subscription.collection,
 			dispose: () => {
 				listener?.dispose();
 
@@ -277,6 +277,14 @@ class MainThreadTestCollection extends AbstractIncrementalTestCollection<Increme
 		return this.roots;
 	}
 
+	/**
+	 * @inheritdoc
+	 */
+	public get all() {
+		return this.getIterator();
+	}
+
+
 	public readonly onPendingRootProvidersChange = this.pendingRootChangeEmitter.event;
 	public readonly onBusyProvidersChange = this.busyProvidersChangeEmitter.event;
 
@@ -349,5 +357,16 @@ class MainThreadTestCollection extends AbstractIncrementalTestCollection<Increme
 	 */
 	protected createItem(internal: InternalTestItem): IncrementalTestCollectionItem {
 		return { ...internal, children: new Set() };
+	}
+
+	private *getIterator() {
+		const queue = [this.rootIds];
+		while (queue.length) {
+			for (const id of queue.pop()!) {
+				const node = this.getNodeById(id)!;
+				yield node;
+				queue.push(node.children);
+			}
+		}
 	}
 }

@@ -71,7 +71,6 @@
 	max-height: 29px;
 }
 
-
 /** -- filter  */
 .testing-filter-action-bar {
 	flex-shrink: 0;
@@ -91,4 +90,14 @@
 
 .testing-filter-action-item .testing-filter-wrapper {
 	flex-grow: 1;
+}
+
+/** -- decorations  */
+
+.monaco-editor .testing-run-glyph {
+	cursor: pointer;
+}
+
+.monaco-editor .testing-inline-message {
+	cursor: pointer;
 }

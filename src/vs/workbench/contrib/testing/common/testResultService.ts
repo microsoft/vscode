@@ -4,6 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { Emitter, Event } from 'vs/base/common/event';
+import { generateUuid } from 'vs/base/common/uuid';
 import { IContextKey, IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
 import { createDecorator } from 'vs/platform/instantiation/common/instantiation';
 import { TestRunState } from 'vs/workbench/api/common/extHostTypes';
@@ -87,6 +88,11 @@ export class TestResult {
 
 	public onChange = this.changeEmitter.event;
 	public onComplete = this.completeEmitter.event;
+
+	/**
+	 * Unique ID for referring to this set of test results.
+	 */
+	public readonly id = generateUuid();
 
 	/**
 	 * Gets whether the test run has finished.
@@ -175,11 +181,16 @@ export interface ITestResultService {
 	 * Adds a new test result to the collection.
 	 */
 	push(result: TestResult): TestResult;
+
+	/**
+	 * Looks up a set of test results by ID.
+	 */
+	lookup(resultId: string): TestResult | undefined;
 }
 
 export const ITestResultService = createDecorator<ITestResultService>('testResultService');
 
-const RETAIN_LAST_RESULTS = 10;
+const RETAIN_LAST_RESULTS = 16;
 
 export class TestResultService implements ITestResultService {
 	declare _serviceBrand: undefined;
@@ -214,6 +225,13 @@ export class TestResultService implements ITestResultService {
 		this.isRunning.set(true);
 		this.newResultEmitter.fire(result);
 		return result;
+	}
+
+	/**
+	 * @inheritdoc
+	 */
+	public lookup(id: string) {
+		return this.results.find(r => r.id === id);
 	}
 
 	private onComplete() {
