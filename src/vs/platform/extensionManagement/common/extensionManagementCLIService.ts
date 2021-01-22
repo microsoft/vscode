@@ -275,21 +275,24 @@ export class ExtensionManagementCLIService implements IExtensionManagementCLISer
 		for (const extension of extensions) {
 			const id = await getExtensionId(extension);
 			const installed = await this.extensionManagementService.getInstalled();
-			const extensionToUninstall = installed.find(e => areSameExtensions(e.identifier, { id }));
-			if (!extensionToUninstall) {
+			const extensionsToUninstall = installed.filter(e => areSameExtensions(e.identifier, { id }));
+			if (!extensionsToUninstall.length) {
 				throw new Error(`${notInstalled(id)}\n${useId}`);
 			}
-			if (extensionToUninstall.type === ExtensionType.System) {
-				output.log(localize('builtin', "Extension '{0}' is a Built-in extension and cannot be installed", id));
+			if (extensionsToUninstall.some(e => e.type === ExtensionType.System)) {
+				output.log(localize('builtin', "Extension '{0}' is a Built-in extension and cannot be uninstalled", id));
 				return;
 			}
-			if (extensionToUninstall.isBuiltin && !force) {
+			if (!force && extensionsToUninstall.some(e => e.isBuiltin)) {
 				output.log(localize('forceUninstall', "Extension '{0}' is marked as a Built-in extension by user. Please use '--force' option to uninstall it.", id));
 				return;
 			}
 			output.log(localize('uninstalling', "Uninstalling {0}...", id));
-			await this.extensionManagementService.uninstall(extensionToUninstall);
-			uninstalledExtensions.push(extensionToUninstall);
+			for (const extensionToUninstall of extensionsToUninstall) {
+				await this.extensionManagementService.uninstall(extensionToUninstall);
+				uninstalledExtensions.push(extensionToUninstall);
+			}
+
 			output.log(localize('successUninstall', "Extension '{0}' was successfully uninstalled!", id));
 		}
 
