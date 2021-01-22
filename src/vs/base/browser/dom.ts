@@ -1434,7 +1434,7 @@ export namespace WebFileSystemAccess {
 	}
 
 	export function supported(obj: any & Window): obj is FileSystemAccess {
-		const candidate = obj as FileSystemAccess;
+		const candidate = obj as FileSystemAccess | undefined;
 		if (typeof candidate?.showDirectoryPicker === 'function') {
 			return true;
 		}
