@@ -187,7 +187,7 @@ export abstract class AbstractScrollableElement extends Widget {
 			this._onScroll.fire(e);
 		}));
 
-		let scrollbarHost: ScrollbarHost = {
+		const scrollbarHost: ScrollbarHost = {
 			onMouseWheel: (mouseWheelEvent: StandardWheelEvent) => this._onMouseWheel(mouseWheelEvent),
 			onDragStart: () => this._onDragStart(),
 			onDragEnd: () => this._onDragEnd(),
@@ -325,7 +325,7 @@ export abstract class AbstractScrollableElement extends Widget {
 	// -------------------- mouse wheel scrolling --------------------
 
 	private _setListeningToMouseWheel(shouldListen: boolean): void {
-		let isListening = (this._mouseWheelToDispose.length > 0);
+		const isListening = (this._mouseWheelToDispose.length > 0);
 
 		if (isListening === shouldListen) {
 			// No change
@@ -337,7 +337,7 @@ export abstract class AbstractScrollableElement extends Widget {
 
 		// Start listening (if necessary)
 		if (shouldListen) {
-			let onMouseWheel = (browserEvent: IMouseWheelEvent) => {
+			const onMouseWheel = (browserEvent: IMouseWheelEvent) => {
 				this._onMouseWheel(new StandardWheelEvent(browserEvent));
 			};
 
@@ -473,8 +473,8 @@ export abstract class AbstractScrollableElement extends Widget {
 
 		if (this._options.useShadows) {
 			const scrollState = this._scrollable.getCurrentScrollPosition();
-			let enableTop = scrollState.scrollTop > 0;
-			let enableLeft = scrollState.scrollLeft > 0;
+			const enableTop = scrollState.scrollTop > 0;
+			const enableLeft = scrollState.scrollLeft > 0;
 
 			this._leftShadowDomNode!.setClassName('shadow' + (enableLeft ? ' left' : ''));
 			this._topShadowDomNode!.setClassName('shadow' + (enableTop ? ' top' : ''));
@@ -597,7 +597,7 @@ export class DomScrollableElement extends ScrollableElement {
 }
 
 function resolveOptions(opts: ScrollableElementCreationOptions): ScrollableElementResolvedOptions {
-	let result: ScrollableElementResolvedOptions = {
+	const result: ScrollableElementResolvedOptions = {
 		lazyRender: (typeof opts.lazyRender !== 'undefined' ? opts.lazyRender : false),
 		className: (typeof opts.className !== 'undefined' ? opts.className : ''),
 		useShadows: (typeof opts.useShadows !== 'undefined' ? opts.useShadows : true),
