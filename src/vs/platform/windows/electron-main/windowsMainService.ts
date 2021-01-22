@@ -64,7 +64,7 @@ interface IOpenBrowserWindowOptions {
 	readonly emptyWindowBackupInfo?: IEmptyWindowBackupInfo;
 }
 
-interface IPathParseOptions {
+interface IPathResolveOptions {
 	readonly ignoreFileNotFound?: boolean;
 	readonly gotoLineMode?: boolean;
 	readonly remoteAuthority?: string;
@@ -172,7 +172,10 @@ export class WindowsMainService extends Disposable implements IWindowsMainServic
 
 	open(openConfig: IOpenConfiguration): ICodeWindow[] {
 		this.logService.trace('windowsManager#open');
-		openConfig = this.validateOpenConfig(openConfig);
+
+		if (openConfig.addMode && (openConfig.initialStartup || !this.getLastActiveWindow())) {
+			openConfig.addMode = false; // Make sure addMode is only enabled if we have an active window
+		}
 
 		const foldersToAdd: ISingleFolderWorkspacePathToOpen[] = [];
 		const foldersToOpen: ISingleFolderWorkspacePathToOpen[] = [];
@@ -313,16 +316,6 @@ export class WindowsMainService extends Disposable implements IWindowsMainServic
 		}
 
 		return usedWindows;
-	}
-
-	private validateOpenConfig(config: IOpenConfiguration): IOpenConfiguration {
-
-		// Make sure addMode is only enabled if we have an active window
-		if (config.addMode && (config.initialStartup || !this.getLastActiveWindow())) {
-			config.addMode = false;
-		}
-
-		return config;
 	}
 
 	private doOpen(
@@ -536,7 +529,6 @@ export class WindowsMainService extends Disposable implements IWindowsMainServic
 			filesToWait: filesToOpen?.filesToWait,
 			termProgram: configuration?.userEnv?.['TERM_PROGRAM']
 		};
-
 		window.sendWhenReady('vscode:openFiles', CancellationToken.None, params);
 
 		return window;
@@ -548,7 +540,6 @@ export class WindowsMainService extends Disposable implements IWindowsMainServic
 		window.focus(); // make sure window has focus
 
 		const request: IAddFoldersRequest = { foldersToAdd };
-
 		window.sendWhenReady('vscode:addFolders', CancellationToken.None, request);
 
 		return window;
@@ -611,6 +602,7 @@ export class WindowsMainService extends Disposable implements IWindowsMainServic
 			if (pathsToOpen.length === 0) {
 				pathsToOpen.push(Object.create(null)); // add an empty window if we did not have windows to open from command line
 			}
+
 			isCommandLineOrAPICall = true;
 		}
 
@@ -620,6 +612,7 @@ export class WindowsMainService extends Disposable implements IWindowsMainServic
 			if (pathsToOpen.length === 0) {
 				pathsToOpen.push(Object.create(null)); // add an empty window if we did not have windows to restore
 			}
+
 			restoredWindows = true;
 		}
 
@@ -655,30 +648,30 @@ export class WindowsMainService extends Disposable implements IWindowsMainServic
 
 	private doExtractPathsFromAPI(openConfig: IOpenConfiguration): IPathToOpen[] {
 		const pathsToOpen: IPathToOpen[] = [];
-		const parseOptions: IPathParseOptions = { gotoLineMode: openConfig.gotoLineMode };
-		for (const pathToOpen of openConfig.urisToOpen || []) {
-			if (!pathToOpen) {
-				continue;
-			}
+		const pathResolveOptions: IPathResolveOptions = { gotoLineMode: openConfig.gotoLineMode };
+		for (const pathToOpen of coalesce(openConfig.urisToOpen || [])) {
+			const path = this.resolveUri(pathToOpen, pathResolveOptions);
 
-			const path = this.resolveUri(pathToOpen, parseOptions);
+			// Path exists
 			if (path) {
 				path.label = pathToOpen.label;
 				pathsToOpen.push(path);
-			} else {
-				const uri = this.resourceFromURIToOpen(pathToOpen);
+			}
 
-				// Warn about the invalid URI or path
-				let message, detail;
-				if (uri.scheme === Schemas.file) {
-					message = localize('pathNotExistTitle', "Path does not exist");
-					detail = localize('pathNotExistDetail', "The path '{0}' does not seem to exist anymore on disk.", getPathLabel(uri.fsPath, this.environmentService));
-				} else {
-					message = localize('uriInvalidTitle', "URI can not be opened");
-					detail = localize('uriInvalidDetail', "The URI '{0}' is not valid and can not be opened.", uri.toString());
-				}
+			// Path does not exist: show a warning box
+			else {
+				const uri = this.resourceFromOpenable(pathToOpen);
 
-				const options: MessageBoxOptions = { title: product.nameLong, type: 'info', buttons: [localize('ok', "OK")], message, detail, noLink: true };
+				const options: MessageBoxOptions = {
+					title: product.nameLong,
+					type: 'info',
+					buttons: [localize('ok', "OK")],
+					message: uri.scheme === Schemas.file ? localize('pathNotExistTitle', "Path does not exist") : localize('uriInvalidTitle', "URI can not be opened"),
+					detail: uri.scheme === Schemas.file ?
+						localize('pathNotExistDetail', "The path '{0}' does not seem to exist anymore on disk.", getPathLabel(uri.fsPath, this.environmentService)) :
+						localize('uriInvalidDetail', "The URI '{0}' is not valid and can not be opened.", uri.toString()),
+					noLink: true
+				};
 
 				this.dialogMainService.showMessageBox(options, withNullAsUndefined(BrowserWindow.getFocusedWindow()));
 			}
@@ -689,7 +682,7 @@ export class WindowsMainService extends Disposable implements IWindowsMainServic
 
 	private doExtractPathsFromCLI(cli: NativeParsedArgs): IPath[] {
 		const pathsToOpen: IPathToOpen[] = [];
-		const parseOptions: IPathParseOptions = { ignoreFileNotFound: true, gotoLineMode: cli.goto, remoteAuthority: cli.remote || undefined };
+		const pathResolveOptions: IPathResolveOptions = { ignoreFileNotFound: true, gotoLineMode: cli.goto, remoteAuthority: cli.remote || undefined };
 
 		// folder uris
 		const folderUris = cli['folder-uri'];
@@ -697,7 +690,7 @@ export class WindowsMainService extends Disposable implements IWindowsMainServic
 			for (const rawFolderUri of folderUris) {
 				const folderUri = this.argToUri(rawFolderUri);
 				if (folderUri) {
-					const path = this.resolveUri({ folderUri }, parseOptions);
+					const path = this.resolveUri({ folderUri }, pathResolveOptions);
 					if (path) {
 						pathsToOpen.push(path);
 					}
@@ -711,7 +704,7 @@ export class WindowsMainService extends Disposable implements IWindowsMainServic
 			for (const rawFileUri of fileUris) {
 				const fileUri = this.argToUri(rawFileUri);
 				if (fileUri) {
-					const path = this.resolveUri(hasWorkspaceFileExtension(rawFileUri) ? { workspaceUri: fileUri } : { fileUri }, parseOptions);
+					const path = this.resolveUri(hasWorkspaceFileExtension(rawFileUri) ? { workspaceUri: fileUri } : { fileUri }, pathResolveOptions);
 					if (path) {
 						pathsToOpen.push(path);
 					}
@@ -722,18 +715,30 @@ export class WindowsMainService extends Disposable implements IWindowsMainServic
 		// folder or file paths
 		const cliPaths = cli._;
 		for (const cliPath of cliPaths) {
-			const path = this.resolvePath(cliPath, parseOptions);
+			const path = this.resolvePath(cliPath, pathResolveOptions);
 			if (path) {
 				pathsToOpen.push(path);
 			}
 		}
 
-		if (pathsToOpen.length) {
-			return pathsToOpen;
+		return pathsToOpen;
+	}
+
+	private argToUri(arg: string): URI | undefined {
+		try {
+			const uri = URI.parse(arg);
+			if (!uri.scheme) {
+				this.logService.error(`Invalid URI input string, scheme missing: ${arg}`);
+
+				return undefined;
+			}
+
+			return uri;
+		} catch (e) {
+			this.logService.error(`Invalid URI input string: ${arg}, ${e.message}`);
 		}
 
-		// No path provided
-		return [];
+		return undefined;
 	}
 
 	private doGetPathsFromLastSession(): IPathToOpen[] {
@@ -807,51 +812,29 @@ export class WindowsMainService extends Disposable implements IWindowsMainServic
 		return restoreWindows;
 	}
 
-	private argToUri(arg: string): URI | undefined {
-		try {
-			const uri = URI.parse(arg);
-			if (!uri.scheme) {
-				this.logService.error(`Invalid URI input string, scheme missing: ${arg}`);
-
-				return undefined;
-			}
-
-			return uri;
-		} catch (e) {
-			this.logService.error(`Invalid URI input string: ${arg}, ${e.message}`);
-		}
-
-		return undefined;
-	}
-
-	private resolveUri(toOpen: IWindowOpenable, options: IPathParseOptions = {}): IPathToOpen | undefined {
-		if (!toOpen) {
-			return undefined;
-		}
+	private resolveUri(openable: IWindowOpenable, options: IPathResolveOptions = {}): IPathToOpen | undefined {
 
 		// handle local openables with some extra validation
-		let uri = this.resourceFromURIToOpen(toOpen);
+		let uri = this.resourceFromOpenable(openable);
 		if (uri.scheme === Schemas.file) {
-			return this.resolvePath(uri.fsPath, options, isFileToOpen(toOpen));
+			return this.resolvePath(uri.fsPath, options, isFileToOpen(openable));
 		}
 
 		// handle remote openables
-		return this.resolveRemoteUri(uri, toOpen, options);
+		return this.resolveRemoteUri(openable, options);
 	}
 
-	private resolveRemoteUri(uri: URI, toOpen: IWindowOpenable, options: IPathParseOptions = {}): IPathToOpen | undefined {
+	private resolveRemoteUri(openable: IWindowOpenable, options: IPathResolveOptions = {}): IPathToOpen | undefined {
+		let uri = this.resourceFromOpenable(openable);
 
 		// open remote if either specified in the cli or if it's a remotehost URI
 		const remoteAuthority = options.remoteAuthority || getRemoteAuthority(uri);
 
 		// normalize URI
-		uri = normalizePath(uri);
-
-		// remove trailing slash
-		uri = removeTrailingPathSeparator(uri);
+		uri = removeTrailingPathSeparator(normalizePath(uri));
 
 		// Remote File
-		if (isFileToOpen(toOpen)) {
+		if (isFileToOpen(openable)) {
 			if (options.gotoLineMode) {
 				const { path, line, column } = parseLineAndColumnAware(uri.path);
 
@@ -867,7 +850,7 @@ export class WindowsMainService extends Disposable implements IWindowsMainServic
 		}
 
 		// Remote Workspace
-		else if (isWorkspaceToOpen(toOpen)) {
+		else if (isWorkspaceToOpen(openable)) {
 			return { workspace: getWorkspaceIdentifier(uri), remoteAuthority };
 		}
 
@@ -875,7 +858,7 @@ export class WindowsMainService extends Disposable implements IWindowsMainServic
 		return { workspace: getSingleFolderWorkspaceIdentifier(uri), remoteAuthority };
 	}
 
-	private resourceFromURIToOpen(openable: IWindowOpenable): URI {
+	private resourceFromOpenable(openable: IWindowOpenable): URI {
 		if (isWorkspaceToOpen(openable)) {
 			return openable.workspaceUri;
 		}
@@ -887,7 +870,7 @@ export class WindowsMainService extends Disposable implements IWindowsMainServic
 		return openable.fileUri;
 	}
 
-	private resolvePath(path: string, options: IPathParseOptions, forceOpenWorkspaceAsFile?: boolean): IPathToOpen | undefined {
+	private resolvePath(path: string, options: IPathResolveOptions, forceOpenWorkspaceAsFile?: boolean): IPathToOpen | undefined {
 		if (!path) {
 			return undefined;
 		}
@@ -947,7 +930,7 @@ export class WindowsMainService extends Disposable implements IWindowsMainServic
 		return { workspace: getSingleFolderWorkspaceIdentifier(uri), remoteAuthority };
 	}
 
-	private resolveLocalPath(path: string, options: IPathParseOptions, lineNumber: number | undefined, columnNumber: number | undefined, forceOpenWorkspaceAsFile?: boolean): IPathToOpen | undefined {
+	private resolveLocalPath(path: string, options: IPathResolveOptions, lineNumber: number | undefined, columnNumber: number | undefined, forceOpenWorkspaceAsFile?: boolean): IPathToOpen | undefined {
 
 		// Ensure the path is normalized and absolute
 		path = sanitizeFilePath(normalize(path), process.env['VSCODE_CWD'] || process.cwd());
