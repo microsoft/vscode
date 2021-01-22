@@ -44,8 +44,7 @@ function asDisposable(groups: ReadonlyArray<[string, ReadonlyArray<MenuItemActio
 }
 
 function fillInActions(groups: ReadonlyArray<[string, ReadonlyArray<MenuItemAction | SubmenuItemAction>]>, target: IAction[] | { primary: IAction[]; secondary: IAction[]; }, useAlternativeActions: boolean, isPrimaryGroup: (group: string) => boolean = group => group === 'navigation'): void {
-	for (let tuple of groups) {
-		let [group, actions] = tuple;
+	for (let [group, actions] of groups) {
 		if (useAlternativeActions) {
 			actions = actions.map(a => (a instanceof MenuItemAction) && !!a.alt ? a.alt : a);
 		}
@@ -215,8 +214,7 @@ export class SubmenuEntryActionViewItem extends DropdownMenuActionViewItem {
 
 	constructor(
 		action: SubmenuItemAction,
-		@INotificationService _notificationService: INotificationService,
-		@IContextMenuService _contextMenuService: IContextMenuService
+		@IContextMenuService contextMenuService: IContextMenuService
 	) {
 		let classNames: string | string[] | undefined;
 
@@ -238,6 +236,6 @@ export class SubmenuEntryActionViewItem extends DropdownMenuActionViewItem {
 			}
 		}
 
-		super(action, action.actions, _contextMenuService, { classNames: classNames, menuAsChild: true });
+		super(action, action.actions, contextMenuService, { classNames: classNames, menuAsChild: true });
 	}
 }
