@@ -3,10 +3,10 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { createCSSRule, asCSSUrl, ModifierKeyEmitter } from 'vs/base/browser/dom';
+import 'vs/css!./menuEntryActionViewItem';
+import { asCSSUrl, ModifierKeyEmitter } from 'vs/base/browser/dom';
 import { domEvent } from 'vs/base/browser/event';
 import { IAction, Separator } from 'vs/base/common/actions';
-import { IdGenerator } from 'vs/base/common/idGenerator';
 import { IDisposable, toDisposable, MutableDisposable, DisposableStore } from 'vs/base/common/lifecycle';
 import { localize } from 'vs/nls';
 import { ICommandAction, IMenu, IMenuActionOptions, MenuItemAction, SubmenuItemAction, Icon } from 'vs/platform/actions/common/actions';
@@ -65,10 +65,6 @@ function fillInActions(groups: ReadonlyArray<[string, ReadonlyArray<MenuItemActi
 	}
 }
 
-const ids = new IdGenerator('menu-item-action-item-icon-');
-
-const ICON_PATH_TO_CSS_RULES = new Map<string /* path*/, string /* CSS rule */>();
-
 export class MenuEntryActionViewItem extends ActionViewItem {
 
 	private _wantsAltCommand: boolean = false;
@@ -84,7 +80,7 @@ export class MenuEntryActionViewItem extends ActionViewItem {
 		this._altKey = ModifierKeyEmitter.getInstance();
 	}
 
-	protected get _commandAction(): IAction {
+	protected get _commandAction(): MenuItemAction {
 		return this._wantsAltCommand && (<MenuItemAction>this._action).alt || this._action;
 	}
 
@@ -92,12 +88,14 @@ export class MenuEntryActionViewItem extends ActionViewItem {
 		event.preventDefault();
 		event.stopPropagation();
 
-		this.actionRunner.run(this._commandAction, this._context)
-			.then(undefined, err => this._notificationService.error(err));
+		this.actionRunner
+			.run(this._commandAction, this._context)
+			.catch(err => this._notificationService.error(err));
 	}
 
 	render(container: HTMLElement): void {
 		super.render(container);
+		container.classList.add('menu-entry');
 
 		this._updateItemClass(this._action.item);
 
@@ -166,46 +164,37 @@ export class MenuEntryActionViewItem extends ActionViewItem {
 	private _updateItemClass(item: ICommandAction): void {
 		this._itemClassDispose.value = undefined;
 
+		const { element, label } = this;
+		if (!element || !label) {
+			return;
+		}
+
 		const icon = this._commandAction.checked && (item.toggled as { icon?: Icon })?.icon ? (item.toggled as { icon: Icon }).icon : item.icon;
+
+		if (!icon) {
+			return;
+		}
 
 		if (ThemeIcon.isThemeIcon(icon)) {
 			// theme icons
 			const iconClass = ThemeIcon.asClassName(icon);
-			if (this.label && iconClass) {
-				this.label.classList.add(...iconClass.split(' '));
-				this._itemClassDispose.value = toDisposable(() => {
-					if (this.label) {
-						this.label.classList.remove(...iconClass.split(' '));
-					}
-				});
+			label.classList.add(...iconClass.split(' '));
+			this._itemClassDispose.value = toDisposable(() => {
+				label.classList.remove(...iconClass.split(' '));
+			});
+
+		} else {
+			// icon path/url
+			if (icon.light) {
+				label.style.setProperty('--menu-entry-icon-light', asCSSUrl(icon.light));
 			}
-
-		} else if (icon) {
-			// icon path
-			let iconClass: string;
-
-			if (icon.dark?.scheme) {
-
-				const iconPathMapKey = icon.dark.toString();
-
-				if (ICON_PATH_TO_CSS_RULES.has(iconPathMapKey)) {
-					iconClass = ICON_PATH_TO_CSS_RULES.get(iconPathMapKey)!;
-				} else {
-					iconClass = ids.nextId();
-					createCSSRule(`.icon.${iconClass}`, `background-image: ${asCSSUrl(icon.light || icon.dark)}`);
-					createCSSRule(`.vs-dark .icon.${iconClass}, .hc-black .icon.${iconClass}`, `background-image: ${asCSSUrl(icon.dark)}`);
-					ICON_PATH_TO_CSS_RULES.set(iconPathMapKey, iconClass);
-				}
-
-				if (this.label) {
-					this.label.classList.add('icon', ...iconClass.split(' '));
-					this._itemClassDispose.value = toDisposable(() => {
-						if (this.label) {
-							this.label.classList.remove('icon', ...iconClass.split(' '));
-						}
-					});
-				}
+			if (icon.dark) {
+				label.style.setProperty('--menu-entry-icon-dark', asCSSUrl(icon.dark));
 			}
+			this._itemClassDispose.value = toDisposable(() => {
+				label.style.removeProperty('--menu-entry-icon-light');
+				label.style.removeProperty('--menu-entry-icon-dark');
+			});
 		}
 	}
 }
@@ -216,26 +205,25 @@ export class SubmenuEntryActionViewItem extends DropdownMenuActionViewItem {
 		action: SubmenuItemAction,
 		@IContextMenuService contextMenuService: IContextMenuService
 	) {
-		let classNames: string | string[] | undefined;
+		super(action, action.actions, contextMenuService, {
+			menuAsChild: true,
+			classNames: ThemeIcon.isThemeIcon(action.item.icon) ? ThemeIcon.asClassName(action.item.icon) : undefined,
+		});
+	}
 
-		if (action.item.icon) {
-			if (ThemeIcon.isThemeIcon(action.item.icon)) {
-				classNames = ThemeIcon.asClassName(action.item.icon)!;
-			} else if (action.item.icon.dark?.scheme) {
-				const iconPathMapKey = action.item.icon.dark.toString();
-
-				if (ICON_PATH_TO_CSS_RULES.has(iconPathMapKey)) {
-					classNames = ['icon', ICON_PATH_TO_CSS_RULES.get(iconPathMapKey)!];
-				} else {
-					const className = ids.nextId();
-					classNames = ['icon', className];
-					createCSSRule(`.icon.${className}`, `background-image: ${asCSSUrl(action.item.icon.light || action.item.icon.dark)}`);
-					createCSSRule(`.vs-dark .icon.${className}, .hc-black .icon.${className}`, `background-image: ${asCSSUrl(action.item.icon.dark)}`);
-					ICON_PATH_TO_CSS_RULES.set(iconPathMapKey, className);
+	render(container: HTMLElement): void {
+		super.render(container);
+		if (this.element) {
+			container.classList.add('menu-entry');
+			const { icon } = (<SubmenuItemAction>this._action).item;
+			if (icon && !ThemeIcon.isThemeIcon(icon)) {
+				if (icon.light) {
+					this.element.style.setProperty('--menu-entry-icon-light', asCSSUrl(icon.light));
+				}
+				if (icon.dark) {
+					this.element.style.setProperty('--menu-entry-icon-dark', asCSSUrl(icon.dark));
 				}
 			}
 		}
-
-		super(action, action.actions, contextMenuService, { classNames: classNames, menuAsChild: true });
 	}
 }

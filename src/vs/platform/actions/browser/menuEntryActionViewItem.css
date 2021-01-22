@@ -1,0 +1,13 @@
+/*---------------------------------------------------------------------------------------------
+ *  Copyright (c) Microsoft Corporation. All rights reserved.
+ *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *--------------------------------------------------------------------------------------------*/
+
+.monaco-action-bar .action-item.menu-entry .action-label {
+	background-image: var(--menu-entry-icon-light);
+}
+
+.vs-dark .monaco-action-bar .action-item.menu-entry .action-label,
+.hc-black .monaco-action-bar .action-item.menu-entry .action-label {
+	background-image: var(--menu-entry-icon-dark);
+}
