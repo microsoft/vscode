@@ -201,6 +201,7 @@ export interface IHideMarkdownMessage {
 export interface IShowMarkdownMessage {
 	type: 'showMarkdownPreview',
 	id: string;
+	content: string;
 	top: number;
 }
 
@@ -888,7 +889,7 @@ var requirejs = (function() {
 		});
 	}
 
-	async showMarkdownPreview(cellId: string, cellTop: number) {
+	async showMarkdownPreview(cellId: string, content: string, cellTop: number) {
 		if (this._disposed) {
 			return;
 		}
@@ -896,6 +897,7 @@ var requirejs = (function() {
 		this._sendMessageToWebview({
 			type: 'showMarkdownPreview',
 			id: cellId,
+			content: content,
 			top: cellTop
 		});
 	}

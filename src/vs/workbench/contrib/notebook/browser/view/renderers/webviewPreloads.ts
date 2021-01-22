@@ -432,6 +432,7 @@ function webviewPreloads() {
 					if (previewNode) {
 						previewNode.style.top = `${data.top}px`;
 					}
+					updateMarkdownPreview(data.id, data.content);
 				}
 				break;
 			case 'hideMarkdownPreview':
@@ -700,10 +701,18 @@ function webviewPreloads() {
 				isOutput: false
 			});
 		} else {
-			const previewNode = document.getElementById(`${cellId}_container`);
-			if (previewNode) {
-				previewNode.innerText = content;
-			}
+			updateMarkdownPreview(cellId, content);
+		}
+	}
+
+	function updateMarkdownPreview(cellId: string, content: string) {
+		const previewNode = document.getElementById(`${cellId}_preview`);
+		if (previewNode) {
+			// TODO: handle namespace
+			onDidCreateMarkdown.fire([undefined /* data.apiNamespace */, {
+				element: previewNode,
+				content: content
+			}]);
 		}
 	}
 }
