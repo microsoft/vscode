@@ -81,8 +81,7 @@
 	 *	colorScheme: ('light' | 'dark' | 'hc'),
 	 *	autoDetectHighContrast?: boolean,
 	 *	extensionDevelopmentPath?: string[],
-	 *	folderUri?: object,
-	 *	workspace?: object
+	 *	workspace?: import('../../../platform/workspaces/common/workspaces').IWorkspaceIdentifier | import('../../../platform/workspaces/common/workspaces').ISingleFolderWorkspaceIdentifier
 	 * }} configuration
 	 */
 	function showPartsSplash(configuration) {
@@ -161,7 +160,7 @@
 			splash.appendChild(activityDiv);
 
 			// part: side bar (only when opening workspace/folder)
-			if (configuration.folderUri || configuration.workspace) {
+			if (configuration.workspace) {
 				// folder or workspace -> status bar color, sidebar
 				const sideDiv = document.createElement('div');
 				sideDiv.setAttribute('style', `position: absolute; height: calc(100% - ${layoutInfo.titleBarHeight}px); top: ${layoutInfo.titleBarHeight}px; ${layoutInfo.sideBarSide}: ${layoutInfo.activityBarWidth}px; width: ${layoutInfo.sideBarWidth}px; background-color: ${colorInfo.sideBarBackground};`);
@@ -170,7 +169,7 @@
 
 			// part: statusbar
 			const statusDiv = document.createElement('div');
-			statusDiv.setAttribute('style', `position: absolute; width: 100%; bottom: 0; left: 0; height: ${layoutInfo.statusBarHeight}px; background-color: ${configuration.folderUri || configuration.workspace ? colorInfo.statusBarBackground : colorInfo.statusBarNoFolderBackground};`);
+			statusDiv.setAttribute('style', `position: absolute; width: 100%; bottom: 0; left: 0; height: ${layoutInfo.statusBarHeight}px; background-color: ${configuration.workspace ? colorInfo.statusBarBackground : colorInfo.statusBarNoFolderBackground};`);
 			splash.appendChild(statusDiv);
 
 			document.body.appendChild(splash);

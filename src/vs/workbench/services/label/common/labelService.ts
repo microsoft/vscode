@@ -14,7 +14,7 @@ import { IEnvironmentService } from 'vs/platform/environment/common/environment'
 import { IWorkspaceContextService, IWorkspace } from 'vs/platform/workspace/common/workspace';
 import { basenameOrAuthority, basename, joinPath, dirname } from 'vs/base/common/resources';
 import { tildify, getPathLabel } from 'vs/base/common/labels';
-import { IWorkspaceIdentifier, ISingleFolderWorkspaceIdentifier, isSingleFolderWorkspaceIdentifier, WORKSPACE_EXTENSION, toWorkspaceIdentifier, isWorkspaceIdentifier, isUntitledWorkspace } from 'vs/platform/workspaces/common/workspaces';
+import { IWorkspaceIdentifier, WORKSPACE_EXTENSION, toWorkspaceIdentifier, isWorkspaceIdentifier, isUntitledWorkspace, isSingleFolderWorkspaceIdentifier, ISingleFolderWorkspaceIdentifier } from 'vs/platform/workspaces/common/workspaces';
 import { ILabelService, ResourceLabelFormatter, ResourceLabelFormatting, IFormatterChangeEvent } from 'vs/platform/label/common/label';
 import { ExtensionsRegistry } from 'vs/workbench/services/extensions/common/extensionsRegistry';
 import { match } from 'vs/base/common/glob';
@@ -180,44 +180,60 @@ export class LabelService extends Disposable implements ILabelService {
 		return paths.basename(label);
 	}
 
-	getWorkspaceLabel(workspace: (IWorkspaceIdentifier | ISingleFolderWorkspaceIdentifier | IWorkspace), options?: { verbose: boolean }): string {
+	getWorkspaceLabel(workspace: IWorkspace | IWorkspaceIdentifier | ISingleFolderWorkspaceIdentifier | URI, options?: { verbose: boolean }): string {
 		if (IWorkspace.isIWorkspace(workspace)) {
 			const identifier = toWorkspaceIdentifier(workspace);
-			if (!identifier) {
-				return '';
+			if (identifier) {
+				return this.getWorkspaceLabel(identifier, options);
 			}
 
-			workspace = identifier;
+			return '';
 		}
 
-		// Workspace: Single Folder
+		// Workspace: Single Folder (as URI)
+		if (URI.isUri(workspace)) {
+			return this.doGetSingleFolderWorkspaceLabel(workspace, options);
+		}
+
+		// Workspace: Single Folder (as workspace identifier)
 		if (isSingleFolderWorkspaceIdentifier(workspace)) {
-			// Folder on disk
-			const label = options && options.verbose ? this.getUriLabel(workspace) : basename(workspace) || '/';
-			return this.appendWorkspaceSuffix(label, workspace);
+			return this.doGetSingleFolderWorkspaceLabel(workspace.uri, options);
 		}
 
+		// Workspace: Multi Root
 		if (isWorkspaceIdentifier(workspace)) {
-			// Workspace: Untitled
-			if (isUntitledWorkspace(workspace.configPath, this.environmentService)) {
-				return localize('untitledWorkspace', "Untitled (Workspace)");
-			}
-
-			// Workspace: Saved
-			let filename = basename(workspace.configPath);
-			if (filename.endsWith(WORKSPACE_EXTENSION)) {
-				filename = filename.substr(0, filename.length - WORKSPACE_EXTENSION.length - 1);
-			}
-			let label;
-			if (options && options.verbose) {
-				label = localize('workspaceNameVerbose', "{0} (Workspace)", this.getUriLabel(joinPath(dirname(workspace.configPath), filename)));
-			} else {
-				label = localize('workspaceName', "{0} (Workspace)", filename);
-			}
-			return this.appendWorkspaceSuffix(label, workspace.configPath);
+			return this.doGetWorkspaceLabel(workspace.configPath, options);
 		}
-		return '';
 
+		return '';
+	}
+
+	private doGetWorkspaceLabel(workspaceUri: URI, options?: { verbose: boolean }): string {
+
+		// Workspace: Untitled
+		if (isUntitledWorkspace(workspaceUri, this.environmentService)) {
+			return localize('untitledWorkspace', "Untitled (Workspace)");
+		}
+
+		// Workspace: Saved
+		let filename = basename(workspaceUri);
+		if (filename.endsWith(WORKSPACE_EXTENSION)) {
+			filename = filename.substr(0, filename.length - WORKSPACE_EXTENSION.length - 1);
+		}
+
+		let label;
+		if (options && options.verbose) {
+			label = localize('workspaceNameVerbose', "{0} (Workspace)", this.getUriLabel(joinPath(dirname(workspaceUri), filename)));
+		} else {
+			label = localize('workspaceName', "{0} (Workspace)", filename);
+		}
+
+		return this.appendWorkspaceSuffix(label, workspaceUri);
+	}
+
+	private doGetSingleFolderWorkspaceLabel(folderUri: URI, options?: { verbose: boolean }): string {
+		const label = options && options.verbose ? this.getUriLabel(folderUri) : basename(folderUri) || '/';
+		return this.appendWorkspaceSuffix(label, folderUri);
 	}
 
 	getSeparator(scheme: string, authority?: string): '/' | '\\' {

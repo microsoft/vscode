@@ -3,12 +3,12 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { IWorkspaceIdentifier, hasWorkspaceFileExtension, UNTITLED_WORKSPACE_NAME, IResolvedWorkspace, IStoredWorkspaceFolder, isStoredWorkspaceFolder, IWorkspaceFolderCreationData, IUntitledWorkspaceInfo, getStoredWorkspaceFolder, IEnterWorkspaceResult, isUntitledWorkspace } from 'vs/platform/workspaces/common/workspaces';
+import { IWorkspaceIdentifier, hasWorkspaceFileExtension, UNTITLED_WORKSPACE_NAME, IResolvedWorkspace, IStoredWorkspaceFolder, isStoredWorkspaceFolder, IWorkspaceFolderCreationData, IUntitledWorkspaceInfo, getStoredWorkspaceFolder, IEnterWorkspaceResult, isUntitledWorkspace, isWorkspaceIdentifier, ISingleFolderWorkspaceIdentifier } from 'vs/platform/workspaces/common/workspaces';
 import { IEnvironmentMainService } from 'vs/platform/environment/electron-main/environmentMainService';
 import { join, dirname } from 'vs/base/common/path';
 import { mkdirp, writeFile, rimrafSync, readdirSync, writeFileSync } from 'vs/base/node/pfs';
-import { readFileSync, existsSync, mkdirSync } from 'fs';
-import { isLinux, isWindows } from 'vs/base/common/platform';
+import { readFileSync, existsSync, mkdirSync, statSync, Stats } from 'fs';
+import { isLinux, isMacintosh, isWindows } from 'vs/base/common/platform';
 import { Event, Emitter } from 'vs/base/common/event';
 import { ILogService } from 'vs/platform/log/common/log';
 import { createHash } from 'crypto';
@@ -271,7 +271,7 @@ export class WorkspacesMainService extends Disposable implements IWorkspacesMain
 			return true;
 		}
 
-		if (window.openedWorkspace && extUriBiasedIgnorePathCase.isEqual(window.openedWorkspace.configPath, workspacePath)) {
+		if (isWorkspaceIdentifier(window.openedWorkspace) && extUriBiasedIgnorePathCase.isEqual(window.openedWorkspace.configPath, workspacePath)) {
 			return false; // window is already opened on a workspace with that path
 		}
 
@@ -308,12 +308,11 @@ export class WorkspacesMainService extends Disposable implements IWorkspacesMain
 		}
 
 		// if the window was opened on an untitled workspace, delete it.
-		if (window.openedWorkspace && this.isUntitledWorkspace(window.openedWorkspace)) {
+		if (isWorkspaceIdentifier(window.openedWorkspace) && this.isUntitledWorkspace(window.openedWorkspace)) {
 			this.deleteUntitledWorkspaceSync(window.openedWorkspace);
 		}
 
 		// Update window configuration properly based on transition to workspace
-		window.config.folderUri = undefined;
 		window.config.workspace = workspace;
 		window.config.backupPath = backupPath;
 
@@ -321,18 +320,76 @@ export class WorkspacesMainService extends Disposable implements IWorkspacesMain
 	}
 }
 
-function getWorkspaceId(configPath: URI): string {
-	let workspaceConfigPath = configPath.scheme === Schemas.file ? originalFSPath(configPath) : configPath.toString();
-	if (!isLinux) {
-		workspaceConfigPath = workspaceConfigPath.toLowerCase(); // sanitize for platform file system
-	}
-
-	return createHash('md5').update(workspaceConfigPath).digest('hex');
-}
+// !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
+// NOTE: DO NOT CHANGE. IDENTIFIERS HAVE TO REMAIN STABLE
+// !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
 
 export function getWorkspaceIdentifier(configPath: URI): IWorkspaceIdentifier {
+
+	function getWorkspaceId(): string {
+		let configPathStr = configPath.scheme === Schemas.file ? originalFSPath(configPath) : configPath.toString();
+		if (!isLinux) {
+			configPathStr = configPathStr.toLowerCase(); // sanitize for platform file system
+		}
+
+		return createHash('md5').update(configPathStr).digest('hex');
+	}
+
 	return {
-		configPath,
-		id: getWorkspaceId(configPath)
+		id: getWorkspaceId(),
+		configPath
 	};
+}
+
+// !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
+// NOTE: DO NOT CHANGE. IDENTIFIERS HAVE TO REMAIN STABLE
+// !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
+
+export function getSingleFolderWorkspaceIdentifier(folderUri: URI): ISingleFolderWorkspaceIdentifier | undefined;
+export function getSingleFolderWorkspaceIdentifier(folderUri: URI, folderStat: Stats): ISingleFolderWorkspaceIdentifier;
+export function getSingleFolderWorkspaceIdentifier(folderUri: URI, folderStat?: Stats): ISingleFolderWorkspaceIdentifier | undefined {
+
+	function getFolderId(): string | undefined {
+
+		// Remote: produce a hash from the entire URI
+		if (folderUri.scheme !== Schemas.file) {
+			return createHash('md5').update(folderUri.toString()).digest('hex');
+		}
+
+		// Local: produce a hash from the path and include creation time as salt
+		if (!folderStat) {
+			try {
+				folderStat = statSync(folderUri.fsPath);
+			} catch (error) {
+				return undefined; // folder does not exist
+			}
+		}
+
+		let ctime: number | undefined;
+		if (isLinux) {
+			ctime = folderStat.ino; // Linux: birthtime is ctime, so we cannot use it! We use the ino instead!
+		} else if (isMacintosh) {
+			ctime = folderStat.birthtime.getTime(); // macOS: birthtime is fine to use as is
+		} else if (isWindows) {
+			if (typeof folderStat.birthtimeMs === 'number') {
+				ctime = Math.floor(folderStat.birthtimeMs); // Windows: fix precision issue in node.js 8.x to get 7.x results (see https://github.com/nodejs/node/issues/19897)
+			} else {
+				ctime = folderStat.birthtime.getTime();
+			}
+		}
+
+		// we use the ctime as extra salt to the ID so that we catch the case of a folder getting
+		// deleted and recreated. in that case we do not want to carry over previous state
+		return createHash('md5').update(folderUri.fsPath).update(ctime ? String(ctime) : '').digest('hex');
+	}
+
+	const folderId = getFolderId();
+	if (typeof folderId === 'string') {
+		return {
+			id: folderId,
+			uri: folderUri
+		};
+	}
+
+	return undefined; // invalid folder
 }

@@ -105,7 +105,6 @@ export class NativeHostMainService extends Disposable implements INativeHostMain
 		return windows.map(window => ({
 			id: window.id,
 			workspace: window.openedWorkspace,
-			folderUri: window.openedFolderUri,
 			title: window.win.getTitle(),
 			filename: window.getRepresentedFilename(),
 			dirty: window.isDocumentEdited()

@@ -10,7 +10,7 @@ import * as path from 'vs/base/common/path';
 import * as pfs from 'vs/base/node/pfs';
 import { EnvironmentMainService } from 'vs/platform/environment/electron-main/environmentMainService';
 import { parseArgs, OPTIONS } from 'vs/platform/environment/node/argv';
-import { WorkspacesMainService, IStoredWorkspace } from 'vs/platform/workspaces/electron-main/workspacesMainService';
+import { WorkspacesMainService, IStoredWorkspace, getSingleFolderWorkspaceIdentifier, getWorkspaceIdentifier } from 'vs/platform/workspaces/electron-main/workspacesMainService';
 import { WORKSPACE_EXTENSION, IRawFileWorkspaceFolder, IWorkspaceFolderCreationData, IRawUriWorkspaceFolder, rewriteWorkspaceFileForNewLocation, IWorkspaceIdentifier, IStoredWorkspaceFolder } from 'vs/platform/workspaces/common/workspaces';
 import { NullLogService } from 'vs/platform/log/common/log';
 import { URI } from 'vs/base/common/uri';
@@ -105,7 +105,7 @@ export class TestBackupMainService implements IBackupMainService {
 }
 
 suite('WorkspacesMainService', () => {
-	const parentDir = getRandomTestPath(os.tmpdir(), 'vsctests', 'workspacesservice');
+	const parentDir = getRandomTestPath(os.tmpdir(), 'vsctests', 'workspacesmainservice');
 	const untitledWorkspacesHomePath = path.join(parentDir, 'Workspaces');
 
 	class TestEnvironmentService extends EnvironmentMainService {
@@ -147,13 +147,13 @@ suite('WorkspacesMainService', () => {
 		service = new WorkspacesMainService(environmentService, logService, new TestBackupMainService(), new TestDialogMainService());
 
 		// Delete any existing backups completely and then re-create it.
-		await pfs.rimraf(untitledWorkspacesHomePath);
+		await pfs.rimraf(parentDir);
 
 		return pfs.mkdirp(untitledWorkspacesHomePath);
 	});
 
 	teardown(() => {
-		return pfs.rimraf(untitledWorkspacesHomePath);
+		return pfs.rimraf(parentDir);
 	});
 
 	function assertPathEquals(p1: string, p2: string): void {
@@ -447,5 +447,41 @@ suite('WorkspacesMainService', () => {
 		service.deleteUntitledWorkspaceSync(untitledTwo);
 		untitled = service.getUntitledWorkspacesSync();
 		assert.equal(0, untitled.length);
+	});
+
+	test('getSingleWorkspaceIdentifier', async function () {
+		const nonLocalUri = URI.parse('myscheme://server/work/p/f1');
+		const nonLocalUriId = getSingleFolderWorkspaceIdentifier(nonLocalUri);
+		assert.ok(nonLocalUriId?.id);
+
+		const localNonExistingUri = URI.file(path.join(parentDir, 'f1'));
+		const localNonExistingUriId = getSingleFolderWorkspaceIdentifier(localNonExistingUri);
+		assert.ok(!localNonExistingUriId);
+
+		fs.mkdirSync(path.join(parentDir, 'f1'));
+
+		const localExistingUri = URI.file(path.join(parentDir, 'f1'));
+		const localExistingUriId = getSingleFolderWorkspaceIdentifier(localExistingUri);
+		assert.ok(localExistingUriId?.id);
+	});
+
+	test('workspace identifiers are stable', function () {
+
+		// workspace identifier (local)
+		assert.strictEqual(getWorkspaceIdentifier(URI.file('/hello/test')).id, 'e36736311be12ff6d695feefe415b3e8');
+
+		// single folder identifier (local)
+		const fakeStat = {
+			ino: 1611312115129,
+			birthtimeMs: 1611312115129,
+			birthtime: new Date(1611312115129)
+		};
+		assert.strictEqual(getSingleFolderWorkspaceIdentifier(URI.file('/hello/test'), fakeStat as fs.Stats)?.id, '1d726b3d516dc2a6d343abf4797eaaef');
+
+		// workspace identifier (remote)
+		assert.strictEqual(getWorkspaceIdentifier(URI.parse('vscode-remote:/hello/test')).id, '786de4f224d57691f218dc7f31ee2ee3');
+
+		// single folder identifier (remote)
+		assert.strictEqual(getSingleFolderWorkspaceIdentifier(URI.parse('vscode-remote:/hello/test'))?.id, '786de4f224d57691f218dc7f31ee2ee3');
 	});
 });

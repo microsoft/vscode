@@ -58,9 +58,9 @@ export interface IWorkspaceContextService extends IWorkspaceFolderProvider {
 	getWorkspaceFolder(resource: URI): IWorkspaceFolder | null;
 
 	/**
-	 * Return `true` if the current workspace has the given identifier otherwise `false`.
+	 * Return `true` if the current workspace has the given identifier or root URI otherwise `false`.
 	 */
-	isCurrentWorkspace(workspaceIdentifier: ISingleFolderWorkspaceIdentifier | IWorkspaceIdentifier): boolean;
+	isCurrentWorkspace(workspaceIdOrFolder: IWorkspaceIdentifier | ISingleFolderWorkspaceIdentifier | URI): boolean;
 
 	/**
 	 * Returns if the provided resource is inside the workspace or not.
