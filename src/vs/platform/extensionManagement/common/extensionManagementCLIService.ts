@@ -279,12 +279,11 @@ export class ExtensionManagementCLIService implements IExtensionManagementCLISer
 			if (!extensionsToUninstall.length) {
 				throw new Error(`${notInstalled(id)}\n${useId}`);
 			}
-			const first = extensionsToUninstall[0];
-			if (first.type === ExtensionType.System) {
-				output.log(localize('builtin', "Extension '{0}' is a Built-in extension and cannot be installed", id));
+			if (extensionsToUninstall.some(e => e.type === ExtensionType.System)) {
+				output.log(localize('builtin', "Extension '{0}' is a Built-in extension and cannot be uninstalled", id));
 				return;
 			}
-			if (first.isBuiltin && !force) {
+			if (!force && extensionsToUninstall.some(e => e.isBuiltin)) {
 				output.log(localize('forceUninstall', "Extension '{0}' is marked as a Built-in extension by user. Please use '--force' option to uninstall it.", id));
 				return;
 			}
