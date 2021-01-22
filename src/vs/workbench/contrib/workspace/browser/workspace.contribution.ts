@@ -282,24 +282,3 @@ registerAction2(class extends Action2 {
 		return;
 	}
 });
-
-// Require Workspace Trust
-registerAction2(class extends Action2 {
-	constructor() {
-		super({
-			id: 'workbench.trust.require',
-			title: 'Require Workspace Trust',
-			f1: true
-		});
-	}
-
-	run(accessor: ServicesAccessor) {
-		const workspaceTrustService = accessor.get(ITrustedWorkspaceService);
-		workspaceTrustService.requireWorkspaceTrust(
-			{
-				immediate: true,
-				message: 'Do you want to trust the contents of this workspace?'
-			});
-		return;
-	}
-});
