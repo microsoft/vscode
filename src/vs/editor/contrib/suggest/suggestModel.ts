@@ -443,10 +443,6 @@ export class SuggestModel implements IDisposable {
 
 			this._requestToken?.dispose();
 
-			if (this._state === State.Idle) {
-				return;
-			}
-
 			if (!this._editor.hasModel()) {
 				return;
 			}
@@ -454,6 +450,10 @@ export class SuggestModel implements IDisposable {
 			let clipboardText = existing?.clipboardText;
 			if (!clipboardText && completions.needsClipboard) {
 				clipboardText = await this._clipboardService.readText();
+			}
+
+			if (this._state === State.Idle) {
+				return;
 			}
 
 			const model = this._editor.getModel();

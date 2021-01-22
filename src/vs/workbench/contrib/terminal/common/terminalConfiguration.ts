@@ -90,6 +90,11 @@ export const terminalConfiguration: IConfigurationNode = {
 			type: 'boolean',
 			default: false
 		},
+		'terminal.integrated.altClickMovesCursor': {
+			description: localize('terminal.integrated.altClickMovesCursor', "If enabled, alt/option + click will reposition the prompt cursor to underneath the mouse when `#editor.multiCursorModifier#` is set to `'alt'` (the default value). This may not work reliably depending on your shell."),
+			type: 'boolean',
+			default: true
+		},
 		'terminal.integrated.copyOnSelection': {
 			description: localize('terminal.integrated.copyOnSelection', "Controls whether text selected in the terminal will be copied to the clipboard."),
 			type: 'boolean',
@@ -395,6 +400,11 @@ export const terminalConfiguration: IConfigurationNode = {
 		},
 		'terminal.integrated.enablePersistentSessions': {
 			description: localize('terminal.integrated.enablePersistentSessions', "Experimental: persist terminal sessions for the workspace across window reloads. Currently only supported in VS Code Remote workspaces."),
+			type: 'boolean',
+			default: true
+		},
+		'terminal.integrated.flowControl': {
+			description: localize('terminal.integrated.flowControl', "Experimental: whether to enable flow control which will slow the program on the remote side to avoid flooding remote connections with terminal output. This setting has no effect for local terminals and terminals where the output/input is controlled by an extension. Changing this will only affect new terminals."),
 			type: 'boolean',
 			default: true
 		}

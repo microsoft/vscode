@@ -61,7 +61,7 @@ suite('NotebookConcatDocument', function () {
 				viewType: 'test',
 				cells: [{
 					handle: 0,
-					uri: CellUri.generate(notebookUri, 0),
+					uri: CellUri.generate(notebookUri, 'test', 0),
 					source: ['### Heading'],
 					eol: '\n',
 					language: 'markdown',
@@ -91,27 +91,27 @@ suite('NotebookConcatDocument', function () {
 
 	test('empty', function () {
 		let doc = new ExtHostNotebookConcatDocument(extHostNotebooks, extHostDocuments, notebook.notebookDocument, undefined);
-		assert.equal(doc.getText(), '');
-		assert.equal(doc.version, 0);
+		assert.strictEqual(doc.getText(), '');
+		assert.strictEqual(doc.version, 0);
 
-		// assert.equal(doc.locationAt(new Position(0, 0)), undefined);
-		// assert.equal(doc.positionAt(SOME_FAKE_LOCATION?), undefined);
+		// assert.strictEqual(doc.locationAt(new Position(0, 0)), undefined);
+		// assert.strictEqual(doc.positionAt(SOME_FAKE_LOCATION?), undefined);
 	});
 
 
 	function assertLocation(doc: vscode.NotebookConcatTextDocument, pos: Position, expected: Location, reverse = true) {
 		const actual = doc.locationAt(pos);
-		assert.equal(actual.uri.toString(), expected.uri.toString());
-		assert.equal(actual.range.isEqual(expected.range), true);
+		assert.strictEqual(actual.uri.toString(), expected.uri.toString());
+		assert.strictEqual(actual.range.isEqual(expected.range), true);
 
 		if (reverse) {
 			// reverse - offset
 			const offset = doc.offsetAt(pos);
-			assert.equal(doc.positionAt(offset).isEqual(pos), true);
+			assert.strictEqual(doc.positionAt(offset).isEqual(pos), true);
 
 			// reverse - pos
 			const actualPosition = doc.positionAt(actual);
-			assert.equal(actualPosition.isEqual(pos), true);
+			assert.strictEqual(actualPosition.isEqual(pos), true);
 		}
 	}
 
@@ -122,8 +122,8 @@ suite('NotebookConcatDocument', function () {
 
 	test('contains', function () {
 
-		const cellUri1 = CellUri.generate(notebook.uri, 1);
-		const cellUri2 = CellUri.generate(notebook.uri, 2);
+		const cellUri1 = CellUri.generate(notebook.uri, 'test', 1);
+		const cellUri2 = CellUri.generate(notebook.uri, 'test', 2);
 
 		extHostNotebooks.$acceptModelChanged(notebookUri, {
 			versionId: notebook.notebookDocument.version + 1,
@@ -151,13 +151,13 @@ suite('NotebookConcatDocument', function () {
 		}, false);
 
 
-		assert.equal(notebook.notebookDocument.cells.length, 1 + 2); // markdown and code
+		assert.strictEqual(notebook.notebookDocument.cells.length, 1 + 2); // markdown and code
 
 		let doc = new ExtHostNotebookConcatDocument(extHostNotebooks, extHostDocuments, notebook.notebookDocument, undefined);
 
-		assert.equal(doc.contains(cellUri1), true);
-		assert.equal(doc.contains(cellUri2), true);
-		assert.equal(doc.contains(URI.parse('some://miss/path')), false);
+		assert.strictEqual(doc.contains(cellUri1), true);
+		assert.strictEqual(doc.contains(cellUri2), true);
+		assert.strictEqual(doc.contains(URI.parse('some://miss/path')), false);
 	});
 
 	test('location, position mapping', function () {
@@ -169,7 +169,7 @@ suite('NotebookConcatDocument', function () {
 					kind: NotebookCellsChangeType.ModelChange,
 					changes: [[0, 0, [{
 						handle: 1,
-						uri: CellUri.generate(notebook.uri, 1),
+						uri: CellUri.generate(notebook.uri, 'test', 1),
 						source: ['Hello', 'World', 'Hello World!'],
 						eol: '\n',
 						language: 'test',
@@ -177,7 +177,7 @@ suite('NotebookConcatDocument', function () {
 						outputs: [],
 					}, {
 						handle: 2,
-						uri: CellUri.generate(notebook.uri, 2),
+						uri: CellUri.generate(notebook.uri, 'test', 2),
 						source: ['Hallo', 'Welt', 'Hallo Welt!'],
 						eol: '\n',
 						language: 'test',
@@ -189,7 +189,7 @@ suite('NotebookConcatDocument', function () {
 		}, false);
 
 
-		assert.equal(notebook.notebookDocument.cells.length, 1 + 2); // markdown and code
+		assert.strictEqual(notebook.notebookDocument.cells.length, 1 + 2); // markdown and code
 
 		let doc = new ExtHostNotebookConcatDocument(extHostNotebooks, extHostDocuments, notebook.notebookDocument, undefined);
 		assertLines(doc, 'Hello', 'World', 'Hello World!', 'Hallo', 'Welt', 'Hallo Welt!');
@@ -214,7 +214,7 @@ suite('NotebookConcatDocument', function () {
 					kind: NotebookCellsChangeType.ModelChange,
 					changes: [[0, 0, [{
 						handle: 1,
-						uri: CellUri.generate(notebook.uri, 1),
+						uri: CellUri.generate(notebook.uri, 'test', 1),
 						source: ['Hello', 'World', 'Hello World!'],
 						eol: '\n',
 						language: 'test',
@@ -224,8 +224,8 @@ suite('NotebookConcatDocument', function () {
 				}
 			]
 		}, false);
-		assert.equal(notebook.notebookDocument.cells.length, 1 + 1);
-		assert.equal(doc.version, 1);
+		assert.strictEqual(notebook.notebookDocument.cells.length, 1 + 1);
+		assert.strictEqual(doc.version, 1);
 		assertLines(doc, 'Hello', 'World', 'Hello World!');
 
 		assertLocation(doc, new Position(0, 0), new Location(notebook.notebookDocument.cells[0].uri, new Position(0, 0)));
@@ -241,7 +241,7 @@ suite('NotebookConcatDocument', function () {
 					kind: NotebookCellsChangeType.ModelChange,
 					changes: [[1, 0, [{
 						handle: 2,
-						uri: CellUri.generate(notebook.uri, 2),
+						uri: CellUri.generate(notebook.uri, 'test', 2),
 						source: ['Hallo', 'Welt', 'Hallo Welt!'],
 						eol: '\n',
 						language: 'test',
@@ -252,8 +252,8 @@ suite('NotebookConcatDocument', function () {
 			]
 		}, false);
 
-		assert.equal(notebook.notebookDocument.cells.length, 1 + 2);
-		assert.equal(doc.version, 2);
+		assert.strictEqual(notebook.notebookDocument.cells.length, 1 + 2);
+		assert.strictEqual(doc.version, 2);
 		assertLines(doc, 'Hello', 'World', 'Hello World!', 'Hallo', 'Welt', 'Hallo Welt!');
 		assertLocation(doc, new Position(0, 0), new Location(notebook.notebookDocument.cells[0].uri, new Position(0, 0)));
 		assertLocation(doc, new Position(4, 0), new Location(notebook.notebookDocument.cells[1].uri, new Position(1, 0)));
@@ -271,8 +271,8 @@ suite('NotebookConcatDocument', function () {
 				}
 			]
 		}, false);
-		assert.equal(notebook.notebookDocument.cells.length, 1 + 1);
-		assert.equal(doc.version, 3);
+		assert.strictEqual(notebook.notebookDocument.cells.length, 1 + 1);
+		assert.strictEqual(doc.version, 3);
 		assertLines(doc, 'Hello', 'World', 'Hello World!');
 		assertLocation(doc, new Position(0, 0), new Location(notebook.notebookDocument.cells[0].uri, new Position(0, 0)));
 		assertLocation(doc, new Position(2, 2), new Location(notebook.notebookDocument.cells[0].uri, new Position(2, 2)));
@@ -292,7 +292,7 @@ suite('NotebookConcatDocument', function () {
 					kind: NotebookCellsChangeType.ModelChange,
 					changes: [[0, 0, [{
 						handle: 1,
-						uri: CellUri.generate(notebook.uri, 1),
+						uri: CellUri.generate(notebook.uri, 'test', 1),
 						source: ['Hello', 'World', 'Hello World!'],
 						eol: '\n',
 						language: 'test',
@@ -300,7 +300,7 @@ suite('NotebookConcatDocument', function () {
 						outputs: [],
 					}, {
 						handle: 2,
-						uri: CellUri.generate(notebook.uri, 2),
+						uri: CellUri.generate(notebook.uri, 'test', 2),
 						source: ['Hallo', 'Welt', 'Hallo Welt!'],
 						eol: '\n',
 						language: 'test',
@@ -310,8 +310,8 @@ suite('NotebookConcatDocument', function () {
 				}
 			]
 		}, false);
-		assert.equal(notebook.notebookDocument.cells.length, 1 + 2);
-		assert.equal(doc.version, 1);
+		assert.strictEqual(notebook.notebookDocument.cells.length, 1 + 2);
+		assert.strictEqual(doc.version, 1);
 
 		assertLines(doc, 'Hello', 'World', 'Hello World!', 'Hallo', 'Welt', 'Hallo Welt!');
 		assertLocation(doc, new Position(0, 0), new Location(notebook.notebookDocument.cells[0].uri, new Position(0, 0)));
@@ -322,7 +322,7 @@ suite('NotebookConcatDocument', function () {
 
 		// offset math
 		let cell1End = doc.offsetAt(new Position(2, 12));
-		assert.equal(doc.positionAt(cell1End).isEqual(new Position(2, 12)), true);
+		assert.strictEqual(doc.positionAt(cell1End).isEqual(new Position(2, 12)), true);
 
 		extHostDocuments.$acceptModelChanged(notebook.notebookDocument.cells[0].uri, {
 			versionId: 0,
@@ -337,7 +337,7 @@ suite('NotebookConcatDocument', function () {
 		assertLines(doc, 'Hello', 'World', 'Hi World!', 'Hallo', 'Welt', 'Hallo Welt!');
 		assertLocation(doc, new Position(2, 12), new Location(notebook.notebookDocument.cells[0].uri, new Position(2, 9)), false);
 
-		assert.equal(doc.positionAt(cell1End).isEqual(new Position(3, 2)), true);
+		assert.strictEqual(doc.positionAt(cell1End).isEqual(new Position(3, 2)), true);
 
 	});
 
@@ -350,7 +350,7 @@ suite('NotebookConcatDocument', function () {
 					kind: NotebookCellsChangeType.ModelChange,
 					changes: [[0, 0, [{
 						handle: 1,
-						uri: CellUri.generate(notebook.uri, 1),
+						uri: CellUri.generate(notebook.uri, 'test', 1),
 						source: ['fooLang-document'],
 						eol: '\n',
 						language: 'fooLang',
@@ -358,7 +358,7 @@ suite('NotebookConcatDocument', function () {
 						outputs: [],
 					}, {
 						handle: 2,
-						uri: CellUri.generate(notebook.uri, 2),
+						uri: CellUri.generate(notebook.uri, 'test', 2),
 						source: ['barLang-document'],
 						eol: '\n',
 						language: 'barLang',
@@ -384,7 +384,7 @@ suite('NotebookConcatDocument', function () {
 					kind: NotebookCellsChangeType.ModelChange,
 					changes: [[2, 0, [{
 						handle: 3,
-						uri: CellUri.generate(notebook.uri, 3),
+						uri: CellUri.generate(notebook.uri, 'test', 3),
 						source: ['barLang-document2'],
 						eol: '\n',
 						language: 'barLang',
@@ -403,12 +403,12 @@ suite('NotebookConcatDocument', function () {
 	function assertOffsetAtPosition(doc: vscode.NotebookConcatTextDocument, offset: number, expected: { line: number, character: number }, reverse = true) {
 		const actual = doc.positionAt(offset);
 
-		assert.equal(actual.line, expected.line);
-		assert.equal(actual.character, expected.character);
+		assert.strictEqual(actual.line, expected.line);
+		assert.strictEqual(actual.character, expected.character);
 
 		if (reverse) {
 			const actualOffset = doc.offsetAt(actual);
-			assert.equal(actualOffset, offset);
+			assert.strictEqual(actualOffset, offset);
 		}
 	}
 
@@ -422,7 +422,7 @@ suite('NotebookConcatDocument', function () {
 					kind: NotebookCellsChangeType.ModelChange,
 					changes: [[0, 0, [{
 						handle: 1,
-						uri: CellUri.generate(notebook.uri, 1),
+						uri: CellUri.generate(notebook.uri, 'test', 1),
 						source: ['Hello', 'World', 'Hello World!'],
 						eol: '\n',
 						language: 'test',
@@ -430,7 +430,7 @@ suite('NotebookConcatDocument', function () {
 						outputs: [],
 					}, {
 						handle: 2,
-						uri: CellUri.generate(notebook.uri, 2),
+						uri: CellUri.generate(notebook.uri, 'test', 2),
 						source: ['Hallo', 'Welt', 'Hallo Welt!'],
 						eol: '\n',
 						language: 'test',
@@ -441,7 +441,7 @@ suite('NotebookConcatDocument', function () {
 			]
 		}, false);
 
-		assert.equal(notebook.notebookDocument.cells.length, 1 + 2); // markdown and code
+		assert.strictEqual(notebook.notebookDocument.cells.length, 1 + 2); // markdown and code
 
 		let doc = new ExtHostNotebookConcatDocument(extHostNotebooks, extHostDocuments, notebook.notebookDocument, undefined);
 		assertLines(doc, 'Hello', 'World', 'Hello World!', 'Hallo', 'Welt', 'Hallo Welt!');
@@ -457,16 +457,16 @@ suite('NotebookConcatDocument', function () {
 	function assertLocationAtPosition(doc: vscode.NotebookConcatTextDocument, pos: { line: number, character: number }, expected: { uri: URI, line: number, character: number }, reverse = true) {
 
 		const actual = doc.locationAt(new Position(pos.line, pos.character));
-		assert.equal(actual.uri.toString(), expected.uri.toString());
-		assert.equal(actual.range.start.line, expected.line);
-		assert.equal(actual.range.end.line, expected.line);
-		assert.equal(actual.range.start.character, expected.character);
-		assert.equal(actual.range.end.character, expected.character);
+		assert.strictEqual(actual.uri.toString(), expected.uri.toString());
+		assert.strictEqual(actual.range.start.line, expected.line);
+		assert.strictEqual(actual.range.end.line, expected.line);
+		assert.strictEqual(actual.range.start.character, expected.character);
+		assert.strictEqual(actual.range.end.character, expected.character);
 
 		if (reverse) {
 			const actualPos = doc.positionAt(actual);
-			assert.equal(actualPos.line, pos.line);
-			assert.equal(actualPos.character, pos.character);
+			assert.strictEqual(actualPos.line, pos.line);
+			assert.strictEqual(actualPos.character, pos.character);
 		}
 	}
 
@@ -479,7 +479,7 @@ suite('NotebookConcatDocument', function () {
 					kind: NotebookCellsChangeType.ModelChange,
 					changes: [[0, 0, [{
 						handle: 1,
-						uri: CellUri.generate(notebook.uri, 1),
+						uri: CellUri.generate(notebook.uri, 'test', 1),
 						source: ['Hello', 'World', 'Hello World!'],
 						eol: '\n',
 						language: 'test',
@@ -487,7 +487,7 @@ suite('NotebookConcatDocument', function () {
 						outputs: [],
 					}, {
 						handle: 2,
-						uri: CellUri.generate(notebook.uri, 2),
+						uri: CellUri.generate(notebook.uri, 'test', 2),
 						source: ['Hallo', 'Welt', 'Hallo Welt!'],
 						eol: '\n',
 						language: 'test',
@@ -498,7 +498,7 @@ suite('NotebookConcatDocument', function () {
 			]
 		}, false);
 
-		assert.equal(notebook.notebookDocument.cells.length, 1 + 2); // markdown and code
+		assert.strictEqual(notebook.notebookDocument.cells.length, 1 + 2); // markdown and code
 
 		let doc = new ExtHostNotebookConcatDocument(extHostNotebooks, extHostDocuments, notebook.notebookDocument, undefined);
 		assertLines(doc, 'Hello', 'World', 'Hello World!', 'Hallo', 'Welt', 'Hallo Welt!');
@@ -520,7 +520,7 @@ suite('NotebookConcatDocument', function () {
 					kind: NotebookCellsChangeType.ModelChange,
 					changes: [[0, 0, [{
 						handle: 1,
-						uri: CellUri.generate(notebook.uri, 1),
+						uri: CellUri.generate(notebook.uri, 'test', 1),
 						source: ['Hello', 'World', 'Hello World!'],
 						eol: '\n',
 						language: 'test',
@@ -528,7 +528,7 @@ suite('NotebookConcatDocument', function () {
 						outputs: [],
 					}, {
 						handle: 2,
-						uri: CellUri.generate(notebook.uri, 2),
+						uri: CellUri.generate(notebook.uri, 'test', 2),
 						source: ['Hallo', 'Welt', 'Hallo Welt!'],
 						eol: '\n',
 						language: 'test',
@@ -539,14 +539,14 @@ suite('NotebookConcatDocument', function () {
 			]
 		}, false);
 
-		assert.equal(notebook.notebookDocument.cells.length, 1 + 2); // markdown and code
+		assert.strictEqual(notebook.notebookDocument.cells.length, 1 + 2); // markdown and code
 
 		let doc = new ExtHostNotebookConcatDocument(extHostNotebooks, extHostDocuments, notebook.notebookDocument, undefined);
 		assertLines(doc, 'Hello', 'World', 'Hello World!', 'Hallo', 'Welt', 'Hallo Welt!');
 
-		assert.equal(doc.getText(new Range(0, 0, 0, 0)), '');
-		assert.equal(doc.getText(new Range(0, 0, 1, 0)), 'Hello\n');
-		assert.equal(doc.getText(new Range(2, 0, 4, 0)), 'Hello World!\nHallo\n');
+		assert.strictEqual(doc.getText(new Range(0, 0, 0, 0)), '');
+		assert.strictEqual(doc.getText(new Range(0, 0, 1, 0)), 'Hello\n');
+		assert.strictEqual(doc.getText(new Range(2, 0, 4, 0)), 'Hello World!\nHallo\n');
 	});
 
 	test('validateRange/Position', function () {
@@ -558,7 +558,7 @@ suite('NotebookConcatDocument', function () {
 					kind: NotebookCellsChangeType.ModelChange,
 					changes: [[0, 0, [{
 						handle: 1,
-						uri: CellUri.generate(notebook.uri, 1),
+						uri: CellUri.generate(notebook.uri, 'test', 1),
 						source: ['Hello', 'World', 'Hello World!'],
 						eol: '\n',
 						language: 'test',
@@ -566,7 +566,7 @@ suite('NotebookConcatDocument', function () {
 						outputs: [],
 					}, {
 						handle: 2,
-						uri: CellUri.generate(notebook.uri, 2),
+						uri: CellUri.generate(notebook.uri, 'test', 2),
 						source: ['Hallo', 'Welt', 'Hallo Welt!'],
 						eol: '\n',
 						language: 'test',
@@ -577,15 +577,15 @@ suite('NotebookConcatDocument', function () {
 			]
 		}, false);
 
-		assert.equal(notebook.notebookDocument.cells.length, 1 + 2); // markdown and code
+		assert.strictEqual(notebook.notebookDocument.cells.length, 1 + 2); // markdown and code
 
 		let doc = new ExtHostNotebookConcatDocument(extHostNotebooks, extHostDocuments, notebook.notebookDocument, undefined);
 		assertLines(doc, 'Hello', 'World', 'Hello World!', 'Hallo', 'Welt', 'Hallo Welt!');
 
 
 		function assertPosition(actual: vscode.Position, expectedLine: number, expectedCh: number) {
-			assert.equal(actual.line, expectedLine);
-			assert.equal(actual.character, expectedCh);
+			assert.strictEqual(actual.line, expectedLine);
+			assert.strictEqual(actual.character, expectedCh);
 		}
 
 

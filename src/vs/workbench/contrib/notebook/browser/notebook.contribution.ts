@@ -47,6 +47,8 @@ import { INotebookEditorWorkerService } from 'vs/workbench/contrib/notebook/comm
 import { NotebookEditorWorkerServiceImpl } from 'vs/workbench/contrib/notebook/common/services/notebookWorkerServiceImpl';
 import { INotebookCellStatusBarService } from 'vs/workbench/contrib/notebook/common/notebookCellStatusBarService';
 import { NotebookCellStatusBarService } from 'vs/workbench/contrib/notebook/browser/notebookCellStatusBarServiceImpl';
+import { INotebookEditorWidgetService } from 'vs/workbench/contrib/notebook/browser/notebookEditorWidgetService';
+import { NotebookEditorWidgetService } from 'vs/workbench/contrib/notebook/browser/notebookEditorWidgetServiceImpl';
 import { IJSONContributionRegistry, Extensions as JSONExtensions } from 'vs/platform/jsonschemas/common/jsonContributionRegistry';
 import { IJSONSchema } from 'vs/base/common/jsonSchema';
 import { IWorkingCopyService } from 'vs/workbench/services/workingCopy/common/workingCopyService';
@@ -230,12 +232,28 @@ export class NotebookContribution extends Disposable implements IWorkbenchContri
 		this._register(this.editorService.overrideOpenEditor({
 			getEditorOverrides: (resource: URI, options: IEditorOptions | undefined, group: IEditorGroup | undefined) => {
 
-				const currentEditorForResource = group?.editors.find(editor => isEqual(editor.resource, resource));
+				const currentEditorsForResource = group && this.editorService.findEditors(resource, group);
+				const currentEditorForResource = currentEditorsForResource && currentEditorsForResource.length ? currentEditorsForResource[0] : undefined;
 
 				const associatedEditors = distinct([
 					...this.getUserAssociatedNotebookEditors(resource),
 					...this.getContributedEditors(resource)
-				], editor => editor.id);
+				], editor => editor.id).sort((a, b) => {
+					// if a content provider is exclusive, it has higher order
+					if (a.exclusive && b.exclusive) {
+						return 0;
+					}
+
+					if (a.exclusive) {
+						return -1;
+					}
+
+					if (b.exclusive) {
+						return 1;
+					}
+
+					return 0;
+				});
 
 				return associatedEditors.map(info => {
 					return {
@@ -318,8 +336,25 @@ export class NotebookContribution extends Disposable implements IWorkbenchContri
 			return undefined;
 		}
 
-		if (originalInput instanceof NotebookEditorInput) {
-			return undefined;
+		if (id && originalInput instanceof NotebookEditorInput) {
+			if (originalInput.viewType === id) {
+				return undefined;
+			} else {
+				return {
+					override: (async () => {
+						const notebookInput = NotebookEditorInput.create(this.instantiationService, originalInput.resource, originalInput.getName(), id);
+						await group.replaceEditors([{
+							editor: originalInput,
+							replacement: notebookInput
+						}]);
+						if (group.activeEditorPane?.input === notebookInput) {
+							return group.activeEditorPane;
+						} else {
+							return undefined;
+						}
+					})()
+				};
+			}
 		}
 
 		if (originalInput instanceof NotebookDiffEditorInput) {
@@ -341,10 +376,8 @@ export class NotebookContribution extends Disposable implements IWorkbenchContri
 		}
 
 		if (id === undefined) {
-			const existingEditors = group.editors.filter(editor =>
-				editor.resource
-				&& isEqual(editor.resource, notebookUri)
-				&& !(editor instanceof NotebookEditorInput)
+			const existingEditors = this.editorService.findEditors(notebookUri, group).filter(editor =>
+				!(editor instanceof NotebookEditorInput)
 				&& !(editor instanceof NotebookDiffEditorInput)
 			);
 
@@ -409,7 +442,7 @@ export class NotebookContribution extends Disposable implements IWorkbenchContri
 			return undefined;
 		}
 
-		const existingEditors = group.editors.filter(editor => editor.resource && isEqual(editor.resource, notebookUri) && !(editor instanceof NotebookEditorInput));
+		const existingEditors = this.editorService.findEditors(notebookUri, group).filter(editor => !(editor instanceof NotebookEditorInput));
 
 		if (existingEditors.length) {
 			return undefined;
@@ -621,6 +654,7 @@ registerSingleton(INotebookService, NotebookService);
 registerSingleton(INotebookEditorWorkerService, NotebookEditorWorkerServiceImpl);
 registerSingleton(INotebookEditorModelResolverService, NotebookModelResolverService, true);
 registerSingleton(INotebookCellStatusBarService, NotebookCellStatusBarService, true);
+registerSingleton(INotebookEditorWidgetService, NotebookEditorWidgetService, true);
 
 const configurationRegistry = Registry.as<IConfigurationRegistry>(Extensions.Configuration);
 configurationRegistry.registerConfiguration({

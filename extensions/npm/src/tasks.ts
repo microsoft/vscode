@@ -5,7 +5,8 @@
 
 import {
 	TaskDefinition, Task, TaskGroup, WorkspaceFolder, RelativePattern, ShellExecution, Uri, workspace,
-	DebugConfiguration, debug, TaskProvider, TextDocument, tasks, TaskScope, QuickPickItem, window, Position, ExtensionContext, env
+	DebugConfiguration, debug, TaskProvider, TextDocument, tasks, TaskScope, QuickPickItem, window, Position, ExtensionContext, env,
+	ShellQuotedString, ShellQuoting
 } from 'vscode';
 import * as path from 'path';
 import * as fs from 'fs';
@@ -70,7 +71,11 @@ export class NpmTaskProvider implements TaskProvider {
 			} else {
 				packageJsonUri = _task.scope.uri.with({ path: _task.scope.uri.path + '/package.json' });
 			}
-			return createTask(this.context, kind, `${kind.script === INSTALL_SCRIPT ? '' : 'run '}${kind.script}`, _task.scope, packageJsonUri);
+			const cmd = [kind.script];
+			if (kind.script !== INSTALL_SCRIPT) {
+				cmd.unshift('run');
+			}
+			return createTask(this.context, kind, cmd, _task.scope, packageJsonUri);
 		}
 		return undefined;
 	}
@@ -276,7 +281,7 @@ async function provideNpmScriptsForFolder(context: ExtensionContext, packageJson
 
 	for (const each of scripts.keys()) {
 		const scriptValue = scripts.get(each)!;
-		const task = await createTask(context, each, `run ${each}`, folder!, packageJsonUri, showWarning, scriptValue.script);
+		const task = await createTask(context, each, ['run', each], folder!, packageJsonUri, showWarning, scriptValue.script);
 		const lowerCaseTaskName = each.toLowerCase();
 		if (isBuildTask(lowerCaseTaskName)) {
 			task.group = TaskGroup.Build;
@@ -295,7 +300,7 @@ async function provideNpmScriptsForFolder(context: ExtensionContext, packageJson
 	}
 
 	// always add npm install (without a problem matcher)
-	result.push({ task: await createTask(context, INSTALL_SCRIPT, INSTALL_SCRIPT, folder, packageJsonUri, showWarning, 'install dependencies from package', []) });
+	result.push({ task: await createTask(context, INSTALL_SCRIPT, [INSTALL_SCRIPT], folder, packageJsonUri, showWarning, 'install dependencies from package', []) });
 	return result;
 }
 
@@ -306,7 +311,7 @@ export function getTaskName(script: string, relativePath: string | undefined) {
 	return script;
 }
 
-export async function createTask(context: ExtensionContext, script: NpmTaskDefinition | string, cmd: string, folder: WorkspaceFolder, packageJsonUri: Uri, showWarning: boolean = true, detail?: string, matcher?: any): Promise<Task> {
+export async function createTask(context: ExtensionContext, script: NpmTaskDefinition | string, cmd: string[], folder: WorkspaceFolder, packageJsonUri: Uri, showWarning: boolean = true, detail?: string, matcher?: any): Promise<Task> {
 	let kind: NpmTaskDefinition;
 	if (typeof script === 'string') {
 		kind = { type: 'npm', script: script };
@@ -315,11 +320,19 @@ export async function createTask(context: ExtensionContext, script: NpmTaskDefin
 	}
 
 	const packageManager = await getPackageManager(context, folder.uri, showWarning);
-	async function getCommandLine(cmd: string): Promise<string> {
-		if (workspace.getConfiguration('npm', folder.uri).get<boolean>('runSilent')) {
-			return `${packageManager} --silent ${cmd}`;
+	function getCommandLine(cmd: string[]): (string | ShellQuotedString)[] {
+		const result: (string | ShellQuotedString)[] = new Array(cmd.length);
+		for (let i = 0; i < cmd.length; i++) {
+			if (/\s/.test(cmd[i])) {
+				result[i] = { value: `${cmd[i]}`, quoting: ShellQuoting.Strong };
+			} else {
+				result[i] = cmd[i];
+			}
 		}
-		return `${packageManager} ${cmd}`;
+		if (workspace.getConfiguration('npm', folder.uri).get<boolean>('runSilent')) {
+			result.unshift('--silent');
+		}
+		return result;
 	}
 
 	function getRelativePath(packageJsonUri: Uri): string {
@@ -334,7 +347,7 @@ export async function createTask(context: ExtensionContext, script: NpmTaskDefin
 	}
 	let taskName = getTaskName(kind.script, relativePackageJson);
 	let cwd = path.dirname(packageJsonUri.fsPath);
-	const task = new Task(kind, folder, taskName, 'npm', new ShellExecution(await getCommandLine(cmd), { cwd: cwd }), matcher);
+	const task = new Task(kind, folder, taskName, 'npm', new ShellExecution(packageManager, getCommandLine(cmd), { cwd: cwd }), matcher);
 	task.detail = detail;
 	return task;
 }
@@ -379,7 +392,7 @@ export async function runScript(context: ExtensionContext, script: string, docum
 	let uri = document.uri;
 	let folder = workspace.getWorkspaceFolder(uri);
 	if (folder) {
-		let task = await createTask(context, script, `run ${script}`, folder, uri);
+		let task = await createTask(context, script, ['run', script], folder, uri);
 		tasks.executeTask(task);
 	}
 }

@@ -9,7 +9,7 @@ import { IDisposable } from 'vs/base/common/lifecycle';
 import { URI } from 'vs/base/common/uri';
 import { createDecorator } from 'vs/platform/instantiation/common/instantiation';
 import { ExtHostTestingResource } from 'vs/workbench/api/common/extHost.protocol';
-import { InternalTestItem, RunTestForProviderRequest, RunTestsRequest, RunTestsResult, TestIdWithProvider, TestsDiff } from 'vs/workbench/contrib/testing/common/testCollection';
+import { AbstractIncrementalTestCollection, IncrementalTestCollectionItem, InternalTestItem, RunTestForProviderRequest, RunTestsRequest, RunTestsResult, TestIdWithProvider, TestsDiff } from 'vs/workbench/contrib/testing/common/testCollection';
 
 export const ITestService = createDecorator<ITestService>('testService');
 
@@ -20,6 +20,54 @@ export interface MainTestController {
 
 export type TestDiffListener = (diff: TestsDiff) => void;
 
+export interface IMainThreadTestCollection extends AbstractIncrementalTestCollection<IncrementalTestCollectionItem> {
+	onPendingRootProvidersChange: Event<number>;
+	onBusyProvidersChange: Event<number>;
+
+	/**
+	 * Number of test root sources who are yet to report.
+	 */
+	pendingRootProviders: number;
+
+	/**
+	 * Number of providers working to discover tests.
+	 */
+	busyProviders: number;
+
+	/**
+	 * Root node IDs.
+	 */
+	rootIds: ReadonlySet<string>;
+
+	/**
+	 * Gets a node in the collection by ID.
+	 */
+	getNodeById(id: string): IncrementalTestCollectionItem | undefined;
+
+	/**
+	 * Gets a diff that adds all items currently in the tree to a new collection,
+	 * allowing it to fully hydrate.
+	 */
+	getReviverDiff(): TestsDiff;
+}
+
+export const waitForAllRoots = (collection: IMainThreadTestCollection, timeout = 3000) => {
+	if (collection.pendingRootProviders === 0) {
+		return Promise.resolve();
+	}
+
+	let listener: IDisposable;
+	return new Promise<void>(resolve => {
+		listener = collection.onPendingRootProvidersChange(count => {
+			if (count === 0) {
+				resolve();
+			}
+		});
+
+		setTimeout(resolve, timeout);
+	}).finally(() => listener.dispose());
+};
+
 export interface ITestService {
 	readonly _serviceBrand: undefined;
 	readonly onShouldSubscribe: Event<{ resource: ExtHostTestingResource, uri: URI; }>;
@@ -27,32 +75,25 @@ export interface ITestService {
 	readonly onDidChangeProviders: Event<{ delta: number; }>;
 	readonly providers: number;
 	readonly subscriptions: ReadonlyArray<{ resource: ExtHostTestingResource, uri: URI; }>;
-
 	readonly testRuns: Iterable<RunTestsRequest>;
-	readonly onTestRunStarted: Event<RunTestsRequest>;
-	readonly onTestRunCompleted: Event<{ req: RunTestsRequest, result: RunTestsResult; }>;
-
-	/**
-	 * List of resources where tests are actively being discovered.
-	 */
-	readonly busyTestLocations: Iterable<{ resource: ExtHostTestingResource, uri: URI; }>;
-
-	/**
-	 * Fires when the busy state of a resource changes.
-	 */
-	readonly onBusyStateChange: Event<{ resource: ExtHostTestingResource, uri: URI, busy: boolean; }>;
 
 	registerTestController(id: string, controller: MainTestController): void;
 	unregisterTestController(id: string): void;
 	runTests(req: RunTestsRequest, token?: CancellationToken): Promise<RunTestsResult>;
 	cancelTestRun(req: RunTestsRequest): void;
 	publishDiff(resource: ExtHostTestingResource, uri: URI, diff: TestsDiff): void;
-	subscribeToDiffs(resource: ExtHostTestingResource, uri: URI, acceptDiff: TestDiffListener): IDisposable;
+	subscribeToDiffs(resource: ExtHostTestingResource, uri: URI, acceptDiff?: TestDiffListener): {
+		collection: IMainThreadTestCollection;
+		dispose(): void;
+	};
 
 	/**
-	 * Updates the number of test providers still discovering tests for the given resource.
+	 * Updates the number of sources who provide test roots when subscription
+	 * is requested. This is equal to the number of extension hosts, and used
+	 * with `TestDiffOpType.DeltaRootsComplete` to signal when all roots
+	 * are available.
 	 */
-	updateDiscoveringCount(resource: ExtHostTestingResource, uri: URI, delta: number): void;
+	updateRootProviderCount(delta: number): void;
 
 	/**
 	 * Looks up a test, by a request to extension hosts.

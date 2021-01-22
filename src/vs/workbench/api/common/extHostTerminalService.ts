@@ -220,6 +220,11 @@ export class ExtHostPseudoterminal implements ITerminalChildProcess {
 		}
 	}
 
+	acknowledgeDataEvent(charCount: number): void {
+		// No-op, flow control is not supported in extension owned terminals. If this is ever
+		// implemented it will need new pause and resume VS Code APIs.
+	}
+
 	getInitialCwd(): Promise<string> {
 		return Promise.resolve('');
 	}
@@ -486,6 +491,10 @@ export abstract class BaseExtHostTerminalService extends Disposable implements I
 		}
 
 		return disposables;
+	}
+
+	public $acceptProcessAckDataEvent(id: number, charCount: number): void {
+		this._terminalProcesses.get(id)?.acknowledgeDataEvent(charCount);
 	}
 
 	public $acceptProcessInput(id: number, data: string): void {

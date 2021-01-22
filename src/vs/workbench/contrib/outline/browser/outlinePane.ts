@@ -120,6 +120,7 @@ export class OutlinePane extends ViewPane {
 	dispose(): void {
 		this._disposables.dispose();
 		this._editorDisposables.dispose();
+		this._editorListener.dispose();
 		super.dispose();
 	}
 
@@ -252,7 +253,6 @@ export class OutlinePane extends ViewPane {
 				// update: refresh tree
 				this._domNode.classList.remove('message');
 				tree.updateChildren();
-				tree.expandAll();
 			}
 		};
 		updateTree();

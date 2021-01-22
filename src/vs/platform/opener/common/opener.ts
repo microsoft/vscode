@@ -3,11 +3,12 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { URI } from 'vs/base/common/uri';
-import { createDecorator } from 'vs/platform/instantiation/common/instantiation';
-import { IDisposable, Disposable } from 'vs/base/common/lifecycle';
+import { CancellationToken } from 'vs/base/common/cancellation';
+import { Disposable, IDisposable } from 'vs/base/common/lifecycle';
 import { equalsIgnoreCase, startsWithIgnoreCase } from 'vs/base/common/strings';
+import { URI } from 'vs/base/common/uri';
 import { IEditorOptions } from 'vs/platform/editor/common/editor';
+import { createDecorator } from 'vs/platform/instantiation/common/instantiation';
 
 export const IOpenerService = createDecorator<IOpenerService>('openerService');
 
@@ -31,7 +32,11 @@ export type OpenInternalOptions = {
 	readonly fromUserGesture?: boolean;
 };
 
-export type OpenExternalOptions = { readonly openExternal?: boolean; readonly allowTunneling?: boolean };
+export type OpenExternalOptions = {
+	readonly openExternal?: boolean;
+	readonly allowTunneling?: boolean;
+	readonly allowContributedOpeners?: boolean | string;
+};
 
 export type OpenOptions = OpenInternalOptions & OpenExternalOptions;
 
@@ -46,7 +51,7 @@ export interface IOpener {
 }
 
 export interface IExternalOpener {
-	openExternal(href: string): Promise<boolean>;
+	openExternal(href: string, ctx: { sourceUri: URI, preferredOpenerId?: string }, token: CancellationToken): Promise<boolean>;
 	dispose?(): void;
 }
 

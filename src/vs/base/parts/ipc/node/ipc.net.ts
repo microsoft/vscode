@@ -129,7 +129,7 @@ export class WebSocketNodeSocket extends Disposable implements ISocket {
 	private readonly _zlibInflate: zlib.InflateRaw | null;
 	private readonly _zlibDeflate: zlib.DeflateRaw | null;
 	private _zlibDeflateFlushWaitingCount: number;
-	private _disposeRequested: boolean;
+	private readonly _onDidZlibFlush = this._register(new Emitter<void>());
 	private readonly _recordInflateBytes: boolean;
 	private readonly _recordedInflateBytes: Buffer[] = [];
 	private readonly _pendingInflateData: Buffer[] = [];
@@ -137,6 +137,7 @@ export class WebSocketNodeSocket extends Disposable implements ISocket {
 	private readonly _incomingData: ChunkStream;
 	private readonly _onData = this._register(new Emitter<VSBuffer>());
 	private readonly _onClose = this._register(new Emitter<void>());
+	private _isEnded: boolean = false;
 
 	private readonly _state = {
 		state: ReadState.PeekHeader,
@@ -229,7 +230,6 @@ export class WebSocketNodeSocket extends Disposable implements ISocket {
 			this._zlibDeflate = null;
 		}
 		this._zlibDeflateFlushWaitingCount = 0;
-		this._disposeRequested = false;
 		this._incomingData = new ChunkStream();
 		this._register(this.socket.onData(data => this._acceptChunk(data)));
 		this._register(this.socket.onClose(() => this._onClose.fire()));
@@ -238,7 +238,9 @@ export class WebSocketNodeSocket extends Disposable implements ISocket {
 	public dispose(): void {
 		if (this._zlibDeflateFlushWaitingCount > 0) {
 			// Wait for any outstanding writes to finish before disposing
-			this._disposeRequested = true;
+			this._register(this._onDidZlibFlush.event(() => {
+				this.dispose();
+			}));
 		} else {
 			this.socket.dispose();
 			super.dispose();
@@ -273,10 +275,13 @@ export class WebSocketNodeSocket extends Disposable implements ISocket {
 				// See https://tools.ietf.org/html/rfc7692#section-7.2.1
 				data = data.slice(0, data.length - 4);
 
-				this._write(VSBuffer.wrap(data), true);
+				if (!this._isEnded) {
+					// Avoid ERR_STREAM_WRITE_AFTER_END
+					this._write(VSBuffer.wrap(data), true);
+				}
 
-				if (this._disposeRequested) {
-					this.dispose();
+				if (this._zlibDeflateFlushWaitingCount === 0) {
+					this._onDidZlibFlush.fire();
 				}
 			});
 		} else {
@@ -326,6 +331,7 @@ export class WebSocketNodeSocket extends Disposable implements ISocket {
 	}
 
 	public end(): void {
+		this._isEnded = true;
 		this.socket.end();
 	}
 
@@ -429,8 +435,11 @@ export class WebSocketNodeSocket extends Disposable implements ISocket {
 		}
 	}
 
-	public drain(): Promise<void> {
-		return this.socket.drain();
+	public async drain(): Promise<void> {
+		if (this._zlibDeflateFlushWaitingCount > 0) {
+			await Event.toPromise(this._onDidZlibFlush.event);
+		}
+		await this.socket.drain();
 	}
 }
 

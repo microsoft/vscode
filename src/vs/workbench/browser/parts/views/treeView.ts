@@ -889,7 +889,7 @@ class TreeRenderer extends Disposable implements ITreeRenderer<ITreeItem, FuzzyS
 
 	private getHover(label: string | undefined, resource: URI | null, node: ITreeItem): string | IIconLabelMarkdownString | undefined {
 		if (!(node instanceof ResolvableTreeItem) || !node.hasResolve) {
-			if (resource) {
+			if (resource && !node.tooltip) {
 				return undefined;
 			} else if (!node.tooltip) {
 				return label;

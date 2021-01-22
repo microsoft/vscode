@@ -9,7 +9,7 @@ function filterOk(filter: IFilter, word: string, wordToMatchAgainst: string, hig
 	let r = filter(word, wordToMatchAgainst);
 	assert(r, `${word} didn't match ${wordToMatchAgainst}`);
 	if (highlights) {
-		assert.deepEqual(r, highlights);
+		assert.deepStrictEqual(r, highlights);
 	}
 }
 
@@ -233,7 +233,7 @@ suite('Filters', () => {
 				pos = match.end;
 			}
 			actualWord += word.substring(pos);
-			assert.equal(actualWord, decoratedWord);
+			assert.strictEqual(actualWord, decoratedWord);
 		}
 	}
 
@@ -285,7 +285,7 @@ suite('Filters', () => {
 		assertMatches('LLLL', 'SVisualLoggerLogsList', undefined, fuzzyScore);
 		assertMatches('TEdit', 'TextEdit', '^Text^E^d^i^t', fuzzyScore);
 		assertMatches('TEdit', 'TextEditor', '^Text^E^d^i^tor', fuzzyScore);
-		assertMatches('TEdit', 'Textedit', '^T^exte^d^i^t', fuzzyScore);
+		assertMatches('TEdit', 'Textedit', '^Text^e^d^i^t', fuzzyScore);
 		assertMatches('TEdit', 'text_edit', '^text_^e^d^i^t', fuzzyScore);
 		assertMatches('TEditDit', 'TextEditorDecorationType', '^Text^E^d^i^tor^Decorat^ion^Type', fuzzyScore);
 		assertMatches('TEdit', 'TextEditorDecorationType', '^Text^E^d^i^torDecorationType', fuzzyScore);
@@ -442,7 +442,7 @@ suite('Filters', () => {
 				}
 			}
 		}
-		assert.equal(topIdx, expected, `${pattern} -> actual=${words[topIdx]} <> expected=${words[expected]}`);
+		assert.strictEqual(topIdx, expected, `${pattern} -> actual=${words[topIdx]} <> expected=${words[expected]}`);
 	}
 
 	test('topScore - fuzzyScore', function () {
@@ -519,6 +519,12 @@ suite('Filters', () => {
 			'foo',
 			'ffffffffffffffffffffffffffffbarbarbarbarbarbarbarbarbarbarbarbarbarbarbarbarbarbarbarbarbarbarbarbarbarbarbarbarbarbarbarbar_foo',
 			'ffffffffffffffffffffffffffffbarbarbarbarbarbarbarbarbarbarbarbarbarbarbarbarbarbarbarbarbarbarbarbarbarbarbarbarbarbarbarbar_^f^o^o',
+			fuzzyScore
+		);
+		assertMatches(
+			'Aoo',
+			'Affffffffffffffffffffffffffffbarbarbarbarbarbarbarbarbarbarbarbarbarbarbarbarbarbarbarbarbarbarbarbarbarbarbarbarbarbar_foo',
+			'^Affffffffffffffffffffffffffffbarbarbarbarbarbarbarbarbarbarbarbarbarbarbarbarbarbarbarbarbarbarbarbarbarbarbarbarbarbar_f^o^o',
 			fuzzyScore
 		);
 		assertMatches(

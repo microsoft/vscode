@@ -27,7 +27,7 @@ import { ExtensionIdentifier, IExtensionDescription } from 'vs/platform/extensio
 import { IURITransformer } from 'vs/base/common/uriIpc';
 import { DisposableStore } from 'vs/base/common/lifecycle';
 import { VSBuffer } from 'vs/base/common/buffer';
-import { encodeSemanticTokensDto } from 'vs/workbench/api/common/shared/semanticTokensDto';
+import { encodeSemanticTokensDto } from 'vs/editor/common/services/semanticTokensDto';
 import { IdGenerator } from 'vs/base/common/idGenerator';
 import { IExtHostApiDeprecationService } from 'vs/workbench/api/common/extHostApiDeprecationService';
 import { Cache } from './cache';
@@ -1063,6 +1063,20 @@ class SignatureHelpAdapter {
 	}
 }
 
+class InlineHintsAdapter {
+	constructor(
+		private readonly _documents: ExtHostDocuments,
+		private readonly _provider: vscode.InlineHintsProvider,
+	) { }
+
+	provideInlineHints(resource: URI, range: IRange, token: CancellationToken): Promise<extHostProtocol.IInlineHintsDto | undefined> {
+		const doc = this._documents.getDocument(resource);
+		return asPromise(() => this._provider.provideInlineHints(doc, typeConvert.Range.to(range), token)).then(value => {
+			return value ? { hints: value.map(typeConvert.InlineHint.from) } : undefined;
+		});
+	}
+}
+
 class LinkProviderAdapter {
 
 	private _cache = new Cache<vscode.DocumentLink>('DocumentLink');
@@ -1321,7 +1335,7 @@ type Adapter = DocumentSymbolAdapter | CodeLensAdapter | DefinitionAdapter | Hov
 	| SuggestAdapter | SignatureHelpAdapter | LinkProviderAdapter | ImplementationAdapter
 	| TypeDefinitionAdapter | ColorProviderAdapter | FoldingProviderAdapter | DeclarationAdapter
 	| SelectionRangeAdapter | CallHierarchyAdapter | DocumentSemanticTokensAdapter | DocumentRangeSemanticTokensAdapter | EvaluatableExpressionAdapter
-	| LinkedEditingRangeAdapter;
+	| LinkedEditingRangeAdapter | InlineHintsAdapter;
 
 class AdapterData {
 	constructor(
@@ -1774,6 +1788,27 @@ export class ExtHostLanguageFeatures implements extHostProtocol.ExtHostLanguageF
 		this._withAdapter(handle, SignatureHelpAdapter, adapter => adapter.releaseSignatureHelp(id), undefined);
 	}
 
+	// --- inline hints
+
+	registerInlineHintsProvider(extension: IExtensionDescription, selector: vscode.DocumentSelector, provider: vscode.InlineHintsProvider): vscode.Disposable {
+
+		const eventHandle = typeof provider.onDidChangeInlineHints === 'function' ? this._nextHandle() : undefined;
+		const handle = this._addNewAdapter(new InlineHintsAdapter(this._documents, provider), extension);
+
+		this._proxy.$registerInlineHintsProvider(handle, this._transformDocumentSelector(selector), eventHandle);
+		let result = this._createDisposable(handle);
+
+		if (eventHandle !== undefined) {
+			const subscription = provider.onDidChangeInlineHints!(_ => this._proxy.$emitInlineHintsEvent(eventHandle));
+			result = Disposable.from(result, subscription);
+		}
+		return result;
+	}
+
+	$provideInlineHints(handle: number, resource: UriComponents, range: IRange, token: CancellationToken): Promise<extHostProtocol.IInlineHintsDto | undefined> {
+		return this._withAdapter(handle, InlineHintsAdapter, adapter => adapter.provideInlineHints(URI.revive(resource), range, token), undefined);
+	}
+
 	// --- links
 
 	registerDocumentLinkProvider(extension: IExtensionDescription | undefined, selector: vscode.DocumentSelector, provider: vscode.DocumentLinkProvider): vscode.Disposable {
@@ -1886,7 +1921,7 @@ export class ExtHostLanguageFeatures implements extHostProtocol.ExtHostLanguageF
 		return {
 			beforeText: ExtHostLanguageFeatures._serializeRegExp(onEnterRule.beforeText),
 			afterText: onEnterRule.afterText ? ExtHostLanguageFeatures._serializeRegExp(onEnterRule.afterText) : undefined,
-			oneLineAboveText: onEnterRule.oneLineAboveText ? ExtHostLanguageFeatures._serializeRegExp(onEnterRule.oneLineAboveText) : undefined,
+			previousLineText: onEnterRule.previousLineText ? ExtHostLanguageFeatures._serializeRegExp(onEnterRule.previousLineText) : undefined,
 			action: onEnterRule.action
 		};
 	}

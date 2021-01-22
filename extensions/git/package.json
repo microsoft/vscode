@@ -72,6 +72,11 @@
         "icon": "$(compare-changes)"
       },
       {
+        "command": "git.openAllChanges",
+        "title": "%command.openAllChanges%",
+        "category": "Git"
+      },
+      {
         "command": "git.openFile",
         "title": "%command.openFile%",
         "category": "Git",
@@ -2054,6 +2059,11 @@
           "default": "mixed",
           "description": "%config.untrackedChanges%",
           "scope": "resource"
+        },
+        "git.requireGitUserConfig": {
+          "type": "boolean",
+          "description": "%config.requireGitUserConfig%",
+          "default": true
         },
         "git.showCommitInput": {
           "type": "boolean",

@@ -12,7 +12,7 @@ import { getParseErrorMessage } from 'vs/base/common/jsonErrorMessages';
 import * as types from 'vs/base/common/types';
 import { URI } from 'vs/base/common/uri';
 import * as pfs from 'vs/base/node/pfs';
-import { getGalleryExtensionId, groupByExtension, ExtensionIdentifierWithVersion } from 'vs/platform/extensionManagement/common/extensionManagementUtil';
+import { getGalleryExtensionId, groupByExtension, ExtensionIdentifierWithVersion, getExtensionId } from 'vs/platform/extensionManagement/common/extensionManagementUtil';
 import { isValidExtensionVersion } from 'vs/platform/extensions/common/extensionValidator';
 import { ExtensionIdentifier, IExtensionDescription } from 'vs/platform/extensions/common/extensions';
 import { Translations, ILog } from 'vs/workbench/services/extensions/common/extensionPoints';
@@ -335,7 +335,7 @@ class ExtensionManifestValidator extends ExtensionManifestHandler {
 		}
 
 		// id := `publisher.name`
-		extensionDescription.id = `${extensionDescription.publisher}.${extensionDescription.name}`;
+		extensionDescription.id = getExtensionId(extensionDescription.publisher, extensionDescription.name);
 		extensionDescription.identifier = new ExtensionIdentifier(extensionDescription.id);
 
 		extensionDescription.extensionLocation = URI.file(this._absoluteFolderPath);

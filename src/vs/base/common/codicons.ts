@@ -531,6 +531,8 @@ export namespace Codicon {
 	export const passFilled = new Codicon('pass-filled', { character: '\\ebb3' });
 	export const circleLargeFilled = new Codicon('circle-large-filled', { character: '\\ebb4' });
 	export const circleLargeOutline = new Codicon('circle-large-outline', { character: '\\ebb5' });
+	export const combine = new Codicon('combine', { character: '\\ebb6' });
+	export const gather = new Codicon('gather', { character: '\\ebb6' });
 
 	export const dropDownButton = new Codicon('drop-down-button', Codicon.chevronDown.definition);
 }

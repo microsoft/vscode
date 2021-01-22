@@ -131,7 +131,15 @@ declare module 'vscode' {
 
 	//#endregion
 
+	// eslint-disable-next-line vscode-dts-region-comments
 	//#region @alexdima - resolvers
+
+	export interface MessageOptions {
+		/**
+		 * Do not render a native message box.
+		 */
+		useCustom?: boolean;
+	}
 
 	export interface RemoteAuthorityResolverContext {
 		resolveAttempt: number;
@@ -721,6 +729,7 @@ declare module 'vscode' {
 
 	//#endregion
 
+	// eslint-disable-next-line vscode-dts-region-comments
 	//#region debug
 
 	/**
@@ -741,6 +750,7 @@ declare module 'vscode' {
 
 	//#endregion
 
+	// eslint-disable-next-line vscode-dts-region-comments
 	//#region @joaomoreno: SCM validation
 
 	/**
@@ -791,6 +801,7 @@ declare module 'vscode' {
 
 	//#endregion
 
+	// eslint-disable-next-line vscode-dts-region-comments
 	//#region @joaomoreno: SCM selected provider
 
 	export interface SourceControl {
@@ -866,21 +877,13 @@ declare module 'vscode' {
 
 	//#endregion
 
+	// eslint-disable-next-line vscode-dts-region-comments
 	//#region @jrieken -> exclusive document filters
 
 	export interface DocumentFilter {
 		readonly exclusive?: boolean;
 	}
 
-	//#endregion
-
-	//#region https://github.com/microsoft/vscode/issues/58440
-	export interface OnEnterRule {
-		/**
-		 * This rule will only execute if the text above the this line matches this regular expression.
-		 */
-		oneLineAboveText?: RegExp;
-	}
 	//#endregion
 
 	//#region Tree View: https://github.com/microsoft/vscode/issues/61313 @alexr00
@@ -986,7 +989,7 @@ declare module 'vscode' {
 
 	//#endregion
 
-	//#region @rebornix: Notebook
+	//#region notebook https://github.com/microsoft/vscode/issues/106744
 
 	export enum CellKind {
 		Markdown = 1,
@@ -1294,11 +1297,17 @@ declare module 'vscode' {
 		 * The range will always be revealed in the center of the viewport.
 		 */
 		InCenter = 1,
+
 		/**
 		 * If the range is outside the viewport, it will be revealed in the center of the viewport.
 		 * Otherwise, it will be revealed with as little scrolling as possible.
 		 */
 		InCenterIfOutsideViewport = 2,
+
+		/**
+		 * The range will always be revealed at the top of the viewport.
+		 */
+		AtTop = 3
 	}
 
 	export interface NotebookEditor {
@@ -1564,16 +1573,16 @@ declare module 'vscode' {
 		 * resolve the raw content for `uri` as the resouce is not necessarily a file on disk.
 		 */
 		// eslint-disable-next-line vscode-dts-provider-naming
-		openNotebook(uri: Uri, openContext: NotebookDocumentOpenContext): NotebookData | Promise<NotebookData>;
+		openNotebook(uri: Uri, openContext: NotebookDocumentOpenContext): NotebookData | Thenable<NotebookData>;
 		// eslint-disable-next-line vscode-dts-provider-naming
 		// eslint-disable-next-line vscode-dts-cancellation
-		resolveNotebook(document: NotebookDocument, webview: NotebookCommunication): Promise<void>;
+		resolveNotebook(document: NotebookDocument, webview: NotebookCommunication): Thenable<void>;
 		// eslint-disable-next-line vscode-dts-provider-naming
-		saveNotebook(document: NotebookDocument, cancellation: CancellationToken): Promise<void>;
+		saveNotebook(document: NotebookDocument, cancellation: CancellationToken): Thenable<void>;
 		// eslint-disable-next-line vscode-dts-provider-naming
-		saveNotebookAs(targetResource: Uri, document: NotebookDocument, cancellation: CancellationToken): Promise<void>;
+		saveNotebookAs(targetResource: Uri, document: NotebookDocument, cancellation: CancellationToken): Thenable<void>;
 		// eslint-disable-next-line vscode-dts-provider-naming
-		backupNotebook(document: NotebookDocument, context: NotebookDocumentBackupContext, cancellation: CancellationToken): Promise<NotebookDocumentBackup>;
+		backupNotebook(document: NotebookDocument, context: NotebookDocumentBackupContext, cancellation: CancellationToken): Thenable<NotebookDocumentBackup>;
 	}
 
 	export interface NotebookKernel {
@@ -1672,7 +1681,7 @@ declare module 'vscode' {
 		): Disposable;
 
 		export function createNotebookEditorDecorationType(options: NotebookDecorationRenderOptions): NotebookEditorDecorationType;
-		export function openNotebookDocument(uri: Uri, viewType?: string): Promise<NotebookDocument>;
+		export function openNotebookDocument(uri: Uri, viewType?: string): Thenable<NotebookDocument>;
 		export const onDidOpenNotebookDocument: Event<NotebookDocument>;
 		export const onDidCloseNotebookDocument: Event<NotebookDocument>;
 		export const onDidSaveNotebookDocument: Event<NotebookDocument>;
@@ -1716,7 +1725,7 @@ declare module 'vscode' {
 		export const onDidChangeActiveNotebookEditor: Event<NotebookEditor | undefined>;
 		export const onDidChangeNotebookEditorSelection: Event<NotebookEditorSelectionChangeEvent>;
 		export const onDidChangeNotebookEditorVisibleRanges: Event<NotebookEditorVisibleRangesChangeEvent>;
-		export function showNotebookDocument(document: NotebookDocument, options?: NotebookDocumentShowOptions): Promise<NotebookEditor>;
+		export function showNotebookDocument(document: NotebookDocument, options?: NotebookDocumentShowOptions): Thenable<NotebookEditor>;
 	}
 
 	//#endregion
@@ -1927,9 +1936,86 @@ declare module 'vscode' {
 	}
 
 	export namespace languages {
-		export function getTokenInformationAtPosition(document: TextDocument, position: Position): Promise<TokenInformation>;
+		export function getTokenInformationAtPosition(document: TextDocument, position: Position): Thenable<TokenInformation>;
 	}
 
+	//#endregion
+
+	//#region https://github.com/microsoft/vscode/issues/16221
+
+	export namespace languages {
+		/**
+		 * Register a inline hints provider.
+		 *
+		 * Multiple providers can be registered for a language. In that case providers are asked in
+		 * parallel and the results are merged. A failing provider (rejected promise or exception) will
+		 * not cause a failure of the whole operation.
+		 *
+		 * @param selector A selector that defines the documents this provider is applicable to.
+		 * @param provider An inline hints provider.
+		 * @return A [disposable](#Disposable) that unregisters this provider when being disposed.
+		 */
+		export function registerInlineHintsProvider(selector: DocumentSelector, provider: InlineHintsProvider): Disposable;
+	}
+
+	/**
+	 * Inline hint information.
+	 */
+	export class InlineHint {
+		/**
+		 * The text of the hint.
+		 */
+		text: string;
+		/**
+		 * The range of the hint.
+		 */
+		range: Range;
+		/**
+		 * Tooltip when hover on the hint.
+		 */
+		description?: string | MarkdownString;
+		/**
+		 * Whitespace before the hint.
+		 */
+		whitespaceBefore?: boolean;
+		/**
+		 * Whitespace after the hint.
+		 */
+		whitespaceAfter?: boolean;
+
+		/**
+		 * Creates a new inline hint information object.
+		 *
+		 * @param text The text of the hint.
+		 * @param range The range of the hint.
+		 * @param hoverMessage Tooltip when hover on the hint.
+		 * @param whitespaceBefore Whitespace before the hint.
+		 * @param whitespaceAfter TWhitespace after the hint.
+		 */
+		constructor(text: string, range: Range, description?: string | MarkdownString, whitespaceBefore?: boolean, whitespaceAfter?: boolean);
+	}
+
+	/**
+	 * The inline hints provider interface defines the contract between extensions and
+	 * the inline hints feature.
+	 */
+	export interface InlineHintsProvider {
+
+		/**
+		 * An optional event to signal that inline hints have changed.
+		 * @see [EventEmitter](#EventEmitter)
+		 */
+		onDidChangeInlineHints?: Event<void>;
+
+		/**
+		 * @param model The document in which the command was invoked.
+		 * @param range The range for which line hints should be computed.
+		 * @param token A cancellation token.
+		 *
+		 * @return A list of arguments labels or a thenable that resolves to such.
+		 */
+		provideInlineHints(model: TextDocument, range: Range, token: CancellationToken): ProviderResult<InlineHint[]>;
+	}
 	//#endregion
 
 	//#region https://github.com/microsoft/vscode/issues/104436
@@ -2277,22 +2363,50 @@ declare module 'vscode' {
 		location?: Location;
 	}
 
-	/**
-	 * Additional metadata about the uri being opened
-	 */
-	interface OpenExternalUriContext {
-
-	}
-
 	//#endregion
 
 	//#region Opener service (https://github.com/microsoft/vscode/issues/109277)
+
+	export enum ExternalUriOpenerPriority {
+		/**
+		 * The opener is disabled and will not be shown to users.
+		 *
+		 * Note that the opener can still be used if the user
+		 * specifically configures it in their settings.
+		 */
+		None = 0,
+
+		/**
+		 * The opener can open the uri but will not be shown by default when a
+		 * user clicks on the uri.
+		 *
+		 * If only optional openers are enabled, then VS Code's default opener
+		 * will be automatically used.
+		 */
+		Option = 1,
+
+		/**
+		 * The opener can open the uri.
+		 *
+		 * When the user clicks on a uri, they will be prompted to select the opener
+		 * they wish to use for it.
+		 */
+		Default = 2,
+
+		/**
+		 * The opener can open the uri and should be automatically selected if possible.
+		 *
+		 * Preferred openers will be automatically selected if no other preferred openers
+		 * are available.
+		 */
+		Preferred = 3,
+	}
 
 	/**
 	 * Handles opening uris to external resources, such as http(s) links.
 	 *
 	 * Extensions can implement an `ExternalUriOpener` to open `http` links to a webserver
-	 * inside of VS Code instead of having the link be opened by the webbrowser.
+	 * inside of VS Code instead of having the link be opened by the web browser.
 	 *
 	 * Currently openers may only be registered for `http` and `https` uris.
 	 */
@@ -2305,12 +2419,18 @@ declare module 'vscode' {
 		 * not yet gone through port forwarding.
 		 * @param token Cancellation token indicating that the result is no longer needed.
 		 *
-		 * @return True if the opener can open the external uri.
+		 * @return If the opener can open the external uri.
 		 */
-		canOpenExternalUri(uri: Uri, token: CancellationToken): ProviderResult<boolean>;
+		canOpenExternalUri(uri: Uri, token: CancellationToken): ExternalUriOpenerPriority | Thenable<ExternalUriOpenerPriority>;
 
 		/**
 		 * Open the given uri.
+		 *
+		 * This is invoked when:
+		 *
+		 * - The user clicks a link which does not have an assigned opener. In this case, first `canOpenExternalUri`
+		 *   is called and if the user selects this opener, then `openExternalUri` is called.
+		 * - The user sets the default opener for a link in their settings and then visits a link.
 		 *
 		 * @param resolvedUri The uri to open. This uri may have been transformed by port forwarding, so it
 		 * may not match the original uri passed to `canOpenExternalUri`. Use `ctx.originalUri` to check the
@@ -2330,13 +2450,23 @@ declare module 'vscode' {
 		/**
 		 * The uri that triggered the open.
 		 *
-		 * Due to port forwarding, this may not match the `resolvedUri` passed to `openExternalUri`
+		 * Due to port forwarding, this may not match the `resolvedUri` passed to `openExternalUri`.
 		 */
 		readonly sourceUri: Uri;
 	}
 
-
+	/**
+	 * Additional metadata about the registered opener.
+	 */
 	interface ExternalUriOpenerMetadata {
+
+		/**
+		 * List of uri schemes the opener is triggered for.
+		 *
+		 * Currently only `http` and `https` are supported.
+		 */
+		readonly schemes: readonly string[]
+
 		/**
 		 * Text displayed to the user that explains what the opener does.
 		 *
@@ -2351,53 +2481,48 @@ declare module 'vscode' {
 		 *
 		 * When a uri is about to be opened, an `onUriOpen:SCHEME` activation event is fired.
 		 *
-		 * @param schemes List of uri schemes the opener is triggered for. Currently only `http`
-		 * and `https` are supported.
+		 * @param id Unique id of the opener, such as `myExtension.browserPreview`. This is used in settings
+		 *   and commands to identify the opener.
 		 * @param opener Opener to register.
+		 * @param metadata Additional information about the opener.
 		 *
 		* @returns Disposable that unregisters the opener.
-		 */
-		export function registerExternalUriOpener(schemes: readonly string[], opener: ExternalUriOpener, metadata: ExternalUriOpenerMetadata): Disposable;
+		*/
+		export function registerExternalUriOpener(id: string, opener: ExternalUriOpener, metadata: ExternalUriOpenerMetadata): Disposable;
 	}
 
-	//#endregion
-
-	//#region https://github.com/microsoft/vscode/issues/112249
-
-	/**
-	 * Represents a storage utility for secrets, information that is
-	 * sensitive.
-	 */
-	export interface SecretStorage {
+	interface OpenExternalOptions {
 		/**
-		 * Retrieve a secret that was stored with key. Returns undefined if there
-		 * is no password matching that key.
-		 * @param key The key the password was stored under.
-		 * @returns The stored value or `undefined`.
+		 *
+		 * If `true`, then VS Code will check if any contributed openers can handle the
+		 * uri, and fallback to the default opener behavior.
+		 *
+		 * If it is string, then this specifies the id of the `ExternalUriOpener`
+		 * that should be used if it is available. Use `'default'` to force VS Code's
+		 * standard external opener to be used.
 		 */
-		get(key: string): Thenable<string | undefined>;
-
-		/**
-		 * Store a secret under a given key.
-		 * @param key The key to store the password under.
-		 * @param value The password.
-		 */
-		set(key: string, value: string): Thenable<void>;
-
-		/**
-		 * Remove a secret from storage.
-		 * @param key The key the password was stored under.
-		 */
-		delete(key: string): Thenable<void>;
-
-		/**
-		 * Fires when a secret is set or deleted.
-		 */
-		onDidChange: Event<void>;
+		readonly allowContributedOpeners?: boolean | string;
 	}
 
-	export interface ExtensionContext {
-		secrets: SecretStorage;
+	namespace env {
+		export function openExternal(target: Uri, options?: OpenExternalOptions): Thenable<boolean>;
+	}
+
+	//#endregionn
+
+	//#region https://github.com/Microsoft/vscode/issues/15178
+
+	// TODO@API must be a class
+	export interface OpenEditorInfo {
+		name: string;
+		resource: Uri;
+	}
+
+	export namespace window {
+		export const openEditors: ReadonlyArray<OpenEditorInfo>;
+
+		// todo@API proper event type
+		export const onDidChangeOpenEditors: Event<void>;
 	}
 
 	//#endregion

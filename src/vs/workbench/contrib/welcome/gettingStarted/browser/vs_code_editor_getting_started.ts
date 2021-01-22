@@ -9,23 +9,23 @@ import { localize } from 'vs/nls';
 export default () => `
 <div class="gettingStartedContainer">
 	<div class="gettingStarted" role="document">
-		<div id="gettingStartedSlideCategory" class="gettingStartedSlide categories">
+		<div class="gettingStartedSlideCategory gettingStartedSlide categories">
 			<div class="gap"></div>
 			<div class="header">
-				<h1 id="product-name" class="caption">${escape(localize('gettingStarted.vscode', "Visual Studio Code"))}</h1>
+				<h1 class="product-name caption">${escape(localize('gettingStarted.vscode', "Visual Studio Code"))}</h1>
 				<p class="subtitle description">${escape(localize({ key: 'gettingStarted.editingRedefined', comment: ['Shown as subtitle on the Welcome page.'] }, "Code editing. Redefined"))}</p>
 			</div>
 		</div>
-		<div id="gettingStartedSlideDetails" class="gettingStartedSlide detail">
+		<div class="gettingStartedSlideDetails gettingStartedSlide detail">
 			<a class="prev-button" x-dispatch="scrollPrev"><span class="scroll-button codicon codicon-chevron-left"></span>Back</a>
-			<div id="gettingStartedDetailsContent">
+			<div class="gettingStartedDetailsContent">
 				<div class="gap"></div>
-				<div id="getting-started-detail-columns">
+				<div class="getting-started-detail-columns">
 					<div class="gap"></div>
-					<div id="getting-started-detail-left">
-						<div id="getting-started-detail-title"></div>
+					<div class="getting-started-detail-left">
+						<div class="getting-started-detail-title"></div>
 					</div>
-					<div id="getting-started-detail-right"></div>
+					<div class="getting-started-detail-right"></div>
 					<div class="gap"></div>
 				</div>
 				<div class="gap"></div>

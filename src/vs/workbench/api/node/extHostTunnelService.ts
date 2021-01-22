@@ -15,13 +15,13 @@ import * as fs from 'fs';
 import * as pfs from 'vs/base/node/pfs';
 import { isLinux } from 'vs/base/common/platform';
 import { IExtHostTunnelService, TunnelDto } from 'vs/workbench/api/common/extHostTunnelService';
-import { asPromise } from 'vs/base/common/async';
 import { Event, Emitter } from 'vs/base/common/event';
 import { TunnelOptions, TunnelCreationOptions } from 'vs/platform/remote/common/tunnel';
 import { IExtensionDescription } from 'vs/platform/extensions/common/extensions';
 import { promisify } from 'util';
 import { MovingAverage } from 'vs/base/common/numbers';
 import { CandidatePort } from 'vs/workbench/services/remote/common/remoteExplorerService';
+import { ILogService } from 'vs/platform/log/common/log';
 
 class ExtensionTunnel implements vscode.Tunnel {
 	private _onDispose: Emitter<void> = new Emitter();
@@ -138,13 +138,18 @@ export class ExtHostTunnelService extends Disposable implements IExtHostTunnelSe
 	private _extensionTunnels: Map<string, Map<number, { tunnel: vscode.Tunnel, disposeListener: IDisposable }>> = new Map();
 	private _onDidChangeTunnels: Emitter<void> = new Emitter<void>();
 	onDidChangeTunnels: vscode.Event<void> = this._onDidChangeTunnels.event;
+	private _candidateFindingEnabled: boolean = false;
 
 	constructor(
 		@IExtHostRpcService extHostRpc: IExtHostRpcService,
-		@IExtHostInitDataService private initData: IExtHostInitDataService
+		@IExtHostInitDataService initData: IExtHostInitDataService,
+		@ILogService private readonly logService: ILogService
 	) {
 		super();
 		this._proxy = extHostRpc.getProxy(MainContext.MainThreadTunnelService);
+		if (isLinux && initData.remote.isRemote && initData.remote.authority) {
+			this._proxy.$setCandidateFinder();
+		}
 	}
 
 	async openTunnel(extension: IExtensionDescription, forward: TunnelOptions): Promise<vscode.Tunnel | undefined> {
@@ -168,21 +173,23 @@ export class ExtHostTunnelService extends Disposable implements IExtHostTunnelSe
 		return Math.max(movingAverage * 20, 2000);
 	}
 
-	async $registerCandidateFinder(): Promise<void> {
-		if (!isLinux || !this.initData.remote.isRemote || !this.initData.remote.authority) {
+	async $registerCandidateFinder(enable: boolean): Promise<void> {
+		if (enable && this._candidateFindingEnabled) {
+			// already enabled
 			return;
 		}
+		this._candidateFindingEnabled = enable;
 		// Regularly scan to see if the candidate ports have changed.
 		let movingAverage = new MovingAverage();
 		let oldPorts: { host: string, port: number, detail: string }[] | undefined = undefined;
-		while (1) {
+		while (this._candidateFindingEnabled) {
 			const startTime = new Date().getTime();
 			const newPorts = await this.findCandidatePorts();
 			const timeTaken = new Date().getTime() - startTime;
 			movingAverage.update(timeTaken);
 			if (!oldPorts || (JSON.stringify(oldPorts) !== JSON.stringify(newPorts))) {
 				oldPorts = newPorts;
-				await this._proxy.$onFoundNewCandidates(oldPorts.filter(async (candidate) => await this._showCandidatePort(candidate.host, candidate.port, candidate.detail)));
+				await this._proxy.$onFoundNewCandidates(oldPorts);
 			}
 			await (new Promise<void>(resolve => setTimeout(() => resolve(), this.calculateDelay(movingAverage.value))));
 		}
@@ -192,6 +199,7 @@ export class ExtHostTunnelService extends Disposable implements IExtHostTunnelSe
 		if (provider) {
 			if (provider.showCandidatePort) {
 				this._showCandidatePort = provider.showCandidatePort;
+				await this._proxy.$setCandidateFilter();
 			}
 			if (provider.tunnelFactory) {
 				this._forwardPortProvider = provider.tunnelFactory;
@@ -227,19 +235,32 @@ export class ExtHostTunnelService extends Disposable implements IExtHostTunnelSe
 
 	async $forwardPort(tunnelOptions: TunnelOptions, tunnelCreationOptions: TunnelCreationOptions): Promise<TunnelDto | undefined> {
 		if (this._forwardPortProvider) {
-			const providedPort = this._forwardPortProvider(tunnelOptions, tunnelCreationOptions);
-			if (providedPort !== undefined) {
-				return asPromise(() => providedPort).then(tunnel => {
+			try {
+				this.logService.trace('$forwardPort: Getting tunnel from provider.');
+				const providedPort = this._forwardPortProvider(tunnelOptions, tunnelCreationOptions);
+				this.logService.trace('$forwardPort: Got tunnel promise from provider.');
+				if (providedPort !== undefined) {
+					const tunnel = await providedPort;
+					this.logService.trace('$forwardPort: Successfully awaited tunnel from provider.');
 					if (!this._extensionTunnels.has(tunnelOptions.remoteAddress.host)) {
 						this._extensionTunnels.set(tunnelOptions.remoteAddress.host, new Map());
 					}
 					const disposeListener = this._register(tunnel.onDidDispose(() => this._proxy.$closeTunnel(tunnel.remoteAddress)));
 					this._extensionTunnels.get(tunnelOptions.remoteAddress.host)!.set(tunnelOptions.remoteAddress.port, { tunnel, disposeListener });
-					return Promise.resolve(TunnelDto.fromApiTunnel(tunnel));
-				});
+					return TunnelDto.fromApiTunnel(tunnel);
+				} else {
+					this.logService.trace('$forwardPort: Tunnel is undefined');
+				}
+			} catch (e) {
+				this.logService.trace('$forwardPort: tunnel provider error');
 			}
 		}
 		return undefined;
+	}
+
+	async $applyCandidateFilter(candidates: CandidatePort[]): Promise<CandidatePort[]> {
+		const filter = await Promise.all(candidates.map(candidate => this._showCandidatePort(candidate.host, candidate.port, candidate.detail)));
+		return candidates.filter((candidate, index) => filter[index]);
 	}
 
 	async findCandidatePorts(): Promise<CandidatePort[]> {

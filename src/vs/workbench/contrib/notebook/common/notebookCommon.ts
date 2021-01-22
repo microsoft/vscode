@@ -467,7 +467,7 @@ export function getCellUndoRedoComparisonKey(uri: URI) {
 		return uri.toString();
 	}
 
-	return data.notebook.toString();
+	return `vt=${data.viewType}&uri=data.notebook.toString()`;
 }
 
 
@@ -477,10 +477,11 @@ export namespace CellUri {
 
 	const _regex = /^ch(\d{7,})/;
 
-	export function generate(notebook: URI, handle: number): URI {
+	export function generate(notebook: URI, viewType: string, handle: number): URI {
 		return notebook.with({
 			scheme,
-			fragment: `ch${handle.toString().padStart(7, '0')}${notebook.scheme !== Schemas.file ? notebook.scheme : ''}`
+			fragment: `ch${handle.toString().padStart(7, '0')}${notebook.scheme !== Schemas.file ? notebook.scheme : ''}`,
+			query: `vt=${viewType}`
 		});
 	}
 
@@ -492,7 +493,7 @@ export namespace CellUri {
 		});
 	}
 
-	export function parse(cell: URI): { notebook: URI, handle: number } | undefined {
+	export function parse(cell: URI): { notebook: URI, handle: number, viewType: string } | undefined {
 		if (cell.scheme !== scheme) {
 			return undefined;
 		}
@@ -505,8 +506,10 @@ export namespace CellUri {
 			handle,
 			notebook: cell.with({
 				scheme: cell.fragment.substr(match[0].length) || Schemas.file,
-				fragment: null
-			})
+				fragment: null,
+				query: null
+			}),
+			viewType: cell.query.substr('vt='.length)
 		};
 	}
 }
@@ -784,7 +787,8 @@ export function notebookDocumentFilterMatch(filter: INotebookDocumentFilter, vie
 }
 
 export interface INotebookKernelInfoDto2 {
-	id: string;
+	id?: string;
+	friendlyId: string;
 	label: string;
 	extension: ExtensionIdentifier;
 	extensionLocation: URI;

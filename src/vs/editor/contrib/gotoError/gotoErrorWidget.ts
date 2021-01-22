@@ -16,7 +16,7 @@ import { Color } from 'vs/base/common/color';
 import { ScrollableElement } from 'vs/base/browser/ui/scrollbar/scrollableElement';
 import { ScrollbarVisibility } from 'vs/base/common/scrollable';
 import { ScrollType } from 'vs/editor/common/editorCommon';
-import { getBaseLabel, getPathLabel } from 'vs/base/common/labels';
+import { getBaseLabel } from 'vs/base/common/labels';
 import { isNonEmptyArray } from 'vs/base/common/arrays';
 import { Event, Emitter } from 'vs/base/common/event';
 import { PeekViewWidget, peekViewTitleForeground, peekViewTitleInfoForeground } from 'vs/editor/contrib/peekView/peekView';
@@ -31,6 +31,7 @@ import { IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
 import { createAndFillInActionBarActions } from 'vs/platform/actions/browser/menuEntryActionViewItem';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { splitLines } from 'vs/base/common/strings';
+import { ILabelService } from 'vs/platform/label/common/label';
 
 class MessageWidget {
 
@@ -51,6 +52,7 @@ class MessageWidget {
 		editor: ICodeEditor,
 		onRelatedInformation: (related: IRelatedInformation) => void,
 		private readonly _openerService: IOpenerService,
+		private readonly _labelService: ILabelService
 	) {
 		this._editor = editor;
 
@@ -169,7 +171,7 @@ class MessageWidget {
 				let relatedResource = document.createElement('a');
 				relatedResource.classList.add('filename');
 				relatedResource.innerText = `${getBaseLabel(related.resource)}(${related.startLineNumber}, ${related.startColumn}): `;
-				relatedResource.title = getPathLabel(related.resource, undefined);
+				relatedResource.title = this._labelService.getUriLabel(related.resource);
 				this._relatedDiagnostics.set(relatedResource, related);
 
 				let relatedMessage = document.createElement('span');
@@ -248,7 +250,8 @@ export class MarkerNavigationWidget extends PeekViewWidget {
 		@IOpenerService private readonly _openerService: IOpenerService,
 		@IMenuService private readonly _menuService: IMenuService,
 		@IInstantiationService instantiationService: IInstantiationService,
-		@IContextKeyService private readonly _contextKeyService: IContextKeyService
+		@IContextKeyService private readonly _contextKeyService: IContextKeyService,
+		@ILabelService private readonly _labelService: ILabelService
 	) {
 		super(editor, { showArrow: true, showFrame: true, isAccessible: true }, instantiationService);
 		this._severity = MarkerSeverity.Warning;
@@ -326,7 +329,7 @@ export class MarkerNavigationWidget extends PeekViewWidget {
 		this._container = document.createElement('div');
 		container.appendChild(this._container);
 
-		this._message = new MessageWidget(this._container, this.editor, related => this._onDidSelectRelatedInformation.fire(related), this._openerService);
+		this._message = new MessageWidget(this._container, this.editor, related => this._onDidSelectRelatedInformation.fire(related), this._openerService, this._labelService);
 		this._disposables.add(this._message);
 	}
 

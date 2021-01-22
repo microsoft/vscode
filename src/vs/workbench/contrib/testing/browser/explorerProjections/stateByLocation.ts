@@ -3,8 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { ICompressedTreeElement } from 'vs/base/browser/ui/tree/compressedObjectTreeModel';
-import { CompressibleObjectTree } from 'vs/base/browser/ui/tree/objectTree';
+import { ObjectTree } from 'vs/base/browser/ui/tree/objectTree';
 import { Emitter } from 'vs/base/common/event';
 import { FuzzyScore } from 'vs/base/common/filters';
 import { Iterable } from 'vs/base/common/iterator';
@@ -15,11 +14,11 @@ import { Location as ModeLocation } from 'vs/editor/common/modes';
 import { TestRunState } from 'vs/workbench/api/common/extHostTypes';
 import { ITestTreeElement, ITestTreeProjection } from 'vs/workbench/contrib/testing/browser/explorerProjections';
 import { locationsEqual, TestLocationStore } from 'vs/workbench/contrib/testing/browser/explorerProjections/locationStore';
-import { isRunningState, NodeChangeList } from 'vs/workbench/contrib/testing/browser/explorerProjections/nodeHelper';
+import { NodeChangeList, NodeRenderDirective, NodeRenderFn, peersHaveChildren } from 'vs/workbench/contrib/testing/browser/explorerProjections/nodeHelper';
 import { StateElement } from 'vs/workbench/contrib/testing/browser/explorerProjections/stateNodes';
-import { statesInOrder } from 'vs/workbench/contrib/testing/browser/testExplorerTree';
-import { TestSubscriptionListener } from 'vs/workbench/contrib/testing/common/testingCollectionService';
-import { AbstractIncrementalTestCollection, IncrementalChangeCollector, IncrementalTestCollectionItem, InternalTestItem, TestDiffOpType, TestIdWithProvider, TestsDiff } from 'vs/workbench/contrib/testing/common/testCollection';
+import { AbstractIncrementalTestCollection, IncrementalChangeCollector, IncrementalTestCollectionItem, InternalTestItem, TestIdWithProvider, TestsDiff } from 'vs/workbench/contrib/testing/common/testCollection';
+import { isRunningState, statesInOrder } from 'vs/workbench/contrib/testing/common/testingStates';
+import { TestSubscriptionListener } from 'vs/workbench/contrib/testing/common/workspaceTestCollectionService';
 
 interface IStatusTestItem extends IncrementalTestCollectionItem {
 	treeElements: Map<TestRunState, TestStateElement>;
@@ -35,7 +34,7 @@ class TestStateElement implements ITestTreeElement {
 	public computedState = this.state;
 
 	public get treeId() {
-		return `test:${this.test.id}`;
+		return `sltest:${this.test.id}`;
 	}
 
 	public get label() {
@@ -68,10 +67,6 @@ class TestStateElement implements ITestTreeElement {
 
 	public readonly depth = this.test.depth;
 	public readonly children = new Set<TestStateElement>();
-
-	getChildren(): Iterable<ITestTreeElement> {
-		return this.children;
-	}
 
 	constructor(
 		public readonly state: TestRunState,
@@ -114,14 +109,7 @@ export class StateByLocationProjection extends AbstractIncrementalTestCollection
 
 		const firstDiff: TestsDiff = [];
 		for (const [, collection] of listener.workspaceFolderCollections) {
-			const queue = [collection.rootNodes];
-			while (queue.length) {
-				for (const id of queue.pop()!) {
-					const node = collection.getNodeById(id)!;
-					firstDiff.push([TestDiffOpType.Add, node]);
-					queue.push(node.children);
-				}
-			}
+			firstDiff.push(...collection.getReviverDiff());
 		}
 
 		this.apply(firstDiff);
@@ -156,15 +144,22 @@ export class StateByLocationProjection extends AbstractIncrementalTestCollection
 	/**
 	 * @inheritdoc
 	 */
-	public applyTo(tree: CompressibleObjectTree<ITestTreeElement, FuzzyScore>) {
+	public applyTo(tree: ObjectTree<ITestTreeElement, FuzzyScore>) {
 		this.changes.applyTo(tree, this.renderNode, () => this.stateRoots.values());
 	}
 
-	private readonly renderNode = (node: TreeElement): ICompressedTreeElement<ITestTreeElement> => {
+	private readonly renderNode: NodeRenderFn<TreeElement> = (node, recurse) => {
+		if (node.depth === 1 /* test provider */) {
+			if (node.children.size === 0) {
+				return NodeRenderDirective.Omit;
+			} else if (!peersHaveChildren(node, () => this.stateRoots.values())) {
+				return NodeRenderDirective.Concat;
+			}
+		}
+
 		return {
 			element: node,
-			incompressible: node.depth > 0,
-			children: Iterable.map(node.children, this.renderNode),
+			children: recurse(node.children),
 		};
 	};
 
@@ -315,7 +310,7 @@ export class StateByLocationProjection extends AbstractIncrementalTestCollection
 	protected createItem(item: InternalTestItem, parentItem?: IStatusTestItem): IStatusTestItem {
 		return {
 			...item,
-			depth: parentItem ? parentItem.depth + 1 : 0,
+			depth: parentItem ? parentItem.depth + 1 : 1,
 			parentItem: parentItem,
 			previousState: item.item.state.runState,
 			location: item.item.location,

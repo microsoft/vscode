@@ -25,7 +25,7 @@ import { TestingOutputPeekController } from 'vs/workbench/contrib/testing/browse
 import { TestingViewPaneContainer } from 'vs/workbench/contrib/testing/browser/testingViewPaneContainer';
 import { Testing } from 'vs/workbench/contrib/testing/common/constants';
 import { TestIdWithProvider } from 'vs/workbench/contrib/testing/common/testCollection';
-import { ITestingCollectionService, TestingCollectionService } from 'vs/workbench/contrib/testing/common/testingCollectionService';
+import { IWorkspaceTestCollectionService, WorkspaceTestCollectionService } from 'vs/workbench/contrib/testing/common/workspaceTestCollectionService';
 import { TestingContentProvider } from 'vs/workbench/contrib/testing/common/testingContentProvider';
 import { TestingContextKeys } from 'vs/workbench/contrib/testing/common/testingContextKeys';
 import { ITestService } from 'vs/workbench/contrib/testing/common/testService';
@@ -33,17 +33,19 @@ import { TestService } from 'vs/workbench/contrib/testing/common/testServiceImpl
 import { IEditorService } from 'vs/workbench/services/editor/common/editorService';
 import { LifecyclePhase } from 'vs/workbench/services/lifecycle/common/lifecycle';
 import * as Action from './testExplorerActions';
+import { ITestResultService, TestResultService } from 'vs/workbench/contrib/testing/common/testResultService';
 
 registerSingleton(ITestService, TestService);
-registerSingleton(ITestingCollectionService, TestingCollectionService);
+registerSingleton(ITestResultService, TestResultService);
+registerSingleton(IWorkspaceTestCollectionService, WorkspaceTestCollectionService);
 
 const viewContainer = Registry.as<IViewContainersRegistry>(ViewContainerExtensions.ViewContainersRegistry).registerViewContainer({
 	id: Testing.ViewletId,
-	name: localize('testing', "Testing"),
+	name: localize('test', "Test"),
 	ctorDescriptor: new SyncDescriptor(TestingViewPaneContainer),
 	icon: testingViewIcon,
 	alwaysUseContainerInfo: true,
-	order: 5,
+	order: 6,
 	hideIfEmpty: true,
 }, ViewContainerLocation.Sidebar);
 
@@ -87,6 +89,10 @@ registerAction2(Action.DebugSelectedAction);
 registerAction2(Action.TestingGroupByLocationAction);
 registerAction2(Action.TestingGroupByStatusAction);
 registerAction2(Action.RefreshTestsAction);
+registerAction2(Action.ShowTestView);
+registerAction2(Action.CollapseAllAction);
+registerAction2(Action.RunAllAction);
+registerAction2(Action.DebugAllAction);
 
 Registry.as<IWorkbenchContributionsRegistry>(WorkbenchExtensions.Workbench).registerWorkbenchContribution(TestingContentProvider, LifecyclePhase.Eventually);
 

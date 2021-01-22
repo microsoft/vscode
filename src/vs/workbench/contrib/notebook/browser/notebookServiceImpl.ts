@@ -270,8 +270,8 @@ export class NotebookService extends Disposable implements INotebookService, ICu
 
 	private readonly _onDidChangeKernels = new Emitter<URI | undefined>();
 	onDidChangeKernels: Event<URI | undefined> = this._onDidChangeKernels.event;
-	private readonly _onDidChangeNotebookActiveKernel = new Emitter<{ uri: URI, providerHandle: number | undefined, kernelId: string | undefined; }>();
-	onDidChangeNotebookActiveKernel: Event<{ uri: URI, providerHandle: number | undefined, kernelId: string | undefined; }> = this._onDidChangeNotebookActiveKernel.event;
+	private readonly _onDidChangeNotebookActiveKernel = new Emitter<{ uri: URI, providerHandle: number | undefined, kernelFriendlyId: string | undefined; }>();
+	onDidChangeNotebookActiveKernel: Event<{ uri: URI, providerHandle: number | undefined, kernelFriendlyId: string | undefined; }> = this._onDidChangeNotebookActiveKernel.event;
 	private cutItems: NotebookCellTextModel[] | undefined;
 	private _lastClipboardIsCopy: boolean = true;
 
@@ -696,9 +696,10 @@ export class NotebookService extends Disposable implements INotebookService, ICu
 			const data = await provider.provideKernels(resource, token);
 			result[index] = data.map(dto => {
 				return {
+					id: dto.id,
 					extension: dto.extension,
 					extensionLocation: URI.revive(dto.extensionLocation),
-					id: dto.id,
+					friendlyId: dto.friendlyId,
 					label: dto.label,
 					description: dto.description,
 					detail: dto.detail,
@@ -706,13 +707,13 @@ export class NotebookService extends Disposable implements INotebookService, ICu
 					preloads: dto.preloads,
 					providerHandle: dto.providerHandle,
 					resolve: async (uri: URI, editorId: string, token: CancellationToken) => {
-						return provider.resolveKernel(editorId, uri, dto.id, token);
+						return provider.resolveKernel(editorId, uri, dto.friendlyId, token);
 					},
 					executeNotebookCell: async (uri: URI, handle: number | undefined) => {
-						return provider.executeNotebook(uri, dto.id, handle);
+						return provider.executeNotebook(uri, dto.friendlyId, handle);
 					},
 					cancelNotebookCell: (uri: URI, handle: number | undefined): Promise<void> => {
-						return provider.cancelNotebook(uri, dto.id, handle);
+						return provider.cancelNotebook(uri, dto.friendlyId, handle);
 					}
 				};
 			});
@@ -922,7 +923,7 @@ export class NotebookService extends Disposable implements INotebookService, ICu
 				this._onDidChangeNotebookActiveKernel.fire({
 					uri: editor.uri!,
 					providerHandle: editor.activeKernel?.providerHandle,
-					kernelId: editor.activeKernel?.id
+					kernelFriendlyId: editor.activeKernel?.friendlyId
 				});
 			}));
 		}

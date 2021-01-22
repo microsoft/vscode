@@ -212,10 +212,12 @@ export class AutomaticPortForwarding extends Disposable implements IWorkbenchCon
 
 		remoteAgentService.getEnvironment().then(environment => {
 			if (environment?.os === OperatingSystem.Windows) {
-				this._register(new WindowsAutomaticPortForwarding(terminalService, notificationService, openerService,
-					remoteExplorerService, configurationService, debugService, tunnelService));
+				this._register(new OutputAutomaticPortForwarding(terminalService, notificationService, openerService,
+					remoteExplorerService, configurationService, debugService, tunnelService, remoteAgentService, false));
 			} else if (environment?.os === OperatingSystem.Linux) {
-				this._register(new LinuxAutomaticPortForwarding(configurationService, remoteExplorerService, notificationService, openerService, tunnelService));
+				this._register(new ProcAutomaticPortForwarding(configurationService, remoteExplorerService, notificationService, openerService, tunnelService));
+				this._register(new OutputAutomaticPortForwarding(terminalService, notificationService, openerService,
+					remoteExplorerService, configurationService, debugService, tunnelService, remoteAgentService, true));
 			}
 		});
 	}
@@ -241,7 +243,7 @@ class OnAutoForwardedAction extends Disposable {
 		const tunnel = await this.portNumberHeuristicDelay(tunnels);
 		if (tunnel) {
 			switch (this.portsAttributes.getAttributes(tunnel.tunnelRemotePort)?.onAutoForward) {
-				case OnPortForward.Open: {
+				case OnPortForward.OpenBrowser: {
 					const address = makeAddress(tunnel.tunnelRemoteHost, tunnel.tunnelRemotePort);
 					await OpenPortInBrowserAction.run(this.remoteExplorerService.tunnelModel, this.openerService, address);
 					break;
@@ -355,7 +357,7 @@ class OnAutoForwardedAction extends Disposable {
 	}
 }
 
-class WindowsAutomaticPortForwarding extends Disposable {
+class OutputAutomaticPortForwarding extends Disposable {
 	private portsFeatures?: IDisposable;
 	private urlFinder?: UrlFinder;
 	private notifier: OnAutoForwardedAction;
@@ -368,7 +370,9 @@ class WindowsAutomaticPortForwarding extends Disposable {
 		private readonly remoteExplorerService: IRemoteExplorerService,
 		private readonly configurationService: IConfigurationService,
 		private readonly debugService: IDebugService,
-		readonly tunnelService: ITunnelService
+		readonly tunnelService: ITunnelService,
+		private readonly remoteAgentService: IRemoteAgentService,
+		readonly privilegedOnly: boolean
 	) {
 		super();
 		this.portsAttributes = new PortsAttributes(configurationService);
@@ -408,6 +412,9 @@ class WindowsAutomaticPortForwarding extends Disposable {
 			if (this.portsAttributes.getAttributes(localUrl.port)?.onAutoForward === OnPortForward.Ignore) {
 				return;
 			}
+			if (this.privilegedOnly && !isPortPrivileged(localUrl.port, (await this.remoteAgentService.getEnvironment())?.os)) {
+				return;
+			}
 			const forwarded = await this.remoteExplorerService.forward(localUrl);
 			if (forwarded) {
 				this.notifier.doAction([forwarded]);
@@ -423,7 +430,7 @@ class WindowsAutomaticPortForwarding extends Disposable {
 	}
 }
 
-class LinuxAutomaticPortForwarding extends Disposable {
+class ProcAutomaticPortForwarding extends Disposable {
 	private candidateListener: IDisposable | undefined;
 	private autoForwarded: Set<string> = new Set();
 	private notifier: OnAutoForwardedAction;

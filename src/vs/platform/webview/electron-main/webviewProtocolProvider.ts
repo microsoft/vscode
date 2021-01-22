@@ -175,10 +175,14 @@ export class WebviewProtocolProvider extends Disposable {
 					};
 				}
 
-				const fileService = {
-					readFileStream: async (resource: URI): Promise<VSBufferReadableStream> => {
+				const fileReader = {
+					readFileStream: async (resource: URI): Promise<{ stream: VSBufferReadableStream, etag?: string }> => {
 						if (resource.scheme === Schemas.file) {
-							return (await this.fileService.readFileStream(resource)).value;
+							const result = (await this.fileService.readFileStream(resource));
+							return {
+								stream: result.value,
+								etag: result.etag
+							};
 						}
 
 						// Unknown uri scheme. Try delegating the file read back to the renderer
@@ -201,7 +205,7 @@ export class WebviewProtocolProvider extends Disposable {
 							throw new FileOperationError('Could not read file', FileOperationResult.FILE_NOT_FOUND);
 						}
 
-						return bufferToStream(result);
+						return { stream: bufferToStream(result), etag: undefined };
 					}
 				};
 
@@ -210,15 +214,41 @@ export class WebviewProtocolProvider extends Disposable {
 					roots: metadata.localResourceRoots,
 					remoteConnectionData: metadata.remoteConnectionData,
 					rewriteUri,
-				}, fileService, this.requestService, this.logService);
+				}, fileReader, this.requestService, this.logService);
 
 				if (result.type === WebviewResourceResponse.Type.Success) {
+					const cacheHeaders: Record<string, string> = result.etag ? {
+						'ETag': result.etag,
+						'Cache-Control': 'no-cache'
+					} : {};
+
+					const ifNoneMatch = request.headers['If-None-Match'];
+					if (ifNoneMatch && result.etag === ifNoneMatch) {
+						/*
+						 * Note that the server generating a 304 response MUST
+						 * generate any of the following header fields that would
+						 * have been sent in a 200 (OK) response to the same request:
+						 * Cache-Control, Content-Location, Date, ETag, Expires, and Vary.
+						 * (https://developer.mozilla.org/en-US/docs/Web/HTTP/Headers/If-None-Match)
+						 */
+						return callback({
+							statusCode: 304, // not modified
+							data: undefined, // The request fails if `data` is not set
+							headers: {
+								'Content-Type': result.mimeType,
+								'Access-Control-Allow-Origin': '*',
+								...cacheHeaders
+							}
+						});
+					}
+
 					return callback({
 						statusCode: 200,
 						data: this.streamToNodeReadable(result.stream),
 						headers: {
 							'Content-Type': result.mimeType,
 							'Access-Control-Allow-Origin': '*',
+							...cacheHeaders
 						}
 					});
 				}

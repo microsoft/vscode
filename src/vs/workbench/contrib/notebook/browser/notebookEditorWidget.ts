@@ -175,9 +175,12 @@ export class NotebookEditorWidget extends Disposable implements INotebookEditor 
 		this._activeKernelResolvePromise = undefined;
 
 		const memento = this._activeKernelMemento.getMemento(StorageScope.GLOBAL, StorageTarget.MACHINE);
-		memento[this.viewModel.viewType] = this._activeKernel?.id;
+		memento[this.viewModel.viewType] = this._activeKernel?.friendlyId;
 		this._activeKernelMemento.saveMemento();
 		this._onDidChangeKernel.fire();
+		if (this._activeKernel) {
+			this._loadKernelPreloads(this._activeKernel.extensionLocation, this._activeKernel);
+		}
 	}
 
 	private _activeKernelResolvePromise: Promise<void> | undefined = undefined;
@@ -771,7 +774,7 @@ export class NotebookEditorWidget extends Disposable implements INotebookEditor 
 			this.multipleKernelsAvailable = false;
 		}
 
-		const activeKernelStillExist = [...availableKernels].find(kernel => kernel.id === this.activeKernel?.id && this.activeKernel?.id !== undefined);
+		const activeKernelStillExist = [...availableKernels].find(kernel => kernel.friendlyId === this.activeKernel?.friendlyId && this.activeKernel?.friendlyId !== undefined);
 
 		if (activeKernelStillExist) {
 			// the kernel still exist, we don't want to modify the selection otherwise user's temporary preference is lost
@@ -797,7 +800,7 @@ export class NotebookEditorWidget extends Disposable implements INotebookEditor 
 				const cachedKernelId = memento[provider.id];
 				this.activeKernel =
 					filteredKernels.find(kernel => kernel.isPreferred)
-					|| filteredKernels.find(kernel => kernel.id === cachedKernelId)
+					|| filteredKernels.find(kernel => kernel.friendlyId === cachedKernelId)
 					|| filteredKernels[0];
 			} else {
 				this.activeKernel = undefined;
@@ -818,7 +821,7 @@ export class NotebookEditorWidget extends Disposable implements INotebookEditor 
 				}
 			}
 
-			memento[provider.id] = this._activeKernel?.id;
+			memento[provider.id] = this._activeKernel?.friendlyId;
 			this._activeKernelMemento.saveMemento();
 
 			tokenSource.dispose();
@@ -831,7 +834,7 @@ export class NotebookEditorWidget extends Disposable implements INotebookEditor 
 			const cachedKernelId = memento[provider.id];
 
 			const preferedKernel = kernelsFromSameExtension.find(kernel => kernel.isPreferred)
-				|| kernelsFromSameExtension.find(kernel => kernel.id === cachedKernelId)
+				|| kernelsFromSameExtension.find(kernel => kernel.friendlyId === cachedKernelId)
 				|| kernelsFromSameExtension[0];
 			this.activeKernel = preferedKernel;
 			if (this.activeKernel) {
@@ -848,7 +851,7 @@ export class NotebookEditorWidget extends Disposable implements INotebookEditor 
 				return;
 			}
 
-			memento[provider.id] = this._activeKernel?.id;
+			memento[provider.id] = this._activeKernel?.friendlyId;
 			this._activeKernelMemento.saveMemento();
 			tokenSource.dispose();
 			return;
@@ -1226,8 +1229,16 @@ export class NotebookEditorWidget extends Disposable implements INotebookEditor 
 		// this.viewModel!.selectionHandles = [cell.handle];
 	}
 
+	revealCellRangeInView(range: ICellRange) {
+		return this._list.revealElementsInView(range);
+	}
+
 	revealInView(cell: ICellViewModel) {
 		this._list.revealElementInView(cell);
+	}
+
+	revealInViewAtTop(cell: ICellViewModel) {
+		this._list.revealElementInViewAtTop(cell);
 	}
 
 	revealInCenterIfOutsideViewport(cell: ICellViewModel) {
@@ -1665,7 +1676,7 @@ export class NotebookEditorWidget extends Disposable implements INotebookEditor 
 		const availableKernels = await this.beginComputeContributedKernels();
 		const picks: QuickPickInput<IQuickPickItem & { run(): void; kernelProviderId?: string; }>[] = availableKernels.map((a) => {
 			return {
-				id: a.id,
+				id: a.friendlyId,
 				label: a.label,
 				picked: false,
 				description:

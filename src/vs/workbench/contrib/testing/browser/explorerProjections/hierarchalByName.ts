@@ -8,7 +8,9 @@ import { IWorkspaceFolder } from 'vs/platform/workspace/common/workspace';
 import { ITestTreeElement } from 'vs/workbench/contrib/testing/browser/explorerProjections';
 import { HierarchicalByLocationProjection as HierarchicalByLocationProjection } from 'vs/workbench/contrib/testing/browser/explorerProjections/hierarchalByLocation';
 import { HierarchicalElement, HierarchicalFolder } from 'vs/workbench/contrib/testing/browser/explorerProjections/hierarchalNodes';
+import { NodeRenderDirective } from 'vs/workbench/contrib/testing/browser/explorerProjections/nodeHelper';
 import { InternalTestItem } from 'vs/workbench/contrib/testing/common/testCollection';
+import { TestSubscriptionListener } from 'vs/workbench/contrib/testing/common/workspaceTestCollectionService';
 
 /**
  * Type of test element in the list.
@@ -30,7 +32,7 @@ export const enum ListElementType {
 export class HierarchicalByNameElement extends HierarchicalElement {
 	public elementType: ListElementType = ListElementType.Unset;
 	public readonly isTestRoot = !this.actualParent;
-	private readonly actualChildren = new Set<HierarchicalByNameElement>();
+	public readonly actualChildren = new Set<HierarchicalByNameElement>();
 
 	public get description() {
 		let description: string | undefined;
@@ -39,6 +41,10 @@ export class HierarchicalByNameElement extends HierarchicalElement {
 		}
 
 		return description;
+	}
+
+	public get testId() {
+		return `hintest:${this.test.id}`;
 	}
 
 	/**
@@ -111,6 +117,19 @@ export class HierarchicalByNameElement extends HierarchicalElement {
  * test root rather than the heirarchal parent.
  */
 export class HierarchicalByNameProjection extends HierarchicalByLocationProjection {
+	constructor(listener: TestSubscriptionListener) {
+		super(listener);
+
+		const originalRenderNode = this.renderNode.bind(this);
+		this.renderNode = (node, recurse) => {
+			if (node instanceof HierarchicalByNameElement && node.elementType !== ListElementType.TestLeaf && !node.isTestRoot) {
+				return NodeRenderDirective.Concat;
+			}
+
+			return originalRenderNode(node, recurse);
+		};
+	}
+
 	/**
 	 * @override
 	 */
@@ -129,7 +148,13 @@ export class HierarchicalByNameProjection extends HierarchicalByLocationProjecti
 	/**
 	 * @override
 	 */
-	protected deleteItem(item: HierarchicalElement) {
-		(item as HierarchicalByNameElement).remove();
+	protected unstoreItem(item: HierarchicalElement) {
+		const treeChildren = super.unstoreItem(item);
+		if (item instanceof HierarchicalByNameElement) {
+			item.remove();
+			return item.actualChildren;
+		}
+
+		return treeChildren;
 	}
 }

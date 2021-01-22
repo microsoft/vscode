@@ -25,7 +25,7 @@ import { activeContrastBorder, scrollbarSliderActiveBackground, scrollbarSliderB
 import { ICssStyleCollector, IColorTheme, IThemeService, registerThemingParticipant } from 'vs/platform/theme/common/themeService';
 import { PANEL_BACKGROUND, SIDE_BAR_BACKGROUND } from 'vs/workbench/common/theme';
 import { TerminalWidgetManager } from 'vs/workbench/contrib/terminal/browser/widgets/widgetManager';
-import { IShellLaunchConfig, ITerminalProcessManager, KEYBINDING_CONTEXT_TERMINAL_TEXT_SELECTED, NEVER_MEASURE_RENDER_TIME_STORAGE_KEY, ProcessState, TERMINAL_VIEW_ID, IWindowsShellHelper, KEYBINDING_CONTEXT_TERMINAL_A11Y_TREE_FOCUS, INavigationMode, TitleEventSource, DEFAULT_COMMANDS_TO_SKIP_SHELL, ITerminalLaunchError, IProcessDataEvent, ITerminalDimensionsOverride, TERMINAL_CREATION_COMMANDS } from 'vs/workbench/contrib/terminal/common/terminal';
+import { IShellLaunchConfig, ITerminalProcessManager, KEYBINDING_CONTEXT_TERMINAL_TEXT_SELECTED, NEVER_MEASURE_RENDER_TIME_STORAGE_KEY, ProcessState, TERMINAL_VIEW_ID, IWindowsShellHelper, KEYBINDING_CONTEXT_TERMINAL_A11Y_TREE_FOCUS, INavigationMode, TitleEventSource, DEFAULT_COMMANDS_TO_SKIP_SHELL, ITerminalLaunchError, IProcessDataEvent, ITerminalDimensionsOverride, TERMINAL_CREATION_COMMANDS, KEYBINDING_CONTEXT_TERMINAL_ALT_BUFFER_ACTIVE } from 'vs/workbench/contrib/terminal/common/terminal';
 import { ansiColorIdentifiers, TERMINAL_BACKGROUND_COLOR, TERMINAL_CURSOR_BACKGROUND_COLOR, TERMINAL_CURSOR_FOREGROUND_COLOR, TERMINAL_FOREGROUND_COLOR, TERMINAL_SELECTION_BACKGROUND_COLOR } from 'vs/workbench/contrib/terminal/common/terminalColorRegistry';
 import { TerminalConfigHelper } from 'vs/workbench/contrib/terminal/browser/terminalConfigHelper';
 import { TerminalLinkManager } from 'vs/workbench/contrib/terminal/browser/links/terminalLinkManager';
@@ -184,6 +184,7 @@ export class TerminalInstance extends Disposable implements ITerminalInstance {
 	public constructor(
 		private readonly _terminalFocusContextKey: IContextKey<boolean>,
 		private readonly _terminalShellTypeContextKey: IContextKey<string>,
+		private readonly _terminalAltBufferActiveContextKey: IContextKey<boolean>,
 		private readonly _configHelper: TerminalConfigHelper,
 		private _container: HTMLElement | undefined,
 		private _shellLaunchConfig: IShellLaunchConfig,
@@ -219,6 +220,7 @@ export class TerminalInstance extends Disposable implements ITerminalInstance {
 
 		this._terminalHasTextContextKey = KEYBINDING_CONTEXT_TERMINAL_TEXT_SELECTED.bindTo(this._contextKeyService);
 		this._terminalA11yTreeFocusContextKey = KEYBINDING_CONTEXT_TERMINAL_A11Y_TREE_FOCUS.bindTo(this._contextKeyService);
+		this._terminalAltBufferActiveContextKey = KEYBINDING_CONTEXT_TERMINAL_ALT_BUFFER_ACTIVE.bindTo(this._contextKeyService);
 		this.disableLayout = false;
 
 		this._logService.trace(`terminalInstance#ctor (id: ${this.id})`, this._shellLaunchConfig);
@@ -396,6 +398,7 @@ export class TerminalInstance extends Disposable implements ITerminalInstance {
 		const editorOptions = this._configurationService.getValue<IEditorOptions>('editor');
 
 		const xterm = new Terminal({
+			altClickMovesCursor: config.altClickMovesCursor && editorOptions.multiCursorModifier === 'alt',
 			scrollback: config.scrollback,
 			theme: this._getXtermTheme(),
 			drawBoldTextInBrightColors: config.drawBoldTextInBrightColors,
@@ -430,6 +433,7 @@ export class TerminalInstance extends Disposable implements ITerminalInstance {
 		this._xterm.onLineFeed(() => this._onLineFeed());
 		this._xterm.onKey(e => this._onKey(e.key, e.domEvent));
 		this._xterm.onSelectionChange(async () => this._onSelectionChange());
+		this._xterm.buffer.onBufferChange(() => this._refreshAltBufferContextKey());
 
 		this._processManager.onProcessData(e => this._onProcessData(e));
 		this._xterm.onData(data => this._processManager.write(data));
@@ -525,12 +529,7 @@ export class TerminalInstance extends Disposable implements ITerminalInstance {
 			throw new Error('xterm elements not set after open');
 		}
 
-		// Check if custom Terminal title exists and set same
-		if (this._title.length > 0) {
-			xterm.textarea.setAttribute('aria-label', nls.localize('terminalTextBoxAriaLabelNumberAndTitle', "Terminal {0}, {1}", this._id, this._title));
-		} else {
-			xterm.textarea.setAttribute('aria-label', nls.localize('terminalTextBoxAriaLabel', "Terminal {0}", this._id));
-		}
+		this._setAriaLabel(xterm, this._id, this._title);
 
 		xterm.textarea.addEventListener('focus', () => this._onFocus.fire(this));
 		xterm.attachCustomKeyEventHandler((event: KeyboardEvent): boolean => {
@@ -778,6 +777,10 @@ export class TerminalInstance extends Disposable implements ITerminalInstance {
 		this.notifyFindWidgetFocusChanged(false);
 	}
 
+	private _refreshAltBufferContextKey() {
+		this._terminalAltBufferActiveContextKey.set(!!(this._xterm && this._xterm.buffer.active === this._xterm.buffer.alternate));
+	}
+
 	public dispose(immediate?: boolean): void {
 		this._logService.trace(`terminalInstance#dispose (id: ${this.id})`);
 
@@ -832,6 +835,7 @@ export class TerminalInstance extends Disposable implements ITerminalInstance {
 	}
 
 	public focus(force?: boolean): void {
+		this._refreshAltBufferContextKey();
 		if (!this._xterm) {
 			return;
 		}
@@ -1001,6 +1005,7 @@ export class TerminalInstance extends Disposable implements ITerminalInstance {
 			case 'pwsh.exe':
 				return WindowsShellType.PowerShell;
 			case 'bash.exe':
+			case 'git-cmd.exe':
 				return WindowsShellType.GitBash;
 			case 'wsl.exe':
 			case 'ubuntu.exe':
@@ -1020,7 +1025,12 @@ export class TerminalInstance extends Disposable implements ITerminalInstance {
 			this._xtermCore?.writeSync(ev.data);
 		} else {
 			const messageId = ++this._latestXtermWriteData;
-			this._xterm?.write(ev.data, () => this._latestXtermParseData = messageId);
+			this._xterm?.write(ev.data, () => {
+				this._latestXtermParseData = messageId;
+				if (this._shellLaunchConfig.flowControl) {
+					this._processManager.acknowledgeDataEvent(ev.data.length);
+				}
+			});
 		}
 	}
 
@@ -1281,6 +1291,7 @@ export class TerminalInstance extends Disposable implements ITerminalInstance {
 
 	public updateConfig(): void {
 		const config = this._configHelper.config;
+		this._safeSetOption('altClickMovesCursor', config.altClickMovesCursor);
 		this._setCursorBlink(config.cursorBlinking);
 		this._setCursorStyle(config.cursorStyle);
 		this._setCursorWidth(config.cursorWidth);
@@ -1477,6 +1488,16 @@ export class TerminalInstance extends Disposable implements ITerminalInstance {
 		this._shellType = shellType;
 	}
 
+	private _setAriaLabel(xterm: XTermTerminal | undefined, terminalId: number, title: string | undefined): void {
+		if (xterm) {
+			if (title && title.length > 0) {
+				xterm.textarea?.setAttribute('aria-label', nls.localize('terminalTextBoxAriaLabelNumberAndTitle', "Terminal {0}, {1}", terminalId, title));
+			} else {
+				xterm.textarea?.setAttribute('aria-label', nls.localize('terminalTextBoxAriaLabel', "Terminal {0}", terminalId));
+			}
+		}
+	}
+
 	public setTitle(title: string | undefined, eventSource: TitleEventSource): void {
 		if (!title) {
 			return;
@@ -1501,6 +1522,8 @@ export class TerminalInstance extends Disposable implements ITerminalInstance {
 		const didTitleChange = title !== this._title;
 		this._title = title;
 		if (didTitleChange) {
+			this._setAriaLabel(this._xterm, this._id, this._title);
+
 			if (this._titleReadyComplete) {
 				this._titleReadyComplete(title);
 				this._titleReadyComplete = undefined;
