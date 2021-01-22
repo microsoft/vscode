@@ -263,7 +263,15 @@ export class ActionViewItem extends BaseActionViewItem {
 		super.focus();
 
 		if (this.label) {
+			this.label.tabIndex = 0;
 			this.label.focus();
+		}
+	}
+
+	blur(): void {
+		super.blur();
+		if (this.label) {
+			this.label.tabIndex = -1;
 		}
 	}
 
@@ -320,7 +328,6 @@ export class ActionViewItem extends BaseActionViewItem {
 			if (this.label) {
 				this.label.removeAttribute('aria-disabled');
 				this.label.classList.remove('disabled');
-				this.label.tabIndex = 0;
 			}
 
 			if (this.element) {

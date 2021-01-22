@@ -78,7 +78,6 @@ export class DropdownMenuActionViewItem extends BaseActionViewItem {
 
 			this.element.classList.add(...classNames);
 
-			this.element.tabIndex = 0;
 			this.element.setAttribute('role', 'button');
 			this.element.setAttribute('aria-haspopup', 'true');
 			this.element.setAttribute('aria-expanded', 'false');
@@ -132,6 +131,20 @@ export class DropdownMenuActionViewItem extends BaseActionViewItem {
 			} else {
 				this.dropdownMenu.menuOptions = { context: newContext };
 			}
+		}
+	}
+
+	focus(): void {
+		super.focus();
+		if (this.element) {
+			this.element.tabIndex = 0;
+		}
+	}
+
+	blur(): void {
+		super.blur();
+		if (this.element) {
+			this.element.tabIndex = -1;
 		}
 	}
 

@@ -199,8 +199,6 @@ export class ActivityActionViewItem extends BaseActionViewItem {
 
 		this.container = container;
 
-		// Make the container tab-able for keyboard navigation
-		this.container.tabIndex = 0;
 		this.container.setAttribute('role', 'tab');
 
 		// Try hard to prevent keyboard only focus feedback when using mouse

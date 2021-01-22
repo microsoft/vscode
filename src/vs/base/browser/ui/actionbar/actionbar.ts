@@ -293,6 +293,9 @@ export class ActionBar extends Disposable implements IActionRunner {
 			item.actionRunner = this._actionRunner;
 			item.setActionContext(this.context);
 			item.render(actionViewItemElement);
+			if (this.viewItems.length === 0) {
+				actionViewItemElement.tabIndex = 0;
+			}
 
 			if (index === null || index < 0 || index >= this.actionsList.children.length) {
 				this.actionsList.appendChild(actionViewItemElement);
