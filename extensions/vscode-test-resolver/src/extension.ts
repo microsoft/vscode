@@ -216,7 +216,7 @@ export function activate(context: vscode.ExtensionContext) {
 			}, (progress) => doResolve(_authority, progress));
 		},
 		tunnelFactory,
-		tunnelFeatures: { elevation: true, public: false },
+		tunnelFeatures: { elevation: true, public: !!vscode.workspace.getConfiguration('testresolver').get('supportPublicPorts') },
 		showCandidatePort
 	});
 	context.subscriptions.push(authorityResolverDisposable);
@@ -358,7 +358,7 @@ async function tunnelFactory(tunnelOptions: vscode.TunnelOptions, tunnelCreation
 		return {
 			localAddress,
 			remoteAddress: tunnelOptions.remoteAddress,
-			public: tunnelOptions.public,
+			public: !!vscode.workspace.getConfiguration('testresolver').get('supportPublicPorts') && tunnelOptions.public,
 			onDidDispose: onDidDispose.event,
 			dispose: () => {
 				if (!isDisposed) {
