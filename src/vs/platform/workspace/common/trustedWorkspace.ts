@@ -6,6 +6,7 @@
 import { Emitter, Event } from 'vs/base/common/event';
 import { Disposable } from 'vs/base/common/lifecycle';
 import { URI } from 'vs/base/common/uri';
+import { localize } from 'vs/nls';
 import { IContextKey, IContextKeyService, RawContextKey } from 'vs/platform/contextkey/common/contextkey';
 import { registerSingleton } from 'vs/platform/instantiation/common/extensions';
 import { createDecorator } from 'vs/platform/instantiation/common/instantiation';
@@ -23,6 +24,18 @@ export enum WorkspaceTrustState {
 	Untrusted = 0,
 	Trusted = 1,
 	Unknown = 2
+}
+
+export function workspaceTrustStateToString(trustState: WorkspaceTrustState) {
+	switch (trustState) {
+		case WorkspaceTrustState.Trusted:
+			return localize('trusted', "Trusted");
+		case WorkspaceTrustState.Untrusted:
+			return localize('untrusted', "Untrusted");
+		case WorkspaceTrustState.Unknown:
+		default:
+			return localize('trusted', "Trusted");
+	}
 }
 
 export const TrustedWorkspaceContext = {

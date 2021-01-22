@@ -10,7 +10,7 @@ import { IDialogService } from 'vs/platform/dialogs/common/dialogs';
 import { ServicesAccessor } from 'vs/platform/instantiation/common/instantiation';
 import { Severity } from 'vs/platform/notification/common/notification';
 import { Registry } from 'vs/platform/registry/common/platform';
-import { ITrustedWorkspaceService, TrustedWorkspaceContext, TRUSTED_WORKSPACES_URI, WorkspaceTrustState, WorkspaceTrustStateChangeEvent } from 'vs/platform/workspace/common/trustedWorkspace';
+import { ITrustedWorkspaceService, TrustedWorkspaceContext, TRUSTED_WORKSPACES_URI, WorkspaceTrustState, WorkspaceTrustStateChangeEvent, workspaceTrustStateToString } from 'vs/platform/workspace/common/trustedWorkspace';
 import { Extensions as WorkbenchExtensions, IWorkbenchContribution, IWorkbenchContributionsRegistry } from 'vs/workbench/common/contributions';
 import { IActivityService, IconBadge } from 'vs/workbench/services/activity/common/activity';
 import { LifecyclePhase } from 'vs/workbench/services/lifecycle/common/lifecycle';
@@ -104,27 +104,27 @@ class TrustedWorkspaceStatusbarItem extends Disposable implements IWorkbenchCont
 
 		const entry = this.getStatusbarEntry(this.trustedWorkspaceService.getWorkspaceTrustState());
 		this.statusBarEntryAccessor = this._register(new MutableDisposable<IStatusbarEntryAccessor>());
-		this.statusBarEntryAccessor.value = this.statusbarService.addEntry(entry, TrustedWorkspaceStatusbarItem.ID, localize('status.trrustedWorkspace', "Workspace Trust"), StatusbarAlignment.RIGHT, 1);
+		this.statusBarEntryAccessor.value = this.statusbarService.addEntry(entry, TrustedWorkspaceStatusbarItem.ID, localize('status.trustedWorkspace', "Workspace Trust"), StatusbarAlignment.LEFT, 0.99 * Number.MAX_VALUE /* Right of remote indicator */);
 
 		this._register(this.trustedWorkspaceService.onDidChangeTrust(state => this.updateStatusbarEntry(state)));
 	}
 
 	private getStatusbarEntry(state: WorkspaceTrustState): IStatusbarEntry {
-		const text = (state === WorkspaceTrustState.Untrusted)
-			? 'UNTRUSTED' : (state === WorkspaceTrustState.Trusted ? 'TRUSTED' : 'UNKNOWN');
+		const text = workspaceTrustStateToString(state);
 
 		return {
-			text: `$(shield) ${text}`,
+			text: state === WorkspaceTrustState.Untrusted ? `$(shield) ${text}` : `$(shield)`,
 			ariaLabel: localize('status.trustedWorkspace', "Workspace Trust"),
 			tooltip: localize('status.trustedWorkspace', "Workspace Trust"),
-			backgroundColor: state === WorkspaceTrustState.Untrusted ? new ThemeColor('statusBarItem.errorBackground') : 'transparent',
-			command: 'workbench.trust.require'
+			backgroundColor: state === WorkspaceTrustState.Trusted ? 'transparent' : new ThemeColor('statusBarItem.prominentBackground'),
+			color: state === WorkspaceTrustState.Trusted ? '#00dd3b' : '#ff5462',
+			command: 'workbench.trust.manage'
 		};
 	}
 
 	private updateStatusbarEntry(state: WorkspaceTrustStateChangeEvent): void {
 		this.statusBarEntryAccessor.value?.update(this.getStatusbarEntry(state.currentTrustState));
-		this.statusbarService.updateEntryVisibility(TrustedWorkspaceStatusbarItem.ID, state.currentTrustState === WorkspaceTrustState.Untrusted);
+		this.statusbarService.updateEntryVisibility(TrustedWorkspaceStatusbarItem.ID, state.currentTrustState !== WorkspaceTrustState.Unknown);
 	}
 }
 
