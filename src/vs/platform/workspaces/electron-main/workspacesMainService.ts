@@ -337,7 +337,7 @@ export function getWorkspaceIdentifier(configPath: URI): IWorkspaceIdentifier {
 	};
 }
 
-export function getSingleFolderWorkspaceIdentifier(folderUri: URI): ISingleFolderWorkspaceIdentifier | undefined {
+export function getSingleFolderWorkspaceIdentifier(folderUri: URI, folderStat?: Stats): ISingleFolderWorkspaceIdentifier | undefined {
 
 	function getFolderId(): string | undefined {
 
@@ -346,24 +346,25 @@ export function getSingleFolderWorkspaceIdentifier(folderUri: URI): ISingleFolde
 			return createHash('md5').update(folderUri.toString()).digest('hex');
 		}
 
-		let fileStat: Stats;
-		try {
-			fileStat = statSync(folderUri.fsPath);
-		} catch (error) {
-			return undefined; // folder does not exist!
+		// Local: produce a hash from the path and include creation time as salt
+		if (!folderStat) {
+			try {
+				folderStat = statSync(folderUri.fsPath);
+			} catch (error) {
+				return undefined; // folder does not exist
+			}
 		}
 
-		// Local: produce a hash from the path and include creation time as salt
 		let ctime: number | undefined;
 		if (isLinux) {
-			ctime = fileStat.ino; // Linux: birthtime is ctime, so we cannot use it! We use the ino instead!
+			ctime = folderStat.ino; // Linux: birthtime is ctime, so we cannot use it! We use the ino instead!
 		} else if (isMacintosh) {
-			ctime = fileStat.birthtime.getTime(); // macOS: birthtime is fine to use as is
+			ctime = folderStat.birthtime.getTime(); // macOS: birthtime is fine to use as is
 		} else if (isWindows) {
-			if (typeof fileStat.birthtimeMs === 'number') {
-				ctime = Math.floor(fileStat.birthtimeMs); // Windows: fix precision issue in node.js 8.x to get 7.x results (see https://github.com/nodejs/node/issues/19897)
+			if (typeof folderStat.birthtimeMs === 'number') {
+				ctime = Math.floor(folderStat.birthtimeMs); // Windows: fix precision issue in node.js 8.x to get 7.x results (see https://github.com/nodejs/node/issues/19897)
 			} else {
-				ctime = fileStat.birthtime.getTime();
+				ctime = folderStat.birthtime.getTime();
 			}
 		}
 
