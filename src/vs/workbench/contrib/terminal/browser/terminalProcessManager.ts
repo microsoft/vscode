@@ -248,7 +248,12 @@ export class TerminalProcessManager extends Disposable implements ITerminalProce
 		if (!shellLaunchConfig.strictEnv) {
 			this._extEnvironmentVariableCollection = this._environmentVariableService.mergedCollection;
 			this._register(this._environmentVariableService.onDidChangeCollections(newCollection => this._onEnvironmentVariableCollectionChange(newCollection)));
-			// for remote terminals, this is a copy of the mergedEnvironmentCollection created on the remote side
+			// For remote terminals, this is a copy of the mergedEnvironmentCollection created on
+			// the remote side. Since the environment collection is synced between the remote and
+			// local sides immediately this is a fairly safe way of enabling the env var diffing and
+			// info widget. While technically these could differ due to the slight change of a race
+			// condition, the chance is minimal plus the impact on the user is also not that great
+			// if it happens - it's not worth adding plumbing to sync back the resolved collection.
 			this._extEnvironmentVariableCollection.applyToProcessEnvironment(env);
 			if (this._extEnvironmentVariableCollection.map.size > 0) {
 				this._environmentVariableInfo = new EnvironmentVariableInfoChangesActive(this._extEnvironmentVariableCollection);
