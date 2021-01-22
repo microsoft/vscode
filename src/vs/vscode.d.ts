@@ -11944,8 +11944,6 @@ declare module 'vscode' {
 		export const onDidChange: Event<void>;
 	}
 
-	//#region Comments
-
 	/**
 	 * Collapsible state of a [comment thread](#CommentThread)
 	 */

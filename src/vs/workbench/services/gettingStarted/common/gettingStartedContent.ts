@@ -163,7 +163,7 @@ export const content: GettingStartedContent = [
 				{
 					id: 'pickAFolderTask-Other',
 					title: localize('gettingStarted.setup.OpenFolder.title', "Open your project"),
-					description: localize('gettingStarted.setup.OpenFolder.description', "Open a folder to get started!"),
+					description: localize('gettingStarted.setup.OpenFolder.description2', "Open a folder to get started!"),
 					when: '!isMac',
 					button: {
 						title: localize('gettingStarted.setup.OpenFolder.button', "Pick a Folder"),

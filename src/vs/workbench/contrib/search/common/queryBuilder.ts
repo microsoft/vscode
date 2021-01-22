@@ -16,6 +16,7 @@ import { isMultilineRegexSource } from 'vs/editor/common/model/textModelSearch';
 import * as nls from 'vs/nls';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { IWorkspaceContextService, IWorkspaceFolderData, toWorkspaceFolder, WorkbenchState } from 'vs/platform/workspace/common/workspace';
+import { IEditorGroupsService } from 'vs/workbench/services/editor/common/editorGroupsService';
 import { IPathService } from 'vs/workbench/services/path/common/pathService';
 import { getExcludes, ICommonQueryProps, IFileQuery, IFolderQuery, IPatternInfo, ISearchConfiguration, ITextQuery, ITextSearchPreviewOptions, pathIncludedInQuery, QueryType } from 'vs/workbench/services/search/common/search';
 
@@ -59,6 +60,7 @@ export interface ICommonQueryBuilderOptions {
 	disregardExcludeSettings?: boolean;
 	disregardSearchExcludeSettings?: boolean;
 	ignoreSymlinks?: boolean;
+	onlyOpenEditors?: boolean;
 }
 
 export interface IFileQueryBuilderOptions extends ICommonQueryBuilderOptions {
@@ -81,6 +83,7 @@ export class QueryBuilder {
 	constructor(
 		@IConfigurationService private readonly configurationService: IConfigurationService,
 		@IWorkspaceContextService private readonly workspaceContextService: IWorkspaceContextService,
+		@IEditorGroupsService private readonly editorGroupsService: IEditorGroupsService,
 		@IPathService private readonly pathService: IPathService
 	) {
 	}
@@ -148,20 +151,21 @@ export class QueryBuilder {
 		};
 	}
 
-	private handleIncludeExclude(pattern: string | string[] | undefined, expandPatterns: boolean | undefined): ISearchPathsInfo {
+	private handleIncludeExclude(pattern: string | string[] | undefined, expandPatterns: 'strict' | 'loose' | 'none'): ISearchPathsInfo {
 		if (!pattern) {
 			return {};
 		}
 
 		pattern = Array.isArray(pattern) ? pattern.map(normalizeSlashes) : normalizeSlashes(pattern);
-		return expandPatterns ?
-			this.parseSearchPaths(pattern) :
-			{ pattern: patternListToIExpression(...(Array.isArray(pattern) ? pattern : [pattern])) };
+		return expandPatterns === 'none' ?
+			{ pattern: patternListToIExpression(...(Array.isArray(pattern) ? pattern : [pattern])) } :
+			this.parseSearchPaths(pattern, expandPatterns === 'strict');
 	}
 
-	private commonQuery(folderResources: (IWorkspaceFolderData | URI)[] = [], options: ICommonQueryBuilderOptions = {}): ICommonQueryProps<uri> {
-		const includeSearchPathsInfo: ISearchPathsInfo = this.handleIncludeExclude(options.includePattern, options.expandPatterns);
-		const excludeSearchPathsInfo: ISearchPathsInfo = this.handleIncludeExclude(options.excludePattern, options.expandPatterns);
+	private commonQuery(folderResources: (IWorkspaceFolderData | URI)[] = [], options: ICommonQueryBuilderOptions = {}, strictPatterns?: boolean): ICommonQueryProps<uri> {
+		const patternExpansionMode = strictPatterns ? 'strict' : options.expandPatterns ? 'loose' : 'none';
+		const includeSearchPathsInfo: ISearchPathsInfo = this.handleIncludeExclude(options.includePattern, patternExpansionMode);
+		const excludeSearchPathsInfo: ISearchPathsInfo = this.handleIncludeExclude(options.excludePattern, patternExpansionMode);
 
 		// Build folderQueries from searchPaths, if given, otherwise folderResources
 		const includeFolderName = folderResources.length > 1;
@@ -178,8 +182,34 @@ export class QueryBuilder {
 
 			excludePattern: excludeSearchPathsInfo.pattern,
 			includePattern: includeSearchPathsInfo.pattern,
+			onlyOpenEditors: options.onlyOpenEditors,
 			maxResults: options.maxResults
 		};
+
+		// When "onlyOpenEditors" is enabled, filter all opened editors by the existing include/exclude patterns,
+		// then rerun the query build setting the includes to those remaining editors
+		if (options.onlyOpenEditors) {
+			const openEditors = arrays.coalesce(arrays.flatten(this.editorGroupsService.groups.map(group => group.editors.map(editor => editor.resource))));
+			const openEditorsInQuery = openEditors.filter(editor => pathIncludedInQuery(queryProps, editor.fsPath));
+			const openEditorIncludes = openEditorsInQuery.map(editor => {
+				const workspace = this.workspaceContextService.getWorkspaceFolder(editor);
+				if (workspace) {
+					const relPath = path.relative(workspace?.uri.fsPath, editor.fsPath);
+					return includeFolderName ? `./${workspace.name}/${relPath}` : `${relPath}`;
+				}
+				else {
+					return editor.fsPath.replace(/^\//, '');
+				}
+			});
+			return this.commonQuery(folderResources, {
+				...options,
+				onlyOpenEditors: false,
+				includePattern: openEditorIncludes,
+				excludePattern: openEditorIncludes.length
+					? options.excludePattern
+					: '**/*' // when there are no included editors, explicitly exclude all other files
+			}, true);
+		}
 
 		// Filter extraFileResources against global include/exclude patterns - they are already expected to not belong to a workspace
 		const extraFileResources = options.extraFileResources && options.extraFileResources.filter(extraFile => pathIncludedInQuery(queryProps, extraFile.fsPath));
@@ -224,11 +254,11 @@ export class QueryBuilder {
 
 	/**
 	 * Take the includePattern as seen in the search viewlet, and split into components that look like searchPaths, and
-	 * glob patterns. Glob patterns are expanded from 'foo/bar' to '{foo/bar/**, **\/foo/bar}.
+	 * glob patterns. When `strictPatterns` is false, patterns are expanded from 'foo/bar' to '{foo/bar/**, **\/foo/bar}.
 	 *
 	 * Public for test.
 	 */
-	parseSearchPaths(pattern: string | string[]): ISearchPathsInfo {
+	parseSearchPaths(pattern: string | string[], strictPatterns = false): ISearchPathsInfo {
 		const isSearchPath = (segment: string) => {
 			// A segment is a search path if it is an absolute path or starts with ./, ../, .\, or ..\
 			return path.isAbsolute(segment) || /^\.\.?([\/\\]|$)/.test(segment);
@@ -251,15 +281,15 @@ export class QueryBuilder {
 			.map(s => strings.rtrim(s, '/'))
 			.map(s => strings.rtrim(s, '\\'))
 			.map(p => {
-				if (p[0] === '.') {
+				if (!strictPatterns && p[0] === '.') {
 					p = '*' + p; // convert ".js" to "*.js"
 				}
 
-				return expandGlobalGlob(p);
+				return strictPatterns ? [p] : expandGlobalGlob(p);
 			});
 
 		const result: ISearchPathsInfo = {};
-		const searchPaths = this.expandSearchPathPatterns(groups.searchPaths || []);
+		const searchPaths = this.expandSearchPathPatterns(groups.searchPaths || [], strictPatterns);
 		if (searchPaths && searchPaths.length) {
 			result.searchPaths = searchPaths;
 		}
@@ -282,7 +312,7 @@ export class QueryBuilder {
 	/**
 	 * Split search paths (./ or ../ or absolute paths in the includePatterns) into absolute paths and globs applied to those paths
 	 */
-	private expandSearchPathPatterns(searchPaths: string[]): ISearchPathPattern[] {
+	private expandSearchPathPatterns(searchPaths: string[], strictPatterns: boolean): ISearchPathPattern[] {
 		if (!searchPaths || !searchPaths.length) {
 			// No workspace => ignore search paths
 			return [];
@@ -302,7 +332,7 @@ export class QueryBuilder {
 
 				// Expanded search paths to multiple resolved patterns (with ** and without)
 				return arrays.flatten(
-					oneExpanded.map(oneExpandedResult => this.resolveOneSearchPathPattern(oneExpandedResult, globPortion)));
+					oneExpanded.map(oneExpandedResult => this.resolveOneSearchPathPattern(oneExpandedResult, globPortion, strictPatterns)));
 			}));
 
 		const searchPathPatternMap = new Map<string, ISearchPathPattern>();
@@ -388,7 +418,7 @@ export class QueryBuilder {
 		return [];
 	}
 
-	private resolveOneSearchPathPattern(oneExpandedResult: IOneSearchPathPattern, globPortion?: string): IOneSearchPathPattern[] {
+	private resolveOneSearchPathPattern(oneExpandedResult: IOneSearchPathPattern, globPortion: string | undefined, strictPatterns: boolean): IOneSearchPathPattern[] {
 		const pattern = oneExpandedResult.pattern && globPortion ?
 			`${oneExpandedResult.pattern}/${globPortion}` :
 			oneExpandedResult.pattern || globPortion;
@@ -399,7 +429,7 @@ export class QueryBuilder {
 				pattern
 			}];
 
-		if (pattern && !pattern.endsWith('**')) {
+		if (!strictPatterns && pattern && !pattern.endsWith('**')) {
 			results.push({
 				searchPath: oneExpandedResult.searchPath,
 				pattern: pattern + '/**'

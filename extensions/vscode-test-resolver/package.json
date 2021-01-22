@@ -9,7 +9,9 @@
 	"engines": {
 		"vscode": "^1.25.0"
 	},
-	"extensionKind": [ "ui" ],
+	"extensionKind": [
+		"ui"
+	],
 	"scripts": {
 		"compile": "node ./node_modules/vscode/bin/compile -watch -p ./",
 		"vscode:prepublish": "node ../../node_modules/gulp/bin/gulp.js --gulpfile ../../build/gulpfile.extensions.js compile-extension:vscode-test-resolver"
@@ -121,10 +123,13 @@
 					"description": "If set, connection is paused",
 					"type": "boolean",
 					"default": false
+				},
+				"testresolver.supportPublicPorts": {
+					"description": "If set, the test resolver tunnel factory will support mock public ports. Forwarded ports will not actually be public. Requires reload.",
+					"type": "boolean",
+					"default": false
 				}
 			}
 		}
 	}
-
-
 }

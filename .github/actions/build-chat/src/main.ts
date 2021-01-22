@@ -11,7 +11,7 @@ import { WritableStreamBuffer } from 'stream-buffers';
 
 (async () => {
 	const actionUrl = core.getInput('workflow_run_url');
-	const url = actionUrl || 'https://api.github.com/repos/microsoft/vscode/actions/runs/501214268';
+	const url = actionUrl || 'https://api.github.com/repos/microsoft/vscode/actions/runs/503514090';
 	console.log(url);
 	const parts = url.split('/');
 	const owner = parts[parts.length - 5];
@@ -43,6 +43,7 @@ async function handleNotification(owner: string, repo: string, runId: number) {
 			for (const testChannel of memberTestChannels) {
 				await web.chat.postMessage({
 					text: message,
+					link_names: true,
 					channel: testChannel.id,
 				});
 			}
@@ -51,6 +52,7 @@ async function handleNotification(owner: string, repo: string, runId: number) {
 			for (const channel of memberships) {
 				await web.chat.postMessage({
 					text: message,
+					link_names: true,
 					channel: channel.id,
 				});
 			}

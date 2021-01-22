@@ -4,12 +4,15 @@
  *--------------------------------------------------------------------------------------------*/
 
 import * as assert from 'assert';
-import { MirroredTestCollection } from 'vs/workbench/api/common/extHostTesting';
+import { MirroredTestCollection, TestItemFilteredWrapper } from 'vs/workbench/api/common/extHostTesting';
 import * as convert from 'vs/workbench/api/common/extHostTypeConverters';
 import { TestDiffOpType } from 'vs/workbench/contrib/testing/common/testCollection';
 import { stubTest, testStubs } from 'vs/workbench/contrib/testing/common/testStubs';
 import { TestOwnedTestCollection, TestSingleUseCollection } from 'vs/workbench/contrib/testing/test/common/ownedTestCollection';
-import { TestChangeEvent, TestItem } from 'vscode';
+import { TestChangeEvent, TestItem, TextDocument } from 'vscode';
+import { URI } from 'vs/base/common/uri';
+import { Location } from 'vs/editor/common/modes';
+import { Range } from 'vs/editor/common/core/range';
 
 const simplify = (item: TestItem) => {
 	if ('toJSON' in item) {
@@ -260,6 +263,142 @@ suite('ExtHost Testing', () => {
 				m.apply(single.collectDiff());
 
 				assert.strictEqual(m.changeEvent.commonChangeAncestor?.label, 'root');
+			});
+		});
+
+		suite('TestItemFilteredWrapper', () => {
+			const stubTestWithLocation = (label: string, location: Location): TestItem => {
+				const t = stubTest(label);
+				t.location = location as any;
+				return t;
+			};
+
+			const location1: Location = {
+				range: new Range(0, 0, 0, 0),
+				uri: URI.parse('file:///foo.ts')
+			};
+
+			const location2: Location = {
+				range: new Range(0, 0, 0, 0),
+				uri: URI.parse('file:///bar.ts')
+			};
+
+			const location3: Location = {
+				range: new Range(0, 0, 0, 0),
+				uri: URI.parse('file:///baz.ts')
+			};
+
+			const textDocumentFilter = {
+				uri: location1.uri
+			} as TextDocument;
+
+			let testsWithLocation: TestItem;
+			setup(() => {
+				testsWithLocation = {
+					...stubTest('root'),
+					children: [
+						{
+							...stubTestWithLocation('a', location1),
+							children: [stubTestWithLocation('aa', location1), stubTestWithLocation('ab', location1)]
+						},
+						{
+							...stubTestWithLocation('b', location2),
+							children: [stubTestWithLocation('ba', location2), stubTestWithLocation('bb', location2)]
+						},
+						{
+							...stubTestWithLocation('b', location3),
+						}
+					],
+				};
+			});
+
+			teardown(() => {
+				TestItemFilteredWrapper.removeFilter(textDocumentFilter);
+			});
+
+			test('gets all actual properties', () => {
+				const testItem: TestItem = stubTest('test1');
+				const wrapper: TestItemFilteredWrapper = TestItemFilteredWrapper.getWrapperForTestItem(testItem, textDocumentFilter);
+
+				assert.strictEqual(testItem.debuggable, wrapper.debuggable);
+				assert.strictEqual(testItem.description, wrapper.description);
+				assert.strictEqual(testItem.label, wrapper.label);
+				assert.strictEqual(testItem.location, wrapper.location);
+				assert.strictEqual(testItem.runnable, wrapper.runnable);
+				assert.strictEqual(testItem.state, wrapper.state);
+			});
+
+			test('gets no children if nothing matches Uri filter', () => {
+				let tests: TestItem = testStubs.nested();
+				const wrapper = TestItemFilteredWrapper.getWrapperForTestItem(tests, textDocumentFilter);
+				assert.strictEqual(wrapper.children.length, 0);
+			});
+
+			test('filter is applied to children', () => {
+				const wrapper = TestItemFilteredWrapper.getWrapperForTestItem(testsWithLocation, textDocumentFilter);
+				assert.strictEqual(wrapper.label, 'root');
+				assert.strictEqual(wrapper.children.length, 1);
+				assert.strictEqual(wrapper.children[0] instanceof TestItemFilteredWrapper, true);
+				assert.strictEqual(wrapper.children[0].label, 'a');
+			});
+
+			test('can get if node has matching filter', () => {
+				const rootWrapper = TestItemFilteredWrapper.getWrapperForTestItem(testsWithLocation, textDocumentFilter);
+
+				const invisible = testsWithLocation.children![1];
+				const invisibleWrapper = TestItemFilteredWrapper.getWrapperForTestItem(invisible, textDocumentFilter);
+				const visible = testsWithLocation.children![0];
+				const visibleWrapper = TestItemFilteredWrapper.getWrapperForTestItem(visible, textDocumentFilter);
+
+				// The root is always visible
+				assert.strictEqual(rootWrapper.hasNodeMatchingFilter, true);
+				assert.strictEqual(invisibleWrapper.hasNodeMatchingFilter, false);
+				assert.strictEqual(visibleWrapper.hasNodeMatchingFilter, true);
+			});
+
+			test('can get visible parent', () => {
+				const rootWrapper = TestItemFilteredWrapper.getWrapperForTestItem(testsWithLocation, textDocumentFilter);
+
+				const invisible = testsWithLocation.children![1];
+				const invisibleWrapper = TestItemFilteredWrapper.getWrapperForTestItem(invisible, textDocumentFilter);
+				const visible = testsWithLocation.children![0];
+				const visibleWrapper = TestItemFilteredWrapper.getWrapperForTestItem(visible, textDocumentFilter);
+
+				// The root is always visible
+				assert.strictEqual(rootWrapper.visibleParent, rootWrapper);
+				assert.strictEqual(invisibleWrapper.visibleParent, rootWrapper);
+				assert.strictEqual(visibleWrapper.visibleParent, visibleWrapper);
+			});
+
+			test('can reset cached value of hasNodeMatchingFilter', () => {
+				TestItemFilteredWrapper.getWrapperForTestItem(testsWithLocation, textDocumentFilter);
+
+				const invisible = testsWithLocation.children![1];
+				const invisibleWrapper = TestItemFilteredWrapper.getWrapperForTestItem(invisible, textDocumentFilter);
+
+				assert.strictEqual(invisibleWrapper.hasNodeMatchingFilter, false);
+				invisible.location = location1 as any;
+				assert.strictEqual(invisibleWrapper.hasNodeMatchingFilter, false);
+				invisibleWrapper.reset();
+				assert.strictEqual(invisibleWrapper.hasNodeMatchingFilter, true);
+			});
+
+			test('can reset cached value of hasNodeMatchingFilter of parents up to visible parent', () => {
+				const rootWrapper = TestItemFilteredWrapper.getWrapperForTestItem(testsWithLocation, textDocumentFilter);
+
+				const invisibleParent = testsWithLocation.children![1];
+				const invisibleParentWrapper = TestItemFilteredWrapper.getWrapperForTestItem(invisibleParent, textDocumentFilter);
+				const invisible = invisibleParent.children![1];
+				const invisibleWrapper = TestItemFilteredWrapper.getWrapperForTestItem(invisible, textDocumentFilter);
+
+				assert.strictEqual(invisibleParentWrapper.hasNodeMatchingFilter, false);
+				invisible.location = location1 as any;
+				assert.strictEqual(invisibleParentWrapper.hasNodeMatchingFilter, false);
+				invisibleWrapper.reset();
+				assert.strictEqual(invisibleParentWrapper.hasNodeMatchingFilter, true);
+
+				// the root should be undefined due to the reset.
+				assert.strictEqual((rootWrapper as any).matchesFilter, undefined);
 			});
 		});
 	});
