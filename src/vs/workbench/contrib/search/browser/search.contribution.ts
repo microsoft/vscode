@@ -998,6 +998,11 @@ configurationRegistry.registerConfiguration({
 			],
 			'description': nls.localize('search.sortOrder', "Controls sorting order of search results.")
 		},
+		'search.experimental.searchInOpenEditors': {
+			type: 'boolean',
+			default: false,
+			markdownDescription: nls.localize('search.experimental.searchInOpenEditors', "Experimental. When enabled, an option is provided to make workspace search only search files that have been opened. **Requires restart to take effect.**")
+		}
 	}
 });
 

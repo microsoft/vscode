@@ -54,7 +54,7 @@ import { IViewPaneOptions, ViewPane } from 'vs/workbench/browser/parts/views/vie
 import { IEditorPane } from 'vs/workbench/common/editor';
 import { Memento, MementoObject } from 'vs/workbench/common/memento';
 import { IViewDescriptorService } from 'vs/workbench/common/views';
-import { ExcludePatternInputWidget, PatternInputWidget } from 'vs/workbench/contrib/search/browser/patternInputWidget';
+import { ExcludePatternInputWidget, IncludePatternInputWidget } from 'vs/workbench/contrib/search/browser/patternInputWidget';
 import { appendKeyBindingLabel, IFindInFilesArgs } from 'vs/workbench/contrib/search/browser/searchActions';
 import { searchDetailsIcon } from 'vs/workbench/contrib/search/browser/searchIcons';
 import { FileMatchRenderer, FolderMatchRenderer, MatchRenderer, SearchAccessibilityProvider, SearchDelegate, SearchDND } from 'vs/workbench/contrib/search/browser/searchResultsView';
@@ -125,7 +125,7 @@ export class SearchView extends ViewPane {
 	private queryDetails!: HTMLElement;
 	private toggleQueryDetailsButton!: HTMLElement;
 	private inputPatternExcludes!: ExcludePatternInputWidget;
-	private inputPatternIncludes!: PatternInputWidget;
+	private inputPatternIncludes!: IncludePatternInputWidget;
 	private resultsElement!: HTMLElement;
 
 	private currentSelectedFileMatch: FileMatch | undefined;
@@ -309,14 +309,17 @@ export class SearchView extends ViewPane {
 		const filesToIncludeTitle = nls.localize('searchScope.includes', "files to include");
 		dom.append(folderIncludesList, $('h4', undefined, filesToIncludeTitle));
 
-		this.inputPatternIncludes = this._register(this.instantiationService.createInstance(PatternInputWidget, folderIncludesList, this.contextViewService, {
+		this.inputPatternIncludes = this._register(this.instantiationService.createInstance(IncludePatternInputWidget, folderIncludesList, this.contextViewService, {
 			ariaLabel: nls.localize('label.includes', 'Search Include Patterns'),
 			history: patternIncludesHistory,
 		}));
 
 		this.inputPatternIncludes.setValue(patternIncludes);
 
+		this._register(this.inputPatternIncludes.onSubmit(triggeredOnType => this.triggerQueryChange({ triggeredOnType, delay: this.searchConfig.searchOnTypeDebouncePeriod })));
 		this._register(this.inputPatternIncludes.onCancel(() => this.cancelSearch(false)));
+		this._register(this.inputPatternIncludes.onChangeSearchInEditorsBox(() => this.triggerQueryChange()));
+
 		this.trackInputBox(this.inputPatternIncludes.inputFocusTracker, this.inputPatternIncludesFocused);
 
 		// excludes list
@@ -385,7 +388,7 @@ export class SearchView extends ViewPane {
 		return this.searchWidget;
 	}
 
-	get searchIncludePattern(): PatternInputWidget {
+	get searchIncludePattern(): IncludePatternInputWidget {
 		return this.inputPatternIncludes;
 	}
 
@@ -1293,6 +1296,7 @@ export class SearchView extends ViewPane {
 		const excludePatternText = this.inputPatternExcludes.getValue().trim();
 		const includePatternText = this.inputPatternIncludes.getValue().trim();
 		const useExcludesAndIgnoreFiles = this.inputPatternExcludes.useExcludesAndIgnoreFiles();
+		const onlySearchInOpenEditors = this.inputPatternIncludes.onlySearchInOpenEditors();
 
 		if (contentPattern.length === 0) {
 			this.clearSearchResults(false);
@@ -1321,6 +1325,7 @@ export class SearchView extends ViewPane {
 			maxResults: SearchView.MAX_TEXT_RESULTS,
 			disregardIgnoreFiles: !useExcludesAndIgnoreFiles || undefined,
 			disregardExcludeSettings: !useExcludesAndIgnoreFiles || undefined,
+			onlyOpenEditors: onlySearchInOpenEditors,
 			excludePattern,
 			includePattern,
 			previewOptions: {
@@ -1443,14 +1448,26 @@ export class SearchView extends ViewPane {
 
 				if (!completed) {
 					message = SEARCH_CANCELLED_MESSAGE;
-				} else if (hasIncludes && hasExcludes) {
-					message = nls.localize('noResultsIncludesExcludes', "No results found in '{0}' excluding '{1}' - ", includePatternText, excludePatternText);
-				} else if (hasIncludes) {
-					message = nls.localize('noResultsIncludes', "No results found in '{0}' - ", includePatternText);
-				} else if (hasExcludes) {
-					message = nls.localize('noResultsExcludes', "No results found excluding '{0}' - ", excludePatternText);
+				} else if (this.inputPatternIncludes.onlySearchInOpenEditors()) {
+					if (hasIncludes && hasExcludes) {
+						message = nls.localize('noOpenEditorResultsIncludesExcludes', "No results found in open editors matching '{0}' excluding '{1}' - ", includePatternText, excludePatternText);
+					} else if (hasIncludes) {
+						message = nls.localize('noOpenEditorResultsIncludes', "No results found in open editors matching '{0}' - ", includePatternText);
+					} else if (hasExcludes) {
+						message = nls.localize('noOpenEditorResultsExcludes', "No results found in open editors excluding '{0}' - ", excludePatternText);
+					} else {
+						message = nls.localize('noOpenEditorResultsFound', "No results found in open editors. Review your settings for configured exclusions and check your gitignore files - ");
+					}
 				} else {
-					message = nls.localize('noResultsFound', "No results found. Review your settings for configured exclusions and check your gitignore files - ");
+					if (hasIncludes && hasExcludes) {
+						message = nls.localize('noResultsIncludesExcludes', "No results found in '{0}' excluding '{1}' - ", includePatternText, excludePatternText);
+					} else if (hasIncludes) {
+						message = nls.localize('noResultsIncludes', "No results found in '{0}' - ", includePatternText);
+					} else if (hasExcludes) {
+						message = nls.localize('noResultsExcludes', "No results found excluding '{0}' - ", excludePatternText);
+					} else {
+						message = nls.localize('noResultsFound', "No results found. Review your settings for configured exclusions and check your gitignore files - ");
+					}
 				}
 
 				// Indicate as status to ARIA
@@ -1472,6 +1489,7 @@ export class SearchView extends ViewPane {
 
 						this.inputPatternExcludes.setValue('');
 						this.inputPatternIncludes.setValue('');
+						this.inputPatternIncludes.setOnlySearchInOpenEditors(false);
 
 						this.triggerQueryChange({ preserveFocus: false });
 					}));
@@ -1599,7 +1617,7 @@ export class SearchView extends ViewPane {
 
 			this.messageDisposables.push(dom.addDisposableListener(openInEditorLink, dom.EventType.CLICK, (e: MouseEvent) => {
 				dom.EventHelper.stop(e, false);
-				this.instantiationService.invokeFunction(createEditorFromSearchResult, this.searchResult, this.searchIncludePattern.getValue(), this.searchExcludePattern.getValue());
+				this.instantiationService.invokeFunction(createEditorFromSearchResult, this.searchResult, this.searchIncludePattern.getValue(), this.searchExcludePattern.getValue(), this.searchIncludePattern.onlySearchInOpenEditors());
 			}));
 
 			this.reLayout();
