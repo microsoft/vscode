@@ -17,6 +17,7 @@ import { ThemeIcon } from 'vs/platform/theme/common/themeService';
 import { ActionViewItem } from 'vs/base/browser/ui/actionbar/actionViewItems';
 import { DropdownMenuActionViewItem } from 'vs/base/browser/ui/dropdown/dropdownActionViewItem';
 import { isWindows, isLinux } from 'vs/base/common/platform';
+import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 
 export function createAndFillInContextMenuActions(menu: IMenu, options: IMenuActionOptions | undefined, target: IAction[] | { primary: IAction[]; secondary: IAction[]; }, isPrimaryGroup?: (group: string) => boolean): IDisposable {
 	const groups = menu.getActions(options);
@@ -225,5 +226,18 @@ export class SubmenuEntryActionViewItem extends DropdownMenuActionViewItem {
 				}
 			}
 		}
+	}
+}
+
+/**
+ * Creates action view items for menu actions or submenu actions.
+ */
+export function createActionViewItem(instaService: IInstantiationService, action: IAction): undefined | MenuEntryActionViewItem | SubmenuEntryActionViewItem {
+	if (action instanceof MenuItemAction) {
+		return instaService.createInstance(MenuEntryActionViewItem, action);
+	} else if (action instanceof SubmenuItemAction) {
+		return instaService.createInstance(SubmenuEntryActionViewItem, action);
+	} else {
+		return undefined;
 	}
 }
