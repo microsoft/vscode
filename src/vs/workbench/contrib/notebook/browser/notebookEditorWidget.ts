@@ -2082,6 +2082,13 @@ export class NotebookEditorWidget extends Disposable implements INotebookEditor 
 		}
 	}
 
+	setMarkdownCellEditState(cellId: string, editState: CellEditState): void {
+		const cell = this.viewModel?.viewCells.find(vc => vc.id === cellId);
+
+		if (cell && cell instanceof MarkdownCellViewModel) {
+			cell.editState = editState;
+		}
+	}
 
 	//#endregion
 

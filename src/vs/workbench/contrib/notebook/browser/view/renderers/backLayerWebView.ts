@@ -10,7 +10,7 @@ import { isWeb } from 'vs/base/common/platform';
 import { URI } from 'vs/base/common/uri';
 import * as UUID from 'vs/base/common/uuid';
 import { IOpenerService, matchesScheme } from 'vs/platform/opener/common/opener';
-import { ICommonCellInfo, ICommonNotebookEditor, IDisplayOutputLayoutUpdateRequest, IDisplayOutputViewModel, IGenericCellViewModel, IInsetRenderOutput, RenderOutputType } from 'vs/workbench/contrib/notebook/browser/notebookBrowser';
+import { CellEditState, ICommonCellInfo, ICommonNotebookEditor, IDisplayOutputLayoutUpdateRequest, IDisplayOutputViewModel, IGenericCellViewModel, IInsetRenderOutput, RenderOutputType } from 'vs/workbench/contrib/notebook/browser/notebookBrowser';
 import { CellOutputKind, IDisplayOutput, INotebookRendererInfo } from 'vs/workbench/contrib/notebook/common/notebookCommon';
 import { INotebookService } from 'vs/workbench/contrib/notebook/common/notebookService';
 import { IWebviewService, WebviewElement, WebviewContentPurpose } from 'vs/workbench/contrib/webview/browser/webview';
@@ -77,6 +77,12 @@ export interface IClickedDataUrlMessage {
 	type: 'clicked-data-url';
 	data: string;
 	downloadName?: string;
+}
+
+export interface IToggleMarkdownPreviewMessage {
+	__vscode_notebook_message: boolean;
+	type: 'toggleMarkdownPreview';
+	cellId: string;
 }
 
 export interface IClearMessage {
@@ -212,7 +218,8 @@ export type FromWebviewMessage =
 	| IScrollAckMessage
 	| IBlurOutputMessage
 	| ICustomRendererMessage
-	| IClickedDataUrlMessage;
+	| IClickedDataUrlMessage
+	| IToggleMarkdownPreviewMessage;
 
 export type ToWebviewMessage =
 	| IClearMessage
@@ -724,6 +731,8 @@ var requirejs = (function() {
 					this._onDidClickDataLink(data);
 				} else if (data.type === 'customRendererMessage') {
 					this._onMessage.fire({ message: data.message, forRenderer: data.rendererId });
+				} else if (data.type === 'toggleMarkdownPreview') {
+					this.notebookEditor.setMarkdownCellEditState(data.cellId, CellEditState.Editing);
 				}
 				return;
 			}
