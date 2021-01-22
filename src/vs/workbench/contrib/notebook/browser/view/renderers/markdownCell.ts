@@ -23,6 +23,7 @@ import { INotebookCellStatusBarService } from 'vs/workbench/contrib/notebook/com
 import { NotebookCellsChangeType } from 'vs/workbench/contrib/notebook/common/notebookCommon';
 import { collapsedIcon, expandedIcon } from 'vs/workbench/contrib/notebook/browser/notebookIcons';
 import { renderIcon } from 'vs/base/browser/ui/iconLabel/iconLabels';
+import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 
 export class StatefulMarkdownCell extends Disposable {
 
@@ -33,6 +34,7 @@ export class StatefulMarkdownCell extends Disposable {
 	private localDisposables = new DisposableStore();
 	private foldingState: CellFoldingState;
 	private _activeCellRunPlaceholder: IDisposable | null = null;
+	private _useRenderer: boolean = false;
 
 	constructor(
 		private readonly notebookEditor: IActiveNotebookEditor,
@@ -43,11 +45,15 @@ export class StatefulMarkdownCell extends Disposable {
 		@IContextKeyService private readonly contextKeyService: IContextKeyService,
 		@INotebookCellStatusBarService readonly notebookCellStatusBarService: INotebookCellStatusBarService,
 		@IInstantiationService private readonly instantiationService: IInstantiationService,
+		@IConfigurationService private readonly configurationSerivce: IConfigurationService
 	) {
 		super();
 
 		this.markdownContainer = templateData.cellContainer;
 		this.editorPart = templateData.editorPart;
+
+		this._useRenderer = !!(this.configurationSerivce.getValue<string>('notebook.experimental.useMarkdownRenderer'));
+
 		this._register(this.localDisposables);
 		this._register(toDisposable(() => renderedEditors.delete(this.viewCell)));
 
@@ -65,9 +71,8 @@ export class StatefulMarkdownCell extends Disposable {
 		}));
 
 		this._register(getResizesObserver(this.markdownContainer, undefined, () => {
-			if (viewCell.editState === CellEditState.Preview) {
-				// TODO@rebornix
-				// this.viewCell.renderedMarkdownHeight = templateData.container.clientHeight;
+			if (viewCell.editState === CellEditState.Preview && !this._useRenderer) {
+				this.viewCell.renderedMarkdownHeight = templateData.container.clientHeight;
 			}
 		})).startObserving();
 
@@ -288,38 +293,40 @@ export class StatefulMarkdownCell extends Disposable {
 		this.markdownContainer.innerText = '';
 		this.viewCell.clearHTML();
 
-		this.notebookEditor.createMarkdownPreview(this.viewCell);
-		return;
+		if (this._useRenderer) {
+			this.notebookEditor.createMarkdownPreview(this.viewCell);
+			return;
+		} else {
+			const markdownRenderer = this.viewCell.getMarkdownRenderer();
+			const renderedHTML = this.viewCell.getHTML();
+			if (renderedHTML) {
+				this.markdownContainer.appendChild(renderedHTML);
+			}
 
-		// const markdownRenderer = this.viewCell.getMarkdownRenderer();
-		// const renderedHTML = this.viewCell.getHTML();
-		// if (renderedHTML) {
-		// 	this.markdownContainer.appendChild(renderedHTML);
-		// }
+			if (this.editor) {
+				// switch from editing mode
+				this.viewCell.renderedMarkdownHeight = this.templateData.container.clientHeight;
+				this.relayoutCell();
+			} else {
+				// first time, readonly mode
+				this.localDisposables.add(markdownRenderer.onDidRenderAsync(() => {
+					this.viewCell.renderedMarkdownHeight = this.templateData.container.clientHeight;
+					this.relayoutCell();
+				}));
 
-		// if (this.editor) {
-		// 	// switch from editing mode
-		// 	this.viewCell.renderedMarkdownHeight = this.templateData.container.clientHeight;
-		// 	this.relayoutCell();
-		// } else {
-		// 	// first time, readonly mode
-		// 	this.localDisposables.add(markdownRenderer.onDidRenderAsync(() => {
-		// 		this.viewCell.renderedMarkdownHeight = this.templateData.container.clientHeight;
-		// 		this.relayoutCell();
-		// 	}));
+				this.localDisposables.add(this.viewCell.textBuffer.onDidChangeContent(() => {
+					this.markdownContainer.innerText = '';
+					this.viewCell.clearHTML();
+					const renderedHTML = this.viewCell.getHTML();
+					if (renderedHTML) {
+						this.markdownContainer.appendChild(renderedHTML);
+					}
+				}));
 
-		// 	this.localDisposables.add(this.viewCell.textBuffer.onDidChangeContent(() => {
-		// 		this.markdownContainer.innerText = '';
-		// 		this.viewCell.clearHTML();
-		// 		const renderedHTML = this.viewCell.getHTML();
-		// 		if (renderedHTML) {
-		// 			this.markdownContainer.appendChild(renderedHTML);
-		// 		}
-		// 	}));
-
-		// 	this.viewCell.renderedMarkdownHeight = this.templateData.container.clientHeight;
-		// 	this.relayoutCell();
-		// }
+				this.viewCell.renderedMarkdownHeight = this.templateData.container.clientHeight;
+				this.relayoutCell();
+			}
+		}
 	}
 
 	private focusEditorIfNeeded() {

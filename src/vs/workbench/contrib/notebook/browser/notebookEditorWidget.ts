@@ -988,13 +988,18 @@ export class NotebookEditorWidget extends Disposable implements INotebookEditor 
 			this._updateForMetadata();
 		}));
 
-		await this._resolveWebview();
+		const useRenderer = this.configurationService.getValue<string>('notebook.experimental.useMarkdownRenderer');
 
-		await this._webview!.initializeMarkdown(this.viewModel.viewCells
-			.filter(cell => cell.cellKind === CellKind.Markdown)
-			.map(cell => ({ cellId: cell.id, content: cell.getText() }))
-			// TODO: look at cell position cache instead of just getting first five cells
-			.slice(0, 5));
+		if (useRenderer) {
+			await this._resolveWebview();
+
+			await this._webview!.initializeMarkdown(this.viewModel.viewCells
+				.filter(cell => cell.cellKind === CellKind.Markdown)
+				.map(cell => ({ cellId: cell.id, content: cell.getText() }))
+				// TODO: look at cell position cache instead of just getting first five cells
+				.slice(0, 5));
+		}
+
 
 		// restore view states, including contributions
 
