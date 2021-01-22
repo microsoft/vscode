@@ -236,7 +236,8 @@ export function minifyTask(src: string, sourceMapBaseUrl?: string): (cb: any) =>
 	const sourceMappingURL = sourceMapBaseUrl ? ((f: any) => `${sourceMapBaseUrl}/${f.relative}.map`) : undefined;
 
 	return cb => {
-		const minifyCSS = require('gulp-cssnano') as typeof import('gulp-cssnano');
+		const cssnano = require('cssnano') as typeof import('cssnano');
+		const postcss = require('gulp-postcss') as typeof import('gulp-postcss');
 		const sourcemaps = require('gulp-sourcemaps') as typeof import('gulp-sourcemaps');
 
 		const jsFilter = filter('**/*.js', { restore: true });
@@ -267,7 +268,7 @@ export function minifyTask(src: string, sourceMapBaseUrl?: string): (cb: any) =>
 			}),
 			jsFilter.restore,
 			cssFilter,
-			minifyCSS({ reduceIdents: false }),
+			postcss([cssnano({ preset: 'default' })]),
 			cssFilter.restore,
 			(<any>sourcemaps).mapSources((sourcePath: string) => {
 				if (sourcePath === 'bootstrap-fork.js') {

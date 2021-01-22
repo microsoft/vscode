@@ -422,7 +422,7 @@ export class CodeWindow extends Disposable implements ICodeWindow {
 			this.dispose();
 		});
 
-		const svgFileSchemes = new Set([Schemas.file, Schemas.vscodeFileResource, 'devtools']);
+		const svgFileSchemes = new Set([Schemas.file, Schemas.vscodeFileResource, Schemas.vscodeRemoteResource, 'devtools']);
 		this._win.webContents.session.webRequest.onBeforeRequest((details, callback) => {
 			// Prevent loading of remote svgs
 			if (details.url.endsWith('.svg')) {
@@ -1265,7 +1265,7 @@ export class CodeWindow extends Disposable implements ICodeWindow {
 
 	send(channel: string, ...args: any[]): void {
 		if (this._win) {
-			if (this._win.webContents.isDestroyed()) {
+			if (this._win.isDestroyed() || this._win.webContents.isDestroyed()) {
 				this.logService.warn(`Sending IPC message to channel ${channel} for window that is destroyed`);
 				return;
 			}

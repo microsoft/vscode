@@ -15,6 +15,8 @@ export function setup() {
 				return;
 			}
 
+			await app.workbench.settingsEditor.addUserSetting('webview.experimental.useIframes', 'true');
+
 			await app.workbench.extensions.openExtensionsViewlet();
 
 			await app.workbench.extensions.installExtension('michelkaporin.vscode-smoketest-check', true);
@@ -27,5 +29,11 @@ export function setup() {
 			await app.workbench.quickaccess.runCommand('Smoke Test Check');
 			await app.workbench.statusbar.waitForStatusbarText('smoke test', 'VS Code Smoke Test Check');
 		});
+
+		after(async function () {
+			const app = this.app as Application;
+			await app.workbench.settingsEditor.clearUserSettings();
+		});
+
 	});
 }

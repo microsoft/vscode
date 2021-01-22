@@ -6,23 +6,25 @@
 import * as core from '@actions/core';
 import { Octokit, RestEndpointMethodTypes } from '@octokit/rest';
 import { WebClient } from '@slack/web-api';
+import * as storage from 'azure-storage';
+import { WritableStreamBuffer } from 'stream-buffers';
 
 (async () => {
-    const actionUrl = core.getInput('workflow_run_url');
-    const url = actionUrl || 'https://api.github.com/repos/microsoft/vscode/actions/runs/500731641';
-    console.log(url);
-    const parts = url.split('/');
-    const owner = parts[parts.length - 5];
-    const repo = parts[parts.length - 4];
-    const runId = parseInt(parts[parts.length - 1], 10);
-    if (actionUrl) {
-        await handleNotification(owner, repo, runId);
-    } else {
-        const results = await buildComplete(owner, repo, runId);
-        for (const message of [...results.logMessages, ...results.messages]) {
-            console.log(message);
-        }
-    }
+	const actionUrl = core.getInput('workflow_run_url');
+	const url = actionUrl || 'https://api.github.com/repos/microsoft/vscode/actions/runs/501214268';
+	console.log(url);
+	const parts = url.split('/');
+	const owner = parts[parts.length - 5];
+	const repo = parts[parts.length - 4];
+	const runId = parseInt(parts[parts.length - 1], 10);
+	if (actionUrl) {
+		await handleNotification(owner, repo, runId);
+	} else {
+		const results = await buildComplete(owner, repo, runId);
+		for (const message of [...results.logMessages, ...results.messages]) {
+			console.log(message);
+		}
+	}
 })()
 	.then(null, console.error);
 
@@ -116,8 +118,10 @@ async function buildComplete(owner: string, repo: string, runId: number) {
 	const vscode = repo === 'vscode';
 	const name = vscode ? `VS Code ${buildResult.name} Build` : buildResult.name;
 	// TBD: `Requester: ${vstsToSlackUser(build.requester, build.degraded)}${pingBenForSmokeTests && releaseBuild && build.result === 'partiallySucceeded' ? ' | Ping: @bpasero' : ''}`
+	const accounts = await readAccounts();
+	const githubAccountMap = githubToAccounts(accounts);
 	const messages = transitionedBuilds.map(build => `${name}
-Result: ${build.data.conclusion} | Branch: ${build.data.head_branch} | Authors: ${githubToSlackUsers(build.authors, build.degraded).sort().join(', ') || `None (rebuild)`}
+Result: ${build.data.conclusion} | Branch: ${build.data.head_branch} | Authors: ${githubToSlackUsers(githubAccountMap, build.authors, build.degraded).sort().join(', ') || `None (rebuild)`}
 Build: ${build.buildHtmlUrl}
 Changes: ${build.changesHtmlUrl}`);
 	return { logMessages, messages };
@@ -141,23 +145,51 @@ async function compareCommits(octokit: Octokit, owner: string, repo: string, bas
 	return octokit.repos.compareCommits({ owner, repo, base, head });
 }
 
-function githubToSlackUsers(githubUsers: string[], at?: boolean) {
+function githubToSlackUsers(githubToAccounts: Record<string, Accounts>, githubUsers: string[], at?: boolean) {
 	return githubUsers.map(g => githubToAccounts[g] ? `${at ? '@' : ''}${githubToAccounts[g].slack}` : g);
 }
 
-const accounts = [
-	{
-		github: 'tbd',
-		slack: 'tbd'
+interface Accounts {
+	github: string;
+	slack: string;
+	vsts: string;
+}
+
+function githubToAccounts(accounts: Accounts[]) {
+	return accounts.reduce((m, e) => {
+		m[e.github] = e;
+		return m;
+	}, <Record<string, Accounts>>{});
+}
+
+async function readAccounts() {
+	const connectionString = process.env.BUILD_CHAT_STORAGE_CONNECTION_STRING;
+	if (!connectionString) {
+		console.error('Connection string missing.');
+		return [];
 	}
-];
+	const buf = await readFile(connectionString, 'config', '/', 'accounts.json');
+	return JSON.parse(buf.toString()) as Accounts[];
+}
 
-type Accounts = (typeof accounts)[0];
-
-const githubToAccounts = accounts.reduce((m, e) => {
-	m[e.github] = e;
-	return m;
-}, <Record<string, Accounts>>{});
+async function readFile(connectionString: string, share: string, directory: string, filename: string) {
+	return new Promise<Buffer>((resolve, reject) => {
+		const stream = new WritableStreamBuffer()
+		const fileService = storage.createFileService(connectionString);
+		fileService.getFileToStream(share, directory, filename, stream, err => {
+			if (err) {
+				reject(err);
+			} else {
+				const contents = stream.getContents();
+				if (contents) {
+					resolve(contents);
+				} else {
+					reject(new Error('No content'));
+				}
+			}
+		});
+	});
+}
 
 interface AllChannels {
 	channels: {
