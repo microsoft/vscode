@@ -383,18 +383,18 @@ export class BackLayerWebView<T extends ICommonCellInfo> extends Disposable {
 					}
 
 					/* Adjust margin of first item in markdown cell */
-					#container > div > div.preview div *:first-child {
+					#container > div > div.preview *:first-child {
 						margin-top: 0px;
 					}
 
 					/* h1 tags don't need top margin */
-					#container > div > div.preview div h1:first-child {
+					#container > div > div.preview h1:first-child {
 						margin-top: 0;
 					}
 
 					/* Removes bottom margin when only one item exists in markdown cell */
-					#container > div > div.preview div *:only-child,
-					#container > div > div.preview div *:last-child {
+					#container > div > div.preview *:only-child,
+					#container > div > div.preview *:last-child {
 						margin-bottom: 0;
 						padding-bottom: 0;
 					}
