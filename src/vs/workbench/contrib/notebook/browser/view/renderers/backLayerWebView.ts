@@ -17,9 +17,9 @@ import { IFileDialogService } from 'vs/platform/dialogs/common/dialogs';
 import { IFileService } from 'vs/platform/files/common/files';
 import { IOpenerService, matchesScheme } from 'vs/platform/opener/common/opener';
 import { IWorkspaceContextService } from 'vs/platform/workspace/common/workspace';
-import { ICommonCellInfo, ICommonNotebookEditor, IDisplayOutputLayoutUpdateRequest, IDisplayOutputViewModel, IGenericCellViewModel, IInsetRenderOutput, RenderOutputType } from 'vs/workbench/contrib/notebook/browser/notebookBrowser';
 import { preloadsScriptStr } from 'vs/workbench/contrib/notebook/browser/view/renderers/webviewPreloads';
 import { transformWebviewThemeVars } from 'vs/workbench/contrib/notebook/browser/view/renderers/webviewThemeMapping';
+import { CellEditState, ICommonCellInfo, ICommonNotebookEditor, IDisplayOutputLayoutUpdateRequest, IDisplayOutputViewModel, IGenericCellViewModel, IInsetRenderOutput, RenderOutputType } from 'vs/workbench/contrib/notebook/browser/notebookBrowser';
 import { CellOutputKind, IDisplayOutput, INotebookRendererInfo } from 'vs/workbench/contrib/notebook/common/notebookCommon';
 import { INotebookService } from 'vs/workbench/contrib/notebook/common/notebookService';
 import { IWebviewService, WebviewContentPurpose, WebviewElement } from 'vs/workbench/contrib/webview/browser/webview';
@@ -78,6 +78,12 @@ export interface IClickedDataUrlMessage {
 	type: 'clicked-data-url';
 	data: string;
 	downloadName?: string;
+}
+
+export interface IToggleMarkdownPreviewMessage {
+	__vscode_notebook_message: boolean;
+	type: 'toggleMarkdownPreview';
+	cellId: string;
 }
 
 export interface IClearMessage {
@@ -213,7 +219,8 @@ export type FromWebviewMessage =
 	| IScrollAckMessage
 	| IBlurOutputMessage
 	| ICustomRendererMessage
-	| IClickedDataUrlMessage;
+	| IClickedDataUrlMessage
+	| IToggleMarkdownPreviewMessage;
 
 export type ToWebviewMessage =
 	| IClearMessage
@@ -725,6 +732,8 @@ var requirejs = (function() {
 					this._onDidClickDataLink(data);
 				} else if (data.type === 'customRendererMessage') {
 					this._onMessage.fire({ message: data.message, forRenderer: data.rendererId });
+				} else if (data.type === 'toggleMarkdownPreview') {
+					this.notebookEditor.setMarkdownCellEditState(data.cellId, CellEditState.Editing);
 				}
 				return;
 			}

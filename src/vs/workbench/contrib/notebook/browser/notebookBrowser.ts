@@ -168,6 +168,7 @@ export interface ICommonNotebookEditor {
 	focusNextNotebookCell(cell: IGenericCellViewModel, focus: 'editor' | 'container' | 'output'): void;
 	updateOutputHeight(cellInfo: ICommonCellInfo, output: IDisplayOutputViewModel, height: number, isInit: boolean): void;
 	updateMarkdownCellHeight(cellId: string, height: number, isInit: boolean): void;
+	setMarkdownCellEditState(cellId: string, editState: CellEditState): void;
 }
 
 //#endregion
