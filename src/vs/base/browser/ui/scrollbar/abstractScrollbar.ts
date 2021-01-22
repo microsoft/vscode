@@ -278,6 +278,10 @@ export abstract class AbstractScrollbar extends Widget {
 		}
 	}
 
+	public isNeeded(): boolean {
+		return this._scrollbarState.isNeeded();
+	}
+
 	// ----------------- Overwrite these
 
 	protected abstract _renderDomNode(largeSize: number, smallSize: number): void;

@@ -426,7 +426,15 @@ export abstract class AbstractScrollableElement extends Widget {
 			}
 		}
 
-		if (this._options.alwaysConsumeMouseWheel || didScroll) {
+		let consumeMouseWheel = didScroll;
+		if (!consumeMouseWheel && this._options.alwaysConsumeMouseWheel) {
+			consumeMouseWheel = true;
+		}
+		if (!consumeMouseWheel && this._options.consumeMouseWheelIfScrollbarIsNeeded && (this._verticalScrollbar.isNeeded() || this._horizontalScrollbar.isNeeded())) {
+			consumeMouseWheel = true;
+		}
+
+		if (consumeMouseWheel) {
 			e.preventDefault();
 			e.stopPropagation();
 		}
@@ -603,6 +611,7 @@ function resolveOptions(opts: ScrollableElementCreationOptions): ScrollableEleme
 		useShadows: (typeof opts.useShadows !== 'undefined' ? opts.useShadows : true),
 		handleMouseWheel: (typeof opts.handleMouseWheel !== 'undefined' ? opts.handleMouseWheel : true),
 		flipAxes: (typeof opts.flipAxes !== 'undefined' ? opts.flipAxes : false),
+		consumeMouseWheelIfScrollbarIsNeeded: (typeof opts.consumeMouseWheelIfScrollbarIsNeeded !== 'undefined' ? opts.consumeMouseWheelIfScrollbarIsNeeded : false),
 		alwaysConsumeMouseWheel: (typeof opts.alwaysConsumeMouseWheel !== 'undefined' ? opts.alwaysConsumeMouseWheel : false),
 		scrollYToX: (typeof opts.scrollYToX !== 'undefined' ? opts.scrollYToX : false),
 		mouseWheelScrollSensitivity: (typeof opts.mouseWheelScrollSensitivity !== 'undefined' ? opts.mouseWheelScrollSensitivity : 1),
