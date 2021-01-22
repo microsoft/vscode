@@ -3,7 +3,6 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { Event } from 'vs/base/common/event';
 import { createDecorator } from 'vs/platform/instantiation/common/instantiation';
 import { MessageBoxOptions, MessageBoxReturnValue, SaveDialogOptions, SaveDialogReturnValue, OpenDialogOptions, OpenDialogReturnValue, dialog, FileFilter, BrowserWindow } from 'electron';
 import { Queue } from 'vs/base/common/async';
@@ -18,6 +17,7 @@ import { localize } from 'vs/nls';
 import { WORKSPACE_FILTER } from 'vs/platform/workspaces/common/workspaces';
 import { mnemonicButtonLabel } from 'vs/base/common/labels';
 import { Disposable, dispose, IDisposable, toDisposable } from 'vs/base/common/lifecycle';
+import { hash } from 'vs/base/common/hash';
 
 export const IDialogMainService = createDecorator<IDialogMainService>('dialogMainService');
 
@@ -50,10 +50,9 @@ export class DialogMainService implements IDialogMainService {
 
 	private static readonly workingDirPickerStorageKey = 'pickerWorkingDir';
 
-	private readonly windowFileDialogLocks = new Set<number>();
-
-	private readonly windowsMessageBoxQueue = new Map<number, Queue<MessageBoxReturnValue>>();
-	private readonly noWindowMessageBoxQueue = new Queue<MessageBoxReturnValue>();
+	private readonly windowDialogLocks = new Map<number, Set<number>>();
+	private readonly windowDialogQueues = new Map<number, Queue<any>>();
+	private readonly noWindowDialogueQueue = new Queue<any>();
 
 	constructor(
 		@IStateService private readonly stateService: IStateService
@@ -125,30 +124,43 @@ export class DialogMainService implements IDialogMainService {
 		return;
 	}
 
-	showMessageBox(options: MessageBoxOptions, window?: BrowserWindow): Promise<MessageBoxReturnValue> {
-		return this.getMessageBoxQueue(window).queue(async () => {
+	async showMessageBox(options: MessageBoxOptions, window?: BrowserWindow): Promise<MessageBoxReturnValue> {
+
+		// prevent duplicates of the same dialog queueing at the same time
+		const fileDialogLock = await this.acquireFileDialogLock(options, window);
+		if (!fileDialogLock) {
+			throw new Error('A dialog is already showing for the window');
+		}
+
+		const dialogResult = await this.getWindowDialogQueue<MessageBoxReturnValue>(window).queue(async () => {
 			if (window) {
 				return dialog.showMessageBox(window, options);
 			}
 
 			return dialog.showMessageBox(options);
 		});
+
+		try {
+			return dialogResult;
+		} finally {
+			dispose(fileDialogLock);
+		}
 	}
 
-	private getMessageBoxQueue(window?: BrowserWindow): Queue<MessageBoxReturnValue> {
+	private getWindowDialogQueue<T>(window?: BrowserWindow): Queue<T> {
 
 		// Queue message box requests per window so that one can show
 		// after the other.
 		if (window) {
-			let windowMessageBoxQueue = this.windowsMessageBoxQueue.get(window.id);
-			if (!windowMessageBoxQueue) {
-				windowMessageBoxQueue = new Queue<MessageBoxReturnValue>();
-				this.windowsMessageBoxQueue.set(window.id, windowMessageBoxQueue);
+			let windowDialogQueue = this.windowDialogQueues.get(window.id);
+			if (!windowDialogQueue) {
+				windowDialogQueue = new Queue<T>();
+				this.windowDialogQueues.set(window.id, windowDialogQueue);
 			}
 
-			return windowMessageBoxQueue;
+			return windowDialogQueue;
 		} else {
-			return this.noWindowMessageBoxQueue;
+			return this.noWindowDialogueQueue;
 		}
 	}
 
@@ -162,12 +174,13 @@ export class DialogMainService implements IDialogMainService {
 			return path;
 		}
 
-		const fileDialogLock = await this.acquireFileDialogLock(window);
+		// prevent duplicates of the same dialog queueing at the same time
+		const fileDialogLock = await this.acquireFileDialogLock(options, window);
 		if (!fileDialogLock) {
-			throw new Error('A file dialog is already showing for the window');
+			throw new Error('A dialog is already showing for the window');
 		}
 
-		try {
+		const dialogResult = await this.getWindowDialogQueue<SaveDialogReturnValue>(window).queue(async () => {
 			let result: SaveDialogReturnValue;
 			if (window) {
 				result = await dialog.showSaveDialog(window, options);
@@ -178,6 +191,10 @@ export class DialogMainService implements IDialogMainService {
 			result.filePath = normalizePath(result.filePath);
 
 			return result;
+		});
+
+		try {
+			return dialogResult;
 		} finally {
 			dispose(fileDialogLock);
 		}
@@ -201,12 +218,13 @@ export class DialogMainService implements IDialogMainService {
 			}
 		}
 
-		const fileDialogLock = await this.acquireFileDialogLock(window);
+		// prevent duplicates of the same dialog queueing at the same time
+		const fileDialogLock = await this.acquireFileDialogLock(options, window);
 		if (!fileDialogLock) {
-			throw new Error('A file dialog is already showing for the window');
+			throw new Error('A dialog is already showing for the window');
 		}
 
-		try {
+		const dialogResult = await this.getWindowDialogQueue<OpenDialogReturnValue>(window).queue(async () => {
 			let result: OpenDialogReturnValue;
 			if (window) {
 				result = await dialog.showOpenDialog(window, options);
@@ -217,12 +235,16 @@ export class DialogMainService implements IDialogMainService {
 			result.filePaths = normalizePaths(result.filePaths);
 
 			return result;
+		});
+
+		try {
+			return dialogResult;
 		} finally {
 			dispose(fileDialogLock);
 		}
 	}
 
-	private async acquireFileDialogLock(window?: BrowserWindow): Promise<IDisposable | undefined> {
+	private async acquireFileDialogLock(options: any = {}, window?: BrowserWindow): Promise<IDisposable | undefined> {
 
 		// if no window is provided, allow as many dialogs as
 		// needed since we consider them not modal per window
@@ -230,28 +252,31 @@ export class DialogMainService implements IDialogMainService {
 			return Disposable.None;
 		}
 
-		// make sure to await any currently showing message boxes before proceeding
-		await this.joinMessageBoxQueue(window);
-
 		// if a window is provided, only allow a single dialog
 		// at the same time because dialogs are modal and we
 		// do not want to open one dialog after the other
 		// (https://github.com/microsoft/vscode/issues/114432)
-		if (this.windowFileDialogLocks.has(window.id)) {
+		let windowDialogLocks = this.windowDialogLocks.get(window.id);
+		const optionsHash = hash(options);
+
+		if (windowDialogLocks?.has(optionsHash)) {
 			return undefined;
 		}
 
-		this.windowFileDialogLocks.add(window.id);
-
-		return toDisposable(() => this.windowFileDialogLocks.delete(window.id));
-	}
-
-	private async joinMessageBoxQueue(window: BrowserWindow): Promise<void> {
-		const queue = this.getMessageBoxQueue(window);
-		if (queue.size === 0) {
-			return;
+		if (!windowDialogLocks) {
+			windowDialogLocks = new Set([optionsHash]);
+			this.windowDialogLocks.set(window.id, windowDialogLocks);
 		}
+		windowDialogLocks.add(optionsHash);
 
-		return Event.toPromise(queue.onFinished);
+		return toDisposable(() => {
+			const windowDialogLocks = this.windowDialogLocks.get(window.id);
+			windowDialogLocks?.delete(optionsHash);
+
+			// if there's no more dialogs in the window's queue, delete the queue
+			if (!this.windowDialogLocks.get(window.id)?.size) {
+				this.windowDialogLocks.delete(window.id);
+			}
+		});
 	}
 }
