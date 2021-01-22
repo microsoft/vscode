@@ -6,7 +6,7 @@
 import 'vs/css!./media/peekViewWidget';
 import * as dom from 'vs/base/browser/dom';
 import { IMouseEvent } from 'vs/base/browser/mouseEvent';
-import { ActionBar, IActionBarOptions } from 'vs/base/browser/ui/actionbar/actionbar';
+import { ActionBar, ActionsOrientation, IActionBarOptions } from 'vs/base/browser/ui/actionbar/actionbar';
 import { Action } from 'vs/base/common/actions';
 import { Color } from 'vs/base/common/color';
 import { Emitter } from 'vs/base/common/event';
@@ -210,9 +210,9 @@ export abstract class PeekViewWidget extends ZoneWidget {
 				} else if (action instanceof SubmenuItemAction) {
 					return this.instantiationService.createInstance(SubmenuEntryActionViewItem, action);
 				}
-
 				return undefined;
-			}
+			},
+			orientation: ActionsOrientation.HORIZONTAL
 		};
 	}
 
