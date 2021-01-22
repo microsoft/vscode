@@ -67,6 +67,7 @@ export class WalkThroughPart extends EditorPane {
 	private lastFocus: HTMLElement | undefined;
 	private size: Dimension | undefined;
 	private editorMemento: IEditorMemento<IWalkThroughEditorViewState>;
+	private tasExperimentService: ITASExperimentService | undefined;
 
 	constructor(
 		@ITelemetryService telemetryService: ITelemetryService,
@@ -81,11 +82,12 @@ export class WalkThroughPart extends EditorPane {
 		@INotificationService private readonly notificationService: INotificationService,
 		@IExtensionService private readonly extensionService: IExtensionService,
 		@IEditorGroupsService editorGroupService: IEditorGroupsService,
-		@optional(ITASExperimentService) private tasExperimentService: ITASExperimentService | undefined,
+		@optional(ITASExperimentService) tasExperimentService: ITASExperimentService,
 	) {
 		super(WalkThroughPart.ID, telemetryService, themeService, storageService);
 		this.editorFocus = WALK_THROUGH_FOCUS.bindTo(this.contextKeyService);
 		this.editorMemento = this.getEditorMemento<IWalkThroughEditorViewState>(editorGroupService, WALK_THROUGH_EDITOR_VIEW_STATE_PREFERENCE_KEY);
+		this.tasExperimentService = tasExperimentService;
 	}
 
 	createEditor(container: HTMLElement): void {
