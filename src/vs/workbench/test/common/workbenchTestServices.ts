@@ -114,8 +114,8 @@ export class TestContextService implements IWorkspaceContextService {
 		return URI.file(join('C:\\', workspaceRelativePath));
 	}
 
-	isCurrentWorkspace(workspaceIdOrRoot: IWorkspaceIdentifier | ISingleFolderWorkspaceIdentifier | URI): boolean {
-		return URI.isUri(workspaceIdOrRoot) && resources.isEqual(this.workspace.folders[0].uri, workspaceIdOrRoot);
+	isCurrentWorkspace(workspaceIdOrFolder: IWorkspaceIdentifier | ISingleFolderWorkspaceIdentifier | URI): boolean {
+		return URI.isUri(workspaceIdOrFolder) && resources.isEqual(this.workspace.folders[0].uri, workspaceIdOrFolder);
 	}
 }
 

@@ -39,7 +39,7 @@ import { VSBuffer } from 'vs/base/common/buffer';
 import { ConfigurationCache } from 'vs/workbench/services/configuration/browser/configurationCache';
 import { RemoteAgentService } from 'vs/workbench/services/remote/browser/remoteAgentServiceImpl';
 import { BrowserWorkbenchEnvironmentService } from 'vs/workbench/services/environment/browser/environmentService';
-import { hash } from 'vs/base/common/hash';
+import { getSingleFolderWorkspaceIdentifier } from 'vs/workbench/services/workspaces/browser/workspaces';
 
 const ROOT = URI.file('tests').with({ scheme: 'vscode-tests' });
 
@@ -94,7 +94,7 @@ suite('ConfigurationEditingService', () => {
 		workspaceService = disposables.add(new WorkspaceService({ configurationCache: new ConfigurationCache() }, environmentService, fileService, remoteAgentService, new UriIdentityService(fileService), new NullLogService()));
 		instantiationService.stub(IWorkspaceContextService, workspaceService);
 
-		await workspaceService.initialize({ id: hash(workspaceFolder.toString()).toString(16), uri: workspaceFolder });
+		await workspaceService.initialize(getSingleFolderWorkspaceIdentifier(workspaceFolder));
 		instantiationService.stub(IConfigurationService, workspaceService);
 		instantiationService.stub(IKeybindingEditingService, disposables.add(instantiationService.createInstance(KeybindingsEditingService)));
 		instantiationService.stub(ITextFileService, disposables.add(instantiationService.createInstance(TestTextFileService)));

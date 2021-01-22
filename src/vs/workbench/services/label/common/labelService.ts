@@ -180,7 +180,7 @@ export class LabelService extends Disposable implements ILabelService {
 		return paths.basename(label);
 	}
 
-	getWorkspaceLabel(workspace: IWorkspaceIdentifier | ISingleFolderWorkspaceIdentifier | URI | IWorkspace, options?: { verbose: boolean }): string {
+	getWorkspaceLabel(workspace: IWorkspace | IWorkspaceIdentifier | ISingleFolderWorkspaceIdentifier | URI, options?: { verbose: boolean }): string {
 		if (IWorkspace.isIWorkspace(workspace)) {
 			const identifier = toWorkspaceIdentifier(workspace);
 			if (identifier) {
@@ -195,7 +195,7 @@ export class LabelService extends Disposable implements ILabelService {
 			return this.doGetSingleFolderWorkspaceLabel(workspace, options);
 		}
 
-		// Workspace: Single Folder (as URI)
+		// Workspace: Single Folder (as workspace identifier)
 		if (isSingleFolderWorkspaceIdentifier(workspace)) {
 			return this.doGetSingleFolderWorkspaceLabel(workspace.uri, options);
 		}

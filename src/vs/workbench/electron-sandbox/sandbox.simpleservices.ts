@@ -173,7 +173,7 @@ export class SimpleWorkspaceService implements IWorkspaceContextService {
 
 	getWorkspaceFolder(resource: URI): IWorkspaceFolder | null { return resource && resource.scheme === workspaceResource.scheme ? this.workspace.folders[0] : null; }
 	isInsideWorkspace(resource: URI): boolean { return resource && resource.scheme === workspaceResource.scheme; }
-	isCurrentWorkspace(workspaceIdOrRoot: IWorkspaceIdentifier | ISingleFolderWorkspaceIdentifier | URI): boolean { return true; }
+	isCurrentWorkspace(workspaceIdOrFolder: IWorkspaceIdentifier | ISingleFolderWorkspaceIdentifier | URI): boolean { return true; }
 }
 
 //#endregion

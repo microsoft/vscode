@@ -177,19 +177,19 @@ export class WorkspaceService extends Disposable implements IWorkbenchConfigurat
 		return !!this.getWorkspaceFolder(resource);
 	}
 
-	public isCurrentWorkspace(workspaceIdOrRoot: IWorkspaceIdentifier | ISingleFolderWorkspaceIdentifier | URI): boolean {
+	public isCurrentWorkspace(workspaceIdOrFolder: IWorkspaceIdentifier | ISingleFolderWorkspaceIdentifier | URI): boolean {
 		switch (this.getWorkbenchState()) {
 			case WorkbenchState.FOLDER:
 				let folderUri: URI | undefined = undefined;
-				if (URI.isUri(workspaceIdOrRoot)) {
-					folderUri = workspaceIdOrRoot;
-				} else if (isSingleFolderWorkspaceIdentifier(workspaceIdOrRoot)) {
-					folderUri = workspaceIdOrRoot.uri;
+				if (URI.isUri(workspaceIdOrFolder)) {
+					folderUri = workspaceIdOrFolder;
+				} else if (isSingleFolderWorkspaceIdentifier(workspaceIdOrFolder)) {
+					folderUri = workspaceIdOrFolder.uri;
 				}
 
 				return URI.isUri(folderUri) && this.uriIdentityService.extUri.isEqual(folderUri, this.workspace.folders[0].uri);
 			case WorkbenchState.WORKSPACE:
-				return isWorkspaceIdentifier(workspaceIdOrRoot) && this.workspace.id === workspaceIdOrRoot.id;
+				return isWorkspaceIdentifier(workspaceIdOrFolder) && this.workspace.id === workspaceIdOrFolder.id;
 		}
 		return false;
 	}
@@ -400,20 +400,20 @@ export class WorkspaceService extends Disposable implements IWorkbenchConfigurat
 		return this.createEmptyWorkspace(arg);
 	}
 
-	private createMultiFolderWorkspace(workspacePayload: IWorkspaceIdentifier): Promise<Workspace> {
-		return this.workspaceConfiguration.initialize({ id: workspacePayload.id, configPath: workspacePayload.configPath })
+	private createMultiFolderWorkspace(workspaceIdentifier: IWorkspaceIdentifier): Promise<Workspace> {
+		return this.workspaceConfiguration.initialize({ id: workspaceIdentifier.id, configPath: workspaceIdentifier.configPath })
 			.then(() => {
-				const workspaceConfigPath = workspacePayload.configPath;
+				const workspaceConfigPath = workspaceIdentifier.configPath;
 				const workspaceFolders = toWorkspaceFolders(this.workspaceConfiguration.getFolders(), workspaceConfigPath, this.uriIdentityService.extUri);
-				const workspaceId = workspacePayload.id;
+				const workspaceId = workspaceIdentifier.id;
 				const workspace = new Workspace(workspaceId, workspaceFolders, workspaceConfigPath, uri => this.uriIdentityService.extUri.ignorePathCasing(uri));
 				workspace.initialized = this.workspaceConfiguration.initialized;
 				return workspace;
 			});
 	}
 
-	private createSingleFolderWorkspace(singleFolderPayload: ISingleFolderWorkspaceIdentifier): Promise<Workspace> {
-		const workspace = new Workspace(singleFolderPayload.id, [toWorkspaceFolder(singleFolderPayload.uri)], null, uri => this.uriIdentityService.extUri.ignorePathCasing(uri));
+	private createSingleFolderWorkspace(singleFolderWorkspaceIdentifier: ISingleFolderWorkspaceIdentifier): Promise<Workspace> {
+		const workspace = new Workspace(singleFolderWorkspaceIdentifier.id, [toWorkspaceFolder(singleFolderWorkspaceIdentifier.uri)], null, uri => this.uriIdentityService.extUri.ignorePathCasing(uri));
 		workspace.initialized = true;
 		return Promise.resolve(workspace);
 	}
