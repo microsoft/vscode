@@ -661,7 +661,7 @@ export class WindowsMainService extends Disposable implements IWindowsMainServic
 				continue;
 			}
 
-			const path = this.parseUri(pathToOpen, parseOptions);
+			const path = this.resolveUri(pathToOpen, parseOptions);
 			if (path) {
 				path.label = pathToOpen.label;
 				pathsToOpen.push(path);
@@ -697,7 +697,7 @@ export class WindowsMainService extends Disposable implements IWindowsMainServic
 			for (const rawFolderUri of folderUris) {
 				const folderUri = this.argToUri(rawFolderUri);
 				if (folderUri) {
-					const path = this.parseUri({ folderUri }, parseOptions);
+					const path = this.resolveUri({ folderUri }, parseOptions);
 					if (path) {
 						pathsToOpen.push(path);
 					}
@@ -711,7 +711,7 @@ export class WindowsMainService extends Disposable implements IWindowsMainServic
 			for (const rawFileUri of fileUris) {
 				const fileUri = this.argToUri(rawFileUri);
 				if (fileUri) {
-					const path = this.parseUri(hasWorkspaceFileExtension(rawFileUri) ? { workspaceUri: fileUri } : { fileUri }, parseOptions);
+					const path = this.resolveUri(hasWorkspaceFileExtension(rawFileUri) ? { workspaceUri: fileUri } : { fileUri }, parseOptions);
 					if (path) {
 						pathsToOpen.push(path);
 					}
@@ -722,7 +722,7 @@ export class WindowsMainService extends Disposable implements IWindowsMainServic
 		// folder or file paths
 		const cliPaths = cli._;
 		for (const cliPath of cliPaths) {
-			const path = this.parsePath(cliPath, parseOptions);
+			const path = this.resolvePath(cliPath, parseOptions);
 			if (path) {
 				pathsToOpen.push(path);
 			}
@@ -767,7 +767,7 @@ export class WindowsMainService extends Disposable implements IWindowsMainServic
 
 					// Workspaces
 					if (lastSessionWindow.workspace) {
-						const pathToOpen = this.parseUri({ workspaceUri: lastSessionWindow.workspace.configPath }, { remoteAuthority: lastSessionWindow.remoteAuthority });
+						const pathToOpen = this.resolveUri({ workspaceUri: lastSessionWindow.workspace.configPath }, { remoteAuthority: lastSessionWindow.remoteAuthority });
 						if (isWorkspacePathToOpen(pathToOpen)) {
 							pathsToOpen.push(pathToOpen);
 						}
@@ -775,7 +775,7 @@ export class WindowsMainService extends Disposable implements IWindowsMainServic
 
 					// Folders
 					else if (lastSessionWindow.folderUri) {
-						const pathToOpen = this.parseUri({ folderUri: lastSessionWindow.folderUri }, { remoteAuthority: lastSessionWindow.remoteAuthority });
+						const pathToOpen = this.resolveUri({ folderUri: lastSessionWindow.folderUri }, { remoteAuthority: lastSessionWindow.remoteAuthority });
 						if (isSingleFolderWorkspacePathToOpen(pathToOpen)) {
 							pathsToOpen.push(pathToOpen);
 						}
@@ -824,7 +824,7 @@ export class WindowsMainService extends Disposable implements IWindowsMainServic
 		return undefined;
 	}
 
-	private parseUri(toOpen: IWindowOpenable, options: IPathParseOptions = {}): IPathToOpen | undefined {
+	private resolveUri(toOpen: IWindowOpenable, options: IPathParseOptions = {}): IPathToOpen | undefined {
 		if (!toOpen) {
 			return undefined;
 		}
@@ -832,7 +832,7 @@ export class WindowsMainService extends Disposable implements IWindowsMainServic
 		// handle local files in `parsePath` with some extra validation
 		let uri = this.resourceFromURIToOpen(toOpen);
 		if (uri.scheme === Schemas.file) {
-			return this.parsePath(uri.fsPath, options, isFileToOpen(toOpen));
+			return this.resolvePath(uri.fsPath, options, isFileToOpen(toOpen));
 		}
 
 		// open remote if either specified in the cli or if it's a remotehost URI
@@ -890,7 +890,7 @@ export class WindowsMainService extends Disposable implements IWindowsMainServic
 		return openable.fileUri;
 	}
 
-	private parsePath(path: string, options: IPathParseOptions, forceOpenWorkspaceAsFile?: boolean): IPathToOpen | undefined {
+	private resolvePath(path: string, options: IPathParseOptions, forceOpenWorkspaceAsFile?: boolean): IPathToOpen | undefined {
 		if (!path) {
 			return undefined;
 		}
@@ -910,14 +910,14 @@ export class WindowsMainService extends Disposable implements IWindowsMainServic
 		// Handle remote paths
 		const remoteAuthority = options.remoteAuthority;
 		if (remoteAuthority) {
-			return this.parseRemotePath(path, remoteAuthority, forceOpenWorkspaceAsFile);
+			return this.resolveRemotePath(path, remoteAuthority, forceOpenWorkspaceAsFile);
 		}
 
 		// Handle local paths
-		return this.parseLocalPath(path, options, lineNumber, columnNumber, forceOpenWorkspaceAsFile);
+		return this.resolveLocalPath(path, options, lineNumber, columnNumber, forceOpenWorkspaceAsFile);
 	}
 
-	private parseRemotePath(path: string, remoteAuthority: string, forceOpenWorkspaceAsFile?: boolean): IPathToOpen | undefined {
+	private resolveRemotePath(path: string, remoteAuthority: string, forceOpenWorkspaceAsFile?: boolean): IPathToOpen | undefined {
 		const first = path.charCodeAt(0);
 
 		// make absolute
@@ -950,7 +950,7 @@ export class WindowsMainService extends Disposable implements IWindowsMainServic
 		return { workspace: getSingleFolderWorkspaceIdentifier(uri), remoteAuthority };
 	}
 
-	private parseLocalPath(path: string, options: IPathParseOptions, lineNumber: number | undefined, columnNumber: number | undefined, forceOpenWorkspaceAsFile?: boolean): IPathToOpen | undefined {
+	private resolveLocalPath(path: string, options: IPathParseOptions, lineNumber: number | undefined, columnNumber: number | undefined, forceOpenWorkspaceAsFile?: boolean): IPathToOpen | undefined {
 
 		// Ensure the path is normalized and absolute
 		path = sanitizeFilePath(normalize(path), process.env['VSCODE_CWD'] || process.cwd());
