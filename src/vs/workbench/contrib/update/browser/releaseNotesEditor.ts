@@ -293,6 +293,13 @@ export class ReleaseNotesManager {
 						line-height: 19px;
 					}
 
+					pre code {
+						font-family: var(--vscode-editor-font-family);
+						font-weight: var(--vscode-editor-font-weight);
+						font-size: var(--vscode-editor-font-size);
+						line-height: 1.5;
+					}
+
 					code > div {
 						padding: 16px;
 						border-radius: 3px;
