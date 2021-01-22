@@ -5,7 +5,7 @@
 
 import { Disposable, MutableDisposable } from 'vs/base/common/lifecycle';
 import { localize } from 'vs/nls';
-import { Action2, MenuId, registerAction2 } from 'vs/platform/actions/common/actions';
+import { Action2, MenuId, MenuRegistry, registerAction2 } from 'vs/platform/actions/common/actions';
 import { IDialogService } from 'vs/platform/dialogs/common/dialogs';
 import { ServicesAccessor } from 'vs/platform/instantiation/common/instantiation';
 import { Severity } from 'vs/platform/notification/common/notification';
@@ -279,7 +279,8 @@ registerAction2(class extends Action2 {
 			menu: {
 				id: MenuId.GlobalActivity,
 				group: '7_trust',
-				order: 40
+				order: 40,
+				when: TrustedWorkspaceContext.IsPendingRequest.negate()
 			},
 		});
 	}
@@ -289,4 +290,14 @@ registerAction2(class extends Action2 {
 		editorService.openEditor({ resource: TRUSTED_WORKSPACES_URI, mode: 'jsonc', options: { pinned: true } });
 		return;
 	}
+});
+
+MenuRegistry.appendMenuItem(MenuId.GlobalActivity, {
+	command: {
+		id: 'workbench.trust.manage',
+		title: localize('manageTrustWorkspacePending', "Manage Trusted Workspaces (1)"),
+	},
+	group: '7_trust',
+	order: 40,
+	when: TrustedWorkspaceContext.IsPendingRequest
 });
