@@ -10,7 +10,7 @@ import * as path from 'vs/base/common/path';
 import * as pfs from 'vs/base/node/pfs';
 import { EnvironmentMainService } from 'vs/platform/environment/electron-main/environmentMainService';
 import { parseArgs, OPTIONS } from 'vs/platform/environment/node/argv';
-import { WorkspacesMainService, IStoredWorkspace, getSingleFolderWorkspaceIdentifier, getWorkspaceIdentifier } from 'vs/platform/workspaces/electron-main/workspacesMainService';
+import { WorkspacesManagementMainService, IStoredWorkspace, getSingleFolderWorkspaceIdentifier, getWorkspaceIdentifier } from 'vs/platform/workspaces/electron-main/workspacesManagementMainService';
 import { WORKSPACE_EXTENSION, IRawFileWorkspaceFolder, IWorkspaceFolderCreationData, IRawUriWorkspaceFolder, rewriteWorkspaceFileForNewLocation, IWorkspaceIdentifier, IStoredWorkspaceFolder } from 'vs/platform/workspaces/common/workspaces';
 import { NullLogService } from 'vs/platform/log/common/log';
 import { URI } from 'vs/base/common/uri';
@@ -104,8 +104,8 @@ export class TestBackupMainService implements IBackupMainService {
 	}
 }
 
-suite('WorkspacesMainService', () => {
-	const parentDir = getRandomTestPath(os.tmpdir(), 'vsctests', 'workspacesmainservice');
+suite('WorkspacesManagementMainService', () => {
+	const parentDir = getRandomTestPath(os.tmpdir(), 'vsctests', 'workspacesmanagementmainservice');
 	const untitledWorkspacesHomePath = path.join(parentDir, 'Workspaces');
 
 	class TestEnvironmentService extends EnvironmentMainService {
@@ -141,10 +141,10 @@ suite('WorkspacesMainService', () => {
 	const environmentService = new TestEnvironmentService(parseArgs(process.argv, OPTIONS));
 	const logService = new NullLogService();
 
-	let service: WorkspacesMainService;
+	let service: WorkspacesManagementMainService;
 
 	setup(async () => {
-		service = new WorkspacesMainService(environmentService, logService, new TestBackupMainService(), new TestDialogMainService());
+		service = new WorkspacesManagementMainService(environmentService, logService, new TestBackupMainService(), new TestDialogMainService());
 
 		// Delete any existing backups completely and then re-create it.
 		await pfs.rimraf(parentDir);
