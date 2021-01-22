@@ -243,7 +243,7 @@ class OnAutoForwardedAction extends Disposable {
 		const tunnel = await this.portNumberHeuristicDelay(tunnels);
 		if (tunnel) {
 			switch (this.portsAttributes.getAttributes(tunnel.tunnelRemotePort)?.onAutoForward) {
-				case OnPortForward.Open: {
+				case OnPortForward.OpenBrowser: {
 					const address = makeAddress(tunnel.tunnelRemoteHost, tunnel.tunnelRemotePort);
 					await OpenPortInBrowserAction.run(this.remoteExplorerService.tunnelModel, this.openerService, address);
 					break;
