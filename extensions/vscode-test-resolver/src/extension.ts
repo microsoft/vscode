@@ -82,6 +82,13 @@ export function activate(context: vscode.ExtensionContext) {
 			const commandArgs = ['--port=0', '--disable-telemetry'];
 			const env = getNewEnv();
 			const remoteDataDir = process.env['TESTRESOLVER_DATA_FOLDER'] || path.join(os.homedir(), serverDataFolderName || `${dataFolderName}-testresolver`);
+
+			const remoteExtension = process.env['TESTRESOLVER_REMOTE_EXTENSION'];
+			if (remoteExtension) {
+				commandArgs.push('--install-extension', remoteExtension);
+				commandArgs.push('--start-server');
+			}
+
 			env['VSCODE_AGENT_FOLDER'] = remoteDataDir;
 			outputChannel.appendLine(`Using data folder at ${remoteDataDir}`);
 
@@ -100,6 +107,7 @@ export function activate(context: vscode.ExtensionContext) {
 				}
 
 				outputChannel.appendLine(`Using server build at ${serverLocation}`);
+				outputChannel.appendLine(`Server arguments ${commandArgs.join(' ')}`);
 
 				extHostProcess = cp.spawn(path.join(serverLocation, serverCommand), commandArgs, { env, cwd: serverLocation });
 			}
