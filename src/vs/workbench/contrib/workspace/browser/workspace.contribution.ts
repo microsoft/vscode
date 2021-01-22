@@ -63,7 +63,7 @@ export class WorkspaceTrustRequestHandler extends Disposable implements IWorkben
 				if (this.requestModel.trustRequest.immediate) {
 					const result = await this.dialogService.show(
 						Severity.Warning,
-						localize('immediateTrustRequestTitle', "Unknown Source Risk"),
+						localize('immediateTrustRequestTitle', "Do you trust the files in this folder?"),
 						[
 							localize('trustWorkspace', "Trust"),
 							localize('dontTrustWorkspace', "Don't Trust"),
