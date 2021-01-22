@@ -284,15 +284,8 @@ export class TrustedWorkspaceService extends Disposable implements ITrustedWorks
 	}
 
 	private onTrustRequestCompleted(trustState?: WorkspaceTrustState): void {
-		if (this._trustRequestPromise === undefined) {
-			return;
-		}
-
-		if (!trustState) {
-			this._inFlightResolver!(this.currentTrustState);
-			this._inFlightResolver = undefined;
-			this._trustRequestPromise = undefined;
-			return;
+		if (this._inFlightResolver) {
+			this._inFlightResolver(trustState === undefined ? this.currentTrustState : trustState);
 		}
 
 		this._inFlightResolver = undefined;
