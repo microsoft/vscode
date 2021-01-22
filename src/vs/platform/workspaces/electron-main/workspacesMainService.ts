@@ -320,6 +320,10 @@ export class WorkspacesMainService extends Disposable implements IWorkspacesMain
 	}
 }
 
+// !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
+// NOTE: DO NOT CHANGE. IDENTIFIERS HAVE TO REMAIN STABLE
+// !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
+
 export function getWorkspaceIdentifier(configPath: URI): IWorkspaceIdentifier {
 
 	function getWorkspaceId(): string {
@@ -337,6 +341,12 @@ export function getWorkspaceIdentifier(configPath: URI): IWorkspaceIdentifier {
 	};
 }
 
+// !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
+// NOTE: DO NOT CHANGE. IDENTIFIERS HAVE TO REMAIN STABLE
+// !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
+
+export function getSingleFolderWorkspaceIdentifier(folderUri: URI): ISingleFolderWorkspaceIdentifier | undefined;
+export function getSingleFolderWorkspaceIdentifier(folderUri: URI, folderStat: Stats): ISingleFolderWorkspaceIdentifier;
 export function getSingleFolderWorkspaceIdentifier(folderUri: URI, folderStat?: Stats): ISingleFolderWorkspaceIdentifier | undefined {
 
 	function getFolderId(): string | undefined {

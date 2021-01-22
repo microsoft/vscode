@@ -829,11 +829,17 @@ export class WindowsMainService extends Disposable implements IWindowsMainServic
 			return undefined;
 		}
 
-		// handle local files in `parsePath` with some extra validation
+		// handle local openables with some extra validation
 		let uri = this.resourceFromURIToOpen(toOpen);
 		if (uri.scheme === Schemas.file) {
 			return this.resolvePath(uri.fsPath, options, isFileToOpen(toOpen));
 		}
+
+		// handle remote openables
+		return this.resolveRemoteUri(uri, toOpen, options);
+	}
+
+	private resolveRemoteUri(uri: URI, toOpen: IWindowOpenable, options: IPathParseOptions = {}): IPathToOpen | undefined {
 
 		// open remote if either specified in the cli or if it's a remotehost URI
 		const remoteAuthority = options.remoteAuthority || getRemoteAuthority(uri);
@@ -844,7 +850,7 @@ export class WindowsMainService extends Disposable implements IWindowsMainServic
 		// remove trailing slash
 		uri = removeTrailingPathSeparator(uri);
 
-		// File
+		// Remote File
 		if (isFileToOpen(toOpen)) {
 			if (options.gotoLineMode) {
 				const { path, line, column } = parseLineAndColumnAware(uri.path);
@@ -857,25 +863,16 @@ export class WindowsMainService extends Disposable implements IWindowsMainServic
 				};
 			}
 
-			return {
-				fileUri: uri,
-				remoteAuthority
-			};
+			return { fileUri: uri, remoteAuthority };
 		}
 
-		// Workspace
+		// Remote Workspace
 		else if (isWorkspaceToOpen(toOpen)) {
-			return {
-				workspace: getWorkspaceIdentifier(uri),
-				remoteAuthority
-			};
+			return { workspace: getWorkspaceIdentifier(uri), remoteAuthority };
 		}
 
-		// Folder
-		return {
-			workspace: getSingleFolderWorkspaceIdentifier(uri),
-			remoteAuthority
-		};
+		// Remote Folder
+		return { workspace: getSingleFolderWorkspaceIdentifier(uri), remoteAuthority };
 	}
 
 	private resourceFromURIToOpen(openable: IWindowOpenable): URI {
@@ -984,10 +981,7 @@ export class WindowsMainService extends Disposable implements IWindowsMainServic
 			// are neither file nor folder but some external tools might pass them
 			// over to us)
 			else if (pathStat.isDirectory()) {
-				return {
-					workspace: getSingleFolderWorkspaceIdentifier(URI.file(path), pathStat),
-					exists: true
-				};
+				return { workspace: getSingleFolderWorkspaceIdentifier(URI.file(path), pathStat), exists: true };
 			}
 		} catch (error) {
 			const fileUri = URI.file(path);
@@ -997,10 +991,7 @@ export class WindowsMainService extends Disposable implements IWindowsMainServic
 
 			// assume this is a file that does not yet exist
 			if (options?.ignoreFileNotFound) {
-				return {
-					fileUri,
-					exists: false
-				};
+				return { fileUri, exists: false };
 			}
 		}
 

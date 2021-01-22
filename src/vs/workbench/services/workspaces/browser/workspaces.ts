@@ -7,12 +7,20 @@ import { ISingleFolderWorkspaceIdentifier, IWorkspaceIdentifier } from 'vs/platf
 import { URI } from 'vs/base/common/uri';
 import { hash } from 'vs/base/common/hash';
 
+// !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
+// NOTE: DO NOT CHANGE. IDENTIFIERS HAVE TO REMAIN STABLE
+// !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
+
 export function getWorkspaceIdentifier(workspacePath: URI): IWorkspaceIdentifier {
 	return {
 		id: getWorkspaceId(workspacePath),
 		configPath: workspacePath
 	};
 }
+
+// !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
+// NOTE: DO NOT CHANGE. IDENTIFIERS HAVE TO REMAIN STABLE
+// !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
 
 export function getSingleFolderWorkspaceIdentifier(folderPath: URI): ISingleFolderWorkspaceIdentifier {
 	return {
