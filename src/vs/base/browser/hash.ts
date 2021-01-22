@@ -10,7 +10,7 @@ export async function sha1Hex(str: string): Promise<string> {
 
 	// Prefer to use browser's crypto module
 	if (globalThis?.crypto?.subtle) {
-		const hash = await globalThis.crypto.subtle.digest({ name: 'sha-1' }, VSBuffer.fromString(str).buffer);
+		const hash = await globalThis.crypto.subtle.digest({ name: 'sha-1' }, VSBuffer.fromString(str, { dontUseNodeBuffer: true }).buffer);
 
 		return toHexString(hash);
 	}
