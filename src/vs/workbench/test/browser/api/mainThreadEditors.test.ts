@@ -19,7 +19,7 @@ import { Range } from 'vs/editor/common/core/range';
 import { Position } from 'vs/editor/common/core/position';
 import { IModelService } from 'vs/editor/common/services/modelService';
 import { EditOperation } from 'vs/editor/common/core/editOperation';
-import { TestFileService, TestEditorService, TestEditorGroupsService, TestEnvironmentService } from 'vs/workbench/test/browser/workbenchTestServices';
+import { TestFileService, TestEditorService, TestEditorGroupsService, TestEnvironmentService, TestLifecycleService } from 'vs/workbench/test/browser/workbenchTestServices';
 import { BulkEditService } from 'vs/workbench/contrib/bulkEdit/browser/bulkEditService';
 import { NullLogService, ILogService } from 'vs/platform/log/common/log';
 import { ITextModelService, IResolvedTextEditorModel } from 'vs/editor/common/services/resolverService';
@@ -52,6 +52,7 @@ import { IUriIdentityService } from 'vs/workbench/services/uriIdentity/common/ur
 import { extUri } from 'vs/base/common/resources';
 import { ITextSnapshot } from 'vs/editor/common/model';
 import { VSBuffer, VSBufferReadable } from 'vs/base/common/buffer';
+import { ILifecycleService } from 'vs/workbench/services/lifecycle/common/lifecycle';
 
 suite('MainThreadEditors', () => {
 
@@ -94,6 +95,7 @@ suite('MainThreadEditors', () => {
 		services.set(ICodeEditorService, new TestCodeEditorService());
 		services.set(IFileService, new TestFileService());
 		services.set(IEditorService, new TestEditorService());
+		services.set(ILifecycleService, new TestLifecycleService());
 		services.set(IEditorGroupsService, new TestEditorGroupsService());
 		services.set(ITextFileService, new class extends mock<ITextFileService>() {
 			isDirty() { return false; }
