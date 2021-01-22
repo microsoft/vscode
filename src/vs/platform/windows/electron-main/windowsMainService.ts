@@ -871,9 +871,6 @@ export class WindowsMainService extends Disposable implements IWindowsMainServic
 	}
 
 	private resolvePath(path: string, options: IPathResolveOptions, forceOpenWorkspaceAsFile?: boolean): IPathToOpen | undefined {
-		if (!path) {
-			return undefined;
-		}
 
 		// Extract line/col information from path
 		let lineNumber: number | undefined;
