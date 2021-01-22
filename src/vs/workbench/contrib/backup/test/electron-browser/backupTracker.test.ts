@@ -183,13 +183,13 @@ flakySuite('BackupTracker (native)', function () {
 
 		await accessor.backupFileService.joinBackupResource();
 
-		assert.equal(accessor.backupFileService.hasBackupSync(resource), true);
+		assert.strictEqual(accessor.backupFileService.hasBackupSync(resource), true);
 
 		fileModel?.dispose();
 
 		await accessor.backupFileService.joinDiscardBackup();
 
-		assert.equal(accessor.backupFileService.hasBackupSync(resource), false);
+		assert.strictEqual(accessor.backupFileService.hasBackupSync(resource), false);
 
 		await cleanup();
 	});
@@ -222,7 +222,7 @@ flakySuite('BackupTracker (native)', function () {
 
 		await model?.load();
 		model?.textEditorModel?.setValue('foo');
-		assert.equal(accessor.workingCopyService.dirtyCount, 1);
+		assert.strictEqual(accessor.workingCopyService.dirtyCount, 1);
 
 		const event = new BeforeShutdownEventImpl();
 		accessor.lifecycleService.fireWillShutdown(event);
@@ -243,7 +243,7 @@ flakySuite('BackupTracker (native)', function () {
 
 		await model?.load();
 		model?.textEditorModel?.setValue('foo');
-		assert.equal(accessor.workingCopyService.dirtyCount, 1);
+		assert.strictEqual(accessor.workingCopyService.dirtyCount, 1);
 
 		const event = new BeforeShutdownEventImpl();
 		accessor.lifecycleService.fireWillShutdown(event);
@@ -251,7 +251,7 @@ flakySuite('BackupTracker (native)', function () {
 		const veto = await event.value;
 		assert.ok(!veto);
 
-		assert.equal(accessor.workingCopyService.dirtyCount, 0);
+		assert.strictEqual(accessor.workingCopyService.dirtyCount, 0);
 
 		await cleanup();
 	});
@@ -269,7 +269,7 @@ flakySuite('BackupTracker (native)', function () {
 
 		await model?.load();
 		model?.textEditorModel?.setValue('foo');
-		assert.equal(accessor.workingCopyService.dirtyCount, 1);
+		assert.strictEqual(accessor.workingCopyService.dirtyCount, 1);
 		const event = new BeforeShutdownEventImpl();
 		accessor.lifecycleService.fireWillShutdown(event);
 
@@ -293,7 +293,7 @@ flakySuite('BackupTracker (native)', function () {
 
 		await model?.load();
 		model?.textEditorModel?.setValue('foo');
-		assert.equal(accessor.workingCopyService.dirtyCount, 1);
+		assert.strictEqual(accessor.workingCopyService.dirtyCount, 1);
 		const event = new BeforeShutdownEventImpl();
 		accessor.lifecycleService.fireWillShutdown(event);
 
@@ -433,15 +433,15 @@ flakySuite('BackupTracker (native)', function () {
 
 			await model?.load();
 			model?.textEditorModel?.setValue('foo');
-			assert.equal(accessor.workingCopyService.dirtyCount, 1);
+			assert.strictEqual(accessor.workingCopyService.dirtyCount, 1);
 
 			const event = new BeforeShutdownEventImpl();
 			event.reason = shutdownReason;
 			accessor.lifecycleService.fireWillShutdown(event);
 
 			const veto = await event.value;
-			assert.equal(accessor.backupFileService.discardedBackups.length, 0); // When hot exit is set, backups should never be cleaned since the confirm result is cancel
-			assert.equal(veto, shouldVeto);
+			assert.strictEqual(accessor.backupFileService.discardedBackups.length, 0); // When hot exit is set, backups should never be cleaned since the confirm result is cancel
+			assert.strictEqual(veto, shouldVeto);
 
 			await cleanup();
 		}

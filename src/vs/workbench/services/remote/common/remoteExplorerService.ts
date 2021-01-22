@@ -116,7 +116,7 @@ export function mapHasAddressLocalhostOrAllInterfaces<T>(map: Map<string, T>, ho
 
 export enum OnPortForward {
 	Notify = 'notify',
-	Open = 'open',
+	OpenBrowser = 'openBrowser',
 	Silent = 'silent',
 	Ignore = 'ignore'
 }

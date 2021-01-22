@@ -25,8 +25,8 @@ import { Extensions as ViewContainerExtensions, IView, FocusedViewContext, IView
 import { IContextKey, IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
 import { assertIsDefined } from 'vs/base/common/types';
 import { IInstantiationService, ServicesAccessor } from 'vs/platform/instantiation/common/instantiation';
-import { MenuId, MenuItemAction, Action2, IAction2Options, SubmenuItemAction, IMenuService } from 'vs/platform/actions/common/actions';
-import { MenuEntryActionViewItem, SubmenuEntryActionViewItem } from 'vs/platform/actions/browser/menuEntryActionViewItem';
+import { MenuId, Action2, IAction2Options, IMenuService } from 'vs/platform/actions/common/actions';
+import { createActionViewItem } from 'vs/platform/actions/browser/menuEntryActionViewItem';
 import { parseLinkedText } from 'vs/base/common/linkedText';
 import { IOpenerService } from 'vs/platform/opener/common/opener';
 import { Button } from 'vs/base/browser/ui/button/button';
@@ -520,12 +520,7 @@ export abstract class ViewPane extends Pane implements IView {
 	}
 
 	getActionViewItem(action: IAction): IActionViewItem | undefined {
-		if (action instanceof MenuItemAction) {
-			return this.instantiationService.createInstance(MenuEntryActionViewItem, action);
-		} else if (action instanceof SubmenuItemAction) {
-			return this.instantiationService.createInstance(SubmenuEntryActionViewItem, action);
-		}
-		return undefined;
+		return createActionViewItem(this.instantiationService, action);
 	}
 
 	getActionsContext(): unknown {

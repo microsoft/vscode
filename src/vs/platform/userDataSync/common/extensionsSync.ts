@@ -25,7 +25,7 @@ import { IStorageService, StorageScope, StorageTarget } from 'vs/platform/storag
 import { CancellationToken } from 'vs/base/common/cancellation';
 import { IIgnoredExtensionsManagementService } from 'vs/platform/userDataSync/common/ignoredExtensions';
 import { getErrorMessage } from 'vs/base/common/errors';
-import { forEach, IStringDictionary } from 'vs/base/common/collections';
+import { IStringDictionary } from 'vs/base/common/collections';
 import { IExtensionsStorageSyncService } from 'vs/platform/userDataSync/common/extensionsStorageSync';
 
 interface IExtensionResourceMergeResult extends IAcceptResult {
@@ -451,9 +451,9 @@ export class ExtensionsSynchroniser extends AbstractSynchroniser implements IUse
 		const extensionState = getExtensionStorageState(publisher, name, this.storageService);
 		const keys = version ? this.extensionsStorageSyncService.getKeysForSync({ id: getGalleryExtensionId(publisher, name), version }) : undefined;
 		if (keys) {
-			keys.forEach(key => extensionState[key] = state[key]);
+			keys.forEach(key => { extensionState[key] = state[key]; });
 		} else {
-			forEach(state, ({ key, value }) => extensionState[key] = value);
+			Object.keys(state).forEach(key => extensionState[key] = state[key]);
 		}
 		storeExtensionStorageState(publisher, name, extensionState, this.storageService);
 	}
@@ -556,7 +556,7 @@ export class ExtensionsInitializer extends AbstractInitializer {
 		for (const { syncExtension, installedExtension } of installedExtensionsToSync) {
 			if (syncExtension.state) {
 				const extensionState = getExtensionStorageState(installedExtension.manifest.publisher, installedExtension.manifest.name, this.storageService);
-				forEach(syncExtension.state, ({ key, value }) => extensionState[key] = value);
+				Object.keys(syncExtension.state).forEach(key => extensionState[key] = syncExtension.state![key]);
 				storeExtensionStorageState(installedExtension.manifest.publisher, installedExtension.manifest.name, extensionState, this.storageService);
 			}
 		}

@@ -82,6 +82,13 @@ export function activate(context: vscode.ExtensionContext) {
 			const commandArgs = ['--port=0', '--disable-telemetry'];
 			const env = getNewEnv();
 			const remoteDataDir = process.env['TESTRESOLVER_DATA_FOLDER'] || path.join(os.homedir(), serverDataFolderName || `${dataFolderName}-testresolver`);
+
+			const remoteExtension = process.env['TESTRESOLVER_REMOTE_EXTENSION'];
+			if (remoteExtension) {
+				commandArgs.push('--install-extension', remoteExtension);
+				commandArgs.push('--start-server');
+			}
+
 			env['VSCODE_AGENT_FOLDER'] = remoteDataDir;
 			outputChannel.appendLine(`Using data folder at ${remoteDataDir}`);
 
@@ -100,6 +107,7 @@ export function activate(context: vscode.ExtensionContext) {
 				}
 
 				outputChannel.appendLine(`Using server build at ${serverLocation}`);
+				outputChannel.appendLine(`Server arguments ${commandArgs.join(' ')}`);
 
 				extHostProcess = cp.spawn(path.join(serverLocation, serverCommand), commandArgs, { env, cwd: serverLocation });
 			}
@@ -216,8 +224,8 @@ export function activate(context: vscode.ExtensionContext) {
 			}, (progress) => doResolve(_authority, progress));
 		},
 		tunnelFactory,
-		tunnelFeatures: { elevation: true, public: false },
-		showCandidatePort: async (_host, port) => port === 100
+		tunnelFeatures: { elevation: true, public: !!vscode.workspace.getConfiguration('testresolver').get('supportPublicPorts') },
+		showCandidatePort
 	});
 	context.subscriptions.push(authorityResolverDisposable);
 
@@ -340,16 +348,17 @@ function getConfiguration<T>(id: string): T | undefined {
 
 const remoteServers: number[] = [];
 
-function tunnelFactory(tunnelOptions: vscode.TunnelOptions): Promise<vscode.Tunnel> | undefined {
+async function showCandidatePort(_host: string, port: number, _detail: string): Promise<boolean> {
+	return remoteServers.includes(port) || port === 100;
+}
+
+async function tunnelFactory(tunnelOptions: vscode.TunnelOptions, tunnelCreationOptions: vscode.TunnelCreationOptions): Promise<vscode.Tunnel> {
 	outputChannel.appendLine(`Tunnel factory request: Remote ${tunnelOptions.remoteAddress.port} -> local ${tunnelOptions.localAddressPort}`);
-
-	let remotePort = tunnelOptions.remoteAddress.port;
-	// only forward ports from our own 'remote' servers
-	if (remoteServers.includes(remotePort)) {
-		return createTunnelService();
+	if (tunnelCreationOptions.elevationRequired) {
+		await vscode.window.showInformationMessage('This is a fake elevation message. A real resolver would show a native elevation prompt.', { modal: true }, 'Ok');
 	}
-	return undefined;
 
+	return createTunnelService();
 
 	function newTunnel(localAddress: { host: string, port: number }) {
 		const onDidDispose: vscode.EventEmitter<void> = new vscode.EventEmitter();
@@ -357,7 +366,7 @@ function tunnelFactory(tunnelOptions: vscode.TunnelOptions): Promise<vscode.Tunn
 		return {
 			localAddress,
 			remoteAddress: tunnelOptions.remoteAddress,
-			public: tunnelOptions.public,
+			public: !!vscode.workspace.getConfiguration('testresolver').get('supportPublicPorts') && tunnelOptions.public,
 			onDidDispose: onDidDispose.event,
 			dispose: () => {
 				if (!isDisposed) {
@@ -375,7 +384,26 @@ function tunnelFactory(tunnelOptions: vscode.TunnelOptions): Promise<vscode.Tunn
 				remoteSocket.pipe(proxySocket);
 				proxySocket.pipe(remoteSocket);
 			});
-			proxyServer.listen(tunnelOptions.localAddressPort === undefined ? 0 : tunnelOptions.localAddressPort, () => {
+			let localPort = 0;
+
+			if (tunnelOptions.localAddressPort) {
+				// When the tunnelOptions include a localAddressPort, we should use that.
+				// However, the test resolver all runs on one machine, so if the localAddressPort is the same as the remote port,
+				// then we must use a different port number.
+				localPort = tunnelOptions.localAddressPort;
+			} else {
+				localPort = tunnelOptions.remoteAddress.port;
+			}
+
+			if (localPort === tunnelOptions.remoteAddress.port) {
+				localPort += 1;
+			}
+
+			// The test resolver can't actually handle privileged ports, it only pretends to.
+			if (localPort < 1024 && process.platform !== 'win32') {
+				localPort = 0;
+			}
+			proxyServer.listen(localPort, () => {
 				const localPort = (<net.AddressInfo>proxyServer.address()).port;
 				outputChannel.appendLine(`New test resolver tunnel service: Remote ${tunnelOptions.remoteAddress.port} -> local ${localPort}`);
 				const tunnel = newTunnel({ host: 'localhost', port: localPort });

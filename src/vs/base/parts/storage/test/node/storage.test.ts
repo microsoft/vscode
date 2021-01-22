@@ -7,7 +7,7 @@ import { SQLiteStorageDatabase, ISQLiteStorageDatabaseOptions } from 'vs/base/pa
 import { Storage, IStorageDatabase, IStorageItemsChangeEvent } from 'vs/base/parts/storage/common/storage';
 import { join } from 'vs/base/common/path';
 import { tmpdir } from 'os';
-import { equal, ok } from 'assert';
+import { strictEqual, ok } from 'assert';
 import { mkdirp, writeFile, exists, unlink, rimraf } from 'vs/base/node/pfs';
 import { timeout } from 'vs/base/common/async';
 import { Event, Emitter } from 'vs/base/common/event';
@@ -35,9 +35,9 @@ flakySuite('Storage Library', function () {
 		await storage.init();
 
 		// Empty fallbacks
-		equal(storage.get('foo', 'bar'), 'bar');
-		equal(storage.getNumber('foo', 55), 55);
-		equal(storage.getBoolean('foo', true), true);
+		strictEqual(storage.get('foo', 'bar'), 'bar');
+		strictEqual(storage.getNumber('foo', 55), 55);
+		strictEqual(storage.getBoolean('foo', true), true);
 
 		let changes = new Set<string>();
 		storage.onDidChangeStorage(key => {
@@ -54,19 +54,19 @@ flakySuite('Storage Library', function () {
 		let flushPromiseResolved = false;
 		storage.whenFlushed().then(() => flushPromiseResolved = true);
 
-		equal(storage.get('bar'), 'foo');
-		equal(storage.getNumber('barNumber'), 55);
-		equal(storage.getBoolean('barBoolean'), true);
+		strictEqual(storage.get('bar'), 'foo');
+		strictEqual(storage.getNumber('barNumber'), 55);
+		strictEqual(storage.getBoolean('barBoolean'), true);
 
-		equal(changes.size, 3);
+		strictEqual(changes.size, 3);
 		ok(changes.has('bar'));
 		ok(changes.has('barNumber'));
 		ok(changes.has('barBoolean'));
 
 		let setPromiseResolved = false;
 		await Promise.all([set1Promise, set2Promise, set3Promise]).then(() => setPromiseResolved = true);
-		equal(setPromiseResolved, true);
-		equal(flushPromiseResolved, true);
+		strictEqual(setPromiseResolved, true);
+		strictEqual(flushPromiseResolved, true);
 
 		changes = new Set<string>();
 
@@ -74,7 +74,7 @@ flakySuite('Storage Library', function () {
 		storage.set('bar', 'foo');
 		storage.set('barNumber', 55);
 		storage.set('barBoolean', true);
-		equal(changes.size, 0);
+		strictEqual(changes.size, 0);
 
 		// Simple deletes
 		const delete1Promise = storage.delete('bar');
@@ -85,7 +85,7 @@ flakySuite('Storage Library', function () {
 		ok(!storage.getNumber('barNumber'));
 		ok(!storage.getBoolean('barBoolean'));
 
-		equal(changes.size, 3);
+		strictEqual(changes.size, 3);
 		ok(changes.has('bar'));
 		ok(changes.has('barNumber'));
 		ok(changes.has('barBoolean'));
@@ -96,11 +96,11 @@ flakySuite('Storage Library', function () {
 		storage.delete('bar');
 		storage.delete('barNumber');
 		storage.delete('barBoolean');
-		equal(changes.size, 0);
+		strictEqual(changes.size, 0);
 
 		let deletePromiseResolved = false;
 		await Promise.all([delete1Promise, delete2Promise, delete3Promise]).then(() => deletePromiseResolved = true);
-		equal(deletePromiseResolved, true);
+		strictEqual(deletePromiseResolved, true);
 
 		await storage.close();
 	});
@@ -134,25 +134,25 @@ flakySuite('Storage Library', function () {
 		const changed = new Map<string, string>();
 		changed.set('foo', 'bar');
 		database.fireDidChangeItemsExternal({ changed });
-		equal(changes.size, 0);
+		strictEqual(changes.size, 0);
 
 		// Change is accepted if valid
 		changed.set('foo', 'bar1');
 		database.fireDidChangeItemsExternal({ changed });
 		ok(changes.has('foo'));
-		equal(storage.get('foo'), 'bar1');
+		strictEqual(storage.get('foo'), 'bar1');
 		changes.clear();
 
 		// Delete is accepted
 		const deleted = new Set<string>(['foo']);
 		database.fireDidChangeItemsExternal({ deleted });
 		ok(changes.has('foo'));
-		equal(storage.get('foo', undefined), undefined);
+		strictEqual(storage.get('foo', undefined), undefined);
 		changes.clear();
 
 		// Nothing happens if changing to same value
 		database.fireDidChangeItemsExternal({ deleted });
-		equal(changes.size, 0);
+		strictEqual(changes.size, 0);
 
 		await storage.close();
 	});
@@ -167,22 +167,22 @@ flakySuite('Storage Library', function () {
 		let flushPromiseResolved = false;
 		storage.whenFlushed().then(() => flushPromiseResolved = true);
 
-		equal(storage.get('foo'), 'bar');
-		equal(storage.get('bar'), 'foo');
+		strictEqual(storage.get('foo'), 'bar');
+		strictEqual(storage.get('bar'), 'foo');
 
 		let setPromiseResolved = false;
 		Promise.all([set1Promise, set2Promise]).then(() => setPromiseResolved = true);
 
 		await storage.close();
 
-		equal(setPromiseResolved, true);
-		equal(flushPromiseResolved, true);
+		strictEqual(setPromiseResolved, true);
+		strictEqual(flushPromiseResolved, true);
 
 		storage = new Storage(new SQLiteStorageDatabase(join(storageDir, 'storage.db')));
 		await storage.init();
 
-		equal(storage.get('foo'), 'bar');
-		equal(storage.get('bar'), 'foo');
+		strictEqual(storage.get('foo'), 'bar');
+		strictEqual(storage.get('bar'), 'foo');
 
 		await storage.close();
 
@@ -200,7 +200,7 @@ flakySuite('Storage Library', function () {
 
 		await storage.close();
 
-		equal(deletePromiseResolved, true);
+		strictEqual(deletePromiseResolved, true);
 
 		storage = new Storage(new SQLiteStorageDatabase(join(storageDir, 'storage.db')));
 		await storage.init();
@@ -227,8 +227,8 @@ flakySuite('Storage Library', function () {
 		let flushPromiseResolved = false;
 		storage.whenFlushed().then(() => flushPromiseResolved = true);
 
-		equal(storage.get('foo'), 'bar3');
-		equal(changes.size, 1);
+		strictEqual(storage.get('foo'), 'bar3');
+		strictEqual(changes.size, 1);
 		ok(changes.has('foo'));
 
 		let setPromiseResolved = false;
@@ -243,7 +243,7 @@ flakySuite('Storage Library', function () {
 
 		ok(!storage.get('bar'));
 
-		equal(changes.size, 1);
+		strictEqual(changes.size, 1);
 		ok(changes.has('bar'));
 
 		let setAndDeletePromiseResolved = false;
@@ -265,16 +265,16 @@ flakySuite('Storage Library', function () {
 
 		await storage.set('foo', 'bar');
 
-		equal(storage.get('bar'), 'foo');
-		equal(storage.get('foo'), 'bar');
+		strictEqual(storage.get('bar'), 'foo');
+		strictEqual(storage.get('foo'), 'bar');
 
 		await storage.close();
 
 		storage = new Storage(new SQLiteStorageDatabase(storageFile));
 		await storage.init();
 
-		equal(storage.get('bar'), 'foo');
-		equal(storage.get('foo'), 'bar');
+		strictEqual(storage.get('bar'), 'foo');
+		strictEqual(storage.get('foo'), 'bar');
 
 		await storage.close();
 	});
@@ -319,49 +319,49 @@ flakySuite('SQLite Storage Library', function () {
 		items.set(JSON.stringify({ foo: 'bar' }), JSON.stringify({ bar: 'foo' }));
 
 		let storedItems = await storage.getItems();
-		equal(storedItems.size, 0);
+		strictEqual(storedItems.size, 0);
 
 		await storage.updateItems({ insert: items });
 
 		storedItems = await storage.getItems();
-		equal(storedItems.size, items.size);
-		equal(storedItems.get('foo'), 'bar');
-		equal(storedItems.get('some/foo/path'), 'some/bar/path');
-		equal(storedItems.get(JSON.stringify({ foo: 'bar' })), JSON.stringify({ bar: 'foo' }));
+		strictEqual(storedItems.size, items.size);
+		strictEqual(storedItems.get('foo'), 'bar');
+		strictEqual(storedItems.get('some/foo/path'), 'some/bar/path');
+		strictEqual(storedItems.get(JSON.stringify({ foo: 'bar' })), JSON.stringify({ bar: 'foo' }));
 
 		await storage.updateItems({ delete: toSet(['foo']) });
 		storedItems = await storage.getItems();
-		equal(storedItems.size, items.size - 1);
+		strictEqual(storedItems.size, items.size - 1);
 		ok(!storedItems.has('foo'));
-		equal(storedItems.get('some/foo/path'), 'some/bar/path');
-		equal(storedItems.get(JSON.stringify({ foo: 'bar' })), JSON.stringify({ bar: 'foo' }));
+		strictEqual(storedItems.get('some/foo/path'), 'some/bar/path');
+		strictEqual(storedItems.get(JSON.stringify({ foo: 'bar' })), JSON.stringify({ bar: 'foo' }));
 
 		await storage.updateItems({ insert: items });
 		storedItems = await storage.getItems();
-		equal(storedItems.size, items.size);
-		equal(storedItems.get('foo'), 'bar');
-		equal(storedItems.get('some/foo/path'), 'some/bar/path');
-		equal(storedItems.get(JSON.stringify({ foo: 'bar' })), JSON.stringify({ bar: 'foo' }));
+		strictEqual(storedItems.size, items.size);
+		strictEqual(storedItems.get('foo'), 'bar');
+		strictEqual(storedItems.get('some/foo/path'), 'some/bar/path');
+		strictEqual(storedItems.get(JSON.stringify({ foo: 'bar' })), JSON.stringify({ bar: 'foo' }));
 
 		const itemsChange = new Map<string, string>();
 		itemsChange.set('foo', 'otherbar');
 		await storage.updateItems({ insert: itemsChange });
 
 		storedItems = await storage.getItems();
-		equal(storedItems.get('foo'), 'otherbar');
+		strictEqual(storedItems.get('foo'), 'otherbar');
 
 		await storage.updateItems({ delete: toSet(['foo', 'bar', 'some/foo/path', JSON.stringify({ foo: 'bar' })]) });
 		storedItems = await storage.getItems();
-		equal(storedItems.size, 0);
+		strictEqual(storedItems.size, 0);
 
 		await storage.updateItems({ insert: items, delete: toSet(['foo', 'some/foo/path', 'other']) });
 		storedItems = await storage.getItems();
-		equal(storedItems.size, 1);
-		equal(storedItems.get(JSON.stringify({ foo: 'bar' })), JSON.stringify({ bar: 'foo' }));
+		strictEqual(storedItems.size, 1);
+		strictEqual(storedItems.get(JSON.stringify({ foo: 'bar' })), JSON.stringify({ bar: 'foo' }));
 
 		await storage.updateItems({ delete: toSet([JSON.stringify({ foo: 'bar' })]) });
 		storedItems = await storage.getItems();
-		equal(storedItems.size, 0);
+		strictEqual(storedItems.size, 0);
 
 		let recoveryCalled = false;
 		await storage.close(() => {
@@ -370,7 +370,7 @@ flakySuite('SQLite Storage Library', function () {
 			return new Map();
 		});
 
-		equal(recoveryCalled, false);
+		strictEqual(recoveryCalled, false);
 	}
 
 	test('basics', async () => {
@@ -411,10 +411,10 @@ flakySuite('SQLite Storage Library', function () {
 		storage = new SQLiteStorageDatabase(storagePath);
 
 		const storedItems = await storage.getItems();
-		equal(storedItems.size, items.size);
-		equal(storedItems.get('foo'), 'bar');
-		equal(storedItems.get('some/foo/path'), 'some/bar/path');
-		equal(storedItems.get(JSON.stringify({ foo: 'bar' })), JSON.stringify({ bar: 'foo' }));
+		strictEqual(storedItems.size, items.size);
+		strictEqual(storedItems.get('foo'), 'bar');
+		strictEqual(storedItems.get('some/foo/path'), 'some/bar/path');
+		strictEqual(storedItems.get(JSON.stringify({ foo: 'bar' })), JSON.stringify({ bar: 'foo' }));
 
 		let recoveryCalled = false;
 		await storage.close(() => {
@@ -423,7 +423,7 @@ flakySuite('SQLite Storage Library', function () {
 			return new Map();
 		});
 
-		equal(recoveryCalled, false);
+		strictEqual(recoveryCalled, false);
 	});
 
 	test('basics (corrupt DB falls back to empty DB if backup is corrupt)', async () => {
@@ -444,7 +444,7 @@ flakySuite('SQLite Storage Library', function () {
 		storage = new SQLiteStorageDatabase(storagePath);
 
 		const storedItems = await storage.getItems();
-		equal(storedItems.size, 0);
+		strictEqual(storedItems.size, 0);
 
 		await testDBBasics(storagePath);
 	});
@@ -462,7 +462,7 @@ flakySuite('SQLite Storage Library', function () {
 		await storage.close();
 
 		const backupPath = `${storagePath}.backup`;
-		equal(await exists(backupPath), true);
+		strictEqual(await exists(backupPath), true);
 
 		storage = new SQLiteStorageDatabase(storagePath);
 		await storage.getItems();
@@ -484,16 +484,16 @@ flakySuite('SQLite Storage Library', function () {
 			return items;
 		});
 
-		equal(recoveryCalled, true);
-		equal(await exists(backupPath), true);
+		strictEqual(recoveryCalled, true);
+		strictEqual(await exists(backupPath), true);
 
 		storage = new SQLiteStorageDatabase(storagePath);
 
 		const storedItems = await storage.getItems();
-		equal(storedItems.size, items.size);
-		equal(storedItems.get('foo'), 'bar');
-		equal(storedItems.get('some/foo/path'), 'some/bar/path');
-		equal(storedItems.get(JSON.stringify({ foo: 'bar' })), JSON.stringify({ bar: 'foo' }));
+		strictEqual(storedItems.size, items.size);
+		strictEqual(storedItems.get('foo'), 'bar');
+		strictEqual(storedItems.get('some/foo/path'), 'some/bar/path');
+		strictEqual(storedItems.get(JSON.stringify({ foo: 'bar' })), JSON.stringify({ bar: 'foo' }));
 
 		recoveryCalled = false;
 		await storage.close(() => {
@@ -502,7 +502,7 @@ flakySuite('SQLite Storage Library', function () {
 			return new Map();
 		});
 
-		equal(recoveryCalled, false);
+		strictEqual(recoveryCalled, false);
 	});
 
 	test('real world example', async function () {
@@ -525,7 +525,7 @@ flakySuite('SQLite Storage Library', function () {
 		items3.set('very.long.key.very.long.key.very.long.key.very.long.key.very.long.key.very.long.key.very.long.key.very.long.key.very.long.key.very.long.key.very.long.key.very.long.key.very.long.key.very.long.key.very.long.key.very.long.key.very.long.key.very.long.key.very.long.key.very.long.key.very.long.key.very.long.key.very.long.key.very.long.key.very.long.key.very.long.key.very.long.key.very.long.key.very.long.key.very.long.key.very.long.key.very.long.key.very.long.key.very.long.key.very.long.key.', 'is long');
 
 		let storedItems = await storage.getItems();
-		equal(storedItems.size, 0);
+		strictEqual(storedItems.size, 0);
 
 		await Promise.all([
 			await storage.updateItems({ insert: items1 }),
@@ -533,28 +533,28 @@ flakySuite('SQLite Storage Library', function () {
 			await storage.updateItems({ insert: items3 })
 		]);
 
-		equal(await storage.checkIntegrity(true), 'ok');
-		equal(await storage.checkIntegrity(false), 'ok');
+		strictEqual(await storage.checkIntegrity(true), 'ok');
+		strictEqual(await storage.checkIntegrity(false), 'ok');
 
 		storedItems = await storage.getItems();
-		equal(storedItems.size, items1.size + items2.size + items3.size);
+		strictEqual(storedItems.size, items1.size + items2.size + items3.size);
 
 		const items1Keys: string[] = [];
 		items1.forEach((value, key) => {
 			items1Keys.push(key);
-			equal(storedItems.get(key), value);
+			strictEqual(storedItems.get(key), value);
 		});
 
 		const items2Keys: string[] = [];
 		items2.forEach((value, key) => {
 			items2Keys.push(key);
-			equal(storedItems.get(key), value);
+			strictEqual(storedItems.get(key), value);
 		});
 
 		const items3Keys: string[] = [];
 		items3.forEach((value, key) => {
 			items3Keys.push(key);
-			equal(storedItems.get(key), value);
+			strictEqual(storedItems.get(key), value);
 		});
 
 		await Promise.all([
@@ -564,7 +564,7 @@ flakySuite('SQLite Storage Library', function () {
 		]);
 
 		storedItems = await storage.getItems();
-		equal(storedItems.size, 0);
+		strictEqual(storedItems.size, 0);
 
 		await Promise.all([
 			await storage.updateItems({ insert: items1 }),
@@ -576,14 +576,14 @@ flakySuite('SQLite Storage Library', function () {
 		]);
 
 		storedItems = await storage.getItems();
-		equal(storedItems.size, items1.size + items2.size + items3.size);
+		strictEqual(storedItems.size, items1.size + items2.size + items3.size);
 
 		await storage.close();
 
 		storage = new SQLiteStorageDatabase(join(storageDir, 'storage.db'));
 
 		storedItems = await storage.getItems();
-		equal(storedItems.size, items1.size + items2.size + items3.size);
+		strictEqual(storedItems.size, items1.size + items2.size + items3.size);
 
 		await storage.close();
 	});
@@ -605,9 +605,9 @@ flakySuite('SQLite Storage Library', function () {
 		await storage.updateItems({ insert: items });
 
 		let storedItems = await storage.getItems();
-		equal(items.get('colorthemedata'), storedItems.get('colorthemedata'));
-		equal(items.get('commandpalette.mru.cache'), storedItems.get('commandpalette.mru.cache'));
-		equal(items.get('super.large.string'), storedItems.get('super.large.string'));
+		strictEqual(items.get('colorthemedata'), storedItems.get('colorthemedata'));
+		strictEqual(items.get('commandpalette.mru.cache'), storedItems.get('commandpalette.mru.cache'));
+		strictEqual(items.get('super.large.string'), storedItems.get('super.large.string'));
 
 		uuid = generateUuid();
 		value = [];
@@ -619,17 +619,17 @@ flakySuite('SQLite Storage Library', function () {
 		await storage.updateItems({ insert: items });
 
 		storedItems = await storage.getItems();
-		equal(items.get('colorthemedata'), storedItems.get('colorthemedata'));
-		equal(items.get('commandpalette.mru.cache'), storedItems.get('commandpalette.mru.cache'));
-		equal(items.get('super.large.string'), storedItems.get('super.large.string'));
+		strictEqual(items.get('colorthemedata'), storedItems.get('colorthemedata'));
+		strictEqual(items.get('commandpalette.mru.cache'), storedItems.get('commandpalette.mru.cache'));
+		strictEqual(items.get('super.large.string'), storedItems.get('super.large.string'));
 
 		const toDelete = new Set<string>();
 		toDelete.add('super.large.string');
 		await storage.updateItems({ delete: toDelete });
 
 		storedItems = await storage.getItems();
-		equal(items.get('colorthemedata'), storedItems.get('colorthemedata'));
-		equal(items.get('commandpalette.mru.cache'), storedItems.get('commandpalette.mru.cache'));
+		strictEqual(items.get('colorthemedata'), storedItems.get('colorthemedata'));
+		strictEqual(items.get('commandpalette.mru.cache'), storedItems.get('commandpalette.mru.cache'));
 		ok(!storedItems.get('super.large.string'));
 
 		await storage.close();
@@ -676,14 +676,14 @@ flakySuite('SQLite Storage Library', function () {
 		await storage.set('some/foo3/path', 'some/bar/path');
 
 		const items = await storage.getStorage().getItems();
-		equal(items.get('foo'), 'bar');
-		equal(items.get('some/foo/path'), 'some/bar/path');
-		equal(items.has('foo1'), false);
-		equal(items.has('some/foo1/path'), false);
-		equal(items.get('foo2'), 'bar');
-		equal(items.get('some/foo2/path'), 'some/bar/path');
-		equal(items.get('foo3'), 'bar');
-		equal(items.get('some/foo3/path'), 'some/bar/path');
+		strictEqual(items.get('foo'), 'bar');
+		strictEqual(items.get('some/foo/path'), 'some/bar/path');
+		strictEqual(items.has('foo1'), false);
+		strictEqual(items.has('some/foo1/path'), false);
+		strictEqual(items.get('foo2'), 'bar');
+		strictEqual(items.get('some/foo2/path'), 'some/bar/path');
+		strictEqual(items.get('foo3'), 'bar');
+		strictEqual(items.get('some/foo3/path'), 'some/bar/path');
 
 		await storage.close();
 	});
@@ -704,12 +704,12 @@ flakySuite('SQLite Storage Library', function () {
 		await storage.updateItems({ insert: items });
 
 		let storedItems = await storage.getItems();
-		equal(storedItems.size, items.size);
+		strictEqual(storedItems.size, items.size);
 
 		await storage.updateItems({ delete: keys });
 
 		storedItems = await storage.getItems();
-		equal(storedItems.size, 0);
+		strictEqual(storedItems.size, 0);
 
 		await storage.close();
 	});
@@ -730,12 +730,12 @@ flakySuite('SQLite Storage Library', function () {
 		await storage.updateItems({ insert: items });
 
 		let storedItems = await storage.getItems();
-		equal(storedItems.size, items.size);
+		strictEqual(storedItems.size, items.size);
 
 		await storage.updateItems({ delete: keys });
 
 		storedItems = await storage.getItems();
-		equal(storedItems.size, 0);
+		strictEqual(storedItems.size, 0);
 
 		await storage.close();
 	});

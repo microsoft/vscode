@@ -787,7 +787,8 @@ export function notebookDocumentFilterMatch(filter: INotebookDocumentFilter, vie
 }
 
 export interface INotebookKernelInfoDto2 {
-	id: string;
+	id?: string;
+	friendlyId: string;
 	label: string;
 	extension: ExtensionIdentifier;
 	extensionLocation: URI;

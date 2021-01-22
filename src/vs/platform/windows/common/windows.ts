@@ -41,8 +41,7 @@ export interface IAddFoldersRequest {
 
 export interface IOpenedWindow {
 	readonly id: number;
-	readonly workspace?: IWorkspaceIdentifier;
-	readonly folderUri?: ISingleFolderWorkspaceIdentifier;
+	readonly workspace?: IWorkspaceIdentifier | ISingleFolderWorkspaceIdentifier;
 	readonly title: string;
 	readonly filename?: string;
 	readonly dirty: boolean;
@@ -240,8 +239,7 @@ export interface INativeWindowConfiguration extends IWindowConfiguration, Native
 	nodeCachedDataDir?: string;
 	partsSplashPath: string;
 
-	workspace?: IWorkspaceIdentifier;
-	folderUri?: ISingleFolderWorkspaceIdentifier;
+	workspace?: IWorkspaceIdentifier | ISingleFolderWorkspaceIdentifier;
 
 	isInitialStartup?: boolean;
 	logLevel: LogLevel;

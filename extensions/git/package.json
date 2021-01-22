@@ -72,6 +72,11 @@
         "icon": "$(compare-changes)"
       },
       {
+        "command": "git.openAllChanges",
+        "title": "%command.openAllChanges%",
+        "category": "Git"
+      },
+      {
         "command": "git.openFile",
         "title": "%command.openFile%",
         "category": "Git",

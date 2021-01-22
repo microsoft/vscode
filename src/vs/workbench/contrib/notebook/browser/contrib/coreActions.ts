@@ -2104,7 +2104,7 @@ CommandsRegistry.registerCommand('_resolveNotebookKernels', async (accessor, arg
 	source.dispose();
 
 	return kernels.map(provider => ({
-		id: provider.id,
+		id: provider.friendlyId,
 		label: provider.label,
 		description: provider.description,
 		detail: provider.detail,

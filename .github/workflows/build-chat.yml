@@ -33,3 +33,4 @@ jobs:
       env:
         GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         SLACK_TOKEN: ${{ secrets.SLACK_TOKEN }}
+        BUILD_CHAT_STORAGE_CONNECTION_STRING: ${{ secrets.BUILD_CHAT_STORAGE_CONNECTION_STRING }}

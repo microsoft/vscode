@@ -681,9 +681,9 @@ export function createApiFactoryAndRegisterActors(accessor: ServicesAccessor): I
 				checkProposedApiEnabled(extension);
 				return extHostNotebook.showNotebookDocument(document, options);
 			},
-			registerExternalUriOpener(id: string, schemes: readonly string[], opener: vscode.ExternalUriOpener, metadata: vscode.ExternalUriOpenerMetadata) {
+			registerExternalUriOpener(id: string, opener: vscode.ExternalUriOpener, metadata: vscode.ExternalUriOpenerMetadata) {
 				checkProposedApiEnabled(extension);
-				return extHostUriOpeners.registerUriOpener(extension.identifier, id, schemes, opener, metadata);
+				return extHostUriOpeners.registerUriOpener(extension.identifier, id, opener, metadata);
 			},
 			get openEditors() {
 				checkProposedApiEnabled(extension);

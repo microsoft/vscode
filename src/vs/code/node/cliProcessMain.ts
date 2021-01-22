@@ -47,7 +47,7 @@ import { ILocalizationsService } from 'vs/platform/localizations/common/localiza
 import { setUnexpectedErrorHandler } from 'vs/base/common/errors';
 import { toErrorMessage } from 'vs/base/common/errorMessage';
 
-export class CliMain extends Disposable {
+class CliMain extends Disposable {
 
 	constructor(
 		private argv: NativeParsedArgs
@@ -178,7 +178,7 @@ export class CliMain extends Disposable {
 				return;
 			}
 
-			logService.error(message);
+			logService.error(`[uncaught exception in CLI]: ${message}`);
 		});
 	}
 
