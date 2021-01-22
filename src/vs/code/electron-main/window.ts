@@ -413,7 +413,7 @@ export class CodeWindow extends Disposable implements ICodeWindow {
 		// Crashes & Unrsponsive & Failed to load
 		this._win.webContents.on('render-process-gone', (event, details) => this.onWindowError(WindowError.CRASHED, details));
 		this._win.on('unresponsive', () => this.onWindowError(WindowError.UNRESPONSIVE));
-		this._win.webContents.on('did-fail-load', (event, errorCode, errorDescription) => this.logService.warn('[VS Code]: fail to load workbench window, ', errorDescription));
+		this._win.webContents.on('did-fail-load', (event, errorCode, errorDescription) => this.logService.warn('Main: failed to load workbench window, ', errorDescription));
 
 		// Window close
 		this._win.on('closed', () => {
@@ -552,7 +552,7 @@ export class CodeWindow extends Disposable implements ICodeWindow {
 	private onWindowError(error: WindowError.UNRESPONSIVE): void;
 	private onWindowError(error: WindowError.CRASHED, details: RenderProcessGoneDetails): void;
 	private onWindowError(error: WindowError, details?: RenderProcessGoneDetails): void {
-		this.logService.error(error === WindowError.CRASHED ? `[VS Code]: renderer process crashed (detail: ${details?.reason})` : '[VS Code]: detected unresponsive');
+		this.logService.error(error === WindowError.CRASHED ? `Main: renderer process crashed (detail: ${details?.reason})` : 'Main: detected unresponsive');
 
 		// If we run extension tests from CLI, showing a dialog is not
 		// very helpful in this case. Rather, we bring down the test run

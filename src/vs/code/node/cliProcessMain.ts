@@ -178,7 +178,7 @@ class CliMain extends Disposable {
 				return;
 			}
 
-			logService.error(message);
+			logService.error(`[uncaught exception in CLI]: ${message}`);
 		});
 	}
 
