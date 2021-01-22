@@ -60,11 +60,11 @@ suite('Workbench editor model', () => {
 
 		const model = await m.load();
 		assert(model === m);
-		assert.equal(model.isDisposed(), false);
+		assert.strictEqual(model.isDisposed(), false);
 		assert.strictEqual(m.isResolved(), true);
 		m.dispose();
-		assert.equal(counter, 1);
-		assert.equal(model.isDisposed(), true);
+		assert.strictEqual(counter, 1);
+		assert.strictEqual(model.isDisposed(), true);
 	});
 
 	test('BaseTextEditorModel', async () => {

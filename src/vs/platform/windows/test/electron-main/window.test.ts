@@ -88,22 +88,22 @@ suite('WindowsFinder', () => {
 	});
 
 	test('Existing window with folder', () => {
-		assert.equal(findWindowOnFile(windows, URI.file(path.join(fixturesFolder, 'no_vscode_folder', 'file.txt')), localWorkspaceResolver), noVscodeFolderWindow);
+		assert.strictEqual(findWindowOnFile(windows, URI.file(path.join(fixturesFolder, 'no_vscode_folder', 'file.txt')), localWorkspaceResolver), noVscodeFolderWindow);
 
-		assert.equal(findWindowOnFile(windows, URI.file(path.join(fixturesFolder, 'vscode_folder', 'file.txt')), localWorkspaceResolver), vscodeFolderWindow);
+		assert.strictEqual(findWindowOnFile(windows, URI.file(path.join(fixturesFolder, 'vscode_folder', 'file.txt')), localWorkspaceResolver), vscodeFolderWindow);
 
 		const window: ICodeWindow = createTestCodeWindow({ lastFocusTime: 1, openedFolderUri: URI.file(path.join(fixturesFolder, 'vscode_folder', 'nested_folder')) });
-		assert.equal(findWindowOnFile([window], URI.file(path.join(fixturesFolder, 'vscode_folder', 'nested_folder', 'subfolder', 'file.txt')), localWorkspaceResolver), window);
+		assert.strictEqual(findWindowOnFile([window], URI.file(path.join(fixturesFolder, 'vscode_folder', 'nested_folder', 'subfolder', 'file.txt')), localWorkspaceResolver), window);
 	});
 
 	test('More specific existing window wins', () => {
 		const window: ICodeWindow = createTestCodeWindow({ lastFocusTime: 2, openedFolderUri: URI.file(path.join(fixturesFolder, 'no_vscode_folder')) });
 		const nestedFolderWindow: ICodeWindow = createTestCodeWindow({ lastFocusTime: 1, openedFolderUri: URI.file(path.join(fixturesFolder, 'no_vscode_folder', 'nested_folder')) });
-		assert.equal(findWindowOnFile([window, nestedFolderWindow], URI.file(path.join(fixturesFolder, 'no_vscode_folder', 'nested_folder', 'subfolder', 'file.txt')), localWorkspaceResolver), nestedFolderWindow);
+		assert.strictEqual(findWindowOnFile([window, nestedFolderWindow], URI.file(path.join(fixturesFolder, 'no_vscode_folder', 'nested_folder', 'subfolder', 'file.txt')), localWorkspaceResolver), nestedFolderWindow);
 	});
 
 	test('Workspace folder wins', () => {
 		const window: ICodeWindow = createTestCodeWindow({ lastFocusTime: 1, openedWorkspace: testWorkspace });
-		assert.equal(findWindowOnFile([window], URI.file(path.join(fixturesFolder, 'vscode_workspace_2_folder', 'nested_vscode_folder', 'subfolder', 'file.txt')), localWorkspaceResolver), window);
+		assert.strictEqual(findWindowOnFile([window], URI.file(path.join(fixturesFolder, 'vscode_workspace_2_folder', 'nested_vscode_folder', 'subfolder', 'file.txt')), localWorkspaceResolver), window);
 	});
 });

@@ -30,16 +30,16 @@ flakySuite('Extpath', () => {
 			const real = realcaseSync(upper);
 
 			if (real) { // can be null in case of permission errors
-				assert.notEqual(real, upper);
-				assert.equal(real.toUpperCase(), upper);
-				assert.equal(real, testDir);
+				assert.notStrictEqual(real, upper);
+				assert.strictEqual(real.toUpperCase(), upper);
+				assert.strictEqual(real, testDir);
 			}
 		}
 
 		// linux, unix, etc. -> assume case sensitive file system
 		else {
 			const real = realcaseSync(testDir);
-			assert.equal(real, testDir);
+			assert.strictEqual(real, testDir);
 		}
 	});
 

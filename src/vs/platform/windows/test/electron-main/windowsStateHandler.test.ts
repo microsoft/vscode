@@ -28,15 +28,15 @@ function toWorkspace(uri: URI): IWorkspaceIdentifier {
 	};
 }
 function assertEqualURI(u1: URI | undefined, u2: URI | undefined, message?: string): void {
-	assert.equal(u1 && u1.toString(), u2 && u2.toString(), message);
+	assert.strictEqual(u1 && u1.toString(), u2 && u2.toString(), message);
 }
 
 function assertEqualWorkspace(w1: IWorkspaceIdentifier | undefined, w2: IWorkspaceIdentifier | undefined, message?: string): void {
 	if (!w1 || !w2) {
-		assert.equal(w1, w2, message);
+		assert.strictEqual(w1, w2, message);
 		return;
 	}
-	assert.equal(w1.id, w2.id, message);
+	assert.strictEqual(w1.id, w2.id, message);
 	assertEqualURI(w1.configPath, w2.configPath, message);
 }
 
@@ -45,9 +45,9 @@ function assertEqualWindowState(expected: IWindowState | undefined, actual: IWin
 		assert.deepEqual(expected, actual, message);
 		return;
 	}
-	assert.equal(expected.backupPath, actual.backupPath, message);
+	assert.strictEqual(expected.backupPath, actual.backupPath, message);
 	assertEqualURI(expected.folderUri, actual.folderUri, message);
-	assert.equal(expected.remoteAuthority, actual.remoteAuthority, message);
+	assert.strictEqual(expected.remoteAuthority, actual.remoteAuthority, message);
 	assertEqualWorkspace(expected.workspace, actual.workspace, message);
 	assert.deepEqual(expected.uiState, actual.uiState, message);
 }
@@ -55,7 +55,7 @@ function assertEqualWindowState(expected: IWindowState | undefined, actual: IWin
 function assertEqualWindowsState(expected: IWindowsState, actual: IWindowsState, message?: string) {
 	assertEqualWindowState(expected.lastPluginDevelopmentHostWindow, actual.lastPluginDevelopmentHostWindow, message);
 	assertEqualWindowState(expected.lastActiveWindow, actual.lastActiveWindow, message);
-	assert.equal(expected.openedWindows.length, actual.openedWindows.length, message);
+	assert.strictEqual(expected.openedWindows.length, actual.openedWindows.length, message);
 	for (let i = 0; i < expected.openedWindows.length; i++) {
 		assertEqualWindowState(expected.openedWindows[i], actual.openedWindows[i], message);
 	}

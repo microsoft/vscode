@@ -20,18 +20,18 @@ suite('Chokidar normalizeRoots', async () => {
 	function assertNormalizedRootPath(inputPaths: string[], expectedPaths: string[]) {
 		const requests = inputPaths.map(path => newRequest(path));
 		const actual = normalizeRoots(requests);
-		assert.deepEqual(Object.keys(actual).sort(), expectedPaths);
+		assert.deepStrictEqual(Object.keys(actual).sort(), expectedPaths);
 	}
 
 	function assertNormalizedRequests(inputRequests: IWatcherRequest[], expectedRequests: { [path: string]: IWatcherRequest[] }) {
 		const actual = normalizeRoots(inputRequests);
 		const actualPath = Object.keys(actual).sort();
 		const expectedPaths = Object.keys(expectedRequests).sort();
-		assert.deepEqual(actualPath, expectedPaths);
+		assert.deepStrictEqual(actualPath, expectedPaths);
 		for (let path of actualPath) {
 			let a = expectedRequests[path].sort((r1, r2) => r1.path.localeCompare(r2.path));
 			let e = expectedRequests[path].sort((r1, r2) => r1.path.localeCompare(r2.path));
-			assert.deepEqual(a, e);
+			assert.deepStrictEqual(a, e);
 		}
 	}
 
