@@ -178,6 +178,9 @@ export class NotebookEditorWidget extends Disposable implements INotebookEditor 
 		memento[this.viewModel.viewType] = this._activeKernel?.friendlyId;
 		this._activeKernelMemento.saveMemento();
 		this._onDidChangeKernel.fire();
+		if (this._activeKernel) {
+			this._loadKernelPreloads(this._activeKernel.extensionLocation, this._activeKernel);
+		}
 	}
 
 	private _activeKernelResolvePromise: Promise<void> | undefined = undefined;
