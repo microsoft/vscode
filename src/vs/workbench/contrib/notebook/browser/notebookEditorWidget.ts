@@ -2095,6 +2095,30 @@ export class NotebookEditorWidget extends Disposable implements INotebookEditor 
 		}
 	}
 
+	markdownCellDragStart(cellId: string, position: { clientY: number }): void {
+		const cell = this.viewModel?.viewCells.find(vc => vc.id === cellId);
+
+		if (cell && cell instanceof MarkdownCellViewModel) {
+			this._dndController?.startExplicitDrag(cell, position);
+		}
+	}
+
+	markdownCellDrag(cellId: string, position: { clientY: number }): void {
+		const cell = this.viewModel?.viewCells.find(vc => vc.id === cellId);
+
+		if (cell && cell instanceof MarkdownCellViewModel) {
+			this._dndController?.explicitDrag(cell, position);
+		}
+	}
+
+	markdownCellDragEnd(cellId: string, position: { clientY: number }): void {
+		const cell = this.viewModel?.viewCells.find(vc => vc.id === cellId);
+
+		if (cell && cell instanceof MarkdownCellViewModel) {
+			this._dndController?.endExplicitDrag(cell, position);
+		}
+	}
+
 	//#endregion
 
 	//#region Editor Contributions

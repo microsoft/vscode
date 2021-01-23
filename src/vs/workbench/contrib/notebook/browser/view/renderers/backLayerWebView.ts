@@ -85,6 +85,27 @@ export interface IToggleMarkdownPreviewMessage {
 	cellId: string;
 }
 
+export interface ICellDragStartMessage {
+	__vscode_notebook_message: boolean;
+	type: 'cell-drag-start';
+	cellId: string;
+	position: { clientX: number, clientY: number };
+}
+
+export interface ICellDragMessage {
+	__vscode_notebook_message: boolean;
+	type: 'cell-drag';
+	cellId: string;
+	position: { clientX: number, clientY: number };
+}
+
+export interface ICellDragEndMessage {
+	__vscode_notebook_message: boolean;
+	type: 'cell-drag-end';
+	cellId: string;
+	position: { clientX: number, clientY: number };
+}
+
 export interface IClearMessage {
 	type: 'clear';
 }
@@ -220,8 +241,11 @@ export type FromWebviewMessage =
 	| IBlurOutputMessage
 	| ICustomRendererMessage
 	| IClickedDataUrlMessage
-	| IToggleMarkdownPreviewMessage;
-
+	| IToggleMarkdownPreviewMessage
+	| ICellDragStartMessage
+	| ICellDragMessage
+	| ICellDragEndMessage
+	;
 export type ToWebviewMessage =
 	| IClearMessage
 	| IFocusOutputMessage
@@ -460,6 +484,10 @@ export class BackLayerWebView<T extends ICommonCellInfo> extends Disposable {
 					#container > div > div.preview .latex img,
 					#container > div > div.preview .latex-block img {
 						filter: brightness(0) invert(0)
+					}
+
+					#container > div > div.preview.dragging {
+						background-color: var(--vscode-editor-background);
 					}
 
 					.monaco-workbench.vs-dark .notebookOverlay .cell.markdown .latex img,
@@ -734,6 +762,12 @@ var requirejs = (function() {
 					this._onMessage.fire({ message: data.message, forRenderer: data.rendererId });
 				} else if (data.type === 'toggleMarkdownPreview') {
 					this.notebookEditor.setMarkdownCellEditState(data.cellId, CellEditState.Editing);
+				} else if (data.type === 'cell-drag-start') {
+					this.notebookEditor.markdownCellDragStart(data.cellId, data.position);
+				} else if (data.type === 'cell-drag') {
+					this.notebookEditor.markdownCellDrag(data.cellId, data.position);
+				} else if (data.type === 'cell-drag-end') {
+					this.notebookEditor.markdownCellDragEnd(data.cellId, data.position);
 				}
 				return;
 			}

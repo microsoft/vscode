@@ -5,7 +5,7 @@
 
 import type { Event } from 'vs/base/common/event';
 import type { IDisposable } from 'vs/base/common/lifecycle';
-import { ToWebviewMessage } from 'vs/workbench/contrib/notebook/browser/view/renderers/backLayerWebView';
+import { ICellDragEndMessage, ICellDragMessage, ICellDragStartMessage, ToWebviewMessage } from 'vs/workbench/contrib/notebook/browser/view/renderers/backLayerWebView';
 import { RenderOutputType } from 'vs/workbench/contrib/notebook/browser/notebookBrowser';
 
 // !! IMPORTANT !! everything must be in-line within the webviewPreloads
@@ -675,6 +675,44 @@ function webviewPreloads() {
 					type: 'toggleMarkdownPreview',
 					cellId,
 				});
+			});
+
+			previewContainerNode.setAttribute('draggable', 'true');
+
+			previewContainerNode.addEventListener('dragstart', e => {
+				(e.target as HTMLElement).classList.add('dragging');
+
+				const msg: ICellDragStartMessage = {
+					__vscode_notebook_message: true,
+					type: 'cell-drag-start',
+					cellId: cellId,
+					position: { clientX: e.clientX, clientY: e.clientY },
+				};
+				vscode.postMessage(msg);
+			});
+
+			previewContainerNode.addEventListener('drag', e => {
+				console.log('drag', e);
+
+				const msg: ICellDragMessage = {
+					__vscode_notebook_message: true,
+					type: 'cell-drag',
+					cellId: cellId,
+					position: { clientX: e.clientX, clientY: e.clientY },
+				};
+				vscode.postMessage(msg);
+			});
+
+			previewContainerNode.addEventListener('dragend', e => {
+				(e.target as HTMLElement).classList.remove('dragging');
+
+				const msg: ICellDragEndMessage = {
+					__vscode_notebook_message: true,
+					type: 'cell-drag-end',
+					cellId: cellId,
+					position: { clientX: e.clientX, clientY: e.clientY },
+				};
+				vscode.postMessage(msg);
 			});
 
 			cellContainer.appendChild(previewContainerNode);
