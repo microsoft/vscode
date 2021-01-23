@@ -32,6 +32,11 @@
 	display: none;
 }
 
+.scm-view.hide-provider-counts .count,
+.scm-view.auto-provider-counts .count[data-count="0"] {
+	display: none;
+}
+
 .scm-view .scm-provider {
 	display: flex;
 	flex-direction: column;
