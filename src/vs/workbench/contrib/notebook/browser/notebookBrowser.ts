@@ -169,6 +169,9 @@ export interface ICommonNotebookEditor {
 	updateOutputHeight(cellInfo: ICommonCellInfo, output: IDisplayOutputViewModel, height: number, isInit: boolean): void;
 	updateMarkdownCellHeight(cellId: string, height: number, isInit: boolean): void;
 	setMarkdownCellEditState(cellId: string, editState: CellEditState): void;
+	markdownCellDragStart(cellId: string, position: { clientY: number }): void;
+	markdownCellDrag(cellId: string, position: { clientY: number }): void;
+	markdownCellDragEnd(cellId: string, position: { clientY: number }): void;
 }
 
 //#endregion
