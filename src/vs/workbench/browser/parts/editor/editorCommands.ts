@@ -65,6 +65,9 @@ export const FOCUS_BELOW_GROUP_WITHOUT_WRAP_COMMAND_ID = 'workbench.action.focus
 
 export const OPEN_EDITOR_AT_INDEX_COMMAND_ID = 'workbench.action.openEditorAtIndex';
 
+export const OPEN_EDITOR_AT_NEXT_INDEX_COMMAND_ID = 'workbench.action.openEditorAtNextIndex'
+export const OPEN_EDITOR_AT_PREVIOUS_INDEX_COMMAND_ID = 'workbench.action.openEditorAtPreviousIndex'
+
 export const API_OPEN_EDITOR_COMMAND_ID = '_workbench.open';
 export const API_OPEN_DIFF_EDITOR_COMMAND_ID = '_workbench.diff';
 export const API_OPEN_WITH_EDITOR_COMMAND_ID = '_workbench.openWith';
@@ -503,6 +506,54 @@ function registerOpenEditorAPICommands(): void {
 
 		const input = editorService.createEditorInput({ resource: URI.revive(resource) });
 		return openEditorWith(accessor, input, id, textOptions, group);
+	});
+}
+
+function registerOpenEditorAtNextIndexCommands(): void {
+	const openEditorAtNextIndex: ICommandHandler = (accessor: ServicesAccessor): void => {
+		const editorService = accessor.get(IEditorService);
+		const activeEditorPane = editorService.activeEditorPane;
+
+		if (activeEditorPane) {
+			const currentEditor = activeEditorPane.group.activeEditor;
+			if (currentEditor) {
+				const nextEditorIndex = activeEditorPane.group.getIndexOfEditor(currentEditor) + 1;
+				const nextEditor = activeEditorPane.group.getEditorByIndex(nextEditorIndex);
+				if (nextEditor) {
+					editorService.openEditor(nextEditor);
+				}
+			}
+		}
+	};
+
+	// This command opens next editor on a pane
+	CommandsRegistry.registerCommand({
+		id: OPEN_EDITOR_AT_NEXT_INDEX_COMMAND_ID,
+		handler: openEditorAtNextIndex
+	});
+}
+
+function registerOpenEditorAtPreviousIndexCommands(): void {
+	const openEditorAtPreviousIndex: ICommandHandler = (accessor: ServicesAccessor): void => {
+		const editorService = accessor.get(IEditorService);
+		const activeEditorPane = editorService.activeEditorPane;
+
+		if (activeEditorPane) {
+			const currentEditor = activeEditorPane.group.activeEditor;
+			if (currentEditor) {
+				const nextEditorIndex = activeEditorPane.group.getIndexOfEditor(currentEditor) - 1;
+				const previousEditor = activeEditorPane.group.getEditorByIndex(nextEditorIndex);
+				if (previousEditor) {
+					editorService.openEditor(previousEditor);
+				}
+			}
+		}
+	};
+
+	// This command opens next editor on a pane
+	CommandsRegistry.registerCommand({
+		id: OPEN_EDITOR_AT_PREVIOUS_INDEX_COMMAND_ID,
+		handler: openEditorAtPreviousIndex
 	});
 }
 
@@ -1076,6 +1127,8 @@ export function setup(): void {
 	registerDiffEditorCommands();
 	registerOpenEditorAPICommands();
 	registerOpenEditorAtIndexCommands();
+	registerOpenEditorAtNextIndexCommands();
+	registerOpenEditorAtPreviousIndexCommands();
 	registerCloseEditorCommands();
 	registerOtherEditorCommands();
 	registerFocusEditorGroupAtIndexCommands();
