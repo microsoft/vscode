@@ -87,6 +87,15 @@ export class TestNotebookEditor implements INotebookEditor {
 	setMarkdownCellEditState(cellId: string, editState: CellEditState): void {
 		throw new Error('Method not implemented.');
 	}
+	markdownCellDragStart(cellId: string, position: { clientY: number }): void {
+		throw new Error('Method not implemented.');
+	}
+	markdownCellDrag(cellId: string, position: { clientY: number }): void {
+		throw new Error('Method not implemented.');
+	}
+	markdownCellDragEnd(cellId: string, position: { clientY: number }): void {
+		throw new Error('Method not implemented.');
+	}
 	async beginComputeContributedKernels(): Promise<INotebookKernelInfo2[]> {
 		return [];
 	}

@@ -137,6 +137,15 @@ export class NotebookTextDiffEditor extends EditorPane implements INotebookTextD
 	setMarkdownCellEditState(cellId: string, editState: CellEditState): void {
 		// throw new Error('Method not implemented.');
 	}
+	markdownCellDragStart(cellId: string, position: { clientY: number }): void {
+		// throw new Error('Method not implemented.');
+	}
+	markdownCellDrag(cellId: string, position: { clientY: number }): void {
+		// throw new Error('Method not implemented.');
+	}
+	markdownCellDragEnd(cellId: string, position: { clientY: number }): void {
+		// throw new Error('Method not implemented.');
+	}
 
 	protected createEditor(parent: HTMLElement): void {
 		this._rootElement = DOM.append(parent, DOM.$('.notebook-text-diff-editor'));
