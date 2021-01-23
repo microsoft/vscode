@@ -124,29 +124,6 @@ export class DialogMainService implements IDialogMainService {
 		return;
 	}
 
-	async showMessageBox(options: MessageBoxOptions, window?: BrowserWindow): Promise<MessageBoxReturnValue> {
-
-		// prevent duplicates of the same dialog queueing at the same time
-		const fileDialogLock = await this.acquireFileDialogLock(options, window);
-		if (!fileDialogLock) {
-			throw new Error('A dialog is already showing for the window');
-		}
-
-		const dialogResult = await this.getWindowDialogQueue<MessageBoxReturnValue>(window).queue(async () => {
-			if (window) {
-				return dialog.showMessageBox(window, options);
-			}
-
-			return dialog.showMessageBox(options);
-		});
-
-		try {
-			return dialogResult;
-		} finally {
-			dispose(fileDialogLock);
-		}
-	}
-
 	private getWindowDialogQueue<T>(window?: BrowserWindow): Queue<T> {
 
 		// Queue message box requests per window so that one can show
@@ -161,6 +138,27 @@ export class DialogMainService implements IDialogMainService {
 			return windowDialogQueue;
 		} else {
 			return this.noWindowDialogueQueue;
+		}
+	}
+
+	async showMessageBox(options: MessageBoxOptions, window?: BrowserWindow): Promise<MessageBoxReturnValue> {
+
+		// prevent duplicates of the same dialog queueing at the same time
+		const fileDialogLock = await this.acquireFileDialogLock(options, window);
+		if (!fileDialogLock) {
+			throw new Error('A dialog is already showing for the window');
+		}
+
+		try {
+			return await this.getWindowDialogQueue<MessageBoxReturnValue>(window).queue(async () => {
+				if (window) {
+					return dialog.showMessageBox(window, options);
+				}
+
+				return dialog.showMessageBox(options);
+			});
+		} finally {
+			dispose(fileDialogLock);
 		}
 	}
 
@@ -180,21 +178,19 @@ export class DialogMainService implements IDialogMainService {
 			throw new Error('A dialog is already showing for the window');
 		}
 
-		const dialogResult = await this.getWindowDialogQueue<SaveDialogReturnValue>(window).queue(async () => {
-			let result: SaveDialogReturnValue;
-			if (window) {
-				result = await dialog.showSaveDialog(window, options);
-			} else {
-				result = await dialog.showSaveDialog(options);
-			}
-
-			result.filePath = normalizePath(result.filePath);
-
-			return result;
-		});
-
 		try {
-			return dialogResult;
+			return await this.getWindowDialogQueue<SaveDialogReturnValue>(window).queue(async () => {
+				let result: SaveDialogReturnValue;
+				if (window) {
+					result = await dialog.showSaveDialog(window, options);
+				} else {
+					result = await dialog.showSaveDialog(options);
+				}
+
+				result.filePath = normalizePath(result.filePath);
+
+				return result;
+			});
 		} finally {
 			dispose(fileDialogLock);
 		}
@@ -224,21 +220,19 @@ export class DialogMainService implements IDialogMainService {
 			throw new Error('A dialog is already showing for the window');
 		}
 
-		const dialogResult = await this.getWindowDialogQueue<OpenDialogReturnValue>(window).queue(async () => {
-			let result: OpenDialogReturnValue;
-			if (window) {
-				result = await dialog.showOpenDialog(window, options);
-			} else {
-				result = await dialog.showOpenDialog(options);
-			}
-
-			result.filePaths = normalizePaths(result.filePaths);
-
-			return result;
-		});
-
 		try {
-			return dialogResult;
+			return await this.getWindowDialogQueue<OpenDialogReturnValue>(window).queue(async () => {
+				let result: OpenDialogReturnValue;
+				if (window) {
+					result = await dialog.showOpenDialog(window, options);
+				} else {
+					result = await dialog.showOpenDialog(options);
+				}
+
+				result.filePaths = normalizePaths(result.filePaths);
+
+				return result;
+			});
 		} finally {
 			dispose(fileDialogLock);
 		}
@@ -273,7 +267,7 @@ export class DialogMainService implements IDialogMainService {
 			const windowDialogLocks = this.windowDialogLocks.get(window.id);
 			windowDialogLocks?.delete(optionsHash);
 
-			// if there's no more dialogs in the window's queue, delete the queue
+			// if the window has no more dialog locks, delete it from windowDialogLocks
 			if (!this.windowDialogLocks.get(window.id)?.size) {
 				this.windowDialogLocks.delete(window.id);
 			}
