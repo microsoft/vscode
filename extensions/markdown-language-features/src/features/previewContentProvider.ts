@@ -65,6 +65,7 @@ export class MarkdownContentProvider {
 		const config = previewConfigurations.loadAndCacheConfiguration(sourceUri);
 		const initialData = {
 			source: sourceUri.toString(),
+			fragment: state?.fragment || markdownDocument.uri.fragment || undefined,
 			line: initialLine,
 			lineCount: markdownDocument.lineCount,
 			scrollPreviewWithEditor: config.scrollPreviewWithEditor,
