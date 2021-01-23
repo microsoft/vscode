@@ -397,7 +397,7 @@ function trivia4and5(targetPath: string, pattern: string, matchPathEnds: boolean
 	const usingPosixSep = paths.sep === paths.posix.sep;
 	const nativePath = usingPosixSep ? targetPath : targetPath.replace(ALL_FORWARD_SLASHES, paths.sep);
 	const nativePathEnd = paths.sep + nativePath;
-	const targetPathEnd = paths.posix.sep + nativePath;
+	const targetPathEnd = paths.posix.sep + targetPath;
 
 	const parsedPattern: ParsedStringPattern = matchPathEnds ? function (testPath, basename) {
 		return typeof testPath === 'string' &&
