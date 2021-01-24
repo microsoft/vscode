@@ -541,8 +541,8 @@ function registerOpenEditorAtPreviousIndexCommands(): void {
 		if (activeEditorPane) {
 			const currentEditor = activeEditorPane.group.activeEditor;
 			if (currentEditor) {
-				const nextEditorIndex = activeEditorPane.group.getIndexOfEditor(currentEditor) - 1;
-				const previousEditor = activeEditorPane.group.getEditorByIndex(nextEditorIndex);
+				const prevEditorIndex = activeEditorPane.group.getIndexOfEditor(currentEditor) - 1;
+				const previousEditor = activeEditorPane.group.getEditorByIndex(prevEditorIndex);
 				if (previousEditor) {
 					editorService.openEditor(previousEditor);
 				}
@@ -550,7 +550,7 @@ function registerOpenEditorAtPreviousIndexCommands(): void {
 		}
 	};
 
-	// This command opens next editor on a pane
+	// This command opens previous editor on a pane
 	CommandsRegistry.registerCommand({
 		id: OPEN_EDITOR_AT_PREVIOUS_INDEX_COMMAND_ID,
 		handler: openEditorAtPreviousIndex
