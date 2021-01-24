@@ -422,17 +422,19 @@ export class CodeWindow extends Disposable implements ICodeWindow {
 			this.dispose();
 		});
 
-		const svgFileSchemes = new Set([Schemas.file, Schemas.vscodeFileResource, Schemas.vscodeRemoteResource, 'devtools']);
+		const svgFileSchemes = new Set([Schemas.file, 'devtools']);
 		this._win.webContents.session.webRequest.onBeforeRequest((details, callback) => {
+			const uri = URI.parse(details.url);
 			// Prevent loading of remote svgs
-			if (details.url.endsWith('.svg')) {
-				const uri = URI.parse(details.url);
-				if (uri && !svgFileSchemes.has(uri.scheme)) {
+			if (uri && uri.path.endsWith('.svg')) {
+				const safeScheme = svgFileSchemes.has(uri.scheme) ||
+					uri.path.includes(Schemas.vscodeRemoteResource);
+				if (!safeScheme) {
 					return callback({ cancel: true });
 				}
 			}
 
-			return callback({});
+			return callback({ cancel: false });
 		});
 
 		this._win.webContents.session.webRequest.onHeadersReceived((details, callback) => {
@@ -440,17 +442,20 @@ export class CodeWindow extends Disposable implements ICodeWindow {
 			const contentType = (responseHeaders['content-type'] || responseHeaders['Content-Type']);
 
 			if (contentType && Array.isArray(contentType)) {
+				const uri = URI.parse(details.url);
 				// https://github.com/microsoft/vscode/issues/97564
 				// ensure local svg files have Content-Type image/svg+xml
-				if (details.url.endsWith('.svg')) {
-					const uri = URI.parse(details.url);
-					if (uri && svgFileSchemes.has(uri.scheme)) {
+				if (uri && uri.path.endsWith('.svg')) {
+					if (svgFileSchemes.has(uri.scheme)) {
 						responseHeaders['Content-Type'] = ['image/svg+xml'];
 						return callback({ cancel: false, responseHeaders });
 					}
 				}
 
-				if (contentType.some(x => x.toLowerCase().includes('image/svg'))) {
+				// remote extension schemes have the following format
+				// http://127.0.0.1:<port>/vscode-remote-resource?path=
+				if (!uri.path.includes(Schemas.vscodeRemoteResource) &&
+					contentType.some(x => x.toLowerCase().includes('image/svg'))) {
 					return callback({ cancel: true });
 				}
 			}
