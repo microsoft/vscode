@@ -65,7 +65,6 @@ export class WalkThroughPart extends EditorPane {
 	private scrollbar!: DomScrollableElement;
 	private editorFocus: IContextKey<boolean>;
 	private lastFocus: HTMLElement | undefined;
-	private size: Dimension | undefined;
 	private editorMemento: IEditorMemento<IWalkThroughEditorViewState>;
 	private tasExperimentService: ITASExperimentService | undefined;
 
@@ -215,9 +214,7 @@ export class WalkThroughPart extends EditorPane {
 	}
 
 	layout(dimension: Dimension): void {
-		this.size = dimension;
 		size(this.content, dimension.width, dimension.height);
-		this.updateSizeClasses();
 		this.contentDisposables.forEach(disposable => {
 			if (disposable instanceof CodeEditorWidget) {
 				disposable.layout();
@@ -228,14 +225,6 @@ export class WalkThroughPart extends EditorPane {
 			walkthroughInput.layout(dimension);
 		}
 		this.scrollbar.scanDomNode();
-	}
-
-	private updateSizeClasses() {
-		const innerContent = this.content.firstElementChild;
-		if (this.size && innerContent) {
-			const classList = innerContent.classList;
-			classList[this.size.height <= 685 ? 'add' : 'remove']('max-height-685px');
-		}
 	}
 
 	focus(): void {
@@ -305,7 +294,6 @@ export class WalkThroughPart extends EditorPane {
 				if (!input.resource.path.endsWith('.md')) {
 					safeInnerHtml(this.content, content);
 
-					this.updateSizeClasses();
 					this.decorateContent();
 					this.contentDisposables.push(this.keybindingService.onDidUpdateKeybindings(() => this.decorateContent()));
 					if (input.onReady) {
@@ -411,7 +399,6 @@ export class WalkThroughPart extends EditorPane {
 						});
 					}));
 				});
-				this.updateSizeClasses();
 				this.multiCursorModifier();
 				this.contentDisposables.push(this.configurationService.onDidChangeConfiguration(e => {
 					if (e.affectsConfiguration('editor.multiCursorModifier')) {

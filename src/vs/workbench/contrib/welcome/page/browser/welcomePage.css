@@ -214,10 +214,6 @@
 	display: inline;
 }
 
-.monaco-workbench .part.editor > .content .welcomePageContainer.max-height-685px .title {
-	display: none;
-}
-
 .file-icons-enabled .show-file-icons .vs_code_welcome_page-name-file-icon.file-icon::before {
 	content: ' ';
 	background-image: url('../../../../browser/media/code-icon.svg');
