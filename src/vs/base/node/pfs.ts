@@ -74,8 +74,8 @@ async function rimrafUnlink(path: string): Promise<void> {
 
 			// chmod as needed to allow for unlink
 			const mode = stat.mode;
-			if (!(mode & 128)) { // 128 === 0200
-				await chmod(path, mode | 128);
+			if (!(mode & fs.constants.S_IWUSR)) {
+				await chmod(path, mode | fs.constants.S_IWUSR);
 			}
 
 			return unlink(path);
@@ -129,8 +129,8 @@ export function rimrafSync(path: string): void {
 
 			// chmod as needed to allow for unlink
 			const mode = stat.mode;
-			if (!(mode & 128)) { // 128 === 0200
-				fs.chmodSync(path, mode | 128);
+			if (!(mode & fs.constants.S_IWUSR)) {
+				fs.chmodSync(path, mode | fs.constants.S_IWUSR);
 			}
 
 			return fs.unlinkSync(path);
@@ -398,11 +398,11 @@ export function writeFileSync(path: string, data: string | Buffer, options?: IWr
 
 function ensureWriteOptions(options?: IWriteFileOptions): IEnsuredWriteFileOptions {
 	if (!options) {
-		return { mode: 0o666, flag: 'w' };
+		return { mode: 0o666 /* default node.js mode for files */, flag: 'w' };
 	}
 
 	return {
-		mode: typeof options.mode === 'number' ? options.mode : 0o666,
+		mode: typeof options.mode === 'number' ? options.mode : 0o666 /* default node.js mode for files */,
 		flag: typeof options.flag === 'string' ? options.flag : 'w'
 	};
 }
@@ -509,6 +509,15 @@ export async function move(source: string, target: string): Promise<void> {
 	}
 }
 
+// When copying a file or folder, we want to preserve the mode
+// it had and as such provide it when creating. However, modes
+// can go beyond what we expect (see link below), so we mask it.
+// (https://github.com/nodejs/node-v0.x-archive/issues/3045#issuecomment-4862588)
+//
+// The `copy` method is very old so we should probably revisit
+// it's implementation and check wether this mask is still needed.
+const COPY_MODE_MASK = 0o777;
+
 export async function copy(source: string, target: string, handledSourcesIn?: { [path: string]: boolean }): Promise<void> {
 
 	// Keep track of paths already copied to prevent
@@ -526,11 +535,11 @@ export async function copy(source: string, target: string, handledSourcesIn?: { 
 	}
 
 	if (!stat.isDirectory()) {
-		return doCopyFile(source, target, stat.mode & 511);
+		return doCopyFile(source, target, stat.mode & COPY_MODE_MASK);
 	}
 
 	// Create folder
-	await mkdirp(target, stat.mode & 511);
+	await mkdirp(target, stat.mode & COPY_MODE_MASK);
 
 	// Copy each file recursively
 	const files = await readdir(source);
