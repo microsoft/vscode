@@ -94,6 +94,7 @@ registerAction2(Action.ShowTestView);
 registerAction2(Action.CollapseAllAction);
 registerAction2(Action.RunAllAction);
 registerAction2(Action.DebugAllAction);
+registerAction2(Action.EditFocusedTest);
 
 Registry.as<IWorkbenchContributionsRegistry>(WorkbenchExtensions.Workbench).registerWorkbenchContribution(TestingContentProvider, LifecyclePhase.Eventually);
 
