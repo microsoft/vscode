@@ -1380,7 +1380,7 @@ export class List<T> implements ISpliceable<T>, IThemable, IDisposable {
 	}
 
 	domFocus(): void {
-		this.view.domNode.focus();
+		this.view.domNode.focus({ preventScroll: true });
 	}
 
 	layout(height?: number, width?: number): void {
