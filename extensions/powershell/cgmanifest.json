@@ -1,0 +1,17 @@
+{
+	"registrations": [
+		{
+			"component": {
+				"type": "git",
+				"git": {
+					"name": "PowerShell/EditorSyntax",
+					"repositoryUrl": "https://github.com/PowerShell/EditorSyntax",
+					"commitHash": "d10ae29c0d3ceb248172c383a159ae43b9ccfb4d"
+				}
+			},
+			"license": "MIT",
+			"version": "1.0.0"
+		}
+	],
+	"version": 1
+}
