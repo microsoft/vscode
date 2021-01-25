@@ -57,7 +57,7 @@ export interface IConstructorSignature7<A1, A2, A3, A4, A5, A6, A7, T> {
 }
 
 export interface IConstructorSignature8<A1, A2, A3, A4, A5, A6, A7, A8, T> {
-	new(first: A1, second: A2, third: A3, fourth: A4, fifth: A5, sixth: A6, seventh: A7, eigth: A8, ...services: BrandedService[]): T;
+	new(first: A1, second: A2, third: A3, fourth: A4, fifth: A5, sixth: A6, seventh: A7, eighth: A8, ...services: BrandedService[]): T;
 }
 
 export interface ServicesAccessor {
