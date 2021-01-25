@@ -4404,10 +4404,10 @@ growl@1.10.5:
   resolved "https://registry.yarnpkg.com/growl/-/growl-1.10.5.tgz#f2735dc2283674fa67478b10181059355c369e5e"
   integrity sha512-qBr4OuELkhPenW6goKVXiv47US3clb3/IbuWF9KNKEijAy9oeHxU9IgzjvJhHkUzhaj7rOUD7+YGWqUjLp5oSA==
 
-gulp-atom-electron@^1.27.0:
-  version "1.27.0"
-  resolved "https://registry.yarnpkg.com/gulp-atom-electron/-/gulp-atom-electron-1.27.0.tgz#88649954ffdaa95ae81d34e6b06c81098ae9aa9d"
-  integrity sha512-XB6GlLbY+PVlPjUdlr+P29xoWWCa6qurowyeBCjT3I2HnOrFCbOnt4O8a/2wVZSaHXdxOajTta1wsp6oVDJs5A==
+gulp-atom-electron@^1.29.0:
+  version "1.29.0"
+  resolved "https://registry.yarnpkg.com/gulp-atom-electron/-/gulp-atom-electron-1.29.0.tgz#5f16dbac1e15c888af6b1b0c5ce433b78d6d80d7"
+  integrity sha512-q+YR41eA6mhiwNaRXeEETsFSDuOjhXfTiXJn74/brjR2/H6BmbbocaFbKSnkKv3N4f6MJuH1mWKCZqPggaHiAg==
   dependencies:
     "@electron/get" "^1.12.3"
     "@octokit/rest" "^18.0.14"
@@ -4417,7 +4417,6 @@ gulp-atom-electron@^1.27.0:
     gulp-symdest "^1.1.1"
     gulp-vinyl-zip "^2.1.2"
     mkdirp "^0.5.1"
-    object-assign "^4.0.1"
     plist "^3.0.1"
     progress "^1.1.8"
     rcedit "^0.3.0"
