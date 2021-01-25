@@ -466,18 +466,18 @@ export class ExtensionsSynchroniser extends AbstractSynchroniser implements IUse
 		const disabledExtensions = this.extensionEnablementService.getDisabledExtensions();
 		return installedExtensions
 			.map(({ identifier, isBuiltin, manifest }) => {
-				const syncExntesion: ISyncExtensionWithVersion = { identifier, version: manifest.version };
+				const syncExtension: ISyncExtensionWithVersion = { identifier, version: manifest.version };
 				if (disabledExtensions.some(disabledExtension => areSameExtensions(disabledExtension, identifier))) {
-					syncExntesion.disabled = true;
+					syncExtension.disabled = true;
 				}
 				if (!isBuiltin) {
-					syncExntesion.installed = true;
+					syncExtension.installed = true;
 				}
 				try {
 					const keys = this.extensionsStorageSyncService.getKeysForSync({ id: identifier.id, version: manifest.version });
 					if (keys) {
 						const extensionStorageState = getExtensionStorageState(manifest.publisher, manifest.name, this.storageService);
-						syncExntesion.state = Object.keys(extensionStorageState).reduce((state: IStringDictionary<any>, key) => {
+						syncExtension.state = Object.keys(extensionStorageState).reduce((state: IStringDictionary<any>, key) => {
 							if (keys.includes(key)) {
 								state[key] = extensionStorageState[key];
 							}
@@ -487,7 +487,7 @@ export class ExtensionsSynchroniser extends AbstractSynchroniser implements IUse
 				} catch (error) {
 					this.logService.info(`${this.syncResourceLogLabel}: Error while parsing extension state`, getErrorMessage(error));
 				}
-				return syncExntesion;
+				return syncExtension;
 			});
 	}
 
