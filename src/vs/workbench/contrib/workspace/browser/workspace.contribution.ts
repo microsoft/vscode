@@ -16,7 +16,6 @@ import { IActivityService, IconBadge } from 'vs/workbench/services/activity/comm
 import { LifecyclePhase } from 'vs/workbench/services/lifecycle/common/lifecycle';
 import { registerIcon } from 'vs/platform/theme/common/iconRegistry';
 import { Codicon } from 'vs/base/common/codicons';
-import { IStatusbarEntry, IStatusbarEntryAccessor, IStatusbarService, StatusbarAlignment } from 'vs/workbench/services/statusbar/common/statusbar';
 import { ThemeColor } from 'vs/workbench/api/common/extHostTypes';
 import { IEditorService } from 'vs/workbench/services/editor/common/editorService';
 import { TrustedWorkspacesFileSystemProvider } from 'vs/workbench/contrib/workspace/common/trustedWorkspaceFileSystemProvider';
@@ -25,6 +24,7 @@ import { WorkbenchStateContext } from 'vs/workbench/browser/contextkeys';
 import { ICommandService } from 'vs/platform/commands/common/commands';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { IHostService } from 'vs/workbench/services/host/browser/host';
+import { IStatusbarEntry, IStatusbarEntryAccessor, IStatusbarService, StatusbarAlignment } from 'vs/workbench/services/statusbar/common/statusbar';
 
 const workspaceTrustIcon = registerIcon('workspace-trust-icon', Codicon.shield, localize('workspaceTrustIcon', "Icon for workspace trust badge."));
 
@@ -124,28 +124,33 @@ class TrustedWorkspaceStatusbarItem extends Disposable implements IWorkbenchCont
 	private readonly statusBarEntryAccessor: MutableDisposable<IStatusbarEntryAccessor>;
 
 	constructor(
-		@IStatusbarService private statusbarService: IStatusbarService,
-		@ITrustedWorkspaceService private trustedWorkspaceService: ITrustedWorkspaceService
+		@IStatusbarService private readonly statusbarService: IStatusbarService,
+		@ITrustedWorkspaceService private readonly trustedWorkspaceService: ITrustedWorkspaceService
 	) {
 		super();
 
-		const entry = this.getStatusbarEntry(this.trustedWorkspaceService.getWorkspaceTrustState());
 		this.statusBarEntryAccessor = this._register(new MutableDisposable<IStatusbarEntryAccessor>());
-		this.statusBarEntryAccessor.value = this.statusbarService.addEntry(entry, TrustedWorkspaceStatusbarItem.ID, localize('status.trustedWorkspace', "Workspace Trust"), StatusbarAlignment.LEFT, 0.99 * Number.MAX_VALUE /* Right of remote indicator */);
 
-		this._register(this.trustedWorkspaceService.onDidChangeTrust(state => this.updateStatusbarEntry(state)));
+		if (this.trustedWorkspaceService.isWorkspaceTrustEnabled()) {
+			const entry = this.getStatusbarEntry(this.trustedWorkspaceService.getWorkspaceTrustState());
+			this.statusBarEntryAccessor.value = this.statusbarService.addEntry(entry, TrustedWorkspaceStatusbarItem.ID, localize('status.trustedWorkspace', "Workspace Trust"), StatusbarAlignment.LEFT, 0.99 * Number.MAX_VALUE /* Right of remote indicator */);
+			this._register(this.trustedWorkspaceService.onDidChangeTrust(state => this.updateStatusbarEntry(state)));
+		}
 	}
 
 	private getStatusbarEntry(state: WorkspaceTrustState): IStatusbarEntry {
 		const text = workspaceTrustStateToString(state);
+		const backgroundColor = state === WorkspaceTrustState.Trusted ?
+			'transparent' : new ThemeColor('statusBarItem.prominentBackground');
+		const color = state === WorkspaceTrustState.Trusted ? '#00dd3b' : '#ff5462';
 
 		return {
-			text: state === WorkspaceTrustState.Untrusted ? `$(shield) ${text}` : `$(shield)`,
+			text: state === WorkspaceTrustState.Trusted ? `$(shield)` : `$(shield) ${text}`,
 			ariaLabel: localize('status.trustedWorkspace', "Workspace Trust"),
 			tooltip: localize('status.trustedWorkspace', "Workspace Trust"),
-			backgroundColor: state === WorkspaceTrustState.Trusted ? 'transparent' : new ThemeColor('statusBarItem.prominentBackground'),
-			color: state === WorkspaceTrustState.Trusted ? '#00dd3b' : '#ff5462',
-			command: 'workbench.trust.manage'
+			command: 'workbench.trust.manage',
+			backgroundColor,
+			color
 		};
 	}
 

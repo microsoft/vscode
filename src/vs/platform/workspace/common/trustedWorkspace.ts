@@ -36,12 +36,8 @@ export function workspaceTrustStateToString(trustState: WorkspaceTrustState) {
 			return localize('untrusted', "Untrusted");
 		case WorkspaceTrustState.Unknown:
 		default:
-			return localize('trusted', "Trusted");
+			return localize('unknown', "Unknown");
 	}
-}
-
-export function workspaceTrustRequirementEnabled(configurationService: IConfigurationService): boolean {
-	return configurationService.getValue<boolean>(TRUSTED_WORKSPACES_ENABLED) ?? false;
 }
 
 export const TrustedWorkspaceContext = {
@@ -89,6 +85,7 @@ export interface ITrustedWorkspaceService {
 
 	onDidChangeTrust: WorkspaceTrustChangeEvent;
 	getWorkspaceTrustState(): WorkspaceTrustState;
+	isWorkspaceTrustEnabled(): boolean;
 	requireWorkspaceTrust(request: ITrustedWorkspaceRequest): Promise<WorkspaceTrustState>;
 	resetWorkspaceTrust(): Promise<WorkspaceTrustState>;
 }
@@ -236,7 +233,6 @@ export class TrustedWorkspaceService extends Disposable implements ITrustedWorks
 	private readonly _onDidChangeTrust = this._register(new Emitter<WorkspaceTrustStateChangeEvent>());
 	readonly onDidChangeTrust = this._onDidChangeTrust.event;
 
-	private _isTrustRequirementEnabled = false;
 	private _currentTrustState: WorkspaceTrustState = WorkspaceTrustState.Unknown;
 	private _inFlightResolver?: (trustState: WorkspaceTrustState) => void;
 	private _trustRequestPromise?: Promise<WorkspaceTrustState>;
@@ -257,8 +253,6 @@ export class TrustedWorkspaceService extends Disposable implements ITrustedWorks
 		this.dataModel = this._register(new TrustedContentModel(this.storageService));
 		this.requestModel = this._register(new TrustedWorkspaceRequestModel());
 
-		this._isTrustRequirementEnabled = workspaceTrustRequirementEnabled(configurationService);
-
 		this._workspace = this.workspaceService.getWorkspace();
 		this._currentTrustState = this.calculateWorkspaceTrustState();
 
@@ -269,7 +263,7 @@ export class TrustedWorkspaceService extends Disposable implements ITrustedWorks
 		this._ctxTrustedWorkspaceTrustState = TrustedWorkspaceContext.TrustState.bindTo(contextKeyService);
 		this._ctxTrustedWorkspacePendingRequest = TrustedWorkspaceContext.IsPendingRequest.bindTo(contextKeyService);
 		this._ctxTrustedWorkspaceTrustState.set(this.currentTrustState);
-		this._ctxTrustedWorkspaceEnabled.set(this._isTrustRequirementEnabled);
+		this._ctxTrustedWorkspaceEnabled.set(this.isWorkspaceTrustEnabled());
 	}
 
 	private get currentTrustState(): WorkspaceTrustState {
@@ -285,7 +279,7 @@ export class TrustedWorkspaceService extends Disposable implements ITrustedWorks
 	}
 
 	private calculateWorkspaceTrustState(): WorkspaceTrustState {
-		if (!this._isTrustRequirementEnabled) {
+		if (!this.isWorkspaceTrustEnabled()) {
 			return WorkspaceTrustState.Trusted;
 		}
 
@@ -336,6 +330,10 @@ export class TrustedWorkspaceService extends Disposable implements ITrustedWorks
 
 	getWorkspaceTrustState(): WorkspaceTrustState {
 		return this.currentTrustState;
+	}
+
+	isWorkspaceTrustEnabled(): boolean {
+		return this.configurationService.getValue<boolean>(TRUSTED_WORKSPACES_ENABLED) ?? false;
 	}
 
 	async requireWorkspaceTrust(request?: ITrustedWorkspaceRequest): Promise<WorkspaceTrustState> {
