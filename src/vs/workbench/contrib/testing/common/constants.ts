@@ -11,6 +11,8 @@ export const enum Testing {
 	ViewletId = 'workbench.view.extension.test',
 	ExplorerViewId = 'workbench.view.testing',
 	OutputPeekContributionId = 'editor.contrib.testingOutputPeek',
+	DecorationsContributionId = 'editor.contrib.testingDecorations',
+	FilterActionId = 'workbench.actions.treeView.testExplorer.filter',
 }
 
 export const enum TestExplorerViewMode {

@@ -12,7 +12,7 @@ import { getBaseLabel, getPathLabel, splitName } from 'vs/base/common/labels';
 import { Event as CommonEvent, Emitter } from 'vs/base/common/event';
 import { isWindows, isMacintosh } from 'vs/base/common/platform';
 import { IWorkspaceIdentifier, IRecentlyOpened, isRecentWorkspace, isRecentFolder, IRecent, isRecentFile, IRecentFolder, IRecentWorkspace, IRecentFile, toStoreData, restoreRecentlyOpened, RecentlyOpenedStorageData, WORKSPACE_EXTENSION, isWorkspaceIdentifier, isSingleFolderWorkspaceIdentifier } from 'vs/platform/workspaces/common/workspaces';
-import { IWorkspacesMainService } from 'vs/platform/workspaces/electron-main/workspacesMainService';
+import { IWorkspacesManagementMainService } from 'vs/platform/workspaces/electron-main/workspacesManagementMainService';
 import { ThrottledDelayer } from 'vs/base/common/async';
 import { dirname, originalFSPath, basename, extUriBiasedIgnorePathCase } from 'vs/base/common/resources';
 import { URI } from 'vs/base/common/uri';
@@ -65,7 +65,7 @@ export class WorkspacesHistoryMainService extends Disposable implements IWorkspa
 	constructor(
 		@IStateService private readonly stateService: IStateService,
 		@ILogService private readonly logService: ILogService,
-		@IWorkspacesMainService private readonly workspacesMainService: IWorkspacesMainService,
+		@IWorkspacesManagementMainService private readonly workspacesManagementMainService: IWorkspacesManagementMainService,
 		@IEnvironmentMainService private readonly environmentService: IEnvironmentMainService,
 		@ILifecycleMainService private readonly lifecycleMainService: ILifecycleMainService
 	) {
@@ -80,7 +80,7 @@ export class WorkspacesHistoryMainService extends Disposable implements IWorkspa
 		this.lifecycleMainService.when(LifecycleMainPhase.AfterWindowOpen).then(() => this.handleWindowsJumpList());
 
 		// Add to history when entering workspace
-		this._register(this.workspacesMainService.onWorkspaceEntered(event => this.addRecentlyOpened([{ workspace: event.workspace }])));
+		this._register(this.workspacesManagementMainService.onWorkspaceEntered(event => this.addRecentlyOpened([{ workspace: event.workspace }])));
 	}
 
 	private handleWindowsJumpList(): void {
@@ -100,7 +100,7 @@ export class WorkspacesHistoryMainService extends Disposable implements IWorkspa
 
 			// Workspace
 			if (isRecentWorkspace(recent)) {
-				if (!this.workspacesMainService.isUntitledWorkspace(recent.workspace) && indexOfWorkspace(workspaces, recent.workspace) === -1) {
+				if (!this.workspacesManagementMainService.isUntitledWorkspace(recent.workspace) && indexOfWorkspace(workspaces, recent.workspace) === -1) {
 					workspaces.push(recent);
 				}
 			}
@@ -247,7 +247,7 @@ export class WorkspacesHistoryMainService extends Disposable implements IWorkspa
 
 		// Add current workspace to beginning if set
 		const currentWorkspace = include?.config?.workspace;
-		if (isWorkspaceIdentifier(currentWorkspace) && !this.workspacesMainService.isUntitledWorkspace(currentWorkspace)) {
+		if (isWorkspaceIdentifier(currentWorkspace) && !this.workspacesManagementMainService.isUntitledWorkspace(currentWorkspace)) {
 			workspaces.push({ workspace: currentWorkspace });
 		} else if (isSingleFolderWorkspaceIdentifier(currentWorkspace)) {
 			workspaces.push({ folderUri: currentWorkspace.uri });

@@ -22,7 +22,6 @@ export const statePriority: { [K in TestRunState]: number } = {
 	[TestRunState.Unset]: 0,
 };
 
-
 export const isFailedState = (s: TestRunState) => s === TestRunState.Errored || s === TestRunState.Failed;
 
 export const stateNodes = Object.entries(statePriority).reduce(

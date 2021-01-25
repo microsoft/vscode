@@ -25,6 +25,7 @@ import { IConfigurationService, ConfigurationTarget } from 'vs/platform/configur
 import { CancellationToken } from 'vs/base/common/cancellation';
 import { DebugConfigurationProviderTriggerKind } from 'vs/workbench/api/common/extHostTypes';
 import { DebugCompoundRoot } from 'vs/workbench/contrib/debug/common/debugCompoundRoot';
+import { IAction } from 'vs/base/common/actions';
 
 export const VIEWLET_ID = 'workbench.view.debug';
 
@@ -951,6 +952,7 @@ export interface IDebugEditorContribution extends editorCommon.IEditorContributi
 export interface IBreakpointEditorContribution extends editorCommon.IEditorContribution {
 	showBreakpointWidget(lineNumber: number, column: number | undefined, context?: BreakpointWidgetContext): void;
 	closeBreakpointWidget(): void;
+	getContextMenuActionsAtPosition(lineNumber: number, model: EditorIModel): IAction[];
 }
 
 // temporary debug helper service

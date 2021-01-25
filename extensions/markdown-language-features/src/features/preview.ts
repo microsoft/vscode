@@ -91,7 +91,7 @@ class StartingScrollLine {
 	) { }
 }
 
-class StartingScrollFragment {
+export class StartingScrollFragment {
 	public readonly type = 'fragment';
 
 	constructor(

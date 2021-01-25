@@ -27,8 +27,8 @@ suite('Files - FileOnDiskContentProvider', () => {
 		const content = await provider.provideTextContent(uri.with({ scheme: 'conflictResolution', query: JSON.stringify({ scheme: uri.scheme }) }));
 
 		assert.ok(content);
-		assert.equal(snapshotToString(content!.createSnapshot()), 'Hello Html');
-		assert.equal(accessor.fileService.getLastReadFileUri().scheme, uri.scheme);
-		assert.equal(accessor.fileService.getLastReadFileUri().path, uri.path);
+		assert.strictEqual(snapshotToString(content!.createSnapshot()), 'Hello Html');
+		assert.strictEqual(accessor.fileService.getLastReadFileUri().scheme, uri.scheme);
+		assert.strictEqual(accessor.fileService.getLastReadFileUri().path, uri.path);
 	});
 });

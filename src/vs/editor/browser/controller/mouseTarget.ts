@@ -767,7 +767,7 @@ export class MouseTargetFactory {
 		const lineWidth = ctx.getLineWidth(lineNumber);
 
 		if (request.mouseContentHorizontalOffset > lineWidth) {
-			if (browser.isEdge && pos.column === 1) {
+			if (browser.isEdgeLegacy && pos.column === 1) {
 				// See https://github.com/microsoft/vscode/issues/10875
 				const detail = createEmptyContentDataInLines(request.mouseContentHorizontalOffset - lineWidth);
 				return request.fulfill(MouseTargetType.CONTENT_EMPTY, new Position(lineNumber, ctx.model.getLineMaxColumn(lineNumber)), undefined, detail);

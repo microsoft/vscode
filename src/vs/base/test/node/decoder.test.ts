@@ -11,12 +11,12 @@ suite('Decoder', () => {
 	test('decoding', () => {
 		const lineDecoder = new LineDecoder();
 		let res = lineDecoder.write(Buffer.from('hello'));
-		assert.equal(res.length, 0);
+		assert.strictEqual(res.length, 0);
 
 		res = lineDecoder.write(Buffer.from('\nworld'));
-		assert.equal(res[0], 'hello');
-		assert.equal(res.length, 1);
+		assert.strictEqual(res[0], 'hello');
+		assert.strictEqual(res.length, 1);
 
-		assert.equal(lineDecoder.end(), 'world');
+		assert.strictEqual(lineDecoder.end(), 'world');
 	});
 });

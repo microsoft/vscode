@@ -204,9 +204,7 @@ export class BulkEditService implements IBulkEditService {
 			this._logService.error(err);
 			throw err;
 		} finally {
-			if (listener) {
-				listener.dispose();
-			}
+			listener?.dispose();
 			undoRedoGroupRemove();
 		}
 	}

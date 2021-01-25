@@ -49,6 +49,6 @@ suite('Viewlets', () => {
 		Platform.Registry.as<ViewletRegistry>(Extensions.Viewlets).registerViewlet(d);
 
 		assert(d === Platform.Registry.as<ViewletRegistry>(Extensions.Viewlets).getViewlet('reg-test-id'));
-		assert.equal(oldCount + 1, Platform.Registry.as<ViewletRegistry>(Extensions.Viewlets).getViewlets().length);
+		assert.strictEqual(oldCount + 1, Platform.Registry.as<ViewletRegistry>(Extensions.Viewlets).getViewlets().length);
 	});
 });

@@ -22,7 +22,6 @@ import { Event, Emitter } from 'vs/base/common/event';
 import { PeekViewWidget, peekViewTitleForeground, peekViewTitleInfoForeground } from 'vs/editor/contrib/peekView/peekView';
 import { basename } from 'vs/base/common/resources';
 import { IAction } from 'vs/base/common/actions';
-import { IActionBarOptions, ActionsOrientation } from 'vs/base/browser/ui/actionbar/actionbar';
 import { SeverityIcon } from 'vs/platform/severityIcon/common/severityIcon';
 import { EditorOption } from 'vs/editor/common/config/editorOptions';
 import { IOpenerService } from 'vs/platform/opener/common/opener';
@@ -311,13 +310,6 @@ export class MarkerNavigationWidget extends PeekViewWidget {
 
 	protected _fillTitleIcon(container: HTMLElement): void {
 		this._icon = dom.append(container, dom.$(''));
-	}
-
-	protected _getActionBarOptions(): IActionBarOptions {
-		return {
-			...super._getActionBarOptions(),
-			orientation: ActionsOrientation.HORIZONTAL
-		};
 	}
 
 	protected _fillBody(container: HTMLElement): void {

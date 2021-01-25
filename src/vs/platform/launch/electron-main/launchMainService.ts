@@ -11,7 +11,7 @@ import { createDecorator } from 'vs/platform/instantiation/common/instantiation'
 import { IWindowSettings } from 'vs/platform/windows/common/windows';
 import { IWindowsMainService, ICodeWindow, OpenContext } from 'vs/platform/windows/electron-main/windows';
 import { whenDeleted } from 'vs/base/node/pfs';
-import { IWorkspacesMainService } from 'vs/platform/workspaces/electron-main/workspacesMainService';
+import { IWorkspacesManagementMainService } from 'vs/platform/workspaces/electron-main/workspacesManagementMainService';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { URI } from 'vs/base/common/uri';
 import { BrowserWindow, ipcMain, Event as IpcEvent, app } from 'electron';
@@ -51,7 +51,7 @@ export class LaunchMainService implements ILaunchMainService {
 		@ILogService private readonly logService: ILogService,
 		@IWindowsMainService private readonly windowsMainService: IWindowsMainService,
 		@IURLService private readonly urlService: IURLService,
-		@IWorkspacesMainService private readonly workspacesMainService: IWorkspacesMainService,
+		@IWorkspacesManagementMainService private readonly workspacesManagementMainService: IWorkspacesManagementMainService,
 		@IConfigurationService private readonly configurationService: IConfigurationService
 	) { }
 
@@ -277,7 +277,7 @@ export class LaunchMainService implements ILaunchMainService {
 		if (isSingleFolderWorkspaceIdentifier(workspace)) {
 			folderURIs.push(workspace.uri);
 		} else if (isWorkspaceIdentifier(workspace)) {
-			const resolvedWorkspace = this.workspacesMainService.resolveLocalWorkspaceSync(workspace.configPath); // workspace folders can only be shown for local (resolved) workspaces
+			const resolvedWorkspace = this.workspacesManagementMainService.resolveLocalWorkspaceSync(workspace.configPath); // workspace folders can only be shown for local (resolved) workspaces
 			if (resolvedWorkspace) {
 				const rootFolders = resolvedWorkspace.folders;
 				rootFolders.forEach(root => {

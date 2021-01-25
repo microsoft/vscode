@@ -1,0 +1,18 @@
+{
+	"registrations": [
+		{
+			"component": {
+				"type": "git",
+				"git": {
+					"name": "better-go-syntax",
+					"repositoryUrl": "https://github.com/jeff-hykin/better-go-syntax/ ",
+					"commitHash": "54ff898316f8647d77ffcf83880a9556445326f1"
+				}
+			},
+			"license": "MIT",
+			"description": "The file syntaxes/go.tmLanguage.json is from https://github.com/jeff-hykin/better-go-syntax/ .",
+			"version": "1.0.0"
+		}
+	],
+	"version": 1
+}

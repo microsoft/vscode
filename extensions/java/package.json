@@ -1,0 +1,29 @@
+{
+	"name": "java",
+	"displayName": "%displayName%",
+	"description": "%description%",
+	"version": "1.0.0",
+	"publisher": "vscode",
+	"license": "MIT",
+	"engines": { "vscode": "*" },
+	"scripts": {
+		"update-grammar": "node ../../build/npm/update-grammar.js atom/language-java grammars/java.cson ./syntaxes/java.tmLanguage.json"
+	},
+	"contributes": {
+		"languages": [{
+			"id": "java",
+			"extensions": [ ".java", ".jav" ],
+			"aliases": [ "Java", "java" ],
+			"configuration": "./language-configuration.json"
+		}],
+		"grammars": [{
+			"language": "java",
+			"scopeName": "source.java",
+			"path": "./syntaxes/java.tmLanguage.json"
+		}],
+		"snippets": [{
+			"language": "java",
+			"path": "./snippets/java.code-snippets"
+		}]
+	}
+}

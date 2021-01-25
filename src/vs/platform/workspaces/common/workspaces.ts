@@ -5,7 +5,7 @@
 
 import { createDecorator } from 'vs/platform/instantiation/common/instantiation';
 import { localize } from 'vs/nls';
-import { IWorkspaceFolder, IWorkspace } from 'vs/platform/workspace/common/workspace';
+import { IWorkspaceFolder, IWorkspace, WorkspaceFolder } from 'vs/platform/workspace/common/workspace';
 import { URI, UriComponents } from 'vs/base/common/uri';
 import { isWindows, isLinux, isMacintosh } from 'vs/base/common/platform';
 import { extname, isAbsolute } from 'vs/base/common/path';
@@ -286,6 +286,44 @@ export function getStoredWorkspaceFolder(folderURI: URI, forceAbsolute: boolean,
 	}
 
 	return { name: folderName, path: folderPath };
+}
+
+export function toWorkspaceFolders(configuredFolders: IStoredWorkspaceFolder[], workspaceConfigFile: URI, extUri: IExtUri): WorkspaceFolder[] {
+	let result: WorkspaceFolder[] = [];
+	let seen: Set<string> = new Set();
+
+	const relativeTo = extUri.dirname(workspaceConfigFile);
+	for (let configuredFolder of configuredFolders) {
+		let uri: URI | null = null;
+		if (isRawFileWorkspaceFolder(configuredFolder)) {
+			if (configuredFolder.path) {
+				uri = extUri.resolvePath(relativeTo, configuredFolder.path);
+			}
+		} else if (isRawUriWorkspaceFolder(configuredFolder)) {
+			try {
+				uri = URI.parse(configuredFolder.uri);
+				// this makes sure all workspace folder are absolute
+				if (uri.path[0] !== '/') {
+					uri = uri.with({ path: '/' + uri.path });
+				}
+			} catch (e) {
+				console.warn(e);
+				// ignore
+			}
+		}
+		if (uri) {
+			// remove duplicates
+			let comparisonKey = extUri.getComparisonKey(uri);
+			if (!seen.has(comparisonKey)) {
+				seen.add(comparisonKey);
+
+				const name = configuredFolder.name || extUri.basenameOrAuthority(uri);
+				result.push(new WorkspaceFolder({ uri, name, index: result.length }, configuredFolder));
+			}
+		}
+	}
+
+	return result;
 }
 
 /**

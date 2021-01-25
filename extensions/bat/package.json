@@ -1,0 +1,29 @@
+{
+	"name": "bat",
+	"displayName": "%displayName%",
+	"description": "%description%",
+	"version": "1.0.0",
+	"publisher": "vscode",
+	"license": "MIT",
+	"engines": { "vscode": "*" },
+	"scripts": {
+		"update-grammar": "node ../../build/npm/update-grammar.js mmims/language-batchfile grammars/batchfile.cson ./syntaxes/batchfile.tmLanguage.json"
+	},
+	"contributes": {
+		"languages": [{
+			"id": "bat",
+			"extensions": [ ".bat", ".cmd"],
+			"aliases": [ "Batch", "bat" ],
+			"configuration": "./language-configuration.json"
+		}],
+		"grammars": [{
+			"language": "bat",
+			"scopeName": "source.batchfile",
+			"path": "./syntaxes/batchfile.tmLanguage.json"
+		}],
+		"snippets": [{
+			"language": "bat",
+			"path": "./snippets/batchfile.code-snippets"
+		}]
+	}
+}

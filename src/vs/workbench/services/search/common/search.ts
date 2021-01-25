@@ -15,7 +15,7 @@ import { IFilesConfiguration } from 'vs/platform/files/common/files';
 import { createDecorator } from 'vs/platform/instantiation/common/instantiation';
 import { ITelemetryData } from 'vs/platform/telemetry/common/telemetry';
 import { Event } from 'vs/base/common/event';
-import { relative } from 'vs/base/common/path';
+import * as paths from 'vs/base/common/path';
 import { isPromiseCanceledError } from 'vs/base/common/errors';
 
 export const VIEWLET_ID = 'workbench.view.search';
@@ -422,7 +422,7 @@ export function pathIncludedInQuery(queryProps: ICommonQueryProps<URI>, fsPath: 
 			return !!queryProps.folderQueries && queryProps.folderQueries.some(fq => {
 				const searchPath = fq.folder.fsPath;
 				if (extpath.isEqualOrParent(fsPath, searchPath)) {
-					const relPath = relative(searchPath, fsPath);
+					const relPath = paths.relative(searchPath, fsPath);
 					return !fq.includePattern || !!glob.match(fq.includePattern, relPath);
 				} else {
 					return false;
@@ -597,6 +597,7 @@ export function resolvePatternsForProvider(globalPattern: glob.IExpression | und
 		});
 }
 
+const ALL_FORWARD_SLASHES = /\//g;
 export class QueryGlobTester {
 
 	private _excludeExpression: glob.IExpression;
@@ -633,6 +634,8 @@ export class QueryGlobTester {
 	 * Guaranteed sync - siblingsFn should not return a promise.
 	 */
 	includedInQuerySync(testPath: string, basename?: string, hasSibling?: (name: string) => boolean): boolean {
+		testPath = paths.sep !== paths.posix.sep ? testPath.replace(ALL_FORWARD_SLASHES, paths.sep) : testPath;
+
 		if (this._parsedExcludeExpression && this._parsedExcludeExpression(testPath, basename, hasSibling)) {
 			return false;
 		}
@@ -648,6 +651,8 @@ export class QueryGlobTester {
 	 * Guaranteed async.
 	 */
 	includedInQuery(testPath: string, basename?: string, hasSibling?: (name: string) => boolean | Promise<boolean>): Promise<boolean> {
+		testPath = paths.sep !== paths.posix.sep ? testPath.replace(ALL_FORWARD_SLASHES, paths.sep) : testPath;
+
 		const excludeP = Promise.resolve(this._parsedExcludeExpression(testPath, basename, hasSibling)).then(result => !!result);
 
 		return excludeP.then(excluded => {

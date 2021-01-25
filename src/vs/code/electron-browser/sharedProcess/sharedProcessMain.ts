@@ -322,7 +322,7 @@ class SharedProcessMain extends Disposable {
 				return;
 			}
 
-			logService.error(message);
+			logService.error(`[uncaught exception in sharedProcess]: ${message}`);
 		});
 	}
 }
