@@ -3,8 +3,10 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
+import { Color, RGBA } from 'vs/base/common/color';
 import { localize } from 'vs/nls';
 import { editorErrorForeground, editorForeground, editorHintForeground, editorInfoForeground, editorWarningForeground, registerColor } from 'vs/platform/theme/common/colorRegistry';
+import { registerThemingParticipant } from 'vs/platform/theme/common/themeService';
 import { TestMessageSeverity, TestRunState } from 'vs/workbench/api/common/extHostTypes';
 
 export const testingColorIconFailed = registerColor('testing.iconFailed', {
@@ -58,6 +60,7 @@ export const testingPeekBorder = registerColor('testing.peekBorder', {
 export const testMessageSeverityColors: {
 	[K in TestMessageSeverity]: {
 		decorationForeground: string,
+		marginBackground: string,
 	};
 } = {
 	[TestMessageSeverity.Error]: {
@@ -66,12 +69,22 @@ export const testMessageSeverityColors: {
 			{ dark: editorErrorForeground, light: editorErrorForeground, hc: editorForeground },
 			localize('testing.message.error.decorationForeground', 'Text color of test error messages shown inline in the editor.')
 		),
+		marginBackground: registerColor(
+			'testing.message.error.lineBackground',
+			{ dark: new Color(new RGBA(255, 0, 0, 0.2)), light: new Color(new RGBA(255, 0, 0, 0.2)), hc: null },
+			localize('testing.message.error.marginBackground', 'Margin color beside error messages shown inline in the editor.')
+		),
 	},
 	[TestMessageSeverity.Warning]: {
 		decorationForeground: registerColor(
 			'testing.message.warning.decorationForeground',
 			{ dark: editorWarningForeground, light: editorWarningForeground, hc: editorForeground },
 			localize('testing.message.warning.decorationForeground', 'Text color of test warning messages shown inline in the editor.')
+		),
+		marginBackground: registerColor(
+			'testing.message.warning.lineBackground',
+			{ dark: new Color(new RGBA(255, 208, 0, 0.2)), light: new Color(new RGBA(255, 208, 0, 0.2)), hc: null },
+			localize('testing.message.warning.marginBackground', 'Margin color beside warning messages shown inline in the editor.')
 		),
 	},
 	[TestMessageSeverity.Information]: {
@@ -80,12 +93,22 @@ export const testMessageSeverityColors: {
 			{ dark: editorInfoForeground, light: editorInfoForeground, hc: editorForeground },
 			localize('testing.message.info.decorationForeground', 'Text color of test info messages shown inline in the editor.')
 		),
+		marginBackground: registerColor(
+			'testing.message.info.lineBackground',
+			{ dark: new Color(new RGBA(0, 127, 255, 0.2)), light: new Color(new RGBA(0, 127, 255, 0.2)), hc: null },
+			localize('testing.message.info.marginBackground', 'Margin color beside info messages shown inline in the editor.')
+		),
 	},
 	[TestMessageSeverity.Hint]: {
 		decorationForeground: registerColor(
 			'testing.message.hint.decorationForeground',
 			{ dark: editorHintForeground, light: editorHintForeground, hc: editorForeground },
 			localize('testing.message.hint.decorationForeground', 'Text color of test hint messages shown inline in the editor.')
+		),
+		marginBackground: registerColor(
+			'testing.message.hint.lineBackground',
+			{ dark: null, light: null, hc: editorForeground },
+			localize('testing.message.hint.marginBackground', 'Margin color beside hint messages shown inline in the editor.')
 		),
 	},
 };
@@ -98,3 +121,12 @@ export const testStatesToIconColors: { [K in TestRunState]?: string } = {
 	[TestRunState.Unset]: testingColorIconUnset,
 	[TestRunState.Skipped]: testingColorIconUnset,
 };
+
+
+registerThemingParticipant((theme, collector) => {
+	for (const [state, { marginBackground }] of Object.entries(testMessageSeverityColors)) {
+		collector.addRule(`.monaco-editor .testing-inline-message-severity-${state} {
+			background: ${theme.getColor(marginBackground)};
+		}`);
+	}
+});

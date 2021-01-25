@@ -5,7 +5,7 @@
 
 import * as dom from 'vs/base/browser/dom';
 import { Color } from 'vs/base/common/color';
-import { IReference, MutableDisposable } from 'vs/base/common/lifecycle';
+import { Disposable, IReference, MutableDisposable } from 'vs/base/common/lifecycle';
 import { clamp } from 'vs/base/common/numbers';
 import { count } from 'vs/base/common/strings';
 import { URI } from 'vs/base/common/uri';
@@ -35,7 +35,7 @@ interface ITestDto {
 	messageUri: URI;
 }
 
-export class TestingOutputPeekController implements IEditorContribution {
+export class TestingOutputPeekController extends Disposable implements IEditorContribution {
 	/**
 	 * Gets the controller associated with the given code editor.
 	 */
@@ -46,7 +46,7 @@ export class TestingOutputPeekController implements IEditorContribution {
 	/**
 	 * Currently-shown peek view.
 	 */
-	private readonly peek = new MutableDisposable<TestingOutputPeek>();
+	private readonly peek = this._register(new MutableDisposable<TestingOutputPeek>());
 
 	/**
 	 * Context key updated when the peek is visible/hidden.
@@ -60,14 +60,9 @@ export class TestingOutputPeekController implements IEditorContribution {
 		@ITestService private readonly testService: ITestService,
 		@IContextKeyService contextKeyService: IContextKeyService,
 	) {
+		super();
 		this.visible = TestingContextKeys.peekVisible.bindTo(contextKeyService);
-	}
-
-	/**
-	 * @inheritdoc
-	 */
-	public dispose(): void {
-		this.removePeek();
+		this._register(editor.onDidChangeModel(() => this.peek.clear()));
 	}
 
 	/**
@@ -107,7 +102,7 @@ export class TestingOutputPeekController implements IEditorContribution {
 	 * Disposes the peek view, if any.
 	 */
 	public removePeek() {
-		this.peek.value = undefined;
+		this.peek.clear();
 	}
 
 	private async retrieveTest(uri: URI): Promise<ITestDto | undefined> {
