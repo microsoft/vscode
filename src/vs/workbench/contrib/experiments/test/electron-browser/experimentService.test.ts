@@ -622,7 +622,7 @@ suite('Experiment Service', () => {
 					enabled: true,
 					condition: {
 						installedExtensions: {
-							inlcudes: ['pub.installedExtension1', 'uninstalled-extention-id']
+							includes: ['pub.installedExtension1', 'uninstalled-extention-id']
 						}
 					}
 				}

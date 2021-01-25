@@ -91,7 +91,7 @@ export class ReviewZoneWidget extends ZoneWidget implements ICommentThreadWidget
 	private _threadIsEmpty: IContextKey<boolean>;
 	private _commentThreadContextValue: IContextKey<string>;
 	private _commentFormActions!: CommentFormActions;
-	private _scopedInstatiationService: IInstantiationService;
+	private _scopedInstantiationService: IInstantiationService;
 	private _focusedComment: number | undefined = undefined;
 
 	public get owner(): string {
@@ -125,7 +125,7 @@ export class ReviewZoneWidget extends ZoneWidget implements ICommentThreadWidget
 		super(editor, { keepEditorSelection: true });
 		this._contextKeyService = contextKeyService.createScoped(this.domNode);
 
-		this._scopedInstatiationService = instantiationService.createChild(new ServiceCollection(
+		this._scopedInstantiationService = instantiationService.createChild(new ServiceCollection(
 			[IContextKeyService, this._contextKeyService]
 		));
 
@@ -501,7 +501,7 @@ export class ReviewZoneWidget extends ZoneWidget implements ICommentThreadWidget
 	private createCommentForm() {
 		const hasExistingComments = this._commentThread.comments && this._commentThread.comments.length > 0;
 		const commentForm = dom.append(this._bodyElement, dom.$('.comment-form'));
-		const commentEditor = this._scopedInstatiationService.createInstance(SimpleCommentEditor, commentForm, SimpleCommentEditor.getEditorOptions(), this._parentEditor, this);
+		const commentEditor = this._scopedInstantiationService.createInstance(SimpleCommentEditor, commentForm, SimpleCommentEditor.getEditorOptions(), this._parentEditor, this);
 		const commentEditorIsEmpty = CommentContextKeys.commentIsEmpty.bindTo(this._contextKeyService);
 		commentEditorIsEmpty.set(!this._pendingComment);
 
@@ -685,7 +685,7 @@ export class ReviewZoneWidget extends ZoneWidget implements ICommentThreadWidget
 	}
 
 	private createNewCommentNode(comment: modes.Comment): CommentNode {
-		let newCommentNode = this._scopedInstatiationService.createInstance(CommentNode,
+		let newCommentNode = this._scopedInstantiationService.createInstance(CommentNode,
 			this._commentThread,
 			comment,
 			this.owner,
