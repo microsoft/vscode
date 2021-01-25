@@ -651,8 +651,13 @@ export class TerminalService implements ITerminalService {
 			}
 
 			if (hasParens) {
-				c(`& '${originalPath}'`);
-				return;
+				if (isPowerShell) {
+					c(`& '${originalPath}'`);
+					return;
+				} else {
+					c(`'${originalPath}'`);
+					return;
+				}
 			}
 
 			if (isWindows) {
