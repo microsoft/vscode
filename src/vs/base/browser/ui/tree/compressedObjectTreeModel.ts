@@ -6,8 +6,8 @@
 import { Iterable } from 'vs/base/common/iterator';
 import { Event } from 'vs/base/common/event';
 import { ITreeModel, ITreeNode, ITreeElement, ICollapseStateChangeEvent, ITreeModelSpliceEvent, TreeError, TreeFilterResult, TreeVisibility, WeakMapper } from 'vs/base/browser/ui/tree/tree';
-import { IObjectTreeModelOptions, ObjectTreeModel, IObjectTreeModel, IObjectTreeSetChildrenOptions } from 'vs/base/browser/ui/tree/objectTreeModel';
-import { IIndexedSpliceOptions, IList } from 'vs/base/browser/ui/tree/indexTreeModel';
+import { IObjectTreeModelOptions, ObjectTreeModel, IObjectTreeModel, IObjectTreeModelSetChildrenOptions } from 'vs/base/browser/ui/tree/objectTreeModel';
+import { IIndexTreeModelSpliceOptions, IList } from 'vs/base/browser/ui/tree/indexTreeModel';
 import { IIdentityProvider } from 'vs/base/browser/ui/list/list';
 
 // Exported only for test reasons, do not use directly
@@ -144,7 +144,7 @@ export class CompressedObjectTreeModel<T extends NonNullable<any>, TFilterData e
 	setChildren(
 		element: T | null,
 		children: Iterable<ICompressedTreeElement<T>> = Iterable.empty(),
-		options: IObjectTreeSetChildrenOptions<T, TFilterData>,
+		options: IObjectTreeModelSetChildrenOptions<T, TFilterData>,
 	): void {
 		// Diffs must be deem, since the compression can affect nested elements.
 		// @see https://github.com/microsoft/vscode/pull/114237#issuecomment-759425034
@@ -206,7 +206,7 @@ export class CompressedObjectTreeModel<T extends NonNullable<any>, TFilterData e
 	private _setChildren(
 		node: ICompressedTreeNode<T> | null,
 		children: Iterable<ITreeElement<ICompressedTreeNode<T>>>,
-		options: IIndexedSpliceOptions<ICompressedTreeNode<T>, TFilterData>,
+		options: IIndexTreeModelSpliceOptions<ICompressedTreeNode<T>, TFilterData>,
 	): void {
 		const insertedElements = new Set<T | null>();
 		const onDidCreateNode = (node: ITreeNode<ICompressedTreeNode<T>, TFilterData>) => {
@@ -451,7 +451,7 @@ export class CompressibleObjectTreeModel<T extends NonNullable<any>, TFilterData
 	setChildren(
 		element: T | null,
 		children: Iterable<ICompressedTreeElement<T>> = Iterable.empty(),
-		options: IObjectTreeSetChildrenOptions<T, TFilterData> = {},
+		options: IObjectTreeModelSetChildrenOptions<T, TFilterData> = {},
 	): void {
 		this.model.setChildren(element, children, options);
 	}

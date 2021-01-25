@@ -4,7 +4,6 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { mark } from 'vs/base/common/performance';
-import { hash } from 'vs/base/common/hash';
 import { domContentLoaded, detectFullscreen, getCookieValue } from 'vs/base/browser/dom';
 import { ServiceCollection } from 'vs/platform/instantiation/common/serviceCollection';
 import { ILogService, ConsoleLogService, MultiplexLogService, getLogLevel } from 'vs/platform/log/common/log';
@@ -40,7 +39,7 @@ import { BufferLogService } from 'vs/platform/log/common/bufferLog';
 import { FileLogService } from 'vs/platform/log/common/fileLogService';
 import { toLocalISOString } from 'vs/base/common/date';
 import { isWorkspaceToOpen, isFolderToOpen } from 'vs/platform/windows/common/windows';
-import { getWorkspaceIdentifier } from 'vs/workbench/services/workspaces/browser/workspaces';
+import { getSingleFolderWorkspaceIdentifier, getWorkspaceIdentifier } from 'vs/workbench/services/workspaces/browser/workspaces';
 import { coalesce } from 'vs/base/common/arrays';
 import { InMemoryFileSystemProvider } from 'vs/platform/files/common/inMemoryFilesystemProvider';
 import { ICommandService } from 'vs/platform/commands/common/commands';
@@ -142,7 +141,7 @@ class BrowserMain extends Disposable {
 		// CONTRIBUTE IT VIA WORKBENCH.WEB.MAIN.TS AND registerSingleton().
 		// !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
 
-		const payload = await this.resolveWorkspaceInitializationPayload();
+		const payload = this.resolveWorkspaceInitializationPayload();
 
 		// Product
 		const productService: IProductService = { _serviceBrand: undefined, ...product, ...this.configuration.productConfiguration };
@@ -332,7 +331,7 @@ class BrowserMain extends Disposable {
 		}
 	}
 
-	private async resolveWorkspaceInitializationPayload(): Promise<IWorkspaceInitializationPayload> {
+	private resolveWorkspaceInitializationPayload(): IWorkspaceInitializationPayload {
 		let workspace: IWorkspace | undefined = undefined;
 		if (this.configuration.workspaceProvider) {
 			workspace = this.configuration.workspaceProvider.workspace;
@@ -345,8 +344,7 @@ class BrowserMain extends Disposable {
 
 		// Single-folder workspace
 		if (workspace && isFolderToOpen(workspace)) {
-			const id = hash(workspace.folderUri.toString()).toString(16);
-			return { id, folder: workspace.folderUri };
+			return getSingleFolderWorkspaceIdentifier(workspace.folderUri);
 		}
 
 		return { id: 'empty-window' };

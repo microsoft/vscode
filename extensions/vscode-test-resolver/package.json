@@ -9,7 +9,9 @@
 	"engines": {
 		"vscode": "^1.25.0"
 	},
-	"extensionKind": [ "ui" ],
+	"extensionKind": [
+		"ui"
+	],
 	"scripts": {
 		"compile": "node ./node_modules/vscode/bin/compile -watch -p ./",
 		"vscode:prepublish": "node ../../node_modules/gulp/bin/gulp.js --gulpfile ../../build/gulpfile.extensions.js compile-extension:vscode-test-resolver"
@@ -19,7 +21,8 @@
 		"onCommand:vscode-testresolver.newWindow",
 		"onCommand:vscode-testresolver.newWindowWithError",
 		"onCommand:vscode-testresolver.showLog",
-		"onCommand:vscode-testresolver.openTunnel"
+		"onCommand:vscode-testresolver.openTunnel",
+		"onCommand:vscode-testresolver.startRemoteServer"
 	],
 	"main": "./out/extension",
 	"devDependencies": {
@@ -55,12 +58,27 @@
 				"command": "vscode-testresolver.killServerAndTriggerHandledError"
 			},
 			{
-				"title": "Open Tunnel 100",
+				"title": "Open Tunnel...",
 				"category": "Remote-TestResolver",
 				"command": "vscode-testresolver.openTunnel"
+			},
+			{
+				"title": "Open Remote Server...",
+				"category": "Remote-TestResolver",
+				"command": "vscode-testresolver.startRemoteServer"
 			}
 		],
 		"menus": {
+			"commandPalette": [
+				{
+					"command": "vscode-testresolver.openTunnel",
+					"when": "remoteName == test"
+				},
+				{
+					"command": "vscode-testresolver.startRemoteServer",
+					"when": "remoteName == test"
+				}
+			],
 			"statusBar/windowIndicator": [
 				{
 					"command": "vscode-testresolver.newWindow",
@@ -76,6 +94,16 @@
 					"command": "vscode-testresolver.newWindow",
 					"when": "remoteName == test",
 					"group": "1_remote_testresolver_open@1"
+				},
+				{
+					"command": "vscode-testresolver.openTunnel",
+					"when": "remoteName == test",
+					"group": "1_remote_testresolver_open@4"
+				},
+				{
+					"command": "vscode-testresolver.startRemoteServer",
+					"when": "remoteName == test",
+					"group": "1_remote_testresolver_open@5"
 				}
 			]
 		},
@@ -95,10 +123,13 @@
 					"description": "If set, connection is paused",
 					"type": "boolean",
 					"default": false
+				},
+				"testresolver.supportPublicPorts": {
+					"description": "If set, the test resolver tunnel factory will support mock public ports. Forwarded ports will not actually be public. Requires reload.",
+					"type": "boolean",
+					"default": false
 				}
 			}
 		}
 	}
-
-
 }

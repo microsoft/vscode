@@ -62,6 +62,7 @@ interface ITunnelFactory {
 }
 
 interface ITunnelOptions {
+
 	remoteAddress: { port: number, host: string };
 
 	/**
@@ -75,6 +76,7 @@ interface ITunnelOptions {
 }
 
 export interface TunnelCreationOptions {
+
 	/**
 	 * True when the local operating system will require elevation to use the requested local port.
 	 */
@@ -82,6 +84,7 @@ export interface TunnelCreationOptions {
 }
 
 interface ITunnel {
+
 	remoteAddress: { port: number, host: string };
 
 	/**
@@ -185,46 +188,6 @@ interface IInitialColorTheme {
 	colors?: { [colorId: string]: string };
 }
 
-interface IDefaultSideBarLayout {
-	visible?: boolean;
-	containers?: ({
-		id: 'explorer' | 'run' | 'scm' | 'search' | 'extensions' | 'remote' | string;
-		active: true;
-		order?: number;
-		views?: {
-			id: string;
-			order?: number;
-			visible?: boolean;
-			collapsed?: boolean;
-		}[];
-	} | {
-		id: 'explorer' | 'run' | 'scm' | 'search' | 'extensions' | 'remote' | string;
-		active?: false;
-		order?: number;
-		visible?: boolean;
-		views?: {
-			id: string;
-			order?: number;
-			visible?: boolean;
-			collapsed?: boolean;
-		}[];
-	})[];
-}
-
-interface IDefaultPanelLayout {
-	visible?: boolean;
-	containers?: ({
-		id: 'terminal' | 'debug' | 'problems' | 'output' | 'comments' | string;
-		order?: number;
-		active: true;
-	} | {
-		id: 'terminal' | 'debug' | 'problems' | 'output' | 'comments' | string;
-		order?: number;
-		active?: false;
-		visible?: boolean;
-	})[];
-}
-
 interface IDefaultView {
 	readonly id: string;
 }
@@ -253,6 +216,7 @@ interface IProductQualityChangeHandler {
  * Settings sync options
  */
 interface ISettingsSyncOptions {
+
 	/**
 	 * Is settings sync enabled
 	 */
@@ -455,6 +419,7 @@ interface IWorkbenchConstructionOptions {
 }
 
 interface IPerformanceMark {
+
 	/**
 	 * The name of a performace marker.
 	 */
@@ -467,7 +432,9 @@ interface IPerformanceMark {
 }
 
 interface IWorkbench {
+
 	commands: {
+
 		/**
 		 * Allows to execute a command, either built-in or from extensions.
 		 */
@@ -475,6 +442,7 @@ interface IWorkbench {
 	}
 
 	env: {
+
 		/**
 		 * Retrieve performance marks that have been collected during startup. This function
 		 * returns tuples of source and marks. A source is a dedicated context, like
@@ -650,8 +618,6 @@ export {
 	IDefaultView,
 	IDefaultEditor,
 	IDefaultLayout,
-	IDefaultPanelLayout,
-	IDefaultSideBarLayout,
 
 	// Env
 	IPerformanceMark

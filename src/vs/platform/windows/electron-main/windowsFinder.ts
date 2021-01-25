@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { URI } from 'vs/base/common/uri';
-import { IWorkspaceIdentifier, IResolvedWorkspace } from 'vs/platform/workspaces/common/workspaces';
+import { IWorkspaceIdentifier, IResolvedWorkspace, isWorkspaceIdentifier, isSingleFolderWorkspaceIdentifier, ISingleFolderWorkspaceIdentifier } from 'vs/platform/workspaces/common/workspaces';
 import { extUriBiasedIgnorePathCase } from 'vs/base/common/resources';
 import { ICodeWindow } from 'vs/platform/windows/electron-main/windows';
 
@@ -13,7 +13,7 @@ export function findWindowOnFile(windows: ICodeWindow[], fileUri: URI, localWork
 	// First check for windows with workspaces that have a parent folder of the provided path opened
 	for (const window of windows) {
 		const workspace = window.openedWorkspace;
-		if (workspace) {
+		if (isWorkspaceIdentifier(workspace)) {
 			const resolvedWorkspace = localWorkspaceResolver(workspace);
 
 			// resolved workspace: folders are known and can be compared with
@@ -33,9 +33,9 @@ export function findWindowOnFile(windows: ICodeWindow[], fileUri: URI, localWork
 	}
 
 	// Then go with single folder windows that are parent of the provided file path
-	const singleFolderWindowsOnFilePath = windows.filter(window => window.openedFolderUri && extUriBiasedIgnorePathCase.isEqualOrParent(fileUri, window.openedFolderUri));
+	const singleFolderWindowsOnFilePath = windows.filter(window => isSingleFolderWorkspaceIdentifier(window.openedWorkspace) && extUriBiasedIgnorePathCase.isEqualOrParent(fileUri, window.openedWorkspace.uri));
 	if (singleFolderWindowsOnFilePath.length) {
-		return singleFolderWindowsOnFilePath.sort((windowA, windowB) => -(windowA.openedFolderUri!.path.length - windowB.openedFolderUri!.path.length))[0];
+		return singleFolderWindowsOnFilePath.sort((windowA, windowB) => -((windowA.openedWorkspace as ISingleFolderWorkspaceIdentifier).uri.path.length - (windowB.openedWorkspace as ISingleFolderWorkspaceIdentifier).uri.path.length))[0];
 	}
 
 	return undefined;
@@ -46,12 +46,12 @@ export function findWindowOnWorkspaceOrFolder(windows: ICodeWindow[], folderOrWo
 	for (const window of windows) {
 
 		// check for workspace config path
-		if (window.openedWorkspace && extUriBiasedIgnorePathCase.isEqual(window.openedWorkspace.configPath, folderOrWorkspaceConfigUri)) {
+		if (isWorkspaceIdentifier(window.openedWorkspace) && extUriBiasedIgnorePathCase.isEqual(window.openedWorkspace.configPath, folderOrWorkspaceConfigUri)) {
 			return window;
 		}
 
 		// check for folder path
-		if (window.openedFolderUri && extUriBiasedIgnorePathCase.isEqual(window.openedFolderUri, folderOrWorkspaceConfigUri)) {
+		if (isSingleFolderWorkspaceIdentifier(window.openedWorkspace) && extUriBiasedIgnorePathCase.isEqual(window.openedWorkspace.uri, folderOrWorkspaceConfigUri)) {
 			return window;
 		}
 	}

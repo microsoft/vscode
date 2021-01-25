@@ -131,6 +131,7 @@ declare module 'vscode' {
 
 	//#endregion
 
+	// eslint-disable-next-line vscode-dts-region-comments
 	//#region @alexdima - resolvers
 
 	export interface MessageOptions {
@@ -728,6 +729,7 @@ declare module 'vscode' {
 
 	//#endregion
 
+	// eslint-disable-next-line vscode-dts-region-comments
 	//#region debug
 
 	/**
@@ -748,6 +750,7 @@ declare module 'vscode' {
 
 	//#endregion
 
+	// eslint-disable-next-line vscode-dts-region-comments
 	//#region @joaomoreno: SCM validation
 
 	/**
@@ -798,6 +801,7 @@ declare module 'vscode' {
 
 	//#endregion
 
+	// eslint-disable-next-line vscode-dts-region-comments
 	//#region @joaomoreno: SCM selected provider
 
 	export interface SourceControl {
@@ -873,6 +877,7 @@ declare module 'vscode' {
 
 	//#endregion
 
+	// eslint-disable-next-line vscode-dts-region-comments
 	//#region @jrieken -> exclusive document filters
 
 	export interface DocumentFilter {
@@ -984,7 +989,7 @@ declare module 'vscode' {
 
 	//#endregion
 
-	//#region @rebornix: Notebook
+	//#region notebook https://github.com/microsoft/vscode/issues/106744
 
 	export enum CellKind {
 		Markdown = 1,
@@ -1292,17 +1297,11 @@ declare module 'vscode' {
 		 * The range will always be revealed in the center of the viewport.
 		 */
 		InCenter = 1,
-
 		/**
 		 * If the range is outside the viewport, it will be revealed in the center of the viewport.
 		 * Otherwise, it will be revealed with as little scrolling as possible.
 		 */
 		InCenterIfOutsideViewport = 2,
-
-		/**
-		 * The range will always be revealed at the top of the viewport.
-		 */
-		AtTop = 3
 	}
 
 	export interface NotebookEditor {
@@ -2445,7 +2444,7 @@ declare module 'vscode' {
 		/**
 		 * The uri that triggered the open.
 		 *
-		 * Due to port forwarding, this may not match the `resolvedUri` passed to `openExternalUri`
+		 * Due to port forwarding, this may not match the `resolvedUri` passed to `openExternalUri`.
 		 */
 		readonly sourceUri: Uri;
 	}
@@ -2454,6 +2453,13 @@ declare module 'vscode' {
 	 * Additional metadata about the registered opener.
 	 */
 	interface ExternalUriOpenerMetadata {
+
+		/**
+		 * List of uri schemes the opener is triggered for.
+		 *
+		 * Currently only `http` and `https` are supported.
+		 */
+		readonly schemes: readonly string[]
 
 		/**
 		 * Text displayed to the user that explains what the opener does.
@@ -2471,14 +2477,12 @@ declare module 'vscode' {
 		 *
 		 * @param id Unique id of the opener, such as `myExtension.browserPreview`. This is used in settings
 		 *   and commands to identify the opener.
-		 * @param schemes List of uri schemes the opener is triggered for. Currently only `http`
-		 * and `https` are supported.
 		 * @param opener Opener to register.
 		 * @param metadata Additional information about the opener.
 		 *
 		* @returns Disposable that unregisters the opener.
-		 */
-		export function registerExternalUriOpener(id: string, schemes: readonly string[], opener: ExternalUriOpener, metadata: ExternalUriOpenerMetadata): Disposable;
+		*/
+		export function registerExternalUriOpener(id: string, opener: ExternalUriOpener, metadata: ExternalUriOpenerMetadata): Disposable;
 	}
 
 	interface OpenExternalOptions {

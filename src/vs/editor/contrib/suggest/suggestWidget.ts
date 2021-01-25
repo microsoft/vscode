@@ -435,6 +435,7 @@ export class SuggestWidget implements IDisposable {
 			case State.Hidden:
 				dom.hide(this._messageElement, this._listElement, this._status.element);
 				this._details.hide(true);
+				this._status.hide();
 				this._contentWidget.hide();
 				this._ctxSuggestWidgetVisible.reset();
 				this._ctxSuggestWidgetMultipleSuggestions.reset();
@@ -482,6 +483,7 @@ export class SuggestWidget implements IDisposable {
 	}
 
 	private _show(): void {
+		this._status.show();
 		this._contentWidget.show();
 		this._layout(this._persistedSize.restore());
 		this._ctxSuggestWidgetVisible.set(true);

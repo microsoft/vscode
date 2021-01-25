@@ -36,13 +36,15 @@
     "commander": "^7.0.0",
     "electron-osx-sign": "^0.4.16",
     "esbuild": "^0.8.30",
+    "fs-extra": "^9.1.0",
     "iconv-lite-umd": "0.6.8",
     "jsonc-parser": "^2.3.0",
     "mime": "^1.4.1",
     "mkdirp": "^1.0.4",
     "source-map": "0.6.1",
     "typescript": "4.2.0-dev.20201207",
-    "vsce": "1.48.0"
+    "vsce": "1.48.0",
+    "vscode-universal": "deepak1556/universal#61454d96223b774c53cda10f72c2098c0ce02d58"
   },
   "scripts": {
     "compile": "tsc -p tsconfig.build.json",

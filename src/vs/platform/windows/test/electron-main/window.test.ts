@@ -7,8 +7,7 @@ import * as assert from 'assert';
 import * as path from 'vs/base/common/path';
 import { findWindowOnFile } from 'vs/platform/windows/electron-main/windowsFinder';
 import { ICodeWindow, IWindowState } from 'vs/platform/windows/electron-main/windows';
-import { IWorkspaceIdentifier } from 'vs/platform/workspaces/common/workspaces';
-import { toWorkspaceFolders } from 'vs/platform/workspace/common/workspace';
+import { IWorkspaceIdentifier, toWorkspaceFolders } from 'vs/platform/workspaces/common/workspaces';
 import { URI } from 'vs/base/common/uri';
 import { getPathFromAmdModule } from 'vs/base/common/amd';
 import { extUriBiasedIgnorePathCase } from 'vs/base/common/resources';
@@ -39,8 +38,7 @@ function createTestCodeWindow(options: { lastFocusTime: number, openedFolderUri?
 		id: number = -1;
 		win: Electron.BrowserWindow = undefined!;
 		config: INativeWindowConfiguration | undefined;
-		openedFolderUri = options.openedFolderUri;
-		openedWorkspace = options.openedWorkspace;
+		openedWorkspace = options.openedFolderUri ? { id: '', uri: options.openedFolderUri } : options.openedWorkspace;
 		backupPath?: string | undefined;
 		remoteAuthority?: string | undefined;
 		isExtensionDevelopmentHost = false;
@@ -53,7 +51,7 @@ function createTestCodeWindow(options: { lastFocusTime: number, openedFolderUri?
 		ready(): Promise<ICodeWindow> { throw new Error('Method not implemented.'); }
 		setReady(): void { throw new Error('Method not implemented.'); }
 		addTabbedWindow(window: ICodeWindow): void { throw new Error('Method not implemented.'); }
-		load(config: INativeWindowConfiguration, isReload?: boolean): void { throw new Error('Method not implemented.'); }
+		load(config: INativeWindowConfiguration, options: { isReload?: boolean }): void { throw new Error('Method not implemented.'); }
 		reload(cli?: NativeParsedArgs): void { throw new Error('Method not implemented.'); }
 		focus(options?: { force: boolean; }): void { throw new Error('Method not implemented.'); }
 		close(): void { throw new Error('Method not implemented.'); }
@@ -85,27 +83,27 @@ const windows: ICodeWindow[] = [
 suite('WindowsFinder', () => {
 
 	test('New window without folder when no windows exist', () => {
-		assert.equal(findWindowOnFile([], URI.file('nonexisting'), localWorkspaceResolver), null);
-		assert.equal(findWindowOnFile([], URI.file(path.join(fixturesFolder, 'no_vscode_folder', 'file.txt')), localWorkspaceResolver), null);
+		assert.strictEqual(findWindowOnFile([], URI.file('nonexisting'), localWorkspaceResolver), undefined);
+		assert.strictEqual(findWindowOnFile([], URI.file(path.join(fixturesFolder, 'no_vscode_folder', 'file.txt')), localWorkspaceResolver), undefined);
 	});
 
 	test('Existing window with folder', () => {
-		assert.equal(findWindowOnFile(windows, URI.file(path.join(fixturesFolder, 'no_vscode_folder', 'file.txt')), localWorkspaceResolver), noVscodeFolderWindow);
+		assert.strictEqual(findWindowOnFile(windows, URI.file(path.join(fixturesFolder, 'no_vscode_folder', 'file.txt')), localWorkspaceResolver), noVscodeFolderWindow);
 
-		assert.equal(findWindowOnFile(windows, URI.file(path.join(fixturesFolder, 'vscode_folder', 'file.txt')), localWorkspaceResolver), vscodeFolderWindow);
+		assert.strictEqual(findWindowOnFile(windows, URI.file(path.join(fixturesFolder, 'vscode_folder', 'file.txt')), localWorkspaceResolver), vscodeFolderWindow);
 
 		const window: ICodeWindow = createTestCodeWindow({ lastFocusTime: 1, openedFolderUri: URI.file(path.join(fixturesFolder, 'vscode_folder', 'nested_folder')) });
-		assert.equal(findWindowOnFile([window], URI.file(path.join(fixturesFolder, 'vscode_folder', 'nested_folder', 'subfolder', 'file.txt')), localWorkspaceResolver), window);
+		assert.strictEqual(findWindowOnFile([window], URI.file(path.join(fixturesFolder, 'vscode_folder', 'nested_folder', 'subfolder', 'file.txt')), localWorkspaceResolver), window);
 	});
 
 	test('More specific existing window wins', () => {
 		const window: ICodeWindow = createTestCodeWindow({ lastFocusTime: 2, openedFolderUri: URI.file(path.join(fixturesFolder, 'no_vscode_folder')) });
 		const nestedFolderWindow: ICodeWindow = createTestCodeWindow({ lastFocusTime: 1, openedFolderUri: URI.file(path.join(fixturesFolder, 'no_vscode_folder', 'nested_folder')) });
-		assert.equal(findWindowOnFile([window, nestedFolderWindow], URI.file(path.join(fixturesFolder, 'no_vscode_folder', 'nested_folder', 'subfolder', 'file.txt')), localWorkspaceResolver), nestedFolderWindow);
+		assert.strictEqual(findWindowOnFile([window, nestedFolderWindow], URI.file(path.join(fixturesFolder, 'no_vscode_folder', 'nested_folder', 'subfolder', 'file.txt')), localWorkspaceResolver), nestedFolderWindow);
 	});
 
 	test('Workspace folder wins', () => {
 		const window: ICodeWindow = createTestCodeWindow({ lastFocusTime: 1, openedWorkspace: testWorkspace });
-		assert.equal(findWindowOnFile([window], URI.file(path.join(fixturesFolder, 'vscode_workspace_2_folder', 'nested_vscode_folder', 'subfolder', 'file.txt')), localWorkspaceResolver), window);
+		assert.strictEqual(findWindowOnFile([window], URI.file(path.join(fixturesFolder, 'vscode_workspace_2_folder', 'nested_vscode_folder', 'subfolder', 'file.txt')), localWorkspaceResolver), window);
 	});
 });

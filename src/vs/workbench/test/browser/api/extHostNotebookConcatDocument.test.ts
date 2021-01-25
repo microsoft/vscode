@@ -61,7 +61,7 @@ suite('NotebookConcatDocument', function () {
 				viewType: 'test',
 				cells: [{
 					handle: 0,
-					uri: CellUri.generate(notebookUri, 'test', 0),
+					uri: CellUri.generate(notebookUri, 0),
 					source: ['### Heading'],
 					eol: '\n',
 					language: 'markdown',
@@ -122,8 +122,8 @@ suite('NotebookConcatDocument', function () {
 
 	test('contains', function () {
 
-		const cellUri1 = CellUri.generate(notebook.uri, 'test', 1);
-		const cellUri2 = CellUri.generate(notebook.uri, 'test', 2);
+		const cellUri1 = CellUri.generate(notebook.uri, 1);
+		const cellUri2 = CellUri.generate(notebook.uri, 2);
 
 		extHostNotebooks.$acceptModelChanged(notebookUri, {
 			versionId: notebook.notebookDocument.version + 1,
@@ -169,7 +169,7 @@ suite('NotebookConcatDocument', function () {
 					kind: NotebookCellsChangeType.ModelChange,
 					changes: [[0, 0, [{
 						handle: 1,
-						uri: CellUri.generate(notebook.uri, 'test', 1),
+						uri: CellUri.generate(notebook.uri, 1),
 						source: ['Hello', 'World', 'Hello World!'],
 						eol: '\n',
 						language: 'test',
@@ -177,7 +177,7 @@ suite('NotebookConcatDocument', function () {
 						outputs: [],
 					}, {
 						handle: 2,
-						uri: CellUri.generate(notebook.uri, 'test', 2),
+						uri: CellUri.generate(notebook.uri, 2),
 						source: ['Hallo', 'Welt', 'Hallo Welt!'],
 						eol: '\n',
 						language: 'test',
@@ -214,7 +214,7 @@ suite('NotebookConcatDocument', function () {
 					kind: NotebookCellsChangeType.ModelChange,
 					changes: [[0, 0, [{
 						handle: 1,
-						uri: CellUri.generate(notebook.uri, 'test', 1),
+						uri: CellUri.generate(notebook.uri, 1),
 						source: ['Hello', 'World', 'Hello World!'],
 						eol: '\n',
 						language: 'test',
@@ -241,7 +241,7 @@ suite('NotebookConcatDocument', function () {
 					kind: NotebookCellsChangeType.ModelChange,
 					changes: [[1, 0, [{
 						handle: 2,
-						uri: CellUri.generate(notebook.uri, 'test', 2),
+						uri: CellUri.generate(notebook.uri, 2),
 						source: ['Hallo', 'Welt', 'Hallo Welt!'],
 						eol: '\n',
 						language: 'test',
@@ -292,7 +292,7 @@ suite('NotebookConcatDocument', function () {
 					kind: NotebookCellsChangeType.ModelChange,
 					changes: [[0, 0, [{
 						handle: 1,
-						uri: CellUri.generate(notebook.uri, 'test', 1),
+						uri: CellUri.generate(notebook.uri, 1),
 						source: ['Hello', 'World', 'Hello World!'],
 						eol: '\n',
 						language: 'test',
@@ -300,7 +300,7 @@ suite('NotebookConcatDocument', function () {
 						outputs: [],
 					}, {
 						handle: 2,
-						uri: CellUri.generate(notebook.uri, 'test', 2),
+						uri: CellUri.generate(notebook.uri, 2),
 						source: ['Hallo', 'Welt', 'Hallo Welt!'],
 						eol: '\n',
 						language: 'test',
@@ -350,7 +350,7 @@ suite('NotebookConcatDocument', function () {
 					kind: NotebookCellsChangeType.ModelChange,
 					changes: [[0, 0, [{
 						handle: 1,
-						uri: CellUri.generate(notebook.uri, 'test', 1),
+						uri: CellUri.generate(notebook.uri, 1),
 						source: ['fooLang-document'],
 						eol: '\n',
 						language: 'fooLang',
@@ -358,7 +358,7 @@ suite('NotebookConcatDocument', function () {
 						outputs: [],
 					}, {
 						handle: 2,
-						uri: CellUri.generate(notebook.uri, 'test', 2),
+						uri: CellUri.generate(notebook.uri, 2),
 						source: ['barLang-document'],
 						eol: '\n',
 						language: 'barLang',
@@ -384,7 +384,7 @@ suite('NotebookConcatDocument', function () {
 					kind: NotebookCellsChangeType.ModelChange,
 					changes: [[2, 0, [{
 						handle: 3,
-						uri: CellUri.generate(notebook.uri, 'test', 3),
+						uri: CellUri.generate(notebook.uri, 3),
 						source: ['barLang-document2'],
 						eol: '\n',
 						language: 'barLang',
@@ -422,7 +422,7 @@ suite('NotebookConcatDocument', function () {
 					kind: NotebookCellsChangeType.ModelChange,
 					changes: [[0, 0, [{
 						handle: 1,
-						uri: CellUri.generate(notebook.uri, 'test', 1),
+						uri: CellUri.generate(notebook.uri, 1),
 						source: ['Hello', 'World', 'Hello World!'],
 						eol: '\n',
 						language: 'test',
@@ -430,7 +430,7 @@ suite('NotebookConcatDocument', function () {
 						outputs: [],
 					}, {
 						handle: 2,
-						uri: CellUri.generate(notebook.uri, 'test', 2),
+						uri: CellUri.generate(notebook.uri, 2),
 						source: ['Hallo', 'Welt', 'Hallo Welt!'],
 						eol: '\n',
 						language: 'test',
@@ -479,7 +479,7 @@ suite('NotebookConcatDocument', function () {
 					kind: NotebookCellsChangeType.ModelChange,
 					changes: [[0, 0, [{
 						handle: 1,
-						uri: CellUri.generate(notebook.uri, 'test', 1),
+						uri: CellUri.generate(notebook.uri, 1),
 						source: ['Hello', 'World', 'Hello World!'],
 						eol: '\n',
 						language: 'test',
@@ -487,7 +487,7 @@ suite('NotebookConcatDocument', function () {
 						outputs: [],
 					}, {
 						handle: 2,
-						uri: CellUri.generate(notebook.uri, 'test', 2),
+						uri: CellUri.generate(notebook.uri, 2),
 						source: ['Hallo', 'Welt', 'Hallo Welt!'],
 						eol: '\n',
 						language: 'test',
@@ -520,7 +520,7 @@ suite('NotebookConcatDocument', function () {
 					kind: NotebookCellsChangeType.ModelChange,
 					changes: [[0, 0, [{
 						handle: 1,
-						uri: CellUri.generate(notebook.uri, 'test', 1),
+						uri: CellUri.generate(notebook.uri, 1),
 						source: ['Hello', 'World', 'Hello World!'],
 						eol: '\n',
 						language: 'test',
@@ -528,7 +528,7 @@ suite('NotebookConcatDocument', function () {
 						outputs: [],
 					}, {
 						handle: 2,
-						uri: CellUri.generate(notebook.uri, 'test', 2),
+						uri: CellUri.generate(notebook.uri, 2),
 						source: ['Hallo', 'Welt', 'Hallo Welt!'],
 						eol: '\n',
 						language: 'test',
@@ -558,7 +558,7 @@ suite('NotebookConcatDocument', function () {
 					kind: NotebookCellsChangeType.ModelChange,
 					changes: [[0, 0, [{
 						handle: 1,
-						uri: CellUri.generate(notebook.uri, 'test', 1),
+						uri: CellUri.generate(notebook.uri, 1),
 						source: ['Hello', 'World', 'Hello World!'],
 						eol: '\n',
 						language: 'test',
@@ -566,7 +566,7 @@ suite('NotebookConcatDocument', function () {
 						outputs: [],
 					}, {
 						handle: 2,
-						uri: CellUri.generate(notebook.uri, 'test', 2),
+						uri: CellUri.generate(notebook.uri, 2),
 						source: ['Hallo', 'Welt', 'Hallo Welt!'],
 						eol: '\n',
 						language: 'test',

@@ -27,7 +27,6 @@ import { TrackedRangeStickiness, IModelDeltaDecoration, IModelDecorationOptions,
 import { registerThemingParticipant, themeColorFromId, IThemeService, IColorTheme } from 'vs/platform/theme/common/themeService';
 import { IPosition } from 'vs/editor/common/core/position';
 import { IAction } from 'vs/base/common/actions';
-import { IActionBarOptions, ActionsOrientation } from 'vs/base/browser/ui/actionbar/actionbar';
 import { IStorageService, StorageScope, StorageTarget } from 'vs/platform/storage/common/storage';
 import { Color } from 'vs/base/common/color';
 import { TreeMouseEventTarget, ITreeNode } from 'vs/base/browser/ui/tree/tree';
@@ -138,13 +137,6 @@ export class CallHierarchyTreePeekWidget extends peekView.PeekViewWidget {
 		this._disposables.add(menu);
 		this._disposables.add(menu.onDidChange(updateToolbar));
 		updateToolbar();
-	}
-
-	protected _getActionBarOptions(): IActionBarOptions {
-		return {
-			...super._getActionBarOptions(),
-			orientation: ActionsOrientation.HORIZONTAL
-		};
 	}
 
 	protected _fillBody(parent: HTMLElement): void {

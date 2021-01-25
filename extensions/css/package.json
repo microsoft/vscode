@@ -1,0 +1,42 @@
+{
+  "name": "css",
+	"displayName": "%displayName%",
+	"description": "%description%",
+  "version": "1.0.0",
+  "publisher": "vscode",
+  "license": "MIT",
+  "engines": {
+    "vscode": "0.10.x"
+  },
+  "scripts": {
+    "update-grammar": "node ../../build/npm/update-grammar.js octref/language-css grammars/css.cson ./syntaxes/css.tmLanguage.json"
+  },
+  "contributes": {
+    "languages": [
+      {
+        "id": "css",
+        "aliases": [
+          "CSS",
+          "css"
+        ],
+        "extensions": [
+          ".css"
+        ],
+        "mimetypes": [
+          "text/css"
+        ],
+        "configuration": "./language-configuration.json"
+      }
+    ],
+    "grammars": [
+      {
+        "language": "css",
+        "scopeName": "source.css",
+        "path": "./syntaxes/css.tmLanguage.json",
+        "tokenTypes": {
+          "meta.function.url string.quoted": "other"
+        }
+      }
+    ]
+  }
+}

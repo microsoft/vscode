@@ -221,8 +221,7 @@ export class TextAreaInput extends Disposable {
 					this._textAreaState.selectionStartPosition ? new Position(this._textAreaState.selectionStartPosition.lineNumber, this._textAreaState.selectionStartPosition.column - 1) : null,
 					this._textAreaState.selectionEndPosition
 				);
-			} else if (!browser.isEdge) {
-				// In IE we cannot set .value when handling 'compositionstart' because the entire composition will get canceled.
+			} else {
 				this._setAndWriteTextAreaState('compositionstart', TextAreaState.EMPTY);
 			}
 
@@ -251,27 +250,7 @@ export class TextAreaInput extends Disposable {
 			return [newState, typeInput];
 		};
 
-		const compositionDataInValid = (locale: string): boolean => {
-			// https://github.com/microsoft/monaco-editor/issues/339
-			// Multi-part Japanese compositions reset cursor in Edge/IE, Chinese and Korean IME don't have this issue.
-			// The reason that we can't use this path for all CJK IME is IE and Edge behave differently when handling Korean IME,
-			// which breaks this path of code.
-			if (browser.isEdge && locale === 'ja') {
-				return true;
-			}
-
-			return false;
-		};
-
 		this._register(dom.addDisposableListener(textArea.domNode, 'compositionupdate', (e: CompositionEvent) => {
-			if (compositionDataInValid(e.locale)) {
-				const [newState, typeInput] = deduceInputFromTextAreaValue(/*couldBeEmojiInput*/false);
-				this._textAreaState = newState;
-				this._onType.fire(typeInput);
-				this._onCompositionUpdate.fire(e);
-				return;
-			}
-
 			const [newState, typeInput] = deduceComposition(e.data || '');
 			this._textAreaState = newState;
 			this._onType.fire(typeInput);
@@ -284,23 +263,15 @@ export class TextAreaInput extends Disposable {
 			if (!this._isDoingComposition) {
 				return;
 			}
-			if (compositionDataInValid(e.locale)) {
-				// https://github.com/microsoft/monaco-editor/issues/339
-				const [newState, typeInput] = deduceInputFromTextAreaValue(/*couldBeEmojiInput*/false);
-				this._textAreaState = newState;
-				this._onType.fire(typeInput);
-			} else {
-				const [newState, typeInput] = deduceComposition(e.data || '');
-				this._textAreaState = newState;
-				this._onType.fire(typeInput);
-			}
 
-			// Due to
-			// isEdgeOrIE (where the textarea was not cleared initially)
-			// and isChrome (the textarea is not updated correctly when composition ends)
-			// and isFirefox (the textare ais not updated correctly after inserting emojis)
-			// we cannot assume the text at the end consists only of the composited text
-			if (browser.isEdge || browser.isChrome || browser.isFirefox) {
+			const [newState, typeInput] = deduceComposition(e.data || '');
+			this._textAreaState = newState;
+			this._onType.fire(typeInput);
+
+			// isChrome: the textarea is not updated correctly when composition ends
+			// isFirefox: the textarea is not updated correctly after inserting emojis
+			// => we cannot assume the text at the end consists only of the composited text
+			if (browser.isChrome || browser.isFirefox) {
 				this._textAreaState = TextAreaState.readFromTextArea(this._textArea);
 			}
 
@@ -527,13 +498,7 @@ export class TextAreaInput extends Disposable {
 		}
 
 		if (this._hasFocus) {
-			if (browser.isEdge) {
-				// Edge has a bug where setting the selection range while the focus event
-				// is dispatching doesn't work. To reproduce, "tab into" the editor.
-				this._setAndWriteTextAreaState('focusgain', TextAreaState.EMPTY);
-			} else {
-				this.writeScreenReaderContent('focusgain');
-			}
+			this.writeScreenReaderContent('focusgain');
 		}
 
 		if (this._hasFocus) {

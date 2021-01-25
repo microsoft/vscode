@@ -112,7 +112,10 @@ export class ExtHostTesting implements ExtHostTestingShape {
 		if (resource === ExtHostTestingResource.TextDocument) {
 			const document = this.documents.getDocument(uri);
 			if (document) {
-				method = p => p.createDocumentTestHierarchy?.(document.document);
+				const folder = await this.workspace.getWorkspaceFolder2(uri, false);
+				method = p => p.createDocumentTestHierarchy
+					? p.createDocumentTestHierarchy(document.document)
+					: this.createDefaultDocumentTestHierarchy(p, document.document, folder);
 			}
 		} else {
 			const folder = await this.workspace.getWorkspaceFolder2(uri, false);
@@ -190,7 +193,10 @@ export class ExtHostTesting implements ExtHostTestingShape {
 			return EMPTY_TEST_RESULT;
 		}
 
-		const tests = req.ids.map(id => this.ownedTests.getTestById(id)?.actual).filter(isDefined);
+		const tests = req.ids.map(id => this.ownedTests.getTestById(id)?.actual)
+			.filter(isDefined)
+			// Only send the actual TestItem's to the user to run.
+			.map(t => t instanceof TestItemFilteredWrapper ? t.actual : t);
 		if (!tests.length) {
 			return EMPTY_TEST_RESULT;
 		}
@@ -216,6 +222,158 @@ export class ExtHostTesting implements ExtHostTestingShape {
 
 		const { actual, previousChildren, previousEquals, ...item } = owned;
 		return Promise.resolve(item);
+	}
+
+	private createDefaultDocumentTestHierarchy(provider: vscode.TestProvider, document: vscode.TextDocument, folder: vscode.WorkspaceFolder | undefined): vscode.TestHierarchy<vscode.TestItem> | undefined {
+		if (!folder) {
+			return;
+		}
+
+		const workspaceHierarchy = provider.createWorkspaceTestHierarchy?.(folder);
+		if (!workspaceHierarchy) {
+			return;
+		}
+
+		const onDidChangeTest = new Emitter<vscode.TestItem>();
+		workspaceHierarchy.onDidChangeTest(node => {
+			const wrapper = TestItemFilteredWrapper.getWrapperForTestItem(node, document);
+			const previouslySeen = wrapper.hasNodeMatchingFilter;
+
+			if (previouslySeen) {
+				// reset cache and get whether you can currently see the TestItem.
+				wrapper.reset();
+				const currentlySeen = wrapper.hasNodeMatchingFilter;
+
+				if (currentlySeen) {
+					onDidChangeTest.fire(wrapper);
+					return;
+				}
+
+				// Fire the event to say that the current visible parent has changed.
+				onDidChangeTest.fire(wrapper.visibleParent);
+				return;
+			}
+
+			const previousParent = wrapper.visibleParent;
+			wrapper.reset();
+			const currentlySeen = wrapper.hasNodeMatchingFilter;
+
+			// It wasn't previously seen and isn't currently seen so
+			// nothing has actually changed.
+			if (!currentlySeen) {
+				return;
+			}
+
+			// The test is now visible so we need to refresh the cache
+			// of the previous visible parent and fire that it has changed.
+			previousParent.reset();
+			onDidChangeTest.fire(previousParent);
+		});
+
+		return {
+			root: TestItemFilteredWrapper.getWrapperForTestItem(workspaceHierarchy.root, document),
+			dispose: () => {
+				onDidChangeTest.dispose();
+				TestItemFilteredWrapper.removeFilter(document);
+			},
+			onDidChangeTest: onDidChangeTest.event
+		};
+	}
+}
+
+/*
+ * A class which wraps a vscode.TestItem that provides the ability to filter a TestItem's children
+ * to only the children that are located in a certain vscode.Uri.
+ */
+export class TestItemFilteredWrapper implements vscode.TestItem {
+	private static wrapperMap = new WeakMap<vscode.TextDocument, WeakMap<vscode.TestItem, TestItemFilteredWrapper>>();
+	public static removeFilter(document: vscode.TextDocument): void {
+		this.wrapperMap.delete(document);
+	}
+
+	// Wraps the TestItem specified in a TestItemFilteredWrapper and pulls from a cache if it already exists.
+	public static getWrapperForTestItem(item: vscode.TestItem, filterDocument: vscode.TextDocument, parent?: TestItemFilteredWrapper): TestItemFilteredWrapper {
+		let innerMap = this.wrapperMap.get(filterDocument);
+		if (innerMap?.has(item)) {
+			return innerMap.get(item)!;
+		}
+
+		if (!innerMap) {
+			innerMap = new WeakMap<vscode.TestItem, TestItemFilteredWrapper>();
+			this.wrapperMap.set(filterDocument, innerMap);
+
+		}
+
+		const w = new TestItemFilteredWrapper(item, filterDocument, parent);
+		innerMap.set(item, w);
+		return w;
+	}
+
+	public get label() {
+		return this.actual.label;
+	}
+
+	public get debuggable() {
+		return this.actual.debuggable;
+	}
+
+	public get description() {
+		return this.actual.description;
+	}
+
+	public get location() {
+		return this.actual.location;
+	}
+
+	public get runnable() {
+		return this.actual.runnable;
+	}
+
+	public get state() {
+		return this.actual.state;
+	}
+
+	public get children() {
+		// We only want children that match the filter.
+		return this.getWrappedChildren().filter(child => child.hasNodeMatchingFilter);
+	}
+
+	public get visibleParent(): TestItemFilteredWrapper {
+		return this.hasNodeMatchingFilter ? this : this.parent!.visibleParent;
+	}
+
+	private matchesFilter: boolean | undefined;
+
+	// Determines if the TestItem matches the filter. This would be true if:
+	// 1. We don't have a parent (because the root is the workspace root node)
+	// 2. The URI of the current node matches the filter URI
+	// 3. Some child of the current node matches the filter URI
+	public get hasNodeMatchingFilter(): boolean {
+		if (this.matchesFilter === undefined) {
+			this.matchesFilter = !this.parent
+				|| this.actual.location?.uri.toString() === this.filterDocument.uri.toString()
+				|| this.getWrappedChildren().some(child => child.hasNodeMatchingFilter);
+		}
+
+		return this.matchesFilter;
+	}
+
+	// Reset the cache of whether or not you can see a node from a particular node
+	// up to it's visible parent.
+	public reset(): void {
+		if (this !== this.visibleParent) {
+			this.parent?.reset();
+		}
+		this.matchesFilter = undefined;
+	}
+
+
+	private constructor(public readonly actual: vscode.TestItem, private filterDocument: vscode.TextDocument, private readonly parent?: TestItemFilteredWrapper) {
+		this.getWrappedChildren();
+	}
+
+	private getWrappedChildren() {
+		return this.actual.children?.map(t => TestItemFilteredWrapper.getWrapperForTestItem(t, this.filterDocument, this)) || [];
 	}
 }
 

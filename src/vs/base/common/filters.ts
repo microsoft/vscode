@@ -387,7 +387,7 @@ export function anyScore(pattern: string, lowPattern: string, _patternPos: numbe
 			break;
 		}
 	}
-	return [score, matches, _wordPos];
+	return [score, _wordPos, matches];
 }
 
 //#region --- fuzzyScore ---
@@ -396,19 +396,15 @@ export function createMatches(score: undefined | FuzzyScore): IMatch[] {
 	if (typeof score === 'undefined') {
 		return [];
 	}
-
-	const matches = score[1].toString(2);
-	const wordStart = score[2];
 	const res: IMatch[] = [];
-
-	for (let pos = wordStart; pos < _maxLen; pos++) {
-		if (matches[matches.length - (pos + 1)] === '1') {
-			const last = res[res.length - 1];
-			if (last && last.end === pos) {
-				last.end = pos + 1;
-			} else {
-				res.push({ start: pos, end: pos + 1 });
-			}
+	const wordPos = score[1];
+	for (let i = score.length - 1; i > 1; i--) {
+		const pos = score[i] + wordPos;
+		const last = res[res.length - 1];
+		if (last && last.end === pos) {
+			last.end = pos + 1;
+		} else {
+			res.push({ start: pos, end: pos + 1 });
 		}
 	}
 	return res;
@@ -536,18 +532,21 @@ export function isPatternInWord(patternLow: string, patternPos: number, patternL
 const enum Arrow { Diag = 1, Left = 2, LeftLeft = 3 }
 
 /**
- * A tuple of three values.
+ * An array representating a fuzzy match.
+ *
  * 0. the score
- * 1. the matches encoded as bitmask (2^53)
- * 2. the offset at which matching started
+ * 1. the offset at which matching started
+ * 2. `<match_pos_1>`
+ * 3. `<match_pos_2>`
+ * 4. `<match_pos_3>` etc
  */
-export type FuzzyScore = [number, number, number];
+export type FuzzyScore = [score: number, wordStart: number, ...matches: number[]];// [number, number, number];
 
 export namespace FuzzyScore {
 	/**
 	 * No matches and value `-100`
 	 */
-	export const Default: [-100, 0, 0] = <[-100, 0, 0]>Object.freeze([-100, 0, 0]);
+	export const Default: FuzzyScore = ([-100, 0]);
 
 	export function isDefault(score?: FuzzyScore): score is [-100, 0, 0] {
 		return !score || (score[0] === -100 && score[1] === 0 && score[2] === 0);
@@ -650,8 +649,8 @@ export function fuzzyScore(pattern: string, patternLow: string, patternStart: nu
 	row--;
 	column--;
 
-	const topScore = _table[row][column];
-	let matches = 0;
+	const result: FuzzyScore = [_table[row][column], wordStart];
+
 	let backwardsDiagLength = 0;
 	let maxMatchColumn = 0;
 
@@ -694,21 +693,20 @@ export function fuzzyScore(pattern: string, patternLow: string, patternStart: nu
 
 		row--;
 		column = diagColumn - 1;
-		matches += 2 ** (column + wordStart);
+		result.push(column);
 	}
 
-	let finalScore = topScore;
 	if (wordLen === patternLen) {
 		// the word matches the pattern with all characters!
 		// giving the score a total match boost (to come up ahead other words)
-		finalScore += 2;
+		result[0] += 2;
 	}
 
 	// Add 1 penalty for each skipped character in the word
 	const skippedCharsCount = maxMatchColumn - patternLen;
-	finalScore -= skippedCharsCount;
+	result[0] -= skippedCharsCount;
 
-	return [finalScore, matches, wordStart];
+	return result;
 }
 
 function _fillInMaxWordMatchPos(patternLen: number, wordLen: number, patternStart: number, wordStart: number, patternLow: string, wordLow: string) {

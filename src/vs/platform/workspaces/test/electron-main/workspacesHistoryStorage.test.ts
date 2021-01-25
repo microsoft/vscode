@@ -17,25 +17,25 @@ function toWorkspace(uri: URI): IWorkspaceIdentifier {
 	};
 }
 function assertEqualURI(u1: URI | undefined, u2: URI | undefined, message?: string): void {
-	assert.equal(u1 && u1.toString(), u2 && u2.toString(), message);
+	assert.strictEqual(u1 && u1.toString(), u2 && u2.toString(), message);
 }
 
 function assertEqualWorkspace(w1: IWorkspaceIdentifier | undefined, w2: IWorkspaceIdentifier | undefined, message?: string): void {
 	if (!w1 || !w2) {
-		assert.equal(w1, w2, message);
+		assert.strictEqual(w1, w2, message);
 		return;
 	}
-	assert.equal(w1.id, w2.id, message);
+	assert.strictEqual(w1.id, w2.id, message);
 	assertEqualURI(w1.configPath, w2.configPath, message);
 }
 
 function assertEqualRecentlyOpened(actual: IRecentlyOpened, expected: IRecentlyOpened, message?: string) {
-	assert.equal(actual.files.length, expected.files.length, message);
+	assert.strictEqual(actual.files.length, expected.files.length, message);
 	for (let i = 0; i < actual.files.length; i++) {
 		assertEqualURI(actual.files[i].fileUri, expected.files[i].fileUri, message);
-		assert.equal(actual.files[i].label, expected.files[i].label);
+		assert.strictEqual(actual.files[i].label, expected.files[i].label);
 	}
-	assert.equal(actual.workspaces.length, expected.workspaces.length, message);
+	assert.strictEqual(actual.workspaces.length, expected.workspaces.length, message);
 	for (let i = 0; i < actual.workspaces.length; i++) {
 		let expectedRecent = expected.workspaces[i];
 		let actualRecent = actual.workspaces[i];
@@ -44,7 +44,7 @@ function assertEqualRecentlyOpened(actual: IRecentlyOpened, expected: IRecentlyO
 		} else {
 			assertEqualWorkspace(actualRecent.workspace, (<IRecentWorkspace>expectedRecent).workspace, message);
 		}
-		assert.equal(actualRecent.label, expectedRecent.label);
+		assert.strictEqual(actualRecent.label, expectedRecent.label);
 	}
 }
 
@@ -129,8 +129,5 @@ suite('History Storage', () => {
 		};
 
 		assertEqualRecentlyOpened(windowsState, expected, 'v1_33');
-
 	});
-
-
 });
