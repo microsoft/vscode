@@ -30,31 +30,6 @@ flakySuite('BackupMainService', () => {
 		assert.deepStrictEqual(actual.map(a => a.toString()), expected.map(a => a.toString()));
 	}
 
-	const parentDir = getRandomTestPath(os.tmpdir(), 'vsctests', 'backupservice');
-	const backupHome = path.join(parentDir, 'Backups');
-	const backupWorkspacesPath = path.join(backupHome, 'workspaces.json');
-
-	const environmentService = new EnvironmentMainService(parseArgs(process.argv, OPTIONS));
-
-	class TestBackupMainService extends BackupMainService {
-
-		constructor(backupHome: string, backupWorkspacesPath: string, configService: TestConfigurationService) {
-			super(environmentService, configService, new ConsoleLogMainService());
-
-			this.backupHome = backupHome;
-			this.workspacesJsonPath = backupWorkspacesPath;
-		}
-
-		toBackupPath(arg: URI | string): string {
-			const id = arg instanceof URI ? super.getFolderHash(arg) : arg;
-			return path.join(this.backupHome, id);
-		}
-
-		getFolderHash(folderUri: URI): string {
-			return super.getFolderHash(folderUri);
-		}
-	}
-
 	function toWorkspace(path: string): IWorkspaceIdentifier {
 		return {
 			id: createHash('md5').update(sanitizePath(path)).digest('hex'),
@@ -79,20 +54,23 @@ flakySuite('BackupMainService', () => {
 		};
 	}
 
-	async function ensureFolderExists(uri: URI): Promise<void> {
+	function ensureFolderExists(uri: URI): Promise<void> {
 		if (!fs.existsSync(uri.fsPath)) {
 			fs.mkdirSync(uri.fsPath);
 		}
+
 		const backupFolder = service.toBackupPath(uri);
-		await createBackupFolder(backupFolder);
+		return createBackupFolder(backupFolder);
 	}
 
 	async function ensureWorkspaceExists(workspace: IWorkspaceIdentifier): Promise<IWorkspaceIdentifier> {
 		if (!fs.existsSync(workspace.configPath.fsPath)) {
 			await pfs.writeFile(workspace.configPath.fsPath, 'Hello');
 		}
+
 		const backupFolder = service.toBackupPath(workspace.id);
 		await createBackupFolder(backupFolder);
+
 		return workspace;
 	}
 
@@ -111,25 +89,49 @@ flakySuite('BackupMainService', () => {
 	const fooFile = URI.file(platform.isWindows ? 'C:\\foo' : '/foo');
 	const barFile = URI.file(platform.isWindows ? 'C:\\bar' : '/bar');
 
-	const existingTestFolder1 = URI.file(path.join(parentDir, 'folder1'));
-
-	let service: TestBackupMainService;
+	let service: BackupMainService & { toBackupPath(arg: URI | string): string, getFolderHash(folderUri: URI): string };
 	let configService: TestConfigurationService;
 
-	setup(async () => {
+	let environmentService: EnvironmentMainService;
+	let testDir: string;
+	let backupHome: string;
+	let backupWorkspacesPath: string;
+	let existingTestFolder1: URI;
 
-		// Delete any existing backups completely and then re-create it.
-		await pfs.rimraf(backupHome);
+	setup(async () => {
+		testDir = getRandomTestPath(os.tmpdir(), 'vsctests', 'backupmainservice');
+		backupHome = path.join(testDir, 'Backups');
+		backupWorkspacesPath = path.join(backupHome, 'workspaces.json');
+		existingTestFolder1 = URI.file(path.join(testDir, 'folder1'));
+
+		environmentService = new EnvironmentMainService(parseArgs(process.argv, OPTIONS));
+
 		await pfs.mkdirp(backupHome);
 
 		configService = new TestConfigurationService();
-		service = new TestBackupMainService(backupHome, backupWorkspacesPath, configService);
+		service = new class TestBackupMainService extends BackupMainService {
+			constructor() {
+				super(environmentService, configService, new ConsoleLogMainService());
+
+				this.backupHome = backupHome;
+				this.workspacesJsonPath = backupWorkspacesPath;
+			}
+
+			toBackupPath(arg: URI | string): string {
+				const id = arg instanceof URI ? super.getFolderHash(arg) : arg;
+				return path.join(this.backupHome, id);
+			}
+
+			getFolderHash(folderUri: URI): string {
+				return super.getFolderHash(folderUri);
+			}
+		};
 
 		return service.initialize();
 	});
 
 	teardown(() => {
-		return pfs.rimraf(backupHome);
+		return pfs.rimraf(testDir);
 	});
 
 	test('service validates backup workspaces on startup and cleans up (folder workspaces)', async function () {
@@ -465,10 +467,9 @@ flakySuite('BackupMainService', () => {
 		});
 
 		test('should ignore duplicates on Windows and Mac (root workspace)', async () => {
-
-			const workspacePath = path.join(parentDir, 'Foo.code-workspace');
-			const workspacePath1 = path.join(parentDir, 'FOO.code-workspace');
-			const workspacePath2 = path.join(parentDir, 'foo.code-workspace');
+			const workspacePath = path.join(testDir, 'Foo.code-workspace');
+			const workspacePath1 = path.join(testDir, 'FOO.code-workspace');
+			const workspacePath2 = path.join(testDir, 'foo.code-workspace');
 
 			const workspace1 = await ensureWorkspaceExists(toWorkspace(workspacePath));
 			const workspace2 = await ensureWorkspaceExists(toWorkspace(workspacePath1));

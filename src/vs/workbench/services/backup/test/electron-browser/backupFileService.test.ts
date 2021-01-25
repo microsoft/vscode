@@ -31,26 +31,10 @@ import { TestProductService } from 'vs/workbench/test/browser/workbenchTestServi
 import { CancellationToken, CancellationTokenSource } from 'vs/base/common/cancellation';
 import { insert } from 'vs/base/common/arrays';
 
-const userdataDir = getRandomTestPath(os.tmpdir(), 'vsctests', 'backupfileservice');
-const backupHome = path.join(userdataDir, 'Backups');
-const workspacesJsonPath = path.join(backupHome, 'workspaces.json');
-
-const workspaceResource = URI.file(platform.isWindows ? 'c:\\workspace' : '/workspace');
-const workspaceBackupPath = path.join(backupHome, hashPath(workspaceResource));
-const fooFile = URI.file(platform.isWindows ? 'c:\\Foo' : '/Foo');
-const customFile = URI.parse('customScheme://some/path');
-const customFileWithFragment = URI.parse('customScheme2://some/path#fragment');
-const barFile = URI.file(platform.isWindows ? 'c:\\Bar' : '/Bar');
-const fooBarFile = URI.file(platform.isWindows ? 'c:\\Foo Bar' : '/Foo Bar');
-const untitledFile = URI.from({ scheme: Schemas.untitled, path: 'Untitled-1' });
-const fooBackupPath = path.join(workspaceBackupPath, 'file', hashPath(fooFile));
-const barBackupPath = path.join(workspaceBackupPath, 'file', hashPath(barFile));
-const untitledBackupPath = path.join(workspaceBackupPath, 'untitled', hashPath(untitledFile));
-
 class TestWorkbenchEnvironmentService extends NativeWorkbenchEnvironmentService {
 
-	constructor(backupPath: string) {
-		super({ ...TestWorkbenchConfiguration, backupPath, 'user-data-dir': userdataDir }, TestProductService);
+	constructor(testDir: string, backupPath: string) {
+		super({ ...TestWorkbenchConfiguration, backupPath, 'user-data-dir': testDir }, TestProductService);
 	}
 }
 
@@ -63,8 +47,8 @@ export class NodeTestBackupFileService extends NativeBackupFileService {
 	discardedBackups: URI[];
 	private pendingBackupsArr: Promise<void>[];
 
-	constructor(workspaceBackupPath: string) {
-		const environmentService = new TestWorkbenchEnvironmentService(workspaceBackupPath);
+	constructor(testDir: string, workspaceBackupPath: string) {
+		const environmentService = new TestWorkbenchEnvironmentService(testDir, workspaceBackupPath);
 		const logService = new NullLogService();
 		const fileService = new FileService(logService);
 		const diskFileSystemProvider = new DiskFileSystemProvider(logService);
@@ -126,20 +110,43 @@ export class NodeTestBackupFileService extends NativeBackupFileService {
 }
 
 suite('BackupFileService', () => {
+
+	let testDir: string;
+	let backupHome: string;
+	let workspacesJsonPath: string;
+	let workspaceBackupPath: string;
+	let fooBackupPath: string;
+	let barBackupPath: string;
+	let untitledBackupPath: string;
+
 	let service: NodeTestBackupFileService;
 
-	setup(async () => {
-		service = new NodeTestBackupFileService(workspaceBackupPath);
+	let workspaceResource = URI.file(platform.isWindows ? 'c:\\workspace' : '/workspace');
+	let fooFile = URI.file(platform.isWindows ? 'c:\\Foo' : '/Foo');
+	let customFile = URI.parse('customScheme://some/path');
+	let customFileWithFragment = URI.parse('customScheme2://some/path#fragment');
+	let barFile = URI.file(platform.isWindows ? 'c:\\Bar' : '/Bar');
+	let fooBarFile = URI.file(platform.isWindows ? 'c:\\Foo Bar' : '/Foo Bar');
+	let untitledFile = URI.from({ scheme: Schemas.untitled, path: 'Untitled-1' });
 
-		// Delete any existing backups completely and then re-create it.
-		await pfs.rimraf(backupHome);
+	setup(async () => {
+		testDir = getRandomTestPath(os.tmpdir(), 'vsctests', 'backupfileservice');
+		backupHome = path.join(testDir, 'Backups');
+		workspacesJsonPath = path.join(backupHome, 'workspaces.json');
+		workspaceBackupPath = path.join(backupHome, hashPath(workspaceResource));
+		fooBackupPath = path.join(workspaceBackupPath, 'file', hashPath(fooFile));
+		barBackupPath = path.join(workspaceBackupPath, 'file', hashPath(barFile));
+		untitledBackupPath = path.join(workspaceBackupPath, 'untitled', hashPath(untitledFile));
+
+		service = new NodeTestBackupFileService(testDir, workspaceBackupPath);
+
 		await pfs.mkdirp(backupHome);
 
 		return pfs.writeFile(workspacesJsonPath, '');
 	});
 
 	teardown(() => {
-		return pfs.rimraf(backupHome);
+		return pfs.rimraf(testDir);
 	});
 
 	suite('hashPath', () => {
@@ -577,99 +584,84 @@ suite('BackupFileService', () => {
 			}
 		}
 	});
-});
 
-suite('BackupFilesModel', () => {
+	suite('BackupFilesModel', () => {
 
-	let service: NodeTestBackupFileService;
+		test('simple', () => {
+			const model = new BackupFilesModel(service.fileService);
 
-	setup(async () => {
-		service = new NodeTestBackupFileService(workspaceBackupPath);
+			const resource1 = URI.file('test.html');
 
-		// Delete any existing backups completely and then re-create it.
-		await pfs.rimraf(backupHome);
-		await pfs.mkdirp(backupHome);
+			assert.strictEqual(model.has(resource1), false);
 
-		return pfs.writeFile(workspacesJsonPath, '');
+			model.add(resource1);
+
+			assert.strictEqual(model.has(resource1), true);
+			assert.strictEqual(model.has(resource1, 0), true);
+			assert.strictEqual(model.has(resource1, 1), false);
+			assert.strictEqual(model.has(resource1, 1, { foo: 'bar' }), false);
+
+			model.remove(resource1);
+
+			assert.strictEqual(model.has(resource1), false);
+
+			model.add(resource1);
+
+			assert.strictEqual(model.has(resource1), true);
+			assert.strictEqual(model.has(resource1, 0), true);
+			assert.strictEqual(model.has(resource1, 1), false);
+
+			model.clear();
+
+			assert.strictEqual(model.has(resource1), false);
+
+			model.add(resource1, 1);
+
+			assert.strictEqual(model.has(resource1), true);
+			assert.strictEqual(model.has(resource1, 0), false);
+			assert.strictEqual(model.has(resource1, 1), true);
+
+			const resource2 = URI.file('test1.html');
+			const resource3 = URI.file('test2.html');
+			const resource4 = URI.file('test3.html');
+
+			model.add(resource2);
+			model.add(resource3);
+			model.add(resource4, undefined, { foo: 'bar' });
+
+			assert.strictEqual(model.has(resource1), true);
+			assert.strictEqual(model.has(resource2), true);
+			assert.strictEqual(model.has(resource3), true);
+
+			assert.strictEqual(model.has(resource4), true);
+			assert.strictEqual(model.has(resource4, undefined, { foo: 'bar' }), true);
+			assert.strictEqual(model.has(resource4, undefined, { bar: 'foo' }), false);
+		});
+
+		test('resolve', async () => {
+			await pfs.mkdirp(path.dirname(fooBackupPath));
+			fs.writeFileSync(fooBackupPath, 'foo');
+			const model = new BackupFilesModel(service.fileService);
+
+			const resolvedModel = await model.resolve(URI.file(workspaceBackupPath));
+			assert.strictEqual(resolvedModel.has(URI.file(fooBackupPath)), true);
+		});
+
+		test('get', () => {
+			const model = new BackupFilesModel(service.fileService);
+
+			assert.deepStrictEqual(model.get(), []);
+
+			const file1 = URI.file('/root/file/foo.html');
+			const file2 = URI.file('/root/file/bar.html');
+			const untitled = URI.file('/root/untitled/bar.html');
+
+			model.add(file1);
+			model.add(file2);
+			model.add(untitled);
+
+			assert.deepStrictEqual(model.get().map(f => f.fsPath), [file1.fsPath, file2.fsPath, untitled.fsPath]);
+		});
 	});
 
-	teardown(() => {
-		return pfs.rimraf(backupHome);
-	});
-
-	test('simple', () => {
-		const model = new BackupFilesModel(service.fileService);
-
-		const resource1 = URI.file('test.html');
-
-		assert.strictEqual(model.has(resource1), false);
-
-		model.add(resource1);
-
-		assert.strictEqual(model.has(resource1), true);
-		assert.strictEqual(model.has(resource1, 0), true);
-		assert.strictEqual(model.has(resource1, 1), false);
-		assert.strictEqual(model.has(resource1, 1, { foo: 'bar' }), false);
-
-		model.remove(resource1);
-
-		assert.strictEqual(model.has(resource1), false);
-
-		model.add(resource1);
-
-		assert.strictEqual(model.has(resource1), true);
-		assert.strictEqual(model.has(resource1, 0), true);
-		assert.strictEqual(model.has(resource1, 1), false);
-
-		model.clear();
-
-		assert.strictEqual(model.has(resource1), false);
-
-		model.add(resource1, 1);
-
-		assert.strictEqual(model.has(resource1), true);
-		assert.strictEqual(model.has(resource1, 0), false);
-		assert.strictEqual(model.has(resource1, 1), true);
-
-		const resource2 = URI.file('test1.html');
-		const resource3 = URI.file('test2.html');
-		const resource4 = URI.file('test3.html');
-
-		model.add(resource2);
-		model.add(resource3);
-		model.add(resource4, undefined, { foo: 'bar' });
-
-		assert.strictEqual(model.has(resource1), true);
-		assert.strictEqual(model.has(resource2), true);
-		assert.strictEqual(model.has(resource3), true);
-
-		assert.strictEqual(model.has(resource4), true);
-		assert.strictEqual(model.has(resource4, undefined, { foo: 'bar' }), true);
-		assert.strictEqual(model.has(resource4, undefined, { bar: 'foo' }), false);
-	});
-
-	test('resolve', async () => {
-		await pfs.mkdirp(path.dirname(fooBackupPath));
-		fs.writeFileSync(fooBackupPath, 'foo');
-		const model = new BackupFilesModel(service.fileService);
-
-		const resolvedModel = await model.resolve(URI.file(workspaceBackupPath));
-		assert.strictEqual(resolvedModel.has(URI.file(fooBackupPath)), true);
-	});
-
-	test('get', () => {
-		const model = new BackupFilesModel(service.fileService);
-
-		assert.deepStrictEqual(model.get(), []);
-
-		const file1 = URI.file('/root/file/foo.html');
-		const file2 = URI.file('/root/file/bar.html');
-		const untitled = URI.file('/root/untitled/bar.html');
-
-		model.add(file1);
-		model.add(file2);
-		model.add(untitled);
-
-		assert.deepStrictEqual(model.get().map(f => f.fsPath), [file1.fsPath, file2.fsPath, untitled.fsPath]);
-	});
 });

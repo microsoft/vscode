@@ -132,7 +132,7 @@ flakySuite('BackupTracker (native)', function () {
 	});
 
 	async function createTracker(autoSaveEnabled = false): Promise<{ accessor: TestServiceAccessor, part: EditorPart, tracker: BackupTracker, instantiationService: IInstantiationService, cleanup: () => Promise<void> }> {
-		const backupFileService = new NodeTestBackupFileService(workspaceBackupPath);
+		const backupFileService = new NodeTestBackupFileService(testDir, workspaceBackupPath);
 		const instantiationService = workbenchInstantiationService();
 		instantiationService.stub(IBackupFileService, backupFileService);
 
