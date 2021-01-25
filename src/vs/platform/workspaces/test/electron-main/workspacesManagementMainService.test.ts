@@ -105,14 +105,6 @@ export class TestBackupMainService implements IBackupMainService {
 }
 
 suite('WorkspacesManagementMainService', () => {
-	const parentDir = getRandomTestPath(os.tmpdir(), 'vsctests', 'workspacesmanagementmainservice');
-	const untitledWorkspacesHomePath = path.join(parentDir, 'Workspaces');
-
-	class TestEnvironmentService extends EnvironmentMainService {
-		get untitledWorkspacesHome(): URI {
-			return URI.file(untitledWorkspacesHomePath);
-		}
-	}
 
 	function createUntitledWorkspace(folders: string[], names?: string[]) {
 		return service.createUntitledWorkspace(folders.map((folder, index) => ({ uri: URI.file(folder), name: names ? names[index] : undefined } as IWorkspaceFolderCreationData)));
@@ -138,22 +130,31 @@ suite('WorkspacesManagementMainService', () => {
 		return service.createUntitledWorkspaceSync(folders.map((folder, index) => ({ uri: URI.file(folder), name: names ? names[index] : undefined } as IWorkspaceFolderCreationData)));
 	}
 
-	const environmentService = new TestEnvironmentService(parseArgs(process.argv, OPTIONS));
-	const logService = new NullLogService();
-
+	let testDir: string;
+	let untitledWorkspacesHomePath: string;
+	let environmentService: EnvironmentMainService;
 	let service: WorkspacesManagementMainService;
 
 	setup(async () => {
-		service = new WorkspacesManagementMainService(environmentService, logService, new TestBackupMainService(), new TestDialogMainService());
+		testDir = getRandomTestPath(os.tmpdir(), 'vsctests', 'workspacesmanagementmainservice');
+		untitledWorkspacesHomePath = path.join(testDir, 'Workspaces');
 
-		// Delete any existing backups completely and then re-create it.
-		await pfs.rimraf(parentDir);
+		environmentService = new class TestEnvironmentService extends EnvironmentMainService {
+			constructor() {
+				super(parseArgs(process.argv, OPTIONS));
+			}
+			get untitledWorkspacesHome(): URI {
+				return URI.file(untitledWorkspacesHomePath);
+			}
+		};
+
+		service = new WorkspacesManagementMainService(environmentService, new NullLogService(), new TestBackupMainService(), new TestDialogMainService());
 
 		return pfs.mkdirp(untitledWorkspacesHomePath);
 	});
 
 	teardown(() => {
-		return pfs.rimraf(parentDir);
+		return pfs.rimraf(testDir);
 	});
 
 	function assertPathEquals(p1: string, p2: string): void {
@@ -454,13 +455,13 @@ suite('WorkspacesManagementMainService', () => {
 		const nonLocalUriId = getSingleFolderWorkspaceIdentifier(nonLocalUri);
 		assert.ok(nonLocalUriId?.id);
 
-		const localNonExistingUri = URI.file(path.join(parentDir, 'f1'));
+		const localNonExistingUri = URI.file(path.join(testDir, 'f1'));
 		const localNonExistingUriId = getSingleFolderWorkspaceIdentifier(localNonExistingUri);
 		assert.ok(!localNonExistingUriId);
 
-		fs.mkdirSync(path.join(parentDir, 'f1'));
+		fs.mkdirSync(path.join(testDir, 'f1'));
 
-		const localExistingUri = URI.file(path.join(parentDir, 'f1'));
+		const localExistingUri = URI.file(path.join(testDir, 'f1'));
 		const localExistingUriId = getSingleFolderWorkspaceIdentifier(localExistingUri);
 		assert.ok(localExistingUriId?.id);
 	});
