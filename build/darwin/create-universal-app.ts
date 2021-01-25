@@ -35,7 +35,8 @@ async function main() {
 			'product.json',
 			'Credits.rtf',
 			'CodeResources',
-			'fsevents.node'
+			'fsevents.node',
+			'.npmrc'
 		],
 		outAppPath,
 		force: true
