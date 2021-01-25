@@ -62,6 +62,8 @@ export interface ITestState {
  * The TestItem from .d.ts, as a plain object without children.
  */
 export interface ITestItem {
+	/** ID of the test given by the test provider */
+	extId: string;
 	label: string;
 	children?: never;
 	location: ModeLocation | undefined;
@@ -79,6 +81,14 @@ export interface InternalTestItem {
 	providerId: string;
 	parent: string | null;
 	item: ITestItem;
+}
+
+export interface InternalTestItemWithChildren extends InternalTestItem {
+	children: InternalTestItemWithChildren[];
+}
+
+export interface InternalTestResults {
+	tests: InternalTestItemWithChildren[];
 }
 
 export const enum TestDiffOpType {

@@ -3,15 +3,14 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-//@ts-check
+import { AuthenticationSession } from 'vscode';
 
-'use strict';
-
-const withDefaults = require('../shared.webpack.config');
-
-module.exports = withDefaults({
-	context: __dirname,
-	entry: {
-		pythonMain: './src/pythonMain.ts'
-	}
-});
+/**
+ * Represents a session of a currently logged in Microsoft user.
+ */
+export interface MicrosoftAuthenticationSession extends AuthenticationSession {
+	/**
+	 * The id token.
+	 */
+	idToken?: string;
+}
