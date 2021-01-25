@@ -146,6 +146,7 @@ export class NotebookEditorWidget extends Disposable implements INotebookEditor 
 		return this._notebookViewModel?.notebookDocument;
 	}
 
+	private _activeKernelExecuted: boolean = false;
 	private _activeKernel: INotebookKernelInfo2 | undefined = undefined;
 	private readonly _onDidChangeKernel = this._register(new Emitter<void>());
 	readonly onDidChangeKernel: Event<void> = this._onDidChangeKernel.event;
@@ -733,6 +734,8 @@ export class NotebookEditorWidget extends Disposable implements INotebookEditor 
 		this._webview?.element.remove();
 		this._webview = null;
 		this._list.clear();
+		this._activeKernel = undefined;
+		this._activeKernelExecuted = false;
 	}
 
 	async beginComputeContributedKernels() {
@@ -752,6 +755,11 @@ export class NotebookEditorWidget extends Disposable implements INotebookEditor 
 
 	private async _setKernels(tokenSource: CancellationTokenSource) {
 		if (!this.viewModel) {
+			return;
+		}
+
+		if (this._activeKernel !== undefined && this._activeKernelExecuted) {
+			// kernel already executed, we should not change it automatically
 			return;
 		}
 
@@ -1766,6 +1774,7 @@ export class NotebookEditorWidget extends Disposable implements INotebookEditor 
 		}
 
 		await this._ensureActiveKernel();
+		this._activeKernelExecuted = true;
 		await this._activeKernel?.executeNotebookCell!(this.viewModel.uri, undefined);
 	}
 
@@ -1806,6 +1815,7 @@ export class NotebookEditorWidget extends Disposable implements INotebookEditor 
 		}
 
 		await this._ensureActiveKernel();
+		this._activeKernelExecuted = true;
 		await this._activeKernel?.executeNotebookCell!(this.viewModel.uri, cell.handle);
 	}
 
