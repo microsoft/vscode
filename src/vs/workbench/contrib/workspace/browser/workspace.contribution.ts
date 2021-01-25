@@ -10,7 +10,7 @@ import { IDialogService } from 'vs/platform/dialogs/common/dialogs';
 import { ServicesAccessor } from 'vs/platform/instantiation/common/instantiation';
 import { Severity } from 'vs/platform/notification/common/notification';
 import { Registry } from 'vs/platform/registry/common/platform';
-import { ITrustedWorkspaceService, TrustedWorkspaceContext, TRUSTED_WORKSPACES_URI, WorkspaceTrustState, WorkspaceTrustStateChangeEvent, workspaceTrustStateToString } from 'vs/platform/workspace/common/trustedWorkspace';
+import { ITrustedWorkspaceService, TrustedWorkspaceContext, TRUSTED_WORKSPACES_ENABLED, TRUSTED_WORKSPACES_URI, WorkspaceTrustState, WorkspaceTrustStateChangeEvent, workspaceTrustStateToString } from 'vs/platform/workspace/common/trustedWorkspace';
 import { Extensions as WorkbenchExtensions, IWorkbenchContribution, IWorkbenchContributionsRegistry } from 'vs/workbench/common/contributions';
 import { IActivityService, IconBadge } from 'vs/workbench/services/activity/common/activity';
 import { LifecyclePhase } from 'vs/workbench/services/lifecycle/common/lifecycle';
@@ -23,6 +23,8 @@ import { TrustedWorkspacesFileSystemProvider } from 'vs/workbench/contrib/worksp
 import { ContextKeyExpr } from 'vs/platform/contextkey/common/contextkey';
 import { WorkbenchStateContext } from 'vs/workbench/browser/contextkeys';
 import { ICommandService } from 'vs/platform/commands/common/commands';
+import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
+import { IHostService } from 'vs/workbench/services/host/browser/host';
 
 const workspaceTrustIcon = registerIcon('workspace-trust-icon', Codicon.shield, localize('workspaceTrustIcon', "Icon for workspace trust badge."));
 
@@ -34,9 +36,11 @@ export class WorkspaceTrustRequestHandler extends Disposable implements IWorkben
 	private readonly badgeDisposable = this._register(new MutableDisposable());
 
 	constructor(
+		@IHostService private readonly hostService: IHostService,
 		@IDialogService private readonly dialogService: IDialogService,
 		@IActivityService private readonly activityService: IActivityService,
 		@ICommandService private readonly commandService: ICommandService,
+		@IConfigurationService private readonly configurationService: IConfigurationService,
 		@ITrustedWorkspaceService private readonly trustedWorkspaceService: ITrustedWorkspaceService
 	) {
 		super();
@@ -90,6 +94,21 @@ export class WorkspaceTrustRequestHandler extends Disposable implements IWorkben
 		this._register(this.requestModel.onDidCompleteRequest(trustState => {
 			if (trustState !== undefined && trustState !== WorkspaceTrustState.Unknown) {
 				this.toggleRequestBadge(false);
+			}
+		}));
+
+		this._register(this.configurationService.onDidChangeConfiguration(e => {
+			if (e.affectsConfiguration(TRUSTED_WORKSPACES_ENABLED)) {
+				const isEnabled = this.configurationService.getValue<boolean>(TRUSTED_WORKSPACES_ENABLED);
+				if (!isEnabled || typeof isEnabled === 'boolean') {
+					this.dialogService.confirm({
+						message: localize('trustConfigurationChangeMessage', "In order for this change to take effect, the window needs to be reloaded. Do you want to reload the window now?")
+					}).then(result => {
+						if (result.confirmed) {
+							this.hostService.reload();
+						}
+					});
+				}
 			}
 		}));
 	}
@@ -280,7 +299,7 @@ registerAction2(class extends Action2 {
 				id: MenuId.GlobalActivity,
 				group: '7_trust',
 				order: 40,
-				when: TrustedWorkspaceContext.IsPendingRequest.negate()
+				when: ContextKeyExpr.and(TrustedWorkspaceContext.IsEnabled, TrustedWorkspaceContext.IsPendingRequest.negate())
 			},
 		});
 	}
@@ -299,5 +318,5 @@ MenuRegistry.appendMenuItem(MenuId.GlobalActivity, {
 	},
 	group: '7_trust',
 	order: 40,
-	when: TrustedWorkspaceContext.IsPendingRequest
+	when: ContextKeyExpr.and(TrustedWorkspaceContext.IsEnabled, TrustedWorkspaceContext.IsPendingRequest)
 });

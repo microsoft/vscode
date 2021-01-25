@@ -7,12 +7,14 @@ import { Emitter, Event } from 'vs/base/common/event';
 import { Disposable } from 'vs/base/common/lifecycle';
 import { URI } from 'vs/base/common/uri';
 import { localize } from 'vs/nls';
+import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { IContextKey, IContextKeyService, RawContextKey } from 'vs/platform/contextkey/common/contextkey';
 import { registerSingleton } from 'vs/platform/instantiation/common/extensions';
 import { createDecorator } from 'vs/platform/instantiation/common/instantiation';
 import { IStorageService, StorageScope, StorageTarget } from 'vs/platform/storage/common/storage';
 import { IWorkspace, IWorkspaceContextService, WorkbenchState } from 'vs/platform/workspace/common/workspace';
 
+export const TRUSTED_WORKSPACES_ENABLED = 'workspace.trustRequirementEnabled';
 export const TRUSTED_WORKSPACES_URI = URI.parse('trustedWorkspaces:/Trusted Workspaces');
 
 export enum WorkspaceTrustScope {
@@ -39,6 +41,7 @@ export function workspaceTrustStateToString(trustState: WorkspaceTrustState) {
 }
 
 export const TrustedWorkspaceContext = {
+	IsEnabled: new RawContextKey<boolean>('trustedWorkspaceIsEnabled', false),
 	IsPendingRequest: new RawContextKey<boolean>('trustedWorkspaceIsPendingRequest', false),
 	TrustState: new RawContextKey<WorkspaceTrustState>('trustedWorkspaceTrustState', WorkspaceTrustState.Unknown)
 };
@@ -229,6 +232,7 @@ export class TrustedWorkspaceService extends Disposable implements ITrustedWorks
 	private readonly _onDidChangeTrust = this._register(new Emitter<WorkspaceTrustStateChangeEvent>());
 	readonly onDidChangeTrust = this._onDidChangeTrust.event;
 
+	private _isTrustRequirementEnabled = false;
 	private _currentTrustState: WorkspaceTrustState = WorkspaceTrustState.Unknown;
 	private _inFlightResolver?: (trustState: WorkspaceTrustState) => void;
 	private _trustRequestPromise?: Promise<WorkspaceTrustState>;
@@ -236,10 +240,12 @@ export class TrustedWorkspaceService extends Disposable implements ITrustedWorks
 
 	private readonly _ctxTrustedWorkspaceTrustState: IContextKey<WorkspaceTrustState>;
 	private readonly _ctxTrustedWorkspacePendingRequest: IContextKey<boolean>;
+	private readonly _ctxTrustedWorkspaceEnabled: IContextKey<boolean>;
 
 	constructor(
 		@IStorageService private readonly storageService: IStorageService,
 		@IWorkspaceContextService private readonly workspaceService: IWorkspaceContextService,
+		@IConfigurationService private readonly configurationService: IConfigurationService,
 		@IContextKeyService contextKeyService: IContextKeyService
 	) {
 		super();
@@ -247,15 +253,19 @@ export class TrustedWorkspaceService extends Disposable implements ITrustedWorks
 		this.dataModel = this._register(new TrustedContentModel(this.storageService));
 		this.requestModel = this._register(new TrustedWorkspaceRequestModel());
 
+		this._isTrustRequirementEnabled = this.configurationService.getValue<boolean>(TRUSTED_WORKSPACES_ENABLED) ?? false;
+
 		this._workspace = this.workspaceService.getWorkspace();
 		this._currentTrustState = this.calculateWorkspaceTrustState();
 
 		this._register(this.dataModel.onDidChangeTrust(() => this.currentTrustState = this.calculateWorkspaceTrustState()));
 		this._register(this.requestModel.onDidCompleteRequest((trustState) => this.onTrustRequestCompleted(trustState)));
 
+		this._ctxTrustedWorkspaceEnabled = TrustedWorkspaceContext.IsEnabled.bindTo(contextKeyService);
 		this._ctxTrustedWorkspaceTrustState = TrustedWorkspaceContext.TrustState.bindTo(contextKeyService);
 		this._ctxTrustedWorkspacePendingRequest = TrustedWorkspaceContext.IsPendingRequest.bindTo(contextKeyService);
 		this._ctxTrustedWorkspaceTrustState.set(this.currentTrustState);
+		this._ctxTrustedWorkspaceEnabled.set(this._isTrustRequirementEnabled);
 	}
 
 	private get currentTrustState(): WorkspaceTrustState {
@@ -271,6 +281,10 @@ export class TrustedWorkspaceService extends Disposable implements ITrustedWorks
 	}
 
 	private calculateWorkspaceTrustState(): WorkspaceTrustState {
+		if (!this._isTrustRequirementEnabled) {
+			return WorkspaceTrustState.Trusted;
+		}
+
 		if (this.workspaceService.getWorkbenchState() === WorkbenchState.EMPTY) {
 			return WorkspaceTrustState.Trusted;
 		}
