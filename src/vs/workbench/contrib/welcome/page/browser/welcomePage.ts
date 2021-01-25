@@ -71,8 +71,8 @@ export class WelcomePageContribution implements IWorkbenchContribution {
 			backupFileService.hasBackups().then(hasBackups => {
 				// Open the welcome even if we opened a set of default editors
 				if ((!editorService.activeEditor || layoutService.openedDefaultEditors) && !hasBackups) {
-					const startupEditorSetting = configurationService.getValue(configurationKey) as string;
-					const openWithReadme = startupEditorSetting === 'readme';
+					const startupEditorSetting = configurationService.inspect<string>(configurationKey);
+					const openWithReadme = startupEditorSetting.userValue === 'readme';
 					if (openWithReadme) {
 						return Promise.all(contextService.getWorkspace().folders.map(folder => {
 							const folderUri = folder.uri;
@@ -104,7 +104,7 @@ export class WelcomePageContribution implements IWorkbenchContribution {
 								return undefined;
 							});
 					} else {
-						const startupEditorTypeID = startupEditorSetting === 'gettingStarted' ? gettingStartedInputTypeId : welcomeInputTypeId;
+						const startupEditorTypeID = startupEditorSetting.value === 'gettingStarted' ? gettingStartedInputTypeId : welcomeInputTypeId;
 						let options: IEditorOptions;
 						let editor = editorService.activeEditor;
 						if (editor) {
@@ -132,14 +132,17 @@ export class WelcomePageContribution implements IWorkbenchContribution {
 }
 
 function isWelcomePageEnabled(configurationService: IConfigurationService, contextService: IWorkspaceContextService) {
-	const startupEditor = configurationService.inspect(configurationKey);
+	const startupEditor = configurationService.inspect<string>(configurationKey);
 	if (!startupEditor.userValue && !startupEditor.workspaceValue) {
 		const welcomeEnabled = configurationService.inspect(oldConfigurationKey);
 		if (welcomeEnabled.value !== undefined && welcomeEnabled.value !== null) {
 			return welcomeEnabled.value;
 		}
 	}
-	return startupEditor.value === 'welcomePage' || startupEditor.value === 'gettingStarted' || startupEditor.value === 'readme' || startupEditor.value === 'welcomePageInEmptyWorkbench' && contextService.getWorkbenchState() === WorkbenchState.EMPTY;
+	if (startupEditor.value === 'readme' && startupEditor.userValue !== 'readme') {
+		console.error('Warning: `workbench.startupEditor: readme` setting ignored due to being set somewhere other than user settings');
+	}
+	return startupEditor.value === 'welcomePage' || startupEditor.value === 'gettingStarted' || startupEditor.userValue === 'readme' || startupEditor.value === 'welcomePageInEmptyWorkbench' && contextService.getWorkbenchState() === WorkbenchState.EMPTY;
 }
 
 export class WelcomePageAction extends Action {
