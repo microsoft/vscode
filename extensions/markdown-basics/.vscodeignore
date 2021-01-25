@@ -1,0 +1,4 @@
+test/**
+src/**
+tsconfig.json
+cgmanifest.json
