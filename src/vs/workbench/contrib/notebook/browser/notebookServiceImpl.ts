@@ -391,7 +391,7 @@ export class NotebookService extends Disposable implements INotebookService, ICu
 			};
 		};
 
-		const PRIORITY = 50;
+		const PRIORITY = 105;
 		this._register(UndoCommand.addImplementation(PRIORITY, () => {
 			const { editor } = getContext();
 			if (editor?.viewModel) {
