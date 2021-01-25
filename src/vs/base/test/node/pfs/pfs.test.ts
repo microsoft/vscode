@@ -11,7 +11,6 @@ import { generateUuid } from 'vs/base/common/uuid';
 import { copy, exists, mkdirp, move, readdir, readDirsInDir, readdirWithFileTypes, readFile, renameIgnoreError, rimraf, RimRafMode, rimrafSync, statLink, writeFile, writeFileSync } from 'vs/base/node/pfs';
 import { timeout } from 'vs/base/common/async';
 import { getPathFromAmdModule } from 'vs/base/common/amd';
-import { isWindows } from 'vs/base/common/platform';
 import { canNormalize } from 'vs/base/common/normalization';
 import { VSBuffer } from 'vs/base/common/buffer';
 import { flakySuite, getRandomTestPath } from 'vs/base/test/node/testUtils';
@@ -195,7 +194,7 @@ flakySuite('PFS', function () {
 		assert.ok(!fs.existsSync(parentDir));
 	});
 
-	(isWindows ? test.skip : test)('copy skips over dangling symbolic links', async () => { // Symlinks are not the same on win, and we can not create them programmatically without admin privileges
+	test('copy skips over dangling symbolic links', async () => {
 		const id1 = generateUuid();
 		const symbolicLinkTarget = join(testDir, id1);
 
@@ -207,7 +206,7 @@ flakySuite('PFS', function () {
 
 		await mkdirp(symbolicLinkTarget, 493);
 
-		fs.symlinkSync(symbolicLinkTarget, symbolicLink);
+		fs.symlinkSync(symbolicLinkTarget, symbolicLink, 'junction');
 
 		await rimraf(symbolicLinkTarget);
 
@@ -238,7 +237,7 @@ flakySuite('PFS', function () {
 		assert.ok(result.indexOf('somefolder3') !== -1);
 	});
 
-	(isWindows ? test.skip : test)('stat link', async () => { // Symlinks are not the same on win, and we can not create them programmatically without admin privileges
+	test('stat link', async () => {
 		const id1 = generateUuid();
 		const directory = join(testDir, id1);
 
@@ -247,7 +246,7 @@ flakySuite('PFS', function () {
 
 		await mkdirp(directory, 493);
 
-		fs.symlinkSync(directory, symbolicLink);
+		fs.symlinkSync(directory, symbolicLink, 'junction');
 
 		let statAndIsLink = await statLink(directory);
 		assert.ok(!statAndIsLink?.symbolicLink);
@@ -257,7 +256,7 @@ flakySuite('PFS', function () {
 		assert.ok(!statAndIsLink?.symbolicLink?.dangling);
 	});
 
-	(isWindows ? test.skip : test)('stat link (non existing target)', async () => { // Symlinks are not the same on win, and we can not create them programmatically without admin privileges
+	test('stat link (non existing target)', async () => {
 		const id1 = generateUuid();
 		const directory = join(testDir, id1);
 
@@ -266,7 +265,7 @@ flakySuite('PFS', function () {
 
 		await mkdirp(directory, 493);
 
-		fs.symlinkSync(directory, symbolicLink);
+		fs.symlinkSync(directory, symbolicLink, 'junction');
 
 		await rimraf(directory);
 

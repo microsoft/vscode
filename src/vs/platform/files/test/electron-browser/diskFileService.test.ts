@@ -406,9 +406,9 @@ flakySuite('Disk File Service', function () {
 		assert.strictEqual(r2.name, 'deep');
 	});
 
-	(isWindows /* symlinks are not reliable on windows */ ? test.skip : test)('resolve - folder symbolic link', async () => {
+	test('resolve - folder symbolic link', async () => {
 		const link = URI.file(join(testDir, 'deep-link'));
-		await symlink(join(testDir, 'deep'), link.fsPath);
+		await symlink(join(testDir, 'deep'), link.fsPath, 'junction');
 
 		const resolved = await service.resolve(link);
 		assert.strictEqual(resolved.children!.length, 4);
@@ -416,17 +416,17 @@ flakySuite('Disk File Service', function () {
 		assert.strictEqual(resolved.isSymbolicLink, true);
 	});
 
-	(isWindows /* symlinks are not reliable on windows */ ? test.skip : test)('resolve - file symbolic link', async () => {
+	test('resolve - file symbolic link', async () => {
 		const link = URI.file(join(testDir, 'lorem.txt-linked'));
-		await symlink(join(testDir, 'lorem.txt'), link.fsPath);
+		await symlink(join(testDir, 'lorem.txt'), link.fsPath, 'junction');
 
 		const resolved = await service.resolve(link);
 		assert.strictEqual(resolved.isDirectory, false);
 		assert.strictEqual(resolved.isSymbolicLink, true);
 	});
 
-	(isWindows /* symlinks are not reliable on windows */ ? test.skip : test)('resolve - symbolic link pointing to non-existing file does not break', async () => {
-		await symlink(join(testDir, 'foo'), join(testDir, 'bar'));
+	test('resolve - symbolic link pointing to non-existing file does not break', async () => {
+		await symlink(join(testDir, 'foo'), join(testDir, 'bar'), 'junction');
 
 		const resolved = await service.resolve(URI.file(testDir));
 		assert.strictEqual(resolved.isDirectory, true);
@@ -474,10 +474,10 @@ flakySuite('Disk File Service', function () {
 		assert.strictEqual((<FileOperationError>error).fileOperationResult, FileOperationResult.FILE_NOT_FOUND);
 	}
 
-	(isWindows /* symlinks are not reliable on windows */ ? test.skip : test)('deleteFile - symbolic link (exists)', async () => {
+	test('deleteFile - symbolic link (exists)', async () => {
 		const target = URI.file(join(testDir, 'lorem.txt'));
 		const link = URI.file(join(testDir, 'lorem.txt-linked'));
-		await symlink(target.fsPath, link.fsPath);
+		await symlink(target.fsPath, link.fsPath, 'junction');
 
 		const source = await service.resolve(link);
 
@@ -496,10 +496,10 @@ flakySuite('Disk File Service', function () {
 		assert.strictEqual(existsSync(target.fsPath), true); // target the link pointed to is never deleted
 	});
 
-	(isWindows /* symlinks are not reliable on windows */ ? test.skip : test)('deleteFile - symbolic link (pointing to non-existing file)', async () => {
+	test('deleteFile - symbolic link (pointing to non-existing file)', async () => {
 		const target = URI.file(join(testDir, 'foo'));
 		const link = URI.file(join(testDir, 'bar'));
-		await symlink(target.fsPath, link.fsPath);
+		await symlink(target.fsPath, link.fsPath, 'junction');
 
 		let event: FileOperationEvent;
 		disposables.add(service.onDidRunOperation(e => event = e));
@@ -2010,7 +2010,7 @@ flakySuite('Disk File Service', function () {
 
 	(runWatchTests && !isWindows /* symbolic links not reliable on windows */ ? test : test.skip)('watch - file symbolic link', async () => {
 		const toWatch = URI.file(join(testDir, 'lorem.txt-linked'));
-		await symlink(join(testDir, 'lorem.txt'), toWatch.fsPath);
+		await symlink(join(testDir, 'lorem.txt'), toWatch.fsPath, 'junction');
 
 		const promise = assertWatch(toWatch, [[FileChangeType.UPDATED, toWatch]]);
 		setTimeout(() => writeFileSync(toWatch.fsPath, 'Changes'), 50);
@@ -2138,7 +2138,7 @@ flakySuite('Disk File Service', function () {
 
 	(runWatchTests && !isWindows /* symbolic links not reliable on windows */ ? test : test.skip)('watch - folder (non recursive) - symbolic link - change file', async () => {
 		const watchDir = URI.file(join(testDir, 'deep-link'));
-		await symlink(join(testDir, 'deep'), watchDir.fsPath);
+		await symlink(join(testDir, 'deep'), watchDir.fsPath, 'junction');
 
 		const file = URI.file(join(watchDir.fsPath, 'index.html'));
 		writeFileSync(file.fsPath, 'Init');
