@@ -440,8 +440,8 @@ suite('URI', () => {
 	});
 
 	test('Unable to open \'%A0.txt\': URI malformed #76506', function () {
-		assert.strictEqual(URI.parse('file://some/%.txt'), 'file://some/%25.txt');
-		assert.strictEqual(URI.parse('file://some/%A0.txt'), 'file://some/%25A0.txt');
+		assert.strictEqual(URI.parse('file://some/%.txt').toString(), 'file://some/%25.txt');
+		assert.strictEqual(URI.parse('file://some/%A0.txt').toString(), 'file://some/%25A0.txt');
 	});
 
 	test.skip('Links in markdown are broken if url contains encoded parameters #79474', function () {
