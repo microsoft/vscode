@@ -284,7 +284,7 @@ export function modify(callback: () => void): IDisposable {
 }
 
 /**
- * Add a throttled listener. `handler` is fired at most every 16ms or with the next animation frame (if browser supports it).
+ * Add a throttled listener. `handler` is fired at most every 4.16666ms or with the next animation frame (if browser supports it).
  */
 export interface IEventMerger<R, E> {
 	(lastEvent: R | null, currentEvent: E): R;
@@ -295,7 +295,7 @@ export interface DOMEvent {
 	stopPropagation(): void;
 }
 
-const MINIMUM_TIME_MS = 16;
+const MINIMUM_TIME_MS = 4.16666;
 const DEFAULT_EVENT_MERGER: IEventMerger<DOMEvent, DOMEvent> = function (lastEvent: DOMEvent | null, currentEvent: DOMEvent) {
 	return currentEvent;
 };
