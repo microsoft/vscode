@@ -30,7 +30,7 @@ flakySuite('PFS', function () {
 		await writeFile(testFile, 'Hello World', (null!));
 		assert.equal(fs.readFileSync(testFile), 'Hello World');
 
-		await rimraf(parentDir);
+		return rimraf(parentDir);
 	});
 
 	test('writeFile - parallel write on different files works', async () => {
@@ -59,7 +59,7 @@ flakySuite('PFS', function () {
 		assert.equal(fs.readFileSync(testFile4), 'Hello World 4');
 		assert.equal(fs.readFileSync(testFile5), 'Hello World 5');
 
-		await rimraf(parentDir);
+		return rimraf(parentDir);
 	});
 
 	test('writeFile - parallel write on same files works and is sequentalized', async () => {
@@ -80,7 +80,7 @@ flakySuite('PFS', function () {
 		]);
 		assert.equal(fs.readFileSync(testFile), 'Hello World 5');
 
-		await rimraf(parentDir);
+		return rimraf(parentDir);
 	});
 
 	test('rimraf - simple - unlink', async () => {
@@ -94,6 +94,8 @@ flakySuite('PFS', function () {
 
 		await rimraf(newDir);
 		assert.ok(!fs.existsSync(newDir));
+
+		return rimraf(parentDir);
 	});
 
 	test('rimraf - simple - move', async () => {
@@ -107,6 +109,8 @@ flakySuite('PFS', function () {
 
 		await rimraf(newDir, RimRafMode.MOVE);
 		assert.ok(!fs.existsSync(newDir));
+
+		return rimraf(parentDir);
 	});
 
 	test('rimraf - recursive folder structure - unlink', async () => {
@@ -122,6 +126,8 @@ flakySuite('PFS', function () {
 
 		await rimraf(newDir);
 		assert.ok(!fs.existsSync(newDir));
+
+		return rimraf(parentDir);
 	});
 
 	test('rimraf - recursive folder structure - move', async () => {
@@ -137,6 +143,8 @@ flakySuite('PFS', function () {
 
 		await rimraf(newDir, RimRafMode.MOVE);
 		assert.ok(!fs.existsSync(newDir));
+
+		return rimraf(parentDir);
 	});
 
 	test('rimraf - simple ends with dot - move', async () => {
@@ -150,6 +158,8 @@ flakySuite('PFS', function () {
 
 		await rimraf(newDir, RimRafMode.MOVE);
 		assert.ok(!fs.existsSync(newDir));
+
+		return rimraf(parentDir);
 	});
 
 	test('rimraf - simple ends with dot slash/backslash - move', async () => {
@@ -163,6 +173,8 @@ flakySuite('PFS', function () {
 
 		await rimraf(`${newDir}${sep}`, RimRafMode.MOVE);
 		assert.ok(!fs.existsSync(newDir));
+
+		return rimraf(parentDir);
 	});
 
 	test('rimrafSync - swallows file not found error', function () {
@@ -173,6 +185,8 @@ flakySuite('PFS', function () {
 		rimrafSync(newDir);
 
 		assert.ok(!fs.existsSync(newDir));
+
+		return rimraf(parentDir);
 	});
 
 	test('rimrafSync - simple', async () => {
@@ -188,6 +202,8 @@ flakySuite('PFS', function () {
 		rimrafSync(newDir);
 
 		assert.ok(!fs.existsSync(newDir));
+
+		return rimraf(parentDir);
 	});
 
 	test('rimrafSync - recursive folder structure', async () => {
@@ -205,6 +221,8 @@ flakySuite('PFS', function () {
 		rimrafSync(newDir);
 
 		assert.ok(!fs.existsSync(newDir));
+
+		return rimraf(parentDir);
 	});
 
 	test('moveIgnoreError', async () => {
@@ -259,6 +277,31 @@ flakySuite('PFS', function () {
 		assert.ok(!fs.existsSync(parentDir));
 	});
 
+	(isWindows ? test.skip : test)('copy skips over dangling symbolic links', async () => { // Symlinks are not the same on win, and we can not create them programmatically without admin privileges
+		const id1 = generateUuid();
+		const parentDir = join(tmpdir(), 'vsctests', id1);
+
+		const symbolicLinkTarget = join(parentDir, 'pfs', id1);
+
+		const id2 = generateUuid();
+		const symbolicLink = join(parentDir, 'pfs', id2);
+
+		const id3 = generateUuid();
+		const copyTarget = join(parentDir, 'pfs', id3);
+
+		await mkdirp(symbolicLinkTarget, 493);
+
+		fs.symlinkSync(symbolicLinkTarget, symbolicLink);
+
+		await rimraf(symbolicLinkTarget);
+
+		await copy(symbolicLink, copyTarget); // this should not throw
+
+		assert.ok(!fs.existsSync(copyTarget));
+
+		return rimraf(parentDir);
+	});
+
 	test('mkdirp', async () => {
 		const parentDir = getRandomTestPath(tmpdir(), 'vsctests', 'pfs');
 		const id = generateUuid();
@@ -290,7 +333,7 @@ flakySuite('PFS', function () {
 		assert.ok(result.indexOf('somefolder2') !== -1);
 		assert.ok(result.indexOf('somefolder3') !== -1);
 
-		await rimraf(newDir);
+		return rimraf(parentDir);
 	});
 
 	(isWindows ? test.skip : test)('stat link', async () => { // Symlinks are not the same on win, and we can not create them programmatically without admin privileges
@@ -312,7 +355,7 @@ flakySuite('PFS', function () {
 		assert.ok(statAndIsLink?.symbolicLink);
 		assert.ok(!statAndIsLink?.symbolicLink?.dangling);
 
-		rimrafSync(directory);
+		return rimraf(parentDir);
 	});
 
 	(isWindows ? test.skip : test)('stat link (non existing target)', async () => { // Symlinks are not the same on win, and we can not create them programmatically without admin privileges
@@ -327,11 +370,13 @@ flakySuite('PFS', function () {
 
 		fs.symlinkSync(directory, symbolicLink);
 
-		rimrafSync(directory);
+		await rimraf(directory);
 
 		const statAndIsLink = await statLink(symbolicLink);
 		assert.ok(statAndIsLink?.symbolicLink);
 		assert.ok(statAndIsLink?.symbolicLink?.dangling);
+
+		return rimraf(parentDir);
 	});
 
 	test('readdir', async () => {
@@ -347,7 +392,7 @@ flakySuite('PFS', function () {
 			const children = await readdir(join(parentDir, 'pfs', id));
 			assert.equal(children.some(n => n === 'öäü'), true); // Mac always converts to NFD, so
 
-			await rimraf(parentDir);
+			return rimraf(parentDir);
 		}
 	});
 
@@ -372,7 +417,7 @@ flakySuite('PFS', function () {
 			assert.equal(children.some(n => n.name === 'somefile.txt'), true);
 			assert.equal(children.some(n => n.isFile()), true);
 
-			await rimraf(parentDir);
+			return rimraf(parentDir);
 		}
 	});
 
@@ -417,7 +462,7 @@ flakySuite('PFS', function () {
 		await writeFile(testFile, bigData);
 		assert.equal(fs.readFileSync(testFile), bigDataValue);
 
-		await rimraf(parentDir);
+		return rimraf(parentDir);
 	}
 
 	test('writeFile (string, error handling)', async () => {
@@ -441,7 +486,7 @@ flakySuite('PFS', function () {
 
 		assert.ok(expectedError);
 
-		await rimraf(parentDir);
+		return rimraf(parentDir);
 	});
 
 	test('writeFileSync', async () => {
@@ -462,6 +507,6 @@ flakySuite('PFS', function () {
 		writeFileSync(testFile, largeString);
 		assert.equal(fs.readFileSync(testFile), largeString);
 
-		await rimraf(parentDir);
+		return rimraf(parentDir);
 	});
 });
