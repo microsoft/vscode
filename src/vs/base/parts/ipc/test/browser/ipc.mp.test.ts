@@ -47,10 +47,10 @@ suite('IPC, MessagePorts', () => {
 		});
 
 		const channelClient1 = client2.getChannel('client1');
-		assert.equal(await channelClient1.call('testMethodClient1'), 'success1');
+		assert.strictEqual(await channelClient1.call('testMethodClient1'), 'success1');
 
 		const channelClient2 = client1.getChannel('client2');
-		assert.equal(await channelClient2.call('testMethodClient2'), 'success2');
+		assert.strictEqual(await channelClient2.call('testMethodClient2'), 'success2');
 
 		client1.dispose();
 		client2.dispose();

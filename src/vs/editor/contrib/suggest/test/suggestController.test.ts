@@ -57,6 +57,7 @@ suite('SuggestController', function () {
 				createMenu() {
 					return new class extends mock<IMenu>() {
 						onDidChange = Event.None;
+						dispose() { }
 					};
 				}
 			}]

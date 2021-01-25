@@ -3,6 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
+import { Schemas } from 'vs/base/common/network';
 import * as osPath from 'vs/base/common/path';
 import * as platform from 'vs/base/common/platform';
 import { URI } from 'vs/base/common/uri';
@@ -98,8 +99,28 @@ export class LinkDetector {
 
 	private createWebLink(url: string): Node {
 		const link = this.createLink(url);
-		const uri = URI.parse(url);
-		this.decorateLink(link, () => this.openerService.open(uri, { allowTunneling: !!this.environmentService.remoteAuthority }));
+
+		this.decorateLink(link, async () => {
+			const uri = URI.parse(url);
+
+			if (uri.scheme === Schemas.file) {
+				// Just using fsPath here is unsafe: https://github.com/microsoft/vscode/issues/109076
+				const fsPath = uri.fsPath;
+				const path = await this.pathService.path;
+				const fileUrl = osPath.normalize(((path.sep === osPath.posix.sep) && platform.isWindows) ? fsPath.replace(/\\/g, osPath.posix.sep) : fsPath);
+
+				const resolvedLink = await this.fileService.resolve(URI.parse(fileUrl));
+				if (!resolvedLink) {
+					return;
+				}
+
+				await this.editorService.openEditor({ resource: resolvedLink.resource, options: { pinned: true } });
+				return;
+			}
+
+			this.openerService.open(url, { allowTunneling: !!this.environmentService.remoteAuthority });
+		});
+
 		return link;
 	}
 

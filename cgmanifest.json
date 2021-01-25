@@ -132,11 +132,11 @@
 				"git": {
 					"name": "vscode-codicons",
 					"repositoryUrl": "https://github.com/microsoft/vscode-codicons",
-					"commitHash": "f0caa623812a8ed5059516277675b4158d4c4867"
+					"commitHash": "ccdcf91d57d3a5a1d6b620d95d518bab4d75984d"
 				}
 			},
 			"license": "MIT and Creative Commons Attribution 4.0",
-			"version": "0.0.1"
+			"version": "0.0.14"
 		},
 		{
 			"component": {

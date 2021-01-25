@@ -21,9 +21,9 @@ import { IWorkbenchLayoutService } from 'vs/workbench/services/layout/browser/la
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { ViewPaneContainer, ViewsSubMenu } from 'vs/workbench/browser/parts/views/viewPaneContainer';
 import { ViewPane } from 'vs/workbench/browser/parts/views/viewPane';
-import { MenuId, MenuItemAction, SubmenuItemAction, registerAction2, Action2, MenuRegistry } from 'vs/platform/actions/common/actions';
+import { MenuId, registerAction2, Action2, MenuRegistry } from 'vs/platform/actions/common/actions';
 import { IContextKeyService, ContextKeyEqualsExpr, ContextKeyExpr, ContextKeyDefinedExpr } from 'vs/platform/contextkey/common/contextkey';
-import { MenuEntryActionViewItem, SubmenuEntryActionViewItem } from 'vs/platform/actions/browser/menuEntryActionViewItem';
+import { createActionViewItem } from 'vs/platform/actions/browser/menuEntryActionViewItem';
 import { IViewDescriptorService } from 'vs/workbench/common/views';
 import { WelcomeView } from 'vs/workbench/contrib/debug/browser/welcomeView';
 import { ShowViewletAction } from 'vs/workbench/browser/viewlet';
@@ -102,13 +102,7 @@ export class DebugViewPaneContainer extends ViewPaneContainer {
 		if (action.id === FOCUS_SESSION_ID) {
 			return new FocusSessionActionViewItem(action, undefined, this.debugService, this.themeService, this.contextViewService, this.configurationService);
 		}
-		if (action instanceof MenuItemAction) {
-			return this.instantiationService.createInstance(MenuEntryActionViewItem, action);
-		} else if (action instanceof SubmenuItemAction) {
-			return this.instantiationService.createInstance(SubmenuEntryActionViewItem, action);
-		}
-
-		return undefined;
+		return createActionViewItem(this.instantiationService, action);
 	}
 
 	focusView(id: string): void {

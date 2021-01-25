@@ -9,6 +9,7 @@ import { IModelService } from 'vs/editor/common/services/modelService';
 import { ITextModelContentProvider, ITextModelService } from 'vs/editor/common/services/resolverService';
 import { IWorkbenchContribution } from 'vs/workbench/common/contributions';
 import { parseTestUri, TestUriType, TEST_DATA_SCHEME } from 'vs/workbench/contrib/testing/common/testingUri';
+import { ITestResultService } from 'vs/workbench/contrib/testing/common/testResultService';
 import { ITestService } from 'vs/workbench/contrib/testing/common/testService';
 
 /**
@@ -20,6 +21,7 @@ export class TestingContentProvider implements IWorkbenchContribution, ITextMode
 		@ITextModelService textModelResolverService: ITextModelService,
 		@IModelService private readonly modelService: IModelService,
 		@ITestService private readonly testService: ITestService,
+		@ITestService private readonly resultService: ITestResultService,
 	) {
 		textModelResolverService.registerTextModelContentProvider(TEST_DATA_SCHEME, this);
 	}
@@ -38,20 +40,26 @@ export class TestingContentProvider implements IWorkbenchContribution, ITextMode
 			return null;
 		}
 
-		const test = await this.testService.lookupTest({ providerId: parsed.providerId, testId: parsed.testId });
+		const test = 'providerId' in parsed
+			? await this.testService.lookupTest({ providerId: parsed.providerId, testId: parsed.testId })
+			: this.resultService.lookup(parsed.resultId)?.tests.find(t => t.id === parsed.testId);
+
 		if (!test) {
 			return null;
 		}
 
 		let text: string | undefined;
 		switch (parsed.type) {
-			case TestUriType.ActualOutput:
+			case TestUriType.ResultActualOutput:
+			case TestUriType.LiveActualOutput:
 				text = test.item.state.messages[parsed.messageIndex]?.actualOutput;
 				break;
-			case TestUriType.ExpectedOutput:
+			case TestUriType.ResultExpectedOutput:
+			case TestUriType.LiveExpectedOutput:
 				text = test.item.state.messages[parsed.messageIndex]?.expectedOutput;
 				break;
-			case TestUriType.Message:
+			case TestUriType.ResultMessage:
+			case TestUriType.LiveMessage:
 				text = test.item.state.messages[parsed.messageIndex]?.message.toString();
 				break;
 		}

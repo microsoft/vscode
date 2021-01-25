@@ -195,8 +195,8 @@ class TestSubscription extends Disposable {
 		const folderNode: ITestSubscriptionFolder = {
 			folder,
 			getChildren: function* () {
-				for (const rootId of listener.collection.rootIds) {
-					const node = listener.collection.getNodeById(rootId);
+				for (const rootId of ref.object.rootIds) {
+					const node = ref.object.getNodeById(rootId);
 					if (node) {
 						yield node;
 					}
@@ -204,7 +204,7 @@ class TestSubscription extends Disposable {
 			},
 		};
 
-		const listener = this.testService.subscribeToDiffs(
+		const ref = this.testService.subscribeToDiffs(
 			ExtHostTestingResource.Workspace,
 			folder.uri,
 			diff => {
@@ -215,16 +215,15 @@ class TestSubscription extends Disposable {
 		);
 
 		const disposable = new DisposableStore();
-		disposable.add(listener);
-		disposable.add(listener.collection.onBusyProvidersChange(
+		disposable.add(ref);
+		disposable.add(ref.object.onBusyProvidersChange(
 			() => this.pendingRootChangeEmitter.fire(this.pendingRootProviders)));
-		disposable.add(listener.collection.onBusyProvidersChange(
+		disposable.add(ref.object.onBusyProvidersChange(
 			() => this.busyProvidersChangeEmitter.fire(this.busyProviders)));
-
 
 		this.collectionsForWorkspaces.set(folder.uri.toString(), {
 			listener: disposable,
-			collection: listener.collection,
+			collection: ref.object,
 			folder: folderNode,
 		});
 	}

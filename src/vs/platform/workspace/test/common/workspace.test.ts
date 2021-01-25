@@ -5,9 +5,9 @@
 
 import * as assert from 'assert';
 import * as path from 'vs/base/common/path';
-import { Workspace, toWorkspaceFolders, WorkspaceFolder } from 'vs/platform/workspace/common/workspace';
+import { Workspace, WorkspaceFolder } from 'vs/platform/workspace/common/workspace';
 import { URI } from 'vs/base/common/uri';
-import { IRawFileWorkspaceFolder } from 'vs/platform/workspaces/common/workspaces';
+import { IRawFileWorkspaceFolder, toWorkspaceFolders } from 'vs/platform/workspaces/common/workspaces';
 import { isLinux, isWindows } from 'vs/base/common/platform';
 import { extUriBiasedIgnorePathCase } from 'vs/base/common/resources';
 

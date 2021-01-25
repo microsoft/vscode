@@ -5,8 +5,7 @@
 
 import { Codicon } from 'vs/base/common/codicons';
 import { KeyCode } from 'vs/base/common/keyCodes';
-import { URI } from 'vs/base/common/uri';
-import { ICodeEditor, isCodeEditor } from 'vs/editor/browser/editorBrowser';
+import { ICodeEditor } from 'vs/editor/browser/editorBrowser';
 import { EditorAction2, registerEditorContribution } from 'vs/editor/browser/editorExtensions';
 import { localize } from 'vs/nls';
 import { registerAction2 } from 'vs/platform/actions/common/actions';
@@ -20,23 +19,25 @@ import { Registry } from 'vs/platform/registry/common/platform';
 import { Extensions as WorkbenchExtensions, IWorkbenchContributionsRegistry } from 'vs/workbench/common/contributions';
 import { Extensions as ViewContainerExtensions, IViewContainersRegistry, IViewsRegistry, ViewContainerLocation } from 'vs/workbench/common/views';
 import { testingViewIcon } from 'vs/workbench/contrib/testing/browser/icons';
+import { TestingDecorations } from 'vs/workbench/contrib/testing/browser/testingDecorations';
+import { ITestExplorerFilterState, TestExplorerFilterState } from 'vs/workbench/contrib/testing/browser/testingExplorerFilter';
 import { TestingExplorerView } from 'vs/workbench/contrib/testing/browser/testingExplorerView';
 import { TestingOutputPeekController } from 'vs/workbench/contrib/testing/browser/testingOutputPeek';
 import { TestingViewPaneContainer } from 'vs/workbench/contrib/testing/browser/testingViewPaneContainer';
 import { Testing } from 'vs/workbench/contrib/testing/common/constants';
 import { TestIdWithProvider } from 'vs/workbench/contrib/testing/common/testCollection';
-import { IWorkspaceTestCollectionService, WorkspaceTestCollectionService } from 'vs/workbench/contrib/testing/common/workspaceTestCollectionService';
 import { TestingContentProvider } from 'vs/workbench/contrib/testing/common/testingContentProvider';
 import { TestingContextKeys } from 'vs/workbench/contrib/testing/common/testingContextKeys';
+import { ITestResultService, TestResultService } from 'vs/workbench/contrib/testing/common/testResultService';
 import { ITestService } from 'vs/workbench/contrib/testing/common/testService';
 import { TestService } from 'vs/workbench/contrib/testing/common/testServiceImpl';
-import { IEditorService } from 'vs/workbench/services/editor/common/editorService';
+import { IWorkspaceTestCollectionService, WorkspaceTestCollectionService } from 'vs/workbench/contrib/testing/common/workspaceTestCollectionService';
 import { LifecyclePhase } from 'vs/workbench/services/lifecycle/common/lifecycle';
 import * as Action from './testExplorerActions';
-import { ITestResultService, TestResultService } from 'vs/workbench/contrib/testing/common/testResultService';
 
 registerSingleton(ITestService, TestService);
 registerSingleton(ITestResultService, TestResultService);
+registerSingleton(ITestExplorerFilterState, TestExplorerFilterState);
 registerSingleton(IWorkspaceTestCollectionService, WorkspaceTestCollectionService);
 
 const viewContainer = Registry.as<IViewContainersRegistry>(ViewContainerExtensions.ViewContainersRegistry).registerViewContainer({
@@ -97,6 +98,7 @@ registerAction2(Action.DebugAllAction);
 Registry.as<IWorkbenchContributionsRegistry>(WorkbenchExtensions.Workbench).registerWorkbenchContribution(TestingContentProvider, LifecyclePhase.Eventually);
 
 registerEditorContribution(Testing.OutputPeekContributionId, TestingOutputPeekController);
+registerEditorContribution(Testing.DecorationsContributionId, TestingDecorations);
 
 CommandsRegistry.registerCommand({
 	id: 'vscode.runTests',
@@ -115,28 +117,10 @@ CommandsRegistry.registerCommand({
 });
 
 CommandsRegistry.registerCommand({
-	id: 'vscode.revealTestMessage',
-	handler: async (accessor: ServicesAccessor, testRef: TestIdWithProvider, messageIndex: number) => {
-		const editorService = accessor.get(IEditorService);
-		const testService = accessor.get(ITestService);
-
-		const test = await testService.lookupTest(testRef);
-		const message = test?.item.state.messages[messageIndex];
-		if (!test || !message?.location) {
-			return;
-		}
-
-		const pane = await editorService.openEditor({
-			resource: URI.revive(message.location.uri),
-			options: { selection: message.location.range }
-		});
-
-		const control = pane?.getControl();
-		if (!isCodeEditor(control)) {
-			return;
-		}
-
-		TestingOutputPeekController.get(control).show(test, messageIndex);
+	id: 'vscode.revealTestInExplorer',
+	handler: async (accessor: ServicesAccessor, path: string[]) => {
+		accessor.get(ITestExplorerFilterState).reveal = path;
+		await new Action.ShowTestView().run(accessor);
 	}
 });
 

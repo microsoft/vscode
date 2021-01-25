@@ -62,7 +62,7 @@ suite('BackupRestorer', () => {
 
 		// Verify backups restored and opened as dirty
 		await restorer.doRestoreBackups();
-		assert.equal(editorService.count, 4);
+		assert.strictEqual(editorService.count, 4);
 		assert.ok(editorService.editors.every(editor => editor.isDirty()));
 
 		let counter = 0;
@@ -101,7 +101,7 @@ suite('BackupRestorer', () => {
 			}
 		}
 
-		assert.equal(counter, 4);
+		assert.strictEqual(counter, 4);
 
 		part.dispose();
 		tracker.dispose();

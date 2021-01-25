@@ -3,7 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { equal } from 'assert';
+import { strictEqual } from 'assert';
 import { FileStorageDatabase } from 'vs/platform/storage/browser/storageService';
 import { join } from 'vs/base/common/path';
 import { tmpdir } from 'os';
@@ -54,9 +54,9 @@ suite('Storage', () => {
 		storage.set('barNumber', 55);
 		storage.set('barBoolean', true);
 
-		equal(storage.get('bar'), 'foo');
-		equal(storage.get('barNumber'), '55');
-		equal(storage.get('barBoolean'), 'true');
+		strictEqual(storage.get('bar'), 'foo');
+		strictEqual(storage.get('barNumber'), '55');
+		strictEqual(storage.get('barBoolean'), 'true');
 
 		await storage.close();
 
@@ -64,17 +64,17 @@ suite('Storage', () => {
 
 		await storage.init();
 
-		equal(storage.get('bar'), 'foo');
-		equal(storage.get('barNumber'), '55');
-		equal(storage.get('barBoolean'), 'true');
+		strictEqual(storage.get('bar'), 'foo');
+		strictEqual(storage.get('barNumber'), '55');
+		strictEqual(storage.get('barBoolean'), 'true');
 
 		storage.delete('bar');
 		storage.delete('barNumber');
 		storage.delete('barBoolean');
 
-		equal(storage.get('bar', 'undefined'), 'undefined');
-		equal(storage.get('barNumber', 'undefinedNumber'), 'undefinedNumber');
-		equal(storage.get('barBoolean', 'undefinedBoolean'), 'undefinedBoolean');
+		strictEqual(storage.get('bar', 'undefined'), 'undefined');
+		strictEqual(storage.get('barNumber', 'undefinedNumber'), 'undefinedNumber');
+		strictEqual(storage.get('barBoolean', 'undefinedBoolean'), 'undefinedBoolean');
 
 		await storage.close();
 
@@ -82,8 +82,8 @@ suite('Storage', () => {
 
 		await storage.init();
 
-		equal(storage.get('bar', 'undefined'), 'undefined');
-		equal(storage.get('barNumber', 'undefinedNumber'), 'undefinedNumber');
-		equal(storage.get('barBoolean', 'undefinedBoolean'), 'undefinedBoolean');
+		strictEqual(storage.get('bar', 'undefined'), 'undefined');
+		strictEqual(storage.get('barNumber', 'undefinedNumber'), 'undefinedNumber');
+		strictEqual(storage.get('barBoolean', 'undefinedBoolean'), 'undefinedBoolean');
 	});
 });

@@ -202,9 +202,9 @@ export class SharedProcess extends Disposable implements ISharedProcess {
 		this.window.on('close', this.windowCloseListener);
 
 		// Crashes & Unrsponsive & Failed to load
-		this.window.webContents.on('render-process-gone', (event, details) => this.logService.error(`[VS Code]: sharedProcess crashed (detail: ${details?.reason})`));
-		this.window.on('unresponsive', () => this.logService.error('[VS Code]: detected unresponsive sharedProcess window'));
-		this.window.webContents.on('did-fail-load', (event, errorCode, errorDescription) => this.logService.warn('[VS Code]: fail to load sharedProcess window, ', errorDescription));
+		this.window.webContents.on('render-process-gone', (event, details) => this.logService.error(`SharedProcess: crashed (detail: ${details?.reason})`));
+		this.window.on('unresponsive', () => this.logService.error('SharedProcess: detected unresponsive window'));
+		this.window.webContents.on('did-fail-load', (event, errorCode, errorDescription) => this.logService.warn('SharedProcess: failed to load window, ', errorDescription));
 	}
 
 	spawn(userEnv: NodeJS.ProcessEnv): void {

@@ -149,19 +149,19 @@ export class CodeApplication extends Disposable {
 			event.preventDefault();
 		});
 		app.on('remote-get-global', (event, sender, module) => {
-			this.logService.trace(`App#on(remote-get-global): prevented on ${module}`);
+			this.logService.trace(`app#on(remote-get-global): prevented on ${module}`);
 
 			event.preventDefault();
 		});
 		app.on('remote-get-builtin', (event, sender, module) => {
-			this.logService.trace(`App#on(remote-get-builtin): prevented on ${module}`);
+			this.logService.trace(`app#on(remote-get-builtin): prevented on ${module}`);
 
 			if (module !== 'clipboard') {
 				event.preventDefault();
 			}
 		});
 		app.on('remote-get-current-window', event => {
-			this.logService.trace(`App#on(remote-get-current-window): prevented`);
+			this.logService.trace(`app#on(remote-get-current-window): prevented`);
 
 			event.preventDefault();
 		});
@@ -170,7 +170,7 @@ export class CodeApplication extends Disposable {
 				return; // the driver needs access to web contents
 			}
 
-			this.logService.trace(`App#on(remote-get-current-web-contents): prevented`);
+			this.logService.trace(`app#on(remote-get-current-web-contents): prevented`);
 
 			event.preventDefault();
 		});
@@ -921,8 +921,8 @@ export class CodeApplication extends Disposable {
 				const WindowsMutex = (require.__$__nodeRequire('windows-mutex') as typeof import('windows-mutex')).Mutex;
 				const mutex = new WindowsMutex(win32MutexName);
 				once(this.lifecycleMainService.onWillShutdown)(() => mutex.release());
-			} catch (e) {
-				this.logService.error(e);
+			} catch (error) {
+				this.logService.error(error);
 			}
 		}
 

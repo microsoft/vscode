@@ -89,6 +89,7 @@ class BeforeShutdownEventImpl implements BeforeShutdownEvent {
 }
 
 flakySuite('BackupTracker (native)', function () {
+	let testDir: string;
 	let backupHome: string;
 	let workspaceBackupPath: string;
 
@@ -96,8 +97,8 @@ flakySuite('BackupTracker (native)', function () {
 	let disposables: IDisposable[] = [];
 
 	setup(async () => {
-		const userdataDir = getRandomTestPath(os.tmpdir(), 'vsctests', 'backuprestorer');
-		backupHome = path.join(userdataDir, 'Backups');
+		testDir = getRandomTestPath(os.tmpdir(), 'vsctests', 'backuprestorer');
+		backupHome = path.join(testDir, 'Backups');
 		const workspacesJsonPath = path.join(backupHome, 'workspaces.json');
 
 		const workspaceResource = URI.file(platform.isWindows ? 'c:\\workspace' : '/workspace');
@@ -127,11 +128,11 @@ flakySuite('BackupTracker (native)', function () {
 
 		(<TextFileEditorModelManager>accessor.textFileService.files).dispose();
 
-		return pfs.rimraf(backupHome);
+		return pfs.rimraf(testDir);
 	});
 
 	async function createTracker(autoSaveEnabled = false): Promise<{ accessor: TestServiceAccessor, part: EditorPart, tracker: BackupTracker, instantiationService: IInstantiationService, cleanup: () => Promise<void> }> {
-		const backupFileService = new NodeTestBackupFileService(workspaceBackupPath);
+		const backupFileService = new NodeTestBackupFileService(testDir, workspaceBackupPath);
 		const instantiationService = workbenchInstantiationService();
 		instantiationService.stub(IBackupFileService, backupFileService);
 
@@ -183,13 +184,13 @@ flakySuite('BackupTracker (native)', function () {
 
 		await accessor.backupFileService.joinBackupResource();
 
-		assert.equal(accessor.backupFileService.hasBackupSync(resource), true);
+		assert.strictEqual(accessor.backupFileService.hasBackupSync(resource), true);
 
 		fileModel?.dispose();
 
 		await accessor.backupFileService.joinDiscardBackup();
 
-		assert.equal(accessor.backupFileService.hasBackupSync(resource), false);
+		assert.strictEqual(accessor.backupFileService.hasBackupSync(resource), false);
 
 		await cleanup();
 	});
@@ -222,7 +223,7 @@ flakySuite('BackupTracker (native)', function () {
 
 		await model?.load();
 		model?.textEditorModel?.setValue('foo');
-		assert.equal(accessor.workingCopyService.dirtyCount, 1);
+		assert.strictEqual(accessor.workingCopyService.dirtyCount, 1);
 
 		const event = new BeforeShutdownEventImpl();
 		accessor.lifecycleService.fireWillShutdown(event);
@@ -243,7 +244,7 @@ flakySuite('BackupTracker (native)', function () {
 
 		await model?.load();
 		model?.textEditorModel?.setValue('foo');
-		assert.equal(accessor.workingCopyService.dirtyCount, 1);
+		assert.strictEqual(accessor.workingCopyService.dirtyCount, 1);
 
 		const event = new BeforeShutdownEventImpl();
 		accessor.lifecycleService.fireWillShutdown(event);
@@ -251,7 +252,7 @@ flakySuite('BackupTracker (native)', function () {
 		const veto = await event.value;
 		assert.ok(!veto);
 
-		assert.equal(accessor.workingCopyService.dirtyCount, 0);
+		assert.strictEqual(accessor.workingCopyService.dirtyCount, 0);
 
 		await cleanup();
 	});
@@ -269,7 +270,7 @@ flakySuite('BackupTracker (native)', function () {
 
 		await model?.load();
 		model?.textEditorModel?.setValue('foo');
-		assert.equal(accessor.workingCopyService.dirtyCount, 1);
+		assert.strictEqual(accessor.workingCopyService.dirtyCount, 1);
 		const event = new BeforeShutdownEventImpl();
 		accessor.lifecycleService.fireWillShutdown(event);
 
@@ -293,7 +294,7 @@ flakySuite('BackupTracker (native)', function () {
 
 		await model?.load();
 		model?.textEditorModel?.setValue('foo');
-		assert.equal(accessor.workingCopyService.dirtyCount, 1);
+		assert.strictEqual(accessor.workingCopyService.dirtyCount, 1);
 		const event = new BeforeShutdownEventImpl();
 		accessor.lifecycleService.fireWillShutdown(event);
 
@@ -433,15 +434,15 @@ flakySuite('BackupTracker (native)', function () {
 
 			await model?.load();
 			model?.textEditorModel?.setValue('foo');
-			assert.equal(accessor.workingCopyService.dirtyCount, 1);
+			assert.strictEqual(accessor.workingCopyService.dirtyCount, 1);
 
 			const event = new BeforeShutdownEventImpl();
 			event.reason = shutdownReason;
 			accessor.lifecycleService.fireWillShutdown(event);
 
 			const veto = await event.value;
-			assert.equal(accessor.backupFileService.discardedBackups.length, 0); // When hot exit is set, backups should never be cleaned since the confirm result is cancel
-			assert.equal(veto, shouldVeto);
+			assert.strictEqual(accessor.backupFileService.discardedBackups.length, 0); // When hot exit is set, backups should never be cleaned since the confirm result is cancel
+			assert.strictEqual(veto, shouldVeto);
 
 			await cleanup();
 		}
