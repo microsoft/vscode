@@ -153,7 +153,7 @@
     is-absolute "^1.0.0"
     is-negated-glob "^1.0.0"
 
-"@electron/get@^1.0.1", "@electron/get@^1.10.0":
+"@electron/get@^1.0.1", "@electron/get@^1.12.3":
   version "1.12.3"
   resolved "https://registry.yarnpkg.com/@electron/get/-/get-1.12.3.tgz#fa2723385c4b565a34c4c82f46087aa2a5fbf6d0"
   integrity sha512-NFwSnVZQK7dhOYF1NQCt+HGqgL1aNdj0LUSx75uCqnZJqyiWCVdAMFV4b4/kC8HjUJAnsvdSEmjEt4G2qNQ9+Q==
@@ -4404,12 +4404,12 @@ growl@1.10.5:
   resolved "https://registry.yarnpkg.com/growl/-/growl-1.10.5.tgz#f2735dc2283674fa67478b10181059355c369e5e"
   integrity sha512-qBr4OuELkhPenW6goKVXiv47US3clb3/IbuWF9KNKEijAy9oeHxU9IgzjvJhHkUzhaj7rOUD7+YGWqUjLp5oSA==
 
-gulp-atom-electron@^1.26.0:
-  version "1.26.0"
-  resolved "https://registry.yarnpkg.com/gulp-atom-electron/-/gulp-atom-electron-1.26.0.tgz#ecec8fb3b0dc76522a7b1a72c7f6373bc1b9843b"
-  integrity sha512-lpvrNZd74mZ4zhEVvDincc63MdVNf3jGxr3H9dbFD5an/Ep2wS6bZPqGm/hlp3b9PbBPhmVMykSEyb8A0iZtTA==
+gulp-atom-electron@^1.27.0:
+  version "1.27.0"
+  resolved "https://registry.yarnpkg.com/gulp-atom-electron/-/gulp-atom-electron-1.27.0.tgz#88649954ffdaa95ae81d34e6b06c81098ae9aa9d"
+  integrity sha512-XB6GlLbY+PVlPjUdlr+P29xoWWCa6qurowyeBCjT3I2HnOrFCbOnt4O8a/2wVZSaHXdxOajTta1wsp6oVDJs5A==
   dependencies:
-    "@electron/get" "^1.10.0"
+    "@electron/get" "^1.12.3"
     "@octokit/rest" "^18.0.14"
     event-stream "3.3.4"
     gulp-filter "^5.1.0"
