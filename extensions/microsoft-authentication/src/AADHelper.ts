@@ -72,7 +72,10 @@ export interface ITokenResponse {
 	id_token?: string;
 }
 
-type MicrosoftTokens = [accessToken: string, idToken?: string];
+export interface IMicrosoftTokens {
+	accessToken: string;
+	idToken?: string;
+}
 
 export interface MicrosoftAuthenticationSession extends vscode.AuthenticationSession {
 	idToken?: string;
@@ -239,26 +242,32 @@ export class AzureActiveDirectoryService {
 		const resolvedTokens = await this.resolveAccessAndIdTokens(token);
 		return {
 			id: token.sessionId,
-			accessToken: resolvedTokens[0],
-			idToken: resolvedTokens[1],
+			accessToken: resolvedTokens.accessToken,
+			idToken: resolvedTokens.idToken,
 			account: token.account,
 			scopes: token.scope.split(' ')
 		};
 	}
 
-	private async resolveAccessAndIdTokens(token: IToken): Promise<MicrosoftTokens> {
+	private async resolveAccessAndIdTokens(token: IToken): Promise<IMicrosoftTokens> {
 		if (token.accessToken && (!token.expiresAt || token.expiresAt > Date.now())) {
 			token.expiresAt
 				? Logger.info(`Token available from cache, expires in ${token.expiresAt - Date.now()} milliseconds`)
 				: Logger.info('Token available from cache');
-			return Promise.resolve([token.accessToken, token.idToken]);
+			return Promise.resolve({
+				accessToken: token.accessToken,
+				idToken: token.idToken
+			});
 		}
 
 		try {
 			Logger.info('Token expired or unavailable, trying refresh');
 			const refreshedToken = await this.refreshToken(token.refreshToken, token.scope, token.sessionId);
 			if (refreshedToken.accessToken) {
-				return [refreshedToken.accessToken, refreshedToken.idToken];
+				return {
+					accessToken: refreshedToken.accessToken,
+					idToken: refreshedToken.idToken
+				};
 			} else {
 				throw new Error();
 			}
