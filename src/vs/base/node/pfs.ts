@@ -74,8 +74,8 @@ async function rimrafUnlink(path: string): Promise<void> {
 
 			// chmod as needed to allow for unlink
 			const mode = stat.mode;
-			if (!(mode & 128)) { // 128 === 0200
-				await chmod(path, mode | 128);
+			if (!(mode & fs.constants.S_IWUSR)) {
+				await chmod(path, mode | fs.constants.S_IWUSR);
 			}
 
 			return unlink(path);
@@ -129,8 +129,8 @@ export function rimrafSync(path: string): void {
 
 			// chmod as needed to allow for unlink
 			const mode = stat.mode;
-			if (!(mode & 128)) { // 128 === 0200
-				fs.chmodSync(path, mode | 128);
+			if (!(mode & fs.constants.S_IWUSR)) {
+				fs.chmodSync(path, mode | fs.constants.S_IWUSR);
 			}
 
 			return fs.unlinkSync(path);
@@ -398,11 +398,11 @@ export function writeFileSync(path: string, data: string | Buffer, options?: IWr
 
 function ensureWriteOptions(options?: IWriteFileOptions): IEnsuredWriteFileOptions {
 	if (!options) {
-		return { mode: 0o666, flag: 'w' };
+		return { mode: 0o666 /* default node.js mode for files */, flag: 'w' };
 	}
 
 	return {
-		mode: typeof options.mode === 'number' ? options.mode : 0o666,
+		mode: typeof options.mode === 'number' ? options.mode : 0o666 /* default node.js mode for files */,
 		flag: typeof options.flag === 'string' ? options.flag : 'w'
 	};
 }
@@ -422,38 +422,26 @@ export async function readDirsInDir(dirPath: string): Promise<string[]> {
 
 export async function dirExists(path: string): Promise<boolean> {
 	try {
-		const fileStat = await stat(path);
+		const { stat, symbolicLink } = await statLink(path);
 
-		return fileStat.isDirectory();
+		return stat.isDirectory() && symbolicLink?.dangling !== true;
 	} catch (error) {
-		// This catch will be called on some symbolic links on Windows (AppExecLink for example).
-		// So we try our best to see if it's a Directory.
-		try {
-			const fileStat = await stat(await readlink(path));
-
-			return fileStat.isDirectory();
-		} catch {
-			return false;
-		}
+		// Ignore, path might not exist
 	}
+
+	return false;
 }
 
 export async function fileExists(path: string): Promise<boolean> {
 	try {
-		const fileStat = await stat(path);
+		const { stat, symbolicLink } = await statLink(path);
 
-		return fileStat.isFile();
+		return stat.isFile() && symbolicLink?.dangling !== true;
 	} catch (error) {
-		// This catch will be called on some symbolic links on Windows (AppExecLink for example).
-		// So we try our best to see if it's a File.
-		try {
-			const fileStat = await stat(await readlink(path));
-
-			return fileStat.isFile();
-		} catch {
-			return false;
-		}
+		// Ignore, path might not exist
 	}
+
+	return false;
 }
 
 export function whenDeleted(path: string): Promise<void> {
@@ -521,28 +509,43 @@ export async function move(source: string, target: string): Promise<void> {
 	}
 }
 
-export async function copy(source: string, target: string, copiedSourcesIn?: { [path: string]: boolean }): Promise<void> {
-	const copiedSources = copiedSourcesIn ? copiedSourcesIn : Object.create(null);
+// When copying a file or folder, we want to preserve the mode
+// it had and as such provide it when creating. However, modes
+// can go beyond what we expect (see link below), so we mask it.
+// (https://github.com/nodejs/node-v0.x-archive/issues/3045#issuecomment-4862588)
+//
+// The `copy` method is very old so we should probably revisit
+// it's implementation and check wether this mask is still needed.
+const COPY_MODE_MASK = 0o777;
 
-	const fileStat = await stat(source);
-	if (!fileStat.isDirectory()) {
-		return doCopyFile(source, target, fileStat.mode & 511);
+export async function copy(source: string, target: string, handledSourcesIn?: { [path: string]: boolean }): Promise<void> {
+
+	// Keep track of paths already copied to prevent
+	// cycles from symbolic links to cause issues
+	const handledSources = handledSourcesIn ?? Object.create(null);
+	if (handledSources[source]) {
+		return;
+	} else {
+		handledSources[source] = true;
 	}
 
-	if (copiedSources[source]) {
-		return; // escape when there are cycles (can happen with symlinks)
+	const { stat, symbolicLink } = await statLink(source);
+	if (symbolicLink?.dangling) {
+		return; // skip over dangling symbolic links (https://github.com/microsoft/vscode/issues/111621)
 	}
 
-	copiedSources[source] = true; // remember as copied
+	if (!stat.isDirectory()) {
+		return doCopyFile(source, target, stat.mode & COPY_MODE_MASK);
+	}
 
 	// Create folder
-	await mkdirp(target, fileStat.mode & 511);
+	await mkdirp(target, stat.mode & COPY_MODE_MASK);
 
 	// Copy each file recursively
 	const files = await readdir(source);
 	for (let i = 0; i < files.length; i++) {
 		const file = files[i];
-		await copy(join(source, file), join(target, file), copiedSources);
+		await copy(join(source, file), join(target, file), handledSources);
 	}
 }
 

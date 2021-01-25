@@ -250,6 +250,11 @@ export class ExtHostPseudoterminal implements ITerminalChildProcess {
 		}
 
 		this._pty.open(initialDimensions ? initialDimensions : undefined);
+
+		if (this._pty.setDimensions && initialDimensions) {
+			this._pty.setDimensions(initialDimensions);
+		}
+
 		this._onProcessReady.fire({ pid: -1, cwd: '' });
 	}
 }

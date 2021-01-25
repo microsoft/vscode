@@ -13,11 +13,11 @@ suite('Keytar', () => {
 		const name = `VSCode Test ${Math.floor(Math.random() * 1e9)}`;
 		try {
 			await keytar.setPassword(name, 'foo', 'bar');
-			assert.equal(await keytar.findPassword(name), 'bar');
-			assert.equal((await keytar.findCredentials(name)).length, 1);
-			assert.equal(await keytar.getPassword(name, 'foo'), 'bar');
+			assert.strictEqual(await keytar.findPassword(name), 'bar');
+			assert.strictEqual((await keytar.findCredentials(name)).length, 1);
+			assert.strictEqual(await keytar.getPassword(name, 'foo'), 'bar');
 			await keytar.deletePassword(name, 'foo');
-			assert.equal(await keytar.getPassword(name, 'foo'), undefined);
+			assert.strictEqual(await keytar.getPassword(name, 'foo'), null);
 		} catch (err) {
 			// try to clean up
 			try {

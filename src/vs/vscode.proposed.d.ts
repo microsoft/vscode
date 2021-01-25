@@ -1297,17 +1297,11 @@ declare module 'vscode' {
 		 * The range will always be revealed in the center of the viewport.
 		 */
 		InCenter = 1,
-
 		/**
 		 * If the range is outside the viewport, it will be revealed in the center of the viewport.
 		 * Otherwise, it will be revealed with as little scrolling as possible.
 		 */
 		InCenterIfOutsideViewport = 2,
-
-		/**
-		 * The range will always be revealed at the top of the viewport.
-		 */
-		AtTop = 3
 	}
 
 	export interface NotebookEditor {
@@ -2080,13 +2074,31 @@ declare module 'vscode' {
 		 * Returns an observer that retrieves tests in the given text document.
 		 */
 		export function createDocumentTestObserver(document: TextDocument): TestObserver;
+
+		/**
+		 * The last or selected test run. Cleared when a new test run starts.
+		 */
+		export const testResults: TestResults | undefined;
+
+		/**
+		 * Event that fires when the testResults are updated.
+		 */
+		export const onDidChangeTestResults: Event<void>;
+	}
+
+	export interface TestResults {
+		/**
+		 * The results from the latest test run. The array contains a snapshot of
+		 * all tests involved in the run at the moment when it completed.
+		 */
+		readonly tests: ReadonlyArray<RequiredTestItem> | undefined;
 	}
 
 	export interface TestObserver {
 		/**
 		 * List of tests returned by test provider for files in the workspace.
 		 */
-		readonly tests: ReadonlyArray<TestItem>;
+		readonly tests: ReadonlyArray<RequiredTestItem>;
 
 		/**
 		 * An event that fires when an existing test in the collection changes, or
@@ -2116,23 +2128,23 @@ declare module 'vscode' {
 		/**
 		 * List of all tests that are newly added.
 		 */
-		readonly added: ReadonlyArray<TestItem>;
+		readonly added: ReadonlyArray<RequiredTestItem>;
 
 		/**
 		 * List of existing tests that have updated.
 		 */
-		readonly updated: ReadonlyArray<TestItem>;
+		readonly updated: ReadonlyArray<RequiredTestItem>;
 
 		/**
 		 * List of existing tests that have been removed.
 		 */
-		readonly removed: ReadonlyArray<TestItem>;
+		readonly removed: ReadonlyArray<RequiredTestItem>;
 
 		/**
 		 * Highest node in the test tree under which changes were made. This can
 		 * be easily plugged into events like the TreeDataProvider update event.
 		 */
-		readonly commonChangeAncestor: TestItem | null;
+		readonly commonChangeAncestor: RequiredTestItem | null;
 	}
 
 	/**
@@ -2239,6 +2251,16 @@ declare module 'vscode' {
 		label: string;
 
 		/**
+		 * Optional unique identifier for the TestItem. This is used to correlate
+		 * test results and tests in the document with those in the workspace
+		 * (test explorer). This must not change for the lifetime of a test item.
+		 *
+		 * If the ID is not provided, it defaults to the concatenation of the
+		 * item's label and its parent's ID, if any.
+		 */
+		readonly id?: string;
+
+		/**
 		 * Optional description that appears next to the label.
 		 */
 		description?: string;
@@ -2273,6 +2295,15 @@ declare module 'vscode' {
 		 */
 		state: TestState;
 	}
+
+	/**
+	 * A {@link TestItem} with its defaults filled in.
+	 */
+	export type RequiredTestItem = {
+		[K in keyof Required<TestItem>]: K extends 'children'
+		? RequiredTestItem[]
+		: (K extends 'description' | 'location' ? TestItem[K] : Required<TestItem>[K])
+	};
 
 	export enum TestRunState {
 		// Initial state

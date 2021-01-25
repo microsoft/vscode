@@ -825,7 +825,7 @@ export class SearchView extends ViewPane {
 			if (next === selected) {
 				this.tree.setFocus([]);
 			}
-			this.tree.setFocus([next], getSelectionKeyboardEvent(undefined, false));
+			this.tree.setFocus([next], getSelectionKeyboardEvent(undefined, false, false));
 			this.tree.reveal(next);
 			const ariaLabel = this.treeAccessibilityProvider.getAriaLabel(next);
 			if (ariaLabel) { aria.alert(ariaLabel); }
@@ -866,7 +866,7 @@ export class SearchView extends ViewPane {
 			if (prev === selected) {
 				this.tree.setFocus([]);
 			}
-			this.tree.setFocus([prev], getSelectionKeyboardEvent(undefined, false));
+			this.tree.setFocus([prev], getSelectionKeyboardEvent(undefined, false, false));
 			this.tree.reveal(prev);
 			const ariaLabel = this.treeAccessibilityProvider.getAriaLabel(prev);
 			if (ariaLabel) { aria.alert(ariaLabel); }

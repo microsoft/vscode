@@ -206,7 +206,7 @@ export class SubmenuEntryActionViewItem extends DropdownMenuActionViewItem {
 		action: SubmenuItemAction,
 		@IContextMenuService contextMenuService: IContextMenuService
 	) {
-		super(action, action.actions, contextMenuService, {
+		super(action, { getActions: () => action.actions }, contextMenuService, {
 			menuAsChild: true,
 			classNames: ThemeIcon.isThemeIcon(action.item.icon) ? ThemeIcon.asClassName(action.item.icon) : undefined,
 		});

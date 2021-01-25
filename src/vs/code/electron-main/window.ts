@@ -3,10 +3,10 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import * as os from 'os';
-import * as path from 'vs/base/common/path';
-import * as nls from 'vs/nls';
-import * as perf from 'vs/base/common/performance';
+import { release } from 'os';
+import { join } from 'vs/base/common/path';
+import { localize } from 'vs/nls';
+import { getMarks, mark } from 'vs/base/common/performance';
 import { Emitter } from 'vs/base/common/event';
 import { URI } from 'vs/base/common/uri';
 import { screen, BrowserWindow, systemPreferences, app, TouchBar, nativeImage, Rectangle, Display, TouchBarSegmentedControl, NativeImage, BrowserWindowConstructorOptions, SegmentedControlSegment, nativeTheme, Event, RenderProcessGoneDetails } from 'electron';
@@ -20,7 +20,7 @@ import { WindowMinimumSize, IWindowSettings, MenuBarVisibility, getTitleBarStyle
 import { Disposable, toDisposable } from 'vs/base/common/lifecycle';
 import { browserCodeLoadingCacheStrategy, isLinux, isMacintosh, isWindows } from 'vs/base/common/platform';
 import { ICodeWindow, IWindowState, WindowMode } from 'vs/platform/windows/electron-main/windows';
-import { ISingleFolderWorkspaceIdentifier, IWorkspaceIdentifier } from 'vs/platform/workspaces/common/workspaces';
+import { ISingleFolderWorkspaceIdentifier, isSingleFolderWorkspaceIdentifier, isWorkspaceIdentifier, IWorkspaceIdentifier } from 'vs/platform/workspaces/common/workspaces';
 import { IWorkspacesManagementMainService } from 'vs/platform/workspaces/electron-main/workspacesManagementMainService';
 import { IBackupMainService } from 'vs/platform/backup/electron-main/backup';
 import { ISerializableCommandAction } from 'vs/platform/actions/common/actions';
@@ -189,9 +189,9 @@ export class CodeWindow extends Disposable implements ICodeWindow {
 			// Linux: always
 			// Windows: only when running out of sources, otherwise an icon is set by us on the executable
 			if (isLinux) {
-				options.icon = path.join(this.environmentService.appRoot, 'resources/linux/code.png');
+				options.icon = join(this.environmentService.appRoot, 'resources/linux/code.png');
 			} else if (isWindows && !this.environmentService.isBuilt) {
-				options.icon = path.join(this.environmentService.appRoot, 'resources/win32/code_150x150.png');
+				options.icon = join(this.environmentService.appRoot, 'resources/win32/code_150x150.png');
 			}
 
 			if (isMacintosh && !this.useNativeFullScreen()) {
@@ -424,15 +424,17 @@ export class CodeWindow extends Disposable implements ICodeWindow {
 
 		const svgFileSchemes = new Set([Schemas.file, Schemas.vscodeFileResource, Schemas.vscodeRemoteResource, 'devtools']);
 		this._win.webContents.session.webRequest.onBeforeRequest((details, callback) => {
+			const uri = URI.parse(details.url);
 			// Prevent loading of remote svgs
-			if (details.url.endsWith('.svg')) {
-				const uri = URI.parse(details.url);
-				if (uri && !svgFileSchemes.has(uri.scheme)) {
+			if (uri && uri.path.endsWith('.svg')) {
+				const safeScheme = svgFileSchemes.has(uri.scheme) ||
+					uri.path.includes(Schemas.vscodeRemoteResource);
+				if (!safeScheme) {
 					return callback({ cancel: true });
 				}
 			}
 
-			return callback({});
+			return callback({ cancel: false });
 		});
 
 		this._win.webContents.session.webRequest.onHeadersReceived((details, callback) => {
@@ -440,17 +442,20 @@ export class CodeWindow extends Disposable implements ICodeWindow {
 			const contentType = (responseHeaders['content-type'] || responseHeaders['Content-Type']);
 
 			if (contentType && Array.isArray(contentType)) {
+				const uri = URI.parse(details.url);
 				// https://github.com/microsoft/vscode/issues/97564
 				// ensure local svg files have Content-Type image/svg+xml
-				if (details.url.endsWith('.svg')) {
-					const uri = URI.parse(details.url);
-					if (uri && svgFileSchemes.has(uri.scheme)) {
+				if (uri && uri.path.endsWith('.svg')) {
+					if (svgFileSchemes.has(uri.scheme)) {
 						responseHeaders['Content-Type'] = ['image/svg+xml'];
 						return callback({ cancel: false, responseHeaders });
 					}
 				}
 
-				if (contentType.some(x => x.toLowerCase().includes('image/svg'))) {
+				// remote extension schemes have the following format
+				// http://127.0.0.1:<port>/vscode-remote-resource?path=
+				if (!uri.path.includes(Schemas.vscodeRemoteResource) &&
+					contentType.some(x => x.toLowerCase().includes('image/svg'))) {
 					return callback({ cancel: true });
 				}
 			}
@@ -587,9 +592,9 @@ export class CodeWindow extends Disposable implements ICodeWindow {
 			this.dialogMainService.showMessageBox({
 				title: product.nameLong,
 				type: 'warning',
-				buttons: [mnemonicButtonLabel(nls.localize({ key: 'reopen', comment: ['&& denotes a mnemonic'] }, "&&Reopen")), mnemonicButtonLabel(nls.localize({ key: 'wait', comment: ['&& denotes a mnemonic'] }, "&&Keep Waiting")), mnemonicButtonLabel(nls.localize({ key: 'close', comment: ['&& denotes a mnemonic'] }, "&&Close"))],
-				message: nls.localize('appStalled', "The window is no longer responding"),
-				detail: nls.localize('appStalledDetail', "You can reopen or close the window or keep waiting."),
+				buttons: [mnemonicButtonLabel(localize({ key: 'reopen', comment: ['&& denotes a mnemonic'] }, "&&Reopen")), mnemonicButtonLabel(localize({ key: 'wait', comment: ['&& denotes a mnemonic'] }, "&&Keep Waiting")), mnemonicButtonLabel(localize({ key: 'close', comment: ['&& denotes a mnemonic'] }, "&&Close"))],
+				message: localize('appStalled', "The window is no longer responding"),
+				detail: localize('appStalledDetail', "You can reopen or close the window or keep waiting."),
 				noLink: true
 			}, this._win).then(result => {
 				if (!this._win) {
@@ -609,17 +614,17 @@ export class CodeWindow extends Disposable implements ICodeWindow {
 		else {
 			let message: string;
 			if (details && details.reason !== 'crashed') {
-				message = nls.localize('appCrashedDetails', "The window has crashed (reason: '{0}')", details?.reason);
+				message = localize('appCrashedDetails', "The window has crashed (reason: '{0}')", details?.reason);
 			} else {
-				message = nls.localize('appCrashed', "The window has crashed", details?.reason);
+				message = localize('appCrashed', "The window has crashed", details?.reason);
 			}
 
 			this.dialogMainService.showMessageBox({
 				title: product.nameLong,
 				type: 'warning',
-				buttons: [mnemonicButtonLabel(nls.localize({ key: 'reopen', comment: ['&& denotes a mnemonic'] }, "&&Reopen")), mnemonicButtonLabel(nls.localize({ key: 'close', comment: ['&& denotes a mnemonic'] }, "&&Close"))],
+				buttons: [mnemonicButtonLabel(localize({ key: 'reopen', comment: ['&& denotes a mnemonic'] }, "&&Reopen")), mnemonicButtonLabel(localize({ key: 'close', comment: ['&& denotes a mnemonic'] }, "&&Close"))],
 				message,
-				detail: nls.localize('appCrashedDetail', "We are sorry for the inconvenience! You can reopen the window to continue where you left off."),
+				detail: localize('appCrashedDetail', "We are sorry for the inconvenience! You can reopen the window to continue where you left off."),
 				noLink: true
 			}, this._win).then(result => {
 				if (!this._win) {
@@ -685,7 +690,7 @@ export class CodeWindow extends Disposable implements ICodeWindow {
 		}
 	}
 
-	load(config: INativeWindowConfiguration, isReload?: boolean, disableExtensions?: boolean): void {
+	load(config: INativeWindowConfiguration, { isReload, disableExtensions }: { isReload?: boolean, disableExtensions?: boolean } = Object.create(null)): void {
 
 		// If this window was loaded before from the command line
 		// (as indicated by VSCODE_CLI environment), make sure to
@@ -736,7 +741,7 @@ export class CodeWindow extends Disposable implements ICodeWindow {
 		}
 
 		// Load URL
-		perf.mark('code/willOpenNewWindow');
+		mark('code/willOpenNewWindow');
 		this._win.loadURL(this.getUrl(configuration));
 
 		// Make window visible if it did not open in N seconds because this indicates an error
@@ -755,10 +760,13 @@ export class CodeWindow extends Disposable implements ICodeWindow {
 		this._onLoad.fire();
 	}
 
-	reload(cli?: NativeParsedArgs): void {
+	async reload(cli?: NativeParsedArgs): Promise<void> {
 
 		// Copy our current config for reuse
 		const configuration = Object.assign({}, this.currentConfig);
+
+		// Validate workspace
+		configuration.workspace = await this.validateWorkspace(configuration);
 
 		// Delete some properties we do not want during reload
 		delete configuration.filesToOpenOrCreate;
@@ -769,17 +777,44 @@ export class CodeWindow extends Disposable implements ICodeWindow {
 		// in extension development mode. These options are all development related.
 		if (this.isExtensionDevelopmentHost && cli) {
 			configuration.verbose = cli.verbose;
+			configuration.debugId = cli.debugId;
 			configuration['inspect-extensions'] = cli['inspect-extensions'];
 			configuration['inspect-brk-extensions'] = cli['inspect-brk-extensions'];
-			configuration.debugId = cli.debugId;
 			configuration['extensions-dir'] = cli['extensions-dir'];
 		}
 
 		configuration.isInitialStartup = false; // since this is a reload
 
 		// Load config
-		const disableExtensions = cli ? cli['disable-extensions'] : undefined;
-		this.load(configuration, true, disableExtensions);
+		this.load(configuration, { isReload: true, disableExtensions: cli?.['disable-extensions'] });
+	}
+
+	private async validateWorkspace(configuration: INativeWindowConfiguration): Promise<IWorkspaceIdentifier | ISingleFolderWorkspaceIdentifier | undefined> {
+
+		// Multi folder
+		if (isWorkspaceIdentifier(configuration.workspace)) {
+			const configPath = configuration.workspace.configPath;
+			if (configPath.scheme === Schemas.file) {
+				const workspaceExists = await this.fileService.exists(configPath);
+				if (!workspaceExists) {
+					return undefined;
+				}
+			}
+		}
+
+		// Single folder
+		else if (isSingleFolderWorkspaceIdentifier(configuration.workspace)) {
+			const uri = configuration.workspace.uri;
+			if (uri.scheme === Schemas.file) {
+				const folderExists = await this.fileService.exists(uri);
+				if (!folderExists) {
+					return undefined;
+				}
+			}
+		}
+
+		// Workspace is valid
+		return configuration.workspace;
 	}
 
 	private getUrl(windowConfiguration: INativeWindowConfiguration): string {
@@ -812,14 +847,14 @@ export class CodeWindow extends Disposable implements ICodeWindow {
 		windowConfiguration.maximized = this._win.isMaximized();
 
 		// Dump Perf Counters
-		windowConfiguration.perfMarks = perf.getMarks();
+		windowConfiguration.perfMarks = getMarks();
 
 		// Parts splash
-		windowConfiguration.partsSplashPath = path.join(this.environmentService.userDataPath, 'rapid_render.json');
+		windowConfiguration.partsSplashPath = join(this.environmentService.userDataPath, 'rapid_render.json');
 
 		// OS Info
 		windowConfiguration.os = {
-			release: os.release()
+			release: release()
 		};
 
 		// Config (combination of process.argv and window configuration)
@@ -1170,7 +1205,7 @@ export class CodeWindow extends Disposable implements ICodeWindow {
 
 		if (visibility === 'toggle') {
 			if (notify) {
-				this.send('vscode:showInfoMessage', nls.localize('hiddenMenuBar', "You can still access the menu bar by pressing the Alt-key."));
+				this.send('vscode:showInfoMessage', localize('hiddenMenuBar', "You can still access the menu bar by pressing the Alt-key."));
 			}
 		}
 

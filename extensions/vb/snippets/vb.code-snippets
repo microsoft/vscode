@@ -1,0 +1,86 @@
+{
+	"For Next Loop": {
+		"prefix": "for",
+		"body": [
+			"For ${1:index} As ${2:ObjectType} = ${3:lower} To ${4:Upper}",
+			"\t$0",
+			"Next ${1:index}"
+		],
+		"description": "For Next Loop"
+	},
+	"For Each...Next": {
+		"prefix": "fore",
+		"body": [
+			"For Each ${1:Variable} As ${2:ObjectType} In ${3:Collection}",
+			"\t$0",
+			"Next"
+		],
+		"description": "For Each...Next"
+	},
+	"For i...Next i": {
+		"prefix": "fori",
+		"body": [
+			"For i As ${1:Integer} = ${2:Lower} To ${3:Upper}",
+			"\t$0",
+			"Next i"
+		],
+		"description": "For i...Next i"
+	},
+	"For j...Next j": {
+		"prefix": "forj",
+		"body": [
+			"For j As ${1:Integer} = ${2:Lower} To ${3:Upper}",
+			"\t$0",
+			"Next j"
+		],
+		"description": "For j...Next j"
+	},
+	"Public Function...": {
+		"prefix": "pf",
+		"body": [
+			"Public Function ${1:FunctionName}(${2:ParameterList}) As ${3:ReturnType}",
+			"\tTry",
+			"\t\t$0",
+			"\tCatch ex As Exception",
+			"\tEnd Try",
+			"\tReturn ${3:ReturnValue}",
+			"End Function"
+		],
+		"description": "Public Function..."
+	},
+	"Public Sub ...": {
+		"prefix": "ps",
+		"body": [
+			"Public Sub ${1:ProcedureName}(${2:ParameterList})",
+			"\tTry",
+			"\t\t$0",
+			"\tCatch ex As Exception",
+			"\tEnd Try",
+			"End Sub"
+		],
+		"description": "Public Sub ..."
+	},
+	"While ... End While": {
+		"prefix": "while",
+		"body": [
+			"While ${1:Boolean}",
+			"\t$0",
+			"End While"
+		],
+		"description": "While ... End While"
+	},
+	"Region Start": {
+		"prefix": "#Region",
+		"body": [
+			"#Region $0"
+		],
+		"description": "Folding Region Start"
+	},
+	"Region End": {
+		"prefix": "#End Region",
+		"body": [
+			"#End Region"
+		],
+		"description": "Folding Region End"
+	}
+}

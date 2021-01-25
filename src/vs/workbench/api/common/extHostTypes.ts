@@ -2872,8 +2872,7 @@ export enum NotebookCellStatusBarAlignment {
 export enum NotebookEditorRevealType {
 	Default = 0,
 	InCenter = 1,
-	InCenterIfOutsideViewport = 2,
-	AtTop = 3
+	InCenterIfOutsideViewport = 2
 }
 
 
@@ -2979,15 +2978,7 @@ export class TestState {
 	}
 }
 
-type AllowedUndefined = 'description' | 'location';
-
-/**
- * Test item without any optional properties. Only some properties are
- * permitted to be undefined, but they must still exist.
- */
-export type RequiredTestItem = {
-	[K in keyof Required<vscode.TestItem>]: K extends AllowedUndefined ? vscode.TestItem[K] : Required<vscode.TestItem>[K]
-};
+export type RequiredTestItem = vscode.RequiredTestItem;
 
 export type TestItem = vscode.TestItem;
 

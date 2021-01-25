@@ -601,6 +601,16 @@ export abstract class ViewPane extends Pane implements IView {
 							append(p, link.el);
 							disposables.add(link);
 							disposables.add(attachLinkStyler(link, this.themeService));
+
+							if (precondition && node.href.startsWith('command:')) {
+								const updateEnablement = () => link.style({ disabled: !this.contextKeyService.contextMatchesRules(precondition) });
+								updateEnablement();
+
+								const keys = new Set();
+								precondition.keys().forEach(key => keys.add(key));
+								const onDidChangeContext = Event.filter(this.contextKeyService.onDidChangeContext, e => e.affectsSome(keys));
+								onDidChangeContext(updateEnablement, null, disposables);
+							}
 						}
 					}
 				}

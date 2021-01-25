@@ -8,7 +8,7 @@ import { generateUuid } from 'vs/base/common/uuid';
 import { IContextKey, IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
 import { createDecorator } from 'vs/platform/instantiation/common/instantiation';
 import { TestRunState } from 'vs/workbench/api/common/extHostTypes';
-import { IncrementalTestCollectionItem, InternalTestItem, TestIdWithProvider } from 'vs/workbench/contrib/testing/common/testCollection';
+import { IncrementalTestCollectionItem, InternalTestItemWithChildren, TestIdWithProvider } from 'vs/workbench/contrib/testing/common/testCollection';
 import { TestingContextKeys } from 'vs/workbench/contrib/testing/common/testingContextKeys';
 import { isRunningState, statesInOrder } from 'vs/workbench/contrib/testing/common/testingStates';
 import { IMainThreadTestCollection } from 'vs/workbench/contrib/testing/common/testService';
@@ -50,9 +50,7 @@ const makeNode = (
 	return mapped;
 };
 
-export interface TestResultItem extends InternalTestItem {
-	children: TestResultItem[]
-}
+export interface TestResultItem extends InternalTestItemWithChildren { }
 
 /**
  * Results of a test. These are created when the test initially started running

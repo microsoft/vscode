@@ -501,19 +501,9 @@ export interface INotebookEditor extends IEditor, ICommonNotebookEditor {
 	triggerScroll(event: IMouseWheelEvent): void;
 
 	/**
-	 * The range will be revealed with as little scrolling as possible.
-	 */
-	revealCellRangeInView(range: ICellRange): void;
-
-	/**
 	 * Reveal cell into viewport.
 	 */
 	revealInView(cell: ICellViewModel): void;
-
-	/**
-	 * Reveal cell into the top of viewport.
-	 */
-	revealInViewAtTop(cell: ICellViewModel): void;
 
 	/**
 	 * Reveal cell into viewport center.
@@ -624,9 +614,7 @@ export interface INotebookCellList {
 	focusElement(element: ICellViewModel): void;
 	selectElement(element: ICellViewModel): void;
 	getFocusedElements(): ICellViewModel[];
-	revealElementsInView(range: ICellRange): void;
 	revealElementInView(element: ICellViewModel): void;
-	revealElementInViewAtTop(element: ICellViewModel): void;
 	revealElementInCenterIfOutsideViewport(element: ICellViewModel): void;
 	revealElementInCenter(element: ICellViewModel): void;
 	revealElementInCenterIfOutsideViewportAsync(element: ICellViewModel): Promise<void>;

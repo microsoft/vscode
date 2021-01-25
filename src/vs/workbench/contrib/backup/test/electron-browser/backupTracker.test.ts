@@ -89,6 +89,7 @@ class BeforeShutdownEventImpl implements BeforeShutdownEvent {
 }
 
 flakySuite('BackupTracker (native)', function () {
+	let testDir: string;
 	let backupHome: string;
 	let workspaceBackupPath: string;
 
@@ -96,8 +97,8 @@ flakySuite('BackupTracker (native)', function () {
 	let disposables: IDisposable[] = [];
 
 	setup(async () => {
-		const userdataDir = getRandomTestPath(os.tmpdir(), 'vsctests', 'backuprestorer');
-		backupHome = path.join(userdataDir, 'Backups');
+		testDir = getRandomTestPath(os.tmpdir(), 'vsctests', 'backuprestorer');
+		backupHome = path.join(testDir, 'Backups');
 		const workspacesJsonPath = path.join(backupHome, 'workspaces.json');
 
 		const workspaceResource = URI.file(platform.isWindows ? 'c:\\workspace' : '/workspace');
@@ -127,11 +128,11 @@ flakySuite('BackupTracker (native)', function () {
 
 		(<TextFileEditorModelManager>accessor.textFileService.files).dispose();
 
-		return pfs.rimraf(backupHome);
+		return pfs.rimraf(testDir);
 	});
 
 	async function createTracker(autoSaveEnabled = false): Promise<{ accessor: TestServiceAccessor, part: EditorPart, tracker: BackupTracker, instantiationService: IInstantiationService, cleanup: () => Promise<void> }> {
-		const backupFileService = new NodeTestBackupFileService(workspaceBackupPath);
+		const backupFileService = new NodeTestBackupFileService(testDir, workspaceBackupPath);
 		const instantiationService = workbenchInstantiationService();
 		instantiationService.stub(IBackupFileService, backupFileService);
 
