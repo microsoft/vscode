@@ -150,8 +150,8 @@ suite('BackupFileService', () => {
 			});
 			const actual = hashPath(uri);
 			// If these hashes change people will lose their backed up files!
-			assert.equal(actual, '13264068d108c6901b3592ea654fcd57');
-			assert.equal(actual, crypto.createHash('md5').update(uri.fsPath).digest('hex'));
+			assert.strictEqual(actual, '13264068d108c6901b3592ea654fcd57');
+			assert.strictEqual(actual, crypto.createHash('md5').update(uri.fsPath).digest('hex'));
 		});
 
 		test('should correctly hash the path for file scheme URIs', () => {
@@ -159,11 +159,11 @@ suite('BackupFileService', () => {
 			const actual = hashPath(uri);
 			// If these hashes change people will lose their backed up files!
 			if (platform.isWindows) {
-				assert.equal(actual, 'dec1a583f52468a020bd120c3f01d812');
+				assert.strictEqual(actual, 'dec1a583f52468a020bd120c3f01d812');
 			} else {
-				assert.equal(actual, '1effb2475fcfba4f9e8b8a1dbc8f3caf');
+				assert.strictEqual(actual, '1effb2475fcfba4f9e8b8a1dbc8f3caf');
 			}
-			assert.equal(actual, crypto.createHash('md5').update(uri.fsPath).digest('hex'));
+			assert.strictEqual(actual, crypto.createHash('md5').update(uri.fsPath).digest('hex'));
 		});
 	});
 
@@ -174,7 +174,7 @@ suite('BackupFileService', () => {
 			const workspaceHash = hashPath(workspaceResource);
 			const filePathHash = hashPath(backupResource);
 			const expectedPath = URI.file(path.join(backupHome, workspaceHash, Schemas.file, filePathHash)).with({ scheme: Schemas.userData }).toString();
-			assert.equal(service.toBackupResource(backupResource).toString(), expectedPath);
+			assert.strictEqual(service.toBackupResource(backupResource).toString(), expectedPath);
 		});
 
 		test('should get the correct backup path for untitled files', () => {
@@ -183,49 +183,49 @@ suite('BackupFileService', () => {
 			const workspaceHash = hashPath(workspaceResource);
 			const filePathHash = hashPath(backupResource);
 			const expectedPath = URI.file(path.join(backupHome, workspaceHash, Schemas.untitled, filePathHash)).with({ scheme: Schemas.userData }).toString();
-			assert.equal(service.toBackupResource(backupResource).toString(), expectedPath);
+			assert.strictEqual(service.toBackupResource(backupResource).toString(), expectedPath);
 		});
 	});
 
 	suite('backup', () => {
 		test('no text', async () => {
 			await service.backup(fooFile);
-			assert.equal(fs.readdirSync(path.join(workspaceBackupPath, 'file')).length, 1);
-			assert.equal(fs.existsSync(fooBackupPath), true);
-			assert.equal(fs.readFileSync(fooBackupPath), `${fooFile.toString()}\n`);
+			assert.strictEqual(fs.readdirSync(path.join(workspaceBackupPath, 'file')).length, 1);
+			assert.strictEqual(fs.existsSync(fooBackupPath), true);
+			assert.strictEqual(fs.readFileSync(fooBackupPath).toString(), `${fooFile.toString()}\n`);
 			assert.ok(service.hasBackupSync(fooFile));
 		});
 
 		test('text file', async () => {
 			await service.backup(fooFile, createTextBufferFactory('test').create(DefaultEndOfLine.LF).textBuffer.createSnapshot(false));
-			assert.equal(fs.readdirSync(path.join(workspaceBackupPath, 'file')).length, 1);
-			assert.equal(fs.existsSync(fooBackupPath), true);
-			assert.equal(fs.readFileSync(fooBackupPath), `${fooFile.toString()}\ntest`);
+			assert.strictEqual(fs.readdirSync(path.join(workspaceBackupPath, 'file')).length, 1);
+			assert.strictEqual(fs.existsSync(fooBackupPath), true);
+			assert.strictEqual(fs.readFileSync(fooBackupPath).toString(), `${fooFile.toString()}\ntest`);
 			assert.ok(service.hasBackupSync(fooFile));
 		});
 
 		test('text file (with version)', async () => {
 			await service.backup(fooFile, createTextBufferFactory('test').create(DefaultEndOfLine.LF).textBuffer.createSnapshot(false), 666);
-			assert.equal(fs.readdirSync(path.join(workspaceBackupPath, 'file')).length, 1);
-			assert.equal(fs.existsSync(fooBackupPath), true);
-			assert.equal(fs.readFileSync(fooBackupPath), `${fooFile.toString()}\ntest`);
+			assert.strictEqual(fs.readdirSync(path.join(workspaceBackupPath, 'file')).length, 1);
+			assert.strictEqual(fs.existsSync(fooBackupPath), true);
+			assert.strictEqual(fs.readFileSync(fooBackupPath).toString(), `${fooFile.toString()}\ntest`);
 			assert.ok(!service.hasBackupSync(fooFile, 555));
 			assert.ok(service.hasBackupSync(fooFile, 666));
 		});
 
 		test('text file (with meta)', async () => {
 			await service.backup(fooFile, createTextBufferFactory('test').create(DefaultEndOfLine.LF).textBuffer.createSnapshot(false), undefined, { etag: '678', orphaned: true });
-			assert.equal(fs.readdirSync(path.join(workspaceBackupPath, 'file')).length, 1);
-			assert.equal(fs.existsSync(fooBackupPath), true);
-			assert.equal(fs.readFileSync(fooBackupPath).toString(), `${fooFile.toString()} {"etag":"678","orphaned":true}\ntest`);
+			assert.strictEqual(fs.readdirSync(path.join(workspaceBackupPath, 'file')).length, 1);
+			assert.strictEqual(fs.existsSync(fooBackupPath), true);
+			assert.strictEqual(fs.readFileSync(fooBackupPath).toString(), `${fooFile.toString()} {"etag":"678","orphaned":true}\ntest`);
 			assert.ok(service.hasBackupSync(fooFile));
 		});
 
 		test('untitled file', async () => {
 			await service.backup(untitledFile, createTextBufferFactory('test').create(DefaultEndOfLine.LF).textBuffer.createSnapshot(false));
-			assert.equal(fs.readdirSync(path.join(workspaceBackupPath, 'untitled')).length, 1);
-			assert.equal(fs.existsSync(untitledBackupPath), true);
-			assert.equal(fs.readFileSync(untitledBackupPath), `${untitledFile.toString()}\ntest`);
+			assert.strictEqual(fs.readdirSync(path.join(workspaceBackupPath, 'untitled')).length, 1);
+			assert.strictEqual(fs.existsSync(untitledBackupPath), true);
+			assert.strictEqual(fs.readFileSync(untitledBackupPath).toString(), `${untitledFile.toString()}\ntest`);
 			assert.ok(service.hasBackupSync(untitledFile));
 		});
 
@@ -233,9 +233,9 @@ suite('BackupFileService', () => {
 			const model = createTextModel('test');
 
 			await service.backup(fooFile, model.createSnapshot());
-			assert.equal(fs.readdirSync(path.join(workspaceBackupPath, 'file')).length, 1);
-			assert.equal(fs.existsSync(fooBackupPath), true);
-			assert.equal(fs.readFileSync(fooBackupPath), `${fooFile.toString()}\ntest`);
+			assert.strictEqual(fs.readdirSync(path.join(workspaceBackupPath, 'file')).length, 1);
+			assert.strictEqual(fs.existsSync(fooBackupPath), true);
+			assert.strictEqual(fs.readFileSync(fooBackupPath).toString(), `${fooFile.toString()}\ntest`);
 			assert.ok(service.hasBackupSync(fooFile));
 
 			model.dispose();
@@ -245,9 +245,9 @@ suite('BackupFileService', () => {
 			const model = createTextModel('test');
 
 			await service.backup(untitledFile, model.createSnapshot());
-			assert.equal(fs.readdirSync(path.join(workspaceBackupPath, 'untitled')).length, 1);
-			assert.equal(fs.existsSync(untitledBackupPath), true);
-			assert.equal(fs.readFileSync(untitledBackupPath), `${untitledFile.toString()}\ntest`);
+			assert.strictEqual(fs.readdirSync(path.join(workspaceBackupPath, 'untitled')).length, 1);
+			assert.strictEqual(fs.existsSync(untitledBackupPath), true);
+			assert.strictEqual(fs.readFileSync(untitledBackupPath).toString(), `${untitledFile.toString()}\ntest`);
 
 			model.dispose();
 		});
@@ -257,9 +257,9 @@ suite('BackupFileService', () => {
 			const model = createTextModel(largeString);
 
 			await service.backup(fooFile, model.createSnapshot());
-			assert.equal(fs.readdirSync(path.join(workspaceBackupPath, 'file')).length, 1);
-			assert.equal(fs.existsSync(fooBackupPath), true);
-			assert.equal(fs.readFileSync(fooBackupPath), `${fooFile.toString()}\n${largeString}`);
+			assert.strictEqual(fs.readdirSync(path.join(workspaceBackupPath, 'file')).length, 1);
+			assert.strictEqual(fs.existsSync(fooBackupPath), true);
+			assert.strictEqual(fs.readFileSync(fooBackupPath).toString(), `${fooFile.toString()}\n${largeString}`);
 			assert.ok(service.hasBackupSync(fooFile));
 
 			model.dispose();
@@ -270,9 +270,9 @@ suite('BackupFileService', () => {
 			const model = createTextModel(largeString);
 
 			await service.backup(untitledFile, model.createSnapshot());
-			assert.equal(fs.readdirSync(path.join(workspaceBackupPath, 'untitled')).length, 1);
-			assert.equal(fs.existsSync(untitledBackupPath), true);
-			assert.equal(fs.readFileSync(untitledBackupPath), `${untitledFile.toString()}\n${largeString}`);
+			assert.strictEqual(fs.readdirSync(path.join(workspaceBackupPath, 'untitled')).length, 1);
+			assert.strictEqual(fs.existsSync(untitledBackupPath), true);
+			assert.strictEqual(fs.readFileSync(untitledBackupPath).toString(), `${untitledFile.toString()}\n${largeString}`);
 			assert.ok(service.hasBackupSync(untitledFile));
 
 			model.dispose();
@@ -284,7 +284,7 @@ suite('BackupFileService', () => {
 			cts.cancel();
 			await promise;
 
-			assert.equal(fs.existsSync(fooBackupPath), false);
+			assert.strictEqual(fs.existsSync(fooBackupPath), false);
 			assert.ok(!service.hasBackupSync(fooFile));
 		});
 	});
@@ -292,48 +292,48 @@ suite('BackupFileService', () => {
 	suite('discardBackup', () => {
 		test('text file', async () => {
 			await service.backup(fooFile, createTextBufferFactory('test').create(DefaultEndOfLine.LF).textBuffer.createSnapshot(false));
-			assert.equal(fs.readdirSync(path.join(workspaceBackupPath, 'file')).length, 1);
+			assert.strictEqual(fs.readdirSync(path.join(workspaceBackupPath, 'file')).length, 1);
 			assert.ok(service.hasBackupSync(fooFile));
 
 			await service.discardBackup(fooFile);
-			assert.equal(fs.existsSync(fooBackupPath), false);
-			assert.equal(fs.readdirSync(path.join(workspaceBackupPath, 'file')).length, 0);
+			assert.strictEqual(fs.existsSync(fooBackupPath), false);
+			assert.strictEqual(fs.readdirSync(path.join(workspaceBackupPath, 'file')).length, 0);
 			assert.ok(!service.hasBackupSync(fooFile));
 		});
 
 		test('untitled file', async () => {
 			await service.backup(untitledFile, createTextBufferFactory('test').create(DefaultEndOfLine.LF).textBuffer.createSnapshot(false));
-			assert.equal(fs.readdirSync(path.join(workspaceBackupPath, 'untitled')).length, 1);
+			assert.strictEqual(fs.readdirSync(path.join(workspaceBackupPath, 'untitled')).length, 1);
 			await service.discardBackup(untitledFile);
-			assert.equal(fs.existsSync(untitledBackupPath), false);
-			assert.equal(fs.readdirSync(path.join(workspaceBackupPath, 'untitled')).length, 0);
+			assert.strictEqual(fs.existsSync(untitledBackupPath), false);
+			assert.strictEqual(fs.readdirSync(path.join(workspaceBackupPath, 'untitled')).length, 0);
 		});
 	});
 
 	suite('discardBackups', () => {
 		test('text file', async () => {
 			await service.backup(fooFile, createTextBufferFactory('test').create(DefaultEndOfLine.LF).textBuffer.createSnapshot(false));
-			assert.equal(fs.readdirSync(path.join(workspaceBackupPath, 'file')).length, 1);
+			assert.strictEqual(fs.readdirSync(path.join(workspaceBackupPath, 'file')).length, 1);
 			await service.backup(barFile, createTextBufferFactory('test').create(DefaultEndOfLine.LF).textBuffer.createSnapshot(false));
-			assert.equal(fs.readdirSync(path.join(workspaceBackupPath, 'file')).length, 2);
+			assert.strictEqual(fs.readdirSync(path.join(workspaceBackupPath, 'file')).length, 2);
 			await service.discardBackups();
-			assert.equal(fs.existsSync(fooBackupPath), false);
-			assert.equal(fs.existsSync(barBackupPath), false);
-			assert.equal(fs.existsSync(path.join(workspaceBackupPath, 'file')), false);
+			assert.strictEqual(fs.existsSync(fooBackupPath), false);
+			assert.strictEqual(fs.existsSync(barBackupPath), false);
+			assert.strictEqual(fs.existsSync(path.join(workspaceBackupPath, 'file')), false);
 		});
 
 		test('untitled file', async () => {
 			await service.backup(untitledFile, createTextBufferFactory('test').create(DefaultEndOfLine.LF).textBuffer.createSnapshot(false));
-			assert.equal(fs.readdirSync(path.join(workspaceBackupPath, 'untitled')).length, 1);
+			assert.strictEqual(fs.readdirSync(path.join(workspaceBackupPath, 'untitled')).length, 1);
 			await service.discardBackups();
-			assert.equal(fs.existsSync(untitledBackupPath), false);
-			assert.equal(fs.existsSync(path.join(workspaceBackupPath, 'untitled')), false);
+			assert.strictEqual(fs.existsSync(untitledBackupPath), false);
+			assert.strictEqual(fs.existsSync(path.join(workspaceBackupPath, 'untitled')), false);
 		});
 
 		test('can backup after discarding all', async () => {
 			await service.discardBackups();
 			await service.backup(untitledFile, createTextBufferFactory('test').create(DefaultEndOfLine.LF).textBuffer.createSnapshot(false));
-			assert.equal(fs.existsSync(workspaceBackupPath), true);
+			assert.strictEqual(fs.existsSync(workspaceBackupPath), true);
 		});
 	});
 
@@ -341,22 +341,22 @@ suite('BackupFileService', () => {
 		test('("file") - text file', async () => {
 			await service.backup(fooFile, createTextBufferFactory('test').create(DefaultEndOfLine.LF).textBuffer.createSnapshot(false));
 			const textFiles = await service.getBackups();
-			assert.deepEqual(textFiles.map(f => f.fsPath), [fooFile.fsPath]);
+			assert.deepStrictEqual(textFiles.map(f => f.fsPath), [fooFile.fsPath]);
 			await service.backup(barFile, createTextBufferFactory('test').create(DefaultEndOfLine.LF).textBuffer.createSnapshot(false));
 			const textFiles_1 = await service.getBackups();
-			assert.deepEqual(textFiles_1.map(f => f.fsPath), [fooFile.fsPath, barFile.fsPath]);
+			assert.deepStrictEqual(textFiles_1.map(f => f.fsPath), [fooFile.fsPath, barFile.fsPath]);
 		});
 
 		test('("file") - untitled file', async () => {
 			await service.backup(untitledFile, createTextBufferFactory('test').create(DefaultEndOfLine.LF).textBuffer.createSnapshot(false));
 			const textFiles = await service.getBackups();
-			assert.deepEqual(textFiles.map(f => f.fsPath), [untitledFile.fsPath]);
+			assert.deepStrictEqual(textFiles.map(f => f.fsPath), [untitledFile.fsPath]);
 		});
 
 		test('("untitled") - untitled file', async () => {
 			await service.backup(untitledFile, createTextBufferFactory('test').create(DefaultEndOfLine.LF).textBuffer.createSnapshot(false));
 			const textFiles = await service.getBackups();
-			assert.deepEqual(textFiles.map(f => f.fsPath), ['Untitled-1']);
+			assert.deepStrictEqual(textFiles.map(f => f.fsPath), ['Untitled-1']);
 		});
 	});
 
@@ -468,7 +468,7 @@ suite('BackupFileService', () => {
 			await service.backup(fooFile, createTextBufferFactory(contents).create(DefaultEndOfLine.LF).textBuffer.createSnapshot(false), 1, meta);
 
 			const fileContents = fs.readFileSync(fooBackupPath).toString();
-			assert.equal(fileContents.indexOf(fooFile.toString()), 0);
+			assert.strictEqual(fileContents.indexOf(fooFile.toString()), 0);
 
 			const metaIndex = fileContents.indexOf('{');
 			const newFileContents = fileContents.substring(0, metaIndex) + '{{' + fileContents.substr(metaIndex);
@@ -476,7 +476,7 @@ suite('BackupFileService', () => {
 
 			const backup = await service.resolve(fooFile);
 			assert.ok(backup);
-			assert.equal(contents, snapshotToString(backup!.value.create(platform.isWindows ? DefaultEndOfLine.CRLF : DefaultEndOfLine.LF).textBuffer.createSnapshot(true)));
+			assert.strictEqual(contents, snapshotToString(backup!.value.create(platform.isWindows ? DefaultEndOfLine.CRLF : DefaultEndOfLine.LF).textBuffer.createSnapshot(true)));
 			assert.ok(!backup!.meta);
 		});
 
@@ -565,13 +565,13 @@ suite('BackupFileService', () => {
 
 			const backup = await service.resolve<IBackupTestMetaData>(resource);
 			assert.ok(backup);
-			assert.equal(contents, snapshotToString(backup!.value.create(platform.isWindows ? DefaultEndOfLine.CRLF : DefaultEndOfLine.LF).textBuffer.createSnapshot(true)));
+			assert.strictEqual(contents, snapshotToString(backup!.value.create(platform.isWindows ? DefaultEndOfLine.CRLF : DefaultEndOfLine.LF).textBuffer.createSnapshot(true)));
 
 			if (expectedMeta) {
-				assert.equal(backup!.meta!.etag, expectedMeta.etag);
-				assert.equal(backup!.meta!.size, expectedMeta.size);
-				assert.equal(backup!.meta!.mtime, expectedMeta.mtime);
-				assert.equal(backup!.meta!.orphaned, expectedMeta.orphaned);
+				assert.strictEqual(backup!.meta!.etag, expectedMeta.etag);
+				assert.strictEqual(backup!.meta!.size, expectedMeta.size);
+				assert.strictEqual(backup!.meta!.mtime, expectedMeta.mtime);
+				assert.strictEqual(backup!.meta!.orphaned, expectedMeta.orphaned);
 			} else {
 				assert.ok(!backup!.meta);
 			}
@@ -602,34 +602,34 @@ suite('BackupFilesModel', () => {
 
 		const resource1 = URI.file('test.html');
 
-		assert.equal(model.has(resource1), false);
+		assert.strictEqual(model.has(resource1), false);
 
 		model.add(resource1);
 
-		assert.equal(model.has(resource1), true);
-		assert.equal(model.has(resource1, 0), true);
-		assert.equal(model.has(resource1, 1), false);
-		assert.equal(model.has(resource1, 1, { foo: 'bar' }), false);
+		assert.strictEqual(model.has(resource1), true);
+		assert.strictEqual(model.has(resource1, 0), true);
+		assert.strictEqual(model.has(resource1, 1), false);
+		assert.strictEqual(model.has(resource1, 1, { foo: 'bar' }), false);
 
 		model.remove(resource1);
 
-		assert.equal(model.has(resource1), false);
+		assert.strictEqual(model.has(resource1), false);
 
 		model.add(resource1);
 
-		assert.equal(model.has(resource1), true);
-		assert.equal(model.has(resource1, 0), true);
-		assert.equal(model.has(resource1, 1), false);
+		assert.strictEqual(model.has(resource1), true);
+		assert.strictEqual(model.has(resource1, 0), true);
+		assert.strictEqual(model.has(resource1, 1), false);
 
 		model.clear();
 
-		assert.equal(model.has(resource1), false);
+		assert.strictEqual(model.has(resource1), false);
 
 		model.add(resource1, 1);
 
-		assert.equal(model.has(resource1), true);
-		assert.equal(model.has(resource1, 0), false);
-		assert.equal(model.has(resource1, 1), true);
+		assert.strictEqual(model.has(resource1), true);
+		assert.strictEqual(model.has(resource1, 0), false);
+		assert.strictEqual(model.has(resource1, 1), true);
 
 		const resource2 = URI.file('test1.html');
 		const resource3 = URI.file('test2.html');
@@ -639,13 +639,13 @@ suite('BackupFilesModel', () => {
 		model.add(resource3);
 		model.add(resource4, undefined, { foo: 'bar' });
 
-		assert.equal(model.has(resource1), true);
-		assert.equal(model.has(resource2), true);
-		assert.equal(model.has(resource3), true);
+		assert.strictEqual(model.has(resource1), true);
+		assert.strictEqual(model.has(resource2), true);
+		assert.strictEqual(model.has(resource3), true);
 
-		assert.equal(model.has(resource4), true);
-		assert.equal(model.has(resource4, undefined, { foo: 'bar' }), true);
-		assert.equal(model.has(resource4, undefined, { bar: 'foo' }), false);
+		assert.strictEqual(model.has(resource4), true);
+		assert.strictEqual(model.has(resource4, undefined, { foo: 'bar' }), true);
+		assert.strictEqual(model.has(resource4, undefined, { bar: 'foo' }), false);
 	});
 
 	test('resolve', async () => {
@@ -654,13 +654,13 @@ suite('BackupFilesModel', () => {
 		const model = new BackupFilesModel(service.fileService);
 
 		const resolvedModel = await model.resolve(URI.file(workspaceBackupPath));
-		assert.equal(resolvedModel.has(URI.file(fooBackupPath)), true);
+		assert.strictEqual(resolvedModel.has(URI.file(fooBackupPath)), true);
 	});
 
 	test('get', () => {
 		const model = new BackupFilesModel(service.fileService);
 
-		assert.deepEqual(model.get(), []);
+		assert.deepStrictEqual(model.get(), []);
 
 		const file1 = URI.file('/root/file/foo.html');
 		const file2 = URI.file('/root/file/bar.html');
@@ -670,6 +670,6 @@ suite('BackupFilesModel', () => {
 		model.add(file2);
 		model.add(untitled);
 
-		assert.deepEqual(model.get().map(f => f.fsPath), [file1.fsPath, file2.fsPath, untitled.fsPath]);
+		assert.deepStrictEqual(model.get().map(f => f.fsPath), [file1.fsPath, file2.fsPath, untitled.fsPath]);
 	});
 });
