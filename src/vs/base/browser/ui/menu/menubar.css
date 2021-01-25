@@ -48,6 +48,10 @@
 	z-index: 2000;
 }
 
+.menubar.compact .menubar-menu-items-holder {
+	position: fixed;
+}
+
 .menubar .menubar-menu-items-holder.monaco-menu-container {
 	outline: 0;
 	border: none;

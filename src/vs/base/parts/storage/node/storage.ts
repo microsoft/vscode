@@ -3,7 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { Database, Statement } from 'vscode-sqlite3';
+import type { Database, Statement } from 'vscode-sqlite3';
 import { Event } from 'vs/base/common/event';
 import { timeout } from 'vs/base/common/async';
 import { mapToString, setToString } from 'vs/base/common/map';
@@ -412,11 +412,17 @@ export class SQLiteStorageDatabase implements IStorageDatabase {
 }
 
 class SQLiteStorageDatabaseLogger {
+
+	// to reduce lots of output, require an environment variable to enable tracing
+	// this helps when running with --verbose normally where the storage tracing
+	// might hide useful output to look at
+	static readonly VSCODE_TRACE_STORAGE = 'VSCODE_TRACE_STORAGE';
+
 	private readonly logTrace: ((msg: string) => void) | undefined;
 	private readonly logError: ((error: string | Error) => void) | undefined;
 
 	constructor(options?: ISQLiteStorageDatabaseLoggingOptions) {
-		if (options && typeof options.logTrace === 'function') {
+		if (options && typeof options.logTrace === 'function' && process.env[SQLiteStorageDatabaseLogger.VSCODE_TRACE_STORAGE]) {
 			this.logTrace = options.logTrace;
 		}
 

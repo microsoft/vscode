@@ -23,12 +23,20 @@ export class MainThreadDialogs implements MainThreadDiaglogsShape {
 		//
 	}
 
-	$showOpenDialog(options?: MainThreadDialogOpenOptions): Promise<URI[] | undefined> {
-		return Promise.resolve(this._fileDialogService.showOpenDialog(MainThreadDialogs._convertOpenOptions(options)));
+	async $showOpenDialog(options?: MainThreadDialogOpenOptions): Promise<URI[] | undefined> {
+		const convertedOptions = MainThreadDialogs._convertOpenOptions(options);
+		if (!convertedOptions.defaultUri) {
+			convertedOptions.defaultUri = await this._fileDialogService.defaultFilePath();
+		}
+		return Promise.resolve(this._fileDialogService.showOpenDialog(convertedOptions));
 	}
 
-	$showSaveDialog(options?: MainThreadDialogSaveOptions): Promise<URI | undefined> {
-		return Promise.resolve(this._fileDialogService.showSaveDialog(MainThreadDialogs._convertSaveOptions(options)));
+	async $showSaveDialog(options?: MainThreadDialogSaveOptions): Promise<URI | undefined> {
+		const convertedOptions = MainThreadDialogs._convertSaveOptions(options);
+		if (!convertedOptions.defaultUri) {
+			convertedOptions.defaultUri = await this._fileDialogService.defaultFilePath();
+		}
+		return Promise.resolve(this._fileDialogService.showSaveDialog(convertedOptions));
 	}
 
 	private static _convertOpenOptions(options?: MainThreadDialogOpenOptions): IOpenDialogOptions {
@@ -38,7 +46,8 @@ export class MainThreadDialogs implements MainThreadDiaglogsShape {
 			canSelectFolders: options?.canSelectFolders,
 			canSelectMany: options?.canSelectMany,
 			defaultUri: options?.defaultUri ? URI.revive(options.defaultUri) : undefined,
-			title: options?.title || undefined
+			title: options?.title || undefined,
+			availableFileSystems: []
 		};
 		if (options?.filters) {
 			result.filters = [];

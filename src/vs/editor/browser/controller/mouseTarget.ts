@@ -18,6 +18,7 @@ import { ViewContext } from 'vs/editor/common/view/viewContext';
 import { IViewModel } from 'vs/editor/common/viewModel/viewModel';
 import { CursorColumns } from 'vs/editor/common/controller/cursorCommon';
 import * as dom from 'vs/base/browser/dom';
+import { AtomicTabMoveOperations, Direction } from 'vs/editor/common/controller/cursorAtomicMoveOperations';
 
 export interface IViewZoneData {
 	viewZoneId: string;
@@ -239,6 +240,7 @@ export class HitTestContext {
 	public readonly layoutInfo: EditorLayoutInfo;
 	public readonly viewDomNode: HTMLElement;
 	public readonly lineHeight: number;
+	public readonly stickyTabStops: boolean;
 	public readonly typicalHalfwidthCharacterWidth: number;
 	public readonly lastRenderData: PointerHandlerLastRenderData;
 
@@ -251,6 +253,7 @@ export class HitTestContext {
 		this.layoutInfo = options.get(EditorOption.layoutInfo);
 		this.viewDomNode = viewHelper.viewDomNode;
 		this.lineHeight = options.get(EditorOption.lineHeight);
+		this.stickyTabStops = options.get(EditorOption.stickyTabStops);
 		this.typicalHalfwidthCharacterWidth = options.get(EditorOption.fontInfo).typicalHalfwidthCharacterWidth;
 		this.lastRenderData = lastRenderData;
 		this._context = context;
@@ -266,11 +269,11 @@ export class HitTestContext {
 		const viewZoneWhitespace = context.viewLayout.getWhitespaceAtVerticalOffset(mouseVerticalOffset);
 
 		if (viewZoneWhitespace) {
-			let viewZoneMiddle = viewZoneWhitespace.verticalOffset + viewZoneWhitespace.height / 2,
-				lineCount = context.model.getLineCount(),
-				positionBefore: Position | null = null,
-				position: Position | null,
-				positionAfter: Position | null = null;
+			const viewZoneMiddle = viewZoneWhitespace.verticalOffset + viewZoneWhitespace.height / 2;
+			const lineCount = context.model.getLineCount();
+			let positionBefore: Position | null = null;
+			let position: Position | null;
+			let positionAfter: Position | null = null;
 
 			if (viewZoneWhitespace.afterLineNumber !== lineCount) {
 				// There are more lines after this view zone
@@ -327,6 +330,14 @@ export class HitTestContext {
 
 	public isAfterLines(mouseVerticalOffset: number): boolean {
 		return this._context.viewLayout.isAfterLines(mouseVerticalOffset);
+	}
+
+	public isInTopPadding(mouseVerticalOffset: number): boolean {
+		return this._context.viewLayout.isInTopPadding(mouseVerticalOffset);
+	}
+
+	public isInBottomPadding(mouseVerticalOffset: number): boolean {
+		return this._context.viewLayout.isInBottomPadding(mouseVerticalOffset);
 	}
 
 	public getVerticalOffsetForLineNumber(lineNumber: number): number {
@@ -656,8 +667,12 @@ export class MouseTargetFactory {
 			return null;
 		}
 
+		if (ctx.isInTopPadding(request.mouseVerticalOffset)) {
+			return request.fulfill(MouseTargetType.CONTENT_EMPTY, new Position(1, 1), undefined, EMPTY_CONTENT_AFTER_LINES);
+		}
+
 		// Check if it is below any lines and any view zones
-		if (ctx.isAfterLines(request.mouseVerticalOffset)) {
+		if (ctx.isAfterLines(request.mouseVerticalOffset) || ctx.isInBottomPadding(request.mouseVerticalOffset)) {
 			// This most likely indicates it happened after the last view-line
 			const lineCount = ctx.model.getLineCount();
 			const maxLineColumn = ctx.model.getLineMaxColumn(lineCount);
@@ -666,7 +681,7 @@ export class MouseTargetFactory {
 
 		if (domHitTestExecuted) {
 			// Check if we are hitting a view-line (can happen in the case of inline decorations on empty lines)
-			// See https://github.com/Microsoft/vscode/issues/46942
+			// See https://github.com/microsoft/vscode/issues/46942
 			if (ElementPath.isStrictChildOfViewLines(request.targetPath)) {
 				const lineNumber = ctx.getLineNumberAtVerticalOffset(request.mouseVerticalOffset);
 				if (ctx.model.getLineLength(lineNumber) === 0) {
@@ -752,8 +767,8 @@ export class MouseTargetFactory {
 		const lineWidth = ctx.getLineWidth(lineNumber);
 
 		if (request.mouseContentHorizontalOffset > lineWidth) {
-			if (browser.isEdge && pos.column === 1) {
-				// See https://github.com/Microsoft/vscode/issues/10875
+			if (browser.isEdgeLegacy && pos.column === 1) {
+				// See https://github.com/microsoft/vscode/issues/10875
 				const detail = createEmptyContentDataInLines(request.mouseContentHorizontalOffset - lineWidth);
 				return request.fulfill(MouseTargetType.CONTENT_EMPTY, new Position(lineNumber, ctx.model.getLineMaxColumn(lineNumber)), undefined, detail);
 			}
@@ -998,6 +1013,16 @@ export class MouseTargetFactory {
 		};
 	}
 
+	private static _snapToSoftTabBoundary(position: Position, viewModel: IViewModel): Position {
+		const lineContent = viewModel.getLineContent(position.lineNumber);
+		const { tabSize } = viewModel.getTextModelOptions();
+		const newPosition = AtomicTabMoveOperations.atomicPosition(lineContent, position.column - 1, tabSize, Direction.Nearest);
+		if (newPosition !== -1) {
+			return new Position(position.lineNumber, newPosition + 1);
+		}
+		return position;
+	}
+
 	private static _doHitTest(ctx: HitTestContext, request: BareHitTestRequest): IHitTestResult {
 		// State of the art (18.10.2012):
 		// The spec says browsers should support document.caretPositionFromPoint, but nobody implemented it (http://dev.w3.org/csswg/cssom-view/)
@@ -1016,24 +1041,24 @@ export class MouseTargetFactory {
 
 		// Thank you browsers for making this so 'easy' :)
 
+		let result: IHitTestResult;
 		if (typeof document.caretRangeFromPoint === 'function') {
-
-			return this._doHitTestWithCaretRangeFromPoint(ctx, request);
-
+			result = this._doHitTestWithCaretRangeFromPoint(ctx, request);
 		} else if ((<any>document).caretPositionFromPoint) {
-
-			return this._doHitTestWithCaretPositionFromPoint(ctx, request.pos.toClientCoordinates());
-
+			result = this._doHitTestWithCaretPositionFromPoint(ctx, request.pos.toClientCoordinates());
 		} else if ((<any>document.body).createTextRange) {
-
-			return this._doHitTestWithMoveToPoint(ctx, request.pos.toClientCoordinates());
-
+			result = this._doHitTestWithMoveToPoint(ctx, request.pos.toClientCoordinates());
+		} else {
+			result = {
+				position: null,
+				hitTarget: null
+			};
 		}
-
-		return {
-			position: null,
-			hitTarget: null
-		};
+		// Snap to the nearest soft tab boundary if atomic soft tabs are enabled.
+		if (result.position && ctx.stickyTabStops) {
+			result.position = this._snapToSoftTabBoundary(result.position, ctx.model);
+		}
+		return result;
 	}
 }
 
@@ -1047,7 +1072,7 @@ export function shadowCaretRangeFromPoint(shadowRoot: ShadowRoot, x: number, y: 
 		// Get the last child of the element until its firstChild is a text node
 		// This assumes that the pointer is on the right of the line, out of the tokens
 		// and that we want to get the offset of the last token of the line
-		while (el && el.firstChild && el.firstChild.nodeType !== el.firstChild.TEXT_NODE) {
+		while (el && el.firstChild && el.firstChild.nodeType !== el.firstChild.TEXT_NODE && el.lastChild && el.lastChild.firstChild) {
 			el = <Element>el.lastChild;
 		}
 

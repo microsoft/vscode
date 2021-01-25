@@ -57,19 +57,19 @@ export class TableOfContentsProvider {
 		const toc: TocEntry[] = [];
 		const tokens = await this.engine.parse(document);
 
-		const slugCount = new Map<string, number>();
+		const existingSlugEntries = new Map<string, { count: number }>();
 
 		for (const heading of tokens.filter(token => token.type === 'heading_open')) {
 			const lineNumber = heading.map[0];
 			const line = document.lineAt(lineNumber);
 
 			let slug = githubSlugifier.fromHeading(line.text);
-			if (slugCount.has(slug.value)) {
-				const count = slugCount.get(slug.value)!;
-				slugCount.set(slug.value, count + 1);
-				slug = githubSlugifier.fromHeading(slug.value + '-' + (count + 1));
+			const existingSlugEntry = existingSlugEntries.get(slug.value);
+			if (existingSlugEntry) {
+				++existingSlugEntry.count;
+				slug = githubSlugifier.fromHeading(slug.value + '-' + existingSlugEntry.count);
 			} else {
-				slugCount.set(slug.value, 0);
+				existingSlugEntries.set(slug.value, { count: 0 });
 			}
 
 			toc.push({
@@ -91,7 +91,7 @@ export class TableOfContentsProvider {
 					break;
 				}
 			}
-			const endLine = end !== undefined ? end : document.lineCount - 1;
+			const endLine = end ?? document.lineCount - 1;
 			return {
 				...entry,
 				location: new vscode.Location(document.uri,

@@ -9,6 +9,7 @@ import { isUNC } from 'vs/base/common/extpath';
 import { Schemas } from 'vs/base/common/network';
 import { sep } from 'vs/base/common/path';
 import { URI } from 'vs/base/common/uri';
+import { ILogService } from 'vs/platform/log/common/log';
 import { IRemoteConnectionData } from 'vs/platform/remote/common/remoteAuthorityResolver';
 import { IRequestService } from 'vs/platform/request/common/request';
 import { getWebviewContentMimeType } from 'vs/platform/webview/common/mimeTypes';
@@ -24,7 +25,8 @@ export namespace WebviewResourceResponse {
 
 		constructor(
 			public readonly stream: VSBufferReadableStream,
-			public readonly mimeType: string
+			public readonly etag: string | undefined,
+			public readonly mimeType: string,
 		) { }
 	}
 
@@ -35,7 +37,7 @@ export namespace WebviewResourceResponse {
 }
 
 interface FileReader {
-	readFileStream(resource: URI): Promise<VSBufferReadableStream>;
+	readFileStream(resource: URI): Promise<{ stream: VSBufferReadableStream, etag?: string }>;
 }
 
 export async function loadLocalResource(
@@ -48,8 +50,14 @@ export async function loadLocalResource(
 	},
 	fileReader: FileReader,
 	requestService: IRequestService,
+	logService: ILogService,
 ): Promise<WebviewResourceResponse.StreamResponse> {
+	logService.debug(`loadLocalResource - being. requestUri=${requestUri}`);
+
 	let resourceToLoad = getResourceToLoad(requestUri, options.roots);
+
+	logService.debug(`loadLocalResource - found resource to load. requestUri=${requestUri}, resourceToLoad=${resourceToLoad}`);
+
 	if (!resourceToLoad) {
 		return WebviewResourceResponse.AccessDenied;
 	}
@@ -63,17 +71,23 @@ export async function loadLocalResource(
 
 	if (resourceToLoad.scheme === Schemas.http || resourceToLoad.scheme === Schemas.https) {
 		const response = await requestService.request({ url: resourceToLoad.toString(true) }, CancellationToken.None);
+		logService.debug(`loadLocalResource - Loaded over http(s). requestUri=${requestUri}, response=${response.res.statusCode}`);
+
 		if (response.res.statusCode === 200) {
-			return new WebviewResourceResponse.StreamSuccess(response.stream, mime);
+			return new WebviewResourceResponse.StreamSuccess(response.stream, undefined, mime);
 		}
 		return WebviewResourceResponse.Failed;
 	}
 
 	try {
 		const contents = await fileReader.readFileStream(resourceToLoad);
-		return new WebviewResourceResponse.StreamSuccess(contents, mime);
+		logService.debug(`loadLocalResource - Loaded using fileReader. requestUri=${requestUri}`);
+
+		return new WebviewResourceResponse.StreamSuccess(contents.stream, contents.etag, mime);
 	} catch (err) {
+		logService.debug(`loadLocalResource - Error using fileReader. requestUri=${requestUri}`);
 		console.log(err);
+
 		return WebviewResourceResponse.Failed;
 	}
 }

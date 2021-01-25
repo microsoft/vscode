@@ -12,7 +12,6 @@ import { Extensions, IJSONContributionRegistry } from 'vs/platform/jsonschemas/c
 import { Registry } from 'vs/platform/registry/common/platform';
 import { IMessage } from 'vs/workbench/services/extensions/common/extensions';
 import { ExtensionIdentifier, IExtensionDescription, EXTENSION_CATEGORIES } from 'vs/platform/extensions/common/extensions';
-import { toArray } from 'vs/base/common/arrays';
 
 const schemaRegistry = Registry.as<IJSONContributionRegistry>(Extensions.JSONContribution);
 export type ExtensionKind = 'workspace' | 'ui' | undefined;
@@ -307,6 +306,11 @@ export const schema: IJSONSchema = {
 						description: nls.localize('vscode.extension.activationEvents.onCustomEditor', 'An activation event emitted whenever the specified custom editor becomes visible.'),
 					},
 					{
+						label: 'onNotebook',
+						body: 'onNotebook:${10:viewType}',
+						description: nls.localize('vscode.extension.activationEvents.onNotebook', 'An activation event emitted whenever the specified notebook document is opened.'),
+					},
+					{
 						label: '*',
 						description: nls.localize('vscode.extension.activationEvents.star', 'An activation event emitted on VS Code startup. To ensure a great end user experience, please use this activation event in your extension only when no other activation events combination works in your use-case.'),
 						body: '*'
@@ -446,7 +450,7 @@ export class ExtensionsRegistryImpl {
 	}
 
 	public getExtensionPoints(): ExtensionPoint<any>[] {
-		return toArray(this._extensionPoints.values());
+		return Array.from(this._extensionPoints.values());
 	}
 }
 

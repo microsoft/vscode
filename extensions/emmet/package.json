@@ -14,10 +14,10 @@
     ],
     "repository": {
         "type": "git",
-        "url": "https://github.com/Microsoft/vscode-emmet"
+        "url": "https://github.com/microsoft/vscode-emmet"
     },
     "activationEvents": [
-        "*",
+        "onStartupFinished",
         "onCommand:emmet.expandAbbreviation",
         "onLanguage:html",
         "onLanguage:css",
@@ -342,6 +342,11 @@
                 "command": "editor.emmet.action.reflectCSSValue",
                 "title": "%command.reflectCSSValue%",
                 "category": "Emmet"
+            },
+            {
+                "command": "workbench.action.showEmmetCommands",
+                "title": "%command.showEmmetCommands%",
+                "category": ""
             }
         ],
         "menus": {
@@ -422,20 +427,19 @@
     "scripts": {
         "watch": "gulp watch-extension:emmet",
         "compile": "gulp compile-extension:emmet",
-        "deps": "yarn add vscode-emmet-helper2"
+        "deps": "yarn add vscode-emmet-helper"
     },
     "devDependencies": {
-        "@types/node": "^12.11.7",
-        "mocha-junit-reporter": "^1.17.0",
-        "mocha-multi-reporters": "^1.1.7",
-        "vscode": "1.0.1"
+        "@types/node": "^12.19.9",
+        "emmet": "https://github.com/rzhao271/emmet.git#1b2df677d8925ef5ea6da9df8845968403979a0a"
     },
     "dependencies": {
+        "@emmetio/abbreviation": "^2.2.0",
         "@emmetio/css-parser": "ramya-rao-a/css-parser#vscode",
         "@emmetio/html-matcher": "^0.3.3",
-        "@emmetio/math-expression": "^0.1.1",
+        "@emmetio/math-expression": "^1.0.4",
         "image-size": "^0.5.2",
-        "vscode-emmet-helper2": "^2.0.0-next.0",
-        "vscode-html-languageservice": "^3.0.3"
+        "vscode-emmet-helper": "2.2.4-2",
+        "vscode-languageserver-textdocument": "^1.0.1"
     }
 }

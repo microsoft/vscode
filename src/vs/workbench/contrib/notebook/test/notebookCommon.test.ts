@@ -269,7 +269,7 @@ suite('NotebookCommon', () => {
 
 		for (let i = 0; i < 5; i++) {
 			cells.push(
-				new TestCell('notebook', i, [`var a = ${i};`], 'javascript', CellKind.Code, [], textModelService)
+				new TestCell('notebook', i, `var a = ${i};`, 'javascript', CellKind.Code, [], textModelService)
 			);
 		}
 
@@ -295,8 +295,8 @@ suite('NotebookCommon', () => {
 		]
 		);
 
-		const cellA = new TestCell('notebook', 6, ['var a = 6;'], 'javascript', CellKind.Code, [], textModelService);
-		const cellB = new TestCell('notebook', 7, ['var a = 7;'], 'javascript', CellKind.Code, [], textModelService);
+		const cellA = new TestCell('notebook', 6, 'var a = 6;', 'javascript', CellKind.Code, [], textModelService);
+		const cellB = new TestCell('notebook', 7, 'var a = 7;', 'javascript', CellKind.Code, [], textModelService);
 
 		const modifiedCells = [
 			cells[0],
@@ -336,11 +336,12 @@ suite('CellUri', function () {
 		const nb = URI.parse('foo:///bar/følder/file.nb');
 		const id = 17;
 
-		const data = CellUri.generate(nb, id);
+		const data = CellUri.generate(nb, 'test', id);
 		const actual = CellUri.parse(data);
 		assert.ok(Boolean(actual));
 		assert.equal(actual?.handle, id);
 		assert.equal(actual?.notebook.toString(), nb.toString());
+		assert.equal(actual?.viewType, 'test');
 	});
 
 	test('parse, generate (foo-scheme)', function () {
@@ -348,10 +349,11 @@ suite('CellUri', function () {
 		const nb = URI.parse('foo:///bar/følder/file.nb');
 		const id = 17;
 
-		const data = CellUri.generate(nb, id);
+		const data = CellUri.generate(nb, 'test', id);
 		const actual = CellUri.parse(data);
 		assert.ok(Boolean(actual));
 		assert.equal(actual?.handle, id);
 		assert.equal(actual?.notebook.toString(), nb.toString());
+		assert.equal(actual?.viewType, 'test');
 	});
 });

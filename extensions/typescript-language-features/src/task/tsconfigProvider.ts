@@ -13,12 +13,13 @@ export interface TSConfig {
 }
 
 export class TsConfigProvider {
-	public async getConfigsForWorkspace(): Promise<Iterable<TSConfig>> {
+	public async getConfigsForWorkspace(token: vscode.CancellationToken): Promise<Iterable<TSConfig>> {
 		if (!vscode.workspace.workspaceFolders) {
 			return [];
 		}
+
 		const configs = new Map<string, TSConfig>();
-		for (const config of await vscode.workspace.findFiles('**/tsconfig*.json', '**/{node_modules,.*}/**')) {
+		for (const config of await this.findConfigFiles(token)) {
 			const root = vscode.workspace.getWorkspaceFolder(config);
 			if (root) {
 				configs.set(config.fsPath, {
@@ -30,5 +31,9 @@ export class TsConfigProvider {
 			}
 		}
 		return configs.values();
+	}
+
+	private async findConfigFiles(token: vscode.CancellationToken): Promise<vscode.Uri[]> {
+		return await vscode.workspace.findFiles('**/tsconfig*.json', '**/{node_modules,.*}/**', undefined, token);
 	}
 }

@@ -11,12 +11,12 @@ import { ResolvedKeybinding } from 'vs/base/common/keyCodes';
 import { Disposable, DisposableStore } from 'vs/base/common/lifecycle';
 import { AnchorAlignment } from 'vs/base/browser/ui/contextview/contextview';
 import { withNullAsUndefined } from 'vs/base/common/types';
-import { Codicon, registerIcon } from 'vs/base/common/codicons';
+import { Codicon, CSSIcon, registerCodicon } from 'vs/base/common/codicons';
 import { EventMultiplexer } from 'vs/base/common/event';
 import { DropdownMenuActionViewItem } from 'vs/base/browser/ui/dropdown/dropdownActionViewItem';
 import { IContextMenuProvider } from 'vs/base/browser/contextmenu';
 
-const toolBarMoreIcon = registerIcon('toolbar-more', Codicon.more);
+const toolBarMoreIcon = registerCodicon('toolbar-more', Codicon.more);
 
 export interface IToolBarOptions {
 	orientation?: ActionsOrientation;
@@ -26,6 +26,8 @@ export interface IToolBarOptions {
 	actionRunner?: IActionRunner;
 	toggleMenuTitle?: string;
 	anchorAlignmentProvider?: () => AnchorAlignment;
+	renderDropdownAsChildElement?: boolean;
+	moreIcon?: CSSIcon;
 }
 
 /**
@@ -39,6 +41,7 @@ export class ToolBar extends Disposable {
 	private submenuActionViewItems: DropdownMenuActionViewItem[] = [];
 	private hasSecondaryActions: boolean = false;
 	private lookupKeybindings: boolean;
+	private element: HTMLElement;
 
 	private _onDidChangeDropdownVisibility = this._register(new EventMultiplexer<boolean>());
 	readonly onDidChangeDropdownVisibility = this._onDidChangeDropdownVisibility.event;
@@ -52,11 +55,11 @@ export class ToolBar extends Disposable {
 
 		this.toggleMenuAction = this._register(new ToggleMenuAction(() => this.toggleMenuActionViewItem?.show(), options.toggleMenuTitle));
 
-		let element = document.createElement('div');
-		element.className = 'monaco-toolbar';
-		container.appendChild(element);
+		this.element = document.createElement('div');
+		this.element.className = 'monaco-toolbar';
+		container.appendChild(this.element);
 
-		this.actionBar = this._register(new ActionBar(element, {
+		this.actionBar = this._register(new ActionBar(this.element, {
 			orientation: options.orientation,
 			ariaLabel: options.ariaLabel,
 			actionRunner: options.actionRunner,
@@ -70,9 +73,9 @@ export class ToolBar extends Disposable {
 							actionViewItemProvider: this.options.actionViewItemProvider,
 							actionRunner: this.actionRunner,
 							keybindingProvider: this.options.getKeyBinding,
-							classNames: toolBarMoreIcon.classNames,
+							classNames: CSSIcon.asClassNameArray(options.moreIcon ?? toolBarMoreIcon),
 							anchorAlignmentProvider: this.options.anchorAlignmentProvider,
-							menuAsChild: true
+							menuAsChild: !!this.options.renderDropdownAsChildElement
 						}
 					);
 					this.toggleMenuActionViewItem.setActionContext(this.actionBar.context);
@@ -90,10 +93,9 @@ export class ToolBar extends Disposable {
 				}
 
 				if (action instanceof SubmenuAction) {
-					const actions = Array.isArray(action.actions) ? action.actions : action.actions();
 					const result = new DropdownMenuActionViewItem(
 						action,
-						actions,
+						action.actions,
 						contextMenuProvider,
 						{
 							actionViewItemProvider: this.options.actionViewItemProvider,
@@ -134,8 +136,8 @@ export class ToolBar extends Disposable {
 		}
 	}
 
-	getContainer(): HTMLElement {
-		return this.actionBar.getContainer();
+	getElement(): HTMLElement {
+		return this.element;
 	}
 
 	getItemsWidth(): number {

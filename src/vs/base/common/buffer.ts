@@ -34,8 +34,9 @@ export class VSBuffer {
 		return new VSBuffer(actual);
 	}
 
-	static fromString(source: string): VSBuffer {
-		if (hasBuffer) {
+	static fromString(source: string, options?: { dontUseNodeBuffer?: boolean; }): VSBuffer {
+		const dontUseNodeBuffer = options?.dontUseNodeBuffer || false;
+		if (!dontUseNodeBuffer && hasBuffer) {
 			return new VSBuffer(Buffer.from(source));
 		} else if (hasTextEncoder) {
 			if (!textEncoder) {

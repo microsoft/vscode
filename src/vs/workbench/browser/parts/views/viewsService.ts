@@ -30,6 +30,7 @@ import { IConfigurationService } from 'vs/platform/configuration/common/configur
 import { IWorkbenchLayoutService } from 'vs/workbench/services/layout/browser/layoutService';
 import { URI } from 'vs/base/common/uri';
 import { IProgressIndicator } from 'vs/platform/progress/common/progress';
+import { CATEGORIES } from 'vs/workbench/common/actions';
 
 export class ViewsService extends Disposable implements IViewsService {
 
@@ -159,7 +160,7 @@ export class ViewsService extends Disposable implements IViewsService {
 					super({
 						id: viewDescriptor.focusCommand ? viewDescriptor.focusCommand.id : `${viewDescriptor.id}.focus`,
 						title: { original: `Focus on ${viewDescriptor.name} View`, value: localize({ key: 'focus view', comment: ['{0} indicates the name of the view to be focused.'] }, "Focus on {0} View", viewDescriptor.name) },
-						category: composite ? composite.name : localize('view category', "View"),
+						category: composite ? composite.name : CATEGORIES.View,
 						menu: [{
 							id: MenuId.CommandPalette,
 							when: viewDescriptor.when,
@@ -195,7 +196,9 @@ export class ViewsService extends Disposable implements IViewsService {
 									ContextKeyExpr.equals('view', viewDescriptor.id),
 									ContextKeyExpr.equals(`${viewDescriptor.id}.defaultViewLocation`, false)
 								)
-							)
+							),
+							group: '1_hide',
+							order: 2
 						}],
 					});
 				}
@@ -325,7 +328,7 @@ export class ViewsService extends Disposable implements IViewsService {
 		return null;
 	}
 
-	async openView<T extends IView>(id: string, focus: boolean): Promise<T | null> {
+	async openView<T extends IView>(id: string, focus?: boolean): Promise<T | null> {
 		const viewContainer = this.viewDescriptorService.getViewContainerByViewId(id);
 		if (!viewContainer) {
 			return null;
@@ -391,12 +394,29 @@ export class ViewsService extends Disposable implements IViewsService {
 
 	getViewProgressIndicator(viewId: string): IProgressIndicator | undefined {
 		const viewContainer = this.viewDescriptorService.getViewContainerByViewId(viewId);
-		if (viewContainer === null) {
+		if (!viewContainer) {
 			return undefined;
 		}
 
-		const view = this.viewPaneContainers.get(viewContainer.id)?.viewPaneContainer?.getView(viewId);
-		return view?.getProgressIndicator();
+		const viewPaneContainer = this.viewPaneContainers.get(viewContainer.id)?.viewPaneContainer;
+		if (!viewPaneContainer) {
+			return undefined;
+		}
+
+		const view = viewPaneContainer.getView(viewId);
+		if (!view) {
+			return undefined;
+		}
+
+		if (viewPaneContainer.isViewMergedWithContainer()) {
+			return this.getViewContainerProgressIndicator(viewContainer);
+		}
+
+		return view.getProgressIndicator();
+	}
+
+	private getViewContainerProgressIndicator(viewContainer: ViewContainer): IProgressIndicator | undefined {
+		return this.viewDescriptorService.getViewContainerLocation(viewContainer) === ViewContainerLocation.Sidebar ? this.viewletService.getProgressIndicator(viewContainer.id) : this.panelService.getProgressIndicator(viewContainer.id);
 	}
 
 	private registerViewletOrPanel(viewContainer: ViewContainer, viewContainerLocation: ViewContainerLocation): void {
@@ -450,7 +470,6 @@ export class ViewsService extends Disposable implements IViewsService {
 			undefined,
 			viewContainer.order,
 			viewContainer.requestedIndex,
-			viewContainer.focusCommand?.id,
 		));
 	}
 

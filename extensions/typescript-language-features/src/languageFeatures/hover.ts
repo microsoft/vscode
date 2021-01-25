@@ -5,7 +5,8 @@
 
 import * as vscode from 'vscode';
 import type * as Proto from '../protocol';
-import { ClientCapability, ITypeScriptServiceClient } from '../typescriptService';
+import { localize } from '../tsServer/versionProvider';
+import { ClientCapability, ITypeScriptServiceClient, ServerType } from '../typescriptService';
 import { conditionalRegistration, requireSomeCapability } from '../utils/dependentRegistration';
 import { DocumentSelector } from '../utils/documentSelector';
 import { markdownDocumentation } from '../utils/previewer';
@@ -35,17 +36,31 @@ class TypeScriptHoverProvider implements vscode.HoverProvider {
 		}
 
 		return new vscode.Hover(
-			TypeScriptHoverProvider.getContents(response.body),
+			this.getContents(document.uri, response.body, response._serverType),
 			typeConverters.Range.fromTextSpan(response.body));
 	}
 
-	private static getContents(
-		data: Proto.QuickInfoResponseBody
+	private getContents(
+		resource: vscode.Uri,
+		data: Proto.QuickInfoResponseBody,
+		source: ServerType | undefined,
 	) {
-		const parts = [];
+		const parts: vscode.MarkedString[] = [];
 
 		if (data.displayString) {
-			parts.push({ language: 'typescript', value: data.displayString });
+			const displayParts: string[] = [];
+
+			if (source === ServerType.Syntax && this.client.hasCapabilityForResource(resource, ClientCapability.Semantic)) {
+				displayParts.push(
+					localize({
+						key: 'loadingPrefix',
+						comment: ['Prefix displayed for hover entries while the server is still loading']
+					}, "(loading...)"));
+			}
+
+			displayParts.push(data.displayString);
+
+			parts.push({ language: 'typescript', value: displayParts.join(' ') });
 		}
 		parts.push(markdownDocumentation(data.documentation, data.tags));
 		return parts;

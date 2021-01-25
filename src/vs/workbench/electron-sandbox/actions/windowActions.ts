@@ -4,7 +4,6 @@
  *--------------------------------------------------------------------------------------------*/
 
 import 'vs/css!./media/actions';
-
 import { URI } from 'vs/base/common/uri';
 import { Action } from 'vs/base/common/actions';
 import * as nls from 'vs/nls';
@@ -19,8 +18,9 @@ import { getIconClasses } from 'vs/editor/common/services/getIconClasses';
 import { ICommandHandler } from 'vs/platform/commands/common/commands';
 import { ServicesAccessor } from 'vs/platform/instantiation/common/instantiation';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
-import { IElectronService } from 'vs/platform/electron/electron-sandbox/electron';
+import { INativeHostService } from 'vs/platform/native/electron-sandbox/native';
 import { Codicon } from 'vs/base/common/codicons';
+import { isSingleFolderWorkspaceIdentifier, isWorkspaceIdentifier } from 'vs/platform/workspaces/common/workspaces';
 
 export class CloseCurrentWindowAction extends Action {
 
@@ -30,13 +30,13 @@ export class CloseCurrentWindowAction extends Action {
 	constructor(
 		id: string,
 		label: string,
-		@IElectronService private readonly electronService: IElectronService
+		@INativeHostService private readonly nativeHostService: INativeHostService
 	) {
 		super(id, label);
 	}
 
 	async run(): Promise<void> {
-		this.electronService.closeWindow();
+		this.nativeHostService.closeWindow();
 	}
 }
 
@@ -122,26 +122,6 @@ export class ZoomResetAction extends BaseZoomAction {
 	}
 }
 
-export class ReloadWindowWithExtensionsDisabledAction extends Action {
-
-	static readonly ID = 'workbench.action.reloadWindowWithExtensionsDisabled';
-	static readonly LABEL = nls.localize('reloadWindowWithExtensionsDisabled', "Reload With Extensions Disabled");
-
-	constructor(
-		id: string,
-		label: string,
-		@IElectronService private readonly electronService: IElectronService
-	) {
-		super(id, label);
-	}
-
-	async run(): Promise<boolean> {
-		await this.electronService.reload({ disableExtensions: true });
-
-		return true;
-	}
-}
-
 export abstract class BaseSwitchWindow extends Action {
 
 	private readonly closeWindowAction: IQuickInputButton = {
@@ -162,7 +142,7 @@ export abstract class BaseSwitchWindow extends Action {
 		private readonly keybindingService: IKeybindingService,
 		private readonly modelService: IModelService,
 		private readonly modeService: IModeService,
-		private readonly electronService: IElectronService
+		private readonly nativeHostService: INativeHostService
 	) {
 		super(id, label);
 	}
@@ -170,20 +150,20 @@ export abstract class BaseSwitchWindow extends Action {
 	protected abstract isQuickNavigate(): boolean;
 
 	async run(): Promise<void> {
-		const currentWindowId = this.electronService.windowId;
+		const currentWindowId = this.nativeHostService.windowId;
 
-		const windows = await this.electronService.getWindows();
+		const windows = await this.nativeHostService.getWindows();
 		const placeHolder = nls.localize('switchWindowPlaceHolder', "Select a window to switch to");
-		const picks = windows.map(win => {
-			const resource = win.filename ? URI.file(win.filename) : win.folderUri ? win.folderUri : win.workspace ? win.workspace.configPath : undefined;
-			const fileKind = win.filename ? FileKind.FILE : win.workspace ? FileKind.ROOT_FOLDER : win.folderUri ? FileKind.FOLDER : FileKind.FILE;
+		const picks = windows.map(window => {
+			const resource = window.filename ? URI.file(window.filename) : isSingleFolderWorkspaceIdentifier(window.workspace) ? window.workspace.uri : isWorkspaceIdentifier(window.workspace) ? window.workspace.configPath : undefined;
+			const fileKind = window.filename ? FileKind.FILE : isSingleFolderWorkspaceIdentifier(window.workspace) ? FileKind.FOLDER : isWorkspaceIdentifier(window.workspace) ? FileKind.ROOT_FOLDER : FileKind.FILE;
 			return {
-				payload: win.id,
-				label: win.title,
-				ariaLabel: win.dirty ? nls.localize('windowDirtyAriaLabel', "{0}, dirty window", win.title) : win.title,
+				payload: window.id,
+				label: window.title,
+				ariaLabel: window.dirty ? nls.localize('windowDirtyAriaLabel', "{0}, dirty window", window.title) : window.title,
 				iconClasses: getIconClasses(this.modelService, this.modeService, resource, fileKind),
-				description: (currentWindowId === win.id) ? nls.localize('current', "Current Window") : undefined,
-				buttons: currentWindowId !== win.id ? win.dirty ? [this.closeDirtyWindowAction] : [this.closeWindowAction] : undefined
+				description: (currentWindowId === window.id) ? nls.localize('current', "Current Window") : undefined,
+				buttons: currentWindowId !== window.id ? window.dirty ? [this.closeDirtyWindowAction] : [this.closeWindowAction] : undefined
 			};
 		});
 		const autoFocusIndex = (picks.indexOf(picks.filter(pick => pick.payload === currentWindowId)[0]) + 1) % picks.length;
@@ -194,13 +174,13 @@ export abstract class BaseSwitchWindow extends Action {
 			placeHolder,
 			quickNavigate: this.isQuickNavigate() ? { keybindings: this.keybindingService.lookupKeybindings(this.id) } : undefined,
 			onDidTriggerItemButton: async context => {
-				await this.electronService.closeWindowById(context.item.payload);
+				await this.nativeHostService.closeWindowById(context.item.payload);
 				context.removeItem();
 			}
 		});
 
 		if (pick) {
-			this.electronService.focusWindow({ windowId: pick.payload });
+			this.nativeHostService.focusWindow({ windowId: pick.payload });
 		}
 	}
 }
@@ -217,9 +197,9 @@ export class SwitchWindow extends BaseSwitchWindow {
 		@IKeybindingService keybindingService: IKeybindingService,
 		@IModelService modelService: IModelService,
 		@IModeService modeService: IModeService,
-		@IElectronService electronService: IElectronService
+		@INativeHostService nativeHostService: INativeHostService
 	) {
-		super(id, label, quickInputService, keybindingService, modelService, modeService, electronService);
+		super(id, label, quickInputService, keybindingService, modelService, modeService, nativeHostService);
 	}
 
 	protected isQuickNavigate(): boolean {
@@ -239,9 +219,9 @@ export class QuickSwitchWindow extends BaseSwitchWindow {
 		@IKeybindingService keybindingService: IKeybindingService,
 		@IModelService modelService: IModelService,
 		@IModeService modeService: IModeService,
-		@IElectronService electronService: IElectronService
+		@INativeHostService nativeHostService: INativeHostService
 	) {
-		super(id, label, quickInputService, keybindingService, modelService, modeService, electronService);
+		super(id, label, quickInputService, keybindingService, modelService, modeService, nativeHostService);
 	}
 
 	protected isQuickNavigate(): boolean {
@@ -250,25 +230,25 @@ export class QuickSwitchWindow extends BaseSwitchWindow {
 }
 
 export const NewWindowTabHandler: ICommandHandler = function (accessor: ServicesAccessor) {
-	return accessor.get(IElectronService).newWindowTab();
+	return accessor.get(INativeHostService).newWindowTab();
 };
 
 export const ShowPreviousWindowTabHandler: ICommandHandler = function (accessor: ServicesAccessor) {
-	return accessor.get(IElectronService).showPreviousWindowTab();
+	return accessor.get(INativeHostService).showPreviousWindowTab();
 };
 
 export const ShowNextWindowTabHandler: ICommandHandler = function (accessor: ServicesAccessor) {
-	return accessor.get(IElectronService).showNextWindowTab();
+	return accessor.get(INativeHostService).showNextWindowTab();
 };
 
 export const MoveWindowTabToNewWindowHandler: ICommandHandler = function (accessor: ServicesAccessor) {
-	return accessor.get(IElectronService).moveWindowTabToNewWindow();
+	return accessor.get(INativeHostService).moveWindowTabToNewWindow();
 };
 
 export const MergeWindowTabsHandlerHandler: ICommandHandler = function (accessor: ServicesAccessor) {
-	return accessor.get(IElectronService).mergeAllWindowTabs();
+	return accessor.get(INativeHostService).mergeAllWindowTabs();
 };
 
 export const ToggleWindowTabsBarHandler: ICommandHandler = function (accessor: ServicesAccessor) {
-	return accessor.get(IElectronService).toggleWindowTabsBar();
+	return accessor.get(INativeHostService).toggleWindowTabsBar();
 };

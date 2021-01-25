@@ -1,0 +1,26 @@
+[
+  {
+    "kind": 1,
+    "language": "markdown",
+    "value": "### Categorizing Issues\n\nEach issue must have a type label. Most type labels are grey, some are yellow. Bugs are grey with a touch of red.",
+    "editable": true
+  },
+  {
+    "kind": 2,
+    "language": "github-issues",
+    "value": "repo:microsoft/vscode is:open is:issue assignee:@me -label:\"needs more info\" -label:bug -label:feature-request -label:under-discussion -label:debt -label:*question -label:upstream -label:electron -label:engineering -label:plan-item ",
+    "editable": true
+  },
+  {
+    "kind": 1,
+    "language": "markdown",
+    "value": "### Feature Areas\n\nEach issue should be assigned to a feature area",
+    "editable": true
+  },
+  {
+    "kind": 2,
+    "language": "github-issues",
+    "value": "repo:microsoft/vscode is:open is:issue assignee:@me -label:L10N -label:VIM -label:api -label:api-finalization -label:api-proposal -label:authentication -label:breadcrumbs -label:callhierarchy -label:code-lens -label:color-palette -label:comments -label:config -label:context-keys -label:css-less-scss -label:custom-editors -label:debug -label:debug-console -label:dialogs -label:diff-editor -label:dropdown -label:editor -label:editor-RTL -label:editor-autoclosing -label:editor-autoindent -label:editor-bracket-matching -label:editor-clipboard -label:editor-code-actions -label:editor-color-picker -label:editor-columnselect -label:editor-commands -label:editor-comments -label:editor-contrib -label:editor-core -label:editor-drag-and-drop -label:editor-error-widget -label:editor-find -label:editor-folding -label:editor-highlight -label:editor-hover -label:editor-indent-detection -label:editor-indent-guides -label:editor-input -label:editor-input-IME -label:editor-insets -label:editor-minimap -label:editor-multicursor -label:editor-parameter-hints -label:editor-render-whitespace -label:editor-rendering -label:editor-scrollbar -label:editor-symbols -label:editor-synced-region -label:editor-textbuffer -label:editor-theming -label:editor-wordnav -label:editor-wrapping -label:emmet -label:error-list -label:explorer-custom -label:extension-host -label:extension-recommendations -label:extensions -label:extensions-development -label:file-decorations -label:file-encoding -label:file-explorer -label:file-glob -label:file-guess-encoding -label:file-io -label:file-watcher -label:font-rendering -label:formatting -label:git -label:github -label:gpu -label:grammar -label:grid-view -label:html -label:i18n -label:icon-brand -label:icons-product -label:install-update -label:integrated-terminal -label:integrated-terminal-conpty -label:integrated-terminal-links -label:integrated-terminal-rendering -label:integrated-terminal-winpty -label:intellisense-config -label:ipc -label:issue-bot -label:issue-reporter -label:javascript -label:json -label:keybindings -label:keybindings-editor -label:keyboard-layout -label:label-provider -label:languages-basic -label:languages-diagnostics -label:languages-guessing -label:layout -label:lcd-text-rendering -label:list -label:log -label:markdown -label:marketplace -label:menus -label:merge-conflict -label:notebook -label:outline -label:output -label:perf -label:perf-bloat -label:perf-startup -label:php -label:portable-mode -label:proxy -label:quick-pick -label:references-viewlet -label:release-notes -label:remote -label:remote-explorer -label:rename -label:sandbox -label:scm -label:screencast-mode -label:search -label:search-api -label:search-editor -label:search-replace -label:semantic-tokens -label:settings-editor -label:settings-sync -label:settings-sync-server -label:shared-process -label:simple-file-dialog -label:smart-select -label:snap -label:snippets -label:splitview -label:suggest -label:sync-error-handling -label:tasks -label:telemetry -label:themes -label:timeline -label:timeline-git -label:titlebar -label:tokenization -label:touch/pointer -label:trackpad/scroll -label:tree -label:typescript -label:undo-redo -label:uri -label:ux -label:variable-resolving -label:vscode-build -label:vscode-website -label:web -label:webview -label:workbench-actions -label:workbench-cli -label:workbench-diagnostics -label:workbench-dnd -label:workbench-editor-grid -label:workbench-editors -label:workbench-electron -label:workbench-feedback -label:workbench-history -label:workbench-hot-exit -label:workbench-hover -label:workbench-launch -label:workbench-link -label:workbench-multiroot -label:workbench-notifications -label:workbench-os-integration -label:workbench-rapid-render -label:workbench-run-as-admin -label:workbench-state -label:workbench-status -label:workbench-tabs -label:workbench-touchbar -label:workbench-views -label:workbench-welcome -label:workbench-window -label:workbench-zen -label:workspace-edit -label:workspace-symbols -label:zoom",
+    "editable": true
+  }
+]

@@ -1,14 +1,14 @@
-Param(
-  [string]$AuthCertificateBase64,
-  [string]$AuthCertificateKey
-)
+param ($CertBase64)
+$ErrorActionPreference = "Stop"
 
-# Import auth certificate
-$AuthCertificateFileName = [System.IO.Path]::GetTempFileName()
-$AuthCertificateBytes = [Convert]::FromBase64String($AuthCertificateBase64)
-[IO.File]::WriteAllBytes($AuthCertificateFileName, $AuthCertificateBytes)
-$AuthCertificate = Import-PfxCertificate -FilePath $AuthCertificateFileName -CertStoreLocation Cert:\LocalMachine\My -Password (ConvertTo-SecureString $AuthCertificateKey -AsPlainText -Force)
-rm $AuthCertificateFileName
-$ESRPAuthCertificateSubjectName = $AuthCertificate.Subject
+$CertBytes = [System.Convert]::FromBase64String($CertBase64)
+$CertCollection = New-Object System.Security.Cryptography.X509Certificates.X509Certificate2Collection
+$CertCollection.Import($CertBytes, $null, [System.Security.Cryptography.X509Certificates.X509KeyStorageFlags]::Exportable)
 
+$CertStore = New-Object System.Security.Cryptography.X509Certificates.X509Store("My","LocalMachine")
+$CertStore.Open("ReadWrite")
+$CertStore.AddRange($CertCollection)
+$CertStore.Close()
+
+$ESRPAuthCertificateSubjectName = $CertCollection[0].Subject
 Write-Output ("##vso[task.setvariable variable=ESRPAuthCertificateSubjectName;]$ESRPAuthCertificateSubjectName")

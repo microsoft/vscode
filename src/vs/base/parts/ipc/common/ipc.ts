@@ -505,6 +505,7 @@ export interface IIPCLogger {
 
 export class ChannelClient implements IChannelClient, IDisposable {
 
+	private isDisposed: boolean = false;
 	private state: State = State.Uninitialized;
 	private activeRequests = new Set<IDisposable>();
 	private handlers = new Map<number, IHandler>();
@@ -525,9 +526,15 @@ export class ChannelClient implements IChannelClient, IDisposable {
 
 		return {
 			call(command: string, arg?: any, cancellationToken?: CancellationToken) {
+				if (that.isDisposed) {
+					return Promise.reject(errors.canceled());
+				}
 				return that.requestPromise(channelName, command, arg, cancellationToken);
 			},
 			listen(event: string, arg: any) {
+				if (that.isDisposed) {
+					return Promise.reject(errors.canceled());
+				}
 				return that.requestEvent(channelName, event, arg);
 			}
 		} as T;
@@ -725,6 +732,7 @@ export class ChannelClient implements IChannelClient, IDisposable {
 	}
 
 	dispose(): void {
+		this.isDisposed = true;
 		if (this.protocolListener) {
 			this.protocolListener.dispose();
 			this.protocolListener = null;
@@ -1185,7 +1193,7 @@ export function logWithColors(direction: string, totalLength: number, msgLength:
 
 	const colorTable = colorTables[initiator];
 	const color = colorTable[req % colorTable.length];
-	let args = [`%c[${direction}]%c[${strings.pad(totalLength, 7, ' ')}]%c[len: ${strings.pad(msgLength, 5, ' ')}]%c${strings.pad(req, 5, ' ')} - ${str}`, 'color: darkgreen', 'color: grey', 'color: grey', `color: ${color}`];
+	let args = [`%c[${direction}]%c[${String(totalLength).padStart(7, ' ')}]%c[len: ${String(msgLength).padStart(5, ' ')}]%c${String(req).padStart(5, ' ')} - ${str}`, 'color: darkgreen', 'color: grey', 'color: grey', `color: ${color}`];
 	if (/\($/.test(str)) {
 		args = args.concat(data);
 		args.push(')');

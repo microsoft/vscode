@@ -5,7 +5,7 @@
 
 import * as nls from 'vs/nls';
 import { toErrorMessage } from 'vs/base/common/errorMessage';
-import { basename, extUri } from 'vs/base/common/resources';
+import { basename, isEqual } from 'vs/base/common/resources';
 import { Action, IAction } from 'vs/base/common/actions';
 import { URI } from 'vs/base/common/uri';
 import { FileOperationError, FileOperationResult } from 'vs/platform/files/common/files';
@@ -23,7 +23,7 @@ import { FileEditorInput } from 'vs/workbench/contrib/files/common/editors/fileE
 import { SAVE_FILE_COMMAND_ID, REVERT_FILE_COMMAND_ID, SAVE_FILE_AS_COMMAND_ID, SAVE_FILE_AS_LABEL } from 'vs/workbench/contrib/files/browser/fileCommands';
 import { INotificationService, INotificationHandle, INotificationActions, Severity } from 'vs/platform/notification/common/notification';
 import { IOpenerService } from 'vs/platform/opener/common/opener';
-import { IStorageService, StorageScope } from 'vs/platform/storage/common/storage';
+import { IStorageService, StorageScope, StorageTarget } from 'vs/platform/storage/common/storage';
 import { ExecuteCommandAction } from 'vs/platform/actions/common/actions';
 import { IProductService } from 'vs/platform/product/common/productService';
 import { Event } from 'vs/base/common/event';
@@ -32,7 +32,6 @@ import { isWindows } from 'vs/base/common/platform';
 import { Schemas } from 'vs/base/common/network';
 import { IPreferencesService } from 'vs/workbench/services/preferences/common/preferences';
 import { SaveReason } from 'vs/workbench/common/editor';
-import { IStorageKeysSyncRegistryService } from 'vs/platform/userDataSync/common/storageKeys';
 
 export const CONFLICT_RESOLUTION_CONTEXT = 'saveConflictResolutionContext';
 export const CONFLICT_RESOLUTION_SCHEME = 'conflictResolution';
@@ -56,12 +55,8 @@ export class TextFileSaveErrorHandler extends Disposable implements ISaveErrorHa
 		@ITextModelService textModelService: ITextModelService,
 		@IInstantiationService private readonly instantiationService: IInstantiationService,
 		@IStorageService private readonly storageService: IStorageService,
-		@IStorageKeysSyncRegistryService storageKeysSyncRegistryService: IStorageKeysSyncRegistryService
 	) {
 		super();
-
-		// opt-in to syncing
-		storageKeysSyncRegistryService.registerStorageKey({ key: LEARN_MORE_DIRTY_WRITE_IGNORE_KEY, version: 1 });
 
 		const provider = this._register(instantiationService.createInstance(TextFileContentProvider));
 		this._register(textModelService.registerTextModelContentProvider(CONFLICT_RESOLUTION_SCHEME, provider));
@@ -115,7 +110,7 @@ export class TextFileSaveErrorHandler extends Disposable implements ISaveErrorHa
 		if (fileOperationError.fileOperationResult === FileOperationResult.FILE_MODIFIED_SINCE) {
 
 			// If the user tried to save from the opened conflict editor, show its message again
-			if (this.activeConflictResolutionResource && extUri.isEqual(this.activeConflictResolutionResource, model.resource)) {
+			if (this.activeConflictResolutionResource && isEqual(this.activeConflictResolutionResource, model.resource)) {
 				if (this.storageService.getBoolean(LEARN_MORE_DIRTY_WRITE_IGNORE_KEY, StorageScope.GLOBAL)) {
 					return; // return if this message is ignored
 				}
@@ -142,7 +137,7 @@ export class TextFileSaveErrorHandler extends Disposable implements ISaveErrorHa
 			const isReadonly = fileOperationError.fileOperationResult === FileOperationResult.FILE_READ_ONLY;
 			const triedToMakeWriteable = isReadonly && fileOperationError.options && (fileOperationError.options as IWriteTextFileOptions).overwriteReadonly;
 			const isPermissionDenied = fileOperationError.fileOperationResult === FileOperationResult.FILE_PERMISSION_DENIED;
-			const canHandlePermissionOrReadonlyErrors = resource.scheme === Schemas.file; // https://github.com/Microsoft/vscode/issues/48659
+			const canHandlePermissionOrReadonlyErrors = resource.scheme === Schemas.file; // https://github.com/microsoft/vscode/issues/48659
 
 			// Save Elevated
 			if (canHandlePermissionOrReadonlyErrors && (isPermissionDenied || triedToMakeWriteable)) {
@@ -225,7 +220,7 @@ class DoNotShowResolveConflictLearnMoreAction extends Action {
 	}
 
 	async run(notification: IDisposable): Promise<void> {
-		this.storageService.store(LEARN_MORE_DIRTY_WRITE_IGNORE_KEY, true, StorageScope.GLOBAL);
+		this.storageService.store(LEARN_MORE_DIRTY_WRITE_IGNORE_KEY, true, StorageScope.GLOBAL, StorageTarget.USER);
 
 		// Hide notification
 		notification.dispose();
@@ -239,13 +234,9 @@ class ResolveSaveConflictAction extends Action {
 		@IEditorService private readonly editorService: IEditorService,
 		@INotificationService private readonly notificationService: INotificationService,
 		@IInstantiationService private readonly instantiationService: IInstantiationService,
-		@IProductService private readonly productService: IProductService,
-		@IStorageKeysSyncRegistryService storageKeysSyncRegistryService: IStorageKeysSyncRegistryService
+		@IProductService private readonly productService: IProductService
 	) {
 		super('workbench.files.action.resolveConflict', nls.localize('compareChanges', "Compare"));
-
-		// opt-in to syncing
-		storageKeysSyncRegistryService.registerStorageKey({ key: LEARN_MORE_DIRTY_WRITE_IGNORE_KEY, version: 1 });
 	}
 
 	async run(): Promise<void> {

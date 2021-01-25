@@ -21,6 +21,7 @@ export interface IQuickPickItem {
 	type?: 'item';
 	id?: string;
 	label: string;
+	meta?: string;
 	ariaLabel?: string;
 	description?: string;
 	detail?: string;
@@ -199,7 +200,7 @@ export interface IQuickPick<T extends IQuickPickItem> extends IQuickInput {
 	 */
 	filterValue: (value: string) => string;
 
-	ariaLabel: string;
+	ariaLabel: string | undefined;
 
 	placeholder: string | undefined;
 
@@ -275,6 +276,8 @@ export interface IQuickPick<T extends IQuickPickItem> extends IQuickInput {
 	 * be presented.
 	 */
 	hideInput: boolean;
+
+	hideCheckAll: boolean;
 }
 
 export interface IInputBox extends IQuickInput {

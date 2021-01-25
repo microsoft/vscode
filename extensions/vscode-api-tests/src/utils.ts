@@ -22,13 +22,13 @@ export async function createRandomFile(contents = '', dir: vscode.Uri | undefine
 	} else {
 		fakeFile = vscode.Uri.parse(`${testFs.scheme}:/${rndName() + ext}`);
 	}
-	await testFs.writeFile(fakeFile, Buffer.from(contents), { create: true, overwrite: true });
+	testFs.writeFile(fakeFile, Buffer.from(contents), { create: true, overwrite: true });
 	return fakeFile;
 }
 
 export async function deleteFile(file: vscode.Uri): Promise<boolean> {
 	try {
-		await testFs.delete(file);
+		testFs.delete(file);
 		return true;
 	} catch {
 		return false;

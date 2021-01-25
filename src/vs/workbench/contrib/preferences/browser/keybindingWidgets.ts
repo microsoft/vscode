@@ -24,6 +24,8 @@ import { editorWidgetBackground, editorWidgetForeground, widgetShadow } from 'vs
 import { ScrollType } from 'vs/editor/common/editorCommon';
 import { SearchWidget, SearchOptions } from 'vs/workbench/contrib/preferences/browser/preferencesWidgets';
 import { withNullAsUndefined } from 'vs/base/common/types';
+import { timeout } from 'vs/base/common/async';
+import { IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
 
 export interface KeybindingsSearchOptions extends SearchOptions {
 	recordEnter?: boolean;
@@ -50,13 +52,14 @@ export class KeybindingsSearchWidget extends SearchWidget {
 	private _onBlur = this._register(new Emitter<void>());
 	readonly onBlur: Event<void> = this._onBlur.event;
 
-	constructor(parent: HTMLElement, options: SearchOptions,
+	constructor(parent: HTMLElement, options: KeybindingsSearchOptions,
 		@IContextViewService contextViewService: IContextViewService,
 		@IKeybindingService private readonly keybindingService: IKeybindingService,
 		@IInstantiationService instantiationService: IInstantiationService,
-		@IThemeService themeService: IThemeService
+		@IThemeService themeService: IThemeService,
+		@IContextKeyService contextKeyService: IContextKeyService
 	) {
-		super(parent, options, contextViewService, instantiationService, themeService);
+		super(parent, options, contextViewService, instantiationService, themeService, contextKeyService);
 		this._register(attachInputBoxStyler(this.inputBox, themeService));
 		this._register(toDisposable(() => this.stopRecordingKeys()));
 		this._firstPart = null;
@@ -198,7 +201,7 @@ export class DefineKeybindingWidget extends Widget {
 			}
 		}));
 
-		this._keybindingInputWidget = this._register(this.instantiationService.createInstance(KeybindingsSearchWidget, this._domNode.domNode, { ariaLabel: message }));
+		this._keybindingInputWidget = this._register(this.instantiationService.createInstance(KeybindingsSearchWidget, this._domNode.domNode, { ariaLabel: message, history: [] }));
 		this._keybindingInputWidget.startRecordingKeys();
 		this._register(this._keybindingInputWidget.onKeybinding(keybinding => this.onKeybinding(keybinding)));
 		this._register(this._keybindingInputWidget.onEnter(() => this.hide()));
@@ -219,7 +222,7 @@ export class DefineKeybindingWidget extends Widget {
 
 	define(): Promise<string | null> {
 		this._keybindingInputWidget.clear();
-		return new Promise<string | null>((c) => {
+		return new Promise<string | null>(async (c) => {
 			if (!this._isVisible) {
 				this._isVisible = true;
 				this._domNode.setDisplay('block');
@@ -229,6 +232,11 @@ export class DefineKeybindingWidget extends Widget {
 				this._keybindingInputWidget.setInputValue('');
 				dom.clearNode(this._outputNode);
 				dom.clearNode(this._showExistingKeybindingsNode);
+
+				// Input is not getting focus without timeout in safari
+				// https://github.com/microsoft/vscode/issues/108817
+				await timeout(0);
+
 				this._keybindingInputWidget.focus();
 			}
 			const disposable = this._onHide.event(() => {

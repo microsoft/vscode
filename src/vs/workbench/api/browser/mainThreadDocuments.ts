@@ -20,6 +20,7 @@ import { toLocalResource, extUri, IExtUri } from 'vs/base/common/resources';
 import { IWorkingCopyFileService } from 'vs/workbench/services/workingCopy/common/workingCopyFileService';
 import { IUriIdentityService } from 'vs/workbench/services/uriIdentity/common/uriIdentity';
 import { Emitter } from 'vs/base/common/event';
+import { IPathService } from 'vs/workbench/services/path/common/pathService';
 
 export class BoundModelReferenceCollection {
 
@@ -126,7 +127,8 @@ export class MainThreadDocuments extends Disposable implements MainThreadDocumen
 		@ITextModelService textModelResolverService: ITextModelService,
 		@IWorkbenchEnvironmentService environmentService: IWorkbenchEnvironmentService,
 		@IUriIdentityService uriIdentityService: IUriIdentityService,
-		@IWorkingCopyFileService workingCopyFileService: IWorkingCopyFileService
+		@IWorkingCopyFileService workingCopyFileService: IWorkingCopyFileService,
+		@IPathService private readonly _pathService: IPathService
 	) {
 		super();
 		this._modelService = modelService;
@@ -271,7 +273,7 @@ export class MainThreadDocuments extends Disposable implements MainThreadDocumen
 	}
 
 	private _handleUntitledScheme(uri: URI): Promise<URI> {
-		const asLocalUri = toLocalResource(uri, this._environmentService.configuration.remoteAuthority);
+		const asLocalUri = toLocalResource(uri, this._environmentService.remoteAuthority, this._pathService.defaultUriScheme);
 		return this._fileService.resolve(asLocalUri).then(stats => {
 			// don't create a new file ontop of an existing file
 			return Promise.reject(new Error('file already exists'));

@@ -5,18 +5,26 @@
 
 import * as path from 'vs/base/common/path';
 import * as platform from 'vs/base/common/platform';
-import * as pty from 'node-pty';
+import type * as pty from 'node-pty';
 import * as fs from 'fs';
+import * as os from 'os';
 import { Event, Emitter } from 'vs/base/common/event';
 import { getWindowsBuildNumber } from 'vs/workbench/contrib/terminal/node/terminal';
 import { Disposable } from 'vs/base/common/lifecycle';
-import { IShellLaunchConfig, ITerminalChildProcess, ITerminalLaunchError } from 'vs/workbench/contrib/terminal/common/terminal';
+import { IShellLaunchConfig, ITerminalChildProcess, ITerminalDimensionsOverride, ITerminalLaunchError, FlowControlConstants } from 'vs/workbench/contrib/terminal/common/terminal';
 import { exec } from 'child_process';
 import { ILogService } from 'vs/platform/log/common/log';
 import { stat } from 'vs/base/node/pfs';
 import { findExecutable } from 'vs/workbench/contrib/terminal/node/terminalEnvironment';
 import { URI } from 'vs/base/common/uri';
 import { localize } from 'vs/nls';
+
+// Writing large amounts of data can be corrupted for some reason, after looking into this is
+// appears to be a race condition around writing to the FD which may be based on how powerful the
+// hardware is. The workaround for this is to space out when large amounts of data is being written
+// to the terminal. See https://github.com/microsoft/vscode/issues/38137
+const WRITE_MAX_CHUNK_SIZE = 50;
+const WRITE_INTERVAL_MS = 5;
 
 export class TerminalProcess extends Disposable implements ITerminalChildProcess {
 	private _exitCode: number | undefined;
@@ -27,8 +35,14 @@ export class TerminalProcess extends Disposable implements ITerminalChildProcess
 	private _processStartupComplete: Promise<void> | undefined;
 	private _isDisposed: boolean = false;
 	private _titleInterval: NodeJS.Timer | null = null;
+	private _writeQueue: string[] = [];
+	private _writeTimeout: NodeJS.Timeout | undefined;
+	private _delayedResizer: DelayedResizer | undefined;
 	private readonly _initialCwd: string;
 	private readonly _ptyOptions: pty.IPtyForkOptions | pty.IWindowsPtyForkOptions;
+
+	private _isPtyPaused: boolean = false;
+	private _unacknowledgedCharCount: number = 0;
 
 	public get exitMessage(): string | undefined { return this._exitMessage; }
 
@@ -47,6 +61,10 @@ export class TerminalProcess extends Disposable implements ITerminalChildProcess
 		cols: number,
 		rows: number,
 		env: platform.IProcessEnvironment,
+		/**
+		 * environment used for `findExecutable`
+		 */
+		private readonly _executableEnv: platform.IProcessEnvironment,
 		windowsEnableConpty: boolean,
 		@ILogService private readonly _logService: ILogService
 	) {
@@ -71,7 +89,20 @@ export class TerminalProcess extends Disposable implements ITerminalChildProcess
 			// This option will force conpty to not redraw the whole viewport on launch
 			conptyInheritCursor: useConpty && !!_shellLaunchConfig.initialText
 		};
+		// Delay resizes to avoid conpty not respecting very early resize calls
+		if (platform.isWindows && useConpty && cols === 0 && rows === 0 && this._shellLaunchConfig.executable?.endsWith('Git\\bin\\bash.exe')) {
+			this._delayedResizer = new DelayedResizer();
+			this._register(this._delayedResizer.onTrigger(dimensions => {
+				this._delayedResizer?.dispose();
+				this._delayedResizer = undefined;
+				if (dimensions.cols && dimensions.rows) {
+					this.resize(dimensions.cols, dimensions.rows);
+				}
+			}));
+		}
 	}
+	onProcessOverrideDimensions?: Event<ITerminalDimensionsOverride | undefined> | undefined;
+	onProcessResolvedShellLaunchConfig?: Event<IShellLaunchConfig> | undefined;
 
 	public async start(): Promise<ITerminalLaunchError | undefined> {
 		const results = await Promise.all([this._validateCwd(), this._validateExecutable()]);
@@ -81,7 +112,7 @@ export class TerminalProcess extends Disposable implements ITerminalChildProcess
 		}
 
 		try {
-			this.setupPtyProcess(this._shellLaunchConfig, this._ptyOptions);
+			await this.setupPtyProcess(this._shellLaunchConfig, this._ptyOptions);
 			return undefined;
 		} catch (err) {
 			this._logService.trace('IPty#spawn native exception', err);
@@ -118,7 +149,7 @@ export class TerminalProcess extends Disposable implements ITerminalChildProcess
 				// The executable isn't an absolute path, try find it on the PATH or CWD
 				let cwd = slc.cwd instanceof URI ? slc.cwd.path : slc.cwd!;
 				const envPaths: string[] | undefined = (slc.env && slc.env.PATH) ? slc.env.PATH.split(path.delimiter) : undefined;
-				const executable = await findExecutable(slc.executable!, cwd, envPaths);
+				const executable = await findExecutable(slc.executable!, cwd, envPaths, this._executableEnv);
 				if (!executable) {
 					return { message: localize('launchFail.executableDoesNotExist', "Path to shell executable \"{0}\" does not exist", slc.executable) };
 				}
@@ -127,15 +158,23 @@ export class TerminalProcess extends Disposable implements ITerminalChildProcess
 		return undefined;
 	}
 
-	private setupPtyProcess(shellLaunchConfig: IShellLaunchConfig, options: pty.IPtyForkOptions): void {
+	private async setupPtyProcess(shellLaunchConfig: IShellLaunchConfig, options: pty.IPtyForkOptions): Promise<void> {
 		const args = shellLaunchConfig.args || [];
 		this._logService.trace('IPty#spawn', shellLaunchConfig.executable, args, options);
-		const ptyProcess = pty.spawn(shellLaunchConfig.executable!, args, options);
+		const ptyProcess = (await import('node-pty')).spawn(shellLaunchConfig.executable!, args, options);
 		this._ptyProcess = ptyProcess;
 		this._processStartupComplete = new Promise<void>(c => {
 			this.onProcessReady(() => c());
 		});
 		ptyProcess.onData(data => {
+			if (this._shellLaunchConfig.flowControl) {
+				this._unacknowledgedCharCount += data.length;
+				if (!this._isPtyPaused && this._unacknowledgedCharCount > FlowControlConstants.HighWatermarkChars) {
+					this._logService.trace(`Flow control: Pause (${this._unacknowledgedCharCount} > ${FlowControlConstants.HighWatermarkChars})`);
+					this._isPtyPaused = true;
+					ptyProcess.pause();
+				}
+			}
 			this._onProcessData.fire(data);
 			if (this._closeTimeout) {
 				clearTimeout(this._closeTimeout);
@@ -232,8 +271,37 @@ export class TerminalProcess extends Disposable implements ITerminalChildProcess
 		if (this._isDisposed || !this._ptyProcess) {
 			return;
 		}
+		for (let i = 0; i <= Math.floor(data.length / WRITE_MAX_CHUNK_SIZE); i++) {
+			this._writeQueue.push(data.substr(i * WRITE_MAX_CHUNK_SIZE, WRITE_MAX_CHUNK_SIZE));
+		}
+		this._startWrite();
+	}
+
+	private _startWrite(): void {
+		// Don't write if it's already queued of is there is nothing to write
+		if (this._writeTimeout !== undefined || this._writeQueue.length === 0) {
+			return;
+		}
+
+		this._doWrite();
+
+		// Don't queue more writes if the queue is empty
+		if (this._writeQueue.length === 0) {
+			this._writeTimeout = undefined;
+			return;
+		}
+
+		// Queue the next write
+		this._writeTimeout = setTimeout(() => {
+			this._writeTimeout = undefined;
+			this._startWrite();
+		}, WRITE_INTERVAL_MS);
+	}
+
+	private _doWrite(): void {
+		const data = this._writeQueue.shift()!;
 		this._logService.trace('IPty#write', `${data.length} characters`);
-		this._ptyProcess.write(data);
+		this._ptyProcess!.write(data);
 	}
 
 	public resize(cols: number, rows: number): void {
@@ -248,6 +316,14 @@ export class TerminalProcess extends Disposable implements ITerminalChildProcess
 		if (this._ptyProcess) {
 			cols = Math.max(cols, 1);
 			rows = Math.max(rows, 1);
+
+			// Delay resize if needed
+			if (this._delayedResizer) {
+				this._delayedResizer.cols = cols;
+				this._delayedResizer.rows = rows;
+				return;
+			}
+
 			this._logService.trace('IPty#resize', cols, rows);
 			try {
 				this._ptyProcess.resize(cols, rows);
@@ -261,24 +337,59 @@ export class TerminalProcess extends Disposable implements ITerminalChildProcess
 		}
 	}
 
+	public acknowledgeDataEvent(charCount: number): void {
+		if (!this._shellLaunchConfig.flowControl) {
+			return;
+		}
+		// Prevent lower than 0 to heal from errors
+		this._unacknowledgedCharCount = Math.max(this._unacknowledgedCharCount - charCount, 0);
+		this._logService.trace(`Flow control: Ack ${charCount} chars (unacknowledged: ${this._unacknowledgedCharCount})`);
+		if (this._isPtyPaused && this._unacknowledgedCharCount < FlowControlConstants.LowWatermarkChars) {
+			this._logService.trace(`Flow control: Resume (${this._unacknowledgedCharCount} < ${FlowControlConstants.LowWatermarkChars})`);
+			this._ptyProcess?.resume();
+			this._isPtyPaused = false;
+		}
+	}
+
+	public clearUnacknowledgedChars(): void {
+		if (!this._shellLaunchConfig.flowControl) {
+			return;
+		}
+
+		this._unacknowledgedCharCount = 0;
+		this._logService.trace(`Flow control: Cleared all unacknowledged chars, forcing resume`);
+		if (this._isPtyPaused) {
+			this._ptyProcess?.resume();
+			this._isPtyPaused = false;
+		}
+	}
+
 	public getInitialCwd(): Promise<string> {
 		return Promise.resolve(this._initialCwd);
 	}
 
 	public getCwd(): Promise<string> {
 		if (platform.isMacintosh) {
-			return new Promise<string>(resolve => {
-				if (!this._ptyProcess) {
-					resolve(this._initialCwd);
-					return;
-				}
-				this._logService.trace('IPty#pid');
-				exec('lsof -OPl -p ' + this._ptyProcess.pid + ' | grep cwd', (error, stdout, stderr) => {
-					if (stdout !== '') {
-						resolve(stdout.substring(stdout.indexOf('/'), stdout.length - 1));
+			// Disable cwd lookup on macOS Big Sur due to spawn blocking thread (darwin v20 is macOS
+			// Big Sur) https://github.com/Microsoft/vscode/issues/105446
+			const osRelease = os.release().split('.');
+			if (osRelease.length > 0 && parseInt(osRelease[0]) < 20) {
+				return new Promise<string>(resolve => {
+					if (!this._ptyProcess) {
+						resolve(this._initialCwd);
+						return;
 					}
+					this._logService.trace('IPty#pid');
+					exec('lsof -OPln -p ' + this._ptyProcess.pid + ' | grep cwd', (error, stdout, stderr) => {
+						if (!error && stdout !== '') {
+							resolve(stdout.substring(stdout.indexOf('/'), stdout.length - 1));
+						} else {
+							this._logService.error('lsof did not run successfully, it may not be on the $PATH?', error, stdout, stderr);
+							resolve(this._initialCwd);
+						}
+					});
 				});
-			});
+			}
 		}
 
 		if (platform.isLinux) {
@@ -304,5 +415,34 @@ export class TerminalProcess extends Disposable implements ITerminalChildProcess
 
 	public getLatency(): Promise<number> {
 		return Promise.resolve(0);
+	}
+}
+
+/**
+ * Tracks the latest resize event to be trigger at a later point.
+ */
+class DelayedResizer extends Disposable {
+	public rows: number | undefined;
+	public cols: number | undefined;
+	private _timeout: NodeJS.Timeout;
+
+	private readonly _onTrigger = this._register(new Emitter<{ rows?: number, cols?: number }>());
+	public get onTrigger(): Event<{ rows?: number, cols?: number }> { return this._onTrigger.event; }
+
+	constructor() {
+		super();
+		this._timeout = setTimeout(() => {
+			this._onTrigger.fire({ rows: this.rows, cols: this.cols });
+		}, 1000);
+		this._register({
+			dispose: () => {
+				clearTimeout(this._timeout);
+			}
+		});
+	}
+
+	dispose(): void {
+		super.dispose();
+		clearTimeout(this._timeout);
 	}
 }

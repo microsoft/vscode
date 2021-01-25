@@ -10,6 +10,7 @@ import { FileSystemError } from 'vs/workbench/api/common/extHostTypes';
 import { VSBuffer } from 'vs/base/common/buffer';
 import { createDecorator } from 'vs/platform/instantiation/common/instantiation';
 import { IExtHostRpcService } from 'vs/workbench/api/common/extHostRpcService';
+import { IExtHostFileSystemInfo } from 'vs/workbench/api/common/extHostFileSystemInfo';
 
 export class ExtHostConsumerFileSystem implements vscode.FileSystem {
 
@@ -17,7 +18,10 @@ export class ExtHostConsumerFileSystem implements vscode.FileSystem {
 
 	private readonly _proxy: MainThreadFileSystemShape;
 
-	constructor(@IExtHostRpcService extHostRpc: IExtHostRpcService) {
+	constructor(
+		@IExtHostRpcService extHostRpc: IExtHostRpcService,
+		@IExtHostFileSystemInfo private readonly _fileSystemInfo: IExtHostFileSystemInfo,
+	) {
 		this._proxy = extHostRpc.getProxy(MainContext.MainThreadFileSystem);
 	}
 
@@ -45,6 +49,14 @@ export class ExtHostConsumerFileSystem implements vscode.FileSystem {
 	copy(source: vscode.Uri, destination: vscode.Uri, options?: { overwrite?: boolean; }): Promise<void> {
 		return this._proxy.$copy(source, destination, { ...{ overwrite: false }, ...options }).catch(ExtHostConsumerFileSystem._handleError);
 	}
+	isWritableFileSystem(scheme: string): boolean | undefined {
+		const capabilities = this._fileSystemInfo.getCapabilities(scheme);
+		if (typeof capabilities === 'number') {
+			return !(capabilities & files.FileSystemProviderCapabilities.Readonly);
+		}
+		return undefined;
+	}
+
 	private static _handleError(err: any): never {
 		// generic error
 		if (!(err instanceof Error)) {

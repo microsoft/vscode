@@ -3,8 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { IEnvironmentService } from 'vs/platform/environment/common/environment';
-import { INativeEnvironmentService } from 'vs/platform/environment/node/environmentService';
+import { INativeEnvironmentService } from 'vs/platform/environment/common/environment';
 import { join } from 'vs/base/common/path';
 import { readdir, readFile, rimraf } from 'vs/base/node/pfs';
 import { onUnexpectedError } from 'vs/base/common/errors';
@@ -17,7 +16,8 @@ export class StorageDataCleaner extends Disposable {
 	private static readonly NON_EMPTY_WORKSPACE_ID_LENGTH = 128 / 4;
 
 	constructor(
-		@IEnvironmentService private readonly environmentService: INativeEnvironmentService
+		private readonly backupWorkspacesPath: string,
+		@INativeEnvironmentService private readonly environmentService: INativeEnvironmentService
 	) {
 		super();
 
@@ -28,14 +28,17 @@ export class StorageDataCleaner extends Disposable {
 		let handle: NodeJS.Timeout | undefined = setTimeout(() => {
 			handle = undefined;
 
-			// Leverage the backup workspace file to find out which empty workspace is currently in use to
-			// determine which empty workspace storage can safely be deleted
-			readFile(this.environmentService.backupWorkspacesPath, 'utf8').then(contents => {
-				const workspaces = JSON.parse(contents) as IBackupWorkspacesFormat;
-				const emptyWorkspaces = workspaces.emptyWorkspaceInfos.map(info => info.backupFolder);
+			(async () => {
+				try {
+					// Leverage the backup workspace file to find out which empty workspace is currently in use to
+					// determine which empty workspace storage can safely be deleted
+					const contents = await readFile(this.backupWorkspacesPath, 'utf8');
 
-				// Read all workspace storage folders that exist
-				return readdir(this.environmentService.workspaceStorageHome.fsPath).then(storageFolders => {
+					const workspaces = JSON.parse(contents) as IBackupWorkspacesFormat;
+					const emptyWorkspaces = workspaces.emptyWorkspaceInfos.map(info => info.backupFolder);
+
+					// Read all workspace storage folders that exist
+					const storageFolders = await readdir(this.environmentService.workspaceStorageHome.fsPath);
 					const deletes: Promise<void>[] = [];
 
 					storageFolders.forEach(storageFolder => {
@@ -48,9 +51,11 @@ export class StorageDataCleaner extends Disposable {
 						}
 					});
 
-					return Promise.all(deletes);
-				});
-			}).then(null, onUnexpectedError);
+					await Promise.all(deletes);
+				} catch (error) {
+					onUnexpectedError(error);
+				}
+			})();
 		}, 30 * 1000);
 
 		this._register(toDisposable(() => {

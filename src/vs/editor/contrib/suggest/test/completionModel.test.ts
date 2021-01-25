@@ -40,7 +40,6 @@ suite('CompletionModel', function () {
 		localityBonus: false,
 		shareSuggestSelections: false,
 		showIcons: true,
-		maxVisibleSuggestions: 12,
 		showMethods: true,
 		showFunctions: true,
 		showConstructors: true,

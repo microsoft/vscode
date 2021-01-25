@@ -4,7 +4,6 @@
  *--------------------------------------------------------------------------------------------*/
 
 import * as vscode from 'vscode';
-import * as path from 'path';
 import { smokeTestActivate } from './notebookSmokeTestMain';
 
 export function activate(context: vscode.ExtensionContext): any {
@@ -60,8 +59,9 @@ export function activate(context: vscode.ExtensionContext): any {
 		}
 	}));
 
-	context.subscriptions.push(vscode.notebook.registerNotebookKernel('notebookKernelTest', ['*.vsctestnb'], {
+	const kernel: vscode.NotebookKernel = {
 		label: 'Notebook Test Kernel',
+		isPreferred: true,
 		executeAllCells: async (_document: vscode.NotebookDocument) => {
 			const cell = _document.cells[0];
 
@@ -116,17 +116,11 @@ export function activate(context: vscode.ExtensionContext): any {
 			return;
 		},
 		cancelCellExecution: async (_document: vscode.NotebookDocument, _cell: vscode.NotebookCell) => { }
-	}));
+	};
 
-	const preloadUri = vscode.Uri.file(path.resolve(__dirname, '../src/customRenderer.js'));
-	context.subscriptions.push(vscode.notebook.registerNotebookOutputRenderer('notebookCoreTestRenderer', {
-		mimeTypes: [
-			'text/custom'
-		]
-	}, {
-		preloads: [preloadUri],
-		render(_document: vscode.NotebookDocument, _request: vscode.NotebookRenderRequest): string {
-			return '<div>test</div>';
+	context.subscriptions.push(vscode.notebook.registerNotebookKernelProvider({ filenamePattern: '*.vsctestnb' }, {
+		provideKernels: async () => {
+			return [kernel];
 		}
 	}));
 }

@@ -95,10 +95,10 @@ MenuRegistry.appendMenuItem(MenuId.GlobalActivity, {
 
 MenuRegistry.appendMenuItem(MenuId.EditorContext, {
 	group: 'z_commands',
+	when: EditorContextKeys.editorSimpleInput.toNegated(),
 	command: {
 		id: ShowAllCommandsAction.ID,
 		title: localize('commandPalette', "Command Palette..."),
-		precondition: EditorContextKeys.editorSimpleInput.toNegated()
 	},
 	order: 1
 });

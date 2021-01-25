@@ -6,7 +6,7 @@
 import * as types from 'vs/workbench/api/common/extHostTypes';
 import * as vscode from 'vscode';
 import { Event, Emitter } from 'vs/base/common/event';
-import { ExtHostNotebookController, ExtHostCell } from 'vs/workbench/api/common/extHostNotebook';
+import { ExtHostNotebookController } from 'vs/workbench/api/common/extHostNotebook';
 import { ExtHostDocuments } from 'vs/workbench/api/common/extHostDocuments';
 import { PrefixSumComputer } from 'vs/editor/common/viewModel/prefixSumComputer';
 import { DisposableStore } from 'vs/base/common/lifecycle';
@@ -21,7 +21,7 @@ export class ExtHostNotebookConcatDocument implements vscode.NotebookConcatTextD
 	private _disposables = new DisposableStore();
 	private _isClosed = false;
 
-	private _cells!: ExtHostCell[];
+	private _cells!: vscode.NotebookCell[];
 	private _cellUris!: ResourceMap<number>;
 	private _cellLengths!: PrefixSumComputer;
 	private _cellLines!: PrefixSumComputer;
@@ -78,7 +78,7 @@ export class ExtHostNotebookConcatDocument implements vscode.NotebookConcatTextD
 		for (const cell of this._notebook.cells) {
 			if (cell.cellKind === CellKind.Code && (!this._selector || score(this._selector, cell.uri, cell.language, true))) {
 				this._cellUris.set(cell.uri, this._cells.length);
-				this._cells.push(<ExtHostCell>cell);
+				this._cells.push(cell);
 				cellLengths.push(cell.document.getText().length + 1);
 				cellLineCounts.push(cell.document.lineCount);
 			}

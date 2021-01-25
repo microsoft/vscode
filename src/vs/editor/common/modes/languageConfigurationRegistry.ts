@@ -11,7 +11,7 @@ import { Range } from 'vs/editor/common/core/range';
 import { ITextModel } from 'vs/editor/common/model';
 import { DEFAULT_WORD_REGEXP, ensureValidWordDefinition } from 'vs/editor/common/model/wordHelper';
 import { LanguageId, LanguageIdentifier } from 'vs/editor/common/modes';
-import { EnterAction, FoldingRules, IAutoClosingPair, IndentAction, IndentationRule, LanguageConfiguration, StandardAutoClosingPairConditional, CompleteEnterAction } from 'vs/editor/common/modes/languageConfiguration';
+import { EnterAction, FoldingRules, IAutoClosingPair, IndentAction, IndentationRule, LanguageConfiguration, StandardAutoClosingPairConditional, CompleteEnterAction, AutoClosingPairs } from 'vs/editor/common/modes/languageConfiguration';
 import { createScopedLineTokens, ScopedLineTokens } from 'vs/editor/common/modes/supports';
 import { CharacterPairSupport } from 'vs/editor/common/modes/supports/characterPair';
 import { BracketElectricCharacterSupport, IElectricAction } from 'vs/editor/common/modes/supports/electricCharacter';
@@ -101,11 +101,11 @@ export class RichEditSupport {
 		return this._electricCharacter;
 	}
 
-	public onEnter(autoIndent: EditorAutoIndentStrategy, oneLineAboveText: string, beforeEnterText: string, afterEnterText: string): EnterAction | null {
+	public onEnter(autoIndent: EditorAutoIndentStrategy, previousLineText: string, beforeEnterText: string, afterEnterText: string): EnterAction | null {
 		if (!this._onEnterSupport) {
 			return null;
 		}
-		return this._onEnterSupport.onEnter(autoIndent, oneLineAboveText, beforeEnterText, afterEnterText);
+		return this._onEnterSupport.onEnter(autoIndent, previousLineText, beforeEnterText, afterEnterText);
 	}
 
 	private static _mergeConf(prev: LanguageConfiguration | null, current: LanguageConfiguration): LanguageConfiguration {
@@ -235,12 +235,9 @@ export class LanguageConfigurationRegistryImpl {
 		return value.characterPair || null;
 	}
 
-	public getAutoClosingPairs(languageId: LanguageId): StandardAutoClosingPairConditional[] {
-		let characterPairSupport = this._getCharacterPairSupport(languageId);
-		if (!characterPairSupport) {
-			return [];
-		}
-		return characterPairSupport.getAutoClosingPairs();
+	public getAutoClosingPairs(languageId: LanguageId): AutoClosingPairs {
+		const characterPairSupport = this._getCharacterPairSupport(languageId);
+		return new AutoClosingPairs(characterPairSupport ? characterPairSupport.getAutoClosingPairs() : []);
 	}
 
 	public getAutoCloseBeforeSet(languageId: LanguageId): string {
@@ -625,6 +622,12 @@ export class LanguageConfigurationRegistryImpl {
 			return null;
 		}
 		const scopedLineTokens = this.getScopedLineTokens(model, range.startLineNumber, range.startColumn);
+
+		if (scopedLineTokens.firstCharOffset) {
+			// this line has mixed languages and indentation rules will not work
+			return null;
+		}
+
 		const indentRulesSupport = this.getIndentRulesSupport(scopedLineTokens.languageId);
 		if (!indentRulesSupport) {
 			return null;
@@ -697,17 +700,17 @@ export class LanguageConfigurationRegistryImpl {
 			afterEnterText = endScopedLineTokens.getLineContent().substr(range.endColumn - 1 - scopedLineTokens.firstCharOffset);
 		}
 
-		let oneLineAboveText = '';
+		let previousLineText = '';
 		if (range.startLineNumber > 1 && scopedLineTokens.firstCharOffset === 0) {
 			// This is not the first line and the entire line belongs to this mode
 			const oneLineAboveScopedLineTokens = this.getScopedLineTokens(model, range.startLineNumber - 1);
 			if (oneLineAboveScopedLineTokens.languageId === scopedLineTokens.languageId) {
 				// The line above ends with text belonging to the same mode
-				oneLineAboveText = oneLineAboveScopedLineTokens.getLineContent();
+				previousLineText = oneLineAboveScopedLineTokens.getLineContent();
 			}
 		}
 
-		const enterResult = richEditSupport.onEnter(autoIndent, oneLineAboveText, beforeEnterText, afterEnterText);
+		const enterResult = richEditSupport.onEnter(autoIndent, previousLineText, beforeEnterText, afterEnterText);
 		if (!enterResult) {
 			return null;
 		}

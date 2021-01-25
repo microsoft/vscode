@@ -11,12 +11,12 @@ import { Color } from 'vs/base/common/color';
 import { Emitter, Event } from 'vs/base/common/event';
 import { KeyCode } from 'vs/base/common/keyCodes';
 import { DisposableStore } from 'vs/base/common/lifecycle';
-import { Codicon } from 'vs/base/common/codicons';
+import { Codicon, CSSIcon } from 'vs/base/common/codicons';
 import { BaseActionViewItem } from 'vs/base/browser/ui/actionbar/actionViewItems';
 
 export interface ICheckboxOpts extends ICheckboxStyles {
 	readonly actionClassName?: string;
-	readonly icon?: Codicon;
+	readonly icon?: CSSIcon;
 	readonly title: string;
 	readonly isChecked: boolean;
 }
@@ -101,18 +101,18 @@ export class Checkbox extends Widget {
 
 		const classes = ['monaco-custom-checkbox'];
 		if (this._opts.icon) {
-			classes.push(this._opts.icon.classNames);
-		} else {
-			classes.push('codicon'); // todo@aeschli: remove once codicon fully adopted
+			classes.push(...CSSIcon.asClassNameArray(this._opts.icon));
 		}
 		if (this._opts.actionClassName) {
-			classes.push(this._opts.actionClassName);
+			classes.push(...this._opts.actionClassName.split(' '));
 		}
-		classes.push(this._checked ? 'checked' : 'unchecked');
+		if (this._checked) {
+			classes.push('checked');
+		}
 
 		this.domNode = document.createElement('div');
 		this.domNode.title = this._opts.title;
-		this.domNode.className = classes.join(' ');
+		this.domNode.classList.add(...classes);
 		this.domNode.tabIndex = 0;
 		this.domNode.setAttribute('role', 'checkbox');
 		this.domNode.setAttribute('aria-checked', String(this._checked));
@@ -154,12 +154,9 @@ export class Checkbox extends Widget {
 
 	set checked(newIsChecked: boolean) {
 		this._checked = newIsChecked;
+
 		this.domNode.setAttribute('aria-checked', String(this._checked));
-		if (this._checked) {
-			this.domNode.classList.add('checked');
-		} else {
-			this.domNode.classList.remove('checked');
-		}
+		this.domNode.classList.toggle('checked', this._checked);
 
 		this.applyStyles();
 	}
@@ -228,6 +225,14 @@ export class SimpleCheckbox extends Widget {
 		this.checkbox.checked = newIsChecked;
 
 		this.applyStyles();
+	}
+
+	focus(): void {
+		this.domNode.focus();
+	}
+
+	hasFocus(): boolean {
+		return this.domNode === document.activeElement;
 	}
 
 	style(styles: ISimpleCheckboxStyles): void {

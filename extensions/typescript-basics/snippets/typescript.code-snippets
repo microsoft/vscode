@@ -167,16 +167,16 @@
 			"}"
 		],
 		"description": "For-Of Loop"
-    },
-    "For-Await-Of Loop": {
-        "prefix": "forawaitof",
-        "body": [
+	},
+	"For-Await-Of Loop": {
+		"prefix": "forawaitof",
+		"body": [
 			"for await (const ${1:iterator} of ${2:object}) {",
 			"\t$0",
 			"}"
 		],
-        "description": "For-Await-Of Loop"
-    },
+		"description": "For-Await-Of Loop"
+	},
 	"Function Statement": {
 		"prefix": "function",
 		"body": [
@@ -278,5 +278,32 @@
 			"//#endregion"
 		],
 		"description": "Folding Region End"
+	},
+	"new Promise": {
+		"prefix": "newpromise",
+		"body": [
+			"new Promise<$1:type>((resolve, reject) => {",
+			"\t$1",
+			"})"
+		],
+		"description": "Create a new Promise"
+	},
+	"Async Function Statement": {
+		"prefix": "async function",
+		"body": [
+			"async function ${1:name}(${2:params}:${3:type}) {",
+			"\t$0",
+			"}"
+		],
+		"description": "Async Function Statement"
+	},
+	"Async Function Expression": {
+		"prefix": "async arrow function",
+		"body": [
+			"async (${1:params}:${2:type}) => {",
+			"\t$0",
+			"}"
+		],
+		"description": "Async Function Expression"
 	}
 }

@@ -21,7 +21,7 @@ import { URI } from 'vs/base/common/uri';
 import { IconLabel } from 'vs/base/browser/ui/iconLabel/iconLabel';
 import { IListVirtualDelegate, IIdentityProvider, IKeyboardNavigationLabelProvider } from 'vs/base/browser/ui/list/list';
 import { ITreeNode, ITreeRenderer, ITreeContextMenuEvent, ITreeElement } from 'vs/base/browser/ui/tree/tree';
-import { ViewPane, IViewPaneOptions } from 'vs/workbench/browser/parts/views/viewPaneContainer';
+import { ViewPane, IViewPaneOptions } from 'vs/workbench/browser/parts/views/viewPane';
 import { WorkbenchObjectTree } from 'vs/platform/list/browser/listService';
 import { IKeybindingService } from 'vs/platform/keybinding/common/keybinding';
 import { IContextMenuService } from 'vs/platform/contextview/browser/contextView';
@@ -30,17 +30,20 @@ import { IConfigurationService, IConfigurationChangeEvent } from 'vs/platform/co
 import { IInstantiationService, ServicesAccessor } from 'vs/platform/instantiation/common/instantiation';
 import { ITimelineService, TimelineChangeEvent, TimelineItem, TimelineOptions, TimelineProvidersChangeEvent, TimelineRequest, Timeline } from 'vs/workbench/contrib/timeline/common/timeline';
 import { IEditorService } from 'vs/workbench/services/editor/common/editorService';
-import { SideBySideEditor, toResource } from 'vs/workbench/common/editor';
+import { SideBySideEditor, EditorResourceAccessor } from 'vs/workbench/common/editor';
 import { ICommandService, CommandsRegistry } from 'vs/platform/commands/common/commands';
-import { IThemeService, LIGHT, ThemeIcon } from 'vs/platform/theme/common/themeService';
+import { IThemeService, ThemeIcon } from 'vs/platform/theme/common/themeService';
 import { IViewDescriptorService } from 'vs/workbench/common/views';
 import { IProgressService } from 'vs/platform/progress/common/progress';
 import { IOpenerService } from 'vs/platform/opener/common/opener';
 import { ActionBar } from 'vs/base/browser/ui/actionbar/actionbar';
-import { MenuEntryActionViewItem, createAndFillInContextMenuActions, SubmenuEntryActionViewItem } from 'vs/platform/actions/browser/menuEntryActionViewItem';
-import { MenuItemAction, IMenuService, MenuId, registerAction2, Action2, MenuRegistry, SubmenuItemAction } from 'vs/platform/actions/common/actions';
+import { createAndFillInContextMenuActions, createActionViewItem } from 'vs/platform/actions/browser/menuEntryActionViewItem';
+import { IMenuService, MenuId, registerAction2, Action2, MenuRegistry } from 'vs/platform/actions/common/actions';
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
 import { ActionViewItem } from 'vs/base/browser/ui/actionbar/actionViewItems';
+import { ColorScheme } from 'vs/platform/theme/common/theme';
+import { Codicon } from 'vs/base/common/codicons';
+import { registerIcon } from 'vs/platform/theme/common/iconRegistry';
 
 const ItemHeight = 22;
 
@@ -207,7 +210,7 @@ class LoadMoreCommand {
 		return this.loading ? localize('timeline.loadingMore', "Loading...") : localize('timeline.loadMore', "Load more");
 	}
 
-	get themeIcon(): { id: string; } | undefined {
+	get themeIcon(): ThemeIcon | undefined {
 		return undefined; //this.loading ? { id: 'sync~spin' } : undefined;
 	}
 }
@@ -219,7 +222,6 @@ export class TimelinePane extends ViewPane {
 
 	private $container!: HTMLElement;
 	private $message!: HTMLDivElement;
-	private $titleDescription!: HTMLSpanElement;
 	private $tree!: HTMLDivElement;
 	private tree!: WorkbenchObjectTree<TreeElement, FuzzyScore>;
 	private treeRenderer: TimelineTreeRenderer | undefined;
@@ -276,7 +278,7 @@ export class TimelinePane extends ViewPane {
 		this._followActiveEditor = value;
 		this.followActiveEditorContext.set(value);
 
-		this.titleDescription = this.titleDescription;
+		this.updateFilename(this._filename);
 
 		if (value) {
 			this.onActiveEditorChanged();
@@ -315,7 +317,7 @@ export class TimelinePane extends ViewPane {
 		}
 
 		this.uri = uri;
-		this.titleDescription = uri ? basename(uri.fsPath) : '';
+		this.updateFilename(uri ? basename(uri.fsPath) : undefined);
 		this.treeRenderer?.setUri(uri);
 		this.loadTimeline(true);
 	}
@@ -343,16 +345,11 @@ export class TimelinePane extends ViewPane {
 			return;
 		}
 
-		let uri;
-
-		const editor = this.editorService.activeEditor;
-		if (editor) {
-			uri = toResource(editor, { supportSideBySide: SideBySideEditor.PRIMARY });
-		}
+		const uri = EditorResourceAccessor.getOriginalUri(this.editorService.activeEditor, { supportSideBySide: SideBySideEditor.PRIMARY });
 
 		if ((uri?.toString(true) === this.uri?.toString(true) && uri !== undefined) ||
 			// Fallback to match on fsPath if we are dealing with files or git schemes
-			(uri?.fsPath === this.uri?.fsPath && (uri?.scheme === 'file' || uri?.scheme === 'git') && (this.uri?.scheme === 'file' || this.uri?.scheme === 'git'))) {
+			(uri?.fsPath === this.uri?.fsPath && (uri?.scheme === Schemas.file || uri?.scheme === 'git') && (this.uri?.scheme === Schemas.file || this.uri?.scheme === 'git'))) {
 
 			// If the uri hasn't changed, make sure we have valid caches
 			for (const source of this.timelineService.getSources()) {
@@ -407,17 +404,13 @@ export class TimelinePane extends ViewPane {
 		}
 	}
 
-	private _titleDescription: string | undefined;
-	get titleDescription(): string | undefined {
-		return this._titleDescription;
-	}
-
-	set titleDescription(description: string | undefined) {
-		this._titleDescription = description;
-		if (this.followActiveEditor || !description) {
-			this.$titleDescription.textContent = description ?? '';
+	private _filename: string | undefined;
+	updateFilename(filename: string | undefined) {
+		this._filename = filename;
+		if (this.followActiveEditor || !filename) {
+			this.updateTitleDescription(filename);
 		} else {
-			this.$titleDescription.textContent = `${description} (pinned)`;
+			this.updateTitleDescription(`${filename} (pinned)`);
 		}
 	}
 
@@ -440,7 +433,7 @@ export class TimelinePane extends ViewPane {
 	}
 
 	private showMessage(message: string): void {
-		DOM.removeClass(this.$message, 'hide');
+		this.$message.classList.remove('hide');
 		this.resetMessageElement();
 
 		this.$message.textContent = message;
@@ -448,7 +441,7 @@ export class TimelinePane extends ViewPane {
 
 	private hideMessage(): void {
 		this.resetMessageElement();
-		DOM.addClass(this.$message, 'hide');
+		this.$message.classList.add('hide');
 	}
 
 	private resetMessageElement(): void {
@@ -781,17 +774,17 @@ export class TimelinePane extends ViewPane {
 		this._isEmpty = !this.hasVisibleItems;
 
 		if (this.uri === undefined) {
-			this.titleDescription = undefined;
+			this.updateFilename(undefined);
 			this.message = localize('timeline.editorCannotProvideTimeline', "The active editor cannot provide timeline information.");
 		} else if (this._isEmpty) {
 			if (this.pendingRequests.size !== 0) {
 				this.setLoadingUriMessage();
 			} else {
-				this.titleDescription = basename(this.uri.fsPath);
+				this.updateFilename(basename(this.uri.fsPath));
 				this.message = localize('timeline.noTimelineInfo', "No timeline information was provided.");
 			}
 		} else {
-			this.titleDescription = basename(this.uri.fsPath);
+			this.updateFilename(basename(this.uri.fsPath));
 			this.message = undefined;
 		}
 
@@ -848,24 +841,23 @@ export class TimelinePane extends ViewPane {
 	protected renderHeaderTitle(container: HTMLElement): void {
 		super.renderHeaderTitle(container, this.title);
 
-		DOM.addClass(container, 'timeline-view');
-		this.$titleDescription = DOM.append(container, DOM.$('span.description', undefined, this.titleDescription ?? ''));
+		container.classList.add('timeline-view');
 	}
 
 	protected renderBody(container: HTMLElement): void {
 		super.renderBody(container);
 
 		this.$container = container;
-		DOM.addClasses(container, 'tree-explorer-viewlet-tree-view', 'timeline-tree-view');
+		container.classList.add('tree-explorer-viewlet-tree-view', 'timeline-tree-view');
 
 		this.$message = DOM.append(this.$container, DOM.$('.message'));
-		DOM.addClass(this.$message, 'timeline-subtle');
+		this.$message.classList.add('timeline-subtle');
 
 		this.message = localize('timeline.editorCannotProvideTimeline', "The active editor cannot provide timeline information.");
 
 		this.$tree = document.createElement('div');
-		DOM.addClasses(this.$tree, 'customview-tree', 'file-icon-themable-tree', 'hide-arrows');
-		// DOM.addClass(this.treeElement, 'show-file-icons');
+		this.$tree.classList.add('customview-tree', 'file-icon-themable-tree', 'hide-arrows');
+		// this.treeElement.classList.add('show-file-icons');
 		container.appendChild(this.$tree);
 
 		this.treeRenderer = this.instantiationService.createInstance(TimelineTreeRenderer, this.commands);
@@ -956,7 +948,7 @@ export class TimelinePane extends ViewPane {
 
 	setLoadingUriMessage() {
 		const file = this.uri && basename(this.uri.fsPath);
-		this.titleDescription = file ?? '';
+		this.updateFilename(file);
 		this.message = file ? localize('timeline.loading', "Loading timeline for {0}...", file) : '';
 	}
 
@@ -1013,10 +1005,10 @@ export class TimelineElementTemplate implements IDisposable {
 		readonly container: HTMLElement,
 		actionViewItemProvider: IActionViewItemProvider
 	) {
-		DOM.addClass(container, 'custom-view-tree-node-item');
+		container.classList.add('custom-view-tree-node-item');
 		this.icon = DOM.append(container, DOM.$('.custom-view-tree-node-item-icon'));
 
-		this.iconLabel = new IconLabel(container, { supportHighlights: true, supportCodicons: true });
+		this.iconLabel = new IconLabel(container, { supportHighlights: true, supportIcons: true });
 
 		const timestampContainer = DOM.append(this.iconLabel.element, DOM.$('.timeline-timestamp-container'));
 		this.timestamp = DOM.append(timestampContainer, DOM.$('span.timeline-timestamp'));
@@ -1093,15 +1085,7 @@ class TimelineTreeRenderer implements ITreeRenderer<TreeElement, FuzzyScore, Tim
 		@IInstantiationService protected readonly instantiationService: IInstantiationService,
 		@IThemeService private themeService: IThemeService
 	) {
-		this.actionViewItemProvider = (action: IAction) => {
-			if (action instanceof MenuItemAction) {
-				return this.instantiationService.createInstance(MenuEntryActionViewItem, action);
-			} else if (action instanceof SubmenuItemAction) {
-				return this.instantiationService.createInstance(SubmenuEntryActionViewItem, action);
-			}
-
-			return undefined;
-		};
+		this.actionViewItemProvider = createActionViewItem.bind(undefined, this.instantiationService);
 	}
 
 	private uri: URI | undefined;
@@ -1123,7 +1107,7 @@ class TimelineTreeRenderer implements ITreeRenderer<TreeElement, FuzzyScore, Tim
 
 		const { element: item } = node;
 
-		const icon = this.themeService.getColorTheme().type === LIGHT ? item.icon : item.iconDark;
+		const icon = this.themeService.getColorTheme().type === ColorScheme.LIGHT ? item.icon : item.iconDark;
 		const iconUrl = icon ? URI.revive(icon) : null;
 
 		if (iconUrl) {
@@ -1143,7 +1127,7 @@ class TimelineTreeRenderer implements ITreeRenderer<TreeElement, FuzzyScore, Tim
 		});
 
 		template.timestamp.textContent = item.relativeTime ?? '';
-		DOM.toggleClass(template.timestamp.parentElement!, 'timeline-timestamp--duplicate', isTimelineItem(item) && item.hideRelativeTime);
+		template.timestamp.parentElement!.classList.toggle('timeline-timestamp--duplicate', isTimelineItem(item) && item.hideRelativeTime);
 
 		template.actionBar.context = { uri: this.uri, item: item } as TimelineActionContext;
 		template.actionBar.actionRunner = new TimelineActionRunner();
@@ -1160,6 +1144,11 @@ class TimelineTreeRenderer implements ITreeRenderer<TreeElement, FuzzyScore, Tim
 	}
 }
 
+
+const timelineRefresh = registerIcon('timeline-refresh', Codicon.refresh, localize('timelineRefresh', 'Icon for the refresh timeline action.'));
+const timelinePin = registerIcon('timeline-pin', Codicon.pin, localize('timelinePin', 'Icon for the pin timeline action.'));
+const timelineUnpin = registerIcon('timeline-unpin', Codicon.pinned, localize('timelineUnpin', 'Icon for the unpin timeline action.'));
+
 class TimelinePaneCommands extends Disposable {
 	private sourceDisposables: DisposableStore;
 
@@ -1169,7 +1158,6 @@ class TimelinePaneCommands extends Disposable {
 		@IConfigurationService private readonly configurationService: IConfigurationService,
 		@IContextKeyService private readonly contextKeyService: IContextKeyService,
 		@IMenuService private readonly menuService: IMenuService,
-		@IContextMenuService private readonly contextMenuService: IContextMenuService
 	) {
 		super();
 
@@ -1180,7 +1168,7 @@ class TimelinePaneCommands extends Disposable {
 				super({
 					id: 'timeline.refresh',
 					title: { value: localize('refresh', "Refresh"), original: 'Refresh' },
-					icon: { id: 'codicon/refresh' },
+					icon: timelineRefresh,
 					category: { value: localize('timeline', "Timeline"), original: 'Timeline' },
 					menu: {
 						id: MenuId.TimelineTitle,
@@ -1202,7 +1190,7 @@ class TimelinePaneCommands extends Disposable {
 			command: {
 				id: 'timeline.toggleFollowActiveEditor',
 				title: { value: localize('timeline.toggleFollowActiveEditorCommand.follow', "Pin the Current Timeline"), original: 'Pin the Current Timeline' },
-				icon: { id: 'codicon/pin' },
+				icon: timelinePin,
 				category: { value: localize('timeline', "Timeline"), original: 'Timeline' },
 			},
 			group: 'navigation',
@@ -1214,7 +1202,7 @@ class TimelinePaneCommands extends Disposable {
 			command: {
 				id: 'timeline.toggleFollowActiveEditor',
 				title: { value: localize('timeline.toggleFollowActiveEditorCommand.unfollow', "Unpin the Current Timeline"), original: 'Unpin the Current Timeline' },
-				icon: { id: 'codicon/pinned' },
+				icon: timelineUnpin,
 				category: { value: localize('timeline', "Timeline"), original: 'Timeline' },
 			},
 			group: 'navigation',
@@ -1243,9 +1231,10 @@ class TimelinePaneCommands extends Disposable {
 		const primary: IAction[] = [];
 		const secondary: IAction[] = [];
 		const result = { primary, secondary };
-		createAndFillInContextMenuActions(menu, { shouldForwardArgs: true }, result, this.contextMenuService, g => /^inline/.test(g));
+		createAndFillInContextMenuActions(menu, { shouldForwardArgs: true }, result, g => /^inline/.test(g));
 
 		menu.dispose();
+		scoped.dispose();
 
 		return result;
 	}

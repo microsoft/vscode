@@ -15,7 +15,7 @@ const yarn = process.platform === 'win32' ? 'yarn.cmd' : 'yarn';
 const rootDir = path.resolve(__dirname, '..', '..');
 
 function runProcess(command: string, args: ReadonlyArray<string> = []) {
-	return new Promise((resolve, reject) => {
+	return new Promise<void>((resolve, reject) => {
 		const child = spawn(command, args, { cwd: rootDir, stdio: 'inherit', env: process.env });
 		child.on('exit', err => !err ? resolve() : process.exit(err ?? 1));
 		child.on('error', reject);

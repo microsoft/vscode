@@ -7,13 +7,12 @@ import * as nls from 'vs/nls';
 import { Event } from 'vs/base/common/event';
 import { IDisposable } from 'vs/base/common/lifecycle';
 import { RawContextKey } from 'vs/platform/contextkey/common/contextkey';
-import { createDecorator } from 'vs/platform/instantiation/common/instantiation';
 import { URI } from 'vs/base/common/uri';
 import { OperatingSystem } from 'vs/base/common/platform';
 import { IEnvironmentVariableInfo } from 'vs/workbench/contrib/terminal/common/environmentVariable';
 import { IExtensionPointDescriptor } from 'vs/workbench/services/extensions/common/extensionsRegistry';
 
-export const TERMINAL_VIEW_ID = 'workbench.panel.terminal';
+export const TERMINAL_VIEW_ID = 'terminal';
 
 /** A context key that is set when there is at least one opened integrated terminal. */
 export const KEYBINDING_CONTEXT_TERMINAL_IS_OPEN = new RawContextKey<boolean>('terminalIsOpen', false);
@@ -24,6 +23,8 @@ export const KEYBINDING_CONTEXT_TERMINAL_FOCUS = new RawContextKey<boolean>('ter
 export const KEYBINDING_CONTEXT_TERMINAL_SHELL_TYPE_KEY = 'terminalShellType';
 /** A context key that is set to the detected shell for the most recently active terminal, this is set to the last known value when no terminals exist. */
 export const KEYBINDING_CONTEXT_TERMINAL_SHELL_TYPE = new RawContextKey<string>(KEYBINDING_CONTEXT_TERMINAL_SHELL_TYPE_KEY, undefined);
+
+export const KEYBINDING_CONTEXT_TERMINAL_ALT_BUFFER_ACTIVE = new RawContextKey<boolean>('terminalAltBufferActive', false);
 
 /** A context key that is set when the integrated terminal does not have focus. */
 export const KEYBINDING_CONTEXT_TERMINAL_NOT_FOCUSED = KEYBINDING_CONTEXT_TERMINAL_FOCUS.toNegated();
@@ -47,15 +48,12 @@ export const KEYBINDING_CONTEXT_TERMINAL_FIND_FOCUSED = new RawContextKey<boolea
 /**  A context key that is set when the find widget find input in integrated terminal is not focused. */
 export const KEYBINDING_CONTEXT_TERMINAL_FIND_INPUT_NOT_FOCUSED = KEYBINDING_CONTEXT_TERMINAL_FIND_INPUT_FOCUSED.toNegated();
 
+export const KEYBINDING_CONTEXT_TERMINAL_PROCESS_SUPPORTED = new RawContextKey<boolean>('terminalProcessSupported', false);
+
 export const IS_WORKSPACE_SHELL_ALLOWED_STORAGE_KEY = 'terminal.integrated.isWorkspaceShellAllowed';
 export const NEVER_MEASURE_RENDER_TIME_STORAGE_KEY = 'terminal.integrated.neverMeasureRenderTime';
 
-// The creation of extension host terminals is delayed by this value (milliseconds). The purpose of
-// this delay is to allow the terminal instance to initialize correctly and have its ID set before
-// trying to create the corressponding object on the ext host.
-export const EXT_HOST_CREATION_DELAY = 100;
-
-export const ITerminalNativeService = createDecorator<ITerminalNativeService>('terminalNativeService');
+export const TERMINAL_CREATION_COMMANDS = ['workbench.action.terminal.toggleTerminal', 'workbench.action.terminal.new', 'workbench.action.togglePanel', 'workbench.action.terminal.focus'];
 
 export const TerminalCursorStyle = {
 	BLOCK: 'block',
@@ -71,7 +69,13 @@ export const DEFAULT_LETTER_SPACING = 0;
 export const MINIMUM_LETTER_SPACING = -5;
 export const DEFAULT_LINE_HEIGHT = 1;
 
-export type FontWeight = 'normal' | 'bold' | '100' | '200' | '300' | '400' | '500' | '600' | '700' | '800' | '900';
+export const MINIMUM_FONT_WEIGHT = 1;
+export const MAXIMUM_FONT_WEIGHT = 1000;
+export const DEFAULT_FONT_WEIGHT = 'normal';
+export const DEFAULT_BOLD_FONT_WEIGHT = 'bold';
+export const SUGGESTIONS_FONT_WEIGHT = ['normal', 'bold', '100', '200', '300', '400', '500', '600', '700', '800', '900'];
+
+export type FontWeight = 'normal' | 'bold' | number;
 
 export interface ITerminalConfiguration {
 	shell: {
@@ -89,6 +93,7 @@ export interface ITerminalConfiguration {
 		osx: string[];
 		windows: string[];
 	};
+	altClickMovesCursor: boolean;
 	macOptionIsMeta: boolean;
 	macOptionClickForcesSelection: boolean;
 	rendererType: 'auto' | 'canvas' | 'dom' | 'experimentalWebgl';
@@ -103,6 +108,7 @@ export interface ITerminalConfiguration {
 	fontWeightBold: FontWeight;
 	minimumContrastRatio: number;
 	mouseWheelScrollSensitivity: number;
+	sendKeybindingsToShell: boolean;
 	// fontLigatures: boolean;
 	fontSize: number;
 	letterSpacing: number;
@@ -130,7 +136,15 @@ export interface ITerminalConfiguration {
 	enableFileLinks: boolean;
 	unicodeVersion: '6' | '11';
 	experimentalLinkProvider: boolean;
+	localEchoLatencyThreshold: number;
+	localEchoExcludePrograms: ReadonlyArray<string>;
+	localEchoStyle: 'bold' | 'dim' | 'italic' | 'underlined' | 'inverted' | string;
+	serverSpawn: boolean;
+	enablePersistentSessions: boolean;
+	flowControl: boolean;
 }
+
+export const DEFAULT_LOCAL_ECHO_EXCLUDE: ReadonlyArray<string> = ['vim', 'vi', 'nano', 'tmux'];
 
 export interface ITerminalConfigHelper {
 	config: ITerminalConfiguration;
@@ -157,6 +171,40 @@ export interface ITerminalFont {
 export interface ITerminalEnvironment {
 	[key: string]: string | null;
 }
+
+export interface IRemoteTerminalAttachTarget {
+	id: number;
+	pid: number;
+	title: string;
+	cwd: string;
+	workspaceId: string;
+	workspaceName: string;
+	isOrphan: boolean;
+}
+
+export interface IRawTerminalInstanceLayoutInfo<T> {
+	relativeSize: number;
+	terminal: T;
+}
+
+export type ITerminalInstanceLayoutInfoById = IRawTerminalInstanceLayoutInfo<number>;
+export type ITerminalInstanceLayoutInfo = IRawTerminalInstanceLayoutInfo<IRemoteTerminalAttachTarget>;
+
+export interface IRawTerminalTabLayoutInfo<T> {
+	isActive: boolean;
+	activeTerminalProcessId: number;
+	terminals: IRawTerminalInstanceLayoutInfo<T>[];
+}
+
+export type ITerminalTabLayoutInfoById = IRawTerminalTabLayoutInfo<number>;
+export type ITerminalTabLayoutInfo = IRawTerminalTabLayoutInfo<IRemoteTerminalAttachTarget | null>;
+
+export interface IRawTerminalsLayoutInfo<T> {
+	tabs: IRawTerminalTabLayoutInfo<T>[];
+}
+
+export type ITerminalsLayoutInfo = IRawTerminalsLayoutInfo<IRemoteTerminalAttachTarget | null>;
+export type ITerminalsLayoutInfoById = IRawTerminalsLayoutInfo<number>;
 
 export interface IShellLaunchConfig {
 	/**
@@ -211,6 +259,16 @@ export interface IShellLaunchConfig {
 	isExtensionTerminal?: boolean;
 
 	/**
+	 * A UUID generated by the extension host process for terminals created on the extension host process.
+	 */
+	extHostTerminalId?: string;
+
+	/**
+	 * This is a terminal that attaches to an already running remote terminal.
+	 */
+	remoteAttach?: { id: number; pid: number; title: string; cwd: string; };
+
+	/**
 	 * Whether the terminal process environment should be exactly as provided in
 	 * `TerminalOptions.env`. When this is false (default), the environment will be based on the
 	 * window's environment and also apply configured platform settings like
@@ -227,21 +285,31 @@ export interface IShellLaunchConfig {
 	 * as normal.
 	 */
 	hideFromUser?: boolean;
+
+	/**
+	 * Whether this terminal is not a terminal that the user directly created and uses, but rather
+	 * a terminal used to drive some VS Code feature.
+	 */
+	isFeatureTerminal?: boolean;
+
+	/**
+	 * Whether flow control is enabled for this terminal.
+	 */
+	flowControl?: boolean;
 }
 
 /**
- * Provides access to native or electron APIs to other terminal services.
+ * Provides access to native Windows calls that can be injected into non-native layers.
  */
-export interface ITerminalNativeService {
-	readonly _serviceBrand: undefined;
-
-	readonly linuxDistro: LinuxDistro;
-
-	readonly onRequestFocusActiveInstance: Event<void>;
-	readonly onOsResume: Event<void>;
-
+export interface ITerminalNativeWindowsDelegate {
+	/**
+	 * Gets the Windows build number, eg. this would be `19041` for Windows 10 version 2004
+	 */
 	getWindowsBuildNumber(): number;
-	whenFileDeleted(path: URI): Promise<void>;
+	/**
+	 * Converts a regular Windows path into the WSL path equivalent, eg. `C:\` -> `/mnt/c`
+	 * @param path The Windows path.
+	 */
 	getWslPath(path: string): Promise<string>;
 }
 
@@ -260,6 +328,13 @@ export interface ITerminalDimensions {
 	 * The rows of the terminal.
 	 */
 	readonly rows: number;
+}
+
+export interface ITerminalDimensionsOverride extends ITerminalDimensions {
+	/**
+	 * indicate that xterm must receive these exact dimensions, even if they overflow the ui!
+	 */
+	forceExactSize?: boolean;
 }
 
 export interface ICommandTracker {
@@ -285,6 +360,11 @@ export interface IBeforeProcessDataEvent {
 	data: string;
 }
 
+export interface IProcessDataEvent {
+	data: string;
+	sync: boolean;
+}
+
 export interface ITerminalProcessManager extends IDisposable {
 	readonly processState: ProcessState;
 	readonly ptyProcessReady: Promise<void>;
@@ -293,13 +373,14 @@ export interface ITerminalProcessManager extends IDisposable {
 	readonly os: OperatingSystem | undefined;
 	readonly userHome: string | undefined;
 	readonly environmentVariableInfo: IEnvironmentVariableInfo | undefined;
+	readonly remoteTerminalId: number | undefined;
 
 	readonly onProcessReady: Event<void>;
 	readonly onBeforeProcessData: Event<IBeforeProcessDataEvent>;
-	readonly onProcessData: Event<string>;
+	readonly onProcessData: Event<IProcessDataEvent>;
 	readonly onProcessTitle: Event<string>;
 	readonly onProcessExit: Event<number | undefined>;
-	readonly onProcessOverrideDimensions: Event<ITerminalDimensions | undefined>;
+	readonly onProcessOverrideDimensions: Event<ITerminalDimensionsOverride | undefined>;
 	readonly onProcessResolvedShellLaunchConfig: Event<IShellLaunchConfig>;
 	readonly onEnvironmentVariableInfoChanged: Event<IEnvironmentVariableInfo>;
 
@@ -307,6 +388,7 @@ export interface ITerminalProcessManager extends IDisposable {
 	createProcess(shellLaunchConfig: IShellLaunchConfig, cols: number, rows: number, isScreenReaderModeEnabled: boolean): Promise<ITerminalLaunchError | undefined>;
 	write(data: string): void;
 	setDimensions(cols: number, rows: number): void;
+	acknowledgeDataEvent(charCount: number): void;
 
 	getInitialCwd(): Promise<string>;
 	getCwd(): Promise<string>;
@@ -347,6 +429,7 @@ export interface ITerminalProcessExtHostProxy extends IDisposable {
 
 	onInput: Event<string>;
 	onResize: Event<{ cols: number, rows: number }>;
+	onAcknowledgeDataEvent: Event<number>;
 	onShutdown: Event<boolean>;
 	onRequestInitialCwd: Event<void>;
 	onRequestCwd: Event<void>;
@@ -410,11 +493,11 @@ export interface ITerminalLaunchError {
  * child_process.ChildProcess node.js interface.
  */
 export interface ITerminalChildProcess {
-	onProcessData: Event<string>;
+	onProcessData: Event<IProcessDataEvent | string>;
 	onProcessExit: Event<number | undefined>;
 	onProcessReady: Event<{ pid: number, cwd: string }>;
 	onProcessTitleChanged: Event<string>;
-	onProcessOverrideDimensions?: Event<ITerminalDimensions | undefined>;
+	onProcessOverrideDimensions?: Event<ITerminalDimensionsOverride | undefined>;
 	onProcessResolvedShellLaunchConfig?: Event<IShellLaunchConfig>;
 
 	/**
@@ -423,7 +506,7 @@ export interface ITerminalChildProcess {
 	 * @returns undefined when the process was successfully started, otherwise an object containing
 	 * information on what went wrong.
 	 */
-	start(): Promise<ITerminalLaunchError | undefined>;
+	start(): Promise<ITerminalLaunchError | { remoteTerminalId: number } | undefined>;
 
 	/**
 	 * Shutdown the terminal process.
@@ -435,9 +518,40 @@ export interface ITerminalChildProcess {
 	input(data: string): void;
 	resize(cols: number, rows: number): void;
 
+	/**
+	 * Acknowledge a data event has been parsed by the terminal, this is used to implement flow
+	 * control to ensure remote processes to not get too far ahead of the client and flood the
+	 * connection.
+	 * @param charCount The number of characters being acknowledged.
+	 */
+	acknowledgeDataEvent(charCount: number): void;
+
 	getInitialCwd(): Promise<string>;
 	getCwd(): Promise<string>;
 	getLatency(): Promise<number>;
+}
+
+export const enum FlowControlConstants {
+	/**
+	 * The number of _unacknowledged_ chars to have been sent before the pty is paused in order for
+	 * the client to catch up.
+	 */
+	HighWatermarkChars = 100000,
+	/**
+	 * After flow control pauses the pty for the client the catch up, this is the number of
+	 * _unacknowledged_ chars to have been caught up to on the client before resuming the pty again.
+	 * This is used to attempt to prevent pauses in the flowing data; ideally while the pty is
+	 * paused the number of unacknowledged chars would always be greater than 0 or the client will
+	 * appear to stutter. In reality this balance is hard to accomplish though so heavy commands
+	 * will likely pause as latency grows, not flooding the connection is the important thing as
+	 * it's shared with other core functionality.
+	 */
+	LowWatermarkChars = 5000,
+	/**
+	 * The number characters that are accumulated on the client side before sending an ack event.
+	 * This must be less than or equal to LowWatermarkChars or the terminal max never unpause.
+	 */
+	CharCountAckSize = 5000
 }
 
 export const enum TERMINAL_COMMAND_ID {
@@ -446,6 +560,7 @@ export const enum TERMINAL_COMMAND_ID {
 	TOGGLE = 'workbench.action.terminal.toggleTerminal',
 	KILL = 'workbench.action.terminal.kill',
 	QUICK_KILL = 'workbench.action.terminal.quickKill',
+	CONFIGURE_TERMINAL_SETTINGS = 'workbench.action.terminal.openSettings',
 	COPY_SELECTION = 'workbench.action.terminal.copySelection',
 	SELECT_ALL = 'workbench.action.terminal.selectAll',
 	DELETE_WORD_LEFT = 'workbench.action.terminal.deleteWordLeft',
@@ -502,7 +617,9 @@ export const enum TERMINAL_COMMAND_ID {
 	NAVIGATION_MODE_EXIT = 'workbench.action.terminal.navigationModeExit',
 	NAVIGATION_MODE_FOCUS_NEXT = 'workbench.action.terminal.navigationModeFocusNext',
 	NAVIGATION_MODE_FOCUS_PREVIOUS = 'workbench.action.terminal.navigationModeFocusPrevious',
-	SHOW_ENVIRONMENT_INFORMATION = 'workbench.action.terminal.showEnvironmentInformation'
+	SHOW_ENVIRONMENT_INFORMATION = 'workbench.action.terminal.showEnvironmentInformation',
+	SEARCH_WORKSPACE = 'workbench.action.terminal.searchWorkspace',
+	ATTACH_TO_REMOTE_TERMINAL = 'workbench.action.terminal.attachToSession'
 }
 
 export const DEFAULT_COMMANDS_TO_SKIP_SHELL: string[] = [

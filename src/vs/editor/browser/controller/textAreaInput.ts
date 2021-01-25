@@ -72,7 +72,7 @@ interface InMemoryClipboardMetadata {
  * Every time we read from the cipboard, if the text matches our last written text,
  * we can fetch the previous metadata.
  */
-class InMemoryClipboardMetadataManager {
+export class InMemoryClipboardMetadataManager {
 	public static readonly INSTANCE = new InMemoryClipboardMetadataManager();
 
 	private _lastState: InMemoryClipboardMetadata | null;
@@ -221,8 +221,7 @@ export class TextAreaInput extends Disposable {
 					this._textAreaState.selectionStartPosition ? new Position(this._textAreaState.selectionStartPosition.lineNumber, this._textAreaState.selectionStartPosition.column - 1) : null,
 					this._textAreaState.selectionEndPosition
 				);
-			} else if (!browser.isEdge) {
-				// In IE we cannot set .value when handling 'compositionstart' because the entire composition will get canceled.
+			} else {
 				this._setAndWriteTextAreaState('compositionstart', TextAreaState.EMPTY);
 			}
 
@@ -251,28 +250,8 @@ export class TextAreaInput extends Disposable {
 			return [newState, typeInput];
 		};
 
-		const compositionDataInValid = (locale: string): boolean => {
-			// https://github.com/Microsoft/monaco-editor/issues/339
-			// Multi-part Japanese compositions reset cursor in Edge/IE, Chinese and Korean IME don't have this issue.
-			// The reason that we can't use this path for all CJK IME is IE and Edge behave differently when handling Korean IME,
-			// which breaks this path of code.
-			if (browser.isEdge && locale === 'ja') {
-				return true;
-			}
-
-			return false;
-		};
-
 		this._register(dom.addDisposableListener(textArea.domNode, 'compositionupdate', (e: CompositionEvent) => {
-			if (compositionDataInValid(e.locale)) {
-				const [newState, typeInput] = deduceInputFromTextAreaValue(/*couldBeEmojiInput*/false);
-				this._textAreaState = newState;
-				this._onType.fire(typeInput);
-				this._onCompositionUpdate.fire(e);
-				return;
-			}
-
-			const [newState, typeInput] = deduceComposition(e.data);
+			const [newState, typeInput] = deduceComposition(e.data || '');
 			this._textAreaState = newState;
 			this._onType.fire(typeInput);
 			this._onCompositionUpdate.fire(e);
@@ -284,20 +263,15 @@ export class TextAreaInput extends Disposable {
 			if (!this._isDoingComposition) {
 				return;
 			}
-			if (compositionDataInValid(e.locale)) {
-				// https://github.com/Microsoft/monaco-editor/issues/339
-				const [newState, typeInput] = deduceInputFromTextAreaValue(/*couldBeEmojiInput*/false);
-				this._textAreaState = newState;
-				this._onType.fire(typeInput);
-			} else {
-				const [newState, typeInput] = deduceComposition(e.data);
-				this._textAreaState = newState;
-				this._onType.fire(typeInput);
-			}
 
-			// Due to isEdgeOrIE (where the textarea was not cleared initially) and isChrome (the textarea is not updated correctly when composition ends)
-			// we cannot assume the text at the end consists only of the composited text
-			if (browser.isEdge || browser.isChrome) {
+			const [newState, typeInput] = deduceComposition(e.data || '');
+			this._textAreaState = newState;
+			this._onType.fire(typeInput);
+
+			// isChrome: the textarea is not updated correctly when composition ends
+			// isFirefox: the textarea is not updated correctly after inserting emojis
+			// => we cannot assume the text at the end consists only of the composited text
+			if (browser.isChrome || browser.isFirefox) {
 				this._textAreaState = TextAreaState.readFromTextArea(this._textArea);
 			}
 
@@ -375,12 +349,26 @@ export class TextAreaInput extends Disposable {
 			this._setHasFocus(true);
 		}));
 		this._register(dom.addDisposableListener(textArea.domNode, 'blur', () => {
+			if (this._isDoingComposition) {
+				// See https://github.com/microsoft/vscode/issues/112621
+				// where compositionend is not triggered when the editor
+				// is taken off-dom during a composition
+
+				// Clear the flag to be able to write to the textarea
+				this._isDoingComposition = false;
+
+				// Clear the textarea to avoid an unwanted cursor type
+				this.writeScreenReaderContent('blurWithoutCompositionEnd');
+
+				// Fire artificial composition end
+				this._onCompositionEnd.fire();
+			}
 			this._setHasFocus(false);
 		}));
 	}
 
 	private _installSelectionChangeListener(): IDisposable {
-		// See https://github.com/Microsoft/vscode/issues/27216 and https://github.com/microsoft/vscode/issues/98256
+		// See https://github.com/microsoft/vscode/issues/27216 and https://github.com/microsoft/vscode/issues/98256
 		// When using a Braille display, it is possible for users to reposition the
 		// system caret. This is reflected in Chrome as a `selectionchange` event.
 		//
@@ -510,13 +498,7 @@ export class TextAreaInput extends Disposable {
 		}
 
 		if (this._hasFocus) {
-			if (browser.isEdge) {
-				// Edge has a bug where setting the selection range while the focus event
-				// is dispatching doesn't work. To reproduce, "tab into" the editor.
-				this._setAndWriteTextAreaState('focusgain', TextAreaState.EMPTY);
-			} else {
-				this.writeScreenReaderContent('focusgain');
-			}
+			this.writeScreenReaderContent('focusgain');
 		}
 
 		if (this._hasFocus) {
@@ -708,7 +690,7 @@ class TextAreaWrapper extends Disposable implements ITextAreaWrapper {
 
 		if (currentIsFocused && currentSelectionStart === selectionStart && currentSelectionEnd === selectionEnd) {
 			// No change
-			// Firefox iframe bug https://github.com/Microsoft/monaco-editor/issues/643#issuecomment-367871377
+			// Firefox iframe bug https://github.com/microsoft/monaco-editor/issues/643#issuecomment-367871377
 			if (browser.isFirefox && window.parent !== window) {
 				textArea.focus();
 			}

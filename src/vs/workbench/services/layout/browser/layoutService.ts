@@ -28,17 +28,22 @@ export const enum Position {
 	BOTTOM
 }
 
+export const enum PanelOpensMaximizedOptions {
+	ALWAYS,
+	NEVER,
+	REMEMBER_LAST
+}
+
 export function positionToString(position: Position): string {
 	switch (position) {
 		case Position.LEFT: return 'left';
 		case Position.RIGHT: return 'right';
 		case Position.BOTTOM: return 'bottom';
+		default: return 'bottom';
 	}
-
-	return 'bottom';
 }
 
-const positionsByString: { [key: string]: Position } = {
+const positionsByString: { [key: string]: Position; } = {
 	[positionToString(Position.LEFT)]: Position.LEFT,
 	[positionToString(Position.RIGHT)]: Position.RIGHT,
 	[positionToString(Position.BOTTOM)]: Position.BOTTOM
@@ -46,6 +51,25 @@ const positionsByString: { [key: string]: Position } = {
 
 export function positionFromString(str: string): Position {
 	return positionsByString[str];
+}
+
+export function panelOpensMaximizedSettingToString(setting: PanelOpensMaximizedOptions): string {
+	switch (setting) {
+		case PanelOpensMaximizedOptions.ALWAYS: return 'always';
+		case PanelOpensMaximizedOptions.NEVER: return 'never';
+		case PanelOpensMaximizedOptions.REMEMBER_LAST: return 'preserve';
+		default: return 'preserve';
+	}
+}
+
+const panelOpensMaximizedByString: { [key: string]: PanelOpensMaximizedOptions; } = {
+	[panelOpensMaximizedSettingToString(PanelOpensMaximizedOptions.ALWAYS)]: PanelOpensMaximizedOptions.ALWAYS,
+	[panelOpensMaximizedSettingToString(PanelOpensMaximizedOptions.NEVER)]: PanelOpensMaximizedOptions.NEVER,
+	[panelOpensMaximizedSettingToString(PanelOpensMaximizedOptions.REMEMBER_LAST)]: PanelOpensMaximizedOptions.REMEMBER_LAST
+};
+
+export function panelOpensMaximizedFromString(str: string): PanelOpensMaximizedOptions {
+	return panelOpensMaximizedByString[str];
 }
 
 export interface IWorkbenchLayoutService extends ILayoutService {
@@ -81,6 +105,11 @@ export interface IWorkbenchLayoutService extends ILayoutService {
 	 * Emit when part visibility changes
 	 */
 	readonly onPartVisibilityChange: Event<void>;
+
+	/**
+	 * Run a layout of the workbench.
+	 */
+	layout(): void;
 
 	/**
 	 * Asks the part service if all parts have been fully restored. For editor part
@@ -146,6 +175,11 @@ export interface IWorkbenchLayoutService extends ILayoutService {
 	hasWindowBorder(): boolean;
 
 	/**
+	 * Returns the window border width.
+	 */
+	getWindowBorderWidth(): number;
+
+	/**
 	 * Returns the window border radius if any.
 	 */
 	getWindowBorderRadius(): string | undefined;
@@ -164,6 +198,11 @@ export interface IWorkbenchLayoutService extends ILayoutService {
 	 * Gets the current menubar visibility.
 	 */
 	getMenubarVisibility(): MenuBarVisibility;
+
+	/**
+	 * Toggles the menu bar visibility.
+	 */
+	toggleMenuBar(): void;
 
 	/**
 	 * Gets the current panel position. Note that the panel can be hidden too.
@@ -203,7 +242,7 @@ export interface IWorkbenchLayoutService extends ILayoutService {
 	/**
 	 * Resizes currently focused part on main access
 	 */
-	resizePart(part: Parts, sizeChange: number): void;
+	resizePart(part: Parts, sizeChangeWidth: number, sizeChangeHeight: number): void;
 
 	/**
 	 * Register a part to participate in the layout.

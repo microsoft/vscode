@@ -4,9 +4,8 @@
  *--------------------------------------------------------------------------------------------*/
 
 import * as assert from 'assert';
-import { TestInstantiationService } from 'vs/platform/instantiation/test/common/instantiationServiceMock';
 import { CellKind } from 'vs/workbench/contrib/notebook/common/notebookCommon';
-import { withTestNotebook } from 'vs/workbench/contrib/notebook/test/testNotebookEditor';
+import { setupInstantiationService, withTestNotebook } from 'vs/workbench/contrib/notebook/test/testNotebookEditor';
 import { IBulkEditService } from 'vs/editor/browser/services/bulkEditService';
 import { IUndoRedoService } from 'vs/platform/undoRedo/common/undoRedo';
 import { FoldingModel } from 'vs/workbench/contrib/notebook/browser/contrib/fold/foldingModel';
@@ -17,7 +16,7 @@ function updateFoldingStateAtIndex(foldingModel: FoldingModel, index: number, co
 }
 
 suite('Notebook Folding', () => {
-	const instantiationService = new TestInstantiationService();
+	const instantiationService = setupInstantiationService();
 	const blukEditService = instantiationService.get(IBulkEditService);
 	const undoRedoService = instantiationService.stub(IUndoRedoService, () => { });
 	instantiationService.spy(IUndoRedoService, 'pushElement');
@@ -28,13 +27,13 @@ suite('Notebook Folding', () => {
 			blukEditService,
 			undoRedoService,
 			[
-				[['# header 1'], 'markdown', CellKind.Markdown, [], {}],
-				[['body'], 'markdown', CellKind.Markdown, [], {}],
-				[['## header 2.1'], 'markdown', CellKind.Markdown, [], {}],
-				[['body 2'], 'markdown', CellKind.Markdown, [], {}],
-				[['body 3'], 'markdown', CellKind.Markdown, [], {}],
-				[['## header 2.2'], 'markdown', CellKind.Markdown, [], {}],
-				[['var e = 7;'], 'markdown', CellKind.Markdown, [], {}],
+				['# header 1', 'markdown', CellKind.Markdown, [], {}],
+				['body', 'markdown', CellKind.Markdown, [], {}],
+				['## header 2.1', 'markdown', CellKind.Markdown, [], {}],
+				['body 2', 'markdown', CellKind.Markdown, [], {}],
+				['body 3', 'markdown', CellKind.Markdown, [], {}],
+				['## header 2.2', 'markdown', CellKind.Markdown, [], {}],
+				['var e = 7;', 'markdown', CellKind.Markdown, [], {}],
 			],
 			(editor, viewModel) => {
 				const foldingController = new FoldingModel();
@@ -57,13 +56,13 @@ suite('Notebook Folding', () => {
 			blukEditService,
 			undoRedoService,
 			[
-				[['# header 1'], 'markdown', CellKind.Markdown, [], {}],
-				[['body'], 'markdown', CellKind.Markdown, [], {}],
-				[['## header 2.1\n# header3'], 'markdown', CellKind.Markdown, [], {}],
-				[['body 2'], 'markdown', CellKind.Markdown, [], {}],
-				[['body 3'], 'markdown', CellKind.Markdown, [], {}],
-				[['## header 2.2'], 'markdown', CellKind.Markdown, [], {}],
-				[['var e = 7;'], 'markdown', CellKind.Markdown, [], {}],
+				['# header 1', 'markdown', CellKind.Markdown, [], {}],
+				['body', 'markdown', CellKind.Markdown, [], {}],
+				['## header 2.1\n# header3', 'markdown', CellKind.Markdown, [], {}],
+				['body 2', 'markdown', CellKind.Markdown, [], {}],
+				['body 3', 'markdown', CellKind.Markdown, [], {}],
+				['## header 2.2', 'markdown', CellKind.Markdown, [], {}],
+				['var e = 7;', 'markdown', CellKind.Markdown, [], {}],
 			],
 			(editor, viewModel) => {
 				const foldingController = new FoldingModel();
@@ -91,13 +90,13 @@ suite('Notebook Folding', () => {
 			blukEditService,
 			undoRedoService,
 			[
-				[['# header 1'], 'markdown', CellKind.Markdown, [], {}],
-				[['body'], 'markdown', CellKind.Markdown, [], {}],
-				[['## header 2.1'], 'markdown', CellKind.Markdown, [], {}],
-				[['body 2'], 'markdown', CellKind.Markdown, [], {}],
-				[['body 3'], 'markdown', CellKind.Markdown, [], {}],
-				[['## header 2.2'], 'markdown', CellKind.Markdown, [], {}],
-				[['var e = 7;'], 'markdown', CellKind.Markdown, [], {}],
+				['# header 1', 'markdown', CellKind.Markdown, [], {}],
+				['body', 'markdown', CellKind.Markdown, [], {}],
+				['## header 2.1', 'markdown', CellKind.Markdown, [], {}],
+				['body 2', 'markdown', CellKind.Markdown, [], {}],
+				['body 3', 'markdown', CellKind.Markdown, [], {}],
+				['## header 2.2', 'markdown', CellKind.Markdown, [], {}],
+				['var e = 7;', 'markdown', CellKind.Markdown, [], {}],
 			],
 			(editor, viewModel) => {
 				const foldingModel = new FoldingModel();
@@ -115,13 +114,13 @@ suite('Notebook Folding', () => {
 			blukEditService,
 			undoRedoService,
 			[
-				[['# header 1'], 'markdown', CellKind.Markdown, [], {}],
-				[['body'], 'markdown', CellKind.Markdown, [], {}],
-				[['## header 2.1\n'], 'markdown', CellKind.Markdown, [], {}],
-				[['body 2'], 'markdown', CellKind.Markdown, [], {}],
-				[['body 3'], 'markdown', CellKind.Markdown, [], {}],
-				[['## header 2.2'], 'markdown', CellKind.Markdown, [], {}],
-				[['var e = 7;'], 'markdown', CellKind.Markdown, [], {}],
+				['# header 1', 'markdown', CellKind.Markdown, [], {}],
+				['body', 'markdown', CellKind.Markdown, [], {}],
+				['## header 2.1\n', 'markdown', CellKind.Markdown, [], {}],
+				['body 2', 'markdown', CellKind.Markdown, [], {}],
+				['body 3', 'markdown', CellKind.Markdown, [], {}],
+				['## header 2.2', 'markdown', CellKind.Markdown, [], {}],
+				['var e = 7;', 'markdown', CellKind.Markdown, [], {}],
 			],
 			(editor, viewModel) => {
 				const foldingModel = new FoldingModel();
@@ -140,13 +139,13 @@ suite('Notebook Folding', () => {
 			blukEditService,
 			undoRedoService,
 			[
-				[['# header 1'], 'markdown', CellKind.Markdown, [], {}],
-				[['body'], 'markdown', CellKind.Markdown, [], {}],
-				[['# header 2.1\n'], 'markdown', CellKind.Markdown, [], {}],
-				[['body 2'], 'markdown', CellKind.Markdown, [], {}],
-				[['body 3'], 'markdown', CellKind.Markdown, [], {}],
-				[['## header 2.2'], 'markdown', CellKind.Markdown, [], {}],
-				[['var e = 7;'], 'markdown', CellKind.Markdown, [], {}],
+				['# header 1', 'markdown', CellKind.Markdown, [], {}],
+				['body', 'markdown', CellKind.Markdown, [], {}],
+				['# header 2.1\n', 'markdown', CellKind.Markdown, [], {}],
+				['body 2', 'markdown', CellKind.Markdown, [], {}],
+				['body 3', 'markdown', CellKind.Markdown, [], {}],
+				['## header 2.2', 'markdown', CellKind.Markdown, [], {}],
+				['var e = 7;', 'markdown', CellKind.Markdown, [], {}],
 			],
 			(editor, viewModel) => {
 				const foldingModel = new FoldingModel();
@@ -167,13 +166,13 @@ suite('Notebook Folding', () => {
 			blukEditService,
 			undoRedoService,
 			[
-				[['# header 1'], 'markdown', CellKind.Markdown, [], {}],
-				[['body'], 'markdown', CellKind.Markdown, [], {}],
-				[['# header 2.1\n'], 'markdown', CellKind.Markdown, [], {}],
-				[['body 2'], 'markdown', CellKind.Markdown, [], {}],
-				[['body 3'], 'markdown', CellKind.Markdown, [], {}],
-				[['## header 2.2'], 'markdown', CellKind.Markdown, [], {}],
-				[['var e = 7;'], 'markdown', CellKind.Markdown, [], {}],
+				['# header 1', 'markdown', CellKind.Markdown, [], {}],
+				['body', 'markdown', CellKind.Markdown, [], {}],
+				['# header 2.1\n', 'markdown', CellKind.Markdown, [], {}],
+				['body 2', 'markdown', CellKind.Markdown, [], {}],
+				['body 3', 'markdown', CellKind.Markdown, [], {}],
+				['## header 2.2', 'markdown', CellKind.Markdown, [], {}],
+				['var e = 7;', 'markdown', CellKind.Markdown, [], {}],
 			],
 			(editor, viewModel) => {
 				const foldingModel = new FoldingModel();
@@ -224,18 +223,18 @@ suite('Notebook Folding', () => {
 			blukEditService,
 			undoRedoService,
 			[
-				[['# header 1'], 'markdown', CellKind.Markdown, [], {}],
-				[['body'], 'markdown', CellKind.Markdown, [], {}],
-				[['# header 2.1\n'], 'markdown', CellKind.Markdown, [], {}],
-				[['body 2'], 'markdown', CellKind.Markdown, [], {}],
-				[['body 3'], 'markdown', CellKind.Markdown, [], {}],
-				[['## header 2.2'], 'markdown', CellKind.Markdown, [], {}],
-				[['var e = 7;'], 'markdown', CellKind.Markdown, [], {}],
-				[['# header 2.1\n'], 'markdown', CellKind.Markdown, [], {}],
-				[['body 2'], 'markdown', CellKind.Markdown, [], {}],
-				[['body 3'], 'markdown', CellKind.Markdown, [], {}],
-				[['## header 2.2'], 'markdown', CellKind.Markdown, [], {}],
-				[['var e = 7;'], 'markdown', CellKind.Markdown, [], {}],
+				['# header 1', 'markdown', CellKind.Markdown, [], {}],
+				['body', 'markdown', CellKind.Markdown, [], {}],
+				['# header 2.1\n', 'markdown', CellKind.Markdown, [], {}],
+				['body 2', 'markdown', CellKind.Markdown, [], {}],
+				['body 3', 'markdown', CellKind.Markdown, [], {}],
+				['## header 2.2', 'markdown', CellKind.Markdown, [], {}],
+				['var e = 7;', 'markdown', CellKind.Markdown, [], {}],
+				['# header 2.1\n', 'markdown', CellKind.Markdown, [], {}],
+				['body 2', 'markdown', CellKind.Markdown, [], {}],
+				['body 3', 'markdown', CellKind.Markdown, [], {}],
+				['## header 2.2', 'markdown', CellKind.Markdown, [], {}],
+				['var e = 7;', 'markdown', CellKind.Markdown, [], {}],
 			],
 			(editor, viewModel) => {
 				const foldingModel = new FoldingModel();
@@ -255,18 +254,18 @@ suite('Notebook Folding', () => {
 			blukEditService,
 			undoRedoService,
 			[
-				[['# header 1'], 'markdown', CellKind.Markdown, [], {}],
-				[['body'], 'markdown', CellKind.Markdown, [], {}],
-				[['# header 2.1\n'], 'markdown', CellKind.Markdown, [], {}],
-				[['body 2'], 'markdown', CellKind.Markdown, [], {}],
-				[['body 3'], 'markdown', CellKind.Markdown, [], {}],
-				[['## header 2.2'], 'markdown', CellKind.Markdown, [], {}],
-				[['var e = 7;'], 'markdown', CellKind.Markdown, [], {}],
-				[['# header 2.1\n'], 'markdown', CellKind.Markdown, [], {}],
-				[['body 2'], 'markdown', CellKind.Markdown, [], {}],
-				[['body 3'], 'markdown', CellKind.Markdown, [], {}],
-				[['## header 2.2'], 'markdown', CellKind.Markdown, [], {}],
-				[['var e = 7;'], 'markdown', CellKind.Markdown, [], {}],
+				['# header 1', 'markdown', CellKind.Markdown, [], {}],
+				['body', 'markdown', CellKind.Markdown, [], {}],
+				['# header 2.1\n', 'markdown', CellKind.Markdown, [], {}],
+				['body 2', 'markdown', CellKind.Markdown, [], {}],
+				['body 3', 'markdown', CellKind.Markdown, [], {}],
+				['## header 2.2', 'markdown', CellKind.Markdown, [], {}],
+				['var e = 7;', 'markdown', CellKind.Markdown, [], {}],
+				['# header 2.1\n', 'markdown', CellKind.Markdown, [], {}],
+				['body 2', 'markdown', CellKind.Markdown, [], {}],
+				['body 3', 'markdown', CellKind.Markdown, [], {}],
+				['## header 2.2', 'markdown', CellKind.Markdown, [], {}],
+				['var e = 7;', 'markdown', CellKind.Markdown, [], {}],
 			],
 			(editor, viewModel) => {
 				const foldingModel = new FoldingModel();
@@ -290,18 +289,18 @@ suite('Notebook Folding', () => {
 			blukEditService,
 			undoRedoService,
 			[
-				[['# header 1'], 'markdown', CellKind.Markdown, [], {}],
-				[['body'], 'markdown', CellKind.Markdown, [], {}],
-				[['# header 2.1\n'], 'markdown', CellKind.Markdown, [], {}],
-				[['body 2'], 'markdown', CellKind.Markdown, [], {}],
-				[['body 3'], 'markdown', CellKind.Markdown, [], {}],
-				[['## header 2.2'], 'markdown', CellKind.Markdown, [], {}],
-				[['var e = 7;'], 'markdown', CellKind.Markdown, [], {}],
-				[['# header 2.1\n'], 'markdown', CellKind.Markdown, [], {}],
-				[['body 2'], 'markdown', CellKind.Markdown, [], {}],
-				[['body 3'], 'markdown', CellKind.Markdown, [], {}],
-				[['## header 2.2'], 'markdown', CellKind.Markdown, [], {}],
-				[['var e = 7;'], 'markdown', CellKind.Markdown, [], {}],
+				['# header 1', 'markdown', CellKind.Markdown, [], {}],
+				['body', 'markdown', CellKind.Markdown, [], {}],
+				['# header 2.1\n', 'markdown', CellKind.Markdown, [], {}],
+				['body 2', 'markdown', CellKind.Markdown, [], {}],
+				['body 3', 'markdown', CellKind.Markdown, [], {}],
+				['## header 2.2', 'markdown', CellKind.Markdown, [], {}],
+				['var e = 7;', 'markdown', CellKind.Markdown, [], {}],
+				['# header 2.1\n', 'markdown', CellKind.Markdown, [], {}],
+				['body 2', 'markdown', CellKind.Markdown, [], {}],
+				['body 3', 'markdown', CellKind.Markdown, [], {}],
+				['## header 2.2', 'markdown', CellKind.Markdown, [], {}],
+				['var e = 7;', 'markdown', CellKind.Markdown, [], {}],
 			],
 			(editor, viewModel) => {
 				const foldingModel = new FoldingModel();
@@ -327,18 +326,18 @@ suite('Notebook Folding', () => {
 			blukEditService,
 			undoRedoService,
 			[
-				[['# header 1'], 'markdown', CellKind.Markdown, [], {}],
-				[['body'], 'markdown', CellKind.Markdown, [], {}],
-				[['# header 2.1\n'], 'markdown', CellKind.Markdown, [], {}],
-				[['body 2'], 'markdown', CellKind.Markdown, [], {}],
-				[['body 3'], 'markdown', CellKind.Markdown, [], {}],
-				[['## header 2.2'], 'markdown', CellKind.Markdown, [], {}],
-				[['var e = 7;'], 'markdown', CellKind.Markdown, [], {}],
-				[['# header 2.1\n'], 'markdown', CellKind.Markdown, [], {}],
-				[['body 2'], 'markdown', CellKind.Markdown, [], {}],
-				[['body 3'], 'markdown', CellKind.Markdown, [], {}],
-				[['## header 2.2'], 'markdown', CellKind.Markdown, [], {}],
-				[['var e = 7;'], 'markdown', CellKind.Markdown, [], {}],
+				['# header 1', 'markdown', CellKind.Markdown, [], {}],
+				['body', 'markdown', CellKind.Markdown, [], {}],
+				['# header 2.1\n', 'markdown', CellKind.Markdown, [], {}],
+				['body 2', 'markdown', CellKind.Markdown, [], {}],
+				['body 3', 'markdown', CellKind.Markdown, [], {}],
+				['## header 2.2', 'markdown', CellKind.Markdown, [], {}],
+				['var e = 7;', 'markdown', CellKind.Markdown, [], {}],
+				['# header 2.1\n', 'markdown', CellKind.Markdown, [], {}],
+				['body 2', 'markdown', CellKind.Markdown, [], {}],
+				['body 3', 'markdown', CellKind.Markdown, [], {}],
+				['## header 2.2', 'markdown', CellKind.Markdown, [], {}],
+				['var e = 7;', 'markdown', CellKind.Markdown, [], {}],
 			],
 			(editor, viewModel) => {
 				const foldingModel = new FoldingModel();
@@ -366,18 +365,18 @@ suite('Notebook Folding', () => {
 			blukEditService,
 			undoRedoService,
 			[
-				[['# header 1'], 'markdown', CellKind.Markdown, [], {}],
-				[['body'], 'markdown', CellKind.Markdown, [], {}],
-				[['# header 2.1\n'], 'markdown', CellKind.Markdown, [], {}],
-				[['body 2'], 'markdown', CellKind.Markdown, [], {}],
-				[['body 3'], 'markdown', CellKind.Markdown, [], {}],
-				[['## header 2.2'], 'markdown', CellKind.Markdown, [], {}],
-				[['var e = 7;'], 'markdown', CellKind.Markdown, [], {}],
-				[['# header 2.1\n'], 'markdown', CellKind.Markdown, [], {}],
-				[['body 2'], 'markdown', CellKind.Markdown, [], {}],
-				[['body 3'], 'markdown', CellKind.Markdown, [], {}],
-				[['## header 2.2'], 'markdown', CellKind.Markdown, [], {}],
-				[['var e = 7;'], 'markdown', CellKind.Markdown, [], {}],
+				['# header 1', 'markdown', CellKind.Markdown, [], {}],
+				['body', 'markdown', CellKind.Markdown, [], {}],
+				['# header 2.1\n', 'markdown', CellKind.Markdown, [], {}],
+				['body 2', 'markdown', CellKind.Markdown, [], {}],
+				['body 3', 'markdown', CellKind.Markdown, [], {}],
+				['## header 2.2', 'markdown', CellKind.Markdown, [], {}],
+				['var e = 7;', 'markdown', CellKind.Markdown, [], {}],
+				['# header 2.1\n', 'markdown', CellKind.Markdown, [], {}],
+				['body 2', 'markdown', CellKind.Markdown, [], {}],
+				['body 3', 'markdown', CellKind.Markdown, [], {}],
+				['## header 2.2', 'markdown', CellKind.Markdown, [], {}],
+				['var e = 7;', 'markdown', CellKind.Markdown, [], {}],
 			],
 			(editor, viewModel) => {
 				const foldingModel = new FoldingModel();

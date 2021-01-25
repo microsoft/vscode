@@ -95,6 +95,8 @@ suite('EditorAutoSave', () => {
 	});
 
 	test('editor auto saves on focus change if configured', async function () {
+		this.retries(3); // https://github.com/microsoft/vscode/issues/108727
+
 		const [accessor, part, editorAutoSave] = await createEditorAutoSave({ autoSave: 'onFocusChange' });
 
 		const resource = toResource.call(this, '/path/index.txt');
@@ -117,8 +119,6 @@ suite('EditorAutoSave', () => {
 	});
 
 	function awaitModelSaved(model: ITextFileEditorModel): Promise<void> {
-		return new Promise(c => {
-			Event.once(model.onDidChangeDirty)(c);
-		});
+		return Event.toPromise(Event.once(model.onDidChangeDirty));
 	}
 });

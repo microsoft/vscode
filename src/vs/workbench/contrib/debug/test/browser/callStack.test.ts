@@ -6,20 +6,38 @@
 import * as assert from 'assert';
 import { DebugModel, StackFrame, Thread } from 'vs/workbench/contrib/debug/common/debugModel';
 import * as sinon from 'sinon';
-import { MockRawSession, createMockDebugModel } from 'vs/workbench/contrib/debug/test/common/mockDebug';
+import { MockRawSession, createMockDebugModel, mockUriIdentityService } from 'vs/workbench/contrib/debug/test/browser/mockDebug';
 import { Source } from 'vs/workbench/contrib/debug/common/debugSource';
 import { DebugSession } from 'vs/workbench/contrib/debug/browser/debugSession';
 import { Range } from 'vs/editor/common/core/range';
-import { IDebugSessionOptions, State } from 'vs/workbench/contrib/debug/common/debug';
+import { IDebugSessionOptions, State, IDebugService } from 'vs/workbench/contrib/debug/common/debug';
 import { NullOpenerService } from 'vs/platform/opener/common/opener';
 import { createDecorationsForStackFrame } from 'vs/workbench/contrib/debug/browser/callStackEditorContribution';
 import { Constants } from 'vs/base/common/uint';
 import { getContext, getContextForContributedActions, getSpecificSourceName } from 'vs/workbench/contrib/debug/browser/callStackView';
 import { getStackFrameThreadAndSessionToFocus } from 'vs/workbench/contrib/debug/browser/debugService';
 import { generateUuid } from 'vs/base/common/uuid';
+import { debugStackframe, debugStackframeFocused } from 'vs/workbench/contrib/debug/browser/debugIcons';
+import { ThemeIcon } from 'vs/platform/theme/common/themeService';
+
+const mockWorkspaceContextService = {
+	getWorkspace: () => {
+		return {
+			folders: []
+		};
+	}
+} as any;
 
 export function createMockSession(model: DebugModel, name = 'mockSession', options?: IDebugSessionOptions): DebugSession {
-	return new DebugSession(generateUuid(), { resolved: { name, type: 'node', request: 'launch' }, unresolved: undefined }, undefined!, model, options, undefined!, undefined!, undefined!, undefined!, undefined!, undefined!, undefined!, undefined!, NullOpenerService, undefined!, undefined!);
+	return new DebugSession(generateUuid(), { resolved: { name, type: 'node', request: 'launch' }, unresolved: undefined }, undefined!, model, options, {
+		getViewModel(): any {
+			return {
+				updateViews(): void {
+					// noop
+				}
+			};
+		}
+	} as IDebugService, undefined!, undefined!, undefined!, undefined!, mockWorkspaceContextService, undefined!, undefined!, NullOpenerService, undefined!, undefined!, mockUriIdentityService);
 }
 
 function createTwoStackFrames(session: DebugSession): { firstStackFrame: StackFrame, secondStackFrame: StackFrame } {
@@ -35,15 +53,15 @@ function createTwoStackFrames(session: DebugSession): { firstStackFrame: StackFr
 		name: 'internalModule.js',
 		path: 'a/b/c/d/internalModule.js',
 		sourceReference: 10,
-	}, 'aDebugSessionId');
+	}, 'aDebugSessionId', mockUriIdentityService);
 	const secondSource = new Source({
 		name: 'internalModule.js',
 		path: 'z/x/c/d/internalModule.js',
 		sourceReference: 11,
-	}, 'aDebugSessionId');
+	}, 'aDebugSessionId', mockUriIdentityService);
 
-	firstStackFrame = new StackFrame(thread, 1, firstSource, 'app.js', 'normal', { startLineNumber: 1, startColumn: 1, endLineNumber: 1, endColumn: 10 }, 1);
-	secondStackFrame = new StackFrame(thread, 1, secondSource, 'app.js', 'normal', { startLineNumber: 1, startColumn: 1, endLineNumber: 1, endColumn: 10 }, 1);
+	firstStackFrame = new StackFrame(thread, 0, firstSource, 'app.js', 'normal', { startLineNumber: 1, startColumn: 1, endLineNumber: 1, endColumn: 10 }, 0);
+	secondStackFrame = new StackFrame(thread, 1, secondSource, 'app2.js', 'normal', { startLineNumber: 1, startColumn: 1, endLineNumber: 1, endColumn: 10 }, 1);
 
 	return { firstStackFrame, secondStackFrame };
 }
@@ -81,7 +99,7 @@ suite('Debug - CallStack', () => {
 		assert.equal(model.getSessions(true).length, 1);
 	});
 
-	test('threads multiple wtih allThreadsStopped', () => {
+	test('threads multiple wtih allThreadsStopped', async () => {
 		const threadId1 = 1;
 		const threadName1 = 'firstThread';
 		const threadId2 = 2;
@@ -135,19 +153,16 @@ suite('Debug - CallStack', () => {
 
 		// after calling getCallStack, the callstack becomes available
 		// and results in a request for the callstack in the debug adapter
-		thread1.fetchCallStack().then(() => {
-			assert.notEqual(thread1.getCallStack().length, 0);
-		});
+		await thread1.fetchCallStack();
+		assert.notEqual(thread1.getCallStack().length, 0);
 
-		thread2.fetchCallStack().then(() => {
-			assert.notEqual(thread2.getCallStack().length, 0);
-		});
+		await thread2.fetchCallStack();
+		assert.notEqual(thread2.getCallStack().length, 0);
 
 		// calling multiple times getCallStack doesn't result in multiple calls
 		// to the debug adapter
-		thread1.fetchCallStack().then(() => {
-			return thread2.fetchCallStack();
-		});
+		await thread1.fetchCallStack();
+		await thread2.fetchCallStack();
 
 		// clearing the callstack results in the callstack not being available
 		thread1.clearCallStack();
@@ -164,7 +179,7 @@ suite('Debug - CallStack', () => {
 		assert.equal(session.getAllThreads().length, 0);
 	});
 
-	test('threads mutltiple without allThreadsStopped', () => {
+	test('threads mutltiple without allThreadsStopped', async () => {
 		const sessionStub = sinon.spy(rawSession, 'stackTrace');
 
 		const stoppedThreadId = 1;
@@ -220,19 +235,17 @@ suite('Debug - CallStack', () => {
 
 		// after calling getCallStack, the callstack becomes available
 		// and results in a request for the callstack in the debug adapter
-		stoppedThread.fetchCallStack().then(() => {
-			assert.notEqual(stoppedThread.getCallStack().length, 0);
-			assert.equal(runningThread.getCallStack().length, 0);
-			assert.equal(sessionStub.callCount, 1);
-		});
+		await stoppedThread.fetchCallStack();
+		assert.notEqual(stoppedThread.getCallStack().length, 0);
+		assert.equal(runningThread.getCallStack().length, 0);
+		assert.equal(sessionStub.callCount, 1);
 
 		// calling getCallStack on the running thread returns empty array
 		// and does not return in a request for the callstack in the debug
 		// adapter
-		runningThread.fetchCallStack().then(() => {
-			assert.equal(runningThread.getCallStack().length, 0);
-			assert.equal(sessionStub.callCount, 1);
-		});
+		await runningThread.fetchCallStack();
+		assert.equal(runningThread.getCallStack().length, 0);
+		assert.equal(sessionStub.callCount, 1);
 
 		// clearing the callstack results in the callstack not being available
 		stoppedThread.clearCallStack();
@@ -261,11 +274,11 @@ suite('Debug - CallStack', () => {
 			name: 'internalModule.js',
 			path: 'a/b/c/d/internalModule.js',
 			sourceReference: 10,
-		}, 'aDebugSessionId');
+		}, 'aDebugSessionId', mockUriIdentityService);
 		const stackFrame = new StackFrame(thread, 1, firstSource, 'app', 'normal', { startLineNumber: 1, startColumn: 1, endLineNumber: 1, endColumn: 10 }, 1);
 		assert.equal(stackFrame.toString(), 'app (internalModule.js:1)');
 
-		const secondSource = new Source(undefined, 'aDebugSessionId');
+		const secondSource = new Source(undefined, 'aDebugSessionId', mockUriIdentityService);
 		const stackFrame2 = new StackFrame(thread, 2, secondSource, 'module', 'normal', { startLineNumber: undefined!, startColumn: undefined!, endLineNumber: undefined!, endColumn: undefined! }, 2);
 		assert.equal(stackFrame2.toString(), 'module');
 	});
@@ -297,26 +310,26 @@ suite('Debug - CallStack', () => {
 		const session = createMockSession(model);
 		model.addSession(session);
 		const { firstStackFrame, secondStackFrame } = createTwoStackFrames(session);
-		let decorations = createDecorationsForStackFrame(firstStackFrame, firstStackFrame.range);
+		let decorations = createDecorationsForStackFrame(firstStackFrame, firstStackFrame.range, true);
 		assert.equal(decorations.length, 2);
 		assert.deepEqual(decorations[0].range, new Range(1, 2, 1, 1));
-		assert.equal(decorations[0].options.glyphMarginClassName, 'codicon-debug-stackframe');
+		assert.equal(decorations[0].options.glyphMarginClassName, ThemeIcon.asClassName(debugStackframe));
 		assert.deepEqual(decorations[1].range, new Range(1, Constants.MAX_SAFE_SMALL_INTEGER, 1, 1));
 		assert.equal(decorations[1].options.className, 'debug-top-stack-frame-line');
 		assert.equal(decorations[1].options.isWholeLine, true);
 
-		decorations = createDecorationsForStackFrame(secondStackFrame, firstStackFrame.range);
+		decorations = createDecorationsForStackFrame(secondStackFrame, firstStackFrame.range, true);
 		assert.equal(decorations.length, 2);
 		assert.deepEqual(decorations[0].range, new Range(1, 2, 1, 1));
-		assert.equal(decorations[0].options.glyphMarginClassName, 'codicon-debug-stackframe-focused');
+		assert.equal(decorations[0].options.glyphMarginClassName, ThemeIcon.asClassName(debugStackframeFocused));
 		assert.deepEqual(decorations[1].range, new Range(1, Constants.MAX_SAFE_SMALL_INTEGER, 1, 1));
 		assert.equal(decorations[1].options.className, 'debug-focused-stack-frame-line');
 		assert.equal(decorations[1].options.isWholeLine, true);
 
-		decorations = createDecorationsForStackFrame(firstStackFrame, new Range(1, 5, 1, 6));
+		decorations = createDecorationsForStackFrame(firstStackFrame, new Range(1, 5, 1, 6), true);
 		assert.equal(decorations.length, 3);
 		assert.deepEqual(decorations[0].range, new Range(1, 2, 1, 1));
-		assert.equal(decorations[0].options.glyphMarginClassName, 'codicon-debug-stackframe');
+		assert.equal(decorations[0].options.glyphMarginClassName, ThemeIcon.asClassName(debugStackframe));
 		assert.deepEqual(decorations[1].range, new Range(1, Constants.MAX_SAFE_SMALL_INTEGER, 1, 1));
 		assert.equal(decorations[1].options.className, 'debug-top-stack-frame-line');
 		assert.equal(decorations[1].options.isWholeLine, true);
@@ -364,7 +377,7 @@ suite('Debug - CallStack', () => {
 			get state(): State {
 				return State.Stopped;
 			}
-		}(generateUuid(), { resolved: { name: 'stoppedSession', type: 'node', request: 'launch' }, unresolved: undefined }, undefined!, model, undefined, undefined!, undefined!, undefined!, undefined!, undefined!, undefined!, undefined!, undefined!, NullOpenerService, undefined!, undefined!);
+		}(generateUuid(), { resolved: { name: 'stoppedSession', type: 'node', request: 'launch' }, unresolved: undefined }, undefined!, model, undefined, undefined!, undefined!, undefined!, undefined!, undefined!, mockWorkspaceContextService, undefined!, undefined!, NullOpenerService, undefined!, undefined!, mockUriIdentityService);
 
 		const runningSession = createMockSession(model);
 		model.addSession(runningSession);

@@ -16,10 +16,11 @@
 }
 
 .monaco-editor .debug-hover-widget .complex-value {
-	width: 324px;
+	max-width: 700px;
 }
 
-.monaco-editor .debug-hover-widget .complex-value .title {
+.monaco-editor .debug-hover-widget .complex-value .title,
+.monaco-editor .debug-hover-widget .complex-value .tip {
 	padding-left: 15px;
 	padding-right: 2px;
 	font-size: 11px;
@@ -29,7 +30,15 @@
 	height: 18px;
 	overflow: hidden;
 	white-space: pre;
+}
+
+.monaco-editor .debug-hover-widget .complex-value .title {
 	border-bottom: 1px solid rgba(128, 128, 128, 0.35);
+}
+
+.monaco-editor .debug-hover-widget .complex-value .tip {
+	border-top: 1px solid rgba(128, 128, 128, 0.35);
+	opacity: 0.5;
 }
 
 .monaco-editor .debug-hover-widget .debug-hover-tree {
@@ -57,12 +66,13 @@
 	background-color: rgba(173, 214, 255, 0.15);
 }
 
-.monaco-editor .debug-hover-widget .value {
+.monaco-editor .debug-hover-widget > .monaco-scrollable-element > .value {
 	color: rgba(108, 108, 108, 0.8);
 	overflow: auto;
 	font-family: var(--monaco-monospace-font);
 	max-height: 500px;
 	padding: 4px 5px;
+	white-space: pre-wrap;
 }
 
 .monaco-editor.vs-dark .debugHoverHighlight,

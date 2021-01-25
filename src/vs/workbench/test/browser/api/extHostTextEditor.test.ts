@@ -17,7 +17,7 @@ suite('ExtHostTextEditor', () => {
 	let editor: ExtHostTextEditor;
 	let doc = new ExtHostDocumentData(undefined!, URI.file(''), [
 		'aaaa bbbb+cccc abc'
-	], '\n', 'text', 1, false);
+	], '\n', 1, 'text', false);
 
 	setup(() => {
 		editor = new ExtHostTextEditor('fake', null!, new NullLogService(), doc, [], { cursorStyle: 0, insertSpaces: true, lineNumbers: 1, tabSize: 4, indentSize: 4 }, [], 1);
@@ -27,12 +27,12 @@ suite('ExtHostTextEditor', () => {
 
 		assert.ok(editor.document);
 		editor._acceptViewColumn(3);
-		assert.equal(3, editor.viewColumn);
+		assert.strictEqual(3, editor.viewColumn);
 
 		editor.dispose();
 
 		assert.throws(() => editor._acceptViewColumn(2));
-		assert.equal(3, editor.viewColumn);
+		assert.strictEqual(3, editor.viewColumn);
 
 		assert.ok(editor.document);
 		assert.throws(() => editor._acceptOptions(null!));
@@ -50,13 +50,13 @@ suite('ExtHostTextEditor', () => {
 			}, new NullLogService(), doc, [], { cursorStyle: 0, insertSpaces: true, lineNumbers: 1, tabSize: 4, indentSize: 4 }, [], 1);
 
 		await editor.edit(edit => { });
-		assert.equal(applyCount, 0);
+		assert.strictEqual(applyCount, 0);
 
 		await editor.edit(edit => { edit.setEndOfLine(1); });
-		assert.equal(applyCount, 1);
+		assert.strictEqual(applyCount, 1);
 
 		await editor.edit(edit => { edit.delete(new Range(0, 0, 1, 1)); });
-		assert.equal(applyCount, 2);
+		assert.strictEqual(applyCount, 2);
 	});
 });
 
@@ -70,7 +70,7 @@ suite('ExtHostTextEditorOptions', () => {
 		let mockProxy: MainThreadTextEditorsShape = {
 			dispose: undefined!,
 			$trySetOptions: (id: string, options: ITextEditorConfigurationUpdate) => {
-				assert.equal(id, '1');
+				assert.strictEqual(id, '1');
 				calls.push(options);
 				return Promise.resolve(undefined);
 			},
@@ -84,7 +84,6 @@ suite('ExtHostTextEditorOptions', () => {
 			$tryRevealRange: undefined!,
 			$trySetSelections: undefined!,
 			$tryApplyEdits: undefined!,
-			$tryApplyWorkspaceEdit: undefined!,
 			$tryInsertSnippet: undefined!,
 			$getDiffInformation: undefined!
 		};
@@ -110,7 +109,7 @@ suite('ExtHostTextEditorOptions', () => {
 			cursorStyle: opts.cursorStyle,
 			lineNumbers: opts.lineNumbers
 		};
-		assert.deepEqual(actual, expected);
+		assert.deepStrictEqual(actual, expected);
 	}
 
 	test('can set tabSize to the same value', () => {
@@ -122,7 +121,7 @@ suite('ExtHostTextEditorOptions', () => {
 			cursorStyle: TextEditorCursorStyle.Line,
 			lineNumbers: RenderLineNumbersType.On
 		});
-		assert.deepEqual(calls, []);
+		assert.deepStrictEqual(calls, []);
 	});
 
 	test('can change tabSize to positive integer', () => {
@@ -134,7 +133,7 @@ suite('ExtHostTextEditorOptions', () => {
 			cursorStyle: TextEditorCursorStyle.Line,
 			lineNumbers: RenderLineNumbersType.On
 		});
-		assert.deepEqual(calls, [{ tabSize: 1 }]);
+		assert.deepStrictEqual(calls, [{ tabSize: 1 }]);
 	});
 
 	test('can change tabSize to positive float', () => {
@@ -146,7 +145,7 @@ suite('ExtHostTextEditorOptions', () => {
 			cursorStyle: TextEditorCursorStyle.Line,
 			lineNumbers: RenderLineNumbersType.On
 		});
-		assert.deepEqual(calls, [{ tabSize: 2 }]);
+		assert.deepStrictEqual(calls, [{ tabSize: 2 }]);
 	});
 
 	test('can change tabSize to a string number', () => {
@@ -158,7 +157,7 @@ suite('ExtHostTextEditorOptions', () => {
 			cursorStyle: TextEditorCursorStyle.Line,
 			lineNumbers: RenderLineNumbersType.On
 		});
-		assert.deepEqual(calls, [{ tabSize: 2 }]);
+		assert.deepStrictEqual(calls, [{ tabSize: 2 }]);
 	});
 
 	test('tabSize can request indentation detection', () => {
@@ -170,7 +169,7 @@ suite('ExtHostTextEditorOptions', () => {
 			cursorStyle: TextEditorCursorStyle.Line,
 			lineNumbers: RenderLineNumbersType.On
 		});
-		assert.deepEqual(calls, [{ tabSize: 'auto' }]);
+		assert.deepStrictEqual(calls, [{ tabSize: 'auto' }]);
 	});
 
 	test('ignores invalid tabSize 1', () => {
@@ -182,7 +181,7 @@ suite('ExtHostTextEditorOptions', () => {
 			cursorStyle: TextEditorCursorStyle.Line,
 			lineNumbers: RenderLineNumbersType.On
 		});
-		assert.deepEqual(calls, []);
+		assert.deepStrictEqual(calls, []);
 	});
 
 	test('ignores invalid tabSize 2', () => {
@@ -194,7 +193,7 @@ suite('ExtHostTextEditorOptions', () => {
 			cursorStyle: TextEditorCursorStyle.Line,
 			lineNumbers: RenderLineNumbersType.On
 		});
-		assert.deepEqual(calls, []);
+		assert.deepStrictEqual(calls, []);
 	});
 
 	test('ignores invalid tabSize 3', () => {
@@ -206,7 +205,7 @@ suite('ExtHostTextEditorOptions', () => {
 			cursorStyle: TextEditorCursorStyle.Line,
 			lineNumbers: RenderLineNumbersType.On
 		});
-		assert.deepEqual(calls, []);
+		assert.deepStrictEqual(calls, []);
 	});
 
 	test('ignores invalid tabSize 4', () => {
@@ -218,7 +217,7 @@ suite('ExtHostTextEditorOptions', () => {
 			cursorStyle: TextEditorCursorStyle.Line,
 			lineNumbers: RenderLineNumbersType.On
 		});
-		assert.deepEqual(calls, []);
+		assert.deepStrictEqual(calls, []);
 	});
 
 	test('can set indentSize to the same value', () => {
@@ -230,7 +229,7 @@ suite('ExtHostTextEditorOptions', () => {
 			cursorStyle: TextEditorCursorStyle.Line,
 			lineNumbers: RenderLineNumbersType.On
 		});
-		assert.deepEqual(calls, []);
+		assert.deepStrictEqual(calls, []);
 	});
 
 	test('can change indentSize to positive integer', () => {
@@ -242,7 +241,7 @@ suite('ExtHostTextEditorOptions', () => {
 			cursorStyle: TextEditorCursorStyle.Line,
 			lineNumbers: RenderLineNumbersType.On
 		});
-		assert.deepEqual(calls, [{ indentSize: 1 }]);
+		assert.deepStrictEqual(calls, [{ indentSize: 1 }]);
 	});
 
 	test('can change indentSize to positive float', () => {
@@ -254,7 +253,7 @@ suite('ExtHostTextEditorOptions', () => {
 			cursorStyle: TextEditorCursorStyle.Line,
 			lineNumbers: RenderLineNumbersType.On
 		});
-		assert.deepEqual(calls, [{ indentSize: 2 }]);
+		assert.deepStrictEqual(calls, [{ indentSize: 2 }]);
 	});
 
 	test('can change indentSize to a string number', () => {
@@ -266,7 +265,7 @@ suite('ExtHostTextEditorOptions', () => {
 			cursorStyle: TextEditorCursorStyle.Line,
 			lineNumbers: RenderLineNumbersType.On
 		});
-		assert.deepEqual(calls, [{ indentSize: 2 }]);
+		assert.deepStrictEqual(calls, [{ indentSize: 2 }]);
 	});
 
 	test('indentSize can request to use tabSize', () => {
@@ -278,7 +277,7 @@ suite('ExtHostTextEditorOptions', () => {
 			cursorStyle: TextEditorCursorStyle.Line,
 			lineNumbers: RenderLineNumbersType.On
 		});
-		assert.deepEqual(calls, [{ indentSize: 'tabSize' }]);
+		assert.deepStrictEqual(calls, [{ indentSize: 'tabSize' }]);
 	});
 
 	test('indentSize cannot request indentation detection', () => {
@@ -290,7 +289,7 @@ suite('ExtHostTextEditorOptions', () => {
 			cursorStyle: TextEditorCursorStyle.Line,
 			lineNumbers: RenderLineNumbersType.On
 		});
-		assert.deepEqual(calls, []);
+		assert.deepStrictEqual(calls, []);
 	});
 
 	test('ignores invalid indentSize 1', () => {
@@ -302,7 +301,7 @@ suite('ExtHostTextEditorOptions', () => {
 			cursorStyle: TextEditorCursorStyle.Line,
 			lineNumbers: RenderLineNumbersType.On
 		});
-		assert.deepEqual(calls, []);
+		assert.deepStrictEqual(calls, []);
 	});
 
 	test('ignores invalid indentSize 2', () => {
@@ -314,7 +313,7 @@ suite('ExtHostTextEditorOptions', () => {
 			cursorStyle: TextEditorCursorStyle.Line,
 			lineNumbers: RenderLineNumbersType.On
 		});
-		assert.deepEqual(calls, []);
+		assert.deepStrictEqual(calls, []);
 	});
 
 	test('ignores invalid indentSize 3', () => {
@@ -326,7 +325,7 @@ suite('ExtHostTextEditorOptions', () => {
 			cursorStyle: TextEditorCursorStyle.Line,
 			lineNumbers: RenderLineNumbersType.On
 		});
-		assert.deepEqual(calls, []);
+		assert.deepStrictEqual(calls, []);
 	});
 
 	test('ignores invalid indentSize 4', () => {
@@ -338,7 +337,7 @@ suite('ExtHostTextEditorOptions', () => {
 			cursorStyle: TextEditorCursorStyle.Line,
 			lineNumbers: RenderLineNumbersType.On
 		});
-		assert.deepEqual(calls, []);
+		assert.deepStrictEqual(calls, []);
 	});
 
 	test('can set insertSpaces to the same value', () => {
@@ -350,7 +349,7 @@ suite('ExtHostTextEditorOptions', () => {
 			cursorStyle: TextEditorCursorStyle.Line,
 			lineNumbers: RenderLineNumbersType.On
 		});
-		assert.deepEqual(calls, []);
+		assert.deepStrictEqual(calls, []);
 	});
 
 	test('can set insertSpaces to boolean', () => {
@@ -362,7 +361,7 @@ suite('ExtHostTextEditorOptions', () => {
 			cursorStyle: TextEditorCursorStyle.Line,
 			lineNumbers: RenderLineNumbersType.On
 		});
-		assert.deepEqual(calls, [{ insertSpaces: true }]);
+		assert.deepStrictEqual(calls, [{ insertSpaces: true }]);
 	});
 
 	test('can set insertSpaces to false string', () => {
@@ -374,7 +373,7 @@ suite('ExtHostTextEditorOptions', () => {
 			cursorStyle: TextEditorCursorStyle.Line,
 			lineNumbers: RenderLineNumbersType.On
 		});
-		assert.deepEqual(calls, []);
+		assert.deepStrictEqual(calls, []);
 	});
 
 	test('can set insertSpaces to truey', () => {
@@ -386,7 +385,7 @@ suite('ExtHostTextEditorOptions', () => {
 			cursorStyle: TextEditorCursorStyle.Line,
 			lineNumbers: RenderLineNumbersType.On
 		});
-		assert.deepEqual(calls, [{ insertSpaces: true }]);
+		assert.deepStrictEqual(calls, [{ insertSpaces: true }]);
 	});
 
 	test('insertSpaces can request indentation detection', () => {
@@ -398,7 +397,7 @@ suite('ExtHostTextEditorOptions', () => {
 			cursorStyle: TextEditorCursorStyle.Line,
 			lineNumbers: RenderLineNumbersType.On
 		});
-		assert.deepEqual(calls, [{ insertSpaces: 'auto' }]);
+		assert.deepStrictEqual(calls, [{ insertSpaces: 'auto' }]);
 	});
 
 	test('can set cursorStyle to same value', () => {
@@ -410,7 +409,7 @@ suite('ExtHostTextEditorOptions', () => {
 			cursorStyle: TextEditorCursorStyle.Line,
 			lineNumbers: RenderLineNumbersType.On
 		});
-		assert.deepEqual(calls, []);
+		assert.deepStrictEqual(calls, []);
 	});
 
 	test('can change cursorStyle', () => {
@@ -422,7 +421,7 @@ suite('ExtHostTextEditorOptions', () => {
 			cursorStyle: TextEditorCursorStyle.Block,
 			lineNumbers: RenderLineNumbersType.On
 		});
-		assert.deepEqual(calls, [{ cursorStyle: TextEditorCursorStyle.Block }]);
+		assert.deepStrictEqual(calls, [{ cursorStyle: TextEditorCursorStyle.Block }]);
 	});
 
 	test('can set lineNumbers to same value', () => {
@@ -434,7 +433,7 @@ suite('ExtHostTextEditorOptions', () => {
 			cursorStyle: TextEditorCursorStyle.Line,
 			lineNumbers: RenderLineNumbersType.On
 		});
-		assert.deepEqual(calls, []);
+		assert.deepStrictEqual(calls, []);
 	});
 
 	test('can change lineNumbers', () => {
@@ -446,7 +445,7 @@ suite('ExtHostTextEditorOptions', () => {
 			cursorStyle: TextEditorCursorStyle.Line,
 			lineNumbers: RenderLineNumbersType.Off
 		});
-		assert.deepEqual(calls, [{ lineNumbers: RenderLineNumbersType.Off }]);
+		assert.deepStrictEqual(calls, [{ lineNumbers: RenderLineNumbersType.Off }]);
 	});
 
 	test('can do bulk updates 0', () => {
@@ -463,7 +462,7 @@ suite('ExtHostTextEditorOptions', () => {
 			cursorStyle: TextEditorCursorStyle.Line,
 			lineNumbers: RenderLineNumbersType.On
 		});
-		assert.deepEqual(calls, []);
+		assert.deepStrictEqual(calls, []);
 	});
 
 	test('can do bulk updates 1', () => {
@@ -478,7 +477,7 @@ suite('ExtHostTextEditorOptions', () => {
 			cursorStyle: TextEditorCursorStyle.Line,
 			lineNumbers: RenderLineNumbersType.On
 		});
-		assert.deepEqual(calls, [{ tabSize: 'auto', insertSpaces: true }]);
+		assert.deepStrictEqual(calls, [{ tabSize: 'auto', insertSpaces: true }]);
 	});
 
 	test('can do bulk updates 2', () => {
@@ -493,7 +492,7 @@ suite('ExtHostTextEditorOptions', () => {
 			cursorStyle: TextEditorCursorStyle.Line,
 			lineNumbers: RenderLineNumbersType.On
 		});
-		assert.deepEqual(calls, [{ tabSize: 3, insertSpaces: 'auto' }]);
+		assert.deepStrictEqual(calls, [{ tabSize: 3, insertSpaces: 'auto' }]);
 	});
 
 	test('can do bulk updates 3', () => {
@@ -508,7 +507,7 @@ suite('ExtHostTextEditorOptions', () => {
 			cursorStyle: TextEditorCursorStyle.Block,
 			lineNumbers: RenderLineNumbersType.Relative
 		});
-		assert.deepEqual(calls, [{ cursorStyle: TextEditorCursorStyle.Block, lineNumbers: RenderLineNumbersType.Relative }]);
+		assert.deepStrictEqual(calls, [{ cursorStyle: TextEditorCursorStyle.Block, lineNumbers: RenderLineNumbersType.Relative }]);
 	});
 
 });

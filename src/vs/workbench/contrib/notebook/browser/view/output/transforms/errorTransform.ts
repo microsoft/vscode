@@ -3,22 +3,22 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { IRenderOutput, CellOutputKind, IErrorOutput } from 'vs/workbench/contrib/notebook/common/notebookCommon';
+import { CellOutputKind } from 'vs/workbench/contrib/notebook/common/notebookCommon';
 import { NotebookRegistry } from 'vs/workbench/contrib/notebook/browser/notebookRegistry';
-import * as DOM from 'vs/base/browser/dom';
 import { RGBA, Color } from 'vs/base/common/color';
 import { ansiColorIdentifiers } from 'vs/workbench/contrib/terminal/common/terminalColorRegistry';
 import { IThemeService } from 'vs/platform/theme/common/themeService';
-import { INotebookEditor, IOutputTransformContribution } from 'vs/workbench/contrib/notebook/browser/notebookBrowser';
+import { ICommonNotebookEditor, IErrorOutputViewModel, IOutputTransformContribution, IRenderOutput, RenderOutputType } from 'vs/workbench/contrib/notebook/browser/notebookBrowser';
 
 class ErrorTransform implements IOutputTransformContribution {
 	constructor(
-		public editor: INotebookEditor,
+		public editor: ICommonNotebookEditor,
 		@IThemeService private readonly themeService: IThemeService
 	) {
 	}
 
-	render(output: IErrorOutput, container: HTMLElement): IRenderOutput {
+	render(viewModel: IErrorOutputViewModel, container: HTMLElement): IRenderOutput {
+		const output = viewModel.model;
 		const header = document.createElement('div');
 		const headerMessage = output.ename && output.evalue
 			? `${output.ename}: ${output.evalue}`
@@ -28,17 +28,15 @@ class ErrorTransform implements IOutputTransformContribution {
 			container.appendChild(header);
 		}
 		const traceback = document.createElement('pre');
-		DOM.addClasses(traceback, 'traceback');
+		traceback.classList.add('traceback');
 		if (output.traceback) {
 			for (let j = 0; j < output.traceback.length; j++) {
 				traceback.appendChild(handleANSIOutput(output.traceback[j], this.themeService));
 			}
 		}
 		container.appendChild(traceback);
-		DOM.addClasses(container, 'error');
-		return {
-			hasDynamicHeight: false
-		};
+		container.classList.add('error');
+		return { type: RenderOutputType.None, hasDynamicHeight: false };
 	}
 
 	dispose(): void {
