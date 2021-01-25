@@ -60,6 +60,7 @@ export function activate(context: vscode.ExtensionContext): any {
 	}));
 
 	const kernel: vscode.NotebookKernel = {
+		id: 'mainKernel',
 		label: 'Notebook Test Kernel',
 		isPreferred: true,
 		executeAllCells: async (_document: vscode.NotebookDocument) => {
@@ -118,9 +119,69 @@ export function activate(context: vscode.ExtensionContext): any {
 		cancelCellExecution: async (_document: vscode.NotebookDocument, _cell: vscode.NotebookCell) => { }
 	};
 
+	const kernel2: vscode.NotebookKernel = {
+		id: 'secondaryKernel',
+		label: 'Notebook Secondary Test Kernel',
+		isPreferred: false,
+		executeAllCells: async (_document: vscode.NotebookDocument) => {
+			const cell = _document.cells[0];
+
+			cell.outputs = [{
+				outputKind: vscode.CellOutputKind.Rich,
+				data: {
+					'text/plain': ['my second output']
+				}
+			}];
+			return;
+		},
+		cancelAllCellsExecution: async (_document: vscode.NotebookDocument) => { },
+		executeCell: async (document: vscode.NotebookDocument, cell: vscode.NotebookCell | undefined) => {
+			if (!cell) {
+				cell = document.cells[0];
+			}
+
+			if (document.uri.path.endsWith('customRenderer.vsctestnb')) {
+				cell.outputs = [{
+					outputKind: vscode.CellOutputKind.Rich,
+					data: {
+						'text/custom': 'test 2'
+					}
+				}];
+
+				return;
+			}
+
+			const previousOutputs = cell.outputs;
+			const newOutputs: vscode.CellOutput[] = [{
+				outputKind: vscode.CellOutputKind.Rich,
+				data: {
+					'text/plain': ['my second output']
+				}
+			}];
+
+			cell.outputs = newOutputs;
+
+			_onDidChangeNotebook.fire({
+				document: document,
+				undo: () => {
+					if (cell) {
+						cell.outputs = previousOutputs;
+					}
+				},
+				redo: () => {
+					if (cell) {
+						cell.outputs = newOutputs;
+					}
+				}
+			});
+			return;
+		},
+		cancelCellExecution: async (_document: vscode.NotebookDocument, _cell: vscode.NotebookCell) => { }
+	};
+
 	context.subscriptions.push(vscode.notebook.registerNotebookKernelProvider({ filenamePattern: '*.vsctestnb' }, {
 		provideKernels: async () => {
-			return [kernel];
+			return [kernel, kernel2];
 		}
 	}));
 }
