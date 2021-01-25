@@ -108,7 +108,7 @@ export class WindowsNativeResolvedKeybinding extends BaseResolvedKeybinding<Simp
 		if (keybinding.ctrlKey) {
 			result += 'ctrl+';
 		}
-		if (keybinding.shiftKey) {
+		if (keybinding.shiftKey && keybinding.keyCode !== 4) {
 			result += 'shift+';
 		}
 		if (keybinding.altKey) {
