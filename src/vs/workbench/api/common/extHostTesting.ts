@@ -13,6 +13,7 @@ import { isDefined } from 'vs/base/common/types';
 import { URI, UriComponents } from 'vs/base/common/uri';
 import { generateUuid } from 'vs/base/common/uuid';
 import { ExtHostTestingResource, ExtHostTestingShape, MainContext, MainThreadTestingShape } from 'vs/workbench/api/common/extHost.protocol';
+import { ExtHostDocumentData } from 'vs/workbench/api/common/extHostDocumentData';
 import { IExtHostDocumentsAndEditors } from 'vs/workbench/api/common/extHostDocumentsAndEditors';
 import { IExtHostRpcService } from 'vs/workbench/api/common/extHostRpcService';
 import { TestItem } from 'vs/workbench/api/common/extHostTypeConverters';
@@ -110,12 +111,26 @@ export class ExtHostTesting implements ExtHostTestingShape {
 
 		let method: undefined | ((p: vscode.TestProvider) => vscode.TestHierarchy<vscode.TestItem> | undefined);
 		if (resource === ExtHostTestingResource.TextDocument) {
-			const document = this.documents.getDocument(uri);
+			let document = this.documents.getDocument(uri);
+
+			// we can ask to subscribe to tests before the documents are populated in
+			// the extension host. Try to wait.
+			if (!document) {
+				const store = new DisposableStore();
+				document = await new Promise<ExtHostDocumentData | undefined>(resolve => {
+					store.add(disposableTimeout(() => resolve(undefined), 5000));
+					store.add(this.documents.onDidAddDocuments(e => {
+						const data = e.find(data => data.document.uri.toString() === uri.toString());
+						if (data) { resolve(data); }
+					}));
+				}).finally(() => store.dispose());
+			}
+
 			if (document) {
 				const folder = await this.workspace.getWorkspaceFolder2(uri, false);
 				method = p => p.createDocumentTestHierarchy
-					? p.createDocumentTestHierarchy(document.document)
-					: this.createDefaultDocumentTestHierarchy(p, document.document, folder);
+					? p.createDocumentTestHierarchy(document!.document)
+					: this.createDefaultDocumentTestHierarchy(p, document!.document, folder);
 			}
 		} else {
 			const folder = await this.workspace.getWorkspaceFolder2(uri, false);
