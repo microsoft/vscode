@@ -2404,21 +2404,27 @@ declare module 'vscode' {
 
 	//#region Opener service (https://github.com/microsoft/vscode/issues/109277)
 
+	/**
+	 * Details if an `ExternalUriOpener` can open a uri.
+	 *
+	 * This also controls if/how the user is prompted if multiple openers
+	 * are available for a given uri.
+	 */
 	export enum ExternalUriOpenerPriority {
 		/**
 		 * The opener is disabled and will not be shown to users.
 		 *
-		 * Note that the opener can still be used if the user
-		 * specifically configures it in their settings.
+		 * Note that the opener can still be used if the user specifically
+		 * configures it in their settings.
 		 */
 		None = 0,
 
 		/**
-		 * The opener can open the uri but will not be shown by default when a
+		 * The opener can open the uri but it will not be shown by default when a
 		 * user clicks on the uri.
 		 *
-		 * If only optional openers are enabled, then VS Code's default opener
-		 * will be automatically used.
+		 * If only optional openers are enabled for a given URI, then VS Code's
+		 * default opener will be automatically used.
 		 */
 		Option = 1,
 
@@ -2426,7 +2432,7 @@ declare module 'vscode' {
 		 * The opener can open the uri.
 		 *
 		 * When the user clicks on a uri, they will be prompted to select the opener
-		 * they wish to use for it.
+		 * they wish to use for it. All
 		 */
 		Default = 2,
 
@@ -2434,7 +2440,8 @@ declare module 'vscode' {
 		 * The opener can open the uri and should be automatically selected if possible.
 		 *
 		 * Preferred openers will be automatically selected if no other preferred openers
-		 * are available.
+		 * are available. If multiple preferred openers are available, then the user
+		 * is shown a prompt.
 		 */
 		Preferred = 3,
 	}
@@ -2450,18 +2457,18 @@ declare module 'vscode' {
 	export interface ExternalUriOpener {
 
 		/**
-		 * Check if the opener can handle a given uri.
+		 * Check if the opener can open a uri.
 		 *
 		 * @param uri The uri being opened. This is the uri that the user clicked on. It has
 		 * not yet gone through port forwarding.
 		 * @param token Cancellation token indicating that the result is no longer needed.
 		 *
-		 * @return If the opener can open the external uri.
+		 * @return Priority indicating if the opener can open the external uri.
 		 */
 		canOpenExternalUri(uri: Uri, token: CancellationToken): ExternalUriOpenerPriority | Thenable<ExternalUriOpenerPriority>;
 
 		/**
-		 * Open the given uri.
+		 * Open a uri.
 		 *
 		 * This is invoked when:
 		 *
@@ -2475,7 +2482,7 @@ declare module 'vscode' {
 		 * @param ctx Additional information about the uri being opened.
 		 * @param token Cancellation token indicating that opening has been canceled.
 		 *
-		 * @return Thenable indicating that the opening has completed
+		 * @return Thenable indicating that the opening has completed.
 		 */
 		openExternalUri(resolvedUri: Uri, ctx: OpenExternalUriContext, token: CancellationToken): Thenable<void> | void;
 	}
@@ -2487,13 +2494,14 @@ declare module 'vscode' {
 		/**
 		 * The uri that triggered the open.
 		 *
+		 * This is the original uri that the user clicked on or that was passed to `openExternal.`
 		 * Due to port forwarding, this may not match the `resolvedUri` passed to `openExternalUri`.
 		 */
 		readonly sourceUri: Uri;
 	}
 
 	/**
-	 * Additional metadata about the registered opener.
+	 * Additional metadata about a registered `ExternalUriOpener`.
 	 */
 	interface ExternalUriOpenerMetadata {
 
@@ -2530,11 +2538,13 @@ declare module 'vscode' {
 
 	interface OpenExternalOptions {
 		/**
+		 * Allows using openers contributed by extensions through  `registerExternalUriOpener`
+		 * when opening the resource.
 		 *
-		 * If `true`, then VS Code will check if any contributed openers can handle the
+		 * If `true`, VS Code will check if any contributed openers can handle the
 		 * uri, and fallback to the default opener behavior.
 		 *
-		 * If it is string, then this specifies the id of the `ExternalUriOpener`
+		 * If it is string, this specifies the id of the `ExternalUriOpener`
 		 * that should be used if it is available. Use `'default'` to force VS Code's
 		 * standard external opener to be used.
 		 */
