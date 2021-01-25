@@ -8,7 +8,7 @@ import * as fs from 'fs';
 import { tmpdir } from 'os';
 import { join, sep } from 'vs/base/common/path';
 import { generateUuid } from 'vs/base/common/uuid';
-import { copy, mkdirp, move, readdir, readDirsInDir, readdirWithFileTypes, renameIgnoreError, rimraf, RimRafMode, rimrafSync, statLink, writeFile, writeFileSync } from 'vs/base/node/pfs';
+import { copy, exists, mkdirp, move, readdir, readDirsInDir, readdirWithFileTypes, readFile, renameIgnoreError, rimraf, RimRafMode, rimrafSync, statLink, writeFile, writeFileSync } from 'vs/base/node/pfs';
 import { timeout } from 'vs/base/common/async';
 import { getPathFromAmdModule } from 'vs/base/common/amd';
 import { isWindows } from 'vs/base/common/platform';
@@ -18,19 +18,26 @@ import { flakySuite, getRandomTestPath } from 'vs/base/test/node/testUtils';
 
 flakySuite('PFS', function () {
 
-	test('writeFile', async () => {
-		const parentDir = getRandomTestPath(tmpdir(), 'vsctests', 'pfs');
-		const id = generateUuid();
-		const newDir = join(parentDir, 'pfs', id);
-		const testFile = join(newDir, 'writefile.txt');
+	let testDir: string;
 
-		await mkdirp(newDir, 493);
-		assert.ok(fs.existsSync(newDir));
+	setup(() => {
+		testDir = getRandomTestPath(tmpdir(), 'vsctests', 'pfs');
+
+		return mkdirp(testDir, 493);
+	});
+
+	teardown(() => {
+		return rimraf(testDir);
+	});
+
+	test('writeFile', async () => {
+		const testFile = join(testDir, 'writefile.txt');
+
+		assert.ok(!(await exists(testFile)));
 
 		await writeFile(testFile, 'Hello World', (null!));
-		assert.equal(fs.readFileSync(testFile), 'Hello World');
 
-		return rimraf(parentDir);
+		assert.strictEqual((await readFile(testFile)).toString(), 'Hello World');
 	});
 
 	test('writeFile - parallel write on different files works', async () => {
