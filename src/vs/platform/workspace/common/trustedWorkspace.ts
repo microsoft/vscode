@@ -40,6 +40,10 @@ export function workspaceTrustStateToString(trustState: WorkspaceTrustState) {
 	}
 }
 
+export function workspaceTrustRequirementEnabled(configurationService: IConfigurationService): boolean {
+	return configurationService.getValue<boolean>(TRUSTED_WORKSPACES_ENABLED) ?? false;
+}
+
 export const TrustedWorkspaceContext = {
 	IsEnabled: new RawContextKey<boolean>('trustedWorkspaceIsEnabled', false),
 	IsPendingRequest: new RawContextKey<boolean>('trustedWorkspaceIsPendingRequest', false),
@@ -245,15 +249,15 @@ export class TrustedWorkspaceService extends Disposable implements ITrustedWorks
 	constructor(
 		@IStorageService private readonly storageService: IStorageService,
 		@IWorkspaceContextService private readonly workspaceService: IWorkspaceContextService,
-		@IConfigurationService private readonly configurationService: IConfigurationService,
-		@IContextKeyService contextKeyService: IContextKeyService
+		@IConfigurationService readonly configurationService: IConfigurationService,
+		@IContextKeyService readonly contextKeyService: IContextKeyService
 	) {
 		super();
 
 		this.dataModel = this._register(new TrustedContentModel(this.storageService));
 		this.requestModel = this._register(new TrustedWorkspaceRequestModel());
 
-		this._isTrustRequirementEnabled = this.configurationService.getValue<boolean>(TRUSTED_WORKSPACES_ENABLED) ?? false;
+		this._isTrustRequirementEnabled = workspaceTrustRequirementEnabled(configurationService);
 
 		this._workspace = this.workspaceService.getWorkspace();
 		this._currentTrustState = this.calculateWorkspaceTrustState();
