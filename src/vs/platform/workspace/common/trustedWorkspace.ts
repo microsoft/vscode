@@ -41,7 +41,6 @@ export function workspaceTrustStateToString(trustState: WorkspaceTrustState) {
 }
 
 export const TrustedWorkspaceContext = {
-	IsEnabled: new RawContextKey<boolean>('trustedWorkspaceIsEnabled', false),
 	IsPendingRequest: new RawContextKey<boolean>('trustedWorkspaceIsPendingRequest', false),
 	TrustState: new RawContextKey<WorkspaceTrustState>('trustedWorkspaceTrustState', WorkspaceTrustState.Unknown)
 };
@@ -240,7 +239,6 @@ export class TrustedWorkspaceService extends Disposable implements ITrustedWorks
 
 	private readonly _ctxTrustedWorkspaceTrustState: IContextKey<WorkspaceTrustState>;
 	private readonly _ctxTrustedWorkspacePendingRequest: IContextKey<boolean>;
-	private readonly _ctxTrustedWorkspaceEnabled: IContextKey<boolean>;
 
 	constructor(
 		@IStorageService private readonly storageService: IStorageService,
@@ -259,11 +257,9 @@ export class TrustedWorkspaceService extends Disposable implements ITrustedWorks
 		this._register(this.dataModel.onDidChangeTrust(() => this.currentTrustState = this.calculateWorkspaceTrustState()));
 		this._register(this.requestModel.onDidCompleteRequest((trustState) => this.onTrustRequestCompleted(trustState)));
 
-		this._ctxTrustedWorkspaceEnabled = TrustedWorkspaceContext.IsEnabled.bindTo(contextKeyService);
 		this._ctxTrustedWorkspaceTrustState = TrustedWorkspaceContext.TrustState.bindTo(contextKeyService);
 		this._ctxTrustedWorkspacePendingRequest = TrustedWorkspaceContext.IsPendingRequest.bindTo(contextKeyService);
 		this._ctxTrustedWorkspaceTrustState.set(this.currentTrustState);
-		this._ctxTrustedWorkspaceEnabled.set(this.isWorkspaceTrustEnabled());
 	}
 
 	private get currentTrustState(): WorkspaceTrustState {

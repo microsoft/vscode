@@ -23,7 +23,7 @@ import { KeyChord, KeyCode, KeyMod } from 'vs/base/common/keyCodes';
 import { ContextKeyExpr } from 'vs/platform/contextkey/common/contextkey';
 import { IWorkbenchEnvironmentService } from 'vs/workbench/services/environment/common/environmentService';
 import { IWorkspacesService, hasWorkspaceFileExtension } from 'vs/platform/workspaces/common/workspaces';
-import { TrustedWorkspaceContext, TRUSTED_WORKSPACES_URI } from 'vs/platform/workspace/common/trustedWorkspace';
+import { TRUSTED_WORKSPACES_URI } from 'vs/platform/workspace/common/trustedWorkspace';
 
 export class OpenFileAction extends Action {
 
@@ -256,7 +256,7 @@ class WorkspaceTrustManageAction extends Action2 {
 		super({
 			id: 'workbench.action.manageTrust',
 			title: { value: nls.localize('resetTrustAction', "Manage Trusted Workspaces"), original: 'Manage Trusted Workspaces' },
-			precondition: TrustedWorkspaceContext.IsEnabled,
+			precondition: ContextKeyExpr.equals('config.workspace.trustRequirementEnabled', true),
 			f1: true,
 		});
 	}

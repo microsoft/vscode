@@ -304,7 +304,7 @@ registerAction2(class extends Action2 {
 				id: MenuId.GlobalActivity,
 				group: '7_trust',
 				order: 40,
-				when: ContextKeyExpr.and(TrustedWorkspaceContext.IsEnabled, TrustedWorkspaceContext.IsPendingRequest.negate())
+				when: ContextKeyExpr.and(ContextKeyExpr.equals('config.workspace.trustRequirementEnabled', true), TrustedWorkspaceContext.IsPendingRequest.negate())
 			},
 		});
 	}
@@ -323,5 +323,5 @@ MenuRegistry.appendMenuItem(MenuId.GlobalActivity, {
 	},
 	group: '7_trust',
 	order: 40,
-	when: ContextKeyExpr.and(TrustedWorkspaceContext.IsEnabled, TrustedWorkspaceContext.IsPendingRequest)
+	when: ContextKeyExpr.and(ContextKeyExpr.equals('config.workspace.trustRequirementEnabled', true), TrustedWorkspaceContext.IsPendingRequest)
 });
