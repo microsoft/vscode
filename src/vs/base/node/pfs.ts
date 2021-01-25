@@ -509,15 +509,15 @@ export async function move(source: string, target: string): Promise<void> {
 	}
 }
 
-export async function copy(source: string, target: string, copiedSourcesIn?: { [path: string]: boolean }): Promise<void> {
+export async function copy(source: string, target: string, handledSourcesIn?: { [path: string]: boolean }): Promise<void> {
 
 	// Keep track of paths already copied to prevent
 	// cycles from symbolic links to cause issues
-	const copiedSources = copiedSourcesIn ?? Object.create(null);
-	if (copiedSources[source]) {
+	const handledSources = handledSourcesIn ?? Object.create(null);
+	if (handledSources[source]) {
 		return;
 	} else {
-		copiedSources[source] = true;
+		handledSources[source] = true;
 	}
 
 	const { stat, symbolicLink } = await statLink(source);
@@ -536,7 +536,7 @@ export async function copy(source: string, target: string, copiedSourcesIn?: { [
 	const files = await readdir(source);
 	for (let i = 0; i < files.length; i++) {
 		const file = files[i];
-		await copy(join(source, file), join(target, file), copiedSources);
+		await copy(join(source, file), join(target, file), handledSources);
 	}
 }
 

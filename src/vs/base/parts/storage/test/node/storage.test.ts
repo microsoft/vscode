@@ -17,20 +17,20 @@ import { generateUuid } from 'vs/base/common/uuid';
 
 flakySuite('Storage Library', function () {
 
-	let storageDir: string;
+	let testDir: string;
 
 	setup(function () {
-		storageDir = getRandomTestPath(tmpdir(), 'vsctests', 'storagelibrary');
+		testDir = getRandomTestPath(tmpdir(), 'vsctests', 'storagelibrary');
 
-		return mkdirp(storageDir);
+		return mkdirp(testDir);
 	});
 
 	teardown(function () {
-		return rimraf(storageDir);
+		return rimraf(testDir);
 	});
 
 	test('basics', async () => {
-		const storage = new Storage(new SQLiteStorageDatabase(join(storageDir, 'storage.db')));
+		const storage = new Storage(new SQLiteStorageDatabase(join(testDir, 'storage.db')));
 
 		await storage.init();
 
@@ -116,7 +116,7 @@ flakySuite('Storage Library', function () {
 			}
 		}
 
-		const database = new TestSQLiteStorageDatabase(join(storageDir, 'storage.db'));
+		const database = new TestSQLiteStorageDatabase(join(testDir, 'storage.db'));
 		const storage = new Storage(database);
 
 		let changes = new Set<string>();
@@ -158,7 +158,7 @@ flakySuite('Storage Library', function () {
 	});
 
 	test('close flushes data', async () => {
-		let storage = new Storage(new SQLiteStorageDatabase(join(storageDir, 'storage.db')));
+		let storage = new Storage(new SQLiteStorageDatabase(join(testDir, 'storage.db')));
 		await storage.init();
 
 		const set1Promise = storage.set('foo', 'bar');
@@ -178,7 +178,7 @@ flakySuite('Storage Library', function () {
 		strictEqual(setPromiseResolved, true);
 		strictEqual(flushPromiseResolved, true);
 
-		storage = new Storage(new SQLiteStorageDatabase(join(storageDir, 'storage.db')));
+		storage = new Storage(new SQLiteStorageDatabase(join(testDir, 'storage.db')));
 		await storage.init();
 
 		strictEqual(storage.get('foo'), 'bar');
@@ -186,7 +186,7 @@ flakySuite('Storage Library', function () {
 
 		await storage.close();
 
-		storage = new Storage(new SQLiteStorageDatabase(join(storageDir, 'storage.db')));
+		storage = new Storage(new SQLiteStorageDatabase(join(testDir, 'storage.db')));
 		await storage.init();
 
 		const delete1Promise = storage.delete('foo');
@@ -202,7 +202,7 @@ flakySuite('Storage Library', function () {
 
 		strictEqual(deletePromiseResolved, true);
 
-		storage = new Storage(new SQLiteStorageDatabase(join(storageDir, 'storage.db')));
+		storage = new Storage(new SQLiteStorageDatabase(join(testDir, 'storage.db')));
 		await storage.init();
 
 		ok(!storage.get('foo'));
@@ -212,7 +212,7 @@ flakySuite('Storage Library', function () {
 	});
 
 	test('conflicting updates', async () => {
-		let storage = new Storage(new SQLiteStorageDatabase(join(storageDir, 'storage.db')));
+		let storage = new Storage(new SQLiteStorageDatabase(join(testDir, 'storage.db')));
 		await storage.init();
 
 		let changes = new Set<string>();
@@ -254,7 +254,7 @@ flakySuite('Storage Library', function () {
 	});
 
 	test('corrupt DB recovers', async () => {
-		const storageFile = join(storageDir, 'storage.db');
+		const storageFile = join(testDir, 'storage.db');
 
 		let storage = new Storage(new SQLiteStorageDatabase(storageFile));
 		await storage.init();

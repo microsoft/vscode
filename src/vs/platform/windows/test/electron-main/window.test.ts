@@ -83,8 +83,8 @@ const windows: ICodeWindow[] = [
 suite('WindowsFinder', () => {
 
 	test('New window without folder when no windows exist', () => {
-		assert.equal(findWindowOnFile([], URI.file('nonexisting'), localWorkspaceResolver), null);
-		assert.equal(findWindowOnFile([], URI.file(path.join(fixturesFolder, 'no_vscode_folder', 'file.txt')), localWorkspaceResolver), null);
+		assert.strictEqual(findWindowOnFile([], URI.file('nonexisting'), localWorkspaceResolver), undefined);
+		assert.strictEqual(findWindowOnFile([], URI.file(path.join(fixturesFolder, 'no_vscode_folder', 'file.txt')), localWorkspaceResolver), undefined);
 	});
 
 	test('Existing window with folder', () => {
