@@ -3,4 +3,14 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-export { MicrosoftAuthenticationSession } from './AADHelper';
+import { AuthenticationSession } from 'vscode';
+
+/**
+ * Represents a session of a currently logged in Microsoft user.
+ */
+export interface MicrosoftAuthenticationSession extends AuthenticationSession {
+	/**
+	 * The id token.
+	 */
+	idToken?: string;
+}

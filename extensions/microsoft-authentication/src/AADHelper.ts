@@ -16,6 +16,7 @@ import { toBase64UrlEncoding } from './utils';
 import fetch, { Response } from 'node-fetch';
 import { sha256 } from './env/node/sha256';
 import * as nls from 'vscode-nls';
+import { MicrosoftAuthenticationSession } from './microsoft-authentication';
 
 const localize = nls.loadMessageBundle();
 
@@ -74,10 +75,6 @@ export interface ITokenResponse {
 
 export interface IMicrosoftTokens {
 	accessToken: string;
-	idToken?: string;
-}
-
-export interface MicrosoftAuthenticationSession extends vscode.AuthenticationSession {
 	idToken?: string;
 }
 
