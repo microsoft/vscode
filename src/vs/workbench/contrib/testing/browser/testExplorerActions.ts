@@ -10,6 +10,7 @@ import { localize } from 'vs/nls';
 import { Action2, MenuId } from 'vs/platform/actions/common/actions';
 import { ContextKeyAndExpr, ContextKeyEqualsExpr } from 'vs/platform/contextkey/common/contextkey';
 import { ServicesAccessor } from 'vs/platform/instantiation/common/instantiation';
+import { INotificationService } from 'vs/platform/notification/common/notification';
 import { ThemeIcon } from 'vs/platform/theme/common/themeService';
 import { IWorkspaceContextService } from 'vs/platform/workspace/common/workspace';
 import { ExtHostTestingResource } from 'vs/workbench/api/common/extHost.protocol';
@@ -20,10 +21,9 @@ import * as icons from 'vs/workbench/contrib/testing/browser/icons';
 import { TestingExplorerView, TestingExplorerViewModel } from 'vs/workbench/contrib/testing/browser/testingExplorerView';
 import { TestExplorerViewGrouping, TestExplorerViewMode, Testing } from 'vs/workbench/contrib/testing/common/constants';
 import { EMPTY_TEST_RESULT, InternalTestItem, RunTestsResult, TestIdWithProvider } from 'vs/workbench/contrib/testing/common/testCollection';
-import { IWorkspaceTestCollectionService } from 'vs/workbench/contrib/testing/common/workspaceTestCollectionService';
 import { TestingContextKeys } from 'vs/workbench/contrib/testing/common/testingContextKeys';
 import { ITestService, waitForAllRoots } from 'vs/workbench/contrib/testing/common/testService';
-import { INotificationService } from 'vs/platform/notification/common/notification';
+import { IWorkspaceTestCollectionService } from 'vs/workbench/contrib/testing/common/workspaceTestCollectionService';
 
 const category = localize('testing.category', 'Test');
 
@@ -197,18 +197,18 @@ abstract class RunOrDebugAllAllAction extends Action2 {
 
 		const tests: TestIdWithProvider[] = [];
 		await Promise.all(workspace.getWorkspace().folders.map(async (folder) => {
-			const handle = testService.subscribeToDiffs(ExtHostTestingResource.Workspace, folder.uri);
+			const ref = testService.subscribeToDiffs(ExtHostTestingResource.Workspace, folder.uri);
 			try {
-				await waitForAllRoots(handle.collection);
+				await waitForAllRoots(ref.object);
 
-				for (const root of handle.collection.rootIds) {
-					const node = handle.collection.getNodeById(root);
+				for (const root of ref.object.rootIds) {
+					const node = ref.object.getNodeById(root);
 					if (node && (this.debug ? node.item.debuggable : node.item.runnable)) {
 						tests.push({ testId: node.id, providerId: node.providerId });
 					}
 				}
 			} finally {
-				handle.dispose();
+				ref.dispose();
 			}
 		}));
 

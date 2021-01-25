@@ -5,7 +5,7 @@
 
 import { CancellationToken } from 'vs/base/common/cancellation';
 import { Event } from 'vs/base/common/event';
-import { IDisposable } from 'vs/base/common/lifecycle';
+import { IDisposable, IReference } from 'vs/base/common/lifecycle';
 import { URI } from 'vs/base/common/uri';
 import { createDecorator } from 'vs/platform/instantiation/common/instantiation';
 import { ExtHostTestingResource } from 'vs/workbench/api/common/extHost.protocol';
@@ -38,6 +38,11 @@ export interface IMainThreadTestCollection extends AbstractIncrementalTestCollec
 	 * Root node IDs.
 	 */
 	rootIds: ReadonlySet<string>;
+
+	/**
+	 * Iterates over every test in the collection.
+	 */
+	all: Iterable<IncrementalTestCollectionItem>;
 
 	/**
 	 * Gets a node in the collection by ID.
@@ -82,10 +87,7 @@ export interface ITestService {
 	runTests(req: RunTestsRequest, token?: CancellationToken): Promise<RunTestsResult>;
 	cancelTestRun(req: RunTestsRequest): void;
 	publishDiff(resource: ExtHostTestingResource, uri: URI, diff: TestsDiff): void;
-	subscribeToDiffs(resource: ExtHostTestingResource, uri: URI, acceptDiff?: TestDiffListener): {
-		collection: IMainThreadTestCollection;
-		dispose(): void;
-	};
+	subscribeToDiffs(resource: ExtHostTestingResource, uri: URI, acceptDiff?: TestDiffListener): IReference<IMainThreadTestCollection>;
 
 	/**
 	 * Updates the number of sources who provide test roots when subscription

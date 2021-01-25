@@ -106,6 +106,7 @@ export abstract class PeekViewWidget extends ZoneWidget {
 
 	private readonly _onDidClose = new Emitter<PeekViewWidget>();
 	readonly onDidClose = this._onDidClose.event;
+	private disposed?: true;
 
 	protected _headElement?: HTMLDivElement;
 	protected _primaryHeading?: HTMLElement;
@@ -124,8 +125,11 @@ export abstract class PeekViewWidget extends ZoneWidget {
 	}
 
 	dispose(): void {
-		super.dispose();
-		this._onDidClose.fire(this);
+		if (!this.disposed) {
+			this.disposed = true; // prevent consumers who dispose on onDidClose from looping
+			super.dispose();
+			this._onDidClose.fire(this);
+		}
 	}
 
 	style(styles: IPeekViewStyles): void {

@@ -422,38 +422,26 @@ export async function readDirsInDir(dirPath: string): Promise<string[]> {
 
 export async function dirExists(path: string): Promise<boolean> {
 	try {
-		const fileStat = await stat(path);
+		const { stat, symbolicLink } = await statLink(path);
 
-		return fileStat.isDirectory();
+		return stat.isDirectory() && symbolicLink?.dangling !== true;
 	} catch (error) {
-		// This catch will be called on some symbolic links on Windows (AppExecLink for example).
-		// So we try our best to see if it's a Directory.
-		try {
-			const fileStat = await stat(await readlink(path));
-
-			return fileStat.isDirectory();
-		} catch {
-			return false;
-		}
+		// Ignore, path might not exist
 	}
+
+	return false;
 }
 
 export async function fileExists(path: string): Promise<boolean> {
 	try {
-		const fileStat = await stat(path);
+		const { stat, symbolicLink } = await statLink(path);
 
-		return fileStat.isFile();
+		return stat.isFile() && symbolicLink?.dangling !== true;
 	} catch (error) {
-		// This catch will be called on some symbolic links on Windows (AppExecLink for example).
-		// So we try our best to see if it's a File.
-		try {
-			const fileStat = await stat(await readlink(path));
-
-			return fileStat.isFile();
-		} catch {
-			return false;
-		}
+		// Ignore, path might not exist
 	}
+
+	return false;
 }
 
 export function whenDeleted(path: string): Promise<void> {
@@ -522,21 +510,27 @@ export async function move(source: string, target: string): Promise<void> {
 }
 
 export async function copy(source: string, target: string, copiedSourcesIn?: { [path: string]: boolean }): Promise<void> {
-	const copiedSources = copiedSourcesIn ? copiedSourcesIn : Object.create(null);
 
-	const fileStat = await stat(source);
-	if (!fileStat.isDirectory()) {
-		return doCopyFile(source, target, fileStat.mode & 511);
-	}
-
+	// Keep track of paths already copied to prevent
+	// cycles from symbolic links to cause issues
+	const copiedSources = copiedSourcesIn ?? Object.create(null);
 	if (copiedSources[source]) {
-		return; // escape when there are cycles (can happen with symlinks)
+		return;
+	} else {
+		copiedSources[source] = true;
 	}
 
-	copiedSources[source] = true; // remember as copied
+	const { stat, symbolicLink } = await statLink(source);
+	if (symbolicLink?.dangling) {
+		return; // skip over dangling symbolic links (https://github.com/microsoft/vscode/issues/111621)
+	}
+
+	if (!stat.isDirectory()) {
+		return doCopyFile(source, target, stat.mode & 511);
+	}
 
 	// Create folder
-	await mkdirp(target, fileStat.mode & 511);
+	await mkdirp(target, stat.mode & 511);
 
 	// Copy each file recursively
 	const files = await readdir(source);

@@ -51,7 +51,7 @@ function createTestCodeWindow(options: { lastFocusTime: number, openedFolderUri?
 		ready(): Promise<ICodeWindow> { throw new Error('Method not implemented.'); }
 		setReady(): void { throw new Error('Method not implemented.'); }
 		addTabbedWindow(window: ICodeWindow): void { throw new Error('Method not implemented.'); }
-		load(config: INativeWindowConfiguration, isReload?: boolean): void { throw new Error('Method not implemented.'); }
+		load(config: INativeWindowConfiguration, options: { isReload?: boolean }): void { throw new Error('Method not implemented.'); }
 		reload(cli?: NativeParsedArgs): void { throw new Error('Method not implemented.'); }
 		focus(options?: { force: boolean; }): void { throw new Error('Method not implemented.'); }
 		close(): void { throw new Error('Method not implemented.'); }
