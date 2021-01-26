@@ -555,6 +555,10 @@ export class ResolvedKeybindingPart {
 		this.keyLabel = kbLabel;
 		this.keyAriaLabel = kbAriaLabel;
 	}
+
+	public isCtrlOrShiftOrAlt(): boolean {
+		return this.ctrlKey || this.altKey || this.shiftKey;
+	}
 }
 
 /**
@@ -598,4 +602,10 @@ export abstract class ResolvedKeybinding {
 	 * Returns the parts that should be used for dispatching.
 	 */
 	public abstract getDispatchParts(): (string | null)[];
+
+	/**
+	 * Returns a single key string if there are no other parts to the keybinding else returns null
+	 * Useful for keybinding time sensitive double presses of a single key
+	 */
+	public abstract getSingleKeyDispatchString(): (string | null);
 }

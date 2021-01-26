@@ -108,7 +108,7 @@ export class WindowsNativeResolvedKeybinding extends BaseResolvedKeybinding<Simp
 		if (keybinding.ctrlKey) {
 			result += 'ctrl+';
 		}
-		if (keybinding.shiftKey && keybinding.keyCode !== 4) {
+		if (keybinding.shiftKey) {
 			result += 'shift+';
 		}
 		if (keybinding.altKey) {
@@ -120,6 +120,10 @@ export class WindowsNativeResolvedKeybinding extends BaseResolvedKeybinding<Simp
 		result += KeyCodeUtils.toString(keybinding.keyCode);
 
 		return result;
+	}
+
+	protected _keybindingToDispatchString(keybinding: SimpleKeybinding): string | null {
+		return KeyCodeUtils.toString(keybinding.keyCode) || null;
 	}
 
 	private static getProducedCharCode(kb: ScanCodeBinding, mapping: IScanCodeMapping): string | null {

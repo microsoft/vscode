@@ -69,10 +69,19 @@ export abstract class BaseResolvedKeybinding<T extends Modifiers> extends Resolv
 		return this._parts.map((keybinding) => this._getDispatchPart(keybinding));
 	}
 
+	// for double press, same key keybindings, we need get the dispatch string
+	public getSingleKeyDispatchString(): (string | null) {
+		if (this._parts.length !== 1) {
+			return null; // more than or less than one key
+		}
+		return this._keybindingToDispatchString(this._parts[0]);
+	}
+
 	protected abstract _getLabel(keybinding: T): string | null;
 	protected abstract _getAriaLabel(keybinding: T): string | null;
 	protected abstract _getElectronAccelerator(keybinding: T): string | null;
 	protected abstract _getUserSettingsLabel(keybinding: T): string | null;
 	protected abstract _isWYSIWYG(keybinding: T): boolean;
 	protected abstract _getDispatchPart(keybinding: T): string | null;
+	protected abstract _keybindingToDispatchString(keybinding: T): string | null;
 }
