@@ -154,6 +154,7 @@ export class NotebookEditorWidget extends Disposable implements INotebookEditor 
 	readonly onDidChangeAvailableKernels: Event<void> = this._onDidChangeAvailableKernels.event;
 
 	private _contributedKernelsComputePromise: CancelablePromise<INotebookKernelInfo2[]> | null = null;
+	private _initialKernelComputationDone: boolean = false;
 
 	get activeKernel() {
 		return this._activeKernel;
@@ -748,6 +749,7 @@ export class NotebookEditorWidget extends Disposable implements INotebookEditor 
 		});
 
 		const result = await this._contributedKernelsComputePromise;
+		this._initialKernelComputationDone = true;
 		this._contributedKernelsComputePromise = null;
 
 		return result;
@@ -792,6 +794,8 @@ export class NotebookEditorWidget extends Disposable implements INotebookEditor 
 		if (availableKernels.length) {
 			return this._setKernelsFromProviders(provider, availableKernels, tokenSource);
 		}
+
+		this._initialKernelComputationDone = true;
 
 		tokenSource.dispose();
 	}
@@ -1665,11 +1669,24 @@ export class NotebookEditorWidget extends Disposable implements INotebookEditor 
 
 	private async _ensureActiveKernel() {
 		if (this._activeKernel) {
-			if (this._activeKernelResolvePromise) {
-				await this._activeKernelResolvePromise;
-			}
-
 			return;
+		}
+
+		if (this._activeKernelResolvePromise) {
+			await this._activeKernelResolvePromise;
+
+			if (this._activeKernel) {
+				return;
+			}
+		}
+
+
+		if (!this._initialKernelComputationDone) {
+			await this._setKernels(new CancellationTokenSource());
+
+			if (this._activeKernel) {
+				return;
+			}
 		}
 
 		// pick active kernel
@@ -1677,8 +1694,6 @@ export class NotebookEditorWidget extends Disposable implements INotebookEditor 
 		const picker = this.quickInputService.createQuickPick<(IQuickPickItem & { run(): void; kernelProviderId?: string })>();
 		picker.placeholder = nls.localize('notebook.runCell.selectKernel', "Select a notebook kernel to run this notebook");
 		picker.matchOnDetail = true;
-		picker.busy = true;
-		picker.show();
 
 		const tokenSource = new CancellationTokenSource();
 		const availableKernels = await this.beginComputeContributedKernels();
