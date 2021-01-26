@@ -700,6 +700,7 @@ const schema: IJSONSchema = {
 		},
 		onEnterRules: {
 			type: 'array',
+			description: nls.localize('schema.onEnterRules', 'The language\'s rules to be evaluated when pressing Enter.'),
 			items: {
 				type: 'object',
 				description: nls.localize('schema.onEnterRules', 'The language\'s rules to be evaluated when pressing Enter.'),
