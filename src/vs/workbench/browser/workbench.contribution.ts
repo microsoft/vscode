@@ -141,7 +141,7 @@ import { isStandalone } from 'vs/base/browser/browser';
 			'workbench.editor.enablePreview': {
 				'type': 'boolean',
 				'description': nls.localize('enablePreview', "Controls whether opened editors show as preview. Preview editors do not keep open and are reused until explicitly set to be kept open (e.g. via double click or editing) and show up with an italic font style."),
-				'default': true
+				'default': false
 			},
 			'workbench.editor.enablePreviewFromQuickOpen': {
 				'type': 'boolean',
