@@ -770,7 +770,9 @@ export class AsyncDataTree<TInput, T, TFilterData = void> implements IDisposable
 			return this.setChildren(node, children, recursive, viewStateContext);
 		} catch (err) {
 			if (node !== this.root) {
-				this.tree.collapse(node === this.root ? null : node);
+				try {
+					this.tree.collapse(node === this.root ? null : node);
+				} catch (e) { }
 			}
 
 			if (isPromiseCanceledError(err)) {
