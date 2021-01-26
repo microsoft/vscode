@@ -31,7 +31,6 @@ declare const ResizeObserver: {
 	new(callback: ResizeObserverCallback): ResizeObserver;
 };
 
-
 export class ElementSizeObserver extends Disposable {
 
 	private readonly referenceDomElement: HTMLElement | null;

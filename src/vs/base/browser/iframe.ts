@@ -11,6 +11,7 @@ export interface IWindowChainElement {
 	 * The window object for it
 	 */
 	window: Window;
+  
 	/**
 	 * The iframe element inside the window.parent corresponding to window
 	 */

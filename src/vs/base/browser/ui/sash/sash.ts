@@ -4,9 +4,9 @@
  *--------------------------------------------------------------------------------------------*/
 
 import 'vs/css!./sash';
+import * as types from 'vs/base/common/types';
 import { IDisposable, dispose, Disposable, DisposableStore } from 'vs/base/common/lifecycle';
 import { isMacintosh } from 'vs/base/common/platform';
-import * as types from 'vs/base/common/types';
 import { EventType, GestureEvent, Gesture } from 'vs/base/browser/touch';
 import { StandardMouseEvent } from 'vs/base/browser/mouseEvent';
 import { Event, Emitter } from 'vs/base/common/event';

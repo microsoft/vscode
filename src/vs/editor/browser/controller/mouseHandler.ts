@@ -4,10 +4,11 @@
  *--------------------------------------------------------------------------------------------*/
 
 import * as dom from 'vs/base/browser/dom';
+import * as platform from 'vs/base/common/platform';
+import * as viewEvents from 'vs/editor/common/view/viewEvents';
 import { StandardWheelEvent, IMouseWheelEvent } from 'vs/base/browser/mouseEvent';
 import { TimeoutTimer } from 'vs/base/common/async';
 import { Disposable } from 'vs/base/common/lifecycle';
-import * as platform from 'vs/base/common/platform';
 import { HitTestContext, IViewZoneData, MouseTarget, MouseTargetFactory, PointerHandlerLastRenderData } from 'vs/editor/browser/controller/mouseTarget';
 import { IMouseTarget, MouseTargetType } from 'vs/editor/browser/editorBrowser';
 import { ClientCoordinates, EditorMouseEvent, EditorMouseEventFactory, GlobalEditorMouseMoveMonitor, createEditorPagePosition } from 'vs/editor/browser/editorDom';
@@ -17,7 +18,6 @@ import { Position } from 'vs/editor/common/core/position';
 import { Selection } from 'vs/editor/common/core/selection';
 import { HorizontalPosition } from 'vs/editor/common/view/renderingContext';
 import { ViewContext } from 'vs/editor/common/view/viewContext';
-import * as viewEvents from 'vs/editor/common/view/viewEvents';
 import { ViewEventHandler } from 'vs/editor/common/viewModel/viewEventHandler';
 import { EditorOption } from 'vs/editor/common/config/editorOptions';
 
@@ -48,14 +48,13 @@ export interface IPointerHandlerHelper {
 	 */
 	getLastRenderData(): PointerHandlerLastRenderData;
 
-	shouldSuppressMouseDownOnViewZone(viewZoneId: string): boolean;
-	shouldSuppressMouseDownOnWidget(widgetId: string): boolean;
-
 	/**
 	 * Decode a position from a rendered dom node
 	 */
 	getPositionFromDOMInfo(spanNode: HTMLElement, offset: number): Position | null;
 
+  shouldSuppressMouseDownOnViewZone(viewZoneId: string): boolean;
+  shouldSuppressMouseDownOnWidget(widgetId: string): boolean;
 	visibleRangeForPosition(lineNumber: number, column: number): HorizontalPosition | null;
 	getLineWidth(lineNumber: number): number;
 }

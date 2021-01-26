@@ -4,9 +4,9 @@
  *--------------------------------------------------------------------------------------------*/
 
 import * as nls from 'vs/nls';
+import * as types from 'vs/base/common/types';
 import { isFirefox } from 'vs/base/browser/browser';
 import { KeyCode, KeyMod } from 'vs/base/common/keyCodes';
-import * as types from 'vs/base/common/types';
 import { ICodeEditor } from 'vs/editor/browser/editorBrowser';
 import { Command, EditorCommand, ICommandOptions, registerEditorCommand, MultiCommand, UndoCommand, RedoCommand, SelectAllCommand } from 'vs/editor/browser/editorExtensions';
 import { ICodeEditorService } from 'vs/editor/browser/services/codeEditorService';
@@ -34,8 +34,7 @@ export abstract class CoreEditorCommand extends EditorCommand {
 	public runEditorCommand(accessor: ServicesAccessor | null, editor: ICodeEditor, args: any): void {
 		const viewModel = editor._getViewModel();
 		if (!viewModel) {
-			// the editor has no view => has no cursors
-			return;
+			return; // the editor has no view => has no cursors
 		}
 		this.runCoreEditorCommand(viewModel, args || {});
 	}
@@ -153,8 +152,7 @@ export namespace EditorScroll_ {
 				direction = Direction.Down;
 				break;
 			default:
-				// Illegal arguments
-				return null;
+				return null; // Illegal arguments
 		}
 
 		let unit: Unit;
@@ -1658,8 +1656,7 @@ export namespace CoreNavigationCommands {
 		public runEditorCommand(accessor: ServicesAccessor, editor: ICodeEditor, args: any): void {
 			const viewModel = editor._getViewModel();
 			if (!viewModel) {
-				// the editor has no view => has no cursors
-				return;
+				return; // the editor has no view => has no cursors
 			}
 			this.runCoreEditorCommand(viewModel, args);
 		}
@@ -1727,8 +1724,7 @@ export namespace CoreEditingCommands {
 		public runEditorCommand(accessor: ServicesAccessor, editor: ICodeEditor, args: any): void {
 			const viewModel = editor._getViewModel();
 			if (!viewModel) {
-				// the editor has no view => has no cursors
-				return;
+				return; // the editor has no view => has no cursors
 			}
 			this.runCoreEditingCommand(editor, viewModel, args || {});
 		}

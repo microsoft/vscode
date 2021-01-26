@@ -148,6 +148,7 @@ export class ViewLinesDeletedEvent {
 	 * At what line the deletion began (inclusive).
 	 */
 	public readonly fromLineNumber: number;
+
 	/**
 	 * At what line the deletion stopped (inclusive).
 	 */
@@ -167,6 +168,7 @@ export class ViewLinesInsertedEvent {
 	 * Before what line did the insertion begin
 	 */
 	public readonly fromLineNumber: number;
+
 	/**
 	 * `toLineNumber` - `fromLineNumber` + 1 denotes the number of lines that were inserted
 	 */
@@ -203,6 +205,7 @@ export class ViewRevealRangeRequestEvent {
 	public readonly selections: Selection[] | null;
 
 	public readonly verticalType: VerticalRevealType;
+
 	/**
 	 * If true: there should be a horizontal & vertical revealing
 	 * If false: there should be just a vertical revealing
@@ -267,6 +270,7 @@ export class ViewTokensChangedEvent {
 		 * Start line number of range
 		 */
 		readonly fromLineNumber: number;
+    
 		/**
 		 * End line number of range
 		 */

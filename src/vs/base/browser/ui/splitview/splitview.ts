@@ -4,9 +4,9 @@
  *--------------------------------------------------------------------------------------------*/
 
 import 'vs/css!./splitview';
+import * as types from 'vs/base/common/types';
 import { IDisposable, toDisposable, Disposable, combinedDisposable } from 'vs/base/common/lifecycle';
 import { Event, Emitter } from 'vs/base/common/event';
-import * as types from 'vs/base/common/types';
 import { clamp } from 'vs/base/common/numbers';
 import { range, pushToStart, pushToEnd } from 'vs/base/common/arrays';
 import { Sash, Orientation, ISashEvent as IBaseSashEvent, SashState } from 'vs/base/browser/ui/sash/sash';

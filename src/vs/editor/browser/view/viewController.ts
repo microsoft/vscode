@@ -3,6 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
+import * as platform from 'vs/base/common/platform';
 import { IKeyboardEvent } from 'vs/base/browser/keyboardEvent';
 import { CoreNavigationCommands } from 'vs/editor/browser/controller/coreCommands';
 import { IEditorMouseEvent, IPartialEditorMouseEvent } from 'vs/editor/browser/editorBrowser';
@@ -13,7 +14,6 @@ import { IConfiguration } from 'vs/editor/common/editorCommon';
 import { IViewModel } from 'vs/editor/common/viewModel/viewModel';
 import { IMouseWheelEvent } from 'vs/base/browser/mouseEvent';
 import { EditorOption } from 'vs/editor/common/config/editorOptions';
-import * as platform from 'vs/base/common/platform';
 
 export interface IMouseDispatchData {
 	position: Position;

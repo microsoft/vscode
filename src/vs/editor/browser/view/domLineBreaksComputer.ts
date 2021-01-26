@@ -3,12 +3,12 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
+import * as strings from 'vs/base/common/strings';
 import { ILineBreaksComputerFactory } from 'vs/editor/common/viewModel/splitLinesCollection';
 import { WrappingIndent } from 'vs/editor/common/config/editorOptions';
 import { FontInfo } from 'vs/editor/common/config/fontInfo';
 import { createStringBuilder, IStringBuilder } from 'vs/editor/common/core/stringBuilder';
 import { CharCode } from 'vs/base/common/charCode';
-import * as strings from 'vs/base/common/strings';
 import { Configuration } from 'vs/editor/browser/config/configuration';
 import { ILineBreaksComputer, LineBreakData } from 'vs/editor/common/viewModel/viewModel';
 
@@ -16,11 +16,12 @@ const ttPolicy = window.trustedTypes?.createPolicy('domLineBreaksComputer', { cr
 
 export class DOMLineBreaksComputerFactory implements ILineBreaksComputerFactory {
 
-	public static create(): DOMLineBreaksComputerFactory {
-		return new DOMLineBreaksComputerFactory();
+  constructor() {
+		// Nothing to do
 	}
 
-	constructor() {
+	public static create(): DOMLineBreaksComputerFactory {
+		return new DOMLineBreaksComputerFactory();
 	}
 
 	public createLineBreaksComputer(fontInfo: FontInfo, tabSize: number, wrappingColumn: number, wrappingIndent: WrappingIndent): ILineBreaksComputer {

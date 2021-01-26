@@ -44,11 +44,13 @@ export interface IDiffEditorContributionDescription {
 export interface ICommandKeybindingsOptions extends IKeybindings {
 	kbExpr?: ContextKeyExpression | null;
 	weight: number;
+
 	/**
 	 * the default keybinding arguments
 	 */
 	args?: any;
 }
+
 export interface ICommandMenuOptions {
 	menuId: MenuId;
 	group: string;
@@ -57,6 +59,7 @@ export interface ICommandMenuOptions {
 	title: string;
 	icon?: ThemeIcon
 }
+
 export interface ICommandOptions {
 	id: string;
 	precondition: ContextKeyExpression | undefined;
@@ -64,6 +67,7 @@ export interface ICommandOptions {
 	description?: ICommandHandlerDescription;
 	menuOpts?: ICommandMenuOptions | ICommandMenuOptions[];
 }
+
 export abstract class Command {
 	public readonly id: string;
 	public readonly precondition: ContextKeyExpression | undefined;
@@ -209,9 +213,11 @@ export class ProxyCommand extends Command {
 export interface IContributionCommandOptions<T> extends ICommandOptions {
 	handler: (controller: T, args: any) => void;
 }
+
 export interface EditorControllerCommand<T extends IEditorContribution> {
 	new(opts: IContributionCommandOptions<T>): EditorCommand;
 }
+
 export abstract class EditorCommand extends Command {
 
 	/**
@@ -270,6 +276,7 @@ export interface IEditorActionContextMenuOptions {
 	when?: ContextKeyExpression;
 	menuId?: MenuId;
 }
+
 export interface IActionOptions extends ICommandOptions {
 	label: string;
 	alias: string;
@@ -406,7 +413,6 @@ export abstract class EditorAction2 extends Action2 {
 //#endregion
 
 // --- Registration of commands and actions
-
 
 export function registerModelAndPositionCommand(id: string, handler: (model: ITextModel, position: Position, ...args: any[]) => any) {
 	CommandsRegistry.registerCommand(id, function (accessor, ...args) {

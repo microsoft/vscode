@@ -195,8 +195,7 @@ export class GlobalEditorMouseMoveMonitor extends Disposable {
 		this._keydownListener = dom.addStandardDisposableListener(<any>document, 'keydown', (e) => {
 			const kb = e.toKeybinding();
 			if (kb.isModifierKey()) {
-				// Allow modifier keys
-				return;
+				return; // Allow modifier keys
 			}
 			this._globalMouseMoveMonitor.stopMonitoring(true, e.browserEvent);
 		}, true);

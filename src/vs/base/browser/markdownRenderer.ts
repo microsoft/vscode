@@ -4,11 +4,11 @@
  *--------------------------------------------------------------------------------------------*/
 
 import * as DOM from 'vs/base/browser/dom';
+import * as marked from 'vs/base/common/marked/marked';
 import { createElement, FormattedTextRenderOptions } from 'vs/base/browser/formattedTextRenderer';
 import { onUnexpectedError } from 'vs/base/common/errors';
 import { IMarkdownString, parseHrefAndDimensions, removeMarkdownEscapes } from 'vs/base/common/htmlContent';
 import { defaultGenerator } from 'vs/base/common/idGenerator';
-import * as marked from 'vs/base/common/marked/marked';
 import { insane, InsaneOptions } from 'vs/base/common/insane/insane';
 import { parse } from 'vs/base/common/marshalling';
 import { cloneAndChange } from 'vs/base/common/objects';

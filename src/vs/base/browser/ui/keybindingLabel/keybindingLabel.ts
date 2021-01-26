@@ -4,11 +4,11 @@
  *--------------------------------------------------------------------------------------------*/
 
 import 'vs/css!./keybindingLabel';
+import * as dom from 'vs/base/browser/dom';
 import { equals } from 'vs/base/common/objects';
 import { OperatingSystem } from 'vs/base/common/platform';
 import { ResolvedKeybinding, ResolvedKeybindingPart } from 'vs/base/common/keyCodes';
 import { UILabelProvider } from 'vs/base/common/keybindingLabels';
-import * as dom from 'vs/base/browser/dom';
 import { localize } from 'vs/nls';
 
 const $ = dom.$;

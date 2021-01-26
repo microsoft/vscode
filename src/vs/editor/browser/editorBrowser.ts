@@ -3,6 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
+import * as editorCommon from 'vs/editor/common/editorCommon';
 import { IKeyboardEvent } from 'vs/base/browser/keyboardEvent';
 import { IMouseEvent, IMouseWheelEvent } from 'vs/base/browser/mouseEvent';
 import { IDisposable } from 'vs/base/common/lifecycle';
@@ -11,7 +12,6 @@ import { ICursorPositionChangedEvent, ICursorSelectionChangedEvent } from 'vs/ed
 import { IPosition, Position } from 'vs/editor/common/core/position';
 import { IRange, Range } from 'vs/editor/common/core/range';
 import { Selection } from 'vs/editor/common/core/selection';
-import * as editorCommon from 'vs/editor/common/editorCommon';
 import { IIdentifiedSingleEditOperation, IModelDecoration, IModelDeltaDecoration, ITextModel, ICursorStateComputer, IWordAtPosition } from 'vs/editor/common/model';
 import { IModelContentChangedEvent, IModelDecorationsChangedEvent, IModelLanguageChangedEvent, IModelLanguageConfigurationChangedEvent, IModelOptionsChangedEvent } from 'vs/editor/common/model/textModelEvents';
 import { OverviewRulerZone } from 'vs/editor/common/view/overviewZoneManager';
@@ -30,46 +30,55 @@ export interface IViewZone {
 	 * Use 0 to place a view zone before the first line number.
 	 */
 	afterLineNumber: number;
+
 	/**
 	 * The column after which this zone should appear.
 	 * If not set, the maxLineColumn of `afterLineNumber` will be used.
 	 */
 	afterColumn?: number;
+
 	/**
 	 * Suppress mouse down events.
 	 * If set, the editor will attach a mouse down listener to the view zone and .preventDefault on it.
 	 * Defaults to false
 	 */
 	suppressMouseDown?: boolean;
+
 	/**
 	 * The height in lines of the view zone.
 	 * If specified, `heightInPx` will be used instead of this.
 	 * If neither `heightInPx` nor `heightInLines` is specified, a default of `heightInLines` = 1 will be chosen.
 	 */
 	heightInLines?: number;
+
 	/**
 	 * The height in px of the view zone.
 	 * If this is set, the editor will give preference to it rather than `heightInLines` above.
 	 * If neither `heightInPx` nor `heightInLines` is specified, a default of `heightInLines` = 1 will be chosen.
 	 */
 	heightInPx?: number;
+
 	/**
 	 * The minimum width in px of the view zone.
 	 * If this is set, the editor will ensure that the scroll width is >= than this value.
 	 */
 	minWidthInPx?: number;
+
 	/**
 	 * The dom node of the view zone
 	 */
 	domNode: HTMLElement;
+
 	/**
 	 * An optional dom node for the view zone that will be placed in the margin area.
 	 */
 	marginDomNode?: HTMLElement | null;
+
 	/**
 	 * Callback which gives the relative top of the view zone as it appears (taking scrolling into account).
 	 */
 	onDomNodeTop?: (top: number) => void;
+
 	/**
 	 * Callback which gives the height in pixels of the view zone.
 	 */
@@ -85,11 +94,13 @@ export interface IViewZoneChangeAccessor {
 	 * @return A unique identifier to the view zone.
 	 */
 	addZone(zone: IViewZone): string;
+
 	/**
 	 * Remove a zone
 	 * @param id A unique identifier to the view zone, as returned by the `addZone` call.
 	 */
 	removeZone(id: string): void;
+
 	/**
 	 * Change a zone's position.
 	 * The editor will rescan the `afterLineNumber` and `afterColumn` properties of a view zone.
@@ -123,11 +134,13 @@ export interface IContentWidgetPosition {
 	 * `preference` will also affect the placement.
 	 */
 	position: IPosition | null;
+
 	/**
 	 * Optionally, a range can be provided to further
 	 * define the position of the content widget.
 	 */
 	range?: IRange | null;
+
 	/**
 	 * Placement preference for position, in order of preference.
 	 */
@@ -141,27 +154,31 @@ export interface IContentWidget {
 	 * Render this content widget in a location where it could overflow the editor's view dom node.
 	 */
 	allowEditorOverflow?: boolean;
-
 	suppressMouseDown?: boolean;
+
 	/**
 	 * Get a unique identifier of the content widget.
 	 */
 	getId(): string;
+
 	/**
 	 * Get the dom node of the content widget.
 	 */
 	getDomNode(): HTMLElement;
+
 	/**
 	 * Get the placement of the content widget.
 	 * If null is returned, the content widget will be placed off screen.
 	 */
 	getPosition(): IContentWidgetPosition | null;
+
 	/**
 	 * Optional function that is invoked before rendering
 	 * the content widget. If a dimension is returned the editor will
 	 * attempt to use it.
 	 */
 	beforeRender?(): editorCommon.IDimension | null;
+
 	/**
 	 * Optional function that is invoked after rendering the content
 	 * widget. Is being invoked with the selected position preference
@@ -178,17 +195,16 @@ export const enum OverlayWidgetPositionPreference {
 	 * Position the overlay widget in the top right corner
 	 */
 	TOP_RIGHT_CORNER,
-
 	/**
 	 * Position the overlay widget in the bottom right corner
 	 */
 	BOTTOM_RIGHT_CORNER,
-
 	/**
 	 * Position the overlay widget in the top center
 	 */
 	TOP_CENTER
 }
+
 /**
  * A position for rendering overlay widgets.
  */
@@ -198,6 +214,7 @@ export interface IOverlayWidgetPosition {
 	 */
 	preference: OverlayWidgetPositionPreference | null;
 }
+
 /**
  * An overlay widgets renders on top of the text.
  */
@@ -206,10 +223,12 @@ export interface IOverlayWidget {
 	 * Get a unique identifier of the overlay widget.
 	 */
 	getId(): string;
+
 	/**
 	 * Get the dom node of the overlay widget.
 	 */
 	getDomNode(): HTMLElement;
+
 	/**
 	 * Get the placement of the overlay widget.
 	 * If null is returned, the overlay widget is responsible to place itself.
@@ -287,27 +306,33 @@ export interface IMouseTarget {
 	 * The target element
 	 */
 	readonly element: Element | null;
+
 	/**
 	 * The target type
 	 */
 	readonly type: MouseTargetType;
+
 	/**
 	 * The 'approximate' editor position
 	 */
 	readonly position: Position | null;
+
 	/**
 	 * Desired mouse column (e.g. when position.column gets clamped to text length -- clicking after text on a line).
 	 */
 	readonly mouseColumn: number;
+
 	/**
 	 * The 'approximate' editor range
 	 */
 	readonly range: Range | null;
+
 	/**
 	 * Some extra detail.
 	 */
 	readonly detail: any;
 }
+
 /**
  * A mouse event originating from the editor.
  */
@@ -315,6 +340,7 @@ export interface IEditorMouseEvent {
 	readonly event: IMouseEvent;
 	readonly target: IMouseTarget;
 }
+
 export interface IPartialEditorMouseEvent {
 	readonly event: IMouseEvent;
 	readonly target: IMouseTarget | null;
@@ -353,6 +379,7 @@ export interface IEditorConstructionOptions extends IEditorOptions {
 	 * The initial editor dimension (to avoid measuring the container).
 	 */
 	dimension?: editorCommon.IDimension;
+
 	/**
 	 * Place overflow widgets inside an external DOM node.
 	 * Defaults to an internal DOM node.
@@ -382,170 +409,203 @@ export interface ICodeEditor extends editorCommon.IEditor {
 	 * @internal
 	 */
 	readonly isSimpleWidget: boolean;
+
 	/**
 	 * An event emitted when the content of the current model has changed.
 	 * @event
 	 */
 	onDidChangeModelContent(listener: (e: IModelContentChangedEvent) => void): IDisposable;
+
 	/**
 	 * An event emitted when the language of the current model has changed.
 	 * @event
 	 */
 	onDidChangeModelLanguage(listener: (e: IModelLanguageChangedEvent) => void): IDisposable;
+
 	/**
 	 * An event emitted when the language configuration of the current model has changed.
 	 * @event
 	 */
 	onDidChangeModelLanguageConfiguration(listener: (e: IModelLanguageConfigurationChangedEvent) => void): IDisposable;
-	/**
+
+  /**
 	 * An event emitted when the options of the current model has changed.
 	 * @event
 	 */
 	onDidChangeModelOptions(listener: (e: IModelOptionsChangedEvent) => void): IDisposable;
-	/**
+
+  /**
 	 * An event emitted when the configuration of the editor has changed. (e.g. `editor.updateOptions()`)
 	 * @event
 	 */
 	onDidChangeConfiguration(listener: (e: ConfigurationChangedEvent) => void): IDisposable;
-	/**
+
+  /**
 	 * An event emitted when the cursor position has changed.
 	 * @event
 	 */
 	onDidChangeCursorPosition(listener: (e: ICursorPositionChangedEvent) => void): IDisposable;
-	/**
+
+  /**
 	 * An event emitted when the cursor selection has changed.
 	 * @event
 	 */
 	onDidChangeCursorSelection(listener: (e: ICursorSelectionChangedEvent) => void): IDisposable;
-	/**
+
+  /**
 	 * An event emitted when the model of this editor has changed (e.g. `editor.setModel()`).
 	 * @event
 	 */
 	onDidChangeModel(listener: (e: editorCommon.IModelChangedEvent) => void): IDisposable;
-	/**
+
+  /**
 	 * An event emitted when the decorations of the current model have changed.
 	 * @event
 	 */
 	onDidChangeModelDecorations(listener: (e: IModelDecorationsChangedEvent) => void): IDisposable;
-	/**
+
+  /**
 	 * An event emitted when the text inside this editor gained focus (i.e. cursor starts blinking).
 	 * @event
 	 */
 	onDidFocusEditorText(listener: () => void): IDisposable;
-	/**
+
+  /**
 	 * An event emitted when the text inside this editor lost focus (i.e. cursor stops blinking).
 	 * @event
 	 */
 	onDidBlurEditorText(listener: () => void): IDisposable;
-	/**
+
+  /**
 	 * An event emitted when the text inside this editor or an editor widget gained focus.
 	 * @event
 	 */
 	onDidFocusEditorWidget(listener: () => void): IDisposable;
-	/**
+
+  /**
 	 * An event emitted when the text inside this editor or an editor widget lost focus.
 	 * @event
 	 */
 	onDidBlurEditorWidget(listener: () => void): IDisposable;
-	/**
+
+  /**
 	 * An event emitted before interpreting typed characters (on the keyboard).
 	 * @event
 	 * @internal
 	 */
 	onWillType(listener: (text: string) => void): IDisposable;
-	/**
+
+  /**
 	 * An event emitted after interpreting typed characters (on the keyboard).
 	 * @event
 	 * @internal
 	 */
 	onDidType(listener: (text: string) => void): IDisposable;
-	/**
+
+  /**
 	 * An event emitted after composition has started.
 	 */
 	onDidCompositionStart(listener: () => void): IDisposable;
-	/**
-	 * An event emitted after composition has ended.
+
+  /**
+   * An event emitted after composition has ended.
 	 */
 	onDidCompositionEnd(listener: () => void): IDisposable;
-	/**
+
+  /**
 	 * An event emitted when editing failed because the editor is read-only.
 	 * @event
 	 */
 	onDidAttemptReadOnlyEdit(listener: () => void): IDisposable;
+
 	/**
 	 * An event emitted when users paste text in the editor.
 	 * @event
 	 */
 	onDidPaste(listener: (e: IPasteEvent) => void): IDisposable;
+
 	/**
 	 * An event emitted on a "mouseup".
 	 * @event
 	 */
 	onMouseUp(listener: (e: IEditorMouseEvent) => void): IDisposable;
+
 	/**
 	 * An event emitted on a "mousedown".
 	 * @event
 	 */
 	onMouseDown(listener: (e: IEditorMouseEvent) => void): IDisposable;
+
 	/**
 	 * An event emitted on a "mousedrag".
 	 * @internal
 	 * @event
 	 */
 	onMouseDrag(listener: (e: IEditorMouseEvent) => void): IDisposable;
+
 	/**
 	 * An event emitted on a "mousedrop".
 	 * @internal
 	 * @event
 	 */
 	onMouseDrop(listener: (e: IPartialEditorMouseEvent) => void): IDisposable;
+
 	/**
 	 * An event emitted on a "mousedropcanceled".
 	 * @internal
 	 * @event
 	 */
 	onMouseDropCanceled(listener: () => void): IDisposable;
+
 	/**
 	 * An event emitted on a "contextmenu".
 	 * @event
 	 */
 	onContextMenu(listener: (e: IEditorMouseEvent) => void): IDisposable;
+
 	/**
 	 * An event emitted on a "mousemove".
 	 * @event
 	 */
 	onMouseMove(listener: (e: IEditorMouseEvent) => void): IDisposable;
+
 	/**
 	 * An event emitted on a "mouseleave".
 	 * @event
 	 */
 	onMouseLeave(listener: (e: IPartialEditorMouseEvent) => void): IDisposable;
+
 	/**
 	 * An event emitted on a "mousewheel"
 	 * @event
 	 * @internal
 	 */
 	onMouseWheel(listener: (e: IMouseWheelEvent) => void): IDisposable;
+
 	/**
 	 * An event emitted on a "keyup".
 	 * @event
 	 */
 	onKeyUp(listener: (e: IKeyboardEvent) => void): IDisposable;
+
 	/**
 	 * An event emitted on a "keydown".
 	 * @event
 	 */
 	onKeyDown(listener: (e: IKeyboardEvent) => void): IDisposable;
+
 	/**
 	 * An event emitted when the layout of the editor has changed.
 	 * @event
 	 */
 	onDidLayoutChange(listener: (e: EditorLayoutInfo) => void): IDisposable;
+
 	/**
 	 * An event emitted when the content width or content height in the editor has changed.
 	 * @event
 	 */
 	onDidContentSizeChange(listener: (e: editorCommon.IContentSizeChangedEvent) => void): IDisposable;
+
 	/**
 	 * An event emitted when the scroll in the editor has changed.
 	 * @event
@@ -637,10 +697,12 @@ export interface ICodeEditor extends editorCommon.IEditor {
 	 * This is information that is "erased" when computing `scrollWidth = Math.max(contentWidth, width)`
 	 */
 	getContentWidth(): number;
+
 	/**
 	 * Get the scrollWidth of the editor's viewport.
 	 */
 	getScrollWidth(): number;
+
 	/**
 	 * Get the scrollLeft of the editor's viewport.
 	 */
@@ -651,10 +713,12 @@ export interface ICodeEditor extends editorCommon.IEditor {
 	 * This is information that is "erased" when computing `scrollHeight = Math.max(contentHeight, height)`
 	 */
 	getContentHeight(): number;
+
 	/**
 	 * Get the scrollHeight of the editor's viewport.
 	 */
 	getScrollHeight(): number;
+
 	/**
 	 * Get the scrollTop of the editor's viewport.
 	 */
@@ -664,10 +728,12 @@ export interface ICodeEditor extends editorCommon.IEditor {
 	 * Change the scrollLeft of the editor's viewport.
 	 */
 	setScrollLeft(newScrollLeft: number, scrollType?: editorCommon.ScrollType): void;
+
 	/**
 	 * Change the scrollTop of the editor's viewport.
 	 */
 	setScrollTop(newScrollTop: number, scrollType?: editorCommon.ScrollType): void;
+
 	/**
 	 * Change the scroll position of the editor's viewport.
 	 */
@@ -808,11 +874,13 @@ export interface ICodeEditor extends editorCommon.IEditor {
 	 * Add a content widget. Widgets must have unique ids, otherwise they will be overwritten.
 	 */
 	addContentWidget(widget: IContentWidget): void;
+
 	/**
 	 * Layout/Reposition a content widget. This is a ping to the editor to call widget.getPosition()
 	 * and update appropriately.
 	 */
 	layoutContentWidget(widget: IContentWidget): void;
+
 	/**
 	 * Remove a content widget.
 	 */
@@ -822,11 +890,13 @@ export interface ICodeEditor extends editorCommon.IEditor {
 	 * Add an overlay widget. Widgets must have unique ids, otherwise they will be overwritten.
 	 */
 	addOverlayWidget(widget: IOverlayWidget): void;
+
 	/**
 	 * Layout/Reposition an overlay widget. This is a ping to the editor to call widget.getPosition()
 	 * and update appropriately.
 	 */
 	layoutOverlayWidget(widget: IOverlayWidget): void;
+
 	/**
 	 * Remove an overlay widget.
 	 */
@@ -952,22 +1022,24 @@ export const enum DiffEditorState {
  * A rich diff editor.
  */
 export interface IDiffEditor extends editorCommon.IEditor {
-
 	/**
 	 * Returns whether the diff editor is ignoring trim whitespace or not.
 	 * @internal
 	 */
 	readonly ignoreTrimWhitespace: boolean;
+
 	/**
 	 * Returns whether the diff editor is rendering side by side or not.
 	 * @internal
 	 */
 	readonly renderSideBySide: boolean;
+
 	/**
 	 * Returns whether the diff editor is rendering +/- indicators or not.
 	 * @internal
 	 */
 	readonly renderIndicators: boolean;
+
 	/**
 	 * Timeout in milliseconds after which diff computation is cancelled.
 	 * @internal
@@ -1078,7 +1150,6 @@ export function isCompositeEditor(thing: unknown): thing is editorCommon.ICompos
 	return !!thing
 		&& typeof thing === 'object'
 		&& typeof (<editorCommon.ICompositeCodeEditor>thing).onDidChangeActiveEditor === 'function';
-
 }
 
 /**

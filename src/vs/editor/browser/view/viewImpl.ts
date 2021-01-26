@@ -5,6 +5,7 @@
 
 import * as dom from 'vs/base/browser/dom';
 import * as browser from 'vs/base/browser/browser';
+import * as viewEvents from 'vs/editor/common/view/viewEvents';
 import { Selection } from 'vs/editor/common/core/selection';
 import { FastDomNode, createFastDomNode } from 'vs/base/browser/fastDomNode';
 import { IMouseEvent } from 'vs/base/browser/mouseEvent';
@@ -43,14 +44,12 @@ import { Range } from 'vs/editor/common/core/range';
 import { IConfiguration, ScrollType } from 'vs/editor/common/editorCommon';
 import { RenderingContext } from 'vs/editor/common/view/renderingContext';
 import { ViewContext } from 'vs/editor/common/view/viewContext';
-import * as viewEvents from 'vs/editor/common/view/viewEvents';
 import { ViewportData } from 'vs/editor/common/viewLayout/viewLinesViewportData';
 import { ViewEventHandler } from 'vs/editor/common/viewModel/viewEventHandler';
 import { IViewModel } from 'vs/editor/common/viewModel/viewModel';
 import { IThemeService, getThemeTypeSelector } from 'vs/platform/theme/common/themeService';
 import { EditorOption } from 'vs/editor/common/config/editorOptions';
 import { PointerHandlerLastRenderData } from 'vs/editor/browser/controller/mouseTarget';
-
 
 export interface IContentWidgetData {
 	widget: IContentWidget;

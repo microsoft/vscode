@@ -4,8 +4,8 @@
  *--------------------------------------------------------------------------------------------*/
 
 import * as arrays from 'vs/base/common/arrays';
-import { IDisposable, Disposable } from 'vs/base/common/lifecycle';
 import * as DomUtils from 'vs/base/browser/dom';
+import { IDisposable, Disposable } from 'vs/base/common/lifecycle';
 import { memoize } from 'vs/base/common/decorators';
 
 export namespace EventType {

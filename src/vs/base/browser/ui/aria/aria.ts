@@ -4,8 +4,8 @@
  *--------------------------------------------------------------------------------------------*/
 
 import 'vs/css!./aria';
-import { isMacintosh } from 'vs/base/common/platform';
 import * as dom from 'vs/base/browser/dom';
+import { isMacintosh } from 'vs/base/common/platform';
 
 // Use a max length since we are inserting the whole msg in the DOM and that can cause browsers to freeze for long messages #94233
 const MAX_MESSAGE_LENGTH = 20000;

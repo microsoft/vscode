@@ -4,8 +4,8 @@
  *--------------------------------------------------------------------------------------------*/
 
 import * as browser from 'vs/base/browser/browser';
-import { IframeUtils } from 'vs/base/browser/iframe';
 import * as platform from 'vs/base/common/platform';
+import { IframeUtils } from 'vs/base/browser/iframe';
 
 export interface IMouseEvent {
 	readonly browserEvent: MouseEvent;

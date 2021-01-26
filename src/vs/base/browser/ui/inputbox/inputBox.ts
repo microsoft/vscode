@@ -7,9 +7,9 @@ import 'vs/css!./inputBox';
 
 import * as nls from 'vs/nls';
 import * as dom from 'vs/base/browser/dom';
+import * as aria from 'vs/base/browser/ui/aria/aria';
 import { MarkdownRenderOptions } from 'vs/base/browser/markdownRenderer';
 import { renderFormattedText, renderText } from 'vs/base/browser/formattedTextRenderer';
-import * as aria from 'vs/base/browser/ui/aria/aria';
 import { IAction } from 'vs/base/common/actions';
 import { ActionBar } from 'vs/base/browser/ui/actionbar/actionbar';
 import { IContextViewProvider, AnchorAlignment } from 'vs/base/browser/ui/contextview/contextview';

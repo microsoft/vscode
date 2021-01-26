@@ -3,6 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
+import 'vs/css!./breadcrumbsWidget';
 import * as dom from 'vs/base/browser/dom';
 import { IMouseEvent } from 'vs/base/browser/mouseEvent';
 import { DomScrollableElement } from 'vs/base/browser/ui/scrollbar/scrollableElement';
@@ -12,7 +13,6 @@ import { Emitter, Event } from 'vs/base/common/event';
 import { dispose, IDisposable, DisposableStore } from 'vs/base/common/lifecycle';
 import { ScrollbarVisibility } from 'vs/base/common/scrollable';
 import { Codicon, registerCodicon } from 'vs/base/common/codicons';
-import 'vs/css!./breadcrumbsWidget';
 
 export abstract class BreadcrumbsItem {
 	dispose(): void { }

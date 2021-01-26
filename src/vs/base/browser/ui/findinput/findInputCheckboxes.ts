@@ -3,9 +3,9 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
+import * as nls from 'vs/nls';
 import { Checkbox } from 'vs/base/browser/ui/checkbox/checkbox';
 import { Color } from 'vs/base/common/color';
-import * as nls from 'vs/nls';
 import { Codicon } from 'vs/base/common/codicons';
 
 export interface IFindInputCheckboxOpts {

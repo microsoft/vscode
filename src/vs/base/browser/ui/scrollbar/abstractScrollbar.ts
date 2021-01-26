@@ -4,6 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import * as dom from 'vs/base/browser/dom';
+import * as platform from 'vs/base/common/platform';
 import { FastDomNode, createFastDomNode } from 'vs/base/browser/fastDomNode';
 import { GlobalMouseMoveMonitor, IStandardMouseMoveEventData, standardMouseMoveMerger } from 'vs/base/browser/globalMouseMoveMonitor';
 import { IMouseEvent, StandardWheelEvent } from 'vs/base/browser/mouseEvent';
@@ -11,7 +12,6 @@ import { ScrollbarArrow, ScrollbarArrowOptions } from 'vs/base/browser/ui/scroll
 import { ScrollbarState } from 'vs/base/browser/ui/scrollbar/scrollbarState';
 import { ScrollbarVisibilityController } from 'vs/base/browser/ui/scrollbar/scrollbarVisibilityController';
 import { Widget } from 'vs/base/browser/ui/widget';
-import * as platform from 'vs/base/common/platform';
 import { INewScrollPosition, Scrollable, ScrollbarVisibility } from 'vs/base/common/scrollable';
 
 /**
