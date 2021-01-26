@@ -46,9 +46,6 @@ import { NotebookDiffEditorEventDispatcher, NotebookDiffLayoutChangedEvent } fro
 
 const $ = DOM.$;
 
-export const IN_NOTEBOOK_TEXT_DIFF_EDITOR = new RawContextKey<boolean>('isInNotebookTextDiffEditor', false);
-
-
 export class NotebookTextDiffEditor extends EditorPane implements INotebookTextDiffEditor {
 	static readonly ID: string = 'workbench.editor.notebookTextDiffEditor';
 
