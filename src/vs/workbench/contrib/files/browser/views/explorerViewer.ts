@@ -1460,13 +1460,27 @@ export class FileDragAndDrop implements ITreeDragAndDrop<ExplorerItem> {
 
 	private async doHandleExplorerDropOnMove(sources: ExplorerItem[], target: ExplorerItem): Promise<void> {
 
+		const mergeDirectories = true; // TODO: property or modal dialog
+
 		// Do not allow moving readonly items
-		const resourceFileEdits = sources.filter(source => !source.isReadonly).map(source => new ResourceFileEdit(source.resource, joinPath(target.resource, source.name)));
+		let resourceFileEdits = sources.filter(source => !source.isReadonly).map(source => new ResourceFileEdit(source.resource, joinPath(target.resource, source.name)));
 		const labelSufix = getFileOrFolderLabelSufix(sources);
 		const options = {
 			undoLabel: localize('move', "Move {0}", labelSufix),
 			progressLabel: localize('moving', "Moving {0}", labelSufix)
 		};
+
+		if (mergeDirectories) {
+			// With conflicting directories, children have to be merged recursively
+
+			const explodedEdits: ResourceFileEdit[] = [];
+
+			for (const edit of resourceFileEdits) {
+				explodedEdits.push(...await this.explodeConflictingFolderEdit(edit));
+			}
+
+			resourceFileEdits = explodedEdits;
+		}
 
 		try {
 			await this.explorerService.applyBulkEdit(resourceFileEdits, options);
@@ -1474,12 +1488,9 @@ export class FileDragAndDrop implements ITreeDragAndDrop<ExplorerItem> {
 			// Conflict
 			if ((<FileOperationError>error).fileOperationResult === FileOperationResult.FILE_MOVE_CONFLICT) {
 
-				const overwrites: URI[] = [];
-				for (const edit of resourceFileEdits) {
-					if (edit.newResource && await this.fileService.exists(edit.newResource)) {
-						overwrites.push(edit.newResource);
-					}
-				}
+				const overwrites = resourceFileEdits
+					.filter(async edit => edit.newResource && await this.fileService.exists(edit.newResource))
+					.map(edit => edit.newResource!);
 
 				const confirm = getMultipleFilesOverwriteConfirm(overwrites);
 				// Move with overwrite if the user confirms
@@ -1497,6 +1508,37 @@ export class FileDragAndDrop implements ITreeDragAndDrop<ExplorerItem> {
 				this.notificationService.error(error);
 			}
 		}
+	}
+
+	private async explodeConflictingFolderEdit(edit: ResourceFileEdit): Promise<ResourceFileEdit[]> {
+		if (!edit.oldResource || !edit.newResource) {
+			return [edit];
+		}
+
+		if (!await this.fileService.exists(edit.newResource)) {
+			return [edit];
+		}
+
+		const resolvedOldResource = await this.fileService.resolve(edit.oldResource);
+		const resolvedNewResource = await this.fileService.resolve(edit.newResource);
+
+		//TODO: what to do here!?
+		if (!resolvedOldResource.isDirectory || !resolvedNewResource.isDirectory) {
+			return [edit];
+		}
+
+		const edits: ResourceFileEdit[] = [];
+
+		const newEdits = resolvedOldResource.children?.map(child => new ResourceFileEdit(child.resource, URI.joinPath(edit.newResource!, child.name)));
+
+		for (const newEdit of newEdits!) {
+			edits.push(...await this.explodeConflictingFolderEdit(newEdit));
+		}
+
+		// Since all children of the folder are now moved individually, we have to delete the folder
+		edits.push(new ResourceFileEdit(edit.oldResource, undefined));
+
+		return edits;
 	}
 
 	private static getStatsFromDragAndDropData(data: ElementsDragAndDropData<ExplorerItem, ExplorerItem[]>, dragStartEvent?: DragEvent): ExplorerItem[] {
