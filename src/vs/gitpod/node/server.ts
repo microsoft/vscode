@@ -3,6 +3,8 @@
  *--------------------------------------------------------------------------------------------*/
 
 import type { ResolvedPlugins } from '@gitpod/gitpod-protocol';
+import { StatusServiceClient } from '@gitpod/supervisor-api-grpc/lib/status_grpc_pb';
+import { TasksStatusRequest, TasksStatusResponse, TaskState, TaskStatus } from '@gitpod/supervisor-api-grpc/lib/status_pb';
 import { TerminalServiceClient } from '@gitpod/supervisor-api-grpc/lib/terminal_grpc_pb';
 import { ListTerminalsRequest, ListTerminalsResponse } from '@gitpod/supervisor-api-grpc/lib/terminal_pb';
 import * as grpc from '@grpc/grpc-js';
@@ -73,6 +75,7 @@ import { MergedEnvironmentVariableCollection } from 'vs/workbench/contrib/termin
 import { deserializeEnvironmentVariableCollection } from 'vs/workbench/contrib/terminal/common/environmentVariableShared';
 import { ICreateTerminalProcessArguments, ICreateTerminalProcessResult, IGetTerminalCwdArguments, IGetTerminalInitialCwdArguments, IOnTerminalProcessEventArguments, IRemoteTerminalDescriptionDto, IResizeTerminalProcessArguments, ISendInputToTerminalProcessArguments, IShutdownTerminalProcessArguments, IStartTerminalProcessArguments, IWorkspaceFolderData } from 'vs/workbench/contrib/terminal/common/remoteTerminalChannel';
 import { IShellLaunchConfig, ITerminalLaunchError } from 'vs/workbench/contrib/terminal/common/terminal';
+import { TerminalDataBufferer } from 'vs/workbench/contrib/terminal/common/terminalDataBuffering';
 import * as terminalEnvironment from 'vs/workbench/contrib/terminal/common/terminalEnvironment';
 import { getSystemShell } from 'vs/workbench/contrib/terminal/node/terminal';
 import { getMainProcessParentEnv } from 'vs/workbench/contrib/terminal/node/terminalEnvironment';
@@ -444,11 +447,57 @@ async function main(): Promise<void> {
 
 	const supervisorAddr = process.env.SUPERVISOR_ADDR || 'localhost:22999';
 	const terminalServiceClient = new TerminalServiceClient(supervisorAddr, grpc.credentials.createInsecure());
+	const statusServiceClient = new StatusServiceClient(supervisorAddr, grpc.credentials.createInsecure());
+
+	let resolveSynchingTasks: (tasks: Map<string, TaskStatus>) => void;
+	const synchingTasks = new Promise<Map<string, TaskStatus>>(resolve => resolveSynchingTasks = resolve);
+	(async () => {
+		const tasks = new Map<string, TaskStatus>();
+		while (true) {
+			try {
+				const req = new TasksStatusRequest();
+				req.setObserve(true);
+				const stream = statusServiceClient.tasksStatus(req);
+				await new Promise((resolve, reject) => {
+					stream.on('end', resolve);
+					stream.on('error', reject);
+					stream.on('data', (response: TasksStatusResponse) => {
+						let synched = true;
+						for (const task of response.getTasksList()) {
+							tasks.set(task.getTerminal(), task);
+							if (task.getState() === TaskState.OPENING) {
+								synched = false;
+							}
+						}
+						if (synched) {
+							resolveSynchingTasks(tasks);
+						}
+					});
+				});
+			} catch (err) {
+				if (!('code' in err && err.code === grpc.status.CANCELLED)) {
+					console.error('code server: listening task updates failed:', err);
+				}
+			}
+		}
+	})();
+
 	class RemoteTerminalChannelServer implements IServerChannel<RemoteAgentConnectionContext> {
 		private terminalIdSeq = 0;
 		private readonly terminalProcesses = new Map<number, SupervisorTerminalProcess>();
 		private readonly aliasToId = new Map<string, number>();
-		private createTerminlaProcess(
+		private readonly bufferer = new TerminalDataBufferer(
+			(id, data) => {
+				const terminalProcess = this.terminalProcesses.get(id);
+				if (terminalProcess) {
+					terminalProcess['_onEvent'].fire({
+						type: 'data',
+						data
+					});
+				}
+			}
+		);
+		private createTerminalProcess(
 			initialCwd: string,
 			workspaceId: string,
 			workspaceName: string,
@@ -468,6 +517,12 @@ async function main(): Promise<void> {
 			terminalProcess.add({
 				dispose: () => {
 					this.terminalProcesses.delete(terminalProcess.id);
+				}
+			});
+			this.bufferer.startBuffering(terminalProcess.id, terminalProcess.onProcessData);
+			terminalProcess.add({
+				dispose: () => {
+					this.bufferer.stopBuffering(terminalProcess.id);
 				}
 			});
 			return terminalProcess;
@@ -575,7 +630,7 @@ async function main(): Promise<void> {
 					mergedCollection.applyToProcessEnvironment(env);
 				}
 
-				const terminalProcess = this.createTerminlaProcess(
+				const terminalProcess = this.createTerminalProcess(
 					initialCwd,
 					args.workspaceId,
 					args.workspaceName,
@@ -656,17 +711,18 @@ async function main(): Promise<void> {
 			if (command === '$listTerminals') {
 				try {
 					const result: IRemoteTerminalDescriptionDto[] = [];
+					const tasks = await synchingTasks;
 					const response = await util.promisify<ListTerminalsRequest, ListTerminalsResponse>(terminalServiceClient.list.bind(terminalServiceClient))(new ListTerminalsRequest());
 					for (const terminal of response.getTerminalsList()) {
 						const alias = terminal.getAlias();
 						const id = this.aliasToId.get(alias);
 						const annotations = terminal.getAnnotationsMap();
-						const workspaceId = annotations.get('workspaceId') || 'unknown';
-						const workspaceName = annotations.get('workspaceName') || 'unknown';
-						const shouldPersistTerminal = Boolean(annotations.get('shouldPersistTerminal'));
+						const workspaceId = annotations.get('workspaceId') || '';
+						const workspaceName = annotations.get('workspaceName') || '';
+						const shouldPersistTerminal = tasks.has(alias) || Boolean(annotations.get('shouldPersistTerminal'));
 						let terminalProcess: SupervisorTerminalProcess | undefined;
 						if (!id) {
-							terminalProcess = this.createTerminlaProcess(
+							terminalProcess = this.createTerminalProcess(
 								terminal.getInitialWorkdir(),
 								workspaceId,
 								workspaceName,
