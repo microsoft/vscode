@@ -32,8 +32,8 @@
 	display: none;
 }
 
-.scm-view.hide-provider-counts .count,
-.scm-view.auto-provider-counts .count[data-count="0"] {
+.scm-view.hide-provider-counts .monaco-count-badge,
+.scm-view.auto-provider-counts .monaco-count-badge[data-count="0"] {
 	display: none;
 }
 

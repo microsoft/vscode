@@ -30,7 +30,6 @@ const defaultOpts = {
 export class CountBadge implements IThemable {
 
 	private element: HTMLElement;
-	private container: HTMLElement;
 	private count: number = 0;
 	private countFormat: string;
 	private titleFormat: string;
@@ -48,7 +47,6 @@ export class CountBadge implements IThemable {
 		this.badgeBackground = this.options.badgeBackground;
 		this.badgeForeground = this.options.badgeForeground;
 		this.badgeBorder = this.options.badgeBorder;
-		this.container = container;
 		this.element = append(container, $('.monaco-count-badge'));
 		this.countFormat = this.options.countFormat || '{0}';
 		this.titleFormat = this.options.titleFormat || '';
@@ -57,7 +55,7 @@ export class CountBadge implements IThemable {
 
 	setCount(count: number) {
 		this.count = count;
-		this.container.dataset.count = `${count}`;
+		this.element.dataset.count = `${count}`;
 		this.render();
 	}
 
