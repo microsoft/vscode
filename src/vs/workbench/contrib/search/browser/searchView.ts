@@ -1363,7 +1363,7 @@ export class SearchView extends ViewPane {
 		// Validate folderQueries
 		const folderQueriesExistP =
 			query.folderQueries.map(fq => {
-				return this.fileService.exists(fq.folder);
+				return this.fileService.exists(fq.folder).catch(() => false);
 			});
 
 		return Promise.all(folderQueriesExistP).then(existResults => {
