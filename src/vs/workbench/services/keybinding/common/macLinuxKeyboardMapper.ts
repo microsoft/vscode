@@ -73,7 +73,7 @@ export class NativeResolvedKeybinding extends BaseResolvedKeybinding<ScanCodeBin
 
 		let result = '';
 
-		if (keybinding.ctrlKey && keybinding.scanCode !== KeyCode.Ctrl) {
+		if (keybinding.ctrlKey) {
 			result += 'ctrl+';
 		}
 		if (keybinding.shiftKey) {
