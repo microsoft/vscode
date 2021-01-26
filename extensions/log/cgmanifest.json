@@ -1,0 +1,17 @@
+{
+	"registrations": [
+		{
+			"component": {
+				"type": "git",
+				"git": {
+					"name": "vscode-logfile-highlighter",
+					"repositoryUrl": "https://github.com/emilast/vscode-logfile-highlighter",
+					"commitHash": "6f6eecc097509c6ee8f4141a7bd6a1f243461d68"
+				}
+			},
+			"license": "MIT",
+			"version": "2.9.0"
+		}
+	],
+	"version": 1
+}

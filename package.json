@@ -1,7 +1,7 @@
 {
   "name": "code-oss-dev",
   "version": "1.53.0",
-  "distro": "65cbf43543d86e78b90fb749d535c3d3ed9dd3a5",
+  "distro": "e6642c0e4d3e0e8a149108972d213f1132e2eb14",
   "author": {
     "name": "Microsoft Corporation"
   },
@@ -46,7 +46,7 @@
     "compile-web": "node --max_old_space_size=4095 ./node_modules/gulp/bin/gulp.js compile-web",
     "watch-web": "node --max_old_space_size=4095 ./node_modules/gulp/bin/gulp.js watch-web",
     "eslint": "node build/eslint",
-    "electron-rebuild": "electron-rebuild --arch=arm64 --force --version=11.2.0",
+    "electron-rebuild": "electron-rebuild --arch=arm64 --force --version=11.2.1",
     "playwright-install": "node build/azure-pipelines/common/installPlaywright.js",
     "compile-build": "node --max_old_space_size=4095 ./node_modules/gulp/bin/gulp.js compile-build",
     "compile-extensions-build": "node --max_old_space_size=4095 ./node_modules/gulp/bin/gulp.js compile-extensions-build",
@@ -128,7 +128,7 @@
     "cssnano": "^4.1.10",
     "debounce": "^1.0.0",
     "deemon": "^1.4.0",
-    "electron": "11.2.0",
+    "electron": "11.2.1",
     "electron-rebuild": "2.0.3",
     "eslint": "6.8.0",
     "eslint-plugin-jsdoc": "^19.1.0",

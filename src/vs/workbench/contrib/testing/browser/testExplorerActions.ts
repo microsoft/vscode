@@ -6,10 +6,13 @@
 
 import { Action } from 'vs/base/common/actions';
 import { Codicon } from 'vs/base/common/codicons';
+import { KeyCode, KeyMod } from 'vs/base/common/keyCodes';
+import { isDefined } from 'vs/base/common/types';
 import { localize } from 'vs/nls';
 import { Action2, MenuId } from 'vs/platform/actions/common/actions';
 import { ContextKeyAndExpr, ContextKeyEqualsExpr } from 'vs/platform/contextkey/common/contextkey';
 import { ServicesAccessor } from 'vs/platform/instantiation/common/instantiation';
+import { KeybindingWeight } from 'vs/platform/keybinding/common/keybindingsRegistry';
 import { INotificationService } from 'vs/platform/notification/common/notification';
 import { ThemeIcon } from 'vs/platform/theme/common/themeService';
 import { IWorkspaceContextService } from 'vs/platform/workspace/common/workspace';
@@ -17,6 +20,7 @@ import { ExtHostTestingResource } from 'vs/workbench/api/common/extHost.protocol
 import { ViewAction } from 'vs/workbench/browser/parts/views/viewPane';
 import { ShowViewletAction2 } from 'vs/workbench/browser/viewlet';
 import { CATEGORIES } from 'vs/workbench/common/actions';
+import { FocusedViewContext } from 'vs/workbench/common/views';
 import * as icons from 'vs/workbench/contrib/testing/browser/icons';
 import { TestingExplorerView, TestingExplorerViewModel } from 'vs/workbench/contrib/testing/browser/testingExplorerView';
 import { TestExplorerViewGrouping, TestExplorerViewMode, Testing } from 'vs/workbench/contrib/testing/common/constants';
@@ -438,5 +442,32 @@ export class ShowTestView extends ShowViewletAction2 {
 
 	protected viewletId() {
 		return Testing.ViewletId;
+	}
+}
+
+
+export class EditFocusedTest extends ViewAction<TestingExplorerView> {
+	constructor() {
+		super({
+			id: 'testing.editFocusedTest',
+			viewId: Testing.ExplorerViewId,
+			title: localize('testing.editFocusedTest', "Open Focused Test in Editor"),
+			f1: false,
+			keybinding: {
+				weight: KeybindingWeight.EditorContrib - 10,
+				when: FocusedViewContext.isEqualTo(Testing.ExplorerViewId),
+				primary: KeyCode.Enter | KeyMod.Alt,
+			},
+		});
+	}
+
+	/**
+	 * @override
+	 */
+	public runInView(_accessor: ServicesAccessor, view: TestingExplorerView) {
+		const selected = view.viewModel.tree.getFocus().find(isDefined);
+		if (selected) {
+			view.viewModel.openEditorForItem(selected, false);
+		}
 	}
 }

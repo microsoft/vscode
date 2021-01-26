@@ -4,19 +4,25 @@
  *--------------------------------------------------------------------------------------------*/
 
 import * as dom from 'vs/base/browser/dom';
+import { Codicon } from 'vs/base/common/codicons';
 import { Color } from 'vs/base/common/color';
-import { IReference, MutableDisposable } from 'vs/base/common/lifecycle';
+import { KeyCode } from 'vs/base/common/keyCodes';
+import { Disposable, IReference, MutableDisposable } from 'vs/base/common/lifecycle';
 import { clamp } from 'vs/base/common/numbers';
 import { count } from 'vs/base/common/strings';
 import { URI } from 'vs/base/common/uri';
 import { ICodeEditor } from 'vs/editor/browser/editorBrowser';
+import { EditorAction2 } from 'vs/editor/browser/editorExtensions';
+import { ICodeEditorService } from 'vs/editor/browser/services/codeEditorService';
 import { EmbeddedCodeEditorWidget, EmbeddedDiffEditorWidget } from 'vs/editor/browser/widget/embeddedCodeEditorWidget';
 import { IDiffEditorOptions, IEditorOptions } from 'vs/editor/common/config/editorOptions';
 import { IEditorContribution } from 'vs/editor/common/editorCommon';
 import { IResolvedTextEditorModel, ITextModelService } from 'vs/editor/common/services/resolverService';
-import { IPeekViewService, peekViewTitleBackground, peekViewTitleForeground, peekViewTitleInfoForeground, PeekViewWidget } from 'vs/editor/contrib/peekView/peekView';
-import { IContextKey, IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
-import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
+import { getOuterEditor, IPeekViewService, peekViewTitleBackground, peekViewTitleForeground, peekViewTitleInfoForeground, PeekViewWidget } from 'vs/editor/contrib/peekView/peekView';
+import { localize } from 'vs/nls';
+import { ContextKeyExpr, IContextKey, IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
+import { IInstantiationService, ServicesAccessor } from 'vs/platform/instantiation/common/instantiation';
+import { KeybindingWeight } from 'vs/platform/keybinding/common/keybindingsRegistry';
 import { IColorTheme, IThemeService } from 'vs/platform/theme/common/themeService';
 import { EditorModel } from 'vs/workbench/common/editor';
 import { testingPeekBorder } from 'vs/workbench/contrib/testing/browser/theme';
@@ -35,7 +41,10 @@ interface ITestDto {
 	messageUri: URI;
 }
 
-export class TestingOutputPeekController implements IEditorContribution {
+/**
+ * Adds output/message peek functionality to code editors.
+ */
+export class TestingOutputPeekController extends Disposable implements IEditorContribution {
 	/**
 	 * Gets the controller associated with the given code editor.
 	 */
@@ -46,7 +55,7 @@ export class TestingOutputPeekController implements IEditorContribution {
 	/**
 	 * Currently-shown peek view.
 	 */
-	private readonly peek = new MutableDisposable<TestingOutputPeek>();
+	private readonly peek = this._register(new MutableDisposable<TestingOutputPeek>());
 
 	/**
 	 * Context key updated when the peek is visible/hidden.
@@ -60,14 +69,9 @@ export class TestingOutputPeekController implements IEditorContribution {
 		@ITestService private readonly testService: ITestService,
 		@IContextKeyService contextKeyService: IContextKeyService,
 	) {
-		this.visible = TestingContextKeys.peekVisible.bindTo(contextKeyService);
-	}
-
-	/**
-	 * @inheritdoc
-	 */
-	public dispose(): void {
-		this.removePeek();
+		super();
+		this.visible = TestingContextKeys.isPeekVisible.bindTo(contextKeyService);
+		this._register(editor.onDidChangeModel(() => this.peek.clear()));
 	}
 
 	/**
@@ -107,7 +111,7 @@ export class TestingOutputPeekController implements IEditorContribution {
 	 * Disposes the peek view, if any.
 	 */
 	public removePeek() {
-		this.peek.value = undefined;
+		this.peek.clear();
 	}
 
 	private async retrieveTest(uri: URI): Promise<ITestDto | undefined> {
@@ -150,11 +154,13 @@ abstract class TestingOutputPeek extends PeekViewWidget {
 		editor: ICodeEditor,
 		@IThemeService themeService: IThemeService,
 		@IPeekViewService peekViewService: IPeekViewService,
+		@IContextKeyService contextKeyService: IContextKeyService,
 		@IInstantiationService protected readonly instantiationService: IInstantiationService,
 		@ITextModelService protected readonly modelService: ITextModelService,
 	) {
 		super(editor, { showFrame: false, showArrow: true, isResizeable: true, isAccessible: true, className: 'test-output-peek' }, instantiationService);
 
+		TestingContextKeys.isInPeek.bindTo(contextKeyService);
 		this._disposables.add(themeService.onDidColorThemeChange(this.applyTheme, this));
 		this._disposables.add(this.model);
 		this.applyTheme(themeService.getColorTheme());
@@ -329,5 +335,40 @@ class SimpleDiffEditorModel extends EditorModel {
 		super.dispose();
 		this._original.dispose();
 		this._modified.dispose();
+	}
+}
+
+function getOuterEditorFromDiffEditor(accessor: ServicesAccessor): ICodeEditor | null {
+	const diffEditors = accessor.get(ICodeEditorService).listDiffEditors();
+
+	for (const diffEditor of diffEditors) {
+		if (diffEditor.hasTextFocus() && diffEditor instanceof EmbeddedDiffEditorWidget) {
+			return diffEditor.getParentEditor();
+		}
+	}
+
+	return getOuterEditor(accessor);
+}
+
+export class CloseTestPeek extends EditorAction2 {
+	constructor() {
+		super({
+			id: 'editor.closeTestPeek',
+			title: localize('close', 'Close'),
+			icon: Codicon.close,
+			precondition: ContextKeyExpr.and(
+				ContextKeyExpr.or(TestingContextKeys.isInPeek, TestingContextKeys.isPeekVisible),
+				ContextKeyExpr.not('config.editor.stablePeek')
+			),
+			keybinding: {
+				weight: KeybindingWeight.EditorContrib - 101,
+				primary: KeyCode.Escape
+			}
+		});
+	}
+
+	runEditorCommand(accessor: ServicesAccessor, editor: ICodeEditor): void {
+		const parent = getOuterEditorFromDiffEditor(accessor);
+		TestingOutputPeekController.get(parent ?? editor).removePeek();
 	}
 }

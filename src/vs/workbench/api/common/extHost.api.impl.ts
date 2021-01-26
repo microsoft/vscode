@@ -340,6 +340,14 @@ export function createApiFactoryAndRegisterActors(accessor: ServicesAccessor): I
 				checkProposedApiEnabled(extension);
 				return extHostTesting.runTests(provider);
 			},
+			get onDidChangeTestResults() {
+				checkProposedApiEnabled(extension);
+				return extHostTesting.onLastResultsChanged;
+			},
+			get testResults() {
+				checkProposedApiEnabled(extension);
+				return extHostTesting.lastResults;
+			},
 		};
 
 		// namespace: extensions

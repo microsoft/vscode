@@ -311,7 +311,7 @@ class NotebookCellOutline implements IOutline<OutlineEntry> {
 		}));
 
 		this._dispoables.add(_configurationService.onDidChangeConfiguration(e => {
-			if (e.affectsConfiguration('outline.showNotebookCodeCells')) {
+			if (e.affectsConfiguration('notebook.outline.showCodeCells')) {
 				this._recomputeState();
 			}
 		}));
@@ -369,7 +369,7 @@ class NotebookCellOutline implements IOutline<OutlineEntry> {
 			return;
 		}
 
-		const includeCodeCells = this._configurationService.getValue<boolean>('outline.showNotebookCodeCells');
+		const includeCodeCells = this._configurationService.getValue<boolean>('notebook.outline.showCodeCells');
 
 		const [selected] = viewModel.selectionHandles;
 		const entries: OutlineEntry[] = [];
@@ -561,14 +561,14 @@ Registry.as<IWorkbenchContributionsRegistry>(WorkbenchExtensions.Workbench).regi
 
 
 Registry.as<IConfigurationRegistry>(ConfigurationExtensions.Configuration).registerConfiguration({
-	'id': 'outline',
-	'order': 117,
-	'type': 'object',
+	id: 'notebook',
+	order: 100,
+	type: 'object',
 	'properties': {
-		'outline.showNotebookCodeCells': {
+		'notebook.outline.showCodeCells': {
 			type: 'boolean',
 			default: true,
-			markdownDescription: localize('showNotebookCodeCells', "When enabled outline shows code cell of notebooks.")
+			markdownDescription: localize('showCodeCells', "When enabled notebook outline shows code cells.")
 		}
 	}
 });

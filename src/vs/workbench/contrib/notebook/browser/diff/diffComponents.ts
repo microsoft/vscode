@@ -775,6 +775,10 @@ abstract class SingleSideDiffElement extends AbstractElementRenderer {
 			this.templateData.outputHeaderContainer.style.display = 'none';
 			this.templateData.outputInfoContainer.style.display = 'none';
 			return;
+		} else {
+			this.templateData.outputHeaderContainer.style.display = 'flex';
+			this.templateData.outputInfoContainer.style.display = 'block';
+
 		}
 
 		this._outputHeaderContainer = this.templateData.outputHeaderContainer;
@@ -1191,6 +1195,9 @@ export class ModifiedElement extends AbstractElementRenderer {
 			this.templateData.outputHeaderContainer.style.display = 'none';
 			this.templateData.outputInfoContainer.style.display = 'none';
 			return;
+		} else {
+			this.templateData.outputHeaderContainer.style.display = 'flex';
+			this.templateData.outputInfoContainer.style.display = 'block';
 		}
 
 		this._outputHeaderContainer = this.templateData.outputHeaderContainer;

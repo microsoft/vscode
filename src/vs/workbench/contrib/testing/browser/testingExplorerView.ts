@@ -6,10 +6,11 @@
 import * as dom from 'vs/base/browser/dom';
 import { ActionBar } from 'vs/base/browser/ui/actionbar/actionbar';
 import { IIdentityProvider, IKeyboardNavigationLabelProvider, IListVirtualDelegate } from 'vs/base/browser/ui/list/list';
-import { IListAccessibilityProvider } from 'vs/base/browser/ui/list/listWidget';
+import { DefaultKeyboardNavigationDelegate, IListAccessibilityProvider } from 'vs/base/browser/ui/list/listWidget';
 import { ICompressedTreeNode } from 'vs/base/browser/ui/tree/compressedObjectTreeModel';
 import { ObjectTree } from 'vs/base/browser/ui/tree/objectTree';
 import { ITreeEvent, ITreeFilter, ITreeNode, ITreeRenderer, ITreeSorter, TreeFilterResult, TreeVisibility } from 'vs/base/browser/ui/tree/tree';
+import * as aria from 'vs/base/browser/ui/aria/aria';
 import { Action, IAction, IActionViewItem } from 'vs/base/common/actions';
 import { DeferredPromise } from 'vs/base/common/async';
 import { Color, RGBA } from 'vs/base/common/color';
@@ -51,9 +52,9 @@ import { StateByLocationProjection } from 'vs/workbench/contrib/testing/browser/
 import { StateByNameProjection } from 'vs/workbench/contrib/testing/browser/explorerProjections/stateByName';
 import { StateElement } from 'vs/workbench/contrib/testing/browser/explorerProjections/stateNodes';
 import { testingStatesToIcons } from 'vs/workbench/contrib/testing/browser/icons';
-import { ITestExplorerFilterState, TestingExplorerFilter, TestExplorerFilterState } from 'vs/workbench/contrib/testing/browser/testingExplorerFilter';
+import { ITestExplorerFilterState, TestExplorerFilterState, TestingExplorerFilter } from 'vs/workbench/contrib/testing/browser/testingExplorerFilter';
 import { TestingOutputPeekController } from 'vs/workbench/contrib/testing/browser/testingOutputPeek';
-import { TestExplorerViewGrouping, TestExplorerViewMode, Testing } from 'vs/workbench/contrib/testing/common/constants';
+import { TestExplorerViewGrouping, TestExplorerViewMode, Testing, testStateNames } from 'vs/workbench/contrib/testing/common/constants';
 import { TestingContextKeys } from 'vs/workbench/contrib/testing/common/testingContextKeys';
 import { cmpPriority, isFailedState } from 'vs/workbench/contrib/testing/common/testingStates';
 import { buildTestUri, TestUriType } from 'vs/workbench/contrib/testing/common/testingUri';
@@ -267,6 +268,13 @@ export class TestingExplorerViewModel extends Disposable {
 			}) as WorkbenchObjectTree<ITestTreeElement, FuzzyScore>;
 		this._register(this.tree);
 
+		this._register(dom.addStandardDisposableListener(this.tree.getHTMLElement(), 'keydown', evt => {
+			if (DefaultKeyboardNavigationDelegate.mightProducePrintableCharacter(evt)) {
+				filterState.value = evt.browserEvent.key;
+				filterState.focusInput();
+			}
+		}));
+
 		this.updatePreferredProjection();
 
 		this.onDidChangeSelection = this.tree.onDidChangeSelection;
@@ -343,7 +351,7 @@ export class TestingExplorerViewModel extends Disposable {
 	 * Opens an editor for the item. If there is a failure associated with the
 	 * test item, it will be shown.
 	 */
-	private async openEditorForItem(item: ITestTreeElement) {
+	public async openEditorForItem(item: ITestTreeElement, preserveFocus = true) {
 		if (await this.tryPeekError(item)) {
 			return;
 		}
@@ -355,7 +363,10 @@ export class TestingExplorerViewModel extends Disposable {
 
 		const pane = await this.editorService.openEditor({
 			resource: location.uri,
-			options: { selection: location.range, preserveFocus: true }
+			options: {
+				selection: { startColumn: location.range.startColumn, startLineNumber: location.range.startLineNumber },
+				preserveFocus,
+			},
 		});
 
 		// if the user selected a failed test and now they didn't, hide the peek
@@ -573,15 +584,14 @@ class ListAccessibilityProvider implements IListAccessibilityProvider<ITestTreeE
 	}
 
 	getAriaLabel(element: ITestTreeElement): string {
-		return element.label;
+		return localize({
+			key: 'testing.treeElementLabel',
+			comment: ['label then the unit tests state, for example "Addition Tests (Running)"'],
+		}, '{0} ({1})', element.label, testStateNames[getComputedState(element)]);
 	}
 }
 
 class TreeKeyboardNavigationLabelProvider implements IKeyboardNavigationLabelProvider<ITestTreeElement> {
-	getCompressedNodeKeyboardNavigationLabel(elements: ITestTreeElement[]) {
-		return this.getKeyboardNavigationLabel(elements[elements.length - 1]);
-	}
-
 	getKeyboardNavigationLabel(element: ITestTreeElement) {
 		return element.label;
 	}
@@ -791,7 +801,9 @@ class TestRunProgress {
 		} else {
 			const collected = collectCounts(lastCount);
 			this.messagesContainer.dataset.state = collected.failed ? 'failed' : 'running';
-			this.messagesContainer.innerText = getProgressText(collected);
+			const doneMessage = getProgressText(collected);
+			this.messagesContainer.innerText = doneMessage;
+			aria.alert(doneMessage);
 		}
 	}
 

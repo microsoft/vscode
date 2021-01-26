@@ -3,10 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { Codicon } from 'vs/base/common/codicons';
-import { KeyCode } from 'vs/base/common/keyCodes';
-import { ICodeEditor } from 'vs/editor/browser/editorBrowser';
-import { EditorAction2, registerEditorContribution } from 'vs/editor/browser/editorExtensions';
+import { registerEditorContribution } from 'vs/editor/browser/editorExtensions';
 import { localize } from 'vs/nls';
 import { registerAction2 } from 'vs/platform/actions/common/actions';
 import { CommandsRegistry } from 'vs/platform/commands/common/commands';
@@ -14,7 +11,6 @@ import { ContextKeyExpr } from 'vs/platform/contextkey/common/contextkey';
 import { SyncDescriptor } from 'vs/platform/instantiation/common/descriptors';
 import { registerSingleton } from 'vs/platform/instantiation/common/extensions';
 import { ServicesAccessor } from 'vs/platform/instantiation/common/instantiation';
-import { KeybindingWeight } from 'vs/platform/keybinding/common/keybindingsRegistry';
 import { Registry } from 'vs/platform/registry/common/platform';
 import { Extensions as WorkbenchExtensions, IWorkbenchContributionsRegistry } from 'vs/workbench/common/contributions';
 import { Extensions as ViewContainerExtensions, IViewContainersRegistry, IViewsRegistry, ViewContainerLocation } from 'vs/workbench/common/views';
@@ -22,7 +18,7 @@ import { testingViewIcon } from 'vs/workbench/contrib/testing/browser/icons';
 import { TestingDecorations } from 'vs/workbench/contrib/testing/browser/testingDecorations';
 import { ITestExplorerFilterState, TestExplorerFilterState } from 'vs/workbench/contrib/testing/browser/testingExplorerFilter';
 import { TestingExplorerView } from 'vs/workbench/contrib/testing/browser/testingExplorerView';
-import { TestingOutputPeekController } from 'vs/workbench/contrib/testing/browser/testingOutputPeek';
+import { CloseTestPeek, TestingOutputPeekController } from 'vs/workbench/contrib/testing/browser/testingOutputPeek';
 import { TestingViewPaneContainer } from 'vs/workbench/contrib/testing/browser/testingViewPaneContainer';
 import { Testing } from 'vs/workbench/contrib/testing/common/constants';
 import { TestIdWithProvider } from 'vs/workbench/contrib/testing/common/testCollection';
@@ -94,6 +90,8 @@ registerAction2(Action.ShowTestView);
 registerAction2(Action.CollapseAllAction);
 registerAction2(Action.RunAllAction);
 registerAction2(Action.DebugAllAction);
+registerAction2(Action.EditFocusedTest);
+registerAction2(CloseTestPeek);
 
 Registry.as<IWorkbenchContributionsRegistry>(WorkbenchExtensions.Workbench).registerWorkbenchContribution(TestingContentProvider, LifecyclePhase.Eventually);
 
@@ -121,27 +119,5 @@ CommandsRegistry.registerCommand({
 	handler: async (accessor: ServicesAccessor, path: string[]) => {
 		accessor.get(ITestExplorerFilterState).reveal = path;
 		await new Action.ShowTestView().run(accessor);
-	}
-});
-
-registerAction2(class CloseTestPeek extends EditorAction2 {
-	constructor() {
-		super({
-			id: 'editor.closeTestPeek',
-			title: localize('close', 'Close'),
-			icon: Codicon.close,
-			precondition: ContextKeyExpr.and(
-				TestingContextKeys.peekVisible,
-				ContextKeyExpr.not('config.editor.stablePeek')
-			),
-			keybinding: {
-				weight: KeybindingWeight.WorkbenchContrib + 10,
-				primary: KeyCode.Escape
-			}
-		});
-	}
-
-	runEditorCommand(_accessor: ServicesAccessor, editor: ICodeEditor): void {
-		TestingOutputPeekController.get(editor).removePeek();
 	}
 });

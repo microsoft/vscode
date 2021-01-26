@@ -84,7 +84,7 @@ export interface ICodeWindow extends IDisposable {
 
 	addTabbedWindow(window: ICodeWindow): void;
 
-	load(config: INativeWindowConfiguration, isReload?: boolean): void;
+	load(config: INativeWindowConfiguration, options?: { isReload?: boolean }): void;
 	reload(cli?: NativeParsedArgs): void;
 
 	focus(options?: { force: boolean }): void;
