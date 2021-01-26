@@ -6,7 +6,7 @@
 import * as dom from 'vs/base/browser/dom';
 import { ActionBar } from 'vs/base/browser/ui/actionbar/actionbar';
 import { IIdentityProvider, IKeyboardNavigationLabelProvider, IListVirtualDelegate } from 'vs/base/browser/ui/list/list';
-import { IListAccessibilityProvider } from 'vs/base/browser/ui/list/listWidget';
+import { DefaultKeyboardNavigationDelegate, IListAccessibilityProvider } from 'vs/base/browser/ui/list/listWidget';
 import { ICompressedTreeNode } from 'vs/base/browser/ui/tree/compressedObjectTreeModel';
 import { ObjectTree } from 'vs/base/browser/ui/tree/objectTree';
 import { ITreeEvent, ITreeFilter, ITreeNode, ITreeRenderer, ITreeSorter, TreeFilterResult, TreeVisibility } from 'vs/base/browser/ui/tree/tree';
@@ -268,6 +268,13 @@ export class TestingExplorerViewModel extends Disposable {
 			}) as WorkbenchObjectTree<ITestTreeElement, FuzzyScore>;
 		this._register(this.tree);
 
+		this._register(dom.addStandardDisposableListener(this.tree.getHTMLElement(), 'keydown', evt => {
+			if (DefaultKeyboardNavigationDelegate.mightProducePrintableCharacter(evt)) {
+				filterState.value = evt.browserEvent.key;
+				filterState.focusInput();
+			}
+		}));
+
 		this.updatePreferredProjection();
 
 		this.onDidChangeSelection = this.tree.onDidChangeSelection;
@@ -356,7 +363,10 @@ export class TestingExplorerViewModel extends Disposable {
 
 		const pane = await this.editorService.openEditor({
 			resource: location.uri,
-			options: { selection: location.range, preserveFocus },
+			options: {
+				selection: { startColumn: location.range.startColumn, startLineNumber: location.range.startLineNumber },
+				preserveFocus,
+			},
 		});
 
 		// if the user selected a failed test and now they didn't, hide the peek
