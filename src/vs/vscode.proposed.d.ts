@@ -1319,7 +1319,7 @@ declare module 'vscode' {
 		/**
 		 * The primary selected cell on this notebook editor.
 		 */
-		readonly selection?: NotebookCell[];
+		readonly selection?: NotebookCell;
 
 
 		/**
@@ -1443,7 +1443,7 @@ declare module 'vscode' {
 
 	export interface NotebookEditorSelectionChangeEvent {
 		readonly notebookEditor: NotebookEditor;
-		readonly selection?: NotebookCell[];
+		readonly selection?: NotebookCell;
 	}
 
 	export interface NotebookEditorVisibleRangesChangeEvent {

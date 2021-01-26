@@ -651,7 +651,8 @@ export class ExtHostNotebookController implements ExtHostNotebookShape, ExtHostN
 
 		if (data.selections) {
 			if (data.selections.selections.length) {
-				editor.editor.selection = data.selections.selections.map(cellHandle => editor?.editor.notebookData.getCell(cellHandle)?.cell).filter(selection => selection !== undefined) as vscode.NotebookCell[];
+				const firstCell = data.selections.selections[0];
+				editor.editor.selection = editor.editor.notebookData.getCell(firstCell)?.cell;
 			} else {
 				editor.editor.selection = undefined;
 			}
@@ -694,7 +695,8 @@ export class ExtHostNotebookController implements ExtHostNotebookShape, ExtHostN
 		);
 
 		if (selections.length) {
-			editor.selection = selections.map(cellHandle => editor.notebookData.getCell(cellHandle)?.cell).filter(selection => selection !== undefined) as vscode.NotebookCell[];
+			const firstCell = selections[0];
+			editor.selection = editor.notebookData.getCell(firstCell)?.cell;
 		} else {
 			editor.selection = undefined;
 		}

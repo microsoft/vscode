@@ -91,7 +91,7 @@ class NotebookEditorCellEditBuilder implements vscode.NotebookEditorEdit {
 export class ExtHostNotebookEditor extends Disposable implements vscode.NotebookEditor {
 
 	//TODO@rebornix noop setter?
-	selection?: vscode.NotebookCell[];
+	selection?: vscode.NotebookCell;
 
 	private _visibleRanges: vscode.NotebookCellRange[] = [];
 	private _viewColumn?: vscode.ViewColumn;
