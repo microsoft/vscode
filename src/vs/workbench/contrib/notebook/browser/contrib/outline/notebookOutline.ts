@@ -399,7 +399,15 @@ class NotebookCellOutline implements IOutline<OutlineEntry> {
 
 			// find first none empty line or use default text
 			const lineMatch = content.match(/^.*\w+.*\w*$/m);
-			const preview = lineMatch ? lineMatch[0].trim() : localize('empty', "empty cell");
+			let preview: string;
+			if (!lineMatch) {
+				preview = localize('empty', "empty cell");
+			} else {
+				preview = lineMatch[0].trim();
+				if (preview.length >= 64) {
+					preview = preview.slice(0, 64) + '…';
+				}
+			}
 
 			const entry = new OutlineEntry(i, level, cell, preview, isMarkdown ? Codicon.markdown : Codicon.code);
 			entries.push(entry);
