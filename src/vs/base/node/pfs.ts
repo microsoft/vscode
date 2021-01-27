@@ -3,11 +3,11 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
+import * as fs from 'fs';
+import { tmpdir } from 'os';
 import { join } from 'vs/base/common/path';
 import { Queue } from 'vs/base/common/async';
-import * as fs from 'fs';
-import * as os from 'os';
-import * as platform from 'vs/base/common/platform';
+import { isMacintosh, isWindows } from 'vs/base/common/platform';
 import { Event } from 'vs/base/common/event';
 import { promisify } from 'util';
 import { isRootOrDriveLetter } from 'vs/base/common/extpath';
@@ -89,7 +89,7 @@ async function rimrafUnlink(path: string): Promise<void> {
 
 async function rimrafMove(path: string): Promise<void> {
 	try {
-		const pathInTemp = join(os.tmpdir(), generateUuid());
+		const pathInTemp = join(tmpdir(), generateUuid());
 		try {
 			await rename(path, pathInTemp);
 		} catch (error) {
@@ -151,7 +151,7 @@ export async function readdirWithFileTypes(path: string): Promise<fs.Dirent[]> {
 
 	// Mac: uses NFD unicode form on disk, but we want NFC
 	// See also https://github.com/nodejs/node/issues/2165
-	if (platform.isMacintosh) {
+	if (isMacintosh) {
 		for (const child of children) {
 			child.name = normalizeNFC(child.name);
 		}
@@ -167,7 +167,7 @@ export function readdirSync(path: string): string[] {
 function handleDirectoryChildren(children: string[]): string[] {
 	// Mac: uses NFD unicode form on disk, but we want NFC
 	// See also https://github.com/nodejs/node/issues/2165
-	if (platform.isMacintosh) {
+	if (isMacintosh) {
 		return children.map(child => normalizeNFC(child));
 	}
 
@@ -229,6 +229,25 @@ export async function statLink(path: string): Promise<IStatAndLink> {
 		// to return it as result while setting dangling: true flag
 		if (error.code === 'ENOENT' && lstats) {
 			return { stat: lstats, symbolicLink: { dangling: true } };
+		}
+
+		// Windows: workaround a node.js bug where reparse points
+		// are not supported (https://github.com/nodejs/node/issues/36790)
+		if (isWindows && error.code === 'EACCES' && lstats) {
+			try {
+				const stats = await stat(await readlink(path));
+
+				return { stat: stats, symbolicLink: lstats.isSymbolicLink() ? { dangling: false } : undefined };
+			} catch (error) {
+
+				// If the link points to a non-existing file we still want
+				// to return it as result while setting dangling: true flag
+				if (error.code === 'ENOENT') {
+					return { stat: lstats, symbolicLink: { dangling: true } };
+				}
+
+				throw error;
+			}
 		}
 
 		throw error;
@@ -294,7 +313,7 @@ export function writeFile(path: string, data: string | Buffer | Uint8Array, opti
 
 function toQueueKey(path: string): string {
 	let queueKey = path;
-	if (platform.isWindows || platform.isMacintosh) {
+	if (isWindows || isMacintosh) {
 		queueKey = queueKey.toLowerCase(); // accommodate for case insensitive file systems
 	}
 
