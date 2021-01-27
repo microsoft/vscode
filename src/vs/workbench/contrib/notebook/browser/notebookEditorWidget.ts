@@ -34,7 +34,7 @@ import { ServiceCollection } from 'vs/platform/instantiation/common/serviceColle
 import { ILayoutService } from 'vs/platform/layout/browser/layoutService';
 import { IQuickInputService, IQuickPickItem, QuickPickInput } from 'vs/platform/quickinput/common/quickInput';
 import { IStorageService, StorageScope, StorageTarget } from 'vs/platform/storage/common/storage';
-import { contrastBorder, diffInserted, diffRemoved, editorBackground, errorForeground, focusBorder, foreground, listInactiveSelectionBackground, registerColor, scrollbarSliderActiveBackground, scrollbarSliderBackground, scrollbarSliderHoverBackground, textBlockQuoteBackground, textBlockQuoteBorder, textLinkActiveForeground, textLinkForeground, textPreformatForeground, transparent } from 'vs/platform/theme/common/colorRegistry';
+import { contrastBorder, diffInserted, diffRemoved, editorBackground, errorForeground, focusBorder, foreground, listInactiveFocusBackground, listInactiveSelectionBackground, registerColor, scrollbarSliderActiveBackground, scrollbarSliderBackground, scrollbarSliderHoverBackground, textBlockQuoteBackground, textBlockQuoteBorder, textLinkActiveForeground, textLinkForeground, textPreformatForeground, transparent } from 'vs/platform/theme/common/colorRegistry';
 import { IColorTheme, IThemeService, registerThemingParticipant, ThemeColor, ThemeIcon } from 'vs/platform/theme/common/themeService';
 import { EditorMemento } from 'vs/workbench/browser/parts/editor/editorPane';
 import { IEditorMemento } from 'vs/workbench/common/editor';
@@ -2127,6 +2127,12 @@ export const focusedCellBorder = registerColor('notebook.focusedCellBorder', {
 	hc: focusBorder
 }, nls.localize('notebook.focusedCellBorder', "The color of the cell's top and bottom border when the cell is focused."));
 
+export const inactiveFocusedCellBorder = registerColor('notebook.inactiveFocusedCellBorder', {
+	dark: notebookCellBorder,
+	light: notebookCellBorder,
+	hc: notebookCellBorder
+}, nls.localize('notebook.inactiveFocusedCellBorder', "The color of the cell's top and bottom border when a cell is focused while the primary focus is outside of the editor."));
+
 export const cellStatusBarItemHover = registerColor('notebook.cellStatusBarItemHoverBackground', {
 	light: new Color(new RGBA(0, 0, 0, 0.08)),
 	dark: new Color(new RGBA(255, 255, 255, 0.15)),
@@ -2256,6 +2262,15 @@ registerThemingParticipant((theme, collector) => {
 			.monaco-workbench .notebookOverlay .monaco-list:focus-within .markdown-cell-row.focused .cell-inner-container:not(.cell-editor-focus):before,
 			.monaco-workbench .notebookOverlay .monaco-list:focus-within .markdown-cell-row.focused .cell-inner-container:not(.cell-editor-focus):after {
 				border-color: ${focusedCellBorderColor} !important;
+			}`);
+
+	const inactiveFocusedCellBorderColor = theme.getColor(inactiveFocusedCellBorder);
+	collector.addRule(`
+			.monaco-workbench .notebookOverlay .monaco-list .monaco-list-row.focused .cell-focus-indicator-top:before,
+			.monaco-workbench .notebookOverlay .monaco-list .monaco-list-row.focused .cell-focus-indicator-bottom:before,
+			.monaco-workbench .notebookOverlay .monaco-list .markdown-cell-row.focused .cell-inner-container:not(.cell-editor-focus):before,
+			.monaco-workbench .notebookOverlay .monaco-list .markdown-cell-row.focused .cell-inner-container:not(.cell-editor-focus):after {
+				border-color: ${inactiveFocusedCellBorderColor} !important;
 			}`);
 
 	const selectedCellBorderColor = theme.getColor(selectedCellBorder);
