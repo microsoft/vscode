@@ -307,7 +307,7 @@ class BranchNode implements ISplitView<ILayoutContext>, IDisposable {
 
 		if (!childDescriptors) {
 			// Normal behavior, we have no children yet, just set up the splitview
-			this.splitview = new SplitView(this.element, { orientation, styles, proportionalLayout });
+			this.splitview = new SplitView(this.element, { orientation, styles, proportionalLayout, manualLayout: true });
 			this.splitview.layout(size, { orthogonalSize, absoluteOffset: 0, absoluteOrthogonalOffset: 0, absoluteSize: size, absoluteOrthogonalSize: orthogonalSize });
 		} else {
 			// Reconstruction behavior, we want to reconstruct a splitview
@@ -325,7 +325,7 @@ class BranchNode implements ISplitView<ILayoutContext>, IDisposable {
 			const options = { proportionalLayout, orientation, styles };
 
 			this.children = childDescriptors.map(c => c.node);
-			this.splitview = new SplitView(this.element, { ...options, descriptor });
+			this.splitview = new SplitView(this.element, { ...options, descriptor, manualLayout: true });
 
 			this.children.forEach((node, index) => {
 				const first = index === 0;
@@ -830,6 +830,7 @@ export class GridView implements IDisposable {
 	private styles: IGridViewStyles;
 	private proportionalLayout: boolean;
 
+	private relayoutDisposable: IDisposable = Disposable.None;
 	private _root!: BranchNode;
 	private onDidSashResetRelay = new Relay<number[]>();
 	readonly onDidSashReset: Event<number[]> = this.onDidSashResetRelay.event;
@@ -844,6 +845,7 @@ export class GridView implements IDisposable {
 		const oldRoot = this._root;
 
 		if (oldRoot) {
+			this.relayoutDisposable.dispose();
 			this.element.removeChild(oldRoot.element);
 			oldRoot.dispose();
 		}
@@ -852,6 +854,7 @@ export class GridView implements IDisposable {
 		this.element.appendChild(root.element);
 		this.onDidSashResetRelay.input = root.onDidSashReset;
 		this._onDidChange.input = Event.map(root.onDidChange, () => undefined); // TODO
+		this.relayoutDisposable = root.onDidChange(e => this.layout(this.width, this.height));
 	}
 
 	get orientation(): Orientation {

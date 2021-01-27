@@ -33,6 +33,7 @@ export interface ISplitViewOptions<TLayoutContext = undefined> {
 	readonly inverseAltBehavior?: boolean;
 	readonly proportionalLayout?: boolean; // default true,
 	readonly descriptor?: ISplitViewDescriptor<TLayoutContext>;
+	readonly manualLayout?: boolean;
 }
 
 /**
@@ -227,6 +228,7 @@ export class SplitView<TLayoutContext = undefined> extends Disposable {
 	private state: State = State.Idle;
 	private inverseAltBehavior: boolean;
 	private proportionalLayout: boolean;
+	private manualLayout: boolean;
 
 	private _onDidSashChange = this._register(new Emitter<number>());
 	readonly onDidSashChange = this._onDidSashChange.event;
@@ -298,6 +300,7 @@ export class SplitView<TLayoutContext = undefined> extends Disposable {
 		this.orientation = types.isUndefined(options.orientation) ? Orientation.VERTICAL : options.orientation;
 		this.inverseAltBehavior = !!options.inverseAltBehavior;
 		this.proportionalLayout = types.isUndefined(options.proportionalLayout) ? true : !!options.proportionalLayout;
+		this.manualLayout = options.manualLayout ?? false;
 
 		this.el = document.createElement('div');
 		this.el.classList.add('monaco-split-view2');
@@ -682,7 +685,7 @@ export class SplitView<TLayoutContext = undefined> extends Disposable {
 			this.viewContainer.insertBefore(container, this.viewContainer.children.item(index));
 		}
 
-		const onChangeDisposable = view.onDidChange(size => this.onViewChange(item, size));
+		const onChangeDisposable = this.manualLayout ? Disposable.None : view.onDidChange(size => this.onViewChange(item, size));
 		const containerDisposable = toDisposable(() => this.viewContainer.removeChild(container));
 		const disposable = combinedDisposable(onChangeDisposable, containerDisposable);
 

@@ -1077,4 +1077,40 @@ suite('SerializableGrid', function () {
 		assert.deepEqual(grid2.isViewVisible(view4Copy), true);
 		assert.deepEqual(grid2.isViewVisible(view5Copy), true);
 	});
+
+	test('limit layout calls', function () {
+		const view1 = new TestView(50, Number.MAX_VALUE, 50, Number.MAX_VALUE);
+		const view2 = new TestView(50, Number.MAX_VALUE, 50, Number.MAX_VALUE);
+		const view3 = new TestView(50, Number.MAX_VALUE, 50, Number.MAX_VALUE);
+		const view4 = new TestView(50, Number.MAX_VALUE, 50, Number.MAX_VALUE);
+		const view5 = new TestView(50, Number.MAX_VALUE, 50, Number.MAX_VALUE);
+
+		const grid = new Grid(view1);
+		container.appendChild(grid.element);
+
+		grid.layout(800, 600);
+		grid.addView(view2, 200, view1, Direction.Up);
+		grid.addView(view3, 200, view1, Direction.Right);
+		grid.addView(view4, 200, view2, Direction.Left);
+		grid.addView(view5, 100, view1, Direction.Down);
+
+		let view1LayoutCount = 0;
+		view1.onDidChange(_ => view1LayoutCount++);
+		let view2LayoutCount = 0;
+		view2.onDidChange(_ => view2LayoutCount++);
+		let view3LayoutCount = 0;
+		view3.onDidChange(_ => view3LayoutCount++);
+		let view4LayoutCount = 0;
+		view4.onDidChange(_ => view4LayoutCount++);
+		let view5LayoutCount = 0;
+		view5.onDidChange(_ => view5LayoutCount++);
+
+		view2.minimumWidth = view2.minimumWidth; // trigger onDidChange
+
+		assert.deepStrictEqual(view1LayoutCount, 1);
+		assert.deepStrictEqual(view2LayoutCount, 1);
+		assert.deepStrictEqual(view3LayoutCount, 1);
+		assert.deepStrictEqual(view4LayoutCount, 1);
+		assert.deepStrictEqual(view5LayoutCount, 1);
+	});
 });
