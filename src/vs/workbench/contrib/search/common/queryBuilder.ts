@@ -17,7 +17,6 @@ import { URI, URI as uri } from 'vs/base/common/uri';
 import { isMultilineRegexSource } from 'vs/editor/common/model/textModelSearch';
 import * as nls from 'vs/nls';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
-import { IFileService } from 'vs/platform/files/common/files';
 import { IWorkspaceContextService, IWorkspaceFolderData, toWorkspaceFolder, WorkbenchState } from 'vs/platform/workspace/common/workspace';
 import { IEditorGroupsService } from 'vs/workbench/services/editor/common/editorGroupsService';
 import { IPathService } from 'vs/workbench/services/path/common/pathService';
@@ -87,7 +86,6 @@ export class QueryBuilder {
 		@IConfigurationService private readonly configurationService: IConfigurationService,
 		@IWorkspaceContextService private readonly workspaceContextService: IWorkspaceContextService,
 		@IEditorGroupsService private readonly editorGroupsService: IEditorGroupsService,
-		@IFileService private readonly fileService: IFileService,
 		@IPathService private readonly pathService: IPathService
 	) {
 	}
@@ -210,7 +208,9 @@ export class QueryBuilder {
 		files.forEach(file => {
 
 			const providerExists = isAbsolutePath(file);
-			if (providerExists) {
+			// Special case userdata as we don't have a search provider for it, but it can be searched.
+			const isUserdata = file.scheme === Schemas.userData;
+			if (providerExists && !isUserdata) {
 				const searchRoot = this.workspaceContextService.getWorkspaceFolder(file)?.uri ?? file.with({ path: path.dirname(file.fsPath) });
 
 				let folderQuery = foldersToSearch.get(searchRoot);
@@ -224,7 +224,7 @@ export class QueryBuilder {
 				assertIsDefined(folderQuery.includePattern)[relPath] = true;
 			} else {
 				if (file.path) {
-					includePattern[file.path] = true;
+					includePattern[file.fsPath] = true;
 				}
 			}
 		});
