@@ -766,7 +766,8 @@ export class ExtensionActionWithDropdownActionViewItem extends ActionWithDropdow
 
 	updateClass(): void {
 		super.updateClass();
-		if (this.dropdownMenuActionViewItem && this.dropdownMenuActionViewItem.element) {
+		if (this.element && this.dropdownMenuActionViewItem && this.dropdownMenuActionViewItem.element) {
+			this.element.classList.toggle('empty', (<ActionWithDropDownAction>this._action).menuActions.length === 0);
 			this.dropdownMenuActionViewItem.element.classList.toggle('hide', (<ActionWithDropDownAction>this._action).menuActions.length === 0);
 		}
 	}
