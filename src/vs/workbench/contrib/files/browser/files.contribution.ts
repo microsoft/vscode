@@ -476,6 +476,11 @@ configurationRegistry.registerConfiguration({
 			'description': nls.localize('compressSingleChildFolders', "Controls whether the explorer should render folders in a compact form. In such a form, single child folders will be compressed in a combined tree element. Useful for Java package structures, for example."),
 			'default': true
 		},
+		'explorer.mergeDirectories': {
+			type: 'boolean',
+			description: nls.localize('explorer.mergeDirectories', "Controls whether directories with the same names should be merged or replaced."),
+			default: true
+		},
 	}
 });
 

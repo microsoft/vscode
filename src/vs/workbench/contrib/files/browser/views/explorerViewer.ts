@@ -1460,7 +1460,7 @@ export class FileDragAndDrop implements ITreeDragAndDrop<ExplorerItem> {
 
 	private async doHandleExplorerDropOnMove(sources: ExplorerItem[], target: ExplorerItem): Promise<void> {
 
-		const mergeDirectories = true; // TODO: property or modal dialog
+		const mergeDirectories = this.configurationService.getValue('explorer.mergeDirectories');
 
 		// Do not allow moving readonly items
 		let resourceFileEdits = sources.filter(source => !source.isReadonly).map(source => new ResourceFileEdit(source.resource, joinPath(target.resource, source.name)));
