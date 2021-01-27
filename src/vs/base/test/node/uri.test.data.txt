@@ -1926,7 +1926,6 @@
 /users/foo/src/vs/workbench/services/editor/test/browser/editorService.test.ts
 /users/foo/src/vs/workbench/services/editor/common
 /users/foo/src/vs/workbench/services/editor/common/editorService.ts
-/users/foo/src/vs/css.d.ts
 /users/foo/src/vs/nls.mock.ts
 /users/foo/src/vs/css.js
 /users/foo/src/vs/nls.build.js
