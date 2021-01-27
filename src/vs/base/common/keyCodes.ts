@@ -617,5 +617,5 @@ export abstract class ResolvedKeybinding {
 	 * Returns a single key string if there are no other parts to the keybinding else returns null
 	 * Useful for keybinding time sensitive double presses of a single key
 	 */
-	public abstract getSingleKeyDispatchString(): (string | null);
+	public abstract getModifierDispatchString(): (string | null)[];
 }

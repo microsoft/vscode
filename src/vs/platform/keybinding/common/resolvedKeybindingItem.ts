@@ -22,7 +22,17 @@ export class ResolvedKeybindingItem {
 
 	constructor(resolvedKeybinding: ResolvedKeybinding | undefined, command: string | null, commandArgs: any, when: ContextKeyExpression | undefined, isDefault: boolean, extensionId: string | null, isBuiltinExtension: boolean) {
 		this.resolvedKeybinding = resolvedKeybinding;
-		this.keypressParts = resolvedKeybinding ? removeElementsAfterNulls(resolvedKeybinding.getDispatchParts()) : [];
+
+		let dispatchParts: string[] = [];
+
+		if (resolvedKeybinding) {
+			dispatchParts = removeElementsAfterNulls(resolvedKeybinding.getDispatchParts());
+			if (dispatchParts.length === 0) {
+				dispatchParts = removeElementsAfterNulls(resolvedKeybinding.getModifierDispatchString());
+			}
+		}
+
+		this.keypressParts = dispatchParts;
 		this.bubble = (command ? command.charCodeAt(0) === CharCode.Caret : false);
 		this.command = this.bubble ? command!.substr(1) : command;
 		this.commandArgs = commandArgs;

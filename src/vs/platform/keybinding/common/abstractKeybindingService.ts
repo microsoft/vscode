@@ -177,6 +177,11 @@ export abstract class AbstractKeybindingService extends Disposable implements IK
 		return this._doDispatch(this.resolveKeyboardEvent(e), target);
 	}
 
+	protected _doublePressdispatch(e: IKeyboardEvent, target: IContextKeyServiceTarget): boolean {
+		const shouldPreventDefault = this._doDoublePressDispatch(this.resolveKeyboardEvent(e), target);
+		return shouldPreventDefault;
+	}
+
 	// stores the pressed key, and then clears it in 200ms
 	private _doublePressStart(singlekeyDispatchString: string) {
 		this._doublePressStop();
@@ -184,7 +189,7 @@ export abstract class AbstractKeybindingService extends Disposable implements IK
 		this._currentDoublePressKey = singlekeyDispatchString;
 		this._currentDoublePressKeyClearTimeout = setTimeout(() => {
 			this._currentDoublePressKey = null;
-		}, 200);
+		}, 300);
 	}
 
 	private _doublePressStop() {
@@ -195,48 +200,54 @@ export abstract class AbstractKeybindingService extends Disposable implements IK
 		this._currentDoublePressKeyClearTimeout = null;
 	}
 
-
 	private _doDoublePressCheck(keybinding: ResolvedKeybinding): boolean {
 		const parts = keybinding.getParts();
-		if (parts.length !== 1) {
-			return false;
-		}
 
 		// for UI responsiveness we disable other keys
 		// this line is very important, else "backspace" key spamming will lag
-		if (parts[0].isCtrlOrShiftOrAlt() === false) {
-			return false;
-		}
-
-		// searches a keymap array to get the dispatch string
-		const singlekeyDispatchString = keybinding.getSingleKeyDispatchString();
-		if (singlekeyDispatchString === null) {
-			return false;
-		}
-
-		if (this._currentDoublePressKey === null) {
-			this._doublePressStart(singlekeyDispatchString);
-			return false;
-		}
-
-		if (singlekeyDispatchString !== this._currentDoublePressKey) {
+		if (
+			parts.length > 1
+			|| parts.length === 0
+			|| parts[0].isCtrlOrShiftOrAlt() === false
+		) {
 			this._doublePressStop();
 			return false;
 		}
 
+		// searches a keymap array to get the dispatch string
+		const [singlekeyDispatchString,] = keybinding.getModifierDispatchString();
+
+		// we have a valid singlekeyDispatchString, store it for next keypress
+		if (this._currentDoublePressKey === null && singlekeyDispatchString !== null) {
+			this._doublePressStart(singlekeyDispatchString); // start
+			return false;
+		}
+
+		if (this._currentDoublePressKey !== null && singlekeyDispatchString === this._currentDoublePressKey) {
+			this._doublePressStop();
+			return true;
+		}
+
 		this._doublePressStop();
-		return true;
+		return false;
 	}
 
-	private _doDispatch(keybinding: ResolvedKeybinding, target: IContextKeyServiceTarget): boolean {
+
+	private _doDoublePressDispatch(keybinding: ResolvedKeybinding, target: IContextKeyServiceTarget) {
+		const isDoublePress = this._doDoublePressCheck(keybinding);
+		if (isDoublePress) {
+			return this._doDispatch(keybinding, target, isDoublePress);
+		}
+		return false;
+	}
+
+	private _doDispatch(keybinding: ResolvedKeybinding, target: IContextKeyServiceTarget, isDoublePress = false): boolean {
 		let shouldPreventDefault = false;
 
 		if (keybinding.isChord()) {
 			console.warn('Unexpected keyboard event mapped to a chord');
 			return false;
 		}
-
-		const isDoublePress = this._doDoublePressCheck(keybinding);
 
 		let firstPart = null; // the first keybind i.e. Ctrl+K
 		let currentChord = null;// the "second" keybind i.e. Ctrl+K "Ctrl+D"
@@ -245,14 +256,13 @@ export abstract class AbstractKeybindingService extends Disposable implements IK
 			[firstPart,] = keybinding.getDispatchParts();
 			currentChord = this._currentChord ? this._currentChord.keypress : null;
 		} else {
-			const dispatchKeyname = keybinding.getSingleKeyDispatchString();
+			const [dispatchKeyname,] = keybinding.getModifierDispatchString();
 			firstPart = dispatchKeyname;
 			currentChord = dispatchKeyname;
 		}
 
 		if (firstPart === null) {
 			this._log(`\\ Keyboard event cannot be dispatched.`);
-
 			// cannot be dispatched, probably only modifier keys
 			return shouldPreventDefault;
 		}
