@@ -734,12 +734,12 @@ export class DiffReview extends Disposable {
 
 			let lineContent: string;
 			if (modifiedLine !== 0) {
-				cell.insertAdjacentHTML('beforeend',
+				cell.insertAdjacentText('beforeend',
 					this._renderLine(modifiedModel, modifiedOptions, modifiedModelOpts.tabSize, modifiedLine)
 				);
 				lineContent = modifiedModel.getLineContent(modifiedLine);
 			} else {
-				cell.insertAdjacentHTML('beforeend',
+				cell.insertAdjacentText('beforeend',
 					this._renderLine(originalModel, originalOptions, originalModelOpts.tabSize, originalLine)
 				);
 				lineContent = originalModel.getLineContent(originalLine);
