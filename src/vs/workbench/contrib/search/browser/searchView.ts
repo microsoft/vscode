@@ -268,6 +268,8 @@ export class SearchView extends ViewPane {
 		const patternExclusionsHistory: string[] = history.exclude || [];
 		const patternIncludes = this.viewletState['query.folderIncludes'] || '';
 		const patternIncludesHistory: string[] = history.include || [];
+		const onlyOpenEditors = this.viewletState['query.onlyOpenEditors'] || false;
+
 		const queryDetailsExpanded = this.viewletState['query.queryDetailsExpanded'] || '';
 		const useExcludesAndIgnoreFiles = typeof this.viewletState['query.useExcludesAndIgnoreFiles'] === 'boolean' ?
 			this.viewletState['query.useExcludesAndIgnoreFiles'] : true;
@@ -315,6 +317,7 @@ export class SearchView extends ViewPane {
 		}));
 
 		this.inputPatternIncludes.setValue(patternIncludes);
+		this.inputPatternIncludes.setOnlySearchInOpenEditors(onlyOpenEditors);
 
 		this._register(this.inputPatternIncludes.onSubmit(triggeredOnType => this.triggerQueryChange({ triggeredOnType, delay: this.searchConfig.searchOnTypeDebouncePeriod })));
 		this._register(this.inputPatternIncludes.onCancel(() => this.cancelSearch(false)));
@@ -1816,6 +1819,7 @@ export class SearchView extends ViewPane {
 		const contentPattern = this.searchWidget.searchInput.getValue();
 		const patternExcludes = this.inputPatternExcludes.getValue().trim();
 		const patternIncludes = this.inputPatternIncludes.getValue().trim();
+		const onlyOpenEditors = this.inputPatternIncludes.onlySearchInOpenEditors();
 		const useExcludesAndIgnoreFiles = this.inputPatternExcludes.useExcludesAndIgnoreFiles();
 		const preserveCase = this.viewModel.preserveCase;
 
@@ -1827,6 +1831,7 @@ export class SearchView extends ViewPane {
 		this.viewletState['query.folderIncludes'] = patternIncludes;
 		this.viewletState['query.useExcludesAndIgnoreFiles'] = useExcludesAndIgnoreFiles;
 		this.viewletState['query.preserveCase'] = preserveCase;
+		this.viewletState['query.onlyOpenEditors'] = onlyOpenEditors;
 
 		const isReplaceShown = this.searchAndReplaceWidget.isReplaceShown();
 		this.viewletState['view.showReplace'] = isReplaceShown;
