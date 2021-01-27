@@ -5,7 +5,7 @@
 
 import * as nls from 'vs/nls';
 import * as arrays from 'vs/base/common/arrays';
-import { IntervalTimer } from 'vs/base/common/async';
+import { IntervalTimer, TimeoutTimer } from 'vs/base/common/async';
 import { Emitter, Event } from 'vs/base/common/event';
 import { KeyCode, Keybinding, ResolvedKeybinding } from 'vs/base/common/keyCodes';
 import { Disposable, IDisposable } from 'vs/base/common/lifecycle';
@@ -35,8 +35,8 @@ export abstract class AbstractKeybindingService extends Disposable implements IK
 	private _currentChord: CurrentChord | null;
 	private _currentChordChecker: IntervalTimer;
 	private _currentChordStatusMessage: IDisposable | null;
-	private _currentDoublePressKey: null | string = null;
-	private _currentDoublePressKeyClearTimeout: null | NodeJS.Timeout = null;
+	private _currentDoublePressKey: null | string;
+	private _currentDoublePressKeyClearTimeout: TimeoutTimer;
 
 	protected _logging: boolean;
 
@@ -56,6 +56,8 @@ export abstract class AbstractKeybindingService extends Disposable implements IK
 		this._currentChord = null;
 		this._currentChordChecker = new IntervalTimer();
 		this._currentChordStatusMessage = null;
+		this._currentDoublePressKey = null;
+		this._currentDoublePressKeyClearTimeout = new TimeoutTimer();
 		this._logging = false;
 	}
 
@@ -187,17 +189,14 @@ export abstract class AbstractKeybindingService extends Disposable implements IK
 		this._doublePressStop();
 
 		this._currentDoublePressKey = singlekeyDispatchString;
-		this._currentDoublePressKeyClearTimeout = setTimeout(() => {
+		this._currentDoublePressKeyClearTimeout.cancelAndSet(() => {
 			this._currentDoublePressKey = null;
 		}, 300);
 	}
 
 	private _doublePressStop() {
-		if (this._currentDoublePressKeyClearTimeout) {
-			clearTimeout(this._currentDoublePressKeyClearTimeout);
-		}
+		this._currentDoublePressKeyClearTimeout.cancel();
 		this._currentDoublePressKey = null;
-		this._currentDoublePressKeyClearTimeout = null;
 	}
 
 	private _doDoublePressCheck(keybinding: ResolvedKeybinding): boolean {
