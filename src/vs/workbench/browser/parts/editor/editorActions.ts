@@ -16,7 +16,7 @@ import { IEditorService } from 'vs/workbench/services/editor/common/editorServic
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { DisposableStore } from 'vs/base/common/lifecycle';
 import { IWorkspacesService } from 'vs/platform/workspaces/common/workspaces';
-import { IFileDialogService, ConfirmResult } from 'vs/platform/dialogs/common/dialogs';
+import { IFileDialogService, ConfirmResult, IDialogService } from 'vs/platform/dialogs/common/dialogs';
 import { IWorkingCopyService } from 'vs/workbench/services/workingCopy/common/workingCopyService';
 import { ItemActivation, IQuickInputService } from 'vs/platform/quickinput/common/quickInput';
 import { AllEditorsByMostRecentlyUsedQuickAccess, ActiveGroupEditorsByMostRecentlyUsedQuickAccess, AllEditorsByAppearanceQuickAccess } from 'vs/workbench/browser/parts/editor/editorQuickAccess';
@@ -24,6 +24,7 @@ import { Codicon } from 'vs/base/common/codicons';
 import { IFilesConfigurationService, AutoSaveMode } from 'vs/workbench/services/filesConfiguration/common/filesConfigurationService';
 import { openEditorWith, getAllAvailableEditors } from 'vs/workbench/services/editor/common/editorOpenWith';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
+import Severity from 'vs/base/common/severity';
 
 export class ExecuteCommandAction extends Action {
 
@@ -1895,6 +1896,7 @@ export class ReopenResourcesAction extends Action {
 		id: string,
 		label: string,
 		@IEditorService private readonly editorService: IEditorService,
+		@IDialogService private readonly dialogService: IDialogService,
 		@IInstantiationService private readonly instantiationService: IInstantiationService,
 	) {
 		super(id, label);
@@ -1913,6 +1915,28 @@ export class ReopenResourcesAction extends Action {
 
 		const options = activeEditorPane.options;
 		const group = activeEditorPane.group;
+		// The current editor needs to be saved before it can be triggered with open with
+		if (activeInput.isDirty()) {
+			const message = nls.localize('promptOpenWith.unsaved', 'This file has unsaved changes and is attempting to be opened in a custom editor.');
+			const buttonActions: string[] = [
+				nls.localize('save', 'Save'),
+				nls.localize('discard', 'Discard Changes'),
+				nls.localize('abort', 'Abort')
+			];
+			enum UnsavedEditorAction {
+				SAVE = 0,
+				DISCARD = 1,
+				ABORT = 2,
+			}
+			const res = await this.dialogService.show(Severity.Warning, message, buttonActions);
+			if (res.choice === UnsavedEditorAction.SAVE) {
+				await activeInput.save(group.id, { reason: SaveReason.EXPLICIT });
+			} else if (res.choice === UnsavedEditorAction.DISCARD) {
+				await this.editorService.revert({ groupId: group.id, editor: activeInput });
+			} else {
+				return;
+			}
+		}
 		await this.instantiationService.invokeFunction(openEditorWith, activeInput, undefined, options, group);
 	}
 }
