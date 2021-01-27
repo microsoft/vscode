@@ -45,7 +45,7 @@ class DocumentSymbolBreadcrumbsSource implements IBreadcrumbsDataSource<Document
 		@ITextResourceConfigurationService private readonly _textResourceConfigurationService: ITextResourceConfigurationService,
 	) { }
 
-	getBreadcrumbElements(): Iterable<DocumentSymbolItem> {
+	getBreadcrumbElements(): readonly DocumentSymbolItem[] {
 		return this._breadcrumbs;
 	}
 

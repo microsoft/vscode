@@ -129,8 +129,5 @@ suite('History Storage', () => {
 		};
 
 		assertEqualRecentlyOpened(windowsState, expected, 'v1_33');
-
 	});
-
-
 });

@@ -16,7 +16,7 @@ import { createDecorator } from 'vs/platform/instantiation/common/instantiation'
 import { IExternalOpener, IOpenerService } from 'vs/platform/opener/common/opener';
 import { IQuickInputService, IQuickPickItem, IQuickPickSeparator } from 'vs/platform/quickinput/common/quickInput';
 import { IStorageService } from 'vs/platform/storage/common/storage';
-import { defaultExternalUriOpenerId, ExternalUriOpenerConfiguration, externalUriOpenersSettingId } from 'vs/workbench/contrib/externalUriOpener/common/configuration';
+import { defaultExternalUriOpenerId, ExternalUriOpenersConfiguration, externalUriOpenersSettingId } from 'vs/workbench/contrib/externalUriOpener/common/configuration';
 import { testUrlMatchesGlob } from 'vs/workbench/contrib/url/common/urlGlob';
 import { IPreferencesService } from 'vs/workbench/services/preferences/common/preferences';
 
@@ -139,9 +139,9 @@ export class ExternalUriOpenerService extends Disposable implements IExternalUri
 	}
 
 	private getConfiguredOpenerForUri(openers: Map<string, IExternalUriOpener>, targetUri: URI): IExternalUriOpener | 'default' | undefined {
-		const config = this.configurationService.getValue<readonly ExternalUriOpenerConfiguration[]>(externalUriOpenersSettingId) || [];
-		for (const { id, uri } of config) {
-			if (testUrlMatchesGlob(targetUri.toString(), uri)) {
+		const config = this.configurationService.getValue<ExternalUriOpenersConfiguration>(externalUriOpenersSettingId) || {};
+		for (const [uriGlob, id] of Object.entries(config)) {
+			if (testUrlMatchesGlob(targetUri.toString(), uriGlob)) {
 				if (id === defaultExternalUriOpenerId) {
 					return 'default';
 				}

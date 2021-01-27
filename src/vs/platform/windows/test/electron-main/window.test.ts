@@ -51,7 +51,7 @@ function createTestCodeWindow(options: { lastFocusTime: number, openedFolderUri?
 		ready(): Promise<ICodeWindow> { throw new Error('Method not implemented.'); }
 		setReady(): void { throw new Error('Method not implemented.'); }
 		addTabbedWindow(window: ICodeWindow): void { throw new Error('Method not implemented.'); }
-		load(config: INativeWindowConfiguration, isReload?: boolean): void { throw new Error('Method not implemented.'); }
+		load(config: INativeWindowConfiguration, options: { isReload?: boolean }): void { throw new Error('Method not implemented.'); }
 		reload(cli?: NativeParsedArgs): void { throw new Error('Method not implemented.'); }
 		focus(options?: { force: boolean; }): void { throw new Error('Method not implemented.'); }
 		close(): void { throw new Error('Method not implemented.'); }
@@ -83,8 +83,8 @@ const windows: ICodeWindow[] = [
 suite('WindowsFinder', () => {
 
 	test('New window without folder when no windows exist', () => {
-		assert.equal(findWindowOnFile([], URI.file('nonexisting'), localWorkspaceResolver), null);
-		assert.equal(findWindowOnFile([], URI.file(path.join(fixturesFolder, 'no_vscode_folder', 'file.txt')), localWorkspaceResolver), null);
+		assert.strictEqual(findWindowOnFile([], URI.file('nonexisting'), localWorkspaceResolver), undefined);
+		assert.strictEqual(findWindowOnFile([], URI.file(path.join(fixturesFolder, 'no_vscode_folder', 'file.txt')), localWorkspaceResolver), undefined);
 	});
 
 	test('Existing window with folder', () => {

@@ -825,7 +825,7 @@ export class SearchView extends ViewPane {
 			if (next === selected) {
 				this.tree.setFocus([]);
 			}
-			this.tree.setFocus([next], getSelectionKeyboardEvent(undefined, false));
+			this.tree.setFocus([next], getSelectionKeyboardEvent(undefined, false, false));
 			this.tree.reveal(next);
 			const ariaLabel = this.treeAccessibilityProvider.getAriaLabel(next);
 			if (ariaLabel) { aria.alert(ariaLabel); }
@@ -866,7 +866,7 @@ export class SearchView extends ViewPane {
 			if (prev === selected) {
 				this.tree.setFocus([]);
 			}
-			this.tree.setFocus([prev], getSelectionKeyboardEvent(undefined, false));
+			this.tree.setFocus([prev], getSelectionKeyboardEvent(undefined, false, false));
 			this.tree.reveal(prev);
 			const ariaLabel = this.treeAccessibilityProvider.getAriaLabel(prev);
 			if (ariaLabel) { aria.alert(ariaLabel); }
@@ -1363,7 +1363,7 @@ export class SearchView extends ViewPane {
 		// Validate folderQueries
 		const folderQueriesExistP =
 			query.folderQueries.map(fq => {
-				return this.fileService.exists(fq.folder);
+				return this.fileService.exists(fq.folder).catch(() => false);
 			});
 
 		return Promise.all(folderQueriesExistP).then(existResults => {

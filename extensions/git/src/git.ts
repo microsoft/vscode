@@ -1978,50 +1978,52 @@ export class Repository {
 			return this.getHEAD();
 		}
 
-		let result = await this.run(['rev-parse', name]);
+		const result = await this.run(['for-each-ref', '--format=%(refname)%00%(upstream:short)%00%(upstream:track)%00%(objectname)', `refs/heads/${name}`, `refs/remotes/${name}`]);
+		const branches: Branch[] = result.stdout.trim().split('\n').map<Branch | undefined>(line => {
+			let [branchName, upstream, status, ref] = line.trim().split('\0');
 
-		if (!result.stdout && /^@/.test(name)) {
-			const symbolicFullNameResult = await this.run(['rev-parse', '--symbolic-full-name', name]);
-			name = symbolicFullNameResult.stdout.trim();
+			if (branchName.startsWith('refs/heads/')) {
+				branchName = branchName.substring(11);
+				const index = upstream.indexOf('/');
 
-			result = await this.run(['rev-parse', name]);
-		}
-
-		if (!result.stdout) {
-			return Promise.reject<Branch>(new Error('No such branch'));
-		}
-
-		const commit = result.stdout.trim();
-
-		try {
-			const res2 = await this.run(['rev-parse', '--symbolic-full-name', name + '@{u}']);
-			const fullUpstream = res2.stdout.trim();
-			const match = /^refs\/remotes\/([^/]+)\/(.+)$/.exec(fullUpstream);
-
-			if (!match) {
-				throw new Error(`Could not parse upstream branch: ${fullUpstream}`);
-			}
-
-			const upstream = { remote: match[1], name: match[2] };
-			const res3 = await this.run(['rev-list', '--left-right', name + '...' + fullUpstream]);
-
-			let ahead = 0, behind = 0;
-			let i = 0;
-
-			while (i < res3.stdout.length) {
-				switch (res3.stdout.charAt(i)) {
-					case '<': ahead++; break;
-					case '>': behind++; break;
-					default: i++; break;
+				let ahead;
+				let behind;
+				const match = /\[(?:ahead ([0-9]+))?[,\s]*(?:behind ([0-9]+))?]|\[gone]/.exec(status);
+				if (match) {
+					[, ahead, behind] = match;
 				}
 
-				while (res3.stdout.charAt(i++) !== '\n') { /* no-op */ }
-			}
+				return {
+					type: RefType.Head,
+					name: branchName,
+					upstream: upstream ? {
+						name: upstream.substring(index + 1),
+						remote: upstream.substring(0, index)
+					} : undefined,
+					commit: ref || undefined,
+					ahead: Number(ahead) || 0,
+					behind: Number(behind) || 0,
+				};
+			} else if (branchName.startsWith('refs/remotes/')) {
+				branchName = branchName.substring(13);
+				const index = branchName.indexOf('/');
 
-			return { name, type: RefType.Head, commit, upstream, ahead, behind };
-		} catch (err) {
-			return { name, type: RefType.Head, commit };
+				return {
+					type: RefType.RemoteHead,
+					name: branchName.substring(index + 1),
+					remote: branchName.substring(0, index),
+					commit: ref,
+				};
+			} else {
+				return undefined;
+			}
+		}).filter((b?: Branch): b is Branch => !!b);
+
+		if (branches.length) {
+			return branches[0];
 		}
+
+		return Promise.reject<Branch>(new Error('No such branch'));
 	}
 
 	async getBranches(query: BranchQuery): Promise<Ref[]> {

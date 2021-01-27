@@ -30,6 +30,9 @@ export interface ITestExplorerFilterState {
 	readonly onDidRequestReveal: Event<string[]>;
 	value: string;
 	reveal: string[] | undefined;
+
+	readonly onDidRequestInputFocus: Event<void>;
+	focusInput(): void;
 }
 
 export const ITestExplorerFilterState = createDecorator<ITestExplorerFilterState>('testingFilterState');
@@ -38,9 +41,11 @@ export class TestExplorerFilterState implements ITestExplorerFilterState {
 	declare _serviceBrand: undefined;
 	private readonly revealRequest = new Emitter<string[]>();
 	private readonly changeEmitter = new Emitter<string>();
+	private readonly focusEmitter = new Emitter<void>();
 	private _value = '';
 	private _reveal?: string[];
 
+	public readonly onDidRequestInputFocus = this.focusEmitter.event;
 	public readonly onDidRequestReveal = this.revealRequest.event;
 	public readonly onDidChange = this.changeEmitter.event;
 
@@ -64,6 +69,10 @@ export class TestExplorerFilterState implements ITestExplorerFilterState {
 			this._value = v;
 			this.changeEmitter.fire(v);
 		}
+	}
+
+	public focusInput() {
+		this.focusEmitter.fire();
 	}
 }
 
@@ -104,6 +113,10 @@ export class TestingExplorerFilter extends BaseActionViewItem {
 
 		this._register(this.state.onDidChange(newValue => {
 			input.value = newValue;
+		}));
+
+		this._register(this.state.onDidRequestInputFocus(() => {
+			input.focus();
 		}));
 
 		this._register(input.onDidChange(() => updateDelayer.trigger(() => {

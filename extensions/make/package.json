@@ -1,0 +1,51 @@
+{
+	"name": "make",
+	"displayName": "%displayName%",
+	"description": "%description%",
+	"version": "1.0.0",
+	"publisher": "vscode",
+	"license": "MIT",
+	"engines": {
+		"vscode": "*"
+	},
+	"scripts": {
+		"update-grammar": "node ../../build/npm/update-grammar.js fadeevab/make.tmbundle Syntaxes/Makefile.plist ./syntaxes/make.tmLanguage.json"
+	},
+	"contributes": {
+		"languages": [
+			{
+				"id": "makefile",
+				"aliases": [
+					"Makefile",
+					"makefile"
+				],
+				"extensions": [
+					".mk"
+				],
+				"filenames": [
+					"Makefile",
+					"makefile",
+					"GNUmakefile",
+					"OCamlMakefile"
+				],
+				"firstLine": "^#!\\s*/usr/bin/make",
+				"configuration": "./language-configuration.json"
+			}
+		],
+		"grammars": [
+			{
+				"language": "makefile",
+				"scopeName": "source.makefile",
+				"path": "./syntaxes/make.tmLanguage.json",
+				"tokenTypes": {
+					"string.interpolated": "other"
+				}
+			}
+		],
+		"configurationDefaults": {
+			"[makefile]": {
+				"editor.insertSpaces": false
+			}
+		}
+	}
+}

@@ -467,7 +467,7 @@ export function getCellUndoRedoComparisonKey(uri: URI) {
 		return uri.toString();
 	}
 
-	return `vt=${data.viewType}&uri=data.notebook.toString()`;
+	return data.notebook.toString();
 }
 
 
@@ -477,23 +477,14 @@ export namespace CellUri {
 
 	const _regex = /^ch(\d{7,})/;
 
-	export function generate(notebook: URI, viewType: string, handle: number): URI {
+	export function generate(notebook: URI, handle: number): URI {
 		return notebook.with({
 			scheme,
-			fragment: `ch${handle.toString().padStart(7, '0')}${notebook.scheme !== Schemas.file ? notebook.scheme : ''}`,
-			query: `vt=${viewType}`
+			fragment: `ch${handle.toString().padStart(7, '0')}${notebook.scheme !== Schemas.file ? notebook.scheme : ''}`
 		});
 	}
 
-	export function generateCellMetadataUri(notebook: URI, handle: number): URI {
-		return notebook.with({
-			scheme: Schemas.vscode,
-			authority: 'vscode-notebook-cell-metadata',
-			fragment: `${handle.toString().padStart(7, '0')}${notebook.scheme !== Schemas.file ? notebook.scheme : ''}`
-		});
-	}
-
-	export function parse(cell: URI): { notebook: URI, handle: number, viewType: string } | undefined {
+	export function parse(cell: URI): { notebook: URI, handle: number } | undefined {
 		if (cell.scheme !== scheme) {
 			return undefined;
 		}
@@ -506,10 +497,33 @@ export namespace CellUri {
 			handle,
 			notebook: cell.with({
 				scheme: cell.fragment.substr(match[0].length) || Schemas.file,
-				fragment: null,
-				query: null
-			}),
-			viewType: cell.query.substr('vt='.length)
+				fragment: null
+			})
+		};
+	}
+
+	export function generateCellMetadataUri(notebook: URI, handle: number): URI {
+		return notebook.with({
+			scheme: Schemas.vscodeNotebookCellMetadata,
+			fragment: `ch${handle.toString().padStart(7, '0')}${notebook.scheme !== Schemas.file ? notebook.scheme : ''}`
+		});
+	}
+
+	export function parseCellMetadataUri(metadata: URI) {
+		if (metadata.scheme !== Schemas.vscodeNotebookCellMetadata) {
+			return undefined;
+		}
+		const match = _regex.exec(metadata.fragment);
+		if (!match) {
+			return undefined;
+		}
+		const handle = Number(match[1]);
+		return {
+			handle,
+			notebook: metadata.with({
+				scheme: metadata.fragment.substr(match[0].length) || Schemas.file,
+				fragment: null
+			})
 		};
 	}
 }

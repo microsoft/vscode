@@ -336,12 +336,11 @@ suite('CellUri', function () {
 		const nb = URI.parse('foo:///bar/følder/file.nb');
 		const id = 17;
 
-		const data = CellUri.generate(nb, 'test', id);
+		const data = CellUri.generate(nb, id);
 		const actual = CellUri.parse(data);
 		assert.ok(Boolean(actual));
 		assert.equal(actual?.handle, id);
 		assert.equal(actual?.notebook.toString(), nb.toString());
-		assert.equal(actual?.viewType, 'test');
 	});
 
 	test('parse, generate (foo-scheme)', function () {
@@ -349,11 +348,10 @@ suite('CellUri', function () {
 		const nb = URI.parse('foo:///bar/følder/file.nb');
 		const id = 17;
 
-		const data = CellUri.generate(nb, 'test', id);
+		const data = CellUri.generate(nb, id);
 		const actual = CellUri.parse(data);
 		assert.ok(Boolean(actual));
 		assert.equal(actual?.handle, id);
 		assert.equal(actual?.notebook.toString(), nb.toString());
-		assert.equal(actual?.viewType, 'test');
 	});
 });

@@ -98,6 +98,10 @@
 	cursor: pointer;
 }
 
-.monaco-editor .testing-inline-message {
+.monaco-editor .testing-inline-message-content {
 	cursor: pointer;
+}
+
+.monaco-editor .testing-inline-message-line {
+	background: red;
 }

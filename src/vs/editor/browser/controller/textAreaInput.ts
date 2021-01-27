@@ -13,7 +13,7 @@ import { KeyCode } from 'vs/base/common/keyCodes';
 import { Disposable, IDisposable } from 'vs/base/common/lifecycle';
 import * as platform from 'vs/base/common/platform';
 import * as strings from 'vs/base/common/strings';
-import { ITextAreaWrapper, ITypeData, TextAreaState } from 'vs/editor/browser/controller/textAreaState';
+import { ITextAreaWrapper, ITypeData, TextAreaState, _debugComposition } from 'vs/editor/browser/controller/textAreaState';
 import { Position } from 'vs/editor/common/core/position';
 import { Selection } from 'vs/editor/common/core/selection';
 import { BrowserFeatures } from 'vs/base/browser/canIUse';
@@ -193,6 +193,10 @@ export class TextAreaInput extends Disposable {
 		}));
 
 		this._register(dom.addDisposableListener(textArea.domNode, 'compositionstart', (e: CompositionEvent) => {
+			if (_debugComposition) {
+				console.log(`[compositionstart]`, e);
+			}
+
 			if (this._isDoingComposition) {
 				return;
 			}
@@ -209,6 +213,9 @@ export class TextAreaInput extends Disposable {
 			) {
 				// Handling long press case on macOS + arrow key => pretend the character was selected
 				if (lastKeyDown.code === 'ArrowRight' || lastKeyDown.code === 'ArrowLeft') {
+					if (_debugComposition) {
+						console.log(`[compositionstart] Handling long press case on macOS + arrow key`, e);
+					}
 					moveOneCharacterLeft = true;
 				}
 			}
@@ -251,6 +258,9 @@ export class TextAreaInput extends Disposable {
 		};
 
 		this._register(dom.addDisposableListener(textArea.domNode, 'compositionupdate', (e: CompositionEvent) => {
+			if (_debugComposition) {
+				console.log(`[compositionupdate]`, e);
+			}
 			const [newState, typeInput] = deduceComposition(e.data || '');
 			this._textAreaState = newState;
 			this._onType.fire(typeInput);
@@ -258,6 +268,9 @@ export class TextAreaInput extends Disposable {
 		}));
 
 		this._register(dom.addDisposableListener(textArea.domNode, 'compositionend', (e: CompositionEvent) => {
+			if (_debugComposition) {
+				console.log(`[compositionend]`, e);
+			}
 			// https://github.com/microsoft/monaco-editor/issues/1663
 			// On iOS 13.2, Chinese system IME randomly trigger an additional compositionend event with empty data
 			if (!this._isDoingComposition) {

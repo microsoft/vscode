@@ -48,12 +48,8 @@ flakySuite('Extpath', () => {
 		assert.ok(realpathVal);
 	});
 
-	test('realpathSync', async () => {
-		try {
-			const realpath = realpathSync(testDir);
-			assert.ok(realpath);
-		} catch (error) {
-			assert.fail(error);
-		}
+	test('realpathSync', () => {
+		const realpath = realpathSync(testDir);
+		assert.ok(realpath);
 	});
 });

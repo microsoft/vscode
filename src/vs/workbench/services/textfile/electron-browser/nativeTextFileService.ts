@@ -112,7 +112,7 @@ export class NativeTextFileService extends AbstractTextFileService {
 				const fileStat = await stat(resource.fsPath);
 
 				// try to change mode to writeable
-				await chmod(resource.fsPath, fileStat.mode | 128);
+				await chmod(resource.fsPath, fileStat.mode | 0o200 /* File mode indicating writable by owner (fs.constants.S_IWUSR) */);
 			}
 		} catch (error) {
 			// ignore and simply retry the operation
@@ -132,7 +132,7 @@ export class NativeTextFileService extends AbstractTextFileService {
 				let isReadonly = false;
 				try {
 					const fileStat = await stat(resource.fsPath);
-					if (!(fileStat.mode & 128)) {
+					if (!(fileStat.mode & 0o200 /* File mode indicating writable by owner (fs.constants.S_IWUSR) */)) {
 						isReadonly = true;
 					}
 				} catch (error) {

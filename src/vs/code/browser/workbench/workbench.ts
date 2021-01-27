@@ -503,17 +503,20 @@ class WindowIndicator implements IWindowIndicator {
 	const settingsSyncOptions: ISettingsSyncOptions | undefined = config.settingsSyncOptions ? {
 		enabled: config.settingsSyncOptions.enabled,
 		enablementHandler: (enablement) => {
-			let queryString = `settingsSync=${enablement ? 'true' : 'false'}`;
+			// Handle enablement only if settings sync is enabled by default
+			if (config.settingsSyncOptions?.enabled) {
+				let queryString = `settingsSync=${enablement ? 'true' : 'false'}`;
 
-			// Save all other query params we might have
-			const query = new URL(document.location.href).searchParams;
-			query.forEach((value, key) => {
-				if (key !== 'settingsSync') {
-					queryString += `&${key}=${value}`;
-				}
-			});
+				// Save all other query params we might have
+				const query = new URL(document.location.href).searchParams;
+				query.forEach((value, key) => {
+					if (key !== 'settingsSync') {
+						queryString += `&${key}=${value}`;
+					}
+				});
 
-			window.location.href = `${window.location.origin}?${queryString}`;
+				window.location.href = `${window.location.origin}?${queryString}`;
+			}
 		}
 	} : undefined;
 

@@ -1334,7 +1334,9 @@ class EditorResourceAccessorImpl {
 	/**
 	 * The original URI of an editor is the URI that was used originally to open
 	 * the editor and should be used whenever the URI is presented to the user,
-	 * e.g. as a label.
+	 * e.g. as a label together with utility methods such as `ResourceLabel` or
+	 * `ILabelService` that can turn this original URI into the best form for
+	 * presenting.
 	 *
 	 * In contrast, the canonical URI (#getCanonicalUri) may be different and should
 	 * be used whenever the URI is used to e.g. compare with other editors or when

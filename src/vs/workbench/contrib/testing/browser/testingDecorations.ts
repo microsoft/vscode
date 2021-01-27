@@ -131,16 +131,12 @@ interface ITestDecoration extends IDisposable {
 const hasValidLocation = <T extends { location?: ModeLocation }>(editorUri: URI, t: T): t is T & { location: ModeLocation } =>
 	t.location?.uri.toString() === editorUri.toString();
 
-const firstLineRange = (editor: ICodeEditor, originalRange: IRange) => {
-	const model = editor.getModel();
-	const endColumn = model?.getLineMaxColumn(originalRange.startLineNumber);
-	return {
-		startLineNumber: originalRange.startLineNumber,
-		endLineNumber: originalRange.startLineNumber,
-		startColumn: 0,
-		endColumn: endColumn || 1,
-	};
-};
+const firstLineRange = (originalRange: IRange) => ({
+	startLineNumber: originalRange.startLineNumber,
+	endLineNumber: originalRange.startLineNumber,
+	startColumn: 0,
+	endColumn: 1,
+});
 
 class RunTestDecoration implements ITestDecoration {
 	/**
@@ -182,7 +178,7 @@ class RunTestDecoration implements ITestDecoration {
 			: test.children.size > 0 ? testingRunAllIcon : testingRunIcon;
 
 		this.editorDecoration = {
-			range: firstLineRange(this.editor, this.location.range),
+			range: firstLineRange(this.location.range),
 			options: {
 				isWholeLine: true,
 				glyphMarginClassName: ThemeIcon.asClassName(icon) + ' testing-run-glyph',
@@ -286,14 +282,16 @@ class TestMessageDecoration implements ITestDecoration {
 				color: `${colorTheme.getColor(testMessageSeverityColors[severity].decorationForeground)}`,
 				fontSize: `${editor.getOption(EditorOption.fontSize)}px`,
 				fontFamily: editor.getOption(EditorOption.fontFamily),
-				padding: `0px 12px`,
+				padding: `0px 12px 0px 24px`,
 			},
 		}, undefined, editor);
 
 		const options = editorService.resolveDecorationOptions(this.decorationId, true);
 		options.hoverMessage = typeof message === 'string' ? new MarkdownString().appendText(message) : message;
-		options.afterContentClassName = `${options.afterContentClassName} testing-inline-message`;
+		options.afterContentClassName = `${options.afterContentClassName} testing-inline-message-content`;
 		options.zIndex = 10; // todo: in spite of the z-index, this appears behind gitlens
+		options.className = `testing-inline-message-margin testing-inline-message-severity-${severity}`;
+		options.isWholeLine = true;
 
 		const rulerColor = severity === TestMessageSeverity.Error
 			? overviewRulerError
@@ -307,7 +305,7 @@ class TestMessageDecoration implements ITestDecoration {
 			options.overviewRuler = { color: themeColorFromId(rulerColor), position: OverviewRulerLane.Right };
 		}
 
-		this.editorDecoration = { range: firstLineRange(editor, location.range), options };
+		this.editorDecoration = { range: firstLineRange(location.range), options };
 	}
 
 	click(e: IEditorMouseEvent): boolean {

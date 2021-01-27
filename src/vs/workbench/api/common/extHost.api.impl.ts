@@ -340,6 +340,14 @@ export function createApiFactoryAndRegisterActors(accessor: ServicesAccessor): I
 				checkProposedApiEnabled(extension);
 				return extHostTesting.runTests(provider);
 			},
+			get onDidChangeTestResults() {
+				checkProposedApiEnabled(extension);
+				return extHostTesting.onLastResultsChanged;
+			},
+			get testResults() {
+				checkProposedApiEnabled(extension);
+				return extHostTesting.lastResults;
+			},
 		};
 
 		// namespace: extensions
@@ -683,7 +691,7 @@ export function createApiFactoryAndRegisterActors(accessor: ServicesAccessor): I
 			},
 			registerExternalUriOpener(id: string, opener: vscode.ExternalUriOpener, metadata: vscode.ExternalUriOpenerMetadata) {
 				checkProposedApiEnabled(extension);
-				return extHostUriOpeners.registerUriOpener(extension.identifier, id, opener, metadata);
+				return extHostUriOpeners.registerExternalUriOpener(extension.identifier, id, opener, metadata);
 			},
 			get openEditors() {
 				checkProposedApiEnabled(extension);

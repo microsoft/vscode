@@ -126,12 +126,13 @@ export class SingleUseTestCollection implements IDisposable {
 
 	private addItem(actual: ApiTestItem, providerId: string, parent: string | null) {
 		let internal = this.testItemToInternal.get(actual);
+		const parentItem = parent ? this.testIdToInternal.get(parent) : null;
 		if (!internal) {
 			internal = {
 				actual,
 				id: this.getId(),
 				parent,
-				item: TestItem.from(actual),
+				item: TestItem.from(actual, parentItem?.item.extId),
 				providerId,
 				previousChildren: new Set(),
 				previousEquals: itemEqualityComparator(actual),
@@ -141,7 +142,7 @@ export class SingleUseTestCollection implements IDisposable {
 			this.testIdToInternal.set(internal.id, internal);
 			this.diff.push([TestDiffOpType.Add, { id: internal.id, parent, providerId, item: internal.item }]);
 		} else if (!internal.previousEquals(actual)) {
-			internal.item = TestItem.from(actual);
+			internal.item = TestItem.from(actual, parentItem?.item.extId);
 			internal.previousEquals = itemEqualityComparator(actual);
 			this.diff.push([TestDiffOpType.Update, { id: internal.id, parent, providerId, item: internal.item }]);
 		}
@@ -200,6 +201,7 @@ export class SingleUseTestCollection implements IDisposable {
 }
 
 const keyMap: { [K in keyof Omit<RequiredTestItem, 'children'>]: null } = {
+	id: null,
 	label: null,
 	location: null,
 	state: null,
