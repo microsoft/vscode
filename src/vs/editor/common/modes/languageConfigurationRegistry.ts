@@ -729,7 +729,7 @@ export class LanguageConfigurationRegistryImpl {
 			} else {
 				appendText = '';
 			}
-		} else if (indentAction === IndentAction.Indent) {
+		} else if (indentAction === IndentAction.Indent || indentAction === IndentAction.IndentOutdent) {
 			appendText = '\t' + appendText;
 		}
 
