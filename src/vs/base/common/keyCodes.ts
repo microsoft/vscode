@@ -558,7 +558,16 @@ export class ResolvedKeybindingPart {
 	}
 
 	public isCtrlOrShiftOrAlt(): boolean {
-		return this.ctrlKey || this.altKey || this.shiftKey;
+
+		if (this.ctrlKey && !this.altKey && !this.shiftKey) {
+			return true;
+		} else if (this.shiftKey && !this.ctrlKey && !this.altKey) {
+			return true;
+		} else if (this.altKey && !this.shiftKey && !this.ctrlKey) {
+			return true;
+		}
+
+		return false;
 	}
 }
 

@@ -111,4 +111,8 @@ export class USLayoutResolvedKeybinding extends BaseResolvedKeybinding<SimpleKey
 
 		return result;
 	}
+
+	protected _keybindingToDispatchString(keybinding: SimpleKeybinding): string | null {
+		return KeyCodeUtils.toString(keybinding.keyCode) || null;
+	}
 }

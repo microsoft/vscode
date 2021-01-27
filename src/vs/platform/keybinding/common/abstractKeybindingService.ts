@@ -5,7 +5,7 @@
 
 import * as nls from 'vs/nls';
 import * as arrays from 'vs/base/common/arrays';
-import { IntervalTimer, TimeoutTimer } from 'vs/base/common/async';
+import { IntervalTimer } from 'vs/base/common/async';
 import { Emitter, Event } from 'vs/base/common/event';
 import { KeyCode, Keybinding, ResolvedKeybinding } from 'vs/base/common/keyCodes';
 import { Disposable, IDisposable } from 'vs/base/common/lifecycle';
