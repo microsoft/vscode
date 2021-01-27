@@ -1485,7 +1485,8 @@ export class FileDragAndDrop implements ITreeDragAndDrop<ExplorerItem> {
 			// Since all children of the folder are moved individually, we have to delete the folder
 			// Once everything has been moved successfully, we can delete the folders
 			try {
-				// BulkEdit does not allow deleting in order, but otherwise we try to delete non-empty folders.
+				// BulkEdit does not allow deleting in order. Executing all deletions at once would cause an error
+				// (since deleting non-empty folders is not supported). So we iteratively apply bulk edit
 				for (const edit of resourceFileEdits.filter(edit => !edit.newResource)) {
 					await this.explorerService.applyBulkEdit([edit], options);
 				}
@@ -1518,15 +1519,13 @@ export class FileDragAndDrop implements ITreeDragAndDrop<ExplorerItem> {
 				// Move with overwrite if the user confirms
 				const { confirmed } = await this.dialogService.confirm(confirm);
 
-				if (!confirmed) {
-					return false;
-				}
-
-				try {
-					await this.explorerService.applyBulkEdit(edits.map(re => new ResourceFileEdit(re.oldResource, re.newResource, { overwrite: true })), options);
-					return true;
-				} catch (error) {
-					this.notificationService.error(error);
+				if (confirmed) {
+					try {
+						await this.explorerService.applyBulkEdit(edits.map(re => new ResourceFileEdit(re.oldResource, re.newResource, { overwrite: true })), options);
+						return true;
+					} catch (error) {
+						this.notificationService.error(error);
+					}
 				}
 			}
 			// Any other error
