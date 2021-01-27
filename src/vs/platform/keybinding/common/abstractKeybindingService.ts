@@ -179,12 +179,12 @@ export abstract class AbstractKeybindingService extends Disposable implements IK
 		return this._doDispatch(this.resolveKeyboardEvent(e), target);
 	}
 
-	protected _doublePressdispatch(e: IKeyboardEvent, target: IContextKeyServiceTarget): boolean {
+	protected _doublePressDispatch(e: IKeyboardEvent, target: IContextKeyServiceTarget): boolean {
 		const shouldPreventDefault = this._doDoublePressDispatch(this.resolveKeyboardEvent(e), target);
 		return shouldPreventDefault;
 	}
 
-	// stores the pressed key, and then clears it in 200ms
+	// stores the pressed key, and then clears it in 300ms
 	private _doublePressStart(singlekeyDispatchString: string) {
 		this._doublePressStop();
 

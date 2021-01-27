@@ -270,7 +270,7 @@ export class WorkbenchKeybindingService extends AbstractKeybindingService {
 			const keyEvent = new StandardKeyboardEvent(e);
 			this._log(`/ Received  keyup event - ${printKeyboardEvent(e)}`);
 			this._log(`| Converted keyup event - ${printStandardKeyboardEvent(keyEvent)}`);
-			const shouldPreventDefault = this._doublePressdispatch(keyEvent, keyEvent.target);
+			const shouldPreventDefault = this._doublePressDispatch(keyEvent, keyEvent.target);
 			if (shouldPreventDefault) {
 				keyEvent.preventDefault();
 			}
