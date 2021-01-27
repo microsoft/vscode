@@ -2407,12 +2407,17 @@ declare module 'vscode' {
 	/**
 	 * Details if an `ExternalUriOpener` can open a uri.
 	 *
-	 * This also controls if/how the user is prompted if multiple openers
-	 * are available for a given uri.
+	 * The priority is also used to rank multiple openers against each other and determine
+	 * if an opener should be selected automatically or if the user should be prompted to
+	 * select an opener.
+	 *
+	 * VS Code will try to use the best available opener, as sorted by `ExternalUriOpenerPriority`.
+	 * If there are multiple potential "best" openers for a URI, then the user will be prompted
+	 * to select an opener.
 	 */
 	export enum ExternalUriOpenerPriority {
 		/**
-		 * The opener is disabled and will not be shown to users.
+		 * The opener is disabled and will never be shown to users.
 		 *
 		 * Note that the opener can still be used if the user specifically
 		 * configures it in their settings.
@@ -2420,28 +2425,26 @@ declare module 'vscode' {
 		None = 0,
 
 		/**
-		 * The opener can open the uri but it will not be shown by default when a
-		 * user clicks on the uri.
-		 *
-		 * If only optional openers are enabled for a given URI, then VS Code's
-		 * default opener will be automatically used.
+		 * The opener can open the uri but will not cause a prompt on its own
+		 * since VS Code always contributes a built-in `Default` opener.
 		 */
 		Option = 1,
 
 		/**
 		 * The opener can open the uri.
 		 *
-		 * When the user clicks on a uri, they will be prompted to select the opener
-		 * they wish to use for it. All
+		 * VS Code's built-in opener has `Default` priority. This means that any additional `Default`
+		 * openers will cause the user to be prompted to select from a list of all potential openers.
 		 */
 		Default = 2,
 
 		/**
-		 * The opener can open the uri and should be automatically selected if possible.
+		 * The opener can open the uri and should be automatically selected over any
+		 * default openers, include the built-in one from VS Code.
 		 *
-		 * Preferred openers will be automatically selected if no other preferred openers
+		 * A preferred opener will be automatically selected if no other preferred openers
 		 * are available. If multiple preferred openers are available, then the user
-		 * is shown a prompt.
+		 * is shown a prompt with all potential openers (not just preferred openers).
 		 */
 		Preferred = 3,
 	}
@@ -2555,7 +2558,7 @@ declare module 'vscode' {
 		export function openExternal(target: Uri, options?: OpenExternalOptions): Thenable<boolean>;
 	}
 
-	//#endregionn
+	//endregionn
 
 	//#region https://github.com/Microsoft/vscode/issues/15178
 
