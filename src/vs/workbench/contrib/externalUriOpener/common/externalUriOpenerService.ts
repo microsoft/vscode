@@ -13,6 +13,7 @@ import * as modes from 'vs/editor/common/modes';
 import * as nls from 'vs/nls';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { createDecorator } from 'vs/platform/instantiation/common/instantiation';
+import { ILogService } from 'vs/platform/log/common/log';
 import { IExternalOpener, IOpenerService } from 'vs/platform/opener/common/opener';
 import { IQuickInputService, IQuickPickItem, IQuickPickSeparator } from 'vs/platform/quickinput/common/quickInput';
 import { IStorageService } from 'vs/platform/storage/common/storage';
@@ -55,6 +56,7 @@ export class ExternalUriOpenerService extends Disposable implements IExternalUri
 		@IOpenerService openerService: IOpenerService,
 		@IStorageService storageService: IStorageService,
 		@IConfigurationService private readonly configurationService: IConfigurationService,
+		@ILogService private readonly logService: ILogService,
 		@IPreferencesService private readonly preferencesService: IPreferencesService,
 		@IQuickInputService private readonly quickInputService: IQuickInputService,
 	) {
@@ -100,7 +102,14 @@ export class ExternalUriOpenerService extends Disposable implements IExternalUri
 		// Then check to see if there is a valid opener
 		const validOpeners: Array<{ opener: IExternalUriOpener, priority: modes.ExternalUriOpenerPriority }> = [];
 		await Promise.all(Array.from(allOpeners.values()).map(async opener => {
-			const priority = await opener.canOpen(targetUri, token);
+			let priority: modes.ExternalUriOpenerPriority;
+			try {
+				priority = await opener.canOpen(targetUri, token);
+			} catch (e) {
+				this.logService.error(e);
+				return;
+			}
+
 			switch (priority) {
 				case modes.ExternalUriOpenerPriority.Option:
 				case modes.ExternalUriOpenerPriority.Default:
@@ -109,6 +118,7 @@ export class ExternalUriOpenerService extends Disposable implements IExternalUri
 					break;
 			}
 		}));
+
 		if (validOpeners.length === 0) {
 			return false;
 		}
