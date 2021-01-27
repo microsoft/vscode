@@ -874,6 +874,8 @@ export interface IDebugService {
 
 	setExceptionBreakpointCondition(breakpoint: IExceptionBreakpoint, condition: string | undefined): Promise<void>;
 
+	setExceptionBreakpoints(data: DebugProtocol.ExceptionBreakpointsFilter[]): void;
+
 	/**
 	 * Sends all breakpoints to the passed session.
 	 * If session is not passed, sends all breakpoints to each session.
