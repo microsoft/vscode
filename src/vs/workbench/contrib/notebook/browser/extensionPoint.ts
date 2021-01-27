@@ -38,12 +38,6 @@ export interface INotebookRendererContribution {
 	readonly [NotebookRendererContribution.entrypoint]: string;
 }
 
-export interface INotebookMarkdownRendererContribution {
-	readonly [NotebookRendererContribution.id]?: string;
-	readonly [NotebookRendererContribution.viewType]?: string;
-	readonly [NotebookRendererContribution.entrypoint]: string;
-}
-
 const notebookProviderContribution: IJSONSchema = {
 	description: nls.localize('contributes.notebook.provider', 'Contributes notebook document provider.'),
 	type: 'array',
@@ -149,10 +143,4 @@ export const notebookRendererExtensionPoint = ExtensionsRegistry.registerExtensi
 	{
 		extensionPoint: 'notebookOutputRenderer',
 		jsonSchema: notebookRendererContribution
-	});
-
-export const notebookMarkdownRendererExtensionPoint = ExtensionsRegistry.registerExtensionPoint<INotebookMarkdownRendererContribution[]>(
-	{
-		extensionPoint: 'notebookMarkdownRenderer',
-		jsonSchema: notebookRendererContribution //
 	});

@@ -62,7 +62,6 @@ import { Webview } from 'vs/workbench/contrib/webview/browser/webview';
 import { IEditorGroupsService } from 'vs/workbench/services/editor/common/editorGroupsService';
 import { configureKernelIcon, errorStateIcon, successStateIcon } from 'vs/workbench/contrib/notebook/browser/notebookIcons';
 import { debugIconStartForeground } from 'vs/workbench/contrib/debug/browser/debugColors';
-import { MarkdownCellViewModel } from 'vs/workbench/contrib/notebook/browser/viewModel/markdownCellViewModel';
 
 const $ = DOM.$;
 
@@ -988,19 +987,6 @@ export class NotebookEditorWidget extends Disposable implements INotebookEditor 
 			this._updateForMetadata();
 		}));
 
-		const useRenderer = this.configurationService.getValue<string>('notebook.experimental.useMarkdownRenderer');
-
-		if (useRenderer) {
-			await this._resolveWebview();
-
-			await this._webview!.initializeMarkdown(this.viewModel.viewCells
-				.filter(cell => cell.cellKind === CellKind.Markdown)
-				.map(cell => ({ cellId: cell.id, content: cell.getText() }))
-				// TODO: look at cell position cache instead of just getting first five cells
-				.slice(0, 5));
-		}
-
-
 		// restore view states, including contributions
 
 		{
@@ -1089,18 +1075,6 @@ export class NotebookEditorWidget extends Disposable implements INotebookEditor 
 					if (updateItems.length) {
 						this._webview?.updateViewScrollTop(-scrollTop, false, updateItems);
 					}
-				}
-
-				if (this._webview?.markdownPreviewMapping) {
-					const updateItems: { id: string, top: number }[] = [];
-					this._webview!.markdownPreviewMapping.forEach(cellId => {
-						const cell = this.viewModel?.viewCells.find(cell => cell.id === cellId);
-						if (cell) {
-							const cellTop = this._list.getAbsoluteTopOfElement(cell);
-							updateItems.push({ id: cellId, top: cellTop });
-						}
-					});
-					this._webview?.updateMarkdownScrollTop(updateItems);
 				}
 			});
 		}));
@@ -1953,41 +1927,6 @@ export class NotebookEditorWidget extends Disposable implements INotebookEditor 
 		this._list.triggerScrollFromMouseWheelEvent(event);
 	}
 
-	async createMarkdownPreview(cell: MarkdownCellViewModel) {
-		if (!this._webview) {
-			return;
-		}
-
-		await this._resolveWebview();
-
-		const cellTop = this._list.getAbsoluteTopOfElement(cell);
-		if (this._webview.markdownPreviewMapping.has(cell.id)) {
-			await this._webview!.showMarkdownPreview(cell.id, cell.getText(), cellTop);
-		} else {
-			await this._webview!.createMarkdownPreview(cell.id, cell.getText(), cellTop);
-		}
-	}
-
-	async hideMarkdownPreview(cell: MarkdownCellViewModel) {
-		if (!this._webview) {
-			return;
-		}
-
-		await this._resolveWebview();
-
-		await this._webview!.hideMarkdownPreview(cell.id);
-	}
-
-	async removeMarkdownPreview(cell: MarkdownCellViewModel) {
-		if (!this._webview) {
-			return;
-		}
-
-		await this._resolveWebview();
-
-		await this._webview!.removeMarkdownPreview(cell.id);
-	}
-
 	async createInset(cell: CodeCellViewModel, output: IInsetRenderOutput, offset: number): Promise<void> {
 		this._insetModifyQueueByOutputId.queue(output.source.model.outputId, async () => {
 			if (!this._webview) {
@@ -2079,45 +2018,6 @@ export class NotebookEditorWidget extends Disposable implements INotebookEditor 
 		}
 	}
 
-	updateMarkdownCellHeight(cellId: string, height: number, isInit: boolean) {
-		const cell = this.viewModel?.viewCells.find(vc => vc.id === cellId);
-
-		if (cell && cell instanceof MarkdownCellViewModel) {
-			cell.renderedMarkdownHeight = height;
-		}
-	}
-
-	setMarkdownCellEditState(cellId: string, editState: CellEditState): void {
-		const cell = this.viewModel?.viewCells.find(vc => vc.id === cellId);
-
-		if (cell && cell instanceof MarkdownCellViewModel) {
-			cell.editState = editState;
-		}
-	}
-
-	markdownCellDragStart(cellId: string, position: { clientY: number }): void {
-		const cell = this.viewModel?.viewCells.find(vc => vc.id === cellId);
-
-		if (cell && cell instanceof MarkdownCellViewModel) {
-			this._dndController?.startExplicitDrag(cell, position);
-		}
-	}
-
-	markdownCellDrag(cellId: string, position: { clientY: number }): void {
-		const cell = this.viewModel?.viewCells.find(vc => vc.id === cellId);
-
-		if (cell && cell instanceof MarkdownCellViewModel) {
-			this._dndController?.explicitDrag(cell, position);
-		}
-	}
-
-	markdownCellDragEnd(cellId: string, position: { clientY: number }): void {
-		const cell = this.viewModel?.viewCells.find(vc => vc.id === cellId);
-
-		if (cell && cell instanceof MarkdownCellViewModel) {
-			this._dndController?.endExplicitDrag(cell, position);
-		}
-	}
 
 	//#endregion
 
@@ -2353,7 +2253,8 @@ registerThemingParticipant((theme, collector) => {
 	collector.addRule(`
 			.monaco-workbench .notebookOverlay .monaco-list:focus-within .monaco-list-row.focused .cell-focus-indicator-top:before,
 			.monaco-workbench .notebookOverlay .monaco-list:focus-within .monaco-list-row.focused .cell-focus-indicator-bottom:before,
-			.monaco-workbench .notebookOverlay .monaco-list:focus-within .markdown-cell-row.focused .cell-inner-container:not(.cell-editor-focus):before {
+			.monaco-workbench .notebookOverlay .monaco-list:focus-within .markdown-cell-row.focused .cell-inner-container:not(.cell-editor-focus):before,
+			.monaco-workbench .notebookOverlay .monaco-list:focus-within .markdown-cell-row.focused .cell-inner-container:not(.cell-editor-focus):after {
 				border-color: ${focusedCellBorderColor} !important;
 			}`);
 
@@ -2361,7 +2262,8 @@ registerThemingParticipant((theme, collector) => {
 	collector.addRule(`
 			.monaco-workbench .notebookOverlay .monaco-list:focus-within .monaco-list-row.focused .cell-editor-focus .cell-focus-indicator-top:before,
 			.monaco-workbench .notebookOverlay .monaco-list:focus-within .monaco-list-row.focused .cell-editor-focus .cell-focus-indicator-bottom:before,
-			.monaco-workbench .notebookOverlay .monaco-list:focus-within .monaco-list-row.focused .cell-inner-container.cell-editor-focus:before {
+			.monaco-workbench .notebookOverlay .monaco-list:focus-within .monaco-list-row.focused .cell-inner-container.cell-editor-focus:before,
+			.monaco-workbench .notebookOverlay .monaco-list:focus-within .monaco-list-row.focused .cell-inner-container.cell-editor-focus:after {
 				border-color: ${selectedCellBorderColor} !important;
 			}`);
 
