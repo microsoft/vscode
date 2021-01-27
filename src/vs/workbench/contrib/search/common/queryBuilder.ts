@@ -10,13 +10,14 @@ import { untildify } from 'vs/base/common/labels';
 import { ResourceMap } from 'vs/base/common/map';
 import { Schemas } from 'vs/base/common/network';
 import * as path from 'vs/base/common/path';
-import { isEqual, basename, relativePath } from 'vs/base/common/resources';
+import { isEqual, basename, relativePath, isAbsolutePath } from 'vs/base/common/resources';
 import * as strings from 'vs/base/common/strings';
 import { assertIsDefined } from 'vs/base/common/types';
 import { URI, URI as uri } from 'vs/base/common/uri';
 import { isMultilineRegexSource } from 'vs/editor/common/model/textModelSearch';
 import * as nls from 'vs/nls';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
+import { IFileService } from 'vs/platform/files/common/files';
 import { IWorkspaceContextService, IWorkspaceFolderData, toWorkspaceFolder, WorkbenchState } from 'vs/platform/workspace/common/workspace';
 import { IEditorGroupsService } from 'vs/workbench/services/editor/common/editorGroupsService';
 import { IPathService } from 'vs/workbench/services/path/common/pathService';
@@ -86,6 +87,7 @@ export class QueryBuilder {
 		@IConfigurationService private readonly configurationService: IConfigurationService,
 		@IWorkspaceContextService private readonly workspaceContextService: IWorkspaceContextService,
 		@IEditorGroupsService private readonly editorGroupsService: IEditorGroupsService,
+		@IFileService private readonly fileService: IFileService,
 		@IPathService private readonly pathService: IPathService
 	) {
 	}
@@ -204,23 +206,32 @@ export class QueryBuilder {
 	private commonQueryFromFileList(files: URI[]): ICommonQueryProps<URI> {
 		const folderQueries: IFolderQuery[] = [];
 		const foldersToSearch: ResourceMap<IFolderQuery> = new ResourceMap();
+		const includePattern: glob.IExpression = {};
 		files.forEach(file => {
-			const searchRoot = this.workspaceContextService.getWorkspaceFolder(file)?.uri ?? file.with({ path: path.dirname(file.fsPath) });
 
-			let folderQuery = foldersToSearch.get(searchRoot);
-			if (!folderQuery) {
-				folderQuery = { folder: searchRoot, includePattern: {} };
-				folderQueries.push(folderQuery);
-				foldersToSearch.set(searchRoot, folderQuery);
+			const providerExists = isAbsolutePath(file);
+			if (providerExists) {
+				const searchRoot = this.workspaceContextService.getWorkspaceFolder(file)?.uri ?? file.with({ path: path.dirname(file.fsPath) });
+
+				let folderQuery = foldersToSearch.get(searchRoot);
+				if (!folderQuery) {
+					folderQuery = { folder: searchRoot, includePattern: {} };
+					folderQueries.push(folderQuery);
+					foldersToSearch.set(searchRoot, folderQuery);
+				}
+
+				const relPath = path.relative(searchRoot.fsPath, file.fsPath);
+				assertIsDefined(folderQuery.includePattern)[relPath] = true;
+			} else {
+				if (file.path) {
+					includePattern[file.path] = true;
+				}
 			}
-
-			const relPath = path.relative(searchRoot.fsPath, file.fsPath);
-			assertIsDefined(folderQuery.includePattern)[relPath] = true;
 		});
 
 		return {
 			folderQueries,
-			includePattern: undefined,
+			includePattern,
 			usingSearchPaths: true,
 			excludePattern: folderQueries.length ? undefined : { '**/*': true }
 		};
