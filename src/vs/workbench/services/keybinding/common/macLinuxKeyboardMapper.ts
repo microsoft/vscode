@@ -65,14 +65,16 @@ export class NativeResolvedKeybinding extends BaseResolvedKeybinding<ScanCodeBin
 	}
 
 	protected _getDispatchPart(keybinding: ScanCodeBinding): string | null {
-		const codeDispatch = this._mapper.getDispatchString(keybinding);
+		if (keybinding.isModifierKey()) {
+			return null;
+		}
 
+		const codeDispatch = this._mapper.getDispatchString(keybinding);
 		if (codeDispatch === null) {
 			return null;
 		}
 
 		let result = '';
-
 		if (keybinding.ctrlKey) {
 			result += 'ctrl+';
 		}
@@ -85,7 +87,6 @@ export class NativeResolvedKeybinding extends BaseResolvedKeybinding<ScanCodeBin
 		if (keybinding.metaKey) {
 			result += 'meta+';
 		}
-
 		result += codeDispatch;
 
 		return result;
@@ -434,7 +435,7 @@ export class MacLinuxKeyboardMapper implements IKeyboardMapper {
 				_registerAllCombos(0, 0, 0, scanCode, keyCode);
 				this._scanCodeToLabel[scanCode] = KeyCodeUtils.toString(keyCode);
 
-				if (keyCode === KeyCode.Unknown || keyCode === KeyCode.Ctrl || keyCode === KeyCode.Meta || keyCode === KeyCode.Alt || keyCode === KeyCode.Shift) {
+				if (keyCode === KeyCode.Unknown || keyCode === KeyCode.Meta) {
 					this._scanCodeToDispatch[scanCode] = null; // cannot dispatch on this ScanCode
 				} else {
 					this._scanCodeToDispatch[scanCode] = `[${ScanCodeUtils.toString(scanCode)}]`;
@@ -831,6 +832,7 @@ export class MacLinuxKeyboardMapper implements IKeyboardMapper {
 	}
 
 	public getDispatchString(keypress: ScanCodeBinding): string | null {
+
 		const keycodeString = this._scanCodeToDispatch[keypress.scanCode];
 		if (!keycodeString) {
 			return null;
