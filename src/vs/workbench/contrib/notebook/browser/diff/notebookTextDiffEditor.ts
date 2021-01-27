@@ -433,6 +433,7 @@ export class NotebookTextDiffEditor extends EditorPane implements INotebookTextD
 				if (originalCell.getHashValue() === modifiedCell.getHashValue()) {
 					diffElementViewModels.push(new SideBySideDiffElementViewModel(
 						this._model.modified.notebook,
+						this._model.original.notebook,
 						this.instantiationService.createInstance(DiffNestedCellViewModel, originalCell),
 						this.instantiationService.createInstance(DiffNestedCellViewModel, modifiedCell),
 						'unchanged',
@@ -445,6 +446,7 @@ export class NotebookTextDiffEditor extends EditorPane implements INotebookTextD
 
 					diffElementViewModels.push(new SideBySideDiffElementViewModel(
 						this._model.modified.notebook,
+						this._model.original.notebook,
 						this.instantiationService.createInstance(DiffNestedCellViewModel, originalCell),
 						this.instantiationService.createInstance(DiffNestedCellViewModel, modifiedCell),
 						'modified',
@@ -466,6 +468,7 @@ export class NotebookTextDiffEditor extends EditorPane implements INotebookTextD
 		for (let i = originalCellIndex; i < originalModel.cells.length; i++) {
 			diffElementViewModels.push(new SideBySideDiffElementViewModel(
 				this._model.modified.notebook,
+				this._model.original.notebook,
 				this.instantiationService.createInstance(DiffNestedCellViewModel, originalModel.cells[i]),
 				this.instantiationService.createInstance(DiffNestedCellViewModel, modifiedModel.cells[i - originalCellIndex + modifiedCellIndex]),
 				'unchanged',
@@ -491,6 +494,7 @@ export class NotebookTextDiffEditor extends EditorPane implements INotebookTextD
 		for (let j = 0; j < modifiedLen; j++) {
 			result.push(new SideBySideDiffElementViewModel(
 				modifiedModel,
+				originalModel,
 				this.instantiationService.createInstance(DiffNestedCellViewModel, originalModel.cells[change.originalStart + j]),
 				this.instantiationService.createInstance(DiffNestedCellViewModel, modifiedModel.cells[change.modifiedStart + j]),
 				'modified',
@@ -502,6 +506,7 @@ export class NotebookTextDiffEditor extends EditorPane implements INotebookTextD
 			// deletion
 			result.push(new SingleSideDiffElementViewModel(
 				originalModel,
+				modifiedModel,
 				this.instantiationService.createInstance(DiffNestedCellViewModel, originalModel.cells[change.originalStart + j]),
 				undefined,
 				'delete',
@@ -513,6 +518,7 @@ export class NotebookTextDiffEditor extends EditorPane implements INotebookTextD
 			// insertion
 			result.push(new SingleSideDiffElementViewModel(
 				modifiedModel,
+				originalModel,
 				undefined,
 				this.instantiationService.createInstance(DiffNestedCellViewModel, modifiedModel.cells[change.modifiedStart + j]),
 				'insert',

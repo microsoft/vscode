@@ -484,14 +484,6 @@ export namespace CellUri {
 		});
 	}
 
-	export function generateCellMetadataUri(notebook: URI, handle: number): URI {
-		return notebook.with({
-			scheme: Schemas.vscode,
-			authority: 'vscode-notebook-cell-metadata',
-			fragment: `${handle.toString().padStart(7, '0')}${notebook.scheme !== Schemas.file ? notebook.scheme : ''}`
-		});
-	}
-
 	export function parse(cell: URI): { notebook: URI, handle: number } | undefined {
 		if (cell.scheme !== scheme) {
 			return undefined;
@@ -505,6 +497,31 @@ export namespace CellUri {
 			handle,
 			notebook: cell.with({
 				scheme: cell.fragment.substr(match[0].length) || Schemas.file,
+				fragment: null
+			})
+		};
+	}
+
+	export function generateCellMetadataUri(notebook: URI, handle: number): URI {
+		return notebook.with({
+			scheme: Schemas.vscodeNotebookCellMetadata,
+			fragment: `ch${handle.toString().padStart(7, '0')}${notebook.scheme !== Schemas.file ? notebook.scheme : ''}`
+		});
+	}
+
+	export function parseCellMetadataUri(metadata: URI) {
+		if (metadata.scheme !== Schemas.vscodeNotebookCellMetadata) {
+			return undefined;
+		}
+		const match = _regex.exec(metadata.fragment);
+		if (!match) {
+			return undefined;
+		}
+		const handle = Number(match[1]);
+		return {
+			handle,
+			notebook: metadata.with({
+				scheme: metadata.fragment.substr(match[0].length) || Schemas.file,
 				fragment: null
 			})
 		};
