@@ -323,9 +323,12 @@ export abstract class Layout extends Disposable implements IWorkbenchLayoutServi
 			if (this.state.fullscreen && (this.state.menuBar.visibility === 'toggle' || this.state.menuBar.visibility === 'default')) {
 				// Propagate to grid
 				this.workbenchGrid.setViewVisible(this.titleBarPartView, this.isVisible(Parts.TITLEBAR_PART));
-
-				this.layout();
 			}
+
+			// Move layout call to any time the menubar
+			// is toggled to update consumers of offset
+			// see issue #115267
+			this.layout();
 		}
 	}
 
