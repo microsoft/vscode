@@ -206,6 +206,7 @@ export class QueryBuilder {
 		const foldersToSearch: ResourceMap<IFolderQuery> = new ResourceMap();
 		const includePattern: glob.IExpression = {};
 		files.forEach(file => {
+			if (file.scheme === Schemas.walkThrough) { return; }
 
 			const providerExists = isAbsolutePath(file);
 			// Special case userdata as we don't have a search provider for it, but it can be searched.
