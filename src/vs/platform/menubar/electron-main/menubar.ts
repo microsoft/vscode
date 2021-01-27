@@ -678,8 +678,8 @@ export class Menubar {
 		return new MenuItem(this.withKeybinding(commandId, options));
 	}
 
-	private makeContextAwareClickHandler(click: () => void, contextSpecificHandlers: IMenuItemClickHandler): () => void {
-		return () => {
+	private makeContextAwareClickHandler(click: (menuItem: MenuItem, win: BrowserWindow, event: KeyboardEvent) => void, contextSpecificHandlers: IMenuItemClickHandler): (menuItem: MenuItem, win: BrowserWindow | undefined, event: KeyboardEvent) => void {
+		return (menuItem: MenuItem, win: BrowserWindow | undefined, event: KeyboardEvent) => {
 
 			// No Active Window
 			const activeWindow = BrowserWindow.getFocusedWindow();
@@ -694,7 +694,7 @@ export class Menubar {
 			}
 
 			// Finally execute command in Window
-			click();
+			click(menuItem, win || activeWindow, event);
 		};
 	}
 
