@@ -26,7 +26,10 @@ export class ResolvedKeybindingItem {
 		let dispatchParts: string[] = [];
 
 		if (resolvedKeybinding) {
+			// normal keybind
 			dispatchParts = removeElementsAfterNulls(resolvedKeybinding.getDispatchParts());
+
+			// modifier only keybind
 			if (dispatchParts.length === 0) {
 				dispatchParts = removeElementsAfterNulls(resolvedKeybinding.getModifierDispatchString());
 			}
