@@ -46,6 +46,7 @@ export async function activate(context: vscode.ExtensionContext) {
 		const getTokenRequest = new GetTokenRequest();
 		getTokenRequest.setKind('gitpod');
 		getTokenRequest.setHost(gitpodApi.getHost());
+		getTokenRequest.addScope('function:getWorkspace');
 		getTokenRequest.addScope('function:getToken');
 		getTokenRequest.addScope('function:openPort');
 		getTokenRequest.addScope('function:stopWorkspace');
@@ -83,18 +84,97 @@ export async function activate(context: vscode.ExtensionContext) {
 			logger: new ConsoleLogger()
 		});
 	})();
+
+	const pendingGetWorkspace = gitpodService.server.getWorkspace(workspaceId);
+	const pendingInstanceListener = gitpodService.listenToInstance(workspaceId);
 	//#endregion
 
 	//#region workspace commands
-	context.subscriptions.push(vscode.commands.registerCommand('gitpod.openWorkspaces', () =>
+	context.subscriptions.push(vscode.commands.registerCommand('gitpod.open.dashboard', () =>
 		vscode.env.openExternal(vscode.Uri.parse(gitpodHost))
 	));
-	context.subscriptions.push(vscode.commands.registerCommand('gitpod.openAccessControl', () =>
+	context.subscriptions.push(vscode.commands.registerCommand('gitpod.open.accessControl', () =>
 		vscode.env.openExternal(vscode.Uri.parse(new GitpodHostUrl(gitpodHost).asAccessControl().toString()))
 	));
-	context.subscriptions.push(vscode.commands.registerCommand('gitpod.stopWorkspace', () =>
+	context.subscriptions.push(vscode.commands.registerCommand('gitpod.open.settings', () =>
+		vscode.env.openExternal(vscode.Uri.parse(new GitpodHostUrl(gitpodHost).asSettings().toString()))
+	));
+	context.subscriptions.push(vscode.commands.registerCommand('gitpod.open.context', async () => {
+		const { workspace } = await pendingGetWorkspace;
+		vscode.env.openExternal(vscode.Uri.parse(workspace.contextURL));
+	}));
+	context.subscriptions.push(vscode.commands.registerCommand('gitpod.open.documentation', () =>
+		vscode.env.openExternal(vscode.Uri.parse('https://www.gitpod.io/docs'))
+	));
+	context.subscriptions.push(vscode.commands.registerCommand('gitpod.open.community', () =>
+		vscode.env.openExternal(vscode.Uri.parse('https://community.gitpod.io'))
+	));
+	context.subscriptions.push(vscode.commands.registerCommand('gitpod.open.follow', () =>
+		vscode.env.openExternal(vscode.Uri.parse('https://twitter.com/gitpod'))
+	));
+	context.subscriptions.push(vscode.commands.registerCommand('gitpod.reportIssue', () =>
+		vscode.env.openExternal(vscode.Uri.parse('https://github.com/gitpod-io/gitpod/issues/new/choose'))
+	));
+	context.subscriptions.push(vscode.commands.registerCommand('gitpod.stop.ws', () =>
 		gitpodService.server.stopWorkspace(workspaceId)
 	));
+	context.subscriptions.push(vscode.commands.registerCommand('gitpod.upgradeSubscription', () =>
+		vscode.env.openExternal(vscode.Uri.parse(new GitpodHostUrl(gitpodHost).asUpgradeSubscription().toString()))
+	));
+	context.subscriptions.push(vscode.commands.registerCommand('gitpod.ExtendTimeout', async () => {
+		try {
+			const result = await gitpodService.server.setWorkspaceTimeout(workspaceId, '180m');
+			if (result.resetTimeoutOnWorkspaces?.length > 0) {
+				vscode.window.showWarningMessage('Workspace timeout has been extended to three hours. This reset the workspace timeout for other workspaces.');
+			} else {
+				vscode.window.showInformationMessage('Workspace timeout has been extended to three hours.');
+			}
+		} catch (err) {
+			vscode.window.showErrorMessage(`Cannot extend workspace timeout: ${err.toString()}`);
+		}
+	}));
+
+	const communityStatusBarItem = vscode.window.createStatusBarItem({
+		id: 'gitpod.community',
+		name: 'Chat with us on Discourse',
+		alignment: vscode.StatusBarAlignment.Right,
+		priority: -100
+	});
+	context.subscriptions.push(communityStatusBarItem);
+	communityStatusBarItem.text = '$(comment-discussion)';
+	communityStatusBarItem.tooltip = 'Chat with us on Discourse';
+	communityStatusBarItem.command = 'gitpod.open.community';
+	communityStatusBarItem.show();
+
+	(async () => {
+		const workspaceTimeout = await gitpodService.server.getWorkspaceTimeout(workspaceId);
+		if (!workspaceTimeout.canChange) {
+			return;
+		}
+
+		const listener = await pendingInstanceListener;
+		const extendTimeoutStatusBarItem = vscode.window.createStatusBarItem({
+			id: 'gitpod.extendTimeout',
+			name: 'Click to extend the workspace timeout.',
+			alignment: vscode.StatusBarAlignment.Right,
+			priority: -100
+		});
+		context.subscriptions.push(extendTimeoutStatusBarItem);
+		extendTimeoutStatusBarItem.text = '$(watch)';
+		extendTimeoutStatusBarItem.command = 'gitpod.ExtendTimeout';
+		const update = () => {
+			const instance = listener.info.latestInstance;
+			if (!instance) {
+				extendTimeoutStatusBarItem.hide();
+				return;
+			}
+			extendTimeoutStatusBarItem.tooltip = `Workspace Timeout: ${instance.status.timeout}. Click to extend.`;
+			extendTimeoutStatusBarItem.color = instance.status.timeout === '180m' ? new vscode.ThemeColor('notificationsWarningIcon.foreground') : undefined;
+			extendTimeoutStatusBarItem.show();
+		};
+		update();
+		context.subscriptions.push(listener.onDidChange(update));
+	})();
 	//#endregion
 
 	//#region workspace view
@@ -304,8 +384,8 @@ export async function activate(context: vscode.ExtensionContext) {
 		}
 	}));
 
-	const statusBarItem = vscode.window.createStatusBarItem(vscode.StatusBarAlignment.Right);
-	context.subscriptions.push(statusBarItem);
+	const portsStatusBarItem = vscode.window.createStatusBarItem(vscode.StatusBarAlignment.Right);
+	context.subscriptions.push(portsStatusBarItem);
 	function updateStatusBar(): void {
 		const exposedPorts: number[] = [];
 
@@ -326,10 +406,10 @@ export async function activate(context: vscode.ExtensionContext) {
 			text = '$(circle-slash) No open ports';
 		}
 
-		statusBarItem.text = text;
-		statusBarItem.tooltip = tooltip;
-		statusBarItem.command = 'gitpod.ports.reveal';
-		statusBarItem.show();
+		portsStatusBarItem.text = text;
+		portsStatusBarItem.tooltip = tooltip;
+		portsStatusBarItem.command = 'gitpod.ports.reveal';
+		portsStatusBarItem.show();
 	}
 	updateStatusBar();
 	context.subscriptions.push(gitpodWorkspaceTreeDataProvider.onDidChangeTreeData(() => updateStatusBar()));
@@ -443,7 +523,7 @@ export async function activate(context: vscode.ExtensionContext) {
 			}
 		})();
 	} else {
-		console.error('VSCODE_IPC_HOOK_CLI is not defined, cannot create a symlink to the cli server socket');
+		console.error(`cannot create a symlink to the cli server socket, GITPOD_CLI_SERVER_SOCKETS_PATH="${vscodeIpcHookCli}", GITPOD_CLI_SERVER_SOCKETS_PATH="${cliServerSocketsPath}"`);
 	}
 	//#endregion
 }

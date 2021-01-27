@@ -3,7 +3,7 @@
   "version": "0.0.0",
   "private": true,
   "dependencies": {
-    "@gitpod/supervisor-api-grpc": "ak-remote-terminal-channel",
+    "@gitpod/supervisor-api-grpc": "master",
     "@grpc/grpc-js": "latest",
     "applicationinsights": "1.0.8",
     "chokidar": "3.5.1",

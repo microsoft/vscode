@@ -21,19 +21,48 @@
   "contributes": {
     "commands": [
       {
-        "command": "gitpod.openWorkspaces",
-        "category": "Gitpod",
-        "title": "%openWorkspaces%"
+        "command": "gitpod.stop.ws",
+        "title": "%stopWorkspace%"
       },
       {
-        "command": "gitpod.openAccessControl",
-        "category": "Gitpod",
+        "command": "gitpod.open.settings",
+        "title": "%openSettings%"
+      },
+      {
+        "command": "gitpod.open.accessControl",
         "title": "%openAccessControl%"
       },
       {
-        "command": "gitpod.stopWorkspace",
-        "category": "Gitpod",
-        "title": "%stopWorkspace%"
+        "command": "gitpod.open.context",
+        "title": "%openContext%"
+      },
+      {
+        "command": "gitpod.open.dashboard",
+        "title": "%openDashboard%"
+      },
+      {
+        "command": "gitpod.open.documentation",
+        "title": "%openDocumentation%"
+      },
+      {
+        "command": "gitpod.open.follow",
+        "title": "%openFollow%"
+      },
+      {
+        "command": "gitpod.open.community",
+        "title": "%openCommunity%"
+      },
+      {
+        "command": "gitpod.reportIssue",
+        "title": "%reportIssue%"
+      },
+      {
+        "command": "gitpod.upgradeSubscription",
+        "title": "%upgradeSubscription%"
+      },
+      {
+        "command": "gitpod.ExtendTimeout",
+        "title": "%extendTimeout%"
       },
       {
         "command": "gitpod.ports.openBrowser",
@@ -52,18 +81,96 @@
       }
     ],
     "menus": {
+      "menuBar/home": [
+        {
+          "command": "gitpod.open.context",
+          "group": "gitpod@10"
+        },
+        {
+          "command": "gitpod.open.documentation",
+          "group": "gitpod@20"
+        },
+        {
+          "command": "gitpod.stop.ws",
+          "group": "gitpod@30"
+        }
+      ],
+      "accounts/context": [
+        {
+          "command": "gitpod.open.settings",
+          "group": "navigation@10"
+        },
+        {
+          "command": "gitpod.open.accessControl",
+          "group": "navigation@20"
+        },
+        {
+          "command": "gitpod.upgradeSubscription",
+          "group": "navigation@30"
+        },
+        {
+          "command": "gitpod.ExtendTimeout",
+          "group": "navigation@40"
+        }
+      ],
+      "menuBar/help": [
+        {
+          "command": "gitpod.open.follow",
+          "group": "z_about2@10"
+        },
+        {
+          "command": "gitpod.open.community",
+          "group": "z_about2@20"
+        },
+        {
+          "command": "gitpod.reportIssue",
+          "group": "z_about2@30"
+        }
+      ],
       "statusBar/windowIndicator": [
         {
-          "command": "gitpod.openWorkspaces",
-          "group": "navigation@1"
+          "command": "gitpod.stop.ws",
+          "group": "navigation@10"
         },
         {
-          "command": "gitpod.openAccessControl",
-          "group": "navigation@2"
+          "command": "gitpod.open.settings",
+          "group": "navigation@20"
         },
         {
-          "command": "gitpod.stopWorkspace",
-          "group": "navigation@3"
+          "command": "gitpod.open.accessControl",
+          "group": "navigation@30"
+        },
+        {
+          "command": "gitpod.open.context",
+          "group": "navigation@40"
+        },
+        {
+          "command": "gitpod.open.dashboard",
+          "group": "navigation@50"
+        },
+        {
+          "command": "gitpod.open.documentation",
+          "group": "navigation@60"
+        },
+        {
+          "command": "gitpod.open.follow",
+          "group": "navigation@70"
+        },
+        {
+          "command": "gitpod.open.community",
+          "group": "navigation@80"
+        },
+        {
+          "command": "gitpod.reportIssue",
+          "group": "navigation@90"
+        },
+        {
+          "command": "gitpod.upgradeSubscription",
+          "group": "navigation@100"
+        },
+        {
+          "command": "gitpod.ExtendTimeout",
+          "group": "navigation@110"
         }
       ],
       "view/item/context": [
@@ -120,7 +227,7 @@
   },
   "dependencies": {
     "@gitpod/gitpod-protocol": "master",
-    "@gitpod/supervisor-api-grpc": "ak-remote-terminal-channel",
+    "@gitpod/supervisor-api-grpc": "master",
     "@grpc/grpc-js": "latest",
     "bufferutil": "^4.0.1",
     "reconnecting-websocket": "^4.4.0",

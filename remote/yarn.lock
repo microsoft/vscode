@@ -2,10 +2,10 @@
 # yarn lockfile v1
 
 
-"@gitpod/supervisor-api-grpc@ak-remote-terminal-channel":
-  version "0.1.5-ak-remote-terminal-channel.26"
-  resolved "https://registry.yarnpkg.com/@gitpod/supervisor-api-grpc/-/supervisor-api-grpc-0.1.5-ak-remote-terminal-channel.26.tgz#f5b8836a6dcdb1a569eae6a736a5cc00de9ecd0b"
-  integrity sha512-wn1jjJiJUh3k4LZWDHNowZ4D8U3CqgqLIsUk9Cyp3ESH06dvej7tTystXP2I7oKtOoXw/tmwuXnw5xpbk8wK/g==
+"@gitpod/supervisor-api-grpc@master":
+  version "0.1.5-master.398"
+  resolved "https://registry.yarnpkg.com/@gitpod/supervisor-api-grpc/-/supervisor-api-grpc-0.1.5-master.398.tgz#95a0eb49c32dc3a6c732664c63b2cc41f1382b92"
+  integrity sha512-7ylqDCX2ccnKtxmDqaO3cDACtqikNrfpGwwiif2BV1nFQOAKF16KEBwUg0cY/gwhoMqNS8lh0fLZRi1gdyS2rg==
   dependencies:
     "@grpc/grpc-js" "^1.1.5"
     google-protobuf "^3.8.0-rc.1"
