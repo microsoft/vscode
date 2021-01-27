@@ -479,6 +479,7 @@ export class SimpleKeybinding {
 			|| this.keyCode === KeyCode.Ctrl
 			|| this.keyCode === KeyCode.Meta
 			|| this.keyCode === KeyCode.Alt
+			|| this.keyCode === KeyCode.Shift
 		);
 	}
 
