@@ -1,7 +1,15 @@
 {
 	"displayName": "Gitpod",
 	"description": "Gitpod Integration Support",
-	"openWorkspaces": "Open Workspaces",
-	"openAccessControl": "Open Access Control",
-	"stopWorkspace": "Stop Workspace"
+	"openDashboard": "Gitpod: Open Dashboard",
+	"openAccessControl": "Gitpod: Open Access Control",
+	"openSettings": "Gitpod: Open Settings",
+	"openContext": "Gitpod: Open Context",
+	"openDocumentation": "Gitpod: Documentation",
+	"openCommunity": "Gitpod: Open Community Forum",
+	"openFollow": "Gitpod: Follow us on Twitter",
+	"reportIssue": "Gitpod: Report Issue",
+	"stopWorkspace": "Gitpod: Stop Workspace",
+	"upgradeSubscription": "Gitpod: Upgrade Subscription",
+	"extendTimeout": "Gitpod: Extend Workspace Timeout"
 }

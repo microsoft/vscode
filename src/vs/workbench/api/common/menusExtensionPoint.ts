@@ -92,6 +92,30 @@ const apiMenus: IAPIMenu[] = [
 		supportsSubmenus: false
 	},
 	{
+		key: 'menuBar/help',
+		id: MenuId.MenubarHelpMenu,
+		description: localize('menus.help', "The top level help menu"),
+		proposed: true
+	},
+	{
+		key: 'menuBar/preferences',
+		id: MenuId.MenubarPreferencesMenu,
+		description: localize('menus.preferences', "The preferences menu"),
+		proposed: true
+	},
+	{
+		key: 'preferences/context',
+		id: MenuId.MenubarPreferencesMenu,
+		description: localize('menus.preferencesContext', "The preferences context menu"),
+		proposed: true
+	},
+	{
+		key: 'accounts/context',
+		id: MenuId.AccountsContext,
+		description: localize('menus.accountsContext', "The accounts context menu"),
+		proposed: true
+	},
+	{
 		key: 'scm/title',
 		id: MenuId.SCMTitle,
 		description: localize('menus.scmTitle', "The Source Control title menu")

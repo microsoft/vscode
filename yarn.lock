@@ -186,10 +186,10 @@
     global-agent "^2.0.2"
     global-tunnel-ng "^2.7.1"
 
-"@gitpod/gitpod-protocol@^0.1.5-ak-fix-code.7":
-  version "0.1.5-test.4"
-  resolved "https://registry.yarnpkg.com/@gitpod/gitpod-protocol/-/gitpod-protocol-0.1.5-test.4.tgz#db6660cc9a92baf14c70ceaa85a91d515b3e209c"
-  integrity sha512-IOX68/dqFBoV8hkRzV9Ad3nxFD3YnefyM4iY589ONj5nH0tS1Z78uLTIRNvVuBoCWpagAtJn8DwAxccpdV8AJw==
+"@gitpod/gitpod-protocol@master":
+  version "0.1.5-master.453"
+  resolved "https://registry.yarnpkg.com/@gitpod/gitpod-protocol/-/gitpod-protocol-0.1.5-master.453.tgz#c2e9b04acedc4a13d52092a65b055c3ef9386a94"
+  integrity sha512-MOKm3lLThZCadJ76G+dEQeZYSWc8Dh6knYMDar4qQTjST0jF6dzX2tHI/yWQAz9QgUui+SWLqp9GUasyYaF5Zg==
   dependencies:
     ajv "^6.5.4"
     inversify "^5.0.1"
@@ -197,6 +197,7 @@
     js-yaml "^3.10.0"
     opentracing "^0.14.4"
     prom-client "^10.2.0"
+    random-number-csprng "^1.0.2"
     reconnecting-websocket "^4.2.0"
     reflect-metadata "^0.1.10"
     uuid "^3.3.3"
@@ -204,10 +205,10 @@
     vscode-ws-jsonrpc "^0.2.0"
     ws "^5.2.2"
 
-"@gitpod/supervisor-api-grpc@ak-remote-terminal-channel":
-  version "0.1.5-ak-remote-terminal-channel.40"
-  resolved "https://registry.yarnpkg.com/@gitpod/supervisor-api-grpc/-/supervisor-api-grpc-0.1.5-ak-remote-terminal-channel.40.tgz#9618f5a2c4eff6370c32252f8f25894db472a23a"
-  integrity sha512-5Wr87rsxgtDzhJHaHv1YLB7YGdnv1muQ4i77UuZndyC9vKGg5Ee8dnVh5nKAYR0/spbZzk/2squmJ/tQq6r/0w==
+"@gitpod/supervisor-api-grpc@master":
+  version "0.1.5-master.428"
+  resolved "https://registry.yarnpkg.com/@gitpod/supervisor-api-grpc/-/supervisor-api-grpc-0.1.5-master.428.tgz#235960c21f4e96fbeeea95218b993f698322e7a1"
+  integrity sha512-B/DjbYgVYfV6m6dY3B5T8pBbA1gn77Lyzt/nh67hZBZyrDeqH6lAharaQKkG+nNutsM4D+SyKsfIpoi8/djiuQ==
   dependencies:
     "@grpc/grpc-js" "^1.1.5"
     google-protobuf "^3.8.0-rc.1"
@@ -1552,7 +1553,7 @@ block-stream@*:
   dependencies:
     inherits "~2.0.0"
 
-bluebird@^3.5.5:
+bluebird@^3.3.3, bluebird@^3.5.5:
   version "3.7.2"
   resolved "https://registry.yarnpkg.com/bluebird/-/bluebird-3.7.2.tgz#9f229c15be272454ffa973ace0dbee79a1b0c36f"
   integrity sha512-XpNj6GDQzdfW+r2Wnn7xiSAd7TM3jzkxGXBGTtWKuSXv1xUV+azxAm8jdWZN06QTQk+2N2XB9jRDkvbmQmcRtg==
@@ -2477,6 +2478,11 @@ create-ecdh@^4.0.0:
   dependencies:
     bn.js "^4.1.0"
     elliptic "^6.5.3"
+
+create-error@^0.3.1:
+  version "0.3.1"
+  resolved "https://registry.yarnpkg.com/create-error/-/create-error-0.3.1.tgz#69810245a629e654432bf04377360003a5351a23"
+  integrity sha1-aYECRaYp5lRDK/BDdzYAA6U1GiM=
 
 create-hash@^1.1.0, create-hash@^1.1.2, create-hash@^1.2.0:
   version "1.2.0"
@@ -8241,6 +8247,14 @@ queue@^4.2.1:
   integrity sha512-DwxpAnqJuoQa+wyDgQuwkSshkhlqIlWEvwvdAY27fDPunZ2cVJzXU4JyjY+5l7zs7oGLaYAQm4MbLOVFAHFBzA==
   dependencies:
     inherits "~2.0.0"
+
+random-number-csprng@^1.0.2:
+  version "1.0.2"
+  resolved "https://registry.yarnpkg.com/random-number-csprng/-/random-number-csprng-1.0.2.tgz#fcd120e62dffc2c07674c7c3fe01e16b25f73a26"
+  integrity sha1-/NEg5i3/wsB2dMfD/gHhayX3OiY=
+  dependencies:
+    bluebird "^3.3.3"
+    create-error "^0.3.1"
 
 randomatic@^3.0.0:
   version "3.1.1"

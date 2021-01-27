@@ -18,7 +18,7 @@ import { defaultWebSocketFactory } from 'vs/platform/remote/browser/browserSocke
 import { join } from 'vs/base/common/path';
 import product from 'vs/platform/product/common/product';
 import { extractLocalHostUriMetaDataForPortMapping } from 'vs/platform/remote/common/tunnel';
-import type { IDEState } from '@gitpod/gitpod-protocol/lib/ide-service';
+import type { IDEFrontendState } from '@gitpod/gitpod-protocol/lib/ide-frontend-service';
 import { ColorScheme } from 'vs/platform/theme/common/theme';
 import { parseLogLevel } from 'vs/platform/log/common/log';
 
@@ -204,7 +204,7 @@ class WorkspaceProvider implements IWorkspaceProvider {
 
 const devMode = product.nameShort.endsWith(' Dev');
 
-let _state: IDEState = 'init';
+let _state: IDEFrontendState = 'init';
 const onDidChangeEmitter = new Emitter<void>();
 const toStop = new DisposableStore();
 toStop.add(onDidChangeEmitter);
