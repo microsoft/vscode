@@ -23,6 +23,8 @@ export enum PropertyFoldingState {
 	Collapsed
 }
 
+export const OUTPUT_EDITOR_HEIGHT_MAGIC = 1440;
+
 type ILayoutInfoDelta0 = { [K in keyof IDiffElementLayoutInfo]?: number; };
 interface ILayoutInfoDelta extends ILayoutInfoDelta0 {
 	rawOutputHeight?: number;
@@ -39,7 +41,7 @@ export abstract class DiffElementViewModelBase extends Disposable {
 	protected _layoutInfo!: IDiffElementLayoutInfo;
 
 	set rawOutputHeight(height: number) {
-		this._layout({ rawOutputHeight: height });
+		this._layout({ rawOutputHeight: Math.min(OUTPUT_EDITOR_HEIGHT_MAGIC, height) });
 	}
 
 	get rawOutputHeight() {

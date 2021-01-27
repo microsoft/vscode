@@ -7,16 +7,14 @@ import * as DOM from 'vs/base/browser/dom';
 import { Disposable, DisposableStore } from 'vs/base/common/lifecycle';
 import { IDiffEditorOptions, IEditorOptions } from 'vs/editor/common/config/editorOptions';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
-import { DiffElementViewModelBase, getFormatedMetadataJSON, PropertyFoldingState, SideBySideDiffElementViewModel, SingleSideDiffElementViewModel } from 'vs/workbench/contrib/notebook/browser/diff/diffElementViewModel';
+import { DiffElementViewModelBase, getFormatedMetadataJSON, OUTPUT_EDITOR_HEIGHT_MAGIC, PropertyFoldingState, SideBySideDiffElementViewModel, SingleSideDiffElementViewModel } from 'vs/workbench/contrib/notebook/browser/diff/diffElementViewModel';
 import { CellDiffSideBySideRenderTemplate, CellDiffSingleSideRenderTemplate, DiffSide, DIFF_CELL_MARGIN, INotebookTextDiffEditor, NOTEBOOK_DIFF_CELL_PROPERTY, NOTEBOOK_DIFF_CELL_PROPERTY_EXPANDED } from 'vs/workbench/contrib/notebook/browser/diff/notebookDiffEditorBrowser';
 import { EDITOR_BOTTOM_PADDING } from 'vs/workbench/contrib/notebook/browser/constants';
 import { CodeEditorWidget, ICodeEditorWidgetOptions } from 'vs/editor/browser/widget/codeEditorWidget';
 import { DiffEditorWidget } from 'vs/editor/browser/widget/diffEditorWidget';
 import { IModelService } from 'vs/editor/common/services/modelService';
 import { IModeService } from 'vs/editor/common/services/modeService';
-import { format } from 'vs/base/common/jsonFormatter';
-import { applyEdits } from 'vs/base/common/jsonEdit';
-import { CellEditType, CellUri, NotebookCellMetadata } from 'vs/workbench/contrib/notebook/common/notebookCommon';
+import { CellEditType, CellUri, IProcessedOutput, NotebookCellMetadata } from 'vs/workbench/contrib/notebook/common/notebookCommon';
 import { ToolBar } from 'vs/base/browser/ui/toolbar/toolbar';
 import { IContextMenuService } from 'vs/platform/contextview/browser/contextView';
 import { IMenu, IMenuService, MenuId, MenuItemAction } from 'vs/platform/actions/common/actions';
@@ -566,13 +564,8 @@ abstract class AbstractElementRenderer extends Disposable {
 		}
 	}
 
-	private _getFormatedOutputJSON(outputs: any[]) {
-		const content = JSON.stringify(outputs);
-
-		const edits = format(content, undefined, {});
-		const source = applyEdits(content, edits);
-
-		return source;
+	private _getFormatedOutputJSON(outputs: IProcessedOutput[]) {
+		return JSON.stringify(outputs, undefined, '\t');
 	}
 
 	private _buildOutputEditor() {
@@ -597,7 +590,7 @@ abstract class AbstractElementRenderer extends Disposable {
 					ignoreTrimWhitespace: false,
 					automaticLayout: false,
 					dimension: {
-						height: this.cell.layoutInfo.rawOutputHeight || lineHeight * lineCount,
+						height: Math.min(OUTPUT_EDITOR_HEIGHT_MAGIC, this.cell.layoutInfo.rawOutputHeight || lineHeight * lineCount),
 						width: this.cell.getComputedCellContainerWidth(this.notebookEditor.getLayoutInfo(), false, true)
 					}
 				}, {
@@ -635,7 +628,7 @@ abstract class AbstractElementRenderer extends Disposable {
 		this._outputEditor = this.instantiationService.createInstance(CodeEditorWidget, this._outputEditorContainer!, {
 			...fixedEditorOptions,
 			dimension: {
-				width: this.cell.getComputedCellContainerWidth(this.notebookEditor.getLayoutInfo(), false, this.cell.type === 'unchanged' || this.cell.type === 'modified') - 32,
+				width: Math.min(OUTPUT_EDITOR_HEIGHT_MAGIC, this.cell.getComputedCellContainerWidth(this.notebookEditor.getLayoutInfo(), false, this.cell.type === 'unchanged' || this.cell.type === 'modified') - 32),
 				height: this.cell.layoutInfo.rawOutputHeight
 			},
 			overflowWidgetsDomNode: this.notebookEditor.getOverflowContainerDomNode()
