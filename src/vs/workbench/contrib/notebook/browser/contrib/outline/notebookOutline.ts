@@ -19,7 +19,7 @@ import { IEditorPane } from 'vs/workbench/common/editor';
 import { IKeyboardNavigationLabelProvider, IListVirtualDelegate } from 'vs/base/browser/ui/list/list';
 import { IDataSource, ITreeNode, ITreeRenderer } from 'vs/base/browser/ui/tree/tree';
 import { createMatches, FuzzyScore } from 'vs/base/common/filters';
-import { IconLabel } from 'vs/base/browser/ui/iconLabel/iconLabel';
+import { IconLabel, IIconLabelValueOptions } from 'vs/base/browser/ui/iconLabel/iconLabel';
 import { IListAccessibilityProvider } from 'vs/base/browser/ui/list/listWidget';
 import { IEditorOptions } from 'vs/platform/editor/common/editor';
 import { IEditorService, SIDE_GROUP } from 'vs/workbench/services/editor/common/editorService';
@@ -158,14 +158,19 @@ class NotebookOutlineRenderer implements ITreeRenderer<OutlineEntry, FuzzyScore,
 	}
 
 	renderElement(node: ITreeNode<OutlineEntry, FuzzyScore>, _index: number, template: NotebookOutlineTemplate, _height: number | undefined): void {
-		template.iconLabel.setLabel(node.element.label, undefined, { matches: createMatches(node.filterData) });
+		const options: IIconLabelValueOptions = {
+			matches: createMatches(node.filterData),
+			extraClasses: []
+		};
 
-		// code cells get to use their file icon (assuming the theme supports that)
 		if (node.element.cell.cellKind === CellKind.Code && this._themeService.getFileIconTheme().hasFileIcons) {
-			template.iconClass.className = 'element-icon ' + getIconClassesForModeId(node.element.cell.language ?? '').join(' ');
+			template.iconClass.className = '';
+			options.extraClasses?.push(...getIconClassesForModeId(node.element.cell.language ?? ''));
 		} else {
 			template.iconClass.className = 'element-icon ' + ThemeIcon.asClassNameArray(node.element.icon).join(' ');
 		}
+
+		template.iconLabel.setLabel(node.element.label, undefined, options);
 
 		const { markerInfo } = node.element;
 
@@ -290,6 +295,7 @@ class NotebookCellOutline implements IOutline<OutlineEntry> {
 	constructor(
 		private readonly _editor: NotebookEditor,
 		@IInstantiationService instantiationService: IInstantiationService,
+		@IThemeService themeService: IThemeService,
 		@IEditorService private readonly _editorService: IEditorService,
 		@IMarkerService private readonly _markerService: IMarkerService,
 		@IConfigurationService private readonly _configurationService: IConfigurationService,
@@ -316,6 +322,10 @@ class NotebookCellOutline implements IOutline<OutlineEntry> {
 			if (e.affectsConfiguration('notebook.outline.showCodeCells')) {
 				this._recomputeState();
 			}
+		}));
+
+		this._dispoables.add(themeService.onDidFileIconThemeChange(() => {
+			this._onDidChange.fire({});
 		}));
 
 		this._recomputeState();
