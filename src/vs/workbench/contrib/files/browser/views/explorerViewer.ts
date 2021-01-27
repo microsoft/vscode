@@ -1474,7 +1474,6 @@ export class FileDragAndDrop implements ITreeDragAndDrop<ExplorerItem> {
 			// With conflicting directories, children have to be merged recursively
 
 			const explodedEdits: ResourceFileEdit[] = [];
-
 			for (const edit of resourceFileEdits) {
 				explodedEdits.push(...await this.explodeConflictingFolderEdit(edit));
 			}
@@ -1482,25 +1481,52 @@ export class FileDragAndDrop implements ITreeDragAndDrop<ExplorerItem> {
 			resourceFileEdits = explodedEdits;
 		}
 
+		if (await this.applyInteractiveBulkEdit(resourceFileEdits.filter(edit => edit.newResource), options) && mergeDirectories) {
+			// Since all children of the folder are moved individually, we have to delete the folder
+			// Once everything has been moved successfully, we can delete the folders
+			try {
+				// BulkEdit does not allow deleting in order, but otherwise we try to delete non-empty folders.
+				for (const edit of resourceFileEdits.filter(edit => !edit.newResource)) {
+					await this.explorerService.applyBulkEdit([edit], options);
+				}
+			} catch (error) {
+				this.notificationService.error(error);
+			}
+		}
+	}
+
+	/**
+	 * This function applies a given bulk edit request but if there are any conflicts, asks the user whether to replace those files or abort the process.
+	 * @return Whether the bulk edit was performed successfully.
+	 */
+	private async applyInteractiveBulkEdit(edits: ResourceFileEdit[], options: { undoLabel: string, progressLabel: string, confirmBeforeUndo?: boolean, progressLocation?: ProgressLocation.Explorer | ProgressLocation.Window }): Promise<boolean> {
 		try {
-			await this.explorerService.applyBulkEdit(resourceFileEdits, options);
+			await this.explorerService.applyBulkEdit(edits, options);
+			return true;
 		} catch (error) {
 			// Conflict
 			if ((<FileOperationError>error).fileOperationResult === FileOperationResult.FILE_MOVE_CONFLICT) {
 
-				const overwrites = resourceFileEdits
-					.filter(async edit => edit.newResource && await this.fileService.exists(edit.newResource))
-					.map(edit => edit.newResource!);
+				const overwrites: URI[] = [];
+				for (const edit of edits) {
+					if (edit.newResource && await this.fileService.exists(edit.newResource)) {
+						overwrites.push(edit.newResource);
+					}
+				}
 
 				const confirm = getMultipleFilesOverwriteConfirm(overwrites);
 				// Move with overwrite if the user confirms
 				const { confirmed } = await this.dialogService.confirm(confirm);
-				if (confirmed) {
-					try {
-						await this.explorerService.applyBulkEdit(resourceFileEdits.map(re => new ResourceFileEdit(re.oldResource, re.newResource, { overwrite: true })), options);
-					} catch (error) {
-						this.notificationService.error(error);
-					}
+
+				if (!confirmed) {
+					return false;
+				}
+
+				try {
+					await this.explorerService.applyBulkEdit(edits.map(re => new ResourceFileEdit(re.oldResource, re.newResource, { overwrite: true })), options);
+					return true;
+				} catch (error) {
+					this.notificationService.error(error);
 				}
 			}
 			// Any other error
@@ -1508,6 +1534,8 @@ export class FileDragAndDrop implements ITreeDragAndDrop<ExplorerItem> {
 				this.notificationService.error(error);
 			}
 		}
+
+		return false;
 	}
 
 	private async explodeConflictingFolderEdit(edit: ResourceFileEdit): Promise<ResourceFileEdit[]> {
@@ -1535,7 +1563,6 @@ export class FileDragAndDrop implements ITreeDragAndDrop<ExplorerItem> {
 			edits.push(...await this.explodeConflictingFolderEdit(newEdit));
 		}
 
-		// Since all children of the folder are now moved individually, we have to delete the folder
 		edits.push(new ResourceFileEdit(edit.oldResource, undefined));
 
 		return edits;
