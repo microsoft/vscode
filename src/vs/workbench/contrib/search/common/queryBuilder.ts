@@ -223,7 +223,7 @@ export class QueryBuilder {
 				const relPath = path.relative(searchRoot.fsPath, file.fsPath);
 				assertIsDefined(folderQuery.includePattern)[relPath] = true;
 			} else {
-				if (file.path) {
+				if (file.fsPath) {
 					includePattern[file.fsPath] = true;
 				}
 			}
