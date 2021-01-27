@@ -33,6 +33,8 @@ import { isEqual } from 'vs/base/common/resources';
 import { IdleValue } from 'vs/base/common/async';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { IConfigurationRegistry, Extensions as ConfigurationExtensions } from 'vs/platform/configuration/common/configurationRegistry';
+import * as marked from 'vs/base/common/marked/marked';
+import { renderMarkdownAsPlaintext } from 'vs/base/browser/markdownRenderer';
 
 export interface IOutlineMarkerInfo {
 	readonly count: number;
@@ -376,26 +378,28 @@ class NotebookCellOutline implements IOutline<OutlineEntry> {
 
 		for (let i = 0; i < viewModel.viewCells.length; i++) {
 			const cell = viewModel.viewCells[i];
-			const content = cell.getText();
 			const isMarkdown = cell.cellKind === CellKind.Markdown;
-
 			if (!isMarkdown && !includeCodeCells) {
 				continue;
 			}
 
-			// find first none empty line or use default text
-			const lineMatch = content.match(/^.*\w+.*\w*$/m);
-			const preview = lineMatch ? lineMatch[0].trim().replace(/^[ \t]*(\#+)/, '') : localize('empty', "empty cell");
-
+			// anaslse cell text but cap it 10000 characters
+			let content = cell.getText().substr(0, 10_000);
 			let level = 7;
+
 			if (isMarkdown) {
-				const headers = content.match(/^[ \t]*(\#+)/gm);
-				if (headers) {
-					for (let j = 0; j < headers.length; j++) {
-						level = Math.min(level, headers[j].length);
+				// MD cell: "render" as plain text, find highest header
+				for (const token of marked.lexer(content, { gfm: true })) {
+					if (token.type === 'heading') {
+						level = Math.min(level, token.depth);
 					}
 				}
+				content = renderMarkdownAsPlaintext({ value: content });
 			}
+
+			// find first none empty line or use default text
+			const lineMatch = content.match(/^.*\w+.*\w*$/m);
+			const preview = lineMatch ? lineMatch[0].trim() : localize('empty', "empty cell");
 
 			const entry = new OutlineEntry(i, level, cell, preview, isMarkdown ? Codicon.markdown : Codicon.code);
 			entries.push(entry);
