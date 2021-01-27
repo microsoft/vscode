@@ -1402,18 +1402,22 @@ export class TabsTitleControl extends TitleControl {
 		if (this.accessor.partOptions.wrapTabs) {
 			const visibleTabsWidth = tabsContainer.offsetWidth;
 			const allTabsWidth = tabsContainer.scrollWidth;
+			const lastTab = this.getLastTab();
 
 			// If tabs wrap or should start to wrap (when width exceeds visible width)
 			// we must trigger `updateWrapping` to set the `last-tab-margin-right`
 			// accordingly based on the number of actions. The margin is important to
 			// properly position the last tab apart from the actions
-			if (tabsWrapMultiLine || allTabsWidth > visibleTabsWidth) {
+			if (
+				tabsWrapMultiLine || (
+					allTabsWidth > visibleTabsWidth &&																		// if tabs need more space than visible and
+					!(lastTab && lastTab.offsetWidth > (dimensions.available.width - editorToolbarContainer.offsetWidth))	// editor actions don't occupy too much space
+				)) {
 				updateTabsWrapping(true);
 			}
 
 			// Tabs wrap multiline: remove wrapping under certain size constraint conditions
 			if (tabsWrapMultiLine) {
-				const lastTab = this.getLastTab();
 				if (
 					(tabsContainer.offsetHeight > dimensions.available.height) ||											// if height exceeds available height
 					(allTabsWidth === visibleTabsWidth && tabsContainer.offsetHeight === TabsTitleControl.TAB_HEIGHT) ||	// if wrapping is not needed anymore
