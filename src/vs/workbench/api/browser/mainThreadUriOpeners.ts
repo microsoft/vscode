@@ -108,7 +108,7 @@ export class MainThreadUriOpeners extends Disposable implements MainThreadUriOpe
 		label: string,
 	): Promise<void> {
 		if (this._registeredOpeners.has(id)) {
-			throw new Error(`Opener with id already registered: '${id}'`);
+			throw new Error(`Opener with id '${id}' already registered`);
 		}
 
 		this._registeredOpeners.set(id, {

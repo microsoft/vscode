@@ -31,7 +31,7 @@ export class ExtHostUriOpeners implements ExtHostUriOpenersShape {
 		metadata: vscode.ExternalUriOpenerMetadata,
 	): vscode.Disposable {
 		if (this._openers.has(id)) {
-			throw new Error(`Opener with id already registered: '${id}'`);
+			throw new Error(`Opener with id '${id}' already registered`);
 		}
 
 		this._openers.set(id, opener);
