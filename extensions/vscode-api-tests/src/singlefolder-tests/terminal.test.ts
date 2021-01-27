@@ -3,7 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { window, Pseudoterminal, EventEmitter, TerminalDimensions, workspace, ConfigurationTarget, Disposable, UIKind, env, EnvironmentVariableMutatorType, EnvironmentVariableMutator, extensions, ExtensionContext, TerminalOptions, ExtensionTerminalOptions } from 'vscode';
+import { window, Pseudoterminal, EventEmitter, TerminalDimensions, workspace, ConfigurationTarget, Disposable, UIKind, env, EnvironmentVariableMutatorType, EnvironmentVariableMutator, extensions, ExtensionContext, TerminalOptions, ExtensionTerminalOptions, commands } from 'vscode';
 import { doesNotThrow, equal, ok, deepEqual, throws } from 'assert';
 
 // Disable terminal tests:
@@ -283,6 +283,35 @@ import { doesNotThrow, equal, ok, deepEqual, throws } from 'assert';
 		// 	const terminal1 = window.createTerminal({ name: 'test' });
 		// 	terminal1.show();
 		// });
+
+		test('onDidChangeTerminalName event fires when terminal name is changed', (done) => {
+			disposables.push(window.onDidOpenTerminal(term => {
+				try {
+					equal(term.name, 'foo');
+				} catch (e) {
+					done(e);
+					return;
+				}
+				disposables.push(window.onDidChangeTerminalName(t => {
+					try {
+						equal(t.name, 'bar');
+					} catch (e) {
+						done(e);
+						return;
+					}
+					disposables.push(window.onDidCloseTerminal(() => done()));
+					terminal.dispose();
+				}));
+			}));
+			const pty: Pseudoterminal = {
+				onDidWrite: new EventEmitter<string>().event,
+				open: async () => {
+					await commands.executeCommand('workbench.action.terminal.renameWithArg', { name: 'bar' });
+				},
+				close: () => { }
+			};
+			const terminal = window.createTerminal({ name: 'foo', pty });
+		});
 
 		suite('hideFromUser', () => {
 			test('should be available to terminals API', done => {

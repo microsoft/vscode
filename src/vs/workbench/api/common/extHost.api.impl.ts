@@ -540,6 +540,10 @@ export function createApiFactoryAndRegisterActors(accessor: ServicesAccessor): I
 				checkProposedApiEnabled(extension);
 				return extHostTerminalService.onDidWriteTerminalData(listener, thisArg, disposables);
 			},
+			onDidChangeTerminalName(listener, thisArg?, disposables?) {
+				checkProposedApiEnabled(extension);
+				return extHostTerminalService.onDidChangeTerminalName(listener, thisArg, disposables);
+			},
 			get state() {
 				return extHostWindow.state;
 			},

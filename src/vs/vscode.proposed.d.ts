@@ -877,6 +877,17 @@ declare module 'vscode' {
 
 	//#endregion
 
+	//#region Terminal name change event https://github.com/microsoft/vscode/issues/114898
+
+	export namespace window {
+		/**
+		 * An event which fires when the name of the terminal changes.
+		 */
+		export const onDidChangeTerminalName: Event<Terminal>;
+	}
+
+	//#endregion
+
 	// eslint-disable-next-line vscode-dts-region-comments
 	//#region @jrieken -> exclusive document filters
 
