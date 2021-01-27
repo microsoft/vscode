@@ -769,8 +769,8 @@ export class AsyncDataTree<TInput, T, TFilterData = void> implements IDisposable
 			const children = await childrenPromise;
 			return this.setChildren(node, children, recursive, viewStateContext);
 		} catch (err) {
-			if (node !== this.root) {
-				this.tree.collapse(node === this.root ? null : node);
+			if (node !== this.root && this.tree.hasElement(node)) {
+				this.tree.collapse(node);
 			}
 
 			if (isPromiseCanceledError(err)) {

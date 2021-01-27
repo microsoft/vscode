@@ -16,7 +16,7 @@ import { CancellationToken } from 'vs/base/common/cancellation';
 import { DiffElementViewModelBase, SideBySideDiffElementViewModel, SingleSideDiffElementViewModel } from 'vs/workbench/contrib/notebook/browser/diff/diffElementViewModel';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { CellDiffSideBySideRenderer, CellDiffSingleSideRenderer, NotebookCellTextDiffListDelegate, NotebookTextDiffList } from 'vs/workbench/contrib/notebook/browser/diff/notebookTextDiffList';
-import { IContextKeyService, RawContextKey } from 'vs/platform/contextkey/common/contextkey';
+import { IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
 import { diffDiagonalFill, diffInserted, diffRemoved, editorBackground, focusBorder, foreground } from 'vs/platform/theme/common/colorRegistry';
 import { INotebookEditorWorkerService } from 'vs/workbench/contrib/notebook/common/services/notebookWorkerService';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
@@ -45,9 +45,6 @@ import { CELL_OUTPUT_PADDING } from 'vs/workbench/contrib/notebook/browser/const
 import { NotebookDiffEditorEventDispatcher, NotebookDiffLayoutChangedEvent } from 'vs/workbench/contrib/notebook/browser/diff/eventDispatcher';
 
 const $ = DOM.$;
-
-export const IN_NOTEBOOK_TEXT_DIFF_EDITOR = new RawContextKey<boolean>('isInNotebookTextDiffEditor', false);
-
 
 export class NotebookTextDiffEditor extends EditorPane implements INotebookTextDiffEditor {
 	static readonly ID: string = 'workbench.editor.notebookTextDiffEditor';
@@ -436,6 +433,7 @@ export class NotebookTextDiffEditor extends EditorPane implements INotebookTextD
 				if (originalCell.getHashValue() === modifiedCell.getHashValue()) {
 					diffElementViewModels.push(new SideBySideDiffElementViewModel(
 						this._model.modified.notebook,
+						this._model.original.notebook,
 						this.instantiationService.createInstance(DiffNestedCellViewModel, originalCell),
 						this.instantiationService.createInstance(DiffNestedCellViewModel, modifiedCell),
 						'unchanged',
@@ -448,6 +446,7 @@ export class NotebookTextDiffEditor extends EditorPane implements INotebookTextD
 
 					diffElementViewModels.push(new SideBySideDiffElementViewModel(
 						this._model.modified.notebook,
+						this._model.original.notebook,
 						this.instantiationService.createInstance(DiffNestedCellViewModel, originalCell),
 						this.instantiationService.createInstance(DiffNestedCellViewModel, modifiedCell),
 						'modified',
@@ -469,6 +468,7 @@ export class NotebookTextDiffEditor extends EditorPane implements INotebookTextD
 		for (let i = originalCellIndex; i < originalModel.cells.length; i++) {
 			diffElementViewModels.push(new SideBySideDiffElementViewModel(
 				this._model.modified.notebook,
+				this._model.original.notebook,
 				this.instantiationService.createInstance(DiffNestedCellViewModel, originalModel.cells[i]),
 				this.instantiationService.createInstance(DiffNestedCellViewModel, modifiedModel.cells[i - originalCellIndex + modifiedCellIndex]),
 				'unchanged',
@@ -494,6 +494,7 @@ export class NotebookTextDiffEditor extends EditorPane implements INotebookTextD
 		for (let j = 0; j < modifiedLen; j++) {
 			result.push(new SideBySideDiffElementViewModel(
 				modifiedModel,
+				originalModel,
 				this.instantiationService.createInstance(DiffNestedCellViewModel, originalModel.cells[change.originalStart + j]),
 				this.instantiationService.createInstance(DiffNestedCellViewModel, modifiedModel.cells[change.modifiedStart + j]),
 				'modified',
@@ -505,6 +506,7 @@ export class NotebookTextDiffEditor extends EditorPane implements INotebookTextD
 			// deletion
 			result.push(new SingleSideDiffElementViewModel(
 				originalModel,
+				modifiedModel,
 				this.instantiationService.createInstance(DiffNestedCellViewModel, originalModel.cells[change.originalStart + j]),
 				undefined,
 				'delete',
@@ -516,6 +518,7 @@ export class NotebookTextDiffEditor extends EditorPane implements INotebookTextD
 			// insertion
 			result.push(new SingleSideDiffElementViewModel(
 				modifiedModel,
+				originalModel,
 				undefined,
 				this.instantiationService.createInstance(DiffNestedCellViewModel, modifiedModel.cells[change.modifiedStart + j]),
 				'insert',

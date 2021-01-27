@@ -2781,6 +2781,37 @@ suite('Editor Controller - Cursor Configuration', () => {
 		});
 	});
 
+	test('issue #115033: indent and appendText', () => {
+		const mode = new class extends MockMode {
+			constructor() {
+				super(new LanguageIdentifier('onEnterMode', 3));
+				this._register(LanguageConfigurationRegistry.register(this.getLanguageIdentifier(), {
+					onEnterRules: [{
+						beforeText: /.*/,
+						action: {
+							indentAction: IndentAction.Indent,
+							appendText: 'x'
+						}
+					}]
+				}));
+			}
+		}();
+		usingCursor({
+			text: [
+				'text'
+			],
+			languageIdentifier: mode.getLanguageIdentifier(),
+		}, (editor, model, viewModel) => {
+
+			moveTo(editor, viewModel, 1, 5);
+			viewModel.type('\n', 'keyboard');
+			assert.strictEqual(model.getLineContent(1), 'text');
+			assert.strictEqual(model.getLineContent(2), '    x');
+			assertCursor(viewModel, new Position(2, 6));
+		});
+		mode.dispose();
+	});
+
 	test('issue #6862: Editor removes auto inserted indentation when formatting on type', () => {
 		let mode = new OnEnterMode(IndentAction.IndentOutdent);
 		usingCursor({
