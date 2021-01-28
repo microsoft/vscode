@@ -576,28 +576,12 @@ export class Filter implements ITreeFilter<MarkerElement, FilterData> {
 		}
 		for (const line of marker.lines) {
 			const lineMatch = FilterOptions._messageFilter(textFilter, line);
-			if (!negate) {
-				lineMatches.push(lineMatch || []);
-			} else {
-				if (!lineMatch) {
-					lineMatches.push([{ start: 0, end: 0 }]);
-				} else {
-					shouldAppear = false;
-				}
-			}
+			lineMatches.push(lineMatch || []);
 		}
 
 		let sourceMatches: IMatch[] | null | undefined;
 		if (marker.marker.source) {
 			sourceMatches = FilterOptions._filter(textFilter, marker.marker.source);
-			if (negate) {
-				if (sourceMatches) {
-					sourceMatches = undefined;
-					shouldAppear = false;
-				} else {
-					sourceMatches = [{ start: 0, end: 0 }];
-				}
-			}
 		} else {
 			sourceMatches = undefined;
 		}
@@ -606,23 +590,14 @@ export class Filter implements ITreeFilter<MarkerElement, FilterData> {
 		if (marker.marker.code) {
 			const codeText = typeof marker.marker.code === 'string' ? marker.marker.code : marker.marker.code.value;
 			codeMatches = FilterOptions._filter(textFilter, codeText);
-			if (negate) {
-				if (codeMatches) {
-					codeMatches = undefined;
-					shouldAppear = false;
-				} else {
-					codeMatches = [{ start: 0, end: 0 }];
-				}
-			}
 		} else {
 			codeMatches = undefined;
 		}
 
-		if (!shouldAppear) {
+		const anyMatched = (sourceMatches || codeMatches || lineMatches.some(lineMatch => lineMatch.length > 0)) ? true : false;
+		if (anyMatched && negate) {
 			return false;
-		}
-
-		if (sourceMatches || codeMatches || lineMatches.some(lineMatch => lineMatch.length > 0)) {
+		} else if (anyMatched || negate) {
 			return { visibility: true, data: { type: FilterDataType.Marker, lineMatches, sourceMatches: sourceMatches || [], codeMatches: codeMatches || [] } };
 		}
 
