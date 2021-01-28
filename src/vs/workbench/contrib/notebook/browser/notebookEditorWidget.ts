@@ -2127,11 +2127,11 @@ export const focusedCellBorder = registerColor('notebook.focusedCellBorder', {
 	hc: focusBorder
 }, nls.localize('notebook.focusedCellBorder', "The color of the cell's top and bottom border when the cell is focused."));
 
-export const inactiveFocusedCellBorder = registerColor('notebook.inactiveFocusedCellBorder', {
+export const inactiveFocus = registerColor('notebook.inactiveFocus', {
 	dark: notebookCellBorder,
 	light: notebookCellBorder,
 	hc: notebookCellBorder
-}, nls.localize('notebook.inactiveFocusedCellBorder', "The color of the cell's top and bottom border when a cell is focused while the primary focus is outside of the editor."));
+}, nls.localize('notebook.inactiveFocus', "The color of the cell's top and bottom border when a cell is focused while the primary focus is outside of the editor."));
 
 export const cellStatusBarItemHover = registerColor('notebook.cellStatusBarItemHoverBackground', {
 	light: new Color(new RGBA(0, 0, 0, 0.08)),
@@ -2264,13 +2264,13 @@ registerThemingParticipant((theme, collector) => {
 				border-color: ${focusedCellBorderColor} !important;
 			}`);
 
-	const inactiveFocusedCellBorderColor = theme.getColor(inactiveFocusedCellBorder);
+	const inactiveFocusedColor = theme.getColor(inactiveFocus);
 	collector.addRule(`
 			.monaco-workbench .notebookOverlay .monaco-list .monaco-list-row.focused .cell-focus-indicator-top:before,
 			.monaco-workbench .notebookOverlay .monaco-list .monaco-list-row.focused .cell-focus-indicator-bottom:before,
 			.monaco-workbench .notebookOverlay .monaco-list .markdown-cell-row.focused .cell-inner-container:not(.cell-editor-focus):before,
 			.monaco-workbench .notebookOverlay .monaco-list .markdown-cell-row.focused .cell-inner-container:not(.cell-editor-focus):after {
-				border-color: ${inactiveFocusedCellBorderColor} !important;
+				border-color: ${inactiveFocusedColor} !important;
 			}`);
 
 	const selectedCellBorderColor = theme.getColor(selectedCellBorder);
