@@ -319,7 +319,7 @@ registerAction2(class extends NotebookCellAction<ICellRange> {
 			title: localize('notebookActions.cancel', "Stop Cell Execution"),
 			icon: icons.stopIcon,
 			description: {
-				description: localize('notebookActions.execute', "Execute Cell"),
+				description: localize('notebookActions.cancel', "Stop Cell Execution"),
 				args: [
 					{
 						name: 'range',
@@ -598,7 +598,7 @@ registerAction2(class extends NotebookAction {
 			id: CANCEL_NOTEBOOK_COMMAND_ID,
 			title: localize('notebookActions.cancelNotebook', "Cancel Notebook Execution"),
 			description: {
-				description: localize('notebookActions.executeNotebook', "Execute Notebook"),
+				description: localize('notebookActions.cancelNotebook', "Cancel Notebook Execution"),
 				args: [
 					{
 						name: 'uri',
