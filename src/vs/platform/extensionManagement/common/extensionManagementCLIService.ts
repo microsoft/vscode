@@ -176,7 +176,7 @@ export class ExtensionManagementCLIService implements IExtensionManagementCLISer
 	private async installVSIX(vsix: URI, force: boolean, output: CLIOutput): Promise<IExtensionManifest | null> {
 
 		const manifest = await this.extensionManagementService.getManifest(vsix);
-		const valid = await this.validate(manifest, force, output);
+		const valid = await this.validate(manifest, force, output) && await this.validateExtensionKind(manifest, output);
 		if (valid) {
 			try {
 				await this.extensionManagementService.install(vsix);
@@ -217,6 +217,10 @@ export class ExtensionManagementCLIService implements IExtensionManagementCLISer
 
 	private async installFromGallery({ id, version, installOptions }: InstallExtensionInfo, galleryExtension: IGalleryExtension, installed: ILocalExtension[], force: boolean, output: CLIOutput): Promise<IExtensionManifest | null> {
 		const manifest = await this.extensionGalleryService.getManifest(galleryExtension, CancellationToken.None);
+		if (manifest && !await this.validateExtensionKind(manifest, output)) {
+			return null;
+		}
+
 		const installedExtension = installed.find(e => areSameExtensions(e.identifier, galleryExtension.identifier));
 		if (installedExtension) {
 			if (galleryExtension.version === installedExtension.manifest.version) {
@@ -232,10 +236,7 @@ export class ExtensionManagementCLIService implements IExtensionManagementCLISer
 			} else {
 				output.log(localize('installing', "Installing extension '{0}' v{1}...", id, galleryExtension.version));
 			}
-			if (!this.canInstall(manifest!)) {
-				output.log(localize('cannot install', "Cannot install extension '{0}'.", id));
-				return null;
-			}
+
 			await this.extensionManagementService.installFromGallery(galleryExtension, installOptions);
 			output.log(localize('successInstall', "Extension '{0}' v{1} was successfully installed.", id, galleryExtension.version));
 			return manifest;
@@ -249,7 +250,7 @@ export class ExtensionManagementCLIService implements IExtensionManagementCLISer
 		}
 	}
 
-	protected canInstall(manifest: IExtensionManifest): boolean {
+	protected async validateExtensionKind(_manifest: IExtensionManifest, output: CLIOutput): Promise<boolean> {
 		return true;
 	}
 

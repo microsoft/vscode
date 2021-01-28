@@ -5,16 +5,23 @@
 
 import { isString } from 'vs/base/common/types';
 import { URI, UriComponents } from 'vs/base/common/uri';
+import { localize } from 'vs/nls';
 import { CommandsRegistry } from 'vs/platform/commands/common/commands';
-import { IExtensionManagementService } from 'vs/platform/extensionManagement/common/extensionManagement';
+import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
+import { CLIOutput, IExtensionGalleryService, IExtensionManagementService } from 'vs/platform/extensionManagement/common/extensionManagement';
+import { ExtensionManagementCLIService } from 'vs/platform/extensionManagement/common/extensionManagementCLIService';
+import { getExtensionId } from 'vs/platform/extensionManagement/common/extensionManagementUtil';
 import { IInstantiationService, ServicesAccessor } from 'vs/platform/instantiation/common/instantiation';
 import { ServiceCollection } from 'vs/platform/instantiation/common/serviceCollection';
+import { ILocalizationsService } from 'vs/platform/localizations/common/localizations';
 import { IOpenerService } from 'vs/platform/opener/common/opener';
+import { IProductService } from 'vs/platform/product/common/productService';
 import { IExtensionManagementServerService } from 'vs/workbench/services/extensionManagement/common/extensionManagement';
-import { RemoteExtensionCLIManagementService } from 'vs/workbench/services/extensionManagement/common/extensionManagementService';
+import { canExecuteOnWorkspace } from 'vs/workbench/services/extensions/common/extensionsUtil';
+import { IExtensionManifest } from 'vs/workbench/workbench.web.api';
 
 
-// this class contains the command that the CLI server is reying on
+// this class contains the commands that the CLI server is reying on
 
 CommandsRegistry.registerCommand('_remoteCLI.openExternal', function (accessor: ServicesAccessor, uri: UriComponents, options: { allowTunneling?: boolean }) {
 	// TODO: discuss martin, ben where to put this
@@ -36,8 +43,9 @@ CommandsRegistry.registerCommand('_remoteCLI.manageExtensions', async function (
 	if (!extensionManagementServerService.remoteExtensionManagementServer) {
 		return;
 	}
+	const remoteExtensionManagementService = extensionManagementServerService.remoteExtensionManagementServer.extensionManagementService;
 
-	const cliService = instantiationService.createChild(new ServiceCollection([IExtensionManagementService, extensionManagementServerService.remoteExtensionManagementServer.extensionManagementService])).createInstance(RemoteExtensionCLIManagementService);
+	const cliService = instantiationService.createChild(new ServiceCollection([IExtensionManagementService, remoteExtensionManagementService])).createInstance(RemoteExtensionCLIManagementService);
 
 	const lines: string[] = [];
 	const output = { log: lines.push.bind(lines), error: lines.push.bind(lines) };
@@ -64,3 +72,23 @@ CommandsRegistry.registerCommand('_remoteCLI.manageExtensions', async function (
 	return lines.join('\n');
 });
 
+class RemoteExtensionCLIManagementService extends ExtensionManagementCLIService {
+
+	constructor(
+		@IExtensionManagementService extensionManagementService: IExtensionManagementService,
+		@IProductService private readonly productService: IProductService,
+		@IConfigurationService private readonly configurationService: IConfigurationService,
+		@IExtensionGalleryService extensionGalleryService: IExtensionGalleryService,
+		@ILocalizationsService localizationsService: ILocalizationsService,
+	) {
+		super(extensionManagementService, extensionGalleryService, localizationsService);
+	}
+
+	protected async validateExtensionKind(manifest: IExtensionManifest, output: CLIOutput): Promise<boolean> {
+		if (!canExecuteOnWorkspace(manifest, this.productService, this.configurationService)) {
+			output.log(localize('invalidExtensionKind', "Extension {0} can only not be installed. The remote CLI currently only supports installing workbench extensions", getExtensionId(manifest.publisher, manifest.name)));
+			return false;
+		}
+		return true;
+	}
+}
