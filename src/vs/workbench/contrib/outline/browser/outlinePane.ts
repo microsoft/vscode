@@ -211,6 +211,11 @@ export class OutlinePane extends ViewPane {
 			return;
 		}
 
+		if (cts.token.isCancellationRequested) {
+			newOutline?.dispose();
+			return;
+		}
+
 		this._editorDisposables.add(newOutline);
 		this._progressBar.stop().hide();
 
