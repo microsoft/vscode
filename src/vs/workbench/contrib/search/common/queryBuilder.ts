@@ -222,7 +222,7 @@ export class QueryBuilder {
 				}
 
 				const relPath = path.relative(searchRoot.fsPath, file.fsPath);
-				assertIsDefined(folderQuery.includePattern)[relPath] = true;
+				assertIsDefined(folderQuery.includePattern)[relPath.replace(/\\/g, '/')] = true;
 			} else {
 				if (file.fsPath) {
 					includePattern[file.fsPath] = true;
