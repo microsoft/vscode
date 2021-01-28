@@ -536,6 +536,26 @@ namespace commands {
 	}
 }
 
+namespace env {
+
+	/**
+	 * Retrieve performance marks that have been collected during startup. This function
+	 * returns tuples of source and marks. A source is a dedicated context, like
+	 * the renderer or an extension host.
+	 *
+	 * *Note* that marks can be collected on different machines and in different processes
+	 * and that therefore "different clocks" are used. So, comparing `startTime`-properties
+	 * across contexts should be taken with a grain of salt.
+	 *
+	 * @returns A promise that resolves to tuples of source and marks.
+	 */
+	export async function retrievePerformanceMarks(): Promise<[string, readonly IPerformanceMark[]][]> {
+		const workbench = await workbenchPromise;
+
+		return workbench.env.retrievePerformanceMarks();
+	}
+}
+
 export {
 
 	// Factory
@@ -620,7 +640,8 @@ export {
 	IDefaultLayout,
 
 	// Env
-	IPerformanceMark
+	IPerformanceMark,
+	env
 };
 
 //#endregion
