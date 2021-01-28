@@ -6,9 +6,12 @@
 import { isString } from 'vs/base/common/types';
 import { URI, UriComponents } from 'vs/base/common/uri';
 import { CommandsRegistry } from 'vs/platform/commands/common/commands';
-import { IExtensionManagementCLIService } from 'vs/platform/extensionManagement/common/extensionManagement';
-import { ServicesAccessor } from 'vs/platform/instantiation/common/instantiation';
+import { IExtensionManagementService } from 'vs/platform/extensionManagement/common/extensionManagement';
+import { IInstantiationService, ServicesAccessor } from 'vs/platform/instantiation/common/instantiation';
+import { ServiceCollection } from 'vs/platform/instantiation/common/serviceCollection';
 import { IOpenerService } from 'vs/platform/opener/common/opener';
+import { IExtensionManagementServerService } from 'vs/workbench/services/extensionManagement/common/extensionManagement';
+import { RemoteExtensionCLIManagementService } from 'vs/workbench/services/extensionManagement/common/extensionManagementService';
 
 
 // this class contains the command that the CLI server is reying on
@@ -28,7 +31,13 @@ interface ManageExtensionsArgs {
 
 CommandsRegistry.registerCommand('_remoteCLI.manageExtensions', async function (accessor: ServicesAccessor, args: ManageExtensionsArgs) {
 
-	const cliService = accessor.get(IExtensionManagementCLIService);
+	const instantiationService = accessor.get(IInstantiationService);
+	const extensionManagementServerService = accessor.get(IExtensionManagementServerService);
+	if (!extensionManagementServerService.remoteExtensionManagementServer) {
+		return;
+	}
+
+	const cliService = instantiationService.createChild(new ServiceCollection([IExtensionManagementService, extensionManagementServerService.remoteExtensionManagementServer.extensionManagementService])).createInstance(RemoteExtensionCLIManagementService);
 
 	const lines: string[] = [];
 	const output = { log: lines.push.bind(lines), error: lines.push.bind(lines) };

@@ -232,6 +232,10 @@ export class ExtensionManagementCLIService implements IExtensionManagementCLISer
 			} else {
 				output.log(localize('installing', "Installing extension '{0}' v{1}...", id, galleryExtension.version));
 			}
+			if (!this.canInstall(manifest!)) {
+				output.log(localize('cannot install', "Cannot install extension '{0}'.", id));
+				return null;
+			}
 			await this.extensionManagementService.installFromGallery(galleryExtension, installOptions);
 			output.log(localize('successInstall', "Extension '{0}' v{1} was successfully installed.", id, galleryExtension.version));
 			return manifest;
@@ -243,6 +247,10 @@ export class ExtensionManagementCLIService implements IExtensionManagementCLISer
 				throw error;
 			}
 		}
+	}
+
+	protected canInstall(manifest: IExtensionManifest): boolean {
+		return true;
 	}
 
 	private async validate(manifest: IExtensionManifest, force: boolean, output: CLIOutput): Promise<boolean> {
