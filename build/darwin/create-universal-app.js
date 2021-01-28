@@ -7,6 +7,7 @@ Object.defineProperty(exports, "__esModule", { value: true });
 const vscode_universal_1 = require("vscode-universal");
 const fs = require("fs-extra");
 const path = require("path");
+const plist = require("plist");
 const product = require("../../product.json");
 async function main() {
     const buildDir = process.env['AGENT_BUILDDIRECTORY'];
@@ -21,6 +22,7 @@ async function main() {
     const arm64AsarPath = path.join(arm64AppPath, 'Contents', 'Resources', 'app', 'node_modules.asar');
     const outAppPath = path.join(buildDir, `VSCode-darwin-${arch}`, appName);
     const productJsonPath = path.resolve(outAppPath, 'Contents', 'Resources', 'app', 'product.json');
+    const infoPlistPath = path.resolve(outAppPath, 'Contents', 'Info.plist');
     await vscode_universal_1.makeUniversalApp({
         x64AppPath,
         arm64AppPath,
@@ -41,6 +43,12 @@ async function main() {
         darwinUniversalAssetId: 'darwin-universal'
     });
     await fs.writeJson(productJsonPath, productJson);
+    let infoPlistString = await fs.readFile(infoPlistPath, 'utf8');
+    let infoPlistJson = plist.parse(infoPlistString);
+    Object.assign(infoPlistJson, {
+        LSRequiresNativeExecution: true
+    });
+    await fs.writeFile(infoPlistPath, plist.build(infoPlistJson), 'utf8');
 }
 if (require.main === module) {
     main().catch(err => {
