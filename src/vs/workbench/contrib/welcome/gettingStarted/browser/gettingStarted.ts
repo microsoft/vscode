@@ -213,11 +213,6 @@ export class GettingStartedPage extends Disposable {
 			mediaElement.setAttribute('alt', taskToExpand.media.altText);
 			taskElement.parentElement?.querySelectorAll('.expanded').forEach(node => node.classList.remove('expanded'));
 			taskElement.classList.add('expanded');
-
-			// focus on next item when clicking 'next'
-			const taskName = taskElement.getAttribute('data-task-id');
-			const taskItem = <HTMLElement>document.querySelector(`[data-task-id='${taskName}']`);
-			taskItem.focus();
 		} else {
 			mediaElement.setAttribute('src', '');
 			mediaElement.setAttribute('alt', '');
