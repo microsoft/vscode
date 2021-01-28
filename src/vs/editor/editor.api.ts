@@ -7,6 +7,7 @@ import { EditorOptions, WrappingIndent, EditorAutoIndentStrategy } from 'vs/edit
 import { createMonacoBaseAPI } from 'vs/editor/common/standalone/standaloneBase';
 import { createMonacoEditorAPI } from 'vs/editor/standalone/browser/standaloneEditor';
 import { createMonacoLanguagesAPI } from 'vs/editor/standalone/browser/standaloneLanguages';
+import { globals } from 'vs/base/common/platform';
 
 // Set defaults for standalone editor
 EditorOptions.wrappingIndent.defaultValue = WrappingIndent.None;
@@ -32,7 +33,9 @@ export const Token = api.Token;
 export const editor = api.editor;
 export const languages = api.languages;
 
-self.monaco = api;
+if (globals.MonacoEnvironment?.globalAPI || globals.define?.amd) {
+	self.monaco = api;
+}
 
 if (typeof self.require !== 'undefined' && typeof self.require.config === 'function') {
 	self.require.config({

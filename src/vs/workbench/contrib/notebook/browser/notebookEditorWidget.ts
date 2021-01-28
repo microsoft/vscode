@@ -62,6 +62,8 @@ import { Webview } from 'vs/workbench/contrib/webview/browser/webview';
 import { IEditorGroupsService } from 'vs/workbench/services/editor/common/editorGroupsService';
 import { configureKernelIcon, errorStateIcon, successStateIcon } from 'vs/workbench/contrib/notebook/browser/notebookIcons';
 import { debugIconStartForeground } from 'vs/workbench/contrib/debug/browser/debugColors';
+import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
+import { extname } from 'vs/base/common/resources';
 
 const $ = DOM.$;
 
@@ -253,7 +255,8 @@ export class NotebookEditorWidget extends Disposable implements INotebookEditor 
 		@IContextMenuService private readonly contextMenuService: IContextMenuService,
 		@IMenuService private readonly menuService: IMenuService,
 		@IQuickInputService private readonly quickInputService: IQuickInputService,
-		@IThemeService private readonly themeService: IThemeService
+		@IThemeService private readonly themeService: IThemeService,
+		@ITelemetryService private readonly telemetryService: ITelemetryService
 	) {
 		super();
 		this.isEmbedded = creationOptions.isEmbedded || false;
@@ -658,6 +661,24 @@ export class NotebookEditorWidget extends Disposable implements INotebookEditor 
 		if (this.viewModel === undefined || !this.viewModel.equal(textModel)) {
 			this._detachModel();
 			await this._attachModel(textModel, viewState);
+
+			type WorkbenchNotebookOpenClassification = {
+				scheme: { classification: 'SystemMetaData', purpose: 'FeatureInsight'; };
+				ext: { classification: 'SystemMetaData', purpose: 'FeatureInsight'; };
+				viewType: { classification: 'SystemMetaData', purpose: 'FeatureInsight'; };
+			};
+
+			type WorkbenchNotebookOpenEvent = {
+				scheme: string;
+				ext: string;
+				viewType: string;
+			};
+
+			this.telemetryService.publicLog2<WorkbenchNotebookOpenEvent, WorkbenchNotebookOpenClassification>('notebook/editorOpened', {
+				scheme: textModel.uri.scheme,
+				ext: extname(textModel.uri),
+				viewType: textModel.viewType
+			});
 		} else {
 			this.restoreListViewState(viewState);
 		}

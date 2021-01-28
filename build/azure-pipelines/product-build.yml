@@ -194,7 +194,8 @@ stages:
             steps:
               - template: linux/product-build-linux.yml
 
-        - ${{ if and(eq(variables['VSCODE_CIBUILD'], false), eq(parameters.VSCODE_BUILD_LINUX_ARMHF, true)) }}:
+        # TODO@joaomoreno: We don't ship ARM snaps for now
+        - ${{ if and(false, eq(variables['VSCODE_CIBUILD'], false), eq(parameters.VSCODE_BUILD_LINUX_ARMHF, true)) }}:
           - job: LinuxSnapArmhf
             dependsOn:
               - LinuxArmhf
@@ -213,7 +214,8 @@ stages:
             steps:
               - template: linux/product-build-linux.yml
 
-        - ${{ if and(eq(variables['VSCODE_CIBUILD'], false), eq(parameters.VSCODE_BUILD_LINUX_ARM64, true)) }}:
+        # TODO@joaomoreno: We don't ship ARM snaps for now
+        - ${{ if and(false, eq(variables['VSCODE_CIBUILD'], false), eq(parameters.VSCODE_BUILD_LINUX_ARM64, true)) }}:
           - job: LinuxSnapArm64
             dependsOn:
               - LinuxArm64

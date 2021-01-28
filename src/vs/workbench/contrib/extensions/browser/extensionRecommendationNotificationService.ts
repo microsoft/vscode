@@ -21,6 +21,7 @@ import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
 import { IUserDataAutoSyncEnablementService, IUserDataSyncResourceEnablementService, SyncResource } from 'vs/platform/userDataSync/common/userDataSync';
 import { SearchExtensionsAction } from 'vs/workbench/contrib/extensions/browser/extensionsActions';
 import { IExtension, IExtensionsWorkbenchService } from 'vs/workbench/contrib/extensions/common/extensions';
+import { IWorkbenchEnvironmentService } from 'vs/workbench/services/environment/common/environmentService';
 import { ITASExperimentService } from 'vs/workbench/services/experiment/common/experimentService';
 import { EnablementState, IWorkbenchExtensioManagementService, IWorkbenchExtensionEnablementService } from 'vs/workbench/services/extensionManagement/common/extensionManagement';
 import { IExtensionIgnoredRecommendationsService } from 'vs/workbench/services/extensionRecommendations/common/extensionRecommendations';
@@ -136,6 +137,7 @@ export class ExtensionRecommendationNotificationService implements IExtensionRec
 		@IExtensionIgnoredRecommendationsService private readonly extensionIgnoredRecommendationsService: IExtensionIgnoredRecommendationsService,
 		@IUserDataAutoSyncEnablementService private readonly userDataAutoSyncEnablementService: IUserDataAutoSyncEnablementService,
 		@IUserDataSyncResourceEnablementService private readonly userDataSyncResourceEnablementService: IUserDataSyncResourceEnablementService,
+		@IWorkbenchEnvironmentService private readonly workbenchEnvironmentService: IWorkbenchEnvironmentService,
 		@optional(ITASExperimentService) tasExperimentService: ITASExperimentService,
 	) {
 		this.tasExperimentService = tasExperimentService;
@@ -206,6 +208,11 @@ export class ExtensionRecommendationNotificationService implements IExtensionRec
 
 		if (this.hasToIgnoreRecommendationNotifications()) {
 			return RecommendationsNotificationResult.Ignored;
+		}
+
+		// Do not show exe based recommendations in remote window
+		if (source === RecommendationSource.EXE && this.workbenchEnvironmentService.remoteAuthority) {
+			return RecommendationsNotificationResult.IncompatibleWindow;
 		}
 
 		// Ignore exe recommendation if the window

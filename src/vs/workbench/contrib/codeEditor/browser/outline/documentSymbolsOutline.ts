@@ -155,7 +155,7 @@ class DocumentSymbolsOutline implements IOutline<DocumentSymbolItem> {
 		};
 		const comparator = new DocumentSymbolComparator();
 		const options = {
-			collapseByDefault: true,
+			collapseByDefault: target === OutlineTarget.Breadcrumbs,
 			expandOnlyOnTwistieClick: true,
 			multipleSelectionSupport: false,
 			identityProvider: new DocumentSymbolIdentityProvider(),

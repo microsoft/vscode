@@ -54,7 +54,7 @@ export const content: GettingStartedContent = [
 					title: localize('gettingStarted.runProject.title', "Build & run your app"),
 					description: localize('gettingStarted.runProject.description', "Build, run & debug your code in the cloud, right from the browser."),
 					button: {
-						title: localize('gettingStarted.runProject.button', "Run Code"),
+						title: localize('gettingStarted.runProject.button', "Start Debugging (F5)"),
 						command: 'workbench.action.debug.selectandstart'
 					},
 					doneOn: { commandExecuted: 'workbench.action.debug.selectandstart' },

@@ -740,7 +740,7 @@ declare module DebugProtocol {
 		/** Reference to the Variable container if the data breakpoint is requested for a child of the container. */
 		variablesReference?: number;
 		/** The name of the Variable's child to obtain data breakpoint information for.
-			If variableReference isn’t provided, this can be an expression.
+			If variablesReference isn’t provided, this can be an expression.
 		*/
 		name: string;
 	}
@@ -1012,7 +1012,7 @@ declare module DebugProtocol {
 
 	/** StackTrace request; value of command field is 'stackTrace'.
 		The request returns a stacktrace from the current execution state of a given thread.
-		A client can request all stack frames by omitting the startFrame and levels arguments. For performance conscious clients stack frames can be retrieved in a piecemeal way with the startFrame and levels arguments. The response of the stackTrace request may contain a totalFrames property that hints at the total number of frames in the stack. If a client needs this total number upfront, it can issue a request for a single (first) frame and depending on the value of totalFrames decide how to proceed. In any case a client should be prepared to receive less frames than requested, which is an indication that the end of the stack has been reached.
+		A client can request all stack frames by omitting the startFrame and levels arguments. For performance conscious clients and if the debug adapter's 'supportsDelayedStackTraceLoading' capability is true, stack frames can be retrieved in a piecemeal way with the startFrame and levels arguments. The response of the stackTrace request may contain a totalFrames property that hints at the total number of frames in the stack. If a client needs this total number upfront, it can issue a request for a single (first) frame and depending on the value of totalFrames decide how to proceed. In any case a client should be prepared to receive less frames than requested, which is an indication that the end of the stack has been reached.
 	*/
 	export interface StackTraceRequest extends Request {
 		// command: 'stackTrace';
@@ -1591,7 +1591,7 @@ declare module DebugProtocol {
 		supportsExceptionInfoRequest?: boolean;
 		/** The debug adapter supports the 'terminateDebuggee' attribute on the 'disconnect' request. */
 		supportTerminateDebuggee?: boolean;
-		/** The debug adapter supports the delayed loading of parts of the stack, which requires that both the 'startFrame' and 'levels' arguments and the 'totalFrames' result of the 'StackTrace' request are supported. */
+		/** The debug adapter supports the delayed loading of parts of the stack, which requires that both the 'startFrame' and 'levels' arguments and an optional 'totalFrames' result of the 'StackTrace' request are supported. */
 		supportsDelayedStackTraceLoading?: boolean;
 		/** The debug adapter supports the 'loadedSources' request. */
 		supportsLoadedSourcesRequest?: boolean;
@@ -1871,7 +1871,7 @@ declare module DebugProtocol {
 			'mostDerivedClass': Indicates that the object is the most derived class.
 			'virtual': Indicates that the object is virtual, that means it is a synthetic object introducedby the
 			adapter for rendering purposes, e.g. an index range for large arrays.
-			'dataBreakpoint': Indicates that a data breakpoint is registered for the object.
+			'dataBreakpoint': Deprecated: Indicates that a data breakpoint is registered for the object. The 'hasDataBreakpoint' attribute should generally be used instead.
 			etc.
 		*/
 		kind?: 'property' | 'method' | 'class' | 'data' | 'event' | 'baseClass' | 'innerClass' | 'interface' | 'mostDerivedClass' | 'virtual' | 'dataBreakpoint' | string;
@@ -1884,9 +1884,10 @@ declare module DebugProtocol {
 			'hasObjectId': Indicates that the object can have an Object ID created for it.
 			'canHaveObjectId': Indicates that the object has an Object ID associated with it.
 			'hasSideEffects': Indicates that the evaluation had side effects.
+			'hasDataBreakpoint': Indicates that the object has its value tracked by a data breakpoint.
 			etc.
 		*/
-		attributes?: ('static' | 'constant' | 'readOnly' | 'rawString' | 'hasObjectId' | 'canHaveObjectId' | 'hasSideEffects' | string)[];
+		attributes?: ('static' | 'constant' | 'readOnly' | 'rawString' | 'hasObjectId' | 'canHaveObjectId' | 'hasSideEffects' | 'hasDataBreakpoint' | string)[];
 		/** Visibility of variable. Before introducing additional values, try to use the listed values.
 			Values: 'public', 'private', 'protected', 'internal', 'final', etc.
 		*/
