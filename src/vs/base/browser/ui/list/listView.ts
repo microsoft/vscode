@@ -510,9 +510,19 @@ export class ListView<T> implements ISpliceable<T>, IDisposable {
 				const item = this.items[i];
 				const rows = rowsToDispose.get(item.templateId);
 				const rowData = rows?.pop();
-				const row = rowData && rowData[0]; // try to reuse a row
 
-				this.insertItemInDOM(i, beforeElement, row);
+				if (!rowData) {
+					this.insertItemInDOM(i, beforeElement);
+				} else {
+					const [row, element, index, size] = rowData;
+					const renderer = this.renderers.get(item.templateId);
+
+					if (renderer && renderer.disposeElement) {
+						renderer.disposeElement(element, index, row.templateData, size);
+					}
+
+					this.insertItemInDOM(i, beforeElement, row);
+				}
 			}
 		}
 
