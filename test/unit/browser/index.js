@@ -129,15 +129,15 @@ const testModules = (async function () {
 		// Get commit details
 		const commnitChanges = tia.getCommitDetails(argv.commit);
 		if (commnitChanges.some(file => !file.endsWith('.ts'))) {
-			// There are changes in the commit that are .ts files
+			console.log('****************************************************************************************************');
+			console.log('* WARNING: Commit contains changes to other than .ts files. Fallback to executing all test suites. *');
+			console.log('****************************************************************************************************');
 			promise = getGlobFiles(undefined);
 			return;
 		}
 
 		// Add reachable test suites
 		const testSuites = tia.getReachableTestSuites(commnitChanges);
-
-		console.log(testSuites);
 		promise = Promise.resolve(processTestFiles(testSuites));
 
 	} else {

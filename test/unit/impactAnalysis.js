@@ -27,6 +27,8 @@ exports.getCommitDetails = function (commit) {
 
 		changes.push(changeDetails[1]);
 	}
+
+	printDetails(`Commit changes (${commit})`, changesRaw);
 	return changes;
 };
 
@@ -44,6 +46,8 @@ exports.getReachableTestSuites = function (commnitChanges) {
 		getReachableTestSuitesFromFile(dependencyMap, file).forEach(f => testFiles.add(f));
 	}
 
+	printDetails('Impacted test suites', [...testFiles]);
+	printDetails('Executing test suites');
 	return [...testFiles];
 }
 
@@ -58,10 +62,19 @@ function createDependencyMap() {
 		const filePathKey = filePath.substr(filePath.indexOf('src/'));
 
 		for (let node of file.getReferencingNodesInOtherSourceFiles()) {
-			// @ts-expect-error
-			if (node.getKind() === tsMorph.SyntaxKind.ImportDeclaration && !node.isTypeOnly()) {
-				const referenceFilePath = node.getSourceFile().getFilePath();
+			const referenceFilePath = node.getSourceFile().getFilePath();
+
+			/// import('vs/platform/files/node/watcher/nsfw/nsfwWatcherService')
+			if (node.getKind() === tsMorph.SyntaxKind.CallExpression) {
 				references.push(referenceFilePath.substr(referenceFilePath.indexOf('src/')));
+				continue;
+			}
+
+			// @ts-expect-error
+			/// import { doBenchmark } from 'vs/editor/test/common/model/benchmark/benchmarkUtils';
+			if (node.getKind() === tsMorph.SyntaxKind.ImportDeclaration && !node.isTypeOnly()) {
+				references.push(referenceFilePath.substr(referenceFilePath.indexOf('src/')));
+				continue;
 			}
 		}
 
@@ -83,14 +96,16 @@ function getReachableTestSuitesFromFile(dependencyMap, file) {
 		return indentationStr;
 	}
 
+	printDetails(`Test impact analysis (${file})`);
+
 	array.push({ indentation: 0, file });
 	while (array.length !== 0) {
 		//let item = array.shift(); // BFS
 		let item = array.pop(); // DFS
 		if (item.file.endsWith('.test.ts')) {
-			console.log(getIndentation(item.indentation) + ' * ' + item.file);
+			console.log(getIndentation(item.indentation) + '* ' + item.file);
 		} else {
-			console.log(getIndentation(item.indentation) + ' - ' + item.file);
+			console.log(getIndentation(item.indentation) + '- ' + item.file);
 		}
 		const dependencies = dependencyMap.get(item.file);
 		dependencies
@@ -102,4 +117,20 @@ function getReachableTestSuitesFromFile(dependencyMap, file) {
 	}
 
 	return [...visited].filter(f => f.endsWith('.test.ts'));
+}
+
+function printDetails(string, message) {
+	let divider = '';
+	for (let i = 0; i < string.length + 4; i++) {
+		divider += '*';
+	}
+
+	console.log('\n');
+	console.log(divider);
+	console.log(`* ${string} *`);
+	console.log(divider);
+
+	if (message) {
+		console.log(message);
+	}
 }
