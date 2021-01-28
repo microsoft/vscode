@@ -12,8 +12,10 @@ const mocha = require('mocha');
 const createStatsCollector = require('../../../node_modules/mocha/lib/stats-collector');
 const MochaJUnitReporter = require('mocha-junit-reporter');
 const url = require('url');
+const cp = require('child_process');
 const minimatch = require('minimatch');
 const playwright = require('playwright');
+const tsMorph = require('ts-morph');
 
 // opts
 const defaultReporterName = process.platform === 'win32' ? 'list' : 'spec';
@@ -21,6 +23,7 @@ const optimist = require('optimist')
 	// .describe('grep', 'only run tests matching <pattern>').alias('grep', 'g').alias('grep', 'f').string('grep')
 	.describe('build', 'run with build output (out-build)').boolean('build')
 	.describe('run', 'only run tests matching <relative_file_path>').string('run')
+	.describe('commit', 'only run tests that are impacted by the changes in the specified commit').string('commit')
 	.describe('glob', 'only run tests matching <glob_pattern>').string('glob')
 	.describe('debug', 'do not run browsers headless').boolean('debug')
 	.describe('browser', 'browsers in which tests should run').string('browser').default('browser', ['chromium', 'firefox', 'webkit'])
@@ -91,22 +94,20 @@ const testModules = (async function () {
 	let isDefaultModules = true;
 	let promise;
 
-	if (argv.run) {
-		// use file list (--run)
-		isDefaultModules = false;
-		promise = Promise.resolve(ensureIsArray(argv.run).map(file => {
+	const processTestFiles = (files) => {
+		return ensureIsArray(files).map(file => {
 			file = file.replace(/^src/, 'out');
 			file = file.replace(/\.ts$/, '.js');
 			return path.relative(out, file);
-		}));
+		});
+	}
 
-	} else {
-		// glob patterns (--glob)
+	const getGlobFiles = (globPattern) => {
 		const defaultGlob = '**/*.test.js';
-		const pattern = argv.glob || defaultGlob
+		const pattern = globPattern || defaultGlob
 		isDefaultModules = pattern === defaultGlob;
 
-		promise = new Promise((resolve, reject) => {
+		return new Promise((resolve, reject) => {
 			glob(pattern, { cwd: out }, (err, files) => {
 				if (err) {
 					reject(err);
@@ -117,6 +118,121 @@ const testModules = (async function () {
 		});
 	}
 
+	if (argv.run) {
+		// use file list (--run)
+		isDefaultModules = false;
+		promise = Promise.resolve(processTestFiles(argv.run));
+
+	} else if (argv.commit) {
+		// use file list based on commit (--commit)
+		isDefaultModules = false;
+
+		const getCommitChanges = (commit) => {
+			let changes = [];
+
+			const changesRaw = cp.execSync(`git diff-tree --no-commit-id --name-status -r ${commit}`, { encoding: 'utf8' });
+			for (const change of changesRaw.split('\n')) {
+				const changeDetails = change.split('\t');
+
+				// Invalid output
+				if (changeDetails.length !== 2) {
+					continue;
+				}
+
+				// Deleted file
+				if (changeDetails[0] === 'D') {
+					continue;
+				}
+
+				changes.push(changeDetails[1]);
+			}
+			return changes;
+		}
+
+		const createDependencyMap = () => {
+			const dependencyMap = new Map();
+			const project = new tsMorph.Project({
+				tsConfigFilePath: 'src/tsconfig.json',
+			});
+			for (let file of project.getSourceFiles()) {
+				const references = [];
+				const filePath = file.getFilePath();
+				const filePathKey = filePath.substr(filePath.indexOf('src/'));
+
+				for (let node of file.getReferencingNodesInOtherSourceFiles()) {
+					// @ts-expect-error
+					if (node.getKind() === tsMorph.SyntaxKind.ImportDeclaration && !node.isTypeOnly()) {
+						const referenceFilePath = node.getSourceFile().getFilePath();
+						references.push(referenceFilePath.substr(referenceFilePath.indexOf('src/')));
+					}
+				}
+
+				dependencyMap.set(filePathKey, references);
+			}
+
+			return dependencyMap;
+		}
+
+		const getReachableTestSuites = (root) => {
+			const array = [];
+			const visited = new Set([...root]);
+
+			const getIndentation = (indentation) => {
+				let indentationStr = '';
+				for (let i = 0; i < indentation; i++) {
+					indentationStr = indentationStr + '    ';
+				}
+				return indentationStr;
+			}
+
+			array.push({ indentation: 0, file: root });
+			while (array.length !== 0) {
+				//let item = array.shift(); // BFS
+				let item = array.pop(); // DFS
+				if (item.file.endsWith('.test.ts')) {
+					console.log(getIndentation(item.indentation) + ' * ' + item.file);
+				} else {
+					console.log(getIndentation(item.indentation) + ' - ' + item.file);
+				}
+				const dependencies = dependencyMap.get(item.file);
+				dependencies
+					.filter(d => !visited.has(d))
+					.forEach(d => {
+						visited.add(d);
+						array.push({ indentation: item.indentation + 1, file: d });
+					});
+			}
+
+			return [...visited].filter(f => f.endsWith('.test.ts'));
+		}
+
+		const commnitChanges = getCommitChanges(argv.commit);
+		if (commnitChanges.some(file => !file.endsWith('.ts'))) {
+			// There are changes in the commit that are .ts files
+			promise = getGlobFiles(undefined);
+			return;
+		}
+
+		const testFiles = new Set();
+		const dependencyMap = createDependencyMap();
+		for (const file of commnitChanges) {
+			// Added/Modified test file
+			if (file.endsWith('.test.ts')) {
+				testFiles.add(file);
+				continue;
+			}
+			// Add reachable test suites
+			getReachableTestSuites(file).forEach(f => testFiles.add(f));
+		}
+
+		console.log(testFiles);
+		promise = Promise.resolve(processTestFiles([...testFiles]));
+
+	} else {
+		// glob patterns (--glob)
+		promise = getGlobFiles(argv.glob);
+	}
+
 	return promise.then(files => {
 		const modules = [];
 		for (let file of files) {
@@ -124,7 +240,7 @@ const testModules = (async function () {
 				modules.push(file.replace(/\.js$/, ''));
 
 			} else if (!isDefaultModules) {
-				console.warn(`DROPPONG ${file} because it cannot be run inside a browser`);
+				console.warn(`DROPPING ${file} because it cannot be run inside a browser`);
 			}
 		}
 		return modules;
