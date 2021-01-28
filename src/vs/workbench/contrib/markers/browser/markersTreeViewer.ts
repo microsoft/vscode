@@ -538,8 +538,10 @@ export class Filter implements ITreeFilter<MarkerElement, FilterData> {
 
 		if (textFilter) {
 			const uriMatches = FilterOptions._filter(textFilter, basename(resourceMarkers.resource));
-			if (uriMatches) {
-				return negate ? false : { visibility: true, data: { type: FilterDataType.ResourceMarkers, uriMatches } };
+			if (uriMatches && negate) {
+				return false;
+			} else if (uriMatches || negate) {
+				return { visibility: true, data: { type: FilterDataType.ResourceMarkers, uriMatches: uriMatches || [] } };
 			}
 		}
 
@@ -614,7 +616,10 @@ export class Filter implements ITreeFilter<MarkerElement, FilterData> {
 		const uriMatches = FilterOptions._filter(this.options.textFilter, basename(relatedInformation.raw.resource));
 		const messageMatches = FilterOptions._messageFilter(this.options.textFilter, paths.basename(relatedInformation.raw.message));
 
-		if (uriMatches || messageMatches) {
+		const anyMatched = (uriMatches || messageMatches) ? true : false;
+		if (anyMatched && negate) {
+			return false;
+		} else if (anyMatched || negate) {
 			return negate ? false : { visibility: true, data: { type: FilterDataType.RelatedInformation, uriMatches: uriMatches || [], messageMatches: messageMatches || [] } };
 		}
 
