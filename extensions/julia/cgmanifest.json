@@ -1,0 +1,17 @@
+{
+	"registrations": [
+		{
+			"component": {
+				"type": "git",
+				"git": {
+					"name": " JuliaEditorSupport/atom-language-julia",
+					"repositoryUrl": "https://github.com/JuliaEditorSupport/atom-language-julia",
+					"commitHash": "df335e026376acd722439aa1ac08f0889ada022e"
+				}
+			},
+			"license": "MIT",
+			"version": "0.20.2"
+		}
+	],
+	"version": 1
+}
