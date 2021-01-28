@@ -38,8 +38,8 @@ export class BrowserCredentialsService extends Disposable implements ICredential
 		this._onDidChangePassword.fire({ service, account });
 	}
 
-	deletePassword(service: string, account: string): Promise<boolean> {
-		const didDelete = this.credentialsProvider.deletePassword(service, account);
+	async deletePassword(service: string, account: string): Promise<boolean> {
+		const didDelete = await this.credentialsProvider.deletePassword(service, account);
 		if (didDelete) {
 			this._onDidChangePassword.fire({ service, account });
 		}
