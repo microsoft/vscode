@@ -159,6 +159,8 @@ export class NativeDialogHandler implements IDialogHandler {
 		let version = this.productService.version;
 		if (this.productService.target) {
 			version = `${version} (${this.productService.target} setup)`;
+		} else if (this.productService.darwinUniversalAssetId) {
+			version = `${version} (Universal)`;
 		}
 
 		const osProps = await this.nativeHostService.getOSProperties();
