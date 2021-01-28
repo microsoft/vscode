@@ -551,6 +551,7 @@ export {
 	// Factory
 	create,
 	IWorkbenchConstructionOptions,
+	IWorkbench,
 
 	// Basic Types
 	URI,
