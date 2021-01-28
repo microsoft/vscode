@@ -11,7 +11,7 @@ import { IThemeService, ThemeIcon } from 'vs/platform/theme/common/themeService'
 import { ICellViewModel } from 'vs/workbench/contrib/notebook/browser/notebookBrowser';
 import { NotebookEditor } from 'vs/workbench/contrib/notebook/browser/notebookEditor';
 import { CellKind } from 'vs/workbench/contrib/notebook/common/notebookCommon';
-import { IOutline, IOutlineComparator, IOutlineCreator, IOutlineListConfig, IOutlineService, IQuickPickDataSource, IQuickPickOutlineElement, OutlineChangeEvent, OutlineConfigKeys } from 'vs/workbench/services/outline/browser/outline';
+import { IOutline, IOutlineComparator, IOutlineCreator, IOutlineListConfig, IOutlineService, IQuickPickDataSource, IQuickPickOutlineElement, OutlineChangeEvent, OutlineConfigKeys, OutlineTarget } from 'vs/workbench/services/outline/browser/outline';
 import { IWorkbenchContributionsRegistry, Extensions as WorkbenchExtensions } from 'vs/workbench/common/contributions';
 import { Registry } from 'vs/platform/registry/common/platform';
 import { LifecyclePhase } from 'vs/workbench/services/lifecycle/common/lifecycle';
@@ -294,6 +294,7 @@ class NotebookCellOutline implements IOutline<OutlineEntry> {
 
 	constructor(
 		private readonly _editor: NotebookEditor,
+		private readonly _target: OutlineTarget,
 		@IInstantiationService instantiationService: IInstantiationService,
 		@IThemeService themeService: IThemeService,
 		@IEditorService private readonly _editorService: IEditorService,
@@ -381,7 +382,12 @@ class NotebookCellOutline implements IOutline<OutlineEntry> {
 			return;
 		}
 
-		const includeCodeCells = this._configurationService.getValue<boolean>('notebook.outline.showCodeCells');
+		let includeCodeCells = true;
+		if (this._target === OutlineTarget.OutlinePane) {
+			includeCodeCells = this._configurationService.getValue<boolean>('notebook.outline.showCodeCells');
+		} else if (this._target === OutlineTarget.Breadcrumbs) {
+			includeCodeCells = this._configurationService.getValue<boolean>('notebook.breadcrumbs.showCodeCells');
+		}
 
 		const [selected] = viewModel.selectionHandles;
 		const entries: OutlineEntry[] = [];
@@ -574,8 +580,8 @@ class NotebookOutlineCreator implements IOutlineCreator<NotebookEditor, OutlineE
 		return candidate.getId() === NotebookEditor.ID;
 	}
 
-	async createOutline(editor: NotebookEditor): Promise<IOutline<OutlineEntry> | undefined> {
-		return this._instantiationService.createInstance(NotebookCellOutline, editor);
+	async createOutline(editor: NotebookEditor, target: OutlineTarget): Promise<IOutline<OutlineEntry> | undefined> {
+		return this._instantiationService.createInstance(NotebookCellOutline, editor, target);
 	}
 }
 
@@ -589,8 +595,13 @@ Registry.as<IConfigurationRegistry>(ConfigurationExtensions.Configuration).regis
 	'properties': {
 		'notebook.outline.showCodeCells': {
 			type: 'boolean',
+			default: false,
+			markdownDescription: localize('outline.showCodeCells', "When enabled notebook outline shows code cells.")
+		},
+		'notebook.breadcrumbs.showCodeCells': {
+			type: 'boolean',
 			default: true,
-			markdownDescription: localize('showCodeCells', "When enabled notebook outline shows code cells.")
-		}
+			markdownDescription: localize('breadcrumbs.showCodeCells', "When enabled notebook breadcrumbs contain code cells.")
+		},
 	}
 });
