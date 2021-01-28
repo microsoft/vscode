@@ -40,10 +40,10 @@ CommandsRegistry.registerCommand('_remoteCLI.manageExtensions', async function (
 
 	const instantiationService = accessor.get(IInstantiationService);
 	const extensionManagementServerService = accessor.get(IExtensionManagementServerService);
-	if (!extensionManagementServerService.remoteExtensionManagementServer) {
+	const remoteExtensionManagementService = extensionManagementServerService.remoteExtensionManagementServer?.extensionManagementService;
+	if (!remoteExtensionManagementService) {
 		return;
 	}
-	const remoteExtensionManagementService = extensionManagementServerService.remoteExtensionManagementServer.extensionManagementService;
 
 	const cliService = instantiationService.createChild(new ServiceCollection([IExtensionManagementService, remoteExtensionManagementService])).createInstance(RemoteExtensionCLIManagementService);
 
@@ -84,9 +84,9 @@ class RemoteExtensionCLIManagementService extends ExtensionManagementCLIService 
 		super(extensionManagementService, extensionGalleryService, localizationsService);
 	}
 
-	protected async validateExtensionKind(manifest: IExtensionManifest, output: CLIOutput): Promise<boolean> {
+	protected validateExtensionKind(manifest: IExtensionManifest, output: CLIOutput): boolean {
 		if (!canExecuteOnWorkspace(manifest, this.productService, this.configurationService)) {
-			output.log(localize('invalidExtensionKind', "Extension {0} can only not be installed. The remote CLI currently only supports installing workbench extensions", getExtensionId(manifest.publisher, manifest.name)));
+			output.log(localize('cannot be installed', "Cannot install '{0}' because this extension has defined that it cannot run on the remote server.", getExtensionId(manifest.publisher, manifest.name)));
 			return false;
 		}
 		return true;

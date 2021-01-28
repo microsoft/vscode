@@ -176,7 +176,11 @@ export class ExtensionManagementCLIService implements IExtensionManagementCLISer
 	private async installVSIX(vsix: URI, force: boolean, output: CLIOutput): Promise<IExtensionManifest | null> {
 
 		const manifest = await this.extensionManagementService.getManifest(vsix);
-		const valid = await this.validate(manifest, force, output) && await this.validateExtensionKind(manifest, output);
+		if (!manifest) {
+			throw new Error('Invalid vsix');
+		}
+
+		const valid = await this.validateVSIX(manifest, force, output);
 		if (valid) {
 			try {
 				await this.extensionManagementService.install(vsix);
@@ -217,7 +221,7 @@ export class ExtensionManagementCLIService implements IExtensionManagementCLISer
 
 	private async installFromGallery({ id, version, installOptions }: InstallExtensionInfo, galleryExtension: IGalleryExtension, installed: ILocalExtension[], force: boolean, output: CLIOutput): Promise<IExtensionManifest | null> {
 		const manifest = await this.extensionGalleryService.getManifest(galleryExtension, CancellationToken.None);
-		if (manifest && !await this.validateExtensionKind(manifest, output)) {
+		if (manifest && !this.validateExtensionKind(manifest, output)) {
 			return null;
 		}
 
@@ -250,15 +254,11 @@ export class ExtensionManagementCLIService implements IExtensionManagementCLISer
 		}
 	}
 
-	protected async validateExtensionKind(_manifest: IExtensionManifest, output: CLIOutput): Promise<boolean> {
+	protected validateExtensionKind(_manifest: IExtensionManifest, output: CLIOutput): boolean {
 		return true;
 	}
 
-	private async validate(manifest: IExtensionManifest, force: boolean, output: CLIOutput): Promise<boolean> {
-		if (!manifest) {
-			throw new Error('Invalid vsix');
-		}
-
+	private async validateVSIX(manifest: IExtensionManifest, force: boolean, output: CLIOutput): Promise<boolean> {
 		const extensionIdentifier = { id: getGalleryExtensionId(manifest.publisher, manifest.name) };
 		const installedExtensions = await this.extensionManagementService.getInstalled(ExtensionType.User);
 		const newer = installedExtensions.find(local => areSameExtensions(extensionIdentifier, local.identifier) && gt(local.manifest.version, manifest.version));
@@ -268,7 +268,7 @@ export class ExtensionManagementCLIService implements IExtensionManagementCLISer
 			return false;
 		}
 
-		return true;
+		return this.validateExtensionKind(manifest, output);
 	}
 
 	public async uninstallExtensions(extensions: (string | URI)[], force: boolean, output: CLIOutput = console): Promise<void> {
