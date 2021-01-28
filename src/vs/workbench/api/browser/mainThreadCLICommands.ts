@@ -3,6 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
+import { Schemas } from 'vs/base/common/network';
 import { isString } from 'vs/base/common/types';
 import { URI, UriComponents } from 'vs/base/common/uri';
 import { localize } from 'vs/nls';
@@ -13,9 +14,11 @@ import { ExtensionManagementCLIService } from 'vs/platform/extensionManagement/c
 import { getExtensionId } from 'vs/platform/extensionManagement/common/extensionManagementUtil';
 import { IInstantiationService, ServicesAccessor } from 'vs/platform/instantiation/common/instantiation';
 import { ServiceCollection } from 'vs/platform/instantiation/common/serviceCollection';
+import { ILabelService } from 'vs/platform/label/common/label';
 import { ILocalizationsService } from 'vs/platform/localizations/common/localizations';
 import { IOpenerService } from 'vs/platform/opener/common/opener';
 import { IProductService } from 'vs/platform/product/common/productService';
+import { IWorkbenchEnvironmentService } from 'vs/workbench/services/environment/common/environmentService';
 import { IExtensionManagementServerService } from 'vs/workbench/services/extensionManagement/common/extensionManagement';
 import { canExecuteOnWorkspace } from 'vs/workbench/services/extensions/common/extensionsUtil';
 import { IExtensionManifest } from 'vs/workbench/workbench.web.api';
@@ -74,14 +77,25 @@ CommandsRegistry.registerCommand('_remoteCLI.manageExtensions', async function (
 
 class RemoteExtensionCLIManagementService extends ExtensionManagementCLIService {
 
+	private _location: string | undefined;
+
 	constructor(
 		@IExtensionManagementService extensionManagementService: IExtensionManagementService,
 		@IProductService private readonly productService: IProductService,
 		@IConfigurationService private readonly configurationService: IConfigurationService,
 		@IExtensionGalleryService extensionGalleryService: IExtensionGalleryService,
 		@ILocalizationsService localizationsService: ILocalizationsService,
+		@ILabelService labelService: ILabelService,
+		@IWorkbenchEnvironmentService envService: IWorkbenchEnvironmentService
 	) {
 		super(extensionManagementService, extensionGalleryService, localizationsService);
+
+		const remoteAuthority = envService.remoteAuthority;
+		this._location = remoteAuthority ? labelService.getHostLabel(Schemas.vscodeRemote, remoteAuthority) : undefined;
+	}
+
+	protected get location(): string | undefined {
+		return this._location;
 	}
 
 	protected validateExtensionKind(manifest: IExtensionManifest, output: CLIOutput): boolean {

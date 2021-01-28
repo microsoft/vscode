@@ -17,7 +17,6 @@ import { Schemas } from 'vs/base/common/network';
 import { ILocalizationsService } from 'vs/platform/localizations/common/localizations';
 
 const notFound = (id: string) => localize('notFound', "Extension '{0}' not found.", id);
-const notInstalled = (id: string) => localize('notInstalled', "Extension '{0}' is not installed.", id);
 const useId = localize('useId', "Make sure you use the full extension ID, including the publisher, e.g.: {0}", 'ms-dotnettools.csharp');
 
 
@@ -52,6 +51,9 @@ export class ExtensionManagementCLIService implements IExtensionManagementCLISer
 		@ILocalizationsService private readonly localizationsService: ILocalizationsService
 	) { }
 
+	protected get location(): string | undefined {
+		return undefined;
+	}
 
 	public async listExtensions(showVersions: boolean, category?: string, output: CLIOutput = console): Promise<void> {
 		let extensions = await this.extensionManagementService.getInstalled(ExtensionType.User);
@@ -75,6 +77,10 @@ export class ExtensionManagementCLIService implements IExtensionManagementCLISer
 			});
 			return;
 		}
+		if (this.location) {
+			output.log(localize('listFromLocation', "Extensions installed on {0}:", this.location));
+		}
+
 		extensions = extensions.sort((e1, e2) => e1.identifier.id.localeCompare(e2.identifier.id));
 		let lastId: string | undefined = undefined;
 		for (let extension of extensions) {
@@ -89,7 +95,7 @@ export class ExtensionManagementCLIService implements IExtensionManagementCLISer
 		const failed: string[] = [];
 		const installedExtensionsManifests: IExtensionManifest[] = [];
 		if (extensions.length) {
-			output.log(localize('installingExtensions', "Installing extensions..."));
+			output.log(this.location ? localize('installingExtensionsOnLocation', "Installing extensions on {0}...", this.location) : localize('installingExtensions', "Installing extensions..."));
 		}
 
 		const installed = await this.extensionManagementService.getInstalled(ExtensionType.User);
@@ -286,7 +292,7 @@ export class ExtensionManagementCLIService implements IExtensionManagementCLISer
 			const installed = await this.extensionManagementService.getInstalled();
 			const extensionsToUninstall = installed.filter(e => areSameExtensions(e.identifier, { id }));
 			if (!extensionsToUninstall.length) {
-				throw new Error(`${notInstalled(id)}\n${useId}`);
+				throw new Error(`${this.notInstalled(id)}\n${useId}`);
 			}
 			if (extensionsToUninstall.some(e => e.type === ExtensionType.System)) {
 				output.log(localize('builtin', "Extension '{0}' is a Built-in extension and cannot be uninstalled", id));
@@ -302,7 +308,12 @@ export class ExtensionManagementCLIService implements IExtensionManagementCLISer
 				uninstalledExtensions.push(extensionToUninstall);
 			}
 
-			output.log(localize('successUninstall', "Extension '{0}' was successfully uninstalled!", id));
+			if (this.location) {
+				output.log(localize('successUninstallFromLocation', "Extension '{0}' was successfully uninstalled from {1}!", id, this.location));
+			} else {
+				output.log(localize('successUninstall', "Extension '{0}' was successfully uninstalled!", id));
+			}
+
 		}
 
 		if (uninstalledExtensions.some(e => isLanguagePackExtension(e.manifest))) {
@@ -328,4 +339,9 @@ export class ExtensionManagementCLIService implements IExtensionManagementCLISer
 	private updateLocalizationsCache(): Promise<boolean> {
 		return this.localizationsService.update();
 	}
+
+	private notInstalled(id: string) {
+		return this.location ? localize('notInstalleddOnLocation', "Extension '{0}' is not installed on {1}.", id, this.location) : localize('notInstalled', "Extension '{0}' is not installed.", id);
+	}
+
 }
