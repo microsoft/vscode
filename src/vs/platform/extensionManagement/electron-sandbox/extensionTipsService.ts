@@ -225,6 +225,12 @@ export class ExtensionTipsService extends BaseExtensionTipsService {
 						this.promptMediumImportanceExeBasedTip();
 						break;
 
+					case RecommendationsNotificationResult.IncompatibleWindow:
+						// Recommended in incompatible window. Schedule the prompt after active window change
+						const onActiveWindowChange = Event.once(Event.latch(Event.any(this.nativeHostService.onDidOpenWindow, this.nativeHostService.onDidFocusWindow)));
+						this._register(onActiveWindowChange(() => this.promptMediumImportanceExeBasedTip()));
+						break;
+
 					case RecommendationsNotificationResult.TooMany:
 						// Too many notifications. Schedule the prompt after one hour
 						const disposable2 = this._register(disposableTimeout(() => { disposable2.dispose(); this.promptMediumImportanceExeBasedTip(); }, 60 * 60 * 1000 /* 1 hour */));
