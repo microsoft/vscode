@@ -112,6 +112,7 @@ steps:
       export SDKROOT=/Applications/Xcode_12.2.app/Contents/Developer/Platforms/MacOSX.platform/Developer/SDKs/MacOSX11.0.sdk
       ls /Applications/Xcode_12.2.app/Contents/Developer/Platforms/MacOSX.platform/Developer/SDKs/
       yarn electron-rebuild
+      # remove once https://github.com/prebuild/prebuild-install/pull/140 is merged and found in keytar
       cd ./node_modules/keytar
       node-gyp rebuild
     displayName: Rebuild native modules for ARM64
