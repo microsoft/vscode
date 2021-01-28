@@ -23,6 +23,7 @@ export const enum RecommendationsNotificationResult {
 	Ignored = 'ignored',
 	Cancelled = 'cancelled',
 	TooMany = 'toomany',
+	IncompatibleWindow = 'incompatibleWindow',
 	Accepted = 'reacted',
 }
 
