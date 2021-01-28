@@ -15,9 +15,10 @@ import { EditorService } from 'vs/workbench/services/editor/browser/editorServic
 import { IBackupFileService } from 'vs/workbench/services/backup/common/backup';
 import { Schemas } from 'vs/base/common/network';
 import { isEqual } from 'vs/base/common/resources';
-import { InMemoryTestBackupFileService, TestServiceAccessor, workbenchInstantiationService } from 'vs/workbench/test/browser/workbenchTestServices';
+import { InMemoryTestBackupFileService, registerTestResourceEditor, TestServiceAccessor, workbenchInstantiationService } from 'vs/workbench/test/browser/workbenchTestServices';
 import { BackupRestorer } from 'vs/workbench/contrib/backup/common/backupRestorer';
 import { BrowserBackupTracker } from 'vs/workbench/contrib/backup/browser/backupTracker';
+import { dispose, IDisposable } from 'vs/base/common/lifecycle';
 
 class TestBackupRestorer extends BackupRestorer {
 	async doRestoreBackups(): Promise<URI[] | undefined> {
@@ -26,12 +27,23 @@ class TestBackupRestorer extends BackupRestorer {
 }
 
 suite('BackupRestorer', () => {
+
 	let accessor: TestServiceAccessor;
+	let disposables: IDisposable[] = [];
 
 	const fooFile = URI.file(isWindows ? 'c:\\Foo' : '/Foo');
 	const barFile = URI.file(isWindows ? 'c:\\Bar' : '/Bar');
 	const untitledFile1 = URI.from({ scheme: Schemas.untitled, path: 'Untitled-1' });
 	const untitledFile2 = URI.from({ scheme: Schemas.untitled, path: 'Untitled-2' });
+
+	setup(() => {
+		disposables.push(registerTestResourceEditor());
+	});
+
+	teardown(() => {
+		dispose(disposables);
+		disposables = [];
+	});
 
 	test('Restore backups', async function () {
 		const backupFileService = new InMemoryTestBackupFileService();

@@ -17,12 +17,6 @@ import { IEditorService } from 'vs/workbench/services/editor/common/editorServic
 import { EditorPart } from 'vs/workbench/browser/parts/editor/editorPart';
 import { IEditorGroupsService } from 'vs/workbench/services/editor/common/editorGroupsService';
 import { EditorService } from 'vs/workbench/services/editor/browser/editorService';
-import { Registry } from 'vs/platform/registry/common/platform';
-import { EditorInput } from 'vs/workbench/common/editor';
-import { FileEditorInput } from 'vs/workbench/contrib/files/common/editors/fileEditorInput';
-import { SyncDescriptor } from 'vs/platform/instantiation/common/descriptors';
-import { IEditorRegistry, EditorDescriptor, Extensions as EditorExtensions } from 'vs/workbench/browser/editor';
-import { TextFileEditor } from 'vs/workbench/contrib/files/browser/editors/textFileEditor';
 import { IBackupFileService } from 'vs/workbench/services/backup/common/backup';
 import { NodeTestBackupFileService } from 'vs/workbench/services/backup/test/electron-browser/backupFileService.test';
 import { dispose, IDisposable } from 'vs/base/common/lifecycle';
@@ -40,7 +34,7 @@ import { workbenchInstantiationService, TestServiceAccessor } from 'vs/workbench
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { TestConfigurationService } from 'vs/platform/configuration/test/common/testConfigurationService';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
-import { TestFilesConfigurationService } from 'vs/workbench/test/browser/workbenchTestServices';
+import { registerTestFileEditor, TestFilesConfigurationService } from 'vs/workbench/test/browser/workbenchTestServices';
 import { MockContextKeyService } from 'vs/platform/keybinding/test/common/mockKeybindingService';
 import { IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
 import { IEnvironmentService } from 'vs/platform/environment/common/environment';
@@ -107,14 +101,7 @@ flakySuite('BackupTracker (native)', function () {
 		const instantiationService = workbenchInstantiationService();
 		accessor = instantiationService.createInstance(TestServiceAccessor);
 
-		disposables.push(Registry.as<IEditorRegistry>(EditorExtensions.Editors).registerEditor(
-			EditorDescriptor.create(
-				TextFileEditor,
-				TextFileEditor.ID,
-				'Text File Editor'
-			),
-			[new SyncDescriptor<EditorInput>(FileEditorInput)]
-		));
+		disposables.push(registerTestFileEditor());
 
 		await pfs.mkdirp(backupHome);
 		await pfs.mkdirp(workspaceBackupPath);

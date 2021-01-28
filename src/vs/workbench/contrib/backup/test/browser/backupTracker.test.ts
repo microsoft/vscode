@@ -19,7 +19,7 @@ import { ILifecycleService } from 'vs/workbench/services/lifecycle/common/lifecy
 import { BackupTracker } from 'vs/workbench/contrib/backup/common/backupTracker';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { UntitledTextEditorInput } from 'vs/workbench/services/untitled/common/untitledTextEditorInput';
-import { InMemoryTestBackupFileService, TestServiceAccessor, workbenchInstantiationService } from 'vs/workbench/test/browser/workbenchTestServices';
+import { InMemoryTestBackupFileService, registerTestResourceEditor, TestServiceAccessor, workbenchInstantiationService } from 'vs/workbench/test/browser/workbenchTestServices';
 import { TestWorkingCopy } from 'vs/workbench/test/common/workbenchTestServices';
 import { CancellationToken } from 'vs/base/common/cancellation';
 import { timeout } from 'vs/base/common/async';
@@ -54,6 +54,8 @@ suite('BackupTracker (browser)', function () {
 		part.create(document.createElement('div'));
 		part.layout(400, 300);
 
+		const editorRegistration = registerTestResourceEditor();
+
 		instantiationService.stub(IEditorGroupsService, part);
 
 		const editorService: EditorService = instantiationService.createInstance(EditorService);
@@ -68,6 +70,7 @@ suite('BackupTracker (browser)', function () {
 		const cleanup = () => {
 			part.dispose();
 			tracker.dispose();
+			editorRegistration.dispose();
 		};
 
 		return { accessor, part, tracker, backupFileService, instantiationService, cleanup };
@@ -150,6 +153,6 @@ suite('BackupTracker (browser)', function () {
 		assert.strictEqual(backupFileService.hasBackupSync(resource), false);
 
 		customWorkingCopy.dispose();
-		await cleanup();
+		cleanup();
 	});
 });

@@ -259,7 +259,7 @@ suite('Files - FileEditorInput', () => {
 		resolved.dispose();
 	});
 
-	test('file editor input factory', async function () {
+	test.skip('file editor input factory', async function () { // TODO@bpasero bring back
 		instantiationService.invokeFunction(accessor => Registry.as<IEditorInputFactoryRegistry>(EditorExtensions.EditorInputFactories).start(accessor));
 
 		const input = createFileInput(toResource.call(this, '/foo/bar/updatefile.js'));
