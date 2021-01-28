@@ -377,7 +377,6 @@ export class GettingStartedPage extends Disposable {
 	}
 
 	private clearDetialView(container: HTMLElement) {
-		console.log(container);
 		const detailContainer = (container.querySelector('.getting-started-detail-container'));
 		detailContainer?.remove();
 		const detailTitle = assertIsDefined(container.querySelector('.getting-started-detail-title'));
