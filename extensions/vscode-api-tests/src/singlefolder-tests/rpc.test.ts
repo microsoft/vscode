@@ -47,6 +47,10 @@ suite('vscode', function () {
 		}
 		assert.strictEqual(rpcPaths.length, 0, rpcPaths.join('\n'));
 		assert.strictEqual(proxyPaths.length, 0, proxyPaths.join('\n'));
+
+		// todo@jrieken
+		// this should be run after/before each test because some objects are short lived,
+		// like notebook-editor, documents etc.
 	});
 
 });
