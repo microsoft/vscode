@@ -190,7 +190,7 @@ export class NativeWindow extends Disposable {
 
 		ipcRenderer.on('vscode:showShellEnvSlowWarning', () => this.notificationService.prompt(
 			Severity.Warning,
-			localize('shellEnvSlowWarning', "Resolving your shell environment is taking very long. Please review your shell configuration."),
+			localize('shellEnvSlowWarning', "It is taking a very long time to resolve your shell environment. Please review your shell configuration."),
 			choices,
 			{
 				sticky: true,
