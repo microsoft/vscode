@@ -5,7 +5,7 @@
 
 import { FileEditorInput } from 'vs/workbench/contrib/files/common/editors/fileEditorInput';
 import { TestInstantiationService } from 'vs/platform/instantiation/test/common/instantiationServiceMock';
-import * as resources from 'vs/base/common/resources';
+import { basename } from 'vs/base/common/resources';
 import { URI } from 'vs/base/common/uri';
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
 import { NullTelemetryService } from 'vs/platform/telemetry/common/telemetryUtils';
@@ -802,7 +802,7 @@ export class TestFileService implements IFileService {
 			isFile: true,
 			isDirectory: false,
 			isSymbolicLink: false,
-			name: resources.basename(resource)
+			name: basename(resource)
 		});
 	}
 
@@ -824,7 +824,7 @@ export class TestFileService implements IFileService {
 			encoding: 'utf8',
 			mtime: Date.now(),
 			ctime: Date.now(),
-			name: resources.basename(resource),
+			name: basename(resource),
 			size: 1
 		});
 	}
@@ -853,7 +853,7 @@ export class TestFileService implements IFileService {
 			mtime: Date.now(),
 			ctime: Date.now(),
 			size: 1,
-			name: resources.basename(resource)
+			name: basename(resource)
 		});
 	}
 
@@ -875,7 +875,7 @@ export class TestFileService implements IFileService {
 			isFile: true,
 			isDirectory: false,
 			isSymbolicLink: false,
-			name: resources.basename(resource)
+			name: basename(resource)
 		});
 	}
 

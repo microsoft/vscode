@@ -308,7 +308,7 @@ suite('Workbench EditorPane', () => {
 				super();
 			}
 			getTypeId() { return 'testEditorInputForMementoTest'; }
-			resolve(): Promise<IEditorModel> { return Promise.resolve(null!); }
+			async resolve(): Promise<IEditorModel | null> { return null; }
 
 			matches(other: TestEditorInput): boolean {
 				return other && this.id === other.id && other instanceof TestEditorInput;
@@ -346,7 +346,7 @@ suite('Workbench EditorPane', () => {
 				super();
 			}
 			getTypeId() { return 'testEditorInputForMementoTest'; }
-			resolve(): Promise<IEditorModel> { return Promise.resolve(null!); }
+			async resolve(): Promise<IEditorModel | null> { return null; }
 
 			matches(other: TestEditorInput): boolean {
 				return other && this.id === other.id && other instanceof TestEditorInput;

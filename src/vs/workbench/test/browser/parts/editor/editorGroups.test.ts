@@ -120,7 +120,7 @@ suite('Workbench editor groups', () => {
 			super();
 		}
 		getTypeId() { return 'testEditorInputForGroups'; }
-		resolve(): Promise<IEditorModel> { return Promise.resolve(null!); }
+		async resolve(): Promise<IEditorModel> { return null!; }
 
 		matches(other: TestEditorInput): boolean {
 			return other && this.id === other.id && other instanceof TestEditorInput;
@@ -143,7 +143,7 @@ suite('Workbench editor groups', () => {
 			super();
 		}
 		getTypeId() { return 'testEditorInputForGroups-nonSerializable'; }
-		resolve(): Promise<IEditorModel> { return Promise.resolve(null!); }
+		async resolve(): Promise<IEditorModel | null> { return null; }
 
 		matches(other: NonSerializableTestEditorInput): boolean {
 			return other && this.id === other.id && other instanceof NonSerializableTestEditorInput;
@@ -158,7 +158,7 @@ suite('Workbench editor groups', () => {
 			super();
 		}
 		getTypeId() { return 'testFileEditorInputForGroups'; }
-		resolve(): Promise<IEditorModel> { return Promise.resolve(null!); }
+		async resolve(): Promise<IEditorModel | null> { return null; }
 		setPreferredName(name: string): void { }
 		setPreferredDescription(description: string): void { }
 		setPreferredResource(resource: URI): void { }

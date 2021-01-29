@@ -37,14 +37,15 @@ suite('Workbench - TextModelResolverService', () => {
 
 	test('resolve resource', async () => {
 		const disposable = accessor.textModelResolverService.registerTextModelContentProvider('test', {
-			provideTextContent: function (resource: URI): Promise<ITextModel> {
+			provideTextContent: async function (resource: URI): Promise<ITextModel | null> {
 				if (resource.scheme === 'test') {
 					let modelContent = 'Hello Test';
 					let languageSelection = accessor.modeService.create('json');
-					return Promise.resolve(accessor.modelService.createModel(modelContent, languageSelection, resource));
+
+					return accessor.modelService.createModel(modelContent, languageSelection, resource);
 				}
 
-				return Promise.resolve(null!);
+				return null;
 			}
 		});
 
