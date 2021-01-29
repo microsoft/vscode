@@ -6,15 +6,15 @@
     "editable": true
   },
   {
-    "kind": 2,
-    "language": "github-issues",
-    "value": "repo:microsoft/vscode is:open label:notebook label:\"papercut :drop_of_blood:\"",
-    "editable": true
-  },
-  {
     "kind": 1,
     "language": "markdown",
     "value": "## All Papercuts\n\nThese are all papercut issues that we encounter while dogfoodingf vscode or extensions that we author. ",
+    "editable": true
+  },
+  {
+    "kind": 2,
+    "language": "github-issues",
+    "value": "repo:microsoft/vscode is:open -label:notebook label:\"papercut :drop_of_blood:\"",
     "editable": true
   },
   {
@@ -26,7 +26,7 @@
   {
     "kind": 2,
     "language": "github-issues",
-    "value": "repo:microsoft/vscode is:open -label:notebook label:\"papercut :drop_of_blood:\"",
+    "value": "repo:microsoft/vscode is:open label:notebook label:\"papercut :drop_of_blood:\"",
     "editable": true
   }
 ]
