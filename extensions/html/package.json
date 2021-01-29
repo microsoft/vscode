@@ -1,7 +1,7 @@
 {
   "name": "html",
   "displayName": "%displayName%",
-	"description": "%description%",
+  "description": "%description%",
   "version": "1.0.0",
   "publisher": "vscode",
   "license": "MIT",

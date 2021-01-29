@@ -1,7 +1,7 @@
 {
-	"name": "razor",
-	"displayName": "%displayName%",
-	"description": "%description%",
+  "name": "razor",
+  "displayName": "%displayName%",
+  "description": "%description%",
   "version": "1.0.0",
   "publisher": "vscode",
   "license": "MIT",
@@ -11,23 +11,34 @@
   "scripts": {
     "update-grammar": "node ../../build/npm/update-grammar.js demyte/language-cshtml grammars/cshtml.json ./syntaxes/cshtml.tmLanguage.json"
   },
-	"contributes": {
-		"languages": [{
-			"id": "razor",
-			"extensions": [ ".cshtml"],
-			"aliases": [ "Razor", "razor" ],
-			"mimetypes": ["text/x-cshtml"],
-			"configuration": "./language-configuration.json"
-		}],
-		"grammars": [{
-      "language": "razor",
-			"scopeName": "text.html.cshtml",
-			"path": "./syntaxes/cshtml.tmLanguage.json",
-			"embeddedLanguages": {
-				"section.embedded.source.cshtml": "csharp",
+  "contributes": {
+    "languages": [
+      {
+        "id": "razor",
+        "extensions": [
+          ".cshtml"
+        ],
+        "aliases": [
+          "Razor",
+          "razor"
+        ],
+        "mimetypes": [
+          "text/x-cshtml"
+        ],
+        "configuration": "./language-configuration.json"
+      }
+    ],
+    "grammars": [
+      {
+        "language": "razor",
+        "scopeName": "text.html.cshtml",
+        "path": "./syntaxes/cshtml.tmLanguage.json",
+        "embeddedLanguages": {
+          "section.embedded.source.cshtml": "csharp",
           "source.css": "css",
           "source.js": "javascript"
-			}
-		}]
+        }
+      }
+    ]
   }
 }
