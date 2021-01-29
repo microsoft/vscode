@@ -366,7 +366,7 @@ export const terminalConfiguration: IConfigurationNode = {
 			description: localize('terminal.integrated.localEchoLatencyThreshold', "Experimental: length of network delay, in milliseconds, where local edits will be echoed on the terminal without waiting for server acknowledgement. If '0', local echo will always be on, and if '-1' it will be disabled."),
 			type: 'integer',
 			minimum: -1,
-			default: 30,
+			default: -1,
 		},
 		'terminal.integrated.localEchoExcludePrograms': {
 			description: localize('terminal.integrated.localEchoExcludePrograms', "Experimental: local echo will be disabled when any of these program names are found in the terminal title."),
