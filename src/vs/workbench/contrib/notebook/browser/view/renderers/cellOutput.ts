@@ -87,22 +87,25 @@ export class OutputElement extends Disposable {
 					}
 				})));
 			}
-			const pickedMimeTypeRenderer = mimeTypes[pick];
 
-			const innerContainer = DOM.$('.output-inner-container');
-			DOM.append(outputItemDiv, innerContainer);
+			if (mimeTypes.length !== 0) {
+				const pickedMimeTypeRenderer = mimeTypes[pick];
+
+				const innerContainer = DOM.$('.output-inner-container');
+				DOM.append(outputItemDiv, innerContainer);
 
 
-			if (pickedMimeTypeRenderer.rendererId !== BUILTIN_RENDERER_ID) {
-				const renderer = this.notebookService.getRendererInfo(pickedMimeTypeRenderer.rendererId);
-				result = renderer
-					? { type: RenderOutputType.Extension, renderer, source: this.output, mimeType: pickedMimeTypeRenderer.mimeType }
-					: this.notebookEditor.getOutputRenderer().render(this.output, innerContainer, pickedMimeTypeRenderer.mimeType, this.getNotebookUri(),);
-			} else {
-				result = this.notebookEditor.getOutputRenderer().render(this.output, innerContainer, pickedMimeTypeRenderer.mimeType, this.getNotebookUri(),);
+				if (pickedMimeTypeRenderer.rendererId !== BUILTIN_RENDERER_ID) {
+					const renderer = this.notebookService.getRendererInfo(pickedMimeTypeRenderer.rendererId);
+					result = renderer
+						? { type: RenderOutputType.Extension, renderer, source: this.output, mimeType: pickedMimeTypeRenderer.mimeType }
+						: this.notebookEditor.getOutputRenderer().render(this.output, innerContainer, pickedMimeTypeRenderer.mimeType, this.getNotebookUri(),);
+				} else {
+					result = this.notebookEditor.getOutputRenderer().render(this.output, innerContainer, pickedMimeTypeRenderer.mimeType, this.getNotebookUri(),);
+				}
+
+				this.output.pickedMimeType = pick;
 			}
-
-			this.output.pickedMimeType = pick;
 		} else {
 			// for text and error, there is no mimetype
 			const innerContainer = DOM.$('.output-inner-container');

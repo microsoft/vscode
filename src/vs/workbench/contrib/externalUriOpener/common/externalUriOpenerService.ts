@@ -8,6 +8,7 @@ import { CancellationToken } from 'vs/base/common/cancellation';
 import { Iterable } from 'vs/base/common/iterator';
 import { Disposable, IDisposable } from 'vs/base/common/lifecycle';
 import { LinkedList } from 'vs/base/common/linkedList';
+import { isWeb } from 'vs/base/common/platform';
 import { URI } from 'vs/base/common/uri';
 import * as modes from 'vs/editor/common/modes';
 import * as nls from 'vs/nls';
@@ -181,7 +182,9 @@ export class ExternalUriOpenerService extends Disposable implements IExternalUri
 		});
 		items.push(
 			{
-				label: nls.localize('selectOpenerDefaultLabel', 'Default external uri opener'),
+				label: isWeb
+					? nls.localize('selectOpenerDefaultLabel.web', 'Open in new browser window')
+					: nls.localize('selectOpenerDefaultLabel', 'Open in default browser'),
 				opener: undefined
 			},
 			{ type: 'separator' },
@@ -191,7 +194,7 @@ export class ExternalUriOpenerService extends Disposable implements IExternalUri
 			});
 
 		const picked = await this.quickInputService.pick(items, {
-			placeHolder: nls.localize('selectOpenerPlaceHolder', "Select opener for {0}", targetUri.toString())
+			placeHolder: nls.localize('selectOpenerPlaceHolder', "How would you like to open: {0}", targetUri.toString())
 		});
 
 		if (!picked) {

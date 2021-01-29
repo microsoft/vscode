@@ -2148,6 +2148,12 @@ export const focusedCellBorder = registerColor('notebook.focusedCellBorder', {
 	hc: focusBorder
 }, nls.localize('notebook.focusedCellBorder', "The color of the cell's top and bottom border when the cell is focused."));
 
+export const inactiveFocusedCellBorder = registerColor('notebook.inactiveFocusedCellBorder', {
+	dark: notebookCellBorder,
+	light: notebookCellBorder,
+	hc: notebookCellBorder
+}, nls.localize('notebook.inactiveFocusedCellBorder', "The color of the cell's top and bottom border when a cell is focused while the primary focus is outside of the editor."));
+
 export const cellStatusBarItemHover = registerColor('notebook.cellStatusBarItemHoverBackground', {
 	light: new Color(new RGBA(0, 0, 0, 0.08)),
 	dark: new Color(new RGBA(255, 255, 255, 0.15)),
@@ -2159,7 +2165,6 @@ export const cellInsertionIndicator = registerColor('notebook.cellInsertionIndic
 	dark: focusBorder,
 	hc: focusBorder
 }, nls.localize('notebook.cellInsertionIndicator', "The color of the notebook cell insertion indicator."));
-
 
 export const listScrollbarSliderBackground = registerColor('notebookScrollbarSlider.background', {
 	dark: scrollbarSliderBackground,
@@ -2277,6 +2282,15 @@ registerThemingParticipant((theme, collector) => {
 			.monaco-workbench .notebookOverlay .monaco-list:focus-within .markdown-cell-row.focused .cell-inner-container:not(.cell-editor-focus):before,
 			.monaco-workbench .notebookOverlay .monaco-list:focus-within .markdown-cell-row.focused .cell-inner-container:not(.cell-editor-focus):after {
 				border-color: ${focusedCellBorderColor} !important;
+			}`);
+
+	const inactiveFocusedBorderColor = theme.getColor(inactiveFocusedCellBorder);
+	collector.addRule(`
+			.monaco-workbench .notebookOverlay .monaco-list .monaco-list-row.focused .cell-focus-indicator-top:before,
+			.monaco-workbench .notebookOverlay .monaco-list .monaco-list-row.focused .cell-focus-indicator-bottom:before,
+			.monaco-workbench .notebookOverlay .monaco-list .markdown-cell-row.focused .cell-inner-container:not(.cell-editor-focus):before,
+			.monaco-workbench .notebookOverlay .monaco-list .markdown-cell-row.focused .cell-inner-container:not(.cell-editor-focus):after {
+				border-color: ${inactiveFocusedBorderColor} !important;
 			}`);
 
 	const selectedCellBorderColor = theme.getColor(selectedCellBorder);
