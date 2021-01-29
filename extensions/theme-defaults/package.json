@@ -51,5 +51,9 @@
         "path": "./fileicons/vs_minimal-icon-theme.json"
       }
     ]
+  },
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/microsoft/vscode.git"
   }
 }

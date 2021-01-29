@@ -37,5 +37,9 @@
         "path": "./syntaxes/Handlebars.tmLanguage.json"
       }
     ]
+  },
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/microsoft/vscode.git"
   }
 }

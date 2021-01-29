@@ -21,5 +21,9 @@
         "path": "./icons/vs-seti-icon-theme.json"
       }
     ]
+  },
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/microsoft/vscode.git"
   }
 }

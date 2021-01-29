@@ -40,16 +40,8 @@
       }
     ]
   },
-  "homepage": "https://code.visualstudio.com/",
-  "bugs": {
-    "url": "https://github.com/microsoft/vscode/issues"
-  },
   "repository": {
     "type": "git",
-    "url": "https://github.com/microsoft/vscode-bat.git"
-  },
-  "dependencies": {},
-  "devDependencies": {
-    "vscode-grammar-updater": "^1.0.2"
+    "url": "https://github.com/microsoft/vscode.git"
   }
 }

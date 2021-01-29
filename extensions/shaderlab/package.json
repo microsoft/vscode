@@ -32,5 +32,9 @@
         "scopeName": "source.shaderlab"
       }
     ]
+  },
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/microsoft/vscode.git"
   }
 }

@@ -39,5 +39,9 @@
         "path": "./snippets/java.code-snippets"
       }
     ]
+  },
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/microsoft/vscode.git"
   }
 }

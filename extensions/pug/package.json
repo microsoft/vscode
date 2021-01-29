@@ -34,5 +34,9 @@
         "path": "./syntaxes/pug.tmLanguage.json"
       }
     ]
+  },
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/microsoft/vscode.git"
   }
 }

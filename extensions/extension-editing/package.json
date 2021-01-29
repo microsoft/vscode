@@ -63,5 +63,9 @@
   "devDependencies": {
     "@types/markdown-it": "0.0.2",
     "@types/node": "^12.19.9"
+  },
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/microsoft/vscode.git"
   }
 }

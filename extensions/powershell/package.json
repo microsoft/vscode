@@ -45,5 +45,9 @@
   },
   "scripts": {
     "update-grammar": "node ../../build/npm/update-grammar.js PowerShell/EditorSyntax PowerShellSyntax.tmLanguage ./syntaxes/powershell.tmLanguage.json"
+  },
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/microsoft/vscode.git"
   }
 }
