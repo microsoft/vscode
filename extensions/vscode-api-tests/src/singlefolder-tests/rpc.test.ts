@@ -46,8 +46,7 @@ suite('vscode', function () {
 			assert.fail(err);
 		}
 		assert.strictEqual(rpcPaths.length, 0, rpcPaths.join('\n'));
-
-		// assert.strictEqual(proxyPaths.length, 0, proxyPaths.join('\n')); // proxies are accessible...
+		assert.strictEqual(proxyPaths.length, 0, proxyPaths.join('\n'));
 	});
 
 });
