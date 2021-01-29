@@ -122,6 +122,14 @@ const testModules = (async function () {
 		isDefaultModules = false;
 		promise = Promise.resolve(processTestFiles(argv.run));
 
+	} else if (argv.local) {
+		// use file list based on commit (--local)
+		isDefaultModules = false;
+
+		const changes = tia.getLocalChangeDetails();
+		const testSuites = tia.getReachableTestSuites(changes);
+		promise = Promise.resolve(processTestFiles(testSuites));
+
 	} else if (argv.commit) {
 		// use file list based on commit (--commit)
 		isDefaultModules = false;

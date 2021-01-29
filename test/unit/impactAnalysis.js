@@ -32,6 +32,30 @@ exports.getCommitDetails = function (commit) {
 	return changes;
 };
 
+exports.getLocalChangeDetails = function () {
+	let changes = [];
+
+	const changesRaw = cp.execSync(`git status -u -z`, { encoding: 'utf8' });
+	for (const change of changesRaw.split('\0')) {
+		const changeDetails = change.trim().split(/\s+/);
+		// Invalid output
+		if (changeDetails.length !== 2) {
+			continue;
+		}
+
+		// Deleted file
+		if (changeDetails[0].includes('D')) {
+			continue;
+		}
+
+		if (changeDetails[1].endsWith('.ts')) {
+			changes.push(changeDetails[1]);
+		}
+	}
+
+	return changes;
+}
+
 exports.getReachableTestSuites = function (commnitChanges) {
 	const testFiles = new Set();
 	const dependencyMap = createDependencyMap();
