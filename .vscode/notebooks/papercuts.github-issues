@@ -28,5 +28,17 @@
     "language": "github-issues",
     "value": "repo:microsoft/vscode is:open label:notebook label:\"papercut :drop_of_blood:\"",
     "editable": true
+  },
+  {
+    "kind": 1,
+    "language": "markdown",
+    "value": "### My Papercuts",
+    "editable": true
+  },
+  {
+    "kind": 2,
+    "language": "github-issues",
+    "value": "repo:microsoft/vscode is:open assignee:@me label:\"papercut :drop_of_blood:\"",
+    "editable": true
   }
 ]
