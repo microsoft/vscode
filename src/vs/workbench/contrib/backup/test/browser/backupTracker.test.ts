@@ -25,25 +25,25 @@ import { CancellationToken } from 'vs/base/common/cancellation';
 import { timeout } from 'vs/base/common/async';
 import { BrowserBackupTracker } from 'vs/workbench/contrib/backup/browser/backupTracker';
 
-class TestBackupTracker extends BrowserBackupTracker {
-
-	constructor(
-		@IBackupFileService backupFileService: IBackupFileService,
-		@IFilesConfigurationService filesConfigurationService: IFilesConfigurationService,
-		@IWorkingCopyService workingCopyService: IWorkingCopyService,
-		@ILifecycleService lifecycleService: ILifecycleService,
-		@ILogService logService: ILogService,
-	) {
-		super(backupFileService, filesConfigurationService, workingCopyService, lifecycleService, logService);
-	}
-
-	protected getBackupScheduleDelay(): number {
-		return 10; // Reduce timeout for tests
-	}
-}
-
 suite('BackupTracker (browser)', function () {
 	let accessor: TestServiceAccessor;
+
+	class TestBackupTracker extends BrowserBackupTracker {
+
+		constructor(
+			@IBackupFileService backupFileService: IBackupFileService,
+			@IFilesConfigurationService filesConfigurationService: IFilesConfigurationService,
+			@IWorkingCopyService workingCopyService: IWorkingCopyService,
+			@ILifecycleService lifecycleService: ILifecycleService,
+			@ILogService logService: ILogService,
+		) {
+			super(backupFileService, filesConfigurationService, workingCopyService, lifecycleService, logService);
+		}
+
+		protected getBackupScheduleDelay(): number {
+			return 10; // Reduce timeout for tests
+		}
+	}
 
 	async function createTracker(): Promise<{ accessor: TestServiceAccessor, part: EditorPart, tracker: BackupTracker, backupFileService: InMemoryTestBackupFileService, instantiationService: IInstantiationService, cleanup: () => void }> {
 		const backupFileService = new InMemoryTestBackupFileService();

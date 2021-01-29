@@ -31,15 +31,12 @@ suite('Workbench - TextModelResolverService', () => {
 	});
 
 	teardown(() => {
-		if (model) {
-			model.dispose();
-			model = (undefined)!;
-		}
+		model?.dispose();
 		(<TextFileEditorModelManager>accessor.textFileService.files).dispose();
 	});
 
 	test('resolve resource', async () => {
-		const dispose = accessor.textModelResolverService.registerTextModelContentProvider('test', {
+		const disposable = accessor.textModelResolverService.registerTextModelContentProvider('test', {
 			provideTextContent: function (resource: URI): Promise<ITextModel> {
 				if (resource.scheme === 'test') {
 					let modelContent = 'Hello Test';
@@ -68,7 +65,7 @@ suite('Workbench - TextModelResolverService', () => {
 
 		await disposedPromise;
 		assert.strictEqual(disposed, true);
-		dispose.dispose();
+		disposable.dispose();
 	});
 
 	test('resolve file', async function () {

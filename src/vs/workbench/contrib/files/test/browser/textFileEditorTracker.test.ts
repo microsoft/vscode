@@ -13,11 +13,10 @@ import { IResolvedTextFileEditorModel, snapshotToString, ITextFileService } from
 import { FileChangesEvent, FileChangeType } from 'vs/platform/files/common/files';
 import { IEditorGroupsService } from 'vs/workbench/services/editor/common/editorGroupsService';
 import { timeout } from 'vs/base/common/async';
-import { dispose, IDisposable } from 'vs/base/common/lifecycle';
+import { DisposableStore } from 'vs/base/common/lifecycle';
 import { TextFileEditorModelManager } from 'vs/workbench/services/textfile/common/textFileEditorModelManager';
 import { EditorPart } from 'vs/workbench/browser/parts/editor/editorPart';
 import { EditorService } from 'vs/workbench/services/editor/browser/editorService';
-import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { UntitledTextEditorInput } from 'vs/workbench/services/untitled/common/untitledTextEditorInput';
 import { isEqual } from 'vs/base/common/resources';
 import { URI } from 'vs/base/common/uri';
@@ -29,19 +28,18 @@ import { IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
 
 suite('Files - TextFileEditorTracker', () => {
 
-	let disposables: IDisposable[] = [];
+	const disposables = new DisposableStore();
 
 	setup(() => {
-		disposables.push(registerTestFileEditor());
-		disposables.push(registerTestResourceEditor());
+		disposables.add(registerTestFileEditor());
+		disposables.add(registerTestResourceEditor());
 	});
 
 	teardown(() => {
-		dispose(disposables);
-		disposables = [];
+		disposables.clear();
 	});
 
-	async function createTracker(autoSaveEnabled = false): Promise<[EditorPart, TestServiceAccessor, TextFileEditorTracker, IInstantiationService, IEditorService]> {
+	async function createTracker(autoSaveEnabled = false): Promise<TestServiceAccessor> {
 		const instantiationService = workbenchInstantiationService();
 
 		if (autoSaveEnabled) {
@@ -56,7 +54,7 @@ suite('Files - TextFileEditorTracker', () => {
 			));
 		}
 
-		const part = instantiationService.createInstance(EditorPart);
+		const part = disposables.add(instantiationService.createInstance(EditorPart));
 		part.create(document.createElement('div'));
 		part.layout(400, 300);
 
@@ -66,16 +64,17 @@ suite('Files - TextFileEditorTracker', () => {
 		instantiationService.stub(IEditorService, editorService);
 
 		const accessor = instantiationService.createInstance(TestServiceAccessor);
+		disposables.add((<TextFileEditorModelManager>accessor.textFileService.files));
 
 		await part.whenRestored;
 
-		const tracker = instantiationService.createInstance(TextFileEditorTracker);
+		disposables.add(instantiationService.createInstance(TextFileEditorTracker));
 
-		return [part, accessor, tracker, instantiationService, editorService];
+		return accessor;
 	}
 
 	test('file change event updates model', async function () {
-		const [, accessor, tracker] = await createTracker();
+		const accessor = await createTracker();
 
 		const resource = toResource.call(this, '/path/index.txt');
 
@@ -92,9 +91,6 @@ suite('Files - TextFileEditorTracker', () => {
 		await timeout(0); // due to event updating model async
 
 		assert.strictEqual(snapshotToString(model.createSnapshot()!), 'Hello Html');
-
-		tracker.dispose();
-		(<TextFileEditorModelManager>accessor.textFileService.files).dispose();
 	});
 
 	test('dirty text file model opens as editor', async function () {
@@ -110,7 +106,7 @@ suite('Files - TextFileEditorTracker', () => {
 	});
 
 	async function testDirtyTextFileModelOpensEditorDependingOnAutoSaveSetting(resource: URI, autoSave: boolean): Promise<void> {
-		const [part, accessor, tracker] = await createTracker(autoSave);
+		const accessor = await createTracker(autoSave);
 
 		assert.ok(!accessor.editorService.isOpen(accessor.editorService.createEditorInput({ resource, forceFile: true })));
 
@@ -125,17 +121,13 @@ suite('Files - TextFileEditorTracker', () => {
 			await awaitEditorOpening(accessor.editorService);
 			assert.ok(accessor.editorService.isOpen(accessor.editorService.createEditorInput({ resource, forceFile: true })));
 		}
-
-		part.dispose();
-		tracker.dispose();
-		(<TextFileEditorModelManager>accessor.textFileService.files).dispose();
 	}
 
 	test('dirty untitled text file model opens as editor', async function () {
-		const [part, accessor, tracker, , editorService] = await createTracker();
+		const accessor = await createTracker();
 
-		const untitledEditor = editorService.createEditorInput({ forceUntitled: true }) as UntitledTextEditorInput;
-		const model = await untitledEditor.resolve();
+		const untitledEditor = accessor.editorService.createEditorInput({ forceUntitled: true }) as UntitledTextEditorInput;
+		const model = disposables.add(await untitledEditor.resolve());
 
 		assert.ok(!accessor.editorService.isOpen(untitledEditor));
 
@@ -143,10 +135,6 @@ suite('Files - TextFileEditorTracker', () => {
 
 		await awaitEditorOpening(accessor.editorService);
 		assert.ok(accessor.editorService.isOpen(untitledEditor));
-
-		part.dispose();
-		tracker.dispose();
-		model.dispose();
 	});
 
 	function awaitEditorOpening(editorService: IEditorService): Promise<void> {
@@ -154,7 +142,7 @@ suite('Files - TextFileEditorTracker', () => {
 	}
 
 	test('non-dirty files reload on window focus', async function () {
-		const [part, accessor, tracker] = await createTracker();
+		const accessor = await createTracker();
 
 		const resource = toResource.call(this, '/path/index.txt');
 
@@ -164,10 +152,6 @@ suite('Files - TextFileEditorTracker', () => {
 		accessor.hostService.setFocus(true);
 
 		await awaitModelLoadEvent(accessor.textFileService, resource);
-
-		part.dispose();
-		tracker.dispose();
-		(<TextFileEditorModelManager>accessor.textFileService.files).dispose();
 	});
 
 	function awaitModelLoadEvent(textFileService: ITextFileService, resource: URI): Promise<void> {
