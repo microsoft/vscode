@@ -19,6 +19,7 @@ import { DisposableStore } from 'vs/base/common/lifecycle';
 import { BinaryEditorModel } from 'vs/workbench/common/editor/binaryEditorModel';
 import { IResourceEditorInput } from 'vs/platform/editor/common/editor';
 import { Registry } from 'vs/platform/registry/common/platform';
+import { FileEditorInputFactory } from 'vs/workbench/contrib/files/browser/files';
 
 suite('Files - FileEditorInput', () => {
 	let instantiationService: IInstantiationService;
@@ -259,10 +260,12 @@ suite('Files - FileEditorInput', () => {
 		resolved.dispose();
 	});
 
-	test.skip('file editor input factory', async function () { // TODO@bpasero bring back
+	test('file editor input factory', async function () {
 		instantiationService.invokeFunction(accessor => Registry.as<IEditorInputFactoryRegistry>(EditorExtensions.EditorInputFactories).start(accessor));
 
 		const input = createFileInput(toResource.call(this, '/foo/bar/updatefile.js'));
+
+		const disposable = Registry.as<IEditorInputFactoryRegistry>(EditorExtensions.EditorInputFactories).registerEditorInputFactory('workbench.editors.files.fileEditorInput', FileEditorInputFactory);
 
 		const factory = Registry.as<IEditorInputFactoryRegistry>(EditorExtensions.EditorInputFactories).getEditorInputFactory(input.getTypeId());
 		if (!factory) {
@@ -290,6 +293,8 @@ suite('Files - FileEditorInput', () => {
 		const inputWithPreferredResourceDeserialized = factory.deserialize(instantiationService, inputWithPreferredResourceSerialized) as FileEditorInput;
 		assert.strictEqual(inputWithPreferredResource.resource.toString(), inputWithPreferredResourceDeserialized.resource.toString());
 		assert.strictEqual(inputWithPreferredResource.preferredResource.toString(), inputWithPreferredResourceDeserialized.preferredResource.toString());
+
+		disposable.dispose();
 	});
 
 	test('preferred name/description', async function () {
