@@ -288,9 +288,7 @@ export function createApiFactoryAndRegisterActors(accessor: ServicesAccessor): I
 			get appName() { return initData.environment.appName; },
 			get appRoot() { return initData.environment.appRoot?.fsPath ?? ''; },
 			get uriScheme() { return initData.environment.appUriScheme; },
-			get clipboard(): vscode.Clipboard {
-				return extHostClipboard;
-			},
+			get clipboard(): vscode.Clipboard { return extHostClipboard.value; },
 			get shell() {
 				return extHostTerminalService.getDefaultShell(false, configProvider);
 			},
