@@ -675,7 +675,6 @@ export class SplitView<TLayoutContext = undefined> extends Disposable {
 
 		// Add view
 		const container = $('.split-view-view');
-		container.style.overflow = 'hidden';
 
 		if (index === this.viewItems.length) {
 			this.viewContainer.appendChild(container);
