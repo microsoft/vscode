@@ -142,24 +142,13 @@ export class DialogMainService implements IDialogMainService {
 	}
 
 	async showMessageBox(options: MessageBoxOptions, window?: BrowserWindow): Promise<MessageBoxReturnValue> {
+		return await this.getWindowDialogQueue<MessageBoxReturnValue>(window).queue(async () => {
+			if (window) {
+				return dialog.showMessageBox(window, options);
+			}
 
-		// prevent duplicates of the same dialog queueing at the same time
-		const fileDialogLock = this.acquireFileDialogLock(options, window);
-		if (!fileDialogLock) {
-			throw new Error('A dialog is already showing for the window');
-		}
-
-		try {
-			return await this.getWindowDialogQueue<MessageBoxReturnValue>(window).queue(async () => {
-				if (window) {
-					return dialog.showMessageBox(window, options);
-				}
-
-				return dialog.showMessageBox(options);
-			});
-		} finally {
-			dispose(fileDialogLock);
-		}
+			return dialog.showMessageBox(options);
+		});
 	}
 
 	async showSaveDialog(options: SaveDialogOptions, window?: BrowserWindow): Promise<SaveDialogReturnValue> {
