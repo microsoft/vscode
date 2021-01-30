@@ -926,23 +926,23 @@ export class PredictionTimeline {
 		this.expected.push({ gen: this.currentGen, p: prediction });
 		this.addedEmitter.fire(prediction);
 
-		if (this.currentGen === this.expected[0].gen) {
-			const text = prediction.apply(buffer, this.physicalCursor(buffer));
-			this._tenativeCursor = undefined; // next read will get or clone the physical cursor
-
-			if (this.showPredictions && text) {
-				if (prediction.affectsStyle) {
-					this.style.expectIncomingStyle();
-				}
-				// console.log('predict:', JSON.stringify(text));
-				this.terminal.write(text);
-			}
-
-			return true;
+		if (this.currentGen !== this.expected[0].gen) {
+			prediction.apply(buffer, this.tentativeCursor(buffer));
+			return false;
 		}
 
-		prediction.apply(buffer, this.tentativeCursor(buffer));
-		return false;
+		const text = prediction.apply(buffer, this.physicalCursor(buffer));
+		this._tenativeCursor = undefined; // next read will get or clone the physical cursor
+
+		if (this.showPredictions && text) {
+			if (prediction.affectsStyle) {
+				this.style.expectIncomingStyle();
+			}
+			// console.log('predict:', JSON.stringify(text));
+			this.terminal.write(text);
+		}
+
+		return true;
 	}
 
 	/**
