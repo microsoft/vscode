@@ -183,6 +183,14 @@ export function getModelMarkers(filter: { owner?: string, resource?: URI, take?:
 }
 
 /**
+ * Emitted when markers change for a model.
+ * @event
+ */
+export function onDidChangeMarkers(listener: (e: readonly URI[]) => void): IDisposable {
+	return StaticServices.markerService.get().onMarkerChanged(listener);
+}
+
+/**
  * Get the model that has `uri` if it exists.
  */
 export function getModel(uri: URI): ITextModel | null {
@@ -339,6 +347,7 @@ export function createMonacoEditorAPI(): typeof monaco.editor {
 		setModelLanguage: <any>setModelLanguage,
 		setModelMarkers: <any>setModelMarkers,
 		getModelMarkers: <any>getModelMarkers,
+		onDidChangeMarkers: <any>onDidChangeMarkers,
 		getModels: <any>getModels,
 		getModel: <any>getModel,
 		onDidCreateModel: <any>onDidCreateModel,

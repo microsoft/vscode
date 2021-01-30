@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { URI } from 'vs/base/common/uri';
-import { dirname, isEqual } from 'vs/base/common/resources';
+import { dirname, isEqual, basenameOrAuthority } from 'vs/base/common/resources';
 import { IconLabel, IIconLabelValueOptions, IIconLabelCreationOptions } from 'vs/base/browser/ui/iconLabel/iconLabel';
 import { IModeService } from 'vs/editor/common/services/modeService';
 import { IWorkspaceContextService } from 'vs/platform/workspace/common/workspace';
@@ -379,7 +379,7 @@ class ResourceLabelWidget extends IconLabel {
 			}
 
 			if (!name) {
-				name = this.labelService.getUriBasenameLabel(resource);
+				name = basenameOrAuthority(resource);
 			}
 		}
 
