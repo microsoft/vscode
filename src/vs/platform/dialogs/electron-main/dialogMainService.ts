@@ -238,7 +238,7 @@ export class DialogMainService implements IDialogMainService {
 		}
 	}
 
-	private async acquireFileDialogLock(options: any = {}, window?: BrowserWindow): Promise<IDisposable | undefined> {
+	private async acquireFileDialogLock(options: SaveDialogOptions | OpenDialogOptions, window?: BrowserWindow): Promise<IDisposable | undefined> {
 
 		// if no window is provided, allow as many dialogs as
 		// needed since we consider them not modal per window
@@ -251,24 +251,27 @@ export class DialogMainService implements IDialogMainService {
 		// do not want to open one dialog after the other
 		// (https://github.com/microsoft/vscode/issues/114432)
 		let windowDialogLocks = this.windowDialogLocks.get(window.id);
-		const optionsHash = hash(options);
 
+		// figure out if a dialog with these options is already
+		// showing by hashing the options
+		const optionsHash = hash(options);
 		if (windowDialogLocks?.has(optionsHash)) {
 			return undefined;
 		}
 
 		if (!windowDialogLocks) {
-			windowDialogLocks = new Set([optionsHash]);
+			windowDialogLocks = new Set();
 			this.windowDialogLocks.set(window.id, windowDialogLocks);
 		}
+		
 		windowDialogLocks.add(optionsHash);
 
 		return toDisposable(() => {
 			const windowDialogLocks = this.windowDialogLocks.get(window.id);
 			windowDialogLocks?.delete(optionsHash);
 
-			// if the window has no more dialog locks, delete it from windowDialogLocks
-			if (!this.windowDialogLocks.get(window.id)?.size) {
+			// if the window has no more dialog locks, delete it from the set of locks
+			if (windowDialogLocks?.size === 0) {
 				this.windowDialogLocks.delete(window.id);
 			}
 		});
