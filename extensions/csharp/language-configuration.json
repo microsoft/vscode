@@ -28,5 +28,11 @@
 			"start": "^\\s*#region\\b",
 			"end": "^\\s*#endregion\\b"
 		}
+	},
+	"indentationRules": {
+		"increaseIndentPattern": "^((?!\\/\\/).)*(\\{[^}\"'`]*|\\([^)\"'`]*|\\[[^\\]\"'`]*)$|^\\s*(case\\s.+:|default\\s*:)$",
+		"decreaseIndentPattern": "^((?!.*?\\/\\*).*\\*\/)?\\s*[\\}\\]].*$",
+		"indentNextLinePattern": "^\\s*(else|((else )?if|for(each)?|while) *\\(.*\\))$",
+		"decreaseIndentWithPreviousLinePattern": "^((\\s*(else|((else )?if|for(each)?|while) *\\(.*\\)))|(\\s*(case\\s.+:|default\\s*:)))\\s*\\{$"
 	}
 }

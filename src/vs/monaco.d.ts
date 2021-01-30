@@ -5379,6 +5379,10 @@ declare namespace monaco.languages {
 		 * If a line matches this pattern, then its indentation should not be changed and it should not be evaluated against the other rules.
 		 */
 		unIndentedLinePattern?: RegExp | null;
+		/**
+		 * If the current and previous line matches this pattern, then all the lines after these two should be unindented once (until another rule matches).
+		 */
+		decreaseIndentWithPreviousLinePattern?: RegExp | null;
 	}
 
 	/**

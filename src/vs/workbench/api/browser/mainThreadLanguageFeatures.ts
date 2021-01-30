@@ -681,6 +681,7 @@ export class MainThreadLanguageFeatures implements MainThreadLanguageFeaturesSha
 			increaseIndentPattern: MainThreadLanguageFeatures._reviveRegExp(indentationRule.increaseIndentPattern),
 			indentNextLinePattern: indentationRule.indentNextLinePattern ? MainThreadLanguageFeatures._reviveRegExp(indentationRule.indentNextLinePattern) : undefined,
 			unIndentedLinePattern: indentationRule.unIndentedLinePattern ? MainThreadLanguageFeatures._reviveRegExp(indentationRule.unIndentedLinePattern) : undefined,
+			decreaseIndentWithPreviousLinePattern: indentationRule.decreaseIndentWithPreviousLinePattern ? MainThreadLanguageFeatures._reviveRegExp(indentationRule.decreaseIndentWithPreviousLinePattern) : undefined,
 		};
 	}
 

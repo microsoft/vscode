@@ -10,6 +10,7 @@ export const enum IndentConsts {
 	DECREASE_MASK = 0b00000010,
 	INDENT_NEXTLINE_MASK = 0b00000100,
 	UNINDENT_MASK = 0b00001000,
+	DECREASE_PREVIOUS_MASK = 0b00010000,
 }
 
 function resetGlobalRegex(reg: RegExp) {
@@ -64,6 +65,14 @@ export class IndentRulesSupport {
 		return false;
 	}
 
+	public shouldDecreaseWithPreviousLine(text: string): boolean {
+		if (this._indentationRules && this._indentationRules.decreaseIndentWithPreviousLinePattern && resetGlobalRegex(this._indentationRules.decreaseIndentWithPreviousLinePattern) && this._indentationRules.decreaseIndentWithPreviousLinePattern.test(text)) {
+			return true;
+		}
+
+		return false;
+	}
+
 	public getIndentMetadata(text: string): number {
 		let ret = 0;
 		if (this.shouldIncrease(text)) {
@@ -77,6 +86,9 @@ export class IndentRulesSupport {
 		}
 		if (this.shouldIgnore(text)) {
 			ret += IndentConsts.UNINDENT_MASK;
+		}
+		if (this.shouldDecreaseWithPreviousLine(text)) {
+			ret += IndentConsts.DECREASE_PREVIOUS_MASK;
 		}
 		return ret;
 	}

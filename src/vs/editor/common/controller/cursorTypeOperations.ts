@@ -842,6 +842,28 @@ export class TypeOperations {
 				}
 			}
 			if (!autoIndentFails) {
+				// The reason why an indent operation messes with the auto-closing pair is because
+				// an indent operation will return before the auto-closing start operation has a
+				// chance to run at all. So in order for auto-closing pairs to be preserved, it
+				// has to be appended to the indent operation's command list.
+				/*const autoClosingPairClose = this._getAutoClosingPairClose(config, model, selections, ch, true);
+				if (autoClosingPairClose) {
+					const transformedSelections: Selection[] = [];
+					const indentLength = config.insertSpaces ? config.indentSize : 1;
+
+					for (const selection of selections) {
+						transformedSelections.push(new Selection(
+							selection.startLineNumber,
+							selection.startColumn - indentLength,
+							selection.endLineNumber,
+							selection.endColumn - indentLength
+						));
+					}
+
+					const autoClosingCommands = this._runAutoClosingOpenCharType(prevEditOperationType, config, model, transformedSelections, ch, true, autoClosingPairClose).commands;
+					commands.splice(0, 0, ...autoClosingCommands); // The auto-close operation seems to have no effect when executed after an indent operation.
+				}*/
+
 				return new EditOperationResult(EditOperationType.Typing, commands, {
 					shouldPushStackElementBefore: true,
 					shouldPushStackElementAfter: false,

@@ -1914,6 +1914,7 @@ export class ExtHostLanguageFeatures implements extHostProtocol.ExtHostLanguageF
 			increaseIndentPattern: ExtHostLanguageFeatures._serializeRegExp(indentationRule.increaseIndentPattern),
 			indentNextLinePattern: indentationRule.indentNextLinePattern ? ExtHostLanguageFeatures._serializeRegExp(indentationRule.indentNextLinePattern) : undefined,
 			unIndentedLinePattern: indentationRule.unIndentedLinePattern ? ExtHostLanguageFeatures._serializeRegExp(indentationRule.unIndentedLinePattern) : undefined,
+			decreaseIndentWithPreviousLinePattern: indentationRule.decreaseIndentWithPreviousLinePattern ? ExtHostLanguageFeatures._serializeRegExp(indentationRule.decreaseIndentWithPreviousLinePattern) : undefined,
 		};
 	}
 

@@ -331,6 +331,7 @@ export interface IIndentationRuleDto {
 	increaseIndentPattern: IRegExpDto;
 	indentNextLinePattern?: IRegExpDto;
 	unIndentedLinePattern?: IRegExpDto;
+	decreaseIndentWithPreviousLinePattern?: IRegExpDto;
 }
 export interface IOnEnterRuleDto {
 	beforeText: IRegExpDto;

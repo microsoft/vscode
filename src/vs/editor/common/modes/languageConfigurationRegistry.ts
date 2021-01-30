@@ -635,6 +635,12 @@ export class LanguageConfigurationRegistryImpl {
 
 		const scopedLineText = scopedLineTokens.getLineContent();
 		const beforeTypeText = scopedLineText.substr(0, range.startColumn - 1 - scopedLineTokens.firstCharOffset);
+		let combinedLineText = beforeTypeText;
+
+		if (range.startLineNumber !== 1) {
+			const previousLineText = model.getLineContent(range.startLineNumber - 1);
+			combinedLineText = previousLineText + model.getEOL() + combinedLineText;
+		}
 
 		// selection support
 		let afterTypeText: string;
@@ -647,7 +653,12 @@ export class LanguageConfigurationRegistryImpl {
 
 		// If previous content already matches decreaseIndentPattern, it means indentation of this line should already be adjusted
 		// Users might change the indentation by purpose and we should honor that instead of readjusting.
-		if (!indentRulesSupport.shouldDecrease(beforeTypeText + afterTypeText) && indentRulesSupport.shouldDecrease(beforeTypeText + ch + afterTypeText)) {
+		if (
+			!indentRulesSupport.shouldDecrease(beforeTypeText + afterTypeText) &&
+			indentRulesSupport.shouldDecrease(beforeTypeText + ch + afterTypeText) ||
+			!indentRulesSupport.shouldDecreaseWithPreviousLine(combinedLineText + afterTypeText) &&
+			indentRulesSupport.shouldDecreaseWithPreviousLine(combinedLineText + ch + afterTypeText)
+		) {
 			// after typing `ch`, the content matches decreaseIndentPattern, we should adjust the indent to a good manner.
 			// 1. Get inherited indent action
 			const r = this.getInheritIndentForLine(autoIndent, model, range.startLineNumber, false);

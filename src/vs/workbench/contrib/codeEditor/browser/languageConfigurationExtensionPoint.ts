@@ -29,6 +29,7 @@ interface IIndentationRules {
 	increaseIndentPattern: string | IRegExp;
 	indentNextLinePattern?: string | IRegExp;
 	unIndentedLinePattern?: string | IRegExp;
+	decreaseIndentWithPreviousLinePattern?: string | IRegExp;
 }
 
 interface IEnterAction {
@@ -451,6 +452,9 @@ export class LanguageConfigurationFileHandler {
 		if (indentationRules.unIndentedLinePattern) {
 			result.unIndentedLinePattern = this._parseRegex(languageIdentifier, `indentationRules.unIndentedLinePattern`, indentationRules.unIndentedLinePattern);
 		}
+		if (indentationRules.decreaseIndentWithPreviousLinePattern) {
+			result.decreaseIndentWithPreviousLinePattern = this._parseRegex(languageIdentifier, `indentationRules.decreaseIndentWithPreviousLinePattern`, indentationRules.decreaseIndentWithPreviousLinePattern);
+		}
 
 		return result;
 	}
@@ -671,7 +675,25 @@ const schema: IJSONSchema = {
 							patternErrorMessage: nls.localize('schema.indentationRules.unIndentedLinePattern.errorMessage', 'Must match the pattern `/^([gimuy]+)$/`.')
 						}
 					}
-				}
+				},
+				decreaseIndentWithPreviousLinePattern: {
+					type: ['string', 'object'],
+					description: nls.localize('schema.indentationRules.decreaseIndentWithPreviousLinePattern', 'If the current and previous line matches this pattern, then all the lines after those two should be unindented once (until another rule matches).'),
+					properties: {
+						pattern: {
+							type: 'string',
+							description: nls.localize('schema.indentationRules.decreaseIndentWithPreviousLinePattern.pattern', 'The RegExp pattern for decreaseIndentWithPreviousLinePattern.'),
+							default: '',
+						},
+						flags: {
+							type: 'string',
+							description: nls.localize('schema.indentationRules.decreaseIndentWithPreviousLinePattern.flags', 'The RegExp flags for decreaseIndentWithPreviousLinePattern.'),
+							default: '',
+							pattern: '^([gimuy]+)$',
+							patternErrorMessage: nls.localize('schema.indentationRules.decreaseIndentWithPreviousLinePattern.errorMessage', 'Must match the pattern `/^([gimuy]+)$/`.')
+						}
+					}
+				},
 			}
 		},
 		folding: {

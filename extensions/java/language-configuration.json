@@ -29,5 +29,11 @@
 			"start": "^\\s*//\\s*(?:(?:#?region\\b)|(?:<editor-fold\\b))",
 			"end": "^\\s*//\\s*(?:(?:#?endregion\\b)|(?:</editor-fold>))"
 		}
+	},
+	"indentationRules": {
+		"increaseIndentPattern": "^((?!\\/\\/).)*(\\{[^}\"'`]*|\\([^)\"'`]*|\\[[^\\]\"'`]*)$|^\\s*(case\\s.+:|default\\s*:)$",
+		"decreaseIndentPattern": "^((?!.*?\\/\\*).*\\*\/)?\\s*[\\}\\]].*$",
+		"indentNextLinePattern": "^\\s*(else|((else )?if|for|while) *\\(.*\\))$",
+		"decreaseIndentWithPreviousLinePattern": "^((\\s*(else|((else )?if|for|while) *\\(.*\\)))|(\\s*(case\\s.+:|default\\s*:)))\\s*\\{$"
 	}
 }
