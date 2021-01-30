@@ -144,7 +144,7 @@ export class DialogMainService implements IDialogMainService {
 	async showMessageBox(options: MessageBoxOptions, window?: BrowserWindow): Promise<MessageBoxReturnValue> {
 
 		// prevent duplicates of the same dialog queueing at the same time
-		const fileDialogLock = await this.acquireFileDialogLock(options, window);
+		const fileDialogLock = this.acquireFileDialogLock(options, window);
 		if (!fileDialogLock) {
 			throw new Error('A dialog is already showing for the window');
 		}
@@ -173,7 +173,7 @@ export class DialogMainService implements IDialogMainService {
 		}
 
 		// prevent duplicates of the same dialog queueing at the same time
-		const fileDialogLock = await this.acquireFileDialogLock(options, window);
+		const fileDialogLock = this.acquireFileDialogLock(options, window);
 		if (!fileDialogLock) {
 			throw new Error('A dialog is already showing for the window');
 		}
@@ -215,7 +215,7 @@ export class DialogMainService implements IDialogMainService {
 		}
 
 		// prevent duplicates of the same dialog queueing at the same time
-		const fileDialogLock = await this.acquireFileDialogLock(options, window);
+		const fileDialogLock = this.acquireFileDialogLock(options, window);
 		if (!fileDialogLock) {
 			throw new Error('A dialog is already showing for the window');
 		}
@@ -238,7 +238,7 @@ export class DialogMainService implements IDialogMainService {
 		}
 	}
 
-	private async acquireFileDialogLock(options: SaveDialogOptions | OpenDialogOptions, window?: BrowserWindow): Promise<IDisposable | undefined> {
+	private acquireFileDialogLock(options: SaveDialogOptions | OpenDialogOptions, window?: BrowserWindow): IDisposable | undefined {
 
 		// if no window is provided, allow as many dialogs as
 		// needed since we consider them not modal per window
@@ -263,7 +263,7 @@ export class DialogMainService implements IDialogMainService {
 			windowDialogLocks = new Set();
 			this.windowDialogLocks.set(window.id, windowDialogLocks);
 		}
-		
+
 		windowDialogLocks.add(optionsHash);
 
 		return toDisposable(() => {
