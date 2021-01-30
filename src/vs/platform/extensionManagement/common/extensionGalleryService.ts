@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { getErrorMessage, isPromiseCanceledError, canceled } from 'vs/base/common/errors';
-import { StatisticType, IGalleryExtension, IExtensionGalleryService, IGalleryExtensionAsset, IQueryOptions, SortBy, SortOrder, IExtensionIdentifier, IReportedExtension, InstallOperation, ITranslation, IGalleryExtensionVersion, IGalleryExtensionAssets, isIExtensionIdentifier, DefaultIconPath } from 'vs/platform/extensionManagement/common/extensionManagement';
+import { StatisticType, IGalleryExtension, IExtensionGalleryService, IGalleryExtensionAsset, IQueryOptions, SortBy, SortOrder, IExtensionIdentifier, IReportedExtension, InstallOperation, ITranslation, IGalleryExtensionVersion, IGalleryExtensionAssets, isIExtensionIdentifier, DefaultIconPath, ILocalExtension } from 'vs/platform/extensionManagement/common/extensionManagement';
 import { getGalleryExtensionId, getGalleryExtensionTelemetryData, adoptToGalleryExtensionId } from 'vs/platform/extensionManagement/common/extensionManagementUtil';
 import { getOrDefault } from 'vs/base/common/objects';
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
@@ -692,7 +692,7 @@ export class ExtensionGalleryService implements IExtensionGalleryService {
 		return '';
 	}
 
-	async getAllVersions(extension: IGalleryExtension, compatible: boolean): Promise<IGalleryExtensionVersion[]> {
+	async getAllVersions(extension: ILocalExtension, compatible: boolean): Promise<IGalleryExtensionVersion[]> {
 		let query = new Query()
 			.withFlags(Flags.IncludeVersions, Flags.IncludeFiles, Flags.IncludeVersionProperties)
 			.withPage(1, 1)

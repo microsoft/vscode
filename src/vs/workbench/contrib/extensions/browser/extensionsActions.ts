@@ -1035,7 +1035,7 @@ export class InstallAnotherVersionAction extends ExtensionAction {
 	}
 
 	update(): void {
-		this.enabled = !!this.extension && !this.extension.isBuiltin && !!this.extension.gallery && this.extension.state === ExtensionState.Installed;
+		this.enabled = !!this.extension && !this.extension.isBuiltin && !!this.extension.local && this.extension.state === ExtensionState.Installed;
 	}
 
 	run(): Promise<any> {
@@ -1063,7 +1063,7 @@ export class InstallAnotherVersionAction extends ExtensionAction {
 	}
 
 	private getVersionEntries(): Promise<(IQuickPickItem & { latest: boolean, id: string })[]> {
-		return this.extensionGalleryService.getAllVersions(this.extension!.gallery!, true)
+		return this.extensionGalleryService.getAllVersions(this.extension!.local!, true)
 			.then(allVersions => allVersions.map((v, i) => ({ id: v.version, label: v.version, description: `${getRelativeDateLabel(new Date(Date.parse(v.date)))}${v.version === this.extension!.version ? ` (${localize('current', "Current")})` : ''}`, latest: i === 0 })));
 	}
 }
@@ -2305,7 +2305,7 @@ export class InstallSpecificVersionOfExtensionAction extends Action {
 		const versionsPromises: Promise<{ extension: IExtension, versions: IGalleryExtensionVersion[] } | null>[] = [];
 		for (const extension of installed) {
 			if (this.isEnabled(extension)) {
-				versionsPromises.push(this.extensionGalleryService.getAllVersions(extension.gallery!, true)
+				versionsPromises.push(this.extensionGalleryService.getAllVersions(extension.local!, true)
 					.then(versions => (versions.length ? { extension, versions } : null)));
 			}
 		}
