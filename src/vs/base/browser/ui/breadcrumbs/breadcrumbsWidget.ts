@@ -15,6 +15,7 @@ import { Codicon, registerCodicon } from 'vs/base/common/codicons';
 import 'vs/css!./breadcrumbsWidget';
 
 export abstract class BreadcrumbsItem {
+	public clickable = true;
 	dispose(): void { }
 	abstract equals(other: BreadcrumbsItem): boolean;
 	abstract render(container: HTMLElement): void;
@@ -321,6 +322,7 @@ export class BreadcrumbsWidget {
 		container.tabIndex = -1;
 		container.setAttribute('role', 'listitem');
 		container.classList.add('monaco-breadcrumb-item');
+		if (!item.clickable) { container.classList.add('non-clickable'); }
 		const iconContainer = dom.$(breadcrumbSeparatorIcon.cssSelector);
 		container.appendChild(iconContainer);
 	}
@@ -328,7 +330,7 @@ export class BreadcrumbsWidget {
 	private _onClick(event: IMouseEvent): void {
 		for (let el: HTMLElement | null = event.target; el; el = el.parentElement) {
 			let idx = this._nodes.indexOf(el as HTMLDivElement);
-			if (idx >= 0) {
+			if (idx >= 0 && this._items[idx].clickable) {
 				this._focus(idx, event);
 				this._select(idx, event);
 				break;

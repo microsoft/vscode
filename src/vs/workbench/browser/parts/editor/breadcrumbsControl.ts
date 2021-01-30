@@ -112,6 +112,9 @@ class FileItem extends BreadcrumbsItem {
 		@IInstantiationService private readonly _instantiationService: IInstantiationService
 	) {
 		super();
+		if (element.uri.scheme === 'git') {
+			this.clickable = false;
+		}
 	}
 
 	dispose(): void {
