@@ -124,7 +124,7 @@ export class DialogMainService implements IDialogMainService {
 		return;
 	}
 
-	private getWindowDialogQueue<T>(window?: BrowserWindow): Queue<T> {
+	private getWindowDialogQueue<T extends MessageBoxReturnValue | SaveDialogReturnValue | OpenDialogReturnValue>(window?: BrowserWindow): Queue<T> {
 
 		// Queue message box requests per window so that one can show
 		// after the other.
