@@ -692,7 +692,7 @@ export class ExtensionGalleryService implements IExtensionGalleryService {
 		return '';
 	}
 
-	async getAllVersions(extension: ILocalExtension, compatible: boolean): Promise<IGalleryExtensionVersion[]> {
+	async getAllVersions(extension: ILocalExtension | IGalleryExtension, compatible: boolean): Promise<IGalleryExtensionVersion[]> {
 		let query = new Query()
 			.withFlags(Flags.IncludeVersions, Flags.IncludeFiles, Flags.IncludeVersionProperties)
 			.withPage(1, 1)
