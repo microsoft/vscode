@@ -49,7 +49,11 @@ export function activate(context: vscode.ExtensionContext): any {
 				// e.g.  *-----*/|
 				beforeText: /^(\t|(\ \ ))*\ \*[^/]*\*\/\s*$/,
 				action: { indentAction: vscode.IndentAction.None, removeText: 1 }
-			}
+			},
+			{
+				beforeText: /^\s*break;?$/,
+				action: { indentAction: vscode.IndentAction.Outdent },
+			},
 		]
 	});
 }

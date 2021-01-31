@@ -34,5 +34,11 @@
 		"decreaseIndentPattern": "^((?!.*?\\/\\*).*\\*\/)?\\s*[\\}\\]].*$",
 		"indentNextLinePattern": "^\\s*(else|((else )?if|for(each)?|while) *\\(.*\\))$",
 		"decreaseIndentWithPreviousLinePattern": "^((\\s*(else|((else )?if|for(each)?|while) *\\(.*\\)))|(\\s*(case\\s.+:|default\\s*:)))\\s*\\{$"
-	}
+	},
+	"onEnterRules": [
+		{
+			"beforeText": "^\\s*break;?$",
+			"action": { "indent": "outdent" }
+		}
+	]
 }
