@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { CancellationToken, CancellationTokenSource } from 'vs/base/common/cancellation';
-import * as errors from 'vs/base/common/errors';
+import { canceled } from 'vs/base/common/errors';
 import { Emitter, Event } from 'vs/base/common/event';
 import { IDisposable, toDisposable } from 'vs/base/common/lifecycle';
 import { URI } from 'vs/base/common/uri';
@@ -23,7 +23,7 @@ export function createCancelablePromise<T>(callback: (token: CancellationToken) 
 	const thenable = callback(source.token);
 	const promise = new Promise<T>((resolve, reject) => {
 		source.token.onCancellationRequested(() => {
-			reject(errors.canceled());
+			reject(canceled());
 		});
 		Promise.resolve(thenable).then(value => {
 			source.dispose();
@@ -282,7 +282,7 @@ export class Delayer<T> implements IDisposable {
 
 		if (this.completionPromise) {
 			if (this.doReject) {
-				this.doReject(errors.canceled());
+				this.doReject(canceled());
 			}
 			this.completionPromise = null;
 		}
@@ -377,7 +377,7 @@ export function timeout(millis: number, token?: CancellationToken): CancelablePr
 		const handle = setTimeout(resolve, millis);
 		token.onCancellationRequested(() => {
 			clearTimeout(handle);
-			reject(errors.canceled());
+			reject(canceled());
 		});
 	});
 }
@@ -1065,7 +1065,7 @@ export class DeferredPromise<T> {
 
 	public cancel() {
 		new Promise<void>(resolve => {
-			this.errorCallback(errors.canceled());
+			this.errorCallback(canceled());
 			this.rejected = true;
 			resolve();
 		});
@@ -1085,12 +1085,31 @@ export namespace Promises {
 	}
 
 	/**
+	 * Interface of https://developer.mozilla.org/en-US/docs/Web/JavaScript/Reference/Global_Objects/Promise/allSettled
+	 */
+	interface PromiseWithAllSettled<T> {
+		allSettled<T>(promises: Promise<T>[]): Promise<ReadonlyArray<IResolvedPromise<T> | IRejectedPromise>>;
+	}
+
+	/**
 	 * A polyfill of `Promise.allSettled`: returns after all promises have
 	 * resolved or rejected and provides access to each result or error
 	 * in the order of the original passed in promises array.
 	 * See: https://developer.mozilla.org/en-US/docs/Web/JavaScript/Reference/Global_Objects/Promise/allSettled
 	 */
 	export async function allSettled<T>(promises: Promise<T>[]): Promise<ReadonlyArray<IResolvedPromise<T> | IRejectedPromise>> {
+		if (typeof (Promise as unknown as PromiseWithAllSettled<T>).allSettled === 'function') {
+			return allSettledNative(promises); // in some environments we can benefit from native implementation
+		}
+
+		return allSettledShim(promises);
+	}
+
+	async function allSettledNative<T>(promises: Promise<T>[]): Promise<ReadonlyArray<IResolvedPromise<T> | IRejectedPromise>> {
+		return (Promise as unknown as PromiseWithAllSettled<T>).allSettled(promises);
+	}
+
+	async function allSettledShim<T>(promises: Promise<T>[]): Promise<ReadonlyArray<IResolvedPromise<T> | IRejectedPromise>> {
 		return Promise.all(promises.map(promise => (promise.then(value => {
 			const fulfilled: IResolvedPromise<T> = { status: 'fulfilled', value };
 
