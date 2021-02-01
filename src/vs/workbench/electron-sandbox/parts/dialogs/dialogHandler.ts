@@ -99,8 +99,8 @@ export class NativeDialogHandler implements IDialogHandler {
 			type: (severity === Severity.Info) ? 'question' : (severity === Severity.Error) ? 'error' : (severity === Severity.Warning) ? 'warning' : 'none',
 			cancelId: dialogOptions ? dialogOptions.cancelId : undefined,
 			detail: dialogOptions ? dialogOptions.detail : undefined,
-			checkboxLabel: dialogOptions && dialogOptions.checkbox ? dialogOptions.checkbox.label : undefined,
-			checkboxChecked: dialogOptions && dialogOptions.checkbox ? dialogOptions.checkbox.checked : undefined
+			checkboxLabel: dialogOptions?.checkbox?.label ?? undefined,
+			checkboxChecked: dialogOptions?.checkbox?.checked ?? undefined
 		});
 
 		const result = await this.nativeHostService.showMessageBox(options);

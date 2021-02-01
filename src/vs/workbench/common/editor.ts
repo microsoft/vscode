@@ -1585,7 +1585,7 @@ export function computeEditorAriaLabel(input: IEditorInput, index: number | unde
 		ariaLabel = localize('preview', "{0}, preview", ariaLabel);
 	}
 
-	if (group && group.isSticky(index ?? input)) {
+	if (group?.isSticky(index ?? input)) {
 		ariaLabel = localize('pinned', "{0}, pinned", ariaLabel);
 	}
 
