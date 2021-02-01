@@ -24,7 +24,7 @@ import { ViewPane } from 'vs/workbench/browser/parts/views/viewPane';
 import { MenuId, registerAction2, Action2, MenuRegistry } from 'vs/platform/actions/common/actions';
 import { IContextKeyService, ContextKeyEqualsExpr, ContextKeyExpr, ContextKeyDefinedExpr } from 'vs/platform/contextkey/common/contextkey';
 import { createActionViewItem } from 'vs/platform/actions/browser/menuEntryActionViewItem';
-import { IViewDescriptorService } from 'vs/workbench/common/views';
+import { IViewDescriptorService, IViewsService } from 'vs/workbench/common/views';
 import { WelcomeView } from 'vs/workbench/contrib/debug/browser/welcomeView';
 import { ShowViewletAction } from 'vs/workbench/browser/viewlet';
 import { IViewletService } from 'vs/workbench/services/viewlet/browser/viewlet';
@@ -273,15 +273,15 @@ registerAction2(class extends Action2 {
 	}
 });
 
-// Register the same action a second time, since in the main menu we should not render the checkmark (toggle)
 registerAction2(class extends Action2 {
 	constructor() {
 		super({
-			id: OPEN_REPL_COMMAND_ID,
+			id: 'debug.toggleReplIgnoreFocus',
 			title: nls.localize('debugPanel', "Debug Console"),
 			toggled: ContextKeyDefinedExpr.create(`view.${REPL_VIEW_ID}.visible`),
 			menu: [{
 				id: ViewsSubMenu,
+				group: '3_toggleRepl',
 				order: 30,
 				when: ContextKeyExpr.and(ContextKeyEqualsExpr.create('viewContainer', VIEWLET_ID))
 			}]
@@ -289,7 +289,12 @@ registerAction2(class extends Action2 {
 	}
 
 	async run(accessor: ServicesAccessor): Promise<void> {
-		return accessor.get(IInstantiationService).createInstance(ToggleViewAction, OPEN_REPL_COMMAND_ID, 'Debug Console', REPL_VIEW_ID).run();
+		const viewsService = accessor.get(IViewsService);
+		if (viewsService.isViewVisible(REPL_VIEW_ID)) {
+			viewsService.closeView(REPL_VIEW_ID);
+		} else {
+			await viewsService.openView(REPL_VIEW_ID);
+		}
 	}
 });
 
