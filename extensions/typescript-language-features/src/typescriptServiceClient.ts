@@ -693,7 +693,7 @@ export default class TypeScriptServiceClient extends Disposable implements IType
 		if (isWeb()) {
 			// On web, treat absolute paths as pointing to standard lib files
 			if (filepath.startsWith('/')) {
-				return vscode.Uri.joinPath(this.context.extensionUri, 'node_modules', 'typescript-web', 'lib', filepath.slice(1));
+				return vscode.Uri.joinPath(this.context.extensionUri, 'node_modules', 'typescript', 'lib', filepath.slice(1));
 			}
 		}
 
