@@ -1319,8 +1319,8 @@ declare module 'vscode' {
 		/**
 		 * The primary selected cell on this notebook editor.
 		 */
+		// todo@API should not be undefined, rather a default
 		readonly selection?: NotebookCell;
-
 
 		/**
 		 * The current visible ranges in the editor (vertically).
@@ -1330,21 +1330,25 @@ declare module 'vscode' {
 		/**
 		 * The column in which this editor shows.
 		 */
+		// todo@API maybe never undefined because notebooks always show in the editor area (unlike text editors)
 		readonly viewColumn?: ViewColumn;
 
 		/**
 		 * Fired when the panel is disposed.
 		 */
+		// todo@API fishy? notebooks are public objects, there should be a "global" events for this
 		readonly onDidDispose: Event<void>;
 
 		/**
 		 * Active kernel used in the editor
 		 */
+		// todo@API unsure about that
 		readonly kernel?: NotebookKernel;
 
 		/**
 		 * Fired when the output hosting webview posts a message.
 		 */
+		// todo@API notebook editors are public -> ANY extension can listen to these event
 		readonly onDidReceiveMessage: Event<any>;
 		/**
 		 * Post a message to the output hosting webview.
@@ -1353,11 +1357,13 @@ declare module 'vscode' {
 		 *
 		 * @param message Body of the message. This must be a string or other json serializable object.
 		 */
+		// todo@API notebook editors are public -> ANY extension can send messages
 		postMessage(message: any): Thenable<boolean>;
 
 		/**
 		 * Convert a uri for the local file system to one that can be used inside outputs webview.
 		 */
+		// todo@API unsure about that, how do you this when executing a cell without having an editor
 		asWebviewUri(localResource: Uri): Uri;
 
 		/**
@@ -1455,6 +1461,7 @@ declare module 'vscode' {
 		readonly cellKind: CellKind;
 		readonly source: string;
 		readonly language: string;
+		// todo@API maybe use a separate data type?
 		readonly outputs: CellOutput[];
 		readonly metadata: NotebookCellMetadata | undefined;
 	}
@@ -1592,6 +1599,8 @@ declare module 'vscode' {
 		detail?: string;
 		isPreferred?: boolean;
 		preloads?: Uri[];
+		// todo@API change to `executeCells(document: NotebookDocument, cell: NotebookCell[]): void;`
+		// todo@API interrupt vs cancellation, https://github.com/microsoft/vscode/issues/106741
 		executeCell(document: NotebookDocument, cell: NotebookCell): void;
 		cancelCellExecution(document: NotebookDocument, cell: NotebookCell): void;
 		executeAllCells(document: NotebookDocument): void;
@@ -1600,11 +1609,14 @@ declare module 'vscode' {
 
 	export type NotebookFilenamePattern = GlobPattern | { include: GlobPattern; exclude: GlobPattern; };
 
+	// todo@API why not for NotebookContentProvider?
 	export interface NotebookDocumentFilter {
 		viewType?: string | string[];
 		filenamePattern?: NotebookFilenamePattern;
 	}
 
+	// todo@API very unclear, provider MUST not return alive object but only data object
+	// todo@API unclear how the flow goes
 	export interface NotebookKernelProvider<T extends NotebookKernel = NotebookKernel> {
 		onDidChangeKernels?: Event<NotebookDocument | undefined>;
 		provideKernels(document: NotebookDocument, token: CancellationToken): ProviderResult<T[]>;
@@ -1684,6 +1696,8 @@ declare module 'vscode' {
 		export function openNotebookDocument(uri: Uri, viewType?: string): Thenable<NotebookDocument>;
 		export const onDidOpenNotebookDocument: Event<NotebookDocument>;
 		export const onDidCloseNotebookDocument: Event<NotebookDocument>;
+
+		// todo@API really needed?
 		export const onDidSaveNotebookDocument: Event<NotebookDocument>;
 
 		/**
@@ -1702,6 +1716,7 @@ declare module 'vscode' {
 		 * @param notebook
 		 * @param selector
 		 */
+		// todo@API really needed? we didn't find a user here
 		export function createConcatTextDocument(notebook: NotebookDocument, selector?: DocumentSelector): NotebookConcatTextDocument;
 
 		export const onDidChangeActiveNotebookKernel: Event<{ document: NotebookDocument, kernel: NotebookKernel | undefined; }>;
@@ -1715,6 +1730,7 @@ declare module 'vscode' {
 		 * @param priority The priority of the item. Higher values mean the item should be shown more to the left.
 		 * @return A new status bar item.
 		 */
+		// todo@API this should be a provider, https://github.com/microsoft/vscode/issues/105809
 		export function createCellStatusBarItem(cell: NotebookCell, alignment?: NotebookCellStatusBarAlignment, priority?: number): NotebookCellStatusBarItem;
 	}
 
