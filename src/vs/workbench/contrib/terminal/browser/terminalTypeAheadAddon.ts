@@ -703,13 +703,17 @@ export class PredictionTimeline {
 	private currentGen = 0;
 
 	/**
-	 * Cursor position -- kept outside the buffer since it can be ahead if
-	 * typing swiftly.
+	 * Current cursor position -- kept outside the buffer since it can be ahead
+	 * if typing swiftly. The position of the cursor that the user is currently
+	 * looking at on their screen (or will be looking at after all pending writes
+	 * are flushed.)
 	 */
 	private _physicalCursor: Cursor | undefined;
 
 	/**
-	 * Cursor position taking into account (possibly not-yet-applied) predictions.
+	 * Cursor position taking into account all (possibly not-yet-applied)
+	 * predictions. A new prediction inserted, if applied, will be applied at
+	 * the position of the tentative cursor.
 	 */
 	private _tenativeCursor: Cursor | undefined;
 
