@@ -37,6 +37,20 @@ suite('vscode', function () {
 		assertNoRpcFromEntry([item, 'DiagnosticCollection']);
 	});
 
+	test('no rpc, createQuickPick(...)', function () {
+		this.skip();
+		const item = vscode.window.createQuickPick();
+		dispo.push(item);
+		assertNoRpcFromEntry([item, 'QuickPick']);
+	});
+
+	test('no rpc, createInputBox(...)', function () {
+		this.skip();
+		const item = vscode.window.createInputBox();
+		dispo.push(item);
+		assertNoRpcFromEntry([item, 'InputBox']);
+	});
+
 	test('no rpc, createStatusBarItem(...)', function () {
 		this.skip();
 		const item = vscode.window.createStatusBarItem();
@@ -50,10 +64,31 @@ suite('vscode', function () {
 		dispo.push(item);
 		assertNoRpcFromEntry([item, 'SourceControl']);
 	});
+
 	test('no rpc, createCommentController(...)', function () {
 		this.skip();
 		const item = vscode.comments.createCommentController('foo', 'Hello');
 		dispo.push(item);
 		assertNoRpcFromEntry([item, 'CommentController']);
+	});
+
+	test('no rpc, createWebviewPanel(...)', function () {
+		const item = vscode.window.createWebviewPanel('webview', 'Hello', vscode.ViewColumn.Active);
+		dispo.push(item);
+		assertNoRpcFromEntry([item, 'WebviewPanel']);
+	});
+
+	test('no rpc, createTreeView(...)', function () {
+		const treeDataProvider = new class implements vscode.TreeDataProvider<string> {
+			getTreeItem(element: string): vscode.TreeItem | Thenable<vscode.TreeItem> {
+				return new vscode.TreeItem(element);
+			}
+			getChildren(_element?: string): vscode.ProviderResult<string[]> {
+				return ['foo', 'bar'];
+			}
+		};
+		const item = vscode.window.createTreeView('test.treeId', { treeDataProvider });
+		dispo.push(item);
+		assertNoRpcFromEntry([item, 'TreeView']);
 	});
 });
