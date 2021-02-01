@@ -13,18 +13,6 @@ import { isTypeScriptDocument } from '../utils/languageModeIds';
 import { equals } from '../utils/objects';
 import { ResourceMap } from '../utils/resourceMap';
 
-namespace Experimental {
-	// https://github.com/microsoft/TypeScript/pull/37871/
-	export interface UserPreferences extends Proto.UserPreferences {
-		readonly provideRefactorNotApplicableReason?: boolean;
-	}
-
-	// https://github.com/microsoft/TypeScript/issues/41208
-	export interface FormatCodeSettings extends Proto.FormatCodeSettings {
-		readonly insertSpaceAfterOpeningAndBeforeClosingEmptyBraces?: boolean;
-	}
-}
-
 interface FileConfiguration {
 	readonly formatOptions: Proto.FormatCodeSettings;
 	readonly preferences: Proto.UserPreferences;
@@ -141,7 +129,7 @@ export default class FileConfigurationManager extends Disposable {
 	private getFormatOptions(
 		document: vscode.TextDocument,
 		options: vscode.FormattingOptions
-	): Experimental.FormatCodeSettings {
+	): Proto.FormatCodeSettings {
 		const config = vscode.workspace.getConfiguration(
 			isTypeScriptDocument(document) ? 'typescript.format' : 'javascript.format',
 			document.uri);
@@ -185,8 +173,9 @@ export default class FileConfigurationManager extends Disposable {
 			isTypeScriptDocument(document) ? 'typescript.preferences' : 'javascript.preferences',
 			document.uri);
 
-		const preferences: Experimental.UserPreferences = {
+		const preferences: Proto.UserPreferences = {
 			quotePreference: this.getQuoteStylePreference(preferencesConfig),
+			// @ts-expect-error until TypeScript 4.2 API
 			importModuleSpecifierPreference: getImportModuleSpecifierPreference(preferencesConfig),
 			importModuleSpecifierEnding: getImportModuleSpecifierEndingPreference(preferencesConfig),
 			allowTextChangesInNewFiles: document.uri.scheme === fileSchemes.file,
@@ -210,6 +199,7 @@ export default class FileConfigurationManager extends Disposable {
 
 function getImportModuleSpecifierPreference(config: vscode.WorkspaceConfiguration) {
 	switch (config.get<string>('importModuleSpecifier')) {
+		case 'project-relative': return 'project-relative';
 		case 'relative': return 'relative';
 		case 'non-relative': return 'non-relative';
 		default: return undefined;

@@ -86,7 +86,7 @@ export function merge(localExtensions: ISyncExtensionWithVersion[], remoteExtens
 				const remoteExtension = remoteExtensionsMap.get(key)!;
 				return {
 					...(updatedInRemote ? remoteExtension : localExtension),
-					version: localExtension.version,
+					version: remoteExtension.version && semver.gt(remoteExtension.version, localExtension.version) ? localExtension.version : localExtension.version,
 					state: mergeExtensionState(localExtension, remoteExtension, lastSyncExtensionsMap?.get(key))
 				};
 

@@ -14,7 +14,7 @@ export async function activate(context: vscode.ExtensionContext) {
 	const telemetryReporter = new TelemetryReporter(name, version, aiKey);
 
 	context.subscriptions.push(vscode.window.registerUriHandler(uriHandler));
-	const loginService = new GitHubAuthenticationProvider();
+	const loginService = new GitHubAuthenticationProvider(context);
 
 	await loginService.initialize(context);
 
@@ -22,10 +22,7 @@ export async function activate(context: vscode.ExtensionContext) {
 		return loginService.manuallyProvideToken();
 	}));
 
-	context.subscriptions.push(vscode.authentication.registerAuthenticationProvider({
-		id: 'github',
-		label: 'GitHub',
-		supportsMultipleAccounts: false,
+	context.subscriptions.push(vscode.authentication.registerAuthenticationProvider('github', 'GitHub', {
 		onDidChangeSessions: onDidChangeSessions.event,
 		getSessions: () => Promise.resolve(loginService.sessions),
 		login: async (scopeList: string[]) => {
@@ -40,6 +37,15 @@ export async function activate(context: vscode.ExtensionContext) {
 				onDidChangeSessions.fire({ added: [session.id], removed: [], changed: [] });
 				return session;
 			} catch (e) {
+				// If login was cancelled, do not notify user.
+				if (e.message === 'Cancelled') {
+					/* __GDPR__
+						"loginCancelled" : { }
+					*/
+					telemetryReporter.sendTelemetryEvent('loginCancelled');
+					throw e;
+				}
+
 				/* __GDPR__
 					"loginFailed" : { }
 				*/
@@ -70,7 +76,7 @@ export async function activate(context: vscode.ExtensionContext) {
 				throw e;
 			}
 		}
-	}));
+	}, { supportsMultipleAccounts: false }));
 
 	return;
 }

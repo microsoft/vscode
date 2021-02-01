@@ -58,6 +58,10 @@
 	};
 
 	const defaultCssRules = `
+	html {
+		scrollbar-color: var(--vscode-scrollbarSlider-background) var(--vscode-editor-background);
+	}
+
 	body {
 		background-color: transparent;
 		color: var(--vscode-editor-foreground);
@@ -315,7 +319,8 @@
 		 */
 		function isCopyPasteOrCut(e) {
 			const hasMeta = e.ctrlKey || e.metaKey;
-			return hasMeta && ['c', 'v', 'x'].includes(e.key);
+			const shiftInsert = e.shiftKey && e.key.toLowerCase() === 'insert';
+			return (hasMeta && ['c', 'v', 'x'].includes(e.key.toLowerCase())) || shiftInsert;
 		}
 
 		/**
@@ -324,7 +329,7 @@
 		 */
 		function isUndoRedo(e) {
 			const hasMeta = e.ctrlKey || e.metaKey;
-			return hasMeta && ['z', 'y'].includes(e.key);
+			return hasMeta && ['z', 'y'].includes(e.key.toLowerCase());
 		}
 
 		let isHandlingScroll = false;
@@ -439,10 +444,18 @@
 
 			// propagate focus
 			host.onMessage('focus', () => {
-				const target = getActiveFrame();
-				if (target) {
-					target.contentWindow.focus();
+				const activeFrame = getActiveFrame();
+				if (!activeFrame || !activeFrame.contentWindow) {
+					return;
 				}
+
+				if (document.activeElement === activeFrame) {
+					// We are already focused on the iframe (or one of its children) so no need
+					// to refocus.
+					return;
+				}
+
+				activeFrame.contentWindow.focus();
 			});
 
 			// update iframe-contents

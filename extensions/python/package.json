@@ -6,9 +6,6 @@
 	"publisher": "vscode",
 	"license": "MIT",
 	"engines": { "vscode": "*" },
-	"activationEvents": ["onLanguage:python"],
-	"main": "./out/pythonMain",
-	"browser": "./dist/browser/pythonMain",
 	"extensionKind": [ "ui", "workspace", "web" ],
 	"contributes": {
 		"languages": [{
@@ -29,8 +26,6 @@
 		}]
 	},
 	"scripts": {
-		"compile": "gulp compile-extension:python",
-		"watch": "gulp watch-extension:python",
 		"update-grammar": "node ../../build/npm/update-grammar.js MagicStack/MagicPython grammars/MagicPython.tmLanguage ./syntaxes/MagicPython.tmLanguage.json grammars/MagicRegExp.tmLanguage ./syntaxes/MagicRegExp.tmLanguage.json"
 	}
 }

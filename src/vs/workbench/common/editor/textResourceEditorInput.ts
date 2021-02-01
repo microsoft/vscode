@@ -56,7 +56,7 @@ export abstract class AbstractTextResourceEditorInput extends EditorInput implem
 	private updateLabel(): void {
 
 		// Clear any cached labels from before
-		this._basename = undefined;
+		this._name = undefined;
 		this._shortDescription = undefined;
 		this._mediumDescription = undefined;
 		this._longDescription = undefined;
@@ -76,17 +76,13 @@ export abstract class AbstractTextResourceEditorInput extends EditorInput implem
 		}
 	}
 
+	private _name: string | undefined = undefined;
 	getName(): string {
-		return this.basename;
-	}
-
-	private _basename: string | undefined;
-	private get basename(): string {
-		if (!this._basename) {
-			this._basename = this.labelService.getUriBasenameLabel(this._preferredResource);
+		if (typeof this._name !== 'string') {
+			this._name = this.labelService.getUriBasenameLabel(this._preferredResource);
 		}
 
-		return this._basename;
+		return this._name;
 	}
 
 	getDescription(verbosity: Verbosity = Verbosity.MEDIUM): string | undefined {
@@ -103,49 +99,55 @@ export abstract class AbstractTextResourceEditorInput extends EditorInput implem
 
 	private _shortDescription: string | undefined = undefined;
 	private get shortDescription(): string {
-		if (!this._shortDescription) {
+		if (typeof this._shortDescription !== 'string') {
 			this._shortDescription = this.labelService.getUriBasenameLabel(dirname(this._preferredResource));
 		}
+
 		return this._shortDescription;
 	}
 
 	private _mediumDescription: string | undefined = undefined;
 	private get mediumDescription(): string {
-		if (!this._mediumDescription) {
+		if (typeof this._mediumDescription !== 'string') {
 			this._mediumDescription = this.labelService.getUriLabel(dirname(this._preferredResource), { relative: true });
 		}
+
 		return this._mediumDescription;
 	}
 
 	private _longDescription: string | undefined = undefined;
 	private get longDescription(): string {
-		if (!this._longDescription) {
+		if (typeof this._longDescription !== 'string') {
 			this._longDescription = this.labelService.getUriLabel(dirname(this._preferredResource));
 		}
+
 		return this._longDescription;
 	}
 
 	private _shortTitle: string | undefined = undefined;
 	private get shortTitle(): string {
-		if (!this._shortTitle) {
+		if (typeof this._shortTitle !== 'string') {
 			this._shortTitle = this.getName();
 		}
+
 		return this._shortTitle;
 	}
 
 	private _mediumTitle: string | undefined = undefined;
 	private get mediumTitle(): string {
-		if (!this._mediumTitle) {
+		if (typeof this._mediumTitle !== 'string') {
 			this._mediumTitle = this.labelService.getUriLabel(this._preferredResource, { relative: true });
 		}
+
 		return this._mediumTitle;
 	}
 
 	private _longTitle: string | undefined = undefined;
 	private get longTitle(): string {
-		if (!this._longTitle) {
+		if (typeof this._longTitle !== 'string') {
 			this._longTitle = this.labelService.getUriLabel(this._preferredResource);
 		}
+
 		return this._longTitle;
 	}
 
@@ -197,14 +199,14 @@ export abstract class AbstractTextResourceEditorInput extends EditorInput implem
 		}
 
 		// Normal save
-		return this.doSave(group, options, false);
+		return this.doSave(options, false);
 	}
 
 	saveAs(group: GroupIdentifier, options?: ITextFileSaveOptions): Promise<IEditorInput | undefined> {
-		return this.doSave(group, options, true);
+		return this.doSave(options, true);
 	}
 
-	private async doSave(group: GroupIdentifier, options: ISaveOptions | undefined, saveAs: boolean): Promise<IEditorInput | undefined> {
+	private async doSave(options: ISaveOptions | undefined, saveAs: boolean): Promise<IEditorInput | undefined> {
 
 		// Save / Save As
 		let target: URI | undefined;
@@ -218,8 +220,13 @@ export abstract class AbstractTextResourceEditorInput extends EditorInput implem
 			return undefined; // save cancelled
 		}
 
-		// If the target is a different resource, return with a new editor input
-		if (!isEqual(target, this.preferredResource)) {
+		// If this save operation results in a new editor, either
+		// because it was saved to disk (e.g. from untitled) or
+		// through an explicit "Save As", make sure to replace it.
+		if (
+			target.scheme !== this.resource.scheme ||
+			(saveAs && !isEqual(target, this.preferredResource))
+		) {
 			return this.editorService.createEditorInput({ resource: target });
 		}
 

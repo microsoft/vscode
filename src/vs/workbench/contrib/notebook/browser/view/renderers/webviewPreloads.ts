@@ -6,7 +6,7 @@
 import type { Event } from 'vs/base/common/event';
 import type { IDisposable } from 'vs/base/common/lifecycle';
 import { ToWebviewMessage } from 'vs/workbench/contrib/notebook/browser/view/renderers/backLayerWebView';
-import { RenderOutputType } from 'vs/workbench/contrib/notebook/common/notebookCommon';
+import { RenderOutputType } from 'vs/workbench/contrib/notebook/browser/notebookBrowser';
 
 // !! IMPORTANT !! everything must be in-line within the webviewPreloads
 // function. Imports are not allowed. This is stringifies and injected into
@@ -27,6 +27,7 @@ declare class ResizeObserver {
 }
 
 declare const __outputNodePadding__: number;
+declare const __outputNodeLeftPadding__: number;
 
 type Listener<T> = { fn: (evt: T) => void; thisArg: unknown; };
 
@@ -49,11 +50,22 @@ function webviewPreloads() {
 			if (node instanceof HTMLAnchorElement && node.href) {
 				if (node.href.startsWith('blob:')) {
 					handleBlobUrlClick(node.href, node.download);
+				} else if (node.href.startsWith('data:')) {
+					handleDataUrl(node.href, node.download);
 				}
 				event.preventDefault();
 				break;
 			}
 		}
+	};
+
+	const handleDataUrl = async (data: string | ArrayBuffer | null, downloadName: string) => {
+		vscode.postMessage({
+			__vscode_notebook_message: true,
+			type: 'clicked-data-url',
+			data,
+			downloadName
+		});
 	};
 
 	const handleBlobUrlClick = async (url: string, downloadName: string) => {
@@ -62,13 +74,7 @@ function webviewPreloads() {
 			const blob = await response.blob();
 			const reader = new FileReader();
 			reader.addEventListener('load', () => {
-				const data = reader.result;
-				vscode.postMessage({
-					__vscode_notebook_message: true,
-					type: 'clicked-data-url',
-					data,
-					downloadName
-				});
+				handleDataUrl(reader.result, downloadName);
 			});
 			reader.readAsDataURL(blob);
 		} catch (e) {
@@ -88,7 +94,8 @@ function webviewPreloads() {
 		for (let n = 0; n < arr.length; n++) {
 			const node = arr[n];
 			const scriptTag = document.createElement('script');
-			scriptTag.text = node.innerText;
+			const trustedScript = ttPolicy?.createScript(node.innerText) ?? node.innerText;
+			scriptTag.text = trustedScript as string;
 			for (const key of preservedScriptAttributes) {
 				const val = node[key] || node.getAttribute && node.getAttribute(key);
 				if (val) {
@@ -101,16 +108,30 @@ function webviewPreloads() {
 		}
 	};
 
-	const runScript = async (url: string, originalUri: string, globals: { [name: string]: unknown } = {}): Promise<string | undefined> => {
-		const res = await fetch(url);
-		const text = await res.text();
-		if (!res.ok) {
-			throw new Error(`Unexpected ${res.status} requesting ${originalUri}: ${text || res.statusText}`);
+	const runScript = async (url: string, originalUri: string, globals: { [name: string]: unknown } = {}): Promise<() => (PreloadResult)> => {
+		let text: string;
+		try {
+			const res = await fetch(url);
+			text = await res.text();
+			if (!res.ok) {
+				throw new Error(`Unexpected ${res.status} requesting ${originalUri}: ${text || res.statusText}`);
+			}
+
+			globals.scriptUrl = url;
+		} catch (e) {
+			return () => ({ state: PreloadState.Error, error: e.message });
 		}
 
 		const args = Object.entries(globals);
-		new Function(...args.map(([k]) => k), text)(...args.map(([, v]) => v));
-		return undefined;
+		return () => {
+			try {
+				new Function(...args.map(([k]) => k), text)(...args.map(([, v]) => v));
+				return { state: PreloadState.Ok };
+			} catch (e) {
+				console.error(e);
+				return { state: PreloadState.Error, error: e.message };
+			}
+		};
 	};
 
 	const outputObservers = new Map<string, ResizeObserver>();
@@ -123,14 +144,27 @@ function webviewPreloads() {
 				}
 
 				if (entry.target.id === id && entry.contentRect) {
-					vscode.postMessage({
-						__vscode_notebook_message: true,
-						type: 'dimension',
-						id: id,
-						data: {
-							height: entry.contentRect.height + __outputNodePadding__ * 2
-						}
-					});
+					if (entry.contentRect.height !== 0) {
+						entry.target.style.padding = `${__outputNodePadding__}px ${__outputNodePadding__}px ${__outputNodePadding__}px ${__outputNodeLeftPadding__}px`;
+						vscode.postMessage({
+							__vscode_notebook_message: true,
+							type: 'dimension',
+							id: id,
+							data: {
+								height: entry.contentRect.height + __outputNodePadding__ * 2
+							}
+						});
+					} else {
+						entry.target.style.padding = `0px`;
+						vscode.postMessage({
+							__vscode_notebook_message: true,
+							type: 'dimension',
+							id: id,
+							data: {
+								height: entry.contentRect.height
+							}
+						});
+					}
 				}
 			}
 		});
@@ -324,11 +358,18 @@ function webviewPreloads() {
 		};
 	};
 
+	const enum PreloadState {
+		Ok,
+		Error
+	}
+
+	type PreloadResult = { state: PreloadState.Ok } | { state: PreloadState.Error, error: string };
+
 	/**
 	 * Map of preload resource URIs to promises that resolve one the resource
 	 * loads or errors.
 	 */
-	const preloadPromises = new Map<string, Promise<string | undefined /* error string, or undefined if ok */>>();
+	const preloadPromises = new Map<string, Promise<PreloadResult>>();
 	const queuedOuputActions = new Map<string, Promise<void>>();
 
 	/**
@@ -353,6 +394,11 @@ function webviewPreloads() {
 		queuedOuputActions.set(event.outputId, promise);
 	};
 
+	const ttPolicy = window.trustedTypes?.createPolicy('notebookOutputRenderer', {
+		createHTML: value => value,
+		createScript: value => value,
+	});
+
 	window.addEventListener('wheel', handleWheel);
 
 	window.addEventListener('message', rawEvent => {
@@ -361,7 +407,7 @@ function webviewPreloads() {
 		switch (event.data.type) {
 			case 'html':
 				enqueueOutputAction(event.data, async data => {
-					const preloadErrs = await Promise.all(data.requiredPreloads.map(p => preloadPromises.get(p.uri)));
+					const preloadResults = await Promise.all(data.requiredPreloads.map(p => preloadPromises.get(p.uri)));
 					if (!queuedOuputActions.has(data.outputId)) { // output was cleared while loading
 						return;
 					}
@@ -389,22 +435,24 @@ function webviewPreloads() {
 					outputNode.style.top = data.top + 'px';
 					outputNode.style.left = data.left + 'px';
 					outputNode.style.width = 'calc(100% - ' + data.left + 'px)';
-					outputNode.style.minHeight = '32px';
+					// outputNode.style.minHeight = '32px';
+					outputNode.style.padding = '0px';
 					outputNode.id = outputId;
 
 					addMouseoverListeners(outputNode, outputId);
 					const content = data.content;
 					if (content.type === RenderOutputType.Html) {
-						outputNode.innerHTML = content.htmlContent;
+						const trustedHtml = ttPolicy?.createHTML(content.htmlContent) ?? content.htmlContent;
+						outputNode.innerHTML = trustedHtml as string;
 						cellOutputContainer.appendChild(outputNode);
 						domEval(outputNode);
-					} else if (preloadErrs.some(e => !!e)) {
+					} else if (preloadResults.some(e => e?.state === PreloadState.Error)) {
 						outputNode.innerText = `Error loading preloads:`;
 						const errList = document.createElement('ul');
-						for (const err of preloadErrs) {
-							if (err) {
+						for (const result of preloadResults) {
+							if (result?.state === PreloadState.Error) {
 								const item = document.createElement('li');
-								item.innerText = err;
+								item.innerText = result.error;
 								errList.appendChild(item);
 							}
 						}
@@ -426,6 +474,7 @@ function webviewPreloads() {
 						__vscode_notebook_message: true,
 						type: 'dimension',
 						id: outputId,
+						init: true,
 						data: {
 							height: outputNode.clientHeight
 						}
@@ -498,11 +547,20 @@ function webviewPreloads() {
 			case 'preload':
 				const resources = event.data.resources;
 				const globals = event.data.type === 'preload' ? { acquireVsCodeApi } : {};
+				let queue: Promise<PreloadResult> = Promise.resolve({ state: PreloadState.Ok });
 				for (const { uri, originalUri } of resources) {
-					preloadPromises.set(uri, runScript(uri, originalUri, globals).catch(err => {
-						console.error(err);
-						return err.message || String(err);
+					// create the promise so that the scripts download in parallel, but
+					// only invoke them in series within the queue
+					const promise = runScript(uri, originalUri, globals);
+					queue = queue.then(() => promise.then(fn => {
+						const result = fn();
+						if (result.state === PreloadState.Error) {
+							console.error(result.error);
+						}
+
+						return result;
 					}));
+					preloadPromises.set(uri, queue);
 				}
 				break;
 			case 'focus-output':
@@ -533,4 +591,4 @@ function webviewPreloads() {
 	});
 }
 
-export const preloadsScriptStr = (outputNodePadding: number) => `(${webviewPreloads})()`.replace(/__outputNodePadding__/g, `${outputNodePadding}`);
+export const preloadsScriptStr = (outputNodePadding: number, outputNodeLeftPadding: number) => `(${webviewPreloads})()`.replace(/__outputNodePadding__/g, `${outputNodePadding}`).replace(/__outputNodeLeftPadding__/g, `${outputNodeLeftPadding}`);

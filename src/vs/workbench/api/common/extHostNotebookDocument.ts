@@ -113,14 +113,17 @@ export class ExtHostCell extends Disposable {
 	get cell(): vscode.NotebookCell {
 		if (!this._cell) {
 			const that = this;
-			const document = this._extHostDocument.getDocument(this.uri)!.document;
+			const data = this._extHostDocument.getDocument(this.uri);
+			if (!data) {
+				throw new Error(`MISSING extHostDocument for notebook cell: ${this.uri}`);
+			}
 			this._cell = Object.freeze({
 				get index() { return that._notebook.getCellIndex(that); },
 				notebook: that._notebook.notebookDocument,
 				uri: that.uri,
 				cellKind: this._cellData.cellKind,
-				document,
-				get language() { return document.languageId; },
+				document: data.document,
+				get language() { return data!.document.languageId; },
 				get outputs() { return that._outputs; },
 				set outputs(value) { that._updateOutputs(value); },
 				get metadata() { return that._metadata; },

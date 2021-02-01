@@ -12,15 +12,11 @@ import { IWorkbenchLayoutService, Parts } from 'vs/workbench/services/layout/bro
 import { IViewletService } from 'vs/workbench/services/viewlet/browser/viewlet';
 import { IViewlet } from 'vs/workbench/common/viewlet';
 import { IPanel } from 'vs/workbench/common/panel';
-import { Action2, MenuId, registerAction2, SyncActionDescriptor } from 'vs/platform/actions/common/actions';
+import { SyncActionDescriptor } from 'vs/platform/actions/common/actions';
 import { IWorkbenchActionRegistry, Extensions, CATEGORIES } from 'vs/workbench/common/actions';
 import { Direction } from 'vs/base/browser/ui/grid/grid';
 import { KeyCode, KeyMod } from 'vs/base/common/keyCodes';
-import { IWorkbenchContribution, IWorkbenchContributionsRegistry, Extensions as WorkbenchExtensions } from 'vs/workbench/common/contributions';
-import { IWorkbenchEnvironmentService } from 'vs/workbench/services/environment/common/environmentService';
-import { LifecyclePhase } from 'vs/workbench/services/lifecycle/common/lifecycle';
 import { IEditorService } from 'vs/workbench/services/editor/common/editorService';
-import { isAncestor } from 'vs/base/browser/dom';
 
 abstract class BaseNavigationAction extends Action {
 
@@ -218,7 +214,8 @@ function findVisibleNeighbour(layoutService: IWorkbenchLayoutService, part: Part
 }
 
 function focusNextOrPreviousPart(layoutService: IWorkbenchLayoutService, editorService: IEditorService, next: boolean): void {
-	const currentlyFocusedPart = isActiveElementInNotebookEditor(editorService) ? Parts.EDITOR_PART : layoutService.hasFocus(Parts.EDITOR_PART) ? Parts.EDITOR_PART : layoutService.hasFocus(Parts.ACTIVITYBAR_PART) ? Parts.ACTIVITYBAR_PART :
+	const editorFocused = editorService.activeEditorPane?.hasFocus();
+	const currentlyFocusedPart = editorFocused ? Parts.EDITOR_PART : layoutService.hasFocus(Parts.ACTIVITYBAR_PART) ? Parts.ACTIVITYBAR_PART :
 		layoutService.hasFocus(Parts.STATUSBAR_PART) ? Parts.STATUSBAR_PART : layoutService.hasFocus(Parts.SIDEBAR_PART) ? Parts.SIDEBAR_PART : layoutService.hasFocus(Parts.PANEL_PART) ? Parts.PANEL_PART : undefined;
 	let partToFocus = Parts.EDITOR_PART;
 	if (currentlyFocusedPart) {
@@ -226,17 +223,6 @@ function focusNextOrPreviousPart(layoutService: IWorkbenchLayoutService, editorS
 	}
 
 	layoutService.focusPart(partToFocus);
-}
-
-function isActiveElementInNotebookEditor(editorService: IEditorService): boolean {
-	const activeEditorPane = editorService.activeEditorPane as unknown as { isNotebookEditor?: boolean } | undefined;
-	if (activeEditorPane?.isNotebookEditor) {
-		const control = editorService.activeEditorPane?.getControl() as { getDomNode(): HTMLElement; getOverflowContainerDomNode(): HTMLElement; };
-		const activeElement = document.activeElement;
-		return isAncestor(activeElement, control.getDomNode()) || isAncestor(activeElement, control.getOverflowContainerDomNode());
-	}
-
-	return false;
 }
 
 export class FocusNextPart extends Action {
@@ -275,29 +261,6 @@ export class FocusPreviousPart extends Action {
 	}
 }
 
-class GoHomeContributor implements IWorkbenchContribution {
-
-	constructor(
-		@IWorkbenchEnvironmentService environmentService: IWorkbenchEnvironmentService
-	) {
-		const homeIndicator = environmentService.options?.homeIndicator;
-		if (homeIndicator) {
-			registerAction2(class extends Action2 {
-				constructor() {
-					super({
-						id: `workbench.actions.goHome`,
-						title: nls.localize('goHome', "Go Home"),
-						menu: { id: MenuId.MenubarWebNavigationMenu }
-					});
-				}
-				async run(): Promise<void> {
-					window.location.href = homeIndicator.href;
-				}
-			});
-		}
-	}
-}
-
 // --- Actions Registration
 
 const actionsRegistry = Registry.as<IWorkbenchActionRegistry>(Extensions.WorkbenchActions);
@@ -308,6 +271,3 @@ actionsRegistry.registerWorkbenchAction(SyncActionDescriptor.from(NavigateLeftAc
 actionsRegistry.registerWorkbenchAction(SyncActionDescriptor.from(NavigateRightAction, undefined), 'View: Navigate to the View on the Right', CATEGORIES.View.value);
 actionsRegistry.registerWorkbenchAction(SyncActionDescriptor.from(FocusNextPart, { primary: KeyCode.F6 }), 'View: Focus Next Part', CATEGORIES.View.value);
 actionsRegistry.registerWorkbenchAction(SyncActionDescriptor.from(FocusPreviousPart, { primary: KeyMod.Shift | KeyCode.F6 }), 'View: Focus Previous Part', CATEGORIES.View.value);
-
-const workbenchRegistry = Registry.as<IWorkbenchContributionsRegistry>(WorkbenchExtensions.Workbench);
-workbenchRegistry.registerWorkbenchContribution(GoHomeContributor, LifecyclePhase.Ready);

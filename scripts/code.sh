@@ -41,7 +41,6 @@ function code() {
 	export VSCODE_CLI=1
 	export ELECTRON_ENABLE_STACK_DUMPING=1
 	export ELECTRON_ENABLE_LOGGING=1
-	export VSCODE_LOGS=
 
 	# Launch Code
 	exec "$CODE" . --no-sandbox "$@"

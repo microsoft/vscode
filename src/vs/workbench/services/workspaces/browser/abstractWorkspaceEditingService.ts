@@ -54,8 +54,7 @@ export abstract class AbstractWorkspaceEditingService implements IWorkspaceEditi
 			saveLabel: mnemonicButtonLabel(nls.localize('save', "Save")),
 			title: nls.localize('saveWorkspace', "Save Workspace"),
 			filters: WORKSPACE_FILTER,
-			defaultUri: this.fileDialogService.defaultWorkspacePath(undefined, UNTITLED_WORKSPACE_FILENAME),
-			availableFileSystems: this.environmentService.remoteAuthority ? [Schemas.vscodeRemote] : undefined
+			defaultUri: await this.fileDialogService.defaultWorkspacePath(undefined, UNTITLED_WORKSPACE_FILENAME)
 		});
 
 		if (!workspacePath) {
@@ -222,6 +221,7 @@ export abstract class AbstractWorkspaceEditingService implements IWorkspaceEditi
 		}
 
 		// Allow to save the workspace of the current window
+		// if we have an identical match on the path
 		if (isEqual(workspaceIdentifier.configPath, path)) {
 			return this.saveWorkspace(workspaceIdentifier);
 		}
@@ -252,8 +252,8 @@ export abstract class AbstractWorkspaceEditingService implements IWorkspaceEditi
 
 		// Read the contents of the workspace file, update it to new location and save it.
 		const raw = await this.fileService.readFile(configPathURI);
-		const newRawWorkspaceContents = rewriteWorkspaceFileForNewLocation(raw.value.toString(), configPathURI, isFromUntitledWorkspace, targetConfigPathURI);
-		await this.textFileService.create(targetConfigPathURI, newRawWorkspaceContents, { overwrite: true });
+		const newRawWorkspaceContents = rewriteWorkspaceFileForNewLocation(raw.value.toString(), configPathURI, isFromUntitledWorkspace, targetConfigPathURI, this.uriIdentityService.extUri);
+		await this.textFileService.create([{ resource: targetConfigPathURI, value: newRawWorkspaceContents, options: { overwrite: true } }]);
 	}
 
 	protected async saveWorkspace(workspace: IWorkspaceIdentifier): Promise<void> {
@@ -274,8 +274,8 @@ export abstract class AbstractWorkspaceEditingService implements IWorkspaceEditi
 
 		// Finally, we need to re-create the file as it was deleted
 		const newWorkspace: IStoredWorkspace = { folders: [] };
-		const newRawWorkspaceContents = rewriteWorkspaceFileForNewLocation(JSON.stringify(newWorkspace, null, '\t'), configPathURI, false, configPathURI);
-		await this.textFileService.create(configPathURI, newRawWorkspaceContents);
+		const newRawWorkspaceContents = rewriteWorkspaceFileForNewLocation(JSON.stringify(newWorkspace, null, '\t'), configPathURI, false, configPathURI, this.uriIdentityService.extUri);
+		await this.textFileService.create([{ resource: configPathURI, value: newRawWorkspaceContents }]);
 	}
 
 	private handleWorkspaceConfigurationEditingError(error: JSONEditingError): void {

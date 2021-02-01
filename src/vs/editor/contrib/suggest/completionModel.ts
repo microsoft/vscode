@@ -10,12 +10,12 @@ import { InternalSuggestOptions } from 'vs/editor/common/config/editorOptions';
 import { WordDistance } from 'vs/editor/contrib/suggest/wordDistance';
 import { CharCode } from 'vs/base/common/charCode';
 import { compareIgnoreCase } from 'vs/base/common/strings';
-import { MovingAverage } from 'vs/base/common/numbers';
+import { quickSelect } from 'vs/base/common/arrays';
 
 type StrictCompletionItem = Required<CompletionItem>;
 
 export interface ICompletionStats {
-	avgLabelLen: MovingAverage;
+	pLabelLen: number;
 }
 
 export class LineContext {
@@ -137,7 +137,8 @@ export class CompletionModel {
 	private _createCachedState(): void {
 
 		this._providerInfo = new Map();
-		this._stats = { avgLabelLen: new MovingAverage() };
+
+		const labelLengths: number[] = [];
 
 		const { leadingLineContent, characterCountDelta } = this._lineContext;
 		let word = '';
@@ -239,11 +240,16 @@ export class CompletionModel {
 			target.push(item as StrictCompletionItem);
 
 			// update stats
-			this._stats.avgLabelLen.update(textLabel.length);
+			labelLengths.push(textLabel.length);
 		}
 
 		this._filteredItems = target.sort(this._snippetCompareFn);
 		this._refilterKind = Refilter.Nothing;
+		this._stats = {
+			pLabelLen: labelLengths.length ?
+				quickSelect(labelLengths.length - .85, labelLengths, (a, b) => a - b)
+				: 0
+		};
 	}
 
 	private static _compareCompletionItems(a: StrictCompletionItem, b: StrictCompletionItem): number {

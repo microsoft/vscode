@@ -17,6 +17,10 @@
 	white-space: pre;
 }
 
+.monaco-workbench .repl .repl-tree .monaco-tl-contents .expression {
+	font-family: var(--vscode-repl-font-family);
+}
+
 .monaco-workbench .repl .repl-tree.word-wrap .monaco-tl-contents {
 	/* Wrap words but also do not trim whitespace #6275 */
 	word-wrap: break-word;
@@ -36,6 +40,15 @@
 
 .monaco-workbench .repl .repl-tree .output.expression.value-and-source .value {
 	margin-right: 4px;
+}
+
+.monaco-workbench .repl .repl-tree .output.expression.value-and-source .count-badge-wrapper {
+	margin-right: 4px;
+}
+
+/* Allow the badge to be a bit shorter so it does not look cut off */
+.monaco-workbench .repl .repl-tree .output.expression.value-and-source .count-badge-wrapper .monaco-count-badge {
+	min-height: 16px;
 }
 
 .monaco-workbench .repl .repl-tree .monaco-tl-contents .arrow {

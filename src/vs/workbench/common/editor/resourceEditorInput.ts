@@ -55,6 +55,7 @@ export class ResourceEditorInput extends AbstractTextResourceEditorInput impleme
 	setName(name: string): void {
 		if (this.name !== name) {
 			this.name = name;
+
 			this._onDidChangeLabel.fire();
 		}
 	}
@@ -96,7 +97,7 @@ export class ResourceEditorInput extends AbstractTextResourceEditorInput impleme
 			ref.dispose();
 			this.modelReference = undefined;
 
-			throw new Error(`Unexpected model for ResourcEditorInput: ${this.resource}`);
+			throw new Error(`Unexpected model for ResourceEditorInput: ${this.resource}`);
 		}
 
 		this.cachedModel = model;

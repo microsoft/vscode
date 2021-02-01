@@ -58,6 +58,7 @@ export const ACCESSIBLE_NOTEBOOK_DISPLAY_ORDER = [
 ];
 
 export const BUILTIN_RENDERER_ID = '_builtin';
+export const RENDERER_NOT_AVAILABLE = '_notAvailable';
 
 export enum NotebookRunState {
 	Running = 1,
@@ -72,7 +73,9 @@ export const notebookDocumentMetadataDefaults: Required<NotebookDocumentMetadata
 	cellHasExecutionOrder: true,
 	displayOrder: NOTEBOOK_DISPLAY_ORDER,
 	custom: {},
-	runState: NotebookRunState.Idle
+	runState: NotebookRunState.Idle,
+	languages: [],
+	trusted: true
 };
 
 export interface NotebookDocumentMetadata {
@@ -84,6 +87,8 @@ export interface NotebookDocumentMetadata {
 	displayOrder?: (string | glob.IRelativePattern)[];
 	custom?: { [key: string]: unknown };
 	runState?: NotebookRunState;
+	languages: string[];
+	trusted: boolean;
 }
 
 export enum NotebookCellRunState {
@@ -182,27 +187,15 @@ export enum MimeTypeRendererResolver {
 export interface IOrderedMimeType {
 	mimeType: string;
 	rendererId: string;
+	isTrusted: boolean;
 }
 
-export interface ITransformedDisplayOutputDto {
-	outputKind: CellOutputKind.Rich;
+export interface ITransformedDisplayOutputDto extends IDisplayOutput {
 	outputId: string;
-	data: { [key: string]: unknown; }
-	metadata?: NotebookCellOutputMetadata;
-
-	orderedMimeTypes?: IOrderedMimeType[];
-	pickedMimeTypeIndex?: number;
 }
 
 export function isTransformedDisplayOutput(thing: unknown): thing is ITransformedDisplayOutputDto {
 	return (thing as ITransformedDisplayOutputDto).outputKind === CellOutputKind.Rich && !!(thing as ITransformedDisplayOutputDto).outputId;
-}
-
-export interface IGenericOutput {
-	outputKind: CellOutputKind;
-	pickedMimeType?: string;
-	pickedRenderer?: number;
-	transformedOutput?: { [key: string]: IDisplayOutput };
 }
 
 
@@ -279,36 +272,6 @@ export interface INotebookTextModel {
 	readonly cells: readonly ICell[];
 	onWillDispose(listener: () => void): IDisposable;
 }
-
-export const enum RenderOutputType {
-	None,
-	Html,
-	Extension
-}
-
-export interface IRenderNoOutput {
-	type: RenderOutputType.None;
-	hasDynamicHeight: boolean;
-}
-
-export interface IRenderPlainHtmlOutput {
-	type: RenderOutputType.Html;
-	source: ITransformedDisplayOutputDto;
-	htmlContent: string;
-	hasDynamicHeight: boolean;
-}
-
-export interface IRenderOutputViaExtension {
-	type: RenderOutputType.Extension;
-	source: ITransformedDisplayOutputDto;
-	mimeType: string;
-	renderer: INotebookRendererInfo;
-}
-
-export type IInsetRenderOutput = IRenderPlainHtmlOutput | IRenderOutputViaExtension;
-export type IRenderOutput = IRenderNoOutput | IInsetRenderOutput;
-
-export const outputHasDynamicHeight = (o: IRenderOutput) => o.type !== RenderOutputType.Extension && o.hasDynamicHeight;
 
 export type NotebookCellTextModelSplice<T> = [
 	number /* start */,
@@ -512,20 +475,12 @@ export namespace CellUri {
 
 	export const scheme = Schemas.vscodeNotebookCell;
 
-	const _regex = /^\d{7,}/;
+	const _regex = /^ch(\d{7,})/;
 
 	export function generate(notebook: URI, handle: number): URI {
 		return notebook.with({
 			scheme,
-			fragment: `${handle.toString().padStart(7, '0')}${notebook.scheme !== Schemas.file ? notebook.scheme : ''}`
-		});
-	}
-
-	export function generateCellMetadataUri(notebook: URI, handle: number): URI {
-		return notebook.with({
-			scheme: Schemas.vscode,
-			authority: 'vscode-notebook-cell-metadata',
-			fragment: `${handle.toString().padStart(7, '0')}${notebook.scheme !== Schemas.file ? notebook.scheme : ''}`
+			fragment: `ch${handle.toString().padStart(7, '0')}${notebook.scheme !== Schemas.file ? notebook.scheme : ''}`
 		});
 	}
 
@@ -537,7 +492,7 @@ export namespace CellUri {
 		if (!match) {
 			return undefined;
 		}
-		const handle = Number(match[0]);
+		const handle = Number(match[1]);
 		return {
 			handle,
 			notebook: cell.with({
@@ -546,6 +501,44 @@ export namespace CellUri {
 			})
 		};
 	}
+
+	export function generateCellMetadataUri(notebook: URI, handle: number): URI {
+		return notebook.with({
+			scheme: Schemas.vscodeNotebookCellMetadata,
+			fragment: `ch${handle.toString().padStart(7, '0')}${notebook.scheme !== Schemas.file ? notebook.scheme : ''}`
+		});
+	}
+
+	export function parseCellMetadataUri(metadata: URI) {
+		if (metadata.scheme !== Schemas.vscodeNotebookCellMetadata) {
+			return undefined;
+		}
+		const match = _regex.exec(metadata.fragment);
+		if (!match) {
+			return undefined;
+		}
+		const handle = Number(match[1]);
+		return {
+			handle,
+			notebook: metadata.with({
+				scheme: metadata.fragment.substr(match[0].length) || Schemas.file,
+				fragment: null
+			})
+		};
+	}
+}
+
+export function mimeTypeIsAlwaysSecure(mimeType: string) {
+	if ([
+		'application/json',
+		'text/markdown',
+		'image/png',
+		'text/plain'
+	].indexOf(mimeType) > -1) {
+		return true;
+	}
+
+	return false;
 }
 
 export function mimeTypeSupportedByCore(mimeType: string) {
@@ -681,6 +674,7 @@ export interface ICellEditorViewState {
 }
 
 export const NOTEBOOK_EDITOR_CURSOR_BOUNDARY = new RawContextKey<'none' | 'top' | 'bottom' | 'both'>('notebookEditorCursorAtBoundary', 'none');
+export const NOTEBOOK_EDITOR_CURSOR_BEGIN_END = new RawContextKey<boolean>('notebookEditorCursorAtEditorBeginEnd', false);
 
 
 export interface INotebookEditorModel extends IEditorModel {
@@ -743,7 +737,6 @@ export interface IEditor extends editorCommon.ICompositeCodeEditor {
 	textModel?: NotebookTextModel;
 	getId(): string;
 	hasFocus(): boolean;
-	hasModel(): boolean;
 }
 
 export enum NotebookEditorPriority {
@@ -808,7 +801,8 @@ export function notebookDocumentFilterMatch(filter: INotebookDocumentFilter, vie
 }
 
 export interface INotebookKernelInfoDto2 {
-	id: string;
+	id?: string;
+	friendlyId: string;
 	label: string;
 	extension: ExtensionIdentifier;
 	extensionLocation: URI;
@@ -865,6 +859,7 @@ export interface INotebookCellStatusBarEntry {
 	readonly command: string | Command | undefined;
 	readonly accessibilityInformation?: IAccessibilityInformation;
 	readonly visible: boolean;
+	readonly opacity?: string;
 }
 
 export const DisplayOrderKey = 'notebook.displayOrder';

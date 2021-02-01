@@ -354,6 +354,12 @@
 	padding: 4px 0 12px 5px;
 }
 
+.monaco-editor .suggest-details>.monaco-scrollable-element>.body>.header>.type.auto-wrap {
+	white-space: normal;
+	word-break: break-all;
+}
+
+
 .monaco-editor .suggest-details>.monaco-scrollable-element>.body>.docs {
 	margin: 0;
 	padding: 4px 5px;

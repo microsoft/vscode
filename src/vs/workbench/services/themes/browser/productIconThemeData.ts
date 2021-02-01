@@ -12,7 +12,7 @@ import { ExtensionData, IThemeExtensionPoint, IWorkbenchProductIconTheme } from 
 import { IFileService } from 'vs/platform/files/common/files';
 import { getParseErrorMessage } from 'vs/base/common/jsonErrorMessages';
 import { asCSSUrl } from 'vs/base/browser/dom';
-import { IStorageService, StorageScope } from 'vs/platform/storage/common/storage';
+import { IStorageService, StorageScope, StorageTarget } from 'vs/platform/storage/common/storage';
 import { DEFAULT_PRODUCT_ICON_THEME_SETTING_VALUE } from 'vs/workbench/services/themes/common/themeConfiguration';
 import { fontIdRegex, fontWeightRegex, fontStyleRegex } from 'vs/workbench/services/themes/common/productIconThemeSchema';
 import { isString } from 'vs/base/common/types';
@@ -146,7 +146,7 @@ export class ProductIconThemeData implements IWorkbenchProductIconTheme {
 			watch: this.watch,
 			extensionData: ExtensionData.toJSONObject(this.extensionData),
 		});
-		storageService.store(ProductIconThemeData.STORAGE_KEY, data, StorageScope.GLOBAL);
+		storageService.store(ProductIconThemeData.STORAGE_KEY, data, StorageScope.GLOBAL, StorageTarget.MACHINE);
 	}
 }
 

@@ -9,7 +9,8 @@
 	"contributes": {
 		"themes": [
 			{
-				"label": "Abyss",
+				"id": "Abyss",
+				"label": "%themeLabel%",
 				"uiTheme": "vs-dark",
 				"path": "./themes/abyss-color-theme.json"
 			}

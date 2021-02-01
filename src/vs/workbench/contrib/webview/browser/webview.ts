@@ -4,23 +4,21 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { Dimension } from 'vs/base/browser/dom';
+import { IMouseWheelEvent } from 'vs/base/browser/mouseEvent';
 import { Event } from 'vs/base/common/event';
 import { IDisposable } from 'vs/base/common/lifecycle';
 import { URI } from 'vs/base/common/uri';
 import * as modes from 'vs/editor/common/modes';
-import { RawContextKey } from 'vs/platform/contextkey/common/contextkey';
+import { IContextKeyService, RawContextKey } from 'vs/platform/contextkey/common/contextkey';
 import { ExtensionIdentifier } from 'vs/platform/extensions/common/extensions';
 import { createDecorator } from 'vs/platform/instantiation/common/instantiation';
-import { IMouseWheelEvent } from 'vs/base/browser/mouseEvent';
 
 /**
  * Set when the find widget in a webview is visible.
  */
 export const KEYBINDING_CONTEXT_WEBVIEW_FIND_WIDGET_VISIBLE = new RawContextKey<boolean>('webviewFindWidgetVisible', false);
 export const KEYBINDING_CONTEXT_WEBVIEW_FIND_WIDGET_FOCUSED = new RawContextKey<boolean>('webviewFindWidgetFocused', false);
-
-export const webviewHasOwnEditFunctionsContextKey = 'webviewHasOwnEditFunctions';
-export const webviewHasOwnEditFunctionsContext = new RawContextKey<boolean>(webviewHasOwnEditFunctionsContextKey, false);
+export const KEYBINDING_CONTEXT_WEBVIEW_FIND_WIDGET_ENABLED = new RawContextKey<boolean>('webviewFindWidgetEnabled', false);
 
 export const IWebviewService = createDecorator<IWebviewService>('webviewService');
 
@@ -148,7 +146,7 @@ export interface WebviewOverlay extends Webview {
 	readonly container: HTMLElement;
 	options: WebviewOptions;
 
-	claim(owner: any): void;
+	claim(owner: any, scopedContextKeyService: IContextKeyService | undefined): void;
 	release(owner: any): void;
 
 	getInnerWebview(): Webview | undefined;

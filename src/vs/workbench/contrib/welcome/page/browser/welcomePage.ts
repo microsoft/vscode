@@ -15,7 +15,7 @@ import { IEditorService } from 'vs/workbench/services/editor/common/editorServic
 import { onUnexpectedError, isPromiseCanceledError } from 'vs/base/common/errors';
 import { IWindowOpenable } from 'vs/platform/windows/common/windows';
 import { IWorkspaceContextService, WorkbenchState } from 'vs/platform/workspace/common/workspace';
-import { IConfigurationService, ConfigurationTarget } from 'vs/platform/configuration/common/configuration';
+import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { localize } from 'vs/nls';
 import { Action, WorkbenchActionExecutedEvent, WorkbenchActionExecutedClassification } from 'vs/base/common/actions';
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
@@ -29,7 +29,7 @@ import { ILifecycleService, StartupKind } from 'vs/workbench/services/lifecycle/
 import { Disposable } from 'vs/base/common/lifecycle';
 import { splitName } from 'vs/base/common/labels';
 import { registerThemingParticipant } from 'vs/platform/theme/common/themeService';
-import { registerColor, focusBorder, textLinkForeground, textLinkActiveForeground, foreground, descriptionForeground, contrastBorder, activeContrastBorder } from 'vs/platform/theme/common/colorRegistry';
+import { focusBorder, textLinkForeground, textLinkActiveForeground, foreground, descriptionForeground, contrastBorder, activeContrastBorder } from 'vs/platform/theme/common/colorRegistry';
 import { getExtraColor } from 'vs/workbench/contrib/welcome/walkThrough/common/walkThroughUtils';
 import { IExtensionsViewPaneContainer, IExtensionsWorkbenchService, VIEWLET_ID } from 'vs/workbench/contrib/extensions/common/extensions';
 import { IEditorInputFactory, EditorInput } from 'vs/workbench/common/editor';
@@ -46,6 +46,8 @@ import { IProductService } from 'vs/platform/product/common/productService';
 import { IEditorOptions } from 'vs/platform/editor/common/editor';
 import { IWorkbenchLayoutService } from 'vs/workbench/services/layout/browser/layoutService';
 import { IViewletService } from 'vs/workbench/services/viewlet/browser/viewlet';
+import { getGettingStartedInput, gettingStartedInputTypeId } from 'vs/workbench/contrib/welcome/gettingStarted/browser/gettingStarted';
+import { welcomeButtonBackground, welcomeButtonHoverBackground, welcomePageBackground } from 'vs/workbench/contrib/welcome/page/browser/welcomePageColors';
 
 const configurationKey = 'workbench.startupEditor';
 const oldConfigurationKey = 'workbench.welcome.enabled';
@@ -69,7 +71,8 @@ export class WelcomePageContribution implements IWorkbenchContribution {
 			backupFileService.hasBackups().then(hasBackups => {
 				// Open the welcome even if we opened a set of default editors
 				if ((!editorService.activeEditor || layoutService.openedDefaultEditors) && !hasBackups) {
-					const openWithReadme = configurationService.getValue(configurationKey) === 'readme';
+					const startupEditorSetting = configurationService.inspect<string>(configurationKey);
+					const openWithReadme = startupEditorSetting.userValue === 'readme';
 					if (openWithReadme) {
 						return Promise.all(contextService.getWorkspace().folders.map(folder => {
 							const folderUri = folder.uri;
@@ -101,18 +104,25 @@ export class WelcomePageContribution implements IWorkbenchContribution {
 								return undefined;
 							});
 					} else {
+						const startupEditorTypeID = startupEditorSetting.value === 'gettingStarted' ? gettingStartedInputTypeId : welcomeInputTypeId;
 						let options: IEditorOptions;
 						let editor = editorService.activeEditor;
 						if (editor) {
 							// Ensure that the welcome editor won't get opened more than once
-							if (editor.getTypeId() === welcomeInputTypeId || editorService.editors.some(e => e.getTypeId() === welcomeInputTypeId)) {
+							if (editor.getTypeId() === startupEditorTypeID || editorService.editors.some(e => e.getTypeId() === startupEditorTypeID)) {
 								return undefined;
 							}
 							options = { pinned: false, index: 0 };
 						} else {
 							options = { pinned: false };
 						}
-						return instantiationService.createInstance(WelcomePage).openEditor(options);
+
+						if (startupEditorTypeID === gettingStartedInputTypeId) {
+							editorService.openEditor(instantiationService.invokeFunction(getGettingStartedInput, {}), options);
+						} else {
+							const launchEditor = instantiationService.createInstance(WelcomePage);
+							return launchEditor.openEditor(options);
+						}
 					}
 				}
 				return undefined;
@@ -122,14 +132,17 @@ export class WelcomePageContribution implements IWorkbenchContribution {
 }
 
 function isWelcomePageEnabled(configurationService: IConfigurationService, contextService: IWorkspaceContextService) {
-	const startupEditor = configurationService.inspect(configurationKey);
+	const startupEditor = configurationService.inspect<string>(configurationKey);
 	if (!startupEditor.userValue && !startupEditor.workspaceValue) {
 		const welcomeEnabled = configurationService.inspect(oldConfigurationKey);
 		if (welcomeEnabled.value !== undefined && welcomeEnabled.value !== null) {
 			return welcomeEnabled.value;
 		}
 	}
-	return startupEditor.value === 'welcomePage' || startupEditor.value === 'readme' || startupEditor.value === 'welcomePageInEmptyWorkbench' && contextService.getWorkbenchState() === WorkbenchState.EMPTY;
+	if (startupEditor.value === 'readme' && startupEditor.userValue !== 'readme') {
+		console.error('Warning: `workbench.startupEditor: readme` setting ignored due to being set somewhere other than user settings');
+	}
+	return startupEditor.value === 'welcomePage' || startupEditor.value === 'gettingStarted' || startupEditor.userValue === 'readme' || startupEditor.value === 'welcomePageInEmptyWorkbench' && contextService.getWorkbenchState() === WorkbenchState.EMPTY;
 }
 
 export class WelcomePageAction extends Action {
@@ -323,7 +336,7 @@ class WelcomePage extends Disposable {
 			showOnStartup.setAttribute('checked', 'checked');
 		}
 		showOnStartup.addEventListener('click', e => {
-			this.configurationService.updateValue(configurationKey, showOnStartup.checked ? 'welcomePage' : 'newUntitledFile', ConfigurationTarget.USER);
+			this.configurationService.updateValue(configurationKey, showOnStartup.checked ? 'welcomePage' : 'newUntitledFile');
 		});
 
 		const prodName = container.querySelector('.welcomePage .title .caption') as HTMLElement;
@@ -637,10 +650,6 @@ export class WelcomeInputFactory implements IEditorInputFactory {
 
 // theming
 
-export const buttonBackground = registerColor('welcomePage.buttonBackground', { dark: null, light: null, hc: null }, localize('welcomePage.buttonBackground', 'Background color for the buttons on the Welcome page.'));
-export const buttonHoverBackground = registerColor('welcomePage.buttonHoverBackground', { dark: null, light: null, hc: null }, localize('welcomePage.buttonHoverBackground', 'Hover background color for the buttons on the Welcome page.'));
-export const welcomePageBackground = registerColor('welcomePage.background', { light: null, dark: null, hc: null }, localize('welcomePage.background', 'Background color for the Welcome page.'));
-
 registerThemingParticipant((theme, collector) => {
 	const backgroundColor = theme.getColor(welcomePageBackground);
 	if (backgroundColor) {
@@ -654,11 +663,11 @@ registerThemingParticipant((theme, collector) => {
 	if (descriptionColor) {
 		collector.addRule(`.monaco-workbench .part.editor > .content .welcomePage .detail { color: ${descriptionColor}; }`);
 	}
-	const buttonColor = getExtraColor(theme, buttonBackground, { dark: 'rgba(0, 0, 0, .2)', extra_dark: 'rgba(200, 235, 255, .042)', light: 'rgba(0,0,0,.04)', hc: 'black' });
+	const buttonColor = getExtraColor(theme, welcomeButtonBackground, { dark: 'rgba(0, 0, 0, .2)', extra_dark: 'rgba(200, 235, 255, .042)', light: 'rgba(0,0,0,.04)', hc: 'black' });
 	if (buttonColor) {
 		collector.addRule(`.monaco-workbench .part.editor > .content .welcomePage .commands .item button { background: ${buttonColor}; }`);
 	}
-	const buttonHoverColor = getExtraColor(theme, buttonHoverBackground, { dark: 'rgba(200, 235, 255, .072)', extra_dark: 'rgba(200, 235, 255, .072)', light: 'rgba(0,0,0,.10)', hc: null });
+	const buttonHoverColor = getExtraColor(theme, welcomeButtonHoverBackground, { dark: 'rgba(200, 235, 255, .072)', extra_dark: 'rgba(200, 235, 255, .072)', light: 'rgba(0,0,0,.10)', hc: null });
 	if (buttonHoverColor) {
 		collector.addRule(`.monaco-workbench .part.editor > .content .welcomePage .commands .item button:hover { background: ${buttonHoverColor}; }`);
 	}

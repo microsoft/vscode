@@ -21,8 +21,7 @@
   "scripts": {
     "compile": "gulp compile-extension:css-language-features-client compile-extension:css-language-features-server",
     "watch": "gulp watch-extension:css-language-features-client watch-extension:css-language-features-server",
-    "test": "mocha",
-    "postinstall": "cd server && yarn install",
+    "test": "node ../../node_modules/mocha/bin/mocha",
     "install-client-next": "yarn add vscode-languageclient@next"
   },
   "categories": [
@@ -807,11 +806,11 @@
     ]
   },
   "dependencies": {
-    "vscode-languageclient": "7.0.0-next.5.1",
-    "vscode-nls": "^4.1.2"
+    "vscode-languageclient": "^7.0.0",
+    "vscode-nls": "^5.0.0",
+    "vscode-uri": "^3.0.2"
   },
   "devDependencies": {
-    "@types/node": "^12.11.7",
-    "mocha": "^7.0.1"
+    "@types/node": "^12.19.9"
   }
 }

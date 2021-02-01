@@ -16,6 +16,7 @@ import { ISnippetsService } from 'vs/workbench/contrib/snippets/browser/snippets
 import { Snippet, SnippetSource } from 'vs/workbench/contrib/snippets/browser/snippetsFile';
 import { isPatternInWord } from 'vs/base/common/filters';
 import { StopWatch } from 'vs/base/common/stopwatch';
+import { LanguageConfigurationRegistry } from 'vs/editor/common/modes/languageConfigurationRegistry';
 
 export class SnippetCompletion implements CompletionItem {
 
@@ -110,8 +111,27 @@ export class SnippetCompletionProvider implements CompletionItemProvider {
 					const prefixPos = position.column - (1 + start);
 					const prefixRestLen = snippet.prefixLow.length - prefixPos;
 					const endsWithPrefixRest = compareSubstring(lineContent, snippet.prefixLow, columnOffset, (columnOffset) + prefixRestLen, prefixPos, prefixPos + prefixRestLen);
-					const endColumn = endsWithPrefixRest === 0 ? position.column + prefixRestLen : position.column;
-					const replace = Range.fromPositions(position.delta(0, -prefixPos), { lineNumber: position.lineNumber, column: endColumn });
+					const startPosition = position.delta(0, -prefixPos);
+					let endColumn = endsWithPrefixRest === 0 ? position.column + prefixRestLen : position.column;
+
+					// First check if there is anything to the right of the cursor
+					if (columnOffset < lineContent.length) {
+						const autoClosingPairs = LanguageConfigurationRegistry.getAutoClosingPairs(languageId);
+						const standardAutoClosingPairConditionals = autoClosingPairs.autoClosingPairsCloseSingleChar.get(lineContent[columnOffset]);
+						// If the character to the right of the cursor is a closing character of an autoclosing pair
+						if (standardAutoClosingPairConditionals?.some(p =>
+							// and the start position is the opening character of an autoclosing pair
+							p.open === lineContent[startPosition.column - 1] &&
+							// and the snippet prefix contains the opening and closing pair at its edges
+							snippet.prefix.startsWith(p.open) &&
+							snippet.prefix[snippet.prefix.length - 1] === p.close)) {
+
+							// Eat the character that was likely inserted because of auto-closing pairs
+							endColumn++;
+						}
+					}
+
+					const replace = Range.fromPositions(startPosition, { lineNumber: position.lineNumber, column: endColumn });
 					const insert = replace.setEndPosition(position.lineNumber, position.column);
 
 					suggestions.push(new SnippetCompletion(snippet, { replace, insert }));

@@ -176,8 +176,8 @@ export class SimpleEditorProgressService implements IEditorProgressService {
 		return SimpleEditorProgressService.NULL_PROGRESS_RUNNER;
 	}
 
-	showWhile(promise: Promise<any>, delay?: number): Promise<void> {
-		return Promise.resolve(undefined);
+	async showWhile(promise: Promise<any>, delay?: number): Promise<void> {
+		await promise;
 	}
 }
 
@@ -332,7 +332,8 @@ export class StandaloneKeybindingService extends AbstractKeybindingService {
 				when: when,
 				weight1: 1000,
 				weight2: 0,
-				extensionId: null
+				extensionId: null,
+				isBuiltinExtension: false
 			});
 
 			toDispose.add(toDisposable(() => {
@@ -380,11 +381,11 @@ export class StandaloneKeybindingService extends AbstractKeybindingService {
 
 			if (!keybinding) {
 				// This might be a removal keybinding item in user settings => accept it
-				result[resultLen++] = new ResolvedKeybindingItem(undefined, item.command, item.commandArgs, when, isDefault, null);
+				result[resultLen++] = new ResolvedKeybindingItem(undefined, item.command, item.commandArgs, when, isDefault, null, false);
 			} else {
 				const resolvedKeybindings = this.resolveKeybinding(keybinding);
 				for (const resolvedKeybinding of resolvedKeybindings) {
-					result[resultLen++] = new ResolvedKeybindingItem(resolvedKeybinding, item.command, item.commandArgs, when, isDefault, null);
+					result[resultLen++] = new ResolvedKeybindingItem(resolvedKeybinding, item.command, item.commandArgs, when, isDefault, null, false);
 				}
 			}
 		}
@@ -637,12 +638,12 @@ export class SimpleWorkspaceContextService implements IWorkspaceContextService {
 		return resource && resource.scheme === SimpleWorkspaceContextService.SCHEME;
 	}
 
-	public isCurrentWorkspace(workspaceIdentifier: ISingleFolderWorkspaceIdentifier | IWorkspaceIdentifier): boolean {
+	public isCurrentWorkspace(workspaceIdOrFolder: IWorkspaceIdentifier | ISingleFolderWorkspaceIdentifier | URI): boolean {
 		return true;
 	}
 }
 
-export function applyConfigurationValues(configurationService: IConfigurationService, source: any, isDiffEditor: boolean): void {
+export function updateConfigurationService(configurationService: IConfigurationService, source: any, isDiffEditor: boolean): void {
 	if (!source) {
 		return;
 	}
@@ -735,7 +736,7 @@ export class SimpleUriLabelService implements ILabelService {
 		return basename(resource);
 	}
 
-	public getWorkspaceLabel(workspace: IWorkspaceIdentifier | URI | IWorkspace, options?: { verbose: boolean; }): string {
+	public getWorkspaceLabel(workspace: IWorkspaceIdentifier | ISingleFolderWorkspaceIdentifier | URI | IWorkspace, options?: { verbose: boolean; }): string {
 		return '';
 	}
 

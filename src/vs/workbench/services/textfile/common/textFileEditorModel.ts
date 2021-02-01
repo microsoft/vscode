@@ -810,7 +810,6 @@ export class TextFileEditorModel extends BaseTextEditorModel implements ITextFil
 				try {
 					const stat = await this.textFileService.write(lastResolvedFileStat.resource, textFileEditorModel.createSnapshot(), {
 						overwriteReadonly: options.overwriteReadonly,
-						overwriteEncoding: options.overwriteEncoding,
 						mtime: lastResolvedFileStat.mtime,
 						encoding: this.getEncoding(),
 						etag: (options.ignoreModifiedSince || !this.filesConfigurationService.preventSaveConflicts(lastResolvedFileStat.resource, textFileEditorModel.getMode())) ? ETAG_DISABLED : lastResolvedFileStat.etag,
@@ -837,6 +836,9 @@ export class TextFileEditorModel extends BaseTextEditorModel implements ITextFil
 		} else {
 			this.logService.trace(`[text file model] handleSaveSuccess(${versionId}) - not setting dirty to false because versionId did change meanwhile`, this.resource.toString(true));
 		}
+
+		// Update orphan state given save was successful
+		this.setOrphaned(false);
 
 		// Emit Save Event
 		this._onDidSave.fire(options.reason ?? SaveReason.EXPLICIT);
@@ -978,7 +980,7 @@ export class TextFileEditorModel extends BaseTextEditorModel implements ITextFil
 			}
 
 			if (!this.inConflictMode) {
-				this.save({ overwriteEncoding: true });
+				this.save();
 			}
 		}
 

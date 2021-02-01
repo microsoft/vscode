@@ -5,15 +5,17 @@
 
 import 'vs/platform/update/common/update.config.contribution';
 import { app, dialog } from 'electron';
-import * as fs from 'fs';
+import { unlinkSync } from 'fs';
+import { localize } from 'vs/nls';
 import { isWindows, IProcessEnvironment, isMacintosh } from 'vs/base/common/platform';
 import product from 'vs/platform/product/common/product';
 import { parseMainProcessArgv, addArg } from 'vs/platform/environment/node/argvHelper';
 import { createWaitMarkerFile } from 'vs/platform/environment/node/waitMarkerFile';
 import { mkdirp } from 'vs/base/node/pfs';
 import { LifecycleMainService, ILifecycleMainService } from 'vs/platform/lifecycle/electron-main/lifecycleMainService';
-import { Server, serve, connect, XDG_RUNTIME_DIR } from 'vs/base/parts/ipc/node/ipc.net';
 import { createChannelSender } from 'vs/base/parts/ipc/common/ipc';
+import { Server as NodeIPCServer, serve as nodeIPCServe, connect as nodeIPCConnect, XDG_RUNTIME_DIR } from 'vs/base/parts/ipc/node/ipc.net';
+import { Client as NodeIPCClient } from 'vs/base/parts/ipc/common/ipc.net';
 import { ILaunchMainService } from 'vs/platform/launch/electron-main/launchMainService';
 import { ServicesAccessor, IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { InstantiationService } from 'vs/platform/instantiation/common/instantiationService';
@@ -29,17 +31,15 @@ import { ConfigurationService } from 'vs/platform/configuration/common/configura
 import { IRequestService } from 'vs/platform/request/common/request';
 import { RequestMainService } from 'vs/platform/request/electron-main/requestMainService';
 import { CodeApplication } from 'vs/code/electron-main/app';
-import { localize } from 'vs/nls';
-import { mnemonicButtonLabel } from 'vs/base/common/labels';
+import { getPathLabel, mnemonicButtonLabel } from 'vs/base/common/labels';
 import { SpdLogService } from 'vs/platform/log/node/spdlogService';
 import { BufferLogService } from 'vs/platform/log/common/bufferLog';
 import { setUnexpectedErrorHandler } from 'vs/base/common/errors';
 import { IThemeMainService, ThemeMainService } from 'vs/platform/theme/electron-main/themeMainService';
-import { Client } from 'vs/base/parts/ipc/common/ipc.net';
 import { once } from 'vs/base/common/functional';
 import { ISignService } from 'vs/platform/sign/common/sign';
 import { SignService } from 'vs/platform/sign/node/signService';
-import { IDiagnosticsService } from 'vs/platform/diagnostics/node/diagnosticsService';
+import { DiagnosticsService } from 'vs/platform/diagnostics/node/diagnosticsService';
 import { FileService } from 'vs/platform/files/common/fileService';
 import { DiskFileSystemProvider } from 'vs/platform/files/node/diskFileSystemProvider';
 import { Schemas } from 'vs/base/common/network';
@@ -53,6 +53,8 @@ import { rtrim, trim } from 'vs/base/common/strings';
 import { basename, resolve } from 'vs/base/common/path';
 import { coalesce, distinct } from 'vs/base/common/arrays';
 import { EnvironmentMainService, IEnvironmentMainService } from 'vs/platform/environment/electron-main/environmentMainService';
+import { toErrorMessage } from 'vs/base/common/errorMessage';
+import { NullTelemetryService } from 'vs/platform/telemetry/common/telemetryUtils';
 
 class ExpectedError extends Error {
 	readonly isExpected = true;
@@ -200,7 +202,7 @@ class CodeMain {
 			VSCODE_IPC_HOOK: environmentService.mainIPCHandle
 		};
 
-		['VSCODE_NLS_CONFIG', 'VSCODE_LOGS', 'VSCODE_PORTABLE'].forEach(key => {
+		['VSCODE_NLS_CONFIG', 'VSCODE_PORTABLE'].forEach(key => {
 			const value = process.env[key];
 			if (typeof value === 'string') {
 				instanceEnvironment[key] = value;
@@ -212,14 +214,14 @@ class CodeMain {
 		return instanceEnvironment;
 	}
 
-	private async doStartup(args: NativeParsedArgs, logService: ILogService, environmentService: IEnvironmentMainService, lifecycleMainService: ILifecycleMainService, instantiationService: IInstantiationService, retry: boolean): Promise<Server> {
+	private async doStartup(args: NativeParsedArgs, logService: ILogService, environmentService: IEnvironmentMainService, lifecycleMainService: ILifecycleMainService, instantiationService: IInstantiationService, retry: boolean): Promise<NodeIPCServer> {
 
 		// Try to setup a server for running. If that succeeds it means
 		// we are the first instance to startup. Otherwise it is likely
 		// that another instance is already running.
-		let server: Server;
+		let server: NodeIPCServer;
 		try {
-			server = await serve(environmentService.mainIPCHandle);
+			server = await nodeIPCServe(environmentService.mainIPCHandle);
 			once(lifecycleMainService.onWillShutdown)(() => server.dispose());
 		} catch (error) {
 
@@ -235,9 +237,9 @@ class CodeMain {
 			}
 
 			// there's a running instance, let's connect to it
-			let client: Client<string>;
+			let client: NodeIPCClient<string>;
 			try {
-				client = await connect(environmentService.mainIPCHandle, 'main');
+				client = await nodeIPCConnect(environmentService.mainIPCHandle, 'main');
 			} catch (error) {
 
 				// Handle unexpected connection errors by showing a dialog to the user
@@ -256,7 +258,7 @@ class CodeMain {
 				// let's delete it, since we can't connect to it and then
 				// retry the whole thing
 				try {
-					fs.unlinkSync(environmentService.mainIPCHandle);
+					unlinkSync(environmentService.mainIPCHandle);
 				} catch (error) {
 					logService.warn('Could not delete obsolete instance handle', error);
 
@@ -293,11 +295,7 @@ class CodeMain {
 			// Process Info
 			if (args.status) {
 				return instantiationService.invokeFunction(async () => {
-
-					// Create a diagnostic service connected to the existing shared process
-					const sharedProcessClient = await connect(environmentService.sharedIPCHandle, 'main');
-					const diagnosticsChannel = sharedProcessClient.getChannel('diagnostics');
-					const diagnosticsService = createChannelSender<IDiagnosticsService>(diagnosticsChannel);
+					const diagnosticsService = new DiagnosticsService(NullTelemetryService);
 					const mainProcessInfo = await launchService.getMainProcessInfo();
 					const remoteDiagnostics = await launchService.getRemoteDiagnostics({ includeProcesses: true, includeWorkspaceMetadata: true });
 					const diagnostics = await diagnosticsService.getDiagnostics(mainProcessInfo, remoteDiagnostics);
@@ -343,19 +341,11 @@ class CodeMain {
 
 	private handleStartupDataDirError(environmentService: IEnvironmentMainService, error: NodeJS.ErrnoException): void {
 		if (error.code === 'EACCES' || error.code === 'EPERM') {
-			const directories = [environmentService.userDataPath];
-
-			if (environmentService.extensionsPath) {
-				directories.push(environmentService.extensionsPath);
-			}
-
-			if (XDG_RUNTIME_DIR) {
-				directories.push(XDG_RUNTIME_DIR);
-			}
+			const directories = coalesce([environmentService.userDataPath, environmentService.extensionsPath, XDG_RUNTIME_DIR]).map(folder => getPathLabel(folder, environmentService));
 
 			this.showStartupWarningDialog(
 				localize('startupDataDirError', "Unable to write program user data."),
-				localize('startupUserDataAndExtensionsDirErrorDetail', "Please make sure the following directories are writeable:\n\n{0}", directories.join('\n'))
+				localize('startupUserDataAndExtensionsDirErrorDetail', "{0}\n\nPlease make sure the following directories are writeable:\n\n{1}", toErrorMessage(error), directories.join('\n'))
 			);
 		}
 	}

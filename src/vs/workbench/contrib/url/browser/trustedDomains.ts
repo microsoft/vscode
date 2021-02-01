@@ -8,7 +8,7 @@ import { localize } from 'vs/nls';
 import { ServicesAccessor } from 'vs/platform/instantiation/common/instantiation';
 import { IProductService } from 'vs/platform/product/common/productService';
 import { IQuickInputService, IQuickPickItem } from 'vs/platform/quickinput/common/quickInput';
-import { IStorageService, StorageScope } from 'vs/platform/storage/common/storage';
+import { IStorageService, StorageScope, StorageTarget } from 'vs/platform/storage/common/storage';
 import { IEditorService } from 'vs/workbench/services/editor/common/editorService';
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
 import { IAuthenticationService } from 'vs/workbench/services/authentication/browser/authenticationService';
@@ -31,7 +31,7 @@ export const manageTrustedDomainSettingsCommand = {
 	},
 	handler: async (accessor: ServicesAccessor) => {
 		const editorService = accessor.get(IEditorService);
-		editorService.openEditor({ resource: TRUSTED_DOMAINS_URI, mode: 'jsonc' });
+		editorService.openEditor({ resource: TRUSTED_DOMAINS_URI, mode: 'jsonc', options: { pinned: true } });
 		return;
 	}
 };
@@ -117,7 +117,8 @@ export async function configureOpenerTrustedDomainsHandler(
 			case 'manage':
 				await editorService.openEditor({
 					resource: TRUSTED_DOMAINS_URI,
-					mode: 'jsonc'
+					mode: 'jsonc',
+					options: { pinned: true }
 				});
 				notificationService.prompt(Severity.Info, localize('configuringURL', "Configuring trust for: {0}", resource.toString()),
 					[{ label: 'Copy', run: () => clipboardService.writeText(resource.toString()) }]);
@@ -129,7 +130,8 @@ export async function configureOpenerTrustedDomainsHandler(
 					storageService.store(
 						TRUSTED_DOMAINS_STORAGE_KEY,
 						JSON.stringify([...trustedDomains, itemToTrust]),
-						StorageScope.GLOBAL
+						StorageScope.GLOBAL,
+						StorageTarget.USER
 					);
 
 					return [...trustedDomains, itemToTrust];

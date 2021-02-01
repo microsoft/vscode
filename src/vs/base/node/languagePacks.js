@@ -186,10 +186,10 @@ function factory(nodeRequire, path, fs, perf) {
 
 		const initialLocale = locale;
 
-		perf.mark('nlsGeneration:start');
+		perf.mark('code/willGenerateNls');
 
 		const defaultResult = function (locale) {
-			perf.mark('nlsGeneration:end');
+			perf.mark('code/didGenerateNls');
 			return Promise.resolve({ locale: locale, availableLanguages: {} });
 		};
 		try {
@@ -240,7 +240,7 @@ function factory(nodeRequire, path, fs, perf) {
 							if (fileExists) {
 								// We don't wait for this. No big harm if we can't touch
 								touch(coreLocation).catch(() => { });
-								perf.mark('nlsGeneration:end');
+								perf.mark('code/didGenerateNls');
 								return result;
 							}
 							return mkdirp(coreLocation).then(() => {
@@ -279,7 +279,7 @@ function factory(nodeRequire, path, fs, perf) {
 								writes.push(writeFile(translationsConfigFile, JSON.stringify(packConfig.translations)));
 								return Promise.all(writes);
 							}).then(() => {
-								perf.mark('nlsGeneration:end');
+								perf.mark('code/didGenerateNls');
 								return result;
 							}).catch(err => {
 								console.error('Generating translation files failed.', err);

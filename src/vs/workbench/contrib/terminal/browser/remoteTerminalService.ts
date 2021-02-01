@@ -15,7 +15,7 @@ import { IInstantiationService } from 'vs/platform/instantiation/common/instanti
 import { ILogService } from 'vs/platform/log/common/log';
 import { IRemoteTerminalService, ITerminalInstanceService } from 'vs/workbench/contrib/terminal/browser/terminal';
 import { IRemoteTerminalProcessExecCommandEvent, IShellLaunchConfigDto, RemoteTerminalChannelClient, REMOTE_TERMINAL_CHANNEL_NAME } from 'vs/workbench/contrib/terminal/common/remoteTerminalChannel';
-import { IProcessDataEvent, IRemoteTerminalAttachTarget, IShellLaunchConfig, ITerminalChildProcess, ITerminalConfigHelper, ITerminalDimensionsOverride, ITerminalLaunchError } from 'vs/workbench/contrib/terminal/common/terminal';
+import { IProcessDataEvent, IRemoteTerminalAttachTarget, IShellLaunchConfig, ITerminalChildProcess, ITerminalConfigHelper, ITerminalDimensionsOverride, ITerminalLaunchError, ITerminalsLayoutInfo, ITerminalsLayoutInfoById } from 'vs/workbench/contrib/terminal/common/terminal';
 import { IRemoteAgentService } from 'vs/workbench/services/remote/common/remoteAgentService';
 
 export class RemoteTerminalService extends Disposable implements IRemoteTerminalService {
@@ -56,16 +56,34 @@ export class RemoteTerminalService extends Disposable implements IRemoteTerminal
 		return new RemoteTerminalProcess(terminalId, shellLaunchConfig, activeWorkspaceRootUri, cols, rows, configHelper, isPreconnectionTerminal, this._remoteTerminalChannel, this._remoteAgentService, this._logService, this._commandService);
 	}
 
-	public async listTerminals(): Promise<IRemoteTerminalAttachTarget[]> {
-		const terms = this._remoteTerminalChannel ? await this._remoteTerminalChannel.listTerminals() : [];
+	public async listTerminals(isInitialization = false): Promise<IRemoteTerminalAttachTarget[]> {
+		const terms = this._remoteTerminalChannel ? await this._remoteTerminalChannel.listTerminals(isInitialization) : [];
 		return terms.map(termDto => {
 			return <IRemoteTerminalAttachTarget>{
 				id: termDto.id,
 				pid: termDto.pid,
 				title: termDto.title,
-				cwd: termDto.cwd
+				cwd: termDto.cwd,
+				workspaceId: termDto.workspaceId,
+				workspaceName: termDto.workspaceName
 			};
 		});
+	}
+
+	public setTerminalLayoutInfo(layout: ITerminalsLayoutInfoById): Promise<void> {
+		if (!this._remoteTerminalChannel) {
+			throw new Error(`Cannot call setActiveInstanceId when there is no remote`);
+		}
+
+		return this._remoteTerminalChannel.setTerminalLayoutInfo(layout);
+	}
+
+	public getTerminalLayoutInfo(): Promise<ITerminalsLayoutInfo | undefined> {
+		if (!this._remoteTerminalChannel) {
+			throw new Error(`Cannot call getActiveInstanceId when there is no remote`);
+		}
+
+		return this._remoteTerminalChannel.getTerminalLayoutInfo();
 	}
 }
 
@@ -109,11 +127,11 @@ export class RemoteTerminalProcess extends Disposable implements ITerminalChildP
 		if (this._isPreconnectionTerminal) {
 			// Add a loading title only if this terminal is
 			// instantiated before a connection is up and running
-			setTimeout(() => this._onProcessTitleChanged.fire(nls.localize('terminal.integrated.starting', "Starting2...")), 0);
+			setTimeout(() => this._onProcessTitleChanged.fire(nls.localize('terminal.integrated.starting', "Starting...")), 0);
 		}
 	}
 
-	public async start(): Promise<ITerminalLaunchError | undefined> {
+	public async start(): Promise<ITerminalLaunchError | { remoteTerminalId: number } | undefined> {
 		// Fetch the environment to check shell permissions
 		const env = await this._remoteAgentService.getEnvironment();
 		if (!env) {
@@ -137,7 +155,7 @@ export class RemoteTerminalProcess extends Disposable implements ITerminalChildP
 			const result = await this._remoteTerminalChannel.createTerminalProcess(
 				shellLaunchConfigDto,
 				this._activeWorkspaceRootUri,
-				!this._shellLaunchConfig.isFeatureTerminal,
+				!this._shellLaunchConfig.isFeatureTerminal && this._configHelper.config.enablePersistentSessions,
 				this._cols,
 				this._rows,
 				isWorkspaceShellAllowed,
@@ -164,7 +182,7 @@ export class RemoteTerminalProcess extends Disposable implements ITerminalChildP
 		}
 
 		this._startBarrier.open();
-		return undefined;
+		return { remoteTerminalId: this._remoteTerminalId };
 	}
 
 	public shutdown(immediate: boolean): void {
@@ -231,6 +249,17 @@ export class RemoteTerminalProcess extends Disposable implements ITerminalChildP
 		this._startBarrier.wait().then(_ => {
 
 			this._remoteTerminalChannel.resizeTerminalProcess(this._remoteTerminalId, cols, rows);
+		});
+	}
+
+	public acknowledgeDataEvent(charCount: number): void {
+		// Support flow control for server spawned processes
+		if (this._inReplay) {
+			return;
+		}
+
+		this._startBarrier.wait().then(_ => {
+			this._remoteTerminalChannel.sendCharCountToTerminalProcess(this._remoteTerminalId, charCount);
 		});
 	}
 

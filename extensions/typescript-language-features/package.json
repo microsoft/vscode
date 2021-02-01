@@ -24,13 +24,10 @@
     "vscode-nls": "^4.1.1"
   },
   "devDependencies": {
-    "@types/node": "^12.11.7",
-    "@types/rimraf": "2.0.2",
+    "@types/node": "^12.19.9",
+    "@types/rimraf": "^2.0.4",
     "@types/semver": "^5.5.0",
-    "copy-webpack-plugin": "^6.0.3",
-    "terser": "^4.8.0",
-    "typescript-web-server": "git://github.com/mjbvz/ts-server-web-build",
-    "vscode": "^1.1.36"
+    "typescript-web": "npm:typescript@^4.2.0-dev.20201209"
   },
   "scripts": {
     "vscode:prepublish": "node ../../node_modules/gulp/bin/gulp.js --gulpfile ../../build/gulpfile.extensions.js compile-extension:typescript-language-features",
@@ -52,6 +49,7 @@
     "onCommand:workbench.action.tasks.runTask",
     "onCommand:_typescript.configurePlugin",
     "onCommand:_typescript.learnMoreAboutRefactorings",
+    "onCommand:typescript.fileReferences",
     "onLanguage:jsonc"
   ],
   "main": "./out/extension",
@@ -195,6 +193,12 @@
           "type": "boolean",
           "default": false,
           "description": "%typescript.implementationsCodeLens.enabled%",
+          "scope": "window"
+        },
+        "typescript.tsserver.enableTracing": {
+          "type": "boolean",
+          "default": false,
+          "description": "%typescript.tsserver.enableTracing%",
           "scope": "window"
         },
         "typescript.tsserver.log": {
@@ -505,13 +509,39 @@
         "javascript.implicitProjectConfig.checkJs": {
           "type": "boolean",
           "default": false,
-          "description": "%javascript.implicitProjectConfig.checkJs%",
+          "markdownDescription": "%configuration.implicitProjectConfig.checkJs%",
+          "markdownDeprecationMessage": "%configuration.javascript.checkJs.checkJs.deprecation%",
+          "scope": "window"
+        },
+        "js/ts.implicitProjectConfig.checkJs": {
+          "type": "boolean",
+          "default": false,
+          "markdownDescription": "%configuration.implicitProjectConfig.checkJs%",
           "scope": "window"
         },
         "javascript.implicitProjectConfig.experimentalDecorators": {
           "type": "boolean",
           "default": false,
-          "markdownDescription": "%javascript.implicitProjectConfig.experimentalDecorators%",
+          "markdownDescription": "%configuration.implicitProjectConfig.experimentalDecorators%",
+          "markdownDeprecationMessage": "%configuration.javascript.checkJs.experimentalDecorators.deprecation%",
+          "scope": "window"
+        },
+        "js/ts.implicitProjectConfig.experimentalDecorators": {
+          "type": "boolean",
+          "default": false,
+          "markdownDescription": "%configuration.implicitProjectConfig.experimentalDecorators%",
+          "scope": "window"
+        },
+        "js/ts.implicitProjectConfig.strictNullChecks": {
+          "type": "boolean",
+          "default": false,
+          "markdownDescription": "%configuration.implicitProjectConfig.strictNullChecks%",
+          "scope": "window"
+        },
+        "js/ts.implicitProjectConfig.strictFunctionTypes": {
+          "type": "boolean",
+          "default": true,
+          "markdownDescription": "%configuration.implicitProjectConfig.strictFunctionTypes%",
           "scope": "window"
         },
         "javascript.suggest.names": {
@@ -633,32 +663,36 @@
         "javascript.preferences.importModuleSpecifier": {
           "type": "string",
           "enum": [
-            "auto",
+            "shortest",
             "relative",
-            "non-relative"
+            "non-relative",
+            "project-relative"
           ],
           "markdownEnumDescriptions": [
-            "%typescript.preferences.importModuleSpecifier.auto%",
+            "%typescript.preferences.importModuleSpecifier.shortest%",
             "%typescript.preferences.importModuleSpecifier.relative%",
-            "%typescript.preferences.importModuleSpecifier.nonRelative%"
+            "%typescript.preferences.importModuleSpecifier.nonRelative%",
+            "%typescript.preferences.importModuleSpecifier.projectRelative%"
           ],
-          "default": "auto",
+          "default": "shortest",
           "description": "%typescript.preferences.importModuleSpecifier%",
           "scope": "resource"
         },
         "typescript.preferences.importModuleSpecifier": {
           "type": "string",
           "enum": [
-            "auto",
+            "shortest",
             "relative",
-            "non-relative"
+            "non-relative",
+            "project-relative"
           ],
           "markdownEnumDescriptions": [
-            "%typescript.preferences.importModuleSpecifier.auto%",
+            "%typescript.preferences.importModuleSpecifier.shortest%",
             "%typescript.preferences.importModuleSpecifier.relative%",
-            "%typescript.preferences.importModuleSpecifier.nonRelative%"
+            "%typescript.preferences.importModuleSpecifier.nonRelative%",
+            "%typescript.preferences.importModuleSpecifier.projectRelative%"
           ],
-          "default": "auto",
+          "default": "shortest",
           "description": "%typescript.preferences.importModuleSpecifier%",
           "scope": "resource"
         },
@@ -928,6 +962,11 @@
         "command": "typescript.restartTsServer",
         "title": "%typescript.restartTsServer%",
         "category": "TypeScript"
+      },
+      {
+        "command": "typescript.findAllFileReferences",
+        "title": "%typescript.findAllFileReferences%",
+        "category": "TypeScript"
       }
     ],
     "menus": {
@@ -975,6 +1014,46 @@
         {
           "command": "typescript.restartTsServer",
           "when": "typescript.isManagedFile"
+        },
+        {
+          "command": "typescript.findAllFileReferences",
+          "when": "tsSupportsFileReferences && typescript.isManagedFile"
+        }
+      ],
+      "explorer/context": [
+        {
+          "command": "typescript.findAllFileReferences",
+          "when": "tsSupportsFileReferences && resourceLangId == javascript"
+        },
+        {
+          "command": "typescript.findAllFileReferences",
+          "when": "tsSupportsFileReferences && resourceLangId == javascriptreact"
+        },
+        {
+          "command": "typescript.findAllFileReferences",
+          "when": "tsSupportsFileReferences && resourceLangId == typescript"
+        },
+        {
+          "command": "typescript.findAllFileReferences",
+          "when": "tsSupportsFileReferences && resourceLangId == typescriptreact"
+        }
+      ],
+      "editor/title/context": [
+        {
+          "command": "typescript.findAllFileReferences",
+          "when": "tsSupportsFileReferences && resourceLangId == javascript"
+        },
+        {
+          "command": "typescript.findAllFileReferences",
+          "when": "tsSupportsFileReferences && resourceLangId == javascriptreact"
+        },
+        {
+          "command": "typescript.findAllFileReferences",
+          "when": "tsSupportsFileReferences && resourceLangId == typescript"
+        },
+        {
+          "command": "typescript.findAllFileReferences",
+          "when": "tsSupportsFileReferences && resourceLangId == typescriptreact"
         }
       ]
     },

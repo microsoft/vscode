@@ -9,12 +9,10 @@ import { INotebookService } from 'vs/workbench/contrib/notebook/common/notebookS
 import { URI } from 'vs/base/common/uri';
 import { isEqual, basename, joinPath } from 'vs/base/common/resources';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
-import { IFilesConfigurationService, AutoSaveMode } from 'vs/workbench/services/filesConfiguration/common/filesConfigurationService';
 import { IFileDialogService } from 'vs/platform/dialogs/common/dialogs';
 import { INotebookEditorModelResolverService } from 'vs/workbench/contrib/notebook/common/notebookEditorModelResolverService';
 import { IReference } from 'vs/base/common/lifecycle';
 import { INotebookEditorModel } from 'vs/workbench/contrib/notebook/common/notebookCommon';
-import { IPathService } from 'vs/workbench/services/path/common/pathService';
 
 interface NotebookEditorInputOptions {
 	startDirty?: boolean;
@@ -37,9 +35,7 @@ export class NotebookEditorInput extends EditorInput {
 		public readonly options: NotebookEditorInputOptions,
 		@INotebookService private readonly _notebookService: INotebookService,
 		@INotebookEditorModelResolverService private readonly _notebookModelResolverService: INotebookEditorModelResolverService,
-		@IFilesConfigurationService private readonly _filesConfigurationService: IFilesConfigurationService,
 		@IFileDialogService private readonly _fileDialogService: IFileDialogService,
-		@IPathService private readonly _pathService: IPathService,
 		@IInstantiationService private readonly _instantiationService: IInstantiationService
 	) {
 		super();
@@ -66,22 +62,6 @@ export class NotebookEditorInput extends EditorInput {
 	}
 
 	isReadonly() {
-		return false;
-	}
-
-	isSaving(): boolean {
-		if (this.isUntitled()) {
-			return false; // untitled is never saving automatically
-		}
-
-		if (!this.isDirty()) {
-			return false; // the editor needs to be dirty for being saved
-		}
-
-		if (this._filesConfigurationService.getAutoSaveMode() === AutoSaveMode.AFTER_SHORT_DELAY) {
-			return true; // a short auto save is configured, treat this as being saved
-		}
-
 		return false;
 	}
 
@@ -145,7 +125,7 @@ ${patterns}
 	}
 
 	async suggestName(suggestedFilename: string) {
-		return joinPath(this._fileDialogService.defaultFilePath() || (await this._pathService.userHome()), suggestedFilename);
+		return joinPath(await this._fileDialogService.defaultFilePath(), suggestedFilename);
 	}
 
 	// called when users rename a notebook document

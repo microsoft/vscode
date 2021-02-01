@@ -5,6 +5,8 @@
 
 import { ConfigurationScope } from 'vs/platform/configuration/common/configurationRegistry';
 import { URI } from 'vs/base/common/uri';
+import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
+import { createDecorator } from 'vs/platform/instantiation/common/instantiation';
 
 export const FOLDER_CONFIG_FOLDER_NAME = '.vscode';
 export const FOLDER_SETTINGS_NAME = 'settings';
@@ -41,6 +43,15 @@ export interface IConfigurationCache {
 	write(key: ConfigurationKey, content: string): Promise<void>;
 	remove(key: ConfigurationKey): Promise<void>;
 
+}
+
+export const IWorkbenchConfigurationService = createDecorator<IWorkbenchConfigurationService>('configurationService');
+export interface IWorkbenchConfigurationService extends IConfigurationService {
+	/**
+	 * A promise that resolves when the remote configuration is loaded in a remote window.
+	 * The promise is resolved immediately if the window is not remote.
+	 */
+	whenRemoteConfigurationLoaded(): Promise<void>;
 }
 
 export const TASKS_DEFAULT = '{\n\t\"version\": \"2.0.0\",\n\t\"tasks\": []\n}';

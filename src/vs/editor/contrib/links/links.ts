@@ -47,7 +47,17 @@ function getHoverMessage(link: Link, useMetaKey: boolean): MarkdownString {
 			: nls.localize('links.navigate.kb.alt', "alt + click");
 
 	if (link.url) {
-		const hoverMessage = new MarkdownString('', true).appendMarkdown(`[${label}](${link.url.toString()}) (${kb})`);
+		let nativeLabel = '';
+		if (/^command:/i.test(link.url.toString())) {
+			// Don't show complete command arguments in the native tooltip
+			const match = link.url.toString().match(/^command:([^?#]+)/);
+			if (match) {
+				const commandId = match[1];
+				const nativeLabelText = nls.localize('tooltip.explanation', "Execute command {0}", commandId);
+				nativeLabel = ` "${nativeLabelText}"`;
+			}
+		}
+		const hoverMessage = new MarkdownString('', true).appendMarkdown(`[${label}](${link.url.toString(true)}${nativeLabel}) (${kb})`);
 		return hoverMessage;
 	} else {
 		return new MarkdownString().appendText(`${label} (${kb})`);
@@ -317,7 +327,7 @@ export class LinkDetector implements IEditorContribution {
 				}
 			}
 
-			return this.openerService.open(uri, { openToSide, fromUserGesture });
+			return this.openerService.open(uri, { openToSide, fromUserGesture, allowContributedOpeners: true });
 
 		}, err => {
 			const messageOrError =

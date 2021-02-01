@@ -16,22 +16,36 @@ import { ThemeIcon } from 'vs/platform/theme/common/themeService';
 import { UriDto } from 'vs/base/common/types';
 import { Iterable } from 'vs/base/common/iterator';
 import { LinkedList } from 'vs/base/common/linkedList';
+import { CSSIcon } from 'vs/base/common/codicons';
 
 export interface ILocalizedString {
+	/**
+	 * The localized value of the string.
+	 */
 	value: string;
+	/**
+	 * The original (non localized value of the string)
+	 */
 	original: string;
+}
+
+export interface ICommandActionTitle extends ILocalizedString {
+	/**
+	 * The title with a mnemonic designation. && precedes the mnemonic.
+	 */
+	mnemonicTitle?: string;
 }
 
 export type Icon = { dark?: URI; light?: URI; } | ThemeIcon;
 
 export interface ICommandAction {
 	id: string;
-	title: string | ILocalizedString;
+	title: string | ICommandActionTitle;
 	category?: string | ILocalizedString;
-	tooltip?: string | ILocalizedString;
+	tooltip?: string;
 	icon?: Icon;
 	precondition?: ContextKeyExpression;
-	toggled?: ContextKeyExpression | { condition: ContextKeyExpression, icon?: Icon, tooltip?: string | ILocalizedString };
+	toggled?: ContextKeyExpression | { condition: ContextKeyExpression, icon?: Icon, tooltip?: string };
 }
 
 export type ISerializableCommandAction = UriDto<ICommandAction>;
@@ -45,7 +59,7 @@ export interface IMenuItem {
 }
 
 export interface ISubmenuItem {
-	title: string | ILocalizedString;
+	title: string | ICommandActionTitle;
 	submenu: MenuId;
 	icon?: Icon;
 	when?: ContextKeyExpression;
@@ -95,7 +109,7 @@ export class MenuId {
 	static readonly MenubarSwitchGroupMenu = new MenuId('MenubarSwitchGroupMenu');
 	static readonly MenubarTerminalMenu = new MenuId('MenubarTerminalMenu');
 	static readonly MenubarViewMenu = new MenuId('MenubarViewMenu');
-	static readonly MenubarWebNavigationMenu = new MenuId('MenubarWebNavigationMenu');
+	static readonly MenubarHomeMenu = new MenuId('MenubarHomeMenu');
 	static readonly OpenEditorsContext = new MenuId('OpenEditorsContext');
 	static readonly ProblemsPanelContext = new MenuId('ProblemsPanelContext');
 	static readonly SCMChangeContext = new MenuId('SCMChangeContext');
@@ -112,6 +126,7 @@ export class MenuId {
 	static readonly TunnelInline = new MenuId('TunnelInline');
 	static readonly TunnelTitle = new MenuId('TunnelTitle');
 	static readonly ViewItemContext = new MenuId('ViewItemContext');
+	static readonly ViewContainerTitle = new MenuId('ViewContainerTitle');
 	static readonly ViewContainerTitleContext = new MenuId('ViewContainerTitleContext');
 	static readonly ViewTitle = new MenuId('ViewTitle');
 	static readonly ViewTitleContext = new MenuId('ViewTitleContext');
@@ -132,6 +147,7 @@ export class MenuId {
 	static readonly TimelineTitle = new MenuId('TimelineTitle');
 	static readonly TimelineTitleContext = new MenuId('TimelineTitleContext');
 	static readonly AccountsContext = new MenuId('AccountsContext');
+	static readonly PanelTitle = new MenuId('PanelTitle');
 
 	readonly id: number;
 	readonly _debugName: string;
@@ -148,7 +164,7 @@ export interface IMenuActionOptions {
 }
 
 export interface IMenu extends IDisposable {
-	readonly onDidChange: Event<IMenu | undefined>;
+	readonly onDidChange: Event<IMenu>;
 	getActions(options?: IMenuActionOptions): [string, Array<MenuItemAction | SubmenuItemAction>][];
 }
 
@@ -334,61 +350,71 @@ export class SubmenuItemAction extends SubmenuAction {
 	}
 }
 
-export class MenuItemAction extends ExecuteCommandAction {
+// implements IAction, does NOT extend Action, so that no one
+// subscribes to events of Action or modified properties
+export class MenuItemAction implements IAction {
 
 	readonly item: ICommandAction;
 	readonly alt: MenuItemAction | undefined;
 
-	private _options: IMenuActionOptions;
+	private readonly _options: IMenuActionOptions | undefined;
+
+	readonly id: string;
+	readonly label: string;
+	readonly tooltip: string;
+	readonly class: string | undefined;
+	readonly enabled: boolean;
+	readonly checked: boolean;
 
 	constructor(
 		item: ICommandAction,
 		alt: ICommandAction | undefined,
-		options: IMenuActionOptions,
+		options: IMenuActionOptions | undefined,
 		@IContextKeyService contextKeyService: IContextKeyService,
-		@ICommandService commandService: ICommandService
+		@ICommandService private _commandService: ICommandService
 	) {
-		typeof item.title === 'string' ? super(item.id, item.title, commandService) : super(item.id, item.title.value, commandService);
-
-		this._cssClass = undefined;
-		this._enabled = !item.precondition || contextKeyService.contextMatchesRules(item.precondition);
-		this._tooltip = item.tooltip ? typeof item.tooltip === 'string' ? item.tooltip : item.tooltip.value : undefined;
+		this.id = item.id;
+		this.label = typeof item.title === 'string' ? item.title : item.title.value;
+		this.tooltip = item.tooltip ?? '';
+		this.enabled = !item.precondition || contextKeyService.contextMatchesRules(item.precondition);
+		this.checked = false;
 
 		if (item.toggled) {
 			const toggled = ((item.toggled as { condition: ContextKeyExpression }).condition ? item.toggled : { condition: item.toggled }) as {
 				condition: ContextKeyExpression, icon?: Icon, tooltip?: string | ILocalizedString
 			};
-			this._checked = contextKeyService.contextMatchesRules(toggled.condition);
-			if (this._checked && toggled.tooltip) {
-				this._tooltip = typeof toggled.tooltip === 'string' ? toggled.tooltip : toggled.tooltip.value;
+			this.checked = contextKeyService.contextMatchesRules(toggled.condition);
+			if (this.checked && toggled.tooltip) {
+				this.tooltip = typeof toggled.tooltip === 'string' ? toggled.tooltip : toggled.tooltip.value;
 			}
 		}
 
-		this._options = options || {};
-
 		this.item = item;
-		this.alt = alt ? new MenuItemAction(alt, undefined, this._options, contextKeyService, commandService) : undefined;
+		this.alt = alt ? new MenuItemAction(alt, undefined, options, contextKeyService, _commandService) : undefined;
+		this._options = options;
+		if (ThemeIcon.isThemeIcon(item.icon)) {
+			this.class = CSSIcon.asClassName(item.icon);
+		}
 	}
 
 	dispose(): void {
-		if (this.alt) {
-			this.alt.dispose();
-		}
-		super.dispose();
+		// there is NOTHING to dispose and the MenuItemAction should
+		// never have anything to dispose as it is a convenience type
+		// to bridge into the rendering world.
 	}
 
 	run(...args: any[]): Promise<any> {
 		let runArgs: any[] = [];
 
-		if (this._options.arg) {
+		if (this._options?.arg) {
 			runArgs = [...runArgs, this._options.arg];
 		}
 
-		if (this._options.shouldForwardArgs) {
+		if (this._options?.shouldForwardArgs) {
 			runArgs = [...runArgs, ...args];
 		}
 
-		return super.run(...runArgs);
+		return this._commandService.executeCommand(this.id, ...runArgs);
 	}
 }
 

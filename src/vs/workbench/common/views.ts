@@ -25,17 +25,27 @@ import { IPaneComposite } from 'vs/workbench/common/panecomposite';
 import { IAccessibilityInformation } from 'vs/platform/accessibility/common/accessibility';
 import { IMarkdownString } from 'vs/base/common/htmlContent';
 import { mixin } from 'vs/base/common/objects';
+import { Codicon } from 'vs/base/common/codicons';
+import { registerIcon } from 'vs/platform/theme/common/iconRegistry';
+import { CancellationToken } from 'vs/base/common/cancellation';
 
-export const TEST_VIEW_CONTAINER_ID = 'workbench.view.extension.test';
+export const defaultViewIcon = registerIcon('default-view-icon', Codicon.window, localize('defaultViewIcon', 'Default view icon.'));
 
 export namespace Extensions {
 	export const ViewContainersRegistry = 'workbench.registry.view.containers';
 	export const ViewsRegistry = 'workbench.registry.view';
 }
 
-export enum ViewContainerLocation {
+export const enum ViewContainerLocation {
 	Sidebar,
 	Panel
+}
+
+export function ViewContainerLocationToString(viewContainerLocation: ViewContainerLocation) {
+	switch (viewContainerLocation) {
+		case ViewContainerLocation.Sidebar: return 'sidebar';
+		case ViewContainerLocation.Panel: return 'panel';
+	}
 }
 
 export interface IViewContainerDescriptor {
@@ -48,7 +58,7 @@ export interface IViewContainerDescriptor {
 
 	readonly storageId?: string;
 
-	readonly icon?: string | URI;
+	readonly icon?: ThemeIcon | URI;
 
 	readonly alwaysUseContainerInfo?: boolean;
 
@@ -216,7 +226,7 @@ export interface IViewDescriptor {
 
 	readonly canMoveView?: boolean;
 
-	readonly containerIcon?: string | URI;
+	readonly containerIcon?: ThemeIcon | URI;
 
 	readonly containerTitle?: string;
 
@@ -251,8 +261,10 @@ export interface IAddedViewDescriptorState {
 
 export interface IViewContainerModel {
 
+	readonly viewContainer: ViewContainer;
+
 	readonly title: string;
-	readonly icon: string | URI | undefined;
+	readonly icon: ThemeIcon | URI | undefined;
 	readonly onDidChangeContainerInfo: Event<{ title?: boolean, icon?: boolean }>;
 
 	readonly allViewDescriptors: ReadonlyArray<IViewDescriptor>;
@@ -290,11 +302,7 @@ export interface IViewContentDescriptor {
 	readonly when?: ContextKeyExpression | 'default';
 	readonly group?: string;
 	readonly order?: number;
-
-	/**
-	 * ordered preconditions for each button in the content
-	 */
-	readonly preconditions?: (ContextKeyExpression | undefined)[];
+	readonly precondition?: ContextKeyExpression | undefined;
 }
 
 export interface IViewsRegistry {
@@ -504,7 +512,7 @@ export interface IViewsService {
  * View Contexts
  */
 export const FocusedViewContext = new RawContextKey<string>('focusedView', '');
-export function getVisbileViewContextKey(viewId: string): string { return `${viewId}.visible`; }
+export function getVisbileViewContextKey(viewId: string): string { return `view.${viewId}.visible`; }
 
 export const IViewDescriptorService = createDecorator<IViewDescriptorService>('viewDescriptorService');
 
@@ -683,25 +691,49 @@ export class ResolvableTreeItem implements ITreeItem {
 	command?: Command;
 	children?: ITreeItem[];
 	accessibilityInformation?: IAccessibilityInformation;
-	resolve: () => Promise<void>;
+	resolve: (token: CancellationToken) => Promise<void>;
 	private resolved: boolean = false;
 	private _hasResolve: boolean = false;
-	constructor(treeItem: ITreeItem, resolve?: (() => Promise<ITreeItem | undefined>)) {
+	constructor(treeItem: ITreeItem, resolve?: ((token: CancellationToken) => Promise<ITreeItem | undefined>)) {
 		mixin(this, treeItem);
 		this._hasResolve = !!resolve;
-		this.resolve = async () => {
+		this.resolve = async (token: CancellationToken) => {
 			if (resolve && !this.resolved) {
-				const resolvedItem = await resolve();
+				const resolvedItem = await resolve(token);
 				if (resolvedItem) {
-					// Resolvable elements. Currently only tooltip.
-					this.tooltip = resolvedItem.tooltip;
+					// Resolvable elements. Currently tooltip and command.
+					this.tooltip = this.tooltip ?? resolvedItem.tooltip;
+					this.command = this.command ?? resolvedItem.command;
 				}
 			}
-			this.resolved = true;
+			if (!token.isCancellationRequested) {
+				this.resolved = true;
+			}
 		};
 	}
 	get hasResolve(): boolean {
 		return this._hasResolve;
+	}
+	public resetResolve() {
+		this.resolved = false;
+	}
+	public asTreeItem(): ITreeItem {
+		return {
+			handle: this.handle,
+			parentHandle: this.parentHandle,
+			collapsibleState: this.collapsibleState,
+			label: this.label,
+			description: this.description,
+			icon: this.icon,
+			iconDark: this.iconDark,
+			themeIcon: this.themeIcon,
+			resourceUri: this.resourceUri,
+			tooltip: this.tooltip,
+			contextValue: this.contextValue,
+			command: this.command,
+			children: this.children,
+			accessibilityInformation: this.accessibilityInformation
+		};
 	}
 }
 
@@ -734,5 +766,6 @@ export interface IViewPaneContainer {
 	getActionViewItem(action: IAction): IActionViewItem | undefined;
 	getActionsContext(): unknown;
 	getView(viewId: string): IView | undefined;
+	toggleViewVisibility(viewId: string): void;
 	saveState(): void;
 }

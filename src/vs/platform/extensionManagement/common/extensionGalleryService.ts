@@ -9,7 +9,7 @@ import { getGalleryExtensionId, getGalleryExtensionTelemetryData, adoptToGallery
 import { getOrDefault } from 'vs/base/common/objects';
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
 import { IPager } from 'vs/base/common/paging';
-import { IRequestService, asJson, asText } from 'vs/platform/request/common/request';
+import { IRequestService, asJson, asText, isSuccess } from 'vs/platform/request/common/request';
 import { IRequestOptions, IRequestContext, IHeaders } from 'vs/base/parts/request/common/request';
 import { isEngineValid } from 'vs/platform/extensions/common/extensionValidator';
 import { IEnvironmentService } from 'vs/platform/environment/common/environment';
@@ -19,7 +19,7 @@ import { IExtensionManifest } from 'vs/platform/extensions/common/extensions';
 import { IFileService } from 'vs/platform/files/common/files';
 import { URI } from 'vs/base/common/uri';
 import { IProductService } from 'vs/platform/product/common/productService';
-import { IStorageService, StorageScope } from 'vs/platform/storage/common/storage';
+import { IStorageService, StorageScope, StorageTarget } from 'vs/platform/storage/common/storage';
 import { getServiceMachineId } from 'vs/platform/serviceMachineId/common/serviceMachineId';
 import { optional } from 'vs/platform/instantiation/common/instantiation';
 import { joinPath } from 'vs/base/common/resources';
@@ -147,6 +147,35 @@ const DefaultQueryState: IQueryState = {
 	assetTypes: []
 };
 
+type GalleryServiceQueryClassification = {
+	filterTypes: { classification: 'SystemMetaData', purpose: 'FeatureInsight' };
+	sortBy: { classification: 'SystemMetaData', purpose: 'FeatureInsight' };
+	sortOrder: { classification: 'SystemMetaData', purpose: 'FeatureInsight' };
+	duration: { classification: 'SystemMetaData', purpose: 'PerformanceAndHealth', 'isMeasurement': true };
+	success: { classification: 'SystemMetaData', purpose: 'FeatureInsight' };
+	requestBodySize: { classification: 'SystemMetaData', purpose: 'FeatureInsight' };
+	responseBodySize?: { classification: 'SystemMetaData', purpose: 'FeatureInsight' };
+	statusCode?: { classification: 'SystemMetaData', purpose: 'FeatureInsight' };
+	errorCode?: { classification: 'SystemMetaData', purpose: 'FeatureInsight' };
+	count?: { classification: 'SystemMetaData', purpose: 'FeatureInsight' };
+};
+
+type QueryTelemetryData = {
+	filterTypes: string[];
+	sortBy: string;
+	sortOrder: string;
+};
+
+type GalleryServiceQueryEvent = QueryTelemetryData & {
+	duration: number;
+	success: boolean;
+	requestBodySize: string;
+	responseBodySize?: string;
+	statusCode?: string;
+	errorCode?: string;
+	count?: string;
+};
+
 class Query {
 
 	constructor(private state = DefaultQueryState) { }
@@ -195,6 +224,14 @@ class Query {
 	get searchText(): string {
 		const criterium = this.state.criteria.filter(criterium => criterium.filterType === FilterType.SearchText)[0];
 		return criterium && criterium.value ? criterium.value : '';
+	}
+
+	get telemetryData(): QueryTelemetryData {
+		return {
+			filterTypes: this.state.criteria.map(criterium => String(criterium.filterType)),
+			sortBy: String(this.sortBy),
+			sortOrder: String(this.sortOrder)
+		};
 	}
 }
 
@@ -447,19 +484,8 @@ export class ExtensionGalleryService implements IExtensionGalleryService {
 			throw new Error('No extension gallery service configured.');
 		}
 
-		const type = options.names ? 'ids' : (options.text ? 'text' : 'all');
 		let text = options.text || '';
 		const pageSize = getOrDefault(options, o => o.pageSize, 50);
-
-		type GalleryServiceQueryClassification = {
-			type: { classification: 'SystemMetaData', purpose: 'FeatureInsight' };
-			text: { classification: 'CustomerContent', purpose: 'FeatureInsight' };
-		};
-		type GalleryServiceQueryEvent = {
-			type: string;
-			text: string;
-		};
-		this.telemetryService.publicLog2<GalleryServiceQueryEvent, GalleryServiceQueryClassification>('galleryService:query', { type, text });
 
 		let query = new Query()
 			.withFlags(Flags.IncludeLatestVersionOnly, Flags.IncludeAssetUri, Flags.IncludeStatistics, Flags.IncludeFiles, Flags.IncludeVersionProperties)
@@ -543,27 +569,49 @@ export class ExtensionGalleryService implements IExtensionGalleryService {
 			'Content-Length': String(data.length)
 		};
 
-		const context = await this.requestService.request({
-			type: 'POST',
-			url: this.api('/extensionquery'),
-			data,
-			headers
-		}, token);
+		const startTime = new Date().getTime();
+		let context: IRequestContext | undefined, error: any, total: number = 0;
 
-		if (context.res.statusCode && context.res.statusCode >= 400 && context.res.statusCode < 500) {
-			return { galleryExtensions: [], total: 0 };
+		try {
+			context = await this.requestService.request({
+				type: 'POST',
+				url: this.api('/extensionquery'),
+				data,
+				headers
+			}, token);
+
+			if (context.res.statusCode && context.res.statusCode >= 400 && context.res.statusCode < 500) {
+				return { galleryExtensions: [], total };
+			}
+
+			const result = await asJson<IRawGalleryQueryResult>(context);
+			if (result) {
+				const r = result.results[0];
+				const galleryExtensions = r.extensions;
+				const resultCount = r.resultMetadata && r.resultMetadata.filter(m => m.metadataType === 'ResultCount')[0];
+				total = resultCount && resultCount.metadataItems.filter(i => i.name === 'TotalCount')[0].count || 0;
+
+				return { galleryExtensions, total };
+			}
+			return { galleryExtensions: [], total };
+
+		} catch (e) {
+			error = e;
+			throw e;
+		} finally {
+			this.telemetryService.publicLog2<GalleryServiceQueryEvent, GalleryServiceQueryClassification>('galleryService:query', {
+				...query.telemetryData,
+				requestBodySize: String(data.length),
+				duration: new Date().getTime() - startTime,
+				success: !!context && isSuccess(context),
+				responseBodySize: context?.res.headers['Content-Length'],
+				statusCode: context ? String(context.res.statusCode) : undefined,
+				errorCode: error
+					? isPromiseCanceledError(error) ? 'canceled' : getErrorMessage(error).startsWith('XHR timeout') ? 'timeout' : 'failed'
+					: undefined,
+				count: String(total)
+			});
 		}
-
-		const result = await asJson<IRawGalleryQueryResult>(context);
-		if (result) {
-			const r = result.results[0];
-			const galleryExtensions = r.extensions;
-			const resultCount = r.resultMetadata && r.resultMetadata.filter(m => m.metadataType === 'ResultCount')[0];
-			const total = resultCount && resultCount.metadataItems.filter(i => i.name === 'TotalCount')[0].count || 0;
-
-			return { galleryExtensions, total };
-		}
-		return { galleryExtensions: [], total: 0 };
 	}
 
 	async reportStatistic(publisher: string, name: string, version: string, type: StatisticType): Promise<void> {
@@ -803,7 +851,7 @@ export class ExtensionGalleryService implements IExtensionGalleryService {
 
 export async function resolveMarketplaceHeaders(version: string, environmentService: IEnvironmentService, fileService: IFileService, storageService: {
 	get: (key: string, scope: StorageScope) => string | undefined,
-	store: (key: string, value: string, scope: StorageScope) => void
+	store: (key: string, value: string, scope: StorageScope, target: StorageTarget) => void
 } | undefined): Promise<{ [key: string]: string; }> {
 	const headers: IHeaders = {
 		'X-Market-Client-Id': `VSCode ${version}`,

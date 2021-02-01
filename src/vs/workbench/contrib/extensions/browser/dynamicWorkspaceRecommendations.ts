@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { IExtensionTipsService } from 'vs/platform/extensionManagement/common/extensionManagement';
-import { IStorageService, StorageScope } from 'vs/platform/storage/common/storage';
+import { IStorageService, StorageScope, StorageTarget } from 'vs/platform/storage/common/storage';
 import { IWorkspaceContextService, WorkbenchState, IWorkspaceFolder } from 'vs/platform/workspace/common/workspace';
 import { IFileService } from 'vs/platform/files/common/files';
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
@@ -81,7 +81,7 @@ export class DynamicWorkspaceRecommendations extends ExtensionRecommendations {
 			const workspaceTip = workspacesTips.filter(workspaceTip => isNonEmptyArray(workspaceTip.remoteSet) && workspaceTip.remoteSet.indexOf(hashedRemote) > -1)[0];
 			if (workspaceTip) {
 				this._recommendations = workspaceTip.recommendations.map(id => this.toExtensionRecommendation(id, folder));
-				this.storageService.store(dynamicWorkspaceRecommendationsStorageKey, JSON.stringify(<IStoredDynamicWorkspaceRecommendations>{ recommendations: workspaceTip.recommendations, timestamp: Date.now() }), StorageScope.WORKSPACE);
+				this.storageService.store(dynamicWorkspaceRecommendationsStorageKey, JSON.stringify(<IStoredDynamicWorkspaceRecommendations>{ recommendations: workspaceTip.recommendations, timestamp: Date.now() }), StorageScope.WORKSPACE, StorageTarget.MACHINE);
 				this.telemetryService.publicLog2<{ count: number, cache: number }, DynamicWorkspaceRecommendationsClassification>('dynamicWorkspaceRecommendations', { count: this._recommendations.length, cache: 0 });
 				return;
 			}

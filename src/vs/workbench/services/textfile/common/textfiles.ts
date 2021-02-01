@@ -17,6 +17,7 @@ import { IWorkingCopy } from 'vs/workbench/services/workingCopy/common/workingCo
 import { IUntitledTextEditorModelManager } from 'vs/workbench/services/untitled/common/untitledTextEditorService';
 import { CancellationToken } from 'vs/base/common/cancellation';
 import { IProgress, IProgressStep } from 'vs/platform/progress/common/progress';
+import { IFileOperationUndoRedoInfo } from 'vs/workbench/services/workingCopy/common/workingCopyFileService';
 
 export const ITextFileService = createDecorator<ITextFileService>('textFileService');
 
@@ -91,10 +92,15 @@ export interface ITextFileService extends IDisposable {
 	write(resource: URI, value: string | ITextSnapshot, options?: IWriteTextFileOptions): Promise<IFileStatWithMetadata>;
 
 	/**
-	 * Create a file. If the file exists it will be overwritten with the contents if
+	 * Create files. If the file exists it will be overwritten with the contents if
 	 * the options enable to overwrite.
 	 */
-	create(resource: URI, contents?: string | ITextSnapshot, options?: { overwrite?: boolean }): Promise<IFileStatWithMetadata>;
+	create(operations: { resource: URI, value?: string | ITextSnapshot, options?: { overwrite?: boolean } }[], undoInfo?: IFileOperationUndoRedoInfo, token?: CancellationToken): Promise<IFileStatWithMetadata[]>;
+
+	/**
+	 * Returns the readable that uses the appropriate encoding.
+	 */
+	getEncodedReadable(resource: URI, value?: string | ITextSnapshot, options?: IWriteTextFileOptions): Promise<VSBuffer | VSBufferReadable | undefined>;
 }
 
 export interface IReadTextFileOptions extends IReadFileOptions {
@@ -123,11 +129,6 @@ export interface IWriteTextFileOptions extends IWriteFileOptions {
 	 * The encoding to use when updating a file.
 	 */
 	encoding?: string;
-
-	/**
-	 * If set to true, will enforce the selected encoding and not perform any detection using BOMs.
-	 */
-	overwriteEncoding?: boolean;
 
 	/**
 	 * Whether to overwrite a file even if it is readonly.
@@ -369,11 +370,6 @@ export interface ITextFileSaveOptions extends ISaveOptions {
 	 * Makes the file writable if it is readonly.
 	 */
 	overwriteReadonly?: boolean;
-
-	/**
-	 * Overwrite the encoding of the file on disk as configured.
-	 */
-	overwriteEncoding?: boolean;
 
 	/**
 	 * Save the file with elevated privileges.

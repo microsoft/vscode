@@ -19,9 +19,9 @@ import { IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
 import { IKeybindingService } from 'vs/platform/keybinding/common/keybinding';
 import { IListService, IWorkbenchListOptions, WorkbenchList } from 'vs/platform/list/browser/listService';
 import { IThemeService } from 'vs/platform/theme/common/themeService';
-import { CellRevealPosition, CellRevealType, CursorAtBoundary, getVisibleCells, ICellViewModel, INotebookCellList, reduceCellRanges, CellEditState, CellFocusMode, BaseCellRenderTemplate, NOTEBOOK_CELL_LIST_FOCUSED, cellRangesEqual } from 'vs/workbench/contrib/notebook/browser/notebookBrowser';
+import { CellRevealPosition, CellRevealType, CursorAtBoundary, getVisibleCells, ICellViewModel, INotebookCellList, reduceCellRanges, CellEditState, CellFocusMode, BaseCellRenderTemplate, NOTEBOOK_CELL_LIST_FOCUSED, cellRangesEqual, ICellOutputViewModel } from 'vs/workbench/contrib/notebook/browser/notebookBrowser';
 import { CellViewModel, NotebookViewModel } from 'vs/workbench/contrib/notebook/browser/viewModel/notebookViewModel';
-import { diff, IProcessedOutput, NOTEBOOK_EDITOR_CURSOR_BOUNDARY, CellKind, ICellRange } from 'vs/workbench/contrib/notebook/common/notebookCommon';
+import { diff, NOTEBOOK_EDITOR_CURSOR_BOUNDARY, CellKind, ICellRange, NOTEBOOK_EDITOR_CURSOR_BEGIN_END } from 'vs/workbench/contrib/notebook/common/notebookCommon';
 import { clamp } from 'vs/base/common/numbers';
 import { SCROLLABLE_ELEMENT_PADDING_TOP } from 'vs/workbench/contrib/notebook/browser/constants';
 
@@ -45,10 +45,10 @@ export class NotebookCellList extends WorkbenchList<CellViewModel> implements ID
 	private _viewModelStore = new DisposableStore();
 	private styleElement?: HTMLStyleElement;
 
-	private readonly _onDidRemoveOutput = new Emitter<IProcessedOutput>();
-	readonly onDidRemoveOutput: Event<IProcessedOutput> = this._onDidRemoveOutput.event;
-	private readonly _onDidHideOutput = new Emitter<IProcessedOutput>();
-	readonly onDidHideOutput: Event<IProcessedOutput> = this._onDidHideOutput.event;
+	private readonly _onDidRemoveOutput = new Emitter<ICellOutputViewModel>();
+	readonly onDidRemoveOutput: Event<ICellOutputViewModel> = this._onDidRemoveOutput.event;
+	private readonly _onDidHideOutput = new Emitter<ICellOutputViewModel>();
+	readonly onDidHideOutput: Event<ICellOutputViewModel> = this._onDidHideOutput.event;
 
 	private _viewModel: NotebookViewModel | null = null;
 	private _hiddenRangeIds: string[] = [];
@@ -115,6 +115,9 @@ export class NotebookCellList extends WorkbenchList<CellViewModel> implements ID
 		const notebookEditorCursorAtBoundaryContext = NOTEBOOK_EDITOR_CURSOR_BOUNDARY.bindTo(contextKeyService);
 		notebookEditorCursorAtBoundaryContext.set('none');
 
+		const notebookEditorCursorAtBeginEndContext = NOTEBOOK_EDITOR_CURSOR_BEGIN_END.bindTo(contextKeyService);
+		notebookEditorCursorAtBeginEndContext.set(false);
+
 		let cursorSelectionListener: IDisposable | null = null;
 		let textEditorAttachListener: IDisposable | null = null;
 
@@ -133,6 +136,13 @@ export class NotebookCellList extends WorkbenchList<CellViewModel> implements ID
 					notebookEditorCursorAtBoundaryContext.set('none');
 					break;
 			}
+
+			if (element.cursorAtBeginEnd()) {
+				notebookEditorCursorAtBeginEndContext.set(true);
+			} else {
+				notebookEditorCursorAtBeginEndContext.set(false);
+			}
+
 			return;
 		};
 
@@ -304,15 +314,17 @@ export class NotebookCellList extends WorkbenchList<CellViewModel> implements ID
 			if (e.synchronous) {
 				viewDiffs.reverse().forEach((diff) => {
 					// remove output in the webview
-					const hideOutputs: IProcessedOutput[] = [];
-					const deletedOutputs: IProcessedOutput[] = [];
+					const hideOutputs: ICellOutputViewModel[] = [];
+					const deletedOutputs: ICellOutputViewModel[] = [];
 
 					for (let i = diff.start; i < diff.start + diff.deleteCount; i++) {
 						const cell = this.element(i);
-						if (this._viewModel!.hasCell(cell.handle)) {
-							hideOutputs.push(...cell?.model.outputs);
-						} else {
-							deletedOutputs.push(...cell?.model.outputs);
+						if (cell.cellKind === CellKind.Code) {
+							if (this._viewModel!.hasCell(cell.handle)) {
+								hideOutputs.push(...cell?.outputsViewModels);
+							} else {
+								deletedOutputs.push(...cell?.outputsViewModels);
+							}
 						}
 					}
 
@@ -328,15 +340,17 @@ export class NotebookCellList extends WorkbenchList<CellViewModel> implements ID
 					}
 
 					viewDiffs.reverse().forEach((diff) => {
-						const hideOutputs: IProcessedOutput[] = [];
-						const deletedOutputs: IProcessedOutput[] = [];
+						const hideOutputs: ICellOutputViewModel[] = [];
+						const deletedOutputs: ICellOutputViewModel[] = [];
 
 						for (let i = diff.start; i < diff.start + diff.deleteCount; i++) {
 							const cell = this.element(i);
-							if (this._viewModel!.hasCell(cell.handle)) {
-								hideOutputs.push(...cell?.model.outputs);
-							} else {
-								deletedOutputs.push(...cell?.model.outputs);
+							if (cell.cellKind === CellKind.Code) {
+								if (this._viewModel!.hasCell(cell.handle)) {
+									hideOutputs.push(...cell?.outputsViewModels);
+								} else {
+									deletedOutputs.push(...cell?.outputsViewModels);
+								}
 							}
 						}
 
@@ -450,15 +464,17 @@ export class NotebookCellList extends WorkbenchList<CellViewModel> implements ID
 
 		viewDiffs.reverse().forEach((diff) => {
 			// remove output in the webview
-			const hideOutputs: IProcessedOutput[] = [];
-			const deletedOutputs: IProcessedOutput[] = [];
+			const hideOutputs: ICellOutputViewModel[] = [];
+			const deletedOutputs: ICellOutputViewModel[] = [];
 
 			for (let i = diff.start; i < diff.start + diff.deleteCount; i++) {
 				const cell = this.element(i);
-				if (this._viewModel!.hasCell(cell.handle)) {
-					hideOutputs.push(...cell?.model.outputs);
-				} else {
-					deletedOutputs.push(...cell?.model.outputs);
+				if (cell.cellKind === CellKind.Code) {
+					if (this._viewModel!.hasCell(cell.handle)) {
+						hideOutputs.push(...cell?.outputsViewModels);
+					} else {
+						deletedOutputs.push(...cell?.outputsViewModels);
+					}
 				}
 			}
 
@@ -531,6 +547,22 @@ export class NotebookCellList extends WorkbenchList<CellViewModel> implements ID
 		return viewIndexInfo.index;
 	}
 
+	private _getViewIndexUpperBound2(modelIndex: number) {
+		if (!this.hiddenRangesPrefixSum) {
+			return modelIndex;
+		}
+
+		const viewIndexInfo = this.hiddenRangesPrefixSum.getIndexOf(modelIndex);
+
+		if (viewIndexInfo.remainder !== 0) {
+			if (modelIndex >= this.hiddenRangesPrefixSum.getTotalValue()) {
+				return modelIndex - (this.hiddenRangesPrefixSum.getTotalValue() - this.hiddenRangesPrefixSum.getCount());
+			}
+		}
+
+		return viewIndexInfo.index;
+	}
+
 	focusElement(cell: ICellViewModel) {
 		const index = this._getViewIndexUpperBound(cell);
 
@@ -571,11 +603,59 @@ export class NotebookCellList extends WorkbenchList<CellViewModel> implements ID
 		super.setFocus(indexes, browserEvent);
 	}
 
+	revealElementsInView(range: ICellRange) {
+		const startIndex = this._getViewIndexUpperBound2(range.start);
+
+		if (startIndex < 0) {
+			return;
+		}
+
+		const endIndex = this._getViewIndexUpperBound2(range.end);
+
+		const scrollTop = this.getViewScrollTop();
+		const wrapperBottom = this.getViewScrollBottom();
+		const elementTop = this.view.elementTop(startIndex);
+		if (elementTop >= scrollTop
+			&& elementTop < wrapperBottom) {
+			// start element is visible
+			// check end
+
+			const endElementTop = this.view.elementTop(endIndex);
+			const endElementHeight = this.view.elementHeight(endIndex);
+
+			if (endElementTop >= wrapperBottom) {
+				return this._revealInternal(startIndex, false, CellRevealPosition.Top);
+			}
+
+			if (endElementTop < wrapperBottom) {
+				// end element partially visible
+				if (endElementTop + endElementHeight - wrapperBottom < elementTop - scrollTop) {
+					// there is enough space to just scroll up a little bit to make the end element visible
+					return this.view.setScrollTop(scrollTop + endElementTop + endElementHeight - wrapperBottom);
+				} else {
+					// don't even try it
+					return this._revealInternal(startIndex, false, CellRevealPosition.Top);
+				}
+			}
+		}
+
+
+		this._revealInView(startIndex);
+	}
+
 	revealElementInView(cell: ICellViewModel) {
 		const index = this._getViewIndexUpperBound(cell);
 
 		if (index >= 0) {
 			this._revealInView(index);
+		}
+	}
+
+	revealElementInViewAtTop(cell: ICellViewModel) {
+		const index = this._getViewIndexUpperBound(cell);
+
+		if (index >= 0) {
+			this._revealInternal(index, false, CellRevealPosition.Top);
 		}
 	}
 
@@ -592,6 +672,14 @@ export class NotebookCellList extends WorkbenchList<CellViewModel> implements ID
 
 		if (index >= 0) {
 			this._revealInCenter(index);
+		}
+	}
+
+	async revealElementInCenterIfOutsideViewportAsync(cell: ICellViewModel): Promise<void> {
+		const index = this._getViewIndexUpperBound(cell);
+
+		if (index >= 0) {
+			return this._revealInCenterIfOutsideViewportAsync(index);
 		}
 	}
 
@@ -855,6 +943,17 @@ export class NotebookCellList extends WorkbenchList<CellViewModel> implements ID
 		}
 	}
 
+	private async _revealInCenterIfOutsideViewportAsync(viewIndex: number): Promise<void> {
+		this._revealInternal(viewIndex, true, CellRevealPosition.Center);
+		const element = this.view.element(viewIndex);
+
+		if (!element.editorAttached) {
+			return getEditorAttachedPromise(element);
+		}
+
+		return;
+	}
+
 	private async _revealLineInCenterIfOutsideViewportAsync(viewIndex: number, line: number): Promise<void> {
 		return this._revealRangeInCenterIfOutsideViewportInternalAsync(viewIndex, new Range(line, 1, line, 1), CellRevealType.Line);
 	}
@@ -1040,6 +1139,11 @@ export class NotebookCellList extends WorkbenchList<CellViewModel> implements ID
 	layout(height?: number, width?: number): void {
 		this._isInLayout = true;
 		super.layout(height, width);
+		if (this.renderHeight === 0) {
+			this.view.domNode.style.visibility = 'hidden';
+		} else {
+			this.view.domNode.style.visibility = 'initial';
+		}
 		this._isInLayout = false;
 	}
 

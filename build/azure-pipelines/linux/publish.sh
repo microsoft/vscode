@@ -26,6 +26,17 @@ rm -rf $ROOT/vscode-server-*.tar.*
 
 node build/azure-pipelines/common/createAsset.js "server-$PLATFORM_LINUX" archive-unsigned "$SERVER_TARBALL_FILENAME" "$SERVER_TARBALL_PATH"
 
+# Publish Remote Extension Host (Web)
+LEGACY_SERVER_BUILD_NAME="vscode-reh-web-$PLATFORM_LINUX"
+SERVER_BUILD_NAME="vscode-server-$PLATFORM_LINUX-web"
+SERVER_TARBALL_FILENAME="vscode-server-$PLATFORM_LINUX-web.tar.gz"
+SERVER_TARBALL_PATH="$ROOT/$SERVER_TARBALL_FILENAME"
+
+rm -rf $ROOT/vscode-server-*-web.tar.*
+(cd $ROOT && mv $LEGACY_SERVER_BUILD_NAME $SERVER_BUILD_NAME && tar --owner=0 --group=0 -czf $SERVER_TARBALL_PATH $SERVER_BUILD_NAME)
+
+node build/azure-pipelines/common/createAsset.js "server-$PLATFORM_LINUX-web" archive-unsigned "$SERVER_TARBALL_FILENAME" "$SERVER_TARBALL_PATH"
+
 # Publish DEB
 case $VSCODE_ARCH in
 	x64) DEB_ARCH="amd64" ;;
@@ -52,11 +63,13 @@ RPM_PATH="$REPO/.build/linux/rpm/$RPM_ARCH/$RPM_FILENAME"
 
 node build/azure-pipelines/common/createAsset.js "$PLATFORM_RPM" package "$RPM_FILENAME" "$RPM_PATH"
 
-if [ "$VSCODE_ARCH" == "x64" ]; then
-	# Publish Snap
-	# Pack snap tarball artifact, in order to preserve file perms
-	mkdir -p $REPO/.build/linux/snap-tarball
-	SNAP_TARBALL_PATH="$REPO/.build/linux/snap-tarball/snap-$VSCODE_ARCH.tar.gz"
-	rm -rf $SNAP_TARBALL_PATH
-	(cd .build/linux && tar -czf $SNAP_TARBALL_PATH snap)
-fi
+# Publish Snap
+# Pack snap tarball artifact, in order to preserve file perms
+mkdir -p $REPO/.build/linux/snap-tarball
+SNAP_TARBALL_PATH="$REPO/.build/linux/snap-tarball/snap-$VSCODE_ARCH.tar.gz"
+rm -rf $SNAP_TARBALL_PATH
+(cd .build/linux && tar -czf $SNAP_TARBALL_PATH snap)
+
+# Export DEB_PATH, RPM_PATH
+echo "##vso[task.setvariable variable=DEB_PATH]$DEB_PATH"
+echo "##vso[task.setvariable variable=RPM_PATH]$RPM_PATH"

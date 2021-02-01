@@ -9,11 +9,9 @@ import { IUserDataSyncService, IUserDataSyncUtilService, IUserDataAutoSyncServic
 import { URI } from 'vs/base/common/uri';
 import { IStringDictionary } from 'vs/base/common/collections';
 import { FormattingOptions } from 'vs/base/common/jsonFormatter';
-import { IStorageKeysSyncRegistryService, IStorageKey, IExtensionIdWithVersion, AbstractStorageKeysSyncRegistryService } from 'vs/platform/userDataSync/common/storageKeys';
 import { ILogService } from 'vs/platform/log/common/log';
 import { IUserDataSyncMachinesService } from 'vs/platform/userDataSync/common/userDataSyncMachines';
 import { IUserDataSyncAccountService } from 'vs/platform/userDataSync/common/userDataSyncAccount';
-import { IExtensionIdentifierWithVersion } from 'vs/platform/extensionManagement/common/extensionManagement';
 
 export class UserDataSyncChannel implements IServerChannel {
 
@@ -171,68 +169,6 @@ export class UserDataSyncUtilServiceClient implements IUserDataSyncUtilService {
 
 	async resolveFormattingOptions(file: URI): Promise<FormattingOptions> {
 		return this.channel.call('resolveFormattingOptions', [file]);
-	}
-
-}
-
-type StorageKeysSyncRegistryServiceInitData = { storageKeys: ReadonlyArray<IStorageKey>, extensionsStorageKeys: ReadonlyArray<[IExtensionIdWithVersion, ReadonlyArray<string>]> };
-
-export class StorageKeysSyncRegistryChannel implements IServerChannel {
-
-	constructor(private readonly service: IStorageKeysSyncRegistryService) { }
-
-	listen(_: unknown, event: string): Event<any> {
-		switch (event) {
-			case 'onDidChangeStorageKeys': return this.service.onDidChangeStorageKeys;
-			case 'onDidChangeExtensionStorageKeys': return this.service.onDidChangeExtensionStorageKeys;
-		}
-		throw new Error(`Event not found: ${event}`);
-	}
-
-	call(context: any, command: string, args?: any): Promise<any> {
-		switch (command) {
-			case '_getInitialData': return Promise.resolve<StorageKeysSyncRegistryServiceInitData>({ storageKeys: this.service.storageKeys, extensionsStorageKeys: this.service.extensionsStorageKeys });
-			case 'registerStorageKey': return Promise.resolve(this.service.registerStorageKey(args[0]));
-			case 'registerExtensionStorageKeys': return Promise.resolve(this.service.registerExtensionStorageKeys(args[0], args[1]));
-		}
-		throw new Error('Invalid call');
-	}
-}
-
-export class StorageKeysSyncRegistryChannelClient extends AbstractStorageKeysSyncRegistryService {
-
-	declare readonly _serviceBrand: undefined;
-
-	constructor(private readonly channel: IChannel) {
-		super();
-		this.channel.call<StorageKeysSyncRegistryServiceInitData>('_getInitialData').then(({ storageKeys, extensionsStorageKeys }) => {
-			this.updateStorageKeys(storageKeys);
-			this.updateExtensionsStorageKeys(extensionsStorageKeys);
-			this._register(this.channel.listen<ReadonlyArray<IStorageKey>>('onDidChangeStorageKeys')(storageKeys => this.updateStorageKeys(storageKeys)));
-			this._register(this.channel.listen<[IExtensionIdentifierWithVersion, string[]]>('onDidChangeExtensionStorageKeys')(e => this.updateExtensionStorageKeys(e[0], e[1])));
-		});
-	}
-
-	private async updateStorageKeys(storageKeys: ReadonlyArray<IStorageKey>): Promise<void> {
-		this._storageKeys.clear();
-		for (const storageKey of storageKeys) {
-			this._storageKeys.set(storageKey.key, storageKey);
-		}
-		this._onDidChangeStorageKeys.fire(this.storageKeys);
-	}
-
-	private async updateExtensionsStorageKeys(extensionStorageKeys: ReadonlyArray<[IExtensionIdentifierWithVersion, ReadonlyArray<string>]>): Promise<void> {
-		for (const [extension, keys] of extensionStorageKeys) {
-			this.updateExtensionStorageKeys(extension, [...keys]);
-		}
-	}
-
-	registerStorageKey(storageKey: IStorageKey): void {
-		this.channel.call('registerStorageKey', [storageKey]);
-	}
-
-	registerExtensionStorageKeys(extension: IExtensionIdentifierWithVersion, keys: string[]): void {
-		this.channel.call('registerExtensionStorageKeys', [extension, keys]);
 	}
 
 }

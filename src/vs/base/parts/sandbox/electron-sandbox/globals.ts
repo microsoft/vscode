@@ -3,54 +3,45 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { globals, INodeProcess, IProcessEnvironment } from 'vs/base/common/platform';
+import { globals, IProcessEnvironment } from 'vs/base/common/platform';
 import { ProcessMemoryInfo, CrashReporter, IpcRenderer, WebFrame } from 'vs/base/parts/sandbox/electron-sandbox/electronTypes';
 
-export interface ISandboxNodeProcess extends INodeProcess {
+/**
+ * In sandboxed renderers we cannot expose all of the `process` global of node.js
+ */
+export interface IPartialNodeProcess {
 
 	/**
 	 * The process.platform property returns a string identifying the operating system platform
 	 * on which the Node.js process is running.
 	 */
-	platform: 'win32' | 'linux' | 'darwin';
+	readonly platform: 'win32' | 'linux' | 'darwin';
+
+	/**
+	 * The process.arch property returns a string identifying the CPU architecture
+	 * on which the Node.js process is running.
+	 */
+	readonly arch: string;
 
 	/**
 	 * The type will always be Electron renderer.
 	 */
-	type: 'renderer';
+	readonly type: 'renderer';
 
 	/**
 	 * A list of versions for the current node.js/electron configuration.
 	 */
-	versions: { [key: string]: string | undefined };
+	readonly versions: { [key: string]: string | undefined };
 
 	/**
 	 * The process.env property returns an object containing the user environment.
 	 */
-	env: IProcessEnvironment;
+	readonly env: IProcessEnvironment;
 
 	/**
-	 * The current working directory.
+	 * The `execPath` will be the location of the executable of this application.
 	 */
-	cwd(): string;
-
-	/**
-	 * Returns the numeric user identity of the process.
-	 */
-	getuid(): number;
-
-	/**
-	 * Allows to await resolving the full process environment by checking for the shell environment
-	 * of the OS in certain cases (e.g. when the app is started from the Dock on macOS).
-	 */
-	whenEnvResolved(): Promise<void>;
-
-	/**
-	 * Adds callback to the "next tick queue". This queue is fully drained
-	 * after the current operation on the JavaScript stack runs to completion
-	 * and before the event loop is allowed to continue.
-	 */
-	nextTick(callback: (...args: any[]) => void, ...args: any[]): void;
+	readonly execPath: string;
 
 	/**
 	 * A listener on the process. Only a small subset of listener types are allowed.
@@ -73,10 +64,32 @@ export interface ISandboxNodeProcess extends INodeProcess {
 	getProcessMemoryInfo: () => Promise<ProcessMemoryInfo>;
 }
 
+export interface ISandboxNodeProcess extends IPartialNodeProcess {
+
+	/**
+	 * A custom method we add to `process`: Resolve the true process environment to use and
+	 * apply it to `process.env`.
+	 *
+	 * There are different layers of environment that will apply:
+	 * - `process.env`: this is the actual environment of the process before this method
+	 * - `shellEnv`   : if the program was not started from a terminal, we resolve all shell
+	 *                  variables to get the same experience as if the program was started from
+	 *                  a terminal (Linux, macOS)
+	 * - `userEnv`    : this is instance specific environment, e.g. if the user started the program
+	 *                  from a terminal and changed certain variables
+	 *
+	 * The order of overwrites is `process.env` < `shellEnv` < `userEnv`.
+	 *
+	 * It is critical that every process awaits this method early on startup to get the right
+	 * set of environment in `process.env`.
+	 */
+	resolveEnv(userEnv: IProcessEnvironment): Promise<void>;
+}
+
 export interface ISandboxContext {
 
 	/**
-	 * Wether the renderer runs with `sandbox` enabled or not.
+	 * Whether the renderer runs with `sandbox` enabled or not.
 	 */
 	sandbox: boolean;
 }

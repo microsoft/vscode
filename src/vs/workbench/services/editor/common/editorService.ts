@@ -175,7 +175,7 @@ export interface IEditorService {
 	 * identifier.
 	 *
 	 * @param order the order of the editors to use
-	 * @param options wether to exclude sticky editors or not
+	 * @param options whether to exclude sticky editors or not
 	 */
 	getEditors(order: EditorsOrder, options?: { excludeSticky?: boolean }): ReadonlyArray<IEditorIdentifier>;
 
@@ -232,6 +232,11 @@ export interface IEditorService {
 	 */
 	isOpen(editor: IResourceEditorInput): boolean;
 	isOpen(editor: IEditorInput): boolean;
+
+	/**
+	 * Find the existing editors for a given resource.
+	 */
+	findEditors(resource: URI, group: IEditorGroup | GroupIdentifier): IEditorInput[];
 
 	/**
 	 * Get all available editor overrides for the editor input.

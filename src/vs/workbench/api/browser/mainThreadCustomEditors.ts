@@ -3,15 +3,15 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
+import { multibyteAwareBtoa } from 'vs/base/browser/dom';
 import { CancelablePromise, createCancelablePromise } from 'vs/base/common/async';
 import { CancellationToken } from 'vs/base/common/cancellation';
 import { isPromiseCanceledError, onUnexpectedError } from 'vs/base/common/errors';
 import { Emitter, Event } from 'vs/base/common/event';
-import { Disposable, DisposableStore, IDisposable, IReference } from 'vs/base/common/lifecycle';
+import { Disposable, DisposableStore, dispose, IDisposable, IReference } from 'vs/base/common/lifecycle';
 import { Schemas } from 'vs/base/common/network';
 import { basename } from 'vs/base/common/path';
 import { isEqual, isEqualOrParent, toLocalResource } from 'vs/base/common/resources';
-import { multibyteAwareBtoa } from 'vs/base/browser/dom';
 import { URI, UriComponents } from 'vs/base/common/uri';
 import * as modes from 'vs/editor/common/modes';
 import { localize } from 'vs/nls';
@@ -23,8 +23,7 @@ import { IUndoRedoService, UndoRedoElementType } from 'vs/platform/undoRedo/comm
 import { MainThreadWebviewPanels } from 'vs/workbench/api/browser/mainThreadWebviewPanels';
 import { MainThreadWebviews, reviveWebviewExtension } from 'vs/workbench/api/browser/mainThreadWebviews';
 import * as extHostProtocol from 'vs/workbench/api/common/extHost.protocol';
-import { editorGroupToViewColumn } from 'vs/workbench/api/common/shared/editor';
-import { IRevertOptions, ISaveOptions } from 'vs/workbench/common/editor';
+import { editorGroupToViewColumn, IRevertOptions, ISaveOptions } from 'vs/workbench/common/editor';
 import { CustomEditorInput } from 'vs/workbench/contrib/customEditor/browser/customEditorInput';
 import { CustomDocumentBackupData } from 'vs/workbench/contrib/customEditor/browser/customEditorInputFactory';
 import { ICustomEditorModel, ICustomEditorService } from 'vs/workbench/contrib/customEditor/common/customEditor';
@@ -96,10 +95,7 @@ export class MainThreadCustomEditors extends Disposable implements extHostProtoc
 	dispose() {
 		super.dispose();
 
-		for (const disposable of this._editorProviders.values()) {
-			disposable.dispose();
-		}
-
+		dispose(this._editorProviders.values());
 		this._editorProviders.clear();
 	}
 
@@ -603,6 +599,10 @@ class MainThreadCustomEditorModel extends Disposable implements ICustomEditorMod
 			createCancelablePromise(token =>
 				this._proxy.$backup(this._editorResource.toJSON(), this.viewType, token)));
 		this._hotExitState = pendingState;
+
+		token.onCancellationRequested(() => {
+			pendingState.operation.cancel();
+		});
 
 		try {
 			const backupId = await pendingState.operation;

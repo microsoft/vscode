@@ -8,7 +8,7 @@ import * as semver from 'vs/base/common/semver/semver';
 import { Event, Emitter } from 'vs/base/common/event';
 import { index, distinct } from 'vs/base/common/arrays';
 import { ThrottledDelayer } from 'vs/base/common/async';
-import { isPromiseCanceledError } from 'vs/base/common/errors';
+import { canceled, isPromiseCanceledError } from 'vs/base/common/errors';
 import { Disposable } from 'vs/base/common/lifecycle';
 import { IPager, mapPager, singlePagePager } from 'vs/base/common/paging';
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
@@ -22,16 +22,16 @@ import { IInstantiationService } from 'vs/platform/instantiation/common/instanti
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { IHostService } from 'vs/workbench/services/host/browser/host';
 import { URI } from 'vs/base/common/uri';
-import { IExtension, ExtensionState, IExtensionsWorkbenchService, AutoUpdateConfigurationKey, AutoCheckUpdatesConfigurationKey } from 'vs/workbench/contrib/extensions/common/extensions';
+import { IExtension, ExtensionState, IExtensionsWorkbenchService, AutoUpdateConfigurationKey, AutoCheckUpdatesConfigurationKey, HasOutdatedExtensionsContext } from 'vs/workbench/contrib/extensions/common/extensions';
 import { IEditorService, SIDE_GROUP, ACTIVE_GROUP } from 'vs/workbench/services/editor/common/editorService';
 import { IURLService, IURLHandler, IOpenURLOptions } from 'vs/platform/url/common/url';
 import { ExtensionsInput } from 'vs/workbench/contrib/extensions/common/extensionsInput';
 import { ILogService } from 'vs/platform/log/common/log';
 import { IProgressService, ProgressLocation } from 'vs/platform/progress/common/progress';
-import { INotificationService } from 'vs/platform/notification/common/notification';
+import { INotificationService, Severity } from 'vs/platform/notification/common/notification';
 import * as resources from 'vs/base/common/resources';
 import { CancellationToken } from 'vs/base/common/cancellation';
-import { IStorageService, StorageScope } from 'vs/platform/storage/common/storage';
+import { IStorageService, StorageScope, StorageTarget } from 'vs/platform/storage/common/storage';
 import { IFileService } from 'vs/platform/files/common/files';
 import { IExtensionManifest, ExtensionType, IExtension as IPlatformExtension } from 'vs/platform/extensions/common/extensions';
 import { IModeService } from 'vs/editor/common/services/modeService';
@@ -40,6 +40,7 @@ import { getExtensionKind } from 'vs/workbench/services/extensions/common/extens
 import { FileAccess } from 'vs/base/common/network';
 import { IIgnoredExtensionsManagementService } from 'vs/platform/userDataSync/common/ignoredExtensions';
 import { IUserDataAutoSyncService } from 'vs/platform/userDataSync/common/userDataSync';
+import { IContextKey, IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
 
 interface IExtensionStateProvider<T> {
 	(extension: Extension): T;
@@ -209,12 +210,12 @@ class Extension implements IExtension {
 		return this.gallery ? this.gallery.preview : false;
 	}
 
-	private isGalleryOutdated(): boolean {
-		return this.local && this.gallery ? semver.gt(this.local.manifest.version, this.gallery.version) : false;
-	}
-
 	getManifest(token: CancellationToken): Promise<IExtensionManifest | null> {
-		if (this.gallery && !this.isGalleryOutdated()) {
+		if (this.local && !this.outdated) {
+			return Promise.resolve(this.local.manifest);
+		}
+
+		if (this.gallery) {
 			if (this.gallery.assets.manifest) {
 				return this.galleryService.getManifest(this.gallery, token);
 			}
@@ -222,19 +223,15 @@ class Extension implements IExtension {
 			return Promise.resolve(null);
 		}
 
-		if (this.local) {
-			return Promise.resolve(this.local.manifest);
-		}
-
 		return Promise.resolve(null);
 	}
 
 	hasReadme(): boolean {
-		if (this.gallery && !this.isGalleryOutdated() && this.gallery.assets.readme) {
+		if (this.local && this.local.readmeUrl) {
 			return true;
 		}
 
-		if (this.local && this.local.readmeUrl) {
+		if (this.gallery && this.gallery.assets.readme) {
 			return true;
 		}
 
@@ -242,15 +239,15 @@ class Extension implements IExtension {
 	}
 
 	getReadme(token: CancellationToken): Promise<string> {
-		if (this.gallery && !this.isGalleryOutdated()) {
+		if (this.local && this.local.readmeUrl && !this.outdated) {
+			return this.fileService.readFile(this.local.readmeUrl).then(content => content.value.toString());
+		}
+
+		if (this.gallery) {
 			if (this.gallery.assets.readme) {
 				return this.galleryService.getReadme(this.gallery, token);
 			}
 			this.telemetryService.publicLog('extensions:NotFoundReadMe', this.telemetryData);
-		}
-
-		if (this.local && this.local.readmeUrl) {
-			return this.fileService.readFile(this.local.readmeUrl).then(content => content.value.toString());
 		}
 
 		if (this.type === ExtensionType.System) {
@@ -265,11 +262,11 @@ ${this.description}
 	}
 
 	hasChangelog(): boolean {
-		if (this.gallery && this.gallery.assets.changelog && !this.isGalleryOutdated()) {
+		if (this.local && this.local.changelogUrl) {
 			return true;
 		}
 
-		if (this.local && this.local.changelogUrl) {
+		if (this.gallery && this.gallery.assets.changelog) {
 			return true;
 		}
 
@@ -277,41 +274,40 @@ ${this.description}
 	}
 
 	getChangelog(token: CancellationToken): Promise<string> {
-		if (this.gallery && this.gallery.assets.changelog && !this.isGalleryOutdated()) {
+
+		if (this.local && this.local.changelogUrl && !this.outdated) {
+			return this.fileService.readFile(this.local.changelogUrl).then(content => content.value.toString());
+		}
+
+		if (this.gallery && this.gallery.assets.changelog) {
 			return this.galleryService.getChangelog(this.gallery, token);
 		}
 
-		const changelogUrl = this.local && this.local.changelogUrl;
-
-		if (!changelogUrl) {
-			if (this.type === ExtensionType.System) {
-				return Promise.resolve('Please check the [VS Code Release Notes](command:update.showCurrentReleaseNotes) for changes to the built-in extensions.');
-			}
-
-			return Promise.reject(new Error('not available'));
+		if (this.type === ExtensionType.System) {
+			return Promise.resolve('Please check the [VS Code Release Notes](command:update.showCurrentReleaseNotes) for changes to the built-in extensions.');
 		}
 
-		return this.fileService.readFile(changelogUrl).then(content => content.value.toString());
+		return Promise.reject(new Error('not available'));
 	}
 
 	get dependencies(): string[] {
 		const { local, gallery } = this;
-		if (gallery && !this.isGalleryOutdated()) {
-			return gallery.properties.dependencies || [];
-		}
-		if (local && local.manifest.extensionDependencies) {
+		if (local && local.manifest.extensionDependencies && !this.outdated) {
 			return local.manifest.extensionDependencies;
+		}
+		if (gallery) {
+			return gallery.properties.dependencies || [];
 		}
 		return [];
 	}
 
 	get extensionPack(): string[] {
 		const { local, gallery } = this;
-		if (gallery && !this.isGalleryOutdated()) {
-			return gallery.properties.extensionPack || [];
-		}
-		if (local && local.manifest.extensionPack) {
+		if (local && local.manifest.extensionPack && !this.outdated) {
 			return local.manifest.extensionPack;
+		}
+		if (gallery) {
+			return gallery.properties.extensionPack || [];
 		}
 		return [];
 	}
@@ -497,6 +493,8 @@ export class ExtensionsWorkbenchService extends Disposable implements IExtension
 	private static readonly SyncPeriod = 1000 * 60 * 60 * 12; // 12 hours
 	declare readonly _serviceBrand: undefined;
 
+	private hasOutdatedExtensionsContextKey: IContextKey<boolean>;
+
 	private readonly localExtensions: Extensions | null = null;
 	private readonly remoteExtensions: Extensions | null = null;
 	private readonly webExtensions: Extensions | null = null;
@@ -525,9 +523,11 @@ export class ExtensionsWorkbenchService extends Disposable implements IExtension
 		@IModeService private readonly modeService: IModeService,
 		@IIgnoredExtensionsManagementService private readonly extensionsSyncManagementService: IIgnoredExtensionsManagementService,
 		@IUserDataAutoSyncService private readonly userDataAutoSyncService: IUserDataAutoSyncService,
-		@IProductService private readonly productService: IProductService
+		@IProductService private readonly productService: IProductService,
+		@IContextKeyService contextKeyService: IContextKeyService
 	) {
 		super();
+		this.hasOutdatedExtensionsContextKey = HasOutdatedExtensionsContext.bindTo(contextKeyService);
 		if (extensionManagementServerService.localExtensionManagementServer) {
 			this.localExtensions = this._register(instantiationService.createInstance(Extensions, extensionManagementServerService.localExtensionManagementServer, ext => this.getExtensionState(ext)));
 			this._register(this.localExtensions.onChange(e => this._onChange.fire(e ? e.extension : undefined)));
@@ -564,7 +564,10 @@ export class ExtensionsWorkbenchService extends Disposable implements IExtension
 			this.eventuallySyncWithGallery(true);
 		});
 
-		this._register(this.onChange(() => this.updateActivity()));
+		this._register(this.onChange(() => {
+			this.updateContexts();
+			this.updateActivity();
+		}));
 	}
 
 	get local(): IExtension[] {
@@ -1078,7 +1081,23 @@ export class ExtensionsWorkbenchService extends Disposable implements IExtension
 			for (const extension of extensions) {
 				let dependents = this.getDependentsAfterDisablement(extension, allExtensions, this.local);
 				if (dependents.length) {
-					return Promise.reject(new Error(this.getDependentsErrorMessage(extension, allExtensions, dependents)));
+					return new Promise<void>((resolve, reject) => {
+						this.notificationService.prompt(Severity.Error, this.getDependentsErrorMessage(extension, allExtensions, dependents), [
+							{
+								label: nls.localize('disable all', 'Disable All'),
+								run: async () => {
+									try {
+										await this.checkAndSetEnablement(dependents, [extension], enablementState);
+										resolve();
+									} catch (error) {
+										reject(error);
+									}
+								}
+							}
+						], {
+							onCancel: () => reject(canceled())
+						});
+					});
 				}
 			}
 		}
@@ -1144,13 +1163,13 @@ export class ExtensionsWorkbenchService extends Disposable implements IExtension
 
 	private getErrorMessageForDisablingAnExtensionWithDependents(extension: IExtension, dependents: IExtension[]): string {
 		if (dependents.length === 1) {
-			return nls.localize('singleDependentError', "Cannot disable extension '{0}'. Extension '{1}' depends on this.", extension.displayName, dependents[0].displayName);
+			return nls.localize('singleDependentError', "Cannot disable '{0}' extension alone. '{1}' extension depends on this. Do you want to disable all these extensions?", extension.displayName, dependents[0].displayName);
 		}
 		if (dependents.length === 2) {
-			return nls.localize('twoDependentsError', "Cannot disable extension '{0}'. Extensions '{1}' and '{2}' depend on this.",
+			return nls.localize('twoDependentsError', "Cannot disable '{0}' extension alone. '{1}' and '{2}' extensions depend on this. Do you want to disable all these extensions?",
 				extension.displayName, dependents[0].displayName, dependents[1].displayName);
 		}
-		return nls.localize('multipleDependentsError', "Cannot disable extension '{0}'. Extensions '{1}', '{2}' and others depend on this.",
+		return nls.localize('multipleDependentsError', "Cannot disable '{0}' extension alone. '{1}', '{2}' and other extensions depend on this. Do you want to disable all these extensions?",
 			extension.displayName, dependents[0].displayName, dependents[1].displayName);
 	}
 
@@ -1178,13 +1197,21 @@ export class ExtensionsWorkbenchService extends Disposable implements IExtension
 		return changed;
 	}
 
+	private updateContexts(extension?: Extension): void {
+		if (extension && extension.outdated) {
+			this.hasOutdatedExtensionsContextKey.set(true);
+		} else {
+			this.hasOutdatedExtensionsContextKey.set(this.outdated.length > 0);
+		}
+	}
+
 	private _activityCallBack: ((value: void) => void) | null = null;
 	private updateActivity(): void {
 		if ((this.localExtensions && this.localExtensions.local.some(e => e.state === ExtensionState.Installing || e.state === ExtensionState.Uninstalling))
 			|| (this.remoteExtensions && this.remoteExtensions.local.some(e => e.state === ExtensionState.Installing || e.state === ExtensionState.Uninstalling))
 			|| (this.webExtensions && this.webExtensions.local.some(e => e.state === ExtensionState.Installing || e.state === ExtensionState.Uninstalling))) {
 			if (!this._activityCallBack) {
-				this.progressService.withProgress({ location: ProgressLocation.Extensions }, () => new Promise(c => this._activityCallBack = c));
+				this.progressService.withProgress({ location: ProgressLocation.Extensions }, () => new Promise(resolve => this._activityCallBack = resolve));
 			}
 		} else {
 			if (this._activityCallBack) {
@@ -1258,7 +1285,7 @@ export class ExtensionsWorkbenchService extends Disposable implements IExtension
 
 	private set ignoredAutoUpdateExtensions(extensionIds: string[]) {
 		this._ignoredAutoUpdateExtensions = distinct(extensionIds.map(id => id.toLowerCase()));
-		this.storageService.store('extensions.ignoredAutoUpdateExtension', JSON.stringify(this._ignoredAutoUpdateExtensions), StorageScope.GLOBAL);
+		this.storageService.store('extensions.ignoredAutoUpdateExtension', JSON.stringify(this._ignoredAutoUpdateExtensions), StorageScope.GLOBAL, StorageTarget.MACHINE);
 	}
 
 	private ignoreAutoUpdate(identifierWithVersion: ExtensionIdentifierWithVersion): void {

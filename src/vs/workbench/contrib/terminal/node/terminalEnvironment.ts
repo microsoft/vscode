@@ -7,6 +7,7 @@ import { IProcessEnvironment, isLinux, isMacintosh, isWindows } from 'vs/base/co
 import { readFile, exists } from 'vs/base/node/pfs';
 import * as path from 'vs/base/common/path';
 import { isString } from 'vs/base/common/types';
+import { getCaseInsensitive } from 'vs/base/common/objects';
 
 let mainProcessParentEnv: IProcessEnvironment | undefined;
 
@@ -94,8 +95,9 @@ export async function findExecutable(command: string, cwd?: string, paths?: stri
 		const fullPath = path.join(cwd, command);
 		return await exists(fullPath) ? fullPath : undefined;
 	}
-	if (paths === undefined && isString(env.PATH)) {
-		paths = env.PATH.split(path.delimiter);
+	const envPath = getCaseInsensitive(env, 'PATH');
+	if (paths === undefined && isString(envPath)) {
+		paths = envPath.split(path.delimiter);
 	}
 	// No PATH environment. Make path absolute to the cwd.
 	if (paths === undefined || paths.length === 0) {
