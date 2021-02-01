@@ -101,7 +101,7 @@ export class LinkDetector {
 		const link = this.createLink(url);
 
 		this.decorateLink(link, async () => {
-			const uri = URI.parse(url);
+			const uri = URI.parse(url, false, false);
 
 			if (uri.scheme === Schemas.file) {
 				// Just using fsPath here is unsafe: https://github.com/microsoft/vscode/issues/109076
@@ -118,7 +118,7 @@ export class LinkDetector {
 				return;
 			}
 
-			this.openerService.open(url, { allowTunneling: !!this.environmentService.remoteAuthority });
+			this.openerService.open(uri, { allowTunneling: !!this.environmentService.remoteAuthority });
 		});
 
 		return link;

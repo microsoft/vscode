@@ -263,17 +263,17 @@ export class URI implements UriComponents {
 	 *
 	 * @param value A string which represents an URI (see `URI#toString`).
 	 */
-	static parse(value: string, _strict: boolean = false): URI {
+	static parse(value: string, _strict: boolean = false, _percentDecode = true): URI {
 		const match = _regexp.exec(value);
 		if (!match) {
 			return new Uri(_empty, _empty, _empty, _empty, _empty);
 		}
 		return new Uri(
 			match[2] || _empty,
-			percentDecode(match[4] || _empty),
-			percentDecode(match[5] || _empty),
-			percentDecode(match[7] || _empty),
-			percentDecode(match[9] || _empty),
+			_percentDecode ? percentDecode(match[4] || _empty) : match[4],
+			_percentDecode ? percentDecode(match[5] || _empty) : match[5],
+			_percentDecode ? percentDecode(match[7] || _empty) : match[7],
+			_percentDecode ? percentDecode(match[9] || _empty) : match[9],
 			_strict
 		);
 	}
