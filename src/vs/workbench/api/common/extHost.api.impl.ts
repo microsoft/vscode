@@ -262,7 +262,7 @@ export function createApiFactoryAndRegisterActors(accessor: ServicesAccessor): I
 			registerDiffInformationCommand: (id: string, callback: (diff: vscode.LineChange[], ...args: any[]) => any, thisArg?: any): vscode.Disposable => {
 				checkProposedApiEnabled(extension);
 				return extHostCommands.registerCommand(true, id, async (...args: any[]): Promise<any> => {
-					const activeTextEditor = extHostEditors.getActiveTextEditor();
+					const activeTextEditor = extHostDocumentsAndEditors.activeEditor(true);
 					if (!activeTextEditor) {
 						extHostLogService.warn('Cannot execute ' + id + ' because there is no active text editor.');
 						return undefined;
