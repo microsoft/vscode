@@ -990,16 +990,16 @@ export class AsyncDataTree<TInput, T, TFilterData = void> implements IDisposable
 
 		const expanded: string[] = [];
 		const root = this.tree.getNode();
-		const queue = [root];
+		const stack = [root];
 
-		while (queue.length > 0) {
-			const node = queue.shift()!;
+		while (stack.length > 0) {
+			const node = stack.pop()!;
 
 			if (node !== root && node.collapsible && !node.collapsed) {
 				expanded.push(getId(node.element!.element as T));
 			}
 
-			queue.push(...node.children);
+			stack.push(...node.children);
 		}
 
 		return { focus, selection, expanded, scrollTop: this.scrollTop };
