@@ -281,6 +281,7 @@ registerAction2(class extends Action2 {
 			toggled: ContextKeyDefinedExpr.create(`view.${REPL_VIEW_ID}.visible`),
 			menu: [{
 				id: ViewsSubMenu,
+				group: '3_toggleRepl',
 				order: 30,
 				when: ContextKeyExpr.and(ContextKeyEqualsExpr.create('viewContainer', VIEWLET_ID))
 			}]
