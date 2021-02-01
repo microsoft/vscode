@@ -1480,6 +1480,7 @@ declare module 'vscode' {
 		readonly document: NotebookDocument;
 	}
 
+	// todo@API is this still needed? With transient metadata have we everything covered?
 	interface NotebookDocumentEditEvent {
 
 		/**
@@ -1673,8 +1674,10 @@ declare module 'vscode' {
 
 	export namespace notebook {
 		export function registerNotebookContentProvider(
+			// TODO@api use NotebookDocumentFilter?
 			notebookType: string,
 			provider: NotebookContentProvider,
+			// TODO@API is duplicated with a more powerful variant on NotebookContentProvider
 			options?: NotebookDocumentContentOptions & {
 				/**
 				 * Not ready for production or development use yet.
@@ -2574,7 +2577,7 @@ declare module 'vscode' {
 		export function openExternal(target: Uri, options?: OpenExternalOptions): Thenable<boolean>;
 	}
 
-	//endregionn
+	//#endregion
 
 	//#region https://github.com/Microsoft/vscode/issues/15178
 
