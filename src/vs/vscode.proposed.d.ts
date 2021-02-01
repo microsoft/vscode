@@ -879,11 +879,24 @@ declare module 'vscode' {
 
 	//#region Terminal name change event https://github.com/microsoft/vscode/issues/114898
 
-	export namespace window {
+	export interface Pseudoterminal {
 		/**
-		 * An event which fires when the name of the terminal changes.
+		 * An event that when fired allows changing the name of the terminal.
+		 *
+		 * **Example:** Change the terminal name to "My new terminal".
+		 * ```typescript
+		 * const writeEmitter = new vscode.EventEmitter<string>();
+		 * const changeNameEmitter = new vscode.EventEmitter<string>();
+		 * const pty: vscode.Pseudoterminal = {
+		 *   onDidWrite: writeEmitter.event,
+		 *   onDidChangeName: changeNameEmitter.event,
+		 *   open: () => changeNameEmitter.fire('My new terminal'),
+		 *   close: () => {}
+		 * };
+		 * vscode.window.createTerminal({ name: 'My terminal', pty });
+		 * ```
 		 */
-		export const onDidChangeTerminalName: Event<Terminal>;
+		onDidChangeName?: Event<string>;
 	}
 
 	//#endregion

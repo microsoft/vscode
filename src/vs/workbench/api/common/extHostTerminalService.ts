@@ -34,7 +34,6 @@ export interface IExtHostTerminalService extends ExtHostTerminalServiceShape, ID
 	onDidChangeActiveTerminal: Event<vscode.Terminal | undefined>;
 	onDidChangeTerminalDimensions: Event<vscode.TerminalDimensionsChangeEvent>;
 	onDidWriteTerminalData: Event<vscode.TerminalDataWriteEvent>;
-	onDidChangeTerminalName: Event<vscode.Terminal>;
 
 	createTerminal(name?: string, shellPath?: string, shellArgs?: string[] | string): vscode.Terminal;
 	createTerminalFromOptions(options: vscode.TerminalOptions, isFeatureTerminal?: boolean): vscode.Terminal;
@@ -249,6 +248,9 @@ export class ExtHostPseudoterminal implements ITerminalChildProcess {
 		if (this._pty.onDidOverrideDimensions) {
 			this._pty.onDidOverrideDimensions(e => this._onProcessOverrideDimensions.fire(e ? { cols: e.columns, rows: e.rows } : e));
 		}
+		if (this._pty.onDidChangeName) {
+			this._pty.onDidChangeName(title => this._onProcessTitleChanged.fire(title));
+		}
 
 		this._pty.open(initialDimensions ? initialDimensions : undefined);
 
@@ -298,8 +300,6 @@ export abstract class BaseExtHostTerminalService extends Disposable implements I
 	public get onDidChangeTerminalDimensions(): Event<vscode.TerminalDimensionsChangeEvent> { return this._onDidChangeTerminalDimensions && this._onDidChangeTerminalDimensions.event; }
 	protected readonly _onDidWriteTerminalData: Emitter<vscode.TerminalDataWriteEvent>;
 	public get onDidWriteTerminalData(): Event<vscode.TerminalDataWriteEvent> { return this._onDidWriteTerminalData && this._onDidWriteTerminalData.event; }
-	protected readonly _onDidChangeTerminalName: Emitter<vscode.Terminal> = new Emitter<vscode.Terminal>();
-	public get onDidChangeTerminalName(): Event<vscode.Terminal> { return this._onDidChangeTerminalName && this._onDidChangeTerminalName.event; }
 
 	constructor(
 		supportsProcesses: boolean,
@@ -398,11 +398,7 @@ export abstract class BaseExtHostTerminalService extends Disposable implements I
 	public async $acceptTerminalTitleChange(id: number, name: string): Promise<void> {
 		const terminal = this._getTerminalById(id);
 		if (terminal) {
-			const original = terminal.name;
-			if (original !== name) {
-				terminal.name = name;
-				this._onDidChangeTerminalName.fire(terminal);
-			}
+			terminal.name = name;
 		}
 	}
 

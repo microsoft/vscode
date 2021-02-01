@@ -3,7 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { window, Pseudoterminal, EventEmitter, TerminalDimensions, workspace, ConfigurationTarget, Disposable, UIKind, env, EnvironmentVariableMutatorType, EnvironmentVariableMutator, extensions, ExtensionContext, TerminalOptions, ExtensionTerminalOptions, commands } from 'vscode';
+import { window, Pseudoterminal, EventEmitter, TerminalDimensions, workspace, ConfigurationTarget, Disposable, UIKind, env, EnvironmentVariableMutatorType, EnvironmentVariableMutator, extensions, ExtensionContext, TerminalOptions, ExtensionTerminalOptions } from 'vscode';
 import { doesNotThrow, equal, ok, deepEqual, throws } from 'assert';
 
 // Disable terminal tests:
@@ -284,35 +284,6 @@ import { doesNotThrow, equal, ok, deepEqual, throws } from 'assert';
 		// 	terminal1.show();
 		// });
 
-		test('onDidChangeTerminalName event fires when terminal name is changed', (done) => {
-			disposables.push(window.onDidOpenTerminal(term => {
-				try {
-					equal(term.name, 'foo');
-				} catch (e) {
-					done(e);
-					return;
-				}
-				disposables.push(window.onDidChangeTerminalName(t => {
-					try {
-						equal(t.name, 'bar');
-					} catch (e) {
-						done(e);
-						return;
-					}
-					disposables.push(window.onDidCloseTerminal(() => done()));
-					terminal.dispose();
-				}));
-			}));
-			const pty: Pseudoterminal = {
-				onDidWrite: new EventEmitter<string>().event,
-				open: async () => {
-					await commands.executeCommand('workbench.action.terminal.renameWithArg', { name: 'bar' });
-				},
-				close: () => { }
-			};
-			const terminal = window.createTerminal({ name: 'foo', pty });
-		});
-
 		suite('hideFromUser', () => {
 			test('should be available to terminals API', done => {
 				const terminal = window.createTerminal({ name: 'bg', hideFromUser: true });
@@ -512,6 +483,41 @@ import { doesNotThrow, equal, ok, deepEqual, throws } from 'assert';
 					onDidWrite: writeEmitter.event,
 					onDidOverrideDimensions: overrideDimensionsEmitter.event,
 					open: () => overrideDimensionsEmitter.fire({ columns: 10, rows: 5 }),
+					close: () => { }
+				};
+				const terminal = window.createTerminal({ name: 'foo', pty });
+			});
+
+			test('should change terminal name', (done) => {
+				disposables.push(window.onDidOpenTerminal(term => {
+					try {
+						equal(terminal, term);
+						equal(terminal.name, 'foo');
+					} catch (e) {
+						done(e);
+						return;
+					}
+					disposables.push(window.onDidCloseTerminal(t => {
+						try {
+							equal(terminal, t);
+							equal(terminal.name, 'bar');
+						} catch (e) {
+							done(e);
+							return;
+						}
+						done();
+					}));
+				}));
+				const changeNameEmitter = new EventEmitter<string>();
+				const closeEmitter = new EventEmitter<number | undefined>();
+				const pty: Pseudoterminal = {
+					onDidWrite: new EventEmitter<string>().event,
+					onDidChangeName: changeNameEmitter.event,
+					onDidClose: closeEmitter.event,
+					open: () => {
+						changeNameEmitter.fire('bar');
+						closeEmitter.fire(undefined);
+					},
 					close: () => { }
 				};
 				const terminal = window.createTerminal({ name: 'foo', pty });

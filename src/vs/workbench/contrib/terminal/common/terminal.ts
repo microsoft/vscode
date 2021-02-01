@@ -418,7 +418,6 @@ export interface ITerminalProcessExtHostProxy extends IDisposable {
 	readonly terminalId: number;
 
 	emitData(data: string): void;
-	emitTitle(title: string): void;
 	emitReady(pid: number, cwd: string): void;
 	emitExit(exitCode: number | undefined): void;
 	emitOverrideDimensions(dimensions: ITerminalDimensions | undefined): void;
