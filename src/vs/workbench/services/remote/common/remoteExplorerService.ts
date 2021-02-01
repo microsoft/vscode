@@ -174,7 +174,7 @@ export class PortsAttributes extends Disposable {
 			}
 			index = this.findNextIndex(port, this.portsAttributes, index + 1);
 		}
-		if (attributes.onAutoForward !== undefined || attributes.elevateIfNeeded !== undefined) {
+		if (attributes.onAutoForward !== undefined || attributes.elevateIfNeeded !== undefined || attributes.label !== undefined) {
 			return attributes;
 		}
 		return undefined;
