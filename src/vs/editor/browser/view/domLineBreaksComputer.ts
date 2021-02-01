@@ -232,11 +232,11 @@ function renderLine(lineContent: string, initialVisibleColumn: number, tabSize: 
 				if (strings.isFullWidthCharacter(charCode)) {
 					charWidth++;
 				}
-				// if (renderControlCharacters && charCode < 32) {
-				// 	sb.write1(9216 + charCode);
-				// } else {
-				sb.write1(charCode);
-			// }
+				if (charCode < 32) {
+					sb.write1(9216 + charCode);
+				} else {
+					sb.write1(charCode);
+				}
 		}
 
 		charOffset += producedCharacters;
