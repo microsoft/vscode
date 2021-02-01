@@ -23,95 +23,36 @@ import { INativeOpenDialogOptions } from 'vs/platform/dialogs/common/dialogs';
 import { IBackupMainService, IWorkspaceBackupInfo } from 'vs/platform/backup/electron-main/backup';
 import { IEmptyWindowBackupInfo } from 'vs/platform/backup/node/backup';
 
-export class TestDialogMainService implements IDialogMainService {
-	declare readonly _serviceBrand: undefined;
-
-	pickFileFolder(options: INativeOpenDialogOptions, window?: Electron.BrowserWindow | undefined): Promise<string[] | undefined> {
-		throw new Error('Method not implemented.');
-	}
-
-	pickFolder(options: INativeOpenDialogOptions, window?: Electron.BrowserWindow | undefined): Promise<string[] | undefined> {
-		throw new Error('Method not implemented.');
-	}
-
-	pickFile(options: INativeOpenDialogOptions, window?: Electron.BrowserWindow | undefined): Promise<string[] | undefined> {
-		throw new Error('Method not implemented.');
-	}
-
-	pickWorkspace(options: INativeOpenDialogOptions, window?: Electron.BrowserWindow | undefined): Promise<string[] | undefined> {
-		throw new Error('Method not implemented.');
-	}
-
-	showMessageBox(options: Electron.MessageBoxOptions, window?: Electron.BrowserWindow | undefined): Promise<Electron.MessageBoxReturnValue> {
-		throw new Error('Method not implemented.');
-	}
-
-	showSaveDialog(options: Electron.SaveDialogOptions, window?: Electron.BrowserWindow | undefined): Promise<Electron.SaveDialogReturnValue> {
-		throw new Error('Method not implemented.');
-	}
-
-	showOpenDialog(options: Electron.OpenDialogOptions, window?: Electron.BrowserWindow | undefined): Promise<Electron.OpenDialogReturnValue> {
-		throw new Error('Method not implemented.');
-	}
-}
-
-export class TestBackupMainService implements IBackupMainService {
-
-	declare readonly _serviceBrand: undefined;
-
-	isHotExitEnabled(): boolean {
-		throw new Error('Method not implemented.');
-	}
-
-	getWorkspaceBackups(): IWorkspaceBackupInfo[] {
-		throw new Error('Method not implemented.');
-	}
-
-	getFolderBackupPaths(): URI[] {
-		throw new Error('Method not implemented.');
-	}
-
-	getEmptyWindowBackupPaths(): IEmptyWindowBackupInfo[] {
-		throw new Error('Method not implemented.');
-	}
-
-	registerWorkspaceBackupSync(workspace: IWorkspaceBackupInfo, migrateFrom?: string | undefined): string {
-		throw new Error('Method not implemented.');
-	}
-
-	registerFolderBackupSync(folderUri: URI): string {
-		throw new Error('Method not implemented.');
-	}
-
-	registerEmptyWindowBackupSync(backupFolder?: string | undefined, remoteAuthority?: string | undefined): string {
-		throw new Error('Method not implemented.');
-	}
-
-	unregisterWorkspaceBackupSync(workspace: IWorkspaceIdentifier): void {
-		throw new Error('Method not implemented.');
-	}
-
-	unregisterFolderBackupSync(folderUri: URI): void {
-		throw new Error('Method not implemented.');
-	}
-
-	unregisterEmptyWindowBackupSync(backupFolder: string): void {
-		throw new Error('Method not implemented.');
-	}
-
-	async getDirtyWorkspaces(): Promise<(IWorkspaceIdentifier | URI)[]> {
-		return [];
-	}
-}
-
 suite('WorkspacesManagementMainService', () => {
-	const parentDir = getRandomTestPath(os.tmpdir(), 'vsctests', 'workspacesmanagementmainservice');
-	const untitledWorkspacesHomePath = path.join(parentDir, 'Workspaces');
 
-	class TestEnvironmentService extends EnvironmentMainService {
-		get untitledWorkspacesHome(): URI {
-			return URI.file(untitledWorkspacesHomePath);
-		}
+	class TestDialogMainService implements IDialogMainService {
+
+		declare readonly _serviceBrand: undefined;
+
+		pickFileFolder(options: INativeOpenDialogOptions, window?: Electron.BrowserWindow | undefined): Promise<string[] | undefined> { throw new Error('Method not implemented.'); }
+		pickFolder(options: INativeOpenDialogOptions, window?: Electron.BrowserWindow | undefined): Promise<string[] | undefined> { throw new Error('Method not implemented.'); }
+		pickFile(options: INativeOpenDialogOptions, window?: Electron.BrowserWindow | undefined): Promise<string[] | undefined> { throw new Error('Method not implemented.'); }
+		pickWorkspace(options: INativeOpenDialogOptions, window?: Electron.BrowserWindow | undefined): Promise<string[] | undefined> { throw new Error('Method not implemented.'); }
+		showMessageBox(options: Electron.MessageBoxOptions, window?: Electron.BrowserWindow | undefined): Promise<Electron.MessageBoxReturnValue> { throw new Error('Method not implemented.'); }
+		showSaveDialog(options: Electron.SaveDialogOptions, window?: Electron.BrowserWindow | undefined): Promise<Electron.SaveDialogReturnValue> { throw new Error('Method not implemented.'); }
+		showOpenDialog(options: Electron.OpenDialogOptions, window?: Electron.BrowserWindow | undefined): Promise<Electron.OpenDialogReturnValue> { throw new Error('Method not implemented.'); }
+	}
+
+	class TestBackupMainService implements IBackupMainService {
+
+		declare readonly _serviceBrand: undefined;
+
+		isHotExitEnabled(): boolean { throw new Error('Method not implemented.'); }
+		getWorkspaceBackups(): IWorkspaceBackupInfo[] { throw new Error('Method not implemented.'); }
+		getFolderBackupPaths(): URI[] { throw new Error('Method not implemented.'); }
+		getEmptyWindowBackupPaths(): IEmptyWindowBackupInfo[] { throw new Error('Method not implemented.'); }
+		registerWorkspaceBackupSync(workspace: IWorkspaceBackupInfo, migrateFrom?: string | undefined): string { throw new Error('Method not implemented.'); }
+		registerFolderBackupSync(folderUri: URI): string { throw new Error('Method not implemented.'); }
+		registerEmptyWindowBackupSync(backupFolder?: string | undefined, remoteAuthority?: string | undefined): string { throw new Error('Method not implemented.'); }
+		unregisterWorkspaceBackupSync(workspace: IWorkspaceIdentifier): void { throw new Error('Method not implemented.'); }
+		unregisterFolderBackupSync(folderUri: URI): void { throw new Error('Method not implemented.'); }
+		unregisterEmptyWindowBackupSync(backupFolder: string): void { throw new Error('Method not implemented.'); }
+		async getDirtyWorkspaces(): Promise<(IWorkspaceIdentifier | URI)[]> { return []; }
 	}
 
 	function createUntitledWorkspace(folders: string[], names?: string[]) {
@@ -138,22 +79,33 @@ suite('WorkspacesManagementMainService', () => {
 		return service.createUntitledWorkspaceSync(folders.map((folder, index) => ({ uri: URI.file(folder), name: names ? names[index] : undefined } as IWorkspaceFolderCreationData)));
 	}
 
-	const environmentService = new TestEnvironmentService(parseArgs(process.argv, OPTIONS));
-	const logService = new NullLogService();
-
+	let testDir: string;
+	let untitledWorkspacesHomePath: string;
+	let environmentService: EnvironmentMainService;
 	let service: WorkspacesManagementMainService;
 
 	setup(async () => {
-		service = new WorkspacesManagementMainService(environmentService, logService, new TestBackupMainService(), new TestDialogMainService());
+		testDir = getRandomTestPath(os.tmpdir(), 'vsctests', 'workspacesmanagementmainservice');
+		untitledWorkspacesHomePath = path.join(testDir, 'Workspaces');
 
-		// Delete any existing backups completely and then re-create it.
-		await pfs.rimraf(parentDir);
+		environmentService = new class TestEnvironmentService extends EnvironmentMainService {
+			constructor() {
+				super(parseArgs(process.argv, OPTIONS));
+			}
+			get untitledWorkspacesHome(): URI {
+				return URI.file(untitledWorkspacesHomePath);
+			}
+		};
+
+		service = new WorkspacesManagementMainService(environmentService, new NullLogService(), new TestBackupMainService(), new TestDialogMainService());
 
 		return pfs.mkdirp(untitledWorkspacesHomePath);
 	});
 
 	teardown(() => {
-		return pfs.rimraf(parentDir);
+		service.dispose();
+
+		return pfs.rimraf(testDir);
 	});
 
 	function assertPathEquals(p1: string, p2: string): void {
@@ -454,13 +406,13 @@ suite('WorkspacesManagementMainService', () => {
 		const nonLocalUriId = getSingleFolderWorkspaceIdentifier(nonLocalUri);
 		assert.ok(nonLocalUriId?.id);
 
-		const localNonExistingUri = URI.file(path.join(parentDir, 'f1'));
+		const localNonExistingUri = URI.file(path.join(testDir, 'f1'));
 		const localNonExistingUriId = getSingleFolderWorkspaceIdentifier(localNonExistingUri);
 		assert.ok(!localNonExistingUriId);
 
-		fs.mkdirSync(path.join(parentDir, 'f1'));
+		fs.mkdirSync(path.join(testDir, 'f1'));
 
-		const localExistingUri = URI.file(path.join(parentDir, 'f1'));
+		const localExistingUri = URI.file(path.join(testDir, 'f1'));
 		const localExistingUriId = getSingleFolderWorkspaceIdentifier(localExistingUri);
 		assert.ok(localExistingUriId?.id);
 	});

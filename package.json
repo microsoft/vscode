@@ -1,7 +1,7 @@
 {
   "name": "code-oss-dev",
-  "version": "1.53.0",
-  "distro": "65cbf43543d86e78b90fb749d535c3d3ed9dd3a5",
+  "version": "1.54.0",
+  "distro": "ef4e25f8dccec71b96ee8c6d0a770f1e53bcf84c",
   "author": {
     "name": "Microsoft Corporation"
   },
@@ -46,7 +46,7 @@
     "compile-web": "node --max_old_space_size=4095 ./node_modules/gulp/bin/gulp.js compile-web",
     "watch-web": "node --max_old_space_size=4095 ./node_modules/gulp/bin/gulp.js watch-web",
     "eslint": "node build/eslint",
-    "electron-rebuild": "electron-rebuild --arch=arm64 --force --version=11.2.0",
+    "electron-rebuild": "electron-rebuild --arch=arm64 --force --version=11.2.1",
     "playwright-install": "node build/azure-pipelines/common/installPlaywright.js",
     "compile-build": "node --max_old_space_size=4095 ./node_modules/gulp/bin/gulp.js compile-build",
     "compile-extensions-build": "node --max_old_space_size=4095 ./node_modules/gulp/bin/gulp.js compile-extensions-build",
@@ -62,7 +62,7 @@
   },
   "dependencies": {
     "applicationinsights": "1.0.8",
-    "chokidar": "3.5.0",
+    "chokidar": "3.5.1",
     "graceful-fs": "4.2.3",
     "http-proxy-agent": "^2.1.0",
     "https-proxy-agent": "^2.2.3",
@@ -128,7 +128,7 @@
     "cssnano": "^4.1.10",
     "debounce": "^1.0.0",
     "deemon": "^1.4.0",
-    "electron": "11.2.0",
+    "electron": "11.2.1",
     "electron-rebuild": "2.0.3",
     "eslint": "6.8.0",
     "eslint-plugin-jsdoc": "^19.1.0",
@@ -198,7 +198,7 @@
     "underscore": "^1.8.2",
     "vinyl": "^2.0.0",
     "vinyl-fs": "^3.0.0",
-    "vscode-debugprotocol": "1.43.0",
+    "vscode-debugprotocol": "1.44.0",
     "vscode-nls-dev": "^3.3.1",
     "vscode-telemetry-extractor": "^1.6.0",
     "webpack": "^4.43.0",

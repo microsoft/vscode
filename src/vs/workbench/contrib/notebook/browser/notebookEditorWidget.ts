@@ -62,6 +62,8 @@ import { Webview } from 'vs/workbench/contrib/webview/browser/webview';
 import { IEditorGroupsService } from 'vs/workbench/services/editor/common/editorGroupsService';
 import { configureKernelIcon, errorStateIcon, successStateIcon } from 'vs/workbench/contrib/notebook/browser/notebookIcons';
 import { debugIconStartForeground } from 'vs/workbench/contrib/debug/browser/debugColors';
+import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
+import { extname } from 'vs/base/common/resources';
 
 const $ = DOM.$;
 
@@ -146,6 +148,7 @@ export class NotebookEditorWidget extends Disposable implements INotebookEditor 
 		return this._notebookViewModel?.notebookDocument;
 	}
 
+	private _activeKernelExecuted: boolean = false;
 	private _activeKernel: INotebookKernelInfo2 | undefined = undefined;
 	private readonly _onDidChangeKernel = this._register(new Emitter<void>());
 	readonly onDidChangeKernel: Event<void> = this._onDidChangeKernel.event;
@@ -153,6 +156,7 @@ export class NotebookEditorWidget extends Disposable implements INotebookEditor 
 	readonly onDidChangeAvailableKernels: Event<void> = this._onDidChangeAvailableKernels.event;
 
 	private _contributedKernelsComputePromise: CancelablePromise<INotebookKernelInfo2[]> | null = null;
+	private _initialKernelComputationDone: boolean = false;
 
 	get activeKernel() {
 		return this._activeKernel;
@@ -251,7 +255,8 @@ export class NotebookEditorWidget extends Disposable implements INotebookEditor 
 		@IContextMenuService private readonly contextMenuService: IContextMenuService,
 		@IMenuService private readonly menuService: IMenuService,
 		@IQuickInputService private readonly quickInputService: IQuickInputService,
-		@IThemeService private readonly themeService: IThemeService
+		@IThemeService private readonly themeService: IThemeService,
+		@ITelemetryService private readonly telemetryService: ITelemetryService
 	) {
 		super();
 		this.isEmbedded = creationOptions.isEmbedded || false;
@@ -656,6 +661,24 @@ export class NotebookEditorWidget extends Disposable implements INotebookEditor 
 		if (this.viewModel === undefined || !this.viewModel.equal(textModel)) {
 			this._detachModel();
 			await this._attachModel(textModel, viewState);
+
+			type WorkbenchNotebookOpenClassification = {
+				scheme: { classification: 'SystemMetaData', purpose: 'FeatureInsight'; };
+				ext: { classification: 'SystemMetaData', purpose: 'FeatureInsight'; };
+				viewType: { classification: 'SystemMetaData', purpose: 'FeatureInsight'; };
+			};
+
+			type WorkbenchNotebookOpenEvent = {
+				scheme: string;
+				ext: string;
+				viewType: string;
+			};
+
+			this.telemetryService.publicLog2<WorkbenchNotebookOpenEvent, WorkbenchNotebookOpenClassification>('notebook/editorOpened', {
+				scheme: textModel.uri.scheme,
+				ext: extname(textModel.uri),
+				viewType: textModel.viewType
+			});
 		} else {
 			this.restoreListViewState(viewState);
 		}
@@ -733,6 +756,8 @@ export class NotebookEditorWidget extends Disposable implements INotebookEditor 
 		this._webview?.element.remove();
 		this._webview = null;
 		this._list.clear();
+		this._activeKernel = undefined;
+		this._activeKernelExecuted = false;
 	}
 
 	async beginComputeContributedKernels() {
@@ -745,6 +770,7 @@ export class NotebookEditorWidget extends Disposable implements INotebookEditor 
 		});
 
 		const result = await this._contributedKernelsComputePromise;
+		this._initialKernelComputationDone = true;
 		this._contributedKernelsComputePromise = null;
 
 		return result;
@@ -752,6 +778,11 @@ export class NotebookEditorWidget extends Disposable implements INotebookEditor 
 
 	private async _setKernels(tokenSource: CancellationTokenSource) {
 		if (!this.viewModel) {
+			return;
+		}
+
+		if (this._activeKernel !== undefined && this._activeKernelExecuted) {
+			// kernel already executed, we should not change it automatically
 			return;
 		}
 
@@ -784,6 +815,8 @@ export class NotebookEditorWidget extends Disposable implements INotebookEditor 
 		if (availableKernels.length) {
 			return this._setKernelsFromProviders(provider, availableKernels, tokenSource);
 		}
+
+		this._initialKernelComputationDone = true;
 
 		tokenSource.dispose();
 	}
@@ -1657,11 +1690,24 @@ export class NotebookEditorWidget extends Disposable implements INotebookEditor 
 
 	private async _ensureActiveKernel() {
 		if (this._activeKernel) {
-			if (this._activeKernelResolvePromise) {
-				await this._activeKernelResolvePromise;
-			}
-
 			return;
+		}
+
+		if (this._activeKernelResolvePromise) {
+			await this._activeKernelResolvePromise;
+
+			if (this._activeKernel) {
+				return;
+			}
+		}
+
+
+		if (!this._initialKernelComputationDone) {
+			await this._setKernels(new CancellationTokenSource());
+
+			if (this._activeKernel) {
+				return;
+			}
 		}
 
 		// pick active kernel
@@ -1669,8 +1715,6 @@ export class NotebookEditorWidget extends Disposable implements INotebookEditor 
 		const picker = this.quickInputService.createQuickPick<(IQuickPickItem & { run(): void; kernelProviderId?: string })>();
 		picker.placeholder = nls.localize('notebook.runCell.selectKernel', "Select a notebook kernel to run this notebook");
 		picker.matchOnDetail = true;
-		picker.busy = true;
-		picker.show();
 
 		const tokenSource = new CancellationTokenSource();
 		const availableKernels = await this.beginComputeContributedKernels();
@@ -1766,6 +1810,7 @@ export class NotebookEditorWidget extends Disposable implements INotebookEditor 
 		}
 
 		await this._ensureActiveKernel();
+		this._activeKernelExecuted = true;
 		await this._activeKernel?.executeNotebookCell!(this.viewModel.uri, undefined);
 	}
 
@@ -1806,6 +1851,7 @@ export class NotebookEditorWidget extends Disposable implements INotebookEditor 
 		}
 
 		await this._ensureActiveKernel();
+		this._activeKernelExecuted = true;
 		await this._activeKernel?.executeNotebookCell!(this.viewModel.uri, cell.handle);
 	}
 
@@ -2102,6 +2148,12 @@ export const focusedCellBorder = registerColor('notebook.focusedCellBorder', {
 	hc: focusBorder
 }, nls.localize('notebook.focusedCellBorder', "The color of the cell's top and bottom border when the cell is focused."));
 
+export const inactiveFocusedCellBorder = registerColor('notebook.inactiveFocusedCellBorder', {
+	dark: notebookCellBorder,
+	light: notebookCellBorder,
+	hc: notebookCellBorder
+}, nls.localize('notebook.inactiveFocusedCellBorder', "The color of the cell's top and bottom border when a cell is focused while the primary focus is outside of the editor."));
+
 export const cellStatusBarItemHover = registerColor('notebook.cellStatusBarItemHoverBackground', {
 	light: new Color(new RGBA(0, 0, 0, 0.08)),
 	dark: new Color(new RGBA(255, 255, 255, 0.15)),
@@ -2113,7 +2165,6 @@ export const cellInsertionIndicator = registerColor('notebook.cellInsertionIndic
 	dark: focusBorder,
 	hc: focusBorder
 }, nls.localize('notebook.cellInsertionIndicator', "The color of the notebook cell insertion indicator."));
-
 
 export const listScrollbarSliderBackground = registerColor('notebookScrollbarSlider.background', {
 	dark: scrollbarSliderBackground,
@@ -2233,6 +2284,15 @@ registerThemingParticipant((theme, collector) => {
 				border-color: ${focusedCellBorderColor} !important;
 			}`);
 
+	const inactiveFocusedBorderColor = theme.getColor(inactiveFocusedCellBorder);
+	collector.addRule(`
+			.monaco-workbench .notebookOverlay .monaco-list .monaco-list-row.focused .cell-focus-indicator-top:before,
+			.monaco-workbench .notebookOverlay .monaco-list .monaco-list-row.focused .cell-focus-indicator-bottom:before,
+			.monaco-workbench .notebookOverlay .monaco-list .markdown-cell-row.focused .cell-inner-container:not(.cell-editor-focus):before,
+			.monaco-workbench .notebookOverlay .monaco-list .markdown-cell-row.focused .cell-inner-container:not(.cell-editor-focus):after {
+				border-color: ${inactiveFocusedBorderColor} !important;
+			}`);
+
 	const selectedCellBorderColor = theme.getColor(selectedCellBorder);
 	collector.addRule(`
 			.monaco-workbench .notebookOverlay .monaco-list:focus-within .monaco-list-row.focused .cell-editor-focus .cell-focus-indicator-top:before,
@@ -2291,12 +2351,14 @@ registerThemingParticipant((theme, collector) => {
 	if (scrollbarSliderBackgroundColor) {
 		collector.addRule(` .notebookOverlay .cell-list-container > .monaco-list > .monaco-scrollable-element > .scrollbar > .slider { background: ${editorBackgroundColor}; } `);
 		collector.addRule(` .notebookOverlay .cell-list-container > .monaco-list > .monaco-scrollable-element > .scrollbar > .slider:before { content: ""; width: 100%; height: 100%; position: absolute; background: ${scrollbarSliderBackgroundColor}; } `); /* hack to not have cells see through scroller */
+		// collector.addRule(` .monaco-workbench .notebookOverlay .output-plaintext::-webkit-scrollbar-track { background: ${scrollbarSliderBackgroundColor}; } `);
 	}
 
 	const scrollbarSliderHoverBackgroundColor = theme.getColor(listScrollbarSliderHoverBackground);
 	if (scrollbarSliderHoverBackgroundColor) {
 		collector.addRule(` .notebookOverlay .cell-list-container > .monaco-list > .monaco-scrollable-element > .scrollbar > .slider:hover { background: ${editorBackgroundColor}; } `);
 		collector.addRule(` .notebookOverlay .cell-list-container > .monaco-list > .monaco-scrollable-element > .scrollbar > .slider:hover:before { content: ""; width: 100%; height: 100%; position: absolute; background: ${scrollbarSliderHoverBackgroundColor}; } `); /* hack to not have cells see through scroller */
+		collector.addRule(` .monaco-workbench .notebookOverlay .output-plaintext::-webkit-scrollbar-thumb { background: ${scrollbarSliderHoverBackgroundColor}; } `);
 	}
 
 	const scrollbarSliderActiveBackgroundColor = theme.getColor(listScrollbarSliderActiveBackground);

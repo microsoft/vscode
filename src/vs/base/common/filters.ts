@@ -370,24 +370,23 @@ export function anyScore(pattern: string, lowPattern: string, _patternPos: numbe
 	if (result) {
 		return result;
 	}
-	let matches = 0;
+	let matches: number[] = [];
 	let score = 0;
 	let idx = _wordPos;
 	for (let patternPos = 0; patternPos < lowPattern.length && patternPos < _maxLen; ++patternPos) {
 		const wordPos = lowWord.indexOf(lowPattern.charAt(patternPos), idx);
 		if (wordPos >= 0) {
 			score += 1;
-			matches += 2 ** wordPos;
+			matches.unshift(wordPos);
 			idx = wordPos + 1;
-
-		} else if (matches !== 0) {
+		} else if (matches.length > 0) {
 			// once we have started matching things
 			// we need to match the remaining pattern
 			// characters
 			break;
 		}
 	}
-	return [score, _wordPos, matches];
+	return [score, _wordPos, ...matches];
 }
 
 //#region --- fuzzyScore ---
@@ -536,9 +535,9 @@ const enum Arrow { Diag = 1, Left = 2, LeftLeft = 3 }
  *
  * 0. the score
  * 1. the offset at which matching started
- * 2. `<match_pos_1>`
- * 3. `<match_pos_2>`
- * 4. `<match_pos_3>` etc
+ * 2. `<match_pos_N>`
+ * 3. `<match_pos_1>`
+ * 4. `<match_pos_0>` etc
  */
 export type FuzzyScore = [score: number, wordStart: number, ...matches: number[]];// [number, number, number];
 

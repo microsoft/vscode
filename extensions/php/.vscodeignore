@@ -1,0 +1,7 @@
+test/**
+build/**
+out/test/**
+src/**
+tsconfig.json
+cgmanifest.json
+.vscode

@@ -36,28 +36,35 @@ export class SuggestWidgetStatus {
 
 	readonly element: HTMLElement;
 
-	private readonly _disposables = new DisposableStore();
+	private readonly _leftActions: ActionBar;
+	private readonly _rightActions: ActionBar;
+	private readonly _menuDisposables = new DisposableStore();
 
 	constructor(
 		container: HTMLElement,
 		@IInstantiationService instantiationService: IInstantiationService,
-		@IMenuService menuService: IMenuService,
-		@IContextKeyService contextKeyService: IContextKeyService,
+		@IMenuService private _menuService: IMenuService,
+		@IContextKeyService private _contextKeyService: IContextKeyService,
 	) {
 		this.element = dom.append(container, dom.$('.suggest-status-bar'));
 
 		const actionViewItemProvider = <IActionViewItemProvider>(action => {
-			return action instanceof MenuItemAction
-				? instantiationService.createInstance(StatusBarViewItem, action)
-				: undefined;
+			return action instanceof MenuItemAction ? instantiationService.createInstance(StatusBarViewItem, action) : undefined;
 		});
-		const leftActions = new ActionBar(this.element, { actionViewItemProvider });
-		const rightActions = new ActionBar(this.element, { actionViewItemProvider });
-		const menu = menuService.createMenu(suggestWidgetStatusbarMenu, contextKeyService);
+		this._leftActions = new ActionBar(this.element, { actionViewItemProvider });
+		this._rightActions = new ActionBar(this.element, { actionViewItemProvider });
 
-		leftActions.domNode.classList.add('left');
-		rightActions.domNode.classList.add('right');
+		this._leftActions.domNode.classList.add('left');
+		this._rightActions.domNode.classList.add('right');
+	}
 
+	dispose(): void {
+		this._menuDisposables.dispose();
+		this.element.remove();
+	}
+
+	show(): void {
+		const menu = this._menuService.createMenu(suggestWidgetStatusbarMenu, this._contextKeyService);
 		const renderMenu = () => {
 			const left: IAction[] = [];
 			const right: IAction[] = [];
@@ -68,17 +75,16 @@ export class SuggestWidgetStatus {
 					right.push(...actions);
 				}
 			}
-			leftActions.clear();
-			leftActions.push(left);
-			rightActions.clear();
-			rightActions.push(right);
+			this._leftActions.clear();
+			this._leftActions.push(left);
+			this._rightActions.clear();
+			this._rightActions.push(right);
 		};
-		this._disposables.add(menu.onDidChange(() => renderMenu()));
-		this._disposables.add(menu);
+		this._menuDisposables.add(menu.onDidChange(() => renderMenu()));
+		this._menuDisposables.add(menu);
 	}
 
-	dispose(): void {
-		this._disposables.dispose();
-		this.element.remove();
+	hide(): void {
+		this._menuDisposables.clear();
 	}
 }

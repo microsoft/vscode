@@ -926,6 +926,7 @@ export class WindowsMainService extends Disposable implements IWindowsMainServic
 				if (forceOpenWorkspaceAsFile) {
 					return { fileUri: uri, remoteAuthority };
 				}
+				return { workspace: getWorkspaceIdentifier(uri), remoteAuthority };
 			}
 
 			// file name starts with a dot or has an file extension

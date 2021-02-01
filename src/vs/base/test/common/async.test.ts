@@ -807,4 +807,187 @@ suite('Async', () => {
 			assert.strictEqual(deferred.isRejected, true);
 		});
 	});
+
+	suite('Promises.allSettled', () => {
+		test('resolves', async () => {
+			const p1 = Promise.resolve(1);
+			const p2 = async.timeout(1).then(() => 2);
+			const p3 = async.timeout(2).then(() => 3);
+
+			const result = await async.Promises.allSettled<number>([p1, p2, p3]);
+
+			assert.strictEqual(result.length, 3);
+			assert.deepStrictEqual(result[0], { status: 'fulfilled', value: 1 });
+			assert.deepStrictEqual(result[1], { status: 'fulfilled', value: 2 });
+			assert.deepStrictEqual(result[2], { status: 'fulfilled', value: 3 });
+		});
+
+		test('resolves in order', async () => {
+			const p1 = async.timeout(2).then(() => 1);
+			const p2 = async.timeout(1).then(() => 2);
+			const p3 = Promise.resolve(3);
+
+			const result = await async.Promises.allSettled<number>([p1, p2, p3]);
+
+			assert.strictEqual(result.length, 3);
+			assert.deepStrictEqual(result[0], { status: 'fulfilled', value: 1 });
+			assert.deepStrictEqual(result[1], { status: 'fulfilled', value: 2 });
+			assert.deepStrictEqual(result[2], { status: 'fulfilled', value: 3 });
+		});
+
+		test('rejects', async () => {
+			const p1 = Promise.reject(1);
+
+			const p2Error = new Error('2');
+			const p2 = async.timeout(1).then(() => { throw p2Error; });
+
+			const p3Error = new Error('3');
+			const p3 = async.timeout(2).then(() => { throw p3Error; });
+
+			const result = await async.Promises.allSettled<number>([p1, p2, p3]);
+
+			assert.strictEqual(result.length, 3);
+			assert.deepStrictEqual(result[0], { status: 'rejected', reason: 1 });
+			assert.deepStrictEqual(result[1], { status: 'rejected', reason: p2Error });
+			assert.deepStrictEqual(result[2], { status: 'rejected', reason: p3Error });
+		});
+
+		test('rejects in order', async () => {
+			const p1Error = new Error('1');
+			const p1 = async.timeout(2).then(() => { throw p1Error; });
+
+			const p2Error = new Error('2');
+			const p2 = async.timeout(1).then(() => { throw p2Error; });
+
+			const p3 = Promise.reject(3);
+
+			const result = await async.Promises.allSettled<number>([p1, p2, p3]);
+
+			assert.strictEqual(result.length, 3);
+			assert.deepStrictEqual(result[0], { status: 'rejected', reason: p1Error });
+			assert.deepStrictEqual(result[1], { status: 'rejected', reason: p2Error });
+			assert.deepStrictEqual(result[2], { status: 'rejected', reason: 3 });
+		});
+
+		test('resolves & rejects', async () => {
+			const p1 = Promise.resolve(1);
+			const p2Error = new Error('2');
+			const p2 = async.timeout(1).then(() => { throw p2Error; });
+			const p3 = async.timeout(2).then(() => 3);
+
+			const result = await async.Promises.allSettled<number>([p1, p2, p3]);
+
+			assert.strictEqual(result.length, 3);
+			assert.deepStrictEqual(result[0], { status: 'fulfilled', value: 1 });
+			assert.deepStrictEqual(result[1], { status: 'rejected', reason: p2Error });
+			assert.deepStrictEqual(result[2], { status: 'fulfilled', value: 3 });
+		});
+
+		test('resolves & rejects in order', async () => {
+			const p1Error = new Error('2');
+			const p1 = async.timeout(1).then(() => { throw p1Error; });
+			const p2 = async.timeout(2).then(() => 2);
+			const p3 = Promise.resolve(3);
+
+			const result = await async.Promises.allSettled<number>([p1, p2, p3]);
+
+			assert.strictEqual(result.length, 3);
+			assert.deepStrictEqual(result[0], { status: 'rejected', reason: p1Error });
+			assert.deepStrictEqual(result[1], { status: 'fulfilled', value: 2 });
+			assert.deepStrictEqual(result[2], { status: 'fulfilled', value: 3 });
+		});
+
+		test('can empty', async () => {
+			const result = await async.Promises.allSettled<number>([]);
+
+			assert.strictEqual(result.length, 0);
+		});
+	});
+
+	suite('Promises.settled', () => {
+		test('resolves', async () => {
+			const p1 = Promise.resolve(1);
+			const p2 = async.timeout(1).then(() => 2);
+			const p3 = async.timeout(2).then(() => 3);
+
+			const result = await async.Promises.settled<number>([p1, p2, p3]);
+
+			assert.strictEqual(result.length, 3);
+			assert.deepStrictEqual(result[0], 1);
+			assert.deepStrictEqual(result[1], 2);
+			assert.deepStrictEqual(result[2], 3);
+		});
+
+		test('resolves in order', async () => {
+			const p1 = async.timeout(2).then(() => 1);
+			const p2 = async.timeout(1).then(() => 2);
+			const p3 = Promise.resolve(3);
+
+			const result = await async.Promises.settled<number>([p1, p2, p3]);
+
+			assert.strictEqual(result.length, 3);
+			assert.deepStrictEqual(result[0], 1);
+			assert.deepStrictEqual(result[1], 2);
+			assert.deepStrictEqual(result[2], 3);
+		});
+
+		test('rejects with first error but handles all promises (all errors)', async () => {
+			const p1 = Promise.reject(1);
+
+			let p2Handled = false;
+			const p2Error = new Error('2');
+			const p2 = async.timeout(1).then(() => {
+				p2Handled = true;
+				throw p2Error;
+			});
+
+			let p3Handled = false;
+			const p3Error = new Error('3');
+			const p3 = async.timeout(2).then(() => {
+				p3Handled = true;
+				throw p3Error;
+			});
+
+			let error: Error | undefined = undefined;
+			try {
+				await async.Promises.settled<number>([p1, p2, p3]);
+			} catch (e) {
+				error = e;
+			}
+
+			assert.ok(error);
+			assert.notStrictEqual(error, p2Error);
+			assert.notStrictEqual(error, p3Error);
+			assert.ok(p2Handled);
+			assert.ok(p3Handled);
+		});
+
+		test('rejects with first error but handles all promises (1 error)', async () => {
+			const p1 = Promise.resolve(1);
+
+			let p2Handled = false;
+			const p2Error = new Error('2');
+			const p2 = async.timeout(1).then(() => {
+				p2Handled = true;
+				throw p2Error;
+			});
+
+			let p3Handled = false;
+			const p3 = async.timeout(2).then(() => {
+				p3Handled = true;
+				return 3;
+			});
+
+			let error: Error | undefined = undefined;
+			try {
+				await async.Promises.settled<number>([p1, p2, p3]);
+			} catch (e) {
+				error = e;
+			}
+
+			assert.strictEqual(error, p2Error);
+			assert.ok(p2Handled);
+			assert.ok(p3Handled);
+		});
+	});
 });

@@ -23,6 +23,8 @@ export enum PropertyFoldingState {
 	Collapsed
 }
 
+export const OUTPUT_EDITOR_HEIGHT_MAGIC = 1440;
+
 type ILayoutInfoDelta0 = { [K in keyof IDiffElementLayoutInfo]?: number; };
 interface ILayoutInfoDelta extends ILayoutInfoDelta0 {
 	rawOutputHeight?: number;
@@ -39,7 +41,7 @@ export abstract class DiffElementViewModelBase extends Disposable {
 	protected _layoutInfo!: IDiffElementLayoutInfo;
 
 	set rawOutputHeight(height: number) {
-		this._layout({ rawOutputHeight: height });
+		this._layout({ rawOutputHeight: Math.min(OUTPUT_EDITOR_HEIGHT_MAGIC, height) });
 	}
 
 	get rawOutputHeight() {
@@ -99,7 +101,7 @@ export abstract class DiffElementViewModelBase extends Disposable {
 	private _metadataEditorViewState: editorCommon.ICodeEditorViewState | editorCommon.IDiffEditorViewState | null = null;
 
 	constructor(
-		readonly documentTextModel: NotebookTextModel,
+		readonly mainDocumentTextModel: NotebookTextModel,
 		readonly original: DiffNestedCellViewModel | undefined,
 		readonly modified: DiffNestedCellViewModel | undefined,
 		readonly type: 'unchanged' | 'insert' | 'delete' | 'modified',
@@ -270,15 +272,24 @@ export abstract class DiffElementViewModelBase extends Disposable {
 }
 
 export class SideBySideDiffElementViewModel extends DiffElementViewModelBase {
+	get originalDocument() {
+		return this.otherDocumentTextModel;
+	}
+
+	get modifiedDocument() {
+		return this.mainDocumentTextModel;
+	}
+
 	constructor(
-		readonly documentTextModel: NotebookTextModel,
+		readonly mainDocumentTextModel: NotebookTextModel,
+		readonly otherDocumentTextModel: NotebookTextModel,
 		readonly original: DiffNestedCellViewModel,
 		readonly modified: DiffNestedCellViewModel,
 		readonly type: 'unchanged' | 'modified',
 		readonly editorEventDispatcher: NotebookDiffEditorEventDispatcher
 	) {
 		super(
-			documentTextModel,
+			mainDocumentTextModel,
 			original,
 			modified,
 			type,
@@ -305,11 +316,11 @@ export class SideBySideDiffElementViewModel extends DiffElementViewModelBase {
 	}
 
 	checkIfOutputsModified() {
-		return !this.documentTextModel.transientOptions.transientOutputs && hash(this.original?.outputs ?? []) !== hash(this.modified?.outputs ?? []);
+		return !this.mainDocumentTextModel.transientOptions.transientOutputs && hash(this.original?.outputs ?? []) !== hash(this.modified?.outputs ?? []);
 	}
 
 	checkMetadataIfModified(): boolean {
-		return hash(getFormatedMetadataJSON(this.documentTextModel, this.original?.metadata || {}, this.original?.language)) !== hash(getFormatedMetadataJSON(this.documentTextModel, this.modified?.metadata ?? {}, this.modified?.language));
+		return hash(getFormatedMetadataJSON(this.mainDocumentTextModel, this.original?.metadata || {}, this.original?.language)) !== hash(getFormatedMetadataJSON(this.mainDocumentTextModel, this.modified?.metadata ?? {}, this.modified?.language));
 	}
 
 	updateOutputHeight(diffSide: DiffSide, index: number, height: number) {
@@ -341,7 +352,7 @@ export class SideBySideDiffElementViewModel extends DiffElementViewModelBase {
 	}
 
 	isOutputEmpty() {
-		if (this.documentTextModel.transientOptions.transientOutputs) {
+		if (this.mainDocumentTextModel.transientOptions.transientOutputs) {
 			return true;
 		}
 
@@ -376,14 +387,31 @@ export class SingleSideDiffElementViewModel extends DiffElementViewModelBase {
 		return this.type === 'insert' ? this.modified! : this.original!;
 	}
 
+	get originalDocument() {
+		if (this.type === 'insert') {
+			return this.otherDocumentTextModel;
+		} else {
+			return this.mainDocumentTextModel;
+		}
+	}
+
+	get modifiedDocument() {
+		if (this.type === 'insert') {
+			return this.mainDocumentTextModel;
+		} else {
+			return this.otherDocumentTextModel;
+		}
+	}
+
 	constructor(
-		readonly documentTextModel: NotebookTextModel,
+		readonly mainDocumentTextModel: NotebookTextModel,
+		readonly otherDocumentTextModel: NotebookTextModel,
 		readonly original: DiffNestedCellViewModel | undefined,
 		readonly modified: DiffNestedCellViewModel | undefined,
 		readonly type: 'insert' | 'delete',
 		readonly editorEventDispatcher: NotebookDiffEditorEventDispatcher
 	) {
-		super(documentTextModel, original, modified, type, editorEventDispatcher);
+		super(mainDocumentTextModel, original, modified, type, editorEventDispatcher);
 		this._register(this.cellViewModel!.onDidChangeOutputLayout(() => {
 			this._layout({ recomputeOutput: true });
 		}));
@@ -423,7 +451,7 @@ export class SingleSideDiffElementViewModel extends DiffElementViewModelBase {
 	}
 
 	isOutputEmpty() {
-		if (this.documentTextModel.transientOptions.transientOutputs) {
+		if (this.mainDocumentTextModel.transientOptions.transientOutputs) {
 			return true;
 		}
 

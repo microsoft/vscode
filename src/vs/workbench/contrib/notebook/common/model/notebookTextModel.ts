@@ -275,7 +275,7 @@ export class NotebookTextModel extends Disposable implements INotebookTextModel 
 
 		const mainCells = cells.map(cell => {
 			const cellHandle = this._cellhandlePool++;
-			const cellUri = CellUri.generate(this.uri, this.viewType, cellHandle);
+			const cellUri = CellUri.generate(this.uri, cellHandle);
 			return new NotebookCellTextModel(cellUri, cellHandle, cell.source, cell.language, cell.cellKind, cell.outputs || [], cell.metadata, this.transientOptions, this._modelService);
 		});
 
@@ -425,7 +425,7 @@ export class NotebookTextModel extends Disposable implements INotebookTextModel 
 		// prepare add
 		const cells = cellDtos.map(cellDto => {
 			const cellHandle = this._cellhandlePool++;
-			const cellUri = CellUri.generate(this.uri, this.viewType, cellHandle);
+			const cellUri = CellUri.generate(this.uri, cellHandle);
 			const cell = new NotebookCellTextModel(
 				cellUri, cellHandle,
 				cellDto.source, cellDto.language, cellDto.cellKind, cellDto.outputs || [], cellDto.metadata, this.transientOptions,
@@ -624,7 +624,10 @@ export class NotebookTextModel extends Disposable implements INotebookTextModel 
 						if (!cell) {
 							return;
 						}
-						this._changeCellMetadata(cell.handle, newMetadata, false);
+						this._changeCellMetadata(cell.handle, {
+							...newMetadata,
+							runState: cell.metadata.runState
+						}, false);
 					}
 				}), undefined, undefined);
 			}

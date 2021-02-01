@@ -434,25 +434,15 @@ interface IPerformanceMark {
 interface IWorkbench {
 
 	commands: {
-
 		/**
-		 * Allows to execute a command, either built-in or from extensions.
+		 * @see [executeCommand](#commands.executeCommand)
 		 */
 		executeCommand(command: string, ...args: any[]): Promise<unknown>;
 	}
 
 	env: {
-
 		/**
-		 * Retrieve performance marks that have been collected during startup. This function
-		 * returns tuples of source and marks. A source is a dedicated context, like
-		 * the renderer or an extension host.
-		 *
-		 * *Note* that marks can be collected on different machines and in different processes
-		 * and that therefore "different clocks" are used. So, comparing `startTime`-properties
-		 * across contexts should be taken with a grain of salt.
-		 *
-		 * @returns A promise that resolves to tuples of source and marks.
+		 * @see [retrievePerformanceMarks](#commands.retrievePerformanceMarks)
 		 */
 		retrievePerformanceMarks(): Promise<[string, readonly IPerformanceMark[]][]>;
 	}
@@ -533,6 +523,26 @@ namespace commands {
 		const workbench = await workbenchPromise;
 
 		return workbench.commands.executeCommand(command, ...args);
+	}
+}
+
+namespace env {
+
+	/**
+	 * Retrieve performance marks that have been collected during startup. This function
+	 * returns tuples of source and marks. A source is a dedicated context, like
+	 * the renderer or an extension host.
+	 *
+	 * *Note* that marks can be collected on different machines and in different processes
+	 * and that therefore "different clocks" are used. So, comparing `startTime`-properties
+	 * across contexts should be taken with a grain of salt.
+	 *
+	 * @returns A promise that resolves to tuples of source and marks.
+	 */
+	export async function retrievePerformanceMarks(): Promise<[string, readonly IPerformanceMark[]][]> {
+		const workbench = await workbenchPromise;
+
+		return workbench.env.retrievePerformanceMarks();
 	}
 }
 
@@ -620,7 +630,8 @@ export {
 	IDefaultLayout,
 
 	// Env
-	IPerformanceMark
+	IPerformanceMark,
+	env
 };
 
 //#endregion

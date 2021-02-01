@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { homedir } from 'os';
-import { existsSync, statSync, unlinkSync, chmodSync, truncateSync, readFileSync } from 'fs';
+import { constants, existsSync, statSync, unlinkSync, chmodSync, truncateSync, readFileSync } from 'fs';
 import { spawn, ChildProcess, SpawnOptions } from 'child_process';
 import { buildHelpMessage, buildVersionMessage, OPTIONS } from 'vs/platform/environment/node/argv';
 import { NativeParsedArgs } from 'vs/platform/environment/common/argv';
@@ -84,8 +84,8 @@ export async function main(argv: string[]): Promise<any> {
 			let restoreMode = false;
 			if (!!args['file-chmod']) {
 				targetMode = statSync(target).mode;
-				if (!(targetMode & 128) /* readonly */) {
-					chmodSync(target, targetMode | 128);
+				if (!(targetMode & constants.S_IWUSR)) {
+					chmodSync(target, targetMode | constants.S_IWUSR);
 					restoreMode = true;
 				}
 			}

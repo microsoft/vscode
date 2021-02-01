@@ -928,6 +928,11 @@ export class DebugService implements IDebugService {
 		await this.sendDataBreakpoints();
 	}
 
+	setExceptionBreakpoints(data: DebugProtocol.ExceptionBreakpointsFilter[]): void {
+		this.model.setExceptionBreakpoints(data);
+		this.debugStorage.storeBreakpoints(this.model);
+	}
+
 	async setExceptionBreakpointCondition(exceptionBreakpoint: IExceptionBreakpoint, condition: string | undefined): Promise<void> {
 		this.model.setExceptionBreakpointCondition(exceptionBreakpoint, condition);
 		this.debugStorage.storeBreakpoints(this.model);
