@@ -1322,6 +1322,12 @@ declare module 'vscode' {
 		// todo@API should not be undefined, rather a default
 		readonly selection?: NotebookCell;
 
+		// @rebornix
+		// todo@API should replace selection
+		// never empty!
+		// primary/secondary selections
+		// readonly selections: NotebookCellRange[];
+
 		/**
 		 * The current visible ranges in the editor (vertically).
 		 */
@@ -1330,12 +1336,15 @@ declare module 'vscode' {
 		/**
 		 * The column in which this editor shows.
 		 */
+		// @jrieken
 		// todo@API maybe never undefined because notebooks always show in the editor area (unlike text editors)
+		// maybe for notebook diff editor
 		readonly viewColumn?: ViewColumn;
 
 		/**
 		 * Fired when the panel is disposed.
 		 */
+		// @rebornix REMOVE/REplace NotebookCommunication
 		// todo@API fishy? notebooks are public objects, there should be a "global" events for this
 		readonly onDidDispose: Event<void>;
 
@@ -1343,11 +1352,13 @@ declare module 'vscode' {
 		 * Active kernel used in the editor
 		 */
 		// todo@API unsure about that
+		// kernel, kernel selection, kernel provider
 		readonly kernel?: NotebookKernel;
 
 		/**
 		 * Fired when the output hosting webview posts a message.
 		 */
+		// @rebornix REMOVE
 		// todo@API notebook editors are public -> ANY extension can listen to these event
 		readonly onDidReceiveMessage: Event<any>;
 		/**
@@ -1357,12 +1368,14 @@ declare module 'vscode' {
 		 *
 		 * @param message Body of the message. This must be a string or other json serializable object.
 		 */
+		// @rebornix REMOVE
 		// todo@API notebook editors are public -> ANY extension can send messages
 		postMessage(message: any): Thenable<boolean>;
 
 		/**
 		 * Convert a uri for the local file system to one that can be used inside outputs webview.
 		 */
+		// @rebornix REMOVE
 		// todo@API unsure about that, how do you this when executing a cell without having an editor
 		asWebviewUri(localResource: Uri): Uri;
 
@@ -1376,6 +1389,7 @@ declare module 'vscode' {
 		 * @param callback A function which can create edits using an [edit-builder](#NotebookEditorEdit).
 		 * @return A promise that resolves with a value indicating if the edits could be applied.
 		 */
+		// @jrieken REMOVE maybe
 		edit(callback: (editBuilder: NotebookEditorEdit) => void): Thenable<boolean>;
 
 		setDecorations(decorationType: NotebookEditorDecorationType, range: NotebookCellRange): void;
@@ -1480,6 +1494,7 @@ declare module 'vscode' {
 		readonly document: NotebookDocument;
 	}
 
+	// @rebornix p2, remove
 	// todo@API is this still needed? With transient metadata have we everything covered?
 	interface NotebookDocumentEditEvent {
 
@@ -1569,11 +1584,17 @@ declare module 'vscode' {
 		 * Convert a uri for the local file system to one that can be used inside outputs webview.
 		 */
 		asWebviewUri(localResource: Uri): Uri;
+
+		// @rebornix
+		// readonly onDidDispose: Event<void>;
 	}
 
 	export interface NotebookContentProvider {
 		readonly options?: NotebookDocumentContentOptions;
 		readonly onDidChangeNotebookContentOptions?: Event<NotebookDocumentContentOptions>;
+
+		// @rebornix
+		// todo@API should be removed
 		readonly onDidChangeNotebook: Event<NotebookDocumentContentChangeEvent | NotebookDocumentEditEvent>;
 
 		/**
@@ -1591,6 +1612,10 @@ declare module 'vscode' {
 		saveNotebookAs(targetResource: Uri, document: NotebookDocument, cancellation: CancellationToken): Thenable<void>;
 		// eslint-disable-next-line vscode-dts-provider-naming
 		backupNotebook(document: NotebookDocument, context: NotebookDocumentBackupContext, cancellation: CancellationToken): Thenable<NotebookDocumentBackup>;
+
+
+		// provideKernels(document: NotebookDocument, token: CancellationToken): ProviderResult<T[]>;
+
 	}
 
 	export interface NotebookKernel {
@@ -1600,8 +1625,10 @@ declare module 'vscode' {
 		detail?: string;
 		isPreferred?: boolean;
 		preloads?: Uri[];
-		// todo@API change to `executeCells(document: NotebookDocument, cell: NotebookCell[]): void;`
+		// @roblourens
+		// todo@API change to `executeCells(document: NotebookDocument, cells: NotebookCellRange[], context:{isWholeNotebooke: boolean}, token: CancelationToken): void;`
 		// todo@API interrupt vs cancellation, https://github.com/microsoft/vscode/issues/106741
+		// interrupt?():void;
 		executeCell(document: NotebookDocument, cell: NotebookCell): void;
 		cancelCellExecution(document: NotebookDocument, cell: NotebookCell): void;
 		executeAllCells(document: NotebookDocument): void;
@@ -1623,6 +1650,8 @@ declare module 'vscode' {
 		provideKernels(document: NotebookDocument, token: CancellationToken): ProviderResult<T[]>;
 		resolveKernel?(kernel: T, document: NotebookDocument, webview: NotebookCommunication, token: CancellationToken): ProviderResult<void>;
 	}
+
+	// export function registerNotebookKernel(selector: string, kernel: NotebookKernel): Disposable;
 
 	/**
 	 * Represents the alignment of status bar items.
@@ -1719,6 +1748,7 @@ declare module 'vscode' {
 		 * @param notebook
 		 * @param selector
 		 */
+		// @jrieken REMOVE. p_never
 		// todo@API really needed? we didn't find a user here
 		export function createConcatTextDocument(notebook: NotebookDocument, selector?: DocumentSelector): NotebookConcatTextDocument;
 
@@ -1733,6 +1763,7 @@ declare module 'vscode' {
 		 * @param priority The priority of the item. Higher values mean the item should be shown more to the left.
 		 * @return A new status bar item.
 		 */
+		// @roblourens
 		// todo@API this should be a provider, https://github.com/microsoft/vscode/issues/105809
 		export function createCellStatusBarItem(cell: NotebookCell, alignment?: NotebookCellStatusBarAlignment, priority?: number): NotebookCellStatusBarItem;
 	}
