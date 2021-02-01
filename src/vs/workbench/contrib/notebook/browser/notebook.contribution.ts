@@ -24,7 +24,7 @@ import { LifecyclePhase } from 'vs/workbench/services/lifecycle/common/lifecycle
 import { Registry } from 'vs/platform/registry/common/platform';
 import { EditorDescriptor, Extensions as EditorExtensions, IEditorRegistry } from 'vs/workbench/browser/editor';
 import { Extensions as WorkbenchExtensions, IWorkbenchContribution, IWorkbenchContributionsRegistry } from 'vs/workbench/common/contributions';
-import { EditorInput, Extensions as EditorInputExtensions, IEditorInput, IEditorInputFactory, IEditorInputFactoryRegistry } from 'vs/workbench/common/editor';
+import { EditorInput, Extensions as EditorInputExtensions, ICustomEditorInputFactory, IEditorInput, IEditorInputFactory, IEditorInputFactoryRegistry } from 'vs/workbench/common/editor';
 import { IBackupFileService } from 'vs/workbench/services/backup/common/backup';
 import { NotebookEditor } from 'vs/workbench/contrib/notebook/browser/notebookEditor';
 import { NotebookEditorInput } from 'vs/workbench/contrib/notebook/browser/notebookEditorInput';
@@ -166,30 +166,6 @@ class NotebookEditorFactory implements IEditorInputFactory {
 		const input = NotebookEditorInput.create(instantiationService, resource, name, viewType);
 		return input;
 	}
-
-	static async createCustomEditorInput(resource: URI, instantiationService: IInstantiationService): Promise<NotebookEditorInput> {
-		return instantiationService.invokeFunction(async accessor => {
-			const backupFileService = accessor.get<IBackupFileService>(IBackupFileService);
-
-			const backup = await backupFileService.resolve<NotebookDocumentBackupData>(resource);
-			if (!backup?.meta) {
-				throw new Error(`No backup found for Notebook editor: ${resource}`);
-			}
-
-			const input = NotebookEditorInput.create(instantiationService, resource, backup.meta.name, backup.meta.viewType, { startDirty: true });
-			return input;
-		});
-	}
-
-	static canResolveBackup(editorInput: IEditorInput, backupResource: URI): boolean {
-		if (editorInput instanceof NotebookEditorInput) {
-			if (isEqual(editorInput.resource.with({ scheme: Schemas.vscodeNotebook }), backupResource)) {
-				return true;
-			}
-		}
-
-		return false;
-	}
 }
 
 Registry.as<IEditorInputFactoryRegistry>(EditorInputExtensions.EditorInputFactories).registerEditorInputFactory(
@@ -199,7 +175,31 @@ Registry.as<IEditorInputFactoryRegistry>(EditorInputExtensions.EditorInputFactor
 
 Registry.as<IEditorInputFactoryRegistry>(EditorInputExtensions.EditorInputFactories).registerCustomEditorInputFactory(
 	Schemas.vscodeNotebook,
-	NotebookEditorFactory
+	new class implements ICustomEditorInputFactory {
+		async createCustomEditorInput(resource: URI, instantiationService: IInstantiationService): Promise<NotebookEditorInput> {
+			return instantiationService.invokeFunction(async accessor => {
+				const backupFileService = accessor.get<IBackupFileService>(IBackupFileService);
+
+				const backup = await backupFileService.resolve<NotebookDocumentBackupData>(resource);
+				if (!backup?.meta) {
+					throw new Error(`No backup found for Notebook editor: ${resource}`);
+				}
+
+				const input = NotebookEditorInput.create(instantiationService, resource, backup.meta.name, backup.meta.viewType, { startDirty: true });
+				return input;
+			});
+		}
+
+		canResolveBackup(editorInput: IEditorInput, backupResource: URI): boolean {
+			if (editorInput instanceof NotebookEditorInput) {
+				if (isEqual(editorInput.resource.with({ scheme: Schemas.vscodeNotebook }), backupResource)) {
+					return true;
+				}
+			}
+
+			return false;
+		}
+	}
 );
 
 Registry.as<IEditorInputFactoryRegistry>(EditorInputExtensions.EditorInputFactories).registerEditorInputFactory(
