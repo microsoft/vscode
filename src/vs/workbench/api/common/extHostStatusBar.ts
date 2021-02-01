@@ -14,14 +14,9 @@ import { DisposableStore } from 'vs/base/common/lifecycle';
 export class ExtHostStatusBarEntry implements vscode.StatusBarItem {
 	private static ID_GEN = 0;
 
-	private static ALLOWED_BACKGROUND_COLORS = (() => {
-		const map = new Map<string, ThemeColor>();
-
-		// https://github.com/microsoft/vscode/issues/110214
-		map.set('statusBarItem.errorBackground', new ThemeColor('statusBarItem.errorForeground'));
-
-		return map;
-	})();
+	private static ALLOWED_BACKGROUND_COLORS = new Map<string, ThemeColor>(
+		[['statusBarItem.errorBackground', new ThemeColor('statusBarItem.errorForeground')]]
+	);
 
 	private _id: number;
 	private _alignment: number;
