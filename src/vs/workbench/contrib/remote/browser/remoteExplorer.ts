@@ -68,7 +68,7 @@ export class ForwardedPortsView extends Disposable implements IWorkbenchContribu
 		if (await this.usePanelTreatment()) {
 			return Registry.as<IViewContainersRegistry>(Extensions.ViewContainersRegistry).registerViewContainer({
 				id: TunnelPanel.ID,
-				name: nls.localize('ports', "Ports"),
+				title: { value: nls.localize('ports', "Ports"), original: 'Ports' },
 				icon: portsViewIcon,
 				ctorDescriptor: new SyncDescriptor(ViewPaneContainer, [TunnelPanel.ID, { mergeViewWithContainerWhenSingleView: true, donotShowContainerTitleWhenMergedWithContainer: true }]),
 				storageId: TunnelPanel.ID,

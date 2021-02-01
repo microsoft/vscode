@@ -31,7 +31,7 @@ import { Registry } from 'vs/platform/registry/common/platform';
 import { IWorkspaceContextService } from 'vs/platform/workspace/common/workspace';
 import { ViewPaneContainer } from 'vs/workbench/browser/parts/views/viewPaneContainer';
 import { defaultQuickAccessContextKeyValue } from 'vs/workbench/browser/quickaccess';
-import { CATEGORIES, Extensions as ActionExtensions, IWorkbenchActionRegistry } from 'vs/workbench/common/actions';
+import { Extensions as ActionExtensions, IWorkbenchActionRegistry } from 'vs/workbench/common/actions';
 import { Extensions as WorkbenchExtensions, IWorkbenchContribution, IWorkbenchContributionsRegistry } from 'vs/workbench/common/contributions';
 import { Extensions as ViewExtensions, IViewContainersRegistry, IViewDescriptorService, IViewsRegistry, IViewsService, ViewContainerLocation } from 'vs/workbench/common/views';
 import { GotoSymbolQuickAccessProvider } from 'vs/workbench/contrib/codeEditor/browser/quickaccess/gotoSymbolQuickAccess';
@@ -40,7 +40,7 @@ import { getMultiSelectedResources, IExplorerService } from 'vs/workbench/contri
 import { ExplorerFolderContext, ExplorerRootContext, FilesExplorerFocusCondition, VIEWLET_ID as VIEWLET_ID_FILES } from 'vs/workbench/contrib/files/common/files';
 import { AnythingQuickAccessProvider } from 'vs/workbench/contrib/search/browser/anythingQuickAccess';
 import { registerContributions as replaceContributions } from 'vs/workbench/contrib/search/browser/replaceContributions';
-import { cancelSearch, clearHistoryCommand, clearSearchResults, CloseReplaceAction, collapseDeepestExpandedLevel, copyAllCommand, copyMatchCommand, copyPathCommand, expandAll, FindInFilesCommand, FocusNextInputAction, FocusNextSearchResultAction, FocusPreviousInputAction, FocusPreviousSearchResultAction, focusSearchListCommand, getSearchView, openSearchView, OpenSearchViewletAction, refreshSearch, RemoveAction, ReplaceAction, ReplaceAllAction, ReplaceAllInFolderAction, ReplaceInFilesAction, toggleCaseSensitiveCommand, togglePreserveCaseCommand, toggleRegexCommand, ToggleSearchOnTypeAction, toggleWholeWordCommand } from 'vs/workbench/contrib/search/browser/searchActions';
+import { cancelSearch, clearHistoryCommand, clearSearchResults, CloseReplaceAction, collapseDeepestExpandedLevel, copyAllCommand, copyMatchCommand, copyPathCommand, expandAll, FindInFilesCommand, FocusNextInputAction, FocusNextSearchResultAction, FocusPreviousInputAction, FocusPreviousSearchResultAction, focusSearchListCommand, getSearchView, openSearchView, refreshSearch, RemoveAction, ReplaceAction, ReplaceAllAction, ReplaceAllInFolderAction, ReplaceInFilesAction, toggleCaseSensitiveCommand, togglePreserveCaseCommand, toggleRegexCommand, ToggleSearchOnTypeAction, toggleWholeWordCommand } from 'vs/workbench/contrib/search/browser/searchActions';
 import { searchClearIcon, searchCollapseAllIcon, searchExpandAllIcon, searchRefreshIcon, searchStopIcon, searchViewIcon } from 'vs/workbench/contrib/search/browser/searchIcons';
 import { SearchView } from 'vs/workbench/contrib/search/browser/searchView';
 import { registerContributions as searchWidgetContributions } from 'vs/workbench/contrib/search/browser/searchWidget';
@@ -614,13 +614,23 @@ class ShowAllSymbolsAction extends Action {
 	}
 }
 
+const SEARCH_MODE_CONFIG = 'search.mode';
+
 const viewContainer = Registry.as<IViewContainersRegistry>(ViewExtensions.ViewContainersRegistry).registerViewContainer({
 	id: VIEWLET_ID,
-	name: nls.localize('name', "Search"),
+	title: {
+		value: nls.localize('name', "Search"), original: 'Search',
+		mnemonic: nls.localize({ key: 'miViewSearch', comment: ['&& denotes a mnemonic'] }, "&&Search")
+	},
+	keybindings: {
+		primary: KeyMod.CtrlCmd | KeyMod.Shift | KeyCode.KEY_F,
+		// View: Show Search is used for the keybindings in the View menu and the sidebar #115556, but it should only be enabled when search.mode == view, or else it will steal priority over opening a search editor #115511
+		when: ContextKeyAndExpr.create([Constants.SearchViewVisibleKey.toNegated(), ContextKeyEqualsExpr.create(`config.${SEARCH_MODE_CONFIG}`, 'view')]),
+	},
 	ctorDescriptor: new SyncDescriptor(ViewPaneContainer, [VIEWLET_ID, { mergeViewWithContainerWhenSingleView: true, donotShowContainerTitleWhenMergedWithContainer: true }]),
 	hideIfEmpty: true,
 	icon: searchViewIcon,
-	order: 1
+	order: 1,
 }, ViewContainerLocation.Sidebar);
 
 const viewDescriptor = { id: VIEW_ID, containerIcon: searchViewIcon, name: nls.localize('search', "Search"), ctorDescriptor: new SyncDescriptor(SearchView), canToggleVisibility: false, canMoveView: true };
@@ -666,15 +676,6 @@ Registry.as<IWorkbenchContributionsRegistry>(WorkbenchExtensions.Workbench).regi
 
 // Actions
 const registry = Registry.as<IWorkbenchActionRegistry>(ActionExtensions.WorkbenchActions);
-
-// View: Show Search is used for the keybindings in the View menu and the sidebar #115556, but it should only be enabbled when search.mode == view, or else it will steal priority over opening a search editor #115511
-const SEARCH_MODE_CONFIG = 'search.mode';
-registry.registerWorkbenchAction(
-	SyncActionDescriptor.from(
-		OpenSearchViewletAction,
-		{ primary: KeyMod.CtrlCmd | KeyMod.Shift | KeyCode.KEY_F },
-		ContextKeyAndExpr.create([Constants.SearchViewVisibleKey.toNegated(), ContextKeyEqualsExpr.create(`config.${SEARCH_MODE_CONFIG}`, 'view')])),
-	'View: Show Search', CATEGORIES.View.value);
 
 // Find in Files by default is the same as View: Show Search, but can be configured to open a search editor instead with the `search.mode` binding
 KeybindingsRegistry.registerCommandAndKeybindingRule({
@@ -1018,17 +1019,6 @@ CommandsRegistry.registerCommand('_executeWorkspaceSymbolProvider', function (ac
 	const [query] = args;
 	assertType(typeof query === 'string');
 	return getWorkspaceSymbols(query);
-});
-
-// View menu
-
-MenuRegistry.appendMenuItem(MenuId.MenubarViewMenu, {
-	group: '3_views',
-	command: {
-		id: VIEWLET_ID,
-		title: nls.localize({ key: 'miViewSearch', comment: ['&& denotes a mnemonic'] }, "&&Search")
-	},
-	order: 2
 });
 
 // Go to menu
