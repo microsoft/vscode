@@ -123,6 +123,7 @@ import { TextFileEditor } from 'vs/workbench/contrib/files/browser/editors/textF
 import { ResourceEditorInput } from 'vs/workbench/common/editor/resourceEditorInput';
 import { UntitledTextEditorInput } from 'vs/workbench/services/untitled/common/untitledTextEditorInput';
 import { SideBySideEditor } from 'vs/workbench/browser/parts/editor/sideBySideEditor';
+import { IEnterWorkspaceResult, IRecent, IRecentlyOpened, IWorkspaceFolderCreationData, IWorkspaceIdentifier, IWorkspacesService } from 'vs/platform/workspaces/common/workspaces';
 
 export function createFileEditorInput(instantiationService: IInstantiationService, resource: URI): FileEditorInput {
 	return instantiationService.createInstance(FileEditorInput, resource, undefined, undefined, undefined, undefined, undefined);
@@ -221,6 +222,7 @@ export function workbenchInstantiationService(
 	instantiationService.stub(IViewletService, new TestViewletService());
 	instantiationService.stub(IListService, new TestListService());
 	instantiationService.stub(IQuickInputService, disposables.add(new QuickInputService(configService, instantiationService, keybindingService, contextKeyService, themeService, accessibilityService, layoutService)));
+	instantiationService.stub(IWorkspacesService, new TestWorkspacesService());
 
 	return instantiationService;
 }
@@ -409,7 +411,7 @@ export class TestHistoryService implements IHistoryService {
 	forward(): void { }
 	back(): void { }
 	last(): void { }
-	remove(_input: IEditorInput | IResourceEditorInput): void { }
+	removeFromHistory(_input: IEditorInput | IResourceEditorInput): void { }
 	clear(): void { }
 	clearRecentlyOpened(): void { }
 	getHistory(): ReadonlyArray<IEditorInput | IResourceEditorInput> { return []; }
@@ -1416,4 +1418,20 @@ export class TestTextFileEditorModelManager extends TextFileEditorModelManager {
 	remove(resource: URI): void {
 		return super.remove(resource);
 	}
+}
+
+export class TestWorkspacesService implements IWorkspacesService {
+	_serviceBrand: undefined;
+
+	onRecentlyOpenedChange = Event.None;
+
+	async createUntitledWorkspace(folders?: IWorkspaceFolderCreationData[], remoteAuthority?: string): Promise<IWorkspaceIdentifier> { throw new Error('Method not implemented.'); }
+	async deleteUntitledWorkspace(workspace: IWorkspaceIdentifier): Promise<void> { }
+	async addRecentlyOpened(recents: IRecent[]): Promise<void> { }
+	async removeRecentlyOpened(workspaces: URI[]): Promise<void> { }
+	async clearRecentlyOpened(): Promise<void> { }
+	async getRecentlyOpened(): Promise<IRecentlyOpened> { return { files: [], workspaces: [] }; }
+	async getDirtyWorkspaces(): Promise<(URI | IWorkspaceIdentifier)[]> { return []; }
+	async enterWorkspace(path: URI): Promise<IEnterWorkspaceResult | null> { throw new Error('Method not implemented.'); }
+	async getWorkspaceIdentifier(workspacePath: URI): Promise<IWorkspaceIdentifier> { throw new Error('Method not implemented.'); }
 }
