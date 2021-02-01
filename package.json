@@ -1,6 +1,6 @@
 {
   "name": "code-oss-dev",
-  "version": "1.53.0",
+  "version": "1.54.0",
   "distro": "ef4e25f8dccec71b96ee8c6d0a770f1e53bcf84c",
   "author": {
     "name": "Microsoft Corporation"
@@ -62,7 +62,7 @@
   },
   "dependencies": {
     "applicationinsights": "1.0.8",
-    "chokidar": "3.5.0",
+    "chokidar": "3.5.1",
     "graceful-fs": "4.2.3",
     "http-proxy-agent": "^2.1.0",
     "https-proxy-agent": "^2.2.3",

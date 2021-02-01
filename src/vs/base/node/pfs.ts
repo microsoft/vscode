@@ -6,7 +6,7 @@
 import * as fs from 'fs';
 import { tmpdir } from 'os';
 import { join } from 'vs/base/common/path';
-import { Queue } from 'vs/base/common/async';
+import { Promises, Queue } from 'vs/base/common/async';
 import { isMacintosh, isWindows } from 'vs/base/common/platform';
 import { Event } from 'vs/base/common/event';
 import { promisify } from 'util';
@@ -63,7 +63,7 @@ async function rimrafUnlink(path: string): Promise<void> {
 
 			// Children
 			const children = await readdir(path);
-			await Promise.all(children.map(child => rimrafUnlink(join(path, child))));
+			await Promises.settled(children.map(child => rimrafUnlink(join(path, child))));
 
 			// Folder
 			await promisify(fs.rmdir)(path);

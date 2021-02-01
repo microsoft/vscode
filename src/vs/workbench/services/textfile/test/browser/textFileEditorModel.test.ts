@@ -17,13 +17,13 @@ import { ModesRegistry } from 'vs/editor/common/modes/modesRegistry';
 import { assertIsDefined } from 'vs/base/common/types';
 import { createTextBufferFactory } from 'vs/editor/common/model/textModel';
 
-function getLastModifiedTime(model: TextFileEditorModel): number {
-	const stat = model.getStat();
-
-	return stat ? stat.mtime : -1;
-}
-
 suite('Files - TextFileEditorModel', () => {
+
+	function getLastModifiedTime(model: TextFileEditorModel): number {
+		const stat = model.getStat();
+
+		return stat ? stat.mtime : -1;
+	}
 
 	let instantiationService: IInstantiationService;
 	let accessor: TestServiceAccessor;

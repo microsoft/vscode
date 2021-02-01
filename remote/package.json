@@ -4,7 +4,7 @@
   "private": true,
   "dependencies": {
     "applicationinsights": "1.0.8",
-    "chokidar": "3.5.0",
+    "chokidar": "3.5.1",
     "cookie": "^0.4.0",
     "graceful-fs": "4.2.3",
     "http-proxy-agent": "^2.1.0",

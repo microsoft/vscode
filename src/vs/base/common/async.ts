@@ -4,9 +4,10 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { CancellationToken, CancellationTokenSource } from 'vs/base/common/cancellation';
-import * as errors from 'vs/base/common/errors';
-import { Emitter, Event } from 'vs/base/common/event';
+import { canceled, onUnexpectedError } from 'vs/base/common/errors';
+import { Emitter, Event, Listener } from 'vs/base/common/event';
 import { IDisposable, toDisposable } from 'vs/base/common/lifecycle';
+import { LinkedList } from 'vs/base/common/linkedList';
 import { URI } from 'vs/base/common/uri';
 
 export function isThenable<T>(obj: any): obj is Promise<T> {
@@ -23,7 +24,7 @@ export function createCancelablePromise<T>(callback: (token: CancellationToken) 
 	const thenable = callback(source.token);
 	const promise = new Promise<T>((resolve, reject) => {
 		source.token.onCancellationRequested(() => {
-			reject(errors.canceled());
+			reject(canceled());
 		});
 		Promise.resolve(thenable).then(value => {
 			source.dispose();
@@ -282,7 +283,7 @@ export class Delayer<T> implements IDisposable {
 
 		if (this.completionPromise) {
 			if (this.doReject) {
-				this.doReject(errors.canceled());
+				this.doReject(canceled());
 			}
 			this.completionPromise = null;
 		}
@@ -377,7 +378,7 @@ export function timeout(millis: number, token?: CancellationToken): CancelablePr
 		const handle = setTimeout(resolve, millis);
 		token.onCancellationRequested(() => {
 			clearTimeout(handle);
-			reject(errors.canceled());
+			reject(canceled());
 		});
 	});
 }
@@ -1014,6 +1015,8 @@ export class IntervalCounter {
 
 //#endregion
 
+//#region
+
 export type ValueCallback<T = any> = (value: T | Promise<T>) => void;
 
 /**
@@ -1065,9 +1068,152 @@ export class DeferredPromise<T> {
 
 	public cancel() {
 		new Promise<void>(resolve => {
-			this.errorCallback(errors.canceled());
+			this.errorCallback(canceled());
 			this.rejected = true;
 			resolve();
 		});
 	}
 }
+
+//#endregion
+
+//#region
+
+export interface IWaitUntil {
+	waitUntil(thenable: Promise<any>): void;
+}
+
+export class AsyncEmitter<T extends IWaitUntil> extends Emitter<T> {
+
+	private _asyncDeliveryQueue?: LinkedList<[Listener<T>, Omit<T, 'waitUntil'>]>;
+
+	async fireAsync(data: Omit<T, 'waitUntil'>, token: CancellationToken, promiseJoin?: (p: Promise<any>, listener: Function) => Promise<any>): Promise<void> {
+		if (!this._listeners) {
+			return;
+		}
+
+		if (!this._asyncDeliveryQueue) {
+			this._asyncDeliveryQueue = new LinkedList();
+		}
+
+		for (const listener of this._listeners) {
+			this._asyncDeliveryQueue.push([listener, data]);
+		}
+
+		while (this._asyncDeliveryQueue.size > 0 && !token.isCancellationRequested) {
+
+			const [listener, data] = this._asyncDeliveryQueue.shift()!;
+			const thenables: Promise<any>[] = [];
+
+			const event = <T>{
+				...data,
+				waitUntil: (p: Promise<any>): void => {
+					if (Object.isFrozen(thenables)) {
+						throw new Error('waitUntil can NOT be called asynchronous');
+					}
+					if (promiseJoin) {
+						p = promiseJoin(p, typeof listener === 'function' ? listener : listener[0]);
+					}
+					thenables.push(p);
+				}
+			};
+
+			try {
+				if (typeof listener === 'function') {
+					listener.call(undefined, event);
+				} else {
+					listener[0].call(listener[1], event);
+				}
+			} catch (e) {
+				onUnexpectedError(e);
+				continue;
+			}
+
+			// freeze thenables-collection to enforce sync-calls to
+			// wait until and then wait for all thenables to resolve
+			Object.freeze(thenables);
+			await Promises.settled(thenables).catch(e => onUnexpectedError(e));
+		}
+	}
+}
+
+//#endregion
+
+//#region Promises
+
+export namespace Promises {
+
+	export interface IResolvedPromise<T> {
+		status: 'fulfilled';
+		value: T;
+	}
+
+	export interface IRejectedPromise {
+		status: 'rejected';
+		reason: Error;
+	}
+
+	/**
+	 * Interface of https://developer.mozilla.org/en-US/docs/Web/JavaScript/Reference/Global_Objects/Promise/allSettled
+	 */
+	interface PromiseWithAllSettled<T> {
+		allSettled<T>(promises: Promise<T>[]): Promise<ReadonlyArray<IResolvedPromise<T> | IRejectedPromise>>;
+	}
+
+	/**
+	 * A polyfill of `Promise.allSettled`: returns after all promises have
+	 * resolved or rejected and provides access to each result or error
+	 * in the order of the original passed in promises array.
+	 * See: https://developer.mozilla.org/en-US/docs/Web/JavaScript/Reference/Global_Objects/Promise/allSettled
+	 */
+	export async function allSettled<T>(promises: Promise<T>[]): Promise<ReadonlyArray<IResolvedPromise<T> | IRejectedPromise>> {
+		if (typeof (Promise as unknown as PromiseWithAllSettled<T>).allSettled === 'function') {
+			return allSettledNative(promises); // in some environments we can benefit from native implementation
+		}
+
+		return allSettledShim(promises);
+	}
+
+	async function allSettledNative<T>(promises: Promise<T>[]): Promise<ReadonlyArray<IResolvedPromise<T> | IRejectedPromise>> {
+		return (Promise as unknown as PromiseWithAllSettled<T>).allSettled(promises);
+	}
+
+	async function allSettledShim<T>(promises: Promise<T>[]): Promise<ReadonlyArray<IResolvedPromise<T> | IRejectedPromise>> {
+		return Promise.all(promises.map(promise => (promise.then(value => {
+			const fulfilled: IResolvedPromise<T> = { status: 'fulfilled', value };
+
+			return fulfilled;
+		}, error => {
+			const rejected: IRejectedPromise = { status: 'rejected', reason: error };
+
+			return rejected;
+		}))));
+	}
+
+	/**
+	 * A drop-in replacement for `Promise.all` with the only difference
+	 * that the method awaits every promise to either fulfill or reject.
+	 *
+	 * Similar to `Promise.all`, only the first error will be returned
+	 * if any.
+	 */
+	export async function settled<T>(promises: Promise<T>[]): Promise<T[]> {
+		let firstError: Error | undefined = undefined;
+
+		const result = await Promise.all(promises.map(promise => promise.then(value => value, error => {
+			if (!firstError) {
+				firstError = error;
+			}
+
+			return undefined; // do not rethrow so that other promises can settle
+		})));
+
+		if (firstError) {
+			throw firstError;
+		}
+
+		return result as unknown as T[]; // cast is needed and protected by the `throw` above
+	}
+}
+
+//#endregion
