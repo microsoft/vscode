@@ -517,10 +517,6 @@ class LinewrapPrediction extends NewlinePrediction implements IPrediction {
 		return ' \r';
 	}
 
-	public rollback(cursor: Cursor) {
-		return this.prevPosition ? cursor.moveTo(this.prevPosition) : '';
-	}
-
 	public matches(input: StringReader) {
 		// bash and zshell add a space which wraps in the terminal, then a CR
 		const r = input.eatGradually(' \r');
