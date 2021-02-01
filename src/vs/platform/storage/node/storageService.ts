@@ -14,7 +14,7 @@ import { copy, exists, mkdirp, writeFile } from 'vs/base/node/pfs';
 import { IEnvironmentService } from 'vs/platform/environment/common/environment';
 import { isSingleFolderWorkspaceIdentifier, isWorkspaceIdentifier, IWorkspaceInitializationPayload } from 'vs/platform/workspaces/common/workspaces';
 import { assertIsDefined } from 'vs/base/common/types';
-import { RunOnceScheduler, runWhenIdle } from 'vs/base/common/async';
+import { Promises, RunOnceScheduler, runWhenIdle } from 'vs/base/common/async';
 
 export class NativeStorageService extends AbstractStorageService {
 
@@ -59,7 +59,7 @@ export class NativeStorageService extends AbstractStorageService {
 	private async doInitialize(payload?: IWorkspaceInitializationPayload): Promise<void> {
 
 		// Init all storage locations
-		await Promise.all([
+		await Promises.settled([
 			this.initializeGlobalStorage(),
 			payload ? this.initializeWorkspaceStorage(payload) : Promise.resolve()
 		]);
@@ -209,7 +209,7 @@ export class NativeStorageService extends AbstractStorageService {
 			promises.push(this.workspaceStorage.whenFlushed());
 		}
 
-		await Promise.all(promises);
+		await Promises.settled(promises);
 	}
 
 	private doFlushWhenIdle(): void {
@@ -239,7 +239,7 @@ export class NativeStorageService extends AbstractStorageService {
 		this.emitWillSaveState(WillSaveStateReason.SHUTDOWN);
 
 		// Do it
-		await Promise.all([
+		await Promises.settled([
 			this.globalStorage.close(),
 			this.workspaceStorage ? this.workspaceStorage.close() : Promise.resolve()
 		]);

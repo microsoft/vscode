@@ -445,10 +445,7 @@ export class ModesContentHoverWidget extends Widget implements IContentWidget, I
 	}
 
 	public isColorPickerVisible(): boolean {
-		if (this._colorPicker) {
-			return true;
-		}
-		return false;
+		return !!this._colorPicker;
 	}
 
 	public onContentsChanged(): void {

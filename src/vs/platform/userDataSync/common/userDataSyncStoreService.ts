@@ -3,7 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { Disposable, } from 'vs/base/common/lifecycle';
+import { Disposable, toDisposable, } from 'vs/base/common/lifecycle';
 import { IUserData, IUserDataSyncStoreService, UserDataSyncErrorCode, IUserDataSyncStore, ServerResource, UserDataSyncStoreError, IUserDataSyncLogService, IUserDataManifest, IResourceRefHandle, HEADER_OPERATION_ID, HEADER_EXECUTION_ID, CONFIGURATION_SYNC_STORE_KEY, IAuthenticationProvider, IUserDataSyncStoreManagementService, UserDataSyncStoreType, IUserDataSyncStoreClient } from 'vs/platform/userDataSync/common/userDataSync';
 import { IRequestService, asText, isSuccess as isSuccessContext, asJson } from 'vs/platform/request/common/request';
 import { joinPath, relativePath } from 'vs/base/common/resources';
@@ -180,6 +180,12 @@ export class UserDataSyncStoreClient extends Disposable implements IUserDataSync
 		/* A requests session that limits requests per sessions */
 		this.session = new RequestsSession(REQUEST_SESSION_LIMIT, REQUEST_SESSION_INTERVAL, this.requestService, this.logService);
 		this.initDonotMakeRequestsUntil();
+		this._register(toDisposable(() => {
+			if (this.resetDonotMakeRequestsUntilPromise) {
+				this.resetDonotMakeRequestsUntilPromise.cancel();
+				this.resetDonotMakeRequestsUntilPromise = undefined;
+			}
+		}));
 	}
 
 	setAuthToken(token: string, type: string): void {
@@ -210,6 +216,7 @@ export class UserDataSyncStoreClient extends Disposable implements IUserDataSync
 			if (this._donotMakeRequestsUntil) {
 				this.storageService.store(DONOT_MAKE_REQUESTS_UNTIL_KEY, this._donotMakeRequestsUntil.getTime(), StorageScope.GLOBAL, StorageTarget.MACHINE);
 				this.resetDonotMakeRequestsUntilPromise = createCancelablePromise(token => timeout(this._donotMakeRequestsUntil!.getTime() - Date.now(), token).then(() => this.setDonotMakeRequestsUntil(undefined)));
+				this.resetDonotMakeRequestsUntilPromise.then(null, e => null /* ignore error */);
 			} else {
 				this.storageService.remove(DONOT_MAKE_REQUESTS_UNTIL_KEY, StorageScope.GLOBAL);
 			}

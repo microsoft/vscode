@@ -20,218 +20,217 @@ import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
 import { NullTelemetryService } from 'vs/platform/telemetry/common/telemetryUtils';
 import { DiffEditorInput } from 'vs/workbench/common/editor/diffEditorInput';
 import { IStorageService } from 'vs/platform/storage/common/storage';
-import { IDisposable, dispose } from 'vs/base/common/lifecycle';
+import { DisposableStore } from 'vs/base/common/lifecycle';
 import { TestContextService, TestStorageService } from 'vs/workbench/test/common/workbenchTestServices';
-
-function inst(): IInstantiationService {
-	let inst = new TestInstantiationService();
-	inst.stub(IStorageService, new TestStorageService());
-	inst.stub(ILifecycleService, new TestLifecycleService());
-	inst.stub(IWorkspaceContextService, new TestContextService());
-	inst.stub(ITelemetryService, NullTelemetryService);
-
-	const config = new TestConfigurationService();
-	config.setUserConfiguration('workbench', { editor: { openPositioning: 'right', focusRecentEditorAfterClose: true } });
-	inst.stub(IConfigurationService, config);
-
-	return inst;
-}
-
-function createGroup(serialized?: ISerializedEditorGroup): EditorGroup {
-	return inst().createInstance(EditorGroup, serialized);
-}
-
-function closeAllEditors(group: EditorGroup): void {
-	for (const editor of group.getEditors(EditorsOrder.SEQUENTIAL)) {
-		group.closeEditor(editor, false);
-	}
-}
-
-function closeEditors(group: EditorGroup, except: EditorInput, direction?: CloseDirection): void {
-	const index = group.indexOf(except);
-	if (index === -1) {
-		return; // not found
-	}
-
-	// Close to the left
-	if (direction === CloseDirection.LEFT) {
-		for (let i = index - 1; i >= 0; i--) {
-			group.closeEditor(group.getEditorByIndex(i)!);
-		}
-	}
-
-	// Close to the right
-	else if (direction === CloseDirection.RIGHT) {
-		for (let i = group.getEditors(EditorsOrder.SEQUENTIAL).length - 1; i > index; i--) {
-			group.closeEditor(group.getEditorByIndex(i)!);
-		}
-	}
-
-	// Both directions
-	else {
-		group.getEditors(EditorsOrder.MOST_RECENTLY_ACTIVE).filter(editor => !editor.matches(except)).forEach(editor => group.closeEditor(editor));
-	}
-}
-
-interface GroupEvents {
-	opened: EditorInput[];
-	activated: EditorInput[];
-	closed: EditorCloseEvent[];
-	pinned: EditorInput[];
-	unpinned: EditorInput[];
-	sticky: EditorInput[];
-	unsticky: EditorInput[];
-	moved: EditorInput[];
-	disposed: EditorInput[];
-}
-
-function groupListener(group: EditorGroup): GroupEvents {
-	const groupEvents: GroupEvents = {
-		opened: [],
-		closed: [],
-		activated: [],
-		pinned: [],
-		unpinned: [],
-		sticky: [],
-		unsticky: [],
-		moved: [],
-		disposed: []
-	};
-
-	group.onDidOpenEditor(e => groupEvents.opened.push(e));
-	group.onDidCloseEditor(e => groupEvents.closed.push(e));
-	group.onDidActivateEditor(e => groupEvents.activated.push(e));
-	group.onDidChangeEditorPinned(e => group.isPinned(e) ? groupEvents.pinned.push(e) : groupEvents.unpinned.push(e));
-	group.onDidChangeEditorSticky(e => group.isSticky(e) ? groupEvents.sticky.push(e) : groupEvents.unsticky.push(e));
-	group.onDidMoveEditor(e => groupEvents.moved.push(e));
-	group.onDidDisposeEditor(e => groupEvents.disposed.push(e));
-
-	return groupEvents;
-}
-
-let index = 0;
-class TestEditorInput extends EditorInput {
-
-	readonly resource = undefined;
-
-	constructor(public id: string) {
-		super();
-	}
-	getTypeId() { return 'testEditorInputForGroups'; }
-	resolve(): Promise<IEditorModel> { return Promise.resolve(null!); }
-
-	matches(other: TestEditorInput): boolean {
-		return other && this.id === other.id && other instanceof TestEditorInput;
-	}
-
-	setDirty(): void {
-		this._onDidChangeDirty.fire();
-	}
-
-	setLabel(): void {
-		this._onDidChangeLabel.fire();
-	}
-}
-
-class NonSerializableTestEditorInput extends EditorInput {
-
-	readonly resource = undefined;
-
-	constructor(public id: string) {
-		super();
-	}
-	getTypeId() { return 'testEditorInputForGroups-nonSerializable'; }
-	resolve(): Promise<IEditorModel> { return Promise.resolve(null!); }
-
-	matches(other: NonSerializableTestEditorInput): boolean {
-		return other && this.id === other.id && other instanceof NonSerializableTestEditorInput;
-	}
-}
-
-class TestFileEditorInput extends EditorInput implements IFileEditorInput {
-
-	readonly preferredResource = this.resource;
-
-	constructor(public id: string, public resource: URI) {
-		super();
-	}
-	getTypeId() { return 'testFileEditorInputForGroups'; }
-	resolve(): Promise<IEditorModel> { return Promise.resolve(null!); }
-	setPreferredName(name: string): void { }
-	setPreferredDescription(description: string): void { }
-	setPreferredResource(resource: URI): void { }
-	setEncoding(encoding: string) { }
-	getEncoding() { return undefined; }
-	setPreferredEncoding(encoding: string) { }
-	setForceOpenAsBinary(): void { }
-	setMode(mode: string) { }
-	setPreferredMode(mode: string) { }
-	isResolved(): boolean { return false; }
-
-	matches(other: TestFileEditorInput): boolean {
-		return other && this.id === other.id && other instanceof TestFileEditorInput;
-	}
-}
-
-function input(id = String(index++), nonSerializable?: boolean, resource?: URI): EditorInput {
-	if (resource) {
-		return new TestFileEditorInput(id, resource);
-	}
-
-	return nonSerializable ? new NonSerializableTestEditorInput(id) : new TestEditorInput(id);
-}
-
-interface ISerializedTestInput {
-	id: string;
-}
-
-class TestEditorInputFactory implements IEditorInputFactory {
-
-	static disableSerialize = false;
-	static disableDeserialize = false;
-
-	canSerialize(editorInput: EditorInput): boolean {
-		return true;
-	}
-
-	serialize(editorInput: EditorInput): string | undefined {
-		if (TestEditorInputFactory.disableSerialize) {
-			return undefined;
-		}
-
-		let testEditorInput = <TestEditorInput>editorInput;
-		let testInput: ISerializedTestInput = {
-			id: testEditorInput.id
-		};
-
-		return JSON.stringify(testInput);
-	}
-
-	deserialize(instantiationService: IInstantiationService, serializedEditorInput: string): EditorInput | undefined {
-		if (TestEditorInputFactory.disableDeserialize) {
-			return undefined;
-		}
-
-		let testInput: ISerializedTestInput = JSON.parse(serializedEditorInput);
-
-		return new TestEditorInput(testInput.id);
-	}
-}
 
 suite('Workbench editor groups', () => {
 
-	let disposables: IDisposable[] = [];
+	function inst(): IInstantiationService {
+		let inst = new TestInstantiationService();
+		inst.stub(IStorageService, new TestStorageService());
+		inst.stub(ILifecycleService, new TestLifecycleService());
+		inst.stub(IWorkspaceContextService, new TestContextService());
+		inst.stub(ITelemetryService, NullTelemetryService);
+
+		const config = new TestConfigurationService();
+		config.setUserConfiguration('workbench', { editor: { openPositioning: 'right', focusRecentEditorAfterClose: true } });
+		inst.stub(IConfigurationService, config);
+
+		return inst;
+	}
+
+	function createGroup(serialized?: ISerializedEditorGroup): EditorGroup {
+		return inst().createInstance(EditorGroup, serialized);
+	}
+
+	function closeAllEditors(group: EditorGroup): void {
+		for (const editor of group.getEditors(EditorsOrder.SEQUENTIAL)) {
+			group.closeEditor(editor, false);
+		}
+	}
+
+	function closeEditors(group: EditorGroup, except: EditorInput, direction?: CloseDirection): void {
+		const index = group.indexOf(except);
+		if (index === -1) {
+			return; // not found
+		}
+
+		// Close to the left
+		if (direction === CloseDirection.LEFT) {
+			for (let i = index - 1; i >= 0; i--) {
+				group.closeEditor(group.getEditorByIndex(i)!);
+			}
+		}
+
+		// Close to the right
+		else if (direction === CloseDirection.RIGHT) {
+			for (let i = group.getEditors(EditorsOrder.SEQUENTIAL).length - 1; i > index; i--) {
+				group.closeEditor(group.getEditorByIndex(i)!);
+			}
+		}
+
+		// Both directions
+		else {
+			group.getEditors(EditorsOrder.MOST_RECENTLY_ACTIVE).filter(editor => !editor.matches(except)).forEach(editor => group.closeEditor(editor));
+		}
+	}
+
+	interface GroupEvents {
+		opened: EditorInput[];
+		activated: EditorInput[];
+		closed: EditorCloseEvent[];
+		pinned: EditorInput[];
+		unpinned: EditorInput[];
+		sticky: EditorInput[];
+		unsticky: EditorInput[];
+		moved: EditorInput[];
+		disposed: EditorInput[];
+	}
+
+	function groupListener(group: EditorGroup): GroupEvents {
+		const groupEvents: GroupEvents = {
+			opened: [],
+			closed: [],
+			activated: [],
+			pinned: [],
+			unpinned: [],
+			sticky: [],
+			unsticky: [],
+			moved: [],
+			disposed: []
+		};
+
+		group.onDidOpenEditor(e => groupEvents.opened.push(e));
+		group.onDidCloseEditor(e => groupEvents.closed.push(e));
+		group.onDidActivateEditor(e => groupEvents.activated.push(e));
+		group.onDidChangeEditorPinned(e => group.isPinned(e) ? groupEvents.pinned.push(e) : groupEvents.unpinned.push(e));
+		group.onDidChangeEditorSticky(e => group.isSticky(e) ? groupEvents.sticky.push(e) : groupEvents.unsticky.push(e));
+		group.onDidMoveEditor(e => groupEvents.moved.push(e));
+		group.onDidDisposeEditor(e => groupEvents.disposed.push(e));
+
+		return groupEvents;
+	}
+
+	let index = 0;
+	class TestEditorInput extends EditorInput {
+
+		readonly resource = undefined;
+
+		constructor(public id: string) {
+			super();
+		}
+		getTypeId() { return 'testEditorInputForGroups'; }
+		async resolve(): Promise<IEditorModel> { return null!; }
+
+		matches(other: TestEditorInput): boolean {
+			return other && this.id === other.id && other instanceof TestEditorInput;
+		}
+
+		setDirty(): void {
+			this._onDidChangeDirty.fire();
+		}
+
+		setLabel(): void {
+			this._onDidChangeLabel.fire();
+		}
+	}
+
+	class NonSerializableTestEditorInput extends EditorInput {
+
+		readonly resource = undefined;
+
+		constructor(public id: string) {
+			super();
+		}
+		getTypeId() { return 'testEditorInputForGroups-nonSerializable'; }
+		async resolve(): Promise<IEditorModel | null> { return null; }
+
+		matches(other: NonSerializableTestEditorInput): boolean {
+			return other && this.id === other.id && other instanceof NonSerializableTestEditorInput;
+		}
+	}
+
+	class TestFileEditorInput extends EditorInput implements IFileEditorInput {
+
+		readonly preferredResource = this.resource;
+
+		constructor(public id: string, public resource: URI) {
+			super();
+		}
+		getTypeId() { return 'testFileEditorInputForGroups'; }
+		async resolve(): Promise<IEditorModel | null> { return null; }
+		setPreferredName(name: string): void { }
+		setPreferredDescription(description: string): void { }
+		setPreferredResource(resource: URI): void { }
+		setEncoding(encoding: string) { }
+		getEncoding() { return undefined; }
+		setPreferredEncoding(encoding: string) { }
+		setForceOpenAsBinary(): void { }
+		setMode(mode: string) { }
+		setPreferredMode(mode: string) { }
+		isResolved(): boolean { return false; }
+
+		matches(other: TestFileEditorInput): boolean {
+			return other && this.id === other.id && other instanceof TestFileEditorInput;
+		}
+	}
+
+	function input(id = String(index++), nonSerializable?: boolean, resource?: URI): EditorInput {
+		if (resource) {
+			return new TestFileEditorInput(id, resource);
+		}
+
+		return nonSerializable ? new NonSerializableTestEditorInput(id) : new TestEditorInput(id);
+	}
+
+	interface ISerializedTestInput {
+		id: string;
+	}
+
+	class TestEditorInputFactory implements IEditorInputFactory {
+
+		static disableSerialize = false;
+		static disableDeserialize = false;
+
+		canSerialize(editorInput: EditorInput): boolean {
+			return true;
+		}
+
+		serialize(editorInput: EditorInput): string | undefined {
+			if (TestEditorInputFactory.disableSerialize) {
+				return undefined;
+			}
+
+			let testEditorInput = <TestEditorInput>editorInput;
+			let testInput: ISerializedTestInput = {
+				id: testEditorInput.id
+			};
+
+			return JSON.stringify(testInput);
+		}
+
+		deserialize(instantiationService: IInstantiationService, serializedEditorInput: string): EditorInput | undefined {
+			if (TestEditorInputFactory.disableDeserialize) {
+				return undefined;
+			}
+
+			let testInput: ISerializedTestInput = JSON.parse(serializedEditorInput);
+
+			return new TestEditorInput(testInput.id);
+		}
+	}
+
+	const disposables = new DisposableStore();
 
 	setup(() => {
 		TestEditorInputFactory.disableSerialize = false;
 		TestEditorInputFactory.disableDeserialize = false;
 
-		disposables.push(Registry.as<IEditorInputFactoryRegistry>(EditorExtensions.EditorInputFactories).registerEditorInputFactory('testEditorInputForGroups', TestEditorInputFactory));
+		disposables.add(Registry.as<IEditorInputFactoryRegistry>(EditorExtensions.EditorInputFactories).registerEditorInputFactory('testEditorInputForGroups', TestEditorInputFactory));
 	});
 
 	teardown(() => {
-		dispose(disposables);
-		disposables = [];
+		disposables.clear();
 
 		index = 1;
 	});

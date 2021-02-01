@@ -7,7 +7,7 @@ import 'vs/css!./gettingStarted';
 import 'vs/workbench/contrib/welcome/gettingStarted/browser/vs_code_editor_getting_started';
 import { localize } from 'vs/nls';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
-import { WalkThroughInput } from 'vs/workbench/contrib/welcome/walkThrough/browser/walkThroughInput';
+import { WalkThroughInput, WalkThroughInputOptions } from 'vs/workbench/contrib/welcome/walkThrough/browser/walkThroughInput';
 import { FileAccess, Schemas } from 'vs/base/common/network';
 import { IEditorInputFactory } from 'vs/workbench/common/editor';
 import { Disposable, DisposableStore } from 'vs/base/common/lifecycle';
@@ -26,12 +26,22 @@ import { DomScrollableElement } from 'vs/base/browser/ui/scrollbar/scrollableEle
 import { gettingStartedCheckedCodicon, gettingStartedUncheckedCodicon } from 'vs/workbench/contrib/welcome/gettingStarted/browser/gettingStartedIcons';
 import { ServicesAccessor } from 'vs/editor/browser/editorExtensions';
 import { IOpenerService } from 'vs/platform/opener/common/opener';
+import { ITextModelService } from 'vs/editor/common/services/resolverService';
 
 export const gettingStartedInputTypeId = 'workbench.editors.gettingStartedInput';
 const telemetryFrom = 'gettingStartedPage';
 
 export class GettingStartedInput extends WalkThroughInput {
 	static readonly ID = gettingStartedInputTypeId;
+
+	constructor(
+		options: WalkThroughInputOptions & { selectedCategory?: string, selectedTask?: string },
+		@ITextModelService textModelResolverService: ITextModelService
+	) {
+		super(options, textModelResolverService);
+		this.selectedCategory = options.selectedCategory;
+		this.selectedTask = options.selectedTask;
+	}
 
 	selectedCategory: string | undefined;
 	selectedTask: string | undefined;
@@ -53,8 +63,10 @@ export function getGettingStartedInput(accessor: ServicesAccessor, options: { se
 		name: localize('editorGettingStarted.title', "Getting Started"),
 		resource,
 		telemetryFrom,
+		selectedCategory: options.selectedCategory,
+		selectedTask: options.selectedTask,
 		onReady: (container: HTMLElement, disposableStore: DisposableStore) => {
-			const page = instantiationService.createInstance(GettingStartedPage, options, editorInput);
+			const page = instantiationService.createInstance(GettingStartedPage, editorInput);
 			page.onReady(container);
 			pages.push(page);
 			disposableStore.add(page);
@@ -79,7 +91,6 @@ export class GettingStartedPage extends Disposable {
 	private detailImageScrollbar: DomScrollableElement | undefined;
 
 	constructor(
-		initialState: { selectedCategory?: string, selectedTask?: string },
 		editorInput: GettingStartedInput,
 		@ICommandService private readonly commandService: ICommandService,
 		@IProductService private readonly productService: IProductService,
@@ -91,9 +102,6 @@ export class GettingStartedPage extends Disposable {
 		super();
 
 		this.editorInput = editorInput;
-
-		this.editorInput.selectedCategory = initialState.selectedCategory;
-		this.editorInput.selectedTask = initialState.selectedTask;
 
 		this.gettingStartedCategories = this.gettingStartedService.getCategories();
 		this._register(this.dispatchListeners);
@@ -377,7 +385,6 @@ export class GettingStartedPage extends Disposable {
 	}
 
 	private clearDetialView(container: HTMLElement) {
-		console.log(container);
 		const detailContainer = (container.querySelector('.getting-started-detail-container'));
 		detailContainer?.remove();
 		const detailTitle = assertIsDefined(container.querySelector('.getting-started-detail-title'));

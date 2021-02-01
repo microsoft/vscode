@@ -3,11 +3,11 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { join } from 'vs/base/common/path';
-import { Queue } from 'vs/base/common/async';
 import * as fs from 'fs';
-import * as os from 'os';
-import * as platform from 'vs/base/common/platform';
+import { tmpdir } from 'os';
+import { join } from 'vs/base/common/path';
+import { Promises, Queue } from 'vs/base/common/async';
+import { isMacintosh, isWindows } from 'vs/base/common/platform';
 import { Event } from 'vs/base/common/event';
 import { promisify } from 'util';
 import { isRootOrDriveLetter } from 'vs/base/common/extpath';
@@ -63,7 +63,7 @@ async function rimrafUnlink(path: string): Promise<void> {
 
 			// Children
 			const children = await readdir(path);
-			await Promise.all(children.map(child => rimrafUnlink(join(path, child))));
+			await Promises.settled(children.map(child => rimrafUnlink(join(path, child))));
 
 			// Folder
 			await promisify(fs.rmdir)(path);
@@ -74,8 +74,8 @@ async function rimrafUnlink(path: string): Promise<void> {
 
 			// chmod as needed to allow for unlink
 			const mode = stat.mode;
-			if (!(mode & 128)) { // 128 === 0200
-				await chmod(path, mode | 128);
+			if (!(mode & fs.constants.S_IWUSR)) {
+				await chmod(path, mode | fs.constants.S_IWUSR);
 			}
 
 			return unlink(path);
@@ -89,7 +89,7 @@ async function rimrafUnlink(path: string): Promise<void> {
 
 async function rimrafMove(path: string): Promise<void> {
 	try {
-		const pathInTemp = join(os.tmpdir(), generateUuid());
+		const pathInTemp = join(tmpdir(), generateUuid());
 		try {
 			await rename(path, pathInTemp);
 		} catch (error) {
@@ -129,8 +129,8 @@ export function rimrafSync(path: string): void {
 
 			// chmod as needed to allow for unlink
 			const mode = stat.mode;
-			if (!(mode & 128)) { // 128 === 0200
-				fs.chmodSync(path, mode | 128);
+			if (!(mode & fs.constants.S_IWUSR)) {
+				fs.chmodSync(path, mode | fs.constants.S_IWUSR);
 			}
 
 			return fs.unlinkSync(path);
@@ -151,7 +151,7 @@ export async function readdirWithFileTypes(path: string): Promise<fs.Dirent[]> {
 
 	// Mac: uses NFD unicode form on disk, but we want NFC
 	// See also https://github.com/nodejs/node/issues/2165
-	if (platform.isMacintosh) {
+	if (isMacintosh) {
 		for (const child of children) {
 			child.name = normalizeNFC(child.name);
 		}
@@ -167,7 +167,7 @@ export function readdirSync(path: string): string[] {
 function handleDirectoryChildren(children: string[]): string[] {
 	// Mac: uses NFD unicode form on disk, but we want NFC
 	// See also https://github.com/nodejs/node/issues/2165
-	if (platform.isMacintosh) {
+	if (isMacintosh) {
 		return children.map(child => normalizeNFC(child));
 	}
 
@@ -229,6 +229,25 @@ export async function statLink(path: string): Promise<IStatAndLink> {
 		// to return it as result while setting dangling: true flag
 		if (error.code === 'ENOENT' && lstats) {
 			return { stat: lstats, symbolicLink: { dangling: true } };
+		}
+
+		// Windows: workaround a node.js bug where reparse points
+		// are not supported (https://github.com/nodejs/node/issues/36790)
+		if (isWindows && error.code === 'EACCES' && lstats) {
+			try {
+				const stats = await stat(await readlink(path));
+
+				return { stat: stats, symbolicLink: lstats.isSymbolicLink() ? { dangling: false } : undefined };
+			} catch (error) {
+
+				// If the link points to a non-existing file we still want
+				// to return it as result while setting dangling: true flag
+				if (error.code === 'ENOENT') {
+					return { stat: lstats, symbolicLink: { dangling: true } };
+				}
+
+				throw error;
+			}
 		}
 
 		throw error;
@@ -294,7 +313,7 @@ export function writeFile(path: string, data: string | Buffer | Uint8Array, opti
 
 function toQueueKey(path: string): string {
 	let queueKey = path;
-	if (platform.isWindows || platform.isMacintosh) {
+	if (isWindows || isMacintosh) {
 		queueKey = queueKey.toLowerCase(); // accommodate for case insensitive file systems
 	}
 
@@ -398,11 +417,11 @@ export function writeFileSync(path: string, data: string | Buffer, options?: IWr
 
 function ensureWriteOptions(options?: IWriteFileOptions): IEnsuredWriteFileOptions {
 	if (!options) {
-		return { mode: 0o666, flag: 'w' };
+		return { mode: 0o666 /* default node.js mode for files */, flag: 'w' };
 	}
 
 	return {
-		mode: typeof options.mode === 'number' ? options.mode : 0o666,
+		mode: typeof options.mode === 'number' ? options.mode : 0o666 /* default node.js mode for files */,
 		flag: typeof options.flag === 'string' ? options.flag : 'w'
 	};
 }
@@ -422,38 +441,26 @@ export async function readDirsInDir(dirPath: string): Promise<string[]> {
 
 export async function dirExists(path: string): Promise<boolean> {
 	try {
-		const fileStat = await stat(path);
+		const { stat, symbolicLink } = await statLink(path);
 
-		return fileStat.isDirectory();
+		return stat.isDirectory() && symbolicLink?.dangling !== true;
 	} catch (error) {
-		// This catch will be called on some symbolic links on Windows (AppExecLink for example).
-		// So we try our best to see if it's a Directory.
-		try {
-			const fileStat = await stat(await readlink(path));
-
-			return fileStat.isDirectory();
-		} catch {
-			return false;
-		}
+		// Ignore, path might not exist
 	}
+
+	return false;
 }
 
 export async function fileExists(path: string): Promise<boolean> {
 	try {
-		const fileStat = await stat(path);
+		const { stat, symbolicLink } = await statLink(path);
 
-		return fileStat.isFile();
+		return stat.isFile() && symbolicLink?.dangling !== true;
 	} catch (error) {
-		// This catch will be called on some symbolic links on Windows (AppExecLink for example).
-		// So we try our best to see if it's a File.
-		try {
-			const fileStat = await stat(await readlink(path));
-
-			return fileStat.isFile();
-		} catch {
-			return false;
-		}
+		// Ignore, path might not exist
 	}
+
+	return false;
 }
 
 export function whenDeleted(path: string): Promise<void> {
@@ -521,28 +528,43 @@ export async function move(source: string, target: string): Promise<void> {
 	}
 }
 
-export async function copy(source: string, target: string, copiedSourcesIn?: { [path: string]: boolean }): Promise<void> {
-	const copiedSources = copiedSourcesIn ? copiedSourcesIn : Object.create(null);
+// When copying a file or folder, we want to preserve the mode
+// it had and as such provide it when creating. However, modes
+// can go beyond what we expect (see link below), so we mask it.
+// (https://github.com/nodejs/node-v0.x-archive/issues/3045#issuecomment-4862588)
+//
+// The `copy` method is very old so we should probably revisit
+// it's implementation and check wether this mask is still needed.
+const COPY_MODE_MASK = 0o777;
 
-	const fileStat = await stat(source);
-	if (!fileStat.isDirectory()) {
-		return doCopyFile(source, target, fileStat.mode & 511);
+export async function copy(source: string, target: string, handledSourcesIn?: { [path: string]: boolean }): Promise<void> {
+
+	// Keep track of paths already copied to prevent
+	// cycles from symbolic links to cause issues
+	const handledSources = handledSourcesIn ?? Object.create(null);
+	if (handledSources[source]) {
+		return;
+	} else {
+		handledSources[source] = true;
 	}
 
-	if (copiedSources[source]) {
-		return; // escape when there are cycles (can happen with symlinks)
+	const { stat, symbolicLink } = await statLink(source);
+	if (symbolicLink?.dangling) {
+		return; // skip over dangling symbolic links (https://github.com/microsoft/vscode/issues/111621)
 	}
 
-	copiedSources[source] = true; // remember as copied
+	if (!stat.isDirectory()) {
+		return doCopyFile(source, target, stat.mode & COPY_MODE_MASK);
+	}
 
 	// Create folder
-	await mkdirp(target, fileStat.mode & 511);
+	await mkdirp(target, stat.mode & COPY_MODE_MASK);
 
 	// Copy each file recursively
 	const files = await readdir(source);
 	for (let i = 0; i < files.length; i++) {
 		const file = files[i];
-		await copy(join(source, file), join(target, file), copiedSources);
+		await copy(join(source, file), join(target, file), handledSources);
 	}
 }
 

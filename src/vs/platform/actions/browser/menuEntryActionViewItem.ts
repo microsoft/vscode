@@ -192,7 +192,9 @@ export class MenuEntryActionViewItem extends ActionViewItem {
 			if (icon.dark) {
 				label.style.setProperty('--menu-entry-icon-dark', asCSSUrl(icon.dark));
 			}
+			label.classList.add('icon');
 			this._itemClassDispose.value = toDisposable(() => {
+				label.classList.remove('icon');
 				label.style.removeProperty('--menu-entry-icon-light');
 				label.style.removeProperty('--menu-entry-icon-dark');
 			});
@@ -206,7 +208,7 @@ export class SubmenuEntryActionViewItem extends DropdownMenuActionViewItem {
 		action: SubmenuItemAction,
 		@IContextMenuService contextMenuService: IContextMenuService
 	) {
-		super(action, action.actions, contextMenuService, {
+		super(action, { getActions: () => action.actions }, contextMenuService, {
 			menuAsChild: true,
 			classNames: ThemeIcon.isThemeIcon(action.item.icon) ? ThemeIcon.asClassName(action.item.icon) : undefined,
 		});
@@ -218,6 +220,7 @@ export class SubmenuEntryActionViewItem extends DropdownMenuActionViewItem {
 			container.classList.add('menu-entry');
 			const { icon } = (<SubmenuItemAction>this._action).item;
 			if (icon && !ThemeIcon.isThemeIcon(icon)) {
+				this.element.classList.add('icon');
 				if (icon.light) {
 					this.element.style.setProperty('--menu-entry-icon-light', asCSSUrl(icon.light));
 				}

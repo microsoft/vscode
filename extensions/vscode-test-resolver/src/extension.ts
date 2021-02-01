@@ -103,7 +103,7 @@ export function activate(context: vscode.ExtensionContext) {
 				if (!serverLocation) {
 					const serverBin = path.join(remoteDataDir, 'bin');
 					progress.report({ message: 'Installing VSCode Server' });
-					serverLocation = await downloadAndUnzipVSCodeServer(updateUrl, commit, quality, serverBin);
+					serverLocation = await downloadAndUnzipVSCodeServer(updateUrl, commit, quality, serverBin, m => outputChannel.appendLine(m));
 				}
 
 				outputChannel.appendLine(`Using server build at ${serverLocation}`);

@@ -62,7 +62,7 @@ suite('NotebookCell#Document', function () {
 				versionId: 0,
 				cells: [{
 					handle: 0,
-					uri: CellUri.generate(notebookUri, 'test', 0),
+					uri: CellUri.generate(notebookUri, 0),
 					source: ['### Heading'],
 					eol: '\n',
 					language: 'markdown',
@@ -70,7 +70,7 @@ suite('NotebookCell#Document', function () {
 					outputs: [],
 				}, {
 					handle: 1,
-					uri: CellUri.generate(notebookUri, 'test', 1),
+					uri: CellUri.generate(notebookUri, 1),
 					source: ['console.log("aaa")', 'console.log("bbb")'],
 					eol: '\n',
 					language: 'javascript',
@@ -167,7 +167,7 @@ suite('NotebookCell#Document', function () {
 					kind: NotebookCellsChangeType.ModelChange,
 					changes: [[0, 0, [{
 						handle: 2,
-						uri: CellUri.generate(notebookUri, 'test', 2),
+						uri: CellUri.generate(notebookUri, 2),
 						source: ['Hello', 'World', 'Hello World!'],
 						eol: '\n',
 						language: 'test',
@@ -175,7 +175,7 @@ suite('NotebookCell#Document', function () {
 						outputs: [],
 					}, {
 						handle: 3,
-						uri: CellUri.generate(notebookUri, 'test', 3),
+						uri: CellUri.generate(notebookUri, 3),
 						source: ['Hallo', 'Welt', 'Hallo Welt!'],
 						eol: '\n',
 						language: 'test',
@@ -284,7 +284,7 @@ suite('NotebookCell#Document', function () {
 				kind: NotebookCellsChangeType.ModelChange,
 				changes: [[0, 0, [{
 					handle: 2,
-					uri: CellUri.generate(notebookUri, 'test', 2),
+					uri: CellUri.generate(notebookUri, 2),
 					source: ['Hello', 'World', 'Hello World!'],
 					eol: '\n',
 					language: 'test',
@@ -292,7 +292,7 @@ suite('NotebookCell#Document', function () {
 					outputs: [],
 				}, {
 					handle: 3,
-					uri: CellUri.generate(notebookUri, 'test', 3),
+					uri: CellUri.generate(notebookUri, 3),
 					source: ['Hallo', 'Welt', 'Hallo Welt!'],
 					eol: '\n',
 					language: 'test',

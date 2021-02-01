@@ -103,12 +103,12 @@ export class BreadcrumbsModel {
 			return result;
 		}
 
-		let didAddOutlineElement = false;
-		for (let element of this._currentOutline.value.config.breadcrumbsDataSource.getBreadcrumbElements()) {
-			result.push(new OutlineElement2(element, this._currentOutline.value));
-			didAddOutlineElement = true;
+		const breadcrumbsElements = this._currentOutline.value.config.breadcrumbsDataSource.getBreadcrumbElements();
+		for (let i = this._cfgSymbolPath.getValue() === 'last' ? breadcrumbsElements.length - 1 : 0; i < breadcrumbsElements.length; i++) {
+			result.push(new OutlineElement2(breadcrumbsElements[i], this._currentOutline.value));
 		}
-		if (!didAddOutlineElement && !this._currentOutline.value.isEmpty) {
+
+		if (breadcrumbsElements.length === 0 && !this._currentOutline.value.isEmpty) {
 			result.push(new OutlineElement2(this._currentOutline.value, this._currentOutline.value));
 		}
 

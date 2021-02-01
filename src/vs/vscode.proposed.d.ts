@@ -1319,8 +1319,8 @@ declare module 'vscode' {
 		/**
 		 * The primary selected cell on this notebook editor.
 		 */
+		// todo@API should not be undefined, rather a default
 		readonly selection?: NotebookCell;
-
 
 		/**
 		 * The current visible ranges in the editor (vertically).
@@ -1330,21 +1330,25 @@ declare module 'vscode' {
 		/**
 		 * The column in which this editor shows.
 		 */
+		// todo@API maybe never undefined because notebooks always show in the editor area (unlike text editors)
 		readonly viewColumn?: ViewColumn;
 
 		/**
 		 * Fired when the panel is disposed.
 		 */
+		// todo@API fishy? notebooks are public objects, there should be a "global" events for this
 		readonly onDidDispose: Event<void>;
 
 		/**
 		 * Active kernel used in the editor
 		 */
+		// todo@API unsure about that
 		readonly kernel?: NotebookKernel;
 
 		/**
 		 * Fired when the output hosting webview posts a message.
 		 */
+		// todo@API notebook editors are public -> ANY extension can listen to these event
 		readonly onDidReceiveMessage: Event<any>;
 		/**
 		 * Post a message to the output hosting webview.
@@ -1353,11 +1357,13 @@ declare module 'vscode' {
 		 *
 		 * @param message Body of the message. This must be a string or other json serializable object.
 		 */
+		// todo@API notebook editors are public -> ANY extension can send messages
 		postMessage(message: any): Thenable<boolean>;
 
 		/**
 		 * Convert a uri for the local file system to one that can be used inside outputs webview.
 		 */
+		// todo@API unsure about that, how do you this when executing a cell without having an editor
 		asWebviewUri(localResource: Uri): Uri;
 
 		/**
@@ -1455,6 +1461,7 @@ declare module 'vscode' {
 		readonly cellKind: CellKind;
 		readonly source: string;
 		readonly language: string;
+		// todo@API maybe use a separate data type?
 		readonly outputs: CellOutput[];
 		readonly metadata: NotebookCellMetadata | undefined;
 	}
@@ -1473,6 +1480,7 @@ declare module 'vscode' {
 		readonly document: NotebookDocument;
 	}
 
+	// todo@API is this still needed? With transient metadata have we everything covered?
 	interface NotebookDocumentEditEvent {
 
 		/**
@@ -1592,6 +1600,8 @@ declare module 'vscode' {
 		detail?: string;
 		isPreferred?: boolean;
 		preloads?: Uri[];
+		// todo@API change to `executeCells(document: NotebookDocument, cell: NotebookCell[]): void;`
+		// todo@API interrupt vs cancellation, https://github.com/microsoft/vscode/issues/106741
 		executeCell(document: NotebookDocument, cell: NotebookCell): void;
 		cancelCellExecution(document: NotebookDocument, cell: NotebookCell): void;
 		executeAllCells(document: NotebookDocument): void;
@@ -1600,11 +1610,14 @@ declare module 'vscode' {
 
 	export type NotebookFilenamePattern = GlobPattern | { include: GlobPattern; exclude: GlobPattern; };
 
+	// todo@API why not for NotebookContentProvider?
 	export interface NotebookDocumentFilter {
 		viewType?: string | string[];
 		filenamePattern?: NotebookFilenamePattern;
 	}
 
+	// todo@API very unclear, provider MUST not return alive object but only data object
+	// todo@API unclear how the flow goes
 	export interface NotebookKernelProvider<T extends NotebookKernel = NotebookKernel> {
 		onDidChangeKernels?: Event<NotebookDocument | undefined>;
 		provideKernels(document: NotebookDocument, token: CancellationToken): ProviderResult<T[]>;
@@ -1661,8 +1674,10 @@ declare module 'vscode' {
 
 	export namespace notebook {
 		export function registerNotebookContentProvider(
+			// TODO@api use NotebookDocumentFilter?
 			notebookType: string,
 			provider: NotebookContentProvider,
+			// TODO@API is duplicated with a more powerful variant on NotebookContentProvider
 			options?: NotebookDocumentContentOptions & {
 				/**
 				 * Not ready for production or development use yet.
@@ -1684,6 +1699,8 @@ declare module 'vscode' {
 		export function openNotebookDocument(uri: Uri, viewType?: string): Thenable<NotebookDocument>;
 		export const onDidOpenNotebookDocument: Event<NotebookDocument>;
 		export const onDidCloseNotebookDocument: Event<NotebookDocument>;
+
+		// todo@API really needed?
 		export const onDidSaveNotebookDocument: Event<NotebookDocument>;
 
 		/**
@@ -1702,6 +1719,7 @@ declare module 'vscode' {
 		 * @param notebook
 		 * @param selector
 		 */
+		// todo@API really needed? we didn't find a user here
 		export function createConcatTextDocument(notebook: NotebookDocument, selector?: DocumentSelector): NotebookConcatTextDocument;
 
 		export const onDidChangeActiveNotebookKernel: Event<{ document: NotebookDocument, kernel: NotebookKernel | undefined; }>;
@@ -1715,6 +1733,7 @@ declare module 'vscode' {
 		 * @param priority The priority of the item. Higher values mean the item should be shown more to the left.
 		 * @return A new status bar item.
 		 */
+		// todo@API this should be a provider, https://github.com/microsoft/vscode/issues/105809
 		export function createCellStatusBarItem(cell: NotebookCell, alignment?: NotebookCellStatusBarAlignment, priority?: number): NotebookCellStatusBarItem;
 	}
 
@@ -2080,13 +2099,31 @@ declare module 'vscode' {
 		 * Returns an observer that retrieves tests in the given text document.
 		 */
 		export function createDocumentTestObserver(document: TextDocument): TestObserver;
+
+		/**
+		 * The last or selected test run. Cleared when a new test run starts.
+		 */
+		export const testResults: TestResults | undefined;
+
+		/**
+		 * Event that fires when the testResults are updated.
+		 */
+		export const onDidChangeTestResults: Event<void>;
+	}
+
+	export interface TestResults {
+		/**
+		 * The results from the latest test run. The array contains a snapshot of
+		 * all tests involved in the run at the moment when it completed.
+		 */
+		readonly tests: ReadonlyArray<RequiredTestItem> | undefined;
 	}
 
 	export interface TestObserver {
 		/**
 		 * List of tests returned by test provider for files in the workspace.
 		 */
-		readonly tests: ReadonlyArray<TestItem>;
+		readonly tests: ReadonlyArray<RequiredTestItem>;
 
 		/**
 		 * An event that fires when an existing test in the collection changes, or
@@ -2116,23 +2153,23 @@ declare module 'vscode' {
 		/**
 		 * List of all tests that are newly added.
 		 */
-		readonly added: ReadonlyArray<TestItem>;
+		readonly added: ReadonlyArray<RequiredTestItem>;
 
 		/**
 		 * List of existing tests that have updated.
 		 */
-		readonly updated: ReadonlyArray<TestItem>;
+		readonly updated: ReadonlyArray<RequiredTestItem>;
 
 		/**
 		 * List of existing tests that have been removed.
 		 */
-		readonly removed: ReadonlyArray<TestItem>;
+		readonly removed: ReadonlyArray<RequiredTestItem>;
 
 		/**
 		 * Highest node in the test tree under which changes were made. This can
 		 * be easily plugged into events like the TreeDataProvider update event.
 		 */
-		readonly commonChangeAncestor: TestItem | null;
+		readonly commonChangeAncestor: RequiredTestItem | null;
 	}
 
 	/**
@@ -2239,6 +2276,16 @@ declare module 'vscode' {
 		label: string;
 
 		/**
+		 * Optional unique identifier for the TestItem. This is used to correlate
+		 * test results and tests in the document with those in the workspace
+		 * (test explorer). This must not change for the lifetime of a test item.
+		 *
+		 * If the ID is not provided, it defaults to the concatenation of the
+		 * item's label and its parent's ID, if any.
+		 */
+		readonly id?: string;
+
+		/**
 		 * Optional description that appears next to the label.
 		 */
 		description?: string;
@@ -2273,6 +2320,15 @@ declare module 'vscode' {
 		 */
 		state: TestState;
 	}
+
+	/**
+	 * A {@link TestItem} with its defaults filled in.
+	 */
+	export type RequiredTestItem = {
+		[K in keyof Required<TestItem>]: K extends 'children'
+		? RequiredTestItem[]
+		: (K extends 'description' | 'location' ? TestItem[K] : Required<TestItem>[K])
+	};
 
 	export enum TestRunState {
 		// Initial state
@@ -2367,37 +2423,47 @@ declare module 'vscode' {
 
 	//#region Opener service (https://github.com/microsoft/vscode/issues/109277)
 
+	/**
+	 * Details if an `ExternalUriOpener` can open a uri.
+	 *
+	 * The priority is also used to rank multiple openers against each other and determine
+	 * if an opener should be selected automatically or if the user should be prompted to
+	 * select an opener.
+	 *
+	 * VS Code will try to use the best available opener, as sorted by `ExternalUriOpenerPriority`.
+	 * If there are multiple potential "best" openers for a URI, then the user will be prompted
+	 * to select an opener.
+	 */
 	export enum ExternalUriOpenerPriority {
 		/**
-		 * The opener is disabled and will not be shown to users.
+		 * The opener is disabled and will never be shown to users.
 		 *
-		 * Note that the opener can still be used if the user
-		 * specifically configures it in their settings.
+		 * Note that the opener can still be used if the user specifically
+		 * configures it in their settings.
 		 */
 		None = 0,
 
 		/**
-		 * The opener can open the uri but will not be shown by default when a
-		 * user clicks on the uri.
-		 *
-		 * If only optional openers are enabled, then VS Code's default opener
-		 * will be automatically used.
+		 * The opener can open the uri but will not cause a prompt on its own
+		 * since VS Code always contributes a built-in `Default` opener.
 		 */
 		Option = 1,
 
 		/**
 		 * The opener can open the uri.
 		 *
-		 * When the user clicks on a uri, they will be prompted to select the opener
-		 * they wish to use for it.
+		 * VS Code's built-in opener has `Default` priority. This means that any additional `Default`
+		 * openers will cause the user to be prompted to select from a list of all potential openers.
 		 */
 		Default = 2,
 
 		/**
-		 * The opener can open the uri and should be automatically selected if possible.
+		 * The opener can open the uri and should be automatically selected over any
+		 * default openers, include the built-in one from VS Code.
 		 *
-		 * Preferred openers will be automatically selected if no other preferred openers
-		 * are available.
+		 * A preferred opener will be automatically selected if no other preferred openers
+		 * are available. If multiple preferred openers are available, then the user
+		 * is shown a prompt with all potential openers (not just preferred openers).
 		 */
 		Preferred = 3,
 	}
@@ -2413,18 +2479,18 @@ declare module 'vscode' {
 	export interface ExternalUriOpener {
 
 		/**
-		 * Check if the opener can handle a given uri.
+		 * Check if the opener can open a uri.
 		 *
 		 * @param uri The uri being opened. This is the uri that the user clicked on. It has
 		 * not yet gone through port forwarding.
 		 * @param token Cancellation token indicating that the result is no longer needed.
 		 *
-		 * @return If the opener can open the external uri.
+		 * @return Priority indicating if the opener can open the external uri.
 		 */
 		canOpenExternalUri(uri: Uri, token: CancellationToken): ExternalUriOpenerPriority | Thenable<ExternalUriOpenerPriority>;
 
 		/**
-		 * Open the given uri.
+		 * Open a uri.
 		 *
 		 * This is invoked when:
 		 *
@@ -2438,7 +2504,7 @@ declare module 'vscode' {
 		 * @param ctx Additional information about the uri being opened.
 		 * @param token Cancellation token indicating that opening has been canceled.
 		 *
-		 * @return Thenable indicating that the opening has completed
+		 * @return Thenable indicating that the opening has completed.
 		 */
 		openExternalUri(resolvedUri: Uri, ctx: OpenExternalUriContext, token: CancellationToken): Thenable<void> | void;
 	}
@@ -2450,13 +2516,14 @@ declare module 'vscode' {
 		/**
 		 * The uri that triggered the open.
 		 *
+		 * This is the original uri that the user clicked on or that was passed to `openExternal.`
 		 * Due to port forwarding, this may not match the `resolvedUri` passed to `openExternalUri`.
 		 */
 		readonly sourceUri: Uri;
 	}
 
 	/**
-	 * Additional metadata about the registered opener.
+	 * Additional metadata about a registered `ExternalUriOpener`.
 	 */
 	interface ExternalUriOpenerMetadata {
 
@@ -2493,11 +2560,13 @@ declare module 'vscode' {
 
 	interface OpenExternalOptions {
 		/**
+		 * Allows using openers contributed by extensions through  `registerExternalUriOpener`
+		 * when opening the resource.
 		 *
-		 * If `true`, then VS Code will check if any contributed openers can handle the
+		 * If `true`, VS Code will check if any contributed openers can handle the
 		 * uri, and fallback to the default opener behavior.
 		 *
-		 * If it is string, then this specifies the id of the `ExternalUriOpener`
+		 * If it is string, this specifies the id of the `ExternalUriOpener`
 		 * that should be used if it is available. Use `'default'` to force VS Code's
 		 * standard external opener to be used.
 		 */
@@ -2508,7 +2577,7 @@ declare module 'vscode' {
 		export function openExternal(target: Uri, options?: OpenExternalOptions): Thenable<boolean>;
 	}
 
-	//#endregionn
+	//#endregion
 
 	//#region https://github.com/Microsoft/vscode/issues/15178
 

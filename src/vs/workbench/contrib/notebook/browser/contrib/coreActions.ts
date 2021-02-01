@@ -32,6 +32,8 @@ import { CancellationTokenSource } from 'vs/base/common/cancellation';
 import { NotebookEditorInput } from 'vs/workbench/contrib/notebook/browser/notebookEditorInput';
 import { EditorsOrder } from 'vs/workbench/common/editor';
 import { INotebookEditorWidgetService } from 'vs/workbench/contrib/notebook/browser/notebookEditorWidgetService';
+import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
+import { WorkbenchActionExecutedClassification, WorkbenchActionExecutedEvent } from 'vs/base/common/actions';
 
 // Notebook Commands
 const EXECUTE_NOTEBOOK_COMMAND_ID = 'notebook.execute';
@@ -148,6 +150,9 @@ abstract class NotebookAction extends Action2 {
 				return;
 			}
 		}
+
+		const telemetryService = accessor.get(ITelemetryService);
+		telemetryService.publicLog2<WorkbenchActionExecutedEvent, WorkbenchActionExecutedClassification>('workbenchActionExecuted', { id: this.desc.id, from: 'ui' });
 
 		this.runWithContext(accessor, context);
 	}
@@ -314,7 +319,7 @@ registerAction2(class extends NotebookCellAction<ICellRange> {
 			title: localize('notebookActions.cancel', "Stop Cell Execution"),
 			icon: icons.stopIcon,
 			description: {
-				description: localize('notebookActions.execute', "Execute Cell"),
+				description: localize('notebookActions.cancel', "Stop Cell Execution"),
 				args: [
 					{
 						name: 'range',
@@ -593,7 +598,7 @@ registerAction2(class extends NotebookAction {
 			id: CANCEL_NOTEBOOK_COMMAND_ID,
 			title: localize('notebookActions.cancelNotebook', "Cancel Notebook Execution"),
 			description: {
-				description: localize('notebookActions.executeNotebook', "Execute Notebook"),
+				description: localize('notebookActions.cancelNotebook', "Cancel Notebook Execution"),
 				args: [
 					{
 						name: 'uri',

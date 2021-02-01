@@ -45,7 +45,7 @@ class DocumentSymbolBreadcrumbsSource implements IBreadcrumbsDataSource<Document
 		@ITextResourceConfigurationService private readonly _textResourceConfigurationService: ITextResourceConfigurationService,
 	) { }
 
-	getBreadcrumbElements(): Iterable<DocumentSymbolItem> {
+	getBreadcrumbElements(): readonly DocumentSymbolItem[] {
 		return this._breadcrumbs;
 	}
 
@@ -155,7 +155,7 @@ class DocumentSymbolsOutline implements IOutline<DocumentSymbolItem> {
 		};
 		const comparator = new DocumentSymbolComparator();
 		const options = {
-			collapseByDefault: true,
+			collapseByDefault: target === OutlineTarget.Breadcrumbs,
 			expandOnlyOnTwistieClick: true,
 			multipleSelectionSupport: false,
 			identityProvider: new DocumentSymbolIdentityProvider(),

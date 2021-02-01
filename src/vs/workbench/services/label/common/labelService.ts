@@ -222,7 +222,7 @@ export class LabelService extends Disposable implements ILabelService {
 		}
 
 		let label;
-		if (options && options.verbose) {
+		if (options?.verbose) {
 			label = localize('workspaceNameVerbose', "{0} (Workspace)", this.getUriLabel(joinPath(dirname(workspaceUri), filename)));
 		} else {
 			label = localize('workspaceName', "{0} (Workspace)", filename);
@@ -232,18 +232,18 @@ export class LabelService extends Disposable implements ILabelService {
 	}
 
 	private doGetSingleFolderWorkspaceLabel(folderUri: URI, options?: { verbose: boolean }): string {
-		const label = options && options.verbose ? this.getUriLabel(folderUri) : basename(folderUri) || '/';
+		const label = options?.verbose ? this.getUriLabel(folderUri) : basename(folderUri) || '/';
 		return this.appendWorkspaceSuffix(label, folderUri);
 	}
 
 	getSeparator(scheme: string, authority?: string): '/' | '\\' {
 		const formatter = this.findFormatting(URI.from({ scheme, authority }));
-		return formatter && formatter.separator || '/';
+		return formatter?.separator || '/';
 	}
 
 	getHostLabel(scheme: string, authority?: string): string {
 		const formatter = this.findFormatting(URI.from({ scheme, authority }));
-		return formatter && formatter.workspaceSuffix || '';
+		return formatter?.workspaceSuffix || '';
 	}
 
 	registerFormatter(formatter: ResourceLabelFormatter): IDisposable {

@@ -373,7 +373,7 @@ import { isStandalone } from 'vs/base/browser/browser';
 			'window.menuBarVisibility': {
 				'type': 'string',
 				'enum': ['default', 'visible', 'toggle', 'hidden', 'compact'],
-				'enumDescriptions': [
+				'markdownEnumDescriptions': [
 					nls.localize('window.menuBarVisibility.default', "Menu is only hidden in full screen mode."),
 					nls.localize('window.menuBarVisibility.visible', "Menu is always visible even in full screen mode."),
 					nls.localize('window.menuBarVisibility.toggle', "Menu is hidden but can be displayed via Alt key."),

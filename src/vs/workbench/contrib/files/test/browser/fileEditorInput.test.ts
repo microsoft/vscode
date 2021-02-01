@@ -19,8 +19,10 @@ import { DisposableStore } from 'vs/base/common/lifecycle';
 import { BinaryEditorModel } from 'vs/workbench/common/editor/binaryEditorModel';
 import { IResourceEditorInput } from 'vs/platform/editor/common/editor';
 import { Registry } from 'vs/platform/registry/common/platform';
+import { FileEditorInputFactory } from 'vs/workbench/contrib/files/browser/files';
 
 suite('Files - FileEditorInput', () => {
+
 	let instantiationService: IInstantiationService;
 	let accessor: TestServiceAccessor;
 
@@ -264,6 +266,8 @@ suite('Files - FileEditorInput', () => {
 
 		const input = createFileInput(toResource.call(this, '/foo/bar/updatefile.js'));
 
+		const disposable = Registry.as<IEditorInputFactoryRegistry>(EditorExtensions.EditorInputFactories).registerEditorInputFactory('workbench.editors.files.fileEditorInput', FileEditorInputFactory);
+
 		const factory = Registry.as<IEditorInputFactoryRegistry>(EditorExtensions.EditorInputFactories).getEditorInputFactory(input.getTypeId());
 		if (!factory) {
 			assert.fail('File Editor Input Factory missing');
@@ -290,6 +294,8 @@ suite('Files - FileEditorInput', () => {
 		const inputWithPreferredResourceDeserialized = factory.deserialize(instantiationService, inputWithPreferredResourceSerialized) as FileEditorInput;
 		assert.strictEqual(inputWithPreferredResource.resource.toString(), inputWithPreferredResourceDeserialized.resource.toString());
 		assert.strictEqual(inputWithPreferredResource.preferredResource.toString(), inputWithPreferredResourceDeserialized.preferredResource.toString());
+
+		disposable.dispose();
 	});
 
 	test('preferred name/description', async function () {
@@ -323,14 +329,14 @@ suite('Files - FileEditorInput', () => {
 			didChangeLabelCounter++;
 		});
 
-		assert.notEqual(fileInput.getName(), 'My Name');
-		assert.notEqual(fileInput.getDescription(), 'My Description');
+		assert.notStrictEqual(fileInput.getName(), 'My Name');
+		assert.notStrictEqual(fileInput.getDescription(), 'My Description');
 
 		fileInput.setPreferredName('My Name 2');
 		fileInput.setPreferredDescription('My Description 2');
 
-		assert.notEqual(fileInput.getName(), 'My Name 2');
-		assert.notEqual(fileInput.getDescription(), 'My Description 2');
+		assert.notStrictEqual(fileInput.getName(), 'My Name 2');
+		assert.notStrictEqual(fileInput.getDescription(), 'My Description 2');
 
 		assert.strictEqual(didChangeLabelCounter, 0);
 
