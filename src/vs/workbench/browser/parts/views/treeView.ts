@@ -853,6 +853,9 @@ class TreeRenderer extends Disposable implements ITreeRenderer<ITreeItem, FuzzyS
 		this._hoverDelegate = {
 			showHover: (options: IHoverDelegateOptions): IDisposable | undefined => {
 				return this.hoverService.showHover(options);
+			},
+			hideHover: () => {
+				return this.hoverService.hideHover();
 			}
 		};
 	}

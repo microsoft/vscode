@@ -266,10 +266,12 @@ export class IconLabel extends Disposable {
 								target,
 								anchorPosition: AnchorPosition.BELOW
 							};
+							// awaiting the tooltip could take a while. Make sure we're still hovering.
+							IconLabel.adjustXAndShowCustomHover(hoverOptions, mouseX, hoverDelegate, isHovering);
+						} else {
+							hoverDelegate.hideHover();
 						}
 					}
-					// awaiting the tooltip could take a while. Make sure we're still hovering.
-					IconLabel.adjustXAndShowCustomHover(hoverOptions, mouseX, hoverDelegate, isHovering);
 				}
 				mouseMoveDisposable.dispose();
 			}, hoverDelay);
