@@ -68,7 +68,7 @@ export class MultiDisposeError extends Error {
 	constructor(
 		public readonly errors: any[]
 	) {
-		super(`Encounter errors while disposing of store. Errors: [${errors.join(', ')}]`);
+		super(`Encountered errors while disposing of store. Errors: [${errors.join(', ')}]`);
 	}
 }
 
