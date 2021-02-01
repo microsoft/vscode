@@ -398,7 +398,7 @@ export class LanguageConfigurationFileHandler {
 			richEditConfig.onEnterRules = onEnterRules;
 		}
 
-		LanguageConfigurationRegistry.register(languageIdentifier, richEditConfig);
+		LanguageConfigurationRegistry.register(languageIdentifier, richEditConfig, 50);
 	}
 
 	private _parseRegex(languageIdentifier: LanguageIdentifier, confPath: string, value: string | IRegExp) {
