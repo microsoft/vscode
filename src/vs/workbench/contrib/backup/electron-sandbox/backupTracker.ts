@@ -90,8 +90,12 @@ export class NativeBackupTracker extends BackupTracker implements IWorkbenchCont
 		// and then check again for dirty copies
 		if (this.filesConfigurationService.getAutoSaveMode() !== AutoSaveMode.OFF) {
 
-			// Save all files
-			await this.doSaveAllBeforeShutdown(false /* not untitled */, SaveReason.AUTO);
+			// Save all dirty working copies
+			try {
+				await this.doSaveAllBeforeShutdown(false /* not untitled */, SaveReason.AUTO);
+			} catch (error) {
+				this.logService.error(`[backup tracker] error saving dirty working copies: ${error}`); // guard against misbehaving saves, we handle remaining dirty below
+			}
 
 			// If we still have dirty working copies, we either have untitled ones or working copies that cannot be saved
 			const remainingDirtyWorkingCopies = this.workingCopyService.dirtyWorkingCopies;
@@ -124,6 +128,12 @@ export class NativeBackupTracker extends BackupTracker implements IWorkbenchCont
 
 		// we ran a backup but received an error that we show to the user
 		if (backupError) {
+			if (this.environmentService.isExtensionDevelopment) {
+				this.logService.error(`[backup tracker] error creating backups: ${backupError}`);
+
+				return false; // do not block shutdown during extension development (https://github.com/microsoft/vscode/issues/115028)
+			}
+
 			this.showErrorDialog(localize('backupTrackerBackupFailed', "The following dirty editors could not be saved to the back up location."), workingCopies, backupError);
 
 			return true; // veto (the backup failed)
@@ -134,6 +144,12 @@ export class NativeBackupTracker extends BackupTracker implements IWorkbenchCont
 		try {
 			return await this.confirmBeforeShutdown(workingCopies.filter(workingCopy => !backups.includes(workingCopy)));
 		} catch (error) {
+			if (this.environmentService.isExtensionDevelopment) {
+				this.logService.error(`[backup tracker] error saving or reverting dirty working copies: ${error}`);
+
+				return false; // do not block shutdown during extension development (https://github.com/microsoft/vscode/issues/115028)
+			}
+
 			this.showErrorDialog(localize('backupTrackerConfirmFailed', "The following dirty editors could not be saved or reverted."), workingCopies, error);
 
 			return true; // veto (save or revert failed)
@@ -223,7 +239,12 @@ export class NativeBackupTracker extends BackupTracker implements IWorkbenchCont
 		const confirm = await this.fileDialogService.showSaveConfirm(workingCopies.map(workingCopy => workingCopy.name));
 		if (confirm === ConfirmResult.SAVE) {
 			const dirtyCountBeforeSave = this.workingCopyService.dirtyCount;
-			await this.doSaveAllBeforeShutdown(workingCopies, SaveReason.EXPLICIT);
+
+			try {
+				await this.doSaveAllBeforeShutdown(workingCopies, SaveReason.EXPLICIT);
+			} catch (error) {
+				this.logService.error(`[backup tracker] error saving dirty working copies: ${error}`); // guard against misbehaving saves, we handle remaining dirty below
+			}
 
 			const savedWorkingCopies = dirtyCountBeforeSave - this.workingCopyService.dirtyCount;
 			if (savedWorkingCopies < workingCopies.length) {
@@ -235,7 +256,11 @@ export class NativeBackupTracker extends BackupTracker implements IWorkbenchCont
 
 		// Don't Save
 		else if (confirm === ConfirmResult.DONT_SAVE) {
-			await this.doRevertAllBeforeShutdown(workingCopies);
+			try {
+				await this.doRevertAllBeforeShutdown(workingCopies);
+			} catch (error) {
+				this.logService.error(`[backup tracker] error reverting dirty working copies: ${error}`); // do not block the shutdown on errors from revert
+			}
 
 			return this.noVeto(workingCopies); // no veto (dirty reverted)
 		}
