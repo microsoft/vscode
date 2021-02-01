@@ -12,7 +12,7 @@ import { ICodeWindow } from 'vs/platform/windows/electron-main/windows';
 import { handleVetos } from 'vs/platform/lifecycle/common/lifecycle';
 import { isMacintosh, isWindows } from 'vs/base/common/platform';
 import { Disposable } from 'vs/base/common/lifecycle';
-import { Barrier, timeout } from 'vs/base/common/async';
+import { Promises, Barrier, timeout } from 'vs/base/common/async';
 import { NativeParsedArgs } from 'vs/platform/environment/common/argv';
 
 export const ILifecycleMainService = createDecorator<ILifecycleMainService>('lifecycleMainService');
@@ -274,7 +274,7 @@ export class LifecycleMainService extends Disposable implements ILifecycleMainSe
 			}
 		});
 
-		this.pendingWillShutdownPromise = Promise.all(joiners).then(() => undefined, err => this.logService.error(err));
+		this.pendingWillShutdownPromise = Promises.settled(joiners).then(() => undefined, err => this.logService.error(err));
 
 		return this.pendingWillShutdownPromise;
 	}

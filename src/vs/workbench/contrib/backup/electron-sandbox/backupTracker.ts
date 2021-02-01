@@ -22,7 +22,7 @@ import { SaveReason } from 'vs/workbench/common/editor';
 import { IEnvironmentService } from 'vs/platform/environment/common/environment';
 import { CancellationToken, CancellationTokenSource } from 'vs/base/common/cancellation';
 import { IProgressService, ProgressLocation } from 'vs/platform/progress/common/progress';
-import { raceCancellation } from 'vs/base/common/async';
+import { Promises, raceCancellation } from 'vs/base/common/async';
 
 export class NativeBackupTracker extends BackupTracker implements IWorkbenchContribution {
 
@@ -196,7 +196,7 @@ export class NativeBackupTracker extends BackupTracker implements IWorkbenchCont
 		// Perform a backup of all dirty working copies unless a backup already exists
 		const backups: IWorkingCopy[] = [];
 		if (doBackup) {
-			await Promise.all(workingCopies.map(async workingCopy => {
+			await Promises.settled(workingCopies.map(async workingCopy => {
 				const contentVersion = this.getContentVersion(workingCopy);
 
 				// Backup exists
@@ -277,7 +277,7 @@ export class NativeBackupTracker extends BackupTracker implements IWorkbenchCont
 				// If we still have dirty working copies, save those directly
 				// unless the save was not successful (e.g. cancelled)
 				if (result !== false) {
-					await Promise.all(workingCopies.map(workingCopy => workingCopy.isDirty() ? workingCopy.save(saveOptions) : true));
+					await Promises.settled(workingCopies.map(workingCopy => workingCopy.isDirty() ? workingCopy.save(saveOptions) : Promise.resolve(true)));
 				}
 			})();
 
@@ -297,7 +297,7 @@ export class NativeBackupTracker extends BackupTracker implements IWorkbenchCont
 
 		// If we still have dirty working copies, revert those directly
 		// unless the revert operation was not successful (e.g. cancelled)
-		await Promise.all(workingCopies.map(workingCopy => workingCopy.isDirty() ? workingCopy.revert(revertOptions) : undefined));
+		await Promises.settled(workingCopies.map(workingCopy => workingCopy.isDirty() ? workingCopy.revert(revertOptions) : Promise.resolve()));
 	}
 
 	private noVeto(backupsToDiscard: IWorkingCopy[]): boolean | Promise<boolean> {
@@ -305,7 +305,7 @@ export class NativeBackupTracker extends BackupTracker implements IWorkbenchCont
 			return false; // if editors have not restored, we are not up to speed with backups and thus should not discard them
 		}
 
-		return Promise.all(backupsToDiscard.map(workingCopy => this.backupFileService.discardBackup(workingCopy.resource))).then(() => false, () => false);
+		return Promises.settled(backupsToDiscard.map(workingCopy => this.backupFileService.discardBackup(workingCopy.resource))).then(() => false, () => false);
 	}
 
 	private async onBeforeShutdownWithoutDirty(): Promise<boolean> {

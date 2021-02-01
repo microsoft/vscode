@@ -31,6 +31,7 @@ import { MementoObject } from 'vs/workbench/common/memento';
 import { assertIsDefined } from 'vs/base/common/types';
 import { IBoundarySashes } from 'vs/base/browser/ui/grid/gridview';
 import { CompositeDragAndDropObserver } from 'vs/workbench/browser/dnd';
+import { Promises } from 'vs/base/common/async';
 
 interface IEditorPartUIState {
 	serializedGrid: ISerializedGrid;
@@ -943,7 +944,7 @@ export class EditorPart extends Part implements IEditorGroupsService, IEditorGro
 		}
 
 		// Signal restored
-		Promise.all(this.groups.map(group => group.whenRestored)).finally(() => {
+		Promises.settled(this.groups.map(group => group.whenRestored)).finally(() => {
 			if (this.whenRestoredResolve) {
 				this.whenRestoredResolve();
 			}

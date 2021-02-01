@@ -1071,3 +1071,59 @@ export class DeferredPromise<T> {
 		});
 	}
 }
+
+export namespace Promises {
+
+	export interface IResolvedPromise<T> {
+		status: 'fulfilled';
+		value: T;
+	}
+
+	export interface IRejectedPromise {
+		status: 'rejected';
+		reason: Error;
+	}
+
+	/**
+	 * A polyfill of `Promise.allSettled`: returns after all promises have
+	 * resolved or rejected and provides access to each result or error
+	 * in the order of the original passed in promises array.
+	 * See: https://developer.mozilla.org/en-US/docs/Web/JavaScript/Reference/Global_Objects/Promise/allSettled
+	 */
+	export async function allSettled<T>(promises: Promise<T>[]): Promise<ReadonlyArray<IResolvedPromise<T> | IRejectedPromise>> {
+		return Promise.all(promises.map(promise => (promise.then(value => {
+			const fulfilled: IResolvedPromise<T> = { status: 'fulfilled', value };
+
+			return fulfilled;
+		}, error => {
+			const rejected: IRejectedPromise = { status: 'rejected', reason: error };
+
+			return rejected;
+		}))));
+	}
+
+	/**
+	 * A drop-in replacement for `Promise.all` with the only difference
+	 * that the method awaits every promise to either fulfill or reject.
+	 *
+	 * Similar to `Promise.all`, only the first error will be returned
+	 * if any.
+	 */
+	export async function settled<T>(promises: Promise<T>[]): Promise<T[]> {
+		let firstError: Error | undefined = undefined;
+
+		const result = await Promise.all(promises.map(promise => promise.then(value => value, error => {
+			if (!firstError) {
+				firstError = error;
+			}
+
+			return undefined; // do not rethrow so that other promises can settle
+		})));
+
+		if (firstError) {
+			throw firstError;
+		}
+
+		return result as unknown as T[]; // cast is needed and protected by the `throw` above
+	}
+}

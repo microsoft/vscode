@@ -15,6 +15,7 @@ import { IWorkingCopyService, IWorkingCopy } from 'vs/workbench/services/working
 import { IUriIdentityService } from 'vs/workbench/services/uriIdentity/common/uriIdentity';
 import { WorkingCopyFileOperationParticipant } from 'vs/workbench/services/workingCopy/common/workingCopyFileOperationParticipant';
 import { VSBuffer, VSBufferReadable, VSBufferReadableStream } from 'vs/base/common/buffer';
+import { Promises } from 'vs/base/common/async';
 
 export const IWorkingCopyFileService = createDecorator<IWorkingCopyFileService>('workingCopyFileService');
 
@@ -286,7 +287,7 @@ export class WorkingCopyFileService extends Disposable implements IWorkingCopyFi
 
 		// validate create operation before starting
 		if (isFile) {
-			const validateCreates = await Promise.all(operations.map(operation => this.fileService.canCreateFile(operation.resource, { overwrite: operation.overwrite })));
+			const validateCreates = await Promises.settled(operations.map(operation => this.fileService.canCreateFile(operation.resource, { overwrite: operation.overwrite })));
 			const error = validateCreates.find(validateCreate => validateCreate instanceof Error);
 			if (error instanceof Error) {
 				throw error;
@@ -305,9 +306,9 @@ export class WorkingCopyFileService extends Disposable implements IWorkingCopyFi
 		let stats: IFileStatWithMetadata[];
 		try {
 			if (isFile) {
-				stats = await Promise.all(operations.map(operation => this.fileService.createFile(operation.resource, (operation as ICreateFileOperation).contents, { overwrite: operation.overwrite })));
+				stats = await Promises.settled(operations.map(operation => this.fileService.createFile(operation.resource, (operation as ICreateFileOperation).contents, { overwrite: operation.overwrite })));
 			} else {
-				stats = await Promise.all(operations.map(operation => this.fileService.createFolder(operation.resource)));
+				stats = await Promises.settled(operations.map(operation => this.fileService.createFolder(operation.resource)));
 			}
 		} catch (error) {
 
@@ -358,7 +359,7 @@ export class WorkingCopyFileService extends Disposable implements IWorkingCopyFi
 				// - copy: revert target (if any)
 				if (!this.uriIdentityService.extUri.isEqual(source, target)) {
 					const dirtyWorkingCopies = (move ? [...this.getDirty(source), ...this.getDirty(target)] : this.getDirty(target));
-					await Promise.all(dirtyWorkingCopies.map(dirtyWorkingCopy => dirtyWorkingCopy.revert({ soft: true })));
+					await Promises.settled(dirtyWorkingCopies.map(dirtyWorkingCopy => dirtyWorkingCopy.revert({ soft: true })));
 				}
 
 				// now we can rename the source to target via file operation
@@ -405,7 +406,7 @@ export class WorkingCopyFileService extends Disposable implements IWorkingCopyFi
 		// any opened editor with these working copies
 		for (const operation of operations) {
 			const dirtyWorkingCopies = this.getDirty(operation.resource);
-			await Promise.all(dirtyWorkingCopies.map(dirtyWorkingCopy => dirtyWorkingCopy.revert({ soft: true })));
+			await Promises.settled(dirtyWorkingCopies.map(dirtyWorkingCopy => dirtyWorkingCopy.revert({ soft: true })));
 		}
 
 		// now actually delete from disk

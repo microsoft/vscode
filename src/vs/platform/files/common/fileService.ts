@@ -15,7 +15,7 @@ import { isNonEmptyArray, coalesce } from 'vs/base/common/arrays';
 import { ILogService } from 'vs/platform/log/common/log';
 import { VSBuffer, VSBufferReadable, readableToBuffer, bufferToReadable, streamToBuffer, VSBufferReadableStream, VSBufferReadableBufferedStream, bufferedStreamToBuffer, newWriteableBufferStream } from 'vs/base/common/buffer';
 import { isReadableStream, transform, peekReadable, peekStream, isReadableBufferedStream, newWriteableStream, IReadableStreamObservable, observe } from 'vs/base/common/stream';
-import { Queue } from 'vs/base/common/async';
+import { Promises, Queue } from 'vs/base/common/async';
 import { CancellationTokenSource, CancellationToken } from 'vs/base/common/cancellation';
 import { Schemas } from 'vs/base/common/network';
 import { readFileIntoStream } from 'vs/platform/files/common/io';
@@ -91,7 +91,7 @@ export class FileService extends Disposable implements IFileService {
 
 		// If the provider is not yet there, make sure to join on the listeners assuming
 		// that it takes a bit longer to register the file system provider.
-		await Promise.all(joiners);
+		await Promises.settled(joiners);
 	}
 
 	canHandleResource(resource: URI): boolean {
@@ -239,7 +239,7 @@ export class FileService extends Disposable implements IFileService {
 		if (fileStat.isDirectory && recurse(fileStat, siblings)) {
 			try {
 				const entries = await provider.readdir(resource);
-				const resolvedEntries = await Promise.all(entries.map(async ([name, type]) => {
+				const resolvedEntries = await Promises.settled(entries.map(async ([name, type]) => {
 					try {
 						const childResource = providerExtUri.joinPath(resource, name);
 						const childStat = resolveMetadata ? await provider.stat(childResource) : { type };
@@ -269,7 +269,7 @@ export class FileService extends Disposable implements IFileService {
 	async resolveAll(toResolve: { resource: URI, options?: IResolveFileOptions; }[]): Promise<IResolveFileResult[]>;
 	async resolveAll(toResolve: { resource: URI, options: IResolveMetadataFileOptions; }[]): Promise<IResolveFileResultWithMetadata[]>;
 	async resolveAll(toResolve: { resource: URI; options?: IResolveFileOptions; }[]): Promise<IResolveFileResult[]> {
-		return Promise.all(toResolve.map(async entry => {
+		return Promises.settled(toResolve.map(async entry => {
 			try {
 				return { stat: await this.doResolveFile(entry.resource, entry.options), success: true };
 			} catch (error) {
@@ -738,7 +738,7 @@ export class FileService extends Disposable implements IFileService {
 
 		// create children in target
 		if (Array.isArray(sourceFolder.children)) {
-			await Promise.all(sourceFolder.children.map(async sourceChild => {
+			await Promises.settled(sourceFolder.children.map(async sourceChild => {
 				const targetChild = this.getExtUri(targetProvider).providerExtUri.joinPath(targetFolder, sourceChild.name);
 				if (sourceChild.isDirectory) {
 					return this.doCopyFolder(sourceProvider, await this.resolve(sourceChild.resource), targetProvider, targetChild);
@@ -1170,7 +1170,7 @@ export class FileService extends Disposable implements IFileService {
 		} catch (error) {
 			throw ensureFileSystemProviderError(error);
 		} finally {
-			await Promise.all([
+			await Promises.settled([
 				typeof sourceHandle === 'number' ? sourceProvider.close(sourceHandle) : Promise.resolve(),
 				typeof targetHandle === 'number' ? targetProvider.close(targetHandle) : Promise.resolve(),
 			]);
