@@ -3,8 +3,8 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { ResourceMap, TernarySearchTree, PathIterator, StringIterator, LinkedMap, Touch, LRUCache, UriIterator, ConfigKeysIterator } from 'vs/base/common/map';
 import * as assert from 'assert';
+import { ResourceMap, TernarySearchTree, PathIterator, StringIterator, LinkedMap, Touch, LRUCache, UriIterator, ConfigKeysIterator } from 'vs/base/common/map';
 import { URI } from 'vs/base/common/uri';
 import { extUriIgnorePathCase } from 'vs/base/common/resources';
 

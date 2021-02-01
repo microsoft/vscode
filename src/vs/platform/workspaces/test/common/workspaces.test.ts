@@ -8,6 +8,7 @@ import { URI } from 'vs/base/common/uri';
 import { hasWorkspaceFileExtension, toWorkspaceIdentifier, isSingleFolderWorkspaceIdentifier, isWorkspaceIdentifier } from 'vs/platform/workspaces/common/workspaces';
 
 suite('Workspaces', () => {
+
 	test('hasWorkspaceFileExtension', () => {
 		assert.strictEqual(hasWorkspaceFileExtension('something'), false);
 		assert.strictEqual(hasWorkspaceFileExtension('something.code-workspace'), true);

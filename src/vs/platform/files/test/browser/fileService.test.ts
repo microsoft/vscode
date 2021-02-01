@@ -74,6 +74,8 @@ suite('File Service', () => {
 		assert.strictEqual(registrations.length, 2);
 		assert.strictEqual(registrations[1].scheme, 'test');
 		assert.strictEqual(registrations[1].added, false);
+
+		service.dispose();
 	});
 
 	test('watch', async () => {
@@ -121,5 +123,7 @@ suite('File Service', () => {
 		assert.strictEqual(disposeCounter, 1);
 		watcher3Disposable2.dispose();
 		assert.strictEqual(disposeCounter, 2);
+
+		service.dispose();
 	});
 });
