@@ -4,14 +4,13 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { WebContents, webContents } from 'electron';
-import { VSBuffer } from 'vs/base/common/buffer';
 import { Disposable } from 'vs/base/common/lifecycle';
 import { URI } from 'vs/base/common/uri';
 import { IFileService } from 'vs/platform/files/common/files';
 import { ILogService } from 'vs/platform/log/common/log';
 import { ITunnelService } from 'vs/platform/remote/common/tunnel';
 import { IRequestService } from 'vs/platform/request/common/request';
-import { IWebviewManagerService, RegisterWebviewMetadata, WebviewWebContentsId, WebviewWindowId } from 'vs/platform/webview/common/webviewManagerService';
+import { IWebviewManagerService, RegisterWebviewMetadata, WebviewManagerDidLoadResourceResponse, WebviewWebContentsId, WebviewWindowId } from 'vs/platform/webview/common/webviewManagerService';
 import { WebviewPortMappingProvider } from 'vs/platform/webview/electron-main/webviewPortMappingProvider';
 import { WebviewProtocolProvider } from 'vs/platform/webview/electron-main/webviewProtocolProvider';
 import { IWindowsMainService } from 'vs/platform/windows/electron-main/windows';
@@ -95,7 +94,7 @@ export class WebviewMainService extends Disposable implements IWebviewManagerSer
 		}
 	}
 
-	public async didLoadResource(requestId: number, content: VSBuffer | undefined): Promise<void> {
-		this.protocolProvider.didLoadResource(requestId, content);
+	public async didLoadResource(requestId: number, response: WebviewManagerDidLoadResourceResponse): Promise<void> {
+		this.protocolProvider.didLoadResource(requestId, response);
 	}
 }
