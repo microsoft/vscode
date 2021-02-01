@@ -1681,7 +1681,7 @@ export type IDebugSessionDto = IDebugSessionFullDto | DebugSessionUUID;
 
 export interface ExtHostDebugServiceShape {
 	$substituteVariables(folder: UriComponents | undefined, config: IConfig): Promise<IConfig>;
-	$runInTerminal(args: DebugProtocol.RunInTerminalRequestArguments): Promise<number | undefined>;
+	$runInTerminal(args: DebugProtocol.RunInTerminalRequestArguments, sessionId: string): Promise<number | undefined>;
 	$startDASession(handle: number, session: IDebugSessionDto): Promise<void>;
 	$stopDASession(handle: number): Promise<void>;
 	$sendDAMessage(handle: number, message: DebugProtocol.ProtocolMessage): void;
