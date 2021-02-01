@@ -17,7 +17,7 @@ import { Action2, ICommandAction, MenuId, MenuRegistry, registerAction2, SyncAct
 import { CommandsRegistry, ICommandHandler, ICommandService } from 'vs/platform/commands/common/commands';
 import { ConfigurationTarget, IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { ConfigurationScope, Extensions as ConfigurationExtensions, IConfigurationRegistry } from 'vs/platform/configuration/common/configurationRegistry';
-import { ContextKeyEqualsExpr, ContextKeyExpr, IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
+import { ContextKeyAndExpr, ContextKeyEqualsExpr, ContextKeyExpr, IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
 import { IFileService } from 'vs/platform/files/common/files';
 import { SyncDescriptor } from 'vs/platform/instantiation/common/descriptors';
 import { registerSingleton } from 'vs/platform/instantiation/common/extensions';
@@ -667,9 +667,16 @@ Registry.as<IWorkbenchContributionsRegistry>(WorkbenchExtensions.Workbench).regi
 // Actions
 const registry = Registry.as<IWorkbenchActionRegistry>(ActionExtensions.WorkbenchActions);
 
-// Show Search and Find in Files are redundant, but we can't break keybindings by removing one. So it's the same action, same keybinding, registered to different IDs.
-// Show Search 'when' is redundant but if the two conflict with exactly the same keybinding and 'when' clause, then they can show up as "unbound" - #51780
-registry.registerWorkbenchAction(SyncActionDescriptor.from(OpenSearchViewletAction), 'View: Show Search', CATEGORIES.View.value);
+// View: Show Search is used for the keybindings in the View menu and the sidebar #115556, but it should only be enabbled when search.mode == view, or else it will steal priority over opening a search editor #115511
+const SEARCH_MODE_CONFIG = 'search.mode';
+registry.registerWorkbenchAction(
+	SyncActionDescriptor.from(
+		OpenSearchViewletAction,
+		{ primary: KeyMod.CtrlCmd | KeyMod.Shift | KeyCode.KEY_F },
+		ContextKeyAndExpr.create([Constants.SearchViewVisibleKey.toNegated(), ContextKeyEqualsExpr.create(`config.${SEARCH_MODE_CONFIG}`, 'view')])),
+	'View: Show Search', CATEGORIES.View.value);
+
+// Find in Files by default is the same as View: Show Search, but can be configured to open a search editor instead with the `search.mode` binding
 KeybindingsRegistry.registerCommandAndKeybindingRule({
 	description: {
 		description: nls.localize('findInFiles.description', "Open the search viewlet"),
@@ -830,7 +837,7 @@ configurationRegistry.registerConfiguration({
 			},
 			scope: ConfigurationScope.RESOURCE
 		},
-		'search.mode': {
+		[SEARCH_MODE_CONFIG]: {
 			type: 'string',
 			enum: ['view', 'reuseEditor', 'newEditor'],
 			default: 'view',
