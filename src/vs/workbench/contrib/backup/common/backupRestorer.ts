@@ -81,7 +81,7 @@ export class BackupRestorer implements IWorkbenchContribution {
 	private findEditorByResource(resource: URI): IEditorInput | undefined {
 		for (const editor of this.editorService.editors) {
 			const customFactory = Registry.as<IEditorInputFactoryRegistry>(EditorExtensions.EditorInputFactories).getCustomEditorInputFactory(resource.scheme);
-			if (customFactory && customFactory.canResolveBackup(editor, resource)) {
+			if (customFactory?.canResolveBackup(editor, resource)) {
 				return editor;
 			} else if (isEqual(editor.resource, resource)) {
 				return editor;

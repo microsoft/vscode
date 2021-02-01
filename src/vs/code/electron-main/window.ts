@@ -649,7 +649,7 @@ export class CodeWindow extends Disposable implements ICodeWindow {
 
 		// Make sure to update our workspace config if we detect that it
 		// was deleted
-		if (this.openedWorkspace && this.openedWorkspace.id === workspace.id && this.currentConfig) {
+		if (this.openedWorkspace?.id === workspace.id && this.currentConfig) {
 			this.currentConfig.workspace = undefined;
 		}
 	}

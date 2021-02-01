@@ -200,7 +200,7 @@ export class TabsTitleControl extends TitleControl {
 	}
 
 	private updateBreadcrumbsControl(): void {
-		if (this.breadcrumbsControl && this.breadcrumbsControl.update()) {
+		if (this.breadcrumbsControl?.update()) {
 			this.group.relayout(); // relayout when we have a breadcrumbs and when update changed its hidden-status
 		}
 	}
