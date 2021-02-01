@@ -30,7 +30,7 @@ suite('EditorAutoSave', () => {
 	});
 
 	teardown(() => {
-		disposables.dispose();
+		disposables.clear();
 	});
 
 	async function createEditorAutoSave(autoSaveConfig: object): Promise<TestServiceAccessor> {
