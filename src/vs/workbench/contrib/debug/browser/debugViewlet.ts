@@ -259,16 +259,31 @@ registerAction2(class extends Action2 {
 				primary: KeyMod.CtrlCmd | KeyMod.Shift | KeyCode.KEY_Y,
 				weight: KeybindingWeight.WorkbenchContrib
 			},
-			toggled: ContextKeyDefinedExpr.create(`view.${REPL_VIEW_ID}.visible`),
 			icon: debugConsole,
+			menu: [{
+				id: MenuId.MenubarViewMenu,
+				group: '4_panels',
+				order: 2
+			}]
+		});
+	}
+
+	async run(accessor: ServicesAccessor): Promise<void> {
+		return accessor.get(IInstantiationService).createInstance(ToggleViewAction, OPEN_REPL_COMMAND_ID, 'Debug Console', REPL_VIEW_ID).run();
+	}
+});
+
+// Register the same action a second time, since in the main menu we should not render the checkmark (toggle)
+registerAction2(class extends Action2 {
+	constructor() {
+		super({
+			id: OPEN_REPL_COMMAND_ID,
+			title: nls.localize('debugPanel', "Debug Console"),
+			toggled: ContextKeyDefinedExpr.create(`view.${REPL_VIEW_ID}.visible`),
 			menu: [{
 				id: ViewsSubMenu,
 				order: 30,
 				when: ContextKeyExpr.and(ContextKeyEqualsExpr.create('viewContainer', VIEWLET_ID))
-			}, {
-				id: MenuId.MenubarViewMenu,
-				group: '4_panels',
-				order: 2
 			}]
 		});
 	}
