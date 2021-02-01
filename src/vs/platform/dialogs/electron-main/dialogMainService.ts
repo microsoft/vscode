@@ -50,9 +50,9 @@ export class DialogMainService implements IDialogMainService {
 
 	private static readonly workingDirPickerStorageKey = 'pickerWorkingDir';
 
-	private readonly windowDialogLocks = new Map<number, Set<number>>();
-	private readonly windowDialogQueues = new Map<number, Queue<any>>();
-	private readonly noWindowDialogueQueue = new Queue<any>();
+	private readonly windowFileDialogLocks = new Map<number, Set<number>>();
+	private readonly windowDialogQueues = new Map<number, Queue<MessageBoxReturnValue | SaveDialogReturnValue | OpenDialogReturnValue>>();
+	private readonly noWindowDialogueQueue = new Queue<MessageBoxReturnValue | SaveDialogReturnValue | OpenDialogReturnValue>();
 
 	constructor(
 		@IStateService private readonly stateService: IStateService
@@ -131,13 +131,13 @@ export class DialogMainService implements IDialogMainService {
 		if (window) {
 			let windowDialogQueue = this.windowDialogQueues.get(window.id);
 			if (!windowDialogQueue) {
-				windowDialogQueue = new Queue<T>();
+				windowDialogQueue = new Queue<MessageBoxReturnValue | SaveDialogReturnValue | OpenDialogReturnValue>();
 				this.windowDialogQueues.set(window.id, windowDialogQueue);
 			}
 
-			return windowDialogQueue;
+			return windowDialogQueue as unknown as Queue<T>;
 		} else {
-			return this.noWindowDialogueQueue;
+			return this.noWindowDialogueQueue as unknown as Queue<T>;
 		}
 	}
 
@@ -153,18 +153,10 @@ export class DialogMainService implements IDialogMainService {
 
 	async showSaveDialog(options: SaveDialogOptions, window?: BrowserWindow): Promise<SaveDialogReturnValue> {
 
-		function normalizePath(path: string | undefined): string | undefined {
-			if (path && isMacintosh) {
-				path = normalizeNFC(path); // normalize paths returned from the OS
-			}
-
-			return path;
-		}
-
 		// prevent duplicates of the same dialog queueing at the same time
 		const fileDialogLock = this.acquireFileDialogLock(options, window);
 		if (!fileDialogLock) {
-			throw new Error('A file save dialog is already showing for the window with the same configuration');
+			throw new Error('A file save dialog is already or will be showing for the window with the same configuration');
 		}
 
 		try {
@@ -176,7 +168,7 @@ export class DialogMainService implements IDialogMainService {
 					result = await dialog.showSaveDialog(options);
 				}
 
-				result.filePath = normalizePath(result.filePath);
+				result.filePath = this.normalizePath(result.filePath);
 
 				return result;
 			});
@@ -185,15 +177,21 @@ export class DialogMainService implements IDialogMainService {
 		}
 	}
 
-	async showOpenDialog(options: OpenDialogOptions, window?: BrowserWindow): Promise<OpenDialogReturnValue> {
-
-		function normalizePaths(paths: string[]): string[] {
-			if (paths && paths.length > 0 && isMacintosh) {
-				paths = paths.map(path => normalizeNFC(path)); // normalize paths returned from the OS
-			}
-
-			return paths;
+	private normalizePath(path: string): string;
+	private normalizePath(path: string | undefined): string | undefined;
+	private normalizePath(path: string | undefined): string | undefined {
+		if (path && isMacintosh) {
+			path = normalizeNFC(path); // macOS only: normalize paths to NFC form
 		}
+
+		return path;
+	}
+
+	private normalizePaths(paths: string[]): string[] {
+		return paths.map(path => this.normalizePath(path));
+	}
+
+	async showOpenDialog(options: OpenDialogOptions, window?: BrowserWindow): Promise<OpenDialogReturnValue> {
 
 		// Ensure the path exists (if provided)
 		if (options.defaultPath) {
@@ -206,7 +204,7 @@ export class DialogMainService implements IDialogMainService {
 		// prevent duplicates of the same dialog queueing at the same time
 		const fileDialogLock = this.acquireFileDialogLock(options, window);
 		if (!fileDialogLock) {
-			throw new Error('A file open dialog is already showing for the window with the same configuration');
+			throw new Error('A file open dialog is already or will be showing for the window with the same configuration');
 		}
 
 		try {
@@ -218,7 +216,7 @@ export class DialogMainService implements IDialogMainService {
 					result = await dialog.showOpenDialog(options);
 				}
 
-				result.filePaths = normalizePaths(result.filePaths);
+				result.filePaths = this.normalizePaths(result.filePaths);
 
 				return result;
 			});
@@ -239,29 +237,28 @@ export class DialogMainService implements IDialogMainService {
 		// at the same time because dialogs are modal and we
 		// do not want to open one dialog after the other
 		// (https://github.com/microsoft/vscode/issues/114432)
-		let windowDialogLocks = this.windowDialogLocks.get(window.id);
+		// we figure this out by `hashing` the configuration
+		// options for the dialog to prevent duplicates
 
-		// figure out if a dialog with these options is already
-		// showing by hashing the options
+		let windowFileDialogLocks = this.windowFileDialogLocks.get(window.id);
+		if (!windowFileDialogLocks) {
+			windowFileDialogLocks = new Set();
+			this.windowFileDialogLocks.set(window.id, windowFileDialogLocks);
+		}
+
 		const optionsHash = hash(options);
-		if (windowDialogLocks?.has(optionsHash)) {
-			return undefined;
+		if (windowFileDialogLocks.has(optionsHash)) {
+			return undefined; // prevent duplicates, return
 		}
 
-		if (!windowDialogLocks) {
-			windowDialogLocks = new Set();
-			this.windowDialogLocks.set(window.id, windowDialogLocks);
-		}
-
-		windowDialogLocks.add(optionsHash);
+		windowFileDialogLocks.add(optionsHash);
 
 		return toDisposable(() => {
-			const windowDialogLocks = this.windowDialogLocks.get(window.id);
-			windowDialogLocks?.delete(optionsHash);
+			windowFileDialogLocks?.delete(optionsHash);
 
 			// if the window has no more dialog locks, delete it from the set of locks
-			if (windowDialogLocks?.size === 0) {
-				this.windowDialogLocks.delete(window.id);
+			if (windowFileDialogLocks?.size === 0) {
+				this.windowFileDialogLocks.delete(window.id);
 			}
 		});
 	}
