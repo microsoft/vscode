@@ -3,8 +3,8 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { URI } from 'vs/base/common/uri';
 import * as assert from 'assert';
+import { URI } from 'vs/base/common/uri';
 import { join } from 'vs/base/common/path';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { IUntitledTextEditorService, UntitledTextEditorService } from 'vs/workbench/services/untitled/common/untitledTextEditorService';
