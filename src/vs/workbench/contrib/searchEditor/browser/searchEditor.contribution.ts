@@ -511,11 +511,10 @@ registerAction2(class extends Action2 {
 registerAction2(class OpenSearchEditorAction extends Action2 {
 	constructor() {
 		super({
-			id: SearchEditorConstants.OpenNewEditorCommandId,
-			title: localize('search.openNewEditor', "Open New Search Editor"),
+			id: 'search.action.openNewEditorFromView',
+			title: localize('search.openNewEditor', "Open New Search Editor from View"),
 			category,
 			icon: searchNewEditorIcon,
-			f1: true,
 			menu: [{
 				id: MenuId.ViewTitle,
 				group: 'navigation',
