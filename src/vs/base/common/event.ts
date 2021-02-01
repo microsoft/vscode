@@ -9,7 +9,6 @@ import { Disposable, IDisposable, toDisposable, combinedDisposable, DisposableSt
 import { LinkedList } from 'vs/base/common/linkedList';
 import { CancellationToken } from 'vs/base/common/cancellation';
 import { StopWatch } from 'vs/base/common/stopwatch';
-import { Promises } from 'vs/base/common/async';
 
 /**
  * To an event a function with one or zero parameters
@@ -80,7 +79,7 @@ export namespace Event {
 	 * Given an event, returns the same event but typed as `Event<void>`.
 	 */
 	export function signal<T>(event: Event<T>): Event<void> {
-		return event as unknown as Event<void>;
+		return event as Event<any> as Event<void>;
 	}
 
 	/**
@@ -688,14 +687,14 @@ export class PauseableEmitter<T> extends Emitter<T> {
 }
 
 export interface IWaitUntil {
-	waitUntil(thenable: Promise<unknown>): void;
+	waitUntil(thenable: Promise<any>): void;
 }
 
 export class AsyncEmitter<T extends IWaitUntil> extends Emitter<T> {
 
 	private _asyncDeliveryQueue?: LinkedList<[Listener<T>, Omit<T, 'waitUntil'>]>;
 
-	async fireAsync(data: Omit<T, 'waitUntil'>, token: CancellationToken, promiseJoin?: (p: Promise<unknown>, listener: Function) => Promise<unknown>): Promise<void> {
+	async fireAsync(data: Omit<T, 'waitUntil'>, token: CancellationToken, promiseJoin?: (p: Promise<any>, listener: Function) => Promise<any>): Promise<void> {
 		if (!this._listeners) {
 			return;
 		}
@@ -711,11 +710,11 @@ export class AsyncEmitter<T extends IWaitUntil> extends Emitter<T> {
 		while (this._asyncDeliveryQueue.size > 0 && !token.isCancellationRequested) {
 
 			const [listener, data] = this._asyncDeliveryQueue.shift()!;
-			const thenables: Promise<unknown>[] = [];
+			const thenables: Promise<any>[] = [];
 
 			const event = <T>{
 				...data,
-				waitUntil: (p: Promise<unknown>): void => {
+				waitUntil: (p: Promise<any>): void => {
 					if (Object.isFrozen(thenables)) {
 						throw new Error('waitUntil can NOT be called asynchronous');
 					}
@@ -740,7 +739,7 @@ export class AsyncEmitter<T extends IWaitUntil> extends Emitter<T> {
 			// freeze thenables-collection to enforce sync-calls to
 			// wait until and then wait for all thenables to resolve
 			Object.freeze(thenables);
-			await Promises.settled(thenables).catch(e => onUnexpectedError(e));
+			await Promise.all(thenables).catch(e => onUnexpectedError(e));
 		}
 	}
 }
