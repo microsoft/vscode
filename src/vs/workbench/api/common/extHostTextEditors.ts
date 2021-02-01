@@ -92,7 +92,7 @@ export class ExtHostEditors implements ExtHostEditorsShape {
 	}
 
 	createTextEditorDecorationType(options: vscode.DecorationRenderOptions): vscode.TextEditorDecorationType {
-		return new TextEditorDecorationType(this._proxy, options);
+		return new TextEditorDecorationType(this._proxy, options).value;
 	}
 
 	// --- called from main thread

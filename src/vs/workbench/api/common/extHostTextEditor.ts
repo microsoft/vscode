@@ -16,22 +16,23 @@ import type * as vscode from 'vscode';
 import { ILogService } from 'vs/platform/log/common/log';
 import { Lazy } from 'vs/base/common/lazy';
 
-export class TextEditorDecorationType implements vscode.TextEditorDecorationType {
+export class TextEditorDecorationType {
 
 	private static readonly _Keys = new IdGenerator('TextEditorDecorationType');
 
-	private _proxy: MainThreadTextEditorsShape;
-	public key: string;
+	readonly value: vscode.TextEditorDecorationType;
 
 	constructor(proxy: MainThreadTextEditorsShape, options: vscode.DecorationRenderOptions) {
-		this.key = TextEditorDecorationType._Keys.nextId();
-		this._proxy = proxy;
-		this._proxy.$registerTextEditorDecorationType(this.key, TypeConverters.DecorationRenderOptions.from(options));
+		const key = TextEditorDecorationType._Keys.nextId();
+		proxy.$registerTextEditorDecorationType(key, TypeConverters.DecorationRenderOptions.from(options));
+		this.value = Object.freeze({
+			key,
+			dispose() {
+				proxy.$removeTextEditorDecorationType(key);
+			}
+		});
 	}
 
-	public dispose(): void {
-		this._proxy.$removeTextEditorDecorationType(this.key);
-	}
 }
 
 export interface ITextEditOperation {

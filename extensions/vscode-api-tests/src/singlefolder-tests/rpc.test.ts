@@ -20,7 +20,6 @@ suite('vscode', function () {
 	});
 
 	test('no rpc, createTextEditorDecorationType(...)', function () {
-		this.skip();
 		const item = vscode.window.createTextEditorDecorationType({});
 		dispo.push(item);
 		assertNoRpcFromEntry([item, 'TextEditorDecorationType']);
