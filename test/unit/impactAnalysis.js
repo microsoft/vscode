@@ -6,6 +6,8 @@
 //@ts-check
 
 const cp = require('child_process');
+const fs = require('fs');
+const path = require('path');
 const tsMorph = require('ts-morph');
 
 exports.getCommitDetails = function (commit) {
@@ -58,7 +60,6 @@ exports.getLocalChangeDetails = function () {
 
 exports.getReachableTestSuites = function (commnitChanges) {
 	const testFiles = new Set();
-	const dependencyMap = createDependencyMap();
 
 	for (const file of commnitChanges) {
 		// Added/Modified test file
@@ -67,7 +68,7 @@ exports.getReachableTestSuites = function (commnitChanges) {
 			continue;
 		}
 		// Add reachable test suites
-		getReachableTestSuitesFromFile(dependencyMap, file).forEach(f => testFiles.add(f));
+		getReachableTestSuitesFromFile(file).forEach(f => testFiles.add(f));
 	}
 
 	printDetails('Impacted test suites', [...testFiles]);
@@ -75,11 +76,16 @@ exports.getReachableTestSuites = function (commnitChanges) {
 	return [...testFiles];
 }
 
-function createDependencyMap() {
-	const dependencyMap = new Map();
-	const project = new tsMorph.Project({
-		tsConfigFilePath: 'src/tsconfig.json',
-	});
+const dependencyMap = new Map();
+function getDependencyMap(file) {
+	if (dependencyMap.has(file)) {
+		return dependencyMap.get(file);
+	}
+
+	const map = new Map();
+	const tsConfigFilePath = getTsConfigFilePath(file);
+	const project = new tsMorph.Project({ tsConfigFilePath });
+
 	for (let file of project.getSourceFiles()) {
 		const references = [];
 		const filePath = file.getFilePath();
@@ -102,15 +108,17 @@ function createDependencyMap() {
 			}
 		}
 
-		dependencyMap.set(filePathKey, references);
+		map.set(filePathKey, references);
 	}
 
-	return dependencyMap;
+	dependencyMap.set(file, map);
+	return dependencyMap.get(file);
 }
 
-function getReachableTestSuitesFromFile(dependencyMap, file) {
+function getReachableTestSuitesFromFile(file) {
 	const array = [];
 	const visited = new Set([...file]);
+	const dependencyMap = getDependencyMap(file);
 
 	const getIndentation = (indentation) => {
 		let indentationStr = '';
@@ -141,6 +149,20 @@ function getReachableTestSuitesFromFile(dependencyMap, file) {
 	}
 
 	return [...visited].filter(f => f.endsWith('.test.ts'));
+}
+
+function getTsConfigFilePath(file) {
+	const folders = path.dirname(file).split(path.sep);
+	while (folders.length !== 0) {
+		const currentFolder = path.join(...folders);
+		const tsconfigPath = `${currentFolder}${path.sep}tsconfig.json`;
+		if (fs.existsSync(tsconfigPath)) {
+			return tsconfigPath;
+		}
+		folders.pop();
+	}
+
+	return '';
 }
 
 function printDetails(string, message) {
