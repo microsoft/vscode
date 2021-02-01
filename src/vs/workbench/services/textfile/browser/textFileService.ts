@@ -40,6 +40,8 @@ import { IModeService } from 'vs/editor/common/services/modeService';
 import { ILogService } from 'vs/platform/log/common/log';
 import { CancellationToken } from 'vs/base/common/cancellation';
 
+// import * as iconv from 'iconv-lite-umd';
+
 /**
  * The workbench file service implementation implements the raw file service spec and adds additional methods on top.
  */
@@ -138,7 +140,8 @@ export abstract class AbstractTextFileService extends Disposable implements ITex
 		// read through encoding library
 		const decoder = await toDecodeStream(bufferStream.value, {
 			guessEncoding: options?.autoGuessEncoding || this.textResourceConfigurationService.getValue(resource, 'files.autoGuessEncoding'),
-			overwriteEncoding: detectedEncoding => this.encoding.getReadEncoding(resource, options, detectedEncoding)
+			overwriteEncoding: (detectedEncoding) => this.encoding.getReadEncoding(resource, options, detectedEncoding),
+			setBuf: (buf) => this.encoding.setBuf(buf)
 		});
 
 		// validate binary
@@ -587,7 +590,6 @@ export class EncodingOracle extends Disposable implements IResourceEncodings {
 			hasBOM: resourceEncoding === UTF16be || resourceEncoding === UTF16le || resourceEncoding === UTF8_with_bom // enforce BOM for certain encodings
 		};
 	}
-
 	getReadEncoding(resource: URI, options: IReadTextFileOptions | undefined, detectedEncoding: string | null): Promise<string> {
 		let preferredEncoding: string | undefined;
 
@@ -609,18 +611,65 @@ export class EncodingOracle extends Disposable implements IResourceEncodings {
 		else if (this.textResourceConfigurationService.getValue(resource, 'files.encoding') === UTF8_with_bom) {
 			preferredEncoding = UTF8; // if we did not detect UTF 8 BOM before, this can only be UTF 8 then
 		}
+		//let candidate = this.checkCandidate(resource, buffer);
+		//	preferredEncoding = candidate;//? candidate : preferredEncoding;
 
 		return this.getEncodingForResource(resource, preferredEncoding);
 	}
+
+	private _buf: Uint8Array | undefined = undefined;
+	setBuf(buffer: Uint8Array): any {
+		this._buf = buffer;
+	}
+	private checkCandidate(resource: URI): string | undefined {
+		let buffer = this._buf;
+		let candidate: string[] = this.textResourceConfigurationService.getValue(resource, 'files.encoding_candidate');
+		for (const cand of candidate) {
+			try {
+				// const iconv = await import('iconv-lite-umd');
+				// let textdecoder = getDecoder(cand);
+				// let textdecoder = new TextDecoder(cand);
+				let textdecoder = new TextDecoder(cand, { fatal: true });
+				// let decoder = {
+				// 	write(buffer: Uint8Array): string {
+				// 		return textdecoder.decode(buffer, {
+				// 			// Signal to TextDecoder that potentially more data is coming
+				// 			// and that we are calling `decode` in the end to consume any
+				// 			// remainders
+				// 			stream: true
+				// 		});
+				// 	},
+
+				// 	end(): string | undefined {
+				// 		return textdecoder.decode();
+				// 	}
+				// };
+
+				if (buffer) {
+					textdecoder.decode(buffer);
+				}
+				// decode successfully
+				return cand;
+			} catch (error) {
+
+			}
+		}
+		return undefined;
+	}
+
 
 	private async getEncodingForResource(resource: URI, preferredEncoding?: string): Promise<string> {
 		let fileEncoding: string;
 
 		const override = this.getEncodingOverride(resource);
+		let candidate = this.checkCandidate(resource);
 		if (override) {
 			fileEncoding = override; // encoding override always wins
 		} else if (preferredEncoding) {
 			fileEncoding = preferredEncoding; // preferred encoding comes second
+		} else if (candidate) {
+			fileEncoding = candidate;
+
 		} else {
 			fileEncoding = this.textResourceConfigurationService.getValue(resource, 'files.encoding'); // and last we check for settings
 		}
@@ -631,9 +680,11 @@ export class EncodingOracle extends Disposable implements IResourceEncodings {
 			}
 		}
 
+		// NOTE: Set UTF-8
 		return fileEncoding;
 	}
 
+	// NOTE: enocding override
 	private getEncodingOverride(resource: URI): string | undefined {
 		if (this.encodingOverrides && this.encodingOverrides.length) {
 			for (const override of this.encodingOverrides) {
@@ -649,6 +700,7 @@ export class EncodingOracle extends Disposable implements IResourceEncodings {
 				}
 			}
 		}
+
 
 		return undefined;
 	}
