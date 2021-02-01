@@ -11,8 +11,6 @@ import { IRemoteAgentService } from 'vs/workbench/services/remote/common/remoteA
 import * as nls from 'vs/nls';
 import { ITerminalService } from 'vs/workbench/contrib/terminal/browser/terminal';
 
-let hasReceivedResponseFromRemoteExtHost: boolean = false;
-
 export class TerminalProcessExtHostProxy extends Disposable implements ITerminalChildProcess, ITerminalProcessExtHostProxy {
 
 	private readonly _onProcessData = this._register(new Emitter<string>());
@@ -106,12 +104,6 @@ export class TerminalProcessExtHostProxy extends Disposable implements ITerminal
 		// there is no real "process" and we know it's ready on the ext host already.
 		if (this._shellLaunchConfig.isExtensionTerminal) {
 			return this._terminalService.requestStartExtensionTerminal(this, this._cols, this._rows);
-		}
-
-		// Add a loading title if the extension host has not started yet as there could be a
-		// decent wait for the user
-		if (!hasReceivedResponseFromRemoteExtHost) {
-			setTimeout(() => this._onProcessTitleChanged.fire(nls.localize('terminal.integrated.starting', "Starting...")), 0);
 		}
 
 		// Fetch the environment to check shell permissions
