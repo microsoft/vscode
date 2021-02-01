@@ -7,25 +7,25 @@ import * as assert from 'assert';
 import { EditorPane, EditorMemento } from 'vs/workbench/browser/parts/editor/editorPane';
 import { EditorInput, EditorOptions, IEditorInputFactory, IEditorInputFactoryRegistry, Extensions as EditorExtensions } from 'vs/workbench/common/editor';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
-import * as Platform from 'vs/platform/registry/common/platform';
+import { Registry } from 'vs/platform/registry/common/platform';
 import { SyncDescriptor } from 'vs/platform/instantiation/common/descriptors';
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
 import { NullTelemetryService } from 'vs/platform/telemetry/common/telemetryUtils';
-import { workbenchInstantiationService, TestEditorGroupView, TestEditorGroupsService } from 'vs/workbench/test/browser/workbenchTestServices';
+import { workbenchInstantiationService, TestEditorGroupView, TestEditorGroupsService, registerTestResourceEditor } from 'vs/workbench/test/browser/workbenchTestServices';
 import { ResourceEditorInput } from 'vs/workbench/common/editor/resourceEditorInput';
 import { TestThemeService } from 'vs/platform/theme/test/common/testThemeService';
 import { URI } from 'vs/base/common/uri';
 import { IEditorRegistry, Extensions, EditorDescriptor } from 'vs/workbench/browser/editor';
 import { CancellationToken } from 'vs/base/common/cancellation';
 import { IEditorModel } from 'vs/platform/editor/common/editor';
-import { dispose } from 'vs/base/common/lifecycle';
+import { DisposableStore, dispose } from 'vs/base/common/lifecycle';
 import { TestStorageService } from 'vs/workbench/test/common/workbenchTestServices';
 import { extUri } from 'vs/base/common/resources';
 
 const NullThemeService = new TestThemeService();
 
-let EditorRegistry: IEditorRegistry = Platform.Registry.as(Extensions.Editors);
-let EditorInputRegistry: IEditorInputFactoryRegistry = Platform.Registry.as(EditorExtensions.EditorInputFactories);
+let EditorRegistry: IEditorRegistry = Registry.as(Extensions.Editors);
+let EditorInputRegistry: IEditorInputFactoryRegistry = Registry.as(EditorExtensions.EditorInputFactories);
 
 export class MyEditor extends EditorPane {
 
@@ -155,7 +155,10 @@ suite('Workbench EditorPane', () => {
 	test('Editor Lookup favors specific class over superclass (match on specific class)', function () {
 		let d1 = EditorDescriptor.create(MyEditor, 'id1', 'name');
 
-		const disposable = EditorRegistry.registerEditor(d1, [new SyncDescriptor(MyResourceEditorInput)]);
+		const disposables = new DisposableStore();
+
+		disposables.add(registerTestResourceEditor());
+		disposables.add(EditorRegistry.registerEditor(d1, [new SyncDescriptor(MyResourceEditorInput)]));
 
 		let inst = workbenchInstantiationService();
 
@@ -165,14 +168,20 @@ suite('Workbench EditorPane', () => {
 		const otherEditor = EditorRegistry.getEditor(inst.createInstance(ResourceEditorInput, URI.file('/fake'), 'fake', '', undefined))!.instantiate(inst);
 		assert.strictEqual(otherEditor.getId(), 'workbench.editors.textResourceEditor');
 
-		disposable.dispose();
+		disposables.dispose();
 	});
 
 	test('Editor Lookup favors specific class over superclass (match on super class)', function () {
 		let inst = workbenchInstantiationService();
 
+		const disposables = new DisposableStore();
+
+		disposables.add(registerTestResourceEditor());
 		const editor = EditorRegistry.getEditor(inst.createInstance(MyResourceEditorInput, URI.file('/fake'), 'fake', '', undefined))!.instantiate(inst);
+
 		assert.strictEqual('workbench.editors.textResourceEditor', editor.getId());
+
+		disposables.dispose();
 	});
 
 	test('Editor Input Factory', function () {
@@ -299,7 +308,7 @@ suite('Workbench EditorPane', () => {
 				super();
 			}
 			getTypeId() { return 'testEditorInputForMementoTest'; }
-			resolve(): Promise<IEditorModel> { return Promise.resolve(null!); }
+			async resolve(): Promise<IEditorModel | null> { return null; }
 
 			matches(other: TestEditorInput): boolean {
 				return other && this.id === other.id && other instanceof TestEditorInput;
@@ -337,7 +346,7 @@ suite('Workbench EditorPane', () => {
 				super();
 			}
 			getTypeId() { return 'testEditorInputForMementoTest'; }
-			resolve(): Promise<IEditorModel> { return Promise.resolve(null!); }
+			async resolve(): Promise<IEditorModel | null> { return null; }
 
 			matches(other: TestEditorInput): boolean {
 				return other && this.id === other.id && other instanceof TestEditorInput;

@@ -192,13 +192,14 @@ export class IconLabel extends Disposable {
 		}
 	}
 
-	private static adjustXAndShowCustomHover(hoverOptions: IHoverDelegateOptions | undefined, mouseX: number | undefined, hoverDelegate: IHoverDelegate, isHovering: boolean) {
+	private static adjustXAndShowCustomHover(hoverOptions: IHoverDelegateOptions | undefined, mouseX: number | undefined, hoverDelegate: IHoverDelegate, isHovering: boolean): IDisposable | undefined {
 		if (hoverOptions && isHovering) {
 			if (mouseX !== undefined) {
 				(<IHoverDelegateTarget>hoverOptions.target).x = mouseX + 10;
 			}
-			hoverDelegate.showHover(hoverOptions);
+			return hoverDelegate.showHover(hoverOptions);
 		}
+		return undefined;
 	}
 
 	private getTooltipForCustom(markdownTooltip: string | IIconLabelMarkdownString): (token: CancellationToken) => Promise<string | IMarkdownString | undefined> {
@@ -257,19 +258,22 @@ export class IconLabel extends Disposable {
 							target,
 							anchorPosition: AnchorPosition.BELOW
 						};
-						IconLabel.adjustXAndShowCustomHover(hoverOptions, mouseX, hoverDelegate, isHovering);
+						const hoverDisposable = IconLabel.adjustXAndShowCustomHover(hoverOptions, mouseX, hoverDelegate, isHovering);
 
-						const resolvedTooltip = await tooltip(tokenSource.token);
+						const resolvedTooltip = (await tooltip(tokenSource.token)) ?? (!isString(markdownTooltip) ? markdownTooltip.markdownNotSupportedFallback : undefined);
 						if (resolvedTooltip) {
 							hoverOptions = {
 								text: resolvedTooltip,
 								target,
 								anchorPosition: AnchorPosition.BELOW
 							};
+							// awaiting the tooltip could take a while. Make sure we're still hovering.
+							IconLabel.adjustXAndShowCustomHover(hoverOptions, mouseX, hoverDelegate, isHovering);
+						} else if (hoverDisposable) {
+							hoverDisposable.dispose();
 						}
 					}
-					// awaiting the tooltip could take a while. Make sure we're still hovering.
-					IconLabel.adjustXAndShowCustomHover(hoverOptions, mouseX, hoverDelegate, isHovering);
+
 				}
 				mouseMoveDisposable.dispose();
 			}, hoverDelay);

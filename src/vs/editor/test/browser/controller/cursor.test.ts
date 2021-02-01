@@ -4072,6 +4072,47 @@ suite('Editor Controller - Indentation Rules', () => {
 		mode.dispose();
 	});
 
+	test('issue #115304: OnEnter broken for TS', () => {
+		class JSMode extends MockMode {
+			private static readonly _id = new LanguageIdentifier('indentRulesMode', 4);
+			constructor() {
+				super(JSMode._id);
+				this._register(LanguageConfigurationRegistry.register(this.getLanguageIdentifier(), {
+					onEnterRules: javascriptOnEnterRules
+				}));
+			}
+		}
+
+		const mode = new JSMode();
+		const model = createTextModel(
+			[
+				'/** */',
+				'function f() {}',
+			].join('\n'),
+			undefined,
+			mode.getLanguageIdentifier()
+		);
+
+		withTestCodeEditor(null, { model: model, autoIndent: 'advanced' }, (editor, viewModel) => {
+			moveTo(editor, viewModel, 1, 4, false);
+			assertCursor(viewModel, new Selection(1, 4, 1, 4));
+
+			viewModel.type('\n', 'keyboard');
+			assert.strictEqual(model.getValue(),
+				[
+					'/**',
+					' * ',
+					' */',
+					'function f() {}',
+				].join('\n')
+			);
+			assertCursor(viewModel, new Selection(2, 4, 2, 4));
+		});
+
+		model.dispose();
+		mode.dispose();
+	});
+
 	test('issue #38261: TAB key results in bizarre indentation in C++ mode ', () => {
 		class CppMode extends MockMode {
 			private static readonly _id = new LanguageIdentifier('indentRulesMode', 4);

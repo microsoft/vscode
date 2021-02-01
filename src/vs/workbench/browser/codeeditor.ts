@@ -47,7 +47,7 @@ export class RangeHighlightDecorations extends Disposable {
 	}
 
 	removeHighlightRange() {
-		if (this.editor && this.editor.getModel() && this.rangeHighlightDecorationId) {
+		if (this.editor?.getModel() && this.rangeHighlightDecorationId) {
 			this.editor.deltaDecorations([this.rangeHighlightDecorationId], []);
 			this._onHighlightRemoved.fire();
 		}
@@ -76,7 +76,7 @@ export class RangeHighlightDecorations extends Disposable {
 
 	private getEditor(resourceRange: IRangeHighlightDecoration): ICodeEditor | undefined {
 		const activeEditor = this.editorService.activeEditor;
-		const resource = activeEditor && activeEditor.resource;
+		const resource = activeEditor?.resource;
 		if (resource && isEqual(resource, resourceRange.resource)) {
 			return this.editorService.activeTextEditorControl as ICodeEditor;
 		}
@@ -124,7 +124,7 @@ export class RangeHighlightDecorations extends Disposable {
 	dispose() {
 		super.dispose();
 
-		if (this.editor && this.editor.getModel()) {
+		if (this.editor?.getModel()) {
 			this.removeHighlightRange();
 			this.editor = null;
 		}

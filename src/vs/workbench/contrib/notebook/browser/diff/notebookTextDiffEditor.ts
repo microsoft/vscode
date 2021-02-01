@@ -476,6 +476,14 @@ export class NotebookTextDiffEditor extends EditorPane implements INotebookTextD
 			));
 		}
 
+		this._originalWebview?.insetMapping.forEach((value, key) => {
+			this._originalWebview?.removeInset(key);
+		});
+
+		this._modifiedWebview?.insetMapping.forEach((value, key) => {
+			this._modifiedWebview?.removeInset(key);
+		});
+
 		this._diffElementViewModels = diffElementViewModels;
 		this._list.splice(0, this._list.length, diffElementViewModels);
 

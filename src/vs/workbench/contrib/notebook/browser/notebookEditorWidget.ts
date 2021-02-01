@@ -62,6 +62,8 @@ import { Webview } from 'vs/workbench/contrib/webview/browser/webview';
 import { IEditorGroupsService } from 'vs/workbench/services/editor/common/editorGroupsService';
 import { configureKernelIcon, errorStateIcon, successStateIcon } from 'vs/workbench/contrib/notebook/browser/notebookIcons';
 import { debugIconStartForeground } from 'vs/workbench/contrib/debug/browser/debugColors';
+import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
+import { extname } from 'vs/base/common/resources';
 
 const $ = DOM.$;
 
@@ -253,7 +255,8 @@ export class NotebookEditorWidget extends Disposable implements INotebookEditor 
 		@IContextMenuService private readonly contextMenuService: IContextMenuService,
 		@IMenuService private readonly menuService: IMenuService,
 		@IQuickInputService private readonly quickInputService: IQuickInputService,
-		@IThemeService private readonly themeService: IThemeService
+		@IThemeService private readonly themeService: IThemeService,
+		@ITelemetryService private readonly telemetryService: ITelemetryService
 	) {
 		super();
 		this.isEmbedded = creationOptions.isEmbedded || false;
@@ -658,6 +661,24 @@ export class NotebookEditorWidget extends Disposable implements INotebookEditor 
 		if (this.viewModel === undefined || !this.viewModel.equal(textModel)) {
 			this._detachModel();
 			await this._attachModel(textModel, viewState);
+
+			type WorkbenchNotebookOpenClassification = {
+				scheme: { classification: 'SystemMetaData', purpose: 'FeatureInsight'; };
+				ext: { classification: 'SystemMetaData', purpose: 'FeatureInsight'; };
+				viewType: { classification: 'SystemMetaData', purpose: 'FeatureInsight'; };
+			};
+
+			type WorkbenchNotebookOpenEvent = {
+				scheme: string;
+				ext: string;
+				viewType: string;
+			};
+
+			this.telemetryService.publicLog2<WorkbenchNotebookOpenEvent, WorkbenchNotebookOpenClassification>('notebook/editorOpened', {
+				scheme: textModel.uri.scheme,
+				ext: extname(textModel.uri),
+				viewType: textModel.viewType
+			});
 		} else {
 			this.restoreListViewState(viewState);
 		}
@@ -2127,6 +2148,12 @@ export const focusedCellBorder = registerColor('notebook.focusedCellBorder', {
 	hc: focusBorder
 }, nls.localize('notebook.focusedCellBorder', "The color of the cell's top and bottom border when the cell is focused."));
 
+export const inactiveFocusedCellBorder = registerColor('notebook.inactiveFocusedCellBorder', {
+	dark: notebookCellBorder,
+	light: notebookCellBorder,
+	hc: notebookCellBorder
+}, nls.localize('notebook.inactiveFocusedCellBorder', "The color of the cell's top and bottom border when a cell is focused while the primary focus is outside of the editor."));
+
 export const cellStatusBarItemHover = registerColor('notebook.cellStatusBarItemHoverBackground', {
 	light: new Color(new RGBA(0, 0, 0, 0.08)),
 	dark: new Color(new RGBA(255, 255, 255, 0.15)),
@@ -2138,7 +2165,6 @@ export const cellInsertionIndicator = registerColor('notebook.cellInsertionIndic
 	dark: focusBorder,
 	hc: focusBorder
 }, nls.localize('notebook.cellInsertionIndicator', "The color of the notebook cell insertion indicator."));
-
 
 export const listScrollbarSliderBackground = registerColor('notebookScrollbarSlider.background', {
 	dark: scrollbarSliderBackground,
@@ -2258,6 +2284,15 @@ registerThemingParticipant((theme, collector) => {
 				border-color: ${focusedCellBorderColor} !important;
 			}`);
 
+	const inactiveFocusedBorderColor = theme.getColor(inactiveFocusedCellBorder);
+	collector.addRule(`
+			.monaco-workbench .notebookOverlay .monaco-list .monaco-list-row.focused .cell-focus-indicator-top:before,
+			.monaco-workbench .notebookOverlay .monaco-list .monaco-list-row.focused .cell-focus-indicator-bottom:before,
+			.monaco-workbench .notebookOverlay .monaco-list .markdown-cell-row.focused .cell-inner-container:not(.cell-editor-focus):before,
+			.monaco-workbench .notebookOverlay .monaco-list .markdown-cell-row.focused .cell-inner-container:not(.cell-editor-focus):after {
+				border-color: ${inactiveFocusedBorderColor} !important;
+			}`);
+
 	const selectedCellBorderColor = theme.getColor(selectedCellBorder);
 	collector.addRule(`
 			.monaco-workbench .notebookOverlay .monaco-list:focus-within .monaco-list-row.focused .cell-editor-focus .cell-focus-indicator-top:before,
@@ -2316,12 +2351,14 @@ registerThemingParticipant((theme, collector) => {
 	if (scrollbarSliderBackgroundColor) {
 		collector.addRule(` .notebookOverlay .cell-list-container > .monaco-list > .monaco-scrollable-element > .scrollbar > .slider { background: ${editorBackgroundColor}; } `);
 		collector.addRule(` .notebookOverlay .cell-list-container > .monaco-list > .monaco-scrollable-element > .scrollbar > .slider:before { content: ""; width: 100%; height: 100%; position: absolute; background: ${scrollbarSliderBackgroundColor}; } `); /* hack to not have cells see through scroller */
+		// collector.addRule(` .monaco-workbench .notebookOverlay .output-plaintext::-webkit-scrollbar-track { background: ${scrollbarSliderBackgroundColor}; } `);
 	}
 
 	const scrollbarSliderHoverBackgroundColor = theme.getColor(listScrollbarSliderHoverBackground);
 	if (scrollbarSliderHoverBackgroundColor) {
 		collector.addRule(` .notebookOverlay .cell-list-container > .monaco-list > .monaco-scrollable-element > .scrollbar > .slider:hover { background: ${editorBackgroundColor}; } `);
 		collector.addRule(` .notebookOverlay .cell-list-container > .monaco-list > .monaco-scrollable-element > .scrollbar > .slider:hover:before { content: ""; width: 100%; height: 100%; position: absolute; background: ${scrollbarSliderHoverBackgroundColor}; } `); /* hack to not have cells see through scroller */
+		collector.addRule(` .monaco-workbench .notebookOverlay .output-plaintext::-webkit-scrollbar-thumb { background: ${scrollbarSliderHoverBackgroundColor}; } `);
 	}
 
 	const scrollbarSliderActiveBackgroundColor = theme.getColor(listScrollbarSliderActiveBackground);

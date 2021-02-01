@@ -899,7 +899,7 @@ class TreeRenderer extends Disposable implements ITreeRenderer<ITreeItem, FuzzyS
 					resolve(node.tooltip);
 				});
 			},
-			markdownNotSupportedFallback: resource ? undefined : '' // Passing undefined as the fallback for a resource falls back to the old native hover
+			markdownNotSupportedFallback: resource ? undefined : label ?? '' // Passing undefined as the fallback for a resource falls back to the old native hover
 		};
 	}
 

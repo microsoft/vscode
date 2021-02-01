@@ -10,7 +10,7 @@ import { untildify } from 'vs/base/common/labels';
 import { ResourceMap } from 'vs/base/common/map';
 import { Schemas } from 'vs/base/common/network';
 import * as path from 'vs/base/common/path';
-import { isEqual, basename, relativePath } from 'vs/base/common/resources';
+import { isEqual, basename, relativePath, isAbsolutePath } from 'vs/base/common/resources';
 import * as strings from 'vs/base/common/strings';
 import { assertIsDefined } from 'vs/base/common/types';
 import { URI, URI as uri } from 'vs/base/common/uri';
@@ -204,25 +204,40 @@ export class QueryBuilder {
 	private commonQueryFromFileList(files: URI[]): ICommonQueryProps<URI> {
 		const folderQueries: IFolderQuery[] = [];
 		const foldersToSearch: ResourceMap<IFolderQuery> = new ResourceMap();
+		const includePattern: glob.IExpression = {};
+		let hasIncludedFile = false;
 		files.forEach(file => {
-			const searchRoot = this.workspaceContextService.getWorkspaceFolder(file)?.uri ?? file.with({ path: path.dirname(file.fsPath) });
+			if (file.scheme === Schemas.walkThrough) { return; }
 
-			let folderQuery = foldersToSearch.get(searchRoot);
-			if (!folderQuery) {
-				folderQuery = { folder: searchRoot, includePattern: {} };
-				folderQueries.push(folderQuery);
-				foldersToSearch.set(searchRoot, folderQuery);
+			const providerExists = isAbsolutePath(file);
+			// Special case userdata as we don't have a search provider for it, but it can be searched.
+			const isUserdata = file.scheme === Schemas.userData;
+			if (providerExists && !isUserdata) {
+				const searchRoot = this.workspaceContextService.getWorkspaceFolder(file)?.uri ?? file.with({ path: path.dirname(file.fsPath) });
+
+				let folderQuery = foldersToSearch.get(searchRoot);
+				if (!folderQuery) {
+					hasIncludedFile = true;
+					folderQuery = { folder: searchRoot, includePattern: {} };
+					folderQueries.push(folderQuery);
+					foldersToSearch.set(searchRoot, folderQuery);
+				}
+
+				const relPath = path.relative(searchRoot.fsPath, file.fsPath);
+				assertIsDefined(folderQuery.includePattern)[relPath.replace(/\\/g, '/')] = true;
+			} else {
+				if (file.fsPath) {
+					hasIncludedFile = true;
+					includePattern[file.fsPath] = true;
+				}
 			}
-
-			const relPath = path.relative(searchRoot.fsPath, file.fsPath);
-			assertIsDefined(folderQuery.includePattern)[relPath] = true;
 		});
 
 		return {
 			folderQueries,
-			includePattern: undefined,
+			includePattern,
 			usingSearchPaths: true,
-			excludePattern: folderQueries.length ? undefined : { '**/*': true }
+			excludePattern: hasIncludedFile ? undefined : { '**/*': true }
 		};
 	}
 

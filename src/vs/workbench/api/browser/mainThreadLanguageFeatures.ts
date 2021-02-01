@@ -727,7 +727,7 @@ export class MainThreadLanguageFeatures implements MainThreadLanguageFeaturesSha
 
 		const languageIdentifier = this._modeService.getLanguageIdentifier(languageId);
 		if (languageIdentifier) {
-			this._registrations.set(handle, LanguageConfigurationRegistry.register(languageIdentifier, configuration));
+			this._registrations.set(handle, LanguageConfigurationRegistry.register(languageIdentifier, configuration, 100));
 		}
 	}
 

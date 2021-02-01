@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { join } from 'vs/base/common/path';
-import * as resources from 'vs/base/common/resources';
+import { basename, isEqual, isEqualOrParent } from 'vs/base/common/resources';
 import { URI } from 'vs/base/common/uri';
 import { Event, Emitter } from 'vs/base/common/event';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
@@ -104,7 +104,7 @@ export class TestContextService implements IWorkspaceContextService {
 
 	isInsideWorkspace(resource: URI): boolean {
 		if (resource && this.workspace) {
-			return resources.isEqualOrParent(resource, this.workspace.folders[0].uri);
+			return isEqualOrParent(resource, this.workspace.folders[0].uri);
 		}
 
 		return false;
@@ -115,7 +115,7 @@ export class TestContextService implements IWorkspaceContextService {
 	}
 
 	isCurrentWorkspace(workspaceIdOrFolder: IWorkspaceIdentifier | ISingleFolderWorkspaceIdentifier | URI): boolean {
-		return URI.isUri(workspaceIdOrFolder) && resources.isEqual(this.workspace.folders[0].uri, workspaceIdOrFolder);
+		return URI.isUri(workspaceIdOrFolder) && isEqual(this.workspace.folders[0].uri, workspaceIdOrFolder);
 	}
 }
 
@@ -141,7 +141,7 @@ export class TestWorkingCopy extends Disposable implements IWorkingCopy {
 
 	readonly capabilities = WorkingCopyCapabilities.None;
 
-	readonly name = resources.basename(this.resource);
+	readonly name = basename(this.resource);
 
 	private dirty = false;
 
