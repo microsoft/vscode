@@ -9,7 +9,7 @@ import { IListVirtualDelegate, IIdentityProvider, IListDragAndDrop, IListDragOve
 import { ITreeElement, ITreeNode, ITreeRenderer, ITreeEvent, ITreeMouseEvent, ITreeContextMenuEvent, ITreeSorter, ICollapseStateChangeEvent, IAsyncDataSource, ITreeDragAndDrop, TreeError, WeakMapper, ITreeFilter, TreeVisibility, TreeFilterResult } from 'vs/base/browser/ui/tree/tree';
 import { IDisposable, dispose, DisposableStore } from 'vs/base/common/lifecycle';
 import { Emitter, Event } from 'vs/base/common/event';
-import { timeout, CancelablePromise, createCancelablePromise } from 'vs/base/common/async';
+import { timeout, CancelablePromise, createCancelablePromise, Promises } from 'vs/base/common/async';
 import { IListStyles } from 'vs/base/browser/ui/list/listWidget';
 import { Iterable } from 'vs/base/common/iterator';
 import { IDragAndDropData } from 'vs/base/browser/dnd';
@@ -740,7 +740,7 @@ export class AsyncDataTree<TInput, T, TFilterData = void> implements IDisposable
 			const childrenToRefresh = await this.doRefreshNode(node, recursive, viewStateContext);
 			node.stale = false;
 
-			await Promise.all(childrenToRefresh.map(child => this.doRefreshSubTree(child, recursive, viewStateContext)));
+			await Promises.settled(childrenToRefresh.map(child => this.doRefreshSubTree(child, recursive, viewStateContext)));
 		} finally {
 			done!();
 		}
