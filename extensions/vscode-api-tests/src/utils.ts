@@ -74,6 +74,10 @@ export function withLogDisabled(runnable: () => Promise<any>): () => Promise<voi
 }
 
 export function assertNoRpc() {
+	assertNoRpcFromEntry([vscode, 'vscode']);
+}
+
+export function assertNoRpcFromEntry(entry: [obj: any, name: string]) {
 
 	const symProxy = Symbol.for('rpcProxy');
 	const symProtocol = Symbol.for('rpcProtocol');
@@ -106,7 +110,7 @@ export function assertNoRpc() {
 	}
 
 	try {
-		walk(vscode, 'vscode', new Set());
+		walk(entry[0], entry[1], new Set());
 	} catch (err) {
 		assert.fail(err);
 	}
