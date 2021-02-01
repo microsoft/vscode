@@ -259,7 +259,7 @@ export class IconLabel extends Disposable {
 						};
 						IconLabel.adjustXAndShowCustomHover(hoverOptions, mouseX, hoverDelegate, isHovering);
 
-						const resolvedTooltip = await tooltip(tokenSource.token);
+						const resolvedTooltip = (await tooltip(tokenSource.token)) ?? (!isString(markdownTooltip) ? markdownTooltip.markdownNotSupportedFallback : undefined);
 						if (resolvedTooltip) {
 							hoverOptions = {
 								text: resolvedTooltip,
