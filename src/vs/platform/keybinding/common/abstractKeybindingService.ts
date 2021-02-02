@@ -180,26 +180,7 @@ export abstract class AbstractKeybindingService extends Disposable implements IK
 	}
 
 	protected _doublePressDispatch(e: IKeyboardEvent, target: IContextKeyServiceTarget): boolean {
-		const shouldPreventDefault = this._doDoublePressDispatch(this.resolveKeyboardEvent(e), target);
-		return shouldPreventDefault;
-	}
-
-	// stores the pressed key, and then clears it in 300ms
-	private _doublePressStart(singlekeyDispatchString: string) {
-		this._doublePressStop();
-
-		this._currentDoublePressKey = singlekeyDispatchString;
-		this._currentDoublePressKeyClearTimeout.cancelAndSet(() => {
-			this._currentDoublePressKey = null;
-		}, 300);
-	}
-
-	private _doublePressStop() {
-		this._currentDoublePressKeyClearTimeout.cancel();
-		this._currentDoublePressKey = null;
-	}
-
-	private _doDoublePressCheck(keybinding: ResolvedKeybinding): boolean {
+		const keybinding = this.resolveKeyboardEvent(e);
 		const parts = keybinding.getParts();
 
 		// for UI responsiveness we disable other keys
@@ -214,30 +195,31 @@ export abstract class AbstractKeybindingService extends Disposable implements IK
 		}
 
 		// searches a keymap array to get the dispatch string
-		const [singlekeyDispatchString,] = keybinding.getModifierDispatchString();
+		const [singlekeyDispatchString,] = keybinding.getSingleModifierDispatchParts();
 
 		// we have a valid singlekeyDispatchString, store it for next keypress
 		if (this._currentDoublePressKey === null && singlekeyDispatchString !== null) {
-			this._doublePressStart(singlekeyDispatchString); // start
+			this._doublePressStop();
+			// stores the pressed key, and then clears it in 300ms
+			this._currentDoublePressKey = singlekeyDispatchString;
+			this._currentDoublePressKeyClearTimeout.cancelAndSet(() => {
+				this._currentDoublePressKey = null;
+			}, 300);
 			return false;
 		}
 
 		if (this._currentDoublePressKey !== null && singlekeyDispatchString === this._currentDoublePressKey) {
 			this._doublePressStop();
-			return true;
+			return this._doDispatch(keybinding, target, true);
 		}
 
 		this._doublePressStop();
 		return false;
 	}
 
-
-	private _doDoublePressDispatch(keybinding: ResolvedKeybinding, target: IContextKeyServiceTarget) {
-		const isDoublePress = this._doDoublePressCheck(keybinding);
-		if (isDoublePress) {
-			return this._doDispatch(keybinding, target, isDoublePress);
-		}
-		return false;
+	private _doublePressStop() {
+		this._currentDoublePressKeyClearTimeout.cancel();
+		this._currentDoublePressKey = null;
 	}
 
 	private _doDispatch(keybinding: ResolvedKeybinding, target: IContextKeyServiceTarget, isDoublePress = false): boolean {
@@ -248,14 +230,14 @@ export abstract class AbstractKeybindingService extends Disposable implements IK
 			return false;
 		}
 
-		let firstPart = null; // the first keybind i.e. Ctrl+K
-		let currentChord = null;// the "second" keybind i.e. Ctrl+K "Ctrl+D"
+		let firstPart = null; // the first keybinding i.e. Ctrl+K
+		let currentChord = null;// the "second" keybinding i.e. Ctrl+K "Ctrl+D"
 
 		if (!isDoublePress) {
 			[firstPart,] = keybinding.getDispatchParts();
 			currentChord = this._currentChord ? this._currentChord.keypress : null;
 		} else {
-			const [dispatchKeyname,] = keybinding.getModifierDispatchString();
+			const [dispatchKeyname,] = keybinding.getSingleModifierDispatchParts();
 			firstPart = dispatchKeyname;
 			currentChord = dispatchKeyname;
 		}

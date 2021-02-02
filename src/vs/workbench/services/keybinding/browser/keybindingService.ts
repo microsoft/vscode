@@ -251,7 +251,7 @@ export class WorkbenchKeybindingService extends AbstractKeybindingService {
 		this.updateSchema();
 		this._register(extensionService.onDidRegisterExtensions(() => this.updateSchema()));
 
-		// for standard keybinds
+		// for standard keybindings
 		this._register(dom.addDisposableListener(window, dom.EventType.KEY_DOWN, (e: KeyboardEvent) => {
 			this.isComposingGlobalContextKey.set(e.isComposing);
 			const keyEvent = new StandardKeyboardEvent(e);
@@ -264,7 +264,7 @@ export class WorkbenchKeybindingService extends AbstractKeybindingService {
 			this.isComposingGlobalContextKey.set(false);
 		}));
 
-		// for double press keybinds
+		// for double modifier keybindings
 		this._register(dom.addDisposableListener(window, dom.EventType.KEY_UP, (e: KeyboardEvent) => {
 			this.isComposingGlobalContextKey.set(e.isComposing);
 			const keyEvent = new StandardKeyboardEvent(e);

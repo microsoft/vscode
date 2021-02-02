@@ -611,8 +611,8 @@ export abstract class ResolvedKeybinding {
 	/**
 	 * Returns the parts that should be used for dispatching.
 	 * Returns null for parts consisting of only modifier keys
-	 * @example keybind "Shift" -> null
-	 * @example keybind ("D" with shift == true) -> "shift+D"
+	 * @example keybinding "Shift" -> null
+	 * @example keybinding ("D" with shift == true) -> "shift+D"
 	 */
 	public abstract getDispatchParts(): (string | null)[];
 
@@ -620,8 +620,8 @@ export abstract class ResolvedKeybinding {
 	 * Returns the parts that should be used for dispatching modfier keys
 	 * Does not return null for parts consisting of only modifier keys
 	 * Useful for keybinding time sensitive double presses of a modifier key
-	 * @example keybind "Shift" -> "shift"
-	 * @example keybind ("D" with shift == true") -> "D"
+	 * @example keybinding "Shift" -> "shift"
+	 * @example keybinding ("D" with shift == true") -> null
 	 */
-	public abstract getModifierDispatchString(): (string | null)[];
+	public abstract getSingleModifierDispatchParts(): (string | null)[];
 }
