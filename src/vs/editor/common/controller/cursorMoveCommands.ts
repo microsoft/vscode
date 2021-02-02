@@ -283,11 +283,7 @@ export class CursorMoveCommands {
 				if (unit === CursorMove.Unit.WrappedLine) {
 					// Move up by view lines
 					return this._moveUpByViewLines(viewModel, cursors, inSelectionMode, value);
-				}
-				else if (unit === CursorMove.Unit.BlankLine) {
-					return this._moveToPreviousBlankViewLine(viewModel, cursors, inSelectionMode);
-				}
-				else {
+				} else {
 					// Move up by model lines
 					return this._moveUpByModelLines(viewModel, cursors, inSelectionMode, value);
 				}
@@ -296,14 +292,16 @@ export class CursorMoveCommands {
 				if (unit === CursorMove.Unit.WrappedLine) {
 					// Move down by view lines
 					return this._moveDownByViewLines(viewModel, cursors, inSelectionMode, value);
-				}
-				else if (unit === CursorMove.Unit.BlankLine) {
-					return this._moveToNextBlankViewLine(viewModel, cursors, inSelectionMode);
-				}
-				else {
+				} else {
 					// Move down by model lines
 					return this._moveDownByModelLines(viewModel, cursors, inSelectionMode, value);
 				}
+			}
+			case CursorMove.Direction.PrevBlankLine: {
+				return this._moveToPreviousBlankViewLine(viewModel, cursors, inSelectionMode);
+			}
+			case CursorMove.Direction.NextBlankLine: {
+				return this._moveToNextBlankViewLine(viewModel, cursors, inSelectionMode);
 			}
 			case CursorMove.Direction.WrappedLineStart: {
 				// Move to the beginning of the current view line
@@ -513,6 +511,15 @@ export class CursorMoveCommands {
 		return result;
 	}
 
+	private static _moveUpByModelLines(viewModel: IViewModel, cursors: CursorState[], inSelectionMode: boolean, linesCount: number): PartialCursorState[] {
+		let result: PartialCursorState[] = [];
+		for (let i = 0, len = cursors.length; i < len; i++) {
+			const cursor = cursors[i];
+			result[i] = CursorState.fromModelState(MoveOperations.moveUp(viewModel.cursorConfig, viewModel.model, cursor.modelState, inSelectionMode, linesCount));
+		}
+		return result;
+	}
+
 	private static _moveToPreviousBlankViewLine(viewModel: IViewModel, cursors: CursorState[], inSelectionMode: boolean): PartialCursorState[] {
 		let result: PartialCursorState[] = [];
 		outer:
@@ -583,15 +590,6 @@ export class CursorMoveCommands {
 			} while (viewModel.getLineContent(viewLineNumber).trim());
 
 			result[i] = CursorState.fromViewState(cursor.viewState.move(inSelectionMode, viewLineNumber, 0, 0));
-		}
-		return result;
-	}
-
-	private static _moveUpByModelLines(viewModel: IViewModel, cursors: CursorState[], inSelectionMode: boolean, linesCount: number): PartialCursorState[] {
-		let result: PartialCursorState[] = [];
-		for (let i = 0, len = cursors.length; i < len; i++) {
-			const cursor = cursors[i];
-			result[i] = CursorState.fromModelState(MoveOperations.moveUp(viewModel.cursorConfig, viewModel.model, cursor.modelState, inSelectionMode, linesCount));
 		}
 		return result;
 	}
@@ -696,14 +694,14 @@ export namespace CursorMove {
 				description: `Property-value pairs that can be passed through this argument:
 					* 'to': A mandatory logical position value providing where to move the cursor.
 						\`\`\`
-						'left', 'right', 'up', 'down'
+						'left', 'right', 'up', 'down', 'prevBlankLine', 'nextBlankLine',
 						'wrappedLineStart', 'wrappedLineEnd', 'wrappedLineColumnCenter'
 						'wrappedLineFirstNonWhitespaceCharacter', 'wrappedLineLastNonWhitespaceCharacter'
 						'viewPortTop', 'viewPortCenter', 'viewPortBottom', 'viewPortIfOutside'
 						\`\`\`
 					* 'by': Unit to move. Default is computed based on 'to' value.
 						\`\`\`
-						'line', 'wrappedLine', 'blankLine', 'character', 'halfLine'
+						'line', 'wrappedLine', 'character', 'halfLine'
 						\`\`\`
 					* 'value': Number of units to move. Default is '1'.
 					* 'select': If 'true' makes the selection. Default is 'false'.
@@ -715,11 +713,11 @@ export namespace CursorMove {
 					'properties': {
 						'to': {
 							'type': 'string',
-							'enum': ['left', 'right', 'up', 'down', 'wrappedLineStart', 'wrappedLineEnd', 'wrappedLineColumnCenter', 'wrappedLineFirstNonWhitespaceCharacter', 'wrappedLineLastNonWhitespaceCharacter', 'viewPortTop', 'viewPortCenter', 'viewPortBottom', 'viewPortIfOutside']
+							'enum': ['left', 'right', 'up', 'down', 'prevBlankLine', 'nextBlankLine', 'wrappedLineStart', 'wrappedLineEnd', 'wrappedLineColumnCenter', 'wrappedLineFirstNonWhitespaceCharacter', 'wrappedLineLastNonWhitespaceCharacter', 'viewPortTop', 'viewPortCenter', 'viewPortBottom', 'viewPortIfOutside']
 						},
 						'by': {
 							'type': 'string',
-							'enum': ['line', 'wrappedLine', 'blankLine', 'character', 'halfLine']
+							'enum': ['line', 'wrappedLine', 'character', 'halfLine']
 						},
 						'value': {
 							'type': 'number',
@@ -744,6 +742,9 @@ export namespace CursorMove {
 		Up: 'up',
 		Down: 'down',
 
+		PrevBlankLine: 'prevBlankLine',
+		NextBlankLine: 'nextBlankLine',
+
 		WrappedLineStart: 'wrappedLineStart',
 		WrappedLineFirstNonWhitespaceCharacter: 'wrappedLineFirstNonWhitespaceCharacter',
 		WrappedLineColumnCenter: 'wrappedLineColumnCenter',
@@ -763,7 +764,6 @@ export namespace CursorMove {
 	export const RawUnit = {
 		Line: 'line',
 		WrappedLine: 'wrappedLine',
-		BlankLine: 'blankLine',
 		Character: 'character',
 		HalfLine: 'halfLine'
 	};
@@ -797,6 +797,12 @@ export namespace CursorMove {
 				break;
 			case RawDirection.Down:
 				direction = Direction.Down;
+				break;
+			case RawDirection.PrevBlankLine:
+				direction = Direction.PrevBlankLine;
+				break;
+			case RawDirection.NextBlankLine:
+				direction = Direction.NextBlankLine;
 				break;
 			case RawDirection.WrappedLineStart:
 				direction = Direction.WrappedLineStart;
@@ -838,9 +844,6 @@ export namespace CursorMove {
 			case RawUnit.WrappedLine:
 				unit = Unit.WrappedLine;
 				break;
-			case RawUnit.BlankLine:
-				unit = Unit.BlankLine;
-				break;
 			case RawUnit.Character:
 				unit = Unit.Character;
 				break;
@@ -876,6 +879,8 @@ export namespace CursorMove {
 		Right,
 		Up,
 		Down,
+		PrevBlankLine,
+		NextBlankLine,
 
 		WrappedLineStart,
 		WrappedLineFirstNonWhitespaceCharacter,
@@ -895,6 +900,8 @@ export namespace CursorMove {
 		| Direction.Right
 		| Direction.Up
 		| Direction.Down
+		| Direction.PrevBlankLine
+		| Direction.NextBlankLine
 		| Direction.WrappedLineStart
 		| Direction.WrappedLineFirstNonWhitespaceCharacter
 		| Direction.WrappedLineColumnCenter
@@ -913,7 +920,6 @@ export namespace CursorMove {
 		None,
 		Line,
 		WrappedLine,
-		BlankLine,
 		Character,
 		HalfLine,
 	}

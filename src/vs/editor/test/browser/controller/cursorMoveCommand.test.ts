@@ -540,7 +540,7 @@ function moveUp(viewModel: ViewModel, noOfLines: number = 1, select?: boolean) {
 }
 
 function moveUpByBlankLine(viewModel: ViewModel, select?: boolean) {
-	move(viewModel, { to: CursorMove.RawDirection.Up, by: CursorMove.RawUnit.BlankLine, select: select });
+	move(viewModel, { to: CursorMove.RawDirection.PrevBlankLine, by: CursorMove.RawUnit.WrappedLine, select: select });
 }
 
 function moveUpByModelLine(viewModel: ViewModel, noOfLines: number = 1, select?: boolean) {
@@ -552,7 +552,7 @@ function moveDown(viewModel: ViewModel, noOfLines: number = 1, select?: boolean)
 }
 
 function moveDownByBlankLine(viewModel: ViewModel, select?: boolean) {
-	move(viewModel, { to: CursorMove.RawDirection.Down, by: CursorMove.RawUnit.BlankLine, select: select });
+	move(viewModel, { to: CursorMove.RawDirection.NextBlankLine, by: CursorMove.RawUnit.WrappedLine, select: select });
 }
 
 function moveDownByModelLine(viewModel: ViewModel, noOfLines: number = 1, select?: boolean) {
