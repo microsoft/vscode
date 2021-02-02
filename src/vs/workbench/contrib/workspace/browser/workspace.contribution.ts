@@ -70,19 +70,20 @@ export class WorkspaceTrustRequestHandler extends Disposable implements IWorkben
 						localize('immediateTrustRequestTitle', "Do you trust the files in this folder?"),
 						[
 							localize('trustWorkspace', "Trust"),
+							localize('dontTrustWorkspace', "Don't Trust"),
 							localize('manageWorkspaceTrust', 'Manage'),
-							localize('dontTrustWorkspace', "Don't Trust")
 						],
 						{
+							cancelId: -1,
 							detail: localize('immediateTrustRequestDetail', "A feature you are trying to use may be a security risk if you do not trust the source of the files or folders you currently have open.\n\nYou should only trust this workspace if you trust its source. Otherwise, features will be enabled that may compromise your device or personal information."),
 						}
 					);
 
 					if (result.choice === 0) {
 						this.requestModel.completeRequest(WorkspaceTrustState.Trusted);
-					} else if (result.choice === 2) {
-						this.requestModel.completeRequest(WorkspaceTrustState.Untrusted);
 					} else if (result.choice === 1) {
+						this.requestModel.completeRequest(WorkspaceTrustState.Untrusted);
+					} else if (result.choice === 2) {
 						this.requestModel.completeRequest(undefined);
 						await this.commandService.executeCommand('workbench.trust.manage');
 					} else {
