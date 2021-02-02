@@ -69,25 +69,31 @@ export class WorkspaceTrustRequestHandler extends Disposable implements IWorkben
 						Severity.Warning,
 						localize('immediateTrustRequestTitle', "Do you trust the files in this folder?"),
 						[
-							localize('trustWorkspace', "Trust"),
-							localize('dontTrustWorkspace', "Don't Trust"),
-							localize('manageWorkspaceTrust', 'Manage'),
+							localize('grantWorkspaceTrust', "Trust"),
+							localize('denyWorkspaceTrust', "Don't Trust"),
+							localize('manageWorkspaceTrust', "Manage"),
+							localize('cancelWorkspaceTrust', "Cancel"),
 						],
 						{
-							cancelId: -1,
+							cancelId: 3,
 							detail: localize('immediateTrustRequestDetail', "A feature you are trying to use may be a security risk if you do not trust the source of the files or folders you currently have open.\n\nYou should only trust this workspace if you trust its source. Otherwise, features will be enabled that may compromise your device or personal information."),
 						}
 					);
 
-					if (result.choice === 0) {
-						this.requestModel.completeRequest(WorkspaceTrustState.Trusted);
-					} else if (result.choice === 1) {
-						this.requestModel.completeRequest(WorkspaceTrustState.Untrusted);
-					} else if (result.choice === 2) {
-						this.requestModel.completeRequest(undefined);
-						await this.commandService.executeCommand('workbench.trust.manage');
-					} else {
-						this.requestModel.completeRequest(undefined);
+					switch (result.choice) {
+						case 0: // Trust
+							this.requestModel.completeRequest(WorkspaceTrustState.Trusted);
+							break;
+						case 1: // Don't Trust
+							this.requestModel.completeRequest(WorkspaceTrustState.Untrusted);
+							break;
+						case 2: // Manage
+							this.requestModel.completeRequest(undefined);
+							await this.commandService.executeCommand('workbench.trust.manage');
+							break;
+						default: // Cancel
+							this.requestModel.completeRequest(undefined);
+							break;
 					}
 				}
 			}
