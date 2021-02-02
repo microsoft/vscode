@@ -3,16 +3,18 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import {
-	TaskDefinition, Task, TaskGroup, WorkspaceFolder, RelativePattern, ShellExecution, Uri, workspace,
-	DebugConfiguration, debug, TaskProvider, TextDocument, tasks, TaskScope, QuickPickItem, window, Position, ExtensionContext, env,
-	ShellQuotedString, ShellQuoting
-} from 'vscode';
-import * as path from 'path';
 import * as fs from 'fs';
+import { JSONVisitor, ParseErrorCode, visit } from 'jsonc-parser';
 import * as minimatch from 'minimatch';
+import * as path from 'path';
+import {
+	commands, env, ExtensionContext, Position, QuickPickItem, RelativePattern, ShellExecution,
+
+	ShellQuotedString, ShellQuoting, Task, TaskDefinition, TaskGroup,
+	TaskProvider, tasks, TaskScope, TextDocument, Uri,
+	window, workspace, WorkspaceFolder
+} from 'vscode';
 import * as nls from 'vscode-nls';
-import { JSONVisitor, visit, ParseErrorCode } from 'jsonc-parser';
 import { findPreferredPM } from './preferred-pm';
 
 const localize = nls.loadMessageBundle();
@@ -398,21 +400,8 @@ export async function runScript(context: ExtensionContext, script: string, docum
 }
 
 export async function startDebugging(context: ExtensionContext, scriptName: string, cwd: string, folder: WorkspaceFolder) {
-	const config: DebugConfiguration = {
-		type: 'pwa-node',
-		request: 'launch',
-		name: `Debug ${scriptName}`,
-		cwd,
-		runtimeExecutable: await getPackageManager(context, folder.uri),
-		runtimeArgs: [
-			'run',
-			scriptName,
-		],
-	};
-
-	if (folder) {
-		debug.startDebugging(folder, config);
-	}
+	commands.executeCommand('extension.js-debug.createDebuggerTerminal',
+		[`${await getPackageManager(context, folder.uri)} run ${scriptName}`, folder, { cwd }]);
 }
 
 
