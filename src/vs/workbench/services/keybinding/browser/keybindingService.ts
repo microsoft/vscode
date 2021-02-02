@@ -251,12 +251,24 @@ export class WorkbenchKeybindingService extends AbstractKeybindingService {
 		this.updateSchema();
 		this._register(extensionService.onDidRegisterExtensions(() => this.updateSchema()));
 
+		// for standard keybindings
 		this._register(dom.addDisposableListener(window, dom.EventType.KEY_DOWN, (e: KeyboardEvent) => {
 			this.isComposingGlobalContextKey.set(e.isComposing);
 			const keyEvent = new StandardKeyboardEvent(e);
 			this._log(`/ Received  keydown event - ${printKeyboardEvent(e)}`);
 			this._log(`| Converted keydown event - ${printStandardKeyboardEvent(keyEvent)}`);
 			const shouldPreventDefault = this._dispatch(keyEvent, keyEvent.target);
+			if (shouldPreventDefault) {
+				keyEvent.preventDefault();
+			}
+			this.isComposingGlobalContextKey.set(false);
+		}));
+
+		// for single modifier chord keybindings (e.g. shift shift)
+		this._register(dom.addDisposableListener(window, dom.EventType.KEY_UP, (e: KeyboardEvent) => {
+			this.isComposingGlobalContextKey.set(e.isComposing);
+			const keyEvent = new StandardKeyboardEvent(e);
+			const shouldPreventDefault = this._singleModifierDispatch(keyEvent, keyEvent.target);
 			if (shouldPreventDefault) {
 				keyEvent.preventDefault();
 			}
