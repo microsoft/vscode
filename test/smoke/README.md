@@ -21,13 +21,13 @@ yarn smoketest
 yarn smoketest --web --browser [chromium|webkit]
 
 # Build (Electron)
-yarn smoketest --build <path latest built version> --stable-build <path to previous stable version>
+yarn smoketest --build <path to latest version> --stable-build <path to stable version>
 
 # Build (Web - read instructions below)
-yarn smoketest --build <path to web server folder> --web --browser [chromium|webkit]
+yarn smoketest --build <path to server web build> --web --browser [chromium|webkit]
 
 # Remote (Electron)
-yarn smoketest --build <path latest built version> --remote
+yarn smoketest --build <path to latest version> --remote
 ```
 
 \* This step is necessary only when running without `--build` and OSS doesn't already exist in the `.build/electron` directory.
@@ -51,19 +51,18 @@ The recommended way to make these builds available for the smoketest is by downl
 them into two folders (e.g. with 'Extract All' on Windows). Pass the **absolute paths** of those folders to the smoketest as follows:
 
 ```bash
-yarn smoketest --build <path latest built version> --stable-build <path to previous stable version>
+yarn smoketest --build <path to latest version> --stable-build <path to stable version>
 ```
 
 #### Web
+
+There is no support for testing an old version to a new one yet, so simply configure the `--build` command line argument to point to the extracted server web build folder (e.g. `vscode-server-darwin-web` for macOS). The server web build is available from the builds page (see previous subsection).
 
 **macOS**: if you have downloaded the server with web bits, make sure to run the following command before unzipping it to avoid security issues on startup:
 
 ```bash
 xattr -d com.apple.quarantine <path to server with web folder zip>
 ```
-
-There is no support for testing an old version to a new one yet, so simply configure the `--build` command line argument to point to
-the web server folder which includes the web client bits (e.g. `vscode-server-darwin-web` for macOS).
 
 **Note**: make sure to point to the server that includes the client bits!
 
