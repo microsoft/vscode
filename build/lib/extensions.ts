@@ -300,8 +300,8 @@ export function packageLocalExtensionsStream(forWeb: boolean): Stream {
 	if (forWeb) {
 		result = localExtensionsStream;
 	} else {
-		// also include shared node modules
-		result = es.merge(localExtensionsStream, gulp.src('extensions/node_modules/**', { base: '.' }));
+		// also include TypeScript
+		result = es.merge(localExtensionsStream, gulp.src('extensions/node_modules/typescript/**', { base: '.' }));
 	}
 
 	return (
