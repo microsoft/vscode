@@ -3,7 +3,6 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { JSONVisitor, visit } from 'jsonc-parser';
 import * as path from 'path';
 import {
 	CodeLens,
@@ -12,14 +11,13 @@ import {
 	EventEmitter,
 	ExtensionContext,
 	languages,
-	Position,
-	Range,
 	TextDocument,
 	Uri,
-	workspace,
+	workspace
 } from 'vscode';
 import * as nls from 'vscode-nls';
 import { findPreferredPM } from './preferred-pm';
+import { readScripts } from './readScripts';
 
 const localize = nls.loadMessageBundle();
 
@@ -69,7 +67,7 @@ export class NpmScriptLensProvider implements CodeLensProvider, Disposable {
 			return [];
 		}
 
-		const tokens = this.tokenizeScripts(document);
+		const tokens = readScripts(document);
 		if (!tokens) {
 			return [];
 		}
@@ -79,7 +77,7 @@ export class NpmScriptLensProvider implements CodeLensProvider, Disposable {
 		if (this.lensLocation === 'top') {
 			return [
 				new CodeLens(
-					new Range(tokens.scriptStart, tokens.scriptStart),
+					tokens.location.range,
 					{
 						title,
 						command: 'extension.js-debug.npmScript',
@@ -92,13 +90,13 @@ export class NpmScriptLensProvider implements CodeLensProvider, Disposable {
 		if (this.lensLocation === 'all') {
 			const packageManager = await findPreferredPM(Uri.joinPath(document.uri, '..').fsPath);
 			return tokens.scripts.map(
-				({ name, position }) =>
+				({ name, nameRange }) =>
 					new CodeLens(
-						new Range(position, position),
+						nameRange,
 						{
 							title,
 							command: 'extension.js-debug.createDebuggerTerminal',
-							arguments: [`${packageManager} run ${name}`, workspace.getWorkspaceFolder(document.uri), { cwd }],
+							arguments: [`${packageManager.name} run ${name}`, workspace.getWorkspaceFolder(document.uri), { cwd }],
 						},
 					),
 			);
@@ -112,58 +110,6 @@ export class NpmScriptLensProvider implements CodeLensProvider, Disposable {
 	 */
 	public dispose() {
 		this.subscriptions.forEach(s => s.dispose());
-	}
-
-	/**
-	 * Returns position data about the "scripts" section of the current JSON
-	 * document.
-	 */
-	private tokenizeScripts(document: TextDocument) {
-		let scriptStart: Position | undefined;
-		let inScripts = false;
-		let buildingScript: { name: string; position: Position } | void;
-		let level = 0;
-		const text = document.getText();
-		const getPos = (offset: number) => {
-			const line = text.slice(0, offset).match(/\n/g)?.length ?? 0;
-			const character = offset - Math.max(0, text.lastIndexOf('\n', offset));
-			return new Position(line, character);
-		};
-
-		const scripts: { name: string; value: string; position: Position }[] = [];
-
-		const visitor: JSONVisitor = {
-			onError() {
-				// no-op
-			},
-			onObjectBegin() {
-				level++;
-			},
-			onObjectEnd() {
-				if (inScripts) {
-					inScripts = false;
-				}
-				level--;
-			},
-			onLiteralValue(value: unknown) {
-				if (buildingScript && typeof value === 'string') {
-					scripts.push({ ...buildingScript, value });
-					buildingScript = undefined;
-				}
-			},
-			onObjectProperty(property: string, offset: number) {
-				if (level === 1 && property === 'scripts') {
-					inScripts = true;
-					scriptStart = getPos(offset);
-				} else if (inScripts) {
-					buildingScript = { name: property, position: getPos(offset) };
-				}
-			},
-		};
-
-		visit(text, visitor);
-
-		return scriptStart !== undefined ? { scriptStart, scripts } : undefined;
 	}
 }
 

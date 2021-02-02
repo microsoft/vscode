@@ -5,18 +5,19 @@
 
 import {
 	ExtensionContext, TextDocument, commands, ProviderResult, CancellationToken,
-	workspace, tasks, Range, HoverProvider, Hover, Position, MarkdownString, Uri
+	workspace, tasks, HoverProvider, Hover, Position, MarkdownString, Uri
 } from 'vscode';
 import {
-	createTask, startDebugging, findAllScriptRanges
+	createTask, startDebugging
 } from './tasks';
 import * as nls from 'vscode-nls';
 import { dirname } from 'path';
+import { INpmScriptInfo, readScripts } from './readScripts';
 
 const localize = nls.loadMessageBundle();
 
 let cachedDocument: Uri | undefined = undefined;
-let cachedScriptsMap: Map<string, [number, number, string]> | undefined = undefined;
+let cachedScripts: INpmScriptInfo | undefined = undefined;
 
 export function invalidateHoverScriptsCache(document?: TextDocument) {
 	if (!document) {
@@ -42,20 +43,16 @@ export class NpmScriptHoverProvider implements HoverProvider {
 		let hover: Hover | undefined = undefined;
 
 		if (!cachedDocument || cachedDocument.fsPath !== document.uri.fsPath) {
-			cachedScriptsMap = findAllScriptRanges(document.getText());
+			cachedScripts = readScripts(document);
 			cachedDocument = document.uri;
 		}
 
-		cachedScriptsMap!.forEach((value, key) => {
-			let start = document.positionAt(value[0]);
-			let end = document.positionAt(value[0] + value[1]);
-			let range = new Range(start, end);
-
-			if (range.contains(position)) {
+		cachedScripts?.scripts.forEach(({ name, nameRange }) => {
+			if (nameRange.contains(position)) {
 				let contents: MarkdownString = new MarkdownString();
 				contents.isTrusted = true;
-				contents.appendMarkdown(this.createRunScriptMarkdown(key, document.uri));
-				contents.appendMarkdown(this.createDebugScriptMarkdown(key, document.uri));
+				contents.appendMarkdown(this.createRunScriptMarkdown(name, document.uri));
+				contents.appendMarkdown(this.createDebugScriptMarkdown(name, document.uri));
 				hover = new Hover(contents);
 			}
 		});
