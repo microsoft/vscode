@@ -346,7 +346,7 @@ const refactorPreviewViewIcon = registerIcon('refactor-preview-view-icon', Codic
 
 const container = Registry.as<IViewContainersRegistry>(ViewContainerExtensions.ViewContainersRegistry).registerViewContainer({
 	id: BulkEditPane.ID,
-	title: { value: localize('panel', "Refactor Preview"), original: 'Refactor Preview' },
+	title: localize('panel', "Refactor Preview"),
 	hideIfEmpty: true,
 	ctorDescriptor: new SyncDescriptor(
 		ViewPaneContainer,
