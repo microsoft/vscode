@@ -283,7 +283,11 @@ export class CursorMoveCommands {
 				if (unit === CursorMove.Unit.WrappedLine) {
 					// Move up by view lines
 					return this._moveUpByViewLines(viewModel, cursors, inSelectionMode, value);
-				} else {
+				}
+				else if (unit === CursorMove.Unit.BlankLine) {
+					return this._moveToPreviousBlankViewLine(viewModel, cursors, inSelectionMode);
+				}
+				else {
 					// Move up by model lines
 					return this._moveUpByModelLines(viewModel, cursors, inSelectionMode, value);
 				}
@@ -292,7 +296,11 @@ export class CursorMoveCommands {
 				if (unit === CursorMove.Unit.WrappedLine) {
 					// Move down by view lines
 					return this._moveDownByViewLines(viewModel, cursors, inSelectionMode, value);
-				} else {
+				}
+				else if (unit === CursorMove.Unit.BlankLine) {
+					return this._moveToNextBlankViewLine(viewModel, cursors, inSelectionMode);
+				}
+				else {
 					// Move down by model lines
 					return this._moveDownByModelLines(viewModel, cursors, inSelectionMode, value);
 				}
@@ -505,6 +513,80 @@ export class CursorMoveCommands {
 		return result;
 	}
 
+	private static _moveToPreviousBlankViewLine(viewModel: IViewModel, cursors: CursorState[], inSelectionMode: boolean): PartialCursorState[] {
+		let result: PartialCursorState[] = [];
+		outer:
+		for (let i = 0, len = cursors.length; i < len; i++) {
+			const cursor = cursors[i];
+			let viewLineNumber = cursor.viewState.position.lineNumber;
+
+			// If our current line is empty, skip to the next non-empty line
+			while (!viewModel.getLineContent(viewLineNumber).trim()) {
+				// If we on the first line, go to the first column
+				if (viewLineNumber === 0) {
+					result[i] = this._moveToViewPosition(viewModel, cursor, inSelectionMode, viewLineNumber, 0);
+
+					continue outer;
+				}
+
+				viewLineNumber--;
+			}
+
+			// Now skip to the next empty line
+			do {
+				// If we on the first line, go to the first column
+				if (viewLineNumber === 0) {
+					result[i] = this._moveToViewPosition(viewModel, cursor, inSelectionMode, viewLineNumber, 0);
+
+					continue outer;
+				}
+
+				viewLineNumber--;
+			} while (viewModel.getLineContent(viewLineNumber).trim());
+
+			result[i] = CursorState.fromViewState(cursor.viewState.move(inSelectionMode, viewLineNumber, 0, 0));
+		}
+		return result;
+	}
+
+	private static _moveToNextBlankViewLine(viewModel: IViewModel, cursors: CursorState[], inSelectionMode: boolean): PartialCursorState[] {
+		let result: PartialCursorState[] = [];
+		const lastLineNumber = viewModel.getLineCount();
+
+		outer:
+		for (let i = 0, len = cursors.length; i < len; i++) {
+			const cursor = cursors[i];
+			let viewLineNumber = cursor.viewState.position.lineNumber;
+
+			// If our current line is empty then skip to the next non-empty line
+			while (!viewModel.getLineContent(viewLineNumber).trim()) {
+				// If we on the last line, go to the first column
+				if (viewLineNumber === lastLineNumber) {
+					result[i] = this._moveToViewPosition(viewModel, cursor, inSelectionMode, viewLineNumber, 0);
+
+					continue outer;
+				}
+
+				viewLineNumber++;
+			}
+
+			// Now skip to the next empty line
+			do {
+				// If we on the last line, go to the first column
+				if (viewLineNumber === lastLineNumber) {
+					result[i] = this._moveToViewPosition(viewModel, cursor, inSelectionMode, viewLineNumber, 0);
+
+					continue outer;
+				}
+
+				viewLineNumber++;
+			} while (viewModel.getLineContent(viewLineNumber).trim());
+
+			result[i] = CursorState.fromViewState(cursor.viewState.move(inSelectionMode, viewLineNumber, 0, 0));
+		}
+		return result;
+	}
+
 	private static _moveUpByModelLines(viewModel: IViewModel, cursors: CursorState[], inSelectionMode: boolean, linesCount: number): PartialCursorState[] {
 		let result: PartialCursorState[] = [];
 		for (let i = 0, len = cursors.length; i < len; i++) {
@@ -621,7 +703,7 @@ export namespace CursorMove {
 						\`\`\`
 					* 'by': Unit to move. Default is computed based on 'to' value.
 						\`\`\`
-						'line', 'wrappedLine', 'character', 'halfLine'
+						'line', 'wrappedLine', 'blankLine', 'character', 'halfLine'
 						\`\`\`
 					* 'value': Number of units to move. Default is '1'.
 					* 'select': If 'true' makes the selection. Default is 'false'.
@@ -637,7 +719,7 @@ export namespace CursorMove {
 						},
 						'by': {
 							'type': 'string',
-							'enum': ['line', 'wrappedLine', 'character', 'halfLine']
+							'enum': ['line', 'wrappedLine', 'blankLine', 'character', 'halfLine']
 						},
 						'value': {
 							'type': 'number',
@@ -681,6 +763,7 @@ export namespace CursorMove {
 	export const RawUnit = {
 		Line: 'line',
 		WrappedLine: 'wrappedLine',
+		BlankLine: 'blankLine',
 		Character: 'character',
 		HalfLine: 'halfLine'
 	};
@@ -755,6 +838,9 @@ export namespace CursorMove {
 			case RawUnit.WrappedLine:
 				unit = Unit.WrappedLine;
 				break;
+			case RawUnit.BlankLine:
+				unit = Unit.BlankLine;
+				break;
 			case RawUnit.Character:
 				unit = Unit.Character;
 				break;
@@ -827,6 +913,7 @@ export namespace CursorMove {
 		None,
 		Line,
 		WrappedLine,
+		BlankLine,
 		Character,
 		HalfLine,
 	}

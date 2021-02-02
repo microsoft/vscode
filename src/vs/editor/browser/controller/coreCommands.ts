@@ -692,6 +692,17 @@ export namespace CoreNavigationCommands {
 		}
 	}));
 
+	export const CursorUpBlankLine: CoreEditorCommand = registerEditorCommand(new CursorMoveBasedCommand({
+		args: {
+			direction: CursorMove_.Direction.Up,
+			unit: CursorMove_.Unit.BlankLine,
+			select: false,
+			value: 1
+		},
+		id: 'cursorUpBlankLine',
+		precondition: undefined,
+	}));
+
 	export const CursorUpSelect: CoreEditorCommand = registerEditorCommand(new CursorMoveBasedCommand({
 		args: {
 			direction: CursorMove_.Direction.Up,
@@ -709,6 +720,17 @@ export namespace CoreNavigationCommands {
 			mac: { primary: KeyMod.Shift | KeyCode.UpArrow },
 			linux: { primary: KeyMod.Shift | KeyCode.UpArrow }
 		}
+	}));
+
+	export const CursorUpSelectBlankLine: CoreEditorCommand = registerEditorCommand(new CursorMoveBasedCommand({
+		args: {
+			direction: CursorMove_.Direction.Up,
+			unit: CursorMove_.Unit.BlankLine,
+			select: true,
+			value: 1
+		},
+		id: 'cursorUpSelectBlankLine',
+		precondition: undefined,
 	}));
 
 	export const CursorPageUp: CoreEditorCommand = registerEditorCommand(new CursorMoveBasedCommand({
@@ -760,6 +782,17 @@ export namespace CoreNavigationCommands {
 		}
 	}));
 
+	export const CursorDownBlankLine: CoreEditorCommand = registerEditorCommand(new CursorMoveBasedCommand({
+		args: {
+			direction: CursorMove_.Direction.Down,
+			unit: CursorMove_.Unit.BlankLine,
+			select: false,
+			value: 1
+		},
+		id: 'cursorDownBlankLine',
+		precondition: undefined,
+	}));
+
 	export const CursorDownSelect: CoreEditorCommand = registerEditorCommand(new CursorMoveBasedCommand({
 		args: {
 			direction: CursorMove_.Direction.Down,
@@ -777,6 +810,17 @@ export namespace CoreNavigationCommands {
 			mac: { primary: KeyMod.Shift | KeyCode.DownArrow },
 			linux: { primary: KeyMod.Shift | KeyCode.DownArrow }
 		}
+	}));
+
+	export const CursorDownSelectBlankLine: CoreEditorCommand = registerEditorCommand(new CursorMoveBasedCommand({
+		args: {
+			direction: CursorMove_.Direction.Down,
+			unit: CursorMove_.Unit.BlankLine,
+			select: true,
+			value: 1
+		},
+		id: 'cursorDownSelectBlankLine',
+		precondition: undefined,
 	}));
 
 	export const CursorPageDown: CoreEditorCommand = registerEditorCommand(new CursorMoveBasedCommand({
