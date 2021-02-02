@@ -602,18 +602,6 @@ export class MainThreadNotebooks extends Disposable implements MainThreadNoteboo
 		return false;
 	}
 
-	$onContentChange(resource: UriComponents, viewType: string): void {
-		const textModel = this._notebookService.getNotebookTextModel(URI.from(resource));
-
-		if (textModel) {
-			textModel.applyEdits(textModel.versionId, [
-				{
-					editType: CellEditType.Unknown
-				}
-			], true, undefined, () => undefined, undefined);
-		}
-	}
-
 	async $tryRevealRange(id: string, range: ICellRange, revealType: NotebookEditorRevealType) {
 		const editor = this._notebookService.listNotebookEditors().find(editor => editor.getId() === id);
 		if (editor && editor.isNotebookEditor) {
