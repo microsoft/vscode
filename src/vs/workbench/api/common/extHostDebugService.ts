@@ -361,7 +361,7 @@ export abstract class ExtHostDebugServiceBase implements IExtHostDebugService, E
 
 	// RPC methods (ExtHostDebugServiceShape)
 
-	public async $runInTerminal(args: DebugProtocol.RunInTerminalRequestArguments): Promise<number | undefined> {
+	public async $runInTerminal(args: DebugProtocol.RunInTerminalRequestArguments, sessionId: string): Promise<number | undefined> {
 		return Promise.resolve(undefined);
 	}
 
