@@ -11,11 +11,8 @@ yarn && yarn compile
 # Install Dependencies and Compile
 yarn --cwd test/smoke
 
-# Prepare OSS for Dev (if needed on Windows. Press Ctrl+C after OSS launches)
-.\scripts\code.bat
-
-# Prepare OSS for Dev (if needed on *nix. Press Ctrl+C after OSS launches)
-./scripts/code.sh
+# Prepare OSS in repo*
+node build/lib/preLaunch.js
 
 # Dev (Electron)
 yarn smoketest
@@ -32,6 +29,8 @@ yarn smoketest --build <path to web server folder> --web --browser [chromium|web
 # Remote (Electron)
 yarn smoketest --build <path latest built version> --remote
 ```
+
+\* This step is necessary only when running without `--build` and OSS doesn't already exist in the `.build/electron` directory.
 
 ### Running for a release (Endgame)
 
