@@ -2,13 +2,13 @@
   {
     "kind": 1,
     "language": "markdown",
-    "value": "## Papercuts\n\nThis notebook serves as an ongoing collection of paper cut issues that we encounter while dogfooding. With that in mind only promote issues that really turn you off, e.g issues that make you wanna stop use VS Code or its extensions. To mark an issue (bug, feature-request, etc) as paper cut add the labels: `papercut :drop_of_blood:`",
+    "value": "## Papercuts\n\nThis notebook serves as an ongoing collection of papercut issues that we encounter while dogfooding. With that in mind only promote issues that really turn you off, e.g. issues that make you want to stop using VS Code or its extensions. To mark an issue (bug, feature-request, etc.) as papercut add the labels: `papercut :drop_of_blood:`",
     "editable": true
   },
   {
     "kind": 1,
     "language": "markdown",
-    "value": "## All Papercuts\n\nThese are all papercut issues that we encounter while dogfoodingf vscode or extensions that we author. ",
+    "value": "## All Papercuts\n\nThese are all papercut issues that we encounter while dogfooding vscode or extensions that we author.",
     "editable": true
   },
   {
