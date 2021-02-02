@@ -1,7 +1,6 @@
-test/**
+out/**/test/**
 src/**
 tsconfig.json
-out/**/test/**
 extension.webpack.config.js
 extension-browser.webpack.config.js
 cgmanifest.json

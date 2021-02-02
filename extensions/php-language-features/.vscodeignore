@@ -4,3 +4,4 @@ tsconfig.json
 extension.webpack.config.js
 yarn.lock
 yarn-error.log
+out/**/test/**

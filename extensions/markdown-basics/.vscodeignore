@@ -1,4 +1,4 @@
-test/**
+out/**/test/**
 src/**
 tsconfig.json
 cgmanifest.json

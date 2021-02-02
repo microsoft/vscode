@@ -1,5 +1,5 @@
 src/**
-test/**
+out/**/test/**
 tsconfig.json
 build/**
 extension.webpack.config.js

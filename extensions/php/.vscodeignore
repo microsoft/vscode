@@ -1,4 +1,4 @@
-test/**
+out/**/test/**
 build/**
 out/test/**
 src/**

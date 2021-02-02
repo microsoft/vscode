@@ -1,2 +1,2 @@
-test/**
+out/**/test/**
 cgmanifest.json
