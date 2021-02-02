@@ -527,26 +527,6 @@ export class ExtHostNotebookController implements ExtHostNotebookShape, ExtHostN
 		return false;
 	}
 
-	async $undoNotebook(viewType: string, uri: UriComponents, editId: number, isDirty: boolean): Promise<void> {
-		const document = this._documents.get(URI.revive(uri));
-		if (!document) {
-			return;
-		}
-
-		document.undo(editId, isDirty);
-
-	}
-
-	async $redoNotebook(viewType: string, uri: UriComponents, editId: number, isDirty: boolean): Promise<void> {
-		const document = this._documents.get(URI.revive(uri));
-		if (!document) {
-			return;
-		}
-
-		document.redo(editId, isDirty);
-	}
-
-
 	async $backup(viewType: string, uri: UriComponents, cancellation: CancellationToken): Promise<string | undefined> {
 		const document = this._documents.get(URI.revive(uri));
 		const provider = this._notebookContentProviders.get(viewType);
