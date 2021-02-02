@@ -10,7 +10,7 @@ import { FileSystemProviderCapabilities, IFileChange, IWatchOptions, IStat, File
 import { URI } from 'vs/base/common/uri';
 import { Event, Emitter } from 'vs/base/common/event';
 import { isLinux, isWindows } from 'vs/base/common/platform';
-import { statLink, unlink, move, copy, readFile, truncate, rimraf, RimRafMode, exists, readdirWithFileTypes } from 'vs/base/node/pfs';
+import { SymlinkSupport, unlink, move, copy, readFile, truncate, rimraf, RimRafMode, exists, readdirWithFileTypes } from 'vs/base/node/pfs';
 import { normalize, basename, dirname } from 'vs/base/common/path';
 import { joinPath } from 'vs/base/common/resources';
 import { isEqual } from 'vs/base/common/extpath';
@@ -80,7 +80,7 @@ export class DiskFileSystemProvider extends Disposable implements
 
 	async stat(resource: URI): Promise<IStat> {
 		try {
-			const { stat, symbolicLink } = await statLink(this.toFilePath(resource)); // cannot use fs.stat() here to support links properly
+			const { stat, symbolicLink } = await SymlinkSupport.stat(this.toFilePath(resource)); // cannot use fs.stat() here to support links properly
 
 			return {
 				type: this.toType(stat, symbolicLink),

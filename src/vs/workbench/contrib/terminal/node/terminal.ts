@@ -5,7 +5,7 @@
 
 import * as os from 'os';
 import * as platform from 'vs/base/common/platform';
-import { readFile, fileExists, stat, lstat } from 'vs/base/node/pfs';
+import { readFile, SymlinkSupport, stat, lstat } from 'vs/base/node/pfs';
 import { LinuxDistro, IShellDefinition } from 'vs/workbench/contrib/terminal/common/terminal';
 import { coalesce } from 'vs/base/common/arrays';
 import { normalize, basename } from 'vs/base/common/path';
@@ -14,7 +14,7 @@ import { enumeratePowerShellInstallations } from 'vs/base/node/powershell';
 let detectedDistro = LinuxDistro.Unknown;
 if (platform.isLinux) {
 	const file = '/etc/os-release';
-	fileExists(file).then(async exists => {
+	SymlinkSupport.fileExists(file).then(async exists => {
 		if (!exists) {
 			return;
 		}

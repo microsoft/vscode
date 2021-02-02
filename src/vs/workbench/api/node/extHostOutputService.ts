@@ -9,7 +9,7 @@ import { URI } from 'vs/base/common/uri';
 import { join } from 'vs/base/common/path';
 import { OutputAppender } from 'vs/workbench/services/output/node/outputAppender';
 import { toLocalISOString } from 'vs/base/common/date';
-import { dirExists } from 'vs/base/node/pfs';
+import { SymlinkSupport } from 'vs/base/node/pfs';
 import { promises } from 'fs';
 import { AbstractExtHostOutputChannel, ExtHostPushOutputChannel, ExtHostOutputService, LazyOutputChannel } from 'vs/workbench/api/common/extHostOutput';
 import { IExtHostInitDataService } from 'vs/workbench/api/common/extHostInitDataService';
@@ -86,7 +86,7 @@ export class ExtHostOutputService2 extends ExtHostOutputService {
 	private async _doCreateOutChannel(name: string): Promise<AbstractExtHostOutputChannel> {
 		try {
 			const outputDirPath = join(this._logsLocation.fsPath, `output_logging_${toLocalISOString(new Date()).replace(/-|:|\.\d+Z$/g, '')}`);
-			const exists = await dirExists(outputDirPath);
+			const exists = await SymlinkSupport.dirExists(outputDirPath);
 			if (!exists) {
 				await promises.mkdir(outputDirPath, { recursive: true });
 			}

@@ -4,9 +4,9 @@
  *--------------------------------------------------------------------------------------------*/
 
 import * as fs from 'fs';
-import * as crypto from 'crypto';
-import * as path from 'vs/base/common/path';
-import * as platform from 'vs/base/common/platform';
+import { createHash } from 'crypto';
+import { join } from 'vs/base/common/path';
+import { isLinux } from 'vs/base/common/platform';
 import { writeFileSync, writeFile, readFile, readdir, exists, rimraf, rename, RimRafMode } from 'vs/base/node/pfs';
 import { IBackupMainService, IWorkspaceBackupInfo, isWorkspaceBackupInfo } from 'vs/platform/backup/electron-main/backup';
 import { IBackupWorkspacesFormat, IEmptyWindowBackupInfo } from 'vs/platform/backup/node/backup';
@@ -35,7 +35,7 @@ export class BackupMainService implements IBackupMainService {
 	// - ignore path casing on Windows/macOS
 	// - respect path casing on Linux
 	private readonly backupUriComparer = extUriBiasedIgnorePathCase;
-	private readonly backupPathComparer = { isEqual: (pathA: string, pathB: string) => isEqual(pathA, pathB, !platform.isLinux) };
+	private readonly backupPathComparer = { isEqual: (pathA: string, pathB: string) => isEqual(pathA, pathB, !isLinux) };
 
 	constructor(
 		@IEnvironmentMainService environmentService: IEnvironmentMainService,
@@ -204,7 +204,7 @@ export class BackupMainService implements IBackupMainService {
 	}
 
 	private getBackupPath(oldFolderHash: string): string {
-		return path.join(this.backupHome, oldFolderHash);
+		return join(this.backupHome, oldFolderHash);
 	}
 
 	private async validateWorkspaces(rootWorkspaces: IWorkspaceBackupInfo[]): Promise<IWorkspaceBackupInfo[]> {
@@ -406,7 +406,7 @@ export class BackupMainService implements IBackupMainService {
 
 			for (const backupSchema of backupSchemas) {
 				try {
-					const backupSchemaChildren = await readdir(path.join(backupPath, backupSchema));
+					const backupSchemaChildren = await readdir(join(backupPath, backupSchema));
 					if (backupSchemaChildren.length > 0) {
 						return true;
 					}
@@ -454,11 +454,11 @@ export class BackupMainService implements IBackupMainService {
 
 		if (folderUri.scheme === Schemas.file) {
 			// for backward compatibility, use the fspath as key
-			key = platform.isLinux ? folderUri.fsPath : folderUri.fsPath.toLowerCase();
+			key = isLinux ? folderUri.fsPath : folderUri.fsPath.toLowerCase();
 		} else {
 			key = folderUri.toString().toLowerCase();
 		}
 
-		return crypto.createHash('md5').update(key).digest('hex');
+		return createHash('md5').update(key).digest('hex');
 	}
 }

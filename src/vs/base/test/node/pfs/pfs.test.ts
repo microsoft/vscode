@@ -8,7 +8,7 @@ import * as fs from 'fs';
 import { tmpdir } from 'os';
 import { join, sep } from 'vs/base/common/path';
 import { generateUuid } from 'vs/base/common/uuid';
-import { copy, exists, move, readdir, readDirsInDir, readdirWithFileTypes, readFile, renameIgnoreError, rimraf, RimRafMode, rimrafSync, statLink, writeFile, writeFileSync } from 'vs/base/node/pfs';
+import { copy, exists, move, readdir, readDirsInDir, readdirWithFileTypes, readFile, renameIgnoreError, rimraf, RimRafMode, rimrafSync, SymlinkSupport, writeFile, writeFileSync } from 'vs/base/node/pfs';
 import { timeout } from 'vs/base/common/async';
 import { getPathFromAmdModule } from 'vs/base/common/amd';
 import { canNormalize } from 'vs/base/common/normalization';
@@ -240,10 +240,10 @@ flakySuite('PFS', function () {
 
 		fs.symlinkSync(directory, symbolicLink, 'junction');
 
-		let statAndIsLink = await statLink(directory);
+		let statAndIsLink = await SymlinkSupport.stat(directory);
 		assert.ok(!statAndIsLink?.symbolicLink);
 
-		statAndIsLink = await statLink(symbolicLink);
+		statAndIsLink = await SymlinkSupport.stat(symbolicLink);
 		assert.ok(statAndIsLink?.symbolicLink);
 		assert.ok(!statAndIsLink?.symbolicLink?.dangling);
 	});
@@ -261,7 +261,7 @@ flakySuite('PFS', function () {
 
 		await rimraf(directory);
 
-		const statAndIsLink = await statLink(symbolicLink);
+		const statAndIsLink = await SymlinkSupport.stat(symbolicLink);
 		assert.ok(statAndIsLink?.symbolicLink);
 		assert.ok(statAndIsLink?.symbolicLink?.dangling);
 	});

@@ -14,6 +14,8 @@ import { isRootOrDriveLetter } from 'vs/base/common/extpath';
 import { generateUuid } from 'vs/base/common/uuid';
 import { normalizeNFC } from 'vs/base/common/normalization';
 
+//#region Constants
+
 // See https://github.com/microsoft/vscode/issues/30180
 const WIN32_MAX_FILE_SIZE = 300 * 1024 * 1024; // 300 MB
 const GENERAL_MAX_FILE_SIZE = 16 * 1024 * 1024 * 1024; // 16 GB
@@ -24,6 +26,10 @@ const GENERAL_MAX_HEAP_SIZE = 700 * 2 * 1024 * 1024; // 1400 MB
 
 export const MAX_FILE_SIZE = process.arch === 'ia32' ? WIN32_MAX_FILE_SIZE : GENERAL_MAX_FILE_SIZE;
 export const MAX_HEAP_SIZE = process.arch === 'ia32' ? WIN32_MAX_HEAP_SIZE : GENERAL_MAX_HEAP_SIZE;
+
+//#endregion
+
+//#region rimraf
 
 export enum RimRafMode {
 
@@ -142,6 +148,10 @@ export function rimrafSync(path: string): void {
 	}
 }
 
+//#endregion
+
+//#region readdir with NFC support (macos)
+
 export async function readdir(path: string): Promise<string[]> {
 	return handleDirectoryChildren(await promisify(fs.readdir)(path));
 }
@@ -174,119 +184,148 @@ function handleDirectoryChildren(children: string[]): string[] {
 	return children;
 }
 
-export function exists(path: string): Promise<boolean> {
-	return promisify(fs.exists)(path);
-}
+export async function readDirsInDir(dirPath: string): Promise<string[]> {
+	const children = await readdir(dirPath);
+	const directories: string[] = [];
 
-export function chmod(path: string, mode: number): Promise<void> {
-	return promisify(fs.chmod)(path, mode);
-}
-
-export function stat(path: string): Promise<fs.Stats> {
-	return promisify(fs.stat)(path);
-}
-
-export interface IStatAndLink {
-
-	// The stats of the file. If the file is a symbolic
-	// link, the stats will be of that target file and
-	// not the link itself.
-	// If the file is a symbolic link pointing to a non
-	// existing file, the stat will be of the link and
-	// the `dangling` flag will indicate this.
-	stat: fs.Stats;
-
-	// Will be provided if the resource is a symbolic link
-	// on disk. Use the `dangling` flag to find out if it
-	// points to a resource that does not exist on disk.
-	symbolicLink?: { dangling: boolean };
-}
-
-export async function statLink(path: string): Promise<IStatAndLink> {
-
-	// First stat the link
-	let lstats: fs.Stats | undefined;
-	try {
-		lstats = await lstat(path);
-
-		// Return early if the stat is not a symbolic link at all
-		if (!lstats.isSymbolicLink()) {
-			return { stat: lstats };
+	for (const child of children) {
+		if (await SymlinkSupport.dirExists(join(dirPath, child))) {
+			directories.push(child);
 		}
-	} catch (error) {
-		/* ignore - use stat() instead */
 	}
 
-	// If the stat is a symbolic link or failed to stat, use fs.stat()
-	// which for symbolic links will stat the target they point to
-	try {
-		const stats = await stat(path);
+	return directories;
+}
 
-		return { stat: stats, symbolicLink: lstats?.isSymbolicLink() ? { dangling: false } : undefined };
-	} catch (error) {
+//#endregion
 
-		// If the link points to a non-existing file we still want
-		// to return it as result while setting dangling: true flag
-		if (error.code === 'ENOENT' && lstats) {
-			return { stat: lstats, symbolicLink: { dangling: true } };
-		}
+export function whenDeleted(path: string): Promise<void> {
 
-		// Windows: workaround a node.js bug where reparse points
-		// are not supported (https://github.com/nodejs/node/issues/36790)
-		if (isWindows && error.code === 'EACCES' && lstats) {
-			try {
-				const stats = await stat(await readlink(path));
+	// Complete when wait marker file is deleted
+	return new Promise<void>(resolve => {
+		let running = false;
+		const interval = setInterval(() => {
+			if (!running) {
+				running = true;
+				fs.access(path, err => {
+					running = false;
 
-				return { stat: stats, symbolicLink: lstats.isSymbolicLink() ? { dangling: false } : undefined };
-			} catch (error) {
-
-				// If the link points to a non-existing file we still want
-				// to return it as result while setting dangling: true flag
-				if (error.code === 'ENOENT') {
-					return { stat: lstats, symbolicLink: { dangling: true } };
-				}
-
-				throw error;
+					if (err) {
+						clearInterval(interval);
+						resolve(undefined);
+					}
+				});
 			}
+		}, 1000);
+	});
+}
+
+//#region Methods with symbolic links support
+
+export namespace SymlinkSupport {
+
+	export interface IStats {
+
+		// The stats of the file. If the file is a symbolic
+		// link, the stats will be of that target file and
+		// not the link itself.
+		// If the file is a symbolic link pointing to a non
+		// existing file, the stat will be of the link and
+		// the `dangling` flag will indicate this.
+		stat: fs.Stats;
+
+		// Will be provided if the resource is a symbolic link
+		// on disk. Use the `dangling` flag to find out if it
+		// points to a resource that does not exist on disk.
+		symbolicLink?: { dangling: boolean };
+	}
+
+	/**
+	 * Resolves the `fs.Stats` of the provided path. If the path is a
+	 * symbolic link, the `fs.Stats` will be from the target it points
+	 * to. If the target does not exist, `dangling: true` will be returned
+	 * as `symbolicLink` value.
+	 */
+	export async function stat(path: string): Promise<IStats> {
+
+		// First stat the link
+		let lstats: fs.Stats | undefined;
+		try {
+			lstats = await lstat(path);
+
+			// Return early if the stat is not a symbolic link at all
+			if (!lstats.isSymbolicLink()) {
+				return { stat: lstats };
+			}
+		} catch (error) {
+			/* ignore - use stat() instead */
 		}
 
-		throw error;
+		// If the stat is a symbolic link or failed to stat, use fs.stat()
+		// which for symbolic links will stat the target they point to
+		try {
+			const stats = await fs.promises.stat(path);
+
+			return { stat: stats, symbolicLink: lstats?.isSymbolicLink() ? { dangling: false } : undefined };
+		} catch (error) {
+
+			// If the link points to a non-existing file we still want
+			// to return it as result while setting dangling: true flag
+			if (error.code === 'ENOENT' && lstats) {
+				return { stat: lstats, symbolicLink: { dangling: true } };
+			}
+
+			// Windows: workaround a node.js bug where reparse points
+			// are not supported (https://github.com/nodejs/node/issues/36790)
+			if (isWindows && error.code === 'EACCES' && lstats) {
+				try {
+					const stats = await fs.promises.stat(await readlink(path));
+
+					return { stat: stats, symbolicLink: lstats.isSymbolicLink() ? { dangling: false } : undefined };
+				} catch (error) {
+
+					// If the link points to a non-existing file we still want
+					// to return it as result while setting dangling: true flag
+					if (error.code === 'ENOENT') {
+						return { stat: lstats, symbolicLink: { dangling: true } };
+					}
+
+					throw error;
+				}
+			}
+
+			throw error;
+		}
+	}
+
+	export async function fileExists(path: string): Promise<boolean> {
+		try {
+			const { stat, symbolicLink } = await SymlinkSupport.stat(path);
+
+			return stat.isFile() && symbolicLink?.dangling !== true;
+		} catch (error) {
+			// Ignore, path might not exist
+		}
+
+		return false;
+	}
+
+	export async function dirExists(path: string): Promise<boolean> {
+		try {
+			const { stat, symbolicLink } = await SymlinkSupport.stat(path);
+
+			return stat.isDirectory() && symbolicLink?.dangling !== true;
+		} catch (error) {
+			// Ignore, path might not exist
+		}
+
+		return false;
 	}
 }
 
-export function lstat(path: string): Promise<fs.Stats> {
-	return promisify(fs.lstat)(path);
-}
+//#endregion
 
-export function rename(oldPath: string, newPath: string): Promise<void> {
-	return promisify(fs.rename)(oldPath, newPath);
-}
-
-export function renameIgnoreError(oldPath: string, newPath: string): Promise<void> {
-	return new Promise(resolve => fs.rename(oldPath, newPath, () => resolve()));
-}
-
-export function readlink(path: string): Promise<string> {
-	return promisify(fs.readlink)(path);
-}
-
-export function unlink(path: string): Promise<void> {
-	return promisify(fs.unlink)(path);
-}
-
-export function symlink(target: string, path: string, type?: string): Promise<void> {
-	return promisify(fs.symlink)(target, path, type);
-}
-
-export function truncate(path: string, len: number): Promise<void> {
-	return promisify(fs.truncate)(path, len);
-}
-
-export function readFile(path: string): Promise<Buffer>;
-export function readFile(path: string, encoding: string): Promise<string>;
-export function readFile(path: string, encoding?: string): Promise<Buffer | string> {
-	return promisify(fs.readFile)(path, encoding);
-}
+//#region Write File
 
 // According to node.js docs (https://nodejs.org/docs/v6.5.0/api/fs.html#fs_fs_writefile_file_data_options_callback)
 // it is not safe to call writeFile() on the same path multiple times without waiting for the callback to return.
@@ -422,70 +461,16 @@ function ensureWriteOptions(options?: IWriteFileOptions): IEnsuredWriteFileOptio
 	};
 }
 
-export async function readDirsInDir(dirPath: string): Promise<string[]> {
-	const children = await readdir(dirPath);
-	const directories: string[] = [];
+//#endregion
 
-	for (const child of children) {
-		if (await dirExists(join(dirPath, child))) {
-			directories.push(child);
-		}
-	}
-
-	return directories;
-}
-
-export async function dirExists(path: string): Promise<boolean> {
-	try {
-		const { stat, symbolicLink } = await statLink(path);
-
-		return stat.isDirectory() && symbolicLink?.dangling !== true;
-	} catch (error) {
-		// Ignore, path might not exist
-	}
-
-	return false;
-}
-
-export async function fileExists(path: string): Promise<boolean> {
-	try {
-		const { stat, symbolicLink } = await statLink(path);
-
-		return stat.isFile() && symbolicLink?.dangling !== true;
-	} catch (error) {
-		// Ignore, path might not exist
-	}
-
-	return false;
-}
-
-export function whenDeleted(path: string): Promise<void> {
-
-	// Complete when wait marker file is deleted
-	return new Promise<void>(resolve => {
-		let running = false;
-		const interval = setInterval(() => {
-			if (!running) {
-				running = true;
-				fs.exists(path, exists => {
-					running = false;
-
-					if (!exists) {
-						clearInterval(interval);
-						resolve(undefined);
-					}
-				});
-			}
-		}, 1000);
-	});
-}
+//#region Move / Copy
 
 export async function move(source: string, target: string): Promise<void> {
 	if (source === target) {
 		return;  // simulate node.js behaviour here and do a no-op if paths match
 	}
 
-	// We have been updating `mtime` for move operations since the
+	// We have been updating `mtime` for move operations for files since the
 	// beginning for reasons that are no longer quite clear, but changing
 	// this could be risky as well. As such, trying to reason about it:
 	// It is very common as developer to have file watchers enabled that watch
@@ -554,7 +539,7 @@ export async function copy(source: string, target: string, handledSourcesIn?: { 
 		handledSources[source] = true;
 	}
 
-	const { stat, symbolicLink } = await statLink(source);
+	const { stat, symbolicLink } = await SymlinkSupport.stat(source);
 	if (symbolicLink?.dangling) {
 		return; // skip over dangling symbolic links (https://github.com/microsoft/vscode/issues/111621)
 	}
@@ -605,3 +590,61 @@ async function doCopyFile(source: string, target: string, mode: number): Promise
 		reader.pipe(writer);
 	});
 }
+
+//#endregion
+
+//#region Async FS Methods
+
+export async function exists(path: string): Promise<boolean> {
+	try {
+		await fs.promises.access(path);
+
+		return true;
+	} catch {
+		return false;
+	}
+}
+
+export function chmod(path: string, mode: number): Promise<void> {
+	return promisify(fs.chmod)(path, mode);
+}
+
+export function stat(path: string): Promise<fs.Stats> {
+	return promisify(fs.stat)(path);
+}
+
+export function lstat(path: string): Promise<fs.Stats> {
+	return promisify(fs.lstat)(path);
+}
+
+export function rename(oldPath: string, newPath: string): Promise<void> {
+	return promisify(fs.rename)(oldPath, newPath);
+}
+
+export function renameIgnoreError(oldPath: string, newPath: string): Promise<void> {
+	return new Promise(resolve => fs.rename(oldPath, newPath, () => resolve()));
+}
+
+export function readlink(path: string): Promise<string> {
+	return promisify(fs.readlink)(path);
+}
+
+export function unlink(path: string): Promise<void> {
+	return promisify(fs.unlink)(path);
+}
+
+export function symlink(target: string, path: string, type?: string): Promise<void> {
+	return promisify(fs.symlink)(target, path, type);
+}
+
+export function truncate(path: string, len: number): Promise<void> {
+	return promisify(fs.truncate)(path, len);
+}
+
+export function readFile(path: string): Promise<Buffer>;
+export function readFile(path: string, encoding: string): Promise<string>;
+export function readFile(path: string, encoding?: string): Promise<Buffer | string> {
+	return promisify(fs.readFile)(path, encoding);
+}
+
+//#endregion
