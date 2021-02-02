@@ -123,11 +123,9 @@ async function each([cmd, ...args], opts) {
         finally { if (e_1) throw e_1.error; }
     }
 }
-async function runExtensionCI(extension, opts) {
+async function runExtensionCI(extension, service) {
     const vsixName = `${extension.name}-${extension.version}.vsix`;
     const commit = await exec(`git log -1 --format="%H" -- ${extension.path}`, { trim: true });
-    const creds = new storage_blob_1.StorageSharedKeyCredential(opts.account, opts.key);
-    const service = new storage_blob_1.BlobServiceClient(`https://${opts.account}.blob.core.windows.net`, creds);
     const container = service.getContainerClient('extensions');
     const blobName = `${commit}/${vsixName}`;
     const blob = container.getBlobClient(blobName);
@@ -145,8 +143,13 @@ async function runExtensionCI(extension, opts) {
     console.log(`📦 [${extension.name}] Building...`);
     await spawn(`yarn`, { shell: true, cwd: extension.path });
     await spawn(`vsce package --yarn -o ${vsixsPath}`, { shell: true, cwd: extension.path });
+    if (service.credential instanceof storage_blob_1.AnonymousCredential) {
+        console.log(`📦 [${extension.name}] Skiping publish VSIX to cache (anonymous access only)`);
+        return;
+    }
     const blockBlob = await blob.getBlockBlobClient();
     await blockBlob.uploadFile(extension.vsixPath);
+    console.log(`📦 [${extension.name}] Successfully uploaded VSIX to cache`);
 }
 async function ci() {
     var e_2, _a;
@@ -154,9 +157,8 @@ async function ci() {
     if (!account) {
         throw new Error('Missing env: AZURE_STORAGE_ACCOUNT_2');
     }
-    else if (!key) {
-        throw new Error('Missing env: AZURE_STORAGE_KEY_2');
-    }
+    const creds = key ? new storage_blob_1.StorageSharedKeyCredential(account, key) : new storage_blob_1.AnonymousCredential();
+    const service = new storage_blob_1.BlobServiceClient(`https://${account}.blob.core.windows.net`, creds);
     await mkdirp(vsixsPath);
     const limit = plimit(10);
     const promises = [];
@@ -166,7 +168,7 @@ async function ci() {
             if (extension.type !== "theme" /* Theme */ && extension.type !== "grammar" /* Grammar */) {
                 continue;
             }
-            promises.push(limit(() => runExtensionCI(extension, { account, key })));
+            promises.push(limit(() => runExtensionCI(extension, service)));
         }
     }
     catch (e_2_1) { e_2 = { error: e_2_1 }; }

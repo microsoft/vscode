@@ -7,7 +7,7 @@ import { promises as fs } from 'fs';
 import * as path from 'path';
 import * as cp from 'child_process';
 import { program } from 'commander';
-import { BlobServiceClient, StorageSharedKeyCredential } from '@azure/storage-blob';
+import { AnonymousCredential, BlobServiceClient, StorageSharedKeyCredential } from '@azure/storage-blob';
 import * as mkdirp from 'mkdirp';
 import * as plimit from 'p-limit';
 
@@ -125,11 +125,9 @@ async function each([cmd, ...args]: string[], opts: { type?: string }) {
 	}
 }
 
-async function runExtensionCI(extension: IExtension, opts: { account: string, key: string }): Promise<void> {
+async function runExtensionCI(extension: IExtension, service: BlobServiceClient): Promise<void> {
 	const vsixName = `${extension.name}-${extension.version}.vsix`;
 	const commit = await exec(`git log -1 --format="%H" -- ${extension.path}`, { trim: true });
-	const creds = new StorageSharedKeyCredential(opts.account, opts.key);
-	const service = new BlobServiceClient(`https://${opts.account}.blob.core.windows.net`, creds);
 	const container = service.getContainerClient('extensions');
 	const blobName = `${commit}/${vsixName}`;
 	const blob = container.getBlobClient(blobName);
@@ -149,8 +147,14 @@ async function runExtensionCI(extension: IExtension, opts: { account: string, ke
 	await spawn(`yarn`, { shell: true, cwd: extension.path });
 	await spawn(`vsce package --yarn -o ${vsixsPath}`, { shell: true, cwd: extension.path });
 
+	if (service.credential instanceof AnonymousCredential) {
+		console.log(`📦 [${extension.name}] Skiping publish VSIX to cache (anonymous access only)`);
+		return;
+	}
+
 	const blockBlob = await blob.getBlockBlobClient();
 	await blockBlob.uploadFile(extension.vsixPath);
+	console.log(`📦 [${extension.name}] Successfully uploaded VSIX to cache`);
 }
 
 async function ci(): Promise<void> {
@@ -158,9 +162,10 @@ async function ci(): Promise<void> {
 
 	if (!account) {
 		throw new Error('Missing env: AZURE_STORAGE_ACCOUNT_2');
-	} else if (!key) {
-		throw new Error('Missing env: AZURE_STORAGE_KEY_2');
 	}
+
+	const creds = key ? new StorageSharedKeyCredential(account, key) : new AnonymousCredential();
+	const service = new BlobServiceClient(`https://${account}.blob.core.windows.net`, creds);
 
 	await mkdirp(vsixsPath);
 
@@ -172,7 +177,7 @@ async function ci(): Promise<void> {
 			continue;
 		}
 
-		promises.push(limit(() => runExtensionCI(extension, { account, key })));
+		promises.push(limit(() => runExtensionCI(extension, service)));
 	}
 
 	await Promise.all(promises);
