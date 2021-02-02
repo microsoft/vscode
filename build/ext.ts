@@ -195,10 +195,6 @@ async function ci(): Promise<void> {
 	const promises = [];
 
 	for await (const extension of getExtensions()) {
-		if (extension.type !== ExtensionType.Theme && extension.type !== ExtensionType.Grammar) {
-			continue;
-		}
-
 		promises.push(limit(() => runExtensionCI(extension, service)));
 	}
 

@@ -185,9 +185,6 @@ async function ci() {
     try {
         for (var _b = __asyncValues(getExtensions()), _c; _c = await _b.next(), !_c.done;) {
             const extension = _c.value;
-            if (extension.type !== "theme" /* Theme */ && extension.type !== "grammar" /* Grammar */) {
-                continue;
-            }
             promises.push(limit(() => runExtensionCI(extension, service)));
         }
     }
