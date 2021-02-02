@@ -288,10 +288,6 @@ export function readFile(path: string, encoding?: string): Promise<Buffer | stri
 	return promisify(fs.readFile)(path, encoding);
 }
 
-export async function mkdirp(path: string, mode?: number): Promise<void> {
-	return promisify(fs.mkdir)(path, { mode, recursive: true });
-}
-
 // According to node.js docs (https://nodejs.org/docs/v6.5.0/api/fs.html#fs_fs_writefile_file_data_options_callback)
 // it is not safe to call writeFile() on the same path multiple times without waiting for the callback to return.
 // Therefor we use a Queue on the path that is given to us to sequentialize calls to the same path properly.
@@ -558,7 +554,7 @@ export async function copy(source: string, target: string, handledSourcesIn?: { 
 	}
 
 	// Create folder
-	await mkdirp(target, stat.mode & COPY_MODE_MASK);
+	await fs.promises.mkdir(target, { recursive: true, mode: stat.mode & COPY_MODE_MASK });
 
 	// Copy each file recursively
 	const files = await readdir(source);

@@ -8,7 +8,7 @@ import * as fs from 'fs';
 import { tmpdir } from 'os';
 import { join, sep } from 'vs/base/common/path';
 import { generateUuid } from 'vs/base/common/uuid';
-import { copy, exists, mkdirp, move, readdir, readDirsInDir, readdirWithFileTypes, readFile, renameIgnoreError, rimraf, RimRafMode, rimrafSync, statLink, writeFile, writeFileSync } from 'vs/base/node/pfs';
+import { copy, exists, move, readdir, readDirsInDir, readdirWithFileTypes, readFile, renameIgnoreError, rimraf, RimRafMode, rimrafSync, statLink, writeFile, writeFileSync } from 'vs/base/node/pfs';
 import { timeout } from 'vs/base/common/async';
 import { getPathFromAmdModule } from 'vs/base/common/amd';
 import { canNormalize } from 'vs/base/common/normalization';
@@ -22,7 +22,7 @@ flakySuite('PFS', function () {
 	setup(() => {
 		testDir = getRandomTestPath(tmpdir(), 'vsctests', 'pfs');
 
-		return mkdirp(testDir, 493);
+		return fs.promises.mkdir(testDir, { recursive: true });
 	});
 
 	teardown(() => {
@@ -204,7 +204,7 @@ flakySuite('PFS', function () {
 		const id3 = generateUuid();
 		const copyTarget = join(testDir, id3);
 
-		await mkdirp(symbolicLinkTarget, 493);
+		await fs.promises.mkdir(symbolicLinkTarget, { recursive: true });
 
 		fs.symlinkSync(symbolicLinkTarget, symbolicLink, 'junction');
 
@@ -213,14 +213,6 @@ flakySuite('PFS', function () {
 		await copy(symbolicLink, copyTarget); // this should not throw
 
 		assert.ok(!fs.existsSync(copyTarget));
-	});
-
-	test('mkdirp', async () => {
-		const newDir = join(testDir, generateUuid());
-
-		await mkdirp(newDir, 493);
-
-		assert.ok(fs.existsSync(newDir));
 	});
 
 	test('readDirsInDir', async () => {
@@ -244,7 +236,7 @@ flakySuite('PFS', function () {
 		const id2 = generateUuid();
 		const symbolicLink = join(testDir, id2);
 
-		await mkdirp(directory, 493);
+		await fs.promises.mkdir(directory, { recursive: true });
 
 		fs.symlinkSync(directory, symbolicLink, 'junction');
 
@@ -263,7 +255,7 @@ flakySuite('PFS', function () {
 		const id2 = generateUuid();
 		const symbolicLink = join(testDir, id2);
 
-		await mkdirp(directory, 493);
+		await fs.promises.mkdir(directory, { recursive: true });
 
 		fs.symlinkSync(directory, symbolicLink, 'junction');
 
@@ -279,7 +271,7 @@ flakySuite('PFS', function () {
 			const id = generateUuid();
 			const newDir = join(testDir, 'pfs', id, 'öäü');
 
-			await mkdirp(newDir, 493);
+			await fs.promises.mkdir(newDir, { recursive: true });
 
 			assert.ok(fs.existsSync(newDir));
 
@@ -291,7 +283,7 @@ flakySuite('PFS', function () {
 	test('readdirWithFileTypes', async () => {
 		if (canNormalize && typeof process.versions['electron'] !== 'undefined' /* needs electron */) {
 			const newDir = join(testDir, 'öäü');
-			await mkdirp(newDir, 493);
+			await fs.promises.mkdir(newDir, { recursive: true });
 
 			await writeFile(join(testDir, 'somefile.txt'), 'contents');
 

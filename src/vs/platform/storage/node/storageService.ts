@@ -10,7 +10,8 @@ import { SQLiteStorageDatabase, ISQLiteStorageDatabaseLoggingOptions } from 'vs/
 import { Storage, IStorageDatabase, IStorage, StorageHint } from 'vs/base/parts/storage/common/storage';
 import { mark } from 'vs/base/common/performance';
 import { join } from 'vs/base/common/path';
-import { copy, exists, mkdirp, writeFile } from 'vs/base/node/pfs';
+import { copy, exists, writeFile } from 'vs/base/node/pfs';
+import { promises } from 'fs';
 import { IEnvironmentService } from 'vs/platform/environment/common/environment';
 import { isSingleFolderWorkspaceIdentifier, isWorkspaceIdentifier, IWorkspaceInitializationPayload } from 'vs/platform/workspaces/common/workspaces';
 import { assertIsDefined } from 'vs/base/common/types';
@@ -138,7 +139,7 @@ export class NativeStorageService extends AbstractStorageService {
 			return { path: workspaceStorageFolderPath, wasCreated: false };
 		}
 
-		await mkdirp(workspaceStorageFolderPath);
+		await promises.mkdir(workspaceStorageFolderPath, { recursive: true });
 
 		// Write metadata into folder
 		this.ensureWorkspaceStorageFolderMeta(payload);

@@ -7,8 +7,9 @@ import { SQLiteStorageDatabase, ISQLiteStorageDatabaseOptions } from 'vs/base/pa
 import { Storage, IStorageDatabase, IStorageItemsChangeEvent } from 'vs/base/parts/storage/common/storage';
 import { join } from 'vs/base/common/path';
 import { tmpdir } from 'os';
+import { promises } from 'fs';
 import { strictEqual, ok } from 'assert';
-import { mkdirp, writeFile, exists, unlink, rimraf } from 'vs/base/node/pfs';
+import { writeFile, exists, unlink, rimraf } from 'vs/base/node/pfs';
 import { timeout } from 'vs/base/common/async';
 import { Event, Emitter } from 'vs/base/common/event';
 import { isWindows } from 'vs/base/common/platform';
@@ -22,7 +23,7 @@ flakySuite('Storage Library', function () {
 	setup(function () {
 		testDir = getRandomTestPath(tmpdir(), 'vsctests', 'storagelibrary');
 
-		return mkdirp(testDir);
+		return promises.mkdir(testDir, { recursive: true });
 	});
 
 	teardown(function () {
@@ -294,7 +295,7 @@ flakySuite('SQLite Storage Library', function () {
 	setup(function () {
 		testdir = getRandomTestPath(tmpdir(), 'vsctests', 'storagelibrary');
 
-		return mkdirp(testdir);
+		return promises.mkdir(testdir, { recursive: true });
 	});
 
 	teardown(function () {

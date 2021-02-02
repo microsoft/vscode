@@ -56,7 +56,7 @@ export class Win32UpdateService extends AbstractUpdateService {
 	@memoize
 	get cachePath(): Promise<string> {
 		const result = path.join(tmpdir(), `vscode-update-${product.target}-${process.arch}`);
-		return pfs.mkdirp(result).then(() => result);
+		return fs.promises.mkdir(result, { recursive: true }).then(() => result);
 	}
 
 	constructor(

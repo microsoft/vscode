@@ -5,10 +5,11 @@
 
 import * as assert from 'assert';
 import { tmpdir } from 'os';
+import { promises } from 'fs';
 import { join } from 'vs/base/common/path';
 import { flakySuite, getRandomTestPath } from 'vs/base/test/node/testUtils';
 import { FileStorage } from 'vs/platform/state/node/stateService';
-import { mkdirp, rimraf, writeFileSync } from 'vs/base/node/pfs';
+import { rimraf, writeFileSync } from 'vs/base/node/pfs';
 
 flakySuite('StateService', () => {
 
@@ -17,7 +18,7 @@ flakySuite('StateService', () => {
 	setup(() => {
 		testDir = getRandomTestPath(tmpdir(), 'vsctests', 'stateservice');
 
-		return mkdirp(testDir);
+		return promises.mkdir(testDir, { recursive: true });
 	});
 
 	teardown(() => {

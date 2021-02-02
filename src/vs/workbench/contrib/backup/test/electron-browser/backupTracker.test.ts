@@ -6,8 +6,9 @@
 import * as assert from 'assert';
 import { isMacintosh, isWindows } from 'vs/base/common/platform';
 import { tmpdir } from 'os';
+import { promises } from 'fs';
 import { join } from 'vs/base/common/path';
-import { mkdirp, rimraf, writeFile } from 'vs/base/node/pfs';
+import { rimraf, writeFile } from 'vs/base/node/pfs';
 import { URI } from 'vs/base/common/uri';
 import { flakySuite, getRandomTestPath } from 'vs/base/test/node/testUtils';
 import { hashPath } from 'vs/workbench/services/backup/electron-browser/backupFileService';
@@ -106,8 +107,8 @@ flakySuite('BackupTracker (native)', function () {
 
 		disposables.add(registerTestFileEditor());
 
-		await mkdirp(backupHome);
-		await mkdirp(workspaceBackupPath);
+		await promises.mkdir(backupHome, { recursive: true });
+		await promises.mkdir(workspaceBackupPath, { recursive: true });
 
 		return writeFile(workspacesJsonPath, '');
 	});

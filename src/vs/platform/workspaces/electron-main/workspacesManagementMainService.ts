@@ -6,8 +6,8 @@
 import { toWorkspaceFolders, IWorkspaceIdentifier, hasWorkspaceFileExtension, UNTITLED_WORKSPACE_NAME, IResolvedWorkspace, IStoredWorkspaceFolder, isStoredWorkspaceFolder, IWorkspaceFolderCreationData, IUntitledWorkspaceInfo, getStoredWorkspaceFolder, IEnterWorkspaceResult, isUntitledWorkspace, isWorkspaceIdentifier, ISingleFolderWorkspaceIdentifier } from 'vs/platform/workspaces/common/workspaces';
 import { IEnvironmentMainService } from 'vs/platform/environment/electron-main/environmentMainService';
 import { join, dirname } from 'vs/base/common/path';
-import { mkdirp, writeFile, rimrafSync, readdirSync, writeFileSync } from 'vs/base/node/pfs';
-import { readFileSync, existsSync, mkdirSync, statSync, Stats } from 'fs';
+import { writeFile, rimrafSync, readdirSync, writeFileSync } from 'vs/base/node/pfs';
+import { promises, readFileSync, existsSync, mkdirSync, statSync, Stats } from 'fs';
 import { isLinux, isMacintosh, isWindows } from 'vs/base/common/platform';
 import { Event, Emitter } from 'vs/base/common/event';
 import { ILogService } from 'vs/platform/log/common/log';
@@ -140,7 +140,7 @@ export class WorkspacesManagementMainService extends Disposable implements IWork
 		const { workspace, storedWorkspace } = this.newUntitledWorkspace(folders, remoteAuthority);
 		const configPath = workspace.configPath.fsPath;
 
-		await mkdirp(dirname(configPath));
+		await promises.mkdir(dirname(configPath), { recursive: true });
 		await writeFile(configPath, JSON.stringify(storedWorkspace, null, '\t'));
 
 		return workspace;
