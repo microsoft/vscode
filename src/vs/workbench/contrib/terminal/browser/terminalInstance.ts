@@ -1508,6 +1508,7 @@ export class TerminalInstance extends Disposable implements ITerminalInstance {
 			case TitleEventSource.Process:
 				if (platform.isWindows) {
 					// Remove the .exe extension
+					title = path.basename(title);
 					title = title.split('.exe')[0];
 				} else {
 					const firstSpaceIndex = title.indexOf(' ');
