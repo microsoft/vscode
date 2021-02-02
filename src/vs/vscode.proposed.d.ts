@@ -2623,7 +2623,7 @@ declare module 'vscode' {
 		/**
 		 * Register a new `ExternalUriOpener`.
 		 *
-		 * When a uri is about to be opened, an `onUriOpen:SCHEME` activation event is fired.
+		 * When a uri is about to be opened, an `onOpenExternalUri:SCHEME` activation event is fired.
 		 *
 		 * @param id Unique id of the opener, such as `myExtension.browserPreview`. This is used in settings
 		 *   and commands to identify the opener.

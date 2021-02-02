@@ -56,7 +56,7 @@ export class MainThreadUriOpeners extends Disposable implements MainThreadUriOpe
 			return;
 		}
 
-		await this.extensionService.activateByEvent(`onUriOpen:${targetUri.scheme}`);
+		await this.extensionService.activateByEvent(`onOpenExternalUri:${targetUri.scheme}`);
 
 		for (const [id, openerMetadata] of this._registeredOpeners) {
 			if (openerMetadata.schemes.has(targetUri.scheme)) {
