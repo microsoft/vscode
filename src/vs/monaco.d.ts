@@ -10,6 +10,7 @@ declare namespace monaco {
 	export type Thenable<T> = PromiseLike<T>;
 
 	export interface Environment {
+		globalAPI?: boolean;
 		baseUrl?: string;
 		getWorker?(workerId: string, label: string): Worker;
 		getWorkerUrl?(workerId: string, label: string): string;
@@ -896,6 +897,12 @@ declare namespace monaco.editor {
 		resource?: Uri;
 		take?: number;
 	}): IMarker[];
+
+	/**
+	 * Emitted when markers change for a model.
+	 * @event
+	 */
+	export function onDidChangeMarkers(listener: (e: readonly Uri[]) => void): IDisposable;
 
 	/**
 	 * Get the model that has `uri` if it exists.

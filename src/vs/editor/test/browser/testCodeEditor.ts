@@ -31,7 +31,7 @@ export interface ITestCodeEditor extends IActiveCodeEditor {
 	registerAndInstantiateContribution<T extends IEditorContribution, Services extends BrandedService[]>(id: string, ctor: new (editor: ICodeEditor, ...services: Services) => T): T;
 }
 
-class TestCodeEditor extends CodeEditorWidget implements ICodeEditor {
+export class TestCodeEditor extends CodeEditorWidget implements ICodeEditor {
 
 	//#region testing overrides
 	protected _createConfiguration(options: Readonly<IEditorConstructionOptions>): IConfiguration {
@@ -52,6 +52,9 @@ class TestCodeEditor extends CodeEditorWidget implements ICodeEditor {
 		this._contributions[id] = r;
 		return r;
 	}
+}
+
+class TestCodeEditorWithAutoModelDisposal extends TestCodeEditor {
 	public dispose() {
 		super.dispose();
 		if (this._modelData) {
@@ -144,7 +147,7 @@ export function createTestCodeEditor(options: TestCodeEditorCreationOptions): IT
 		contributions: []
 	};
 	const editor = instantiationService.createInstance(
-		TestCodeEditor,
+		TestCodeEditorWithAutoModelDisposal,
 		<HTMLElement><any>new TestEditorDomElement(),
 		options,
 		codeEditorWidgetOptions

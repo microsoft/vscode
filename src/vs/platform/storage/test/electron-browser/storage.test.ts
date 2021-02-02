@@ -29,12 +29,10 @@ suite('Storage', () => {
 	setup(async () => {
 		const logService = new NullLogService();
 
-		fileService = new FileService(logService);
-		disposables.add(fileService);
+		fileService = disposables.add(new FileService(logService));
 
-		fileProvider = new DiskFileSystemProvider(logService);
+		fileProvider = disposables.add(new DiskFileSystemProvider(logService));
 		disposables.add(fileService.registerProvider(Schemas.file, fileProvider));
-		disposables.add(fileProvider);
 
 		testDir = getRandomTestPath(tmpdir(), 'vsctests', 'storageservice');
 	});

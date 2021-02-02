@@ -194,7 +194,8 @@ stages:
             steps:
               - template: linux/product-build-linux.yml
 
-        - ${{ if and(eq(variables['VSCODE_CIBUILD'], false), eq(parameters.VSCODE_BUILD_LINUX_ARMHF, true)) }}:
+        # TODO@joaomoreno: We don't ship ARM snaps for now
+        - ${{ if and(false, eq(variables['VSCODE_CIBUILD'], false), eq(parameters.VSCODE_BUILD_LINUX_ARMHF, true)) }}:
           - job: LinuxSnapArmhf
             dependsOn:
               - LinuxArmhf
@@ -213,7 +214,8 @@ stages:
             steps:
               - template: linux/product-build-linux.yml
 
-        - ${{ if and(eq(variables['VSCODE_CIBUILD'], false), eq(parameters.VSCODE_BUILD_LINUX_ARM64, true)) }}:
+        # TODO@joaomoreno: We don't ship ARM snaps for now
+        - ${{ if and(false, eq(variables['VSCODE_CIBUILD'], false), eq(parameters.VSCODE_BUILD_LINUX_ARM64, true)) }}:
           - job: LinuxSnapArm64
             dependsOn:
               - LinuxArm64
@@ -259,19 +261,16 @@ stages:
             steps:
               - template: darwin/product-build-darwin.yml
 
-  - ${{ if and(eq(parameters.VSCODE_COMPILE_ONLY, false), eq(variables['VSCODE_BUILD_MACOS_UNIVERSAL'], true))  }}:
-    - stage: macOS_universal
-      dependsOn:
-        - macOS
-      pool:
-        vmImage: macOS-latest
-      jobs:
-        - job: macOSUniversal
-          timeoutInMinutes: 90
-          variables:
-            VSCODE_ARCH: universal
-          steps:
-            - template: darwin/product-build-darwin.yml
+        - ${{ if eq(variables['VSCODE_BUILD_MACOS_UNIVERSAL'], true) }}:
+          - job: macOSUniversal
+            dependsOn:
+              - macOS
+              - macOSARM64
+            timeoutInMinutes: 90
+            variables:
+              VSCODE_ARCH: universal
+            steps:
+              - template: darwin/product-build-darwin.yml
 
   - ${{ if and(eq(variables['VSCODE_PUBLISH'], true), eq(parameters.VSCODE_COMPILE_ONLY, false)) }}:
     - stage: Mooncake
@@ -282,8 +281,6 @@ stages:
           - Linux
         - ${{ if eq(variables['VSCODE_BUILD_STAGE_MACOS'], true) }}:
           - macOS
-        - ${{ if eq(variables['VSCODE_BUILD_MACOS_UNIVERSAL'], true) }}:
-          - macOS_universal
       condition: succeededOrFailed()
       pool:
         vmImage: "Ubuntu-18.04"
@@ -302,8 +299,6 @@ stages:
           - Linux
         - ${{ if eq(variables['VSCODE_BUILD_STAGE_MACOS'], true) }}:
           - macOS
-        - ${{ if eq(variables['VSCODE_BUILD_MACOS_UNIVERSAL'], true) }}:
-          - macOS_universal
       pool:
         vmImage: "Ubuntu-18.04"
       jobs:

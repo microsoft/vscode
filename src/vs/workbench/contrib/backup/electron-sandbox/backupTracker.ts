@@ -22,7 +22,7 @@ import { SaveReason } from 'vs/workbench/common/editor';
 import { IEnvironmentService } from 'vs/platform/environment/common/environment';
 import { CancellationToken, CancellationTokenSource } from 'vs/base/common/cancellation';
 import { IProgressService, ProgressLocation } from 'vs/platform/progress/common/progress';
-import { raceCancellation } from 'vs/base/common/async';
+import { Promises, raceCancellation } from 'vs/base/common/async';
 
 export class NativeBackupTracker extends BackupTracker implements IWorkbenchContribution {
 
@@ -90,8 +90,12 @@ export class NativeBackupTracker extends BackupTracker implements IWorkbenchCont
 		// and then check again for dirty copies
 		if (this.filesConfigurationService.getAutoSaveMode() !== AutoSaveMode.OFF) {
 
-			// Save all files
-			await this.doSaveAllBeforeShutdown(false /* not untitled */, SaveReason.AUTO);
+			// Save all dirty working copies
+			try {
+				await this.doSaveAllBeforeShutdown(false /* not untitled */, SaveReason.AUTO);
+			} catch (error) {
+				this.logService.error(`[backup tracker] error saving dirty working copies: ${error}`); // guard against misbehaving saves, we handle remaining dirty below
+			}
 
 			// If we still have dirty working copies, we either have untitled ones or working copies that cannot be saved
 			const remainingDirtyWorkingCopies = this.workingCopyService.dirtyWorkingCopies;
@@ -124,6 +128,12 @@ export class NativeBackupTracker extends BackupTracker implements IWorkbenchCont
 
 		// we ran a backup but received an error that we show to the user
 		if (backupError) {
+			if (this.environmentService.isExtensionDevelopment) {
+				this.logService.error(`[backup tracker] error creating backups: ${backupError}`);
+
+				return false; // do not block shutdown during extension development (https://github.com/microsoft/vscode/issues/115028)
+			}
+
 			this.showErrorDialog(localize('backupTrackerBackupFailed', "The following dirty editors could not be saved to the back up location."), workingCopies, backupError);
 
 			return true; // veto (the backup failed)
@@ -134,6 +144,12 @@ export class NativeBackupTracker extends BackupTracker implements IWorkbenchCont
 		try {
 			return await this.confirmBeforeShutdown(workingCopies.filter(workingCopy => !backups.includes(workingCopy)));
 		} catch (error) {
+			if (this.environmentService.isExtensionDevelopment) {
+				this.logService.error(`[backup tracker] error saving or reverting dirty working copies: ${error}`);
+
+				return false; // do not block shutdown during extension development (https://github.com/microsoft/vscode/issues/115028)
+			}
+
 			this.showErrorDialog(localize('backupTrackerConfirmFailed', "The following dirty editors could not be saved or reverted."), workingCopies, error);
 
 			return true; // veto (save or revert failed)
@@ -196,7 +212,7 @@ export class NativeBackupTracker extends BackupTracker implements IWorkbenchCont
 		// Perform a backup of all dirty working copies unless a backup already exists
 		const backups: IWorkingCopy[] = [];
 		if (doBackup) {
-			await Promise.all(workingCopies.map(async workingCopy => {
+			await Promises.settled(workingCopies.map(async workingCopy => {
 				const contentVersion = this.getContentVersion(workingCopy);
 
 				// Backup exists
@@ -223,7 +239,12 @@ export class NativeBackupTracker extends BackupTracker implements IWorkbenchCont
 		const confirm = await this.fileDialogService.showSaveConfirm(workingCopies.map(workingCopy => workingCopy.name));
 		if (confirm === ConfirmResult.SAVE) {
 			const dirtyCountBeforeSave = this.workingCopyService.dirtyCount;
-			await this.doSaveAllBeforeShutdown(workingCopies, SaveReason.EXPLICIT);
+
+			try {
+				await this.doSaveAllBeforeShutdown(workingCopies, SaveReason.EXPLICIT);
+			} catch (error) {
+				this.logService.error(`[backup tracker] error saving dirty working copies: ${error}`); // guard against misbehaving saves, we handle remaining dirty below
+			}
 
 			const savedWorkingCopies = dirtyCountBeforeSave - this.workingCopyService.dirtyCount;
 			if (savedWorkingCopies < workingCopies.length) {
@@ -235,7 +256,11 @@ export class NativeBackupTracker extends BackupTracker implements IWorkbenchCont
 
 		// Don't Save
 		else if (confirm === ConfirmResult.DONT_SAVE) {
-			await this.doRevertAllBeforeShutdown(workingCopies);
+			try {
+				await this.doRevertAllBeforeShutdown(workingCopies);
+			} catch (error) {
+				this.logService.error(`[backup tracker] error reverting dirty working copies: ${error}`); // do not block the shutdown on errors from revert
+			}
 
 			return this.noVeto(workingCopies); // no veto (dirty reverted)
 		}
@@ -277,7 +302,7 @@ export class NativeBackupTracker extends BackupTracker implements IWorkbenchCont
 				// If we still have dirty working copies, save those directly
 				// unless the save was not successful (e.g. cancelled)
 				if (result !== false) {
-					await Promise.all(workingCopies.map(workingCopy => workingCopy.isDirty() ? workingCopy.save(saveOptions) : true));
+					await Promises.settled(workingCopies.map(workingCopy => workingCopy.isDirty() ? workingCopy.save(saveOptions) : Promise.resolve(true)));
 				}
 			})();
 
@@ -297,7 +322,7 @@ export class NativeBackupTracker extends BackupTracker implements IWorkbenchCont
 
 		// If we still have dirty working copies, revert those directly
 		// unless the revert operation was not successful (e.g. cancelled)
-		await Promise.all(workingCopies.map(workingCopy => workingCopy.isDirty() ? workingCopy.revert(revertOptions) : undefined));
+		await Promises.settled(workingCopies.map(workingCopy => workingCopy.isDirty() ? workingCopy.revert(revertOptions) : Promise.resolve()));
 	}
 
 	private noVeto(backupsToDiscard: IWorkingCopy[]): boolean | Promise<boolean> {
@@ -305,7 +330,7 @@ export class NativeBackupTracker extends BackupTracker implements IWorkbenchCont
 			return false; // if editors have not restored, we are not up to speed with backups and thus should not discard them
 		}
 
-		return Promise.all(backupsToDiscard.map(workingCopy => this.backupFileService.discardBackup(workingCopy.resource))).then(() => false, () => false);
+		return Promises.settled(backupsToDiscard.map(workingCopy => this.backupFileService.discardBackup(workingCopy.resource))).then(() => false, () => false);
 	}
 
 	private async onBeforeShutdownWithoutDirty(): Promise<boolean> {

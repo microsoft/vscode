@@ -9,7 +9,7 @@ import { URI } from 'vs/base/common/uri';
 import { Event } from 'vs/base/common/event';
 import { EditorPane } from 'vs/workbench/browser/parts/editor/editorPane';
 import { EditorInput, EditorsOrder, SideBySideEditorInput } from 'vs/workbench/common/editor';
-import { workbenchInstantiationService, TestServiceAccessor, registerTestEditor, TestFileEditorInput, ITestInstantiationService } from 'vs/workbench/test/browser/workbenchTestServices';
+import { workbenchInstantiationService, TestServiceAccessor, registerTestEditor, TestFileEditorInput, ITestInstantiationService, registerTestResourceEditor, registerTestSideBySideEditor } from 'vs/workbench/test/browser/workbenchTestServices';
 import { ResourceEditorInput } from 'vs/workbench/common/editor/resourceEditorInput';
 import { TestThemeService } from 'vs/platform/theme/test/common/testThemeService';
 import { EditorService, DelegatingEditorService } from 'vs/workbench/services/editor/browser/editorService';
@@ -22,7 +22,7 @@ import { UntitledTextEditorInput } from 'vs/workbench/services/untitled/common/u
 import { timeout } from 'vs/base/common/async';
 import { toResource } from 'vs/base/test/common/utils';
 import { IFileService, FileOperationEvent, FileOperation } from 'vs/platform/files/common/files';
-import { Disposable, IDisposable, dispose } from 'vs/base/common/lifecycle';
+import { Disposable, DisposableStore } from 'vs/base/common/lifecycle';
 import { ModesRegistry } from 'vs/editor/common/modes/modesRegistry';
 import { UntitledTextEditorModel } from 'vs/workbench/services/untitled/common/untitledTextEditorModel';
 import { NullFileSystemProvider } from 'vs/platform/files/test/common/nullFileSystemProvider';
@@ -31,32 +31,33 @@ import { TestStorageService } from 'vs/workbench/test/common/workbenchTestServic
 import { isLinux } from 'vs/base/common/platform';
 import { MockScopableContextKeyService } from 'vs/platform/keybinding/test/common/mockKeybindingService';
 
-const TEST_EDITOR_ID = 'MyTestEditorForEditorService';
-const TEST_EDITOR_INPUT_ID = 'testEditorInputForEditorService';
-
-class FileServiceProvider extends Disposable {
-	constructor(scheme: string, @IFileService fileService: IFileService) {
-		super();
-
-		this._register(fileService.registerProvider(scheme, new NullFileSystemProvider()));
-	}
-}
-
 suite('EditorService', () => {
 
-	let disposables: IDisposable[] = [];
+	const TEST_EDITOR_ID = 'MyTestEditorForEditorService';
+	const TEST_EDITOR_INPUT_ID = 'testEditorInputForEditorService';
+
+	class FileServiceProvider extends Disposable {
+		constructor(scheme: string, @IFileService fileService: IFileService) {
+			super();
+
+			this._register(fileService.registerProvider(scheme, new NullFileSystemProvider()));
+		}
+	}
+
+	const disposables = new DisposableStore();
 
 	setup(() => {
-		disposables.push(registerTestEditor(TEST_EDITOR_ID, [new SyncDescriptor(TestFileEditorInput)], TEST_EDITOR_INPUT_ID));
+		disposables.add(registerTestEditor(TEST_EDITOR_ID, [new SyncDescriptor(TestFileEditorInput)], TEST_EDITOR_INPUT_ID));
+		disposables.add(registerTestResourceEditor());
+		disposables.add(registerTestSideBySideEditor());
 	});
 
 	teardown(() => {
-		dispose(disposables);
-		disposables = [];
+		disposables.clear();
 	});
 
 	function createEditorService(instantiationService: ITestInstantiationService = workbenchInstantiationService()): [EditorPart, EditorService, TestServiceAccessor] {
-		const part = instantiationService.createInstance(EditorPart);
+		const part = disposables.add(instantiationService.createInstance(EditorPart));
 		part.create(document.createElement('div'));
 		part.layout(400, 300);
 
@@ -170,8 +171,6 @@ suite('EditorService', () => {
 		activeEditorChangeListener.dispose();
 		visibleEditorChangeListener.dispose();
 		didCloseEditorListener.dispose();
-
-		part.dispose();
 	});
 
 	test('isOpen() with side by side editor', async () => {
@@ -217,8 +216,6 @@ suite('EditorService', () => {
 		assert.strictEqual(service.isOpen(sideBySideInput), false);
 		assert.strictEqual(service.isOpen({ resource: input.resource }), false);
 		assert.strictEqual(service.isOpen({ resource: otherInput.resource }), false);
-
-		part.dispose();
 	});
 
 	test('openEditors() / replaceEditors()', async () => {
@@ -238,8 +235,6 @@ suite('EditorService', () => {
 		await service.replaceEditors([{ editor: input, replacement: replaceInput }], part.activeGroup);
 		assert.strictEqual(part.activeGroup.count, 2);
 		assert.strictEqual(part.activeGroup.getIndexOfEditor(replaceInput), 0);
-
-		part.dispose();
 	});
 
 	test('caching', function () {
@@ -444,8 +439,6 @@ suite('EditorService', () => {
 
 		await rightGroup.closeEditor(input);
 		assert.strictEqual(input.isDisposed(), true);
-
-		part.dispose();
 	});
 
 	test('open to the side', async () => {
@@ -470,8 +463,6 @@ suite('EditorService', () => {
 		assert.strictEqual(part.activeGroup, rootGroup);
 		assert.strictEqual(part.count, 2);
 		assert.strictEqual(editor?.group, part.groups[1]);
-
-		part.dispose();
 	});
 
 	test('editor group activation', async () => {
@@ -505,8 +496,6 @@ suite('EditorService', () => {
 		part.arrangeGroups(GroupsArrangement.MINIMIZE_OTHERS);
 		editor = await service.openEditor(input1, { pinned: true, preserveFocus: true, activation: EditorActivation.RESTORE }, rootGroup);
 		assert.strictEqual(part.activeGroup, sideGroup);
-
-		part.dispose();
 	});
 
 	test('active editor change / visible editor change events', async function () {
@@ -725,8 +714,6 @@ suite('EditorService', () => {
 		// cleanup
 		activeEditorChangeListener.dispose();
 		visibleEditorChangeListener.dispose();
-
-		part.dispose();
 	});
 
 	test('two active editor change events when opening editor to the side', async function () {
@@ -762,8 +749,6 @@ suite('EditorService', () => {
 
 		// cleanup
 		activeEditorChangeListener.dispose();
-
-		part.dispose();
 	});
 
 	test('activeTextEditorControl / activeTextEditorMode', async () => {
@@ -777,8 +762,6 @@ suite('EditorService', () => {
 		assert.strictEqual(service.activeEditorPane, editor);
 		assert.strictEqual(service.activeTextEditorControl, editor?.getControl());
 		assert.strictEqual(service.activeTextEditorMode, 'plaintext');
-
-		part.dispose();
 	});
 
 	test('openEditor returns NULL when opening fails or is inactive', async function () {
@@ -799,8 +782,6 @@ suite('EditorService', () => {
 
 		let failingEditor = await service.openEditor(failingInput);
 		assert.ok(!failingEditor);
-
-		part.dispose();
 	});
 
 	test('save, saveAll, revertAll', async function () {
@@ -880,8 +861,6 @@ suite('EditorService', () => {
 		assert.strictEqual(sameInput1.gotSaved, false);
 		assert.strictEqual(sameInput1.gotSavedAs, false);
 		assert.strictEqual(sameInput1.gotReverted, false);
-
-		part.dispose();
 	});
 
 	test('saveAll, revertAll (sticky editor)', async function () {
@@ -922,8 +901,6 @@ suite('EditorService', () => {
 		assert.strictEqual(input1.gotSaved, false);
 		assert.strictEqual(input2.gotSaved, true);
 		assert.strictEqual(sameInput1.gotSaved, true);
-
-		part.dispose();
 	});
 
 	test('file delete closes editor', async function () {
@@ -962,8 +939,6 @@ suite('EditorService', () => {
 		} else {
 			assert.strictEqual(rootGroup.activeEditor, input1);
 		}
-
-		part.dispose();
 	}
 
 	test('file move asks input to move', async function () {
@@ -994,8 +969,6 @@ suite('EditorService', () => {
 		await activeEditorChangePromise;
 
 		assert.strictEqual(rootGroup.activeEditor, movedInput);
-
-		part.dispose();
 	});
 
 	function awaitActiveEditorChange(editorService: IEditorService): Promise<void> {
@@ -1020,8 +993,6 @@ suite('EditorService', () => {
 
 		await editor?.group?.closeAllEditors();
 		assert.strictEqual(accessor.fileService.watches.length, 0);
-
-		part.dispose();
 	});
 
 	test('activeEditorPane scopedContextKeyService', async function () {
@@ -1038,8 +1009,6 @@ suite('EditorService', () => {
 		const editorContextKeyService = service.activeEditorPane?.scopedContextKeyService;
 		assert.ok(!!editorContextKeyService);
 		assert.strictEqual(editorContextKeyService, part.activeGroup.activeEditorPane?.scopedContextKeyService);
-
-		part.dispose();
 	});
 
 	test('overrideOpenEditor', async function () {
@@ -1070,7 +1039,6 @@ suite('EditorService', () => {
 		assert.strictEqual(service.activeEditor, input2);
 
 		handler.dispose();
-		part.dispose();
 	});
 
 	test('whenClosed', async function () {
@@ -1089,8 +1057,6 @@ suite('EditorService', () => {
 		editor?.group?.closeAllEditors();
 
 		await whenClosed;
-
-		part.dispose();
 	});
 
 	test('findEditors', async () => {
@@ -1137,7 +1103,5 @@ suite('EditorService', () => {
 			const found = service.findEditors(input.resource, part.activeGroup);
 			assert.strictEqual(found.length, 0);
 		}
-
-		part.dispose();
 	});
 });

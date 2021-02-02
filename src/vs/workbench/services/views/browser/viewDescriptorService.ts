@@ -463,7 +463,7 @@ export class ViewDescriptorService extends Disposable implements IViewDescriptor
 		const container = this.viewContainersRegistry.registerViewContainer({
 			id,
 			ctorDescriptor: new SyncDescriptor(ViewPaneContainer, [id, { mergeViewWithContainerWhenSingleView: true, donotShowContainerTitleWhenMergedWithContainer: true }]),
-			name: 'Custom Views', // we don't want to see this, so no need to localize
+			title: { value: 'Custom Views', original: 'Custom Views' }, // we don't want to see this, so no need to localize
 			icon: location === ViewContainerLocation.Sidebar ? defaultViewIcon : undefined,
 			storageId: getViewContainerStorageId(id),
 			hideIfEmpty: true
@@ -764,6 +764,7 @@ export class ViewDescriptorService extends Disposable implements IViewDescriptor
 							title: viewDescriptor.name,
 							menu: [{
 								id: ViewsSubMenu,
+								group: '1_toggleViews',
 								when: ContextKeyAndExpr.create([
 									ContextKeyEqualsExpr.create('viewContainer', viewContainerModel.viewContainer.id),
 									ContextKeyEqualsExpr.create('viewContainerLocation', ViewContainerLocationToString(ViewContainerLocation.Sidebar)),

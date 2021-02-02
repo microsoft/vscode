@@ -75,6 +75,7 @@
 
 .monaco-workbench .pane-body.integrated-terminal .split-view-view {
 	box-sizing: border-box;
+	overflow: hidden;
 }
 
 /* border-color is set by theme key terminal.border */

@@ -31,23 +31,21 @@ suite('Workbench - TextModelResolverService', () => {
 	});
 
 	teardown(() => {
-		if (model) {
-			model.dispose();
-			model = (undefined)!;
-		}
+		model?.dispose();
 		(<TextFileEditorModelManager>accessor.textFileService.files).dispose();
 	});
 
 	test('resolve resource', async () => {
-		const dispose = accessor.textModelResolverService.registerTextModelContentProvider('test', {
-			provideTextContent: function (resource: URI): Promise<ITextModel> {
+		const disposable = accessor.textModelResolverService.registerTextModelContentProvider('test', {
+			provideTextContent: async function (resource: URI): Promise<ITextModel | null> {
 				if (resource.scheme === 'test') {
 					let modelContent = 'Hello Test';
 					let languageSelection = accessor.modeService.create('json');
-					return Promise.resolve(accessor.modelService.createModel(modelContent, languageSelection, resource));
+
+					return accessor.modelService.createModel(modelContent, languageSelection, resource);
 				}
 
-				return Promise.resolve(null!);
+				return null;
 			}
 		});
 
@@ -68,7 +66,7 @@ suite('Workbench - TextModelResolverService', () => {
 
 		await disposedPromise;
 		assert.strictEqual(disposed, true);
-		dispose.dispose();
+		disposable.dispose();
 	});
 
 	test('resolve file', async function () {

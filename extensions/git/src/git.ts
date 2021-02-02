@@ -1978,7 +1978,14 @@ export class Repository {
 			return this.getHEAD();
 		}
 
-		const result = await this.run(['for-each-ref', '--format=%(refname)%00%(upstream:short)%00%(upstream:track)%00%(objectname)', `refs/heads/${name}`, `refs/remotes/${name}`]);
+		const args = ['for-each-ref', '--format=%(refname)%00%(upstream:short)%00%(upstream:track)%00%(objectname)'];
+		if (/^refs\/(head|remotes)\//i.test(name)) {
+			args.push(name);
+		} else {
+			args.push(`refs/heads/${name}`, `refs/remotes/${name}`);
+		}
+
+		const result = await this.run(args);
 		const branches: Branch[] = result.stdout.trim().split('\n').map<Branch | undefined>(line => {
 			let [branchName, upstream, status, ref] = line.trim().split('\0');
 

@@ -439,6 +439,36 @@ suite('URI', () => {
 		assert.strictEqual(uri.path, uri2.path);
 	});
 
+	test('Bug in URI.isUri() that fails `thing` type comparison #114971', function () {
+		const uri = URI.file('/foo/bazz.txt');
+		assert.strictEqual(URI.isUri(uri), true);
+		assert.strictEqual(URI.isUri(uri.toJSON()), false);
+
+		// fsPath -> getter
+		assert.strictEqual(URI.isUri({
+			scheme: 'file',
+			authority: '',
+			path: '/foo/bazz.txt',
+			get fsPath() { return '/foo/bazz.txt'; },
+			query: '',
+			fragment: '',
+			with() { return this; },
+			toString() { return ''; }
+		}), true);
+
+		// fsPath -> property
+		assert.strictEqual(URI.isUri({
+			scheme: 'file',
+			authority: '',
+			path: '/foo/bazz.txt',
+			fsPath: '/foo/bazz.txt',
+			query: '',
+			fragment: '',
+			with() { return this; },
+			toString() { return ''; }
+		}), true);
+	});
+
 	test('Unable to open \'%A0.txt\': URI malformed #76506', function () {
 		assert.strictEqual(URI.parse('file://some/%.txt').toString(), 'file://some/%25.txt');
 		assert.strictEqual(URI.parse('file://some/%A0.txt').toString(), 'file://some/%25A0.txt');

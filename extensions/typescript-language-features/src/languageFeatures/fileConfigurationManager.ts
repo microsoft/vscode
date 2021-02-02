@@ -175,7 +175,6 @@ export default class FileConfigurationManager extends Disposable {
 
 		const preferences: Proto.UserPreferences = {
 			quotePreference: this.getQuoteStylePreference(preferencesConfig),
-			// @ts-expect-error until TypeScript 4.2 API
 			importModuleSpecifierPreference: getImportModuleSpecifierPreference(preferencesConfig),
 			importModuleSpecifierEnding: getImportModuleSpecifierEndingPreference(preferencesConfig),
 			allowTextChangesInNewFiles: document.uri.scheme === fileSchemes.file,

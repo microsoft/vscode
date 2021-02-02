@@ -153,11 +153,6 @@ typescript-vscode-sh-plugin@^0.6.14:
   resolved "https://registry.yarnpkg.com/typescript-vscode-sh-plugin/-/typescript-vscode-sh-plugin-0.6.14.tgz#a81031b502f6346a26ea49ce082438c3e353bb38"
   integrity sha512-AkNlRBbI6K7gk29O92qthNSvc6jjmNQ6isVXoYxkFwPa8D04tIv2SOPd+sd+mNpso4tNdL2gy7nVtrd5yFqvlA==
 
-"typescript-web@npm:typescript@^4.2.0-dev.20201209":
-  version "4.2.0-dev.20201209"
-  resolved "https://registry.yarnpkg.com/typescript/-/typescript-4.2.0-dev.20201209.tgz#fab33fdb1aa7beb857271e0626bca6b200c61351"
-  integrity sha512-rXJtE/naraN9n3bPBDA5Sa/2nrx1di5se/kVkmAjhUSpBzGmx3zeNHZF59U8XhYQdQ1QsMiDDnjmtjFUGC9LEQ==
-
 vscode-extension-telemetry@0.1.1:
   version "0.1.1"
   resolved "https://registry.yarnpkg.com/vscode-extension-telemetry/-/vscode-extension-telemetry-0.1.1.tgz#91387e06b33400c57abd48979b0e790415ae110b"

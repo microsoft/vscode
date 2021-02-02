@@ -13,7 +13,7 @@ import { KeyCode } from 'vs/base/common/keyCodes';
 import { Disposable, IDisposable } from 'vs/base/common/lifecycle';
 import * as platform from 'vs/base/common/platform';
 import * as strings from 'vs/base/common/strings';
-import { ITextAreaWrapper, ITypeData, TextAreaState } from 'vs/editor/browser/controller/textAreaState';
+import { ITextAreaWrapper, ITypeData, TextAreaState, _debugComposition } from 'vs/editor/browser/controller/textAreaState';
 import { Position } from 'vs/editor/common/core/position';
 import { Selection } from 'vs/editor/common/core/selection';
 import { BrowserFeatures } from 'vs/base/browser/canIUse';
@@ -147,6 +147,7 @@ export class TextAreaInput extends Disposable {
 	private readonly _host: ITextAreaInputHost;
 	private readonly _textArea: TextAreaWrapper;
 	private readonly _asyncTriggerCut: RunOnceScheduler;
+	private readonly _asyncFocusGainWriteScreenReaderContent: RunOnceScheduler;
 
 	private _textAreaState: TextAreaState;
 	private _selectionChangeListener: IDisposable | null;
@@ -160,6 +161,7 @@ export class TextAreaInput extends Disposable {
 		this._host = host;
 		this._textArea = this._register(new TextAreaWrapper(textArea));
 		this._asyncTriggerCut = this._register(new RunOnceScheduler(() => this._onCut.fire(), 0));
+		this._asyncFocusGainWriteScreenReaderContent = this._register(new RunOnceScheduler(() => this.writeScreenReaderContent('asyncFocusGain'), 0));
 
 		this._textAreaState = TextAreaState.EMPTY;
 		this._selectionChangeListener = null;
@@ -193,6 +195,10 @@ export class TextAreaInput extends Disposable {
 		}));
 
 		this._register(dom.addDisposableListener(textArea.domNode, 'compositionstart', (e: CompositionEvent) => {
+			if (_debugComposition) {
+				console.log(`[compositionstart]`, e);
+			}
+
 			if (this._isDoingComposition) {
 				return;
 			}
@@ -209,6 +215,9 @@ export class TextAreaInput extends Disposable {
 			) {
 				// Handling long press case on macOS + arrow key => pretend the character was selected
 				if (lastKeyDown.code === 'ArrowRight' || lastKeyDown.code === 'ArrowLeft') {
+					if (_debugComposition) {
+						console.log(`[compositionstart] Handling long press case on macOS + arrow key`, e);
+					}
 					moveOneCharacterLeft = true;
 				}
 			}
@@ -251,6 +260,9 @@ export class TextAreaInput extends Disposable {
 		};
 
 		this._register(dom.addDisposableListener(textArea.domNode, 'compositionupdate', (e: CompositionEvent) => {
+			if (_debugComposition) {
+				console.log(`[compositionupdate]`, e);
+			}
 			const [newState, typeInput] = deduceComposition(e.data || '');
 			this._textAreaState = newState;
 			this._onType.fire(typeInput);
@@ -258,6 +270,9 @@ export class TextAreaInput extends Disposable {
 		}));
 
 		this._register(dom.addDisposableListener(textArea.domNode, 'compositionend', (e: CompositionEvent) => {
+			if (_debugComposition) {
+				console.log(`[compositionend]`, e);
+			}
 			// https://github.com/microsoft/monaco-editor/issues/1663
 			// On iOS 13.2, Chinese system IME randomly trigger an additional compositionend event with empty data
 			if (!this._isDoingComposition) {
@@ -346,7 +361,15 @@ export class TextAreaInput extends Disposable {
 		}));
 
 		this._register(dom.addDisposableListener(textArea.domNode, 'focus', () => {
+			const hadFocus = this._hasFocus;
+
 			this._setHasFocus(true);
+
+			if (browser.isSafari && !hadFocus && this._hasFocus) {
+				// When "tabbing into" the textarea, immediately after dispatching the 'focus' event,
+				// Safari will always move the selection at offset 0 in the textarea
+				this._asyncFocusGainWriteScreenReaderContent.schedule();
+			}
 		}));
 		this._register(dom.addDisposableListener(textArea.domNode, 'blur', () => {
 			if (this._isDoingComposition) {

@@ -8,14 +8,14 @@ import { EditorInput } from 'vs/workbench/common/editor';
 import { DiffEditorInput } from 'vs/workbench/common/editor/diffEditorInput';
 import { workbenchInstantiationService } from 'vs/workbench/test/browser/workbenchTestServices';
 
-class MyEditorInput extends EditorInput {
-	readonly resource = undefined;
-
-	getTypeId(): string { return ''; }
-	resolve(): any { return null; }
-}
-
 suite('Workbench editor input', () => {
+
+	class MyEditorInput extends EditorInput {
+		readonly resource = undefined;
+
+		getTypeId(): string { return ''; }
+		resolve(): any { return null; }
+	}
 
 	test('EditorInput', () => {
 		let counter = 0;

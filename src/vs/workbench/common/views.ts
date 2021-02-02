@@ -28,6 +28,7 @@ import { mixin } from 'vs/base/common/objects';
 import { Codicon } from 'vs/base/common/codicons';
 import { registerIcon } from 'vs/platform/theme/common/iconRegistry';
 import { CancellationToken } from 'vs/base/common/cancellation';
+import { ILocalizedString } from 'vs/platform/actions/common/actions';
 
 export const defaultViewIcon = registerIcon('default-view-icon', Codicon.window, localize('defaultViewIcon', 'Default view icon.'));
 
@@ -48,21 +49,40 @@ export function ViewContainerLocationToString(viewContainerLocation: ViewContain
 	}
 }
 
+/**
+ * View Container Contexts
+ */
+export function getEnabledViewContainerContextKey(viewContainerId: string): string { return `viewContainer.${viewContainerId}.enabled`; }
+
 export interface IViewContainerDescriptor {
 
+	/**
+	 * The id of the view container
+	 */
 	readonly id: string;
 
-	readonly name: string;
+	/**
+	 * The title of the view container
+	 */
+	readonly title: ILocalizedString & { mnemonic?: string };
 
 	readonly ctorDescriptor: SyncDescriptor<IViewPaneContainer>;
+
+	/**
+	 * The keybindings to open the view container
+	 */
+	readonly keybindings?: IKeybindings & { when?: ContextKeyExpression };
+
+	/**
+	 * The command id to open the view container
+	 */
+	readonly commandId?: string;
 
 	readonly storageId?: string;
 
 	readonly icon?: ThemeIcon | URI;
 
 	readonly alwaysUseContainerInfo?: boolean;
-
-	readonly focusCommand?: { id: string, keybindings?: IKeybindings };
 
 	readonly viewOrderDelegate?: ViewOrderDelegate;
 

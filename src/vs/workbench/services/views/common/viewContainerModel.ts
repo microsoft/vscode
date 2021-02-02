@@ -341,7 +341,7 @@ export class ViewContainerModel extends Disposable implements IViewContainerMode
 	private updateContainerInfo(): void {
 		/* Use default container info if one of the visible view descriptors belongs to the current container by default */
 		const useDefaultContainerInfo = this.viewContainer.alwaysUseContainerInfo || this.visibleViewDescriptors.length === 0 || this.visibleViewDescriptors.some(v => Registry.as<IViewsRegistry>(ViewExtensions.ViewsRegistry).getViewContainer(v.id) === this.viewContainer);
-		const title = useDefaultContainerInfo ? this.viewContainer.name : this.visibleViewDescriptors[0]?.containerTitle || this.visibleViewDescriptors[0]?.name || '';
+		const title = useDefaultContainerInfo ? this.viewContainer.title.value : this.visibleViewDescriptors[0]?.containerTitle || this.visibleViewDescriptors[0]?.name || '';
 		let titleChanged: boolean = false;
 		if (this._title !== title) {
 			this._title = title;

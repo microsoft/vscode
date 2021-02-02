@@ -66,9 +66,9 @@ suite('Icon Labels', () => {
 	});
 
 	test('stripIcons', () => {
-		assert.equal(stripIcons('Hello World'), 'Hello World');
-		assert.equal(stripIcons('$(Hello World'), '$(Hello World');
-		assert.equal(stripIcons('$(Hello) World'), ' World');
-		assert.equal(stripIcons('$(Hello) W$(oi)rld'), ' Wrld');
+		assert.strictEqual(stripIcons('Hello World'), 'Hello World');
+		assert.strictEqual(stripIcons('$(Hello World'), '$(Hello World');
+		assert.strictEqual(stripIcons('$(Hello) World'), ' World');
+		assert.strictEqual(stripIcons('$(Hello) W$(oi)rld'), ' Wrld');
 	});
 });

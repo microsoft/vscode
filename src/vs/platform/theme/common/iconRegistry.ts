@@ -200,7 +200,7 @@ class IconRegistry implements IIconRegistry {
 
 		let reference = [];
 
-		reference.push(`| preview     | identifier                        | default codicon id                | description`);
+		reference.push(`| preview     | identifier                        | default codicon ID                | description`);
 		reference.push(`| ----------- | --------------------------------- | --------------------------------- | --------------------------------- |`);
 		const contributions = Object.keys(this.iconsById).map(key => this.iconsById[key]);
 

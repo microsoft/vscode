@@ -9,7 +9,7 @@ import 'vs/css!./media/output';
 import { KeyMod, KeyChord, KeyCode } from 'vs/base/common/keyCodes';
 import { ModesRegistry } from 'vs/editor/common/modes/modesRegistry';
 import { Registry } from 'vs/platform/registry/common/platform';
-import { MenuId, MenuRegistry, registerAction2, Action2 } from 'vs/platform/actions/common/actions';
+import { MenuId, registerAction2, Action2 } from 'vs/platform/actions/common/actions';
 import { registerSingleton } from 'vs/platform/instantiation/common/extensions';
 import { OutputService, LogContentProvider } from 'vs/workbench/contrib/output/browser/outputServices';
 import { OUTPUT_MODE_ID, OUTPUT_MIME, OUTPUT_VIEW_ID, IOutputService, CONTEXT_IN_OUTPUT, LOG_SCHEME, LOG_MODE_ID, LOG_MIME, CONTEXT_ACTIVE_LOG_OUTPUT, CONTEXT_OUTPUT_SCROLL_LOCK } from 'vs/workbench/contrib/output/common/output';
@@ -24,13 +24,11 @@ import { ITextModelService } from 'vs/editor/common/services/resolverService';
 import { ViewContainer, IViewContainersRegistry, ViewContainerLocation, Extensions as ViewContainerExtensions, IViewsRegistry, IViewsService } from 'vs/workbench/common/views';
 import { ViewPaneContainer } from 'vs/workbench/browser/parts/views/viewPaneContainer';
 import { IConfigurationRegistry, Extensions as ConfigurationExtensions, ConfigurationScope } from 'vs/platform/configuration/common/configurationRegistry';
-import { KeybindingWeight } from 'vs/platform/keybinding/common/keybindingsRegistry';
 import { IQuickPickItem, IQuickInputService } from 'vs/platform/quickinput/common/quickInput';
 import { IOutputChannelDescriptor, IFileOutputChannelDescriptor } from 'vs/workbench/services/output/common/output';
 import { IEditorService } from 'vs/workbench/services/editor/common/editorService';
 import { assertIsDefined } from 'vs/base/common/types';
 import { ContextKeyEqualsExpr, ContextKeyExpr } from 'vs/platform/contextkey/common/contextkey';
-import { ToggleViewAction } from 'vs/workbench/browser/actions/layoutActions';
 import { Codicon } from 'vs/base/common/codicons';
 import { registerIcon } from 'vs/platform/theme/common/iconRegistry';
 import { CATEGORIES } from 'vs/workbench/common/actions';
@@ -53,25 +51,25 @@ ModesRegistry.registerLanguage({
 });
 
 // register output container
-const toggleOutputAcitonId = 'workbench.action.output.toggleOutput';
-const toggleOutputActionKeybindings = {
-	primary: KeyMod.CtrlCmd | KeyMod.Shift | KeyCode.KEY_U,
-	linux: {
-		primary: KeyChord(KeyMod.CtrlCmd | KeyCode.KEY_K, KeyMod.CtrlCmd | KeyCode.KEY_H)  // On Ubuntu Ctrl+Shift+U is taken by some global OS command
-	}
-};
-
 const outputViewIcon = registerIcon('output-view-icon', Codicon.output, nls.localize('outputViewIcon', 'View icon of the output view.'));
-
 const VIEW_CONTAINER: ViewContainer = Registry.as<IViewContainersRegistry>(ViewContainerExtensions.ViewContainersRegistry).registerViewContainer({
 	id: OUTPUT_VIEW_ID,
-	name: nls.localize('output', "Output"),
+	title: {
+		value: nls.localize('output', "Output"), original: 'Output',
+		mnemonic: nls.localize({ key: 'miToggleOutput', comment: ['&& denotes a mnemonic'] }, "&&Output")
+	},
+	keybindings: {
+		primary: KeyMod.CtrlCmd | KeyMod.Shift | KeyCode.KEY_U,
+		linux: {
+			primary: KeyChord(KeyMod.CtrlCmd | KeyCode.KEY_K, KeyMod.CtrlCmd | KeyCode.KEY_H)  // On Ubuntu Ctrl+Shift+U is taken by some global OS command
+		}
+	},
+	commandId: 'workbench.action.output.toggleOutput',
 	icon: outputViewIcon,
 	order: 1,
 	ctorDescriptor: new SyncDescriptor(ViewPaneContainer, [OUTPUT_VIEW_ID, { mergeViewWithContainerWhenSingleView: true, donotShowContainerTitleWhenMergedWithContainer: true }]),
 	storageId: OUTPUT_VIEW_ID,
 	hideIfEmpty: true,
-	focusCommand: { id: toggleOutputAcitonId, keybindings: toggleOutputActionKeybindings }
 }, ViewContainerLocation.Panel);
 
 Registry.as<IViewsRegistry>(ViewContainerExtensions.ViewsRegistry).registerViews([{
@@ -218,30 +216,6 @@ registerAction2(class extends Action2 {
 	}
 });
 
-// register toggle output action globally
-registerAction2(class extends Action2 {
-	constructor() {
-		super({
-			id: toggleOutputAcitonId,
-			title: { value: nls.localize('toggleOutput', "Toggle Output"), original: 'Toggle Output' },
-			category: CATEGORIES.View,
-			menu: {
-				id: MenuId.CommandPalette,
-			},
-			keybinding: {
-				...toggleOutputActionKeybindings,
-				...{
-					weight: KeybindingWeight.WorkbenchContrib,
-					when: undefined
-				}
-			},
-		});
-	}
-	async run(accessor: ServicesAccessor): Promise<void> {
-		return accessor.get(IInstantiationService).createInstance(ToggleViewAction, toggleOutputAcitonId, 'Toggle Output', OUTPUT_VIEW_ID).run();
-	}
-});
-
 registerAction2(class extends Action2 {
 	constructor() {
 		super({
@@ -296,15 +270,6 @@ registerAction2(class extends Action2 {
 			await editorService.openEditor(instantiationService.createInstance(LogViewerInput, (entry.channel as IFileOutputChannelDescriptor)), { pinned: true });
 		}
 	}
-});
-
-MenuRegistry.appendMenuItem(MenuId.MenubarViewMenu, {
-	group: '4_panels',
-	command: {
-		id: toggleOutputAcitonId,
-		title: nls.localize({ key: 'miToggleOutput', comment: ['&& denotes a mnemonic'] }, "&&Output")
-	},
-	order: 1
 });
 
 Registry.as<IConfigurationRegistry>(ConfigurationExtensions.Configuration).registerConfiguration({
