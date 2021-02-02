@@ -199,7 +199,7 @@ export class GettingStartedPage extends Disposable {
 		});
 	}
 
-	private selectTask(container: HTMLElement, id: string | undefined): void {
+	private selectTask(container: HTMLElement, id: string | undefined) {
 		const mediaElement = assertIsDefined(container.querySelector('.getting-started-media'));
 		if (id) {
 			const taskElement = assertIsDefined(container.querySelector(`[data-task-id="${id}"]`));
