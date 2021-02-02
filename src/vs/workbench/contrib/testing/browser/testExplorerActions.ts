@@ -18,8 +18,6 @@ import { ThemeIcon } from 'vs/platform/theme/common/themeService';
 import { IWorkspaceContextService } from 'vs/platform/workspace/common/workspace';
 import { ExtHostTestingResource } from 'vs/workbench/api/common/extHost.protocol';
 import { ViewAction } from 'vs/workbench/browser/parts/views/viewPane';
-import { ShowViewletAction2 } from 'vs/workbench/browser/viewlet';
-import { CATEGORIES } from 'vs/workbench/common/actions';
 import { FocusedViewContext } from 'vs/workbench/common/views';
 import * as icons from 'vs/workbench/contrib/testing/browser/icons';
 import { TestingExplorerView, TestingExplorerViewModel } from 'vs/workbench/contrib/testing/browser/testingExplorerView';
@@ -428,23 +426,6 @@ export class RefreshTestsAction extends Action2 {
 		accessor.get(ITestService).resubscribeToAllTests();
 	}
 }
-
-export class ShowTestView extends ShowViewletAction2 {
-	constructor() {
-		super({
-			// matches old test action for back-compat
-			id: 'workbench.view.extension.test',
-			title: localize('showTestViewley', "Show Test"),
-			category: CATEGORIES.View.value,
-			f1: true,
-		});
-	}
-
-	protected viewletId() {
-		return Testing.ViewletId;
-	}
-}
-
 
 export class EditFocusedTest extends ViewAction<TestingExplorerView> {
 	constructor() {

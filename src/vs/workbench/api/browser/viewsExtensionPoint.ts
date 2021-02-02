@@ -9,7 +9,6 @@ import { IJSONSchema } from 'vs/base/common/jsonSchema';
 import * as resources from 'vs/base/common/resources';
 import { URI } from 'vs/base/common/uri';
 import { localize } from 'vs/nls';
-import { registerAction2 } from 'vs/platform/actions/common/actions';
 import { ContextKeyExpr } from 'vs/platform/contextkey/common/contextkey';
 import { ExtensionIdentifier, IExtensionDescription } from 'vs/platform/extensions/common/extensions';
 import { SyncDescriptor } from 'vs/platform/instantiation/common/descriptors';
@@ -18,8 +17,7 @@ import { Registry } from 'vs/platform/registry/common/platform';
 import { ThemeIcon } from 'vs/platform/theme/common/themeService';
 import { CustomTreeView, TreeViewPane } from 'vs/workbench/browser/parts/views/treeView';
 import { ViewPaneContainer } from 'vs/workbench/browser/parts/views/viewPaneContainer';
-import { Extensions as ViewletExtensions, ShowViewletAction2, ViewletRegistry } from 'vs/workbench/browser/viewlet';
-import { CATEGORIES } from 'vs/workbench/common/actions';
+import { Extensions as ViewletExtensions, ViewletRegistry } from 'vs/workbench/browser/viewlet';
 import { Extensions as WorkbenchExtensions, IWorkbenchContribution, IWorkbenchContributionsRegistry } from 'vs/workbench/common/contributions';
 import { Extensions as ViewContainerExtensions, ITreeViewDescriptor, IViewContainersRegistry, IViewDescriptor, IViewsRegistry, ViewContainer, ViewContainerLocation } from 'vs/workbench/common/views';
 import { VIEWLET_ID as DEBUG } from 'vs/workbench/contrib/debug/common/debug';
@@ -374,7 +372,7 @@ class ViewsExtensionHandler implements IWorkbenchContribution {
 
 			viewContainer = this.viewContainersRegistry.registerViewContainer({
 				id,
-				name: title, extensionId,
+				title, extensionId,
 				ctorDescriptor: new SyncDescriptor(
 					ViewPaneContainer,
 					[id, { mergeViewWithContainerWhenSingleView: true }]
@@ -384,16 +382,6 @@ class ViewsExtensionHandler implements IWorkbenchContribution {
 				icon,
 			}, location);
 
-			// Register Action to Open Viewlet
-			registerAction2(class OpenCustomViewletAction extends ShowViewletAction2 {
-				constructor() {
-					super({ id, f1: true, title: localize('showViewlet', "Show {0}", title), category: CATEGORIES.View.value });
-				}
-
-				protected viewletId() {
-					return id;
-				}
-			});
 		}
 
 		return viewContainer;
@@ -474,7 +462,7 @@ class ViewsExtensionHandler implements IWorkbenchContribution {
 						name: item.name,
 						when: ContextKeyExpr.deserialize(item.when),
 						containerIcon: icon || viewContainer?.icon,
-						containerTitle: item.contextualTitle || viewContainer?.name,
+						containerTitle: item.contextualTitle || viewContainer?.title,
 						canToggleVisibility: true,
 						canMoveView: viewContainer?.id !== REMOTE,
 						treeView: type === ViewType.Tree ? this.instantiationService.createInstance(CustomTreeView, item.id, item.name) : undefined,

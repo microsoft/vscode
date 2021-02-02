@@ -26,6 +26,7 @@ import { INotificationService, Severity } from 'vs/platform/notification/common/
 import { IHostService } from 'vs/workbench/services/host/browser/host';
 import { IExtensionBisectService } from 'vs/workbench/services/extensionManagement/browser/extensionBisect';
 import { WorkspaceTrustStateChangeEvent, ITrustedWorkspaceService, WorkspaceTrustState } from 'vs/platform/workspace/common/trustedWorkspace';
+import { Promises } from 'vs/base/common/async';
 
 const SOURCE = 'IWorkbenchExtensionEnablementService';
 
@@ -162,7 +163,7 @@ export class ExtensionEnablementService extends Disposable implements IWorkbench
 			}
 		}
 
-		const result = await Promise.all(extensions.map(e => {
+		const result = await Promises.settled(extensions.map(e => {
 			if (this._isDisabledByTrustRequirement(e)) {
 				return this.trustedWorkspaceService.requireWorkspaceTrust({
 					immediate: true,

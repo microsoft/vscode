@@ -48,31 +48,76 @@ export function ViewContainerLocationToString(viewContainerLocation: ViewContain
 	}
 }
 
+/**
+ * View Container Contexts
+ */
+export function getEnabledViewContainerContextKey(viewContainerId: string): string { return `viewContainer.${viewContainerId}.enabled`; }
+
 export interface IViewContainerDescriptor {
 
+	/**
+	 * The id of the view container
+	 */
 	readonly id: string;
 
-	readonly name: string;
+	/**
+	 * The title of the view container
+	 */
+	readonly title: string;
 
+	/**
+	 * The mnemonic title of the view container.
+	 * If provided, container entry is also shown in Menubar > Views.
+	 */
+	readonly mnemonicTitle?: string;
+
+	/**
+	 * Icon representation of the View container
+	 */
+	readonly icon?: ThemeIcon | URI;
+
+	/**
+	 * Order of the view container.
+	 */
+	readonly order?: number;
+
+	/**
+	 * IViewPaneContainer Ctor to instantiate
+	 */
 	readonly ctorDescriptor: SyncDescriptor<IViewPaneContainer>;
 
+	/**
+	 * The keybindings to open the view container
+	 */
+	readonly keybindings?: IKeybindings & { when?: ContextKeyExpression };
+
+	/**
+	 * The command id to register to open the view container.
+	 * If not provided, id of the view container is used.
+	 */
+	readonly commandId?: string;
+
+	/**
+	 * Storage id to use to store the view container state.
+	 * If not provided, it will be derived.
+	 */
 	readonly storageId?: string;
 
-	readonly icon?: ThemeIcon | URI;
+	/**
+	 * If enabled, view container is not shown if it has no active views.
+	 */
+	readonly hideIfEmpty?: boolean;
+
+	/**
+	 * Id of the extension that contributed the view container
+	 */
+	readonly extensionId?: ExtensionIdentifier;
 
 	readonly alwaysUseContainerInfo?: boolean;
 
-	readonly focusCommand?: { id: string, keybindings?: IKeybindings };
-
 	readonly viewOrderDelegate?: ViewOrderDelegate;
 
-	readonly hideIfEmpty?: boolean;
-
-	readonly extensionId?: ExtensionIdentifier;
-
 	readonly rejectAddedViews?: boolean;
-
-	readonly order?: number;
 
 	requestedIndex?: number;
 }

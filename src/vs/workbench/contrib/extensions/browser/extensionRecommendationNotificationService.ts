@@ -5,7 +5,7 @@
 
 import { IAction } from 'vs/base/common/actions';
 import { distinct } from 'vs/base/common/arrays';
-import { CancelablePromise, createCancelablePromise, raceCancellablePromises, raceCancellation, timeout } from 'vs/base/common/async';
+import { CancelablePromise, createCancelablePromise, Promises, raceCancellablePromises, raceCancellation, timeout } from 'vs/base/common/async';
 import { CancellationToken } from 'vs/base/common/cancellation';
 import { isPromiseCanceledError } from 'vs/base/common/errors';
 import { Emitter, Event } from 'vs/base/common/event';
@@ -253,8 +253,8 @@ export class ExtensionRecommendationNotificationService implements IExtensionRec
 			const installExtensions = async (isMachineScoped?: boolean) => {
 				this.runAction(this.instantiationService.createInstance(SearchExtensionsAction, searchValue));
 				onDidInstallRecommendedExtensions(extensions);
-				await Promise.all([
-					Promise.all(extensions.map(extension => this.extensionsWorkbenchService.open(extension, { pinned: true }))),
+				await Promises.settled([
+					Promises.settled(extensions.map(extension => this.extensionsWorkbenchService.open(extension, { pinned: true }))),
 					this.extensionManagementService.installExtensions(extensions.map(e => e.gallery!), { isMachineScoped })
 				]);
 			};

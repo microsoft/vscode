@@ -1,207 +1,244 @@
+"use strict";
 /*---------------------------------------------------------------------------------------------
  *  Copyright (c) Microsoft Corporation. All rights reserved.
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
-
-const fs = require('fs').promises;
-const path = require('path');
-const cp = require('child_process');
-const os = require('os');
-const mkdirp = require('mkdirp');
-const product = require('../product.json');
-const root = path.resolve(path.join(__dirname, '..', '..'));
-const exists = (path) => fs.stat(path).then(() => true, () => false);
-
-const controlFilePath = path.join(os.homedir(), '.vscode-oss-dev', 'extensions', 'control.json');
-
-async function readControlFile() {
-	try {
-		return JSON.parse(await fs.readFile(controlFilePath, 'utf8'));
-	} catch (err) {
-		return {};
-	}
+var __await = (this && this.__await) || function (v) { return this instanceof __await ? (this.v = v, this) : new __await(v); }
+var __asyncGenerator = (this && this.__asyncGenerator) || function (thisArg, _arguments, generator) {
+    if (!Symbol.asyncIterator) throw new TypeError("Symbol.asyncIterator is not defined.");
+    var g = generator.apply(thisArg, _arguments || []), i, q = [];
+    return i = {}, verb("next"), verb("throw"), verb("return"), i[Symbol.asyncIterator] = function () { return this; }, i;
+    function verb(n) { if (g[n]) i[n] = function (v) { return new Promise(function (a, b) { q.push([n, v, a, b]) > 1 || resume(n, v); }); }; }
+    function resume(n, v) { try { step(g[n](v)); } catch (e) { settle(q[0][3], e); } }
+    function step(r) { r.value instanceof __await ? Promise.resolve(r.value.v).then(fulfill, reject) : settle(q[0][2], r); }
+    function fulfill(value) { resume("next", value); }
+    function reject(value) { resume("throw", value); }
+    function settle(f, v) { if (f(v), q.shift(), q.length) resume(q[0][0], q[0][1]); }
+};
+var __asyncValues = (this && this.__asyncValues) || function (o) {
+    if (!Symbol.asyncIterator) throw new TypeError("Symbol.asyncIterator is not defined.");
+    var m = o[Symbol.asyncIterator], i;
+    return m ? m.call(o) : (o = typeof __values === "function" ? __values(o) : o[Symbol.iterator](), i = {}, verb("next"), verb("throw"), verb("return"), i[Symbol.asyncIterator] = function () { return this; }, i);
+    function verb(n) { i[n] = o[n] && function (v) { return new Promise(function (resolve, reject) { v = o[n](v), settle(resolve, reject, v.done, v.value); }); }; }
+    function settle(resolve, reject, d, v) { Promise.resolve(v).then(function(v) { resolve({ value: v, done: d }); }, reject); }
+};
+Object.defineProperty(exports, "__esModule", { value: true });
+exports.getExtensions = void 0;
+const fs_1 = require("fs");
+const path = require("path");
+const util_1 = require("util");
+const cp = require("child_process");
+const commander_1 = require("commander");
+const storage_blob_1 = require("@azure/storage-blob");
+const mkdirp = require("mkdirp");
+const plimit = require("p-limit");
+const colors = require("colors");
+const byline = require("byline");
+const stream_1 = require("stream");
+const rimraf = require("rimraf");
+const zip = require('gulp-vinyl-zip');
+const vfs = require("vinyl-fs");
+const rootPath = path.resolve(path.join(__dirname, '..'));
+const vsixsPath = path.join(rootPath, '.build', 'vsix');
+const extensionsPath = path.join(rootPath, '.build', 'extensions');
+var ExtensionType;
+(function (ExtensionType) {
+    ExtensionType["Grammar"] = "grammar";
+    ExtensionType["Theme"] = "theme";
+    ExtensionType["Misc"] = "misc";
+})(ExtensionType || (ExtensionType = {}));
+class Prefixer extends stream_1.Transform {
+    constructor(prefix) {
+        super();
+        this.prefix = prefix;
+    }
+    _transform(line, _encoding, callback) {
+        callback(null, `${this.prefix} ${line}\n`);
+    }
 }
-
-async function writeControlFile(control) {
-	await mkdirp(path.dirname(controlFilePath));
-	await fs.writeFile(controlFilePath, JSON.stringify(control, null, '  '));
+async function spawn(cmd, argsOrOpts, _opts = {}) {
+    return new Promise((c, e) => {
+        var _a;
+        const opts = (_a = (Array.isArray(argsOrOpts) ? _opts : argsOrOpts)) !== null && _a !== void 0 ? _a : {};
+        const stdio = opts.prefix ? 'pipe' : 'inherit';
+        const child = Array.isArray(argsOrOpts)
+            ? cp.spawn(cmd, argsOrOpts, Object.assign({ stdio, env: process.env }, opts))
+            : cp.spawn(cmd, Object.assign({ stdio, env: process.env }, opts));
+        if (opts.prefix) {
+            child.stdout.pipe(new byline.LineStream()).pipe(new Prefixer(opts.prefix)).pipe(process.stdout);
+            child.stderr.pipe(new byline.LineStream()).pipe(new Prefixer(opts.prefix)).pipe(process.stderr);
+        }
+        child.on('close', code => code === 0 ? c() : e(`Returned ${code}`));
+    });
 }
-
-async function exec(cmd, args, opts = {}) {
-	return new Promise((c, e) => {
-		const child = cp.spawn(cmd, args, { stdio: 'inherit', env: process.env, ...opts });
-		child.on('close', code => code === 0 ? c() : e(`Returned ${code}`));
-	});
+async function exec(cmd, opts = {}) {
+    return new Promise((c, e) => {
+        cp.exec(cmd, Object.assign({ env: process.env }, opts), (err, stdout) => err ? e(err) : c(opts.trim ? stdout.trim() : stdout));
+    });
 }
-
-function getFolderPath(extDesc) {
-	const folder = extDesc.repo.replace(/.*\//, '');
-	return folderPath = path.join(root, folder);
+function getExtensionType(packageJson) {
+    var _a, _b, _c;
+    if (packageJson.main) {
+        return "misc" /* Misc */;
+    }
+    else if (((_a = packageJson.contributes) === null || _a === void 0 ? void 0 : _a.themes) || ((_b = packageJson.contributes) === null || _b === void 0 ? void 0 : _b.iconThemes)) {
+        return "theme" /* Theme */;
+    }
+    else if ((_c = packageJson.contributes) === null || _c === void 0 ? void 0 : _c.grammars) {
+        return "grammar" /* Grammar */;
+    }
+    else {
+        return "misc" /* Misc */;
+    }
 }
-
-async function getExtensionType(folderPath) {
-	const pkg = JSON.parse(await fs.readFile(path.join(folderPath, 'package.json'), 'utf8'));
-
-	if (pkg['contributes']['themes'] || pkg['contributes']['iconThemes']) {
-		return 'theme';
-	} else if (pkg['contributes']['grammars']) {
-		return 'grammar';
-	} else {
-		return 'misc';
-	}
+async function getExtension(extensionPath) {
+    const packageJsonPath = path.join(extensionPath, 'package.json');
+    const packageJson = JSON.parse(await fs_1.promises.readFile(packageJsonPath, 'utf8'));
+    const type = getExtensionType(packageJson);
+    const { name, version } = packageJson;
+    const vsixName = `${name}-${version}.vsix`;
+    return {
+        name,
+        version,
+        sourcePath: extensionPath,
+        installPath: path.join(extensionsPath, name),
+        type,
+        vsixPath: path.join(vsixsPath, vsixName)
+    };
 }
-
-async function initExtension(extDesc) {
-	const folderPath = getFolderPath(extDesc);
-
-	if (!await exists(folderPath)) {
-		console.log(`⏳ git clone: ${extDesc.name}`);
-		await exec('git', ['clone', `${extDesc.repo}.git`], { cwd: root });
-	}
-
-	const type = await getExtensionType(folderPath);
-	return { path: folderPath, type, ...extDesc };
+function getExtensions() {
+    return __asyncGenerator(this, arguments, function* getExtensions_1() {
+        const extensionsPath = path.join(rootPath, 'extensions');
+        const children = yield __await(fs_1.promises.readdir(extensionsPath));
+        for (const child of children) {
+            try {
+                const extension = yield __await(getExtension(path.join(extensionsPath, child)));
+                if (extension.type !== "theme" /* Theme */ && extension.type !== "grammar" /* Grammar */) {
+                    continue;
+                }
+                yield yield __await(extension);
+            }
+            catch (err) {
+                if (/ENOENT|ENOTDIR/.test(err.message)) {
+                    continue;
+                }
+                throw err;
+            }
+        }
+    });
 }
-
-async function createWorkspace(type, extensions) {
-	const workspaceName = `vscode-${type}-extensions.code-workspace`;
-	const workspacePath = path.join(root, workspaceName);
-	const workspace = { folders: extensions.map(ext => ({ path: path.basename(ext.path) })) };
-
-	if (!await exists(workspacePath)) {
-		console.log(`✅ create workspace: ${workspaceName}`);
-	}
-
-	await fs.writeFile(workspacePath, JSON.stringify(workspace, undefined, '  '));
-}
-
-async function init() {
-	const extensions = [];
-
-	for (const extDesc of product.builtInExtensions) {
-		extensions.push(await initExtension(extDesc));
-	}
-
-	await createWorkspace('all', extensions);
-
-	const byType = extensions
-		.reduce((m, e) => m.set(e.type, [...(m.get(e.type) || []), e]), new Map());
-
-	for (const [type, extensions] of byType) {
-		await createWorkspace(type, extensions);
-	}
-
-	return byType;
-}
-
-async function status() {
-	const byType = await init();
-	const control = await readControlFile();
-
-	for (const [type, extensions] of byType) {
-		console.log(`${type} (${extensions.length} extensions):`);
-
-		const maxWidth = Math.max(...extensions.map(e => e.name.length));
-		for (const ext of extensions) {
-			console.log(`  ${ext.name.padEnd(maxWidth, ' ')} ➡  ${control[ext.name]}`);
-		}
-	}
-
-	console.log(`total: ${product.builtInExtensions.length} extensions`);
-}
-
+exports.getExtensions = getExtensions;
 async function each([cmd, ...args], opts) {
-	await init();
-
-	for (const extDesc of product.builtInExtensions) {
-		const folderPath = getFolderPath(extDesc);
-
-		if (opts.type) {
-			const type = await getExtensionType(folderPath);
-
-			if (type !== opts.type) {
-				continue;
-			}
-		}
-
-		console.log(`👉 ${extDesc.name}`);
-		await exec(cmd, args, { cwd: folderPath });
-	}
+    var e_1, _a;
+    try {
+        for (var _b = __asyncValues(getExtensions()), _c; _c = await _b.next(), !_c.done;) {
+            const extension = _c.value;
+            if (opts.type && extension.type !== opts.type) {
+                continue;
+            }
+            console.log(`👉 ${extension.name}`);
+            await spawn(cmd, args, { cwd: extension.sourcePath });
+        }
+    }
+    catch (e_1_1) { e_1 = { error: e_1_1 }; }
+    finally {
+        try {
+            if (_c && !_c.done && (_a = _b.return)) await _a.call(_b);
+        }
+        finally { if (e_1) throw e_1.error; }
+    }
 }
-
-async function _link(extensions, opts, fn) {
-	await init();
-
-	const control = await readControlFile();
-
-	for (const extDesc of product.builtInExtensions) {
-		if (extensions.length > 0 && extensions.indexOf(extDesc.name) === -1) {
-			continue;
-		}
-
-		if (opts.type) {
-			const folderPath = getFolderPath(extDesc);
-			const type = await getExtensionType(folderPath);
-
-			if (type !== opts.type) {
-				continue;
-			}
-		}
-
-		await fn(control, extDesc);
-	}
-
-	await writeControlFile(control);
+async function extractExtension(extension) {
+    await util_1.promisify(rimraf)(extension.installPath);
+    await new Promise((c, e) => {
+        zip.src(extension.vsixPath)
+            .pipe(new stream_1.Transform({
+            objectMode: true,
+            transform(file, _, cb) {
+                if (/^extension\//.test(file.relative)) {
+                    file.base += '/extension';
+                    cb(null, file);
+                }
+                else {
+                    cb();
+                }
+            }
+        }))
+            .pipe(vfs.dest(extension.installPath))
+            .on('error', e)
+            .on('end', () => c());
+    });
 }
-
-async function link(extensions, opts) {
-	await _link(extensions, opts, async (control, extDesc) => {
-		const ext = await initExtension(extDesc);
-		control[extDesc.name] = ext.path;
-		console.log(`👉 link: ${extDesc.name} ➡ ${ext.path}`);
-	});
+async function runExtensionCI(extension, service) {
+    const vsixName = `${extension.name}-${extension.version}.vsix`;
+    const commit = await exec(`git log -1 --format="%H" -- ${extension.sourcePath}`, { trim: true });
+    const container = service.getContainerClient('extensions');
+    const blobName = `${commit}/${vsixName}`;
+    const blob = container.getBlobClient(blobName);
+    const prefix = `📦 ${colors.green(extension.name)}`;
+    try {
+        await blob.downloadToFile(extension.vsixPath);
+        console.log(`${prefix} Downloaded from cache ${colors.grey(`(${blobName})`)}`);
+    }
+    catch (err) {
+        if (err.statusCode !== 404) {
+            throw err;
+        }
+        console.log(`${prefix} Cache miss ${colors.grey(`(${blobName})`)}`);
+        console.log(`${prefix} Building...`);
+        await spawn(`yarn install --no-progress`, { prefix, shell: true, cwd: extension.sourcePath });
+        await spawn(`vsce package --yarn -o ${vsixsPath}`, { prefix, shell: true, cwd: extension.sourcePath });
+        if (service.credential instanceof storage_blob_1.AnonymousCredential) {
+            console.log(`${prefix} Skiping publish VSIX to cache (anonymous access only)`);
+        }
+        else {
+            const blockBlob = await blob.getBlockBlobClient();
+            await blockBlob.uploadFile(extension.vsixPath);
+            console.log(`${prefix} Successfully uploaded VSIX to cache`);
+        }
+    }
+    await extractExtension(extension);
 }
-
-async function unlink(extensions, opts) {
-	await _link(extensions, opts, async (control, extDesc) => {
-		control[extDesc.name] = 'marketplace';
-		console.log(`👉 unlink: ${extDesc.name}`);
-	});
+async function ci() {
+    var e_2, _a;
+    const { 'AZURE_STORAGE_ACCOUNT_2': account, 'AZURE_STORAGE_KEY_2': key } = process.env;
+    if (!account) {
+        throw new Error('Missing env: AZURE_STORAGE_ACCOUNT_2');
+    }
+    const creds = key ? new storage_blob_1.StorageSharedKeyCredential(account, key) : new storage_blob_1.AnonymousCredential();
+    const service = new storage_blob_1.BlobServiceClient(`https://${account}.blob.core.windows.net`, creds);
+    await mkdirp(vsixsPath);
+    const limit = plimit(10);
+    const promises = [];
+    try {
+        for (var _b = __asyncValues(getExtensions()), _c; _c = await _b.next(), !_c.done;) {
+            const extension = _c.value;
+            promises.push(limit(() => runExtensionCI(extension, service)));
+        }
+    }
+    catch (e_2_1) { e_2 = { error: e_2_1 }; }
+    finally {
+        try {
+            if (_c && !_c.done && (_a = _b.return)) await _a.call(_b);
+        }
+        finally { if (e_2) throw e_2.error; }
+    }
+    await Promise.all(promises);
 }
-
 if (require.main === module) {
-	const { program } = require('commander');
-
-	program.version('0.0.1');
-
-	program
-		.command('init')
-		.description('Initialize workspace with built-in extensions')
-		.action(init);
-
-	program
-		.command('status')
-		.description('Print extension status')
-		.action(status);
-
-	program
-		.command('each <command...>')
-		.option('-t, --type <type>', 'Specific type only')
-		.description('Run a command in each extension repository')
-		.allowUnknownOption()
-		.action(each);
-
-	program
-		.command('link [extensions...]')
-		.option('-t, --type <type>', 'Specific type only')
-		.description('Link with code-oss')
-		.action(link);
-
-	program
-		.command('unlink [extensions...]')
-		.option('-t, --type <type>', 'Specific type only')
-		.description('Unlink from code-oss')
-		.action(unlink);
-
-	program.parseAsync(process.argv);
+    commander_1.program.version('0.0.1');
+    commander_1.program
+        .command('each <command...>')
+        .option('-t, --type <type>', 'Specific type only')
+        .description('Run a command in each extension repository')
+        .allowUnknownOption()
+        .action(each);
+    commander_1.program
+        .command('ci')
+        .description('Run CI build steps for extensions')
+        .action(ci);
+    commander_1.program.parseAsync(process.argv).catch(err => {
+        console.error(err);
+        process.exit(1);
+    });
 }

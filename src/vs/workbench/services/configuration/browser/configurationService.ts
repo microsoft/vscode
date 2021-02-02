@@ -8,7 +8,7 @@ import { Event, Emitter } from 'vs/base/common/event';
 import { ResourceMap } from 'vs/base/common/map';
 import { equals } from 'vs/base/common/objects';
 import { Disposable } from 'vs/base/common/lifecycle';
-import { Queue, Barrier, runWhenIdle } from 'vs/base/common/async';
+import { Queue, Barrier, runWhenIdle, Promises } from 'vs/base/common/async';
 import { IJSONContributionRegistry, Extensions as JSONExtensions } from 'vs/platform/jsonschemas/common/jsonContributionRegistry';
 import { IWorkspaceContextService, Workspace as BaseWorkspace, WorkbenchState, IWorkspaceFolder, IWorkspaceFoldersChangeEvent, WorkspaceFolder, toWorkspaceFolder, isWorkspaceFolder } from 'vs/platform/workspace/common/workspace';
 import { ConfigurationModel, DefaultConfigurationModel, ConfigurationChangeEvent, AllKeysConfigurationChangeEvent, mergeChanges } from 'vs/platform/configuration/common/configurationModels';
@@ -313,7 +313,7 @@ export class WorkspaceService extends Disposable implements IWorkbenchConfigurat
 			}
 		}
 
-		await Promise.all(targets.map(target => this.writeConfigurationValue(key, value, target, overrides, donotNotifyError)));
+		await Promises.settled(targets.map(target => this.writeConfigurationValue(key, value, target, overrides, donotNotifyError)));
 	}
 
 	async reloadConfiguration(target?: ConfigurationTarget | IWorkspaceFolder): Promise<void> {

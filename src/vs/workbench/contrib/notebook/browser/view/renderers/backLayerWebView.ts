@@ -4,25 +4,26 @@
  *--------------------------------------------------------------------------------------------*/
 
 import * as DOM from 'vs/base/browser/dom';
+import { VSBuffer } from 'vs/base/common/buffer';
 import { Emitter, Event } from 'vs/base/common/event';
 import { Disposable } from 'vs/base/common/lifecycle';
+import { getExtensionForMimeType } from 'vs/base/common/mime';
+import { FileAccess, Schemas } from 'vs/base/common/network';
 import { isWeb } from 'vs/base/common/platform';
+import { dirname, joinPath } from 'vs/base/common/resources';
 import { URI } from 'vs/base/common/uri';
 import * as UUID from 'vs/base/common/uuid';
-import { IOpenerService, matchesScheme } from 'vs/platform/opener/common/opener';
-import { ICommonCellInfo, ICommonNotebookEditor, IDisplayOutputLayoutUpdateRequest, IDisplayOutputViewModel, IGenericCellViewModel, IInsetRenderOutput, RenderOutputType } from 'vs/workbench/contrib/notebook/browser/notebookBrowser';
-import { CellOutputKind, IDisplayOutput, INotebookRendererInfo } from 'vs/workbench/contrib/notebook/common/notebookCommon';
-import { INotebookService } from 'vs/workbench/contrib/notebook/common/notebookService';
-import { IWebviewService, WebviewElement, WebviewContentPurpose } from 'vs/workbench/contrib/webview/browser/webview';
-import { asWebviewUri } from 'vs/workbench/contrib/webview/common/webviewUri';
-import { dirname, joinPath } from 'vs/base/common/resources';
-import { IWorkspaceContextService } from 'vs/platform/workspace/common/workspace';
-import { preloadsScriptStr } from 'vs/workbench/contrib/notebook/browser/view/renderers/webviewPreloads';
-import { FileAccess, Schemas } from 'vs/base/common/network';
 import { IFileDialogService } from 'vs/platform/dialogs/common/dialogs';
 import { IFileService } from 'vs/platform/files/common/files';
-import { VSBuffer } from 'vs/base/common/buffer';
-import { getExtensionForMimeType } from 'vs/base/common/mime';
+import { IOpenerService, matchesScheme } from 'vs/platform/opener/common/opener';
+import { IWorkspaceContextService } from 'vs/platform/workspace/common/workspace';
+import { ICommonCellInfo, ICommonNotebookEditor, IDisplayOutputLayoutUpdateRequest, IDisplayOutputViewModel, IGenericCellViewModel, IInsetRenderOutput, RenderOutputType } from 'vs/workbench/contrib/notebook/browser/notebookBrowser';
+import { preloadsScriptStr } from 'vs/workbench/contrib/notebook/browser/view/renderers/webviewPreloads';
+import { transformWebviewThemeVars } from 'vs/workbench/contrib/notebook/browser/view/renderers/webviewThemeMapping';
+import { CellOutputKind, IDisplayOutput, INotebookRendererInfo } from 'vs/workbench/contrib/notebook/common/notebookCommon';
+import { INotebookService } from 'vs/workbench/contrib/notebook/common/notebookService';
+import { IWebviewService, WebviewContentPurpose, WebviewElement } from 'vs/workbench/contrib/webview/browser/webview';
+import { asWebviewUri } from 'vs/workbench/contrib/webview/common/webviewUri';
 import { IWorkbenchEnvironmentService } from 'vs/workbench/services/environment/common/environmentService';
 
 export interface WebviewIntialized {
@@ -563,6 +564,7 @@ var requirejs = (function() {
 		const webview = webviewService.createWebviewElement(this.id, {
 			purpose: WebviewContentPurpose.NotebookRenderer,
 			enableFindWidget: false,
+			transformCssVariables: transformWebviewThemeVars,
 		}, {
 			allowMultipleAPIAcquire: true,
 			allowScripts: true,

@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 'use strict';
 
-const updateGrammar = require('../../../build/npm/update-grammar');
+const updateGrammar = require('vscode-grammar-updater');
 
 function adaptInjectionScope(grammar) {
 	// we're using the HTML grammar from https://github.com/textmate/html.tmbundle which has moved away from source.js.embedded.html

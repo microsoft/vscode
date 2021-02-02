@@ -23,7 +23,7 @@ import { IWorkbenchContribution, IWorkbenchContributionsRegistry, Extensions } f
 import { Registry } from 'vs/platform/registry/common/platform';
 import { LifecyclePhase } from 'vs/workbench/services/lifecycle/common/lifecycle';
 import { isWeb } from 'vs/base/common/platform';
-import { Barrier } from 'vs/base/common/async';
+import { Barrier, Promises } from 'vs/base/common/async';
 import { IExtensionGalleryService, IExtensionManagementService, IGlobalExtensionEnablementService, ILocalExtension } from 'vs/platform/extensionManagement/common/extensionManagement';
 import { IEnvironmentService } from 'vs/platform/environment/common/environment';
 import { IExtensionService, toExtensionDescription } from 'vs/workbench/services/extensions/common/extensions';
@@ -149,7 +149,7 @@ export class UserDataInitializationService implements IUserDataInitializationSer
 			return;
 		}
 
-		await Promise.all(syncResources.map(async syncResource => {
+		await Promises.settled(syncResources.map(async syncResource => {
 			try {
 				if (this.initialized.includes(syncResource)) {
 					this.logService.info(`${getSyncAreaLabel(syncResource)} initialized already.`);

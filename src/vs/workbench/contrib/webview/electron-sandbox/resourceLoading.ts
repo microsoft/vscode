@@ -5,19 +5,20 @@
 
 import { equals } from 'vs/base/common/arrays';
 import { streamToBuffer } from 'vs/base/common/buffer';
+import { CancellationToken } from 'vs/base/common/cancellation';
 import { Disposable, toDisposable } from 'vs/base/common/lifecycle';
 import { Schemas } from 'vs/base/common/network';
 import { URI, UriComponents } from 'vs/base/common/uri';
 import { createChannelSender } from 'vs/base/parts/ipc/common/ipc';
 import { ipcRenderer } from 'vs/base/parts/sandbox/electron-sandbox/globals';
 import * as modes from 'vs/editor/common/modes';
-import { INativeHostService } from 'vs/platform/native/electron-sandbox/native';
 import { IFileService } from 'vs/platform/files/common/files';
 import { IMainProcessService } from 'vs/platform/ipc/electron-sandbox/mainProcessService';
 import { ILogService } from 'vs/platform/log/common/log';
+import { INativeHostService } from 'vs/platform/native/electron-sandbox/native';
 import { IRemoteAuthorityResolverService } from 'vs/platform/remote/common/remoteAuthorityResolver';
 import { IRequestService } from 'vs/platform/request/common/request';
-import { loadLocalResource, WebviewResourceResponse } from 'vs/platform/webview/common/resourceLoader';
+import { loadLocalResource, readFileStream, WebviewResourceResponse } from 'vs/platform/webview/common/resourceLoader';
 import { IWebviewManagerService } from 'vs/platform/webview/common/webviewManagerService';
 import { WebviewContentOptions, WebviewExtensionDescription } from 'vs/workbench/contrib/webview/browser/webview';
 import { IWorkbenchEnvironmentService } from 'vs/workbench/services/environment/common/environmentService';
@@ -106,23 +107,32 @@ export class WebviewResourceRequestManager extends Disposable {
 			try {
 				this._logService.debug(`WebviewResourceRequestManager(${this.id}): starting resource load. uri: ${uri}`);
 
-				const response = await loadLocalResource(uri, {
+				const response = await loadLocalResource(uri, undefined, {
 					extensionLocation: this.extension?.location,
 					roots: this._localResourceRoots,
 					remoteConnectionData: remoteConnectionData,
 				}, {
-					readFileStream: (resource) => fileService.readFileStream(resource).then(x => ({ stream: x.value, etag: x.etag })),
-				}, requestService, this._logService);
+					readFileStream: (resource, etag) => readFileStream(fileService, resource, etag),
+				}, requestService, this._logService, CancellationToken.None);
+
 				this._logService.debug(`WebviewResourceRequestManager(${this.id}): finished resource load. uri: ${uri}, type=${response.type}`);
 
-				if (response.type === WebviewResourceResponse.Type.Success) {
-					const buffer = await streamToBuffer(response.stream);
-					return this._webviewManagerService.didLoadResource(requestId, buffer);
+				switch (response.type) {
+					case WebviewResourceResponse.Type.Success:
+						{
+							const buffer = await streamToBuffer(response.stream);
+							return this._webviewManagerService.didLoadResource(requestId, { buffer, etag: response.etag });
+						}
+					case WebviewResourceResponse.Type.NotModified:
+						return this._webviewManagerService.didLoadResource(requestId, 'not-modified');
+
+					case WebviewResourceResponse.Type.AccessDenied:
+						return this._webviewManagerService.didLoadResource(requestId, 'access-denied');
 				}
 			} catch {
 				// Noop
 			}
-			this._webviewManagerService.didLoadResource(requestId, undefined);
+			this._webviewManagerService.didLoadResource(requestId, 'not-found');
 		};
 
 		ipcRenderer.on(loadResourceChannel, loadResourceListener);

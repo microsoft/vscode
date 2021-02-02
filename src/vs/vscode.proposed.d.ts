@@ -1080,7 +1080,9 @@ declare module 'vscode' {
 		readonly cellKind: CellKind;
 		readonly document: TextDocument;
 		readonly language: string;
+		/** @deprecated use WorkspaceEdit.replaceCellOutput */
 		outputs: CellOutput[];
+		/** @deprecated use WorkspaceEdit.replaceCellMetadata */
 		metadata: NotebookCellMetadata;
 	}
 
@@ -1259,14 +1261,14 @@ declare module 'vscode' {
 		// @rebornix REMOVE
 		// todo@API unsure about that, how do you this when executing a cell without having an editor
 		asWebviewUri(localResource: Uri): Uri;
-
-
 	}
 
+	// todo@API stale?
 	export interface NotebookOutputSelector {
 		mimeTypes?: string[];
 	}
 
+	// todo@API stale?
 	export interface NotebookRenderRequest {
 		output: CellDisplayOutput;
 		mimeType: string;
@@ -1293,6 +1295,7 @@ declare module 'vscode' {
 		readonly changes: ReadonlyArray<NotebookCellsChangeData>;
 	}
 
+	// todo@API stale?
 	export interface NotebookCellMoveEvent {
 
 		/**
@@ -2623,7 +2626,7 @@ declare module 'vscode' {
 		/**
 		 * Register a new `ExternalUriOpener`.
 		 *
-		 * When a uri is about to be opened, an `onUriOpen:SCHEME` activation event is fired.
+		 * When a uri is about to be opened, an `onOpenExternalUri:SCHEME` activation event is fired.
 		 *
 		 * @param id Unique id of the opener, such as `myExtension.browserPreview`. This is used in settings
 		 *   and commands to identify the opener.
@@ -2669,62 +2672,6 @@ declare module 'vscode' {
 
 		// todo@API proper event type
 		export const onDidChangeOpenEditors: Event<void>;
-	}
-
-	//#endregion
-
-	//#region Workspace Trust - @sbatten, @lszomoru
-
-	export enum WorkspaceTrustState {
-		/**
-		 * The workspace is untrusted, and it will have limited functionality.
-		 */
-		Untrusted = 0,
-
-		/**
-		 * The workspace is trusted, and all functionality will be available.
-		 */
-		Trusted = 1,
-
-		/**
-		 * The initial state of the workspace.
-		 *
-		 * If trust will be required, users will be prompted to make a choice.
-		 */
-		Unknown = 2
-	}
-
-	/**
-	 * The event data that is fired when the trust state of the workspace changes
-	 */
-	export interface WorkspaceTrustStateChangeEvent {
-		/**
-		 * Previous trust state of the workspace
-		 */
-		previousTrustState: WorkspaceTrustState;
-
-		/**
-		 * Current trust state of the workspace
-		 */
-		currentTrustState: WorkspaceTrustState;
-	}
-
-	export namespace workspace {
-		/**
-		 * The trust state of the current workspace
-		 */
-		export const trustState: WorkspaceTrustState;
-
-		/**
-		 * Prompt the user to chose whether to trust the current workspace
-		 * @param message Optional message which would be displayed in the prompt
-		 */
-		export function requireWorkspaceTrust(message?: string): Thenable<WorkspaceTrustState>;
-
-		/**
-		 * Event that fires when the trust state of the current workspace changes
-		 */
-		export const onDidChangeWorkspaceTrustState: Event<WorkspaceTrustStateChangeEvent>;
 	}
 
 	//#endregion

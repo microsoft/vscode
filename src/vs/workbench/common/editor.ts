@@ -186,7 +186,7 @@ export interface IFileEditorInputFactory {
 	isFileEditorInput(obj: unknown): obj is IFileEditorInput;
 }
 
-interface ICustomEditorInputFactory {
+export interface ICustomEditorInputFactory {
 	createCustomEditorInput(resource: URI, instantiationService: IInstantiationService): Promise<IEditorInput>;
 	canResolveBackup(editorInput: IEditorInput, backupResource: URI): boolean;
 }

@@ -693,7 +693,7 @@ export default class TypeScriptServiceClient extends Disposable implements IType
 		if (isWeb()) {
 			// On web, treat absolute paths as pointing to standard lib files
 			if (filepath.startsWith('/')) {
-				return vscode.Uri.joinPath(this.context.extensionUri, 'node_modules', 'typescript-web', 'lib', filepath.slice(1));
+				return vscode.Uri.joinPath(this.context.extensionUri, 'node_modules', 'typescript', 'lib', filepath.slice(1));
 			}
 		}
 
@@ -888,7 +888,7 @@ export default class TypeScriptServiceClient extends Disposable implements IType
 	}
 
 	private dispatchTelemetryEvent(telemetryData: Proto.TelemetryEventBody): void {
-		const properties: ObjectMap<string> = Object.create(null);
+		const properties: { [key: string]: string } = Object.create(null);
 		switch (telemetryData.telemetryEventName) {
 			case 'typingsInstalled':
 				const typingsInstalledPayload: Proto.TypingsInstalledTelemetryEventPayload = (telemetryData.payload as Proto.TypingsInstalledTelemetryEventPayload);
