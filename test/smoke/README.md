@@ -2,7 +2,7 @@
 
 Make sure you are on **Node v12.x**.
 
-### Run
+### Quick Overview
 
 ```bash
 # Build extensions in repo (if needed)
@@ -11,10 +11,16 @@ yarn && yarn compile
 # Install Dependencies and Compile
 yarn --cwd test/smoke
 
+# Prepare OSS for Dev (if needed on Windows. Press Ctrl+C after OSS launches)
+.\scripts\code.bat
+
+# Prepare OSS for Dev (if needed on *nix. Press Ctrl+C after OSS launches)
+./scripts/code.sh
+
 # Dev (Electron)
 yarn smoketest
 
-# Dev (Web)
+# Dev (Web - Must be run on distro)
 yarn smoketest --web --browser [chromium|webkit]
 
 # Build (Electron)
@@ -27,21 +33,23 @@ yarn smoketest --build <path to web server folder> --web --browser [chromium|web
 yarn smoketest --build <path latest built version> --remote
 ```
 
-### Run for a release
+### Running for a release (Endgame)
 
-You must always run the smoketest version which matches the release you are testing. So, if you want to run the smoketest for a release build (e.g. `release/1.22`), you need that version of the smoke tests too:
+You must always run the smoketest version that matches the release you are testing. So, if you want to run the smoketest for a release build (e.g. `release/1.22`), you need to check out that version of the smoke tests too:
 
 ```bash
+git fetch
 git checkout release/1.22
 yarn && yarn compile
 yarn --cwd test/smoke
 ```
 
-#### Electron
+#### Electron with --build and --stable-build
 
-In addition to the new build to be released you will need the previous stable build so that the smoketest can test the data migration.
-The recommended way to make these builds available for the smoketest is by downloading their archive version (\*.zip) and extracting
-them into two folders. Pass the folder paths to the smoketest as follows:
+In addition to the vscode repository, you will need the latest build and the previous stable build, so that the smoketest can test data migration.
+
+The recommended way to make these builds available for the smoketest is by downloading their archive versions (\*.zip) from the **[builds page](https://builds.code.visualstudio.com/)**, and extracting
+them into two folders (e.g. with 'Extract All' on Windows). Pass the **absolute paths** of those folders to the smoketest as follows:
 
 ```bash
 yarn smoketest --build <path latest built version> --stable-build <path to previous stable version>
