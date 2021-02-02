@@ -235,7 +235,7 @@ export class DebugSession implements IDebugSession {
 		try {
 			const customTelemetryService = await dbgr.getCustomTelemetryService();
 			const debugAdapter = await dbgr.createDebugAdapter(this);
-			this.raw = new RawDebugSession(debugAdapter, dbgr, this.telemetryService, customTelemetryService, this.extensionHostDebugService, this.openerService, this.notificationService);
+			this.raw = new RawDebugSession(debugAdapter, dbgr, this.id, this.telemetryService, customTelemetryService, this.extensionHostDebugService, this.openerService, this.notificationService);
 
 			await this.raw.start();
 			this.registerListeners();
