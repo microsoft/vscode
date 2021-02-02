@@ -1080,7 +1080,9 @@ declare module 'vscode' {
 		readonly cellKind: CellKind;
 		readonly document: TextDocument;
 		readonly language: string;
+		/** @deprecated use WorkspaceEdit.replaceCellOutput */
 		outputs: CellOutput[];
+		/** @deprecated use WorkspaceEdit.replaceCellMetadata */
 		metadata: NotebookCellMetadata;
 	}
 
@@ -1259,14 +1261,14 @@ declare module 'vscode' {
 		// @rebornix REMOVE
 		// todo@API unsure about that, how do you this when executing a cell without having an editor
 		asWebviewUri(localResource: Uri): Uri;
-
-
 	}
 
+	// todo@API stale?
 	export interface NotebookOutputSelector {
 		mimeTypes?: string[];
 	}
 
+	// todo@API stale?
 	export interface NotebookRenderRequest {
 		output: CellDisplayOutput;
 		mimeType: string;
@@ -1293,6 +1295,7 @@ declare module 'vscode' {
 		readonly changes: ReadonlyArray<NotebookCellsChangeData>;
 	}
 
+	// todo@API stale?
 	export interface NotebookCellMoveEvent {
 
 		/**
