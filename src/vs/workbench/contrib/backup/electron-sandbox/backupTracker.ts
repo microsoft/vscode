@@ -209,9 +209,19 @@ export class NativeBackupTracker extends BackupTracker implements IWorkbenchCont
 			}
 		}
 
-		// Perform a backup of all dirty working copies unless a backup already exists
+		if (!doBackup) {
+			return [];
+		}
+
+		return this.doBackupBeforeShutdown(workingCopies, reason);
+	}
+
+	private async doBackupBeforeShutdown(workingCopies: IWorkingCopy[], reason: ShutdownReason): Promise<IWorkingCopy[]> {
 		const backups: IWorkingCopy[] = [];
-		if (doBackup) {
+
+		await this.withProgressAndCancellation((async () => {
+
+			// Perform a backup of all dirty working copies unless a backup already exists
 			await Promises.settled(workingCopies.map(async workingCopy => {
 				const contentVersion = this.getContentVersion(workingCopy);
 
@@ -228,7 +238,7 @@ export class NativeBackupTracker extends BackupTracker implements IWorkbenchCont
 					backups.push(workingCopy);
 				}
 			}));
-		}
+		})(), localize('backupBeforeShutdown', "Waiting for dirty editors to backup..."));
 
 		return backups;
 	}
@@ -280,49 +290,52 @@ export class NativeBackupTracker extends BackupTracker implements IWorkbenchCont
 			return true;
 		});
 
-		const cts = new CancellationTokenSource();
-		return this.progressService.withProgress({
-			location: ProgressLocation.Notification,
-			cancellable: true, // for https://github.com/microsoft/vscode/issues/112278
-			delay: 800, // delay notification so that it only appears when saving takes a long time
-			title: localize('saveBeforeShutdown', "Waiting for dirty editors to save...")
-		}, () => {
-			const saveAllPromise = (async () => {
+		return this.withProgressAndCancellation((async () => {
 
-				// Skip save participants on shutdown for performance reasons
-				const saveOptions = { skipSaveParticipants: true, reason };
+			// Skip save participants on shutdown for performance reasons
+			const saveOptions = { skipSaveParticipants: true, reason };
 
-				// First save through the editor service if we save all to benefit
-				// from some extras like switching to untitled dirty editors before saving.
-				let result: boolean | undefined = undefined;
-				if (typeof arg1 === 'boolean' || workingCopies.length === this.workingCopyService.dirtyCount) {
-					result = await this.editorService.saveAll({ includeUntitled: typeof arg1 === 'boolean' ? arg1 : true, ...saveOptions });
-				}
+			// First save through the editor service if we save all to benefit
+			// from some extras like switching to untitled dirty editors before saving.
+			let result: boolean | undefined = undefined;
+			if (typeof arg1 === 'boolean' || workingCopies.length === this.workingCopyService.dirtyCount) {
+				result = await this.editorService.saveAll({ includeUntitled: typeof arg1 === 'boolean' ? arg1 : true, ...saveOptions });
+			}
 
-				// If we still have dirty working copies, save those directly
-				// unless the save was not successful (e.g. cancelled)
-				if (result !== false) {
-					await Promises.settled(workingCopies.map(workingCopy => workingCopy.isDirty() ? workingCopy.save(saveOptions) : Promise.resolve(true)));
-				}
-			})();
-
-			return raceCancellation(saveAllPromise, cts.token);
-		}, () => cts.dispose(true));
+			// If we still have dirty working copies, save those directly
+			// unless the save was not successful (e.g. cancelled)
+			if (result !== false) {
+				await Promises.settled(workingCopies.map(workingCopy => workingCopy.isDirty() ? workingCopy.save(saveOptions) : Promise.resolve(true)));
+			}
+		})(), localize('saveBeforeShutdown', "Waiting for dirty editors to save..."));
 	}
 
-	private async doRevertAllBeforeShutdown(workingCopies: IWorkingCopy[]): Promise<void> {
+	private doRevertAllBeforeShutdown(workingCopies: IWorkingCopy[]): Promise<void> {
+		return this.withProgressAndCancellation((async () => {
 
-		// Soft revert is good enough on shutdown
-		const revertOptions = { soft: true };
+			// Soft revert is good enough on shutdown
+			const revertOptions = { soft: true };
 
-		// First revert through the editor service if we revert all
-		if (workingCopies.length === this.workingCopyService.dirtyCount) {
-			await this.editorService.revertAll(revertOptions);
-		}
+			// First revert through the editor service if we revert all
+			if (workingCopies.length === this.workingCopyService.dirtyCount) {
+				await this.editorService.revertAll(revertOptions);
+			}
 
-		// If we still have dirty working copies, revert those directly
-		// unless the revert operation was not successful (e.g. cancelled)
-		await Promises.settled(workingCopies.map(workingCopy => workingCopy.isDirty() ? workingCopy.revert(revertOptions) : Promise.resolve()));
+			// If we still have dirty working copies, revert those directly
+			// unless the revert operation was not successful (e.g. cancelled)
+			await Promises.settled(workingCopies.map(workingCopy => workingCopy.isDirty() ? workingCopy.revert(revertOptions) : Promise.resolve()));
+		})(), localize('revertBeforeShutdown', "Waiting for dirty editors to revert..."));
+	}
+
+	private withProgressAndCancellation(promise: Promise<void>, title: string): Promise<void> {
+		const cts = new CancellationTokenSource();
+
+		return this.progressService.withProgress({
+			location: ProgressLocation.Notification,
+			cancellable: true, // for issues such as https://github.com/microsoft/vscode/issues/112278
+			delay: 800, // delay notification so that it only appears when operation takes a long time
+			title
+		}, () => raceCancellation(promise, cts.token), () => cts.dispose(true));
 	}
 
 	private noVeto(backupsToDiscard: IWorkingCopy[]): boolean | Promise<boolean> {
