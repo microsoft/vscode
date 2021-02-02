@@ -80,5 +80,9 @@
         "url": "vscode://schemas/notebook/cellmetadata"
       }
     ]
+  },
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/microsoft/vscode.git"
   }
 }
