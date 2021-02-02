@@ -9,14 +9,12 @@ import { Emitter, Event } from 'vs/base/common/event';
 import { Lazy } from 'vs/base/common/lazy';
 import { Disposable, IDisposable, toDisposable } from 'vs/base/common/lifecycle';
 import { basename, extname, isEqual } from 'vs/base/common/resources';
-import Severity from 'vs/base/common/severity';
 import { URI } from 'vs/base/common/uri';
 import { generateUuid } from 'vs/base/common/uuid';
 import { RedoCommand, UndoCommand } from 'vs/editor/browser/editorExtensions';
 import * as nls from 'vs/nls';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { IContextKey, IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
-import { IDialogService } from 'vs/platform/dialogs/common/dialogs';
 import { EditorActivation, IEditorOptions, ITextEditorOptions } from 'vs/platform/editor/common/editor';
 import { FileOperation, IFileService } from 'vs/platform/files/common/files';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
@@ -26,7 +24,7 @@ import { IStorageService } from 'vs/platform/storage/common/storage';
 import * as colorRegistry from 'vs/platform/theme/common/colorRegistry';
 import { registerThemingParticipant } from 'vs/platform/theme/common/themeService';
 import { IWorkbenchContribution } from 'vs/workbench/common/contributions';
-import { EditorInput, EditorOptions, Extensions as EditorInputExtensions, GroupIdentifier, IEditorInput, IEditorInputFactoryRegistry, IEditorPane, SaveReason } from 'vs/workbench/common/editor';
+import { EditorInput, EditorOptions, Extensions as EditorInputExtensions, GroupIdentifier, IEditorInput, IEditorInputFactoryRegistry, IEditorPane } from 'vs/workbench/common/editor';
 import { DiffEditorInput } from 'vs/workbench/common/editor/diffEditorInput';
 import { CONTEXT_CUSTOM_EDITORS, CONTEXT_FOCUSED_CUSTOM_EDITOR_IS_EDITABLE, CustomEditorCapabilities, CustomEditorInfo, CustomEditorInfoCollection, CustomEditorPriority, ICustomEditorService } from 'vs/workbench/contrib/customEditor/common/customEditor';
 import { CustomEditorModelManager } from 'vs/workbench/contrib/customEditor/common/customEditorModelManager';
@@ -58,7 +56,6 @@ export class CustomEditorService extends Disposable implements ICustomEditorServ
 		@IStorageService storageService: IStorageService,
 		@IConfigurationService private readonly configurationService: IConfigurationService,
 		@IEditorService private readonly editorService: IEditorService,
-		@IDialogService private readonly dialogService: IDialogService,
 		@IEditorGroupsService private readonly editorGroupService: IEditorGroupsService,
 		@IInstantiationService private readonly instantiationService: IInstantiationService,
 		@IQuickInputService private readonly quickInputService: IQuickInputService,
@@ -277,28 +274,6 @@ export class CustomEditorService extends Disposable implements ICustomEditorServ
 		const existing = firstOrDefault(this.editorService.findEditors(resource, targetGroup));
 		if (existing) {
 			if (!input.matches(existing)) {
-				// The current editor needs to be saved before it can be opened in a custom editor
-				if (existing.isDirty()) {
-					const message = nls.localize('promptOpenWith.unsaved', 'This file has unsaved changes and is attempting to be opened in a custom editor.');
-					const buttonActions: string[] = [
-						nls.localize('save', 'Save'),
-						nls.localize('discard', 'Discard Changes'),
-						nls.localize('abort', 'Abort')
-					];
-					enum UnsavedEditorAction {
-						SAVE = 0,
-						DISCARD = 1,
-						ABORT = 2,
-					}
-					const res = await this.dialogService.show(Severity.Warning, message, buttonActions);
-					if (res.choice === UnsavedEditorAction.SAVE) {
-						await existing.save(this.editorGroupService.activeGroup.id, { reason: SaveReason.EXPLICIT });
-					} else if (res.choice === UnsavedEditorAction.DISCARD) {
-						await this.editorService.revert({ groupId: this.editorGroupService.activeGroup.id, editor: existing });
-					} else {
-						return;
-					}
-				}
 				await this.editorService.replaceEditors([{
 					editor: existing,
 					replacement: input,
