@@ -272,13 +272,14 @@ export class ExtensionManagementService extends Disposable implements IWorkbench
 			return Promises.settled(servers.map(server => server.extensionManagementService.installFromGallery(gallery, installOptions))).then(([local]) => local);
 		}
 
+		const extensionKinds = getExtensionKind(manifest, this.productService, this.configurationService);
 		if (this.extensionManagementServerService.remoteExtensionManagementServer) {
-			const error = new Error(localize('cannot be installed', "Cannot install '{0}' because this extension has defined that it cannot run on the remote server.", gallery.displayName || gallery.name));
+			const error = new Error(localize('cannot be installed', "Cannot install '{0}' extension because it is declared as {1} extension kind and does not run in this setup.", gallery.displayName || gallery.name, extensionKinds.map(e => `"${e}"`).join(', ')));
 			error.name = INSTALL_ERROR_NOT_SUPPORTED;
 			return Promise.reject(error);
 		}
 
-		const error = new Error(localize('cannot be installed on web', "Cannot install '{0}' because this extension has defined that it cannot run on the web server.", gallery.displayName || gallery.name));
+		const error = new Error(localize('cannot be installed', "Cannot install '{0}' extension because it is declared as {1} extension kind and does not run in this setup.", gallery.displayName || gallery.name, extensionKinds.map(e => `"${e}"`).join(', ')));
 		error.name = INSTALL_ERROR_NOT_SUPPORTED;
 		return Promise.reject(error);
 	}
