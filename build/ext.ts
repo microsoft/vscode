@@ -10,6 +10,9 @@ import { program } from 'commander';
 import { AnonymousCredential, BlobServiceClient, StorageSharedKeyCredential } from '@azure/storage-blob';
 import * as mkdirp from 'mkdirp';
 import * as plimit from 'p-limit';
+import * as colors from 'colors';
+import * as byline from 'byline';
+import { Transform, TransformCallback } from 'stream';
 
 const rootPath = path.resolve(path.join(__dirname, '..'));
 const vsixsPath = path.join(rootPath, '.build', 'vsix');
@@ -45,13 +48,31 @@ interface IExtension {
 // 	await fs.writeFile(controlFilePath, JSON.stringify(control, null, '  '));
 // }
 
-async function spawn(cmd: string, opts?: cp.SpawnOptions): Promise<void>;
-async function spawn(cmd: string, args: string[], opts?: cp.SpawnOptions): Promise<void>;
-async function spawn(cmd: string, argsOrOpts?: cp.SpawnOptions | string[], opts: cp.SpawnOptions = {}): Promise<void> {
+interface SpawnOptions extends cp.SpawnOptions {
+	readonly prefix?: string;
+}
+
+class Prefixer extends Transform {
+	constructor(private prefix: string) { super(); }
+	_transform(line: string, _encoding: string, callback: TransformCallback): void {
+		callback(null, `${this.prefix} ${line}\n`);
+	}
+}
+
+async function spawn(cmd: string, opts?: SpawnOptions): Promise<void>;
+async function spawn(cmd: string, args: string[], opts?: SpawnOptions): Promise<void>;
+async function spawn(cmd: string, argsOrOpts?: SpawnOptions | string[], _opts: SpawnOptions = {}): Promise<void> {
 	return new Promise((c, e) => {
+		const opts = (Array.isArray(argsOrOpts) ? _opts : argsOrOpts) ?? {};
+		const stdio = opts.prefix ? 'pipe' : 'inherit';
 		const child = Array.isArray(argsOrOpts)
-			? cp.spawn(cmd, argsOrOpts, { stdio: 'inherit', env: process.env, ...opts })
-			: cp.spawn(cmd, { stdio: 'inherit', env: process.env, ...argsOrOpts });
+			? cp.spawn(cmd, argsOrOpts, { stdio, env: process.env, ...opts })
+			: cp.spawn(cmd, { stdio, env: process.env, ...opts });
+
+		if (opts.prefix) {
+			child.stdout!.pipe(new byline.LineStream()).pipe(new Prefixer(opts.prefix)).pipe(process.stdout);
+			child.stderr!.pipe(new byline.LineStream()).pipe(new Prefixer(opts.prefix)).pipe(process.stderr);
+		}
 
 		child.on('close', code => code === 0 ? c() : e(`Returned ${code}`));
 	});
@@ -131,10 +152,11 @@ async function runExtensionCI(extension: IExtension, service: BlobServiceClient)
 	const container = service.getContainerClient('extensions');
 	const blobName = `${commit}/${vsixName}`;
 	const blob = container.getBlobClient(blobName);
+	const prefix = `📦 ${colors.green(extension.name)}`;
 
 	try {
 		await blob.downloadToFile(extension.vsixPath);
-		console.log(`📦 [${extension.name}] Downloaded from cache (${blobName})`);
+		console.log(`${prefix} Downloaded from cache ${colors.grey(`(${blobName})`)}`);
 		return;
 	} catch (err) {
 		if (err.statusCode !== 404) {
@@ -142,19 +164,19 @@ async function runExtensionCI(extension: IExtension, service: BlobServiceClient)
 		}
 	}
 
-	console.log(`📦 [${extension.name}] Cache miss (${blobName})`);
-	console.log(`📦 [${extension.name}] Building...`);
-	await spawn(`yarn`, { shell: true, cwd: extension.path });
-	await spawn(`vsce package --yarn -o ${vsixsPath}`, { shell: true, cwd: extension.path });
+	console.log(`${prefix} Cache miss ${colors.grey(`(${blobName})`)}`);
+	console.log(`${prefix} Building...`);
+	await spawn(`yarn install --no-progress`, { prefix, shell: true, cwd: extension.path });
+	await spawn(`vsce package --yarn -o ${vsixsPath}`, { prefix, shell: true, cwd: extension.path });
 
 	if (service.credential instanceof AnonymousCredential) {
-		console.log(`📦 [${extension.name}] Skiping publish VSIX to cache (anonymous access only)`);
+		console.log(`${prefix} Skiping publish VSIX to cache (anonymous access only)`);
 		return;
 	}
 
 	const blockBlob = await blob.getBlockBlobClient();
 	await blockBlob.uploadFile(extension.vsixPath);
-	console.log(`📦 [${extension.name}] Successfully uploaded VSIX to cache`);
+	console.log(`${prefix} Successfully uploaded VSIX to cache`);
 }
 
 async function ci(): Promise<void> {

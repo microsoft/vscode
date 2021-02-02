@@ -31,6 +31,9 @@ const commander_1 = require("commander");
 const storage_blob_1 = require("@azure/storage-blob");
 const mkdirp = require("mkdirp");
 const plimit = require("p-limit");
+const colors = require("colors");
+const byline = require("byline");
+const stream_1 = require("stream");
 const rootPath = path.resolve(path.join(__dirname, '..'));
 const vsixsPath = path.join(rootPath, '.build', 'vsix');
 var ExtensionType;
@@ -39,11 +42,27 @@ var ExtensionType;
     ExtensionType["Theme"] = "theme";
     ExtensionType["Misc"] = "misc";
 })(ExtensionType || (ExtensionType = {}));
-async function spawn(cmd, argsOrOpts, opts = {}) {
+class Prefixer extends stream_1.Transform {
+    constructor(prefix) {
+        super();
+        this.prefix = prefix;
+    }
+    _transform(line, _encoding, callback) {
+        callback(null, `${this.prefix} ${line}\n`);
+    }
+}
+async function spawn(cmd, argsOrOpts, _opts = {}) {
     return new Promise((c, e) => {
+        var _a;
+        const opts = (_a = (Array.isArray(argsOrOpts) ? _opts : argsOrOpts)) !== null && _a !== void 0 ? _a : {};
+        const stdio = opts.prefix ? 'pipe' : 'inherit';
         const child = Array.isArray(argsOrOpts)
-            ? cp.spawn(cmd, argsOrOpts, Object.assign({ stdio: 'inherit', env: process.env }, opts))
-            : cp.spawn(cmd, Object.assign({ stdio: 'inherit', env: process.env }, argsOrOpts));
+            ? cp.spawn(cmd, argsOrOpts, Object.assign({ stdio, env: process.env }, opts))
+            : cp.spawn(cmd, Object.assign({ stdio, env: process.env }, opts));
+        if (opts.prefix) {
+            child.stdout.pipe(new byline.LineStream()).pipe(new Prefixer(opts.prefix)).pipe(process.stdout);
+            child.stderr.pipe(new byline.LineStream()).pipe(new Prefixer(opts.prefix)).pipe(process.stderr);
+        }
         child.on('close', code => code === 0 ? c() : e(`Returned ${code}`));
     });
 }
@@ -129,9 +148,10 @@ async function runExtensionCI(extension, service) {
     const container = service.getContainerClient('extensions');
     const blobName = `${commit}/${vsixName}`;
     const blob = container.getBlobClient(blobName);
+    const prefix = `📦 ${colors.green(extension.name)}`;
     try {
         await blob.downloadToFile(extension.vsixPath);
-        console.log(`📦 [${extension.name}] Downloaded from cache (${blobName})`);
+        console.log(`${prefix} Downloaded from cache ${colors.grey(`(${blobName})`)}`);
         return;
     }
     catch (err) {
@@ -139,17 +159,17 @@ async function runExtensionCI(extension, service) {
             throw err;
         }
     }
-    console.log(`📦 [${extension.name}] Cache miss (${blobName})`);
-    console.log(`📦 [${extension.name}] Building...`);
-    await spawn(`yarn`, { shell: true, cwd: extension.path });
-    await spawn(`vsce package --yarn -o ${vsixsPath}`, { shell: true, cwd: extension.path });
+    console.log(`${prefix} Cache miss ${colors.grey(`(${blobName})`)}`);
+    console.log(`${prefix} Building...`);
+    await spawn(`yarn install --no-progress`, { prefix, shell: true, cwd: extension.path });
+    await spawn(`vsce package --yarn -o ${vsixsPath}`, { prefix, shell: true, cwd: extension.path });
     if (service.credential instanceof storage_blob_1.AnonymousCredential) {
-        console.log(`📦 [${extension.name}] Skiping publish VSIX to cache (anonymous access only)`);
+        console.log(`${prefix} Skiping publish VSIX to cache (anonymous access only)`);
         return;
     }
     const blockBlob = await blob.getBlockBlobClient();
     await blockBlob.uploadFile(extension.vsixPath);
-    console.log(`📦 [${extension.name}] Successfully uploaded VSIX to cache`);
+    console.log(`${prefix} Successfully uploaded VSIX to cache`);
 }
 async function ci() {
     var e_2, _a;
