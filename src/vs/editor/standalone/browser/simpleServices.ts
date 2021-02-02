@@ -320,7 +320,7 @@ export class StandaloneKeybindingService extends AbstractKeybindingService {
 			}
 		}));
 
-		// for double modifier keybindings
+		// for single modifier chord keybindings (e.g. shift shift)
 		this._register(dom.addDisposableListener(window, dom.EventType.KEY_UP, (e: KeyboardEvent) => {
 			const keyEvent = new StandardKeyboardEvent(e);
 			const shouldPreventDefault = this._doublePressDispatch(keyEvent, keyEvent.target);

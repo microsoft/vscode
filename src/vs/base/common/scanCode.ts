@@ -252,20 +252,6 @@ export class ScanCodeBinding {
 		);
 	}
 
-	public isModifierKey(): boolean {
-		return (
-			this.scanCode === ScanCode.None
-			|| this.scanCode === ScanCode.ControlLeft
-			|| this.scanCode === ScanCode.ControlRight
-			|| this.scanCode === ScanCode.MetaLeft
-			|| this.scanCode === ScanCode.MetaRight
-			|| this.scanCode === ScanCode.AltLeft
-			|| this.scanCode === ScanCode.AltRight
-			|| this.scanCode === ScanCode.ShiftLeft
-			|| this.scanCode === ScanCode.ShiftRight
-		);
-	}
-
 	/**
 	 * Does this keybinding refer to the key code of a modifier and it also has the modifier flag?
 	 */

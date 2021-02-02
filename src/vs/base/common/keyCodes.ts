@@ -556,19 +556,6 @@ export class ResolvedKeybindingPart {
 		this.keyLabel = kbLabel;
 		this.keyAriaLabel = kbAriaLabel;
 	}
-
-	public isCtrlOrShiftOrAlt(): boolean {
-
-		if (this.ctrlKey && !this.altKey && !this.shiftKey) {
-			return true;
-		} else if (this.shiftKey && !this.ctrlKey && !this.altKey) {
-			return true;
-		} else if (this.altKey && !this.shiftKey && !this.ctrlKey) {
-			return true;
-		}
-
-		return false;
-	}
 }
 
 /**

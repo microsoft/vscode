@@ -22,20 +22,11 @@ export class ResolvedKeybindingItem {
 
 	constructor(resolvedKeybinding: ResolvedKeybinding | undefined, command: string | null, commandArgs: any, when: ContextKeyExpression | undefined, isDefault: boolean, extensionId: string | null, isBuiltinExtension: boolean) {
 		this.resolvedKeybinding = resolvedKeybinding;
-
-		let dispatchParts: string[] = [];
-
-		if (resolvedKeybinding) {
-			// normal keybinding
-			dispatchParts = removeElementsAfterNulls(resolvedKeybinding.getDispatchParts());
-
-			// modifier only keybinding
-			if (dispatchParts.length === 0) {
-				dispatchParts = removeElementsAfterNulls(resolvedKeybinding.getSingleModifierDispatchParts());
-			}
+		this.keypressParts = resolvedKeybinding ? removeElementsAfterNulls(resolvedKeybinding.getDispatchParts()) : [];
+		if (resolvedKeybinding && this.keypressParts.length === 0) {
+			// handle possible single modifier chord keybindings
+			this.keypressParts = removeElementsAfterNulls(resolvedKeybinding.getSingleModifierDispatchParts());
 		}
-
-		this.keypressParts = dispatchParts;
 		this.bubble = (command ? command.charCodeAt(0) === CharCode.Caret : false);
 		this.command = this.bubble ? command!.substr(1) : command;
 		this.commandArgs = commandArgs;

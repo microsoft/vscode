@@ -65,31 +65,7 @@ export class NativeResolvedKeybinding extends BaseResolvedKeybinding<ScanCodeBin
 	}
 
 	protected _getDispatchPart(keybinding: ScanCodeBinding): string | null {
-		if (keybinding.isModifierKey()) {
-			return null;
-		}
-
-		const codeDispatch = this._mapper.getDispatchString(keybinding);
-		if (codeDispatch === null) {
-			return null;
-		}
-
-		let result = '';
-		if (keybinding.ctrlKey) {
-			result += 'ctrl+';
-		}
-		if (keybinding.shiftKey) {
-			result += 'shift+';
-		}
-		if (keybinding.altKey) {
-			result += 'alt+';
-		}
-		if (keybinding.metaKey) {
-			result += 'meta+';
-		}
-		result += codeDispatch;
-
-		return result;
+		return this._mapper.getDispatchStrForScanCodeBinding(keybinding);
 	}
 
 	protected _getSingleModifierDispatchPart(keybinding: ScanCodeBinding): string | null {
@@ -447,7 +423,7 @@ export class MacLinuxKeyboardMapper implements IKeyboardMapper {
 				_registerAllCombos(0, 0, 0, scanCode, keyCode);
 				this._scanCodeToLabel[scanCode] = KeyCodeUtils.toString(keyCode);
 
-				if (keyCode === KeyCode.Unknown || keyCode === KeyCode.Meta) {
+				if (keyCode === KeyCode.Unknown || keyCode === KeyCode.Ctrl || keyCode === KeyCode.Meta || keyCode === KeyCode.Alt || keyCode === KeyCode.Shift) {
 					this._scanCodeToDispatch[scanCode] = null; // cannot dispatch on this ScanCode
 				} else {
 					this._scanCodeToDispatch[scanCode] = `[${ScanCodeUtils.toString(scanCode)}]`;
@@ -843,13 +819,28 @@ export class MacLinuxKeyboardMapper implements IKeyboardMapper {
 		return this._scanCodeToLabel[binding.scanCode];
 	}
 
-	public getDispatchString(keypress: ScanCodeBinding): string | null {
-
-		const keycodeString = this._scanCodeToDispatch[keypress.scanCode];
-		if (!keycodeString) {
+	public getDispatchStrForScanCodeBinding(keypress: ScanCodeBinding): string | null {
+		const codeDispatch = this._scanCodeToDispatch[keypress.scanCode];
+		if (!codeDispatch) {
 			return null;
 		}
-		return keycodeString;
+		let result = '';
+
+		if (keypress.ctrlKey) {
+			result += 'ctrl+';
+		}
+		if (keypress.shiftKey) {
+			result += 'shift+';
+		}
+		if (keypress.altKey) {
+			result += 'alt+';
+		}
+		if (keypress.metaKey) {
+			result += 'meta+';
+		}
+		result += codeDispatch;
+
+		return result;
 	}
 
 	public getUserSettingsLabelForScanCodeBinding(binding: ScanCodeBinding | null): string | null {

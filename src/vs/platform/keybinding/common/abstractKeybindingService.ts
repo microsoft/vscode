@@ -181,21 +181,10 @@ export abstract class AbstractKeybindingService extends Disposable implements IK
 
 	protected _doublePressDispatch(e: IKeyboardEvent, target: IContextKeyServiceTarget): boolean {
 		const keybinding = this.resolveKeyboardEvent(e);
-		const parts = keybinding.getParts();
-
-		// for UI responsiveness we disable other keys
-		// this line is very important, else "backspace" key spamming will lag
-		if (
-			parts.length > 1
-			|| parts.length === 0
-			|| parts[0].isCtrlOrShiftOrAlt() === false
-		) {
-			this._doublePressStop();
+		const [singlekeyDispatchString,] = keybinding.getSingleModifierDispatchParts();
+		if (!singlekeyDispatchString) {
 			return false;
 		}
-
-		// searches a keymap array to get the dispatch string
-		const [singlekeyDispatchString,] = keybinding.getSingleModifierDispatchParts();
 
 		// we have a valid singlekeyDispatchString, store it for next keypress
 		if (this._currentDoublePressKey === null && singlekeyDispatchString !== null) {
