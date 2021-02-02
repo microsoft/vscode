@@ -442,6 +442,8 @@ taskDescriptionProperties.taskName.deprecationMessage = nls.localize(
 	'JsonSchema.tasks.taskName.deprecated',
 	'The task\'s name property is deprecated. Use the label property instead.'
 );
+// Clone the taskDescription for process task before setting a default to prevent two defaults #115281
+const processTask = Objects.deepClone(taskDescription);
 taskDescription.default = {
 	label: 'My Task',
 	type: 'shell',
@@ -470,7 +472,6 @@ taskDescriptionProperties.isTestCommand.deprecationMessage = nls.localize(
 );
 
 // Process tasks are almost identical schema-wise to shell tasks, but they are required to have a command
-const processTask = Objects.deepClone(taskDescription);
 processTask.properties!.type = {
 	type: 'string',
 	enum: ['process'],
