@@ -35,8 +35,8 @@ export abstract class AbstractKeybindingService extends Disposable implements IK
 	private _currentChord: CurrentChord | null;
 	private _currentChordChecker: IntervalTimer;
 	private _currentChordStatusMessage: IDisposable | null;
-	private _currentDoublePressKey: null | string;
-	private _currentDoublePressKeyClearTimeout: TimeoutTimer;
+	private _currentSingleModifier: null | string;
+	private _currentSingleModifierClearTimeout: TimeoutTimer;
 
 	protected _logging: boolean;
 
@@ -56,8 +56,8 @@ export abstract class AbstractKeybindingService extends Disposable implements IK
 		this._currentChord = null;
 		this._currentChordChecker = new IntervalTimer();
 		this._currentChordStatusMessage = null;
-		this._currentDoublePressKey = null;
-		this._currentDoublePressKeyClearTimeout = new TimeoutTimer();
+		this._currentSingleModifier = null;
+		this._currentSingleModifierClearTimeout = new TimeoutTimer();
 		this._logging = false;
 	}
 
@@ -171,47 +171,43 @@ export abstract class AbstractKeybindingService extends Disposable implements IK
 	public dispatchByUserSettingsLabel(userSettingsLabel: string, target: IContextKeyServiceTarget): void {
 		const keybindings = this.resolveUserBinding(userSettingsLabel);
 		if (keybindings.length >= 1) {
-			this._doDispatch(keybindings[0], target);
+			this._doDispatch(keybindings[0], target, /*isSingleModiferChord*/false);
 		}
 	}
 
 	protected _dispatch(e: IKeyboardEvent, target: IContextKeyServiceTarget): boolean {
-		return this._doDispatch(this.resolveKeyboardEvent(e), target);
+		return this._doDispatch(this.resolveKeyboardEvent(e), target, /*isSingleModiferChord*/false);
 	}
 
-	protected _doublePressDispatch(e: IKeyboardEvent, target: IContextKeyServiceTarget): boolean {
+	protected _singleModifierDispatch(e: IKeyboardEvent, target: IContextKeyServiceTarget): boolean {
 		const keybinding = this.resolveKeyboardEvent(e);
-		const [singlekeyDispatchString,] = keybinding.getSingleModifierDispatchParts();
-		if (!singlekeyDispatchString) {
-			return false;
-		}
+		const [singleModifier,] = keybinding.getSingleModifierDispatchParts();
 
-		// we have a valid singlekeyDispatchString, store it for next keypress
-		if (this._currentDoublePressKey === null && singlekeyDispatchString !== null) {
-			this._doublePressStop();
-			// stores the pressed key, and then clears it in 300ms
-			this._currentDoublePressKey = singlekeyDispatchString;
-			this._currentDoublePressKeyClearTimeout.cancelAndSet(() => {
-				this._currentDoublePressKey = null;
+		if (singleModifier !== null && this._currentSingleModifier === null) {
+			// we have a valid `singleModifier`, store it for the next keyup, but clear it in 300ms
+			this._log(`+ Storing single modifier for possible chord ${singleModifier}.`);
+			this._currentSingleModifier = singleModifier;
+			this._currentSingleModifierClearTimeout.cancelAndSet(() => {
+				this._log(`+ Clearing single modifier due to 300ms elapsed.`);
+				this._currentSingleModifier = null;
 			}, 300);
 			return false;
 		}
 
-		if (this._currentDoublePressKey !== null && singlekeyDispatchString === this._currentDoublePressKey) {
-			this._doublePressStop();
-			return this._doDispatch(keybinding, target, true);
+		if (singleModifier !== null && singleModifier === this._currentSingleModifier) {
+			// bingo!
+			this._log(`/ Dispatching single modifier chord ${singleModifier} ${singleModifier}`);
+			this._currentSingleModifierClearTimeout.cancel();
+			this._currentSingleModifier = null;
+			return this._doDispatch(keybinding, target, /*isSingleModiferChord*/true);
 		}
 
-		this._doublePressStop();
+		this._currentSingleModifierClearTimeout.cancel();
+		this._currentSingleModifier = null;
 		return false;
 	}
 
-	private _doublePressStop() {
-		this._currentDoublePressKeyClearTimeout.cancel();
-		this._currentDoublePressKey = null;
-	}
-
-	private _doDispatch(keybinding: ResolvedKeybinding, target: IContextKeyServiceTarget, isDoublePress = false): boolean {
+	private _doDispatch(keybinding: ResolvedKeybinding, target: IContextKeyServiceTarget, isSingleModiferChord = false): boolean {
 		let shouldPreventDefault = false;
 
 		if (keybinding.isChord()) {
@@ -219,20 +215,20 @@ export abstract class AbstractKeybindingService extends Disposable implements IK
 			return false;
 		}
 
-		let firstPart = null; // the first keybinding i.e. Ctrl+K
-		let currentChord = null;// the "second" keybinding i.e. Ctrl+K "Ctrl+D"
+		let firstPart: string | null = null; // the first keybinding i.e. Ctrl+K
+		let currentChord: string | null = null;// the "second" keybinding i.e. Ctrl+K "Ctrl+D"
 
-		if (!isDoublePress) {
-			[firstPart,] = keybinding.getDispatchParts();
-			currentChord = this._currentChord ? this._currentChord.keypress : null;
-		} else {
+		if (isSingleModiferChord) {
 			const [dispatchKeyname,] = keybinding.getSingleModifierDispatchParts();
 			firstPart = dispatchKeyname;
 			currentChord = dispatchKeyname;
+		} else {
+			[firstPart,] = keybinding.getDispatchParts();
+			currentChord = this._currentChord ? this._currentChord.keypress : null;
 		}
 
 		if (firstPart === null) {
-			this._log(`\\ Keyboard event cannot be dispatched.`);
+			this._log(`\\ Keyboard event cannot be dispatched in keydown phase.`);
 			// cannot be dispatched, probably only modifier keys
 			return shouldPreventDefault;
 		}

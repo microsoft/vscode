@@ -268,7 +268,7 @@ export class WorkbenchKeybindingService extends AbstractKeybindingService {
 		this._register(dom.addDisposableListener(window, dom.EventType.KEY_UP, (e: KeyboardEvent) => {
 			this.isComposingGlobalContextKey.set(e.isComposing);
 			const keyEvent = new StandardKeyboardEvent(e);
-			const shouldPreventDefault = this._doublePressDispatch(keyEvent, keyEvent.target);
+			const shouldPreventDefault = this._singleModifierDispatch(keyEvent, keyEvent.target);
 			if (shouldPreventDefault) {
 				keyEvent.preventDefault();
 			}
