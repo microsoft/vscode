@@ -298,10 +298,18 @@ export class CursorMoveCommands {
 				}
 			}
 			case CursorMove.Direction.PrevBlankLine: {
-				return this._moveToPreviousBlankViewLine(viewModel, cursors, inSelectionMode);
+				if (unit === CursorMove.Unit.WrappedLine) {
+					return cursors.map(cursor => CursorState.fromViewState(MoveOperations.moveToPrevBlankLine(viewModel.cursorConfig, viewModel, cursor.viewState, inSelectionMode)));
+				} else {
+					return cursors.map(cursor => CursorState.fromModelState(MoveOperations.moveToPrevBlankLine(viewModel.cursorConfig, viewModel.model, cursor.modelState, inSelectionMode)));
+				}
 			}
 			case CursorMove.Direction.NextBlankLine: {
-				return this._moveToNextBlankViewLine(viewModel, cursors, inSelectionMode);
+				if (unit === CursorMove.Unit.WrappedLine) {
+					return cursors.map(cursor => CursorState.fromViewState(MoveOperations.moveToNextBlankLine(viewModel.cursorConfig, viewModel, cursor.viewState, inSelectionMode)));
+				} else {
+					return cursors.map(cursor => CursorState.fromModelState(MoveOperations.moveToNextBlankLine(viewModel.cursorConfig, viewModel.model, cursor.modelState, inSelectionMode)));
+				}
 			}
 			case CursorMove.Direction.WrappedLineStart: {
 				// Move to the beginning of the current view line
@@ -516,80 +524,6 @@ export class CursorMoveCommands {
 		for (let i = 0, len = cursors.length; i < len; i++) {
 			const cursor = cursors[i];
 			result[i] = CursorState.fromModelState(MoveOperations.moveUp(viewModel.cursorConfig, viewModel.model, cursor.modelState, inSelectionMode, linesCount));
-		}
-		return result;
-	}
-
-	private static _moveToPreviousBlankViewLine(viewModel: IViewModel, cursors: CursorState[], inSelectionMode: boolean): PartialCursorState[] {
-		let result: PartialCursorState[] = [];
-		outer:
-		for (let i = 0, len = cursors.length; i < len; i++) {
-			const cursor = cursors[i];
-			let viewLineNumber = cursor.viewState.position.lineNumber;
-
-			// If our current line is empty, skip to the next non-empty line
-			while (!viewModel.getLineContent(viewLineNumber).trim()) {
-				// If we on the first line, go to the first column
-				if (viewLineNumber === 0) {
-					result[i] = this._moveToViewPosition(viewModel, cursor, inSelectionMode, viewLineNumber, 0);
-
-					continue outer;
-				}
-
-				viewLineNumber--;
-			}
-
-			// Now skip to the next empty line
-			do {
-				// If we on the first line, go to the first column
-				if (viewLineNumber === 0) {
-					result[i] = this._moveToViewPosition(viewModel, cursor, inSelectionMode, viewLineNumber, 0);
-
-					continue outer;
-				}
-
-				viewLineNumber--;
-			} while (viewModel.getLineContent(viewLineNumber).trim());
-
-			result[i] = CursorState.fromViewState(cursor.viewState.move(inSelectionMode, viewLineNumber, 0, 0));
-		}
-		return result;
-	}
-
-	private static _moveToNextBlankViewLine(viewModel: IViewModel, cursors: CursorState[], inSelectionMode: boolean): PartialCursorState[] {
-		let result: PartialCursorState[] = [];
-		const lastLineNumber = viewModel.getLineCount();
-
-		outer:
-		for (let i = 0, len = cursors.length; i < len; i++) {
-			const cursor = cursors[i];
-			let viewLineNumber = cursor.viewState.position.lineNumber;
-
-			// If our current line is empty then skip to the next non-empty line
-			while (!viewModel.getLineContent(viewLineNumber).trim()) {
-				// If we on the last line, go to the first column
-				if (viewLineNumber === lastLineNumber) {
-					result[i] = this._moveToViewPosition(viewModel, cursor, inSelectionMode, viewLineNumber, 0);
-
-					continue outer;
-				}
-
-				viewLineNumber++;
-			}
-
-			// Now skip to the next empty line
-			do {
-				// If we on the last line, go to the first column
-				if (viewLineNumber === lastLineNumber) {
-					result[i] = this._moveToViewPosition(viewModel, cursor, inSelectionMode, viewLineNumber, 0);
-
-					continue outer;
-				}
-
-				viewLineNumber++;
-			} while (viewModel.getLineContent(viewLineNumber).trim());
-
-			result[i] = CursorState.fromViewState(cursor.viewState.move(inSelectionMode, viewLineNumber, 0, 0));
 		}
 		return result;
 	}

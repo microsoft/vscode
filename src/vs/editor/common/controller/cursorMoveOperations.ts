@@ -229,6 +229,59 @@ export class MoveOperations {
 		);
 	}
 
+	public static moveToPrevBlankLine(config: CursorConfiguration, model: ICursorSimpleModel, cursor: SingleCursorState, inSelectionMode: boolean): SingleCursorState {
+		let lineNumber = cursor.position.lineNumber;
+
+		// If our current line is empty, skip to the next non-empty line
+		while (!model.getLineContent(lineNumber).trim()) {
+			// If we on the first line, go to the first column
+			if (lineNumber === 0) {
+				return cursor.move(inSelectionMode, lineNumber, 0, 0);
+			}
+
+			lineNumber--;
+		}
+
+		// Now skip to the next empty line
+		do {
+			// If we on the first line, go to the first column
+			if (lineNumber === 0) {
+				return cursor.move(inSelectionMode, lineNumber, 0, 0);
+			}
+
+			lineNumber--;
+		} while (model.getLineContent(lineNumber).trim());
+
+		return cursor.move(inSelectionMode, lineNumber, 0, 0);
+	}
+
+	public static moveToNextBlankLine(config: CursorConfiguration, model: ICursorSimpleModel, cursor: SingleCursorState, inSelectionMode: boolean): SingleCursorState {
+		const lastLineNumber = model.getLineCount();
+		let viewLineNumber = cursor.position.lineNumber;
+
+		// If our current line is empty then skip to the next non-empty line
+		while (!model.getLineContent(viewLineNumber).trim()) {
+			// If we on the last line, go to the first column
+			if (viewLineNumber === lastLineNumber) {
+				return cursor.move(inSelectionMode, viewLineNumber, 0, 0);
+			}
+
+			viewLineNumber++;
+		}
+
+		// Now skip to the next empty line
+		do {
+			// If we on the last line, go to the first column
+			if (viewLineNumber === lastLineNumber) {
+				return cursor.move(inSelectionMode, viewLineNumber, 0, 0);
+			}
+
+			viewLineNumber++;
+		} while (model.getLineContent(viewLineNumber).trim());
+
+		return cursor.move(inSelectionMode, viewLineNumber, 0, 0);
+	}
+
 	public static moveToBeginningOfLine(config: CursorConfiguration, model: ICursorSimpleModel, cursor: SingleCursorState, inSelectionMode: boolean): SingleCursorState {
 		let lineNumber = cursor.position.lineNumber;
 		let minColumn = model.getLineMinColumn(lineNumber);
