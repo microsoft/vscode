@@ -84,6 +84,8 @@ parameters:
 variables:
   - name: ENABLE_TERRAPIN
     value: ${{ eq(parameters.ENABLE_TERRAPIN, true) }}
+  - name: VSCODE_QUALITY
+    value: ${{ parameters.VSCODE_QUALITY }}
   - name: VSCODE_BUILD_STAGE_WINDOWS
     value: ${{ or(eq(parameters.VSCODE_BUILD_WIN32, true), eq(parameters.VSCODE_BUILD_WIN32_32BIT, true), eq(parameters.VSCODE_BUILD_WIN32_ARM64, true)) }}
   - name: VSCODE_BUILD_STAGE_LINUX
@@ -98,8 +100,6 @@ variables:
     value: ${{ eq(variables['Build.Reason'], 'Schedule') }}
   - name: VSCODE_STEP_ON_IT
     value: ${{ eq(parameters.VSCODE_STEP_ON_IT, true) }}
-  - name: VSCODE_QUALITY
-    value: ${{ parameters.VSCODE_QUALITY }}
   - name: VSCODE_BUILD_MACOS_UNIVERSAL
     value: ${{ and(eq(variables['VSCODE_PUBLISH'], true), eq(parameters.VSCODE_BUILD_MACOS, true), eq(parameters.VSCODE_BUILD_MACOS_ARM64, true), eq(parameters.VSCODE_BUILD_MACOS_UNIVERSAL, true)) }}
 
