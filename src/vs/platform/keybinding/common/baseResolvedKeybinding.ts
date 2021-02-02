@@ -69,7 +69,6 @@ export abstract class BaseResolvedKeybinding<T extends Modifiers> extends Resolv
 		return this._parts.map((keybinding) => this._getDispatchPart(keybinding));
 	}
 
-	// for double press, same key keybindings, we need get the dispatch string
 	public getSingleModifierDispatchParts(): (string | null)[] {
 		return this._parts.map((keybinding) => this._getSingleModifierDispatchPart(keybinding));
 	}

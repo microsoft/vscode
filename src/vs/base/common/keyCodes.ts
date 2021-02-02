@@ -604,9 +604,8 @@ export abstract class ResolvedKeybinding {
 	public abstract getDispatchParts(): (string | null)[];
 
 	/**
-	 * Returns the parts that should be used for dispatching modfier keys
-	 * Does not return null for parts consisting of only modifier keys
-	 * Useful for keybinding time sensitive double presses of a modifier key
+	 * Returns the parts that should be used for dispatching single modifier keys
+	 * Returns null for parts that contain more than one modifier or a regular key.
 	 * @example keybinding "Shift" -> "shift"
 	 * @example keybinding ("D" with shift == true") -> null
 	 */
