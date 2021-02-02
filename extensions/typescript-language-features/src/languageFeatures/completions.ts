@@ -740,7 +740,7 @@ class TypeScriptCompletionItemProvider implements vscode.CompletionItemProvider<
 			if ((context.triggerCharacter === '"' || context.triggerCharacter === '\'')) {
 				// make sure we are in something that looks like the start of an import
 				const pre = line.text.slice(0, position.character);
-				if (!pre.match(/\b(from|import)\s*["']$/) && !pre.match(/\b(import|require)\(['"]$/)) {
+				if (!/\b(from|import)\s*["']$/.test(pre) && !/\b(import|require)\(['"]$/.test(pre)) {
 					return false;
 				}
 			}
@@ -748,7 +748,7 @@ class TypeScriptCompletionItemProvider implements vscode.CompletionItemProvider<
 			if (context.triggerCharacter === '/') {
 				// make sure we are in something that looks like an import path
 				const pre = line.text.slice(0, position.character);
-				if (!pre.match(/\b(from|import)\s*["'][^'"]*$/) && !pre.match(/\b(import|require)\(['"][^'"]*$/)) {
+				if (!/\b(from|import)\s*["'][^'"]*$/.test(pre) && !/\b(import|require)\(['"][^'"]*$/.test(pre)) {
 					return false;
 				}
 			}
@@ -756,7 +756,7 @@ class TypeScriptCompletionItemProvider implements vscode.CompletionItemProvider<
 			if (context.triggerCharacter === '@') {
 				// make sure we are in something that looks like the start of a jsdoc comment
 				const pre = line.text.slice(0, position.character);
-				if (!pre.match(/^\s*\*[ ]?@/) && !pre.match(/\/\*\*+[ ]?@/)) {
+				if (!/^\s*\*[ ]?@/.test(pre) && !/\/\*\*+[ ]?@/.test(pre)) {
 					return false;
 				}
 			}
