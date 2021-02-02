@@ -63,7 +63,7 @@ function withNodeDefaults(/**@type WebpackConfig*/extConfig) {
 			// all output goes into `dist`.
 			// packaging depends on that and this must always be like it
 			filename: '[name].js',
-			path: path.join(extConfig.context, 'dist'),
+			path: path.join(extConfig.context, 'out'),
 			libraryTarget: 'commonjs',
 		},
 		// yes, really source maps
