@@ -26,6 +26,7 @@ Object.defineProperty(exports, "__esModule", { value: true });
 exports.getExtensions = void 0;
 const fs_1 = require("fs");
 const path = require("path");
+const util_1 = require("util");
 const cp = require("child_process");
 const commander_1 = require("commander");
 const storage_blob_1 = require("@azure/storage-blob");
@@ -34,8 +35,12 @@ const plimit = require("p-limit");
 const colors = require("colors");
 const byline = require("byline");
 const stream_1 = require("stream");
+const rimraf = require("rimraf");
+const zip = require('gulp-vinyl-zip');
+const vfs = require("vinyl-fs");
 const rootPath = path.resolve(path.join(__dirname, '..'));
 const vsixsPath = path.join(rootPath, '.build', 'vsix');
+const extensionsPath = path.join(rootPath, '.build', 'extensions');
 var ExtensionType;
 (function (ExtensionType) {
     ExtensionType["Grammar"] = "grammar";
@@ -95,7 +100,8 @@ async function getExtension(extensionPath) {
     return {
         name,
         version,
-        path: extensionPath,
+        sourcePath: extensionPath,
+        installPath: path.join(extensionsPath, name),
         type,
         vsixPath: path.join(vsixsPath, vsixName)
     };
@@ -131,7 +137,7 @@ async function each([cmd, ...args], opts) {
                 continue;
             }
             console.log(`👉 ${extension.name}`);
-            await spawn(cmd, args, { cwd: extension.path });
+            await spawn(cmd, args, { cwd: extension.sourcePath });
         }
     }
     catch (e_1_1) { e_1 = { error: e_1_1 }; }
@@ -142,9 +148,30 @@ async function each([cmd, ...args], opts) {
         finally { if (e_1) throw e_1.error; }
     }
 }
+async function extractExtension(extension) {
+    await util_1.promisify(rimraf)(extension.installPath);
+    await new Promise((c, e) => {
+        zip.src(extension.vsixPath)
+            .pipe(new stream_1.Transform({
+            objectMode: true,
+            transform(file, _, cb) {
+                if (/^extension\//.test(file.relative)) {
+                    file.base += '/extension';
+                    cb(null, file);
+                }
+                else {
+                    cb();
+                }
+            }
+        }))
+            .pipe(vfs.dest(extension.installPath))
+            .on('error', e)
+            .on('end', () => c());
+    });
+}
 async function runExtensionCI(extension, service) {
     const vsixName = `${extension.name}-${extension.version}.vsix`;
-    const commit = await exec(`git log -1 --format="%H" -- ${extension.path}`, { trim: true });
+    const commit = await exec(`git log -1 --format="%H" -- ${extension.sourcePath}`, { trim: true });
     const container = service.getContainerClient('extensions');
     const blobName = `${commit}/${vsixName}`;
     const blob = container.getBlobClient(blobName);
@@ -152,24 +179,25 @@ async function runExtensionCI(extension, service) {
     try {
         await blob.downloadToFile(extension.vsixPath);
         console.log(`${prefix} Downloaded from cache ${colors.grey(`(${blobName})`)}`);
-        return;
     }
     catch (err) {
         if (err.statusCode !== 404) {
             throw err;
         }
+        console.log(`${prefix} Cache miss ${colors.grey(`(${blobName})`)}`);
+        console.log(`${prefix} Building...`);
+        await spawn(`yarn install --no-progress`, { prefix, shell: true, cwd: extension.sourcePath });
+        await spawn(`vsce package --yarn -o ${vsixsPath}`, { prefix, shell: true, cwd: extension.sourcePath });
+        if (service.credential instanceof storage_blob_1.AnonymousCredential) {
+            console.log(`${prefix} Skiping publish VSIX to cache (anonymous access only)`);
+        }
+        else {
+            const blockBlob = await blob.getBlockBlobClient();
+            await blockBlob.uploadFile(extension.vsixPath);
+            console.log(`${prefix} Successfully uploaded VSIX to cache`);
+        }
     }
-    console.log(`${prefix} Cache miss ${colors.grey(`(${blobName})`)}`);
-    console.log(`${prefix} Building...`);
-    await spawn(`yarn install --no-progress`, { prefix, shell: true, cwd: extension.path });
-    await spawn(`vsce package --yarn -o ${vsixsPath}`, { prefix, shell: true, cwd: extension.path });
-    if (service.credential instanceof storage_blob_1.AnonymousCredential) {
-        console.log(`${prefix} Skiping publish VSIX to cache (anonymous access only)`);
-        return;
-    }
-    const blockBlob = await blob.getBlockBlobClient();
-    await blockBlob.uploadFile(extension.vsixPath);
-    console.log(`${prefix} Successfully uploaded VSIX to cache`);
+    await extractExtension(extension);
 }
 async function ci() {
     var e_2, _a;

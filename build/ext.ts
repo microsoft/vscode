@@ -5,6 +5,7 @@
 
 import { promises as fs } from 'fs';
 import * as path from 'path';
+import { promisify } from 'util';
 import * as cp from 'child_process';
 import { program } from 'commander';
 import { AnonymousCredential, BlobServiceClient, StorageSharedKeyCredential } from '@azure/storage-blob';
@@ -13,9 +14,14 @@ import * as plimit from 'p-limit';
 import * as colors from 'colors';
 import * as byline from 'byline';
 import { Transform, TransformCallback } from 'stream';
+import * as rimraf from 'rimraf';
+const zip = require('gulp-vinyl-zip');
+import * as vfs from 'vinyl-fs';
+import * as File from 'vinyl';
 
 const rootPath = path.resolve(path.join(__dirname, '..'));
 const vsixsPath = path.join(rootPath, '.build', 'vsix');
+const extensionsPath = path.join(rootPath, '.build', 'extensions');
 
 const enum ExtensionType {
 	Grammar = 'grammar',
@@ -26,7 +32,8 @@ const enum ExtensionType {
 interface IExtension {
 	readonly name: string;
 	readonly version: string;
-	readonly path: string;
+	readonly sourcePath: string;
+	readonly installPath: string;
 	readonly type: ExtensionType;
 	readonly vsixPath: string;
 }
@@ -106,7 +113,8 @@ async function getExtension(extensionPath: string): Promise<IExtension> {
 	return {
 		name,
 		version,
-		path: extensionPath,
+		sourcePath: extensionPath,
+		installPath: path.join(extensionsPath, name),
 		type,
 		vsixPath: path.join(vsixsPath, vsixName)
 	};
@@ -142,13 +150,34 @@ async function each([cmd, ...args]: string[], opts: { type?: string }) {
 		}
 
 		console.log(`👉 ${extension.name}`);
-		await spawn(cmd, args, { cwd: extension.path });
+		await spawn(cmd, args, { cwd: extension.sourcePath });
 	}
+}
+
+async function extractExtension(extension: IExtension): Promise<void> {
+	await promisify(rimraf)(extension.installPath);
+	await new Promise<void>((c, e) => {
+		zip.src(extension.vsixPath)
+			.pipe(new Transform({
+				objectMode: true,
+				transform(file: File, _, cb) {
+					if (/^extension\//.test(file.relative)) {
+						file.base += '/extension';
+						cb(null, file);
+					} else {
+						cb();
+					}
+				}
+			}))
+			.pipe(vfs.dest(extension.installPath))
+			.on('error', e)
+			.on('end', () => c());
+	});
 }
 
 async function runExtensionCI(extension: IExtension, service: BlobServiceClient): Promise<void> {
 	const vsixName = `${extension.name}-${extension.version}.vsix`;
-	const commit = await exec(`git log -1 --format="%H" -- ${extension.path}`, { trim: true });
+	const commit = await exec(`git log -1 --format="%H" -- ${extension.sourcePath}`, { trim: true });
 	const container = service.getContainerClient('extensions');
 	const blobName = `${commit}/${vsixName}`;
 	const blob = container.getBlobClient(blobName);
@@ -157,26 +186,26 @@ async function runExtensionCI(extension: IExtension, service: BlobServiceClient)
 	try {
 		await blob.downloadToFile(extension.vsixPath);
 		console.log(`${prefix} Downloaded from cache ${colors.grey(`(${blobName})`)}`);
-		return;
 	} catch (err) {
 		if (err.statusCode !== 404) {
 			throw err;
 		}
+
+		console.log(`${prefix} Cache miss ${colors.grey(`(${blobName})`)}`);
+		console.log(`${prefix} Building...`);
+		await spawn(`yarn install --no-progress`, { prefix, shell: true, cwd: extension.sourcePath });
+		await spawn(`vsce package --yarn -o ${vsixsPath}`, { prefix, shell: true, cwd: extension.sourcePath });
+
+		if (service.credential instanceof AnonymousCredential) {
+			console.log(`${prefix} Skiping publish VSIX to cache (anonymous access only)`);
+		} else {
+			const blockBlob = await blob.getBlockBlobClient();
+			await blockBlob.uploadFile(extension.vsixPath);
+			console.log(`${prefix} Successfully uploaded VSIX to cache`);
+		}
 	}
 
-	console.log(`${prefix} Cache miss ${colors.grey(`(${blobName})`)}`);
-	console.log(`${prefix} Building...`);
-	await spawn(`yarn install --no-progress`, { prefix, shell: true, cwd: extension.path });
-	await spawn(`vsce package --yarn -o ${vsixsPath}`, { prefix, shell: true, cwd: extension.path });
-
-	if (service.credential instanceof AnonymousCredential) {
-		console.log(`${prefix} Skiping publish VSIX to cache (anonymous access only)`);
-		return;
-	}
-
-	const blockBlob = await blob.getBlockBlobClient();
-	await blockBlob.uploadFile(extension.vsixPath);
-	console.log(`${prefix} Successfully uploaded VSIX to cache`);
+	await extractExtension(extension);
 }
 
 async function ci(): Promise<void> {
