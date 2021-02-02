@@ -143,7 +143,8 @@ export class ViewsService extends Disposable implements IViewsService {
 
 		// Register Action to Open View Container
 		if (viewContainer.commandActionDescriptor !== false) {
-			const { id, keybindings, mnemonicTitle, order } = viewContainer.commandActionDescriptor ?? { id: viewContainer.id };
+			let { id, title, mnemonicTitle, keybindings, order } = viewContainer.commandActionDescriptor ?? { id: viewContainer.id };
+			title = title ?? viewContainer.title;
 			const that = this;
 			this._register(registerAction2(class OpenViewContainerAction extends Action2 {
 				constructor() {
@@ -152,9 +153,9 @@ export class ViewsService extends Disposable implements IViewsService {
 						get title(): ICommandActionTitle {
 							const viewContainerLocation = that.viewDescriptorService.getViewContainerLocation(viewContainer);
 							if (viewContainerLocation === ViewContainerLocation.Sidebar) {
-								return { value: localize('show view', "Show {0}", viewContainer.title), original: `Show ${viewContainer.title}` };
+								return { value: localize('show view', "Show {0}", title), original: `Show ${title}` };
 							} else {
-								return { value: localize('toggle view', "Toggle {0}", viewContainer.title), original: `Toggle ${viewContainer.title}` };
+								return { value: localize('toggle view', "Toggle {0}", title), original: `Toggle ${title}` };
 							}
 						},
 						category: CATEGORIES.View.value,
@@ -220,6 +221,7 @@ export class ViewsService extends Disposable implements IViewsService {
 
 			// Register Action to Open View
 			if (viewDescriptor.commandActionDescriptor) {
+				const title = viewDescriptor.commandActionDescriptor.title ?? viewDescriptor.name;
 				const commandId = viewDescriptor.commandActionDescriptor.id;
 				const that = this;
 				disposables.add(registerAction2(class OpenViewAction extends Action2 {
@@ -229,9 +231,9 @@ export class ViewsService extends Disposable implements IViewsService {
 							get title(): ICommandActionTitle {
 								const viewContainerLocation = that.viewDescriptorService.getViewLocationById(viewDescriptor.id);
 								if (viewContainerLocation === ViewContainerLocation.Sidebar) {
-									return { value: localize('show view', "Show {0}", viewDescriptor.name), original: `Show ${viewDescriptor.name}` };
+									return { value: localize('show view', "Show {0}", title), original: `Show ${title}` };
 								} else {
-									return { value: localize('toggle view', "Toggle {0}", viewDescriptor.name), original: `Toggle ${viewDescriptor.name}` };
+									return { value: localize('toggle view', "Toggle {0}", title), original: `Toggle ${title}` };
 								}
 							},
 							category: CATEGORIES.View.value,
@@ -260,18 +262,20 @@ export class ViewsService extends Disposable implements IViewsService {
 					}
 				}));
 
-				const defaultViewContainer = this.viewDescriptorService.getDefaultContainerById(viewDescriptor.id);
-				if (defaultViewContainer) {
-					const defaultLocation = this.viewDescriptorService.getDefaultViewContainerLocation(defaultViewContainer);
-					disposables.add(MenuRegistry.appendMenuItem(MenuId.MenubarViewMenu, {
-						command: {
-							id: commandId,
-							title: viewDescriptor.commandActionDescriptor.mnemonicTitle ?? viewDescriptor.name,
-						},
-						group: defaultLocation === ViewContainerLocation.Sidebar ? '3_views' : '4_panels',
-						when: ContextKeyDefinedExpr.create(`${viewDescriptor.id}.active`),
-						order: viewDescriptor.commandActionDescriptor.order ?? Number.MAX_VALUE
-					}));
+				if (viewDescriptor.commandActionDescriptor.mnemonicTitle) {
+					const defaultViewContainer = this.viewDescriptorService.getDefaultContainerById(viewDescriptor.id);
+					if (defaultViewContainer) {
+						const defaultLocation = this.viewDescriptorService.getDefaultViewContainerLocation(defaultViewContainer);
+						disposables.add(MenuRegistry.appendMenuItem(MenuId.MenubarViewMenu, {
+							command: {
+								id: commandId,
+								title: viewDescriptor.commandActionDescriptor.mnemonicTitle,
+							},
+							group: defaultLocation === ViewContainerLocation.Sidebar ? '3_views' : '4_panels',
+							when: ContextKeyDefinedExpr.create(`${viewDescriptor.id}.active`),
+							order: viewDescriptor.commandActionDescriptor.order ?? Number.MAX_VALUE
+						}));
+					}
 				}
 			}
 

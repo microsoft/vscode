@@ -151,6 +151,7 @@ export class ExplorerViewletViewsContribution extends Disposable implements IWor
 			canToggleVisibility: false,
 			commandActionDescriptor: {
 				id: VIEW_CONTAINER.id,
+				title: localize('explore', "Explorer"),
 				mnemonicTitle: localize({ key: 'miViewExplorer', comment: ['&& denotes a mnemonic'] }, "&&Explorer"),
 				keybindings: { primary: KeyMod.CtrlCmd | KeyMod.Shift | KeyCode.KEY_E },
 				order: 0

@@ -50,6 +50,7 @@ export function ViewContainerLocationToString(viewContainerLocation: ViewContain
 
 type CommandActionDescriptor = {
 	readonly id: string;
+	readonly title?: string;
 	readonly mnemonicTitle?: string;
 	readonly order?: number;
 	readonly keybindings?: IKeybindings & { when?: ContextKeyExpression };
