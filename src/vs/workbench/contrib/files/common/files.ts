@@ -87,6 +87,7 @@ export interface IFilesConfiguration extends PlatformIFilesConfiguration, IWorkb
 			badges: boolean;
 		};
 		incrementalNaming: 'simple' | 'smart';
+		onFolderConflict: 'merge' | 'replace';
 	};
 	editor: IEditorOptions;
 }
