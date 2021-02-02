@@ -187,6 +187,7 @@ export class GettingStartedPage extends Disposable {
 							} else {
 								throw Error('Task ' + JSON.stringify(taskToRun) + ' does not have an associated action');
 							}
+							e.stopPropagation();
 							break;
 						}
 						default: {
@@ -213,6 +214,7 @@ export class GettingStartedPage extends Disposable {
 			mediaElement.setAttribute('alt', taskToExpand.media.altText);
 			taskElement.parentElement?.querySelectorAll('.expanded').forEach(node => node.classList.remove('expanded'));
 			taskElement.classList.add('expanded');
+			taskElement.querySelector('button')?.focus();
 		} else {
 			mediaElement.setAttribute('src', '');
 			mediaElement.setAttribute('alt', '');
