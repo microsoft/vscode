@@ -9,7 +9,6 @@ import {
 	CodeLensProvider,
 	Disposable,
 	EventEmitter,
-	ExtensionContext,
 	languages,
 	TextDocument,
 	Uri,
@@ -112,18 +111,3 @@ export class NpmScriptLensProvider implements CodeLensProvider, Disposable {
 		this.subscriptions.forEach(s => s.dispose());
 	}
 }
-
-export const registerNpmScriptLens = (context: ExtensionContext) => {
-	const provider = new NpmScriptLensProvider();
-
-	context.subscriptions.push(provider);
-	context.subscriptions.push(
-		languages.registerCodeLensProvider(
-			{
-				language: 'json',
-				pattern: '**/package.json',
-			},
-			provider,
-		),
-	);
-};
