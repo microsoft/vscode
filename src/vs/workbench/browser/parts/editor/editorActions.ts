@@ -498,7 +498,7 @@ export class RevertAndCloseEditorAction extends Action {
 				await this.editorService.revert({ editor, groupId: group.id }, { soft: true });
 			}
 
-			group.closeEditor(editor);
+			return group.closeEditor(editor);
 		}
 	}
 }
