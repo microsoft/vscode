@@ -482,23 +482,33 @@ export function whenDeleted(path: string): Promise<void> {
 
 export async function move(source: string, target: string): Promise<void> {
 	if (source === target) {
-		return;
+		return;  // simulate node.js behaviour here and do a no-op if paths match
 	}
 
+	// We have been updating `mtime` for move operations since the
+	// beginning for reasons that are no longer quite clear, but changing
+	// this could be risky as well. As such, trying to reason about it:
+	// It is very common as developer to have file watchers enabled that watch
+	// the current workspace for changes. Updating the `mtime` might make it
+	// easier for these watchers to recognize an actual change. Since changing
+	// a source code file also updates the `mtime`, moving a file should do so
+	// as well because conceptually it is a change of a similar category.
 	async function updateMtime(path: string): Promise<void> {
-		const stat = await lstat(path);
-		if (stat.isDirectory() || stat.isSymbolicLink()) {
-			return; // only for files
-		}
-
-		const fd = await promisify(fs.open)(path, 'a');
 		try {
-			await promisify(fs.futimes)(fd, stat.atime, new Date());
-		} catch (error) {
-			//ignore
-		}
+			const stat = await fs.promises.lstat(path);
+			if (stat.isDirectory() || stat.isSymbolicLink()) {
+				return; // only for files
+			}
 
-		return promisify(fs.close)(fd);
+			const fh = await fs.promises.open(path, 'a');
+			try {
+				await fh.utimes(stat.atime, new Date());
+			} finally {
+				await fh.close();
+			}
+		} catch (error) {
+			// Ignore any error
+		}
 	}
 
 	try {
