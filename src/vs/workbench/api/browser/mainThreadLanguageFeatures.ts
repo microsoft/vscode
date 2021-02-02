@@ -21,7 +21,7 @@ import { Selection } from 'vs/editor/common/core/selection';
 import { ExtensionIdentifier } from 'vs/platform/extensions/common/extensions';
 import * as callh from 'vs/workbench/contrib/callHierarchy/common/callHierarchy';
 import { mixin } from 'vs/base/common/objects';
-import { decodeSemanticTokensDto } from 'vs/workbench/api/common/shared/semanticTokensDto';
+import { decodeSemanticTokensDto } from 'vs/editor/common/services/semanticTokensDto';
 
 @extHostNamedCustomer(MainContext.MainThreadLanguageFeatures)
 export class MainThreadLanguageFeatures implements MainThreadLanguageFeaturesShape {
@@ -165,16 +165,15 @@ export class MainThreadLanguageFeatures implements MainThreadLanguageFeaturesSha
 	$registerCodeLensSupport(handle: number, selector: IDocumentFilterDto[], eventHandle: number | undefined): void {
 
 		const provider = <modes.CodeLensProvider>{
-			provideCodeLenses: (model: ITextModel, token: CancellationToken): Promise<modes.CodeLensList | undefined> => {
-				return this._proxy.$provideCodeLenses(handle, model.uri, token).then(listDto => {
-					if (!listDto) {
-						return undefined;
-					}
-					return {
-						lenses: listDto.lenses,
-						dispose: () => listDto.cacheId && this._proxy.$releaseCodeLenses(handle, listDto.cacheId)
-					};
-				});
+			provideCodeLenses: async (model: ITextModel, token: CancellationToken): Promise<modes.CodeLensList | undefined> => {
+				const listDto = await this._proxy.$provideCodeLenses(handle, model.uri, token);
+				if (!listDto) {
+					return undefined;
+				}
+				return {
+					lenses: listDto.lenses,
+					dispose: () => listDto.cacheId && this._proxy.$releaseCodeLenses(handle, listDto.cacheId)
+				};
 			},
 			resolveCodeLens: (_model: ITextModel, codeLens: modes.CodeLens, token: CancellationToken): Promise<modes.CodeLens | undefined> => {
 				return this._proxy.$resolveCodeLens(handle, codeLens, token);
@@ -261,14 +260,12 @@ export class MainThreadLanguageFeatures implements MainThreadLanguageFeaturesSha
 		}));
 	}
 
-	// --- on type rename
+	// --- linked editing
 
-	$registerOnTypeRenameProvider(handle: number, selector: IDocumentFilterDto[], wordPattern?: IRegExpDto): void {
-		const revivedWordPattern = wordPattern ? MainThreadLanguageFeatures._reviveRegExp(wordPattern) : undefined;
-		this._registrations.set(handle, modes.OnTypeRenameProviderRegistry.register(selector, <modes.OnTypeRenameProvider>{
-			wordPattern: revivedWordPattern,
-			provideOnTypeRenameRanges: async (model: ITextModel, position: EditorPosition, token: CancellationToken): Promise<{ ranges: IRange[]; wordPattern?: RegExp; } | undefined> => {
-				const res = await this._proxy.$provideOnTypeRenameRanges(handle, model.uri, position, token);
+	$registerLinkedEditingRangeProvider(handle: number, selector: IDocumentFilterDto[]): void {
+		this._registrations.set(handle, modes.LinkedEditingRangeProviderRegistry.register(selector, <modes.LinkedEditingRangeProvider>{
+			provideLinkedEditingRanges: async (model: ITextModel, position: EditorPosition, token: CancellationToken): Promise<modes.LinkedEditingRanges | undefined> => {
+				const res = await this._proxy.$provideLinkedEditingRanges(handle, model.uri, position, token);
 				if (res) {
 					return {
 						ranges: res.ranges,
@@ -441,26 +438,25 @@ export class MainThreadLanguageFeatures implements MainThreadLanguageFeaturesSha
 		};
 	}
 
-	$registerSuggestSupport(handle: number, selector: IDocumentFilterDto[], triggerCharacters: string[], supportsResolveDetails: boolean, extensionId: ExtensionIdentifier): void {
+	$registerSuggestSupport(handle: number, selector: IDocumentFilterDto[], triggerCharacters: string[], supportsResolveDetails: boolean, displayName: string): void {
 		const provider: modes.CompletionItemProvider = {
 			triggerCharacters,
-			_debugDisplayName: extensionId.value,
-			provideCompletionItems: (model: ITextModel, position: EditorPosition, context: modes.CompletionContext, token: CancellationToken): Promise<modes.CompletionList | undefined> => {
-				return this._proxy.$provideCompletionItems(handle, model.uri, position, context, token).then(result => {
-					if (!result) {
-						return result;
-					}
-
-					return {
-						suggestions: result[ISuggestResultDtoField.completions].map(d => MainThreadLanguageFeatures._inflateSuggestDto(result[ISuggestResultDtoField.defaultRanges], d)),
-						incomplete: result[ISuggestResultDtoField.isIncomplete] || false,
-						dispose: () => {
-							if (typeof result.x === 'number') {
-								this._proxy.$releaseCompletionItems(handle, result.x);
-							}
+			_debugDisplayName: displayName,
+			provideCompletionItems: async (model: ITextModel, position: EditorPosition, context: modes.CompletionContext, token: CancellationToken): Promise<modes.CompletionList | undefined> => {
+				const result = await this._proxy.$provideCompletionItems(handle, model.uri, position, context, token);
+				if (!result) {
+					return result;
+				}
+				return {
+					suggestions: result[ISuggestResultDtoField.completions].map(d => MainThreadLanguageFeatures._inflateSuggestDto(result[ISuggestResultDtoField.defaultRanges], d)),
+					incomplete: result[ISuggestResultDtoField.isIncomplete] || false,
+					duration: result[ISuggestResultDtoField.duration],
+					dispose: () => {
+						if (typeof result.x === 'number') {
+							this._proxy.$releaseCompletionItems(handle, result.x);
 						}
-					};
-				});
+					}
+				};
 			}
 		};
 		if (supportsResolveDetails) {
@@ -499,6 +495,32 @@ export class MainThreadLanguageFeatures implements MainThreadLanguageFeaturesSha
 				};
 			}
 		}));
+	}
+
+	// --- inline hints
+
+	$registerInlineHintsProvider(handle: number, selector: IDocumentFilterDto[], eventHandle: number | undefined): void {
+		const provider = <modes.InlineHintsProvider>{
+			provideInlineHints: async (model: ITextModel, range: EditorRange, token: CancellationToken): Promise<modes.InlineHint[] | undefined> => {
+				const result = await this._proxy.$provideInlineHints(handle, model.uri, range, token);
+				return result?.hints;
+			}
+		};
+
+		if (typeof eventHandle === 'number') {
+			const emitter = new Emitter<void>();
+			this._registrations.set(eventHandle, emitter);
+			provider.onDidChangeInlineHints = emitter.event;
+		}
+
+		this._registrations.set(handle, modes.InlineHintsProviderRegistry.register(selector, provider));
+	}
+
+	$emitInlineHintsEvent(eventHandle: number, event?: any): void {
+		const obj = this._registrations.get(eventHandle);
+		if (obj instanceof Emitter) {
+			obj.fire(event);
+		}
 	}
 
 	// --- links
@@ -571,13 +593,27 @@ export class MainThreadLanguageFeatures implements MainThreadLanguageFeaturesSha
 
 	// --- folding
 
-	$registerFoldingRangeProvider(handle: number, selector: IDocumentFilterDto[]): void {
-		const proxy = this._proxy;
-		this._registrations.set(handle, modes.FoldingRangeProviderRegistry.register(selector, <modes.FoldingRangeProvider>{
+	$registerFoldingRangeProvider(handle: number, selector: IDocumentFilterDto[], eventHandle: number | undefined): void {
+		const provider = <modes.FoldingRangeProvider>{
 			provideFoldingRanges: (model, context, token) => {
-				return proxy.$provideFoldingRanges(handle, model.uri, context, token);
+				return this._proxy.$provideFoldingRanges(handle, model.uri, context, token);
 			}
-		}));
+		};
+
+		if (typeof eventHandle === 'number') {
+			const emitter = new Emitter<modes.FoldingRangeProvider>();
+			this._registrations.set(eventHandle, emitter);
+			provider.onDidChange = emitter.event;
+		}
+
+		this._registrations.set(handle, modes.FoldingRangeProviderRegistry.register(selector, provider));
+	}
+
+	$emitFoldingRangeEvent(eventHandle: number, event?: any): void {
+		const obj = this._registrations.get(eventHandle);
+		if (obj instanceof Emitter) {
+			obj.fire(event);
+		}
 	}
 
 	// -- smart select
@@ -652,7 +688,7 @@ export class MainThreadLanguageFeatures implements MainThreadLanguageFeaturesSha
 		return {
 			beforeText: MainThreadLanguageFeatures._reviveRegExp(onEnterRule.beforeText),
 			afterText: onEnterRule.afterText ? MainThreadLanguageFeatures._reviveRegExp(onEnterRule.afterText) : undefined,
-			oneLineAboveText: onEnterRule.oneLineAboveText ? MainThreadLanguageFeatures._reviveRegExp(onEnterRule.oneLineAboveText) : undefined,
+			previousLineText: onEnterRule.previousLineText ? MainThreadLanguageFeatures._reviveRegExp(onEnterRule.previousLineText) : undefined,
 			action: onEnterRule.action
 		};
 	}
@@ -691,7 +727,7 @@ export class MainThreadLanguageFeatures implements MainThreadLanguageFeaturesSha
 
 		const languageIdentifier = this._modeService.getLanguageIdentifier(languageId);
 		if (languageIdentifier) {
-			this._registrations.set(handle, LanguageConfigurationRegistry.register(languageIdentifier, configuration));
+			this._registrations.set(handle, LanguageConfigurationRegistry.register(languageIdentifier, configuration, 100));
 		}
 	}
 

@@ -103,7 +103,7 @@ suite('CommandService', function () {
 	test('Stop waiting for * extensions to activate when trigger is satisfied #62457', function () {
 
 		let callCounter = 0;
-		const dispoables = new DisposableStore();
+		const disposable = new DisposableStore();
 		let events: string[] = [];
 		let service = new CommandService(new InstantiationService(), new class extends NullExtensionService {
 
@@ -118,7 +118,7 @@ suite('CommandService', function () {
 							let reg = CommandsRegistry.registerCommand(event.substr('onCommand:'.length), () => {
 								callCounter += 1;
 							});
-							dispoables.add(reg);
+							disposable.add(reg);
 							resolve();
 						}, 0);
 					});
@@ -132,7 +132,7 @@ suite('CommandService', function () {
 			assert.equal(callCounter, 1);
 			assert.deepEqual(events.sort(), ['*', 'onCommand:farboo'].sort());
 		}).finally(() => {
-			dispoables.dispose();
+			disposable.dispose();
 		});
 	});
 

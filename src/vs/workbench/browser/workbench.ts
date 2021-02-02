@@ -8,7 +8,7 @@ import 'vs/workbench/browser/style';
 import { localize } from 'vs/nls';
 import { Emitter, setGlobalLeakWarningThreshold } from 'vs/base/common/event';
 import { runWhenIdle } from 'vs/base/common/async';
-import { getZoomLevel, isFirefox, isSafari, isChrome } from 'vs/base/browser/browser';
+import { getZoomLevel, isFirefox, isSafari, isChrome, getPixelRatio } from 'vs/base/browser/browser';
 import { mark } from 'vs/base/common/performance';
 import { onUnexpectedError, setUnexpectedErrorHandler } from 'vs/base/common/errors';
 import { Registry } from 'vs/platform/registry/common/platform';
@@ -17,11 +17,11 @@ import { IWorkbenchContributionsRegistry, Extensions as WorkbenchExtensions } fr
 import { IEditorInputFactoryRegistry, Extensions as EditorExtensions } from 'vs/workbench/common/editor';
 import { getSingletonServiceDescriptors } from 'vs/platform/instantiation/common/extensions';
 import { Position, Parts, IWorkbenchLayoutService, positionToString } from 'vs/workbench/services/layout/browser/layoutService';
-import { IStorageService, WillSaveStateReason, StorageScope } from 'vs/platform/storage/common/storage';
+import { IStorageService, WillSaveStateReason, StorageScope, StorageTarget } from 'vs/platform/storage/common/storage';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { ServiceCollection } from 'vs/platform/instantiation/common/serviceCollection';
-import { LifecyclePhase, ILifecycleService, WillShutdownEvent, BeforeShutdownEvent } from 'vs/platform/lifecycle/common/lifecycle';
+import { LifecyclePhase, ILifecycleService, WillShutdownEvent, BeforeShutdownEvent } from 'vs/workbench/services/lifecycle/common/lifecycle';
 import { INotificationService } from 'vs/platform/notification/common/notification';
 import { NotificationService } from 'vs/workbench/services/notification/common/notificationService';
 import { NotificationsCenter } from 'vs/workbench/browser/parts/notifications/notificationsCenter';
@@ -177,10 +177,17 @@ export class Workbench extends Layout {
 		// Layout Service
 		serviceCollection.set(IWorkbenchLayoutService, this);
 
-		// !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
-		// NOTE: DO NOT ADD ANY OTHER SERVICE INTO THE COLLECTION HERE.
-		// CONTRIBUTE IT VIA WORKBENCH.DESKTOP.MAIN.TS AND registerSingleton().
-		// !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
+		// !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
+		//
+		// NOTE: Please do NOT register services here. Use `registerSingleton()`
+		//       from `workbench.common.main.ts` if the service is shared between
+		//       native and web or `workbench.sandbox.main.ts` if the service
+		//       is native only.
+		//
+		//       DO NOT add services to `workbench.desktop.main.ts`, always add
+		//       to `workbench.sandbox.main.ts` to support our Electron sandbox
+		//
+		// !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
 
 		// All Contributed Services
 		const contributedServices = getSingletonServiceDescriptors();
@@ -284,7 +291,7 @@ export class Workbench extends Layout {
 			}
 		}
 
-		readFontInfo(BareFontInfo.createFromRawSettings(configurationService.getValue('editor'), getZoomLevel()));
+		readFontInfo(BareFontInfo.createFromRawSettings(configurationService.getValue('editor'), getZoomLevel(), getPixelRatio()));
 	}
 
 	private storeFontInfo(storageService: IStorageService): void {
@@ -297,7 +304,7 @@ export class Workbench extends Layout {
 			// local storage and not global storage because it would not make
 			// much sense to synchronize to other machines.
 			if (isNative) {
-				storageService.store('editorFontInfo', serializedFontInfoRaw, StorageScope.GLOBAL);
+				storageService.store('editorFontInfo', serializedFontInfoRaw, StorageScope.GLOBAL, StorageTarget.MACHINE);
 			} else {
 				window.localStorage.setItem('vscode.editorFontInfo', serializedFontInfoRaw);
 			}
@@ -412,11 +419,10 @@ export class Workbench extends Layout {
 			}, 2500);
 
 			// Telemetry: startup metrics
-			mark('didStartWorkbench');
+			mark('code/didStartWorkbench');
 
 			// Perf reporting (devtools)
-			performance.mark('workbench-end');
-			performance.measure('perf: workbench create & restore', 'workbench-start', 'workbench-end');
+			performance.measure('perf: workbench create & restore', 'code/didLoadWorkbenchMain', 'code/didStartWorkbench');
 		}
 	}
 }

@@ -6,15 +6,16 @@
 import * as assert from 'assert';
 import { EditorInput } from 'vs/workbench/common/editor';
 import { DiffEditorInput } from 'vs/workbench/common/editor/diffEditorInput';
-
-class MyEditorInput extends EditorInput {
-	readonly resource = undefined;
-
-	getTypeId(): string { return ''; }
-	resolve(): any { return null; }
-}
+import { workbenchInstantiationService } from 'vs/workbench/test/browser/workbenchTestServices';
 
 suite('Workbench editor input', () => {
+
+	class MyEditorInput extends EditorInput {
+		readonly resource = undefined;
+
+		getTypeId(): string { return ''; }
+		resolve(): any { return null; }
+	}
 
 	test('EditorInput', () => {
 		let counter = 0;
@@ -32,10 +33,12 @@ suite('Workbench editor input', () => {
 		});
 
 		input.dispose();
-		assert.equal(counter, 1);
+		assert.strictEqual(counter, 1);
 	});
 
 	test('DiffEditorInput', () => {
+		const instantiationService = workbenchInstantiationService();
+
 		let counter = 0;
 		let input = new MyEditorInput();
 		input.onDispose(() => {
@@ -49,24 +52,26 @@ suite('Workbench editor input', () => {
 			counter++;
 		});
 
-		let diffInput = new DiffEditorInput('name', 'description', input, otherInput);
+		let diffInput = instantiationService.createInstance(DiffEditorInput, 'name', 'description', input, otherInput, undefined);
 
-		assert.equal(diffInput.originalInput, input);
-		assert.equal(diffInput.modifiedInput, otherInput);
+		assert.strictEqual(diffInput.originalInput, input);
+		assert.strictEqual(diffInput.modifiedInput, otherInput);
 		assert(diffInput.matches(diffInput));
 		assert(!diffInput.matches(otherInput));
 		assert(!diffInput.matches(null));
 
 		diffInput.dispose();
-		assert.equal(counter, 0);
+		assert.strictEqual(counter, 0);
 	});
 
 	test('DiffEditorInput disposes when input inside disposes', function () {
+		const instantiationService = workbenchInstantiationService();
+
 		let counter = 0;
 		let input = new MyEditorInput();
 		let otherInput = new MyEditorInput();
 
-		let diffInput = new DiffEditorInput('name', 'description', input, otherInput);
+		let diffInput = instantiationService.createInstance(DiffEditorInput, 'name', 'description', input, otherInput, undefined);
 		diffInput.onDispose(() => {
 			counter++;
 			assert(true);
@@ -77,13 +82,13 @@ suite('Workbench editor input', () => {
 		input = new MyEditorInput();
 		otherInput = new MyEditorInput();
 
-		let diffInput2 = new DiffEditorInput('name', 'description', input, otherInput);
+		let diffInput2 = instantiationService.createInstance(DiffEditorInput, 'name', 'description', input, otherInput, undefined);
 		diffInput2.onDispose(() => {
 			counter++;
 			assert(true);
 		});
 
 		otherInput.dispose();
-		assert.equal(counter, 2);
+		assert.strictEqual(counter, 2);
 	});
 });

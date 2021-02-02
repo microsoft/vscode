@@ -20,10 +20,11 @@ import { IOpenerService } from 'vs/platform/opener/common/opener';
 import { IHostService } from 'vs/workbench/services/host/browser/host';
 import Severity from 'vs/base/common/severity';
 import { coalesce, distinct } from 'vs/base/common/arrays';
-import { trim } from 'vs/base/common/strings';
+import { compareIgnoreCase, trim } from 'vs/base/common/strings';
 import { IModeService } from 'vs/editor/common/services/modeService';
 import { ILabelService } from 'vs/platform/label/common/label';
 import { IPathService } from 'vs/workbench/services/path/common/pathService';
+import { Schemas } from 'vs/base/common/network';
 
 export abstract class AbstractFileDialogService implements IFileDialogService {
 
@@ -45,7 +46,7 @@ export abstract class AbstractFileDialogService implements IFileDialogService {
 		@IPathService private readonly pathService: IPathService
 	) { }
 
-	defaultFilePath(schemeFilter = this.getSchemeFilterForWindow()): URI | undefined {
+	async defaultFilePath(schemeFilter = this.getSchemeFilterForWindow()): Promise<URI> {
 
 		// Check for last active file first...
 		let candidate = this.historyService.getLastActiveFile(schemeFilter);
@@ -57,10 +58,14 @@ export abstract class AbstractFileDialogService implements IFileDialogService {
 			candidate = candidate && resources.dirname(candidate);
 		}
 
-		return candidate || undefined;
+		if (!candidate) {
+			candidate = await this.pathService.userHome({ preferLocal: schemeFilter === Schemas.file });
+		}
+
+		return candidate;
 	}
 
-	defaultFolderPath(schemeFilter = this.getSchemeFilterForWindow()): URI | undefined {
+	async defaultFolderPath(schemeFilter = this.getSchemeFilterForWindow()): Promise<URI> {
 
 		// Check for last active file root first...
 		let candidate = this.historyService.getLastActiveWorkspaceRoot(schemeFilter);
@@ -70,21 +75,33 @@ export abstract class AbstractFileDialogService implements IFileDialogService {
 			candidate = this.historyService.getLastActiveFile(schemeFilter);
 		}
 
-		return candidate && resources.dirname(candidate) || undefined;
+		if (!candidate) {
+			return this.pathService.userHome({ preferLocal: schemeFilter === Schemas.file });
+		} else {
+			return resources.dirname(candidate);
+		}
 	}
 
-	defaultWorkspacePath(schemeFilter = this.getSchemeFilterForWindow()): URI | undefined {
-
+	async defaultWorkspacePath(schemeFilter = this.getSchemeFilterForWindow(), filename?: string): Promise<URI> {
+		let defaultWorkspacePath: URI | undefined;
 		// Check for current workspace config file first...
 		if (this.contextService.getWorkbenchState() === WorkbenchState.WORKSPACE) {
 			const configuration = this.contextService.getWorkspace().configuration;
 			if (configuration && configuration.scheme === schemeFilter && !isUntitledWorkspace(configuration, this.environmentService)) {
-				return resources.dirname(configuration) || undefined;
+				defaultWorkspacePath = resources.dirname(configuration) || undefined;
 			}
 		}
 
 		// ...then fallback to default file path
-		return this.defaultFilePath(schemeFilter);
+		if (!defaultWorkspacePath) {
+			defaultWorkspacePath = await this.defaultFilePath(schemeFilter);
+		}
+
+		if (defaultWorkspacePath && filename) {
+			defaultWorkspacePath = resources.joinPath(defaultWorkspacePath, filename);
+		}
+
+		return defaultWorkspacePath;
 	}
 
 	async showSaveConfirm(fileNamesOrResources: (string | URI)[]): Promise<ConfirmResult> {
@@ -147,7 +164,7 @@ export abstract class AbstractFileDialogService implements IFileDialogService {
 			if (stat.isDirectory || options.forceNewWindow || preferNewWindow) {
 				return this.hostService.openWindow([toOpen], { forceNewWindow: options.forceNewWindow });
 			} else {
-				return this.openerService.open(uri, { fromUserGesture: true });
+				return this.openerService.open(uri, { fromUserGesture: true, editorOptions: { pinned: true } });
 			}
 		}
 	}
@@ -164,7 +181,7 @@ export abstract class AbstractFileDialogService implements IFileDialogService {
 			if (options.forceNewWindow || preferNewWindow) {
 				return this.hostService.openWindow([{ fileUri: uri }], { forceNewWindow: options.forceNewWindow });
 			} else {
-				return this.openerService.open(uri, { fromUserGesture: true });
+				return this.openerService.open(uri, { fromUserGesture: true, editorOptions: { pinned: true } });
 			}
 		}
 	}
@@ -258,7 +275,9 @@ export abstract class AbstractFileDialogService implements IFileDialogService {
 		// Build the file filter by using our known languages
 		const ext: string | undefined = defaultUri ? resources.extname(defaultUri) : undefined;
 		let matchingFilter: IFilter | undefined;
-		const registeredLanguageFilters: IFilter[] = coalesce(this.modeService.getRegisteredLanguageNames().map(languageName => {
+
+		const registeredLanguageNames = this.modeService.getRegisteredLanguageNames().sort((a, b) => compareIgnoreCase(a, b));
+		const registeredLanguageFilters: IFilter[] = coalesce(registeredLanguageNames.map(languageName => {
 			const extensions = this.modeService.getExtensions(languageName);
 			if (!extensions || !extensions.length) {
 				return null;
@@ -266,10 +285,10 @@ export abstract class AbstractFileDialogService implements IFileDialogService {
 
 			const filter: IFilter = { name: languageName, extensions: distinct(extensions).slice(0, 10).map(e => trim(e, '.')) };
 
-			if (ext && extensions.indexOf(ext) >= 0) {
+			if (ext && extensions.indexOf(ext) >= 0 && !matchingFilter) {
 				matchingFilter = filter;
 
-				return null; // matching filter will be added last to the top
+				return null; // first matching filter will be added to the top
 			}
 
 			return filter;

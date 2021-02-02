@@ -23,21 +23,24 @@ import { IRemoteAuthorityResolverService } from 'vs/platform/remote/common/remot
 import { IHostService } from 'vs/workbench/services/host/browser/host';
 import { isWeb } from 'vs/base/common/platform';
 import { once } from 'vs/base/common/functional';
+import { truncate } from 'vs/base/common/strings';
 
 export class RemoteStatusIndicator extends Disposable implements IWorkbenchContribution {
 
-	private static REMOTE_ACTIONS_COMMAND_ID = 'workbench.action.remote.showMenu';
-	private static CLOSE_REMOTE_COMMAND_ID = 'workbench.action.remote.close';
-	private static SHOW_CLOSE_REMOTE_COMMAND_ID = !isWeb; // web does not have a "Close Remote" command
+	private static readonly REMOTE_ACTIONS_COMMAND_ID = 'workbench.action.remote.showMenu';
+	private static readonly CLOSE_REMOTE_COMMAND_ID = 'workbench.action.remote.close';
+	private static readonly SHOW_CLOSE_REMOTE_COMMAND_ID = !isWeb; // web does not have a "Close Remote" command
+
+	private static readonly REMOTE_STATUS_LABEL_MAX_LENGTH = 40;
 
 	private remoteStatusEntry: IStatusbarEntryAccessor | undefined;
 
-	private remoteMenu = this._register(this.menuService.createMenu(MenuId.StatusBarWindowIndicatorMenu, this.contextKeyService));
+	private readonly remoteMenu = this._register(this.menuService.createMenu(MenuId.StatusBarWindowIndicatorMenu, this.contextKeyService));
 	private hasRemoteActions = false;
 
-	private remoteAuthority = this.environmentService.configuration.remoteAuthority;
-	private connectionState: 'initializing' | 'connected' | 'disconnected' | undefined = undefined;
-	private connectionStateContextKey = new RawContextKey<'' | 'initializing' | 'disconnected' | 'connected'>('remoteConnectionState', '').bindTo(this.contextKeyService);
+	private readonly remoteAuthority = this.environmentService.remoteAuthority;
+	private connectionState: 'initializing' | 'connected' | 'reconnecting' | 'disconnected' | undefined = undefined;
+	private readonly connectionStateContextKey = new RawContextKey<'' | 'initializing' | 'disconnected' | 'connected'>('remoteConnectionState', '').bindTo(this.contextKeyService);
 
 	constructor(
 		@IStatusbarService private readonly statusbarService: IStatusbarService,
@@ -130,13 +133,15 @@ export class RemoteStatusIndicator extends Disposable implements IWorkbenchContr
 				this._register(connection.onDidStateChange((e) => {
 					switch (e.type) {
 						case PersistentConnectionEventType.ConnectionLost:
-						case PersistentConnectionEventType.ReconnectionPermanentFailure:
 						case PersistentConnectionEventType.ReconnectionRunning:
 						case PersistentConnectionEventType.ReconnectionWait:
-							this.setDisconnected(true);
+							this.setState('reconnecting');
+							break;
+						case PersistentConnectionEventType.ReconnectionPermanentFailure:
+							this.setState('disconnected');
 							break;
 						case PersistentConnectionEventType.ConnectionGain:
-							this.setDisconnected(false);
+							this.setState('connected');
 							break;
 					}
 				}));
@@ -155,9 +160,9 @@ export class RemoteStatusIndicator extends Disposable implements IWorkbenchContr
 				try {
 					await this.remoteAuthorityResolverService.resolveAuthority(remoteAuthority);
 
-					this.setDisconnected(false);
+					this.setState('connected');
 				} catch (error) {
-					this.setDisconnected(true);
+					this.setState('disconnected');
 				}
 			})();
 		}
@@ -165,11 +170,16 @@ export class RemoteStatusIndicator extends Disposable implements IWorkbenchContr
 		this.updateRemoteStatusIndicator();
 	}
 
-	private setDisconnected(isDisconnected: boolean): void {
-		const newState = isDisconnected ? 'disconnected' : 'connected';
+	private setState(newState: 'disconnected' | 'connected' | 'reconnecting'): void {
 		if (this.connectionState !== newState) {
 			this.connectionState = newState;
-			this.connectionStateContextKey.set(this.connectionState);
+
+			// simplify context key which doesn't support `connecting`
+			if (this.connectionState === 'reconnecting') {
+				this.connectionStateContextKey.set('disconnected');
+			} else {
+				this.connectionStateContextKey.set(this.connectionState);
+			}
 
 			this.updateRemoteStatusIndicator();
 		}
@@ -189,7 +199,7 @@ export class RemoteStatusIndicator extends Disposable implements IWorkbenchContr
 		// Remote indicator: show if provided via options
 		const remoteIndicator = this.environmentService.options?.windowIndicator;
 		if (remoteIndicator) {
-			this.renderRemoteStatusIndicator(remoteIndicator.label, remoteIndicator.tooltip, remoteIndicator.command);
+			this.renderRemoteStatusIndicator(truncate(remoteIndicator.label, RemoteStatusIndicator.REMOTE_STATUS_LABEL_MAX_LENGTH), remoteIndicator.tooltip, remoteIndicator.command);
 		}
 
 		// Remote Authority: show connection state
@@ -197,13 +207,16 @@ export class RemoteStatusIndicator extends Disposable implements IWorkbenchContr
 			const hostLabel = this.labelService.getHostLabel(Schemas.vscodeRemote, this.remoteAuthority) || this.remoteAuthority;
 			switch (this.connectionState) {
 				case 'initializing':
-					this.renderRemoteStatusIndicator(`$(sync~spin) ${nls.localize('host.open', "Opening Remote...")}`, nls.localize('host.open', "Opening Remote..."));
+					this.renderRemoteStatusIndicator(nls.localize('host.open', "Opening Remote..."), nls.localize('host.open', "Opening Remote..."), undefined, true /* progress */);
+					break;
+				case 'reconnecting':
+					this.renderRemoteStatusIndicator(`${nls.localize('host.reconnecting', "Reconnecting to {0}...", truncate(hostLabel, RemoteStatusIndicator.REMOTE_STATUS_LABEL_MAX_LENGTH))}`, nls.localize('host.tooltipReconnecting', "Reconnecting to {0}...", hostLabel), undefined, true);
 					break;
 				case 'disconnected':
-					this.renderRemoteStatusIndicator(`$(alert) ${nls.localize('disconnectedFrom', "Disconnected from {0}", hostLabel)}`, nls.localize('host.tooltipDisconnected', "Disconnected from {0}", hostLabel));
+					this.renderRemoteStatusIndicator(`$(alert) ${nls.localize('disconnectedFrom', "Disconnected from {0}", truncate(hostLabel, RemoteStatusIndicator.REMOTE_STATUS_LABEL_MAX_LENGTH))}`, nls.localize('host.tooltipDisconnected', "Disconnected from {0}", hostLabel));
 					break;
 				default:
-					this.renderRemoteStatusIndicator(`$(remote) ${hostLabel}`, nls.localize('host.tooltip', "Editing on {0}", hostLabel));
+					this.renderRemoteStatusIndicator(`$(remote) ${truncate(hostLabel, RemoteStatusIndicator.REMOTE_STATUS_LABEL_MAX_LENGTH)}`, nls.localize('host.tooltip', "Editing on {0}", hostLabel));
 			}
 		}
 
@@ -219,7 +232,7 @@ export class RemoteStatusIndicator extends Disposable implements IWorkbenchContr
 		}
 	}
 
-	private renderRemoteStatusIndicator(text: string, tooltip?: string, command?: string): void {
+	private renderRemoteStatusIndicator(text: string, tooltip?: string, command?: string, showProgress?: boolean): void {
 		const name = nls.localize('remoteHost', "Remote Host");
 		if (typeof command !== 'string' && this.remoteMenu.getActions().length > 0) {
 			command = RemoteStatusIndicator.REMOTE_ACTIONS_COMMAND_ID;
@@ -230,6 +243,7 @@ export class RemoteStatusIndicator extends Disposable implements IWorkbenchContr
 			color: themeColorFromId(STATUS_BAR_HOST_NAME_FOREGROUND),
 			ariaLabel: name,
 			text,
+			showProgress,
 			tooltip,
 			command
 		};
@@ -242,45 +256,48 @@ export class RemoteStatusIndicator extends Disposable implements IWorkbenchContr
 	}
 
 	private showRemoteMenu(menu: IMenu) {
-		const actions = menu.getActions();
+		const computeItems = () => {
+			const actions = menu.getActions();
+			const items: (IQuickPickItem
+				| IQuickPickSeparator)[] = [];
+			for (let actionGroup of actions) {
+				if (items.length) {
+					items.push({ type: 'separator' });
+				}
 
-		const items: (IQuickPickItem | IQuickPickSeparator)[] = [];
-		for (let actionGroup of actions) {
-			if (items.length) {
-				items.push({ type: 'separator' });
-			}
+				for (let action of actionGroup[1]) {
+					if (action instanceof MenuItemAction) {
+						let label = typeof action.item.title === 'string' ? action.item.title : action.item.title.value;
+						if (action.item.category) {
+							const category = typeof action.item.category === 'string' ? action.item.category : action.item.category.value;
+							label = nls.localize('cat.title', "{0}: {1}", category, label);
+						}
 
-			for (let action of actionGroup[1]) {
-				if (action instanceof MenuItemAction) {
-					let label = typeof action.item.title === 'string' ? action.item.title : action.item.title.value;
-					if (action.item.category) {
-						const category = typeof action.item.category === 'string' ? action.item.category : action.item.category.value;
-						label = nls.localize('cat.title', "{0}: {1}", category, label);
+						items.push({
+							type: 'item',
+							id: action.item.id,
+							label
+						});
 					}
-
-					items.push({
-						type: 'item',
-						id: action.item.id,
-						label
-					});
 				}
 			}
-		}
 
-		if (RemoteStatusIndicator.SHOW_CLOSE_REMOTE_COMMAND_ID && this.remoteAuthority) {
-			if (items.length) {
-				items.push({ type: 'separator' });
+			if (RemoteStatusIndicator.SHOW_CLOSE_REMOTE_COMMAND_ID && this.remoteAuthority) {
+				if (items.length) {
+					items.push({ type: 'separator' });
+				}
+
+				items.push({
+					type: 'item',
+					id: RemoteStatusIndicator.CLOSE_REMOTE_COMMAND_ID,
+					label: nls.localize('closeRemote.title', 'Close Remote Connection')
+				});
 			}
-
-			items.push({
-				type: 'item',
-				id: RemoteStatusIndicator.CLOSE_REMOTE_COMMAND_ID,
-				label: nls.localize('closeRemote.title', 'Close Remote Connection')
-			});
-		}
+			return items;
+		};
 
 		const quickPick = this.quickInputService.createQuickPick();
-		quickPick.items = items;
+		quickPick.items = computeItems();
 		quickPick.canSelectMany = false;
 		once(quickPick.onDidAccept)((_ => {
 			const selectedItems = quickPick.selectedItems;
@@ -290,6 +307,9 @@ export class RemoteStatusIndicator extends Disposable implements IWorkbenchContr
 
 			quickPick.hide();
 		}));
+		// refresh the items when actions change
+		const itemUpdater = menu.onDidChange(() => quickPick.items = computeItems());
+		quickPick.onDidHide(itemUpdater.dispose);
 
 		quickPick.show();
 	}

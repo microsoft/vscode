@@ -54,7 +54,7 @@ class VisibleTextAreaData {
 	}
 }
 
-const canUseZeroSizeTextarea = (browser.isEdge || browser.isFirefox);
+const canUseZeroSizeTextarea = (browser.isFirefox);
 
 export class TextAreaHandler extends ViewPart {
 
@@ -276,17 +276,12 @@ export class TextAreaHandler extends ViewPart {
 			this.textArea.setClassName(`inputarea ${MOUSE_CURSOR_TEXT_CSS_CLASS_NAME} ime-input`);
 
 			this._viewController.compositionStart();
+			this._context.model.onCompositionStart();
 		}));
 
 		this._register(this._textAreaInput.onCompositionUpdate((e: ICompositionData) => {
-			if (browser.isEdge) {
-				// Due to isEdgeOrIE (where the textarea was not cleared initially)
-				// we cannot assume the text consists only of the composited text
-				this._visibleTextArea = this._visibleTextArea!.setWidth(0);
-			} else {
-				// adjust width by its size
-				this._visibleTextArea = this._visibleTextArea!.setWidth(measureText(e.data, this._fontInfo));
-			}
+			// adjust width by its size
+			this._visibleTextArea = this._visibleTextArea!.setWidth(measureText(e.data, this._fontInfo));
 			this._render();
 		}));
 
@@ -297,6 +292,7 @@ export class TextAreaHandler extends ViewPart {
 
 			this.textArea.setClassName(`inputarea ${MOUSE_CURSOR_TEXT_CSS_CLASS_NAME}`);
 			this._viewController.compositionEnd();
+			this._context.model.onCompositionEnd();
 		}));
 
 		this._register(this._textAreaInput.onFocus(() => {

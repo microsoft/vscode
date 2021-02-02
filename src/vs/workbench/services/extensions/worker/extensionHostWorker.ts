@@ -10,7 +10,9 @@ import { isMessageOfType, MessageType, createMessageOfType } from 'vs/workbench/
 import { IInitData } from 'vs/workbench/api/common/extHost.protocol';
 import { ExtensionHostMain } from 'vs/workbench/services/extensions/common/extensionHostMain';
 import { IHostUtils } from 'vs/workbench/api/common/extHostExtensionService';
+import { NestedWorker } from 'vs/workbench/services/extensions/worker/polyfillNestedWorker';
 import * as path from 'vs/base/common/path';
+import * as performance from 'vs/base/common/performance';
 
 import 'vs/workbench/api/common/extHost.common.services';
 import 'vs/workbench/api/worker/extHost.worker.services';
@@ -22,7 +24,9 @@ declare function postMessage(data: any, transferables?: Transferable[]): void;
 declare namespace self {
 	let close: any;
 	let postMessage: any;
-	let addEventLister: any;
+	let addEventListener: any;
+	let removeEventListener: any;
+	let dispatchEvent: any;
 	let indexedDB: { open: any, [k: string]: any };
 	let caches: { open: any, [k: string]: any };
 }
@@ -33,8 +37,8 @@ self.close = () => console.trace(`'close' has been blocked`);
 const nativePostMessage = postMessage.bind(self);
 self.postMessage = () => console.trace(`'postMessage' has been blocked`);
 
-// const nativeAddEventLister = addEventListener.bind(self);
-self.addEventLister = () => console.trace(`'addEventListener' has been blocked`);
+// const nativeAddEventListener = addEventListener.bind(self);
+self.addEventListener = () => console.trace(`'addEventListener' has been blocked`);
 
 (<any>self)['AMDLoader'] = undefined;
 (<any>self)['NLSLoaderPlugin'] = undefined;
@@ -45,14 +49,25 @@ self.addEventLister = () => console.trace(`'addEventListener' has been blocked`)
 (<any>self)['webkitResolveLocalFileSystemSyncURL'] = undefined;
 (<any>self)['webkitResolveLocalFileSystemURL'] = undefined;
 
-if (location.protocol === 'data:') {
-	// make sure new Worker(...) always uses data:
-	const _Worker = Worker;
+if ((<any>self).Worker) {
+	const ttPolicy = (<any>self).trustedTypes?.createPolicy('extensionHostWorker', { createScriptURL: (value: string) => value });
+
+	// make sure new Worker(...) always uses blob: (to maintain current origin)
+	const _Worker = (<any>self).Worker;
 	Worker = <any>function (stringUrl: string | URL, options?: WorkerOptions) {
 		const js = `importScripts('${stringUrl}');`;
 		options = options || {};
 		options.name = options.name || path.basename(stringUrl.toString());
-		return new _Worker(`data:text/javascript;charset=utf-8,${encodeURIComponent(js)}`, options);
+		const blob = new Blob([js], { type: 'application/javascript' });
+		const blobUrl = URL.createObjectURL(blob);
+		return new _Worker(ttPolicy ? ttPolicy.createScriptURL(blobUrl) : blobUrl, options);
+	};
+
+} else {
+	(<any>self).Worker = class extends NestedWorker {
+		constructor(stringOrUrl: string | URL, options?: WorkerOptions) {
+			super(nativePostMessage, stringOrUrl, { name: path.basename(stringOrUrl.toString()), ...options });
+		}
 	};
 }
 
@@ -97,7 +112,7 @@ class ExtensionWorker {
 			if (isMessageOfType(msg, MessageType.Terminate)) {
 				// handle terminate-message right here
 				terminating = true;
-				onTerminate();
+				onTerminate('received terminate message from renderer');
 				return;
 			}
 
@@ -133,13 +148,13 @@ function connectToRenderer(protocol: IMessagePassingProtocol): Promise<IRenderer
 	});
 }
 
-let onTerminate = nativeClose;
+let onTerminate = (reason: string) => nativeClose();
 
 (function create(): void {
 	const res = new ExtensionWorker();
-
+	performance.mark(`code/extHost/willConnectToRenderer`);
 	connectToRenderer(res.protocol).then(data => {
-
+		performance.mark(`code/extHost/didWaitForInitData`);
 		const extHostMain = new ExtensionHostMain(
 			data.protocol,
 			data.initData,
@@ -147,6 +162,6 @@ let onTerminate = nativeClose;
 			null,
 		);
 
-		onTerminate = () => extHostMain.terminate();
+		onTerminate = (reason: string) => extHostMain.terminate(reason);
 	});
 })();

@@ -22,7 +22,8 @@ import { basename } from 'vs/base/common/path';
 import { IWorkingCopyService, IWorkingCopyBackup, WorkingCopyCapabilities } from 'vs/workbench/services/workingCopy/common/workingCopyService';
 import { IFilesConfigurationService } from 'vs/workbench/services/filesConfiguration/common/filesConfigurationService';
 import { ILabelService } from 'vs/platform/label/common/label';
-import { CancellationTokenSource } from 'vs/base/common/cancellation';
+import { CancellationToken, CancellationTokenSource } from 'vs/base/common/cancellation';
+import { UTF8 } from 'vs/workbench/services/textfile/common/encoding';
 
 interface IBackupMetaData {
 	mtime: number;
@@ -186,7 +187,7 @@ export class TextFileEditorModel extends BaseTextEditorModel implements ITextFil
 
 	//#region Backup
 
-	async backup(): Promise<IWorkingCopyBackup> {
+	async backup(token: CancellationToken): Promise<IWorkingCopyBackup> {
 
 		// Fill in metadata if we are resolved
 		let meta: IBackupMetaData | undefined = undefined;
@@ -257,38 +258,114 @@ export class TextFileEditorModel extends BaseTextEditorModel implements ITextFil
 			return this;
 		}
 
-		// It is very important to not reload the model when the model is dirty.
-		// We also only want to reload the model from the disk if no save is pending
-		// to avoid data loss.
-		if (this.dirty || this.saveSequentializer.hasPending()) {
+		// Unless there are explicit contents provided, it is important that we do not
+		// load a model that is dirty or is in the process of saving to prevent data
+		// loss.
+		if (!options?.contents && (this.dirty || this.saveSequentializer.hasPending())) {
 			this.logService.trace('[text file model] load() - exit - without loading because model is dirty or being saved', this.resource.toString(true));
 
 			return this;
 		}
 
-		// Only for new models we support to load from backup
-		if (!this.isResolved()) {
-			const backup = await this.backupFileService.resolve<IBackupMetaData>(this.resource);
+		return this.doLoad(options);
+	}
 
-			if (this.isResolved()) {
-				return this; // Make sure meanwhile someone else did not succeed in loading
-			}
+	private async doLoad(options?: ITextFileLoadOptions): Promise<TextFileEditorModel> {
 
-			if (backup) {
-				try {
-					return await this.loadFromBackup(backup, options);
-				} catch (error) {
-					this.logService.error('[text file model] load() from backup', error); // ignore error and continue to load as file below
-				}
+		// First check if we have contents to use for the model
+		if (options?.contents) {
+			return this.loadFromBuffer(options.contents, options);
+		}
+
+		// Second, check if we have a backup to load from (only for new models)
+		const isNewModel = !this.isResolved();
+		if (isNewModel) {
+			const loadedFromBackup = await this.loadFromBackup(options);
+			if (loadedFromBackup) {
+				return loadedFromBackup;
 			}
 		}
 
-		// Otherwise load from file resource
+		// Finally, load from file resource
 		return this.loadFromFile(options);
 	}
 
-	private async loadFromBackup(backup: IResolvedBackup<IBackupMetaData>, options?: ITextFileLoadOptions): Promise<TextFileEditorModel> {
+	private async loadFromBuffer(buffer: ITextBufferFactory, options?: ITextFileLoadOptions): Promise<TextFileEditorModel> {
+		this.logService.trace('[text file model] loadFromBuffer()', this.resource.toString(true));
+
+		// Try to resolve metdata from disk
+		let mtime: number;
+		let ctime: number;
+		let size: number;
+		let etag: string;
+		try {
+			const metadata = await this.fileService.resolve(this.resource, { resolveMetadata: true });
+			mtime = metadata.mtime;
+			ctime = metadata.ctime;
+			size = metadata.size;
+			etag = metadata.etag;
+
+			// Clear orphaned state when resolving was successful
+			this.setOrphaned(false);
+		} catch (error) {
+
+			// Put some fallback values in error case
+			mtime = Date.now();
+			ctime = Date.now();
+			size = 0;
+			etag = ETAG_DISABLED;
+
+			// Apply orphaned state based on error code
+			this.setOrphaned(error.fileOperationResult === FileOperationResult.FILE_NOT_FOUND);
+		}
+
 		const preferredEncoding = await this.textFileService.encoding.getPreferredWriteEncoding(this.resource, this.preferredEncoding);
+
+		// Load with buffer
+		this.loadFromContent({
+			resource: this.resource,
+			name: this.name,
+			mtime,
+			ctime,
+			size,
+			etag,
+			value: buffer,
+			encoding: preferredEncoding.encoding
+		}, true /* dirty (loaded from buffer) */, options);
+
+		return this;
+	}
+
+	private async loadFromBackup(options?: ITextFileLoadOptions): Promise<TextFileEditorModel | undefined> {
+
+		// Resolve backup if any
+		const backup = await this.backupFileService.resolve<IBackupMetaData>(this.resource);
+
+		// Resolve preferred encoding if we need it
+		let encoding = UTF8;
+		if (backup) {
+			encoding = (await this.textFileService.encoding.getPreferredWriteEncoding(this.resource, this.preferredEncoding)).encoding;
+		}
+
+		// Abort if someone else managed to resolve the model by now
+		let isNewModel = !this.isResolved();
+		if (!isNewModel) {
+			this.logService.trace('[text file model] loadFromBackup() - exit - without loading because previously new model got created meanwhile', this.resource.toString(true));
+
+			return this; // imply that loading has happened in another operation
+		}
+
+		// Try to load from backup if we have any
+		if (backup) {
+			return this.doLoadFromBackup(backup, encoding, options);
+		}
+
+		// Otherwise signal back that loading did not happen
+		return undefined;
+	}
+
+	private doLoadFromBackup(backup: IResolvedBackup<IBackupMetaData>, encoding: string, options?: ITextFileLoadOptions): TextFileEditorModel {
+		this.logService.trace('[text file model] doLoadFromBackup()', this.resource.toString(true));
 
 		// Load with backup
 		this.loadFromContent({
@@ -299,8 +376,8 @@ export class TextFileEditorModel extends BaseTextEditorModel implements ITextFil
 			size: backup.meta ? backup.meta.size : 0,
 			etag: backup.meta ? backup.meta.etag : ETAG_DISABLED, // etag disabled if unknown!
 			value: backup.value,
-			encoding: preferredEncoding.encoding
-		}, options, true /* from backup */);
+			encoding
+		}, true /* dirty (loaded from backup) */, options);
 
 		// Restore orphaned flag based on state
 		if (backup.meta && backup.meta.orphaned) {
@@ -311,6 +388,8 @@ export class TextFileEditorModel extends BaseTextEditorModel implements ITextFil
 	}
 
 	private async loadFromFile(options?: ITextFileLoadOptions): Promise<TextFileEditorModel> {
+		this.logService.trace('[text file model] loadFromFile()', this.resource.toString(true));
+
 		const forceReadFromDisk = options?.forceReadFromDisk;
 		const allowBinary = this.isResolved() /* always allow if we resolved previously */ || options?.allowBinary;
 
@@ -322,12 +401,8 @@ export class TextFileEditorModel extends BaseTextEditorModel implements ITextFil
 			etag = this.lastResolvedFileStat.etag; // otherwise respect etag to support caching
 		}
 
-		// Ensure to track the versionId before doing a long running operation
-		// to make sure the model was not changed in the meantime which would
-		// indicate that the user or program has made edits. If we would ignore
-		// this, we could potentially loose the changes that were made because
-		// after resolving the content we update the model and reset the dirty
-		// flag.
+		// Remember current version before doing any long running operation
+		// to ensure we are not changing a model that was changed meanwhile
 		const currentVersionId = this.versionId;
 
 		// Resolve Content
@@ -337,11 +412,15 @@ export class TextFileEditorModel extends BaseTextEditorModel implements ITextFil
 			// Clear orphaned state when loading was successful
 			this.setOrphaned(false);
 
+			// Return early if the model content has changed
+			// meanwhile to prevent loosing any changes
 			if (currentVersionId !== this.versionId) {
-				return this; // Make sure meanwhile someone else did not succeed loading
+				this.logService.trace('[text file model] loadFromFile() - exit - without loading because model content changed', this.resource.toString(true));
+
+				return this;
 			}
 
-			return this.loadFromContent(content, options);
+			return this.loadFromContent(content, false /* not dirty (loaded from file) */, options);
 		} catch (error) {
 			const result = error.fileOperationResult;
 
@@ -365,7 +444,7 @@ export class TextFileEditorModel extends BaseTextEditorModel implements ITextFil
 		}
 	}
 
-	private loadFromContent(content: ITextFileStreamContent, options?: ITextFileLoadOptions, fromBackup?: boolean): TextFileEditorModel {
+	private loadFromContent(content: ITextFileStreamContent, dirty: boolean, options?: ITextFileLoadOptions): TextFileEditorModel {
 		this.logService.trace('[text file model] loadFromContent() - enter', this.resource.toString(true));
 
 		// Return early if we are disposed
@@ -406,11 +485,15 @@ export class TextFileEditorModel extends BaseTextEditorModel implements ITextFil
 
 		// Create New Model
 		else {
-			this.doCreateTextModel(content.resource, content.value, !!fromBackup);
+			this.doCreateTextModel(content.resource, content.value);
 		}
 
-		// Ensure we track the latest saved version ID
-		this.updateSavedVersionId();
+		// Update model dirty flag. This is very important to call
+		// in both cases of dirty or not because it conditionally
+		// updates the `bufferSavedVersionId` to determine the
+		// version when to consider the model as saved again (e.g.
+		// when undoing back to the saved state)
+		this.setDirty(!!dirty);
 
 		// Emit as event
 		this._onDidLoad.fire(options?.reason ?? TextFileLoadReason.OTHER);
@@ -418,16 +501,11 @@ export class TextFileEditorModel extends BaseTextEditorModel implements ITextFil
 		return this;
 	}
 
-	private doCreateTextModel(resource: URI, value: ITextBufferFactory, fromBackup: boolean): void {
+	private doCreateTextModel(resource: URI, value: ITextBufferFactory): void {
 		this.logService.trace('[text file model] doCreateTextModel()', this.resource.toString(true));
 
 		// Create model
 		const textModel = this.createTextEditorModel(value, resource, this.preferredMode);
-
-		// We restored a backup so we have to set the model as being dirty
-		if (fromBackup) {
-			this.setDirty(true);
-		}
 
 		// Model Listeners
 		this.installModelListeners(textModel);
@@ -732,7 +810,6 @@ export class TextFileEditorModel extends BaseTextEditorModel implements ITextFil
 				try {
 					const stat = await this.textFileService.write(lastResolvedFileStat.resource, textFileEditorModel.createSnapshot(), {
 						overwriteReadonly: options.overwriteReadonly,
-						overwriteEncoding: options.overwriteEncoding,
 						mtime: lastResolvedFileStat.mtime,
 						encoding: this.getEncoding(),
 						etag: (options.ignoreModifiedSince || !this.filesConfigurationService.preventSaveConflicts(lastResolvedFileStat.resource, textFileEditorModel.getMode())) ? ETAG_DISABLED : lastResolvedFileStat.etag,
@@ -759,6 +836,9 @@ export class TextFileEditorModel extends BaseTextEditorModel implements ITextFil
 		} else {
 			this.logService.trace(`[text file model] handleSaveSuccess(${versionId}) - not setting dirty to false because versionId did change meanwhile`, this.resource.toString(true));
 		}
+
+		// Update orphan state given save was successful
+		this.setOrphaned(false);
 
 		// Emit Save Event
 		this._onDidSave.fire(options.reason ?? SaveReason.EXPLICIT);
@@ -900,7 +980,7 @@ export class TextFileEditorModel extends BaseTextEditorModel implements ITextFil
 			}
 
 			if (!this.inConflictMode) {
-				this.save({ overwriteEncoding: true });
+				this.save();
 			}
 		}
 

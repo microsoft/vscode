@@ -45,31 +45,31 @@
 	width: 100%;
 }
 
-.search-editor .search-widget .monaco-inputbox > .wrapper {
+.search-editor .search-widget .monaco-inputbox > .ibwrapper {
 	height: 100%;
 }
 
-.search-editor .search-widget .monaco-inputbox > .wrapper > .mirror,
-.search-editor .search-widget .monaco-inputbox > .wrapper > textarea.input {
+.search-editor .search-widget .monaco-inputbox > .ibwrapper > .mirror,
+.search-editor .search-widget .monaco-inputbox > .ibwrapper > textarea.input {
 	padding: 3px;
 	padding-left: 4px;
 }
 
-.search-editor .search-widget .monaco-inputbox > .wrapper > .mirror {
+.search-editor .search-widget .monaco-inputbox > .ibwrapper > .mirror {
 	max-height: 134px;
 }
 
 /* NOTE: height is also used in searchWidget.ts as a constant*/
-.search-editor .search-widget .monaco-inputbox > .wrapper > textarea.input {
+.search-editor .search-widget .monaco-inputbox > .ibwrapper > textarea.input {
 	overflow: initial;
 	height: 24px; /* set initial height before measure */
 }
 
-.search-editor .monaco-inputbox > .wrapper > textarea.input {
+.search-editor .monaco-inputbox > .ibwrapper > textarea.input {
 	scrollbar-width: none; /* Firefox: hide scrollbar */
 }
 
-.search-editor .monaco-inputbox > .wrapper > textarea.input::-webkit-scrollbar {
+.search-editor .monaco-inputbox > .ibwrapper > textarea.input::-webkit-scrollbar {
 	display: none;
 }
 

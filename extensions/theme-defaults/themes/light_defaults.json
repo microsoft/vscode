@@ -20,10 +20,9 @@
 		"statusBarItem.remoteBackground": "#16825D",
 		"sideBarSectionHeader.background": "#0000",
 		"sideBarSectionHeader.border": "#61616130",
-		"tab.lastPinnedBorder": "#81818130",
-		"notebook.focusedCellBackground": "#c8ddf150",
-		"notebook.cellBorderColor": "#dae3e9",
-		"notebook.outputContainerBackgroundColor": "#c8ddf150"
+		"tab.lastPinnedBorder": "#61616130",
+		"notebook.cellBorderColor": "#E8E8E8",
+		"statusBarItem.errorBackground": "#c72e0f"
 	},
 	"semanticHighlighting": true
 }

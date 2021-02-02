@@ -228,6 +228,7 @@ export class FindInput extends Widget {
 
 					if (event.equals(KeyCode.Escape)) {
 						indexes[index].blur();
+						this.inputBox.focus();
 					} else if (newIndex >= 0) {
 						indexes[newIndex].focus();
 					}
@@ -255,6 +256,10 @@ export class FindInput extends Widget {
 		this.onkeyup(this.inputBox.inputElement, (e) => this._onKeyUp.fire(e));
 		this.oninput(this.inputBox.inputElement, (e) => this._onInput.fire());
 		this.onmousedown(this.inputBox.inputElement, (e) => this._onMouseDown.fire(e));
+	}
+
+	public get onDidChange(): Event<string> {
+		return this.inputBox.onDidChange;
 	}
 
 	public enable(): void {

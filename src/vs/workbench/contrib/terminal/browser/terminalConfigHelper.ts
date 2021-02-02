@@ -7,7 +7,7 @@ import * as nls from 'vs/nls';
 import * as platform from 'vs/base/common/platform';
 import { EDITOR_FONT_DEFAULTS, IEditorOptions } from 'vs/editor/common/config/editorOptions';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
-import { IStorageService, StorageScope } from 'vs/platform/storage/common/storage';
+import { IStorageService, StorageScope, StorageTarget } from 'vs/platform/storage/common/storage';
 import { ITerminalConfiguration, ITerminalFont, IS_WORKSPACE_SHELL_ALLOWED_STORAGE_KEY, TERMINAL_CONFIG_SECTION, DEFAULT_LETTER_SPACING, DEFAULT_LINE_HEIGHT, MINIMUM_LETTER_SPACING, LinuxDistro, IShellLaunchConfig, MINIMUM_FONT_WEIGHT, MAXIMUM_FONT_WEIGHT, DEFAULT_FONT_WEIGHT, DEFAULT_BOLD_FONT_WEIGHT, FontWeight } from 'vs/workbench/contrib/terminal/common/terminal';
 import Severity from 'vs/base/common/severity';
 import { INotificationService, NeverShowAgainScope } from 'vs/platform/notification/common/notification';
@@ -15,13 +15,11 @@ import { IBrowserTerminalConfigHelper } from 'vs/workbench/contrib/terminal/brow
 import { Emitter, Event } from 'vs/base/common/event';
 import { basename } from 'vs/base/common/path';
 import { IExtensionManagementService } from 'vs/platform/extensionManagement/common/extensionManagement';
-import { ExtensionType } from 'vs/platform/extensions/common/extensions';
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { InstallRecommendedExtensionAction } from 'vs/workbench/contrib/extensions/browser/extensionsActions';
 import { IProductService } from 'vs/platform/product/common/productService';
 import { XTermCore } from 'vs/workbench/contrib/terminal/browser/xterm-private';
-import { IStorageKeysSyncRegistryService } from 'vs/platform/userDataSync/common/storageKeys';
 
 const MINIMUM_FONT_SIZE = 6;
 const MAXIMUM_FONT_SIZE = 25;
@@ -41,6 +39,9 @@ export class TerminalConfigHelper implements IBrowserTerminalConfigHelper {
 	private readonly _onWorkspacePermissionsChanged = new Emitter<boolean>();
 	public get onWorkspacePermissionsChanged(): Event<boolean> { return this._onWorkspacePermissionsChanged.event; }
 
+	private readonly _onConfigChanged = new Emitter<void>();
+	public get onConfigChanged(): Event<void> { return this._onConfigChanged.event; }
+
 	public constructor(
 		@IConfigurationService private readonly _configurationService: IConfigurationService,
 		@IExtensionManagementService private readonly _extensionManagementService: IExtensionManagementService,
@@ -49,7 +50,6 @@ export class TerminalConfigHelper implements IBrowserTerminalConfigHelper {
 		@ITelemetryService private readonly telemetryService: ITelemetryService,
 		@IInstantiationService private readonly instantiationService: IInstantiationService,
 		@IProductService private readonly productService: IProductService,
-		@IStorageKeysSyncRegistryService storageKeysSyncRegistryService: IStorageKeysSyncRegistryService
 	) {
 		this._updateConfig();
 		this._configurationService.onDidChangeConfiguration(e => {
@@ -57,9 +57,6 @@ export class TerminalConfigHelper implements IBrowserTerminalConfigHelper {
 				this._updateConfig();
 			}
 		});
-
-		// opt-in to syncing
-		storageKeysSyncRegistryService.registerStorageKey({ key: 'terminalConfigHelper/launchRecommendationsIgnore', version: 1 });
 	}
 
 	public setLinuxDistro(linuxDistro: LinuxDistro) {
@@ -72,6 +69,7 @@ export class TerminalConfigHelper implements IBrowserTerminalConfigHelper {
 		configValues.fontWeightBold = this._normalizeFontWeight(configValues.fontWeightBold, DEFAULT_BOLD_FONT_WEIGHT);
 
 		this.config = configValues;
+		this._onConfigChanged.fire();
 	}
 
 	public configFontIsMonospace(): boolean {
@@ -208,7 +206,7 @@ export class TerminalConfigHelper implements IBrowserTerminalConfigHelper {
 
 	public setWorkspaceShellAllowed(isAllowed: boolean): void {
 		this._onWorkspacePermissionsChanged.fire(isAllowed);
-		this._storageService.store(IS_WORKSPACE_SHELL_ALLOWED_STORAGE_KEY, isAllowed, StorageScope.WORKSPACE);
+		this._storageService.store(IS_WORKSPACE_SHELL_ALLOWED_STORAGE_KEY, isAllowed, StorageScope.WORKSPACE, StorageTarget.MACHINE);
 	}
 
 	public isWorkspaceShellAllowed(defaultValue: boolean | undefined = undefined): boolean | undefined {
@@ -341,7 +339,7 @@ export class TerminalConfigHelper implements IBrowserTerminalConfigHelper {
 	}
 
 	private async isExtensionInstalled(id: string): Promise<boolean> {
-		const extensions = await this._extensionManagementService.getInstalled(ExtensionType.User);
+		const extensions = await this._extensionManagementService.getInstalled();
 		return extensions.some(e => e.identifier.id === id);
 	}
 

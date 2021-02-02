@@ -20,14 +20,14 @@ export function hasStdinWithoutTty() {
 }
 
 export function stdinDataListener(durationinMs: number): Promise<boolean> {
-	return new Promise(c => {
-		const dataListener = () => c(true);
+	return new Promise(resolve => {
+		const dataListener = () => resolve(true);
 
 		// wait for 1s maximum...
 		setTimeout(() => {
 			process.stdin.removeListener('data', dataListener);
 
-			c(false);
+			resolve(false);
 		}, durationinMs);
 
 		// ...but finish early if we detect data

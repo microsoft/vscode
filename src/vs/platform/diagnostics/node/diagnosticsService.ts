@@ -17,6 +17,8 @@ import { IMainProcessInfo } from 'vs/platform/launch/node/launch';
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
 import { createDecorator } from 'vs/platform/instantiation/common/instantiation';
 import { Iterable } from 'vs/base/common/iterator';
+import { Schemas } from 'vs/base/common/network';
+import { ByteSize } from 'vs/platform/files/common/files';
 
 export const ID = 'diagnosticsService';
 export const IDiagnosticsService = createDecorator<IDiagnosticsService>(ID);
@@ -85,7 +87,7 @@ export async function collectWorkspaceStats(folder: string, filter: string[]): P
 					return;
 				}
 
-				if (token.count > MAX_FILES) {
+				if (token.count >= MAX_FILES) {
 					token.count += files.length;
 					token.maxReached = true;
 					resolve();
@@ -162,12 +164,10 @@ function asSortedItems(items: Map<string, number>): WorkspaceStatItem[] {
 }
 
 export function getMachineInfo(): IMachineInfo {
-	const MB = 1024 * 1024;
-	const GB = 1024 * MB;
 
 	const machineInfo: IMachineInfo = {
 		os: `${osLib.type()} ${osLib.arch()} ${osLib.release()}`,
-		memory: `${(osLib.totalmem() / GB).toFixed(2)}GB (${(osLib.freemem() / GB).toFixed(2)}GB free)`,
+		memory: `${(osLib.totalmem() / ByteSize.GB).toFixed(2)}GB (${(osLib.freemem() / ByteSize.GB).toFixed(2)}GB free)`,
 		vmHint: `${Math.round((virtualMachineHint.value() * 100))}%`,
 	};
 
@@ -237,9 +237,6 @@ export class DiagnosticsService implements IDiagnosticsService {
 	}
 
 	private formatEnvironment(info: IMainProcessInfo): string {
-		const MB = 1024 * 1024;
-		const GB = 1024 * MB;
-
 		const output: string[] = [];
 		output.push(`Version:          ${product.nameShort} ${product.version} (${product.commit || 'Commit unknown'}, ${product.date || 'Date unknown'})`);
 		output.push(`OS Version:       ${osLib.type()} ${osLib.arch()} ${osLib.release()}`);
@@ -247,7 +244,7 @@ export class DiagnosticsService implements IDiagnosticsService {
 		if (cpus && cpus.length > 0) {
 			output.push(`CPUs:             ${cpus[0].model} (${cpus.length} x ${cpus[0].speed})`);
 		}
-		output.push(`Memory (System):  ${(osLib.totalmem() / GB).toFixed(2)}GB (${(osLib.freemem() / GB).toFixed(2)}GB free)`);
+		output.push(`Memory (System):  ${(osLib.totalmem() / ByteSize.GB).toFixed(2)}GB (${(osLib.freemem() / ByteSize.GB).toFixed(2)}GB free)`);
 		if (!isWindows) {
 			output.push(`Load (avg):       ${osLib.loadavg().map(l => Math.round(l)).join(', ')}`); // only provided on Linux/macOS
 		}
@@ -317,10 +314,10 @@ export class DiagnosticsService implements IDiagnosticsService {
 
 		if (isLinux) {
 			systemInfo.linuxEnv = {
-				desktopSession: process.env.DESKTOP_SESSION,
-				xdgSessionDesktop: process.env.XDG_SESSION_DESKTOP,
-				xdgCurrentDesktop: process.env.XDG_CURRENT_DESKTOP,
-				xdgSessionType: process.env.XDG_SESSION_TYPE
+				desktopSession: process.env['DESKTOP_SESSION'],
+				xdgSessionDesktop: process.env['XDG_SESSION_DESKTOP'],
+				xdgCurrentDesktop: process.env['XDG_CURRENT_DESKTOP'],
+				xdgSessionType: process.env['XDG_SESSION_TYPE']
 			};
 		}
 
@@ -450,7 +447,7 @@ export class DiagnosticsService implements IDiagnosticsService {
 
 			window.folderURIs.forEach(uriComponents => {
 				const folderUri = URI.revive(uriComponents);
-				if (folderUri.scheme === 'file') {
+				if (folderUri.scheme === Schemas.file) {
 					const folder = folderUri.fsPath;
 					workspaceStatPromises.push(collectWorkspaceStats(folder, ['node_modules', '.git']).then(stats => {
 						let countMessage = `${stats.fileCount} files`;
@@ -492,8 +489,6 @@ export class DiagnosticsService implements IDiagnosticsService {
 	private formatProcessItem(mainPid: number, mapPidToWindowTitle: Map<number, string>, output: string[], item: ProcessItem, indent: number): void {
 		const isRoot = (indent === 0);
 
-		const MB = 1024 * 1024;
-
 		// Format name with indent
 		let name: string;
 		if (isRoot) {
@@ -507,7 +502,7 @@ export class DiagnosticsService implements IDiagnosticsService {
 		}
 
 		const memory = process.platform === 'win32' ? item.mem : (osLib.totalmem() * (item.mem / 100));
-		output.push(`${item.load.toFixed(0).padStart(5, ' ')}\t${(memory / MB).toFixed(0).padStart(6, ' ')}\t${item.pid.toFixed(0).padStart(6, ' ')}\t${name}`);
+		output.push(`${item.load.toFixed(0).padStart(5, ' ')}\t${(memory / ByteSize.MB).toFixed(0).padStart(6, ' ')}\t${item.pid.toFixed(0).padStart(6, ' ')}\t${name}`);
 
 		// Recurse into children if any
 		if (Array.isArray(item.children)) {
@@ -518,7 +513,7 @@ export class DiagnosticsService implements IDiagnosticsService {
 	public async reportWorkspaceStats(workspace: IWorkspaceInformation): Promise<void> {
 		for (const { uri } of workspace.folders) {
 			const folderUri = URI.revive(uri);
-			if (folderUri.scheme !== 'file') {
+			if (folderUri.scheme !== Schemas.file) {
 				continue;
 			}
 

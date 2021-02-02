@@ -19,7 +19,7 @@
 }
 
 .scm-view .monaco-tl-contents > div {
-	margin-right: 12px;
+	padding-right: 12px;
 	overflow: hidden;
 }
 
@@ -179,6 +179,7 @@
 .scm-view .monaco-list-row .resource-group > .actions .action-label {
 	width: 16px;
 	height: 100%;
+	color: inherit;
 	background-position: 50% 50%;
 	background-repeat: no-repeat;
 }
@@ -189,7 +190,7 @@
 
 .scm-view .scm-input {
 	height: 100%;
-	margin-left: 9px;
+	padding-left: 8px;
 }
 
 .scm-view .scm-editor {

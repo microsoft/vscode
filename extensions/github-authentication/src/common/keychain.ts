@@ -28,24 +28,13 @@ export type Keytar = {
 	deletePassword: typeof keytarType['deletePassword'];
 };
 
-const SERVICE_ID = `${vscode.env.uriScheme}-github.login`;
-const ACCOUNT_ID = 'account';
+const SERVICE_ID = `github.auth`;
 
 export class Keychain {
-	private keytar: Keytar;
-
-	constructor() {
-		const keytar = getKeytar();
-		if (!keytar) {
-			throw new Error('System keychain unavailable');
-		}
-
-		this.keytar = keytar;
-	}
-
+	constructor(private context: vscode.ExtensionContext) { }
 	async setToken(token: string): Promise<void> {
 		try {
-			return await this.keytar.setPassword(SERVICE_ID, ACCOUNT_ID, token);
+			return await this.context.secrets.store(SERVICE_ID, token);
 		} catch (e) {
 			// Ignore
 			Logger.error(`Setting token failed: ${e}`);
@@ -59,7 +48,7 @@ export class Keychain {
 
 	async getToken(): Promise<string | null | undefined> {
 		try {
-			return await this.keytar.getPassword(SERVICE_ID, ACCOUNT_ID);
+			return await this.context.secrets.get(SERVICE_ID);
 		} catch (e) {
 			// Ignore
 			Logger.error(`Getting token failed: ${e}`);
@@ -67,15 +56,33 @@ export class Keychain {
 		}
 	}
 
-	async deleteToken(): Promise<boolean | undefined> {
+	async deleteToken(): Promise<void> {
 		try {
-			return await this.keytar.deletePassword(SERVICE_ID, ACCOUNT_ID);
+			return await this.context.secrets.delete(SERVICE_ID);
 		} catch (e) {
 			// Ignore
 			Logger.error(`Deleting token failed: ${e}`);
 			return Promise.resolve(undefined);
 		}
 	}
-}
 
-export const keychain = new Keychain();
+	async tryMigrate(): Promise<string | null | undefined> {
+		try {
+			const keytar = getKeytar();
+			if (!keytar) {
+				throw new Error('keytar unavailable');
+			}
+
+			const oldValue = await keytar.getPassword(`${vscode.env.uriScheme}-github.login`, 'account');
+			if (oldValue) {
+				await this.setToken(oldValue);
+				await keytar.deletePassword(`${vscode.env.uriScheme}-github.login`, 'account');
+			}
+
+			return oldValue;
+		} catch (_) {
+			// Ignore
+			return Promise.resolve(undefined);
+		}
+	}
+}

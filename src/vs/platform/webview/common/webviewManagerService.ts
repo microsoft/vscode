@@ -11,6 +11,20 @@ import { IWebviewPortMapping } from 'vs/platform/webview/common/webviewPortMappi
 
 export const IWebviewManagerService = createDecorator<IWebviewManagerService>('webviewManagerService');
 
+export interface WebviewWebContentsId {
+	readonly webContentsId: number;
+}
+
+export interface WebviewWindowId {
+	readonly windowId: number;
+}
+
+export type WebviewManagerDidLoadResourceResponse =
+	{ buffer: VSBuffer, etag: string | undefined }
+	| 'not-modified'
+	| 'access-denied'
+	| 'not-found';
+
 export interface IWebviewManagerService {
 	_serviceBrand: unknown;
 
@@ -18,9 +32,9 @@ export interface IWebviewManagerService {
 	unregisterWebview(id: string): Promise<void>;
 	updateWebviewMetadata(id: string, metadataDelta: Partial<RegisterWebviewMetadata>): Promise<void>;
 
-	didLoadResource(requestId: number, content: VSBuffer | undefined): void;
+	didLoadResource(requestId: number, response: WebviewManagerDidLoadResourceResponse): void;
 
-	setIgnoreMenuShortcuts(webContentsId: number, enabled: boolean): Promise<void>;
+	setIgnoreMenuShortcuts(id: WebviewWebContentsId | WebviewWindowId, enabled: boolean): Promise<void>;
 }
 
 export interface RegisterWebviewMetadata {

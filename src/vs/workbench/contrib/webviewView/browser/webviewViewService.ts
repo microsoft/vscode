@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { CancellationToken } from 'vs/base/common/cancellation';
-import { Event } from 'vs/base/common/event';
+import { Emitter, Event } from 'vs/base/common/event';
 import { Disposable, IDisposable, toDisposable } from 'vs/base/common/lifecycle';
 import { createDecorator } from 'vs/platform/instantiation/common/instantiation';
 import { WebviewOverlay } from 'vs/workbench/contrib/webview/browser/webview';
@@ -20,6 +20,8 @@ export interface WebviewView {
 	readonly onDidChangeVisibility: Event<boolean>;
 	readonly onDispose: Event<void>;
 
+	dispose(): void;
+
 	show(preserveFocus: boolean): void;
 }
 
@@ -31,6 +33,8 @@ export interface IWebviewViewService {
 
 	readonly _serviceBrand: undefined;
 
+	readonly onNewResolverRegistered: Event<{ readonly viewType: string }>;
+
 	register(type: string, resolver: IWebviewViewResolver): IDisposable;
 
 	resolve(viewType: string, webview: WebviewView, cancellation: CancellationToken): Promise<void>;
@@ -40,20 +44,20 @@ export class WebviewViewService extends Disposable implements IWebviewViewServic
 
 	readonly _serviceBrand: undefined;
 
-	private readonly _views = new Map<string, IWebviewViewResolver>();
+	private readonly _resolvers = new Map<string, IWebviewViewResolver>();
 
 	private readonly _awaitingRevival = new Map<string, { webview: WebviewView, resolve: () => void }>();
 
-	constructor() {
-		super();
-	}
+	private readonly _onNewResolverRegistered = this._register(new Emitter<{ readonly viewType: string }>());
+	public readonly onNewResolverRegistered = this._onNewResolverRegistered.event;
 
 	register(viewType: string, resolver: IWebviewViewResolver): IDisposable {
-		if (this._views.has(viewType)) {
+		if (this._resolvers.has(viewType)) {
 			throw new Error(`View resolver already registered for ${viewType}`);
 		}
 
-		this._views.set(viewType, resolver);
+		this._resolvers.set(viewType, resolver);
+		this._onNewResolverRegistered.fire({ viewType: viewType });
 
 		const pending = this._awaitingRevival.get(viewType);
 		if (pending) {
@@ -64,12 +68,12 @@ export class WebviewViewService extends Disposable implements IWebviewViewServic
 		}
 
 		return toDisposable(() => {
-			this._views.delete(viewType);
+			this._resolvers.delete(viewType);
 		});
 	}
 
 	resolve(viewType: string, webview: WebviewView, cancellation: CancellationToken): Promise<void> {
-		const resolver = this._views.get(viewType);
+		const resolver = this._resolvers.get(viewType);
 		if (!resolver) {
 			if (this._awaitingRevival.has(viewType)) {
 				throw new Error('View already awaiting revival');

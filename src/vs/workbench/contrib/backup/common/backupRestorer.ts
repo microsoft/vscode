@@ -9,13 +9,15 @@ import { IBackupFileService } from 'vs/workbench/services/backup/common/backup';
 import { IEditorService } from 'vs/workbench/services/editor/common/editorService';
 import { IResourceEditorInput } from 'vs/platform/editor/common/editor';
 import { Schemas } from 'vs/base/common/network';
-import { ILifecycleService, LifecyclePhase } from 'vs/platform/lifecycle/common/lifecycle';
+import { ILifecycleService, LifecyclePhase } from 'vs/workbench/services/lifecycle/common/lifecycle';
 import { IUntitledTextResourceEditorInput, IEditorInput, IEditorInputFactoryRegistry, Extensions as EditorExtensions, IEditorInputWithOptions } from 'vs/workbench/common/editor';
 import { toLocalResource, isEqual } from 'vs/base/common/resources';
 import { IWorkbenchEnvironmentService } from 'vs/workbench/services/environment/common/environmentService';
 import { Registry } from 'vs/platform/registry/common/platform';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { IPathService } from 'vs/workbench/services/path/common/pathService';
+import { ILogService } from 'vs/platform/log/common/log';
+import { Promises } from 'vs/base/common/async';
 
 export class BackupRestorer implements IWorkbenchContribution {
 
@@ -27,7 +29,8 @@ export class BackupRestorer implements IWorkbenchContribution {
 		@ILifecycleService private readonly lifecycleService: ILifecycleService,
 		@IWorkbenchEnvironmentService private readonly environmentService: IWorkbenchEnvironmentService,
 		@IInstantiationService private readonly instantiationService: IInstantiationService,
-		@IPathService private readonly pathService: IPathService
+		@IPathService private readonly pathService: IPathService,
+		@ILogService private readonly logService: ILogService
 	) {
 		this.restoreBackups();
 	}
@@ -44,7 +47,11 @@ export class BackupRestorer implements IWorkbenchContribution {
 
 		// Some failed to restore or were not opened at all so we open and resolve them manually
 		if (unresolvedBackups.length > 0) {
-			await this.doOpenEditors(unresolvedBackups);
+			try {
+				await this.doOpenEditors(unresolvedBackups);
+			} catch (error) {
+				this.logService.error(error);
+			}
 
 			return this.doResolveOpenedBackups(unresolvedBackups);
 		}
@@ -55,7 +62,7 @@ export class BackupRestorer implements IWorkbenchContribution {
 	private async doResolveOpenedBackups(backups: URI[]): Promise<URI[]> {
 		const unresolvedBackups: URI[] = [];
 
-		await Promise.all(backups.map(async backup => {
+		await Promises.settled(backups.map(async backup => {
 			const openedEditor = this.findEditorByResource(backup);
 			if (openedEditor) {
 				try {
@@ -74,7 +81,7 @@ export class BackupRestorer implements IWorkbenchContribution {
 	private findEditorByResource(resource: URI): IEditorInput | undefined {
 		for (const editor of this.editorService.editors) {
 			const customFactory = Registry.as<IEditorInputFactoryRegistry>(EditorExtensions.EditorInputFactories).getCustomEditorInputFactory(resource.scheme);
-			if (customFactory && customFactory.canResolveBackup(editor, resource)) {
+			if (customFactory?.canResolveBackup(editor, resource)) {
 				return editor;
 			} else if (isEqual(editor.resource, resource)) {
 				return editor;
@@ -86,7 +93,7 @@ export class BackupRestorer implements IWorkbenchContribution {
 
 	private async doOpenEditors(resources: URI[]): Promise<void> {
 		const hasOpenedEditors = this.editorService.visibleEditors.length > 0;
-		const inputs = await Promise.all(resources.map((resource, index) => this.resolveInput(resource, index, hasOpenedEditors)));
+		const inputs = await Promises.settled(resources.map((resource, index) => this.resolveInput(resource, index, hasOpenedEditors)));
 
 		// Open all remaining backups as editors and resolve them to load their backups
 		await this.editorService.openEditors(inputs);
@@ -99,7 +106,7 @@ export class BackupRestorer implements IWorkbenchContribution {
 		// an associated file path or not by just looking at the path. and
 		// if so, we must ensure to restore the local resource it had.
 		if (resource.scheme === Schemas.untitled && !BackupRestorer.UNTITLED_REGEX.test(resource.path)) {
-			return { resource: toLocalResource(resource, this.environmentService.configuration.remoteAuthority, this.pathService.defaultUriScheme), options, forceUntitled: true };
+			return { resource: toLocalResource(resource, this.environmentService.remoteAuthority, this.pathService.defaultUriScheme), options, forceUntitled: true };
 		}
 
 		// handle custom editors by asking the custom editor input factory

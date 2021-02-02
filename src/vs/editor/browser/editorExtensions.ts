@@ -4,8 +4,6 @@
  *--------------------------------------------------------------------------------------------*/
 
 import * as nls from 'vs/nls';
-import { IPosition } from 'vs/base/browser/ui/contextview/contextview';
-import { illegalArgument } from 'vs/base/common/errors';
 import { URI } from 'vs/base/common/uri';
 import { ICodeEditor, IDiffEditor } from 'vs/editor/browser/editorBrowser';
 import { ICodeEditorService } from 'vs/editor/browser/services/codeEditorService';
@@ -129,8 +127,8 @@ export abstract class Command {
 			command: {
 				id: this.id,
 				title: item.title,
-				icon: item.icon
-				// precondition: this.precondition
+				icon: item.icon,
+				precondition: this.precondition
 			},
 			when: item.when,
 			order: item.order
@@ -149,7 +147,7 @@ export abstract class Command {
  *
  * @return `true` if the command was successfully run. This stops other overrides from being executed.
  */
-export type CommandImplementation = (accessor: ServicesAccessor, args: unknown) => boolean;
+export type CommandImplementation = (accessor: ServicesAccessor, args: unknown) => boolean | Promise<void>;
 
 export class MultiCommand extends Command {
 
@@ -175,8 +173,12 @@ export class MultiCommand extends Command {
 
 	public runCommand(accessor: ServicesAccessor, args: any): void | Promise<void> {
 		for (const impl of this._implementations) {
-			if (impl[1](accessor, args)) {
-				return;
+			const result = impl[1](accessor, args);
+			if (result) {
+				if (typeof result === 'boolean') {
+					return;
+				}
+				return result;
 			}
 		}
 	}
@@ -405,47 +407,6 @@ export abstract class EditorAction2 extends Action2 {
 
 // --- Registration of commands and actions
 
-export function registerLanguageCommand<Args extends { [n: string]: any; }>(id: string, handler: (accessor: ServicesAccessor, args: Args) => any) {
-	CommandsRegistry.registerCommand(id, (accessor, args) => handler(accessor, args || {}));
-}
-
-interface IDefaultArgs {
-	resource: URI;
-	position: IPosition;
-	[name: string]: any;
-}
-
-export function registerDefaultLanguageCommand(id: string, handler: (model: ITextModel, position: Position, args: IDefaultArgs) => any) {
-	registerLanguageCommand(id, function (accessor, args: IDefaultArgs) {
-
-		const { resource, position } = args;
-		if (!(resource instanceof URI)) {
-			throw illegalArgument('resource');
-		}
-		if (!Position.isIPosition(position)) {
-			throw illegalArgument('position');
-		}
-
-		const model = accessor.get(IModelService).getModel(resource);
-		if (model) {
-			const editorPosition = Position.lift(position);
-			return handler(model, editorPosition, args);
-		}
-
-		return accessor.get(ITextModelService).createModelReference(resource).then(reference => {
-			return new Promise((resolve, reject) => {
-				try {
-					const result = handler(reference.object.textEditorModel, Position.lift(position), args);
-					resolve(result);
-				} catch (err) {
-					reject(err);
-				}
-			}).finally(() => {
-				reference.dispose();
-			});
-		});
-	});
-}
 
 export function registerModelAndPositionCommand(id: string, handler: (model: ITextModel, position: Position, ...args: any[]) => any) {
 	CommandsRegistry.registerCommand(id, function (accessor, ...args) {

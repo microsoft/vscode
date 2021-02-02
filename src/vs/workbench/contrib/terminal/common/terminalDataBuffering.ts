@@ -5,6 +5,7 @@
 
 import { Event } from 'vs/base/common/event';
 import { IDisposable } from 'vs/base/common/lifecycle';
+import { IProcessDataEvent } from 'vs/workbench/contrib/terminal/common/terminal';
 
 interface TerminalDataBuffer extends IDisposable {
 	data: string[];
@@ -23,19 +24,20 @@ export class TerminalDataBufferer implements IDisposable {
 		}
 	}
 
-	startBuffering(id: number, event: Event<string>, throttleBy: number = 5): IDisposable {
+	startBuffering(id: number, event: Event<string | IProcessDataEvent>, throttleBy: number = 5): IDisposable {
 		let disposable: IDisposable;
-		disposable = event((e: string) => {
+		disposable = event((e: string | IProcessDataEvent) => {
+			const data = (typeof e === 'string' ? e : e.data);
 			let buffer = this._terminalBufferMap.get(id);
 			if (buffer) {
-				buffer.data.push(e);
+				buffer.data.push(data);
 
 				return;
 			}
 
 			const timeoutId = setTimeout(() => this._flushBuffer(id), throttleBy);
 			buffer = {
-				data: [e],
+				data: [data],
 				timeoutId: timeoutId,
 				dispose: () => {
 					clearTimeout(timeoutId);

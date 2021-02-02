@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { Event, Emitter } from 'vs/base/common/event';
-import { ITerminalProcessExtHostProxy, IShellLaunchConfig, ITerminalChildProcess, ITerminalConfigHelper, ITerminalDimensions, ITerminalLaunchError } from 'vs/workbench/contrib/terminal/common/terminal';
+import { ITerminalProcessExtHostProxy, IShellLaunchConfig, ITerminalChildProcess, ITerminalConfigHelper, ITerminalDimensions, ITerminalLaunchError, ITerminalDimensionsOverride } from 'vs/workbench/contrib/terminal/common/terminal';
 import { Disposable } from 'vs/base/common/lifecycle';
 import { URI } from 'vs/base/common/uri';
 import { IRemoteAgentService } from 'vs/workbench/services/remote/common/remoteAgentService';
@@ -23,8 +23,8 @@ export class TerminalProcessExtHostProxy extends Disposable implements ITerminal
 	public get onProcessReady(): Event<{ pid: number, cwd: string }> { return this._onProcessReady.event; }
 	private readonly _onProcessTitleChanged = this._register(new Emitter<string>());
 	public readonly onProcessTitleChanged: Event<string> = this._onProcessTitleChanged.event;
-	private readonly _onProcessOverrideDimensions = this._register(new Emitter<ITerminalDimensions | undefined>());
-	public get onProcessOverrideDimensions(): Event<ITerminalDimensions | undefined> { return this._onProcessOverrideDimensions.event; }
+	private readonly _onProcessOverrideDimensions = this._register(new Emitter<ITerminalDimensionsOverride | undefined>());
+	public get onProcessOverrideDimensions(): Event<ITerminalDimensionsOverride | undefined> { return this._onProcessOverrideDimensions.event; }
 	private readonly _onProcessResolvedShellLaunchConfig = this._register(new Emitter<IShellLaunchConfig>());
 	public get onProcessResolvedShellLaunchConfig(): Event<IShellLaunchConfig> { return this._onProcessResolvedShellLaunchConfig.event; }
 
@@ -34,6 +34,8 @@ export class TerminalProcessExtHostProxy extends Disposable implements ITerminal
 	public readonly onInput: Event<string> = this._onInput.event;
 	private readonly _onResize: Emitter<{ cols: number, rows: number }> = this._register(new Emitter<{ cols: number, rows: number }>());
 	public readonly onResize: Event<{ cols: number, rows: number }> = this._onResize.event;
+	private readonly _onAcknowledgeDataEvent = this._register(new Emitter<number>());
+	public readonly onAcknowledgeDataEvent: Event<number> = this._onAcknowledgeDataEvent.event;
 	private readonly _onShutdown = this._register(new Emitter<boolean>());
 	public readonly onShutdown: Event<boolean> = this._onShutdown.event;
 	private readonly _onRequestInitialCwd = this._register(new Emitter<void>());
@@ -137,6 +139,10 @@ export class TerminalProcessExtHostProxy extends Disposable implements ITerminal
 
 	public resize(cols: number, rows: number): void {
 		this._onResize.fire({ cols, rows });
+	}
+
+	public acknowledgeDataEvent(charCount: number): void {
+		this._onAcknowledgeDataEvent.fire(charCount);
 	}
 
 	public getInitialCwd(): Promise<string> {

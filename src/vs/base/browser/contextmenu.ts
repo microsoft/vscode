@@ -5,7 +5,7 @@
 
 import { IAction, IActionRunner, IActionViewItem } from 'vs/base/common/actions';
 import { ResolvedKeybinding } from 'vs/base/common/keyCodes';
-import { AnchorAlignment } from 'vs/base/browser/ui/contextview/contextview';
+import { AnchorAlignment, AnchorAxisAlignment } from 'vs/base/browser/ui/contextview/contextview';
 
 export interface IContextMenuEvent {
 	readonly shiftKey?: boolean;
@@ -16,7 +16,7 @@ export interface IContextMenuEvent {
 
 export interface IContextMenuDelegate {
 	getAnchor(): HTMLElement | { x: number; y: number; width?: number; height?: number; };
-	getActions(): IAction[];
+	getActions(): readonly IAction[];
 	getCheckedActionsRepresentation?(action: IAction): 'radio' | 'checkbox';
 	getActionViewItem?(action: IAction): IActionViewItem | undefined;
 	getActionsContext?(event?: IContextMenuEvent): any;
@@ -26,6 +26,7 @@ export interface IContextMenuDelegate {
 	actionRunner?: IActionRunner;
 	autoSelectFirstItem?: boolean;
 	anchorAlignment?: AnchorAlignment;
+	anchorAxisAlignment?: AnchorAxisAlignment;
 	domForShadowRoot?: HTMLElement;
 }
 

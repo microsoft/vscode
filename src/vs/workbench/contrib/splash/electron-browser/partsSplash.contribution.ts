@@ -10,7 +10,7 @@ import { getTotalHeight, getTotalWidth } from 'vs/base/browser/dom';
 import { Color } from 'vs/base/common/color';
 import { Event } from 'vs/base/common/event';
 import { DisposableStore } from 'vs/base/common/lifecycle';
-import { ILifecycleService, LifecyclePhase } from 'vs/platform/lifecycle/common/lifecycle';
+import { ILifecycleService, LifecyclePhase } from 'vs/workbench/services/lifecycle/common/lifecycle';
 import { Registry } from 'vs/platform/registry/common/platform';
 import { ColorIdentifier, editorBackground, foreground } from 'vs/platform/theme/common/colorRegistry';
 import { getThemeTypeSelector, IThemeService } from 'vs/platform/theme/common/themeService';
@@ -49,7 +49,7 @@ class PartsSplash {
 	) {
 		lifecycleService.when(LifecyclePhase.Restored).then(_ => {
 			this._removePartsSplash();
-			perf.mark('didRemovePartsSplash');
+			perf.mark('code/didRemovePartsSplash');
 		});
 		Event.debounce(Event.any<any>(
 			onDidChangeFullscreen,
@@ -102,7 +102,7 @@ class PartsSplash {
 				layoutInfo,
 				baseTheme
 			}),
-			{ encoding: 'utf8', overwriteEncoding: true }
+			{ encoding: 'utf8' }
 		);
 
 		if (baseTheme !== this._lastBaseTheme || colorInfo.editorBackground !== this._lastBackground) {

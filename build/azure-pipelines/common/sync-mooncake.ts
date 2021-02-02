@@ -9,6 +9,7 @@ import * as url from 'url';
 import * as azure from 'azure-storage';
 import * as mime from 'mime';
 import { CosmosClient } from '@azure/cosmos';
+import { retry } from './retry';
 
 function log(...args: any[]) {
 	console.log(...[`[${new Date().toISOString()}]`, ...args]);
@@ -99,8 +100,8 @@ async function sync(commit: string, quality: string): Promise<void> {
 
 			log(`  Updating build in DB...`);
 			const mooncakeUrl = `${process.env['MOONCAKE_CDN_URL']}${blobPath}`;
-			await container.scripts.storedProcedure('setAssetMooncakeUrl')
-				.execute('', [commit, asset.platform, asset.type, mooncakeUrl]);
+			await retry(() => container.scripts.storedProcedure('setAssetMooncakeUrl')
+				.execute('', [commit, asset.platform, asset.type, mooncakeUrl]));
 
 			log(`  Done ✔️`);
 		} catch (err) {

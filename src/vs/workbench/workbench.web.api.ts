@@ -13,12 +13,13 @@ import { IURLCallbackProvider } from 'vs/workbench/services/url/browser/urlServi
 import { LogLevel } from 'vs/platform/log/common/log';
 import { IUpdateProvider, IUpdate } from 'vs/workbench/services/update/browser/updateService';
 import { Event, Emitter } from 'vs/base/common/event';
-import { Disposable, IDisposable } from 'vs/base/common/lifecycle';
+import { Disposable, IDisposable, toDisposable } from 'vs/base/common/lifecycle';
 import { IWorkspaceProvider, IWorkspace } from 'vs/workbench/services/host/browser/browserHostService';
 import { CommandsRegistry } from 'vs/platform/commands/common/commands';
 import { IProductConfiguration } from 'vs/platform/product/common/productService';
 import { mark } from 'vs/base/common/performance';
 import { ICredentialsProvider } from 'vs/workbench/services/credentials/common/credentials';
+import { TunnelProviderFeatures } from 'vs/platform/remote/common/tunnel';
 
 interface IResourceUriProvider {
 	(uri: URI): URI;
@@ -46,16 +47,22 @@ interface ITunnelProvider {
 	tunnelFactory?: ITunnelFactory;
 
 	/**
-	 * Support for filtering candidate ports
+	 * Support for filtering candidate ports.
 	 */
 	showPortCandidate?: IShowPortCandidate;
+
+	/**
+	 * The features that the tunnel provider supports.
+	 */
+	features?: TunnelProviderFeatures;
 }
 
 interface ITunnelFactory {
-	(tunnelOptions: ITunnelOptions): Promise<ITunnel> | undefined;
+	(tunnelOptions: ITunnelOptions, tunnelCreationOptions: TunnelCreationOptions): Promise<ITunnel> | undefined;
 }
 
 interface ITunnelOptions {
+
 	remoteAddress: { port: number, host: string };
 
 	/**
@@ -64,9 +71,20 @@ interface ITunnelOptions {
 	localAddressPort?: number;
 
 	label?: string;
+
+	public?: boolean;
 }
 
-interface ITunnel extends IDisposable {
+export interface TunnelCreationOptions {
+
+	/**
+	 * True when the local operating system will require elevation to use the requested local port.
+	 */
+	elevationRequired?: boolean;
+}
+
+interface ITunnel {
+
 	remoteAddress: { port: number, host: string };
 
 	/**
@@ -74,10 +92,14 @@ interface ITunnel extends IDisposable {
 	 */
 	localAddress: string;
 
+	public?: boolean;
+
 	/**
 	 * Implementers of Tunnel should fire onDidDispose when dispose is called.
 	 */
 	onDidDispose: Event<void>;
+
+	dispose(): Promise<void> | void;
 }
 
 interface IShowPortCandidate {
@@ -153,7 +175,6 @@ enum ColorScheme {
 	HIGH_CONTRAST = 'hc'
 }
 
-
 interface IInitialColorTheme {
 
 	/**
@@ -167,46 +188,6 @@ interface IInitialColorTheme {
 	colors?: { [colorId: string]: string };
 }
 
-interface IDefaultSideBarLayout {
-	visible?: boolean;
-	containers?: ({
-		id: 'explorer' | 'run' | 'scm' | 'search' | 'extensions' | 'remote' | string;
-		active: true;
-		order?: number;
-		views?: {
-			id: string;
-			order?: number;
-			visible?: boolean;
-			collapsed?: boolean;
-		}[];
-	} | {
-		id: 'explorer' | 'run' | 'scm' | 'search' | 'extensions' | 'remote' | string;
-		active?: false;
-		order?: number;
-		visible?: boolean;
-		views?: {
-			id: string;
-			order?: number;
-			visible?: boolean;
-			collapsed?: boolean;
-		}[];
-	})[];
-}
-
-interface IDefaultPanelLayout {
-	visible?: boolean;
-	containers?: ({
-		id: 'terminal' | 'debug' | 'problems' | 'output' | 'comments' | string;
-		order?: number;
-		active: true;
-	} | {
-		id: 'terminal' | 'debug' | 'problems' | 'output' | 'comments' | string;
-		order?: number;
-		active?: false;
-		visible?: boolean;
-	})[];
-}
-
 interface IDefaultView {
 	readonly id: string;
 }
@@ -218,10 +199,6 @@ interface IDefaultEditor {
 }
 
 interface IDefaultLayout {
-	/** @deprecated Use views instead (TODO@eamodio remove eventually) */
-	readonly sidebar?: IDefaultSideBarLayout;
-	/** @deprecated Use views instead (TODO@eamodio remove eventually) */
-	readonly panel?: IDefaultPanelLayout;
 	readonly views?: IDefaultView[];
 	readonly editors?: IDefaultEditor[];
 }
@@ -239,6 +216,7 @@ interface IProductQualityChangeHandler {
  * Settings sync options
  */
 interface ISettingsSyncOptions {
+
 	/**
 	 * Is settings sync enabled
 	 */
@@ -266,17 +244,15 @@ interface IWorkbenchConstructionOptions {
 	readonly connectionToken?: string;
 
 	/**
-	 * Session id of the current authenticated user
-	 *
-	 * @deprecated Instead pass current authenticated user info through [credentialsProvider](#credentialsProvider)
-	 */
-	readonly authenticationSessionId?: string;
-
-	/**
 	 * An endpoint to serve iframe content ("webview") from. This is required
 	 * to provide full security isolation from the workbench host.
 	 */
 	readonly webviewEndpoint?: string;
+
+	/**
+	 * An URL pointing to the web worker extension host <iframe> src.
+	 */
+	readonly webWorkerExtensionHostIframeSrc?: string;
 
 	/**
 	 * A factory for web sockets.
@@ -313,12 +289,6 @@ interface IWorkbenchConstructionOptions {
 	 * A handler for opening workspaces and providing the initial workspace.
 	 */
 	readonly workspaceProvider?: IWorkspaceProvider;
-
-	/**
-	 * The user data provider is used to handle user specific application
-	 * state like settings, keybindings, UI state (e.g. opened editors) and snippets.
-	 */
-	userDataProvider?: IFileSystemProvider;
 
 	/**
 	 * Enables Settings Sync by default.
@@ -448,10 +418,44 @@ interface IWorkbenchConstructionOptions {
 	//#endregion
 }
 
+interface IPerformanceMark {
+
+	/**
+	 * The name of a performace marker.
+	 */
+	readonly name: string;
+
+	/**
+	 * The UNIX timestamp at which the marker has been set.
+	 */
+	readonly startTime: number;
+}
+
 interface IWorkbench {
+
 	commands: {
+		/**
+		 * @see [executeCommand](#commands.executeCommand)
+		 */
 		executeCommand(command: string, ...args: any[]): Promise<unknown>;
 	}
+
+	env: {
+		/**
+		 * @see [retrievePerformanceMarks](#commands.retrievePerformanceMarks)
+		 */
+		retrievePerformanceMarks(): Promise<[string, readonly IPerformanceMark[]][]>;
+	}
+
+	/**
+	 * Triggers shutdown of the workbench programmatically. After this method is
+	 * called, the workbench is not usable anymore and the page needs to reload
+	 * or closed.
+	 *
+	 * This will also remove any `beforeUnload` handlers that would bring up a
+	 * confirmation dialog.
+	 */
+	shutdown: () => void;
 }
 
 /**
@@ -463,11 +467,10 @@ interface IWorkbench {
 let created = false;
 let workbenchPromiseResolve: Function;
 const workbenchPromise = new Promise<IWorkbench>(resolve => workbenchPromiseResolve = resolve);
-async function create(domElement: HTMLElement, options: IWorkbenchConstructionOptions): Promise<void> {
+function create(domElement: HTMLElement, options: IWorkbenchConstructionOptions): IDisposable {
 
 	// Mark start of workbench
-	mark('didLoadWorkbenchMain');
-	performance.mark('workbench-start');
+	mark('code/didLoadWorkbenchMain');
 
 	// Assert that the workbench is not created more than once. We currently
 	// do not support this and require a full context switch to clean-up.
@@ -476,10 +479,6 @@ async function create(domElement: HTMLElement, options: IWorkbenchConstructionOp
 	} else {
 		created = true;
 	}
-
-	// Startup workbench and resolve waiters
-	const workbench = await main(domElement, options);
-	workbenchPromiseResolve(workbench);
 
 	// Register commands if any
 	if (Array.isArray(options.commands)) {
@@ -491,6 +490,21 @@ async function create(domElement: HTMLElement, options: IWorkbenchConstructionOp
 			});
 		}
 	}
+
+	// Startup workbench and resolve waiters
+	let instantiatedWorkbench: IWorkbench | undefined = undefined;
+	main(domElement, options).then(workbench => {
+		instantiatedWorkbench = workbench;
+		workbenchPromiseResolve(workbench);
+	});
+
+	return toDisposable(() => {
+		if (instantiatedWorkbench) {
+			instantiatedWorkbench.shutdown();
+		} else {
+			workbenchPromise.then(instantiatedWorkbench => instantiatedWorkbench.shutdown());
+		}
+	});
 }
 
 
@@ -509,6 +523,26 @@ namespace commands {
 		const workbench = await workbenchPromise;
 
 		return workbench.commands.executeCommand(command, ...args);
+	}
+}
+
+namespace env {
+
+	/**
+	 * Retrieve performance marks that have been collected during startup. This function
+	 * returns tuples of source and marks. A source is a dedicated context, like
+	 * the renderer or an extension host.
+	 *
+	 * *Note* that marks can be collected on different machines and in different processes
+	 * and that therefore "different clocks" are used. So, comparing `startTime`-properties
+	 * across contexts should be taken with a grain of salt.
+	 *
+	 * @returns A promise that resolves to tuples of source and marks.
+	 */
+	export async function retrievePerformanceMarks(): Promise<[string, readonly IPerformanceMark[]][]> {
+		const workbench = await workbenchPromise;
+
+		return workbench.env.retrievePerformanceMarks();
 	}
 }
 
@@ -557,6 +591,9 @@ export {
 	// LogLevel
 	LogLevel,
 
+	// SettingsSync
+	ISettingsSyncOptions,
+
 	// Updates/Quality
 	IUpdateProvider,
 	IUpdate,
@@ -591,8 +628,10 @@ export {
 	IDefaultView,
 	IDefaultEditor,
 	IDefaultLayout,
-	IDefaultPanelLayout,
-	IDefaultSideBarLayout
+
+	// Env
+	IPerformanceMark,
+	env
 };
 
 //#endregion

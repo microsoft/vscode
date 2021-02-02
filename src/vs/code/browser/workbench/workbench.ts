@@ -3,7 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { IWorkbenchConstructionOptions, create, ICredentialsProvider, IURLCallbackProvider, IWorkspaceProvider, IWorkspace, IWindowIndicator, IHomeIndicator, IProductQualityChangeHandler } from 'vs/workbench/workbench.web.api';
+import { IWorkbenchConstructionOptions, create, ICredentialsProvider, IURLCallbackProvider, IWorkspaceProvider, IWorkspace, IWindowIndicator, IHomeIndicator, IProductQualityChangeHandler, ISettingsSyncOptions } from 'vs/workbench/workbench.web.api';
 import { URI, UriComponents } from 'vs/base/common/uri';
 import { Event, Emitter } from 'vs/base/common/event';
 import { generateUuid } from 'vs/base/common/uuid';
@@ -17,6 +17,7 @@ import { isStandalone } from 'vs/base/browser/browser';
 import { localize } from 'vs/nls';
 import { Schemas } from 'vs/base/common/network';
 import product from 'vs/platform/product/common/product';
+import { parseLogLevel } from 'vs/platform/log/common/log';
 
 function doCreateUri(path: string, queryValues: Map<string, string>): URI {
 	let query: string | undefined = undefined;
@@ -264,7 +265,6 @@ class PollingURLCallbackProvider extends Disposable implements IURLCallbackProvi
 			setTimeout(() => this.periodicFetchCallback(requestId, startTime), PollingURLCallbackProvider.FETCH_INTERVAL);
 		}
 	}
-
 }
 
 class WorkspaceProvider implements IWorkspaceProvider {
@@ -417,6 +417,7 @@ class WindowIndicator implements IWindowIndicator {
 	let foundWorkspace = false;
 	let workspace: IWorkspace;
 	let payload = Object.create(null);
+	let logLevel: string | undefined = undefined;
 
 	const query = new URL(document.location.href).searchParams;
 	query.forEach((value, key) => {
@@ -447,6 +448,11 @@ class WindowIndicator implements IWindowIndicator {
 				} catch (error) {
 					console.error(error); // possible invalid JSON
 				}
+				break;
+
+			// Log level
+			case 'logLevel':
+				logLevel = value;
 				break;
 		}
 	});
@@ -493,9 +499,29 @@ class WindowIndicator implements IWindowIndicator {
 		window.location.href = `${window.location.origin}?${queryString}`;
 	};
 
+	// settings sync options
+	const settingsSyncOptions: ISettingsSyncOptions | undefined = config.settingsSyncOptions ? {
+		enabled: config.settingsSyncOptions.enabled,
+		enablementHandler: (enablement) => {
+			let queryString = `settingsSync=${enablement ? 'true' : 'false'}`;
+
+			// Save all other query params we might have
+			const query = new URL(document.location.href).searchParams;
+			query.forEach((value, key) => {
+				if (key !== 'settingsSync') {
+					queryString += `&${key}=${value}`;
+				}
+			});
+
+			window.location.href = `${window.location.origin}?${queryString}`;
+		}
+	} : undefined;
+
 	// Finally create workbench
 	create(document.body, {
 		...config,
+		logLevel: logLevel ? parseLogLevel(logLevel) : undefined,
+		settingsSyncOptions,
 		homeIndicator,
 		windowIndicator,
 		productQualityChangeHandler,

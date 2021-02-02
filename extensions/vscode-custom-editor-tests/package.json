@@ -21,12 +21,8 @@
     "p-limit": "^3.0.2"
   },
   "devDependencies": {
-    "@types/node": "^12.11.7",
-    "@types/p-limit": "^2.2.0",
-    "mocha": "^2.3.3",
-    "mocha-junit-reporter": "^1.17.0",
-    "mocha-multi-reporters": "^1.1.7",
-    "vscode": "^1.1.36"
+    "@types/node": "^12.19.9",
+    "@types/p-limit": "^2.2.0"
   },
   "contributes": {
     "customEditors": [
@@ -40,5 +36,9 @@
         ]
       }
     ]
+  },
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/microsoft/vscode.git"
   }
 }

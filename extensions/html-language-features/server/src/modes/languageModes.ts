@@ -45,10 +45,10 @@ export interface LanguageMode {
 	doValidation?: (document: TextDocument, settings?: Settings) => Promise<Diagnostic[]>;
 	doComplete?: (document: TextDocument, position: Position, documentContext: DocumentContext, settings?: Settings) => Promise<CompletionList>;
 	doResolve?: (document: TextDocument, item: CompletionItem) => Promise<CompletionItem>;
-	doHover?: (document: TextDocument, position: Position) => Promise<Hover | null>;
+	doHover?: (document: TextDocument, position: Position, settings?: Settings) => Promise<Hover | null>;
 	doSignatureHelp?: (document: TextDocument, position: Position) => Promise<SignatureHelp | null>;
 	doRename?: (document: TextDocument, position: Position, newName: string) => Promise<WorkspaceEdit | null>;
-	doOnTypeRename?: (document: TextDocument, position: Position) => Promise<Range[] | null>;
+	doLinkedEditing?: (document: TextDocument, position: Position) => Promise<Range[] | null>;
 	findDocumentHighlight?: (document: TextDocument, position: Position) => Promise<DocumentHighlight[]>;
 	findDocumentSymbols?: (document: TextDocument) => Promise<SymbolInformation[]>;
 	findDocumentLinks?: (document: TextDocument, documentContext: DocumentContext) => Promise<DocumentLink[]>;

@@ -9,7 +9,7 @@ import { IDisposable, Disposable, toDisposable } from 'vs/base/common/lifecycle'
 import { IActivityBarService } from 'vs/workbench/services/activityBar/browser/activityBarService';
 import { registerSingleton } from 'vs/platform/instantiation/common/extensions';
 import { IViewDescriptorService, ViewContainerLocation } from 'vs/workbench/common/views';
-import { GLOBAL_ACTIVITY_ID, ACCOUNTS_ACTIIVTY_ID } from 'vs/workbench/common/activity';
+import { GLOBAL_ACTIVITY_ID, ACCOUNTS_ACTIVITY_ID } from 'vs/workbench/common/activity';
 import { Event } from 'vs/base/common/event';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 
@@ -110,7 +110,7 @@ export class ActivityService implements IActivityService {
 	}
 
 	showAccountsActivity({ badge, clazz, priority }: IActivity): IDisposable {
-		return this.activityBarService.showActivity(ACCOUNTS_ACTIIVTY_ID, badge, clazz, priority);
+		return this.activityBarService.showActivity(ACCOUNTS_ACTIVITY_ID, badge, clazz, priority);
 	}
 
 	showGlobalActivity({ badge, clazz, priority }: IActivity): IDisposable {

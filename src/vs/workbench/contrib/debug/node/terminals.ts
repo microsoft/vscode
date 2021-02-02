@@ -9,6 +9,7 @@ import { WindowsExternalTerminalService, MacExternalTerminalService, LinuxExtern
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { IExternalTerminalService } from 'vs/workbench/contrib/externalTerminal/common/externalTerminal';
 import { ExtHostConfigProvider } from 'vs/workbench/api/common/extHostConfiguration';
+import { getDriveLetter } from 'vs/base/common/extpath';
 
 let externalTerminalService: IExternalTerminalService | undefined = undefined;
 
@@ -95,12 +96,8 @@ export function prepareCommand(shell: string, args: string[], cwd?: string, env?
 	}
 
 	let quote: (s: string) => string;
-
-	// cancel the current input (to avoid executing the command accidentally)
-	let command = '\u0003'; // Control-C
-
 	// begin command with a space to avoid polluting shell history
-	command += ' ';
+	let command = ' ';
 
 	switch (shellType) {
 
@@ -115,7 +112,11 @@ export function prepareCommand(shell: string, args: string[], cwd?: string, env?
 			};
 
 			if (cwd) {
-				command += `cd '${cwd}'; `;
+				const driveLetter = getDriveLetter(cwd);
+				if (driveLetter) {
+					command += `${driveLetter}:; `;
+				}
+				command += `cd ${quote(cwd)}; `;
 			}
 			if (env) {
 				for (let key in env) {
@@ -144,6 +145,10 @@ export function prepareCommand(shell: string, args: string[], cwd?: string, env?
 			};
 
 			if (cwd) {
+				const driveLetter = getDriveLetter(cwd);
+				if (driveLetter) {
+					command += `${driveLetter}: && `;
+				}
 				command += `cd ${quote(cwd)} && `;
 			}
 			if (env) {

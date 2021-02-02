@@ -15,7 +15,7 @@ export function setup() {
 			}
 
 			await app.workbench.extensions.openExtensionsViewlet();
-			await app.workbench.extensions.installExtension('ms-ceintl.vscode-language-pack-de');
+			await app.workbench.extensions.installExtension('ms-ceintl.vscode-language-pack-de', false);
 
 			await app.restart({ extraArgs: ['--locale=DE'] });
 		});
@@ -28,7 +28,7 @@ export function setup() {
 				return;
 			}
 
-			await app.workbench.explorer.waitForOpenEditorsViewTitle(title => /geöffnete editoren/i.test(title));
+			// await app.workbench.explorer.waitForOpenEditorsViewTitle(title => /geöffnete editoren/i.test(title));
 
 			await app.workbench.search.openSearchViewlet();
 			await app.workbench.search.waitForTitle(title => /suchen/i.test(title));

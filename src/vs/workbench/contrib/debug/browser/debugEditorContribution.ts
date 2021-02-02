@@ -21,9 +21,9 @@ import { IInstantiationService } from 'vs/platform/instantiation/common/instanti
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { ICommandService } from 'vs/platform/commands/common/commands';
-import { IDebugEditorContribution, IDebugService, State, IStackFrame, IDebugConfiguration, IExpression, IExceptionInfo, IDebugSession } from 'vs/workbench/contrib/debug/common/debug';
+import { IDebugEditorContribution, IDebugService, State, IStackFrame, IDebugConfiguration, IExpression, IExceptionInfo, IDebugSession, CONTEXT_EXCEPTION_WIDGET_VISIBLE } from 'vs/workbench/contrib/debug/common/debug';
 import { ExceptionWidget } from 'vs/workbench/contrib/debug/browser/exceptionWidget';
-import { FloatingClickWidget } from 'vs/workbench/browser/parts/editor/editorWidgets';
+import { FloatingClickWidget } from 'vs/workbench/browser/codeeditor';
 import { Position } from 'vs/editor/common/core/position';
 import { CoreEditingCommands } from 'vs/editor/browser/controller/coreCommands';
 import { memoize, createMemoizer } from 'vs/base/common/decorators';
@@ -36,8 +36,11 @@ import { basename } from 'vs/base/common/path';
 import { domEvent } from 'vs/base/browser/event';
 import { ModesHoverController } from 'vs/editor/contrib/hover/hover';
 import { HoverStartMode } from 'vs/editor/contrib/hover/hoverOperation';
+import { IHostService } from 'vs/workbench/services/host/browser/host';
+import { Event } from 'vs/base/common/event';
+import { IUriIdentityService } from 'vs/workbench/services/uriIdentity/common/uriIdentity';
+import { IContextKey, IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
 
-const HOVER_DELAY = 300;
 const LAUNCH_JSON_REGEX = /\.vscode\/launch\.json$/;
 const INLINE_VALUE_DECORATION_KEY = 'inlinevaluedecoration';
 const MAX_NUM_INLINE_VALUES = 100; // JS Global scope can have 700+ entries. We want to limit ourselves for perf reasons
@@ -171,6 +174,7 @@ export class DebugEditorContribution implements IDebugEditorContribution {
 	private hoverWidget: DebugHoverWidget;
 	private hoverRange: Range | null = null;
 	private mouseDown = false;
+	private exceptionWidgetVisible: IContextKey<boolean>;
 	private static readonly MEMOIZER = createMemoizer();
 
 	private exceptionWidget: ExceptionWidget | undefined;
@@ -186,12 +190,16 @@ export class DebugEditorContribution implements IDebugEditorContribution {
 		@ICodeEditorService private readonly codeEditorService: ICodeEditorService,
 		@ITelemetryService private readonly telemetryService: ITelemetryService,
 		@IConfigurationService private readonly configurationService: IConfigurationService,
+		@IHostService private readonly hostService: IHostService,
+		@IUriIdentityService private readonly uriIdentityService: IUriIdentityService,
+		@IContextKeyService contextKeyService: IContextKeyService
 	) {
 		this.hoverWidget = this.instantiationService.createInstance(DebugHoverWidget, this.editor);
 		this.toDispose = [];
 		this.registerListeners();
 		this.updateConfigurationWidgetVisibility();
 		this.codeEditorService.registerDecorationType(INLINE_VALUE_DECORATION_KEY, {});
+		this.exceptionWidgetVisible = CONTEXT_EXCEPTION_WIDGET_VISIBLE.bindTo(contextKeyService);
 		this.toggleExceptionWidget();
 	}
 
@@ -245,7 +253,7 @@ export class DebugEditorContribution implements IDebugEditorContribution {
 	}
 
 	private applyHoverConfiguration(model: ITextModel, stackFrame: IStackFrame | undefined): void {
-		if (stackFrame && model.uri.toString() === stackFrame.source.uri.toString()) {
+		if (stackFrame && this.uriIdentityService.extUri.isEqual(model.uri, stackFrame.source.uri)) {
 			if (this.altListener) {
 				this.altListener.dispose();
 			}
@@ -263,9 +271,12 @@ export class DebugEditorContribution implements IDebugEditorContribution {
 						hoverController.showContentHover(this.hoverRange, HoverStartMode.Immediate, false);
 					}
 
-					const listener = domEvent(document, 'keyup')(keyupEvent => {
-						const standardKeyboardEvent = new StandardKeyboardEvent(keyupEvent);
-						if (standardKeyboardEvent.keyCode === KeyCode.Alt) {
+					const listener = Event.any<KeyboardEvent | boolean>(this.hostService.onDidChangeFocus, domEvent(document, 'keyup'))(keyupEvent => {
+						let standardKeyboardEvent = undefined;
+						if (keyupEvent instanceof KeyboardEvent) {
+							standardKeyboardEvent = new StandardKeyboardEvent(keyupEvent);
+						}
+						if (!standardKeyboardEvent || standardKeyboardEvent.keyCode === KeyCode.Alt) {
 							this.altPressed = false;
 							this.editor.updateOptions({ hover: { enabled: false } });
 							listener.dispose();
@@ -302,7 +313,7 @@ export class DebugEditorContribution implements IDebugEditorContribution {
 	async showHover(range: Range, focus: boolean): Promise<void> {
 		const sf = this.debugService.getViewModel().focusedStackFrame;
 		const model = this.editor.getModel();
-		if (sf && model && sf.source.uri.toString() === model.uri.toString() && !this.altPressed) {
+		if (sf && model && this.uriIdentityService.extUri.isEqual(sf.source.uri, model.uri) && !this.altPressed) {
 			return this.hoverWidget.showAt(range, focus);
 		}
 	}
@@ -311,7 +322,7 @@ export class DebugEditorContribution implements IDebugEditorContribution {
 		const model = this.editor.getModel();
 		if (model) {
 			this.applyHoverConfiguration(model, sf);
-			if (sf && sf.source.uri.toString() === model.uri.toString()) {
+			if (sf && this.uriIdentityService.extUri.isEqual(sf.source.uri, model.uri)) {
 				await this.toggleExceptionWidget();
 			} else {
 				this.hideHoverWidget();
@@ -323,11 +334,12 @@ export class DebugEditorContribution implements IDebugEditorContribution {
 
 	@memoize
 	private get showHoverScheduler(): RunOnceScheduler {
+		const hoverOption = this.editor.getOption(EditorOption.hover);
 		const scheduler = new RunOnceScheduler(() => {
 			if (this.hoverRange) {
 				this.showHover(this.hoverRange, false);
 			}
-		}, HOVER_DELAY);
+		}, hoverOption.delay * 2);
 		this.toDispose.push(scheduler);
 
 		return scheduler;
@@ -335,18 +347,19 @@ export class DebugEditorContribution implements IDebugEditorContribution {
 
 	@memoize
 	private get hideHoverScheduler(): RunOnceScheduler {
+		const hoverOption = this.editor.getOption(EditorOption.hover);
 		const scheduler = new RunOnceScheduler(() => {
 			if (!this.hoverWidget.isHovered()) {
 				this.hoverWidget.hide();
 			}
-		}, 2 * HOVER_DELAY);
+		}, hoverOption.delay);
 		this.toDispose.push(scheduler);
 
 		return scheduler;
 	}
 
 	private hideHoverWidget(): void {
-		if (!this.hideHoverScheduler.isScheduled() && this.hoverWidget.isVisible()) {
+		if (!this.hideHoverScheduler.isScheduled() && this.hoverWidget.willBeVisible()) {
 			this.hideHoverScheduler.schedule();
 		}
 		this.showHoverScheduler.cancel();
@@ -414,12 +427,12 @@ export class DebugEditorContribution implements IDebugEditorContribution {
 			return;
 		}
 
-		const sameUri = exceptionSf.source.uri.toString() === model.uri.toString();
+		const sameUri = this.uriIdentityService.extUri.isEqual(exceptionSf.source.uri, model.uri);
 		if (this.exceptionWidget && !sameUri) {
 			this.closeExceptionWidget();
 		} else if (sameUri) {
 			const exceptionInfo = await focusedSf.thread.exceptionInfo;
-			if (exceptionInfo && exceptionSf.range.startLineNumber && exceptionSf.range.startColumn) {
+			if (exceptionInfo) {
 				this.showExceptionWidget(exceptionInfo, this.debugService.getViewModel().focusedSession, exceptionSf.range.startLineNumber, exceptionSf.range.startColumn);
 			}
 		}
@@ -432,13 +445,20 @@ export class DebugEditorContribution implements IDebugEditorContribution {
 
 		this.exceptionWidget = this.instantiationService.createInstance(ExceptionWidget, this.editor, exceptionInfo, debugSession);
 		this.exceptionWidget.show({ lineNumber, column }, 0);
+		this.exceptionWidget.focus();
 		this.editor.revealLine(lineNumber);
+		this.exceptionWidgetVisible.set(true);
 	}
 
-	private closeExceptionWidget(): void {
+	closeExceptionWidget(): void {
 		if (this.exceptionWidget) {
+			const shouldFocusEditor = this.exceptionWidget.hasfocus();
 			this.exceptionWidget.dispose();
 			this.exceptionWidget = undefined;
+			this.exceptionWidgetVisible.set(false);
+			if (shouldFocusEditor) {
+				this.editor.focus();
+			}
 		}
 	}
 

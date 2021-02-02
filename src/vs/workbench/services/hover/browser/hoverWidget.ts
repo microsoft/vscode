@@ -4,7 +4,6 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { DisposableStore } from 'vs/base/common/lifecycle';
-import { renderMarkdown } from 'vs/base/browser/markdownRenderer';
 import { Event, Emitter } from 'vs/base/common/event';
 import * as dom from 'vs/base/browser/dom';
 import { IKeybindingService } from 'vs/platform/keybinding/common/keybinding';
@@ -17,7 +16,8 @@ import { Widget } from 'vs/base/browser/ui/widget';
 import { AnchorPosition } from 'vs/base/browser/ui/contextview/contextview';
 import { IOpenerService } from 'vs/platform/opener/common/opener';
 import { IWorkbenchLayoutService } from 'vs/workbench/services/layout/browser/layoutService';
-import { MarkdownString } from 'vs/base/common/htmlContent';
+import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
+import { MarkdownRenderer } from 'vs/editor/browser/core/markdownRenderer';
 
 const $ = dom.$;
 
@@ -52,6 +52,7 @@ export class HoverWidget extends Widget {
 		@IConfigurationService private readonly _configurationService: IConfigurationService,
 		@IOpenerService private readonly _openerService: IOpenerService,
 		@IWorkbenchLayoutService private readonly _workbenchLayoutService: IWorkbenchLayoutService,
+		@IInstantiationService private readonly _instantiationService: IInstantiationService,
 	) {
 		super();
 
@@ -80,23 +81,29 @@ export class HoverWidget extends Widget {
 
 		const rowElement = $('div.hover-row.markdown-hover');
 		const contentsElement = $('div.hover-contents');
-		const markdown = typeof options.text === 'string' ? new MarkdownString().appendText(options.text) : options.text;
-		const markdownElement = renderMarkdown(markdown, {
-			actionHandler: {
-				callback: (content) => this._linkHandler(content),
-				disposeables: this._messageListeners
-			},
-			codeBlockRenderer: async (_, value) => {
-				const fontFamily = this._configurationService.getValue<IEditorOptions>('editor').fontFamily || EDITOR_FONT_DEFAULTS.fontFamily;
-				return `<span style="font-family: ${fontFamily}; white-space: nowrap">${value.replace(/\n/g, '<br>')}</span>`;
-			},
-			codeBlockRenderCallback: () => {
-				contentsElement.classList.add('code-hover-contents');
-				// This changes the dimensions of the hover so trigger a layout
-				this._onRequestLayout.fire();
-			}
-		});
-		contentsElement.appendChild(markdownElement);
+		if (typeof options.text === 'string') {
+			contentsElement.textContent = options.text;
+			contentsElement.style.whiteSpace = 'pre-wrap';
+		} else {
+			const markdown = options.text;
+			const mdRenderer = this._instantiationService.createInstance(
+				MarkdownRenderer,
+				{ codeBlockFontFamily: this._configurationService.getValue<IEditorOptions>('editor').fontFamily || EDITOR_FONT_DEFAULTS.fontFamily }
+			);
+
+			const { element } = mdRenderer.render(markdown, {
+				actionHandler: {
+					callback: (content) => this._linkHandler(content),
+					disposeables: this._messageListeners
+				},
+				asyncRenderCallback: () => {
+					contentsElement.classList.add('code-hover-contents');
+					// This changes the dimensions of the hover so trigger a layout
+					this._onRequestLayout.fire();
+				}
+			});
+			contentsElement.appendChild(element);
+		}
 		rowElement.appendChild(contentsElement);
 		this._hover.contentsDomNode.appendChild(rowElement);
 
@@ -176,10 +183,8 @@ export class HoverWidget extends Widget {
 				this._y = targetTop;
 			}
 		} else {
-			console.log('below');
 			const targetBottom = Math.max(...targetBounds.map(e => e.bottom));
 			if (targetBottom + this._hover.containerDomNode.clientHeight > window.innerHeight) {
-				console.log(targetBottom, this._hover.containerDomNode.clientHeight, window.innerHeight);
 				const targetTop = Math.min(...targetBounds.map(e => e.top));
 				this._anchor = AnchorPosition.ABOVE;
 				this._y = targetTop;

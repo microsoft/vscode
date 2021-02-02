@@ -8,7 +8,7 @@ import { INativeWorkbenchEnvironmentService } from 'vs/workbench/services/enviro
 import { IWorkspaceContextService } from 'vs/platform/workspace/common/workspace';
 import { IExtensionService } from 'vs/workbench/services/extensions/common/extensions';
 import { IUpdateService } from 'vs/platform/update/common/update';
-import { ILifecycleService } from 'vs/platform/lifecycle/common/lifecycle';
+import { ILifecycleService } from 'vs/workbench/services/lifecycle/common/lifecycle';
 import { IViewletService } from 'vs/workbench/services/viewlet/browser/viewlet';
 import { IPanelService } from 'vs/workbench/services/panel/common/panelService';
 import { IEditorService } from 'vs/workbench/services/editor/common/editorService';
@@ -33,6 +33,7 @@ export class TimerService extends AbstractTimerService {
 		@ITelemetryService telemetryService: ITelemetryService,
 	) {
 		super(lifecycleService, contextService, extensionService, updateService, viewletService, panelService, editorService, accessibilityService, telemetryService);
+		this.setPerformanceMarks('main', _environmentService.configuration.perfMarks);
 	}
 
 	protected _isInitialStartup(): boolean {
@@ -82,7 +83,7 @@ export class TimerService extends AbstractTimerService {
 //#region cached data logic
 
 export function didUseCachedData(): boolean {
-	// TODO@Ben TODO@Jo need a different way to figure out if cached data was used
+	// TODO@bpasero TODO@jrieken need a different way to figure out if cached data was used
 	if (context.sandbox) {
 		return true;
 	}

@@ -4,14 +4,14 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { Disposable, IDisposable, toDisposable, DisposableStore } from 'vs/base/common/lifecycle';
-import { IViewDescriptorService, ViewContainer, IViewDescriptor, IView, ViewContainerLocation, IViewsService, IViewPaneContainer, getVisbileViewContextKey } from 'vs/workbench/common/views';
+import { IViewDescriptorService, ViewContainer, IViewDescriptor, IView, ViewContainerLocation, IViewsService, IViewPaneContainer, getVisbileViewContextKey, getEnabledViewContainerContextKey } from 'vs/workbench/common/views';
 import { Registry } from 'vs/platform/registry/common/platform';
 import { IStorageService } from 'vs/platform/storage/common/storage';
 import { IViewletService } from 'vs/workbench/services/viewlet/browser/viewlet';
 import { ContextKeyExpr, IContextKey, IContextKeyService, RawContextKey } from 'vs/platform/contextkey/common/contextkey';
 import { Event, Emitter } from 'vs/base/common/event';
 import { isString } from 'vs/base/common/types';
-import { MenuId, registerAction2, Action2 } from 'vs/platform/actions/common/actions';
+import { MenuId, registerAction2, Action2, MenuRegistry, ICommandActionTitle } from 'vs/platform/actions/common/actions';
 import { localize } from 'vs/nls';
 import { KeybindingWeight } from 'vs/platform/keybinding/common/keybindingsRegistry';
 import { registerSingleton } from 'vs/platform/instantiation/common/extensions';
@@ -27,10 +27,11 @@ import { IExtensionService } from 'vs/workbench/services/extensions/common/exten
 import { IWorkspaceContextService } from 'vs/platform/workspace/common/workspace';
 import { Viewlet, ViewletDescriptor, ViewletRegistry, Extensions as ViewletExtensions } from 'vs/workbench/browser/viewlet';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
-import { IWorkbenchLayoutService } from 'vs/workbench/services/layout/browser/layoutService';
+import { IWorkbenchLayoutService, Parts } from 'vs/workbench/services/layout/browser/layoutService';
 import { URI } from 'vs/base/common/uri';
 import { IProgressIndicator } from 'vs/platform/progress/common/progress';
 import { CATEGORIES } from 'vs/workbench/common/actions';
+import { IEditorGroupsService } from 'vs/workbench/services/editor/common/editorGroupsService';
 
 export class ViewsService extends Disposable implements IViewsService {
 
@@ -139,6 +140,65 @@ export class ViewsService extends Disposable implements IViewsService {
 			this.onViewDescriptorsAdded(added, viewContainer);
 			this.onViewDescriptorsRemoved(removed);
 		}));
+
+		// Register Action to Open View Container
+		const commandId = viewContainer.commandId ?? viewContainer.id;
+		const that = this;
+		this._register(registerAction2(class OpenViewContainerAction extends Action2 {
+			constructor() {
+				super({
+					id: commandId,
+					get title(): ICommandActionTitle {
+						const viewContainerLocation = that.viewDescriptorService.getViewContainerLocation(viewContainer);
+						if (viewContainerLocation === ViewContainerLocation.Sidebar) {
+							return { value: localize('show view', "Show {0}", viewContainer.title), original: `Show ${viewContainer.title}` };
+						} else {
+							return { value: localize('toggle view', "Toggle {0}", viewContainer.title), original: `Toggle ${viewContainer.title}` };
+						}
+					},
+					category: CATEGORIES.View.value,
+					precondition: ContextKeyExpr.has(getEnabledViewContainerContextKey(viewContainer.id)),
+					keybinding: viewContainer.keybindings ? { ...viewContainer.keybindings, weight: KeybindingWeight.WorkbenchContrib } : undefined,
+					f1: true
+				});
+			}
+			public async run(serviceAccessor: ServicesAccessor): Promise<any> {
+				const editorGroupService = serviceAccessor.get(IEditorGroupsService);
+				const viewDescriptorService = serviceAccessor.get(IViewDescriptorService);
+				const layoutService = serviceAccessor.get(IWorkbenchLayoutService);
+				const viewsService = serviceAccessor.get(IViewsService);
+				const viewContainerLocation = viewDescriptorService.getViewContainerLocation(viewContainer);
+				switch (viewContainerLocation) {
+					case ViewContainerLocation.Sidebar:
+						if (!viewsService.isViewContainerVisible(viewContainer.id) || !layoutService.hasFocus(Parts.SIDEBAR_PART)) {
+							await viewsService.openViewContainer(viewContainer.id, true);
+						} else {
+							editorGroupService.activeGroup.focus();
+						}
+						break;
+					case ViewContainerLocation.Panel:
+						if (!viewsService.isViewContainerVisible(viewContainer.id) || !layoutService.hasFocus(Parts.PANEL_PART)) {
+							await viewsService.openViewContainer(viewContainer.id, true);
+						} else {
+							viewsService.closeViewContainer(viewContainer.id);
+						}
+						break;
+				}
+			}
+		}));
+
+		if (viewContainer.mnemonicTitle) {
+			const defaultLocation = this.viewDescriptorService.getDefaultViewContainerLocation(viewContainer);
+			this._register(MenuRegistry.appendMenuItem(MenuId.MenubarViewMenu, {
+				command: {
+					id: commandId,
+					title: viewContainer.mnemonicTitle,
+				},
+				group: defaultLocation === ViewContainerLocation.Sidebar ? '3_views' : '4_panels',
+				when: ContextKeyExpr.has(getEnabledViewContainerContextKey(viewContainer.id)),
+				order: viewContainer.order ?? Number.MAX_VALUE
+			}));
+		}
 	}
 
 	private onDidChangeContainerLocation(viewContainer: ViewContainer, from: ViewContainerLocation, to: ViewContainerLocation): void {
@@ -196,7 +256,9 @@ export class ViewsService extends Disposable implements IViewsService {
 									ContextKeyExpr.equals('view', viewDescriptor.id),
 									ContextKeyExpr.equals(`${viewDescriptor.id}.defaultViewLocation`, false)
 								)
-							)
+							),
+							group: '1_hide',
+							order: 2
 						}],
 					});
 				}
@@ -326,7 +388,7 @@ export class ViewsService extends Disposable implements IViewsService {
 		return null;
 	}
 
-	async openView<T extends IView>(id: string, focus: boolean): Promise<T | null> {
+	async openView<T extends IView>(id: string, focus?: boolean): Promise<T | null> {
 		const viewContainer = this.viewDescriptorService.getViewContainerByViewId(id);
 		if (!viewContainer) {
 			return null;
@@ -392,12 +454,29 @@ export class ViewsService extends Disposable implements IViewsService {
 
 	getViewProgressIndicator(viewId: string): IProgressIndicator | undefined {
 		const viewContainer = this.viewDescriptorService.getViewContainerByViewId(viewId);
-		if (viewContainer === null) {
+		if (!viewContainer) {
 			return undefined;
 		}
 
-		const view = this.viewPaneContainers.get(viewContainer.id)?.viewPaneContainer?.getView(viewId);
-		return view?.getProgressIndicator();
+		const viewPaneContainer = this.viewPaneContainers.get(viewContainer.id)?.viewPaneContainer;
+		if (!viewPaneContainer) {
+			return undefined;
+		}
+
+		const view = viewPaneContainer.getView(viewId);
+		if (!view) {
+			return undefined;
+		}
+
+		if (viewPaneContainer.isViewMergedWithContainer()) {
+			return this.getViewContainerProgressIndicator(viewContainer);
+		}
+
+		return view.getProgressIndicator();
+	}
+
+	private getViewContainerProgressIndicator(viewContainer: ViewContainer): IProgressIndicator | undefined {
+		return this.viewDescriptorService.getViewContainerLocation(viewContainer) === ViewContainerLocation.Sidebar ? this.viewletService.getProgressIndicator(viewContainer.id) : this.panelService.getProgressIndicator(viewContainer.id);
 	}
 
 	private registerViewletOrPanel(viewContainer: ViewContainer, viewContainerLocation: ViewContainerLocation): void {
@@ -447,11 +526,10 @@ export class ViewsService extends Disposable implements IViewsService {
 		Registry.as<PanelRegistry>(PanelExtensions.Panels).registerPanel(PanelDescriptor.create(
 			PaneContainerPanel,
 			viewContainer.id,
-			viewContainer.name,
+			viewContainer.title,
 			undefined,
 			viewContainer.order,
 			viewContainer.requestedIndex,
-			viewContainer.focusCommand?.id,
 		));
 	}
 
@@ -483,7 +561,7 @@ export class ViewsService extends Disposable implements IViewsService {
 		Registry.as<ViewletRegistry>(ViewletExtensions.Viewlets).registerViewlet(ViewletDescriptor.create(
 			PaneContainerViewlet,
 			viewContainer.id,
-			viewContainer.name,
+			viewContainer.title,
 			isString(viewContainer.icon) ? viewContainer.icon : undefined,
 			viewContainer.order,
 			viewContainer.requestedIndex,
