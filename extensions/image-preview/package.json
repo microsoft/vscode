@@ -67,11 +67,10 @@
     }
   },
   "scripts": {
-    "compile": "gulp compile-extension:image-preview",
-    "watch": "npm run build-preview && gulp watch-extension:image-preview",
-    "vscode:prepublish": "npm run build-ext",
-    "build-ext": "node ../../node_modules/gulp/bin/gulp.js --gulpfile ../../build/gulpfile.extensions.js compile-extension:image-preview ./tsconfig.json",
-    "compile-web": "npx webpack-cli --config extension-browser.webpack.config --mode none",
+    "build": "npx webpack-cli --config extension.webpack.config --mode production",
+    "watch": "npx webpack-cli --config extension.webpack.config --mode production --watch",
+    "vscode:prepublish": "npm run build",
+    "build-web": "npx webpack-cli --config extension-browser.webpack.config --mode none",
     "watch-web": "npx webpack-cli --config extension-browser.webpack.config --mode none --watch --info-verbosity verbose"
   },
   "dependencies": {

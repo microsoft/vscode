@@ -18,8 +18,10 @@
     "onLanguage:search-result"
   ],
   "scripts": {
+    "build": "npx webpack-cli --config extension.webpack.config --mode production",
+    "watch": "npx webpack-cli --config extension.webpack.config --mode production --watch",
     "generate-grammar": "node ./syntaxes/generateTMLanguage.js",
-    "vscode:prepublish": "node ../../node_modules/gulp/bin/gulp.js --gulpfile ../../build/gulpfile.extensions.js compile-extension:search-result ./tsconfig.json"
+    "vscode:prepublish": "npm run build"
   },
   "contributes": {
     "configurationDefaults": {

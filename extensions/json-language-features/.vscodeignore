@@ -13,6 +13,7 @@ server/build/**
 server/yarn.lock
 server/.npmignore
 yarn.lock
+yarn-error.log
 CONTRIBUTING.md
 server/extension.webpack.config.js
 extension.webpack.config.js

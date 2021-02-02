@@ -1,11 +1,11 @@
 test/**
 src/**
 tsconfig.json
-out/test/**
-out/**
+out/**/test/**
 extension.webpack.config.js
 extension-browser.webpack.config.js
 cgmanifest.json
 yarn.lock
+yarn-error.log
 preview-src/**
 webpack.config.js

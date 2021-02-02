@@ -13,8 +13,9 @@
     "ui"
   ],
   "scripts": {
-    "compile": "node ./node_modules/vscode/bin/compile -watch -p ./",
-    "vscode:prepublish": "node ../../node_modules/gulp/bin/gulp.js --gulpfile ../../build/gulpfile.extensions.js compile-extension:vscode-test-resolver"
+    "build": "npx webpack-cli --config extension.webpack.config --mode production",
+    "watch": "npx webpack-cli --config extension.webpack.config --mode production --watch",
+    "vscode:prepublish": "npm run build"
   },
   "activationEvents": [
     "onResolveRemoteAuthority:test",

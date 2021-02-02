@@ -29,8 +29,10 @@
     "@types/semver": "^5.5.0"
   },
   "scripts": {
-    "vscode:prepublish": "node ../../node_modules/gulp/bin/gulp.js --gulpfile ../../build/gulpfile.extensions.js compile-extension:typescript-language-features",
-    "compile-web": "npx webpack-cli --config extension-browser.webpack.config --mode none",
+    "build": "npx webpack-cli --config extension.webpack.config --mode production",
+    "watch": "npx webpack-cli --config extension.webpack.config --mode production --watch",
+    "vscode:prepublish": "npm run build",
+    "build-web": "npx webpack-cli --config extension-browser.webpack.config --mode none",
     "watch-web": "npx webpack-cli --config extension-browser.webpack.config --mode none --watch --info-verbosity verbose"
   },
   "activationEvents": [

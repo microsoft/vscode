@@ -38,7 +38,9 @@
     }
   },
   "scripts": {
-    "vscode:prepublish": "node ../../node_modules/gulp/bin/gulp.js --gulpfile ../../build/gulpfile.extensions.js compile-extension:testing-editor-contributions ./tsconfig.json"
+    "build": "npx webpack-cli --config extension.webpack.config --mode production",
+    "watch": "npx webpack-cli --config extension.webpack.config --mode production --watch",
+    "vscode:prepublish": "npm run build"
   },
   "prettier": {
     "printWidth": 100,

@@ -126,13 +126,7 @@ export async function* getExtensions(): AsyncGenerator<IExtension, void, any> {
 
 	for (const child of children) {
 		try {
-			const extension = await getExtension(path.join(extensionsPath, child));
-
-			if (extension.type !== ExtensionType.Theme && extension.type !== ExtensionType.Grammar) {
-				continue;
-			}
-
-			yield extension;
+			yield await getExtension(path.join(extensionsPath, child));
 		} catch (err) {
 			if (/ENOENT|ENOTDIR/.test(err.message)) {
 				continue;
@@ -205,7 +199,7 @@ async function runExtensionCI(extension: IExtension, service: BlobServiceClient)
 		}
 	}
 
-	await extractExtension(extension);
+	// await extractExtension(extension);
 }
 
 async function ci(): Promise<void> {

@@ -14,6 +14,7 @@ server/build/**
 server/yarn.lock
 server/.npmignore
 yarn.lock
+yarn-error.log
 server/extension.webpack.config.js
 extension.webpack.config.js
 server/extension-browser.webpack.config.js

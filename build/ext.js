@@ -112,11 +112,7 @@ function getExtensions() {
         const children = yield __await(fs_1.promises.readdir(extensionsPath));
         for (const child of children) {
             try {
-                const extension = yield __await(getExtension(path.join(extensionsPath, child)));
-                if (extension.type !== "theme" /* Theme */ && extension.type !== "grammar" /* Grammar */) {
-                    continue;
-                }
-                yield yield __await(extension);
+                yield yield __await(yield __await(getExtension(path.join(extensionsPath, child))));
             }
             catch (err) {
                 if (/ENOENT|ENOTDIR/.test(err.message)) {
@@ -197,7 +193,7 @@ async function runExtensionCI(extension, service) {
             console.log(`${prefix} Successfully uploaded VSIX to cache`);
         }
     }
-    await extractExtension(extension);
+    // await extractExtension(extension);
 }
 async function ci() {
     var e_2, _a;
