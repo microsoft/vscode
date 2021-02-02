@@ -73,10 +73,10 @@ export class LocalizationsService extends Disposable implements ILocalizationsSe
 			});
 	}
 
-	update(): Promise<boolean> {
-		return Promise.all([this.cache.getLanguagePacks(), this.extensionManagementService.getInstalled()])
-			.then(([current, installed]) => this.cache.update(installed)
-				.then(updated => !equals(Object.keys(current), Object.keys(updated))));
+	async update(): Promise<boolean> {
+		const [current, installed] = await Promise.all([this.cache.getLanguagePacks(), this.extensionManagementService.getInstalled()]);
+		const updated = await this.cache.update(installed);
+		return !equals(Object.keys(current), Object.keys(updated));
 	}
 }
 

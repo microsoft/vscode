@@ -329,10 +329,8 @@ function registerDebugPanel(): void {
 
 	const VIEW_CONTAINER: ViewContainer = Registry.as<IViewContainersRegistry>(ViewExtensions.ViewContainersRegistry).registerViewContainer({
 		id: DEBUG_PANEL_ID,
-		title: {
-			value: nls.localize({ comment: ['Debug is a noun in this context, not a verb.'], key: 'debugPanel' }, 'Debug Console'), original: 'Debug Console',
-			mnemonic: nls.localize({ key: 'miToggleDebugConsole', comment: ['&& denotes a mnemonic'] }, "De&&bug Console")
-		},
+		title: nls.localize({ comment: ['Debug is a noun in this context, not a verb.'], key: 'debugPanel' }, 'Debug Console'),
+		mnemonicTitle: nls.localize({ key: 'miToggleDebugConsole', comment: ['&& denotes a mnemonic'] }, "De&&bug Console"),
 		keybindings: { primary: KeyMod.CtrlCmd | KeyMod.Shift | KeyCode.KEY_Y },
 		commandId: 'workbench.debug.action.toggleRepl',
 		icon: icons.debugConsoleViewIcon,
@@ -357,10 +355,8 @@ function registerDebugPanel(): void {
 function registerDebugView(): void {
 	const viewContainer = Registry.as<IViewContainersRegistry>(ViewExtensions.ViewContainersRegistry).registerViewContainer({
 		id: VIEWLET_ID,
-		title: {
-			value: nls.localize('run and debug', "Run and Debug"), original: 'Run and Debug',
-			mnemonic: nls.localize({ key: 'miViewRun', comment: ['&& denotes a mnemonic'] }, "&&Run"),
-		},
+		title: nls.localize('run and debug', "Run and Debug"),
+		mnemonicTitle: nls.localize({ key: 'miViewRun', comment: ['&& denotes a mnemonic'] }, "&&Run"),
 		keybindings: { primary: KeyMod.CtrlCmd | KeyMod.Shift | KeyCode.KEY_D },
 		ctorDescriptor: new SyncDescriptor(DebugViewPaneContainer),
 		icon: icons.runViewIcon,

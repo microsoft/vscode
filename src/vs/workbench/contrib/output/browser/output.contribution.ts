@@ -54,10 +54,8 @@ ModesRegistry.registerLanguage({
 const outputViewIcon = registerIcon('output-view-icon', Codicon.output, nls.localize('outputViewIcon', 'View icon of the output view.'));
 const VIEW_CONTAINER: ViewContainer = Registry.as<IViewContainersRegistry>(ViewContainerExtensions.ViewContainersRegistry).registerViewContainer({
 	id: OUTPUT_VIEW_ID,
-	title: {
-		value: nls.localize('output', "Output"), original: 'Output',
-		mnemonic: nls.localize({ key: 'miToggleOutput', comment: ['&& denotes a mnemonic'] }, "&&Output")
-	},
+	title: nls.localize('output', "Output"),
+	mnemonicTitle: nls.localize({ key: 'miToggleOutput', comment: ['&& denotes a mnemonic'] }, "&&Output"),
 	keybindings: {
 		primary: KeyMod.CtrlCmd | KeyMod.Shift | KeyCode.KEY_U,
 		linux: {

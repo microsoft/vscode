@@ -66,6 +66,7 @@ export class TerminalProcessManager extends Disposable implements ITerminalProce
 	private _extEnvironmentVariableCollection: IMergedEnvironmentVariableCollection | undefined;
 	private _environmentVariableInfo: IEnvironmentVariableInfo | undefined;
 	private _ackDataBufferer: AckDataBufferer;
+	private _hasWrittenData: boolean = false;
 
 	private readonly _onProcessReady = this._register(new Emitter<void>());
 	public get onProcessReady(): Event<void> { return this._onProcessReady.event; }
@@ -87,6 +88,10 @@ export class TerminalProcessManager extends Disposable implements ITerminalProce
 	public get environmentVariableInfo(): IEnvironmentVariableInfo | undefined { return this._environmentVariableInfo; }
 	private _remoteTerminalId: number | undefined;
 	public get remoteTerminalId(): number | undefined { return this._remoteTerminalId; }
+
+	public get hasWrittenData(): boolean {
+		return this._hasWrittenData;
+	}
 
 	constructor(
 		private readonly _terminalId: number,
@@ -323,6 +328,7 @@ export class TerminalProcessManager extends Disposable implements ITerminalProce
 	}
 
 	public write(data: string): void {
+		this._hasWrittenData = true;
 		if (this.shellProcessId || this._processType === ProcessType.ExtensionTerminal) {
 			if (this._process) {
 				// Send data if the pty is ready

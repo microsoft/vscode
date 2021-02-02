@@ -43,10 +43,8 @@ const sourceControlViewIcon = registerIcon('source-control-view-icon', Codicon.s
 
 const viewContainer = Registry.as<IViewContainersRegistry>(ViewContainerExtensions.ViewContainersRegistry).registerViewContainer({
 	id: VIEWLET_ID,
-	title: {
-		value: localize('source control', "Source Control"), original: 'Source Control',
-		mnemonic: localize({ key: 'miViewSCM', comment: ['&& denotes a mnemonic'] }, "S&&CM")
-	},
+	title: localize('source control', "Source Control"),
+	mnemonicTitle: localize({ key: 'miViewSCM', comment: ['&& denotes a mnemonic'] }, "S&&CM"),
 	keybindings: {
 		primary: 0,
 		win: { primary: KeyMod.CtrlCmd | KeyMod.Shift | KeyCode.KEY_G },

@@ -8,5 +8,8 @@
   },
   "scripts": {
     "postinstall": "node ./postinstall"
+  },
+  "devDependencies": {
+    "vscode-grammar-updater": "^1.0.2"
   }
 }

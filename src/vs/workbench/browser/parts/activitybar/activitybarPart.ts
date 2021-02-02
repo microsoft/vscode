@@ -812,7 +812,7 @@ export class ActivitybarPart extends Part implements IActivityBarService {
 	}
 
 	private addComposite(viewContainer: ViewContainer): void {
-		this.compositeBar.addComposite({ id: viewContainer.id, name: viewContainer.title.value, order: viewContainer.order, requestedIndex: viewContainer.requestedIndex });
+		this.compositeBar.addComposite({ id: viewContainer.id, name: viewContainer.title, order: viewContainer.order, requestedIndex: viewContainer.requestedIndex });
 	}
 
 	private hideComposite(compositeId: string): void {

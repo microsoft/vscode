@@ -68,6 +68,7 @@ import { IConfigurationService } from 'vs/platform/configuration/common/configur
 import { IFileDialogService } from 'vs/platform/dialogs/common/dialogs';
 import { mnemonicButtonLabel } from 'vs/base/common/labels';
 import { Query } from 'vs/workbench/contrib/extensions/common/extensionQuery';
+import { Promises } from 'vs/base/common/async';
 
 // Singletons
 registerSingleton(IExtensionsWorkbenchService, ExtensionsWorkbenchService);
@@ -100,10 +101,8 @@ Registry.as<IEditorRegistry>(EditorExtensions.Editors).registerEditor(
 Registry.as<IViewContainersRegistry>(ViewContainerExtensions.ViewContainersRegistry).registerViewContainer(
 	{
 		id: VIEWLET_ID,
-		title: {
-			value: localize('extensions', "Extensions"), original: 'Extensions',
-			mnemonic: localize({ key: 'miViewExtensions', comment: ['&& denotes a mnemonic'] }, "E&&xtensions"),
-		},
+		title: localize('extensions', "Extensions"),
+		mnemonicTitle: localize({ key: 'miViewExtensions', comment: ['&& denotes a mnemonic'] }, "E&&xtensions"),
 		keybindings: { primary: KeyMod.CtrlCmd | KeyMod.Shift | KeyCode.KEY_X },
 		ctorDescriptor: new SyncDescriptor(ExtensionsViewPaneContainer),
 		icon: extensionsViewIcon,
@@ -661,7 +660,7 @@ class ExtensionsContributions extends Disposable implements IWorkbenchContributi
 				const notificationService = accessor.get(INotificationService);
 
 				const extensions = Array.isArray(resources) ? resources : [resources];
-				await Promise.all(extensions.map(async (vsix) => await extensionsWorkbenchService.install(vsix)))
+				await Promises.settled(extensions.map(async (vsix) => await extensionsWorkbenchService.install(vsix)))
 					.then(async (extensions) => {
 						for (const extension of extensions) {
 							const requireReload = !(extension.local && extensionService.canAddExtension(toExtensionDescription(extension.local)));

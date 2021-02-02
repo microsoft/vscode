@@ -113,8 +113,8 @@ export class Debugger implements IDebugger {
 		});
 	}
 
-	runInTerminal(args: DebugProtocol.RunInTerminalRequestArguments): Promise<number | undefined> {
-		return this.adapterManager.runInTerminal(this.type, args);
+	runInTerminal(args: DebugProtocol.RunInTerminalRequestArguments, sessionId: string): Promise<number | undefined> {
+		return this.adapterManager.runInTerminal(this.type, args, sessionId);
 	}
 
 	get label(): string {

@@ -142,24 +142,24 @@ export class ViewsService extends Disposable implements IViewsService {
 		}));
 
 		// Register Action to Open View Container
-		const defaultLocation = this.viewDescriptorService.getDefaultViewContainerLocation(viewContainer);
-		const commandAction = {
-			id: viewContainer.commandId ?? viewContainer.id,
-			title: viewContainer.title,
-			keybinding: viewContainer.keybindings ? { ...viewContainer.keybindings, weight: KeybindingWeight.WorkbenchContrib } : undefined
-		};
+		const commandId = viewContainer.commandId ?? viewContainer.id;
+		const that = this;
 		this._register(registerAction2(class OpenViewContainerAction extends Action2 {
 			constructor() {
 				super({
-					id: commandAction.id,
-					title: commandAction.title,
-					keybinding: commandAction.keybinding,
-					menu: [{
-						id: MenuId.MenubarViewMenu,
-						group: defaultLocation === ViewContainerLocation.Sidebar ? '3_views' : '4_panels',
-						when: ContextKeyExpr.has(getEnabledViewContainerContextKey(viewContainer.id)),
-						order: viewContainer.order ?? Number.MAX_VALUE
-					}]
+					id: commandId,
+					get title(): ICommandActionTitle {
+						const viewContainerLocation = that.viewDescriptorService.getViewContainerLocation(viewContainer);
+						if (viewContainerLocation === ViewContainerLocation.Sidebar) {
+							return { value: localize('show view', "Show {0}", viewContainer.title), original: `Show ${viewContainer.title}` };
+						} else {
+							return { value: localize('toggle view', "Toggle {0}", viewContainer.title), original: `Toggle ${viewContainer.title}` };
+						}
+					},
+					category: CATEGORIES.View.value,
+					precondition: ContextKeyExpr.has(getEnabledViewContainerContextKey(viewContainer.id)),
+					keybinding: viewContainer.keybindings ? { ...viewContainer.keybindings, weight: KeybindingWeight.WorkbenchContrib } : undefined,
+					f1: true
 				});
 			}
 			public async run(serviceAccessor: ServicesAccessor): Promise<any> {
@@ -186,22 +186,19 @@ export class ViewsService extends Disposable implements IViewsService {
 				}
 			}
 		}));
-		const that = this;
-		this._register(MenuRegistry.appendMenuItem(MenuId.CommandPalette, {
-			command: {
-				id: commandAction.id,
-				get title(): ICommandActionTitle {
-					const viewContainerLocation = that.viewDescriptorService.getViewContainerLocation(viewContainer);
-					if (viewContainerLocation === ViewContainerLocation.Sidebar) {
-						return { value: localize('show view', "Show {0}", commandAction.title.value), original: `Show ${commandAction.title.value}` };
-					} else {
-						return { value: localize('toggle view', "Toggle {0}", commandAction.title.value), original: `Toggle ${commandAction.title.value}` };
-					}
+
+		if (viewContainer.mnemonicTitle) {
+			const defaultLocation = this.viewDescriptorService.getDefaultViewContainerLocation(viewContainer);
+			this._register(MenuRegistry.appendMenuItem(MenuId.MenubarViewMenu, {
+				command: {
+					id: commandId,
+					title: viewContainer.mnemonicTitle,
 				},
-				category: CATEGORIES.View.value,
-				precondition: ContextKeyExpr.has(getEnabledViewContainerContextKey(viewContainer.id)),
-			}
-		}));
+				group: defaultLocation === ViewContainerLocation.Sidebar ? '3_views' : '4_panels',
+				when: ContextKeyExpr.has(getEnabledViewContainerContextKey(viewContainer.id)),
+				order: viewContainer.order ?? Number.MAX_VALUE
+			}));
+		}
 	}
 
 	private onDidChangeContainerLocation(viewContainer: ViewContainer, from: ViewContainerLocation, to: ViewContainerLocation): void {
@@ -529,7 +526,7 @@ export class ViewsService extends Disposable implements IViewsService {
 		Registry.as<PanelRegistry>(PanelExtensions.Panels).registerPanel(PanelDescriptor.create(
 			PaneContainerPanel,
 			viewContainer.id,
-			viewContainer.title.value,
+			viewContainer.title,
 			undefined,
 			viewContainer.order,
 			viewContainer.requestedIndex,
@@ -564,7 +561,7 @@ export class ViewsService extends Disposable implements IViewsService {
 		Registry.as<ViewletRegistry>(ViewletExtensions.Viewlets).registerViewlet(ViewletDescriptor.create(
 			PaneContainerViewlet,
 			viewContainer.id,
-			viewContainer.title.value,
+			viewContainer.title,
 			isString(viewContainer.icon) ? viewContainer.icon : undefined,
 			viewContainer.order,
 			viewContainer.requestedIndex,

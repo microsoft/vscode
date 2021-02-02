@@ -618,10 +618,8 @@ const SEARCH_MODE_CONFIG = 'search.mode';
 
 const viewContainer = Registry.as<IViewContainersRegistry>(ViewExtensions.ViewContainersRegistry).registerViewContainer({
 	id: VIEWLET_ID,
-	title: {
-		value: nls.localize('name', "Search"), original: 'Search',
-		mnemonic: nls.localize({ key: 'miViewSearch', comment: ['&& denotes a mnemonic'] }, "&&Search")
-	},
+	title: nls.localize('name', "Search"),
+	mnemonicTitle: nls.localize({ key: 'miViewSearch', comment: ['&& denotes a mnemonic'] }, "&&Search"),
 	keybindings: {
 		primary: KeyMod.CtrlCmd | KeyMod.Shift | KeyCode.KEY_F,
 		// View: Show Search is used for the keybindings in the View menu and the sidebar #115556, but it should only be enabled when search.mode == view, or else it will steal priority over opening a search editor #115511

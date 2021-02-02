@@ -63,10 +63,8 @@ configurationRegistry.registerConfiguration(terminalConfiguration);
 // Register views
 const VIEW_CONTAINER = Registry.as<IViewContainersRegistry>(ViewContainerExtensions.ViewContainersRegistry).registerViewContainer({
 	id: TERMINAL_VIEW_ID,
-	title: {
-		value: nls.localize('terminal', "Terminal"), original: 'Terminal',
-		mnemonic: nls.localize({ key: 'miToggleIntegratedTerminal', comment: ['&& denotes a mnemonic'] }, "&&Terminal")
-	},
+	title: nls.localize('terminal', "Terminal"),
+	mnemonicTitle: nls.localize({ key: 'miToggleIntegratedTerminal', comment: ['&& denotes a mnemonic'] }, "&&Terminal"),
 	keybindings: {
 		primary: KeyMod.CtrlCmd | KeyCode.US_BACKTICK,
 		mac: { primary: KeyMod.WinCtrl | KeyCode.US_BACKTICK }

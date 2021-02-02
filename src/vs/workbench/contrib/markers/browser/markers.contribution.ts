@@ -109,10 +109,8 @@ const markersViewIcon = registerIcon('markers-view-icon', Codicon.warning, local
 // markers view container
 const VIEW_CONTAINER: ViewContainer = Registry.as<IViewContainersRegistry>(ViewContainerExtensions.ViewContainersRegistry).registerViewContainer({
 	id: Constants.MARKERS_CONTAINER_ID,
-	title: {
-		value: Messages.MARKERS_PANEL_TITLE_PROBLEMS, original: 'Problems',
-		mnemonic: localize({ key: 'miMarker', comment: ['&& denotes a mnemonic'] }, "&&Problems")
-	},
+	title: Messages.MARKERS_PANEL_TITLE_PROBLEMS,
+	mnemonicTitle: localize({ key: 'miMarker', comment: ['&& denotes a mnemonic'] }, "&&Problems"),
 	keybindings: { primary: KeyMod.CtrlCmd | KeyMod.Shift | KeyCode.KEY_M },
 	commandId: 'workbench.actions.view.problems',
 	icon: markersViewIcon,

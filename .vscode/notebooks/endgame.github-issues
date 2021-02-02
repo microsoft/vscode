@@ -92,7 +92,8 @@
   {
     "kind": 1,
     "language": "markdown",
-    "value": "## Verifiable Fixes"
+    "value": "## Verifiable Fixes",
+    "editable": true
   },
   {
     "kind": 2,
@@ -103,12 +104,14 @@
   {
     "kind": 1,
     "language": "markdown",
-    "value": "## Unreleased Fixes"
+    "value": "## Unreleased Fixes",
+    "editable": true
   },
   {
     "kind": 2,
     "language": "github-issues",
-    "value": "$REPOS $MILESTONE is:issue is:closed sort:updated-asc label:bug -label:verified -label:on-testplan -label:*duplicate -label:duplicate -label:invalid -label:*as-designed -label:error-telemetry -label:verification-steps-needed -label:verification-found -label:z-author-verified label:unreleased"
+    "value": "$REPOS $MILESTONE is:issue is:closed sort:updated-asc label:bug -label:verified -label:on-testplan -label:*duplicate -label:duplicate -label:invalid -label:*as-designed -label:error-telemetry -label:verification-steps-needed -label:verification-found -label:z-author-verified label:unreleased",
+    "editable": true
   },
   {
     "kind": 1,

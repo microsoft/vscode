@@ -374,6 +374,8 @@ export interface ITerminalProcessManager extends IDisposable {
 	readonly userHome: string | undefined;
 	readonly environmentVariableInfo: IEnvironmentVariableInfo | undefined;
 	readonly remoteTerminalId: number | undefined;
+	/** Whether the process has had data written to it yet. */
+	readonly hasWrittenData: boolean;
 
 	readonly onProcessReady: Event<void>;
 	readonly onBeforeProcessData: Event<IBeforeProcessDataEvent>;
