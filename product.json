@@ -151,6 +151,7 @@
 		"recommendationsUrl": ""
 	},
 	"linkProtectionTrustedDomains": [
-		"https://open-vsx.org"
+		"https://open-vsx.org",
+		"https://community.gitpod.io/"
 	]
 }
