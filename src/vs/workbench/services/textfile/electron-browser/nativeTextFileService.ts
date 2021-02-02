@@ -108,7 +108,7 @@ export class NativeTextFileService extends AbstractTextFileService {
 
 		// check for overwriteReadonly property (only supported for local file://)
 		try {
-			if (options?.overwriteReadonly && resource.scheme === Schemas.file && await this.fileService.exists(resource)) {
+			if (options?.overwriteReadonly && resource.scheme === Schemas.file) {
 				const fileStat = await stat(resource.fsPath);
 
 				// try to change mode to writeable

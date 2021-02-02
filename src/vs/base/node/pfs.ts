@@ -199,6 +199,8 @@ export async function readDirsInDir(dirPath: string): Promise<string[]> {
 
 //#endregion
 
+//#region whenDeleted()
+
 export function whenDeleted(path: string): Promise<void> {
 
 	// Complete when wait marker file is deleted
@@ -219,6 +221,8 @@ export function whenDeleted(path: string): Promise<void> {
 		}, 1000);
 	});
 }
+
+//#endregion
 
 //#region Methods with symbolic links support
 
