@@ -1235,32 +1235,6 @@ declare module 'vscode' {
 		// @rebornix REMOVE/REplace NotebookCommunication
 		// todo@API fishy? notebooks are public objects, there should be a "global" events for this
 		readonly onDidDispose: Event<void>;
-
-		/**
-		 * Fired when the output hosting webview posts a message.
-		 */
-		// @rebornix REMOVE
-		// todo@API notebook editors are public -> ANY extension can listen to these event
-		readonly onDidReceiveMessage: Event<any>;
-		/**
-		 * Post a message to the output hosting webview.
-		 *
-		 * Messages are only delivered if the editor is live.
-		 *
-		 * @param message Body of the message. This must be a string or other json serializable object.
-		 */
-		// @rebornix REMOVE
-		// todo@API notebook editors are public -> ANY extension can send messages
-		postMessage(message: any): Thenable<boolean>;
-
-		/**
-		 * Convert a uri for the local file system to one that can be used inside outputs webview.
-		 */
-		// @rebornix REMOVE
-		// todo@API unsure about that, how do you this when executing a cell without having an editor
-		asWebviewUri(localResource: Uri): Uri;
-
-
 	}
 
 	export interface NotebookOutputSelector {
