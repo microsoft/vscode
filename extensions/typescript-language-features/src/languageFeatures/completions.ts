@@ -674,10 +674,10 @@ class TypeScriptCompletionItemProvider implements vscode.CompletionItemProvider<
 		// Also check if we still have to apply other workspace edits and commands
 		// using a vscode command
 		const additionalTextEdits: vscode.TextEdit[] = [];
-		let hasReaminingCommandsOrEdits = false;
+		let hasRemainingCommandsOrEdits = false;
 		for (const tsAction of detail.codeActions) {
 			if (tsAction.commands) {
-				hasReaminingCommandsOrEdits = true;
+				hasRemainingCommandsOrEdits = true;
 			}
 
 			// Apply all edits in the current file using `additionalTextEdits`
@@ -686,14 +686,14 @@ class TypeScriptCompletionItemProvider implements vscode.CompletionItemProvider<
 					if (change.fileName === filepath) {
 						additionalTextEdits.push(...change.textChanges.map(typeConverters.TextEdit.fromCodeEdit));
 					} else {
-						hasReaminingCommandsOrEdits = true;
+						hasRemainingCommandsOrEdits = true;
 					}
 				}
 			}
 		}
 
 		let command: vscode.Command | undefined = undefined;
-		if (hasReaminingCommandsOrEdits) {
+		if (hasRemainingCommandsOrEdits) {
 			// Create command that applies all edits not in the current file.
 			command = {
 				title: '',
