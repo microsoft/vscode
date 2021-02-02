@@ -2,7 +2,7 @@
   {
     "kind": 1,
     "language": "markdown",
-    "value": "## Papercuts\n\nThis notebook serves as an ongoing collection of papercut issues that we encounter while dogfooding. With that in mind only promote issues that really turn you off, e.g. issues that make you wan to stop using VS Code or its extensions. To mark an issue (bug, feature-request, etc.) as papercut add the labels: `papercut :drop_of_blood:`",
+    "value": "## Papercuts\n\nThis notebook serves as an ongoing collection of papercut issues that we encounter while dogfooding. With that in mind only promote issues that really turn you off, e.g. issues that make you want to stop using VS Code or its extensions. To mark an issue (bug, feature-request, etc.) as papercut add the labels: `papercut :drop_of_blood:`",
     "editable": true
   },
   {
