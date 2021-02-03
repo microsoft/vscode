@@ -16,7 +16,7 @@ import { CountBadge } from 'vs/base/browser/ui/countBadge/countBadge';
 import { IEditorService } from 'vs/workbench/services/editor/common/editorService';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { IContextViewService, IContextMenuService } from 'vs/platform/contextview/browser/contextView';
-import { IContextKeyService, IContextKey, ContextKeyEqualsExpr } from 'vs/platform/contextkey/common/contextkey';
+import { IContextKeyService, IContextKey, ContextKeyAndExpr, ContextKeyExpr, RawContextKey } from 'vs/platform/contextkey/common/contextkey';
 import { ICommandService } from 'vs/platform/commands/common/commands';
 import { IKeybindingService } from 'vs/platform/keybinding/common/keybinding';
 import { MenuItemAction, IMenuService, registerAction2, MenuId, IAction2Options, MenuRegistry } from 'vs/platform/actions/common/actions';
@@ -765,6 +765,10 @@ const enum ViewModelSortKey {
 	Status
 }
 
+const ContextKeys = {
+	ViewModelMode: new RawContextKey<ViewModelMode>('scm.viewModel.mode', ViewModelMode.List)
+};
+
 class ViewModel {
 
 	private readonly _onDidChangeMode = new Emitter<ViewModelMode>();
@@ -796,6 +800,7 @@ class ViewModel {
 
 		this.refresh();
 		this._onDidChangeMode.fire(mode);
+		this.viewModelModeContextKey.set(mode);
 	}
 
 	get sortKey(): ViewModelSortKey { return this._sortKey; }
@@ -824,6 +829,8 @@ class ViewModel {
 	private viewSubMenuAction: SCMViewSubMenuAction | undefined;
 	private disposables = new DisposableStore();
 
+	private viewModelModeContextKey: IContextKey<ViewModelMode>;
+
 	constructor(
 		private tree: WorkbenchCompressibleObjectTree<TreeElement, FuzzyScore>,
 		private inputRenderer: InputRenderer,
@@ -834,7 +841,8 @@ class ViewModel {
 		@IEditorService protected editorService: IEditorService,
 		@IConfigurationService protected configurationService: IConfigurationService,
 		@ISCMViewService private scmViewService: ISCMViewService,
-		@IUriIdentityService private uriIdentityService: IUriIdentityService
+		@IUriIdentityService private uriIdentityService: IUriIdentityService,
+		@IContextKeyService contextKeyService: IContextKeyService
 	) {
 		this.onDidChangeRepositoryCollapseState = Event.any(
 			this._onDidChangeRepositoryCollapseState.event,
@@ -845,6 +853,9 @@ class ViewModel {
 		this.onDidChangeConfiguration();
 
 		this.disposables.add(this.tree.onDidChangeCollapseState(() => this._treeViewStateIsStale = true));
+
+		this.viewModelModeContextKey = ContextKeys.ViewModelMode.bindTo(contextKeyService);
+		this.viewModelModeContextKey.set(_mode);
 	}
 
 	private onDidChangeConfiguration(e?: IConfigurationChangeEvent): void {
@@ -1210,7 +1221,7 @@ const ViewSortMenuId = new MenuId('SCMViewSort');
 MenuRegistry.appendMenuItem(MenuId.ViewTitle, {
 	title: localize('sortAction', "View & Sort"),
 	submenu: ViewSortMenuId,
-	when: ContextKeyEqualsExpr.create('view', VIEW_PANE_ID)
+	when: ContextKeyExpr.equals('view', VIEW_PANE_ID)
 });
 
 class SetListViewModeAction extends ViewAction<SCMViewPane>  {
@@ -1221,15 +1232,23 @@ class SetListViewModeAction extends ViewAction<SCMViewPane>  {
 			viewId: VIEW_PANE_ID,
 			f1: false,
 			icon: Codicon.listFlat,
-			menu: {
-				id: ViewSortMenuId,
-				...menu
-			}
+			toggled: ContextKeys.ViewModelMode.isEqualTo(ViewModelMode.List),
+			menu: { id: ViewSortMenuId, ...menu }
 		});
 	}
 
 	async runInView(_: ServicesAccessor, view: SCMViewPane): Promise<void> {
 		view.viewModel.mode = ViewModelMode.List;
+	}
+}
+
+class InlineSetListViewModeAction extends SetListViewModeAction {
+	constructor() {
+		super({
+			id: MenuId.ViewTitle,
+			when: ContextKeyExpr.and(ContextKeyExpr.equals('view', VIEW_PANE_ID), ContextKeys.ViewModelMode.isEqualTo(ViewModelMode.Tree)),
+			group: 'navigation',
+		});
 	}
 }
 
@@ -1241,10 +1260,8 @@ class SetTreeViewModeAction extends ViewAction<SCMViewPane>  {
 			viewId: VIEW_PANE_ID,
 			f1: false,
 			icon: Codicon.listTree,
-			menu: {
-				id: ViewSortMenuId,
-				...menu
-			}
+			toggled: ContextKeys.ViewModelMode.isEqualTo(ViewModelMode.Tree),
+			menu: { id: ViewSortMenuId, ...menu }
 		});
 	}
 
@@ -1253,20 +1270,20 @@ class SetTreeViewModeAction extends ViewAction<SCMViewPane>  {
 	}
 }
 
+class InlineSetTreeViewModeAction extends SetTreeViewModeAction {
+	constructor() {
+		super({
+			id: MenuId.ViewTitle,
+			when: ContextKeyExpr.and(ContextKeyExpr.equals('view', VIEW_PANE_ID), ContextKeys.ViewModelMode.isEqualTo(ViewModelMode.List)),
+			group: 'navigation',
+		});
+	}
+}
+
 registerAction2(SetListViewModeAction);
 registerAction2(SetTreeViewModeAction);
-
-// class SCMViewModeListAction extends ToggleViewModeAction {
-// 	constructor(viewModel: ViewModel) {
-// 		super('workbench.scm.action.viewModeList', localize('viewModeList', "View as List"), viewModel, ViewModelMode.List);
-// 	}
-// }
-
-// class SCMViewModeTreeAction extends ToggleViewModeAction {
-// 	constructor(viewModel: ViewModel) {
-// 		super('workbench.scm.action.viewModeTree', localize('viewModeTree', "View as Tree"), viewModel, ViewModelMode.Tree);
-// 	}
-// }
+registerAction2(InlineSetListViewModeAction);
+registerAction2(InlineSetTreeViewModeAction);
 
 abstract class SCMSortAction extends Action {
 
