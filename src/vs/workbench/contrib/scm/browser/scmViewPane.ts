@@ -761,9 +761,9 @@ const enum ViewModelMode {
 }
 
 const enum ViewModelSortKey {
-	Path,
-	Name,
-	Status
+	Path = 'path',
+	Name = 'name',
+	Status = 'status'
 }
 
 const Menus = {
@@ -786,6 +786,7 @@ MenuRegistry.appendMenuItem(Menus.ViewSort, {
 
 const ContextKeys = {
 	ViewModelMode: new RawContextKey<ViewModelMode>('scmViewModelMode', ViewModelMode.List),
+	ViewModelSortKey: new RawContextKey<ViewModelSortKey>('scmViewModelSortKey', ViewModelSortKey.Path),
 	SCMProvider: new RawContextKey<string | undefined>('scmProvider', undefined),
 	SCMProviderRootUri: new RawContextKey<string | undefined>('scmProviderRootUri', undefined),
 	SCMProviderHasRootUri: new RawContextKey<boolean>('scmProviderHasRootUri', undefined),
@@ -930,14 +931,17 @@ class ViewModel {
 		this.refresh();
 		this._onDidChangeMode.fire(mode);
 		this.viewModelModeContextKey.set(mode);
+		console.log(mode);
 	}
 
+	private _sortKey: ViewModelSortKey = ViewModelSortKey.Path;
 	get sortKey(): ViewModelSortKey { return this._sortKey; }
 	set sortKey(sortKey: ViewModelSortKey) {
 		if (sortKey !== this._sortKey) {
 			this._sortKey = sortKey;
 			this.refresh();
 		}
+		this.viewModelSortKeyContextKey.set(sortKey);
 	}
 
 	private _treeViewStateIsStale = false;
@@ -958,6 +962,7 @@ class ViewModel {
 	private disposables = new DisposableStore();
 
 	private viewModelModeContextKey: IContextKey<ViewModelMode>;
+	private viewModelSortKeyContextKey: IContextKey<ViewModelSortKey>;
 	private scmProviderContextKey: IContextKey<string | undefined>;
 	private scmProviderRootUriContextKey: IContextKey<string | undefined>;
 	private scmProviderHasRootUriContextKey: IContextKey<boolean>;
@@ -966,7 +971,6 @@ class ViewModel {
 		private tree: WorkbenchCompressibleObjectTree<TreeElement, FuzzyScore>,
 		private inputRenderer: InputRenderer,
 		private _mode: ViewModelMode,
-		private _sortKey: ViewModelSortKey,
 		private _treeViewState: ITreeViewState | undefined,
 		@IInstantiationService protected instantiationService: IInstantiationService,
 		@IEditorService protected editorService: IEditorService,
@@ -981,7 +985,10 @@ class ViewModel {
 		);
 
 		this.viewModelModeContextKey = ContextKeys.ViewModelMode.bindTo(contextKeyService);
+		console.log(_mode);
 		this.viewModelModeContextKey.set(_mode);
+		this.viewModelSortKeyContextKey = ContextKeys.ViewModelSortKey.bindTo(contextKeyService);
+		this.viewModelSortKeyContextKey.set(this._sortKey);
 		this.scmProviderContextKey = ContextKeys.SCMProvider.bindTo(contextKeyService);
 		this.scmProviderContextKey.set(undefined);
 		this.scmProviderRootUriContextKey = ContextKeys.SCMProviderRootUri.bindTo(contextKeyService);
@@ -1333,57 +1340,44 @@ registerAction2(SetTreeViewModeAction);
 registerAction2(InlineSetListViewModeAction);
 registerAction2(InlineSetTreeViewModeAction);
 
-abstract class SCMSortAction extends Action {
-
-	private readonly _listener: IDisposable;
-
-	constructor(id: string, label: string, private viewModel: ViewModel, private sortKey: ViewModelSortKey) {
-		super(id, label);
-
-		this.checked = this.sortKey === ViewModelSortKey.Path;
-		this.enabled = this.viewModel?.mode === ViewModelMode.List ?? false;
-		this._listener = viewModel?.onDidChangeMode(e => this.enabled = e === ViewModelMode.List);
+abstract class SetSortKeyAction extends ViewAction<SCMViewPane>  {
+	constructor(private sortKey: ViewModelSortKey, title: string) {
+		super({
+			id: `workbench.scm.action.setSortKey.${sortKey}`,
+			title: title,
+			viewId: VIEW_PANE_ID,
+			f1: false,
+			toggled: ContextKeys.ViewModelSortKey.isEqualTo(sortKey),
+			menu: { id: Menus.ViewSort, group: '2_sort' }
+		});
 	}
 
-	async run(): Promise<void> {
-		if (this.sortKey !== this.viewModel.sortKey) {
-			this.checked = !this.checked;
-			this.viewModel.sortKey = this.sortKey;
-		}
-	}
-
-	dispose(): void {
-		this._listener.dispose();
-		super.dispose();
+	async runInView(_: ServicesAccessor, view: SCMViewPane): Promise<void> {
+		view.viewModel.sortKey = this.sortKey;
 	}
 }
 
-class SCMSortByNameAction extends SCMSortAction {
-	static readonly ID = 'workbench.scm.action.sortByName';
-	static readonly LABEL = localize('sortByName', "Sort by Name");
-
-	constructor(viewModel: ViewModel) {
-		super(SCMSortByNameAction.ID, SCMSortByNameAction.LABEL, viewModel, ViewModelSortKey.Name);
+class SetSortByNameAction extends SetSortKeyAction {
+	constructor() {
+		super(ViewModelSortKey.Name, localize('sortByName', "Sort by Name"));
 	}
 }
 
-class SCMSortByPathAction extends SCMSortAction {
-	static readonly ID = 'workbench.scm.action.sortByPath';
-	static readonly LABEL = localize('sortByPath', "Sort by Path");
-
-	constructor(viewModel: ViewModel) {
-		super(SCMSortByPathAction.ID, SCMSortByPathAction.LABEL, viewModel, ViewModelSortKey.Path);
+class SetSortByPathAction extends SetSortKeyAction {
+	constructor() {
+		super(ViewModelSortKey.Path, localize('sortByPath', "Sort by Path"));
 	}
 }
 
-class SCMSortByStatusAction extends SCMSortAction {
-	static readonly ID = 'workbench.scm.action.sortByStatus';
-	static readonly LABEL = localize('sortByStatus', "Sort by Status");
-
-	constructor(viewModel: ViewModel) {
-		super(SCMSortByStatusAction.ID, SCMSortByStatusAction.LABEL, viewModel, ViewModelSortKey.Status);
+class SetSortByStatusAction extends SetSortKeyAction {
+	constructor() {
+		super(ViewModelSortKey.Status, localize('sortByStatus', "Sort by Status"));
 	}
 }
+
+registerAction2(SetSortByNameAction);
+registerAction2(SetSortByPathAction);
+registerAction2(SetSortByStatusAction);
 
 class SCMInputWidget extends Disposable {
 
@@ -1898,7 +1892,7 @@ export class SCMViewPane extends ViewPane {
 
 		this._register(this.instantiationService.createInstance(RepositoryVisibilityActionController));
 
-		this._viewModel = this.instantiationService.createInstance(ViewModel, this.tree, this.inputRenderer, viewMode, ViewModelSortKey.Path, viewState);
+		this._viewModel = this.instantiationService.createInstance(ViewModel, this.tree, this.inputRenderer, viewMode, viewState);
 		this._register(this._viewModel);
 
 		this.listContainer.classList.add('file-icon-themable-tree');
@@ -2020,7 +2014,7 @@ export class SCMViewPane extends ViewPane {
 
 	private onListContextMenu(e: ITreeContextMenuEvent<TreeElement | null>): void {
 		if (!e.element) {
-			const menu = this.menuService.createMenu(Menus.Repositories, this.contextKeyService);
+			const menu = this.menuService.createMenu(Menus.ViewSort, this.contextKeyService);
 			const actions: IAction[] = [];
 			const disposable = createAndFillInContextMenuActions(menu, undefined, actions);
 
