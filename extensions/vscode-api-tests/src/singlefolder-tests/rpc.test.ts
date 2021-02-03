@@ -38,14 +38,12 @@ suite('vscode', function () {
 	});
 
 	test('no rpc, createQuickPick(...)', function () {
-		this.skip();
 		const item = vscode.window.createQuickPick();
 		dispo.push(item);
 		assertNoRpcFromEntry([item, 'QuickPick']);
 	});
 
 	test('no rpc, createInputBox(...)', function () {
-		this.skip();
 		const item = vscode.window.createInputBox();
 		dispo.push(item);
 		assertNoRpcFromEntry([item, 'InputBox']);
