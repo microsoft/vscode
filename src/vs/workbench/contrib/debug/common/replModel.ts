@@ -30,12 +30,12 @@ export class SimpleReplElement implements IReplElement {
 		public sourceData?: IReplElementSource,
 	) { }
 
-	toString(): string {
+	toString(includeSource = false): string {
 		let valueRespectCount = this.value;
 		for (let i = 1; i < this.count; i++) {
 			valueRespectCount += (valueRespectCount.endsWith('\n') ? '' : '\n') + this.value;
 		}
-		const sourceStr = this.sourceData ? ` ${this.sourceData.source.name}` : '';
+		const sourceStr = (this.sourceData && includeSource) ? ` ${this.sourceData.source.name}` : '';
 		return valueRespectCount + sourceStr;
 	}
 
@@ -165,8 +165,8 @@ export class ReplGroup implements IReplElement {
 		return this.id;
 	}
 
-	toString(): string {
-		const sourceStr = this.sourceData ? ` ${this.sourceData.source.name}` : '';
+	toString(includeSource = false): string {
+		const sourceStr = (includeSource && this.sourceData) ? ` ${this.sourceData.source.name}` : '';
 		return this.name + sourceStr;
 	}
 

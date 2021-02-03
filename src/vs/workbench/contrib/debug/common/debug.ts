@@ -107,7 +107,7 @@ export interface ITreeElement {
 }
 
 export interface IReplElement extends ITreeElement {
-	toString(): string;
+	toString(includeSource?: boolean): string;
 	readonly sourceData?: IReplElementSource;
 }
 
