@@ -201,14 +201,14 @@ export class GettingStartedPage extends Disposable {
 		});
 	}
 
-	private selectTask(container: HTMLElement, id: string | undefined) {
+	private selectTask(container: HTMLElement, id: string | undefined, contractIfAlreadySelected = true) {
 		const mediaElement = assertIsDefined(container.querySelector('.getting-started-media'));
 		this.taskDisposables.clear();
 		if (id) {
 			const taskElement = assertIsDefined(container.querySelector(`[data-task-id="${id}"]`));
 			taskElement.parentElement?.querySelectorAll('.expanded').forEach(node => node.classList.remove('expanded'));
 			(taskElement as HTMLDivElement).focus();
-			if (this.editorInput.selectedTask === id) {
+			if (this.editorInput.selectedTask === id && contractIfAlreadySelected) {
 				this.editorInput.selectedTask = undefined;
 				return;
 			}
@@ -388,7 +388,7 @@ export class GettingStartedPage extends Disposable {
 		leftColumn.appendChild(this.detailsScrollbar.getDomNode());
 
 		const toExpand = category.content.items.find(item => !item.done) ?? category.content.items[0];
-		this.selectTask(container, selectedItem ?? toExpand.id);
+		this.selectTask(container, selectedItem ?? toExpand.id, false);
 		this.detailsScrollbar.scanDomNode();
 		this.registerDispatchListeners(container);
 	}
