@@ -137,7 +137,7 @@
 	width: 100%;
 	overflow: hidden;
 	transition: max-height .1s linear;
-	max-height: 150px;
+	max-height: 180px;
 }
 
 .monaco-workbench .part.editor > .content .walkThroughContent .gettingStartedContainer .gettingStartedSlide.detail .getting-started-task:not(.expanded) {
@@ -172,6 +172,7 @@
 .monaco-workbench .part.editor > .content .walkThroughContent .gettingStartedContainer .gettingStartedSlide.detail .getting-started-task .task-next {
 	margin-left: auto;
 	margin-right: 10px;
+	padding: 6px 12px;
 }
 
 .monaco-workbench .part.editor > .content .walkThroughContent .gettingStartedContainer .gettingStartedSlide.detail .getting-started-task .codicon.hidden {

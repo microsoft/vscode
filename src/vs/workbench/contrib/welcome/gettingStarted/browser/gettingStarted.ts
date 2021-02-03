@@ -375,7 +375,7 @@ export class GettingStartedPage extends Disposable {
 						...(
 							arr[i + 1]
 								? [
-									$('a.task-next',
+									$('button.task-next',
 										{ 'x-dispatch': 'selectTask:' + arr[i + 1].id }, localize('next', "Next")),
 								] : []
 						))
