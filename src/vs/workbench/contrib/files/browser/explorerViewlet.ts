@@ -118,7 +118,7 @@ export class ExplorerViewletViewsContribution extends Disposable implements IWor
 			when: OpenEditorsVisibleContext,
 			canToggleVisibility: true,
 			canMoveView: true,
-			collapsed: true,
+			collapsed: false,
 			hideByDefault: true,
 			focusCommand: {
 				id: 'workbench.files.action.focusOpenEditorsView',
