@@ -350,7 +350,7 @@ export class SwitchTerminalAction extends Action {
 export class SwitchTerminalActionViewItem extends SelectActionViewItem {
 
 	public static readonly SEPARATOR = '─────────';
-	private lastItems: ISelectOptionItem[] = [];
+	private lastOptions: ISelectOptionItem[] = [];
 	constructor(
 		action: IAction,
 		@ITerminalService private readonly _terminalService: ITerminalService,
@@ -377,11 +377,11 @@ export class SwitchTerminalActionViewItem extends SelectActionViewItem {
 	}
 
 	private _updateItems(): void {
-		const items = getTerminalSelectOpenItems(this._terminalService, this._contributions);
+		const options = getTerminalSelectOpenItems(this._terminalService, this._contributions);
 		// only update options if they've changed
-		if (!equals(Object.values(items), Object.values(this.lastItems))) {
-			this.setOptions(items, this._terminalService.activeTabIndex);
-			this.lastItems = items;
+		if (!equals(Object.values(options), Object.values(this.lastOptions))) {
+			this.setOptions(options, this._terminalService.activeTabIndex);
+			this.lastOptions = options;
 		}
 	}
 }
