@@ -1482,7 +1482,7 @@ export class Repository implements Disposable {
 
 		const maybeRebased = await this.run(Operation.Log, async () => {
 			try {
-				const result = await this.repository.run(['log', '--oneline', '--cherry', `${currentBranch ?? ''}...${currentBranch ?? ''}@{upstream}`, '--']);
+				const result = await this.repository.exec(['log', '--oneline', '--cherry', `${currentBranch ?? ''}...${currentBranch ?? ''}@{upstream}`, '--']);
 				if (result.exitCode) {
 					return false;
 				}
