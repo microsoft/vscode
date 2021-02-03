@@ -135,7 +135,9 @@ export const openNewSearchEditor =
 
 		const args: OpenSearchEditorArgs = { query: selected || undefined };
 		Object.entries(_args).forEach(([name, value]) => {
-			(args as any)[name as any] = (typeof value === 'string') ? configurationResolverService.resolve(lastActiveWorkspaceRoot, value) : value;
+			if (value !== undefined) {
+				(args as any)[name as any] = (typeof value === 'string') ? configurationResolverService.resolve(lastActiveWorkspaceRoot, value) : value;
+			}
 		});
 		const existing = editorService.getEditors(EditorsOrder.MOST_RECENTLY_ACTIVE).find(id => id.editor.getTypeId() === SearchEditorInput.ID);
 		let editor: SearchEditor;

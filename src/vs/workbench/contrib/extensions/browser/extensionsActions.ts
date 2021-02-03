@@ -121,7 +121,7 @@ export class PromptExtensionInstallFailureAction extends Action {
 			: localize('install operation', "Error while installing '{0}' extension.", this.extension.displayName || this.extension.identifier.id);
 
 		if ([INSTALL_ERROR_INCOMPATIBLE, INSTALL_ERROR_MALICIOUS, INSTALL_ERROR_NOT_SUPPORTED].includes(this.error.name)) {
-			await this.dialogService.show(Severity.Error, `${operationMessage}\n${getErrorMessage(this.error)}`, []);
+			await this.dialogService.show(Severity.Info, getErrorMessage(this.error), []);
 			return;
 		}
 

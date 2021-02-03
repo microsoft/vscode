@@ -48,6 +48,14 @@ export function ViewContainerLocationToString(viewContainerLocation: ViewContain
 	}
 }
 
+type CommandActionDescriptor = {
+	readonly id: string;
+	readonly title?: string;
+	readonly mnemonicTitle?: string;
+	readonly order?: number;
+	readonly keybindings?: IKeybindings & { when?: ContextKeyExpression };
+};
+
 /**
  * View Container Contexts
  */
@@ -66,12 +74,6 @@ export interface IViewContainerDescriptor {
 	readonly title: string;
 
 	/**
-	 * The mnemonic title of the view container.
-	 * If provided, container entry is also shown in Menubar > Views.
-	 */
-	readonly mnemonicTitle?: string;
-
-	/**
 	 * Icon representation of the View container
 	 */
 	readonly icon?: ThemeIcon | URI;
@@ -87,15 +89,9 @@ export interface IViewContainerDescriptor {
 	readonly ctorDescriptor: SyncDescriptor<IViewPaneContainer>;
 
 	/**
-	 * The keybindings to open the view container
+	 * Command action descriptor to be registered
 	 */
-	readonly keybindings?: IKeybindings & { when?: ContextKeyExpression };
-
-	/**
-	 * The command id to register to open the view container.
-	 * If not provided, id of the view container is used.
-	 */
-	readonly commandId?: string;
+	readonly commandActionDescriptor?: CommandActionDescriptor | false;
 
 	/**
 	 * Storage id to use to store the view container state.
@@ -286,6 +282,8 @@ export interface IViewDescriptor {
 	readonly group?: string;
 
 	readonly remoteAuthority?: string | string[];
+
+	readonly commandActionDescriptor?: CommandActionDescriptor
 }
 
 export interface IViewDescriptorRef {
@@ -310,7 +308,8 @@ export interface IViewContainerModel {
 
 	readonly title: string;
 	readonly icon: ThemeIcon | URI | undefined;
-	readonly onDidChangeContainerInfo: Event<{ title?: boolean, icon?: boolean }>;
+	readonly keybindingId: string | undefined;
+	readonly onDidChangeContainerInfo: Event<{ title?: boolean, icon?: boolean, keybindingId?: boolean }>;
 
 	readonly allViewDescriptors: ReadonlyArray<IViewDescriptor>;
 	readonly onDidChangeAllViewDescriptors: Event<{ added: ReadonlyArray<IViewDescriptor>, removed: ReadonlyArray<IViewDescriptor> }>;

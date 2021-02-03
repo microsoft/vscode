@@ -20,6 +20,7 @@ export interface IResolvedKeybinding {
 	isWYSIWYG: boolean;
 	isChord: boolean;
 	dispatchParts: (string | null)[];
+	singleModifierDispatchParts: (string | null)[];
 }
 
 function toIResolvedKeybinding(kb: ResolvedKeybinding): IResolvedKeybinding {
@@ -31,6 +32,7 @@ function toIResolvedKeybinding(kb: ResolvedKeybinding): IResolvedKeybinding {
 		isWYSIWYG: kb.isWYSIWYG(),
 		isChord: kb.isChord(),
 		dispatchParts: kb.getDispatchParts(),
+		singleModifierDispatchParts: kb.getSingleModifierDispatchParts()
 	};
 }
 

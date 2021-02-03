@@ -671,8 +671,8 @@ export class ActivitybarPart extends Part implements IActivityBarService {
 			if (viewContainer) {
 				const viewContainerModel = this.viewDescriptorService.getViewContainerModel(viewContainer);
 				compositeActions = {
-					activityAction: this.instantiationService.createInstance(ViewContainerActivityAction, this.toActivity(viewContainer, viewContainerModel)),
-					pinnedAction: new ToggleCompositePinnedAction(this.toActivity(viewContainer, viewContainerModel), this.compositeBar)
+					activityAction: this.instantiationService.createInstance(ViewContainerActivityAction, this.toActivity(viewContainerModel)),
+					pinnedAction: new ToggleCompositePinnedAction(this.toActivity(viewContainerModel), this.compositeBar)
 				};
 			} else {
 				const cachedComposite = this.cachedViewContainers.filter(c => c.id === compositeId)[0];
@@ -727,7 +727,7 @@ export class ActivitybarPart extends Part implements IActivityBarService {
 	}
 
 	private updateActivity(viewContainer: ViewContainer, viewContainerModel: IViewContainerModel): void {
-		const activity: IActivity = this.toActivity(viewContainer, viewContainerModel);
+		const activity: IActivity = this.toActivity(viewContainerModel);
 		const { activityAction, pinnedAction } = this.getCompositeActions(viewContainer.id);
 		activityAction.updateActivity(activity);
 
@@ -738,8 +738,8 @@ export class ActivitybarPart extends Part implements IActivityBarService {
 		this.saveCachedViewContainers();
 	}
 
-	private toActivity({ id, commandId }: ViewContainer, { icon, title }: IViewContainerModel): IActivity {
-		return ActivitybarPart.toActivity(id, title, icon, commandId || id);
+	private toActivity(viewContainerModel: IViewContainerModel): IActivity {
+		return ActivitybarPart.toActivity(viewContainerModel.viewContainer.id, viewContainerModel.title, viewContainerModel.icon, viewContainerModel.keybindingId);
 	}
 
 	private static toActivity(id: string, name: string, icon: URI | ThemeIcon | undefined, keybindingId: string | undefined): IActivity {

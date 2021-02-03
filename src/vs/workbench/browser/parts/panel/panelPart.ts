@@ -286,7 +286,7 @@ export class PanelPart extends CompositePart<Panel> implements IPanelService {
 		const activity: IActivity = {
 			id: viewContainer.id,
 			name: this.extensionsRegistered || cachedTitle === undefined ? viewContainerModel.title : cachedTitle,
-			keybindingId: viewContainer.commandId || viewContainer.id
+			keybindingId: viewContainerModel.keybindingId
 		};
 
 		const { activityAction, pinnedAction } = this.getCompositeActions(viewContainer.id);

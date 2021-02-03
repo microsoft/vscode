@@ -117,7 +117,7 @@ export class MainThreadUriOpeners extends Disposable implements MainThreadUriOpe
 			extensionId,
 		});
 
-		this._contributedExternalUriOpenersStore.add(id, extensionId.value);
+		this._contributedExternalUriOpenersStore.didRegisterOpener(id, extensionId.value);
 	}
 
 	async $unregisterUriOpener(id: string): Promise<void> {

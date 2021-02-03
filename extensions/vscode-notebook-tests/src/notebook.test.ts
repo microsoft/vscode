@@ -1303,7 +1303,7 @@ suite('notebook working copy', () => {
 
 		assert.notEqual(firstNotebookEditor, secondNotebookEditor);
 		assert.equal(firstNotebookEditor?.document, secondNotebookEditor?.document, 'split notebook editors share the same document');
-		assert.notEqual(firstNotebookEditor?.asWebviewUri(vscode.Uri.file('./hello.png')), secondNotebookEditor?.asWebviewUri(vscode.Uri.file('./hello.png')));
+		// assert.notEqual(firstNotebookEditor?.asWebviewUri(vscode.Uri.file('./hello.png')), secondNotebookEditor?.asWebviewUri(vscode.Uri.file('./hello.png')));
 
 		await saveAllFilesAndCloseAll(resource);
 
