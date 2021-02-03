@@ -212,7 +212,7 @@ export class DiskFileSystemProvider extends Disposable implements
 
 			let flags: string | undefined = undefined;
 			if (opts.create) {
-				if (isWindows && await exists(filePath)) {
+				if (isWindows) {
 					try {
 						// On Windows and if the file exists, we use a different strategy of saving the file
 						// by first truncating the file and then writing with r+ flag. This helps to save hidden files on Windows
@@ -223,7 +223,9 @@ export class DiskFileSystemProvider extends Disposable implements
 						// After a successful truncate() the flag can be set to 'r+' which will not truncate.
 						flags = 'r+';
 					} catch (error) {
-						this.logService.trace(error);
+						if (error.code !== 'ENOENT') {
+							this.logService.trace(error);
+						}
 					}
 				}
 

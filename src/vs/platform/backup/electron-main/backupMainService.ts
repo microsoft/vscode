@@ -151,8 +151,8 @@ export class BackupMainService implements IBackupMainService {
 		if (fs.existsSync(moveFromPath)) {
 			try {
 				fs.renameSync(moveFromPath, backupPath);
-			} catch (ex) {
-				this.logService.error(`Backup: Could not move backup folder to new location: ${ex.toString()}`);
+			} catch (error) {
+				this.logService.error(`Backup: Could not move backup folder to new location: ${error.toString()}`);
 			}
 		}
 	}
@@ -312,8 +312,8 @@ export class BackupMainService implements IBackupMainService {
 			if (await exists(backupPath)) {
 				await rimraf(backupPath, RimRafMode.MOVE);
 			}
-		} catch (ex) {
-			this.logService.error(`Backup: Could not delete stale backup: ${ex.toString()}`);
+		} catch (error) {
+			this.logService.error(`Backup: Could not delete stale backup: ${error.toString()}`);
 		}
 	}
 
@@ -329,8 +329,8 @@ export class BackupMainService implements IBackupMainService {
 		const newEmptyWindowBackupPath = this.getBackupPath(newBackupFolder);
 		try {
 			await rename(backupPath, newEmptyWindowBackupPath);
-		} catch (ex) {
-			this.logService.error(`Backup: Could not rename backup folder: ${ex.toString()}`);
+		} catch (error) {
+			this.logService.error(`Backup: Could not rename backup folder: ${error.toString()}`);
 			return false;
 		}
 		this.emptyWindows.push({ backupFolder: newBackupFolder });
@@ -350,8 +350,8 @@ export class BackupMainService implements IBackupMainService {
 		const newEmptyWindowBackupPath = this.getBackupPath(newBackupFolder);
 		try {
 			fs.renameSync(backupPath, newEmptyWindowBackupPath);
-		} catch (ex) {
-			this.logService.error(`Backup: Could not rename backup folder: ${ex.toString()}`);
+		} catch (error) {
+			this.logService.error(`Backup: Could not rename backup folder: ${error.toString()}`);
 			return false;
 		}
 		this.emptyWindows.push({ backupFolder: newBackupFolder });
@@ -424,16 +424,16 @@ export class BackupMainService implements IBackupMainService {
 	private saveSync(): void {
 		try {
 			writeFileSync(this.workspacesJsonPath, JSON.stringify(this.serializeBackups()));
-		} catch (ex) {
-			this.logService.error(`Backup: Could not save workspaces.json: ${ex.toString()}`);
+		} catch (error) {
+			this.logService.error(`Backup: Could not save workspaces.json: ${error.toString()}`);
 		}
 	}
 
 	private async save(): Promise<void> {
 		try {
 			await writeFile(this.workspacesJsonPath, JSON.stringify(this.serializeBackups()));
-		} catch (ex) {
-			this.logService.error(`Backup: Could not save workspaces.json: ${ex.toString()}`);
+		} catch (error) {
+			this.logService.error(`Backup: Could not save workspaces.json: ${error.toString()}`);
 		}
 	}
 
