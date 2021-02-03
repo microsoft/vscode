@@ -4,11 +4,11 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { Disposable, IDisposable, toDisposable, DisposableStore } from 'vs/base/common/lifecycle';
-import { IViewDescriptorService, ViewContainer, IViewDescriptor, IView, ViewContainerLocation, IViewsService, IViewPaneContainer, getVisbileViewContextKey, getEnabledViewContainerContextKey } from 'vs/workbench/common/views';
+import { IViewDescriptorService, ViewContainer, IViewDescriptor, IView, ViewContainerLocation, IViewsService, IViewPaneContainer, getVisbileViewContextKey, getEnabledViewContainerContextKey, FocusedViewContext } from 'vs/workbench/common/views';
 import { Registry } from 'vs/platform/registry/common/platform';
 import { IStorageService } from 'vs/platform/storage/common/storage';
 import { IViewletService } from 'vs/workbench/services/viewlet/browser/viewlet';
-import { ContextKeyExpr, IContextKey, IContextKeyService, RawContextKey } from 'vs/platform/contextkey/common/contextkey';
+import { ContextKeyDefinedExpr, ContextKeyExpr, IContextKey, IContextKeyService, RawContextKey } from 'vs/platform/contextkey/common/contextkey';
 import { Event, Emitter } from 'vs/base/common/event';
 import { isString } from 'vs/base/common/types';
 import { MenuId, registerAction2, Action2, MenuRegistry, ICommandActionTitle } from 'vs/platform/actions/common/actions';
@@ -142,62 +142,65 @@ export class ViewsService extends Disposable implements IViewsService {
 		}));
 
 		// Register Action to Open View Container
-		const commandId = viewContainer.commandId ?? viewContainer.id;
-		const that = this;
-		this._register(registerAction2(class OpenViewContainerAction extends Action2 {
-			constructor() {
-				super({
-					id: commandId,
-					get title(): ICommandActionTitle {
-						const viewContainerLocation = that.viewDescriptorService.getViewContainerLocation(viewContainer);
-						if (viewContainerLocation === ViewContainerLocation.Sidebar) {
-							return { value: localize('show view', "Show {0}", viewContainer.title), original: `Show ${viewContainer.title}` };
-						} else {
-							return { value: localize('toggle view', "Toggle {0}", viewContainer.title), original: `Toggle ${viewContainer.title}` };
-						}
-					},
-					category: CATEGORIES.View.value,
-					precondition: ContextKeyExpr.has(getEnabledViewContainerContextKey(viewContainer.id)),
-					keybinding: viewContainer.keybindings ? { ...viewContainer.keybindings, weight: KeybindingWeight.WorkbenchContrib } : undefined,
-					f1: true
-				});
-			}
-			public async run(serviceAccessor: ServicesAccessor): Promise<any> {
-				const editorGroupService = serviceAccessor.get(IEditorGroupsService);
-				const viewDescriptorService = serviceAccessor.get(IViewDescriptorService);
-				const layoutService = serviceAccessor.get(IWorkbenchLayoutService);
-				const viewsService = serviceAccessor.get(IViewsService);
-				const viewContainerLocation = viewDescriptorService.getViewContainerLocation(viewContainer);
-				switch (viewContainerLocation) {
-					case ViewContainerLocation.Sidebar:
-						if (!viewsService.isViewContainerVisible(viewContainer.id) || !layoutService.hasFocus(Parts.SIDEBAR_PART)) {
-							await viewsService.openViewContainer(viewContainer.id, true);
-						} else {
-							editorGroupService.activeGroup.focus();
-						}
-						break;
-					case ViewContainerLocation.Panel:
-						if (!viewsService.isViewContainerVisible(viewContainer.id) || !layoutService.hasFocus(Parts.PANEL_PART)) {
-							await viewsService.openViewContainer(viewContainer.id, true);
-						} else {
-							viewsService.closeViewContainer(viewContainer.id);
-						}
-						break;
+		if (viewContainer.commandActionDescriptor !== false) {
+			let { id, title, mnemonicTitle, keybindings, order } = viewContainer.commandActionDescriptor ?? { id: viewContainer.id };
+			title = title ?? viewContainer.title;
+			const that = this;
+			this._register(registerAction2(class OpenViewContainerAction extends Action2 {
+				constructor() {
+					super({
+						id,
+						get title(): ICommandActionTitle {
+							const viewContainerLocation = that.viewDescriptorService.getViewContainerLocation(viewContainer);
+							if (viewContainerLocation === ViewContainerLocation.Sidebar) {
+								return { value: localize('show view', "Show {0}", title), original: `Show ${title}` };
+							} else {
+								return { value: localize('toggle view', "Toggle {0}", title), original: `Toggle ${title}` };
+							}
+						},
+						category: CATEGORIES.View.value,
+						precondition: ContextKeyExpr.has(getEnabledViewContainerContextKey(viewContainer.id)),
+						keybinding: keybindings ? { ...keybindings, weight: KeybindingWeight.WorkbenchContrib } : undefined,
+						f1: true
+					});
 				}
-			}
-		}));
-
-		if (viewContainer.mnemonicTitle) {
-			const defaultLocation = this.viewDescriptorService.getDefaultViewContainerLocation(viewContainer);
-			this._register(MenuRegistry.appendMenuItem(MenuId.MenubarViewMenu, {
-				command: {
-					id: commandId,
-					title: viewContainer.mnemonicTitle,
-				},
-				group: defaultLocation === ViewContainerLocation.Sidebar ? '3_views' : '4_panels',
-				when: ContextKeyExpr.has(getEnabledViewContainerContextKey(viewContainer.id)),
-				order: viewContainer.order ?? Number.MAX_VALUE
+				public async run(serviceAccessor: ServicesAccessor): Promise<any> {
+					const editorGroupService = serviceAccessor.get(IEditorGroupsService);
+					const viewDescriptorService = serviceAccessor.get(IViewDescriptorService);
+					const layoutService = serviceAccessor.get(IWorkbenchLayoutService);
+					const viewsService = serviceAccessor.get(IViewsService);
+					const viewContainerLocation = viewDescriptorService.getViewContainerLocation(viewContainer);
+					switch (viewContainerLocation) {
+						case ViewContainerLocation.Sidebar:
+							if (!viewsService.isViewContainerVisible(viewContainer.id) || !layoutService.hasFocus(Parts.SIDEBAR_PART)) {
+								await viewsService.openViewContainer(viewContainer.id, true);
+							} else {
+								editorGroupService.activeGroup.focus();
+							}
+							break;
+						case ViewContainerLocation.Panel:
+							if (!viewsService.isViewContainerVisible(viewContainer.id) || !layoutService.hasFocus(Parts.PANEL_PART)) {
+								await viewsService.openViewContainer(viewContainer.id, true);
+							} else {
+								viewsService.closeViewContainer(viewContainer.id);
+							}
+							break;
+					}
+				}
 			}));
+
+			if (mnemonicTitle) {
+				const defaultLocation = this.viewDescriptorService.getDefaultViewContainerLocation(viewContainer);
+				this._register(MenuRegistry.appendMenuItem(MenuId.MenubarViewMenu, {
+					command: {
+						id,
+						title: mnemonicTitle,
+					},
+					group: defaultLocation === ViewContainerLocation.Sidebar ? '3_views' : '4_panels',
+					when: ContextKeyExpr.has(getEnabledViewContainerContextKey(viewContainer.id)),
+					order: order ?? Number.MAX_VALUE
+				}));
+			}
 		}
 	}
 
@@ -215,6 +218,67 @@ export class ViewsService extends Disposable implements IViewsService {
 		const composite = this.getComposite(container.id, location);
 		for (const viewDescriptor of views) {
 			const disposables = new DisposableStore();
+
+			// Register Action to Open View
+			if (viewDescriptor.commandActionDescriptor) {
+				const title = viewDescriptor.commandActionDescriptor.title ?? viewDescriptor.name;
+				const commandId = viewDescriptor.commandActionDescriptor.id;
+				const that = this;
+				disposables.add(registerAction2(class OpenViewAction extends Action2 {
+					constructor() {
+						super({
+							id: commandId,
+							get title(): ICommandActionTitle {
+								const viewContainerLocation = that.viewDescriptorService.getViewLocationById(viewDescriptor.id);
+								if (viewContainerLocation === ViewContainerLocation.Sidebar) {
+									return { value: localize('show view', "Show {0}", title), original: `Show ${title}` };
+								} else {
+									return { value: localize('toggle view', "Toggle {0}", title), original: `Toggle ${title}` };
+								}
+							},
+							category: CATEGORIES.View.value,
+							precondition: ContextKeyDefinedExpr.create(`${viewDescriptor.id}.active`),
+							keybinding: viewDescriptor.commandActionDescriptor!.keybindings ? { ...viewDescriptor.commandActionDescriptor!.keybindings, weight: KeybindingWeight.WorkbenchContrib } : undefined,
+							f1: true
+						});
+					}
+					public async run(serviceAccessor: ServicesAccessor): Promise<any> {
+						const editorGroupService = serviceAccessor.get(IEditorGroupsService);
+						const viewDescriptorService = serviceAccessor.get(IViewDescriptorService);
+						const layoutService = serviceAccessor.get(IWorkbenchLayoutService);
+						const viewsService = serviceAccessor.get(IViewsService);
+						const contextKeyService = serviceAccessor.get(IContextKeyService);
+
+						const focusedViewId = FocusedViewContext.getValue(contextKeyService);
+						if (focusedViewId === viewDescriptor.id) {
+							if (viewDescriptorService.getViewLocationById(viewDescriptor.id) === ViewContainerLocation.Sidebar) {
+								editorGroupService.activeGroup.focus();
+							} else {
+								layoutService.setPanelHidden(true);
+							}
+						} else {
+							viewsService.openView(viewDescriptor.id, true);
+						}
+					}
+				}));
+
+				if (viewDescriptor.commandActionDescriptor.mnemonicTitle) {
+					const defaultViewContainer = this.viewDescriptorService.getDefaultContainerById(viewDescriptor.id);
+					if (defaultViewContainer) {
+						const defaultLocation = this.viewDescriptorService.getDefaultViewContainerLocation(defaultViewContainer);
+						disposables.add(MenuRegistry.appendMenuItem(MenuId.MenubarViewMenu, {
+							command: {
+								id: commandId,
+								title: viewDescriptor.commandActionDescriptor.mnemonicTitle,
+							},
+							group: defaultLocation === ViewContainerLocation.Sidebar ? '3_views' : '4_panels',
+							when: ContextKeyDefinedExpr.create(`${viewDescriptor.id}.active`),
+							order: viewDescriptor.commandActionDescriptor.order ?? Number.MAX_VALUE
+						}));
+					}
+				}
+			}
+
 			disposables.add(registerAction2(class FocusViewAction extends Action2 {
 				constructor() {
 					super({

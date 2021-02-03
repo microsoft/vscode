@@ -444,11 +444,7 @@ export interface ICellMoveEdit {
 	newIdx: number;
 }
 
-export interface IDocumentUnknownEdit {
-	editType: CellEditType.Unknown;
-}
-
-export type ICellEditOperation = ICellReplaceEdit | ICellOutputEdit | ICellMetadataEdit | ICellLanguageEdit | IDocumentMetadataEdit | ICellOutputsSpliceEdit | ICellMoveEdit | IDocumentUnknownEdit;
+export type ICellEditOperation = ICellReplaceEdit | ICellOutputEdit | ICellMetadataEdit | ICellLanguageEdit | IDocumentMetadataEdit | ICellOutputsSpliceEdit | ICellMoveEdit;
 
 export interface INotebookEditData {
 	documentVersionId: number;

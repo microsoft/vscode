@@ -17,9 +17,8 @@ import { ICommandService } from 'vs/platform/commands/common/commands';
 import { IProductService } from 'vs/platform/product/common/productService';
 import { IGettingStartedCategoryWithProgress, IGettingStartedService } from 'vs/workbench/services/gettingStarted/common/gettingStartedService';
 import { registerThemingParticipant, ThemeIcon } from 'vs/platform/theme/common/themeService';
-import { welcomeButtonBackground, welcomeButtonHoverBackground, welcomePageBackground, welcomePageProgressBackground, welcomePageProgressForeground } from 'vs/workbench/contrib/welcome/page/browser/welcomePageColors';
+import { welcomePageBackground, welcomePageProgressBackground, welcomePageProgressForeground, welcomePageTileBackground, welcomePageTileHoverBackground } from 'vs/workbench/contrib/welcome/page/browser/welcomePageColors';
 import { activeContrastBorder, buttonBackground, buttonForeground, buttonHoverBackground, buttonSecondaryBackground, contrastBorder, descriptionForeground, focusBorder, foreground, textLinkActiveForeground, textLinkForeground } from 'vs/platform/theme/common/colorRegistry';
-import { getExtraColor } from 'vs/workbench/contrib/welcome/walkThrough/common/walkThroughUtils';
 import { IKeybindingService } from 'vs/platform/keybinding/common/keybinding';
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
 import { DomScrollableElement } from 'vs/base/browser/ui/scrollbar/scrollableElement';
@@ -82,6 +81,7 @@ export class GettingStartedPage extends Disposable {
 	private inProgressScroll = Promise.resolve();
 
 	private dispatchListeners: DisposableStore = new DisposableStore();
+	private taskDisposables: DisposableStore = new DisposableStore();
 
 	private gettingStartedCategories: IGettingStartedCategoryWithProgress[];
 	private currentCategory: IGettingStartedCategoryWithProgress | undefined;
@@ -188,6 +188,7 @@ export class GettingStartedPage extends Disposable {
 							} else {
 								throw Error('Task ' + JSON.stringify(taskToRun) + ' does not have an associated action');
 							}
+							e.stopPropagation();
 							break;
 						}
 						default: {
@@ -202,6 +203,7 @@ export class GettingStartedPage extends Disposable {
 
 	private selectTask(container: HTMLElement, id: string | undefined) {
 		const mediaElement = assertIsDefined(container.querySelector('.getting-started-media'));
+		this.taskDisposables.clear();
 		if (id) {
 			const taskElement = assertIsDefined(container.querySelector(`[data-task-id="${id}"]`));
 			if (!this.currentCategory || this.currentCategory.content.type !== 'items') {
@@ -212,8 +214,10 @@ export class GettingStartedPage extends Disposable {
 
 			mediaElement.setAttribute('src', taskToExpand.media.path.toString());
 			mediaElement.setAttribute('alt', taskToExpand.media.altText);
+			this.taskDisposables.add(addDisposableListener(mediaElement, 'click', () => taskElement.querySelector('button')?.click()));
 			taskElement.parentElement?.querySelectorAll('.expanded').forEach(node => node.classList.remove('expanded'));
 			taskElement.classList.add('expanded');
+			taskElement.querySelector('button')?.focus();
 		} else {
 			mediaElement.setAttribute('src', '');
 			mediaElement.setAttribute('alt', '');
@@ -433,24 +437,36 @@ export class GettingStartedInputFactory implements IEditorInputFactory {
 }
 
 registerThemingParticipant((theme, collector) => {
+
 	const backgroundColor = theme.getColor(welcomePageBackground);
 	if (backgroundColor) {
 		collector.addRule(`.monaco-workbench .part.editor > .content .welcomePageContainer { background-color: ${backgroundColor}; }`);
 	}
+
 	const foregroundColor = theme.getColor(foreground);
 	if (foregroundColor) {
 		collector.addRule(`.monaco-workbench .part.editor > .content .walkThroughContent .gettingStartedContainer { color: ${foregroundColor}; }`);
 	}
+
 	const descriptionColor = theme.getColor(descriptionForeground);
 	if (descriptionColor) {
 		collector.addRule(`.monaco-workbench .part.editor > .content .walkThroughContent .gettingStartedContainer .description { color: ${descriptionColor}; }`);
+		collector.addRule(`.monaco-workbench .part.editor > .content .walkThroughContent .gettingStartedContainer .category-progress .message { color: ${descriptionColor}; }`);
 	}
-	const buttonColor = getExtraColor(theme, welcomeButtonBackground, { dark: 'rgba(0, 0, 0, .2)', extra_dark: 'rgba(200, 235, 255, .042)', light: 'rgba(0,0,0,.04)', hc: 'black' });
+
+	const iconColor = theme.getColor(textLinkForeground);
+	if (iconColor) {
+		collector.addRule(`.monaco-workbench .part.editor > .content .walkThroughContent .gettingStartedContainer .getting-started-category .codicon { color: ${iconColor} }`);
+		collector.addRule(`.monaco-workbench .part.editor > .content .walkThroughContent .gettingStartedContainer .gettingStartedSlide.detail .getting-started-task .codicon.complete { color: ${iconColor} } `);
+		collector.addRule(`.monaco-workbench .part.editor > .content .walkThroughContent .gettingStartedContainer .gettingStartedSlide.detail .getting-started-task.expanded .codicon { color: ${iconColor} } `);
+	}
+
+	const buttonColor = theme.getColor(welcomePageTileBackground);
 	if (buttonColor) {
 		collector.addRule(`.monaco-workbench .part.editor > .content .walkThroughContent .gettingStartedContainer button { background: ${buttonColor}; }`);
 	}
 
-	const buttonHoverColor = getExtraColor(theme, welcomeButtonHoverBackground, { dark: 'rgba(200, 235, 255, .072)', extra_dark: 'rgba(200, 235, 255, .072)', light: 'rgba(0,0,0,.10)', hc: null });
+	const buttonHoverColor = theme.getColor(welcomePageTileHoverBackground);
 	if (buttonHoverColor) {
 		collector.addRule(`.monaco-workbench .part.editor > .content .walkThroughContent .gettingStartedContainer button:hover { background: ${buttonHoverColor}; }`);
 	}
@@ -466,8 +482,6 @@ registerThemingParticipant((theme, collector) => {
 	const emphasisButtonBackground = theme.getColor(buttonBackground);
 	if (emphasisButtonBackground) {
 		collector.addRule(`.monaco-workbench .part.editor > .content .walkThroughContent .gettingStartedContainer button.emphasis { background: ${emphasisButtonBackground}; }`);
-		collector.addRule(`.monaco-workbench .part.editor > .content .walkThroughContent .gettingStartedContainer .getting-started-category .codicon { color: ${emphasisButtonBackground} }`);
-		collector.addRule(`.monaco-workbench .part.editor > .content .walkThroughContent .gettingStartedContainer .gettingStartedSlide.detail .getting-started-task .codicon.complete { color: ${emphasisButtonBackground} } `);
 	}
 
 	const pendingItemColor = theme.getColor(buttonSecondaryBackground);

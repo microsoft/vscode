@@ -64,17 +64,12 @@ configurationRegistry.registerConfiguration(terminalConfiguration);
 const VIEW_CONTAINER = Registry.as<IViewContainersRegistry>(ViewContainerExtensions.ViewContainersRegistry).registerViewContainer({
 	id: TERMINAL_VIEW_ID,
 	title: nls.localize('terminal', "Terminal"),
-	mnemonicTitle: nls.localize({ key: 'miToggleIntegratedTerminal', comment: ['&& denotes a mnemonic'] }, "&&Terminal"),
-	keybindings: {
-		primary: KeyMod.CtrlCmd | KeyCode.US_BACKTICK,
-		mac: { primary: KeyMod.WinCtrl | KeyCode.US_BACKTICK }
-	},
-	commandId: TERMINAL_COMMAND_ID.TOGGLE,
 	icon: terminalViewIcon,
 	ctorDescriptor: new SyncDescriptor(ViewPaneContainer, [TERMINAL_VIEW_ID, { mergeViewWithContainerWhenSingleView: true, donotShowContainerTitleWhenMergedWithContainer: true }]),
 	storageId: TERMINAL_VIEW_ID,
 	hideIfEmpty: true,
-	order: 3
+	order: 3,
+	commandActionDescriptor: false,
 }, ViewContainerLocation.Panel);
 Registry.as<panel.PanelRegistry>(panel.Extensions.Panels).setDefaultPanelId(TERMINAL_VIEW_ID);
 Registry.as<IViewsRegistry>(ViewContainerExtensions.ViewsRegistry).registerViews([{
@@ -83,7 +78,16 @@ Registry.as<IViewsRegistry>(ViewContainerExtensions.ViewsRegistry).registerViews
 	containerIcon: terminalViewIcon,
 	canToggleVisibility: false,
 	canMoveView: true,
-	ctorDescriptor: new SyncDescriptor(TerminalViewPane)
+	ctorDescriptor: new SyncDescriptor(TerminalViewPane),
+	commandActionDescriptor: {
+		id: TERMINAL_COMMAND_ID.TOGGLE,
+		mnemonicTitle: nls.localize({ key: 'miToggleIntegratedTerminal', comment: ['&& denotes a mnemonic'] }, "&&Terminal"),
+		keybindings: {
+			primary: KeyMod.CtrlCmd | KeyCode.US_BACKTICK,
+			mac: { primary: KeyMod.WinCtrl | KeyCode.US_BACKTICK }
+		},
+		order: 3
+	}
 }], VIEW_CONTAINER);
 
 // Register actions

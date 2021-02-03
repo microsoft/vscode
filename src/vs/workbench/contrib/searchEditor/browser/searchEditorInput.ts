@@ -234,6 +234,11 @@ export class SearchEditorInput extends EditorInput {
 	}
 
 	async revert(group: GroupIdentifier, options?: IRevertOptions) {
+		if (options?.soft) {
+			this.setDirty(false);
+			return;
+		}
+
 		if (this.backingUri) {
 			const { config, text } = await this.instantiationService.invokeFunction(parseSavedSearchEditor, this.backingUri);
 			(await this.model).setValue(text);

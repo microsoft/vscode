@@ -300,6 +300,14 @@ export class NotebookEditorWidget extends Disposable implements INotebookEditor 
 		return this.viewModel?.selectionHandles || [];
 	}
 
+	getSelectionViewModels(): ICellViewModel[] {
+		if (!this.viewModel) {
+			return [];
+		}
+
+		return this.viewModel.selectionHandles.map(handle => this.viewModel!.getCellByHandle(handle)) as ICellViewModel[];
+	}
+
 	hasModel(): this is IActiveNotebookEditor {
 		return !!this._notebookViewModel;
 	}
@@ -475,7 +483,7 @@ export class NotebookEditorWidget extends Disposable implements INotebookEditor 
 				horizontalScrolling: false,
 				keyboardSupport: false,
 				mouseSupport: true,
-				multipleSelectionSupport: false,
+				multipleSelectionSupport: true,
 				enableKeyboardNavigation: true,
 				additionalScrollHeight: 0,
 				transformOptimization: false, //(isMacintosh && isNative) || getTitleBarStyle(this.configurationService, this.environmentService) === 'native',
@@ -2130,6 +2138,13 @@ export const focusedCellBackground = registerColor('notebook.focusedCellBackgrou
 	hc: null
 }, nls.localize('focusedCellBackground', "The background color of a cell when the cell is focused."));
 
+export const selectedCellBackground = registerColor('notebook.selectedCellBackground', {
+	dark: null,
+	light: null,
+	hc: null
+}, nls.localize('selectedCellBackground', "The background color of a cell when the cell is selected."));
+
+
 export const cellHoverBackground = registerColor('notebook.cellHoverBackground', {
 	dark: transparent(focusedCellBackground, .5),
 	light: transparent(focusedCellBackground, .7),
@@ -2264,6 +2279,14 @@ registerThemingParticipant((theme, collector) => {
 		collector.addRule(`.notebookOverlay .code-cell-row.focused .cell-focus-indicator,
 			.notebookOverlay .markdown-cell-row.focused { background-color: ${focusedCellBackgroundColor} !important; }`);
 		collector.addRule(`.notebookOverlay .code-cell-row.focused .cell-collapsed-part { background-color: ${focusedCellBackgroundColor} !important; }`);
+	}
+
+	const selectedCellBackgroundColor = theme.getColor(selectedCellBackground);
+	if (selectedCellBackground) {
+		collector.addRule(`.notebookOverlay .monaco-list.selection-multiple .markdown-cell-row.selected { background-color: ${selectedCellBackgroundColor} !important; }`);
+		collector.addRule(`.notebookOverlay .monaco-list.selection-multiple .code-cell-row.selected { background-color: ${selectedCellBackgroundColor} !important; }`);
+		collector.addRule(`.notebookOverlay .monaco-list.selection-multiple .markdown-cell-row.selected .cell-focus-indicator-bottom { background-color: ${selectedCellBackgroundColor} !important; }`);
+		collector.addRule(`.notebookOverlay .monaco-list.selection-multiple .code-cell-row.selected .cell-focus-indicator-bottom { background-color: ${selectedCellBackgroundColor} !important; }`);
 	}
 
 	const cellHoverBackgroundColor = theme.getColor(cellHoverBackground);

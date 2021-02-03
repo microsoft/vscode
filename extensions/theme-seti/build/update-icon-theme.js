@@ -32,6 +32,7 @@ let nonBuiltInLanguages = { // { fileNames, extensions  }
 	"haml": { extensions: ['haml'] },
 	"stylus": { extensions: ['styl'] },
 	"vala": { extensions: ['vala'] },
+	"github-issues": { extensions: ['github-issues'] },
 	"todo": { fileNames: ['todo'] }
 };
 

@@ -66,6 +66,9 @@ export class TestNotebookEditor implements INotebookEditor {
 
 	constructor(
 	) { }
+	getSelectionViewModels(): ICellViewModel[] {
+		throw new Error('Method not implemented.');
+	}
 	revealCellRangeInView(range: ICellRange): void {
 		throw new Error('Method not implemented.');
 	}
