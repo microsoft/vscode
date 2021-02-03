@@ -57,7 +57,7 @@ flakySuite('Files - NativeTextFileService i/o', function () {
 			testDir = getRandomTestPath(tmpdir(), 'vsctests', 'textfileservice');
 			const sourceDir = getPathFromAmdModule(require, './fixtures');
 
-			await copy(sourceDir, testDir);
+			await copy(sourceDir, testDir, { preserveSymlinks: false });
 
 			return { service, testDir };
 		},

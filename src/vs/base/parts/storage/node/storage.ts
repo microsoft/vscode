@@ -217,7 +217,7 @@ export class SQLiteStorageDatabase implements IStorageDatabase {
 	private backup(): Promise<void> {
 		const backupPath = this.toBackupPath(this.path);
 
-		return copy(this.path, backupPath);
+		return copy(this.path, backupPath, { preserveSymlinks: false });
 	}
 
 	private toBackupPath(path: string): string {

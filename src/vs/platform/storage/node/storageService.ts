@@ -268,7 +268,7 @@ export class NativeStorageService extends AbstractStorageService {
 		const newWorkspaceStoragePath = join(result.path, NativeStorageService.WORKSPACE_STORAGE_NAME);
 
 		// Copy current storage over to new workspace storage
-		await copy(assertIsDefined(this.workspaceStoragePath), newWorkspaceStoragePath);
+		await copy(assertIsDefined(this.workspaceStoragePath), newWorkspaceStoragePath, { preserveSymlinks: false });
 
 		// Recreate and init workspace storage
 		return this.createWorkspaceStorage(newWorkspaceStoragePath).init();

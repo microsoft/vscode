@@ -161,7 +161,7 @@ flakySuite('PFS', function () {
 		const targetDir = join(parentDir, id);
 		const targetDir2 = join(parentDir, id2);
 
-		await copy(sourceDir, targetDir);
+		await copy(sourceDir, targetDir, { preserveSymlinks: true });
 
 		assert.ok(fs.existsSync(targetDir));
 		assert.ok(fs.existsSync(join(targetDir, 'index.html')));
@@ -204,9 +204,9 @@ flakySuite('PFS', function () {
 
 		fs.symlinkSync(symbolicLinkTarget, symLink, 'junction');
 
-		// Copy preserves symlinks
+		// Copy preserves symlinks if configured as such
 
-		await copy(symLink, copyTarget);
+		await copy(symLink, copyTarget, { preserveSymlinks: true });
 
 		assert.ok(fs.existsSync(copyTarget));
 
@@ -217,12 +217,22 @@ flakySuite('PFS', function () {
 		const target = await fs.promises.readlink(copyTarget);
 		assert.strictEqual(target, symbolicLinkTarget);
 
+		// Copy does not preserve symlinks if configured as such
+
+		await rimraf(copyTarget);
+		await copy(symLink, copyTarget, { preserveSymlinks: false });
+
+		assert.ok(fs.existsSync(copyTarget));
+
+		const { symbolicLink: symbolicLink2 } = await SymlinkSupport.stat(copyTarget);
+		assert.ok(!symbolicLink2);
+
 		// Copy ignores dangling symlinks
 
 		await rimraf(copyTarget);
 		await rimraf(symbolicLinkTarget);
 
-		await copy(symLink, copyTarget); // this should not throw
+		await copy(symLink, copyTarget, { preserveSymlinks: true }); // this should not throw
 
 		assert.ok(!fs.existsSync(copyTarget));
 	});
