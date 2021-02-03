@@ -1,7 +1,29 @@
 {
 	"$schema": "vscode://schemas/color-theme",
 	"name": "Light (Visual Studio)",
-	"include": "./light_defaults.json",
+	"colors": {
+		"editor.background": "#FFFFFF",
+		"editor.foreground": "#000000",
+		"editor.inactiveSelectionBackground": "#E5EBF1",
+		"editorIndentGuide.background": "#D3D3D3",
+		"editorIndentGuide.activeBackground": "#939393",
+		"editor.selectionHighlightBackground": "#ADD6FF80",
+		"editorSuggestWidget.background": "#F3F3F3",
+		"activityBarBadge.background": "#007ACC",
+		"sideBarTitle.foreground": "#6F6F6F",
+		"list.hoverBackground": "#E8E8E8",
+		"input.placeholderForeground": "#767676",
+		"searchEditor.textInputBorder": "#CECECE",
+		"settings.textInputBorder": "#CECECE",
+		"settings.numberInputBorder": "#CECECE",
+		"statusBarItem.remoteForeground": "#FFF",
+		"statusBarItem.remoteBackground": "#16825D",
+		"sideBarSectionHeader.background": "#0000",
+		"sideBarSectionHeader.border": "#61616130",
+		"tab.lastPinnedBorder": "#61616130",
+		"notebook.cellBorderColor": "#E8E8E8",
+		"statusBarItem.errorBackground": "#c72e0f"
+	},
 	"tokenColors": [
 		{
 			"scope": [
@@ -386,6 +408,7 @@
 			}
 		}
 	],
+	"semanticHighlighting": true,
 	"semanticTokenColors": {
 		"newOperator": "#0000ff",
 		"stringLiteral": "#a31515",

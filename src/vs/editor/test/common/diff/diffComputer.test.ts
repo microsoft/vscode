@@ -64,7 +64,7 @@ function assertDiff(originalLines: string[], modifiedLines: string[], expectedCh
 	for (let i = 0; i < changes.length; i++) {
 		extracted.push(extractLineChangeRepresentation(changes[i], <ILineChange>(i < expectedChanges.length ? expectedChanges[i] : null)));
 	}
-	assert.deepEqual(extracted, expectedChanges);
+	assert.deepStrictEqual(extracted, expectedChanges);
 }
 
 function createLineDeletion(startLineNumber: number, endLineNumber: number, modifiedLineNumber: number): ILineChange {
@@ -459,6 +459,13 @@ suite('Editor Diff - DiffComputer', () => {
 				createCharChange(0, 0, 0, 0, 0, 0, 0, 0)
 			])
 		];
+		assertDiff(original, modified, expected, true, false, true);
+	});
+
+	test('empty diff 5', () => {
+		let original = [''];
+		let modified = [''];
+		let expected: ILineChange[] = [];
 		assertDiff(original, modified, expected, true, false, true);
 	});
 

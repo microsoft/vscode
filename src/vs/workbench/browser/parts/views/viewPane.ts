@@ -21,12 +21,12 @@ import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
 import { IThemeService, ThemeIcon } from 'vs/platform/theme/common/themeService';
 import { IPaneOptions, Pane, IPaneStyles } from 'vs/base/browser/ui/splitview/paneview';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
-import { Extensions as ViewContainerExtensions, IView, FocusedViewContext, IViewDescriptorService, ViewContainerLocation, IViewsRegistry, IViewContentDescriptor, defaultViewIcon, IViewsService } from 'vs/workbench/common/views';
+import { Extensions as ViewContainerExtensions, IView, FocusedViewContext, IViewDescriptorService, ViewContainerLocation, IViewsRegistry, IViewContentDescriptor, defaultViewIcon, IViewsService, ViewContainerLocationToString } from 'vs/workbench/common/views';
 import { IContextKey, IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
 import { assertIsDefined } from 'vs/base/common/types';
 import { IInstantiationService, ServicesAccessor } from 'vs/platform/instantiation/common/instantiation';
-import { MenuId, MenuItemAction, Action2, IAction2Options, SubmenuItemAction, IMenuService } from 'vs/platform/actions/common/actions';
-import { MenuEntryActionViewItem, SubmenuEntryActionViewItem } from 'vs/platform/actions/browser/menuEntryActionViewItem';
+import { MenuId, Action2, IAction2Options, IMenuService } from 'vs/platform/actions/common/actions';
+import { createActionViewItem } from 'vs/platform/actions/browser/menuEntryActionViewItem';
 import { parseLinkedText } from 'vs/base/common/linkedText';
 import { IOpenerService } from 'vs/platform/opener/common/opener';
 import { Button } from 'vs/base/browser/ui/button/button';
@@ -147,11 +147,14 @@ class ViewMenuActions extends CompositeMenuActions {
 		contextMenuId: MenuId,
 		@IContextKeyService contextKeyService: IContextKeyService,
 		@IMenuService menuService: IMenuService,
+		@IViewDescriptorService viewDescriptorService: IViewDescriptorService,
 	) {
 		const scopedContextKeyService = contextKeyService.createScoped();
 		scopedContextKeyService.createKey('view', viewId);
+		const viewLocationKey = scopedContextKeyService.createKey('viewLocation', ViewContainerLocationToString(viewDescriptorService.getViewLocationById(viewId)!));
 		super(menuId, contextMenuId, { shouldForwardArgs: true }, scopedContextKeyService, menuService);
 		this._register(scopedContextKeyService);
+		this._register(Event.filter(viewDescriptorService.onDidChangeLocation, e => e.views.some(view => view.id === viewId))(() => viewLocationKey.set(ViewContainerLocationToString(viewDescriptorService.getViewLocationById(viewId)!))));
 	}
 
 }
@@ -517,12 +520,7 @@ export abstract class ViewPane extends Pane implements IView {
 	}
 
 	getActionViewItem(action: IAction): IActionViewItem | undefined {
-		if (action instanceof MenuItemAction) {
-			return this.instantiationService.createInstance(MenuEntryActionViewItem, action);
-		} else if (action instanceof SubmenuItemAction) {
-			return this.instantiationService.createInstance(SubmenuEntryActionViewItem, action);
-		}
-		return undefined;
+		return createActionViewItem(this.instantiationService, action);
 	}
 
 	getActionsContext(): unknown {
@@ -603,6 +601,16 @@ export abstract class ViewPane extends Pane implements IView {
 							append(p, link.el);
 							disposables.add(link);
 							disposables.add(attachLinkStyler(link, this.themeService));
+
+							if (precondition && node.href.startsWith('command:')) {
+								const updateEnablement = () => link.style({ disabled: !this.contextKeyService.contextMatchesRules(precondition) });
+								updateEnablement();
+
+								const keys = new Set();
+								precondition.keys().forEach(key => keys.add(key));
+								const onDidChangeContext = Event.filter(this.contextKeyService.onDidChangeContext, e => e.affectsSome(keys));
+								onDidChangeContext(updateEnablement, null, disposables);
+							}
 						}
 					}
 				}

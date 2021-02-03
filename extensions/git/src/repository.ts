@@ -7,10 +7,10 @@ import * as fs from 'fs';
 import * as path from 'path';
 import { CancellationToken, Command, Disposable, Event, EventEmitter, Memento, OutputChannel, ProgressLocation, ProgressOptions, scm, SourceControl, SourceControlInputBox, SourceControlInputBoxValidation, SourceControlInputBoxValidationType, SourceControlResourceDecorations, SourceControlResourceGroup, SourceControlResourceState, ThemeColor, Uri, window, workspace, WorkspaceEdit, FileDecoration, commands } from 'vscode';
 import * as nls from 'vscode-nls';
-import { Branch, Change, GitErrorCodes, LogOptions, Ref, RefType, Remote, Status, CommitOptions, BranchQuery } from './api/git';
+import { Branch, Change, ForcePushMode, GitErrorCodes, LogOptions, Ref, RefType, Remote, Status, CommitOptions, BranchQuery } from './api/git';
 import { AutoFetcher } from './autofetch';
 import { debounce, memoize, throttle } from './decorators';
-import { Commit, ForcePushMode, GitError, Repository as BaseRepository, Stash, Submodule, LogFileOptions } from './git';
+import { Commit, GitError, Repository as BaseRepository, Stash, Submodule, LogFileOptions } from './git';
 import { StatusBarCommands } from './statusbar';
 import { toGitUri } from './uri';
 import { anyEvent, combinedDisposable, debounceEvent, dispose, EmptyDisposable, eventToPromise, filterEvent, find, IDisposable, isDescendant, onceEvent } from './util';
@@ -79,7 +79,7 @@ export class Resource implements SourceControlResourceState {
 		return this.resources[0];
 	}
 
-	get rightUri(): Uri {
+	get rightUri(): Uri | undefined {
 		return this.resources[1];
 	}
 
@@ -88,7 +88,7 @@ export class Resource implements SourceControlResourceState {
 	}
 
 	@memoize
-	private get resources(): [Uri | undefined, Uri] {
+	private get resources(): [Uri | undefined, Uri | undefined] {
 		return this._commandResolver.getResources(this);
 	}
 
@@ -613,7 +613,7 @@ class ResourceCommandResolver {
 		}
 	}
 
-	getResources(resource: Resource): [Uri | undefined, Uri] {
+	getResources(resource: Resource): [Uri | undefined, Uri | undefined] {
 		for (const submodule of this.repository.submodules) {
 			if (path.join(this.repository.root, submodule.path) === resource.resourceUri.fsPath) {
 				return [undefined, toGitUri(resource.resourceUri, resource.resourceGroupType === ResourceGroupType.Index ? 'index' : 'wt', { submoduleOf: this.repository.root })];
@@ -641,7 +641,7 @@ class ResourceCommandResolver {
 		return undefined;
 	}
 
-	private getRightResource(resource: Resource): Uri {
+	private getRightResource(resource: Resource): Uri | undefined {
 		switch (resource.type) {
 			case Status.INDEX_MODIFIED:
 			case Status.INDEX_ADDED:
@@ -677,7 +677,7 @@ class ResourceCommandResolver {
 				return resource.resourceUri;
 		}
 
-		throw new Error('Should never happen');
+		return undefined;
 	}
 
 	private getTitle(resource: Resource): string {
@@ -1129,7 +1129,7 @@ export class Repository implements Disposable {
 		return this.run(Operation.HashObject, () => this.repository.hashObject(data));
 	}
 
-	async add(resources: Uri[], opts?: { update?: boolean }): Promise<void> {
+	async add(resources: Uri[], opts?: { update?: boolean; }): Promise<void> {
 		await this.run(Operation.Add, () => this.repository.add(resources.map(r => r.fsPath), opts));
 	}
 
@@ -1165,6 +1165,12 @@ export class Repository implements Disposable {
 				}
 
 				delete opts.all;
+
+				if (opts.requireUserConfig === undefined || opts.requireUserConfig === null) {
+					const config = workspace.getConfiguration('git', Uri.file(this.root));
+					opts.requireUserConfig = config.get<boolean>('requireGitUserConfig');
+				}
+
 				await this.repository.commit(message, opts);
 			});
 		}
@@ -1260,11 +1266,11 @@ export class Repository implements Disposable {
 		await this.run(Operation.DeleteTag, () => this.repository.deleteTag(name));
 	}
 
-	async checkout(treeish: string, opts?: { detached?: boolean }): Promise<void> {
+	async checkout(treeish: string, opts?: { detached?: boolean; }): Promise<void> {
 		await this.run(Operation.Checkout, () => this.repository.checkout(treeish, [], opts));
 	}
 
-	async checkoutTracking(treeish: string, opts: { detached?: boolean } = {}): Promise<void> {
+	async checkoutTracking(treeish: string, opts: { detached?: boolean; } = {}): Promise<void> {
 		await this.run(Operation.CheckoutTracking, () => this.repository.checkout(treeish, [], { ...opts, track: true }));
 	}
 
@@ -1297,7 +1303,7 @@ export class Repository implements Disposable {
 	}
 
 	@throttle
-	async fetchDefault(options: { silent?: boolean } = {}): Promise<void> {
+	async fetchDefault(options: { silent?: boolean; } = {}): Promise<void> {
 		await this._fetch({ silent: options.silent });
 	}
 
@@ -1315,7 +1321,7 @@ export class Repository implements Disposable {
 		await this._fetch({ remote, ref, depth });
 	}
 
-	private async _fetch(options: { remote?: string, ref?: string, all?: boolean, prune?: boolean, depth?: number, silent?: boolean } = {}): Promise<void> {
+	private async _fetch(options: { remote?: string, ref?: string, all?: boolean, prune?: boolean, depth?: number, silent?: boolean; } = {}): Promise<void> {
 		if (!options.prune) {
 			const config = workspace.getConfiguration('git', Uri.file(this.root));
 			const prune = config.get<boolean>('pruneOnFetch');
@@ -1363,7 +1369,9 @@ export class Repository implements Disposable {
 					await this.repository.fetch({ all: true });
 				}
 
-				await this.repository.pull(rebase, remote, branch, { unshallow, tags });
+				if (await this.checkIfMaybeRebased(this.HEAD?.name)) {
+					await this.repository.pull(rebase, remote, branch, { unshallow, tags });
+				}
 			});
 		});
 	}
@@ -1432,9 +1440,10 @@ export class Repository implements Disposable {
 						await this.repository.fetch({ all: true, cancellationToken });
 					}
 
-					await this.repository.pull(rebase, remoteName, pullBranch, { tags, cancellationToken });
+					if (await this.checkIfMaybeRebased(this.HEAD?.name)) {
+						await this.repository.pull(rebase, remoteName, pullBranch, { tags, cancellationToken });
+					}
 				};
-
 
 				if (supportCancellation) {
 					const opts: ProgressOptions = {
@@ -1461,6 +1470,54 @@ export class Repository implements Disposable {
 				}
 			});
 		});
+	}
+
+	private async checkIfMaybeRebased(currentBranch?: string) {
+		const config = workspace.getConfiguration('git');
+		const shouldIgnore = config.get<boolean>('ignoreRebaseWarning') === true;
+
+		if (shouldIgnore) {
+			return true;
+		}
+
+		const maybeRebased = await this.run(Operation.Log, async () => {
+			try {
+				const result = await this.repository.run(['log', '--oneline', '--cherry', `${currentBranch ?? ''}...${currentBranch ?? ''}@{upstream}`, '--']);
+				if (result.exitCode) {
+					return false;
+				}
+
+				return /^=/.test(result.stdout);
+			} catch {
+				return false;
+			}
+		});
+
+		if (!maybeRebased) {
+			return true;
+		}
+
+		const always = { title: localize('always pull', "Always Pull") };
+		const pull = { title: localize('pull', "Pull") };
+		const cancel = { title: localize('dont pull', "Don't Pull") };
+		const result = await window.showWarningMessage(
+			currentBranch
+				? localize('pull branch maybe rebased', "It looks like the current branch \'{0}\' might have been rebased. Are you sure you still want to pull into it?", currentBranch)
+				: localize('pull maybe rebased', "It looks like the current branch might have been rebased. Are you sure you still want to pull into it?"),
+			always, pull, cancel
+		);
+
+		if (result === pull) {
+			return true;
+		}
+
+		if (result === always) {
+			await config.update('ignoreRebaseWarning', true, true);
+
+			return true;
+		}
+
+		return false;
 	}
 
 	async show(ref: string, filePath: string): Promise<string> {
@@ -1490,11 +1547,11 @@ export class Repository implements Disposable {
 		});
 	}
 
-	getObjectDetails(ref: string, filePath: string): Promise<{ mode: string, object: string, size: number }> {
+	getObjectDetails(ref: string, filePath: string): Promise<{ mode: string, object: string, size: number; }> {
 		return this.run(Operation.GetObjectDetails, () => this.repository.getObjectDetails(ref, filePath));
 	}
 
-	detectObjectType(object: string): Promise<{ mimetype: string, encoding?: string }> {
+	detectObjectType(object: string): Promise<{ mimetype: string, encoding?: string; }> {
 		return this.run(Operation.Show, () => this.repository.detectObjectType(object));
 	}
 

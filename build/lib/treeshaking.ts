@@ -82,7 +82,7 @@ function printDiagnostics(options: ITreeShakingOptions, diagnostics: ReadonlyArr
 }
 
 export function shake(options: ITreeShakingOptions): ITreeShakingResult {
-	const ts = <typeof import('typescript')>require('typescript');
+	const ts = require('typescript') as typeof import('typescript');
 	const languageService = createTypeScriptLanguageService(ts, options);
 	const program = languageService.getProgram()!;
 

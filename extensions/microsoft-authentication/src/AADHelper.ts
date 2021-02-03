@@ -10,12 +10,13 @@ import * as vscode from 'vscode';
 import { createServer, startServer } from './authServer';
 
 import { v4 as uuid } from 'uuid';
-import { keychain } from './keychain';
+import { Keychain } from './keychain';
 import Logger from './logger';
 import { toBase64UrlEncoding } from './utils';
 import fetch, { Response } from 'node-fetch';
 import { sha256 } from './env/node/sha256';
 import * as nls from 'vscode-nls';
+import { MicrosoftAuthenticationSession } from './microsoft-authentication';
 
 const localize = nls.loadMessageBundle();
 
@@ -26,6 +27,7 @@ const tenant = 'organizations';
 
 interface IToken {
 	accessToken?: string; // When unable to refresh due to network problems, the access token becomes undefined
+	idToken?: string; // depending on the scopes can be either supplied or empty
 
 	expiresIn?: number; // How long access token is valid, in seconds
 	expiresAt?: number; // UNIX epoch time at which token will expire
@@ -71,6 +73,11 @@ export interface ITokenResponse {
 	id_token?: string;
 }
 
+export interface IMicrosoftTokens {
+	accessToken: string;
+	idToken?: string;
+}
+
 function parseQuery(uri: vscode.Uri) {
 	return uri.query.split('&').reduce((prev: any, current) => {
 		const queryString = current.split('=');
@@ -100,13 +107,16 @@ export class AzureActiveDirectoryService {
 	private _codeExchangePromises = new Map<string, Promise<vscode.AuthenticationSession>>();
 	private _codeVerfifiers = new Map<string, string>();
 
-	constructor() {
+	private _keychain: Keychain;
+
+	constructor(private _context: vscode.ExtensionContext) {
+		this._keychain = new Keychain(_context);
 		this._uriHandler = new UriEventHandler();
 		this._disposables.push(vscode.window.registerUriHandler(this._uriHandler));
 	}
 
 	public async initialize(): Promise<void> {
-		const storedData = await keychain.getToken() || await keychain.tryMigrate();
+		const storedData = await this._keychain.getToken() || await this._keychain.tryMigrate();
 		if (storedData) {
 			try {
 				const sessions = this.parseStoredData(storedData);
@@ -146,7 +156,7 @@ export class AzureActiveDirectoryService {
 			}
 		}
 
-		this._disposables.push(vscode.authentication.onDidChangePassword(() => this.checkForUpdates));
+		this._disposables.push(this._context.secrets.onDidChange(() => this.checkForUpdates));
 	}
 
 	private parseStoredData(data: string): IStoredSession[] {
@@ -163,13 +173,13 @@ export class AzureActiveDirectoryService {
 			};
 		});
 
-		await keychain.setToken(JSON.stringify(serializedData));
+		await this._keychain.setToken(JSON.stringify(serializedData));
 	}
 
 	private async checkForUpdates(): Promise<void> {
 		const addedIds: string[] = [];
 		let removedIds: string[] = [];
-		const storedData = await keychain.getToken();
+		const storedData = await this._keychain.getToken();
 		if (storedData) {
 			try {
 				const sessions = this.parseStoredData(storedData);
@@ -225,29 +235,36 @@ export class AzureActiveDirectoryService {
 		}
 	}
 
-	private async convertToSession(token: IToken): Promise<vscode.AuthenticationSession> {
-		const resolvedToken = await this.resolveAccessToken(token);
+	private async convertToSession(token: IToken): Promise<MicrosoftAuthenticationSession> {
+		const resolvedTokens = await this.resolveAccessAndIdTokens(token);
 		return {
 			id: token.sessionId,
-			accessToken: resolvedToken,
+			accessToken: resolvedTokens.accessToken,
+			idToken: resolvedTokens.idToken,
 			account: token.account,
 			scopes: token.scope.split(' ')
 		};
 	}
 
-	private async resolveAccessToken(token: IToken): Promise<string> {
+	private async resolveAccessAndIdTokens(token: IToken): Promise<IMicrosoftTokens> {
 		if (token.accessToken && (!token.expiresAt || token.expiresAt > Date.now())) {
 			token.expiresAt
 				? Logger.info(`Token available from cache, expires in ${token.expiresAt - Date.now()} milliseconds`)
 				: Logger.info('Token available from cache');
-			return Promise.resolve(token.accessToken);
+			return Promise.resolve({
+				accessToken: token.accessToken,
+				idToken: token.idToken
+			});
 		}
 
 		try {
 			Logger.info('Token expired or unavailable, trying refresh');
 			const refreshedToken = await this.refreshToken(token.refreshToken, token.scope, token.sessionId);
 			if (refreshedToken.accessToken) {
-				return refreshedToken.accessToken;
+				return {
+					accessToken: refreshedToken.accessToken,
+					idToken: refreshedToken.idToken
+				};
 			} else {
 				throw new Error();
 			}
@@ -498,6 +515,7 @@ export class AzureActiveDirectoryService {
 			expiresIn: json.expires_in,
 			expiresAt: json.expires_in ? Date.now() + json.expires_in * 1000 : undefined,
 			accessToken: json.access_token,
+			idToken: json.id_token,
 			refreshToken: json.refresh_token,
 			scope,
 			sessionId: existingId || `${claims.tid}/${(claims.oid || (claims.altsecid || '' + claims.ipd || ''))}/${uuid()}`,
@@ -651,7 +669,7 @@ export class AzureActiveDirectoryService {
 		this.removeInMemorySessionData(sessionId);
 
 		if (this._tokens.length === 0) {
-			await keychain.deleteToken();
+			await this._keychain.deleteToken();
 		} else {
 			this.storeTokenData();
 		}
@@ -660,7 +678,7 @@ export class AzureActiveDirectoryService {
 	public async clearSessions() {
 		Logger.info('Logging out of all sessions');
 		this._tokens = [];
-		await keychain.deleteToken();
+		await this._keychain.deleteToken();
 
 		this._refreshTimeouts.forEach(timeout => {
 			clearTimeout(timeout);

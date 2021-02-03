@@ -5,6 +5,7 @@ set -e
 case $VSCODE_ARCH in
 	x64) ASSET_ID="darwin" ;;
 	arm64) ASSET_ID="darwin-arm64" ;;
+	universal) ASSET_ID="darwin-universal" ;;
 esac
 
 # publish the build

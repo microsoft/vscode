@@ -6,7 +6,7 @@
 import type { Event } from 'vs/base/common/event';
 import type { IDisposable } from 'vs/base/common/lifecycle';
 import { ToWebviewMessage } from 'vs/workbench/contrib/notebook/browser/view/renderers/backLayerWebView';
-import { RenderOutputType } from 'vs/workbench/contrib/notebook/common/notebookCommon';
+import { RenderOutputType } from 'vs/workbench/contrib/notebook/browser/notebookBrowser';
 
 // !! IMPORTANT !! everything must be in-line within the webviewPreloads
 // function. Imports are not allowed. This is stringifies and injected into
@@ -27,6 +27,7 @@ declare class ResizeObserver {
 }
 
 declare const __outputNodePadding__: number;
+declare const __outputNodeLeftPadding__: number;
 
 type Listener<T> = { fn: (evt: T) => void; thisArg: unknown; };
 
@@ -49,11 +50,22 @@ function webviewPreloads() {
 			if (node instanceof HTMLAnchorElement && node.href) {
 				if (node.href.startsWith('blob:')) {
 					handleBlobUrlClick(node.href, node.download);
+				} else if (node.href.startsWith('data:')) {
+					handleDataUrl(node.href, node.download);
 				}
 				event.preventDefault();
 				break;
 			}
 		}
+	};
+
+	const handleDataUrl = async (data: string | ArrayBuffer | null, downloadName: string) => {
+		vscode.postMessage({
+			__vscode_notebook_message: true,
+			type: 'clicked-data-url',
+			data,
+			downloadName
+		});
 	};
 
 	const handleBlobUrlClick = async (url: string, downloadName: string) => {
@@ -62,13 +74,7 @@ function webviewPreloads() {
 			const blob = await response.blob();
 			const reader = new FileReader();
 			reader.addEventListener('load', () => {
-				const data = reader.result;
-				vscode.postMessage({
-					__vscode_notebook_message: true,
-					type: 'clicked-data-url',
-					data,
-					downloadName
-				});
+				handleDataUrl(reader.result, downloadName);
 			});
 			reader.readAsDataURL(blob);
 		} catch (e) {
@@ -139,7 +145,7 @@ function webviewPreloads() {
 
 				if (entry.target.id === id && entry.contentRect) {
 					if (entry.contentRect.height !== 0) {
-						entry.target.style.padding = `${__outputNodePadding__}px`;
+						entry.target.style.padding = `${__outputNodePadding__}px ${__outputNodePadding__}px ${__outputNodePadding__}px ${__outputNodeLeftPadding__}px`;
 						vscode.postMessage({
 							__vscode_notebook_message: true,
 							type: 'dimension',
@@ -468,6 +474,7 @@ function webviewPreloads() {
 						__vscode_notebook_message: true,
 						type: 'dimension',
 						id: outputId,
+						init: true,
 						data: {
 							height: outputNode.clientHeight
 						}
@@ -584,4 +591,4 @@ function webviewPreloads() {
 	});
 }
 
-export const preloadsScriptStr = (outputNodePadding: number) => `(${webviewPreloads})()`.replace(/__outputNodePadding__/g, `${outputNodePadding}`);
+export const preloadsScriptStr = (outputNodePadding: number, outputNodeLeftPadding: number) => `(${webviewPreloads})()`.replace(/__outputNodePadding__/g, `${outputNodePadding}`).replace(/__outputNodeLeftPadding__/g, `${outputNodeLeftPadding}`);

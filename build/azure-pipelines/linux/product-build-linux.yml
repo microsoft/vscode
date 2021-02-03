@@ -42,12 +42,6 @@ steps:
     displayName: Merge distro
 
   - script: |
-      npx https://aka.ms/enablesecurefeed standAlone
-    displayName: Switch to Terrapin packages
-    timeoutInMinutes: 5
-    condition: and(succeeded(), eq(variables['ENABLE_TERRAPIN'], 'true'))
-
-  - script: |
       mkdir -p .build
       node build/azure-pipelines/common/computeNodeModulesCacheKey.js $VSCODE_ARCH $ENABLE_TERRAPIN > .build/yarnlockhash
     displayName: Prepare yarn cache flags
@@ -57,24 +51,31 @@ steps:
       key: 'nodeModules | $(Agent.OS) | .build/yarnlockhash'
       path: .build/node_modules_cache
       cacheHitVar: NODE_MODULES_RESTORED
-    displayName: Cache node_modules archive
+    displayName: Restore node_modules cache
 
   - script: |
       set -e
       tar -xzf .build/node_modules_cache/cache.tgz
     condition: and(succeeded(), eq(variables.NODE_MODULES_RESTORED, 'true'))
-    displayName: Extract node_modules archive
+    displayName: Extract node_modules cache
 
   - script: |
       set -e
       npm install -g node-gyp@latest
       node-gyp --version
     displayName: Update node-gyp
-    condition: and(succeeded(), eq(variables['VSCODE_ARCH'], 'x64'))
+    condition: and(succeeded(), ne(variables.NODE_MODULES_RESTORED, 'true'), eq(variables['VSCODE_ARCH'], 'x64'))
+
+  - script: |
+      npx https://aka.ms/enablesecurefeed standAlone
+    timeoutInMinutes: 5
+    condition: and(succeeded(), ne(variables.NODE_MODULES_RESTORED, 'true'), eq(variables['ENABLE_TERRAPIN'], 'true'))
+    displayName: Switch to Terrapin packages
 
   - script: |
       set -e
       export npm_config_arch=$(NPM_ARCH)
+      export npm_config_build_from_source=true
 
       if [ -z "$CC" ] || [ -z "$CXX" ]; then
         export CC=$(which gcc-5)
@@ -95,6 +96,10 @@ steps:
         fi
         echo "Yarn failed $i, trying again..."
       done
+
+      # remove once https://github.com/prebuild/prebuild-install/pull/140 is merged and found in keytar
+      cd ./node_modules/keytar
+      npx node-gyp rebuild
     env:
       ELECTRON_SKIP_BINARY_DOWNLOAD: 1
       PLAYWRIGHT_SKIP_BROWSER_DOWNLOAD: 1
@@ -130,7 +135,8 @@ steps:
 
   - script: |
       set -e
-      yarn npm-run-all -lp "electron $(VSCODE_ARCH)" "playwright-install"
+      VSCODE_MIXIN_PASSWORD="$(github-distro-mixin-password)" \
+        yarn npm-run-all -lp "electron $(VSCODE_ARCH)" "playwright-install"
     displayName: Download Electron and Playwright
     condition: and(succeeded(), eq(variables['VSCODE_ARCH'], 'x64'), eq(variables['VSCODE_STEP_ON_IT'], 'false'))
 
@@ -152,7 +158,7 @@ steps:
       set -e
       yarn --cwd test/integration/browser compile
     displayName: Compile integration tests
-    condition: and(succeeded(), eq(variables.NODE_MODULES_RESTORED, 'true'), eq(variables['VSCODE_ARCH'], 'x64'), eq(variables['VSCODE_STEP_ON_IT'], 'false'))
+    condition: and(succeeded(), eq(variables['VSCODE_ARCH'], 'x64'), eq(variables['VSCODE_STEP_ON_IT'], 'false'))
 
   - script: |
       # Figure out the full absolute path of the product we just built
@@ -252,6 +258,26 @@ steps:
       VSCODE_ARCH="$(VSCODE_ARCH)" \
       ./build/azure-pipelines/linux/publish.sh
     displayName: Publish
+    condition: and(succeeded(), ne(variables['VSCODE_PUBLISH'], 'false'))
+
+  - publish: $(DEB_PATH)
+    artifact: vscode-linux-deb-$(VSCODE_ARCH)
+    displayName: Publish deb package
+    condition: and(succeeded(), ne(variables['VSCODE_PUBLISH'], 'false'))
+
+  - publish: $(RPM_PATH)
+    artifact: vscode-linux-rpm-$(VSCODE_ARCH)
+    displayName: Publish rpm package
+    condition: and(succeeded(), ne(variables['VSCODE_PUBLISH'], 'false'))
+
+  - publish: $(Agent.BuildDirectory)/vscode-server-linux-$(VSCODE_ARCH).tar.gz
+    artifact: vscode-server-linux-$(VSCODE_ARCH)
+    displayName: Publish server archive
+    condition: and(succeeded(), ne(variables['VSCODE_PUBLISH'], 'false'))
+
+  - publish: $(Agent.BuildDirectory)/vscode-server-linux-$(VSCODE_ARCH)-web.tar.gz
+    artifact: vscode-server-linux-$(VSCODE_ARCH)-web
+    displayName: Publish web server archive
     condition: and(succeeded(), ne(variables['VSCODE_PUBLISH'], 'false'))
 
   - task: PublishPipelineArtifact@0

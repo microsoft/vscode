@@ -76,7 +76,7 @@ export class DialogHandlerContribution extends Disposable implements IWorkbenchC
 			// Message
 			else if (this.currentDialog.args.showArgs) {
 				const args = this.currentDialog.args.showArgs;
-				result = this.useCustomDialog ?
+				result = this.useCustomDialog || args.options?.useCustom ?
 					await this.browserImpl.show(args.severity, args.message, args.buttons, args.options) :
 					await this.nativeImpl.show(args.severity, args.message, args.buttons, args.options);
 			}

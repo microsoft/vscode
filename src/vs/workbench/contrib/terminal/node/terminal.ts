@@ -5,10 +5,11 @@
 
 import * as os from 'os';
 import * as platform from 'vs/base/common/platform';
-import { readFile, fileExists, stat } from 'vs/base/node/pfs';
+import { readFile, fileExists, stat, lstat } from 'vs/base/node/pfs';
 import { LinuxDistro, IShellDefinition } from 'vs/workbench/contrib/terminal/common/terminal';
 import { coalesce } from 'vs/base/common/arrays';
 import { normalize, basename } from 'vs/base/common/path';
+import { enumeratePowerShellInstallations } from 'vs/base/node/powershell';
 
 let detectedDistro = LinuxDistro.Unknown;
 if (platform.isLinux) {
@@ -58,8 +59,6 @@ async function detectAvailableWindowsShells(): Promise<IShellDefinition[]> {
 
 	const expectedLocations: { [key: string]: string[] } = {
 		'Command Prompt': [`${system32Path}\\cmd.exe`],
-		'Windows PowerShell': [`${system32Path}\\WindowsPowerShell\\v1.0\\powershell.exe`],
-		'PowerShell': [await getShellPathFromRegistry('pwsh')],
 		'WSL Bash': [`${system32Path}\\${useWSLexe ? 'wsl.exe' : 'bash.exe'}`],
 		'Git Bash': [
 			`${process.env['ProgramW6432']}\\Git\\bin\\bash.exe`,
@@ -74,6 +73,12 @@ async function detectAvailableWindowsShells(): Promise<IShellDefinition[]> {
 		// 	`${process.env['HOMEDRIVE']}\\cygwin\\bin\\bash.exe`
 		// ]
 	};
+
+	// Add all of the different kinds of PowerShells
+	for await (const pwshExe of enumeratePowerShellInstallations()) {
+		expectedLocations[pwshExe.displayName] = [pwshExe.exePath];
+	}
+
 	const promises: Promise<IShellDefinition | undefined>[] = [];
 	Object.keys(expectedLocations).forEach(key => promises.push(validateShellPaths(key, expectedLocations[key])));
 	const shells = await Promise.all(promises);
@@ -107,16 +112,22 @@ async function validateShellPaths(label: string, potentialPaths: string[]): Prom
 				path: current
 			};
 		}
-	} catch { /* noop */ }
-	return validateShellPaths(label, potentialPaths);
-}
-
-async function getShellPathFromRegistry(shellName: string): Promise<string> {
-	const Registry = await import('vscode-windows-registry');
-	try {
-		const shellPath = Registry.GetStringRegKey('HKEY_LOCAL_MACHINE', `SOFTWARE\\Microsoft\\Windows\\CurrentVersion\\App Paths\\${shellName}.exe`, '');
-		return shellPath ? shellPath : '';
-	} catch (error) {
-		return '';
+	} catch (e) {
+		// Also try using lstat as some symbolic links on Windows
+		// throw 'permission denied' using 'stat' but don't throw
+		// using 'lstat'
+		try {
+			const result = await lstat(normalize(current));
+			if (result.isFile() || result.isSymbolicLink()) {
+				return {
+					label,
+					path: current
+				};
+			}
+		}
+		catch (e) {
+			// noop
+		}
 	}
+	return validateShellPaths(label, potentialPaths);
 }

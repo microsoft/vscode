@@ -20,6 +20,8 @@ import { IRange } from 'vs/editor/common/core/range';
 import { IPosition } from 'vs/editor/common/core/position';
 import { TransientMetadata } from 'vs/workbench/contrib/notebook/common/notebookCommon';
 import { ITextEditorOptions } from 'vs/platform/editor/common/editor';
+import { VSBuffer } from 'vs/base/common/buffer';
+import { decodeSemanticTokensDto } from 'vs/editor/common/services/semanticTokensDto';
 
 //#region --- NEW world
 
@@ -176,6 +178,57 @@ const newCommands: ApiCommand[] = [
 		[ApiCommandArgument.Uri, ApiCommandArgument.Number.with('linkResolveCount', 'Number of links that should be resolved, only when links are unresolved.').optional()],
 		new ApiCommandResult<modes.ILink[], vscode.DocumentLink[]>('A promise that resolves to an array of DocumentLink-instances.', value => value.map(typeConverters.DocumentLink.to))
 	),
+	// --- semantic tokens
+	new ApiCommand(
+		'vscode.provideDocumentSemanticTokensLegend', '_provideDocumentSemanticTokensLegend', 'Provide semantic tokens legend for a document',
+		[ApiCommandArgument.Uri],
+		new ApiCommandResult<modes.SemanticTokensLegend, types.SemanticTokensLegend | undefined>('A promise that resolves to SemanticTokensLegend.', value => {
+			if (!value) {
+				return undefined;
+			}
+			return new types.SemanticTokensLegend(value.tokenTypes, value.tokenModifiers);
+		})
+	),
+	new ApiCommand(
+		'vscode.provideDocumentSemanticTokens', '_provideDocumentSemanticTokens', 'Provide semantic tokens for a document',
+		[ApiCommandArgument.Uri],
+		new ApiCommandResult<VSBuffer, types.SemanticTokens | undefined>('A promise that resolves to SemanticTokens.', value => {
+			if (!value) {
+				return undefined;
+			}
+			const semanticTokensDto = decodeSemanticTokensDto(value);
+			if (semanticTokensDto.type !== 'full') {
+				// only accepting full semantic tokens from provideDocumentSemanticTokens
+				return undefined;
+			}
+			return new types.SemanticTokens(semanticTokensDto.data, undefined);
+		})
+	),
+	new ApiCommand(
+		'vscode.provideDocumentRangeSemanticTokensLegend', '_provideDocumentRangeSemanticTokensLegend', 'Provide semantic tokens legend for a document range',
+		[ApiCommandArgument.Uri],
+		new ApiCommandResult<modes.SemanticTokensLegend, types.SemanticTokensLegend | undefined>('A promise that resolves to SemanticTokensLegend.', value => {
+			if (!value) {
+				return undefined;
+			}
+			return new types.SemanticTokensLegend(value.tokenTypes, value.tokenModifiers);
+		})
+	),
+	new ApiCommand(
+		'vscode.provideDocumentRangeSemanticTokens', '_provideDocumentRangeSemanticTokens', 'Provide semantic tokens for a document range',
+		[ApiCommandArgument.Uri, ApiCommandArgument.Range],
+		new ApiCommandResult<VSBuffer, types.SemanticTokens | undefined>('A promise that resolves to SemanticTokens.', value => {
+			if (!value) {
+				return undefined;
+			}
+			const semanticTokensDto = decodeSemanticTokensDto(value);
+			if (semanticTokensDto.type !== 'full') {
+				// only accepting full semantic tokens from provideDocumentRangeSemanticTokens
+				return undefined;
+			}
+			return new types.SemanticTokens(semanticTokensDto.data, undefined);
+		})
+	),
 	// --- completions
 	new ApiCommand(
 		'vscode.executeCompletionItemProvider', '_executeCompletionItemProvider', 'Execute completion item provider.',
@@ -269,6 +322,14 @@ const newCommands: ApiCommand[] = [
 				return result.map(typeConverters.ColorPresentation.to);
 			}
 			return [];
+		})
+	),
+	// --- inline hints
+	new ApiCommand(
+		'vscode.executeInlineHintProvider', '_executeInlineHintProvider', 'Execute inline hints provider',
+		[ApiCommandArgument.Uri, ApiCommandArgument.Range],
+		new ApiCommandResult<modes.InlineHint[], vscode.InlineHint[]>('A promise that resolves to an array of InlineHint objects', result => {
+			return result.map(typeConverters.InlineHint.to);
 		})
 	),
 	// --- notebooks

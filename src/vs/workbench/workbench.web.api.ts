@@ -19,6 +19,7 @@ import { CommandsRegistry } from 'vs/platform/commands/common/commands';
 import { IProductConfiguration } from 'vs/platform/product/common/productService';
 import { mark } from 'vs/base/common/performance';
 import { ICredentialsProvider } from 'vs/workbench/services/credentials/common/credentials';
+import { TunnelProviderFeatures } from 'vs/platform/remote/common/tunnel';
 
 interface IResourceUriProvider {
 	(uri: URI): URI;
@@ -46,9 +47,14 @@ interface ITunnelProvider {
 	tunnelFactory?: ITunnelFactory;
 
 	/**
-	 * Support for filtering candidate ports
+	 * Support for filtering candidate ports.
 	 */
 	showPortCandidate?: IShowPortCandidate;
+
+	/**
+	 * The features that the tunnel provider supports.
+	 */
+	features?: TunnelProviderFeatures;
 }
 
 interface ITunnelFactory {
@@ -56,6 +62,7 @@ interface ITunnelFactory {
 }
 
 interface ITunnelOptions {
+
 	remoteAddress: { port: number, host: string };
 
 	/**
@@ -64,16 +71,20 @@ interface ITunnelOptions {
 	localAddressPort?: number;
 
 	label?: string;
+
+	public?: boolean;
 }
 
 export interface TunnelCreationOptions {
+
 	/**
 	 * True when the local operating system will require elevation to use the requested local port.
 	 */
 	elevationRequired?: boolean;
 }
 
-interface ITunnel extends IDisposable {
+interface ITunnel {
+
 	remoteAddress: { port: number, host: string };
 
 	/**
@@ -81,10 +92,14 @@ interface ITunnel extends IDisposable {
 	 */
 	localAddress: string;
 
+	public?: boolean;
+
 	/**
 	 * Implementers of Tunnel should fire onDidDispose when dispose is called.
 	 */
 	onDidDispose: Event<void>;
+
+	dispose(): Promise<void> | void;
 }
 
 interface IShowPortCandidate {
@@ -173,46 +188,6 @@ interface IInitialColorTheme {
 	colors?: { [colorId: string]: string };
 }
 
-interface IDefaultSideBarLayout {
-	visible?: boolean;
-	containers?: ({
-		id: 'explorer' | 'run' | 'scm' | 'search' | 'extensions' | 'remote' | string;
-		active: true;
-		order?: number;
-		views?: {
-			id: string;
-			order?: number;
-			visible?: boolean;
-			collapsed?: boolean;
-		}[];
-	} | {
-		id: 'explorer' | 'run' | 'scm' | 'search' | 'extensions' | 'remote' | string;
-		active?: false;
-		order?: number;
-		visible?: boolean;
-		views?: {
-			id: string;
-			order?: number;
-			visible?: boolean;
-			collapsed?: boolean;
-		}[];
-	})[];
-}
-
-interface IDefaultPanelLayout {
-	visible?: boolean;
-	containers?: ({
-		id: 'terminal' | 'debug' | 'problems' | 'output' | 'comments' | string;
-		order?: number;
-		active: true;
-	} | {
-		id: 'terminal' | 'debug' | 'problems' | 'output' | 'comments' | string;
-		order?: number;
-		active?: false;
-		visible?: boolean;
-	})[];
-}
-
 interface IDefaultView {
 	readonly id: string;
 }
@@ -241,6 +216,7 @@ interface IProductQualityChangeHandler {
  * Settings sync options
  */
 interface ISettingsSyncOptions {
+
 	/**
 	 * Is settings sync enabled
 	 */
@@ -443,6 +419,7 @@ interface IWorkbenchConstructionOptions {
 }
 
 interface IPerformanceMark {
+
 	/**
 	 * The name of a performace marker.
 	 */
@@ -455,25 +432,17 @@ interface IPerformanceMark {
 }
 
 interface IWorkbench {
-	commands: {
 
+	commands: {
 		/**
-		 * Allows to execute a command, either built-in or from extensions.
+		 * @see [executeCommand](#commands.executeCommand)
 		 */
 		executeCommand(command: string, ...args: any[]): Promise<unknown>;
-	},
+	}
 
 	env: {
 		/**
-		 * Retrieve performance marks that have been collected during startup. This function
-		 * returns tuples of source and marks. A source is a dedicated context, like
-		 * the renderer or an extension host.
-		 *
-		 * *Note* that marks can be collected on different machines and in different processes
-		 * and that therefore "different clocks" are used. So, comparing `startTime`-properties
-		 * across contexts should be taken with a grain of salt.
-		 *
-		 * @returns A promise that resolves to tuples of source and marks.
+		 * @see [retrievePerformanceMarks](#commands.retrievePerformanceMarks)
 		 */
 		retrievePerformanceMarks(): Promise<[string, readonly IPerformanceMark[]][]>;
 	}
@@ -554,6 +523,26 @@ namespace commands {
 		const workbench = await workbenchPromise;
 
 		return workbench.commands.executeCommand(command, ...args);
+	}
+}
+
+namespace env {
+
+	/**
+	 * Retrieve performance marks that have been collected during startup. This function
+	 * returns tuples of source and marks. A source is a dedicated context, like
+	 * the renderer or an extension host.
+	 *
+	 * *Note* that marks can be collected on different machines and in different processes
+	 * and that therefore "different clocks" are used. So, comparing `startTime`-properties
+	 * across contexts should be taken with a grain of salt.
+	 *
+	 * @returns A promise that resolves to tuples of source and marks.
+	 */
+	export async function retrievePerformanceMarks(): Promise<[string, readonly IPerformanceMark[]][]> {
+		const workbench = await workbenchPromise;
+
+		return workbench.env.retrievePerformanceMarks();
 	}
 }
 
@@ -639,11 +628,10 @@ export {
 	IDefaultView,
 	IDefaultEditor,
 	IDefaultLayout,
-	IDefaultPanelLayout,
-	IDefaultSideBarLayout,
 
 	// Env
-	IPerformanceMark
+	IPerformanceMark,
+	env
 };
 
 //#endregion

@@ -17,9 +17,9 @@ import { KeybindingWeight, KeybindingsRegistry, IKeybindings } from 'vs/platform
 import { Registry } from 'vs/platform/registry/common/platform';
 import * as panel from 'vs/workbench/browser/panel';
 import { getQuickNavigateHandler } from 'vs/workbench/browser/quickaccess';
-import { CATEGORIES, Extensions as ActionExtensions, IWorkbenchActionRegistry } from 'vs/workbench/common/actions';
+import { Extensions as ActionExtensions, IWorkbenchActionRegistry } from 'vs/workbench/common/actions';
 import { Extensions as ViewContainerExtensions, IViewContainersRegistry, ViewContainerLocation, IViewsRegistry } from 'vs/workbench/common/views';
-import { registerTerminalActions, ClearTerminalAction, CopyTerminalSelectionAction, CreateNewTerminalAction, KillTerminalAction, SelectAllTerminalAction, SelectDefaultShellWindowsTerminalAction, SplitInActiveWorkspaceTerminalAction, SplitTerminalAction, TerminalPasteAction, ToggleTerminalAction, terminalSendSequenceCommand } from 'vs/workbench/contrib/terminal/browser/terminalActions';
+import { registerTerminalActions, ClearTerminalAction, CopyTerminalSelectionAction, CreateNewTerminalAction, KillTerminalAction, SelectAllTerminalAction, SelectDefaultShellWindowsTerminalAction, SplitInActiveWorkspaceTerminalAction, SplitTerminalAction, TerminalPasteAction, terminalSendSequenceCommand } from 'vs/workbench/contrib/terminal/browser/terminalActions';
 import { TerminalViewPane } from 'vs/workbench/contrib/terminal/browser/terminalView';
 import { KEYBINDING_CONTEXT_TERMINAL_SHELL_TYPE_KEY, KEYBINDING_CONTEXT_TERMINAL_FOCUS, KEYBINDING_CONTEXT_TERMINAL_TEXT_SELECTED, TERMINAL_VIEW_ID, TERMINAL_ACTION_CATEGORY, TERMINAL_COMMAND_ID, KEYBINDING_CONTEXT_TERMINAL_PROCESS_SUPPORTED } from 'vs/workbench/contrib/terminal/common/terminal';
 import { registerColors } from 'vs/workbench/contrib/terminal/common/terminalColorRegistry';
@@ -63,14 +63,13 @@ configurationRegistry.registerConfiguration(terminalConfiguration);
 // Register views
 const VIEW_CONTAINER = Registry.as<IViewContainersRegistry>(ViewContainerExtensions.ViewContainersRegistry).registerViewContainer({
 	id: TERMINAL_VIEW_ID,
-	name: nls.localize('terminal', "Terminal"),
+	title: nls.localize('terminal', "Terminal"),
 	icon: terminalViewIcon,
 	ctorDescriptor: new SyncDescriptor(ViewPaneContainer, [TERMINAL_VIEW_ID, { mergeViewWithContainerWhenSingleView: true, donotShowContainerTitleWhenMergedWithContainer: true }]),
 	storageId: TERMINAL_VIEW_ID,
-	focusCommand: { id: TERMINAL_COMMAND_ID.FOCUS },
 	hideIfEmpty: true,
-	order: 3
-}, ViewContainerLocation.Panel);
+	order: 3,
+}, ViewContainerLocation.Panel, { donotRegisterOpenCommand: true });
 Registry.as<panel.PanelRegistry>(panel.Extensions.Panels).setDefaultPanelId(TERMINAL_VIEW_ID);
 Registry.as<IViewsRegistry>(ViewContainerExtensions.ViewsRegistry).registerViews([{
 	id: TERMINAL_VIEW_ID,
@@ -78,7 +77,16 @@ Registry.as<IViewsRegistry>(ViewContainerExtensions.ViewsRegistry).registerViews
 	containerIcon: terminalViewIcon,
 	canToggleVisibility: false,
 	canMoveView: true,
-	ctorDescriptor: new SyncDescriptor(TerminalViewPane)
+	ctorDescriptor: new SyncDescriptor(TerminalViewPane),
+	openCommandActionDescriptor: {
+		id: TERMINAL_COMMAND_ID.TOGGLE,
+		mnemonicTitle: nls.localize({ key: 'miToggleIntegratedTerminal', comment: ['&& denotes a mnemonic'] }, "&&Terminal"),
+		keybindings: {
+			primary: KeyMod.CtrlCmd | KeyCode.US_BACKTICK,
+			mac: { primary: KeyMod.WinCtrl | KeyCode.US_BACKTICK }
+		},
+		order: 3
+	}
 }], VIEW_CONTAINER);
 
 // Register actions
@@ -99,10 +107,6 @@ actionRegistry.registerWorkbenchAction(SyncActionDescriptor.from(SelectAllTermin
 	// makes it easier for users to see how it works though.
 	mac: { primary: KeyMod.CtrlCmd | KeyCode.KEY_A }
 }, KEYBINDING_CONTEXT_TERMINAL_FOCUS), 'Terminal: Select All', category, KEYBINDING_CONTEXT_TERMINAL_PROCESS_SUPPORTED);
-actionRegistry.registerWorkbenchAction(SyncActionDescriptor.from(ToggleTerminalAction, {
-	primary: KeyMod.CtrlCmd | KeyCode.US_BACKTICK,
-	mac: { primary: KeyMod.WinCtrl | KeyCode.US_BACKTICK }
-}), 'View: Toggle Integrated Terminal', CATEGORIES.View.value);
 // Weight is higher than work workbench contributions so the keybinding remains
 // highest priority when chords are registered afterwards
 actionRegistry.registerWorkbenchAction(SyncActionDescriptor.from(ClearTerminalAction, {

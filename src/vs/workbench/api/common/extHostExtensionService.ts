@@ -36,6 +36,8 @@ import { IExtHostTunnelService } from 'vs/workbench/api/common/extHostTunnelServ
 import { IExtHostTerminalService } from 'vs/workbench/api/common/extHostTerminalService';
 import { Emitter, Event } from 'vs/base/common/event';
 import { IExtensionActivationHost, checkActivateWorkspaceContainsExtension } from 'vs/workbench/api/common/shared/workspaceContains';
+import { ExtHostSecretState, IExtHostSecretState } from 'vs/workbench/api/common/exHostSecretState';
+import { ExtensionSecrets } from 'vs/workbench/api/common/extHostSecrets';
 
 interface ITestRunner {
 	/** Old test runner API, as exported from `vscode/lib/testrunner` */
@@ -95,6 +97,7 @@ export abstract class AbstractExtHostExtensionService extends Disposable impleme
 	private readonly _readyToRunExtensions: Barrier;
 	protected readonly _registry: ExtensionDescriptionRegistry;
 	private readonly _storage: ExtHostStorage;
+	private readonly _secretState: ExtHostSecretState;
 	private readonly _storagePath: IExtensionStoragePaths;
 	private readonly _activator: ExtensionsActivator;
 	private _extensionPathIndex: Promise<TernarySearchTree<string, IExtensionDescription>> | null;
@@ -116,7 +119,7 @@ export abstract class AbstractExtHostExtensionService extends Disposable impleme
 		@IExtHostInitDataService initData: IExtHostInitDataService,
 		@IExtensionStoragePaths storagePath: IExtensionStoragePaths,
 		@IExtHostTunnelService extHostTunnelService: IExtHostTunnelService,
-		@IExtHostTerminalService extHostTerminalService: IExtHostTerminalService
+		@IExtHostTerminalService extHostTerminalService: IExtHostTerminalService,
 	) {
 		super();
 		this._hostUtils = hostUtils;
@@ -139,10 +142,12 @@ export abstract class AbstractExtHostExtensionService extends Disposable impleme
 		this._readyToRunExtensions = new Barrier();
 		this._registry = new ExtensionDescriptionRegistry(this._initData.extensions);
 		this._storage = new ExtHostStorage(this._extHostContext);
+		this._secretState = new ExtHostSecretState(this._extHostContext);
 		this._storagePath = storagePath;
 
 		this._instaService = instaService.createChild(new ServiceCollection(
-			[IExtHostStorage, this._storage]
+			[IExtHostStorage, this._storage],
+			[IExtHostSecretState, this._secretState]
 		));
 
 		const hostExtensions = new Set<string>();
@@ -185,7 +190,7 @@ export abstract class AbstractExtHostExtensionService extends Disposable impleme
 			this._almostReadyToRunExtensions.open();
 
 			await this._extHostWorkspace.waitForInitializeCall();
-			performance.mark('extHost/ready');
+			performance.mark('code/extHost/ready');
 			this._readyToStartExtensionHost.open();
 
 			if (this._initData.autoStart) {
@@ -367,10 +372,10 @@ export abstract class AbstractExtHostExtensionService extends Disposable impleme
 			this._loadCommonJSModule<IExtensionModule>(extensionDescription.identifier, joinPath(extensionDescription.extensionLocation, entryPoint), activationTimesBuilder),
 			this._loadExtensionContext(extensionDescription)
 		]).then(values => {
-			performance.mark(`extHost/willActivateExtension/${extensionDescription.identifier.value}`);
+			performance.mark(`code/extHost/willActivateExtension/${extensionDescription.identifier.value}`);
 			return AbstractExtHostExtensionService._callActivate(this._logService, extensionDescription.identifier, values[0], values[1], activationTimesBuilder);
 		}).then((activatedExtension) => {
-			performance.mark(`extHost/didActivateExtension/${extensionDescription.identifier.value}`);
+			performance.mark(`code/extHost/didActivateExtension/${extensionDescription.identifier.value}`);
 			return activatedExtension;
 		});
 	}
@@ -379,6 +384,7 @@ export abstract class AbstractExtHostExtensionService extends Disposable impleme
 
 		const globalState = new ExtensionGlobalMemento(extensionDescription, this._storage);
 		const workspaceState = new ExtensionMemento(extensionDescription.identifier.value, false, this._storage);
+		const secrets = new ExtensionSecrets(extensionDescription, this._secretState);
 		const extensionMode = extensionDescription.isUnderDevelopment
 			? (this._initData.environment.extensionTestsLocationURI ? ExtensionMode.Test : ExtensionMode.Development)
 			: ExtensionMode.Production;
@@ -394,6 +400,7 @@ export abstract class AbstractExtHostExtensionService extends Disposable impleme
 			return Object.freeze<vscode.ExtensionContext>({
 				globalState,
 				workspaceState,
+				secrets,
 				subscriptions: [],
 				get extensionUri() { return extensionDescription.extensionLocation; },
 				get extensionPath() { return extensionDescription.extensionLocation.fsPath; },
@@ -659,9 +666,9 @@ export abstract class AbstractExtHostExtensionService extends Disposable impleme
 		}
 
 		try {
-			performance.mark(`extHost/willResolveAuthority/${authorityPrefix}`);
+			performance.mark(`code/extHost/willResolveAuthority/${authorityPrefix}`);
 			const result = await resolver.resolve(remoteAuthority, { resolveAttempt });
-			performance.mark(`extHost/didResolveAuthorityOK/${authorityPrefix}`);
+			performance.mark(`code/extHost/didResolveAuthorityOK/${authorityPrefix}`);
 			this._disposables.add(await this._extHostTunnelService.setTunnelExtensionFunctions(resolver));
 
 			// Split merged API result into separate authority/options
@@ -684,7 +691,7 @@ export abstract class AbstractExtHostExtensionService extends Disposable impleme
 				}
 			};
 		} catch (err) {
-			performance.mark(`extHost/didResolveAuthorityError/${authorityPrefix}`);
+			performance.mark(`code/extHost/didResolveAuthorityError/${authorityPrefix}`);
 			if (err instanceof RemoteAuthorityResolverError) {
 				return {
 					type: 'error',

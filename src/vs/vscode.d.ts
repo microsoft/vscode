@@ -1451,6 +1451,21 @@ declare module 'vscode' {
 	}
 
 	/**
+	 * An error type that should be used to signal cancellation of an operation.
+	 *
+	 * This type can be used in response to a [cancellation token](#CancellationToken)
+	 * being cancelled or when an operation is being cancelled by the
+	 * executor of that operation.
+	 */
+	export class CancellationError extends Error {
+
+		/**
+		 * Creates a new cancellation error.
+		 */
+		constructor();
+	}
+
+	/**
 	 * Represents a type which can release resources, such
 	 * as event listening or a timer.
 	 */
@@ -1700,8 +1715,8 @@ declare module 'vscode' {
 	/**
 	 * Options to configure the behaviour of a file open dialog.
 	 *
-	 * * Note 1: A dialog can select files, folders, or both. This is not true for Windows
-	 * which enforces to open either files or folder, but *not both*.
+	 * * Note 1: On Windows and Linux, a file dialog cannot be both a file selector and a folder selector, so if you
+	 * set both `canSelectFiles` and `canSelectFolders` to `true` on these platforms, a folder selector will be shown.
 	 * * Note 2: Explicitly setting `canSelectFiles` and `canSelectFolders` to `false` is futile
 	 * and the editor then silently adjusts the options to select files.
 	 */
@@ -3870,8 +3885,8 @@ declare module 'vscode' {
 		 *
 		 * Note that `sortText` is only used for the initial ordering of completion
 		 * items. When having a leading word (prefix) ordering is based on how
-		 * well completion match that prefix and the initial ordering is only used
-		 * when completions match equal. The prefix is defined by the
+		 * well completions match that prefix and the initial ordering is only used
+		 * when completions match equally well. The prefix is defined by the
 		 * [`range`](#CompletionItem.range)-property and can therefore be different
 		 * for each completion.
 		 */
@@ -3884,7 +3899,6 @@ declare module 'vscode' {
 		 *
 		 * Note that the filter text is matched against the leading word (prefix) which is defined
 		 * by the [`range`](#CompletionItem.range)-property.
-		 * prefix.
 		 */
 		filterText?: string;
 
@@ -4683,6 +4697,10 @@ declare module 'vscode' {
 		 * This rule will only execute if the text after the cursor matches this regular expression.
 		 */
 		afterText?: RegExp;
+		/**
+		 * This rule will only execute if the text above the current line matches this regular expression.
+		 */
+		previousLineText?: RegExp;
 		/**
 		 * The action to execute.
 		 */
@@ -5808,6 +5826,11 @@ declare module 'vscode' {
 		};
 
 		/**
+		 * A storage utility for secrets.
+		 */
+		readonly secrets: SecretStorage;
+
+		/**
 		 * The uri of the directory containing the extension.
 		 */
 		readonly extensionUri: Uri;
@@ -5942,6 +5965,48 @@ declare module 'vscode' {
 		 * @param value A value. MUST not contain cyclic references.
 		 */
 		update(key: string, value: any): Thenable<void>;
+	}
+
+	/**
+	 * The event data that is fired when a secret is added or removed.
+	 */
+	export interface SecretStorageChangeEvent {
+		/**
+		 * The key of the secret that has changed.
+		 */
+		readonly key: string;
+	}
+
+	/**
+	 * Represents a storage utility for secrets, information that is
+	 * sensitive.
+	 */
+	export interface SecretStorage {
+		/**
+		 * Retrieve a secret that was stored with key. Returns undefined if there
+		 * is no password matching that key.
+		 * @param key The key the secret was stored under.
+		 * @returns The stored value or `undefined`.
+		 */
+		get(key: string): Thenable<string | undefined>;
+
+		/**
+		 * Store a secret under a given key.
+		 * @param key The key to store the secret under.
+		 * @param value The secret.
+		 */
+		store(key: string, value: string): Thenable<void>;
+
+		/**
+		 * Remove a secret from storage.
+		 * @param key The key the secret was stored under.
+		 */
+		delete(key: string): Thenable<void>;
+
+		/**
+		 * Fires when a secret is stored or deleted.
+		 */
+		onDidChange: Event<SecretStorageChangeEvent>;
 	}
 
 	/**
@@ -7744,7 +7809,7 @@ declare module 'vscode' {
 		 * your extension should first check to see if any backups exist for the resource. If there is a backup, your
 		 * extension should load the file contents from there instead of from the resource in the workspace.
 		 *
-		 * `backup` is triggered approximately one second after the the user stops editing the document. If the user
+		 * `backup` is triggered approximately one second after the user stops editing the document. If the user
 		 * rapidly edits the document, `backup` will not be invoked until the editing stops.
 		 *
 		 * `backup` is not invoked when `auto save` is enabled (since auto save already persists the resource).
@@ -8881,12 +8946,13 @@ declare module 'vscode' {
 		 * Because of that, no property that changes the presentation (label, description, etc.)
 		 * can be changed.
 		 *
-		 * @param element The object associated with the TreeItem
 		 * @param item Undefined properties of `item` should be set then `item` should be returned.
+		 * @param element The object associated with the TreeItem.
+		 * @param token A cancellation token.
 		 * @return The resolved tree item or a thenable that resolves to such. It is OK to return the given
 		 * `item`. When no result is returned, the given `item` will be used.
 		 */
-		resolveTreeItem?(item: TreeItem, element: T): ProviderResult<TreeItem>;
+		resolveTreeItem?(item: TreeItem, element: T, token: CancellationToken): ProviderResult<TreeItem>;
 	}
 
 	export class TreeItem {
@@ -9207,7 +9273,7 @@ declare module 'vscode' {
 		 * Implement to handle when the number of rows and columns that fit into the terminal panel
 		 * changes, for example when font size changes or when the panel is resized. The initial
 		 * state of a terminal's dimensions should be treated as `undefined` until this is triggered
-		 * as the size of a terminal isn't know until it shows up in the user interface.
+		 * as the size of a terminal isn't known until it shows up in the user interface.
 		 *
 		 * When dimensions are overridden by
 		 * [onDidOverrideDimensions](#Pseudoterminal.onDidOverrideDimensions), `setDimensions` will
@@ -11878,8 +11944,6 @@ declare module 'vscode' {
 		export const onDidChange: Event<void>;
 	}
 
-	//#region Comments
-
 	/**
 	 * Collapsible state of a [comment thread](#CommentThread)
 	 */
@@ -12146,7 +12210,7 @@ declare module 'vscode' {
 		/**
 		 * Optional reaction handler for creating and deleting reactions on a [comment](#Comment).
 		 */
-		reactionHandler?: (comment: Comment, reaction: CommentReaction) => Promise<void>;
+		reactionHandler?: (comment: Comment, reaction: CommentReaction) => Thenable<void>;
 
 		/**
 		 * Dispose this comment controller.

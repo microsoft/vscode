@@ -25,6 +25,7 @@ import { ILifecycleService, LifecyclePhase } from 'vs/workbench/services/lifecyc
 import { INotificationService, Severity } from 'vs/platform/notification/common/notification';
 import { IHostService } from 'vs/workbench/services/host/browser/host';
 import { IExtensionBisectService } from 'vs/workbench/services/extensionManagement/browser/extensionBisect';
+import { Promises } from 'vs/base/common/async';
 
 const SOURCE = 'IWorkbenchExtensionEnablementService';
 
@@ -79,10 +80,10 @@ export class ExtensionEnablementService extends Disposable implements IWorkbench
 
 	getEnablementState(extension: IExtension): EnablementState {
 		if (this.extensionBisectService.isDisabledByBisect(extension)) {
-			return EnablementState.DisabledByEnvironemt;
+			return EnablementState.DisabledByEnvironment;
 		}
 		if (this._isDisabledInEnv(extension)) {
-			return EnablementState.DisabledByEnvironemt;
+			return EnablementState.DisabledByEnvironment;
 		}
 		if (this._isDisabledByExtensionKind(extension)) {
 			return EnablementState.DisabledByExtensionKind;
@@ -97,7 +98,7 @@ export class ExtensionEnablementService extends Disposable implements IWorkbench
 			return false;
 		}
 		const enablementState = this.getEnablementState(extension);
-		if (enablementState === EnablementState.DisabledByEnvironemt || enablementState === EnablementState.DisabledByExtensionKind) {
+		if (enablementState === EnablementState.DisabledByEnvironment || enablementState === EnablementState.DisabledByExtensionKind) {
 			return false;
 		}
 		return true;
@@ -146,7 +147,7 @@ export class ExtensionEnablementService extends Disposable implements IWorkbench
 			}
 		}
 
-		const result = await Promise.all(extensions.map(e => this._setEnablement(e, newState)));
+		const result = await Promises.settled(extensions.map(e => this._setEnablement(e, newState)));
 		const changedExtensions = extensions.filter((e, index) => result[index]);
 		if (changedExtensions.length) {
 			this._onEnablementChanged.fire(changedExtensions);

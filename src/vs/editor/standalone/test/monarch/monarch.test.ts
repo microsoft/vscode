@@ -73,30 +73,30 @@ suite('Monarch', () => {
 			state = result.endState;
 		}
 
-		assert.deepEqual(actualTokens, [
+		assert.deepStrictEqual(actualTokens, [
 			[
-				{ 'offset': 0, 'type': 'source.test1', 'language': 'test1' },
-				{ 'offset': 12, 'type': 'string.quote.test1', 'language': 'test1' },
-				{ 'offset': 15, 'type': 'token.sql', 'language': 'sql' },
-				{ 'offset': 61, 'type': 'string.quote.test1', 'language': 'test1' },
-				{ 'offset': 64, 'type': 'source.test1', 'language': 'test1' }
+				new Token(0, 'source.test1', 'test1'),
+				new Token(12, 'string.quote.test1', 'test1'),
+				new Token(15, 'token.sql', 'sql'),
+				new Token(61, 'string.quote.test1', 'test1'),
+				new Token(64, 'source.test1', 'test1')
 			],
 			[
-				{ 'offset': 0, 'type': 'source.test1', 'language': 'test1' },
-				{ 'offset': 12, 'type': 'string.quote.test1', 'language': 'test1' }
+				new Token(0, 'source.test1', 'test1'),
+				new Token(12, 'string.quote.test1', 'test1')
 			],
 			[
-				{ 'offset': 0, 'type': 'token.sql', 'language': 'sql' }
+				new Token(0, 'token.sql', 'sql')
 			],
 			[
-				{ 'offset': 0, 'type': 'token.sql', 'language': 'sql' }
+				new Token(0, 'token.sql', 'sql')
 			],
 			[
-				{ 'offset': 0, 'type': 'token.sql', 'language': 'sql' }
+				new Token(0, 'token.sql', 'sql')
 			],
 			[
-				{ 'offset': 0, 'type': 'string.quote.test1', 'language': 'test1' },
-				{ 'offset': 3, 'type': 'source.test1', 'language': 'test1' }
+				new Token(0, 'string.quote.test1', 'test1'),
+				new Token(3, 'source.test1', 'test1')
 			]
 		]);
 		innerModeTokenizationRegistration.dispose();
@@ -148,19 +148,19 @@ suite('Monarch', () => {
 			state = result.endState;
 		}
 
-		assert.deepEqual(actualTokens, [
-			[{ 'offset': 0, 'type': 'comment.test', 'language': 'test' }],
-			[{ 'offset': 0, 'type': 'comment.test', 'language': 'test' }],
+		assert.deepStrictEqual(actualTokens, [
+			[new Token(0, 'comment.test', 'test')],
+			[new Token(0, 'comment.test', 'test')],
 			[],
-			[{ 'offset': 0, 'type': 'comment.test', 'language': 'test' }],
-			[{ 'offset': 0, 'type': 'source.test', 'language': 'test' }],
+			[new Token(0, 'comment.test', 'test')],
+			[new Token(0, 'source.test', 'test')],
 			[],
-			[{ 'offset': 0, 'type': 'comment.test', 'language': 'test' }],
-			[{ 'offset': 0, 'type': 'comment.test', 'language': 'test' }],
+			[new Token(0, 'comment.test', 'test')],
+			[new Token(0, 'comment.test', 'test')],
 			[],
-			[{ 'offset': 0, 'type': 'comment.test', 'language': 'test' }],
+			[new Token(0, 'comment.test', 'test')],
 			[],
-			[{ 'offset': 0, 'type': 'source.test', 'language': 'test' }]
+			[new Token(0, 'source.test', 'test')]
 		]);
 
 	});

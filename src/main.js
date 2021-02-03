@@ -236,7 +236,11 @@ function configureCommandlineSwitchesSync(cliArgs) {
 	const SUPPORTED_MAIN_PROCESS_SWITCHES = [
 
 		// Persistently enable proposed api via argv.json: https://github.com/microsoft/vscode/issues/99775
-		'enable-proposed-api'
+		'enable-proposed-api',
+
+		// TODO@bpasero remove me once testing is done on `vscode-file` protocol
+		// (all traces of `enable-browser-code-loading` and `ENABLE_VSCODE_BROWSER_CODE_LOADING`)
+		'enable-browser-code-loading'
 	];
 
 	// Read argv config
@@ -267,12 +271,20 @@ function configureCommandlineSwitchesSync(cliArgs) {
 
 		// Append main process flags to process.argv
 		else if (SUPPORTED_MAIN_PROCESS_SWITCHES.indexOf(argvKey) !== -1) {
-			if (argvKey === 'enable-proposed-api') {
-				if (Array.isArray(argvValue)) {
-					argvValue.forEach(id => id && typeof id === 'string' && process.argv.push('--enable-proposed-api', id));
-				} else {
-					console.error(`Unexpected value for \`enable-proposed-api\` in argv.json. Expected array of extension ids.`);
-				}
+			switch (argvKey) {
+				case 'enable-proposed-api':
+					if (Array.isArray(argvValue)) {
+						argvValue.forEach(id => id && typeof id === 'string' && process.argv.push('--enable-proposed-api', id));
+					} else {
+						console.error(`Unexpected value for \`enable-proposed-api\` in argv.json. Expected array of extension ids.`);
+					}
+					break;
+
+				case 'enable-browser-code-loading':
+					if (typeof argvValue === 'string') {
+						process.env['ENABLE_VSCODE_BROWSER_CODE_LOADING'] = argvValue;
+					}
+					break;
 			}
 		}
 	});
@@ -281,6 +293,11 @@ function configureCommandlineSwitchesSync(cliArgs) {
 	const jsFlags = getJSFlags(cliArgs);
 	if (jsFlags) {
 		app.commandLine.appendSwitch('js-flags', jsFlags);
+	}
+
+	// Support __sandbox flag
+	if (cliArgs.__sandbox) {
+		process.env['ENABLE_VSCODE_BROWSER_CODE_LOADING'] = 'bypassHeatCheck';
 	}
 
 	return argvConfig;

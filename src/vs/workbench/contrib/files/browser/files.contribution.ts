@@ -3,35 +3,25 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { URI, UriComponents } from 'vs/base/common/uri';
-import { ShowViewletAction } from 'vs/workbench/browser/viewlet';
 import * as nls from 'vs/nls';
 import { sep } from 'vs/base/common/path';
-import { SyncActionDescriptor, MenuId, MenuRegistry } from 'vs/platform/actions/common/actions';
 import { Registry } from 'vs/platform/registry/common/platform';
 import { IConfigurationRegistry, Extensions as ConfigurationExtensions, ConfigurationScope, IConfigurationPropertySchema } from 'vs/platform/configuration/common/configurationRegistry';
-import { IWorkbenchActionRegistry, Extensions as ActionExtensions, CATEGORIES } from 'vs/workbench/common/actions';
 import { IWorkbenchContributionsRegistry, Extensions as WorkbenchExtensions, IWorkbenchContribution } from 'vs/workbench/common/contributions';
-import { IEditorInputFactory, EditorInput, IFileEditorInput, IEditorInputFactoryRegistry, Extensions as EditorInputExtensions } from 'vs/workbench/common/editor';
+import { EditorInput, IFileEditorInput, IEditorInputFactoryRegistry, Extensions as EditorInputExtensions } from 'vs/workbench/common/editor';
 import { AutoSaveConfiguration, HotExitConfiguration, FILES_EXCLUDE_CONFIG, FILES_ASSOCIATIONS_CONFIG } from 'vs/platform/files/common/files';
-import { VIEWLET_ID, SortOrder, FILE_EDITOR_INPUT_ID } from 'vs/workbench/contrib/files/common/files';
+import { SortOrder, FILE_EDITOR_INPUT_ID } from 'vs/workbench/contrib/files/common/files';
 import { TextFileEditorTracker } from 'vs/workbench/contrib/files/browser/editors/textFileEditorTracker';
 import { TextFileSaveErrorHandler } from 'vs/workbench/contrib/files/browser/editors/textFileSaveErrorHandler';
 import { FileEditorInput } from 'vs/workbench/contrib/files/common/editors/fileEditorInput';
 import { BinaryFileEditor } from 'vs/workbench/contrib/files/browser/editors/binaryFileEditor';
-import { IInstantiationService, ServicesAccessor } from 'vs/platform/instantiation/common/instantiation';
+import { ServicesAccessor } from 'vs/platform/instantiation/common/instantiation';
 import { SyncDescriptor } from 'vs/platform/instantiation/common/descriptors';
-import { IKeybindings } from 'vs/platform/keybinding/common/keybindingsRegistry';
-import { IViewletService } from 'vs/workbench/services/viewlet/browser/viewlet';
-import { KeyMod, KeyCode } from 'vs/base/common/keyCodes';
 import * as platform from 'vs/base/common/platform';
 import { ExplorerViewletViewsContribution } from 'vs/workbench/contrib/files/browser/explorerViewlet';
 import { IEditorRegistry, EditorDescriptor, Extensions as EditorExtensions } from 'vs/workbench/browser/editor';
 import { LifecyclePhase } from 'vs/workbench/services/lifecycle/common/lifecycle';
-import { IEditorService } from 'vs/workbench/services/editor/common/editorService';
-import { IEditorGroupsService } from 'vs/workbench/services/editor/common/editorGroupsService';
 import { ILabelService } from 'vs/platform/label/common/label';
-import { IWorkbenchLayoutService } from 'vs/workbench/services/layout/browser/layoutService';
 import { registerSingleton } from 'vs/platform/instantiation/common/extensions';
 import { ExplorerService, UNDO_REDO_SOURCE } from 'vs/workbench/contrib/files/browser/explorerService';
 import { SUPPORTED_ENCODINGS } from 'vs/workbench/services/textfile/common/encoding';
@@ -39,26 +29,9 @@ import { Schemas } from 'vs/base/common/network';
 import { WorkspaceWatcher } from 'vs/workbench/contrib/files/common/workspaceWatcher';
 import { editorConfigurationBaseNode } from 'vs/editor/common/config/commonEditorConfig';
 import { DirtyFilesIndicator } from 'vs/workbench/contrib/files/common/dirtyFilesIndicator';
-import { isEqual } from 'vs/base/common/resources';
 import { UndoCommand, RedoCommand } from 'vs/editor/browser/editorExtensions';
 import { IUndoRedoService } from 'vs/platform/undoRedo/common/undoRedo';
-import { IExplorerService } from 'vs/workbench/contrib/files/browser/files';
-
-// Viewlet Action
-export class OpenExplorerViewletAction extends ShowViewletAction {
-	static readonly ID = VIEWLET_ID;
-	static readonly LABEL = nls.localize('showExplorerViewlet', "Show Explorer");
-
-	constructor(
-		id: string,
-		label: string,
-		@IViewletService viewletService: IViewletService,
-		@IEditorGroupsService editorGroupService: IEditorGroupsService,
-		@IWorkbenchLayoutService layoutService: IWorkbenchLayoutService
-	) {
-		super(id, label, VIEWLET_ID, viewletService, editorGroupService, layoutService);
-	}
-}
+import { FileEditorInputFactory, IExplorerService } from 'vs/workbench/contrib/files/browser/files';
 
 class FileUriLabelContribution implements IWorkbenchContribution {
 
@@ -78,18 +51,6 @@ class FileUriLabelContribution implements IWorkbenchContribution {
 }
 
 registerSingleton(IExplorerService, ExplorerService, true);
-
-const openViewletKb: IKeybindings = {
-	primary: KeyMod.CtrlCmd | KeyMod.Shift | KeyCode.KEY_E
-};
-
-// Register Action to Open Viewlet
-const registry = Registry.as<IWorkbenchActionRegistry>(ActionExtensions.WorkbenchActions);
-registry.registerWorkbenchAction(
-	SyncActionDescriptor.from(OpenExplorerViewletAction, openViewletKb),
-	'View: Show Explorer',
-	CATEGORIES.View.value
-);
 
 // Register file editors
 Registry.as<IEditorRegistry>(EditorExtensions.Editors).registerEditor(
@@ -115,58 +76,7 @@ Registry.as<IEditorInputFactoryRegistry>(EditorInputExtensions.EditorInputFactor
 	}
 });
 
-interface ISerializedFileEditorInput {
-	resourceJSON: UriComponents;
-	preferredResourceJSON?: UriComponents;
-	name?: string;
-	description?: string;
-	encoding?: string;
-	modeId?: string;
-}
-
 // Register Editor Input Factory
-class FileEditorInputFactory implements IEditorInputFactory {
-
-	canSerialize(editorInput: EditorInput): boolean {
-		return true;
-	}
-
-	serialize(editorInput: EditorInput): string {
-		const fileEditorInput = <FileEditorInput>editorInput;
-		const resource = fileEditorInput.resource;
-		const preferredResource = fileEditorInput.preferredResource;
-		const serializedFileEditorInput: ISerializedFileEditorInput = {
-			resourceJSON: resource.toJSON(),
-			preferredResourceJSON: isEqual(resource, preferredResource) ? undefined : preferredResource, // only storing preferredResource if it differs from the resource
-			name: fileEditorInput.getPreferredName(),
-			description: fileEditorInput.getPreferredDescription(),
-			encoding: fileEditorInput.getEncoding(),
-			modeId: fileEditorInput.getPreferredMode() // only using the preferred user associated mode here if available to not store redundant data
-		};
-
-		return JSON.stringify(serializedFileEditorInput);
-	}
-
-	deserialize(instantiationService: IInstantiationService, serializedEditorInput: string): FileEditorInput {
-		return instantiationService.invokeFunction<FileEditorInput>(accessor => {
-			const serializedFileEditorInput: ISerializedFileEditorInput = JSON.parse(serializedEditorInput);
-			const resource = URI.revive(serializedFileEditorInput.resourceJSON);
-			const preferredResource = URI.revive(serializedFileEditorInput.preferredResourceJSON);
-			const name = serializedFileEditorInput.name;
-			const description = serializedFileEditorInput.description;
-			const encoding = serializedFileEditorInput.encoding;
-			const mode = serializedFileEditorInput.modeId;
-
-			const fileEditorInput = accessor.get(IEditorService).createEditorInput({ resource, label: name, description, encoding, mode, forceFile: true }) as FileEditorInput;
-			if (preferredResource) {
-				fileEditorInput.setPreferredResource(preferredResource);
-			}
-
-			return fileEditorInput;
-		});
-	}
-}
-
 Registry.as<IEditorInputFactoryRegistry>(EditorInputExtensions.EditorInputFactories).registerEditorInputFactory(FILE_EDITOR_INPUT_ID, FileEditorInputFactory);
 
 // Register Explorer views
@@ -479,20 +389,10 @@ configurationRegistry.registerConfiguration({
 	}
 });
 
-// View menu
-MenuRegistry.appendMenuItem(MenuId.MenubarViewMenu, {
-	group: '3_views',
-	command: {
-		id: VIEWLET_ID,
-		title: nls.localize({ key: 'miViewExplorer', comment: ['&& denotes a mnemonic'] }, "&&Explorer")
-	},
-	order: 1
-});
-
 UndoCommand.addImplementation(110, (accessor: ServicesAccessor) => {
 	const undoRedoService = accessor.get(IUndoRedoService);
 	const explorerService = accessor.get(IExplorerService);
-	if (explorerService.hasViewFocus()) {
+	if (explorerService.hasViewFocus() && undoRedoService.canUndo(UNDO_REDO_SOURCE)) {
 		undoRedoService.undo(UNDO_REDO_SOURCE);
 		return true;
 	}
@@ -503,7 +403,7 @@ UndoCommand.addImplementation(110, (accessor: ServicesAccessor) => {
 RedoCommand.addImplementation(110, (accessor: ServicesAccessor) => {
 	const undoRedoService = accessor.get(IUndoRedoService);
 	const explorerService = accessor.get(IExplorerService);
-	if (explorerService.hasViewFocus()) {
+	if (explorerService.hasViewFocus() && undoRedoService.canRedo(UNDO_REDO_SOURCE)) {
 		undoRedoService.redo(UNDO_REDO_SOURCE);
 		return true;
 	}

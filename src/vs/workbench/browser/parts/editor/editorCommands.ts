@@ -23,7 +23,6 @@ import { IConfigurationService } from 'vs/platform/configuration/common/configur
 import { CommandsRegistry, ICommandHandler } from 'vs/platform/commands/common/commands';
 import { MenuRegistry, MenuId } from 'vs/platform/actions/common/actions';
 import { ActiveGroupEditorsByMostRecentlyUsedQuickAccess } from 'vs/workbench/browser/parts/editor/editorQuickAccess';
-import { INotificationService, Severity } from 'vs/platform/notification/common/notification';
 import { IOpenerService } from 'vs/platform/opener/common/opener';
 import { ITextEditorOptions } from 'vs/platform/editor/common/editor';
 import { openEditorWith } from 'vs/workbench/services/editor/common/editorOpenWith';
@@ -901,24 +900,10 @@ function registerOtherEditorCommands(): void {
 		id: TOGGLE_KEEP_EDITORS_COMMAND_ID,
 		handler: accessor => {
 			const configurationService = accessor.get(IConfigurationService);
-			const notificationService = accessor.get(INotificationService);
-			const openerService = accessor.get(IOpenerService);
 
-			// Update setting
 			const currentSetting = configurationService.getValue<boolean>('workbench.editor.enablePreview');
 			const newSetting = currentSetting === true ? false : true;
 			configurationService.updateValue('workbench.editor.enablePreview', newSetting);
-
-			// Inform user
-			notificationService.prompt(
-				Severity.Info,
-				newSetting ?
-					nls.localize('enablePreview', "Preview editors have been enabled in settings.") :
-					nls.localize('disablePreview', "Preview editors have been disabled in settings."),
-				[{
-					label: nls.localize('learnMore', "Learn More"), run: () => openerService.open('https://go.microsoft.com/fwlink/?linkid=2147473')
-				}]
-			);
 		}
 	});
 

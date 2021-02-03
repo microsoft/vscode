@@ -6,59 +6,78 @@
 import * as dom from 'vs/base/browser/dom';
 import { ActionBar } from 'vs/base/browser/ui/actionbar/actionbar';
 import { IIdentityProvider, IKeyboardNavigationLabelProvider, IListVirtualDelegate } from 'vs/base/browser/ui/list/list';
-import { IListAccessibilityProvider } from 'vs/base/browser/ui/list/listWidget';
+import { DefaultKeyboardNavigationDelegate, IListAccessibilityProvider } from 'vs/base/browser/ui/list/listWidget';
+import { ICompressedTreeNode } from 'vs/base/browser/ui/tree/compressedObjectTreeModel';
 import { ObjectTree } from 'vs/base/browser/ui/tree/objectTree';
-import { ITreeElement, ITreeEvent, ITreeFilter, ITreeNode, ITreeRenderer, ITreeSorter, TreeFilterResult, TreeVisibility } from 'vs/base/browser/ui/tree/tree';
-import { Action } from 'vs/base/common/actions';
+import { ITreeEvent, ITreeFilter, ITreeNode, ITreeRenderer, ITreeSorter, TreeFilterResult, TreeVisibility } from 'vs/base/browser/ui/tree/tree';
+import * as aria from 'vs/base/browser/ui/aria/aria';
+import { Action, IAction, IActionViewItem } from 'vs/base/common/actions';
+import { DeferredPromise } from 'vs/base/common/async';
+import { Color, RGBA } from 'vs/base/common/color';
 import { throttle } from 'vs/base/common/decorators';
-import { Emitter, Event } from 'vs/base/common/event';
+import { Event } from 'vs/base/common/event';
 import { FuzzyScore } from 'vs/base/common/filters';
+import { splitGlobAware } from 'vs/base/common/glob';
 import { Iterable } from 'vs/base/common/iterator';
-import { Disposable, IDisposable } from 'vs/base/common/lifecycle';
-import { URI } from 'vs/base/common/uri';
+import { Disposable, DisposableStore, MutableDisposable, toDisposable } from 'vs/base/common/lifecycle';
 import 'vs/css!./media/testing';
+import { ICodeEditor, isCodeEditor } from 'vs/editor/browser/editorBrowser';
+import { ICodeEditorService } from 'vs/editor/browser/services/codeEditorService';
 import { localize } from 'vs/nls';
 import { MenuEntryActionViewItem } from 'vs/platform/actions/browser/menuEntryActionViewItem';
 import { MenuItemAction } from 'vs/platform/actions/common/actions';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
 import { IContextMenuService } from 'vs/platform/contextview/browser/contextView';
-import { ITextEditorSelection } from 'vs/platform/editor/common/editor';
 import { FileKind } from 'vs/platform/files/common/files';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { IKeybindingService } from 'vs/platform/keybinding/common/keybinding';
 import { WorkbenchObjectTree } from 'vs/platform/list/browser/listService';
 import { IOpenerService } from 'vs/platform/opener/common/opener';
+import { IProgress, IProgressService, IProgressStep } from 'vs/platform/progress/common/progress';
 import { IStorageService, StorageScope, StorageTarget } from 'vs/platform/storage/common/storage';
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
-import { IThemeService, ThemeIcon } from 'vs/platform/theme/common/themeService';
-import { IWorkspaceFolder, IWorkspaceFoldersChangeEvent } from 'vs/platform/workspace/common/workspace';
+import { foreground } from 'vs/platform/theme/common/colorRegistry';
+import { IThemeService, registerThemingParticipant, ThemeIcon } from 'vs/platform/theme/common/themeService';
 import { TestRunState } from 'vs/workbench/api/common/extHostTypes';
 import { IResourceLabel, IResourceLabelOptions, IResourceLabelProps, ResourceLabels } from 'vs/workbench/browser/labels';
 import { ViewPane } from 'vs/workbench/browser/parts/views/viewPane';
 import { IViewletViewOptions } from 'vs/workbench/browser/parts/views/viewsViewlet';
-import { IViewDescriptorService } from 'vs/workbench/common/views';
+import { IViewDescriptorService, ViewContainerLocation } from 'vs/workbench/common/views';
+import { ITestTreeElement, ITestTreeProjection } from 'vs/workbench/contrib/testing/browser/explorerProjections';
+import { HierarchicalByLocationProjection } from 'vs/workbench/contrib/testing/browser/explorerProjections/hierarchalByLocation';
+import { HierarchicalByNameProjection } from 'vs/workbench/contrib/testing/browser/explorerProjections/hierarchalByName';
+import { getComputedState } from 'vs/workbench/contrib/testing/browser/explorerProjections/hierarchalNodes';
+import { StateByLocationProjection } from 'vs/workbench/contrib/testing/browser/explorerProjections/stateByLocation';
+import { StateByNameProjection } from 'vs/workbench/contrib/testing/browser/explorerProjections/stateByName';
+import { StateElement } from 'vs/workbench/contrib/testing/browser/explorerProjections/stateNodes';
 import { testingStatesToIcons } from 'vs/workbench/contrib/testing/browser/icons';
-import { maxPriority, statePriority } from 'vs/workbench/contrib/testing/browser/testExplorerTree';
-import { ITestingCollectionService, TestSubscriptionListener } from 'vs/workbench/contrib/testing/browser/testingCollectionService';
-import { InternalTestItem, TestDiffOpType, TestsDiff } from 'vs/workbench/contrib/testing/common/testCollection';
+import { ITestExplorerFilterState, TestExplorerFilterState, TestingExplorerFilter } from 'vs/workbench/contrib/testing/browser/testingExplorerFilter';
+import { TestingOutputPeekController } from 'vs/workbench/contrib/testing/browser/testingOutputPeek';
+import { TestExplorerViewGrouping, TestExplorerViewMode, Testing, testStateNames } from 'vs/workbench/contrib/testing/common/constants';
+import { TestingContextKeys } from 'vs/workbench/contrib/testing/common/testingContextKeys';
+import { cmpPriority, isFailedState } from 'vs/workbench/contrib/testing/common/testingStates';
+import { buildTestUri, TestUriType } from 'vs/workbench/contrib/testing/common/testingUri';
+import { ITestResultService, sumCounts, TestStateCount } from 'vs/workbench/contrib/testing/common/testResultService';
 import { ITestService } from 'vs/workbench/contrib/testing/common/testService';
+import { IWorkspaceTestCollectionService, TestSubscriptionListener } from 'vs/workbench/contrib/testing/common/workspaceTestCollectionService';
+import { IActivityService, NumberBadge, ProgressBadge } from 'vs/workbench/services/activity/common/activity';
 import { IEditorService } from 'vs/workbench/services/editor/common/editorService';
-import { CancelTestRunAction, DebugAction, DebugSelectedAction, FilterableAction, filterVisibleActions, RunAction, RunSelectedAction, ToggleViewModeAction, ViewMode } from './testExplorerActions';
-
-export const TESTING_EXPLORER_VIEW_ID = 'workbench.view.testing';
+import { DebugAction, RunAction } from './testExplorerActions';
 
 export class TestingExplorerView extends ViewPane {
-	private primaryActions: Action[] = [];
-	private secondaryActions: Action[] = [];
-	private viewModel!: TestingExplorerViewModel;
+	public viewModel!: TestingExplorerViewModel;
+	private filterActionBar = this._register(new MutableDisposable());
 	private currentSubscription?: TestSubscriptionListener;
-	private listContainer!: HTMLElement;
+	private container!: HTMLElement;
+	private finishDiscovery?: () => void;
+	private readonly location = TestingContextKeys.explorerLocation.bindTo(this.contextKeyService);;
 
 	constructor(
 		options: IViewletViewOptions,
-		@ITestingCollectionService private readonly testCollection: ITestingCollectionService,
+		@IWorkspaceTestCollectionService private readonly testCollection: IWorkspaceTestCollectionService,
 		@ITestService private readonly testService: ITestService,
+		@IProgressService private readonly progress: IProgressService,
 		@IContextMenuService contextMenuService: IContextMenuService,
 		@IKeybindingService keybindingService: IKeybindingService,
 		@IConfigurationService configurationService: IConfigurationService,
@@ -71,6 +90,7 @@ export class TestingExplorerView extends ViewPane {
 	) {
 		super(options, keybindingService, contextMenuService, configurationService, contextKeyService, viewDescriptorService, instantiationService, openerService, themeService, telemetryService);
 		this._register(testService.onDidChangeProviders(() => this._onDidChangeViewWelcomeState.fire()));
+		this.location.set(viewDescriptorService.getViewLocationById(Testing.ExplorerViewId) ?? ViewContainerLocation.Sidebar);
 	}
 
 	/**
@@ -86,27 +106,18 @@ export class TestingExplorerView extends ViewPane {
 	protected renderBody(container: HTMLElement): void {
 		super.renderBody(container);
 
-		this.listContainer = dom.append(container, dom.$('.test-explorer'));
-		this.viewModel = this.instantiationService.createInstance(TestingExplorerViewModel, this.listContainer, this.onDidChangeBodyVisibility, this.currentSubscription);
-		this._register(this.viewModel);
+		this.container = dom.append(container, dom.$('.test-explorer'));
 
-		this.secondaryActions = [
-			this.instantiationService.createInstance(ToggleViewModeAction, this.viewModel)
-		];
-		this.secondaryActions.forEach(this._register, this);
-
-		this.primaryActions = [
-			this.instantiationService.createInstance(RunSelectedAction, this.viewModel),
-			this.instantiationService.createInstance(DebugSelectedAction, this.viewModel),
-			this.instantiationService.createInstance(CancelTestRunAction),
-		];
-		this.primaryActions.forEach(this._register, this);
-
-		for (const action of [...this.primaryActions, ...this.secondaryActions]) {
-			if (action instanceof FilterableAction) {
-				action.onDidChangeVisibility(this.updateActions, this);
-			}
+		if (this.location.get() === ViewContainerLocation.Sidebar) {
+			this.filterActionBar.value = this.createFilterActionBar();
 		}
+
+		const messagesContainer = dom.append(this.container, dom.$('.test-explorer-messages'));
+		this._register(this.instantiationService.createInstance(TestRunProgress, messagesContainer, this.getProgressLocation()));
+
+		const listContainer = dom.append(this.container, dom.$('.test-explorer-tree'));
+		this.viewModel = this.instantiationService.createInstance(TestingExplorerViewModel, listContainer, this.onDidChangeBodyVisibility, this.currentSubscription);
+		this._register(this.viewModel);
 
 		this._register(this.onDidChangeBodyVisibility(visible => {
 			if (!visible && this.currentSubscription) {
@@ -123,43 +134,61 @@ export class TestingExplorerView extends ViewPane {
 	/**
 	 * @override
 	 */
-	public getActions() {
-		return [...filterVisibleActions(this.primaryActions), ...super.getActions()];
+	public getActionViewItem(action: IAction): IActionViewItem | undefined {
+		if (action.id === Testing.FilterActionId) {
+			return this.instantiationService.createInstance(TestingExplorerFilter, action);
+		}
+
+		return super.getActionViewItem(action);
 	}
 
 	/**
 	 * @override
 	 */
-	public getSecondaryActions() {
-		return [...filterVisibleActions(this.secondaryActions), ...super.getSecondaryActions()];
+	public saveState() {
+		super.saveState();
 	}
 
+	private createFilterActionBar() {
+		const bar = new ActionBar(this.container, { actionViewItemProvider: action => this.getActionViewItem(action) });
+		bar.push(new Action(Testing.FilterActionId));
+		bar.getContainer().classList.add('testing-filter-action-bar');
+		return bar;
+	}
+
+	private updateDiscoveryProgress(busy: number) {
+		if (!busy && this.finishDiscovery) {
+			this.finishDiscovery();
+			this.finishDiscovery = undefined;
+		} else if (busy && !this.finishDiscovery) {
+			const promise = new Promise<void>(resolve => { this.finishDiscovery = resolve; });
+			this.progress.withProgress({ location: this.getProgressLocation() }, () => promise);
+		}
+	}
 
 	/**
 	 * @override
 	 */
 	protected layoutBody(height: number, width: number): void {
 		super.layoutBody(height, width);
-		this.listContainer.style.height = `${height}px`;
+		this.container.style.height = `${height}px`;
 		this.viewModel.layout(height, width);
 	}
 
 	private createSubscription() {
-		return this.testCollection.subscribeToWorkspaceTests();
+		const handle = this.testCollection.subscribeToWorkspaceTests();
+		handle.subscription.onBusyProvidersChange(() => this.updateDiscoveryProgress(handle.subscription.busyProviders));
+		return handle;
 	}
 }
 
 export class TestingExplorerViewModel extends Disposable {
-	private tree: ObjectTree<ITestTreeElement, FuzzyScore>;
+	public tree: ObjectTree<ITestTreeElement, FuzzyScore>;
 	private filter: TestsFilter;
-	private projection!: ITestTreeProjection;
-	private _viewMode = Number(this.storageService.get('testing.viewMode', StorageScope.WORKSPACE, String(ViewMode.Tree))) as ViewMode;
-	private viewModeChangeEmitter = new Emitter<ViewMode>();
+	public projection!: ITestTreeProjection;
 
-	/**
-	 * Fires when the tree view mode changes.
-	 */
-	public readonly onViewModeChange = this.viewModeChangeEmitter.event;
+	private readonly _viewMode = TestingContextKeys.viewMode.bindTo(this.contextKeyService);
+	private readonly _viewGrouping = TestingContextKeys.viewGrouping.bindTo(this.contextKeyService);
 
 	/**
 	 * Fires when the selected tests change.
@@ -167,32 +196,59 @@ export class TestingExplorerViewModel extends Disposable {
 	public readonly onDidChangeSelection: Event<ITreeEvent<ITestTreeElement | null>>;
 
 	public get viewMode() {
-		return this._viewMode;
+		return this._viewMode.get() ?? TestExplorerViewMode.Tree;
 	}
 
-	public set viewMode(newMode: ViewMode) {
-		if (newMode === this._viewMode) {
+	public set viewMode(newMode: TestExplorerViewMode) {
+		if (newMode === this._viewMode.get()) {
 			return;
 		}
 
-		this._viewMode = newMode;
+		this._viewMode.set(newMode);
 		this.updatePreferredProjection();
 		this.storageService.store('testing.viewMode', newMode, StorageScope.WORKSPACE, StorageTarget.USER);
-		this.viewModeChangeEmitter.fire(newMode);
+	}
+
+
+	public get viewGrouping() {
+		return this._viewGrouping.get() ?? TestExplorerViewGrouping.ByLocation;
+	}
+
+	public set viewGrouping(newGrouping: TestExplorerViewGrouping) {
+		if (newGrouping === this._viewGrouping.get()) {
+			return;
+		}
+
+		this._viewGrouping.set(newGrouping);
+		this.updatePreferredProjection();
+		this.storageService.store('testing.viewGrouping', newGrouping, StorageScope.WORKSPACE, StorageTarget.USER);
 	}
 
 	constructor(
 		listContainer: HTMLElement,
 		onDidChangeVisibility: Event<boolean>,
 		private listener: TestSubscriptionListener | undefined,
+		@ITestExplorerFilterState filterState: TestExplorerFilterState,
 		@IInstantiationService instantiationService: IInstantiationService,
-		@IEditorService editorService: IEditorService,
+		@IEditorService private readonly editorService: IEditorService,
+		@ICodeEditorService codeEditorService: ICodeEditorService,
 		@IStorageService private readonly storageService: IStorageService,
+		@IContextKeyService private readonly contextKeyService: IContextKeyService,
 	) {
 		super();
+
+		this._viewMode.set(this.storageService.get('testing.viewMode', StorageScope.WORKSPACE, TestExplorerViewMode.Tree) as TestExplorerViewMode);
+		this._viewGrouping.set(this.storageService.get('testing.viewGrouping', StorageScope.WORKSPACE, TestExplorerViewGrouping.ByLocation) as TestExplorerViewGrouping);
+
 		const labels = this._register(instantiationService.createInstance(ResourceLabels, { onDidChangeVisibility: onDidChangeVisibility }));
 
-		this.filter = new TestsFilter();
+		this.filter = new TestsFilter(filterState.value);
+
+		this._register(filterState.onDidChange(text => {
+			this.filter.setFilter(text);
+			this.tree.refilter();
+		}));
+
 		this.tree = instantiationService.createInstance(
 			WorkbenchObjectTree,
 			'Test Explorer List',
@@ -202,28 +258,40 @@ export class TestingExplorerViewModel extends Disposable {
 				instantiationService.createInstance(TestsRenderer, labels)
 			],
 			{
+				simpleKeyboardNavigation: true,
 				identityProvider: instantiationService.createInstance(IdentityProvider),
 				hideTwistiesOfChildlessElements: true,
 				sorter: instantiationService.createInstance(TreeSorter),
 				keyboardNavigationLabelProvider: instantiationService.createInstance(TreeKeyboardNavigationLabelProvider),
 				accessibilityProvider: instantiationService.createInstance(ListAccessibilityProvider),
 				filter: this.filter,
-			}) as ObjectTree<ITestTreeElement, FuzzyScore>;
+			}) as WorkbenchObjectTree<ITestTreeElement, FuzzyScore>;
 		this._register(this.tree);
+
+		this._register(dom.addStandardDisposableListener(this.tree.getHTMLElement(), 'keydown', evt => {
+			if (DefaultKeyboardNavigationDelegate.mightProducePrintableCharacter(evt)) {
+				filterState.value = evt.browserEvent.key;
+				filterState.focusInput();
+			}
+		}));
 
 		this.updatePreferredProjection();
 
 		this.onDidChangeSelection = this.tree.onDidChangeSelection;
 		this._register(this.tree.onDidChangeSelection(evt => {
-			const location = evt.elements[0]?.location;
-			if (!location) {
-				return;
+			const selected = evt.elements[0];
+			if (selected && evt.browserEvent) {
+				this.openEditorForItem(selected);
 			}
+		}));
 
-			editorService.openEditor({
-				resource: URI.revive(location.uri),
-				options: { selection: location.range, preserveFocus: true }
-			});
+		const tracker = this._register(new CodeEditorTracker(codeEditorService, this));
+		this._register(onDidChangeVisibility(visible => {
+			if (visible) {
+				tracker.activate();
+			} else {
+				tracker.deactivate();
+			}
 		}));
 	}
 
@@ -242,6 +310,106 @@ export class TestingExplorerViewModel extends Disposable {
 		this.updatePreferredProjection();
 	}
 
+	/**
+	 * Reveals and moves focus to the item.
+	 */
+	public async revealItem(item: ITestTreeElement, reveal = true): Promise<void> {
+		if (!this.tree.hasElement(item)) {
+			return;
+		}
+
+		const chain: ITestTreeElement[] = [];
+		for (let parent = item.parentItem; parent; parent = parent.parentItem) {
+			chain.push(parent);
+		}
+
+		for (const parent of chain.reverse()) {
+			try {
+				this.tree.expand(parent);
+			} catch {
+				// ignore if not present
+			}
+		}
+
+		if (reveal === true && this.tree.getRelativeTop(item) === null) {
+			// Don't scroll to the item if it's already visible, or if set not to.
+			this.tree.reveal(item, 0.5);
+		}
+
+		this.tree.setFocus([item]);
+		this.tree.setSelection([item]);
+	}
+
+	/**
+	 * Collapse all items in the tree.
+	 */
+	public async collapseAll() {
+		this.tree.collapseAll();
+	}
+
+	/**
+	 * Opens an editor for the item. If there is a failure associated with the
+	 * test item, it will be shown.
+	 */
+	public async openEditorForItem(item: ITestTreeElement, preserveFocus = true) {
+		if (await this.tryPeekError(item)) {
+			return;
+		}
+
+		const location = item?.location;
+		if (!location) {
+			return;
+		}
+
+		const pane = await this.editorService.openEditor({
+			resource: location.uri,
+			options: {
+				selection: { startColumn: location.range.startColumn, startLineNumber: location.range.startLineNumber },
+				preserveFocus,
+			},
+		});
+
+		// if the user selected a failed test and now they didn't, hide the peek
+		const control = pane?.getControl();
+		if (isCodeEditor(control)) {
+			TestingOutputPeekController.get(control).removePeek();
+		}
+	}
+
+	/**
+	 * Tries to peek the first test error, if the item is in a failed state.
+	 */
+	private async tryPeekError(item: ITestTreeElement) {
+		if (!item.test || !isFailedState(item.test.item.state.runState)) {
+			return false;
+		}
+
+		const index = item.test.item.state.messages.findIndex(m => !!m.location);
+		if (index === -1) {
+			return;
+		}
+
+		const message = item.test.item.state.messages[index];
+		const pane = await this.editorService.openEditor({
+			resource: message.location!.uri,
+			options: { selection: message.location!.range, preserveFocus: true }
+		});
+
+		const control = pane?.getControl();
+		if (!isCodeEditor(control)) {
+			return false;
+		}
+
+		TestingOutputPeekController.get(control).show(buildTestUri({
+			type: TestUriType.LiveMessage,
+			messageIndex: index,
+			providerId: item.test.providerId,
+			testId: item.test.id,
+		}));
+
+		return true;
+	}
+
 	private updatePreferredProjection() {
 		this.projection?.dispose();
 		if (!this.listener) {
@@ -249,10 +417,18 @@ export class TestingExplorerViewModel extends Disposable {
 			return;
 		}
 
-		if (this._viewMode === ViewMode.List) {
-			this.projection = new ListProjection(this.listener);
+		if (this._viewGrouping.get() === TestExplorerViewGrouping.ByLocation) {
+			if (this._viewMode.get() === TestExplorerViewMode.List) {
+				this.projection = new HierarchicalByNameProjection(this.listener);
+			} else {
+				this.projection = new HierarchicalByLocationProjection(this.listener);
+			}
 		} else {
-			this.projection = new HierarchalProjection(this.listener);
+			if (this._viewMode.get() === TestExplorerViewMode.List) {
+				this.projection = new StateByNameProjection(this.listener);
+			} else {
+				this.projection = new StateByLocationProjection(this.listener);
+			}
 		}
 
 		this.projection.onUpdate(this.deferUpdate, this);
@@ -272,89 +448,132 @@ export class TestingExplorerViewModel extends Disposable {
 	}
 }
 
-/**
- * Gets the computed state for the node.
- */
-const getComputedState = (node: ITestTreeElement) => {
-	if (node.computedState === undefined) {
-		node.computedState = node.state ?? TestRunState.Unset;
-		for (const child of node.getChildren()) {
-			node.computedState = maxPriority(node.computedState, getComputedState(child));
-		}
+class CodeEditorTracker {
+	private store = new DisposableStore();
+	private lastRevealed?: ITestTreeElement;
+
+	constructor(@ICodeEditorService private readonly codeEditorService: ICodeEditorService, private readonly model: TestingExplorerViewModel) {
 	}
 
-	return node.computedState;
-};
-
-/**
- * Refreshes the computed state for the node and its parents. Any changes
- * elements will be added to the `changedNodes` set.
- */
-const refreshComputedState = (node: ITestTreeElement, addUpdated: (n: ITestTreeElement) => void) => {
-	if (node.computedState === undefined) {
-		return;
-	}
-
-	const oldPriority = statePriority[node.computedState];
-	node.computedState = undefined;
-	const newState = getComputedState(node);
-	const newPriority = statePriority[getComputedState(node)];
-	if (newPriority === oldPriority) {
-		return;
-	}
-
-	addUpdated(node);
-	if (newPriority > oldPriority) {
-		// Update all parents to ensure they're at least this priority.
-		for (let parent = node.parentItem; parent; parent = parent.parentItem) {
-			const prev = parent.computedState;
-			if (prev !== undefined && statePriority[prev] >= newPriority) {
-				break;
+	public activate() {
+		const editorStores = new Set<DisposableStore>();
+		this.store.add(toDisposable(() => {
+			for (const store of editorStores) {
+				store.dispose();
 			}
+		}));
 
-			parent.computedState = newState;
-			addUpdated(parent);
+		const register = (editor: ICodeEditor) => {
+			const store = new DisposableStore();
+			editorStores.add(store);
+
+			store.add(editor.onDidChangeCursorPosition(evt => {
+				const uri = editor.getModel()?.uri;
+				if (!uri) {
+					return;
+				}
+
+				const test = this.model.projection.getTestAtPosition(uri, evt.position);
+				if (test && test !== this.lastRevealed) {
+					this.model.revealItem(test);
+					this.lastRevealed = test;
+				}
+			}));
+
+			editor.onDidDispose(() => {
+				store.dispose();
+				editorStores.delete(store);
+			});
+		};
+
+		this.store.add(this.codeEditorService.onCodeEditorAdd(register));
+		this.codeEditorService.listCodeEditors().forEach(register);
+	}
+
+	public deactivate() {
+		this.store.dispose();
+		this.store = new DisposableStore();
+	}
+
+	public dispose() {
+		this.store.dispose();
+	}
+}
+
+const enum FilterResult {
+	Include,
+	Exclude,
+	Inherit,
+}
+
+class TestsFilter implements ITreeFilter<ITestTreeElement> {
+	private filters: [include: boolean, value: string][] | undefined;
+
+	constructor(initialFilter: string) {
+		this.setFilter(initialFilter);
+	}
+
+	/**
+	 * Parses and updates the tree filter. Supports lists of patterns that can be !negated.
+	 */
+	public setFilter(text: string) {
+		text = text.trim();
+
+		if (!text) {
+			this.filters = undefined;
+			return;
 		}
-	} else if (newPriority < oldPriority) {
-		// Re-render all parents of this node whose computed priority might have come from this node
-		for (let parent = node.parentItem; parent; parent = parent.parentItem) {
-			const prev = parent.computedState;
-			if (prev === undefined || statePriority[prev] > oldPriority) {
-				break;
+
+		this.filters = [];
+		for (const filter of splitGlobAware(text, ',').map(s => s.trim()).filter(s => !!s.length)) {
+			if (filter.startsWith('!')) {
+				this.filters.push([false, filter.slice(1).toLowerCase()]);
+			} else {
+				this.filters.push([true, filter.toLowerCase()]);
 			}
-
-			parent.computedState = undefined;
-			parent.computedState = getComputedState(parent);
-			addUpdated(parent);
 		}
 	}
-};
 
-class TestsFilter implements ITreeFilter<ITestTreeElement, FuzzyScore> {
-	private filterText: string | undefined;
-
-	public setFilter(filterText: string) {
-		this.filterText = filterText;
-	}
-
-	public filter(element: ITestTreeElement): TreeFilterResult<FuzzyScore> {
-		if (element instanceof ListElement && element.elementType !== ListElementType.TestLeaf && !element.isTestRoot) {
-			return TreeVisibility.Hidden;
-		}
-
-		if (!this.filterText) {
-			return TreeVisibility.Visible;
-		}
-
-		if (element.label.includes(this.filterText)) {
-			return TreeVisibility.Visible;
+	public filter(element: ITestTreeElement): TreeFilterResult<void> {
+		for (let e: ITestTreeElement | null = element; e; e = e.parentItem) {
+			switch (this.testFilterText(e.label)) {
+				case FilterResult.Exclude:
+					return TreeVisibility.Hidden;
+				case FilterResult.Include:
+					return TreeVisibility.Visible;
+				case FilterResult.Inherit:
+				// continue to parent
+			}
 		}
 
 		return TreeVisibility.Recurse;
 	}
+
+	private testFilterText(data: string) {
+		if (!this.filters) {
+			return FilterResult.Include;
+		}
+
+		// start as included if the first glob is a negation
+		let included = this.filters[0][0] === false ? FilterResult.Exclude : FilterResult.Inherit;
+		data = data.toLowerCase();
+
+		for (const [include, filter] of this.filters) {
+			if (data.includes(filter)) {
+				included = include ? FilterResult.Include : FilterResult.Exclude;
+			}
+		}
+
+		return included;
+	}
 }
+
 class TreeSorter implements ITreeSorter<ITestTreeElement> {
 	public compare(a: ITestTreeElement, b: ITestTreeElement): number {
+		if (a instanceof StateElement && b instanceof StateElement) {
+			return cmpPriority(a.computedState, b.computedState);
+		}
+
 		return a.label.localeCompare(b.label);
 	}
 }
@@ -365,7 +584,10 @@ class ListAccessibilityProvider implements IListAccessibilityProvider<ITestTreeE
 	}
 
 	getAriaLabel(element: ITestTreeElement): string {
-		return element.label;
+		return localize({
+			key: 'testing.treeElementLabel',
+			comment: ['label then the unit tests state, for example "Addition Tests (Running)"'],
+		}, '{0} ({1})', element.label, testStateNames[getComputedState(element)]);
 	}
 }
 
@@ -405,6 +627,11 @@ class TestsRenderer implements ITreeRenderer<ITestTreeElement, FuzzyScore, TestT
 		@IInstantiationService private readonly instantiationService: IInstantiationService
 	) { }
 
+	renderCompressedElements(node: ITreeNode<ICompressedTreeNode<ITestTreeElement>, FuzzyScore>, index: number, templateData: TestTemplateData): void {
+		const element = node.element.elements[node.element.elements.length - 1];
+		this.renderElementDirect(element, templateData);
+	}
+
 	get templateId(): string {
 		return TestsRenderer.ID;
 	}
@@ -427,34 +654,48 @@ class TestsRenderer implements ITreeRenderer<ITestTreeElement, FuzzyScore, TestT
 	}
 
 	public renderElement(node: ITreeNode<ITestTreeElement, FuzzyScore>, index: number, data: TestTemplateData): void {
-		const element = node.element;
+		this.renderElementDirect(node.element, data);
+	}
+
+	private renderElementDirect(element: ITestTreeElement, data: TestTemplateData) {
 		const label: IResourceLabelProps = { name: element.label };
 		const options: IResourceLabelOptions = {};
 		data.actionBar.clear();
 
-		const icon = testingStatesToIcons.get(getComputedState(element));
+		const state = getComputedState(element);
+		const icon = testingStatesToIcons.get(state);
 		data.icon.className = 'computed-state ' + (icon ? ThemeIcon.asClassName(icon) : '');
-
 		const test = element.test;
 		if (test) {
 			if (test.item.location) {
-				label.resource = URI.revive(test.item.location.uri);
+				label.resource = test.item.location.uri;
 			}
 
-			options.title = 'hover title';
+			let title = element.label;
+			for (let p = element.parentItem; p; p = p.parentItem) {
+				title = `${p.label}, ${title}`;
+			}
+
+			options.title = title;
 			options.fileKind = FileKind.FILE;
-
-			if (test.item.runnable) {
-				data.actionBar.push(this.instantiationService.createInstance(RunAction, test), { icon: true, label: false });
-			}
-
-			if (test.item.debuggable) {
-				data.actionBar.push(this.instantiationService.createInstance(DebugAction, test), { icon: true, label: false });
-			}
-
 			label.description = element.description;
 		} else {
 			options.fileKind = FileKind.ROOT_FOLDER;
+		}
+
+		const running = state === TestRunState.Running;
+		if (!Iterable.isEmpty(element.runnable)) {
+			data.actionBar.push(
+				this.instantiationService.createInstance(RunAction, element.runnable, running),
+				{ icon: true, label: false },
+			);
+		}
+
+		if (!Iterable.isEmpty(element.debuggable)) {
+			data.actionBar.push(
+				this.instantiationService.createInstance(DebugAction, element.debuggable, running),
+				{ icon: true, label: false },
+			);
 		}
 
 		data.label.setResource(label, options);
@@ -466,429 +707,135 @@ class TestsRenderer implements ITreeRenderer<ITestTreeElement, FuzzyScore, TestT
 	}
 }
 
+const collectCounts = (count: TestStateCount) => {
+	const failed = count[TestRunState.Errored] + count[TestRunState.Failed];
+	const passed = count[TestRunState.Passed];
+	const skipped = count[TestRunState.Skipped];
 
-export interface ITestTreeProjection extends IDisposable {
-	/**
-	 * Event that fires when the projection changes.
-	 */
-	onUpdate: Event<void>;
+	return {
+		passed,
+		failed,
+		runSoFar: passed + failed,
+		totalWillBeRun: passed + failed + count[TestRunState.Queued] + count[TestRunState.Running],
+		skipped,
+	};
+};
 
-	/**
-	 * Applies pending update to the tree.
-	 */
-	applyTo(tree: ObjectTree<ITestTreeElement, FuzzyScore>): void;
-}
+const getProgressText = ({ passed, runSoFar, skipped }: { passed: number, runSoFar: number, skipped: number }) => {
+	const percent = (passed / runSoFar * 100).toFixed(0);
+	if (skipped === 0) {
+		return localize('testProgress', '{0}/{1} tests passed ({2}%)', passed, runSoFar, percent);
+	} else {
+		return localize('testProgressWithSkip', '{0}/{1} tests passed ({2}%, {3} skipped)', passed, runSoFar, percent, skipped);
+	}
+};
 
-export interface ITestTreeElement {
-	/**
-	 * Computed element state. Will be set automatically if not initially provided.
-	 * The projection is responsible for clearing (or updating) this if it
-	 * becomes invalid.
-	 */
-	computedState: TestRunState | undefined;
+class TestRunProgress {
+	private current?: { update: IProgress<IProgressStep>; deferred: DeferredPromise<void> };
+	private badge = new MutableDisposable();
+	private readonly resultLister = this.resultService.onNewTestResult(result => {
+		this.updateProgress();
+		this.updateBadge();
 
-	/**
-	 * Unique ID of the element in the tree.
-	 */
-	readonly treeId: string;
+		result.onChange(this.throttledProgressUpdate, this);
+		result.onComplete(() => {
+			this.throttledProgressUpdate();
+			this.updateBadge();
+		});
+	});
 
-	/**
-	 * Location of the test, if any.
-	 */
-	readonly location?: { uri: URI; range: ITextEditorSelection };
-
-	/**
-	 * Test item, if any.
-	 */
-	readonly test?: Readonly<InternalTestItem>;
-
-	/**
-	 * Tree description.
-	 */
-	readonly description?: string;
-
-	/**
-	 * State of of the tree item. Mostly used for deriving the computed state.
-	 */
-	readonly state?: TestRunState;
-	readonly label: string;
-	readonly parentItem: ITestTreeElement | null;
-	getChildren(): Iterable<ITestTreeElement>;
-}
-
-class HierarchalElement implements ITestTreeElement {
-	public readonly children = new Set<HierarchalElement>();
-	public computedState: TestRunState | undefined;
-
-	public get treeId() {
-		return `test:${this.test.id}`;
+	constructor(
+		private readonly messagesContainer: HTMLElement,
+		private readonly location: string,
+		@IProgressService private readonly progress: IProgressService,
+		@ITestResultService private readonly resultService: ITestResultService,
+		@IActivityService private readonly activityService: IActivityService,
+	) {
 	}
 
-	public get label() {
-		return this.test.item.label;
+	public dispose() {
+		this.resultLister.dispose();
+		this.current?.deferred.complete();
+		this.badge.dispose();
 	}
 
-	public get state() {
-		return this.test.item.state.runState;
+	@throttle(200)
+	private throttledProgressUpdate() {
+		this.updateProgress();
 	}
 
-	public get location() {
-		const location = this.test.item.location;
-		if (!location) {
+	private updateProgress() {
+		const running = this.resultService.results.filter(r => !r.isComplete);
+		if (!running.length) {
+			this.setIdleText(this.resultService.results[0]?.counts);
+			this.current?.deferred.complete();
+			this.current = undefined;
+		} else if (!this.current) {
+			this.progress.withProgress({ location: this.location, total: 100 }, update => {
+				this.current = { update, deferred: new DeferredPromise() };
+				this.updateProgress();
+				return this.current.deferred.p;
+			});
+		} else {
+			const counts = sumCounts(running.map(r => r.counts));
+			this.setRunningText(counts);
+			const { runSoFar, totalWillBeRun } = collectCounts(counts);
+			this.current.update.report({ increment: runSoFar, total: totalWillBeRun });
+		}
+	}
+
+	private setRunningText(counts: TestStateCount) {
+		this.messagesContainer.dataset.state = 'running';
+
+		const collected = collectCounts(counts);
+		if (collected.runSoFar === 0) {
+			this.messagesContainer.innerText = localize('testResultStarting', 'Test run is starting...');
+		} else {
+			this.messagesContainer.innerText = getProgressText(collected);
+		}
+	}
+
+	private setIdleText(lastCount?: TestStateCount) {
+		if (!lastCount) {
+			this.messagesContainer.innerText = '';
+		} else {
+			const collected = collectCounts(lastCount);
+			this.messagesContainer.dataset.state = collected.failed ? 'failed' : 'running';
+			const doneMessage = getProgressText(collected);
+			this.messagesContainer.innerText = doneMessage;
+			aria.alert(doneMessage);
+		}
+	}
+
+	private updateBadge() {
+		this.badge.value = undefined;
+		const result = this.resultService.results[0]; // currently running, or last run
+		if (!result) {
 			return;
 		}
 
-		return {
-			uri: URI.revive(location.uri),
-			range: location.range,
-		};
-	}
-
-	constructor(public readonly test: InternalTestItem, public readonly parentItem: HierarchalFolder | HierarchalElement) {
-		this.test = { ...test, item: { ...test.item } }; // clone since we Object.assign updatese
-	}
-
-	public getChildren() {
-		return this.children;
-	}
-
-	public update(actual: InternalTestItem, addUpdated: (n: ITestTreeElement) => void) {
-		const stateChange = actual.item.state.runState !== this.state;
-		Object.assign(this.test, actual);
-		if (stateChange) {
-			refreshComputedState(this, addUpdated);
+		if (!result.isComplete) {
+			const badge = new ProgressBadge(() => localize('testBadgeRunning', 'Test run in progress'));
+			this.badge.value = this.activityService.showViewActivity(Testing.ExplorerViewId, { badge, clazz: 'progress-badge' });
+			return;
 		}
+
+		const failures = result.counts[TestRunState.Failed] + result.counts[TestRunState.Errored];
+		if (failures === 0) {
+			return;
+		}
+
+		const badge = new NumberBadge(failures, () => localize('testBadgeFailures', '{0} tests failed', failures));
+		this.badge.value = this.activityService.showViewActivity(Testing.ExplorerViewId, { badge });
 	}
 }
 
-class HierarchalFolder implements ITestTreeElement {
-	public readonly children = new Set<HierarchalElement>();
-	public readonly parentItem = null;
-	public computedState: TestRunState | undefined;
-
-	public get treeId() {
-		return `folder:${this.folder.index}`;
-	}
-
-	constructor(private readonly folder: IWorkspaceFolder) { }
-
-	public get label() {
-		return this.folder.name;
-	}
-
-	public getChildren() {
-		return this.children;
-	}
-}
-
-const enum ListElementType {
-	TestLeaf,
-	BranchWithLeaf,
-	BranchWithoutLeaf,
-	Unset,
-}
-
-class ListElement extends HierarchalElement {
-	public elementType: ListElementType = ListElementType.Unset;
-	public readonly isTestRoot = !this.actualParent;
-	private readonly actualChildren = new Set<ListElement>();
-
-	public get description() {
-		let description: string | undefined;
-		for (let parent = this.actualParent; parent && !parent.isTestRoot; parent = parent.actualParent) {
-			description = description ? `${parent.label} › ${description}` : parent.label;
-		}
-
-		return description;
-	}
-
-	/**
-	 * @param actualParent Parent of the item in the test heirarchy
-	 */
-	constructor(
-		internal: InternalTestItem,
-		parentItem: HierarchalFolder | HierarchalElement,
-		private readonly addUpdated: (n: ITestTreeElement) => void,
-		private readonly actualParent?: ListElement,
-	) {
-		super(internal, parentItem);
-		actualParent?.addChild(this);
-		this.updateLeafTestState();
-	}
-
-	/**
-	 * @override
-	 */
-	public update(actual: InternalTestItem, addUpdated: (n: ITestTreeElement) => void) {
-		const wasRunnable = this.test.item.runnable;
-		super.update(actual, addUpdated);
-
-		if (this.test.item.runnable !== wasRunnable) {
-			this.updateLeafTestState();
+registerThemingParticipant((theme, collector) => {
+	if (theme.type === 'dark') {
+		const foregroundColor = theme.getColor(foreground);
+		if (foregroundColor) {
+			const fgWithOpacity = new Color(new RGBA(foregroundColor.rgba.r, foregroundColor.rgba.g, foregroundColor.rgba.b, 0.65));
+			collector.addRule(`.test-explorer .test-explorer-messages { color: ${fgWithOpacity}; }`);
 		}
 	}
-
-	/**
-	 * Should be called when the list element is removed.
-	 */
-	public remove() {
-		this.actualParent?.removeChild(this);
-	}
-
-	private removeChild(element: ListElement) {
-		this.actualChildren.delete(element);
-		this.updateLeafTestState();
-	}
-
-	private addChild(element: ListElement) {
-		this.actualChildren.add(element);
-		this.updateLeafTestState();
-	}
-
-	/**
-	 * Updates the test leaf state for this node. Should be called when a child
-	 * or this node is modified. Note that we never need to look at the children
-	 * here, the children will already be leaves, or not.
-	 */
-	private updateLeafTestState() {
-		const newType = Iterable.some(this.actualChildren, c => c.elementType !== ListElementType.BranchWithoutLeaf)
-			? ListElementType.BranchWithLeaf
-			: this.test.item.runnable
-				? ListElementType.TestLeaf
-				: ListElementType.BranchWithoutLeaf;
-
-		if (newType !== this.elementType) {
-			this.elementType = newType;
-			this.addUpdated(this);
-		}
-
-		this.actualParent?.updateLeafTestState();
-	}
-}
-
-/**
- * Projection that lists tests in their traditional tree view.
- */
-class HierarchalProjection extends Disposable implements ITestTreeProjection {
-	private readonly updateEmitter = new Emitter<void>();
-	private lastHadMultipleFolders = true;
-	private newlyRenderedNodes = new Set<HierarchalElement | HierarchalFolder>();
-	private updatedNodes = new Set<HierarchalElement | HierarchalFolder>();
-	private removedNodes = new Set<HierarchalElement | HierarchalFolder>();
-
-	/**
-	 * Map of item IDs to test item objects.
-	 */
-	protected readonly items = new Map<string, HierarchalElement>();
-
-	/**
-	 * Root folders
-	 */
-	protected readonly folders = new Map<string, HierarchalFolder>();
-
-	/**
-	 * @inheritdoc
-	 */
-	public readonly onUpdate = this.updateEmitter.event;
-
-	constructor(listener: TestSubscriptionListener) {
-		super();
-		this._register(listener.onDiff(([folder, diff]) => this.applyDiff(folder, diff)));
-		this._register(listener.onFolderChange(this.applyFolderChange, this));
-
-		for (const [folder, collection] of listener.workspaceFolderCollections) {
-			const queue = [collection.rootNodes];
-			while (queue.length) {
-				for (const id of queue.pop()!) {
-					const node = collection.getNodeById(id)!;
-					const item = this.createItem(node, folder.folder);
-					item.parentItem.children.add(item);
-					this.items.set(item.test.id, item);
-					queue.push(node.children);
-				}
-			}
-		}
-
-		for (const folder of this.folders.values()) {
-			this.newlyRenderedNodes.add(folder);
-		}
-	}
-
-	private applyFolderChange(evt: IWorkspaceFoldersChangeEvent) {
-		for (const folder of evt.removed) {
-			const existing = this.folders.get(folder.uri.toString());
-			if (existing) {
-				this.folders.delete(folder.uri.toString());
-				this.removedNodes.add(existing);
-			}
-			this.updateEmitter.fire();
-		}
-	}
-
-	/**
-	 * Applies the diff to the collection.
-	 */
-	private applyDiff(folder: IWorkspaceFolder, diff: TestsDiff) {
-		for (const op of diff) {
-			switch (op[0]) {
-				case TestDiffOpType.Add: {
-					const item = this.createItem(op[1], folder);
-					item.parentItem.children.add(item);
-					this.items.set(item.test.id, item);
-					this.newlyRenderedNodes.add(item);
-					break;
-				}
-
-				case TestDiffOpType.Update: {
-					const item = op[1];
-					const existing = this.items.get(item.id);
-					if (existing) {
-						existing.update(item, this.addUpdated);
-						this.addUpdated(existing);
-					}
-					break;
-				}
-
-				case TestDiffOpType.Remove: {
-					const toRemove = this.items.get(op[1]);
-					if (!toRemove) {
-						break;
-					}
-
-					this.deleteItem(toRemove);
-					toRemove.parentItem.children.delete(toRemove);
-					this.removedNodes.add(toRemove);
-
-					const queue: Iterable<HierarchalElement>[] = [[toRemove]];
-					while (queue.length) {
-						for (const item of queue.pop()!) {
-							this.items.delete(item.test.id);
-							this.newlyRenderedNodes.delete(item);
-						}
-					}
-				}
-			}
-		}
-
-		for (const [key, folder] of this.folders) {
-			if (folder.children.size === 0) {
-				this.removedNodes.add(folder);
-				this.folders.delete(key);
-			}
-		}
-
-		if (diff.length !== 0) {
-			this.updateEmitter.fire();
-		}
-	}
-
-	/**
-	 * @inheritdoc
-	 */
-	public applyTo(tree: ObjectTree<ITestTreeElement, FuzzyScore>) {
-		const firstFolder = Iterable.first(this.folders.values());
-
-		if (!this.lastHadMultipleFolders && this.folders.size !== 1) {
-			tree.setChildren(null, Iterable.map(this.folders.values(), this.renderNode));
-			this.lastHadMultipleFolders = true;
-		} else if (this.lastHadMultipleFolders && this.folders.size === 1) {
-			tree.setChildren(null, Iterable.map(firstFolder!.children, this.renderNode));
-			this.lastHadMultipleFolders = false;
-		} else {
-			const alreadyUpdatedChildren = new Set<HierarchalElement | HierarchalFolder | null>();
-			for (const nodeList of [this.newlyRenderedNodes, this.removedNodes]) {
-				for (let { parentItem, children } of nodeList) {
-					if (!alreadyUpdatedChildren.has(parentItem)) {
-						if (!this.lastHadMultipleFolders && parentItem === firstFolder) {
-							tree.setChildren(null, Iterable.map(firstFolder.children, this.renderNode));
-						} else {
-							const pchildren: Iterable<HierarchalElement | HierarchalFolder> = parentItem?.children ?? this.folders.values();
-							tree.setChildren(parentItem, Iterable.map(pchildren, this.renderNode));
-						}
-
-						alreadyUpdatedChildren.add(parentItem);
-					}
-
-					for (const child of children) {
-						alreadyUpdatedChildren.add(child);
-					}
-				}
-			}
-
-			if (!this.lastHadMultipleFolders) {
-				this.updatedNodes.delete(firstFolder!);
-			}
-
-			for (const node of this.updatedNodes) {
-				tree.rerender(node);
-			}
-		}
-
-		this.newlyRenderedNodes.clear();
-		this.removedNodes.clear();
-		this.updatedNodes.clear();
-	}
-
-	protected createItem(item: InternalTestItem, folder: IWorkspaceFolder): HierarchalElement {
-		const parent = item.parent ? this.items.get(item.parent)! : this.getOrCreateFolderElement(folder);
-		return new HierarchalElement(item, parent);
-	}
-
-	protected deleteItem(item: HierarchalElement) {
-		// no-op
-	}
-
-	protected getOrCreateFolderElement(folder: IWorkspaceFolder) {
-		let f = this.folders.get(folder.uri.toString());
-		if (!f) {
-			f = new HierarchalFolder(folder);
-			this.newlyRenderedNodes.add(f);
-			this.folders.set(folder.uri.toString(), f);
-		}
-
-		return f;
-	}
-
-	protected readonly addUpdated = (item: ITestTreeElement) => {
-		const cast = item as HierarchalElement | HierarchalFolder;
-		if (!this.newlyRenderedNodes.has(cast)) {
-			this.updatedNodes.add(cast);
-		}
-	};
-
-	private readonly renderNode = (node: HierarchalElement | HierarchalFolder): ITreeElement<ITestTreeElement> => {
-		return {
-			element: node,
-			children: Iterable.map(node.children, this.renderNode),
-		};
-	};
-}
-
-/**
- * Projection that shows tests in a flat list (grouped by provider). The only
- * change is that, while creating the item, the item parent is set to the
- * test root rather than the heirarchal parent.
- */
-class ListProjection extends HierarchalProjection {
-	/**
-	 * @override
-	 */
-	protected createItem(item: InternalTestItem, folder: IWorkspaceFolder): HierarchalElement {
-		const parent = this.getOrCreateFolderElement(folder);
-		const actualParent = item.parent ? this.items.get(item.parent) as ListElement : undefined;
-		for (const testRoot of parent.children) {
-			if (testRoot.test.providerId === item.providerId) {
-				return new ListElement(item, testRoot, this.addUpdated, actualParent);
-			}
-		}
-
-		return new ListElement(item, parent, this.addUpdated);
-	}
-
-	/**
-	 * @override
-	 */
-	protected deleteItem(item: HierarchalElement) {
-		(item as ListElement).remove();
-	}
-}
+});

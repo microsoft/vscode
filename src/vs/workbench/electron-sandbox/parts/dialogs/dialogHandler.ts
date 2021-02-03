@@ -6,7 +6,7 @@
 import * as nls from 'vs/nls';
 import { fromNow } from 'vs/base/common/date';
 import { mnemonicButtonLabel } from 'vs/base/common/labels';
-import { isLinux, isWindows } from 'vs/base/common/platform';
+import { isLinux, isLinuxSnap, isWindows } from 'vs/base/common/platform';
 import Severity from 'vs/base/common/severity';
 import { MessageBoxOptions } from 'vs/base/parts/sandbox/common/electronTypes';
 import { IClipboardService } from 'vs/platform/clipboard/common/clipboardService';
@@ -99,8 +99,8 @@ export class NativeDialogHandler implements IDialogHandler {
 			type: (severity === Severity.Info) ? 'question' : (severity === Severity.Error) ? 'error' : (severity === Severity.Warning) ? 'warning' : 'none',
 			cancelId: dialogOptions ? dialogOptions.cancelId : undefined,
 			detail: dialogOptions ? dialogOptions.detail : undefined,
-			checkboxLabel: dialogOptions && dialogOptions.checkbox ? dialogOptions.checkbox.label : undefined,
-			checkboxChecked: dialogOptions && dialogOptions.checkbox ? dialogOptions.checkbox.checked : undefined
+			checkboxLabel: dialogOptions?.checkbox?.label ?? undefined,
+			checkboxChecked: dialogOptions?.checkbox?.checked ?? undefined
 		});
 
 		const result = await this.nativeHostService.showMessageBox(options);
@@ -159,9 +159,10 @@ export class NativeDialogHandler implements IDialogHandler {
 		let version = this.productService.version;
 		if (this.productService.target) {
 			version = `${version} (${this.productService.target} setup)`;
+		} else if (this.productService.darwinUniversalAssetId) {
+			version = `${version} (Universal)`;
 		}
 
-		const isSnap = process.platform === 'linux' && process.env.SNAP && process.env.SNAP_REVISION;
 		const osProps = await this.nativeHostService.getOSProperties();
 
 		const detailString = (useAgo: boolean): string => {
@@ -174,7 +175,7 @@ export class NativeDialogHandler implements IDialogHandler {
 				process.versions['chrome'],
 				process.versions['node'],
 				process.versions['v8'],
-				`${osProps.type} ${osProps.arch} ${osProps.release}${isSnap ? ' snap' : ''}`
+				`${osProps.type} ${osProps.arch} ${osProps.release}${isLinuxSnap ? ' snap' : ''}`
 			);
 		};
 
@@ -206,4 +207,3 @@ export class NativeDialogHandler implements IDialogHandler {
 		}
 	}
 }
-

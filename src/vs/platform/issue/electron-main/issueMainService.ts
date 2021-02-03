@@ -203,6 +203,7 @@ export class IssueMainService implements ICommonIssueService {
 					backgroundColor: data.styles.backgroundColor || DEFAULT_BACKGROUND_COLOR,
 					webPreferences: {
 						preload: FileAccess.asFileUri('vs/base/parts/sandbox/electron-browser/preload.js', require).fsPath,
+						v8CacheOptions: 'bypassHeatCheck',
 						enableWebSQL: false,
 						enableRemoteModule: false,
 						spellcheck: false,
@@ -257,6 +258,7 @@ export class IssueMainService implements ICommonIssueService {
 					title: localize('processExplorer', "Process Explorer"),
 					webPreferences: {
 						preload: FileAccess.asFileUri('vs/base/parts/sandbox/electron-browser/preload.js', require).fsPath,
+						v8CacheOptions: 'bypassHeatCheck',
 						enableWebSQL: false,
 						enableRemoteModule: false,
 						spellcheck: false,
@@ -410,7 +412,7 @@ export class IssueMainService implements ICommonIssueService {
 			},
 			product: {
 				nameShort: product.nameShort,
-				version: product.version,
+				version: !!product.darwinUniversalAssetId ? `${product.version} (Universal)` : product.version,
 				commit: product.commit,
 				date: product.date,
 				reportIssueUrl: product.reportIssueUrl
@@ -432,7 +434,7 @@ function toWindowUrl<T>(modulePathToHtml: string, windowConfiguration: T): strin
 	}
 
 	return FileAccess
-		._asCodeFileUri(modulePathToHtml, require)
+		.asBrowserUri(modulePathToHtml, require, true)
 		.with({ query: `config=${encodeURIComponent(JSON.stringify(config))}` })
 		.toString(true);
 }

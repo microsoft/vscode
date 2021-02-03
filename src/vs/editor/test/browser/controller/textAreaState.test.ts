@@ -84,8 +84,8 @@ suite('TextAreaState', () => {
 		let actual = TextAreaState.readFromTextArea(textArea);
 
 		assertTextAreaState(actual, 'Hello world!', 1, 12);
-		assert.equal(actual.value, 'Hello world!');
-		assert.equal(actual.selectionStart, 1);
+		assert.strictEqual(actual.value, 'Hello world!');
+		assert.strictEqual(actual.selectionStart, 1);
 
 		actual = actual.collapseSelection();
 		assertTextAreaState(actual, 'Hello world!', 12, 12);
@@ -102,23 +102,23 @@ suite('TextAreaState', () => {
 		let state = new TextAreaState('Hi world!', 2, 2, null, null);
 		state.writeToTextArea('test', textArea, false);
 
-		assert.equal(textArea._value, 'Hi world!');
-		assert.equal(textArea._selectionStart, 9);
-		assert.equal(textArea._selectionEnd, 9);
+		assert.strictEqual(textArea._value, 'Hi world!');
+		assert.strictEqual(textArea._selectionStart, 9);
+		assert.strictEqual(textArea._selectionEnd, 9);
 
 		state = new TextAreaState('Hi world!', 3, 3, null, null);
 		state.writeToTextArea('test', textArea, false);
 
-		assert.equal(textArea._value, 'Hi world!');
-		assert.equal(textArea._selectionStart, 9);
-		assert.equal(textArea._selectionEnd, 9);
+		assert.strictEqual(textArea._value, 'Hi world!');
+		assert.strictEqual(textArea._selectionStart, 9);
+		assert.strictEqual(textArea._selectionEnd, 9);
 
 		state = new TextAreaState('Hi world!', 0, 2, null, null);
 		state.writeToTextArea('test', textArea, true);
 
-		assert.equal(textArea._value, 'Hi world!');
-		assert.equal(textArea._selectionStart, 0);
-		assert.equal(textArea._selectionEnd, 2);
+		assert.strictEqual(textArea._value, 'Hi world!');
+		assert.strictEqual(textArea._selectionStart, 0);
+		assert.strictEqual(textArea._selectionEnd, 2);
 
 		textArea.dispose();
 	});
@@ -134,8 +134,8 @@ suite('TextAreaState', () => {
 		let newState = TextAreaState.readFromTextArea(textArea);
 		let actual = TextAreaState.deduceInput(prevState, newState, couldBeEmojiInput);
 
-		assert.equal(actual.text, expected);
-		assert.equal(actual.replaceCharCnt, expectedCharReplaceCnt);
+		assert.strictEqual(actual.text, expected);
+		assert.strictEqual(actual.replaceCharCnt, expectedCharReplaceCnt);
 
 		textArea.dispose();
 	}

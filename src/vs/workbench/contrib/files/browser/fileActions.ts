@@ -379,6 +379,32 @@ export function incrementFileName(name: string, isFolder: boolean, incrementalNa
 		return `${name.substr(0, lastIndexOfDot)}.1${name.substr(lastIndexOfDot)}`;
 	}
 
+	// 123 => 124
+	let noNameNoExtensionRegex = RegExp('(\\d+)$');
+	if (!isFolder && lastIndexOfDot === -1 && name.match(noNameNoExtensionRegex)) {
+		return name.replace(noNameNoExtensionRegex, (match, g1?) => {
+			let number = parseInt(g1);
+			return number < maxNumber
+				? String(number + 1).padStart(g1.length, '0')
+				: `${g1}.1`;
+		});
+	}
+
+	// file => file1
+	// file1 => file2
+	let noExtensionRegex = RegExp('(.*)(\\d*)$');
+	if (!isFolder && lastIndexOfDot === -1 && name.match(noExtensionRegex)) {
+		return name.replace(noExtensionRegex, (match, g1?, g2?) => {
+			let number = parseInt(g2);
+			if (isNaN(number)) {
+				number = 0;
+			}
+			return number < maxNumber
+				? g1 + String(number + 1).padStart(g2.length, '0')
+				: `${g1}${g2}.1`;
+		});
+	}
+
 	// folder.1=>folder.2
 	if (isFolder && name.match(/(\d+)$/)) {
 		return name.replace(/(\d+)$/, (match, ...groups) => {
@@ -827,7 +853,8 @@ async function openExplorerAndCreate(accessor: ServicesAccessor, isFolder: boole
 			const resourceToCreate = resources.joinPath(folder.resource, value);
 			await explorerService.applyBulkEdit([new ResourceFileEdit(undefined, resourceToCreate, { folder: isFolder })], {
 				undoLabel: nls.localize('createBulkEdit', "Create {0}", value),
-				progressLabel: nls.localize('creatingBulkEdit', "Creating {0}", value)
+				progressLabel: nls.localize('creatingBulkEdit', "Creating {0}", value),
+				confirmBeforeUndo: true
 			});
 			await refreshIfSeparator(value, explorerService);
 
@@ -1154,7 +1181,7 @@ const downloadFileHandler = async (accessor: ServicesAccessor) => {
 				const destination = await fileDialogService.showSaveDialog({
 					availableFileSystems: [Schemas.file],
 					saveLabel: mnemonicButtonLabel(nls.localize('downloadButton', "Download")),
-					title: explorerItem.isDirectory ? nls.localize('downloadFolder', "Download Folder") : nls.localize('downloadFile', "Download File"),
+					title: nls.localize('chooseWhereToDownload', "Choose Where to Download"),
 					defaultUri
 				});
 
@@ -1162,6 +1189,7 @@ const downloadFileHandler = async (accessor: ServicesAccessor) => {
 					await explorerService.applyBulkEdit([new ResourceFileEdit(explorerItem.resource, destination, { overwrite: true, copy: true })], {
 						undoLabel: nls.localize('downloadBulkEdit', "Download {0}", explorerItem.name),
 						progressLabel: nls.localize('downloadingBulkEdit', "Downloading {0}", explorerItem.name),
+						progressLocation: ProgressLocation.Explorer
 					});
 				} else {
 					cts.cancel(); // User canceled a download. In case there were multiple files selected we should cancel the remainder of the prompts #86100

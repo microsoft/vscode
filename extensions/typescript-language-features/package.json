@@ -26,8 +26,7 @@
   "devDependencies": {
     "@types/node": "^12.19.9",
     "@types/rimraf": "^2.0.4",
-    "@types/semver": "^5.5.0",
-    "typescript-web": "npm:typescript@^4.2.0-dev.20201209"
+    "@types/semver": "^5.5.0"
   },
   "scripts": {
     "vscode:prepublish": "node ../../node_modules/gulp/bin/gulp.js --gulpfile ../../build/gulpfile.extensions.js compile-extension:typescript-language-features",
@@ -49,6 +48,7 @@
     "onCommand:workbench.action.tasks.runTask",
     "onCommand:_typescript.configurePlugin",
     "onCommand:_typescript.learnMoreAboutRefactorings",
+    "onCommand:typescript.fileReferences",
     "onLanguage:jsonc"
   ],
   "main": "./out/extension",
@@ -961,6 +961,11 @@
         "command": "typescript.restartTsServer",
         "title": "%typescript.restartTsServer%",
         "category": "TypeScript"
+      },
+      {
+        "command": "typescript.findAllFileReferences",
+        "title": "%typescript.findAllFileReferences%",
+        "category": "TypeScript"
       }
     ],
     "menus": {
@@ -1008,6 +1013,46 @@
         {
           "command": "typescript.restartTsServer",
           "when": "typescript.isManagedFile"
+        },
+        {
+          "command": "typescript.findAllFileReferences",
+          "when": "tsSupportsFileReferences && typescript.isManagedFile"
+        }
+      ],
+      "explorer/context": [
+        {
+          "command": "typescript.findAllFileReferences",
+          "when": "tsSupportsFileReferences && resourceLangId == javascript"
+        },
+        {
+          "command": "typescript.findAllFileReferences",
+          "when": "tsSupportsFileReferences && resourceLangId == javascriptreact"
+        },
+        {
+          "command": "typescript.findAllFileReferences",
+          "when": "tsSupportsFileReferences && resourceLangId == typescript"
+        },
+        {
+          "command": "typescript.findAllFileReferences",
+          "when": "tsSupportsFileReferences && resourceLangId == typescriptreact"
+        }
+      ],
+      "editor/title/context": [
+        {
+          "command": "typescript.findAllFileReferences",
+          "when": "tsSupportsFileReferences && resourceLangId == javascript"
+        },
+        {
+          "command": "typescript.findAllFileReferences",
+          "when": "tsSupportsFileReferences && resourceLangId == javascriptreact"
+        },
+        {
+          "command": "typescript.findAllFileReferences",
+          "when": "tsSupportsFileReferences && resourceLangId == typescript"
+        },
+        {
+          "command": "typescript.findAllFileReferences",
+          "when": "tsSupportsFileReferences && resourceLangId == typescriptreact"
         }
       ]
     },
@@ -1154,5 +1199,9 @@
         "enableForWorkspaceTypeScriptVersions": true
       }
     ]
+  },
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/microsoft/vscode.git"
   }
 }

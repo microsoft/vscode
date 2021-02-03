@@ -8,7 +8,7 @@ import { IDiffEditor } from 'vs/editor/browser/editorBrowser';
 import { registerDiffEditorContribution } from 'vs/editor/browser/editorExtensions';
 import { IDiffEditorContribution } from 'vs/editor/common/editorCommon';
 import { Disposable, IDisposable } from 'vs/base/common/lifecycle';
-import { FloatingClickWidget } from 'vs/workbench/browser/parts/editor/editorWidgets';
+import { FloatingClickWidget } from 'vs/workbench/browser/codeeditor';
 import { IDiffComputationResult } from 'vs/editor/common/services/editorWorkerService';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
@@ -48,7 +48,7 @@ class DiffEditorHelperContribution extends Disposable implements IDiffEditorCont
 					Severity.Warning,
 					nls.localize('hintTimeout', "The diff algorithm was stopped early (after {0} ms.)", this._diffEditor.maxComputationTime),
 					[{
-						label: nls.localize('removeTimeout', "Remove limit"),
+						label: nls.localize('removeTimeout', "Remove Limit"),
 						run: () => {
 							this._configurationService.updateValue('diffEditor.maxComputationTime', 0);
 						}

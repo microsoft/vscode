@@ -147,17 +147,13 @@
           "description": "%html.format.wrapAttributesIndentSize.desc%"
         },
         "html.format.templating": {
-          "type": [
-            "boolean"
-          ],
+          "type": "boolean",
           "scope": "resource",
           "default": false,
           "description": "%html.format.templating.desc%"
         },
         "html.format.unformattedContentDelimiter": {
-          "type": [
-            "string"
-          ],
+          "type": "string",
           "scope": "resource",
           "default": "",
           "markdownDescription": "%html.format.unformattedContentDelimiter.desc%"
@@ -244,5 +240,9 @@
   },
   "devDependencies": {
     "@types/node": "^12.19.9"
+  },
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/microsoft/vscode.git"
   }
 }

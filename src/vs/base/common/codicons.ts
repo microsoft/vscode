@@ -531,6 +531,13 @@ export namespace Codicon {
 	export const passFilled = new Codicon('pass-filled', { character: '\\ebb3' });
 	export const circleLargeFilled = new Codicon('circle-large-filled', { character: '\\ebb4' });
 	export const circleLargeOutline = new Codicon('circle-large-outline', { character: '\\ebb5' });
+	export const combine = new Codicon('combine', { character: '\\ebb6' });
+	export const gather = new Codicon('gather', { character: '\\ebb6' });
+	export const table = new Codicon('table', { character: '\\ebb7' });
+	export const variableGroup = new Codicon('variable-group', { character: '\\ebb8' });
+	export const typeHierarchy = new Codicon('type-hierarchy', { character: '\\ebb9' });
+	export const typeHierarchySub = new Codicon('type-hierarchy-sub', { character: '\\ebba' });
+	export const typeHierarchySuper = new Codicon('type-hierarchy-super', { character: '\\ebbb' });
 
 	export const dropDownButton = new Codicon('drop-down-button', Codicon.chevronDown.definition);
 }

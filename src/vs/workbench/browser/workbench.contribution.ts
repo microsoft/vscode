@@ -33,6 +33,11 @@ import { isStandalone } from 'vs/base/browser/browser';
 				'description': nls.localize('showEditorTabs', "Controls whether opened editors should show in tabs or not."),
 				'default': true
 			},
+			'workbench.editor.wrapTabs': {
+				'type': 'boolean',
+				'markdownDescription': nls.localize('wrapTabs', "Controls whether tabs should be wrapped over multiple lines when exceeding available space or whether a scrollbar should appear instead. This value is ignored when `#workbench.editor.showTabs#` is disabled."),
+				'default': false
+			},
 			'workbench.editor.scrollToSwitchTabs': {
 				'type': 'boolean',
 				'markdownDescription': nls.localize({ comment: ['This is the description for a setting. Values surrounded by single quotes are not to be translated.'], key: 'scrollToSwitchTabs' }, "Controls whether scrolling over tabs will open them or not. By default tabs will only reveal upon scrolling, but not open. You can press and hold the Shift-key while scrolling to change this behaviour for that duration. This value is ignored when `#workbench.editor.showTabs#` is disabled."),
@@ -46,12 +51,12 @@ import { isStandalone } from 'vs/base/browser/browser';
 			'workbench.editor.decorations.badges': {
 				'type': 'boolean',
 				'markdownDescription': nls.localize('decorations.badges', "Controls whether editor file decorations should use badges."),
-				'default': true
+				'default': false
 			},
 			'workbench.editor.decorations.colors': {
 				'type': 'boolean',
 				'markdownDescription': nls.localize('decorations.colors', "Controls whether editor file decorations should use colors."),
-				'default': true
+				'default': false
 			},
 			'workbench.editor.labelFormat': {
 				'type': 'string',
@@ -368,7 +373,7 @@ import { isStandalone } from 'vs/base/browser/browser';
 			'window.menuBarVisibility': {
 				'type': 'string',
 				'enum': ['default', 'visible', 'toggle', 'hidden', 'compact'],
-				'enumDescriptions': [
+				'markdownEnumDescriptions': [
 					nls.localize('window.menuBarVisibility.default', "Menu is only hidden in full screen mode."),
 					nls.localize('window.menuBarVisibility.visible', "Menu is always visible even in full screen mode."),
 					nls.localize('window.menuBarVisibility.toggle', "Menu is hidden but can be displayed via Alt key."),
@@ -478,7 +483,7 @@ import { isStandalone } from 'vs/base/browser/browser';
 			},
 			'zenMode.restore': {
 				'type': 'boolean',
-				'default': false,
+				'default': true,
 				'description': nls.localize('zenMode.restore', "Controls whether a window should restore to zen mode if it was exited in zen mode.")
 			},
 			'zenMode.silentNotifications': {
