@@ -16,7 +16,7 @@ import { IInstantiationService } from 'vs/platform/instantiation/common/instanti
 import { ILabelService } from 'vs/platform/label/common/label';
 import { INotificationService } from 'vs/platform/notification/common/notification';
 import { IRequestService } from 'vs/platform/request/common/request';
-import { WorkspaceTrustStateChangeEvent, ITrustedWorkspaceService, WorkspaceTrustState } from 'vs/platform/workspace/common/trustedWorkspace';
+import { WorkspaceTrustStateChangeEvent, IWorkspaceTrustService, WorkspaceTrustState } from 'vs/platform/workspace/common/workspaceTrust';
 import { IWorkspace, IWorkspaceContextService, WorkbenchState } from 'vs/platform/workspace/common/workspace';
 import { isUntitledWorkspace } from 'vs/platform/workspaces/common/workspaces';
 import { extHostNamedCustomer } from 'vs/workbench/api/common/extHostCustomers';
@@ -47,7 +47,7 @@ export class MainThreadWorkspace implements MainThreadWorkspaceShape {
 		@ILabelService private readonly _labelService: ILabelService,
 		@IEnvironmentService private readonly _environmentService: IEnvironmentService,
 		@IFileService fileService: IFileService,
-		@ITrustedWorkspaceService private readonly _trustedWorkspaceService: ITrustedWorkspaceService
+		@IWorkspaceTrustService private readonly _workspaceTrustService: IWorkspaceTrustService
 	) {
 		this._proxy = extHostContext.getProxy(ExtHostContext.ExtHostWorkspace);
 		const workspace = this._contextService.getWorkspace();
@@ -60,7 +60,7 @@ export class MainThreadWorkspace implements MainThreadWorkspaceShape {
 		}
 		this._contextService.onDidChangeWorkspaceFolders(this._onDidChangeWorkspace, this, this._toDispose);
 		this._contextService.onDidChangeWorkbenchState(this._onDidChangeWorkspace, this, this._toDispose);
-		this._trustedWorkspaceService.onDidChangeTrust(this._onDidChangeWorkspaceTrustState, this, this._toDispose);
+		this._workspaceTrustService.onDidChangeTrustState(this._onDidChangeWorkspaceTrustState, this, this._toDispose);
 	}
 
 	dispose(): void {
@@ -209,11 +209,11 @@ export class MainThreadWorkspace implements MainThreadWorkspaceShape {
 	// --- trust ---
 
 	$requireWorkspaceTrust(message?: string): Promise<WorkspaceTrustState> {
-		return this._trustedWorkspaceService.requireWorkspaceTrust({ immediate: true, message });
+		return this._workspaceTrustService.requireWorkspaceTrust({ immediate: true, message });
 	}
 
 	private getWorkspaceTrustState(): WorkspaceTrustState {
-		return this._trustedWorkspaceService.getWorkspaceTrustState();
+		return this._workspaceTrustService.getWorkspaceTrustState();
 	}
 
 	private _onDidChangeWorkspaceTrustState(state: WorkspaceTrustStateChangeEvent): void {

@@ -20,7 +20,7 @@ import { FileSystemProviderCapabilities } from 'vs/platform/files/common/files';
 import { createDecorator } from 'vs/platform/instantiation/common/instantiation';
 import { ILogService } from 'vs/platform/log/common/log';
 import { Severity } from 'vs/platform/notification/common/notification';
-import { WorkspaceTrustStateChangeEvent } from 'vs/platform/workspace/common/trustedWorkspace';
+import { WorkspaceTrustStateChangeEvent } from 'vs/platform/workspace/common/workspaceTrust';
 import { Workspace, WorkspaceFolder } from 'vs/platform/workspace/common/workspace';
 import { IExtHostFileSystemInfo } from 'vs/workbench/api/common/extHostFileSystemInfo';
 import { IExtHostInitDataService } from 'vs/workbench/api/common/extHostInitDataService';

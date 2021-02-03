@@ -23,7 +23,7 @@ import { KeyChord, KeyCode, KeyMod } from 'vs/base/common/keyCodes';
 import { ContextKeyExpr } from 'vs/platform/contextkey/common/contextkey';
 import { IWorkbenchEnvironmentService } from 'vs/workbench/services/environment/common/environmentService';
 import { IWorkspacesService, hasWorkspaceFileExtension } from 'vs/platform/workspaces/common/workspaces';
-import { TRUSTED_WORKSPACES_URI } from 'vs/platform/workspace/common/trustedWorkspace';
+import { WORKSPACE_TRUST_URI } from 'vs/platform/workspace/common/workspaceTrust';
 
 export class OpenFileAction extends Action {
 
@@ -263,7 +263,7 @@ class WorkspaceTrustManageAction extends Action2 {
 
 	run(accessor: ServicesAccessor) {
 		const editorService = accessor.get(IEditorService);
-		editorService.openEditor({ resource: TRUSTED_WORKSPACES_URI, mode: 'jsonc', options: { pinned: true } });
+		editorService.openEditor({ resource: WORKSPACE_TRUST_URI, mode: 'jsonc', options: { pinned: true } });
 	}
 }
 

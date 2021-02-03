@@ -25,7 +25,7 @@ import { ILifecycleService, LifecyclePhase } from 'vs/workbench/services/lifecyc
 import { INotificationService, Severity } from 'vs/platform/notification/common/notification';
 import { IHostService } from 'vs/workbench/services/host/browser/host';
 import { IExtensionBisectService } from 'vs/workbench/services/extensionManagement/browser/extensionBisect';
-import { WorkspaceTrustStateChangeEvent, ITrustedWorkspaceService, WorkspaceTrustState } from 'vs/platform/workspace/common/trustedWorkspace';
+import { WorkspaceTrustStateChangeEvent, IWorkspaceTrustService, WorkspaceTrustState } from 'vs/platform/workspace/common/workspaceTrust';
 import { Promises } from 'vs/base/common/async';
 
 const SOURCE = 'IWorkbenchExtensionEnablementService';
@@ -55,20 +55,20 @@ export class ExtensionEnablementService extends Disposable implements IWorkbench
 		@INotificationService private readonly notificationService: INotificationService,
 		@IHostService private readonly hostService: IHostService,
 		@IExtensionBisectService private readonly extensionBisectService: IExtensionBisectService,
-		@ITrustedWorkspaceService private readonly trustedWorkspaceService: ITrustedWorkspaceService
+		@IWorkspaceTrustService private readonly workspaceTrustService: IWorkspaceTrustService
 	) {
 		super();
 		this.storageManger = this._register(new StorageManager(storageService));
 		this._register(this.globalExtensionEnablementService.onDidChangeEnablement(({ extensions, source }) => this.onDidChangeExtensions(extensions, source)));
 		this._register(extensionManagementService.onDidInstallExtension(this._onDidInstallExtension, this));
 		this._register(extensionManagementService.onDidUninstallExtension(this._onDidUninstallExtension, this));
-		this._register(this.trustedWorkspaceService.onDidChangeTrust(this._onDidChangeTrust, this));
+		this._register(this.workspaceTrustService.onDidChangeTrustState(this._onDidChangeTrustState, this));
 
 		// Trusted extensions notification
 		// TODO: Confirm that this is the right lifecycle phase
 		this.lifecycleService.when(LifecyclePhase.Eventually).then(() => {
 			if (this.extensionsDisabledByTrustRequirement.length > 0) {
-				this.trustedWorkspaceService.requireWorkspaceTrust({ immediate: false });
+				this.workspaceTrustService.requireWorkspaceTrust({ immediate: false });
 			}
 		});
 
@@ -165,7 +165,7 @@ export class ExtensionEnablementService extends Disposable implements IWorkbench
 
 		const result = await Promises.settled(extensions.map(e => {
 			if (this._isDisabledByTrustRequirement(e)) {
-				return this.trustedWorkspaceService.requireWorkspaceTrust({
+				return this.workspaceTrustService.requireWorkspaceTrust({
 					immediate: true,
 					message: 'Enabling this extension requires you to trust the contents of this workspace.'
 				}).then(trustState => {
@@ -272,7 +272,7 @@ export class ExtensionEnablementService extends Disposable implements IWorkbench
 	}
 
 	private _isDisabledByTrustRequirement(extension: IExtension): boolean {
-		const workspaceTrustState = this.trustedWorkspaceService.getWorkspaceTrustState();
+		const workspaceTrustState = this.workspaceTrustService.getWorkspaceTrustState();
 
 		if (extension.manifest.requiresWorkspaceTrust === 'onStart') {
 			if (workspaceTrustState !== WorkspaceTrustState.Trusted) {
@@ -438,7 +438,7 @@ export class ExtensionEnablementService extends Disposable implements IWorkbench
 		}
 	}
 
-	private async _onDidChangeTrust(state: WorkspaceTrustStateChangeEvent): Promise<void> {
+	private async _onDidChangeTrustState(state: WorkspaceTrustStateChangeEvent): Promise<void> {
 		if (state.previousTrustState === WorkspaceTrustState.Trusted && (
 			state.currentTrustState === WorkspaceTrustState.Untrusted ||
 			state.currentTrustState === WorkspaceTrustState.Unknown)) {
@@ -455,7 +455,7 @@ export class ExtensionEnablementService extends Disposable implements IWorkbench
 
 	private _onDidInstallExtension({ local, error }: DidInstallExtensionEvent): void {
 		if (local && !error && this._isDisabledByTrustRequirement(local)) {
-			this.trustedWorkspaceService.requireWorkspaceTrust({
+			this.workspaceTrustService.requireWorkspaceTrust({
 				immediate: true,
 				message: 'Enabling this extension requires you to trust the contents of this workspace.'
 			});

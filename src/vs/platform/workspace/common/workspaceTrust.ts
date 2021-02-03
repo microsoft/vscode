@@ -14,8 +14,8 @@ import { createDecorator } from 'vs/platform/instantiation/common/instantiation'
 import { IStorageService, StorageScope, StorageTarget } from 'vs/platform/storage/common/storage';
 import { IWorkspace, IWorkspaceContextService, WorkbenchState } from 'vs/platform/workspace/common/workspace';
 
-export const TRUSTED_WORKSPACES_ENABLED = 'workspace.trustRequirementEnabled';
-export const TRUSTED_WORKSPACES_URI = URI.parse('trustedWorkspaces:/Trusted Workspaces');
+export const WORKSPACE_TRUST_ENABLED = 'workspace.trustRequirementEnabled';
+export const WORKSPACE_TRUST_URI = URI.parse('workspaceTrust:/Trusted Workspaces');
 
 export enum WorkspaceTrustScope {
 	Local = 0,
@@ -40,31 +40,31 @@ export function workspaceTrustStateToString(trustState: WorkspaceTrustState) {
 	}
 }
 
-export const TrustedWorkspaceContext = {
-	IsPendingRequest: new RawContextKey<boolean>('trustedWorkspaceIsPendingRequest', false),
-	TrustState: new RawContextKey<WorkspaceTrustState>('trustedWorkspaceTrustState', WorkspaceTrustState.Unknown)
+export const WorkspaceTrustContext = {
+	PendingRequest: new RawContextKey<boolean>('workspaceTrustPendingRequest', false),
+	TrustState: new RawContextKey<WorkspaceTrustState>('workspaceTrustState', WorkspaceTrustState.Unknown)
 };
 
-export interface ITrustedContentModel {
+export interface IWorkspaceTrustModel {
 
-	readonly onDidChangeTrust: Event<void>;
+	readonly onDidChangeTrustState: Event<void>;
 
 	setFolderTrustState(folder: URI, trustState: WorkspaceTrustState): void;
 	getFolderTrustState(folder: URI): WorkspaceTrustState;
 }
 
-export interface ITrustedWorkspaceRequest {
+export interface IWorkspaceTrustRequest {
 	immediate: boolean;
 	message?: string;
 }
 
-export interface ITrustedWorkspaceRequestModel {
-	readonly trustRequest: ITrustedWorkspaceRequest | undefined;
+export interface IWorkspaceTrustRequestModel {
+	readonly trustRequest: IWorkspaceTrustRequest | undefined;
 
 	readonly onDidInitiateRequest: Event<void>;
 	readonly onDidCompleteRequest: Event<WorkspaceTrustState | undefined>;
 
-	initiateRequest(request?: ITrustedWorkspaceRequest): void;
+	initiateRequest(request?: IWorkspaceTrustRequest): void;
 	completeRequest(trustState?: WorkspaceTrustState): void;
 }
 
@@ -75,41 +75,43 @@ export interface WorkspaceTrustStateChangeEvent {
 
 export type WorkspaceTrustChangeEvent = Event<WorkspaceTrustStateChangeEvent>;
 
-export const ITrustedWorkspaceService = createDecorator<ITrustedWorkspaceService>('trustedWorkspaceService');
+export const IWorkspaceTrustService = createDecorator<IWorkspaceTrustService>('workspaceTrustService');
 
-export interface ITrustedWorkspaceService {
+export interface IWorkspaceTrustService {
 	readonly _serviceBrand: undefined;
 
-	readonly requestModel: ITrustedWorkspaceRequestModel;
+	readonly requestModel: IWorkspaceTrustRequestModel;
 
-	onDidChangeTrust: WorkspaceTrustChangeEvent;
+	onDidChangeTrustState: WorkspaceTrustChangeEvent;
 	getWorkspaceTrustState(): WorkspaceTrustState;
 	isWorkspaceTrustEnabled(): boolean;
-	requireWorkspaceTrust(request: ITrustedWorkspaceRequest): Promise<WorkspaceTrustState>;
+	requireWorkspaceTrust(request: IWorkspaceTrustRequest): Promise<WorkspaceTrustState>;
 	resetWorkspaceTrust(): Promise<WorkspaceTrustState>;
 }
 
-interface ICachedTrustedContentInfo {
+interface IWorkspaceTrustStateInfo {
 	localFolders: { uri: string, trustState: WorkspaceTrustState }[]
-	trustedRemoteItems: { uri: string }[]
+
+	// Removing complexity of remote items
+	//trustedRemoteItems: { uri: string }[]
 }
 
-export const TRUSTED_WORKSPACES_STORAGE_KEY = 'content.trust.model.key';
+export const WORKSPACE_TRUST_STORAGE_KEY = 'content.trust.model.key';
 
-export class TrustedContentModel extends Disposable implements ITrustedContentModel {
+export class WorkspaceTrustModel extends Disposable implements IWorkspaceTrustModel {
 
-	private storageKey = TRUSTED_WORKSPACES_STORAGE_KEY;
-	private cachedTrustInfo: ICachedTrustedContentInfo;
+	private storageKey = WORKSPACE_TRUST_STORAGE_KEY;
+	private trustStateInfo: IWorkspaceTrustStateInfo;
 
-	private readonly _onDidChangeTrust = this._register(new Emitter<void>());
-	readonly onDidChangeTrust = this._onDidChangeTrust.event;
+	private readonly _onDidChangeTrustState = this._register(new Emitter<void>());
+	readonly onDidChangeTrustState = this._onDidChangeTrustState.event;
 
 	constructor(
 		private readonly storageService: IStorageService
 	) {
 		super();
 
-		this.cachedTrustInfo = this.loadTrustInfo();
+		this.trustStateInfo = this.loadTrustInfo();
 		this._register(this.storageService.onDidChangeValue(changeEvent => {
 			if (changeEvent.key === this.storageKey) {
 				this.onDidStorageChange();
@@ -117,10 +119,10 @@ export class TrustedContentModel extends Disposable implements ITrustedContentMo
 		}));
 	}
 
-	private loadTrustInfo(): ICachedTrustedContentInfo {
+	private loadTrustInfo(): IWorkspaceTrustStateInfo {
 		const infoAsString = this.storageService.get(this.storageKey, StorageScope.GLOBAL);
 
-		let result: ICachedTrustedContentInfo | undefined;
+		let result: IWorkspaceTrustStateInfo | undefined;
 		try {
 			if (infoAsString) {
 				result = JSON.parse(infoAsString);
@@ -130,7 +132,7 @@ export class TrustedContentModel extends Disposable implements ITrustedContentMo
 		if (!result) {
 			result = {
 				localFolders: [],
-				trustedRemoteItems: []
+				//trustedRemoteItems: []
 			};
 		}
 
@@ -138,36 +140,36 @@ export class TrustedContentModel extends Disposable implements ITrustedContentMo
 			result.localFolders = [];
 		}
 
-		if (!result.trustedRemoteItems) {
-			result.trustedRemoteItems = [];
-		}
+		// if (!result.trustedRemoteItems) {
+		// 	result.trustedRemoteItems = [];
+		// }
 
 		return result;
 	}
 
 	private saveTrustInfo(): void {
-		this.storageService.store(this.storageKey, JSON.stringify(this.cachedTrustInfo), StorageScope.GLOBAL, StorageTarget.MACHINE);
+		this.storageService.store(this.storageKey, JSON.stringify(this.trustStateInfo), StorageScope.GLOBAL, StorageTarget.MACHINE);
 	}
 
 	private onDidStorageChange(): void {
-		this.cachedTrustInfo = this.loadTrustInfo();
+		this.trustStateInfo = this.loadTrustInfo();
 
-		this._onDidChangeTrust.fire();
+		this._onDidChangeTrustState.fire();
 	}
 
 	setFolderTrustState(folder: URI, trustState: WorkspaceTrustState): void {
 		let changed = false;
 
 		if (trustState === WorkspaceTrustState.Unknown) {
-			const before = this.cachedTrustInfo.localFolders.length;
-			this.cachedTrustInfo.localFolders = this.cachedTrustInfo.localFolders.filter(info => info.uri !== folder.toString());
+			const before = this.trustStateInfo.localFolders.length;
+			this.trustStateInfo.localFolders = this.trustStateInfo.localFolders.filter(info => info.uri !== folder.toString());
 
-			if (this.cachedTrustInfo.localFolders.length !== before) {
+			if (this.trustStateInfo.localFolders.length !== before) {
 				changed = true;
 			}
 		} else {
 			let found = false;
-			for (const trustInfo of this.cachedTrustInfo.localFolders) {
+			for (const trustInfo of this.trustStateInfo.localFolders) {
 				if (trustInfo.uri === folder.toString()) {
 					found = true;
 					if (trustInfo.trustState !== trustState) {
@@ -178,7 +180,7 @@ export class TrustedContentModel extends Disposable implements ITrustedContentMo
 			}
 
 			if (!found) {
-				this.cachedTrustInfo.localFolders.push({ uri: folder.toString(), trustState });
+				this.trustStateInfo.localFolders.push({ uri: folder.toString(), trustState });
 				changed = true;
 			}
 		}
@@ -189,7 +191,7 @@ export class TrustedContentModel extends Disposable implements ITrustedContentMo
 	}
 
 	getFolderTrustState(folder: URI): WorkspaceTrustState {
-		for (const trustInfo of this.cachedTrustInfo.localFolders) {
+		for (const trustInfo of this.trustStateInfo.localFolders) {
 			if (trustInfo.uri === folder.toString()) {
 				return trustInfo.trustState;
 			}
@@ -199,8 +201,8 @@ export class TrustedContentModel extends Disposable implements ITrustedContentMo
 	}
 }
 
-export class TrustedWorkspaceRequestModel extends Disposable implements ITrustedWorkspaceRequestModel {
-	trustRequest: ITrustedWorkspaceRequest | undefined;
+export class WorkspaceTrustRequestModel extends Disposable implements IWorkspaceTrustRequestModel {
+	trustRequest: IWorkspaceTrustRequest | undefined;
 
 	_onDidInitiateRequest = this._register(new Emitter<void>());
 	onDidInitiateRequest: Event<void> = this._onDidInitiateRequest.event;
@@ -208,7 +210,7 @@ export class TrustedWorkspaceRequestModel extends Disposable implements ITrusted
 	_onDidCompleteRequest = this._register(new Emitter<WorkspaceTrustState | undefined>());
 	onDidCompleteRequest = this._onDidCompleteRequest.event;
 
-	initiateRequest(request: ITrustedWorkspaceRequest): void {
+	initiateRequest(request: IWorkspaceTrustRequest): void {
 		if (this.trustRequest && (!request.immediate || this.trustRequest.immediate)) {
 			return;
 		}
@@ -223,22 +225,22 @@ export class TrustedWorkspaceRequestModel extends Disposable implements ITrusted
 	}
 }
 
-export class TrustedWorkspaceService extends Disposable implements ITrustedWorkspaceService {
+export class WorkspaceTrustService extends Disposable implements IWorkspaceTrustService {
 
 	_serviceBrand: undefined;
-	private readonly dataModel: ITrustedContentModel;
-	readonly requestModel: ITrustedWorkspaceRequestModel;
+	private readonly dataModel: IWorkspaceTrustModel;
+	readonly requestModel: IWorkspaceTrustRequestModel;
 
-	private readonly _onDidChangeTrust = this._register(new Emitter<WorkspaceTrustStateChangeEvent>());
-	readonly onDidChangeTrust = this._onDidChangeTrust.event;
+	private readonly _onDidChangeTrustState = this._register(new Emitter<WorkspaceTrustStateChangeEvent>());
+	readonly onDidChangeTrustState = this._onDidChangeTrustState.event;
 
 	private _currentTrustState: WorkspaceTrustState = WorkspaceTrustState.Unknown;
 	private _inFlightResolver?: (trustState: WorkspaceTrustState) => void;
 	private _trustRequestPromise?: Promise<WorkspaceTrustState>;
 	private _workspace: IWorkspace;
 
-	private readonly _ctxTrustedWorkspaceTrustState: IContextKey<WorkspaceTrustState>;
-	private readonly _ctxTrustedWorkspacePendingRequest: IContextKey<boolean>;
+	private readonly _ctxWorkspaceTrustState: IContextKey<WorkspaceTrustState>;
+	private readonly _ctxWorkspaceTrustPendingRequest: IContextKey<boolean>;
 
 	constructor(
 		@IStorageService private readonly storageService: IStorageService,
@@ -248,18 +250,18 @@ export class TrustedWorkspaceService extends Disposable implements ITrustedWorks
 	) {
 		super();
 
-		this.dataModel = this._register(new TrustedContentModel(this.storageService));
-		this.requestModel = this._register(new TrustedWorkspaceRequestModel());
+		this.dataModel = this._register(new WorkspaceTrustModel(this.storageService));
+		this.requestModel = this._register(new WorkspaceTrustRequestModel());
 
 		this._workspace = this.workspaceService.getWorkspace();
 		this._currentTrustState = this.calculateWorkspaceTrustState();
 
-		this._register(this.dataModel.onDidChangeTrust(() => this.currentTrustState = this.calculateWorkspaceTrustState()));
+		this._register(this.dataModel.onDidChangeTrustState(() => this.currentTrustState = this.calculateWorkspaceTrustState()));
 		this._register(this.requestModel.onDidCompleteRequest((trustState) => this.onTrustRequestCompleted(trustState)));
 
-		this._ctxTrustedWorkspaceTrustState = TrustedWorkspaceContext.TrustState.bindTo(contextKeyService);
-		this._ctxTrustedWorkspacePendingRequest = TrustedWorkspaceContext.IsPendingRequest.bindTo(contextKeyService);
-		this._ctxTrustedWorkspaceTrustState.set(this.currentTrustState);
+		this._ctxWorkspaceTrustState = WorkspaceTrustContext.TrustState.bindTo(contextKeyService);
+		this._ctxWorkspaceTrustPendingRequest = WorkspaceTrustContext.PendingRequest.bindTo(contextKeyService);
+		this._ctxWorkspaceTrustState.set(this.currentTrustState);
 	}
 
 	private get currentTrustState(): WorkspaceTrustState {
@@ -271,7 +273,7 @@ export class TrustedWorkspaceService extends Disposable implements ITrustedWorks
 		const previousState = this._currentTrustState;
 		this._currentTrustState = trustState;
 
-		this._onDidChangeTrust.fire({ previousTrustState: previousState, currentTrustState: this._currentTrustState });
+		this._onDidChangeTrustState.fire({ previousTrustState: previousState, currentTrustState: this._currentTrustState });
 	}
 
 	private calculateWorkspaceTrustState(): WorkspaceTrustState {
@@ -320,8 +322,8 @@ export class TrustedWorkspaceService extends Disposable implements ITrustedWorks
 			this.dataModel.setFolderTrustState(folder.uri, trustState);
 		});
 
-		this._ctxTrustedWorkspacePendingRequest.set(false);
-		this._ctxTrustedWorkspaceTrustState.set(trustState);
+		this._ctxWorkspaceTrustPendingRequest.set(false);
+		this._ctxWorkspaceTrustState.set(trustState);
 	}
 
 	getWorkspaceTrustState(): WorkspaceTrustState {
@@ -329,10 +331,10 @@ export class TrustedWorkspaceService extends Disposable implements ITrustedWorks
 	}
 
 	isWorkspaceTrustEnabled(): boolean {
-		return this.configurationService.getValue<boolean>(TRUSTED_WORKSPACES_ENABLED) ?? false;
+		return this.configurationService.getValue<boolean>(WORKSPACE_TRUST_ENABLED) ?? false;
 	}
 
-	async requireWorkspaceTrust(request?: ITrustedWorkspaceRequest): Promise<WorkspaceTrustState> {
+	async requireWorkspaceTrust(request?: IWorkspaceTrustRequest): Promise<WorkspaceTrustState> {
 		if (this.currentTrustState === WorkspaceTrustState.Trusted) {
 			return this.currentTrustState;
 		}
@@ -355,7 +357,7 @@ export class TrustedWorkspaceService extends Disposable implements ITrustedWorks
 		});
 
 		this.requestModel.initiateRequest(request);
-		this._ctxTrustedWorkspacePendingRequest.set(true);
+		this._ctxWorkspaceTrustPendingRequest.set(true);
 
 		return this._trustRequestPromise;
 	}
@@ -370,4 +372,4 @@ export class TrustedWorkspaceService extends Disposable implements ITrustedWorks
 	}
 }
 
-registerSingleton(ITrustedWorkspaceService, TrustedWorkspaceService);
+registerSingleton(IWorkspaceTrustService, WorkspaceTrustService);

@@ -59,7 +59,7 @@ import { IContextMenuProvider } from 'vs/base/browser/contextmenu';
 import { ILogService } from 'vs/platform/log/common/log';
 import * as Constants from 'vs/workbench/contrib/logs/common/logConstants';
 import { infoIcon, manageExtensionIcon, syncEnabledIcon, syncIgnoredIcon, trustIcon, warningIcon } from 'vs/workbench/contrib/extensions/browser/extensionsIcons';
-import { ITrustedWorkspaceService } from 'vs/platform/workspace/common/trustedWorkspace';
+import { IWorkspaceTrustService } from 'vs/platform/workspace/common/workspaceTrust';
 
 function getRelativeDateLabel(date: Date): string {
 	const delta = new Date().getTime() - date.getTime();
@@ -2125,7 +2125,7 @@ export class SystemDisabledWarningAction extends ExtensionAction {
 		@IExtensionService private readonly extensionService: IExtensionService,
 		@IProductService private readonly productService: IProductService,
 		@IConfigurationService private readonly configurationService: IConfigurationService,
-		@ITrustedWorkspaceService private readonly trustedWorkspaceService: ITrustedWorkspaceService
+		@IWorkspaceTrustService private readonly workspaceTrustService: IWorkspaceTrustService
 	) {
 		super('extensions.install', '', `${SystemDisabledWarningAction.CLASS} hide`, false);
 		this._register(this.labelService.onDidChangeFormatters(() => this.update(), this));
@@ -2191,7 +2191,7 @@ export class SystemDisabledWarningAction extends ExtensionAction {
 				return;
 			}
 		}
-		if (this.trustedWorkspaceService.isWorkspaceTrustEnabled() && this.extension.enablementState === EnablementState.DisabledByTrustRequirement) {
+		if (this.workspaceTrustService.isWorkspaceTrustEnabled() && this.extension.enablementState === EnablementState.DisabledByTrustRequirement) {
 			this.class = `${SystemDisabledWarningAction.TRUST_CLASS}`;
 			this.tooltip = localize('extension disabled because of trust requirement', "This extension has been disabled as it requires a trusted workspace");
 			return;

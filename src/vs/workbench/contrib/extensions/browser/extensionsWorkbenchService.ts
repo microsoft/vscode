@@ -41,7 +41,7 @@ import { FileAccess } from 'vs/base/common/network';
 import { IIgnoredExtensionsManagementService } from 'vs/platform/userDataSync/common/ignoredExtensions';
 import { IUserDataAutoSyncService } from 'vs/platform/userDataSync/common/userDataSync';
 import { IContextKey, IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
-import { ITrustedWorkspaceService, WorkspaceTrustState } from 'vs/platform/workspace/common/trustedWorkspace';
+import { IWorkspaceTrustService, WorkspaceTrustState } from 'vs/platform/workspace/common/workspaceTrust';
 
 interface IExtensionStateProvider<T> {
 	(extension: Extension): T;
@@ -526,7 +526,7 @@ export class ExtensionsWorkbenchService extends Disposable implements IExtension
 		@IUserDataAutoSyncService private readonly userDataAutoSyncService: IUserDataAutoSyncService,
 		@IProductService private readonly productService: IProductService,
 		@IContextKeyService contextKeyService: IContextKeyService,
-		@ITrustedWorkspaceService private readonly trustedWorkspaceService: ITrustedWorkspaceService
+		@IWorkspaceTrustService private readonly workspaceTrustService: IWorkspaceTrustService
 	) {
 		super();
 		this.hasOutdatedExtensionsContextKey = HasOutdatedExtensionsContext.bindTo(contextKeyService);
@@ -1073,7 +1073,7 @@ export class ExtensionsWorkbenchService extends Disposable implements IExtension
 
 	private async promptForTrustIfNeededAndInstall<T>(manifest: IExtensionManifest, installTask: () => Promise<T>): Promise<T> {
 		if (manifest.requiresWorkspaceTrust === 'onStart') {
-			const trustState = await this.trustedWorkspaceService.requireWorkspaceTrust(
+			const trustState = await this.workspaceTrustService.requireWorkspaceTrust(
 				{
 					immediate: true,
 					message: 'Installing this extension requires you to trust the contents of this workspace.'

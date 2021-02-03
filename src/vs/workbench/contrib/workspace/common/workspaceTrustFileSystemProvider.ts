@@ -10,9 +10,9 @@ import { FileDeleteOptions, FileOverwriteOptions, FileSystemProviderCapabilities
 import { IStorageService, StorageScope, StorageTarget } from 'vs/platform/storage/common/storage';
 import { IWorkbenchContribution } from 'vs/workbench/common/contributions';
 import { VSBuffer } from 'vs/base/common/buffer';
-import { TRUSTED_WORKSPACES_STORAGE_KEY } from 'vs/platform/workspace/common/trustedWorkspace';
+import { WORKSPACE_TRUST_STORAGE_KEY } from 'vs/platform/workspace/common/workspaceTrust';
 
-const TRUSTED_WORKSPACES_SCHEMA = 'trustedWorkspaces';
+const WORKSPACE_TRUST_SCHEMA = 'workspaceTrust';
 
 const TRUSTED_WORKSPACES_STAT: IStat = {
 	type: FileType.File,
@@ -26,7 +26,7 @@ const PREPENDED_TEXT = `// The following file is a placeholder UX for managing t
 // and list the extensions with associated functionality.
 `;
 
-export class TrustedWorkspacesFileSystemProvider implements IFileSystemProviderWithFileReadWriteCapability, IWorkbenchContribution {
+export class WorkspaceTrustFileSystemProvider implements IFileSystemProviderWithFileReadWriteCapability, IWorkbenchContribution {
 	readonly capabilities = FileSystemProviderCapabilities.FileReadWrite;
 
 	readonly onDidChangeCapabilities = Event.None;
@@ -36,7 +36,7 @@ export class TrustedWorkspacesFileSystemProvider implements IFileSystemProviderW
 		@IFileService private readonly fileService: IFileService,
 		@IStorageService private readonly storageService: IStorageService,
 	) {
-		this.fileService.registerProvider(TRUSTED_WORKSPACES_SCHEMA, this);
+		this.fileService.registerProvider(WORKSPACE_TRUST_SCHEMA, this);
 	}
 
 	stat(resource: URI): Promise<IStat> {
@@ -44,11 +44,11 @@ export class TrustedWorkspacesFileSystemProvider implements IFileSystemProviderW
 	}
 
 	async readFile(resource: URI): Promise<Uint8Array> {
-		let trustedWorkspacesContent = this.storageService.get(TRUSTED_WORKSPACES_STORAGE_KEY, StorageScope.GLOBAL);
+		let workspacesTrustContent = this.storageService.get(WORKSPACE_TRUST_STORAGE_KEY, StorageScope.GLOBAL);
 
 		let objectForm = {};
 		try {
-			objectForm = JSON.parse(trustedWorkspacesContent || '{}');
+			objectForm = JSON.parse(workspacesTrustContent || '{}');
 		} catch { }
 
 		const buffer = VSBuffer.fromString(PREPENDED_TEXT + JSON.stringify(objectForm, undefined, 2)).buffer;
@@ -57,8 +57,8 @@ export class TrustedWorkspacesFileSystemProvider implements IFileSystemProviderW
 
 	writeFile(resource: URI, content: Uint8Array, opts: FileWriteOptions): Promise<void> {
 		try {
-			const trustedWorkspacesContent = VSBuffer.wrap(content).toString().replace(PREPENDED_TEXT, '');
-			this.storageService.store(TRUSTED_WORKSPACES_STORAGE_KEY, trustedWorkspacesContent, StorageScope.GLOBAL, StorageTarget.MACHINE);
+			const workspacesTrustContent = VSBuffer.wrap(content).toString().replace(PREPENDED_TEXT, '');
+			this.storageService.store(WORKSPACE_TRUST_STORAGE_KEY, workspacesTrustContent, StorageScope.GLOBAL, StorageTarget.MACHINE);
 		} catch (err) { }
 
 		return Promise.resolve();

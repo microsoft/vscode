@@ -18,7 +18,7 @@ import { IExtHostInitDataService } from 'vs/workbench/api/common/extHostInitData
 import { IExtHostFileSystemInfo } from 'vs/workbench/api/common/extHostFileSystemInfo';
 import { FileSystemProviderCapabilities } from 'vs/platform/files/common/files';
 import { isLinux } from 'vs/base/common/platform';
-import { WorkspaceTrustState } from 'vs/platform/workspace/common/trustedWorkspace';
+import { WorkspaceTrustState } from 'vs/platform/workspace/common/workspaceTrust';
 
 suite('ExtHostConfiguration', function () {
 

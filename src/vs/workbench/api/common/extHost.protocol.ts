@@ -60,7 +60,7 @@ import { IAccessibilityInformation } from 'vs/platform/accessibility/common/acce
 import { IExtensionIdWithVersion } from 'vs/platform/userDataSync/common/extensionsStorageSync';
 import { InternalTestItem, InternalTestResults, RunTestForProviderRequest, RunTestsRequest, RunTestsResult, TestIdWithProvider, TestsDiff } from 'vs/workbench/contrib/testing/common/testCollection';
 import { CandidatePort } from 'vs/workbench/services/remote/common/remoteExplorerService';
-import { WorkspaceTrustStateChangeEvent } from 'vs/platform/workspace/common/trustedWorkspace';
+import { WorkspaceTrustStateChangeEvent } from 'vs/platform/workspace/common/workspaceTrust';
 
 export interface IEnvironment {
 	isExtensionDevelopmentDebug: boolean;
