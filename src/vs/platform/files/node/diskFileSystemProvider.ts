@@ -3,7 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { mkdir, open, close, read, write, fdatasync, Dirent, Stats, promises } from 'fs';
+import { open, close, read, write, fdatasync, Dirent, Stats, promises } from 'fs';
 import { promisify } from 'util';
 import { IDisposable, Disposable, toDisposable, dispose, combinedDisposable } from 'vs/base/common/lifecycle';
 import { FileSystemProviderCapabilities, IFileChange, IWatchOptions, IStat, FileType, FileDeleteOptions, FileOverwriteOptions, FileWriteOptions, FileOpenOptions, FileSystemProviderErrorCode, createFileSystemProviderError, FileSystemProviderError, IFileSystemProviderWithFileReadWriteCapability, IFileSystemProviderWithFileReadStreamCapability, IFileSystemProviderWithOpenReadWriteCloseCapability, FileReadStreamOptions, IFileSystemProviderWithFileFolderCopyCapability } from 'vs/platform/files/common/files';
@@ -400,7 +400,7 @@ export class DiskFileSystemProvider extends Disposable implements
 
 	async mkdir(resource: URI): Promise<void> {
 		try {
-			await promisify(mkdir)(this.toFilePath(resource));
+			await promises.mkdir(this.toFilePath(resource));
 		} catch (error) {
 			throw this.toFileSystemProviderError(error);
 		}

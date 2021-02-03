@@ -18,7 +18,6 @@ import { IExtHostTunnelService, TunnelDto } from 'vs/workbench/api/common/extHos
 import { Event, Emitter } from 'vs/base/common/event';
 import { TunnelOptions, TunnelCreationOptions } from 'vs/platform/remote/common/tunnel';
 import { IExtensionDescription } from 'vs/platform/extensions/common/extensions';
-import { promisify } from 'util';
 import { MovingAverage } from 'vs/base/common/numbers';
 import { CandidatePort } from 'vs/workbench/services/remote/common/remoteExplorerService';
 import { ILogService } from 'vs/platform/log/common/log';
@@ -288,7 +287,7 @@ export class ExtHostTunnelService extends Disposable implements IExtHostTunnelSe
 				const childUri = resources.joinPath(URI.file('/proc'), childName);
 				const childStat = await fs.promises.stat(childUri.fsPath);
 				if (childStat.isDirectory() && !isNaN(pid)) {
-					const cwd = await promisify(fs.readlink)(resources.joinPath(childUri, 'cwd').fsPath);
+					const cwd = await fs.promises.readlink(resources.joinPath(childUri, 'cwd').fsPath);
 					const cmd = await fs.promises.readFile(resources.joinPath(childUri, 'cmdline').fsPath, 'utf8');
 					processes.push({ pid, cwd, cmd });
 				}

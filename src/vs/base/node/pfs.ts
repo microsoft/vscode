@@ -9,7 +9,6 @@ import { join } from 'vs/base/common/path';
 import { Queue } from 'vs/base/common/async';
 import { isMacintosh, isWindows } from 'vs/base/common/platform';
 import { Event } from 'vs/base/common/event';
-import { promisify } from 'util';
 import { isRootOrDriveLetter } from 'vs/base/common/extpath';
 import { generateUuid } from 'vs/base/common/uuid';
 import { normalizeNFC } from 'vs/base/common/normalization';
@@ -95,11 +94,11 @@ export function rimrafSync(path: string): void {
 //#region readdir with NFC support (macos)
 
 export async function readdir(path: string): Promise<string[]> {
-	return handleDirectoryChildren(await promisify(fs.readdir)(path));
+	return handleDirectoryChildren(await fs.promises.readdir(path));
 }
 
 export async function readdirWithFileTypes(path: string): Promise<fs.Dirent[]> {
-	const children = await promisify(fs.readdir)(path, { withFileTypes: true });
+	const children = await fs.promises.readdir(path, { withFileTypes: true });
 
 	// Mac: uses NFD unicode form on disk, but we want NFC
 	// See also https://github.com/nodejs/node/issues/2165
