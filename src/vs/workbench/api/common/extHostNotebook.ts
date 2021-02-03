@@ -191,21 +191,22 @@ async function withToken(cb: (token: CancellationToken) => any) {
 	}
 }
 
-export class NotebookEditorDecorationType implements vscode.NotebookEditorDecorationType {
+export class NotebookEditorDecorationType {
 
 	private static readonly _Keys = new IdGenerator('NotebookEditorDecorationType');
 
-	private _proxy: MainThreadNotebookShape;
-	public key: string;
+	readonly value: vscode.NotebookEditorDecorationType;
 
 	constructor(proxy: MainThreadNotebookShape, options: vscode.NotebookDecorationRenderOptions) {
-		this.key = NotebookEditorDecorationType._Keys.nextId();
-		this._proxy = proxy;
-		this._proxy.$registerNotebookEditorDecorationType(this.key, typeConverters.NotebookDecorationRenderOptions.from(options));
-	}
+		const key = NotebookEditorDecorationType._Keys.nextId();
+		proxy.$registerNotebookEditorDecorationType(key, typeConverters.NotebookDecorationRenderOptions.from(options));
 
-	public dispose(): void {
-		this._proxy.$removeNotebookEditorDecorationType(this.key);
+		this.value = {
+			key,
+			dispose() {
+				proxy.$removeNotebookEditorDecorationType(key);
+			}
+		};
 	}
 }
 
@@ -367,7 +368,7 @@ export class ExtHostNotebookController implements ExtHostNotebookShape, ExtHostN
 	}
 
 	createNotebookEditorDecorationType(options: vscode.NotebookDecorationRenderOptions): vscode.NotebookEditorDecorationType {
-		return new NotebookEditorDecorationType(this._proxy, options);
+		return new NotebookEditorDecorationType(this._proxy, options).value;
 	}
 
 	async openNotebookDocument(uriComponents: UriComponents, viewType?: string): Promise<vscode.NotebookDocument> {

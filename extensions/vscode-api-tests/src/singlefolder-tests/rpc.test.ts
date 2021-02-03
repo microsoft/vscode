@@ -91,4 +91,10 @@ suite('vscode', function () {
 		dispo.push(item);
 		assertNoRpcFromEntry([item, 'TreeView']);
 	});
+
+	test('no rpc, createNotebookEditorDecorationType(...)', function () {
+		const item = vscode.notebook.createNotebookEditorDecorationType({ top: {} });
+		dispo.push(item);
+		assertNoRpcFromEntry([item, 'NotebookEditorDecorationType']);
+	});
 });
