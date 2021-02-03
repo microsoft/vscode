@@ -25,7 +25,6 @@ export function randomTestActivate(context: vscode.ExtensionContext): any {
 	}));
 
 	context.subscriptions.push(vscode.notebook.registerNotebookContentProvider('notebookRandomTest', {
-		onDidChangeNotebook: new vscode.EventEmitter<vscode.NotebookDocumentEditEvent>().event,
 		openNotebook: async (resource: vscode.Uri) => {
 			const defaultData = <vscode.NotebookData>{
 				languages: ['typescript'],
