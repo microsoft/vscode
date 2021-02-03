@@ -122,6 +122,12 @@ export class CodeCell extends Disposable {
 			}
 		}));
 
+		this._register(viewCell.onDidChangeLayout((e) => {
+			if (e.totalHeight) {
+				this.relayoutCell();
+			}
+		}));
+
 		this._register(templateData.editor.onDidContentSizeChange((e) => {
 			if (e.contentHeightChanged) {
 				if (this.viewCell.layoutInfo.editorHeight !== e.contentHeight) {
