@@ -58,16 +58,8 @@
   resolved "https://registry.yarnpkg.com/@types/node/-/node-12.19.15.tgz#0de7e978fb43db62da369db18ea088a63673c182"
   integrity sha512-lowukE3GUI+VSYSu6VcBXl14d61Rp5hA1D+61r16qnwC0lYNSqdxcvRh0pswejorHfS+HgwBasM8jLXz0/aOsw==
 
-"emmet@git+https://github.com/rzhao271/emmet.git#1b2df677d8925ef5ea6da9df8845968403979a0a":
-  version "2.3.0"
-  resolved "git+https://github.com/rzhao271/emmet.git#1b2df677d8925ef5ea6da9df8845968403979a0a"
-  dependencies:
-    "@emmetio/abbreviation" "^2.2.0"
-    "@emmetio/css-abbreviation" "^2.1.2"
-
 "emmet@https://github.com/rzhao271/emmet.git#1b2df677d8925ef5ea6da9df8845968403979a0a":
   version "2.3.0"
-  uid "1b2df677d8925ef5ea6da9df8845968403979a0a"
   resolved "https://github.com/rzhao271/emmet.git#1b2df677d8925ef5ea6da9df8845968403979a0a"
   dependencies:
     "@emmetio/abbreviation" "^2.2.0"
