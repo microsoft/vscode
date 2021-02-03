@@ -789,6 +789,7 @@ const ContextKeys = {
 	SCMProvider: new RawContextKey<string | undefined>('scmProvider', undefined),
 	SCMProviderRootUri: new RawContextKey<string | undefined>('scmProviderRootUri', undefined),
 	SCMProviderHasRootUri: new RawContextKey<boolean>('scmProviderHasRootUri', undefined),
+	RepositoryVisibilityCount: new RawContextKey<number>('scmRepositoryVisibleCount', 0),
 	RepositoryVisibility(repository: ISCMRepository) {
 		return new RawContextKey<boolean>(`scmRepositoryVisible:${repository.provider.id}`, false);
 	}
@@ -804,7 +805,7 @@ class RepositoryVisibilityAction extends Action2 {
 			id: `workbench.scm.action.toggleRepositoryVisibility.${repository.provider.id}`,
 			title,
 			f1: false,
-			// precondition: TODO@joao,
+			precondition: ContextKeyExpr.or(ContextKeys.RepositoryVisibilityCount.notEqualsTo(1), ContextKeys.RepositoryVisibility(repository).isEqualTo(false)),
 			toggled: ContextKeys.RepositoryVisibility(repository).isEqualTo(true),
 			menu: { id: Menus.Repositories }
 		});
@@ -825,6 +826,7 @@ interface RepositoryVisibilityItem {
 class RepositoryVisibilityActionController {
 
 	private items = new Map<ISCMRepository, RepositoryVisibilityItem>();
+	private repositoryVisibilityCountContextKey: IContextKey<number>;
 	private disposables = new DisposableStore();
 
 	constructor(
@@ -832,12 +834,15 @@ class RepositoryVisibilityActionController {
 		@ISCMService scmService: ISCMService,
 		@IContextKeyService private contextKeyService: IContextKeyService
 	) {
+		this.repositoryVisibilityCountContextKey = ContextKeys.RepositoryVisibilityCount.bindTo(contextKeyService);
+
+		scmViewService.onDidChangeVisibleRepositories(this.onDidChangeVisibleRepositories, this, this.disposables);
 		scmService.onDidAddRepository(this.onDidAddRepository, this, this.disposables);
 		scmService.onDidRemoveRepository(this.onDidRemoveRepository, this, this.disposables);
+
 		for (const repository of scmService.repositories) {
 			this.onDidAddRepository(repository);
 		}
-		scmViewService.onDidChangeVisibleRepositories(this.onDidChangeVisibleRepositories, this, this.disposables);
 	}
 
 	private onDidAddRepository(repository: ISCMRepository): void {
@@ -853,20 +858,37 @@ class RepositoryVisibilityActionController {
 		this.items.set(repository, {
 			contextKey,
 			dispose() {
+				contextKey.reset();
 				action.dispose();
 			}
 		});
+		this.updateVisibleRepositoriesCount();
 	}
 
 	private onDidRemoveRepository(repository: ISCMRepository): void {
 		this.items.get(repository)?.dispose();
 		this.items.delete(repository);
+		this.updateVisibleRepositoriesCount();
 	}
 
 	private onDidChangeVisibleRepositories(): void {
+		let count = 0;
+
 		for (const [repository, item] of this.items) {
-			item.contextKey.set(this.scmViewService.isVisible(repository));
+			const isVisible = this.scmViewService.isVisible(repository);
+			item.contextKey.set(isVisible);
+
+			if (isVisible) {
+				count++;
+			}
 		}
+
+		this.repositoryVisibilityCountContextKey.set(count);
+	}
+
+	private updateVisibleRepositoriesCount(): void {
+		const count = Iterable.reduce(this.items.keys(), (r, repository) => r + (this.scmViewService.isVisible(repository) ? 1 : 0), 0);
+		this.repositoryVisibilityCountContextKey.set(count);
 	}
 
 	dispose(): void {
