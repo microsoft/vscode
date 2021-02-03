@@ -7,9 +7,9 @@ import * as fs from 'fs';
 import { tmpdir } from 'os';
 import { join } from 'vs/base/common/path';
 import { Queue } from 'vs/base/common/async';
-import { isMacintosh, isWindows } from 'vs/base/common/platform';
+import { isLinux, isMacintosh, isWindows } from 'vs/base/common/platform';
 import { Event } from 'vs/base/common/event';
-import { isRootOrDriveLetter } from 'vs/base/common/extpath';
+import { isEqualOrParent, isRootOrDriveLetter } from 'vs/base/common/extpath';
 import { generateUuid } from 'vs/base/common/uuid';
 import { normalizeNFC } from 'vs/base/common/normalization';
 
@@ -523,6 +523,12 @@ export async function move(source: string, target: string): Promise<void> {
 	}
 }
 
+interface ICopyPayload {
+	readonly root: { source: string, target: string };
+	readonly options: { preserveSymlinks: boolean };
+	readonly handledSourcePaths: Set<string>;
+}
+
 /**
  * Recursively copies all of `source` to `target`.
  *
@@ -531,7 +537,7 @@ export async function move(source: string, target: string): Promise<void> {
  * `false` to not preserve them and `true` otherwise.
  */
 export async function copy(source: string, target: string, options: { preserveSymlinks: boolean }): Promise<void> {
-	return doCopy(source, target, options, new Set<string>());
+	return doCopy(source, target, { root: { source, target }, options, handledSourcePaths: new Set<string>() });
 }
 
 // When copying a file or folder, we want to preserve the mode
@@ -540,14 +546,14 @@ export async function copy(source: string, target: string, options: { preserveSy
 // (https://github.com/nodejs/node-v0.x-archive/issues/3045#issuecomment-4862588)
 const COPY_MODE_MASK = 0o777;
 
-async function doCopy(source: string, target: string, options: { preserveSymlinks: boolean }, handledSourcePaths: Set<string>): Promise<void> {
+async function doCopy(source: string, target: string, payload: ICopyPayload): Promise<void> {
 
 	// Keep track of paths already copied to prevent
 	// cycles from symbolic links to cause issues
-	if (handledSourcePaths.has(source)) {
+	if (payload.handledSourcePaths.has(source)) {
 		return;
 	} else {
-		handledSourcePaths.add(source);
+		payload.handledSourcePaths.add(source);
 	}
 
 	const { stat, symbolicLink } = await SymlinkSupport.stat(source);
@@ -559,9 +565,9 @@ async function doCopy(source: string, target: string, options: { preserveSymlink
 		}
 
 		// Try to re-create the symlink unless `preserveSymlinks: false`
-		if (options.preserveSymlinks) {
+		if (payload.options.preserveSymlinks) {
 			try {
-				return await doCopySymlink(source, target);
+				return await doCopySymlink(source, target, payload);
 			} catch (error) {
 				// in any case of an error fallback to normal copy via dereferencing
 				console.warn('[node.js fs] copy of symlink failed: ', error);
@@ -571,7 +577,7 @@ async function doCopy(source: string, target: string, options: { preserveSymlink
 
 	// Folder
 	if (stat.isDirectory()) {
-		return doCopyDirectory(source, target, stat.mode & COPY_MODE_MASK, options, handledSourcePaths);
+		return doCopyDirectory(source, target, stat.mode & COPY_MODE_MASK, payload);
 	}
 
 	// File or file-like
@@ -580,7 +586,7 @@ async function doCopy(source: string, target: string, options: { preserveSymlink
 	}
 }
 
-async function doCopyDirectory(source: string, target: string, mode: number, options: { preserveSymlinks: boolean }, handledSourcePaths: Set<string>,): Promise<void> {
+async function doCopyDirectory(source: string, target: string, mode: number, payload: ICopyPayload): Promise<void> {
 
 	// Create folder
 	await fs.promises.mkdir(target, { recursive: true, mode });
@@ -588,7 +594,7 @@ async function doCopyDirectory(source: string, target: string, mode: number, opt
 	// Copy each file recursively
 	const files = await readdir(source);
 	for (const file of files) {
-		await doCopy(join(source, file), join(target, file), options, handledSourcePaths);
+		await doCopy(join(source, file), join(target, file), payload);
 	}
 }
 
@@ -601,10 +607,18 @@ async function doCopyFile(source: string, target: string, mode: number): Promise
 	await fs.promises.chmod(target, mode);
 }
 
-async function doCopySymlink(source: string, target: string): Promise<void> {
+async function doCopySymlink(source: string, target: string, payload: ICopyPayload): Promise<void> {
 
 	// Figure out link target
-	const linkTarget = await fs.promises.readlink(source);
+	let linkTarget = await fs.promises.readlink(source);
+
+	// Special case: the symlink points to a target that is
+	// actually within the path that is being copied. In that
+	// case we want the symlink to point to the target and
+	// not the source
+	if (isEqualOrParent(linkTarget, payload.root.source, !isLinux)) {
+		linkTarget = join(payload.root.target, linkTarget.substr(payload.root.source.length + 1));
+	}
 
 	// Create symlink
 	await fs.promises.symlink(linkTarget, target);
