@@ -23,9 +23,6 @@ export function setup() {
 
 			await app.workbench.extensions.waitForExtensionsViewlet();
 
-			if (app.remote) {
-				await app.reload();
-			}
 			await app.workbench.quickaccess.runCommand('Smoke Test Check');
 			await app.workbench.statusbar.waitForStatusbarText('smoke test', 'VS Code Smoke Test Check');
 		});
