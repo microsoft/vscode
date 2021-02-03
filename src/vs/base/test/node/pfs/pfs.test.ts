@@ -190,23 +190,39 @@ flakySuite('PFS', function () {
 		assert.ok(!fs.existsSync(parentDir));
 	});
 
-	test('copy skips over dangling symbolic links', async () => {
+	test('copy handles symbolic links', async () => {
 		const id1 = generateUuid();
 		const symbolicLinkTarget = join(testDir, id1);
 
 		const id2 = generateUuid();
-		const symbolicLink = join(testDir, id2);
+		const symLink = join(testDir, id2);
 
 		const id3 = generateUuid();
 		const copyTarget = join(testDir, id3);
 
 		await fs.promises.mkdir(symbolicLinkTarget, { recursive: true });
 
-		fs.symlinkSync(symbolicLinkTarget, symbolicLink, 'junction');
+		fs.symlinkSync(symbolicLinkTarget, symLink, 'junction');
 
+		// Copy preserves symlinks
+
+		await copy(symLink, copyTarget);
+
+		assert.ok(fs.existsSync(copyTarget));
+
+		const { symbolicLink } = await SymlinkSupport.stat(copyTarget);
+		assert.ok(symbolicLink);
+		assert.ok(!symbolicLink.dangling);
+
+		const target = await fs.promises.readlink(copyTarget);
+		assert.strictEqual(target, symbolicLinkTarget);
+
+		// Copy ignores dangling symlinks
+
+		await rimraf(copyTarget);
 		await rimraf(symbolicLinkTarget);
 
-		await copy(symbolicLink, copyTarget); // this should not throw
+		await copy(symLink, copyTarget); // this should not throw
 
 		assert.ok(!fs.existsSync(copyTarget));
 	});

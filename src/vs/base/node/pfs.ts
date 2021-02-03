@@ -530,79 +530,80 @@ export async function move(source: string, target: string): Promise<void> {
  * as files and folders.
  */
 export async function copy(source: string, target: string): Promise<void> {
-	return doCopy(source, target);
+	return doCopy(source, target, new Set<string>());
 }
 
 // When copying a file or folder, we want to preserve the mode
 // it had and as such provide it when creating. However, modes
 // can go beyond what we expect (see link below), so we mask it.
 // (https://github.com/nodejs/node-v0.x-archive/issues/3045#issuecomment-4862588)
-//
-// The `copy` method is very old so we should probably revisit
-// it's implementation and check wether this mask is still needed.
 const COPY_MODE_MASK = 0o777;
 
-async function doCopy(source: string, target: string, handledSourcesIn?: { [path: string]: boolean }): Promise<void> {
+async function doCopy(source: string, target: string, handledSourcePaths: Set<string>): Promise<void> {
 
 	// Keep track of paths already copied to prevent
 	// cycles from symbolic links to cause issues
-	const handledSources = handledSourcesIn ?? Object.create(null);
-	if (handledSources[source]) {
+	if (handledSourcePaths.has(source)) {
 		return;
 	} else {
-		handledSources[source] = true;
+		handledSourcePaths.add(source);
 	}
 
 	const { stat, symbolicLink } = await SymlinkSupport.stat(source);
-	if (symbolicLink?.dangling) {
-		return; // skip over dangling symbolic links (https://github.com/microsoft/vscode/issues/111621)
+
+	// Symlink
+	if (symbolicLink) {
+		if (symbolicLink.dangling) {
+			return; // do not copy dangling symbolic links (https://github.com/microsoft/vscode/issues/111621)
+		}
+
+		try {
+			return await doCopySymlink(source, target);
+		} catch (error) {
+			// in any case of an error fallback to normal copy via dereferencing
+			console.warn('[node.js fs] copy of symlink failed: ', error);
+		}
 	}
 
-	if (!stat.isDirectory()) {
+	// Folder
+	if (stat.isDirectory()) {
+		return doCopyDirectory(source, target, stat.mode & COPY_MODE_MASK, handledSourcePaths);
+	}
+
+	// File or file-like
+	else if (stat.isFile() || stat.isCharacterDevice() || stat.isBlockDevice()) {
 		return doCopyFile(source, target, stat.mode & COPY_MODE_MASK);
 	}
+}
+
+async function doCopyDirectory(source: string, target: string, mode: number, handledSourcePaths: Set<string>): Promise<void> {
 
 	// Create folder
-	await fs.promises.mkdir(target, { recursive: true, mode: stat.mode & COPY_MODE_MASK });
+	await fs.promises.mkdir(target, { recursive: true, mode });
 
 	// Copy each file recursively
 	const files = await readdir(source);
-	for (let i = 0; i < files.length; i++) {
-		const file = files[i];
-		await doCopy(join(source, file), join(target, file), handledSources);
+	for (const file of files) {
+		await doCopy(join(source, file), join(target, file), handledSourcePaths);
 	}
 }
 
 async function doCopyFile(source: string, target: string, mode: number): Promise<void> {
-	return new Promise((resolve, reject) => {
-		const reader = fs.createReadStream(source);
-		const writer = fs.createWriteStream(target, { mode });
 
-		let finished = false;
-		const finish = (error?: Error) => {
-			if (!finished) {
-				finished = true;
+	// Copy file
+	await fs.promises.copyFile(source, target);
 
-				// in error cases, pass to callback
-				if (error) {
-					return reject(error);
-				}
+	// restore mode (https://github.com/nodejs/node/issues/1104)
+	await fs.promises.chmod(target, mode);
+}
 
-				// we need to explicitly chmod because of https://github.com/nodejs/node/issues/1104
-				fs.chmod(target, mode, error => error ? reject(error) : resolve());
-			}
-		};
+async function doCopySymlink(source: string, target: string): Promise<void> {
 
-		// handle errors properly
-		reader.once('error', error => finish(error));
-		writer.once('error', error => finish(error));
+	// Figure out link target
+	const linkTarget = await fs.promises.readlink(source);
 
-		// we are done (underlying fd has been closed)
-		writer.once('close', () => finish());
-
-		// start piping
-		reader.pipe(writer);
-	});
+	// Create symlink
+	await fs.promises.symlink(linkTarget, target);
 }
 
 //#endregion
