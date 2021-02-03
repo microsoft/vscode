@@ -9,7 +9,7 @@ import { join } from 'vs/base/common/path';
 import { tmpdir } from 'os';
 import { promises } from 'fs';
 import { strictEqual, ok } from 'assert';
-import { writeFile, exists, unlink, rimraf } from 'vs/base/node/pfs';
+import { writeFile, exists, rimraf } from 'vs/base/node/pfs';
 import { timeout } from 'vs/base/common/async';
 import { Event, Emitter } from 'vs/base/common/event';
 import { isWindows } from 'vs/base/common/platform';
@@ -476,7 +476,7 @@ flakySuite('SQLite Storage Library', function () {
 		// on shutdown.
 		await storage.checkIntegrity(true).then(null, error => { } /* error is expected here but we do not want to fail */);
 
-		await unlink(backupPath); // also test that the recovery DB is backed up properly
+		await promises.unlink(backupPath); // also test that the recovery DB is backed up properly
 
 		let recoveryCalled = false;
 		await storage.close(() => {

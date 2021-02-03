@@ -3,14 +3,14 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { mkdir, open, close, read, write, fdatasync, Dirent, Stats } from 'fs';
+import { mkdir, open, close, read, write, fdatasync, Dirent, Stats, promises } from 'fs';
 import { promisify } from 'util';
 import { IDisposable, Disposable, toDisposable, dispose, combinedDisposable } from 'vs/base/common/lifecycle';
 import { FileSystemProviderCapabilities, IFileChange, IWatchOptions, IStat, FileType, FileDeleteOptions, FileOverwriteOptions, FileWriteOptions, FileOpenOptions, FileSystemProviderErrorCode, createFileSystemProviderError, FileSystemProviderError, IFileSystemProviderWithFileReadWriteCapability, IFileSystemProviderWithFileReadStreamCapability, IFileSystemProviderWithOpenReadWriteCloseCapability, FileReadStreamOptions, IFileSystemProviderWithFileFolderCopyCapability } from 'vs/platform/files/common/files';
 import { URI } from 'vs/base/common/uri';
 import { Event, Emitter } from 'vs/base/common/event';
 import { isLinux, isWindows } from 'vs/base/common/platform';
-import { SymlinkSupport, unlink, move, copy, readFile, truncate, rimraf, RimRafMode, exists, readdirWithFileTypes } from 'vs/base/node/pfs';
+import { SymlinkSupport, move, copy, rimraf, RimRafMode, exists, readdirWithFileTypes } from 'vs/base/node/pfs';
 import { normalize, basename, dirname } from 'vs/base/common/path';
 import { joinPath } from 'vs/base/common/resources';
 import { isEqual } from 'vs/base/common/extpath';
@@ -151,7 +151,7 @@ export class DiskFileSystemProvider extends Disposable implements
 		try {
 			const filePath = this.toFilePath(resource);
 
-			return await readFile(filePath);
+			return await promises.readFile(filePath);
 		} catch (error) {
 			throw this.toFileSystemProviderError(error);
 		}
@@ -218,7 +218,7 @@ export class DiskFileSystemProvider extends Disposable implements
 						// by first truncating the file and then writing with r+ flag. This helps to save hidden files on Windows
 						// (see https://github.com/microsoft/vscode/issues/931) and prevent removing alternate data streams
 						// (see https://github.com/microsoft/vscode/issues/6363)
-						await truncate(filePath, 0);
+						await promises.truncate(filePath, 0);
 
 						// After a successful truncate() the flag can be set to 'r+' which will not truncate.
 						flags = 'r+';
@@ -420,7 +420,7 @@ export class DiskFileSystemProvider extends Disposable implements
 		if (opts.recursive) {
 			await rimraf(filePath, RimRafMode.MOVE);
 		} else {
-			await unlink(filePath);
+			await promises.unlink(filePath);
 		}
 	}
 

@@ -64,7 +64,7 @@ async function rimrafMove(path: string): Promise<void> {
 	try {
 		const pathInTemp = join(tmpdir(), generateUuid());
 		try {
-			await rename(path, pathInTemp);
+			await fs.promises.rename(path, pathInTemp);
 		} catch (error) {
 			return rimrafUnlink(path); // if rename fails, delete without tmp dir
 		}
@@ -197,7 +197,7 @@ export namespace SymlinkSupport {
 		// First stat the link
 		let lstats: fs.Stats | undefined;
 		try {
-			lstats = await lstat(path);
+			lstats = await fs.promises.lstat(path);
 
 			// Return early if the stat is not a symbolic link at all
 			if (!lstats.isSymbolicLink()) {
@@ -225,7 +225,7 @@ export namespace SymlinkSupport {
 			// are not supported (https://github.com/nodejs/node/issues/36790)
 			if (isWindows && error.code === 'EACCES' && lstats) {
 				try {
-					const stats = await fs.promises.stat(await readlink(path));
+					const stats = await fs.promises.stat(await fs.promises.readlink(path));
 
 					return { stat: stats, symbolicLink: lstats.isSymbolicLink() ? { dangling: false } : undefined };
 				} catch (error) {
@@ -443,7 +443,7 @@ export async function move(source: string, target: string): Promise<void> {
 	}
 
 	try {
-		await rename(source, target);
+		await fs.promises.rename(source, target);
 		await updateMtime(target);
 	} catch (error) {
 
@@ -549,48 +549,6 @@ export async function exists(path: string): Promise<boolean> {
 	} catch {
 		return false;
 	}
-}
-
-export function chmod(path: string, mode: number): Promise<void> {
-	return promisify(fs.chmod)(path, mode);
-}
-
-export function stat(path: string): Promise<fs.Stats> {
-	return promisify(fs.stat)(path);
-}
-
-export function lstat(path: string): Promise<fs.Stats> {
-	return promisify(fs.lstat)(path);
-}
-
-export function rename(oldPath: string, newPath: string): Promise<void> {
-	return promisify(fs.rename)(oldPath, newPath);
-}
-
-export function renameIgnoreError(oldPath: string, newPath: string): Promise<void> {
-	return new Promise(resolve => fs.rename(oldPath, newPath, () => resolve()));
-}
-
-export function readlink(path: string): Promise<string> {
-	return promisify(fs.readlink)(path);
-}
-
-export function unlink(path: string): Promise<void> {
-	return promisify(fs.unlink)(path);
-}
-
-export function symlink(target: string, path: string, type?: string): Promise<void> {
-	return promisify(fs.symlink)(target, path, type);
-}
-
-export function truncate(path: string, len: number): Promise<void> {
-	return promisify(fs.truncate)(path, len);
-}
-
-export function readFile(path: string): Promise<Buffer>;
-export function readFile(path: string, encoding: string): Promise<string>;
-export function readFile(path: string, encoding?: string): Promise<Buffer | string> {
-	return promisify(fs.readFile)(path, encoding);
 }
 
 //#endregion

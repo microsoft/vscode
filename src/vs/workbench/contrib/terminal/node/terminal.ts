@@ -4,8 +4,9 @@
  *--------------------------------------------------------------------------------------------*/
 
 import * as os from 'os';
+import * as fs from 'fs';
 import * as platform from 'vs/base/common/platform';
-import { readFile, SymlinkSupport, stat, lstat } from 'vs/base/node/pfs';
+import { SymlinkSupport } from 'vs/base/node/pfs';
 import { LinuxDistro, IShellDefinition } from 'vs/workbench/contrib/terminal/common/terminal';
 import { coalesce } from 'vs/base/common/arrays';
 import { normalize, basename } from 'vs/base/common/path';
@@ -18,7 +19,7 @@ if (platform.isLinux) {
 		if (!exists) {
 			return;
 		}
-		const buffer = await readFile(file);
+		const buffer = await fs.promises.readFile(file);
 		const contents = buffer.toString();
 		if (/NAME="?Fedora"?/.test(contents)) {
 			detectedDistro = LinuxDistro.Fedora;
@@ -86,7 +87,7 @@ async function detectAvailableWindowsShells(): Promise<IShellDefinition[]> {
 }
 
 async function detectAvailableUnixShells(): Promise<IShellDefinition[]> {
-	const contents = await readFile('/etc/shells', 'utf8');
+	const contents = await fs.promises.readFile('/etc/shells', 'utf8');
 	const shells = contents.split('\n').filter(e => e.trim().indexOf('#') !== 0 && e.trim().length > 0);
 	return shells.map(e => {
 		return {
@@ -105,7 +106,7 @@ async function validateShellPaths(label: string, potentialPaths: string[]): Prom
 		return validateShellPaths(label, potentialPaths);
 	}
 	try {
-		const result = await stat(normalize(current));
+		const result = await fs.promises.stat(normalize(current));
 		if (result.isFile() || result.isSymbolicLink()) {
 			return {
 				label,
@@ -117,7 +118,7 @@ async function validateShellPaths(label: string, potentialPaths: string[]): Prom
 		// throw 'permission denied' using 'stat' but don't throw
 		// using 'lstat'
 		try {
-			const result = await lstat(normalize(current));
+			const result = await fs.promises.lstat(normalize(current));
 			if (result.isFile() || result.isSymbolicLink()) {
 				return {
 					label,

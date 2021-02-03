@@ -8,7 +8,7 @@ import * as fs from 'fs';
 import { tmpdir } from 'os';
 import { join, sep } from 'vs/base/common/path';
 import { generateUuid } from 'vs/base/common/uuid';
-import { copy, exists, move, readdir, readDirsInDir, readdirWithFileTypes, readFile, renameIgnoreError, rimraf, RimRafMode, rimrafSync, SymlinkSupport, writeFile, writeFileSync } from 'vs/base/node/pfs';
+import { copy, exists, move, readdir, readDirsInDir, readdirWithFileTypes, rimraf, RimRafMode, rimrafSync, SymlinkSupport, writeFile, writeFileSync } from 'vs/base/node/pfs';
 import { timeout } from 'vs/base/common/async';
 import { getPathFromAmdModule } from 'vs/base/common/amd';
 import { canNormalize } from 'vs/base/common/normalization';
@@ -36,7 +36,7 @@ flakySuite('PFS', function () {
 
 		await writeFile(testFile, 'Hello World', (null!));
 
-		assert.strictEqual((await readFile(testFile)).toString(), 'Hello World');
+		assert.strictEqual((await fs.promises.readFile(testFile)).toString(), 'Hello World');
 	});
 
 	test('writeFile - parallel write on different files works', async () => {
@@ -151,10 +151,6 @@ flakySuite('PFS', function () {
 		rimrafSync(testDir);
 
 		assert.ok(!fs.existsSync(testDir));
-	});
-
-	test('moveIgnoreError', () => {
-		return renameIgnoreError(join(testDir, 'foo'), join(testDir, 'bar'));
 	});
 
 	test('copy, move and delete', async () => {
