@@ -14,7 +14,7 @@ import { createDecorator } from 'vs/platform/instantiation/common/instantiation'
 import { IStorageService, StorageScope, StorageTarget } from 'vs/platform/storage/common/storage';
 import { IWorkspace, IWorkspaceContextService, WorkbenchState } from 'vs/platform/workspace/common/workspace';
 
-export const WORKSPACE_TRUST_ENABLED = 'workspace.trustRequirementEnabled';
+export const WORKSPACE_TRUST_ENABLED = 'workspace.trustEnabled';
 export const WORKSPACE_TRUST_URI = URI.parse('workspaceTrust:/Trusted Workspaces');
 
 export enum WorkspaceTrustScope {

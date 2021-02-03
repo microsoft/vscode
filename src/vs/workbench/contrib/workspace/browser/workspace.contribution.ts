@@ -69,10 +69,10 @@ export class WorkspaceTrustRequestHandler extends Disposable implements IWorkben
 						Severity.Warning,
 						localize('immediateTrustRequestTitle', "Do you trust the files in this folder?"),
 						[
-							localize('grantWorkspaceTrust', "Trust"),
-							localize('denyWorkspaceTrust', "Don't Trust"),
-							localize('manageWorkspaceTrust', "Manage"),
-							localize('cancelWorkspaceTrust', "Cancel"),
+							localize('grantWorkspaceTrustButton', "Trust"),
+							localize('denyWorkspaceTrustButton', "Don't Trust"),
+							localize('manageWorkspaceTrustButton', "Manage"),
+							localize('cancelWorkspaceTrustButton', "Cancel"),
 						],
 						{
 							cancelId: 3,
@@ -192,7 +192,7 @@ registerAction2(class extends Action2 {
 			id: 'workbench.trust.grant',
 			title: {
 				original: 'Grant Workspace Trust',
-				value: localize('grantTrustWorkspace', "Grant Workspace Trust")
+				value: localize('grantWorkspaceTrust', "Grant Workspace Trust")
 			},
 			category: localize('workspacesCategory', "Workspaces"),
 			f1: true,
@@ -211,7 +211,7 @@ registerAction2(class extends Action2 {
 		const workspaceTrustService = accessor.get(IWorkspaceTrustService);
 
 		const result = await dialogService.confirm({
-			message: localize('grantTrustWorkspace', "Grant Workspace Trust"),
+			message: localize('grantWorkspaceTrust', "Grant Workspace Trust"),
 			detail: localize('confirmGrantWorkspaceTrust', "Granting trust to the workspace will enable features that may pose a security risk if the contents of the workspace cannot be trusted. Are you sure you want to trust this workspace?"),
 			primaryButton: localize('yes', 'Yes'),
 			secondaryButton: localize('no', 'No')
@@ -232,7 +232,7 @@ registerAction2(class extends Action2 {
 			id: 'workbench.trust.deny',
 			title: {
 				original: 'Deny Workspace Trust',
-				value: localize('denyTrustWorkspace', "Deny Workspace Trust")
+				value: localize('denyWorkspaceTrust', "Deny Workspace Trust")
 			},
 			category: localize('workspacesCategory', "Workspaces"),
 			f1: true,
@@ -251,7 +251,7 @@ registerAction2(class extends Action2 {
 		const workspaceTrustService = accessor.get(IWorkspaceTrustService);
 
 		const result = await dialogService.confirm({
-			message: localize('denyTrustWorkspace', "Deny Workspace Trust"),
+			message: localize('denyWorkspaceTrust', "Deny Workspace Trust"),
 			detail: localize('confirmDenyWorkspaceTrust', "Denying trust to the workspace will disable features that may pose a security risk if the contents of the workspace cannot be trusted. Are you sure you want to deny trust to this workspace?"),
 			primaryButton: localize('yes', 'Yes'),
 			secondaryButton: localize('no', 'No')
@@ -305,14 +305,14 @@ registerAction2(class extends Action2 {
 			id: 'workbench.trust.manage',
 			title: {
 				original: 'Manage Trusted Workspaces',
-				value: localize('manageTrustWorkspace', "Manage Trusted Workspaces")
+				value: localize('manageWorkspaceTrust', "Manage Trusted Workspaces")
 			},
 			category: localize('workspacesCategory', "Workspaces"),
 			menu: {
 				id: MenuId.GlobalActivity,
 				group: '7_trust',
 				order: 40,
-				when: ContextKeyExpr.and(ContextKeyExpr.equals('config.workspace.trustRequirementEnabled', true), WorkspaceTrustContext.PendingRequest.negate())
+				when: ContextKeyExpr.and(ContextKeyExpr.equals(`config.${WORKSPACE_TRUST_ENABLED}`, true), WorkspaceTrustContext.PendingRequest.negate())
 			},
 		});
 	}
@@ -327,9 +327,9 @@ registerAction2(class extends Action2 {
 MenuRegistry.appendMenuItem(MenuId.GlobalActivity, {
 	command: {
 		id: 'workbench.trust.manage',
-		title: localize('manageTrustWorkspacePending', "Manage Trusted Workspaces (1)"),
+		title: localize('manageWorkspaceTrustPending', "Manage Trusted Workspaces (1)"),
 	},
 	group: '7_trust',
 	order: 40,
-	when: ContextKeyExpr.and(ContextKeyExpr.equals('config.workspace.trustRequirementEnabled', true), WorkspaceTrustContext.PendingRequest)
+	when: ContextKeyExpr.and(ContextKeyExpr.equals(`config.${WORKSPACE_TRUST_ENABLED}`, true), WorkspaceTrustContext.PendingRequest)
 });
