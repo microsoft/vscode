@@ -12287,6 +12287,9 @@ declare module 'vscode' {
 		 * on the accounts activity bar icon. An entry for the extension will be added under the menu to sign in. This
 		 * allows quietly prompting the user to sign in.
 		 *
+		 * If there is a matching session but the extension has not been granted access to it, setting this to true
+		 * will also result in an immediate modal dialog, and false will add a numbered badge to the accounts icon.
+		 *
 		 * Defaults to false.
 		 */
 		createIfNone?: boolean;
