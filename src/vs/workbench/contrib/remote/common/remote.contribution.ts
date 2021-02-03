@@ -171,7 +171,7 @@ Registry.as<IConfigurationRegistry>(ConfigurationExtensions.Configuration)
 						}
 					}
 				},
-				markdownDescription: localize('remote.portsAttributes', "Allows setting of default properties that are set when a specific port number is forwarded. For example:\n\n```\n\"3000\": {\n  \"label\": \"Labeled Port\"\n},\n\"40000-55000\": {\n  \"onAutoForward\": \"ignore\"\n}\n```"),
+				markdownDescription: localize('remote.portsAttributes', "Set default properties that are applied when a specific port number is forwarded. For example:\n\n```\n\"3000\": {\n  \"label\": \"Labeled Port\"\n},\n\"40000-55000\": {\n  \"onAutoForward\": \"ignore\"\n}\n```"),
 				defaultSnippets: [{ body: { '${1:3000}': { label: '${2:My Port}', onAutoForward: 'notify' } } }]
 			}
 		}
