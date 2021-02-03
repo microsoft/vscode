@@ -7,7 +7,7 @@ import { ISCMResource, ISCMRepository, ISCMResourceGroup, ISCMInput, ISCMService
 import { IMenu } from 'vs/platform/actions/common/actions';
 import { ActionBar } from 'vs/base/browser/ui/actionbar/actionbar';
 import { IDisposable, Disposable, combinedDisposable, toDisposable } from 'vs/base/common/lifecycle';
-import { Action, IAction } from 'vs/base/common/actions';
+import { Action, IAction, IActionViewItem } from 'vs/base/common/actions';
 import { createAndFillInActionBarActions, createAndFillInContextMenuActions } from 'vs/platform/actions/browser/menuEntryActionViewItem';
 import { equals } from 'vs/base/common/arrays';
 import { ActionViewItem } from 'vs/base/browser/ui/actionbar/actionViewItems';
@@ -96,7 +96,7 @@ export class StatusBarAction extends Action {
 	}
 }
 
-export class StatusBarActionViewItem extends ActionViewItem {
+class StatusBarActionViewItem extends ActionViewItem {
 
 	constructor(action: StatusBarAction) {
 		super(null, action, {});
@@ -107,6 +107,14 @@ export class StatusBarActionViewItem extends ActionViewItem {
 			reset(this.label, ...renderLabelWithIcons(this.getAction().label));
 		}
 	}
+}
+
+export function getStatusBarActionViewItem(action: IAction): IActionViewItem | undefined {
+	if (action instanceof StatusBarAction) {
+		return new StatusBarActionViewItem(action);
+	}
+
+	return undefined;
 }
 
 export function getRepositoryVisibilityActions(scmService: ISCMService, scmViewService: ISCMViewService): IAction[] {
