@@ -41,6 +41,7 @@ import { RemoteNameContext } from 'vs/workbench/browser/contextkeys';
 import { IPreferencesService } from 'vs/workbench/services/preferences/common/preferences';
 import { killTerminalIcon, newTerminalIcon } from 'vs/workbench/contrib/terminal/browser/terminalIcons';
 import { Codicon } from 'vs/base/common/codicons';
+import { equals } from 'vs/base/common/objects';
 
 async function getCwdForSplit(configHelper: ITerminalConfigHelper, instance: ITerminalInstance, folders?: IWorkspaceFolder[], commandService?: ICommandService): Promise<string | URI | undefined> {
 	switch (configHelper.config.splitCwd) {
@@ -349,7 +350,7 @@ export class SwitchTerminalAction extends Action {
 export class SwitchTerminalActionViewItem extends SelectActionViewItem {
 
 	public static readonly SEPARATOR = '─────────';
-
+	private lastItems: ISelectOptionItem[] = [];
 	constructor(
 		action: IAction,
 		@ITerminalService private readonly _terminalService: ITerminalService,
@@ -376,7 +377,12 @@ export class SwitchTerminalActionViewItem extends SelectActionViewItem {
 	}
 
 	private _updateItems(): void {
-		this.setOptions(getTerminalSelectOpenItems(this._terminalService, this._contributions), this._terminalService.activeTabIndex);
+		const items = getTerminalSelectOpenItems(this._terminalService, this._contributions);
+		// when onDidChangeConnectionState is fired, only update options if they've changed
+		if (!equals(Object.values(items), Object.values(this.lastItems))) {
+			this.setOptions(items, this._terminalService.activeTabIndex);
+			this.lastItems = items;
+		}
 	}
 }
 
