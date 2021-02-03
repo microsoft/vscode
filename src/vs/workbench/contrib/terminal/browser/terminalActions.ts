@@ -378,7 +378,7 @@ export class SwitchTerminalActionViewItem extends SelectActionViewItem {
 
 	private _updateItems(): void {
 		const items = getTerminalSelectOpenItems(this._terminalService, this._contributions);
-		// when onDidChangeConnectionState is fired, only update options if they've changed
+		// only update options if they've changed
 		if (!equals(Object.values(items), Object.values(this.lastItems))) {
 			this.setOptions(items, this._terminalService.activeTabIndex);
 			this.lastItems = items;
