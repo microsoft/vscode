@@ -81,6 +81,7 @@ export class GettingStartedPage extends Disposable {
 	private inProgressScroll = Promise.resolve();
 
 	private dispatchListeners: DisposableStore = new DisposableStore();
+	private taskDisposables: DisposableStore = new DisposableStore();
 
 	private gettingStartedCategories: IGettingStartedCategoryWithProgress[];
 	private currentCategory: IGettingStartedCategoryWithProgress | undefined;
@@ -202,6 +203,7 @@ export class GettingStartedPage extends Disposable {
 
 	private selectTask(container: HTMLElement, id: string | undefined) {
 		const mediaElement = assertIsDefined(container.querySelector('.getting-started-media'));
+		this.taskDisposables.clear();
 		if (id) {
 			const taskElement = assertIsDefined(container.querySelector(`[data-task-id="${id}"]`));
 			if (!this.currentCategory || this.currentCategory.content.type !== 'items') {
@@ -212,6 +214,7 @@ export class GettingStartedPage extends Disposable {
 
 			mediaElement.setAttribute('src', taskToExpand.media.path.toString());
 			mediaElement.setAttribute('alt', taskToExpand.media.altText);
+			this.taskDisposables.add(addDisposableListener(mediaElement, 'click', () => taskElement.querySelector('button')?.click()));
 			taskElement.parentElement?.querySelectorAll('.expanded').forEach(node => node.classList.remove('expanded'));
 			taskElement.classList.add('expanded');
 			taskElement.querySelector('button')?.focus();
