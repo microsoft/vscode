@@ -28,7 +28,7 @@ import { IViewletViewOptions } from 'vs/workbench/browser/parts/views/viewsViewl
 import { IExtensionService } from 'vs/workbench/services/extensions/common/extensions';
 import { IWorkspaceContextService } from 'vs/platform/workspace/common/workspace';
 import { Component } from 'vs/workbench/common/component';
-import { registerAction2, Action2, IAction2Options, IMenuService, MenuId, MenuRegistry, ISubmenuItem, SubmenuItemAction, MenuItemAction } from 'vs/platform/actions/common/actions';
+import { registerAction2, Action2, IAction2Options, IMenuService, MenuId, MenuRegistry, ISubmenuItem, SubmenuItemAction } from 'vs/platform/actions/common/actions';
 import { CompositeDragAndDropObserver, DragAndDropObserver, toggleDropEffect } from 'vs/workbench/browser/dnd';
 import { Orientation } from 'vs/base/browser/ui/sash/sash';
 import { RunOnceScheduler } from 'vs/base/common/async';
@@ -36,7 +36,7 @@ import { KeyMod, KeyCode, KeyChord } from 'vs/base/common/keyCodes';
 import { KeybindingWeight } from 'vs/platform/keybinding/common/keybindingsRegistry';
 import { ViewPane } from 'vs/workbench/browser/parts/views/viewPane';
 import { CompositeMenuActions } from 'vs/workbench/browser/menuActions';
-import { MenuEntryActionViewItem, SubmenuEntryActionViewItem } from 'vs/platform/actions/browser/menuEntryActionViewItem';
+import { createActionViewItem } from 'vs/platform/actions/browser/menuEntryActionViewItem';
 
 export const ViewsSubMenu = new MenuId('Views');
 MenuRegistry.appendMenuItem(MenuId.ViewContainerTitle, <ISubmenuItem>{
@@ -590,28 +590,33 @@ export class ViewPaneContainer extends Component implements IViewPaneContainer {
 	}
 
 	getSecondaryActions2(): IAction[] {
+		const viewPaneActions = this.isViewMergedWithContainer() ? this.paneItems[0].pane.getSecondaryActions() : [];
 		let menuActions = this.menuActions.getSecondaryActions();
-		const isViewsSubMenuAction = (action: IAction) => action instanceof SubmenuItemAction && action.item.submenu === ViewsSubMenu;
-		const index = menuActions.findIndex(a => isViewsSubMenuAction(a));
-		const viewPaneContainerActions = this.isViewMergedWithContainer() ? this.paneItems[0].pane.getSecondaryActions() : [];
-		if (index !== -1) {
-			if (index !== 0) {
-				menuActions = [menuActions[index], ...menuActions.slice(0, index), ...menuActions.slice(index + 1)];
-			}
-			if (menuActions.length === 1 && viewPaneContainerActions.length === 0) {
-				menuActions = (<SubmenuItemAction>menuActions[0]).actions.slice();
+
+		const viewsSubmenuActionIndex = menuActions.findIndex(action => action instanceof SubmenuItemAction && action.item.submenu === ViewsSubMenu);
+		if (viewsSubmenuActionIndex !== -1) {
+			const viewsSubmenuAction = <SubmenuItemAction>menuActions[viewsSubmenuActionIndex];
+			if (viewsSubmenuAction.actions.some(({ enabled }) => enabled)) {
+				if (menuActions.length === 1 && viewPaneActions.length === 0) {
+					menuActions = viewsSubmenuAction.actions.slice();
+				} else if (viewsSubmenuActionIndex !== 0) {
+					menuActions = [viewsSubmenuAction, ...menuActions.slice(0, viewsSubmenuActionIndex), ...menuActions.slice(viewsSubmenuActionIndex + 1)];
+				}
+			} else {
+				// Remove views submenu if none of the actions are enabled
+				menuActions.splice(viewsSubmenuActionIndex, 1);
 			}
 		}
 
-		if (menuActions.length && viewPaneContainerActions.length) {
+		if (menuActions.length && viewPaneActions.length) {
 			return [
 				...menuActions,
 				new Separator(),
-				...viewPaneContainerActions
+				...viewPaneActions
 			];
 		}
 
-		return menuActions.length ? menuActions : viewPaneContainerActions;
+		return menuActions.length ? menuActions : viewPaneActions;
 	}
 
 	getSecondaryActions(): IAction[] {
@@ -626,16 +631,7 @@ export class ViewPaneContainer extends Component implements IViewPaneContainer {
 		if (this.isViewMergedWithContainer()) {
 			return this.paneItems[0].pane.getActionViewItem(action);
 		}
-
-		if (action instanceof MenuItemAction) {
-			return this.instantiationService.createInstance(MenuEntryActionViewItem, action);
-		}
-
-		if (action instanceof SubmenuItemAction) {
-			return this.instantiationService.createInstance(SubmenuEntryActionViewItem, action);
-		}
-
-		return undefined;
+		return createActionViewItem(this.instantiationService, action);
 	}
 
 	focus(): void {

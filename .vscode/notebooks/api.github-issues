@@ -8,7 +8,7 @@
   {
     "kind": 2,
     "language": "github-issues",
-    "value": "$repo=repo:microsoft/vscode\n$milestone=milestone:\"January 2021\"",
+    "value": "$repo=repo:microsoft/vscode\n$milestone=milestone:\"February 2021\"",
     "editable": true
   },
   {

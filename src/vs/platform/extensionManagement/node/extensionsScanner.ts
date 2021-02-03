@@ -11,7 +11,7 @@ import { ILogService } from 'vs/platform/log/common/log';
 import { ILocalExtension, IGalleryMetadata, ExtensionManagementError } from 'vs/platform/extensionManagement/common/extensionManagement';
 import { ExtensionType, IExtensionManifest, IExtensionIdentifier } from 'vs/platform/extensions/common/extensions';
 import { areSameExtensions, ExtensionIdentifierWithVersion, groupByExtension, getGalleryExtensionId } from 'vs/platform/extensionManagement/common/extensionManagementUtil';
-import { Limiter, Queue } from 'vs/base/common/async';
+import { Limiter, Promises, Queue } from 'vs/base/common/async';
 import { URI } from 'vs/base/common/uri';
 import { INativeEnvironmentService } from 'vs/platform/environment/common/environment';
 import { localizeManifest } from 'vs/platform/extensionManagement/common/extensionNls';
@@ -300,14 +300,14 @@ export class ExtensionsScanner extends Disposable {
 			}
 		}
 		const byExtension: ILocalExtension[][] = groupByExtension(extensions, e => e.identifier);
-		await Promise.all(byExtension.map(async e => {
+		await Promises.settled(byExtension.map(async e => {
 			const latest = e.sort((a, b) => semver.rcompare(a.manifest.version, b.manifest.version))[0];
 			if (!installed.has(latest.identifier.id.toLowerCase())) {
 				await this.beforeRemovingExtension(latest);
 			}
 		}));
 		const toRemove: ILocalExtension[] = extensions.filter(e => uninstalled[new ExtensionIdentifierWithVersion(e.identifier, e.manifest.version).key()]);
-		await Promise.all(toRemove.map(e => this.removeUninstalledExtension(e)));
+		await Promises.settled(toRemove.map(e => this.removeUninstalledExtension(e)));
 	}
 
 	private async removeOutdatedExtensions(): Promise<void> {
@@ -318,7 +318,7 @@ export class ExtensionsScanner extends Disposable {
 		const byExtension: ILocalExtension[][] = groupByExtension(extensions, e => e.identifier);
 		toRemove.push(...flatten(byExtension.map(p => p.sort((a, b) => semver.rcompare(a.manifest.version, b.manifest.version)).slice(1))));
 
-		await Promise.all(toRemove.map(extension => this.removeExtension(extension, 'outdated')));
+		await Promises.settled(toRemove.map(extension => this.removeExtension(extension, 'outdated')));
 	}
 
 	private getDevSystemExtensionsList(): string[] {

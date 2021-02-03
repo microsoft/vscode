@@ -53,6 +53,7 @@ export interface ICompleteTerminalConfiguration {
 	'terminal.integrated.inheritEnv': boolean;
 	'terminal.integrated.cwd': string;
 	'terminal.integrated.detectLocale': 'auto' | 'off' | 'on';
+	'terminal.flowControl': boolean;
 }
 
 export type ITerminalEnvironmentVariableCollections = [string, ISerializableEnvironmentVariableCollection][];
@@ -153,6 +154,11 @@ export interface ITriggerTerminalDataReplayArguments {
 	id: number;
 }
 
+export interface ISendCharCountToTerminalProcessArguments {
+	id: number;
+	charCount: number;
+}
+
 export interface IRemoteTerminalProcessReadyEvent {
 	type: 'ready';
 	pid: number;
@@ -243,6 +249,7 @@ export class RemoteTerminalChannelClient {
 			'terminal.integrated.inheritEnv': terminalConfig.inheritEnv,
 			'terminal.integrated.cwd': terminalConfig.cwd,
 			'terminal.integrated.detectLocale': terminalConfig.detectLocale,
+			'terminal.flowControl': terminalConfig.flowControl
 		};
 
 		// We will use the resolver service to resolve all the variables in the config / launch config
@@ -321,6 +328,13 @@ export class RemoteTerminalChannelClient {
 			id, data
 		};
 		return this._channel.call<void>('$sendInputToTerminalProcess', args);
+	}
+
+	public sendCharCountToTerminalProcess(id: number, charCount: number): Promise<void> {
+		const args: ISendCharCountToTerminalProcessArguments = {
+			id, charCount
+		};
+		return this._channel.call<void>('$sendCharCountToTerminalProcess', args);
 	}
 
 	public shutdownTerminalProcess(id: number, immediate: boolean): Promise<void> {

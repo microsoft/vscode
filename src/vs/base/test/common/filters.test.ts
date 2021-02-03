@@ -3,13 +3,13 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 import * as assert from 'assert';
-import { IFilter, or, matchesPrefix, matchesStrictPrefix, matchesCamelCase, matchesSubString, matchesContiguousSubString, matchesWords, fuzzyScore, IMatch, fuzzyScoreGraceful, fuzzyScoreGracefulAggressive, FuzzyScorer, createMatches } from 'vs/base/common/filters';
+import { IFilter, or, matchesPrefix, matchesStrictPrefix, matchesCamelCase, matchesSubString, matchesContiguousSubString, matchesWords, fuzzyScore, IMatch, fuzzyScoreGraceful, fuzzyScoreGracefulAggressive, FuzzyScorer, createMatches, anyScore } from 'vs/base/common/filters';
 
 function filterOk(filter: IFilter, word: string, wordToMatchAgainst: string, highlights?: { start: number; end: number; }[]) {
 	let r = filter(word, wordToMatchAgainst);
 	assert(r, `${word} didn't match ${wordToMatchAgainst}`);
 	if (highlights) {
-		assert.deepEqual(r, highlights);
+		assert.deepStrictEqual(r, highlights);
 	}
 }
 
@@ -233,7 +233,7 @@ suite('Filters', () => {
 				pos = match.end;
 			}
 			actualWord += word.substring(pos);
-			assert.equal(actualWord, decoratedWord);
+			assert.strictEqual(actualWord, decoratedWord);
 		}
 	}
 
@@ -285,7 +285,7 @@ suite('Filters', () => {
 		assertMatches('LLLL', 'SVisualLoggerLogsList', undefined, fuzzyScore);
 		assertMatches('TEdit', 'TextEdit', '^Text^E^d^i^t', fuzzyScore);
 		assertMatches('TEdit', 'TextEditor', '^Text^E^d^i^tor', fuzzyScore);
-		assertMatches('TEdit', 'Textedit', '^T^exte^d^i^t', fuzzyScore);
+		assertMatches('TEdit', 'Textedit', '^Text^e^d^i^t', fuzzyScore);
 		assertMatches('TEdit', 'text_edit', '^text_^e^d^i^t', fuzzyScore);
 		assertMatches('TEditDit', 'TextEditorDecorationType', '^Text^E^d^i^tor^Decorat^ion^Type', fuzzyScore);
 		assertMatches('TEdit', 'TextEditorDecorationType', '^Text^E^d^i^torDecorationType', fuzzyScore);
@@ -442,7 +442,7 @@ suite('Filters', () => {
 				}
 			}
 		}
-		assert.equal(topIdx, expected, `${pattern} -> actual=${words[topIdx]} <> expected=${words[expected]}`);
+		assert.strictEqual(topIdx, expected, `${pattern} -> actual=${words[topIdx]} <> expected=${words[expected]}`);
 	}
 
 	test('topScore - fuzzyScore', function () {
@@ -522,6 +522,12 @@ suite('Filters', () => {
 			fuzzyScore
 		);
 		assertMatches(
+			'Aoo',
+			'Affffffffffffffffffffffffffffbarbarbarbarbarbarbarbarbarbarbarbarbarbarbarbarbarbarbarbarbarbarbarbarbarbarbarbarbarbar_foo',
+			'^Affffffffffffffffffffffffffffbarbarbarbarbarbarbarbarbarbarbarbarbarbarbarbarbarbarbarbarbarbarbarbarbarbarbarbarbarbar_f^o^o',
+			fuzzyScore
+		);
+		assertMatches(
 			'foo',
 			'Gffffffffffffffffffffffffffffbarbarbarbarbarbarbarbarbarbarbarbarbarbarbarbarbarbarbarbarbarbarbarbarbarbarbarbarbarbarbarbar_foo',
 			undefined,
@@ -542,5 +548,11 @@ suite('Filters', () => {
 	test('Suggestion is not highlighted #85826', function () {
 		assertMatches('SemanticTokens', 'SemanticTokensEdits', '^S^e^m^a^n^t^i^c^T^o^k^e^n^sEdits', fuzzyScore);
 		assertMatches('SemanticTokens', 'SemanticTokensEdits', '^S^e^m^a^n^t^i^c^T^o^k^e^n^sEdits', fuzzyScoreGracefulAggressive);
+	});
+
+	test('IntelliSense completion not correctly highlighting text in front of cursor #115250', function () {
+		assertMatches('lo', 'log', '^l^og', fuzzyScore);
+		assertMatches('.lo', 'log', '^l^og', anyScore);
+		assertMatches('.', 'log', 'log', anyScore);
 	});
 });

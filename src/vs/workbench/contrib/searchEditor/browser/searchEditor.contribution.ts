@@ -12,7 +12,7 @@ import { ToggleCaseSensitiveKeybinding, ToggleRegexKeybinding, ToggleWholeWordKe
 import { localize } from 'vs/nls';
 import { Action2, MenuId, registerAction2 } from 'vs/platform/actions/common/actions';
 import { CommandsRegistry } from 'vs/platform/commands/common/commands';
-import { ContextKeyExpr, IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
+import { ContextKeyEqualsExpr, ContextKeyExpr, IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
 import { SyncDescriptor } from 'vs/platform/instantiation/common/descriptors';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { KeybindingWeight } from 'vs/platform/keybinding/common/keybindingsRegistry';
@@ -24,14 +24,15 @@ import { Extensions as WorkbenchExtensions, IWorkbenchContribution, IWorkbenchCo
 import { ActiveEditorContext, Extensions as EditorInputExtensions, IEditorInputFactory, IEditorInputFactoryRegistry } from 'vs/workbench/common/editor';
 import { IViewsService } from 'vs/workbench/common/views';
 import { getSearchView } from 'vs/workbench/contrib/search/browser/searchActions';
-import { searchRefreshIcon } from 'vs/workbench/contrib/search/browser/searchIcons';
+import { searchNewEditorIcon, searchRefreshIcon } from 'vs/workbench/contrib/search/browser/searchIcons';
 import * as SearchConstants from 'vs/workbench/contrib/search/common/constants';
 import * as SearchEditorConstants from 'vs/workbench/contrib/searchEditor/browser/constants';
 import { SearchEditor } from 'vs/workbench/contrib/searchEditor/browser/searchEditor';
-import { createEditorFromSearchResult, modifySearchEditorContextLinesCommand, openNewSearchEditor, selectAllSearchEditorMatchesCommand, toggleSearchEditorCaseSensitiveCommand, toggleSearchEditorContextLinesCommand, toggleSearchEditorRegexCommand, toggleSearchEditorWholeWordCommand } from 'vs/workbench/contrib/searchEditor/browser/searchEditorActions';
+import { createEditorFromSearchResult, modifySearchEditorContextLinesCommand, openNewSearchEditor, openSearchEditor, selectAllSearchEditorMatchesCommand, toggleSearchEditorCaseSensitiveCommand, toggleSearchEditorContextLinesCommand, toggleSearchEditorRegexCommand, toggleSearchEditorWholeWordCommand } from 'vs/workbench/contrib/searchEditor/browser/searchEditorActions';
 import { getOrMakeSearchEditorInput, SearchConfiguration, SearchEditorInput, SEARCH_EDITOR_EXT } from 'vs/workbench/contrib/searchEditor/browser/searchEditorInput';
 import { parseSavedSearchEditor } from 'vs/workbench/contrib/searchEditor/browser/searchEditorSerialization';
 import { IEditorService } from 'vs/workbench/services/editor/common/editorService';
+import { VIEW_ID } from 'vs/workbench/services/search/common/search';
 
 
 const OpenInEditorCommandId = 'search.action.openInEditor';
@@ -317,7 +318,7 @@ registerAction2(class extends Action2 {
 		const instantiationService = accessor.get(IInstantiationService);
 		const searchView = getSearchView(viewsService);
 		if (searchView) {
-			await instantiationService.invokeFunction(createEditorFromSearchResult, searchView.searchResult, searchView.searchIncludePattern.getValue(), searchView.searchExcludePattern.getValue());
+			await instantiationService.invokeFunction(createEditorFromSearchResult, searchView.searchResult, searchView.searchIncludePattern.getValue(), searchView.searchExcludePattern.getValue(), searchView.searchIncludePattern.onlySearchInOpenEditors());
 		}
 	}
 });
@@ -504,6 +505,26 @@ registerAction2(class extends Action2 {
 	}
 	run(accessor: ServicesAccessor) {
 		selectAllSearchEditorMatchesCommand(accessor);
+	}
+});
+
+registerAction2(class OpenSearchEditorAction extends Action2 {
+	constructor() {
+		super({
+			id: 'search.action.openNewEditorFromView',
+			title: localize('search.openNewEditor', "Open New Search Editor from View"),
+			category,
+			icon: searchNewEditorIcon,
+			menu: [{
+				id: MenuId.ViewTitle,
+				group: 'navigation',
+				order: 2,
+				when: ContextKeyEqualsExpr.create('view', VIEW_ID),
+			}]
+		});
+	}
+	run(accessor: ServicesAccessor, ...args: any[]) {
+		return openSearchEditor(accessor);
 	}
 });
 //#endregion

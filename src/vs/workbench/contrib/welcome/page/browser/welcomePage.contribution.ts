@@ -20,7 +20,7 @@ Registry.as<IConfigurationRegistry>(ConfigurationExtensions.Configuration)
 		...workbenchConfigurationNodeBase,
 		'properties': {
 			'workbench.startupEditor': {
-				'scope': ConfigurationScope.APPLICATION, // Make sure repositories cannot trigger opening a README for tracking.
+				'scope': ConfigurationScope.RESOURCE,
 				'type': 'string',
 				'enum': [
 					...['none', 'welcomePage', 'readme', 'newUntitledFile', 'welcomePageInEmptyWorkbench'],

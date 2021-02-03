@@ -280,9 +280,9 @@ export type NotebookCellTextModelSplice<T> = [
 ];
 
 export type NotebookCellOutputsSplice = [
-	number /* start */,
-	number /* delete count */,
-	IProcessedOutput[]
+	start: number /* start */,
+	deleteCount: number /* delete count */,
+	newOutputs: IProcessedOutput[]
 ];
 
 export interface IMainCellDto {
@@ -411,6 +411,7 @@ export interface ICellOutputEdit {
 	editType: CellEditType.Output;
 	index: number;
 	outputs: IProcessedOutput[];
+	append?: boolean
 }
 
 export interface ICellMetadataEdit {
@@ -444,11 +445,7 @@ export interface ICellMoveEdit {
 	newIdx: number;
 }
 
-export interface IDocumentUnknownEdit {
-	editType: CellEditType.Unknown;
-}
-
-export type ICellEditOperation = ICellReplaceEdit | ICellOutputEdit | ICellMetadataEdit | ICellLanguageEdit | IDocumentMetadataEdit | ICellOutputsSpliceEdit | ICellMoveEdit | IDocumentUnknownEdit;
+export type ICellEditOperation = ICellReplaceEdit | ICellOutputEdit | ICellMetadataEdit | ICellLanguageEdit | IDocumentMetadataEdit | ICellOutputsSpliceEdit | ICellMoveEdit;
 
 export interface INotebookEditData {
 	documentVersionId: number;
@@ -484,14 +481,6 @@ export namespace CellUri {
 		});
 	}
 
-	export function generateCellMetadataUri(notebook: URI, handle: number): URI {
-		return notebook.with({
-			scheme: Schemas.vscode,
-			authority: 'vscode-notebook-cell-metadata',
-			fragment: `${handle.toString().padStart(7, '0')}${notebook.scheme !== Schemas.file ? notebook.scheme : ''}`
-		});
-	}
-
 	export function parse(cell: URI): { notebook: URI, handle: number } | undefined {
 		if (cell.scheme !== scheme) {
 			return undefined;
@@ -509,37 +498,57 @@ export namespace CellUri {
 			})
 		};
 	}
-}
 
-export function mimeTypeIsAlwaysSecure(mimeType: string) {
-	if ([
-		'application/json',
-		'text/markdown',
-		'image/png',
-		'text/plain'
-	].indexOf(mimeType) > -1) {
-		return true;
+	export function generateCellMetadataUri(notebook: URI, handle: number): URI {
+		return notebook.with({
+			scheme: Schemas.vscodeNotebookCellMetadata,
+			fragment: `ch${handle.toString().padStart(7, '0')}${notebook.scheme !== Schemas.file ? notebook.scheme : ''}`
+		});
 	}
 
-	return false;
+	export function parseCellMetadataUri(metadata: URI) {
+		if (metadata.scheme !== Schemas.vscodeNotebookCellMetadata) {
+			return undefined;
+		}
+		const match = _regex.exec(metadata.fragment);
+		if (!match) {
+			return undefined;
+		}
+		const handle = Number(match[1]);
+		return {
+			handle,
+			notebook: metadata.with({
+				scheme: metadata.fragment.substr(match[0].length) || Schemas.file,
+				fragment: null
+			})
+		};
+	}
+}
+
+type MimeTypeInfo = {
+	alwaysSecure?: boolean;
+	supportedByCore?: boolean;
+};
+
+const _mimeTypeInfo = new Map<string, MimeTypeInfo>([
+	['application/json', { alwaysSecure: true, supportedByCore: true }],
+	['text/markdown', { alwaysSecure: true, supportedByCore: true }],
+	['image/png', { alwaysSecure: true, supportedByCore: true }],
+	['text/plain', { alwaysSecure: true, supportedByCore: true }],
+	['application/javascript', { supportedByCore: true }],
+	['text/html', { supportedByCore: true }],
+	['image/svg+xml', { supportedByCore: true }],
+	['image/jpeg', { supportedByCore: true }],
+	['text/x-javascript', { supportedByCore: true }],
+	['application/x.notebook.error-traceback', { alwaysSecure: true, supportedByCore: true }],
+]);
+
+export function mimeTypeIsAlwaysSecure(mimeType: string): boolean {
+	return _mimeTypeInfo.get(mimeType)?.alwaysSecure ?? false;
 }
 
 export function mimeTypeSupportedByCore(mimeType: string) {
-	if ([
-		'application/json',
-		'application/javascript',
-		'text/html',
-		'image/svg+xml',
-		'text/markdown',
-		'image/png',
-		'image/jpeg',
-		'text/plain',
-		'text/x-javascript'
-	].indexOf(mimeType) > -1) {
-		return true;
-	}
-
-	return false;
+	return _mimeTypeInfo.get(mimeType)?.supportedByCore ?? false;
 }
 
 // if (isWindows) {
@@ -784,7 +793,8 @@ export function notebookDocumentFilterMatch(filter: INotebookDocumentFilter, vie
 }
 
 export interface INotebookKernelInfoDto2 {
-	id: string;
+	id?: string;
+	friendlyId: string;
 	label: string;
 	extension: ExtensionIdentifier;
 	extensionLocation: URI;

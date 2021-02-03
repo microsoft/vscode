@@ -372,6 +372,24 @@ export class CommandCenter {
 		await resource.open();
 	}
 
+	@command('git.openAllChanges', { repository: true })
+	async openChanges(repository: Repository): Promise<void> {
+		for (const resource of [...repository.workingTreeGroup.resourceStates, ...repository.untrackedGroup.resourceStates]) {
+			if (
+				resource.type === Status.DELETED || resource.type === Status.DELETED_BY_THEM ||
+				resource.type === Status.DELETED_BY_US || resource.type === Status.BOTH_DELETED
+			) {
+				continue;
+			}
+
+			void commands.executeCommand(
+				'vscode.open',
+				resource.resourceUri,
+				{ background: true, preview: false, }
+			);
+		}
+	}
+
 	async cloneRepository(url?: string, parentPath?: string, options: { recursive?: boolean } = {}): Promise<void> {
 		if (!url || typeof url !== 'string') {
 			url = await pickRemoteSource(this.model, {
@@ -1329,8 +1347,8 @@ export class CommandCenter {
 
 		const enableSmartCommit = config.get<boolean>('enableSmartCommit') === true;
 		const enableCommitSigning = config.get<boolean>('enableCommitSigning') === true;
-		const noStagedChanges = repository.indexGroup.resourceStates.length === 0;
-		const noUnstagedChanges = repository.workingTreeGroup.resourceStates.length === 0;
+		let noStagedChanges = repository.indexGroup.resourceStates.length === 0;
+		let noUnstagedChanges = repository.workingTreeGroup.resourceStates.length === 0;
 
 		if (promptToSaveFilesBeforeCommit !== 'never') {
 			let documents = workspace.textDocuments
@@ -1352,6 +1370,9 @@ export class CommandCenter {
 				if (pick === saveAndCommit) {
 					await Promise.all(documents.map(d => d.save()));
 					await repository.add(documents.map(d => d.uri));
+
+					noStagedChanges = repository.indexGroup.resourceStates.length === 0;
+					noUnstagedChanges = repository.workingTreeGroup.resourceStates.length === 0;
 				} else if (pick !== commit) {
 					return false; // do not commit on cancel
 				}

@@ -60,7 +60,7 @@ export class ExtHostTerminalService extends BaseExtHostTerminalService {
 		const terminal = new ExtHostTerminal(this._proxy, generateUuid(), { name, shellPath, shellArgs }, name);
 		this._terminals.push(terminal);
 		terminal.create(shellPath, shellArgs);
-		return terminal;
+		return terminal.value;
 	}
 
 	public createTerminalFromOptions(options: vscode.TerminalOptions, isFeatureTerminal?: boolean): vscode.Terminal {
@@ -75,7 +75,7 @@ export class ExtHostTerminalService extends BaseExtHostTerminalService {
 			withNullAsUndefined(options.strictEnv),
 			withNullAsUndefined(options.hideFromUser),
 			withNullAsUndefined(isFeatureTerminal));
-		return terminal;
+		return terminal.value;
 	}
 
 	public getDefaultShell(useAutomationShell: boolean, configProvider: ExtHostConfigProvider): string {
@@ -149,7 +149,8 @@ export class ExtHostTerminalService extends BaseExtHostTerminalService {
 			executable: shellLaunchConfigDto.executable,
 			args: shellLaunchConfigDto.args,
 			cwd: typeof shellLaunchConfigDto.cwd === 'string' ? shellLaunchConfigDto.cwd : URI.revive(shellLaunchConfigDto.cwd),
-			env: shellLaunchConfigDto.env
+			env: shellLaunchConfigDto.env,
+			flowControl: shellLaunchConfigDto.flowControl
 		};
 
 		// Merge in shell and args from settings

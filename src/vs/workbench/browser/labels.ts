@@ -368,10 +368,10 @@ class ResourceLabelWidget extends IconLabel {
 	}
 
 	setFile(resource: URI, options?: IFileLabelOptions): void {
-		const hideLabel = options && options.hideLabel;
+		const hideLabel = options?.hideLabel;
 		let name: string | undefined;
 		if (!hideLabel) {
-			if (options && options.fileKind === FileKind.ROOT_FOLDER) {
+			if (options?.fileKind === FileKind.ROOT_FOLDER) {
 				const workspaceFolder = this.contextService.getWorkspaceFolder(resource);
 				if (workspaceFolder) {
 					name = workspaceFolder.name;
@@ -545,11 +545,11 @@ class ResourceLabelWidget extends IconLabel {
 			iconLabelOptions.extraClasses = this.computedIconClasses.slice(0);
 		}
 
-		if (this.options && this.options.extraClasses) {
+		if (this.options?.extraClasses) {
 			iconLabelOptions.extraClasses.push(...this.options.extraClasses);
 		}
 
-		if (this.options && this.options.fileDecorations && resource) {
+		if (this.options?.fileDecorations && resource) {
 			const deco = this.decorationsService.getDecoration(
 				resource,
 				this.options.fileKind !== FileKind.FILE

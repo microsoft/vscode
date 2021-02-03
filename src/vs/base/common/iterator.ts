@@ -39,6 +39,8 @@ export namespace Iterable {
 		return false;
 	}
 
+	export function filter<T, R extends T>(iterable: Iterable<T>, predicate: (t: T) => t is R): Iterable<R>;
+	export function filter<T>(iterable: Iterable<T>, predicate: (t: T) => boolean): Iterable<T>;
 	export function* filter<T>(iterable: Iterable<T>, predicate: (t: T) => boolean): Iterable<T> {
 		for (const element of iterable) {
 			if (predicate(element)) {
@@ -66,6 +68,25 @@ export namespace Iterable {
 			for (const element of iterable) {
 				yield element;
 			}
+		}
+	}
+
+	/**
+	 * Returns an iterable slice of the array, with the same semantics as `array.slice()`.
+	 */
+	export function* slice<T>(iterable: ReadonlyArray<T>, from: number, to = iterable.length): Iterable<T> {
+		if (from < 0) {
+			from += iterable.length;
+		}
+
+		if (to < 0) {
+			to += iterable.length;
+		} else if (to > iterable.length) {
+			to = iterable.length;
+		}
+
+		for (; from < to; from++) {
+			yield iterable[from];
 		}
 	}
 

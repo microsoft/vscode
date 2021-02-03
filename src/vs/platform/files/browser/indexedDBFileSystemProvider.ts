@@ -48,7 +48,7 @@ export class IndexedDB {
 	}
 
 	private openIndexedDB(name: string, version: number, stores: string[]): Promise<IDBDatabase | null> {
-		if (browser.isEdge) {
+		if (browser.isEdgeLegacy) {
 			return Promise.resolve(null);
 		}
 		return new Promise((c, e) => {

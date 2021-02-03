@@ -61,9 +61,9 @@ export class ElectronWebviewBasedWebview extends BaseWebview<WebviewTag> impleme
 		@IWorkbenchEnvironmentService environmentService: IWorkbenchEnvironmentService,
 		@IConfigurationService configurationService: IConfigurationService,
 		@IMainProcessService mainProcessService: IMainProcessService,
-		@INotificationService noficationService: INotificationService,
+		@INotificationService notificationService: INotificationService,
 	) {
-		super(id, options, contentOptions, extension, _webviewThemeDataProvider, noficationService, _myLogService, telemetryService, environmentService);
+		super(id, options, contentOptions, extension, _webviewThemeDataProvider, notificationService, _myLogService, telemetryService, environmentService);
 
 		/* __GDPR__
 			"webview.createWebview" : {

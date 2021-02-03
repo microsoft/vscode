@@ -30,7 +30,6 @@ import { activeContrastBorder, contrastBorder, editorBackground, breadcrumbsBack
 import { ResourcesDropHandler, DraggedEditorIdentifier, DraggedEditorGroupIdentifier, DragAndDropObserver } from 'vs/workbench/browser/dnd';
 import { Color } from 'vs/base/common/color';
 import { INotificationService } from 'vs/platform/notification/common/notification';
-import { IExtensionService } from 'vs/workbench/services/extensions/common/extensions';
 import { MergeGroupMode, IMergeGroupOptions, GroupsArrangement, IEditorGroupsService } from 'vs/workbench/services/editor/common/editorGroupsService';
 import { addDisposableListener, EventType, EventHelper, Dimension, scheduleAtNextAnimationFrame, findParentWithClass, clearNode } from 'vs/base/browser/dom';
 import { localize } from 'vs/nls';
@@ -116,14 +115,13 @@ export class TabsTitleControl extends TitleControl {
 		@IMenuService menuService: IMenuService,
 		@IQuickInputService quickInputService: IQuickInputService,
 		@IThemeService themeService: IThemeService,
-		@IExtensionService extensionService: IExtensionService,
 		@IConfigurationService configurationService: IConfigurationService,
 		@IFileService fileService: IFileService,
 		@IEditorService private readonly editorService: EditorServiceImpl,
 		@IPathService private readonly pathService: IPathService,
 		@IEditorGroupsService private readonly editorGroupService: IEditorGroupsService
 	) {
-		super(parent, accessor, group, contextMenuService, instantiationService, contextKeyService, keybindingService, telemetryService, notificationService, menuService, quickInputService, themeService, extensionService, configurationService, fileService);
+		super(parent, accessor, group, contextMenuService, instantiationService, contextKeyService, keybindingService, telemetryService, notificationService, menuService, quickInputService, themeService, configurationService, fileService);
 
 		// Resolve the correct path library for the OS we are on
 		// If we are connected to remote, this accounts for the
@@ -202,7 +200,7 @@ export class TabsTitleControl extends TitleControl {
 	}
 
 	private updateBreadcrumbsControl(): void {
-		if (this.breadcrumbsControl && this.breadcrumbsControl.update()) {
+		if (this.breadcrumbsControl?.update()) {
 			this.group.relayout(); // relayout when we have a breadcrumbs and when update changed its hidden-status
 		}
 	}
@@ -1404,22 +1402,34 @@ export class TabsTitleControl extends TitleControl {
 		if (this.accessor.partOptions.wrapTabs) {
 			const visibleTabsWidth = tabsContainer.offsetWidth;
 			const allTabsWidth = tabsContainer.scrollWidth;
+			const lastTabFitsWrapped = () => {
+				const lastTab = this.getLastTab();
+				if (!lastTab) {
+					return true; // no tab always fits
+				}
+
+				return lastTab.offsetWidth <= (dimensions.available.width - editorToolbarContainer.offsetWidth);
+			};
 
 			// If tabs wrap or should start to wrap (when width exceeds visible width)
 			// we must trigger `updateWrapping` to set the `last-tab-margin-right`
 			// accordingly based on the number of actions. The margin is important to
 			// properly position the last tab apart from the actions
-			if (tabsWrapMultiLine || allTabsWidth > visibleTabsWidth) {
+			//
+			// We already check here if the last tab would fit when wrapped given the
+			// editor toolbar will also show right next to it. This ensures we are not
+			// enabling wrapping only to disable it again in the code below (this fixes
+			// flickering issue https://github.com/microsoft/vscode/issues/115050)
+			if (tabsWrapMultiLine || (allTabsWidth > visibleTabsWidth && lastTabFitsWrapped())) {
 				updateTabsWrapping(true);
 			}
 
 			// Tabs wrap multiline: remove wrapping under certain size constraint conditions
 			if (tabsWrapMultiLine) {
-				const lastTab = this.getLastTab();
 				if (
 					(tabsContainer.offsetHeight > dimensions.available.height) ||											// if height exceeds available height
 					(allTabsWidth === visibleTabsWidth && tabsContainer.offsetHeight === TabsTitleControl.TAB_HEIGHT) ||	// if wrapping is not needed anymore
-					(lastTab && lastTab.offsetWidth > (dimensions.available.width - editorToolbarContainer.offsetWidth))	// if editor actions occupy too much space
+					(!lastTabFitsWrapped())																					// if last tab does not fit anymore
 				) {
 					updateTabsWrapping(false);
 				}

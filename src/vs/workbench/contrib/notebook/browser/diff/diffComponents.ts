@@ -7,16 +7,14 @@ import * as DOM from 'vs/base/browser/dom';
 import { Disposable, DisposableStore } from 'vs/base/common/lifecycle';
 import { IDiffEditorOptions, IEditorOptions } from 'vs/editor/common/config/editorOptions';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
-import { DiffElementViewModelBase, getFormatedMetadataJSON, PropertyFoldingState, SideBySideDiffElementViewModel, SingleSideDiffElementViewModel } from 'vs/workbench/contrib/notebook/browser/diff/diffElementViewModel';
+import { DiffElementViewModelBase, getFormatedMetadataJSON, OUTPUT_EDITOR_HEIGHT_MAGIC, PropertyFoldingState, SideBySideDiffElementViewModel, SingleSideDiffElementViewModel } from 'vs/workbench/contrib/notebook/browser/diff/diffElementViewModel';
 import { CellDiffSideBySideRenderTemplate, CellDiffSingleSideRenderTemplate, DiffSide, DIFF_CELL_MARGIN, INotebookTextDiffEditor, NOTEBOOK_DIFF_CELL_PROPERTY, NOTEBOOK_DIFF_CELL_PROPERTY_EXPANDED } from 'vs/workbench/contrib/notebook/browser/diff/notebookDiffEditorBrowser';
 import { EDITOR_BOTTOM_PADDING } from 'vs/workbench/contrib/notebook/browser/constants';
 import { CodeEditorWidget, ICodeEditorWidgetOptions } from 'vs/editor/browser/widget/codeEditorWidget';
 import { DiffEditorWidget } from 'vs/editor/browser/widget/diffEditorWidget';
 import { IModelService } from 'vs/editor/common/services/modelService';
 import { IModeService } from 'vs/editor/common/services/modeService';
-import { format } from 'vs/base/common/jsonFormatter';
-import { applyEdits } from 'vs/base/common/jsonEdit';
-import { CellEditType, CellUri, NotebookCellMetadata } from 'vs/workbench/contrib/notebook/common/notebookCommon';
+import { CellEditType, CellUri, IProcessedOutput, NotebookCellMetadata } from 'vs/workbench/contrib/notebook/common/notebookCommon';
 import { ToolBar } from 'vs/base/browser/ui/toolbar/toolbar';
 import { IContextMenuService } from 'vs/platform/contextview/browser/contextView';
 import { IMenu, IMenuService, MenuId, MenuItemAction } from 'vs/platform/actions/common/actions';
@@ -40,6 +38,7 @@ import { SelectionClipboardContributionID } from 'vs/workbench/contrib/codeEdito
 import { TabCompletionController } from 'vs/workbench/contrib/snippets/browser/tabCompletion';
 import { renderIcon } from 'vs/base/browser/ui/iconLabel/iconLabels';
 import * as editorCommon from 'vs/editor/common/editorCommon';
+import { ITextModelService } from 'vs/editor/common/services/resolverService';
 
 export const fixedEditorOptions: IEditorOptions = {
 	padding: {
@@ -280,6 +279,7 @@ abstract class AbstractElementRenderer extends Disposable {
 		protected readonly instantiationService: IInstantiationService,
 		protected readonly modeService: IModeService,
 		protected readonly modelService: IModelService,
+		protected readonly textModelService: ITextModelService,
 		protected readonly contextMenuService: IContextMenuService,
 		protected readonly keybindingService: IKeybindingService,
 		protected readonly notificationService: INotificationService,
@@ -294,6 +294,7 @@ abstract class AbstractElementRenderer extends Disposable {
 		this._metadataEditorDisposeStore = new DisposableStore();
 		this._outputEditorDisposeStore = new DisposableStore();
 		this._register(this._metadataEditorDisposeStore);
+		this._register(this._outputEditorDisposeStore);
 		this._register(cell.onDidLayoutChange(e => this.layout(e)));
 		this._register(cell.onDidLayoutChange(e => this.updateBorders()));
 		this.buildBody();
@@ -320,7 +321,7 @@ abstract class AbstractElementRenderer extends Disposable {
 		} else {
 			// we should collapse the metadata editor
 			this._metadataInfoContainer.style.display = 'none';
-			this._metadataEditorDisposeStore.clear();
+			// this._metadataEditorDisposeStore.clear();
 			this.cell.metadataHeight = 0;
 		}
 	}
@@ -461,10 +462,10 @@ abstract class AbstractElementRenderer extends Disposable {
 		}
 	}
 
-	private _buildMetadataEditor() {
+	private async _buildMetadataEditor() {
+		this._metadataEditorDisposeStore.clear();
+
 		if (this.cell instanceof SideBySideDiffElementViewModel) {
-			const originalMetadataSource = getFormatedMetadataJSON(this.notebookEditor.textModel!, this.cell.original?.metadata || {}, this.cell.original?.language);
-			const modifiedMetadataSource = getFormatedMetadataJSON(this.notebookEditor.textModel!, this.cell.modified?.metadata || {}, this.cell.modified?.language);
 			this._metadataEditor = this.instantiationService.createInstance(DiffEditorWidget, this._metadataEditorContainer!, {
 				...fixedDiffEditorOptions,
 				overflowWidgetsDomNode: this.notebookEditor.getOverflowContainerDomNode(),
@@ -481,24 +482,23 @@ abstract class AbstractElementRenderer extends Disposable {
 				modifiedEditor: getOptimizedNestedCodeEditorWidgetOptions()
 			});
 			this.layout({ metadataHeight: true });
-			this._register(this._metadataEditor);
+			this._metadataEditorDisposeStore.add(this._metadataEditor);
 
 			this._metadataEditorContainer?.classList.add('diff');
 
-			const mode = this.modeService.create('json');
-			const originalMetadataModel = this.modelService.createModel(originalMetadataSource, mode, CellUri.generateCellMetadataUri(this.cell.original!.uri, this.cell.original!.handle), false);
-			const modifiedMetadataModel = this.modelService.createModel(modifiedMetadataSource, mode, CellUri.generateCellMetadataUri(this.cell.modified!.uri, this.cell.modified!.handle), false);
+			const originalMetadataModel = await this.textModelService.createModelReference(CellUri.generateCellMetadataUri(this.cell.originalDocument.uri, this.cell.original!.handle));
+			const modifiedMetadataModel = await this.textModelService.createModelReference(CellUri.generateCellMetadataUri(this.cell.modifiedDocument.uri, this.cell.modified!.handle));
 			this._metadataEditor.setModel({
-				original: originalMetadataModel,
-				modified: modifiedMetadataModel
+				original: originalMetadataModel.object.textEditorModel,
+				modified: modifiedMetadataModel.object.textEditorModel
 			});
 
-			this._register(originalMetadataModel);
-			this._register(modifiedMetadataModel);
+			this._metadataEditorDisposeStore.add(originalMetadataModel);
+			this._metadataEditorDisposeStore.add(modifiedMetadataModel);
 
 			this.cell.metadataHeight = this._metadataEditor.getContentHeight();
 
-			this._register(this._metadataEditor.onDidContentSizeChange((e) => {
+			this._metadataEditorDisposeStore.add(this._metadataEditor.onDidContentSizeChange((e) => {
 				if (e.contentHeightChanged && this.cell.metadataFoldingState === PropertyFoldingState.Expanded) {
 					this.cell.metadataHeight = e.contentHeight;
 				}
@@ -506,21 +506,21 @@ abstract class AbstractElementRenderer extends Disposable {
 
 			let respondingToContentChange = false;
 
-			this._register(modifiedMetadataModel.onDidChangeContent(() => {
+			this._metadataEditorDisposeStore.add(modifiedMetadataModel.object.textEditorModel.onDidChangeContent(() => {
 				respondingToContentChange = true;
-				const value = modifiedMetadataModel.getValue();
+				const value = modifiedMetadataModel.object.textEditorModel.getValue();
 				this._applySanitizedMetadataChanges(this.cell.modified!.metadata, value);
 				this._metadataHeader.refresh();
 				respondingToContentChange = false;
 			}));
 
-			this._register(this.cell.modified!.textModel.onDidChangeMetadata(() => {
+			this._metadataEditorDisposeStore.add(this.cell.modified!.textModel.onDidChangeMetadata(() => {
 				if (respondingToContentChange) {
 					return;
 				}
 
 				const modifiedMetadataSource = getFormatedMetadataJSON(this.notebookEditor.textModel!, this.cell.modified?.metadata || {}, this.cell.modified?.language);
-				modifiedMetadataModel.setValue(modifiedMetadataSource);
+				modifiedMetadataModel.object.textEditorModel.setValue(modifiedMetadataSource);
 			}));
 
 			return;
@@ -535,7 +535,7 @@ abstract class AbstractElementRenderer extends Disposable {
 				readOnly: false
 			}, {});
 			this.layout({ metadataHeight: true });
-			this._register(this._metadataEditor);
+			this._metadataEditorDisposeStore.add(this._metadataEditor);
 
 			const mode = this.modeService.create('jsonc');
 			const originalMetadataSource = getFormatedMetadataJSON(this.notebookEditor.textModel!,
@@ -552,11 +552,11 @@ abstract class AbstractElementRenderer extends Disposable {
 			const modelUri = CellUri.generateCellMetadataUri(uri, handle);
 			const metadataModel = this.modelService.createModel(originalMetadataSource, mode, modelUri, false);
 			this._metadataEditor.setModel(metadataModel);
-			this._register(metadataModel);
+			this._metadataEditorDisposeStore.add(metadataModel);
 
 			this.cell.metadataHeight = this._metadataEditor.getContentHeight();
 
-			this._register(this._metadataEditor.onDidContentSizeChange((e) => {
+			this._metadataEditorDisposeStore.add(this._metadataEditor.onDidContentSizeChange((e) => {
 				if (e.contentHeightChanged && this.cell.metadataFoldingState === PropertyFoldingState.Expanded) {
 					this.cell.metadataHeight = e.contentHeight;
 				}
@@ -564,16 +564,13 @@ abstract class AbstractElementRenderer extends Disposable {
 		}
 	}
 
-	private _getFormatedOutputJSON(outputs: any[]) {
-		const content = JSON.stringify(outputs);
-
-		const edits = format(content, undefined, {});
-		const source = applyEdits(content, edits);
-
-		return source;
+	private _getFormatedOutputJSON(outputs: IProcessedOutput[]) {
+		return JSON.stringify(outputs, undefined, '\t');
 	}
 
 	private _buildOutputEditor() {
+		this._outputEditorDisposeStore.clear();
+
 		if ((this.cell.type === 'modified' || this.cell.type === 'unchanged') && !this.notebookEditor.textModel!.transientOptions.transientOutputs) {
 			const originalOutputsSource = this._getFormatedOutputJSON(this.cell.original?.outputs || []);
 			const modifiedOutputsSource = this._getFormatedOutputJSON(this.cell.modified?.outputs || []);
@@ -581,6 +578,8 @@ abstract class AbstractElementRenderer extends Disposable {
 				const mode = this.modeService.create('json');
 				const originalModel = this.modelService.createModel(originalOutputsSource, mode, undefined, true);
 				const modifiedModel = this.modelService.createModel(modifiedOutputsSource, mode, undefined, true);
+				this._outputEditorDisposeStore.add(originalModel);
+				this._outputEditorDisposeStore.add(modifiedModel);
 
 				const lineHeight = this.notebookEditor.getLayoutInfo().fontInfo.lineHeight || 17;
 				const lineCount = Math.max(originalModel.getLineCount(), modifiedModel.getLineCount());
@@ -591,14 +590,14 @@ abstract class AbstractElementRenderer extends Disposable {
 					ignoreTrimWhitespace: false,
 					automaticLayout: false,
 					dimension: {
-						height: this.cell.layoutInfo.rawOutputHeight || lineHeight * lineCount,
+						height: Math.min(OUTPUT_EDITOR_HEIGHT_MAGIC, this.cell.layoutInfo.rawOutputHeight || lineHeight * lineCount),
 						width: this.cell.getComputedCellContainerWidth(this.notebookEditor.getLayoutInfo(), false, true)
 					}
 				}, {
 					originalEditor: getOptimizedNestedCodeEditorWidgetOptions(),
 					modifiedEditor: getOptimizedNestedCodeEditorWidgetOptions()
 				});
-				this._register(this._outputEditor);
+				this._outputEditorDisposeStore.add(this._outputEditor);
 
 				this._outputEditorContainer?.classList.add('diff');
 
@@ -610,13 +609,13 @@ abstract class AbstractElementRenderer extends Disposable {
 
 				this.cell.rawOutputHeight = this._outputEditor.getContentHeight();
 
-				this._register(this._outputEditor.onDidContentSizeChange((e) => {
+				this._outputEditorDisposeStore.add(this._outputEditor.onDidContentSizeChange((e) => {
 					if (e.contentHeightChanged && this.cell.outputFoldingState === PropertyFoldingState.Expanded) {
 						this.cell.rawOutputHeight = e.contentHeight;
 					}
 				}));
 
-				this._register(this.cell.modified!.textModel.onDidChangeOutputs(() => {
+				this._outputEditorDisposeStore.add(this.cell.modified!.textModel.onDidChangeOutputs(() => {
 					const modifiedOutputsSource = this._getFormatedOutputJSON(this.cell.modified?.outputs || []);
 					modifiedModel.setValue(modifiedOutputsSource);
 					this._outputHeader.refresh();
@@ -629,12 +628,12 @@ abstract class AbstractElementRenderer extends Disposable {
 		this._outputEditor = this.instantiationService.createInstance(CodeEditorWidget, this._outputEditorContainer!, {
 			...fixedEditorOptions,
 			dimension: {
-				width: this.cell.getComputedCellContainerWidth(this.notebookEditor.getLayoutInfo(), false, this.cell.type === 'unchanged' || this.cell.type === 'modified') - 32,
+				width: Math.min(OUTPUT_EDITOR_HEIGHT_MAGIC, this.cell.getComputedCellContainerWidth(this.notebookEditor.getLayoutInfo(), false, this.cell.type === 'unchanged' || this.cell.type === 'modified') - 32),
 				height: this.cell.layoutInfo.rawOutputHeight
 			},
 			overflowWidgetsDomNode: this.notebookEditor.getOverflowContainerDomNode()
 		}, {});
-		this._register(this._outputEditor);
+		this._outputEditorDisposeStore.add(this._outputEditor);
 
 		const mode = this.modeService.create('json');
 		const originaloutputSource = this._getFormatedOutputJSON(
@@ -644,12 +643,13 @@ abstract class AbstractElementRenderer extends Disposable {
 					? this.cell.modified!.outputs || []
 					: this.cell.original!.outputs || []);
 		const outputModel = this.modelService.createModel(originaloutputSource, mode, undefined, true);
+		this._outputEditorDisposeStore.add(outputModel);
 		this._outputEditor.setModel(outputModel);
 		this._outputEditor.restoreViewState(this.cell.getOutputEditorViewState());
 
 		this.cell.rawOutputHeight = this._outputEditor.getContentHeight();
 
-		this._register(this._outputEditor.onDidContentSizeChange((e) => {
+		this._outputEditorDisposeStore.add(this._outputEditor.onDidContentSizeChange((e) => {
 			if (e.contentHeightChanged && this.cell.outputFoldingState === PropertyFoldingState.Expanded) {
 				this.cell.rawOutputHeight = e.contentHeight;
 			}
@@ -678,6 +678,9 @@ abstract class AbstractElementRenderer extends Disposable {
 			this.cell.saveMetadataEditorViewState(this._metadataEditor.saveViewState());
 		}
 
+		this._metadataEditorDisposeStore.dispose();
+		this._outputEditorDisposeStore.dispose();
+
 		this._isDisposed = true;
 		super.dispose();
 	}
@@ -696,6 +699,7 @@ abstract class SingleSideDiffElement extends AbstractElementRenderer {
 		protected readonly instantiationService: IInstantiationService,
 		protected readonly modeService: IModeService,
 		protected readonly modelService: IModelService,
+		protected readonly textModelService: ITextModelService,
 		protected readonly contextMenuService: IContextMenuService,
 		protected readonly keybindingService: IKeybindingService,
 		protected readonly notificationService: INotificationService,
@@ -712,6 +716,7 @@ abstract class SingleSideDiffElement extends AbstractElementRenderer {
 			instantiationService,
 			modeService,
 			modelService,
+			textModelService,
 			contextMenuService,
 			keybindingService,
 			notificationService,
@@ -775,6 +780,10 @@ abstract class SingleSideDiffElement extends AbstractElementRenderer {
 			this.templateData.outputHeaderContainer.style.display = 'none';
 			this.templateData.outputInfoContainer.style.display = 'none';
 			return;
+		} else {
+			this.templateData.outputHeaderContainer.style.display = 'flex';
+			this.templateData.outputInfoContainer.style.display = 'block';
+
 		}
 
 		this._outputHeaderContainer = this.templateData.outputHeaderContainer;
@@ -817,6 +826,7 @@ export class DeletedElement extends SingleSideDiffElement {
 		readonly templateData: CellDiffSingleSideRenderTemplate,
 		@IModeService readonly modeService: IModeService,
 		@IModelService readonly modelService: IModelService,
+		@ITextModelService readonly textModelService: ITextModelService,
 		@IInstantiationService protected readonly instantiationService: IInstantiationService,
 		@IContextMenuService protected readonly contextMenuService: IContextMenuService,
 		@IKeybindingService protected readonly keybindingService: IKeybindingService,
@@ -826,7 +836,7 @@ export class DeletedElement extends SingleSideDiffElement {
 
 
 	) {
-		super(notebookEditor, cell, templateData, 'left', instantiationService, modeService, modelService, contextMenuService, keybindingService, notificationService, menuService, contextKeyService);
+		super(notebookEditor, cell, templateData, 'left', instantiationService, modeService, modelService, textModelService, contextMenuService, keybindingService, notificationService, menuService, contextKeyService);
 	}
 
 	styleContainer(container: HTMLElement) {
@@ -969,13 +979,14 @@ export class InsertElement extends SingleSideDiffElement {
 		@IInstantiationService protected readonly instantiationService: IInstantiationService,
 		@IModeService readonly modeService: IModeService,
 		@IModelService readonly modelService: IModelService,
+		@ITextModelService readonly textModelService: ITextModelService,
 		@IContextMenuService protected readonly contextMenuService: IContextMenuService,
 		@IKeybindingService protected readonly keybindingService: IKeybindingService,
 		@INotificationService protected readonly notificationService: INotificationService,
 		@IMenuService protected readonly menuService: IMenuService,
 		@IContextKeyService protected readonly contextKeyService: IContextKeyService,
 	) {
-		super(notebookEditor, cell, templateData, 'right', instantiationService, modeService, modelService, contextMenuService, keybindingService, notificationService, menuService, contextKeyService);
+		super(notebookEditor, cell, templateData, 'right', instantiationService, modeService, modelService, textModelService, contextMenuService, keybindingService, notificationService, menuService, contextKeyService);
 	}
 
 	styleContainer(container: HTMLElement): void {
@@ -1122,13 +1133,14 @@ export class ModifiedElement extends AbstractElementRenderer {
 		@IInstantiationService protected readonly instantiationService: IInstantiationService,
 		@IModeService readonly modeService: IModeService,
 		@IModelService readonly modelService: IModelService,
+		@ITextModelService readonly textModelService: ITextModelService,
 		@IContextMenuService protected readonly contextMenuService: IContextMenuService,
 		@IKeybindingService protected readonly keybindingService: IKeybindingService,
 		@INotificationService protected readonly notificationService: INotificationService,
 		@IMenuService protected readonly menuService: IMenuService,
 		@IContextKeyService protected readonly contextKeyService: IContextKeyService
 	) {
-		super(notebookEditor, cell, templateData, 'full', instantiationService, modeService, modelService, contextMenuService, keybindingService, notificationService, menuService, contextKeyService);
+		super(notebookEditor, cell, templateData, 'full', instantiationService, modeService, modelService, textModelService, contextMenuService, keybindingService, notificationService, menuService, contextKeyService);
 	}
 
 	styleContainer(container: HTMLElement): void {
@@ -1191,6 +1203,9 @@ export class ModifiedElement extends AbstractElementRenderer {
 			this.templateData.outputHeaderContainer.style.display = 'none';
 			this.templateData.outputInfoContainer.style.display = 'none';
 			return;
+		} else {
+			this.templateData.outputHeaderContainer.style.display = 'flex';
+			this.templateData.outputInfoContainer.style.display = 'block';
 		}
 
 		this._outputHeaderContainer = this.templateData.outputHeaderContainer;

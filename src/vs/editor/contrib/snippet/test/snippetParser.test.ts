@@ -531,8 +531,8 @@ suite('SnippetParser', () => {
 		let snippet = new SnippetParser().parse('This ${1:is ${2:nested}}$0', true);
 		let [first, second] = snippet.placeholders;
 
-		assert.deepEqual(snippet.enclosingPlaceholders(first), []);
-		assert.deepEqual(snippet.enclosingPlaceholders(second), [first]);
+		assert.deepStrictEqual(snippet.enclosingPlaceholders(first), []);
+		assert.deepStrictEqual(snippet.enclosingPlaceholders(second), [first]);
 	});
 
 	test('TextmateSnippet#offset', () => {

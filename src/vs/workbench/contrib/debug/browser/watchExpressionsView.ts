@@ -194,14 +194,16 @@ export class WatchExpressionsView extends ViewPane {
 
 	private onContextMenu(e: ITreeContextMenuEvent<IExpression>): void {
 		const element = e.element;
+		const selection = this.tree.getSelection();
+
 		this.watchItemType.set(element instanceof Expression ? 'expression' : element instanceof Variable ? 'variable' : undefined);
 		const actions: IAction[] = [];
-		const actionsDisposable = createAndFillInContextMenuActions(this.menu, { arg: element, shouldForwardArgs: false }, actions);
+		const actionsDisposable = createAndFillInContextMenuActions(this.menu, { arg: element, shouldForwardArgs: true }, actions);
 
 		this.contextMenuService.showContextMenu({
 			getAnchor: () => e.anchor,
 			getActions: () => actions,
-			getActionsContext: () => element,
+			getActionsContext: () => element && selection.includes(element) ? selection : element ? [element] : [],
 			onHide: () => dispose(actionsDisposable)
 		});
 	}

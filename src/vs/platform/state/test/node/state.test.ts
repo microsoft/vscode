@@ -31,10 +31,10 @@ flakySuite('StateService', () => {
 		let service = new FileStorage(storageFile, () => null);
 
 		service.setItem('some.key', 'some.value');
-		assert.equal(service.getItem('some.key'), 'some.value');
+		assert.strictEqual(service.getItem('some.key'), 'some.value');
 
 		service.removeItem('some.key');
-		assert.equal(service.getItem('some.key', 'some.default'), 'some.default');
+		assert.strictEqual(service.getItem('some.key', 'some.default'), 'some.default');
 
 		assert.ok(!service.getItem('some.unknonw.key'));
 
@@ -42,15 +42,15 @@ flakySuite('StateService', () => {
 
 		service = new FileStorage(storageFile, () => null);
 
-		assert.equal(service.getItem('some.other.key'), 'some.other.value');
+		assert.strictEqual(service.getItem('some.other.key'), 'some.other.value');
 
 		service.setItem('some.other.key', 'some.other.value');
-		assert.equal(service.getItem('some.other.key'), 'some.other.value');
+		assert.strictEqual(service.getItem('some.other.key'), 'some.other.value');
 
 		service.setItem('some.undefined.key', undefined);
-		assert.equal(service.getItem('some.undefined.key', 'some.default'), 'some.default');
+		assert.strictEqual(service.getItem('some.undefined.key', 'some.default'), 'some.default');
 
 		service.setItem('some.null.key', null);
-		assert.equal(service.getItem('some.null.key', 'some.default'), 'some.default');
+		assert.strictEqual(service.getItem('some.null.key', 'some.default'), 'some.default');
 	});
 });

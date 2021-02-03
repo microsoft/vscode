@@ -3,8 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { ICompressedTreeElement } from 'vs/base/browser/ui/tree/compressedObjectTreeModel';
-import { CompressibleObjectTree } from 'vs/base/browser/ui/tree/objectTree';
+import { ObjectTree } from 'vs/base/browser/ui/tree/objectTree';
 import { Emitter } from 'vs/base/common/event';
 import { FuzzyScore } from 'vs/base/common/filters';
 import { Iterable } from 'vs/base/common/iterator';
@@ -16,16 +15,17 @@ import { TestRunState } from 'vs/workbench/api/common/extHostTypes';
 import { ITestTreeElement, ITestTreeProjection } from 'vs/workbench/contrib/testing/browser/explorerProjections';
 import { ListElementType } from 'vs/workbench/contrib/testing/browser/explorerProjections/hierarchalByName';
 import { locationsEqual, TestLocationStore } from 'vs/workbench/contrib/testing/browser/explorerProjections/locationStore';
-import { NodeChangeList } from 'vs/workbench/contrib/testing/browser/explorerProjections/nodeHelper';
+import { NodeChangeList, NodeRenderFn } from 'vs/workbench/contrib/testing/browser/explorerProjections/nodeHelper';
 import { StateElement } from 'vs/workbench/contrib/testing/browser/explorerProjections/stateNodes';
-import { TestSubscriptionListener } from 'vs/workbench/contrib/testing/common/testingCollectionService';
-import { AbstractIncrementalTestCollection, IncrementalChangeCollector, IncrementalTestCollectionItem, InternalTestItem, TestDiffOpType, TestIdWithProvider, TestsDiff } from 'vs/workbench/contrib/testing/common/testCollection';
+import { AbstractIncrementalTestCollection, IncrementalChangeCollector, IncrementalTestCollectionItem, InternalTestItem, TestIdWithProvider, TestsDiff } from 'vs/workbench/contrib/testing/common/testCollection';
+import { isRunningState } from 'vs/workbench/contrib/testing/common/testingStates';
+import { TestSubscriptionListener } from 'vs/workbench/contrib/testing/common/workspaceTestCollectionService';
 
 class ListTestStateElement implements ITestTreeElement {
 	public computedState = this.test.item.state.runState;
 
 	public get treeId() {
-		return `test:${this.test.id}`;
+		return `sntest:${this.test.id}`;
 	}
 
 	public get label() {
@@ -58,11 +58,7 @@ class ListTestStateElement implements ITestTreeElement {
 	}
 
 	public readonly depth = 1;
-	public readonly children = Iterable.empty();
-
-	getChildren(): Iterable<never> {
-		return Iterable.empty();
-	}
+	public readonly children = new Set<never>();
 
 	constructor(
 		public readonly test: IStatusListTestItem,
@@ -113,14 +109,7 @@ export class StateByNameProjection extends AbstractIncrementalTestCollection<ISt
 
 		const firstDiff: TestsDiff = [];
 		for (const [, collection] of listener.workspaceFolderCollections) {
-			const queue = [collection.rootNodes];
-			while (queue.length) {
-				for (const id of queue.pop()!) {
-					const node = collection.getNodeById(id)!;
-					firstDiff.push([TestDiffOpType.Add, node]);
-					queue.push(node.children);
-				}
-			}
+			firstDiff.push(...collection.getReviverDiff());
 		}
 
 		this.apply(firstDiff);
@@ -143,15 +132,14 @@ export class StateByNameProjection extends AbstractIncrementalTestCollection<ISt
 	/**
 	 * @inheritdoc
 	 */
-	public applyTo(tree: CompressibleObjectTree<ITestTreeElement, FuzzyScore>) {
+	public applyTo(tree: ObjectTree<ITestTreeElement, FuzzyScore>) {
 		this.changes.applyTo(tree, this.renderNode, () => this.stateRoots.values());
 	}
 
-	private readonly renderNode = (node: TreeElement): ICompressedTreeElement<ITestTreeElement> => {
+	private readonly renderNode: NodeRenderFn<TreeElement> = (node, recurse) => {
 		return {
 			element: node,
-			incompressible: true,
-			children: node instanceof StateElement ? Iterable.map(node.children, this.renderNode) : undefined,
+			children: node instanceof StateElement ? recurse(node.children) : undefined,
 		};
 	};
 
@@ -164,22 +152,22 @@ export class StateByNameProjection extends AbstractIncrementalTestCollection<ISt
 				this.resolveNodesRecursive(node);
 				this.locations.add(node);
 			},
-			remove: (node, isRoot) => {
+			remove: (node, isNested) => {
 				if (node.node) {
 					this.locations.remove(node);
 				}
 
 				// for the top node being deleted, we need to update parents. For
-				// others we only need to remove them from the tree view.
-				if (isRoot) {
-					this.removeNode(node);
-				} else {
+				// others we only need to remove them from the locations cache.
+				if (isNested) {
 					this.removeNodeSingle(node);
+				} else {
+					this.removeNode(node);
 				}
 			},
 			update: node => {
 				if (node.item.state.runState !== node.previousState && node.node) {
-					if (node.item.state.runState === TestRunState.Running) {
+					if (isRunningState(node.item.state.runState)) {
 						node.node.computedState = node.item.state.runState;
 					} else {
 						this.removeNode(node);
@@ -210,7 +198,7 @@ export class StateByNameProjection extends AbstractIncrementalTestCollection<ISt
 	 * Ensures tree nodes for the item state are present in the tree.
 	 */
 	protected resolveNodesRecursive(item: IStatusListTestItem) {
-		const newType = Iterable.some(item.children, c => this.items.get(c)!.type !== ListElementType.BranchWithoutLeaf)
+		const newType = Iterable.some(item.children, c => this.items.get(c)?.type !== ListElementType.BranchWithoutLeaf)
 			? ListElementType.BranchWithLeaf
 			: item.item.runnable
 				? ListElementType.TestLeaf

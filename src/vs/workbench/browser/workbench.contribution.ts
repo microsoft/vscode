@@ -51,12 +51,12 @@ import { isStandalone } from 'vs/base/browser/browser';
 			'workbench.editor.decorations.badges': {
 				'type': 'boolean',
 				'markdownDescription': nls.localize('decorations.badges', "Controls whether editor file decorations should use badges."),
-				'default': true
+				'default': false
 			},
 			'workbench.editor.decorations.colors': {
 				'type': 'boolean',
 				'markdownDescription': nls.localize('decorations.colors', "Controls whether editor file decorations should use colors."),
-				'default': true
+				'default': false
 			},
 			'workbench.editor.labelFormat': {
 				'type': 'string',
@@ -373,7 +373,7 @@ import { isStandalone } from 'vs/base/browser/browser';
 			'window.menuBarVisibility': {
 				'type': 'string',
 				'enum': ['default', 'visible', 'toggle', 'hidden', 'compact'],
-				'enumDescriptions': [
+				'markdownEnumDescriptions': [
 					nls.localize('window.menuBarVisibility.default', "Menu is only hidden in full screen mode."),
 					nls.localize('window.menuBarVisibility.visible', "Menu is always visible even in full screen mode."),
 					nls.localize('window.menuBarVisibility.toggle', "Menu is hidden but can be displayed via Alt key."),

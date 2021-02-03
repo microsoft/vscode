@@ -24,6 +24,7 @@ import { IDialogService } from 'vs/platform/dialogs/common/dialogs';
 import Severity from 'vs/base/common/severity';
 import { canceled } from 'vs/base/common/errors';
 import { IUserDataAutoSyncEnablementService, IUserDataSyncResourceEnablementService, SyncResource } from 'vs/platform/userDataSync/common/userDataSync';
+import { Promises } from 'vs/base/common/async';
 
 export class ExtensionManagementService extends Disposable implements IWorkbenchExtensioManagementService {
 
@@ -160,7 +161,7 @@ export class ExtensionManagementService extends Disposable implements IWorkbench
 	}
 
 	unzip(zipLocation: URI): Promise<IExtensionIdentifier> {
-		return Promise.all(this.servers
+		return Promises.settled(this.servers
 			// Filter out web server
 			.filter(server => server !== this.extensionManagementServerService.webExtensionManagementServer)
 			.map(({ extensionManagementService }) => extensionManagementService.unzip(zipLocation))).then(([extensionIdentifier]) => extensionIdentifier);
@@ -171,7 +172,7 @@ export class ExtensionManagementService extends Disposable implements IWorkbench
 			const manifest = await this.getManifest(vsix);
 			if (isLanguagePackExtension(manifest)) {
 				// Install on both servers
-				const [local] = await Promise.all([this.extensionManagementServerService.localExtensionManagementServer, this.extensionManagementServerService.remoteExtensionManagementServer].map(server => this.installVSIX(vsix, server)));
+				const [local] = await Promises.settled([this.extensionManagementServerService.localExtensionManagementServer, this.extensionManagementServerService.remoteExtensionManagementServer].map(server => this.installVSIX(vsix, server)));
 				return local;
 			}
 			if (prefersExecuteOnUI(manifest, this.productService, this.configurationService)) {
@@ -228,7 +229,7 @@ export class ExtensionManagementService extends Disposable implements IWorkbench
 			servers.push(server);
 		}
 
-		return Promise.all(servers.map(server => server.extensionManagementService.installFromGallery(gallery))).then(([local]) => local);
+		return Promises.settled(servers.map(server => server.extensionManagementService.installFromGallery(gallery))).then(([local]) => local);
 	}
 
 	async installExtensions(extensions: IGalleryExtension[], installOptions?: InstallOptions): Promise<ILocalExtension[]> {
@@ -236,7 +237,7 @@ export class ExtensionManagementService extends Disposable implements IWorkbench
 			const isMachineScoped = await this.hasToFlagExtensionsMachineScoped(extensions);
 			installOptions = { isMachineScoped, isBuiltin: false };
 		}
-		return Promise.all(extensions.map(extension => this.installFromGallery(extension, installOptions)));
+		return Promises.settled(extensions.map(extension => this.installFromGallery(extension, installOptions)));
 	}
 
 	async installFromGallery(gallery: IGalleryExtension, installOptions?: InstallOptions): Promise<ILocalExtension> {
@@ -268,16 +269,10 @@ export class ExtensionManagementService extends Disposable implements IWorkbench
 					servers.push(this.extensionManagementServerService.localExtensionManagementServer);
 				}
 			}
-			return Promise.all(servers.map(server => server.extensionManagementService.installFromGallery(gallery, installOptions))).then(([local]) => local);
+			return Promises.settled(servers.map(server => server.extensionManagementService.installFromGallery(gallery, installOptions))).then(([local]) => local);
 		}
 
-		if (this.extensionManagementServerService.remoteExtensionManagementServer) {
-			const error = new Error(localize('cannot be installed', "Cannot install '{0}' because this extension has defined that it cannot run on the remote server.", gallery.displayName || gallery.name));
-			error.name = INSTALL_ERROR_NOT_SUPPORTED;
-			return Promise.reject(error);
-		}
-
-		const error = new Error(localize('cannot be installed on web', "Cannot install '{0}' because this extension has defined that it cannot run on the web server.", gallery.displayName || gallery.name));
+		const error = new Error(localize('cannot be installed', "Cannot install the '{0}' extension because it is declared to not run in this setup.", gallery.displayName || gallery.name));
 		error.name = INSTALL_ERROR_NOT_SUPPORTED;
 		return Promise.reject(error);
 	}

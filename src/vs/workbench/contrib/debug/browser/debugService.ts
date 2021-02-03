@@ -900,12 +900,11 @@ export class DebugService implements IDebugService {
 	}
 
 	addFunctionBreakpoint(name?: string, id?: string): void {
-		const newFunctionBreakpoint = this.model.addFunctionBreakpoint(name || '', id);
-		this.viewModel.setSelectedBreakpoint(newFunctionBreakpoint);
+		this.model.addFunctionBreakpoint(name || '', id);
 	}
 
-	async renameFunctionBreakpoint(id: string, newFunctionName: string): Promise<void> {
-		this.model.renameFunctionBreakpoint(id, newFunctionName);
+	async updateFunctionBreakpoint(id: string, update: { name?: string, hitCondition?: string, condition?: string }): Promise<void> {
+		this.model.updateFunctionBreakpoint(id, update);
 		this.debugStorage.storeBreakpoints(this.model);
 		await this.sendFunctionBreakpoints();
 	}
@@ -927,6 +926,11 @@ export class DebugService implements IDebugService {
 		this.model.removeDataBreakpoints(id);
 		this.debugStorage.storeBreakpoints(this.model);
 		await this.sendDataBreakpoints();
+	}
+
+	setExceptionBreakpoints(data: DebugProtocol.ExceptionBreakpointsFilter[]): void {
+		this.model.setExceptionBreakpoints(data);
+		this.debugStorage.storeBreakpoints(this.model);
 	}
 
 	async setExceptionBreakpointCondition(exceptionBreakpoint: IExceptionBreakpoint, condition: string | undefined): Promise<void> {

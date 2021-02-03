@@ -333,6 +333,12 @@ export const editorHoverStatusBarBackground = registerColor('editorHoverWidget.s
 export const editorActiveLinkForeground = registerColor('editorLink.activeForeground', { dark: '#4E94CE', light: Color.blue, hc: Color.cyan }, nls.localize('activeLinkForeground', 'Color of active links.'));
 
 /**
+ * Inline hints
+ */
+export const editorInlineHintForeground = registerColor('editorInlineHint.foreground', { dark: editorWidgetBackground, light: editorWidgetForeground, hc: editorWidgetBackground }, nls.localize('editorInlineHintForeground', 'Foreground color of inline hints'));
+export const editorInlineHintBackground = registerColor('editorInlineHint.background', { dark: editorWidgetForeground, light: editorWidgetBackground, hc: editorWidgetForeground }, nls.localize('editorInlineHintBackground', 'Background color of inline hints'));
+
+/**
  * Editor lighbulb icon colors
  */
 export const editorLightBulbForeground = registerColor('editorLightBulb.foreground', { dark: '#FFCC00', light: '#DDB100', hc: '#FFCC00' }, nls.localize('editorLightBulbForeground', "The color used for the lightbulb actions icon."));

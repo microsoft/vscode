@@ -4,34 +4,33 @@
  *--------------------------------------------------------------------------------------------*/
 
 import * as DOM from 'vs/base/browser/dom';
+import { ITreeNavigator } from 'vs/base/browser/ui/tree/tree';
 import { Action } from 'vs/base/common/actions';
 import { createKeybinding, ResolvedKeybinding } from 'vs/base/common/keyCodes';
 import { isWindows, OS } from 'vs/base/common/platform';
 import * as nls from 'vs/nls';
 import { IClipboardService } from 'vs/platform/clipboard/common/clipboardService';
-import { ILabelService } from 'vs/platform/label/common/label';
 import { ICommandHandler, ICommandService } from 'vs/platform/commands/common/commands';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { ServicesAccessor } from 'vs/platform/instantiation/common/instantiation';
 import { IKeybindingService } from 'vs/platform/keybinding/common/keybinding';
+import { ILabelService } from 'vs/platform/label/common/label';
 import { getSelectionKeyboardEvent, WorkbenchObjectTree } from 'vs/platform/list/browser/listService';
+import { ThemeIcon } from 'vs/platform/theme/common/themeService';
+import { IViewsService } from 'vs/workbench/common/views';
+import { searchRemoveIcon, searchReplaceAllIcon, searchReplaceIcon } from 'vs/workbench/contrib/search/browser/searchIcons';
 import { SearchView } from 'vs/workbench/contrib/search/browser/searchView';
 import * as Constants from 'vs/workbench/contrib/search/common/constants';
 import { IReplaceService } from 'vs/workbench/contrib/search/common/replace';
-import { FolderMatch, FileMatch, FolderMatchWithResource, Match, RenderableMatch, searchMatchComparer, SearchResult } from 'vs/workbench/contrib/search/common/searchModel';
-import { IEditorGroupsService } from 'vs/workbench/services/editor/common/editorGroupsService';
-import { IEditorService } from 'vs/workbench/services/editor/common/editorService';
-import { ISearchConfiguration, VIEW_ID, VIEWLET_ID } from 'vs/workbench/services/search/common/search';
 import { ISearchHistoryService } from 'vs/workbench/contrib/search/common/searchHistoryService';
-import { ITreeNavigator } from 'vs/base/browser/ui/tree/tree';
-import { IViewsService } from 'vs/workbench/common/views';
-import { SearchEditorInput } from 'vs/workbench/contrib/searchEditor/browser/searchEditorInput';
-import { SearchEditor } from 'vs/workbench/contrib/searchEditor/browser/searchEditor';
-import { searchRefreshIcon, searchCollapseAllIcon, searchExpandAllIcon, searchClearIcon, searchReplaceAllIcon, searchReplaceIcon, searchRemoveIcon, searchStopIcon } from 'vs/workbench/contrib/search/browser/searchIcons';
-import { IUriIdentityService } from 'vs/workbench/services/uriIdentity/common/uriIdentity';
-import { ThemeIcon } from 'vs/platform/theme/common/themeService';
-import { OpenSearchEditorArgs } from 'vs/workbench/contrib/searchEditor/browser/searchEditor.contribution';
+import { FileMatch, FolderMatch, FolderMatchWithResource, Match, RenderableMatch, searchMatchComparer, SearchResult } from 'vs/workbench/contrib/search/common/searchModel';
 import { OpenEditorCommandId } from 'vs/workbench/contrib/searchEditor/browser/constants';
+import { SearchEditor } from 'vs/workbench/contrib/searchEditor/browser/searchEditor';
+import { OpenSearchEditorArgs } from 'vs/workbench/contrib/searchEditor/browser/searchEditor.contribution';
+import { SearchEditorInput } from 'vs/workbench/contrib/searchEditor/browser/searchEditorInput';
+import { IEditorService } from 'vs/workbench/services/editor/common/editorService';
+import { ISearchConfiguration, VIEW_ID } from 'vs/workbench/services/search/common/search';
+import { IUriIdentityService } from 'vs/workbench/services/uriIdentity/common/uriIdentity';
 
 export function isSearchViewFocused(viewsService: IViewsService): boolean {
 	const searchView = getSearchView(viewsService);
@@ -208,35 +207,6 @@ export const FindInFilesCommand: ICommandHandler = (accessor, args: IFindInFiles
 	}
 };
 
-export class OpenSearchViewletAction extends FindOrReplaceInFilesAction {
-
-	static readonly ID = VIEWLET_ID;
-	static readonly LABEL = nls.localize('showSearch', "Show Search");
-
-	constructor(id: string, label: string,
-		@IViewsService viewsService: IViewsService,
-		@IEditorGroupsService private readonly editorGroupService: IEditorGroupsService) {
-		super(id, label, viewsService, /*expandSearchReplaceWidget=*/false);
-	}
-
-	run(): Promise<any> {
-
-		// Pass focus to viewlet if not open or focused
-		if (this.otherViewletShowing() || !isSearchViewFocused(this.viewsService)) {
-			return super.run();
-		}
-
-		// Otherwise pass focus to editor group
-		this.editorGroupService.activeGroup.focus();
-
-		return Promise.resolve(true);
-	}
-
-	private otherViewletShowing(): boolean {
-		return !getSearchView(this.viewsService);
-	}
-}
-
 export class ReplaceInFilesAction extends FindOrReplaceInFilesAction {
 
 	static readonly ID = 'workbench.action.replaceInFiles';
@@ -289,227 +259,77 @@ export class ToggleSearchOnTypeAction extends Action {
 	}
 }
 
-
-export class RefreshAction extends Action {
-
-	static readonly ID: string = 'search.action.refreshSearchResults';
-	static LABEL: string = nls.localize('RefreshAction.label', "Refresh");
-
-	constructor(id: string, label: string,
-		@IViewsService private readonly viewsService: IViewsService
-	) {
-		super(id, label, 'search-action ' + ThemeIcon.asClassName(searchRefreshIcon));
-	}
-
-	get enabled(): boolean {
-		const searchView = getSearchView(this.viewsService);
-		return !!searchView && searchView.hasSearchPattern();
-	}
-
-	update(): void {
-		this._setEnabled(this.enabled);
-	}
-
-	run(): Promise<void> {
-		const searchView = getSearchView(this.viewsService);
-		if (searchView) {
-			searchView.triggerQueryChange({ preserveFocus: false });
-		}
-
-		return Promise.resolve();
+export function expandAll(accessor: ServicesAccessor) {
+	const viewsService = accessor.get(IViewsService);
+	const searchView = getSearchView(viewsService);
+	if (searchView) {
+		const viewer = searchView.getControl();
+		viewer.expandAll();
+		viewer.domFocus();
+		viewer.focusFirst();
 	}
 }
 
-export class CollapseDeepestExpandedLevelAction extends Action {
-
-	static readonly ID: string = 'search.action.collapseSearchResults';
-	static LABEL: string = nls.localize('CollapseDeepestExpandedLevelAction.label', "Collapse All");
-
-	constructor(id: string, label: string,
-		@IViewsService private readonly viewsService: IViewsService
-	) {
-		super(id, label, 'search-action ' + ThemeIcon.asClassName(searchCollapseAllIcon));
-		this.update();
+export function clearSearchResults(accessor: ServicesAccessor) {
+	const viewsService = accessor.get(IViewsService);
+	const searchView = getSearchView(viewsService);
+	if (searchView) {
+		searchView.clearSearchResults();
 	}
+}
 
-	update(): void {
-		const searchView = getSearchView(this.viewsService);
-		this.enabled = !!searchView && searchView.hasSearchResults();
+export function cancelSearch(accessor: ServicesAccessor) {
+	const viewsService = accessor.get(IViewsService);
+	const searchView = getSearchView(viewsService);
+	if (searchView) {
+		searchView.cancelSearch();
 	}
+}
 
-	run(): Promise<void> {
-		const searchView = getSearchView(this.viewsService);
-		if (searchView) {
-			const viewer = searchView.getControl();
+export function refreshSearch(accessor: ServicesAccessor) {
+	const viewsService = accessor.get(IViewsService);
+	const searchView = getSearchView(viewsService);
+	if (searchView) {
+		searchView.triggerQueryChange({ preserveFocus: false });
+	}
+}
 
-			/**
-			 * one level to collapse so collapse everything. If FolderMatch, check if there are visible grandchildren,
-			 * i.e. if Matches are returned by the navigator, and if so, collapse to them, otherwise collapse all levels.
-			 */
-			const navigator = viewer.navigate();
-			let node = navigator.first();
-			let collapseFileMatchLevel = false;
-			if (node instanceof FolderMatch) {
-				while (node = navigator.next()) {
-					if (node instanceof Match) {
-						collapseFileMatchLevel = true;
-						break;
-					}
+export function collapseDeepestExpandedLevel(accessor: ServicesAccessor) {
+
+	const viewsService = accessor.get(IViewsService);
+	const searchView = getSearchView(viewsService);
+	if (searchView) {
+		const viewer = searchView.getControl();
+
+		/**
+		 * one level to collapse so collapse everything. If FolderMatch, check if there are visible grandchildren,
+		 * i.e. if Matches are returned by the navigator, and if so, collapse to them, otherwise collapse all levels.
+		 */
+		const navigator = viewer.navigate();
+		let node = navigator.first();
+		let collapseFileMatchLevel = false;
+		if (node instanceof FolderMatch) {
+			while (node = navigator.next()) {
+				if (node instanceof Match) {
+					collapseFileMatchLevel = true;
+					break;
 				}
 			}
-
-			if (collapseFileMatchLevel) {
-				node = navigator.first();
-				do {
-					if (node instanceof FileMatch) {
-						viewer.collapse(node);
-					}
-				} while (node = navigator.next());
-			} else {
-				viewer.collapseAll();
-			}
-
-			viewer.domFocus();
-			viewer.focusFirst();
 		}
-		return Promise.resolve(undefined);
-	}
-}
 
-export class ExpandAllAction extends Action {
-
-	static readonly ID: string = 'search.action.expandSearchResults';
-	static LABEL: string = nls.localize('ExpandAllAction.label', "Expand All");
-
-	constructor(id: string, label: string,
-		@IViewsService private readonly viewsService: IViewsService
-	) {
-		super(id, label, 'search-action ' + ThemeIcon.asClassName(searchExpandAllIcon));
-		this.update();
-	}
-
-	update(): void {
-		const searchView = getSearchView(this.viewsService);
-		this.enabled = !!searchView && searchView.hasSearchResults();
-	}
-
-	run(): Promise<void> {
-		const searchView = getSearchView(this.viewsService);
-		if (searchView) {
-			const viewer = searchView.getControl();
-			viewer.expandAll();
-			viewer.domFocus();
-			viewer.focusFirst();
-		}
-		return Promise.resolve(undefined);
-	}
-}
-
-export class ToggleCollapseAndExpandAction extends Action {
-	static readonly ID: string = 'search.action.collapseOrExpandSearchResults';
-	static LABEL: string = nls.localize('ToggleCollapseAndExpandAction.label', "Toggle Collapse and Expand");
-
-	// Cache to keep from crawling the tree too often.
-	private action: CollapseDeepestExpandedLevelAction | ExpandAllAction | undefined;
-
-	constructor(id: string, label: string,
-		private collapseAction: CollapseDeepestExpandedLevelAction,
-		private expandAction: ExpandAllAction,
-		@IViewsService private readonly viewsService: IViewsService
-	) {
-		super(id, label, collapseAction.class);
-		this.update();
-	}
-
-	update(): void {
-		const searchView = getSearchView(this.viewsService);
-		this.enabled = !!searchView && searchView.hasSearchResults();
-		this.onTreeCollapseStateChange();
-	}
-
-	onTreeCollapseStateChange() {
-		this.action = undefined;
-		this.determineAction();
-	}
-
-	private determineAction(): CollapseDeepestExpandedLevelAction | ExpandAllAction {
-		if (this.action !== undefined) { return this.action; }
-		this.action = this.isSomeCollapsible() ? this.collapseAction : this.expandAction;
-		this.class = this.action.class;
-		return this.action;
-	}
-
-	private isSomeCollapsible(): boolean {
-		const searchView = getSearchView(this.viewsService);
-		if (searchView) {
-			const viewer = searchView.getControl();
-			const navigator = viewer.navigate();
-			let node = navigator.first();
+		if (collapseFileMatchLevel) {
+			node = navigator.first();
 			do {
-				if (!viewer.isCollapsed(node)) {
-					return true;
+				if (node instanceof FileMatch) {
+					viewer.collapse(node);
 				}
 			} while (node = navigator.next());
-		}
-		return false;
-	}
-
-
-	async run(): Promise<void> {
-		await this.determineAction().run();
-	}
-}
-
-export class ClearSearchResultsAction extends Action {
-
-	static readonly ID: string = 'search.action.clearSearchResults';
-	static LABEL: string = nls.localize('ClearSearchResultsAction.label', "Clear Search Results");
-
-	constructor(id: string, label: string,
-		@IViewsService private readonly viewsService: IViewsService
-	) {
-		super(id, label, 'search-action ' + ThemeIcon.asClassName(searchClearIcon));
-		this.update();
-	}
-
-	update(): void {
-		const searchView = getSearchView(this.viewsService);
-		this.enabled = !!searchView && (!searchView.allSearchFieldsClear() || searchView.hasSearchResults() || !searchView.allFilePatternFieldsClear());
-	}
-
-	run(): Promise<void> {
-		const searchView = getSearchView(this.viewsService);
-		if (searchView) {
-			searchView.clearSearchResults();
-		}
-		return Promise.resolve();
-	}
-}
-
-export class CancelSearchAction extends Action {
-
-	static readonly ID: string = 'search.action.cancelSearch';
-	static LABEL: string = nls.localize('CancelSearchAction.label', "Cancel Search");
-
-	constructor(id: string, label: string,
-		@IViewsService private readonly viewsService: IViewsService
-	) {
-		super(id, label, 'search-action ' + ThemeIcon.asClassName(searchStopIcon));
-		this.update();
-	}
-
-	update(): void {
-		const searchView = getSearchView(this.viewsService);
-		this.enabled = !!searchView && searchView.isSlowSearch();
-	}
-
-	run(): Promise<void> {
-		const searchView = getSearchView(this.viewsService);
-		if (searchView) {
-			searchView.cancelSearch();
+		} else {
+			viewer.collapseAll();
 		}
 
-		return Promise.resolve(undefined);
+		viewer.domFocus();
+		viewer.focusFirst();
 	}
 }
 

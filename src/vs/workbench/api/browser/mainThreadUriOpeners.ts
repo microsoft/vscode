@@ -3,17 +3,20 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { CancellationToken } from 'vs/base/common/cancellation';
+import { Action } from 'vs/base/common/actions';
 import { isPromiseCanceledError } from 'vs/base/common/errors';
 import { Disposable } from 'vs/base/common/lifecycle';
 import { Schemas } from 'vs/base/common/network';
 import { URI } from 'vs/base/common/uri';
 import { localize } from 'vs/nls';
 import { ExtensionIdentifier } from 'vs/platform/extensions/common/extensions';
-import { INotificationService } from 'vs/platform/notification/common/notification';
+import { INotificationService, Severity } from 'vs/platform/notification/common/notification';
+import { IOpenerService } from 'vs/platform/opener/common/opener';
+import { IStorageService } from 'vs/platform/storage/common/storage';
 import { ExtHostContext, ExtHostUriOpenersShape, IExtHostContext, MainContext, MainThreadUriOpenersShape } from 'vs/workbench/api/common/extHost.protocol';
-import { externalUriOpenerIdSchemaAddition } from 'vs/workbench/contrib/externalUriOpener/common/configuration';
-import { ExternalOpenerEntry, IExternalOpenerProvider, IExternalUriOpenerService } from 'vs/workbench/contrib/externalUriOpener/common/externalUriOpenerService';
+import { defaultExternalUriOpenerId } from 'vs/workbench/contrib/externalUriOpener/common/configuration';
+import { ContributedExternalUriOpenersStore } from 'vs/workbench/contrib/externalUriOpener/common/contributedOpeners';
+import { IExternalOpenerProvider, IExternalUriOpener, IExternalUriOpenerService } from 'vs/workbench/contrib/externalUriOpener/common/externalUriOpenerService';
 import { IExtensionService } from 'vs/workbench/services/extensions/common/extensions';
 import { extHostNamedCustomer } from '../common/extHostCustomers';
 
@@ -28,51 +31,69 @@ export class MainThreadUriOpeners extends Disposable implements MainThreadUriOpe
 
 	private readonly proxy: ExtHostUriOpenersShape;
 	private readonly _registeredOpeners = new Map<string, RegisteredOpenerMetadata>();
+	private readonly _contributedExternalUriOpenersStore: ContributedExternalUriOpenersStore;
 
 	constructor(
 		context: IExtHostContext,
-		@IExternalUriOpenerService private readonly externalUriOpenerService: IExternalUriOpenerService,
+		@IStorageService storageService: IStorageService,
+		@IExternalUriOpenerService externalUriOpenerService: IExternalUriOpenerService,
 		@IExtensionService private readonly extensionService: IExtensionService,
+		@IOpenerService private readonly openerService: IOpenerService,
 		@INotificationService private readonly notificationService: INotificationService,
 	) {
 		super();
 		this.proxy = context.getProxy(ExtHostContext.ExtHostUriOpeners);
 
-		this._register(this.externalUriOpenerService.registerExternalOpenerProvider(this));
+		this._register(externalUriOpenerService.registerExternalOpenerProvider(this));
+
+		this._contributedExternalUriOpenersStore = this._register(new ContributedExternalUriOpenersStore(storageService, extensionService));
 	}
 
-	public async provideExternalOpeners(href: string | URI): Promise<readonly ExternalOpenerEntry[]> {
-		const targetUri = typeof href === 'string' ? URI.parse(href) : href;
+	public async *getOpeners(targetUri: URI): AsyncIterable<IExternalUriOpener> {
 
 		// Currently we only allow openers for http and https urls
 		if (targetUri.scheme !== Schemas.http && targetUri.scheme !== Schemas.https) {
-			return [];
+			return;
 		}
 
-		await this.extensionService.activateByEvent(`onUriOpen:${targetUri.scheme}`);
+		await this.extensionService.activateByEvent(`onOpenExternalUri:${targetUri.scheme}`);
 
-		// If there are no handlers there is no point in making a round trip
-		const hasHandler = Array.from(this._registeredOpeners.values()).some(x => x.schemes.has(targetUri.scheme));
-		if (!hasHandler) {
-			return [];
+		for (const [id, openerMetadata] of this._registeredOpeners) {
+			if (openerMetadata.schemes.has(targetUri.scheme)) {
+				yield this.createOpener(id, openerMetadata);
+			}
 		}
-
-		const openerIds = await this.proxy.$getOpenersForUri(targetUri, CancellationToken.None);
-		return openerIds.map(id => this.createOpener(id, targetUri));
 	}
 
-	private createOpener(openerId: string, sourceUri: URI): ExternalOpenerEntry {
-		const metadata = this._registeredOpeners.get(openerId)!;
+	private createOpener(id: string, metadata: RegisteredOpenerMetadata): IExternalUriOpener {
 		return {
-			id: openerId,
+			id: id,
 			label: metadata.label,
-			openExternal: async (href) => {
-				const resolveUri = URI.parse(href);
+			canOpen: (uri, token) => {
+				return this.proxy.$canOpenUri(id, uri, token);
+			},
+			openExternalUri: async (uri, ctx, token) => {
 				try {
-					await this.proxy.$openUri(openerId, { resolveUri, sourceUri }, CancellationToken.None);
+					await this.proxy.$openUri(id, { resolvedUri: uri, sourceUri: ctx.sourceUri }, token);
 				} catch (e) {
 					if (!isPromiseCanceledError(e)) {
-						this.notificationService.error(localize('openerFailedMessage', "Could not open uri: {0}", e.toString()));
+						const openDefaultAction = new Action('default', localize('openerFailedUseDefault', "Open using default opener"), undefined, undefined, () => {
+							return this.openerService.open(uri, {
+								allowTunneling: false,
+								allowContributedOpeners: defaultExternalUriOpenerId,
+							});
+						});
+						openDefaultAction.tooltip = uri.toString();
+
+						this.notificationService.notify({
+							severity: Severity.Error,
+							message: localize('openerFailedMessage', 'Could not open uri with \'{0}\': {1}', id, e.toString()),
+							actions: {
+								primary: [
+									openDefaultAction
+								]
+							}
+						});
 					}
 				}
 				return true;
@@ -87,7 +108,7 @@ export class MainThreadUriOpeners extends Disposable implements MainThreadUriOpe
 		label: string,
 	): Promise<void> {
 		if (this._registeredOpeners.has(id)) {
-			throw new Error(`Opener with id already registered: '${id}'`);
+			throw new Error(`Opener with id '${id}' already registered`);
 		}
 
 		this._registeredOpeners.set(id, {
@@ -96,11 +117,12 @@ export class MainThreadUriOpeners extends Disposable implements MainThreadUriOpe
 			extensionId,
 		});
 
-		externalUriOpenerIdSchemaAddition.enum?.push(id);
+		this._contributedExternalUriOpenersStore.didRegisterOpener(id, extensionId.value);
 	}
 
 	async $unregisterUriOpener(id: string): Promise<void> {
 		this._registeredOpeners.delete(id);
+		this._contributedExternalUriOpenersStore.delete(id);
 	}
 
 	dispose(): void {

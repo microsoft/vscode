@@ -12,10 +12,9 @@ import { VariableResolver, Variable, Text } from 'vs/editor/contrib/snippet/snip
 import { LanguageConfigurationRegistry } from 'vs/editor/common/modes/languageConfigurationRegistry';
 import { getLeadingWhitespace, commonPrefixLength, isFalsyOrWhitespace, splitLines } from 'vs/base/common/strings';
 import { IWorkspaceContextService } from 'vs/platform/workspace/common/workspace';
-import { isSingleFolderWorkspaceIdentifier, toWorkspaceIdentifier, WORKSPACE_EXTENSION, IWorkspaceIdentifier } from 'vs/platform/workspaces/common/workspaces';
+import { toWorkspaceIdentifier, WORKSPACE_EXTENSION, IWorkspaceIdentifier, ISingleFolderWorkspaceIdentifier, isSingleFolderWorkspaceIdentifier } from 'vs/platform/workspaces/common/workspaces';
 import { ILabelService } from 'vs/platform/label/common/label';
 import { normalizeDriveLetter } from 'vs/base/common/labels';
-import { URI } from 'vs/base/common/uri';
 import { OvertypingCapturer } from 'vs/editor/contrib/suggest/suggestOvertypingCapturer';
 import { generateUuid } from 'vs/base/common/uuid';
 
@@ -43,6 +42,7 @@ export const KnownSnippetVariableNames: { [key: string]: true } = Object.freeze(
 	'TM_FILENAME_BASE': true,
 	'TM_DIRECTORY': true,
 	'TM_FILEPATH': true,
+	'RELATIVE_FILEPATH': true,
 	'BLOCK_COMMENT_START': true,
 	'BLOCK_COMMENT_END': true,
 	'LINE_COMMENT': true,
@@ -179,6 +179,8 @@ export class ModelBasedVariableResolver implements VariableResolver {
 
 		} else if (name === 'TM_FILEPATH' && this._labelService) {
 			return this._labelService.getUriLabel(this._model.uri);
+		} else if (name === 'RELATIVE_FILEPATH' && this._labelService) {
+			return this._labelService.getUriLabel(this._model.uri, { relative: true, noPrefix: true });
 		}
 
 		return undefined;
@@ -311,9 +313,9 @@ export class WorkspaceBasedVariableResolver implements VariableResolver {
 
 		return undefined;
 	}
-	private _resolveWorkspaceName(workspaceIdentifier: IWorkspaceIdentifier | URI): string | undefined {
+	private _resolveWorkspaceName(workspaceIdentifier: IWorkspaceIdentifier | ISingleFolderWorkspaceIdentifier): string | undefined {
 		if (isSingleFolderWorkspaceIdentifier(workspaceIdentifier)) {
-			return path.basename(workspaceIdentifier.path);
+			return path.basename(workspaceIdentifier.uri.path);
 		}
 
 		let filename = path.basename(workspaceIdentifier.configPath.path);
@@ -322,9 +324,9 @@ export class WorkspaceBasedVariableResolver implements VariableResolver {
 		}
 		return filename;
 	}
-	private _resoveWorkspacePath(workspaceIdentifier: IWorkspaceIdentifier | URI): string | undefined {
+	private _resoveWorkspacePath(workspaceIdentifier: IWorkspaceIdentifier | ISingleFolderWorkspaceIdentifier): string | undefined {
 		if (isSingleFolderWorkspaceIdentifier(workspaceIdentifier)) {
-			return normalizeDriveLetter(workspaceIdentifier.fsPath);
+			return normalizeDriveLetter(workspaceIdentifier.uri.fsPath);
 		}
 
 		let filename = path.basename(workspaceIdentifier.configPath.path);

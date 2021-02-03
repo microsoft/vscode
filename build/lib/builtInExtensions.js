@@ -56,6 +56,13 @@ function syncMarketplaceExtension(extension) {
         .on('end', () => log(ansiColors.blue('[marketplace]'), extension.name, ansiColors.green('✔︎')));
 }
 function syncExtension(extension, controlState) {
+    if (extension.platforms) {
+        const platforms = new Set(extension.platforms);
+        if (!platforms.has(process.platform)) {
+            log(ansiColors.gray('[skip]'), `${extension.name}@${extension.version}: Platform '${process.platform}' not supported: [${extension.platforms}]`, ansiColors.green('✔︎'));
+            return es.readArray([]);
+        }
+    }
     switch (controlState) {
         case 'disabled':
             log(ansiColors.blue('[disabled]'), ansiColors.gray(extension.name));

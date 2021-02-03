@@ -140,5 +140,9 @@
   },
   "devDependencies": {
     "@types/node": "^12.19.9"
+  },
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/microsoft/vscode.git"
   }
 }

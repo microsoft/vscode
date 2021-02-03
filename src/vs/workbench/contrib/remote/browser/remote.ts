@@ -25,11 +25,7 @@ import { IExtensionDescription } from 'vs/platform/extensions/common/extensions'
 import { IOpenerService } from 'vs/platform/opener/common/opener';
 import { IQuickInputService } from 'vs/platform/quickinput/common/quickInput';
 import { ICommandService } from 'vs/platform/commands/common/commands';
-import { ShowViewletAction } from 'vs/workbench/browser/viewlet';
-import { IViewletService } from 'vs/workbench/services/viewlet/browser/viewlet';
-import { IEditorGroupsService } from 'vs/workbench/services/editor/common/editorGroupsService';
-import { IWorkbenchActionRegistry, Extensions as WorkbenchActionExtensions, CATEGORIES } from 'vs/workbench/common/actions';
-import { registerAction2, SyncActionDescriptor } from 'vs/platform/actions/common/actions';
+import { registerAction2 } from 'vs/platform/actions/common/actions';
 import { IProgress, IProgressStep, IProgressService, ProgressLocation } from 'vs/platform/progress/common/progress';
 import { IWorkbenchContribution, IWorkbenchContributionsRegistry, Extensions as WorkbenchExtensions } from 'vs/workbench/common/contributions';
 import { IRemoteAgentService } from 'vs/workbench/services/remote/common/remoteAgentService';
@@ -55,6 +51,8 @@ import { SyncDescriptor } from 'vs/platform/instantiation/common/descriptors';
 import { RemoteStatusIndicator } from 'vs/workbench/contrib/remote/browser/remoteIndicator';
 import * as icons from 'vs/workbench/contrib/remote/browser/remoteIcons';
 import { ILogService } from 'vs/platform/log/common/log';
+import { ITimerService } from 'vs/workbench/services/timer/browser/timerService';
+import { getRemoteName } from 'vs/platform/remote/common/remoteHosts';
 
 
 export interface HelpInformation {
@@ -545,7 +543,7 @@ registerAction2(SwitchRemoteAction);
 Registry.as<IViewContainersRegistry>(Extensions.ViewContainersRegistry).registerViewContainer(
 	{
 		id: VIEWLET_ID,
-		name: nls.localize('remote.explorer', "Remote Explorer"),
+		title: nls.localize('remote.explorer', "Remote Explorer"),
 		ctorDescriptor: new SyncDescriptor(RemoteViewPaneContainer),
 		hideIfEmpty: true,
 		viewOrderDelegate: {
@@ -577,24 +575,19 @@ Registry.as<IViewContainersRegistry>(Extensions.ViewContainersRegistry).register
 		order: 4
 	}, ViewContainerLocation.Sidebar);
 
-class OpenRemoteViewletAction extends ShowViewletAction {
+class RemoteMarkers implements IWorkbenchContribution {
 
-	static readonly ID = VIEWLET_ID;
-	static readonly LABEL = nls.localize('toggleRemoteViewlet', "Show Remote Explorer");
-
-	constructor(id: string, label: string, @IViewletService viewletService: IViewletService, @IEditorGroupsService editorGroupService: IEditorGroupsService, @IWorkbenchLayoutService layoutService: IWorkbenchLayoutService) {
-		super(id, label, VIEWLET_ID, viewletService, editorGroupService, layoutService);
+	constructor(
+		@IRemoteAgentService remoteAgentService: IRemoteAgentService,
+		@ITimerService timerService: ITimerService,
+	) {
+		remoteAgentService.getEnvironment().then(remoteEnv => {
+			if (remoteEnv) {
+				timerService.setPerformanceMarks('server', remoteEnv.marks);
+			}
+		});
 	}
 }
-
-// Register Action to Open Viewlet
-Registry.as<IWorkbenchActionRegistry>(WorkbenchActionExtensions.WorkbenchActions).registerWorkbenchAction(
-	SyncActionDescriptor.from(OpenRemoteViewletAction, {
-		primary: 0
-	}),
-	'View: Show Remote Explorer',
-	CATEGORIES.View.value
-);
 
 class VisibleProgress {
 
@@ -711,7 +704,9 @@ class RemoteAgentConnectionStatusListener extends Disposable implements IWorkben
 		@IDialogService dialogService: IDialogService,
 		@ICommandService commandService: ICommandService,
 		@IQuickInputService quickInputService: IQuickInputService,
-		@ILogService logService: ILogService
+		@ILogService logService: ILogService,
+		@IWorkbenchEnvironmentService environmentService: IWorkbenchEnvironmentService,
+		@ITelemetryService telemetryService: ITelemetryService
 	) {
 		super();
 		const connection = remoteAgentService.getConnection();
@@ -758,6 +753,10 @@ class RemoteAgentConnectionStatusListener extends Disposable implements IWorkben
 				}
 			}
 
+			let reconnectionToken: string = '';
+			let lastIncomingDataTime: number = 0;
+			let reconnectionAttempts: number = 0;
+
 			const reconnectButton = {
 				label: nls.localize('reconnectNow', "Reconnect Now"),
 				callback: () => {
@@ -770,13 +769,33 @@ class RemoteAgentConnectionStatusListener extends Disposable implements IWorkben
 			const reloadButton = {
 				label: nls.localize('reloadWindow', "Reload Window"),
 				callback: () => {
+
+					type ReconnectReloadClassification = {
+						remoteName: { classification: 'SystemMetaData', purpose: 'PerformanceAndHealth' };
+						reconnectionToken: { classification: 'SystemMetaData', purpose: 'PerformanceAndHealth' };
+						millisSinceLastIncomingData: { classification: 'SystemMetaData', purpose: 'PerformanceAndHealth' };
+						attempt: { classification: 'SystemMetaData', purpose: 'PerformanceAndHealth' };
+					};
+					type ReconnectReloadEvent = {
+						remoteName: string | undefined;
+						reconnectionToken: string;
+						millisSinceLastIncomingData: number;
+						attempt: number;
+					};
+					telemetryService.publicLog2<ReconnectReloadEvent, ReconnectReloadClassification>('remoteReconnectionReload', {
+						remoteName: getRemoteName(environmentService.remoteAuthority),
+						reconnectionToken: reconnectionToken,
+						millisSinceLastIncomingData: Date.now() - lastIncomingDataTime,
+						attempt: reconnectionAttempts
+					});
+
 					commandService.executeCommand(ReloadWindowAction.ID);
 				}
 			};
 
 			// Possible state transitions:
 			// ConnectionGain      -> ConnectionLost
-			// ConnectionLost      -> ReconnectionWait
+			// ConnectionLost      -> ReconnectionWait, ReconnectionRunning
 			// ReconnectionWait    -> ReconnectionRunning
 			// ReconnectionRunning -> ConnectionGain, ReconnectionPermanentFailure
 
@@ -791,6 +810,23 @@ class RemoteAgentConnectionStatusListener extends Disposable implements IWorkben
 				}
 				switch (e.type) {
 					case PersistentConnectionEventType.ConnectionLost:
+						reconnectionToken = e.reconnectionToken;
+						lastIncomingDataTime = Date.now() - e.millisSinceLastIncomingData;
+						reconnectionAttempts = 0;
+
+						type RemoteConnectionLostClassification = {
+							remoteName: { classification: 'SystemMetaData', purpose: 'PerformanceAndHealth' };
+							reconnectionToken: { classification: 'SystemMetaData', purpose: 'PerformanceAndHealth' };
+						};
+						type RemoteConnectionLostEvent = {
+							remoteName: string | undefined;
+							reconnectionToken: string;
+						};
+						telemetryService.publicLog2<RemoteConnectionLostEvent, RemoteConnectionLostClassification>('remoteConnectionLost', {
+							remoteName: getRemoteName(environmentService.remoteAuthority),
+							reconnectionToken: e.reconnectionToken,
+						});
+
 						if (visibleProgress || e.millisSinceLastIncomingData > DISCONNECT_PROMPT_TIME) {
 							if (!visibleProgress) {
 								visibleProgress = showProgress(null, [reconnectButton, reloadButton]);
@@ -798,6 +834,7 @@ class RemoteAgentConnectionStatusListener extends Disposable implements IWorkben
 							visibleProgress.report(nls.localize('connectionLost', "Connection Lost"));
 						}
 						break;
+
 					case PersistentConnectionEventType.ReconnectionWait:
 						if (visibleProgress) {
 							reconnectWaitEvent = e;
@@ -805,7 +842,31 @@ class RemoteAgentConnectionStatusListener extends Disposable implements IWorkben
 							visibleProgress.startTimer(Date.now() + 1000 * e.durationSeconds);
 						}
 						break;
+
 					case PersistentConnectionEventType.ReconnectionRunning:
+						reconnectionToken = e.reconnectionToken;
+						lastIncomingDataTime = Date.now() - e.millisSinceLastIncomingData;
+						reconnectionAttempts = e.attempt;
+
+						type RemoteReconnectionRunningClassification = {
+							remoteName: { classification: 'SystemMetaData', purpose: 'PerformanceAndHealth' };
+							reconnectionToken: { classification: 'SystemMetaData', purpose: 'PerformanceAndHealth' };
+							millisSinceLastIncomingData: { classification: 'SystemMetaData', purpose: 'PerformanceAndHealth' };
+							attempt: { classification: 'SystemMetaData', purpose: 'PerformanceAndHealth' };
+						};
+						type RemoteReconnectionRunningEvent = {
+							remoteName: string | undefined;
+							reconnectionToken: string;
+							millisSinceLastIncomingData: number;
+							attempt: number;
+						};
+						telemetryService.publicLog2<RemoteReconnectionRunningEvent, RemoteReconnectionRunningClassification>('remoteReconnectionRunning', {
+							remoteName: getRemoteName(environmentService.remoteAuthority),
+							reconnectionToken: e.reconnectionToken,
+							millisSinceLastIncomingData: e.millisSinceLastIncomingData,
+							attempt: e.attempt
+						});
+
 						if (visibleProgress || e.millisSinceLastIncomingData > DISCONNECT_PROMPT_TIME) {
 							visibleProgress = showProgress(null, [reloadButton]);
 							visibleProgress.report(nls.localize('reconnectionRunning', "Disconnected. Attempting to reconnect..."));
@@ -820,7 +881,34 @@ class RemoteAgentConnectionStatusListener extends Disposable implements IWorkben
 						}
 
 						break;
+
 					case PersistentConnectionEventType.ReconnectionPermanentFailure:
+						reconnectionToken = e.reconnectionToken;
+						lastIncomingDataTime = Date.now() - e.millisSinceLastIncomingData;
+						reconnectionAttempts = e.attempt;
+
+						type RemoteReconnectionPermanentFailureClassification = {
+							remoteName: { classification: 'SystemMetaData', purpose: 'PerformanceAndHealth' };
+							reconnectionToken: { classification: 'SystemMetaData', purpose: 'PerformanceAndHealth' };
+							millisSinceLastIncomingData: { classification: 'SystemMetaData', purpose: 'PerformanceAndHealth' };
+							attempt: { classification: 'SystemMetaData', purpose: 'PerformanceAndHealth' };
+							handled: { classification: 'SystemMetaData', purpose: 'PerformanceAndHealth' };
+						};
+						type RemoteReconnectionPermanentFailureEvent = {
+							remoteName: string | undefined;
+							reconnectionToken: string;
+							millisSinceLastIncomingData: number;
+							attempt: number;
+							handled: boolean;
+						};
+						telemetryService.publicLog2<RemoteReconnectionPermanentFailureEvent, RemoteReconnectionPermanentFailureClassification>('remoteReconnectionPermanentFailure', {
+							remoteName: getRemoteName(environmentService.remoteAuthority),
+							reconnectionToken: e.reconnectionToken,
+							millisSinceLastIncomingData: e.millisSinceLastIncomingData,
+							attempt: e.attempt,
+							handled: e.handled
+						});
+
 						hideProgress();
 
 						if (e.handled) {
@@ -828,7 +916,7 @@ class RemoteAgentConnectionStatusListener extends Disposable implements IWorkben
 							console.log(`Error handled: Not showing a notification for the error.`);
 						} else if (!this._reloadWindowShown) {
 							this._reloadWindowShown = true;
-							dialogService.show(Severity.Error, nls.localize('reconnectionPermanentFailure', "Cannot reconnect. Please reload the window."), [nls.localize('reloadWindow', "Reload Window"), nls.localize('cancel', "Cancel")], { cancelId: 1 }).then(result => {
+							dialogService.show(Severity.Error, nls.localize('reconnectionPermanentFailure', "Cannot reconnect. Please reload the window."), [nls.localize('reloadWindow', "Reload Window"), nls.localize('cancel', "Cancel")], { cancelId: 1, useCustom: true }).then(result => {
 								// Reload the window
 								if (result.choice === 0) {
 									commandService.executeCommand(ReloadWindowAction.ID);
@@ -836,7 +924,31 @@ class RemoteAgentConnectionStatusListener extends Disposable implements IWorkben
 							});
 						}
 						break;
+
 					case PersistentConnectionEventType.ConnectionGain:
+						reconnectionToken = e.reconnectionToken;
+						lastIncomingDataTime = Date.now() - e.millisSinceLastIncomingData;
+						reconnectionAttempts = e.attempt;
+
+						type RemoteConnectionGainClassification = {
+							remoteName: { classification: 'SystemMetaData', purpose: 'PerformanceAndHealth' };
+							reconnectionToken: { classification: 'SystemMetaData', purpose: 'PerformanceAndHealth' };
+							millisSinceLastIncomingData: { classification: 'SystemMetaData', purpose: 'PerformanceAndHealth' };
+							attempt: { classification: 'SystemMetaData', purpose: 'PerformanceAndHealth' };
+						};
+						type RemoteConnectionGainEvent = {
+							remoteName: string | undefined;
+							reconnectionToken: string;
+							millisSinceLastIncomingData: number;
+							attempt: number;
+						};
+						telemetryService.publicLog2<RemoteConnectionGainEvent, RemoteConnectionGainClassification>('remoteConnectionGain', {
+							remoteName: getRemoteName(environmentService.remoteAuthority),
+							reconnectionToken: e.reconnectionToken,
+							millisSinceLastIncomingData: e.millisSinceLastIncomingData,
+							attempt: e.attempt
+						});
+
 						hideProgress();
 						break;
 				}
@@ -851,3 +963,4 @@ workbenchContributionsRegistry.registerWorkbenchContribution(RemoteStatusIndicat
 workbenchContributionsRegistry.registerWorkbenchContribution(ForwardedPortsView, LifecyclePhase.Eventually);
 workbenchContributionsRegistry.registerWorkbenchContribution(PortRestore, LifecyclePhase.Eventually);
 workbenchContributionsRegistry.registerWorkbenchContribution(AutomaticPortForwarding, LifecyclePhase.Eventually);
+workbenchContributionsRegistry.registerWorkbenchContribution(RemoteMarkers, LifecyclePhase.Eventually);

@@ -136,6 +136,7 @@ export interface CommitOptions {
 	signCommit?: boolean;
 	empty?: boolean;
 	noVerify?: boolean;
+	requireUserConfig?: boolean;
 }
 
 export interface BranchQuery {
@@ -253,6 +254,7 @@ export interface API {
 	toGitUri(uri: Uri, ref: string): Uri;
 	getRepository(uri: Uri): Repository | null;
 	init(root: Uri): Promise<Repository | null>;
+	openRepository(root: Uri): Promise<Repository | null>
 
 	registerRemoteSourceProvider(provider: RemoteSourceProvider): Disposable;
 	registerCredentialsProvider(provider: CredentialsProvider): Disposable;

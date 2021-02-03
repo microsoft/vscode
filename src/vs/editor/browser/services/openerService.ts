@@ -4,6 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import * as dom from 'vs/base/browser/dom';
+import { CancellationToken } from 'vs/base/common/cancellation';
 import { IDisposable } from 'vs/base/common/lifecycle';
 import { LinkedList } from 'vs/base/common/linkedList';
 import { ResourceMap } from 'vs/base/common/map';
@@ -210,14 +211,20 @@ export class OpenerService implements IOpenerService {
 			href = encodeURI(resolved.toString(true));
 		}
 
-		for (const opener of this._externalOpeners) {
-			const didOpen = await opener.openExternal(href);
-			if (didOpen) {
-				return true;
+		if (options?.allowContributedOpeners) {
+			const preferredOpenerId = typeof options?.allowContributedOpeners === 'string' ? options?.allowContributedOpeners : undefined;
+			for (const opener of this._externalOpeners) {
+				const didOpen = await opener.openExternal(href, {
+					sourceUri: uri,
+					preferredOpenerId,
+				}, CancellationToken.None);
+				if (didOpen) {
+					return true;
+				}
 			}
 		}
 
-		return this._defaultExternalOpener.openExternal(href);
+		return this._defaultExternalOpener.openExternal(href, { sourceUri: uri }, CancellationToken.None);
 	}
 
 	dispose() {

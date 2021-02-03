@@ -23,9 +23,9 @@ import { IStorageService, StorageScope, IStorageValueChangeEvent, StorageTarget 
 import { IExtensionService } from 'vs/workbench/services/extensions/common/extensions';
 import { URI, UriComponents } from 'vs/base/common/uri';
 import { ToggleCompositePinnedAction, ICompositeBarColors, ActivityAction, ICompositeActivity } from 'vs/workbench/browser/parts/compositeBarActions';
-import { IViewDescriptorService, ViewContainer, TEST_VIEW_CONTAINER_ID, IViewContainerModel, ViewContainerLocation, IViewsService } from 'vs/workbench/common/views';
-import { IContextKeyService, ContextKeyExpr } from 'vs/platform/contextkey/common/contextkey';
-import { assertIsDefined } from 'vs/base/common/types';
+import { IViewDescriptorService, ViewContainer, IViewContainerModel, ViewContainerLocation, IViewsService, getEnabledViewContainerContextKey } from 'vs/workbench/common/views';
+import { IContextKeyService, ContextKeyExpr, IContextKey } from 'vs/platform/contextkey/common/contextkey';
+import { assertIsDefined, isString } from 'vs/base/common/types';
 import { IActivityBarService } from 'vs/workbench/services/activityBar/browser/activityBarService';
 import { registerSingleton } from 'vs/platform/instantiation/common/extensions';
 import { IWorkbenchEnvironmentService } from 'vs/workbench/services/environment/common/environmentService';
@@ -49,6 +49,7 @@ interface IPlaceholderViewContainer {
 	readonly name?: string;
 	readonly iconUrl?: UriComponents;
 	readonly themeIcon?: ThemeIcon;
+	readonly isBuiltin?: boolean;
 	readonly views?: { when?: string; }[];
 }
 
@@ -66,6 +67,7 @@ interface ICachedViewContainer {
 	readonly pinned: boolean;
 	readonly order?: number;
 	visible: boolean;
+	isBuiltin?: boolean;
 	views?: { when?: string; }[];
 }
 
@@ -116,6 +118,9 @@ export class ActivitybarPart extends Part implements IActivityBarService {
 	private readonly keyboardNavigationDisposables = this._register(new DisposableStore());
 
 	private readonly location = ViewContainerLocation.Sidebar;
+	private hasExtensionsRegistered: boolean = false;
+
+	private readonly enabledViewContainersContextKeys: Map<string, IContextKey<boolean>> = new Map<string, IContextKey<boolean>>();
 
 	constructor(
 		@IInstantiationService private readonly instantiationService: IInstantiationService,
@@ -132,14 +137,8 @@ export class ActivitybarPart extends Part implements IActivityBarService {
 		super(Parts.ACTIVITYBAR_PART, { hasTitle: false }, themeService, storageService, layoutService);
 
 		for (const cachedViewContainer of this.cachedViewContainers) {
-			if (
-				environmentService.remoteAuthority || // In remote window, hide activity bar entries until registered.
-				this.shouldBeHidden(cachedViewContainer.id, cachedViewContainer)
-			) {
-				cachedViewContainer.visible = false;
-			}
+			cachedViewContainer.visible = !this.shouldBeHidden(cachedViewContainer.id, cachedViewContainer);
 		}
-
 		this.compositeBar = this.createCompositeBar();
 
 		this.onDidRegisterViewContainers(this.getViewContainers());
@@ -319,7 +318,22 @@ export class ActivitybarPart extends Part implements IActivityBarService {
 	}
 
 	private onDidRegisterExtensions(): void {
-		this.removeNotExistingComposites();
+		this.hasExtensionsRegistered = true;
+
+		// show/hide/remove composites
+		for (const { id } of this.cachedViewContainers) {
+			const viewContainer = this.getViewContainer(id);
+			if (viewContainer) {
+				this.showOrHideViewContainer(viewContainer);
+			} else {
+				if (this.viewDescriptorService.isViewContainerRemovedPermanently(id)) {
+					this.removeComposite(id);
+				} else {
+					this.hideComposite(id);
+				}
+			}
+		}
+
 		this.saveCachedViewContainers();
 	}
 
@@ -328,10 +342,10 @@ export class ActivitybarPart extends Part implements IActivityBarService {
 		if (viewContainer) {
 
 			// Update the composite bar by adding
-			this.compositeBar.addComposite(viewContainer);
+			this.addComposite(viewContainer);
 			this.compositeBar.activateComposite(viewContainer.id);
 
-			if (viewContainer.hideIfEmpty) {
+			if (this.shouldBeHidden(viewContainer)) {
 				const viewContainerModel = this.viewDescriptorService.getViewContainerModel(viewContainer);
 				if (viewContainerModel.activeViewDescriptors.length === 0) {
 					// Update the composite bar by hiding
@@ -469,7 +483,8 @@ export class ActivitybarPart extends Part implements IActivityBarService {
 
 		// Home action bar
 		const homeIndicator = this.environmentService.options?.homeIndicator;
-		if (homeIndicator) {
+		// TODO @sbatten remove the fake setting and associated code
+		if (homeIndicator && this.configurationService.getValue<boolean>('window.showHomeIndicator')) {
 			let codicon = iconRegistry.get(homeIndicator.icon);
 			if (!codicon) {
 				codicon = Codicon.code;
@@ -656,8 +671,8 @@ export class ActivitybarPart extends Part implements IActivityBarService {
 			if (viewContainer) {
 				const viewContainerModel = this.viewDescriptorService.getViewContainerModel(viewContainer);
 				compositeActions = {
-					activityAction: this.instantiationService.createInstance(ViewContainerActivityAction, this.toActivity(viewContainer, viewContainerModel)),
-					pinnedAction: new ToggleCompositePinnedAction(viewContainer, this.compositeBar)
+					activityAction: this.instantiationService.createInstance(ViewContainerActivityAction, this.toActivity(viewContainerModel)),
+					pinnedAction: new ToggleCompositePinnedAction(this.toActivity(viewContainerModel), this.compositeBar)
 				};
 			} else {
 				const cachedComposite = this.cachedViewContainers.filter(c => c.id === compositeId)[0];
@@ -675,32 +690,27 @@ export class ActivitybarPart extends Part implements IActivityBarService {
 
 	private onDidRegisterViewContainers(viewContainers: ReadonlyArray<ViewContainer>): void {
 		for (const viewContainer of viewContainers) {
+			this.addComposite(viewContainer);
+
+			// Pin it by default if it is new
 			const cachedViewContainer = this.cachedViewContainers.filter(({ id }) => id === viewContainer.id)[0];
-			const visibleViewContainer = this.viewsService.getVisibleViewContainer(this.location);
-			const isActive = visibleViewContainer?.id === viewContainer.id;
-
-			if (isActive || !this.shouldBeHidden(viewContainer.id, cachedViewContainer)) {
-				this.compositeBar.addComposite(viewContainer);
-
-				// Pin it by default if it is new
-				if (!cachedViewContainer) {
-					this.compositeBar.pin(viewContainer.id);
-				}
-
-				if (isActive) {
-					this.compositeBar.activateComposite(viewContainer.id);
-				}
+			if (!cachedViewContainer) {
+				this.compositeBar.pin(viewContainer.id);
 			}
-		}
 
-		for (const viewContainer of viewContainers) {
+			// Active
+			const visibleViewContainer = this.viewsService.getVisibleViewContainer(this.location);
+			if (visibleViewContainer?.id === viewContainer.id) {
+				this.compositeBar.activateComposite(viewContainer.id);
+			}
+
 			const viewContainerModel = this.viewDescriptorService.getViewContainerModel(viewContainer);
 			this.updateActivity(viewContainer, viewContainerModel);
-			this.onDidChangeActiveViews(viewContainer, viewContainerModel);
+			this.showOrHideViewContainer(viewContainer);
 
 			const disposables = new DisposableStore();
 			disposables.add(viewContainerModel.onDidChangeContainerInfo(() => this.updateActivity(viewContainer, viewContainerModel)));
-			disposables.add(viewContainerModel.onDidChangeActiveViewDescriptors(() => this.onDidChangeActiveViews(viewContainer, viewContainerModel)));
+			disposables.add(viewContainerModel.onDidChangeActiveViewDescriptors(() => this.showOrHideViewContainer(viewContainer)));
 
 			this.viewContainerDisposables.set(viewContainer.id, disposables);
 		}
@@ -717,7 +727,7 @@ export class ActivitybarPart extends Part implements IActivityBarService {
 	}
 
 	private updateActivity(viewContainer: ViewContainer, viewContainerModel: IViewContainerModel): void {
-		const activity: IActivity = this.toActivity(viewContainer, viewContainerModel);
+		const activity: IActivity = this.toActivity(viewContainerModel);
 		const { activityAction, pinnedAction } = this.getCompositeActions(viewContainer.id);
 		activityAction.updateActivity(activity);
 
@@ -728,8 +738,8 @@ export class ActivitybarPart extends Part implements IActivityBarService {
 		this.saveCachedViewContainers();
 	}
 
-	private toActivity({ id, focusCommand }: ViewContainer, { icon, title: name }: IViewContainerModel): IActivity {
-		return ActivitybarPart.toActivity(id, name, icon, focusCommand?.id || id);
+	private toActivity(viewContainerModel: IViewContainerModel): IActivity {
+		return ActivitybarPart.toActivity(viewContainerModel.viewContainer.id, viewContainerModel.title, viewContainerModel.icon, viewContainerModel.keybindingId);
 	}
 
 	private static toActivity(id: string, name: string, icon: URI | ThemeIcon | undefined, keybindingId: string | undefined): IActivity {
@@ -755,36 +765,54 @@ export class ActivitybarPart extends Part implements IActivityBarService {
 		return { id, name, cssClass, iconUrl, keybindingId };
 	}
 
-	private onDidChangeActiveViews(viewContainer: ViewContainer, viewContainerModel: IViewContainerModel): void {
-		if (viewContainerModel.activeViewDescriptors.length) {
-			this.compositeBar.addComposite(viewContainer);
-		} else if (viewContainer.hideIfEmpty) {
+	private showOrHideViewContainer(viewContainer: ViewContainer): void {
+		let contextKey = this.enabledViewContainersContextKeys.get(viewContainer.id);
+		if (!contextKey) {
+			contextKey = this.contextKeyService.createKey(getEnabledViewContainerContextKey(viewContainer.id), false);
+			this.enabledViewContainersContextKeys.set(viewContainer.id, contextKey);
+		}
+		if (this.shouldBeHidden(viewContainer)) {
+			contextKey.set(false);
 			this.hideComposite(viewContainer.id);
+		} else {
+			contextKey.set(true);
+			this.addComposite(viewContainer);
 		}
 	}
 
-	private shouldBeHidden(viewContainerId: string, cachedViewContainer?: ICachedViewContainer): boolean {
-		const viewContainer = this.getViewContainer(viewContainerId);
-		if (!viewContainer || !viewContainer.hideIfEmpty) {
-			return false;
-		}
+	private shouldBeHidden(viewContainerOrId: string | ViewContainer, cachedViewContainer?: ICachedViewContainer): boolean {
+		const viewContainer = isString(viewContainerOrId) ? this.getViewContainer(viewContainerOrId) : viewContainerOrId;
+		const viewContainerId = isString(viewContainerOrId) ? viewContainerOrId : viewContainerOrId.id;
 
-		return cachedViewContainer?.views && cachedViewContainer.views.length
-			? cachedViewContainer.views.every(({ when }) => !!when && !this.contextKeyService.contextMatchesRules(ContextKeyExpr.deserialize(when)))
-			: viewContainerId === TEST_VIEW_CONTAINER_ID /* Hide Test view container for the first time or it had no views registered before */;
-	}
-
-	private removeNotExistingComposites(): void {
-		const viewContainers = this.getViewContainers();
-		for (const { id } of this.cachedViewContainers) {
-			if (viewContainers.every(viewContainer => viewContainer.id !== id)) {
-				if (this.viewDescriptorService.isViewContainerRemovedPermanently(id)) {
-					this.removeComposite(id);
-				} else {
-					this.hideComposite(id);
+		if (viewContainer) {
+			if (viewContainer.hideIfEmpty) {
+				if (this.viewDescriptorService.getViewContainerModel(viewContainer).activeViewDescriptors.length > 0) {
+					return false;
 				}
+			} else {
+				return false;
 			}
 		}
+
+		// Check cache only if extensions are not yet registered and current window is not native (desktop) remote connection window
+		if (!this.hasExtensionsRegistered && !(this.environmentService.remoteAuthority && isNative)) {
+			cachedViewContainer = cachedViewContainer || this.cachedViewContainers.find(({ id }) => id === viewContainerId);
+
+			// Show builtin ViewContainer if not registered yet
+			if (!viewContainer && cachedViewContainer?.isBuiltin) {
+				return false;
+			}
+
+			if (cachedViewContainer?.views?.length) {
+				return cachedViewContainer.views.every(({ when }) => !!when && !this.contextKeyService.contextMatchesRules(ContextKeyExpr.deserialize(when)));
+			}
+		}
+
+		return true;
+	}
+
+	private addComposite(viewContainer: ViewContainer): void {
+		this.compositeBar.addComposite({ id: viewContainer.id, name: viewContainer.title, order: viewContainer.order, requestedIndex: viewContainer.requestedIndex });
 	}
 
 	private hideComposite(compositeId: string): void {
@@ -876,7 +904,6 @@ export class ActivitybarPart extends Part implements IActivityBarService {
 
 	private getViewContainer(id: string): ViewContainer | undefined {
 		const viewContainer = this.viewDescriptorService.getViewContainerById(id);
-
 		return viewContainer && this.viewDescriptorService.getViewContainerLocation(viewContainer) === this.location ? viewContainer : undefined;
 	}
 
@@ -941,10 +968,11 @@ export class ActivitybarPart extends Part implements IActivityBarService {
 					views,
 					pinned: compositeItem.pinned,
 					order: compositeItem.order,
-					visible: compositeItem.visible
+					visible: compositeItem.visible,
+					isBuiltin: !viewContainer.extensionId
 				});
 			} else {
-				state.push({ id: compositeItem.id, pinned: compositeItem.pinned, order: compositeItem.order, visible: false });
+				state.push({ id: compositeItem.id, pinned: compositeItem.pinned, order: compositeItem.order, visible: false, isBuiltin: false });
 			}
 		}
 
@@ -962,6 +990,7 @@ export class ActivitybarPart extends Part implements IActivityBarService {
 					cachedViewContainer.icon = placeholderViewContainer.themeIcon ? placeholderViewContainer.themeIcon :
 						placeholderViewContainer.iconUrl ? URI.revive(placeholderViewContainer.iconUrl) : undefined;
 					cachedViewContainer.views = placeholderViewContainer.views;
+					cachedViewContainer.isBuiltin = placeholderViewContainer.isBuiltin;
 				}
 			}
 		}
@@ -977,11 +1006,12 @@ export class ActivitybarPart extends Part implements IActivityBarService {
 			order
 		})));
 
-		this.setPlaceholderViewContainers(cachedViewContainers.map(({ id, icon, name, views }) => (<IPlaceholderViewContainer>{
+		this.setPlaceholderViewContainers(cachedViewContainers.map(({ id, icon, name, views, isBuiltin }) => (<IPlaceholderViewContainer>{
 			id,
 			iconUrl: URI.isUri(icon) ? icon : undefined,
 			themeIcon: ThemeIcon.isThemeIcon(icon) ? icon : undefined,
 			name,
+			isBuiltin,
 			views
 		})));
 	}

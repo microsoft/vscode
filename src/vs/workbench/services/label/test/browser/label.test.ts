@@ -160,7 +160,7 @@ suite('URI Label', () => {
 });
 
 
-suite('multi-root worksapce', () => {
+suite('multi-root workspace', () => {
 	let labelService: LabelService;
 
 	setup(() => {
@@ -171,7 +171,7 @@ suite('multi-root worksapce', () => {
 		labelService = new LabelService(
 			TestEnvironmentService,
 			new TestContextService(
-				new Workspace('test-workspaace', [
+				new Workspace('test-workspace', [
 					new WorkspaceFolder({ uri: sources, index: 0, name: 'Sources' }, { uri: sources.toString() }),
 					new WorkspaceFolder({ uri: tests, index: 1, name: 'Tests' }, { uri: tests.toString() }),
 					new WorkspaceFolder({ uri: other, index: 2, name: resources.basename(other) }, { uri: other.toString() }),
@@ -179,7 +179,7 @@ suite('multi-root worksapce', () => {
 			new TestPathService());
 	});
 
-	test('labels of files in multiroot workspaces are the foldername folloed by offset from the folder', () => {
+	test('labels of files in multiroot workspaces are the foldername followed by offset from the folder', () => {
 		labelService.registerFormatter({
 			scheme: 'file',
 			formatting: {
@@ -247,6 +247,60 @@ suite('multi-root worksapce', () => {
 		Object.entries(tests).forEach(([path, label]) => {
 			const generated = labelService.getUriLabel(URI.file(path), { relative: true });
 			assert.equal(generated, label, path);
+		});
+	});
+});
+
+suite('workspace at FSP root', () => {
+	let labelService: LabelService;
+
+	setup(() => {
+		const rootFolder = URI.parse('myscheme://myauthority/');
+
+		labelService = new LabelService(
+			TestEnvironmentService,
+			new TestContextService(
+				new Workspace('test-workspace', [
+					new WorkspaceFolder({ uri: rootFolder, index: 0, name: 'FSProotFolder' }, { uri: rootFolder.toString() }),
+				])),
+			new TestPathService());
+		labelService.registerFormatter({
+			scheme: 'myscheme',
+			formatting: {
+				label: '${scheme}://${authority}${path}',
+				separator: '/',
+				tildify: false,
+				normalizeDriveLetter: false,
+				workspaceSuffix: '',
+				authorityPrefix: '',
+				stripPathStartingSeparator: false
+			}
+		});
+	});
+
+	test('non-relative label', () => {
+
+		const tests = {
+			'myscheme://myauthority/myFile1.txt': 'myscheme://myauthority/myFile1.txt',
+			'myscheme://myauthority/folder/myFile2.txt': 'myscheme://myauthority/folder/myFile2.txt',
+		};
+
+		Object.entries(tests).forEach(([uriString, label]) => {
+			const generated = labelService.getUriLabel(URI.parse(uriString), { relative: false });
+			assert.equal(generated, label);
+		});
+	});
+
+	test('relative label', () => {
+
+		const tests = {
+			'myscheme://myauthority/myFile1.txt': 'myFile1.txt',
+			'myscheme://myauthority/folder/myFile2.txt': 'folder/myFile2.txt',
+		};
+
+		Object.entries(tests).forEach(([uriString, label]) => {
+			const generated = labelService.getUriLabel(URI.parse(uriString), { relative: true });
+			assert.equal(generated, label);
 		});
 	});
 });

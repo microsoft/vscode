@@ -246,6 +246,24 @@ export class ExtensionService extends AbstractExtensionService implements IExten
 				signal,
 				extensionIds: activatedExtensions.map(e => e.value)
 			});
+
+			for (const extensionId of activatedExtensions) {
+				type ExtensionHostCrashExtensionClassification = {
+					code: { classification: 'SystemMetaData', purpose: 'PerformanceAndHealth' };
+					signal: { classification: 'SystemMetaData', purpose: 'PerformanceAndHealth' };
+					extensionId: { classification: 'SystemMetaData', purpose: 'PerformanceAndHealth' };
+				};
+				type ExtensionHostCrashExtensionEvent = {
+					code: number;
+					signal: string | null;
+					extensionId: string;
+				};
+				this._telemetryService.publicLog2<ExtensionHostCrashExtensionEvent, ExtensionHostCrashExtensionClassification>('extensionHostCrashExtension', {
+					code,
+					signal,
+					extensionId: extensionId.value
+				});
+			}
 		}
 	}
 

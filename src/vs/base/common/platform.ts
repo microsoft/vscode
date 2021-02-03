@@ -235,7 +235,7 @@ export const setImmediate: ISetImmediate = (function defineSetImmediate() {
 			globals.postMessage({ vscodeSetImmediateId: myId }, '*');
 		};
 	}
-	if (nodeProcess) {
+	if (nodeProcess && typeof nodeProcess.nextTick === 'function') {
 		return nodeProcess.nextTick.bind(nodeProcess);
 	}
 	const _promise = Promise.resolve();
