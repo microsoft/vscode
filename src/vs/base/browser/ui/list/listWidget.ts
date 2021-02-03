@@ -1149,7 +1149,7 @@ export class List<T> implements ISpliceable<T>, IThemable, IDisposable {
 	get onTap(): Event<IListGestureEvent<T>> { return this.view.onTap; }
 
 	@memoize get onContextMenu(): Event<IListContextMenuEvent<T>> {
-		const fromKeyup = Event.chain(domEvent(this.view.domNode, 'keyup'))
+		const fromKeyboard = Event.chain(domEvent(this.view.domNode, 'keyup'))
 			.map(e => new StandardKeyboardEvent(e))
 			.filter(e => e.keyCode === KeyCode.ContextMenu || (e.shiftKey && e.keyCode === KeyCode.F10))
 			.map(stopEvent)
@@ -1167,7 +1167,7 @@ export class List<T> implements ISpliceable<T>, IThemable, IDisposable {
 			.map(({ element, index, browserEvent }) => ({ element, index, anchor: { x: browserEvent.clientX + 1, y: browserEvent.clientY }, browserEvent }))
 			.event;
 
-		return Event.any<IListContextMenuEvent<T>>(fromKeyup, fromMouse);
+		return Event.any<IListContextMenuEvent<T>>(fromKeyboard, fromMouse);
 	}
 
 	get onKeyDown(): Event<KeyboardEvent> { return domEvent(this.view.domNode, 'keydown'); }
