@@ -6,7 +6,7 @@
 import * as fs from 'fs';
 import { tmpdir } from 'os';
 import { join } from 'vs/base/common/path';
-import { Promises, Queue } from 'vs/base/common/async';
+import { Queue } from 'vs/base/common/async';
 import { isMacintosh, isWindows } from 'vs/base/common/platform';
 import { Event } from 'vs/base/common/event';
 import { promisify } from 'util';
@@ -51,46 +51,13 @@ export async function rimraf(path: string, mode = RimRafMode.UNLINK): Promise<vo
 		throw new Error('rimraf - will refuse to recursively delete root');
 	}
 
-	// delete: via unlink
+	// delete: via rmDir
 	if (mode === RimRafMode.UNLINK) {
-		return rimrafUnlink(path);
+		return fs.promises.rmdir(path, { recursive: true });
 	}
 
 	// delete: via move
 	return rimrafMove(path);
-}
-
-async function rimrafUnlink(path: string): Promise<void> {
-	try {
-		const stat = await lstat(path);
-
-		// Folder delete (recursive) - NOT for symbolic links though!
-		if (stat.isDirectory() && !stat.isSymbolicLink()) {
-
-			// Children
-			const children = await readdir(path);
-			await Promises.settled(children.map(child => rimrafUnlink(join(path, child))));
-
-			// Folder
-			await promisify(fs.rmdir)(path);
-		}
-
-		// Single file delete
-		else {
-
-			// chmod as needed to allow for unlink
-			const mode = stat.mode;
-			if (!(mode & fs.constants.S_IWUSR)) {
-				await chmod(path, mode | fs.constants.S_IWUSR);
-			}
-
-			return unlink(path);
-		}
-	} catch (error) {
-		if (error.code !== 'ENOENT') {
-			throw error;
-		}
-	}
 }
 
 async function rimrafMove(path: string): Promise<void> {
@@ -99,11 +66,11 @@ async function rimrafMove(path: string): Promise<void> {
 		try {
 			await rename(path, pathInTemp);
 		} catch (error) {
-			return rimrafUnlink(path); // if rename fails, delete without tmp dir
+			return fs.promises.rmdir(path, { recursive: true }); // if rename fails, delete without tmp dir
 		}
 
 		// Delete but do not return as promise
-		rimrafUnlink(pathInTemp);
+		fs.promises.rmdir(pathInTemp, { recursive: true }).catch(error => {/* ignore */ });
 	} catch (error) {
 		if (error.code !== 'ENOENT') {
 			throw error;
@@ -116,36 +83,7 @@ export function rimrafSync(path: string): void {
 		throw new Error('rimraf - will refuse to recursively delete root');
 	}
 
-	try {
-		const stat = fs.lstatSync(path);
-
-		// Folder delete (recursive) - NOT for symbolic links though!
-		if (stat.isDirectory() && !stat.isSymbolicLink()) {
-
-			// Children
-			const children = readdirSync(path);
-			children.map(child => rimrafSync(join(path, child)));
-
-			// Folder
-			fs.rmdirSync(path);
-		}
-
-		// Single file delete
-		else {
-
-			// chmod as needed to allow for unlink
-			const mode = stat.mode;
-			if (!(mode & fs.constants.S_IWUSR)) {
-				fs.chmodSync(path, mode | fs.constants.S_IWUSR);
-			}
-
-			return fs.unlinkSync(path);
-		}
-	} catch (error) {
-		if (error.code !== 'ENOENT') {
-			throw error;
-		}
-	}
+	fs.rmdirSync(path, { recursive: true });
 }
 
 //#endregion
