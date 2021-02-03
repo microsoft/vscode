@@ -15,7 +15,7 @@ import { enumeratePowerShellInstallations } from 'vs/base/node/powershell';
 let detectedDistro = LinuxDistro.Unknown;
 if (platform.isLinux) {
 	const file = '/etc/os-release';
-	SymlinkSupport.fileExists(file).then(async exists => {
+	SymlinkSupport.existsFile(file).then(async exists => {
 		if (!exists) {
 			return;
 		}

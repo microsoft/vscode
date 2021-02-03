@@ -45,6 +45,13 @@ export enum RimRafMode {
 	MOVE
 }
 
+/**
+ * Allows to delete the provied path (either file or folder) recursively
+ * with the options:
+ * - `UNLINK`: direct removal from disk
+ * - `MOVE`: faster variant that first moves the target to temp dir and then
+ *           deletes it in the background without waiting for that to finish.
+ */
 export async function rimraf(path: string, mode = RimRafMode.UNLINK): Promise<void> {
 	if (isRootOrDriveLetter(path)) {
 		throw new Error('rimraf - will refuse to recursively delete root');
@@ -93,44 +100,55 @@ export function rimrafSync(path: string): void {
 
 //#region readdir with NFC support (macos)
 
-export async function readdir(path: string): Promise<string[]> {
-	return handleDirectoryChildren(await fs.promises.readdir(path));
+/**
+ * Drop-in replacement of `fs.readdir` with support
+ * for converting from macOS NFD unicon form to NFC
+ * (https://github.com/nodejs/node/issues/2165)
+ */
+export async function readdir(path: string): Promise<string[]>;
+export async function readdir(path: string, options: { withFileTypes: true }): Promise<fs.Dirent[]>;
+export async function readdir(path: string, options?: { withFileTypes: true }): Promise<(string | fs.Dirent)[]> {
+	return handleDirectoryChildren(await (options ? fs.promises.readdir(path, options) : fs.promises.readdir(path)));
 }
 
-export async function readdirWithFileTypes(path: string): Promise<fs.Dirent[]> {
-	const children = await fs.promises.readdir(path, { withFileTypes: true });
-
-	// Mac: uses NFD unicode form on disk, but we want NFC
-	// See also https://github.com/nodejs/node/issues/2165
-	if (isMacintosh) {
-		for (const child of children) {
-			child.name = normalizeNFC(child.name);
-		}
-	}
-
-	return children;
-}
-
+/**
+ * Drop-in replacement of `fs.readdirSync` with support
+ * for converting from macOS NFD unicon form to NFC
+ * (https://github.com/nodejs/node/issues/2165)
+ */
 export function readdirSync(path: string): string[] {
 	return handleDirectoryChildren(fs.readdirSync(path));
 }
 
-function handleDirectoryChildren(children: string[]): string[] {
-	// Mac: uses NFD unicode form on disk, but we want NFC
-	// See also https://github.com/nodejs/node/issues/2165
-	if (isMacintosh) {
-		return children.map(child => normalizeNFC(child));
-	}
+function handleDirectoryChildren(children: string[]): string[];
+function handleDirectoryChildren(children: fs.Dirent[]): fs.Dirent[];
+function handleDirectoryChildren(children: (string | fs.Dirent)[]): (string | fs.Dirent)[];
+function handleDirectoryChildren(children: (string | fs.Dirent)[]): (string | fs.Dirent)[] {
+	return children.map(child => {
 
-	return children;
+		// Mac: uses NFD unicode form on disk, but we want NFC
+		// See also https://github.com/nodejs/node/issues/2165
+
+		if (typeof child === 'string') {
+			return isMacintosh ? normalizeNFC(child) : child;
+		}
+
+		child.name = isMacintosh ? normalizeNFC(child.name) : child.name;
+
+		return child;
+	});
 }
 
+/**
+ * A convinience method to read all children of a path that
+ * are directories.
+ */
 export async function readDirsInDir(dirPath: string): Promise<string[]> {
 	const children = await readdir(dirPath);
 	const directories: string[] = [];
 
 	for (const child of children) {
-		if (await SymlinkSupport.dirExists(join(dirPath, child))) {
+		if (await SymlinkSupport.existsDirectory(join(dirPath, child))) {
 			directories.push(child);
 		}
 	}
@@ -142,7 +160,11 @@ export async function readDirsInDir(dirPath: string): Promise<string[]> {
 
 //#region whenDeleted()
 
-export function whenDeleted(path: string): Promise<void> {
+/**
+ * A `Promise` that resolves when the provided `path`
+ * is deleted from disk.
+ */
+export function whenDeleted(path: string, intervalMs = 1000): Promise<void> {
 
 	// Complete when wait marker file is deleted
 	return new Promise<void>(resolve => {
@@ -159,7 +181,7 @@ export function whenDeleted(path: string): Promise<void> {
 					}
 				});
 			}
-		}, 1000);
+		}, intervalMs);
 	});
 }
 
@@ -243,7 +265,17 @@ export namespace SymlinkSupport {
 		}
 	}
 
-	export async function fileExists(path: string): Promise<boolean> {
+	/**
+	 * Figures out if the `path` exists and is a file with support
+	 * for symlinks.
+	 *
+	 * Note: this will return `false` for a symlink that exists on
+	 * disk but is dangling (pointing to a non-existing path).
+	 *
+	 * Use `exists` if you only care about the path existing on disk
+	 * or not without support for symbolic links.
+	 */
+	export async function existsFile(path: string): Promise<boolean> {
 		try {
 			const { stat, symbolicLink } = await SymlinkSupport.stat(path);
 
@@ -255,7 +287,17 @@ export namespace SymlinkSupport {
 		return false;
 	}
 
-	export async function dirExists(path: string): Promise<boolean> {
+	/**
+	 * Figures out if the `path` exists and is a directory with support for
+	 * symlinks.
+	 *
+	 * Note: this will return `false` for a symlink that exists on
+	 * disk but is dangling (pointing to a non-existing path).
+	 *
+	 * Use `exists` if you only care about the path existing on disk
+	 * or not without support for symbolic links.
+	 */
+	export async function existsDirectory(path: string): Promise<boolean> {
 		try {
 			const { stat, symbolicLink } = await SymlinkSupport.stat(path);
 
@@ -272,11 +314,13 @@ export namespace SymlinkSupport {
 
 //#region Write File
 
-// According to node.js docs (https://nodejs.org/docs/v6.5.0/api/fs.html#fs_fs_writefile_file_data_options_callback)
-// it is not safe to call writeFile() on the same path multiple times without waiting for the callback to return.
-// Therefor we use a Queue on the path that is given to us to sequentialize calls to the same path properly.
-const writeFilePathQueues: Map<string, Queue<void>> = new Map();
-
+/**
+ * Same as `fs.writeFile` but with an additional call to
+ * `fs.fdatasync` after writing to ensure changes are
+ * flushed to disk.
+ *
+ * In addition, multiple writes to the same path are queued.
+ */
 export function writeFile(path: string, data: string, options?: IWriteFileOptions): Promise<void>;
 export function writeFile(path: string, data: Buffer, options?: IWriteFileOptions): Promise<void>;
 export function writeFile(path: string, data: Uint8Array, options?: IWriteFileOptions): Promise<void>;
@@ -290,6 +334,11 @@ export function writeFile(path: string, data: string | Buffer | Uint8Array, opti
 		return new Promise((resolve, reject) => doWriteFileAndFlush(path, data, ensuredOptions, error => error ? reject(error) : resolve()));
 	});
 }
+
+// According to node.js docs (https://nodejs.org/docs/v6.5.0/api/fs.html#fs_fs_writefile_file_data_options_callback)
+// it is not safe to call writeFile() on the same path multiple times without waiting for the callback to return.
+// Therefor we use a Queue on the path that is given to us to sequentialize calls to the same path properly.
+const writeFilePathQueues: Map<string, Queue<void>> = new Map();
 
 function toQueueKey(path: string): string {
 	let queueKey = path;
@@ -368,6 +417,11 @@ function doWriteFileAndFlush(path: string, data: string | Buffer | Uint8Array, o
 	});
 }
 
+/**
+ * Same as `fs.writeFileSync` but with an additional call to
+ * `fs.fdatasyncSync` after writing to ensure changes are
+ * flushed to disk.
+ */
 export function writeFileSync(path: string, data: string | Buffer, options?: IWriteFileOptions): void {
 	const ensuredOptions = ensureWriteOptions(options);
 
@@ -410,6 +464,11 @@ function ensureWriteOptions(options?: IWriteFileOptions): IEnsuredWriteFileOptio
 
 //#region Move / Copy
 
+/**
+ * A drop-in replacement for `fs.rename` that:
+ * - updates the `mtime` of the `source` after the operation
+ * - allows to move across multiple disks
+ */
 export async function move(source: string, target: string): Promise<void> {
 	if (source === target) {
 		return;  // simulate node.js behaviour here and do a no-op if paths match
@@ -464,6 +523,16 @@ export async function move(source: string, target: string): Promise<void> {
 	}
 }
 
+/**
+ * Recursively copies all of `source` to `target`.
+ *
+ * Note: symbolic links are currently not preserved but followed and copies
+ * as files and folders.
+ */
+export async function copy(source: string, target: string): Promise<void> {
+	return doCopy(source, target);
+}
+
 // When copying a file or folder, we want to preserve the mode
 // it had and as such provide it when creating. However, modes
 // can go beyond what we expect (see link below), so we mask it.
@@ -473,7 +542,7 @@ export async function move(source: string, target: string): Promise<void> {
 // it's implementation and check wether this mask is still needed.
 const COPY_MODE_MASK = 0o777;
 
-export async function copy(source: string, target: string, handledSourcesIn?: { [path: string]: boolean }): Promise<void> {
+async function doCopy(source: string, target: string, handledSourcesIn?: { [path: string]: boolean }): Promise<void> {
 
 	// Keep track of paths already copied to prevent
 	// cycles from symbolic links to cause issues
@@ -500,7 +569,7 @@ export async function copy(source: string, target: string, handledSourcesIn?: { 
 	const files = await readdir(source);
 	for (let i = 0; i < files.length; i++) {
 		const file = files[i];
-		await copy(join(source, file), join(target, file), handledSources);
+		await doCopy(join(source, file), join(target, file), handledSources);
 	}
 }
 

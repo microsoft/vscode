@@ -145,7 +145,7 @@ class ExtensionManifestNLSReplacer extends ExtensionManifestHandler {
 				return { values: undefined, default: `${basename}.nls.json` };
 			});
 		} else {
-			localizedMessages = pfs.SymlinkSupport.fileExists(basename + '.nls' + extension).then<LocalizedMessages | undefined, LocalizedMessages | undefined>(exists => {
+			localizedMessages = pfs.SymlinkSupport.existsFile(basename + '.nls' + extension).then<LocalizedMessages | undefined, LocalizedMessages | undefined>(exists => {
 				if (!exists) {
 					return undefined;
 				}
@@ -221,7 +221,7 @@ class ExtensionManifestNLSReplacer extends ExtensionManifestHandler {
 		return new Promise<{ localized: string; original: string | null; }>((c, e) => {
 			function loop(basename: string, locale: string): void {
 				let toCheck = `${basename}.nls.${locale}.json`;
-				pfs.SymlinkSupport.fileExists(toCheck).then(exists => {
+				pfs.SymlinkSupport.existsFile(toCheck).then(exists => {
 					if (exists) {
 						c({ localized: toCheck, original: `${basename}.nls.json` });
 					}
@@ -598,7 +598,7 @@ export class ExtensionScanner {
 		const isBuiltin = input.isBuiltin;
 		const isUnderDevelopment = input.isUnderDevelopment;
 
-		return pfs.SymlinkSupport.fileExists(path.join(absoluteFolderPath, MANIFEST_FILE)).then((exists) => {
+		return pfs.SymlinkSupport.existsFile(path.join(absoluteFolderPath, MANIFEST_FILE)).then((exists) => {
 			if (exists) {
 				const nlsConfig = ExtensionScannerInput.createNLSConfig(input);
 				return this.scanExtension(input.ourVersion, log, absoluteFolderPath, isBuiltin, isUnderDevelopment, nlsConfig).then((extensionDescription) => {

@@ -10,7 +10,7 @@ import { FileSystemProviderCapabilities, IFileChange, IWatchOptions, IStat, File
 import { URI } from 'vs/base/common/uri';
 import { Event, Emitter } from 'vs/base/common/event';
 import { isLinux, isWindows } from 'vs/base/common/platform';
-import { SymlinkSupport, move, copy, rimraf, RimRafMode, exists, readdirWithFileTypes } from 'vs/base/node/pfs';
+import { SymlinkSupport, move, copy, rimraf, RimRafMode, exists, readdir } from 'vs/base/node/pfs';
 import { normalize, basename, dirname } from 'vs/base/common/path';
 import { joinPath } from 'vs/base/common/resources';
 import { isEqual } from 'vs/base/common/extpath';
@@ -95,7 +95,7 @@ export class DiskFileSystemProvider extends Disposable implements
 
 	async readdir(resource: URI): Promise<[string, FileType][]> {
 		try {
-			const children = await readdirWithFileTypes(this.toFilePath(resource));
+			const children = await readdir(this.toFilePath(resource), { withFileTypes: true });
 
 			const result: [string, FileType][] = [];
 			await Promise.all(children.map(async child => {

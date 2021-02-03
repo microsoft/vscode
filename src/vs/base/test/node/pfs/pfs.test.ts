@@ -8,7 +8,7 @@ import * as fs from 'fs';
 import { tmpdir } from 'os';
 import { join, sep } from 'vs/base/common/path';
 import { generateUuid } from 'vs/base/common/uuid';
-import { copy, exists, move, readdir, readDirsInDir, readdirWithFileTypes, rimraf, RimRafMode, rimrafSync, SymlinkSupport, writeFile, writeFileSync } from 'vs/base/node/pfs';
+import { copy, exists, move, readdir, readDirsInDir, rimraf, RimRafMode, rimrafSync, SymlinkSupport, writeFile, writeFileSync } from 'vs/base/node/pfs';
 import { timeout } from 'vs/base/common/async';
 import { getPathFromAmdModule } from 'vs/base/common/amd';
 import { canNormalize } from 'vs/base/common/normalization';
@@ -276,7 +276,7 @@ flakySuite('PFS', function () {
 		}
 	});
 
-	test('readdirWithFileTypes', async () => {
+	test('readdir (with file types)', async () => {
 		if (canNormalize && typeof process.versions['electron'] !== 'undefined' /* needs electron */) {
 			const newDir = join(testDir, 'öäü');
 			await fs.promises.mkdir(newDir, { recursive: true });
@@ -285,7 +285,7 @@ flakySuite('PFS', function () {
 
 			assert.ok(fs.existsSync(newDir));
 
-			const children = await readdirWithFileTypes(testDir);
+			const children = await readdir(testDir, { withFileTypes: true });
 
 			assert.strictEqual(children.some(n => n.name === 'öäü'), true); // Mac always converts to NFD, so
 			assert.strictEqual(children.some(n => n.isDirectory()), true);

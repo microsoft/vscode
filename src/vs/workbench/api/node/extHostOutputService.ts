@@ -86,7 +86,7 @@ export class ExtHostOutputService2 extends ExtHostOutputService {
 	private async _doCreateOutChannel(name: string): Promise<AbstractExtHostOutputChannel> {
 		try {
 			const outputDirPath = join(this._logsLocation.fsPath, `output_logging_${toLocalISOString(new Date()).replace(/-|:|\.\d+Z$/g, '')}`);
-			const exists = await SymlinkSupport.dirExists(outputDirPath);
+			const exists = await SymlinkSupport.existsDirectory(outputDirPath);
 			if (!exists) {
 				await promises.mkdir(outputDirPath, { recursive: true });
 			}
