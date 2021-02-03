@@ -206,6 +206,12 @@ export class GettingStartedPage extends Disposable {
 		this.taskDisposables.clear();
 		if (id) {
 			const taskElement = assertIsDefined(container.querySelector(`[data-task-id="${id}"]`));
+			taskElement.parentElement?.querySelectorAll('.expanded').forEach(node => node.classList.remove('expanded'));
+			(taskElement as HTMLDivElement).focus();
+			if (this.editorInput.selectedTask === id) {
+				this.editorInput.selectedTask = undefined;
+				return;
+			}
 			if (!this.currentCategory || this.currentCategory.content.type !== 'items') {
 				throw Error('cannot expand task for category of non items type' + this.currentCategory?.id);
 			}
@@ -215,10 +221,9 @@ export class GettingStartedPage extends Disposable {
 			mediaElement.setAttribute('src', taskToExpand.media.path.toString());
 			mediaElement.setAttribute('alt', taskToExpand.media.altText);
 			this.taskDisposables.add(addDisposableListener(mediaElement, 'click', () => taskElement.querySelector('button')?.click()));
-			taskElement.parentElement?.querySelectorAll('.expanded').forEach(node => node.classList.remove('expanded'));
 			taskElement.classList.add('expanded');
-			taskElement.querySelector('button')?.focus();
 		} else {
+			this.editorInput.selectedTask = undefined;
 			mediaElement.setAttribute('src', '');
 			mediaElement.setAttribute('alt', '');
 		}
