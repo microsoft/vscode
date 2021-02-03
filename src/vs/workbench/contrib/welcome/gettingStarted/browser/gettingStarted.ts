@@ -273,7 +273,7 @@ export class GettingStartedPage extends Disposable {
 		});
 
 		categoryScrollContainer.appendChild(categoriesContainer);
-		categoryScrollContainer.appendChild($('.footer', {}, $('a.skip', { 'x-dispatch': 'skip' }, localize('gettingStarted.skip', "Skip"))));
+		categoryScrollContainer.appendChild($('.footer', {}, $('button.skip.button-link', { 'x-dispatch': 'skip' }, localize('gettingStarted.skip', "Skip"))));
 
 		if (this.categoriesScrollbar) { this.categoriesScrollbar.dispose(); }
 		this.categoriesScrollbar = this._register(new DomScrollableElement(categoryScrollContainer, {}));
@@ -502,6 +502,7 @@ registerThemingParticipant((theme, collector) => {
 	const link = theme.getColor(textLinkForeground);
 	if (link) {
 		collector.addRule(`.monaco-workbench .part.editor > .content .walkThroughContent .gettingStartedContainer a { color: ${link}; }`);
+		collector.addRule(`.monaco-workbench .part.editor > .content .walkThroughContent .gettingStartedContainer .button-link { color: ${link}; }`);
 	}
 	const activeLink = theme.getColor(textLinkActiveForeground);
 	if (activeLink) {
