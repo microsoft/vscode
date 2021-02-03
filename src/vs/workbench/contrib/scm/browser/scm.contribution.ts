@@ -50,8 +50,7 @@ const viewContainer = Registry.as<IViewContainersRegistry>(ViewContainerExtensio
 	alwaysUseContainerInfo: true,
 	order: 2,
 	hideIfEmpty: true,
-	commandActionDescriptor: false,
-}, ViewContainerLocation.Sidebar);
+}, ViewContainerLocation.Sidebar, { donotRegisterOpenCommand: true });
 
 const viewsRegistry = Registry.as<IViewsRegistry>(ViewContainerExtensions.ViewsRegistry);
 
@@ -70,7 +69,7 @@ viewsRegistry.registerViews([{
 	weight: 80,
 	order: -999,
 	containerIcon: sourceControlViewIcon,
-	commandActionDescriptor: {
+	openCommandActionDescriptor: {
 		id: viewContainer.id,
 		mnemonicTitle: localize({ key: 'miViewSCM', comment: ['&& denotes a mnemonic'] }, "S&&CM"),
 		keybindings: {

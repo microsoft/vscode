@@ -334,8 +334,7 @@ function registerDebugPanel(): void {
 		ctorDescriptor: new SyncDescriptor(ViewPaneContainer, [DEBUG_PANEL_ID, { mergeViewWithContainerWhenSingleView: true, donotShowContainerTitleWhenMergedWithContainer: true }]),
 		storageId: DEBUG_PANEL_ID,
 		hideIfEmpty: true,
-		commandActionDescriptor: false,
-	}, ViewContainerLocation.Panel);
+	}, ViewContainerLocation.Panel, { donotRegisterOpenCommand: true });
 
 	Registry.as<IViewsRegistry>(ViewExtensions.ViewsRegistry).registerViews([{
 		id: REPL_VIEW_ID,
@@ -345,7 +344,7 @@ function registerDebugPanel(): void {
 		canMoveView: true,
 		when: CONTEXT_DEBUGGERS_AVAILABLE,
 		ctorDescriptor: new SyncDescriptor(Repl),
-		commandActionDescriptor: {
+		openCommandActionDescriptor: {
 			id: 'workbench.debug.action.toggleRepl',
 			mnemonicTitle: nls.localize({ key: 'miToggleDebugConsole', comment: ['&& denotes a mnemonic'] }, "De&&bug Console"),
 			keybindings: { primary: KeyMod.CtrlCmd | KeyMod.Shift | KeyCode.KEY_Y },
@@ -359,7 +358,7 @@ function registerDebugView(): void {
 	const viewContainer = Registry.as<IViewContainersRegistry>(ViewExtensions.ViewContainersRegistry).registerViewContainer({
 		id: VIEWLET_ID,
 		title: nls.localize('run and debug', "Run and Debug"),
-		commandActionDescriptor: {
+		openCommandActionDescriptor: {
 			id: VIEWLET_ID,
 			mnemonicTitle: nls.localize({ key: 'miViewRun', comment: ['&& denotes a mnemonic'] }, "&&Run"),
 			keybindings: { primary: KeyMod.CtrlCmd | KeyMod.Shift | KeyCode.KEY_D },
