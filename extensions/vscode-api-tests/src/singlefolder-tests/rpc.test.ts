@@ -50,7 +50,6 @@ suite('vscode', function () {
 	});
 
 	test('no rpc, createStatusBarItem(...)', function () {
-		this.skip();
 		const item = vscode.window.createStatusBarItem();
 		dispo.push(item);
 		assertNoRpcFromEntry([item, 'StatusBarItem']);
