@@ -623,8 +623,7 @@ const viewContainer = Registry.as<IViewContainersRegistry>(ViewExtensions.ViewCo
 	hideIfEmpty: true,
 	icon: searchViewIcon,
 	order: 1,
-	commandActionDescriptor: false,
-}, ViewContainerLocation.Sidebar);
+}, ViewContainerLocation.Sidebar, { donotRegisterOpenCommand: true });
 
 const viewDescriptor: IViewDescriptor = {
 	id: VIEW_ID,
@@ -633,7 +632,7 @@ const viewDescriptor: IViewDescriptor = {
 	ctorDescriptor: new SyncDescriptor(SearchView),
 	canToggleVisibility: false,
 	canMoveView: true,
-	commandActionDescriptor: {
+	openCommandActionDescriptor: {
 		id: viewContainer.id,
 		mnemonicTitle: nls.localize({ key: 'miViewSearch', comment: ['&& denotes a mnemonic'] }, "&&Search"),
 		keybindings: {

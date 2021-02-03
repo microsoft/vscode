@@ -115,8 +115,7 @@ const VIEW_CONTAINER: ViewContainer = Registry.as<IViewContainersRegistry>(ViewC
 	order: 0,
 	ctorDescriptor: new SyncDescriptor(ViewPaneContainer, [Constants.MARKERS_CONTAINER_ID, { mergeViewWithContainerWhenSingleView: true, donotShowContainerTitleWhenMergedWithContainer: true }]),
 	storageId: Constants.MARKERS_VIEW_STORAGE_ID,
-	commandActionDescriptor: false,
-}, ViewContainerLocation.Panel);
+}, ViewContainerLocation.Panel, { donotRegisterOpenCommand: true });
 
 Registry.as<IViewsRegistry>(ViewContainerExtensions.ViewsRegistry).registerViews([{
 	id: Constants.MARKERS_VIEW_ID,
@@ -125,7 +124,7 @@ Registry.as<IViewsRegistry>(ViewContainerExtensions.ViewsRegistry).registerViews
 	canToggleVisibility: false,
 	canMoveView: true,
 	ctorDescriptor: new SyncDescriptor(MarkersView),
-	commandActionDescriptor: {
+	openCommandActionDescriptor: {
 		id: 'workbench.actions.view.problems',
 		mnemonicTitle: localize({ key: 'miMarker', comment: ['&& denotes a mnemonic'] }, "&&Problems"),
 		keybindings: { primary: KeyMod.CtrlCmd | KeyMod.Shift | KeyCode.KEY_M },

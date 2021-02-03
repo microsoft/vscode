@@ -118,7 +118,7 @@ export class ExplorerViewletViewsContribution extends Disposable implements IWor
 			when: OpenEditorsVisibleContext,
 			canToggleVisibility: true,
 			canMoveView: true,
-			collapsed: true,
+			collapsed: false,
 			hideByDefault: true,
 			focusCommand: {
 				id: 'workbench.files.action.focusOpenEditorsView',
@@ -149,7 +149,7 @@ export class ExplorerViewletViewsContribution extends Disposable implements IWor
 			ctorDescriptor: new SyncDescriptor(ExplorerView),
 			order: 1,
 			canToggleVisibility: false,
-			commandActionDescriptor: {
+			openCommandActionDescriptor: {
 				id: VIEW_CONTAINER.id,
 				title: localize('explore', "Explorer"),
 				mnemonicTitle: localize({ key: 'miViewExplorer', comment: ['&& denotes a mnemonic'] }, "&&Explorer"),
@@ -283,8 +283,7 @@ export const VIEW_CONTAINER: ViewContainer = viewContainerRegistry.registerViewC
 	icon: explorerViewIcon,
 	alwaysUseContainerInfo: true,
 	order: 0,
-	commandActionDescriptor: false,
-}, ViewContainerLocation.Sidebar, true);
+}, ViewContainerLocation.Sidebar, { donotRegisterOpenCommand: true, isDefault: true });
 
 const viewsRegistry = Registry.as<IViewsRegistry>(Extensions.ViewsRegistry);
 viewsRegistry.registerViewWelcomeContent(EmptyView.ID, {

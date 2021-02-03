@@ -69,8 +69,7 @@ const VIEW_CONTAINER = Registry.as<IViewContainersRegistry>(ViewContainerExtensi
 	storageId: TERMINAL_VIEW_ID,
 	hideIfEmpty: true,
 	order: 3,
-	commandActionDescriptor: false,
-}, ViewContainerLocation.Panel);
+}, ViewContainerLocation.Panel, { donotRegisterOpenCommand: true });
 Registry.as<panel.PanelRegistry>(panel.Extensions.Panels).setDefaultPanelId(TERMINAL_VIEW_ID);
 Registry.as<IViewsRegistry>(ViewContainerExtensions.ViewsRegistry).registerViews([{
 	id: TERMINAL_VIEW_ID,
@@ -79,7 +78,7 @@ Registry.as<IViewsRegistry>(ViewContainerExtensions.ViewsRegistry).registerViews
 	canToggleVisibility: false,
 	canMoveView: true,
 	ctorDescriptor: new SyncDescriptor(TerminalViewPane),
-	commandActionDescriptor: {
+	openCommandActionDescriptor: {
 		id: TERMINAL_COMMAND_ID.TOGGLE,
 		mnemonicTitle: nls.localize({ key: 'miToggleIntegratedTerminal', comment: ['&& denotes a mnemonic'] }, "&&Terminal"),
 		keybindings: {

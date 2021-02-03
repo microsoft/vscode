@@ -48,7 +48,7 @@ export function ViewContainerLocationToString(viewContainerLocation: ViewContain
 	}
 }
 
-type CommandActionDescriptor = {
+type OpenCommandActionDescriptor = {
 	readonly id: string;
 	readonly title?: string;
 	readonly mnemonicTitle?: string;
@@ -89,9 +89,12 @@ export interface IViewContainerDescriptor {
 	readonly ctorDescriptor: SyncDescriptor<IViewPaneContainer>;
 
 	/**
-	 * Command action descriptor to be registered
+	 * Descriptor for open view container command
+	 * If not provided, view container info (id, title) is used.
+	 *
+	 * Note: To prevent registering open command, use `donotRegisterOpenCommand` flag while registering the view container
 	 */
-	readonly commandActionDescriptor?: CommandActionDescriptor | false;
+	readonly openCommandActionDescriptor?: OpenCommandActionDescriptor;
 
 	/**
 	 * Storage id to use to store the view container state.
@@ -143,7 +146,7 @@ export interface IViewContainersRegistry {
 	 *
 	 * @returns the registered ViewContainer.
 	 */
-	registerViewContainer(viewContainerDescriptor: IViewContainerDescriptor, location: ViewContainerLocation, isDefault?: boolean): ViewContainer;
+	registerViewContainer(viewContainerDescriptor: IViewContainerDescriptor, location: ViewContainerLocation, options?: { isDefault?: boolean, donotRegisterOpenCommand?: boolean }): ViewContainer;
 
 	/**
 	 * Deregisters the given view container
@@ -180,6 +183,11 @@ interface ViewOrderDelegate {
 
 export interface ViewContainer extends IViewContainerDescriptor { }
 
+interface RelaxedViewContainer extends ViewContainer {
+
+	openCommandActionDescriptor?: OpenCommandActionDescriptor;
+}
+
 class ViewContainersRegistryImpl extends Disposable implements IViewContainersRegistry {
 
 	private readonly _onDidRegister = this._register(new Emitter<{ viewContainer: ViewContainer, viewContainerLocation: ViewContainerLocation }>());
@@ -195,16 +203,17 @@ class ViewContainersRegistryImpl extends Disposable implements IViewContainersRe
 		return flatten([...this.viewContainers.values()]);
 	}
 
-	registerViewContainer(viewContainerDescriptor: IViewContainerDescriptor, viewContainerLocation: ViewContainerLocation, isDefault?: boolean): ViewContainer {
+	registerViewContainer(viewContainerDescriptor: IViewContainerDescriptor, viewContainerLocation: ViewContainerLocation, options?: { isDefault?: boolean, donotRegisterOpenCommand?: boolean }): ViewContainer {
 		const existing = this.get(viewContainerDescriptor.id);
 		if (existing) {
 			return existing;
 		}
 
-		const viewContainer: ViewContainer = viewContainerDescriptor;
+		const viewContainer: RelaxedViewContainer = viewContainerDescriptor;
+		viewContainer.openCommandActionDescriptor = options?.donotRegisterOpenCommand ? undefined : (viewContainer.openCommandActionDescriptor ?? { id: viewContainer.id });
 		const viewContainers = getOrSet(this.viewContainers, viewContainerLocation, []);
 		viewContainers.push(viewContainer);
-		if (isDefault) {
+		if (options?.isDefault) {
 			this.defaultViewContainers.push(viewContainer);
 		}
 		this._onDidRegister.fire({ viewContainer, viewContainerLocation });
@@ -283,7 +292,7 @@ export interface IViewDescriptor {
 
 	readonly remoteAuthority?: string | string[];
 
-	readonly commandActionDescriptor?: CommandActionDescriptor
+	readonly openCommandActionDescriptor?: OpenCommandActionDescriptor
 }
 
 export interface IViewDescriptorRef {
