@@ -53,7 +53,7 @@ export async function rimraf(path: string, mode = RimRafMode.UNLINK): Promise<vo
 
 	// delete: via rmDir
 	if (mode === RimRafMode.UNLINK) {
-		return fs.promises.rmdir(path, { recursive: true });
+		return rimrafUnlink(path);
 	}
 
 	// delete: via move
@@ -66,16 +66,20 @@ async function rimrafMove(path: string): Promise<void> {
 		try {
 			await rename(path, pathInTemp);
 		} catch (error) {
-			return fs.promises.rmdir(path, { recursive: true }); // if rename fails, delete without tmp dir
+			return rimrafUnlink(path); // if rename fails, delete without tmp dir
 		}
 
 		// Delete but do not return as promise
-		fs.promises.rmdir(pathInTemp, { recursive: true }).catch(error => {/* ignore */ });
+		rimrafUnlink(pathInTemp).catch(error => {/* ignore */ });
 	} catch (error) {
 		if (error.code !== 'ENOENT') {
 			throw error;
 		}
 	}
+}
+
+async function rimrafUnlink(path: string): Promise<void> {
+	return fs.promises.rmdir(path, { recursive: true, maxRetries: 3 });
 }
 
 export function rimrafSync(path: string): void {
