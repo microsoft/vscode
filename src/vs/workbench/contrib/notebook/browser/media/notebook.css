@@ -428,6 +428,10 @@
 	margin-right: 2px;
 }
 
+.monaco-workbench .notebookOverlay .cell-statusbar-container .cell-status-left > div:first-child {
+	margin-left: 18px;
+}
+
 .monaco-workbench .notebookOverlay .cell-statusbar-container .codicon {
 	font-size: 14px;
 }
