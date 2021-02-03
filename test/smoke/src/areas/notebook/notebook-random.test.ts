@@ -44,7 +44,7 @@ export function setup() {
 			this.timeout(1000000);
 
 			const app = this.app as Application;
-			if (this.currentTest.state === 'failed' && app.pauseAtEnd) {
+			if (this.currentTest?.state === 'failed' && app.pauseAtEnd) {
 				console.log(`Done. Pausing...`);
 				await wait(1000000);
 			}
