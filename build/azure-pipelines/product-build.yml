@@ -84,6 +84,8 @@ parameters:
 variables:
   - name: ENABLE_TERRAPIN
     value: ${{ eq(parameters.ENABLE_TERRAPIN, true) }}
+  - name: VSCODE_QUALITY
+    value: ${{ parameters.VSCODE_QUALITY }}
   - name: VSCODE_BUILD_STAGE_WINDOWS
     value: ${{ or(eq(parameters.VSCODE_BUILD_WIN32, true), eq(parameters.VSCODE_BUILD_WIN32_32BIT, true), eq(parameters.VSCODE_BUILD_WIN32_ARM64, true)) }}
   - name: VSCODE_BUILD_STAGE_LINUX
