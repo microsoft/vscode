@@ -14,16 +14,16 @@ import { ISCMResourceGroup, ISCMResource, InputValidationType, ISCMRepository, I
 import { ResourceLabels, IResourceLabel } from 'vs/workbench/browser/labels';
 import { CountBadge } from 'vs/base/browser/ui/countBadge/countBadge';
 import { IEditorService } from 'vs/workbench/services/editor/common/editorService';
-import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
+import { IInstantiationService, ServicesAccessor } from 'vs/platform/instantiation/common/instantiation';
 import { IContextViewService, IContextMenuService } from 'vs/platform/contextview/browser/contextView';
 import { IContextKeyService, IContextKey, ContextKeyAndExpr, ContextKeyExpr, RawContextKey } from 'vs/platform/contextkey/common/contextkey';
 import { ICommandService } from 'vs/platform/commands/common/commands';
 import { IKeybindingService } from 'vs/platform/keybinding/common/keybinding';
-import { MenuItemAction, IMenuService, registerAction2, MenuId, IAction2Options, MenuRegistry } from 'vs/platform/actions/common/actions';
+import { MenuItemAction, IMenuService, registerAction2, MenuId, IAction2Options, MenuRegistry, Action2 } from 'vs/platform/actions/common/actions';
 import { IAction, IActionViewItem, ActionRunner, Action, RadioGroup, Separator, SubmenuAction, IActionViewItemProvider } from 'vs/base/common/actions';
 import { ActionBar } from 'vs/base/browser/ui/actionbar/actionbar';
 import { IThemeService, registerThemingParticipant, IFileIconTheme, ThemeIcon } from 'vs/platform/theme/common/themeService';
-import { isSCMResource, isSCMResourceGroup, connectPrimaryMenuToInlineActionBar, isSCMRepository, isSCMInput, collectContextMenuActions, StatusBarAction, getStatusBarActionViewItem, getRepositoryVisibilityActions } from './util';
+import { isSCMResource, isSCMResourceGroup, connectPrimaryMenuToInlineActionBar, isSCMRepository, isSCMInput, collectContextMenuActions, StatusBarAction, getStatusBarActionViewItem } from './util';
 import { attachBadgeStyler } from 'vs/platform/theme/common/styler';
 import { WorkbenchCompressibleObjectTree, IOpenEvent } from 'vs/platform/list/browser/listService';
 import { IConfigurationService, ConfigurationTarget, IConfigurationChangeEvent } from 'vs/platform/configuration/common/configuration';
@@ -50,7 +50,7 @@ import { ITextModel } from 'vs/editor/common/model';
 import { IEditorConstructionOptions } from 'vs/editor/browser/editorBrowser';
 import { getSimpleEditorOptions } from 'vs/workbench/contrib/codeEditor/browser/simpleEditorOptions';
 import { IModelService } from 'vs/editor/common/services/modelService';
-import { EditorExtensionsRegistry, ServicesAccessor } from 'vs/editor/browser/editorExtensions';
+import { EditorExtensionsRegistry } from 'vs/editor/browser/editorExtensions';
 import { MenuPreventer } from 'vs/workbench/contrib/codeEditor/browser/menuPreventer';
 import { SelectionClipboardContributionID } from 'vs/workbench/contrib/codeEditor/browser/selectionClipboard';
 import { ContextMenuController } from 'vs/editor/contrib/contextmenu/contextmenu';
@@ -79,6 +79,7 @@ import { IUriIdentityService } from 'vs/workbench/services/uriIdentity/common/ur
 import { LabelFuzzyScore } from 'vs/base/browser/ui/tree/abstractTree';
 import { Selection } from 'vs/editor/common/core/selection';
 import { API_OPEN_DIFF_EDITOR_COMMAND_ID, API_OPEN_EDITOR_COMMAND_ID } from 'vs/workbench/browser/parts/editor/editorCommands';
+import { createAndFillInContextMenuActions } from 'vs/platform/actions/browser/menuEntryActionViewItem';
 
 type TreeElement = ISCMRepository | ISCMInput | ISCMResourceGroup | IResourceNode<ISCMResource, ISCMResourceGroup> | ISCMResource;
 
@@ -765,12 +766,115 @@ const enum ViewModelSortKey {
 	Status
 }
 
+const Menus = {
+	ViewSort: new MenuId('SCMViewSort'),
+	Repositories: new MenuId('SCMRepositories'),
+};
+
+MenuRegistry.appendMenuItem(MenuId.SCMTitle, {
+	title: localize('sortAction', "View & Sort"),
+	submenu: Menus.ViewSort,
+	when: ContextKeyExpr.equals('view', VIEW_PANE_ID),
+	group: '0_view&sort'
+});
+
+MenuRegistry.appendMenuItem(Menus.ViewSort, {
+	title: localize('repositories', "Repositories"),
+	submenu: Menus.Repositories,
+	group: '0_repositories'
+});
+
 const ContextKeys = {
 	ViewModelMode: new RawContextKey<ViewModelMode>('scmViewModelMode', ViewModelMode.List),
 	SCMProvider: new RawContextKey<string | undefined>('scmProvider', undefined),
 	SCMProviderRootUri: new RawContextKey<string | undefined>('scmProviderRootUri', undefined),
 	SCMProviderHasRootUri: new RawContextKey<boolean>('scmProviderHasRootUri', undefined),
+	RepositoryVisibility(repository: ISCMRepository) {
+		return new RawContextKey<boolean>(`scmRepositoryVisible:${repository.provider.id}`, false);
+	}
 };
+
+class RepositoryVisibilityAction extends Action2 {
+
+	private repository: ISCMRepository;
+
+	constructor(repository: ISCMRepository) {
+		const title = repository.provider.rootUri ? basename(repository.provider.rootUri) : repository.provider.label;
+		super({
+			id: `workbench.scm.action.toggleRepositoryVisibility.${repository.provider.id}`,
+			title,
+			f1: false,
+			// precondition: TODO@joao,
+			toggled: ContextKeys.RepositoryVisibility(repository).isEqualTo(true),
+			menu: { id: Menus.Repositories }
+		});
+		this.repository = repository;
+	}
+
+	run(accessor: ServicesAccessor) {
+		const scmViewService = accessor.get(ISCMViewService);
+		scmViewService.toggleVisibility(this.repository);
+	}
+}
+
+interface RepositoryVisibilityItem {
+	readonly contextKey: IContextKey<boolean>;
+	dispose(): void;
+}
+
+class RepositoryVisibilityActionController {
+
+	private items = new Map<ISCMRepository, RepositoryVisibilityItem>();
+	private disposables = new DisposableStore();
+
+	constructor(
+		@ISCMViewService private scmViewService: ISCMViewService,
+		@ISCMService scmService: ISCMService,
+		@IContextKeyService private contextKeyService: IContextKeyService
+	) {
+		scmService.onDidAddRepository(this.onDidAddRepository, this, this.disposables);
+		scmService.onDidRemoveRepository(this.onDidRemoveRepository, this, this.disposables);
+		for (const repository of scmService.repositories) {
+			this.onDidAddRepository(repository);
+		}
+		scmViewService.onDidChangeVisibleRepositories(this.onDidChangeVisibleRepositories, this, this.disposables);
+	}
+
+	private onDidAddRepository(repository: ISCMRepository): void {
+		const action = registerAction2(class extends RepositoryVisibilityAction {
+			constructor() {
+				super(repository);
+			}
+		});
+
+		const contextKey = ContextKeys.RepositoryVisibility(repository).bindTo(this.contextKeyService);
+		contextKey.set(this.scmViewService.isVisible(repository));
+
+		this.items.set(repository, {
+			contextKey,
+			dispose() {
+				action.dispose();
+			}
+		});
+	}
+
+	private onDidRemoveRepository(repository: ISCMRepository): void {
+		this.items.get(repository)?.dispose();
+		this.items.delete(repository);
+	}
+
+	private onDidChangeVisibleRepositories(): void {
+		for (const [repository, item] of this.items) {
+			item.contextKey.set(this.scmViewService.isVisible(repository));
+		}
+	}
+
+	dispose(): void {
+		this.disposables.dispose();
+		dispose(this.items.values());
+		this.items.clear();
+	}
+}
 
 class ViewModel {
 
@@ -1144,14 +1248,6 @@ class ViewModel {
 	}
 }
 
-const ViewSortMenuId = new MenuId('SCMViewSort');
-MenuRegistry.appendMenuItem(MenuId.SCMTitle, {
-	title: localize('sortAction', "View & Sort"),
-	submenu: ViewSortMenuId,
-	when: ContextKeyExpr.equals('view', VIEW_PANE_ID),
-	group: '0_view&sort'
-});
-
 class SetListViewModeAction extends ViewAction<SCMViewPane>  {
 	constructor(menu: Partial<IAction2Options['menu']> = {}) {
 		super({
@@ -1161,7 +1257,7 @@ class SetListViewModeAction extends ViewAction<SCMViewPane>  {
 			f1: false,
 			icon: Codicon.listFlat,
 			toggled: ContextKeys.ViewModelMode.isEqualTo(ViewModelMode.List),
-			menu: { id: ViewSortMenuId, ...menu }
+			menu: { id: Menus.ViewSort, group: '1_viewmode', ...menu }
 		});
 	}
 
@@ -1190,7 +1286,7 @@ class SetTreeViewModeAction extends ViewAction<SCMViewPane>  {
 			f1: false,
 			icon: Codicon.listTree,
 			toggled: ContextKeys.ViewModelMode.isEqualTo(ViewModelMode.Tree),
-			menu: { id: ViewSortMenuId, ...menu }
+			menu: { id: Menus.ViewSort, group: '1_viewmode', ...menu }
 		});
 	}
 
@@ -1647,6 +1743,7 @@ export class SCMViewPane extends ViewPane {
 	private storageService: IStorageService;
 	private commandService: ICommandService;
 	private editorService: IEditorService;
+	private menuService: IMenuService;
 
 	constructor(
 		options: IViewPaneOptions,
@@ -1678,6 +1775,7 @@ export class SCMViewPane extends ViewPane {
 		this.storageService = storageService;
 		this.commandService = commandService;
 		this.editorService = editorService;
+		this.menuService = menuService;
 
 		this._onDidLayout = new Emitter<void>();
 		this.layoutCache = {
@@ -1775,6 +1873,8 @@ export class SCMViewPane extends ViewPane {
 				viewState = JSON.parse(storageViewState);
 			} catch {/* noop */ }
 		}
+
+		this._register(this.instantiationService.createInstance(RepositoryVisibilityActionController));
 
 		this._viewModel = this.instantiationService.createInstance(ViewModel, this.tree, this.inputRenderer, viewMode, ViewModelSortKey.Path, viewState);
 		this._register(this._viewModel);
@@ -1898,9 +1998,17 @@ export class SCMViewPane extends ViewPane {
 
 	private onListContextMenu(e: ITreeContextMenuEvent<TreeElement | null>): void {
 		if (!e.element) {
+			const menu = this.menuService.createMenu(Menus.Repositories, this.contextKeyService);
+			const actions: IAction[] = [];
+			const disposable = createAndFillInContextMenuActions(menu, undefined, actions);
+
 			return this.contextMenuService.showContextMenu({
 				getAnchor: () => e.anchor,
-				getActions: () => getRepositoryVisibilityActions(this.scmService, this.scmViewService)
+				getActions: () => actions,
+				onHide: () => {
+					disposable.dispose();
+					menu.dispose();
+				}
 			});
 		}
 

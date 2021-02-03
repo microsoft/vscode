@@ -3,7 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { ISCMResource, ISCMRepository, ISCMResourceGroup, ISCMInput, ISCMService, ISCMViewService } from 'vs/workbench/contrib/scm/common/scm';
+import { ISCMResource, ISCMRepository, ISCMResourceGroup, ISCMInput } from 'vs/workbench/contrib/scm/common/scm';
 import { IMenu } from 'vs/platform/actions/common/actions';
 import { ActionBar } from 'vs/base/browser/ui/actionbar/actionbar';
 import { IDisposable, Disposable, combinedDisposable, toDisposable } from 'vs/base/common/lifecycle';
@@ -14,8 +14,6 @@ import { ActionViewItem } from 'vs/base/browser/ui/actionbar/actionViewItems';
 import { renderLabelWithIcons } from 'vs/base/browser/ui/iconLabel/iconLabels';
 import { ICommandService } from 'vs/platform/commands/common/commands';
 import { Command } from 'vs/editor/common/modes';
-import { basename } from 'vs/base/common/resources';
-import { Iterable } from 'vs/base/common/iterator';
 import { reset } from 'vs/base/browser/dom';
 
 export function isSCMRepository(element: any): element is ISCMRepository {
@@ -115,27 +113,4 @@ export function getStatusBarActionViewItem(action: IAction): IActionViewItem | u
 	}
 
 	return undefined;
-}
-
-export function getRepositoryVisibilityActions(scmService: ISCMService, scmViewService: ISCMViewService): IAction[] {
-	const visible = new Set<IAction>();
-	const actions = scmService.repositories.map(repository => {
-		const label = repository.provider.rootUri ? basename(repository.provider.rootUri) : repository.provider.label;
-		const action = new Action('scm.repository.toggleVisibility', label, undefined, true, async () => {
-			scmViewService.toggleVisibility(repository);
-		});
-
-		if (scmViewService.isVisible(repository)) {
-			action.checked = true;
-			visible.add(action);
-		}
-
-		return action;
-	});
-
-	if (visible.size === 1) {
-		Iterable.first(visible.values())!.enabled = false;
-	}
-
-	return actions;
 }
