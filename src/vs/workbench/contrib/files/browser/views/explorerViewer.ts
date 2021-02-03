@@ -748,6 +748,8 @@ function getFileOverwriteConfirm(name: string): IConfirmation {
 	};
 }
 
+//TODO: here!!
+/*
 function getMultipleFilesOverwriteConfirm(files: URI[]): IConfirmation {
 	if (files.length > 1) {
 		return {
@@ -759,7 +761,7 @@ function getMultipleFilesOverwriteConfirm(files: URI[]): IConfirmation {
 	}
 
 	return getFileOverwriteConfirm(basename(files[0]));
-}
+}*/
 
 interface IWebkitDataTransfer {
 	items: IWebkitDataTransferItem[];
@@ -1508,24 +1510,64 @@ export class FileDragAndDrop implements ITreeDragAndDrop<ExplorerItem> {
 			// Conflict
 			if ((<FileOperationError>error).fileOperationResult === FileOperationResult.FILE_MOVE_CONFLICT) {
 
-				const overwrites: URI[] = [];
+				const overwrites: ResourceFileEdit[] = [];
 				for (const edit of edits) {
 					if (edit.newResource && await this.fileService.exists(edit.newResource)) {
-						overwrites.push(edit.newResource);
+						overwrites.push(edit);
 					}
 				}
 
-				const confirm = getMultipleFilesOverwriteConfirm(overwrites);
-				// Move with overwrite if the user confirms
-				const { confirmed } = await this.dialogService.confirm(confirm);
+				//TODO: check if files > 1
 
-				if (confirmed) {
-					try {
-						await this.explorerService.applyBulkEdit(edits.map(re => new ResourceFileEdit(re.oldResource, re.newResource, { overwrite: true })), options);
-						return true;
-					} catch (error) {
-						this.notificationService.error(error);
+				//TODO: change key
+				const dialog = {
+					severity: Severity.Warning,
+					message: localize('confirmManyOverwrites2', "The following {0} files and/or folders already exist in the destination folder?", overwrites.length),
+					buttons: [
+						localize({ key: 'replaceAllButtonLabel', comment: ['&& denotes a mnemonic'] }, "&&Replace all"),
+						localize({ key: 'skipAllButtonLabel', comment: ['&& denotes a mnemonic'] }, "&&Skip all"),
+						localize({ key: 'decideAllButtonLabel', comment: ['&& denotes a mnemonic'] }, "&&Decide invidivually"),
+						localize({ key: 'cancelButtonLabel', comment: ['&& denotes a mnemonic'] }, "&&Cancel"),
+					],
+					options: {
+						cancelId: 3,
+						detail: getFileNamesMessage(overwrites.map(o => o.newResource!)) + '\n' + localize('irreversible', "This action is irreversible!")
 					}
+				};
+
+				const { choice } = await this.dialogService.show(dialog.severity, dialog.message, dialog.buttons, dialog.options);
+				if (choice === 1) {
+					edits = edits.filter(e => overwrites.indexOf(e) < 0);
+				} else if (choice === 2) {
+					// first filter them out, then add them individually
+					edits = edits.filter(e => overwrites.indexOf(e) < 0);
+
+					for (const overwrite of overwrites) {
+						const confirmDialog = getFileOverwriteConfirm(basename(overwrite.newResource!));
+						const { choice } = await this.dialogService.show(Severity.Warning, confirmDialog.message, [
+							confirmDialog.primaryButton!,
+							localize({ key: 'skipButtonLabel', comment: ['&& denotes a mnemonic'] }, "&&Skip"),
+							localize({ key: 'cancelAllButtonLabel', comment: ['&& denotes a mnemonic'] }, "&&Cancel all"),
+						], {
+							cancelId: 2,
+							detail: confirmDialog.detail
+						});
+
+						if (choice === 0) {
+							edits.push(overwrite);
+						} else if (choice === 2) {
+							return false;
+						}
+					}
+				} else if (choice === 3) {
+					return false;
+				}
+
+				try {
+					await this.explorerService.applyBulkEdit(edits.map(re => new ResourceFileEdit(re.oldResource, re.newResource, { overwrite: true })), options);
+					return true;
+				} catch (error) {
+					this.notificationService.error(error);
 				}
 			}
 			// Any other error
