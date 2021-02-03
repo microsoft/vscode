@@ -23,8 +23,8 @@ class StreamRenderer implements IOutputTransformContribution {
 
 	render(viewModel: IStreamOutputViewModel, container: HTMLElement): IRenderOutput {
 		const output = viewModel.model;
-		const contentNode = DOM.$('.output-stream');
-		truncatedArrayOfString(contentNode, [output.text], this.openerService, this.textFileService, this.themeService, false);
+		const contentNode = DOM.$('span.output-stream');
+		truncatedArrayOfString(contentNode, [output.text], this.openerService, this.textFileService, this.themeService);
 		container.appendChild(contentNode);
 		return { type: RenderOutputType.None, hasDynamicHeight: false };
 	}
