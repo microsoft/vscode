@@ -280,9 +280,9 @@ export type NotebookCellTextModelSplice<T> = [
 ];
 
 export type NotebookCellOutputsSplice = [
-	number /* start */,
-	number /* delete count */,
-	IProcessedOutput[]
+	start: number /* start */,
+	deleteCount: number /* delete count */,
+	newOutputs: IProcessedOutput[]
 ];
 
 export interface IMainCellDto {
@@ -411,6 +411,7 @@ export interface ICellOutputEdit {
 	editType: CellEditType.Output;
 	index: number;
 	outputs: IProcessedOutput[];
+	append?: boolean
 }
 
 export interface ICellMetadataEdit {
