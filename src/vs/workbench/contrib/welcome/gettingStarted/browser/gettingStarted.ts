@@ -294,8 +294,11 @@ export class GettingStartedPage extends Disposable {
 			}
 			this.buildCategorySlide(container, this.editorInput.selectedCategory, this.editorInput.selectedTask);
 			categoriesSlide.classList.add('prev');
+			this.setButtonEnablement(container, 'details');
 		} else {
 			tasksSlide.classList.add('next');
+			this.focusFirstUncompletedCategory(container);
+			this.setButtonEnablement(container, 'categories');
 		}
 		setTimeout(() => assertIsDefined(container.querySelector('.gettingStartedContainer')).classList.add('animationReady'), 0);
 	}
@@ -339,6 +342,7 @@ export class GettingStartedPage extends Disposable {
 				this.buildCategorySlide(container, categoryID);
 				slides[currentSlide].classList.add('prev');
 				slides[currentSlide + 1].classList.remove('next');
+				this.setButtonEnablement(container, 'details');
 			}
 		});
 	}
@@ -418,8 +422,29 @@ export class GettingStartedPage extends Disposable {
 			if (currentSlide > 0) {
 				slides[currentSlide].classList.add('next');
 				assertIsDefined(slides[currentSlide - 1]).classList.remove('prev');
+				this.setButtonEnablement(container, 'categories');
 			}
+			this.focusFirstUncompletedCategory(container);
 		});
+	}
+
+	private focusFirstUncompletedCategory(container: HTMLElement) {
+		let toFocus!: HTMLElement;
+		container.querySelectorAll('.category-progress').forEach(progress => {
+			const progressAmount = assertIsDefined(progress.querySelector('.progress-bar-inner') as HTMLDivElement).style.width;
+			if (!toFocus && progressAmount !== '100%') { toFocus = assertIsDefined(progress.parentElement?.parentElement); }
+		});
+		(toFocus ?? assertIsDefined(container.querySelector('button.skip')) as HTMLButtonElement).focus();
+	}
+
+	private setButtonEnablement(container: HTMLElement, toEnable: 'details' | 'categories') {
+		if (toEnable === 'categories') {
+			container.querySelector('.gettingStartedSlideDetails')!.querySelectorAll('button').forEach(button => button.disabled = true);
+			container.querySelector('.gettingStartedSlideCategory')!.querySelectorAll('button').forEach(button => button.disabled = false);
+		} else {
+			container.querySelector('.gettingStartedSlideDetails')!.querySelectorAll('button').forEach(button => button.disabled = false);
+			container.querySelector('.gettingStartedSlideCategory')!.querySelectorAll('button').forEach(button => button.disabled = true);
+		}
 	}
 }
 
@@ -503,6 +528,7 @@ registerThemingParticipant((theme, collector) => {
 	if (link) {
 		collector.addRule(`.monaco-workbench .part.editor > .content .walkThroughContent .gettingStartedContainer a { color: ${link}; }`);
 		collector.addRule(`.monaco-workbench .part.editor > .content .walkThroughContent .gettingStartedContainer .button-link { color: ${link}; }`);
+		collector.addRule(`.monaco-workbench .part.editor > .content .walkThroughContent .gettingStartedContainer .button-link * { color: ${link}; }`);
 	}
 	const activeLink = theme.getColor(textLinkActiveForeground);
 	if (activeLink) {
