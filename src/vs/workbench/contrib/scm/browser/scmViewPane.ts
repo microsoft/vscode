@@ -20,9 +20,9 @@ import { IContextKeyService, IContextKey, ContextKeyExpr, RawContextKey } from '
 import { ICommandService } from 'vs/platform/commands/common/commands';
 import { IKeybindingService } from 'vs/platform/keybinding/common/keybinding';
 import { MenuItemAction, IMenuService, registerAction2, MenuId, IAction2Options, MenuRegistry, Action2 } from 'vs/platform/actions/common/actions';
-import { IAction, ActionRunner, Action, IActionViewItemProvider } from 'vs/base/common/actions';
+import { IAction, ActionRunner, IActionViewItemProvider } from 'vs/base/common/actions';
 import { ActionBar } from 'vs/base/browser/ui/actionbar/actionbar';
-import { IThemeService, registerThemingParticipant, IFileIconTheme, ThemeIcon } from 'vs/platform/theme/common/themeService';
+import { IThemeService, registerThemingParticipant, IFileIconTheme } from 'vs/platform/theme/common/themeService';
 import { isSCMResource, isSCMResourceGroup, connectPrimaryMenuToInlineActionBar, isSCMRepository, isSCMInput, collectContextMenuActions, getStatusBarActionViewItem } from './util';
 import { attachBadgeStyler } from 'vs/platform/theme/common/styler';
 import { WorkbenchCompressibleObjectTree, IOpenEvent } from 'vs/platform/list/browser/listService';
@@ -787,6 +787,8 @@ MenuRegistry.appendMenuItem(Menus.ViewSort, {
 const ContextKeys = {
 	ViewModelMode: new RawContextKey<ViewModelMode>('scmViewModelMode', ViewModelMode.List),
 	ViewModelSortKey: new RawContextKey<ViewModelSortKey>('scmViewModelSortKey', ViewModelSortKey.Path),
+	ViewModelAreAllRepositoriesCollapsed: new RawContextKey<boolean>('scmViewModelAreAllRepositoriesCollapsed', false),
+	ViewModelIsAnyRepositoryCollapsible: new RawContextKey<boolean>('scmViewModelIsAnyRepositoryCollapsible', false),
 	SCMProvider: new RawContextKey<string | undefined>('scmProvider', undefined),
 	SCMProviderRootUri: new RawContextKey<string | undefined>('scmProviderRootUri', undefined),
 	SCMProviderHasRootUri: new RawContextKey<boolean>('scmProviderHasRootUri', undefined),
@@ -904,8 +906,6 @@ class ViewModel {
 	private readonly _onDidChangeMode = new Emitter<ViewModelMode>();
 	readonly onDidChangeMode = this._onDidChangeMode.event;
 
-	private _onDidChangeRepositoryCollapseState = new Emitter<void>();
-	readonly onDidChangeRepositoryCollapseState: Event<void>;
 	private visible: boolean = false;
 
 	get mode(): ViewModelMode { return this._mode; }
@@ -930,8 +930,7 @@ class ViewModel {
 
 		this.refresh();
 		this._onDidChangeMode.fire(mode);
-		this.viewModelModeContextKey.set(mode);
-		console.log(mode);
+		this.modeContextKey.set(mode);
 	}
 
 	private _sortKey: ViewModelSortKey = ViewModelSortKey.Path;
@@ -941,7 +940,7 @@ class ViewModel {
 			this._sortKey = sortKey;
 			this.refresh();
 		}
-		this.viewModelSortKeyContextKey.set(sortKey);
+		this.sortKeyContextKey.set(sortKey);
 	}
 
 	private _treeViewStateIsStale = false;
@@ -961,8 +960,10 @@ class ViewModel {
 	private firstVisible = true;
 	private disposables = new DisposableStore();
 
-	private viewModelModeContextKey: IContextKey<ViewModelMode>;
-	private viewModelSortKeyContextKey: IContextKey<ViewModelSortKey>;
+	private modeContextKey: IContextKey<ViewModelMode>;
+	private sortKeyContextKey: IContextKey<ViewModelSortKey>;
+	private areAllRepositoriesCollapsedContextKey: IContextKey<boolean>;
+	private isAnyRepositoryCollapsibleContextKey: IContextKey<boolean>;
 	private scmProviderContextKey: IContextKey<string | undefined>;
 	private scmProviderRootUriContextKey: IContextKey<string | undefined>;
 	private scmProviderHasRootUriContextKey: IContextKey<boolean>;
@@ -979,25 +980,21 @@ class ViewModel {
 		@IUriIdentityService private uriIdentityService: IUriIdentityService,
 		@IContextKeyService contextKeyService: IContextKeyService
 	) {
-		this.onDidChangeRepositoryCollapseState = Event.any(
-			this._onDidChangeRepositoryCollapseState.event,
-			Event.signal(Event.filter(this.tree.onDidChangeCollapseState, e => isSCMRepository(e.node.element)))
-		);
-
-		this.viewModelModeContextKey = ContextKeys.ViewModelMode.bindTo(contextKeyService);
-		console.log(_mode);
-		this.viewModelModeContextKey.set(_mode);
-		this.viewModelSortKeyContextKey = ContextKeys.ViewModelSortKey.bindTo(contextKeyService);
-		this.viewModelSortKeyContextKey.set(this._sortKey);
+		this.modeContextKey = ContextKeys.ViewModelMode.bindTo(contextKeyService);
+		this.modeContextKey.set(_mode);
+		this.sortKeyContextKey = ContextKeys.ViewModelSortKey.bindTo(contextKeyService);
+		this.sortKeyContextKey.set(this._sortKey);
+		this.areAllRepositoriesCollapsedContextKey = ContextKeys.ViewModelAreAllRepositoriesCollapsed.bindTo(contextKeyService);
+		this.isAnyRepositoryCollapsibleContextKey = ContextKeys.ViewModelIsAnyRepositoryCollapsible.bindTo(contextKeyService);
 		this.scmProviderContextKey = ContextKeys.SCMProvider.bindTo(contextKeyService);
-		this.scmProviderContextKey.set(undefined);
 		this.scmProviderRootUriContextKey = ContextKeys.SCMProviderRootUri.bindTo(contextKeyService);
-		this.scmProviderRootUriContextKey.set(undefined);
 		this.scmProviderHasRootUriContextKey = ContextKeys.SCMProviderHasRootUri.bindTo(contextKeyService);
-		this.scmProviderHasRootUriContextKey.set(false);
 
 		configurationService.onDidChangeConfiguration(this.onDidChangeConfiguration, this, this.disposables);
 		this.onDidChangeConfiguration();
+
+		Event.filter(this.tree.onDidChangeCollapseState, e => isSCMRepository(e.node.element))
+			(this.updateRepositoryCollapseAllContextKeys, this, this.disposables);
 
 		this.disposables.add(this.tree.onDidChangeCollapseState(() => this._treeViewStateIsStale = true));
 	}
@@ -1109,7 +1106,7 @@ class ViewModel {
 		}
 
 		this.visible = visible;
-		this._onDidChangeRepositoryCollapseState.fire();
+		this.updateRepositoryCollapseAllContextKeys();
 	}
 
 	private refresh(item?: IRepositoryItem | IGroupItem): void {
@@ -1134,7 +1131,7 @@ class ViewModel {
 			this.tree.setChildren(null, items.map(item => this.render(item, this.treeViewState)));
 		}
 
-		this._onDidChangeRepositoryCollapseState.fire();
+		this.updateRepositoryCollapseAllContextKeys();
 	}
 
 	private render(item: IRepositoryItem | IGroupItem, treeViewState?: ITreeViewState): ICompressedTreeElement<TreeElement> {
@@ -1237,7 +1234,18 @@ class ViewModel {
 		this.tree.domFocus();
 	}
 
-	collapseAllProviders(): void {
+	private updateRepositoryCollapseAllContextKeys(): void {
+		if (!this.visible || this.scmViewService.visibleRepositories.length === 1) {
+			this.isAnyRepositoryCollapsibleContextKey.set(false);
+			this.areAllRepositoriesCollapsedContextKey.set(false);
+			return;
+		}
+
+		this.isAnyRepositoryCollapsibleContextKey.set(this.scmViewService.visibleRepositories.some(r => this.tree.hasElement(r) && this.tree.isCollapsible(r)));
+		this.areAllRepositoriesCollapsedContextKey.set(this.scmViewService.visibleRepositories.every(r => this.tree.hasElement(r) && (!this.tree.isCollapsible(r) || this.tree.isCollapsed(r))));
+	}
+
+	collapseAllRepositories(): void {
 		for (const repository of this.scmViewService.visibleRepositories) {
 			if (this.tree.isCollapsible(repository)) {
 				this.tree.collapse(repository);
@@ -1245,28 +1253,12 @@ class ViewModel {
 		}
 	}
 
-	expandAllProviders(): void {
+	expandAllRepositories(): void {
 		for (const repository of this.scmViewService.visibleRepositories) {
 			if (this.tree.isCollapsible(repository)) {
 				this.tree.expand(repository);
 			}
 		}
-	}
-
-	isAnyProviderCollapsible(): boolean {
-		if (!this.visible || this.scmViewService.visibleRepositories.length === 1) {
-			return false;
-		}
-
-		return this.scmViewService.visibleRepositories.some(r => this.tree.hasElement(r) && this.tree.isCollapsible(r));
-	}
-
-	areAllProvidersCollapsed(): boolean {
-		if (!this.visible || this.scmViewService.visibleRepositories.length === 1) {
-			return false;
-		}
-
-		return this.scmViewService.visibleRepositories.every(r => this.tree.hasElement(r) && (!this.tree.isCollapsible(r) || this.tree.isCollapsed(r)));
 	}
 
 	dispose(): void {
@@ -1295,7 +1287,7 @@ class SetListViewModeAction extends ViewAction<SCMViewPane>  {
 	}
 }
 
-class InlineSetListViewModeAction extends SetListViewModeAction {
+class SetListViewModeNavigationAction extends SetListViewModeAction {
 	constructor() {
 		super({
 			id: MenuId.SCMTitle,
@@ -1324,7 +1316,7 @@ class SetTreeViewModeAction extends ViewAction<SCMViewPane>  {
 	}
 }
 
-class InlineSetTreeViewModeAction extends SetTreeViewModeAction {
+class SetTreeViewModeNavigationAction extends SetTreeViewModeAction {
 	constructor() {
 		super({
 			id: MenuId.SCMTitle,
@@ -1337,8 +1329,8 @@ class InlineSetTreeViewModeAction extends SetTreeViewModeAction {
 
 registerAction2(SetListViewModeAction);
 registerAction2(SetTreeViewModeAction);
-registerAction2(InlineSetListViewModeAction);
-registerAction2(InlineSetTreeViewModeAction);
+registerAction2(SetListViewModeNavigationAction);
+registerAction2(SetTreeViewModeNavigationAction);
 
 abstract class SetSortKeyAction extends ViewAction<SCMViewPane>  {
 	constructor(private sortKey: ViewModelSortKey, title: string) {
@@ -1378,6 +1370,53 @@ class SetSortByStatusAction extends SetSortKeyAction {
 registerAction2(SetSortByNameAction);
 registerAction2(SetSortByPathAction);
 registerAction2(SetSortByStatusAction);
+
+class CollapseAllRepositoriesAction extends ViewAction<SCMViewPane>  {
+
+	constructor() {
+		super({
+			id: `workbench.scm.action.collapseAllRepositories`,
+			title: localize('collapse all', "Collapse All Repositories"),
+			viewId: VIEW_PANE_ID,
+			f1: false,
+			icon: Codicon.collapseAll,
+			menu: {
+				id: MenuId.SCMTitle,
+				group: 'navigation',
+				when: ContextKeyExpr.and(ContextKeys.ViewModelIsAnyRepositoryCollapsible.isEqualTo(true), ContextKeys.ViewModelAreAllRepositoriesCollapsed.isEqualTo(false))
+			}
+		});
+	}
+
+	async runInView(_: ServicesAccessor, view: SCMViewPane): Promise<void> {
+		view.viewModel.collapseAllRepositories();
+	}
+}
+
+class ExpandAllRepositoriesAction extends ViewAction<SCMViewPane>  {
+
+	constructor() {
+		super({
+			id: `workbench.scm.action.expandAllRepositories`,
+			title: localize('expand all', "Expand All Repositories"),
+			viewId: VIEW_PANE_ID,
+			f1: false,
+			icon: Codicon.expandAll,
+			menu: {
+				id: MenuId.SCMTitle,
+				group: 'navigation',
+				when: ContextKeyExpr.and(ContextKeys.ViewModelIsAnyRepositoryCollapsible.isEqualTo(true), ContextKeys.ViewModelAreAllRepositoriesCollapsed.isEqualTo(true))
+			}
+		});
+	}
+
+	async runInView(_: ServicesAccessor, view: SCMViewPane): Promise<void> {
+		view.viewModel.expandAllRepositories();
+	}
+}
+
+registerAction2(CollapseAllRepositoriesAction);
+registerAction2(ExpandAllRepositoriesAction);
 
 class SCMInputWidget extends Disposable {
 
@@ -1711,34 +1750,6 @@ class SCMInputWidget extends Disposable {
 		this.repositoryDisposables.dispose();
 		this.validationDisposable.dispose();
 		super.dispose();
-	}
-}
-
-class SCMCollapseAction extends Action {
-
-	private allCollapsed = false;
-
-	constructor(private viewModel: ViewModel) {
-		super('scm.collapse', undefined, undefined, true);
-		this._register(viewModel.onDidChangeRepositoryCollapseState(this.update, this));
-		this.update();
-	}
-
-	async run(): Promise<void> {
-		if (this.allCollapsed) {
-			this.viewModel.expandAllProviders();
-		} else {
-			this.viewModel.collapseAllProviders();
-		}
-	}
-
-	private update(): void {
-		const isAnyProviderCollapsible = this.viewModel.isAnyProviderCollapsible();
-
-		this.enabled = isAnyProviderCollapsible;
-		this.allCollapsed = isAnyProviderCollapsible && this.viewModel.areAllProvidersCollapsed();
-		this.label = this.allCollapsed ? localize('expand all', "Expand All Repositories") : localize('collapse all', "Collapse All Repositories");
-		this.class = ThemeIcon.asClassName(this.allCollapsed ? Codicon.expandAll : Codicon.collapseAll);
 	}
 }
 
