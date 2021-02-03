@@ -771,19 +771,6 @@ const Menus = {
 	Repositories: new MenuId('SCMRepositories'),
 };
 
-MenuRegistry.appendMenuItem(MenuId.SCMTitle, {
-	title: localize('sortAction', "View & Sort"),
-	submenu: Menus.ViewSort,
-	when: ContextKeyExpr.equals('view', VIEW_PANE_ID),
-	group: '0_view&sort'
-});
-
-MenuRegistry.appendMenuItem(Menus.ViewSort, {
-	title: localize('repositories', "Repositories"),
-	submenu: Menus.Repositories,
-	group: '0_repositories'
-});
-
 const ContextKeys = {
 	ViewModelMode: new RawContextKey<ViewModelMode>('scmViewModelMode', ViewModelMode.List),
 	ViewModelSortKey: new RawContextKey<ViewModelSortKey>('scmViewModelSortKey', ViewModelSortKey.Path),
@@ -792,11 +779,25 @@ const ContextKeys = {
 	SCMProvider: new RawContextKey<string | undefined>('scmProvider', undefined),
 	SCMProviderRootUri: new RawContextKey<string | undefined>('scmProviderRootUri', undefined),
 	SCMProviderHasRootUri: new RawContextKey<boolean>('scmProviderHasRootUri', undefined),
+	RepositoryCount: new RawContextKey<number>('scmRepositoryCount', 0),
 	RepositoryVisibilityCount: new RawContextKey<number>('scmRepositoryVisibleCount', 0),
 	RepositoryVisibility(repository: ISCMRepository) {
 		return new RawContextKey<boolean>(`scmRepositoryVisible:${repository.provider.id}`, false);
 	}
 };
+
+MenuRegistry.appendMenuItem(MenuId.SCMTitle, {
+	title: localize('sortAction', "View & Sort"),
+	submenu: Menus.ViewSort,
+	when: ContextKeyExpr.and(ContextKeyExpr.equals('view', VIEW_PANE_ID), ContextKeys.RepositoryCount.notEqualsTo(0)),
+	group: '0_view&sort'
+});
+
+MenuRegistry.appendMenuItem(Menus.ViewSort, {
+	title: localize('repositories', "Repositories"),
+	submenu: Menus.Repositories,
+	group: '0_repositories'
+});
 
 class RepositoryVisibilityAction extends Action2 {
 
@@ -829,6 +830,7 @@ interface RepositoryVisibilityItem {
 class RepositoryVisibilityActionController {
 
 	private items = new Map<ISCMRepository, RepositoryVisibilityItem>();
+	private repositoryCountContextKey: IContextKey<number>;
 	private repositoryVisibilityCountContextKey: IContextKey<number>;
 	private disposables = new DisposableStore();
 
@@ -837,6 +839,7 @@ class RepositoryVisibilityActionController {
 		@ISCMService scmService: ISCMService,
 		@IContextKeyService private contextKeyService: IContextKeyService
 	) {
+		this.repositoryCountContextKey = ContextKeys.RepositoryCount.bindTo(contextKeyService);
 		this.repositoryVisibilityCountContextKey = ContextKeys.RepositoryVisibilityCount.bindTo(contextKeyService);
 
 		scmViewService.onDidChangeVisibleRepositories(this.onDidChangeVisibleRepositories, this, this.disposables);
@@ -865,13 +868,14 @@ class RepositoryVisibilityActionController {
 				action.dispose();
 			}
 		});
-		this.updateVisibleRepositoriesCount();
+
+		this.updateRepositoriesCounts();
 	}
 
 	private onDidRemoveRepository(repository: ISCMRepository): void {
 		this.items.get(repository)?.dispose();
 		this.items.delete(repository);
-		this.updateVisibleRepositoriesCount();
+		this.updateRepositoriesCounts();
 	}
 
 	private onDidChangeVisibleRepositories(): void {
@@ -886,12 +890,13 @@ class RepositoryVisibilityActionController {
 			}
 		}
 
+		this.repositoryCountContextKey.set(this.items.size);
 		this.repositoryVisibilityCountContextKey.set(count);
 	}
 
-	private updateVisibleRepositoriesCount(): void {
-		const count = Iterable.reduce(this.items.keys(), (r, repository) => r + (this.scmViewService.isVisible(repository) ? 1 : 0), 0);
-		this.repositoryVisibilityCountContextKey.set(count);
+	private updateRepositoriesCounts(): void {
+		this.repositoryCountContextKey.set(this.items.size);
+		this.repositoryVisibilityCountContextKey.set(Iterable.reduce(this.items.keys(), (r, repository) => r + (this.scmViewService.isVisible(repository) ? 1 : 0), 0));
 	}
 
 	dispose(): void {
@@ -1291,7 +1296,7 @@ class SetListViewModeNavigationAction extends SetListViewModeAction {
 	constructor() {
 		super({
 			id: MenuId.SCMTitle,
-			when: ContextKeyExpr.and(ContextKeyExpr.equals('view', VIEW_PANE_ID), ContextKeys.ViewModelMode.isEqualTo(ViewModelMode.Tree)),
+			when: ContextKeyExpr.and(ContextKeyExpr.equals('view', VIEW_PANE_ID), ContextKeys.RepositoryCount.notEqualsTo(0), ContextKeys.ViewModelMode.isEqualTo(ViewModelMode.Tree)),
 			group: 'navigation',
 			order: -1000
 		});
@@ -1320,7 +1325,7 @@ class SetTreeViewModeNavigationAction extends SetTreeViewModeAction {
 	constructor() {
 		super({
 			id: MenuId.SCMTitle,
-			when: ContextKeyExpr.and(ContextKeyExpr.equals('view', VIEW_PANE_ID), ContextKeys.ViewModelMode.isEqualTo(ViewModelMode.List)),
+			when: ContextKeyExpr.and(ContextKeyExpr.equals('view', VIEW_PANE_ID), ContextKeys.RepositoryCount.notEqualsTo(0), ContextKeys.ViewModelMode.isEqualTo(ViewModelMode.List)),
 			group: 'navigation',
 			order: -1000
 		});
