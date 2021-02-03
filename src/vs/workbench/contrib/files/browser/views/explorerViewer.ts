@@ -36,7 +36,7 @@ import { IDragAndDropData, DataTransfers } from 'vs/base/browser/dnd';
 import { Schemas } from 'vs/base/common/network';
 import { NativeDragAndDropData, ExternalElementsDragAndDropData, ElementsDragAndDropData } from 'vs/base/browser/ui/list/listView';
 import { isMacintosh, isWeb } from 'vs/base/common/platform';
-import { IDialogService, IConfirmation, getFileNamesMessage } from 'vs/platform/dialogs/common/dialogs';
+import { IDialogService, IConfirmation, IDialogOptions, getFileNamesMessage } from 'vs/platform/dialogs/common/dialogs';
 import { IHostService } from 'vs/workbench/services/host/browser/host';
 import { IWorkspaceEditingService } from 'vs/workbench/services/workspaces/common/workspaceEditing';
 import { URI } from 'vs/base/common/uri';
@@ -748,20 +748,40 @@ function getFileOverwriteConfirm(name: string): IConfirmation {
 	};
 }
 
-//TODO: here!!
-/*
-function getMultipleFilesOverwriteConfirm(files: URI[]): IConfirmation {
-	if (files.length > 1) {
-		return {
-			message: localize('confirmManyOverwrites', "The following {0} files and/or folders already exist in the destination folder. Do you want to replace them?", files.length),
-			detail: getFileNamesMessage(files) + '\n' + localize('irreversible', "This action is irreversible!"),
-			primaryButton: localize({ key: 'replaceButtonLabel', comment: ['&& denotes a mnemonic'] }, "&&Replace"),
-			type: 'warning'
-		};
-	}
+function getFileOverwriteOrSkip(name: string): { severity: Severity, message: string, buttons: string[], options: IDialogOptions } {
+	const confirmDialog = getFileOverwriteConfirm(name);
 
-	return getFileOverwriteConfirm(basename(files[0]));
-}*/
+	return {
+		severity: Severity.Warning,
+		message: confirmDialog.message,
+		buttons: [
+			confirmDialog.primaryButton!,
+			localize({ key: 'skipButtonLabel', comment: ['&& denotes a mnemonic'] }, "&&Skip"),
+			localize({ key: 'cancelButtonLabel', comment: ['&& denotes a mnemonic'] }, "&&Cancel"),
+		],
+		options: {
+			cancelId: 2,
+			detail: confirmDialog.detail
+		}
+	};
+}
+
+function getMultipleFilesOverwriteOrSkip(files: URI[]): { severity: Severity, message: string, buttons: string[], options: IDialogOptions } {
+	return {
+		severity: Severity.Warning,
+		message: localize('confirmManyOverwrites', "The following {0} files and/or folders already exist in the destination folder?", files.length),
+		buttons: [
+			localize({ key: 'replaceAllButtonLabel', comment: ['&& denotes a mnemonic'] }, "&&Replace all"),
+			localize({ key: 'skipAllButtonLabel', comment: ['&& denotes a mnemonic'] }, "&&Skip all"),
+			localize({ key: 'decideAllButtonLabel', comment: ['&& denotes a mnemonic'] }, "&&Decide invidivually"),
+			localize({ key: 'cancelButtonLabel', comment: ['&& denotes a mnemonic'] }, "&&Cancel"),
+		],
+		options: {
+			cancelId: 3,
+			detail: getFileNamesMessage(files) + '\n' + localize('irreversible', "This action is irreversible!")
+		}
+	};
+}
 
 interface IWebkitDataTransfer {
 	items: IWebkitDataTransferItem[];
@@ -1487,10 +1507,14 @@ export class FileDragAndDrop implements ITreeDragAndDrop<ExplorerItem> {
 			// Since all children of the folder are moved individually, we have to delete the folder
 			// Once everything has been moved successfully, we can delete the folders
 			try {
-				// BulkEdit does not allow deleting in order. Executing all deletions at once would cause an error
-				// (since deleting non-empty folders is not supported). So we iteratively apply bulk edit
+				// BulkEdit does not allow deleting in order. Executing all folder-deletions at once would cause an error
+				// since the order is required for subfolders (otherwise they would not be empty).
 				for (const edit of resourceFileEdits.filter(edit => !edit.newResource)) {
-					await this.explorerService.applyBulkEdit([edit], options);
+					const resolved = await this.fileService.resolve(edit.oldResource!);
+					// since the user could decide to skip some files, we only delete empty folders
+					if (!resolved.children || resolved.children.length === 0) {
+						await this.explorerService.applyBulkEdit([edit], options);
+					}
 				}
 			} catch (error) {
 				this.notificationService.error(error);
@@ -1509,7 +1533,6 @@ export class FileDragAndDrop implements ITreeDragAndDrop<ExplorerItem> {
 		} catch (error) {
 			// Conflict
 			if ((<FileOperationError>error).fileOperationResult === FileOperationResult.FILE_MOVE_CONFLICT) {
-
 				const overwrites: ResourceFileEdit[] = [];
 				for (const edit of edits) {
 					if (edit.newResource && await this.fileService.exists(edit.newResource)) {
@@ -1517,50 +1540,37 @@ export class FileDragAndDrop implements ITreeDragAndDrop<ExplorerItem> {
 					}
 				}
 
-				//TODO: check if files > 1
+				// remove all edits that cause a conflict and (maybe) add (some of) them later
+				edits = edits.filter(e => overwrites.indexOf(e) < 0);
 
-				//TODO: change key
-				const dialog = {
-					severity: Severity.Warning,
-					message: localize('confirmManyOverwrites2', "The following {0} files and/or folders already exist in the destination folder?", overwrites.length),
-					buttons: [
-						localize({ key: 'replaceAllButtonLabel', comment: ['&& denotes a mnemonic'] }, "&&Replace all"),
-						localize({ key: 'skipAllButtonLabel', comment: ['&& denotes a mnemonic'] }, "&&Skip all"),
-						localize({ key: 'decideAllButtonLabel', comment: ['&& denotes a mnemonic'] }, "&&Decide invidivually"),
-						localize({ key: 'cancelButtonLabel', comment: ['&& denotes a mnemonic'] }, "&&Cancel"),
-					],
-					options: {
-						cancelId: 3,
-						detail: getFileNamesMessage(overwrites.map(o => o.newResource!)) + '\n' + localize('irreversible', "This action is irreversible!")
+				if (overwrites.length === 1) {
+					//TODO: code duplication
+					const { choice } = await this.chooseOverwriteOrSkip(overwrites[0].newResource!);
+
+					if (choice === 'cancel') {
+						return false;
+					} else if (choice === 'replace') {
+						edits.push(overwrites[0]);
 					}
-				};
+				} else {
+					const dialog = getMultipleFilesOverwriteOrSkip(overwrites.map(o => o.newResource!));
+					const { choice } = await this.dialogService.show(dialog.severity, dialog.message, dialog.buttons, dialog.options);
 
-				const { choice } = await this.dialogService.show(dialog.severity, dialog.message, dialog.buttons, dialog.options);
-				if (choice === 1) {
-					edits = edits.filter(e => overwrites.indexOf(e) < 0);
-				} else if (choice === 2) {
-					// first filter them out, then add them individually
-					edits = edits.filter(e => overwrites.indexOf(e) < 0);
+					//TODO: those choices do not seem consistent with above
 
-					for (const overwrite of overwrites) {
-						const confirmDialog = getFileOverwriteConfirm(basename(overwrite.newResource!));
-						const { choice } = await this.dialogService.show(Severity.Warning, confirmDialog.message, [
-							confirmDialog.primaryButton!,
-							localize({ key: 'skipButtonLabel', comment: ['&& denotes a mnemonic'] }, "&&Skip"),
-							localize({ key: 'cancelAllButtonLabel', comment: ['&& denotes a mnemonic'] }, "&&Cancel all"),
-						], {
-							cancelId: 2,
-							detail: confirmDialog.detail
-						});
+					if (choice === 2) {
+						for (const overwrite of overwrites) {
+							const { choice } = await this.chooseOverwriteOrSkip(overwrite.newResource!);
 
-						if (choice === 0) {
-							edits.push(overwrite);
-						} else if (choice === 2) {
-							return false;
+							if (choice === 'cancel') {
+								return false;
+							} else if (choice === 'replace') {
+								edits.push(overwrite);
+							}
 						}
+					} else if (choice === 3) {
+						return false;
 					}
-				} else if (choice === 3) {
-					return false;
 				}
 
 				try {
@@ -1577,6 +1587,19 @@ export class FileDragAndDrop implements ITreeDragAndDrop<ExplorerItem> {
 		}
 
 		return false;
+	}
+
+	private async chooseOverwriteOrSkip(file: URI): Promise<{ choice: 'replace' | 'skip' | 'cancel' }> {
+		const confirmDialog = getFileOverwriteOrSkip(basename(file));
+		const { choice } = await this.dialogService.show(confirmDialog.severity, confirmDialog.message, confirmDialog.buttons, confirmDialog.options);
+
+		if (choice === 0) {
+			return { choice: 'replace' };
+		} else if (choice === 1) {
+			return { choice: 'skip' };
+		}
+
+		return { choice: 'cancel' };
 	}
 
 	private async explodeConflictingFolderEdit(edit: ResourceFileEdit): Promise<ResourceFileEdit[]> {
