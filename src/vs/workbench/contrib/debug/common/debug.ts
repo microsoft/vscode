@@ -504,6 +504,7 @@ export interface IDebugConfiguration {
 		lineHeight: number;
 		wordWrap: boolean;
 		closeOnEnd: boolean;
+		collapseIdenticalLines: boolean;
 		historySuggestions: boolean;
 	};
 	focusWindowOnBreak: boolean;

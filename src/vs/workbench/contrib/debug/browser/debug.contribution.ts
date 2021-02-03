@@ -456,6 +456,11 @@ function registerConfiguration(): void {
 				description: nls.localize('debug.console.historySuggestions', "Controls if the debug console should suggest previously typed input."),
 				default: true
 			},
+			'debug.console.collapseIdenticalLines': {
+				type: 'boolean',
+				description: nls.localize('debug.console.collapseIdenticalLines', "Controls if the debug console should collapse identical lines and show a number of occurrences with a badge."),
+				default: true
+			},
 			'launch': {
 				type: 'object',
 				description: nls.localize({ comment: ['This is the description for a setting'], key: 'launch' }, "Global debug launch configuration. Should be used as an alternative to 'launch.json' that is shared across workspaces."),
