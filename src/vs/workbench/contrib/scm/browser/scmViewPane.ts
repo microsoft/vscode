@@ -1784,7 +1784,6 @@ export class SCMViewPane extends ViewPane {
 		@IKeybindingService keybindingService: IKeybindingService,
 		@IThemeService themeService: IThemeService,
 		@IContextMenuService contextMenuService: IContextMenuService,
-		@IContextViewService contextViewService: IContextViewService,
 		@ICommandService commandService: ICommandService,
 		@IEditorService editorService: IEditorService,
 		@IInstantiationService _instantiationService: IInstantiationService,
