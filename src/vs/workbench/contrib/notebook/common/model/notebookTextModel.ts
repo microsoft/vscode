@@ -485,10 +485,16 @@ export class NotebookTextModel extends Disposable implements INotebookTextModel 
 				}
 				readonly label = 'Update Notebook Metadata';
 				undo() {
-					that._updateNotebookMetadata(oldMetadata, false);
+					that._updateNotebookMetadata({
+						...oldMetadata,
+						runState: that.metadata.runState
+					}, false);
 				}
 				redo() {
-					that._updateNotebookMetadata(metadata, false);
+					that._updateNotebookMetadata({
+						...metadata,
+						runState: that.metadata.runState
+					}, false);
 				}
 			}(), undefined, undefined);
 		}
